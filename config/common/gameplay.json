@@ -29,8 +29,26 @@
     "bounce_retention": 0.85
   },
   "power_ups": {
-    "multi_shot_count": 5,
-    "multi_shot_angle_degrees": 1.5
+    "multi_shot": {
+      "spread_degrees": 1.2,
+      "pattern": "star_4",
+      "patterns": {
+        "dice_5": {
+          "stencil": ["x.x", ".x.", "x.x"]
+        },
+        "triangle_3": {
+          "row_scale": 1.732,
+          "stencil": [".x.", "x.x"]
+        },
+        "star_4": {
+          "row_scale": 0.577,
+          "stencil": [".x.", "...", ".o.", "x.x"]
+        },
+        "line_5": {
+          "stencil": ["xxxxx"]
+        }
+      }
+    }
   },
   "missiles": {
     "lock_range": 100.0,

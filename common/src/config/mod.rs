@@ -4,6 +4,7 @@ pub mod network;
 pub use gameplay::{
     ActorMovementConfig, CharacterColliderAnchor, CharacterColliderConfig, CharacterGameplayConfig,
     CharacterPhysicsConfig, CharacterSupportProbeConfig, GameplayConfig, KnockbackConfig, MissilesConfig,
-    MovementConfig, PlayerGameplayConfig, PlayerMovementConfig, PowerUpEffectsConfig, ProjectilesConfig,
+    MovementConfig, MultiShotConfig, PlayerGameplayConfig, PlayerMovementConfig, PowerUpEffectsConfig,
+    ProjectilesConfig,
 };
 pub use network::{create_quinn_client_config, create_quinn_server_config, load_certs, load_private_key};

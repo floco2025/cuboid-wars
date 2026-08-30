@@ -38,21 +38,17 @@ pub fn calculate_projectile_spawns(
 ) -> Vec<ProjectileSpawnInfo> {
     let mut spawns = Vec::new();
 
-    let num_shots = if has_multi_shot {
-        gameplay.power_ups.multi_shot_count
+    let offsets: &[(f32, f32)] = if has_multi_shot {
+        gameplay.power_ups.multi_shot.shots()
     } else {
-        1
+        &[(0.0, 0.0)]
     };
 
-    // Spawn projectiles in an arc
-    let angle_step = gameplay.power_ups.multi_shot_angle_degrees.to_radians();
-    let start_offset = -(num_shots - 1) as f32 * angle_step / 2.0;
+    for &(yaw_offset, pitch_offset) in offsets {
+        let shot_yaw = face_yaw + yaw_offset;
+        let shot_pitch = face_pitch + pitch_offset;
 
-    for i in 0..num_shots {
-        let angle_offset = (i as f32).mul_add(angle_step, start_offset);
-        let shot_yaw = face_yaw + angle_offset;
-
-        let aim = crate::math::direction_from_yaw_pitch(shot_yaw, face_pitch);
+        let aim = crate::math::direction_from_yaw_pitch(shot_yaw, shot_pitch);
 
         // Camera origin at eye height (match FPV) and push forward along aim direction
         let camera_origin = Vec3::new(shooter_pos.x, shooter_pos.y + shooter_eye_height, shooter_pos.z);
@@ -74,7 +70,7 @@ pub fn calculate_projectile_spawns(
         spawns.push(ProjectileSpawnInfo {
             position: spawn_position,
             direction_yaw: shot_yaw,
-            direction_pitch: face_pitch,
+            direction_pitch: shot_pitch,
         });
     }
 

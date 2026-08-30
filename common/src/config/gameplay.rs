@@ -44,7 +44,6 @@ impl GameplayConfig {
         self.player.validate("player")?;
         self.projectiles.validate("projectiles")?;
         self.missiles.validate("missiles")?;
-        self.power_ups.validate("power_ups")?;
         if self.actors.is_empty() {
             bail!("actors must define at least one kind");
         }
@@ -153,25 +152,144 @@ impl ProjectilesConfig {
     }
 }
 
-// Multi-shot magnitudes, shared by both sides' projectile spawning. (The
-// speed power-up's multiplier is `movement.player.speed_power_up`;
-// durations are server-only tuning in `config/server/gameplay.json`.)
-#[derive(Debug, Clone, Copy, Deserialize)]
+// Multi-shot, shared by both sides' projectile spawning. (The speed
+// power-up's multiplier is `movement.player.speed_power_up`; durations are
+// server-only tuning in `config/server/gameplay.json`.)
+#[derive(Debug, Clone, Deserialize)]
 pub struct PowerUpEffectsConfig {
-    pub multi_shot_count: i32,
-    // Yaw between adjacent projectiles of a multi-shot arc.
-    pub multi_shot_angle_degrees: f32,
+    pub multi_shot: MultiShotConfig,
 }
 
-impl PowerUpEffectsConfig {
-    fn validate(&self, path: &str) -> Result<()> {
-        if self.multi_shot_count < 1 {
-            bail!("{path}.multi_shot_count must be at least 1");
+const MULTI_SHOT_MAX_SHOTS: usize = 9;
+
+// The shots a multi-shot fires, parsed once at load: `pattern` picks an
+// entry of `patterns`, a stencil of rows top-down with columns
+// `spread_degrees × column_scale` apart in yaw and rows
+// `spread_degrees × row_scale` apart in pitch — so one number sizes every
+// pattern, and the scales only reshape the grid. `x` fires, `.` does not;
+// `o` fires from the aim itself and `+` is the aim without a shot — with
+// neither, the aim is the grid's centre.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(try_from = "MultiShotSource")]
+pub struct MultiShotConfig {
+    shots: Vec<(f32, f32)>,
+}
+
+#[derive(Deserialize)]
+struct MultiShotSource {
+    spread_degrees: f32,
+    pattern: String,
+    patterns: HashMap<String, MultiShotPattern>,
+}
+
+const fn full_scale() -> f32 {
+    1.0
+}
+
+#[derive(Clone, Deserialize)]
+struct MultiShotPattern {
+    #[serde(default = "full_scale")]
+    column_scale: f32,
+    #[serde(default = "full_scale")]
+    row_scale: f32,
+    stencil: Vec<String>,
+}
+
+impl TryFrom<MultiShotSource> for MultiShotConfig {
+    type Error = anyhow::Error;
+
+    fn try_from(source: MultiShotSource) -> Result<Self> {
+        validate_positive_finite(source.spread_degrees, "multi_shot.spread_degrees")?;
+        let mut selected = None;
+        for (name, pattern) in &source.patterns {
+            let path = format!("multi_shot.patterns.{name}");
+            validate_positive_finite(pattern.column_scale, &format!("{path}.column_scale"))?;
+            validate_positive_finite(pattern.row_scale, &format!("{path}.row_scale"))?;
+            let config = Self::from_stencil(
+                &path,
+                source.spread_degrees * pattern.column_scale,
+                source.spread_degrees * pattern.row_scale,
+                &pattern.stencil,
+            )?;
+            if let Some((_, digits)) = name.rsplit_once('_')
+                && let Ok(count) = digits.parse::<usize>()
+                && count != config.shots().len()
+            {
+                bail!(
+                    "{path} fires {} shots, not the {count} its name claims",
+                    config.shots().len()
+                );
+            }
+            if *name == source.pattern {
+                selected = Some(config);
+            }
         }
-        validate_positive_finite(
-            self.multi_shot_angle_degrees,
-            &format!("{path}.multi_shot_angle_degrees"),
-        )
+        let Some(selected) = selected else {
+            bail!(
+                "multi_shot.pattern {:?} is not one of multi_shot.patterns",
+                source.pattern
+            );
+        };
+        Ok(selected)
+    }
+}
+
+impl MultiShotConfig {
+    // Positive yaw turns left (`direction_from_yaw_pitch`), so columns
+    // further right go negative.
+    pub fn from_stencil(path: &str, column_degrees: f32, row_degrees: f32, stencil: &[String]) -> Result<Self> {
+        validate_positive_finite(column_degrees, &format!("{path}.column_degrees"))?;
+        validate_positive_finite(row_degrees, &format!("{path}.row_degrees"))?;
+        let Some(width) = stencil.first().map(|row| row.chars().count()) else {
+            bail!("{path}.stencil must have at least one row");
+        };
+        if width == 0 || stencil.iter().any(|row| row.chars().count() != width) {
+            bail!("{path}.stencil rows must all have the same non-zero width");
+        }
+
+        let mut cells = Vec::new();
+        let mut aim = None;
+        for (row, line) in stencil.iter().enumerate() {
+            for (col, cell) in line.chars().enumerate() {
+                let (fires, anchors) = match cell {
+                    'x' => (true, false),
+                    'o' => (true, true),
+                    '+' => (false, true),
+                    '.' => (false, false),
+                    other => bail!("{path}.stencil may only contain 'x', 'o', '+' and '.', found {other:?}"),
+                };
+                if anchors && aim.replace((col as f32, row as f32)).is_some() {
+                    bail!("{path}.stencil may mark the aim only once");
+                }
+                if fires {
+                    cells.push((col as f32, row as f32));
+                }
+            }
+        }
+        let (aim_col, aim_row) = aim.unwrap_or(((width as f32 - 1.0) / 2.0, (stencil.len() as f32 - 1.0) / 2.0));
+
+        let column_step = column_degrees.to_radians();
+        let row_step = row_degrees.to_radians();
+        let shots: Vec<(f32, f32)> = cells
+            .into_iter()
+            .map(|(col, row)| (-(col - aim_col) * column_step, (aim_row - row) * row_step))
+            .collect();
+        if shots.is_empty() {
+            bail!("{path}.stencil must contain at least one shot");
+        }
+        if shots.len() > MULTI_SHOT_MAX_SHOTS {
+            bail!(
+                "{path}.stencil has {} shots; max is {MULTI_SHOT_MAX_SHOTS}",
+                shots.len()
+            );
+        }
+        Ok(Self { shots })
+    }
+
+    // (yaw, pitch) offsets in radians, one per shot.
+    #[must_use]
+    pub fn shots(&self) -> &[(f32, f32)] {
+        &self.shots
     }
 }
 
@@ -475,5 +593,118 @@ mod tests {
             ..missiles_config()
         };
         assert!(config.validate("missiles").is_err());
+    }
+
+    fn multi_shot(stencil: &[&str]) -> Result<MultiShotConfig> {
+        let rows: Vec<String> = stencil.iter().map(|row| (*row).to_owned()).collect();
+        MultiShotConfig::from_stencil("multi_shot", 2.0, 3.0, &rows)
+    }
+
+    #[test]
+    fn multi_shot_selects_and_scales_a_named_pattern() {
+        let patterns = HashMap::from([(
+            "line".to_owned(),
+            MultiShotPattern {
+                column_scale: 1.5,
+                row_scale: 1.0,
+                stencil: vec!["xx".to_owned()],
+            },
+        )]);
+        let selected = MultiShotConfig::try_from(MultiShotSource {
+            spread_degrees: 2.0,
+            pattern: "line".to_owned(),
+            patterns: patterns.clone(),
+        })
+        .expect("named pattern rejected");
+        // Half a column step off the aim, at spread × scale = 3° per column.
+        let (yaw, pitch) = selected.shots()[0];
+        assert!((yaw - 1.5_f32.to_radians()).abs() < 1e-6 && pitch == 0.0);
+
+        let missing = MultiShotConfig::try_from(MultiShotSource {
+            spread_degrees: 2.0,
+            pattern: "ring".to_owned(),
+            patterns,
+        });
+        assert!(missing.expect_err("unknown name accepted").to_string().contains("ring"));
+    }
+
+    #[test]
+    fn multi_shot_offsets_are_centred_on_the_aim() {
+        let column = 2.0_f32.to_radians();
+        let row = 3.0_f32.to_radians();
+        // Columns run screen-left to screen-right, which is decreasing yaw.
+        assert_eq!(
+            multi_shot(&["xxx"]).expect("line stencil rejected").shots(),
+            &[(column, 0.0), (0.0, 0.0), (-column, 0.0)]
+        );
+        // Rows run top-down; an even count centres between cells.
+        assert_eq!(
+            multi_shot(&["x", "x"]).expect("column stencil rejected").shots(),
+            &[(0.0, row / 2.0), (0.0, -row / 2.0)]
+        );
+    }
+
+    #[test]
+    fn multi_shot_triangle_is_equilateral_at_root_three_rows() {
+        let rows: Vec<String> = [".x.", "x.x"].map(str::to_owned).to_vec();
+        let config =
+            MultiShotConfig::from_stencil("multi_shot", 1.0, 3.0_f32.sqrt(), &rows).expect("triangle stencil rejected");
+        let [top, left, right] = config.shots() else {
+            panic!("triangle has {} shots", config.shots().len());
+        };
+        let side = |a: &(f32, f32), b: &(f32, f32)| ((a.0 - b.0).powi(2) + (a.1 - b.1).powi(2)).sqrt();
+        assert!((side(top, left) - side(left, right)).abs() < 1e-6);
+        assert!((side(top, right) - side(left, right)).abs() < 1e-6);
+    }
+
+    #[test]
+    fn multi_shot_anchor_moves_the_aim() {
+        let column = 2.0_f32.to_radians();
+        let row = 3.0_f32.to_radians();
+        // `o` fires from the aim; the other shots are measured from it.
+        assert_eq!(
+            multi_shot(&["x..", "..o"]).expect("anchored stencil rejected").shots(),
+            &[(2.0 * column, row), (0.0, 0.0)]
+        );
+        // `+` only places the aim.
+        assert_eq!(
+            multi_shot(&["+x"]).expect("aim-only stencil rejected").shots(),
+            &[(-column, 0.0)]
+        );
+    }
+
+    #[test]
+    fn multi_shot_name_count_postfix_must_match() {
+        let source = |name: &str| MultiShotSource {
+            spread_degrees: 2.0,
+            pattern: name.to_owned(),
+            patterns: HashMap::from([(
+                name.to_owned(),
+                MultiShotPattern {
+                    column_scale: 1.0,
+                    row_scale: 1.0,
+                    stencil: vec!["xx".to_owned()],
+                },
+            )]),
+        };
+        assert!(MultiShotConfig::try_from(source("line_2")).is_ok());
+        assert!(
+            MultiShotConfig::try_from(source("line")).is_ok(),
+            "no postfix, no claim"
+        );
+        let error = MultiShotConfig::try_from(source("line_3")).expect_err("wrong count accepted");
+        assert!(error.to_string().contains("not the 3"));
+    }
+
+    #[test]
+    fn multi_shot_pattern_is_validated() {
+        let error = |pattern: &[&str]| multi_shot(pattern).expect_err("invalid stencil accepted").to_string();
+        assert!(error(&["xx", "x"]).contains("width"));
+        assert!(error(&["x-x"]).contains("'x', 'o', '+' and '.'"));
+        assert!(error(&["..."]).contains("at least one shot"));
+        assert!(error(&["+.."]).contains("at least one shot"));
+        assert!(error(&["o.o"]).contains("only once"));
+        assert!(error(&["xxxxx", "xxxxx"]).contains("max is"));
+        assert!(multi_shot(&["x.x", ".x.", "x.x"]).is_ok());
     }
 }

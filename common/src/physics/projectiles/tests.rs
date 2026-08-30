@@ -1,7 +1,8 @@
 use bevy_math::Vec3;
 use bevy_time::{Timer, TimerMode};
 
-use super::ProjectileMotion;
+use super::{ProjectileMotion, calculate_projectile_spawns};
+use crate::config::{GameplayConfig, MultiShotConfig};
 use crate::constants::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_THICKNESS};
 
 // Test copies of the default `projectiles` config values.
@@ -383,5 +384,43 @@ mod spawning {
             &collision_world(&[], &[ramp], &[]),
             &[]
         ));
+    }
+}
+
+#[test]
+fn multi_shot_fires_the_configured_stencil() {
+    let mut gameplay = GameplayConfig::load_default().expect("default gameplay config failed to load");
+    gameplay.power_ups.multi_shot =
+        MultiShotConfig::from_stencil("multi_shot", 1.5, 1.5, &["x.x", ".x.", "x.x"].map(str::to_owned))
+            .expect("stencil rejected");
+    let world = CollisionWorld::from_map_layout(&MapLayout::default(), &BarrierKindTable::default());
+    let shooter = Position { x: 0.0, y: 1.0, z: 0.0 };
+    let (yaw, pitch) = (0.3, 0.1);
+    let close = |a: f32, b: f32| (a - b).abs() < 1e-5;
+
+    let single = calculate_projectile_spawns(&shooter, yaw, pitch, false, 1.6, &gameplay, &world, &[]);
+    assert_eq!(single.len(), 1);
+    assert!(close(single[0].direction_yaw, yaw) && close(single[0].direction_pitch, pitch));
+
+    let spread = 1.5_f32.to_radians();
+    let multi = calculate_projectile_spawns(&shooter, yaw, pitch, true, 1.6, &gameplay, &world, &[]);
+    let offsets: Vec<(f32, f32)> = multi
+        .iter()
+        .map(|spawn| (spawn.direction_yaw - yaw, spawn.direction_pitch - pitch))
+        .collect();
+    // Row-major over the stencil; screen-right is negative yaw.
+    let expected = [
+        (spread, spread),
+        (-spread, spread),
+        (0.0, 0.0),
+        (spread, -spread),
+        (-spread, -spread),
+    ];
+    assert_eq!(offsets.len(), expected.len(), "{offsets:?}");
+    for ((yaw_offset, pitch_offset), (want_yaw, want_pitch)) in offsets.iter().zip(expected) {
+        assert!(
+            close(*yaw_offset, want_yaw) && close(*pitch_offset, want_pitch),
+            "{offsets:?}"
+        );
     }
 }
