@@ -162,7 +162,7 @@ mod collection_eligibility_tests {
         let entity = app.world_mut().spawn((PlayerMarker, id, pos, Health(50.0))).id();
         let (sender, receiver) = unbounded_channel();
         let mut info = PlayerInfo::new(entity, sender);
-        info.logged_in = true;
+        info.connection.logged_in = true;
         app.world_mut().resource_mut::<PlayerMap>().insert(id, info);
         (entity, receiver)
     }
@@ -203,6 +203,7 @@ mod collection_eligibility_tests {
                 .resource::<PlayerMap>()
                 .get(&id)
                 .expect("player present")
+                .session
                 .score,
             expected
         );
@@ -220,7 +221,7 @@ mod collection_eligibility_tests {
             .resource_mut::<PlayerMap>()
             .get_mut(&id)
             .expect("player present")
-            .death_timer = Some(1.0);
+            .begin_respawn(1.0);
         let item = spawn_item(&mut app, 1, ItemType::Cookie, Position::default(), random(0.0));
 
         app.update();
@@ -264,6 +265,7 @@ mod collection_eligibility_tests {
             .resource_mut::<PlayerMap>()
             .get_mut(&id)
             .expect("player present")
+            .life
             .missiles = max;
         let item = spawn_item(&mut app, 1, ItemType::MissilePack, Position::default(), random(0.0));
 
@@ -278,6 +280,7 @@ mod collection_eligibility_tests {
             .resource_mut::<PlayerMap>()
             .get_mut(&id)
             .expect("player present")
+            .life
             .missiles = 0;
         app.update();
         assert!(app.world().resource::<ItemMap>().get(&item).is_none(), "pack collected");
@@ -307,6 +310,7 @@ mod collection_eligibility_tests {
                 .resource::<PlayerMap>()
                 .get(&id)
                 .expect("player present")
+                .session
                 .score,
             0
         );

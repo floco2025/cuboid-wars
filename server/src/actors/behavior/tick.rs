@@ -51,11 +51,11 @@ pub fn actors_behavior_system(
         .filter_map(|(id, pos)| {
             players
                 .get(id)
-                .filter(|info| info.logged_in && !info.is_dead())
+                .filter(|info| info.connection.logged_in && !info.is_dead())
                 .map(|info| PlayerState {
                     id: *id,
                     pos: *pos,
-                    support: info.fall_state.support(),
+                    support: info.life.fall_state.support(),
                 })
         })
         .collect();

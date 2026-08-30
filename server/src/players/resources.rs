@@ -55,12 +55,25 @@ impl PlayerQuestState {
     }
 }
 
-pub struct PlayerInfo {
-    pub entity: Entity,
+pub struct PlayerConnection {
     pub logged_in: bool,
     pub channel: UnboundedSender<ServerToClient>,
-    pub score: i32,
     pub name: String,
+}
+
+#[derive(Default)]
+pub struct PlayerSession {
+    pub score: i32,
+    pub quest_states: HashMap<QuestId, PlayerQuestState>,
+}
+
+enum PlayerLifecycle {
+    Alive(Entity),
+    Dead { respawn_remaining_secs: f32 },
+}
+
+pub struct PlayerLife {
+    lifecycle: PlayerLifecycle,
     // Per-kind countdown to power-up expiry. Indexed by `PowerUpKind::index()`.
     // `> 0.0` means active; ticked down by `tick_timers`.
     pub power_up_timers: [f32; PowerUpKind::COUNT],
@@ -73,79 +86,107 @@ pub struct PlayerInfo {
     // ascending so the encoded `SPlayerStatus` bytes are deterministic and
     // the client can change-detect via a single equality check.
     pub held_keys: Vec<BarrierKindId>,
-    // `Some(remaining_secs)` from the moment a player's health drops to zero
-    // until the respawn system spawns a new entity. While dead, the player
-    // has no entity and is absent from `SSnapshot` — the local client sees
-    // this as "I disappeared from the snapshot" and shows the death overlay.
-    pub death_timer: Option<f32>,
-    // Per-quest progress, keyed by quest id. Populated at login from the
-    // server's quest catalog; persists for the whole session (not cleared
-    // by `clear_per_life_state`).
-    // Own progress per assigned quest (key present = assigned). Group
-    // completion and pooled progress live on the `QuestBoard`.
-    pub quest_states: HashMap<QuestId, PlayerQuestState>,
     pub fall_state: PlayerFallState,
+}
+
+impl PlayerLife {
+    fn alive(entity: Entity) -> Self {
+        Self::with_lifecycle(PlayerLifecycle::Alive(entity))
+    }
+
+    fn with_lifecycle(lifecycle: PlayerLifecycle) -> Self {
+        Self {
+            lifecycle,
+            power_up_timers: [0.0; PowerUpKind::COUNT],
+            stun_timer: 0.0,
+            last_shot_time: f32::NEG_INFINITY,
+            missiles: 0,
+            held_keys: Vec::new(),
+            fall_state: PlayerFallState::default(),
+        }
+    }
+
+    fn begin_respawn(&mut self, respawn_secs: f32) {
+        *self = Self::with_lifecycle(PlayerLifecycle::Dead {
+            respawn_remaining_secs: respawn_secs,
+        });
+    }
+}
+
+pub struct PlayerInfo {
+    pub connection: PlayerConnection,
+    pub session: PlayerSession,
+    pub life: PlayerLife,
 }
 
 impl PlayerInfo {
     #[must_use]
     pub fn new(entity: Entity, channel: UnboundedSender<ServerToClient>) -> Self {
         Self {
-            entity,
-            logged_in: false,
-            channel,
-            score: 0,
-            name: String::new(),
-            power_up_timers: [0.0; PowerUpKind::COUNT],
-            stun_timer: 0.0,
-            last_shot_time: f32::NEG_INFINITY,
-            missiles: 0,
-            held_keys: Vec::new(),
-            death_timer: None,
-            quest_states: HashMap::new(),
-            fall_state: PlayerFallState::default(),
+            connection: PlayerConnection {
+                logged_in: false,
+                channel,
+                name: String::new(),
+            },
+            session: PlayerSession::default(),
+            life: PlayerLife::alive(entity),
         }
     }
 
     #[must_use]
     pub fn is_dead(&self) -> bool {
-        self.death_timer.is_some()
+        matches!(self.life.lifecycle, PlayerLifecycle::Dead { .. })
+    }
+
+    #[must_use]
+    pub fn entity(&self) -> Option<Entity> {
+        match self.life.lifecycle {
+            PlayerLifecycle::Alive(entity) => Some(entity),
+            PlayerLifecycle::Dead { .. } => None,
+        }
+    }
+
+    pub fn begin_respawn(&mut self, respawn_secs: f32) {
+        self.life.begin_respawn(respawn_secs);
+    }
+
+    pub fn respawn_remaining_secs_mut(&mut self) -> Option<&mut f32> {
+        match &mut self.life.lifecycle {
+            PlayerLifecycle::Alive(_) => None,
+            PlayerLifecycle::Dead { respawn_remaining_secs } => Some(respawn_remaining_secs),
+        }
+    }
+
+    #[must_use]
+    pub fn respawn_remaining_secs(&self) -> Option<f32> {
+        match self.life.lifecycle {
+            PlayerLifecycle::Alive(_) => None,
+            PlayerLifecycle::Dead { respawn_remaining_secs } => Some(respawn_remaining_secs),
+        }
+    }
+
+    pub fn finish_respawn(&mut self, entity: Entity) {
+        self.life.lifecycle = PlayerLifecycle::Alive(entity);
     }
 
     #[must_use]
     pub fn is_stunned(&self) -> bool {
-        self.stun_timer > 0.0
-    }
-
-    // Clear per-life state that should not persist across a death: power-ups,
-    // stun, keys, and shot cooldown. Score and `quest_states` are
-    // intentionally preserved — quests are session-scoped, not per-life.
-    pub fn clear_per_life_state(&mut self) {
-        self.power_up_timers = [0.0; PowerUpKind::COUNT];
-        self.stun_timer = 0.0;
-        self.held_keys.clear();
-        // Otherwise a player killed with a hot cooldown respawns and can
-        // fire before their cooldown would otherwise have ticked down.
-        self.last_shot_time = f32::NEG_INFINITY;
-        self.missiles = 0;
-        // A respawning player shouldn't inherit the dying player's fall
-        // momentum — they'd take damage on their first landing.
-        self.fall_state.reset();
+        self.life.stun_timer > 0.0
     }
 
     #[must_use]
     pub fn has_key(&self, kind: BarrierKindId) -> bool {
-        self.held_keys.binary_search(&kind).is_ok()
+        self.life.held_keys.binary_search(&kind).is_ok()
     }
 
     // Insert the kind into `held_keys`, keeping it sorted; returns `true` if
     // the kind was newly added (so the caller can decide whether to broadcast
     // an `SPlayerStatus` change), `false` if it was already held.
     pub fn add_key(&mut self, kind: BarrierKindId) -> bool {
-        match self.held_keys.binary_search(&kind) {
+        match self.life.held_keys.binary_search(&kind) {
             Ok(_) => false,
             Err(pos) => {
-                self.held_keys.insert(pos, kind);
+                self.life.held_keys.insert(pos, kind);
                 true
             }
         }
@@ -153,7 +194,7 @@ impl PlayerInfo {
 
     #[must_use]
     pub fn has(&self, kind: PowerUpKind) -> bool {
-        self.power_up_timers[kind.index()] > 0.0
+        self.life.power_up_timers[kind.index()] > 0.0
     }
 
     #[must_use]
@@ -186,30 +227,30 @@ impl PlayerInfo {
         let Some(kind) = PowerUpKind::from_item_type(item_type) else {
             unreachable!("only timer-based power-ups call grant_power_up; health potion is applied to Health directly");
         };
-        self.power_up_timers[kind.index()] = durations.duration_secs_for(kind);
+        self.life.power_up_timers[kind.index()] = durations.duration_secs_for(kind);
     }
 
     pub fn try_start_shot(&mut self, now: f32, cooldown_secs: f32) -> Option<bool> {
-        if now - self.last_shot_time < cooldown_secs {
+        if now - self.life.last_shot_time < cooldown_secs {
             return None;
         }
-        self.last_shot_time = now;
+        self.life.last_shot_time = now;
         Some(self.has_multi_shot())
     }
 
     // Consumes one missile on success.
     pub fn try_start_missile(&mut self) -> bool {
-        if self.missiles == 0 {
+        if self.life.missiles == 0 {
             return false;
         }
-        self.missiles -= 1;
+        self.life.missiles -= 1;
         true
     }
 
     // Returns the post-add count.
     pub fn add_missiles(&mut self, count: u32, max: u32) -> u32 {
-        self.missiles = self.missiles.saturating_add(count).min(max);
-        self.missiles
+        self.life.missiles = self.life.missiles.saturating_add(count).min(max);
+        self.life.missiles
     }
 
     #[must_use]
@@ -218,7 +259,7 @@ impl PlayerInfo {
             id,
             power_ups: self.active_power_ups(),
             stunned: self.is_stunned(),
-            held_keys: self.held_keys.clone(),
+            held_keys: self.life.held_keys.clone(),
         }
     }
 
@@ -232,22 +273,22 @@ impl PlayerInfo {
         vertical_velocity: f32,
     ) -> Player {
         Player {
-            name: self.name.clone(),
+            name: self.connection.name.clone(),
             movement: PlayerMovementState::new(pos, move_intent, vertical_velocity, face_yaw),
             health,
-            score: self.score,
+            score: self.session.score,
             power_ups: self.active_power_ups(),
             stunned: self.is_stunned(),
-            held_keys: self.held_keys.clone(),
-            missiles: self.missiles,
+            held_keys: self.life.held_keys.clone(),
+            missiles: self.life.missiles,
         }
     }
 
     pub fn tick_timers(&mut self, delta: f32) {
-        for t in &mut self.power_up_timers {
+        for t in &mut self.life.power_up_timers {
             tick_timer(t, delta);
         }
-        tick_timer(&mut self.stun_timer, delta);
+        tick_timer(&mut self.life.stun_timer, delta);
     }
 }
 
@@ -271,7 +312,7 @@ impl PlayerMap {
     #[must_use]
     pub fn describe(&self, id: &PlayerId) -> String {
         match self.get(id) {
-            Some(info) if !info.name.is_empty() => format!("{}#{}", info.name, id.0),
+            Some(info) if !info.connection.name.is_empty() => format!("{}#{}", info.connection.name, id.0),
             _ => format!("player#{}", id.0),
         }
     }
@@ -280,7 +321,7 @@ impl PlayerMap {
     #[must_use]
     pub fn display_name(&self, id: &PlayerId) -> String {
         match self.get(id) {
-            Some(info) if !info.name.is_empty() => info.name.clone(),
+            Some(info) if !info.connection.name.is_empty() => info.connection.name.clone(),
             _ => format!("Player {}", id.0),
         }
     }
@@ -308,7 +349,7 @@ impl PlayerMap {
 
     #[must_use]
     pub fn all_logged_out(&self) -> bool {
-        self.0.values().all(|info| !info.logged_in)
+        self.0.values().all(|info| !info.connection.logged_in)
     }
 }
 
@@ -346,7 +387,7 @@ mod tests {
         assert!(!info.add_key(BarrierKindId(1)));
         assert!(!info.add_key(BarrierKindId(2)));
         assert_eq!(
-            info.held_keys,
+            info.life.held_keys,
             vec![BarrierKindId(0), BarrierKindId(1), BarrierKindId(2)]
         );
         assert!(info.has_key(BarrierKindId(1)));
@@ -412,7 +453,7 @@ mod tests {
         info.add_missiles(2, 3);
         assert!(info.try_start_missile());
         assert!(info.try_start_missile());
-        assert_eq!(info.missiles, 0);
+        assert_eq!(info.life.missiles, 0);
         assert!(!info.try_start_missile(), "magazine empty");
     }
 
@@ -421,27 +462,45 @@ mod tests {
         let mut info = dummy_info();
         assert_eq!(info.add_missiles(2, 3), 2);
         assert_eq!(info.add_missiles(5, 3), 3);
-        assert_eq!(info.missiles, 3);
+        assert_eq!(info.life.missiles, 3);
     }
 
     #[test]
-    fn clear_per_life_state_zeroes_missiles() {
+    fn begin_respawn_zeroes_missiles() {
         let mut info = dummy_info();
         info.add_missiles(3, 3);
 
-        info.clear_per_life_state();
+        info.begin_respawn(2.0);
 
-        assert_eq!(info.missiles, 0);
+        assert_eq!(info.life.missiles, 0);
+        assert_eq!(info.entity(), None);
+        assert_eq!(info.respawn_remaining_secs(), Some(2.0));
+
+        let entity = Entity::from_bits(42);
+        info.finish_respawn(entity);
+        assert_eq!(info.entity(), Some(entity));
+        assert_eq!(info.respawn_remaining_secs(), None);
+    }
+
+    #[test]
+    fn finish_respawn_preserves_life_state_changed_while_dead() {
+        let mut info = dummy_info();
+        info.begin_respawn(2.0);
+        info.add_missiles(1, 3);
+
+        info.finish_respawn(Entity::from_bits(42));
+
+        assert_eq!(info.life.missiles, 1);
     }
 
     #[test]
     fn snapshot_player_uses_same_status_fields_as_status_message() {
         let mut info = dummy_info();
-        info.name = "Alice".to_owned();
-        info.score = 5;
-        info.power_up_timers[PowerUpKind::Speed.index()] = 1.0;
-        info.power_up_timers[PowerUpKind::LowGravity.index()] = 2.0;
-        info.stun_timer = 0.5;
+        info.connection.name = "Alice".to_owned();
+        info.session.score = 5;
+        info.life.power_up_timers[PowerUpKind::Speed.index()] = 1.0;
+        info.life.power_up_timers[PowerUpKind::LowGravity.index()] = 2.0;
+        info.life.stun_timer = 0.5;
         info.add_key(BarrierKindId(1));
         info.add_key(BarrierKindId(3));
         info.add_missiles(2, 3);
@@ -455,8 +514,8 @@ mod tests {
         let status = info.status(id);
         let player = info.snapshot_player(pos, move_intent, face_yaw, health, vertical_velocity);
 
-        assert_eq!(player.name, info.name);
-        assert_eq!(player.score, info.score);
+        assert_eq!(player.name, info.connection.name);
+        assert_eq!(player.score, info.session.score);
         assert_eq!(player.movement.pos, pos);
         assert_eq!(player.movement.move_intent, move_intent);
         assert_eq!(player.movement.vertical_velocity, vertical_velocity);
@@ -469,24 +528,27 @@ mod tests {
     }
 
     #[test]
-    fn clear_per_life_state_preserves_quest_states() {
+    fn begin_respawn_preserves_session_state() {
         let quest_id = QuestId("collect_gold".to_owned());
         let mut info = dummy_info();
-        info.quest_states
+        info.session
+            .quest_states
             .insert(quest_id.clone(), PlayerQuestState::Individual { progress: 7 });
-        info.power_up_timers[PowerUpKind::Speed.index()] = 5.0;
+        info.session.score = 42;
+        info.life.power_up_timers[PowerUpKind::Speed.index()] = 5.0;
 
-        info.clear_per_life_state();
+        info.begin_respawn(2.0);
 
         assert_eq!(
-            info.power_up_timers[PowerUpKind::Speed.index()],
+            info.life.power_up_timers[PowerUpKind::Speed.index()],
             0.0,
-            "power-up timers reset by clear"
+            "power-up timers reset on death"
         );
         assert_eq!(
-            info.quest_states[&quest_id].own_progress(),
+            info.session.quest_states[&quest_id].own_progress(),
             Some(7),
             "quest progress survives death"
         );
+        assert_eq!(info.session.score, 42, "score survives death");
     }
 }

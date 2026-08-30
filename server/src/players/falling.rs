@@ -121,7 +121,7 @@ pub fn players_fall_death_system(
                 CharacterVerticalVelocity::default(),
             ));
             if let Some(info) = players.get_mut(id) {
-                info.fall_state.reset();
+                info.life.fall_state.reset();
             }
             continue;
         }
@@ -194,7 +194,7 @@ pub fn players_fall_damage_system(
             continue;
         }
 
-        let Some(impact) = info.fall_state.update(pos.y, motion.0) else {
+        let Some(impact) = info.life.fall_state.update(pos.y, motion.0) else {
             continue;
         };
 
@@ -230,12 +230,15 @@ pub fn players_fall_damage_system(
         // case additionally surfaces `SPlayerDeath` via
         // `kill_player` below.
         if let Some(info) = players.get(id) {
-            let _ = info.channel.send(ServerToClient::Send(ServerMessage::PlayerFallDamage(
-                SPlayerFallDamage {
-                    id: *id,
-                    health: *health,
-                },
-            )));
+            let _ = info
+                .connection
+                .channel
+                .send(ServerToClient::Send(ServerMessage::PlayerFallDamage(
+                    SPlayerFallDamage {
+                        id: *id,
+                        health: *health,
+                    },
+                )));
         }
         if health.0 <= 0.0 {
             info!(

@@ -237,7 +237,7 @@ fn resolve_target(
             if info.is_dead() {
                 return None;
             }
-            let (pos, _) = target_data.get(info.entity).ok()?;
+            let (pos, _) = target_data.get(info.entity()?).ok()?;
             Some((*pos, character_center(*pos, gameplay_config.player.physics())))
         }
         HomingTarget::Actor(id) => {

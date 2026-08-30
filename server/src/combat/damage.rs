@@ -60,8 +60,8 @@ fn death_cause(source: &DeathSource, victim: PlayerId, players: &PlayerMap) -> D
     }
 }
 
-// Run the death sequence for one player: clear per-life state, arm the
-// respawn timer, queue the death explosion, despawn the entity, broadcast
+// Run the death sequence for one player: replace its life with the dead
+// lifecycle, queue the death explosion, despawn the entity, broadcast
 // `SPlayerDeath` so clients run death-side effects on the impact tick
 // instead of waiting a snapshot, and announce the feed line. Called from
 // every code path that takes a player to zero health (projectile hits,
@@ -88,8 +88,7 @@ pub fn kill_player(
     if info.is_dead() {
         return;
     }
-    info.clear_per_life_state();
-    info.death_timer = Some(respawn_secs);
+    info.begin_respawn(respawn_secs);
     // Every death detonates — `explosions_system` drains the queue
     // this tick and applies the blast (void falls at CHARACTER_FALL_DEATH_Y
     // are too deep for the blast to reach the map).
@@ -97,8 +96,8 @@ pub fn kill_player(
     commands.entity(entity).despawn();
     // Snapshot the post-death scores so the cue carries the early-apply
     // values (HUD bumps on impact tick rather than next snapshot).
-    let victim_score = players.get(&id).map_or(0, |info| info.score);
-    let killer_score = killer.and_then(|kid| players.get(&kid)).map(|info| info.score);
+    let victim_score = players.get(&id).map_or(0, |info| info.session.score);
+    let killer_score = killer.and_then(|kid| players.get(&kid)).map(|info| info.session.score);
     broadcast_to_all(
         players,
         ServerMessage::PlayerDeath(SPlayerDeath {
@@ -148,7 +147,7 @@ pub fn kill_actor(
     }
     let killer_score = killer
         .and_then(|killer_id| players.get(&killer_id))
-        .map(|player| player.score);
+        .map(|player| player.session.score);
     broadcast_to_all(
         players,
         ServerMessage::ActorDeath(SActorDeath {
@@ -178,7 +177,7 @@ pub fn award_actor_kill(
     let Some(shooter) = players.get_mut(&shooter_id) else {
         return;
     };
-    shooter.score += server_gameplay_config
+    shooter.session.score += server_gameplay_config
         .scoring
         .actor_kill
         .get(kind)
@@ -227,10 +226,10 @@ pub fn apply_player_projectile_hit(
     if *shooter_id != target_id {
         let scoring = &server_gameplay_config.scoring;
         if let Some(shooter_info) = players.get_mut(shooter_id) {
-            shooter_info.score += scoring.player_kill;
+            shooter_info.session.score += scoring.player_kill;
         }
         if let Some(target_info) = players.get_mut(&target_id) {
-            target_info.score += scoring.player_death;
+            target_info.session.score += scoring.player_death;
         }
     }
 
@@ -278,7 +277,7 @@ pub fn apply_actor_projectile_hit(
     apply_damage(target_health, server_gameplay_config.combat.damage.projectile);
 
     if let Some(shooter_info) = players.get_mut(shooter_id) {
-        shooter_info.score += server_gameplay_config
+        shooter_info.session.score += server_gameplay_config
             .scoring
             .actor_hit
             .get(kind)
@@ -306,8 +305,8 @@ mod tests {
     fn logged_in_player(players: &mut PlayerMap, id: PlayerId, name: &str) -> UnboundedReceiver<ServerToClient> {
         let (tx, rx) = unbounded_channel();
         let mut info = PlayerInfo::new(Entity::PLACEHOLDER, tx);
-        info.logged_in = true;
-        info.name = name.to_owned();
+        info.connection.logged_in = true;
+        info.connection.name = name.to_owned();
         players.insert(id, info);
         rx
     }
@@ -485,8 +484,8 @@ mod tests {
 
         assert!(!was_lethal);
         assert_eq!(health.0, 75.0);
-        assert_eq!(players.get(&PlayerId(1)).expect("shooter").score, 1);
-        assert_eq!(players.get(&PlayerId(2)).expect("target").score, -1);
+        assert_eq!(players.get(&PlayerId(1)).expect("shooter").session.score, 1);
+        assert_eq!(players.get(&PlayerId(2)).expect("target").session.score, -1);
     }
 
     #[test]
@@ -524,13 +523,13 @@ mod tests {
 
         assert!(!was_lethal);
         assert_eq!(health.0, 75.0);
-        assert_eq!(players.get(&PlayerId(1)).expect("player").score, 0);
+        assert_eq!(players.get(&PlayerId(1)).expect("player").session.score, 0);
     }
 
     #[test]
     fn dead_player_takes_no_further_damage() {
         let mut players = make_player_map_with(PlayerId(1), PlayerId(2));
-        players.get_mut(&PlayerId(2)).expect("target").death_timer = Some(2.0);
+        players.get_mut(&PlayerId(2)).expect("target").begin_respawn(2.0);
         let mut health = Health(0.0);
 
         let was_lethal = apply_player_projectile_hit(
@@ -544,8 +543,8 @@ mod tests {
 
         assert!(!was_lethal);
         // Score must not move on a no-op hit.
-        assert_eq!(players.get(&PlayerId(1)).expect("shooter").score, 0);
-        assert_eq!(players.get(&PlayerId(2)).expect("target").score, 0);
+        assert_eq!(players.get(&PlayerId(1)).expect("shooter").session.score, 0);
+        assert_eq!(players.get(&PlayerId(2)).expect("target").session.score, 0);
     }
 
     #[test]
@@ -562,7 +561,7 @@ mod tests {
     #[test]
     fn dead_player_takes_no_beam_damage() {
         let mut players = make_player_map_with(PlayerId(1), PlayerId(2));
-        players.get_mut(&PlayerId(2)).expect("target").death_timer = Some(2.0);
+        players.get_mut(&PlayerId(2)).expect("target").begin_respawn(2.0);
         let mut health = Health(50.0);
 
         let lethal = apply_player_beam_damage(&players, PlayerId(2), &mut health, 100.0, false);
@@ -590,13 +589,16 @@ mod tests {
 
         let first_hit_lethal = apply_actor_projectile_hit(&mut players, &PlayerId(1), "zapper", &mut health, &config);
         assert!(first_hit_lethal);
-        let score_after_kill = players.get(&PlayerId(1)).expect("shooter").score;
+        let score_after_kill = players.get(&PlayerId(1)).expect("shooter").session.score;
 
         // The dying actor's entity stays queryable until removal runs later
         // in the tick; a same-tick second hit must not count as lethal again.
         let second_hit_lethal = apply_actor_projectile_hit(&mut players, &PlayerId(1), "zapper", &mut health, &config);
         assert!(!second_hit_lethal);
-        assert_eq!(players.get(&PlayerId(1)).expect("shooter").score, score_after_kill);
+        assert_eq!(
+            players.get(&PlayerId(1)).expect("shooter").session.score,
+            score_after_kill
+        );
     }
 
     #[test]
@@ -609,13 +611,13 @@ mod tests {
         // Receiver with a logged-in shooter so the broadcast can reach them.
         let (shooter_tx, mut shooter_rx) = unbounded_channel();
         let mut shooter = PlayerInfo::new(Entity::PLACEHOLDER, shooter_tx);
-        shooter.logged_in = true;
+        shooter.connection.logged_in = true;
         players.insert(PlayerId(1), shooter);
 
         // The dying player; also logged_in so the broadcast targets them too.
         let mut target = make_player_info();
-        target.logged_in = true;
-        let target_entity = target.entity;
+        target.connection.logged_in = true;
+        let target_entity = target.entity().expect("new player has no entity");
         players.insert(PlayerId(2), target);
 
         let world = app.world_mut();
@@ -738,9 +740,9 @@ mod tests {
         let mut app = App::new();
         let mut players = PlayerMap::default();
         let info = make_player_info();
-        let entity = info.entity;
+        let entity = info.entity().expect("new player has no entity");
         let mut info = info;
-        info.power_up_timers[common::protocol::PowerUpKind::Speed.index()] = 1.5;
+        info.life.power_up_timers[common::protocol::PowerUpKind::Speed.index()] = 1.5;
         info.add_key(common::protocol::BarrierKindId(0));
         players.insert(PlayerId(7), info);
 
@@ -764,25 +766,26 @@ mod tests {
         commands_queue.apply(world);
 
         let info = players.get(&PlayerId(7)).expect("player still tracked after death");
-        assert_eq!(info.death_timer, Some(2.0));
-        assert_eq!(info.power_up_timers, [0.0; common::protocol::PowerUpKind::COUNT]);
-        assert!(info.held_keys.is_empty());
+        assert_eq!(info.respawn_remaining_secs(), Some(2.0));
+        assert_eq!(info.life.power_up_timers, [0.0; common::protocol::PowerUpKind::COUNT]);
+        assert!(info.life.held_keys.is_empty());
+        assert_eq!(info.entity(), None);
         assert!(info.is_dead());
     }
 
     #[test]
-    fn clear_per_life_state_zeros_powerups_keys_and_cooldown() {
+    fn begin_respawn_zeros_powerups_keys_and_cooldown() {
         let mut info = make_player_info();
-        info.power_up_timers = [1.0; common::protocol::PowerUpKind::COUNT];
-        info.stun_timer = 1.0;
-        info.last_shot_time = 99.0;
+        info.life.power_up_timers = [1.0; common::protocol::PowerUpKind::COUNT];
+        info.life.stun_timer = 1.0;
+        info.life.last_shot_time = 99.0;
         info.add_key(common::protocol::BarrierKindId(0));
 
-        info.clear_per_life_state();
+        info.begin_respawn(2.0);
 
-        assert_eq!(info.power_up_timers, [0.0; common::protocol::PowerUpKind::COUNT]);
-        assert_eq!(info.stun_timer, 0.0);
-        assert_eq!(info.last_shot_time, f32::NEG_INFINITY);
-        assert!(info.held_keys.is_empty());
+        assert_eq!(info.life.power_up_timers, [0.0; common::protocol::PowerUpKind::COUNT]);
+        assert_eq!(info.life.stun_timer, 0.0);
+        assert_eq!(info.life.last_shot_time, f32::NEG_INFINITY);
+        assert!(info.life.held_keys.is_empty());
     }
 }

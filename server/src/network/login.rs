@@ -70,10 +70,10 @@ pub fn handle_login_message(
                 let player_info = players
                     .get_mut(&id)
                     .expect("handle_login_message called for unknown player");
-                let channel = player_info.channel.clone();
-                player_info.logged_in = true;
+                let channel = player_info.connection.channel.clone();
+                player_info.connection.logged_in = true;
 
-                player_info.name = sanitize_player_name(&login.name, id);
+                player_info.connection.name = sanitize_player_name(&login.name, id);
 
                 channel
             };
@@ -99,16 +99,15 @@ pub fn handle_login_message(
             // Assign every unlocked quest to the new player, batched into one
             // `SQuestsAssigned` so the client shows a single combined
             // announcement; quests unlocked later arrive one at a time. Quest
-            // state persists for the whole session (cleared neither by death
-            // nor by `clear_per_life_state`).
+            // state persists for the whole session rather than one life.
             assign_quests(players, id, quest_catalog, quest_board);
 
             // Generate random initial position for the new player.
             // Avoid spawning on top of any other logged-in player.
             let occupied_positions: Vec<Position> = players
                 .values()
-                .filter(|p| p.logged_in && p.entity != entity)
-                .filter_map(|p| queries.player_data.get(p.entity).ok())
+                .filter(|p| p.connection.logged_in && p.entity() != Some(entity))
+                .filter_map(|p| p.entity().and_then(|entity| queries.player_data.get(entity).ok()))
                 .map(|(pos, _, _, _)| *pos)
                 .collect();
             let pos = generate_player_spawn_position(

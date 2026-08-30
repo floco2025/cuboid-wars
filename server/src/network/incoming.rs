@@ -110,14 +110,10 @@ pub fn network_process_client_messages_system(
             ClientToServer::Disconnected => {
                 let who = players.describe(&id);
                 let name = players.display_name(&id);
-                let was_logged_in = player_info.logged_in;
-                let entity = player_info.entity;
-                let was_dead = player_info.is_dead();
+                let was_logged_in = player_info.connection.logged_in;
+                let entity = player_info.entity();
                 players.remove(&id);
-                // If the player was mid-death their entity is already
-                // despawned; skip the redundant despawn so we don't panic on
-                // a stale handle.
-                if !was_dead {
+                if let Some(entity) = entity {
                     commands.entity(entity).despawn();
                 }
 
@@ -142,11 +138,10 @@ pub fn network_process_client_messages_system(
                 }
             }
             ClientToServer::Message(message) => {
-                let is_logged_in = player_info.logged_in;
+                let is_logged_in = player_info.connection.logged_in;
                 if is_logged_in {
                     dispatch_message(
                         &mut commands,
-                        player_info.entity,
                         id,
                         message,
                         &mut players,
@@ -161,9 +156,13 @@ pub fn network_process_client_messages_system(
                         &mut quest_board,
                     );
                 } else {
+                    let Some(entity) = player_info.entity() else {
+                        error!("player#{} reached login without an entity", id.0);
+                        continue;
+                    };
                     handle_login_message(
                         &mut commands,
-                        player_info.entity,
+                        entity,
                         id,
                         message,
                         &mut players,

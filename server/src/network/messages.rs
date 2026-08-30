@@ -30,7 +30,6 @@ use common::{
 // Dispatch messages from players who are already logged in to appropriate handlers.
 pub fn dispatch_message(
     commands: &mut Commands,
-    entity: Entity,
     id: PlayerId,
     msg: ClientMessage,
     players: &mut PlayerMap,
@@ -44,12 +43,10 @@ pub fn dispatch_message(
     admin: &mut AdminContext,
     quest_board: &mut QuestBoard,
 ) {
-    // Dead players have a despawned entity; queueing entity-targeted
-    // commands against the stale `entity` would panic when Bevy applies the
-    // command buffer. Drop their in-flight gameplay messages but keep pings
-    // (RTT measurement through the respawn window), admin commands, and
-    // chat (a dead player's console must still work — none touch the
-    // entity).
+    let entity = players.get(&id).and_then(PlayerInfo::entity);
+    // Dead players have no entity. Drop their in-flight gameplay messages
+    // but keep pings (RTT measurement through the respawn window), admin
+    // commands, and chat (a dead player's console must still work).
     if players.get(&id).is_some_and(|info| info.is_dead())
         && !matches!(
             msg,
@@ -64,14 +61,20 @@ pub fn dispatch_message(
             warn!("{} sent login after already authenticated", players.describe(&id));
             if let Some(player) = players.get(&id) {
                 // Terminate the connection to enforce a single-login flow
-                let _ = player.channel.send(ServerToClient::Close);
+                let _ = player.connection.channel.send(ServerToClient::Close);
             }
         }
         ClientMessage::Move(msg) => {
+            let Some(entity) = entity else {
+                return;
+            };
             trace!("{:?} input: {:?}", id, msg);
             handle_move_message(commands, entity, id, msg, &*players, queries);
         }
         ClientMessage::Jump(msg) => {
+            let Some(entity) = entity else {
+                return;
+            };
             trace!("{:?} jump: {:?}", id, msg);
             handle_jump_message(
                 commands,
@@ -84,6 +87,9 @@ pub fn dispatch_message(
             );
         }
         ClientMessage::Shot(msg) => {
+            let Some(entity) = entity else {
+                return;
+            };
             debug!("{} shot", players.describe(&id));
             handle_shot_message(
                 commands,
@@ -99,6 +105,9 @@ pub fn dispatch_message(
             );
         }
         ClientMessage::MissileShot(msg) => {
+            let Some(entity) = entity else {
+                return;
+            };
             debug!("{} missile shot at {:?}", players.describe(&id), msg.target);
             handle_missile_shot_message(
                 commands,
@@ -254,7 +263,7 @@ fn handle_ping_message(id: PlayerId, msg: CPing, players: &PlayerMap) {
         let pong_msg = ServerMessage::Pong(SPong {
             timestamp_nanos: msg.timestamp_nanos,
         });
-        let _ = player_info.channel.send(ServerToClient::Send(pong_msg));
+        let _ = player_info.connection.channel.send(ServerToClient::Send(pong_msg));
     }
 }
 

@@ -75,7 +75,8 @@ pub fn missiles_movement_system(mut commands: Commands, time: Res<Time>, mut par
             let overlaps_shooter = params
                 .players
                 .get(&info.shooter)
-                .and_then(|shooter| params.player_query.get(shooter.entity).ok())
+                .and_then(|shooter| shooter.entity())
+                .and_then(|entity| params.player_query.get(entity).ok())
                 .is_some_and(|(shooter_pos, face_yaw, _)| {
                     ball_overlaps_character(
                         &pos,

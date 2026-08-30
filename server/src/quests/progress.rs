@@ -82,7 +82,12 @@ fn affected<'a>(
 // Adds one to the player's own count and tells them; `None` when the player
 // is gone, isn't assigned, or already finished their part.
 fn bump_own_progress(players: &mut PlayerMap, actor: PlayerId, quest: &Quest) -> Option<u32> {
-    let current = players.get(&actor)?.quest_states.get(&quest.id)?.own_progress()?;
+    let current = players
+        .get(&actor)?
+        .session
+        .quest_states
+        .get(&quest.id)?
+        .own_progress()?;
     raise_own_progress(players, actor, quest, current.saturating_add(1))
 }
 
@@ -90,7 +95,7 @@ fn bump_own_progress(players: &mut PlayerMap, actor: PlayerId, quest: &Quest) ->
 // lowered) and tells them; `None` when nothing changed.
 fn raise_own_progress(players: &mut PlayerMap, actor: PlayerId, quest: &Quest, to: u32) -> Option<u32> {
     let info = players.get_mut(&actor)?;
-    let progress = info.quest_states.get_mut(&quest.id)?.own_progress_mut()?;
+    let progress = info.session.quest_states.get_mut(&quest.id)?.own_progress_mut()?;
     let to = to.min(quest.threshold);
     if *progress >= to {
         return None;
@@ -113,7 +118,7 @@ fn settle_individual(players: &mut PlayerMap, feed: &FeedConfig, actor: PlayerId
     let Some(info) = players.get_mut(&actor) else {
         return;
     };
-    info.score += quest.points;
+    info.session.score += quest.points;
     send(info, completed_message(quest));
     emit_feed(
         players,
@@ -192,8 +197,8 @@ fn complete_group(
         return;
     }
     for (_, info) in players.iter_mut() {
-        if info.logged_in {
-            info.score += quest.points;
+        if info.connection.logged_in {
+            info.session.score += quest.points;
         }
     }
     broadcast_to_all(players, completed_message(quest));
@@ -220,7 +225,7 @@ fn unlock(players: &mut PlayerMap, board: &mut QuestBoard, quest: &CatalogQuest)
     board.unlock(&quest.id);
     let assigned: Vec<PlayerId> = players
         .iter_mut()
-        .filter_map(|(id, info)| (info.logged_in && assign_state(info, quest, board)).then_some(*id))
+        .filter_map(|(id, info)| (info.connection.logged_in && assign_state(info, quest, board)).then_some(*id))
         .collect();
     for player in assigned {
         let new_quest = initial_quest(players, player, quest, board);
@@ -303,7 +308,7 @@ pub fn assign_quests(players: &mut PlayerMap, player: PlayerId, catalog: &QuestC
 }
 
 fn assign_state(player_info: &mut PlayerInfo, quest: &Quest, board: &QuestBoard) -> bool {
-    if player_info.quest_states.contains_key(&quest.id) {
+    if player_info.session.quest_states.contains_key(&quest.id) {
         return false;
     }
     let progress = if quest.scope.is_group() && board.is_completed(&quest.id) {
@@ -312,6 +317,7 @@ fn assign_state(player_info: &mut PlayerInfo, quest: &Quest, board: &QuestBoard)
         0
     };
     player_info
+        .session
         .quest_states
         .insert(quest.id.clone(), PlayerQuestState::new(quest.scope, progress));
     true
@@ -320,7 +326,7 @@ fn assign_state(player_info: &mut PlayerInfo, quest: &Quest, board: &QuestBoard)
 fn initial_quest(players: &PlayerMap, player: PlayerId, quest: &CatalogQuest, board: &QuestBoard) -> NewQuest {
     let own_progress = players
         .get(&player)
-        .and_then(|info| info.quest_states.get(&quest.id))
+        .and_then(|info| info.session.quest_states.get(&quest.id))
         .and_then(|state| state.own_progress())
         .unwrap_or(0);
     let progress = match quest.scope {
@@ -390,7 +396,7 @@ fn completed_message(quest: &Quest) -> ServerMessage {
 }
 
 fn send(info: &PlayerInfo, message: ServerMessage) {
-    let _ = info.channel.send(ServerToClient::Send(message));
+    let _ = info.connection.channel.send(ServerToClient::Send(message));
 }
 
 #[cfg(test)]
@@ -666,6 +672,7 @@ mod tests {
             !players
                 .get(&PlayerId(1))
                 .expect("alice")
+                .session
                 .quest_states
                 .contains_key(&id("show"))
         );
@@ -681,6 +688,7 @@ mod tests {
             players
                 .get(&PlayerId(1))
                 .expect("alice")
+                .session
                 .quest_states
                 .contains_key(&id("show"))
         );

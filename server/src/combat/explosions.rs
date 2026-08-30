@@ -145,7 +145,7 @@ pub fn explosions_system(mut context: ExplosionContext) {
             );
             player_impulses.remove(&death.id);
             if let Some(victim) = context.players.get_mut(&death.id) {
-                victim.score += context.server_gameplay_config.scoring.player_death;
+                victim.session.score += context.server_gameplay_config.scoring.player_death;
             }
             // Award the kill bonus before `kill_player` so the `SPlayerDeath`
             // cue carries the post-kill killer score.
@@ -153,7 +153,7 @@ pub fn explosions_system(mut context: ExplosionContext) {
             if let Some(killer_id) = kill_credit(&source, death.id, &context.players)
                 && let Some(shooter) = context.players.get_mut(&killer_id)
             {
-                shooter.score += context.server_gameplay_config.scoring.player_kill;
+                shooter.session.score += context.server_gameplay_config.scoring.player_kill;
             }
             kill_player(
                 &mut context.commands,
@@ -376,6 +376,7 @@ fn apply_player_impulses(context: &mut ExplosionContext, impulses: HashMap<Playe
         let direction = impulse.blast_delta.normalize_or_zero();
         if let Some(info) = context.players.get(&id) {
             let _ = info
+                .connection
                 .channel
                 .send(ServerToClient::Send(ServerMessage::PlayerBlast(SPlayerBlast {
                     id,
@@ -640,7 +641,7 @@ mod tests {
             .id();
         let (sender, receiver) = unbounded_channel();
         let mut info = PlayerInfo::new(entity, sender);
-        info.logged_in = true;
+        info.connection.logged_in = true;
         app.world_mut().resource_mut::<PlayerMap>().insert(id, info);
         (entity, receiver)
     }
@@ -725,10 +726,10 @@ mod tests {
 
         let scoring = app.world().resource::<ServerGameplayConfig>().scoring.clone();
         let players = app.world().resource::<PlayerMap>();
-        let shooter_score = players.get(&shooter_id).expect("shooter still present").score;
+        let shooter_score = players.get(&shooter_id).expect("shooter still present").session.score;
         assert_eq!(shooter_score, scoring.player_kill);
         assert_eq!(
-            players.get(&victim_id).expect("victim still present").score,
+            players.get(&victim_id).expect("victim still present").session.score,
             scoring.player_death
         );
 
@@ -754,7 +755,7 @@ mod tests {
         let scoring = app.world().resource::<ServerGameplayConfig>().scoring.clone();
         let players = app.world().resource::<PlayerMap>();
         assert_eq!(
-            players.get(&shooter_id).expect("shooter still present").score,
+            players.get(&shooter_id).expect("shooter still present").session.score,
             scoring.player_death,
             "self-kill takes the death penalty but earns no kill bonus"
         );
@@ -784,6 +785,7 @@ mod tests {
                 .resource::<PlayerMap>()
                 .get(&shooter_id)
                 .expect("shooter still present")
+                .session
                 .score,
             reward
         );

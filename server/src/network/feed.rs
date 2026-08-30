@@ -87,7 +87,7 @@ pub fn emit_feed(players: &PlayerMap, config: &FeedConfig, audience: FeedAudienc
         FeedAudience::EveryoneExcept(skip) => broadcast_to_others(players, skip, message),
         FeedAudience::Player(player) => {
             if let Some(info) = players.get(&player) {
-                let _ = info.channel.send(ServerToClient::Send(message));
+                let _ = info.connection.channel.send(ServerToClient::Send(message));
             }
         }
     }
@@ -189,7 +189,7 @@ mod tests {
     fn players() -> (PlayerMap, UnboundedReceiver<ServerToClient>) {
         let (tx, rx) = unbounded_channel();
         let mut info = PlayerInfo::new(Entity::PLACEHOLDER, tx);
-        info.logged_in = true;
+        info.connection.logged_in = true;
         let mut players = PlayerMap::default();
         players.insert(PlayerId(1), info);
         (players, rx)
@@ -249,7 +249,7 @@ mod tests {
         let (mut players, mut first) = players();
         let (tx, mut second) = unbounded_channel();
         let mut info = PlayerInfo::new(Entity::PLACEHOLDER, tx);
-        info.logged_in = true;
+        info.connection.logged_in = true;
         players.insert(PlayerId(2), info);
 
         emit_feed(

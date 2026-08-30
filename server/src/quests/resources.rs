@@ -65,7 +65,7 @@ impl QuestRuntimeState {
 
 // Session-wide quest state: which quests are unlocked, which group quests
 // completed, and the pooled progress of `shared` quests. Own progress per
-// player stays on `PlayerInfo.quest_states`.
+// player stays on `PlayerInfo.session.quest_states`.
 #[derive(Resource, Debug)]
 pub struct QuestBoard {
     states: HashMap<QuestId, QuestRuntimeState>,
@@ -243,11 +243,12 @@ pub(super) fn everyone_count(players: &PlayerMap, quest: &Quest) -> EveryoneCoun
         players_total: 0,
     };
     for (_, info) in players.iter() {
-        if !info.logged_in {
+        if !info.connection.logged_in {
             continue;
         }
         count.players_total += 1;
         if info
+            .session
             .quest_states
             .get(&quest.id)
             .and_then(|state| state.own_progress())
@@ -286,6 +287,7 @@ mod tests {
         players
             .get_mut(&PlayerId(1))
             .expect("alice")
+            .session
             .quest_states
             .insert(QuestId("gold".to_owned()), PlayerQuestState::Everyone { progress: 2 });
 

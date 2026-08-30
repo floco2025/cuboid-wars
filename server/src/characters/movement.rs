@@ -123,7 +123,7 @@ fn plan_player_moves(
         );
 
         let has_low_gravity = info.is_some_and(PlayerInfo::has_low_gravity);
-        let held_keys: &[BarrierKindId] = info.map_or(&[], |info| &info.held_keys);
+        let held_keys: &[BarrierKindId] = info.map_or(&[], |info| &info.life.held_keys);
         // Effective passable kinds = held keys ∪ globally-open kinds (plates).
         // One shared helper between server-authoritative movement and
         // client-side prediction so both decide passability identically.
@@ -145,7 +145,7 @@ fn plan_player_moves(
             },
         );
         if let Some(info) = players.get_mut(player_id) {
-            info.fall_state.set_support(step.support);
+            info.life.fall_state.set_support(step.support);
         }
 
         planned_moves.push(CharacterMovePlan::from_movement_result(

@@ -73,7 +73,7 @@ pub fn handle_missile_shot_message(
             .iter()
             .filter(|(target_id, _)| **target_id != id)
             .filter_map(|(target_id, info)| {
-                let (pos, _, face_yaw, _) = player_data.get(info.entity).ok()?;
+                let (pos, _, face_yaw, _) = player_data.get(info.entity()?).ok()?;
                 Some((
                     HomingTarget::Player(*target_id),
                     *pos,

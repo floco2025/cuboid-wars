@@ -46,17 +46,19 @@ pub fn item_collection_system(
             for (player_id, player_info) in players.iter() {
                 // A killed player's entity despawn is deferred, so a same-tick
                 // corpse still overlaps items — and a key collected here would
-                // land after `clear_per_life_state`, surviving into the next life.
+                // land after the death reset, surviving into the next life.
                 if player_info.is_dead() {
                     continue;
                 }
-                if let Ok(character_pos) = character_positions.get(player_info.entity) {
+                if let Some(entity) = player_info.entity()
+                    && let Ok(character_pos) = character_positions.get(entity)
+                {
                     if (character_pos.y - item_pos.y).abs() > ITEM_PICKUP_FLOOR_EPSILON {
                         continue;
                     }
 
                     if character_overlaps_item(character_pos, item_pos, ITEM_COLLECTION_RADIUS) {
-                        let health = player_health.get(player_info.entity).ok();
+                        let health = player_health.get(entity).ok();
                         if !pickup_has_effect(
                             item_info.item_type,
                             player_info,
@@ -129,7 +131,7 @@ fn pickup_has_effect(
 ) -> bool {
     match item_type {
         ItemType::Key(kind) => !player_info.has_key(kind),
-        ItemType::MissilePack => player_info.missiles < gameplay_config.missiles.max_missiles,
+        ItemType::MissilePack => player_info.life.missiles < gameplay_config.missiles.max_missiles,
         ItemType::HealthPotion => {
             health.is_none_or(|health| health.0 < server_gameplay_config.combat.health.player.max)
         }
@@ -168,7 +170,7 @@ fn collect_cookie(
     let Some(player_info) = players.get_mut(&player_id) else {
         return;
     };
-    player_info.score += server_gameplay_config.scoring.cookie;
+    player_info.session.score += server_gameplay_config.scoring.cookie;
     record_event(
         players,
         quest_board,
@@ -180,9 +182,10 @@ fn collect_cookie(
     // completion bonus.
     if let Some(player_info) = players.get(&player_id) {
         let _ = player_info
+            .connection
             .channel
             .send(ServerToClient::Send(ServerMessage::CookieCollected(SCookieCollected {
-                score: player_info.score,
+                score: player_info.session.score,
             })));
     }
 }
@@ -216,7 +219,10 @@ fn collect_health_potion(
     let Some(player_info) = players.get(&player_id) else {
         return;
     };
-    let Ok(mut health) = player_health.get_mut(player_info.entity) else {
+    let Some(entity) = player_info.entity() else {
+        return;
+    };
+    let Ok(mut health) = player_health.get_mut(entity) else {
         return;
     };
     let player_health_config = server_gameplay_config.combat.health.player;
@@ -225,6 +231,7 @@ fn collect_health_potion(
     // Unicast pickup cue — carries the post-heal value so the HUD bumps on
     // the pickup tick instead of waiting for the next snapshot.
     let _ = player_info
+        .connection
         .channel
         .send(ServerToClient::Send(ServerMessage::HealthPotionCollected(
             SHealthPotionCollected { health: *health },
@@ -247,6 +254,7 @@ fn collect_missile_pack(
     // Unicast pickup cue — the snapshot's `Player.missiles` is the system
     // of record.
     let _ = player_info
+        .connection
         .channel
         .send(ServerToClient::Send(ServerMessage::MissilesCollected(
             SMissilesCollected { missiles },

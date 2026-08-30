@@ -51,10 +51,10 @@ pub(crate) fn join_with(
 ) -> UnboundedReceiver<ServerToClient> {
     let (tx, mut rx) = unbounded_channel();
     let mut info = PlayerInfo::new(Entity::PLACEHOLDER, tx);
-    info.logged_in = true;
-    info.name = format!("P{id}");
+    info.connection.logged_in = true;
+    info.connection.name = format!("P{id}");
     if dead {
-        info.death_timer = Some(2.0);
+        info.begin_respawn(2.0);
     }
     let player = PlayerId(id);
     players.insert(player, info);
@@ -67,7 +67,7 @@ pub(crate) fn join_with(
 pub(crate) fn assignment_for(catalog: &QuestCatalog, board: &QuestBoard) -> Vec<NewQuest> {
     let (tx, mut rx) = unbounded_channel();
     let mut info = PlayerInfo::new(Entity::PLACEHOLDER, tx);
-    info.logged_in = true;
+    info.connection.logged_in = true;
     let player = PlayerId(1);
     let mut players = PlayerMap::default();
     players.insert(player, info);
@@ -126,11 +126,11 @@ pub(crate) fn assigned_ids(messages: &[ServerMessage]) -> Vec<String> {
 }
 
 pub(crate) fn score(players: &PlayerMap, id: u32) -> i32 {
-    players.get(&PlayerId(id)).expect("player tracked").score
+    players.get(&PlayerId(id)).expect("player tracked").session.score
 }
 
 pub(crate) fn own_progress(players: &PlayerMap, id: u32, quest: &str) -> u32 {
-    players.get(&PlayerId(id)).expect("player tracked").quest_states[&QuestId(quest.to_owned())]
+    players.get(&PlayerId(id)).expect("player tracked").session.quest_states[&QuestId(quest.to_owned())]
         .own_progress()
         .expect("quest has own progress")
 }

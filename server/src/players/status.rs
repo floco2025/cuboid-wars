@@ -16,7 +16,7 @@ pub fn players_unlimited_missiles_system(
         return;
     }
     for (_, player_info) in players.iter_mut() {
-        player_info.missiles = gameplay_config.missiles.max_missiles;
+        player_info.life.missiles = gameplay_config.missiles.max_missiles;
     }
 }
 

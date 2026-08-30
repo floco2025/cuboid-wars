@@ -462,8 +462,8 @@ fn run_admin_command(
         AdminCommand::Kick(name) => {
             let mut count = 0usize;
             for (_, info) in players.iter() {
-                if info.logged_in && info.name.to_lowercase() == name.to_lowercase() {
-                    let _ = info.channel.send(ServerToClient::Close);
+                if info.connection.logged_in && info.connection.name.to_lowercase() == name.to_lowercase() {
+                    let _ = info.connection.channel.send(ServerToClient::Close);
                     count += 1;
                 }
             }
@@ -481,9 +481,9 @@ fn run_admin_command(
 fn alive_players(players: &PlayerMap, name: Option<&str>) -> Vec<(PlayerId, Entity)> {
     players
         .iter()
-        .filter(|(_, info)| info.logged_in && !info.is_dead())
-        .filter(|(_, info)| name.is_none_or(|name| info.name.to_lowercase() == name.to_lowercase()))
-        .map(|(id, info)| (*id, info.entity))
+        .filter(|(_, info)| info.connection.logged_in)
+        .filter(|(_, info)| name.is_none_or(|name| info.connection.name.to_lowercase() == name.to_lowercase()))
+        .filter_map(|(id, info)| info.entity().map(|entity| (*id, entity)))
         .collect()
 }
 
@@ -492,8 +492,8 @@ fn alive_players(players: &PlayerMap, name: Option<&str>) -> Vec<(PlayerId, Enti
 fn logged_in_players(players: &PlayerMap, name: Option<&str>) -> Vec<PlayerId> {
     players
         .iter()
-        .filter(|(_, info)| info.logged_in)
-        .filter(|(_, info)| name.is_none_or(|name| info.name.to_lowercase() == name.to_lowercase()))
+        .filter(|(_, info)| info.connection.logged_in)
+        .filter(|(_, info)| name.is_none_or(|name| info.connection.name.to_lowercase() == name.to_lowercase()))
         .map(|(id, _)| *id)
         .collect()
 }
@@ -502,7 +502,7 @@ fn logged_in_players(players: &PlayerMap, name: Option<&str>) -> Vec<PlayerId> {
 // from the issuer's point of view.
 fn quest_status(players: &PlayerMap, board: &QuestBoard, catalog: &QuestCatalog, sender: PlayerId) -> String {
     let statuses = board.group_statuses(catalog, players);
-    let own_states = players.get(&sender).map(|info| &info.quest_states);
+    let own_states = players.get(&sender).map(|info| &info.session.quest_states);
     catalog
         .iter()
         .map(|quest| {
@@ -707,7 +707,7 @@ mod tests {
         let config = ServerGameplayConfig::load_default().expect("default server gameplay config should load");
         grant_power_up_by_id(&mut info, "speed", &config);
         assert!(
-            info.power_up_timers[common::protocol::PowerUpKind::Speed.index()] > 0.0,
+            info.life.power_up_timers[common::protocol::PowerUpKind::Speed.index()] > 0.0,
             "speed timer must be armed"
         );
     }

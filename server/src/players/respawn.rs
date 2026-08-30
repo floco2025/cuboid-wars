@@ -15,9 +15,8 @@ use common::{
 // at a new spawn-zone cell with full health. Per-life state (power-ups, keys,
 // stun) was already cleared at death; score is preserved.
 //
-// The new entity replaces the (already despawned) old one; the next `SSnapshot`
-// will carry the player at their new position and the client's snapshot diff
-// resurrects their visual.
+// The new entity moves the player's lifecycle back to alive; the next
+// `SSnapshot` carries the new position and resurrects the client visual.
 pub fn players_respawn_system(
     mut commands: Commands,
     time: Res<Time>,
@@ -35,7 +34,7 @@ pub fn players_respawn_system(
     let mut to_respawn: Vec<PlayerId> = Vec::new();
 
     for (id, info) in players.iter_mut() {
-        let Some(timer) = info.death_timer.as_mut() else {
+        let Some(timer) = info.respawn_remaining_secs_mut() else {
             continue;
         };
         *timer -= delta;
@@ -67,8 +66,7 @@ pub fn players_respawn_system(
             .id();
 
         if let Some(info) = players.get_mut(&id) {
-            info.entity = entity;
-            info.death_timer = None;
+            info.finish_respawn(entity);
         }
 
         occupied_positions.push(pos);

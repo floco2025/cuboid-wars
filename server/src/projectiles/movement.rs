@@ -149,7 +149,8 @@ pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut 
             let overlaps_shooter = params
                 .players
                 .get(shooter_id)
-                .and_then(|info| params.player_query.get(info.entity).ok())
+                .and_then(|info| info.entity())
+                .and_then(|entity| params.player_query.get(entity).ok())
                 .is_some_and(|(position, face_direction, _, _)| {
                     projectile_overlaps_character(
                         &projectile,
@@ -229,7 +230,7 @@ pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut 
 
         match closest_hit {
             Some(ProjectileTargetHit::Player { id: player_id, hit }) => {
-                if let Some(target_entity) = params.players.get(&player_id).map(|info| info.entity)
+                if let Some(target_entity) = params.players.get(&player_id).and_then(|info| info.entity())
                     && let Ok((target_pos, _, _, mut health)) = params.player_query.get_mut(target_entity)
                 {
                     let death_pos = *target_pos;
