@@ -8,7 +8,7 @@ use bevy::{
 use crate::{
     actors::{ActorGhostMap, ActorMap},
     barriers::{KeyKinds, LockedPlatePurposes, OpenBarrierKinds, setup_barrier_assets},
-    cameras::{CameraViewMode, TopDownCameraYaw, setup_cameras_system},
+    cameras::{CameraViewMode, TopDownCameraYaw, clamp_msaa_to_device_system, setup_cameras_system},
     characters::MaxHealth,
     characters::{character_sync_plugin, prediction_plugin},
     config::{AssetSet, ClientSettings, LocalSettings, OpaqueRenderer},
@@ -121,6 +121,7 @@ pub fn build_client_app(
             Startup,
             (
                 setup_scene_lighting_system,
+                clamp_msaa_to_device_system.before(setup_cameras_system),
                 setup_cameras_system,
                 setup_ui_system,
                 setup_item_assets,

@@ -5,6 +5,9 @@ use bevy::ui_widgets::{Activate, SliderValue, ValueChange};
 use bevy::window::{Monitor, OnMonitor, PresentMode, PrimaryMonitor, PrimaryWindow, WindowMode};
 
 use super::state::{CheckboxSetting, CyclerButton, CyclerSetting, SliderSetting};
+use bevy::render::renderer::RenderAdapter;
+
+use crate::cameras::{MainCameraMarker, RearviewCameraMarker, supported_msaa_samples};
 use crate::config::ClientSettings;
 use crate::input::enter_borderless_fullscreen;
 
@@ -60,6 +63,7 @@ pub(super) fn on_checkbox_value_change(
             }
         }
         CheckboxSetting::InvertY => settings.input.invert_y = event.value,
+        CheckboxSetting::RearviewMirror => settings.camera.rearview.enabled = event.value,
         CheckboxSetting::ShowDiagnostics => settings.hud.show_diagnostics = event.value,
     }
 }
@@ -71,6 +75,8 @@ pub(super) fn on_cycler_activate(
     mut windows: Query<(&mut Window, Option<&OnMonitor>), With<PrimaryWindow>>,
     monitors: Query<(Entity, Has<PrimaryMonitor>), With<Monitor>>,
     monitor_data: Query<&Monitor>,
+    mut msaa_cameras: Query<&mut Msaa, Or<(With<MainCameraMarker>, With<RearviewCameraMarker>)>>,
+    adapter: Res<RenderAdapter>,
 ) {
     let Ok(&button) = buttons.get(event.entity) else {
         return;
@@ -106,6 +112,22 @@ pub(super) fn on_cycler_activate(
                 .map_or(0, |(index, _)| index);
             let step = if button.direction < 0 { presets.len() - 1 } else { 1 };
             settings.rendering.fullscreen_resolution = presets[(nearest + step) % presets.len()];
+        }
+        CyclerSetting::Msaa => {
+            // Deferred rendering forces MSAA off (`setup_cameras_system`);
+            // the row is disabled then.
+            if settings.rendering.opaque_renderer.is_deferred() {
+                return;
+            }
+            let supported = supported_msaa_samples(&adapter);
+            let current = settings.rendering.msaa_samples;
+            let nearest = supported.iter().position(|&samples| samples == current).unwrap_or(0);
+            let step = if button.direction < 0 { supported.len() - 1 } else { 1 };
+            let samples = supported[(nearest + step) % supported.len()];
+            settings.rendering.msaa_samples = samples;
+            for mut msaa in &mut msaa_cameras {
+                *msaa = Msaa::from_samples(samples);
+            }
         }
         CyclerSetting::WindowMode => {
             let Ok((mut window, on_monitor)) = windows.single_mut() else {

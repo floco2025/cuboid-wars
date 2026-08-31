@@ -1,3 +1,5 @@
+use bevy::render::render_resource::TextureFormat;
+use bevy::render::renderer::RenderAdapter;
 use bevy::{
     camera::{ImageRenderTarget, RenderTarget, Viewport},
     core_pipeline::prepass::{DeferredPrepass, DepthPrepass},
@@ -16,6 +18,41 @@ use crate::config::ClientSettings;
 // ============================================================================
 // Camera Setup System
 // ============================================================================
+
+// MSAA counts the device supports for bevy's view-target formats (the HDR
+// main texture and the sRGB target). Only 1 and 4 are spec-guaranteed; 2
+// and 8 vary per GPU, and requesting an unsupported count is a wgpu
+// validation error that kills rendering.
+pub fn supported_msaa_samples(adapter: &RenderAdapter) -> Vec<u32> {
+    [1, 2, 4, 8]
+        .into_iter()
+        .filter(|&count| {
+            [TextureFormat::Rgba16Float, TextureFormat::Rgba8UnormSrgb]
+                .into_iter()
+                .all(|format| {
+                    adapter
+                        .get_texture_format_features(format)
+                        .flags
+                        .sample_count_supported(count)
+                })
+        })
+        .collect()
+}
+
+// Config and saved settings can carry a count this GPU rejects; clamp to
+// the highest supported one before the cameras bake `Msaa` from it.
+pub fn clamp_msaa_to_device_system(mut client_settings: ResMut<ClientSettings>, adapter: Res<RenderAdapter>) {
+    let configured = client_settings.rendering.msaa_samples;
+    let clamped = supported_msaa_samples(&adapter)
+        .into_iter()
+        .filter(|&samples| samples <= configured)
+        .max()
+        .unwrap_or(1);
+    if clamped != configured {
+        warn!("MSAA {configured}x is not supported by this GPU; using {clamped}x");
+        client_settings.rendering.msaa_samples = clamped;
+    }
+}
 
 pub fn setup_cameras_system(
     mut commands: Commands,

@@ -27,7 +27,7 @@ pub use player_list::{
 pub use quest_panel::{QuestEntry, QuestLog, QuestProgress, ui_quest_panel_rebuild_system};
 pub use scale::ui_hud_scale_system;
 pub use settings_menu::{SettingsMenuState, menu_closed, settings_menu_plugin};
-pub use setup::{DeathOverlayMarker, setup_ui_system};
+pub use setup::{DeathOverlayMarker, setup_ui_system, ui_quest_panel_offset_system};
 pub use timed_lines::ui_timed_lines_system;
 
 mod plugin;

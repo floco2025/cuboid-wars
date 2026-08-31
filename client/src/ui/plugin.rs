@@ -29,6 +29,7 @@ pub fn hud_plugin(app: &mut App) {
             ui_player_list_rebuild_system,
             ui_health_bar_fill_system.after(ui_player_list_rebuild_system),
             ui_quest_panel_rebuild_system,
+            ui_quest_panel_offset_system,
             ui_stunned_blink_system,
             ui_rtt_system,
             ui_fps_system,

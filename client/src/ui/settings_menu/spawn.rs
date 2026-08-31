@@ -94,6 +94,13 @@ pub(super) fn settings_menu_lifecycle_system(
                         vsync_row.insert(Checked);
                     }
 
+                    panel.spawn(section_header("Graphics", font));
+                    panel.spawn(cycler_row(
+                        "Anti-aliasing",
+                        font,
+                        dims.control_width,
+                        CyclerSetting::Msaa,
+                    ));
                     panel.spawn(section_header("Controls", font));
                     panel.spawn(slider_row(
                         "Mouse sensitivity",
@@ -145,6 +152,11 @@ pub(super) fn settings_menu_lifecycle_system(
                     ));
 
                     panel.spawn(section_header("HUD", font));
+                    let mut rearview_row =
+                        panel.spawn(checkbox_row("Rearview mirror", font, CheckboxSetting::RearviewMirror));
+                    if settings.camera.rearview.enabled {
+                        rearview_row.insert(Checked);
+                    }
                     let mut diagnostics_row = panel.spawn(checkbox_row(
                         "FPS / RTT readout",
                         font,

@@ -27,12 +27,14 @@ pub(super) fn save_local_settings_system(
         fullscreen,
         fullscreen_resolution: settings.rendering.fullscreen_resolution,
         vsync: settings.rendering.vsync,
+        msaa_samples: settings.rendering.msaa_samples,
         mouse_sensitivity: settings.input.mouse_sensitivity,
         invert_y: settings.input.invert_y,
         fov_degrees: settings.camera.fov_degrees.first_person,
         shake_scale: settings.camera.shake.scale,
         master_volume: global_volume.volume.to_linear(),
         show_diagnostics: settings.hud.show_diagnostics,
+        rearview_mirror: settings.camera.rearview.enabled,
     };
     if let Err(error) = local.save() {
         warn!("failed to save settings: {error:#}");

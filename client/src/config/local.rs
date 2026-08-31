@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use super::ClientSettings;
 
-pub const LOCAL_SETTINGS_VERSION: u32 = 1;
+pub const LOCAL_SETTINGS_VERSION: u32 = 4;
 
 // The settings panel's values, saved when the menu closes and overlaid onto
 // `client.json` at startup. The file is not in git, so a format change
@@ -17,12 +17,14 @@ pub struct LocalSettings {
     pub fullscreen: bool,
     pub fullscreen_resolution: u32,
     pub vsync: bool,
+    pub msaa_samples: u32,
     pub mouse_sensitivity: f32,
     pub invert_y: bool,
     pub fov_degrees: f32,
     pub shake_scale: f32,
     pub master_volume: f32,
     pub show_diagnostics: bool,
+    pub rearview_mirror: bool,
 }
 
 fn default_path() -> PathBuf {
@@ -75,11 +77,13 @@ impl LocalSettings {
     pub fn apply_to(&self, settings: &mut ClientSettings) {
         settings.rendering.fullscreen_resolution = self.fullscreen_resolution;
         settings.rendering.vsync = self.vsync;
+        settings.rendering.msaa_samples = self.msaa_samples;
         settings.input.mouse_sensitivity = self.mouse_sensitivity;
         settings.input.invert_y = self.invert_y;
         settings.camera.fov_degrees.first_person = self.fov_degrees;
         settings.camera.shake.scale = self.shake_scale;
         settings.hud.show_diagnostics = self.show_diagnostics;
+        settings.camera.rearview.enabled = self.rearview_mirror;
     }
 }
 
@@ -93,12 +97,14 @@ mod tests {
             fullscreen: true,
             fullscreen_resolution: 1080,
             vsync: true,
+            msaa_samples: 2,
             mouse_sensitivity: 0.003,
             invert_y: true,
             fov_degrees: 100.0,
             shake_scale: 0.5,
             master_volume: 0.8,
             show_diagnostics: false,
+            rearview_mirror: true,
         }
     }
 

@@ -114,6 +114,7 @@ pub(super) fn settings_menu_window_sync_system(
     };
     let monitor = on_monitor.and_then(|on_monitor| monitors.get(on_monitor.0).ok());
     let windowed = matches!(window.mode, WindowMode::Windowed);
+    let deferred = settings.rendering.opaque_renderer.is_deferred();
     for (label, mut text, mut color) in &mut labels {
         let (rendered, dimmed) = match label.0 {
             CyclerSetting::Resolution => {
@@ -126,6 +127,15 @@ pub(super) fn settings_menu_window_sync_system(
                     (monitor.physical_width as f32 * height as f32 / monitor.physical_height as f32).round() as u32
                 });
                 (format!("{width}x{height}"), windowed)
+            }
+            CyclerSetting::Msaa => {
+                let samples = settings.rendering.msaa_samples;
+                let label = if samples <= 1 {
+                    "Off".to_owned()
+                } else {
+                    format!("{samples}x")
+                };
+                (label, deferred)
             }
             CyclerSetting::WindowMode => (if windowed { "Windowed" } else { "Fullscreen" }.to_owned(), false),
         };
@@ -142,11 +152,13 @@ pub(super) fn settings_menu_window_sync_system(
         }
     }
     for (entity, button, disabled) in &buttons {
-        if button.setting != CyclerSetting::Resolution {
-            continue;
-        }
-        if windowed != disabled {
-            if windowed {
+        let desired = match button.setting {
+            CyclerSetting::Resolution => windowed,
+            CyclerSetting::Msaa => deferred,
+            CyclerSetting::WindowMode => false,
+        };
+        if desired != disabled {
+            if desired {
                 commands.entity(entity).insert(InteractionDisabled);
             } else {
                 commands.entity(entity).remove::<InteractionDisabled>();

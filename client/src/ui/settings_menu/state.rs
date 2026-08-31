@@ -29,12 +29,14 @@ pub(super) enum SliderSetting {
 pub(super) enum CheckboxSetting {
     VSync,
     InvertY,
+    RearviewMirror,
     ShowDiagnostics,
 }
 
 #[derive(Component, Clone, Copy, PartialEq, Eq)]
 pub(super) enum CyclerSetting {
     Resolution,
+    Msaa,
     WindowMode,
 }
 

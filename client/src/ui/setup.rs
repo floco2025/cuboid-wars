@@ -34,16 +34,7 @@ pub fn setup_ui_system(mut commands: Commands, client_settings: Res<ClientSettin
     ));
 
     // Quest panel: top-right, rows filled by `ui_quest_panel_rebuild_system`.
-    // The rear-view mirror also lives top-right; when it's enabled, drop the
-    // panel below it (mirror is `height_ratio` of window height tall, plus the
-    // small edge inset) so the two don't overlap. Percent keeps the offset in
-    // step with the ratio-sized mirror across window sizes.
-    let rearview = &client_settings.camera.rearview;
-    let quest_panel_top = if rearview.enabled {
-        Val::Percent(rearview.height_ratio.mul_add(100.0, 4.0))
-    } else {
-        Val::Px(HUD_EDGE_MARGIN_PX)
-    };
+    let quest_panel_top = quest_panel_top(&client_settings);
     commands.spawn((
         QuestPanelMarker,
         Node {
@@ -168,4 +159,31 @@ pub fn setup_ui_system(mut commands: Commands, client_settings: Res<ClientSettin
             spawn_message_feed(column, &client_settings);
             spawn_console(column, &client_settings);
         });
+}
+
+// The rear-view mirror also lives top-right; with it enabled the quest
+// panel drops below it (mirror is `height_ratio` of window height tall,
+// plus the small edge inset) so the two don't overlap. Percent keeps the
+// offset in step with the ratio-sized mirror across window sizes.
+fn quest_panel_top(client_settings: &ClientSettings) -> Val {
+    let rearview = &client_settings.camera.rearview;
+    if rearview.enabled {
+        Val::Percent(rearview.height_ratio.mul_add(100.0, 4.0))
+    } else {
+        Val::Px(HUD_EDGE_MARGIN_PX)
+    }
+}
+
+// Re-applies the offset when the settings menu toggles the mirror.
+pub fn ui_quest_panel_offset_system(
+    client_settings: Res<ClientSettings>,
+    mut panel: Single<&mut Node, With<QuestPanelMarker>>,
+) {
+    if !client_settings.is_changed() {
+        return;
+    }
+    let top = quest_panel_top(&client_settings);
+    if panel.top != top {
+        panel.top = top;
+    }
 }
