@@ -98,7 +98,7 @@
   "hud": {
     "reference_width": 1920.0,
     "show_diagnostics": true,
-    "settings_menu": { "panel_width": 380.0, "control_width": 160.0 },
+    "settings_menu": { "panel_width": 420.0, "control_width": 180.0 },
     "font_sizes": {
       "player_list": 18.0,
       "score": 16.0,
