@@ -492,29 +492,14 @@ pub struct SFirework {
     pub seed: u64,
 }
 
-// A portal end was placed or moved. Latency cue for the placement visual and
-// sound; the snapshot's `portals` list is the system of record.
+// A portal end was placed or moved. Latency cue for the placement visual
+// and sound — and for keeping every client's portal geometry fresh: portal
+// crossings are not messaged at all, each client simulates every player's
+// crossings from the shared geometry, so a placement must reach observers
+// quickly. The snapshot's `portals` list is the system of record.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SPortalOpened {
     pub portal: Portal,
-}
-
-// A player crossed a portal. Broadcast per crossing: the traveler's own
-// client predicted it with the same shared code (the cue confirms silently
-// and only corrects a mispredict, e.g. a portal re-shot mid-crossing),
-// while other clients hard-place the traveler at the exit. Carries the same
-// velocity fields as `SPlayerBlast` so prediction state seeds identically;
-// clients stand reconciliation down briefly after it, because data built
-// pre-teleport would drag a looping player back to a stale phase.
-#[derive(Debug, Clone, Encode, Decode)]
-pub struct SPlayerTeleport {
-    pub id: PlayerId,
-    pub from_pos: Position, // departure point, for effects at the entry end
-    pub pos: Position,
-    pub face_yaw: f32,
-    pub vertical_velocity: f32,
-    pub velocity_x: f32,
-    pub velocity_z: f32,
 }
 
 // --- Feed lines (server-authored message feed) ---
@@ -635,7 +620,6 @@ pub enum ServerMessage {
     PressurePlate(SPressurePlate),
     Firework(SFirework),
     PortalOpened(SPortalOpened),
-    PlayerTeleport(SPlayerTeleport),
     // Feed lines
     Feed(SFeed),
     // Per-client state events

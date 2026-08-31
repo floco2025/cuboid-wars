@@ -2,12 +2,12 @@ use std::collections::HashMap;
 
 use bevy::prelude::*;
 
-use crate::{network::broadcast_to_all, players::PlayerMap};
+use crate::players::PlayerMap;
 use common::{
     config::GameplayConfig,
     constants::PORTAL_KNOCKBACK_CARRY_FACTOR,
     physics::{CharacterVerticalVelocity, KnockbackVelocity, PortalSet, player_control_velocity},
-    protocol::{FaceYaw, PlayerId, PlayerMarker, PlayerMoveIntent, Position, SPlayerTeleport, ServerMessage},
+    protocol::{FaceYaw, PlayerId, PlayerMarker, PlayerMoveIntent, Position},
 };
 
 // Runs right after the movement step. The step already let the body sink
@@ -58,7 +58,6 @@ pub fn players_portal_traversal_system(
             )
         });
         if let Some(hop) = hop {
-            let from_pos = *pos;
             *pos = hop.origin.into();
             face_yaw.0 = hop.yaw;
             vertical_velocity.0 = hop.vertical_velocity;
@@ -73,19 +72,9 @@ pub fn players_portal_traversal_system(
                 // at the exit.
                 info.life.fall_state.reset();
             }
+            // Not broadcast: every client simulates every player's crossings
+            // from the shared geometry; the snapshot corrects a wrong guess.
             debug!("{} passed through a portal", players.describe(id));
-            broadcast_to_all(
-                &players,
-                ServerMessage::PlayerTeleport(SPlayerTeleport {
-                    id: *id,
-                    from_pos,
-                    pos: *pos,
-                    face_yaw: hop.yaw,
-                    vertical_velocity: hop.vertical_velocity,
-                    velocity_x: hop.knockback.x,
-                    velocity_z: hop.knockback.z,
-                }),
-            );
         }
         seen.insert(entity, *pos);
     }

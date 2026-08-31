@@ -136,7 +136,7 @@ pub fn build_client_app(
 
     app.add_systems(
         FixedUpdate,
-        crate::portals::local_player_portal_prediction_system
+        crate::portals::portal_transit_system
             .after(crate::characters::characters_movement_system)
             .before(crate::characters::knockback_decay_system),
     );

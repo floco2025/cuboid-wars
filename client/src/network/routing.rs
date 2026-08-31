@@ -16,7 +16,7 @@ use super::{
     players::{
         handle_player_blast_message, handle_player_death_message, handle_player_fall_damage_message,
         handle_player_hit_message, handle_player_jump_message, handle_player_move_message, handle_player_shot_message,
-        handle_player_status_message, handle_player_teleport_message,
+        handle_player_status_message,
     },
     portals::handle_portal_opened_message,
     presentation::{handle_feed_message, handle_firework_message, handle_pressure_plate_message},
@@ -87,9 +87,6 @@ pub(super) fn route_server_message(
         (Some(_), ServerMessage::PressurePlate(message)) => handle_pressure_plate_message(message, commands, context),
         (Some(_), ServerMessage::Firework(message)) => handle_firework_message(message, context),
         (Some(_), ServerMessage::PortalOpened(message)) => handle_portal_opened_message(message, commands, context),
-        (Some(my_player_id), ServerMessage::PlayerTeleport(message)) => {
-            handle_player_teleport_message(message, commands, my_player_id, context);
-        }
         (Some(_), ServerMessage::Feed(message)) => handle_feed_message(message, context),
         (Some(_), ServerMessage::Pong(message)) => apply_pong(&context.time, &mut context.rtt, message),
     }

@@ -339,19 +339,6 @@ impl PortalSet {
         self.pairs.is_empty()
     }
 
-    // The (entry, exit) frames of the gate a teleport used, recovered from
-    // its endpoints — the teleport cue carries positions, not portal ids.
-    #[must_use]
-    pub fn traversal_frames(&self, from: Vec3, to: Vec3) -> Option<(PortalFrame, PortalFrame)> {
-        self.gates()
-            .map(|(entry, exit)| {
-                let score = from.distance_squared(entry.frame.center) + to.distance_squared(exit.frame.center);
-                (score, (entry.frame, exit.frame))
-            })
-            .min_by(|(a, _), (b, _)| a.total_cmp(b))
-            .map(|(_, frames)| frames)
-    }
-
     fn gates(&self) -> impl Iterator<Item = (&PortalGate, &PortalGate)> {
         self.pairs
             .iter()
@@ -837,21 +824,6 @@ mod tests {
         assert!((hop.exit_pos.x - hop.entry_point.x).abs() < 1e-4);
         assert!((hop.exit_pos.y - hop.entry_point.y).abs() < 1e-4);
         assert!((hop.exit_velocity.length() - velocity.length()).abs() < 1e-4);
-    }
-
-    #[test]
-    fn traversal_frames_recovers_the_used_gate_in_both_directions() {
-        let set = pair(Vec3::new(0.0, 1.0, 0.0), Vec3::Z, Vec3::new(10.0, 1.0, 10.0), Vec3::X);
-        let (entry, exit) = set
-            .traversal_frames(Vec3::new(0.1, 1.2, 0.6), Vec3::new(10.6, 1.1, 10.0))
-            .expect("no gate recovered");
-        assert!((entry.normal - Vec3::Z).length() < 1e-5);
-        assert!((exit.normal - Vec3::X).length() < 1e-5);
-        let (entry, exit) = set
-            .traversal_frames(Vec3::new(10.6, 1.1, 10.0), Vec3::new(0.1, 1.2, 0.6))
-            .expect("no reverse gate recovered");
-        assert!((entry.normal - Vec3::X).length() < 1e-5);
-        assert!((exit.normal - Vec3::Z).length() < 1e-5);
     }
 
     #[test]

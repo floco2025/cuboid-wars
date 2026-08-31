@@ -13,7 +13,7 @@ use crate::{
 };
 use common::{
     physics::CharacterVerticalVelocity,
-    protocol::{FaceYaw, Player, PlayerId, Position, PowerUpKind, SPlayerTeleport},
+    protocol::{FaceYaw, Player, PlayerId, Position, PowerUpKind},
 };
 
 pub(in crate::network) fn sync_players(
@@ -181,44 +181,6 @@ pub(super) fn apply_local_spawn_facing(
     }
     local_player_info.stored_yaw = camera_rotation;
     local_player_info.stored_pitch = 0.0;
-}
-
-// Portal exit view handling for a cue the prediction did not make (portal
-// re-shot mid-crossing, or a cue racing ahead of local state): recover the
-// gate from the teleport endpoints and apply the mapped view; fall back to
-// the respawn-style snap when no gate matches.
-pub(super) fn apply_local_portal_facing(
-    commands: &mut Commands,
-    context: &mut ServerMessageContext,
-    message: &SPlayerTeleport,
-) {
-    let Some((entry, exit)) = context
-        .portal_set
-        .traversal_frames(Vec3::from(message.from_pos), Vec3::from(message.pos))
-    else {
-        apply_local_spawn_facing(
-            commands,
-            &context.cameras,
-            &mut context.local_player_info,
-            &message.pos,
-            message.face_yaw,
-        );
-        return;
-    };
-    let eye = Vec3::new(
-        message.pos.x,
-        message.pos.y + context.gameplay_config.player.eye_height(),
-        message.pos.z,
-    );
-    crate::portals::apply_portal_view(
-        commands,
-        context.cameras.single().ok(),
-        &mut context.local_player_info,
-        eye,
-        &entry,
-        &exit,
-        message.face_yaw,
-    );
 }
 
 fn update_snapshot_player(
