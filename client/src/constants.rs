@@ -51,6 +51,14 @@ pub const RECON_PLAYER_SNAP_DECAY_SECS: f32 = 1.0;
 // corrections more clearly than moving ones, so smooth them slowly.
 pub const RECON_PLAYER_IDLE_CORRECTION_SECS: f32 = 8.0;
 
+// A teleport cue is a hard server anchor. Reconciliation data may predate
+// it (a snapshot or move built pre-teleport), and applying it would yank
+// the player back to a stale phase of a portal loop — so recons are skipped
+// this long after each cue (snapshot period plus transit slack). During a
+// fast portal fall chain this hands the position to the cues, which
+// re-anchor exactly on every hop.
+pub const RECON_TELEPORT_SUPPRESS_SECS: f32 = 0.3;
+
 // --- Actor only ---
 
 // Per-axis snap distance. Fixed — actor speeds are simple enough that

@@ -25,6 +25,9 @@ pub struct PlayerInfo {
     // Recon snap-threshold high-water-mark; updated each tick in
     // `plan_player_moves`. See `RECON_PLAYER_SNAP_DECAY_SECS`.
     pub snap_speed: f32,
+    // When the last `SPlayerTeleport` cue landed; reconciliation stands down
+    // briefly after it (`RECON_TELEPORT_SUPPRESS_SECS`).
+    pub last_teleport_time: f32,
 }
 
 impl PlayerInfo {
@@ -39,6 +42,7 @@ impl PlayerInfo {
             held_keys: Vec::new(),
             missiles: 0,
             snap_speed: 0.0,
+            last_teleport_time: f32::NEG_INFINITY,
         };
         info.apply_snapshot(player);
         info

@@ -9,7 +9,6 @@ use crate::network::ServerToClient;
 use common::constants::CHARACTER_FALL_DEATH_Y;
 use common::{
     config::GameplayConfig,
-    constants::{CHARACTER_GROUND_SNAP_DISTANCE, TICK_SECS},
     health::apply_damage,
     map::MapGeometry,
     physics::{CharacterSupport, CharacterVerticalVelocity, CollisionWorld},
@@ -19,7 +18,6 @@ use common::{
 #[derive(Debug, Clone, Copy)]
 pub struct PlayerFallState {
     support: CharacterSupport,
-    peak_speed: f32,
     peak_y: f32,
     peak_energy: f32,
 }
@@ -28,7 +26,6 @@ impl Default for PlayerFallState {
     fn default() -> Self {
         Self {
             support: CharacterSupport::Airborne,
-            peak_speed: 0.0,
             peak_y: f32::NEG_INFINITY,
             peak_energy: 0.0,
         }
@@ -69,7 +66,6 @@ impl PlayerFallState {
     fn update(&mut self, y: f32, vertical_velocity: f32, gravity: f32) -> Option<FallImpact> {
         if self.support == CharacterSupport::Airborne {
             let downward = (-vertical_velocity).max(0.0);
-            self.peak_speed = self.peak_speed.max(downward);
             self.peak_y = self.peak_y.max(y);
             // v² + 2gy is conserved along the flight, so portal traversal
             // can recover the exact speed at any height. The peak speed
@@ -79,11 +75,7 @@ impl PlayerFallState {
             return None;
         }
 
-        let impact = (self.peak_speed > 0.0).then_some(FallImpact {
-            drop: (self.peak_y - y).max(0.0),
-            peak_speed: self.peak_speed,
-        });
-        self.peak_speed = 0.0;
+        let impact = (self.peak_y > y).then_some(FallImpact { drop: self.peak_y - y });
         self.peak_y = f32::NEG_INFINITY;
         self.peak_energy = 0.0;
         impact
@@ -176,10 +168,6 @@ pub fn players_fall_death_system(
 // step off a curb.
 const FALL_DAMAGE_EMIT_THRESHOLD: f32 = 1.0;
 
-// Velocity-implied distance may exceed the actual drop beyond this before
-// the landing is logged as a phantom fall.
-const PHANTOM_FALL_TRIPWIRE_SLACK: f32 = 5.0;
-
 // Apply impact damage on landing from a fall. The highest Y of the current
 // airborne window is tracked by `PlayerFallState`; when the player
 // reaches support (ground or ladder), damage lerps from 0 at
@@ -194,8 +182,7 @@ const PHANTOM_FALL_TRIPWIRE_SLACK: f32 = 5.0;
 //     normal fall;
 //   * and deliberately NOT the impact speed: the terminal-velocity clamp
 //     caps that, which would make every fall survivable once the clamp is
-//     low enough — height must stay lethal. The velocity-implied estimate
-//     survives only as the phantom-fall tripwire.
+//     low enough — height must stay lethal.
 //
 // Runs after `characters_movement_system` so it observes the support derived
 // by that tick's shared movement step. Under debug invincibility the impact cue
@@ -230,15 +217,6 @@ pub fn players_fall_damage_system(
             continue;
         };
 
-        let velocity_implied = velocity_implied_fall_distance(impact.peak_speed, map_settings.gravity);
-        // Tripwire for the phantom-fall physics hang: on a genuine fall
-        // the velocity-implied distance matches the displacement.
-        if velocity_implied > impact.drop + PHANTOM_FALL_TRIPWIRE_SLACK {
-            warn!(
-                "{:?} phantom fall: velocity implies {velocity_implied:.1}m, actual drop {:.1}m",
-                id, impact.drop
-            );
-        }
         let fall_distance = effective_fall_distance(impact.drop, fall_gravity, map_settings.gravity);
         if fall_distance <= fall.safe_distance {
             continue;
@@ -296,22 +274,6 @@ pub fn players_fall_damage_system(
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct FallImpact {
     drop: f32,
-    peak_speed: f32,
-}
-
-// Normal-gravity distance equivalent to the landing's impact energy, with
-// two corrections so JSON values can stay semantic ("level heights"):
-//   1. `+gravity * TICK_SECS` to the impact speed —
-//      the peak fall speed is captured at end-of-tick *before* the impact
-//      tick, so it misses one gravity application.
-//   2. `+CHARACTER_GROUND_SNAP_DISTANCE` — the last ~0.5 m of every fall is
-//      "snapped" by the character controller (vy → 0, no further gravity),
-//      so naive `v²/2g` undercounts by exactly that snap distance.
-// `gravity` is the map's normal-gravity magnitude. Used only by the
-// phantom-fall tripwire.
-fn velocity_implied_fall_distance(peak_fall_speed: f32, gravity: f32) -> f32 {
-    let impact_speed = peak_fall_speed + gravity * TICK_SECS;
-    impact_speed.powi(2) / (2.0 * gravity) + CHARACTER_GROUND_SNAP_DISTANCE
 }
 
 // Fall distance that damage is charged for: the actual drop, scaled by the
@@ -336,20 +298,18 @@ mod tests {
     const TEST_GRAVITY: f32 = 25.0;
 
     #[test]
-    fn airborne_tracking_records_apex_and_peak_fall_speed() {
+    fn airborne_tracking_records_the_apex() {
         let mut state = PlayerFallState::default();
 
         assert_eq!(state.update(8.0, 4.0, 25.0), None);
         assert_eq!(state.update(7.0, -6.0, 25.0), None);
 
         assert_eq!(state.peak_y, 8.0);
-        assert_eq!(state.peak_speed, 6.0);
     }
 
     #[test]
     fn upward_airborne_motion_does_not_finish_the_tracked_fall() {
         let mut state = PlayerFallState {
-            peak_speed: 6.0,
             peak_y: 8.0,
             ..default()
         };
@@ -357,7 +317,6 @@ mod tests {
         let impact = state.update(7.0, 4.0, 25.0);
 
         assert_eq!(impact, None);
-        assert_eq!(state.peak_speed, 6.0);
         assert_eq!(state.peak_y, 8.0);
     }
 
@@ -365,21 +324,13 @@ mod tests {
     fn ground_support_finishes_the_tracked_fall() {
         let mut state = PlayerFallState {
             support: CharacterSupport::Ground,
-            peak_speed: 12.0,
             peak_y: 10.0,
             ..default()
         };
 
         let impact = state.update(4.0, 0.0, 25.0);
 
-        assert_eq!(
-            impact,
-            Some(FallImpact {
-                drop: 6.0,
-                peak_speed: 12.0,
-            })
-        );
-        assert_eq!(state.peak_speed, 0.0);
+        assert_eq!(impact, Some(FallImpact { drop: 6.0 }));
         assert_eq!(state.peak_y, f32::NEG_INFINITY);
     }
 
@@ -387,30 +338,21 @@ mod tests {
     fn ladder_support_finishes_the_tracked_fall() {
         let mut state = PlayerFallState {
             support: CharacterSupport::Ladder,
-            peak_speed: 12.0,
             peak_y: 10.0,
             ..default()
         };
 
         let impact = state.update(4.0, 0.0, 25.0);
 
-        assert_eq!(
-            impact,
-            Some(FallImpact {
-                drop: 6.0,
-                peak_speed: 12.0,
-            })
-        );
-        assert_eq!(state.peak_speed, 0.0);
+        assert_eq!(impact, Some(FallImpact { drop: 6.0 }));
         assert_eq!(state.peak_y, f32::NEG_INFINITY);
     }
 
     #[test]
-    fn support_without_a_fall_clears_the_airborne_apex() {
+    fn support_at_the_apex_height_clears_without_an_impact() {
         let mut state = PlayerFallState {
             support: CharacterSupport::Ground,
-            peak_speed: 0.0,
-            peak_y: 10.0,
+            peak_y: 4.0,
             ..default()
         };
 

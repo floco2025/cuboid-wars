@@ -150,6 +150,7 @@ mod tests {
             held_keys: Vec::new(),
             missiles: 0,
             snap_speed: 0.0,
+            last_teleport_time: f32::NEG_INFINITY,
         }
     }
 

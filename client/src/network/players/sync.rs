@@ -6,7 +6,7 @@ use super::{super::context::ServerMessageContext, handlers::player_movement_velo
 use crate::{
     cameras::MainCameraMarker,
     characters::PreviousTickPosition,
-    constants::PORTAL_VIEW_BLEND_SECS,
+    constants::{PORTAL_VIEW_BLEND_SECS, RECON_TELEPORT_SUPPRESS_SECS},
     input::MAX_PITCH,
     network::ServerReconciliation,
     players::{LocalPlayerInfo, PlayerInfo, PortalTransitBlend, spawn_player},
@@ -285,12 +285,17 @@ fn update_snapshot_player(
                     FaceYaw(server_player.movement.face_yaw),
                 ));
             }
-            commands.entity(client_player.entity).insert(ServerReconciliation::new(
-                *client_pos,
-                server_player.movement.pos,
-                server_velocity,
-                &context.rtt,
-            ));
+            // Skipped right after a teleport cue: this snapshot may have been
+            // built pre-teleport, and reconciling to it yanks the player back
+            // to a stale phase of a portal loop (`RECON_TELEPORT_SUPPRESS_SECS`).
+            if context.time.elapsed_secs() - client_player.last_teleport_time >= RECON_TELEPORT_SUPPRESS_SECS {
+                commands.entity(client_player.entity).insert(ServerReconciliation::new(
+                    *client_pos,
+                    server_player.movement.pos,
+                    server_velocity,
+                    &context.rtt,
+                ));
+            }
             if id != my_player_id {
                 commands
                     .entity(client_player.entity)
