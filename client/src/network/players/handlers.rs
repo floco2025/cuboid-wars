@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use super::super::context::ServerMessageContext;
-use super::sync::apply_local_spawn_facing;
+use super::sync::apply_local_portal_facing;
 use crate::{
     audio::{play_explosion_sound, play_sound},
     characters::PreviousTickPosition,
@@ -260,13 +260,7 @@ pub(in crate::network) fn handle_player_teleport_message(
         ))
         .remove::<ServerReconciliation>();
     if message.id == my_player_id {
-        apply_local_spawn_facing(
-            commands,
-            &context.cameras,
-            &mut context.local_player_info,
-            &message.pos,
-            message.face_yaw,
-        );
+        apply_local_portal_facing(commands, context, &message);
     }
 }
 

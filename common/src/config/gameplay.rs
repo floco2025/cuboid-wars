@@ -16,6 +16,7 @@ pub struct GameplayConfig {
     pub movement: MovementConfig,
     pub projectiles: ProjectilesConfig,
     pub missiles: MissilesConfig,
+    pub portals: PortalsConfig,
     pub actors: HashMap<String, CharacterGameplayConfig>,
     // Ordered list of barrier / key kind ids. Order is the stable
     // `BarrierKindId` index used on the wire. Visuals (colors) live in
@@ -43,6 +44,7 @@ impl GameplayConfig {
         self.player.validate("player")?;
         self.projectiles.validate("projectiles")?;
         self.missiles.validate("missiles")?;
+        self.portals.validate("portals")?;
         if self.actors.is_empty() {
             bail!("actors must define at least one kind");
         }
@@ -522,6 +524,25 @@ fn validate_non_negative_finite(value: f32, path: &str) -> Result<()> {
         return Ok(());
     }
     bail!("{path} must be non-negative and finite, got {value}");
+}
+
+// Portal-gun tuning both sides need: the client predicts placement with the
+// same numbers the server validates with, so fire vs dry-fire feedback is
+// instant. Server-only tuning (teleport cooldown) stays in the server file;
+// aperture geometry and traversal thresholds are fixed shared constants.
+#[derive(Debug, Clone, Copy, Deserialize)]
+pub struct PortalsConfig {
+    // Max placement distance of the portal shot's surface ray, m.
+    pub range: f32,
+}
+
+impl PortalsConfig {
+    fn validate(&self, path: &str) -> Result<()> {
+        if !(self.range.is_finite() && self.range > 0.0) {
+            bail!("{path}.range must be positive, got {}", self.range);
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]

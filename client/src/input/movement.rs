@@ -19,7 +19,7 @@ use crate::{
     ui::ConsoleState,
 };
 
-const MAX_PITCH: f32 = FRAC_PI_2 - 0.05;
+pub const MAX_PITCH: f32 = FRAC_PI_2 - 0.05;
 
 type LocalPlayerInputQuery<'w, 's> = Query<
     'w,
@@ -81,7 +81,6 @@ pub fn input_movement_system(
 
     let (current_yaw, current_pitch) = calculate_current_orientation(
         &mut mouse_motion,
-        &camera_query,
         &view_mode,
         &mut local_player_info,
         &mut top_down_camera_yaw,
@@ -118,22 +117,17 @@ pub fn input_movement_system(
 
 fn calculate_current_orientation(
     mouse_motion: &mut MessageReader<MouseMotion>,
-    camera_query: &Query<&mut Transform, (With<Camera3d>, With<MainCameraMarker>)>,
     view_mode: &Res<CameraViewMode>,
     local_player_info: &mut LocalPlayerInfo,
     top_down_camera_yaw: &mut TopDownCameraYaw,
     mouse_sensitivity: f32,
     invert_y: bool,
 ) -> (f32, f32) {
+    // Stored yaw/pitch are the authoritative aim. The camera transform is
+    // never read back: it may carry visual-only rotation on top (the portal
+    // transit blend), which must not leak into the aim.
     let (mut current_yaw, mut current_pitch) = if view_mode.is_first_person() {
-        if !view_mode.is_changed()
-            && let Some(transform) = camera_query.iter().next()
-        {
-            let (yaw, pitch, _roll) = transform.rotation.to_euler(EulerRot::YXZ);
-            (yaw, pitch)
-        } else {
-            (local_player_info.stored_yaw, local_player_info.stored_pitch)
-        }
+        (local_player_info.stored_yaw, local_player_info.stored_pitch)
     } else {
         (top_down_camera_yaw.0, 0.0)
     };

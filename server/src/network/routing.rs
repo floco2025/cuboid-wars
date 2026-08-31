@@ -161,8 +161,8 @@ pub(super) fn route_client_message(
                 &context.players,
                 &context.queries.player_data,
                 &context.world.collision_world,
+                &context.world.map_layout,
                 &context.world.gameplay_config,
-                &context.world.server_gameplay_config,
                 &mut context.portals,
                 &mut context.portal_set,
             );

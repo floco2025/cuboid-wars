@@ -44,3 +44,13 @@ pub struct CuboidShake {
     pub offset_x: f32, // Current shake offset
     pub offset_z: f32,
 }
+
+// Portal-transit view transient: on teleport the camera is seeded with the
+// fully mapped (possibly tilted) exit view; this decays that tilt back onto
+// the upright aim. Pure presentation — the aim underneath already IS the
+// target, so mouse input keeps working during the blend.
+#[derive(Component)]
+pub struct PortalTransitBlend {
+    pub delta: Quat,
+    pub timer: Timer,
+}

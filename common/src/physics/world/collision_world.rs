@@ -1,5 +1,5 @@
 use bevy_ecs::prelude::Resource;
-use bevy_math::Vec3;
+use bevy_math::{Quat, Vec3};
 use rapier3d::{
     control::{CharacterCollision, EffectiveCharacterMovement, KinematicCharacterController},
     parry::{
@@ -332,6 +332,34 @@ impl CollisionWorld {
             radius,
             WALL_COLLISION_GROUP | FLOOR_COLLISION_GROUP | barrier_groups,
         )
+    }
+
+    // Whether a ball overlaps any wall/floor/ramp. Portal placement probes
+    // the aperture's backing with these.
+    #[must_use]
+    pub fn ball_overlaps_world(&self, position: Vec3, radius: f32) -> bool {
+        self.ball_overlaps_groups(position, radius, world_collision_groups())
+    }
+
+    // Whether an oriented cuboid overlaps any wall/floor/ramp. Portal
+    // placement sweeps the whole slab in front of the aperture with one of
+    // these, so geometry crossing the oval between point probes (a wall
+    // standing on a floor aperture) cannot slip through.
+    #[must_use]
+    pub fn oriented_cuboid_overlaps_world(&self, center: Vec3, half_extents: Vec3, rotation: Quat) -> bool {
+        let query_pipeline = self.broad_phase.as_query_pipeline(
+            self.narrow_phase.query_dispatcher(),
+            &self.bodies,
+            &self.colliders,
+            query_filter(world_collision_groups()),
+        );
+        let shape = Cuboid::new(Vector::new(half_extents.x, half_extents.y, half_extents.z));
+        let axis_angle = rotation.to_scaled_axis();
+        let pose = Pose::new(
+            Vector::new(center.x, center.y, center.z),
+            Vector::new(axis_angle.x, axis_angle.y, axis_angle.z),
+        );
+        query_pipeline.intersect_shape(pose, &shape).next().is_some()
     }
 
     #[must_use]

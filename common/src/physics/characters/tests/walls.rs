@@ -114,9 +114,10 @@ fn falling_player_pushing_into_wall_keeps_falling() {
         z: 31.539_902,
     };
     let motion = -CHARACTER_TERMINAL_VELOCITY;
+    let delta = 0.0177;
 
     let step = step_character_movement(
-        character_step_toward(pos, motion, 30.394, 31.699, 0.0177),
+        character_step_toward(pos, motion, 30.394, 31.699, delta),
         &CharacterEnvironment {
             collision_world: &collision_world,
             gravity: TEST_GRAVITY,
@@ -127,7 +128,7 @@ fn falling_player_pushing_into_wall_keeps_falling() {
     );
 
     assert!(
-        step.position.y < pos.y - 0.5,
+        step.position.y < pos.y - 0.9 * CHARACTER_TERMINAL_VELOCITY * delta,
         "expected falling to continue while sliding on wall, got {step:?}"
     );
     assert!(step.vertical_velocity < 0.0);

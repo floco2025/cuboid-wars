@@ -1,15 +1,16 @@
 use bevy_ecs::prelude::*;
-use bevy_math::Vec3;
+use bevy_math::{Mat3, Quat, Vec3};
 
+use super::CollisionWorld;
 use crate::{
     config::CharacterPhysicsConfig,
     constants::{
-        PORTAL_EXIT_CLEARANCE, PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH, PORTAL_MIN_APPROACH_SPEED,
-        PORTAL_PROJECTILE_EXIT_STANDOFF, PORTAL_STANDABLE_AWAY_SPEED, PORTAL_STANDABLE_NORMAL_Y, PORTAL_TRIGGER_DEPTH,
-        PORTAL_UP_DEGENERACY_LIMIT,
+        LEVEL_HEIGHT, PORTAL_EXIT_CLEARANCE, PORTAL_FIXTURE_PLANE_DEPTH, PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH,
+        PORTAL_LIGHT_CLEARANCE, PORTAL_MIN_APPROACH_SPEED, PORTAL_PLATE_CLEARANCE, PORTAL_PROJECTILE_EXIT_STANDOFF,
+        PORTAL_STANDABLE_AWAY_SPEED, PORTAL_STANDABLE_NORMAL_Y, PORTAL_TRIGGER_DEPTH, PORTAL_UP_DEGENERACY_LIMIT,
     },
     math::direction_from_yaw_pitch,
-    protocol::{Portal, PortalEnd},
+    protocol::{MapLayout, Portal, PortalEnd},
 };
 
 // Orthonormal aperture frame of one portal end: `normal` points out of the
@@ -27,18 +28,27 @@ pub struct PortalFrame {
 impl PortalFrame {
     #[must_use]
     pub fn from_portal(portal: &Portal) -> Self {
-        let normal = Vec3::new(portal.nx, portal.ny, portal.nz).normalize();
+        Self::from_surface(
+            portal.pos.into(),
+            Vec3::new(portal.nx, portal.ny, portal.nz),
+            portal.yaw,
+        )
+    }
+
+    #[must_use]
+    pub fn from_surface(center: Vec3, normal: Vec3, yaw: f32) -> Self {
+        let normal = normal.normalize();
         // World-up projected onto the plane orients the frame; only a
         // near-vertical normal is degenerate, and there the shooter's
         // placement yaw supplies the in-plane up instead.
         let reference = if normal.y.abs() < PORTAL_UP_DEGENERACY_LIMIT {
             Vec3::Y
         } else {
-            direction_from_yaw_pitch(portal.yaw, 0.0)
+            direction_from_yaw_pitch(yaw, 0.0)
         };
         let up = (reference - normal * reference.dot(normal)).normalize();
         Self {
-            center: portal.pos.into(),
+            center,
             normal,
             up,
             right: up.cross(normal),
@@ -46,11 +56,147 @@ impl PortalFrame {
     }
 }
 
+// Where a validated portal shot lands: the aperture center and outward
+// surface normal.
+#[derive(Debug, Clone, Copy)]
+pub struct PortalPlacement {
+    pub pos: Vec3,
+    pub normal: Vec3,
+}
+
+// The one placement path, shared verbatim: the client runs it to decide fire
+// vs dry-fire before sending, the server to authoritatively place. Same
+// static inputs (map geometry, fixtures), so both reach the same answer.
+#[must_use]
+pub fn compute_portal_placement(
+    origin: Vec3,
+    direction: Vec3,
+    yaw: f32,
+    range: f32,
+    collision_world: &CollisionWorld,
+    map_layout: &MapLayout,
+) -> Option<PortalPlacement> {
+    let hit = collision_world.world_surface_along_ray(origin, direction, range)?;
+    let frame = PortalFrame::from_surface(hit.point, hit.normal, yaw);
+    if portal_fits(&frame, collision_world, map_layout) {
+        return Some(PortalPlacement {
+            pos: hit.point,
+            normal: hit.normal,
+        });
+    }
+    nudged_placement(&frame, collision_world, map_layout)
+}
+
+// Portal-2-style placement bump: an aperture that doesn't fit where the
+// shot lands slides along the surface plane to the nearest nearby spot that
+// does (nearest ring first, straight up tried first within each ring); only
+// when nothing within reach fits does the shot fizzle.
+const NUDGE_STEP: f32 = 0.25;
+const NUDGE_MAX_DISTANCE: f32 = 1.5;
+const NUDGE_DIRECTIONS: usize = 16;
+
+fn nudged_placement(
+    frame: &PortalFrame,
+    collision_world: &CollisionWorld,
+    map_layout: &MapLayout,
+) -> Option<PortalPlacement> {
+    let steps = (NUDGE_MAX_DISTANCE / NUDGE_STEP) as usize;
+    for step in 1..=steps {
+        let radius = step as f32 * NUDGE_STEP;
+        for direction in 0..NUDGE_DIRECTIONS {
+            let angle =
+                std::f32::consts::FRAC_PI_2 + direction as f32 / NUDGE_DIRECTIONS as f32 * std::f32::consts::TAU;
+            let center = frame.center + frame.right * (radius * angle.cos()) + frame.up * (radius * angle.sin());
+            let candidate = PortalFrame { center, ..*frame };
+            if portal_fits(&candidate, collision_world, map_layout) {
+                return Some(PortalPlacement {
+                    pos: center,
+                    normal: frame.normal,
+                });
+            }
+        }
+    }
+    None
+}
+
+// Probe ball for the fit test and its standoff from the aperture plane.
+const FIT_SAMPLE_RADIUS: f32 = 0.1;
+const FIT_SAMPLE_OFFSET: f32 = FIT_SAMPLE_RADIUS + 0.03;
+const FIT_RIM_SAMPLES: usize = 8;
+// The front-clearance slab: how far off the plane it starts and how deep it
+// reaches into the room.
+const FIT_FRONT_GAP: f32 = 0.02;
+const FIT_FRONT_DEPTH: f32 = 0.3;
+
+// The aperture must actually work as a hole: every sample across it needs
+// solid surface BEHIND the plane (no hanging past an edge) and clear space
+// IN FRONT of it (no floor slab or abutting wall cutting through the oval —
+// this is what stops a portal placed too low for a body to fit). On top of
+// the geometry, the aperture must not cover surface fixtures: wall lights,
+// and pressure plates for standable portals.
+fn portal_fits(frame: &PortalFrame, collision_world: &CollisionWorld, map_layout: &MapLayout) -> bool {
+    // One oriented box sweeps the whole slab in front of the aperture, so
+    // geometry crossing the oval anywhere — a wall standing on a floor
+    // aperture, a slab clipping one edge — rejects, not only geometry near
+    // a probe point.
+    let rotation = Quat::from_mat3(&Mat3::from_cols(frame.right, frame.up, frame.normal));
+    let front_center = frame.center + frame.normal * (FIT_FRONT_GAP + FIT_FRONT_DEPTH / 2.0);
+    if collision_world.oriented_cuboid_overlaps_world(
+        front_center,
+        Vec3::new(PORTAL_HALF_WIDTH, PORTAL_HALF_HEIGHT, FIT_FRONT_DEPTH / 2.0),
+        rotation,
+    ) {
+        return false;
+    }
+    // Backing stays per-sample: an any-overlap query cannot express "solid
+    // everywhere behind the plane".
+    for sample in aperture_samples(frame) {
+        if !collision_world.ball_overlaps_world(sample - frame.normal * FIT_SAMPLE_OFFSET, FIT_SAMPLE_RADIUS) {
+            return false;
+        }
+    }
+    for light in &map_layout.wall_lights {
+        if fixture_blocks(frame, Vec3::from(light.pos), PORTAL_LIGHT_CLEARANCE) {
+            return false;
+        }
+    }
+    if frame.normal.y > PORTAL_STANDABLE_NORMAL_Y {
+        for plate in &map_layout.pressure_plates {
+            let center = Vec3::new(plate.center_x, f32::from(plate.level) * LEVEL_HEIGHT, plate.center_z);
+            if fixture_blocks(frame, center, PORTAL_PLATE_CLEARANCE) {
+                return false;
+            }
+        }
+    }
+    true
+}
+
+fn aperture_samples(frame: &PortalFrame) -> impl Iterator<Item = Vec3> {
+    let center = frame.center;
+    let (right, up) = (frame.right, frame.up);
+    std::iter::once(center).chain((0..FIT_RIM_SAMPLES).map(move |i| {
+        let angle = i as f32 / FIT_RIM_SAMPLES as f32 * std::f32::consts::TAU;
+        center + right * (PORTAL_HALF_WIDTH * angle.cos()) + up * (PORTAL_HALF_HEIGHT * angle.sin())
+    }))
+}
+
+// A fixture blocks the aperture when it sits near the portal plane inside
+// the clearance-grown oval.
+fn fixture_blocks(frame: &PortalFrame, fixture: Vec3, clearance: f32) -> bool {
+    let offset = fixture - frame.center;
+    if offset.dot(frame.normal).abs() > PORTAL_FIXTURE_PLANE_DEPTH {
+        return false;
+    }
+    let across = offset.dot(frame.right) / (PORTAL_HALF_WIDTH + clearance);
+    let along_up = offset.dot(frame.up) / (PORTAL_HALF_HEIGHT + clearance);
+    across * across + along_up * along_up <= 1.0
+}
+
 // Map a vector through a pair: decompose in the entry frame, re-emit in the
 // exit frame with right and normal negated — a 180° turn about `up` in frame
 // space, so a proper rotation (never a mirror) that preserves length.
 #[must_use]
-fn traverse_vector(entry: &PortalFrame, exit: &PortalFrame, v: Vec3) -> Vec3 {
+pub fn traverse_vector(entry: &PortalFrame, exit: &PortalFrame, v: Vec3) -> Vec3 {
     let across = v.dot(entry.right);
     let along_up = v.dot(entry.up);
     let into = v.dot(entry.normal);
@@ -76,6 +222,15 @@ fn in_aperture(offset_from_center: Vec3, frame: &PortalFrame) -> bool {
     let across = offset_from_center.dot(frame.right) / PORTAL_HALF_WIDTH;
     let along_up = offset_from_center.dot(frame.up) / PORTAL_HALF_HEIGHT;
     across * across + along_up * along_up <= 1.0
+}
+
+// Characters get the full rectangle, not the oval: a standing body's center
+// sits well below a wall portal's center, where the oval narrows laterally
+// to a sliver of the visible width. The forgiving gate keeps the whole
+// drawn width walkable; projectiles keep the exact oval.
+fn in_character_aperture(offset_from_center: Vec3, frame: &PortalFrame) -> bool {
+    offset_from_center.dot(frame.right).abs() <= PORTAL_HALF_WIDTH
+        && offset_from_center.dot(frame.up).abs() <= PORTAL_HALF_HEIGHT
 }
 
 // The character's occupied box — feet to collider top — not the collider
@@ -158,6 +313,19 @@ impl PortalSet {
         self.pairs.is_empty()
     }
 
+    // The (entry, exit) frames of the gate a teleport used, recovered from
+    // its endpoints — the teleport cue carries positions, not portal ids.
+    #[must_use]
+    pub fn traversal_frames(&self, from: Vec3, to: Vec3) -> Option<(PortalFrame, PortalFrame)> {
+        self.gates()
+            .map(|(entry, exit)| {
+                let score = from.distance_squared(entry.center) + to.distance_squared(exit.center);
+                (score, (*entry, *exit))
+            })
+            .min_by(|(a, _), (b, _)| a.total_cmp(b))
+            .map(|(_, frames)| frames)
+    }
+
     fn gates(&self) -> impl Iterator<Item = (&PortalFrame, &PortalFrame)> {
         self.pairs
             .iter()
@@ -193,7 +361,7 @@ impl PortalSet {
             if center_distance - body_support(half_extents, entry.normal) > PORTAL_TRIGGER_DEPTH {
                 continue;
             }
-            if !in_aperture(offset, entry) {
+            if !in_character_aperture(offset, entry) {
                 continue;
             }
             let inward_speed = -velocity.dot(entry.normal);
@@ -205,8 +373,19 @@ impl PortalSet {
             if inward_speed <= required {
                 continue;
             }
-            let exit_center =
-                exit.center + exit.normal * (body_support(half_extents, exit.normal) + PORTAL_EXIT_CLEARANCE);
+            // Carry the aperture offset through the pair (the projectile
+            // mapping), clamped so the body box stays inside the exit
+            // aperture. This is what lets a player steer out of a portal
+            // fall chain: sideways drift accumulates across hops instead of
+            // being re-centered away every pass.
+            let across_limit = (PORTAL_HALF_WIDTH - body_support(half_extents, exit.right)).max(0.0);
+            let up_limit = (PORTAL_HALF_HEIGHT - body_support(half_extents, exit.up)).max(0.0);
+            let exit_across = (-offset.dot(entry.right)).clamp(-across_limit, across_limit);
+            let exit_along_up = offset.dot(entry.up).clamp(-up_limit, up_limit);
+            let exit_center = exit.center
+                + exit.right * exit_across
+                + exit.up * exit_along_up
+                + exit.normal * (body_support(half_extents, exit.normal) + PORTAL_EXIT_CLEARANCE);
             let carry = traverse_vector(entry, exit, knockback + Vec3::Y * vertical_velocity);
             return Some(CharacterPortalHop {
                 origin: exit_center - Vec3::Y * half_extents.y,
@@ -216,6 +395,23 @@ impl PortalSet {
             });
         }
         None
+    }
+
+    // Whether a body pressed against this position is entering a portal.
+    // The client swallows the wall-bump feedback with it: teleports are not
+    // client-predicted, so prediction shoves into the portal's wall for up
+    // to an RTT before the cue lands — that contact is entry, not a bump.
+    #[must_use]
+    pub fn absorbs_character_contact(&self, origin: Vec3, physics: CharacterPhysicsConfig) -> bool {
+        let half_extents = body_half_extents(physics);
+        let center = origin + Vec3::Y * half_extents.y;
+        self.gates().any(|(entry, _)| {
+            let offset = center - entry.center;
+            let distance = offset.dot(entry.normal);
+            distance > 0.0
+                && distance - body_support(half_extents, entry.normal) <= PORTAL_TRIGGER_DEPTH * 2.0
+                && in_character_aperture(offset, entry)
+        })
     }
 
     // First portal plane the swept ball touches from the front this tick,
@@ -577,10 +773,504 @@ mod tests {
     }
 
     #[test]
+    fn traversal_frames_recovers_the_used_gate_in_both_directions() {
+        let set = pair(Vec3::new(0.0, 1.0, 0.0), Vec3::Z, Vec3::new(10.0, 1.0, 10.0), Vec3::X);
+        let (entry, exit) = set
+            .traversal_frames(Vec3::new(0.1, 1.2, 0.6), Vec3::new(10.6, 1.1, 10.0))
+            .expect("no gate recovered");
+        assert!((entry.normal - Vec3::Z).length() < 1e-5);
+        assert!((exit.normal - Vec3::X).length() < 1e-5);
+        let (entry, exit) = set
+            .traversal_frames(Vec3::new(10.6, 1.1, 10.0), Vec3::new(0.1, 1.2, 0.6))
+            .expect("no reverse gate recovered");
+        assert!((entry.normal - Vec3::X).length() < 1e-5);
+        assert!((exit.normal - Vec3::Z).length() < 1e-5);
+    }
+
+    #[test]
     fn half_placed_pair_is_inert() {
         let set = PortalSet::rebuild(&[portal(PortalEnd::A, Vec3::new(0.0, 1.0, 0.0), Vec3::Z, 0.0)]);
         assert!(set.is_empty());
         let hop = set.projectile_hop(Vec3::new(0.0, 1.0, 2.0), Vec3::new(0.0, 0.0, -30.0), 0.1, 0.08);
         assert!(hop.is_none());
+    }
+
+    use crate::constants::{FLOOR_THICKNESS, WALL_THICKNESS};
+    use crate::protocol::{BarrierKindTable, Floor, PlatePurpose, Position, PressurePlate, Wall, WallLight};
+
+    // One 12 m wall along X at z = 0 (level 0) with the room floor on +Z.
+    fn placement_layout() -> MapLayout {
+        MapLayout {
+            walls: vec![Wall {
+                x1: -6.0,
+                z1: 0.0,
+                x2: 6.0,
+                z2: 0.0,
+                width: WALL_THICKNESS,
+                level: 0,
+            }],
+            floors: vec![Floor {
+                x1: -6.0,
+                z1: 0.0,
+                x2: 6.0,
+                z2: 6.0,
+                y: 0.0,
+                thickness: FLOOR_THICKNESS,
+                level: 0,
+            }],
+            ..Default::default()
+        }
+    }
+
+    fn place(layout: &MapLayout, origin: Vec3, toward: Vec3, yaw: f32) -> Option<PortalPlacement> {
+        let world = CollisionWorld::from_map_layout(layout, &BarrierKindTable::default());
+        compute_portal_placement(origin, (toward - origin).normalize(), yaw, 40.0, &world, layout)
+    }
+
+    #[test]
+    fn placement_accepts_a_clear_wall_center() {
+        let layout = placement_layout();
+        let placement =
+            place(&layout, Vec3::new(0.0, 1.6, 3.0), Vec3::new(0.0, 1.6, 0.0), PI).expect("clear wall center rejected");
+        assert!((placement.normal - Vec3::Z).length() < 1e-4);
+    }
+
+    #[test]
+    fn low_wall_shot_nudges_up_until_the_aperture_fits() {
+        let layout = placement_layout();
+        let placement = place(&layout, Vec3::new(0.0, 1.6, 3.0), Vec3::new(0.0, 0.5, 0.0), PI)
+            .expect("low shot did not nudge up onto the wall");
+        assert!(placement.pos.y > 1.3);
+        assert!(placement.pos.x.abs() < 0.3);
+    }
+
+    #[test]
+    fn shot_past_the_walls_end_nudges_back_onto_it() {
+        let layout = placement_layout();
+        let placement = place(&layout, Vec3::new(5.9, 1.6, 3.0), Vec3::new(5.9, 1.6, 0.0), PI)
+            .expect("edge shot did not nudge back onto the wall");
+        assert!(placement.pos.x < 5.45);
+    }
+
+    #[test]
+    fn floor_shot_under_a_crossing_wall_nudges_clear_of_it() {
+        let mut layout = placement_layout();
+        // A second wall crossing the floor at z = 3 cuts any aperture that
+        // straddles it — including between rim probes.
+        layout.walls.push(Wall {
+            x1: -6.0,
+            z1: 3.0,
+            x2: 6.0,
+            z2: 3.0,
+            width: WALL_THICKNESS,
+            level: 0,
+        });
+        let placement = place(&layout, Vec3::new(2.0, 1.6, 2.5), Vec3::new(2.0, 0.0, 2.5), 0.0)
+            .expect("wall-cut floor shot did not nudge clear");
+        assert!(placement.pos.z < 1.56);
+        assert!((placement.pos.x - 2.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn shot_with_no_fitting_spot_anywhere_fizzles() {
+        let mut layout = placement_layout();
+        // A 1 m stub wall can never back the 1.4 m aperture, nudged or not.
+        layout.walls[0].x1 = -0.5;
+        layout.walls[0].x2 = 0.5;
+        let placement = place(&layout, Vec3::new(0.0, 1.6, 3.0), Vec3::new(0.0, 1.6, 0.0), PI);
+        assert!(placement.is_none());
+    }
+
+    #[test]
+    fn shot_at_a_wall_light_nudges_clear_of_it() {
+        let mut layout = placement_layout();
+        layout.wall_lights.push(WallLight {
+            pos: Position { x: 0.0, y: 1.6, z: 0.2 },
+            yaw: 0.0,
+        });
+        let placement = place(&layout, Vec3::new(0.0, 1.6, 3.0), Vec3::new(0.0, 1.6, 0.0), PI)
+            .expect("shot at the light did not nudge clear");
+        // The nudged aperture leaves the light outside its grown keep-out oval.
+        let across = placement.pos.x / (PORTAL_HALF_WIDTH + PORTAL_LIGHT_CLEARANCE);
+        let along_up = (placement.pos.y - 1.6) / (PORTAL_HALF_HEIGHT + PORTAL_LIGHT_CLEARANCE);
+        assert!(across * across + along_up * along_up > 0.99);
+        // Far enough along the wall the light does not even nudge the shot.
+        let clear =
+            place(&layout, Vec3::new(4.0, 1.6, 3.0), Vec3::new(4.0, 1.6, 0.0), PI).expect("clear shot rejected");
+        assert!((clear.pos.x - 4.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn placement_rejects_a_floor_portal_covering_a_pressure_plate() {
+        let mut layout = placement_layout();
+        layout.pressure_plates.push(PressurePlate {
+            level: 0,
+            center_x: 3.0,
+            center_z: 3.0,
+            purpose: PlatePurpose::Firework,
+        });
+        assert!(place(&layout, Vec3::new(3.0, 1.6, 3.0), Vec3::new(3.0, 0.0, 3.0), 0.0).is_none());
+        // The same shot well away from the plate lands.
+        assert!(place(&layout, Vec3::new(-3.0, 1.6, 3.0), Vec3::new(-3.0, 0.0, 3.0), 0.0).is_some());
+    }
+
+    // Mirrors one server tick: movement step, then the traversal check with
+    // the landing-recovered fall speed, then the fall tracker's bookkeeping.
+    #[test]
+    fn perpetual_floor_fall_keeps_its_speed_across_hops() {
+        use crate::constants::TICK_SECS;
+        use crate::physics::{CharacterEnvironment, CharacterStep, CharacterSupport, step_character_movement};
+
+        let gameplay = GameplayConfig::load_default().expect("default gameplay config should load");
+        let physics = gameplay.player.physics();
+        let layout = MapLayout {
+            floors: vec![
+                Floor {
+                    x1: -10.0,
+                    z1: -10.0,
+                    x2: 10.0,
+                    z2: 10.0,
+                    y: 0.0,
+                    thickness: FLOOR_THICKNESS,
+                    level: 0,
+                },
+                Floor {
+                    x1: 40.0,
+                    z1: 40.0,
+                    x2: 60.0,
+                    z2: 60.0,
+                    y: 0.0,
+                    thickness: FLOOR_THICKNESS,
+                    level: 0,
+                },
+            ],
+            ..Default::default()
+        };
+        let world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
+        let set = pair(Vec3::new(0.0, 0.0, 0.0), Vec3::Y, Vec3::new(50.0, 0.0, 50.0), Vec3::Y);
+        let env = CharacterEnvironment {
+            collision_world: &world,
+            gravity: 25.0,
+            passable_kinds: &[],
+            physics,
+            ladder_climb_ratio: gameplay.movement.ladder_climb_ratio,
+        };
+
+        let mut pos = crate::protocol::Position { x: 0.0, y: 8.0, z: 0.0 };
+        let mut vertical_velocity = 0.0_f32;
+        let mut energy = 0.0_f32;
+        let mut cooldown = 0.0_f32;
+        let mut entry_speeds: Vec<f32> = Vec::new();
+
+        for _ in 0..(30 * 8) {
+            let result = step_character_movement(
+                CharacterStep {
+                    start: pos,
+                    vertical_velocity,
+                    control_velocity: Vec3::ZERO,
+                    external_displacement: Vec3::ZERO,
+                    delta: TICK_SECS,
+                },
+                &env,
+            );
+            pos = result.position;
+            vertical_velocity = result.vertical_velocity;
+            cooldown -= TICK_SECS;
+
+            let mut hopped = false;
+            let fall_speed = (energy - 2.0 * env.gravity * pos.y).max(0.0).sqrt();
+            let entry = if fall_speed > 0.1 {
+                vertical_velocity.min(-fall_speed)
+            } else {
+                vertical_velocity
+            };
+            // Mirrors the server gate: fast entries bypass the cooldown.
+            if (cooldown <= 0.0 || entry.abs() >= 2.0)
+                && let Some(hop) = set.character_hop(Vec3::from(pos), physics, Vec3::ZERO, Vec3::ZERO, entry, 0.0, 22.5)
+            {
+                entry_speeds.push(-entry);
+                pos = hop.origin.into();
+                vertical_velocity = hop.vertical_velocity;
+                // Mirrors the server: the exit seeds its own arrival
+                // energy, since a sub-tick flight never records one.
+                let down = vertical_velocity.min(0.0);
+                energy = down.mul_add(down, 2.0 * env.gravity * pos.y);
+                cooldown = 0.5;
+                hopped = true;
+            }
+            if !hopped {
+                if result.support == CharacterSupport::Airborne {
+                    let down = (-vertical_velocity).max(0.0);
+                    energy = energy.max(down * down + 2.0 * env.gravity * pos.y);
+                } else {
+                    energy = 0.0;
+                }
+            }
+        }
+
+        assert!(
+            entry_speeds.len() >= 3,
+            "only {} hops in 8 s: {entry_speeds:?}",
+            entry_speeds.len()
+        );
+        let first = entry_speeds[0];
+        let last = *entry_speeds.last().expect("no hops recorded");
+        let expected = (2.0 * env.gravity * 8.0)
+            .sqrt()
+            .min(crate::constants::CHARACTER_TERMINAL_VELOCITY);
+        assert!(first > expected - 3.0, "first entry too slow: {entry_speeds:?}");
+        assert!(last > first - 3.0, "speed decayed across hops: {entry_speeds:?}");
+    }
+
+    // The fast cycle: floor portal with its pair on the ceiling directly
+    // above. Every pass adds a room's worth of gravity and the flight time
+    // shrinks well below the teleport cooldown, so this test fails if
+    // slow-entry pacing ever throttles a real fall chain.
+    #[test]
+    fn floor_to_ceiling_fall_accelerates_toward_terminal_velocity() {
+        use crate::constants::TICK_SECS;
+        use crate::physics::{CharacterEnvironment, CharacterStep, CharacterSupport, step_character_movement};
+
+        let gameplay = GameplayConfig::load_default().expect("default gameplay config should load");
+        let physics = gameplay.player.physics();
+        let layout = MapLayout {
+            floors: vec![Floor {
+                x1: -10.0,
+                z1: -10.0,
+                x2: 10.0,
+                z2: 10.0,
+                y: 0.0,
+                thickness: FLOOR_THICKNESS,
+                level: 0,
+            }],
+            ..Default::default()
+        };
+        let world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
+        let set = pair(Vec3::new(0.0, 0.0, 0.0), Vec3::Y, Vec3::new(0.0, 4.0, 0.0), Vec3::NEG_Y);
+        let env = CharacterEnvironment {
+            collision_world: &world,
+            gravity: 25.0,
+            passable_kinds: &[],
+            physics,
+            ladder_climb_ratio: gameplay.movement.ladder_climb_ratio,
+        };
+
+        let mut pos = crate::protocol::Position { x: 0.0, y: 3.0, z: 0.0 };
+        let mut vertical_velocity = 0.0_f32;
+        let mut energy = 0.0_f32;
+        let mut cooldown = 0.0_f32;
+        let mut entry_speeds: Vec<f32> = Vec::new();
+
+        for _ in 0..(30 * 8) {
+            let result = step_character_movement(
+                CharacterStep {
+                    start: pos,
+                    vertical_velocity,
+                    control_velocity: Vec3::ZERO,
+                    external_displacement: Vec3::ZERO,
+                    delta: TICK_SECS,
+                },
+                &env,
+            );
+            pos = result.position;
+            vertical_velocity = result.vertical_velocity;
+            cooldown -= TICK_SECS;
+
+            let mut hopped = false;
+            let fall_speed = (energy - 2.0 * env.gravity * pos.y).max(0.0).sqrt();
+            let entry = if fall_speed > 0.1 {
+                vertical_velocity.min(-fall_speed)
+            } else {
+                vertical_velocity
+            };
+            if (cooldown <= 0.0 || entry.abs() >= 2.0)
+                && let Some(hop) = set.character_hop(Vec3::from(pos), physics, Vec3::ZERO, Vec3::ZERO, entry, 0.0, 22.5)
+            {
+                entry_speeds.push(-entry);
+                pos = hop.origin.into();
+                vertical_velocity = hop.vertical_velocity;
+                // Mirrors the server: the exit seeds its own arrival
+                // energy, since a sub-tick flight never records one.
+                let down = vertical_velocity.min(0.0);
+                energy = down.mul_add(down, 2.0 * env.gravity * pos.y);
+                cooldown = 0.5;
+                hopped = true;
+            }
+            if !hopped {
+                if result.support == CharacterSupport::Airborne {
+                    let down = (-vertical_velocity).max(0.0);
+                    energy = energy.max(down * down + 2.0 * env.gravity * pos.y);
+                } else {
+                    energy = 0.0;
+                }
+            }
+        }
+
+        assert!(
+            entry_speeds.len() >= 8,
+            "only {} hops in 8 s: {entry_speeds:?}",
+            entry_speeds.len()
+        );
+        let last = *entry_speeds.last().expect("no hops recorded");
+        assert!(
+            last > crate::constants::CHARACTER_TERMINAL_VELOCITY - 2.0,
+            "fall chain never reached terminal velocity: {entry_speeds:?}"
+        );
+        for window in entry_speeds.windows(2) {
+            assert!(
+                window[1] > window[0] - 0.5,
+                "speed regressed mid-chain: {entry_speeds:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn aperture_offset_carries_through_an_opposing_pair() {
+        // Floor → ceiling: the mapped offset preserves world drift, so a
+        // steering player accumulates displacement across hops.
+        let set = pair(
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::Y,
+            Vec3::new(10.0, 4.0, 10.0),
+            Vec3::NEG_Y,
+        );
+        let hop = set
+            .character_hop(
+                Vec3::new(0.0, 0.0, 0.5),
+                player_physics(),
+                Vec3::ZERO,
+                Vec3::ZERO,
+                -5.0,
+                0.0,
+                CAP,
+            )
+            .expect("offset floor entry did not trigger");
+        assert!((hop.origin.x - 10.0).abs() < 1e-4);
+        assert!((hop.origin.z - 10.5).abs() < 1e-4);
+    }
+
+    #[test]
+    fn carried_offset_is_clamped_to_the_exit_aperture() {
+        let set = pair(
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::Y,
+            Vec3::new(10.0, 4.0, 10.0),
+            Vec3::NEG_Y,
+        );
+        let physics = player_physics();
+        let hop = set
+            .character_hop(
+                Vec3::new(0.55, 0.0, 0.0),
+                physics,
+                Vec3::ZERO,
+                Vec3::ZERO,
+                -5.0,
+                0.0,
+                CAP,
+            )
+            .expect("edge floor entry did not trigger");
+        let limit = PORTAL_HALF_WIDTH - physics.collider.width / 2.0;
+        assert!((hop.origin.x - 10.0).abs() <= limit + 1e-4);
+        assert!(hop.origin.x > 10.0);
+    }
+
+    // Holding a direction while looping must break the loop within a few
+    // hops — the whole point of carrying the aperture offset.
+    #[test]
+    fn steering_sideways_escapes_a_portal_fall_chain() {
+        use crate::constants::TICK_SECS;
+        use crate::physics::{CharacterEnvironment, CharacterStep, step_character_movement};
+
+        let gameplay = GameplayConfig::load_default().expect("default gameplay config should load");
+        let physics = gameplay.player.physics();
+        let layout = MapLayout {
+            floors: vec![Floor {
+                x1: -10.0,
+                z1: -10.0,
+                x2: 10.0,
+                z2: 10.0,
+                y: 0.0,
+                thickness: FLOOR_THICKNESS,
+                level: 0,
+            }],
+            ..Default::default()
+        };
+        let world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
+        let set = pair(Vec3::new(0.0, 0.0, 0.0), Vec3::Y, Vec3::new(0.0, 4.0, 0.0), Vec3::NEG_Y);
+        let env = CharacterEnvironment {
+            collision_world: &world,
+            gravity: 25.0,
+            passable_kinds: &[],
+            physics,
+            ladder_climb_ratio: gameplay.movement.ladder_climb_ratio,
+        };
+        let control = Vec3::new(0.0, 0.0, 6.0);
+
+        let mut pos = crate::protocol::Position { x: 0.0, y: 0.5, z: 0.0 };
+        let mut vertical_velocity = 0.0_f32;
+        let mut energy = 0.0_f32;
+        let mut cooldown = 0.0_f32;
+        let mut hops = 0;
+
+        for _ in 0..(30 * 8) {
+            let result = step_character_movement(
+                CharacterStep {
+                    start: pos,
+                    vertical_velocity,
+                    control_velocity: control,
+                    external_displacement: Vec3::ZERO,
+                    delta: TICK_SECS,
+                },
+                &env,
+            );
+            pos = result.position;
+            vertical_velocity = result.vertical_velocity;
+            cooldown -= TICK_SECS;
+
+            let fall_speed = (energy - 2.0 * env.gravity * pos.y).max(0.0).sqrt();
+            let entry = if fall_speed > 0.1 {
+                vertical_velocity.min(-fall_speed)
+            } else {
+                vertical_velocity
+            };
+            if (cooldown <= 0.0 || entry.abs() >= 2.0)
+                && let Some(hop) = set.character_hop(Vec3::from(pos), physics, control, Vec3::ZERO, entry, 0.0, 22.5)
+            {
+                pos = hop.origin.into();
+                vertical_velocity = hop.vertical_velocity;
+                let down = vertical_velocity.min(0.0);
+                energy = down.mul_add(down, 2.0 * env.gravity * pos.y);
+                cooldown = 0.5;
+                hops += 1;
+            }
+        }
+
+        assert!(hops >= 1, "the chain never started");
+        assert!(hops <= 8, "steering never escaped the chain: {hops} hops");
+        assert!(pos.z > 2.0, "escaped body did not keep moving: z = {}", pos.z);
+    }
+
+    #[test]
+    fn off_center_wall_entry_triggers_across_the_full_width() {
+        // Portal placed at eye height: a standing body's center sits 0.7
+        // below the portal center, where the oval would leave only a
+        // sliver of lateral room. The rectangular gate keeps the drawn
+        // width walkable.
+        let physics = player_physics();
+        let depth = physics.collider.depth / 2.0;
+        let set = pair(Vec3::new(0.0, 1.6, 0.0), Vec3::Z, Vec3::new(10.0, 1.0, 10.0), Vec3::X);
+        let origin = Vec3::new(0.65, 0.0, depth + 0.05);
+        let hop = set.character_hop(origin, physics, Vec3::new(0.0, 0.0, -1.0), Vec3::ZERO, 0.0, PI, CAP);
+        assert!(hop.is_some());
+    }
+
+    #[test]
+    fn portal_entry_contact_is_absorbed_for_feedback() {
+        let physics = player_physics();
+        let depth = physics.collider.depth / 2.0;
+        let set = pair(Vec3::new(0.0, 1.6, 0.0), Vec3::Z, Vec3::new(10.0, 1.0, 10.0), Vec3::X);
+        assert!(set.absorbs_character_contact(Vec3::new(0.0, 0.0, depth + 0.05), physics));
+        // Pressed against the same wall outside the aperture: a real bump.
+        assert!(!set.absorbs_character_contact(Vec3::new(2.0, 0.0, depth + 0.05), physics));
     }
 }

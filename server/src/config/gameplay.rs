@@ -136,19 +136,18 @@ impl MissilesServerConfig {
     }
 }
 
-// Server-only portal-gun tuning. Aperture geometry and traversal thresholds
-// are fixed shared constants (`common::constants` portal block).
+// Server-only portal-gun tuning. The placement range lives in the shared
+// config (`config/common/gameplay.json` `portals` — the client predicts
+// placement); aperture geometry and traversal thresholds are fixed shared
+// constants (`common::constants` portal block).
 #[derive(Debug, Clone, Copy, Deserialize)]
 pub struct PortalsServerConfig {
-    // Max placement distance of the portal shot's surface ray, m.
-    pub range: f32,
     // Per-player delay between teleports; bounds portal-pair oscillation.
     pub teleport_cooldown_secs: f32,
 }
 
 impl PortalsServerConfig {
     fn validate(&self, path: &str) -> Result<()> {
-        validate_positive_finite(self.range, &format!("{path}.range"))?;
         validate_non_negative_finite(self.teleport_cooldown_secs, &format!("{path}.teleport_cooldown_secs"))
     }
 }

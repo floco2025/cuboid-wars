@@ -1,8 +1,8 @@
 use bevy::prelude::*;
 use std::time::Duration;
 
-use super::components::{CameraShake, CuboidShake};
-use crate::cameras::MainCameraMarker;
+use super::components::{CameraShake, CuboidShake, PortalTransitBlend};
+use crate::cameras::{CameraViewMode, MainCameraMarker};
 use common::protocol::PlayerMarker;
 
 // ============================================================================
@@ -65,4 +65,27 @@ fn update_cuboid_shake(commands: &mut Commands, entity: Entity, delta: Duration,
     let wave = shake_wave(shake.timer.fraction(), shake.intensity, CUBOID_SHAKE_OSCILLATION);
     shake.offset_x = shake.dir_x * wave;
     shake.offset_z = shake.dir_z * wave;
+}
+
+// Decay the portal-transit tilt multiplicatively on top of this frame's
+// upright camera rotation. Runs after the camera sync (top-down writes the
+// whole transform there) and before lock-on/rearview, so what they read
+// matches the screen — the same rationale as shake.
+pub fn local_player_portal_blend_system(
+    mut commands: Commands,
+    time: Res<Time>,
+    view_mode: Res<CameraViewMode>,
+    mut camera_query: Query<(Entity, &mut Transform, &mut PortalTransitBlend), With<MainCameraMarker>>,
+) {
+    let Ok((entity, mut transform, mut blend)) = camera_query.single_mut() else {
+        return;
+    };
+    blend.timer.tick(time.delta());
+    if blend.timer.is_finished() || !view_mode.is_first_person() {
+        commands.entity(entity).remove::<PortalTransitBlend>();
+        return;
+    }
+    let fraction = blend.timer.fraction();
+    let eased = fraction * fraction * (3.0 - 2.0 * fraction);
+    transform.rotation = Quat::IDENTITY.slerp(blend.delta, 1.0 - eased) * transform.rotation;
 }

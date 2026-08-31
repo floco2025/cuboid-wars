@@ -21,6 +21,7 @@ pub struct PlayerFallState {
     support: CharacterSupport,
     peak_speed: f32,
     peak_y: f32,
+    peak_energy: f32,
 }
 
 impl Default for PlayerFallState {
@@ -29,6 +30,7 @@ impl Default for PlayerFallState {
             support: CharacterSupport::Airborne,
             peak_speed: 0.0,
             peak_y: f32::NEG_INFINITY,
+            peak_energy: 0.0,
         }
     }
 }
@@ -47,10 +49,33 @@ impl PlayerFallState {
         *self = Self::default();
     }
 
-    fn update(&mut self, y: f32, vertical_velocity: f32) -> Option<FallImpact> {
+    // Seeds the arrival energy of a fresh airborne window that starts
+    // already moving — a portal exit. A near-terminal flight between close
+    // portals lands within a single tick, before the per-tick tracker
+    // records anything, so the exit itself must.
+    pub(crate) fn seed_energy(&mut self, energy: f32) {
+        self.peak_energy = energy;
+    }
+
+    // Max of v² + 2·g·y over the current airborne window — the arrival
+    // energy. It survives the landing tick until `update` consumes it,
+    // letting portal traversal recover the exact fall speed the landing
+    // zeroed at any height.
+    #[must_use]
+    pub(crate) fn fall_energy(&self) -> f32 {
+        self.peak_energy
+    }
+
+    fn update(&mut self, y: f32, vertical_velocity: f32, gravity: f32) -> Option<FallImpact> {
         if self.support == CharacterSupport::Airborne {
-            self.peak_speed = self.peak_speed.max((-vertical_velocity).max(0.0));
+            let downward = (-vertical_velocity).max(0.0);
+            self.peak_speed = self.peak_speed.max(downward);
             self.peak_y = self.peak_y.max(y);
+            // v² + 2gy is conserved along the flight, so portal traversal
+            // can recover the exact speed at any height. The peak speed
+            // alone lags the impact by a tick; the apex alone forgets the
+            // speed the window started with (a portal exit already moving).
+            self.peak_energy = self.peak_energy.max(downward.mul_add(downward, 2.0 * gravity * y));
             return None;
         }
 
@@ -60,6 +85,7 @@ impl PlayerFallState {
         });
         self.peak_speed = 0.0;
         self.peak_y = f32::NEG_INFINITY;
+        self.peak_energy = 0.0;
         impact
     }
 }
@@ -158,13 +184,18 @@ const PHANTOM_FALL_TRIPWIRE_SLACK: f32 = 5.0;
 // airborne window is tracked by `PlayerFallState`; when the player
 // reaches support (ground or ladder), damage lerps from 0 at
 // `safe_distance` to `max_health` at
-// `lethal_distance`, clamped past lethal. The fall distance requires
-// BOTH a real drop AND matching impact energy — min(drop, velocity-implied):
-//   * the drop bound kills phantom falls (the support probe can miss at a
-//     ledge lip while the collider holds the body, so vy accumulates to
-//     terminal with no displacement);
-//   * the energy bound keeps low-gravity landings soft (a low-gravity jump
-//     tops out near lethal height but lands at only jump speed).
+// `lethal_distance`, clamped past lethal. The charged distance is the
+// actual drop, scaled by the gravity it fell under relative to the map's
+// normal gravity:
+//   * a phantom fall (velocity with no displacement — the support probe can
+//     miss at a ledge lip while the collider holds the body) drops nothing,
+//     so it charges nothing;
+//   * a low-gravity fall lands as softly as a proportionally shorter
+//     normal fall;
+//   * and deliberately NOT the impact speed: the terminal-velocity clamp
+//     caps that, which would make every fall survivable once the clamp is
+//     low enough — height must stay lethal. The velocity-implied estimate
+//     survives only as the phantom-fall tripwire.
 //
 // Runs after `characters_movement_system` so it observes the support derived
 // by that tick's shared movement step. Under debug invincibility the impact cue
@@ -194,7 +225,8 @@ pub fn players_fall_damage_system(
             continue;
         }
 
-        let Some(impact) = info.life.fall_state.update(pos.y, motion.0) else {
+        let fall_gravity = map_settings.gravity_for(info.has_low_gravity());
+        let Some(impact) = info.life.fall_state.update(pos.y, motion.0, fall_gravity) else {
             continue;
         };
 
@@ -207,7 +239,7 @@ pub fn players_fall_damage_system(
                 id, impact.drop
             );
         }
-        let fall_distance = effective_fall_distance(impact.drop, impact.peak_speed, map_settings.gravity);
+        let fall_distance = effective_fall_distance(impact.drop, fall_gravity, map_settings.gravity);
         if fall_distance <= fall.safe_distance {
             continue;
         }
@@ -275,17 +307,18 @@ struct FallImpact {
 //   2. `+CHARACTER_GROUND_SNAP_DISTANCE` — the last ~0.5 m of every fall is
 //      "snapped" by the character controller (vy → 0, no further gravity),
 //      so naive `v²/2g` undercounts by exactly that snap distance.
-// `gravity` is the map's normal-gravity magnitude, even for low-gravity
-// falls — the energy bound is what keeps those landings soft.
+// `gravity` is the map's normal-gravity magnitude. Used only by the
+// phantom-fall tripwire.
 fn velocity_implied_fall_distance(peak_fall_speed: f32, gravity: f32) -> f32 {
     let impact_speed = peak_fall_speed + gravity * TICK_SECS;
     impact_speed.powi(2) / (2.0 * gravity) + CHARACTER_GROUND_SNAP_DISTANCE
 }
 
-// Fall distance that damage is charged for: min(actual drop, energy
-// equivalent). See `players_fall_damage_system` header for the why.
-fn effective_fall_distance(drop: f32, peak_fall_speed: f32, gravity: f32) -> f32 {
-    drop.min(velocity_implied_fall_distance(peak_fall_speed, gravity))
+// Fall distance that damage is charged for: the actual drop, scaled by the
+// gravity it fell under relative to the map's normal gravity. See the
+// `players_fall_damage_system` header for the why.
+fn effective_fall_distance(drop: f32, fall_gravity: f32, normal_gravity: f32) -> f32 {
+    drop * (fall_gravity / normal_gravity)
 }
 
 // Lerp damage between `safe_distance` (0 dmg) and `lethal_distance`
@@ -306,8 +339,8 @@ mod tests {
     fn airborne_tracking_records_apex_and_peak_fall_speed() {
         let mut state = PlayerFallState::default();
 
-        assert_eq!(state.update(8.0, 4.0), None);
-        assert_eq!(state.update(7.0, -6.0), None);
+        assert_eq!(state.update(8.0, 4.0, 25.0), None);
+        assert_eq!(state.update(7.0, -6.0, 25.0), None);
 
         assert_eq!(state.peak_y, 8.0);
         assert_eq!(state.peak_speed, 6.0);
@@ -321,7 +354,7 @@ mod tests {
             ..default()
         };
 
-        let impact = state.update(7.0, 4.0);
+        let impact = state.update(7.0, 4.0, 25.0);
 
         assert_eq!(impact, None);
         assert_eq!(state.peak_speed, 6.0);
@@ -334,9 +367,10 @@ mod tests {
             support: CharacterSupport::Ground,
             peak_speed: 12.0,
             peak_y: 10.0,
+            ..default()
         };
 
-        let impact = state.update(4.0, 0.0);
+        let impact = state.update(4.0, 0.0, 25.0);
 
         assert_eq!(
             impact,
@@ -355,9 +389,10 @@ mod tests {
             support: CharacterSupport::Ladder,
             peak_speed: 12.0,
             peak_y: 10.0,
+            ..default()
         };
 
-        let impact = state.update(4.0, 0.0);
+        let impact = state.update(4.0, 0.0, 25.0);
 
         assert_eq!(
             impact,
@@ -376,9 +411,10 @@ mod tests {
             support: CharacterSupport::Ground,
             peak_speed: 0.0,
             peak_y: 10.0,
+            ..default()
         };
 
-        let impact = state.update(4.0, 0.0);
+        let impact = state.update(4.0, 0.0, 25.0);
 
         assert_eq!(impact, None);
         assert_eq!(state.peak_y, f32::NEG_INFINITY);
@@ -408,27 +444,22 @@ mod tests {
 
     #[test]
     fn low_gravity_jump_lands_below_safe_distance() {
-        // Low-gravity jump: apex ≈ 14.4 m of drop, but the landing speed is
-        // only the configured jump speed (12 m/s) — an energy equivalent of ~3.8 m,
-        // well under the 8 m safe threshold.
-        let distance = effective_fall_distance(14.4, 12.0, TEST_GRAVITY);
-        assert!(distance < 8.0, "expected soft landing, got {distance}m");
-        assert!(distance > 3.0);
+        // Low-gravity jump: apex ≈ 14.4 m of drop under g = 5, charged like a
+        // 14.4 · 5/25 = 2.88 m normal fall — well under the safe threshold.
+        let distance = effective_fall_distance(14.4, 5.0, TEST_GRAVITY);
+        assert!((distance - 2.88).abs() < 1e-4, "expected 2.88m, got {distance}m");
     }
 
     #[test]
     fn phantom_fall_charges_zero_distance() {
-        // Terminal velocity fabricated while standing: no drop, no damage.
-        assert_eq!(effective_fall_distance(0.0, 50.0, TEST_GRAVITY), 0.0);
+        // Velocity fabricated while standing: no drop, no damage.
+        assert_eq!(effective_fall_distance(0.0, TEST_GRAVITY, TEST_GRAVITY), 0.0);
     }
 
     #[test]
     fn genuine_fall_distance_passes_through() {
-        // A real 13.2 m fall: impact speed √(2g·12.7) ≈ 25.2 m/s, captured
-        // one tick early (−g·dt). Drop and energy agree, so min ≈ drop.
-        let impact_speed = (2.0 * TEST_GRAVITY * (13.2 - CHARACTER_GROUND_SNAP_DISTANCE)).sqrt();
-        let peak_fall_speed = impact_speed - TEST_GRAVITY * TICK_SECS;
-        let distance = effective_fall_distance(13.2, peak_fall_speed, TEST_GRAVITY);
-        assert!((distance - 13.2).abs() < 0.1, "expected ≈13.2m, got {distance}m");
+        // A normal-gravity fall charges its full height — independent of the
+        // terminal-velocity clamp, so a long fall stays lethal.
+        assert_eq!(effective_fall_distance(13.2, TEST_GRAVITY, TEST_GRAVITY), 13.2);
     }
 }

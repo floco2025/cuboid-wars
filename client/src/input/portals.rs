@@ -8,10 +8,17 @@ use crate::{
     audio::play_sound,
     cameras::{CameraViewMode, MainCameraMarker},
     config::AssetSet,
+    constants::{PORTAL_A_COLOR, PORTAL_B_COLOR, PROJECTILE_SPARK_REFERENCE_SPEED},
     network::{ClientToServer, ClientToServerChannel},
     players::{LocalPlayerInfo, LocalPlayerMarker},
+    vfx::{ImpactKind, ParticleClouds, spawn_impact_sparks},
 };
-use common::protocol::*;
+use common::{
+    config::GameplayConfig,
+    math::direction_from_yaw_pitch,
+    physics::{CollisionWorld, compute_portal_placement},
+    protocol::*,
+};
 
 // Which weapon the mouse buttons drive. Client-only presentation state, like
 // `CameraViewMode`; the server just receives whichever shot message results.
@@ -39,21 +46,27 @@ pub fn input_weapon_toggle_system(keyboard: Res<ButtonInput<KeyCode>>, mut mode:
 }
 
 // Portal-gun fire: left click places end A (blue), right click end B
-// (orange). The gun always fires — the immediate sound is the trigger
-// feedback — but the outcome is the server's: a miss fizzles silently and
-// the portal appears with `SPortalOpened`. Nothing is spawned locally.
+// (orange). Placement is predicted with the same shared check the server
+// runs on the same static map data, so the feedback is immediate and never
+// wrong: a valid aperture plays the fire sound and sends the shot, an
+// invalid one (miss, doesn't fit, covers a fixture) dry-fires and sends
+// nothing. The portal itself still only appears with `SPortalOpened`.
 pub fn input_portal_system(
     mut commands: Commands,
     mode: Res<WeaponMode>,
     mouse: Res<ButtonInput<MouseButton>>,
     cursor_options: Single<&CursorOptions>,
     camera_query: Query<&Transform, (With<Camera3d>, With<MainCameraMarker>)>,
-    local_player_query: Query<&FaceYaw, With<LocalPlayerMarker>>,
+    local_player_query: Query<(&Position, &FaceYaw), With<LocalPlayerMarker>>,
     to_server: Res<ClientToServerChannel>,
     asset_server: Res<AssetServer>,
     asset_set: Res<AssetSet>,
     view_mode: Res<CameraViewMode>,
     local_player_info: Res<LocalPlayerInfo>,
+    collision_world: Option<Res<CollisionWorld>>,
+    map_layout: Option<Res<MapLayout>>,
+    gameplay_config: Res<GameplayConfig>,
+    mut particle_clouds: ResMut<ParticleClouds>,
 ) {
     if *mode != WeaponMode::PortalGun || local_player_info.is_dead {
         return;
@@ -68,7 +81,10 @@ pub fn input_portal_system(
     } else {
         return;
     };
-    let Some(face_yaw) = local_player_query.iter().next() else {
+    let Some((pos, face_yaw)) = local_player_query.iter().next() else {
+        return;
+    };
+    let (Some(collision_world), Some(map_layout)) = (collision_world.as_deref(), map_layout.as_deref()) else {
         return;
     };
     let pitch = if view_mode.is_first_person() {
@@ -79,6 +95,40 @@ pub fn input_portal_system(
     } else {
         0.0
     };
+
+    let origin = Vec3::new(pos.x, pos.y + gameplay_config.player.eye_height(), pos.z);
+    let direction = direction_from_yaw_pitch(face_yaw.0, pitch);
+    if compute_portal_placement(
+        origin,
+        direction,
+        face_yaw.0,
+        gameplay_config.portals.range,
+        collision_world,
+        map_layout,
+    )
+    .is_none()
+    {
+        // Portal-style fizzle: dry-fire plus a spark burst in the end's
+        // color at the impact point, so a failed placement is visibly
+        // rejected where it landed. Nothing is sent — the server would
+        // reach the same verdict.
+        if let Some(hit) = collision_world.world_surface_along_ray(origin, direction, gameplay_config.portals.range) {
+            let color = match end {
+                PortalEnd::A => PORTAL_A_COLOR,
+                PortalEnd::B => PORTAL_B_COLOR,
+            };
+            spawn_impact_sparks(
+                &mut particle_clouds.sparks,
+                hit.point,
+                hit.normal,
+                hit.normal,
+                PROJECTILE_SPARK_REFERENCE_SPEED,
+                ImpactKind::Barrier(color),
+            );
+        }
+        play_sound(&mut commands, &asset_server, asset_set.player_sound("dry_fire"));
+        return;
+    }
 
     play_sound(&mut commands, &asset_server, asset_set.player_sound("fire"));
     let _ = to_server.send(ClientToServer::Send(ClientMessage::PortalShot(CPortalShot {

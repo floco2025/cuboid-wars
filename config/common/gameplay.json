@@ -54,6 +54,9 @@
     "require_lock": true,
     "max_missiles": 3
   },
+  "portals": {
+    "range": 40.0
+  },
   "actors": {
     "mine": {
       "collider": { "width": 1.0, "height": 1.0, "depth": 1.0, "y_offset": 1.1, "y_offset_anchor": "center" },

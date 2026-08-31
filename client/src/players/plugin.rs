@@ -12,6 +12,10 @@ pub fn camera_plugin(app: &mut App) {
             local_player_camera_shake_system,
             local_player_cuboid_shake_system,
             local_player_camera_sync_system.after(local_player_camera_shake_system),
+            local_player_portal_blend_system
+                .after(local_player_camera_sync_system)
+                .before(lock_on_system)
+                .before(local_player_rearview_sync_system),
             local_player_rearview_sync_system.after(local_player_camera_sync_system),
             // Lock detection reads this frame's camera ray (shake
             // included) so the lit crosshair matches what's on screen.

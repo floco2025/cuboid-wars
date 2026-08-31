@@ -99,8 +99,8 @@ pub struct PlayerLife {
     // the client can change-detect via a single equality check.
     pub held_keys: Vec<BarrierKindId>,
     pub fall_state: PlayerFallState,
-    // Seconds until the next portal teleport may fire; armed on each hop so
-    // a portal pair can't oscillate faster than the configured cadence.
+    // Seconds until the next slow (resting) portal re-trigger may fire;
+    // armed on each hop. Entries carrying real persistent speed bypass it.
     pub portal_cooldown: f32,
 }
 

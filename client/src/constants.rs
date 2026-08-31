@@ -203,6 +203,10 @@ pub const PORTAL_B_COLOR: Color = Color::srgb(1.00, 0.55, 0.10); // orange — e
 pub const PORTAL_EMISSIVE: f32 = 8.0;
 // Offset off the surface so the decal wins the depth test against its wall.
 pub const PORTAL_SURFACE_OFFSET: f32 = 0.01;
+// Portal-style exit reorientation: the camera is seeded with the fully
+// mapped (possibly tilted) view and blended back to the upright aim over
+// this window.
+pub const PORTAL_VIEW_BLEND_SECS: f32 = 0.25;
 
 // ============================================================================
 // Cookies

@@ -429,7 +429,6 @@ mod tests {
                 missiles_per_pack: 1,
             },
             portals: PortalsServerConfig {
-                range: 40.0,
                 teleport_cooldown_secs: 0.5,
             },
             power_ups: PowerUpsConfig {
