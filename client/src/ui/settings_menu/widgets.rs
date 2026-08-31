@@ -50,6 +50,11 @@ pub(super) fn section_header(text: &str, font_size: f32) -> impl Bundle {
     )
 }
 
+// The value readout lives inside the control's fixed width, so the whole
+// group matches the cyclers' footprint and the right column stays one width.
+const VALUE_BOX_PX: f32 = 48.0;
+const CONTROL_GAP_PX: f32 = 8.0;
+
 #[expect(clippy::too_many_arguments, reason = "one call site per setting row")]
 pub(super) fn slider_row(
     label: &str,
@@ -65,16 +70,35 @@ pub(super) fn slider_row(
         row(),
         children![
             label_text(label, font_size),
-            slider(control_width, setting, min, max, value, precision),
-            // Wrapper so the readout is a flex child and FlexEnd really
-            // right-aligns it inside the fixed-width box.
             (
                 Node {
-                    min_width: Val::Px(48.0),
-                    justify_content: JustifyContent::FlexEnd,
+                    width: Val::Px(control_width),
+                    flex_shrink: 0.0,
+                    flex_direction: FlexDirection::Row,
+                    justify_content: JustifyContent::SpaceBetween,
+                    align_items: AlignItems::Center,
+                    column_gap: Val::Px(CONTROL_GAP_PX),
                     ..default()
                 },
-                children![(SliderValueLabel(setting), label_text("--", font_size))],
+                children![
+                    slider(
+                        control_width - VALUE_BOX_PX - CONTROL_GAP_PX,
+                        setting,
+                        min,
+                        max,
+                        value,
+                        precision,
+                    ),
+                    (
+                        Node {
+                            width: Val::Px(VALUE_BOX_PX),
+                            flex_shrink: 0.0,
+                            justify_content: JustifyContent::FlexEnd,
+                            ..default()
+                        },
+                        children![(SliderValueLabel(setting), label_text("--", font_size))],
+                    ),
+                ],
             ),
         ],
     )
@@ -85,6 +109,9 @@ fn slider(control_width: f32, setting: SliderSetting, min: f32, max: f32, value:
         Node {
             width: Val::Px(control_width),
             height: Val::Px(SLIDER_THUMB_PX),
+            // shrink 0 everywhere on the control side: the label's length
+            // must never squeeze a control, so all sliders stay equal.
+            flex_shrink: 0.0,
             flex_direction: FlexDirection::Column,
             justify_content: JustifyContent::Center,
             align_items: AlignItems::Stretch,
@@ -152,6 +179,7 @@ pub(super) fn checkbox_row(label: &str, font_size: f32, setting: CheckboxSetting
                 Node {
                     width: Val::Px(16.0),
                     height: Val::Px(16.0),
+                    flex_shrink: 0.0,
                     border: UiRect::all(Val::Px(2.0)),
                     justify_content: JustifyContent::Center,
                     align_items: AlignItems::Center,
@@ -180,6 +208,7 @@ pub(super) fn cycler_row(label: &str, font_size: f32, control_width: f32, settin
             (
                 Node {
                     width: Val::Px(control_width),
+                    flex_shrink: 0.0,
                     flex_direction: FlexDirection::Row,
                     justify_content: JustifyContent::SpaceBetween,
                     align_items: AlignItems::Center,

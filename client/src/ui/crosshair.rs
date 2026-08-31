@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 
+use super::settings_menu::SettingsMenuState;
 use crate::{
     cameras::CameraViewMode,
     constants::{CROSSHAIR_COLOR, CROSSHAIR_LOCK_COLOR},
@@ -35,14 +36,17 @@ pub fn ui_crosshair_lock_system(
 
 pub fn ui_crosshair_visibility_system(
     view_mode: Res<CameraViewMode>,
+    menu: Res<SettingsMenuState>,
     mut query: Query<&mut Visibility, With<CrosshairMarker>>,
 ) {
-    if !view_mode.is_changed() {
+    if !view_mode.is_changed() && !menu.is_changed() {
         return;
     }
 
+    // Hidden while the settings menu is open — it would show through the
+    // translucent panel.
     for mut visibility in &mut query {
-        *visibility = if view_mode.is_first_person() {
+        *visibility = if view_mode.is_first_person() && !menu.open {
             Visibility::Visible
         } else {
             Visibility::Hidden
