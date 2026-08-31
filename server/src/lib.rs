@@ -9,6 +9,7 @@ pub mod missiles;
 pub mod network;
 mod pathfind;
 pub mod players;
+pub mod portals;
 pub mod projectiles;
 pub mod quests;
 mod schedule;

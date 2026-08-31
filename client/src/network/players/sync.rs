@@ -165,7 +165,7 @@ fn spawn_snapshot_player(
 
 // Point the main camera (and the stored mouse-look fallback state) at the
 // server-assigned spawn facing.
-fn apply_local_spawn_facing(
+pub(super) fn apply_local_spawn_facing(
     commands: &mut Commands,
     camera_query: &Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
     local_player_info: &mut LocalPlayerInfo,

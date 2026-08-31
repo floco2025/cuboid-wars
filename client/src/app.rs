@@ -12,19 +12,20 @@ use crate::{
     characters::MaxHealth,
     characters::{character_sync_plugin, prediction_plugin},
     config::{AssetSet, ClientSettings, LocalSettings, OpaqueRenderer},
-    input::input_plugin,
+    input::{WeaponMode, input_plugin},
     items::{ItemMap, setup_item_assets},
     map::{DebugColors, LevelFocusEnabled, map_plugin, setup_scene_lighting_system, sky_weather_plugin},
     materials::{GrassMaterialPlugin, generate_material_mipmaps_system},
     missiles::{LockOnTarget, MissileAssets, MissileMap},
     network::{ClientToServerChannel, LastSnapshotSeq, RoundTripTime, ServerToClientChannel, network_plugin},
     players::{LocalPlayerInfo, PlayerMap, camera_plugin},
+    portals::{PortalAssets, PortalMap},
     projectiles::{LastBounceSound, ProjectileAssets},
     schedule::configure_client_sets,
     ui::{ConsoleState, FpsMeasurement, HudBanner, HudShapeAssets, MessageFeed, QuestLog, hud_plugin, setup_ui_system},
     vfx::{BlastRadii, ExplosionAssets, ExplosionVfxBudget, ParticleClouds, RainIntensity, presentation_plugin},
 };
-use common::{config::GameplayConfig, constants::TICK_HZ, protocol::BarrierKindTable};
+use common::{config::GameplayConfig, constants::TICK_HZ, physics::PortalSet, protocol::BarrierKindTable};
 
 pub struct ClientAppOptions {
     pub window_x: Option<i32>,
@@ -107,6 +108,10 @@ pub fn build_client_app(
         .insert_resource(QuestLog::default())
         .insert_resource(MissileMap::default())
         .insert_resource(LockOnTarget::default())
+        .insert_resource(PortalMap::default())
+        .insert_resource(PortalSet::default())
+        .insert_resource(WeaponMode::default())
+        .init_resource::<PortalAssets>()
         .init_resource::<MissileAssets>()
         .init_resource::<HudShapeAssets>()
         .init_resource::<ProjectileAssets>()

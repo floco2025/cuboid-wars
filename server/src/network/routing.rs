@@ -14,9 +14,11 @@ use crate::{
     missiles::{MissileMap, handle_missile_shot_message},
     network::ServerToClient,
     players::PlayerMap,
+    portals::{PortalMap, handle_portal_shot_message},
     projectiles::handle_shot_message,
     quests::{QuestBoard, QuestCatalog},
 };
+use common::physics::PortalSet;
 use common::protocol::*;
 
 #[derive(SystemParam)]
@@ -29,6 +31,8 @@ pub(super) struct ClientMessageContext<'w, 's> {
     open_barrier_kinds: Res<'w, OpenBarrierKinds>,
     missiles: ResMut<'w, MissileMap>,
     pending_actor_spawns: ResMut<'w, PendingActorSpawns>,
+    pub(super) portals: ResMut<'w, PortalMap>,
+    pub(super) portal_set: ResMut<'w, PortalSet>,
     admin: AdminContext<'w>,
     pub(super) quest_board: ResMut<'w, QuestBoard>,
     pub(super) quest_catalog: Res<'w, QuestCatalog>,
@@ -143,6 +147,24 @@ pub(super) fn route_client_message(
                 &context.world.gameplay_config,
                 &context.world.server_gameplay_config,
                 &context.open_barrier_kinds,
+            );
+        }
+        ClientMessage::PortalShot(message) => {
+            let Some(entity) = entity else {
+                return;
+            };
+            debug!("{} portal shot ({:?})", context.players.describe(&id), message.end);
+            handle_portal_shot_message(
+                entity,
+                id,
+                &message,
+                &context.players,
+                &context.queries.player_data,
+                &context.world.collision_world,
+                &context.world.gameplay_config,
+                &context.world.server_gameplay_config,
+                &mut context.portals,
+                &mut context.portal_set,
             );
         }
         ClientMessage::Ping(message) => {

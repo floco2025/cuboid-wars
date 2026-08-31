@@ -99,6 +99,9 @@ pub struct PlayerLife {
     // the client can change-detect via a single equality check.
     pub held_keys: Vec<BarrierKindId>,
     pub fall_state: PlayerFallState,
+    // Seconds until the next portal teleport may fire; armed on each hop so
+    // a portal pair can't oscillate faster than the configured cadence.
+    pub portal_cooldown: f32,
 }
 
 impl PlayerLife {
@@ -115,6 +118,7 @@ impl PlayerLife {
             missiles: 0,
             held_keys: Vec::new(),
             fall_state: PlayerFallState::default(),
+            portal_cooldown: 0.0,
         }
     }
 
@@ -301,6 +305,7 @@ impl PlayerInfo {
             tick_timer(t, delta);
         }
         tick_timer(&mut self.life.stun_timer, delta);
+        tick_timer(&mut self.life.portal_cooldown, delta);
     }
 }
 

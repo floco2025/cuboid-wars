@@ -97,6 +97,10 @@
     "stall_secs": 2.0,
     "missiles_per_pack": 1
   },
+  "portals": {
+    "range": 40.0,
+    "teleport_cooldown_secs": 0.5
+  },
   "power_ups": {
     "duration_secs": { "speed": 30.0, "multi_shot": 25.0, "low_gravity": 20.0 }
   },

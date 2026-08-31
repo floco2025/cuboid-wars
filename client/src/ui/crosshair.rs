@@ -3,7 +3,8 @@ use bevy::prelude::*;
 use super::settings_menu::SettingsMenuState;
 use crate::{
     cameras::CameraViewMode,
-    constants::{CROSSHAIR_COLOR, CROSSHAIR_LOCK_COLOR},
+    constants::{CROSSHAIR_COLOR, CROSSHAIR_LOCK_COLOR, CROSSHAIR_PORTAL_COLOR},
+    input::WeaponMode,
     missiles::LockOnTarget,
 };
 
@@ -17,13 +18,17 @@ pub struct CrosshairBarMarker;
 
 pub fn ui_crosshair_lock_system(
     lock: Res<LockOnTarget>,
+    weapon_mode: Res<WeaponMode>,
     mut bars: Query<&mut BackgroundColor, With<CrosshairBarMarker>>,
 ) {
-    if !lock.is_changed() {
+    if !lock.is_changed() && !weapon_mode.is_changed() {
         return;
     }
+    // Lock outranks the portal tint: the missile key works in either mode.
     let want = if lock.0.is_some() {
         CROSSHAIR_LOCK_COLOR
+    } else if *weapon_mode == WeaponMode::PortalGun {
+        CROSSHAIR_PORTAL_COLOR
     } else {
         CROSSHAIR_COLOR
     };

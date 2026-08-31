@@ -1,5 +1,9 @@
 use bevy::{ecs::system::SystemParam, prelude::*};
-use common::{config::GameplayConfig, physics::CollisionWorld, protocol::*};
+use common::{
+    config::GameplayConfig,
+    physics::{CollisionWorld, PortalSet},
+    protocol::*,
+};
 
 use crate::{
     actors::{ActorGhostMap, ActorMap},
@@ -12,6 +16,7 @@ use crate::{
     missiles::{MissileAssets, MissileMap},
     network::{LastSnapshotSeq, RoundTripTime},
     players::{LocalPlayerInfo, MyPlayerId, PlayerMap},
+    portals::{PortalAssets, PortalMap as PortalVisuals},
     projectiles::ProjectileAssets,
     ui::{HudBanner, MessageFeed, QuestLog},
     vfx::{BlastRadii, ExplosionAssets, ExplosionSpawnCtx, ExplosionVfxBudget, FireworkShow, RainIntensity},
@@ -41,11 +46,14 @@ pub(super) struct ServerMessageContext<'w, 's> {
     pub(super) item_assets: Res<'w, ItemAssets>,
     pub(super) barrier_assets: Res<'w, BarrierAssets>,
     pub(super) missile_assets: Res<'w, MissileAssets>,
+    pub(super) portal_assets: Res<'w, PortalAssets>,
     pub(super) projectile_assets: Res<'w, ProjectileAssets>,
     pub(super) players: ResMut<'w, PlayerMap>,
     pub(super) actors: ResMut<'w, ActorMap>,
     pub(super) items: ResMut<'w, ItemMap>,
     pub(super) missiles: ResMut<'w, MissileMap>,
+    pub(super) portals: ResMut<'w, PortalVisuals>,
+    pub(super) portal_set: ResMut<'w, PortalSet>,
     pub(super) actor_ghosts: ResMut<'w, ActorGhostMap>,
     pub(super) last_snapshot_seq: ResMut<'w, LastSnapshotSeq>,
     pub(super) local_player_info: ResMut<'w, LocalPlayerInfo>,

@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 
 use super::super::context::ServerMessageContext;
+use super::sync::apply_local_spawn_facing;
 use crate::{
     audio::{play_explosion_sound, play_sound},
     characters::PreviousTickPosition,
@@ -232,6 +233,41 @@ pub(in crate::network) fn handle_player_blast_message(
         CharacterVerticalVelocity(message.vertical_velocity),
         KnockbackVelocity(Vec3::new(message.velocity_x, 0.0, message.velocity_z)),
     ));
+}
+
+// A player went through a portal — hard-snap, never smoothed: a short-range
+// teleport falls below the reconciliation snap threshold, and a sub-threshold
+// correction gets pushed through collision into the portal's own surface.
+// Seeds the carried velocities so prediction agrees with the server; for the
+// local player the camera is re-aimed exactly like a respawn.
+pub(in crate::network) fn handle_player_teleport_message(
+    message: SPlayerTeleport,
+    commands: &mut Commands,
+    my_player_id: PlayerId,
+    context: &mut ServerMessageContext,
+) {
+    let Some(player) = context.players.get(&message.id) else {
+        return;
+    };
+    commands
+        .entity(player.entity)
+        .insert((
+            message.pos,
+            PreviousTickPosition(message.pos),
+            FaceYaw(message.face_yaw),
+            CharacterVerticalVelocity(message.vertical_velocity),
+            KnockbackVelocity(Vec3::new(message.velocity_x, 0.0, message.velocity_z)),
+        ))
+        .remove::<ServerReconciliation>();
+    if message.id == my_player_id {
+        apply_local_spawn_facing(
+            commands,
+            &context.cameras,
+            &mut context.local_player_info,
+            &message.pos,
+            message.face_yaw,
+        );
+    }
 }
 
 // Handle player status update (power-ups, stun).

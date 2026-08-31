@@ -14,8 +14,10 @@ use crate::{
 };
 use common::{
     config::GameplayConfig,
+    constants::PORTAL_SURFACE_TIE_EPSILON,
     physics::{
-        BallCharacterHit, CollisionWorld, ProjectileMotion, projectile_character_hit, projectile_overlaps_character,
+        BallCharacterHit, CollisionWorld, PortalSet, ProjectileMotion, projectile_character_hit,
+        projectile_overlaps_character,
     },
     protocol::*,
 };
@@ -46,18 +48,30 @@ enum ProjectileEvent {
     Hit,
     Terminate,
     Bounce,
+    Portal,
     Fly,
 }
 
 // Pick the earliest event along the projectile's straight path this tick, by
 // time-of-impact in `[0, 1]`. World surfaces win ties against a character hit
 // so a target behind cover is protected, and a barrier is checked before a
-// bounce surface (preserving the barrier-terminates priority).
+// bounce surface (preserving the barrier-terminates priority). A portal
+// crossing and the bounce off the portal's own surface register at nearly
+// the same time, so the portal wins that tie — while strictly earlier
+// characters and barriers still shield it.
 fn earliest_projectile_event(
     character_t: Option<f32>,
     barrier_t: Option<f32>,
     surface_t: Option<f32>,
+    portal_t: Option<f32>,
 ) -> ProjectileEvent {
+    if let Some(pt) = portal_t
+        && character_t.is_none_or(|ct| pt < ct)
+        && barrier_t.is_none_or(|bt| pt < bt)
+        && surface_t.is_none_or(|st| pt <= st + PORTAL_SURFACE_TIE_EPSILON)
+    {
+        return ProjectileEvent::Portal;
+    }
     if let Some(bt) = barrier_t
         && character_t.is_none_or(|ct| bt <= ct)
     {
@@ -127,6 +141,7 @@ pub struct ProjectileMovementParams<'w, 's> {
     players: ResMut<'w, PlayerMap>,
     pending_explosions: ResMut<'w, PendingExplosions>,
     invincibility: Res<'w, Invincibility>,
+    portal_set: Res<'w, PortalSet>,
 }
 
 pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut params: ProjectileMovementParams) {
@@ -212,8 +227,13 @@ pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut 
         let barrier_t =
             projectile.barrier_collision_t(&proj_pos, delta, &params.collision_world, &params.open_barrier_kinds.0);
         let surface_t = projectile.surface_collision_t(&proj_pos, delta, &params.collision_world);
+        let projectile_radius = params.gameplay_config.projectiles.radius;
+        let portal_hop =
+            params
+                .portal_set
+                .projectile_hop(Vec3::from(*proj_pos), projectile.velocity, delta, projectile_radius);
 
-        match earliest_projectile_event(character_t, barrier_t, surface_t) {
+        match earliest_projectile_event(character_t, barrier_t, surface_t, portal_hop.map(|hop| hop.t)) {
             ProjectileEvent::Terminate => {
                 commands.entity(proj_entity).despawn();
                 continue;
@@ -222,6 +242,23 @@ pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut 
                 if let Some(bounces) = projectile.resolve_world_bounces(&proj_pos, delta, &params.collision_world) {
                     *proj_pos = bounces.position;
                 }
+                continue;
+            }
+            ProjectileEvent::Portal => {
+                let hop = portal_hop.expect("portal event selected without a portal hop");
+                projectile.velocity = hop.exit_velocity;
+                // One hop per tick: integrate the remainder with a single
+                // clamping cast; the next tick resolves anything further.
+                let translation = projectile.velocity * (delta * (1.0 - hop.t));
+                let clamped =
+                    match params
+                        .collision_world
+                        .cast_moving_ball(hop.exit_pos, translation, projectile_radius)
+                    {
+                        Some(hit) => translation * hit.t,
+                        None => translation,
+                    };
+                *proj_pos = (hop.exit_pos + clamped).into();
                 continue;
             }
             // Hit → the match below applies it; Fly → its `None` arm advances.
@@ -331,35 +368,61 @@ mod tests {
     fn earliest_event_prefers_closest_with_world_winning_ties() {
         // Character strictly closest → the hit registers.
         assert_eq!(
-            earliest_projectile_event(Some(0.2), Some(0.5), Some(0.6)),
+            earliest_projectile_event(Some(0.2), Some(0.5), Some(0.6), None),
             ProjectileEvent::Hit
         );
         // A closer barrier / bounce surface protects a target behind it.
         assert_eq!(
-            earliest_projectile_event(Some(0.5), Some(0.3), None),
+            earliest_projectile_event(Some(0.5), Some(0.3), None, None),
             ProjectileEvent::Terminate
         );
         assert_eq!(
-            earliest_projectile_event(Some(0.5), None, Some(0.3)),
+            earliest_projectile_event(Some(0.5), None, Some(0.3), None),
             ProjectileEvent::Bounce
         );
         // Ties go to the world surface (conservative cover).
         assert_eq!(
-            earliest_projectile_event(Some(0.4), Some(0.4), None),
+            earliest_projectile_event(Some(0.4), Some(0.4), None, None),
             ProjectileEvent::Terminate
         );
         assert_eq!(
-            earliest_projectile_event(Some(0.4), None, Some(0.4)),
+            earliest_projectile_event(Some(0.4), None, Some(0.4), None),
             ProjectileEvent::Bounce
         );
         // No world collision but a character hit → hit.
-        assert_eq!(earliest_projectile_event(Some(0.4), None, None), ProjectileEvent::Hit);
+        assert_eq!(
+            earliest_projectile_event(Some(0.4), None, None, None),
+            ProjectileEvent::Hit
+        );
         // No character: barrier keeps priority over the bounce surface.
         assert_eq!(
-            earliest_projectile_event(None, Some(0.5), Some(0.3)),
+            earliest_projectile_event(None, Some(0.5), Some(0.3), None),
             ProjectileEvent::Terminate
         );
         // Empty path → fly straight.
-        assert_eq!(earliest_projectile_event(None, None, None), ProjectileEvent::Fly);
+        assert_eq!(earliest_projectile_event(None, None, None, None), ProjectileEvent::Fly);
+    }
+
+    #[test]
+    fn portal_wins_its_surface_tie_but_yields_to_closer_hits() {
+        // The portal sits ON a bounce surface: same time of impact → portal.
+        assert_eq!(
+            earliest_projectile_event(None, None, Some(0.4), Some(0.4)),
+            ProjectileEvent::Portal
+        );
+        // A strictly earlier character or barrier still shields the portal.
+        assert_eq!(
+            earliest_projectile_event(Some(0.3), None, Some(0.4), Some(0.4)),
+            ProjectileEvent::Hit
+        );
+        assert_eq!(
+            earliest_projectile_event(None, Some(0.3), Some(0.4), Some(0.4)),
+            ProjectileEvent::Terminate
+        );
+        // A clearly earlier unrelated surface still bounces first.
+        assert_eq!(
+            earliest_projectile_event(None, None, Some(0.2), Some(0.6)),
+            ProjectileEvent::Bounce
+        );
     }
 }

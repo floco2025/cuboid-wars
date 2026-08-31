@@ -1,12 +1,14 @@
 mod commit;
 mod missiles;
 mod movement;
+mod portals;
 mod shooting;
 mod toggles;
 
 pub use commit::commit_player_input_system;
 pub use missiles::input_missile_system;
 pub use movement::input_movement_system;
+pub use portals::{WeaponMode, input_portal_system, input_weapon_toggle_system};
 pub use shooting::input_shooting_system;
 pub use toggles::{
     enter_borderless_fullscreen, input_camera_view_toggle_system, input_debug_colors_cycle_system,

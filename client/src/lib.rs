@@ -13,6 +13,7 @@ pub mod materials;
 pub mod missiles;
 pub mod network;
 pub mod players;
+pub mod portals;
 pub mod projectiles;
 pub mod schedule;
 pub mod ui;

@@ -1,7 +1,8 @@
 use bevy::{ecs::system::SystemParam, prelude::*};
 use common::{
     config::GameplayConfig,
-    physics::{CollisionWorld, OpenBarrierKinds, ProjectileMotion, projectile_overlaps_character},
+    constants::PORTAL_SURFACE_TIE_EPSILON,
+    physics::{CollisionWorld, OpenBarrierKinds, PortalSet, ProjectileMotion, projectile_overlaps_character},
     protocol::{ActorId, ActorMarker, FaceYaw, MapSettings, PlayerId, PlayerMarker, Position, ProjectileMarker},
 };
 
@@ -27,6 +28,7 @@ pub struct ProjectileWorld<'w> {
     map_settings: Option<Res<'w, MapSettings>>,
     gameplay_config: Res<'w, GameplayConfig>,
     open_barrier_kinds: Res<'w, OpenBarrierKinds>,
+    portal_set: Res<'w, PortalSet>,
 }
 // Runs in `FixedUpdate` at the shared `TICK_HZ`. The semi-implicit Euler
 // integration in `ProjectileMotion` is step-size-dependent, so stepping at
@@ -107,6 +109,42 @@ pub fn projectiles_movement_system(
                 });
             if !overlaps_shooter {
                 projectile.left_shooter = true;
+            }
+        }
+
+        // Portal hop with the server's priority rule: the portal wins its
+        // tie with the surface it sits on; a strictly earlier barrier still
+        // shields it. Shared code + identical inputs keep this cosmetic sim
+        // on the server's trajectory through portals.
+        if let Some(collision_world) = collision_world
+            && let Some(hop) = world.portal_set.projectile_hop(
+                Vec3::from(projectile_pos),
+                projectile.velocity,
+                delta,
+                world.gameplay_config.projectiles.radius,
+            )
+        {
+            let barrier_t =
+                projectile.barrier_collision_t(&projectile_pos, delta, collision_world, &world.open_barrier_kinds.0);
+            let surface_t = projectile.surface_collision_t(&projectile_pos, delta, collision_world);
+            if barrier_t.is_none_or(|bt| hop.t < bt)
+                && surface_t.is_none_or(|st| hop.t <= st + PORTAL_SURFACE_TIE_EPSILON)
+            {
+                projectile.velocity = hop.exit_velocity;
+                let translation = projectile.velocity * (delta * (1.0 - hop.t));
+                let clamped = match collision_world.cast_moving_ball(
+                    hop.exit_pos,
+                    translation,
+                    world.gameplay_config.projectiles.radius,
+                ) {
+                    Some(hit) => translation * hit.t,
+                    None => translation,
+                };
+                // Anchor interpolation at the exit so the render pops there
+                // instead of smearing a streak through the wall.
+                previous_tick_position.0 = hop.exit_pos.into();
+                *position = (hop.exit_pos + clamped).into();
+                continue;
             }
         }
 

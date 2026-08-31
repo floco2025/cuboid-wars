@@ -7,6 +7,7 @@ mod items;
 mod missiles;
 mod players;
 mod plugin;
+mod portals;
 mod presentation;
 mod quests;
 mod resources;

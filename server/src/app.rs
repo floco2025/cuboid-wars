@@ -15,10 +15,15 @@ use crate::{
     missiles::{AirGraph, MissileMap, missiles_plugin},
     network::{FromClientsChannel, network_plugin},
     players::{Invincibility, PlayerMap, UnlimitedMissiles, players_plugin},
+    portals::{PortalMap, portals_plugin},
     projectiles::projectiles_plugin,
     schedule::configure_server_schedule,
 };
-use common::{config::GameplayConfig, physics::CollisionWorld, protocol::BarrierKindTable};
+use common::{
+    config::GameplayConfig,
+    physics::{CollisionWorld, PortalSet},
+    protocol::BarrierKindTable,
+};
 
 const LOG_FILTER: &str = "wgpu=error,naga=warn";
 
@@ -87,6 +92,8 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
         .insert_resource(from_clients)
         .insert_resource(PendingExplosions::default())
         .insert_resource(MissileMap::default())
+        .insert_resource(PortalMap::default())
+        .insert_resource(PortalSet::default())
         .insert_resource(OpenBarrierKinds::default());
 
     configure_server_schedule(&mut app);
@@ -99,6 +106,7 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
         missiles_plugin,
         network_plugin,
         players_plugin,
+        portals_plugin,
         projectiles_plugin,
     ));
 

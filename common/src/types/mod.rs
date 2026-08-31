@@ -6,6 +6,7 @@ mod ids;
 mod items;
 mod map_layout;
 mod movement;
+mod portals;
 mod position;
 mod quests;
 
@@ -25,5 +26,6 @@ pub use map_layout::{
 pub use movement::{
     ActorMoveIntent, ActorMovementState, FaceYaw, MissileMovementState, PlayerMoveIntent, PlayerMovementState,
 };
+pub use portals::{Portal, PortalEnd};
 pub use position::Position;
 pub use quests::{QuestGroupProgress, QuestGroupStatus, QuestInitialProgress, QuestInitialStatus, QuestScope};

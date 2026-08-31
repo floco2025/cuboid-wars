@@ -16,6 +16,8 @@ use crate::{
 };
 use common::{config::GameplayConfig, physics::CollisionWorld, protocol::*};
 
+use super::portals::WeaponMode;
+
 // Bundles the shooter-identity resources so `input_shooting_system` stays
 // under Bevy's 16-parameter system tuple limit.
 #[derive(SystemParam)]
@@ -31,6 +33,7 @@ pub struct ShooterContext<'w> {
 
 pub fn input_shooting_system(
     mut commands: Commands,
+    mode: Res<WeaponMode>,
     mouse: Res<ButtonInput<MouseButton>>,
     cursor_options: Single<&CursorOptions>,
     local_player_query: Query<(&Position, &FaceYaw), With<LocalPlayerMarker>>,
@@ -46,7 +49,7 @@ pub fn input_shooting_system(
     time: Res<Time>,
     mut local_player_info: ResMut<LocalPlayerInfo>,
 ) {
-    if local_player_info.is_dead {
+    if *mode != WeaponMode::Gun || local_player_info.is_dead {
         return;
     }
     // Only allow shooting when cursor is locked

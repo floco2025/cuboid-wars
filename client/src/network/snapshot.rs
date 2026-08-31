@@ -7,6 +7,7 @@ use super::{
     items::sync_items,
     missiles::sync_missiles,
     players::sync_players,
+    portals::sync_portals,
 };
 
 pub(super) fn handle_snapshot_message(
@@ -39,6 +40,7 @@ pub(super) fn handle_snapshot_message(
     sync_spawning_actors(commands, context, &message.spawning_actors);
     sync_items(commands, context, &message.items);
     sync_missiles(commands, context, &message.missiles);
+    sync_portals(commands, context, &message.portals);
 
     // The server sorts these vectors, so equality is stable across snapshots.
     if context.open_barrier_kinds.0 != message.open_barrier_kinds {

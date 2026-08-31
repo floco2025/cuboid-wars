@@ -9,7 +9,7 @@
 //
 // 2. State snapshot (`SSnapshot`) — the authoritative current state of every
 //    player, actor, and item (plus shared world state such as open barrier
-//    kinds, group quest status, and plate gating), broadcast at
+//    kinds, group quest status, plate gating, and placed portals), broadcast at
 //    `SNAPSHOT_HZ`. Sole vehicle for
 //    presence: a player appears in the first `SSnapshot` they show up in and
 //    disappears in the first they're absent from. Self-healing — a dropped
@@ -126,6 +126,17 @@ pub struct CMissileShot {
     pub face_pitch: f32, // radians - pitch when firing
 }
 
+// Client to Server: place one end of the shooter's portal pair. The server
+// re-derives the eye ray from yaw/pitch, casts it at world geometry, and
+// answers with `SPortalOpened` — or silently fizzles on a miss; the client
+// spawns nothing locally.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct CPortalShot {
+    pub end: PortalEnd,
+    pub face_yaw: f32,   // radians - yaw when firing
+    pub face_pitch: f32, // radians - pitch (up/down) when firing
+}
+
 // Client to Server: Ping request with timestamp (Duration since app start, serialized as nanoseconds).
 // Echoed back by the server as `SPong` so the client can measure RTT.
 #[derive(Debug, Clone, Encode, Decode)]
@@ -228,6 +239,11 @@ pub struct SSnapshot {
     // resolves the names against its configured looks and eases toward the
     // blended result.
     pub lighting: LightingBlend,
+    // Every placed portal end (at most two per player), sorted by owner and
+    // end. Durable, everyone-visible world objects: the snapshot is their
+    // system of record, and late joiners and dropped `SPortalOpened` cues
+    // self-heal here.
+    pub portals: Vec<Portal>,
 }
 
 // --- Real-time intent (sub-tick latency for prediction) ---
@@ -476,6 +492,31 @@ pub struct SFirework {
     pub seed: u64,
 }
 
+// A portal end was placed or moved. Latency cue for the placement visual and
+// sound; the snapshot's `portals` list is the system of record.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SPortalOpened {
+    pub portal: Portal,
+}
+
+// A player went through a portal. An explicit hard-snap cue, not left to
+// snapshot reconciliation: a short-range teleport falls below the client's
+// reconciliation snap threshold, and a sub-threshold correction is pushed
+// through the collision step — which the portal's own surface blocks,
+// leaving prediction permanently diverged. Broadcast, so every client snaps
+// the traveler and plays the cue; carries the same velocity fields as
+// `SPlayerBlast` so prediction state seeds identically.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SPlayerTeleport {
+    pub id: PlayerId,
+    pub from_pos: Position, // departure point, for effects at the entry end
+    pub pos: Position,
+    pub face_yaw: f32,
+    pub vertical_velocity: f32,
+    pub velocity_x: f32,
+    pub velocity_z: f32,
+}
+
 // --- Feed lines (server-authored message feed) ---
 
 // One server-rendered message-feed line. Spans carry semantic styles so the
@@ -554,6 +595,7 @@ pub enum ClientMessage {
     Jump(CJump),
     Shot(CShot),
     MissileShot(CMissileShot),
+    PortalShot(CPortalShot),
     Ping(CPing),
     Admin(CAdmin),
     Chat(CChat),
@@ -592,6 +634,8 @@ pub enum ServerMessage {
     MissilesCollected(SMissilesCollected),
     PressurePlate(SPressurePlate),
     Firework(SFirework),
+    PortalOpened(SPortalOpened),
+    PlayerTeleport(SPlayerTeleport),
     // Feed lines
     Feed(SFeed),
     // Per-client state events

@@ -37,6 +37,9 @@ pub(super) fn network_receive_system(
                 let was_logged_in = player.connection.logged_in;
                 let entity = player.entity();
                 context.players.remove(&id);
+                if context.portals.remove_owner(&id) {
+                    *context.portal_set = context.portals.rebuild_set();
+                }
                 if let Some(entity) = entity {
                     commands.entity(entity).despawn();
                 }

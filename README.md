@@ -30,6 +30,8 @@ death/respawn flow.
   instant-heal potions.
 - **Seeking missiles** — collect a pack, lock onto a target, and fire; the
   missile flies the map's airspace to it.
+- **Portal gun** — swap to it with Q, shoot a blue and an orange portal
+  onto any surface, and step through one to come out the other.
 - **Barriers & keys** — coloured barriers block everyone; the matching key
   lets you through until you die.
 - **Pressure plates** — some barrier colours open for everyone while
@@ -57,6 +59,8 @@ death/respawn flow.
 | Look | mouse |
 | Shoot | left click |
 | Fire missile (needs lock-on) | F |
+| Swap gun / portal gun | Q |
+| Place portals (portal gun) | left / right click |
 | Chat / admin console | Enter or `/` (↑/↓ history) |
 | Settings menu (also frees the cursor) | Escape |
 | Cycle camera view (first-person ↔ top-down) | V |

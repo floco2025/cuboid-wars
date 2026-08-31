@@ -1,6 +1,7 @@
 mod barriers;
 mod characters;
 mod lock;
+mod portals;
 mod projectiles;
 mod world;
 
@@ -14,6 +15,7 @@ pub use characters::{
     step_character_movement,
 };
 pub use lock::acquire_lock;
+pub use portals::{CharacterPortalHop, PortalFrame, PortalSet, ProjectileHop};
 pub use projectiles::{
     BarrierImpact, ProjectileMotion, ProjectileSpawnInfo, WorldBounces, calculate_projectile_spawns,
     projectile_character_hit, projectile_overlaps_character,

@@ -128,6 +128,8 @@ pub const CROSSHAIR_THICKNESS_PX: f32 = 2.0;
 pub const CROSSHAIR_COLOR: Color = Color::srgba(1.0, 1.0, 1.0, 0.8);
 // Lock-on tint: lit crosshair = a missile fired now will track this target.
 pub const CROSSHAIR_LOCK_COLOR: Color = Color::srgba(1.0, 0.25, 0.2, 0.9);
+// Portal-gun tint — the weapon-mode indicator while no lock overrides it.
+pub const CROSSHAIR_PORTAL_COLOR: Color = Color::srgba(0.35, 0.65, 1.0, 0.9);
 
 // ============================================================================
 // Health Bars (colors + fill layering; pixel dimensions live in
@@ -188,6 +190,19 @@ pub const MISSILE_BODY_LENGTH: f32 = 0.5;
 pub const MISSILE_NOSE_LENGTH: f32 = 0.2;
 pub const MISSILE_FIN_SPAN: f32 = 0.14; // outward reach beyond the body surface
 pub const MISSILE_FIN_LENGTH: f32 = 0.18; // along the body axis
+
+// ============================================================================
+// Portals
+// ============================================================================
+// Looks only — the aperture size and traversal geometry are shared constants
+// (`common::constants` portal block), and the oval is drawn at exactly the
+// aperture extents so the visual IS the trigger area.
+
+pub const PORTAL_A_COLOR: Color = Color::srgb(0.20, 0.55, 1.00); // blue — end A (left click)
+pub const PORTAL_B_COLOR: Color = Color::srgb(1.00, 0.55, 0.10); // orange — end B (right click)
+pub const PORTAL_EMISSIVE: f32 = 8.0;
+// Offset off the surface so the decal wins the depth test against its wall.
+pub const PORTAL_SURFACE_OFFSET: f32 = 0.01;
 
 // ============================================================================
 // Cookies

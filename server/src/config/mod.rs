@@ -19,8 +19,8 @@ pub use combat::{
 pub use cycles::{LightingCycleConfig, WeatherCycleConfig};
 pub use feed::FeedConfig;
 pub use gameplay::{
-    MissilesServerConfig, PlacedItemRespawnSecs, PlacedItemsConfig, PowerUpDurationSecs, PowerUpsConfig, ScoringConfig,
-    ServerGameplayConfig,
+    MissilesServerConfig, PlacedItemRespawnSecs, PlacedItemsConfig, PortalsServerConfig, PowerUpDurationSecs,
+    PowerUpsConfig, ScoringConfig, ServerGameplayConfig,
 };
 pub use maps::{LightingMode, MapServerConfig, RandomItemsConfig, WeatherMode};
 pub use network::configure_server;
