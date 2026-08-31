@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use super::{
     console::spawn_console,
     crosshair::{CrosshairBarMarker, CrosshairMarker},
-    diagnostics::{FpsMarker, RttMarker},
+    diagnostics::{DiagnosticsColumnMarker, FpsMarker, RttMarker},
     hud_banner::spawn_hud_banner,
     message_feed::spawn_message_feed,
     player_list::PlayerListMarker,
@@ -104,14 +104,17 @@ pub fn setup_ui_system(mut commands: Commands, client_settings: Res<ClientSettin
     // RTT above FPS in one auto-stacking column, so the rows can't overlap
     // at any font size.
     commands
-        .spawn(Node {
-            position_type: PositionType::Absolute,
-            left: Val::Px(HUD_EDGE_MARGIN_PX),
-            bottom: Val::Px(HUD_EDGE_MARGIN_PX),
-            flex_direction: FlexDirection::Column,
-            row_gap: Val::Px(HUD_ROW_GAP_PX),
-            ..default()
-        })
+        .spawn((
+            DiagnosticsColumnMarker,
+            Node {
+                position_type: PositionType::Absolute,
+                left: Val::Px(HUD_EDGE_MARGIN_PX),
+                bottom: Val::Px(HUD_EDGE_MARGIN_PX),
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(HUD_ROW_GAP_PX),
+                ..default()
+            },
+        ))
         .with_children(|column| {
             column.spawn((
                 RttMarker,

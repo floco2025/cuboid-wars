@@ -76,7 +76,16 @@ pub fn input_fullscreen_toggle_system(
         window.mode = WindowMode::Windowed;
         return;
     }
+    enter_borderless_fullscreen(&mut window, on_monitor, &monitors);
+}
 
+// Enter borderless fullscreen on the window's current monitor (primary as
+// the fallback). Shared by the Cmd/Ctrl+F toggle and the settings menu.
+pub fn enter_borderless_fullscreen(
+    window: &mut Window,
+    on_monitor: Option<&OnMonitor>,
+    monitors: &Query<(Entity, Has<PrimaryMonitor>), With<Monitor>>,
+) {
     let current_monitor = on_monitor
         .map(|on_monitor| on_monitor.0)
         .filter(|&entity| monitors.contains(entity));
@@ -92,27 +101,16 @@ pub fn input_fullscreen_toggle_system(
     window.mode = WindowMode::BorderlessFullscreen(MonitorSelection::Entity(monitor_entity));
 }
 
-// Toggle cursor lock with Escape key or mouse click
+// Any left click while the cursor is free re-locks it. Esc and the cursor
+// belong to the settings menu (`settings_menu_toggle_system`); this system
+// is gated off while the menu is open so widget clicks don't re-lock. The
+// click is deliberately not consumed — it still fires the shooting system.
 pub fn input_cursor_toggle_system(
-    keyboard: Res<ButtonInput<KeyCode>>,
     mouse: Res<ButtonInput<MouseButton>>,
     mut cursor_options: Single<&mut CursorOptions>,
 ) {
-    // Escape key toggles cursor lock
-    if keyboard.just_pressed(KeyCode::Escape) {
-        cursor_options.visible = !cursor_options.visible;
-        cursor_options.grab_mode = if cursor_options.visible {
-            bevy::window::CursorGrabMode::None
-        } else {
-            bevy::window::CursorGrabMode::Locked
-        };
-    }
-
-    // Left click locks cursor if it's currently unlocked
-    // Don't consume the click - let it pass through to shooting system
-    if mouse.just_pressed(bevy::input::mouse::MouseButton::Left) && cursor_options.visible {
+    if mouse.just_pressed(MouseButton::Left) && cursor_options.visible {
         cursor_options.visible = false;
         cursor_options.grab_mode = bevy::window::CursorGrabMode::Locked;
-        // Note: The click event will still be available for the shooting system
     }
 }

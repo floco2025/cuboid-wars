@@ -15,6 +15,15 @@ pub struct HudConfig {
     pub floating_labels: FloatingLabelsConfig,
     pub health_bars: HealthBarsConfig,
     pub quest_panel: QuestPanelConfig,
+    // The RTT / FPS readout column (toggleable from the settings menu).
+    #[serde(default = "default_true")]
+    pub show_diagnostics: bool,
+    #[serde(default)]
+    pub settings_menu: SettingsMenuHudConfig,
+}
+
+const fn default_true() -> bool {
+    true
 }
 
 const fn default_hud_reference_width() -> f32 {
@@ -39,6 +48,13 @@ pub struct FontSizesConfig {
     pub banner: f32,
     // Quest-panel cards (top-right): title + progress counter.
     pub quest_panel: f32,
+    // Settings-menu rows and headers.
+    #[serde(default = "default_settings_menu_font_size")]
+    pub settings_menu: f32,
+}
+
+const fn default_settings_menu_font_size() -> f32 {
+    18.0
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
@@ -81,6 +97,24 @@ pub struct QuestPanelConfig {
     pub bar_height: f32,
 }
 
+// Settings-menu panel, in logical px (colors are consts in `constants.rs`).
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(default)]
+pub struct SettingsMenuHudConfig {
+    pub panel_width: f32,
+    // Width of each slider / cycler control.
+    pub control_width: f32,
+}
+
+impl Default for SettingsMenuHudConfig {
+    fn default() -> Self {
+        Self {
+            panel_width: 380.0,
+            control_width: 160.0,
+        }
+    }
+}
+
 impl HudConfig {
     pub(super) fn validate(&self) -> Result<()> {
         validate_positive_finite(self.reference_width, "hud.reference_width")?;
@@ -114,6 +148,9 @@ impl HudConfig {
             self.health_bars.player_list_height,
             "hud.health_bars.player_list_height",
         )?;
+        validate_positive_finite(self.font_sizes.settings_menu, "hud.font_sizes.settings_menu")?;
+        validate_positive_finite(self.settings_menu.panel_width, "hud.settings_menu.panel_width")?;
+        validate_positive_finite(self.settings_menu.control_width, "hud.settings_menu.control_width")?;
         validate_positive_finite(self.quest_panel.card_width, "hud.quest_panel.card_width")?;
         validate_positive_finite(self.quest_panel.bar_height, "hud.quest_panel.bar_height")?;
         Ok(())

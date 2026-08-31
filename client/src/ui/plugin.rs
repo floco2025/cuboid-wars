@@ -10,11 +10,13 @@ use crate::{
 // HUD and screen-space UI (`ClientSet::Hud`), plus the console's keystroke
 // system in its own earlier set.
 pub fn hud_plugin(app: &mut App) {
+    app.add_plugins(settings_menu_plugin);
     app.add_message::<ConsoleSubmission>().add_systems(
         Update,
         (console_input_system, console_send_system)
             .chain()
-            .in_set(ClientSet::Console),
+            .in_set(ClientSet::Console)
+            .run_if(menu_closed),
     );
     app.add_systems(
         Update,
@@ -39,6 +41,7 @@ pub fn hud_plugin(app: &mut App) {
                 .after(ui_message_feed_system)
                 .after(ui_hud_banner_system),
             ui_console_render_system,
+            ui_diagnostics_visibility_system,
         )
             .in_set(ClientSet::Hud),
     );

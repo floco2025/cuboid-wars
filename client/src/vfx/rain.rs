@@ -2,7 +2,10 @@ use crate::constants::{
     RAIN_DROP_COLOR, RAIN_FALL_SPEED, RAIN_SPAWN_HEIGHT, RAIN_SPLASH_COLOR, RAIN_SPLASH_HEIGHT, RAIN_SPLASH_RADIUS,
     RAIN_SPLASH_SIZE,
 };
-use bevy::{audio::Volume, prelude::*};
+use bevy::{
+    audio::{GlobalVolume, Volume},
+    prelude::*,
+};
 use rand::{RngExt, rng, rngs::ThreadRng};
 use std::f32::consts::TAU;
 
@@ -234,6 +237,7 @@ pub fn rain_audio_system(
     asset_server: Res<AssetServer>,
     asset_set: Option<Res<AssetSet>>,
     mut loop_entity: Local<Option<Entity>>,
+    global_volume: Res<GlobalVolume>,
     mut sinks: Query<&mut AudioSink>,
 ) {
     let raining = rain.current >= RAIN_EPSILON;
@@ -254,7 +258,11 @@ pub fn rain_audio_system(
         }
         Some(entity) => {
             if let Ok(mut sink) = sinks.get_mut(entity) {
-                sink.set_volume(Volume::Linear(rain.current * client_settings.audio.rain_volume));
+                // Multiplying here every frame also self-heals the one-frame
+                // race with `apply_global_volume_system` on master changes.
+                sink.set_volume(
+                    Volume::Linear(rain.current * client_settings.audio.rain_volume) * global_volume.volume,
+                );
             }
         }
         None => {}

@@ -8,12 +8,16 @@ mod message_feed;
 mod player_list;
 mod quest_panel;
 mod scale;
+mod settings_menu;
 mod setup;
 mod timed_lines;
 
 pub use console::{ConsoleState, console_closed, ui_console_render_system};
 pub use crosshair::{CrosshairBarMarker, CrosshairMarker, ui_crosshair_lock_system, ui_crosshair_visibility_system};
-pub use diagnostics::{FpsMarker, FpsMeasurement, RttMarker, ui_fps_system, ui_rtt_system};
+pub use diagnostics::{
+    DiagnosticsColumnMarker, FpsMarker, FpsMeasurement, RttMarker, ui_diagnostics_visibility_system, ui_fps_system,
+    ui_rtt_system,
+};
 pub use fade::fade_out_alpha;
 pub use hud_banner::{BannerMessage, HudBanner, ui_hud_banner_system};
 pub use message_feed::{MessageFeed, ui_message_feed_system};
@@ -22,6 +26,7 @@ pub use player_list::{
 };
 pub use quest_panel::{QuestEntry, QuestLog, QuestProgress, ui_quest_panel_rebuild_system};
 pub use scale::ui_hud_scale_system;
+pub use settings_menu::{SettingsMenuState, menu_closed, settings_menu_plugin};
 pub use setup::{DeathOverlayMarker, setup_ui_system};
 pub use timed_lines::ui_timed_lines_system;
 

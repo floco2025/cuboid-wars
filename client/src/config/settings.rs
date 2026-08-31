@@ -177,6 +177,9 @@ pub struct InputConfig {
     // Mouse look sensitivity in radians per pixel. Larger = faster turn
     // per inch of mouse movement.
     pub mouse_sensitivity: f32,
+    // Flip vertical mouse look (mouse forward = look down).
+    #[serde(default)]
+    pub invert_y: bool,
 }
 
 // Performance/feel knobs for the decorative grass. Pure-appearance numbers

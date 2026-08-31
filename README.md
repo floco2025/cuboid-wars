@@ -58,7 +58,7 @@ death/respawn flow.
 | Shoot | left click |
 | Fire missile (needs lock-on) | F |
 | Chat / admin console | Enter or `/` (↑/↓ history) |
-| Toggle cursor lock | Escape |
+| Settings menu (also frees the cursor) | Escape |
 | Cycle camera view (first-person ↔ top-down) | V |
 | Toggle level-focus (hide floors/walls on other levels) | R |
 | Toggle fullscreen | F11 / Ctrl-F / Cmd-F |

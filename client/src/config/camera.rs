@@ -22,6 +22,8 @@ pub struct CameraConfig {
 #[derive(Debug, Clone, Copy, Deserialize)]
 #[serde(default)]
 pub struct CameraShakeConfig {
+    // One knob scaling every source's intensity (the settings menu slider).
+    pub scale: f32,
     pub projectile: ShakeSourceConfig,
     pub laser: ShakeSourceConfig,
     pub fall: ShakeSourceConfig,
@@ -51,6 +53,7 @@ impl Default for ShakeSourceConfig {
 impl Default for CameraShakeConfig {
     fn default() -> Self {
         Self {
+            scale: 1.0,
             projectile: ShakeSourceConfig::default(),
             laser: ShakeSourceConfig::default(),
             fall: ShakeSourceConfig {
@@ -92,6 +95,7 @@ impl CameraConfig {
 
 impl CameraShakeConfig {
     fn validate(&self) -> Result<()> {
+        validate_non_negative_finite(self.scale, "camera.shake.scale")?;
         self.projectile.validate("camera.shake.projectile")?;
         self.laser.validate("camera.shake.laser")?;
         self.fall.validate("camera.shake.fall")

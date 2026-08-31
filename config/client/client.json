@@ -1,7 +1,7 @@
 {
   "rendering": {
     "opaque_renderer": "auto",
-    "render_resolution": 1440,
+    "fullscreen_resolution": 1440,
     "directional_shadows": true,
     "shadow_map_size": 2048,
     "mipmaps": true,
@@ -73,6 +73,7 @@
       "height_ratio": 0.2
     },
     "shake": {
+      "scale": 1.0,
       "projectile": {
         "intensity": 0.1,
         "vertical_ratio": 0.2,
@@ -91,17 +92,21 @@
     }
   },
   "input": {
-    "mouse_sensitivity": 0.002
+    "mouse_sensitivity": 0.002,
+    "invert_y": false
   },
   "hud": {
     "reference_width": 1920.0,
+    "show_diagnostics": true,
+    "settings_menu": { "panel_width": 380.0, "control_width": 160.0 },
     "font_sizes": {
       "player_list": 18.0,
       "score": 16.0,
       "message_feed": 18.0,
       "floating_label": 40.0,
       "banner": 40.0,
-      "quest_panel": 16.0
+      "quest_panel": 16.0,
+      "settings_menu": 18.0
     },
     "banner": {
       "quest_announcement_secs": 10.0,

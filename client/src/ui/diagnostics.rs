@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use std::time::Duration;
 
-use crate::{cameras::SceneRenderTarget, network::RoundTripTime};
+use crate::{cameras::SceneRenderTarget, config::ClientSettings, network::RoundTripTime};
 
 // FPS measurement tracking.
 #[derive(Resource, Default)]
@@ -9,6 +9,22 @@ pub struct FpsMeasurement {
     pub frame_count: u32,
     pub fps_timer: f32,
     pub fps: f32,
+}
+
+// Marker for the column holding the RTT and FPS readouts.
+#[derive(Component)]
+pub struct DiagnosticsColumnMarker;
+
+pub fn ui_diagnostics_visibility_system(
+    client_settings: Res<ClientSettings>,
+    mut visibility: Single<&mut Visibility, With<DiagnosticsColumnMarker>>,
+) {
+    let target = if client_settings.hud.show_diagnostics {
+        Visibility::Inherited
+    } else {
+        Visibility::Hidden
+    };
+    visibility.set_if_neq(target);
 }
 
 // Marker for the RTT (round-trip time) text node in the HUD.

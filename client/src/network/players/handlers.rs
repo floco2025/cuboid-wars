@@ -149,7 +149,7 @@ pub(in crate::network) fn handle_player_hit_message(
         if let Ok(camera_entity) = context.cameras.single() {
             commands.entity(camera_entity).insert(CameraShake {
                 timer: Timer::from_seconds(source.duration_secs, TimerMode::Once),
-                intensity: source.intensity,
+                intensity: source.intensity * shake.scale,
                 dir_x: message.hit_dir_x,
                 // Small vertical companion to the directional hit shake.
                 dir_y: source.vertical_ratio,
@@ -186,11 +186,12 @@ pub(in crate::network) fn handle_player_fall_damage_message(
         commands.entity(player.entity).insert(message.health);
     }
     if message.id == my_player_id {
-        let source = context.client_settings.camera.shake.fall;
+        let shake = context.client_settings.camera.shake;
+        let source = shake.fall;
         if let Ok(camera_entity) = context.cameras.single() {
             commands.entity(camera_entity).insert(CameraShake {
                 timer: Timer::from_seconds(source.duration_secs, TimerMode::Once),
-                intensity: source.intensity,
+                intensity: source.intensity * shake.scale,
                 dir_x: 0.0,
                 dir_y: source.vertical_ratio,
                 dir_z: 0.0,

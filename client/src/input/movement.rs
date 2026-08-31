@@ -86,6 +86,7 @@ pub fn input_movement_system(
         &mut local_player_info,
         &mut top_down_camera_yaw,
         mouse_sensitivity,
+        client_settings.input.invert_y,
     );
     let face_yaw = current_yaw + PI;
     // Death disables movement and jump just like stunned (and overrides it).
@@ -122,6 +123,7 @@ fn calculate_current_orientation(
     local_player_info: &mut LocalPlayerInfo,
     top_down_camera_yaw: &mut TopDownCameraYaw,
     mouse_sensitivity: f32,
+    invert_y: bool,
 ) -> (f32, f32) {
     let (mut current_yaw, mut current_pitch) = if view_mode.is_first_person() {
         if !view_mode.is_changed()
@@ -139,7 +141,12 @@ fn calculate_current_orientation(
     for motion in mouse_motion.read() {
         if view_mode.is_first_person() {
             current_yaw = motion.delta.x.mul_add(-mouse_sensitivity, current_yaw);
-            current_pitch = motion.delta.y.mul_add(-mouse_sensitivity, current_pitch);
+            let pitch_step = if invert_y {
+                mouse_sensitivity
+            } else {
+                -mouse_sensitivity
+            };
+            current_pitch = motion.delta.y.mul_add(pitch_step, current_pitch);
         } else {
             top_down_camera_yaw.0 = motion.delta.x.mul_add(-mouse_sensitivity, top_down_camera_yaw.0);
             current_yaw = top_down_camera_yaw.0;

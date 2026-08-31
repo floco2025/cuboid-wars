@@ -1,0 +1,144 @@
+use bevy::picking::hover::Hovered;
+use bevy::prelude::*;
+use bevy::ui::{Checked, InteractionDisabled, Pressed};
+use bevy::ui_widgets::{SliderRange, SliderValue};
+use bevy::window::{Monitor, OnMonitor, PrimaryWindow, WindowMode};
+
+use super::state::{
+    CheckboxSetting, CyclerButton, CyclerSetting, CyclerValueLabel, MenuCheckBox, MenuCheckMark, MenuSliderThumb,
+    SliderSetting, SliderValueLabel,
+};
+use crate::config::ClientSettings;
+use crate::constants::{SETTINGS_ACCENT_COLOR, SETTINGS_OUTLINE_COLOR, SETTINGS_SLIDER_TRACK_COLOR};
+
+// The menu is ~20 nodes and transient, so these restyle unconditionally
+// every frame while open instead of change-detecting.
+pub(super) fn settings_menu_style_system(
+    mut cycler_buttons: Query<
+        (&Hovered, Has<Pressed>, Has<InteractionDisabled>, &mut BackgroundColor),
+        With<CyclerButton>,
+    >,
+    checkboxes: Query<(Entity, &Hovered, Has<Checked>), With<CheckboxSetting>>,
+    sliders: Query<(Entity, &Hovered), With<SliderSetting>>,
+    children: Query<&Children>,
+    mut check_boxes: Query<&mut BorderColor, With<MenuCheckBox>>,
+    mut check_marks: Query<&mut BackgroundColor, (With<MenuCheckMark>, Without<CyclerButton>)>,
+    mut thumbs: Query<&mut BackgroundColor, (With<MenuSliderThumb>, Without<CyclerButton>, Without<MenuCheckMark>)>,
+) {
+    for (hovered, pressed, disabled, mut color) in &mut cycler_buttons {
+        color.0 = if disabled {
+            SETTINGS_SLIDER_TRACK_COLOR.with_alpha(0.2)
+        } else if pressed {
+            SETTINGS_ACCENT_COLOR
+        } else if hovered.get() {
+            SETTINGS_SLIDER_TRACK_COLOR.lighter(0.15)
+        } else {
+            SETTINGS_SLIDER_TRACK_COLOR
+        };
+    }
+
+    for (entity, hovered, checked) in &checkboxes {
+        for child in children.iter_descendants(entity) {
+            if let Ok(mut border) = check_boxes.get_mut(child) {
+                border.set_all(if hovered.get() {
+                    SETTINGS_OUTLINE_COLOR.lighter(0.25)
+                } else {
+                    SETTINGS_OUTLINE_COLOR
+                });
+            }
+            if let Ok(mut mark) = check_marks.get_mut(child) {
+                mark.0 = if checked { SETTINGS_ACCENT_COLOR } else { Color::NONE };
+            }
+        }
+    }
+
+    for (entity, hovered) in &sliders {
+        for child in children.iter_descendants(entity) {
+            if let Ok(mut thumb) = thumbs.get_mut(child) {
+                thumb.0 = if hovered.get() {
+                    SETTINGS_ACCENT_COLOR.lighter(0.15)
+                } else {
+                    SETTINGS_ACCENT_COLOR
+                };
+            }
+        }
+    }
+}
+
+pub(super) fn settings_menu_slider_sync_system(
+    sliders: Query<(Entity, &SliderValue, &SliderRange, &SliderSetting)>,
+    children: Query<&Children>,
+    mut thumbs: Query<&mut Node, With<MenuSliderThumb>>,
+    mut labels: Query<(&SliderValueLabel, &mut Text)>,
+) {
+    for (entity, value, range, _) in &sliders {
+        for child in children.iter_descendants(entity) {
+            if let Ok(mut node) = thumbs.get_mut(child) {
+                node.left = Val::Percent(range.thumb_position(value.0) * 100.0);
+            }
+        }
+    }
+    for (label, mut text) in &mut labels {
+        let Some((_, value, _, _)) = sliders.iter().find(|(_, _, _, setting)| **setting == label.setting) else {
+            continue;
+        };
+        let rendered = (label.format)(value.0);
+        if text.0 != rendered {
+            text.0 = rendered;
+        }
+    }
+}
+
+// Cycler readouts come from the live sources every frame, so nothing the
+// user changes elsewhere (drag-resize, Cmd+F) can leave them stale. The
+// resolution row is a fullscreen setting and goes inactive while windowed.
+pub(super) fn settings_menu_window_sync_system(
+    windows: Query<(&Window, Option<&OnMonitor>), With<PrimaryWindow>>,
+    monitors: Query<&Monitor>,
+    settings: Res<ClientSettings>,
+    mut labels: Query<(&CyclerValueLabel, &mut Text, &mut TextColor)>,
+    buttons: Query<(Entity, &CyclerButton, Has<InteractionDisabled>)>,
+    mut commands: Commands,
+) {
+    let Ok((window, on_monitor)) = windows.single() else {
+        return;
+    };
+    let monitor = on_monitor.and_then(|on_monitor| monitors.get(on_monitor.0).ok());
+    let windowed = matches!(window.mode, WindowMode::Windowed);
+    for (label, mut text, mut color) in &mut labels {
+        let (rendered, dimmed) = match label.0 {
+            CyclerSetting::Resolution => {
+                let height = settings.rendering.fullscreen_resolution;
+                // Width follows the monitor aspect, matching `scene_image_size`.
+                let width = monitor.map_or(height * 16 / 9, |monitor| {
+                    (monitor.physical_width as f32 * height as f32 / monitor.physical_height as f32).round() as u32
+                });
+                (format!("{width}x{height}"), windowed)
+            }
+            CyclerSetting::WindowMode => (if windowed { "Windowed" } else { "Fullscreen" }.to_owned(), false),
+        };
+        if text.0 != rendered {
+            text.0 = rendered;
+        }
+        let target = if dimmed {
+            Color::WHITE.with_alpha(0.35)
+        } else {
+            Color::WHITE
+        };
+        if color.0 != target {
+            color.0 = target;
+        }
+    }
+    for (entity, button, disabled) in &buttons {
+        if button.setting != CyclerSetting::Resolution {
+            continue;
+        }
+        if windowed != disabled {
+            if windowed {
+                commands.entity(entity).insert(InteractionDisabled);
+            } else {
+                commands.entity(entity).remove::<InteractionDisabled>();
+            }
+        }
+    }
+}
