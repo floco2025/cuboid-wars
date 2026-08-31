@@ -79,13 +79,22 @@ pub(super) fn settings_menu_slider_sync_system(
         }
     }
     for (label, mut text) in &mut labels {
-        let Some((_, value, _, _)) = sliders.iter().find(|(_, _, _, setting)| **setting == label.setting) else {
+        let Some((_, value, _, _)) = sliders.iter().find(|(_, _, _, setting)| **setting == label.0) else {
             continue;
         };
-        let rendered = (label.format)(value.0);
+        let rendered = slider_label(label.0, value.0);
         if text.0 != rendered {
             text.0 = rendered;
         }
+    }
+}
+
+fn slider_label(setting: SliderSetting, value: f32) -> String {
+    match setting {
+        SliderSetting::MouseSensitivity => format!("{:.1}", value * 1000.0),
+        SliderSetting::Fov => format!("{value:.0}"),
+        SliderSetting::ShakeScale => format!("{value:.1}x"),
+        SliderSetting::MasterVolume => format!("{:.0}%", value * 100.0),
     }
 }
 
@@ -108,7 +117,10 @@ pub(super) fn settings_menu_window_sync_system(
     for (label, mut text, mut color) in &mut labels {
         let (rendered, dimmed) = match label.0 {
             CyclerSetting::Resolution => {
-                let height = settings.rendering.fullscreen_resolution;
+                // Effective height: the renderer never exceeds the monitor.
+                let height = monitor.map_or(settings.rendering.fullscreen_resolution, |monitor| {
+                    settings.rendering.fullscreen_resolution.min(monitor.physical_height)
+                });
                 // Width follows the monitor aspect, matching `scene_image_size`.
                 let width = monitor.map_or(height * 16 / 9, |monitor| {
                     (monitor.physical_width as f32 * height as f32 / monitor.physical_height as f32).round() as u32

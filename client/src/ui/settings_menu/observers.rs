@@ -50,6 +50,7 @@ pub(super) fn on_checkbox_value_change(
     }
     match setting {
         CheckboxSetting::VSync => {
+            settings.rendering.vsync = event.value;
             if let Ok(mut window) = windows.single_mut() {
                 window.present_mode = if event.value {
                     PresentMode::Fifo
@@ -77,16 +78,14 @@ pub(super) fn on_cycler_activate(
     match button.setting {
         CyclerSetting::Resolution => {
             // Fullscreen-only setting; the row is disabled while windowed.
-            if windows
-                .single()
-                .is_ok_and(|(window, _)| matches!(window.mode, WindowMode::Windowed))
-            {
+            let Ok((window, on_monitor)) = windows.single() else {
+                return;
+            };
+            if matches!(window.mode, WindowMode::Windowed) {
                 return;
             }
-            let native = windows
-                .single()
-                .ok()
-                .and_then(|(_, on_monitor)| monitor_data.get(on_monitor?.0).ok())
+            let native = on_monitor
+                .and_then(|on_monitor| monitor_data.get(on_monitor.0).ok())
                 .map(|monitor| monitor.physical_height)
                 .or_else(|| monitor_data.iter().map(|monitor| monitor.physical_height).max());
             let mut presets: Vec<u32> = RESOLUTION_PRESETS.to_vec();
@@ -94,9 +93,12 @@ pub(super) fn on_cycler_activate(
                 presets.retain(|&height| height < native);
                 presets.push(native);
             }
-            let current = settings.rendering.fullscreen_resolution;
-            // Step from the preset NEAREST the current cap, so a hand-edited
-            // value that matches no preset still cycles sanely.
+            // Step from the preset NEAREST the effective height (the renderer
+            // never exceeds the monitor), so an over-native config value
+            // cannot make the first press wrap around the list.
+            let current = native.map_or(settings.rendering.fullscreen_resolution, |native| {
+                settings.rendering.fullscreen_resolution.min(native)
+            });
             let nearest = presets
                 .iter()
                 .enumerate()

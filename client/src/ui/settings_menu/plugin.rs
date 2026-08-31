@@ -38,6 +38,9 @@ pub fn settings_menu_plugin(app: &mut App) {
     );
     app.add_systems(
         Update,
-        apply_global_volume_system.run_if(resource_changed::<GlobalVolume>),
+        // Before `ClientSet::Sky`, so rain's own per-frame volume write wins.
+        apply_global_volume_system
+            .run_if(resource_changed::<GlobalVolume>)
+            .before(ClientSet::Sky),
     );
 }

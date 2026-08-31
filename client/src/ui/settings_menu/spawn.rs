@@ -104,7 +104,6 @@ pub(super) fn settings_menu_lifecycle_system(
                         0.006,
                         settings.input.mouse_sensitivity,
                         4,
-                        |value| format!("{:.1}", value * 1000.0),
                     ));
                     let mut invert_row = panel.spawn(checkbox_row("Invert Y", font, CheckboxSetting::InvertY));
                     if settings.input.invert_y {
@@ -121,7 +120,6 @@ pub(super) fn settings_menu_lifecycle_system(
                         110.0,
                         settings.camera.fov_degrees.first_person,
                         0,
-                        |value| format!("{value:.0}"),
                     ));
                     panel.spawn(slider_row(
                         "Camera shake",
@@ -132,7 +130,6 @@ pub(super) fn settings_menu_lifecycle_system(
                         2.0,
                         settings.camera.shake.scale,
                         1,
-                        |value| format!("{value:.1}x"),
                     ));
 
                     panel.spawn(section_header("Audio", font));
@@ -145,7 +142,6 @@ pub(super) fn settings_menu_lifecycle_system(
                         2.0,
                         global_volume.volume.to_linear(),
                         2,
-                        |value| format!("{:.0}%", value * 100.0),
                     ));
 
                     panel.spawn(section_header("HUD", font));

@@ -6,7 +6,9 @@ use super::state::{
     CheckboxSetting, CyclerButton, CyclerSetting, CyclerValueLabel, MenuCheckBox, MenuCheckMark, MenuSliderThumb,
     SliderSetting, SliderValueLabel,
 };
-use crate::constants::{SETTINGS_ACCENT_COLOR, SETTINGS_OUTLINE_COLOR, SETTINGS_SLIDER_TRACK_COLOR};
+use crate::constants::{
+    CONSOLE_TEXT_COLOR, SETTINGS_ACCENT_COLOR, SETTINGS_OUTLINE_COLOR, SETTINGS_SLIDER_TRACK_COLOR,
+};
 
 const SLIDER_THUMB_PX: f32 = 12.0;
 const CYCLER_BUTTON_PX: f32 = 22.0;
@@ -40,7 +42,7 @@ pub(super) fn section_header(text: &str, font_size: f32) -> impl Bundle {
             font_size: FontSize::Px(font_size),
             ..default()
         },
-        TextColor(crate::constants::CONSOLE_TEXT_COLOR),
+        TextColor(CONSOLE_TEXT_COLOR),
         Node {
             margin: UiRect::top(Val::Px(8.0)),
             ..default()
@@ -58,26 +60,21 @@ pub(super) fn slider_row(
     max: f32,
     value: f32,
     precision: i32,
-    format: fn(f32) -> String,
 ) -> impl Bundle {
     (
         row(),
         children![
             label_text(label, font_size),
             slider(control_width, setting, min, max, value, precision),
+            // Wrapper so the readout is a flex child and FlexEnd really
+            // right-aligns it inside the fixed-width box.
             (
-                SliderValueLabel { setting, format },
-                Text::new(format(value)),
-                TextFont {
-                    font_size: FontSize::Px(font_size),
-                    ..default()
-                },
-                TextColor(Color::WHITE),
                 Node {
                     min_width: Val::Px(48.0),
                     justify_content: JustifyContent::FlexEnd,
                     ..default()
                 },
+                children![(SliderValueLabel(setting), label_text("--", font_size))],
             ),
         ],
     )
@@ -99,7 +96,9 @@ fn slider(control_width: f32, setting: SliderSetting, min: f32, max: f32, value:
             track_click: TrackClick::Snap,
             ..default()
         },
-        SliderValue(value),
+        // Clamp: an out-of-range config/CLI seed would draw the thumb far
+        // outside the track and be silently rewritten on first touch.
+        SliderValue(value.clamp(min, max)),
         SliderRange::new(min, max),
         SliderPrecision(precision),
         Children::spawn((

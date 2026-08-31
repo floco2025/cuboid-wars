@@ -1,7 +1,6 @@
 use bevy::{
-    input::mouse::MouseButton,
     prelude::*,
-    window::{CursorOptions, Monitor, MonitorSelection, OnMonitor, PrimaryMonitor, PrimaryWindow, WindowMode},
+    window::{Monitor, MonitorSelection, OnMonitor, PrimaryMonitor, PrimaryWindow, WindowMode},
 };
 
 use crate::{
@@ -99,18 +98,4 @@ pub fn enter_borderless_fullscreen(
         return;
     };
     window.mode = WindowMode::BorderlessFullscreen(MonitorSelection::Entity(monitor_entity));
-}
-
-// Any left click while the cursor is free re-locks it. Esc and the cursor
-// belong to the settings menu (`settings_menu_toggle_system`); this system
-// is gated off while the menu is open so widget clicks don't re-lock. The
-// click is deliberately not consumed — it still fires the shooting system.
-pub fn input_cursor_toggle_system(
-    mouse: Res<ButtonInput<MouseButton>>,
-    mut cursor_options: Single<&mut CursorOptions>,
-) {
-    if mouse.just_pressed(MouseButton::Left) && cursor_options.visible {
-        cursor_options.visible = false;
-        cursor_options.grab_mode = bevy::window::CursorGrabMode::Locked;
-    }
 }

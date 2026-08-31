@@ -462,10 +462,10 @@ pub const LADDER_RUNG_HALF_THICKNESS: f32 = 0.04;
 pub const LADDER_RUNG_SPACING: f32 = 0.5;
 
 // Settings-menu colors only — dimensions live in `client.json::hud.settings_menu`.
-pub const SETTINGS_BACKDROP_COLOR: Color = Color::srgba(0.0, 0.0, 0.0, 0.35);
+pub const SETTINGS_BACKDROP_COLOR: Color = QUEST_ENTRY_BG_COLOR;
 // Denser than the HUD panels: it must read over the whole 3D scene.
 pub const SETTINGS_PANEL_BG_COLOR: Color = Color::srgba(0.0, 0.0, 0.0, 0.75);
-pub const SETTINGS_SLIDER_TRACK_COLOR: Color = Color::srgba(0.0, 0.0, 0.0, 0.65);
-// Gold accent shared with the quest bars: thumbs, check marks, pressed buttons.
-pub const SETTINGS_ACCENT_COLOR: Color = Color::srgb(0.85, 0.7, 0.0);
+pub const SETTINGS_SLIDER_TRACK_COLOR: Color = QUEST_BAR_TRACK_COLOR;
+// The quest-bar gold on thumbs, check marks, and pressed buttons.
+pub const SETTINGS_ACCENT_COLOR: Color = QUEST_BAR_FILL_COLOR;
 pub const SETTINGS_OUTLINE_COLOR: Color = Color::srgba(1.0, 1.0, 1.0, 0.35);

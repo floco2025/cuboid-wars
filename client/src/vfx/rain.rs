@@ -258,8 +258,8 @@ pub fn rain_audio_system(
         }
         Some(entity) => {
             if let Ok(mut sink) = sinks.get_mut(entity) {
-                // Multiplying here every frame also self-heals the one-frame
-                // race with `apply_global_volume_system` on master changes.
+                // Runs after `apply_global_volume_system` (ordered before
+                // `ClientSet::Sky`), so this per-frame write wins its push.
                 sink.set_volume(
                     Volume::Linear(rain.current * client_settings.audio.rain_volume) * global_volume.volume,
                 );

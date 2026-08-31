@@ -56,12 +56,9 @@ pub(super) struct MenuCheckBox;
 #[derive(Component)]
 pub(super) struct MenuCheckMark;
 
-// A slider's value readout; `format` turns the raw value into label text.
+// A slider's value readout, rendered by the sync system from the setting.
 #[derive(Component)]
-pub(super) struct SliderValueLabel {
-    pub setting: SliderSetting,
-    pub format: fn(f32) -> String,
-}
+pub(super) struct SliderValueLabel(pub SliderSetting);
 
 #[derive(Component)]
 pub(super) struct CyclerValueLabel(pub CyclerSetting);
