@@ -299,6 +299,9 @@ struct PortalPairGates {
 // exclusion — entry, crossing, and emergence all stay collision-free.
 const BACKING_DEPTH: f32 = 0.5;
 const TRANSIT_MARGIN: f32 = 0.3;
+// Longest per-tick displacement legitimate motion can produce (terminal
+// fall plus knockback, with slack); larger jumps are external teleports.
+const MAX_CROSSING_STEP: f32 = 4.0;
 
 // Every complete portal pair in the world. Portals are shot-placed at
 // runtime, so they cannot live in the immutable `CollisionWorld`; both sides
@@ -387,7 +390,6 @@ impl PortalSet {
     // does velocity, split into the vertical component and a knockback
     // shove, the character model's only persistent channels.
     #[must_use]
-    #[expect(clippy::too_many_arguments, reason = "the full entry state of a crossing")]
     pub fn character_hop(
         &self,
         from: Vec3,
@@ -399,6 +401,12 @@ impl PortalSet {
         yaw: f32,
         knockback_cap: f32,
     ) -> Option<CharacterPortalHop> {
+        // A crossing is continuous motion; a jump no single tick of movement
+        // can produce is an external teleport (a respawn-style rescue) that
+        // happens to sign-cross a plane, not a portal entry.
+        if from.distance_squared(to) > MAX_CROSSING_STEP * MAX_CROSSING_STEP {
+            return None;
+        }
         let half_extents = body_half_extents(physics);
         let center_from = from + Vec3::Y * half_extents.y;
         let center_to = to + Vec3::Y * half_extents.y;
@@ -1307,5 +1315,22 @@ mod tests {
         assert!(hops >= 1, "the chain never started");
         assert!(hops <= 10, "steering never escaped the chain: {hops} hops");
         assert!(pos.z > 2.0, "escaped body did not keep moving: z = {}", pos.z);
+    }
+
+    #[test]
+    fn an_external_teleport_is_not_a_crossing() {
+        // Sign-crosses the plane, but no tick of real motion jumps this far.
+        let set = pair(Vec3::new(0.0, 1.6, 0.0), Vec3::Z, Vec3::new(10.0, 1.0, 10.0), Vec3::X);
+        let hop = set.character_hop(
+            Vec3::new(0.0, 50.0, 0.15),
+            Vec3::new(0.0, 0.7, -0.05),
+            player_physics(),
+            Vec3::ZERO,
+            Vec3::ZERO,
+            0.0,
+            PI,
+            CAP,
+        );
+        assert!(hop.is_none());
     }
 }

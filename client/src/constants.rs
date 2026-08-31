@@ -55,9 +55,15 @@ pub const RECON_PLAYER_IDLE_CORRECTION_SECS: f32 = 8.0;
 // it (a snapshot or move built pre-teleport), and applying it would yank
 // the player back to a stale phase of a portal loop — so recons are skipped
 // this long after each cue (snapshot period plus transit slack). During a
-// fast portal fall chain this hands the position to the cues, which
-// re-anchor exactly on every hop.
+// fast portal fall chain this hands the position to the prediction and
+// the cues, which re-anchor exactly on every hop.
 pub const RECON_TELEPORT_SUPPRESS_SECS: f32 = 0.3;
+
+// A teleport cue this close (in time and space) to the local player's own
+// predicted portal crossing is a confirmation, not a correction — applying
+// it anyway would stutter a transit the prediction already made.
+pub const PORTAL_PREDICTION_MATCH_SECS: f32 = 0.5;
+pub const PORTAL_PREDICTION_MATCH_DISTANCE: f32 = 0.75;
 
 // --- Actor only ---
 

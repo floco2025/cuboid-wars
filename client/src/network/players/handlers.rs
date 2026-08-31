@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use super::super::context::ServerMessageContext;
 use super::sync::apply_local_portal_facing;
-use crate::constants::RECON_TELEPORT_SUPPRESS_SECS;
+use crate::constants::{PORTAL_PREDICTION_MATCH_DISTANCE, PORTAL_PREDICTION_MATCH_SECS, RECON_TELEPORT_SUPPRESS_SECS};
 use crate::{
     audio::{play_explosion_sound, play_sound},
     characters::PreviousTickPosition,
@@ -268,8 +268,9 @@ pub(in crate::network) fn handle_player_teleport_message(
     // Prediction already made this exact hop: the cue is a confirmation, not
     // a correction — re-snapping would only stutter the transit.
     if message.id == my_player_id
-        && now - context.local_player_info.predicted_teleport_time < 0.5
-        && (Vec3::from(message.pos) - context.local_player_info.predicted_teleport_pos).length() < 0.75
+        && now - context.local_player_info.predicted_teleport_time < PORTAL_PREDICTION_MATCH_SECS
+        && (Vec3::from(message.pos) - context.local_player_info.predicted_teleport_pos).length()
+            < PORTAL_PREDICTION_MATCH_DISTANCE
     {
         return;
     }

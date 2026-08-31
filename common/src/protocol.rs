@@ -499,13 +499,13 @@ pub struct SPortalOpened {
     pub portal: Portal,
 }
 
-// A player went through a portal. An explicit hard-snap cue, not left to
-// snapshot reconciliation: a short-range teleport falls below the client's
-// reconciliation snap threshold, and a sub-threshold correction is pushed
-// through the collision step — which the portal's own surface blocks,
-// leaving prediction permanently diverged. Broadcast, so every client snaps
-// the traveler and plays the cue; carries the same velocity fields as
-// `SPlayerBlast` so prediction state seeds identically.
+// A player crossed a portal. Broadcast per crossing: the traveler's own
+// client predicted it with the same shared code (the cue confirms silently
+// and only corrects a mispredict, e.g. a portal re-shot mid-crossing),
+// while other clients hard-place the traveler at the exit. Carries the same
+// velocity fields as `SPlayerBlast` so prediction state seeds identically;
+// clients stand reconciliation down briefly after it, because data built
+// pre-teleport would drag a looping player back to a stale phase.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SPlayerTeleport {
     pub id: PlayerId,

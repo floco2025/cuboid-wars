@@ -7,9 +7,6 @@ use common::{
     protocol::{Portal, PortalEnd},
 };
 
-#[derive(Component)]
-pub struct PortalMarker;
-
 // One shared unit-disc mesh with per-end emissive materials, so every portal
 // instance batches. Opaque on purpose: translucent Blend materials render
 // pale gray in this app, and the oval reads fine as a solid glowing decal.
@@ -55,7 +52,6 @@ pub fn spawn_portal(commands: &mut Commands, assets: &PortalAssets, portal: &Por
     };
     commands
         .spawn((
-            PortalMarker,
             Mesh3d(assets.mesh.clone()),
             MeshMaterial3d(material),
             Transform {
