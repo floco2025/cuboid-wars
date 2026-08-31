@@ -5,13 +5,13 @@ use super::CollisionWorld;
 use crate::{
     config::CharacterPhysicsConfig,
     constants::{
-        LEVEL_HEIGHT, PORTAL_EXIT_CLEARANCE, PORTAL_FIXTURE_PLANE_DEPTH, PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH,
-        PORTAL_LIGHT_CLEARANCE, PORTAL_MIN_APPROACH_SPEED, PORTAL_PLATE_CLEARANCE, PORTAL_PROJECTILE_EXIT_STANDOFF,
-        PORTAL_STANDABLE_AWAY_SPEED, PORTAL_STANDABLE_NORMAL_Y, PORTAL_TRIGGER_DEPTH, PORTAL_UP_DEGENERACY_LIMIT,
+        LEVEL_HEIGHT, PORTAL_FIXTURE_PLANE_DEPTH, PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH, PORTAL_LIGHT_CLEARANCE,
+        PORTAL_PLATE_CLEARANCE, PORTAL_PROJECTILE_EXIT_STANDOFF, PORTAL_STANDABLE_NORMAL_Y, PORTAL_UP_DEGENERACY_LIMIT,
     },
     math::direction_from_yaw_pitch,
     protocol::{MapLayout, Portal, PortalEnd},
 };
+use rapier3d::prelude::ColliderHandle;
 
 // Orthonormal aperture frame of one portal end: `normal` points out of the
 // surface into the room, `up`/`right` span the plane with (right, up, normal)
@@ -248,11 +248,13 @@ fn body_support(half_extents: Vec3, direction: Vec3) -> f32 {
     direction.abs().dot(half_extents)
 }
 
-// Outcome of a character stepping through a portal this tick.
+// Outcome of a character crossing a portal plane this tick.
 #[derive(Debug, Clone, Copy)]
 pub struct CharacterPortalHop {
-    // New entity origin (feet), body centered on the exit aperture and clear
-    // of its plane.
+    // New entity origin (feet): the entry pose mapped continuously through
+    // the pair — aperture offset carried (clamped to keep the body inside
+    // the exit aperture) and the crossing penetration carried, so
+    // pass-through is seamless.
     pub origin: Vec3,
     pub yaw: f32,
     pub vertical_velocity: f32,
@@ -261,6 +263,9 @@ pub struct CharacterPortalHop {
     // excluded: the held keys re-supply it in the exit frame next tick, and
     // carrying it too would double it.
     pub knockback: Vec3,
+    // The gate that was crossed, for camera view mapping.
+    pub entry: PortalFrame,
+    pub exit: PortalFrame,
 }
 
 // Fraction `t` of a projectile tick at which the swept ball touches an entry
@@ -273,11 +278,27 @@ pub struct ProjectileHop {
     pub exit_velocity: Vec3,
 }
 
-#[derive(Debug, Clone, Copy)]
-struct PortalPairFrames {
-    a: PortalFrame,
-    b: PortalFrame,
+// One linked portal end: its aperture frame plus the world colliders that
+// back it. While a character's body overlaps the aperture, the backing is
+// excluded from its collision and support queries — that is what makes the
+// surface passable.
+#[derive(Debug, Clone)]
+struct PortalGate {
+    frame: PortalFrame,
+    backing: Vec<ColliderHandle>,
 }
+
+#[derive(Debug, Clone)]
+struct PortalPairGates {
+    a: PortalGate,
+    b: PortalGate,
+}
+
+// How deep behind the plane the backing lookup reaches (covers wall and
+// floor slabs), and how far to each side of the plane a body keeps its
+// exclusion — entry, crossing, and emergence all stay collision-free.
+const BACKING_DEPTH: f32 = 0.5;
+const TRANSIT_MARGIN: f32 = 0.3;
 
 // Every complete portal pair in the world. Portals are shot-placed at
 // runtime, so they cannot live in the immutable `CollisionWorld`; both sides
@@ -285,13 +306,15 @@ struct PortalPairFrames {
 // this one constructor, so their frames agree exactly.
 #[derive(Resource, Debug, Default, Clone)]
 pub struct PortalSet {
-    pairs: Vec<PortalPairFrames>,
+    pairs: Vec<PortalPairGates>,
 }
 
 impl PortalSet {
-    // Pairs each owner's A and B ends; a half-placed pair is inert.
+    // Pairs each owner's A and B ends; a half-placed pair is inert. The
+    // collision world supplies each aperture's backing colliders — both
+    // sides derive them from the same static world, so the sets agree.
     #[must_use]
-    pub fn rebuild(portals: &[Portal]) -> Self {
+    pub fn rebuild(portals: &[Portal], collision_world: &CollisionWorld) -> Self {
         let mut pairs = Vec::new();
         for a in portals.iter().filter(|portal| portal.end == PortalEnd::A) {
             let Some(b) = portals
@@ -300,9 +323,9 @@ impl PortalSet {
             else {
                 continue;
             };
-            pairs.push(PortalPairFrames {
-                a: PortalFrame::from_portal(a),
-                b: PortalFrame::from_portal(b),
+            pairs.push(PortalPairGates {
+                a: gate_from_portal(a, collision_world),
+                b: gate_from_portal(b, collision_world),
             });
         }
         Self { pairs }
@@ -319,29 +342,56 @@ impl PortalSet {
     pub fn traversal_frames(&self, from: Vec3, to: Vec3) -> Option<(PortalFrame, PortalFrame)> {
         self.gates()
             .map(|(entry, exit)| {
-                let score = from.distance_squared(entry.center) + to.distance_squared(exit.center);
-                (score, (*entry, *exit))
+                let score = from.distance_squared(entry.frame.center) + to.distance_squared(exit.frame.center);
+                (score, (entry.frame, exit.frame))
             })
             .min_by(|(a, _), (b, _)| a.total_cmp(b))
             .map(|(_, frames)| frames)
     }
 
-    fn gates(&self) -> impl Iterator<Item = (&PortalFrame, &PortalFrame)> {
+    fn gates(&self) -> impl Iterator<Item = (&PortalGate, &PortalGate)> {
         self.pairs
             .iter()
             .flat_map(|pair| [(&pair.a, &pair.b), (&pair.b, &pair.a)])
     }
 
-    // Character trigger + traversal, checked after the movement step. It
-    // fires BEFORE any plane penetration — collision never lets a body reach
-    // the surface — so the crossing test is proximity: the body face nearest
-    // the plane within `PORTAL_TRIGGER_DEPTH`, body center inside the
-    // aperture, moving inward. Standable portals (normal pointing up enough
-    // to rest on) also trigger at rest: gravity is their inward motion.
+    // World colliders a character at `origin` may pass through right now:
+    // the backing of every linked aperture whose front corridor the body is
+    // in. One-sided and front-unbounded — the hole is open to any body in
+    // front of it (a fast fall must not land on the surface in the tick
+    // before contact), and solid from behind past a small emergence margin.
     #[must_use]
+    pub fn collision_exclusions(&self, origin: Vec3, physics: CharacterPhysicsConfig) -> Vec<ColliderHandle> {
+        if self.pairs.is_empty() {
+            return Vec::new();
+        }
+        let half_extents = body_half_extents(physics);
+        let center = origin + Vec3::Y * half_extents.y;
+        let mut excluded = Vec::new();
+        for (gate, _) in self.gates() {
+            let offset = center - gate.frame.center;
+            let behind_reach = body_support(half_extents, gate.frame.normal) + TRANSIT_MARGIN;
+            if offset.dot(gate.frame.normal) > -behind_reach && in_character_aperture(offset, &gate.frame) {
+                excluded.extend_from_slice(&gate.backing);
+            }
+        }
+        excluded
+    }
+
+    // Plane-crossing trigger: the tick a body's center passes from the
+    // front of a linked aperture to its back (the backing colliders were
+    // excluded, so it physically sank in), it continues from the paired
+    // end. Position maps continuously — aperture offset carried (clamped so
+    // the body stays inside the exit aperture; this is also what lets a
+    // steering player escape a fall chain) and penetration carried — and so
+    // does velocity, split into the vertical component and a knockback
+    // shove, the character model's only persistent channels.
+    #[must_use]
+    #[expect(clippy::too_many_arguments, reason = "the full entry state of a crossing")]
     pub fn character_hop(
         &self,
-        origin: Vec3,
+        from: Vec3,
+        to: Vec3,
         physics: CharacterPhysicsConfig,
         control_velocity: Vec3,
         knockback: Vec3,
@@ -350,68 +400,38 @@ impl PortalSet {
         knockback_cap: f32,
     ) -> Option<CharacterPortalHop> {
         let half_extents = body_half_extents(physics);
-        let center = origin + Vec3::Y * half_extents.y;
+        let center_from = from + Vec3::Y * half_extents.y;
+        let center_to = to + Vec3::Y * half_extents.y;
         let velocity = control_velocity + knockback + Vec3::Y * vertical_velocity;
-        for (entry, exit) in self.gates() {
-            let offset = center - entry.center;
-            let center_distance = offset.dot(entry.normal);
-            if center_distance <= 0.0 {
+        for (entry_gate, exit_gate) in self.gates() {
+            let entry = &entry_gate.frame;
+            let exit = &exit_gate.frame;
+            let from_distance = (center_from - entry.center).dot(entry.normal);
+            let to_distance = (center_to - entry.center).dot(entry.normal);
+            if !(from_distance > 0.0 && to_distance <= 0.0) {
                 continue;
             }
-            if center_distance - body_support(half_extents, entry.normal) > PORTAL_TRIGGER_DEPTH {
-                continue;
-            }
+            let offset = center_to - entry.center;
             if !in_character_aperture(offset, entry) {
                 continue;
             }
-            let inward_speed = -velocity.dot(entry.normal);
-            let required = if entry.normal.y > PORTAL_STANDABLE_NORMAL_Y {
-                -PORTAL_STANDABLE_AWAY_SPEED
-            } else {
-                PORTAL_MIN_APPROACH_SPEED
-            };
-            if inward_speed <= required {
-                continue;
-            }
-            // Carry the aperture offset through the pair (the projectile
-            // mapping), clamped so the body box stays inside the exit
-            // aperture. This is what lets a player steer out of a portal
-            // fall chain: sideways drift accumulates across hops instead of
-            // being re-centered away every pass.
             let across_limit = (PORTAL_HALF_WIDTH - body_support(half_extents, exit.right)).max(0.0);
             let up_limit = (PORTAL_HALF_HEIGHT - body_support(half_extents, exit.up)).max(0.0);
-            let exit_across = (-offset.dot(entry.right)).clamp(-across_limit, across_limit);
-            let exit_along_up = offset.dot(entry.up).clamp(-up_limit, up_limit);
             let exit_center = exit.center
-                + exit.right * exit_across
-                + exit.up * exit_along_up
-                + exit.normal * (body_support(half_extents, exit.normal) + PORTAL_EXIT_CLEARANCE);
+                + exit.right * (-offset.dot(entry.right)).clamp(-across_limit, across_limit)
+                + exit.up * offset.dot(entry.up).clamp(-up_limit, up_limit)
+                + exit.normal * (-to_distance);
             let carry = traverse_vector(entry, exit, knockback + Vec3::Y * vertical_velocity);
             return Some(CharacterPortalHop {
                 origin: exit_center - Vec3::Y * half_extents.y,
                 yaw: traverse_yaw(entry, exit, yaw),
                 vertical_velocity: traverse_vector(entry, exit, velocity).y,
                 knockback: Vec3::new(carry.x, 0.0, carry.z).clamp_length_max(knockback_cap),
+                entry: *entry,
+                exit: *exit,
             });
         }
         None
-    }
-
-    // Whether a body pressed against this position is entering a portal.
-    // The client swallows the wall-bump feedback with it: teleports are not
-    // client-predicted, so prediction shoves into the portal's wall for up
-    // to an RTT before the cue lands — that contact is entry, not a bump.
-    #[must_use]
-    pub fn absorbs_character_contact(&self, origin: Vec3, physics: CharacterPhysicsConfig) -> bool {
-        let half_extents = body_half_extents(physics);
-        let center = origin + Vec3::Y * half_extents.y;
-        self.gates().any(|(entry, _)| {
-            let offset = center - entry.center;
-            let distance = offset.dot(entry.normal);
-            distance > 0.0
-                && distance - body_support(half_extents, entry.normal) <= PORTAL_TRIGGER_DEPTH * 2.0
-                && in_character_aperture(offset, entry)
-        })
     }
 
     // First portal plane the swept ball touches from the front this tick,
@@ -421,7 +441,9 @@ impl PortalSet {
     pub fn projectile_hop(&self, pos: Vec3, velocity: Vec3, delta: f32, radius: f32) -> Option<ProjectileHop> {
         let translation = velocity * delta;
         let mut best: Option<ProjectileHop> = None;
-        for (entry, exit) in self.gates() {
+        for (entry_gate, exit_gate) in self.gates() {
+            let entry = &entry_gate.frame;
+            let exit = &exit_gate.frame;
             let start_distance = (pos - entry.center).dot(entry.normal);
             let end_distance = (pos + translation - entry.center).dot(entry.normal);
             if start_distance <= radius || end_distance > radius {
@@ -452,6 +474,17 @@ impl PortalSet {
     }
 }
 
+fn gate_from_portal(portal: &Portal, collision_world: &CollisionWorld) -> PortalGate {
+    let frame = PortalFrame::from_portal(portal);
+    let rotation = Quat::from_mat3(&Mat3::from_cols(frame.right, frame.up, frame.normal));
+    let backing = collision_world.colliders_overlapping_oriented_cuboid(
+        frame.center - frame.normal * (BACKING_DEPTH / 2.0),
+        Vec3::new(PORTAL_HALF_WIDTH, PORTAL_HALF_HEIGHT, BACKING_DEPTH / 2.0),
+        rotation,
+    );
+    PortalGate { frame, backing }
+}
+
 #[cfg(test)]
 mod tests {
     use std::f32::consts::PI;
@@ -473,16 +506,23 @@ mod tests {
         }
     }
 
+    fn empty_world() -> CollisionWorld {
+        CollisionWorld::from_map_layout(&MapLayout::default(), &BarrierKindTable::default())
+    }
+
     fn pair(a_pos: Vec3, a_normal: Vec3, b_pos: Vec3, b_normal: Vec3) -> PortalSet {
-        PortalSet::rebuild(&[
-            portal(PortalEnd::A, a_pos, a_normal, 0.0),
-            portal(PortalEnd::B, b_pos, b_normal, 0.0),
-        ])
+        PortalSet::rebuild(
+            &[
+                portal(PortalEnd::A, a_pos, a_normal, 0.0),
+                portal(PortalEnd::B, b_pos, b_normal, 0.0),
+            ],
+            &empty_world(),
+        )
     }
 
     fn frames(set: &PortalSet) -> (&PortalFrame, &PortalFrame) {
         let pair = set.pairs.first().expect("portal set has no pair");
-        (&pair.a, &pair.b)
+        (&pair.a.frame, &pair.b.frame)
     }
 
     fn player_physics() -> CharacterPhysicsConfig {
@@ -610,89 +650,86 @@ mod tests {
     fn falling_into_floor_portal_carries_out_of_wall_as_knockback() {
         let set = pair(Vec3::new(0.0, 0.0, 0.0), Vec3::Y, Vec3::new(10.0, 2.0, 0.0), Vec3::X);
         let hop = set
-            .character_hop(Vec3::ZERO, player_physics(), Vec3::ZERO, Vec3::ZERO, -10.0, 0.0, CAP)
-            .expect("fall into a floor portal did not trigger");
+            .character_hop(
+                Vec3::new(0.0, -0.85, 0.0),
+                Vec3::new(0.0, -0.95, 0.0),
+                player_physics(),
+                Vec3::ZERO,
+                Vec3::ZERO,
+                -10.0,
+                0.0,
+                CAP,
+            )
+            .expect("fall through a floor portal did not trigger");
         assert!(hop.vertical_velocity.abs() < 1e-4);
         assert!((hop.knockback - Vec3::new(10.0, 0.0, 0.0)).length() < 1e-4);
     }
 
     #[test]
     fn walking_into_wall_portal_exits_floor_portal_upward() {
-        let physics = player_physics();
-        let depth = physics.collider.depth / 2.0;
         let set = pair(Vec3::new(0.0, 0.9, 0.0), Vec3::Z, Vec3::new(10.0, 0.0, 10.0), Vec3::Y);
         let hop = set
             .character_hop(
-                Vec3::new(0.0, 0.0, depth + 0.05),
-                physics,
+                Vec3::new(0.0, 0.0, 0.1),
+                Vec3::new(0.0, 0.0, -0.1),
+                player_physics(),
                 Vec3::new(0.0, 0.0, -6.0),
                 Vec3::ZERO,
                 0.0,
                 PI,
                 CAP,
             )
-            .expect("walk into a wall portal did not trigger");
-        // Control velocity maps into the vertical write but not the carry.
+            .expect("walk through a wall portal did not trigger");
+        // Control maps into the vertical write but not the carry.
         assert!((hop.vertical_velocity - 6.0).abs() < 1e-4);
         assert!(hop.knockback.length() < 1e-4);
-        // Feet land exactly the exit clearance above the floor plane (y = 0).
-        assert!((hop.origin.y - PORTAL_EXIT_CLEARANCE).abs() < 1e-4);
+        // Emerges half-in: the crossing penetration is carried through.
+        assert!((hop.origin.y - (0.1 - 0.9)).abs() < 1e-4);
     }
 
     #[test]
-    fn wall_trigger_requires_inward_motion() {
-        let physics = player_physics();
-        let depth = physics.collider.depth / 2.0;
-        let set = pair(Vec3::new(0.0, 0.9, 0.0), Vec3::Z, Vec3::new(10.0, 1.0, 10.0), Vec3::X);
-        let origin = Vec3::new(0.0, 0.0, depth + 0.05);
-        let moving = set.character_hop(origin, physics, Vec3::new(0.0, 0.0, -1.0), Vec3::ZERO, 0.0, PI, CAP);
-        assert!(moving.is_some());
-        let resting = set.character_hop(origin, physics, Vec3::ZERO, Vec3::ZERO, 0.0, PI, CAP);
-        assert!(resting.is_none());
+    fn crossing_the_plane_triggers_and_carries_penetration() {
+        let set = pair(Vec3::new(0.0, 1.6, 0.0), Vec3::Z, Vec3::new(10.0, 1.0, 10.0), Vec3::X);
+        let hop = set
+            .character_hop(
+                Vec3::new(0.0, 0.7, 0.15),
+                Vec3::new(0.0, 0.7, -0.05),
+                player_physics(),
+                Vec3::new(0.0, 0.0, -6.0),
+                Vec3::ZERO,
+                0.0,
+                PI,
+                CAP,
+            )
+            .expect("crossing did not trigger");
+        // The exit continues in front of the paired plane by the same
+        // penetration the entry reached — seamless pass-through.
+        assert!((hop.origin.x - 10.05).abs() < 1e-4);
     }
 
     #[test]
-    fn standing_in_floor_portal_triggers_at_rest() {
-        let set = pair(Vec3::new(0.0, 0.0, 0.0), Vec3::Y, Vec3::new(10.0, 1.0, 10.0), Vec3::X);
-        let hop = set.character_hop(Vec3::ZERO, player_physics(), Vec3::ZERO, Vec3::ZERO, 0.0, 0.0, CAP);
-        assert!(hop.is_some());
-    }
-
-    #[test]
-    fn jumping_out_of_floor_portal_does_not_retrigger() {
-        let set = pair(Vec3::new(0.0, 0.0, 0.0), Vec3::Y, Vec3::new(10.0, 1.0, 10.0), Vec3::X);
-        let hop = set.character_hop(Vec3::ZERO, player_physics(), Vec3::ZERO, Vec3::ZERO, 12.0, 0.0, CAP);
+    fn approaching_without_crossing_does_not_trigger() {
+        let set = pair(Vec3::new(0.0, 1.6, 0.0), Vec3::Z, Vec3::new(10.0, 1.0, 10.0), Vec3::X);
+        let hop = set.character_hop(
+            Vec3::new(0.0, 0.7, 0.5),
+            Vec3::new(0.0, 0.7, 0.1),
+            player_physics(),
+            Vec3::new(0.0, 0.0, -6.0),
+            Vec3::ZERO,
+            0.0,
+            PI,
+            CAP,
+        );
         assert!(hop.is_none());
     }
 
     #[test]
-    fn ceiling_portal_triggers_only_while_rising() {
-        let physics = player_physics();
-        let top = physics.collider.top_y_offset();
-        let set = pair(
-            Vec3::new(0.0, 4.0, 0.0),
-            Vec3::NEG_Y,
-            Vec3::new(10.0, 1.0, 10.0),
-            Vec3::X,
-        );
-        let origin = Vec3::new(0.0, 4.0 - top - 0.05, 0.0);
-        assert!(
-            set.character_hop(origin, physics, Vec3::ZERO, Vec3::ZERO, 8.0, 0.0, CAP)
-                .is_some()
-        );
-        assert!(
-            set.character_hop(origin, physics, Vec3::ZERO, Vec3::ZERO, -1.0, 0.0, CAP)
-                .is_none()
-        );
-    }
-
-    #[test]
-    fn back_side_of_a_portal_never_triggers() {
-        let physics = player_physics();
-        let set = pair(Vec3::new(0.0, 0.9, 0.0), Vec3::Z, Vec3::new(10.0, 1.0, 10.0), Vec3::X);
+    fn crossing_from_behind_does_not_trigger() {
+        let set = pair(Vec3::new(0.0, 1.6, 0.0), Vec3::Z, Vec3::new(10.0, 1.0, 10.0), Vec3::X);
         let hop = set.character_hop(
-            Vec3::new(0.0, 0.0, -0.5),
-            physics,
+            Vec3::new(0.0, 0.7, -0.2),
+            Vec3::new(0.0, 0.7, 0.2),
+            player_physics(),
             Vec3::new(0.0, 0.0, 1.0),
             Vec3::ZERO,
             0.0,
@@ -703,32 +740,54 @@ mod tests {
     }
 
     #[test]
-    fn body_outside_the_aperture_does_not_trigger() {
-        let physics = player_physics();
-        let depth = physics.collider.depth / 2.0;
-        let set = pair(Vec3::new(0.0, 0.9, 0.0), Vec3::Z, Vec3::new(10.0, 1.0, 10.0), Vec3::X);
-        let origin = Vec3::new(2.0 * PORTAL_HALF_WIDTH, 0.0, depth + 0.05);
-        let hop = set.character_hop(origin, physics, Vec3::new(0.0, 0.0, -1.0), Vec3::ZERO, 0.0, PI, CAP);
+    fn crossing_outside_the_aperture_does_not_trigger() {
+        let set = pair(Vec3::new(0.0, 1.6, 0.0), Vec3::Z, Vec3::new(10.0, 1.0, 10.0), Vec3::X);
+        let hop = set.character_hop(
+            Vec3::new(2.0, 0.7, 0.15),
+            Vec3::new(2.0, 0.7, -0.05),
+            player_physics(),
+            Vec3::new(0.0, 0.0, -6.0),
+            Vec3::ZERO,
+            0.0,
+            PI,
+            CAP,
+        );
         assert!(hop.is_none());
     }
 
     #[test]
-    fn wall_exit_stands_the_body_clear_of_the_plane() {
-        let physics = player_physics();
-        let set = pair(Vec3::new(0.0, 0.0, 0.0), Vec3::Y, Vec3::new(10.0, 1.0, 10.0), Vec3::X);
-        let hop = set
-            .character_hop(Vec3::ZERO, physics, Vec3::ZERO, Vec3::ZERO, 0.0, 0.0, CAP)
-            .expect("floor portal did not trigger at rest");
-        let clearance = hop.origin.x - physics.collider.width / 2.0 - 10.0;
-        assert!(clearance > 0.0 && clearance < 0.1);
+    fn off_center_crossing_uses_the_full_rectangle() {
+        // Body center 0.7 below and 0.65 beside the portal center: the oval
+        // would reject this; the rectangular character gate does not.
+        let set = pair(Vec3::new(0.0, 1.6, 0.0), Vec3::Z, Vec3::new(10.0, 1.0, 10.0), Vec3::X);
+        let hop = set.character_hop(
+            Vec3::new(0.65, 0.0, 0.15),
+            Vec3::new(0.65, 0.0, -0.05),
+            player_physics(),
+            Vec3::new(0.0, 0.0, -6.0),
+            Vec3::ZERO,
+            0.0,
+            PI,
+            CAP,
+        );
+        assert!(hop.is_some());
     }
 
     #[test]
     fn knockback_carry_is_capped() {
         let set = pair(Vec3::new(0.0, 0.0, 0.0), Vec3::Y, Vec3::new(10.0, 2.0, 0.0), Vec3::X);
         let hop = set
-            .character_hop(Vec3::ZERO, player_physics(), Vec3::ZERO, Vec3::ZERO, -50.0, 0.0, CAP)
-            .expect("fall into a floor portal did not trigger");
+            .character_hop(
+                Vec3::new(0.0, -0.85, 0.0),
+                Vec3::new(0.0, -0.95, 0.0),
+                player_physics(),
+                Vec3::ZERO,
+                Vec3::ZERO,
+                -50.0,
+                0.0,
+                CAP,
+            )
+            .expect("fall through a floor portal did not trigger");
         assert!((hop.knockback.length() - CAP).abs() < 1e-4);
     }
 
@@ -789,7 +848,10 @@ mod tests {
 
     #[test]
     fn half_placed_pair_is_inert() {
-        let set = PortalSet::rebuild(&[portal(PortalEnd::A, Vec3::new(0.0, 1.0, 0.0), Vec3::Z, 0.0)]);
+        let set = PortalSet::rebuild(
+            &[portal(PortalEnd::A, Vec3::new(0.0, 1.0, 0.0), Vec3::Z, 0.0)],
+            &empty_world(),
+        );
         assert!(set.is_empty());
         let hop = set.projectile_hop(Vec3::new(0.0, 1.0, 2.0), Vec3::new(0.0, 0.0, -30.0), 0.1, 0.08);
         assert!(hop.is_none());
@@ -916,10 +978,13 @@ mod tests {
 
     // Mirrors one server tick: movement step, then the traversal check with
     // the landing-recovered fall speed, then the fall tracker's bookkeeping.
+    // Mirrors one server tick: the movement step (portal backing excluded,
+    // so the body sinks straight through), then the crossing check between
+    // the previous and current positions.
     #[test]
     fn perpetual_floor_fall_keeps_its_speed_across_hops() {
         use crate::constants::TICK_SECS;
-        use crate::physics::{CharacterEnvironment, CharacterStep, CharacterSupport, step_character_movement};
+        use crate::physics::{CharacterEnvironment, CharacterStep, step_character_movement};
 
         let gameplay = GameplayConfig::load_default().expect("default gameplay config should load");
         let physics = gameplay.player.physics();
@@ -947,22 +1012,28 @@ mod tests {
             ..Default::default()
         };
         let world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
-        let set = pair(Vec3::new(0.0, 0.0, 0.0), Vec3::Y, Vec3::new(50.0, 0.0, 50.0), Vec3::Y);
+        let set = PortalSet::rebuild(
+            &[
+                portal(PortalEnd::A, Vec3::new(0.0, 0.0, 0.0), Vec3::Y, 0.0),
+                portal(PortalEnd::B, Vec3::new(50.0, 0.0, 50.0), Vec3::Y, 0.0),
+            ],
+            &world,
+        );
         let env = CharacterEnvironment {
             collision_world: &world,
             gravity: 25.0,
             passable_kinds: &[],
             physics,
             ladder_climb_ratio: gameplay.movement.ladder_climb_ratio,
+            portals: Some(&set),
         };
 
         let mut pos = crate::protocol::Position { x: 0.0, y: 8.0, z: 0.0 };
         let mut vertical_velocity = 0.0_f32;
-        let mut energy = 0.0_f32;
-        let mut cooldown = 0.0_f32;
         let mut entry_speeds: Vec<f32> = Vec::new();
 
         for _ in 0..(30 * 8) {
+            let from = pos;
             let result = step_character_movement(
                 CharacterStep {
                     start: pos,
@@ -975,36 +1046,19 @@ mod tests {
             );
             pos = result.position;
             vertical_velocity = result.vertical_velocity;
-            cooldown -= TICK_SECS;
-
-            let mut hopped = false;
-            let fall_speed = (energy - 2.0 * env.gravity * pos.y).max(0.0).sqrt();
-            let entry = if fall_speed > 0.1 {
-                vertical_velocity.min(-fall_speed)
-            } else {
-                vertical_velocity
-            };
-            // Mirrors the server gate: fast entries bypass the cooldown.
-            if (cooldown <= 0.0 || entry.abs() >= 2.0)
-                && let Some(hop) = set.character_hop(Vec3::from(pos), physics, Vec3::ZERO, Vec3::ZERO, entry, 0.0, 22.5)
-            {
-                entry_speeds.push(-entry);
+            if let Some(hop) = set.character_hop(
+                Vec3::from(from),
+                Vec3::from(pos),
+                physics,
+                Vec3::ZERO,
+                Vec3::ZERO,
+                vertical_velocity,
+                0.0,
+                22.5,
+            ) {
+                entry_speeds.push(-vertical_velocity);
                 pos = hop.origin.into();
                 vertical_velocity = hop.vertical_velocity;
-                // Mirrors the server: the exit seeds its own arrival
-                // energy, since a sub-tick flight never records one.
-                let down = vertical_velocity.min(0.0);
-                energy = down.mul_add(down, 2.0 * env.gravity * pos.y);
-                cooldown = 0.5;
-                hopped = true;
-            }
-            if !hopped {
-                if result.support == CharacterSupport::Airborne {
-                    let down = (-vertical_velocity).max(0.0);
-                    energy = energy.max(down * down + 2.0 * env.gravity * pos.y);
-                } else {
-                    energy = 0.0;
-                }
             }
         }
 
@@ -1026,10 +1080,13 @@ mod tests {
     // above. Every pass adds a room's worth of gravity and the flight time
     // shrinks well below the teleport cooldown, so this test fails if
     // slow-entry pacing ever throttles a real fall chain.
+    // The fast cycle: floor portal with its pair on the ceiling directly
+    // above. Every pass adds a room of gravity; speed must build to the
+    // terminal cap and stay there.
     #[test]
     fn floor_to_ceiling_fall_accelerates_toward_terminal_velocity() {
         use crate::constants::TICK_SECS;
-        use crate::physics::{CharacterEnvironment, CharacterStep, CharacterSupport, step_character_movement};
+        use crate::physics::{CharacterEnvironment, CharacterStep, step_character_movement};
 
         let gameplay = GameplayConfig::load_default().expect("default gameplay config should load");
         let physics = gameplay.player.physics();
@@ -1046,22 +1103,28 @@ mod tests {
             ..Default::default()
         };
         let world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
-        let set = pair(Vec3::new(0.0, 0.0, 0.0), Vec3::Y, Vec3::new(0.0, 4.0, 0.0), Vec3::NEG_Y);
+        let set = PortalSet::rebuild(
+            &[
+                portal(PortalEnd::A, Vec3::new(0.0, 0.0, 0.0), Vec3::Y, 0.0),
+                portal(PortalEnd::B, Vec3::new(0.0, 4.0, 0.0), Vec3::NEG_Y, 0.0),
+            ],
+            &world,
+        );
         let env = CharacterEnvironment {
             collision_world: &world,
             gravity: 25.0,
             passable_kinds: &[],
             physics,
             ladder_climb_ratio: gameplay.movement.ladder_climb_ratio,
+            portals: Some(&set),
         };
 
         let mut pos = crate::protocol::Position { x: 0.0, y: 3.0, z: 0.0 };
         let mut vertical_velocity = 0.0_f32;
-        let mut energy = 0.0_f32;
-        let mut cooldown = 0.0_f32;
         let mut entry_speeds: Vec<f32> = Vec::new();
 
         for _ in 0..(30 * 8) {
+            let from = pos;
             let result = step_character_movement(
                 CharacterStep {
                     start: pos,
@@ -1074,35 +1137,19 @@ mod tests {
             );
             pos = result.position;
             vertical_velocity = result.vertical_velocity;
-            cooldown -= TICK_SECS;
-
-            let mut hopped = false;
-            let fall_speed = (energy - 2.0 * env.gravity * pos.y).max(0.0).sqrt();
-            let entry = if fall_speed > 0.1 {
-                vertical_velocity.min(-fall_speed)
-            } else {
-                vertical_velocity
-            };
-            if (cooldown <= 0.0 || entry.abs() >= 2.0)
-                && let Some(hop) = set.character_hop(Vec3::from(pos), physics, Vec3::ZERO, Vec3::ZERO, entry, 0.0, 22.5)
-            {
-                entry_speeds.push(-entry);
+            if let Some(hop) = set.character_hop(
+                Vec3::from(from),
+                Vec3::from(pos),
+                physics,
+                Vec3::ZERO,
+                Vec3::ZERO,
+                vertical_velocity,
+                0.0,
+                22.5,
+            ) {
+                entry_speeds.push(-vertical_velocity);
                 pos = hop.origin.into();
                 vertical_velocity = hop.vertical_velocity;
-                // Mirrors the server: the exit seeds its own arrival
-                // energy, since a sub-tick flight never records one.
-                let down = vertical_velocity.min(0.0);
-                energy = down.mul_add(down, 2.0 * env.gravity * pos.y);
-                cooldown = 0.5;
-                hopped = true;
-            }
-            if !hopped {
-                if result.support == CharacterSupport::Airborne {
-                    let down = (-vertical_velocity).max(0.0);
-                    energy = energy.max(down * down + 2.0 * env.gravity * pos.y);
-                } else {
-                    energy = 0.0;
-                }
             }
         }
 
@@ -1126,7 +1173,7 @@ mod tests {
 
     #[test]
     fn aperture_offset_carries_through_an_opposing_pair() {
-        // Floor → ceiling: the mapped offset preserves world drift, so a
+        // Floor -> ceiling: the mapped offset preserves world drift, so a
         // steering player accumulates displacement across hops.
         let set = pair(
             Vec3::new(0.0, 0.0, 0.0),
@@ -1136,7 +1183,8 @@ mod tests {
         );
         let hop = set
             .character_hop(
-                Vec3::new(0.0, 0.0, 0.5),
+                Vec3::new(0.0, -0.85, 0.5),
+                Vec3::new(0.0, -0.95, 0.5),
                 player_physics(),
                 Vec3::ZERO,
                 Vec3::ZERO,
@@ -1144,7 +1192,7 @@ mod tests {
                 0.0,
                 CAP,
             )
-            .expect("offset floor entry did not trigger");
+            .expect("offset crossing did not trigger");
         assert!((hop.origin.x - 10.0).abs() < 1e-4);
         assert!((hop.origin.z - 10.5).abs() < 1e-4);
     }
@@ -1160,7 +1208,8 @@ mod tests {
         let physics = player_physics();
         let hop = set
             .character_hop(
-                Vec3::new(0.55, 0.0, 0.0),
+                Vec3::new(0.55, -0.85, 0.0),
+                Vec3::new(0.55, -0.95, 0.0),
                 physics,
                 Vec3::ZERO,
                 Vec3::ZERO,
@@ -1168,7 +1217,7 @@ mod tests {
                 0.0,
                 CAP,
             )
-            .expect("edge floor entry did not trigger");
+            .expect("edge crossing did not trigger");
         let limit = PORTAL_HALF_WIDTH - physics.collider.width / 2.0;
         assert!((hop.origin.x - 10.0).abs() <= limit + 1e-4);
         assert!(hop.origin.x > 10.0);
@@ -1176,6 +1225,9 @@ mod tests {
 
     // Holding a direction while looping must break the loop within a few
     // hops — the whole point of carrying the aperture offset.
+    // Holding a direction while looping must break the loop within a few
+    // hops: the crossing gate is aperture-bound, so accumulated drift makes
+    // the body miss the hole and land beside it.
     #[test]
     fn steering_sideways_escapes_a_portal_fall_chain() {
         use crate::constants::TICK_SECS;
@@ -1196,23 +1248,34 @@ mod tests {
             ..Default::default()
         };
         let world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
-        let set = pair(Vec3::new(0.0, 0.0, 0.0), Vec3::Y, Vec3::new(0.0, 4.0, 0.0), Vec3::NEG_Y);
+        let set = PortalSet::rebuild(
+            &[
+                portal(PortalEnd::A, Vec3::new(0.0, 0.0, 0.0), Vec3::Y, 0.0),
+                portal(PortalEnd::B, Vec3::new(0.0, 4.0, 0.0), Vec3::NEG_Y, 0.0),
+            ],
+            &world,
+        );
         let env = CharacterEnvironment {
             collision_world: &world,
             gravity: 25.0,
             passable_kinds: &[],
             physics,
             ladder_climb_ratio: gameplay.movement.ladder_climb_ratio,
+            portals: Some(&set),
         };
-        let control = Vec3::new(0.0, 0.0, 6.0);
 
-        let mut pos = crate::protocol::Position { x: 0.0, y: 0.5, z: 0.0 };
+        let mut pos = crate::protocol::Position { x: 0.0, y: 3.0, z: 0.0 };
         let mut vertical_velocity = 0.0_f32;
-        let mut energy = 0.0_f32;
-        let mut cooldown = 0.0_f32;
         let mut hops = 0;
 
         for _ in 0..(30 * 8) {
+            // Fall in hands-off, then steer once the chain is running.
+            let control = if hops >= 1 {
+                Vec3::new(0.0, 0.0, 6.0)
+            } else {
+                Vec3::ZERO
+            };
+            let from = pos;
             let result = step_character_movement(
                 CharacterStep {
                     start: pos,
@@ -1225,52 +1288,24 @@ mod tests {
             );
             pos = result.position;
             vertical_velocity = result.vertical_velocity;
-            cooldown -= TICK_SECS;
-
-            let fall_speed = (energy - 2.0 * env.gravity * pos.y).max(0.0).sqrt();
-            let entry = if fall_speed > 0.1 {
-                vertical_velocity.min(-fall_speed)
-            } else {
-                vertical_velocity
-            };
-            if (cooldown <= 0.0 || entry.abs() >= 2.0)
-                && let Some(hop) = set.character_hop(Vec3::from(pos), physics, control, Vec3::ZERO, entry, 0.0, 22.5)
-            {
+            if let Some(hop) = set.character_hop(
+                Vec3::from(from),
+                Vec3::from(pos),
+                physics,
+                control,
+                Vec3::ZERO,
+                vertical_velocity,
+                0.0,
+                22.5,
+            ) {
                 pos = hop.origin.into();
                 vertical_velocity = hop.vertical_velocity;
-                let down = vertical_velocity.min(0.0);
-                energy = down.mul_add(down, 2.0 * env.gravity * pos.y);
-                cooldown = 0.5;
                 hops += 1;
             }
         }
 
         assert!(hops >= 1, "the chain never started");
-        assert!(hops <= 8, "steering never escaped the chain: {hops} hops");
+        assert!(hops <= 10, "steering never escaped the chain: {hops} hops");
         assert!(pos.z > 2.0, "escaped body did not keep moving: z = {}", pos.z);
-    }
-
-    #[test]
-    fn off_center_wall_entry_triggers_across_the_full_width() {
-        // Portal placed at eye height: a standing body's center sits 0.7
-        // below the portal center, where the oval would leave only a
-        // sliver of lateral room. The rectangular gate keeps the drawn
-        // width walkable.
-        let physics = player_physics();
-        let depth = physics.collider.depth / 2.0;
-        let set = pair(Vec3::new(0.0, 1.6, 0.0), Vec3::Z, Vec3::new(10.0, 1.0, 10.0), Vec3::X);
-        let origin = Vec3::new(0.65, 0.0, depth + 0.05);
-        let hop = set.character_hop(origin, physics, Vec3::new(0.0, 0.0, -1.0), Vec3::ZERO, 0.0, PI, CAP);
-        assert!(hop.is_some());
-    }
-
-    #[test]
-    fn portal_entry_contact_is_absorbed_for_feedback() {
-        let physics = player_physics();
-        let depth = physics.collider.depth / 2.0;
-        let set = pair(Vec3::new(0.0, 1.6, 0.0), Vec3::Z, Vec3::new(10.0, 1.0, 10.0), Vec3::X);
-        assert!(set.absorbs_character_contact(Vec3::new(0.0, 0.0, depth + 0.05), physics));
-        // Pressed against the same wall outside the aperture: a real bump.
-        assert!(!set.absorbs_character_contact(Vec3::new(2.0, 0.0, depth + 0.05), physics));
     }
 }

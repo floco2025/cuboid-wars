@@ -3,7 +3,7 @@ use common::{
     config::{CharacterPhysicsConfig, GameplayConfig},
     physics::{
         CharacterEnvironment, CharacterMovePlan, CharacterStep, CharacterVerticalVelocity, CollisionWorld,
-        KnockbackVelocity, overlapping_character, passable_barrier_kinds, player_control_velocity,
+        KnockbackVelocity, PortalSet, overlapping_character, passable_barrier_kinds, player_control_velocity,
         step_character_movement,
     },
     protocol::{ActorMarker, BarrierKindId, MapSettings, PlayerId, PlayerMarker, PlayerMoveIntent, Position},
@@ -53,6 +53,7 @@ pub fn characters_movement_system(
     map_settings: Res<MapSettings>,
     mut players: ResMut<PlayerMap>,
     open_barrier_kinds: Res<OpenBarrierKinds>,
+    portal_set: Res<PortalSet>,
     actors: Res<ActorMap>,
     mut player_query: PlayerMovementQuery,
     mut actor_health: Query<&mut common::protocol::Health, With<ActorMarker>>,
@@ -75,6 +76,7 @@ pub fn characters_movement_system(
         &map_settings,
         &mut players,
         &open_barrier_kinds,
+        &portal_set,
         &player_query,
         &mut planned_moves,
     );
@@ -108,6 +110,7 @@ fn plan_player_moves(
     map_settings: &MapSettings,
     players: &mut PlayerMap,
     open_barrier_kinds: &OpenBarrierKinds,
+    portal_set: &PortalSet,
     query: &PlayerMovementQuery,
     planned_moves: &mut Vec<CharacterMovePlan>,
 ) {
@@ -142,6 +145,7 @@ fn plan_player_moves(
                 passable_kinds: &passable_kinds,
                 physics: player_physics,
                 ladder_climb_ratio: gameplay_config.movement.ladder_climb_ratio,
+                portals: Some(portal_set),
             },
         );
         if let Some(info) = players.get_mut(player_id) {

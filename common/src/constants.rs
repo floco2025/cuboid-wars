@@ -151,19 +151,9 @@ pub const MISSILE_SPAWN_OFFSET: f32 = 1.0;
 // surface orientation, sized to pass the player body whole.
 pub const PORTAL_HALF_WIDTH: f32 = 0.7;
 pub const PORTAL_HALF_HEIGHT: f32 = 1.3;
-// A body face this close to the plane counts as crossing. Collision pins a
-// character about a contact offset short of the surface, so the plane itself
-// is unreachable and proximity is the crossing test.
-pub const PORTAL_TRIGGER_DEPTH: f32 = 0.1;
-// Minimum approach speed into a non-standable portal, so reconciliation
-// micro-drift against a wall never reads as entering.
-pub const PORTAL_MIN_APPROACH_SPEED: f32 = 0.1;
-// Normals pointing up at least this much are standable: resting in the
-// aperture counts as entering (gravity is the inward motion)...
+// Normals pointing up at least this much are standable (a surface you can
+// rest on); pressure-plate keep-outs apply only to portals on them.
 pub const PORTAL_STANDABLE_NORMAL_Y: f32 = 0.5;
-// ...unless the body is leaving faster than this — the hop up out of a floor
-// exit must not immediately re-enter it.
-pub const PORTAL_STANDABLE_AWAY_SPEED: f32 = 0.5;
 // Fixture keep-outs the aperture must respect: margin around a wall light,
 // and around a pressure plate's center (plates constrain only standable
 // portals — they live on floors).
@@ -171,8 +161,6 @@ pub const PORTAL_LIGHT_CLEARANCE: f32 = 0.4;
 pub const PORTAL_PLATE_CLEARANCE: f32 = 1.2;
 // A fixture farther than this from the aperture plane cannot overlap it.
 pub const PORTAL_FIXTURE_PLANE_DEPTH: f32 = 0.5;
-// Gap between an exiting body's near face and the exit plane.
-pub const PORTAL_EXIT_CLEARANCE: f32 = 0.05;
 pub const PORTAL_PROJECTILE_EXIT_STANDOFF: f32 = 0.02;
 // Above this |normal.y| world-up has no usable in-plane projection and the
 // placement yaw orients the aperture frame instead.
@@ -181,11 +169,6 @@ pub const PORTAL_UP_DEGENERACY_LIMIT: f32 = 0.99;
 // register at nearly the same time of impact; within this fraction-of-tick
 // tie the portal wins.
 pub const PORTAL_SURFACE_TIE_EPSILON: f32 = 0.01;
-// A body whose persistent velocity (knockback + vertical) is at least this
-// fast bypasses the teleport cooldown: the cooldown only paces the resting
-// re-trigger of standable portals, and a fast fall chain's flight time is
-// far shorter than any fixed cooldown.
-pub const PORTAL_FAST_ENTRY_SPEED: f32 = 2.0;
 // Momentum carried out of a portal (as knockback) caps at this multiple of
 // the blast knockback speed cap, for parity with explosions.
 pub const PORTAL_KNOCKBACK_CARRY_FACTOR: f32 = 1.5;

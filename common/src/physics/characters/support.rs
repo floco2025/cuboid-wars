@@ -1,5 +1,8 @@
 use bevy_math::Vec3;
-use rapier3d::{parry::shape::Cuboid, prelude::Vector};
+use rapier3d::{
+    parry::shape::Cuboid,
+    prelude::{ColliderHandle, Vector},
+};
 
 use super::geometry::{character_pose, character_support_probe_pose, character_support_probe_shape};
 use crate::{
@@ -16,7 +19,7 @@ pub fn position_has_floor_support(
     physics: CharacterPhysicsConfig,
 ) -> bool {
     let shape = character_support_probe_shape(physics);
-    character_ground_hit(collision_world, &shape, pos, &[], physics).is_some()
+    character_ground_hit(collision_world, &shape, pos, &[], &[], physics).is_some()
 }
 
 pub(super) fn character_ground_hit(
@@ -24,6 +27,7 @@ pub(super) fn character_ground_hit(
     shape: &Cuboid,
     pos: &Position,
     passable_kinds: &[BarrierKindId],
+    excluded_colliders: &[ColliderHandle],
     physics: CharacterPhysicsConfig,
 ) -> Option<ShapeCastHit> {
     let pose = character_support_probe_pose(pos, physics);
@@ -33,6 +37,7 @@ pub(super) fn character_ground_hit(
         CHARACTER_GROUND_SNAP_DISTANCE + physics.collider.bottom_y_offset(),
         0.0,
         passable_kinds,
+        excluded_colliders,
     )
 }
 
@@ -75,6 +80,7 @@ fn character_perch_hit(
         physics.collider.bottom_y_offset() + CHARACTER_STEP_HEIGHT,
         0.0,
         passable_kinds,
+        &[],
     )
 }
 

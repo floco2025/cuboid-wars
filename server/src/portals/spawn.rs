@@ -47,7 +47,7 @@ pub fn handle_portal_shot_message(
     };
     let portal = portal_from_placement(&placement, id, msg.end, msg.face_yaw);
     portals.set(portal);
-    *portal_set = portals.rebuild_set();
+    *portal_set = portals.rebuild_set(collision_world);
     broadcast_to_all(players, ServerMessage::PortalOpened(SPortalOpened { portal }));
 }
 

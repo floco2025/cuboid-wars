@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use bevy::prelude::*;
 
 use common::{
-    physics::PortalSet,
+    physics::{CollisionWorld, PortalSet},
     protocol::{PlayerId, Portal, PortalEnd},
 };
 
@@ -43,8 +43,8 @@ impl PortalMap {
     }
 
     #[must_use]
-    pub fn rebuild_set(&self) -> PortalSet {
-        PortalSet::rebuild(&self.snapshot_portals())
+    pub fn rebuild_set(&self, collision_world: &CollisionWorld) -> PortalSet {
+        PortalSet::rebuild(&self.snapshot_portals(), collision_world)
     }
 }
 
@@ -64,7 +64,7 @@ mod tests {
         }
     }
 
-    use common::protocol::Position;
+    use common::protocol::{BarrierKindTable, MapLayout, Position};
 
     #[test]
     fn reshooting_an_end_replaces_that_end_only() {
@@ -107,11 +107,12 @@ mod tests {
 
     #[test]
     fn rebuild_set_pairs_only_complete_owners() {
+        let world = CollisionWorld::from_map_layout(&MapLayout::default(), &BarrierKindTable::default());
         let mut map = PortalMap::default();
         map.set(portal(1, PortalEnd::A, 1.0));
-        assert!(map.rebuild_set().is_empty());
+        assert!(map.rebuild_set(&world).is_empty());
 
         map.set(portal(1, PortalEnd::B, 2.0));
-        assert!(!map.rebuild_set().is_empty());
+        assert!(!map.rebuild_set(&world).is_empty());
     }
 }

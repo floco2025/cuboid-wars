@@ -12,7 +12,9 @@ pub(in crate::network) fn handle_portal_opened_message(
     context: &mut ServerMessageContext,
 ) {
     if upsert_portal(commands, context, &message.portal) {
-        *context.portal_set = PortalSet::rebuild(&context.portals.wire_portals());
+        if let Some(collision_world) = context.collision_world.as_deref() {
+            *context.portal_set = PortalSet::rebuild(&context.portals.wire_portals(), collision_world);
+        }
         play_spatial_sound(
             commands,
             &context.asset_server,

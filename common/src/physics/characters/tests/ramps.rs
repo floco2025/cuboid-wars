@@ -19,6 +19,7 @@ fn player_walking_off_ramp_side_is_not_blocked_by_ramp_side() {
             passable_kinds: &[],
             ladder_climb_ratio: test_ladders(),
             physics: player_physics(),
+            portals: None,
         },
     );
 
@@ -45,6 +46,7 @@ fn lower_floor_player_hits_wedge_side_from_collision_world() {
             passable_kinds: &[],
             ladder_climb_ratio: test_ladders(),
             physics: player_physics(),
+            portals: None,
         },
     );
 
@@ -71,6 +73,7 @@ fn lower_floor_player_can_enter_wedge_low_end() {
             passable_kinds: &[],
             ladder_climb_ratio: test_ladders(),
             physics: player_physics(),
+            portals: None,
         },
     );
 
@@ -97,6 +100,7 @@ fn upper_floor_player_can_enter_wedge_high_end() {
             passable_kinds: &[],
             ladder_climb_ratio: test_ladders(),
             physics: player_physics(),
+            portals: None,
         },
     );
 
@@ -121,6 +125,7 @@ fn collider_y_offset_allows_movement_off_ramp_side() {
             passable_kinds: &[],
             ladder_climb_ratio: test_ladders(),
             physics: player_physics(),
+            portals: None,
         },
     );
 

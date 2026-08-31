@@ -296,8 +296,8 @@ mod tests {
     use crate::config::{
         ActorSettingsConfig, BlastConfig, CombatConfig, DamageConfig, FallDamageConfig, HealthConfig,
         LightingCycleConfig, LightingMode, MapServerConfig, MissilesServerConfig, PlacedItemRespawnSecs,
-        PlacedItemsConfig, PlayerHealthConfig, PortalsServerConfig, PowerUpDurationSecs, PowerUpsConfig, ScoringConfig,
-        WeatherCycleConfig, WeatherMode,
+        PlacedItemsConfig, PlayerHealthConfig, PowerUpDurationSecs, PowerUpsConfig, ScoringConfig, WeatherCycleConfig,
+        WeatherMode,
     };
     use crate::{actors::ActorInfo, network::ServerToClient, players::PlayerInfo};
     use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
@@ -427,9 +427,6 @@ mod tests {
                 proximity_fuse_distance: 1.5,
                 stall_secs: 2.0,
                 missiles_per_pack: 1,
-            },
-            portals: PortalsServerConfig {
-                teleport_cooldown_secs: 0.5,
             },
             power_ups: PowerUpsConfig {
                 duration_secs: PowerUpDurationSecs {

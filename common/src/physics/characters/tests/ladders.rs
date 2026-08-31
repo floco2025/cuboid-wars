@@ -29,6 +29,7 @@ fn ladder_step(
             passable_kinds: &[],
             ladder_climb_ratio: test_ladders(),
             physics: player_physics(),
+            portals: None,
         },
     )
 }
@@ -53,6 +54,7 @@ fn ladder_step_with_external_displacement(
             passable_kinds: &[],
             ladder_climb_ratio: test_ladders(),
             physics: player_physics(),
+            portals: None,
         },
     )
 }

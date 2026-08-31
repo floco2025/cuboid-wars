@@ -89,6 +89,7 @@ impl ActorMoveContext<'_> {
                 passable_kinds: self.open_barrier_kinds,
                 physics: self.actor_physics,
                 ladder_climb_ratio: self.ladder_climb_ratio,
+                portals: None,
             },
         )
     }

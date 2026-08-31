@@ -3,7 +3,7 @@ use common::{
     config::GameplayConfig,
     physics::{
         CharacterEnvironment, CharacterMovePlan, CharacterStep, CharacterVerticalVelocity, CollisionWorld,
-        KnockbackVelocity, passable_barrier_kinds, player_control_velocity, step_character_movement,
+        KnockbackVelocity, PortalSet, passable_barrier_kinds, player_control_velocity, step_character_movement,
     },
     protocol::{
         ActorMarker, BarrierKindId, MapSettings, PlayerId, PlayerMarker, PlayerMoveIntent, Position, PowerUpKind,
@@ -25,6 +25,7 @@ pub(crate) fn plan_player_moves(
     gameplay_config: &GameplayConfig,
     players: &mut PlayerMap,
     open_barrier_kinds: &crate::barriers::OpenBarrierKinds,
+    portal_set: &PortalSet,
     query: &mut PlayerMovementQuery,
     planned_moves: &mut Vec<CharacterMovePlan>,
 ) {
@@ -106,6 +107,7 @@ pub(crate) fn plan_player_moves(
                     passable_kinds: &passable_kinds,
                     physics: player_physics,
                     ladder_climb_ratio: gameplay_config.movement.ladder_climb_ratio,
+                    portals: Some(portal_set),
                 },
             );
             planned_moves.push(CharacterMovePlan::from_movement_result(

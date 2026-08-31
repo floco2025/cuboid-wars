@@ -127,11 +127,17 @@ pub struct LocalPlayerInfo {
     // they reappear (death → respawn). Input systems gate on this; the death
     // overlay reads it to show/hide the red tint.
     pub is_dead: bool,
+    // The most recent locally predicted portal teleport; a matching
+    // `SPlayerTeleport` cue confirms silently instead of re-snapping.
+    pub predicted_teleport_time: f32,
+    pub predicted_teleport_pos: Vec3,
 }
 
 impl Default for LocalPlayerInfo {
     fn default() -> Self {
         Self {
+            predicted_teleport_time: f32::NEG_INFINITY,
+            predicted_teleport_pos: Vec3::ZERO,
             last_shot_time: f32::NEG_INFINITY,
             last_sent_move: (PlayerMoveIntent::default(), 0.0),
             stored_yaw: 0.0,

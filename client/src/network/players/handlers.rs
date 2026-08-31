@@ -262,8 +262,17 @@ pub(in crate::network) fn handle_player_teleport_message(
     let Some(player) = context.players.get_mut(&message.id) else {
         return;
     };
-    player.last_teleport_time = context.time.elapsed_secs();
+    let now = context.time.elapsed_secs();
+    player.last_teleport_time = now;
     let entity = player.entity;
+    // Prediction already made this exact hop: the cue is a confirmation, not
+    // a correction — re-snapping would only stutter the transit.
+    if message.id == my_player_id
+        && now - context.local_player_info.predicted_teleport_time < 0.5
+        && (Vec3::from(message.pos) - context.local_player_info.predicted_teleport_pos).length() < 0.75
+    {
+        return;
+    }
     commands
         .entity(entity)
         .insert((

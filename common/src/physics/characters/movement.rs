@@ -2,7 +2,7 @@ use bevy_math::Vec3;
 use rapier3d::{
     control::{CharacterAutostep, CharacterLength, KinematicCharacterController},
     parry::shape::Cuboid,
-    prelude::Vector,
+    prelude::{ColliderHandle, Vector},
 };
 use std::f32::consts::FRAC_PI_3;
 
@@ -66,15 +66,22 @@ pub struct CharacterEnvironment<'a> {
     pub passable_kinds: &'a [crate::protocol::BarrierKindId],
     pub physics: CharacterPhysicsConfig,
     pub ladder_climb_ratio: f32,
+    // Portal pass-through: while the body overlaps a linked aperture, its
+    // backing colliders are excluded from this step's collision and support
+    // queries. `None` for characters that cannot use portals (actors).
+    pub portals: Option<&'a super::super::portals::PortalSet>,
 }
 
 #[must_use]
 pub fn step_character_movement(step: CharacterStep, env: &CharacterEnvironment) -> CharacterMovementResult {
     let character_shape = character_shape(env.physics);
     let support_shape = character_support_probe_shape(env.physics);
-    let request = prepare_movement_request(step, env, &character_shape, &support_shape);
-    let collision = resolve_character_collision(step, env, &character_shape, &request);
-    finish_character_movement(step, env, &support_shape, request, collision)
+    let excluded = env.portals.map_or_else(Vec::new, |portals| {
+        portals.collision_exclusions(Vec3::new(step.start.x, step.start.y, step.start.z), env.physics)
+    });
+    let request = prepare_movement_request(step, env, &excluded, &character_shape, &support_shape);
+    let collision = resolve_character_collision(step, env, &excluded, &character_shape, &request);
+    finish_character_movement(step, env, &excluded, &support_shape, request, collision)
 }
 
 struct MovementRequest {
@@ -90,6 +97,7 @@ struct MovementRequest {
 fn prepare_movement_request(
     step: CharacterStep,
     env: &CharacterEnvironment,
+    excluded_colliders: &[ColliderHandle],
     character_shape: &Cuboid,
     support_shape: &Cuboid,
 ) -> MovementRequest {
@@ -99,7 +107,14 @@ fn prepare_movement_request(
     let physics = env.physics;
 
     let ground_probe = if step.vertical_velocity <= 0.0 {
-        character_ground_hit(collision_world, support_shape, start_pos, passable_kinds, physics)
+        character_ground_hit(
+            collision_world,
+            support_shape,
+            start_pos,
+            passable_kinds,
+            excluded_colliders,
+            physics,
+        )
     } else {
         None
     };
@@ -179,6 +194,7 @@ struct CharacterCollisionResult {
 fn resolve_character_collision(
     step: CharacterStep,
     env: &CharacterEnvironment,
+    excluded_colliders: &[ColliderHandle],
     character_shape: &Cuboid,
     request: &MovementRequest,
 ) -> CharacterCollisionResult {
@@ -191,6 +207,7 @@ fn resolve_character_collision(
         &character_pose(&step.start, env.physics),
         request.requested_total,
         env.passable_kinds,
+        excluded_colliders,
         |collision| {
             let normal = vec3(collision.hit.normal1);
             let is_side_contact = normal.y.abs() <= 0.5;
@@ -215,6 +232,7 @@ fn resolve_character_collision(
 fn finish_character_movement(
     step: CharacterStep,
     env: &CharacterEnvironment,
+    excluded_colliders: &[ColliderHandle],
     support_shape: &Cuboid,
     request: MovementRequest,
     collision: CharacterCollisionResult,
@@ -230,6 +248,7 @@ fn finish_character_movement(
             support_shape,
             &resolved,
             env.passable_kinds,
+            excluded_colliders,
             env.physics,
         )
     } else {

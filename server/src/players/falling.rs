@@ -19,7 +19,6 @@ use common::{
 pub struct PlayerFallState {
     support: CharacterSupport,
     peak_y: f32,
-    peak_energy: f32,
 }
 
 impl Default for PlayerFallState {
@@ -27,7 +26,6 @@ impl Default for PlayerFallState {
         Self {
             support: CharacterSupport::Airborne,
             peak_y: f32::NEG_INFINITY,
-            peak_energy: 0.0,
         }
     }
 }
@@ -46,38 +44,14 @@ impl PlayerFallState {
         *self = Self::default();
     }
 
-    // Seeds the arrival energy of a fresh airborne window that starts
-    // already moving — a portal exit. A near-terminal flight between close
-    // portals lands within a single tick, before the per-tick tracker
-    // records anything, so the exit itself must.
-    pub(crate) fn seed_energy(&mut self, energy: f32) {
-        self.peak_energy = energy;
-    }
-
-    // Max of v² + 2·g·y over the current airborne window — the arrival
-    // energy. It survives the landing tick until `update` consumes it,
-    // letting portal traversal recover the exact fall speed the landing
-    // zeroed at any height.
-    #[must_use]
-    pub(crate) fn fall_energy(&self) -> f32 {
-        self.peak_energy
-    }
-
-    fn update(&mut self, y: f32, vertical_velocity: f32, gravity: f32) -> Option<FallImpact> {
+    fn update(&mut self, y: f32) -> Option<FallImpact> {
         if self.support == CharacterSupport::Airborne {
-            let downward = (-vertical_velocity).max(0.0);
             self.peak_y = self.peak_y.max(y);
-            // v² + 2gy is conserved along the flight, so portal traversal
-            // can recover the exact speed at any height. The peak speed
-            // alone lags the impact by a tick; the apex alone forgets the
-            // speed the window started with (a portal exit already moving).
-            self.peak_energy = self.peak_energy.max(downward.mul_add(downward, 2.0 * gravity * y));
             return None;
         }
 
         let impact = (self.peak_y > y).then_some(FallImpact { drop: self.peak_y - y });
         self.peak_y = f32::NEG_INFINITY;
-        self.peak_energy = 0.0;
         impact
     }
 }
@@ -196,24 +170,21 @@ pub fn players_fall_damage_system(
     server_gameplay_config: Res<ServerGameplayConfig>,
     invincibility: Res<Invincibility>,
     map_settings: Res<MapSettings>,
-    mut player_query: Query<
-        (Entity, &PlayerId, &Position, &CharacterVerticalVelocity, &mut Health),
-        With<PlayerMarker>,
-    >,
+    mut player_query: Query<(Entity, &PlayerId, &Position, &mut Health), With<PlayerMarker>>,
 ) {
     let invincible = invincibility.0;
     let fall = server_gameplay_config.combat.damage.player_fall;
     let max_health = server_gameplay_config.combat.health.player.max;
     let respawn_secs = gameplay_config.player.respawn_secs;
 
-    for (entity, id, pos, motion, mut health) in player_query.iter_mut() {
+    for (entity, id, pos, mut health) in player_query.iter_mut() {
         let Some(info) = players.get_mut(id) else { continue };
         if info.is_dead() {
             continue;
         }
 
         let fall_gravity = map_settings.gravity_for(info.has_low_gravity());
-        let Some(impact) = info.life.fall_state.update(pos.y, motion.0, fall_gravity) else {
+        let Some(impact) = info.life.fall_state.update(pos.y) else {
             continue;
         };
 
@@ -301,8 +272,8 @@ mod tests {
     fn airborne_tracking_records_the_apex() {
         let mut state = PlayerFallState::default();
 
-        assert_eq!(state.update(8.0, 4.0, 25.0), None);
-        assert_eq!(state.update(7.0, -6.0, 25.0), None);
+        assert_eq!(state.update(8.0), None);
+        assert_eq!(state.update(7.0), None);
 
         assert_eq!(state.peak_y, 8.0);
     }
@@ -314,7 +285,7 @@ mod tests {
             ..default()
         };
 
-        let impact = state.update(7.0, 4.0, 25.0);
+        let impact = state.update(7.0);
 
         assert_eq!(impact, None);
         assert_eq!(state.peak_y, 8.0);
@@ -325,10 +296,9 @@ mod tests {
         let mut state = PlayerFallState {
             support: CharacterSupport::Ground,
             peak_y: 10.0,
-            ..default()
         };
 
-        let impact = state.update(4.0, 0.0, 25.0);
+        let impact = state.update(4.0);
 
         assert_eq!(impact, Some(FallImpact { drop: 6.0 }));
         assert_eq!(state.peak_y, f32::NEG_INFINITY);
@@ -339,10 +309,9 @@ mod tests {
         let mut state = PlayerFallState {
             support: CharacterSupport::Ladder,
             peak_y: 10.0,
-            ..default()
         };
 
-        let impact = state.update(4.0, 0.0, 25.0);
+        let impact = state.update(4.0);
 
         assert_eq!(impact, Some(FallImpact { drop: 6.0 }));
         assert_eq!(state.peak_y, f32::NEG_INFINITY);
@@ -353,10 +322,9 @@ mod tests {
         let mut state = PlayerFallState {
             support: CharacterSupport::Ground,
             peak_y: 4.0,
-            ..default()
         };
 
-        let impact = state.update(4.0, 0.0, 25.0);
+        let impact = state.update(4.0);
 
         assert_eq!(impact, None);
         assert_eq!(state.peak_y, f32::NEG_INFINITY);

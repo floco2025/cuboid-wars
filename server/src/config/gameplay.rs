@@ -27,7 +27,6 @@ pub struct ServerGameplayConfig {
     pub feed: FeedConfig,
     pub combat: CombatConfig,
     pub missiles: MissilesServerConfig,
-    pub portals: PortalsServerConfig,
     pub power_ups: PowerUpsConfig,
     pub placed_items: PlacedItemsConfig,
     pub quests: Vec<Quest>,
@@ -55,7 +54,6 @@ impl ServerGameplayConfig {
         self.weather_cycle.validate("weather_cycle")?;
         self.lighting_cycle.validate("lighting_cycle")?;
         self.missiles.validate("missiles")?;
-        self.portals.validate("portals")?;
         self.scoring.validate(&self.actors, &self.quests)?;
         self.feed.validate(&self.actors)?;
         self.combat.validate(&self.actors)?;
@@ -133,22 +131,6 @@ impl MissilesServerConfig {
             bail!("{path}.missiles_per_pack must be at least 1");
         }
         Ok(())
-    }
-}
-
-// Server-only portal-gun tuning. The placement range lives in the shared
-// config (`config/common/gameplay.json` `portals` — the client predicts
-// placement); aperture geometry and traversal thresholds are fixed shared
-// constants (`common::constants` portal block).
-#[derive(Debug, Clone, Copy, Deserialize)]
-pub struct PortalsServerConfig {
-    // Per-player delay between teleports; bounds portal-pair oscillation.
-    pub teleport_cooldown_secs: f32,
-}
-
-impl PortalsServerConfig {
-    fn validate(&self, path: &str) -> Result<()> {
-        validate_non_negative_finite(self.teleport_cooldown_secs, &format!("{path}.teleport_cooldown_secs"))
     }
 }
 

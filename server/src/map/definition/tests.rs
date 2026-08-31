@@ -926,6 +926,7 @@ fn every_shipped_ladder_ascends_at_least_one_storey() {
                         passable_kinds: &[],
                         physics,
                         ladder_climb_ratio: gameplay.movement.ladder_climb_ratio,
+                        portals: None,
                     },
                 );
                 pos = step.position;

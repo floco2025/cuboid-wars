@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use common::physics::{CharacterMovePlan, PortalSet, overlapping_character};
+use common::physics::{CharacterMovePlan, overlapping_character};
 
 use super::{
     feedback::{release_collision_feedback_after_clear_frames, trigger_collision_feedback},
@@ -13,7 +13,6 @@ pub(crate) fn apply_player_moves(
     asset_server: &AssetServer,
     asset_set: &AssetSet,
     query: &mut PlayerMovementQuery,
-    portal_set: &PortalSet,
     planned_moves: &[CharacterMovePlan],
 ) {
     for planned_move in planned_moves {
@@ -38,12 +37,7 @@ pub(crate) fn apply_player_moves(
 
             if let Some(state) = feedback_state.as_mut() {
                 if planned_move.blocked {
-                    // Contact that is portal entry, not a bump: teleports are
-                    // not client-predicted, so prediction presses into the
-                    // portal's wall until the cue lands — silently.
-                    let entering_portal =
-                        portal_set.absorbs_character_contact(planned_move.target.into(), planned_move.physics);
-                    if is_local && !entering_portal {
+                    if is_local {
                         trigger_collision_feedback(commands, asset_server, asset_set, state, true);
                     }
                 } else {

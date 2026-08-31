@@ -106,6 +106,7 @@ pub(crate) fn plan_actor_moves(
                     passable_kinds: &open_barrier_kinds.0,
                     physics: actor_physics,
                     ladder_climb_ratio: gameplay_config.movement.ladder_climb_ratio,
+                    portals: None,
                 },
             );
             push_actor_planned_move(

@@ -64,6 +64,7 @@ pub fn characters_movement_system(
         &gameplay_config,
         &mut players,
         &open_barrier_kinds,
+        &portal_set,
         &mut players_query,
         &mut planned_moves,
     );
@@ -85,7 +86,6 @@ pub fn characters_movement_system(
         &asset_server,
         &asset_set,
         &mut players_query,
-        &portal_set,
         &planned_moves,
     );
     apply_actor_moves(&mut actors_query, &planned_moves);

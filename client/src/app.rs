@@ -134,6 +134,13 @@ pub fn build_client_app(
             ),
         );
 
+    app.add_systems(
+        FixedUpdate,
+        crate::portals::local_player_portal_prediction_system
+            .after(crate::characters::characters_movement_system)
+            .before(crate::characters::knockback_decay_system),
+    );
+
     configure_client_sets(&mut app);
     app.add_plugins((
         input_plugin,

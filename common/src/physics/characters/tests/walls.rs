@@ -21,6 +21,7 @@ fn player_hits_wall_collider_from_collision_world() {
             passable_kinds: &[],
             ladder_climb_ratio: test_ladders(),
             physics: player_physics(),
+            portals: None,
         },
     );
 
@@ -48,6 +49,7 @@ fn repeated_wall_pressure_does_not_leak_through_wall() {
             passable_kinds: &[],
             ladder_climb_ratio: test_ladders(),
             physics: player_physics(),
+            portals: None,
         },
     );
     let second = step_character_movement(
@@ -58,6 +60,7 @@ fn repeated_wall_pressure_does_not_leak_through_wall() {
             passable_kinds: &[],
             ladder_climb_ratio: test_ladders(),
             physics: player_physics(),
+            portals: None,
         },
     );
 
@@ -86,6 +89,7 @@ fn player_slides_along_wall_under_pressure() {
             passable_kinds: &[],
             ladder_climb_ratio: test_ladders(),
             physics: player_physics(),
+            portals: None,
         },
     );
     let second = step_character_movement(
@@ -96,6 +100,7 @@ fn player_slides_along_wall_under_pressure() {
             passable_kinds: &[],
             ladder_climb_ratio: test_ladders(),
             physics: player_physics(),
+            portals: None,
         },
     );
 
@@ -124,6 +129,7 @@ fn falling_player_pushing_into_wall_keeps_falling() {
             passable_kinds: &[],
             ladder_climb_ratio: test_ladders(),
             physics: player_physics(),
+            portals: None,
         },
     );
 
@@ -153,6 +159,7 @@ fn diagonal_wall_hit_slides_in_same_step() {
             passable_kinds: &[],
             ladder_climb_ratio: test_ladders(),
             physics: player_physics(),
+            portals: None,
         },
     );
 
@@ -197,6 +204,7 @@ fn repeated_diagonal_wall_pressure_keeps_sliding() {
                 passable_kinds: &[],
                 ladder_climb_ratio: test_ladders(),
                 physics: player_physics(),
+                portals: None,
             },
         );
         pos = step.position;
@@ -225,6 +233,7 @@ fn diagonal_wall_end_hit_slides_along_wall() {
             passable_kinds: &[],
             ladder_climb_ratio: test_ladders(),
             physics: player_physics(),
+            portals: None,
         },
     );
 

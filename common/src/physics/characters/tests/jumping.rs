@@ -42,6 +42,7 @@ fn upward_jump_velocity_moves_player_above_support() {
             passable_kinds: &[],
             ladder_climb_ratio: test_ladders(),
             physics: player_physics(),
+            portals: None,
         },
     );
 
@@ -64,6 +65,7 @@ fn landing_reports_ground_support() {
             passable_kinds: &[],
             ladder_climb_ratio: test_ladders(),
             physics: player_physics(),
+            portals: None,
         },
     );
 
@@ -86,6 +88,7 @@ fn upward_motion_hits_floor_underside() {
             passable_kinds: &[],
             ladder_climb_ratio: test_ladders(),
             physics: player_physics(),
+            portals: None,
         },
     );
 
@@ -109,6 +112,7 @@ fn initial_ceiling_contact_does_not_cancel_horizontal_movement() {
             passable_kinds: &[],
             ladder_climb_ratio: test_ladders(),
             physics: player_physics(),
+            portals: None,
         },
     );
 
@@ -133,6 +137,7 @@ fn upward_motion_ignores_floor_underside_outside_footprint() {
             passable_kinds: &[],
             ladder_climb_ratio: test_ladders(),
             physics: player_physics(),
+            portals: None,
         },
     );
 
@@ -159,6 +164,7 @@ fn upward_motion_under_floor_edge_hits_floor_side() {
             passable_kinds: &[],
             ladder_climb_ratio: test_ladders(),
             physics: player_physics(),
+            portals: None,
         },
     );
 
@@ -185,6 +191,7 @@ fn player_on_floor_top_can_move_over_adjacent_floor_slab_edge() {
             passable_kinds: &[],
             ladder_climb_ratio: test_ladders(),
             physics: player_physics(),
+            portals: None,
         },
     );
 

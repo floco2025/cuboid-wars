@@ -29,6 +29,7 @@ fn edge_overhang_slides_off_and_falls() {
                 passable_kinds: &[],
                 ladder_climb_ratio: test_ladders(),
                 physics,
+                portals: None,
             },
         );
         pos = step.position;
@@ -77,6 +78,7 @@ fn probe_grounded_near_edge_does_not_slide() {
                 passable_kinds: &[],
                 ladder_climb_ratio: test_ladders(),
                 physics,
+                portals: None,
             },
         );
         pos = step.position;
@@ -116,6 +118,7 @@ fn input_overrides_perch_slide() {
                 passable_kinds: &[],
                 ladder_climb_ratio: test_ladders(),
                 physics,
+                portals: None,
             },
         );
         pos = step.position;
@@ -163,6 +166,7 @@ fn blocked_slide_keeps_velocity_zeroed() {
                 passable_kinds: &[],
                 ladder_climb_ratio: test_ladders(),
                 physics,
+                portals: None,
             },
         );
         pos = step.position;

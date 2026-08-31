@@ -7,7 +7,8 @@ use rapier3d::{
         shape::{Ball, Cuboid},
     },
     prelude::{
-        BroadPhaseBvh, ColliderSet, Group, IntegrationParameters, NarrowPhase, Pose, Ray, RigidBodySet, Shape, Vector,
+        BroadPhaseBvh, ColliderHandle, ColliderSet, Group, IntegrationParameters, NarrowPhase, Pose, Ray, RigidBodySet,
+        Shape, Vector,
     },
 };
 
@@ -135,13 +136,22 @@ impl CollisionWorld {
         character_pos: &Pose,
         desired_translation: Vector,
         passable_kinds: &[BarrierKindId],
+        excluded_colliders: &[ColliderHandle],
         events: impl FnMut(CharacterCollision),
     ) -> EffectiveCharacterMovement {
+        // Portal transit: the aperture's backing colliders stop existing for
+        // a body overlapping the aperture, which is what lets it pass
+        // through the surface.
+        let allow = |handle: ColliderHandle, _: &rapier3d::prelude::Collider| !excluded_colliders.contains(&handle);
+        let mut filter = query_filter(character_collision_groups(passable_kinds, self.all_barrier_groups));
+        if !excluded_colliders.is_empty() {
+            filter.predicate = Some(&allow);
+        }
         let query_pipeline = self.broad_phase.as_query_pipeline(
             self.narrow_phase.query_dispatcher(),
             &self.bodies,
             &self.colliders,
-            query_filter(character_collision_groups(passable_kinds, self.all_barrier_groups)),
+            filter,
         );
         controller.move_shape(
             dt,
@@ -293,12 +303,18 @@ impl CollisionWorld {
         max_distance: f32,
         target_distance: f32,
         passable_kinds: &[BarrierKindId],
+        excluded_colliders: &[ColliderHandle],
     ) -> Option<ShapeCastHit> {
+        let allow = |handle: ColliderHandle, _: &rapier3d::prelude::Collider| !excluded_colliders.contains(&handle);
+        let mut filter = query_filter(character_collision_groups(passable_kinds, self.all_barrier_groups));
+        if !excluded_colliders.is_empty() {
+            filter.predicate = Some(&allow);
+        }
         let query_pipeline = self.broad_phase.as_query_pipeline(
             self.narrow_phase.query_dispatcher(),
             &self.bodies,
             &self.colliders,
-            query_filter(character_collision_groups(passable_kinds, self.all_barrier_groups)),
+            filter,
         );
         let options = ShapeCastOptions {
             max_time_of_impact: max_distance,
@@ -339,6 +355,34 @@ impl CollisionWorld {
     #[must_use]
     pub fn ball_overlaps_world(&self, position: Vec3, radius: f32) -> bool {
         self.ball_overlaps_groups(position, radius, world_collision_groups())
+    }
+
+    // The wall/floor/ramp colliders an oriented cuboid overlaps. Portal
+    // rebuilds collect each aperture's backing this way; both sides derive
+    // it from the same static world, so the sets agree.
+    #[must_use]
+    pub(crate) fn colliders_overlapping_oriented_cuboid(
+        &self,
+        center: Vec3,
+        half_extents: Vec3,
+        rotation: Quat,
+    ) -> Vec<ColliderHandle> {
+        let query_pipeline = self.broad_phase.as_query_pipeline(
+            self.narrow_phase.query_dispatcher(),
+            &self.bodies,
+            &self.colliders,
+            query_filter(world_collision_groups()),
+        );
+        let shape = Cuboid::new(Vector::new(half_extents.x, half_extents.y, half_extents.z));
+        let axis_angle = rotation.to_scaled_axis();
+        let pose = Pose::new(
+            Vector::new(center.x, center.y, center.z),
+            Vector::new(axis_angle.x, axis_angle.y, axis_angle.z),
+        );
+        query_pipeline
+            .intersect_shape(pose, &shape)
+            .map(|(handle, _)| handle)
+            .collect()
     }
 
     // Whether an oriented cuboid overlaps any wall/floor/ramp. Portal
