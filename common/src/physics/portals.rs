@@ -5,8 +5,10 @@ use super::CollisionWorld;
 use crate::{
     config::CharacterPhysicsConfig,
     constants::{
-        LEVEL_HEIGHT, PORTAL_FIXTURE_PLANE_DEPTH, PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH, PORTAL_LIGHT_CLEARANCE,
-        PORTAL_PLATE_CLEARANCE, PORTAL_PROJECTILE_EXIT_STANDOFF, PORTAL_STANDABLE_NORMAL_Y, PORTAL_UP_DEGENERACY_LIMIT,
+        LEVEL_HEIGHT, PORTAL_FIXTURE_PLANE_DEPTH, PORTAL_FUNNEL_CAPTURE_MARGIN, PORTAL_FUNNEL_GAIN,
+        PORTAL_FUNNEL_MAX_SPEED, PORTAL_FUNNEL_MIN_APPROACH, PORTAL_FUNNEL_RELEASE_SPEED, PORTAL_HALF_HEIGHT,
+        PORTAL_HALF_WIDTH, PORTAL_LIGHT_CLEARANCE, PORTAL_PLATE_CLEARANCE, PORTAL_PROJECTILE_EXIT_STANDOFF,
+        PORTAL_STANDABLE_NORMAL_Y, PORTAL_UP_DEGENERACY_LIMIT,
     },
     math::direction_from_yaw_pitch,
     protocol::{MapLayout, Portal, PortalEnd},
@@ -56,12 +58,14 @@ impl PortalFrame {
     }
 }
 
-// Where a validated portal shot lands: the aperture center and outward
-// surface normal.
+// Where a validated portal shot lands: the aperture center, outward surface
+// normal, and the frame yaw (the shooter's, quarter-turn-snapped on
+// vertical-normal surfaces).
 #[derive(Debug, Clone, Copy)]
 pub struct PortalPlacement {
     pub pos: Vec3,
     pub normal: Vec3,
+    pub yaw: f32,
 }
 
 // The one placement path, shared verbatim: the client runs it to decide fire
@@ -77,14 +81,30 @@ pub fn compute_portal_placement(
     map_layout: &MapLayout,
 ) -> Option<PortalPlacement> {
     let hit = collision_world.world_surface_along_ray(origin, direction, range)?;
+    let yaw = portal_placement_yaw(hit.normal, yaw);
     let frame = PortalFrame::from_surface(hit.point, hit.normal, yaw);
-    if portal_fits(&frame, collision_world, map_layout) {
-        return Some(PortalPlacement {
-            pos: hit.point,
-            normal: hit.normal,
-        });
+    let pos = if portal_fits(&frame, collision_world, map_layout) {
+        hit.point
+    } else {
+        nudged_center(&frame, collision_world, map_layout)?
+    };
+    Some(PortalPlacement {
+        pos,
+        normal: hit.normal,
+        yaw,
+    })
+}
+
+// Vertical portals take their in-plane up from the shooter's yaw; snapping
+// it to quarter turns keeps a hand-placed floor/ceiling pair from
+// precessing the mapped offset — and the traveler's view — a little on
+// every pass of a fall loop. Wall yaws pass through: their frames ignore it.
+fn portal_placement_yaw(normal: Vec3, face_yaw: f32) -> f32 {
+    if normal.normalize().y.abs() < PORTAL_UP_DEGENERACY_LIMIT {
+        face_yaw
+    } else {
+        (face_yaw / std::f32::consts::FRAC_PI_2).round() * std::f32::consts::FRAC_PI_2
     }
-    nudged_placement(&frame, collision_world, map_layout)
 }
 
 // Portal-2-style placement bump: an aperture that doesn't fit where the
@@ -95,11 +115,7 @@ const NUDGE_STEP: f32 = 0.25;
 const NUDGE_MAX_DISTANCE: f32 = 1.5;
 const NUDGE_DIRECTIONS: usize = 16;
 
-fn nudged_placement(
-    frame: &PortalFrame,
-    collision_world: &CollisionWorld,
-    map_layout: &MapLayout,
-) -> Option<PortalPlacement> {
+fn nudged_center(frame: &PortalFrame, collision_world: &CollisionWorld, map_layout: &MapLayout) -> Option<Vec3> {
     let steps = (NUDGE_MAX_DISTANCE / NUDGE_STEP) as usize;
     for step in 1..=steps {
         let radius = step as f32 * NUDGE_STEP;
@@ -109,10 +125,7 @@ fn nudged_placement(
             let center = frame.center + frame.right * (radius * angle.cos()) + frame.up * (radius * angle.sin());
             let candidate = PortalFrame { center, ..*frame };
             if portal_fits(&candidate, collision_world, map_layout) {
-                return Some(PortalPlacement {
-                    pos: center,
-                    normal: frame.normal,
-                });
+                return Some(center);
             }
         }
     }
@@ -427,6 +440,61 @@ impl PortalSet {
             });
         }
         None
+    }
+
+    // Portal-2-style funneling: the horizontal pull toward the axis of a
+    // vertical-normal aperture the body is flying toward. The pull grows
+    // with the lateral offset, captures a little beyond the aperture rect
+    // (so a near-miss is gathered in), and disengages the moment the
+    // player steers — escaping a fall chain stays deliberate.
+    #[must_use]
+    pub fn funnel_displacement(
+        &self,
+        origin: Vec3,
+        physics: CharacterPhysicsConfig,
+        control_velocity: Vec3,
+        vertical_velocity: f32,
+        delta: f32,
+    ) -> Vec3 {
+        if self.pairs.is_empty() {
+            return Vec3::ZERO;
+        }
+        let steering = Vec3::new(control_velocity.x, 0.0, control_velocity.z).length() > PORTAL_FUNNEL_RELEASE_SPEED;
+        if steering {
+            return Vec3::ZERO;
+        }
+        let half_extents = body_half_extents(physics);
+        let center = origin + Vec3::Y * half_extents.y;
+        for (gate, _) in self.gates() {
+            let normal = gate.frame.normal;
+            if normal.y.abs() <= PORTAL_STANDABLE_NORMAL_Y {
+                continue;
+            }
+            let approaching = if normal.y > 0.0 {
+                vertical_velocity < -PORTAL_FUNNEL_MIN_APPROACH
+            } else {
+                vertical_velocity > PORTAL_FUNNEL_MIN_APPROACH
+            };
+            if !approaching {
+                continue;
+            }
+            let offset = center - gate.frame.center;
+            if offset.dot(normal) <= 0.0 {
+                continue;
+            }
+            let captured = offset.dot(gate.frame.right).abs() <= PORTAL_HALF_WIDTH + PORTAL_FUNNEL_CAPTURE_MARGIN
+                && offset.dot(gate.frame.up).abs() <= PORTAL_HALF_HEIGHT + PORTAL_FUNNEL_CAPTURE_MARGIN;
+            if !captured {
+                continue;
+            }
+            let lateral = Vec3::new(offset.x, 0.0, offset.z);
+            let Some(direction) = lateral.try_normalize() else {
+                continue;
+            };
+            let speed = (lateral.length() * PORTAL_FUNNEL_GAIN).min(PORTAL_FUNNEL_MAX_SPEED);
+            return -direction * speed * delta;
+        }
+        Vec3::ZERO
     }
 
     // First portal plane the swept ball touches from the front this tick,
@@ -1304,5 +1372,141 @@ mod tests {
             CAP,
         );
         assert!(hop.is_none());
+    }
+
+    #[test]
+    fn vertical_placement_yaw_snaps_to_quarter_turns() {
+        let layout = placement_layout();
+        let floor =
+            place(&layout, Vec3::new(-3.0, 1.6, 3.0), Vec3::new(-3.0, 0.0, 3.0), 1.0).expect("floor shot rejected");
+        assert!((floor.yaw - std::f32::consts::FRAC_PI_2).abs() < 1e-4);
+        let wall = place(&layout, Vec3::new(0.0, 1.6, 3.0), Vec3::new(0.0, 1.6, 0.0), 1.0).expect("wall shot rejected");
+        assert!((wall.yaw - 1.0).abs() < 1e-4);
+    }
+
+    #[test]
+    fn falling_toward_a_floor_portal_funnels_toward_its_axis() {
+        let set = pair(
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::Y,
+            Vec3::new(10.0, 4.0, 10.0),
+            Vec3::NEG_Y,
+        );
+        let pull = set.funnel_displacement(Vec3::new(0.5, 2.0, -0.3), player_physics(), Vec3::ZERO, -10.0, 0.1);
+        assert!(pull.x < 0.0, "pull should point back toward the axis: {pull:?}");
+        assert!(pull.z > 0.0, "pull should point back toward the axis: {pull:?}");
+        assert!(pull.y == 0.0);
+    }
+
+    #[test]
+    fn steering_disengages_the_funnel() {
+        let set = pair(
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::Y,
+            Vec3::new(10.0, 4.0, 10.0),
+            Vec3::NEG_Y,
+        );
+        let pull = set.funnel_displacement(
+            Vec3::new(0.5, 2.0, 0.0),
+            player_physics(),
+            Vec3::new(6.0, 0.0, 0.0),
+            -10.0,
+            0.1,
+        );
+        assert_eq!(pull, Vec3::ZERO);
+    }
+
+    #[test]
+    fn rising_away_from_a_floor_portal_is_not_funneled() {
+        let set = pair(
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::Y,
+            Vec3::new(10.0, 4.0, 10.0),
+            Vec3::NEG_Y,
+        );
+        let pull = set.funnel_displacement(Vec3::new(0.5, 2.0, 0.0), player_physics(), Vec3::ZERO, 10.0, 0.1);
+        assert_eq!(pull, Vec3::ZERO);
+    }
+
+    #[test]
+    fn wall_portals_never_funnel() {
+        let set = pair(Vec3::new(0.0, 1.6, 0.0), Vec3::Z, Vec3::new(10.0, 1.0, 10.0), Vec3::X);
+        let pull = set.funnel_displacement(Vec3::new(0.3, 0.0, 1.0), player_physics(), Vec3::ZERO, -10.0, 0.1);
+        assert_eq!(pull, Vec3::ZERO);
+    }
+
+    // The user-facing promise of funneling: a hand-placed floor/ceiling pair
+    // with realistic misalignment loops indefinitely hands-off.
+    #[test]
+    fn misaligned_fall_loop_is_sustained_by_funneling() {
+        use crate::constants::TICK_SECS;
+        use crate::physics::{CharacterEnvironment, CharacterStep, step_character_movement};
+
+        let gameplay = GameplayConfig::load_default().expect("default gameplay config should load");
+        let physics = gameplay.player.physics();
+        let layout = MapLayout {
+            floors: vec![Floor {
+                x1: -10.0,
+                z1: -10.0,
+                x2: 10.0,
+                z2: 10.0,
+                y: 0.0,
+                thickness: FLOOR_THICKNESS,
+                level: 0,
+            }],
+            ..Default::default()
+        };
+        let world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
+        let set = PortalSet::rebuild(
+            &[
+                portal(PortalEnd::A, Vec3::new(0.0, 0.0, 0.0), Vec3::Y, 0.0),
+                portal(PortalEnd::B, Vec3::new(0.4, 4.0, 0.3), Vec3::NEG_Y, 0.0),
+            ],
+            &world,
+        );
+        let env = CharacterEnvironment {
+            collision_world: &world,
+            gravity: 25.0,
+            passable_kinds: &[],
+            physics,
+            ladder_climb_ratio: gameplay.movement.ladder_climb_ratio,
+            portals: Some(&set),
+        };
+
+        let mut pos = crate::protocol::Position { x: 0.0, y: 3.0, z: 0.0 };
+        let mut vertical_velocity = 0.0_f32;
+        let mut hops = 0;
+
+        for _ in 0..(30 * 12) {
+            let from = pos;
+            let result = step_character_movement(
+                CharacterStep {
+                    start: pos,
+                    vertical_velocity,
+                    control_velocity: Vec3::ZERO,
+                    external_displacement: Vec3::ZERO,
+                    delta: TICK_SECS,
+                },
+                &env,
+            );
+            pos = result.position;
+            vertical_velocity = result.vertical_velocity;
+            if let Some(hop) = set.character_hop(
+                Vec3::from(from),
+                Vec3::from(pos),
+                physics,
+                Vec3::ZERO,
+                Vec3::ZERO,
+                vertical_velocity,
+                0.0,
+                22.5,
+            ) {
+                pos = hop.origin.into();
+                vertical_velocity = hop.vertical_velocity;
+                hops += 1;
+            }
+        }
+
+        assert!(hops >= 15, "misaligned loop died after {hops} hops at {pos:?}");
     }
 }

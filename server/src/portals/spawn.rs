@@ -45,16 +45,16 @@ pub fn handle_portal_shot_message(
     ) else {
         return;
     };
-    let portal = portal_from_placement(&placement, id, msg.end, msg.face_yaw);
+    let portal = portal_from_placement(&placement, id, msg.end);
     portals.set(portal);
     *portal_set = portals.rebuild_set(collision_world);
     broadcast_to_all(players, ServerMessage::PortalOpened(SPortalOpened { portal }));
 }
 
-// Pure geometry: the aperture sits at the hit point with the surface's
-// outward normal; the shooter's yaw rides along to orient the frame where
-// world-up degenerates (near-vertical normals).
-fn portal_from_placement(placement: &PortalPlacement, owner: PlayerId, end: PortalEnd, face_yaw: f32) -> Portal {
+// Pure geometry: the aperture sits at the placed point with the surface's
+// outward normal; the placement yaw (the shooter's, quarter-turn-snapped on
+// vertical surfaces) orients the frame where world-up degenerates.
+fn portal_from_placement(placement: &PortalPlacement, owner: PlayerId, end: PortalEnd) -> Portal {
     Portal {
         owner,
         end,
@@ -62,7 +62,7 @@ fn portal_from_placement(placement: &PortalPlacement, owner: PlayerId, end: Port
         nx: placement.normal.x,
         ny: placement.normal.y,
         nz: placement.normal.z,
-        yaw: face_yaw,
+        yaw: placement.yaw,
     }
 }
 
@@ -75,8 +75,9 @@ mod tests {
         let placement = PortalPlacement {
             pos: Vec3::new(1.0, 2.0, 3.0),
             normal: Vec3::NEG_X,
+            yaw: 1.25,
         };
-        let portal = portal_from_placement(&placement, PlayerId(7), PortalEnd::B, 1.25);
+        let portal = portal_from_placement(&placement, PlayerId(7), PortalEnd::B);
         assert_eq!(Vec3::from(portal.pos), placement.pos);
         assert_eq!(Vec3::new(portal.nx, portal.ny, portal.nz), placement.normal);
         assert_eq!(portal.owner, PlayerId(7));
