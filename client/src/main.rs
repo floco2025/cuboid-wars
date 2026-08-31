@@ -33,8 +33,8 @@ struct Args {
     #[arg(long, default_value = "800")]
     window_height: u32,
 
-    #[arg(long, default_value = "1.0")]
-    volume: f32,
+    #[arg(long)]
+    volume: Option<f32>,
 }
 
 fn main() -> Result<()> {

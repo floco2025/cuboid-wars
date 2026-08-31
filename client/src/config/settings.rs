@@ -220,7 +220,7 @@ impl ClientSettings {
         serde_json::from_str(&text).map_err(|e| anyhow::anyhow!("failed to parse {}: {e}", path.display()))
     }
 
-    fn validate(&self) -> Result<()> {
+    pub(crate) fn validate(&self) -> Result<()> {
         self.rendering.validate()?;
         self.camera.validate()?;
         self.input.validate()?;

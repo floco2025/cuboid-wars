@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use bevy::{
     pbr::DefaultOpaqueRendererMethod,
     prelude::*,
-    window::{CursorGrabMode, CursorOptions, PresentMode, WindowPlugin, WindowPosition},
+    window::{CursorGrabMode, CursorOptions, MonitorSelection, PresentMode, WindowMode, WindowPlugin, WindowPosition},
 };
 
 use crate::{
@@ -11,7 +11,7 @@ use crate::{
     cameras::{CameraViewMode, TopDownCameraYaw, setup_cameras_system},
     characters::MaxHealth,
     characters::{character_sync_plugin, prediction_plugin},
-    config::{AssetSet, ClientSettings, OpaqueRenderer},
+    config::{AssetSet, ClientSettings, LocalSettings, OpaqueRenderer},
     input::input_plugin,
     items::{ItemMap, setup_item_assets},
     map::{DebugColors, LevelFocusEnabled, map_plugin, setup_scene_lighting_system, sky_weather_plugin},
@@ -31,7 +31,7 @@ pub struct ClientAppOptions {
     pub window_y: Option<i32>,
     pub window_width: u32,
     pub window_height: u32,
-    pub volume: f32,
+    pub volume: Option<f32>,
 }
 
 pub fn build_client_app(
@@ -40,7 +40,17 @@ pub fn build_client_app(
     from_server: ServerToClientChannel,
 ) -> Result<App> {
     let asset_set = AssetSet::load_default()?;
-    let client_settings = ClientSettings::load_default()?;
+    let mut client_settings = ClientSettings::load_default()?;
+    let local_settings = LocalSettings::load();
+    if let Some(local) = &local_settings {
+        local.apply_to(&mut client_settings);
+        if let Err(error) = client_settings.validate() {
+            // Pre-logger, so straight to stderr like the loader's warnings.
+            eprintln!("warning: ignoring client_local.json: {error}");
+            client_settings = ClientSettings::load_default()?;
+        }
+    }
+    let start_fullscreen = local_settings.as_ref().is_some_and(|local| local.fullscreen);
     let gameplay_config = GameplayConfig::load_default()?;
     let barrier_kind_table = BarrierKindTable::from_ids(gameplay_config.barrier_kinds.clone())
         .context("failed to build BarrierKindTable from gameplay.json barrier_kinds")?;
@@ -48,11 +58,11 @@ pub fn build_client_app(
 
     let mipmaps = client_settings.rendering.mipmaps;
     let mut app = App::new();
-    app.add_plugins(
-        DefaultPlugins
-            .set(asset_plugin())
-            .set(window_plugin(&options, client_settings.rendering.vsync)),
-    );
+    app.add_plugins(DefaultPlugins.set(asset_plugin()).set(window_plugin(
+        &options,
+        client_settings.rendering.vsync,
+        start_fullscreen,
+    )));
     app.add_plugins(GrassMaterialPlugin);
     app.insert_resource(match client_settings.rendering.opaque_renderer {
         OpaqueRenderer::Auto => DefaultOpaqueRendererMethod::default(),
@@ -61,8 +71,13 @@ pub fn build_client_app(
     });
 
     app.insert_resource(Time::<Fixed>::from_hz(f64::from(TICK_HZ)));
+    // Master volume precedence: CLI flag, then the saved settings, then 1.0.
+    let volume = options
+        .volume
+        .or(local_settings.as_ref().map(|local| local.master_volume))
+        .unwrap_or(1.0);
     app.insert_resource(bevy::audio::GlobalVolume::new(bevy::audio::Volume::Linear(
-        options.volume.max(0.0),
+        volume.max(0.0),
     )));
 
     app.insert_resource(to_server)
@@ -142,7 +157,7 @@ fn asset_plugin() -> AssetPlugin {
     }
 }
 
-fn window_plugin(options: &ClientAppOptions, vsync: bool) -> WindowPlugin {
+fn window_plugin(options: &ClientAppOptions, vsync: bool, fullscreen: bool) -> WindowPlugin {
     let position = match (options.window_x, options.window_y) {
         (Some(x), Some(y)) => WindowPosition::At(IVec2::new(x, y)),
         _ => WindowPosition::Automatic,
@@ -152,6 +167,11 @@ fn window_plugin(options: &ClientAppOptions, vsync: bool) -> WindowPlugin {
             title: "Cuboid Wars".to_string(),
             resolution: (options.window_width, options.window_height).into(),
             position,
+            mode: if fullscreen {
+                WindowMode::BorderlessFullscreen(MonitorSelection::Current)
+            } else {
+                WindowMode::Windowed
+            },
             present_mode: if vsync {
                 PresentMode::Fifo
             } else {
@@ -178,20 +198,20 @@ mod tests {
             window_y,
             window_width: 1200,
             window_height: 800,
-            volume: 1.0,
+            volume: None,
         }
     }
 
     #[test]
     fn window_position_requires_both_coordinates() {
-        let plugin = window_plugin(&options(Some(10), None), true);
+        let plugin = window_plugin(&options(Some(10), None), true, false);
         let window = plugin.primary_window.expect("primary window should be configured");
         assert_eq!(window.position, WindowPosition::Automatic);
     }
 
     #[test]
     fn window_position_uses_both_coordinates() {
-        let plugin = window_plugin(&options(Some(10), Some(20)), true);
+        let plugin = window_plugin(&options(Some(10), Some(20)), true, false);
         let window = plugin.primary_window.expect("primary window should be configured");
         assert_eq!(window.position, WindowPosition::At(IVec2::new(10, 20)));
     }

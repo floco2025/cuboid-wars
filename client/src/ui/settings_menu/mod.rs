@@ -1,4 +1,5 @@
 mod observers;
+mod persist;
 mod plugin;
 mod spawn;
 mod state;

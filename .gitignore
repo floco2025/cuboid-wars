@@ -15,3 +15,6 @@ __pycache__
 
 # Per-user Claude Code state (permission decisions, etc.)
 .claude
+
+# Per-user settings saved by the in-game menu
+config/client/client_local.json
