@@ -1,4 +1,5 @@
 mod commit;
+mod cursor;
 mod missiles;
 mod movement;
 mod portals;
@@ -6,6 +7,7 @@ mod shooting;
 mod toggles;
 
 pub use commit::commit_player_input_system;
+pub use cursor::input_cursor_capture_system;
 pub use missiles::input_missile_system;
 pub use movement::{MAX_PITCH, input_movement_system};
 pub use portals::{WeaponMode, input_portal_system, input_weapon_toggle_system};

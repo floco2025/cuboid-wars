@@ -1,4 +1,4 @@
-use std::{fs, path::Path, path::PathBuf};
+use std::{fs, io::Write, path::Path, path::PathBuf};
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
@@ -11,7 +11,7 @@ pub const LOCAL_SETTINGS_VERSION: u32 = 4;
 // `client.json` at startup. The file is not in git, so a format change
 // cannot reach it through `git pull`: a `version` mismatch discards the file
 // (no migration), and the next menu close rewrites it.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LocalSettings {
     pub version: u32,
     pub fullscreen: bool,
@@ -68,7 +68,17 @@ impl LocalSettings {
 
     fn save_to_path(&self, path: &Path) -> Result<()> {
         let text = serde_json::to_string_pretty(self).context("failed to serialize local settings")?;
-        fs::write(path, text).with_context(|| format!("failed to write {}", path.display()))?;
+        let parent = path.parent().context("local settings path has no parent directory")?;
+        let mut file = tempfile::NamedTempFile::new_in(parent)
+            .with_context(|| format!("failed to create temporary settings file in {}", parent.display()))?;
+        file.write_all(text.as_bytes())
+            .context("failed to write temporary settings file")?;
+        file.as_file()
+            .sync_all()
+            .context("failed to sync temporary settings file")?;
+        file.persist(path)
+            .map_err(|error| error.error)
+            .with_context(|| format!("failed to replace {}", path.display()))?;
         Ok(())
     }
 
@@ -114,7 +124,20 @@ mod tests {
         let saved = sample();
         saved.save_to_path(&path).expect("local settings failed to save");
         let loaded = LocalSettings::load_from_path(&path).expect("saved local settings failed to load");
-        assert_eq!(format!("{saved:?}"), format!("{loaded:?}"));
+        assert_eq!(saved, loaded);
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn local_settings_save_replaces_existing_file() {
+        let path = std::env::temp_dir().join(format!("cuboid_local_replace_{}.json", std::process::id()));
+        std::fs::write(&path, "incomplete").expect("existing settings fixture failed to write");
+        let saved = sample();
+
+        saved.save_to_path(&path).expect("local settings failed to replace");
+
+        let loaded = LocalSettings::load_from_path(&path).expect("replaced local settings failed to load");
+        assert_eq!(saved, loaded);
         std::fs::remove_file(&path).ok();
     }
 

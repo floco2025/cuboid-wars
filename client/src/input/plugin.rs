@@ -22,6 +22,9 @@ pub fn input_plugin(app: &mut App) {
                 input_shooting_system.after(input_movement_system),
                 input_missile_system.after(input_movement_system),
                 input_portal_system.after(input_movement_system),
+                input_cursor_capture_system
+                    .after(input_shooting_system)
+                    .after(input_portal_system),
                 input_weapon_toggle_system,
                 input_camera_view_toggle_system,
                 input_level_focus_toggle_system,
