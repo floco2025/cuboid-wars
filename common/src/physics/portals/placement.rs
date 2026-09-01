@@ -1,0 +1,196 @@
+use bevy_math::{Mat3, Quat, Vec3};
+use rapier3d::{
+    parry::{query::intersection_test, shape::Cuboid},
+    prelude::{Pose, Vector},
+};
+
+use super::PortalFrame;
+use crate::{
+    constants::{
+        LEVEL_HEIGHT, PORTAL_FIXTURE_PLANE_DEPTH, PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH, PORTAL_LIGHT_CLEARANCE,
+        PORTAL_PLATE_CLEARANCE, PORTAL_STANDABLE_NORMAL_Y, PORTAL_UP_DEGENERACY_LIMIT,
+    },
+    physics::CollisionWorld,
+    protocol::{MapLayout, PlayerId, Portal, PortalEnd},
+};
+
+// Where a validated portal shot lands: the aperture center, outward surface
+// normal, and the frame yaw (the shooter's, quarter-turn-snapped on
+// vertical-normal surfaces).
+#[derive(Debug, Clone, Copy)]
+pub struct PortalPlacement {
+    pub pos: Vec3,
+    pub normal: Vec3,
+    pub yaw: f32,
+}
+
+// The one placement path, shared verbatim: the client runs it to decide fire
+// vs dry-fire before sending, the server to authoritatively place. Same
+// static inputs (map geometry, fixtures), so both reach the same answer.
+#[must_use]
+pub fn compute_portal_placement(
+    origin: Vec3,
+    direction: Vec3,
+    yaw: f32,
+    range: f32,
+    collision_world: &CollisionWorld,
+    map_layout: &MapLayout,
+) -> Option<PortalPlacement> {
+    let hit = collision_world.world_surface_along_ray(origin, direction, range)?;
+    let yaw = portal_placement_yaw(hit.normal, yaw);
+    let frame = PortalFrame::from_surface(hit.point, hit.normal, yaw);
+    let pos = if portal_fits(&frame, collision_world, map_layout) {
+        hit.point
+    } else {
+        nudged_center(&frame, collision_world, map_layout)?
+    };
+    Some(PortalPlacement {
+        pos,
+        normal: hit.normal,
+        yaw,
+    })
+}
+
+// Vertical portals take their in-plane up from the shooter's yaw; snapping
+// it to quarter turns keeps a hand-placed floor/ceiling pair from
+// precessing the mapped offset — and the traveler's view — a little on
+// every pass of a fall loop. Wall yaws pass through: their frames ignore it.
+fn portal_placement_yaw(normal: Vec3, face_yaw: f32) -> f32 {
+    if normal.normalize().y.abs() < PORTAL_UP_DEGENERACY_LIMIT {
+        face_yaw
+    } else {
+        (face_yaw / std::f32::consts::FRAC_PI_2).round() * std::f32::consts::FRAC_PI_2
+    }
+}
+
+// Portal-2-style placement bump: an aperture that doesn't fit where the
+// shot lands slides along the surface plane to the nearest nearby spot that
+// does (nearest ring first, straight up tried first within each ring); only
+// when nothing within reach fits does the shot fizzle.
+const NUDGE_STEP: f32 = 0.25;
+const NUDGE_MAX_DISTANCE: f32 = 1.5;
+const NUDGE_DIRECTIONS: usize = 16;
+
+fn nudged_center(frame: &PortalFrame, collision_world: &CollisionWorld, map_layout: &MapLayout) -> Option<Vec3> {
+    let steps = (NUDGE_MAX_DISTANCE / NUDGE_STEP) as usize;
+    for step in 1..=steps {
+        let radius = step as f32 * NUDGE_STEP;
+        for direction in 0..NUDGE_DIRECTIONS {
+            let angle =
+                std::f32::consts::FRAC_PI_2 + direction as f32 / NUDGE_DIRECTIONS as f32 * std::f32::consts::TAU;
+            let center = frame.center + frame.right * (radius * angle.cos()) + frame.up * (radius * angle.sin());
+            let candidate = PortalFrame { center, ..*frame };
+            if portal_fits(&candidate, collision_world, map_layout) {
+                return Some(center);
+            }
+        }
+    }
+    None
+}
+
+// Probe ball for the fit test and its standoff from the aperture plane.
+const FIT_SAMPLE_RADIUS: f32 = 0.1;
+const FIT_SAMPLE_OFFSET: f32 = FIT_SAMPLE_RADIUS + 0.03;
+const FIT_RIM_SAMPLES: usize = 8;
+// The front-clearance slab: how far off the plane it starts and how deep it
+// reaches into the room.
+const FIT_FRONT_GAP: f32 = 0.02;
+const FIT_FRONT_DEPTH: f32 = 0.3;
+
+// The aperture must actually work as a hole: every sample across it needs
+// solid surface BEHIND the plane (no hanging past an edge) and clear space
+// IN FRONT of it (no floor slab or abutting wall cutting through the oval —
+// this is what stops a portal placed too low for a body to fit). On top of
+// the geometry, the aperture must not cover surface fixtures: wall lights,
+// and pressure plates for standable portals.
+fn portal_fits(frame: &PortalFrame, collision_world: &CollisionWorld, map_layout: &MapLayout) -> bool {
+    // One oriented box sweeps the whole slab in front of the aperture, so
+    // geometry crossing the oval anywhere — a wall standing on a floor
+    // aperture, a slab clipping one edge — rejects, not only geometry near
+    // a probe point.
+    let rotation = Quat::from_mat3(&Mat3::from_cols(frame.right, frame.up, frame.normal));
+    let front_center = frame.center + frame.normal * (FIT_FRONT_GAP + FIT_FRONT_DEPTH / 2.0);
+    if collision_world.oriented_cuboid_overlaps_world(
+        front_center,
+        Vec3::new(PORTAL_HALF_WIDTH, PORTAL_HALF_HEIGHT, FIT_FRONT_DEPTH / 2.0),
+        rotation,
+    ) {
+        return false;
+    }
+    // Backing stays per-sample: an any-overlap query cannot express "solid
+    // everywhere behind the plane".
+    for sample in aperture_samples(frame) {
+        if !collision_world.ball_overlaps_world(sample - frame.normal * FIT_SAMPLE_OFFSET, FIT_SAMPLE_RADIUS) {
+            return false;
+        }
+    }
+    for light in &map_layout.wall_lights {
+        if fixture_blocks(frame, Vec3::from(light.pos), PORTAL_LIGHT_CLEARANCE) {
+            return false;
+        }
+    }
+    if frame.normal.y > PORTAL_STANDABLE_NORMAL_Y {
+        for plate in &map_layout.pressure_plates {
+            let center = Vec3::new(plate.center_x, f32::from(plate.level) * LEVEL_HEIGHT, plate.center_z);
+            if fixture_blocks(frame, center, PORTAL_PLATE_CLEARANCE) {
+                return false;
+            }
+        }
+    }
+    true
+}
+
+fn aperture_samples(frame: &PortalFrame) -> impl Iterator<Item = Vec3> {
+    let center = frame.center;
+    let (right, up) = (frame.right, frame.up);
+    std::iter::once(center).chain((0..FIT_RIM_SAMPLES).map(move |i| {
+        let angle = i as f32 / FIT_RIM_SAMPLES as f32 * std::f32::consts::TAU;
+        center + right * (PORTAL_HALF_WIDTH * angle.cos()) + up * (PORTAL_HALF_HEIGHT * angle.sin())
+    }))
+}
+
+// A fixture blocks the aperture when it sits near the portal plane inside
+// the clearance-grown oval.
+fn fixture_blocks(frame: &PortalFrame, fixture: Vec3, clearance: f32) -> bool {
+    let offset = fixture - frame.center;
+    if offset.dot(frame.normal).abs() > PORTAL_FIXTURE_PLANE_DEPTH {
+        return false;
+    }
+    let across = offset.dot(frame.right) / (PORTAL_HALF_WIDTH + clearance);
+    let along_up = offset.dot(frame.up) / (PORTAL_HALF_HEIGHT + clearance);
+    across * across + along_up * along_up <= 1.0
+}
+
+const PORTAL_OVERLAP_HALF_DEPTH: f32 = 0.05;
+
+#[must_use]
+pub fn portal_placement_overlaps(
+    placement: &PortalPlacement,
+    owner: PlayerId,
+    end: PortalEnd,
+    existing: &[Portal],
+) -> bool {
+    let candidate = PortalFrame::from_surface(placement.pos, placement.normal, placement.yaw);
+    existing.iter().any(|portal| {
+        (portal.owner, portal.end) != (owner, end)
+            && portal_frames_overlap(&candidate, &PortalFrame::from_portal(portal))
+    })
+}
+
+fn portal_frames_overlap(a: &PortalFrame, b: &PortalFrame) -> bool {
+    let shape = Cuboid::new(Vector::new(
+        PORTAL_HALF_WIDTH,
+        PORTAL_HALF_HEIGHT,
+        PORTAL_OVERLAP_HALF_DEPTH,
+    ));
+    intersection_test(&portal_pose(a), &shape, &portal_pose(b), &shape).is_ok_and(|overlaps| overlaps)
+}
+
+fn portal_pose(frame: &PortalFrame) -> Pose {
+    let rotation = Quat::from_mat3(&Mat3::from_cols(frame.right, frame.up, frame.normal));
+    let axis_angle = rotation.to_scaled_axis();
+    Pose::new(
+        Vector::new(frame.center.x, frame.center.y, frame.center.z),
+        Vector::new(axis_angle.x, axis_angle.y, axis_angle.z),
+    )
+}

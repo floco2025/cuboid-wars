@@ -76,12 +76,19 @@ pub struct CharacterEnvironment<'a> {
 pub fn step_character_movement(step: CharacterStep, env: &CharacterEnvironment) -> CharacterMovementResult {
     let character_shape = character_shape(env.physics);
     let support_shape = character_support_probe_shape(env.physics);
-    let excluded = env.portals.map_or_else(Vec::new, |portals| {
+    let support_excluded = env.portals.map_or_else(Vec::new, |portals| {
         portals.collision_exclusions(Vec3::new(step.start.x, step.start.y, step.start.z), env.physics)
     });
-    let request = prepare_movement_request(step, env, &excluded, &character_shape, &support_shape);
-    let collision = resolve_character_collision(step, env, &excluded, &character_shape, &request);
-    finish_character_movement(step, env, &excluded, &support_shape, request, collision)
+    let request = prepare_movement_request(step, env, &support_excluded, &character_shape, &support_shape);
+    let movement_excluded = env.portals.map_or_else(Vec::new, |portals| {
+        portals.movement_collision_exclusions(
+            Vec3::new(step.start.x, step.start.y, step.start.z),
+            vec3(request.requested_total),
+            env.physics,
+        )
+    });
+    let collision = resolve_character_collision(step, env, &movement_excluded, &character_shape, &request);
+    finish_character_movement(step, env, &movement_excluded, &support_shape, request, collision)
 }
 
 struct MovementRequest {

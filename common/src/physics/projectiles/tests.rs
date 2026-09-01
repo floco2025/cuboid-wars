@@ -69,12 +69,12 @@ fn lower_level_projectile_ignores_upper_level_wall() {
 
     assert!(
         lower_motion
-            .resolve_world_bounces(&pos, 0.1, &collision_world(&[test_wall(0)], &[], &[]))
+            .bounce_at_world_surface(&pos, 0.1, &collision_world(&[test_wall(0)], &[], &[]))
             .is_some()
     );
     assert!(
         upper_motion
-            .resolve_world_bounces(&pos, 0.1, &collision_world(&[test_wall(1)], &[], &[]))
+            .bounce_at_world_surface(&pos, 0.1, &collision_world(&[test_wall(1)], &[], &[]))
             .is_none()
     );
 }
@@ -90,7 +90,7 @@ fn upper_level_projectile_hits_upper_level_wall() {
 
     assert!(
         motion
-            .resolve_world_bounces(&pos, 0.1, &collision_world(&[test_wall(1)], &[], &[]))
+            .bounce_at_world_surface(&pos, 0.1, &collision_world(&[test_wall(1)], &[], &[]))
             .is_some()
     );
 }
@@ -99,12 +99,12 @@ fn upper_level_projectile_hits_upper_level_wall() {
 fn world_bounce_reports_first_contact_normal() {
     let pos = Position { x: 0.0, y: 1.0, z: 0.0 };
     let mut motion = test_projectile_motion(Vec3::new(0.0, 0.0, 20.0));
-    let bounces = motion
-        .resolve_world_bounces(&pos, 0.1, &collision_world(&[test_wall(0)], &[], &[]))
+    let bounce = motion
+        .bounce_at_world_surface(&pos, 0.1, &collision_world(&[test_wall(0)], &[], &[]))
         .expect("projectile should bounce");
 
-    assert!(bounces.first_normal.dot(Vec3::NEG_Z) > 0.99);
-    assert!(bounces.first_contact.z < 1.0);
+    assert!(bounce.normal.dot(Vec3::NEG_Z) > 0.99);
+    assert!(bounce.contact.z < 1.0);
 }
 
 #[test]
@@ -147,7 +147,7 @@ fn projectile_hits_level_zero_floor_underside() {
 
     assert!(
         motion
-            .resolve_world_bounces(&pos, 0.1, &collision_world(&[], &[test_floor(0)], &[]))
+            .bounce_at_world_surface(&pos, 0.1, &collision_world(&[], &[test_floor(0)], &[]))
             .is_some()
     );
     assert!(motion.velocity.y < 0.0);

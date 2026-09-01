@@ -243,11 +243,22 @@ impl PlayerInfo {
     }
 
     pub fn try_start_shot(&mut self, now: f32, cooldown_secs: f32) -> Option<bool> {
-        if now - self.life.last_shot_time < cooldown_secs {
+        if !self.try_start_weapon_fire(now, cooldown_secs) {
             return None;
         }
-        self.life.last_shot_time = now;
         Some(self.has_multi_shot())
+    }
+
+    pub fn try_start_portal_shot(&mut self, now: f32, cooldown_secs: f32) -> bool {
+        self.try_start_weapon_fire(now, cooldown_secs)
+    }
+
+    fn try_start_weapon_fire(&mut self, now: f32, cooldown_secs: f32) -> bool {
+        if now - self.life.last_shot_time < cooldown_secs {
+            return false;
+        }
+        self.life.last_shot_time = now;
+        true
     }
 
     // Consumes one missile on success.
@@ -447,6 +458,18 @@ mod tests {
             info.try_start_shot(start + COOLDOWN + f32::EPSILON, COOLDOWN),
             Some(true)
         );
+    }
+
+    #[test]
+    fn projectile_and_portal_shots_share_a_cooldown() {
+        let mut info = dummy_info();
+        const COOLDOWN: f32 = 0.1;
+
+        assert!(info.try_start_portal_shot(10.0, COOLDOWN));
+        assert_eq!(info.try_start_shot(10.05, COOLDOWN), None);
+        assert_eq!(info.try_start_shot(10.11, COOLDOWN), Some(false));
+        assert!(!info.try_start_portal_shot(10.15, COOLDOWN));
+        assert!(info.try_start_portal_shot(10.22, COOLDOWN));
     }
 
     #[test]

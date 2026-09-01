@@ -1,14 +1,17 @@
 use bevy::{ecs::system::SystemParam, prelude::*};
 use common::{
     config::GameplayConfig,
-    constants::PORTAL_SURFACE_TIE_EPSILON,
-    physics::{CollisionWorld, OpenBarrierKinds, PortalSet, ProjectileMotion, projectile_overlaps_character},
+    constants::{PHYSICS_EPSILON, PROJECTILE_EVENT_LIMIT},
+    physics::{
+        CollisionWorld, OpenBarrierKinds, PortalSet, ProjectileEvent, ProjectileMotion, earliest_projectile_event,
+        projectile_overlaps_character,
+    },
     protocol::{ActorId, ActorMarker, FaceYaw, MapSettings, PlayerId, PlayerMarker, Position, ProjectileMarker},
 };
 
 use super::{
     audio::LastBounceSound,
-    collision::{handle_barrier_collisions, handle_character_collisions, handle_wall_collisions},
+    collision::{closest_character_hit, handle_barrier_collisions, present_character_impact, present_world_bounce},
 };
 use crate::{
     actors::ActorMap,
@@ -90,123 +93,143 @@ pub fn projectiles_movement_system(
         projectile.apply_gravity(delta, gravity);
         projectile.apply_drag(delta);
 
-        let projectile_pos: Position = *position;
+        let mut current_pos = *position;
+        let mut remaining_delta = delta;
+        let mut terminated = false;
 
-        // Arm self-hits once the projectile no longer overlaps the shooter
-        // (mirrors the server). A missing shooter arms immediately.
-        if !projectile.left_shooter {
-            let overlaps_shooter = player_query
-                .iter()
-                .find(|(_, _, _, player_id, _)| *player_id == shooter_id)
-                .is_some_and(|(_, player_pos, face_yaw, _, _)| {
-                    projectile_overlaps_character(
-                        &projectile,
-                        &projectile_pos,
-                        player_pos,
-                        face_yaw.0,
-                        world.gameplay_config.player.physics(),
-                    )
-                });
-            if !overlaps_shooter {
-                projectile.left_shooter = true;
+        for _ in 0..PROJECTILE_EVENT_LIMIT {
+            if remaining_delta <= PHYSICS_EPSILON {
+                break;
             }
-        }
 
-        // Portal hop with the server's priority rule: the portal wins its
-        // tie with the surface it sits on; a strictly earlier barrier still
-        // shields it. Shared code + identical inputs keep this cosmetic sim
-        // on the server's trajectory through portals.
-        if let Some(collision_world) = collision_world
-            && let Some(hop) = world.portal_set.projectile_hop(
-                Vec3::from(projectile_pos),
-                projectile.velocity,
-                delta,
-                world.gameplay_config.projectiles.radius,
-            )
-        {
-            let barrier_t =
-                projectile.barrier_collision_t(&projectile_pos, delta, collision_world, &world.open_barrier_kinds.0);
-            let surface_t = projectile.surface_collision_t(&projectile_pos, delta, collision_world);
-            if barrier_t.is_none_or(|bt| hop.t < bt)
-                && surface_t.is_none_or(|st| hop.t <= st + PORTAL_SURFACE_TIE_EPSILON)
-            {
-                projectile.velocity = hop.exit_velocity;
-                let translation = projectile.velocity * (delta * (1.0 - hop.t));
-                let clamped = match collision_world.cast_moving_ball(
-                    hop.exit_pos,
-                    translation,
-                    world.gameplay_config.projectiles.radius,
-                ) {
-                    Some(hit) => translation * hit.t,
-                    None => translation,
-                };
-                // Anchor interpolation at the exit so the render pops there
-                // instead of smearing a streak through the wall.
-                previous_tick_position.0 = hop.exit_pos.into();
-                *position = (hop.exit_pos + clamped).into();
-                continue;
+            if !projectile.left_shooter {
+                let overlaps_shooter = player_query
+                    .iter()
+                    .find(|(_, _, _, player_id, _)| *player_id == shooter_id)
+                    .is_some_and(|(_, player_pos, face_yaw, _, _)| {
+                        projectile_overlaps_character(
+                            &projectile,
+                            &current_pos,
+                            player_pos,
+                            face_yaw.0,
+                            world.gameplay_config.player.physics(),
+                        )
+                    });
+                if !overlaps_shooter {
+                    projectile.left_shooter = true;
+                }
             }
-        }
 
-        if handle_barrier_collisions(
-            &mut commands,
-            asset_server.as_ref(),
-            &asset_set,
-            &mut particle_clouds.sparks,
-            &client_settings,
-            &barrier_assets,
-            projectile_entity,
-            &projectile,
-            &projectile_pos,
-            delta,
-            collision_world,
-            &world.open_barrier_kinds.0,
-        ) {
-            continue;
-        }
-
-        let new_pos = if let Some(pos_after_bounce) = handle_wall_collisions(
-            &mut commands,
-            asset_server.as_ref(),
-            &asset_set,
-            &mut particle_clouds.sparks,
-            &client_settings,
-            &mut projectile,
-            &projectile_pos,
-            delta,
-            collision_world,
-            current_time,
-            &mut last_bounce_sound,
-            listener_pos,
-        ) {
-            pos_after_bounce
-        } else {
-            if handle_character_collisions(
-                &mut commands,
-                asset_server.as_ref(),
-                &asset_set,
-                &mut particle_clouds.sparks,
-                &client_settings,
-                projectile_entity,
+            let character_hit = closest_character_hit(
                 &projectile,
-                &projectile_pos,
-                delta,
+                &current_pos,
+                remaining_delta,
                 *shooter_id,
                 &player_query,
                 &actor_query,
                 &actors,
                 &world.gameplay_config,
+            );
+            let barrier_t = collision_world.and_then(|collision_world| {
+                projectile.barrier_collision_t(
+                    &current_pos,
+                    remaining_delta,
+                    collision_world,
+                    &world.open_barrier_kinds.0,
+                )
+            });
+            let surface_t = collision_world.and_then(|collision_world| {
+                projectile.surface_collision_t(&current_pos, remaining_delta, collision_world)
+            });
+            let portal_hop = world.portal_set.projectile_hop(
+                Vec3::from(current_pos),
+                projectile.velocity,
+                remaining_delta,
+                world.gameplay_config.projectiles.radius,
+            );
+
+            match earliest_projectile_event(
+                character_hit.map(|hit| hit.hit().time_of_impact),
+                barrier_t,
+                surface_t,
+                portal_hop.map(|hop| hop.t),
             ) {
-                continue;
+                ProjectileEvent::Barrier => {
+                    let hit = handle_barrier_collisions(
+                        &mut commands,
+                        asset_server.as_ref(),
+                        &asset_set,
+                        &mut particle_clouds.sparks,
+                        &client_settings,
+                        &barrier_assets,
+                        projectile_entity,
+                        &projectile,
+                        &current_pos,
+                        remaining_delta,
+                        collision_world,
+                        &world.open_barrier_kinds.0,
+                    );
+                    assert!(hit, "barrier event missing its collision");
+                    terminated = true;
+                    break;
+                }
+                ProjectileEvent::Surface => {
+                    let speed_before = projectile.velocity.length();
+                    let bounce = projectile
+                        .bounce_at_world_surface(
+                            &current_pos,
+                            remaining_delta,
+                            collision_world.expect("surface event missing its collision world"),
+                        )
+                        .expect("surface event missing its collision");
+                    current_pos = bounce.position;
+                    remaining_delta = bounce.remaining_delta;
+                    present_world_bounce(
+                        &mut commands,
+                        asset_server.as_ref(),
+                        &asset_set,
+                        &mut particle_clouds.sparks,
+                        &client_settings,
+                        &projectile,
+                        bounce,
+                        speed_before,
+                        current_time,
+                        &mut last_bounce_sound,
+                        listener_pos,
+                    );
+                }
+                ProjectileEvent::Portal => {
+                    let hop = portal_hop.expect("portal event missing its crossing");
+                    projectile.velocity = hop.exit_velocity;
+                    current_pos = hop.exit_pos.into();
+                    remaining_delta *= 1.0 - hop.t;
+                    previous_tick_position.0 = current_pos;
+                }
+                ProjectileEvent::Hit => {
+                    present_character_impact(
+                        &mut commands,
+                        asset_server.as_ref(),
+                        &asset_set,
+                        &mut particle_clouds.sparks,
+                        &client_settings,
+                        projectile_entity,
+                        &projectile,
+                        &current_pos,
+                        remaining_delta,
+                        character_hit.expect("character event missing its hit"),
+                    );
+                    terminated = true;
+                    break;
+                }
+                ProjectileEvent::Fly => {
+                    current_pos = (Vec3::from(current_pos) + projectile.velocity * remaining_delta).into();
+                    break;
+                }
             }
+        }
 
-            Position {
-                x: projectile.velocity.x.mul_add(delta, projectile_pos.x),
-                y: projectile.velocity.y.mul_add(delta, projectile_pos.y),
-                z: projectile.velocity.z.mul_add(delta, projectile_pos.z),
-            }
-        };
-
-        *position = new_pos;
+        if !terminated {
+            *position = current_pos;
+        }
     }
 }

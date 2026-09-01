@@ -8,7 +8,7 @@ use crate::{
 use common::{
     config::GameplayConfig,
     math::direction_from_yaw_pitch,
-    physics::{CollisionWorld, PortalPlacement, PortalSet, compute_portal_placement},
+    physics::{CollisionWorld, PortalPlacement, PortalSet, compute_portal_placement, portal_placement_overlaps},
     protocol::*,
 };
 
@@ -16,7 +16,8 @@ pub fn handle_portal_shot_message(
     entity: Entity,
     id: PlayerId,
     msg: &CPortalShot,
-    players: &PlayerMap,
+    players: &mut PlayerMap,
+    time: &Time,
     player_data: &PlayerStateQuery,
     collision_world: &CollisionWorld,
     map_layout: &MapLayout,
@@ -26,6 +27,12 @@ pub fn handle_portal_shot_message(
 ) {
     // Reject non-finite aim before it reaches the surface ray.
     if !(msg.face_yaw.is_finite() && msg.face_pitch.is_finite()) {
+        return;
+    }
+    if !players
+        .get_mut(&id)
+        .is_some_and(|info| info.try_start_portal_shot(time.elapsed_secs(), gameplay_config.projectiles.cooldown_secs))
+    {
         return;
     }
     let Ok((pos, _, _, _)) = player_data.get(entity) else {
@@ -45,8 +52,13 @@ pub fn handle_portal_shot_message(
     ) else {
         return;
     };
+    if portal_placement_overlaps(&placement, id, msg.end, &portals.snapshot_portals()) {
+        return;
+    }
     let portal = portal_from_placement(&placement, id, msg.end);
-    portals.set(portal);
+    if !portals.set(portal) {
+        return;
+    }
     *portal_set = portals.rebuild_set(collision_world);
     broadcast_to_all(players, ServerMessage::PortalOpened(SPortalOpened { portal }));
 }

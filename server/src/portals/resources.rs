@@ -9,9 +9,9 @@ use common::{
 
 // Both ends a player owns. Re-shooting an end replaces just that end.
 #[derive(Default, Clone, Copy)]
-pub struct PortalPair {
-    pub a: Option<Portal>,
-    pub b: Option<Portal>,
+struct PortalPair {
+    a: Option<Portal>,
+    b: Option<Portal>,
 }
 
 // Every placed portal end, keyed by owner. The authoritative store — the
@@ -21,12 +21,17 @@ pub struct PortalPair {
 pub struct PortalMap(HashMap<PlayerId, PortalPair>);
 
 impl PortalMap {
-    pub fn set(&mut self, portal: Portal) {
+    pub fn set(&mut self, portal: Portal) -> bool {
         let pair = self.0.entry(portal.owner).or_default();
-        match portal.end {
-            PortalEnd::A => pair.a = Some(portal),
-            PortalEnd::B => pair.b = Some(portal),
+        let slot = match portal.end {
+            PortalEnd::A => &mut pair.a,
+            PortalEnd::B => &mut pair.b,
+        };
+        if *slot == Some(portal) {
+            return false;
         }
+        *slot = Some(portal);
+        true
     }
 
     // Returns true when the owner had any portal to remove.
@@ -69,9 +74,10 @@ mod tests {
     #[test]
     fn reshooting_an_end_replaces_that_end_only() {
         let mut map = PortalMap::default();
-        map.set(portal(1, PortalEnd::A, 1.0));
-        map.set(portal(1, PortalEnd::B, 2.0));
-        map.set(portal(1, PortalEnd::A, 9.0));
+        assert!(map.set(portal(1, PortalEnd::A, 1.0)));
+        assert!(map.set(portal(1, PortalEnd::B, 2.0)));
+        assert!(map.set(portal(1, PortalEnd::A, 9.0)));
+        assert!(!map.set(portal(1, PortalEnd::A, 9.0)));
 
         let portals = map.snapshot_portals();
         assert_eq!(portals.len(), 2);

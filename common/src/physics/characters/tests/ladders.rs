@@ -285,15 +285,14 @@ fn wide_side_climb_clears_the_landing_slab_underside() {
     // stand-off must keep the body clear of the plane, or the climb sweeps
     // into the landing slab's underside and stalls below the top.
     let world = ladder_collision_world(&[ladder_back_landing_floor_x()], &[test_ladder_facing_x()]);
-    // Feet placed so the collider top crosses the slab's bottom this tick
-    // (the climb rises ~0.14 here: 2 m/s into the face × the ratio × delta).
+    // Feet placed so the collider top crosses the slab's bottom this tick.
     let start = Position {
         x: -0.55,
         y: 2.15,
         z: 0.0,
     };
 
-    let step = ladder_step(&world, start, 2.0, -0.35, start.z);
+    let step = ladder_step(&world, start, 2.0, -0.15, start.z);
 
     assert!(step.position.y > start.y + 0.1);
 }

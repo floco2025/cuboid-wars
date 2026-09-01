@@ -9,8 +9,6 @@ use crate::{
     protocol::{BarrierKindId, Position},
 };
 
-const MAX_SURFACE_BOUNCES: usize = 3;
-
 #[derive(Component)]
 pub struct ProjectileMotion {
     pub velocity: Vec3,
@@ -107,8 +105,7 @@ impl ProjectileMotion {
     }
 
     // Fraction of this tick's travel at which the straight path first meets a
-    // bounce surface (wall/floor/ramp), if any. The first-impact time
-    // `resolve_world_bounces` would act on, exposed without mutating velocity.
+    // bounce surface (wall/floor/ramp), if any, without mutating velocity.
     #[must_use]
     pub fn surface_collision_t(
         &self,
@@ -120,6 +117,25 @@ impl ProjectileMotion {
         collision_world
             .cast_moving_ball(Vec3::from(*projectile_pos), translation, self.radius)
             .map(|hit| hit.t)
+    }
+
+    #[must_use]
+    pub fn bounce_at_world_surface(
+        &mut self,
+        projectile_pos: &Position,
+        delta: f32,
+        collision_world: &CollisionWorld,
+    ) -> Option<SurfaceBounce> {
+        let translation = self.velocity * delta;
+        let collision = collision_world.cast_moving_ball(Vec3::from(*projectile_pos), translation, self.radius)?;
+        let (position, remaining_delta) =
+            self.step_after_collision(projectile_pos, delta, collision.normal, collision.t);
+        Some(SurfaceBounce {
+            position,
+            remaining_delta,
+            contact: collision.contact,
+            normal: collision.normal,
+        })
     }
 
     // Barriers terminate projectiles (no bounce). Cast against barrier
@@ -151,74 +167,14 @@ impl ProjectileMotion {
                 .expect("barrier-only shape cast returned a non-barrier collider"),
         })
     }
-
-    #[must_use]
-    pub fn resolve_world_bounces(
-        &mut self,
-        projectile_pos: &Position,
-        delta: f32,
-        collision_world: &CollisionWorld,
-    ) -> Option<WorldBounces> {
-        let mut current_pos = *projectile_pos;
-        let mut remaining_delta = delta;
-        let mut first_surface = None;
-        let mut budget_exhausted = false;
-
-        for bounce in 0..MAX_SURFACE_BOUNCES {
-            let translation = self.velocity * remaining_delta;
-            let Some(collision) = collision_world.cast_moving_ball(Vec3::from(current_pos), translation, self.radius)
-            else {
-                break;
-            };
-
-            let (next_pos, next_delta) =
-                self.step_after_collision(&current_pos, remaining_delta, collision.normal, collision.t);
-            current_pos = next_pos;
-            remaining_delta = next_delta;
-            if first_surface.is_none() {
-                first_surface = Some((collision.contact, collision.normal));
-            }
-
-            if remaining_delta <= PHYSICS_EPSILON {
-                break;
-            }
-
-            // Ran out of bounce budget with time still left this frame: the
-            // tail segment below is unvalidated, so flag it for a final cast.
-            // The no-collision and time-exhausted exits leave the tail already
-            // verified clear, so they skip the extra cast.
-            if bounce == MAX_SURFACE_BOUNCES - 1 {
-                budget_exhausted = true;
-            }
-        }
-
-        let (first_contact, first_normal) = first_surface?;
-
-        let translation = self.velocity * remaining_delta;
-        let mut final_pos = Vec3::from(current_pos) + translation;
-        if budget_exhausted
-            && let Some(collision) = collision_world.cast_moving_ball(Vec3::from(current_pos), translation, self.radius)
-        {
-            // Clamp to the surface contact instead of tunneling through it; the
-            // next frame resolves the bounce from this valid just-outside pose.
-            final_pos = Vec3::from(current_pos) + translation * collision.t;
-        }
-        Some(WorldBounces {
-            position: final_pos.into(),
-            first_contact,
-            first_normal,
-        })
-    }
 }
 
-// Outcome of a tick's surface-bounce resolution.
-pub struct WorldBounces {
-    // Where the projectile ends the tick, post-bounce travel included.
+#[derive(Debug, Clone, Copy)]
+pub struct SurfaceBounce {
     pub position: Position,
-    // Exact world-collider contact and an outward normal opposing the incoming
-    // trajectory, for presentation effects at the actual surface.
-    pub first_contact: Vec3,
-    pub first_normal: Vec3,
+    pub remaining_delta: f32,
+    pub contact: Vec3,
+    pub normal: Vec3,
 }
 
 #[derive(Debug, Clone, Copy)]

@@ -182,6 +182,9 @@ pub const PORTAL_UP_DEGENERACY_LIMIT: f32 = 0.99;
 // register at nearly the same time of impact; within this fraction-of-tick
 // tie the portal wins.
 pub const PORTAL_SURFACE_TIE_EPSILON: f32 = 0.01;
+// Bounds chained bounces and portal hops inside one projectile tick. When the
+// budget is exhausted, the projectile stays at its last validated position.
+pub const PROJECTILE_EVENT_LIMIT: usize = 8;
 // Momentum carried out of a portal (as knockback) caps at this multiple of
 // the blast knockback speed cap, for parity with explosions.
 pub const PORTAL_KNOCKBACK_CARRY_FACTOR: f32 = 1.5;

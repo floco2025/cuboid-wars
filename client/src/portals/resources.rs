@@ -31,6 +31,8 @@ impl PortalMap {
     // The stored wire values, for rebuilding the shared `PortalSet`.
     #[must_use]
     pub fn wire_portals(&self) -> Vec<Portal> {
-        self.0.values().map(|info| info.portal).collect()
+        let mut portals: Vec<_> = self.0.values().map(|info| info.portal).collect();
+        portals.sort_by_key(|portal| (portal.owner.0, portal.end == PortalEnd::B));
+        portals
     }
 }

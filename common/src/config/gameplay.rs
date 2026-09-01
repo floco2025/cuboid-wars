@@ -528,8 +528,8 @@ fn validate_non_negative_finite(value: f32, path: &str) -> Result<()> {
 
 // Portal-gun tuning both sides need: the client predicts placement with the
 // same numbers the server validates with, so fire vs dry-fire feedback is
-// instant. Server-only tuning (teleport cooldown) stays in the server file;
-// aperture geometry and traversal thresholds are fixed shared constants.
+// instant. Aperture geometry and traversal thresholds are fixed shared
+// constants.
 #[derive(Debug, Clone, Copy, Deserialize)]
 pub struct PortalsConfig {
     // Max placement distance of the portal shot's surface ray, m.

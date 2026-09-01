@@ -14,10 +14,10 @@ use crate::{
 };
 use common::{
     config::GameplayConfig,
-    constants::PORTAL_SURFACE_TIE_EPSILON,
+    constants::{PHYSICS_EPSILON, PROJECTILE_EVENT_LIMIT},
     physics::{
-        BallCharacterHit, CollisionWorld, PortalSet, ProjectileMotion, projectile_character_hit,
-        projectile_overlaps_character,
+        BallCharacterHit, CollisionWorld, PortalSet, ProjectileEvent, ProjectileMotion, earliest_projectile_event,
+        projectile_character_hit, projectile_overlaps_character,
     },
     protocol::*,
 };
@@ -40,52 +40,6 @@ fn closer_hit(current: Option<ProjectileTargetHit>, candidate: ProjectileTargetH
     match current {
         Some(current) if current.hit().time_of_impact <= candidate.hit().time_of_impact => current,
         _ => candidate,
-    }
-}
-
-#[derive(Debug, PartialEq, Eq)]
-enum ProjectileEvent {
-    Hit,
-    Terminate,
-    Bounce,
-    Portal,
-    Fly,
-}
-
-// Pick the earliest event along the projectile's straight path this tick, by
-// time-of-impact in `[0, 1]`. World surfaces win ties against a character hit
-// so a target behind cover is protected, and a barrier is checked before a
-// bounce surface (preserving the barrier-terminates priority). A portal
-// crossing and the bounce off the portal's own surface register at nearly
-// the same time, so the portal wins that tie — while strictly earlier
-// characters and barriers still shield it.
-fn earliest_projectile_event(
-    character_t: Option<f32>,
-    barrier_t: Option<f32>,
-    surface_t: Option<f32>,
-    portal_t: Option<f32>,
-) -> ProjectileEvent {
-    if let Some(pt) = portal_t
-        && character_t.is_none_or(|ct| pt < ct)
-        && barrier_t.is_none_or(|bt| pt < bt)
-        && surface_t.is_none_or(|st| pt <= st + PORTAL_SURFACE_TIE_EPSILON)
-    {
-        return ProjectileEvent::Portal;
-    }
-    if let Some(bt) = barrier_t
-        && character_t.is_none_or(|ct| bt <= ct)
-    {
-        return ProjectileEvent::Terminate;
-    }
-    if let Some(st) = surface_t
-        && character_t.is_none_or(|ct| st <= ct)
-    {
-        return ProjectileEvent::Bounce;
-    }
-    if character_t.is_some() {
-        ProjectileEvent::Hit
-    } else {
-        ProjectileEvent::Fly
     }
 }
 
@@ -158,111 +112,131 @@ pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut 
         projectile.apply_gravity(delta, gravity);
         projectile.apply_drag(delta);
 
-        // Arm self-hits once the projectile no longer overlaps the shooter.
-        // A missing shooter (died/logged off) arms immediately.
-        if !projectile.left_shooter {
-            let overlaps_shooter = params
-                .players
-                .get(shooter_id)
-                .and_then(|info| info.entity())
-                .and_then(|entity| params.player_query.get(entity).ok())
-                .is_some_and(|(position, face_direction, _, _)| {
-                    projectile_overlaps_character(
-                        &projectile,
-                        &proj_pos,
-                        position,
-                        face_direction.0,
-                        params.gameplay_config.player.physics(),
-                    )
-                });
-            if !overlaps_shooter {
-                projectile.left_shooter = true;
-            }
-        }
-
-        // Gather the closest player/actor hit BEFORE resolving world
-        // collisions, so their times-of-impact can be compared: a target in
-        // front of a wall must register a hit instead of being phased through
-        // when a barrier/bounce would otherwise short-circuit the tick.
+        let mut current_pos = *proj_pos;
+        let mut remaining_delta = delta;
         let mut closest_hit = None;
+        let mut terminated = false;
+        let mut event_budget_exhausted = true;
 
-        for (position, face_direction, player_id, _) in &mut params.player_query {
-            if shooter_id == player_id && !projectile.left_shooter {
-                continue;
+        for _ in 0..PROJECTILE_EVENT_LIMIT {
+            if remaining_delta <= PHYSICS_EPSILON {
+                closest_hit = None;
+                event_budget_exhausted = false;
+                break;
             }
 
-            if let Some(hit) = projectile_character_hit(
-                &proj_pos,
-                &projectile,
-                delta,
-                position,
-                face_direction.0,
-                params.gameplay_config.player.physics(),
-            ) {
-                closest_hit = Some(closer_hit(
-                    closest_hit,
-                    ProjectileTargetHit::Player { id: *player_id, hit },
-                ));
-            }
-        }
-
-        for (position, face_direction, actor_id, _) in &mut params.actor_query {
-            let info = params
-                .actors
-                .get(actor_id)
-                .expect("actor in query missing from ActorMap");
-            let actor_physics = params.gameplay_config.expect_actor(&info.spawn_kind).physics();
-            if let Some(hit) =
-                projectile_character_hit(&proj_pos, &projectile, delta, position, face_direction.0, actor_physics)
-            {
-                closest_hit = Some(closer_hit(
-                    closest_hit,
-                    ProjectileTargetHit::Actor { id: *actor_id, hit },
-                ));
-            }
-        }
-
-        // Resolve whichever event is earliest this tick.
-        let character_t = closest_hit.map(|hit| hit.hit().time_of_impact);
-        let barrier_t =
-            projectile.barrier_collision_t(&proj_pos, delta, &params.collision_world, &params.open_barrier_kinds.0);
-        let surface_t = projectile.surface_collision_t(&proj_pos, delta, &params.collision_world);
-        let projectile_radius = params.gameplay_config.projectiles.radius;
-        let portal_hop =
-            params
-                .portal_set
-                .projectile_hop(Vec3::from(*proj_pos), projectile.velocity, delta, projectile_radius);
-
-        match earliest_projectile_event(character_t, barrier_t, surface_t, portal_hop.map(|hop| hop.t)) {
-            ProjectileEvent::Terminate => {
-                commands.entity(proj_entity).despawn();
-                continue;
-            }
-            ProjectileEvent::Bounce => {
-                if let Some(bounces) = projectile.resolve_world_bounces(&proj_pos, delta, &params.collision_world) {
-                    *proj_pos = bounces.position;
+            // A portal can move the projectile away from its shooter during
+            // this tick, so arming is checked at the start of every segment.
+            if !projectile.left_shooter {
+                let overlaps_shooter = params
+                    .players
+                    .get(shooter_id)
+                    .and_then(|info| info.entity())
+                    .and_then(|entity| params.player_query.get(entity).ok())
+                    .is_some_and(|(position, face_direction, _, _)| {
+                        projectile_overlaps_character(
+                            &projectile,
+                            &current_pos,
+                            position,
+                            face_direction.0,
+                            params.gameplay_config.player.physics(),
+                        )
+                    });
+                if !overlaps_shooter {
+                    projectile.left_shooter = true;
                 }
-                continue;
             }
-            ProjectileEvent::Portal => {
-                let hop = portal_hop.expect("portal event selected without a portal hop");
-                projectile.velocity = hop.exit_velocity;
-                // One hop per tick: integrate the remainder with a single
-                // clamping cast; the next tick resolves anything further.
-                let translation = projectile.velocity * (delta * (1.0 - hop.t));
-                let clamped =
-                    match params
-                        .collision_world
-                        .cast_moving_ball(hop.exit_pos, translation, projectile_radius)
-                    {
-                        Some(hit) => translation * hit.t,
-                        None => translation,
-                    };
-                *proj_pos = (hop.exit_pos + clamped).into();
-                continue;
+
+            closest_hit = None;
+            for (position, face_direction, player_id, _) in &mut params.player_query {
+                if shooter_id == player_id && !projectile.left_shooter {
+                    continue;
+                }
+                if let Some(hit) = projectile_character_hit(
+                    &current_pos,
+                    &projectile,
+                    remaining_delta,
+                    position,
+                    face_direction.0,
+                    params.gameplay_config.player.physics(),
+                ) {
+                    closest_hit = Some(closer_hit(
+                        closest_hit,
+                        ProjectileTargetHit::Player { id: *player_id, hit },
+                    ));
+                }
             }
-            // Hit → the match below applies it; Fly → its `None` arm advances.
-            ProjectileEvent::Hit | ProjectileEvent::Fly => {}
+            for (position, face_direction, actor_id, _) in &mut params.actor_query {
+                let info = params
+                    .actors
+                    .get(actor_id)
+                    .expect("actor in query missing from ActorMap");
+                let actor_physics = params.gameplay_config.expect_actor(&info.spawn_kind).physics();
+                if let Some(hit) = projectile_character_hit(
+                    &current_pos,
+                    &projectile,
+                    remaining_delta,
+                    position,
+                    face_direction.0,
+                    actor_physics,
+                ) {
+                    closest_hit = Some(closer_hit(
+                        closest_hit,
+                        ProjectileTargetHit::Actor { id: *actor_id, hit },
+                    ));
+                }
+            }
+
+            let character_t = closest_hit.map(|hit| hit.hit().time_of_impact);
+            let barrier_t = projectile.barrier_collision_t(
+                &current_pos,
+                remaining_delta,
+                &params.collision_world,
+                &params.open_barrier_kinds.0,
+            );
+            let surface_t = projectile.surface_collision_t(&current_pos, remaining_delta, &params.collision_world);
+            let portal_hop = params.portal_set.projectile_hop(
+                Vec3::from(current_pos),
+                projectile.velocity,
+                remaining_delta,
+                params.gameplay_config.projectiles.radius,
+            );
+
+            match earliest_projectile_event(character_t, barrier_t, surface_t, portal_hop.map(|hop| hop.t)) {
+                ProjectileEvent::Barrier => {
+                    commands.entity(proj_entity).despawn();
+                    terminated = true;
+                    event_budget_exhausted = false;
+                    break;
+                }
+                ProjectileEvent::Surface => {
+                    let bounce = projectile
+                        .bounce_at_world_surface(&current_pos, remaining_delta, &params.collision_world)
+                        .expect("surface event missing its collision");
+                    current_pos = bounce.position;
+                    remaining_delta = bounce.remaining_delta;
+                }
+                ProjectileEvent::Portal => {
+                    let hop = portal_hop.expect("portal event missing its crossing");
+                    projectile.velocity = hop.exit_velocity;
+                    current_pos = hop.exit_pos.into();
+                    remaining_delta *= 1.0 - hop.t;
+                }
+                ProjectileEvent::Hit => {
+                    event_budget_exhausted = false;
+                    break;
+                }
+                ProjectileEvent::Fly => {
+                    current_pos = (Vec3::from(current_pos) + projectile.velocity * remaining_delta).into();
+                    event_budget_exhausted = false;
+                    break;
+                }
+            }
+        }
+
+        *proj_pos = current_pos;
+        if terminated || event_budget_exhausted {
+            continue;
         }
 
         match closest_hit {
@@ -353,76 +327,7 @@ pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut 
                 }
                 commands.entity(proj_entity).despawn();
             }
-            None => {
-                *proj_pos += projectile.velocity * delta;
-            }
+            None => {}
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{ProjectileEvent, earliest_projectile_event};
-
-    #[test]
-    fn earliest_event_prefers_closest_with_world_winning_ties() {
-        // Character strictly closest → the hit registers.
-        assert_eq!(
-            earliest_projectile_event(Some(0.2), Some(0.5), Some(0.6), None),
-            ProjectileEvent::Hit
-        );
-        // A closer barrier / bounce surface protects a target behind it.
-        assert_eq!(
-            earliest_projectile_event(Some(0.5), Some(0.3), None, None),
-            ProjectileEvent::Terminate
-        );
-        assert_eq!(
-            earliest_projectile_event(Some(0.5), None, Some(0.3), None),
-            ProjectileEvent::Bounce
-        );
-        // Ties go to the world surface (conservative cover).
-        assert_eq!(
-            earliest_projectile_event(Some(0.4), Some(0.4), None, None),
-            ProjectileEvent::Terminate
-        );
-        assert_eq!(
-            earliest_projectile_event(Some(0.4), None, Some(0.4), None),
-            ProjectileEvent::Bounce
-        );
-        // No world collision but a character hit → hit.
-        assert_eq!(
-            earliest_projectile_event(Some(0.4), None, None, None),
-            ProjectileEvent::Hit
-        );
-        // No character: barrier keeps priority over the bounce surface.
-        assert_eq!(
-            earliest_projectile_event(None, Some(0.5), Some(0.3), None),
-            ProjectileEvent::Terminate
-        );
-        // Empty path → fly straight.
-        assert_eq!(earliest_projectile_event(None, None, None, None), ProjectileEvent::Fly);
-    }
-
-    #[test]
-    fn portal_wins_its_surface_tie_but_yields_to_closer_hits() {
-        // The portal sits ON a bounce surface: same time of impact → portal.
-        assert_eq!(
-            earliest_projectile_event(None, None, Some(0.4), Some(0.4)),
-            ProjectileEvent::Portal
-        );
-        // A strictly earlier character or barrier still shields the portal.
-        assert_eq!(
-            earliest_projectile_event(Some(0.3), None, Some(0.4), Some(0.4)),
-            ProjectileEvent::Hit
-        );
-        assert_eq!(
-            earliest_projectile_event(None, Some(0.3), Some(0.4), Some(0.4)),
-            ProjectileEvent::Terminate
-        );
-        // A clearly earlier unrelated surface still bounces first.
-        assert_eq!(
-            earliest_projectile_event(None, None, Some(0.2), Some(0.6)),
-            ProjectileEvent::Bounce
-        );
     }
 }

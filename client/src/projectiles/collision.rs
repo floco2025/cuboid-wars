@@ -2,7 +2,7 @@ use crate::constants::PROJECTILE_IMPACT_MIN_BOUNCE_SPEED;
 use bevy::prelude::*;
 use common::{
     config::GameplayConfig,
-    physics::{BallCharacterHit, CollisionWorld, ProjectileMotion, projectile_character_hit},
+    physics::{BallCharacterHit, CollisionWorld, ProjectileMotion, SurfaceBounce, projectile_character_hit},
     protocol::{ActorId, ActorMarker, BarrierKindId, FaceYaw, PlayerId, PlayerMarker, Position},
 };
 
@@ -17,13 +17,7 @@ use crate::{
     vfx::{ImpactKind, ParticleCloud, spawn_impact_sparks},
 };
 
-pub(super) fn handle_character_collisions(
-    commands: &mut Commands,
-    asset_server: &AssetServer,
-    asset_set: &AssetSet,
-    sparks: &mut ParticleCloud,
-    settings: &ClientSettings,
-    proj_entity: Entity,
+pub(super) fn closest_character_hit(
     proj_motion: &ProjectileMotion,
     proj_pos: &Position,
     delta: f32,
@@ -32,7 +26,7 @@ pub(super) fn handle_character_collisions(
     actor_query: &Query<(&ActorId, &Position, &FaceYaw), With<ActorMarker>>,
     actors: &ActorMap,
     gameplay_config: &GameplayConfig,
-) -> bool {
+) -> Option<ProjectileTargetHit> {
     let mut closest_hit = None;
 
     for (_player_entity, player_pos, face_yaw, player_id, is_local_player) in player_query.iter() {
@@ -71,47 +65,52 @@ pub(super) fn handle_character_collisions(
         }
     }
 
-    match closest_hit {
-        Some(target_hit) => {
-            let hit = target_hit.hit();
-            let impact = Vec3::from(*proj_pos) + proj_motion.velocity * delta * hit.time_of_impact;
-            if let ProjectileTargetHit::Player { is_local_player, .. } = target_hit {
-                // World sound at the impact — every client simulates every
-                // projectile, so someone else's hit lands as a distant thud.
-                play_spatial_sound(
-                    commands,
-                    asset_server,
-                    asset_set.player_sound("hit_player"),
-                    &settings.audio,
-                    PlaybackSettings::DESPAWN,
-                    impact,
-                );
+    closest_hit
+}
 
-                // Personal cue: you got hit. Stays full-volume flat.
-                if is_local_player {
-                    play_sound(
-                        commands,
-                        asset_server,
-                        asset_set.player_sound("take_hit"),
-                        PlaybackSettings::DESPAWN,
-                    );
-                }
-            }
-
-            let outward = -proj_motion.velocity.normalize_or_zero();
-            spawn_impact_sparks(
-                sparks,
-                impact,
-                outward,
-                outward,
-                proj_motion.velocity.length(),
-                ImpactKind::Character,
+pub(super) fn present_character_impact(
+    commands: &mut Commands,
+    asset_server: &AssetServer,
+    asset_set: &AssetSet,
+    sparks: &mut ParticleCloud,
+    settings: &ClientSettings,
+    proj_entity: Entity,
+    proj_motion: &ProjectileMotion,
+    proj_pos: &Position,
+    delta: f32,
+    target_hit: ProjectileTargetHit,
+) {
+    let hit = target_hit.hit();
+    let impact = Vec3::from(*proj_pos) + proj_motion.velocity * delta * hit.time_of_impact;
+    if let ProjectileTargetHit::Player { is_local_player, .. } = target_hit {
+        play_spatial_sound(
+            commands,
+            asset_server,
+            asset_set.player_sound("hit_player"),
+            &settings.audio,
+            PlaybackSettings::DESPAWN,
+            impact,
+        );
+        if is_local_player {
+            play_sound(
+                commands,
+                asset_server,
+                asset_set.player_sound("take_hit"),
+                PlaybackSettings::DESPAWN,
             );
-            commands.entity(proj_entity).despawn();
-            true
         }
-        None => false,
     }
+
+    let outward = -proj_motion.velocity.normalize_or_zero();
+    spawn_impact_sparks(
+        sparks,
+        impact,
+        outward,
+        outward,
+        proj_motion.velocity.length(),
+        ImpactKind::Character,
+    );
+    commands.entity(proj_entity).despawn();
 }
 
 // Barriers terminate the projectile (no bounce). Returns `true` if the
@@ -150,24 +149,19 @@ pub(super) fn handle_barrier_collisions(
     true
 }
 
-pub(super) fn handle_wall_collisions(
+pub(super) fn present_world_bounce(
     commands: &mut Commands,
     asset_server: &AssetServer,
     asset_set: &AssetSet,
     sparks: &mut ParticleCloud,
     settings: &ClientSettings,
-    proj_motion: &mut ProjectileMotion,
-    proj_pos: &Position,
-    delta: f32,
-    collision_world: Option<&CollisionWorld>,
+    proj_motion: &ProjectileMotion,
+    bounce: SurfaceBounce,
+    speed_before: f32,
     current_time: f32,
     last_bounce_sound: &mut LastBounceSound,
     listener_pos: Vec3,
-) -> Option<Position> {
-    let collision_world = collision_world?;
-
-    let speed_before = proj_motion.velocity.length();
-    let bounces = proj_motion.resolve_world_bounces(proj_pos, delta, collision_world)?;
+) {
     play_wall_bounce_sound(
         commands,
         asset_server,
@@ -176,7 +170,7 @@ pub(super) fn handle_wall_collisions(
         speed_before,
         current_time,
         last_bounce_sound,
-        bounces.first_contact,
+        bounce.contact,
         listener_pos,
     );
     // Same-tick bounces each retain their local impact cue even though audio
@@ -184,19 +178,17 @@ pub(super) fn handle_wall_collisions(
     if speed_before >= PROJECTILE_IMPACT_MIN_BOUNCE_SPEED {
         spawn_impact_sparks(
             sparks,
-            bounces.first_contact,
-            bounces.first_normal,
+            bounce.contact,
+            bounce.normal,
             proj_motion.velocity.normalize_or_zero(),
             speed_before,
             ImpactKind::World,
         );
     }
-
-    Some(bounces.position)
 }
 
 #[derive(Clone, Copy)]
-enum ProjectileTargetHit {
+pub(super) enum ProjectileTargetHit {
     Player {
         is_local_player: bool,
         hit: BallCharacterHit,
@@ -207,7 +199,7 @@ enum ProjectileTargetHit {
 }
 
 impl ProjectileTargetHit {
-    const fn hit(self) -> BallCharacterHit {
+    pub(super) const fn hit(self) -> BallCharacterHit {
         match self {
             Self::Player { hit, .. } | Self::Actor { hit, .. } => hit,
         }

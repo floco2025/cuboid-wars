@@ -17,10 +17,10 @@ pub use characters::{
 pub use lock::acquire_lock;
 pub use portals::{
     CharacterPortalHop, PortalFrame, PortalPlacement, PortalSet, ProjectileHop, compute_portal_placement,
-    traverse_vector,
+    portal_placement_overlaps, traverse_vector,
 };
 pub use projectiles::{
-    BarrierImpact, ProjectileMotion, ProjectileSpawnInfo, WorldBounces, calculate_projectile_spawns,
-    projectile_character_hit, projectile_overlaps_character,
+    BarrierImpact, ProjectileEvent, ProjectileMotion, ProjectileSpawnInfo, SurfaceBounce, calculate_projectile_spawns,
+    earliest_projectile_event, projectile_character_hit, projectile_overlaps_character,
 };
 pub use world::{CollisionWorld, ShapeCastHit, WorldSurfaceHit};
