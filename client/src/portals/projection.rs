@@ -34,7 +34,9 @@ impl Default for PortalProjection {
 }
 
 impl PortalProjection {
-    fn through_aperture(eye: Vec3, exit: &PortalFrame, plane_distance: f32, far: f32) -> Self {
+    // `rect` is the part of the aperture to render, in aperture units (right,
+    // up) — `full_aperture()` for all of it.
+    fn through_aperture(eye: Vec3, exit: &PortalFrame, plane_distance: f32, far: f32, rect: Rect) -> Self {
         let to_center = exit.center - eye;
         let camera_right = -exit.right;
         let center_x = to_center.dot(camera_right);
@@ -42,10 +44,10 @@ impl PortalProjection {
         let near = plane_distance + PORTAL_VIEW_CLIP_OFFSET;
         let near_scale = near / plane_distance;
         Self {
-            left: (center_x - PORTAL_HALF_WIDTH) * near_scale,
-            right: (center_x + PORTAL_HALF_WIDTH) * near_scale,
-            bottom: (center_y - PORTAL_HALF_HEIGHT) * near_scale,
-            top: (center_y + PORTAL_HALF_HEIGHT) * near_scale,
+            left: (center_x + rect.min.x) * near_scale,
+            right: (center_x + rect.max.x) * near_scale,
+            bottom: (center_y + rect.min.y) * near_scale,
+            top: (center_y + rect.max.y) * near_scale,
             near,
             far: far.max(near + 1.0),
         }
@@ -97,11 +99,21 @@ impl CameraProjection for PortalProjection {
     }
 }
 
+pub(super) fn full_aperture() -> Rect {
+    Rect::new(
+        -PORTAL_HALF_WIDTH,
+        -PORTAL_HALF_HEIGHT,
+        PORTAL_HALF_WIDTH,
+        PORTAL_HALF_HEIGHT,
+    )
+}
+
 pub(super) fn portal_camera_view(
     eye: Vec3,
     entry: &PortalFrame,
     exit: &PortalFrame,
     far: f32,
+    rect: Rect,
 ) -> Option<(Transform, PortalProjection)> {
     let plane_distance = (eye - entry.center).dot(entry.normal);
     if plane_distance <= PORTAL_VIEW_MIN_EYE_DISTANCE {
@@ -109,7 +121,7 @@ pub(super) fn portal_camera_view(
     }
     let mapped_eye = exit.center + traverse_vector(entry, exit, eye - entry.center);
     let transform = Transform::from_translation(mapped_eye).looking_to(exit.normal, exit.up);
-    let projection = PortalProjection::through_aperture(mapped_eye, exit, plane_distance, far);
+    let projection = PortalProjection::through_aperture(mapped_eye, exit, plane_distance, far, rect);
     Some((transform, projection))
 }
 
@@ -126,7 +138,8 @@ mod tests {
         let entry = PortalFrame::from_surface(Vec3::ZERO, Vec3::Z, 0.0);
         let exit = PortalFrame::from_surface(Vec3::new(5.0, 0.0, 0.0), Vec3::Z, 0.0);
         let eye = entry.center + entry.right * 0.2 + entry.up * 0.3 + entry.normal * 3.0;
-        let (transform, _) = portal_camera_view(eye, &entry, &exit, 100.0).expect("eye in front of portal");
+        let (transform, _) =
+            portal_camera_view(eye, &entry, &exit, 100.0, full_aperture()).expect("eye in front of portal");
         let expected = exit.center - exit.right * 0.2 + exit.up * 0.3 - exit.normal * 3.0;
         assert_vec3_close(transform.translation, expected);
         assert_vec3_close(transform.forward().as_vec3(), exit.normal);
@@ -138,7 +151,8 @@ mod tests {
         let entry = PortalFrame::from_surface(Vec3::ZERO, Vec3::Z, 0.0);
         let exit = PortalFrame::from_surface(Vec3::new(5.0, 1.0, 0.0), Vec3::Z, 0.0);
         let eye = entry.center + entry.right * 0.25 + entry.up * 0.4 + entry.normal * 3.0;
-        let (transform, projection) = portal_camera_view(eye, &entry, &exit, 100.0).expect("eye in front of portal");
+        let (transform, projection) =
+            portal_camera_view(eye, &entry, &exit, 100.0, full_aperture()).expect("eye in front of portal");
         let view_from_world = transform.to_matrix().inverse();
 
         for (point, expected) in [
@@ -162,13 +176,38 @@ mod tests {
     fn camera_view_rejects_eye_behind_aperture() {
         let entry = PortalFrame::from_surface(Vec3::ZERO, Vec3::Z, 0.0);
         let exit = PortalFrame::from_surface(Vec3::X, Vec3::NEG_Z, 0.0);
-        assert!(portal_camera_view(Vec3::NEG_Z, &entry, &exit, 100.0).is_none());
+        assert!(portal_camera_view(Vec3::NEG_Z, &entry, &exit, 100.0, full_aperture()).is_none());
     }
 
     #[test]
     fn camera_view_stays_valid_with_the_eye_almost_on_the_aperture() {
         let entry = PortalFrame::from_surface(Vec3::ZERO, Vec3::Z, 0.0);
         let exit = PortalFrame::from_surface(Vec3::X, Vec3::NEG_Z, 0.0);
-        assert!(portal_camera_view(Vec3::Z * 0.01, &entry, &exit, 100.0).is_some());
+        assert!(portal_camera_view(Vec3::Z * 0.01, &entry, &exit, 100.0, full_aperture()).is_some());
+    }
+
+    #[test]
+    fn projection_maps_a_sub_rectangle_of_the_aperture_to_the_viewport() {
+        let entry = PortalFrame::from_surface(Vec3::ZERO, Vec3::Z, 0.0);
+        let exit = PortalFrame::from_surface(Vec3::new(5.0, 1.0, 0.0), Vec3::Z, 0.0);
+        let eye = entry.normal * 0.4;
+        let rect = Rect::new(0.0, 0.0, PORTAL_HALF_WIDTH, PORTAL_HALF_HEIGHT);
+        let (transform, projection) =
+            portal_camera_view(eye, &entry, &exit, 100.0, rect).expect("eye in front of portal");
+        let view_from_world = transform.to_matrix().inverse();
+
+        // Entry-local +right maps to exit -right; the rect's corners land on the viewport's.
+        for (point, expected) in [
+            (exit.center, Vec2::new(-1.0, -1.0)),
+            (
+                exit.center - exit.right * PORTAL_HALF_WIDTH + exit.up * PORTAL_HALF_HEIGHT,
+                Vec2::new(1.0, 1.0),
+            ),
+        ] {
+            let clip = projection.matrix() * view_from_world * point.extend(1.0);
+            let ndc = clip.truncate() / clip.w;
+            assert!((ndc.x - expected.x).abs() < 1e-4, "{ndc:?}");
+            assert!((ndc.y - expected.y).abs() < 1e-4, "{ndc:?}");
+        }
     }
 }

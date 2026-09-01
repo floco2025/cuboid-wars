@@ -7,13 +7,14 @@ use bevy::{
         tonemapping::Tonemapping,
     },
     image::ImageSampler,
+    math::Affine2,
     prelude::*,
     render::render_resource::TextureFormat,
 };
 
 use super::{
     PortalMap,
-    projection::{PortalProjection, portal_camera_view},
+    projection::{PortalProjection, full_aperture, portal_camera_view},
     spawn::{PortalAssets, spawn_portal_visual},
 };
 use crate::{
@@ -24,7 +25,6 @@ use crate::{
     schedule::ClientSet,
 };
 use common::{
-    constants::{PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH},
     physics::PortalFrame,
     protocol::{PlayerId, Portal, PortalEnd},
 };
@@ -32,13 +32,8 @@ use common::{
 const FIRST_RECURSIVE_RENDER_LAYER: usize = 4;
 const MAX_PORTAL_VIEW_CAMERAS: usize = 64;
 const MAX_PORTAL_REPLICAS: usize = 512;
-const PORTAL_VIEW_RESOLUTIONS: [UVec2; 5] = [
-    UVec2::new(64, 120),
-    UVec2::new(128, 240),
-    UVec2::new(256, 480),
-    UVec2::new(512, 960),
-    UVec2::new(1024, 1920),
-];
+// Texture sizes per axis; a view only ever needs the presenter's pixels.
+const PORTAL_VIEW_AXIS_SIZES: [u32; 6] = [64, 128, 256, 512, 1024, 2048];
 const RESOLUTION_SHRINK_THRESHOLD: f32 = 0.8;
 
 type PortalKey = (PlayerId, PortalEnd);
@@ -81,6 +76,7 @@ struct MappedView {
     transform: Transform,
     projection: Projection,
     footprint: Vec2,
+    rect: Rect,
 }
 
 pub fn portal_render_plugin(app: &mut App) {
@@ -176,7 +172,7 @@ fn rebuild_portal_views_system(
         let targets = vec![create_portal_view_target(
             &mut images,
             &mut materials,
-            PORTAL_VIEW_RESOLUTIONS[0],
+            UVec2::splat(PORTAL_VIEW_AXIS_SIZES[0]),
         )];
         let initial_image = targets[0].image.clone();
         let mut camera = commands.spawn((
@@ -307,7 +303,7 @@ fn update_portal_view_cameras_system(
                 .viewport
                 .as_ref()
                 .map_or(scene_target.size, |viewport| viewport.physical_size);
-            let (transform, projection, footprint) = view_through_chain(
+            let (transform, projection, footprint, rect) = view_through_chain(
                 &portals,
                 &view.chain,
                 presenter_transform,
@@ -321,6 +317,7 @@ fn update_portal_view_cameras_system(
                 transform,
                 projection,
                 footprint,
+                rect,
             })
         })
         .collect();
@@ -361,7 +358,16 @@ fn update_portal_view_cameras_system(
                     *render_target = RenderTarget::Image(view.targets[target_index].image.clone().into());
                     view.target_index = target_index;
                 }
-                view.targets[view.target_index].material.clone()
+                let target = &view.targets[view.target_index];
+                let uv_transform = aperture_uv_transform(mapped_view.rect);
+                if materials
+                    .get(&target.material)
+                    .is_some_and(|material| material.uv_transform != uv_transform)
+                    && let Some(mut material) = materials.get_mut(&target.material)
+                {
+                    material.uv_transform = uv_transform;
+                }
+                target.material.clone()
             }
             // A surface shows a view only while that view renders this frame;
             // otherwise its own glow, never stale pixels.
@@ -380,9 +386,10 @@ fn update_portal_view_cameras_system(
 // it needs that parent admitted too. Returns indices into `views`.
 fn admit_views(views: &[MappedView], budget: usize) -> Vec<usize> {
     let mut order: Vec<usize> = (0..views.len()).collect();
+    let area = |index: usize| views[index].footprint.x * views[index].footprint.y;
     order.sort_by(|&a, &b| {
-        resolution_demand(views[b].footprint)
-            .total_cmp(&resolution_demand(views[a].footprint))
+        area(b)
+            .total_cmp(&area(a))
             .then(views[a].chain.len().cmp(&views[b].chain.len()))
     });
     let mut admitted_chains: HashSet<&[PortalKey]> = HashSet::new();
@@ -405,109 +412,165 @@ fn admit_views(views: &[MappedView], budget: usize) -> Vec<usize> {
 }
 
 // Maps a presenting camera through every hop of `chain`: the eye through each
-// entry to its exit, and the entry's on-screen footprint, which is the whole
-// screen for the view after it. `None` when a hop is invalid or off screen —
+// entry to its exit, rendering only the part of each aperture that is on
+// screen in the view before it. `None` when a hop is invalid or off screen —
 // computed from this frame's camera rather than read back from visibility,
-// so activation never lags a frame. Returns the final view and the last
-// hop's footprint in screen pixels.
+// so activation never lags a frame. Returns the final view, the last hop's
+// footprint in presenter pixels, and the aperture rectangle it renders.
 fn view_through_chain(
     portals: &PortalMap,
     chain: &[PortalKey],
     presenter_transform: &Transform,
     presenter_projection: &Projection,
     presenter_size: UVec2,
-) -> Option<(Transform, Projection, Vec2)> {
+) -> Option<(Transform, Projection, Vec2, Rect)> {
     let mut view_transform = *presenter_transform;
     let mut view_projection = presenter_projection.clone();
     let mut footprint = presenter_size.as_vec2();
+    let mut rect = full_aperture();
     for key in chain {
         let entry = &portals.get(key)?.portal;
         let exit = paired_portal(portals, entry)?;
         let entry_frame = PortalFrame::from_portal(entry);
         let exit_frame = PortalFrame::from_portal(exit);
-        footprint = projected_portal_size(&entry_frame, &view_transform, &view_projection, footprint);
-        if footprint.x <= 0.0 || footprint.y <= 0.0 {
-            return None;
-        }
+        let visible = visible_aperture(&entry_frame, &view_transform, &view_projection, footprint)?;
+        footprint = visible.footprint;
+        rect = visible.rect;
         let (next_transform, next_projection) = portal_camera_view(
             view_transform.translation,
             &entry_frame,
             &exit_frame,
             presenter_projection.far(),
+            rect,
         )?;
         view_transform = next_transform;
         view_projection = Projection::custom(next_projection);
     }
-    Some((view_transform, view_projection, footprint))
+    Some((view_transform, view_projection, footprint, rect))
 }
 
-fn projected_portal_size(
+struct VisibleAperture {
+    // Pixels of the view the visible part covers: ranking and texture size.
+    footprint: Vec2,
+    // The part of the aperture to render, in aperture units.
+    rect: Rect,
+}
+
+// The on-screen part of an aperture: the aperture rectangle clipped by the
+// view frustum, as its pixel footprint and the aperture-space rectangle it
+// spans. Rendering only that rectangle keeps the texture at screen density
+// however close the eye gets, since the view never needs more pixels than
+// the screen has. `None` when nothing is on screen.
+fn visible_aperture(
     frame: &PortalFrame,
     camera_transform: &Transform,
     projection: &Projection,
-    screen_size: Vec2,
-) -> Vec2 {
+    view_size: Vec2,
+) -> Option<VisibleAperture> {
     let clip_from_world = projection.get_clip_from_view() * camera_transform.to_matrix().inverse();
-    let mut min = Vec2::splat(f32::INFINITY);
-    let mut max = Vec2::splat(f32::NEG_INFINITY);
-    let mut behind = 0;
-    for horizontal in [-PORTAL_HALF_WIDTH, PORTAL_HALF_WIDTH] {
-        for vertical in [-PORTAL_HALF_HEIGHT, PORTAL_HALF_HEIGHT] {
-            let corner = frame.center + frame.right * horizontal + frame.up * vertical;
-            let clip = clip_from_world * corner.extend(1.0);
-            if clip.w <= f32::EPSILON {
-                behind += 1;
-                continue;
-            }
-            let ndc = clip.truncate().xy() / clip.w;
-            min = min.min(ndc);
-            max = max.max(ndc);
+    let aperture = full_aperture();
+    let mut polygon: Vec<Vec3> = [
+        Vec2::new(aperture.min.x, aperture.min.y),
+        Vec2::new(aperture.max.x, aperture.min.y),
+        aperture.max,
+        Vec2::new(aperture.min.x, aperture.max.y),
+    ]
+    .into_iter()
+    .map(|corner| frame.center + frame.right * corner.x + frame.up * corner.y)
+    .collect();
+    for plane in frustum_planes(&clip_from_world) {
+        polygon = clip_polygon(&polygon, plane);
+        if polygon.is_empty() {
+            return None;
         }
     }
-    if behind == 4 {
-        return Vec2::ZERO;
+
+    let mut rect = Rect::EMPTY;
+    let mut ndc = Rect::EMPTY;
+    for vertex in polygon {
+        let local = vertex - frame.center;
+        rect = rect.union_point(Vec2::new(local.dot(frame.right), local.dot(frame.up)));
+        let clip = clip_from_world * vertex.extend(1.0);
+        ndc = ndc.union_point((clip.truncate().xy() / clip.w).clamp(Vec2::splat(-1.0), Vec2::splat(1.0)));
     }
-    if behind > 0 {
-        return screen_size;
+    if rect.is_empty() || ndc.is_empty() {
+        return None;
     }
-    min = min.max(Vec2::splat(-1.0));
-    max = max.min(Vec2::splat(1.0));
-    if min.x >= max.x || min.y >= max.y {
-        return Vec2::ZERO;
-    }
-    (max - min) * 0.5 * screen_size
+    Some(VisibleAperture {
+        footprint: ndc.size() * 0.5 * view_size,
+        rect,
+    })
 }
 
-fn adaptive_portal_resolution(projected_size: Vec2, current: UVec2) -> UVec2 {
-    let desired_index = resolution_index(projected_size);
-    let mut index = PORTAL_VIEW_RESOLUTIONS
+// The view's four side planes and its near plane, read off the clip matrix
+// rows; a point is inside where `plane · (p, 1) >= 0`. Bevy's reverse Z puts
+// the near plane at clip z = w.
+fn frustum_planes(clip_from_world: &Mat4) -> [Vec4; 5] {
+    let row = |index| clip_from_world.row(index);
+    [
+        row(3) + row(0),
+        row(3) - row(0),
+        row(3) + row(1),
+        row(3) - row(1),
+        row(3) - row(2),
+    ]
+}
+
+// Sutherland–Hodgman against one plane.
+fn clip_polygon(polygon: &[Vec3], plane: Vec4) -> Vec<Vec3> {
+    let mut clipped = Vec::with_capacity(polygon.len() + 1);
+    for (index, &start) in polygon.iter().enumerate() {
+        let end = polygon[(index + 1) % polygon.len()];
+        let start_distance = plane.dot(start.extend(1.0));
+        let end_distance = plane.dot(end.extend(1.0));
+        if start_distance >= 0.0 {
+            clipped.push(start);
+        }
+        if (start_distance < 0.0) != (end_distance < 0.0) {
+            clipped.push(start.lerp(end, start_distance / (start_distance - end_distance)));
+        }
+    }
+    clipped
+}
+
+// Maps the disc's UVs (the whole aperture, v downward) onto the rendered `rect`.
+fn aperture_uv_transform(rect: Rect) -> Affine2 {
+    let aperture = full_aperture();
+    let size = rect.size();
+    Affine2::from_scale_angle_translation(
+        aperture.size() / size,
+        0.0,
+        Vec2::new(
+            (aperture.min.x - rect.min.x) / size.x,
+            (rect.max.y - aperture.max.y) / size.y,
+        ),
+    )
+}
+
+fn adaptive_portal_resolution(footprint: Vec2, current: UVec2) -> UVec2 {
+    UVec2::new(axis_size(footprint.x, current.x), axis_size(footprint.y, current.y))
+}
+
+// Grows straight to the first step covering the demand; shrinks only once the
+// demand sits well inside the step below, so a portal hovering around a
+// boundary does not flip textures every frame.
+fn axis_size(demand: f32, current: u32) -> u32 {
+    let desired = PORTAL_VIEW_AXIS_SIZES
         .iter()
-        .position(|resolution| *resolution == current)
+        .position(|&size| size as f32 >= demand)
+        .unwrap_or(PORTAL_VIEW_AXIS_SIZES.len() - 1);
+    let mut index = PORTAL_VIEW_AXIS_SIZES
+        .iter()
+        .position(|&size| size == current)
         .unwrap_or(0);
-    if desired_index > index {
-        index = desired_index;
+    if desired > index {
+        index = desired;
     } else {
-        let demand = resolution_demand(projected_size);
-        while index > desired_index
-            && demand < PORTAL_VIEW_RESOLUTIONS[index - 1].y as f32 * RESOLUTION_SHRINK_THRESHOLD
-        {
+        while index > desired && demand < PORTAL_VIEW_AXIS_SIZES[index - 1] as f32 * RESOLUTION_SHRINK_THRESHOLD {
             index -= 1;
         }
     }
-    PORTAL_VIEW_RESOLUTIONS[index]
-}
-
-fn resolution_index(projected_size: Vec2) -> usize {
-    let demand = resolution_demand(projected_size);
-    PORTAL_VIEW_RESOLUTIONS
-        .iter()
-        .position(|resolution| resolution.y as f32 >= demand)
-        .unwrap_or(PORTAL_VIEW_RESOLUTIONS.len() - 1)
-}
-
-fn resolution_demand(projected_size: Vec2) -> f32 {
-    let aspect_height = PORTAL_VIEW_RESOLUTIONS[0].y as f32 / PORTAL_VIEW_RESOLUTIONS[0].x as f32;
-    projected_size.y.max(projected_size.x * aspect_height)
+    PORTAL_VIEW_AXIS_SIZES[index]
 }
 
 fn paired_end(end: PortalEnd) -> PortalEnd {
@@ -533,6 +596,7 @@ mod tests {
 
     use super::*;
     use crate::portals::PortalInfo;
+    use common::constants::{PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH};
 
     fn perspective() -> Projection {
         let mut projection = Projection::Perspective(PerspectiveProjection {
@@ -583,8 +647,12 @@ mod tests {
         let near = PortalFrame::from_surface(Vec3::new(0.0, 0.0, -2.0), Vec3::Z, 0.0);
         let far = PortalFrame::from_surface(Vec3::new(0.0, 0.0, -8.0), Vec3::Z, 0.0);
 
-        let near_size = projected_portal_size(&near, &camera, &projection, Vec2::splat(1000.0));
-        let far_size = projected_portal_size(&far, &camera, &projection, Vec2::splat(1000.0));
+        let near_size = visible_aperture(&near, &camera, &projection, Vec2::splat(1000.0))
+            .expect("near portal is on screen")
+            .footprint;
+        let far_size = visible_aperture(&far, &camera, &projection, Vec2::splat(1000.0))
+            .expect("far portal is on screen")
+            .footprint;
 
         assert!(near_size.x > far_size.x);
         assert!(near_size.y > far_size.y);
@@ -595,10 +663,78 @@ mod tests {
         let projection = perspective();
         let portal = PortalFrame::from_surface(Vec3::new(0.0, 0.0, 2.0), Vec3::NEG_Z, 0.0);
 
-        assert_eq!(
-            projected_portal_size(&portal, &Transform::IDENTITY, &projection, Vec2::splat(1000.0)),
-            Vec2::ZERO
+        assert!(visible_aperture(&portal, &Transform::IDENTITY, &projection, Vec2::splat(1000.0)).is_none());
+    }
+
+    #[test]
+    fn distant_aperture_renders_whole_and_close_aperture_renders_only_the_visible_part() {
+        let projection = perspective();
+        let portal = PortalFrame::from_surface(Vec3::ZERO, Vec3::Z, 0.0);
+
+        let distant = visible_aperture(
+            &portal,
+            &Transform::from_xyz(0.0, 0.0, 5.0),
+            &projection,
+            Vec2::splat(1000.0),
+        )
+        .expect("distant portal is on screen");
+        assert!(distant.footprint.y < 1000.0);
+        assert!(
+            (distant.rect.min - full_aperture().min).length() < 1e-3,
+            "{:?}",
+            distant.rect
         );
+        assert!(
+            (distant.rect.max - full_aperture().max).length() < 1e-3,
+            "{:?}",
+            distant.rect
+        );
+
+        // Half a metre out with a 90° lens sees ±0.5 m of the aperture.
+        let close = visible_aperture(
+            &portal,
+            &Transform::from_xyz(0.0, 0.0, 0.5),
+            &projection,
+            Vec2::splat(1000.0),
+        )
+        .expect("close portal is on screen");
+        assert_eq!(close.footprint, Vec2::splat(1000.0));
+        assert!((close.rect.min - Vec2::splat(-0.5)).length() < 1e-3, "{:?}", close.rect);
+        assert!((close.rect.max - Vec2::splat(0.5)).length() < 1e-3, "{:?}", close.rect);
+    }
+
+    #[test]
+    fn aperture_corner_behind_the_eye_is_clipped_not_abandoned() {
+        let projection = perspective();
+        let portal = PortalFrame::from_surface(Vec3::ZERO, Vec3::Z, 0.0);
+        // Hugging the wall, turned along it: the near corner is behind the eye plane.
+        let camera = Transform::from_xyz(0.5, 0.0, 0.15).looking_to(Vec3::new(-1.0, 0.0, -0.3).normalize(), Vec3::Y);
+
+        let visible = visible_aperture(&portal, &camera, &projection, Vec2::splat(1000.0))
+            .expect("far side of the aperture is on screen");
+        assert!(visible.rect.max.x < PORTAL_HALF_WIDTH, "{:?}", visible.rect);
+        assert!(visible.rect.min.x >= -PORTAL_HALF_WIDTH - 1e-4, "{:?}", visible.rect);
+        assert!(
+            visible.footprint.x > 0.0 && visible.footprint.x <= 1000.0,
+            "{:?}",
+            visible.footprint
+        );
+        assert!(
+            visible.footprint.y > 0.0 && visible.footprint.y <= 1000.0,
+            "{:?}",
+            visible.footprint
+        );
+    }
+
+    #[test]
+    fn uv_transform_maps_the_disc_onto_the_rendered_rect() {
+        let identity = aperture_uv_transform(full_aperture());
+        assert!((identity.transform_point2(Vec2::new(0.25, 0.75)) - Vec2::new(0.25, 0.75)).length() < 1e-6);
+
+        // The upper-right quadrant of the aperture (disc UV u > 0.5, v < 0.5).
+        let quadrant = aperture_uv_transform(Rect::new(0.0, 0.0, PORTAL_HALF_WIDTH, PORTAL_HALF_HEIGHT));
+        assert!((quadrant.transform_point2(Vec2::new(0.5, 0.5)) - Vec2::new(0.0, 1.0)).length() < 1e-6);
+        assert!((quadrant.transform_point2(Vec2::new(1.0, 0.0)) - Vec2::new(1.0, 0.0)).length() < 1e-6);
     }
 
     #[test]
@@ -618,7 +754,7 @@ mod tests {
         let projection = perspective();
         let camera = Transform::from_xyz(0.0, 1.0, 0.0);
 
-        let (mapped, _, _) = view_through_chain(&portals, &[key_a, key_a], &camera, &projection, UVec2::splat(1000))
+        let (mapped, _, _, _) = view_through_chain(&portals, &[key_a, key_a], &camera, &projection, UVec2::splat(1000))
             .expect("second look through A is in view");
         assert!(
             mapped.translation.distance(Vec3::new(0.0, 1.0, 16.0)) < 1e-4,
@@ -628,30 +764,18 @@ mod tests {
     }
 
     #[test]
-    fn portal_resolution_grows_with_projected_footprint() {
+    fn texture_size_follows_each_axis_of_the_footprint() {
         assert_eq!(
-            adaptive_portal_resolution(Vec2::new(120.0, 300.0), PORTAL_VIEW_RESOLUTIONS[1]),
-            PORTAL_VIEW_RESOLUTIONS[2]
+            adaptive_portal_resolution(Vec2::new(1000.0, 300.0), UVec2::splat(64)),
+            UVec2::new(1024, 512)
         );
         assert_eq!(
-            adaptive_portal_resolution(Vec2::new(400.0, 800.0), PORTAL_VIEW_RESOLUTIONS[2]),
-            PORTAL_VIEW_RESOLUTIONS[3]
+            adaptive_portal_resolution(Vec2::ZERO, UVec2::splat(2048)),
+            UVec2::splat(64)
         );
-    }
-
-    #[test]
-    fn distant_portal_shrinks_to_minimum_resolution() {
         assert_eq!(
-            adaptive_portal_resolution(Vec2::ZERO, PORTAL_VIEW_RESOLUTIONS[4]),
-            UVec2::new(64, 120)
-        );
-    }
-
-    #[test]
-    fn very_close_portal_uses_maximum_resolution() {
-        assert_eq!(
-            adaptive_portal_resolution(Vec2::splat(4000.0), PORTAL_VIEW_RESOLUTIONS[0]),
-            UVec2::new(1024, 1920)
+            adaptive_portal_resolution(Vec2::splat(4000.0), UVec2::splat(64)),
+            UVec2::splat(2048)
         );
     }
 
@@ -663,6 +787,7 @@ mod tests {
             transform: Transform::IDENTITY,
             projection: Projection::default(),
             footprint,
+            rect: full_aperture(),
         }
     }
 
@@ -703,14 +828,9 @@ mod tests {
     }
 
     #[test]
-    fn portal_resolution_shrink_has_hysteresis() {
-        assert_eq!(
-            adaptive_portal_resolution(Vec2::new(200.0, 400.0), PORTAL_VIEW_RESOLUTIONS[3]),
-            PORTAL_VIEW_RESOLUTIONS[3]
-        );
-        assert_eq!(
-            adaptive_portal_resolution(Vec2::new(150.0, 300.0), PORTAL_VIEW_RESOLUTIONS[3]),
-            PORTAL_VIEW_RESOLUTIONS[2]
-        );
+    fn texture_size_shrink_has_hysteresis() {
+        assert_eq!(axis_size(450.0, 1024), 1024);
+        assert_eq!(axis_size(400.0, 1024), 512);
+        assert_eq!(axis_size(300.0, 128), 512);
     }
 }
