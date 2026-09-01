@@ -22,7 +22,7 @@ use common::protocol::{ItemMarker, MapLayout};
 // GPU clustering's Z-slice list defaults to 1024, which our dense lit scenes
 // overflow; Bevy then resizes mid-render and corrupts lighting for a few frames.
 // Pre-size it (PbrPlugin builds the resource in `finish`, so we mutate, not insert).
-const CLUSTER_Z_SLICE_CAPACITY: usize = 4096;
+const CLUSTER_Z_SLICE_CAPACITY: usize = 8192;
 
 pub fn setup_scene_lighting_system(
     mut commands: Commands,
