@@ -182,7 +182,7 @@ fn window_plugin(options: &ClientAppOptions, vsync: bool, fullscreen: bool) -> W
             resolution: (options.window_width, options.window_height).into(),
             position,
             mode: if fullscreen {
-                WindowMode::BorderlessFullscreen(MonitorSelection::Current)
+                WindowMode::BorderlessFullscreen(MonitorSelection::Primary)
             } else {
                 WindowMode::Windowed
             },
@@ -228,5 +228,12 @@ mod tests {
         let plugin = window_plugin(&options(Some(10), Some(20)), true, false);
         let window = plugin.primary_window.expect("primary window should be configured");
         assert_eq!(window.position, WindowPosition::At(IVec2::new(10, 20)));
+    }
+
+    #[test]
+    fn initial_fullscreen_selects_primary_monitor() {
+        let plugin = window_plugin(&options(None, None), true, true);
+        let window = plugin.primary_window.expect("primary window should be configured");
+        assert_eq!(window.mode, WindowMode::BorderlessFullscreen(MonitorSelection::Primary));
     }
 }
