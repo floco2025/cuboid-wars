@@ -1,6 +1,7 @@
 use super::*;
 use crate::constants::{
-    LADDER_BASE_OVERSHOOT, LADDER_RAIL_INSET, LADDER_STANDOFF_CLEARANCE, LEVEL_HEIGHT, PHYSICS_EPSILON,
+    LADDER_BASE_OVERSHOOT, LADDER_FUNNEL_GAIN, LADDER_RAIL_INSET, LADDER_STANDOFF_CLEARANCE, LEVEL_HEIGHT,
+    PHYSICS_EPSILON,
 };
 
 // Where the plane clamp holds the player against `test_ladder`, measured
@@ -316,7 +317,7 @@ fn fall_through_volume_latches() {
 fn idle_on_ladder_holds_position() {
     let world = ladder_collision_world(&[], &[test_ladder()]);
     let start = Position {
-        x: 0.0,
+        x: 0.35,
         y: 2.0,
         z: -0.5,
     };
@@ -324,8 +325,95 @@ fn idle_on_ladder_holds_position() {
     let step = ladder_step(&world, start, 0.0, start.x, start.z);
 
     assert_eq!(step.vertical_velocity, 0.0);
+    assert!((step.position.x - start.x).abs() < 1e-4);
     assert!((step.position.y - start.y).abs() < 1e-4);
     assert_eq!(step.support, CharacterSupport::Ladder);
+}
+
+#[test]
+fn climbing_player_is_funneled_toward_ladder_axis() {
+    let world = ladder_collision_world(&[], &[test_ladder()]);
+    let start = Position {
+        x: 0.35,
+        y: 2.0,
+        z: -0.5,
+    };
+
+    let step = ladder_step(&world, start, 0.0, start.x, start.z + 0.2);
+
+    let expected_x = start.x - start.x * LADDER_FUNNEL_GAIN * 0.1;
+    assert!((step.position.x - expected_x).abs() < 1e-4);
+    assert!(step.vertical_velocity > 0.0);
+    assert_eq!(step.support, CharacterSupport::Ladder);
+}
+
+#[test]
+fn ladder_funnel_works_for_either_edge_axis() {
+    let world = ladder_collision_world(&[], &[test_ladder_facing_x()]);
+    let start = Position {
+        x: -0.5,
+        y: 2.0,
+        z: 0.35,
+    };
+
+    let step = ladder_step(&world, start, 0.0, start.x + 0.2, start.z);
+
+    let expected_z = start.z - start.z * LADDER_FUNNEL_GAIN * 0.1;
+    assert!((step.position.z - expected_z).abs() < 1e-4);
+    assert!(step.vertical_velocity > 0.0);
+    assert_eq!(step.support, CharacterSupport::Ladder);
+}
+
+#[test]
+fn diagonal_climb_receives_ladder_funnel_resistance() {
+    let world = ladder_collision_world(&[], &[test_ladder()]);
+    let start = Position {
+        x: 0.3,
+        y: 2.0,
+        z: -0.5,
+    };
+
+    let step = ladder_step(&world, start, 0.0, start.x + 0.1, start.z + 0.2);
+
+    let unassisted_x = start.x + 0.1;
+    let expected_x = unassisted_x - start.x * LADDER_FUNNEL_GAIN * 0.1;
+    assert!((step.position.x - expected_x).abs() < 1e-4);
+    assert!(step.vertical_velocity > 0.0);
+    assert_eq!(step.support, CharacterSupport::Ladder);
+}
+
+#[test]
+fn strongly_sideways_climb_overpowers_ladder_funnel() {
+    let world = ladder_collision_world(&[], &[test_ladder()]);
+    let start = Position {
+        x: 0.1,
+        y: 2.0,
+        z: -0.5,
+    };
+
+    // The sideways input is stronger than the additive centering pull, so
+    // the player moves off-axis while still receiving some resistance.
+    let step = ladder_step(&world, start, 0.0, start.x + 0.2, start.z + 0.15);
+
+    assert!(step.position.x > start.x);
+    assert!(step.position.x < 0.3);
+    assert!(step.vertical_velocity > 0.0);
+    assert_eq!(step.support, CharacterSupport::Ladder);
+}
+
+#[test]
+fn grounded_player_near_ladder_is_not_funneled() {
+    let world = ladder_collision_world(&[ladder_front_base_floor()], &[test_ladder()]);
+    let start = Position {
+        x: 0.3,
+        y: 0.0,
+        z: -0.5,
+    };
+
+    let step = ladder_step(&world, start, 0.0, start.x, start.z);
+
+    assert!((step.position.x - start.x).abs() < 1e-4);
+    assert_eq!(step.support, CharacterSupport::Ground);
 }
 
 #[test]

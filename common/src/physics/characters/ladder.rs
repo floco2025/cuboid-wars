@@ -2,7 +2,10 @@ use bevy_math::Vec3;
 
 use crate::{
     config::CharacterPhysicsConfig,
-    constants::{LADDER_CLIMB_FACING_FRACTION, LADDER_CLIMB_MIN_SPEED, LADDER_STANDOFF_CLEARANCE, PHYSICS_EPSILON},
+    constants::{
+        LADDER_CLIMB_FACING_FRACTION, LADDER_CLIMB_MIN_SPEED, LADDER_FUNNEL_GAIN, LADDER_STANDOFF_CLEARANCE,
+        PHYSICS_EPSILON,
+    },
     physics::world::{CollisionWorld, LadderVolume},
     protocol::Position,
 };
@@ -10,7 +13,7 @@ use crate::{
 pub(super) enum LadderInteraction<'a> {
     None,
     Holding,
-    Ascending { velocity: f32 },
+    Ascending { velocity: f32, ladder: &'a LadderVolume },
     Descending { velocity: f32, ladder: &'a LadderVolume },
 }
 
@@ -20,7 +23,7 @@ impl LadderInteraction<'_> {
         match self {
             Self::None => None,
             Self::Holding => Some(0.0),
-            Self::Ascending { velocity } | Self::Descending { velocity, .. } => Some(*velocity),
+            Self::Ascending { velocity, .. } | Self::Descending { velocity, .. } => Some(*velocity),
         }
     }
 
@@ -32,6 +35,20 @@ impl LadderInteraction<'_> {
     #[must_use]
     pub(super) const fn is_supported(&self) -> bool {
         !matches!(self, Self::None)
+    }
+
+    #[must_use]
+    pub(super) fn funnel_displacement(&self, start: &Position, delta: f32) -> Vec3 {
+        let ladder = match self {
+            Self::Ascending { ladder, .. } | Self::Descending { ladder, .. } => ladder,
+            Self::None | Self::Holding => return Vec3::ZERO,
+        };
+        let offset = ladder.offset_from_axis(start.x, start.z);
+        let Some(direction) = offset.try_normalize() else {
+            return Vec3::ZERO;
+        };
+        let speed = offset.length() * LADDER_FUNNEL_GAIN;
+        -direction * speed * delta
     }
 
     #[must_use]
@@ -76,9 +93,10 @@ pub(super) fn evaluate_ladder_interaction<'a>(
         (aligned && toward_plane.abs() >= LADDER_CLIMB_MIN_SPEED).then_some(toward_plane * climb_speed_ratio)
     });
     let climb_velocity = ride_velocity.filter(|velocity| *velocity > 0.0);
-    if let Some(vertical_velocity) = climb_velocity {
+    if let (Some(ladder), Some(vertical_velocity)) = (ladder, climb_velocity) {
         return LadderInteraction::Ascending {
             velocity: vertical_velocity,
+            ladder,
         };
     }
 

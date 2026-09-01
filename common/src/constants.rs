@@ -57,6 +57,11 @@ pub const LADDER_CLIMB_FACING_FRACTION: f32 = 0.5;
 // ...and carry at least this much speed into the face (m/s), so micro drift
 // (reconciliation nudges, knockback tails) never reads as climbing.
 pub const LADDER_CLIMB_MIN_SPEED: f32 = 1.0;
+// While ascending or descending, a character gets an additive pull along
+// the ladder face toward its center axis; idle latch does not pull. Pull
+// speed is lateral offset in meters × `GAIN`. Player movement is applied
+// alongside the pull, allowing enough sideways input to overpower it.
+pub const LADDER_FUNNEL_GAIN: f32 = 4.0;
 
 // Levels
 pub const LEVEL_HEIGHT: f32 = WALL_HEIGHT + FLOOR_THICKNESS;

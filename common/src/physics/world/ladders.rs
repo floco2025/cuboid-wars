@@ -130,6 +130,14 @@ impl LadderVolume {
         self.normal_x * (x - self.mid_x) + self.normal_z * (z - self.mid_z)
     }
 
+    // Horizontal offset from the ladder's vertical center axis, projected
+    // along its face so centering never changes the rail-plane standoff.
+    #[must_use]
+    pub fn offset_from_axis(&self, x: f32, z: f32) -> Vec3 {
+        let tangent = Vec3::new(-self.normal_z, 0.0, self.normal_x);
+        tangent * Vec3::new(x - self.mid_x, 0.0, z - self.mid_z).dot(tangent)
+    }
+
     // (x, z) shifted along the normal so its plane offset becomes `offset`.
     #[must_use]
     pub fn with_plane_offset(&self, x: f32, z: f32, offset: f32) -> (f32, f32) {

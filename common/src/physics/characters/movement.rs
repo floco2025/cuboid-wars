@@ -161,7 +161,7 @@ fn prepare_movement_request(
         Vector::ZERO
     };
 
-    let funnel = env.portals.map_or(Vec3::ZERO, |portals| {
+    let portal_funnel = env.portals.map_or(Vec3::ZERO, |portals| {
         portals.funnel_displacement(
             Vec3::new(start_pos.x, start_pos.y, start_pos.z),
             physics,
@@ -170,8 +170,15 @@ fn prepare_movement_request(
             step.delta,
         )
     });
-    let target_x = step.control_velocity.x.mul_add(step.delta, start_pos.x) + step.external_displacement.x + funnel.x;
-    let target_z = step.control_velocity.z.mul_add(step.delta, start_pos.z) + step.external_displacement.z + funnel.z;
+    let ladder_funnel = ladder.funnel_displacement(start_pos, step.delta);
+    let target_x = step.control_velocity.x.mul_add(step.delta, start_pos.x)
+        + step.external_displacement.x
+        + portal_funnel.x
+        + ladder_funnel.x;
+    let target_z = step.control_velocity.z.mul_add(step.delta, start_pos.z)
+        + step.external_displacement.z
+        + portal_funnel.z
+        + ladder_funnel.z;
     let (target_x, target_z) = ladder.constrain_target(start_pos, target_x, target_z, collision_world, physics);
     let requested_target = Position {
         x: target_x,
