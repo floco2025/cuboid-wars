@@ -1,17 +1,20 @@
 use std::collections::VecDeque;
 
 use bevy::{
-    camera::{RenderTarget, visibility::RenderLayers},
-    core_pipeline::prepass::{DeferredPrepass, DepthPrepass},
+    camera::{Hdr, RenderTarget, visibility::RenderLayers},
+    core_pipeline::{
+        prepass::{DeferredPrepass, DepthPrepass},
+        tonemapping::Tonemapping,
+    },
     image::ImageSampler,
     prelude::*,
-    render::{render_resource::TextureFormat, view::ColorGrading},
+    render::render_resource::TextureFormat,
 };
 
 use super::{
     PortalMap,
     projection::{PortalProjection, portal_camera_view},
-    spawn::{PortalAssets, spawn_portal_replica},
+    spawn::{PortalAssets, spawn_portal_visual},
 };
 use crate::{
     cameras::{MainCameraMarker, SceneRenderTarget, scene_render_target_system},
@@ -43,7 +46,6 @@ type PortalKey = (PlayerId, PortalEnd);
 #[derive(Component)]
 struct PortalViewCamera {
     chain: Vec<PortalKey>,
-    visibility_path: Vec<Entity>,
     target_surface: Entity,
     targets: Vec<PortalViewTarget>,
     target_index: usize,
@@ -64,7 +66,6 @@ struct PortalRenderState {
 
 struct PendingView {
     chain: Vec<PortalKey>,
-    visibility_path: Vec<Entity>,
     target_surface: Entity,
     recursion_remaining: u8,
 }
@@ -104,27 +105,24 @@ fn rebuild_portal_views_system(
     for entity in state.spawned.drain(..) {
         commands.entity(entity).despawn();
     }
-    for portal in &wire_portals {
-        if let Some(info) = portals.get(&(portal.owner, portal.end)) {
-            commands
-                .entity(info.entity)
-                .insert(MeshMaterial3d(portal_assets.material(portal.end)));
-        }
-    }
 
     let complete_portals: Vec<_> = wire_portals
         .iter()
         .copied()
         .filter(|portal| paired_portal(&portals, portal).is_some())
         .collect();
+    let mut over_budget = false;
     let mut pending = VecDeque::new();
     for portal in &complete_portals {
         let Some(info) = portals.get(&(portal.owner, portal.end)) else {
             continue;
         };
+        if pending.len() >= MAX_PORTAL_VIEW_CAMERAS {
+            over_budget = true;
+            break;
+        }
         pending.push_back(PendingView {
             chain: vec![(portal.owner, portal.end)],
-            visibility_path: vec![info.entity],
             target_surface: info.entity,
             recursion_remaining: recursion_depth,
         });
@@ -139,10 +137,6 @@ fn rebuild_portal_views_system(
     let mut camera_count = 0;
     let mut replica_count = 0;
     while let Some(view) = pending.pop_front() {
-        if camera_count >= MAX_PORTAL_VIEW_CAMERAS {
-            break;
-        }
-
         let recursion_depth = view.chain.len() - 1;
         let child_layer = FIRST_RECURSIVE_RENDER_LAYER + camera_count;
         // Bucket images stay immutable because each is both a camera target and a sampled portal texture.
@@ -152,14 +146,9 @@ fn rebuild_portal_views_system(
             PORTAL_VIEW_RESOLUTIONS[0],
         )];
         let initial_image = targets[0].image.clone();
-        commands
-            .entity(view.target_surface)
-            .insert(MeshMaterial3d(targets[0].material.clone()));
-
         let mut camera = commands.spawn((
             PortalViewCamera {
                 chain: view.chain.clone(),
-                visibility_path: view.visibility_path.clone(),
                 target_surface: view.target_surface,
                 targets,
                 target_index: 0,
@@ -170,9 +159,11 @@ fn rebuild_portal_views_system(
                 is_active: false,
                 ..default()
             },
+            // Linear HDR straight into the texture: the presenting camera tonemaps once.
+            Hdr,
+            Tonemapping::None,
             RenderTarget::Image(initial_image.into()),
             Projection::custom(PortalProjection::default()),
-            ColorGrading::default(),
             RenderLayers::layer(0).with(LOCAL_PLAYER_RENDER_LAYER).with(child_layer),
             msaa,
             Transform::default(),
@@ -183,33 +174,41 @@ fn rebuild_portal_views_system(
         state.spawned.push(camera.id());
         camera_count += 1;
 
+        // The exit of this view's own hop sits behind its near plane: never
+        // visible, never a valid view.
+        let own_exit = paired_key(*view.chain.last().expect("portal view chain is empty"));
         for portal in &complete_portals {
+            if (portal.owner, portal.end) == own_exit {
+                continue;
+            }
             if replica_count >= MAX_PORTAL_REPLICAS {
+                over_budget = true;
                 break;
             }
-            let replica = spawn_portal_replica(&mut commands, &portal_assets, portal, child_layer);
+            let replica = spawn_portal_visual(&mut commands, &portal_assets, portal, child_layer);
             state.spawned.push(replica);
             replica_count += 1;
 
-            if view.recursion_remaining > 0 && camera_count + pending.len() < MAX_PORTAL_VIEW_CAMERAS {
-                let mut chain = view.chain.clone();
-                chain.push((portal.owner, portal.end));
-                let mut visibility_path = view.visibility_path.clone();
-                visibility_path.push(replica);
-                pending.push_back(PendingView {
-                    chain,
-                    visibility_path,
-                    target_surface: replica,
-                    recursion_remaining: view.recursion_remaining - 1,
-                });
+            if view.recursion_remaining == 0 {
+                continue;
             }
+            if camera_count + pending.len() >= MAX_PORTAL_VIEW_CAMERAS {
+                over_budget = true;
+                continue;
+            }
+            let mut chain = view.chain.clone();
+            chain.push((portal.owner, portal.end));
+            pending.push_back(PendingView {
+                chain,
+                target_surface: replica,
+                recursion_remaining: view.recursion_remaining - 1,
+            });
         }
     }
 
-    if !pending.is_empty() || replica_count >= MAX_PORTAL_REPLICAS {
+    if over_budget {
         warn!(
-            "portal recursion reached its render budget ({} cameras, {} surfaces)",
-            camera_count, replica_count
+            "portal views exceed the render budget ({camera_count} cameras, {replica_count} surfaces); deeper views are omitted"
         );
     }
     state.portals = wire_portals;
@@ -217,12 +216,7 @@ fn rebuild_portal_views_system(
 }
 
 fn create_portal_view_image(images: &mut Assets<Image>, size: UVec2) -> Handle<Image> {
-    let mut image = Image::new_target_texture(
-        size.x,
-        size.y,
-        TextureFormat::Rgba8Unorm,
-        Some(TextureFormat::Rgba8UnormSrgb),
-    );
+    let mut image = Image::new_target_texture(size.x, size.y, TextureFormat::Rgba16Float, None);
     image.sampler = ImageSampler::linear();
     images.add(image)
 }
@@ -246,7 +240,7 @@ fn update_portal_view_cameras_system(
     main_camera: Query<(&Transform, &Projection), (With<Camera3d>, With<MainCameraMarker>, Without<PortalViewCamera>)>,
     scene_target: Res<SceneRenderTarget>,
     portals: Res<PortalMap>,
-    visibility: Query<&ViewVisibility>,
+    portal_assets: Res<PortalAssets>,
     mut images: ResMut<Assets<Image>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut view_cameras: Query<
@@ -259,78 +253,89 @@ fn update_portal_view_cameras_system(
         ),
         Without<MainCameraMarker>,
     >,
-    mut portal_materials: Query<&mut MeshMaterial3d<StandardMaterial>, Without<PortalViewCamera>>,
+    mut surface_materials: Query<&mut MeshMaterial3d<StandardMaterial>>,
 ) {
     let Ok((main_transform, main_projection)) = main_camera.single() else {
         return;
     };
 
     for (mut view, mut camera, mut render_target, mut transform, mut projection) in &mut view_cameras {
-        let mut view_transform = *main_transform;
-        let mut view_projection = main_projection.clone();
-        let mut parent_target_size = scene_target.size;
-        let mut projected_size = Vec2::ZERO;
-        let mut valid = false;
-        for key in &view.chain {
-            let Some(entry) = portals.get(key).map(|info| &info.portal) else {
-                valid = false;
-                break;
-            };
-            let Some(exit) = paired_portal(&portals, entry) else {
-                valid = false;
-                break;
-            };
-            let entry_frame = PortalFrame::from_portal(entry);
-            let exit_frame = PortalFrame::from_portal(exit);
-            projected_size = projected_portal_size(&entry_frame, &view_transform, &view_projection, parent_target_size);
-            parent_target_size = portal_resolution(projected_size);
-            let Some((next_transform, next_projection)) = portal_camera_view(
-                view_transform.translation,
-                &entry_frame,
-                &exit_frame,
-                main_projection.far(),
-            ) else {
-                valid = false;
-                break;
-            };
-            view_transform = next_transform;
-            view_projection = Projection::custom(next_projection);
-            valid = true;
-        }
-
-        camera.is_active = view
-            .visibility_path
-            .iter()
-            .all(|entity| visibility.get(*entity).is_ok_and(|visible| visible.get()))
-            && valid;
-        let desired_size = if camera.is_active {
-            adaptive_portal_resolution(projected_size, view.targets[view.target_index].size)
-        } else {
-            PORTAL_VIEW_RESOLUTIONS[0]
-        };
-        if desired_size != view.targets[view.target_index].size {
-            let target_index = view
-                .targets
-                .iter()
-                .position(|target| target.size == desired_size)
-                .unwrap_or_else(|| {
-                    view.targets
-                        .push(create_portal_view_target(&mut images, &mut materials, desired_size));
-                    view.targets.len() - 1
-                });
-            let target_image = view.targets[target_index].image.clone();
-            let target_material = view.targets[target_index].material.clone();
-            *render_target = RenderTarget::Image(target_image.into());
-            if let Ok(mut material) = portal_materials.get_mut(view.target_surface) {
-                *material = MeshMaterial3d(target_material);
+        let mapped = view_through_chain(
+            &portals,
+            &view.chain,
+            main_transform,
+            main_projection,
+            scene_target.size,
+        );
+        camera.is_active = mapped.is_some();
+        let surface_material = match mapped {
+            Some((view_transform, view_projection, projected_size)) => {
+                *transform = view_transform;
+                *projection = view_projection;
+                let desired_size = adaptive_portal_resolution(projected_size, view.targets[view.target_index].size);
+                if desired_size != view.targets[view.target_index].size {
+                    let target_index = view
+                        .targets
+                        .iter()
+                        .position(|target| target.size == desired_size)
+                        .unwrap_or_else(|| {
+                            view.targets
+                                .push(create_portal_view_target(&mut images, &mut materials, desired_size));
+                            view.targets.len() - 1
+                        });
+                    *render_target = RenderTarget::Image(view.targets[target_index].image.clone().into());
+                    view.target_index = target_index;
+                }
+                view.targets[view.target_index].material.clone()
             }
-            view.target_index = target_index;
-        }
-        if camera.is_active {
-            *transform = view_transform;
-            *projection = view_projection;
+            // A surface shows a view only while that view renders this frame;
+            // otherwise its own glow, never stale pixels.
+            None => portal_assets.material(view.chain.last().expect("portal view chain is empty").1),
+        };
+        if let Ok(mut material) = surface_materials.get_mut(view.target_surface)
+            && material.0 != surface_material
+        {
+            material.0 = surface_material;
         }
     }
+}
+
+// Maps the main camera through every hop of `chain`: the eye through each
+// entry to its exit, and the entry's footprint in the view before it. `None`
+// when a hop is invalid or off screen — computed from this frame's camera
+// rather than read back from visibility, so activation never lags a frame.
+// Returns the final view and the last hop's footprint.
+fn view_through_chain(
+    portals: &PortalMap,
+    chain: &[PortalKey],
+    main_transform: &Transform,
+    main_projection: &Projection,
+    scene_size: UVec2,
+) -> Option<(Transform, Projection, Vec2)> {
+    let mut view_transform = *main_transform;
+    let mut view_projection = main_projection.clone();
+    let mut parent_target_size = scene_size;
+    let mut projected_size = Vec2::ZERO;
+    for key in chain {
+        let entry = &portals.get(key)?.portal;
+        let exit = paired_portal(portals, entry)?;
+        let entry_frame = PortalFrame::from_portal(entry);
+        let exit_frame = PortalFrame::from_portal(exit);
+        projected_size = projected_portal_size(&entry_frame, &view_transform, &view_projection, parent_target_size);
+        if projected_size.x <= 0.0 || projected_size.y <= 0.0 {
+            return None;
+        }
+        parent_target_size = portal_resolution(projected_size);
+        let (next_transform, next_projection) = portal_camera_view(
+            view_transform.translation,
+            &entry_frame,
+            &exit_frame,
+            main_projection.far(),
+        )?;
+        view_transform = next_transform;
+        view_projection = Projection::custom(next_projection);
+    }
+    Some((view_transform, view_projection, projected_size))
 }
 
 fn projected_portal_size(
@@ -406,26 +411,76 @@ fn resolution_demand(projected_size: Vec2) -> f32 {
     projected_size.y.max(projected_size.x * aspect_height)
 }
 
-fn paired_portal<'a>(portals: &'a PortalMap, portal: &Portal) -> Option<&'a Portal> {
-    let paired_end = match portal.end {
+fn paired_end(end: PortalEnd) -> PortalEnd {
+    match end {
         PortalEnd::A => PortalEnd::B,
         PortalEnd::B => PortalEnd::A,
-    };
-    portals.get(&(portal.owner, paired_end)).map(|info| &info.portal)
+    }
+}
+
+fn paired_key((owner, end): PortalKey) -> PortalKey {
+    (owner, paired_end(end))
+}
+
+fn paired_portal<'a>(portals: &'a PortalMap, portal: &Portal) -> Option<&'a Portal> {
+    portals
+        .get(&paired_key((portal.owner, portal.end)))
+        .map(|info| &info.portal)
 }
 
 #[cfg(test)]
 mod tests {
+    use std::f32::consts::FRAC_PI_2;
+
     use super::*;
+    use crate::portals::PortalInfo;
+
+    fn perspective() -> Projection {
+        let mut projection = Projection::Perspective(PerspectiveProjection {
+            fov: FRAC_PI_2,
+            ..default()
+        });
+        projection.update(1000.0, 1000.0);
+        projection
+    }
+
+    fn portal(owner: u32, end: PortalEnd, pos: Vec3, normal: Vec3) -> Portal {
+        Portal {
+            owner: PlayerId(owner),
+            end,
+            pos: pos.into(),
+            nx: normal.x,
+            ny: normal.y,
+            nz: normal.z,
+            yaw: 0.0,
+        }
+    }
+
+    fn portal_map(portals: &[Portal]) -> PortalMap {
+        let mut map = PortalMap::default();
+        for portal in portals {
+            map.insert(
+                (portal.owner, portal.end),
+                PortalInfo {
+                    entity: Entity::PLACEHOLDER,
+                    portal: *portal,
+                },
+            );
+        }
+        map
+    }
+
+    // A facing pair 8 m apart on the z axis, the camera between them looking at A.
+    fn facing_pair() -> (PortalMap, PortalKey, PortalKey) {
+        let a = portal(1, PortalEnd::A, Vec3::new(0.0, 1.0, -4.0), Vec3::Z);
+        let b = portal(1, PortalEnd::B, Vec3::new(0.0, 1.0, 4.0), Vec3::NEG_Z);
+        (portal_map(&[a, b]), (a.owner, a.end), (b.owner, b.end))
+    }
 
     #[test]
     fn projected_portal_footprint_shrinks_with_distance() {
         let camera = Transform::IDENTITY;
-        let mut projection = Projection::Perspective(PerspectiveProjection {
-            fov: std::f32::consts::FRAC_PI_2,
-            ..default()
-        });
-        projection.update(1000.0, 1000.0);
+        let projection = perspective();
         let near = PortalFrame::from_surface(Vec3::new(0.0, 0.0, -2.0), Vec3::Z, 0.0);
         let far = PortalFrame::from_surface(Vec3::new(0.0, 0.0, -8.0), Vec3::Z, 0.0);
 
@@ -438,14 +493,39 @@ mod tests {
 
     #[test]
     fn portal_behind_camera_has_no_projected_footprint() {
-        let mut projection = Projection::Perspective(PerspectiveProjection::default());
-        projection.update(1000.0, 1000.0);
+        let projection = perspective();
         let portal = PortalFrame::from_surface(Vec3::new(0.0, 0.0, 2.0), Vec3::NEG_Z, 0.0);
 
         assert_eq!(
             projected_portal_size(&portal, &Transform::IDENTITY, &projection, UVec2::splat(1000)),
             Vec2::ZERO
         );
+    }
+
+    #[test]
+    fn view_is_active_only_while_the_aperture_is_on_screen() {
+        let (portals, key_a, _) = facing_pair();
+        let projection = perspective();
+        let looking_at_a = Transform::from_xyz(0.0, 1.0, 0.0);
+        let looking_aside = Transform::from_xyz(-2.0, 1.0, 0.0).looking_to(Vec3::X, Vec3::Y);
+
+        assert!(view_through_chain(&portals, &[key_a], &looking_at_a, &projection, UVec2::splat(1000)).is_some());
+        assert!(view_through_chain(&portals, &[key_a], &looking_aside, &projection, UVec2::splat(1000)).is_none());
+    }
+
+    #[test]
+    fn nested_view_continues_through_the_far_portal_but_never_its_own_exit() {
+        let (portals, key_a, key_b) = facing_pair();
+        let projection = perspective();
+        let camera = Transform::from_xyz(0.0, 1.0, 0.0);
+
+        let (mapped, _, _) = view_through_chain(&portals, &[key_a, key_a], &camera, &projection, UVec2::splat(1000))
+            .expect("second look through A is in view");
+        assert!(
+            mapped.translation.distance(Vec3::new(0.0, 1.0, 16.0)) < 1e-4,
+            "{mapped:?}"
+        );
+        assert!(view_through_chain(&portals, &[key_a, key_b], &camera, &projection, UVec2::splat(1000)).is_none());
     }
 
     #[test]

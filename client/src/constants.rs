@@ -212,7 +212,11 @@ pub const PORTAL_EMISSIVE: f32 = 8.0;
 pub const PORTAL_SURFACE_OFFSET: f32 = 0.01;
 pub const PORTAL_RIM_OFFSET: f32 = 0.002;
 pub const PORTAL_RIM_SCALE: f32 = 1.06;
+// Near plane sits this far past the exit plane, clipping the exit's own surface.
 pub const PORTAL_VIEW_CLIP_OFFSET: f32 = 0.02;
+// A view stays valid until the eye is this close to the entry plane, so the
+// last frame before a crossing still sees through.
+pub const PORTAL_VIEW_MIN_EYE_DISTANCE: f32 = 0.001;
 pub const PORTAL_RENDER_LAYER: usize = 1;
 pub const LOCAL_PLAYER_RENDER_LAYER: usize = 2;
 // Portal-style exit reorientation: the camera is seeded with the fully

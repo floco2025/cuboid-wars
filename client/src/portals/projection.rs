@@ -4,7 +4,7 @@ use bevy::{
     prelude::*,
 };
 
-use crate::constants::PORTAL_VIEW_CLIP_OFFSET;
+use crate::constants::{PORTAL_VIEW_CLIP_OFFSET, PORTAL_VIEW_MIN_EYE_DISTANCE};
 use common::{
     constants::{PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH},
     physics::{PortalFrame, traverse_vector},
@@ -104,7 +104,7 @@ pub(super) fn portal_camera_view(
     far: f32,
 ) -> Option<(Transform, PortalProjection)> {
     let plane_distance = (eye - entry.center).dot(entry.normal);
-    if plane_distance <= PORTAL_VIEW_CLIP_OFFSET {
+    if plane_distance <= PORTAL_VIEW_MIN_EYE_DISTANCE {
         return None;
     }
     let mapped_eye = exit.center + traverse_vector(entry, exit, eye - entry.center);
@@ -163,5 +163,12 @@ mod tests {
         let entry = PortalFrame::from_surface(Vec3::ZERO, Vec3::Z, 0.0);
         let exit = PortalFrame::from_surface(Vec3::X, Vec3::NEG_Z, 0.0);
         assert!(portal_camera_view(Vec3::NEG_Z, &entry, &exit, 100.0).is_none());
+    }
+
+    #[test]
+    fn camera_view_stays_valid_with_the_eye_almost_on_the_aperture() {
+        let entry = PortalFrame::from_surface(Vec3::ZERO, Vec3::Z, 0.0);
+        let exit = PortalFrame::from_surface(Vec3::X, Vec3::NEG_Z, 0.0);
+        assert!(portal_camera_view(Vec3::Z * 0.01, &entry, &exit, 100.0).is_some());
     }
 }

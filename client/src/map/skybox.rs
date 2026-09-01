@@ -3,7 +3,7 @@ use std::f32::consts::{PI, TAU};
 use bevy::{core_pipeline::Skybox, light::NotShadowCaster, prelude::*, render::view::ColorGrading};
 
 use crate::{
-    cameras::MainCameraMarker,
+    cameras::{MainCameraMarker, RearviewCameraMarker},
     config::{AssetSet, ClientSettings, LightingConfig, MoonLighting, SkyboxDef, SunLighting},
     constants::{MOON_DISC_COLOR, SUN_DISC_COLOR},
 };
@@ -351,7 +351,7 @@ pub fn lighting_blend_system(
     mut sun_light: Query<&mut DirectionalLight, With<SunLightMarker>>,
     mut ambient: ResMut<GlobalAmbientLight>,
     mut discs: Query<(&MeshMaterial3d<StandardMaterial>, &mut SkyDisc)>,
-    mut gradings: Query<&mut ColorGrading>,
+    mut gradings: Query<&mut ColorGrading, Or<(With<MainCameraMarker>, With<RearviewCameraMarker>)>>,
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
     let blend = if lighting.eased {
@@ -366,7 +366,8 @@ pub fn lighting_blend_system(
     lighting.current = LevelTargets::lerp(&lighting.current, &target, blend);
     let level = lighting.current.clone();
 
-    // Low light mutes the world: post-tonemap saturation on both cameras.
+    // Low light mutes the world: post-tonemap saturation on the presenting
+    // cameras (portal views arrive linear and are graded through them).
     for mut grading in &mut gradings {
         grading.global.post_saturation = level.saturation;
     }

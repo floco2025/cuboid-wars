@@ -12,9 +12,6 @@ use common::{
     protocol::{Portal, PortalEnd},
 };
 
-#[derive(Component)]
-pub(crate) struct PortalSurface;
-
 // One shared unit-disc mesh with per-end emissive fallback/rim materials.
 #[derive(Resource)]
 pub struct PortalAssets {
@@ -58,21 +55,15 @@ fn portal_material(color: Color) -> StandardMaterial {
 }
 
 pub fn spawn_portal(commands: &mut Commands, assets: &PortalAssets, portal: &Portal) -> Entity {
-    let entity = spawn_portal_visual(commands, assets, portal, PORTAL_RENDER_LAYER);
-    commands.entity(entity).insert(PortalSurface);
-    entity
+    spawn_portal_visual(commands, assets, portal, PORTAL_RENDER_LAYER)
 }
 
-pub(crate) fn spawn_portal_replica(
+pub(super) fn spawn_portal_visual(
     commands: &mut Commands,
     assets: &PortalAssets,
     portal: &Portal,
     render_layer: usize,
 ) -> Entity {
-    spawn_portal_visual(commands, assets, portal, render_layer)
-}
-
-fn spawn_portal_visual(commands: &mut Commands, assets: &PortalAssets, portal: &Portal, render_layer: usize) -> Entity {
     let frame = PortalFrame::from_portal(portal);
     let material = assets.material(portal.end);
     let render_layer = RenderLayers::layer(render_layer);
