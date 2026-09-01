@@ -137,6 +137,15 @@ pub(super) fn settings_menu_window_sync_system(
                 };
                 (label, deferred)
             }
+            CyclerSetting::PortalRecursion => {
+                let depth = settings.rendering.portal_recursion_depth;
+                let label = match depth {
+                    0 => "Off".to_owned(),
+                    1 => "1 level".to_owned(),
+                    _ => format!("{depth} levels"),
+                };
+                (label, false)
+            }
             CyclerSetting::WindowMode => (if windowed { "Windowed" } else { "Fullscreen" }.to_owned(), false),
         };
         if text.0 != rendered {
@@ -155,6 +164,7 @@ pub(super) fn settings_menu_window_sync_system(
         let desired = match button.setting {
             CyclerSetting::Resolution => windowed,
             CyclerSetting::Msaa => deferred,
+            CyclerSetting::PortalRecursion => false,
             CyclerSetting::WindowMode => false,
         };
         if desired != disabled {

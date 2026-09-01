@@ -1,10 +1,10 @@
 use bevy::prelude::*;
 
-use crate::{cameras::RearviewCameraMarker, ui::floating_labels::spawn::CharacterLabelMeshMarker};
+use crate::{cameras::MainCameraMarker, ui::floating_labels::spawn::CharacterLabelMeshMarker};
 
 // Make floating character labels face the main camera while staying upright.
 pub fn floating_labels_billboard_system(
-    camera_query: Query<&GlobalTransform, (With<Camera3d>, Without<RearviewCameraMarker>)>,
+    camera_query: Query<&GlobalTransform, (With<Camera3d>, With<MainCameraMarker>)>,
     mut text_mesh_query: Query<(&GlobalTransform, &mut Transform), With<CharacterLabelMeshMarker>>,
 ) {
     let Ok(camera_transform) = camera_query.single() else {

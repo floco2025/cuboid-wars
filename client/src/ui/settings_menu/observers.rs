@@ -7,8 +7,8 @@ use bevy::window::{Monitor, OnMonitor, PresentMode, PrimaryMonitor, PrimaryWindo
 use super::state::{CheckboxSetting, CyclerButton, CyclerSetting, SliderSetting};
 use bevy::render::renderer::RenderAdapter;
 
-use crate::cameras::{MainCameraMarker, RearviewCameraMarker, supported_msaa_samples};
-use crate::config::ClientSettings;
+use crate::cameras::supported_msaa_samples;
+use crate::config::{ClientSettings, MAX_PORTAL_RECURSION_DEPTH};
 use crate::input::enter_borderless_fullscreen;
 
 // Fullscreen render-resolution caps ("720p"): the scene renders at most
@@ -75,7 +75,7 @@ pub(super) fn on_cycler_activate(
     mut windows: Query<(&mut Window, Option<&OnMonitor>), With<PrimaryWindow>>,
     monitors: Query<(Entity, Has<PrimaryMonitor>), With<Monitor>>,
     monitor_data: Query<&Monitor>,
-    mut msaa_cameras: Query<&mut Msaa, Or<(With<MainCameraMarker>, With<RearviewCameraMarker>)>>,
+    mut msaa_cameras: Query<&mut Msaa, With<Camera3d>>,
     adapter: Res<RenderAdapter>,
 ) {
     let Ok(&button) = buttons.get(event.entity) else {
@@ -129,6 +129,10 @@ pub(super) fn on_cycler_activate(
                 *msaa = Msaa::from_samples(samples);
             }
         }
+        CyclerSetting::PortalRecursion => {
+            settings.rendering.portal_recursion_depth =
+                cycle_portal_recursion(settings.rendering.portal_recursion_depth, button.direction);
+        }
         CyclerSetting::WindowMode => {
             let Ok((mut window, on_monitor)) = windows.single_mut() else {
                 return;
@@ -139,5 +143,35 @@ pub(super) fn on_cycler_activate(
                 window.mode = WindowMode::Windowed;
             }
         }
+    }
+}
+
+fn cycle_portal_recursion(current: u8, direction: i8) -> u8 {
+    if direction < 0 {
+        current
+            .checked_sub(1)
+            .filter(|depth| *depth <= MAX_PORTAL_RECURSION_DEPTH)
+            .unwrap_or(MAX_PORTAL_RECURSION_DEPTH)
+    } else if current >= MAX_PORTAL_RECURSION_DEPTH {
+        0
+    } else {
+        current + 1
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn portal_recursion_cycles_forward_and_wraps() {
+        assert_eq!(cycle_portal_recursion(0, 1), 1);
+        assert_eq!(cycle_portal_recursion(MAX_PORTAL_RECURSION_DEPTH, 1), 0);
+    }
+
+    #[test]
+    fn portal_recursion_cycles_backward_and_wraps() {
+        assert_eq!(cycle_portal_recursion(1, -1), 0);
+        assert_eq!(cycle_portal_recursion(0, -1), MAX_PORTAL_RECURSION_DEPTH);
     }
 }

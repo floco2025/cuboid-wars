@@ -5,12 +5,12 @@ use serde::{Deserialize, Serialize};
 
 use super::ClientSettings;
 
-pub const LOCAL_SETTINGS_VERSION: u32 = 4;
+pub const LOCAL_SETTINGS_VERSION: u32 = 5;
 
-// The settings panel's values, saved when the menu closes and overlaid onto
-// `client.json` at startup. The file is not in git, so a format change
-// cannot reach it through `git pull`: a `version` mismatch discards the file
-// (no migration), and the next menu close rewrites it.
+// Local settings are saved after panel edits and fullscreen shortcuts, then
+// overlaid onto `client.json` at startup. The file is not in git, so a format
+// change cannot reach it through `git pull`: a `version` mismatch discards the
+// file (no migration), and the next save rewrites it.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LocalSettings {
     pub version: u32,
@@ -18,6 +18,7 @@ pub struct LocalSettings {
     pub fullscreen_resolution: u32,
     pub vsync: bool,
     pub msaa_samples: u32,
+    pub portal_recursion_depth: u8,
     pub mouse_sensitivity: f32,
     pub invert_y: bool,
     pub fov_degrees: f32,
@@ -88,6 +89,7 @@ impl LocalSettings {
         settings.rendering.fullscreen_resolution = self.fullscreen_resolution;
         settings.rendering.vsync = self.vsync;
         settings.rendering.msaa_samples = self.msaa_samples;
+        settings.rendering.portal_recursion_depth = self.portal_recursion_depth;
         settings.input.mouse_sensitivity = self.mouse_sensitivity;
         settings.input.invert_y = self.invert_y;
         settings.camera.fov_degrees.first_person = self.fov_degrees;
@@ -108,6 +110,7 @@ mod tests {
             fullscreen_resolution: 1080,
             vsync: true,
             msaa_samples: 2,
+            portal_recursion_depth: 2,
             mouse_sensitivity: 0.003,
             invert_y: true,
             fov_degrees: 100.0,

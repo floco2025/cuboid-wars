@@ -24,6 +24,8 @@ pub fn camera_plugin(app: &mut App) {
             // Resizes the scene image before the rearview viewport is laid
             // out inside it.
             scene_render_target_system.before(local_player_rearview_viewport_system),
+            local_player_render_layer_system,
+            local_player_light_layer_system,
             local_player_visibility_sync_system,
         )
             .in_set(ClientSet::Camera),

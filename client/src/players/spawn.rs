@@ -85,7 +85,7 @@ pub fn spawn_player(
                 face_direction: FaceYaw(face_yaw),
                 transform: Transform::from_xyz(position.x, player_physics.collider_center_y(position.y), position.z)
                     .with_rotation(Quat::from_rotation_y(face_yaw)),
-                visibility: player_visibility(is_local),
+                visibility: Visibility::Visible,
             },
             PreviousTickPosition(*position),
             animation_to_play.clone(),
@@ -164,12 +164,4 @@ pub fn spawn_player(
     commands.entity(entity).add_children(&children);
 
     entity
-}
-
-const fn player_visibility(is_local: bool) -> Visibility {
-    if is_local {
-        Visibility::Hidden
-    } else {
-        Visibility::Visible
-    }
 }

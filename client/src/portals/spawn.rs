@@ -1,20 +1,35 @@
 use bevy::{light::NotShadowCaster, prelude::*};
 
-use crate::constants::{PORTAL_A_COLOR, PORTAL_B_COLOR, PORTAL_EMISSIVE, PORTAL_SURFACE_OFFSET};
+use bevy::camera::visibility::RenderLayers;
+
+use crate::constants::{
+    PORTAL_A_COLOR, PORTAL_B_COLOR, PORTAL_EMISSIVE, PORTAL_RENDER_LAYER, PORTAL_RIM_OFFSET, PORTAL_RIM_SCALE,
+    PORTAL_SURFACE_OFFSET,
+};
 use common::{
     constants::{PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH},
     physics::PortalFrame,
     protocol::{Portal, PortalEnd},
 };
 
-// One shared unit-disc mesh with per-end emissive materials, so every portal
-// instance batches. Opaque on purpose: translucent Blend materials render
-// pale gray in this app, and the oval reads fine as a solid glowing decal.
+#[derive(Component)]
+pub(crate) struct PortalSurface;
+
+// One shared unit-disc mesh with per-end emissive fallback/rim materials.
 #[derive(Resource)]
 pub struct PortalAssets {
     mesh: Handle<Mesh>,
     material_a: Handle<StandardMaterial>,
     material_b: Handle<StandardMaterial>,
+}
+
+impl PortalAssets {
+    pub(crate) fn material(&self, end: PortalEnd) -> Handle<StandardMaterial> {
+        match end {
+            PortalEnd::A => self.material_a.clone(),
+            PortalEnd::B => self.material_b.clone(),
+        }
+    }
 }
 
 impl FromWorld for PortalAssets {
@@ -42,24 +57,45 @@ fn portal_material(color: Color) -> StandardMaterial {
     }
 }
 
-// Flat glowing oval on the surface, oriented by the shared aperture frame —
-// the visual covers exactly the trigger area the physics uses.
 pub fn spawn_portal(commands: &mut Commands, assets: &PortalAssets, portal: &Portal) -> Entity {
+    let entity = spawn_portal_visual(commands, assets, portal, PORTAL_RENDER_LAYER);
+    commands.entity(entity).insert(PortalSurface);
+    entity
+}
+
+pub(crate) fn spawn_portal_replica(
+    commands: &mut Commands,
+    assets: &PortalAssets,
+    portal: &Portal,
+    render_layer: usize,
+) -> Entity {
+    spawn_portal_visual(commands, assets, portal, render_layer)
+}
+
+fn spawn_portal_visual(commands: &mut Commands, assets: &PortalAssets, portal: &Portal, render_layer: usize) -> Entity {
     let frame = PortalFrame::from_portal(portal);
-    let material = match portal.end {
-        PortalEnd::A => assets.material_a.clone(),
-        PortalEnd::B => assets.material_b.clone(),
-    };
+    let material = assets.material(portal.end);
+    let render_layer = RenderLayers::layer(render_layer);
     commands
         .spawn((
             Mesh3d(assets.mesh.clone()),
-            MeshMaterial3d(material),
+            MeshMaterial3d(material.clone()),
             Transform {
                 translation: frame.center + frame.normal * PORTAL_SURFACE_OFFSET,
                 rotation: Quat::from_mat3(&Mat3::from_cols(frame.right, frame.up, frame.normal)),
                 scale: Vec3::new(PORTAL_HALF_WIDTH * 2.0, PORTAL_HALF_HEIGHT * 2.0, 1.0),
             },
             NotShadowCaster,
+            render_layer.clone(),
         ))
+        .with_children(|children| {
+            children.spawn((
+                Mesh3d(assets.mesh.clone()),
+                MeshMaterial3d(material),
+                Transform::from_translation(Vec3::NEG_Z * PORTAL_RIM_OFFSET).with_scale(Vec3::splat(PORTAL_RIM_SCALE)),
+                NotShadowCaster,
+                render_layer,
+            ));
+        })
         .id()
 }

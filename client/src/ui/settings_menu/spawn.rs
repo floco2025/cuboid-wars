@@ -101,6 +101,12 @@ pub(super) fn settings_menu_lifecycle_system(
                         dims.control_width,
                         CyclerSetting::Msaa,
                     ));
+                    panel.spawn(cycler_row(
+                        "Portal recursion",
+                        font,
+                        dims.control_width,
+                        CyclerSetting::PortalRecursion,
+                    ));
                     panel.spawn(section_header("Controls", font));
                     panel.spawn(slider_row(
                         "Mouse sensitivity",

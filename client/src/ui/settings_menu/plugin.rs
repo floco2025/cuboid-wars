@@ -27,9 +27,7 @@ pub fn settings_menu_plugin(app: &mut App) {
         Update,
         (
             settings_menu_lifecycle_system.run_if(resource_changed::<SettingsMenuState>),
-            save_local_settings_system
-                .run_if(resource_changed::<SettingsMenuState>)
-                .after(settings_menu_lifecycle_system),
+            save_local_settings_system.after(settings_menu_lifecycle_system),
             (
                 settings_menu_style_system,
                 settings_menu_slider_sync_system,
