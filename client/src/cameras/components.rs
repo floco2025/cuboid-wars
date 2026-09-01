@@ -11,3 +11,7 @@ pub struct RearviewCameraMarker;
 // Marker for the window-facing 2D camera that draws the scene image and the HUD.
 #[derive(Component)]
 pub struct CompositorCameraMarker;
+
+// The layer a 3D camera's own sky disc renders on — one only that camera has.
+#[derive(Component)]
+pub struct SkyDiscRenderLayer(pub usize);

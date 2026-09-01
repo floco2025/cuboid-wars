@@ -3,7 +3,7 @@ use bevy::{light::NotShadowCaster, prelude::*};
 use bevy::camera::visibility::RenderLayers;
 
 use crate::constants::{
-    PORTAL_A_COLOR, PORTAL_B_COLOR, PORTAL_EMISSIVE, PORTAL_RENDER_LAYER, PORTAL_RIM_OFFSET, PORTAL_RIM_SCALE,
+    MAIN_VIEW_RENDER_LAYER, PORTAL_A_COLOR, PORTAL_B_COLOR, PORTAL_EMISSIVE, PORTAL_RIM_OFFSET, PORTAL_RIM_SCALE,
     PORTAL_SURFACE_OFFSET,
 };
 use common::{
@@ -55,7 +55,7 @@ fn portal_material(color: Color) -> StandardMaterial {
 }
 
 pub fn spawn_portal(commands: &mut Commands, assets: &PortalAssets, portal: &Portal) -> Entity {
-    spawn_portal_visual(commands, assets, portal, PORTAL_RENDER_LAYER)
+    spawn_portal_visual(commands, assets, portal, MAIN_VIEW_RENDER_LAYER)
 }
 
 pub(super) fn spawn_portal_visual(

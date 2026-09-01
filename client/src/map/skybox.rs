@@ -6,7 +6,7 @@ use bevy::{
 };
 
 use crate::{
-    cameras::{MainCameraMarker, RearviewCameraMarker},
+    cameras::{MainCameraMarker, RearviewCameraMarker, SkyDiscRenderLayer},
     config::{AssetSet, ClientSettings, LightingConfig, MoonLighting, SkyboxDef, SunLighting},
     constants::{MOON_DISC_COLOR, SUN_DISC_COLOR},
 };
@@ -77,9 +77,6 @@ pub(super) struct SkyDisc {
 #[derive(Component)]
 pub(super) struct SkyDiscAttached;
 
-#[derive(Component)]
-pub(crate) struct SkyDiscRenderLayer(pub usize);
-
 #[derive(Resource)]
 pub(super) struct SkyDiscAssets {
     distance: f32,
@@ -106,7 +103,10 @@ pub fn setup_sky_disc_system(
         return;
     }
     let mesh = meshes.add(phase_mesh(100.0, sun_disc.radius));
-    // StandardMaterial ignores emissive in unlit mode, so the disc stays in the lit pipeline.
+    // Not unlit: `StandardMaterial` ignores emissive when unlit, which renders
+    // a ~1-nit gray ball against a 1000-nit sky. Black base + huge emissive =
+    // pure self-luminance; zero reflectance so the sun light can't put a
+    // specular sheen on the unlit part.
     let material = materials.add(StandardMaterial {
         base_color: Color::BLACK,
         emissive: LinearRgba::rgb(sun_disc.luminance, sun_disc.luminance * 0.94, sun_disc.luminance * 0.78),

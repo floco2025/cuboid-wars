@@ -2,7 +2,7 @@ use bevy::{camera::visibility::RenderLayers, prelude::*};
 
 use crate::{
     cameras::{CameraViewMode, MainCameraMarker},
-    constants::{CHARACTER_LABEL_RENDER_LAYER, LOCAL_PLAYER_RENDER_LAYER, PORTAL_RENDER_LAYER},
+    constants::{CHARACTER_LABEL_RENDER_LAYER, LOCAL_PLAYER_RENDER_LAYER, MAIN_VIEW_RENDER_LAYER},
     players::{LocalPlayerInfo, LocalPlayerMarker},
     ui::floating_labels::CharacterLabelRenderLayer,
 };
@@ -26,7 +26,7 @@ pub fn local_player_visibility_sync_system(
     }
 
     let mut camera_layers = RenderLayers::layer(0)
-        .with(PORTAL_RENDER_LAYER)
+        .with(MAIN_VIEW_RENDER_LAYER)
         .with(CHARACTER_LABEL_RENDER_LAYER);
     if view_mode.is_top_down() {
         camera_layers = camera_layers.with(LOCAL_PLAYER_RENDER_LAYER);
@@ -108,7 +108,7 @@ mod tests {
             .entity(camera)
             .get::<RenderLayers>()
             .expect("main camera render layers missing");
-        assert!(layers.intersects(&RenderLayers::layer(PORTAL_RENDER_LAYER)));
+        assert!(layers.intersects(&RenderLayers::layer(MAIN_VIEW_RENDER_LAYER)));
         assert!(layers.intersects(&RenderLayers::layer(CHARACTER_LABEL_RENDER_LAYER)));
         assert!(!layers.intersects(&RenderLayers::layer(LOCAL_PLAYER_RENDER_LAYER)));
     }

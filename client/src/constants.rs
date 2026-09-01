@@ -217,10 +217,11 @@ pub const PORTAL_VIEW_CLIP_OFFSET: f32 = 0.02;
 // A view stays valid until the eye is this close to the entry plane, so the
 // last frame before a crossing still sees through.
 pub const PORTAL_VIEW_MIN_EYE_DISTANCE: f32 = 0.001;
-pub const PORTAL_RENDER_LAYER: usize = 1;
+// Rendered only by the main camera: the shared portal surfaces and its sky disc.
+pub const MAIN_VIEW_RENDER_LAYER: usize = 1;
 pub const LOCAL_PLAYER_RENDER_LAYER: usize = 2;
-// The rearview mirror's own portal surfaces, seen through from its eye.
-pub const REARVIEW_PORTAL_RENDER_LAYER: usize = 3;
+// Rendered only by the rearview mirror: its portal replicas and sky disc.
+pub const REARVIEW_RENDER_LAYER: usize = 3;
 // Camera-facing labels only make sense from the main view that orients them.
 pub const CHARACTER_LABEL_RENDER_LAYER: usize = 4;
 // Portal-style exit reorientation: the camera is seeded with the fully

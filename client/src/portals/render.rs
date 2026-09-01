@@ -18,10 +18,11 @@ use super::{
     spawn::{PortalAssets, spawn_portal_visual},
 };
 use crate::{
-    cameras::{MainCameraMarker, RearviewCameraMarker, SceneRenderTarget, scene_render_target_system},
+    cameras::{
+        MainCameraMarker, RearviewCameraMarker, SceneRenderTarget, SkyDiscRenderLayer, scene_render_target_system,
+    },
     config::ClientSettings,
-    constants::{LOCAL_PLAYER_RENDER_LAYER, REARVIEW_PORTAL_RENDER_LAYER},
-    map::skybox::SkyDiscRenderLayer,
+    constants::{LOCAL_PLAYER_RENDER_LAYER, REARVIEW_RENDER_LAYER},
     players::{local_player_camera_sync_system, local_player_rearview_viewport_system},
     schedule::ClientSet,
 };
@@ -86,17 +87,17 @@ pub fn portal_render_plugin(app: &mut App) {
     app.init_resource::<PortalRenderState>();
     app.add_systems(
         Update,
-        rebuild_portal_views_system
-            .after(ClientSet::Network)
-            .before(ClientSet::Camera),
-    );
-    app.add_systems(
-        Update,
-        update_portal_view_cameras_system
-            .in_set(ClientSet::Camera)
-            .after(local_player_camera_sync_system)
-            .after(local_player_rearview_viewport_system)
-            .after(scene_render_target_system),
+        (
+            // Root selection reads this frame's camera poses, so a portal
+            // entering view gets its camera the same frame.
+            rebuild_portal_views_system
+                .after(ClientSet::Network)
+                .after(local_player_camera_sync_system)
+                .after(local_player_rearview_viewport_system)
+                .after(scene_render_target_system),
+            update_portal_view_cameras_system.after(rebuild_portal_views_system),
+        )
+            .in_set(ClientSet::Camera),
     );
 }
 
@@ -136,19 +137,28 @@ fn rebuild_portal_views_system(
         presenter_views.push((entity, transform, projection, camera));
     }
     let presenters: Vec<_> = presenter_views.iter().map(|(entity, ..)| *entity).collect();
+    // Every complete root is built while they fit the budget, so the graph
+    // changes only with the portals themselves; with more roots than budget,
+    // each presenter keeps the largest on screen and the graph follows the view.
     let roots: Vec<_> = presenter_views
         .iter()
         .flat_map(|(entity, transform, projection, camera)| {
-            largest_visible_roots(
-                &portals,
-                &complete_portals,
-                transform,
-                projection,
-                presenter_size(camera, scene_target.size),
-                usize::from(budget),
-            )
-            .into_iter()
-            .map(|key| (*entity, key))
+            let keys: Vec<PortalKey> = if complete_portals.len() <= usize::from(budget) {
+                complete_portals
+                    .iter()
+                    .map(|portal| (portal.owner, portal.end))
+                    .collect()
+            } else {
+                largest_visible_roots(
+                    &portals,
+                    &complete_portals,
+                    transform,
+                    projection,
+                    presenter_size(camera, scene_target.size),
+                    usize::from(budget),
+                )
+            };
+            keys.into_iter().map(|key| (*entity, key))
         })
         .collect();
     if state.portals == wire_portals
@@ -201,7 +211,7 @@ fn rebuild_portal_views_system(
                 over_budget = true;
                 break;
             }
-            let replica = spawn_portal_visual(&mut commands, &portal_assets, portal, REARVIEW_PORTAL_RENDER_LAYER);
+            let replica = spawn_portal_visual(&mut commands, &portal_assets, portal, REARVIEW_RENDER_LAYER);
             state.spawned.push(replica);
             rearview_surfaces.insert((portal.owner, portal.end), replica);
             replica_count += 1;

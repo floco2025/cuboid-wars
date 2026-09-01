@@ -11,12 +11,12 @@ use bevy::{
 use common::config::GameplayConfig;
 
 use super::{
-    CompositorCameraMarker, MainCameraMarker, RearviewCameraMarker, SceneRenderTarget, scene_target::create_scene_image,
+    CompositorCameraMarker, MainCameraMarker, RearviewCameraMarker, SceneRenderTarget, SkyDiscRenderLayer,
+    scene_target::create_scene_image,
 };
 use crate::{
     config::ClientSettings,
-    constants::{CHARACTER_LABEL_RENDER_LAYER, PORTAL_RENDER_LAYER, REARVIEW_PORTAL_RENDER_LAYER},
-    map::skybox::SkyDiscRenderLayer,
+    constants::{CHARACTER_LABEL_RENDER_LAYER, MAIN_VIEW_RENDER_LAYER, REARVIEW_RENDER_LAYER},
 };
 
 // ============================================================================
@@ -88,7 +88,7 @@ pub fn setup_cameras_system(
     // Add main camera (initial position will be immediately overridden by sync system)
     let mut main_camera = commands.spawn((
         MainCameraMarker,
-        SkyDiscRenderLayer(PORTAL_RENDER_LAYER),
+        SkyDiscRenderLayer(MAIN_VIEW_RENDER_LAYER),
         RenderTarget::Image(ImageRenderTarget {
             handle: scene_image.clone(),
             scale_factor: 1.0,
@@ -111,7 +111,7 @@ pub fn setup_cameras_system(
         // the scene); defaults are a no-op grade.
         ColorGrading::default(),
         RenderLayers::layer(0)
-            .with(PORTAL_RENDER_LAYER)
+            .with(MAIN_VIEW_RENDER_LAYER)
             .with(CHARACTER_LABEL_RENDER_LAYER),
         Transform::from_xyz(0.0, player_eye_height, 0.0).looking_at(Vec3::new(0.0, 0.0, -1.0), Vec3::Y),
     ));
@@ -138,7 +138,7 @@ pub fn setup_cameras_system(
     // Add rearview mirror camera (renders to its viewport inside the scene image)
     let mut rearview_camera = commands.spawn((
         RearviewCameraMarker,
-        SkyDiscRenderLayer(REARVIEW_PORTAL_RENDER_LAYER),
+        SkyDiscRenderLayer(REARVIEW_RENDER_LAYER),
         RenderTarget::Image(ImageRenderTarget {
             handle: scene_image.clone(),
             scale_factor: 1.0,
@@ -164,7 +164,7 @@ pub fn setup_cameras_system(
             ..default()
         }),
         ColorGrading::default(),
-        RenderLayers::layer(0).with(REARVIEW_PORTAL_RENDER_LAYER),
+        RenderLayers::layer(0).with(REARVIEW_RENDER_LAYER),
         Transform::from_xyz(0.0, player_eye_height, 0.0).looking_at(Vec3::new(0.0, 0.0, 1.0), Vec3::Y), // Looking backwards (positive Z)
     ));
     if deferred_rendering_enabled {
