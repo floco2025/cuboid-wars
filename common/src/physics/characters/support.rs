@@ -50,6 +50,7 @@ pub(super) fn perch_slide_displacement(
     shape: &Cuboid,
     pos: &Position,
     passable_kinds: &[BarrierKindId],
+    excluded_colliders: &[ColliderHandle],
     physics: CharacterPhysicsConfig,
     delta: f32,
 ) -> Vector {
@@ -57,7 +58,7 @@ pub(super) fn perch_slide_displacement(
     // edge perch. The contact witness can drift along the non-overhang axis,
     // but any outward component clears the edge; a degenerate direction can
     // safely skip the slide for one tick.
-    character_perch_hit(collision_world, shape, pos, passable_kinds, physics)
+    character_perch_hit(collision_world, shape, pos, passable_kinds, excluded_colliders, physics)
         .and_then(|hit| Vec3::new(pos.x - hit.contact.x, 0.0, pos.z - hit.contact.z).try_normalize())
         .map_or(Vector::ZERO, |direction| {
             Vector::new(direction.x, 0.0, direction.z) * CHARACTER_PERCH_SLIDE_SPEED * delta
@@ -69,6 +70,7 @@ fn character_perch_hit(
     shape: &Cuboid,
     pos: &Position,
     passable_kinds: &[BarrierKindId],
+    excluded_colliders: &[ColliderHandle],
     physics: CharacterPhysicsConfig,
 ) -> Option<ShapeCastHit> {
     // Keep this reach shorter than the normal support probe so a descending
@@ -80,7 +82,7 @@ fn character_perch_hit(
         physics.collider.bottom_y_offset() + CHARACTER_STEP_HEIGHT,
         0.0,
         passable_kinds,
-        &[],
+        excluded_colliders,
     )
 }
 

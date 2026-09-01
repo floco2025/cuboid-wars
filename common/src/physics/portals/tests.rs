@@ -974,6 +974,65 @@ fn falling_toward_a_floor_portal_funnels_toward_its_axis() {
 }
 
 #[test]
+fn floor_portal_funnel_is_symmetric_through_character_movement() {
+    use crate::constants::TICK_SECS;
+    use crate::physics::{CharacterEnvironment, CharacterStep, step_character_movement};
+
+    let gameplay = GameplayConfig::load_default().expect("default gameplay config should load");
+    let physics = gameplay.player.physics();
+    let layout = MapLayout {
+        floors: vec![Floor {
+            x1: -10.0,
+            z1: -10.0,
+            x2: 10.0,
+            z2: 10.0,
+            y: 0.0,
+            thickness: FLOOR_THICKNESS,
+            level: 0,
+        }],
+        ..Default::default()
+    };
+    let world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
+    let set = PortalSet::rebuild(
+        &[
+            portal(PortalEnd::A, Vec3::ZERO, Vec3::Y, 0.0),
+            portal(PortalEnd::B, Vec3::new(8.0, 4.0, 8.0), Vec3::NEG_Y, 0.0),
+        ],
+        &world,
+    );
+    let env = CharacterEnvironment {
+        collision_world: &world,
+        gravity: 25.0,
+        passable_kinds: &[],
+        physics,
+        ladder_climb_ratio: gameplay.movement.ladder_climb_ratio,
+        portals: Some(&set),
+    };
+
+    let step_from = |x| {
+        step_character_movement(
+            CharacterStep {
+                start: Position { x, y: 0.0, z: 0.0 },
+                vertical_velocity: -10.0,
+                control_velocity: Vec3::ZERO,
+                external_displacement: Vec3::ZERO,
+                delta: TICK_SECS,
+            },
+            &env,
+        )
+    };
+    let from_left = step_from(-0.5);
+    let from_right = step_from(0.5);
+
+    assert!(from_left.position.x > -0.5, "left approach was repelled: {from_left:?}");
+    assert!(
+        from_right.position.x < 0.5,
+        "right approach was repelled: {from_right:?}"
+    );
+    assert!((from_left.position.x + from_right.position.x).abs() < 1e-4);
+}
+
+#[test]
 fn steering_disengages_the_funnel() {
     let set = pair(
         Vec3::new(0.0, 0.0, 0.0),

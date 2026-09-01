@@ -153,6 +153,7 @@ fn prepare_movement_request(
             character_shape,
             start_pos,
             passable_kinds,
+            excluded_colliders,
             physics,
             step.delta,
         )
