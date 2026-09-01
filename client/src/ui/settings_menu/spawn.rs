@@ -102,10 +102,10 @@ pub(super) fn settings_menu_lifecycle_system(
                         CyclerSetting::Msaa,
                     ));
                     panel.spawn(cycler_row(
-                        "Portal recursion",
+                        "Portal views",
                         font,
                         dims.control_width,
-                        CyclerSetting::PortalRecursion,
+                        CyclerSetting::PortalViews,
                     ));
                     panel.spawn(section_header("Controls", font));
                     panel.spawn(slider_row(

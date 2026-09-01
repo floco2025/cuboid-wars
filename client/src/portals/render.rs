@@ -17,10 +17,10 @@ use super::{
     spawn::{PortalAssets, spawn_portal_visual},
 };
 use crate::{
-    cameras::{MainCameraMarker, SceneRenderTarget, scene_render_target_system},
+    cameras::{MainCameraMarker, RearviewCameraMarker, SceneRenderTarget, scene_render_target_system},
     config::ClientSettings,
-    constants::LOCAL_PLAYER_RENDER_LAYER,
-    players::local_player_camera_sync_system,
+    constants::{LOCAL_PLAYER_RENDER_LAYER, REARVIEW_PORTAL_RENDER_LAYER},
+    players::{local_player_camera_sync_system, local_player_rearview_viewport_system},
     schedule::ClientSet,
 };
 use common::{
@@ -29,7 +29,7 @@ use common::{
     protocol::{PlayerId, Portal, PortalEnd},
 };
 
-const FIRST_RECURSIVE_RENDER_LAYER: usize = 3;
+const FIRST_RECURSIVE_RENDER_LAYER: usize = 4;
 const MAX_PORTAL_VIEW_CAMERAS: usize = 64;
 const MAX_PORTAL_REPLICAS: usize = 512;
 const PORTAL_VIEW_RESOLUTIONS: [UVec2; 5] = [
@@ -45,6 +45,7 @@ type PortalKey = (PlayerId, PortalEnd);
 
 #[derive(Component)]
 struct PortalViewCamera {
+    presenter: Entity,
     chain: Vec<PortalKey>,
     target_surface: Entity,
     targets: Vec<PortalViewTarget>,
@@ -60,11 +61,12 @@ struct PortalViewTarget {
 #[derive(Resource, Default)]
 struct PortalRenderState {
     portals: Vec<Portal>,
-    recursion_depth: Option<u8>,
+    budget: Option<u8>,
     spawned: Vec<Entity>,
 }
 
 struct PendingView {
+    presenter: Entity,
     chain: Vec<PortalKey>,
     target_surface: Entity,
     recursion_remaining: u8,
@@ -74,6 +76,7 @@ struct PendingView {
 // and its entry aperture's on-screen footprint in pixels.
 struct MappedView {
     entity: Entity,
+    presenter: Entity,
     chain: Vec<PortalKey>,
     transform: Transform,
     projection: Projection,
@@ -93,12 +96,15 @@ pub fn portal_render_plugin(app: &mut App) {
         update_portal_view_cameras_system
             .in_set(ClientSet::Camera)
             .after(local_player_camera_sync_system)
+            .after(local_player_rearview_viewport_system)
             .after(scene_render_target_system),
     );
 }
 
 fn rebuild_portal_views_system(
     mut commands: Commands,
+    main_camera: Query<Entity, With<MainCameraMarker>>,
+    rearview_camera: Query<Entity, With<RearviewCameraMarker>>,
     portals: Res<PortalMap>,
     portal_assets: Res<PortalAssets>,
     client_settings: Res<ClientSettings>,
@@ -106,9 +112,13 @@ fn rebuild_portal_views_system(
     mut images: ResMut<Assets<Image>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
+    let Ok(main_camera) = main_camera.single() else {
+        return;
+    };
+    let rearview_camera = rearview_camera.single().ok();
     let wire_portals = portals.wire_portals();
-    let recursion_depth = client_settings.rendering.portal_recursion_depth;
-    if state.portals == wire_portals && state.recursion_depth == Some(recursion_depth) {
+    let budget = client_settings.rendering.portal_view_budget;
+    if state.portals == wire_portals && state.budget == Some(budget) {
         return;
     }
 
@@ -122,20 +132,34 @@ fn rebuild_portal_views_system(
         .filter(|portal| paired_portal(&portals, portal).is_some())
         .collect();
     let mut over_budget = false;
+    let mut replica_count = 0;
     let mut pending = VecDeque::new();
+    // Each presenting camera roots its own chains: the main camera through
+    // the shared surfaces, the rearview through a replica set only it renders.
     for portal in &complete_portals {
         let Some(info) = portals.get(&(portal.owner, portal.end)) else {
             continue;
         };
-        if pending.len() >= MAX_PORTAL_VIEW_CAMERAS {
-            over_budget = true;
-            break;
+        let mut roots = vec![(main_camera, info.entity)];
+        if let Some(rearview_camera) = rearview_camera {
+            let replica = spawn_portal_visual(&mut commands, &portal_assets, portal, REARVIEW_PORTAL_RENDER_LAYER);
+            state.spawned.push(replica);
+            replica_count += 1;
+            roots.push((rearview_camera, replica));
         }
-        pending.push_back(PendingView {
-            chain: vec![(portal.owner, portal.end)],
-            target_surface: info.entity,
-            recursion_remaining: recursion_depth,
-        });
+        for (presenter, target_surface) in roots {
+            if pending.len() >= MAX_PORTAL_VIEW_CAMERAS {
+                over_budget = true;
+                break;
+            }
+            pending.push_back(PendingView {
+                presenter,
+                chain: vec![(portal.owner, portal.end)],
+                target_surface,
+                // Deep enough for a single pair to fill the budget; admission picks the rest.
+                recursion_remaining: budget.saturating_sub(1),
+            });
+        }
     }
 
     let deferred = client_settings.rendering.opaque_renderer.is_deferred();
@@ -145,9 +169,8 @@ fn rebuild_portal_views_system(
         Msaa::from_samples(client_settings.rendering.msaa_samples)
     };
     let mut camera_count = 0;
-    let mut replica_count = 0;
     while let Some(view) = pending.pop_front() {
-        let recursion_depth = view.chain.len() - 1;
+        let hops = view.chain.len() - 1;
         let child_layer = FIRST_RECURSIVE_RENDER_LAYER + camera_count;
         // Bucket images stay immutable because each is both a camera target and a sampled portal texture.
         let targets = vec![create_portal_view_target(
@@ -158,6 +181,7 @@ fn rebuild_portal_views_system(
         let initial_image = targets[0].image.clone();
         let mut camera = commands.spawn((
             PortalViewCamera {
+                presenter: view.presenter,
                 chain: view.chain.clone(),
                 target_surface: view.target_surface,
                 targets,
@@ -165,7 +189,7 @@ fn rebuild_portal_views_system(
             },
             Camera3d::default(),
             Camera {
-                order: -(recursion_depth as isize) - 1,
+                order: -(hops as isize) - 1,
                 is_active: false,
                 ..default()
             },
@@ -209,6 +233,7 @@ fn rebuild_portal_views_system(
             let mut chain = view.chain.clone();
             chain.push((portal.owner, portal.end));
             pending.push_back(PendingView {
+                presenter: view.presenter,
                 chain,
                 target_surface: replica,
                 recursion_remaining: view.recursion_remaining - 1,
@@ -222,7 +247,7 @@ fn rebuild_portal_views_system(
         );
     }
     state.portals = wire_portals;
-    state.recursion_depth = Some(recursion_depth);
+    state.budget = Some(budget);
 }
 
 fn create_portal_view_image(images: &mut Assets<Image>, size: UVec2) -> Handle<Image> {
@@ -247,42 +272,51 @@ fn create_portal_view_target(
 }
 
 fn update_portal_view_cameras_system(
-    main_camera: Query<(&Transform, &Projection), (With<Camera3d>, With<MainCameraMarker>, Without<PortalViewCamera>)>,
+    presenters: Query<
+        (&Transform, &Projection, &Camera),
+        (
+            Or<(With<MainCameraMarker>, With<RearviewCameraMarker>)>,
+            Without<PortalViewCamera>,
+        ),
+    >,
     scene_target: Res<SceneRenderTarget>,
     portals: Res<PortalMap>,
     portal_assets: Res<PortalAssets>,
     client_settings: Res<ClientSettings>,
     mut images: ResMut<Assets<Image>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    mut view_cameras: Query<
-        (
-            Entity,
-            &mut PortalViewCamera,
-            &mut Camera,
-            &mut RenderTarget,
-            &mut Transform,
-            &mut Projection,
-        ),
-        Without<MainCameraMarker>,
-    >,
+    mut view_cameras: Query<(
+        Entity,
+        &mut PortalViewCamera,
+        &mut Camera,
+        &mut RenderTarget,
+        &mut Transform,
+        &mut Projection,
+    )>,
     mut surface_materials: Query<&mut MeshMaterial3d<StandardMaterial>>,
 ) {
-    let Ok((main_transform, main_projection)) = main_camera.single() else {
-        return;
-    };
-
-    let mapped: Vec<MappedView> = view_cameras
+    let mut mapped: Vec<MappedView> = view_cameras
         .iter()
         .filter_map(|(entity, view, ..)| {
+            let (presenter_transform, presenter_projection, presenter_camera) = presenters.get(view.presenter).ok()?;
+            if !presenter_camera.is_active {
+                return None;
+            }
+            // The main camera fills the scene image; the rearview draws into its viewport.
+            let presenter_size = presenter_camera
+                .viewport
+                .as_ref()
+                .map_or(scene_target.size, |viewport| viewport.physical_size);
             let (transform, projection, footprint) = view_through_chain(
                 &portals,
                 &view.chain,
-                main_transform,
-                main_projection,
-                scene_target.size,
+                presenter_transform,
+                presenter_projection,
+                presenter_size,
             )?;
             Some(MappedView {
                 entity,
+                presenter: view.presenter,
                 chain: view.chain.clone(),
                 transform,
                 projection,
@@ -290,10 +324,20 @@ fn update_portal_view_cameras_system(
             })
         })
         .collect();
-    let admitted: HashMap<Entity, usize> = admit_views(&mapped, client_settings.rendering.portal_view_budget as usize)
-        .into_iter()
-        .map(|index| (mapped[index].entity, index))
-        .collect();
+    // Each presenting camera spends its own budget, so a deep forward corridor
+    // never starves the mirror.
+    mapped.sort_by_key(|view| view.presenter);
+    let budget = client_settings.rendering.portal_view_budget as usize;
+    let mut admitted: HashMap<Entity, usize> = HashMap::new();
+    let mut start = 0;
+    for group in mapped.chunk_by(|a, b| a.presenter == b.presenter) {
+        admitted.extend(
+            admit_views(group, budget)
+                .into_iter()
+                .map(|index| (group[index].entity, start + index)),
+        );
+        start += group.len();
+    }
 
     for (entity, mut view, mut camera, mut render_target, mut transform, mut projection) in &mut view_cameras {
         let admitted_view = admitted.get(&entity).map(|&index| &mapped[index]);
@@ -360,7 +404,7 @@ fn admit_views(views: &[MappedView], budget: usize) -> Vec<usize> {
     admitted
 }
 
-// Maps the main camera through every hop of `chain`: the eye through each
+// Maps a presenting camera through every hop of `chain`: the eye through each
 // entry to its exit, and the entry's on-screen footprint, which is the whole
 // screen for the view after it. `None` when a hop is invalid or off screen —
 // computed from this frame's camera rather than read back from visibility,
@@ -369,13 +413,13 @@ fn admit_views(views: &[MappedView], budget: usize) -> Vec<usize> {
 fn view_through_chain(
     portals: &PortalMap,
     chain: &[PortalKey],
-    main_transform: &Transform,
-    main_projection: &Projection,
-    scene_size: UVec2,
+    presenter_transform: &Transform,
+    presenter_projection: &Projection,
+    presenter_size: UVec2,
 ) -> Option<(Transform, Projection, Vec2)> {
-    let mut view_transform = *main_transform;
-    let mut view_projection = main_projection.clone();
-    let mut footprint = scene_size.as_vec2();
+    let mut view_transform = *presenter_transform;
+    let mut view_projection = presenter_projection.clone();
+    let mut footprint = presenter_size.as_vec2();
     for key in chain {
         let entry = &portals.get(key)?.portal;
         let exit = paired_portal(portals, entry)?;
@@ -389,7 +433,7 @@ fn view_through_chain(
             view_transform.translation,
             &entry_frame,
             &exit_frame,
-            main_projection.far(),
+            presenter_projection.far(),
         )?;
         view_transform = next_transform;
         view_projection = Projection::custom(next_projection);
@@ -614,6 +658,7 @@ mod tests {
     fn mapped(chain: &[PortalKey], footprint: Vec2) -> MappedView {
         MappedView {
             entity: Entity::PLACEHOLDER,
+            presenter: Entity::PLACEHOLDER,
             chain: chain.to_vec(),
             transform: Transform::IDENTITY,
             projection: Projection::default(),

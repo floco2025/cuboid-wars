@@ -37,7 +37,7 @@ pub(super) enum CheckboxSetting {
 pub(super) enum CyclerSetting {
     Resolution,
     Msaa,
-    PortalRecursion,
+    PortalViews,
     WindowMode,
 }
 

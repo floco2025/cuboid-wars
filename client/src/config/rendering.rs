@@ -1,8 +1,6 @@
 use anyhow::{Result, bail};
 use serde::Deserialize;
 
-pub const MAX_PORTAL_RECURSION_DEPTH: u8 = 3;
-
 #[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum OpaqueRenderer {
@@ -35,9 +33,9 @@ pub struct RenderingConfig {
     pub mipmaps: bool,
     pub texture_anisotropy: u16,
     pub msaa_samples: u32,
-    // Number of additional see-through portals rendered inside a portal view.
-    pub portal_recursion_depth: u8,
-    // Portal views rendered per frame, largest on screen first; the rest show their glow.
+    // Portal views each presenting camera (main view, rearview mirror) renders
+    // per frame — the settings menu's "Portal views" — largest on screen first;
+    // the rest show their glow. 0 = no see-through.
     pub portal_view_budget: u8,
     // Off = present frames immediately (`AutoNoVsync`): a frame that misses
     // the vblank budget shows at e.g. ~58 FPS instead of snapping to 30
@@ -94,16 +92,12 @@ impl RenderingConfig {
         if self.fullscreen_resolution == 0 {
             bail!("rendering.fullscreen_resolution must be > 0");
         }
-        if self.portal_recursion_depth > MAX_PORTAL_RECURSION_DEPTH {
-            bail!("rendering.portal_recursion_depth must be in [0, {MAX_PORTAL_RECURSION_DEPTH}]");
-        }
         Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::MAX_PORTAL_RECURSION_DEPTH;
     use crate::config::ClientSettings;
 
     #[test]
@@ -115,16 +109,5 @@ mod tests {
             .validate()
             .expect_err("zero render resolution should fail");
         assert!(error.to_string().contains("fullscreen_resolution"));
-    }
-
-    #[test]
-    fn rendering_config_rejects_excessive_portal_recursion() {
-        let mut settings = ClientSettings::load_default().expect("shipped client config should load");
-        settings.rendering.portal_recursion_depth = MAX_PORTAL_RECURSION_DEPTH + 1;
-        let error = settings
-            .rendering
-            .validate()
-            .expect_err("excessive portal recursion should fail");
-        assert!(error.to_string().contains("portal_recursion_depth"));
     }
 }

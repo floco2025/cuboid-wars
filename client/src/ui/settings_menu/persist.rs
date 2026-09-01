@@ -45,7 +45,7 @@ fn local_settings(settings: &ClientSettings, global_volume: &GlobalVolume, fulls
         fullscreen_resolution: settings.rendering.fullscreen_resolution,
         vsync: settings.rendering.vsync,
         msaa_samples: settings.rendering.msaa_samples,
-        portal_recursion_depth: settings.rendering.portal_recursion_depth,
+        portal_view_budget: settings.rendering.portal_view_budget,
         mouse_sensitivity: settings.input.mouse_sensitivity,
         invert_y: settings.input.invert_y,
         fov_degrees: settings.camera.fov_degrees.first_person,

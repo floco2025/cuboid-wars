@@ -219,6 +219,8 @@ pub const PORTAL_VIEW_CLIP_OFFSET: f32 = 0.02;
 pub const PORTAL_VIEW_MIN_EYE_DISTANCE: f32 = 0.001;
 pub const PORTAL_RENDER_LAYER: usize = 1;
 pub const LOCAL_PLAYER_RENDER_LAYER: usize = 2;
+// The rearview mirror's own portal surfaces, seen through from its eye.
+pub const REARVIEW_PORTAL_RENDER_LAYER: usize = 3;
 // Portal-style exit reorientation: the camera is seeded with the fully
 // mapped (possibly tilted) view and blended back to the upright aim over
 // this window.

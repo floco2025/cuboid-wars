@@ -137,12 +137,12 @@ pub(super) fn settings_menu_window_sync_system(
                 };
                 (label, deferred)
             }
-            CyclerSetting::PortalRecursion => {
-                let depth = settings.rendering.portal_recursion_depth;
-                let label = match depth {
-                    0 => "Off".to_owned(),
-                    1 => "1 level".to_owned(),
-                    _ => format!("{depth} levels"),
+            CyclerSetting::PortalViews => {
+                let budget = settings.rendering.portal_view_budget;
+                let label = if budget == 0 {
+                    "Off".to_owned()
+                } else {
+                    budget.to_string()
                 };
                 (label, false)
             }
@@ -164,7 +164,7 @@ pub(super) fn settings_menu_window_sync_system(
         let desired = match button.setting {
             CyclerSetting::Resolution => windowed,
             CyclerSetting::Msaa => deferred,
-            CyclerSetting::PortalRecursion => false,
+            CyclerSetting::PortalViews => false,
             CyclerSetting::WindowMode => false,
         };
         if desired != disabled {

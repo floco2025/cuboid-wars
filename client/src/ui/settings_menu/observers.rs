@@ -8,7 +8,7 @@ use super::state::{CheckboxSetting, CyclerButton, CyclerSetting, SliderSetting};
 use bevy::render::renderer::RenderAdapter;
 
 use crate::cameras::supported_msaa_samples;
-use crate::config::{ClientSettings, MAX_PORTAL_RECURSION_DEPTH};
+use crate::config::ClientSettings;
 use crate::input::enter_borderless_fullscreen;
 
 // Fullscreen render-resolution caps ("720p"): the scene renders at most
@@ -129,9 +129,9 @@ pub(super) fn on_cycler_activate(
                 *msaa = Msaa::from_samples(samples);
             }
         }
-        CyclerSetting::PortalRecursion => {
-            settings.rendering.portal_recursion_depth =
-                cycle_portal_recursion(settings.rendering.portal_recursion_depth, button.direction);
+        CyclerSetting::PortalViews => {
+            settings.rendering.portal_view_budget =
+                cycle_portal_views(settings.rendering.portal_view_budget, button.direction);
         }
         CyclerSetting::WindowMode => {
             let Ok((mut window, on_monitor)) = windows.single_mut() else {
@@ -146,16 +146,24 @@ pub(super) fn on_cycler_activate(
     }
 }
 
-fn cycle_portal_recursion(current: u8, direction: i8) -> u8 {
+// Portal views per frame, doubling upward; a config value off the ladder
+// steps to its nearest neighbour.
+const PORTAL_VIEW_STEPS: [u8; 5] = [0, 1, 2, 4, 8];
+
+fn cycle_portal_views(current: u8, direction: i8) -> u8 {
     if direction < 0 {
-        current
-            .checked_sub(1)
-            .filter(|depth| *depth <= MAX_PORTAL_RECURSION_DEPTH)
-            .unwrap_or(MAX_PORTAL_RECURSION_DEPTH)
-    } else if current >= MAX_PORTAL_RECURSION_DEPTH {
-        0
+        PORTAL_VIEW_STEPS
+            .iter()
+            .rev()
+            .copied()
+            .find(|&step| step < current)
+            .unwrap_or(PORTAL_VIEW_STEPS[PORTAL_VIEW_STEPS.len() - 1])
     } else {
-        current + 1
+        PORTAL_VIEW_STEPS
+            .iter()
+            .copied()
+            .find(|&step| step > current)
+            .unwrap_or(PORTAL_VIEW_STEPS[0])
     }
 }
 
@@ -164,14 +172,21 @@ mod tests {
     use super::*;
 
     #[test]
-    fn portal_recursion_cycles_forward_and_wraps() {
-        assert_eq!(cycle_portal_recursion(0, 1), 1);
-        assert_eq!(cycle_portal_recursion(MAX_PORTAL_RECURSION_DEPTH, 1), 0);
+    fn portal_views_cycle_forward_and_wrap() {
+        assert_eq!(cycle_portal_views(0, 1), 1);
+        assert_eq!(cycle_portal_views(2, 1), 4);
+        assert_eq!(cycle_portal_views(8, 1), 0);
     }
 
     #[test]
-    fn portal_recursion_cycles_backward_and_wraps() {
-        assert_eq!(cycle_portal_recursion(1, -1), 0);
-        assert_eq!(cycle_portal_recursion(0, -1), MAX_PORTAL_RECURSION_DEPTH);
+    fn portal_views_cycle_backward_and_wrap() {
+        assert_eq!(cycle_portal_views(1, -1), 0);
+        assert_eq!(cycle_portal_views(0, -1), 8);
+    }
+
+    #[test]
+    fn portal_views_off_the_ladder_step_to_a_neighbour() {
+        assert_eq!(cycle_portal_views(6, 1), 8);
+        assert_eq!(cycle_portal_views(6, -1), 4);
     }
 }

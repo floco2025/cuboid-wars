@@ -7,8 +7,7 @@
     "mipmaps": true,
     "texture_anisotropy": 8,
     "msaa_samples": 4,
-    "portal_recursion_depth": 1,
-    "portal_view_budget": 8,
+    "portal_view_budget": 4,
     "vsync": false,
     "bloom": {
       "enabled": true,
