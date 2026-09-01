@@ -17,7 +17,7 @@ pub use characters::{
 pub use lock::acquire_lock;
 pub use portals::{
     CharacterPortalHop, PortalFrame, PortalPlacement, PortalSet, ProjectileHop, compute_portal_placement,
-    portal_placement_overlaps, traverse_vector,
+    portal_placement_overlaps, traverse_move_intent, traverse_vector,
 };
 pub use projectiles::{
     BarrierImpact, ProjectileEvent, ProjectileMotion, ProjectileSpawnInfo, SurfaceBounce, calculate_projectile_spawns,

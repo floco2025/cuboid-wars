@@ -6,7 +6,7 @@ use crate::players::PlayerMap;
 use common::{
     config::GameplayConfig,
     constants::PORTAL_KNOCKBACK_CARRY_FACTOR,
-    physics::{CharacterVerticalVelocity, KnockbackVelocity, PortalSet, player_control_velocity},
+    physics::{CharacterVerticalVelocity, KnockbackVelocity, PortalSet, player_control_velocity, traverse_move_intent},
     protocol::{FaceYaw, PlayerId, PlayerMarker, PlayerMoveIntent, Position},
 };
 
@@ -29,7 +29,7 @@ pub fn players_portal_traversal_system(
             &mut Position,
             &mut FaceYaw,
             &mut CharacterVerticalVelocity,
-            &PlayerMoveIntent,
+            &mut PlayerMoveIntent,
             Option<&mut KnockbackVelocity>,
         ),
         With<PlayerMarker>,
@@ -37,7 +37,7 @@ pub fn players_portal_traversal_system(
 ) {
     let knockback_cap = PORTAL_KNOCKBACK_CARRY_FACTOR * gameplay_config.movement.knockback.max_speed;
     let mut seen: HashMap<Entity, Position> = HashMap::new();
-    for (entity, id, mut pos, mut face_yaw, mut vertical_velocity, move_intent, knockback) in &mut player_query {
+    for (entity, id, mut pos, mut face_yaw, mut vertical_velocity, mut move_intent, knockback) in &mut player_query {
         let from = previous.get(&entity).copied();
         let hop = from.and_then(|from| {
             if portal_set.is_empty() {
@@ -60,6 +60,7 @@ pub fn players_portal_traversal_system(
         if let Some(hop) = hop {
             *pos = hop.origin.into();
             face_yaw.0 = hop.yaw;
+            *move_intent = traverse_move_intent(&hop.entry, &hop.exit, *move_intent);
             vertical_velocity.0 = hop.vertical_velocity;
             match knockback {
                 Some(mut existing) => existing.0 = hop.knockback,

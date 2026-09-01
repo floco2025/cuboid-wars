@@ -8,7 +8,7 @@ use crate::{
     constants::{PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH, PORTAL_LIGHT_CLEARANCE},
     math::angle_delta_radians,
     physics::CollisionWorld,
-    protocol::{MapLayout, PlayerId, Portal, PortalEnd},
+    protocol::{MapLayout, PlayerId, PlayerMoveIntent, Portal, PortalEnd},
 };
 
 const CAP: f32 = 22.5;
@@ -116,6 +116,46 @@ fn same_wall_pair_reverses_heading() {
     let out = traverse_vector(entry, exit, Vec3::new(0.0, 0.0, -6.0));
     assert!((out - Vec3::new(0.0, 0.0, 6.0)).length() < 1e-5);
     assert!(angle_delta_radians(traverse_yaw(entry, exit, PI), 0.0).abs() < 1e-5);
+}
+
+#[test]
+fn same_wall_hop_maps_held_input_away_from_the_exit() {
+    let set = pair(Vec3::new(0.0, 1.6, 0.0), Vec3::Z, Vec3::new(5.0, 1.6, 0.0), Vec3::Z);
+    let physics = player_physics();
+    let intent = PlayerMoveIntent::Running { direction: PI };
+    let control = intent.to_horizontal_velocity(2.0, 6.0, false, 1.0);
+    let hop = set
+        .character_hop(
+            Vec3::new(0.0, 0.7, 0.15),
+            Vec3::new(0.0, 0.7, -0.05),
+            physics,
+            control,
+            Vec3::ZERO,
+            0.0,
+            PI,
+            CAP,
+        )
+        .expect("same-wall entry did not hop");
+    let mapped = traverse_move_intent(&hop.entry, &hop.exit, intent);
+    let mapped_direction = mapped.direction().expect("running intent became idle");
+    assert!(angle_delta_radians(mapped_direction, 0.0).abs() < 1e-4);
+
+    let next_control = mapped.to_horizontal_velocity(2.0, 6.0, false, 1.0);
+    let next = hop.origin + next_control * 0.1;
+    assert!((next - hop.exit.center).dot(hop.exit.normal) > (hop.origin - hop.exit.center).dot(hop.exit.normal));
+    assert!(
+        set.character_hop(
+            hop.origin,
+            next,
+            physics,
+            next_control,
+            hop.knockback,
+            hop.vertical_velocity,
+            hop.yaw,
+            CAP,
+        )
+        .is_none()
+    );
 }
 
 #[test]

@@ -9,7 +9,7 @@ use crate::{
 use common::{
     config::GameplayConfig,
     constants::PORTAL_KNOCKBACK_CARRY_FACTOR,
-    physics::{CharacterVerticalVelocity, KnockbackVelocity, PortalSet, player_control_velocity},
+    physics::{CharacterVerticalVelocity, KnockbackVelocity, PortalSet, player_control_velocity, traverse_move_intent},
     protocol::{FaceYaw, PlayerId, PlayerMarker, PlayerMoveIntent, Position, PowerUpKind},
 };
 
@@ -37,7 +37,7 @@ pub fn portal_transit_system(
             &mut PreviousTickPosition,
             &mut FaceYaw,
             &mut CharacterVerticalVelocity,
-            &PlayerMoveIntent,
+            &mut PlayerMoveIntent,
             Option<&mut KnockbackVelocity>,
         ),
         With<PlayerMarker>,
@@ -47,7 +47,7 @@ pub fn portal_transit_system(
         return;
     }
     let knockback_cap = PORTAL_KNOCKBACK_CARRY_FACTOR * gameplay_config.movement.knockback.max_speed;
-    for (entity, id, mut pos, mut prev, mut face_yaw, mut vertical_velocity, move_intent, knockback) in &mut query {
+    for (entity, id, mut pos, mut prev, mut face_yaw, mut vertical_velocity, mut move_intent, knockback) in &mut query {
         let (has_speed, stunned) = players
             .get(id)
             .map_or((false, false), |info| (info.power_up(PowerUpKind::Speed), info.stunned));
@@ -71,6 +71,7 @@ pub fn portal_transit_system(
         // cut there, not a smear between the portals.
         prev.0 = *pos;
         face_yaw.0 = hop.yaw;
+        *move_intent = traverse_move_intent(&hop.entry, &hop.exit, *move_intent);
         vertical_velocity.0 = hop.vertical_velocity;
         match knockback {
             Some(mut existing) => existing.0 = hop.knockback,
@@ -93,6 +94,9 @@ pub fn portal_transit_system(
                 &hop.exit,
                 hop.yaw,
             );
+            // The server maps this same persisted input during its hop, so
+            // the derived direction change is already synchronized.
+            local_player_info.last_sent_move = (*move_intent, face_yaw.0);
         }
     }
 }

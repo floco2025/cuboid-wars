@@ -12,7 +12,7 @@ use crate::{
     },
     math::direction_from_yaw_pitch,
     physics::CollisionWorld,
-    protocol::{Portal, PortalEnd},
+    protocol::{PlayerMoveIntent, Portal, PortalEnd},
 };
 
 // Map a vector through a pair: decompose in the entry frame, re-emit in the
@@ -24,6 +24,21 @@ pub fn traverse_vector(entry: &PortalFrame, exit: &PortalFrame, v: Vec3) -> Vec3
     let along_up = v.dot(entry.up);
     let into = v.dot(entry.normal);
     exit.up * along_up - exit.right * across - exit.normal * into
+}
+
+#[must_use]
+pub fn traverse_move_intent(entry: &PortalFrame, exit: &PortalFrame, intent: PlayerMoveIntent) -> PlayerMoveIntent {
+    // The server keeps using the last intent until another CMove arrives; it
+    // must point out of the exit immediately instead of re-entering it.
+    match intent {
+        PlayerMoveIntent::Idle => PlayerMoveIntent::Idle,
+        PlayerMoveIntent::Walking { direction } => PlayerMoveIntent::Walking {
+            direction: traverse_yaw(entry, exit, direction),
+        },
+        PlayerMoveIntent::Running { direction } => PlayerMoveIntent::Running {
+            direction: traverse_yaw(entry, exit, direction),
+        },
+    }
 }
 
 // Facing through the pair, projected back to a yaw. Square-on entries can map
