@@ -52,10 +52,13 @@ pub fn sky_weather_plugin(app: &mut App) {
             cubemap::skybox_convert_cross_to_cubemap_system.run_if(resource_exists::<skybox::SkyboxCrossImage>),
             skybox::skybox_update_camera_system.run_if(resource_exists::<skybox::SkyboxCubemap>),
             skybox::skybox_rotate_system.run_if(resource_exists::<skybox::SkyboxCubemap>),
-            // After the rotate step so the disc lands on the same frame's
-            // sun direction; after camera sync would be ideal too, but a
-            // one-frame positional lag at 400 m is invisible.
-            skybox::sky_disc_system.after(skybox::skybox_rotate_system),
+            skybox::sky_disc_camera_system
+                .after(skybox::setup_sky_disc_system)
+                .after(ClientSet::Camera),
+            skybox::sky_disc_system
+                .after(skybox::sky_disc_camera_system)
+                .after(skybox::skybox_rotate_system)
+                .after(ClientSet::Camera),
             // Rain: smooth the snapshot intensity first, then everything
             // that reads it. Lighting dimming runs after the camera-insert
             // system so a freshly inserted Skybox is corrected the same

@@ -1,12 +1,13 @@
 use bevy::{
+    camera::visibility::RenderLayers,
     ecs::{lifecycle::HookContext, world::DeferredWorld},
     prelude::*,
 };
 use common::{health::health_ratio, protocol::Health};
 
 use crate::constants::{
-    HEALTH_BAR_FILL_COLOR, HEALTH_BAR_FILL_Z_OFFSET, HEALTH_BAR_TRACK_COLOR, LABEL_BACKGROUND_COLOR,
-    LABEL_PLAYER_MESH_WIDTH, LABEL_TEXT_COLOR, LABEL_TEXT_PADDING_X, LABEL_TEXT_PADDING_Y,
+    CHARACTER_LABEL_RENDER_LAYER, HEALTH_BAR_FILL_COLOR, HEALTH_BAR_FILL_Z_OFFSET, HEALTH_BAR_TRACK_COLOR,
+    LABEL_BACKGROUND_COLOR, LABEL_PLAYER_MESH_WIDTH, LABEL_TEXT_COLOR, LABEL_TEXT_PADDING_X, LABEL_TEXT_PADDING_Y,
 };
 
 // Marker for a billboarded label quad in world space — a player name's textured
@@ -14,6 +15,9 @@ use crate::constants::{
 // `floating_labels_billboard_system` to face the main camera each frame.
 #[derive(Component)]
 pub struct CharacterLabelMeshMarker;
+
+#[derive(Component)]
+pub struct CharacterLabelRenderLayer;
 
 // Markers for the name text and its padded background inside the label's
 // render-target UI tree. `floating_label_scale_compensation_system` rewrites
@@ -110,6 +114,8 @@ pub fn spawn_floating_player_label(
     let mesh_entity = commands
         .spawn((
             CharacterLabelMeshMarker,
+            CharacterLabelRenderLayer,
+            RenderLayers::layer(CHARACTER_LABEL_RENDER_LAYER),
             Mesh3d(meshes.add(Rectangle::new(LABEL_PLAYER_MESH_WIDTH, LABEL_HEIGHT))),
             MeshMaterial3d(materials.add(StandardMaterial {
                 base_color_texture: Some(image_handle),
@@ -170,6 +176,8 @@ pub fn spawn_floating_health_bar(
                 max_health,
                 full_width: world_width,
             },
+            CharacterLabelRenderLayer,
+            RenderLayers::layer(CHARACTER_LABEL_RENDER_LAYER),
             Mesh3d(bar_mesh.clone()),
             // Opaque, not blended: the fill must layer over the translucent
             // track deterministically. As a character loses health the fill's
@@ -184,6 +192,8 @@ pub fn spawn_floating_health_bar(
     let track = commands
         .spawn((
             CharacterLabelMeshMarker,
+            CharacterLabelRenderLayer,
+            RenderLayers::layer(CHARACTER_LABEL_RENDER_LAYER),
             Mesh3d(bar_mesh),
             // Blended: the track is intentionally translucent so the scene
             // shows through the empty part of the bar.

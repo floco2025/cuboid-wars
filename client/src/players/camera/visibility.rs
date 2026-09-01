@@ -2,8 +2,9 @@ use bevy::{camera::visibility::RenderLayers, prelude::*};
 
 use crate::{
     cameras::{CameraViewMode, MainCameraMarker},
-    constants::{LOCAL_PLAYER_RENDER_LAYER, PORTAL_RENDER_LAYER},
+    constants::{CHARACTER_LABEL_RENDER_LAYER, LOCAL_PLAYER_RENDER_LAYER, PORTAL_RENDER_LAYER},
     players::{LocalPlayerInfo, LocalPlayerMarker},
+    ui::floating_labels::CharacterLabelRenderLayer,
 };
 
 pub fn local_player_visibility_sync_system(
@@ -24,7 +25,9 @@ pub fn local_player_visibility_sync_system(
         }
     }
 
-    let mut camera_layers = RenderLayers::layer(0).with(PORTAL_RENDER_LAYER);
+    let mut camera_layers = RenderLayers::layer(0)
+        .with(PORTAL_RENDER_LAYER)
+        .with(CHARACTER_LABEL_RENDER_LAYER);
     if view_mode.is_top_down() {
         camera_layers = camera_layers.with(LOCAL_PLAYER_RENDER_LAYER);
     }
@@ -42,7 +45,14 @@ pub(crate) fn local_player_render_layer_system(
     mut commands: Commands,
     local_players: Query<Entity, With<LocalPlayerMarker>>,
     children: Query<&Children>,
-    meshes: Query<(), (With<Mesh3d>, Without<LocalPlayerRenderLayer>)>,
+    meshes: Query<
+        (),
+        (
+            With<Mesh3d>,
+            Without<LocalPlayerRenderLayer>,
+            Without<CharacterLabelRenderLayer>,
+        ),
+    >,
 ) {
     for player in &local_players {
         for descendant in children.iter_descendants(player) {
@@ -99,6 +109,7 @@ mod tests {
             .get::<RenderLayers>()
             .expect("main camera render layers missing");
         assert!(layers.intersects(&RenderLayers::layer(PORTAL_RENDER_LAYER)));
+        assert!(layers.intersects(&RenderLayers::layer(CHARACTER_LABEL_RENDER_LAYER)));
         assert!(!layers.intersects(&RenderLayers::layer(LOCAL_PLAYER_RENDER_LAYER)));
     }
 

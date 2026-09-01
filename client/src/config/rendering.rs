@@ -92,6 +92,9 @@ impl RenderingConfig {
         if self.fullscreen_resolution == 0 {
             bail!("rendering.fullscreen_resolution must be > 0");
         }
+        if self.portal_view_budget > 8 {
+            bail!("rendering.portal_view_budget must be <= 8");
+        }
         Ok(())
     }
 }
@@ -109,5 +112,16 @@ mod tests {
             .validate()
             .expect_err("zero render resolution should fail");
         assert!(error.to_string().contains("fullscreen_resolution"));
+    }
+
+    #[test]
+    fn rendering_config_rejects_portal_budget_above_settings_maximum() {
+        let mut settings = ClientSettings::load_default().expect("shipped client config should load");
+        settings.rendering.portal_view_budget = 9;
+        let error = settings
+            .rendering
+            .validate()
+            .expect_err("oversized portal view budget should fail");
+        assert!(error.to_string().contains("portal_view_budget"));
     }
 }

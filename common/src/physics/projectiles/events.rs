@@ -25,6 +25,7 @@ pub fn earliest_projectile_event(
     }
     if let Some(bt) = barrier_t
         && character_t.is_none_or(|ct| bt <= ct)
+        && surface_t.is_none_or(|st| bt <= st)
     {
         return ProjectileEvent::Barrier;
     }
@@ -72,7 +73,7 @@ mod tests {
         );
         assert_eq!(
             earliest_projectile_event(None, Some(0.5), Some(0.3), None),
-            ProjectileEvent::Barrier
+            ProjectileEvent::Surface
         );
         assert_eq!(earliest_projectile_event(None, None, None, None), ProjectileEvent::Fly);
     }

@@ -1,6 +1,9 @@
 use std::f32::consts::{PI, TAU};
 
-use bevy::{core_pipeline::Skybox, light::NotShadowCaster, prelude::*, render::view::ColorGrading};
+use bevy::{
+    camera::visibility::RenderLayers, core_pipeline::Skybox, light::NotShadowCaster, prelude::*,
+    render::view::ColorGrading,
+};
 
 use crate::{
     cameras::{MainCameraMarker, RearviewCameraMarker},
@@ -66,14 +69,23 @@ pub struct SkyboxSettings {
 #[derive(Component)]
 pub struct SunLightMarker;
 
-// The visible sun/moon disc, kept opposite the directional light's forward
-// so it always sits where the shadows say it should. Its mesh is the lit
-// lune of a sphere at the level's phase; regenerated when the phase changes.
 #[derive(Component)]
-pub struct SkyDisc {
+pub(super) struct SkyDisc {
+    camera: Entity,
+}
+
+#[derive(Component)]
+pub(super) struct SkyDiscAttached;
+
+#[derive(Component)]
+pub(crate) struct SkyDiscRenderLayer(pub usize);
+
+#[derive(Resource)]
+pub(super) struct SkyDiscAssets {
     distance: f32,
     radius: f32,
     mesh: Handle<Mesh>,
+    material: Handle<StandardMaterial>,
     phase_percent: f32,
 }
 
@@ -94,28 +106,70 @@ pub fn setup_sky_disc_system(
         return;
     }
     let mesh = meshes.add(phase_mesh(100.0, sun_disc.radius));
-    commands.spawn((
-        SkyDisc {
-            distance: sun_disc.distance,
-            radius: sun_disc.radius,
-            mesh: mesh.clone(),
-            phase_percent: 100.0,
-        },
-        Mesh3d(mesh),
-        // NOT unlit: `StandardMaterial` ignores emissive when unlit (see
-        // barriers/pulsate.rs), which renders a ~1-nit gray ball against a
-        // 1000-nit sky. Black base + huge emissive = pure self-luminance;
-        // zero reflectance so the sun light can't put a specular sheen on
-        // the unlit part.
-        MeshMaterial3d(materials.add(StandardMaterial {
-            base_color: Color::BLACK,
-            emissive: LinearRgba::rgb(sun_disc.luminance, sun_disc.luminance * 0.94, sun_disc.luminance * 0.78),
-            reflectance: 0.0,
-            ..default()
-        })),
-        NotShadowCaster,
-        Transform::from_translation(Vec3::Y * sun_disc.distance),
-    ));
+    // StandardMaterial ignores emissive in unlit mode, so the disc stays in the lit pipeline.
+    let material = materials.add(StandardMaterial {
+        base_color: Color::BLACK,
+        emissive: LinearRgba::rgb(sun_disc.luminance, sun_disc.luminance * 0.94, sun_disc.luminance * 0.78),
+        reflectance: 0.0,
+        ..default()
+    });
+    commands.insert_resource(SkyDiscAssets {
+        distance: sun_disc.distance,
+        radius: sun_disc.radius,
+        mesh,
+        material,
+        phase_percent: 100.0,
+    });
+}
+
+pub(super) fn sky_disc_camera_system(
+    mut commands: Commands,
+    assets: Option<Res<SkyDiscAssets>>,
+    cameras: Query<(Entity, &SkyDiscRenderLayer), (With<Camera3d>, Without<SkyDiscAttached>)>,
+) {
+    let Some(assets) = assets else {
+        return;
+    };
+    for (camera, layer) in &cameras {
+        let disc = commands
+            .spawn((
+                SkyDisc { camera },
+                Mesh3d(assets.mesh.clone()),
+                MeshMaterial3d(assets.material.clone()),
+                RenderLayers::layer(layer.0),
+                NotShadowCaster,
+                Transform::default(),
+            ))
+            .id();
+        commands.entity(camera).insert(SkyDiscAttached).add_child(disc);
+    }
+}
+
+// Each disc is parented to one camera and rendered on that camera's private
+// layer. Its local transform keeps the apparent celestial direction fixed
+// for main, rearview, and every mapped portal eye independently.
+pub(super) fn sky_disc_system(
+    cameras: Query<&Transform, With<Camera3d>>,
+    sun_light: Query<&Transform, (With<SunLightMarker>, Without<SkyDisc>)>,
+    assets: Option<Res<SkyDiscAssets>>,
+    mut discs: Query<(&mut Transform, &SkyDisc), Without<Camera3d>>,
+) {
+    let (Ok(light), Some(assets)) = (sun_light.single(), assets) else {
+        return;
+    };
+    let away = Vec3::from(light.back());
+    for (mut disc_transform, disc) in &mut discs {
+        let Ok(camera) = cameras.get(disc.camera) else {
+            continue;
+        };
+        *disc_transform = sky_disc_local_transform(camera, away, assets.distance);
+    }
+}
+
+fn sky_disc_local_transform(camera: &Transform, away: Vec3, distance: f32) -> Transform {
+    let world_rotation = Transform::default().looking_to(away, Vec3::Y).rotation;
+    Transform::from_translation(camera.rotation.inverse() * (away * distance))
+        .with_rotation(camera.rotation.inverse() * world_rotation)
 }
 
 // The lit part of the disc at a given phase: the lune between the outer
@@ -154,26 +208,6 @@ fn phase_mesh(phase_percent: f32, radius: f32) -> Mesh {
     mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
     mesh.insert_indices(Indices::U32(indices));
     mesh
-}
-
-// Park the disc a fixed distance from the camera along the direction the
-// directional light comes FROM (`back()`), so it tracks the stepped sun
-// rotation and geometry occludes it near the horizon like a real sun. The
-// flat phase mesh must also face the camera: +Z toward it, so `look_to`
-// points -Z away along the light direction.
-pub fn sky_disc_system(
-    camera: Query<&Transform, (With<Camera3d>, With<MainCameraMarker>, Without<SkyDisc>)>,
-    sun_light: Query<&Transform, (With<SunLightMarker>, Without<SkyDisc>, Without<MainCameraMarker>)>,
-    mut disc: Query<(&mut Transform, &SkyDisc)>,
-) {
-    let (Ok(camera), Ok(light), Ok((mut disc_transform, disc))) =
-        (camera.single(), sun_light.single(), disc.single_mut())
-    else {
-        return;
-    };
-    let away = Vec3::from(light.back());
-    disc_transform.translation = camera.translation + away * disc.distance;
-    disc_transform.look_to(away, Vec3::Y);
 }
 
 // Add skybox to cameras once the cubemap is ready
@@ -342,7 +376,7 @@ fn blend_targets(config: &LightingConfig, blend: &LightingBlend) -> LevelTargets
 // a raw absolute value from `client.json::lighting`'s looks, eased in look
 // space and written absolutely every frame — idempotent, no incremental
 // drift. Wall/actor lights stay lit — windows glowing in the dark.
-pub fn lighting_blend_system(
+pub(super) fn lighting_blend_system(
     time: Res<Time>,
     client_settings: Res<ClientSettings>,
     mut lighting: ResMut<LightingState>,
@@ -350,7 +384,7 @@ pub fn lighting_blend_system(
     mut skyboxes: Query<&mut Skybox>,
     mut sun_light: Query<&mut DirectionalLight, With<SunLightMarker>>,
     mut ambient: ResMut<GlobalAmbientLight>,
-    mut discs: Query<(&MeshMaterial3d<StandardMaterial>, &mut SkyDisc)>,
+    mut disc_assets: Option<ResMut<SkyDiscAssets>>,
     mut gradings: Query<&mut ColorGrading, Or<(With<MainCameraMarker>, With<RearviewCameraMarker>)>>,
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
@@ -380,8 +414,8 @@ pub fn lighting_blend_system(
     }
     ambient.brightness = linear_intensity(level.ambient);
     let emissive = level.color * linear_intensity(level.disc);
-    for (material, mut disc) in &mut discs {
-        if let Some(mut material) = materials.get_mut(&material.0) {
+    if let Some(disc) = disc_assets.as_mut() {
+        if let Some(mut material) = materials.get_mut(&disc.material) {
             material.emissive = LinearRgba::rgb(emissive.x, emissive.y, emissive.z);
         }
         // The phase is a mesh shape, not a smoothable value — rebuild in
@@ -549,5 +583,17 @@ mod tests {
         let state = LightingState::default();
         assert_eq!(state.target, wire("bright", "bright", 0.0));
         assert!(!state.synced);
+    }
+
+    #[test]
+    fn sky_disc_child_transform_preserves_world_direction_for_each_camera() {
+        let camera = Transform::from_xyz(4.0, 2.0, -3.0).with_rotation(Quat::from_euler(EulerRot::YXZ, 1.2, -0.4, 0.2));
+        let away = Vec3::new(0.3, 0.8, -0.5).normalize();
+        let local = sky_disc_local_transform(&camera, away, 400.0);
+        let world_translation = camera.translation + camera.rotation * local.translation;
+        let world_rotation = camera.rotation * local.rotation;
+
+        assert!(world_translation.abs_diff_eq(camera.translation + away * 400.0, 1e-4));
+        assert!((world_rotation * Vec3::NEG_Z).abs_diff_eq(away, 1e-5));
     }
 }

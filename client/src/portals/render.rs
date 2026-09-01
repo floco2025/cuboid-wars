@@ -21,6 +21,7 @@ use crate::{
     cameras::{MainCameraMarker, RearviewCameraMarker, SceneRenderTarget, scene_render_target_system},
     config::ClientSettings,
     constants::{LOCAL_PLAYER_RENDER_LAYER, REARVIEW_PORTAL_RENDER_LAYER},
+    map::skybox::SkyDiscRenderLayer,
     players::{local_player_camera_sync_system, local_player_rearview_viewport_system},
     schedule::ClientSet,
 };
@@ -29,8 +30,8 @@ use common::{
     protocol::{PlayerId, Portal, PortalEnd},
 };
 
-const FIRST_RECURSIVE_RENDER_LAYER: usize = 4;
-const MAX_PORTAL_VIEW_CAMERAS: usize = 64;
+const FIRST_RECURSIVE_RENDER_LAYER: usize = 5;
+const MAX_PORTAL_VIEW_CAMERAS: usize = 64 - FIRST_RECURSIVE_RENDER_LAYER;
 const MAX_PORTAL_REPLICAS: usize = 512;
 // Texture sizes per axis; a view only ever needs the presenter's pixels.
 const PORTAL_VIEW_AXIS_SIZES: [u32; 6] = [64, 128, 256, 512, 1024, 2048];
@@ -43,8 +44,8 @@ struct PortalViewCamera {
     presenter: Entity,
     chain: Vec<PortalKey>,
     target_surface: Entity,
-    targets: Vec<PortalViewTarget>,
-    target_index: usize,
+    target: PortalViewTarget,
+    previous_target: Option<PortalViewTarget>,
 }
 
 struct PortalViewTarget {
@@ -57,6 +58,8 @@ struct PortalViewTarget {
 struct PortalRenderState {
     portals: Vec<Portal>,
     budget: Option<u8>,
+    presenters: Vec<Entity>,
+    roots: Vec<(Entity, PortalKey)>,
     spawned: Vec<Entity>,
 }
 
@@ -99,63 +102,130 @@ pub fn portal_render_plugin(app: &mut App) {
 
 fn rebuild_portal_views_system(
     mut commands: Commands,
-    main_camera: Query<Entity, With<MainCameraMarker>>,
-    rearview_camera: Query<Entity, With<RearviewCameraMarker>>,
+    main_camera: Query<(Entity, &Transform, &Projection, &Camera), With<MainCameraMarker>>,
+    rearview_camera: Query<
+        (Entity, &Transform, &Projection, &Camera),
+        (With<RearviewCameraMarker>, Without<MainCameraMarker>),
+    >,
+    scene_target: Res<SceneRenderTarget>,
     portals: Res<PortalMap>,
     portal_assets: Res<PortalAssets>,
     client_settings: Res<ClientSettings>,
     mut state: ResMut<PortalRenderState>,
     mut images: ResMut<Assets<Image>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut surface_materials: Query<&mut MeshMaterial3d<StandardMaterial>>,
 ) {
-    let Ok(main_camera) = main_camera.single() else {
+    let Ok((main_entity, main_transform, main_projection, main_camera)) = main_camera.single() else {
         return;
     };
-    let rearview_camera = rearview_camera.single().ok();
     let wire_portals = portals.wire_portals();
     let budget = client_settings.rendering.portal_view_budget;
-    if state.portals == wire_portals && state.budget == Some(budget) {
+    let complete_portals: Vec<_> = wire_portals
+        .iter()
+        .copied()
+        .filter(|portal| paired_portal(&portals, portal).is_some())
+        .collect();
+    let mut presenter_views = Vec::new();
+    if main_camera.is_active {
+        presenter_views.push((main_entity, main_transform, main_projection, main_camera));
+    }
+    if let Ok((entity, transform, projection, camera)) = rearview_camera.single()
+        && camera.is_active
+    {
+        presenter_views.push((entity, transform, projection, camera));
+    }
+    let presenters: Vec<_> = presenter_views.iter().map(|(entity, ..)| *entity).collect();
+    let roots: Vec<_> = presenter_views
+        .iter()
+        .flat_map(|(entity, transform, projection, camera)| {
+            largest_visible_roots(
+                &portals,
+                &complete_portals,
+                transform,
+                projection,
+                presenter_size(camera, scene_target.size),
+                usize::from(budget),
+            )
+            .into_iter()
+            .map(|key| (*entity, key))
+        })
+        .collect();
+    if state.portals == wire_portals
+        && state.budget == Some(budget)
+        && state.presenters == presenters
+        && state.roots == roots
+    {
         return;
     }
 
     for entity in state.spawned.drain(..) {
         commands.entity(entity).despawn();
     }
+    for portal in &wire_portals {
+        if let Some(info) = portals.get(&(portal.owner, portal.end))
+            && let Ok(mut material) = surface_materials.get_mut(info.entity)
+        {
+            material.0 = portal_assets.material(portal.end);
+        }
+    }
+    state.portals = wire_portals;
+    state.budget = Some(budget);
+    state.presenters = presenters;
+    state.roots = roots;
+    if budget == 0 || state.roots.is_empty() {
+        return;
+    }
 
-    let complete_portals: Vec<_> = wire_portals
-        .iter()
-        .copied()
-        .filter(|portal| paired_portal(&portals, portal).is_some())
-        .collect();
     let mut over_budget = false;
     let mut replica_count = 0;
     let mut pending = VecDeque::new();
-    // Each presenting camera roots its own chains: the main camera through
-    // the shared surfaces, the rearview through a replica set only it renders.
-    for portal in &complete_portals {
-        let Some(info) = portals.get(&(portal.owner, portal.end)) else {
-            continue;
-        };
-        let mut roots = vec![(main_camera, info.entity)];
-        if let Some(rearview_camera) = rearview_camera {
-            let replica = spawn_portal_visual(&mut commands, &portal_assets, portal, REARVIEW_PORTAL_RENDER_LAYER);
-            state.spawned.push(replica);
-            replica_count += 1;
-            roots.push((rearview_camera, replica));
-        }
-        for (presenter, target_surface) in roots {
-            if pending.len() >= MAX_PORTAL_VIEW_CAMERAS {
+    let rearview_entity = rearview_camera.single().ok().map(|(entity, ..)| entity);
+    let mut rearview_surfaces = HashMap::new();
+    if let Some(rearview_entity) = rearview_entity.filter(|entity| state.presenters.contains(entity)) {
+        let selected: HashSet<_> = state
+            .roots
+            .iter()
+            .filter_map(|(presenter, key)| (*presenter == rearview_entity).then_some(*key))
+            .collect();
+        let mut rearview_portals = complete_portals.clone();
+        rearview_portals.sort_by_key(|portal| {
+            (
+                !selected.contains(&(portal.owner, portal.end)),
+                portal.owner.0,
+                portal.end == PortalEnd::B,
+            )
+        });
+        for portal in &rearview_portals {
+            if replica_count >= MAX_PORTAL_REPLICAS {
                 over_budget = true;
                 break;
             }
-            pending.push_back(PendingView {
-                presenter,
-                chain: vec![(portal.owner, portal.end)],
-                target_surface,
-                // Deep enough for a single pair to fill the budget; admission picks the rest.
-                recursion_remaining: budget.saturating_sub(1),
-            });
+            let replica = spawn_portal_visual(&mut commands, &portal_assets, portal, REARVIEW_PORTAL_RENDER_LAYER);
+            state.spawned.push(replica);
+            rearview_surfaces.insert((portal.owner, portal.end), replica);
+            replica_count += 1;
         }
+    }
+    for &(presenter, key) in &state.roots {
+        if pending.len() >= MAX_PORTAL_VIEW_CAMERAS {
+            over_budget = true;
+            break;
+        }
+        let target_surface = if presenter == main_entity {
+            portals.get(&key).map(|info| info.entity)
+        } else {
+            rearview_surfaces.get(&key).copied()
+        };
+        let Some(target_surface) = target_surface else {
+            continue;
+        };
+        pending.push_back(PendingView {
+            presenter,
+            chain: vec![key],
+            target_surface,
+            recursion_remaining: budget.saturating_sub(1),
+        });
     }
 
     let deferred = client_settings.rendering.opaque_renderer.is_deferred();
@@ -169,20 +239,17 @@ fn rebuild_portal_views_system(
         let hops = view.chain.len() - 1;
         let child_layer = FIRST_RECURSIVE_RENDER_LAYER + camera_count;
         // Bucket images stay immutable because each is both a camera target and a sampled portal texture.
-        let targets = vec![create_portal_view_target(
-            &mut images,
-            &mut materials,
-            UVec2::splat(PORTAL_VIEW_AXIS_SIZES[0]),
-        )];
-        let initial_image = targets[0].image.clone();
+        let target = create_portal_view_target(&mut images, &mut materials, UVec2::splat(PORTAL_VIEW_AXIS_SIZES[0]));
+        let initial_image = target.image.clone();
         let mut camera = commands.spawn((
             PortalViewCamera {
                 presenter: view.presenter,
                 chain: view.chain.clone(),
                 target_surface: view.target_surface,
-                targets,
-                target_index: 0,
+                target,
+                previous_target: None,
             },
+            SkyDiscRenderLayer(child_layer),
             Camera3d::default(),
             Camera {
                 order: -(hops as isize) - 1,
@@ -239,11 +306,43 @@ fn rebuild_portal_views_system(
 
     if over_budget {
         warn!(
-            "portal views exceed the render budget ({camera_count} cameras, {replica_count} surfaces); deeper views are omitted"
+            "portal render graph reached its safety cap ({camera_count} cameras, {replica_count} surfaces); deeper views are omitted"
         );
     }
-    state.portals = wire_portals;
-    state.budget = Some(budget);
+}
+
+fn presenter_size(camera: &Camera, scene_size: UVec2) -> UVec2 {
+    camera
+        .viewport
+        .as_ref()
+        .map_or(scene_size, |viewport| viewport.physical_size)
+}
+
+fn largest_visible_roots(
+    portals: &PortalMap,
+    complete_portals: &[Portal],
+    transform: &Transform,
+    projection: &Projection,
+    size: UVec2,
+    budget: usize,
+) -> Vec<PortalKey> {
+    let mut roots: Vec<_> = complete_portals
+        .iter()
+        .filter_map(|portal| {
+            let key = (portal.owner, portal.end);
+            let (_, _, footprint, _) = view_through_chain(portals, &[key], transform, projection, size)?;
+            Some((key, footprint.x * footprint.y))
+        })
+        .collect();
+    roots.sort_by(|(a_key, a_area), (b_key, b_area)| {
+        b_area
+            .total_cmp(a_area)
+            .then(a_key.0.0.cmp(&b_key.0.0))
+            .then((a_key.1 == PortalEnd::B).cmp(&(b_key.1 == PortalEnd::B)))
+    });
+    roots.truncate(budget);
+    roots.sort_by_key(|(key, _)| (key.0.0, key.1 == PortalEnd::B));
+    roots.into_iter().map(|(key, _)| key).collect()
 }
 
 fn create_portal_view_image(images: &mut Assets<Image>, size: UVec2) -> Handle<Image> {
@@ -299,10 +398,7 @@ fn update_portal_view_cameras_system(
                 return None;
             }
             // The main camera fills the scene image; the rearview draws into its viewport.
-            let presenter_size = presenter_camera
-                .viewport
-                .as_ref()
-                .map_or(scene_target.size, |viewport| viewport.physical_size);
+            let presenter_size = presenter_size(presenter_camera, scene_target.size);
             let (transform, projection, footprint, rect) = view_through_chain(
                 &portals,
                 &view.chain,
@@ -343,22 +439,17 @@ fn update_portal_view_cameras_system(
             Some(mapped_view) => {
                 *transform = mapped_view.transform;
                 *projection = mapped_view.projection.clone();
-                let desired_size =
-                    adaptive_portal_resolution(mapped_view.footprint, view.targets[view.target_index].size);
-                if desired_size != view.targets[view.target_index].size {
-                    let target_index = view
-                        .targets
-                        .iter()
-                        .position(|target| target.size == desired_size)
-                        .unwrap_or_else(|| {
-                            view.targets
-                                .push(create_portal_view_target(&mut images, &mut materials, desired_size));
-                            view.targets.len() - 1
-                        });
-                    *render_target = RenderTarget::Image(view.targets[target_index].image.clone().into());
-                    view.target_index = target_index;
+                let desired_size = adaptive_portal_resolution(mapped_view.footprint, view.target.size);
+                if desired_size != view.target.size {
+                    let next = match view.previous_target.take() {
+                        Some(previous) if previous.size == desired_size => previous,
+                        _ => create_portal_view_target(&mut images, &mut materials, desired_size),
+                    };
+                    let previous = std::mem::replace(&mut view.target, next);
+                    view.previous_target = Some(previous);
+                    *render_target = RenderTarget::Image(view.target.image.clone().into());
                 }
-                let target = &view.targets[view.target_index];
+                let target = &view.target;
                 let uv_transform = aperture_uv_transform(mapped_view.rect);
                 if materials
                     .get(&target.material)
@@ -832,5 +923,33 @@ mod tests {
         assert_eq!(axis_size(450.0, 1024), 1024);
         assert_eq!(axis_size(400.0, 1024), 512);
         assert_eq!(axis_size(300.0, 128), 512);
+    }
+
+    #[test]
+    fn root_selection_uses_visible_size_not_portal_owner_order() {
+        let portals = [
+            portal(1, PortalEnd::A, Vec3::new(0.0, 0.0, -8.0), Vec3::Z),
+            portal(1, PortalEnd::B, Vec3::new(0.0, 0.0, 20.0), Vec3::NEG_Z),
+            portal(2, PortalEnd::A, Vec3::new(0.0, 0.0, -2.0), Vec3::Z),
+            portal(2, PortalEnd::B, Vec3::new(0.0, 0.0, 24.0), Vec3::NEG_Z),
+        ];
+        let map = portal_map(&portals);
+
+        assert_eq!(
+            largest_visible_roots(
+                &map,
+                &portals,
+                &Transform::IDENTITY,
+                &perspective(),
+                UVec2::splat(1000),
+                1,
+            ),
+            vec![(PlayerId(2), PortalEnd::A)]
+        );
+    }
+
+    #[test]
+    fn recursive_camera_layers_stay_within_render_layer_capacity() {
+        assert_eq!(FIRST_RECURSIVE_RENDER_LAYER + MAX_PORTAL_VIEW_CAMERAS - 1, 63);
     }
 }

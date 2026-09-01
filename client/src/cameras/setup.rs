@@ -15,7 +15,8 @@ use super::{
 };
 use crate::{
     config::ClientSettings,
-    constants::{PORTAL_RENDER_LAYER, REARVIEW_PORTAL_RENDER_LAYER},
+    constants::{CHARACTER_LABEL_RENDER_LAYER, PORTAL_RENDER_LAYER, REARVIEW_PORTAL_RENDER_LAYER},
+    map::skybox::SkyDiscRenderLayer,
 };
 
 // ============================================================================
@@ -87,6 +88,7 @@ pub fn setup_cameras_system(
     // Add main camera (initial position will be immediately overridden by sync system)
     let mut main_camera = commands.spawn((
         MainCameraMarker,
+        SkyDiscRenderLayer(PORTAL_RENDER_LAYER),
         RenderTarget::Image(ImageRenderTarget {
             handle: scene_image.clone(),
             scale_factor: 1.0,
@@ -108,7 +110,9 @@ pub fn setup_cameras_system(
         // Present so lighting can drive `post_saturation` (low light mutes
         // the scene); defaults are a no-op grade.
         ColorGrading::default(),
-        RenderLayers::layer(0).with(PORTAL_RENDER_LAYER),
+        RenderLayers::layer(0)
+            .with(PORTAL_RENDER_LAYER)
+            .with(CHARACTER_LABEL_RENDER_LAYER),
         Transform::from_xyz(0.0, player_eye_height, 0.0).looking_at(Vec3::new(0.0, 0.0, -1.0), Vec3::Y),
     ));
     if deferred_rendering_enabled {
@@ -134,6 +138,7 @@ pub fn setup_cameras_system(
     // Add rearview mirror camera (renders to its viewport inside the scene image)
     let mut rearview_camera = commands.spawn((
         RearviewCameraMarker,
+        SkyDiscRenderLayer(REARVIEW_PORTAL_RENDER_LAYER),
         RenderTarget::Image(ImageRenderTarget {
             handle: scene_image.clone(),
             scale_factor: 1.0,
