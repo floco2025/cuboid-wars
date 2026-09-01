@@ -37,6 +37,8 @@ pub struct RenderingConfig {
     pub msaa_samples: u32,
     // Number of additional see-through portals rendered inside a portal view.
     pub portal_recursion_depth: u8,
+    // Portal views rendered per frame, largest on screen first; the rest show their glow.
+    pub portal_view_budget: u8,
     // Off = present frames immediately (`AutoNoVsync`): a frame that misses
     // the vblank budget shows at e.g. ~58 FPS instead of snapping to 30
     // (Fifo quantization), at the cost of possible tearing.

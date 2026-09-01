@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::collections::{HashMap, HashSet, VecDeque};
 
 use bevy::{
     camera::{Hdr, RenderTarget, visibility::RenderLayers},
@@ -68,6 +68,16 @@ struct PendingView {
     chain: Vec<PortalKey>,
     target_surface: Entity,
     recursion_remaining: u8,
+}
+
+// One view whose chain is fully on screen this frame: the camera it maps to
+// and its entry aperture's on-screen footprint in pixels.
+struct MappedView {
+    entity: Entity,
+    chain: Vec<PortalKey>,
+    transform: Transform,
+    projection: Projection,
+    footprint: Vec2,
 }
 
 pub fn portal_render_plugin(app: &mut App) {
@@ -241,10 +251,12 @@ fn update_portal_view_cameras_system(
     scene_target: Res<SceneRenderTarget>,
     portals: Res<PortalMap>,
     portal_assets: Res<PortalAssets>,
+    client_settings: Res<ClientSettings>,
     mut images: ResMut<Assets<Image>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut view_cameras: Query<
         (
+            Entity,
             &mut PortalViewCamera,
             &mut Camera,
             &mut RenderTarget,
@@ -259,20 +271,39 @@ fn update_portal_view_cameras_system(
         return;
     };
 
-    for (mut view, mut camera, mut render_target, mut transform, mut projection) in &mut view_cameras {
-        let mapped = view_through_chain(
-            &portals,
-            &view.chain,
-            main_transform,
-            main_projection,
-            scene_target.size,
-        );
-        camera.is_active = mapped.is_some();
-        let surface_material = match mapped {
-            Some((view_transform, view_projection, projected_size)) => {
-                *transform = view_transform;
-                *projection = view_projection;
-                let desired_size = adaptive_portal_resolution(projected_size, view.targets[view.target_index].size);
+    let mapped: Vec<MappedView> = view_cameras
+        .iter()
+        .filter_map(|(entity, view, ..)| {
+            let (transform, projection, footprint) = view_through_chain(
+                &portals,
+                &view.chain,
+                main_transform,
+                main_projection,
+                scene_target.size,
+            )?;
+            Some(MappedView {
+                entity,
+                chain: view.chain.clone(),
+                transform,
+                projection,
+                footprint,
+            })
+        })
+        .collect();
+    let admitted: HashMap<Entity, usize> = admit_views(&mapped, client_settings.rendering.portal_view_budget as usize)
+        .into_iter()
+        .map(|index| (mapped[index].entity, index))
+        .collect();
+
+    for (entity, mut view, mut camera, mut render_target, mut transform, mut projection) in &mut view_cameras {
+        let admitted_view = admitted.get(&entity).map(|&index| &mapped[index]);
+        camera.is_active = admitted_view.is_some();
+        let surface_material = match admitted_view {
+            Some(mapped_view) => {
+                *transform = mapped_view.transform;
+                *projection = mapped_view.projection.clone();
+                let desired_size =
+                    adaptive_portal_resolution(mapped_view.footprint, view.targets[view.target_index].size);
                 if desired_size != view.targets[view.target_index].size {
                     let target_index = view
                         .targets
@@ -300,11 +331,41 @@ fn update_portal_view_cameras_system(
     }
 }
 
+// Admits views largest on screen first until the budget is spent. A view is
+// only ever seen through its parent view (its chain minus the last hop), so
+// it needs that parent admitted too. Returns indices into `views`.
+fn admit_views(views: &[MappedView], budget: usize) -> Vec<usize> {
+    let mut order: Vec<usize> = (0..views.len()).collect();
+    order.sort_by(|&a, &b| {
+        resolution_demand(views[b].footprint)
+            .total_cmp(&resolution_demand(views[a].footprint))
+            .then(views[a].chain.len().cmp(&views[b].chain.len()))
+    });
+    let mut admitted_chains: HashSet<&[PortalKey]> = HashSet::new();
+    let mut admitted = Vec::new();
+    for index in order {
+        if admitted.len() >= budget {
+            break;
+        }
+        let chain = views[index].chain.as_slice();
+        let Some((_, parent)) = chain.split_last() else {
+            continue;
+        };
+        if !parent.is_empty() && !admitted_chains.contains(parent) {
+            continue;
+        }
+        admitted_chains.insert(chain);
+        admitted.push(index);
+    }
+    admitted
+}
+
 // Maps the main camera through every hop of `chain`: the eye through each
-// entry to its exit, and the entry's footprint in the view before it. `None`
-// when a hop is invalid or off screen — computed from this frame's camera
-// rather than read back from visibility, so activation never lags a frame.
-// Returns the final view and the last hop's footprint.
+// entry to its exit, and the entry's on-screen footprint, which is the whole
+// screen for the view after it. `None` when a hop is invalid or off screen —
+// computed from this frame's camera rather than read back from visibility,
+// so activation never lags a frame. Returns the final view and the last
+// hop's footprint in screen pixels.
 fn view_through_chain(
     portals: &PortalMap,
     chain: &[PortalKey],
@@ -314,18 +375,16 @@ fn view_through_chain(
 ) -> Option<(Transform, Projection, Vec2)> {
     let mut view_transform = *main_transform;
     let mut view_projection = main_projection.clone();
-    let mut parent_target_size = scene_size;
-    let mut projected_size = Vec2::ZERO;
+    let mut footprint = scene_size.as_vec2();
     for key in chain {
         let entry = &portals.get(key)?.portal;
         let exit = paired_portal(portals, entry)?;
         let entry_frame = PortalFrame::from_portal(entry);
         let exit_frame = PortalFrame::from_portal(exit);
-        projected_size = projected_portal_size(&entry_frame, &view_transform, &view_projection, parent_target_size);
-        if projected_size.x <= 0.0 || projected_size.y <= 0.0 {
+        footprint = projected_portal_size(&entry_frame, &view_transform, &view_projection, footprint);
+        if footprint.x <= 0.0 || footprint.y <= 0.0 {
             return None;
         }
-        parent_target_size = portal_resolution(projected_size);
         let (next_transform, next_projection) = portal_camera_view(
             view_transform.translation,
             &entry_frame,
@@ -335,14 +394,14 @@ fn view_through_chain(
         view_transform = next_transform;
         view_projection = Projection::custom(next_projection);
     }
-    Some((view_transform, view_projection, projected_size))
+    Some((view_transform, view_projection, footprint))
 }
 
 fn projected_portal_size(
     frame: &PortalFrame,
     camera_transform: &Transform,
     projection: &Projection,
-    target_size: UVec2,
+    screen_size: Vec2,
 ) -> Vec2 {
     let clip_from_world = projection.get_clip_from_view() * camera_transform.to_matrix().inverse();
     let mut min = Vec2::splat(f32::INFINITY);
@@ -365,18 +424,14 @@ fn projected_portal_size(
         return Vec2::ZERO;
     }
     if behind > 0 {
-        return target_size.as_vec2();
+        return screen_size;
     }
     min = min.max(Vec2::splat(-1.0));
     max = max.min(Vec2::splat(1.0));
     if min.x >= max.x || min.y >= max.y {
         return Vec2::ZERO;
     }
-    (max - min) * 0.5 * target_size.as_vec2()
-}
-
-fn portal_resolution(projected_size: Vec2) -> UVec2 {
-    PORTAL_VIEW_RESOLUTIONS[resolution_index(projected_size)]
+    (max - min) * 0.5 * screen_size
 }
 
 fn adaptive_portal_resolution(projected_size: Vec2, current: UVec2) -> UVec2 {
@@ -484,8 +539,8 @@ mod tests {
         let near = PortalFrame::from_surface(Vec3::new(0.0, 0.0, -2.0), Vec3::Z, 0.0);
         let far = PortalFrame::from_surface(Vec3::new(0.0, 0.0, -8.0), Vec3::Z, 0.0);
 
-        let near_size = projected_portal_size(&near, &camera, &projection, UVec2::splat(1000));
-        let far_size = projected_portal_size(&far, &camera, &projection, UVec2::splat(1000));
+        let near_size = projected_portal_size(&near, &camera, &projection, Vec2::splat(1000.0));
+        let far_size = projected_portal_size(&far, &camera, &projection, Vec2::splat(1000.0));
 
         assert!(near_size.x > far_size.x);
         assert!(near_size.y > far_size.y);
@@ -497,7 +552,7 @@ mod tests {
         let portal = PortalFrame::from_surface(Vec3::new(0.0, 0.0, 2.0), Vec3::NEG_Z, 0.0);
 
         assert_eq!(
-            projected_portal_size(&portal, &Transform::IDENTITY, &projection, UVec2::splat(1000)),
+            projected_portal_size(&portal, &Transform::IDENTITY, &projection, Vec2::splat(1000.0)),
             Vec2::ZERO
         );
     }
@@ -541,13 +596,65 @@ mod tests {
     }
 
     #[test]
-    fn distant_portal_uses_minimum_resolution() {
-        assert_eq!(portal_resolution(Vec2::ZERO), UVec2::new(64, 120));
+    fn distant_portal_shrinks_to_minimum_resolution() {
+        assert_eq!(
+            adaptive_portal_resolution(Vec2::ZERO, PORTAL_VIEW_RESOLUTIONS[4]),
+            UVec2::new(64, 120)
+        );
     }
 
     #[test]
     fn very_close_portal_uses_maximum_resolution() {
-        assert_eq!(portal_resolution(Vec2::splat(4000.0)), UVec2::new(1024, 1920));
+        assert_eq!(
+            adaptive_portal_resolution(Vec2::splat(4000.0), PORTAL_VIEW_RESOLUTIONS[0]),
+            UVec2::new(1024, 1920)
+        );
+    }
+
+    fn mapped(chain: &[PortalKey], footprint: Vec2) -> MappedView {
+        MappedView {
+            entity: Entity::PLACEHOLDER,
+            chain: chain.to_vec(),
+            transform: Transform::IDENTITY,
+            projection: Projection::default(),
+            footprint,
+        }
+    }
+
+    #[test]
+    fn budget_admits_the_largest_views_first() {
+        let views = [
+            mapped(&[(PlayerId(1), PortalEnd::A)], Vec2::new(50.0, 100.0)),
+            mapped(&[(PlayerId(2), PortalEnd::A)], Vec2::new(200.0, 400.0)),
+            mapped(&[(PlayerId(3), PortalEnd::A)], Vec2::new(100.0, 200.0)),
+        ];
+        assert_eq!(admit_views(&views, 2), vec![1, 2]);
+        assert_eq!(admit_views(&views, 0), Vec::<usize>::new());
+    }
+
+    #[test]
+    fn nested_view_is_admitted_only_under_its_parent() {
+        let a = (PlayerId(1), PortalEnd::A);
+        let b = (PlayerId(2), PortalEnd::A);
+        let views = [
+            mapped(&[a], Vec2::new(10.0, 20.0)),
+            mapped(&[a, a], Vec2::new(10.0, 20.0)),
+            mapped(&[b], Vec2::new(100.0, 200.0)),
+        ];
+        assert_eq!(admit_views(&views, 1), vec![2]);
+        assert_eq!(admit_views(&views, 2), vec![2, 0]);
+        assert_eq!(admit_views(&views, 3), vec![2, 0, 1]);
+    }
+
+    #[test]
+    fn orphaned_nested_view_is_skipped() {
+        let a = (PlayerId(1), PortalEnd::A);
+        let b = (PlayerId(2), PortalEnd::A);
+        let views = [
+            mapped(&[a, a], Vec2::new(300.0, 600.0)),
+            mapped(&[b], Vec2::new(10.0, 20.0)),
+        ];
+        assert_eq!(admit_views(&views, 2), vec![1]);
     }
 
     #[test]
