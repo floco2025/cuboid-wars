@@ -272,6 +272,17 @@ impl CollisionWorld {
         max_distance: f32,
         groups: Group,
     ) -> Option<WorldSurfaceHit> {
+        self.surface_with_handle_along_ray(origin, direction, max_distance, groups)
+            .map(|(_, hit)| hit)
+    }
+
+    fn surface_with_handle_along_ray(
+        &self,
+        origin: Vec3,
+        direction: Vec3,
+        max_distance: f32,
+        groups: Group,
+    ) -> Option<(ColliderHandle, WorldSurfaceHit)> {
         if !origin.is_finite() || !direction.is_finite() || !max_distance.is_finite() || max_distance <= 0.0 {
             return None;
         }
@@ -286,13 +297,16 @@ impl CollisionWorld {
             Vector::new(origin.x, origin.y, origin.z),
             Vector::new(direction.x, direction.y, direction.z),
         );
-        let (_, hit) = query_pipeline.cast_ray_and_get_normal(&ray, max_distance, false)?;
+        let (handle, hit) = query_pipeline.cast_ray_and_get_normal(&ray, max_distance, false)?;
         let normal = Vec3::new(hit.normal.x, hit.normal.y, hit.normal.z).try_normalize()?;
 
-        Some(WorldSurfaceHit {
-            point: origin + direction * hit.time_of_impact,
-            normal,
-        })
+        Some((
+            handle,
+            WorldSurfaceHit {
+                point: origin + direction * hit.time_of_impact,
+                normal,
+            },
+        ))
     }
 
     #[must_use]
@@ -350,16 +364,29 @@ impl CollisionWorld {
         )
     }
 
-    // The wall/floor/ramp colliders an oriented cuboid overlaps. Portal
-    // rebuilds collect each aperture's backing this way; both sides derive
-    // it from the same static world, so the sets agree.
+    // Portal backing colliders matching the surface kind at the aperture
+    // center. An adjoining ramp may overlap a wall portal's backing volume,
+    // but it must remain solid while the wall itself opens for transit.
     #[must_use]
-    pub(crate) fn colliders_overlapping_oriented_cuboid(
+    pub(crate) fn portal_backing_colliders(
         &self,
-        center: Vec3,
+        surface_center: Vec3,
+        surface_normal: Vec3,
         half_extents: Vec3,
         rotation: Quat,
     ) -> Vec<ColliderHandle> {
+        let Some(surface_normal) = surface_normal.try_normalize() else {
+            return Vec::new();
+        };
+        let Some((surface_handle, _)) = self.surface_with_handle_along_ray(
+            surface_center + surface_normal * 0.05,
+            -surface_normal,
+            0.1,
+            world_collision_groups(),
+        ) else {
+            return Vec::new();
+        };
+        let backing_kind = ColliderKind::from_user_data(self.colliders[surface_handle].user_data);
         let query_pipeline = self.broad_phase.as_query_pipeline(
             self.narrow_phase.query_dispatcher(),
             &self.bodies,
@@ -367,6 +394,7 @@ impl CollisionWorld {
             query_filter(world_collision_groups()),
         );
         let shape = Cuboid::new(Vector::new(half_extents.x, half_extents.y, half_extents.z));
+        let center = surface_center - surface_normal * half_extents.z;
         let axis_angle = rotation.to_scaled_axis();
         let pose = Pose::new(
             Vector::new(center.x, center.y, center.z),
@@ -374,29 +402,26 @@ impl CollisionWorld {
         );
         query_pipeline
             .intersect_shape(pose, &shape)
-            .map(|(handle, _)| handle)
+            .filter_map(|(handle, collider)| {
+                (ColliderKind::from_user_data(collider.user_data) == backing_kind).then_some(handle)
+            })
             .collect()
     }
 
-    // Whether an oriented cuboid overlaps any wall/floor/ramp. Portal
-    // placement sweeps the whole slab in front of the aperture with one of
-    // these, so geometry crossing the oval between point probes (a wall
-    // standing on a floor aperture) cannot slip through.
     #[must_use]
-    pub fn oriented_cuboid_overlaps_world(&self, center: Vec3, half_extents: Vec3, rotation: Quat) -> bool {
+    pub(crate) fn oriented_shape_overlaps_world(&self, center: Vec3, rotation: Quat, shape: &dyn Shape) -> bool {
         let query_pipeline = self.broad_phase.as_query_pipeline(
             self.narrow_phase.query_dispatcher(),
             &self.bodies,
             &self.colliders,
             query_filter(world_collision_groups()),
         );
-        let shape = Cuboid::new(Vector::new(half_extents.x, half_extents.y, half_extents.z));
         let axis_angle = rotation.to_scaled_axis();
         let pose = Pose::new(
             Vector::new(center.x, center.y, center.z),
             Vector::new(axis_angle.x, axis_angle.y, axis_angle.z),
         );
-        query_pipeline.intersect_shape(pose, &shape).next().is_some()
+        query_pipeline.intersect_shape(pose, shape).next().is_some()
     }
 
     #[must_use]

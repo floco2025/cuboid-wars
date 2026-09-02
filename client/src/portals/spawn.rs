@@ -3,11 +3,10 @@ use bevy::{light::NotShadowCaster, prelude::*};
 use bevy::camera::visibility::RenderLayers;
 
 use crate::constants::{
-    MAIN_VIEW_RENDER_LAYER, PORTAL_A_COLOR, PORTAL_B_COLOR, PORTAL_EMISSIVE, PORTAL_RIM_OFFSET, PORTAL_RIM_SCALE,
-    PORTAL_SURFACE_OFFSET,
+    MAIN_VIEW_RENDER_LAYER, PORTAL_A_COLOR, PORTAL_B_COLOR, PORTAL_EMISSIVE, PORTAL_RIM_OFFSET, PORTAL_SURFACE_OFFSET,
 };
 use common::{
-    constants::{PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH},
+    constants::{PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH, PORTAL_RIM_SCALE},
     physics::PortalFrame,
     protocol::{Portal, PortalEnd},
 };

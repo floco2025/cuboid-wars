@@ -1,17 +1,20 @@
+use std::sync::OnceLock;
+
 use bevy_math::{Mat3, Quat, Vec3};
 use rapier3d::{
     parry::{query::intersection_test, shape::Cuboid},
-    prelude::{Pose, Vector},
+    prelude::{Pose, SharedShape, Vector},
 };
 
 use super::PortalFrame;
 use crate::{
     constants::{
         LEVEL_HEIGHT, PORTAL_FIXTURE_PLANE_DEPTH, PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH, PORTAL_LIGHT_CLEARANCE,
-        PORTAL_PLATE_CLEARANCE, PORTAL_STANDABLE_NORMAL_Y, PORTAL_UP_DEGENERACY_LIMIT,
+        PORTAL_PLATE_CLEARANCE, PORTAL_RIM_SCALE, PORTAL_STANDABLE_NORMAL_Y, PORTAL_UP_DEGENERACY_LIMIT,
     },
+    math::direction_from_yaw_pitch,
     physics::CollisionWorld,
-    protocol::{MapLayout, PlayerId, Portal, PortalEnd},
+    protocol::{MapLayout, PlayerId, Portal, PortalEnd, WallLight},
 };
 
 // Where a validated portal shot lands: the aperture center, outward surface
@@ -67,7 +70,7 @@ fn portal_placement_yaw(normal: Vec3, face_yaw: f32) -> f32 {
 // shot lands slides along the surface plane to the nearest nearby spot that
 // does (nearest ring first, straight up tried first within each ring); only
 // when nothing within reach fits does the shot fizzle.
-const NUDGE_STEP: f32 = 0.25;
+const NUDGE_STEP: f32 = 0.125;
 const NUDGE_MAX_DISTANCE: f32 = 1.5;
 const NUDGE_DIRECTIONS: usize = 16;
 
@@ -95,25 +98,20 @@ const FIT_RIM_SAMPLES: usize = 8;
 // reaches into the room.
 const FIT_FRONT_GAP: f32 = 0.02;
 const FIT_FRONT_DEPTH: f32 = 0.3;
+const FIT_FRONT_RIM_SEGMENTS: usize = 64;
 
-// The aperture must actually work as a hole: every sample across it needs
-// solid surface BEHIND the plane (no hanging past an edge) and clear space
-// IN FRONT of it (no floor slab or abutting wall cutting through the oval —
-// this is what stops a portal placed too low for a body to fit). On top of
-// the geometry, the aperture must not cover surface fixtures: wall lights,
-// and pressure plates for standable portals.
+// The portal must actually work as a hole: every sample around its visible
+// rim needs solid surface BEHIND the plane (no hanging past an edge) and
+// clear space IN FRONT of it (no floor slab or abutting wall cutting through
+// the oval). On top of the geometry, the aperture must not cover surface
+// fixtures: wall lights, and pressure plates for standable portals.
 fn portal_fits(frame: &PortalFrame, collision_world: &CollisionWorld, map_layout: &MapLayout) -> bool {
-    // One oriented box sweeps the whole slab in front of the aperture, so
-    // geometry crossing the oval anywhere — a wall standing on a floor
-    // aperture, a slab clipping one edge — rejects, not only geometry near
-    // a probe point.
+    // Sweep the oval itself so geometry outside the visible rim cannot make
+    // a portal float above a ramp, while geometry crossing the opening still
+    // rejects between the backing probes.
     let rotation = Quat::from_mat3(&Mat3::from_cols(frame.right, frame.up, frame.normal));
     let front_center = frame.center + frame.normal * (FIT_FRONT_GAP + FIT_FRONT_DEPTH / 2.0);
-    if collision_world.oriented_cuboid_overlaps_world(
-        front_center,
-        Vec3::new(PORTAL_HALF_WIDTH, PORTAL_HALF_HEIGHT, FIT_FRONT_DEPTH / 2.0),
-        rotation,
-    ) {
+    if collision_world.oriented_shape_overlaps_world(front_center, rotation, front_clearance_shape().as_ref()) {
         return false;
     }
     // Each sample must meet a surface parallel to the shot face. Otherwise
@@ -129,7 +127,7 @@ fn portal_fits(frame: &PortalFrame, collision_world: &CollisionWorld, map_layout
         }
     }
     for light in &map_layout.wall_lights {
-        if fixture_blocks(frame, Vec3::from(light.pos), PORTAL_LIGHT_CLEARANCE) {
+        if wall_light_blocks(frame, light) {
             return false;
         }
     }
@@ -144,13 +142,39 @@ fn portal_fits(frame: &PortalFrame, collision_world: &CollisionWorld, map_layout
     true
 }
 
+fn front_clearance_shape() -> &'static SharedShape {
+    static SHAPE: OnceLock<SharedShape> = OnceLock::new();
+    SHAPE.get_or_init(|| {
+        let mut points = Vec::with_capacity(FIT_FRONT_RIM_SEGMENTS * 2);
+        for depth in [-FIT_FRONT_DEPTH / 2.0, FIT_FRONT_DEPTH / 2.0] {
+            for i in 0..FIT_FRONT_RIM_SEGMENTS {
+                let angle = i as f32 / FIT_FRONT_RIM_SEGMENTS as f32 * std::f32::consts::TAU;
+                points.push(Vector::new(
+                    PORTAL_HALF_WIDTH * PORTAL_RIM_SCALE * angle.cos(),
+                    PORTAL_HALF_HEIGHT * PORTAL_RIM_SCALE * angle.sin(),
+                    depth,
+                ));
+            }
+        }
+        SharedShape::convex_hull(&points).expect("portal front-clearance hull is degenerate")
+    })
+}
+
 fn aperture_samples(frame: &PortalFrame) -> impl Iterator<Item = Vec3> {
     let center = frame.center;
     let (right, up) = (frame.right, frame.up);
     std::iter::once(center).chain((0..FIT_RIM_SAMPLES).map(move |i| {
         let angle = i as f32 / FIT_RIM_SAMPLES as f32 * std::f32::consts::TAU;
-        center + right * (PORTAL_HALF_WIDTH * angle.cos()) + up * (PORTAL_HALF_HEIGHT * angle.sin())
+        center
+            + right * (PORTAL_HALF_WIDTH * PORTAL_RIM_SCALE * angle.cos())
+            + up * (PORTAL_HALF_HEIGHT * PORTAL_RIM_SCALE * angle.sin())
     }))
+}
+
+fn wall_light_blocks(frame: &PortalFrame, light: &WallLight) -> bool {
+    let light_normal = direction_from_yaw_pitch(light.yaw, 0.0);
+    light_normal.dot(frame.normal) >= FIT_BACKING_NORMAL_DOT
+        && fixture_blocks(frame, Vec3::from(light.pos), PORTAL_LIGHT_CLEARANCE)
 }
 
 // A fixture blocks the aperture when it sits near the portal plane inside

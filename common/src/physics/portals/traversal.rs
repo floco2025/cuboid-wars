@@ -513,8 +513,9 @@ impl PortalSet {
 fn gate_from_portal(portal: &Portal, collision_world: &CollisionWorld) -> PortalGate {
     let frame = PortalFrame::from_portal(portal);
     let rotation = Quat::from_mat3(&Mat3::from_cols(frame.right, frame.up, frame.normal));
-    let backing = collision_world.colliders_overlapping_oriented_cuboid(
-        frame.center - frame.normal * (BACKING_DEPTH / 2.0),
+    let backing = collision_world.portal_backing_colliders(
+        frame.center,
+        frame.normal,
         Vec3::new(PORTAL_HALF_WIDTH, PORTAL_HALF_HEIGHT, BACKING_DEPTH / 2.0),
         rotation,
     );

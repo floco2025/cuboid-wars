@@ -5,7 +5,7 @@ use bevy_math::Vec3;
 use super::{traversal::traverse_yaw, *};
 use crate::{
     config::{CharacterPhysicsConfig, GameplayConfig},
-    constants::{PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH, PORTAL_LIGHT_CLEARANCE},
+    constants::{PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH, PORTAL_LIGHT_CLEARANCE, PORTAL_RIM_SCALE, WALL_HEIGHT},
     math::angle_delta_radians,
     physics::{
         CharacterMovementResult, CharacterSupport, CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity,
@@ -644,6 +644,93 @@ fn low_wall_shot_nudges_up_until_the_aperture_fits() {
 }
 
 #[test]
+fn high_wall_shot_nudges_until_the_visible_rim_has_backing() {
+    let layout = placement_layout();
+    let placement = place(&layout, Vec3::new(0.0, 2.7, 3.0), Vec3::new(0.0, 2.7, 0.0), PI)
+        .expect("high wall shot did not nudge below the wall top");
+
+    assert!(placement.pos.y + PORTAL_HALF_HEIGHT * PORTAL_RIM_SCALE < WALL_HEIGHT);
+}
+
+#[test]
+fn ramp_side_portal_rim_can_meet_the_slope() {
+    let ramp_length = 6.0;
+    let slope = LEVEL_HEIGHT / ramp_length;
+    let z = 1.5;
+    let surface_y = slope * z;
+    let rim_half_height = PORTAL_HALF_HEIGHT * PORTAL_RIM_SCALE;
+    let rim_half_width = PORTAL_HALF_WIDTH * PORTAL_RIM_SCALE;
+    let ellipse_support = (rim_half_height.powi(2) + (slope * rim_half_width).powi(2)).sqrt();
+    let center_y = surface_y + ellipse_support + 0.01;
+    let layout = MapLayout {
+        walls: vec![Wall {
+            x1: -2.0,
+            z1: 0.0,
+            x2: -2.0,
+            z2: ramp_length,
+            width: WALL_THICKNESS,
+            level: 0,
+        }],
+        ramps: vec![Ramp {
+            x1: -2.0,
+            y1: 0.0,
+            z1: 0.0,
+            x2: 2.0,
+            y2: LEVEL_HEIGHT,
+            z2: ramp_length,
+        }],
+        ..Default::default()
+    };
+    let placement = place(&layout, Vec3::new(0.0, center_y, z), Vec3::new(-2.0, center_y, z), 0.0)
+        .expect("ramp-side portal placement failed");
+
+    assert!((placement.pos.y - center_y).abs() < 0.03, "{placement:?}");
+    assert!((placement.pos.z - z).abs() < 0.03, "{placement:?}");
+}
+
+#[test]
+fn wall_portal_near_ramp_excludes_only_wall_backing() {
+    let ramp_length = 6.0;
+    let slope = LEVEL_HEIGHT / ramp_length;
+    let z = 1.5;
+    let rim_half_height = PORTAL_HALF_HEIGHT * PORTAL_RIM_SCALE;
+    let rim_half_width = PORTAL_HALF_WIDTH * PORTAL_RIM_SCALE;
+    let ellipse_support = (rim_half_height.powi(2) + (slope * rim_half_width).powi(2)).sqrt();
+    let center_y = slope * z + ellipse_support + 0.01;
+    let layout = MapLayout {
+        walls: vec![Wall {
+            x1: -2.0,
+            z1: 0.0,
+            x2: -2.0,
+            z2: ramp_length,
+            width: WALL_THICKNESS,
+            level: 0,
+        }],
+        ramps: vec![Ramp {
+            x1: -2.0,
+            y1: 0.0,
+            z1: 0.0,
+            x2: 2.0,
+            y2: LEVEL_HEIGHT,
+            z2: ramp_length,
+        }],
+        ..Default::default()
+    };
+    let world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
+    let set = PortalSet::rebuild(
+        &[
+            portal(PortalEnd::A, Vec3::new(-1.85, center_y, z), Vec3::X, 0.0),
+            portal(PortalEnd::B, Vec3::new(10.0, 1.6, 10.0), Vec3::Z, 0.0),
+        ],
+        &world,
+    );
+    let physics = player_physics();
+    let origin = Vec3::new(-1.5, center_y - physics.collider.top_y_offset() / 2.0, z);
+
+    assert_eq!(set.collision_exclusions(origin, physics).len(), 1);
+}
+
+#[test]
 fn shot_past_the_walls_end_nudges_back_onto_it() {
     let layout = placement_layout();
     let placement = place(&layout, Vec3::new(5.9, 1.6, 3.0), Vec3::new(5.9, 1.6, 0.0), PI)
@@ -686,19 +773,19 @@ fn ramp_lip_shot_nudges_the_whole_aperture_onto_the_slope() {
 #[test]
 fn floor_shot_under_a_crossing_wall_nudges_clear_of_it() {
     let mut layout = placement_layout();
-    // A second wall crossing the floor at z = 3 cuts any aperture that
+    // A second wall crossing the floor at z = 3.2 cuts any aperture that
     // straddles it — including between rim probes.
     layout.walls.push(Wall {
         x1: -6.0,
-        z1: 3.0,
+        z1: 3.2,
         x2: 6.0,
-        z2: 3.0,
+        z2: 3.2,
         width: WALL_THICKNESS,
         level: 0,
     });
     let placement = place(&layout, Vec3::new(2.0, 1.6, 2.5), Vec3::new(2.0, 0.0, 2.5), 0.0)
         .expect("wall-cut floor shot did not nudge clear");
-    assert!(placement.pos.z < 1.56);
+    assert!(placement.pos.z < 1.68);
     assert!((placement.pos.x - 2.0).abs() < 0.01);
 }
 
@@ -728,6 +815,24 @@ fn shot_at_a_wall_light_nudges_clear_of_it() {
     // Far enough along the wall the light does not even nudge the shot.
     let clear = place(&layout, Vec3::new(4.0, 1.6, 3.0), Vec3::new(4.0, 1.6, 0.0), PI).expect("clear shot rejected");
     assert!((clear.pos.x - 4.0).abs() < 0.01);
+}
+
+#[test]
+fn wall_light_on_the_other_face_does_not_block_placement() {
+    let mut layout = placement_layout();
+    layout.wall_lights.push(WallLight {
+        pos: Position {
+            x: 0.0,
+            y: 1.6,
+            z: -0.17,
+        },
+        yaw: PI,
+    });
+    let placement = place(&layout, Vec3::new(0.0, 1.6, 3.0), Vec3::new(0.0, 1.6, 0.0), PI)
+        .expect("opposite-face light rejected placement");
+
+    assert!(placement.pos.x.abs() < 0.01);
+    assert!((placement.pos.y - 1.6).abs() < 0.01);
 }
 
 #[test]

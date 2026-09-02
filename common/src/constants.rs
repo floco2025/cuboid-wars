@@ -156,6 +156,9 @@ pub const MISSILE_SPAWN_OFFSET: f32 = 1.0;
 // surface orientation, sized to pass the player body whole.
 pub const PORTAL_HALF_WIDTH: f32 = 0.7;
 pub const PORTAL_HALF_HEIGHT: f32 = 1.3;
+// Placement clearance follows the rendered rim so world geometry cannot
+// visibly clip it at aperture edges.
+pub const PORTAL_RIM_SCALE: f32 = 1.06;
 // Normals pointing up at least this much are standable (a surface you can
 // rest on); pressure-plate keep-outs apply only to portals on them.
 pub const PORTAL_STANDABLE_NORMAL_Y: f32 = 0.5;

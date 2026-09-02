@@ -211,7 +211,6 @@ pub const PORTAL_EMISSIVE: f32 = 8.0;
 // Offset off the surface so the decal wins the depth test against its wall.
 pub const PORTAL_SURFACE_OFFSET: f32 = 0.01;
 pub const PORTAL_RIM_OFFSET: f32 = 0.002;
-pub const PORTAL_RIM_SCALE: f32 = 1.06;
 // Near plane sits this far past the exit plane, clipping the exit's own surface.
 pub const PORTAL_VIEW_CLIP_OFFSET: f32 = 0.02;
 // A view stays valid until the eye is this close to the entry plane, so the
