@@ -22,6 +22,8 @@ pub(super) struct PlayerEntryStyle {
     pub min_entry_width: f32,
     pub health_bar_height: f32,
     pub max_missiles: u32,
+    pub show_multi_shot: bool,
+    pub show_missiles: bool,
 }
 
 pub(super) fn spawn_player_entry(
@@ -101,14 +103,19 @@ pub(super) fn spawn_player_entry(
                 .with_children(|strip| {
                     spawn_icon_group(strip, |row| {
                         for kind in PowerUpKind::ALL {
+                            if kind == PowerUpKind::MultiShot && !style.show_multi_shot {
+                                continue;
+                            }
                             spawn_power_up_icon(row, player_info.power_up(kind), kind, shapes);
                         }
                     });
-                    spawn_icon_group(strip, |row| {
-                        for slot in 0..style.max_missiles {
-                            spawn_missile_icon(row, slot < player_info.missiles);
-                        }
-                    });
+                    if style.show_missiles {
+                        spawn_icon_group(strip, |row| {
+                            for slot in 0..style.max_missiles {
+                                spawn_missile_icon(row, slot < player_info.missiles);
+                            }
+                        });
+                    }
                     spawn_icon_group(strip, |row| {
                         for &kind in key_kinds {
                             let color = barrier_assets

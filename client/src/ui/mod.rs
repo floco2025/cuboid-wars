@@ -13,7 +13,7 @@ mod setup;
 mod timed_lines;
 
 pub use console::{ConsoleState, console_closed, ui_console_render_system};
-pub use crosshair::{CrosshairBarMarker, CrosshairMarker, ui_crosshair_lock_system, ui_crosshair_visibility_system};
+pub(super) use crosshair::{ui_crosshair_system, ui_crosshair_visibility_system};
 pub use diagnostics::{
     DiagnosticsColumnMarker, FpsMarker, FpsMeasurement, RttMarker, ui_diagnostics_visibility_system, ui_fps_system,
     ui_rtt_system,

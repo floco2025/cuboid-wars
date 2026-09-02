@@ -222,18 +222,18 @@ impl PortalSet {
         self.pairs.first().map(|pair| (&pair.a.frame, &pair.b.frame))
     }
 
-    // Pairs each owner's A and B ends; a half-placed pair is inert. The
+    // Pairs each pair id's A and B ends; a half-placed pair is inert. The
     // collision world supplies each aperture's backing colliders — both
     // sides derive them from the same static world, so the sets agree.
     #[must_use]
     pub fn rebuild(portals: &[Portal], collision_world: &CollisionWorld) -> Self {
         let mut portals = portals.to_vec();
-        portals.sort_by_key(|portal| (portal.owner.0, portal.end == PortalEnd::B));
+        portals.sort_by_key(|portal| (portal.pair.0, portal.end == PortalEnd::B));
         let mut pairs = Vec::new();
         for a in portals.iter().filter(|portal| portal.end == PortalEnd::A) {
             let Some(b) = portals
                 .iter()
-                .find(|portal| portal.owner == a.owner && portal.end == PortalEnd::B)
+                .find(|portal| portal.pair == a.pair && portal.end == PortalEnd::B)
             else {
                 continue;
             };

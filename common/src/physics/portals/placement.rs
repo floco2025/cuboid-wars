@@ -14,7 +14,7 @@ use crate::{
     },
     math::direction_from_yaw_pitch,
     physics::CollisionWorld,
-    protocol::{MapLayout, PlayerId, Portal, PortalEnd, WallLight},
+    protocol::{MapLayout, Portal, PortalEnd, PortalPairId, WallLight},
 };
 
 // Where a validated portal shot lands: the aperture center, outward surface
@@ -194,14 +194,13 @@ const PORTAL_OVERLAP_HALF_DEPTH: f32 = 0.05;
 #[must_use]
 pub fn portal_placement_overlaps(
     placement: &PortalPlacement,
-    owner: PlayerId,
+    pair: PortalPairId,
     end: PortalEnd,
     existing: &[Portal],
 ) -> bool {
     let candidate = PortalFrame::from_surface(placement.pos, placement.normal, placement.yaw);
     existing.iter().any(|portal| {
-        (portal.owner, portal.end) != (owner, end)
-            && portal_frames_overlap(&candidate, &PortalFrame::from_portal(portal))
+        (portal.pair, portal.end) != (pair, end) && portal_frames_overlap(&candidate, &PortalFrame::from_portal(portal))
     })
 }
 

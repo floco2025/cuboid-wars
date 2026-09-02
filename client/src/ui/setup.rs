@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use super::{
     console::spawn_console,
-    crosshair::{CrosshairBarMarker, CrosshairMarker},
+    crosshair::CrosshairMarker,
     diagnostics::{DiagnosticsColumnMarker, FpsMarker, RttMarker},
     hud_banner::spawn_hud_banner,
     message_feed::spawn_message_feed,
@@ -11,7 +11,7 @@ use super::{
 };
 use crate::{
     config::ClientSettings,
-    constants::{CROSSHAIR_COLOR, CROSSHAIR_SIZE_PX, CROSSHAIR_THICKNESS_PX, HUD_EDGE_MARGIN_PX, HUD_ROW_GAP_PX},
+    constants::{HUD_EDGE_MARGIN_PX, HUD_ROW_GAP_PX},
 };
 
 // Marker for the death overlay — a red translucent full-screen panel shown
@@ -47,50 +47,17 @@ pub fn setup_ui_system(mut commands: Commands, client_settings: Res<ClientSettin
         },
     ));
 
-    let crosshair_size = CROSSHAIR_SIZE_PX;
-    let crosshair_thickness = CROSSHAIR_THICKNESS_PX;
-    let crosshair_color = CROSSHAIR_COLOR;
-
-    commands
-        .spawn((
-            CrosshairMarker,
-            Node {
-                position_type: PositionType::Absolute,
-                left: Val::Percent(50.0),
-                top: Val::Percent(50.0),
-                width: Val::Px(0.0),
-                height: Val::Px(0.0),
-                justify_content: JustifyContent::Center,
-                align_items: AlignItems::Center,
-                ..default()
-            },
-        ))
-        .with_children(|parent| {
-            parent.spawn((
-                CrosshairBarMarker,
-                Node {
-                    position_type: PositionType::Absolute,
-                    left: Val::Px(-crosshair_size / 2.0),
-                    top: Val::Px(-crosshair_thickness / 2.0),
-                    width: Val::Px(crosshair_size),
-                    height: Val::Px(crosshair_thickness),
-                    ..default()
-                },
-                BackgroundColor(crosshair_color),
-            ));
-            parent.spawn((
-                CrosshairBarMarker,
-                Node {
-                    position_type: PositionType::Absolute,
-                    left: Val::Px(-crosshair_thickness / 2.0),
-                    top: Val::Px(-crosshair_size / 2.0),
-                    width: Val::Px(crosshair_thickness),
-                    height: Val::Px(crosshair_size),
-                    ..default()
-                },
-                BackgroundColor(crosshair_color),
-            ));
-        });
+    commands.spawn((
+        CrosshairMarker,
+        Node {
+            position_type: PositionType::Absolute,
+            left: Val::Percent(50.0),
+            top: Val::Percent(50.0),
+            width: Val::Px(0.0),
+            height: Val::Px(0.0),
+            ..default()
+        },
+    ));
 
     // RTT above FPS in one auto-stacking column, so the rows can't overlap
     // at any font size.

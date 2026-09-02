@@ -177,6 +177,22 @@ pub struct MapSettings {
     pub skybox: String,
     pub gravity: f32,
     pub low_gravity: f32,
+    pub weapons: MapWeaponSettings,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode, serde::Deserialize)]
+pub struct MapWeaponSettings {
+    pub projectiles: bool,
+    pub missiles: bool,
+    pub portals: PortalMode,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PortalMode {
+    None,
+    Single,
+    Both,
 }
 
 impl MapSettings {

@@ -135,9 +135,6 @@ pub const CROSSHAIR_THICKNESS_PX: f32 = 2.0;
 pub const CROSSHAIR_COLOR: Color = Color::srgba(1.0, 1.0, 1.0, 0.8);
 // Lock-on tint: lit crosshair = a missile fired now will track this target.
 pub const CROSSHAIR_LOCK_COLOR: Color = Color::srgba(1.0, 0.25, 0.2, 0.9);
-// Portal-gun tint — the weapon-mode indicator while no lock overrides it.
-pub const CROSSHAIR_PORTAL_COLOR: Color = Color::srgba(0.35, 0.65, 1.0, 0.9);
-
 // ============================================================================
 // Health Bars (colors + fill layering; pixel dimensions live in
 // `client.json::hud.health_bars`)

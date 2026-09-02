@@ -30,7 +30,7 @@ pub fn calculate_projectile_spawns(
     shooter_pos: &Position,
     face_yaw: f32,
     face_pitch: f32,
-    has_multi_shot: bool,
+    multi_shot_pattern: Option<&str>,
     shooter_eye_height: f32,
     gameplay: &GameplayConfig,
     collision_world: &CollisionWorld,
@@ -38,11 +38,9 @@ pub fn calculate_projectile_spawns(
 ) -> Vec<ProjectileSpawnInfo> {
     let mut spawns = Vec::new();
 
-    let offsets: &[(f32, f32)] = if has_multi_shot {
-        gameplay.projectiles.multi_shot.shots()
-    } else {
-        &[(0.0, 0.0)]
-    };
+    let offsets = multi_shot_pattern
+        .and_then(|name| gameplay.projectiles.multi_shot.pattern(name))
+        .map_or(&[(0.0, 0.0)][..], |pattern| pattern.shots());
 
     for &(yaw_offset, pitch_offset) in offsets {
         let shot_yaw = face_yaw + yaw_offset;

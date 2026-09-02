@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use common::{
     config::GameplayConfig,
-    protocol::{BarrierKindId, Health, PlayerId},
+    protocol::{BarrierKindId, Health, MapSettings, PlayerId},
 };
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
@@ -23,6 +23,7 @@ pub fn ui_player_list_rebuild_system(
     players: Res<PlayerMap>,
     my_player_id: Option<Res<MyPlayerId>>,
     gameplay_config: Res<GameplayConfig>,
+    map_settings: Option<Res<MapSettings>>,
     max_health: Res<MaxHealth>,
     client_settings: Res<ClientSettings>,
     key_kinds: Res<KeyKinds>,
@@ -33,6 +34,9 @@ pub fn ui_player_list_rebuild_system(
     children_query: Query<&Children>,
     mut last_content: Local<Option<u64>>,
 ) {
+    let Some(map_settings) = map_settings else {
+        return;
+    };
     if !players.is_changed() {
         return;
     }
@@ -56,6 +60,8 @@ pub fn ui_player_list_rebuild_system(
         min_entry_width: client_settings.hud.health_bars.player_list_width,
         health_bar_height: client_settings.hud.health_bars.player_list_height,
         max_missiles: gameplay_config.missiles.max_missiles,
+        show_multi_shot: map_settings.weapons.projectiles,
+        show_missiles: map_settings.weapons.missiles,
     };
     rebuild_player_list(
         &mut commands,

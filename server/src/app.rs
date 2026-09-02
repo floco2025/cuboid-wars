@@ -15,7 +15,7 @@ use crate::{
     missiles::{AirGraph, MissileMap, missiles_plugin},
     network::{FromClientsChannel, network_plugin},
     players::{Invincibility, PlayerMap, UnlimitedMissiles, players_plugin},
-    portals::{PortalMap, portals_plugin},
+    portals::{PortalAssignments, PortalMap, portals_plugin},
     projectiles::projectiles_plugin,
     schedule::configure_server_schedule,
 };
@@ -42,7 +42,7 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
         server_gameplay_config.lighting_cycle.clone(),
         map_server_config.lighting,
     );
-    let random_items = RandomItems::from_config(map_server_config.random_items.as_ref());
+    let random_items = RandomItems::from_config(map_server_config.random_items.as_ref(), map_settings.weapons);
     let quest_catalog = QuestCatalog::from_config(&server_gameplay_config);
     let quest_board = QuestBoard::from_catalog(&quest_catalog);
 
@@ -93,6 +93,7 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
         .insert_resource(PendingExplosions::default())
         .insert_resource(MissileMap::default())
         .insert_resource(PortalMap::default())
+        .insert_resource(PortalAssignments::default())
         .insert_resource(PortalSet::default())
         .insert_resource(OpenBarrierKinds::default());
 

@@ -57,10 +57,9 @@ death/respawn flow.
 | Jump | Space |
 | Climb ladder | walk into it (Space lets go) |
 | Look | mouse |
-| Shoot | left click |
-| Fire missile (needs lock-on) | F |
-| Swap gun / portal gun | Q |
-| Place portals (portal gun) | left / right click |
+| Cycle weapons / multi-shot patterns | Q |
+| Fire selected weapon / portal A | Left mouse button |
+| Place portal B (when both portals are available) | Right mouse button |
 | Chat / admin console | Enter or `/` (↑/↓ history) |
 | Settings menu (also frees the cursor) | Escape |
 | Cycle camera view (first-person ↔ top-down) | V |

@@ -7,9 +7,10 @@ use crate::items::{ItemInfo, ItemMap, ItemPlacement, ItemSpawner, RandomItems};
 use crate::map::MapConfig;
 use common::{
     map::MapGeometry,
-    protocol::{ItemId, ItemMarker, Position},
+    protocol::{ItemId, ItemMarker, MapSettings, Position},
 };
 
+use super::resources::item_enabled;
 use super::spawn_cells::{
     ItemSpawnCell, choose_item_type, eligible_item_spawn_cells, item_spawn_cell_from_position,
     random_item_spawn_interval, target_active_random_items,
@@ -23,8 +24,12 @@ pub fn placed_item_spawn_system(
     mut items: ResMut<ItemMap>,
     map_config: Res<MapConfig>,
     map_geometry: Res<MapGeometry>,
+    map_settings: Res<MapSettings>,
 ) {
     for placed in &map_config.placed_items {
+        if !item_enabled(placed.item_type, map_settings.weapons) {
+            continue;
+        }
         let item_id = ItemId(spawner.next_id);
         spawner.next_id += 1;
         let position = ItemSpawnCell {

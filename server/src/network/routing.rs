@@ -14,7 +14,7 @@ use crate::{
     missiles::{MissileMap, handle_missile_shot_message},
     network::ServerToClient,
     players::PlayerMap,
-    portals::{PortalMap, handle_portal_shot_message},
+    portals::{PortalAssignments, PortalMap, handle_portal_shot_message},
     projectiles::handle_shot_message,
     quests::{QuestBoard, QuestCatalog},
 };
@@ -32,6 +32,7 @@ pub(super) struct ClientMessageContext<'w, 's> {
     missiles: ResMut<'w, MissileMap>,
     pending_actor_spawns: ResMut<'w, PendingActorSpawns>,
     pub(super) portals: ResMut<'w, PortalMap>,
+    pub(super) portal_assignments: ResMut<'w, PortalAssignments>,
     pub(super) portal_set: ResMut<'w, PortalSet>,
     admin: AdminContext<'w>,
     pub(super) quest_board: ResMut<'w, QuestBoard>,
@@ -69,6 +70,7 @@ pub(super) fn route_client_message(
                 &context.quest_catalog,
                 &context.quest_board,
                 &context.queries,
+                &mut context.portal_assignments,
             );
         }
         ClientMessage::Login(_) => {
@@ -125,6 +127,7 @@ pub(super) fn route_client_message(
                 &context.queries.player_data,
                 &context.world.collision_world,
                 &context.world.gameplay_config,
+                &context.world.map_settings,
                 &context.open_barrier_kinds,
             );
         }
@@ -146,6 +149,7 @@ pub(super) fn route_client_message(
                 &context.world.collision_world,
                 &context.world.gameplay_config,
                 &context.world.server_gameplay_config,
+                &context.world.map_settings,
                 &context.open_barrier_kinds,
             );
         }
@@ -163,7 +167,9 @@ pub(super) fn route_client_message(
                 &context.queries.player_data,
                 &context.world.collision_world,
                 &context.world.map_layout,
+                &context.world.map_settings,
                 &context.world.gameplay_config,
+                &context.portal_assignments,
                 &mut context.portals,
                 &mut context.portal_set,
             );

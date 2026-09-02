@@ -5,16 +5,16 @@ use super::super::context::ServerMessageContext;
 use crate::portals::{PortalInfo, spawn_portal};
 use common::{physics::PortalSet, protocol::*};
 
-// Snapshot diff keyed by (owner, end): spawn missing, replace moved (a
-// re-shot end), despawn absent (owner disconnected). Any change rebuilds the
+// Snapshot diff keyed by (pair, end): spawn missing, replace moved (a
+// re-shot end), despawn absent. Any change rebuilds the
 // shared `PortalSet` the cosmetic projectile sim flies through.
 pub(in crate::network) fn sync_portals(
     commands: &mut Commands,
     context: &mut ServerMessageContext,
     server_portals: &[Portal],
 ) {
-    let server_keys: HashSet<(PlayerId, PortalEnd)> =
-        server_portals.iter().map(|portal| (portal.owner, portal.end)).collect();
+    let server_keys: HashSet<(PortalPairId, PortalEnd)> =
+        server_portals.iter().map(|portal| (portal.pair, portal.end)).collect();
 
     let mut changed = false;
     for portal in server_portals {
@@ -43,7 +43,7 @@ pub(in crate::network) fn upsert_portal(
     context: &mut ServerMessageContext,
     portal: &Portal,
 ) -> bool {
-    let key = (portal.owner, portal.end);
+    let key = (portal.pair, portal.end);
     if let Some(info) = context.portals.get(&key) {
         if info.portal == *portal {
             return false;

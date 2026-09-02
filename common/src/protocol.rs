@@ -112,6 +112,7 @@ pub struct CJump {}
 pub struct CShot {
     pub face_yaw: f32,   // radians - yaw direction player is facing when shooting
     pub face_pitch: f32, // radians - pitch (up/down) when shooting
+    pub pattern: Option<String>,
 }
 
 // Client to Server: fire a seeking missile at the locked target. Only sent
@@ -126,7 +127,7 @@ pub struct CMissileShot {
     pub face_pitch: f32, // radians - pitch when firing
 }
 
-// Client to Server: place one end of the shooter's portal pair. The server
+// Client to Server: place one end allowed by the shooter's portal assignment. The server
 // re-derives the eye ray from yaw/pitch, casts it at world geometry, and
 // answers with `SPortalOpened` — or silently fizzles on a miss; the client
 // spawns nothing locally.
@@ -174,6 +175,7 @@ pub struct CChat {
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SInit {
     pub id: PlayerId,
+    pub portal_access: PortalAccess,
     pub map_layout: MapLayout,
     pub map_settings: MapSettings,
     // Blast radii (m) from the server's combat config, so explosion VFX can
@@ -239,7 +241,7 @@ pub struct SSnapshot {
     // resolves the names against its configured looks and eases toward the
     // blended result.
     pub lighting: LightingBlend,
-    // Every placed portal end (at most two per player), sorted by owner and
+    // Every placed portal end, sorted by pair and
     // end. Durable, everyone-visible world objects: the snapshot is their
     // system of record, and late joiners and dropped `SPortalOpened` cues
     // self-heal here.
@@ -274,6 +276,7 @@ pub struct SPlayerShot {
     pub id: PlayerId,
     pub face_yaw: f32,
     pub face_pitch: f32,
+    pub pattern: Option<String>,
 }
 
 // Actor movement change.

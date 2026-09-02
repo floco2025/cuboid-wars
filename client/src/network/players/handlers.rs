@@ -101,7 +101,7 @@ pub(in crate::network) fn handle_player_shot_message(
                 position,
                 message.face_yaw,
                 message.face_pitch,
-                player.power_up(PowerUpKind::MultiShot),
+                message.pattern.as_deref(),
                 context.gameplay_config.player.eye_height(),
                 &context.gameplay_config,
                 collision_world,

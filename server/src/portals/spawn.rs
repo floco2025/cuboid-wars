@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use super::PortalMap;
+use super::{PortalAssignments, PortalMap};
 use crate::{
     network::broadcast_to_all,
     players::{PlayerMap, PlayerStateQuery},
@@ -21,10 +21,22 @@ pub fn handle_portal_shot_message(
     player_data: &PlayerStateQuery,
     collision_world: &CollisionWorld,
     map_layout: &MapLayout,
+    map_settings: &MapSettings,
     gameplay_config: &GameplayConfig,
+    portal_assignments: &PortalAssignments,
     portals: &mut PortalMap,
     portal_set: &mut PortalSet,
 ) {
+    if map_settings.weapons.portals == PortalMode::None {
+        return;
+    }
+    let access = portal_assignments.get(&id);
+    if !access.allows(msg.end) {
+        return;
+    }
+    let Some(pair) = access.pair() else {
+        return;
+    };
     // Reject non-finite aim before it reaches the surface ray.
     if !(msg.face_yaw.is_finite() && msg.face_pitch.is_finite()) {
         return;
@@ -52,10 +64,10 @@ pub fn handle_portal_shot_message(
     ) else {
         return;
     };
-    if portal_placement_overlaps(&placement, id, msg.end, &portals.snapshot_portals()) {
+    if portal_placement_overlaps(&placement, pair, msg.end, &portals.snapshot_portals()) {
         return;
     }
-    let portal = portal_from_placement(&placement, id, msg.end);
+    let portal = portal_from_placement(&placement, pair, msg.end);
     if !portals.set(portal) {
         return;
     }
@@ -66,9 +78,9 @@ pub fn handle_portal_shot_message(
 // Pure geometry: the aperture sits at the placed point with the surface's
 // outward normal; the placement yaw (the shooter's, quarter-turn-snapped on
 // vertical surfaces) orients the frame where world-up degenerates.
-fn portal_from_placement(placement: &PortalPlacement, owner: PlayerId, end: PortalEnd) -> Portal {
+fn portal_from_placement(placement: &PortalPlacement, pair: PortalPairId, end: PortalEnd) -> Portal {
     Portal {
-        owner,
+        pair,
         end,
         pos: placement.pos.into(),
         nx: placement.normal.x,
@@ -89,10 +101,10 @@ mod tests {
             normal: Vec3::NEG_X,
             yaw: 1.25,
         };
-        let portal = portal_from_placement(&placement, PlayerId(7), PortalEnd::B);
+        let portal = portal_from_placement(&placement, PortalPairId(7), PortalEnd::B);
         assert_eq!(Vec3::from(portal.pos), placement.pos);
         assert_eq!(Vec3::new(portal.nx, portal.ny, portal.nz), placement.normal);
-        assert_eq!(portal.owner, PlayerId(7));
+        assert_eq!(portal.pair, PortalPairId(7));
         assert_eq!(portal.end, PortalEnd::B);
         assert_eq!(portal.yaw, 1.25);
     }

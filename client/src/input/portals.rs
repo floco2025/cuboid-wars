@@ -9,11 +9,9 @@ use crate::{
     audio::play_sound,
     cameras::{CameraViewMode, MainCameraMarker},
     config::AssetSet,
-    constants::{PORTAL_A_COLOR, PORTAL_B_COLOR, PROJECTILE_SPARK_REFERENCE_SPEED},
     network::{ClientToServer, ClientToServerChannel},
-    players::{LocalPlayerInfo, LocalPlayerMarker, MyPlayerId},
+    players::{LocalPlayerInfo, LocalPlayerMarker, MyPlayerId, PlayerMap},
     portals::PortalMap,
-    vfx::{ImpactKind, ParticleClouds, spawn_impact_sparks},
 };
 use common::{
     config::GameplayConfig,
@@ -24,26 +22,61 @@ use common::{
 
 // Which weapon the mouse buttons drive. Client-only presentation state, like
 // `CameraViewMode`; the server just receives whichever shot message results.
-#[derive(Resource, Default, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Resource, Default, Debug, Clone, PartialEq, Eq)]
 pub enum WeaponMode {
     #[default]
-    Gun,
-    PortalGun,
+    Projectile,
+    MultiShot(String),
+    Missile,
+    Portal,
 }
 
-impl WeaponMode {
-    #[must_use]
-    pub const fn toggled(self) -> Self {
-        match self {
-            Self::Gun => Self::PortalGun,
-            Self::PortalGun => Self::Gun,
+fn available_weapon_modes(
+    map_settings: &MapSettings,
+    portal_access: PortalAccess,
+    has_multi_shot: bool,
+    gameplay_config: &GameplayConfig,
+) -> Vec<WeaponMode> {
+    let mut modes = Vec::new();
+    if map_settings.weapons.projectiles {
+        if has_multi_shot {
+            modes.extend(
+                gameplay_config
+                    .projectiles
+                    .multi_shot
+                    .allowed_patterns()
+                    .iter()
+                    .cloned()
+                    .map(WeaponMode::MultiShot),
+            );
+        } else {
+            modes.push(WeaponMode::Projectile);
         }
     }
+    if map_settings.weapons.missiles {
+        modes.push(WeaponMode::Missile);
+    }
+    if portal_access != PortalAccess::None {
+        modes.push(WeaponMode::Portal);
+    }
+    modes
+}
+
+fn updated_weapon_mode(current: &WeaponMode, available: &[WeaponMode], advance: bool) -> Option<WeaponMode> {
+    if available.is_empty() {
+        return None;
+    }
+    let current_index = available.iter().position(|candidate| candidate == current);
+    let index = if advance {
+        current_index.map_or(0, |index| (index + 1) % available.len())
+    } else {
+        current_index.unwrap_or(0)
+    };
+    Some(available[index].clone())
 }
 
 #[derive(SystemParam)]
 pub struct PortalInputWorld<'w> {
-    my_player_id: Option<Res<'w, MyPlayerId>>,
     time: Res<'w, Time>,
     collision_world: Option<Res<'w, CollisionWorld>>,
     map_layout: Option<Res<'w, MapLayout>>,
@@ -51,14 +84,32 @@ pub struct PortalInputWorld<'w> {
     gameplay_config: Res<'w, GameplayConfig>,
 }
 
-pub fn input_weapon_toggle_system(keyboard: Res<ButtonInput<KeyCode>>, mut mode: ResMut<WeaponMode>) {
-    if keyboard.just_pressed(KeyCode::KeyQ) {
-        *mode = mode.toggled();
+pub fn input_weapon_toggle_system(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    map_settings: Option<Res<MapSettings>>,
+    portal_access: Option<Res<PortalAccess>>,
+    my_player_id: Option<Res<MyPlayerId>>,
+    players: Res<PlayerMap>,
+    gameplay_config: Res<GameplayConfig>,
+    mut mode: ResMut<WeaponMode>,
+) {
+    let (Some(map_settings), Some(portal_access)) = (map_settings, portal_access) else {
+        return;
+    };
+    let has_multi_shot = my_player_id
+        .as_deref()
+        .and_then(|id| players.get(&id.0))
+        .is_some_and(|info| info.power_up(PowerUpKind::MultiShot));
+    let available = available_weapon_modes(&map_settings, *portal_access, has_multi_shot, &gameplay_config);
+    if let Some(updated) = updated_weapon_mode(&mode, &available, keyboard.just_pressed(KeyCode::KeyQ))
+        && *mode != updated
+    {
+        *mode = updated;
     }
 }
 
-// Portal-gun fire: left click places end A (blue), right click end B
-// (orange). Placement is predicted with the same shared check the server
+// Portal-gun fire: both-access uses left=A and right=B; single-access uses
+// left for its assigned end. Placement is predicted with the same shared check the server
 // runs on the same static map data, so the feedback is immediate and never
 // wrong: a valid aperture plays the fire sound and sends the shot, an
 // invalid one (miss, doesn't fit, covers a fixture) dry-fires and sends
@@ -76,22 +127,26 @@ pub fn input_portal_system(
     view_mode: Res<CameraViewMode>,
     mut local_player_info: ResMut<LocalPlayerInfo>,
     world: PortalInputWorld,
-    mut particle_clouds: ResMut<ParticleClouds>,
+    portal_access: Option<Res<PortalAccess>>,
 ) {
-    if *mode != WeaponMode::PortalGun || local_player_info.is_dead {
+    if *mode != WeaponMode::Portal || local_player_info.is_dead {
         return;
     }
     if cursor_options.grab_mode == CursorGrabMode::None {
         return;
     }
-    let end = if mouse.just_pressed(MouseButton::Left) {
-        PortalEnd::A
-    } else if mouse.just_pressed(MouseButton::Right) {
-        PortalEnd::B
-    } else {
+    let Some(access) = portal_access.as_deref().copied() else {
         return;
     };
-    let Some(my_player_id) = world.my_player_id.as_deref() else {
+    let end = match access {
+        PortalAccess::None => return,
+        PortalAccess::Single { end, .. } if mouse.just_pressed(MouseButton::Left) => end,
+        PortalAccess::Single { .. } => return,
+        PortalAccess::Both { .. } if mouse.just_pressed(MouseButton::Left) => PortalEnd::A,
+        PortalAccess::Both { .. } if mouse.just_pressed(MouseButton::Right) => PortalEnd::B,
+        PortalAccess::Both { .. } => return,
+    };
+    let Some(pair) = access.pair() else {
         return;
     };
     let now = world.time.elapsed_secs();
@@ -126,27 +181,7 @@ pub fn input_portal_system(
         map_layout,
     );
     let existing = world.portals.wire_portals();
-    if placement.is_none_or(|placement| portal_placement_overlaps(&placement, my_player_id.0, end, &existing)) {
-        // Portal-style fizzle: dry-fire plus a spark burst in the end's
-        // color at the impact point, so a failed placement is visibly
-        // rejected where it landed. Nothing is sent — the server would
-        // reach the same verdict.
-        if let Some(hit) =
-            collision_world.world_surface_along_ray(origin, direction, world.gameplay_config.portals.range)
-        {
-            let color = match end {
-                PortalEnd::A => PORTAL_A_COLOR,
-                PortalEnd::B => PORTAL_B_COLOR,
-            };
-            spawn_impact_sparks(
-                &mut particle_clouds.sparks,
-                hit.point,
-                hit.normal,
-                hit.normal,
-                PROJECTILE_SPARK_REFERENCE_SPEED,
-                ImpactKind::Barrier(color),
-            );
-        }
+    if placement.is_none_or(|placement| portal_placement_overlaps(&placement, pair, end, &existing)) {
         play_sound(&mut commands, &asset_server, asset_set.player_sound("dry_fire"));
         return;
     }
@@ -158,4 +193,68 @@ pub fn input_portal_system(
         face_yaw: face_yaw.0,
         face_pitch: pitch,
     })));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn settings(projectiles: bool, missiles: bool, portals: PortalMode) -> MapSettings {
+        MapSettings {
+            skybox: "test".to_owned(),
+            gravity: 25.0,
+            low_gravity: 5.0,
+            weapons: MapWeaponSettings {
+                projectiles,
+                missiles,
+                portals,
+            },
+        }
+    }
+
+    #[test]
+    fn available_weapons_follow_map_and_power_up_in_cycle_order() {
+        let gameplay = GameplayConfig::load_default().expect("default gameplay config failed to load");
+        let both = PortalAccess::Both { pair: PortalPairId(1) };
+        assert_eq!(
+            available_weapon_modes(&settings(true, true, PortalMode::Both), both, false, &gameplay),
+            [WeaponMode::Projectile, WeaponMode::Missile, WeaponMode::Portal]
+        );
+        assert_eq!(
+            available_weapon_modes(&settings(true, true, PortalMode::Both), both, true, &gameplay),
+            [
+                WeaponMode::MultiShot("star_4".to_owned()),
+                WeaponMode::MultiShot("line_5".to_owned()),
+                WeaponMode::Missile,
+                WeaponMode::Portal,
+            ]
+        );
+        assert!(
+            available_weapon_modes(
+                &settings(false, false, PortalMode::None),
+                PortalAccess::None,
+                false,
+                &gameplay,
+            )
+            .is_empty()
+        );
+    }
+
+    #[test]
+    fn weapon_selection_wraps_and_recovers_from_power_up_changes() {
+        let available = [WeaponMode::Projectile, WeaponMode::Missile, WeaponMode::Portal];
+        assert_eq!(
+            updated_weapon_mode(&WeaponMode::Projectile, &available, true),
+            Some(WeaponMode::Missile)
+        );
+        assert_eq!(
+            updated_weapon_mode(&WeaponMode::Portal, &available, true),
+            Some(WeaponMode::Projectile)
+        );
+        assert_eq!(
+            updated_weapon_mode(&WeaponMode::MultiShot("star_4".to_owned()), &available, false),
+            Some(WeaponMode::Projectile)
+        );
+        assert_eq!(updated_weapon_mode(&WeaponMode::Portal, &[], true), None);
+    }
 }

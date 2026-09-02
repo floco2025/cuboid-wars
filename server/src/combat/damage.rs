@@ -362,6 +362,11 @@ mod tests {
                         skybox: "cloudy_day".to_owned(),
                         gravity: 25.0,
                         low_gravity: 5.0,
+                        weapons: common::protocol::MapWeaponSettings {
+                            projectiles: true,
+                            missiles: true,
+                            portals: common::protocol::PortalMode::Both,
+                        },
                     },
                     random_items: None,
                     weather: WeatherMode::Clear,

@@ -25,6 +25,7 @@ pub struct ShooterContext<'w> {
     pub my_player_id: Option<Res<'w, MyPlayerId>>,
     pub players: Res<'w, PlayerMap>,
     pub open_barrier_kinds: Res<'w, OpenBarrierKinds>,
+    pub map_settings: Option<Res<'w, MapSettings>>,
 }
 
 // ============================================================================
@@ -49,9 +50,24 @@ pub fn input_shooting_system(
     time: Res<Time>,
     mut local_player_info: ResMut<LocalPlayerInfo>,
 ) {
-    if *mode != WeaponMode::Gun || local_player_info.is_dead {
+    if local_player_info.is_dead
+        || shooter
+            .map_settings
+            .as_ref()
+            .is_none_or(|settings| !settings.weapons.projectiles)
+    {
         return;
     }
+    let has_multi_shot = shooter
+        .my_player_id
+        .as_ref()
+        .and_then(|id| shooter.players.get(&id.0))
+        .is_some_and(|info| info.power_up(PowerUpKind::MultiShot));
+    let pattern = match mode.as_ref() {
+        WeaponMode::Projectile if !has_multi_shot => None,
+        WeaponMode::MultiShot(name) if has_multi_shot => Some(name.as_str()),
+        _ => return,
+    };
     // Only allow shooting when cursor is locked
     let cursor_locked = cursor_options.grab_mode != CursorGrabMode::None;
 
@@ -82,14 +98,9 @@ pub fn input_shooting_system(
         let shot_msg = ClientMessage::Shot(CShot {
             face_yaw: face_yaw.0,
             face_pitch: pitch,
+            pattern: pattern.map(str::to_owned),
         });
         let _ = to_server.send(ClientToServer::Send(shot_msg));
-
-        let has_multi_shot = shooter
-            .my_player_id
-            .as_ref()
-            .and_then(|id| shooter.players.get(&id.0))
-            .is_some_and(|info| info.power_up(PowerUpKind::MultiShot));
 
         if let Some(my_id) = shooter.my_player_id.as_ref()
             && let Some(collision_world) = collision_world.as_ref()
@@ -100,7 +111,7 @@ pub fn input_shooting_system(
                 pos,
                 face_yaw.0,
                 pitch,
-                has_multi_shot,
+                pattern,
                 gameplay_config.player.eye_height(),
                 &gameplay_config,
                 collision_world,

@@ -42,8 +42,12 @@ pub fn handle_missile_shot_message(
     collision_world: &CollisionWorld,
     gameplay_config: &GameplayConfig,
     server_gameplay_config: &ServerGameplayConfig,
+    map_settings: &MapSettings,
     open_barrier_kinds: &OpenBarrierKinds,
 ) {
+    if !map_settings.weapons.missiles {
+        return;
+    }
     // Untrusted boundary: drop non-finite aim before it becomes a NaN
     // velocity. Checked before the ammo/cooldown gate so a bad message
     // doesn't burn a missile.

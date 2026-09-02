@@ -22,8 +22,12 @@ pub fn handle_shot_message(
     player_data: &PlayerStateQuery,
     collision_world: &CollisionWorld,
     gameplay_config: &GameplayConfig,
+    map_settings: &MapSettings,
     open_barrier_kinds: &OpenBarrierKinds,
 ) {
+    if !map_settings.weapons.projectiles {
+        return;
+    }
     // Reject non-finite aim before it reaches projectile trig / authoritative
     // hit detection. Checked ahead of `try_start_shot` so a bad shot doesn't
     // burn the fire cooldown.
@@ -39,6 +43,7 @@ pub fn handle_shot_message(
     else {
         return;
     };
+    let actual_pattern = resolved_pattern(has_multi_shot, msg.pattern.as_deref(), gameplay_config);
 
     commands.entity(entity).insert(FaceYaw(msg.face_yaw));
 
@@ -48,7 +53,7 @@ pub fn handle_shot_message(
             pos,
             msg.face_yaw,
             msg.face_pitch,
-            has_multi_shot,
+            actual_pattern,
             gameplay_config.player.eye_height(),
             gameplay_config,
             collision_world,
@@ -81,6 +86,34 @@ pub fn handle_shot_message(
             id,
             face_yaw: msg.face_yaw,
             face_pitch: msg.face_pitch,
+            pattern: actual_pattern.map(str::to_owned),
         }),
     );
+}
+
+fn resolved_pattern<'a>(
+    has_multi_shot: bool,
+    requested: Option<&'a str>,
+    gameplay_config: &'a GameplayConfig,
+) -> Option<&'a str> {
+    has_multi_shot.then(|| {
+        requested
+            .and_then(|name| gameplay_config.projectiles.multi_shot.pattern(name).map(|_| name))
+            .unwrap_or_else(|| gameplay_config.projectiles.multi_shot.first_allowed_pattern().0)
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn authoritative_pattern_requires_power_and_falls_back_to_first_allowed() {
+        let gameplay = GameplayConfig::load_default().expect("default gameplay config failed to load");
+        assert_eq!(resolved_pattern(false, Some("line_5"), &gameplay), None);
+        assert_eq!(resolved_pattern(true, Some("line_5"), &gameplay), Some("line_5"));
+        assert_eq!(resolved_pattern(true, Some("dice_5"), &gameplay), Some("star_4"));
+        assert_eq!(resolved_pattern(true, Some("unknown"), &gameplay), Some("star_4"));
+        assert_eq!(resolved_pattern(true, None, &gameplay), Some("star_4"));
+    }
 }

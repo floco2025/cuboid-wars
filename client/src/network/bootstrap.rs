@@ -6,6 +6,7 @@ use common::{physics::CollisionWorld, protocol::*};
 pub(super) fn handle_bootstrap_message(message: SInit, commands: &mut Commands, barrier_kind_table: &BarrierKindTable) {
     debug!("received Init: my_id=player#{}", message.id.0);
     commands.insert_resource(MyPlayerId(message.id));
+    commands.insert_resource(message.portal_access);
     let collision_world = CollisionWorld::from_map_layout(&message.map_layout, barrier_kind_table);
     commands.insert_resource(message.map_layout);
     commands.insert_resource(message.map_settings);

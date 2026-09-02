@@ -1,4 +1,5 @@
 use bevy::{
+    input::mouse::MouseButton,
     prelude::*,
     window::{CursorGrabMode, CursorOptions},
 };
@@ -13,7 +14,9 @@ use crate::{
 };
 use common::{config::GameplayConfig, protocol::*};
 
-// Alternative fire (F): a seeking missile at the locked target. With
+use super::portals::WeaponMode;
+
+// Selected-weapon fire: a seeking missile at the locked target. With
 // `missiles.require_lock` off, an unlocked shot launches unguided along the
 // aim; with it on, no lock dry-fires. No ammo always dry-fires. There is no
 // fire cooldown: the ammo cap is the rate limit. Launch feedback (sound +
@@ -23,7 +26,8 @@ use common::{config::GameplayConfig, protocol::*};
 // predicted ammo decrement mask the round trip.
 pub fn input_missile_system(
     mut commands: Commands,
-    keyboard: Res<ButtonInput<KeyCode>>,
+    mode: Res<WeaponMode>,
+    mouse: Res<ButtonInput<MouseButton>>,
     cursor_options: Single<&CursorOptions>,
     camera_query: Query<&Transform, (With<Camera3d>, With<MainCameraMarker>)>,
     local_player_query: Query<&FaceYaw, With<LocalPlayerMarker>>,
@@ -35,17 +39,16 @@ pub fn input_missile_system(
     mut players: ResMut<PlayerMap>,
     local_player_info: Res<LocalPlayerInfo>,
     gameplay_config: Res<GameplayConfig>,
+    map_settings: Option<Res<MapSettings>>,
 ) {
-    if local_player_info.is_dead {
+    if local_player_info.is_dead
+        || *mode != WeaponMode::Missile
+        || map_settings.is_none_or(|settings| !settings.weapons.missiles)
+    {
         return;
     }
     let cursor_locked = cursor_options.grab_mode != CursorGrabMode::None;
-    // Bare F only — Cmd/Ctrl+F is the fullscreen toggle chord.
-    let modifier_held = keyboard.pressed(KeyCode::SuperLeft)
-        || keyboard.pressed(KeyCode::SuperRight)
-        || keyboard.pressed(KeyCode::ControlLeft)
-        || keyboard.pressed(KeyCode::ControlRight);
-    if !(cursor_locked && keyboard.just_pressed(KeyCode::KeyF) && !modifier_held) {
+    if !(cursor_locked && mouse.just_pressed(MouseButton::Left)) {
         return;
     }
     let Some(my_id) = my_player_id else {

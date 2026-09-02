@@ -135,6 +135,7 @@ impl RandomItemsConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use common::protocol::{MapWeaponSettings, PortalMode};
 
     fn ok_map_entry() -> MapServerConfig {
         MapServerConfig {
@@ -142,6 +143,11 @@ mod tests {
                 skybox: "cloudy_day".to_owned(),
                 gravity: 25.0,
                 low_gravity: 5.0,
+                weapons: MapWeaponSettings {
+                    projectiles: true,
+                    missiles: true,
+                    portals: PortalMode::Both,
+                },
             },
             random_items: None,
             weather: WeatherMode::Clear,
@@ -217,7 +223,9 @@ mod tests {
     #[test]
     fn map_entry_defaults_to_clear_and_bright() {
         let entry: MapServerConfig =
-            serde_json::from_str(r#"{"skybox": "cloudy_day", "gravity": 25.0, "low_gravity": 5.0}"#)
+            serde_json::from_str(
+                r#"{"skybox":"cloudy_day","gravity":25.0,"low_gravity":5.0,"weapons":{"projectiles":true,"missiles":true,"portals":"both"}}"#,
+            )
                 .expect("minimal map entry should deserialize");
         assert_eq!(entry.weather, WeatherMode::Clear);
         assert_eq!(entry.lighting, LightingMode::Bright);
@@ -226,7 +234,7 @@ mod tests {
     #[test]
     fn map_entry_parses_snake_case_weather_and_lighting() {
         let entry: MapServerConfig = serde_json::from_str(
-            r#"{"skybox": "cloudy_day", "gravity": 25.0, "low_gravity": 5.0, "weather": "rain", "lighting": "dark"}"#,
+            r#"{"skybox":"cloudy_day","gravity":25.0,"low_gravity":5.0,"weapons":{"projectiles":true,"missiles":true,"portals":"both"},"weather":"rain","lighting":"dark"}"#,
         )
         .expect("map entry with weather and lighting should deserialize");
         assert_eq!(entry.weather, WeatherMode::Rain);
@@ -236,11 +244,28 @@ mod tests {
     #[test]
     fn map_entry_parses_auto_modes() {
         let entry: MapServerConfig = serde_json::from_str(
-            r#"{"skybox": "cloudy_day", "gravity": 25.0, "low_gravity": 5.0, "weather": "auto", "lighting": "auto"}"#,
+            r#"{"skybox":"cloudy_day","gravity":25.0,"low_gravity":5.0,"weapons":{"projectiles":true,"missiles":true,"portals":"both"},"weather":"auto","lighting":"auto"}"#,
         )
         .expect("map entry with auto modes should deserialize");
         assert_eq!(entry.weather, WeatherMode::Auto);
         assert_eq!(entry.lighting, LightingMode::Auto);
+    }
+
+    #[test]
+    fn map_entry_accepts_all_disabled_weapons_and_single_portals() {
+        let disabled: MapServerConfig = serde_json::from_str(
+            r#"{"skybox":"cloudy_day","gravity":25.0,"low_gravity":5.0,"weapons":{"projectiles":false,"missiles":false,"portals":"none"}}"#,
+        )
+        .expect("all-disabled weapons rejected");
+        assert!(!disabled.settings.weapons.projectiles);
+        assert!(!disabled.settings.weapons.missiles);
+        assert_eq!(disabled.settings.weapons.portals, PortalMode::None);
+
+        let single: MapServerConfig = serde_json::from_str(
+            r#"{"skybox":"cloudy_day","gravity":25.0,"low_gravity":5.0,"weapons":{"projectiles":true,"missiles":true,"portals":"single"}}"#,
+        )
+        .expect("single portal mode rejected");
+        assert_eq!(single.settings.weapons.portals, PortalMode::Single);
     }
 
     #[test]

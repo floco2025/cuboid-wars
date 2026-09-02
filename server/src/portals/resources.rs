@@ -4,25 +4,21 @@ use bevy::prelude::*;
 
 use common::{
     physics::{CollisionWorld, PortalSet},
-    protocol::{PlayerId, Portal, PortalEnd},
+    protocol::{PlayerId, Portal, PortalAccess, PortalEnd, PortalMode, PortalPairId},
 };
 
-// Both ends a player owns. Re-shooting an end replaces just that end.
 #[derive(Default, Clone, Copy)]
 struct PortalPair {
     a: Option<Portal>,
     b: Option<Portal>,
 }
 
-// Every placed portal end, keyed by owner. The authoritative store — the
-// snapshot list and the traversal `PortalSet` are derived views. Portals
-// survive their owner's death and leave with their owner's disconnect.
 #[derive(Resource, Default)]
-pub struct PortalMap(HashMap<PlayerId, PortalPair>);
+pub struct PortalMap(HashMap<PortalPairId, PortalPair>);
 
 impl PortalMap {
     pub fn set(&mut self, portal: Portal) -> bool {
-        let pair = self.0.entry(portal.owner).or_default();
+        let pair = self.0.entry(portal.pair).or_default();
         let slot = match portal.end {
             PortalEnd::A => &mut pair.a,
             PortalEnd::B => &mut pair.b,
@@ -34,16 +30,32 @@ impl PortalMap {
         true
     }
 
-    // Returns true when the owner had any portal to remove.
-    pub fn remove_owner(&mut self, id: &PlayerId) -> bool {
-        self.0.remove(id).is_some()
+    pub fn remove_access(&mut self, access: PortalAccess) -> bool {
+        let Some(pair_id) = access.pair() else {
+            return false;
+        };
+        if matches!(access, PortalAccess::Both { .. }) {
+            return self.0.remove(&pair_id).is_some();
+        }
+        let Some(pair) = self.0.get_mut(&pair_id) else {
+            return false;
+        };
+        let slot = match access {
+            PortalAccess::Single { end: PortalEnd::A, .. } => &mut pair.a,
+            PortalAccess::Single { end: PortalEnd::B, .. } => &mut pair.b,
+            PortalAccess::None | PortalAccess::Both { .. } => unreachable!(),
+        };
+        let changed = slot.take().is_some();
+        if pair.a.is_none() && pair.b.is_none() {
+            self.0.remove(&pair_id);
+        }
+        changed
     }
 
-    // Sorted by (owner, end) so the encoded snapshot bytes are deterministic.
     #[must_use]
     pub fn snapshot_portals(&self) -> Vec<Portal> {
         let mut portals: Vec<Portal> = self.0.values().flat_map(|pair| [pair.a, pair.b]).flatten().collect();
-        portals.sort_by_key(|portal| (portal.owner.0, portal.end == PortalEnd::B));
+        portals.sort_by_key(|portal| (portal.pair.0, portal.end == PortalEnd::B));
         portals
     }
 
@@ -53,13 +65,68 @@ impl PortalMap {
     }
 }
 
+#[derive(Clone, Copy)]
+struct Assignment {
+    slot: usize,
+    access: PortalAccess,
+}
+
+#[derive(Resource, Default)]
+pub struct PortalAssignments {
+    slots: Vec<Option<PlayerId>>,
+    assignments: HashMap<PlayerId, Assignment>,
+}
+
+impl PortalAssignments {
+    pub fn assign(&mut self, player: PlayerId, mode: PortalMode) -> PortalAccess {
+        if let Some(assignment) = self.assignments.get(&player) {
+            return assignment.access;
+        }
+        if mode == PortalMode::None {
+            return PortalAccess::None;
+        }
+        let slot = self.slots.iter().position(Option::is_none).unwrap_or_else(|| {
+            self.slots.push(None);
+            self.slots.len() - 1
+        });
+        self.slots[slot] = Some(player);
+        let access = match mode {
+            PortalMode::None => unreachable!(),
+            PortalMode::Single => PortalAccess::Single {
+                pair: PortalPairId(u32::try_from(slot / 2 + 1).expect("portal pair slot exceeds u32")),
+                end: if slot % 2 == 0 { PortalEnd::A } else { PortalEnd::B },
+            },
+            PortalMode::Both => PortalAccess::Both {
+                pair: PortalPairId(u32::try_from(slot + 1).expect("portal pair slot exceeds u32")),
+            },
+        };
+        self.assignments.insert(player, Assignment { slot, access });
+        access
+    }
+
+    #[must_use]
+    pub fn get(&self, player: &PlayerId) -> PortalAccess {
+        self.assignments
+            .get(player)
+            .map_or(PortalAccess::None, |assignment| assignment.access)
+    }
+
+    pub fn release(&mut self, player: &PlayerId) -> PortalAccess {
+        let Some(assignment) = self.assignments.remove(player) else {
+            return PortalAccess::None;
+        };
+        self.slots[assignment.slot] = None;
+        assignment.access
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn portal(owner: u32, end: PortalEnd, x: f32) -> Portal {
+    fn portal(pair: u32, end: PortalEnd, x: f32) -> Portal {
         Portal {
-            owner: PlayerId(owner),
+            pair: PortalPairId(pair),
             end,
             pos: Position { x, y: 0.0, z: 0.0 },
             nx: 0.0,
@@ -86,33 +153,46 @@ mod tests {
     }
 
     #[test]
-    fn remove_owner_drops_both_ends() {
+    fn remove_both_access_drops_both_ends() {
         let mut map = PortalMap::default();
         map.set(portal(1, PortalEnd::A, 1.0));
         map.set(portal(1, PortalEnd::B, 2.0));
         map.set(portal(2, PortalEnd::A, 3.0));
 
-        assert!(map.remove_owner(&PlayerId(1)));
-        assert!(!map.remove_owner(&PlayerId(1)));
+        assert!(map.remove_access(PortalAccess::Both { pair: PortalPairId(1) }));
+        assert!(!map.remove_access(PortalAccess::Both { pair: PortalPairId(1) }));
         let portals = map.snapshot_portals();
         assert_eq!(portals.len(), 1);
-        assert_eq!(portals[0].owner, PlayerId(2));
+        assert_eq!(portals[0].pair, PortalPairId(2));
     }
 
     #[test]
-    fn snapshot_portals_sorts_by_owner_then_end() {
+    fn remove_single_access_preserves_the_partner_end() {
+        let mut map = PortalMap::default();
+        map.set(portal(1, PortalEnd::A, 1.0));
+        map.set(portal(1, PortalEnd::B, 2.0));
+
+        assert!(map.remove_access(PortalAccess::Single {
+            pair: PortalPairId(1),
+            end: PortalEnd::A,
+        }));
+        assert_eq!(map.snapshot_portals(), vec![portal(1, PortalEnd::B, 2.0)]);
+    }
+
+    #[test]
+    fn snapshot_portals_sorts_by_pair_then_end() {
         let mut map = PortalMap::default();
         map.set(portal(2, PortalEnd::B, 4.0));
         map.set(portal(2, PortalEnd::A, 3.0));
         map.set(portal(1, PortalEnd::B, 2.0));
 
         let portals = map.snapshot_portals();
-        let keys: Vec<(u32, PortalEnd)> = portals.iter().map(|p| (p.owner.0, p.end)).collect();
+        let keys: Vec<(u32, PortalEnd)> = portals.iter().map(|p| (p.pair.0, p.end)).collect();
         assert_eq!(keys, vec![(1, PortalEnd::B), (2, PortalEnd::A), (2, PortalEnd::B)]);
     }
 
     #[test]
-    fn rebuild_set_pairs_only_complete_owners() {
+    fn rebuild_set_pairs_only_complete_pairs() {
         let world = CollisionWorld::from_map_layout(&MapLayout::default(), &BarrierKindTable::default());
         let mut map = PortalMap::default();
         map.set(portal(1, PortalEnd::A, 1.0));
@@ -120,5 +200,38 @@ mod tests {
 
         map.set(portal(1, PortalEnd::B, 2.0));
         assert!(!map.rebuild_set(&world).is_empty());
+    }
+
+    #[test]
+    fn single_assignments_pair_adjacent_slots_and_reuse_vacancies() {
+        let mut assignments = PortalAssignments::default();
+        let first = assignments.assign(PlayerId(10), PortalMode::Single);
+        let second = assignments.assign(PlayerId(11), PortalMode::Single);
+        let third = assignments.assign(PlayerId(12), PortalMode::Single);
+        assert_eq!(
+            first,
+            PortalAccess::Single {
+                pair: PortalPairId(1),
+                end: PortalEnd::A
+            }
+        );
+        assert_eq!(
+            second,
+            PortalAccess::Single {
+                pair: PortalPairId(1),
+                end: PortalEnd::B
+            }
+        );
+        assert_eq!(
+            third,
+            PortalAccess::Single {
+                pair: PortalPairId(2),
+                end: PortalEnd::A
+            }
+        );
+
+        assert_eq!(assignments.release(&PlayerId(11)), second);
+        assert_eq!(assignments.assign(PlayerId(13), PortalMode::Single), second);
+        assert_eq!(assignments.get(&PlayerId(10)), first);
     }
 }

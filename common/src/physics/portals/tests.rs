@@ -10,14 +10,14 @@ use crate::{
     physics::{
         CharacterMovementResult, CharacterSupport, CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity,
     },
-    protocol::{FaceYaw, MapLayout, PlayerId, PlayerMoveIntent, Portal, PortalEnd, Position},
+    protocol::{FaceYaw, MapLayout, PlayerMoveIntent, Portal, PortalEnd, PortalPairId, Position},
 };
 
 const CAP: f32 = 22.5;
 
 fn portal(end: PortalEnd, pos: Vec3, normal: Vec3, yaw: f32) -> Portal {
     Portal {
-        owner: PlayerId(1),
+        pair: PortalPairId(1),
         end,
         pos: pos.into(),
         nx: normal.x,
@@ -545,7 +545,7 @@ fn placement_rejects_overlap_with_another_portal() {
     let existing = [portal(PortalEnd::A, Vec3::new(0.5, 1.6, 0.0), Vec3::Z, 0.0)];
     assert!(portal_placement_overlaps(
         &placement,
-        PlayerId(2),
+        PortalPairId(2),
         PortalEnd::B,
         &existing
     ));
@@ -561,7 +561,7 @@ fn placement_allows_clear_space_and_replacing_its_own_end() {
     let clear = [portal(PortalEnd::A, Vec3::new(2.0, 1.6, 0.0), Vec3::Z, 0.0)];
     assert!(!portal_placement_overlaps(
         &placement,
-        PlayerId(2),
+        PortalPairId(2),
         PortalEnd::B,
         &clear
     ));
@@ -569,7 +569,7 @@ fn placement_allows_clear_space_and_replacing_its_own_end() {
     let replaced = [portal(PortalEnd::B, Vec3::new(0.0, 1.6, 0.0), Vec3::Z, 0.0)];
     assert!(!portal_placement_overlaps(
         &placement,
-        PlayerId(1),
+        PortalPairId(1),
         PortalEnd::B,
         &replaced
     ));

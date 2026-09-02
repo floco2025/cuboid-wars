@@ -28,7 +28,7 @@ use crate::{
 };
 use common::{
     physics::PortalFrame,
-    protocol::{PlayerId, Portal, PortalEnd},
+    protocol::{Portal, PortalEnd, PortalPairId},
 };
 
 const FIRST_RECURSIVE_RENDER_LAYER: usize = 5;
@@ -38,7 +38,7 @@ const MAX_PORTAL_REPLICAS: usize = 512;
 const PORTAL_VIEW_AXIS_SIZES: [u32; 6] = [64, 128, 256, 512, 1024, 2048];
 const RESOLUTION_SHRINK_THRESHOLD: f32 = 0.8;
 
-type PortalKey = (PlayerId, PortalEnd);
+type PortalKey = (PortalPairId, PortalEnd);
 
 #[derive(Component)]
 struct PortalViewCamera {
@@ -146,7 +146,7 @@ fn rebuild_portal_views_system(
             let keys: Vec<PortalKey> = if complete_portals.len() <= usize::from(budget) {
                 complete_portals
                     .iter()
-                    .map(|portal| (portal.owner, portal.end))
+                    .map(|portal| (portal.pair, portal.end))
                     .collect()
             } else {
                 largest_visible_roots(
@@ -173,7 +173,7 @@ fn rebuild_portal_views_system(
         commands.entity(entity).despawn();
     }
     for portal in &wire_portals {
-        if let Some(info) = portals.get(&(portal.owner, portal.end))
+        if let Some(info) = portals.get(&(portal.pair, portal.end))
             && let Ok(mut material) = surface_materials.get_mut(info.entity)
         {
             material.0 = portal_assets.material(portal.end);
@@ -201,8 +201,8 @@ fn rebuild_portal_views_system(
         let mut rearview_portals = complete_portals.clone();
         rearview_portals.sort_by_key(|portal| {
             (
-                !selected.contains(&(portal.owner, portal.end)),
-                portal.owner.0,
+                !selected.contains(&(portal.pair, portal.end)),
+                portal.pair.0,
                 portal.end == PortalEnd::B,
             )
         });
@@ -213,7 +213,7 @@ fn rebuild_portal_views_system(
             }
             let replica = spawn_portal_visual(&mut commands, &portal_assets, portal, REARVIEW_RENDER_LAYER);
             state.spawned.push(replica);
-            rearview_surfaces.insert((portal.owner, portal.end), replica);
+            rearview_surfaces.insert((portal.pair, portal.end), replica);
             replica_count += 1;
         }
     }
@@ -285,7 +285,7 @@ fn rebuild_portal_views_system(
         // visible, never a valid view.
         let own_exit = paired_key(*view.chain.last().expect("portal view chain is empty"));
         for portal in &complete_portals {
-            if (portal.owner, portal.end) == own_exit {
+            if (portal.pair, portal.end) == own_exit {
                 continue;
             }
             if replica_count >= MAX_PORTAL_REPLICAS {
@@ -304,7 +304,7 @@ fn rebuild_portal_views_system(
                 continue;
             }
             let mut chain = view.chain.clone();
-            chain.push((portal.owner, portal.end));
+            chain.push((portal.pair, portal.end));
             pending.push_back(PendingView {
                 presenter: view.presenter,
                 chain,
@@ -339,7 +339,7 @@ fn largest_visible_roots(
     let mut roots: Vec<_> = complete_portals
         .iter()
         .filter_map(|portal| {
-            let key = (portal.owner, portal.end);
+            let key = (portal.pair, portal.end);
             let (_, _, footprint, _) = view_through_chain(portals, &[key], transform, projection, size)?;
             Some((key, footprint.x * footprint.y))
         })
@@ -681,13 +681,13 @@ fn paired_end(end: PortalEnd) -> PortalEnd {
     }
 }
 
-fn paired_key((owner, end): PortalKey) -> PortalKey {
-    (owner, paired_end(end))
+fn paired_key((pair, end): PortalKey) -> PortalKey {
+    (pair, paired_end(end))
 }
 
 fn paired_portal<'a>(portals: &'a PortalMap, portal: &Portal) -> Option<&'a Portal> {
     portals
-        .get(&paired_key((portal.owner, portal.end)))
+        .get(&paired_key((portal.pair, portal.end)))
         .map(|info| &info.portal)
 }
 
@@ -708,9 +708,9 @@ mod tests {
         projection
     }
 
-    fn portal(owner: u32, end: PortalEnd, pos: Vec3, normal: Vec3) -> Portal {
+    fn portal(pair: u32, end: PortalEnd, pos: Vec3, normal: Vec3) -> Portal {
         Portal {
-            owner: PlayerId(owner),
+            pair: PortalPairId(pair),
             end,
             pos: pos.into(),
             nx: normal.x,
@@ -724,7 +724,7 @@ mod tests {
         let mut map = PortalMap::default();
         for portal in portals {
             map.insert(
-                (portal.owner, portal.end),
+                (portal.pair, portal.end),
                 PortalInfo {
                     entity: Entity::PLACEHOLDER,
                     portal: *portal,
@@ -738,7 +738,7 @@ mod tests {
     fn facing_pair() -> (PortalMap, PortalKey, PortalKey) {
         let a = portal(1, PortalEnd::A, Vec3::new(0.0, 1.0, -4.0), Vec3::Z);
         let b = portal(1, PortalEnd::B, Vec3::new(0.0, 1.0, 4.0), Vec3::NEG_Z);
-        (portal_map(&[a, b]), (a.owner, a.end), (b.owner, b.end))
+        (portal_map(&[a, b]), (a.pair, a.end), (b.pair, b.end))
     }
 
     #[test]
@@ -895,9 +895,9 @@ mod tests {
     #[test]
     fn budget_admits_the_largest_views_first() {
         let views = [
-            mapped(&[(PlayerId(1), PortalEnd::A)], Vec2::new(50.0, 100.0)),
-            mapped(&[(PlayerId(2), PortalEnd::A)], Vec2::new(200.0, 400.0)),
-            mapped(&[(PlayerId(3), PortalEnd::A)], Vec2::new(100.0, 200.0)),
+            mapped(&[(PortalPairId(1), PortalEnd::A)], Vec2::new(50.0, 100.0)),
+            mapped(&[(PortalPairId(2), PortalEnd::A)], Vec2::new(200.0, 400.0)),
+            mapped(&[(PortalPairId(3), PortalEnd::A)], Vec2::new(100.0, 200.0)),
         ];
         assert_eq!(admit_views(&views, 2), vec![1, 2]);
         assert_eq!(admit_views(&views, 0), Vec::<usize>::new());
@@ -905,8 +905,8 @@ mod tests {
 
     #[test]
     fn nested_view_is_admitted_only_under_its_parent() {
-        let a = (PlayerId(1), PortalEnd::A);
-        let b = (PlayerId(2), PortalEnd::A);
+        let a = (PortalPairId(1), PortalEnd::A);
+        let b = (PortalPairId(2), PortalEnd::A);
         let views = [
             mapped(&[a], Vec2::new(10.0, 20.0)),
             mapped(&[a, a], Vec2::new(10.0, 20.0)),
@@ -919,8 +919,8 @@ mod tests {
 
     #[test]
     fn orphaned_nested_view_is_skipped() {
-        let a = (PlayerId(1), PortalEnd::A);
-        let b = (PlayerId(2), PortalEnd::A);
+        let a = (PortalPairId(1), PortalEnd::A);
+        let b = (PortalPairId(2), PortalEnd::A);
         let views = [
             mapped(&[a, a], Vec2::new(300.0, 600.0)),
             mapped(&[b], Vec2::new(10.0, 20.0)),
@@ -936,7 +936,7 @@ mod tests {
     }
 
     #[test]
-    fn root_selection_uses_visible_size_not_portal_owner_order() {
+    fn root_selection_uses_visible_size_not_portal_pair_order() {
         let portals = [
             portal(1, PortalEnd::A, Vec3::new(0.0, 0.0, -8.0), Vec3::Z),
             portal(1, PortalEnd::B, Vec3::new(0.0, 0.0, 20.0), Vec3::NEG_Z),
@@ -954,7 +954,7 @@ mod tests {
                 UVec2::splat(1000),
                 1,
             ),
-            vec![(PlayerId(2), PortalEnd::A)]
+            vec![(PortalPairId(2), PortalEnd::A)]
         );
     }
 

@@ -156,24 +156,30 @@ impl ProjectilesConfig {
 
 const MULTI_SHOT_MAX_SHOTS: usize = 9;
 
-// The shots a multi-shot fires, parsed once at load: `pattern` picks an
-// entry of `patterns`, a stencil of rows top-down with columns
+// Multi-shot patterns parsed once at load. `allowed_patterns` is the ordered
+// subset cycled in-game; other entries stay available for later tuning. Each
+// pattern is a stencil of rows top-down with columns
 // `spread_degrees × column_scale` apart in yaw and rows
 // `spread_degrees × row_scale` apart in pitch — so one number sizes every
-// pattern, and the scales only reshape the grid. `x` fires, `.` does not;
-// `o` fires from the aim itself and `+` is the aim without a shot — with
-// neither, the aim is the grid's centre. A pattern name ending in `_<n>`
-// must fire exactly n shots.
+// pattern, and the scales only reshape the grid. `x` fires, `.` does not,
+// and the one required `o` fires from the exact aim. A pattern name ending
+// in `_<n>` must fire exactly n shots.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(try_from = "MultiShotSource")]
 pub struct MultiShotConfig {
+    allowed_patterns: Vec<String>,
+    patterns: HashMap<String, MultiShotPatternConfig>,
+}
+
+#[derive(Debug, Clone)]
+pub struct MultiShotPatternConfig {
     shots: Vec<(f32, f32)>,
 }
 
 #[derive(Deserialize)]
 struct MultiShotSource {
     spread_degrees: f32,
-    pattern: String,
+    allowed_patterns: Vec<String>,
     patterns: HashMap<String, MultiShotPattern>,
 }
 
@@ -195,12 +201,25 @@ impl TryFrom<MultiShotSource> for MultiShotConfig {
 
     fn try_from(source: MultiShotSource) -> Result<Self> {
         validate_positive_finite(source.spread_degrees, "multi_shot.spread_degrees")?;
-        let mut selected = None;
+        if source.allowed_patterns.is_empty() {
+            bail!("multi_shot.allowed_patterns must contain at least one pattern");
+        }
+        let mut seen = HashSet::new();
+        for name in &source.allowed_patterns {
+            if !seen.insert(name) {
+                bail!("multi_shot.allowed_patterns contains duplicate pattern {name:?}");
+            }
+            if !source.patterns.contains_key(name) {
+                bail!("multi_shot.allowed_patterns contains unknown pattern {name:?}");
+            }
+        }
+
+        let mut patterns = HashMap::new();
         for (name, pattern) in &source.patterns {
             let path = format!("multi_shot.patterns.{name}");
             validate_positive_finite(pattern.column_scale, &format!("{path}.column_scale"))?;
             validate_positive_finite(pattern.row_scale, &format!("{path}.row_scale"))?;
-            let config = Self::from_stencil(
+            let config = MultiShotPatternConfig::from_stencil(
                 &path,
                 source.spread_degrees * pattern.column_scale,
                 source.spread_degrees * pattern.row_scale,
@@ -215,24 +234,60 @@ impl TryFrom<MultiShotSource> for MultiShotConfig {
                     config.shots().len()
                 );
             }
-            if *name == source.pattern {
-                selected = Some(config);
-            }
+            patterns.insert(name.clone(), config);
         }
-        let Some(selected) = selected else {
-            bail!(
-                "multi_shot.pattern {:?} is not one of multi_shot.patterns",
-                source.pattern
-            );
-        };
-        Ok(selected)
+        Ok(Self {
+            allowed_patterns: source.allowed_patterns,
+            patterns,
+        })
     }
 }
 
 impl MultiShotConfig {
+    #[must_use]
+    pub fn allowed_patterns(&self) -> &[String] {
+        &self.allowed_patterns
+    }
+
+    #[must_use]
+    pub fn pattern(&self, name: &str) -> Option<&MultiShotPatternConfig> {
+        self.patterns
+            .get(name)
+            .filter(|_| self.allowed_patterns.iter().any(|allowed| allowed == name))
+    }
+
+    #[must_use]
+    pub fn first_allowed_pattern(&self) -> (&str, &MultiShotPatternConfig) {
+        let name = self
+            .allowed_patterns
+            .first()
+            .expect("allowed multi-shot patterns missing after config validation");
+        let pattern = self
+            .patterns
+            .get(name)
+            .expect("allowed multi-shot pattern missing after config validation");
+        (name, pattern)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn from_stencil(path: &str, column_degrees: f32, row_degrees: f32, stencil: &[String]) -> Result<Self> {
+        let pattern = MultiShotPatternConfig::from_stencil(path, column_degrees, row_degrees, stencil)?;
+        Ok(Self {
+            allowed_patterns: vec!["test".to_owned()],
+            patterns: HashMap::from([("test".to_owned(), pattern)]),
+        })
+    }
+
+    #[cfg(test)]
+    fn shots(&self) -> &[(f32, f32)] {
+        self.first_allowed_pattern().1.shots()
+    }
+}
+
+impl MultiShotPatternConfig {
     // Positive yaw turns left (`direction_from_yaw_pitch`), so columns
     // further right go negative.
-    pub fn from_stencil(path: &str, column_degrees: f32, row_degrees: f32, stencil: &[String]) -> Result<Self> {
+    fn from_stencil(path: &str, column_degrees: f32, row_degrees: f32, stencil: &[String]) -> Result<Self> {
         validate_positive_finite(column_degrees, &format!("{path}.column_degrees"))?;
         validate_positive_finite(row_degrees, &format!("{path}.row_degrees"))?;
         let Some(width) = stencil.first().map(|row| row.chars().count()) else {
@@ -249,9 +304,8 @@ impl MultiShotConfig {
                 let (fires, anchors) = match cell {
                     'x' => (true, false),
                     'o' => (true, true),
-                    '+' => (false, true),
                     '.' => (false, false),
-                    other => bail!("{path}.stencil may only contain 'x', 'o', '+' and '.', found {other:?}"),
+                    other => bail!("{path}.stencil may only contain 'x', 'o' and '.', found {other:?}"),
                 };
                 if anchors && aim.replace((col as f32, row as f32)).is_some() {
                     bail!("{path}.stencil may mark the aim only once");
@@ -261,7 +315,9 @@ impl MultiShotConfig {
                 }
             }
         }
-        let (aim_col, aim_row) = aim.unwrap_or(((width as f32 - 1.0) / 2.0, (stencil.len() as f32 - 1.0) / 2.0));
+        let Some((aim_col, aim_row)) = aim else {
+            bail!("{path}.stencil must contain exactly one 'o' center shot");
+        };
 
         let column_step = column_degrees.to_radians();
         let row_step = row_degrees.to_radians();
@@ -621,25 +677,59 @@ mod tests {
             MultiShotPattern {
                 column_scale: 1.5,
                 row_scale: 1.0,
-                stencil: vec!["xx".to_owned()],
+                stencil: vec!["xo".to_owned()],
             },
         )]);
         let selected = MultiShotConfig::try_from(MultiShotSource {
             spread_degrees: 2.0,
-            pattern: "line".to_owned(),
+            allowed_patterns: vec!["line".to_owned()],
             patterns: patterns.clone(),
         })
         .expect("named pattern rejected");
-        // Half a column step off the aim, at spread × scale = 3° per column.
+        // One column step left of the aim, at spread × scale = 3° per column.
         let (yaw, pitch) = selected.shots()[0];
-        assert!((yaw - 1.5_f32.to_radians()).abs() < 1e-6 && pitch == 0.0);
+        assert!((yaw - 3.0_f32.to_radians()).abs() < 1e-6 && pitch == 0.0);
 
         let missing = MultiShotConfig::try_from(MultiShotSource {
             spread_degrees: 2.0,
-            pattern: "ring".to_owned(),
+            allowed_patterns: vec!["ring".to_owned()],
             patterns,
         });
         assert!(missing.expect_err("unknown name accepted").to_string().contains("ring"));
+    }
+
+    #[test]
+    fn multi_shot_allowed_patterns_are_ordered_and_may_leave_dormant_patterns() {
+        let pattern = || MultiShotPattern {
+            column_scale: 1.0,
+            row_scale: 1.0,
+            stencil: vec!["xo".to_owned()],
+        };
+        let patterns = HashMap::from([
+            ("dormant_2".to_owned(), pattern()),
+            ("second_2".to_owned(), pattern()),
+            ("first_2".to_owned(), pattern()),
+        ]);
+        let config = MultiShotConfig::try_from(MultiShotSource {
+            spread_degrees: 2.0,
+            allowed_patterns: vec!["first_2".to_owned(), "second_2".to_owned()],
+            patterns: patterns.clone(),
+        })
+        .expect("ordered allowed patterns rejected");
+        assert_eq!(config.allowed_patterns(), ["first_2", "second_2"]);
+        assert!(config.pattern("dormant_2").is_none());
+
+        let duplicate = MultiShotConfig::try_from(MultiShotSource {
+            spread_degrees: 2.0,
+            allowed_patterns: vec!["first_2".to_owned(), "first_2".to_owned()],
+            patterns,
+        });
+        assert!(
+            duplicate
+                .expect_err("duplicate allowed pattern accepted")
+                .to_string()
+                .contains("duplicate")
+        );
     }
 
     #[test]
@@ -648,19 +738,19 @@ mod tests {
         let row = 3.0_f32.to_radians();
         // Columns run screen-left to screen-right, which is decreasing yaw.
         assert_eq!(
-            multi_shot(&["xxx"]).expect("line stencil rejected").shots(),
+            multi_shot(&["xox"]).expect("line stencil rejected").shots(),
             &[(column, 0.0), (0.0, 0.0), (-column, 0.0)]
         );
-        // Rows run top-down; an even count centres between cells.
+        // Rows run top-down from the marked aim shot.
         assert_eq!(
-            multi_shot(&["x", "x"]).expect("column stencil rejected").shots(),
-            &[(0.0, row / 2.0), (0.0, -row / 2.0)]
+            multi_shot(&["o", "x"]).expect("column stencil rejected").shots(),
+            &[(0.0, 0.0), (0.0, -row)]
         );
     }
 
     #[test]
     fn multi_shot_triangle_is_equilateral_at_root_three_rows() {
-        let rows: Vec<String> = [".x.", "x.x"].map(str::to_owned).to_vec();
+        let rows: Vec<String> = [".o.", "x.x"].map(str::to_owned).to_vec();
         let config =
             MultiShotConfig::from_stencil("multi_shot", 1.0, 3.0_f32.sqrt(), &rows).expect("triangle stencil rejected");
         let [top, left, right] = config.shots() else {
@@ -680,24 +770,19 @@ mod tests {
             multi_shot(&["x..", "..o"]).expect("anchored stencil rejected").shots(),
             &[(2.0 * column, row), (0.0, 0.0)]
         );
-        // `+` only places the aim.
-        assert_eq!(
-            multi_shot(&["+x"]).expect("aim-only stencil rejected").shots(),
-            &[(-column, 0.0)]
-        );
     }
 
     #[test]
     fn multi_shot_name_count_postfix_must_match() {
         let source = |name: &str| MultiShotSource {
             spread_degrees: 2.0,
-            pattern: name.to_owned(),
+            allowed_patterns: vec![name.to_owned()],
             patterns: HashMap::from([(
                 name.to_owned(),
                 MultiShotPattern {
                     column_scale: 1.0,
                     row_scale: 1.0,
-                    stencil: vec!["xx".to_owned()],
+                    stencil: vec!["xo".to_owned()],
                 },
             )]),
         };
@@ -714,11 +799,11 @@ mod tests {
     fn multi_shot_pattern_is_validated() {
         let error = |pattern: &[&str]| multi_shot(pattern).expect_err("invalid stencil accepted").to_string();
         assert!(error(&["xx", "x"]).contains("width"));
-        assert!(error(&["x-x"]).contains("'x', 'o', '+' and '.'"));
-        assert!(error(&["..."]).contains("at least one shot"));
-        assert!(error(&["+.."]).contains("at least one shot"));
+        assert!(error(&["x-x"]).contains("'x', 'o' and '.'"));
+        assert!(error(&["..."]).contains("center shot"));
+        assert!(error(&["xxx"]).contains("center shot"));
         assert!(error(&["o.o"]).contains("only once"));
-        assert!(error(&["xxxxx", "xxxxx"]).contains("max is"));
-        assert!(multi_shot(&["x.x", ".x.", "x.x"]).is_ok());
+        assert!(error(&["oxxxxxxxxx"]).contains("max is"));
+        assert!(multi_shot(&["x.x", ".o.", "x.x"]).is_ok());
     }
 }

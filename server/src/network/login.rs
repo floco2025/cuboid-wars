@@ -6,6 +6,7 @@ use crate::{
     characters::{generate_player_spawn_position, spawn_face_yaw},
     network::{FeedAudience, FeedEvent, ServerToClient, emit_feed},
     players::PlayerMap,
+    portals::PortalAssignments,
     quests::{QuestBoard, QuestCatalog, assign_quests},
 };
 use common::{physics::CharacterVerticalVelocity, protocol::*};
@@ -44,6 +45,7 @@ pub(super) fn handle_login_message(
     quest_catalog: &QuestCatalog,
     quest_board: &QuestBoard,
     queries: &CharacterQueries,
+    portal_assignments: &mut PortalAssignments,
 ) {
     let Some(player_info) = players.get_mut(&id) else {
         error!("registered player#{} missing during login", id.0);
@@ -55,8 +57,10 @@ pub(super) fn handle_login_message(
     debug!("{} logged in", players.describe(&id));
 
     let combat = &world.server_gameplay_config.combat;
+    let portal_access = portal_assignments.assign(id, world.map_settings.weapons.portals);
     let init_message = ServerMessage::Init(SInit {
         id,
+        portal_access,
         map_layout: (*world.map_layout).clone(),
         map_settings: (*world.map_settings).clone(),
         actor_blast_radii: sorted_by_kind(&combat.damage.actors, |actor| actor.death_blast.radius),

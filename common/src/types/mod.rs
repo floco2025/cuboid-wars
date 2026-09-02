@@ -18,14 +18,15 @@ pub use entities::{
 };
 pub use face_materials::FaceMaterials;
 pub use feed::{FeedSpan, FeedStyle};
-pub use ids::{ActorId, HomingTarget, ItemId, MissileId, PlayerId, QuestId};
+pub use ids::{ActorId, HomingTarget, ItemId, MissileId, PlayerId, PortalPairId, QuestId};
 pub use items::{ItemType, PowerUpKind};
 pub use map_layout::{
-    Barrier, Floor, GrassCell, Ladder, MapLayout, MapSettings, PlatePurpose, PressurePlate, Ramp, Wall, WallLight,
+    Barrier, Floor, GrassCell, Ladder, MapLayout, MapSettings, MapWeaponSettings, PlatePurpose, PortalMode,
+    PressurePlate, Ramp, Wall, WallLight,
 };
 pub use movement::{
     ActorMoveIntent, ActorMovementState, FaceYaw, MissileMovementState, PlayerMoveIntent, PlayerMovementState,
 };
-pub use portals::{Portal, PortalEnd};
+pub use portals::{Portal, PortalAccess, PortalEnd};
 pub use position::Position;
 pub use quests::{QuestGroupProgress, QuestGroupStatus, QuestInitialProgress, QuestInitialStatus, QuestScope};

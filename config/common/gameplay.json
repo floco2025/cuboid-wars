@@ -29,21 +29,21 @@
     "bounce_retention": 0.85,
     "multi_shot": {
       "spread_degrees": 1.2,
-      "pattern": "star_4",
+      "allowed_patterns": ["star_4", "line_5"],
       "patterns": {
         "dice_5": {
-          "stencil": ["x.x", ".x.", "x.x"]
+          "stencil": ["x.x", ".o.", "x.x"]
         },
         "triangle_3": {
           "row_scale": 1.732,
-          "stencil": [".x.", "x.x"]
+          "stencil": [".o.", "x.x"]
         },
         "star_4": {
           "row_scale": 0.577,
           "stencil": [".x.", "...", ".o.", "x.x"]
         },
         "line_5": {
-          "stencil": ["xxxxx"]
+          "stencil": ["xxoxx"]
         }
       }
     }

@@ -33,7 +33,7 @@ pub fn hud_plugin(app: &mut App) {
             ui_stunned_blink_system,
             ui_rtt_system,
             ui_fps_system,
-            ui_crosshair_lock_system,
+            ui_crosshair_system,
             death_overlay_visibility_system,
             ui_message_feed_system,
             ui_hud_banner_system,

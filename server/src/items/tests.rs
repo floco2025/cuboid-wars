@@ -2,11 +2,14 @@ use bevy::prelude::*;
 
 use common::{
     map::MapGeometry,
-    protocol::{BarrierKindId, ItemMarker, ItemType},
+    protocol::{BarrierKindId, ItemMarker, ItemType, MapSettings, MapWeaponSettings, PortalMode},
 };
 
-use crate::items::{ItemMap, ItemSpawner};
 use crate::map::{CellGrid, EdgeGrid, LevelGrid, MapConfig, PlacedItem};
+use crate::{
+    config::RandomItemsConfig,
+    items::{ItemMap, ItemSpawner, RandomItems},
+};
 
 use super::{
     spawn_cells::{ItemSpawnCell, choose_item_type, eligible_item_spawn_cells, target_active_random_items},
@@ -28,6 +31,19 @@ fn level_grid(cells: CellGrid) -> LevelGrid {
         cells,
         edges: EdgeGrid::new(1, 1),
         barrier_edges: EdgeGrid::new(1, 1),
+    }
+}
+
+fn map_settings(projectiles: bool, missiles: bool) -> MapSettings {
+    MapSettings {
+        skybox: "test".to_owned(),
+        gravity: 25.0,
+        low_gravity: 5.0,
+        weapons: MapWeaponSettings {
+            projectiles,
+            missiles,
+            portals: PortalMode::None,
+        },
     }
 }
 
@@ -88,6 +104,7 @@ fn placed_item_spawn_system_spawns_every_placed_item_visible() {
     let mut world = World::new();
     world.insert_resource(config);
     world.insert_resource(MapGeometry::new(2, 1));
+    world.insert_resource(map_settings(true, true));
     world.insert_resource(ItemMap::default());
     world.insert_resource(ItemSpawner::default());
     let mut schedule = Schedule::default();
@@ -105,6 +122,49 @@ fn placed_item_spawn_system_spawns_every_placed_item_visible() {
 }
 
 #[test]
+fn placed_item_spawn_system_skips_disabled_weapon_pickups() {
+    let mut cells = CellGrid::new(3, 1);
+    for cell in &mut cells.rows[0] {
+        cell.has_floor = true;
+    }
+    let mut config = map_config(vec![level_grid(cells)]);
+    config.placed_items = vec![
+        PlacedItem {
+            level: 0,
+            col: 0,
+            row: 0,
+            item_type: ItemType::MultiShotPowerUp,
+        },
+        PlacedItem {
+            level: 0,
+            col: 1,
+            row: 0,
+            item_type: ItemType::MissilePack,
+        },
+        PlacedItem {
+            level: 0,
+            col: 2,
+            row: 0,
+            item_type: ItemType::Cookie,
+        },
+    ];
+
+    let mut world = World::new();
+    world.insert_resource(config);
+    world.insert_resource(MapGeometry::new(3, 1));
+    world.insert_resource(map_settings(false, false));
+    world.insert_resource(ItemMap::default());
+    world.insert_resource(ItemSpawner::default());
+    let mut schedule = Schedule::default();
+    schedule.add_systems(placed_item_spawn_system);
+    schedule.run(&mut world);
+
+    let items = world.resource::<ItemMap>();
+    assert_eq!(items.iter().count(), 1);
+    assert!(items.values().all(|info| info.item_type == ItemType::Cookie));
+}
+
+#[test]
 fn choose_item_type_returns_none_for_empty_pool() {
     assert_eq!(choose_item_type(&mut rand::rng(), &[]), None);
 }
@@ -117,6 +177,17 @@ fn choose_item_type_only_picks_pool_members() {
         let picked = choose_item_type(&mut rng, &pool).expect("non-empty pool must yield an item type");
         assert!(pool.contains(&picked));
     }
+}
+
+#[test]
+fn random_item_pool_omits_disabled_weapon_pickups() {
+    let config = RandomItemsConfig {
+        types: vec!["multi_shot".to_owned(), "missile_pack".to_owned(), "cookie".to_owned()],
+        max_number: 3,
+        despawn_secs: 10.0,
+    };
+    let random = RandomItems::from_config(Some(&config), map_settings(false, false).weapons);
+    assert_eq!(random.pool, vec![ItemType::Cookie]);
 }
 
 #[cfg(test)]
