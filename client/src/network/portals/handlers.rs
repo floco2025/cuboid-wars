@@ -18,7 +18,7 @@ pub(in crate::network) fn handle_portal_opened_message(
         play_spatial_sound(
             commands,
             &context.asset_server,
-            context.asset_set.player_sound("plate_press"),
+            context.asset_set.player_sound("portal_open"),
             &context.client_settings.audio,
             Vec3::from(message.portal.pos),
         );

@@ -29,6 +29,7 @@ const REQUIRED_PLAYER_SOUNDS: &[&str] = &[
     "missile_launch",
     "plate_press",
     "plate_release",
+    "portal_open",
     "quest_completed",
     "rain",
     "take_hit",

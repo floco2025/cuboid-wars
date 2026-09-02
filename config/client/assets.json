@@ -292,6 +292,7 @@
       "barrier_impact": "sounds/impactPlank_medium_001.ogg",
       "plate_press": "sounds/doorOpen_1.ogg",
       "plate_release": "sounds/doorClose_2.ogg",
+      "portal_open": "sounds/Retro Charge StereoUP 12.wav",
       "quest_completed": "sounds/Retro Event Acute 08.wav",
       "rain": "sounds/rain-on-umbrella-loop.wav"
     }
