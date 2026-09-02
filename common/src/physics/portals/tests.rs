@@ -495,8 +495,8 @@ fn half_placed_pair_is_inert() {
     assert!(hop.is_none());
 }
 
-use crate::constants::{FLOOR_THICKNESS, WALL_THICKNESS};
-use crate::protocol::{BarrierKindTable, Floor, PlatePurpose, PressurePlate, Wall, WallLight};
+use crate::constants::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_THICKNESS};
+use crate::protocol::{BarrierKindTable, Floor, PlatePurpose, PressurePlate, Ramp, Wall, WallLight};
 
 // One 12 m wall along X at z = 0 (level 0) with the room floor on +Z.
 fn placement_layout() -> MapLayout {
@@ -649,6 +649,38 @@ fn shot_past_the_walls_end_nudges_back_onto_it() {
     let placement = place(&layout, Vec3::new(5.9, 1.6, 3.0), Vec3::new(5.9, 1.6, 0.0), PI)
         .expect("edge shot did not nudge back onto the wall");
     assert!(placement.pos.x < 5.45);
+}
+
+#[test]
+fn ramp_lip_shot_nudges_the_whole_aperture_onto_the_slope() {
+    let ramp_length = 6.0;
+    let layout = MapLayout {
+        ramps: vec![Ramp {
+            x1: -2.0,
+            y1: 0.0,
+            z1: 0.0,
+            x2: 2.0,
+            y2: LEVEL_HEIGHT,
+            z2: ramp_length,
+        }],
+        floors: vec![Floor {
+            x1: -4.0,
+            z1: ramp_length,
+            x2: 4.0,
+            z2: 12.0,
+            y: LEVEL_HEIGHT,
+            thickness: FLOOR_THICKNESS,
+            level: 1,
+        }],
+        ..Default::default()
+    };
+    let slope = LEVEL_HEIGHT / ramp_length;
+    let target = Vec3::new(0.0, slope * 5.05, 5.05);
+    let normal = Vec3::new(0.0, 1.0, -slope).normalize();
+    let placement = place(&layout, target + normal * 3.0, target, 0.0).expect("ramp-lip shot did not nudge");
+    let frame = PortalFrame::from_surface(placement.pos, placement.normal, placement.yaw);
+
+    assert!((frame.center + frame.up * PORTAL_HALF_HEIGHT).z <= ramp_length);
 }
 
 #[test]

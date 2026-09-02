@@ -350,13 +350,6 @@ impl CollisionWorld {
         )
     }
 
-    // Whether a ball overlaps any wall/floor/ramp. Portal placement probes
-    // the aperture's backing with these.
-    #[must_use]
-    pub fn ball_overlaps_world(&self, position: Vec3, radius: f32) -> bool {
-        self.ball_overlaps_groups(position, radius, world_collision_groups())
-    }
-
     // The wall/floor/ramp colliders an oriented cuboid overlaps. Portal
     // rebuilds collect each aperture's backing this way; both sides derive
     // it from the same static world, so the sets agree.

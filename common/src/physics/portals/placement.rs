@@ -88,9 +88,8 @@ fn nudged_center(frame: &PortalFrame, collision_world: &CollisionWorld, map_layo
     None
 }
 
-// Probe ball for the fit test and its standoff from the aperture plane.
-const FIT_SAMPLE_RADIUS: f32 = 0.1;
-const FIT_SAMPLE_OFFSET: f32 = FIT_SAMPLE_RADIUS + 0.03;
+const FIT_SAMPLE_OFFSET: f32 = 0.13;
+const FIT_BACKING_NORMAL_DOT: f32 = 0.999;
 const FIT_RIM_SAMPLES: usize = 8;
 // The front-clearance slab: how far off the plane it starts and how deep it
 // reaches into the room.
@@ -117,10 +116,15 @@ fn portal_fits(frame: &PortalFrame, collision_world: &CollisionWorld, map_layout
     ) {
         return false;
     }
-    // Backing stays per-sample: an any-overlap query cannot express "solid
-    // everywhere behind the plane".
+    // Each sample must meet a surface parallel to the shot face. Otherwise
+    // a ramp lip and its upper floor can jointly masquerade as one backing.
     for sample in aperture_samples(frame) {
-        if !collision_world.ball_overlaps_world(sample - frame.normal * FIT_SAMPLE_OFFSET, FIT_SAMPLE_RADIUS) {
+        let probe_start = sample + frame.normal * FIT_SAMPLE_OFFSET;
+        let Some(hit) = collision_world.world_surface_along_ray(probe_start, -frame.normal, 2.0 * FIT_SAMPLE_OFFSET)
+        else {
+            return false;
+        };
+        if hit.normal.dot(frame.normal) < FIT_BACKING_NORMAL_DOT {
             return false;
         }
     }
