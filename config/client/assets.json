@@ -284,7 +284,7 @@
       "fall_damage": "sounds/Retro Impact Punch 07.wav",
       "collect_power_up": "sounds/Retro PowerUP StereoUP 05.wav",
       "collect_cookie": "sounds/metalClick.ogg",
-   "bump_wall": "sounds/impactGlass_heavy_001.ogg",
+      "bump_wall": "sounds/impactGlass_heavy_001.ogg",
       "bump_player": "sounds/impactTin_medium_004.ogg",
       "hit_wall": "sounds/impactGlass_light_000.ogg",
       "hit_player": "sounds/impactGeneric_light_001.ogg",
