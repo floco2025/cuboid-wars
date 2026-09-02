@@ -16,7 +16,7 @@ pub(crate) fn apply_player_moves(
     planned_moves: &[CharacterMovePlan],
 ) {
     for planned_move in planned_moves {
-        let Ok((_, _, mut client_pos, _, mut motion, mut feedback_state, _, _, is_local)) =
+        let Ok((_, _, mut client_pos, _, mut motion, mut feedback_state, _, _, _, is_local)) =
             query.get_mut(planned_move.entity)
         else {
             continue;

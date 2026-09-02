@@ -45,8 +45,8 @@ pub fn player_jump_velocity(
 }
 
 // One fixed-tick request. Ladder decisions read only `control_velocity`;
-// reconciliation and knockback ride `external_displacement` so they can move
-// the body without impersonating player/actor intent.
+// reconciliation, knockback, and portal momentum ride `external_displacement`
+// so they can move the body without impersonating player/actor intent.
 #[derive(Debug, Clone, Copy)]
 pub struct CharacterStep {
     pub start: Position,

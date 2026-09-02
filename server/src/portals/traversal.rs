@@ -5,8 +5,7 @@ use bevy::prelude::*;
 use crate::players::PlayerMap;
 use common::{
     config::GameplayConfig,
-    constants::PORTAL_KNOCKBACK_CARRY_FACTOR,
-    physics::{CharacterVerticalVelocity, KnockbackVelocity, PortalSet, player_control_velocity, traverse_move_intent},
+    physics::{CharacterVerticalVelocity, KnockbackVelocity, PortalMomentum, PortalSet},
     protocol::{FaceYaw, PlayerId, PlayerMarker, PlayerMoveIntent, Position},
 };
 
@@ -31,43 +30,37 @@ pub fn players_portal_traversal_system(
             &mut CharacterVerticalVelocity,
             &mut PlayerMoveIntent,
             Option<&mut KnockbackVelocity>,
+            Option<&mut PortalMomentum>,
         ),
         With<PlayerMarker>,
     >,
 ) {
-    let knockback_cap = PORTAL_KNOCKBACK_CARRY_FACTOR * gameplay_config.movement.knockback.max_speed;
     let mut seen: HashMap<Entity, Position> = HashMap::new();
-    for (entity, id, mut pos, mut face_yaw, mut vertical_velocity, mut move_intent, knockback) in &mut player_query {
+    for (entity, id, mut pos, mut face_yaw, mut vertical_velocity, mut move_intent, knockback, momentum) in
+        &mut player_query
+    {
         let from = previous.get(&entity).copied();
         let hop = from.and_then(|from| {
             if portal_set.is_empty() {
                 return None;
             }
             let info = players.get(id)?;
-            let control = player_control_velocity(*move_intent, &gameplay_config, info.has_speed(), info.is_stunned());
-            let knockback_velocity = knockback.as_ref().map_or(Vec3::ZERO, |k| k.0);
-            portal_set.character_hop(
+            portal_set.player_hop(
                 Vec3::from(from),
                 Vec3::from(*pos),
-                gameplay_config.player.physics(),
-                control,
-                knockback_velocity,
+                &gameplay_config,
+                *move_intent,
+                info.has_speed(),
+                info.is_stunned(),
+                knockback.as_deref(),
+                momentum.as_deref(),
                 vertical_velocity.0,
                 face_yaw.0,
-                knockback_cap,
             )
         });
         if let Some(hop) = hop {
-            *pos = hop.origin.into();
-            face_yaw.0 = hop.yaw;
-            *move_intent = traverse_move_intent(&hop.entry, &hop.exit, *move_intent);
-            vertical_velocity.0 = hop.vertical_velocity;
-            match knockback {
-                Some(mut existing) => existing.0 = hop.knockback,
-                None => {
-                    commands.entity(entity).insert(KnockbackVelocity(hop.knockback));
-                }
-            }
+            hop.apply_player_state(&mut pos, &mut face_yaw, &mut vertical_velocity, &mut move_intent);
+            hop.apply_motion_components(&mut commands, entity, knockback, momentum);
             if let Some(info) = players.get_mut(id) {
                 // No fall damage across a portal: the drop tracker restarts
                 // at the exit.

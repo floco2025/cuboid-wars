@@ -13,7 +13,7 @@ use crate::{
 };
 use common::{
     config::GameplayConfig,
-    physics::{CharacterVerticalVelocity, KnockbackVelocity, player_control_velocity},
+    physics::{CharacterVerticalVelocity, KnockbackVelocity, PortalMomentum, player_control_velocity},
     protocol::*,
 };
 
@@ -343,7 +343,7 @@ fn apply_player_death(
             commands
                 .entity(info.entity)
                 .insert((Visibility::Hidden, event.pos, PreviousTickPosition(event.pos)))
-                .remove::<ServerReconciliation>();
+                .remove::<(ServerReconciliation, PortalMomentum)>();
         }
         local_player_info.is_dead = true;
         // Centered "You died!" banner. The red full-screen

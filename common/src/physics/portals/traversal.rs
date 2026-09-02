@@ -4,15 +4,18 @@ use rapier3d::prelude::ColliderHandle;
 
 use super::PortalFrame;
 use crate::{
-    config::CharacterPhysicsConfig,
+    config::{CharacterPhysicsConfig, GameplayConfig},
     constants::{
         PORTAL_FUNNEL_CAPTURE_MARGIN, PORTAL_FUNNEL_GAIN, PORTAL_FUNNEL_MAX_SPEED, PORTAL_FUNNEL_MIN_APPROACH,
-        PORTAL_FUNNEL_RELEASE_SPEED, PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH, PORTAL_PROJECTILE_EXIT_STANDOFF,
-        PORTAL_STANDABLE_NORMAL_Y, PORTAL_UP_DEGENERACY_LIMIT,
+        PORTAL_FUNNEL_RELEASE_SPEED, PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH, PORTAL_KNOCKBACK_CARRY_FACTOR,
+        PORTAL_PROJECTILE_EXIT_STANDOFF, PORTAL_STANDABLE_NORMAL_Y, PORTAL_UP_DEGENERACY_LIMIT,
     },
     math::direction_from_yaw_pitch,
-    physics::CollisionWorld,
-    protocol::{PlayerMoveIntent, Portal, PortalEnd},
+    physics::{
+        CharacterMovementResult, CharacterSupport, CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity,
+        player_control_velocity,
+    },
+    protocol::{FaceYaw, PlayerMoveIntent, Portal, PortalEnd, Position},
 };
 
 // Map a vector through a pair: decompose in the entry frame, re-emit in the
@@ -86,7 +89,34 @@ fn body_support(half_extents: Vec3, direction: Vec3) -> f32 {
     direction.abs().dot(half_extents)
 }
 
-// Outcome of a character crossing a portal plane this tick.
+// Horizontal launch velocity produced by a portal. It stays constant in the
+// air; movement planning clears it on landing or collision.
+#[derive(Component, Debug, Default, Clone, Copy)]
+pub struct PortalMomentum(pub Vec3);
+
+impl PortalMomentum {
+    #[must_use]
+    pub fn step(&self, delta: f32) -> Vec3 {
+        self.0 * delta
+    }
+
+    pub fn finish_step(&mut self, movement: &CharacterMovementResult) {
+        if movement.support != CharacterSupport::Airborne || movement.blocked {
+            self.0 = Vec3::ZERO;
+        }
+    }
+}
+
+#[must_use]
+pub fn momentum_displacement(
+    knockback: Option<&KnockbackVelocity>,
+    portal_momentum: Option<&PortalMomentum>,
+    delta: f32,
+) -> Vec3 {
+    knockback.map_or(Vec3::ZERO, |velocity| velocity.step(delta))
+        + portal_momentum.map_or(Vec3::ZERO, |momentum| momentum.step(delta))
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct CharacterPortalHop {
     // New entity origin (feet): the entry pose mapped continuously through
@@ -96,14 +126,50 @@ pub struct CharacterPortalHop {
     pub origin: Vec3,
     pub yaw: f32,
     pub vertical_velocity: f32,
-    // Horizontal momentum carry, expressed as knockback — the only persistent
-    // horizontal velocity in the character model. Control velocity is
-    // excluded: the held keys re-supply it in the exit frame next tick, and
-    // carrying it too would double it.
+    // Mapped horizontal blast shove, retaining knockback's cap and decay.
     pub knockback: Vec3,
+    // Non-blast horizontal velocity carried through the portal. It persists
+    // in the air so a launch keeps its mapped angle.
+    pub portal_momentum: Vec3,
     // The gate that was crossed, for camera view mapping.
     pub entry: PortalFrame,
     pub exit: PortalFrame,
+}
+
+impl CharacterPortalHop {
+    pub fn apply_player_state(
+        &self,
+        position: &mut Position,
+        face_yaw: &mut FaceYaw,
+        vertical_velocity: &mut CharacterVerticalVelocity,
+        move_intent: &mut PlayerMoveIntent,
+    ) {
+        *position = self.origin.into();
+        face_yaw.0 = self.yaw;
+        vertical_velocity.0 = self.vertical_velocity;
+        *move_intent = traverse_move_intent(&self.entry, &self.exit, *move_intent);
+    }
+
+    pub fn apply_motion_components(
+        &self,
+        commands: &mut Commands,
+        entity: Entity,
+        knockback: Option<Mut<'_, KnockbackVelocity>>,
+        portal_momentum: Option<Mut<'_, PortalMomentum>>,
+    ) {
+        match knockback {
+            Some(mut existing) => existing.0 = self.knockback,
+            None => {
+                commands.entity(entity).insert(KnockbackVelocity(self.knockback));
+            }
+        }
+        match portal_momentum {
+            Some(mut existing) => existing.0 = self.portal_momentum,
+            None => {
+                commands.entity(entity).insert(PortalMomentum(self.portal_momentum));
+            }
+        }
+    }
 }
 
 // Fraction `t` of a projectile tick at which the swept ball touches an entry
@@ -184,6 +250,34 @@ impl PortalSet {
         self.pairs.is_empty()
     }
 
+    #[must_use]
+    pub fn player_hop(
+        &self,
+        from: Vec3,
+        to: Vec3,
+        gameplay_config: &GameplayConfig,
+        move_intent: PlayerMoveIntent,
+        has_speed: bool,
+        stunned: bool,
+        knockback: Option<&KnockbackVelocity>,
+        portal_momentum: Option<&PortalMomentum>,
+        vertical_velocity: f32,
+        yaw: f32,
+    ) -> Option<CharacterPortalHop> {
+        let control_velocity = player_control_velocity(move_intent, gameplay_config, has_speed, stunned);
+        self.character_hop(
+            from,
+            to,
+            gameplay_config.player.physics(),
+            control_velocity,
+            knockback.map_or(Vec3::ZERO, |velocity| velocity.0),
+            portal_momentum.map_or(Vec3::ZERO, |momentum| momentum.0),
+            vertical_velocity,
+            yaw,
+            PORTAL_KNOCKBACK_CARRY_FACTOR * gameplay_config.movement.knockback.max_speed,
+        )
+    }
+
     fn gates(&self) -> impl Iterator<Item = (&PortalGate, &PortalGate)> {
         self.pairs
             .iter()
@@ -259,8 +353,8 @@ impl PortalSet {
     // end. Position maps continuously — aperture offset carried (clamped so
     // the body stays inside the exit aperture; this is also what lets a
     // steering player escape a fall chain) and penetration carried — and so
-    // does velocity, split into the vertical component and a knockback
-    // shove, the character model's only persistent channels.
+    // does velocity, split into vertical velocity, blast knockback, and
+    // airborne portal momentum.
     #[must_use]
     pub fn character_hop(
         &self,
@@ -269,6 +363,7 @@ impl PortalSet {
         physics: CharacterPhysicsConfig,
         control_velocity: Vec3,
         knockback: Vec3,
+        portal_momentum: Vec3,
         vertical_velocity: f32,
         yaw: f32,
         knockback_cap: f32,
@@ -282,7 +377,8 @@ impl PortalSet {
         let half_extents = body_half_extents(physics);
         let center_from = from + Vec3::Y * half_extents.y;
         let center_to = to + Vec3::Y * half_extents.y;
-        let velocity = control_velocity + knockback + Vec3::Y * vertical_velocity;
+        let portal_velocity = portal_momentum + Vec3::Y * vertical_velocity;
+        let velocity = control_velocity + knockback + portal_velocity;
         for (entry_gate, exit_gate) in self.gates() {
             let entry = &entry_gate.frame;
             let exit = &exit_gate.frame;
@@ -303,12 +399,15 @@ impl PortalSet {
                 + exit.right * (-offset.dot(entry.right)).clamp(-across_limit, across_limit)
                 + exit.up * offset.dot(entry.up).clamp(-up_limit, up_limit)
                 + exit.normal * (-to_distance);
-            let carry = traverse_vector(entry, exit, knockback + Vec3::Y * vertical_velocity);
+            let mapped_velocity = traverse_vector(entry, exit, velocity);
+            let mapped_portal_velocity = traverse_vector(entry, exit, portal_velocity);
+            let mapped_knockback = traverse_vector(entry, exit, knockback);
             return Some(CharacterPortalHop {
                 origin: exit_center - Vec3::Y * half_extents.y,
                 yaw: traverse_yaw(entry, exit, yaw),
-                vertical_velocity: traverse_vector(entry, exit, velocity).y,
-                knockback: Vec3::new(carry.x, 0.0, carry.z).clamp_length_max(knockback_cap),
+                vertical_velocity: mapped_velocity.y,
+                knockback: Vec3::new(mapped_knockback.x, 0.0, mapped_knockback.z).clamp_length_max(knockback_cap),
+                portal_momentum: Vec3::new(mapped_portal_velocity.x, 0.0, mapped_portal_velocity.z),
                 entry: *entry,
                 exit: *exit,
             });

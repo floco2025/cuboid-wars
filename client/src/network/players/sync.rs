@@ -12,7 +12,7 @@ use crate::{
     ui::BannerMessage,
 };
 use common::{
-    physics::CharacterVerticalVelocity,
+    physics::{CharacterVerticalVelocity, PortalMomentum},
     protocol::{FaceYaw, Player, PlayerId, Position, PowerUpKind},
 };
 
@@ -94,7 +94,9 @@ pub(in crate::network) fn sync_players(
         // skipped for the local player this frame (see below), so without
         // this remove() the recon component would linger pointing at the
         // pre-death position.
-        commands.entity(entity).remove::<ServerReconciliation>();
+        commands
+            .entity(entity)
+            .remove::<(ServerReconciliation, PortalMomentum)>();
         info.apply_snapshot(server_player);
         context.local_player_info.is_dead = false;
         local_just_respawned = true;

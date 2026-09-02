@@ -8,16 +8,16 @@ mod world;
 pub use barriers::{OpenBarrierKinds, passable_barrier_kinds};
 pub use characters::{
     BallCharacterHit, CharacterEnvironment, CharacterMovePlan, CharacterMovementResult, CharacterStep,
-    CharacterSupport, CharacterVerticalVelocity, HitDirection, KnockbackVelocity, ball_character_hit,
-    ball_overlaps_character, blocking_character_move_plan, character_center, character_move_plan_is_blocked,
-    character_overlaps_item, character_paths_intersect, character_shape, character_vertical_ranges_overlap,
-    overlapping_character, player_control_velocity, player_jump_velocity, position_has_floor_support,
-    step_character_movement,
+    CharacterSupport, CharacterVerticalVelocity, HitDirection, KnockbackVelocity, PlayerMovementStep,
+    ball_character_hit, ball_overlaps_character, blocking_character_move_plan, character_center,
+    character_move_plan_is_blocked, character_overlaps_item, character_paths_intersect, character_shape,
+    character_vertical_ranges_overlap, knockback_decay_system, overlapping_character, player_control_velocity,
+    player_jump_velocity, position_has_floor_support, step_character_movement, step_player_movement,
 };
 pub use lock::acquire_lock;
 pub use portals::{
-    CharacterPortalHop, PortalFrame, PortalPlacement, PortalSet, ProjectileHop, compute_portal_placement,
-    portal_placement_overlaps, traverse_move_intent, traverse_vector,
+    CharacterPortalHop, PortalFrame, PortalMomentum, PortalPlacement, PortalSet, ProjectileHop,
+    compute_portal_placement, momentum_displacement, portal_placement_overlaps, traverse_move_intent, traverse_vector,
 };
 pub use projectiles::{
     BarrierImpact, ProjectileEvent, ProjectileMotion, ProjectileSpawnInfo, SurfaceBounce, calculate_projectile_spawns,

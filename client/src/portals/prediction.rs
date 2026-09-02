@@ -8,8 +8,7 @@ use crate::{
 };
 use common::{
     config::GameplayConfig,
-    constants::PORTAL_KNOCKBACK_CARRY_FACTOR,
-    physics::{CharacterVerticalVelocity, KnockbackVelocity, PortalSet, player_control_velocity, traverse_move_intent},
+    physics::{CharacterVerticalVelocity, KnockbackVelocity, PortalMomentum, PortalSet},
     protocol::{FaceYaw, PlayerId, PlayerMarker, PlayerMoveIntent, Position, PowerUpKind},
 };
 
@@ -39,6 +38,7 @@ pub fn portal_transit_system(
             &mut CharacterVerticalVelocity,
             &mut PlayerMoveIntent,
             Option<&mut KnockbackVelocity>,
+            Option<&mut PortalMomentum>,
         ),
         With<PlayerMarker>,
     >,
@@ -46,39 +46,32 @@ pub fn portal_transit_system(
     if portal_set.is_empty() {
         return;
     }
-    let knockback_cap = PORTAL_KNOCKBACK_CARRY_FACTOR * gameplay_config.movement.knockback.max_speed;
-    for (entity, id, mut pos, mut prev, mut face_yaw, mut vertical_velocity, mut move_intent, knockback) in &mut query {
+    for (entity, id, mut pos, mut prev, mut face_yaw, mut vertical_velocity, mut move_intent, knockback, momentum) in
+        &mut query
+    {
         let (has_speed, stunned) = players
             .get(id)
             .map_or((false, false), |info| (info.power_up(PowerUpKind::Speed), info.stunned));
-        let control = player_control_velocity(*move_intent, &gameplay_config, has_speed, stunned);
-        let knockback_velocity = knockback.as_ref().map_or(Vec3::ZERO, |k| k.0);
-        let Some(hop) = portal_set.character_hop(
+        let Some(hop) = portal_set.player_hop(
             Vec3::from(prev.0),
             Vec3::from(*pos),
-            gameplay_config.player.physics(),
-            control,
-            knockback_velocity,
+            &gameplay_config,
+            *move_intent,
+            has_speed,
+            stunned,
+            knockback.as_deref(),
+            momentum.as_deref(),
             vertical_velocity.0,
             face_yaw.0,
-            knockback_cap,
         ) else {
             continue;
         };
 
-        *pos = hop.origin.into();
+        hop.apply_player_state(&mut pos, &mut face_yaw, &mut vertical_velocity, &mut move_intent);
+        hop.apply_motion_components(&mut commands, entity, knockback, momentum);
         // Anchor render interpolation at the exit: the transit renders as a
         // cut there, not a smear between the portals.
         prev.0 = *pos;
-        face_yaw.0 = hop.yaw;
-        *move_intent = traverse_move_intent(&hop.entry, &hop.exit, *move_intent);
-        vertical_velocity.0 = hop.vertical_velocity;
-        match knockback {
-            Some(mut existing) => existing.0 = hop.knockback,
-            None => {
-                commands.entity(entity).insert(KnockbackVelocity(hop.knockback));
-            }
-        }
         if let Some(info) = players.get_mut(id) {
             // Snapshot data built before the crossing would drag this player
             // back to a stale phase; reconciliation stands down briefly.

@@ -2,9 +2,8 @@ use bevy::prelude::*;
 use common::{
     config::{CharacterPhysicsConfig, GameplayConfig},
     physics::{
-        CharacterEnvironment, CharacterMovePlan, CharacterStep, CharacterVerticalVelocity, CollisionWorld,
-        KnockbackVelocity, PortalSet, overlapping_character, passable_barrier_kinds, player_control_velocity,
-        step_character_movement,
+        CharacterMovePlan, CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity, PlayerMovementStep,
+        PortalMomentum, PortalSet, overlapping_character, player_control_velocity, step_player_movement,
     },
     protocol::{ActorMarker, BarrierKindId, MapSettings, PlayerId, PlayerMarker, PlayerMoveIntent, Position},
 };
@@ -29,21 +28,10 @@ type PlayerMovementQuery<'w, 's> = Query<
         &'static PlayerMoveIntent,
         &'static PlayerId,
         Option<&'static KnockbackVelocity>,
+        Option<&'static mut PortalMomentum>,
     ),
     (With<PlayerMarker>, Without<ActorMarker>),
 >;
-
-// Tick blast shoves down after movement consumed this tick's step.
-pub fn knockback_decay_system(
-    time: Res<Time>,
-    gameplay_config: Res<GameplayConfig>,
-    mut knockbacks: Query<&mut KnockbackVelocity>,
-) {
-    let delta = time.delta_secs();
-    for mut knockback in &mut knockbacks {
-        knockback.decay(delta, gameplay_config.movement.knockback.deceleration);
-    }
-}
 
 pub fn characters_movement_system(
     time: Res<Time>,
@@ -77,7 +65,7 @@ pub fn characters_movement_system(
         &mut players,
         &open_barrier_kinds,
         &portal_set,
-        &player_query,
+        &mut player_query,
         &mut planned_moves,
     );
     plan_actor_moves(
@@ -111,12 +99,12 @@ fn plan_player_moves(
     players: &mut PlayerMap,
     open_barrier_kinds: &OpenBarrierKinds,
     portal_set: &PortalSet,
-    query: &PlayerMovementQuery,
+    query: &mut PlayerMovementQuery,
     planned_moves: &mut Vec<CharacterMovePlan>,
 ) {
     let player_config = &gameplay_config.player;
     let player_physics = player_config.physics();
-    for (entity, pos, motion, move_intent, player_id, knockback) in query.iter() {
+    for (entity, pos, motion, move_intent, player_id, knockback, mut momentum) in query.iter_mut() {
         let info = players.get(player_id);
         let control_velocity = player_control_velocity(
             *move_intent,
@@ -127,27 +115,22 @@ fn plan_player_moves(
 
         let has_low_gravity = info.is_some_and(PlayerInfo::has_low_gravity);
         let held_keys: &[BarrierKindId] = info.map_or(&[], |info| &info.life.held_keys);
-        // Effective passable kinds = held keys ∪ globally-open kinds (plates).
-        // One shared helper between server-authoritative movement and
-        // client-side prediction so both decide passability identically.
-        let passable_kinds = passable_barrier_kinds(held_keys, &open_barrier_kinds.0);
-        let step = step_character_movement(
-            CharacterStep {
-                start: *pos,
-                vertical_velocity: motion.0,
-                control_velocity,
-                external_displacement: knockback.map_or(Vec3::ZERO, |velocity| velocity.step(delta)),
-                delta,
-            },
-            &CharacterEnvironment {
-                collision_world,
-                gravity: map_settings.gravity_for(has_low_gravity),
-                passable_kinds: &passable_kinds,
-                physics: player_physics,
-                ladder_climb_ratio: gameplay_config.movement.ladder_climb_ratio,
-                portals: Some(portal_set),
-            },
-        );
+        let step = step_player_movement(PlayerMovementStep {
+            start: *pos,
+            vertical_velocity: motion.0,
+            control_velocity,
+            additional_displacement: Vec3::ZERO,
+            delta,
+            has_low_gravity,
+            held_keys,
+            open_barrier_kinds: &open_barrier_kinds.0,
+            knockback,
+            portal_momentum: momentum.as_deref_mut(),
+            collision_world,
+            map_settings,
+            gameplay_config,
+            portal_set,
+        });
         if let Some(info) = players.get_mut(player_id) {
             info.life.fall_state.set_support(step.support);
         }
@@ -163,7 +146,7 @@ fn plan_player_moves(
 
 fn apply_player_moves(query: &mut PlayerMovementQuery, planned_moves: &[CharacterMovePlan]) {
     for planned_move in planned_moves {
-        let Ok((_, mut pos, mut motion, _, _, _)) = query.get_mut(planned_move.entity) else {
+        let Ok((_, mut pos, mut motion, _, _, _, _)) = query.get_mut(planned_move.entity) else {
             continue;
         };
 

@@ -7,8 +7,10 @@ use crate::{
     config::{CharacterPhysicsConfig, GameplayConfig},
     constants::{PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH, PORTAL_LIGHT_CLEARANCE},
     math::angle_delta_radians,
-    physics::CollisionWorld,
-    protocol::{MapLayout, PlayerId, PlayerMoveIntent, Portal, PortalEnd},
+    physics::{
+        CharacterMovementResult, CharacterSupport, CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity,
+    },
+    protocol::{FaceYaw, MapLayout, PlayerId, PlayerMoveIntent, Portal, PortalEnd, Position},
 };
 
 const CAP: f32 = 22.5;
@@ -131,12 +133,20 @@ fn same_wall_hop_maps_held_input_away_from_the_exit() {
             physics,
             control,
             Vec3::ZERO,
+            Vec3::ZERO,
             0.0,
             PI,
             CAP,
         )
         .expect("same-wall entry did not hop");
-    let mapped = traverse_move_intent(&hop.entry, &hop.exit, intent);
+    let mut position = Position::default();
+    let mut face_yaw = FaceYaw(PI);
+    let mut vertical_velocity = CharacterVerticalVelocity(0.0);
+    let mut mapped = intent;
+    hop.apply_player_state(&mut position, &mut face_yaw, &mut vertical_velocity, &mut mapped);
+    assert_eq!(position, hop.origin.into());
+    assert_eq!(face_yaw.0, hop.yaw);
+    assert_eq!(vertical_velocity.0, hop.vertical_velocity);
     let mapped_direction = mapped.direction().expect("running intent became idle");
     assert!(angle_delta_radians(mapped_direction, 0.0).abs() < 1e-4);
 
@@ -150,6 +160,7 @@ fn same_wall_hop_maps_held_input_away_from_the_exit() {
             physics,
             next_control,
             hop.knockback,
+            hop.portal_momentum,
             hop.vertical_velocity,
             hop.yaw,
             CAP,
@@ -205,7 +216,7 @@ fn square_on_wall_entry_to_floor_exit_faces_the_exit_up() {
 }
 
 #[test]
-fn falling_into_floor_portal_carries_out_of_wall_as_knockback() {
+fn falling_into_floor_portal_carries_out_of_wall_as_portal_momentum() {
     let set = pair(Vec3::new(0.0, 0.0, 0.0), Vec3::Y, Vec3::new(10.0, 2.0, 0.0), Vec3::X);
     let hop = set
         .character_hop(
@@ -214,13 +225,15 @@ fn falling_into_floor_portal_carries_out_of_wall_as_knockback() {
             player_physics(),
             Vec3::ZERO,
             Vec3::ZERO,
+            Vec3::ZERO,
             -10.0,
             0.0,
             CAP,
         )
         .expect("fall through a floor portal did not trigger");
     assert!(hop.vertical_velocity.abs() < 1e-4);
-    assert!((hop.knockback - Vec3::new(10.0, 0.0, 0.0)).length() < 1e-4);
+    assert!(hop.knockback.length() < 1e-4);
+    assert!((hop.portal_momentum - Vec3::new(10.0, 0.0, 0.0)).length() < 1e-4);
 }
 
 #[test]
@@ -233,16 +246,92 @@ fn walking_into_wall_portal_exits_floor_portal_upward() {
             player_physics(),
             Vec3::new(0.0, 0.0, -6.0),
             Vec3::ZERO,
+            Vec3::ZERO,
             0.0,
             PI,
             CAP,
         )
         .expect("walk through a wall portal did not trigger");
-    // Control maps into the vertical write but not the carry.
+    // Control maps into the vertical write but not either momentum carry.
     assert!((hop.vertical_velocity - 6.0).abs() < 1e-4);
     assert!(hop.knockback.length() < 1e-4);
+    assert!(hop.portal_momentum.length() < 1e-4);
     // Emerges half-in: the crossing penetration is carried through.
     assert!((hop.origin.y - (0.1 - 0.9)).abs() < 1e-4);
+}
+
+#[test]
+fn falling_into_floor_portal_exits_ramp_at_its_normal_angle() {
+    let ramp_normal = Vec3::new(0.0, 0.6, 0.8);
+    let set = pair(
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::Y,
+        Vec3::new(10.0, 2.0, 10.0),
+        ramp_normal,
+    );
+    let gameplay = GameplayConfig::load_default().expect("default gameplay config should load");
+    let hop = set
+        .player_hop(
+            Vec3::new(0.0, -0.85, 0.0),
+            Vec3::new(0.0, -0.95, 0.0),
+            &gameplay,
+            PlayerMoveIntent::Idle,
+            false,
+            false,
+            None,
+            None,
+            -10.0,
+            0.0,
+        )
+        .expect("floor-to-ramp portal crossing missing");
+    let exit_velocity = hop.portal_momentum + hop.knockback + Vec3::Y * hop.vertical_velocity;
+
+    assert!((exit_velocity - ramp_normal * 10.0).length() < 1e-4);
+    assert!(hop.knockback.length() < 1e-4);
+    assert!(hop.portal_momentum.z > 1.0);
+}
+
+#[test]
+fn portal_momentum_does_not_decay_between_airborne_steps() {
+    let momentum = PortalMomentum(Vec3::new(3.0, 0.0, -6.0));
+
+    assert_eq!(momentum.step(0.1), Vec3::new(0.3, 0.0, -0.6));
+    assert_eq!(momentum.step(0.1), Vec3::new(0.3, 0.0, -0.6));
+}
+
+#[test]
+fn shared_momentum_displacement_combines_blast_and_portal_velocity() {
+    let knockback = KnockbackVelocity(Vec3::X * 2.0);
+    let momentum = PortalMomentum(Vec3::Z * 3.0);
+
+    assert_eq!(
+        momentum_displacement(Some(&knockback), Some(&momentum), 0.5),
+        Vec3::new(1.0, 0.0, 1.5)
+    );
+}
+
+#[test]
+fn portal_momentum_ends_on_support_or_collision() {
+    let airborne = CharacterMovementResult {
+        position: Default::default(),
+        vertical_velocity: 1.0,
+        support: CharacterSupport::Airborne,
+        blocked: false,
+    };
+    let mut momentum = PortalMomentum(Vec3::X);
+    momentum.finish_step(&airborne);
+    assert_eq!(momentum.0, Vec3::X);
+
+    let mut landed = airborne;
+    landed.support = CharacterSupport::Ground;
+    momentum.finish_step(&landed);
+    assert_eq!(momentum.0, Vec3::ZERO);
+
+    let mut blocked = airborne;
+    blocked.blocked = true;
+    let mut momentum = PortalMomentum(Vec3::X);
+    momentum.finish_step(&blocked);
+    assert_eq!(momentum.0, Vec3::ZERO);
 }
 
 #[test]
@@ -254,6 +343,7 @@ fn crossing_the_plane_triggers_and_carries_penetration() {
             Vec3::new(0.0, 0.7, -0.05),
             player_physics(),
             Vec3::new(0.0, 0.0, -6.0),
+            Vec3::ZERO,
             Vec3::ZERO,
             0.0,
             PI,
@@ -274,6 +364,7 @@ fn approaching_without_crossing_does_not_trigger() {
         player_physics(),
         Vec3::new(0.0, 0.0, -6.0),
         Vec3::ZERO,
+        Vec3::ZERO,
         0.0,
         PI,
         CAP,
@@ -290,6 +381,7 @@ fn crossing_from_behind_does_not_trigger() {
         player_physics(),
         Vec3::new(0.0, 0.0, 1.0),
         Vec3::ZERO,
+        Vec3::ZERO,
         0.0,
         0.0,
         CAP,
@@ -305,6 +397,7 @@ fn crossing_outside_the_aperture_does_not_trigger() {
         Vec3::new(2.0, 0.7, -0.05),
         player_physics(),
         Vec3::new(0.0, 0.0, -6.0),
+        Vec3::ZERO,
         Vec3::ZERO,
         0.0,
         PI,
@@ -324,6 +417,7 @@ fn off_center_crossing_uses_the_full_rectangle() {
         player_physics(),
         Vec3::new(0.0, 0.0, -6.0),
         Vec3::ZERO,
+        Vec3::ZERO,
         0.0,
         PI,
         CAP,
@@ -340,8 +434,9 @@ fn knockback_carry_is_capped() {
             Vec3::new(0.0, -0.95, 0.0),
             player_physics(),
             Vec3::ZERO,
+            Vec3::X * 50.0,
             Vec3::ZERO,
-            -50.0,
+            -1.0,
             0.0,
             CAP,
         )
@@ -401,7 +496,7 @@ fn half_placed_pair_is_inert() {
 }
 
 use crate::constants::{FLOOR_THICKNESS, WALL_THICKNESS};
-use crate::protocol::{BarrierKindTable, Floor, PlatePurpose, Position, PressurePlate, Wall, WallLight};
+use crate::protocol::{BarrierKindTable, Floor, PlatePurpose, PressurePlate, Wall, WallLight};
 
 // One 12 m wall along X at z = 0 (level 0) with the room floor on +Z.
 fn placement_layout() -> MapLayout {
@@ -502,8 +597,18 @@ fn swept_portal_gate_uses_the_plane_crossing_point() {
             .is_empty()
     );
     assert!(
-        set.character_hop(inside_from, inside_to, physics, inside_move, Vec3::ZERO, 0.0, PI, CAP,)
-            .is_some()
+        set.character_hop(
+            inside_from,
+            inside_to,
+            physics,
+            inside_move,
+            Vec3::ZERO,
+            Vec3::ZERO,
+            0.0,
+            PI,
+            CAP,
+        )
+        .is_some()
     );
 
     let outside_from = Vec3::new(0.65, 0.7, placement.pos.z + 0.15);
@@ -519,6 +624,7 @@ fn swept_portal_gate_uses_the_plane_crossing_point() {
             outside_to,
             physics,
             outside_move,
+            Vec3::ZERO,
             Vec3::ZERO,
             0.0,
             PI,
@@ -680,6 +786,7 @@ fn perpetual_floor_fall_keeps_its_speed_across_hops() {
             physics,
             Vec3::ZERO,
             Vec3::ZERO,
+            Vec3::ZERO,
             vertical_velocity,
             0.0,
             22.5,
@@ -767,6 +874,7 @@ fn floor_to_ceiling_fall_accelerates_toward_terminal_velocity() {
             physics,
             Vec3::ZERO,
             Vec3::ZERO,
+            Vec3::ZERO,
             vertical_velocity,
             0.0,
             22.5,
@@ -812,6 +920,7 @@ fn aperture_offset_carries_through_an_opposing_pair() {
             player_physics(),
             Vec3::ZERO,
             Vec3::ZERO,
+            Vec3::ZERO,
             -5.0,
             0.0,
             CAP,
@@ -835,6 +944,7 @@ fn carried_offset_is_clamped_to_the_exit_aperture() {
             Vec3::new(0.55, -0.85, 0.0),
             Vec3::new(0.55, -0.95, 0.0),
             physics,
+            Vec3::ZERO,
             Vec3::ZERO,
             Vec3::ZERO,
             -5.0,
@@ -918,6 +1028,7 @@ fn steering_sideways_escapes_a_portal_fall_chain() {
             physics,
             control,
             Vec3::ZERO,
+            Vec3::ZERO,
             vertical_velocity,
             0.0,
             22.5,
@@ -941,6 +1052,7 @@ fn an_external_teleport_is_not_a_crossing() {
         Vec3::new(0.0, 50.0, 0.15),
         Vec3::new(0.0, 0.7, -0.05),
         player_physics(),
+        Vec3::ZERO,
         Vec3::ZERO,
         Vec3::ZERO,
         0.0,
@@ -1129,6 +1241,7 @@ fn misaligned_fall_loop_is_sustained_by_funneling() {
             Vec3::from(from),
             Vec3::from(pos),
             physics,
+            Vec3::ZERO,
             Vec3::ZERO,
             Vec3::ZERO,
             vertical_velocity,
