@@ -4,15 +4,6 @@ use bevy::prelude::*;
 
 use common::protocol::{ItemId, ItemType, MapWeaponSettings};
 
-#[must_use]
-pub(super) const fn item_enabled(item_type: ItemType, weapons: MapWeaponSettings) -> bool {
-    match item_type {
-        ItemType::MultiShotPowerUp => weapons.projectiles,
-        ItemType::MissilePack => weapons.missiles,
-        _ => true,
-    }
-}
-
 pub enum ItemPlacement {
     // World-spawned by the random spawner; despawns outright on pickup or
     // once `RandomItems::despawn_secs` elapses.
@@ -56,7 +47,7 @@ impl RandomItems {
                     ItemType::from_config_id(id)
                         .expect("random item type missing from ItemType config ids after config validation")
                 })
-                .filter(|item_type| item_enabled(*item_type, weapons))
+                .filter(|item_type| weapons.allows_item(*item_type))
                 .collect(),
             max_number: random_items_config.max_number,
             despawn_secs: random_items_config.despawn_secs,

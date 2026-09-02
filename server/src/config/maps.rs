@@ -4,7 +4,7 @@ use anyhow::{Result, bail};
 use serde::Deserialize;
 
 use super::validation::validate_positive_finite;
-use common::protocol::{ItemType, MapSettings};
+use common::protocol::{ItemType, MapSettings, MapWeaponSettings};
 
 // Server-side wrapper around the wire `MapSettings`: the flattened settings
 // ship to clients in `SInit`, while the rest stays server-only.
@@ -95,7 +95,7 @@ pub(super) fn validate_maps(maps: &HashMap<String, MapServerConfig>, default_map
             bail!("{path}.low_gravity must be >= 0");
         }
         if let Some(random_items) = &entry.random_items {
-            random_items.validate(&format!("{path}.random_items"))?;
+            random_items.validate(&format!("{path}.random_items"), entry.settings.weapons)?;
         }
     }
     if !maps.contains_key(default_map) {
@@ -107,23 +107,28 @@ pub(super) fn validate_maps(maps: &HashMap<String, MapServerConfig>, default_map
 }
 
 impl RandomItemsConfig {
-    fn validate(&self, path: &str) -> Result<()> {
+    fn validate(&self, path: &str, weapons: MapWeaponSettings) -> Result<()> {
         if self.types.is_empty() {
             bail!("{path}.types must not be empty");
         }
         let mut seen: HashSet<&str> = HashSet::with_capacity(self.types.len());
+        let mut spawnable = 0usize;
         for ty in &self.types {
             if ty == ItemType::KEY_CONFIG_ID {
                 bail!(
                     "{path}.types: keys are parameterized by barrier kind and cannot spawn randomly; place them in the map's `items` list"
                 );
             }
-            if ItemType::from_config_id(ty).is_none() {
+            let Some(item_type) = ItemType::from_config_id(ty) else {
                 bail!("{path}.types contains unknown item type {ty:?}");
-            }
+            };
             if !seen.insert(ty.as_str()) {
                 bail!("{path}.types contains duplicate {ty:?}");
             }
+            spawnable += usize::from(weapons.allows_item(item_type));
+        }
+        if spawnable == 0 {
+            bail!("{path}.types holds only pickups for weapons this map disables");
         }
         if self.max_number == 0 {
             bail!("{path}.max_number must be >= 1");
@@ -313,6 +318,25 @@ mod tests {
         let maps = one_map_with_random_items("hotel", ok_random_items(&[]));
         let err = validate_maps(&maps, "hotel").expect_err("empty pool must be rejected");
         assert!(err.to_string().contains("types"));
+    }
+
+    #[test]
+    fn validate_maps_rejects_random_pool_of_only_disabled_weapon_pickups() {
+        let mut maps = one_map_with_random_items("hotel", ok_random_items(&["missile_pack", "multi_shot"]));
+        let entry = maps.get_mut("hotel").expect("hotel entry missing");
+        entry.settings.weapons.missiles = false;
+        entry.settings.weapons.projectiles = false;
+        let err = validate_maps(&maps, "hotel").expect_err("fully disabled pool must be rejected");
+        assert!(err.to_string().contains("disables"));
+
+        maps.get_mut("hotel")
+            .expect("hotel entry missing")
+            .random_items
+            .as_mut()
+            .expect("random_items missing")
+            .types
+            .push("cookie".to_owned());
+        validate_maps(&maps, "hotel").expect("a pool with one spawnable pickup should pass");
     }
 
     #[test]

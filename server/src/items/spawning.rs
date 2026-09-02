@@ -10,7 +10,6 @@ use common::{
     protocol::{ItemId, ItemMarker, MapSettings, Position},
 };
 
-use super::resources::item_enabled;
 use super::spawn_cells::{
     ItemSpawnCell, choose_item_type, eligible_item_spawn_cells, item_spawn_cell_from_position,
     random_item_spawn_interval, target_active_random_items,
@@ -27,7 +26,7 @@ pub fn placed_item_spawn_system(
     map_settings: Res<MapSettings>,
 ) {
     for placed in &map_config.placed_items {
-        if !item_enabled(placed.item_type, map_settings.weapons) {
+        if !map_settings.weapons.allows_item(placed.item_type) {
             continue;
         }
         let item_id = ItemId(spawner.next_id);

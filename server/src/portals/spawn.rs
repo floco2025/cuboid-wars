@@ -21,15 +21,11 @@ pub fn handle_portal_shot_message(
     player_data: &PlayerStateQuery,
     collision_world: &CollisionWorld,
     map_layout: &MapLayout,
-    map_settings: &MapSettings,
     gameplay_config: &GameplayConfig,
     portal_assignments: &PortalAssignments,
     portals: &mut PortalMap,
     portal_set: &mut PortalSet,
 ) {
-    if map_settings.weapons.portals == PortalMode::None {
-        return;
-    }
     let access = portal_assignments.get(&id);
     if !access.allows(msg.end) {
         return;

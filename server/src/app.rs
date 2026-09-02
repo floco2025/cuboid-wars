@@ -43,6 +43,7 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
         map_server_config.lighting,
     );
     let random_items = RandomItems::from_config(map_server_config.random_items.as_ref(), map_settings.weapons);
+    let portal_assignments = PortalAssignments::new(map_settings.weapons.portals);
     let quest_catalog = QuestCatalog::from_config(&server_gameplay_config);
     let quest_board = QuestBoard::from_catalog(&quest_catalog);
 
@@ -93,7 +94,7 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
         .insert_resource(PendingExplosions::default())
         .insert_resource(MissileMap::default())
         .insert_resource(PortalMap::default())
-        .insert_resource(PortalAssignments::default())
+        .insert_resource(portal_assignments)
         .insert_resource(PortalSet::default())
         .insert_resource(OpenBarrierKinds::default());
 

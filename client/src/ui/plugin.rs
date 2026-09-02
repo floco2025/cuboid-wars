@@ -34,6 +34,7 @@ pub fn hud_plugin(app: &mut App) {
             ui_rtt_system,
             ui_fps_system,
             ui_crosshair_system,
+            ui_crosshair_lock_system.after(ui_crosshair_system),
             death_overlay_visibility_system,
             ui_message_feed_system,
             ui_hud_banner_system,

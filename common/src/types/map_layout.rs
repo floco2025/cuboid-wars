@@ -2,7 +2,7 @@ use bevy_ecs::prelude::Resource;
 use bincode::{Decode, Encode};
 
 use super::face_materials::FaceMaterials;
-use super::{BarrierKindId, Position};
+use super::{BarrierKindId, ItemType, Position};
 
 #[derive(Debug, Clone, Encode, Decode, Copy)]
 pub struct Wall {
@@ -185,6 +185,19 @@ pub struct MapWeaponSettings {
     pub projectiles: bool,
     pub missiles: bool,
     pub portals: PortalMode,
+}
+
+impl MapWeaponSettings {
+    // A pickup for a disabled weapon never spawns or is granted: its ammo
+    // could not be fired here.
+    #[must_use]
+    pub const fn allows_item(self, item: ItemType) -> bool {
+        match item {
+            ItemType::MultiShotPowerUp => self.projectiles,
+            ItemType::MissilePack => self.missiles,
+            _ => true,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode, serde::Deserialize)]

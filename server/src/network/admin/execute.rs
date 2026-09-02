@@ -10,7 +10,7 @@ use crate::{
     config::ServerGameplayConfig,
     map::MapConfig,
     network::{ServerToClient, broadcast_firework_show},
-    players::{PlayerInfo, PlayerMap, PlayerStateQuery},
+    players::{PlayerMap, PlayerStateQuery},
     quests::{QuestBoard, QuestCatalog, complete_quest, unlock_quest},
 };
 use common::{
@@ -186,29 +186,39 @@ pub(super) fn run_admin_command(
             let Some(info) = players.get_mut(&sender) else {
                 return Private("sender not found".to_owned());
             };
+            let weapons = admin.map_settings.weapons;
             let mut given = 0usize;
-            for kind in PowerUpKind::ALL {
-                let id = kind.to_item_type().config_id();
-                grant_power_up_by_id(info, id, &admin.server_gameplay_config);
-                given += 1;
+            for item_type in PowerUpKind::ALL.map(PowerUpKind::to_item_type) {
+                if weapons.allows_item(item_type) {
+                    info.grant_power_up(item_type, &admin.server_gameplay_config.power_ups);
+                    given += 1;
+                }
             }
             Private(format!("gave {given} power-ups"))
         }
         AdminCommand::GivePowerup(power_up) => {
             let power_up_ids = PowerUpKind::ALL.map(|kind| kind.to_item_type().config_id());
-            if !power_up_ids.contains(&power_up.as_str()) {
+            let Some(item_type) =
+                ItemType::from_config_id(&power_up).filter(|_| power_up_ids.contains(&power_up.as_str()))
+            else {
                 return Private(format!(
                     "unknown power-up {power_up:?} (power-ups: {})",
                     power_up_ids.join(", ")
                 ));
+            };
+            if !admin.map_settings.weapons.allows_item(item_type) {
+                return Private(format!("the {power_up} power-up is disabled on this map"));
             }
             let Some(info) = players.get_mut(&sender) else {
                 return Private("sender not found".to_owned());
             };
-            grant_power_up_by_id(info, &power_up, &admin.server_gameplay_config);
+            info.grant_power_up(item_type, &admin.server_gameplay_config.power_ups);
             Private(format!("gave the {power_up} power-up"))
         }
         AdminCommand::GiveMissiles => {
+            if !admin.map_settings.weapons.missiles {
+                return Private("missiles are disabled on this map".to_owned());
+            }
             let Some(info) = players.get_mut(&sender) else {
                 return Private("sender not found".to_owned());
             };
@@ -383,17 +393,12 @@ fn kill_targets(
     count
 }
 
-fn grant_power_up_by_id(info: &mut PlayerInfo, id: &str, config: &ServerGameplayConfig) {
-    if let Some(item_type) = ItemType::from_config_id(id) {
-        info.grant_power_up(item_type, &config.power_ups);
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use common::protocol::BarrierKindTable;
 
     use super::*;
+    use crate::players::PlayerInfo;
 
     #[test]
     fn give_key_and_powerup_mutate_sender_state() {
@@ -409,7 +414,7 @@ mod tests {
         assert!(!info.add_key(kind), "second add of the same key must be a no-op");
 
         let config = ServerGameplayConfig::load_default().expect("default server gameplay config failed to load");
-        grant_power_up_by_id(&mut info, "speed", &config);
+        info.grant_power_up(ItemType::SpeedPowerUp, &config.power_ups);
         assert!(
             info.life.power_up_timers[common::protocol::PowerUpKind::Speed.index()] > 0.0,
             "speed timer must be armed"

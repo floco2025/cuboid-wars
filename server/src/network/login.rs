@@ -57,7 +57,7 @@ pub(super) fn handle_login_message(
     debug!("{} logged in", players.describe(&id));
 
     let combat = &world.server_gameplay_config.combat;
-    let portal_access = portal_assignments.assign(id, world.map_settings.weapons.portals);
+    let portal_access = portal_assignments.assign(id);
     let init_message = ServerMessage::Init(SInit {
         id,
         portal_access,

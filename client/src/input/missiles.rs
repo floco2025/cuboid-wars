@@ -14,7 +14,7 @@ use crate::{
 };
 use common::{config::GameplayConfig, protocol::*};
 
-use super::portals::WeaponMode;
+use super::WeaponMode;
 
 // Selected-weapon fire: a seeking missile at the locked target. With
 // `missiles.require_lock` off, an unlocked shot launches unguided along the
@@ -39,12 +39,8 @@ pub fn input_missile_system(
     mut players: ResMut<PlayerMap>,
     local_player_info: Res<LocalPlayerInfo>,
     gameplay_config: Res<GameplayConfig>,
-    map_settings: Option<Res<MapSettings>>,
 ) {
-    if local_player_info.is_dead
-        || *mode != WeaponMode::Missile
-        || map_settings.is_none_or(|settings| !settings.weapons.missiles)
-    {
+    if local_player_info.is_dead || *mode != WeaponMode::Missile {
         return;
     }
     let cursor_locked = cursor_options.grab_mode != CursorGrabMode::None;

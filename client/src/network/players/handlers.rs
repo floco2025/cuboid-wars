@@ -91,7 +91,7 @@ pub(in crate::network) fn handle_player_shot_message(
     if let Some(player) = context.players.get(&message.id) {
         commands.entity(player.entity).insert(FaceYaw(message.face_yaw));
 
-        // Spawn projectile(s) based on player's multi-shot power-up status
+        // `pattern` is already server-resolved against the shooter's power-up.
         if let Ok((position, _, _)) = context.player_data.get(player.entity)
             && let Some(collision_world) = context.collision_world.as_deref()
         {

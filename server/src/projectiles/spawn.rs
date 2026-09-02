@@ -6,7 +6,7 @@ use crate::{
     players::{PlayerMap, PlayerStateQuery},
 };
 use common::{
-    config::GameplayConfig,
+    config::{GameplayConfig, MultiShotConfig},
     physics::{CollisionWorld, ProjectileMotion, calculate_projectile_spawns},
     protocol::*,
 };
@@ -43,7 +43,11 @@ pub fn handle_shot_message(
     else {
         return;
     };
-    let actual_pattern = resolved_pattern(has_multi_shot, msg.pattern.as_deref(), gameplay_config);
+    let actual_pattern = resolved_pattern(
+        has_multi_shot,
+        msg.pattern.as_deref(),
+        &gameplay_config.projectiles.multi_shot,
+    );
 
     commands.entity(entity).insert(FaceYaw(msg.face_yaw));
 
@@ -94,12 +98,12 @@ pub fn handle_shot_message(
 fn resolved_pattern<'a>(
     has_multi_shot: bool,
     requested: Option<&'a str>,
-    gameplay_config: &'a GameplayConfig,
+    multi_shot: &'a MultiShotConfig,
 ) -> Option<&'a str> {
     has_multi_shot.then(|| {
         requested
-            .and_then(|name| gameplay_config.projectiles.multi_shot.pattern(name).map(|_| name))
-            .unwrap_or_else(|| gameplay_config.projectiles.multi_shot.first_allowed_pattern().0)
+            .and_then(|name| multi_shot.pattern(name).map(|_| name))
+            .unwrap_or_else(|| multi_shot.first_allowed_pattern().0)
     })
 }
 
@@ -109,11 +113,14 @@ mod tests {
 
     #[test]
     fn authoritative_pattern_requires_power_and_falls_back_to_first_allowed() {
-        let gameplay = GameplayConfig::load_default().expect("default gameplay config failed to load");
-        assert_eq!(resolved_pattern(false, Some("line_5"), &gameplay), None);
-        assert_eq!(resolved_pattern(true, Some("line_5"), &gameplay), Some("line_5"));
-        assert_eq!(resolved_pattern(true, Some("dice_5"), &gameplay), Some("star_4"));
-        assert_eq!(resolved_pattern(true, Some("unknown"), &gameplay), Some("star_4"));
-        assert_eq!(resolved_pattern(true, None, &gameplay), Some("star_4"));
+        let multi_shot: MultiShotConfig = serde_json::from_str(
+            r#"{"spread_degrees":2.0,"allowed_patterns":["first_2","second_2"],"patterns":{"first_2":{"stencil":["xo"]},"second_2":{"stencil":["xo"]},"dormant_2":{"stencil":["xo"]}}}"#,
+        )
+        .expect("test multi-shot config failed to parse");
+        assert_eq!(resolved_pattern(false, Some("second_2"), &multi_shot), None);
+        assert_eq!(resolved_pattern(true, Some("second_2"), &multi_shot), Some("second_2"));
+        assert_eq!(resolved_pattern(true, Some("dormant_2"), &multi_shot), Some("first_2"));
+        assert_eq!(resolved_pattern(true, Some("unknown"), &multi_shot), Some("first_2"));
+        assert_eq!(resolved_pattern(true, None, &multi_shot), Some("first_2"));
     }
 }

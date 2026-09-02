@@ -256,17 +256,21 @@ impl MultiShotConfig {
             .filter(|_| self.allowed_patterns.iter().any(|allowed| allowed == name))
     }
 
+    // The `index`-th allowed pattern, in cycle order.
     #[must_use]
-    pub fn first_allowed_pattern(&self) -> (&str, &MultiShotPatternConfig) {
-        let name = self
-            .allowed_patterns
-            .first()
-            .expect("allowed multi-shot patterns missing after config validation");
+    pub fn allowed_pattern(&self, index: usize) -> Option<(&str, &MultiShotPatternConfig)> {
+        let name = self.allowed_patterns.get(index)?;
         let pattern = self
             .patterns
             .get(name)
             .expect("allowed multi-shot pattern missing after config validation");
-        (name, pattern)
+        Some((name, pattern))
+    }
+
+    #[must_use]
+    pub fn first_allowed_pattern(&self) -> (&str, &MultiShotPatternConfig) {
+        self.allowed_pattern(0)
+            .expect("allowed multi-shot patterns missing after config validation")
     }
 
     #[cfg(test)]
@@ -325,9 +329,6 @@ impl MultiShotPatternConfig {
             .into_iter()
             .map(|(col, row)| (-(col - aim_col) * column_step, (aim_row - row) * row_step))
             .collect();
-        if shots.is_empty() {
-            bail!("{path}.stencil must contain at least one shot");
-        }
         if shots.len() > MULTI_SHOT_MAX_SHOTS {
             bail!(
                 "{path}.stencil has {} shots; max is {MULTI_SHOT_MAX_SHOTS}",

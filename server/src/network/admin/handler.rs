@@ -12,7 +12,7 @@ use crate::{
 };
 use common::{
     config::GameplayConfig,
-    protocol::{BarrierKindTable, CAdmin, PlayerId},
+    protocol::{BarrierKindTable, CAdmin, MapSettings, PlayerId},
 };
 
 fn admin_authorized(_info: &PlayerInfo) -> bool {
@@ -29,6 +29,7 @@ pub struct AdminContext<'w> {
     pub unlimited_missiles: ResMut<'w, UnlimitedMissiles>,
     pub actor_spawn_throttles: ResMut<'w, ActorSpawnThrottles>,
     pub server_gameplay_config: Res<'w, ServerGameplayConfig>,
+    pub map_settings: Res<'w, MapSettings>,
     pub barrier_kind_table: Res<'w, BarrierKindTable>,
     pub quest_catalog: Res<'w, QuestCatalog>,
 }

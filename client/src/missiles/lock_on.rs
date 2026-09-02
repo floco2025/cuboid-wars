@@ -14,7 +14,7 @@ use crate::{
 use common::{
     config::GameplayConfig,
     physics::{CollisionWorld, acquire_lock},
-    protocol::{ActorMarker, FaceYaw, HomingTarget, MapSettings, MissileMarker, PlayerMarker, Position},
+    protocol::{ActorMarker, FaceYaw, HomingTarget, MissileMarker, PlayerMarker, Position},
 };
 
 type LockCandidateQuery<'w, 's> = Query<
@@ -40,7 +40,6 @@ pub fn lock_on_system(
     collision_world: Option<Res<CollisionWorld>>,
     gameplay_config: Res<GameplayConfig>,
     weapon_mode: Res<WeaponMode>,
-    map_settings: Option<Res<MapSettings>>,
 ) {
     let new_lock = compute_lock(
         &view_mode,
@@ -55,9 +54,8 @@ pub fn lock_on_system(
         collision_world.as_deref(),
         &gameplay_config,
         &weapon_mode,
-        map_settings.as_deref(),
     );
-    // Write only on change so the crosshair system's `is_changed()` gate works.
+    // Write only on change so `ui_crosshair_lock_system`'s `is_changed()` gate works.
     if lock.0 != new_lock {
         lock.0 = new_lock;
     }
@@ -77,14 +75,12 @@ fn compute_lock(
     collision_world: Option<&CollisionWorld>,
     gameplay_config: &GameplayConfig,
     weapon_mode: &WeaponMode,
-    map_settings: Option<&MapSettings>,
 ) -> Option<HomingTarget> {
     if !view_mode.is_first_person()
         || cursor_options.grab_mode == CursorGrabMode::None
         || local_player_info.is_dead
         || console.open
         || *weapon_mode != WeaponMode::Missile
-        || map_settings.is_none_or(|settings| !settings.weapons.missiles)
     {
         return None;
     }

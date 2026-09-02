@@ -11,21 +11,19 @@ use crate::{
     cameras::{CameraViewMode, MainCameraMarker},
     config::AssetSet,
     network::{ClientToServer, ClientToServerChannel},
-    players::{LocalPlayerInfo, LocalPlayerMarker, MyPlayerId, PlayerMap},
+    players::{LocalPlayerInfo, LocalPlayerMarker, MyPlayerId},
     projectiles::{ProjectileAssets, spawn_projectiles},
 };
 use common::{config::GameplayConfig, physics::CollisionWorld, protocol::*};
 
-use super::portals::WeaponMode;
+use super::WeaponMode;
 
 // Bundles the shooter-identity resources so `input_shooting_system` stays
 // under Bevy's 16-parameter system tuple limit.
 #[derive(SystemParam)]
 pub struct ShooterContext<'w> {
     pub my_player_id: Option<Res<'w, MyPlayerId>>,
-    pub players: Res<'w, PlayerMap>,
     pub open_barrier_kinds: Res<'w, OpenBarrierKinds>,
-    pub map_settings: Option<Res<'w, MapSettings>>,
 }
 
 // ============================================================================
@@ -50,22 +48,15 @@ pub fn input_shooting_system(
     time: Res<Time>,
     mut local_player_info: ResMut<LocalPlayerInfo>,
 ) {
-    if local_player_info.is_dead
-        || shooter
-            .map_settings
-            .as_ref()
-            .is_none_or(|settings| !settings.weapons.projectiles)
-    {
+    if local_player_info.is_dead {
         return;
     }
-    let has_multi_shot = shooter
-        .my_player_id
-        .as_ref()
-        .and_then(|id| shooter.players.get(&id.0))
-        .is_some_and(|info| info.power_up(PowerUpKind::MultiShot));
-    let pattern = match mode.as_ref() {
-        WeaponMode::Projectile if !has_multi_shot => None,
-        WeaponMode::MultiShot(name) if has_multi_shot => Some(name.as_str()),
+    let pattern = match *mode {
+        WeaponMode::Projectile => None,
+        WeaponMode::MultiShot(index) => match gameplay_config.projectiles.multi_shot.allowed_pattern(index) {
+            Some((name, _)) => Some(name),
+            None => return,
+        },
         _ => return,
     };
     // Only allow shooting when cursor is locked

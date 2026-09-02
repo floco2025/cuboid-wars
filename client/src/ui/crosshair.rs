@@ -1,4 +1,4 @@
-use bevy::{math::Rot2, prelude::*};
+use bevy::{ecs::system::EntityCommands, math::Rot2, prelude::*};
 
 use super::settings_menu::SettingsMenuState;
 use crate::{
@@ -9,7 +9,6 @@ use crate::{
     },
     input::WeaponMode,
     missiles::LockOnTarget,
-    players::{MyPlayerId, PlayerMap},
 };
 use common::{config::GameplayConfig, protocol::*};
 
@@ -22,56 +21,33 @@ const MISSILE_RETICLE_SIZE_PX: f32 = 34.0;
 #[derive(Component)]
 pub(crate) struct CrosshairMarker;
 
-#[derive(Debug, Clone, PartialEq)]
+// The missile reticle's bars; only their color follows the lock.
+#[derive(Component)]
+pub(crate) struct MissileReticleMarker;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct ReticleState {
     mode: WeaponMode,
-    locked: bool,
     portal_access: PortalAccess,
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "reticle follows weapon, player power-up, lock, and map state"
-)]
 pub(crate) fn ui_crosshair_system(
     mut commands: Commands,
     mode: Res<WeaponMode>,
     lock: Res<LockOnTarget>,
-    map_settings: Option<Res<MapSettings>>,
     portal_access: Option<Res<PortalAccess>>,
-    my_player_id: Option<Res<MyPlayerId>>,
-    players: Res<PlayerMap>,
     gameplay_config: Res<GameplayConfig>,
     root: Single<(Entity, Option<&Children>), With<CrosshairMarker>>,
     mut last: Local<Option<ReticleState>>,
 ) {
-    let access = portal_access.as_deref().copied().unwrap_or(PortalAccess::None);
-    let has_multi_shot = my_player_id
-        .as_deref()
-        .and_then(|id| players.get(&id.0))
-        .is_some_and(|info| info.power_up(PowerUpKind::MultiShot));
-    let selected = map_settings.as_deref().and_then(|settings| match mode.as_ref() {
-        WeaponMode::Projectile if settings.weapons.projectiles && !has_multi_shot => Some(mode.as_ref().clone()),
-        WeaponMode::MultiShot(name)
-            if settings.weapons.projectiles
-                && has_multi_shot
-                && gameplay_config.projectiles.multi_shot.pattern(name).is_some() =>
-        {
-            Some(mode.as_ref().clone())
-        }
-        WeaponMode::Missile if settings.weapons.missiles => Some(WeaponMode::Missile),
-        WeaponMode::Portal if access != PortalAccess::None => Some(WeaponMode::Portal),
-        _ => None,
-    });
-    let state = selected.map(|mode| ReticleState {
-        mode,
-        locked: lock.0.is_some(),
-        portal_access: access,
-    });
-    if *last == state {
+    let state = ReticleState {
+        mode: *mode,
+        portal_access: portal_access.as_deref().copied().unwrap_or(PortalAccess::None),
+    };
+    if *last == Some(state) {
         return;
     }
-    *last = state.clone();
+    *last = Some(state);
 
     let (root_entity, children) = *root;
     if let Some(children) = children {
@@ -79,17 +55,13 @@ pub(crate) fn ui_crosshair_system(
             commands.entity(*child).despawn();
         }
     }
-    let Some(state) = state else {
-        return;
-    };
-    commands.entity(root_entity).with_children(|parent| match &state.mode {
+    commands.entity(root_entity).with_children(|parent| match state.mode {
+        WeaponMode::None => {}
         WeaponMode::Projectile => spawn_crosshair(parent, Vec2::ZERO, CROSSHAIR_SIZE_PX, CROSSHAIR_COLOR),
-        WeaponMode::MultiShot(name) => {
-            let pattern = gameplay_config
-                .projectiles
-                .multi_shot
-                .pattern(name)
-                .expect("selected multi-shot pattern missing from gameplay config");
+        WeaponMode::MultiShot(index) => {
+            let Some((_, pattern)) = gameplay_config.projectiles.multi_shot.allowed_pattern(index) else {
+                return;
+            };
             for (offset, center) in pattern_reticle_offsets(pattern.shots()) {
                 spawn_crosshair(
                     parent,
@@ -103,16 +75,26 @@ pub(crate) fn ui_crosshair_system(
                 );
             }
         }
-        WeaponMode::Missile => spawn_triangle(
-            parent,
-            if state.locked {
-                CROSSHAIR_LOCK_COLOR
-            } else {
-                CROSSHAIR_COLOR
-            },
-        ),
+        WeaponMode::Missile => spawn_triangle(parent, lock_color(lock.0.is_some())),
         WeaponMode::Portal => spawn_portal_oval(parent, state.portal_access),
     });
+}
+
+pub(crate) fn ui_crosshair_lock_system(
+    lock: Res<LockOnTarget>,
+    mut bars: Query<&mut BackgroundColor, With<MissileReticleMarker>>,
+) {
+    if !lock.is_changed() {
+        return;
+    }
+    let color = lock_color(lock.0.is_some());
+    for mut bar in &mut bars {
+        bar.0 = color;
+    }
+}
+
+const fn lock_color(locked: bool) -> Color {
+    if locked { CROSSHAIR_LOCK_COLOR } else { CROSSHAIR_COLOR }
 }
 
 fn pattern_reticle_offsets(shots: &[(f32, f32)]) -> Vec<(Vec2, bool)> {
@@ -140,7 +122,13 @@ fn spawn_crosshair(parent: &mut ChildSpawnerCommands, center: Vec2, size: f32, c
     spawn_line(parent, center, size, std::f32::consts::FRAC_PI_2, color);
 }
 
-fn spawn_line(parent: &mut ChildSpawnerCommands, center: Vec2, length: f32, angle: f32, color: Color) {
+fn spawn_line<'a>(
+    parent: &'a mut ChildSpawnerCommands<'_>,
+    center: Vec2,
+    length: f32,
+    angle: f32,
+    color: Color,
+) -> EntityCommands<'a> {
     parent.spawn((
         Node {
             position_type: PositionType::Absolute,
@@ -152,7 +140,7 @@ fn spawn_line(parent: &mut ChildSpawnerCommands, center: Vec2, length: f32, angl
         },
         UiTransform::from_rotation(Rot2::radians(angle)),
         BackgroundColor(color),
-    ));
+    ))
 }
 
 fn spawn_triangle(parent: &mut ChildSpawnerCommands, color: Color) {
@@ -162,21 +150,23 @@ fn spawn_triangle(parent: &mut ChildSpawnerCommands, color: Color) {
     let base_y = height / 3.0;
     let side_mid_y = (apex_y + base_y) / 2.0;
     let angle = height.atan2(half_side);
-    spawn_line(parent, Vec2::new(0.0, base_y), MISSILE_RETICLE_SIZE_PX, 0.0, color);
+    spawn_line(parent, Vec2::new(0.0, base_y), MISSILE_RETICLE_SIZE_PX, 0.0, color).insert(MissileReticleMarker);
     spawn_line(
         parent,
         Vec2::new(-half_side / 2.0, side_mid_y),
         MISSILE_RETICLE_SIZE_PX,
         -angle,
         color,
-    );
+    )
+    .insert(MissileReticleMarker);
     spawn_line(
         parent,
         Vec2::new(half_side / 2.0, side_mid_y),
         MISSILE_RETICLE_SIZE_PX,
         angle,
         color,
-    );
+    )
+    .insert(MissileReticleMarker);
 }
 
 fn spawn_portal_oval(parent: &mut ChildSpawnerCommands, access: PortalAccess) {

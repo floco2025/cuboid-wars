@@ -5,7 +5,8 @@
 // "X changed" things belong in the snapshot, not a new event.
 //
 // 1. Bootstrap (`SInit`) — sent once at connect with session-level state
-//    (`PlayerId`, static `MapLayout`, per-map `MapSettings`).
+//    (`PlayerId`, the player's `PortalAccess`, static `MapLayout`, per-map
+//    `MapSettings`).
 //
 // 2. State snapshot (`SSnapshot`) — the authoritative current state of every
 //    player, actor, and item (plus shared world state such as open barrier
@@ -175,6 +176,7 @@ pub struct CChat {
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SInit {
     pub id: PlayerId,
+    // The portal end(s) this player places, fixed for the session.
     pub portal_access: PortalAccess,
     pub map_layout: MapLayout,
     pub map_settings: MapSettings,
