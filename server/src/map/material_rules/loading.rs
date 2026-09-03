@@ -57,13 +57,11 @@ pub(super) fn wall_edge_key(from: [i32; 2], to: [i32; 2]) -> ([i32; 2], [i32; 2]
 #[cfg(test)]
 mod tests {
     use super::super::MaterialRules;
-    use crate::{config::ServerGameplayConfig, map::generation::map_path};
+    use crate::map::generation::map_path;
 
     #[test]
-    fn default_map_material_rules_build_from_def() {
-        let config = ServerGameplayConfig::load_default().expect("default server gameplay config should load");
-        let map_def =
-            crate::map::definition::load_map(&map_path(&config.default_map)).expect("default map should load");
+    fn hotel_material_rules_build_from_def() {
+        let map_def = crate::map::definition::load_map(&map_path("hotel")).expect("hotel map should load");
         let rules = MaterialRules::from_def(&map_def);
         assert!(!rules.segments.floors.is_empty());
         assert!(!rules.segments.walls.is_empty());

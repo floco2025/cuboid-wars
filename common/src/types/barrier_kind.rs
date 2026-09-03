@@ -9,9 +9,8 @@ use bincode::{Decode, Encode};
 // barrier kinds — more than enough for any reasonable game.
 pub const BARRIER_KIND_MAX: usize = 29;
 
-// Stable on-wire index into the configured barrier-kind table. The table is
-// shared by client and server (both loading `config/common/gameplay.json`).
-// Order in the config defines indices.
+// Stable on-wire index into the selected map's barrier-kind table. The server
+// sends the configured order during bootstrap so both sides use the same indices.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode)]
 pub struct BarrierKindId(pub u16);
 

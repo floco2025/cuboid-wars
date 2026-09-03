@@ -30,8 +30,8 @@ pub(in crate::network) fn sync_portals(
         }
     });
 
-    if changed && let Some(collision_world) = context.collision_world.as_deref() {
-        *context.portal_set = PortalSet::rebuild(server_portals, collision_world);
+    if changed {
+        *context.portal_set = PortalSet::rebuild(server_portals, &context.collision_world);
     }
 }
 

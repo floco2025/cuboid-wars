@@ -288,8 +288,8 @@ mod tests {
 
     #[test]
     fn pickups_without_effect_stay_in_the_world() {
-        let config = GameplayConfig::load_default().expect("load default gameplay config");
         let server_config = ServerGameplayConfig::load_default().expect("load default server gameplay config");
+        let config = server_config.gameplay_config();
         let max_health = server_config.combat.health.player.max;
         let mut player = player();
 
@@ -343,8 +343,8 @@ mod tests {
 
     #[test]
     fn active_power_ups_are_still_collected_to_reset_their_timer() {
-        let config = GameplayConfig::load_default().expect("load default gameplay config");
         let server_config = ServerGameplayConfig::load_default().expect("load default server gameplay config");
+        let config = server_config.gameplay_config();
         let mut player = player();
         player.grant_power_up(ItemType::SpeedPowerUp, &server_config.power_ups);
         assert!(player.has_speed());

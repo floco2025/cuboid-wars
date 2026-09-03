@@ -88,7 +88,7 @@ pub(super) fn run_admin_command(
         }
         AdminCommand::KillAllPlayers => {
             let targets = alive_players(players, None);
-            let count = kill_targets(commands, players, admin, player_data, gameplay_config, &targets);
+            let count = kill_targets(commands, players, admin, player_data, &targets);
             Public(format!("killed {count} player(s)"))
         }
         AdminCommand::KillPlayer(name) => {
@@ -96,7 +96,7 @@ pub(super) fn run_admin_command(
             if targets.is_empty() {
                 return Private(format!("unknown player {name:?}"));
             }
-            let count = kill_targets(commands, players, admin, player_data, gameplay_config, &targets);
+            let count = kill_targets(commands, players, admin, player_data, &targets);
             Public(format!("killed {count} player(s)"))
         }
         AdminCommand::KillActors(kind) => {
@@ -246,9 +246,9 @@ pub(super) fn run_admin_command(
             }
             let targets = match &target {
                 PlayerTarget::Sender => vec![sender],
-                PlayerTarget::All => logged_in_players(players, None),
+                PlayerTarget::All => active_players(players, None),
                 PlayerTarget::Named(name) => {
-                    let targets = logged_in_players(players, Some(name));
+                    let targets = active_players(players, Some(name));
                     if targets.is_empty() {
                         return Private(format!("unknown player {name:?}"));
                     }
@@ -278,7 +278,7 @@ pub(super) fn run_admin_command(
         AdminCommand::Kick(name) => {
             let mut count = 0usize;
             for (_, info) in players.iter() {
-                if info.connection.logged_in && info.connection.name.to_lowercase() == name.to_lowercase() {
+                if info.connection.is_active() && info.connection.name.to_lowercase() == name.to_lowercase() {
                     let _ = info.connection.channel.send(ServerToClient::Close);
                     count += 1;
                 }
@@ -295,16 +295,16 @@ pub(super) fn run_admin_command(
 fn alive_players(players: &PlayerMap, name: Option<&str>) -> Vec<(PlayerId, Entity)> {
     players
         .iter()
-        .filter(|(_, info)| info.connection.logged_in)
+        .filter(|(_, info)| info.connection.is_active())
         .filter(|(_, info)| name.is_none_or(|name| info.connection.name.to_lowercase() == name.to_lowercase()))
         .filter_map(|(id, info)| info.entity().map(|entity| (*id, entity)))
         .collect()
 }
 
-fn logged_in_players(players: &PlayerMap, name: Option<&str>) -> Vec<PlayerId> {
+fn active_players(players: &PlayerMap, name: Option<&str>) -> Vec<PlayerId> {
     players
         .iter()
-        .filter(|(_, info)| info.connection.logged_in)
+        .filter(|(_, info)| info.connection.is_active())
         .filter(|(_, info)| name.is_none_or(|name| info.connection.name.to_lowercase() == name.to_lowercase()))
         .map(|(id, _)| *id)
         .collect()
@@ -369,7 +369,6 @@ fn kill_targets(
     players: &mut PlayerMap,
     admin: &mut AdminContext,
     player_data: &PlayerStateQuery,
-    gameplay_config: &GameplayConfig,
     targets: &[(PlayerId, Entity)],
 ) -> usize {
     let mut count = 0usize;
@@ -383,7 +382,7 @@ fn kill_targets(
             *id,
             *entity,
             *pos,
-            gameplay_config.player.respawn_secs,
+            admin.server_gameplay_config.player.respawn_secs,
             DeathSource::Admin,
             &admin.server_gameplay_config.feed,
             &mut admin.pending_explosions,

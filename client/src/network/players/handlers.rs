@@ -12,7 +12,7 @@ use crate::{
     vfx::spawn_player_explosion,
 };
 use common::{
-    config::GameplayConfig,
+    config::MapMovementConfig,
     physics::{CharacterVerticalVelocity, KnockbackVelocity, PortalMomentum, player_control_velocity},
     protocol::*,
 };
@@ -27,7 +27,7 @@ pub(in crate::network) fn handle_player_move_message(
     if let Some(player) = context.players.get(&message.id) {
         let server_velocity = player_movement_velocity(
             message.movement,
-            &context.gameplay_config,
+            &context.map_settings.movement,
             player.power_up(PowerUpKind::Speed),
             player.stunned,
         );
@@ -60,7 +60,7 @@ pub(in crate::network) fn handle_player_jump_message(
     {
         let server_velocity = player_movement_velocity(
             message.movement,
-            &context.gameplay_config,
+            &context.map_settings.movement,
             player.power_up(PowerUpKind::Speed),
             player.stunned,
         );
@@ -92,9 +92,7 @@ pub(in crate::network) fn handle_player_shot_message(
         commands.entity(player.entity).insert(FaceYaw(message.face_yaw));
 
         // `pattern` is already server-resolved against the shooter's power-up.
-        if let Ok((position, _, _)) = context.player_data.get(player.entity)
-            && let Some(collision_world) = context.collision_world.as_deref()
-        {
+        if let Ok((position, _, _)) = context.player_data.get(player.entity) {
             spawn_projectiles(
                 commands,
                 &context.projectile_assets,
@@ -104,7 +102,8 @@ pub(in crate::network) fn handle_player_shot_message(
                 message.pattern.as_deref(),
                 context.gameplay_config.player.eye_height(),
                 &context.gameplay_config,
-                collision_world,
+                context.map_settings.movement.projectile_speed,
+                &context.collision_world,
                 &context.open_barrier_kinds.0,
                 message.id,
             );
@@ -281,13 +280,13 @@ pub(in crate::network) fn handle_player_status_message(
 
 pub(super) fn player_movement_velocity(
     movement: PlayerMovementState,
-    gameplay_config: &GameplayConfig,
+    map_movement: &MapMovementConfig,
     has_speed_power_up: bool,
     movement_disabled: bool,
 ) -> Vec3 {
     let mut velocity = player_control_velocity(
         movement.move_intent,
-        gameplay_config,
+        map_movement,
         has_speed_power_up,
         movement_disabled,
     );
@@ -359,6 +358,29 @@ fn apply_player_death(
 mod tests {
     use super::*;
     use crate::players::PlayerInfo;
+    use common::config::{KnockbackConfig, PlayerMovementConfig};
+    use std::collections::HashMap;
+
+    fn movement_config() -> MapMovementConfig {
+        MapMovementConfig {
+            player: PlayerMovementConfig {
+                walk_speed: 6.0,
+                run_speed: 9.0,
+                speed_power_up: 1.6,
+            },
+            actors: HashMap::new(),
+            missile_speed: 16.0,
+            projectile_speed: 90.0,
+            gravity: 25.0,
+            low_gravity: 5.0,
+            ladder_climb_ratio: 0.4,
+            knockback: KnockbackConfig {
+                max_speed: 15.0,
+                up_speed: 7.0,
+                deceleration: 35.0,
+            },
+        }
+    }
 
     fn player_info(entity: Entity, name: &str) -> PlayerInfo {
         PlayerInfo {
@@ -376,7 +398,7 @@ mod tests {
 
     #[test]
     fn disabled_player_reconciliation_velocity_is_vertical_only() {
-        let gameplay = GameplayConfig::load_default().expect("default gameplay config failed to load");
+        let map_movement = movement_config();
         let movement = PlayerMovementState::new(
             Position::default(),
             PlayerMoveIntent::Running { direction: 0.0 },
@@ -385,7 +407,7 @@ mod tests {
         );
 
         assert_eq!(
-            player_movement_velocity(movement, &gameplay, true, true),
+            player_movement_velocity(movement, &map_movement, true, true),
             Vec3::new(0.0, -3.0, 0.0)
         );
     }

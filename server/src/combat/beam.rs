@@ -47,7 +47,7 @@ pub fn actors_beam_damage_system(
 ) {
     let delta = time.delta_secs();
     let now = time.elapsed_secs();
-    let respawn_secs = gameplay_config.player.respawn_secs;
+    let respawn_secs = server_gameplay_config.player.respawn_secs;
     let player_physics = gameplay_config.player.physics();
     next_cue_at.retain(|id, _| actors.get(id).is_some());
 
@@ -60,7 +60,7 @@ pub fn actors_beam_damage_system(
         };
         let Some(target_entity) = players
             .get(&target_id)
-            .filter(|player| player.connection.logged_in)
+            .filter(|player| player.connection.is_active())
             .and_then(|player| player.entity())
         else {
             continue;

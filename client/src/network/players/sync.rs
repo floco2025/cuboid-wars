@@ -196,7 +196,7 @@ fn update_snapshot_player(
         if let Ok((client_pos, _, _)) = context.player_data.get(client_player.entity) {
             let server_velocity = player_movement_velocity(
                 server_player.movement,
-                &context.gameplay_config,
+                &context.map_settings.movement,
                 server_player.power_up(PowerUpKind::Speed),
                 server_player.stunned,
             );

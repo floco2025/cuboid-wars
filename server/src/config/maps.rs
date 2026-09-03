@@ -1,10 +1,13 @@
 use std::collections::{HashMap, HashSet};
 
-use anyhow::{Result, bail};
+use anyhow::{Context, Result, bail};
 use serde::Deserialize;
 
-use super::validation::validate_positive_finite;
-use common::protocol::{ItemType, MapSettings, MapWeaponSettings};
+use super::quests::{Quest, validate_quests};
+use super::validation::{
+    deserialize_required_option, validate_covers_actor_kinds, validate_non_negative_finite, validate_positive_finite,
+};
+use common::protocol::{BarrierKindTable, ItemType, MapSettings, MapWeaponSettings};
 
 // Server-side wrapper around the wire `MapSettings`: the flattened settings
 // ship to clients in `SInit`, while the rest stays server-only.
@@ -13,31 +16,28 @@ pub struct MapServerConfig {
     #[serde(flatten)]
     pub settings: MapSettings,
     // `None` = no random item spawning on this map.
-    #[serde(default)]
+    #[serde(deserialize_with = "deserialize_required_option")]
     pub random_items: Option<RandomItemsConfig>,
     // A concrete state holds until an admin command; `auto` runs the
     // global `weather_cycle`. Mirrors `/weather rain|clear|auto`.
-    #[serde(default)]
     pub weather: WeatherMode,
     // A concrete look holds until an admin command; `auto` runs the
     // global `lighting_cycle`. Mirrors `/light bright|dim|dark|auto`.
-    #[serde(default)]
     pub lighting: LightingMode,
+    pub quests: Vec<Quest>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum WeatherMode {
-    #[default]
     Clear,
     Rain,
     Auto,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum LightingMode {
-    #[default]
     Bright,
     Dim,
     Dark,
@@ -71,7 +71,11 @@ pub struct RandomItemsConfig {
     pub despawn_secs: f32,
 }
 
-pub(super) fn validate_maps(maps: &HashMap<String, MapServerConfig>, default_map: &str) -> Result<()> {
+pub(super) fn validate_maps<T>(
+    maps: &HashMap<String, MapServerConfig>,
+    default_map: &str,
+    actors: &HashMap<String, T>,
+) -> Result<()> {
     if maps.is_empty() {
         bail!("maps must define at least one map");
     }
@@ -88,15 +92,51 @@ pub(super) fn validate_maps(maps: &HashMap<String, MapServerConfig>, default_map
         if entry.settings.skybox.is_empty() {
             bail!("{path}.skybox must not be empty");
         }
-        if !entry.settings.gravity.is_finite() || entry.settings.gravity <= 0.0 {
-            bail!("{path}.gravity must be > 0");
+        BarrierKindTable::from_ids(entry.settings.barrier_kinds.clone().unwrap_or_default())
+            .with_context(|| format!("invalid {path}.barrier_kinds"))?;
+        let movement_path = format!("{path}.movement");
+        let movement = &entry.settings.movement;
+        validate_positive_finite(
+            movement.player.walk_speed,
+            &format!("{movement_path}.player.walk_speed"),
+        )?;
+        validate_positive_finite(movement.player.run_speed, &format!("{movement_path}.player.run_speed"))?;
+        validate_positive_finite(
+            movement.player.speed_power_up,
+            &format!("{movement_path}.player.speed_power_up"),
+        )?;
+        validate_covers_actor_kinds(movement.actors.keys(), actors, &format!("{movement_path}.actors"))?;
+        for (kind, actor) in &movement.actors {
+            validate_positive_finite(actor.roam_speed, &format!("{movement_path}.actors.{kind}.roam_speed"))?;
+            validate_positive_finite(
+                actor.active_speed,
+                &format!("{movement_path}.actors.{kind}.active_speed"),
+            )?;
         }
-        if !entry.settings.low_gravity.is_finite() || entry.settings.low_gravity < 0.0 {
-            bail!("{path}.low_gravity must be >= 0");
-        }
+        validate_positive_finite(movement.missile_speed, &format!("{movement_path}.missile_speed"))?;
+        validate_positive_finite(movement.projectile_speed, &format!("{movement_path}.projectile_speed"))?;
+        validate_positive_finite(movement.gravity, &format!("{movement_path}.gravity"))?;
+        validate_non_negative_finite(movement.low_gravity, &format!("{movement_path}.low_gravity"))?;
+        validate_positive_finite(
+            movement.ladder_climb_ratio,
+            &format!("{movement_path}.ladder_climb_ratio"),
+        )?;
+        validate_positive_finite(
+            movement.knockback.max_speed,
+            &format!("{movement_path}.knockback.max_speed"),
+        )?;
+        validate_non_negative_finite(
+            movement.knockback.up_speed,
+            &format!("{movement_path}.knockback.up_speed"),
+        )?;
+        validate_positive_finite(
+            movement.knockback.deceleration,
+            &format!("{movement_path}.knockback.deceleration"),
+        )?;
         if let Some(random_items) = &entry.random_items {
             random_items.validate(&format!("{path}.random_items"), entry.settings.weapons)?;
         }
+        validate_quests(&entry.quests, actors, &format!("{path}.quests"))?;
     }
     if !maps.contains_key(default_map) {
         let mut known: Vec<&str> = maps.keys().map(String::as_str).collect();
@@ -140,23 +180,71 @@ impl RandomItemsConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use common::protocol::{MapWeaponSettings, PortalMode};
+    use common::{
+        config::{ActorMovementConfig, KnockbackConfig, MapMovementConfig, PlayerMovementConfig},
+        protocol::{MapWeaponSettings, PortalMode},
+    };
+
+    fn actor_kinds() -> HashMap<String, ()> {
+        ["mine", "sentry", "reaper", "zapper"]
+            .into_iter()
+            .map(|kind| (kind.to_owned(), ()))
+            .collect()
+    }
+
+    fn ok_movement() -> MapMovementConfig {
+        MapMovementConfig {
+            player: PlayerMovementConfig {
+                walk_speed: 6.0,
+                run_speed: 9.0,
+                speed_power_up: 1.6,
+            },
+            actors: [
+                ("mine", 3.0, 5.0),
+                ("sentry", 5.0, 8.0),
+                ("reaper", 5.0, 8.0),
+                ("zapper", 2.0, 4.0),
+            ]
+            .into_iter()
+            .map(|(kind, roam_speed, active_speed)| {
+                (
+                    kind.to_owned(),
+                    ActorMovementConfig {
+                        roam_speed,
+                        active_speed,
+                    },
+                )
+            })
+            .collect(),
+            missile_speed: 16.0,
+            projectile_speed: 90.0,
+            gravity: 25.0,
+            low_gravity: 5.0,
+            ladder_climb_ratio: 0.4,
+            knockback: KnockbackConfig {
+                max_speed: 15.0,
+                up_speed: 7.0,
+                deceleration: 35.0,
+            },
+        }
+    }
 
     fn ok_map_entry() -> MapServerConfig {
         MapServerConfig {
             settings: MapSettings {
                 skybox: "cloudy_day".to_owned(),
-                gravity: 25.0,
-                low_gravity: 5.0,
+                movement: ok_movement(),
                 weapons: MapWeaponSettings {
                     projectiles: true,
                     missiles: true,
                     portals: PortalMode::Both,
                 },
+                barrier_kinds: None,
             },
             random_items: None,
             weather: WeatherMode::Clear,
             lighting: LightingMode::Bright,
+            quests: Vec::new(),
         }
     }
 
@@ -178,42 +266,165 @@ mod tests {
         maps
     }
 
+    fn validate_test_maps(maps: &HashMap<String, MapServerConfig>, default_map: &str) -> Result<()> {
+        validate_maps(maps, default_map, &actor_kinds())
+    }
+
+    fn parse_map_entry(
+        projectiles: bool,
+        missiles: bool,
+        portals: &str,
+        weather: Option<&str>,
+        lighting: Option<&str>,
+    ) -> Result<MapServerConfig, serde_json::Error> {
+        let mut value = serde_json::json!({
+            "skybox": "cloudy_day",
+            "movement": {
+                "player": { "walk_speed": 6.0, "run_speed": 9.0, "speed_power_up": 1.6 },
+                "actors": {
+                    "mine": { "roam_speed": 3.0, "active_speed": 5.0 },
+                    "sentry": { "roam_speed": 5.0, "active_speed": 8.0 },
+                    "reaper": { "roam_speed": 5.0, "active_speed": 8.0 },
+                    "zapper": { "roam_speed": 2.0, "active_speed": 4.0 }
+                },
+                "missile_speed": 16.0,
+                "projectile_speed": 90.0,
+                "gravity": 25.0,
+                "low_gravity": 5.0,
+                "ladder_climb_ratio": 0.4,
+                "knockback": { "max_speed": 15.0, "up_speed": 7.0, "deceleration": 35.0 }
+            },
+            "weapons": { "projectiles": projectiles, "missiles": missiles, "portals": portals },
+            "barrier_kinds": null,
+            "random_items": null,
+            "quests": []
+        });
+        let object = value.as_object_mut().expect("map entry JSON is not an object");
+        if let Some(weather) = weather {
+            object.insert("weather".to_owned(), weather.into());
+        }
+        if let Some(lighting) = lighting {
+            object.insert("lighting".to_owned(), lighting.into());
+        }
+        serde_json::from_value(value)
+    }
+
     #[test]
     fn validate_maps_accepts_single_valid_entry() {
-        validate_maps(&one_map("hotel"), "hotel").expect("valid map registry should pass");
+        validate_test_maps(&one_map("hotel"), "hotel").expect("valid map registry should pass");
+    }
+
+    #[test]
+    fn null_barrier_kinds_deserialize_as_none() {
+        let entry = parse_map_entry(true, true, "both", Some("clear"), Some("bright"))
+            .expect("map without barrier kinds should deserialize");
+        assert!(entry.settings.barrier_kinds.is_none());
+    }
+
+    #[test]
+    fn omitted_barrier_kinds_is_rejected() {
+        let mut value = serde_json::to_value(
+            parse_map_entry(true, true, "both", Some("clear"), Some("bright"))
+                .expect("map config should deserialize"),
+        )
+        .expect("map config should serialize");
+        value
+            .as_object_mut()
+            .expect("map entry JSON is not an object")
+            .remove("barrier_kinds");
+        let error = serde_json::from_value::<MapServerConfig>(value).expect_err("missing barrier_kinds accepted");
+        assert!(error.to_string().contains("barrier_kinds"));
     }
 
     #[test]
     fn validate_maps_rejects_empty_registry() {
-        let err = validate_maps(&HashMap::new(), "hotel").expect_err("empty registry must be rejected");
+        let err = validate_test_maps(&HashMap::new(), "hotel").expect_err("empty registry must be rejected");
         assert!(err.to_string().contains("at least one"));
     }
 
     #[test]
     fn validate_maps_rejects_unknown_default_map() {
-        let err = validate_maps(&one_map("hotel"), "lobby").expect_err("unknown default must be rejected");
+        let err = validate_test_maps(&one_map("hotel"), "lobby").expect_err("unknown default must be rejected");
         assert!(err.to_string().contains("default_map"));
     }
 
     #[test]
     fn validate_maps_rejects_path_unsafe_name() {
-        let err = validate_maps(&one_map("../hotel"), "../hotel").expect_err("path chars must be rejected");
+        let err = validate_test_maps(&one_map("../hotel"), "../hotel").expect_err("path chars must be rejected");
         assert!(err.to_string().contains("ASCII"));
     }
 
     #[test]
     fn validate_maps_rejects_non_positive_gravity() {
         let mut maps = one_map("hotel");
-        maps.get_mut("hotel").expect("hotel entry missing").settings.gravity = 0.0;
-        let err = validate_maps(&maps, "hotel").expect_err("zero gravity must be rejected");
+        maps.get_mut("hotel")
+            .expect("hotel entry missing")
+            .settings
+            .movement
+            .gravity = 0.0;
+        let err = validate_test_maps(&maps, "hotel").expect_err("zero gravity must be rejected");
         assert!(err.to_string().contains("gravity"));
+    }
+
+    #[test]
+    fn validate_maps_rejects_non_positive_player_speed() {
+        let mut maps = one_map("hotel");
+        maps.get_mut("hotel")
+            .expect("hotel entry missing")
+            .settings
+            .movement
+            .player
+            .run_speed = 0.0;
+        let err = validate_test_maps(&maps, "hotel").expect_err("zero run speed must be rejected");
+        assert!(err.to_string().contains("movement.player.run_speed"));
+    }
+
+    #[test]
+    fn validate_maps_rejects_missing_actor_movement() {
+        let mut maps = one_map("hotel");
+        maps.get_mut("hotel")
+            .expect("hotel entry missing")
+            .settings
+            .movement
+            .actors
+            .remove("mine");
+        let err = validate_test_maps(&maps, "hotel").expect_err("missing actor movement must be rejected");
+        assert!(err.to_string().contains("movement.actors"));
+        assert!(err.to_string().contains("mine"));
+    }
+
+    #[test]
+    fn validate_maps_rejects_unknown_actor_movement() {
+        let mut maps = one_map("hotel");
+        let movement = maps
+            .get_mut("hotel")
+            .expect("hotel entry missing")
+            .settings
+            .movement
+            .actors
+            .get("zapper")
+            .copied()
+            .expect("zapper movement missing");
+        maps.get_mut("hotel")
+            .expect("hotel entry missing")
+            .settings
+            .movement
+            .actors
+            .insert("banana".to_owned(), movement);
+        let err = validate_test_maps(&maps, "hotel").expect_err("unknown actor movement must be rejected");
+        assert!(err.to_string().contains("movement.actors"));
+        assert!(err.to_string().contains("banana"));
     }
 
     #[test]
     fn validate_maps_rejects_negative_low_gravity() {
         let mut maps = one_map("hotel");
-        maps.get_mut("hotel").expect("hotel entry missing").settings.low_gravity = -1.0;
-        let err = validate_maps(&maps, "hotel").expect_err("negative low_gravity must be rejected");
+        maps.get_mut("hotel")
+            .expect("hotel entry missing")
+            .settings
+            .movement
+            .low_gravity = -1.0;
+        let err = validate_test_maps(&maps, "hotel").expect_err("negative low_gravity must be rejected");
         assert!(err.to_string().contains("low_gravity"));
     }
 
@@ -221,55 +432,47 @@ mod tests {
     fn validate_maps_rejects_empty_skybox() {
         let mut maps = one_map("hotel");
         maps.get_mut("hotel").expect("hotel entry missing").settings.skybox = String::new();
-        let err = validate_maps(&maps, "hotel").expect_err("empty skybox must be rejected");
+        let err = validate_test_maps(&maps, "hotel").expect_err("empty skybox must be rejected");
         assert!(err.to_string().contains("skybox"));
     }
 
     #[test]
-    fn map_entry_defaults_to_clear_and_bright() {
-        let entry: MapServerConfig =
-            serde_json::from_str(
-                r#"{"skybox":"cloudy_day","gravity":25.0,"low_gravity":5.0,"weapons":{"projectiles":true,"missiles":true,"portals":"both"}}"#,
-            )
-                .expect("minimal map entry should deserialize");
-        assert_eq!(entry.weather, WeatherMode::Clear);
-        assert_eq!(entry.lighting, LightingMode::Bright);
+    fn map_entry_requires_explicit_weather_and_lighting() {
+        let missing_both =
+            parse_map_entry(true, true, "both", None, None).expect_err("weather and lighting must be explicit");
+        assert!(missing_both.to_string().contains("weather"));
+
+        let missing_lighting =
+            parse_map_entry(true, true, "both", Some("clear"), None).expect_err("lighting must be explicit");
+        assert!(missing_lighting.to_string().contains("lighting"));
     }
 
     #[test]
     fn map_entry_parses_snake_case_weather_and_lighting() {
-        let entry: MapServerConfig = serde_json::from_str(
-            r#"{"skybox":"cloudy_day","gravity":25.0,"low_gravity":5.0,"weapons":{"projectiles":true,"missiles":true,"portals":"both"},"weather":"rain","lighting":"dark"}"#,
-        )
-        .expect("map entry with weather and lighting should deserialize");
+        let entry =
+            parse_map_entry(true, true, "both", Some("rain"), Some("dark")).expect("map entry should deserialize");
         assert_eq!(entry.weather, WeatherMode::Rain);
         assert_eq!(entry.lighting, LightingMode::Dark);
     }
 
     #[test]
     fn map_entry_parses_auto_modes() {
-        let entry: MapServerConfig = serde_json::from_str(
-            r#"{"skybox":"cloudy_day","gravity":25.0,"low_gravity":5.0,"weapons":{"projectiles":true,"missiles":true,"portals":"both"},"weather":"auto","lighting":"auto"}"#,
-        )
-        .expect("map entry with auto modes should deserialize");
+        let entry =
+            parse_map_entry(true, true, "both", Some("auto"), Some("auto")).expect("map entry should deserialize");
         assert_eq!(entry.weather, WeatherMode::Auto);
         assert_eq!(entry.lighting, LightingMode::Auto);
     }
 
     #[test]
     fn map_entry_accepts_all_disabled_weapons_and_single_portals() {
-        let disabled: MapServerConfig = serde_json::from_str(
-            r#"{"skybox":"cloudy_day","gravity":25.0,"low_gravity":5.0,"weapons":{"projectiles":false,"missiles":false,"portals":"none"}}"#,
-        )
-        .expect("all-disabled weapons rejected");
+        let disabled =
+            parse_map_entry(false, false, "none", Some("clear"), Some("bright")).expect("map entry should deserialize");
         assert!(!disabled.settings.weapons.projectiles);
         assert!(!disabled.settings.weapons.missiles);
         assert_eq!(disabled.settings.weapons.portals, PortalMode::None);
 
-        let single: MapServerConfig = serde_json::from_str(
-            r#"{"skybox":"cloudy_day","gravity":25.0,"low_gravity":5.0,"weapons":{"projectiles":true,"missiles":true,"portals":"single"}}"#,
-        )
-        .expect("single portal mode rejected");
+        let single =
+            parse_map_entry(true, true, "single", Some("clear"), Some("bright")).expect("map entry should deserialize");
         assert_eq!(single.settings.weapons.portals, PortalMode::Single);
     }
 
@@ -283,40 +486,40 @@ mod tests {
 
     #[test]
     fn validate_maps_accepts_map_without_random_items() {
-        validate_maps(&one_map("hotel"), "hotel").expect("map without random_items should pass");
+        validate_test_maps(&one_map("hotel"), "hotel").expect("map without random_items should pass");
     }
 
     #[test]
     fn validate_maps_accepts_valid_random_items() {
         let maps = one_map_with_random_items("hotel", ok_random_items(&["speed", "cookie"]));
-        validate_maps(&maps, "hotel").expect("valid random_items should pass");
+        validate_test_maps(&maps, "hotel").expect("valid random_items should pass");
     }
 
     #[test]
     fn validate_maps_rejects_key_in_random_pool() {
         let maps = one_map_with_random_items("hotel", ok_random_items(&["speed", "key"]));
-        let err = validate_maps(&maps, "hotel").expect_err("key in random pool must be rejected");
+        let err = validate_test_maps(&maps, "hotel").expect_err("key in random pool must be rejected");
         assert!(err.to_string().contains("barrier kind"));
     }
 
     #[test]
     fn validate_maps_rejects_unknown_random_item_type() {
         let maps = one_map_with_random_items("hotel", ok_random_items(&["banana"]));
-        let err = validate_maps(&maps, "hotel").expect_err("unknown type must be rejected");
+        let err = validate_test_maps(&maps, "hotel").expect_err("unknown type must be rejected");
         assert!(err.to_string().contains("unknown item type"));
     }
 
     #[test]
     fn validate_maps_rejects_duplicate_random_item_types() {
         let maps = one_map_with_random_items("hotel", ok_random_items(&["speed", "speed"]));
-        let err = validate_maps(&maps, "hotel").expect_err("duplicate type must be rejected");
+        let err = validate_test_maps(&maps, "hotel").expect_err("duplicate type must be rejected");
         assert!(err.to_string().contains("duplicate"));
     }
 
     #[test]
     fn validate_maps_rejects_empty_random_item_types() {
         let maps = one_map_with_random_items("hotel", ok_random_items(&[]));
-        let err = validate_maps(&maps, "hotel").expect_err("empty pool must be rejected");
+        let err = validate_test_maps(&maps, "hotel").expect_err("empty pool must be rejected");
         assert!(err.to_string().contains("types"));
     }
 
@@ -326,7 +529,7 @@ mod tests {
         let entry = maps.get_mut("hotel").expect("hotel entry missing");
         entry.settings.weapons.missiles = false;
         entry.settings.weapons.projectiles = false;
-        let err = validate_maps(&maps, "hotel").expect_err("fully disabled pool must be rejected");
+        let err = validate_test_maps(&maps, "hotel").expect_err("fully disabled pool must be rejected");
         assert!(err.to_string().contains("disables"));
 
         maps.get_mut("hotel")
@@ -336,7 +539,7 @@ mod tests {
             .expect("random_items missing")
             .types
             .push("cookie".to_owned());
-        validate_maps(&maps, "hotel").expect("a pool with one spawnable pickup should pass");
+        validate_test_maps(&maps, "hotel").expect("a pool with one spawnable pickup should pass");
     }
 
     #[test]
@@ -344,7 +547,7 @@ mod tests {
         let mut random_items = ok_random_items(&["speed"]);
         random_items.max_number = 0;
         let maps = one_map_with_random_items("hotel", random_items);
-        let err = validate_maps(&maps, "hotel").expect_err("zero max_number must be rejected");
+        let err = validate_test_maps(&maps, "hotel").expect_err("zero max_number must be rejected");
         assert!(err.to_string().contains("max_number"));
     }
 }

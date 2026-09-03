@@ -47,13 +47,13 @@ impl OpenEdges {
 // whenever `MapLayout` is inserted or replaced (e.g., reconnect / map change).
 pub fn grass_spawn_system(
     mut commands: Commands,
-    map_layout: Option<Res<MapLayout>>,
+    map_layout: Res<MapLayout>,
     client_settings: Res<ClientSettings>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<GrassMaterial>>,
     existing: Query<Entity, With<GrassMarker>>,
 ) {
-    let Some(layout) = map_layout else { return };
+    let layout = map_layout;
     if !layout.is_changed() {
         return;
     }

@@ -24,8 +24,8 @@ use common::{
 #[derive(SystemParam)]
 pub struct PortalInputWorld<'w> {
     time: Res<'w, Time>,
-    collision_world: Option<Res<'w, CollisionWorld>>,
-    map_layout: Option<Res<'w, MapLayout>>,
+    collision_world: Res<'w, CollisionWorld>,
+    map_layout: Res<'w, MapLayout>,
     portals: Res<'w, PortalMap>,
     gameplay_config: Res<'w, GameplayConfig>,
 }
@@ -49,7 +49,7 @@ pub fn input_portal_system(
     view_mode: Res<CameraViewMode>,
     mut local_player_info: ResMut<LocalPlayerInfo>,
     world: PortalInputWorld,
-    portal_access: Option<Res<PortalAccess>>,
+    portal_access: Res<PortalAccess>,
 ) {
     if *mode != WeaponMode::Portal || local_player_info.is_dead {
         return;
@@ -57,9 +57,7 @@ pub fn input_portal_system(
     if cursor_options.grab_mode == CursorGrabMode::None {
         return;
     }
-    let Some(access) = portal_access.as_deref().copied() else {
-        return;
-    };
+    let access = *portal_access;
     let end = match access {
         PortalAccess::None => return,
         PortalAccess::Single { end, .. } if mouse.just_pressed(MouseButton::Left) => end,
@@ -79,10 +77,6 @@ pub fn input_portal_system(
     let Some((pos, face_yaw)) = local_player_query.iter().next() else {
         return;
     };
-    let (Some(collision_world), Some(map_layout)) = (world.collision_world.as_deref(), world.map_layout.as_deref())
-    else {
-        return;
-    };
     let pitch = if view_mode.is_first_person() {
         camera_query
             .iter()
@@ -99,8 +93,8 @@ pub fn input_portal_system(
         direction,
         face_yaw.0,
         world.gameplay_config.portals.range,
-        collision_world,
-        map_layout,
+        &world.collision_world,
+        &world.map_layout,
     );
     let existing = world.portals.wire_portals();
     if placement.is_none_or(|placement| portal_placement_overlaps(&placement, pair, end, &existing)) {

@@ -21,12 +21,11 @@ pub struct BarrierKindMarker(pub BarrierKindId);
 // `MapLayout` is inserted or replaced (e.g., reconnect / map change).
 pub fn barriers_spawn_system(
     mut commands: Commands,
-    map_layout: Option<Res<MapLayout>>,
-    barrier_assets: Option<Res<BarrierAssets>>,
+    map_layout: Res<MapLayout>,
+    barrier_assets: Res<BarrierAssets>,
     existing: Query<Entity, With<BarrierMarker>>,
 ) {
-    let Some(layout) = map_layout else { return };
-    let Some(barrier_assets) = barrier_assets else { return };
+    let layout = map_layout;
     if !layout.is_changed() {
         return;
     }

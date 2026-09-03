@@ -27,8 +27,8 @@ use crate::{
 // Grouped so the system stays under Bevy's parameter limit.
 #[derive(SystemParam)]
 pub struct ProjectileWorld<'w> {
-    collision_world: Option<Res<'w, CollisionWorld>>,
-    map_settings: Option<Res<'w, MapSettings>>,
+    collision_world: Res<'w, CollisionWorld>,
+    map_settings: Res<'w, MapSettings>,
     gameplay_config: Res<'w, GameplayConfig>,
     open_barrier_kinds: Res<'w, OpenBarrierKinds>,
     portal_set: Res<'w, PortalSet>,
@@ -64,14 +64,10 @@ pub fn projectiles_movement_system(
     mut particle_clouds: ResMut<ParticleClouds>,
     listener: Query<&GlobalTransform, With<MainCameraMarker>>,
 ) {
-    // No map yet means no shots either; nothing to step.
-    let Some(map_settings) = world.map_settings.as_deref() else {
-        return;
-    };
-    let gravity = map_settings.gravity * world.gameplay_config.projectiles.gravity_scale;
+    let gravity = world.map_settings.movement.gravity * world.gameplay_config.projectiles.gravity_scale;
     let delta = time.delta_secs();
     let current_time = time.elapsed_secs();
-    let collision_world = world.collision_world.as_deref();
+    let collision_world = &world.collision_world;
     // Louder-bounce preference measures distance to the audio listener (the
     // main camera). A missing camera degrades to distance zero: every bounce
     // rates as full volume, which reduces to the plain rate limit.
@@ -130,17 +126,13 @@ pub fn projectiles_movement_system(
                 &actors,
                 &world.gameplay_config,
             );
-            let barrier_t = collision_world.and_then(|collision_world| {
-                projectile.barrier_collision_t(
-                    &current_pos,
-                    remaining_delta,
-                    collision_world,
-                    &world.open_barrier_kinds.0,
-                )
-            });
-            let surface_t = collision_world.and_then(|collision_world| {
-                projectile.surface_collision_t(&current_pos, remaining_delta, collision_world)
-            });
+            let barrier_t = projectile.barrier_collision_t(
+                &current_pos,
+                remaining_delta,
+                collision_world,
+                &world.open_barrier_kinds.0,
+            );
+            let surface_t = projectile.surface_collision_t(&current_pos, remaining_delta, collision_world);
             let portal_hop = world.portal_set.projectile_hop(
                 Vec3::from(current_pos),
                 projectile.velocity,
@@ -176,11 +168,7 @@ pub fn projectiles_movement_system(
                 ProjectileEvent::Surface => {
                     let speed_before = projectile.velocity.length();
                     let bounce = projectile
-                        .bounce_at_world_surface(
-                            &current_pos,
-                            remaining_delta,
-                            collision_world.expect("surface event missing its collision world"),
-                        )
+                        .bounce_at_world_surface(&current_pos, remaining_delta, collision_world)
                         .expect("surface event missing its collision");
                     current_pos = bounce.position;
                     remaining_delta = bounce.remaining_delta;

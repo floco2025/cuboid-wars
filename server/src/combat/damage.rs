@@ -305,7 +305,7 @@ mod tests {
     fn logged_in_player(players: &mut PlayerMap, id: PlayerId, name: &str) -> UnboundedReceiver<ServerToClient> {
         let (tx, rx) = unbounded_channel();
         let mut info = PlayerInfo::new(Entity::PLACEHOLDER, tx);
-        info.connection.logged_in = true;
+        info.connection.phase = crate::players::ConnectionPhase::Active;
         info.connection.name = name.to_owned();
         players.insert(id, info);
         rx
@@ -354,23 +354,42 @@ mod tests {
     }
 
     fn server_gameplay_config() -> ServerGameplayConfig {
+        let default = ServerGameplayConfig::load_default().expect("default server gameplay config should load");
+        let movement = default
+            .maps
+            .get("hotel")
+            .expect("hotel map settings missing")
+            .settings
+            .movement
+            .clone();
+        let barrier_kinds = default
+            .maps
+            .get("hotel")
+            .expect("hotel map settings missing")
+            .settings
+            .barrier_kinds
+            .clone();
         ServerGameplayConfig {
+            player: default.player,
+            projectiles: default.projectiles,
+            portals: default.portals,
             maps: HashMap::from([(
                 "hotel".to_owned(),
                 MapServerConfig {
                     settings: common::protocol::MapSettings {
                         skybox: "cloudy_day".to_owned(),
-                        gravity: 25.0,
-                        low_gravity: 5.0,
+                        movement,
                         weapons: common::protocol::MapWeaponSettings {
                             projectiles: true,
                             missiles: true,
                             portals: common::protocol::PortalMode::Both,
                         },
+                        barrier_kinds,
                     },
                     random_items: None,
                     weather: WeatherMode::Clear,
                     lighting: LightingMode::Bright,
+                    quests: Vec::new(),
                 },
             )]),
             default_map: "hotel".to_owned(),
@@ -396,7 +415,6 @@ mod tests {
                 cookie: 1,
                 actor_hit: HashMap::from([("zapper".to_owned(), 1)]),
                 actor_kill: HashMap::from([("zapper".to_owned(), 10)]),
-                quest_completed: HashMap::new(),
             },
             combat: CombatConfig {
                 health: HealthConfig {
@@ -425,6 +443,7 @@ mod tests {
                 },
             },
             missiles: MissilesServerConfig {
+                gameplay: default.missiles.gameplay,
                 turn_radius: 1.7,
                 lifetime_secs: 10.0,
                 launch_spread_degrees: 50.0,
@@ -451,7 +470,6 @@ mod tests {
                     missile_pack: 30.0,
                 },
             },
-            quests: Vec::new(),
             actor_settings: ActorSettingsConfig {
                 spawn_warning_secs: 0.0,
                 threat_memory_secs: 0.0,
@@ -616,12 +634,12 @@ mod tests {
         // Receiver with a logged-in shooter so the broadcast can reach them.
         let (shooter_tx, mut shooter_rx) = unbounded_channel();
         let mut shooter = PlayerInfo::new(Entity::PLACEHOLDER, shooter_tx);
-        shooter.connection.logged_in = true;
+        shooter.connection.phase = crate::players::ConnectionPhase::Active;
         players.insert(PlayerId(1), shooter);
 
         // The dying player; also logged_in so the broadcast targets them too.
         let mut target = make_player_info();
-        target.connection.logged_in = true;
+        target.connection.phase = crate::players::ConnectionPhase::Active;
         let target_entity = target.entity().expect("new player has no entity");
         players.insert(PlayerId(2), target);
 

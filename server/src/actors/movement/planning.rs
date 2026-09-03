@@ -32,7 +32,8 @@ pub(crate) fn plan_actor_moves(
     let actor_order = sorted_actor_plan_order(query, actors);
 
     for actor_order in actor_order {
-        let Ok((entity, id, pos, motion, mut move_intent, mut face_yaw, knockback)) = query.get_mut(actor_order.entity)
+        let Ok((entity, id, actor_movement, pos, motion, mut move_intent, mut face_yaw, knockback)) =
+            query.get_mut(actor_order.entity)
         else {
             continue;
         };
@@ -40,7 +41,6 @@ pub(crate) fn plan_actor_moves(
             continue;
         };
         let actor_physics = gameplay_config.expect_actor(&info.spawn_kind).physics();
-        let actor_movement = gameplay_config.movement.expect_actor(&info.spawn_kind);
         let current_pos = *pos;
         let move_context = ActorMoveContext {
             entity,
@@ -52,8 +52,8 @@ pub(crate) fn plan_actor_moves(
             planned_moves,
             actor_starts,
             open_barrier_kinds: &open_barrier_kinds.0,
-            gravity: map_settings.gravity,
-            ladder_climb_ratio: gameplay_config.movement.ladder_climb_ratio,
+            gravity: map_settings.movement.gravity,
+            ladder_climb_ratio: map_settings.movement.ladder_climb_ratio,
             knockback_step: knockback.map_or(Vec3::ZERO, |velocity| velocity.step(delta)),
         };
 

@@ -35,16 +35,20 @@ fn level_grid(cells: CellGrid) -> LevelGrid {
 }
 
 fn map_settings(projectiles: bool, missiles: bool) -> MapSettings {
-    MapSettings {
-        skybox: "test".to_owned(),
-        gravity: 25.0,
-        low_gravity: 5.0,
-        weapons: MapWeaponSettings {
-            projectiles,
-            missiles,
-            portals: PortalMode::None,
-        },
-    }
+    let mut settings = crate::config::ServerGameplayConfig::load_default()
+        .expect("default server gameplay config should load")
+        .maps
+        .get("hotel")
+        .expect("hotel map settings missing")
+        .settings
+        .clone();
+    settings.skybox = "test".to_owned();
+    settings.weapons = MapWeaponSettings {
+        projectiles,
+        missiles,
+        portals: PortalMode::None,
+    };
+    settings
 }
 
 #[test]
@@ -211,6 +215,7 @@ mod collection_eligibility_tests {
 
     fn test_app() -> App {
         let server = ServerGameplayConfig::load_default().expect("default server gameplay config should load");
+        let gameplay = server.gameplay_config();
         let quest_catalog = QuestCatalog::from_config(&server);
         let quest_board = QuestBoard::from_catalog(&quest_catalog);
         let mut app = App::new();
@@ -218,7 +223,7 @@ mod collection_eligibility_tests {
             .insert_resource(server)
             .insert_resource(quest_catalog)
             .insert_resource(quest_board)
-            .insert_resource(GameplayConfig::load_default().expect("default gameplay config should load"))
+            .insert_resource(gameplay)
             .insert_resource(PlayerMap::default())
             .insert_resource(ItemMap::default())
             .add_systems(Update, item_collection_system);
@@ -233,7 +238,7 @@ mod collection_eligibility_tests {
         let entity = app.world_mut().spawn((PlayerMarker, id, pos, Health(50.0))).id();
         let (sender, receiver) = unbounded_channel();
         let mut info = PlayerInfo::new(entity, sender);
-        info.connection.logged_in = true;
+        info.connection.phase = crate::players::ConnectionPhase::Active;
         app.world_mut().resource_mut::<PlayerMap>().insert(id, info);
         (entity, receiver)
     }

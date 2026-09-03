@@ -195,7 +195,6 @@ mod tests {
     use super::*;
     use crate::map::{CellGrid, EdgeGrid, LevelGrid, MapConfig, PlayerSpawnZone};
     use common::{
-        config::GameplayConfig,
         constants::WALL_THICKNESS,
         protocol::{MapLayout, Wall},
     };
@@ -209,8 +208,9 @@ mod tests {
     }
 
     fn character_physics() -> CharacterPhysicsConfig {
-        GameplayConfig::load_default()
-            .expect("default gameplay config should load")
+        crate::config::ServerGameplayConfig::load_default()
+            .expect("default server gameplay config should load")
+            .gameplay_config()
             .player
             .physics()
     }

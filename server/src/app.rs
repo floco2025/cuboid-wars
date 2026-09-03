@@ -1,4 +1,4 @@
-use anyhow::{Context, Result, bail};
+use anyhow::{Result, bail};
 use bevy::prelude::*;
 
 use crate::quests::{QuestBoard, QuestCatalog};
@@ -9,27 +9,26 @@ use crate::{
     },
     characters::characters_plugin,
     combat::{PendingExplosions, combat_plugin},
-    config::{ServerGameplayConfig, validate_actor_kinds_consistent},
+    config::{ServerGameplayConfig, validate_map_actor_kinds, validate_map_quests},
     items::{ItemMap, ItemSpawner, RandomItems, items_plugin},
     map::{LightState, OpenBarrierKinds, WeatherState, generate_map, map_plugin},
     missiles::{AirGraph, MissileMap, missiles_plugin},
-    network::{FromClientsChannel, network_plugin},
+    network::{FromClientsChannel, SnapshotRequest, network_plugin},
     players::{Invincibility, PlayerMap, UnlimitedMissiles, players_plugin},
     portals::{PortalAssignments, PortalMap, portals_plugin},
     projectiles::projectiles_plugin,
     schedule::configure_server_schedule,
 };
 use common::{
-    config::GameplayConfig,
     physics::{CollisionWorld, PortalSet},
-    protocol::BarrierKindTable,
+    protocol::{BarrierKindTable, MapBootstrap, WorldBootstrap},
 };
 
 const LOG_FILTER: &str = "wgpu=error,naga=warn";
 
 pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsChannel) -> Result<App> {
-    let gameplay_config = GameplayConfig::load_default()?;
     let server_gameplay_config = ServerGameplayConfig::load_default()?;
+    let gameplay_config = server_gameplay_config.gameplay_config();
     let map_name = map_override.unwrap_or(&server_gameplay_config.default_map);
     let Some(map_server_config) = server_gameplay_config.maps.get(map_name).cloned() else {
         let mut known: Vec<&str> = server_gameplay_config.maps.keys().map(String::as_str).collect();
@@ -44,17 +43,28 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
     );
     let random_items = RandomItems::from_config(map_server_config.random_items.as_ref(), map_settings.weapons);
     let portal_assignments = PortalAssignments::new(map_settings.weapons.portals);
-    let quest_catalog = QuestCatalog::from_config(&server_gameplay_config);
-    let quest_board = QuestBoard::from_catalog(&quest_catalog);
-
-    let barrier_kind_table = BarrierKindTable::from_ids(gameplay_config.barrier_kinds.clone())
-        .with_context(|| "failed to build BarrierKindTable from gameplay.json barrier_kinds")?;
+    let barrier_kind_table = BarrierKindTable::from_ids(map_settings.barrier_kinds.clone().unwrap_or_default())?;
     let (map_layout, map_config, map_geometry) = generate_map(&barrier_kind_table, map_name)?;
     let collision_world = CollisionWorld::from_map_layout(&map_layout, &barrier_kind_table);
     let nav_graph = NavGraph::new(map_config.clone(), map_geometry);
     let air_graph = AirGraph::new(map_config.clone(), map_geometry);
-    validate_actor_kinds_consistent(&gameplay_config, &server_gameplay_config, &map_config)?;
+    validate_map_actor_kinds(&server_gameplay_config, &map_config)?;
+    validate_map_quests(
+        &map_server_config.quests,
+        &map_config,
+        map_server_config.random_items.as_ref(),
+    )?;
+    let quest_catalog = QuestCatalog::from_quests(&map_server_config.quests);
+    let quest_board = QuestBoard::from_catalog(&quest_catalog);
     let actor_territories = ActorTerritories::new(&nav_graph, &map_config, &server_gameplay_config)?;
+    let world_bootstrap = WorldBootstrap {
+        gameplay: server_gameplay_config.gameplay_bootstrap(),
+        map: MapBootstrap {
+            layout: map_layout.clone(),
+            settings: map_settings.clone(),
+            key_kinds: map_config.key_kinds(),
+        },
+    };
 
     let mut app = App::new();
     app.add_plugins(MinimalPlugins).add_plugins(bevy::log::LogPlugin {
@@ -67,6 +77,7 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
 
     app.insert_resource(map_layout)
         .insert_resource(map_settings)
+        .insert_resource(world_bootstrap)
         .insert_resource(weather_state)
         .insert_resource(light_state)
         .insert_resource(Invincibility(false))
@@ -96,7 +107,8 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
         .insert_resource(PortalMap::default())
         .insert_resource(portal_assignments)
         .insert_resource(PortalSet::default())
-        .insert_resource(OpenBarrierKinds::default());
+        .insert_resource(OpenBarrierKinds::default())
+        .insert_resource(SnapshotRequest::default());
 
     configure_server_schedule(&mut app);
     app.add_plugins((

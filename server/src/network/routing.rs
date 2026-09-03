@@ -6,14 +6,14 @@ use super::{
         CharacterQueries, SharedWorld, handle_chat_message, handle_jump_message, handle_move_message,
         handle_ping_message,
     },
-    login::handle_login_message,
+    login::{handle_login_message, handle_ready_message},
 };
 use crate::{
     actors::{ActorMap, PendingActorSpawns},
     map::OpenBarrierKinds,
     missiles::{MissileMap, handle_missile_shot_message},
     network::ServerToClient,
-    players::PlayerMap,
+    players::{ConnectionPhase, PlayerMap},
     portals::{PortalAssignments, PortalMap, handle_portal_shot_message},
     projectiles::handle_shot_message,
     quests::{QuestBoard, QuestCatalog},
@@ -37,6 +37,7 @@ pub(super) struct ClientMessageContext<'w, 's> {
     admin: AdminContext<'w>,
     pub(super) quest_board: ResMut<'w, QuestBoard>,
     pub(super) quest_catalog: Res<'w, QuestCatalog>,
+    pub(super) snapshot_request: ResMut<'w, super::snapshot::SnapshotRequest>,
 }
 
 pub(super) fn route_client_message(
@@ -49,46 +50,57 @@ pub(super) fn route_client_message(
         error!("received message for unknown player#{}", id.0);
         return;
     };
-    let logged_in = player.connection.logged_in;
+    let phase = player.connection.phase;
     // `None` while dead: the body-bound arms drop the message until respawn,
     // while Ping/Admin/Chat keep the console and RTT working meanwhile.
     let entity = player.entity();
 
     match message {
-        ClientMessage::Login(message) if !logged_in => {
-            let Some(entity) = entity else {
-                error!("player#{} reached login without an entity", id.0);
-                return;
-            };
+        ClientMessage::Login(message) if phase == ConnectionPhase::AwaitingLogin => {
             handle_login_message(
-                commands,
-                entity,
                 id,
                 message,
                 &mut context.players,
                 &context.world,
-                &context.quest_catalog,
-                &context.quest_board,
-                &context.queries,
                 &mut context.portal_assignments,
             );
         }
-        ClientMessage::Login(_) => {
-            warn!(
-                "{} sent login after already authenticated",
-                context.players.describe(&id)
+        ClientMessage::Ready(_) if phase == ConnectionPhase::AwaitingReady => {
+            let Some(entity) = entity else {
+                error!("player#{} reached ready without an entity", id.0);
+                return;
+            };
+            handle_ready_message(
+                commands,
+                entity,
+                id,
+                &mut context.players,
+                &context.world,
+                &context.queries,
+                &context.quest_catalog,
+                &context.quest_board,
             );
-            // Close to enforce a single-login flow.
+            context.snapshot_request.force = true;
+        }
+        ClientMessage::Login(_) | ClientMessage::Ready(_) => {
+            warn!(
+                "{} sent a bootstrap message in phase {:?}",
+                context.players.describe(&id),
+                phase
+            );
             if let Some(player) = context.players.get(&id) {
                 let _ = player.connection.channel.send(ServerToClient::Close);
             }
         }
-        _ if !logged_in => {
+        _ if phase != ConnectionPhase::Active => {
             warn!(
-                "{:?} sent non-login message before authenticating (likely out-of-order delivery)",
-                id
+                "{} sent gameplay traffic in phase {:?}",
+                context.players.describe(&id),
+                phase
             );
-            // Keep the connection: the Login is likely still in flight.
+            if let Some(player) = context.players.get(&id) {
+                let _ = player.connection.channel.send(ServerToClient::Close);
+            }
         }
         ClientMessage::Move(message) => {
             let Some(entity) = entity else {

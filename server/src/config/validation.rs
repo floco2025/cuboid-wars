@@ -1,16 +1,17 @@
 use std::collections::{HashMap, HashSet};
 
 use anyhow::{Result, bail};
-use common::config::GameplayConfig;
+use serde::{Deserialize, Deserializer};
 
-use super::{ServerGameplayConfig, actors::ActorKindServerConfig};
+use super::{Quest, QuestKind, RandomItemsConfig, ServerGameplayConfig};
 use crate::map::MapConfig;
+use common::protocol::{ItemType, PlatePurpose};
 
 // A per-actor-kind map must name every configured kind (a missing entry
 // silently defaulting is the footgun) and nothing else (a typo).
-pub(super) fn validate_covers_actor_kinds<'a>(
+pub(super) fn validate_covers_actor_kinds<'a, T>(
     keys: impl Iterator<Item = &'a String>,
-    actors: &HashMap<String, ActorKindServerConfig>,
+    actors: &HashMap<String, T>,
     path: &str,
 ) -> Result<()> {
     let keys: HashSet<&String> = keys.collect();
@@ -27,29 +28,47 @@ pub(super) fn validate_covers_actor_kinds<'a>(
     Ok(())
 }
 
-pub(crate) fn validate_actor_kinds_consistent(
-    gameplay_config: &GameplayConfig,
-    server_gameplay_config: &ServerGameplayConfig,
-    map_config: &MapConfig,
-) -> Result<()> {
-    let common_kinds: HashSet<&str> = gameplay_config.actors.keys().map(String::as_str).collect();
-    let server_kinds: HashSet<&str> = server_gameplay_config.actors.keys().map(String::as_str).collect();
-    if common_kinds != server_kinds {
-        let mut only_common: Vec<&str> = common_kinds.difference(&server_kinds).copied().collect();
-        let mut only_server: Vec<&str> = server_kinds.difference(&common_kinds).copied().collect();
-        only_common.sort_unstable();
-        only_server.sort_unstable();
-        bail!(
-            "actor kinds disagree between common and server gameplay configs (only in common: {only_common:?}, only in server: {only_server:?})"
-        );
-    }
+pub(crate) fn validate_map_actor_kinds(config: &ServerGameplayConfig, map_config: &MapConfig) -> Result<()> {
     for (zone_idx, zone) in map_config.actor_spawn_zones.iter().enumerate() {
-        if !common_kinds.contains(zone.kind.as_str()) {
-            let mut known: Vec<&str> = common_kinds.iter().copied().collect();
+        if !config.actors.contains_key(&zone.kind) {
+            let mut known: Vec<&str> = config.actors.keys().map(String::as_str).collect();
             known.sort_unstable();
             bail!(
                 "map actor spawn zone {zone_idx} references unknown actor kind {:?} (known kinds: {known:?})",
                 zone.kind
+            );
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_map_quests(
+    quests: &[Quest],
+    map_config: &MapConfig,
+    random_items: Option<&RandomItemsConfig>,
+) -> Result<()> {
+    for quest in quests {
+        let available = match quest.kind {
+            QuestKind::ActorKills => map_config
+                .actor_spawn_zones
+                .iter()
+                .any(|zone| quest.actor_kind.as_ref().is_none_or(|kind| zone.kind == *kind)),
+            QuestKind::Cookies => {
+                map_config
+                    .placed_items
+                    .iter()
+                    .any(|item| item.item_type == ItemType::Cookie)
+                    || random_items.is_some_and(|items| items.types.iter().any(|item| item == "cookie"))
+            }
+            QuestKind::Fireworks => map_config
+                .pressure_plates
+                .iter()
+                .any(|plate| plate.purpose == PlatePurpose::Firework),
+        };
+        if !available {
+            bail!(
+                "quest {:?} cannot be completed on the selected map: its required world content is absent",
+                quest.id.0
             );
         }
     }
@@ -70,34 +89,57 @@ pub(super) fn validate_non_negative_finite(value: f32, path: &str) -> Result<()>
     bail!("{path} must be non-negative and finite, got {value}");
 }
 
+pub(super) fn deserialize_required_option<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Option::<T>::deserialize(deserializer)
+}
+
 #[cfg(test)]
 mod tests {
     use common::protocol::BarrierKindTable;
 
     use super::*;
 
-    fn configs_and_map() -> (GameplayConfig, ServerGameplayConfig, MapConfig) {
-        let gameplay = GameplayConfig::load_default().expect("load common gameplay");
+    fn config_and_map() -> (ServerGameplayConfig, MapConfig) {
         let server = ServerGameplayConfig::load_default().expect("load server gameplay");
-        let barriers = BarrierKindTable::from_ids(gameplay.barrier_kinds.clone()).expect("build barrier table");
-        let (_, map, _) = crate::map::generate_map(&barriers, &server.default_map).expect("generate default map");
-        (gameplay, server, map)
+        let barriers = BarrierKindTable::from_ids(
+            server
+                .maps
+                .get("hotel")
+                .expect("hotel settings missing")
+                .settings
+                .barrier_kinds
+                .clone(),
+        )
+        .expect("build barrier table");
+        let (_, map, _) = crate::map::generate_map(&barriers, "hotel").expect("generate hotel map");
+        (server, map)
     }
 
     #[test]
     fn shipped_actor_configs_and_map_are_consistent() {
-        let (gameplay, server, map) = configs_and_map();
-        validate_actor_kinds_consistent(&gameplay, &server, &map).expect("actor kinds validate");
+        let (server, map) = config_and_map();
+        validate_map_actor_kinds(&server, &map).expect("actor kinds validate");
+    }
+
+    #[test]
+    fn shipped_hotel_quests_have_required_map_content() {
+        let (server, map) = config_and_map();
+        let hotel = server.maps.get("hotel").expect("hotel settings missing");
+        validate_map_quests(&hotel.quests, &map, hotel.random_items.as_ref())
+            .expect("hotel quest content should validate");
     }
 
     #[test]
     fn missing_server_actor_kind_is_rejected() {
-        let (gameplay, mut server, map) = configs_and_map();
+        let (mut server, map) = config_and_map();
         server.actors.remove("mine");
 
-        let error =
-            validate_actor_kinds_consistent(&gameplay, &server, &map).expect_err("missing server actor kind must fail");
+        let error = validate_map_actor_kinds(&server, &map).expect_err("missing server actor kind must fail");
 
-        assert!(error.to_string().contains("only in common: [\"mine\"]"));
+        assert!(error.to_string().contains("unknown actor kind"));
     }
 }

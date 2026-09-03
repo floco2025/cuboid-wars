@@ -1,9 +1,21 @@
+mod characters;
 pub mod gameplay;
+mod missiles;
+mod movement;
 pub mod network;
+mod portals;
+mod projectiles;
+mod validation;
 
-pub use gameplay::{
-    ActorMovementConfig, CharacterColliderAnchor, CharacterColliderConfig, CharacterGameplayConfig,
-    CharacterPhysicsConfig, CharacterSupportProbeConfig, GameplayConfig, KnockbackConfig, MissilesConfig,
-    MovementConfig, MultiShotConfig, PlayerGameplayConfig, PlayerMovementConfig, ProjectilesConfig,
+pub use characters::{
+    CharacterColliderAnchor, CharacterColliderConfig, CharacterGameplayConfig, CharacterPhysicsConfig,
+    CharacterSupportProbeConfig, PlayerGameplayConfig,
 };
+pub use gameplay::{
+    ActorGameplayBootstrap, GameplayBootstrap, GameplayConfig, MissilesGameplayBootstrap, PlayerGameplayBootstrap,
+};
+pub use missiles::MissilesConfig;
+pub use movement::{ActorMovementConfig, KnockbackConfig, MapMovementConfig, PlayerMovementConfig};
 pub use network::{create_quinn_client_config, create_quinn_server_config, load_certs, load_private_key};
+pub use portals::PortalsConfig;
+pub use projectiles::{MultiShotConfig, MultiShotPatternConfig, ProjectilesConfig};

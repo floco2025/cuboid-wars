@@ -9,7 +9,7 @@ use crate::{
 use common::{
     config::GameplayConfig,
     physics::{CharacterVerticalVelocity, KnockbackVelocity, PortalMomentum, PortalSet},
-    protocol::{FaceYaw, PlayerId, PlayerMarker, PlayerMoveIntent, Position, PowerUpKind},
+    protocol::{FaceYaw, MapSettings, PlayerId, PlayerMarker, PlayerMoveIntent, Position, PowerUpKind},
 };
 
 // Portal transit for every simulated player, local and remote alike — the
@@ -24,7 +24,8 @@ pub fn portal_transit_system(
     time: Res<Time>,
     portal_set: Res<PortalSet>,
     gameplay_config: Res<GameplayConfig>,
-    my_player_id: Option<Res<MyPlayerId>>,
+    map_settings: Res<MapSettings>,
+    my_player_id: Res<MyPlayerId>,
     mut players: ResMut<PlayerMap>,
     mut local_player_info: ResMut<LocalPlayerInfo>,
     cameras: Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
@@ -56,6 +57,7 @@ pub fn portal_transit_system(
             Vec3::from(prev.0),
             Vec3::from(*pos),
             &gameplay_config,
+            &map_settings.movement,
             *move_intent,
             has_speed,
             stunned,
@@ -77,7 +79,7 @@ pub fn portal_transit_system(
             // back to a stale phase; reconciliation stands down briefly.
             info.last_teleport_time = time.elapsed_secs();
         }
-        if my_player_id.as_ref().is_some_and(|my| my.0 == *id) {
+        if my_player_id.0 == *id {
             apply_portal_view(
                 &mut commands,
                 cameras.single().ok(),

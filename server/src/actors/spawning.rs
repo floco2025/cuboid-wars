@@ -9,10 +9,10 @@ use crate::{
     map::MapConfig,
 };
 use common::{
-    config::GameplayConfig,
+    config::{ActorMovementConfig, GameplayConfig},
     map::MapGeometry,
     physics::{CharacterVerticalVelocity, CollisionWorld},
-    protocol::{ActorMarker, ActorMoveIntent, FaceYaw, Health, PlayerMarker, Position},
+    protocol::{ActorMarker, ActorMoveIntent, FaceYaw, Health, MapSettings, PlayerMarker, Position},
 };
 
 // Per-tick decision for one zone: refill it, tick the cooldown down, or skip.
@@ -217,6 +217,7 @@ pub fn actors_pending_spawn_system(
     mut pending: ResMut<PendingActorSpawns>,
     time: Res<Time>,
     server_gameplay_config: Res<ServerGameplayConfig>,
+    map_settings: Res<MapSettings>,
 ) {
     let due = take_due_spawns(&mut pending.0, time.delta_secs());
     if due.is_empty() {
@@ -224,7 +225,8 @@ pub fn actors_pending_spawn_system(
     }
     for spawn in due {
         let max_health = server_gameplay_config.combat.health.expect_actor(&spawn.kind).max;
-        materialize_actor(&mut commands, &mut actors, max_health, spawn);
+        let movement = *map_settings.movement.expect_actor(&spawn.kind);
+        materialize_actor(&mut commands, &mut actors, max_health, movement, spawn);
     }
 }
 
@@ -271,16 +273,22 @@ fn queue_actor_spawn_in_zone(
         pos,
         face_yaw: rng.random_range(0.0..TAU),
         remaining_secs: warning_secs,
-        warning_secs,
     });
 }
 
-fn materialize_actor(commands: &mut Commands, actors: &mut ActorMap, max_health: f32, spawn: PendingActorSpawn) {
+fn materialize_actor(
+    commands: &mut Commands,
+    actors: &mut ActorMap,
+    max_health: f32,
+    movement: ActorMovementConfig,
+    spawn: PendingActorSpawn,
+) {
     let move_intent = ActorMoveIntent::Idle;
     let entity = commands
         .spawn((
             ActorMarker,
             spawn.actor_id,
+            movement,
             spawn.pos,
             move_intent,
             FaceYaw(spawn.face_yaw),
@@ -438,7 +446,6 @@ mod tests {
             pos: Position::default(),
             face_yaw: 0.0,
             remaining_secs,
-            warning_secs: 2.0,
         }
     }
 

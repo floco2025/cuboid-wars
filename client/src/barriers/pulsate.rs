@@ -17,10 +17,10 @@ use crate::config::ClientSettings;
 pub fn barriers_pulsate_system(
     time: Res<Time>,
     _client_settings: Res<ClientSettings>,
-    barrier_assets: Option<Res<BarrierAssets>>,
+    barrier_assets: Res<BarrierAssets>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    let Some(assets) = barrier_assets else { return };
+    let assets = barrier_assets;
     let pulse_hz = BARRIER_PULSE_HZ;
     let alpha_min = BARRIER_ALPHA_MIN;
     let alpha_max = BARRIER_ALPHA_MAX;

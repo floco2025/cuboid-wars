@@ -61,7 +61,7 @@ pub fn setup_scene_lighting_system(
 // Re-runs when `DebugColors` changes so the user can cycle modes at runtime.
 pub fn map_spawn_geometry_system(
     mut commands: Commands,
-    map_layout: Option<Res<MapLayout>>,
+    map_layout: Res<MapLayout>,
     asset_server: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -82,9 +82,6 @@ pub fn map_spawn_geometry_system(
     mut last_spawn: Local<Option<DebugColorMode>>,
     mut material_cache: Local<MaterialHandleCache>,
 ) {
-    let Some(map_layout) = map_layout else {
-        return;
-    };
     if last_spawn.as_ref() == Some(&debug_colors.0) {
         return;
     }
@@ -239,16 +236,14 @@ pub fn map_level_focus_visibility_system(
 // System to make wall light glass materials emissive after they load
 pub fn map_wall_light_emissive_system(
     asset_set: Res<AssetSet>,
-    barrier_assets: Option<Res<BarrierAssets>>,
+    barrier_assets: Res<BarrierAssets>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut processed: Local<HashSet<AssetId<StandardMaterial>>>,
 ) {
     // Barrier materials match the "non-opaque" heuristic below but are
     // managed by their own pulsation system — keep this pass off them.
-    if let Some(ba) = barrier_assets.as_ref() {
-        for handle in ba.material_handles() {
-            processed.insert(handle.id());
-        }
+    for handle in barrier_assets.material_handles() {
+        processed.insert(handle.id());
     }
 
     let emissive_luminance = asset_set.wall_light_model().emissive_luminance;

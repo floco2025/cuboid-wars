@@ -69,7 +69,7 @@ pub fn handle_shot_message(
             let proj_motion = ProjectileMotion::new(
                 spawn_info.direction_yaw,
                 spawn_info.direction_pitch,
-                gameplay_config.movement.projectile_speed,
+                map_settings.movement.projectile_speed,
                 &gameplay_config.projectiles,
             );
 
@@ -82,7 +82,7 @@ pub fn handle_shot_message(
         }
     }
 
-    // Broadcast shot with face direction to all other logged-in players
+    // Broadcast shot with face direction to all other active players.
     broadcast_to_others(
         players,
         id,
@@ -114,7 +114,7 @@ mod tests {
     #[test]
     fn authoritative_pattern_requires_power_and_falls_back_to_first_allowed() {
         let multi_shot: MultiShotConfig = serde_json::from_str(
-            r#"{"spread_degrees":2.0,"allowed_patterns":["first_2","second_2"],"patterns":{"first_2":{"stencil":["xo"]},"second_2":{"stencil":["xo"]},"dormant_2":{"stencil":["xo"]}}}"#,
+            r#"{"spread_degrees":2.0,"allowed_patterns":["first_2","second_2"],"patterns":{"first_2":{"stencil":["xo"],"column_scale":1.0,"row_scale":1.0},"second_2":{"stencil":["xo"],"column_scale":1.0,"row_scale":1.0},"dormant_2":{"stencil":["xo"],"column_scale":1.0,"row_scale":1.0}}}"#,
         )
         .expect("test multi-shot config failed to parse");
         assert_eq!(resolved_pattern(false, Some("second_2"), &multi_shot), None);

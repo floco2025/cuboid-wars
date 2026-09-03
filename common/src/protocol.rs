@@ -5,8 +5,10 @@
 // "X changed" things belong in the snapshot, not a new event.
 //
 // 1. Bootstrap (`SInit`) — sent once at connect with session-level state
-//    (`PlayerId`, the player's `PortalAccess`, static `MapLayout`, per-map
-//    `MapSettings`).
+//    (the player's identity plus static gameplay and map state). It is the
+//    server's only post-login message until the client validates and installs
+//    it, builds the gameplay app, and answers `CReady`; gameplay traffic starts
+//    only after that acknowledgement, so the client needs no pre-init buffer.
 //
 // 2. State snapshot (`SSnapshot`) — the authoritative current state of every
 //    player, actor, and item (plus shared world state such as open barrier
@@ -62,11 +64,12 @@
 //    state (e.g. an active quest's announcement text); the client treats
 //    receipt as authoritative until a follow-up message updates it. There
 //    is no snapshot-side fallback — recovery from packet loss is QUIC's
-//    job, not the protocol's. Used today for quest assignment / progress /
-//    completion (`SQuestsAssigned`, `SQuestProgress`, `SQuestCompleted`).
+//    job, not the protocol's. Used today for quest assignment, progress, and
+//    completion (`SQuestUpdates`). Every update
+//    carries the complete current quest state, so it has no ordering dependency
+//    on an earlier quest message.
 //    Group quest state (pooled progress, players done, completion) is world
-//    state and rides the snapshot instead; `SQuestCompleted` reaches every
-//    player for group quests.
+//    state and also rides the snapshot.
 //
 // 6. Feed lines (`SFeed`) — server-authored, human-readable lines for the
 //    client's message feed (kills, pickups, quest completions, admin
@@ -84,6 +87,7 @@
 
 use bincode::{Decode, Encode};
 
+use crate::config::GameplayBootstrap;
 pub use crate::types::*;
 
 // ============================================================================
@@ -95,6 +99,11 @@ pub use crate::types::*;
 pub struct CLogin {
     pub name: String,
 }
+
+// Client finished validating and installing `SInit`; the server does not
+// admit it to gameplay or send any other message before this arrives.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct CReady {}
 
 // Client to Server: Local player's steady-state input — movement intent plus
 // facing, committed together whenever either changes enough.
@@ -172,25 +181,31 @@ pub struct CChat {
 
 // --- Bootstrap ---
 
-// Initial connection acknowledgment with assigned player ID + map layout.
+// Initial connection acknowledgment with per-player and shared world state.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SInit {
+    pub player: PlayerBootstrap,
+    pub world: WorldBootstrap,
+}
+
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct PlayerBootstrap {
     pub id: PlayerId,
-    // The portal end(s) this player places, fixed for the session.
     pub portal_access: PortalAccess,
-    pub map_layout: MapLayout,
-    pub map_settings: MapSettings,
-    // Blast radii (m) from the server's combat config, so explosion VFX can
-    // telegraph the true danger area: per actor kind (sorted by kind for
-    // deterministic encoding), a dying player, a missile.
-    pub actor_blast_radii: Vec<(String, f32)>,
-    pub player_blast_radius: f32,
-    pub missile_blast_radius: f32,
-    // Max health from the same config, so health bars have a denominator.
-    pub player_max_health: f32,
-    pub actor_max_health: Vec<(String, f32)>,
-    // Barrier kinds this map places a key for (sorted), so the HUD shows a
-    // key slot only where one can be filled.
+}
+
+#[derive(Debug, Clone, Encode, Decode, bevy_ecs::prelude::Resource)]
+pub struct WorldBootstrap {
+    pub gameplay: GameplayBootstrap,
+    pub map: MapBootstrap,
+}
+
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct MapBootstrap {
+    pub layout: MapLayout,
+    pub settings: MapSettings,
+    // Derived from the map's placed keys rather than authored `MapSettings`;
+    // the client uses it to create only the HUD key slots available on this map.
     pub key_kinds: Vec<BarrierKindId>,
 }
 
@@ -518,50 +533,42 @@ pub struct SFeed {
 
 // --- Per-client state events (private, durable) ---
 
-// One quest in an `SQuestsAssigned` batch. Carries display strings inline so
-// the client never needs a separate quest catalog: `title` is the short panel
-// label, `description` the longer announcement body. `threshold` is the
-// progress denominator; `status` is a complete initial view so assignment
-// remains correct when it races the group snapshot on another QUIC stream.
-#[derive(Debug, Clone, Encode, Decode)]
-pub struct NewQuest {
+// Complete client-visible state for one assigned quest. Static display data is
+// deliberately repeated on updates: quest traffic is sparse, and making each
+// update independently applicable is simpler than imposing cross-stream order.
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
+pub struct QuestState {
     pub id: QuestId,
     pub title: String,
     pub description: String,
-    pub threshold: u32,
-    pub status: QuestInitialStatus,
-    // Display rank: the quest's position in the server's quest catalog. The
-    // client sorts the panel and respawn announcement by it so authoring order
-    // in `gameplay.json` drives display order everywhere.
-    pub order: u32,
-}
-
-// One or more quests assigned to a specific player. Unicast. Batched so quests
-// granted together — at login or from a future in-game quest-giver — surface
-// in a single combined announcement banner. Installs lasting client state (the
-// quest panel reads it); the announcement banner is presentation-only and its
-// duration lives in `client.json`'s `hud.banner`.
-#[derive(Debug, Clone, Encode, Decode)]
-pub struct SQuestsAssigned {
-    pub quests: Vec<NewQuest>,
-}
-
-// A quest's progress advanced (without completing). Unicast. Carries the
-// absolute progress value, not a delta, so a client can ignore a reordered or
-// stale update by keeping the max — separate uni-streams don't guarantee order.
-#[derive(Debug, Clone, Encode, Decode)]
-pub struct SQuestProgress {
-    pub id: QuestId,
-    pub progress: u32,
-}
-
-// Quest completed — unicast to the player for `individual` quests, sent to
-// every logged-in player for group quests. Marks the quest done in the
-// client's panel and fires the completion banner.
-#[derive(Debug, Clone, Encode, Decode)]
-pub struct SQuestCompleted {
-    pub id: QuestId,
     pub completed_text: String,
+    pub threshold: u32,
+    pub scope: QuestScope,
+    // Authored position in the selected map's quest list.
+    pub order: u32,
+    pub status: QuestStatus,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode)]
+pub enum QuestUpdateReason {
+    Assigned,
+    Progressed,
+    Completed,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
+pub struct QuestUpdate {
+    pub reason: QuestUpdateReason,
+    pub quest: QuestState,
+}
+
+// Batched for initial assignment and future multi-quest unlocks; ordinary
+// progress and completion updates usually contain one entry. Unicast for an
+// individual quest and sent independently to each active player for group
+// quests because `QuestState` includes that player's own progress.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SQuestUpdates {
+    pub updates: Vec<QuestUpdate>,
 }
 
 // --- Diagnostic ---
@@ -581,6 +588,7 @@ pub struct SPong {
 #[derive(Debug, Clone, Encode, Decode)]
 pub enum ClientMessage {
     Login(CLogin),
+    Ready(CReady),
     Move(CMove),
     Jump(CJump),
     Shot(CShot),
@@ -596,6 +604,10 @@ pub enum ClientMessage {
 // Note: bincode encodes the discriminant by position, so reordering touches
 // the wire format — fine for an in-dev workspace where server and client
 // always build from the same source.
+#[expect(
+    clippy::large_enum_variant,
+    reason = "SInit intentionally carries the complete bootstrap state"
+)]
 #[derive(Debug, Clone, Encode, Decode)]
 pub enum ServerMessage {
     // Bootstrap
@@ -628,9 +640,7 @@ pub enum ServerMessage {
     // Feed lines
     Feed(SFeed),
     // Per-client state events
-    QuestsAssigned(SQuestsAssigned),
-    QuestProgress(SQuestProgress),
-    QuestCompleted(SQuestCompleted),
+    QuestUpdates(SQuestUpdates),
     // Diagnostic
     Pong(SPong),
 }

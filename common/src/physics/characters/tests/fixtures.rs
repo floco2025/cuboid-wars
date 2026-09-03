@@ -1,6 +1,6 @@
 pub(super) use super::super::*;
 pub(super) use crate::{
-    config::{CharacterPhysicsConfig, GameplayConfig},
+    config::CharacterPhysicsConfig,
     constants::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_THICKNESS},
     map::ramp_surface_at,
     physics::{CollisionWorld, character_overlaps_item},
@@ -229,25 +229,18 @@ pub(crate) fn test_entity(index: u32) -> Entity {
 }
 
 pub(crate) fn player_physics() -> CharacterPhysicsConfig {
-    GameplayConfig::load_default()
+    crate::config::gameplay::load_test_gameplay()
         .expect("default gameplay config should load")
         .player
         .physics()
 }
 
 pub(crate) fn test_ladders() -> f32 {
-    GameplayConfig::load_default()
-        .expect("default gameplay config should load")
-        .movement
-        .ladder_climb_ratio
+    0.4
 }
 
 pub(crate) fn player_speed() -> f32 {
-    GameplayConfig::load_default()
-        .expect("default gameplay config should load")
-        .movement
-        .player
-        .run_speed
+    9.0
 }
 
 pub(crate) fn character_step_toward(

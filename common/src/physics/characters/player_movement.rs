@@ -46,7 +46,7 @@ pub fn step_player_movement(mut step: PlayerMovementStep<'_>) -> CharacterMoveme
             gravity: step.map_settings.gravity_for(step.has_low_gravity),
             passable_kinds: &passable_kinds,
             physics: step.gameplay_config.player.physics(),
-            ladder_climb_ratio: step.gameplay_config.movement.ladder_climb_ratio,
+            ladder_climb_ratio: step.map_settings.movement.ladder_climb_ratio,
             portals: Some(step.portal_set),
         },
     );

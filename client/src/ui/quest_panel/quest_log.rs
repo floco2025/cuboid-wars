@@ -1,7 +1,16 @@
 use std::collections::HashMap;
 
 use bevy::prelude::Resource;
-use common::protocol::{QuestGroupProgress, QuestGroupStatus, QuestId, QuestInitialProgress, QuestScope};
+use common::protocol::{QuestGroupProgress, QuestGroupStatus, QuestId, QuestScope, QuestState, QuestStateProgress};
+
+fn progress_matches_scope(progress: &QuestStateProgress, scope: QuestScope) -> bool {
+    matches!(
+        (progress, scope),
+        (QuestStateProgress::Individual { .. }, QuestScope::Individual)
+            | (QuestStateProgress::Shared { .. }, QuestScope::Shared)
+            | (QuestStateProgress::Everyone { .. }, QuestScope::Everyone)
+    )
+}
 
 // Whose counter a quest shows. `Everyone` carries the own counter next to
 // the group tally the snapshot reports.
@@ -31,11 +40,11 @@ impl QuestProgress {
     }
 
     #[must_use]
-    pub const fn from_initial(progress: QuestInitialProgress) -> Self {
+    pub const fn from_state(progress: QuestStateProgress) -> Self {
         match progress {
-            QuestInitialProgress::Individual { progress } => Self::Own(progress),
-            QuestInitialProgress::Shared { progress } => Self::Shared(progress),
-            QuestInitialProgress::Everyone {
+            QuestStateProgress::Individual { progress } => Self::Own(progress),
+            QuestStateProgress::Shared { progress } => Self::Shared(progress),
+            QuestStateProgress::Everyone {
                 progress,
                 players_done,
                 players_total,
@@ -68,6 +77,7 @@ impl QuestProgress {
 pub struct QuestEntry {
     pub title: String,
     pub description: String,
+    pub completed_text: String,
     pub threshold: u32,
     pub progress: QuestProgress,
     // Kept (not removed) once done so the panel can show it completed.
@@ -80,11 +90,6 @@ impl QuestEntry {
     #[must_use]
     pub fn announcement(&self) -> String {
         format!("{}: {}", self.title, self.description)
-    }
-
-    fn raise_progress(&mut self, value: u32) {
-        let counter = self.progress.counter_mut();
-        *counter = (*counter).max(value);
     }
 
     fn complete(&mut self) {
@@ -114,108 +119,122 @@ impl QuestEntry {
             _ => {}
         }
     }
-}
 
-// State events can beat the assignment that carries a quest's display data;
-// until it lands, only the counter and completion are remembered.
-enum QuestState {
-    Pending {
-        progress: u32,
-        group_progress: Option<QuestGroupProgress>,
-        completed: bool,
-    },
-    Assigned(QuestEntry),
-}
-
-impl Default for QuestState {
-    fn default() -> Self {
-        Self::Pending {
-            progress: 0,
-            group_progress: None,
-            completed: false,
+    fn merge(&mut self, incoming: Self) -> anyhow::Result<()> {
+        if self.title != incoming.title
+            || self.description != incoming.description
+            || self.completed_text != incoming.completed_text
+            || self.threshold != incoming.threshold
+            || self.order != incoming.order
+        {
+            anyhow::bail!("quest definition changed across updates");
         }
+        match (&mut self.progress, incoming.progress) {
+            (QuestProgress::Own(current), QuestProgress::Own(next))
+            | (QuestProgress::Shared(current), QuestProgress::Shared(next)) => {
+                *current = (*current).max(next);
+            }
+            (
+                QuestProgress::Everyone {
+                    own,
+                    players_done,
+                    players_total,
+                },
+                QuestProgress::Everyone {
+                    own: next_own,
+                    players_done: next_done,
+                    players_total: next_total,
+                },
+            ) => {
+                *own = (*own).max(next_own);
+                *players_done = next_done;
+                *players_total = next_total;
+            }
+            _ => anyhow::bail!("quest scope changed across updates"),
+        }
+        if incoming.completed {
+            self.complete();
+        }
+        Ok(())
     }
+}
+
+pub struct QuestStateChange {
+    pub inserted: bool,
+    pub became_completed: bool,
+    pub announcement: String,
+    pub completed_text: String,
 }
 
 #[derive(Resource, Default)]
 pub struct QuestLog {
-    quests: HashMap<QuestId, QuestState>,
+    quests: HashMap<QuestId, QuestEntry>,
 }
 
 impl QuestLog {
-    // False for an id already assigned.
-    pub fn assign(&mut self, id: QuestId, mut entry: QuestEntry) -> bool {
-        match self.quests.get(&id) {
-            Some(QuestState::Assigned(_)) => return false,
-            Some(QuestState::Pending {
-                progress,
-                group_progress,
-                completed,
-            }) => {
-                entry.raise_progress(*progress);
-                if let Some(group_progress) = group_progress {
-                    entry.apply_group_progress(group_progress);
-                }
-                if *completed {
-                    entry.complete();
-                }
-            }
-            None => {}
+    pub fn apply_state(&mut self, state: QuestState) -> anyhow::Result<QuestStateChange> {
+        if state.id.0.is_empty() {
+            anyhow::bail!("quest update contains an empty id");
         }
-        self.quests.insert(id, QuestState::Assigned(entry));
-        true
-    }
-
-    // Absolute value; the max is kept so a stale update can't regress it.
-    pub fn record_progress(&mut self, id: QuestId, value: u32) {
-        match self.quests.entry(id).or_default() {
-            QuestState::Assigned(entry) => entry.raise_progress(value),
-            QuestState::Pending { progress, .. } => *progress = (*progress).max(value),
+        if state.title.is_empty() || state.description.is_empty() || state.completed_text.is_empty() {
+            anyhow::bail!("quest {:?} has empty display text", state.id.0);
         }
-    }
-
-    pub fn record_completion(&mut self, id: QuestId) {
-        match self.quests.entry(id).or_default() {
-            QuestState::Assigned(entry) => entry.complete(),
-            QuestState::Pending { completed, .. } => *completed = true,
+        if state.threshold == 0 {
+            anyhow::bail!("quest {:?} has a zero threshold", state.id.0);
         }
+        if !progress_matches_scope(&state.status.progress, state.scope) {
+            anyhow::bail!("quest {:?} progress does not match its scope", state.id.0);
+        }
+        let id = state.id;
+        let mut incoming = QuestEntry {
+            title: state.title,
+            description: state.description,
+            completed_text: state.completed_text,
+            threshold: state.threshold,
+            progress: QuestProgress::from_state(state.status.progress),
+            completed: state.status.completed,
+            order: state.order,
+        };
+        if incoming.completed {
+            incoming.complete();
+        }
+        let announcement = incoming.announcement();
+        let completed_text = incoming.completed_text.clone();
+        let inserted = !self.quests.contains_key(&id);
+        let was_completed = self.quests.get(&id).is_some_and(|entry| entry.completed);
+        if let Some(entry) = self.quests.get_mut(&id) {
+            entry.merge(incoming)?;
+        } else {
+            self.quests.insert(id.clone(), incoming);
+        }
+        let became_completed = !was_completed && self.quests.get(&id).is_some_and(|entry| entry.completed);
+        Ok(QuestStateChange {
+            inserted,
+            became_completed,
+            announcement,
+            completed_text,
+        })
     }
 
     // Group state from the snapshot. Player counts are set, not merged —
     // they drop when a finished player leaves.
     pub fn apply_group_status(&mut self, statuses: &[QuestGroupStatus]) {
         for status in statuses {
-            match self.quests.entry(status.id.clone()).or_default() {
-                QuestState::Assigned(entry) => entry.apply_group_progress(&status.progress),
-                QuestState::Pending {
-                    progress,
-                    group_progress,
-                    ..
-                } => {
-                    if let QuestGroupProgress::Shared { progress: shared } = &status.progress {
-                        *progress = (*progress).max(*shared);
-                    }
-                    *group_progress = Some(status.progress.clone());
-                }
-            }
+            let Some(entry) = self.quests.get_mut(&status.id) else {
+                continue;
+            };
+            entry.apply_group_progress(&status.progress);
             if status.completed {
-                self.record_completion(status.id.clone());
+                entry.complete();
             }
         }
     }
 
-    // Assigned quests in display order: catalog `order`, then id as a stable
+    // Assigned quests in authored `order`, then id as a stable
     // tiebreak.
     #[must_use]
     pub fn sorted(&self) -> Vec<(&QuestId, &QuestEntry)> {
-        let mut entries: Vec<_> = self
-            .quests
-            .iter()
-            .filter_map(|(id, state)| match state {
-                QuestState::Assigned(entry) => Some((id, entry)),
-                QuestState::Pending { .. } => None,
-            })
-            .collect();
+        let mut entries: Vec<_> = self.quests.iter().collect();
         entries.sort_by(|(a_id, a), (b_id, b)| a.order.cmp(&b.order).then_with(|| a_id.0.cmp(&b_id.0)));
         entries
     }
@@ -235,9 +254,22 @@ impl QuestLog {
 
     #[cfg(test)]
     pub fn entry(&self, id: &str) -> Option<&QuestEntry> {
-        match self.quests.get(&QuestId(id.to_owned()))? {
-            QuestState::Assigned(entry) => Some(entry),
-            QuestState::Pending { .. } => None,
+        self.quests.get(&QuestId(id.to_owned()))
+    }
+
+    #[cfg(test)]
+    pub fn assign(&mut self, id: QuestId, entry: QuestEntry) -> bool {
+        if self.quests.contains_key(&id) {
+            return false;
+        }
+        self.quests.insert(id, entry);
+        true
+    }
+
+    #[cfg(test)]
+    pub fn record_completion(&mut self, id: QuestId) {
+        if let Some(entry) = self.quests.get_mut(&id) {
+            entry.complete();
         }
     }
 }
@@ -265,6 +297,28 @@ mod tests {
         }
     }
 
+    fn quest_state(quest_id: &str, scope: QuestScope, progress: u32, completed: bool) -> QuestState {
+        let progress = match scope {
+            QuestScope::Individual => QuestStateProgress::Individual { progress },
+            QuestScope::Shared => QuestStateProgress::Shared { progress },
+            QuestScope::Everyone => QuestStateProgress::Everyone {
+                progress,
+                players_done: 0,
+                players_total: 0,
+            },
+        };
+        QuestState {
+            id: id(quest_id),
+            title: quest_id.to_owned(),
+            description: format!("do {quest_id}"),
+            completed_text: format!("{quest_id} done"),
+            threshold: 10,
+            scope,
+            order: 0,
+            status: common::protocol::QuestStatus { completed, progress },
+        }
+    }
+
     #[test]
     fn assign_rejects_a_known_id() {
         let mut log = log(vec![("gold", entry("Gold", QuestScope::Individual, 0, 10, 0))]);
@@ -273,31 +327,34 @@ mod tests {
 
     #[test]
     fn progress_keeps_the_max() {
-        let mut log = log(vec![("gold", entry("Gold", QuestScope::Individual, 3, 10, 0))]);
+        let mut log = QuestLog::default();
 
-        log.record_progress(id("gold"), 4);
-        log.record_progress(id("gold"), 2);
+        log.apply_state(quest_state("gold", QuestScope::Individual, 4, false))
+            .expect("first state should apply");
+        log.apply_state(quest_state("gold", QuestScope::Individual, 2, false))
+            .expect("stale state should apply without regressing");
 
         assert_eq!(log.entry("gold").expect("assigned").progress, QuestProgress::Own(4));
     }
 
     #[test]
-    fn progress_before_assignment_merges_into_the_entry() {
+    fn full_progress_state_installs_the_quest() {
         let mut log = QuestLog::default();
-        log.record_progress(id("gold"), 9);
-        assert!(log.sorted().is_empty());
+        let change = log
+            .apply_state(quest_state("gold", QuestScope::Individual, 9, false))
+            .expect("full state should apply");
 
-        assert!(log.assign(id("gold"), entry("Gold", QuestScope::Individual, 2, 10, 0)));
-
+        assert!(change.inserted);
         assert_eq!(log.entry("gold").expect("assigned").progress, QuestProgress::Own(9));
     }
 
     #[test]
-    fn completion_before_assignment_marks_the_entry_complete() {
+    fn stale_progress_after_completion_does_not_regress() {
         let mut log = QuestLog::default();
-        log.record_completion(id("gold"));
-
-        assert!(log.assign(id("gold"), entry("Gold", QuestScope::Individual, 3, 10, 0)));
+        log.apply_state(quest_state("gold", QuestScope::Individual, 10, true))
+            .expect("completion should apply");
+        log.apply_state(quest_state("gold", QuestScope::Individual, 3, false))
+            .expect("stale progress should merge");
 
         let entry = log.entry("gold").expect("assigned");
         assert!(entry.completed);
@@ -333,12 +390,14 @@ mod tests {
     }
 
     #[test]
-    fn group_status_completion_before_assignment_is_buffered() {
+    fn group_status_before_quest_state_is_ignored_and_next_snapshot_repairs_it() {
         let mut log = QuestLog::default();
         log.apply_group_status(&[status("show", true, QuestGroupProgress::Shared { progress: 1 })]);
         assert!(log.sorted().is_empty());
 
         assert!(log.assign(id("show"), entry("Show", QuestScope::Shared, 0, 1, 0)));
+        assert!(!log.entry("show").expect("assigned").completed);
+        log.apply_group_status(&[status("show", true, QuestGroupProgress::Shared { progress: 1 })]);
 
         let entry = log.entry("show").expect("assigned");
         assert!(entry.completed);
@@ -346,11 +405,12 @@ mod tests {
     }
 
     #[test]
-    fn everyone_counts_before_assignment_are_buffered() {
+    fn everyone_counts_before_quest_state_are_repaired_by_the_next_snapshot() {
         let mut log = QuestLog::default();
         log.apply_group_status(&[status("gold", false, everyone(2, 3))]);
 
         assert!(log.assign(id("gold"), entry("Gold", QuestScope::Everyone, 1, 10, 0)));
+        log.apply_group_status(&[status("gold", false, everyone(2, 3))]);
 
         assert_eq!(
             log.entry("gold").expect("assigned").progress,

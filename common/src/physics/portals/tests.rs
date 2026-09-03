@@ -1,10 +1,10 @@
-use std::f32::consts::PI;
+use std::{collections::HashMap, f32::consts::PI};
 
 use bevy_math::Vec3;
 
 use super::{traversal::traverse_yaw, *};
 use crate::{
-    config::{CharacterPhysicsConfig, GameplayConfig},
+    config::{CharacterPhysicsConfig, KnockbackConfig, MapMovementConfig, PlayerMovementConfig},
     constants::{PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH, PORTAL_LIGHT_CLEARANCE, PORTAL_RIM_SCALE, WALL_HEIGHT},
     math::angle_delta_radians,
     physics::{
@@ -14,6 +14,28 @@ use crate::{
 };
 
 const CAP: f32 = 22.5;
+const LADDER_CLIMB_RATIO: f32 = 0.4;
+
+fn map_movement() -> MapMovementConfig {
+    MapMovementConfig {
+        player: PlayerMovementConfig {
+            walk_speed: 6.0,
+            run_speed: 9.0,
+            speed_power_up: 1.6,
+        },
+        actors: HashMap::new(),
+        missile_speed: 16.0,
+        projectile_speed: 90.0,
+        gravity: 25.0,
+        low_gravity: 5.0,
+        ladder_climb_ratio: LADDER_CLIMB_RATIO,
+        knockback: KnockbackConfig {
+            max_speed: 15.0,
+            up_speed: 7.0,
+            deceleration: 35.0,
+        },
+    }
+}
 
 fn portal(end: PortalEnd, pos: Vec3, normal: Vec3, yaw: f32) -> Portal {
     Portal {
@@ -46,7 +68,7 @@ fn frames(set: &PortalSet) -> (&PortalFrame, &PortalFrame) {
 }
 
 fn player_physics() -> CharacterPhysicsConfig {
-    GameplayConfig::load_default()
+    crate::config::gameplay::load_test_gameplay()
         .expect("default gameplay config should load")
         .player
         .physics()
@@ -269,12 +291,14 @@ fn falling_into_floor_portal_exits_ramp_at_its_normal_angle() {
         Vec3::new(10.0, 2.0, 10.0),
         ramp_normal,
     );
-    let gameplay = GameplayConfig::load_default().expect("default gameplay config should load");
+    let gameplay = crate::config::gameplay::load_test_gameplay().expect("default gameplay config should load");
+    let movement = map_movement();
     let hop = set
         .player_hop(
             Vec3::new(0.0, -0.85, 0.0),
             Vec3::new(0.0, -0.95, 0.0),
             &gameplay,
+            &movement,
             PlayerMoveIntent::Idle,
             false,
             false,
@@ -857,7 +881,7 @@ fn perpetual_floor_fall_keeps_its_speed_across_hops() {
     use crate::constants::TICK_SECS;
     use crate::physics::{CharacterEnvironment, CharacterStep, step_character_movement};
 
-    let gameplay = GameplayConfig::load_default().expect("default gameplay config should load");
+    let gameplay = crate::config::gameplay::load_test_gameplay().expect("default gameplay config should load");
     let physics = gameplay.player.physics();
     let layout = MapLayout {
         floors: vec![
@@ -895,7 +919,7 @@ fn perpetual_floor_fall_keeps_its_speed_across_hops() {
         gravity: 25.0,
         passable_kinds: &[],
         physics,
-        ladder_climb_ratio: gameplay.movement.ladder_climb_ratio,
+        ladder_climb_ratio: LADDER_CLIMB_RATIO,
         portals: Some(&set),
     };
 
@@ -956,7 +980,7 @@ fn floor_to_ceiling_fall_accelerates_toward_terminal_velocity() {
     use crate::constants::TICK_SECS;
     use crate::physics::{CharacterEnvironment, CharacterStep, step_character_movement};
 
-    let gameplay = GameplayConfig::load_default().expect("default gameplay config should load");
+    let gameplay = crate::config::gameplay::load_test_gameplay().expect("default gameplay config should load");
     let physics = gameplay.player.physics();
     let layout = MapLayout {
         floors: vec![Floor {
@@ -983,7 +1007,7 @@ fn floor_to_ceiling_fall_accelerates_toward_terminal_velocity() {
         gravity: 25.0,
         passable_kinds: &[],
         physics,
-        ladder_climb_ratio: gameplay.movement.ladder_climb_ratio,
+        ladder_climb_ratio: LADDER_CLIMB_RATIO,
         portals: Some(&set),
     };
 
@@ -1104,7 +1128,7 @@ fn steering_sideways_escapes_a_portal_fall_chain() {
     use crate::constants::TICK_SECS;
     use crate::physics::{CharacterEnvironment, CharacterStep, step_character_movement};
 
-    let gameplay = GameplayConfig::load_default().expect("default gameplay config should load");
+    let gameplay = crate::config::gameplay::load_test_gameplay().expect("default gameplay config should load");
     let physics = gameplay.player.physics();
     let layout = MapLayout {
         floors: vec![Floor {
@@ -1131,7 +1155,7 @@ fn steering_sideways_escapes_a_portal_fall_chain() {
         gravity: 25.0,
         passable_kinds: &[],
         physics,
-        ladder_climb_ratio: gameplay.movement.ladder_climb_ratio,
+        ladder_climb_ratio: LADDER_CLIMB_RATIO,
         portals: Some(&set),
     };
 
@@ -1227,7 +1251,7 @@ fn floor_portal_funnel_is_symmetric_through_character_movement() {
     use crate::constants::TICK_SECS;
     use crate::physics::{CharacterEnvironment, CharacterStep, step_character_movement};
 
-    let gameplay = GameplayConfig::load_default().expect("default gameplay config should load");
+    let gameplay = crate::config::gameplay::load_test_gameplay().expect("default gameplay config should load");
     let physics = gameplay.player.physics();
     let layout = MapLayout {
         floors: vec![Floor {
@@ -1254,7 +1278,7 @@ fn floor_portal_funnel_is_symmetric_through_character_movement() {
         gravity: 25.0,
         passable_kinds: &[],
         physics,
-        ladder_climb_ratio: gameplay.movement.ladder_climb_ratio,
+        ladder_climb_ratio: LADDER_CLIMB_RATIO,
         portals: Some(&set),
     };
 
@@ -1325,7 +1349,7 @@ fn misaligned_fall_loop_is_sustained_by_funneling() {
     use crate::constants::TICK_SECS;
     use crate::physics::{CharacterEnvironment, CharacterStep, step_character_movement};
 
-    let gameplay = GameplayConfig::load_default().expect("default gameplay config should load");
+    let gameplay = crate::config::gameplay::load_test_gameplay().expect("default gameplay config should load");
     let physics = gameplay.player.physics();
     let layout = MapLayout {
         floors: vec![Floor {
@@ -1352,7 +1376,7 @@ fn misaligned_fall_loop_is_sustained_by_funneling() {
         gravity: 25.0,
         passable_kinds: &[],
         physics,
-        ladder_climb_ratio: gameplay.movement.ladder_climb_ratio,
+        ladder_climb_ratio: LADDER_CLIMB_RATIO,
         portals: Some(&set),
     };
 

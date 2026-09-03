@@ -79,19 +79,15 @@ pub fn input_weapon_select_system(
     keyboard: Res<ButtonInput<KeyCode>>,
     console: Res<ConsoleState>,
     menu: Res<SettingsMenuState>,
-    map_settings: Option<Res<MapSettings>>,
-    portal_access: Option<Res<PortalAccess>>,
-    my_player_id: Option<Res<MyPlayerId>>,
+    map_settings: Res<MapSettings>,
+    portal_access: Res<PortalAccess>,
+    my_player_id: Res<MyPlayerId>,
     players: Res<PlayerMap>,
     gameplay_config: Res<GameplayConfig>,
     mut mode: ResMut<WeaponMode>,
 ) {
-    let (Some(map_settings), Some(portal_access)) = (map_settings, portal_access) else {
-        return;
-    };
-    let has_multi_shot = my_player_id
-        .as_deref()
-        .and_then(|id| players.get(&id.0))
+    let has_multi_shot = players
+        .get(&my_player_id.0)
         .is_some_and(|info| info.power_up(PowerUpKind::MultiShot));
     let multi_shot_patterns = if has_multi_shot {
         gameplay_config.projectiles.multi_shot.allowed_patterns().len()

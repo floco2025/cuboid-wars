@@ -189,7 +189,7 @@ mod tests {
     fn players() -> (PlayerMap, UnboundedReceiver<ServerToClient>) {
         let (tx, rx) = unbounded_channel();
         let mut info = PlayerInfo::new(Entity::PLACEHOLDER, tx);
-        info.connection.logged_in = true;
+        info.connection.phase = crate::players::ConnectionPhase::Active;
         let mut players = PlayerMap::default();
         players.insert(PlayerId(1), info);
         (players, rx)
@@ -249,7 +249,7 @@ mod tests {
         let (mut players, mut first) = players();
         let (tx, mut second) = unbounded_channel();
         let mut info = PlayerInfo::new(Entity::PLACEHOLDER, tx);
-        info.connection.logged_in = true;
+        info.connection.phase = crate::players::ConnectionPhase::Active;
         players.insert(PlayerId(2), info);
 
         emit_feed(

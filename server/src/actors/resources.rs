@@ -183,9 +183,6 @@ pub struct PendingActorSpawn {
     pub pos: Position,
     pub face_yaw: f32,
     pub remaining_secs: f32,
-    // The full window length, shipped alongside `remaining_secs` so clients
-    // can compute and animate the fade fraction.
-    pub warning_secs: f32,
 }
 
 #[derive(Resource, Default)]

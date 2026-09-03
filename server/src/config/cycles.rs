@@ -1,7 +1,7 @@
 use anyhow::{Result, bail};
 use serde::Deserialize;
 
-use super::validation::validate_positive_finite;
+use super::validation::{deserialize_required_option, validate_positive_finite};
 
 // Cadence of the automatic rain cycle: random clear stretch, ramp in, a
 // random rain stretch at full intensity, fade out, repeat. Global — maps
@@ -39,20 +39,20 @@ impl WeatherCycleConfig {
 // opt in with `lighting: "auto"`.
 #[derive(Debug, Clone, Deserialize)]
 pub struct LightingCycleConfig {
-    #[serde(default)]
+    #[serde(deserialize_with = "deserialize_required_option")]
     pub bright_secs: Option<f32>,
-    #[serde(default)]
+    #[serde(deserialize_with = "deserialize_required_option")]
     pub dim_secs: Option<f32>,
-    #[serde(default)]
+    #[serde(deserialize_with = "deserialize_required_option")]
     pub dark_secs: Option<f32>,
     // Fade lengths between adjacent stops, used in both directions. Exactly
     // the fades matching the present stop pairs must be set;
     // `bright_dark_secs` is the direct fade when dim is not a stop.
-    #[serde(default)]
+    #[serde(deserialize_with = "deserialize_required_option")]
     pub bright_dim_secs: Option<f32>,
-    #[serde(default)]
+    #[serde(deserialize_with = "deserialize_required_option")]
     pub dim_dark_secs: Option<f32>,
-    #[serde(default)]
+    #[serde(deserialize_with = "deserialize_required_option")]
     pub bright_dark_secs: Option<f32>,
 }
 
@@ -173,7 +173,7 @@ mod tests {
     #[test]
     fn lighting_cycle_parses_and_validates() {
         let cycle: LightingCycleConfig = serde_json::from_str(
-            r#"{"bright_secs": 240.0, "dim_secs": 45.0, "dark_secs": 120.0, "bright_dim_secs": 20.0, "dim_dark_secs": 20.0}"#,
+            r#"{"bright_secs": 240.0, "dim_secs": 45.0, "dark_secs": 120.0, "bright_dim_secs": 20.0, "dim_dark_secs": 20.0, "bright_dark_secs": null}"#,
         )
         .expect("lighting cycle should deserialize");
         cycle

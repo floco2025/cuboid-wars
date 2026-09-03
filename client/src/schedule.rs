@@ -33,6 +33,7 @@ pub fn configure_client_sets(app: &mut App) {
             // The console claims keystrokes first, so a key can't both type
             // and act in-game (the input systems gate on `console_closed`).
             ClientSet::Console.before(ClientSet::Input),
+            ClientSet::Input,
             // Cameras follow the local player after input/prediction has had
             // a chance to update the player state.
             ClientSet::Camera.after(ClientSet::Input),
@@ -42,6 +43,7 @@ pub fn configure_client_sets(app: &mut App) {
             // Laser beams and missile exhaust anchor to this frame's
             // interpolated character/missile transforms, so they must read
             // the freshly-synced values.
+            ClientSet::CharacterSync,
             ClientSet::Presentation.after(ClientSet::CharacterSync),
             // Rain intensity is smoothed in Sky before the shared particle
             // clouds in Presentation consume the spawned drops.

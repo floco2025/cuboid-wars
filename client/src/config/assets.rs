@@ -133,13 +133,13 @@ impl AssetSet {
             only_gameplay.sort_unstable();
             only_assets.sort_unstable();
             bail!(
-                "actor kinds disagree between common gameplay and client asset configs (only in gameplay: {only_gameplay:?}, only in assets: {only_assets:?})"
+                "actor kinds disagree between server gameplay and client asset configs (only in gameplay: {only_gameplay:?}, only in assets: {only_assets:?})"
             );
         }
         for id in barrier_kind_table.ids() {
             if self.barrier_kind_color_hex(id).is_none() {
                 bail!(
-                    "barrier kind {id:?} has no color in assets.json `barrier_kind_colors`; add an entry or remove the id from gameplay.json"
+                    "barrier kind {id:?} has no color in assets.json `barrier_kind_colors`; add an entry or remove the id from the map's gameplay config"
                 );
             }
         }
@@ -490,17 +490,58 @@ impl AssetSet {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use common::config::GameplayConfig;
+    use common::config::{
+        CharacterGameplayConfig, GameplayConfig, MissilesConfig, PlayerGameplayConfig, PortalsConfig, ProjectilesConfig,
+    };
     use std::collections::HashSet;
 
     fn gameplay_and_barriers() -> (GameplayConfig, BarrierKindTable) {
-        let gameplay = GameplayConfig::load_default().expect("load gameplay");
-        let barriers = BarrierKindTable::from_ids(gameplay.barrier_kinds.clone()).expect("build barrier table");
+        #[derive(Deserialize)]
+        struct Source {
+            player: PlayerGameplayConfig,
+            actors: Actors,
+            weapons: Weapons,
+            maps: HashMap<String, MapSource>,
+        }
+        #[derive(Deserialize)]
+        struct Actors {
+            kinds: HashMap<String, CharacterGameplayConfig>,
+        }
+        #[derive(Deserialize)]
+        struct Weapons {
+            projectiles: ProjectilesConfig,
+            missiles: MissilesConfig,
+            portals: PortalsConfig,
+        }
+        #[derive(Deserialize)]
+        struct MapSource {
+            #[serde(default)]
+            barrier_kinds: Vec<String>,
+        }
+        let source: Source = serde_json::from_str(include_str!("../../../config/server/gameplay.json"))
+            .expect("load gameplay projection from server config");
+        let gameplay = GameplayConfig {
+            player: source.player,
+            projectiles: source.weapons.projectiles,
+            missiles: source.weapons.missiles,
+            portals: source.weapons.portals,
+            actors: source.actors.kinds,
+        };
+        gameplay.validate().expect("gameplay projection validates");
+        let barriers = BarrierKindTable::from_ids(
+            source
+                .maps
+                .get("hotel")
+                .expect("hotel map config missing")
+                .barrier_kinds
+                .clone(),
+        )
+        .expect("build barrier table");
         (gameplay, barriers)
     }
 
     #[test]
-    fn default_assets_match_common_gameplay() {
+    fn default_assets_match_server_gameplay() {
         let assets = AssetSet::load_default().expect("load assets");
         let (gameplay, barriers) = gameplay_and_barriers();
 

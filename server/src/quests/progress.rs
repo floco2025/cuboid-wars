@@ -1,11 +1,11 @@
 use crate::{
     config::{FeedConfig, Quest, QuestKind},
-    network::{FeedAudience, FeedEvent, ServerToClient, broadcast_to_all, emit_feed},
+    network::{FeedAudience, FeedEvent, ServerToClient, emit_feed},
     players::{PlayerInfo, PlayerMap, PlayerQuestState},
 };
 use common::protocol::{
-    NewQuest, PlayerId, QuestId, QuestInitialProgress, QuestInitialStatus, QuestScope, SQuestCompleted, SQuestProgress,
-    SQuestsAssigned, ServerMessage,
+    PlayerId, QuestId, QuestScope, QuestState, QuestStateProgress, QuestStatus, QuestUpdate, QuestUpdateReason,
+    SQuestUpdates, ServerMessage,
 };
 
 use super::{QuestBoard, QuestCatalog, catalog::CatalogQuest, resources::everyone_count};
@@ -52,7 +52,7 @@ pub fn record_event(
 ) {
     for quest in affected(catalog, board, |quest| event.matches(quest)) {
         match (event.player(), quest.scope) {
-            (Some(player), QuestScope::Individual) => advance_individual(players, feed, player, quest),
+            (Some(player), QuestScope::Individual) => advance_individual(players, board, feed, player, quest),
             (Some(player), QuestScope::Everyone) => {
                 advance_everyone(players, board, catalog, feed, player, quest);
             }
@@ -79,7 +79,7 @@ fn affected<'a>(
         .collect()
 }
 
-// Adds one to the player's own count and tells them; `None` when the player
+// Adds one to the player's own count; `None` when the player
 // is gone, isn't assigned, or already finished their part.
 fn bump_own_progress(players: &mut PlayerMap, actor: PlayerId, quest: &Quest) -> Option<u32> {
     let current = players
@@ -92,7 +92,7 @@ fn bump_own_progress(players: &mut PlayerMap, actor: PlayerId, quest: &Quest) ->
 }
 
 // Raises the player's own count to `to` (capped at the threshold, never
-// lowered) and tells them; `None` when nothing changed.
+// lowered); `None` when nothing changed.
 fn raise_own_progress(players: &mut PlayerMap, actor: PlayerId, quest: &Quest, to: u32) -> Option<u32> {
     let info = players.get_mut(&actor)?;
     let progress = info.session.quest_states.get_mut(&quest.id)?.own_progress_mut()?;
@@ -101,25 +101,38 @@ fn raise_own_progress(players: &mut PlayerMap, actor: PlayerId, quest: &Quest, t
         return None;
     }
     *progress = to;
-    send(info, progress_message(quest, to));
     Some(to)
 }
 
-fn advance_individual(players: &mut PlayerMap, feed: &FeedConfig, actor: PlayerId, quest: &CatalogQuest) {
+fn advance_individual(
+    players: &mut PlayerMap,
+    board: &QuestBoard,
+    feed: &FeedConfig,
+    actor: PlayerId,
+    quest: &CatalogQuest,
+) {
     if let Some(progress) = bump_own_progress(players, actor, quest) {
-        settle_individual(players, feed, actor, quest, progress);
+        settle_individual(players, board, feed, actor, quest, progress);
     }
 }
 
-fn settle_individual(players: &mut PlayerMap, feed: &FeedConfig, actor: PlayerId, quest: &CatalogQuest, progress: u32) {
+fn settle_individual(
+    players: &mut PlayerMap,
+    board: &QuestBoard,
+    feed: &FeedConfig,
+    actor: PlayerId,
+    quest: &CatalogQuest,
+    progress: u32,
+) {
     if progress < quest.threshold {
+        send_quest_update(players, board, actor, quest, QuestUpdateReason::Progressed);
         return;
     }
     let Some(info) = players.get_mut(&actor) else {
         return;
     };
     info.session.score += quest.points;
-    send(info, completed_message(quest));
+    send_quest_update(players, board, actor, quest, QuestUpdateReason::Completed);
     emit_feed(
         players,
         feed,
@@ -154,12 +167,14 @@ fn settle_everyone(
     progress: u32,
 ) {
     if progress < quest.threshold {
+        send_quest_update(players, board, actor, quest, QuestUpdateReason::Progressed);
         return;
     }
     let count = everyone_count(players, quest);
     if count.all_done() {
         complete_group(players, board, catalog, feed, quest);
     } else {
+        send_quest_update(players, board, actor, quest, QuestUpdateReason::Progressed);
         emit_feed(
             players,
             feed,
@@ -183,6 +198,8 @@ fn advance_shared(
 ) {
     if board.add_shared_progress(quest) >= quest.threshold {
         complete_group(players, board, catalog, feed, quest);
+    } else {
+        send_group_update(players, board, quest, QuestUpdateReason::Progressed);
     }
 }
 
@@ -197,11 +214,11 @@ fn complete_group(
         return;
     }
     for (_, info) in players.iter_mut() {
-        if info.connection.logged_in {
+        if info.connection.is_active() {
             info.session.score += quest.points;
         }
     }
-    broadcast_to_all(players, completed_message(quest));
+    send_group_update(players, board, quest, QuestUpdateReason::Completed);
     emit_feed(
         players,
         feed,
@@ -225,10 +242,10 @@ fn unlock(players: &mut PlayerMap, board: &mut QuestBoard, quest: &CatalogQuest)
     board.unlock(&quest.id);
     let assigned: Vec<PlayerId> = players
         .iter_mut()
-        .filter_map(|(id, info)| (info.connection.logged_in && assign_state(info, quest, board)).then_some(*id))
+        .filter_map(|(id, info)| (info.connection.is_active() && assign_state(info, quest, board)).then_some(*id))
         .collect();
     for player in assigned {
-        let new_quest = initial_quest(players, player, quest, board);
+        let new_quest = quest_state(players, player, quest, board);
         if let Some(info) = players.get(&player) {
             notify_assigned(info, vec![new_quest]);
         }
@@ -260,7 +277,7 @@ pub fn complete_quest(
         QuestScope::Individual => {
             for &actor in targets {
                 if let Some(progress) = raise_own_progress(players, actor, quest, quest.threshold) {
-                    settle_individual(players, feed, actor, quest, progress);
+                    settle_individual(players, board, feed, actor, quest, progress);
                     finished += 1;
                 }
             }
@@ -286,8 +303,23 @@ pub fn complete_quest(
 // Every unlocked quest the player doesn't have yet, sent as one batch (no
 // points for late joiners to a completed group quest).
 pub fn assign_quests(players: &mut PlayerMap, player: PlayerId, catalog: &QuestCatalog, board: &QuestBoard) {
-    let Some(info) = players.get_mut(&player) else {
+    let new_quests = assign_quest_states(players, player, catalog, board);
+    if new_quests.is_empty() {
         return;
+    }
+    if let Some(info) = players.get(&player) {
+        notify_assigned(info, new_quests);
+    }
+}
+
+fn assign_quest_states(
+    players: &mut PlayerMap,
+    player: PlayerId,
+    catalog: &QuestCatalog,
+    board: &QuestBoard,
+) -> Vec<QuestState> {
+    let Some(info) = players.get_mut(&player) else {
+        return Vec::new();
     };
     let mut new_quests = Vec::new();
     for quest in catalog.iter().filter(|quest| board.is_unlocked(&quest.id)) {
@@ -296,15 +328,12 @@ pub fn assign_quests(players: &mut PlayerMap, player: PlayerId, catalog: &QuestC
         }
     }
     if new_quests.is_empty() {
-        return;
+        return Vec::new();
     }
-    let new_quests = new_quests
+    new_quests
         .into_iter()
-        .map(|quest| initial_quest(players, player, quest, board))
-        .collect();
-    if let Some(info) = players.get(&player) {
-        notify_assigned(info, new_quests);
-    }
+        .map(|quest| quest_state(players, player, quest, board))
+        .collect()
 }
 
 fn assign_state(player_info: &mut PlayerInfo, quest: &Quest, board: &QuestBoard) -> bool {
@@ -323,47 +352,56 @@ fn assign_state(player_info: &mut PlayerInfo, quest: &Quest, board: &QuestBoard)
     true
 }
 
-fn initial_quest(players: &PlayerMap, player: PlayerId, quest: &CatalogQuest, board: &QuestBoard) -> NewQuest {
+fn quest_state(players: &PlayerMap, player: PlayerId, quest: &CatalogQuest, board: &QuestBoard) -> QuestState {
     let own_progress = players
         .get(&player)
         .and_then(|info| info.session.quest_states.get(&quest.id))
         .and_then(|state| state.own_progress())
         .unwrap_or(0);
     let progress = match quest.scope {
-        QuestScope::Individual => QuestInitialProgress::Individual { progress: own_progress },
-        QuestScope::Shared => QuestInitialProgress::Shared {
+        QuestScope::Individual => QuestStateProgress::Individual { progress: own_progress },
+        QuestScope::Shared => QuestStateProgress::Shared {
             progress: board.shared_progress(&quest.id),
         },
         QuestScope::Everyone => {
             let count = everyone_count(players, quest);
-            QuestInitialProgress::Everyone {
+            QuestStateProgress::Everyone {
                 progress: own_progress,
                 players_done: count.players_done,
                 players_total: count.players_total,
             }
         }
     };
-    NewQuest {
+    QuestState {
         id: quest.id.clone(),
         title: quest.title.clone(),
         description: quest.description.clone(),
+        completed_text: quest.completed_text.clone(),
         threshold: quest.threshold,
-        status: QuestInitialStatus {
+        scope: quest.scope,
+        order: quest.order,
+        status: QuestStatus {
             completed: match quest.scope {
                 QuestScope::Individual => own_progress >= quest.threshold,
                 QuestScope::Shared | QuestScope::Everyone => board.is_completed(&quest.id),
             },
             progress,
         },
-        order: quest.order,
     }
 }
 
-fn notify_assigned(info: &PlayerInfo, quests: Vec<NewQuest>) {
-    send(info, ServerMessage::QuestsAssigned(SQuestsAssigned { quests }));
+fn notify_assigned(info: &PlayerInfo, quests: Vec<QuestState>) {
+    let updates = quests
+        .into_iter()
+        .map(|quest| QuestUpdate {
+            reason: QuestUpdateReason::Assigned,
+            quest,
+        })
+        .collect();
+    send(info, ServerMessage::QuestUpdates(SQuestUpdates { updates }));
 }
 
-// Any change to the logged-in set can finish an `everyone` quest whose last
+// Any change to the active-player set can finish an `everyone` quest whose last
 // holdout is gone.
 pub fn recheck_everyone_quests(
     players: &mut PlayerMap,
@@ -381,18 +419,32 @@ pub fn recheck_everyone_quests(
     }
 }
 
-fn progress_message(quest: &Quest, progress: u32) -> ServerMessage {
-    ServerMessage::QuestProgress(SQuestProgress {
-        id: quest.id.clone(),
-        progress,
-    })
+fn send_quest_update(
+    players: &PlayerMap,
+    board: &QuestBoard,
+    player: PlayerId,
+    quest: &CatalogQuest,
+    reason: QuestUpdateReason,
+) {
+    let quest = quest_state(players, player, quest, board);
+    if let Some(info) = players.get(&player) {
+        send(
+            info,
+            ServerMessage::QuestUpdates(SQuestUpdates {
+                updates: vec![QuestUpdate { reason, quest }],
+            }),
+        );
+    }
 }
 
-fn completed_message(quest: &Quest) -> ServerMessage {
-    ServerMessage::QuestCompleted(SQuestCompleted {
-        id: quest.id.clone(),
-        completed_text: quest.completed_text.clone(),
-    })
+fn send_group_update(players: &PlayerMap, board: &QuestBoard, quest: &CatalogQuest, reason: QuestUpdateReason) {
+    let recipients: Vec<PlayerId> = players
+        .iter()
+        .filter_map(|(id, info)| info.connection.is_active().then_some(*id))
+        .collect();
+    for player in recipients {
+        send_quest_update(players, board, player, quest, reason);
+    }
 }
 
 fn send(info: &PlayerInfo, message: ServerMessage) {
@@ -441,11 +493,11 @@ mod tests {
         QuestId(quest.to_owned())
     }
 
-    fn initial_progress(quest: &NewQuest) -> u32 {
+    fn initial_progress(quest: &QuestState) -> u32 {
         match &quest.status.progress {
-            QuestInitialProgress::Individual { progress }
-            | QuestInitialProgress::Shared { progress }
-            | QuestInitialProgress::Everyone { progress, .. } => *progress,
+            QuestStateProgress::Individual { progress }
+            | QuestStateProgress::Shared { progress }
+            | QuestStateProgress::Everyone { progress, .. } => *progress,
         }
     }
 
@@ -465,7 +517,7 @@ mod tests {
         let alice_messages = drain(&mut alice);
         assert_eq!(
             progress_values(&alice_messages, "gold"),
-            [1, 2],
+            [1],
             "the third cookie is past the threshold"
         );
         assert!(completed(&alice_messages, "gold"));
@@ -511,10 +563,7 @@ mod tests {
         for rx in [&mut alice, &mut bob] {
             let messages = drain(rx);
             assert!(completed(&messages, "hunt"));
-            assert!(
-                progress_values(&messages, "hunt").is_empty(),
-                "shared progress rides the snapshot only"
-            );
+            assert_eq!(progress_values(&messages, "hunt"), [1]);
             assert_eq!(feed_lines(&messages), ["Everyone completed hunt"]);
         }
         assert_eq!((score(&players, 1), score(&players, 2)), (100, 100));
@@ -702,7 +751,7 @@ mod tests {
         assert_eq!(initial_progress(&assigned[0]), 1);
         assert!(matches!(
             &assigned[0].status.progress,
-            QuestInitialProgress::Everyone {
+            QuestStateProgress::Everyone {
                 players_done,
                 players_total,
                 ..
@@ -810,7 +859,6 @@ mod tests {
             "completed group quests arrive at the threshold"
         );
         assert!(assigned[0].status.completed);
-        assert_eq!(assigned[1].order, 1, "order is the catalog index");
     }
 
     #[test]
@@ -851,7 +899,7 @@ mod tests {
         );
 
         let messages = drain(&mut alice);
-        assert_eq!(progress_values(&messages, "gold"), [3]);
+        assert!(progress_values(&messages, "gold").is_empty());
         assert!(completed(&messages, "gold"));
         assert_eq!(score(&players, 1), 100);
         assert_eq!(own_progress(&players, 2, "gold"), 0);

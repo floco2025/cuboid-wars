@@ -28,6 +28,7 @@ pub(super) struct SharedWorld<'w> {
     pub(super) gameplay_config: Res<'w, GameplayConfig>,
     pub(super) map_config: Res<'w, MapConfig>,
     pub(super) server_gameplay_config: Res<'w, ServerGameplayConfig>,
+    pub(super) world_bootstrap: Res<'w, WorldBootstrap>,
 }
 
 #[derive(SystemParam)]

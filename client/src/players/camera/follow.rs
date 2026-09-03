@@ -17,7 +17,7 @@ use common::{
 // stays smooth at the render rate.
 pub fn local_player_camera_sync_system(
     local_player_query: Query<(&Position, &PreviousTickPosition), With<LocalPlayerMarker>>,
-    map_layout: Option<Res<MapLayout>>,
+    map_layout: Res<MapLayout>,
     windows: Query<&Window>,
     fixed_time: Res<Time<Fixed>>,
     mut camera_query: Query<
@@ -62,7 +62,7 @@ pub fn local_player_camera_sync_system(
             persp.fov = client_settings.camera.fov_degrees.top_down.to_radians();
             *camera_transform = topdown_camera_transform(
                 player_pos,
-                map_layout.as_deref(),
+                Some(&map_layout),
                 window_aspect_ratio(&windows),
                 persp.fov,
                 top_down_camera_yaw.0,

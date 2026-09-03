@@ -4,23 +4,29 @@ use anyhow::{Context, Result, bail};
 use bevy::prelude::Resource;
 use serde::Deserialize;
 
-use super::actors::{ActorKindServerConfig, ActorSettingsConfig};
-use super::combat::CombatConfig;
-use super::cycles::{LightingCycleConfig, WeatherCycleConfig};
-use super::feed::FeedConfig;
-use super::maps::{MapServerConfig, validate_maps};
-use super::quests::{Quest, validate_quests};
-use super::validation::{validate_covers_actor_kinds, validate_non_negative_finite, validate_positive_finite};
-use common::protocol::{ItemType, QuestId};
+use super::{
+    actors::{ActorKindServerConfig, ActorSettingsConfig},
+    combat::CombatConfig,
+    cycles::{LightingCycleConfig, WeatherCycleConfig},
+    feed::FeedConfig,
+    items::{PlacedItemsConfig, PowerUpsConfig},
+    maps::{MapServerConfig, validate_maps},
+    missiles::MissilesServerConfig,
+    scoring::ScoringConfig,
+    validation::validate_positive_finite,
+};
+use common::config::{
+    ActorGameplayBootstrap, GameplayBootstrap, GameplayConfig, MissilesGameplayBootstrap, PlayerGameplayBootstrap,
+    PlayerGameplayConfig, PortalsConfig, ProjectilesConfig,
+};
 
-#[derive(Resource, Debug, Clone, Deserialize)]
+#[derive(Resource, Debug, Clone)]
 pub struct ServerGameplayConfig {
-    // Named-map registry: each entry's map geometry lives at
-    // `config/server/maps/<name>.json`.
+    pub player: PlayerServerConfig,
+    pub projectiles: ProjectilesConfig,
+    pub portals: PortalsConfig,
     pub maps: HashMap<String, MapServerConfig>,
     pub default_map: String,
-    // Global cycle definitions; each map's `weather`/`lighting` mode picks
-    // whether it runs them.
     pub weather_cycle: WeatherCycleConfig,
     pub lighting_cycle: LightingCycleConfig,
     pub scoring: ScoringConfig,
@@ -29,9 +35,69 @@ pub struct ServerGameplayConfig {
     pub missiles: MissilesServerConfig,
     pub power_ups: PowerUpsConfig,
     pub placed_items: PlacedItemsConfig,
-    pub quests: Vec<Quest>,
     pub actor_settings: ActorSettingsConfig,
     pub actors: HashMap<String, ActorKindServerConfig>,
+}
+
+#[derive(Deserialize)]
+struct ServerGameplaySource {
+    default_map: String,
+    maps: HashMap<String, MapServerConfig>,
+    player: PlayerServerConfig,
+    actors: ActorsSource,
+    weapons: WeaponsSource,
+    items: ItemsSource,
+    combat: CombatConfig,
+    scoring: ScoringConfig,
+    cycles: CyclesSource,
+    feed: FeedConfig,
+}
+
+#[derive(Deserialize)]
+struct ActorsSource {
+    settings: ActorSettingsConfig,
+    kinds: HashMap<String, ActorKindServerConfig>,
+}
+
+#[derive(Deserialize)]
+struct WeaponsSource {
+    projectiles: ProjectilesConfig,
+    missiles: MissilesServerConfig,
+    portals: PortalsConfig,
+}
+
+#[derive(Deserialize)]
+struct ItemsSource {
+    power_ups: PowerUpsConfig,
+    placed: PlacedItemsConfig,
+}
+
+#[derive(Deserialize)]
+struct CyclesSource {
+    weather: WeatherCycleConfig,
+    lighting: LightingCycleConfig,
+}
+
+impl From<ServerGameplaySource> for ServerGameplayConfig {
+    fn from(source: ServerGameplaySource) -> Self {
+        Self {
+            player: source.player,
+            projectiles: source.weapons.projectiles,
+            portals: source.weapons.portals,
+            maps: source.maps,
+            default_map: source.default_map,
+            weather_cycle: source.cycles.weather,
+            lighting_cycle: source.cycles.lighting,
+            scoring: source.scoring,
+            feed: source.feed,
+            combat: source.combat,
+            missiles: source.weapons.missiles,
+            power_ups: source.items.power_ups,
+            placed_items: source.items.placed,
+            actor_settings: source.actors.settings,
+            actors: source.actors.kinds,
+        }
+    }
 }
 
 impl ServerGameplayConfig {
@@ -46,21 +112,25 @@ impl ServerGameplayConfig {
 
     fn load_from_path(path: &Path) -> Result<Self> {
         let text = fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
-        serde_json::from_str(&text).with_context(|| format!("failed to parse {}", path.display()))
+        let source: ServerGameplaySource =
+            serde_json::from_str(&text).with_context(|| format!("failed to parse {}", path.display()))?;
+        Ok(source.into())
     }
 
     fn validate(&self) -> Result<()> {
-        validate_maps(&self.maps, &self.default_map)?;
-        self.weather_cycle.validate("weather_cycle")?;
-        self.lighting_cycle.validate("lighting_cycle")?;
-        self.missiles.validate("missiles")?;
-        self.scoring.validate(&self.actors, &self.quests)?;
+        self.gameplay_config().validate()?;
+        validate_positive_finite(self.player.respawn_secs, "player.respawn_secs")?;
+        validate_maps(&self.maps, &self.default_map, &self.actors)?;
+        self.weather_cycle.validate("cycles.weather")?;
+        self.lighting_cycle.validate("cycles.lighting")?;
+        self.missiles.validate("weapons.missiles")?;
+        self.scoring.validate(&self.actors)?;
         self.feed.validate(&self.actors)?;
         self.combat.validate(&self.actors)?;
-        self.power_ups.validate("power_ups")?;
-        self.placed_items.validate("placed_items")?;
-        self.actor_settings.validate("actor_settings")?;
-        validate_quests(&self.quests, &self.actors)?;
+        self.gameplay_bootstrap().gameplay_config()?;
+        self.power_ups.validate("items.power_ups")?;
+        self.placed_items.validate("items.placed")?;
+        self.actor_settings.validate("actors.settings")?;
         if self.actors.is_empty() {
             bail!("actors must define at least one kind");
         }
@@ -68,7 +138,7 @@ impl ServerGameplayConfig {
             if kind.is_empty() {
                 bail!("actor kind must not be empty");
             }
-            actor.validate(&format!("actors.{kind}"))?;
+            actor.validate(&format!("actors.kinds.{kind}"))?;
         }
         Ok(())
     }
@@ -83,292 +153,72 @@ impl ServerGameplayConfig {
         self.actor(kind)
             .expect("actor kind missing from server gameplay config")
     }
-}
 
-// Server-only missile guidance tuning. Speed is `movement.missile_speed`
-// and the client-visible half (lock range, max ammo) lives beside it in
-// `config/common/gameplay.json`; the blast is `combat.damage.missile_blast`.
-#[derive(Debug, Clone, Copy, Deserialize)]
-pub struct MissilesServerConfig {
-    // Steering circle, m. Keep it under half a grid cell (1.7 m) so
-    // missiles can corner in corridors. A circle wider than
-    // `proximity_fuse_distance` can orbit after an overshoot; approach
-    // passes still cross the fuse, so this is a feel trade-off, not a hard
-    // invariant.
-    pub turn_radius: f32,
-    pub lifetime_secs: f32,
-    // Max random deviation of the launch direction from the aim (degrees).
-    // Missiles leave visibly off-axis and let the steering curve them in;
-    // 0 = launch straight at the aim.
-    pub launch_spread_degrees: f32,
-    // Serpentine weave while homing: max angular deviation as a fraction of
-    // the flight direction (~0.35 = up to ±20°). Purely cosmetic — it fades
-    // out on final approach. 0 = fly straight at the target.
-    pub weave_strength: f32,
-    // Detonate when passing within this distance of the locked target —
-    // a near miss on a small, moving collider still kills via the blast
-    // core instead of looping for another pass. 0 = contact only.
-    pub proximity_fuse_distance: f32,
-    // Self-detonate after this long without 1 m of progress.
-    pub stall_secs: f32,
-    pub missiles_per_pack: u32,
-}
-
-impl MissilesServerConfig {
-    fn validate(&self, path: &str) -> Result<()> {
-        validate_positive_finite(self.turn_radius, &format!("{path}.turn_radius"))?;
-        validate_positive_finite(self.lifetime_secs, &format!("{path}.lifetime_secs"))?;
-        if !(self.launch_spread_degrees.is_finite() && (0.0..=90.0).contains(&self.launch_spread_degrees)) {
-            bail!(
-                "{path}.launch_spread_degrees must be in [0, 90], got {}",
-                self.launch_spread_degrees
-            );
-        }
-        validate_non_negative_finite(self.weave_strength, &format!("{path}.weave_strength"))?;
-        validate_non_negative_finite(self.proximity_fuse_distance, &format!("{path}.proximity_fuse_distance"))?;
-        validate_positive_finite(self.stall_secs, &format!("{path}.stall_secs"))?;
-        if self.missiles_per_pack == 0 {
-            bail!("{path}.missiles_per_pack must be at least 1");
-        }
-        Ok(())
-    }
-}
-
-// Every point value in the game, consolidated for balancing. The block is
-// server-only state — clients read the resulting `score` field via
-// `SSnapshot` and never need the per-event point values.
-#[derive(Debug, Clone, Deserialize)]
-pub struct ScoringConfig {
-    pub player_kill: i32,
-    pub player_death: i32,
-    pub cookie: i32,
-    // Per actor kind: points per projectile hit, and the kill bonus.
-    pub actor_hit: HashMap<String, i32>,
-    pub actor_kill: HashMap<String, i32>,
-    // Per quest id: points on completion.
-    pub quest_completed: HashMap<QuestId, i32>,
-}
-
-impl ScoringConfig {
-    // Point values themselves are unvalidated — negative deltas are legal
-    // (e.g., a death penalty), and so is zero. Only the map keys are
-    // checked: every actor kind and quest needs an explicit entry (a
-    // missing one silently scoring 0 is the footgun), and an unknown key
-    // is a typo.
-    fn validate(&self, actors: &HashMap<String, ActorKindServerConfig>, quests: &[Quest]) -> Result<()> {
-        for (map, name) in [(&self.actor_hit, "actor_hit"), (&self.actor_kill, "actor_kill")] {
-            validate_covers_actor_kinds(map.keys(), actors, &format!("scoring.{name}"))?;
-        }
-        for quest in quests {
-            if !self.quest_completed.contains_key(&quest.id) {
-                bail!("scoring.quest_completed is missing quest {:?}", quest.id.0);
-            }
-        }
-        for id in self.quest_completed.keys() {
-            if !quests.iter().any(|quest| &quest.id == id) {
-                bail!("scoring.quest_completed contains unknown quest {:?}", id.0);
-            }
-        }
-        Ok(())
-    }
-}
-
-// Power-up effect tuning. Spawning lives elsewhere: random pools per map in
-// `maps.<name>.random_items`, placed respawns in `placed_items`.
-#[derive(Debug, Clone, Deserialize)]
-pub struct PowerUpsConfig {
-    pub duration_secs: PowerUpDurationSecs,
-}
-
-// How long each timed power-up lasts after pickup. One value per
-// `PowerUpKind` config id.
-#[derive(Debug, Clone, Deserialize)]
-pub struct PowerUpDurationSecs {
-    pub speed: f32,
-    pub multi_shot: f32,
-    pub low_gravity: f32,
-}
-
-impl PowerUpsConfig {
     #[must_use]
-    pub const fn duration_secs_for(&self, kind: common::protocol::PowerUpKind) -> f32 {
-        use common::protocol::PowerUpKind as K;
-        let secs = &self.duration_secs;
-        match kind {
-            K::Speed => secs.speed,
-            K::MultiShot => secs.multi_shot,
-            K::LowGravity => secs.low_gravity,
+    pub fn gameplay_config(&self) -> GameplayConfig {
+        GameplayConfig {
+            player: self.player.gameplay.clone(),
+            projectiles: self.projectiles.clone(),
+            missiles: self.missiles.gameplay,
+            portals: self.portals,
+            actors: self
+                .actors
+                .iter()
+                .map(|(kind, actor)| (kind.clone(), actor.character.clone()))
+                .collect(),
         }
     }
 
-    fn validate(&self, path: &str) -> Result<()> {
-        let secs = &self.duration_secs;
-        for (value, name) in [
-            (secs.speed, "speed"),
-            (secs.multi_shot, "multi_shot"),
-            (secs.low_gravity, "low_gravity"),
-        ] {
-            validate_non_negative_finite(value, &format!("{path}.duration_secs.{name}"))?;
-        }
-        Ok(())
-    }
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct PlacedItemsConfig {
-    pub respawn_secs: PlacedItemRespawnSecs,
-}
-
-// How long a placed item stays hidden after pickup before reappearing at
-// its cell. One value per `ItemType` config id; 0.0 = instant reappear.
-#[derive(Debug, Clone, Deserialize)]
-pub struct PlacedItemRespawnSecs {
-    pub speed: f32,
-    pub multi_shot: f32,
-    pub low_gravity: f32,
-    pub health_potion: f32,
-    pub cookie: f32,
-    pub key: f32,
-    pub missile_pack: f32,
-}
-
-impl PlacedItemsConfig {
     #[must_use]
-    pub const fn respawn_secs_for(&self, item_type: ItemType) -> f32 {
-        let secs = &self.respawn_secs;
-        match item_type {
-            ItemType::SpeedPowerUp => secs.speed,
-            ItemType::MultiShotPowerUp => secs.multi_shot,
-            ItemType::LowGravityPowerUp => secs.low_gravity,
-            ItemType::HealthPotion => secs.health_potion,
-            ItemType::Cookie => secs.cookie,
-            ItemType::Key(_) => secs.key,
-            ItemType::MissilePack => secs.missile_pack,
-        }
-    }
+    pub fn gameplay_bootstrap(&self) -> GameplayBootstrap {
+        let combat = &self.combat;
+        let mut actors: Vec<_> = self
+            .actors
+            .iter()
+            .map(|(kind, actor)| {
+                let health = combat
+                    .health
+                    .actors
+                    .get(kind)
+                    .expect("actor health missing after server config validation");
+                let damage = combat
+                    .damage
+                    .actors
+                    .get(kind)
+                    .expect("actor damage missing after server config validation");
+                (
+                    kind.clone(),
+                    ActorGameplayBootstrap {
+                        gameplay: actor.character.clone(),
+                        max_health: health.max,
+                        death_blast_radius: damage.death_blast.radius,
+                    },
+                )
+            })
+            .collect();
+        actors.sort_by(|a, b| a.0.cmp(&b.0));
 
-    fn validate(&self, path: &str) -> Result<()> {
-        let secs = &self.respawn_secs;
-        for (value, name) in [
-            (secs.speed, "speed"),
-            (secs.multi_shot, "multi_shot"),
-            (secs.low_gravity, "low_gravity"),
-            (secs.health_potion, "health_potion"),
-            (secs.cookie, "cookie"),
-            (secs.key, "key"),
-            (secs.missile_pack, "missile_pack"),
-        ] {
-            validate_non_negative_finite(value, &format!("{path}.respawn_secs.{name}"))?;
-        }
-        Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn scoring_fixture() -> ScoringConfig {
-        ScoringConfig {
-            player_kill: 200,
-            player_death: -200,
-            cookie: 1000,
-            actor_hit: HashMap::from([("zapper".to_owned(), 5)]),
-            actor_kill: HashMap::from([("zapper".to_owned(), 150)]),
-            quest_completed: HashMap::new(),
-        }
-    }
-
-    fn one_actor_kind(kind: &str) -> HashMap<String, ActorKindServerConfig> {
-        let json = serde_json::json!({
-            "respawn_secs": 60.0,
-            "vision_range": 40.0,
-            "roam_steps": 2,
-            "attack": { "type": "contact", "trigger_gap": 0.4 }
-        });
-        let actor: ActorKindServerConfig = serde_json::from_value(json).expect("actor fixture should deserialize");
-        HashMap::from([(kind.to_owned(), actor)])
-    }
-
-    #[test]
-    fn scoring_accepts_matching_maps() {
-        scoring_fixture()
-            .validate(&one_actor_kind("zapper"), &[])
-            .expect("matching scoring maps should pass");
-    }
-
-    #[test]
-    fn scoring_rejects_missing_actor_kind() {
-        let mut scoring = scoring_fixture();
-        scoring.actor_hit.clear();
-        let err = scoring
-            .validate(&one_actor_kind("zapper"), &[])
-            .expect_err("missing actor_hit kind must be rejected");
-        assert!(err.to_string().contains("scoring.actor_hit"));
-    }
-
-    #[test]
-    fn scoring_rejects_unknown_actor_kind() {
-        let mut scoring = scoring_fixture();
-        scoring.actor_kill.insert("banana".to_owned(), 1);
-        let err = scoring
-            .validate(&one_actor_kind("zapper"), &[])
-            .expect_err("unknown actor_kill kind must be rejected");
-        assert!(err.to_string().contains("scoring.actor_kill"));
-    }
-
-    #[test]
-    fn scoring_rejects_missing_quest() {
-        let quest: Quest = serde_json::from_value(serde_json::json!({
-            "id": "collect_gold",
-            "kind": "cookies",
-            "scope": "individual",
-            "threshold": 10,
-            "title": "Gold",
-            "description": "collect gold",
-            "completed_text": "done"
-        }))
-        .expect("quest fixture should deserialize");
-        let scoring = scoring_fixture();
-        let err = scoring
-            .validate(&one_actor_kind("zapper"), std::slice::from_ref(&quest))
-            .expect_err("missing quest reward must be rejected");
-        assert!(err.to_string().contains("scoring.quest_completed"));
-
-        let mut scoring = scoring_fixture();
-        scoring.quest_completed.insert(QuestId("collect_gold".to_owned()), 500);
-        scoring
-            .validate(&one_actor_kind("zapper"), std::slice::from_ref(&quest))
-            .expect("complete quest map should pass");
-        scoring.quest_completed.insert(QuestId("bogus".to_owned()), 1);
-        let err = scoring
-            .validate(&one_actor_kind("zapper"), std::slice::from_ref(&quest))
-            .expect_err("unknown quest reward must be rejected");
-        assert!(err.to_string().contains("unknown quest"));
-    }
-
-    #[test]
-    fn placed_item_respawn_secs_matches_item_type() {
-        let config = PlacedItemsConfig {
-            respawn_secs: PlacedItemRespawnSecs {
-                speed: 1.0,
-                multi_shot: 2.0,
-                low_gravity: 4.0,
-                health_potion: 5.0,
-                cookie: 6.0,
-                key: 7.0,
-                missile_pack: 8.0,
+        GameplayBootstrap {
+            player: PlayerGameplayBootstrap {
+                gameplay: self.player.gameplay.clone(),
+                max_health: combat.health.player.max,
+                death_blast_radius: combat.damage.player_blast.radius,
             },
-        };
-        assert_eq!(config.respawn_secs_for(ItemType::SpeedPowerUp), 1.0);
-        assert_eq!(config.respawn_secs_for(ItemType::MultiShotPowerUp), 2.0);
-        assert_eq!(config.respawn_secs_for(ItemType::LowGravityPowerUp), 4.0);
-        assert_eq!(config.respawn_secs_for(ItemType::HealthPotion), 5.0);
-        assert_eq!(config.respawn_secs_for(ItemType::Cookie), 6.0);
-        assert_eq!(
-            config.respawn_secs_for(ItemType::Key(common::protocol::BarrierKindId(0))),
-            7.0
-        );
-        assert_eq!(config.respawn_secs_for(ItemType::MissilePack), 8.0);
+            actors,
+            actor_spawn_warning_secs: self.actor_settings.spawn_warning_secs,
+            projectiles: self.projectiles.clone(),
+            missiles: MissilesGameplayBootstrap {
+                gameplay: self.missiles.gameplay,
+                blast_radius: combat.damage.missile_blast.radius,
+            },
+            portals: self.portals,
+        }
     }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct PlayerServerConfig {
+    #[serde(flatten)]
+    pub gameplay: PlayerGameplayConfig,
+    pub respawn_secs: f32,
 }

@@ -1,7 +1,8 @@
 use anyhow::{Result, bail};
-use serde::{Deserialize, Deserializer};
+use common::config::CharacterGameplayConfig;
+use serde::Deserialize;
 
-use super::validation::{validate_non_negative_finite, validate_positive_finite};
+use super::validation::{deserialize_required_option, validate_non_negative_finite, validate_positive_finite};
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct ActorSettingsConfig {
@@ -18,18 +19,13 @@ impl ActorSettingsConfig {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct ActorKindServerConfig {
-    #[serde(deserialize_with = "deserialize_optional_f32")]
+    #[serde(flatten)]
+    pub character: CharacterGameplayConfig,
+    #[serde(deserialize_with = "deserialize_required_option")]
     pub respawn_secs: Option<f32>,
     pub vision_range: f32,
     pub roam_steps: usize,
     pub attack: ActorAttackConfig,
-}
-
-fn deserialize_optional_f32<'de, D>(deserializer: D) -> Result<Option<f32>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    Option::<f32>::deserialize(deserializer)
 }
 
 impl ActorKindServerConfig {
@@ -169,6 +165,15 @@ mod tests {
     #[test]
     fn actor_kind_requires_explicit_respawn_setting() {
         let mut value = json!({
+            "collider": {
+                "width": 1.0,
+                "height": 1.0,
+                "depth": 1.0,
+                "y_offset": 0.1,
+                "y_offset_anchor": "bottom"
+            },
+            "support_probe": { "width": 0.2, "depth": 0.2 },
+            "eye_height": 1.0,
             "vision_range": 10.0,
             "roam_steps": 2,
             "attack": { "type": "contact", "trigger_gap": 0.1 }

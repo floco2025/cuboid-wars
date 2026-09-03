@@ -53,13 +53,12 @@ impl BarrierAssets {
     }
 }
 
-pub fn setup_barrier_assets(
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    kind_table: Res<BarrierKindTable>,
-    asset_set: Res<AssetSet>,
-) {
+pub fn build_barrier_assets(
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
+    kind_table: &BarrierKindTable,
+    asset_set: &AssetSet,
+) -> BarrierAssets {
     let alpha_max = BARRIER_ALPHA_MAX;
     let emissive = BARRIER_EMISSIVE;
     // Barrier mesh: unit X and Y so per-instance `Transform.scale` can
@@ -92,12 +91,12 @@ pub fn setup_barrier_assets(
     // instead of as an out-of-bounds panic at first lookup.
     assert_eq!(handles.len(), base_colors.len());
 
-    commands.insert_resource(BarrierAssets {
+    BarrierAssets {
         key_mesh,
         mesh,
         materials: handles,
         base_colors,
-    });
+    }
 }
 
 // Lit, not unlit: emissive is ignored on unlit materials. The emissive is

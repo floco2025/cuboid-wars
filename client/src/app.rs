@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
 use bevy::{
     pbr::DefaultOpaqueRendererMethod,
     prelude::*,
@@ -7,9 +7,8 @@ use bevy::{
 
 use crate::{
     actors::{ActorGhostMap, ActorMap},
-    barriers::{KeyKinds, LockedPlatePurposes, OpenBarrierKinds, setup_barrier_assets},
+    barriers::{LockedPlatePurposes, OpenBarrierKinds},
     cameras::{CameraViewMode, TopDownCameraYaw, clamp_msaa_to_device_system, setup_cameras_system},
-    characters::MaxHealth,
     characters::{character_sync_plugin, prediction_plugin},
     config::{AssetSet, ClientSettings, LocalSettings, OpaqueRenderer},
     input::{WeaponMode, input_plugin},
@@ -17,15 +16,17 @@ use crate::{
     map::{DebugColors, LevelFocusEnabled, map_plugin, setup_scene_lighting_system, sky_weather_plugin},
     materials::{GrassMaterialPlugin, generate_material_mipmaps_system},
     missiles::{LockOnTarget, MissileAssets, MissileMap},
-    network::{ClientToServerChannel, LastSnapshotSeq, RoundTripTime, ServerToClientChannel, network_plugin},
+    network::{
+        ClientToServerChannel, LastSnapshotSeq, RoundTripTime, ServerToClientChannel, install_bootstrap, network_plugin,
+    },
     players::{LocalPlayerInfo, PlayerMap, camera_plugin},
     portals::{PortalAssets, PortalMap, portal_render_plugin},
-    projectiles::{LastBounceSound, ProjectileAssets},
+    projectiles::LastBounceSound,
     schedule::configure_client_sets,
-    ui::{ConsoleState, FpsMeasurement, HudBanner, HudShapeAssets, MessageFeed, QuestLog, hud_plugin, setup_ui_system},
-    vfx::{BlastRadii, ExplosionAssets, ExplosionVfxBudget, ParticleClouds, RainIntensity, presentation_plugin},
+    ui::{ConsoleState, FpsMeasurement, HudShapeAssets, MessageFeed, hud_plugin, setup_ui_system},
+    vfx::{ExplosionAssets, ExplosionVfxBudget, ParticleClouds, RainIntensity, presentation_plugin},
 };
-use common::{config::GameplayConfig, constants::TICK_HZ, physics::PortalSet, protocol::BarrierKindTable};
+use common::{constants::TICK_HZ, physics::PortalSet, protocol::SInit};
 
 pub struct ClientAppOptions {
     pub window_x: Option<i32>,
@@ -39,6 +40,7 @@ pub fn build_client_app(
     options: ClientAppOptions,
     to_server: ClientToServerChannel,
     from_server: ServerToClientChannel,
+    bootstrap: SInit,
 ) -> Result<App> {
     let asset_set = AssetSet::load_default()?;
     let mut client_settings = ClientSettings::load_default()?;
@@ -52,11 +54,6 @@ pub fn build_client_app(
         }
     }
     let start_fullscreen = local_settings.as_ref().is_some_and(|local| local.fullscreen);
-    let gameplay_config = GameplayConfig::load_default()?;
-    let barrier_kind_table = BarrierKindTable::from_ids(gameplay_config.barrier_kinds.clone())
-        .context("failed to build BarrierKindTable from gameplay.json barrier_kinds")?;
-    asset_set.validate_gameplay_bindings(&gameplay_config, &barrier_kind_table)?;
-
     let mipmaps = client_settings.rendering.mipmaps;
     let mut app = App::new();
     app.add_plugins(DefaultPlugins.set(asset_plugin()).set(window_plugin(
@@ -96,16 +93,12 @@ pub fn build_client_app(
         .insert_resource(CameraViewMode::default())
         .insert_resource(TopDownCameraYaw::default())
         .insert_resource(LevelFocusEnabled::default())
-        .insert_resource(gameplay_config)
-        .insert_resource(barrier_kind_table)
-        .insert_resource(asset_set)
+        .insert_resource(asset_set.clone())
         .insert_resource(client_settings)
         .insert_resource(DebugColors::default())
         .insert_resource(LastBounceSound::default())
         .insert_resource(MessageFeed::default())
         .insert_resource(ConsoleState::default())
-        .insert_resource(HudBanner::default())
-        .insert_resource(QuestLog::default())
         .insert_resource(MissileMap::default())
         .insert_resource(LockOnTarget::default())
         .insert_resource(PortalMap::default())
@@ -114,13 +107,9 @@ pub fn build_client_app(
         .init_resource::<PortalAssets>()
         .init_resource::<MissileAssets>()
         .init_resource::<HudShapeAssets>()
-        .init_resource::<ProjectileAssets>()
         .init_resource::<ParticleClouds>()
         .init_resource::<RainIntensity>()
         .init_resource::<ExplosionAssets>()
-        .init_resource::<BlastRadii>()
-        .init_resource::<MaxHealth>()
-        .init_resource::<KeyKinds>()
         .init_resource::<ExplosionVfxBudget>()
         .add_systems(
             Startup,
@@ -130,7 +119,6 @@ pub fn build_client_app(
                 setup_cameras_system,
                 setup_ui_system,
                 setup_item_assets,
-                setup_barrier_assets,
             ),
         );
 
@@ -154,6 +142,8 @@ pub fn build_client_app(
         hud_plugin,
         sky_weather_plugin,
     ));
+
+    install_bootstrap(&mut app, bootstrap, &asset_set)?;
 
     if mipmaps {
         // Materials often reference images that are still loading when their

@@ -8,7 +8,6 @@ use bevy::{
     render::view::ColorGrading,
     window::PrimaryWindow,
 };
-use common::config::GameplayConfig;
 
 use super::{
     CompositorCameraMarker, MainCameraMarker, RearviewCameraMarker, SceneRenderTarget, SkyDiscRenderLayer,
@@ -63,10 +62,8 @@ pub fn setup_cameras_system(
     mut images: ResMut<Assets<Image>>,
     windows: Query<&Window, With<PrimaryWindow>>,
     client_settings: Res<ClientSettings>,
-    gameplay_config: Res<GameplayConfig>,
 ) {
     let deferred_rendering_enabled = client_settings.rendering.opaque_renderer.is_deferred();
-    let player_eye_height = gameplay_config.player.eye_height();
     let msaa = if deferred_rendering_enabled {
         Msaa::Off
     } else {
@@ -113,7 +110,7 @@ pub fn setup_cameras_system(
         RenderLayers::layer(0)
             .with(MAIN_VIEW_RENDER_LAYER)
             .with(CHARACTER_LABEL_RENDER_LAYER),
-        Transform::from_xyz(0.0, player_eye_height, 0.0).looking_at(Vec3::new(0.0, 0.0, -1.0), Vec3::Y),
+        Transform::default().looking_at(Vec3::new(0.0, 0.0, -1.0), Vec3::Y),
     ));
     if deferred_rendering_enabled {
         main_camera.insert((DepthPrepass, DeferredPrepass));
@@ -165,7 +162,7 @@ pub fn setup_cameras_system(
         }),
         ColorGrading::default(),
         RenderLayers::layer(0).with(REARVIEW_RENDER_LAYER),
-        Transform::from_xyz(0.0, player_eye_height, 0.0).looking_at(Vec3::new(0.0, 0.0, 1.0), Vec3::Y), // Looking backwards (positive Z)
+        Transform::default().looking_at(Vec3::new(0.0, 0.0, 1.0), Vec3::Y), // Looking backwards (positive Z)
     ));
     if deferred_rendering_enabled {
         rearview_camera.insert((DepthPrepass, DeferredPrepass));

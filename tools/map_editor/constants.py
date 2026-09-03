@@ -11,7 +11,7 @@ MAPS_DIR = REPO_ROOT / "config" / "server" / "maps"
 
 
 def _load_shared_configs() -> tuple[list[str], dict[str, str], set[str]]:
-    gameplay_path = REPO_ROOT / "config" / "common" / "gameplay.json"
+    gameplay_path = REPO_ROOT / "config" / "server" / "gameplay.json"
     assets_path = REPO_ROOT / "config" / "client" / "assets.json"
     with gameplay_path.open("r", encoding="utf-8") as handle:
         gameplay = json.load(handle)

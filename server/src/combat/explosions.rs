@@ -2,10 +2,12 @@ use std::collections::HashMap;
 
 use bevy::{ecs::system::SystemParam, prelude::*};
 use common::{
-    config::GameplayConfig,
+    config::{GameplayConfig, MapMovementConfig},
     health::apply_damage,
     physics::{CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity, character_center},
-    protocol::{ActorId, ActorMarker, Health, PlayerId, PlayerMarker, Position, SPlayerBlast, ServerMessage},
+    protocol::{
+        ActorId, ActorMarker, Health, MapSettings, PlayerId, PlayerMarker, Position, SPlayerBlast, ServerMessage,
+    },
 };
 
 use super::{DeathSource, PendingExplosion, PendingExplosions, award_actor_kill, kill_actor, kill_credit, kill_player};
@@ -53,6 +55,7 @@ pub struct ExplosionContext<'w, 's> {
     actors: ResMut<'w, ActorMap>,
     pending: ResMut<'w, PendingExplosions>,
     gameplay_config: Res<'w, GameplayConfig>,
+    map_settings: Res<'w, MapSettings>,
     server_gameplay_config: Res<'w, ServerGameplayConfig>,
     quest_board: ResMut<'w, QuestBoard>,
     quest_catalog: Res<'w, QuestCatalog>,
@@ -120,13 +123,14 @@ struct AccumulatedImpulse {
 pub fn explosions_system(mut context: ExplosionContext) {
     let mut player_impulses = HashMap::<PlayerId, AccumulatedImpulse>::new();
     let mut actor_impulses = HashMap::<ActorId, AccumulatedImpulse>::new();
-    let respawn_secs = context.gameplay_config.player.respawn_secs;
+    let respawn_secs = context.server_gameplay_config.player.respawn_secs;
 
     while let Some(pending) = context.pending.0.pop_front() {
         let spec = blast_spec(pending, &context.gameplay_config, &context.server_gameplay_config);
         let outcome = apply_blast(
             &spec,
             &context.gameplay_config,
+            &context.map_settings.movement,
             context.invincibility.0,
             &context.collision_world,
             &context.players,
@@ -250,6 +254,7 @@ fn blast_spec(pending: PendingExplosion, gameplay: &GameplayConfig, server: &Ser
 fn apply_blast(
     spec: &BlastSpec,
     gameplay: &GameplayConfig,
+    movement: &MapMovementConfig,
     invincible: bool,
     collision_world: &CollisionWorld,
     players: &PlayerMap,
@@ -282,18 +287,13 @@ fn apply_blast(
             }
         }
 
-        vertical_velocity.0 += gameplay.movement.knockback.up_speed * falloff;
+        vertical_velocity.0 += movement.knockback.up_speed * falloff;
         accumulate_impulse(
             player_impulses,
             *id,
             entity,
             knockback,
-            planar_shove(
-                spec.center,
-                victim_center,
-                falloff,
-                gameplay.movement.knockback.max_speed,
-            ),
+            planar_shove(spec.center, victim_center, falloff, movement.knockback.max_speed),
             falloff,
         );
     }
@@ -321,18 +321,13 @@ fn apply_blast(
             continue;
         }
 
-        vertical_velocity.0 += gameplay.movement.knockback.up_speed * falloff;
+        vertical_velocity.0 += movement.knockback.up_speed * falloff;
         accumulate_impulse(
             actor_impulses,
             *id,
             entity,
             knockback,
-            planar_shove(
-                spec.center,
-                victim_center,
-                falloff,
-                gameplay.movement.knockback.max_speed,
-            ),
+            planar_shove(spec.center, victim_center, falloff, movement.knockback.max_speed),
             falloff,
         );
     }
@@ -360,7 +355,7 @@ fn accumulate_impulse<Id: std::hash::Hash + Eq + Copy>(
 }
 
 fn apply_player_impulses(context: &mut ExplosionContext, impulses: HashMap<PlayerId, AccumulatedImpulse>) {
-    let max_speed = context.gameplay_config.movement.knockback.max_speed * 1.5;
+    let max_speed = context.map_settings.movement.knockback.max_speed * 1.5;
     for (id, impulse) in impulses {
         if context.players.get(&id).is_some_and(|info| info.is_dead()) {
             continue;
@@ -393,7 +388,7 @@ fn apply_player_impulses(context: &mut ExplosionContext, impulses: HashMap<Playe
 }
 
 fn apply_actor_impulses(context: &mut ExplosionContext, impulses: HashMap<ActorId, AccumulatedImpulse>) {
-    let max_speed = context.gameplay_config.movement.knockback.max_speed * 1.5;
+    let max_speed = context.map_settings.movement.knockback.max_speed * 1.5;
     for (id, impulse) in impulses {
         if context.actors.get(&id).is_none() {
             continue;
@@ -451,14 +446,21 @@ mod tests {
     use tokio::sync::mpsc::unbounded_channel;
 
     fn test_app() -> App {
-        let gameplay = GameplayConfig::load_default().expect("default gameplay config should load");
         let server = ServerGameplayConfig::load_default().expect("default server gameplay config should load");
+        let gameplay = server.gameplay_config();
+        let map_settings = server
+            .maps
+            .get(&server.default_map)
+            .expect("default map settings missing")
+            .settings
+            .clone();
         let collision_world = CollisionWorld::from_map_layout(&MapLayout::default(), &BarrierKindTable::default());
         let quest_catalog = QuestCatalog::from_config(&server);
         let quest_board = QuestBoard::from_catalog(&quest_catalog);
         let mut app = App::new();
         app.add_plugins(MinimalPlugins)
             .insert_resource(gameplay)
+            .insert_resource(map_settings)
             .insert_resource(server)
             .insert_resource(quest_catalog)
             .insert_resource(collision_world)
@@ -641,7 +643,7 @@ mod tests {
             .id();
         let (sender, receiver) = unbounded_channel();
         let mut info = PlayerInfo::new(entity, sender);
-        info.connection.logged_in = true;
+        info.connection.phase = crate::players::ConnectionPhase::Active;
         app.world_mut().resource_mut::<PlayerMap>().insert(id, info);
         (entity, receiver)
     }

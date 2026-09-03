@@ -14,11 +14,18 @@ use common::{
 };
 
 use super::broadcast::{
-    broadcast_to_all, collect_items, snapshot_actors, snapshot_logged_in_players, snapshot_missiles,
+    broadcast_to_all, collect_items, snapshot_active_players, snapshot_actors, snapshot_missiles,
     snapshot_spawning_actors,
 };
 use crate::missiles::{MissileMap, MissileVelocity};
 use crate::portals::PortalMap;
+
+#[derive(Resource, Default)]
+pub struct SnapshotRequest {
+    pub force: bool,
+    timer: f32,
+    seq: u32,
+}
 
 // Bundled: Bevy systems take at most 16 parameters and this one is over.
 #[derive(SystemParam)]
@@ -32,8 +39,7 @@ pub struct WorldConditions<'w> {
 
 pub(super) fn network_broadcast_snapshot_system(
     time: Res<Time>,
-    mut timer: Local<f32>,
-    mut seq: Local<u32>,
+    mut request: ResMut<SnapshotRequest>,
     players: Res<PlayerMap>,
     actors: Res<ActorMap>,
     pending_spawns: Res<PendingActorSpawns>,
@@ -48,28 +54,31 @@ pub(super) fn network_broadcast_snapshot_system(
     missiles: Res<MissileMap>,
     missile_data: Query<(&Position, &MissileVelocity), With<MissileMarker>>,
 ) {
-    *timer += time.delta_secs();
-    if *timer < SNAPSHOT_SECS {
+    request.timer += time.delta_secs();
+    if request.timer < SNAPSHOT_SECS && !request.force {
         return;
     }
     // Carry the phase remainder rather than zeroing, so the long-run rate
     // holds at SNAPSHOT_HZ instead of drifting slower by the leftover each tick.
-    *timer -= SNAPSHOT_SECS;
+    if request.timer >= SNAPSHOT_SECS {
+        request.timer -= SNAPSHOT_SECS;
+    }
+    request.force = false;
 
-    if players.all_logged_out() {
+    if !players.has_active_players() {
         return;
     }
 
-    *seq = seq.wrapping_add(1);
+    request.seq = request.seq.wrapping_add(1);
 
-    let all_players = snapshot_logged_in_players(&players, &player_data, &motions);
+    let all_players = snapshot_active_players(&players, &player_data, &motions);
     let all_actors = snapshot_actors(&actors, &actor_data, &actor_motions);
     let all_items = collect_items(&items, &item_positions);
     let all_missiles = snapshot_missiles(&missiles, &missile_data);
 
     let (quests, locked_plate_purposes) = conditions.quests.snapshot_fields(&conditions.quest_catalog, &players);
     let msg = ServerMessage::Snapshot(SSnapshot {
-        seq: *seq,
+        seq: request.seq,
         players: all_players,
         actors: all_actors,
         spawning_actors: snapshot_spawning_actors(&pending_spawns),

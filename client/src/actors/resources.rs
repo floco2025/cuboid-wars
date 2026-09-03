@@ -3,6 +3,9 @@ use std::collections::HashMap;
 
 use common::protocol::ActorId;
 
+#[derive(Resource)]
+pub struct ActorSpawnWarningSecs(pub f32);
+
 // Actor information (client-side).
 pub struct ActorInfo {
     pub entity: Entity,

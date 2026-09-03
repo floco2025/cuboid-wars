@@ -115,7 +115,7 @@ pub fn handle_missile_shot_message(
     commands.entity(entity).insert(FaceYaw(msg.face_yaw));
 
     let missile_config = server_gameplay_config.missiles;
-    let missile_speed = gameplay_config.movement.missile_speed;
+    let missile_speed = map_settings.movement.missile_speed;
     let dir = aim;
     // An unguided shot flies exactly where aimed — random spread would just
     // make it useless.

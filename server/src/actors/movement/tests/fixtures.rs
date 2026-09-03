@@ -1,6 +1,6 @@
 pub(super) use bevy::prelude::Entity;
 pub(super) use common::{
-    config::{CharacterPhysicsConfig, GameplayConfig},
+    config::CharacterPhysicsConfig,
     constants::{FLOOR_THICKNESS, WALL_THICKNESS},
     physics::{CharacterMovePlan, CollisionWorld},
     protocol::{ActorId, ActorMoveIntent, Floor, MapLayout, Position, Wall},
@@ -43,19 +43,16 @@ pub(crate) fn route(target: Position) -> ActorRoute {
 }
 
 pub(crate) fn actor_physics() -> CharacterPhysicsConfig {
-    GameplayConfig::load_default()
-        .expect("default gameplay config should load")
+    crate::config::ServerGameplayConfig::load_default()
+        .expect("default server gameplay config should load")
+        .gameplay_config()
         .actor(TEST_KIND)
         .expect("test kind missing from default gameplay config")
         .physics()
 }
 
 pub(crate) fn actor_speed() -> f32 {
-    GameplayConfig::load_default()
-        .expect("default gameplay config should load")
-        .movement
-        .expect_actor(TEST_KIND)
-        .roam_speed
+    2.0
 }
 
 pub(crate) fn actor_blocker_distance() -> f32 {
@@ -125,8 +122,5 @@ pub(crate) fn context<'a>(
 }
 
 pub(crate) fn test_ladders() -> f32 {
-    common::config::GameplayConfig::load_default()
-        .expect("default gameplay config should load")
-        .movement
-        .ladder_climb_ratio
+    0.4
 }

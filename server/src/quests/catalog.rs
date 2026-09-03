@@ -3,7 +3,7 @@ use std::{collections::HashMap, ops::Deref};
 use bevy::prelude::Resource;
 use common::protocol::QuestId;
 
-use crate::config::{Quest, ServerGameplayConfig};
+use crate::config::Quest;
 
 #[derive(Debug, Clone)]
 pub struct CatalogQuest {
@@ -29,20 +29,14 @@ pub struct QuestCatalog {
 
 impl QuestCatalog {
     #[must_use]
-    pub fn from_config(config: &ServerGameplayConfig) -> Self {
-        let quests: Vec<_> = config
-            .quests
+    pub fn from_quests(definitions: &[Quest]) -> Self {
+        let quests: Vec<_> = definitions
             .iter()
             .enumerate()
             .map(|(order, quest)| CatalogQuest {
                 definition: quest.clone(),
                 order: u32::try_from(order).expect("quest catalog order exceeds u32"),
-                points: config
-                    .scoring
-                    .quest_completed
-                    .get(&quest.id)
-                    .copied()
-                    .expect("quest id missing from scoring.quest_completed"),
+                points: quest.points,
             })
             .collect();
         let by_id = quests
@@ -61,6 +55,16 @@ impl QuestCatalog {
             by_id,
             dependents,
         }
+    }
+
+    #[cfg(test)]
+    #[must_use]
+    pub fn from_config(config: &crate::config::ServerGameplayConfig) -> Self {
+        let map = config
+            .maps
+            .get(&config.default_map)
+            .expect("default map missing from server gameplay config");
+        Self::from_quests(&map.quests)
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &CatalogQuest> {

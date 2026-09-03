@@ -7,7 +7,7 @@ use client::{
     app::{ClientAppOptions, build_client_app},
     network::{ClientToServerChannel, ServerToClientChannel, configure_client, network_io_task},
 };
-use common::{network::MessageStream, protocol::*};
+use common::protocol::*;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about = "Cuboid Wars", long_about = None)]
@@ -41,6 +41,21 @@ fn main() -> Result<()> {
     let args = Args::parse();
     let (to_client, from_server) = unbounded_channel();
     let (to_server, from_client) = unbounded_channel();
+    let player_name = args.name.unwrap_or_else(|| {
+        let full_name = whoami::realname().unwrap_or_default();
+        full_name.split_whitespace().next().unwrap_or_default().to_string()
+    });
+    let runtime = Runtime::new()?;
+    let connection = connect_to_server(&runtime, args.server.as_str())?;
+    let artificial_lag = (args.lag_ms > 0).then(|| Duration::from_millis(args.lag_ms));
+    runtime.spawn(network_io_task(connection, to_client, from_client, artificial_lag));
+    to_server
+        .send(client::network::ClientToServer::Send(ClientMessage::Login(CLogin {
+            name: player_name,
+        })))
+        .context("network task stopped before login")?;
+    let mut from_server = from_server;
+    let bootstrap = wait_for_init(&runtime, &mut from_server)?;
     let mut app = build_client_app(
         ClientAppOptions {
             window_x: args.window_x,
@@ -49,20 +64,13 @@ fn main() -> Result<()> {
             window_height: args.window_height,
             volume: args.volume,
         },
-        ClientToServerChannel::new(to_server),
+        ClientToServerChannel::new(to_server.clone()),
         ServerToClientChannel::new(from_server),
+        bootstrap,
     )?;
-
-    let player_name = args.name.unwrap_or_else(|| {
-        let full_name = whoami::realname().unwrap_or_default();
-        full_name.split_whitespace().next().unwrap_or_default().to_string()
-    });
-    let runtime = Runtime::new()?;
-    let connection = connect_to_server(&runtime, args.server.as_str())?;
-    send_login(&runtime, &connection, &player_name)?;
-
-    let artificial_lag = (args.lag_ms > 0).then(|| Duration::from_millis(args.lag_ms));
-    runtime.spawn(network_io_task(connection, to_client, from_client, artificial_lag));
+    to_server
+        .send(client::network::ClientToServer::Send(ClientMessage::Ready(CReady {})))
+        .context("network task stopped before ready")?;
     // Winit's macOS event loop can leave SIGINT queued without waking the
     // application, so service it from Tokio and use the conventional exit code.
     runtime.spawn(async {
@@ -88,9 +96,19 @@ fn connect_to_server(runtime: &Runtime, server_addr: &str) -> Result<quinn::Conn
     })
 }
 
-fn send_login(runtime: &Runtime, connection: &quinn::Connection, name: &str) -> Result<()> {
+fn wait_for_init(
+    runtime: &Runtime,
+    from_server: &mut tokio::sync::mpsc::UnboundedReceiver<client::network::ServerToClient>,
+) -> Result<SInit> {
     runtime.block_on(async {
-        let message = ClientMessage::Login(CLogin { name: name.to_string() });
-        MessageStream::new(connection).send(&message).await
+        match from_server.recv().await {
+            Some(client::network::ServerToClient::Message(ServerMessage::Init(message))) => Ok(message),
+            Some(client::network::ServerToClient::Message(message)) => {
+                anyhow::bail!("expected SInit before gameplay message {message:?}")
+            }
+            Some(client::network::ServerToClient::Disconnected) | None => {
+                anyhow::bail!("server disconnected before SInit")
+            }
+        }
     })
 }

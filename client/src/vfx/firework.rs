@@ -308,8 +308,8 @@ pub struct FireworkVfx<'w> {
     explosion_assets: Res<'w, ExplosionAssets>,
     blast_radii: Res<'w, BlastRadii>,
     gameplay_config: Res<'w, GameplayConfig>,
-    collision_world: Option<Res<'w, CollisionWorld>>,
-    map_layout: Option<Res<'w, MapLayout>>,
+    collision_world: Res<'w, CollisionWorld>,
+    map_layout: Res<'w, MapLayout>,
 }
 
 #[derive(SystemParam)]
@@ -319,7 +319,7 @@ pub struct FireworkAssets<'w> {
     client_settings: Res<'w, ClientSettings>,
     missile_assets: Res<'w, MissileAssets>,
     projectile_assets: Res<'w, ProjectileAssets>,
-    my_player_id: Option<Res<'w, MyPlayerId>>,
+    my_player_id: Res<'w, MyPlayerId>,
 }
 
 pub fn firework_system(
@@ -378,7 +378,7 @@ pub fn firework_system(
                 launch(&mut commands, &assets, pos, velocity, fuse_secs);
             }
             FireworkAction::Embers { pos, velocities } => {
-                let shooter = assets.my_player_id.as_ref().map(|id| id.0);
+                let shooter = Some(assets.my_player_id.0);
                 for velocity in velocities {
                     spawn_ember_projectile(
                         &mut commands,
@@ -423,8 +423,8 @@ fn pop(commands: &mut Commands, vfx: &mut FireworkVfx, assets: &FireworkAssets, 
         budget: &mut vfx.budget,
         explosion_assets: &vfx.explosion_assets,
         gameplay_config: &vfx.gameplay_config,
-        collision_world: vfx.collision_world.as_deref(),
-        map_layout: vfx.map_layout.as_deref(),
+        collision_world: Some(&vfx.collision_world),
+        map_layout: Some(&vfx.map_layout),
         blast_radii: &vfx.blast_radii,
     };
     spawn_missile_explosion(commands, &mut ctx, Position::from(pos));

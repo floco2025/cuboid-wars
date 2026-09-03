@@ -6,7 +6,7 @@ use crate::players::PlayerMap;
 use common::{
     config::GameplayConfig,
     physics::{CharacterVerticalVelocity, KnockbackVelocity, PortalMomentum, PortalSet},
-    protocol::{FaceYaw, PlayerId, PlayerMarker, PlayerMoveIntent, Position},
+    protocol::{FaceYaw, MapSettings, PlayerId, PlayerMarker, PlayerMoveIntent, Position},
 };
 
 // Runs right after the movement step. The step already let the body sink
@@ -20,6 +20,7 @@ pub fn players_portal_traversal_system(
     portal_set: Res<PortalSet>,
     mut players: ResMut<PlayerMap>,
     gameplay_config: Res<GameplayConfig>,
+    map_settings: Res<MapSettings>,
     mut previous: Local<HashMap<Entity, Position>>,
     mut player_query: Query<
         (
@@ -49,6 +50,7 @@ pub fn players_portal_traversal_system(
                 Vec3::from(from),
                 Vec3::from(*pos),
                 &gameplay_config,
+                &map_settings.movement,
                 *move_intent,
                 info.has_speed(),
                 info.is_stunned(),

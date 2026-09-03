@@ -18,14 +18,11 @@ pub struct ProjectileAssets {
     material: Handle<StandardMaterial>,
 }
 
-impl FromWorld for ProjectileAssets {
-    fn from_world(world: &mut World) -> Self {
+impl ProjectileAssets {
+    pub fn new(meshes: &mut Assets<Mesh>, materials: &mut Assets<StandardMaterial>, radius: f32) -> Self {
         let brightness = PROJECTILE_BODY_EMISSIVE;
-        let radius = world.resource::<GameplayConfig>().projectiles.radius;
-        let mesh = world.resource_mut::<Assets<Mesh>>().add(Sphere::new(radius));
-        let material = world
-            .resource_mut::<Assets<StandardMaterial>>()
-            .add(projectile_material(brightness));
+        let mesh = meshes.add(Sphere::new(radius));
+        let material = materials.add(projectile_material(brightness));
 
         Self { mesh, material }
     }
@@ -62,6 +59,7 @@ impl ProjectileBundle {
     fn new(
         projectile_assets: &ProjectileAssets,
         gameplay: &GameplayConfig,
+        projectile_speed: f32,
         position: Vec3,
         direction_yaw: f32,
         direction_pitch: f32,
@@ -73,12 +71,7 @@ impl ProjectileBundle {
             transform: Transform::from_translation(position),
             position: position.into(),
             previous_tick_position: PreviousTickPosition(position.into()),
-            proj_motion: ProjectileMotion::new(
-                direction_yaw,
-                direction_pitch,
-                gameplay.movement.projectile_speed,
-                &gameplay.projectiles,
-            ),
+            proj_motion: ProjectileMotion::new(direction_yaw, direction_pitch, projectile_speed, &gameplay.projectiles),
             player_id: shooter_id,
             proj_marker: ProjectileMarker,
         }
@@ -101,6 +94,7 @@ pub fn spawn_ember_projectile(
     let mut bundle = ProjectileBundle::new(
         projectile_assets,
         gameplay,
+        0.0,
         pos,
         0.0,
         0.0,
@@ -129,6 +123,7 @@ pub fn spawn_projectiles(
     multi_shot_pattern: Option<&str>,
     shooter_eye_height: f32,
     gameplay: &GameplayConfig,
+    projectile_speed: f32,
     collision_world: &CollisionWorld,
     open_kinds: &[BarrierKindId],
     shooter_id: PlayerId,
@@ -145,7 +140,14 @@ pub fn spawn_projectiles(
     );
 
     for spawn_info in &spawns {
-        spawn_single_projectile(commands, projectile_assets, gameplay, spawn_info, shooter_id);
+        spawn_single_projectile(
+            commands,
+            projectile_assets,
+            gameplay,
+            projectile_speed,
+            spawn_info,
+            shooter_id,
+        );
     }
 
     spawns.len()
@@ -156,6 +158,7 @@ fn spawn_single_projectile(
     commands: &mut Commands,
     projectile_assets: &ProjectileAssets,
     gameplay: &GameplayConfig,
+    projectile_speed: f32,
     spawn_info: &ProjectileSpawnInfo,
     shooter_id: PlayerId,
 ) {
@@ -164,6 +167,7 @@ fn spawn_single_projectile(
     commands.spawn(ProjectileBundle::new(
         projectile_assets,
         gameplay,
+        projectile_speed,
         spawn_pos,
         spawn_info.direction_yaw,
         spawn_info.direction_pitch,

@@ -16,7 +16,10 @@ use common::{
     config::GameplayConfig,
     constants::{GRID_CELL_SIZE, MISSILE_RADIUS},
     physics::{CollisionWorld, character_center},
-    protocol::{ActorMarker, BarrierKindId, FaceYaw, HomingTarget, MissileId, MissileMarker, PlayerMarker, Position},
+    protocol::{
+        ActorMarker, BarrierKindId, FaceYaw, HomingTarget, MapSettings, MissileId, MissileMarker, PlayerMarker,
+        Position,
+    },
 };
 
 // Net-displacement watchdog distance, 3D (missiles fly): a missile that
@@ -52,6 +55,7 @@ pub struct MissileGuidanceParams<'w, 's> {
     air_graph: Res<'w, AirGraph>,
     collision_world: Res<'w, CollisionWorld>,
     open_barrier_kinds: Res<'w, OpenBarrierKinds>,
+    map_settings: Res<'w, MapSettings>,
     gameplay_config: Res<'w, GameplayConfig>,
     server_gameplay_config: Res<'w, ServerGameplayConfig>,
 }
@@ -59,7 +63,7 @@ pub struct MissileGuidanceParams<'w, 's> {
 pub fn missiles_guidance_system(time: Res<Time>, mut params: MissileGuidanceParams) {
     let delta = time.delta_secs();
     let config = params.server_gameplay_config.missiles;
-    let missile_speed = params.gameplay_config.movement.missile_speed;
+    let missile_speed = params.map_settings.movement.missile_speed;
 
     for (id, pos, mut velocity) in &mut params.missile_query {
         let Some(info) = params.missiles.get_mut(id) else {

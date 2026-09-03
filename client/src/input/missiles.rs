@@ -35,7 +35,7 @@ pub fn input_missile_system(
     asset_server: Res<AssetServer>,
     asset_set: Res<AssetSet>,
     lock: Res<LockOnTarget>,
-    my_player_id: Option<Res<MyPlayerId>>,
+    my_player_id: Res<MyPlayerId>,
     mut players: ResMut<PlayerMap>,
     local_player_info: Res<LocalPlayerInfo>,
     gameplay_config: Res<GameplayConfig>,
@@ -47,14 +47,11 @@ pub fn input_missile_system(
     if !(cursor_locked && mouse.just_pressed(MouseButton::Left)) {
         return;
     }
-    let Some(my_id) = my_player_id else {
-        return;
-    };
     let Some(face_yaw) = local_player_query.iter().next() else {
         return;
     };
 
-    let has_ammo = players.get(&my_id.0).is_some_and(|info| info.missiles > 0);
+    let has_ammo = players.get(&my_player_id.0).is_some_and(|info| info.missiles > 0);
     if !has_ammo || (gameplay_config.missiles.require_lock && lock.0.is_none()) {
         play_sound(&mut commands, &asset_server, asset_set.player_sound("dry_fire"));
         return;
@@ -68,7 +65,7 @@ pub fn input_missile_system(
         .map_or(0.0, |transform| transform.rotation.to_euler(EulerRot::YXZ).1);
 
     // Predicted decrement; the snapshot's `Player.missiles` self-heals it.
-    if let Some(info) = players.get_mut(&my_id.0) {
+    if let Some(info) = players.get_mut(&my_player_id.0) {
         info.missiles = info.missiles.saturating_sub(1);
     }
 

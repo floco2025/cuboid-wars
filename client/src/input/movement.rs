@@ -44,14 +44,14 @@ pub fn input_movement_system(
     mut mouse_motion: MessageReader<MouseMotion>,
     cursor_options: Single<&CursorOptions>,
     to_server: Res<ClientToServerChannel>,
-    my_player_id: Option<Res<MyPlayerId>>,
+    my_player_id: Res<MyPlayerId>,
     players: Res<PlayerMap>,
     mut local_player_info: ResMut<LocalPlayerInfo>,
     mut top_down_camera_yaw: ResMut<TopDownCameraYaw>,
     mut local_player_query: LocalPlayerInputQuery,
     mut camera_query: Query<&mut Transform, (With<Camera3d>, With<MainCameraMarker>)>,
     view_mode: Res<CameraViewMode>,
-    collision_world: Option<Res<CollisionWorld>>,
+    collision_world: Res<CollisionWorld>,
     gameplay_config: Res<GameplayConfig>,
     client_settings: Res<ClientSettings>,
     console: Res<ConsoleState>,
@@ -89,7 +89,7 @@ pub fn input_movement_system(
     );
     let face_yaw = current_yaw + PI;
     // Death disables movement and jump just like stunned (and overrides it).
-    let movement_disabled = local_player_info.is_dead || local_player_stunned(my_player_id.as_ref(), &players);
+    let movement_disabled = local_player_info.is_dead || local_player_stunned(my_player_id.0, &players);
     let move_intent = calculate_move_intent(&keyboard, face_yaw, movement_disabled);
     let jump_requested = !movement_disabled && keyboard.just_pressed(KeyCode::Space);
 
@@ -97,7 +97,7 @@ pub fn input_movement_system(
         move_intent,
         face_yaw,
         jump_requested,
-        collision_world.as_deref(),
+        &collision_world,
         &gameplay_config,
         &mut local_player_query,
     );
@@ -191,9 +191,9 @@ fn calculate_move_intent(keyboard: &Res<ButtonInput<KeyCode>>, face_yaw: f32, st
     }
 }
 
-fn local_player_stunned(my_player_id: Option<&Res<MyPlayerId>>, players: &Res<PlayerMap>) -> bool {
-    my_player_id
-        .and_then(|my_id| players.get(&my_id.0))
+fn local_player_stunned(my_player_id: common::protocol::PlayerId, players: &Res<PlayerMap>) -> bool {
+    players
+        .get(&my_player_id)
         .is_some_and(|player_info| player_info.stunned)
 }
 
@@ -201,7 +201,7 @@ fn update_player_input_face_and_jump(
     move_intent: PlayerMoveIntent,
     face_yaw: f32,
     jump_requested: bool,
-    collision_world: Option<&CollisionWorld>,
+    collision_world: &CollisionWorld,
     gameplay_config: &GameplayConfig,
     local_player_query: &mut LocalPlayerInputQuery,
 ) {
@@ -209,7 +209,6 @@ fn update_player_input_face_and_jump(
         *input = move_intent;
         face_direction.0 = face_yaw;
         if jump_requested
-            && let Some(collision_world) = collision_world
             && let Some(vertical_velocity) = player_jump_velocity(
                 motion.0,
                 collision_world,

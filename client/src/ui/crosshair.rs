@@ -35,14 +35,14 @@ pub(crate) fn ui_crosshair_system(
     mut commands: Commands,
     mode: Res<WeaponMode>,
     lock: Res<LockOnTarget>,
-    portal_access: Option<Res<PortalAccess>>,
+    portal_access: Res<PortalAccess>,
     gameplay_config: Res<GameplayConfig>,
     root: Single<(Entity, Option<&Children>), With<CrosshairMarker>>,
     mut last: Local<Option<ReticleState>>,
 ) {
     let state = ReticleState {
         mode: *mode,
-        portal_access: portal_access.as_deref().copied().unwrap_or(PortalAccess::None),
+        portal_access: *portal_access,
     };
     if *last == Some(state) {
         return;

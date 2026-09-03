@@ -100,7 +100,7 @@ pub struct ProjectileMovementParams<'w, 's> {
 
 pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut params: ProjectileMovementParams) {
     let delta = time.delta_secs();
-    let gravity = params.map_settings.gravity * params.gameplay_config.projectiles.gravity_scale;
+    let gravity = params.map_settings.movement.gravity * params.gameplay_config.projectiles.gravity_scale;
 
     for (proj_entity, mut proj_pos, mut projectile, shooter_id) in &mut params.projectile_query {
         projectile.lifetime.tick(time.delta());
@@ -273,7 +273,7 @@ pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut 
                             player_id,
                             target_entity,
                             death_pos,
-                            params.gameplay_config.player.respawn_secs,
+                            params.server_gameplay_config.player.respawn_secs,
                             DeathSource::Shot(*shooter_id),
                             &params.server_gameplay_config.feed,
                             &mut params.pending_explosions,

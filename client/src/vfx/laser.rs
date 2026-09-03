@@ -78,7 +78,7 @@ pub fn laser_beam_update_system(
     actors: Res<ActorMap>,
     players: Res<PlayerMap>,
     gameplay_config: Res<GameplayConfig>,
-    collision_world: Option<Res<CollisionWorld>>,
+    collision_world: Res<CollisionWorld>,
     endpoints: Query<&Transform, Without<LaserBeam>>,
     mut beams: Query<(Entity, &mut LaserBeam, &mut Transform, &mut Visibility)>,
 ) {
@@ -138,8 +138,7 @@ pub fn laser_beam_update_system(
         // Clip at the first static surface so the beam doesn't pierce cover —
         // the server gates damage on the same line of sight.
         let length = collision_world
-            .as_deref()
-            .and_then(|world| world.world_surface_along_ray(origin, direction, full_length))
+            .world_surface_along_ray(origin, direction, full_length)
             .map_or(full_length, |hit| hit.point.distance(origin));
         transform.translation = origin + direction * (length / 2.0);
         transform.rotation = Quat::from_rotation_arc(Vec3::Y, direction);

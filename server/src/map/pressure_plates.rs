@@ -39,11 +39,11 @@ pub fn player_on_plate(plate: &PressurePlateRuntime, pos: &Position, geometry: &
 // Per-tick plate occupancy, then the two plate rules.
 //
 // Barrier plates — for each kind that has at least one plate on the map:
-//   required = min(plates_for_kind, max(0, alive_logged_in_count - 1))
+//   required = min(plates_for_kind, max(0, active_alive_count - 1))
 // and the kind is open while the number of distinct held plates of that
 // kind is `>= required`.
 //
-// Firework plates — required = min(firework_plates, alive_logged_in_count);
+// Firework plates — required = min(firework_plates, active_alive_count);
 // the show launches on the tick the held count reaches it (edge-triggered,
 // so standing there doesn't restart it every tick).
 //
@@ -89,7 +89,7 @@ pub fn pressure_plates_system(
 
     let alive: usize = players
         .iter()
-        .filter(|(_, info)| info.connection.logged_in && !info.is_dead())
+        .filter(|(_, info)| info.connection.is_active() && !info.is_dead())
         .count();
 
     // Per-tick: who holds each plate (the first alive player found on it).
@@ -102,7 +102,7 @@ pub fn pressure_plates_system(
             continue;
         }
         let holder = players.iter().find(|(_, info)| {
-            info.connection.logged_in
+            info.connection.is_active()
                 && info
                     .entity()
                     .and_then(|entity| positions.get(entity).ok())
@@ -457,7 +457,7 @@ mod system_tests {
         players::PlayerInfo,
         quests::{
             QuestCatalog,
-            test_support::{catalog, drain, quest},
+            test_support::{catalog, completed, drain, quest},
         },
     };
     use common::{
@@ -512,7 +512,7 @@ mod system_tests {
         let entity = app.world_mut().spawn((PlayerMarker, PlayerId(1), pos)).id();
         let (tx, mut rx) = unbounded_channel();
         let mut info = PlayerInfo::new(entity, tx);
-        info.connection.logged_in = true;
+        info.connection.phase = crate::players::ConnectionPhase::Active;
         while rx.try_recv().is_ok() {}
         app.world_mut().resource_mut::<PlayerMap>().insert(PlayerId(1), info);
         (entity, rx)
@@ -589,10 +589,6 @@ mod system_tests {
         app.update();
         let messages = drain(&mut rx);
         assert_eq!(shows(&messages), 1);
-        assert!(
-            !messages
-                .iter()
-                .any(|msg| matches!(msg, ServerMessage::QuestCompleted(_)))
-        );
+        assert!(!completed(&messages, "show"));
     }
 }

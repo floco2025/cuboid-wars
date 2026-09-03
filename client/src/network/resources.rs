@@ -6,7 +6,6 @@ use tokio::sync::mpsc::{
 };
 
 use super::transport::{ClientToServer, ServerToClient};
-
 // Last applied `SSnapshot` sequence. Server messages can arrive out of order
 // because each message uses its own QUIC unidirectional stream; older full
 // snapshots must not roll the client back after a newer snapshot has applied.

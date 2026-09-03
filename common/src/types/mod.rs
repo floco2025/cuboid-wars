@@ -29,4 +29,4 @@ pub use movement::{
 };
 pub use portals::{Portal, PortalAccess, PortalEnd};
 pub use position::Position;
-pub use quests::{QuestGroupProgress, QuestGroupStatus, QuestInitialProgress, QuestInitialStatus, QuestScope};
+pub use quests::{QuestGroupProgress, QuestGroupStatus, QuestScope, QuestStateProgress, QuestStatus};

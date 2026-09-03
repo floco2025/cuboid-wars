@@ -32,12 +32,12 @@ pub fn lock_on_system(
     cursor_options: Single<&CursorOptions>,
     local_player_info: Res<LocalPlayerInfo>,
     console: Res<ConsoleState>,
-    my_player_id: Option<Res<MyPlayerId>>,
+    my_player_id: Res<MyPlayerId>,
     players: Res<PlayerMap>,
     actors: Res<ActorMap>,
     character_data: LockCandidateQuery,
     camera_query: Query<&Transform, (With<Camera3d>, With<MainCameraMarker>)>,
-    collision_world: Option<Res<CollisionWorld>>,
+    collision_world: Res<CollisionWorld>,
     gameplay_config: Res<GameplayConfig>,
     weapon_mode: Res<WeaponMode>,
 ) {
@@ -46,12 +46,12 @@ pub fn lock_on_system(
         &cursor_options,
         &local_player_info,
         &console,
-        my_player_id.as_deref(),
+        &my_player_id,
         &players,
         &actors,
         &character_data,
         &camera_query,
-        collision_world.as_deref(),
+        &collision_world,
         &gameplay_config,
         &weapon_mode,
     );
@@ -67,12 +67,12 @@ fn compute_lock(
     cursor_options: &CursorOptions,
     local_player_info: &LocalPlayerInfo,
     console: &ConsoleState,
-    my_player_id: Option<&MyPlayerId>,
+    my_player_id: &MyPlayerId,
     players: &PlayerMap,
     actors: &ActorMap,
     character_data: &LockCandidateQuery,
     camera_query: &Query<&Transform, (With<Camera3d>, With<MainCameraMarker>)>,
-    collision_world: Option<&CollisionWorld>,
+    collision_world: &CollisionWorld,
     gameplay_config: &GameplayConfig,
     weapon_mode: &WeaponMode,
 ) -> Option<HomingTarget> {
@@ -84,17 +84,15 @@ fn compute_lock(
     {
         return None;
     }
-    let my_id = my_player_id?;
     // Lock requires ammo: a lit crosshair always means "fire will launch".
-    if players.get(&my_id.0).is_none_or(|info| info.missiles == 0) {
+    if players.get(&my_player_id.0).is_none_or(|info| info.missiles == 0) {
         return None;
     }
-    let collision_world = collision_world?;
     let camera = camera_query.iter().next()?;
 
     let candidates = players
         .iter()
-        .filter(|(id, _)| **id != my_id.0)
+        .filter(|(id, _)| **id != my_player_id.0)
         .filter_map(|(id, info)| {
             let (pos, face_yaw) = character_data.get(info.entity).ok()?;
             Some((

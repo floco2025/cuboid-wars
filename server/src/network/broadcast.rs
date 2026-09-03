@@ -12,10 +12,10 @@ use common::{physics::CharacterVerticalVelocity, protocol::*};
 // Broadcasting Helpers
 // ============================================================================
 
-// Broadcast `message` to every logged-in player except `skip`.
+// Broadcast `message` to every active player except `skip`.
 pub fn broadcast_to_others(players: &PlayerMap, skip: PlayerId, message: ServerMessage) {
     for (other_id, other_info) in players.iter() {
-        if *other_id != skip && other_info.connection.logged_in {
+        if *other_id != skip && other_info.connection.is_active() {
             let _ = other_info
                 .connection
                 .channel
@@ -24,10 +24,10 @@ pub fn broadcast_to_others(players: &PlayerMap, skip: PlayerId, message: ServerM
     }
 }
 
-// Broadcast `message` to every logged-in player.
+// Broadcast `message` to every active player.
 pub fn broadcast_to_all(players: &PlayerMap, message: ServerMessage) {
     for player_info in players.values() {
-        if player_info.connection.logged_in {
+        if player_info.connection.is_active() {
             let _ = player_info
                 .connection
                 .channel
@@ -51,9 +51,9 @@ pub fn broadcast_firework_show(players: &PlayerMap) {
 // Data Collection Functions
 // ============================================================================
 
-// Collect all logged-in players for network updates.
+// Collect all active, alive players for network updates.
 #[must_use]
-pub fn snapshot_logged_in_players(
+pub fn snapshot_active_players(
     players: &PlayerMap,
     player_data: &PlayerStateQuery,
     motions: &Query<&CharacterVerticalVelocity, With<PlayerMarker>>,
@@ -65,7 +65,7 @@ pub fn snapshot_logged_in_players(
             // entity despawn is deferred, so on a same-tick snapshot the
             // corpse would otherwise still resolve and ship here — after
             // `SPlayerDeath` already went out.
-            if !info.connection.logged_in {
+            if !info.connection.is_active() {
                 return None;
             }
             let entity = info.entity()?;
@@ -119,7 +119,6 @@ pub fn snapshot_spawning_actors(pending: &PendingActorSpawns) -> Vec<(ActorId, S
                     pos: spawn.pos,
                     face_yaw: spawn.face_yaw,
                     remaining_secs: spawn.remaining_secs,
-                    warning_secs: spawn.warning_secs,
                 },
             )
         })
@@ -188,10 +187,10 @@ mod tests {
             .id()
     }
 
-    fn logged_in_player(entity: Entity) -> PlayerInfo {
+    fn active_player(entity: Entity) -> PlayerInfo {
         let (tx, _rx) = unbounded_channel();
         let mut info = PlayerInfo::new(entity, tx);
-        info.connection.logged_in = true;
+        info.connection.phase = crate::players::ConnectionPhase::Active;
         info
     }
 
@@ -202,10 +201,10 @@ mod tests {
         let dead_entity = spawn_player_entity(&mut world);
 
         let mut players = PlayerMap::default();
-        players.insert(PlayerId(1), logged_in_player(alive_entity));
+        players.insert(PlayerId(1), active_player(alive_entity));
         // A killed player's entity despawn is deferred, so the corpse is
         // still queryable on the snapshot tick; lifecycle state excludes it.
-        let mut dead = logged_in_player(dead_entity);
+        let mut dead = active_player(dead_entity);
         dead.begin_respawn(2.0);
         players.insert(PlayerId(2), dead);
 
@@ -213,7 +212,7 @@ mod tests {
             SystemState::new(&mut world);
         let (player_data, motions) = state.get(&world).expect("system params invalid for the test world");
 
-        let snapshot = snapshot_logged_in_players(&players, &player_data, &motions);
+        let snapshot = snapshot_active_players(&players, &player_data, &motions);
 
         assert_eq!(snapshot.len(), 1);
         assert_eq!(snapshot[0].0, PlayerId(1));

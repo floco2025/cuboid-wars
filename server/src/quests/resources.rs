@@ -235,15 +235,14 @@ impl EveryoneCount {
     }
 }
 
-// Logged-in players at the threshold of an `everyone` quest, and how many
-// are logged in at all.
+// Active players at the threshold of an `everyone` quest, and the active total.
 pub(super) fn everyone_count(players: &PlayerMap, quest: &Quest) -> EveryoneCount {
     let mut count = EveryoneCount {
         players_done: 0,
         players_total: 0,
     };
     for (_, info) in players.iter() {
-        if !info.connection.logged_in {
+        if !info.connection.is_active() {
             continue;
         }
         count.players_total += 1;
@@ -326,7 +325,8 @@ mod tests {
 
     #[test]
     fn shipped_catalog_locks_firework_plates_until_the_fireworks_quest_unlocks() {
-        let config = ServerGameplayConfig::load_default().expect("default server gameplay config should load");
+        let mut config = ServerGameplayConfig::load_default().expect("default server gameplay config should load");
+        config.default_map = "hotel".to_owned();
         let quest_catalog = QuestCatalog::from_config(&config);
         let mut board = QuestBoard::from_catalog(&quest_catalog);
         assert_eq!(board.locked_plate_purposes(), [PlatePurpose::Firework]);

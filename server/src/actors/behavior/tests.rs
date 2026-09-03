@@ -86,11 +86,12 @@ impl Fixture {
         let graph = NavGraph::new(map.clone(), geometry);
         let server = ServerGameplayConfig::load_default().expect("default server gameplay config should load");
         let territories = ActorTerritories::new(&graph, &map, &server).expect("test territory should build");
+        let gameplay = server.gameplay_config();
         Self {
             graph,
             territories,
             collision_world,
-            gameplay: GameplayConfig::load_default().expect("default gameplay config should load"),
+            gameplay,
             server,
             geometry,
         }

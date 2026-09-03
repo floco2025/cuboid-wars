@@ -7,7 +7,9 @@ use crate::{
     network::ServerToClient,
     players::{PlayerInfo, PlayerMap},
 };
-use common::protocol::{NewQuest, PlayerId, QuestId, QuestScope, ServerMessage};
+use common::protocol::{
+    PlayerId, QuestId, QuestScope, QuestState, QuestStateProgress, QuestUpdateReason, ServerMessage,
+};
 
 pub(crate) fn quest(id: &str, kind: QuestKind, scope: QuestScope, threshold: u32, requires: Option<&str>) -> Quest {
     Quest {
@@ -17,22 +19,26 @@ pub(crate) fn quest(id: &str, kind: QuestKind, scope: QuestScope, threshold: u32
         requires: requires.map(|required| QuestId(required.to_owned())),
         actor_kind: None,
         threshold,
+        points: 100,
         title: id.to_owned(),
         description: format!("do {id}"),
         completed_text: format!("{id} done"),
     }
 }
 
-// The shipped config with a synthetic catalog; every quest pays 100.
+// The shipped config with a synthetic catalog.
 pub(crate) fn catalog(quests: Vec<Quest>) -> ServerGameplayConfig {
     let mut config = ServerGameplayConfig::load_default().expect("default server gameplay config should load");
-    config.scoring.quest_completed = quests.iter().map(|quest| (quest.id.clone(), 100)).collect();
-    config.quests = quests;
+    config
+        .maps
+        .get_mut(&config.default_map)
+        .expect("default map missing from server gameplay config")
+        .quests = quests;
     config
 }
 
-// A logged-in player with every unlocked quest assigned; the login batch is
-// discarded so the receiver only sees what the test triggers.
+// An active player with every unlocked quest assigned; the assignment batch
+// is discarded so the receiver only sees what the test triggers.
 pub(crate) fn join(
     players: &mut PlayerMap,
     id: u32,
@@ -51,7 +57,7 @@ pub(crate) fn join_with(
 ) -> UnboundedReceiver<ServerToClient> {
     let (tx, mut rx) = unbounded_channel();
     let mut info = PlayerInfo::new(Entity::PLACEHOLDER, tx);
-    info.connection.logged_in = true;
+    info.connection.phase = crate::players::ConnectionPhase::Active;
     info.connection.name = format!("P{id}");
     if dead {
         info.begin_respawn(2.0);
@@ -64,16 +70,20 @@ pub(crate) fn join_with(
 }
 
 // What a fresh player would be assigned right now.
-pub(crate) fn assignment_for(catalog: &QuestCatalog, board: &QuestBoard) -> Vec<NewQuest> {
+pub(crate) fn assignment_for(catalog: &QuestCatalog, board: &QuestBoard) -> Vec<QuestState> {
     let (tx, mut rx) = unbounded_channel();
     let mut info = PlayerInfo::new(Entity::PLACEHOLDER, tx);
-    info.connection.logged_in = true;
+    info.connection.phase = crate::players::ConnectionPhase::Active;
     let player = PlayerId(1);
     let mut players = PlayerMap::default();
     players.insert(player, info);
     assign_quests(&mut players, player, catalog, board);
     match rx.try_recv() {
-        Ok(ServerToClient::Send(ServerMessage::QuestsAssigned(assigned))) => assigned.quests,
+        Ok(ServerToClient::Send(ServerMessage::QuestUpdates(message))) => message
+            .updates
+            .into_iter()
+            .filter_map(|update| (update.reason == QuestUpdateReason::Assigned).then_some(update.quest))
+            .collect(),
         _ => Vec::new(),
     }
 }
@@ -89,17 +99,31 @@ pub(crate) fn drain(receiver: &mut UnboundedReceiver<ServerToClient>) -> Vec<Ser
 }
 
 pub(crate) fn completed(messages: &[ServerMessage], id: &str) -> bool {
-    messages
-        .iter()
-        .any(|msg| matches!(msg, ServerMessage::QuestCompleted(c) if c.id.0 == id))
+    messages.iter().any(|msg| match msg {
+        ServerMessage::QuestUpdates(message) => message
+            .updates
+            .iter()
+            .any(|update| update.reason == QuestUpdateReason::Completed && update.quest.id.0 == id),
+        _ => false,
+    })
 }
 
 pub(crate) fn progress_values(messages: &[ServerMessage], id: &str) -> Vec<u32> {
     messages
         .iter()
-        .filter_map(|msg| match msg {
-            ServerMessage::QuestProgress(p) if p.id.0 == id => Some(p.progress),
-            _ => None,
+        .flat_map(|msg| match msg {
+            ServerMessage::QuestUpdates(message) => message.updates.as_slice(),
+            _ => &[],
+        })
+        .filter_map(|update| {
+            if update.reason != QuestUpdateReason::Progressed || update.quest.id.0 != id {
+                return None;
+            }
+            Some(match update.quest.status.progress {
+                QuestStateProgress::Individual { progress }
+                | QuestStateProgress::Shared { progress }
+                | QuestStateProgress::Everyone { progress, .. } => progress,
+            })
         })
         .collect()
 }
@@ -117,11 +141,12 @@ pub(crate) fn feed_lines(messages: &[ServerMessage]) -> Vec<String> {
 pub(crate) fn assigned_ids(messages: &[ServerMessage]) -> Vec<String> {
     messages
         .iter()
-        .filter_map(|msg| match msg {
-            ServerMessage::QuestsAssigned(assigned) => Some(assigned.quests.iter().map(|q| q.id.0.clone())),
-            _ => None,
+        .flat_map(|msg| match msg {
+            ServerMessage::QuestUpdates(message) => message.updates.as_slice(),
+            _ => &[],
         })
-        .flatten()
+        .filter(|update| update.reason == QuestUpdateReason::Assigned)
+        .map(|update| update.quest.id.0.clone())
         .collect()
 }
 

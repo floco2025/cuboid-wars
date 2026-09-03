@@ -110,7 +110,11 @@ pub fn spawn_actor(
 // Fade state for a ghost, straight from the wire fields. Also inserted onto
 // existing ghosts on every snapshot, resyncing the locally-ticked fade.
 #[must_use]
-pub fn beam_in_ghost_state(gameplay_config: &GameplayConfig, spawning: &SpawningActor) -> BeamInGhost {
+pub fn beam_in_ghost_state(
+    gameplay_config: &GameplayConfig,
+    warning_secs: f32,
+    spawning: &SpawningActor,
+) -> BeamInGhost {
     let collider = gameplay_config
         .actor(&spawning.kind)
         .expect("actor kind sent by server is missing from gameplay config")
@@ -118,7 +122,7 @@ pub fn beam_in_ghost_state(gameplay_config: &GameplayConfig, spawning: &Spawning
         .collider;
     BeamInGhost {
         remaining_secs: spawning.remaining_secs,
-        warning_secs: spawning.warning_secs,
+        warning_secs,
         half_extents: Vec3::new(collider.width, collider.height, collider.depth) / 2.0,
     }
 }
@@ -131,6 +135,7 @@ pub fn spawn_actor_ghost(
     asset_server: &AssetServer,
     asset_set: &AssetSet,
     gameplay_config: &GameplayConfig,
+    warning_secs: f32,
     spawning: &SpawningActor,
 ) -> Entity {
     let actor_model = asset_set.actor_model(&spawning.kind);
@@ -148,7 +153,7 @@ pub fn spawn_actor_ghost(
             )
             .with_rotation(Quat::from_rotation_y(spawning.face_yaw)),
             Visibility::Visible,
-            beam_in_ghost_state(gameplay_config, spawning),
+            beam_in_ghost_state(gameplay_config, warning_secs, spawning),
             BeamEmitter::default(),
             PointLight {
                 color: BEAM_IN_COLOR,

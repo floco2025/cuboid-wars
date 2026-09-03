@@ -2,7 +2,7 @@ use bevy_math::Vec3;
 use bevy_time::{Timer, TimerMode};
 
 use super::{ProjectileMotion, calculate_projectile_spawns};
-use crate::config::{GameplayConfig, MultiShotConfig};
+use crate::config::MultiShotConfig;
 use crate::constants::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_THICKNESS};
 
 // Test copies of the default `projectiles` config values.
@@ -155,7 +155,6 @@ fn projectile_hits_level_zero_floor_underside() {
 
 mod spawning {
     use super::super::spawning::projectile_spawn_is_blocked;
-    use crate::config::GameplayConfig;
     use crate::constants::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_THICKNESS};
     use crate::physics::CollisionWorld;
     use crate::protocol::{Floor, MapLayout, Position, Ramp, Wall};
@@ -208,7 +207,7 @@ mod spawning {
     }
 
     fn player_eye_height() -> f32 {
-        GameplayConfig::load_default()
+        crate::config::gameplay::load_test_gameplay()
             .expect("default gameplay config should load")
             .player
             .eye_height()
@@ -389,7 +388,7 @@ mod spawning {
 
 #[test]
 fn multi_shot_fires_the_configured_stencil() {
-    let mut gameplay = GameplayConfig::load_default().expect("default gameplay config failed to load");
+    let mut gameplay = crate::config::gameplay::load_test_gameplay().expect("default gameplay config failed to load");
     gameplay.projectiles.multi_shot =
         MultiShotConfig::from_stencil("multi_shot", 1.5, 1.5, &["x.x", ".o.", "x.x"].map(str::to_owned))
             .expect("stencil rejected");

@@ -124,7 +124,7 @@ pub fn players_fall_death_system(
             *id,
             entity,
             *pos,
-            gameplay_config.player.respawn_secs,
+            server_gameplay_config.player.respawn_secs,
             DeathSource::Fall,
             &server_gameplay_config.feed,
             &mut pending_explosions,
@@ -166,7 +166,6 @@ pub fn players_fall_damage_system(
     mut commands: Commands,
     mut players: ResMut<PlayerMap>,
     mut pending_explosions: ResMut<PendingExplosions>,
-    gameplay_config: Res<GameplayConfig>,
     server_gameplay_config: Res<ServerGameplayConfig>,
     invincibility: Res<Invincibility>,
     map_settings: Res<MapSettings>,
@@ -175,7 +174,7 @@ pub fn players_fall_damage_system(
     let invincible = invincibility.0;
     let fall = server_gameplay_config.combat.damage.player_fall;
     let max_health = server_gameplay_config.combat.health.player.max;
-    let respawn_secs = gameplay_config.player.respawn_secs;
+    let respawn_secs = server_gameplay_config.player.respawn_secs;
 
     for (entity, id, pos, mut health) in player_query.iter_mut() {
         let Some(info) = players.get_mut(id) else { continue };
@@ -188,7 +187,7 @@ pub fn players_fall_damage_system(
             continue;
         };
 
-        let fall_distance = effective_fall_distance(impact.drop, fall_gravity, map_settings.gravity);
+        let fall_distance = effective_fall_distance(impact.drop, fall_gravity, map_settings.movement.gravity);
         if fall_distance <= fall.safe_distance {
             continue;
         }

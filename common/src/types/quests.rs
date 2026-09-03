@@ -12,7 +12,7 @@ pub enum QuestScope {
     // One pooled counter for all players; any player's event advances it,
     // and it completes once for the group.
     Shared,
-    // Own progress per player; the group completes once every logged-in
+    // Own progress per player; the group completes once every active
     // player reached the threshold.
     Everyone,
 }
@@ -37,18 +37,18 @@ pub struct QuestGroupStatus {
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub enum QuestGroupProgress {
     Shared { progress: u32 },
-    // Players at the threshold, and players logged in.
+    // Active players at the threshold, and active players in total.
     Everyone { players_done: u32, players_total: u32 },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
-pub struct QuestInitialStatus {
+pub struct QuestStatus {
     pub completed: bool,
-    pub progress: QuestInitialProgress,
+    pub progress: QuestStateProgress,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
-pub enum QuestInitialProgress {
+pub enum QuestStateProgress {
     Individual {
         progress: u32,
     },

@@ -34,7 +34,7 @@ pub(super) fn network_receive_system(
 
                 let who = context.players.describe(&id);
                 let name = context.players.display_name(&id);
-                let was_logged_in = player.connection.logged_in;
+                let was_active = player.connection.is_active();
                 let entity = player.entity();
                 context.players.remove(&id);
                 let portal_access = context.portal_assignments.release(&id);
@@ -45,8 +45,8 @@ pub(super) fn network_receive_system(
                     commands.entity(entity).despawn();
                 }
 
-                debug!("{} disconnected (logged_in: {})", who, was_logged_in);
-                if was_logged_in {
+                debug!("{} disconnected (active: {})", who, was_active);
+                if was_active {
                     emit_feed(
                         &context.players,
                         &context.world.server_gameplay_config.feed,

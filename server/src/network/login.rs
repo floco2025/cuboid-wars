@@ -1,11 +1,9 @@
-use std::collections::HashMap;
-
 use bevy::prelude::*;
 
 use crate::{
     characters::{generate_player_spawn_position, spawn_face_yaw},
     network::{FeedAudience, FeedEvent, ServerToClient, emit_feed},
-    players::PlayerMap,
+    players::{ConnectionPhase, PlayerMap},
     portals::PortalAssignments,
     quests::{QuestBoard, QuestCatalog, assign_quests},
 };
@@ -25,57 +23,50 @@ fn sanitize_player_name(raw: &str, id: PlayerId) -> String {
     }
 }
 
-fn sorted_by_kind<V>(per_kind: &HashMap<String, V>, value: impl Fn(&V) -> f32) -> Vec<(String, f32)> {
-    let mut values: Vec<(String, f32)> = per_kind.iter().map(|(kind, v)| (kind.clone(), value(v))).collect();
-    values.sort_by(|a, b| a.0.cmp(&b.0));
-    values
-}
-
-#[expect(
-    clippy::too_many_arguments,
-    reason = "login assembles the initial state from each server domain"
-)]
 pub(super) fn handle_login_message(
-    commands: &mut Commands,
-    entity: Entity,
     id: PlayerId,
     message: CLogin,
     players: &mut PlayerMap,
     world: &SharedWorld,
-    quest_catalog: &QuestCatalog,
-    quest_board: &QuestBoard,
-    queries: &CharacterQueries,
     portal_assignments: &mut PortalAssignments,
 ) {
     let Some(player_info) = players.get_mut(&id) else {
         error!("registered player#{} missing during login", id.0);
         return;
     };
-    player_info.connection.logged_in = true;
+    player_info.connection.phase = ConnectionPhase::AwaitingReady;
     player_info.connection.name = sanitize_player_name(&message.name, id);
     let channel = player_info.connection.channel.clone();
-    debug!("{} logged in", players.describe(&id));
+    debug!("{} authenticated", players.describe(&id));
 
-    let combat = &world.server_gameplay_config.combat;
     let portal_access = portal_assignments.assign(id);
     let init_message = ServerMessage::Init(SInit {
-        id,
-        portal_access,
-        map_layout: (*world.map_layout).clone(),
-        map_settings: (*world.map_settings).clone(),
-        actor_blast_radii: sorted_by_kind(&combat.damage.actors, |actor| actor.death_blast.radius),
-        player_blast_radius: combat.damage.player_blast.radius,
-        missile_blast_radius: combat.damage.missile_blast.radius,
-        player_max_health: combat.health.player.max,
-        actor_max_health: sorted_by_kind(&combat.health.actors, |actor| actor.max),
-        key_kinds: world.map_config.key_kinds(),
+        player: PlayerBootstrap { id, portal_access },
+        world: (*world.world_bootstrap).clone(),
     });
     if let Err(error) = channel.send(ServerToClient::Send(init_message)) {
         warn!("failed to send init to {:?}: {}", id, error);
-        return;
     }
+}
 
-    // Batch initially unlocked quests so login produces one announcement.
+pub(super) fn handle_ready_message(
+    commands: &mut Commands,
+    entity: Entity,
+    id: PlayerId,
+    players: &mut PlayerMap,
+    world: &SharedWorld,
+    queries: &CharacterQueries,
+    quest_catalog: &QuestCatalog,
+    quest_board: &QuestBoard,
+) {
+    let Some(player_info) = players.get_mut(&id) else {
+        error!("registered player#{} missing during ready", id.0);
+        return;
+    };
+    player_info.connection.phase = ConnectionPhase::Active;
+    debug!("{} entered gameplay", players.describe(&id));
+
+    // A prerequisite can complete while the client is building from SInit.
     assign_quests(players, id, quest_catalog, quest_board);
 
     // Presence remains snapshot-owned; this line is cosmetic.
@@ -90,7 +81,7 @@ pub(super) fn handle_login_message(
 
     let occupied_positions: Vec<Position> = players
         .values()
-        .filter(|player| player.connection.logged_in && player.entity() != Some(entity))
+        .filter(|player| player.connection.is_active() && player.entity() != Some(entity))
         .filter_map(|player| player.entity().and_then(|entity| queries.player_data.get(entity).ok()))
         .map(|(pos, _, _, _)| *pos)
         .collect();
@@ -106,15 +97,18 @@ pub(super) fn handle_login_message(
         PlayerMoveIntent::Idle,
         FaceYaw(spawn_face_yaw(&pos)),
         CharacterVerticalVelocity::default(),
-        Health(combat.health.player.max),
+        Health(world.server_gameplay_config.combat.health.player.max),
     ));
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{MAX_NAME_CHARS, sanitize_player_name, sorted_by_kind};
+    use super::{MAX_NAME_CHARS, sanitize_player_name};
     use crate::config::ServerGameplayConfig;
-    use common::protocol::PlayerId;
+    use common::protocol::{
+        BarrierKindId, MapBootstrap, MapLayout, PlayerBootstrap, PlayerId, PortalAccess, SInit, ServerMessage,
+        WorldBootstrap,
+    };
 
     #[test]
     fn empty_name_falls_back_to_default() {
@@ -143,23 +137,56 @@ mod tests {
     }
 
     #[test]
-    fn per_kind_values_are_sorted_and_match_config() {
+    fn bootstrap_actor_values_are_sorted_and_match_config() {
         let config = ServerGameplayConfig::load_default().expect("default server gameplay config failed to load");
+        let actors = config.gameplay_bootstrap().actors;
         let combat = &config.combat;
-        let radii = sorted_by_kind(&combat.damage.actors, |actor| actor.death_blast.radius);
-        let max_health = sorted_by_kind(&combat.health.actors, |actor| actor.max);
-        for values in [&radii, &max_health] {
-            assert_eq!(values.len(), config.actors.len());
-            let kinds: Vec<&str> = values.iter().map(|(kind, _)| kind.as_str()).collect();
-            let mut sorted = kinds.clone();
-            sorted.sort_unstable();
-            assert_eq!(kinds, sorted);
+        assert_eq!(actors.len(), config.actors.len());
+        let kinds: Vec<&str> = actors.iter().map(|(kind, _)| kind.as_str()).collect();
+        let mut sorted = kinds.clone();
+        sorted.sort_unstable();
+        assert_eq!(kinds, sorted);
+        for (kind, actor) in &actors {
+            assert_eq!(
+                actor.death_blast_radius,
+                combat.damage.expect_actor(kind).death_blast.radius
+            );
+            assert_eq!(actor.max_health, combat.health.expect_actor(kind).max);
         }
-        for (kind, radius) in &radii {
-            assert_eq!(*radius, combat.damage.expect_actor(kind).death_blast.radius);
-        }
-        for (kind, max) in &max_health {
-            assert_eq!(*max, combat.health.expect_actor(kind).max);
-        }
+    }
+
+    #[test]
+    fn init_message_round_trips_complete_bootstrap() {
+        let config = ServerGameplayConfig::load_default().expect("default server gameplay config failed to load");
+        let map_settings = config
+            .maps
+            .get(&config.default_map)
+            .expect("default map settings missing")
+            .settings
+            .clone();
+        let message = ServerMessage::Init(SInit {
+            player: PlayerBootstrap {
+                id: PlayerId(7),
+                portal_access: PortalAccess::None,
+            },
+            world: WorldBootstrap {
+                gameplay: config.gameplay_bootstrap(),
+                map: MapBootstrap {
+                    layout: MapLayout::default(),
+                    settings: map_settings,
+                    key_kinds: vec![BarrierKindId(1)],
+                },
+            },
+        });
+
+        let bytes = bincode::encode_to_vec(&message, bincode::config::standard()).expect("encode SInit");
+        let (decoded, _): (ServerMessage, _) =
+            bincode::decode_from_slice(&bytes, bincode::config::standard()).expect("decode SInit");
+        let ServerMessage::Init(decoded) = decoded else {
+            panic!("decoded message was not SInit");
+        };
+        assert_eq!(decoded.player.id, PlayerId(7));
+        assert_eq!(decoded.world.map.key_kinds, [BarrierKindId(1)]);
+        assert_eq!(decoded.world.gameplay.actors.len(), config.actors.len());
     }
 }

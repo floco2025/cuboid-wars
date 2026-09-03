@@ -880,20 +880,31 @@ fn validation_rejects_out_of_bounds_ladder() {
 #[test]
 fn every_shipped_ladder_ascends_at_least_one_storey() {
     use bevy::math::Vec3;
-    use common::config::GameplayConfig;
     use common::constants::{LEVEL_HEIGHT, TICK_SECS};
     use common::physics::{CharacterEnvironment, CharacterStep, CollisionWorld, step_character_movement};
     use common::protocol::Position;
 
-    let gameplay = GameplayConfig::load_default().expect("default gameplay config should load");
+    let server_gameplay =
+        crate::config::ServerGameplayConfig::load_default().expect("default server gameplay config should load");
+    let gameplay = server_gameplay.gameplay_config();
     let physics = gameplay.player.physics();
-    let kind_table = BarrierKindTable::from_ids(gameplay.barrier_kinds.clone()).expect("kind table from config");
     let maps_dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../config/server/maps");
     for entry in std::fs::read_dir(maps_dir).expect("maps dir readable") {
         let path = entry.expect("maps dir entry readable").path();
         if path.extension().and_then(|e| e.to_str()) != Some("json") {
             continue;
         }
+        let map_name = path
+            .file_stem()
+            .and_then(|name| name.to_str())
+            .expect("map file name is not UTF-8");
+        let map_settings = &server_gameplay
+            .maps
+            .get(map_name)
+            .expect("shipped map missing from server gameplay config")
+            .settings;
+        let kind_table = BarrierKindTable::from_ids(map_settings.barrier_kinds.clone())
+            .expect("barrier kinds should build from map config");
         let map_def = super::load_map(&path).expect("map file should load");
         let assets = MaterialRules::from_def(&map_def);
         let (layout, _, _) = compile_map(&map_def, &assets, &kind_table).expect("map should compile");
@@ -909,7 +920,7 @@ fn every_shipped_ladder_ascends_at_least_one_storey() {
             };
             let mut vertical_velocity = 0.0;
             let one_storey_up = f32::from(ladder.level + 1) * LEVEL_HEIGHT - 0.05;
-            let speed = gameplay.movement.player.walk_speed;
+            let speed = map_settings.movement.player.walk_speed;
             let mut reached = false;
             for _ in 0..600 {
                 let step = step_character_movement(
@@ -922,10 +933,10 @@ fn every_shipped_ladder_ascends_at_least_one_storey() {
                     },
                     &CharacterEnvironment {
                         collision_world: &world,
-                        gravity: 25.0,
+                        gravity: map_settings.movement.gravity,
                         passable_kinds: &[],
                         physics,
-                        ladder_climb_ratio: gameplay.movement.ladder_climb_ratio,
+                        ladder_climb_ratio: map_settings.movement.ladder_climb_ratio,
                         portals: None,
                     },
                 );

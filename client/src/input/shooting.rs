@@ -22,8 +22,9 @@ use super::WeaponMode;
 // under Bevy's 16-parameter system tuple limit.
 #[derive(SystemParam)]
 pub struct ShooterContext<'w> {
-    pub my_player_id: Option<Res<'w, MyPlayerId>>,
+    pub my_player_id: Res<'w, MyPlayerId>,
     pub open_barrier_kinds: Res<'w, OpenBarrierKinds>,
+    pub map_settings: Res<'w, MapSettings>,
 }
 
 // ============================================================================
@@ -42,7 +43,7 @@ pub fn input_shooting_system(
     asset_set: Res<AssetSet>,
     projectile_assets: Res<ProjectileAssets>,
     shooter: ShooterContext,
-    collision_world: Option<Res<CollisionWorld>>,
+    collision_world: Res<CollisionWorld>,
     gameplay_config: Res<GameplayConfig>,
     view_mode: Res<CameraViewMode>,
     time: Res<Time>,
@@ -93,27 +94,24 @@ pub fn input_shooting_system(
         });
         let _ = to_server.send(ClientToServer::Send(shot_msg));
 
-        if let Some(my_id) = shooter.my_player_id.as_ref()
-            && let Some(collision_world) = collision_world.as_ref()
+        if spawn_projectiles(
+            &mut commands,
+            &projectile_assets,
+            pos,
+            face_yaw.0,
+            pitch,
+            pattern,
+            gameplay_config.player.eye_height(),
+            &gameplay_config,
+            shooter.map_settings.movement.projectile_speed,
+            &collision_world,
+            &shooter.open_barrier_kinds.0,
+            shooter.my_player_id.0,
+        ) > 0
         {
-            if spawn_projectiles(
-                &mut commands,
-                &projectile_assets,
-                pos,
-                face_yaw.0,
-                pitch,
-                pattern,
-                gameplay_config.player.eye_height(),
-                &gameplay_config,
-                collision_world,
-                &shooter.open_barrier_kinds.0,
-                my_id.0,
-            ) > 0
-            {
-                play_sound(&mut commands, &asset_server, asset_set.player_sound("fire"));
-            } else {
-                play_sound(&mut commands, &asset_server, asset_set.player_sound("dry_fire"));
-            }
+            play_sound(&mut commands, &asset_server, asset_set.player_sound("fire"));
+        } else {
+            play_sound(&mut commands, &asset_server, asset_set.player_sound("dry_fire"));
         }
     }
 }

@@ -127,12 +127,9 @@ pub(super) fn handle_barrier_collisions(
     proj_motion: &ProjectileMotion,
     proj_pos: &Position,
     delta: f32,
-    collision_world: Option<&CollisionWorld>,
+    collision_world: &CollisionWorld,
     open_kinds: &[BarrierKindId],
 ) -> bool {
-    let Some(collision_world) = collision_world else {
-        return false;
-    };
     let Some(impact) = proj_motion.terminate_at_barrier(proj_pos, delta, collision_world, open_kinds) else {
         return false;
     };

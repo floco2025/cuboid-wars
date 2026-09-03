@@ -1,5 +1,8 @@
 use bevy_ecs::prelude::Resource;
 use bincode::{Decode, Encode};
+use serde::{Deserialize, Deserializer};
+
+use crate::config::MapMovementConfig;
 
 use super::face_materials::FaceMaterials;
 use super::{BarrierKindId, ItemType, Position};
@@ -170,14 +173,23 @@ impl MapLayout {
 
 // Per-map tuning defined in `config/server/gameplay.json` under `maps` and
 // shipped to clients in `SInit` so prediction uses the server's values.
-// Gravity values are positive magnitudes (m/s²); `low_gravity` replaces
-// `gravity` while the low-gravity power-up is active.
+fn deserialize_required_option<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Option::<T>::deserialize(deserializer)
+}
+
 #[derive(Debug, Clone, Encode, Decode, Resource, serde::Deserialize)]
 pub struct MapSettings {
     pub skybox: String,
-    pub gravity: f32,
-    pub low_gravity: f32,
+    pub movement: MapMovementConfig,
     pub weapons: MapWeaponSettings,
+    // Ordered ids used to assign this map's stable `BarrierKindId` values;
+    // `null` means the map has no barriers, keys, or barrier plates.
+    #[serde(deserialize_with = "deserialize_required_option")]
+    pub barrier_kinds: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode, serde::Deserialize)]
@@ -212,9 +224,9 @@ impl MapSettings {
     #[must_use]
     pub fn gravity_for(&self, has_low_gravity: bool) -> f32 {
         if has_low_gravity {
-            self.low_gravity
+            self.movement.low_gravity
         } else {
-            self.gravity
+            self.movement.gravity
         }
     }
 }

@@ -51,7 +51,7 @@ pub fn characters_movement_system(
     let mut planned_moves = Vec::new();
     let actor_starts: Vec<(Entity, Position, CharacterPhysicsConfig)> = actor_query
         .iter()
-        .filter_map(|(entity, id, pos, _, _, _, _)| {
+        .filter_map(|(entity, id, _, pos, _, _, _, _)| {
             let info = actors.get(id)?;
             Some((entity, *pos, gameplay_config.expect_actor(&info.spawn_kind).physics()))
         })
@@ -108,7 +108,7 @@ fn plan_player_moves(
         let info = players.get(player_id);
         let control_velocity = player_control_velocity(
             *move_intent,
-            gameplay_config,
+            &map_settings.movement,
             info.is_some_and(PlayerInfo::has_speed),
             info.is_some_and(PlayerInfo::is_stunned),
         );

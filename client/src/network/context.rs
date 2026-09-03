@@ -6,7 +6,7 @@ use common::{
 };
 
 use crate::{
-    actors::{ActorGhostMap, ActorMap},
+    actors::{ActorGhostMap, ActorMap, ActorSpawnWarningSecs},
     barriers::{BarrierAssets, LockedPlatePurposes, OpenBarrierKinds},
     cameras::MainCameraMarker,
     characters::MaxHealth,
@@ -25,16 +25,16 @@ use crate::{
 // Each resource appears once and the queries are read-only, so this needs no `ParamSet`.
 #[derive(SystemParam)]
 pub(super) struct ServerMessageContext<'w, 's> {
-    pub(super) barrier_kind_table: Res<'w, BarrierKindTable>,
-    pub(super) my_player_id: Option<Res<'w, MyPlayerId>>,
+    pub(super) my_player_id: Res<'w, MyPlayerId>,
     pub(super) time: Res<'w, Time>,
     pub(super) rtt: ResMut<'w, RoundTripTime>,
     pub(super) asset_server: Res<'w, AssetServer>,
     pub(super) asset_set: Res<'w, AssetSet>,
     pub(super) client_settings: Res<'w, ClientSettings>,
     pub(super) gameplay_config: Res<'w, GameplayConfig>,
-    pub(super) collision_world: Option<Res<'w, CollisionWorld>>,
-    pub(super) map_layout: Option<Res<'w, MapLayout>>,
+    pub(super) collision_world: Res<'w, CollisionWorld>,
+    pub(super) map_layout: Res<'w, MapLayout>,
+    pub(super) map_settings: Res<'w, MapSettings>,
     pub(super) meshes: ResMut<'w, Assets<Mesh>>,
     pub(super) materials: ResMut<'w, Assets<StandardMaterial>>,
     pub(super) images: ResMut<'w, Assets<Image>>,
@@ -55,6 +55,7 @@ pub(super) struct ServerMessageContext<'w, 's> {
     pub(super) portals: ResMut<'w, PortalVisuals>,
     pub(super) portal_set: ResMut<'w, PortalSet>,
     pub(super) actor_ghosts: ResMut<'w, ActorGhostMap>,
+    pub(super) actor_spawn_warning_secs: Res<'w, ActorSpawnWarningSecs>,
     pub(super) last_snapshot_seq: ResMut<'w, LastSnapshotSeq>,
     pub(super) local_player_info: ResMut<'w, LocalPlayerInfo>,
     pub(super) quest_log: ResMut<'w, QuestLog>,
@@ -81,8 +82,8 @@ impl ServerMessageContext<'_, '_> {
             budget: &mut self.explosion_vfx_budget,
             explosion_assets: &self.explosion_assets,
             gameplay_config: &self.gameplay_config,
-            collision_world: self.collision_world.as_deref(),
-            map_layout: self.map_layout.as_deref(),
+            collision_world: Some(&self.collision_world),
+            map_layout: Some(&self.map_layout),
             blast_radii: &self.blast_radii,
         }
     }

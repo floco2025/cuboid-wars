@@ -18,7 +18,7 @@ pub(super) fn handle_pressure_plate_message(
 }
 
 pub(super) fn handle_firework_message(message: SFirework, context: &mut ServerMessageContext) {
-    context.firework_show.start(message.seed, context.map_layout.as_deref());
+    context.firework_show.start(message.seed, Some(&context.map_layout));
 }
 
 pub(super) fn handle_feed_message(message: SFeed, context: &mut ServerMessageContext) {

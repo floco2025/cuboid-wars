@@ -4,7 +4,9 @@ use anyhow::{Result, bail};
 use serde::Deserialize;
 
 use super::actors::ActorKindServerConfig;
-use super::validation::{validate_covers_actor_kinds, validate_non_negative_finite, validate_positive_finite};
+use super::validation::{
+    deserialize_required_option, validate_covers_actor_kinds, validate_non_negative_finite, validate_positive_finite,
+};
 
 // Every health and damage number in the game, consolidated for balancing:
 // how much everything can take, how hard everything hits.
@@ -132,7 +134,7 @@ impl DamageConfig {
 #[derive(Debug, Clone, Copy, Deserialize)]
 pub struct ActorDamageConfig {
     // Present exactly when the kind's `attack` fires a beam.
-    #[serde(default)]
+    #[serde(deserialize_with = "deserialize_required_option")]
     pub beam_dps: Option<f32>,
     pub death_blast: BlastConfig,
 }

@@ -86,14 +86,13 @@ fn horizontal_collider_radius(physics: CharacterPhysicsConfig) -> f32 {
 mod tests {
     use super::*;
     use common::{
-        config::GameplayConfig,
         constants::WALL_THICKNESS,
         protocol::{BarrierKindTable, MapLayout, Position, Wall},
     };
 
     fn plans() -> (CharacterMovePlan, CharacterMovePlan, f32) {
-        let gameplay = GameplayConfig::load_default().expect("default gameplay config should load");
         let server = ServerGameplayConfig::load_default().expect("default server gameplay config should load");
+        let gameplay = server.gameplay_config();
         let player_physics = gameplay.player.physics();
         let actor_physics = gameplay.expect_actor("mine").physics();
         let player_pos = Position {

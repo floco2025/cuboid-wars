@@ -4,7 +4,7 @@ mod pressure_plates;
 mod pulsate;
 mod spawn;
 
-pub use assets::{BarrierAssets, setup_barrier_assets};
+pub use assets::{BarrierAssets, build_barrier_assets};
 pub use common::physics::OpenBarrierKinds;
 pub use keys::KeyKinds;
 pub use pressure_plates::{

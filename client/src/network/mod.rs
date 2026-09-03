@@ -15,6 +15,7 @@ mod routing;
 mod snapshot;
 mod transport;
 
+pub(crate) use bootstrap::install_bootstrap;
 pub use components::{ServerReconciliation, worst_axis_divergence};
 pub use plugin::network_plugin;
 pub use resources::{ClientToServerChannel, LastSnapshotSeq, RoundTripTime, ServerToClientChannel};

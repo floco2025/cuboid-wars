@@ -104,7 +104,7 @@ fn plate_box(side: f32, height: f32, tile_size: f32) -> Mesh {
 // disappearing when the threshold is met.
 pub fn pressure_plates_spawn_system(
     mut commands: Commands,
-    map_layout: Option<Res<MapLayout>>,
+    map_layout: Res<MapLayout>,
     asset_set: Res<AssetSet>,
     asset_server: Res<AssetServer>,
     client_settings: Res<ClientSettings>,
@@ -114,7 +114,7 @@ pub fn pressure_plates_spawn_system(
     existing: Query<Entity, With<PressurePlateMarker>>,
     locked: Res<LockedPlatePurposes>,
 ) {
-    let Some(layout) = map_layout else { return };
+    let layout = map_layout;
     if !layout.is_changed() {
         return;
     }

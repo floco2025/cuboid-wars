@@ -108,7 +108,7 @@ class BarrierKindDialog(QDialog):
             QMessageBox.warning(
                 parent,
                 title,
-                "No barrier kinds are configured in `config/common/gameplay.json::barrier_kinds`.",
+                "No barrier kinds are configured in `config/server/gameplay.json::barrier_kinds`.",
             )
             return None
         dialog = cls(parent, title, current)
@@ -207,7 +207,7 @@ class ItemTypeDialog(QDialog):
             QMessageBox.warning(
                 parent,
                 title,
-                "No barrier kinds are configured in `config/common/gameplay.json::barrier_kinds`.",
+                "No barrier kinds are configured in `config/server/gameplay.json::barrier_kinds`.",
             )
             return None
         return item_type, kind

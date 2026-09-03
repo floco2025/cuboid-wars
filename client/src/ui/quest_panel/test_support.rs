@@ -6,6 +6,7 @@ pub fn entry(title: &str, scope: QuestScope, progress: u32, threshold: u32, orde
     QuestEntry {
         title: title.to_owned(),
         description: format!("{title} description"),
+        completed_text: format!("{title} complete"),
         threshold,
         progress: QuestProgress::new(scope, progress),
         completed: false,

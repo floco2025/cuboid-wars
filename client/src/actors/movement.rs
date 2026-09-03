@@ -47,8 +47,8 @@ pub(crate) fn actor_start_positions(
 pub(crate) fn plan_actor_moves(
     commands: &mut Commands,
     delta: f32,
-    collision_world: Option<&CollisionWorld>,
-    map_settings: Option<&MapSettings>,
+    collision_world: &CollisionWorld,
+    map_settings: &MapSettings,
     gameplay_config: &GameplayConfig,
     actors: &ActorMap,
     open_barrier_kinds: &OpenBarrierKinds,
@@ -89,43 +89,28 @@ pub(crate) fn plan_actor_moves(
             None => Vec3::ZERO,
         };
 
-        // `CollisionWorld` and `MapSettings` are both installed by the same
-        // `SInit`, so they appear together.
-        if let (Some(collision_world), Some(map_settings)) = (collision_world, map_settings) {
-            let step = step_character_movement(
-                CharacterStep {
-                    start: *pos,
-                    vertical_velocity: motion.0,
-                    control_velocity,
-                    external_displacement: correction_displacement,
-                    delta,
-                },
-                &CharacterEnvironment {
-                    collision_world,
-                    gravity: map_settings.gravity,
-                    passable_kinds: &open_barrier_kinds.0,
-                    physics: actor_physics,
-                    ladder_climb_ratio: gameplay_config.movement.ladder_climb_ratio,
-                    portals: None,
-                },
-            );
-            push_actor_planned_move(
-                planned_moves,
-                actor_starts,
-                CharacterMovePlan::from_movement_result(entity, *pos, step, actor_physics),
-            );
-        } else {
-            let target_pos = Position {
-                x: control_velocity.x.mul_add(delta, pos.x) + correction_displacement.x,
-                y: pos.y,
-                z: control_velocity.z.mul_add(delta, pos.z) + correction_displacement.z,
-            };
-            push_actor_planned_move(
-                planned_moves,
-                actor_starts,
-                CharacterMovePlan::from_target(entity, *pos, target_pos, motion.0, actor_physics, false),
-            );
-        }
+        let step = step_character_movement(
+            CharacterStep {
+                start: *pos,
+                vertical_velocity: motion.0,
+                control_velocity,
+                external_displacement: correction_displacement,
+                delta,
+            },
+            &CharacterEnvironment {
+                collision_world,
+                gravity: map_settings.movement.gravity,
+                passable_kinds: &open_barrier_kinds.0,
+                physics: actor_physics,
+                ladder_climb_ratio: map_settings.movement.ladder_climb_ratio,
+                portals: None,
+            },
+        );
+        push_actor_planned_move(
+            planned_moves,
+            actor_starts,
+            CharacterMovePlan::from_movement_result(entity, *pos, step, actor_physics),
+        );
     }
 }
 

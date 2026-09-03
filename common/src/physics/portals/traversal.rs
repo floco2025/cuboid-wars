@@ -256,6 +256,7 @@ impl PortalSet {
         from: Vec3,
         to: Vec3,
         gameplay_config: &GameplayConfig,
+        movement: &crate::config::MapMovementConfig,
         move_intent: PlayerMoveIntent,
         has_speed: bool,
         stunned: bool,
@@ -264,7 +265,7 @@ impl PortalSet {
         vertical_velocity: f32,
         yaw: f32,
     ) -> Option<CharacterPortalHop> {
-        let control_velocity = player_control_velocity(move_intent, gameplay_config, has_speed, stunned);
+        let control_velocity = player_control_velocity(move_intent, movement, has_speed, stunned);
         self.character_hop(
             from,
             to,
@@ -274,7 +275,7 @@ impl PortalSet {
             portal_momentum.map_or(Vec3::ZERO, |momentum| momentum.0),
             vertical_velocity,
             yaw,
-            PORTAL_KNOCKBACK_CARRY_FACTOR * gameplay_config.movement.knockback.max_speed,
+            PORTAL_KNOCKBACK_CARRY_FACTOR * movement.knockback.max_speed,
         )
     }
 

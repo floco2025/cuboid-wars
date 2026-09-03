@@ -80,7 +80,7 @@ pub fn rain_particles_system(
     time: Res<Time>,
     rain: Res<RainIntensity>,
     client_settings: Res<ClientSettings>,
-    collision_world: Option<Res<CollisionWorld>>,
+    collision_world: Res<CollisionWorld>,
     mut clouds: ResMut<ParticleClouds>,
     camera: Query<&Transform, With<MainCameraMarker>>,
     mut credit: Local<f32>,
@@ -102,7 +102,7 @@ pub fn rain_particles_system(
         emit_drops(
             &mut clouds.drops,
             &mut rng,
-            collision_world.as_deref(),
+            Some(&collision_world),
             camera,
             weather,
             count,
@@ -235,7 +235,7 @@ pub fn rain_audio_system(
     rain: Res<RainIntensity>,
     client_settings: Res<ClientSettings>,
     asset_server: Res<AssetServer>,
-    asset_set: Option<Res<AssetSet>>,
+    asset_set: Res<AssetSet>,
     mut loop_entity: Local<Option<Entity>>,
     global_volume: Res<GlobalVolume>,
     mut sinks: Query<&mut AudioSink>,
@@ -243,7 +243,6 @@ pub fn rain_audio_system(
     let raining = rain.current >= RAIN_EPSILON;
     match *loop_entity {
         None if raining => {
-            let Some(asset_set) = asset_set else { return };
             let entity = play_sound_with(
                 &mut commands,
                 &asset_server,

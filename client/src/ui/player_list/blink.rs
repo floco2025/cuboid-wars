@@ -8,16 +8,16 @@ use crate::players::{MyPlayerId, PlayerMap};
 pub fn ui_stunned_blink_system(
     time: Res<Time>,
     players: Res<PlayerMap>,
-    my_player_id: Option<Res<MyPlayerId>>,
+    my_player_id: Res<MyPlayerId>,
     mut query: Query<(&PlayerId, &mut BackgroundColor), With<PlayerEntryMarker>>,
 ) {
-    let local_player_id = my_player_id.as_ref().map(|id| id.0);
+    let local_player_id = my_player_id.0;
     let blink_frequency = 3.0;
     let blink_value = f32::midpoint((time.elapsed_secs() * blink_frequency * PI * 2.0).sin(), 1.0);
 
     for (entry_id, mut bg_color) in &mut query {
         if let Some(player_info) = players.get(entry_id) {
-            let is_local = local_player_id == Some(*entry_id);
+            let is_local = local_player_id == *entry_id;
             let base_color = if is_local { LOCAL_PLAYER_BG_COLOR } else { Color::NONE };
 
             let color = if player_info.stunned {

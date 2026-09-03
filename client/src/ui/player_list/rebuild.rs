@@ -21,27 +21,24 @@ use crate::{
 pub fn ui_player_list_rebuild_system(
     mut commands: Commands,
     players: Res<PlayerMap>,
-    my_player_id: Option<Res<MyPlayerId>>,
+    my_player_id: Res<MyPlayerId>,
     gameplay_config: Res<GameplayConfig>,
-    map_settings: Option<Res<MapSettings>>,
+    map_settings: Res<MapSettings>,
     max_health: Res<MaxHealth>,
     client_settings: Res<ClientSettings>,
     key_kinds: Res<KeyKinds>,
-    barrier_assets: Option<Res<BarrierAssets>>,
+    barrier_assets: Res<BarrierAssets>,
     shapes: Res<HudShapeAssets>,
     health_query: Query<&Health>,
     player_list_ui: Single<Entity, With<PlayerListMarker>>,
     children_query: Query<&Children>,
     mut last_content: Local<Option<u64>>,
 ) {
-    let Some(map_settings) = map_settings else {
-        return;
-    };
     if !players.is_changed() {
         return;
     }
 
-    let local_player_id = my_player_id.as_ref().map(|id| id.0);
+    let local_player_id = Some(my_player_id.0);
 
     // `PlayerMap` is mutated every snapshot, so `is_changed()` alone fires
     // constantly. Only rebuild when something the entries actually render
@@ -71,7 +68,7 @@ pub fn ui_player_list_rebuild_system(
         max_health.player,
         &style,
         &key_kinds.0,
-        barrier_assets.as_deref(),
+        Some(&barrier_assets),
         &shapes,
         &health_query,
         &children_query,
