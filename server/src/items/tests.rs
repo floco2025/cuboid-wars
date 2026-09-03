@@ -238,7 +238,7 @@ mod collection_eligibility_tests {
         let entity = app.world_mut().spawn((PlayerMarker, id, pos, Health(50.0))).id();
         let (sender, receiver) = unbounded_channel();
         let mut info = PlayerInfo::new(entity, sender);
-        info.connection.phase = crate::players::ConnectionPhase::Active;
+        info.connection.logged_in = true;
         app.world_mut().resource_mut::<PlayerMap>().insert(id, info);
         (entity, receiver)
     }

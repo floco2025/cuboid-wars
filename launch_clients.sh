@@ -1,14 +1,15 @@
 #!/bin/zsh
 
 # Launch multiple game clients tiled on the screen
-# Usage: ./launch_clients.sh [num_clients] [lag_ms]
-# Default: 2 clients, 0ms lag
+# Usage: ./launch_clients.sh [num_clients] [lag_ms] [drop]
+# Default: 2 clients, 0ms lag, no dropped messages (drop is a 0..1 fraction)
 
 # Trap Ctrl-C and kill all child processes
 trap 'echo "Killing all clients..."; kill 0; exit' INT TERM
 
 NUM_CLIENTS=${1:-2}
 LAG_MS=${2:-0}
+DROP=${3:-0}
 
 # Get screen dimensions
 # Note: system_profiler reports both physical pixels and logical points
@@ -36,7 +37,7 @@ SCALE_FACTOR=$(echo "scale=2; $SCREEN_WIDTH_PHYSICAL / $SCREEN_WIDTH" | bc)
 echo "Physical resolution: ${SCREEN_WIDTH_PHYSICAL}x${SCREEN_HEIGHT_PHYSICAL}"
 echo "Logical screen size: ${SCREEN_WIDTH}x${SCREEN_HEIGHT}"
 echo "Scaling factor: ${SCALE_FACTOR}x"
-echo "Launching $NUM_CLIENTS clients with ${LAG_MS}ms lag..."
+echo "Launching $NUM_CLIENTS clients with ${LAG_MS}ms lag and drop ${DROP}..."
 
 # Window dimensions
 WINDOW_WIDTH=1000
@@ -70,7 +71,7 @@ for i in $(seq 0 $((NUM_CLIENTS - 1))); do
     
     echo "Client $i: COL=$COL, ROW=$ROW, Logical=($X_LOGICAL, $Y_LOGICAL), Physical=($X, $Y)"
     cargo run --bin client --release -- --window-x $X --window-y $Y --window-width $WINDOW_WIDTH --window-height $WINDOW_HEIGHT \
-    --name "" --lag-ms $LAG_MS &
+    --name "" --lag-ms $LAG_MS --drop $DROP &
 done
 
 # Bring all client windows to the foreground

@@ -5,7 +5,7 @@ use tokio::{runtime::Runtime, sync::mpsc::unbounded_channel, time::Duration};
 
 use client::{
     app::{ClientAppOptions, build_client_app},
-    network::{ClientToServerChannel, ServerToClientChannel, configure_client, network_io_task},
+    network::{ClientToServerChannel, Impairment, ServerToClientChannel, configure_client, network_io_task},
 };
 use common::protocol::*;
 
@@ -20,6 +20,10 @@ struct Args {
 
     #[arg(long, default_value = "0")]
     lag_ms: u64,
+
+    // Fraction of unreliable messages to discard, sent and received.
+    #[arg(long, default_value = "0")]
+    drop: f32,
 
     #[arg(long)]
     window_x: Option<i32>,
@@ -47,8 +51,14 @@ fn main() -> Result<()> {
     });
     let runtime = Runtime::new()?;
     let connection = connect_to_server(&runtime, args.server.as_str())?;
-    let artificial_lag = (args.lag_ms > 0).then(|| Duration::from_millis(args.lag_ms));
-    runtime.spawn(network_io_task(connection, to_client, from_client, artificial_lag));
+    if !(0.0..=1.0).contains(&args.drop) {
+        anyhow::bail!("--drop must be within 0..=1, got {}", args.drop);
+    }
+    let impairment = Impairment {
+        lag: Duration::from_millis(args.lag_ms),
+        drop_probability: args.drop,
+    };
+    runtime.spawn(network_io_task(connection, to_client, from_client, impairment));
     to_server
         .send(client::network::ClientToServer::Send(ClientMessage::Login(CLogin {
             name: player_name,
@@ -64,13 +74,10 @@ fn main() -> Result<()> {
             window_height: args.window_height,
             volume: args.volume,
         },
-        ClientToServerChannel::new(to_server.clone()),
+        ClientToServerChannel::new(to_server),
         ServerToClientChannel::new(from_server),
         bootstrap,
     )?;
-    to_server
-        .send(client::network::ClientToServer::Send(ClientMessage::Ready(CReady {})))
-        .context("network task stopped before ready")?;
     // Winit's macOS event loop can leave SIGINT queued without waking the
     // application, so service it from Tokio and use the conventional exit code.
     runtime.spawn(async {
@@ -96,18 +103,21 @@ fn connect_to_server(runtime: &Runtime, server_addr: &str) -> Result<quinn::Conn
     })
 }
 
+// Anything that lands before `SInit` is a snapshot or an unreliable message,
+// which the protocol lets us drop; the reliable lane guarantees `SInit`
+// comes first on it.
 fn wait_for_init(
     runtime: &Runtime,
     from_server: &mut tokio::sync::mpsc::UnboundedReceiver<client::network::ServerToClient>,
 ) -> Result<SInit> {
     runtime.block_on(async {
-        match from_server.recv().await {
-            Some(client::network::ServerToClient::Message(ServerMessage::Init(message))) => Ok(message),
-            Some(client::network::ServerToClient::Message(message)) => {
-                anyhow::bail!("expected SInit before gameplay message {message:?}")
-            }
-            Some(client::network::ServerToClient::Disconnected) | None => {
-                anyhow::bail!("server disconnected before SInit")
+        loop {
+            match from_server.recv().await {
+                Some(client::network::ServerToClient::Message(ServerMessage::Init(message))) => return Ok(message),
+                Some(client::network::ServerToClient::Message(_)) => {}
+                Some(client::network::ServerToClient::Disconnected) | None => {
+                    anyhow::bail!("server disconnected before SInit")
+                }
             }
         }
     })

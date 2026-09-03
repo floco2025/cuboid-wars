@@ -5,7 +5,7 @@ use super::{QuestBoard, QuestCatalog, assign_quests};
 use crate::{
     config::{Quest, QuestKind, ServerGameplayConfig},
     network::ServerToClient,
-    players::{ConnectionPhase, PlayerInfo, PlayerMap},
+    players::{PlayerInfo, PlayerMap},
 };
 use common::protocol::{
     PlayerId, QuestId, QuestScope, QuestState, QuestStateProgress, QuestUpdateReason, ServerMessage,
@@ -57,7 +57,7 @@ pub(crate) fn join_with(
 ) -> UnboundedReceiver<ServerToClient> {
     let (tx, mut rx) = unbounded_channel();
     let mut info = PlayerInfo::new(Entity::PLACEHOLDER, tx);
-    info.connection.phase = ConnectionPhase::Active;
+    info.connection.logged_in = true;
     info.connection.name = format!("P{id}");
     if dead {
         info.begin_respawn(2.0);
@@ -73,7 +73,7 @@ pub(crate) fn join_with(
 pub(crate) fn assignment_for(catalog: &QuestCatalog, board: &QuestBoard) -> Vec<QuestState> {
     let (tx, mut rx) = unbounded_channel();
     let mut info = PlayerInfo::new(Entity::PLACEHOLDER, tx);
-    info.connection.phase = ConnectionPhase::Active;
+    info.connection.logged_in = true;
     let player = PlayerId(1);
     let mut players = PlayerMap::default();
     players.insert(player, info);

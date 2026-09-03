@@ -278,7 +278,7 @@ pub(super) fn run_admin_command(
         AdminCommand::Kick(name) => {
             let mut count = 0usize;
             for (_, info) in players.iter() {
-                if info.connection.is_active() && info.connection.name.to_lowercase() == name.to_lowercase() {
+                if info.connection.logged_in && info.connection.name.to_lowercase() == name.to_lowercase() {
                     let _ = info.connection.channel.send(ServerToClient::Close);
                     count += 1;
                 }
@@ -295,7 +295,7 @@ pub(super) fn run_admin_command(
 fn alive_players(players: &PlayerMap, name: Option<&str>) -> Vec<(PlayerId, Entity)> {
     players
         .iter()
-        .filter(|(_, info)| info.connection.is_active())
+        .filter(|(_, info)| info.connection.logged_in)
         .filter(|(_, info)| name.is_none_or(|name| info.connection.name.to_lowercase() == name.to_lowercase()))
         .filter_map(|(id, info)| info.entity().map(|entity| (*id, entity)))
         .collect()
@@ -304,7 +304,7 @@ fn alive_players(players: &PlayerMap, name: Option<&str>) -> Vec<(PlayerId, Enti
 fn active_players(players: &PlayerMap, name: Option<&str>) -> Vec<PlayerId> {
     players
         .iter()
-        .filter(|(_, info)| info.connection.is_active())
+        .filter(|(_, info)| info.connection.logged_in)
         .filter(|(_, info)| name.is_none_or(|name| info.connection.name.to_lowercase() == name.to_lowercase()))
         .map(|(id, _)| *id)
         .collect()

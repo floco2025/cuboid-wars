@@ -18,7 +18,7 @@ pub(super) fn handle_snapshot_message(
 ) {
     if !context.last_snapshot_seq.should_accept(message.seq) {
         warn!(
-            "Ignoring outdated SSnapshot (seq: {}, last: {})",
+            "ignoring an outdated snapshot (seq {}, last {})",
             message.seq,
             context
                 .last_snapshot_seq
@@ -27,7 +27,6 @@ pub(super) fn handle_snapshot_message(
         );
         return;
     }
-
     context.last_snapshot_seq.record(message.seq);
 
     // Avoid marking an untouched quest log as changed on every snapshot.

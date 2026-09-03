@@ -60,7 +60,7 @@ pub fn actors_beam_damage_system(
         };
         let Some(target_entity) = players
             .get(&target_id)
-            .filter(|player| player.connection.is_active())
+            .filter(|player| player.connection.logged_in)
             .and_then(|player| player.entity())
         else {
             continue;

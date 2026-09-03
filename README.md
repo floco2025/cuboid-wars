@@ -91,7 +91,8 @@ For local multiplayer testing on macOS:
 
 ```bash
 ./launch_clients.sh 4              # 4 tiled windowed clients
-./launch_clients.sh 2 100          # 2 clients with 100ms simulated lag
+./launch_clients.sh 2 100          # 2 clients with 100ms simulated lag each way
+./launch_clients.sh 2 100 0.1      # ... and 10% of unreliable messages dropped
 ```
 
 The repo ships a self-signed `cert.pem` / `key.pem` for LAN testing. **Replace

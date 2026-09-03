@@ -67,24 +67,10 @@ impl PlayerQuestState {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ConnectionPhase {
-    AwaitingLogin,
-    AwaitingReady,
-    Active,
-}
-
 pub struct PlayerConnection {
-    pub phase: ConnectionPhase,
+    pub logged_in: bool,
     pub channel: UnboundedSender<ServerToClient>,
     pub name: String,
-}
-
-impl PlayerConnection {
-    #[must_use]
-    pub const fn is_active(&self) -> bool {
-        matches!(self.phase, ConnectionPhase::Active)
-    }
 }
 
 #[derive(Default)]
@@ -150,7 +136,7 @@ impl PlayerInfo {
     pub fn new(entity: Entity, channel: UnboundedSender<ServerToClient>) -> Self {
         Self {
             connection: PlayerConnection {
-                phase: ConnectionPhase::AwaitingLogin,
+                logged_in: false,
                 channel,
                 name: String::new(),
             },
@@ -386,7 +372,7 @@ impl PlayerMap {
 
     #[must_use]
     pub fn has_active_players(&self) -> bool {
-        self.0.values().any(|info| info.connection.is_active())
+        self.0.values().any(|info| info.connection.logged_in)
     }
 }
 

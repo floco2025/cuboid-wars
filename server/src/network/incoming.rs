@@ -34,7 +34,7 @@ pub(super) fn network_receive_system(
 
                 let who = context.players.describe(&id);
                 let name = context.players.display_name(&id);
-                let was_active = player.connection.is_active();
+                let was_active = player.connection.logged_in;
                 let entity = player.entity();
                 context.players.remove(&id);
                 let portal_access = context.portal_assignments.release(&id);

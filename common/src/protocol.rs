@@ -1,84 +1,90 @@
 // Wire protocol between client and server.
 //
-// Server→client messages fall into six roles (plus a diagnostic channel).
-// When adding a new message, pick the smallest role that fits — most shared
-// "X changed" things belong in the snapshot, not a new event.
+// Every message has a role, and the role decides its QUIC lane. `Lane` and
+// the `lane()` methods at the bottom of this file are the authoritative
+// assignment; the transport in `common/src/network.rs` dispatches on them
+// and knows nothing else about messages.
 //
-// 1. Bootstrap (`SInit`) — sent once at connect with session-level state
-//    (the player's identity plus static gameplay and map state). It is the
-//    server's only post-login message until the client validates and installs
-//    it, builds the gameplay app, and answers `CReady`; gameplay traffic starts
-//    only after that acknowledgement, so the client needs no pre-init buffer.
+// Lanes:
+// * Reliable — delivered, in order, both directions, on one long-lived
+//   bidirectional stream per connection.
+// * Unreliable — may be lost and may arrive out of order; every handler
+//   tolerates both. The transport picks the carrier per send (a datagram
+//   when the message fits one packet, its own stream otherwise) and never
+//   drops anything. `SSnapshot` is the one message that replaces state
+//   wholesale, so it carries its own sequence number and the client ignores
+//   an older one.
 //
-// 2. State snapshot (`SSnapshot`) — the authoritative current state of every
-//    player, actor, and item (plus shared world state such as open barrier
-//    kinds, group quest status, plate gating, and placed portals), broadcast at
-//    `SNAPSHOT_HZ`. Sole vehicle for
-//    presence: a player appears in the first `SSnapshot` they show up in and
-//    disappears in the first they're absent from. Self-healing — a dropped
-//    snapshot is forgiven by the next one. Presence includes pre-presence:
-//    `spawning_actors` carries reserved actor spawns during their warning
-//    window, so clients render a beam-in ghost before the actor exists.
+// Roles, in both directions:
+//
+// 1. Bootstrap (reliable) — `CLogin` in, `SInit` out, once per connection.
+//    `SInit` is the first thing the server writes on the reliable lane, and
+//    the client ignores every message until it holds `SInit`. Anything that
+//    can precede it is unreliable, droppable by definition, so there is no
+//    pre-init buffer and no readiness handshake. On the server, `CLogin`
+//    alone makes a connection `Active`; an unreliable message that overtakes
+//    it is dropped with a warning.
+//
+// 2. State (unreliable, latest wins) — the complete periodic picture.
+//    `SSnapshot` is the authoritative current state of every player, actor,
+//    and item (plus shared world state such as open barrier kinds, group
+//    quest status, plate gating, and placed portals), broadcast at
+//    `SNAPSHOT_HZ`. Sole vehicle for presence: a player appears in the first
+//    `SSnapshot` they show up in and disappears in the first they're absent
+//    from. Presence includes pre-presence: `spawning_actors` carries reserved
+//    actor spawns during their warning window, so clients render a beam-in
+//    ghost before the actor exists. `CSnapshot` is the client's counterpart:
+//    its steady-state input, re-stated every `SNAPSHOT_SECS`, which the
+//    server only applies.
 //
 //    Projectiles are the deliberate exception. They are short-lived, fast,
-//    and numerous, so they are replicated as shot intents (`SPlayerShot`) rather
-//    than snapshot entities. Clients simulate them only for presentation;
-//    authoritative hit/death outcomes still come from the server.
+//    and numerous, so they are replicated as shot cues (`SPlayerShot`)
+//    rather than snapshot entities. Clients simulate them only for
+//    presentation; authoritative hit/death outcomes still come from the
+//    server. Missiles are NOT that exception: they fly for seconds and steer
+//    server-side, so they are full snapshot entities reconciled like actors.
 //
-//    Missiles are NOT that exception: they fly for seconds and steer
-//    server-side, so they are full snapshot entities reconciled like actors
-//    (`SMissileLaunch` / `SMissileMove` are the latency cues).
-//
-// 3. Real-time intent — movement prediction inputs (`SPlayerMove`,
-//    `SPlayerJump`, `SPlayerShot`, `SActorMove`, `SMissileMove`,
-//    `SMissileLaunch`) that must arrive faster than snapshot cadence so
-//    clients can dead-reckon between snapshots. Broadcast on change.
-//
-// 4. One-shot cues — short messages that fire at the moment of a discrete
-//    state change in the *shared* world. They sit alongside the snapshot,
-//    not replacing it, and exist only when the snapshot alone can't carry
-//    the cue, which is one of:
-//      * Sub-tick latency matters. Camera shake from `SPlayerHit` needs to
-//        land on the impact frame, not 1–2 ticks later.
+// 3. Cues (unreliable) — short messages that arrive ahead of the next state
+//    message and are healed by it, so a lost cue costs at most a sound, a
+//    shake, or a snapshot interval of latency. A cue exists only when the
+//    snapshot alone can't carry it, which is one of:
+//      * Sub-tick latency matters. Movement prediction inputs (`SPlayerMove`,
+//        `SPlayerJump`, `SActorMove`, `SMissileMove`, `SMissileLaunch`) must
+//        arrive faster than snapshot cadence so clients can dead-reckon
+//        between snapshots; camera shake from `SPlayerHit` needs to land on
+//        the impact frame, not 1–2 ticks later.
 //      * Edge-triggered, not level-triggered. "You just picked up a power-up"
 //        is a transition with an associated sound (`SPlayerStatus`,
-//        `SCookieCollected`). The snapshot also carries `speed_power_up:
-//        true`, but a level-triggered handler would play the sound every
-//        tick the flag was set. The event fires the sound exactly once at
-//        the transition; the snapshot keeps the HUD icon correct if the
-//        event was dropped.
+//        `SCookieCollected`). The snapshot also carries the flag, but a
+//        level-triggered handler would play the sound every tick it was set.
+//        The cue fires the sound exactly once at the transition; the snapshot
+//        keeps the HUD icon correct if the cue was dropped.
 //      * The cue carries information the snapshot doesn't. `SPlayerHit`
 //        ships hit direction for directional camera shake; `SActorDeath` /
 //        `SPlayerDeath` trigger immediate death-side work (VFX, overlay,
 //        entity teardown) one tick before the snapshot would catch up.
-//        Without them, the actor or player would silently disappear and the
-//        cues would lag by a tick. `SActorBeam` ships the burst's start
-//        moment and duration, which the 4 Hz snapshot can't carry.
-//    One-shot cues are *ephemeral*: a missed cue at most costs the
-//    associated side effect (a sound, a shake); the snapshot reconciles the
-//    durable state.
+//        `SActorBeam` ships the burst's start moment and duration, which the
+//        4 Hz snapshot can't carry.
+//    Inbound cues are the player's actions: `CMove` (the on-change input
+//    behind `SPlayerMove`; `CSnapshot` heals a lost one), `CJump`, `CShot`,
+//    `CMissileShot`, `CPortalShot`. `CPing` / `SPong` measure RTT on the
+//    same terms.
 //
-// 5. Per-client state events — durable per-player state that has no place in
-//    the world snapshot because other clients don't need it. Unicast to the
-//    affected player only. Unlike one-shot cues these install lasting client
-//    state (e.g. an active quest's announcement text); the client treats
-//    receipt as authoritative until a follow-up message updates it. There
-//    is no snapshot-side fallback — recovery from packet loss is QUIC's
-//    job, not the protocol's. Used today for quest assignment, progress, and
-//    completion (`SQuestUpdates`). Every update carries the complete current
-//    quest state, so it has no ordering dependency on an earlier quest message.
-//    Group quest state (pooled progress, players done, completion) is world
-//    state and also rides the snapshot.
+// 4. Events (reliable) — messages the snapshot cannot stand in for, so loss
+//    is not an option; the client treats receipt as authoritative until a
+//    follow-up message updates it. `SQuestUpdates` carries durable
+//    per-player quest state (unicast; every update is the complete current
+//    state, so it has no ordering dependency on an earlier quest message,
+//    and group quest state also rides the snapshot). `SFeed` is one
+//    server-rendered line for the message feed: final text spans with
+//    semantic styles the client maps to colors; public lines target everyone
+//    or everyone except one player, admin replies the issuer. `SFirework`
+//    starts the client-side show from a seed. Inbound events are `CAdmin`
+//    and `CChat`.
 //
-// 6. Feed lines (`SFeed`) — server-authored, human-readable lines for the
-//    client's message feed (kills, pickups, quest completions, admin
-//    actions, chat). The server sends final text spans with semantic styles;
-//    the client only maps those styles to colors. Public lines can target
-//    everyone or everyone except one player; admin replies target the issuer.
-//    Ephemeral like cues — a dropped line costs only the text — and never a
-//    source of state.
-//
-// `CPing` / `SPong` are a separate diagnostic channel for RTT measurement.
+// When adding a message, pick the smallest role that fits — most shared
+// "X changed" things belong in the snapshot, not a new message — and it
+// takes that role's lane.
 //
 // The server supplies the authenticated `PlayerId` from its transport; keeping
 // that ID out of the wire payload prevents clients from choosing their own
@@ -100,17 +106,35 @@ pub struct CLogin {
     pub name: String,
 }
 
-// Client finished validating and installing `SInit`; the server does not
-// admit it to gameplay or send any other message before this arrives.
-#[derive(Debug, Clone, Encode, Decode)]
-pub struct CReady {}
+// The local player's steady-state input: movement intent plus facing in
+// radians. Carried by `CMove` and `CSnapshot` alike.
+#[derive(Debug, Clone, Copy, Encode, Decode)]
+pub struct PlayerInput {
+    pub move_intent: PlayerMoveIntent,
+    pub face_yaw: f32,
+}
 
-// Client to Server: Local player's steady-state input — movement intent plus
-// facing, committed together whenever either changes enough.
+impl PlayerInput {
+    #[must_use]
+    pub fn is_finite(&self) -> bool {
+        self.move_intent.is_finite() && self.face_yaw.is_finite()
+    }
+}
+
+// Client to Server: the client's state snapshot — its input re-stated every
+// `SNAPSHOT_SECS` whether or not it changed. The server only applies it and
+// never broadcasts from it, so a lost `CMove` heals here the way a lost
+// `SPlayerMove` heals in `SSnapshot`.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct CSnapshot {
+    pub input: PlayerInput,
+}
+
+// Client to Server: the input committed whenever it changes enough. The cue
+// behind `SPlayerMove`; `CSnapshot` is the state that heals a lost one.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct CMove {
-    pub move_intent: PlayerMoveIntent,
-    pub face_yaw: f32, // radians - direction the player is facing
+    pub input: PlayerInput,
 }
 
 // Client to Server: One-shot jump request.
@@ -175,9 +199,8 @@ pub struct CChat {
 // Server Messages
 // ============================================================================
 //
-// Ordered by role: bootstrap → snapshot → real-time intent → one-shot cues
-// → per-client state events → diagnostic. Matches the protocol-model doc
-// comment at the top of this file.
+// Ordered by role: bootstrap → state → cues → events. Matches the
+// protocol-model doc comment at the top of this file.
 
 // --- Bootstrap ---
 
@@ -211,7 +234,7 @@ pub struct MapBootstrap {
     pub key_kinds: Vec<BarrierKindId>,
 }
 
-// --- Snapshot ---
+// --- State ---
 
 // A blend between two named client-side lighting presets ("bright", "dim",
 // "dark"): the rendered look is `from` faded toward `to` by `blend`. A
@@ -224,9 +247,11 @@ pub struct LightingBlend {
 }
 
 // Periodic full-world snapshot. Sole source of truth for player/actor/item
-// presence; one-shot cues are paired against it for sub-tick latency.
+// presence; cues are paired against it for sub-tick latency.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SSnapshot {
+    // The one unreliable message that replaces state wholesale: the client
+    // ignores a snapshot older than the last one it applied.
     pub seq: u32,
     pub players: Vec<(PlayerId, Player)>,
     pub actors: Vec<(ActorId, Actor)>,
@@ -267,7 +292,7 @@ pub struct SSnapshot {
     pub portals: Vec<Portal>,
 }
 
-// --- Real-time intent (sub-tick latency for prediction) ---
+// --- Cues (ahead of the next snapshot, healed by it) ---
 
 // Player input change (movement intent + facing) for client-side prediction
 // of remote players.
@@ -323,8 +348,6 @@ pub struct SMissileMove {
     pub id: MissileId,
     pub movement: MissileMovementState,
 }
-
-// --- One-shot cues (edge-triggered FX/state changes) ---
 
 // A player died. Drives the immediate client-side death-state transition
 // (overlay + freeze for the dying player, entity teardown for others).
@@ -478,7 +501,7 @@ pub struct SCookieCollected {
     pub score: i32,
 }
 
-// Player collected a health potion. Unicast one-shot for the pickup sound +
+// Player collected a health potion. Unicast cue for the pickup sound +
 // the post-pickup health value, so the HUD updates immediately rather than
 // waiting up to a snapshot interval. Exists because `SPlayerStatus` only
 // carries durable booleans and the potion has none to flip; the snapshot's
@@ -506,14 +529,6 @@ pub struct SPressurePlate {
     pub pressed: bool,
 }
 
-// Admin `/firework`: play the client-side firework show. Pure presentation —
-// the server broadcasts the seed and forgets; every client derives the same
-// choreography from it, so all clients see the same show.
-#[derive(Debug, Clone, Encode, Decode)]
-pub struct SFirework {
-    pub seed: u64,
-}
-
 // A portal end was placed or moved. Latency cue for the placement visual
 // and sound — and for keeping every client's portal geometry fresh: portal
 // crossings are not messaged at all, each client simulates every player's
@@ -524,7 +539,14 @@ pub struct SPortalOpened {
     pub portal: Portal,
 }
 
-// --- Feed lines (server-authored message feed) ---
+// Pong response — server echoes the `CPing` timestamp back unchanged so the
+// client can compute RTT from the round trip.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SPong {
+    pub timestamp_nanos: u64,
+}
+
+// --- Events (delivered; nothing in the snapshot could stand in) ---
 
 // One server-rendered message-feed line. Spans carry semantic styles so the
 // client only maps them to its configured presentation.
@@ -532,8 +554,6 @@ pub struct SPortalOpened {
 pub struct SFeed {
     pub spans: Vec<FeedSpan>,
 }
-
-// --- Per-client state events (private, durable) ---
 
 // Complete client-visible state for one assigned quest. Static display data is
 // deliberately repeated on updates: quest traffic is sparse, and making each
@@ -573,13 +593,13 @@ pub struct SQuestUpdates {
     pub updates: Vec<QuestUpdate>,
 }
 
-// --- Diagnostic ---
-
-// Pong response — server echoes the `CPing` timestamp back unchanged so the
-// client can compute RTT from the round trip.
+// Admin `/firework` or the firework plates: play the client-side firework
+// show. Pure presentation — the server broadcasts the seed and forgets; every
+// client derives the same choreography from it, so all clients see the same
+// show.
 #[derive(Debug, Clone, Encode, Decode)]
-pub struct SPong {
-    pub timestamp_nanos: u64,
+pub struct SFirework {
+    pub seed: u64,
 }
 
 // ============================================================================
@@ -589,14 +609,18 @@ pub struct SPong {
 // All client to server messages
 #[derive(Debug, Clone, Encode, Decode)]
 pub enum ClientMessage {
+    // Bootstrap
     Login(CLogin),
-    Ready(CReady),
+    // State
+    Snapshot(CSnapshot),
+    // Cues
     Move(CMove),
     Jump(CJump),
     Shot(CShot),
     MissileShot(CMissileShot),
     PortalShot(CPortalShot),
     Ping(CPing),
+    // Events
     Admin(CAdmin),
     Chat(CChat),
 }
@@ -614,16 +638,15 @@ pub enum ClientMessage {
 pub enum ServerMessage {
     // Bootstrap
     Init(SInit),
-    // Snapshot
+    // State
     Snapshot(SSnapshot),
-    // Real-time intent
+    // Cues
     PlayerMove(SPlayerMove),
     PlayerJump(SPlayerJump),
     PlayerShot(SPlayerShot),
     ActorMove(SActorMove),
     MissileLaunch(SMissileLaunch),
     MissileMove(SMissileMove),
-    // One-shot cues
     PlayerDeath(SPlayerDeath),
     ActorDeath(SActorDeath),
     MissileDeath(SMissileDeath),
@@ -637,12 +660,229 @@ pub enum ServerMessage {
     HealthPotionCollected(SHealthPotionCollected),
     MissilesCollected(SMissilesCollected),
     PressurePlate(SPressurePlate),
-    Firework(SFirework),
     PortalOpened(SPortalOpened),
-    // Feed lines
-    Feed(SFeed),
-    // Per-client state events
-    QuestUpdates(SQuestUpdates),
-    // Diagnostic
     Pong(SPong),
+    // Events
+    Feed(SFeed),
+    QuestUpdates(SQuestUpdates),
+    Firework(SFirework),
+}
+
+// The QUIC lane a message rides; see the top-of-file comment.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Lane {
+    Reliable,
+    Unreliable,
+}
+
+impl ClientMessage {
+    #[must_use]
+    pub const fn lane(&self) -> Lane {
+        match self {
+            Self::Login(_) | Self::Admin(_) | Self::Chat(_) => Lane::Reliable,
+            Self::Snapshot(_)
+            | Self::Move(_)
+            | Self::Jump(_)
+            | Self::Shot(_)
+            | Self::MissileShot(_)
+            | Self::PortalShot(_)
+            | Self::Ping(_) => Lane::Unreliable,
+        }
+    }
+}
+
+impl ServerMessage {
+    #[must_use]
+    pub const fn lane(&self) -> Lane {
+        match self {
+            Self::Init(_) | Self::Feed(_) | Self::QuestUpdates(_) | Self::Firework(_) => Lane::Reliable,
+            Self::Snapshot(_)
+            | Self::PlayerMove(_)
+            | Self::PlayerJump(_)
+            | Self::PlayerShot(_)
+            | Self::ActorMove(_)
+            | Self::MissileLaunch(_)
+            | Self::MissileMove(_)
+            | Self::PlayerDeath(_)
+            | Self::ActorDeath(_)
+            | Self::MissileDeath(_)
+            | Self::PlayerHit(_)
+            | Self::PlayerFallDamage(_)
+            | Self::PlayerBlast(_)
+            | Self::ActorHit(_)
+            | Self::ActorBeam(_)
+            | Self::PlayerStatus(_)
+            | Self::CookieCollected(_)
+            | Self::HealthPotionCollected(_)
+            | Self::MissilesCollected(_)
+            | Self::PressurePlate(_)
+            | Self::PortalOpened(_)
+            | Self::Pong(_) => Lane::Unreliable,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::network::encode_message;
+
+    // Comfortably under quinn's ~1150-byte datagram limit at the initial MTU.
+    const DATAGRAM_BUDGET: usize = 1100;
+
+    fn position() -> Position {
+        Position {
+            x: 12.5,
+            y: 3.0,
+            z: -7.25,
+        }
+    }
+
+    #[test]
+    fn unreliable_lane_messages_fit_one_datagram() {
+        let messages = [
+            ServerMessage::PlayerStatus(SPlayerStatus {
+                id: PlayerId(1),
+                power_ups: [true; PowerUpKind::COUNT],
+                stunned: true,
+                held_keys: (0..29u16).map(BarrierKindId).collect(),
+            }),
+            ServerMessage::PortalOpened(SPortalOpened {
+                portal: Portal {
+                    pair: PortalPairId(1),
+                    end: PortalEnd::A,
+                    pos: position(),
+                    nx: 0.0,
+                    ny: 1.0,
+                    nz: 0.0,
+                    yaw: 0.5,
+                },
+            }),
+            ServerMessage::PlayerBlast(SPlayerBlast {
+                id: PlayerId(1),
+                health: Health(10.0),
+                vertical_velocity: 7.0,
+                velocity_x: 1.0,
+                velocity_z: -1.0,
+                hit_dir_x: 0.7,
+                hit_dir_z: 0.7,
+                strength: 0.5,
+            }),
+            ServerMessage::PlayerDeath(SPlayerDeath {
+                id: PlayerId(1),
+                pos: position(),
+                killer: Some(PlayerId(2)),
+                victim_score: -1000,
+                killer_score: Some(200),
+            }),
+            ServerMessage::PlayerShot(SPlayerShot {
+                id: PlayerId(1),
+                face_yaw: 1.0,
+                face_pitch: 0.1,
+                pattern: Some("line_5".to_owned()),
+            }),
+            ServerMessage::ActorBeam(SActorBeam {
+                id: ActorId(3),
+                target: PlayerId(1),
+                duration_secs: 2.0,
+            }),
+        ];
+        for message in &messages {
+            assert_eq!(message.lane(), Lane::Unreliable, "{message:?}");
+            let len = encode_message(message).expect("message failed to encode").len();
+            assert!(len < DATAGRAM_BUDGET, "{message:?} encodes to {len} bytes");
+        }
+    }
+
+    #[test]
+    fn reliable_lane_carries_bootstrap_state_and_text() {
+        assert_eq!(ServerMessage::Feed(SFeed { spans: Vec::new() }).lane(), Lane::Reliable);
+        assert_eq!(ServerMessage::Firework(SFirework { seed: 7 }).lane(), Lane::Reliable);
+        assert_eq!(
+            ServerMessage::QuestUpdates(SQuestUpdates { updates: Vec::new() }).lane(),
+            Lane::Reliable
+        );
+        assert_eq!(
+            ClientMessage::Login(CLogin { name: String::new() }).lane(),
+            Lane::Reliable
+        );
+        assert_eq!(
+            ClientMessage::Ping(CPing { timestamp_nanos: 0 }).lane(),
+            Lane::Unreliable
+        );
+    }
+
+    #[test]
+    fn unreliable_lane_carries_player_actions() {
+        assert_eq!(ClientMessage::Jump(CJump {}).lane(), Lane::Unreliable);
+        let input = PlayerInput {
+            move_intent: PlayerMoveIntent::Idle,
+            face_yaw: 0.0,
+        };
+        assert_eq!(ClientMessage::Move(CMove { input }).lane(), Lane::Unreliable);
+        assert_eq!(ClientMessage::Snapshot(CSnapshot { input }).lane(), Lane::Unreliable);
+    }
+
+    #[test]
+    fn hotel_sized_snapshot_takes_the_stream_carrier() {
+        let player = |i: u32| {
+            (
+                PlayerId(i),
+                Player {
+                    name: format!("Player {i}"),
+                    movement: PlayerMovementState::new(position(), PlayerMoveIntent::Idle, 0.0, 0.0),
+                    health: Health(500.0),
+                    score: 0,
+                    power_ups: [false; PowerUpKind::COUNT],
+                    stunned: false,
+                    held_keys: Vec::new(),
+                    missiles: 0,
+                },
+            )
+        };
+        let actor = |i: u32| {
+            (
+                ActorId(i),
+                Actor {
+                    kind: "sentry".to_owned(),
+                    movement: ActorMovementState {
+                        pos: position(),
+                        move_intent: ActorMoveIntent::Idle,
+                        vertical_velocity: 0.0,
+                    },
+                    face_yaw: 0.0,
+                    health: Health(1000.0),
+                },
+            )
+        };
+        let item = |i: u32| {
+            (
+                ItemId(i),
+                Item {
+                    item_type: ItemType::Cookie,
+                    pos: position(),
+                },
+            )
+        };
+        let snapshot = ServerMessage::Snapshot(SSnapshot {
+            seq: 1,
+            players: (0..4).map(player).collect(),
+            actors: (0..24).map(actor).collect(),
+            spawning_actors: Vec::new(),
+            items: (0..74).map(item).collect(),
+            missiles: Vec::new(),
+            open_barrier_kinds: Vec::new(),
+            quests: Vec::new(),
+            locked_plate_purposes: Vec::new(),
+            rain_intensity: 0.0,
+            lighting: LightingBlend {
+                from: "bright".to_owned(),
+                to: "bright".to_owned(),
+                blend: 0.0,
+            },
+            portals: Vec::new(),
+        });
+        let len = encode_message(&snapshot).expect("snapshot failed to encode").len();
+        assert!(len > DATAGRAM_BUDGET, "hotel-sized snapshot encodes to {len} bytes");
+    }
 }

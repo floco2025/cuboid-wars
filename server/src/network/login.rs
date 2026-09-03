@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use crate::{
     characters::{generate_player_spawn_position, spawn_face_yaw},
     network::{FeedAudience, FeedEvent, ServerToClient, emit_feed},
-    players::{ConnectionPhase, PlayerMap},
+    players::PlayerMap,
     portals::PortalAssignments,
     quests::{QuestBoard, QuestCatalog, assign_quests},
 };
@@ -23,18 +23,25 @@ fn sanitize_player_name(raw: &str, id: PlayerId) -> String {
     }
 }
 
+// `SInit` goes out first on the reliable lane; everything after it in
+// this function follows in order, and the body exists from here on.
 pub(super) fn handle_login_message(
+    commands: &mut Commands,
+    entity: Entity,
     id: PlayerId,
     message: CLogin,
     players: &mut PlayerMap,
     world: &SharedWorld,
+    queries: &CharacterQueries,
+    quest_catalog: &QuestCatalog,
+    quest_board: &QuestBoard,
     portal_assignments: &mut PortalAssignments,
 ) {
     let Some(player_info) = players.get_mut(&id) else {
         error!("registered player#{} missing during login", id.0);
         return;
     };
-    player_info.connection.phase = ConnectionPhase::AwaitingReady;
+    player_info.connection.logged_in = true;
     player_info.connection.name = sanitize_player_name(&message.name, id);
     let channel = player_info.connection.channel.clone();
     debug!("{} authenticated", players.describe(&id));
@@ -47,26 +54,7 @@ pub(super) fn handle_login_message(
     if let Err(error) = channel.send(ServerToClient::Send(init_message)) {
         warn!("failed to send init to {:?}: {}", id, error);
     }
-}
 
-pub(super) fn handle_ready_message(
-    commands: &mut Commands,
-    entity: Entity,
-    id: PlayerId,
-    players: &mut PlayerMap,
-    world: &SharedWorld,
-    queries: &CharacterQueries,
-    quest_catalog: &QuestCatalog,
-    quest_board: &QuestBoard,
-) {
-    let Some(player_info) = players.get_mut(&id) else {
-        error!("registered player#{} missing during ready", id.0);
-        return;
-    };
-    player_info.connection.phase = ConnectionPhase::Active;
-    debug!("{} entered gameplay", players.describe(&id));
-
-    // A prerequisite can complete while the client is building from SInit.
     assign_quests(players, id, quest_catalog, quest_board);
 
     // Presence remains snapshot-owned; this line is cosmetic.
@@ -81,7 +69,7 @@ pub(super) fn handle_ready_message(
 
     let occupied_positions: Vec<Position> = players
         .values()
-        .filter(|player| player.connection.is_active() && player.entity() != Some(entity))
+        .filter(|player| player.connection.logged_in && player.entity() != Some(entity))
         .filter_map(|player| player.entity().and_then(|entity| queries.player_data.get(entity).ok()))
         .map(|(pos, _, _, _)| *pos)
         .collect();

@@ -15,7 +15,7 @@ use common::{physics::CharacterVerticalVelocity, protocol::*};
 // Broadcast `message` to every active player except `skip`.
 pub fn broadcast_to_others(players: &PlayerMap, skip: PlayerId, message: ServerMessage) {
     for (other_id, other_info) in players.iter() {
-        if *other_id != skip && other_info.connection.is_active() {
+        if *other_id != skip && other_info.connection.logged_in {
             let _ = other_info
                 .connection
                 .channel
@@ -27,7 +27,7 @@ pub fn broadcast_to_others(players: &PlayerMap, skip: PlayerId, message: ServerM
 // Broadcast `message` to every active player.
 pub fn broadcast_to_all(players: &PlayerMap, message: ServerMessage) {
     for player_info in players.values() {
-        if player_info.connection.is_active() {
+        if player_info.connection.logged_in {
             let _ = player_info
                 .connection
                 .channel
@@ -65,7 +65,7 @@ pub fn snapshot_active_players(
             // entity despawn is deferred, so on a same-tick snapshot the
             // corpse would otherwise still resolve and ship here — after
             // `SPlayerDeath` already went out.
-            if !info.connection.is_active() {
+            if !info.connection.logged_in {
                 return None;
             }
             let entity = info.entity()?;
@@ -170,7 +170,7 @@ pub fn collect_items(items: &ItemMap, item_positions: &Query<&Position, With<Ite
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::players::{ConnectionPhase, PlayerInfo};
+    use crate::players::PlayerInfo;
     use bevy::ecs::system::SystemState;
     use tokio::sync::mpsc::unbounded_channel;
 
@@ -190,7 +190,7 @@ mod tests {
     fn active_player(entity: Entity) -> PlayerInfo {
         let (tx, _rx) = unbounded_channel();
         let mut info = PlayerInfo::new(entity, tx);
-        info.connection.phase = ConnectionPhase::Active;
+        info.connection.logged_in = true;
         info
     }
 

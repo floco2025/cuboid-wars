@@ -1,16 +1,15 @@
-use anyhow::{Context, Error, Result};
+use anyhow::{Context, Result};
 use bevy::prelude::{debug, error, trace};
-use quinn::{ClientConfig, Connection, ConnectionError};
-use tokio::{
-    sync::mpsc::{UnboundedReceiver, UnboundedSender},
-    time::{Duration, sleep},
-};
+use quinn::{ClientConfig, Connection, ConnectionError, RecvStream, SendStream};
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 use common::{
     config::{create_quinn_client_config, load_certs},
-    network::MessageStream,
+    network::{drive_lane, receive_lanes, send_message},
     protocol::*,
 };
+
+use super::impairment::{Impairment, impaired_receiver, impaired_sender};
 
 // Message emitted by the network task toward the Bevy world. The `Message`
 // variant carries the full `ServerMessage` (large; `SSnapshot` dominates),
@@ -36,118 +35,89 @@ pub enum ClientToServer {
 }
 
 // Bidirectional bridge between the server connection and the Bevy world.
+// `CLogin` is queued before this task runs, so the reliable lane opened here
+// carries data at once and the server sees it immediately.
 pub async fn network_io_task(
     connection: Connection,
     to_client: UnboundedSender<ServerToClient>,
-    mut from_client: UnboundedReceiver<ClientToServer>,
-    lag: Option<Duration>,
+    from_client: UnboundedReceiver<ClientToServer>,
+    impairment: Impairment,
 ) {
-    let stream = MessageStream::new(&connection);
-
-    loop {
-        tokio::select! {
-            result = stream.recv::<ServerMessage>() => {
-                if !handle_server_message(result, lag, &to_client) {
-                    break;
-                }
-            }
-
-            cmd = from_client.recv() => {
-                if !handle_client_command(cmd, lag, &connection, &stream).await {
-                    break;
-                }
-            }
-        }
+    let to_client = impaired_sender(impairment.lag, to_client);
+    let mut from_client = impaired_receiver(impairment.lag, from_client);
+    match connection.open_bi().await {
+        Ok((send, recv)) => drive_lanes(&connection, send, recv, &to_client, &mut from_client, impairment).await,
+        Err(error) => error!("failed to open the reliable lane: {error}"),
     }
-
-    // Ensure disconnect notification is sent before task exits
+    log_close_reason(&connection);
     debug!("network task exiting");
     let _ = to_client.send(ServerToClient::Disconnected);
 }
 
-fn handle_server_message(
-    result: Result<ServerMessage, Error>,
-    lag: Option<Duration>,
+async fn drive_lanes(
+    connection: &Connection,
+    send: SendStream,
+    mut recv: RecvStream,
     to_client: &UnboundedSender<ServerToClient>,
-) -> bool {
-    match result {
-        Ok(msg) => {
-            if let Some(delay) = lag {
-                if to_client.is_closed() {
-                    return false;
+    from_client: &mut UnboundedReceiver<ClientToServer>,
+    impairment: Impairment,
+) {
+    let forward = |message: ServerMessage| {
+        to_client
+            .send(ServerToClient::Message(message))
+            .context("client ingress channel closed")
+    };
+    tokio::join!(
+        receive_lanes(connection, &mut recv, forward, || impairment.drops()),
+        drive_lane(
+            connection,
+            "writer",
+            write_outbound(connection, send, from_client, impairment)
+        ),
+    );
+}
+
+async fn write_outbound(
+    connection: &Connection,
+    mut send: SendStream,
+    from_client: &mut UnboundedReceiver<ClientToServer>,
+    impairment: Impairment,
+) -> Result<()> {
+    loop {
+        let command = tokio::select! {
+            command = from_client.recv() => command,
+            _ = connection.closed() => return Ok(()),
+        };
+        match command {
+            Some(ClientToServer::Send(message)) => {
+                if message.lane() == Lane::Unreliable && impairment.drops() {
+                    continue;
                 }
-                let sender = to_client.clone();
-                tokio::spawn(async move {
-                    sleep(delay).await;
-                    let _ = sender.send(ServerToClient::Message(msg));
-                });
-                true
-            } else {
-                to_client.send(ServerToClient::Message(msg)).is_ok()
+                trace!("sending to server: {:?}", message);
+                send_message(connection, &mut send, message.lane(), &message).await?;
             }
-        }
-        Err(err) => {
-            if let Some(conn_err) = err.downcast_ref::<ConnectionError>() {
-                match conn_err {
-                    ConnectionError::ApplicationClosed { .. } => {
-                        error!("server closed connection");
-                    }
-                    ConnectionError::TimedOut => error!("server connection timed out"),
-                    ConnectionError::LocallyClosed => {
-                        debug!("connection to server closed locally");
-                    }
-                    _ => error!("connection error: {err}"),
-                }
-            } else {
-                error!("error receiving from server: {err}");
+            Some(ClientToServer::Close) => {
+                let _ = send.finish();
+                connection.close(0u32.into(), b"client closing");
+                return Ok(());
             }
-            false
+            None => {
+                debug!("client channel closed");
+                let _ = send.finish();
+                connection.close(0u32.into(), b"client closing");
+                return Ok(());
+            }
         }
     }
 }
 
-async fn handle_client_command(
-    cmd: Option<ClientToServer>,
-    lag: Option<Duration>,
-    connection: &Connection,
-    stream: &MessageStream<'_>,
-) -> bool {
-    match cmd {
-        Some(ClientToServer::Send(msg)) => {
-            if let Some(delay) = lag {
-                if connection.close_reason().is_some() {
-                    return false;
-                }
-                let connection_clone = connection.clone();
-                tokio::spawn(async move {
-                    sleep(delay).await;
-                    trace!("sending to server: {:?}", msg);
-                    let stream = MessageStream::new(&connection_clone);
-                    if let Err(e) = stream.send(&msg).await {
-                        error!("error sending to server: {e}");
-                        connection_clone.close(1u32.into(), b"send error");
-                    }
-                });
-                true
-            } else {
-                trace!("sending to server: {:?}", msg);
-                stream.send(&msg).await.map_or_else(
-                    |e| {
-                        error!("error sending to server: {e}");
-                        false
-                    },
-                    |()| true,
-                )
-            }
-        }
-        Some(ClientToServer::Close) => {
-            connection.close(0u32.into(), b"client closing");
-            false
-        }
-        None => {
-            debug!("client channel closed");
-            false
-        }
+fn log_close_reason(connection: &Connection) {
+    match connection.close_reason() {
+        Some(ConnectionError::ApplicationClosed { .. }) => error!("server closed connection"),
+        Some(ConnectionError::TimedOut) => error!("server connection timed out"),
+        Some(ConnectionError::LocallyClosed) => debug!("connection to server closed locally"),
+        Some(error) => error!("connection error: {error}"),
+        None => debug!("disconnected from server"),
     }
 }
 

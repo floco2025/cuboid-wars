@@ -3,18 +3,17 @@ use bevy::{ecs::system::SystemParam, prelude::*};
 use super::{
     admin::{AdminContext, handle_admin_message},
     handlers::{
-        CharacterQueries, SharedWorld, handle_chat_message, handle_jump_message, handle_move_message,
-        handle_ping_message,
+        CharacterQueries, SharedWorld, handle_chat_message, handle_client_snapshot_message, handle_jump_message,
+        handle_move_message, handle_ping_message,
     },
-    login::{handle_login_message, handle_ready_message},
-    snapshot::SnapshotSchedule,
+    login::handle_login_message,
 };
 use crate::{
     actors::{ActorMap, PendingActorSpawns},
     map::OpenBarrierKinds,
     missiles::{MissileMap, handle_missile_shot_message},
     network::ServerToClient,
-    players::{ConnectionPhase, PlayerMap},
+    players::PlayerMap,
     portals::{PortalAssignments, PortalMap, handle_portal_shot_message},
     projectiles::handle_shot_message,
     quests::{QuestBoard, QuestCatalog},
@@ -38,7 +37,6 @@ pub(super) struct ClientMessageContext<'w, 's> {
     admin: AdminContext<'w>,
     pub(super) quest_board: ResMut<'w, QuestBoard>,
     pub(super) quest_catalog: Res<'w, QuestCatalog>,
-    pub(super) snapshot_schedule: ResMut<'w, SnapshotSchedule>,
 }
 
 pub(super) fn route_client_message(
@@ -51,37 +49,29 @@ pub(super) fn route_client_message(
         error!("received message for unknown player#{}", id.0);
         return;
     };
-    let phase = player.connection.phase;
+    let logged_in = player.connection.logged_in;
     // `None` while dead: the body-bound arms drop the message until respawn,
     // while Ping/Admin/Chat keep the console and RTT working meanwhile.
     let entity = player.entity();
 
     match message {
-        ClientMessage::Login(message) if phase == ConnectionPhase::AwaitingLogin => {
-            handle_login_message(
-                id,
-                message,
-                &mut context.players,
-                &context.world,
-                &mut context.portal_assignments,
-            );
-        }
-        ClientMessage::Ready(_) if phase == ConnectionPhase::AwaitingReady => {
+        ClientMessage::Login(message) if !logged_in => {
             let Some(entity) = entity else {
-                error!("player#{} reached ready without an entity", id.0);
+                error!("player#{} reached login without an entity", id.0);
                 return;
             };
-            handle_ready_message(
+            handle_login_message(
                 commands,
                 entity,
                 id,
+                message,
                 &mut context.players,
                 &context.world,
                 &context.queries,
                 &context.quest_catalog,
                 &context.quest_board,
+                &mut context.portal_assignments,
             );
-            context.snapshot_schedule.force_next();
         }
         ClientMessage::Login(_) => {
             warn!("{} sent a second login", context.players.describe(&id));
@@ -90,18 +80,9 @@ pub(super) fn route_client_message(
                 let _ = player.connection.channel.send(ServerToClient::Close);
             }
         }
-        // Each message rides its own QUIC stream, so traffic sent after
-        // `CReady` can land first. Drop it: the next commit or snapshot
-        // repairs the state, and a stray `CReady` changes nothing.
-        ClientMessage::Ready(_) => {
-            warn!("{} sent ready in phase {:?}", context.players.describe(&id), phase);
-        }
-        _ if phase != ConnectionPhase::Active => {
-            warn!(
-                "{} sent gameplay traffic in phase {:?} (out-of-order delivery?)",
-                context.players.describe(&id),
-                phase
-            );
+        // An unreliable message can overtake `CLogin`; drop it.
+        _ if !logged_in => {
+            warn!("{} sent gameplay traffic before login", context.players.describe(&id));
         }
         ClientMessage::Move(message) => {
             let Some(entity) = entity else {
@@ -109,6 +90,12 @@ pub(super) fn route_client_message(
             };
             trace!("{:?} input: {:?}", id, message);
             handle_move_message(commands, entity, id, message, &context.players, &context.queries);
+        }
+        ClientMessage::Snapshot(message) => {
+            let Some(entity) = entity else {
+                return;
+            };
+            handle_client_snapshot_message(commands, entity, message);
         }
         ClientMessage::Jump(_) => {
             let Some(entity) = entity else {

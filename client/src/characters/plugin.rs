@@ -3,7 +3,7 @@ use bevy::prelude::*;
 
 use crate::{
     actors::actors_transform_sync_system,
-    input::commit_player_input_system,
+    input::{commit_player_input_system, send_client_snapshot_system},
     missiles::missiles_movement_system,
     players::players_transform_sync_system,
     projectiles::projectiles_movement_system,
@@ -23,6 +23,7 @@ pub fn prediction_plugin(app: &mut App) {
         FixedUpdate,
         (
             commit_player_input_system,
+            send_client_snapshot_system,
             capture_previous_tick_position_system,
             characters_movement_system,
             knockback_decay_system,

@@ -2210,12 +2210,14 @@ dependencies = [
  "bevy_math",
  "bevy_time",
  "bincode",
+ "bytes",
  "quinn",
  "rapier3d",
  "rustls",
  "rustls-pemfile",
  "serde",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]

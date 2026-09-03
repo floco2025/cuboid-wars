@@ -299,17 +299,13 @@ mod tests {
         PlacedItemRespawnSecs, PlacedItemsConfig, PlayerHealthConfig, PowerUpDurationSecs, PowerUpsConfig,
         ScoringConfig, WeaponsConfig, WeatherCycleConfig, WeatherMode,
     };
-    use crate::{
-        actors::ActorInfo,
-        network::ServerToClient,
-        players::{ConnectionPhase, PlayerInfo},
-    };
+    use crate::{actors::ActorInfo, network::ServerToClient, players::PlayerInfo};
     use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
 
     fn logged_in_player(players: &mut PlayerMap, id: PlayerId, name: &str) -> UnboundedReceiver<ServerToClient> {
         let (tx, rx) = unbounded_channel();
         let mut info = PlayerInfo::new(Entity::PLACEHOLDER, tx);
-        info.connection.phase = ConnectionPhase::Active;
+        info.connection.logged_in = true;
         info.connection.name = name.to_owned();
         players.insert(id, info);
         rx
@@ -638,12 +634,12 @@ mod tests {
         // Receiver with a logged-in shooter so the broadcast can reach them.
         let (shooter_tx, mut shooter_rx) = unbounded_channel();
         let mut shooter = PlayerInfo::new(Entity::PLACEHOLDER, shooter_tx);
-        shooter.connection.phase = ConnectionPhase::Active;
+        shooter.connection.logged_in = true;
         players.insert(PlayerId(1), shooter);
 
         // The dying player; also logged_in so the broadcast targets them too.
         let mut target = make_player_info();
-        target.connection.phase = ConnectionPhase::Active;
+        target.connection.logged_in = true;
         let target_entity = target.entity().expect("new player has no entity");
         players.insert(PlayerId(2), target);
 

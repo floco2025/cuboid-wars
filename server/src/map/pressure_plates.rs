@@ -89,7 +89,7 @@ pub fn pressure_plates_system(
 
     let alive: usize = players
         .iter()
-        .filter(|(_, info)| info.connection.is_active() && !info.is_dead())
+        .filter(|(_, info)| info.connection.logged_in && !info.is_dead())
         .count();
 
     // Per-tick: who holds each plate (the first alive player found on it).
@@ -102,7 +102,7 @@ pub fn pressure_plates_system(
             continue;
         }
         let holder = players.iter().find(|(_, info)| {
-            info.connection.is_active()
+            info.connection.logged_in
                 && info
                     .entity()
                     .and_then(|entity| positions.get(entity).ok())
@@ -512,7 +512,7 @@ mod system_tests {
         let entity = app.world_mut().spawn((PlayerMarker, PlayerId(1), pos)).id();
         let (tx, mut rx) = unbounded_channel();
         let mut info = PlayerInfo::new(entity, tx);
-        info.connection.phase = crate::players::ConnectionPhase::Active;
+        info.connection.logged_in = true;
         while rx.try_recv().is_ok() {}
         app.world_mut().resource_mut::<PlayerMap>().insert(PlayerId(1), info);
         (entity, rx)

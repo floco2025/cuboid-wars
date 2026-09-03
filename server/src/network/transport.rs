@@ -1,9 +1,12 @@
-use anyhow::Error;
+use anyhow::{Context, Result};
 use bevy::prelude::*;
-use quinn::{Connection, ConnectionError, Endpoint};
+use quinn::{Connection, ConnectionError, Endpoint, RecvStream, SendStream};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 
-use common::{network::MessageStream, protocol::*};
+use common::{
+    network::{drive_lane, receive_lanes, send_message},
+    protocol::*,
+};
 
 // ============================================================================
 // Accept Connections Task
@@ -76,87 +79,81 @@ pub enum ServerToClient {
     Close,
 }
 
+// The client opens the reliable lane and writes `CLogin` on it straight away,
+// so accepting that stream is the whole handshake.
 pub async fn per_client_network_io_task(
     id: PlayerId,
     connection: Connection,
     to_server: UnboundedSender<(PlayerId, ClientToServer)>,
     mut from_server: UnboundedReceiver<ServerToClient>,
 ) {
-    let stream = MessageStream::new(&connection);
-
-    loop {
-        tokio::select! {
-            result = stream.recv::<ClientMessage>() => {
-                if !handle_client_message(id, result, &to_server) {
-                    break;
-                }
-            }
-
-            cmd = from_server.recv() => {
-                if !handle_server_command(id, cmd, &connection, &stream).await {
-                    break;
-                }
-            }
-        }
+    match connection.accept_bi().await {
+        Ok((send, recv)) => drive_lanes(id, &connection, send, recv, &to_server, &mut from_server).await,
+        Err(error) => debug!("player#{} closed before opening the reliable lane: {error}", id.0),
     }
-
-    // Ensure disconnect notification is sent before task exits
+    log_close_reason(id, &connection);
     debug!("player#{} network task exiting", id.0);
     let _ = to_server.send((id, ClientToServer::Disconnected));
 }
 
-fn handle_client_message(
+async fn drive_lanes(
     id: PlayerId,
-    result: Result<ClientMessage, Error>,
+    connection: &Connection,
+    send: SendStream,
+    mut recv: RecvStream,
     to_server: &UnboundedSender<(PlayerId, ClientToServer)>,
-) -> bool {
-    match result {
-        Ok(msg) => {
-            trace!("received from {:?}: {:?}", id, msg);
-            to_server
-                .send((id, ClientToServer::Message(msg)))
-                .map_err(|e| error!("error sending to main task: {e}"))
-                .is_ok()
-        }
-        Err(err) => {
-            if let Some(conn_err) = err.downcast_ref::<ConnectionError>() {
-                match conn_err {
-                    ConnectionError::ApplicationClosed { .. } => debug!("{:?} closed connection", id),
-                    ConnectionError::TimedOut => debug!("{:?} timed out", id),
-                    ConnectionError::LocallyClosed => debug!("{:?} locally closed", id),
-                    _ => error!("connection error for {:?}: {err}", id),
-                }
-            } else {
-                error!("error receiving from {:?}: {err}", id);
+    from_server: &mut UnboundedReceiver<ServerToClient>,
+) {
+    let forward = |message: ClientMessage| {
+        trace!("received from {:?}: {:?}", id, message);
+        to_server
+            .send((id, ClientToServer::Message(message)))
+            .context("server ingress channel closed")
+    };
+    tokio::join!(
+        receive_lanes(connection, &mut recv, forward, || false),
+        drive_lane(connection, "writer", write_outbound(id, connection, send, from_server)),
+    );
+}
+
+async fn write_outbound(
+    id: PlayerId,
+    connection: &Connection,
+    mut send: SendStream,
+    from_server: &mut UnboundedReceiver<ServerToClient>,
+) -> Result<()> {
+    loop {
+        let command = tokio::select! {
+            command = from_server.recv() => command,
+            _ = connection.closed() => return Ok(()),
+        };
+        match command {
+            Some(ServerToClient::Send(message)) => {
+                trace!("sending to {:?}: {:?}", id, message);
+                send_message(connection, &mut send, message.lane(), &message).await?;
             }
-            false
+            Some(ServerToClient::Close) => {
+                debug!("closing connection to player#{}", id.0);
+                let _ = send.finish();
+                connection.close(0u32.into(), b"server closing");
+                return Ok(());
+            }
+            None => {
+                debug!("server channel closed for {:?}", id);
+                let _ = send.finish();
+                connection.close(0u32.into(), b"server closing");
+                return Ok(());
+            }
         }
     }
 }
 
-async fn handle_server_command(
-    id: PlayerId,
-    cmd: Option<ServerToClient>,
-    connection: &Connection,
-    stream: &MessageStream<'_>,
-) -> bool {
-    match cmd {
-        Some(ServerToClient::Send(msg)) => {
-            trace!("sending to {:?}: {:?}", id, msg);
-            stream
-                .send(&msg)
-                .await
-                .map_err(|e| warn!("error sending to {:?}: {e}", id))
-                .is_ok()
-        }
-        Some(ServerToClient::Close) => {
-            debug!("closing connection to player#{}", id.0);
-            connection.close(0u32.into(), b"server closing");
-            false
-        }
-        None => {
-            debug!("server channel closed for {:?}", id);
-            false
-        }
+fn log_close_reason(id: PlayerId, connection: &Connection) {
+    match connection.close_reason() {
+        Some(ConnectionError::ApplicationClosed { .. }) => debug!("{:?} closed connection", id),
+        Some(ConnectionError::TimedOut) => debug!("{:?} timed out", id),
+        Some(ConnectionError::LocallyClosed) => debug!("{:?} locally closed", id),
+        Some(error) => error!("connection error for {:?}: {error}", id),
+        None => debug!("{:?} disconnected", id),
     }
 }

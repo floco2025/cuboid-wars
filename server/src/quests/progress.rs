@@ -214,7 +214,7 @@ fn complete_group(
         return;
     }
     for (_, info) in players.iter_mut() {
-        if info.connection.is_active() {
+        if info.connection.logged_in {
             info.session.score += quest.points;
         }
     }
@@ -242,7 +242,7 @@ fn unlock(players: &mut PlayerMap, board: &mut QuestBoard, quest: &CatalogQuest)
     board.unlock(&quest.id);
     let assigned: Vec<PlayerId> = players
         .iter_mut()
-        .filter_map(|(id, info)| (info.connection.is_active() && assign_state(info, quest, board)).then_some(*id))
+        .filter_map(|(id, info)| (info.connection.logged_in && assign_state(info, quest, board)).then_some(*id))
         .collect();
     for player in assigned {
         let new_quest = quest_state(players, player, quest, board);
@@ -440,7 +440,7 @@ fn send_quest_update(
 fn send_group_update(players: &PlayerMap, board: &QuestBoard, quest: &CatalogQuest, reason: QuestUpdateReason) {
     let recipients: Vec<PlayerId> = players
         .iter()
-        .filter_map(|(id, info)| info.connection.is_active().then_some(*id))
+        .filter_map(|(id, info)| info.connection.logged_in.then_some(*id))
         .collect();
     for player in recipients {
         send_quest_update(players, board, player, quest, reason);

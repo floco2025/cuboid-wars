@@ -12,6 +12,7 @@ bevy_ecs = "0.19"
 bevy_math = "0.19"
 bevy_time = "0.19"
 bincode = "2.0"
+bytes = "1"
 quinn = "0.11"
 anyhow = "1"
 rapier3d = "0.32"
@@ -19,3 +20,4 @@ rustls = { version = "0.23", default-features = false }
 rustls-pemfile = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+tokio = { version = "1", features = ["macros"] }

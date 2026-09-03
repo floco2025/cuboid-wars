@@ -13,7 +13,7 @@ use crate::{
     items::{ItemMap, ItemSpawner, RandomItems, items_plugin},
     map::{GeneratedMap, LightState, OpenBarrierKinds, WeatherState, generate_map, map_plugin},
     missiles::{AirGraph, MissileMap, missiles_plugin},
-    network::{FromClientsChannel, SnapshotSchedule, network_plugin},
+    network::{FromClientsChannel, network_plugin},
     players::{Invincibility, PlayerMap, UnlimitedMissiles, players_plugin},
     portals::{PortalAssignments, PortalMap, portals_plugin},
     projectiles::projectiles_plugin,
@@ -112,8 +112,7 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
         .insert_resource(PortalMap::default())
         .insert_resource(portal_assignments)
         .insert_resource(PortalSet::default())
-        .insert_resource(OpenBarrierKinds::default())
-        .insert_resource(SnapshotSchedule::default());
+        .insert_resource(OpenBarrierKinds::default());
 
     configure_server_schedule(&mut app);
     app.add_plugins((

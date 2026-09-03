@@ -57,6 +57,7 @@ pub(super) struct ServerMessageContext<'w, 's> {
     pub(super) actor_ghosts: ResMut<'w, ActorGhostMap>,
     pub(super) actor_spawn_warning_secs: Res<'w, ActorSpawnWarningSecs>,
     pub(super) last_snapshot_seq: ResMut<'w, LastSnapshotSeq>,
+
     pub(super) local_player_info: ResMut<'w, LocalPlayerInfo>,
     pub(super) quest_log: ResMut<'w, QuestLog>,
     pub(super) banner: ResMut<'w, HudBanner>,

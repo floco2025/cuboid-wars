@@ -47,13 +47,13 @@ pub(super) fn handle_move_message(
     queries: &CharacterQueries,
 ) {
     // Reject non-finite input before it can corrupt authoritative movement.
-    if !message.move_intent.is_finite() || !message.face_yaw.is_finite() {
+    if !message.input.is_finite() {
         return;
     }
 
     commands
         .entity(entity)
-        .insert((message.move_intent, FaceYaw(message.face_yaw)));
+        .insert((message.input.move_intent, FaceYaw(message.input.face_yaw)));
 
     if let (Ok((pos, _, _, _)), Ok(motion)) = (queries.player_data.get(entity), queries.player_motions.get(entity)) {
         broadcast_to_others(
@@ -61,10 +61,21 @@ pub(super) fn handle_move_message(
             id,
             ServerMessage::PlayerMove(SPlayerMove {
                 id,
-                movement: PlayerMovementState::new(*pos, message.move_intent, motion.0, message.face_yaw),
+                movement: PlayerMovementState::new(*pos, message.input.move_intent, motion.0, message.input.face_yaw),
             }),
         );
     }
+}
+
+// The client's state snapshot only refreshes the body; `SPlayerMove` comes
+// from `CMove`, and the next `SSnapshot` carries whatever this changed.
+pub(super) fn handle_client_snapshot_message(commands: &mut Commands, entity: Entity, message: CSnapshot) {
+    if !message.input.is_finite() {
+        return;
+    }
+    commands
+        .entity(entity)
+        .insert((message.input.move_intent, FaceYaw(message.input.face_yaw)));
 }
 
 pub(super) fn handle_jump_message(

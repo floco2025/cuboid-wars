@@ -242,7 +242,7 @@ pub(super) fn everyone_count(players: &PlayerMap, quest: &Quest) -> EveryoneCoun
         players_total: 0,
     };
     for (_, info) in players.iter() {
-        if !info.connection.is_active() {
+        if !info.connection.logged_in {
             continue;
         }
         count.players_total += 1;

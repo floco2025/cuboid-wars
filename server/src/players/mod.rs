@@ -8,8 +8,8 @@ pub use falling::{PlayerFallState, players_fall_damage_system, players_fall_deat
 pub use plugin::players_plugin;
 
 pub use resources::{
-    ConnectionPhase, Invincibility, PlayerConnection, PlayerInfo, PlayerLife, PlayerMap, PlayerQuestState,
-    PlayerSession, PlayerStateQuery, UnlimitedMissiles,
+    Invincibility, PlayerConnection, PlayerInfo, PlayerLife, PlayerMap, PlayerQuestState, PlayerSession,
+    PlayerStateQuery, UnlimitedMissiles,
 };
 pub use respawn::players_respawn_system;
 pub use status::{players_status_timers_system, players_unlimited_missiles_system};
