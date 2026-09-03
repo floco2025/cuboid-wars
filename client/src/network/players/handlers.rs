@@ -81,9 +81,8 @@ pub(in crate::network) fn handle_player_jump_message(
     }
 }
 
-// Handle player shooting - spawn projectile(s) on client.
-pub(in crate::network) fn handle_player_shot_message(
-    message: SPlayerShot,
+pub(in crate::network) fn handle_projectile_shot_message(
+    message: SProjectileShot,
     commands: &mut Commands,
     context: &mut ServerMessageContext,
 ) {

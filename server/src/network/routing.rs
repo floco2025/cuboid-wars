@@ -15,7 +15,7 @@ use crate::{
     network::ServerToClient,
     players::PlayerMap,
     portals::{PortalAssignments, PortalMap, handle_portal_shot_message},
-    projectiles::handle_shot_message,
+    projectiles::handle_projectile_shot_message,
     quests::{QuestBoard, QuestCatalog},
 };
 use common::physics::PortalSet;
@@ -106,12 +106,12 @@ pub(super) fn route_client_message(
                 &context.world.gameplay_config,
             );
         }
-        ClientMessage::Shot(message) => {
+        ClientMessage::ProjectileShot(message) => {
             let Some(entity) = entity else {
                 return;
             };
             debug!("{} shot", context.players.describe(&id));
-            handle_shot_message(
+            handle_projectile_shot_message(
                 commands,
                 entity,
                 id,

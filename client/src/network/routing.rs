@@ -9,13 +9,13 @@ use super::{
     io::apply_pong,
     items::{handle_cookie_collected_message, handle_health_potion_collected_message},
     missiles::{
-        handle_missile_death_message, handle_missile_launch_message, handle_missile_move_message,
+        handle_missile_detonated_message, handle_missile_launch_message, handle_missile_move_message,
         handle_missiles_collected_message,
     },
     players::{
         handle_player_blast_message, handle_player_death_message, handle_player_fall_damage_message,
-        handle_player_hit_message, handle_player_jump_message, handle_player_move_message, handle_player_shot_message,
-        handle_player_status_message,
+        handle_player_hit_message, handle_player_jump_message, handle_player_move_message,
+        handle_player_status_message, handle_projectile_shot_message,
     },
     portals::handle_portal_opened_message,
     presentation::{handle_feed_message, handle_firework_message, handle_pressure_plate_message},
@@ -38,7 +38,7 @@ pub(super) fn route_server_message(
         }
         ServerMessage::PlayerMove(message) => handle_player_move_message(message, commands, context),
         ServerMessage::PlayerJump(message) => handle_player_jump_message(message, commands, context),
-        ServerMessage::PlayerShot(message) => handle_player_shot_message(message, commands, context),
+        ServerMessage::ProjectileShot(message) => handle_projectile_shot_message(message, commands, context),
         ServerMessage::ActorMove(message) => handle_actor_move_message(message, commands, context),
         ServerMessage::MissileLaunch(message) => {
             handle_missile_launch_message(message, commands, my_player_id, context);
@@ -48,7 +48,7 @@ pub(super) fn route_server_message(
             handle_player_death_message(message, commands, my_player_id, context);
         }
         ServerMessage::ActorDeath(message) => handle_actor_death_message(message, commands, context),
-        ServerMessage::MissileDeath(message) => handle_missile_death_message(message, commands, context),
+        ServerMessage::MissileDetonated(message) => handle_missile_detonated_message(message, commands, context),
         ServerMessage::PlayerHit(message) => {
             handle_player_hit_message(message, commands, my_player_id, context);
         }

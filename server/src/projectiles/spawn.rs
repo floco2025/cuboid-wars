@@ -11,12 +11,11 @@ use common::{
     protocol::*,
 };
 
-// Handle shot message.
-pub fn handle_shot_message(
+pub fn handle_projectile_shot_message(
     commands: &mut Commands,
     entity: Entity,
     id: PlayerId,
-    msg: &CShot,
+    msg: &CProjectileShot,
     players: &mut PlayerMap,
     time: &Res<Time>,
     player_data: &PlayerStateQuery,
@@ -86,7 +85,7 @@ pub fn handle_shot_message(
     broadcast_to_others(
         players,
         id,
-        ServerMessage::PlayerShot(SPlayerShot {
+        ServerMessage::ProjectileShot(SProjectileShot {
             id,
             face_yaw: msg.face_yaw,
             face_pitch: msg.face_pitch,

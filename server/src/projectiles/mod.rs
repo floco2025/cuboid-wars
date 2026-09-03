@@ -4,4 +4,4 @@ mod spawn;
 
 pub use movement::projectiles_movement_system;
 pub use plugin::projectiles_plugin;
-pub use spawn::handle_shot_message;
+pub use spawn::handle_projectile_shot_message;

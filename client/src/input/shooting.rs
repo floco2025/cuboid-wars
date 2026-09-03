@@ -87,7 +87,7 @@ pub fn input_shooting_system(
         local_player_info.last_shot_time = now;
 
         // Send shot message with current face direction to server
-        let shot_msg = ClientMessage::Shot(CShot {
+        let shot_msg = ClientMessage::ProjectileShot(CProjectileShot {
             face_yaw: face_yaw.0,
             face_pitch: pitch,
             pattern: pattern.map(str::to_owned),

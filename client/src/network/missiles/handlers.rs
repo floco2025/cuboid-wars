@@ -58,8 +58,8 @@ pub(in crate::network) fn handle_missile_move_message(
 // Detonation: explosion VFX + spatial boom at the server's impact point,
 // then teardown. Idempotent against the snapshot diff having already
 // despawned the entity.
-pub(in crate::network) fn handle_missile_death_message(
-    message: SMissileDeath,
+pub(in crate::network) fn handle_missile_detonated_message(
+    message: SMissileDetonated,
     commands: &mut Commands,
     context: &mut ServerMessageContext,
 ) {

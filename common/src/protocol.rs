@@ -36,7 +36,7 @@
 //    ghost before the actor exists.
 //
 //    Projectiles are the deliberate exception. They are short-lived, fast,
-//    and numerous, so they are replicated as shot cues (`SPlayerShot`)
+//    and numerous, so they are replicated as shot cues (`SProjectileShot`)
 //    rather than snapshot entities. Clients simulate them only for
 //    presentation; authoritative hit/death outcomes still come from the
 //    server. Missiles are NOT that exception: they fly for seconds and steer
@@ -77,8 +77,9 @@
 //    semantic styles the client maps to colors; public lines target everyone
 //    or everyone except one player, admin replies the issuer. `SFirework`
 //    starts the client-side show from a seed. Inbound events are the
-//    player's actions (`CJump`, `CShot`, `CMissileShot`, `CPortalShot`),
-//    which nothing could replay if lost, plus `CAdmin` and `CChat`.
+//    player's actions (`CJump`, `CProjectileShot`, `CMissileShot`,
+//    `CPortalShot`), which nothing could replay if lost, plus `CAdmin` and
+//    `CChat`.
 //
 // When adding a message, pick the smallest role that fits — most shared
 // "X changed" things belong in the snapshot, not a new message — and it
@@ -134,9 +135,9 @@ pub struct CMove {
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct CJump {}
 
-// Client to Server: Shot fired.
+// Client to Server: Projectile shot fired.
 #[derive(Debug, Clone, Encode, Decode)]
-pub struct CShot {
+pub struct CProjectileShot {
     pub face_yaw: f32,   // radians - yaw direction player is facing when shooting
     pub face_pitch: f32, // radians - pitch (up/down) when shooting
     pub pattern: Option<String>,
@@ -307,7 +308,7 @@ pub struct SPlayerJump {
 // `SSnapshot`: clients spawn and simulate them for presentation, while the
 // server runs its own projectile simulation for authoritative hit logic.
 #[derive(Debug, Clone, Encode, Decode)]
-pub struct SPlayerShot {
+pub struct SProjectileShot {
     pub id: PlayerId,
     pub face_yaw: f32,
     pub face_pitch: f32,
@@ -384,7 +385,7 @@ pub struct SActorDeath {
 // the explosion VFX + sound and the local teardown; disappearance from the
 // next snapshot is the fallback.
 #[derive(Debug, Clone, Encode, Decode)]
-pub struct SMissileDeath {
+pub struct SMissileDetonated {
     pub id: MissileId,
     pub pos: Position,
 }
@@ -607,7 +608,7 @@ pub enum ClientMessage {
     Ping(CPing),
     // Events
     Jump(CJump),
-    Shot(CShot),
+    ProjectileShot(CProjectileShot),
     MissileShot(CMissileShot),
     PortalShot(CPortalShot),
     Admin(CAdmin),
@@ -632,13 +633,13 @@ pub enum ServerMessage {
     // Cues
     PlayerMove(SPlayerMove),
     PlayerJump(SPlayerJump),
-    PlayerShot(SPlayerShot),
+    ProjectileShot(SProjectileShot),
     ActorMove(SActorMove),
     MissileLaunch(SMissileLaunch),
     MissileMove(SMissileMove),
     PlayerDeath(SPlayerDeath),
     ActorDeath(SActorDeath),
-    MissileDeath(SMissileDeath),
+    MissileDetonated(SMissileDetonated),
     PlayerHit(SPlayerHit),
     PlayerFallDamage(SPlayerFallDamage),
     PlayerBlast(SPlayerBlast),
@@ -677,7 +678,7 @@ impl ClientMessage {
         match self {
             Self::Login(_)
             | Self::Jump(_)
-            | Self::Shot(_)
+            | Self::ProjectileShot(_)
             | Self::MissileShot(_)
             | Self::PortalShot(_)
             | Self::Admin(_)
@@ -695,13 +696,13 @@ impl ServerMessage {
             Self::Snapshot(_)
             | Self::PlayerMove(_)
             | Self::PlayerJump(_)
-            | Self::PlayerShot(_)
+            | Self::ProjectileShot(_)
             | Self::ActorMove(_)
             | Self::MissileLaunch(_)
             | Self::MissileMove(_)
             | Self::PlayerDeath(_)
             | Self::ActorDeath(_)
-            | Self::MissileDeath(_)
+            | Self::MissileDetonated(_)
             | Self::PlayerHit(_)
             | Self::PlayerFallDamage(_)
             | Self::PlayerBlast(_)
@@ -771,7 +772,7 @@ mod tests {
                 victim_score: -1000,
                 killer_score: Some(200),
             }),
-            ServerMessage::PlayerShot(SPlayerShot {
+            ServerMessage::ProjectileShot(SProjectileShot {
                 id: PlayerId(1),
                 face_yaw: 1.0,
                 face_pitch: 0.1,

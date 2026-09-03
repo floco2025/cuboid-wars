@@ -201,7 +201,7 @@ fn detonate_missile(
     let Some(info) = missiles.remove(&id) else {
         return;
     };
-    broadcast_to_all(players, ServerMessage::MissileDeath(SMissileDeath { id, pos }));
+    broadcast_to_all(players, ServerMessage::MissileDetonated(SMissileDetonated { id, pos }));
     pending_explosions.push_missile(info.shooter, pos);
     commands.entity(entity).despawn();
 }

@@ -10,7 +10,7 @@ use common::protocol::{Missile, MissileId, MissileMarker, MissileMovementState, 
 
 // Snapshot diff for missiles, the same idiom as `sync_actors`: spawn ids the
 // snapshot has and we don't, silently despawn ids it dropped (the
-// `SMissileDeath` cue owns the detonation VFX), then apply the carried
+// `SMissileDetonated` cue owns the detonation VFX), then apply the carried
 // movement as a reconciliation target.
 pub(in crate::network) fn sync_missiles(
     commands: &mut Commands,
