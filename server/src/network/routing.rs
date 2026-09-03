@@ -3,8 +3,8 @@ use bevy::{ecs::system::SystemParam, prelude::*};
 use super::{
     admin::{AdminContext, handle_admin_message},
     handlers::{
-        CharacterQueries, SharedWorld, handle_chat_message, handle_client_snapshot_message, handle_jump_message,
-        handle_move_message, handle_ping_message,
+        CharacterQueries, SharedWorld, handle_chat_message, handle_jump_message, handle_move_message,
+        handle_ping_message,
     },
     login::handle_login_message,
 };
@@ -90,12 +90,6 @@ pub(super) fn route_client_message(
             };
             trace!("{:?} input: {:?}", id, message);
             handle_move_message(commands, entity, id, message, &context.players, &context.queries);
-        }
-        ClientMessage::Snapshot(message) => {
-            let Some(entity) = entity else {
-                return;
-            };
-            handle_client_snapshot_message(commands, entity, message);
         }
         ClientMessage::Jump(_) => {
             let Some(entity) = entity else {

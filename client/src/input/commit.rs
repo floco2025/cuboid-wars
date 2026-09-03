@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use common::{
     constants::SNAPSHOT_SECS,
     math::angle_delta_radians,
-    protocol::{CMove, CSnapshot, ClientMessage, FaceYaw, PlayerInput, PlayerMoveIntent},
+    protocol::{CMove, ClientMessage, FaceYaw, PlayerInput, PlayerMoveIntent},
 };
 
 use crate::{
@@ -11,54 +11,34 @@ use crate::{
     players::{LocalPlayerInfo, LocalPlayerMarker},
 };
 
-// Once per fixed tick, send the local player's steady-state input (move
-// intent + facing) to the server, but only when any of it meaningfully
-// changed since the last commit. Tick cadence gates the rate; the angle
-// threshold filters mouse-sensor jitter. State transitions (idle ↔ moving,
-// walk ↔ run) always commit. Jump is event-shaped and sent immediately by
-// `input_movement_system` — not handled here.
+// Once per fixed tick, send the local player's input (move intent + facing)
+// to the server when any of it meaningfully changed since the last commit,
+// and every `SNAPSHOT_SECS` regardless so a lost commit heals. Tick cadence
+// gates the rate; the angle threshold filters mouse-sensor jitter. State
+// transitions (idle ↔ moving, walk ↔ run) always commit. Jump is event-shaped
+// and sent immediately by `input_movement_system` — not handled here.
 pub fn commit_player_input_system(
+    time: Res<Time>,
     to_server: Res<ClientToServerChannel>,
     mut local_player_info: ResMut<LocalPlayerInfo>,
+    mut since_commit: Local<f32>,
     local_player_query: Query<(&PlayerMoveIntent, &FaceYaw), With<LocalPlayerMarker>>,
 ) {
     let Ok((move_intent, face_yaw)) = local_player_query.single() else {
         return;
     };
     let current = (*move_intent, face_yaw.0);
-
-    if move_should_commit(current, local_player_info.last_sent_move) {
-        let (move_intent, face_yaw) = current;
-        let _ = to_server.send(ClientToServer::Send(ClientMessage::Move(CMove {
-            input: PlayerInput { move_intent, face_yaw },
-        })));
-        local_player_info.last_sent_move = current;
-    }
-}
-
-// The client's state snapshot: the current input re-stated every
-// `SNAPSHOT_SECS`, so a lost `CMove` heals the way a lost `SPlayerMove` heals
-// in `SSnapshot`.
-pub fn send_client_snapshot_system(
-    time: Res<Time>,
-    to_server: Res<ClientToServerChannel>,
-    mut timer: Local<f32>,
-    local_player_query: Query<(&PlayerMoveIntent, &FaceYaw), With<LocalPlayerMarker>>,
-) {
-    let Ok((move_intent, face_yaw)) = local_player_query.single() else {
-        return;
-    };
-    *timer += time.delta_secs();
-    if *timer < SNAPSHOT_SECS {
+    *since_commit += time.delta_secs();
+    if !move_should_commit(current, local_player_info.last_sent_move) && *since_commit < SNAPSHOT_SECS {
         return;
     }
-    *timer -= SNAPSHOT_SECS;
-    let _ = to_server.send(ClientToServer::Send(ClientMessage::Snapshot(CSnapshot {
-        input: PlayerInput {
-            move_intent: *move_intent,
-            face_yaw: face_yaw.0,
-        },
+
+    let (move_intent, face_yaw) = current;
+    let _ = to_server.send(ClientToServer::Send(ClientMessage::Move(CMove {
+        input: PlayerInput { move_intent, face_yaw },
     })));
+    local_player_info.last_sent_move = current;
+    *since_commit = 0.0;
 }
 
 fn move_should_commit(current: (PlayerMoveIntent, f32), last: (PlayerMoveIntent, f32)) -> bool {

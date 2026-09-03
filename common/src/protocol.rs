@@ -33,9 +33,7 @@
 //    `SSnapshot` they show up in and disappears in the first they're absent
 //    from. Presence includes pre-presence: `spawning_actors` carries reserved
 //    actor spawns during their warning window, so clients render a beam-in
-//    ghost before the actor exists. `CSnapshot` is the client's counterpart:
-//    its steady-state input, re-stated every `SNAPSHOT_SECS`, which the
-//    server only applies.
+//    ghost before the actor exists.
 //
 //    Projectiles are the deliberate exception. They are short-lived, fast,
 //    and numerous, so they are replicated as shot cues (`SPlayerShot`)
@@ -65,10 +63,9 @@
 //        entity teardown) one tick before the snapshot would catch up.
 //        `SActorBeam` ships the burst's start moment and duration, which the
 //        4 Hz snapshot can't carry.
-//    Inbound cues are the player's actions: `CMove` (the on-change input
-//    behind `SPlayerMove`; `CSnapshot` heals a lost one), `CJump`, `CShot`,
-//    `CMissileShot`, `CPortalShot`. `CPing` / `SPong` measure RTT on the
-//    same terms.
+//    Inbound, `CMove` is both cue and state: sent on change and repeated
+//    every `SNAPSHOT_SECS`, so a lost one heals at the next. `CPing` / `SPong`
+//    measure RTT on the same terms.
 //
 // 4. Events (reliable) — messages the snapshot cannot stand in for, so loss
 //    is not an option; the client treats receipt as authoritative until a
@@ -79,8 +76,9 @@
 //    server-rendered line for the message feed: final text spans with
 //    semantic styles the client maps to colors; public lines target everyone
 //    or everyone except one player, admin replies the issuer. `SFirework`
-//    starts the client-side show from a seed. Inbound events are `CAdmin`
-//    and `CChat`.
+//    starts the client-side show from a seed. Inbound events are the
+//    player's actions (`CJump`, `CShot`, `CMissileShot`, `CPortalShot`),
+//    which nothing could replay if lost, plus `CAdmin` and `CChat`.
 //
 // When adding a message, pick the smallest role that fits — most shared
 // "X changed" things belong in the snapshot, not a new message — and it
@@ -107,7 +105,7 @@ pub struct CLogin {
 }
 
 // The local player's steady-state input: movement intent plus facing in
-// radians. Carried by `CMove` and `CSnapshot` alike.
+// radians, carried by `CMove`.
 #[derive(Debug, Clone, Copy, Encode, Decode)]
 pub struct PlayerInput {
     pub move_intent: PlayerMoveIntent,
@@ -121,17 +119,9 @@ impl PlayerInput {
     }
 }
 
-// Client to Server: the client's state snapshot — its input re-stated every
-// `SNAPSHOT_SECS` whether or not it changed. The server only applies it and
-// never broadcasts from it, so a lost `CMove` heals here the way a lost
-// `SPlayerMove` heals in `SSnapshot`.
-#[derive(Debug, Clone, Encode, Decode)]
-pub struct CSnapshot {
-    pub input: PlayerInput,
-}
-
-// Client to Server: the input committed whenever it changes enough. The cue
-// behind `SPlayerMove`; `CSnapshot` is the state that heals a lost one.
+// Client to Server: the input, committed whenever it changes enough and
+// every `SNAPSHOT_SECS` regardless, so a lost commit heals at the next one.
+// The server broadcasts `SPlayerMove` only when the input actually changed.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct CMove {
     pub input: PlayerInput,
@@ -611,16 +601,14 @@ pub struct SFirework {
 pub enum ClientMessage {
     // Bootstrap
     Login(CLogin),
-    // State
-    Snapshot(CSnapshot),
     // Cues
     Move(CMove),
+    Ping(CPing),
+    // Events
     Jump(CJump),
     Shot(CShot),
     MissileShot(CMissileShot),
     PortalShot(CPortalShot),
-    Ping(CPing),
-    // Events
     Admin(CAdmin),
     Chat(CChat),
 }
@@ -679,14 +667,14 @@ impl ClientMessage {
     #[must_use]
     pub const fn lane(&self) -> Lane {
         match self {
-            Self::Login(_) | Self::Admin(_) | Self::Chat(_) => Lane::Reliable,
-            Self::Snapshot(_)
-            | Self::Move(_)
+            Self::Login(_)
             | Self::Jump(_)
             | Self::Shot(_)
             | Self::MissileShot(_)
             | Self::PortalShot(_)
-            | Self::Ping(_) => Lane::Unreliable,
+            | Self::Admin(_)
+            | Self::Chat(_) => Lane::Reliable,
+            Self::Move(_) | Self::Ping(_) => Lane::Unreliable,
         }
     }
 }
@@ -813,14 +801,17 @@ mod tests {
     }
 
     #[test]
-    fn unreliable_lane_carries_player_actions() {
-        assert_eq!(ClientMessage::Jump(CJump {}).lane(), Lane::Unreliable);
+    fn actions_are_reliable_and_input_is_not() {
+        assert_eq!(ClientMessage::Jump(CJump {}).lane(), Lane::Reliable);
         let input = PlayerInput {
             move_intent: PlayerMoveIntent::Idle,
             face_yaw: 0.0,
         };
         assert_eq!(ClientMessage::Move(CMove { input }).lane(), Lane::Unreliable);
-        assert_eq!(ClientMessage::Snapshot(CSnapshot { input }).lane(), Lane::Unreliable);
+        assert_eq!(
+            ClientMessage::Ping(CPing { timestamp_nanos: 0 }).lane(),
+            Lane::Unreliable
+        );
     }
 
     #[test]
