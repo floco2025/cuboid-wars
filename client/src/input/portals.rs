@@ -32,10 +32,9 @@ pub struct PortalInputWorld<'w> {
 
 // Portal-gun fire: both-access uses left=A and right=B; single-access uses
 // left for its assigned end. Placement is predicted with the same shared check the server
-// runs on the same static map data, so the feedback is immediate and never
-// wrong: a valid aperture plays the fire sound and sends the shot, an
-// invalid one (miss, doesn't fit, covers a fixture) dry-fires and sends
-// nothing. The portal itself still only appears with `SPortalOpened`.
+// runs on the same static map data: a valid aperture sends the shot and its
+// opening sound arrives with `SPortalOpened`; an invalid one (miss, doesn't
+// fit, covers a fixture) dry-fires immediately and sends nothing.
 pub fn input_portal_system(
     mut commands: Commands,
     mode: Res<WeaponMode>,
@@ -103,7 +102,6 @@ pub fn input_portal_system(
     }
 
     local_player_info.last_shot_time = now;
-    play_sound(&mut commands, &asset_server, asset_set.player_sound("fire"));
     let _ = to_server.send(ClientToServer::Send(ClientMessage::PortalShot(CPortalShot {
         end,
         face_yaw: face_yaw.0,
