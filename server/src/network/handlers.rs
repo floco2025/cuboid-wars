@@ -55,11 +55,7 @@ pub(super) fn handle_move_message(
         .entity(entity)
         .insert((input.move_intent, FaceYaw(input.face_yaw)));
 
-    // A repeat of an unchanged input refreshes the body but is not a cue.
-    if let (Ok((pos, intent, face_yaw, _)), Ok(motion)) =
-        (queries.player_data.get(entity), queries.player_motions.get(entity))
-        && (*intent != input.move_intent || face_yaw.0 != input.face_yaw)
-    {
+    if let (Ok((pos, _, _, _)), Ok(motion)) = (queries.player_data.get(entity), queries.player_motions.get(entity)) {
         broadcast_to_others(
             players,
             id,

@@ -121,7 +121,7 @@ impl PlayerInput {
 
 // Client to Server: the input, committed whenever it changes enough and
 // every `SNAPSHOT_SECS` regardless, so a lost commit heals at the next one.
-// The server broadcasts `SPlayerMove` only when the input actually changed.
+// Every commit is broadcast to the other players as `SPlayerMove`.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct CMove {
     pub input: PlayerInput,
