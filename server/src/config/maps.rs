@@ -3,8 +3,11 @@ use std::collections::{HashMap, HashSet};
 use anyhow::{Context, Result, bail};
 use serde::Deserialize;
 
-use super::quests::{Quest, validate_quests};
 use super::validation::{deserialize_required_option, validate_covers_actor_kinds, validate_positive_finite};
+use super::{
+    items::PlacedItemsConfig,
+    quests::{Quest, validate_quests},
+};
 use common::protocol::{BarrierKindTable, ItemType, MapSettings, MapWeaponSettings};
 
 // Server-side wrapper around the wire `MapSettings`: the flattened settings
@@ -16,6 +19,7 @@ pub struct MapServerConfig {
     // `None` = no random item spawning on this map.
     #[serde(deserialize_with = "deserialize_required_option")]
     pub random_items: Option<RandomItemsConfig>,
+    pub placed_items: PlacedItemsConfig,
     // A concrete state holds until an admin command; `auto` runs the
     // global `cycles.weather`. Mirrors `/weather rain|clear|auto`.
     pub weather: WeatherMode,
@@ -65,7 +69,7 @@ pub struct RandomItemsConfig {
     // number of eligible floor cells so tiny test maps degrade.
     pub max_number: usize,
     // How long an uncollected random item sits in the world before being
-    // removed. Placed items use `items.placed.respawn_secs` instead.
+    // removed. Placed items use the map's `placed_items.respawn_secs` instead.
     pub despawn_secs: f32,
 }
 
@@ -99,6 +103,7 @@ pub(super) fn validate_maps<T>(
         if let Some(random_items) = &entry.random_items {
             random_items.validate(&format!("{path}.random_items"), entry.settings.weapons)?;
         }
+        entry.placed_items.validate(&format!("{path}.placed_items"))?;
         validate_quests(&entry.quests, actors, &format!("{path}.quests"))?;
     }
     if !maps.contains_key(default_map) {
@@ -205,9 +210,24 @@ mod tests {
                 barrier_kinds: None,
             },
             random_items: None,
+            placed_items: ok_placed_items(),
             weather: WeatherMode::Clear,
             lighting: LightingMode::Bright,
             quests: Vec::new(),
+        }
+    }
+
+    fn ok_placed_items() -> PlacedItemsConfig {
+        PlacedItemsConfig {
+            respawn_secs: crate::config::PlacedItemRespawnSecs {
+                speed: 60.0,
+                multi_shot: 60.0,
+                low_gravity: 60.0,
+                health_potion: 60.0,
+                cookie: 60.0,
+                key: 30.0,
+                missile_pack: 30.0,
+            },
         }
     }
 
@@ -260,6 +280,17 @@ mod tests {
             "weapons": { "projectiles": projectiles, "missiles": missiles, "portals": portals },
             "barrier_kinds": null,
             "random_items": null,
+            "placed_items": {
+                "respawn_secs": {
+                    "speed": 60.0,
+                    "multi_shot": 60.0,
+                    "low_gravity": 60.0,
+                    "health_potion": 60.0,
+                    "cookie": 60.0,
+                    "key": 30.0,
+                    "missile_pack": 30.0
+                }
+            },
             "quests": []
         });
         let object = value.as_object_mut().expect("map entry JSON is not an object");
@@ -401,6 +432,38 @@ mod tests {
         let error = serde_json::from_value::<MapServerConfig>(hotel)
             .expect_err("barrier_kinds must be explicit even when absent by design");
         assert!(error.to_string().contains("barrier_kinds"));
+    }
+
+    #[test]
+    fn map_entry_requires_placed_items() {
+        let gameplay: serde_json::Value = serde_json::from_str(include_str!("../../../config/server/gameplay.json"))
+            .expect("server gameplay JSON is invalid");
+        let mut hotel = gameplay["maps"]["hotel"].clone();
+        hotel
+            .as_object_mut()
+            .expect("hotel map settings are not an object")
+            .remove("placed_items");
+
+        let error =
+            serde_json::from_value::<MapServerConfig>(hotel).expect_err("placed_items must be defined for every map");
+        assert!(error.to_string().contains("placed_items"));
+    }
+
+    #[test]
+    fn validate_maps_rejects_negative_placed_item_respawn() {
+        let mut maps = one_map("hotel");
+        maps.get_mut("hotel")
+            .expect("hotel entry missing")
+            .placed_items
+            .respawn_secs
+            .cookie = -1.0;
+
+        let error = validate_test_maps(&maps, "hotel").expect_err("negative respawn time must be rejected");
+        assert!(
+            error
+                .to_string()
+                .contains("maps.hotel.placed_items.respawn_secs.cookie")
+        );
     }
 
     #[test]

@@ -11,7 +11,7 @@
         "player": {
           "walk_speed": 6.0,
           "run_speed": 9.0,
-          "speed_power_up": 1.6
+          "speed_power_up": 1.5
         },
         "actors": {
           "mine": { "roam_speed": 3.0, "active_speed": 5.0 },
@@ -34,6 +34,17 @@
         "types": [ "speed", "multi_shot", "low_gravity", "health_potion", "missile_pack" ],
         "max_number": 30,
         "despawn_secs": 60.0
+      },
+      "placed_items": {
+        "respawn_secs": {
+          "speed": 60.0,
+          "multi_shot": 60.0,
+          "low_gravity": 60.0,
+          "health_potion": 60.0,
+          "cookie": 60.0,
+          "key": 30.0,
+          "missile_pack": 30.0
+        }
       },
       "quests": [
         {
@@ -104,11 +115,11 @@
       "lighting": "auto",
       "movement": {
         "gravity": 25.0,
-        "low_gravity": 5.0,
+        "low_gravity": 12.5,
         "player": {
           "walk_speed": 6.0,
-          "run_speed": 9.0,
-          "speed_power_up": 1.6
+          "run_speed": 6.0,
+          "speed_power_up": 1.5
         },
         "actors": {
           "mine": { "roam_speed": 3.0, "active_speed": 5.0 },
@@ -128,6 +139,17 @@
       },
       "barrier_kinds": null,
       "random_items": null,
+      "placed_items": {
+        "respawn_secs": {
+          "speed": 15.0,
+          "multi_shot": 60.0,
+          "low_gravity": 15.0,
+          "health_potion": 60.0,
+          "cookie": 60.0,
+          "key": 30.0,
+          "missile_pack": 30.0
+        }
+      },
       "quests": []
     }
   },
@@ -249,17 +271,6 @@
   "items": {
     "power_ups": {
       "duration_secs": { "speed": 30.0, "multi_shot": 25.0, "low_gravity": 20.0 }
-    },
-    "placed": {
-      "respawn_secs": {
-        "speed": 60.0,
-        "multi_shot": 60.0,
-        "low_gravity": 60.0,
-        "health_potion": 60.0,
-        "cookie": 60.0,
-        "key": 30.0,
-        "missile_pack": 30.0
-      }
     }
   },
   "combat": {

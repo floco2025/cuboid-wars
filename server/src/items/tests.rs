@@ -216,6 +216,12 @@ mod collection_eligibility_tests {
     fn test_app() -> App {
         let server = ServerGameplayConfig::load_default().expect("default server gameplay config should load");
         let gameplay = server.gameplay_config();
+        let placed_items = server
+            .maps
+            .get(&server.default_map)
+            .expect("default map settings missing")
+            .placed_items
+            .clone();
         let quest_catalog = QuestCatalog::from_config(&server);
         let quest_board = QuestBoard::from_catalog(&quest_catalog);
         let mut app = App::new();
@@ -224,6 +230,7 @@ mod collection_eligibility_tests {
             .insert_resource(quest_catalog)
             .insert_resource(quest_board)
             .insert_resource(gameplay)
+            .insert_resource(placed_items)
             .insert_resource(PlayerMap::default())
             .insert_resource(ItemMap::default())
             .add_systems(Update, item_collection_system);

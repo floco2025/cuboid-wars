@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use crate::{
-    config::ServerGameplayConfig,
+    config::{PlacedItemsConfig, ServerGameplayConfig},
     items::{ItemMap, ItemPlacement},
     network::{FeedAudience, FeedEvent, ServerToClient, broadcast_to_all, emit_feed},
     players::{PlayerInfo, PlayerMap},
@@ -27,6 +27,7 @@ pub fn item_collection_system(
     character_positions: Query<&Position, With<PlayerMarker>>,
     mut player_health: Query<&mut Health, With<PlayerMarker>>,
     item_positions: Query<&Position, With<ItemMarker>>,
+    placed_items_config: Res<PlacedItemsConfig>,
     server_gameplay_config: Res<ServerGameplayConfig>,
     gameplay_config: Res<GameplayConfig>,
     mut quest_board: ResMut<QuestBoard>,
@@ -80,7 +81,7 @@ pub fn item_collection_system(
     let mut feed_events = Vec::new();
 
     for (player_id, item_id, item_type) in items_to_collect {
-        consume_item(&mut commands, &mut items, &server_gameplay_config, item_id, item_type);
+        consume_item(&mut commands, &mut items, &placed_items_config, item_id, item_type);
         match item_type {
             ItemType::Cookie => collect_cookie(
                 &mut players,
@@ -144,7 +145,7 @@ fn pickup_has_effect(
 fn consume_item(
     commands: &mut Commands,
     items: &mut ItemMap,
-    server_gameplay_config: &ServerGameplayConfig,
+    placed_items_config: &PlacedItemsConfig,
     item_id: ItemId,
     item_type: ItemType,
 ) {
@@ -152,7 +153,7 @@ fn consume_item(
         return;
     };
     if let ItemPlacement::Placed { respawn_countdown } = &mut item_info.placement {
-        *respawn_countdown = server_gameplay_config.items.placed.respawn_secs_for(item_type);
+        *respawn_countdown = placed_items_config.respawn_secs_for(item_type);
         return;
     }
     if let Some(info) = items.remove(&item_id) {

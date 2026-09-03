@@ -146,7 +146,7 @@ pub(crate) struct PlayerSpawnZoneDef {
 // A single map-authored item. `item_type` is an `ItemType` config id
 // (`ItemType::from_config_id`), or "key" with `kind` referencing the
 // `BarrierKindTable`. Placed items hide on pickup and reappear in place
-// after the per-type `items.placed.respawn_secs` delay.
+// after the map's per-type `placed_items.respawn_secs` delay.
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
 pub(crate) struct ItemDef {
     pub(crate) level: u32,

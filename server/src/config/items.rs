@@ -1,4 +1,5 @@
 use anyhow::Result;
+use bevy::prelude::Resource;
 use serde::Deserialize;
 
 use super::validation::validate_non_negative_finite;
@@ -7,13 +8,11 @@ use common::protocol::{ItemType, PowerUpKind};
 #[derive(Debug, Clone, Deserialize)]
 pub struct ItemsConfig {
     pub power_ups: PowerUpsConfig,
-    pub placed: PlacedItemsConfig,
 }
 
 impl ItemsConfig {
     pub(super) fn validate(&self, path: &str) -> Result<()> {
-        self.power_ups.validate(&format!("{path}.power_ups"))?;
-        self.placed.validate(&format!("{path}.placed"))
+        self.power_ups.validate(&format!("{path}.power_ups"))
     }
 }
 
@@ -53,7 +52,7 @@ impl PowerUpsConfig {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Resource, Debug, Clone, Deserialize)]
 pub struct PlacedItemsConfig {
     pub respawn_secs: PlacedItemRespawnSecs,
 }
@@ -84,7 +83,7 @@ impl PlacedItemsConfig {
         }
     }
 
-    fn validate(&self, path: &str) -> Result<()> {
+    pub(super) fn validate(&self, path: &str) -> Result<()> {
         let secs = &self.respawn_secs;
         for (value, name) in [
             (secs.speed, "speed"),

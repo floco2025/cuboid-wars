@@ -36,6 +36,7 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
         bail!("unknown map {map_name:?} (available: {known:?})");
     };
     let map_settings = map_server_config.settings.clone();
+    let placed_items_config = map_server_config.placed_items.clone();
     let weather_state = WeatherState::new(server_gameplay_config.cycles.weather.clone(), map_server_config.weather);
     let light_state = LightState::new(
         server_gameplay_config.cycles.lighting.clone(),
@@ -102,6 +103,7 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
         .insert_resource(ItemMap::default())
         .insert_resource(ItemSpawner::default())
         .insert_resource(random_items)
+        .insert_resource(placed_items_config)
         .insert_resource(ActorSpawner::default())
         .insert_resource(ActorSpawnThrottles::default())
         .insert_resource(PendingActorSpawns::default())
