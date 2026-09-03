@@ -68,7 +68,10 @@ pub fn handle_portal_shot_message(
         return;
     }
     *portal_set = portals.rebuild_set(collision_world);
-    broadcast_to_all(players, ServerMessage::PortalOpened(SPortalOpened { portal }));
+    broadcast_to_all(
+        players,
+        ServerMessage::PortalOpened(SPortalOpened { shooter: id, portal }),
+    );
 }
 
 // Pure geometry: the aperture sits at the placed point with the surface's

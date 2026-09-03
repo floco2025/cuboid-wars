@@ -74,7 +74,9 @@ pub(super) fn route_server_message(
         }
         ServerMessage::PressurePlate(message) => handle_pressure_plate_message(message, commands, context),
         ServerMessage::Firework(message) => handle_firework_message(message, context),
-        ServerMessage::PortalOpened(message) => handle_portal_opened_message(message, commands, context),
+        ServerMessage::PortalOpened(message) => {
+            handle_portal_opened_message(message, commands, my_player_id, context);
+        }
         ServerMessage::Feed(message) => handle_feed_message(message, context),
         ServerMessage::Pong(message) => apply_pong(&context.time, &mut context.rtt, message),
     }

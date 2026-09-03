@@ -521,13 +521,14 @@ pub struct SPressurePlate {
     pub pressed: bool,
 }
 
-// A portal end was placed or moved. Latency cue for the placement visual
-// and sound — and for keeping every client's portal geometry fresh: portal
+// A portal end was placed or moved. Latency cue for the placement visual and
+// portal-gun sound, plus keeping every client's portal geometry fresh: portal
 // crossings are not messaged at all, each client simulates every player's
 // crossings from the shared geometry, so a placement must reach observers
 // quickly. The snapshot's `portals` list is the system of record.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SPortalOpened {
+    pub shooter: PlayerId,
     pub portal: Portal,
 }
 
@@ -745,6 +746,7 @@ mod tests {
                 held_keys: (0..29u16).map(BarrierKindId).collect(),
             }),
             ServerMessage::PortalOpened(SPortalOpened {
+                shooter: PlayerId(1),
                 portal: Portal {
                     pair: PortalPairId(1),
                     end: PortalEnd::A,

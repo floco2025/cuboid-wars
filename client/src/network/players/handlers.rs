@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use super::super::context::ServerMessageContext;
 use crate::constants::RECON_TELEPORT_SUPPRESS_SECS;
 use crate::{
-    audio::{play_explosion_sound, play_sound},
+    audio::{play_explosion_sound, play_sound, play_spatial_sound},
     characters::PreviousTickPosition,
     network::ServerReconciliation,
     players::{CameraShake, CuboidShake, LocalPlayerInfo, PlayerMap},
@@ -91,8 +91,8 @@ pub(in crate::network) fn handle_projectile_shot_message(
         commands.entity(player.entity).insert(FaceYaw(message.face_yaw));
 
         // `pattern` is already server-resolved against the shooter's power-up.
-        if let Ok((position, _, _)) = context.player_data.get(player.entity) {
-            spawn_projectiles(
+        if let Ok((position, _, _)) = context.player_data.get(player.entity)
+            && spawn_projectiles(
                 commands,
                 &context.projectile_assets,
                 position,
@@ -105,6 +105,19 @@ pub(in crate::network) fn handle_projectile_shot_message(
                 &context.collision_world,
                 &context.open_barrier_kinds.0,
                 message.id,
+            ) > 0
+        {
+            // The excluded shooter already heard flat feedback; observers hear the muzzle instead.
+            play_spatial_sound(
+                commands,
+                &context.asset_server,
+                context.asset_set.player_sound("fire"),
+                &context.client_settings.audio,
+                Vec3::new(
+                    position.x,
+                    position.y + context.gameplay_config.player.eye_height(),
+                    position.z,
+                ),
             );
         }
     }
