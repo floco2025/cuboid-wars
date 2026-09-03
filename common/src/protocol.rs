@@ -121,9 +121,12 @@ impl PlayerInput {
 
 // Client to Server: the input, committed whenever it changes enough and
 // every `SNAPSHOT_SECS` regardless, so a lost commit heals at the next one.
-// Every commit is broadcast to the other players as `SPlayerMove`.
+// Every commit is broadcast to the other players as `SPlayerMove`. Like
+// `SSnapshot`, it replaces state wholesale, so it carries a sequence and the
+// server ignores a commit older than the last one it applied.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct CMove {
+    pub seq: u32,
     pub input: PlayerInput,
 }
 
@@ -656,6 +659,13 @@ pub enum ServerMessage {
     Firework(SFirework),
 }
 
+// Wire sequence numbers wrap; `seq` is newer than `last` when it is ahead by
+// less than half the range.
+#[must_use]
+pub const fn sequence_is_newer(seq: u32, last: u32) -> bool {
+    seq != last && seq.wrapping_sub(last) < (1 << 31)
+}
+
 // The QUIC lane a message rides; see the top-of-file comment.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Lane {
@@ -807,11 +817,20 @@ mod tests {
             move_intent: PlayerMoveIntent::Idle,
             face_yaw: 0.0,
         };
-        assert_eq!(ClientMessage::Move(CMove { input }).lane(), Lane::Unreliable);
+        assert_eq!(ClientMessage::Move(CMove { seq: 1, input }).lane(), Lane::Unreliable);
         assert_eq!(
             ClientMessage::Ping(CPing { timestamp_nanos: 0 }).lane(),
             Lane::Unreliable
         );
+    }
+
+    #[test]
+    fn sequence_comparison_wraps() {
+        assert!(sequence_is_newer(2, 1));
+        assert!(!sequence_is_newer(1, 2));
+        assert!(!sequence_is_newer(5, 5));
+        assert!(sequence_is_newer(0, u32::MAX));
+        assert!(!sequence_is_newer(u32::MAX, 0));
     }
 
     #[test]

@@ -43,13 +43,24 @@ pub(super) fn handle_move_message(
     entity: Entity,
     id: PlayerId,
     message: CMove,
-    players: &PlayerMap,
+    players: &mut PlayerMap,
     queries: &CharacterQueries,
 ) {
     // Reject non-finite input before it can corrupt authoritative movement.
     if !message.input.is_finite() {
         return;
     }
+    let Some(info) = players.get_mut(&id) else {
+        return;
+    };
+    if !sequence_is_newer(message.seq, info.session.last_move_seq) {
+        warn!(
+            "ignoring an outdated move from {:?} (seq {}, last {})",
+            id, message.seq, info.session.last_move_seq
+        );
+        return;
+    }
+    info.session.last_move_seq = message.seq;
     let input = message.input;
     commands
         .entity(entity)

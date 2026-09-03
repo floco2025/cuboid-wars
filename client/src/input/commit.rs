@@ -34,7 +34,9 @@ pub fn commit_player_input_system(
     }
 
     let (move_intent, face_yaw) = current;
+    local_player_info.move_seq = local_player_info.move_seq.wrapping_add(1);
     let _ = to_server.send(ClientToServer::Send(ClientMessage::Move(CMove {
+        seq: local_player_info.move_seq,
         input: PlayerInput { move_intent, face_yaw },
     })));
     local_player_info.last_sent_move = current;

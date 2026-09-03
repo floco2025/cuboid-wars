@@ -16,18 +16,14 @@ pub(super) fn handle_snapshot_message(
     my_player_id: PlayerId,
     context: &mut ServerMessageContext,
 ) {
-    if !context.last_snapshot_seq.should_accept(message.seq) {
+    if !sequence_is_newer(message.seq, context.last_snapshot_seq.0) {
         warn!(
             "ignoring an outdated snapshot (seq {}, last {})",
-            message.seq,
-            context
-                .last_snapshot_seq
-                .last_raw()
-                .map_or_else(|| "none".to_string(), |seq| seq.to_string())
+            message.seq, context.last_snapshot_seq.0
         );
         return;
     }
-    context.last_snapshot_seq.record(message.seq);
+    context.last_snapshot_seq.0 = message.seq;
 
     // Avoid marking an untouched quest log as changed on every snapshot.
     if !message.quests.is_empty() {

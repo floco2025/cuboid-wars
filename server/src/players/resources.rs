@@ -75,6 +75,9 @@ pub struct PlayerConnection {
 
 #[derive(Default)]
 pub struct PlayerSession {
+    // Newest `CMove.seq` applied; an older commit is ignored. Per session,
+    // so a respawn does not reset it under a counter that keeps climbing.
+    pub last_move_seq: u32,
     pub score: i32,
     pub quest_states: HashMap<QuestId, PlayerQuestState>,
 }

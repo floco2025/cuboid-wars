@@ -121,6 +121,8 @@ pub struct LocalPlayerInfo {
     // The `CMove` state (intent, yaw) most recently committed to the server;
     // the commit system diffs against it.
     pub last_sent_move: (PlayerMoveIntent, f32),
+    // Stamped on every `CMove`; the server ignores an older one.
+    pub move_seq: u32,
     pub stored_yaw: f32,
     pub stored_pitch: f32,
     // True from the moment the local player vanishes from `SSnapshot` until
@@ -134,6 +136,7 @@ impl Default for LocalPlayerInfo {
         Self {
             last_shot_time: f32::NEG_INFINITY,
             last_sent_move: (PlayerMoveIntent::default(), 0.0),
+            move_seq: 0,
             stored_yaw: 0.0,
             stored_pitch: 0.0,
             is_dead: false,

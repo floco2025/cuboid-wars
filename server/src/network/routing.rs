@@ -89,7 +89,7 @@ pub(super) fn route_client_message(
                 return;
             };
             trace!("{:?} input: {:?}", id, message);
-            handle_move_message(commands, entity, id, message, &context.players, &context.queries);
+            handle_move_message(commands, entity, id, message, &mut context.players, &context.queries);
         }
         ClientMessage::Jump(_) => {
             let Some(entity) = entity else {

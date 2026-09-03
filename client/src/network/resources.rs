@@ -7,38 +7,10 @@ use tokio::sync::mpsc::{
 
 use super::transport::{ClientToServer, ServerToClient};
 
-// Last applied `SSnapshot` sequence. Snapshots are unreliable messages, so an
-// older full snapshot can land after a newer one and must not roll the
-// client back.
+// Newest `SSnapshot.seq` applied; an older snapshot is ignored. 0 until
+// the first one, since the server counts from 1.
 #[derive(Resource, Default)]
-pub struct LastSnapshotSeq(Option<SnapshotSeq>);
-
-impl LastSnapshotSeq {
-    #[must_use]
-    pub fn should_accept(&self, seq: u32) -> bool {
-        let seq = SnapshotSeq(seq);
-        self.0.is_none_or(|last| seq.is_newer_than(last))
-    }
-
-    pub fn record(&mut self, seq: u32) {
-        self.0 = Some(SnapshotSeq(seq));
-    }
-
-    #[must_use]
-    pub fn last_raw(&self) -> Option<u32> {
-        self.0.map(|seq| seq.0)
-    }
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-struct SnapshotSeq(u32);
-
-impl SnapshotSeq {
-    #[must_use]
-    const fn is_newer_than(self, other: Self) -> bool {
-        self.0 != other.0 && self.0.wrapping_sub(other.0) < (1 << 31)
-    }
-}
+pub struct LastSnapshotSeq(pub u32);
 
 // Round-trip time to server.
 #[derive(Resource, Default)]
@@ -81,30 +53,13 @@ impl ServerToClientChannel {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn snapshot_sequence_accepts_first_value() {
-        let seq = LastSnapshotSeq::default();
-        assert!(seq.should_accept(0));
-    }
-
-    #[test]
-    fn snapshot_sequence_rejects_older_values() {
-        let mut seq = LastSnapshotSeq::default();
-        seq.record(10);
-
-        assert!(!seq.should_accept(9));
-        assert!(!seq.should_accept(10));
-        assert!(seq.should_accept(11));
-    }
+    use common::protocol::sequence_is_newer;
 
     #[test]
     fn snapshot_sequence_wraps_forward() {
-        let mut seq = LastSnapshotSeq::default();
-        seq.record(u32::MAX);
-
-        assert!(seq.should_accept(0));
-        assert!(seq.should_accept(1));
-        assert!(!seq.should_accept(u32::MAX - 1));
+        let last = LastSnapshotSeq(u32::MAX);
+        assert!(sequence_is_newer(1, LastSnapshotSeq::default().0));
+        assert!(sequence_is_newer(0, last.0));
+        assert!(!sequence_is_newer(u32::MAX - 1, last.0));
     }
 }
