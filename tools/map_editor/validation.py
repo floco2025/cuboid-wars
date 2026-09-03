@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .constants import BARRIER_KIND_COLORS, FACES, ITEM_KEY_TYPE, ITEM_TYPES, LADDER_SIDES, LIGHT_SIDES, MATERIAL_ALIASES, PLATE_TYPES, PLATE_TYPE_BARRIER
+from .constants import FACES, ITEM_KEY_TYPE, ITEM_TYPES, LADDER_SIDES, LIGHT_SIDES, MATERIAL_ALIASES, PLATE_TYPES, PLATE_TYPE_BARRIER
 from .display import level_label
 from .geometry import (
     grid_point_in_bounds,
@@ -13,7 +13,7 @@ from .geometry import (
 )
 
 
-def validate_map(map_data: dict) -> list[str]:
+def validate_map(map_data: dict, barrier_kinds: list[str]) -> list[str]:
     errors: list[str] = []
     cols = map_data["grid_cols"]
     rows = map_data["grid_rows"]
@@ -23,7 +23,7 @@ def validate_map(map_data: dict) -> list[str]:
         errors.append("at least one level is required")
     if not map_data["player_spawn_zones"]:
         errors.append("at least one player_spawn_zones entry is required by the Rust loader")
-    kinds = _validate_barrier_kinds(map_data, errors)
+    kinds = barrier_kinds
 
     for idx, zone in enumerate(map_data["actor_spawn_zones"]):
         _validate_zone_rect(zone, f"actor_spawn_zones[{idx}]", map_data, errors)
@@ -106,21 +106,6 @@ def validate_map(map_data: dict) -> list[str]:
     _validate_face_aliases(map_data, errors)
 
     return errors
-
-
-def _validate_barrier_kinds(map_data: dict, errors: list[str]) -> list[str]:
-    kinds = list(map_data.get("barrier_kinds", []))
-    for idx, kind in enumerate(kinds):
-        if not kind:
-            errors.append(f"barrier_kinds[{idx}] is empty")
-        elif kind in kinds[:idx]:
-            errors.append(f"barrier_kinds[{idx}] duplicates {kind!r}")
-        elif kind not in BARRIER_KIND_COLORS:
-            errors.append(
-                f"barrier_kinds[{idx}] {kind!r} has no color in assets.json `barrier_kind_colors`; "
-                "add an entry or remove the id from the map"
-            )
-    return kinds
 
 
 def _known(kinds: list[str]) -> str:

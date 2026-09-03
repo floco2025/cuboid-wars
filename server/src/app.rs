@@ -21,7 +21,7 @@ use crate::{
 };
 use common::{
     physics::{CollisionWorld, PortalSet},
-    protocol::{MapBootstrap, WorldBootstrap},
+    protocol::{BarrierKindTable, MapBootstrap, WorldBootstrap},
 };
 
 const LOG_FILTER: &str = "wgpu=error,naga=warn";
@@ -43,12 +43,12 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
     );
     let random_items = RandomItems::from_config(map_server_config.random_items.as_ref(), map_settings.weapons);
     let portal_assignments = PortalAssignments::new(map_settings.weapons.portals);
+    let barrier_kind_table = BarrierKindTable::from_ids(map_settings.barrier_kinds.clone().unwrap_or_default())?;
     let GeneratedMap {
         layout: map_layout,
         config: map_config,
         geometry: map_geometry,
-        barrier_kinds: barrier_kind_table,
-    } = generate_map(map_name)?;
+    } = generate_map(map_name, &barrier_kind_table)?;
     let collision_world = CollisionWorld::from_map_layout(&map_layout, &barrier_kind_table);
     let nav_graph = NavGraph::new(map_config.clone(), map_geometry);
     let air_graph = AirGraph::new(map_config.clone(), map_geometry);
@@ -66,7 +66,6 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
         map: MapBootstrap {
             layout: map_layout.clone(),
             settings: map_settings.clone(),
-            barrier_kinds: barrier_kind_table.ids().to_vec(),
             key_kinds: map_config.key_kinds(),
         },
     };

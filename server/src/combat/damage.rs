@@ -375,6 +375,7 @@ mod tests {
                             missiles: true,
                             portals: common::protocol::PortalMode::Both,
                         },
+                        barrier_kinds: None,
                     },
                     random_items: None,
                     weather: WeatherMode::Clear,

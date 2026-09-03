@@ -8,10 +8,9 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 # One map JSON per named map; the editor's CLI argument is the map name.
 MAPS_DIR = REPO_ROOT / "config" / "server" / "maps"
+GAMEPLAY_PATH = REPO_ROOT / "config" / "server" / "gameplay.json"
 
 
-# Barrier kinds are per map (`map.barrier_kinds` in the map file); the shared
-# assets file only supplies the colours the game renders them with.
 def _load_shared_configs() -> tuple[dict[str, str], set[str]]:
     assets_path = REPO_ROOT / "config" / "client" / "assets.json"
     with assets_path.open("r", encoding="utf-8") as handle:
@@ -22,6 +21,33 @@ def _load_shared_configs() -> tuple[dict[str, str], set[str]]:
 
 
 BARRIER_KIND_COLORS, MATERIAL_ALIASES = _load_shared_configs()
+
+
+def load_map_barrier_kinds(map_name: str) -> list[str]:
+    with GAMEPLAY_PATH.open("r", encoding="utf-8") as handle:
+        gameplay = json.load(handle)
+    map_settings = gameplay.get("maps", {}).get(map_name)
+    if map_settings is None:
+        return []
+    if "barrier_kinds" not in map_settings:
+        raise ValueError(f"maps.{map_name}.barrier_kinds is required; use null when the map has none")
+    value = map_settings["barrier_kinds"]
+    if value is None:
+        return []
+    if not isinstance(value, list) or not all(isinstance(kind, str) for kind in value):
+        raise ValueError(f"maps.{map_name}.barrier_kinds must be an array of strings or null")
+    kinds = list(value)
+    for idx, kind in enumerate(kinds):
+        if not kind:
+            raise ValueError(f"maps.{map_name}.barrier_kinds[{idx}] is empty")
+        if kind in kinds[:idx]:
+            raise ValueError(f"maps.{map_name}.barrier_kinds[{idx}] duplicates {kind!r}")
+        if kind not in BARRIER_KIND_COLORS:
+            raise ValueError(
+                f"maps.{map_name}.barrier_kinds[{idx}] {kind!r} has no color in "
+                "config/client/assets.json `barrier_kind_colors`"
+            )
+    return kinds
 
 # Editor-only: the game renders every plate alike, so this colour exists just
 # to tell firework plates from barrier plates on the canvas.

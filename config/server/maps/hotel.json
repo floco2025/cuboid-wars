@@ -2,7 +2,6 @@
   "map": {
     "grid_cols": 30,
     "grid_rows": 30,
-    "barrier_kinds": ["treasure", "basement", "gravity", "lobby"],
     "actor_spawn_zones": [
       {"level": 1, "cols": [1, 4], "rows": [1, 4], "kind": "sentry", "count": 1},
       {"level": 1, "cols": [26, 29], "rows": [1, 4], "kind": "sentry", "count": 1},

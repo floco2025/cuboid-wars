@@ -38,12 +38,6 @@ class MapDocument:
         self.undo_stack = QUndoStack()
         self.undo_stack.setUndoLimit(self.UNDO_LIMIT)
 
-    # === Data ===
-
-    @property
-    def barrier_kinds(self) -> list[str]:
-        return self.map_data.get("barrier_kinds", [])
-
     def set_data(self, map_data: dict, mark_dirty: bool) -> None:
         self.map_data = canonicalize_map(map_data)
         if mark_dirty:

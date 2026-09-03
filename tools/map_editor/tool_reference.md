@@ -19,7 +19,7 @@
 ## Walls + Barriers
 
 - **Wall** — Drag along grid lines to place atomic wall edges.
-- **Barrier** — Drag along grid lines to place a translucent pulsating force-field; a dialog asks which kind to use. Kinds are listed in the map's own `barrier_kinds`; colors come from `config/client/assets.json::barrier_kind_colors`.
+- **Barrier** — Drag along grid lines to place a translucent pulsating force-field; a dialog asks which kind to use. Kinds come from that map's `barrier_kinds` in `config/server/gameplay.json`; colors come from `config/client/assets.json::barrier_kind_colors`.
 
 ## Ramps
 

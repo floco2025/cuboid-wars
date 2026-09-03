@@ -35,8 +35,8 @@ Other notable paths:
 - `client/assets/` — 3D models, textures, audio.
 - `config/client/assets.json` — hand-edited asset set (materials, material rules, models, sounds, barrier kind colours).
 - `config/client/client_local.json` — local values from the settings menu and fullscreen shortcuts. Gitignored, so `git pull` cannot update it: unlike every other JSON it carries a version, and any format change must bump `LOCAL_SETTINGS_VERSION` (`client/src/config/local.rs`) — a stale version is discarded and rewritten, never migrated.
-- `config/server/gameplay.json` — the sole gameplay configuration. It holds player and per-kind actor bodies; shared projectile, missile-lock, and portal tuning; server-only actor behaviour, missile guidance, combat, scoring, power-ups, item respawns, feeds, and weather/lighting cycles; and the named-map registry. `ServerGameplayConfig` nests exactly like the file (`player`, `actors.{settings,kinds}`, `weapons.{projectiles,missiles,portals}`, `items.{power_ups,placed}`, `combat`, `scoring`, `cycles.{weather,lighting}`, `feed`, `maps`), so a validation error's path is the JSON path. Each map owns its complete `movement` block (gravity, player/actor/projectile/missile speeds, ladder climb ratio, knockback), weapon availability, optional `random_items`, quests, skybox, weather, and lighting. A quest's points live beside that quest, and quest ids need only be unique within their map. `default_map` selects the map unless `--map <name>` overrides it. The server validates everything once and sends a client-only gameplay projection plus the selected map through `SInit`; clients do not load gameplay JSON. Actor movement tuning is resolved once into each server actor's component rather than looked up by kind during movement.
-- `config/server/maps/` — one map JSON per named map (geometry, zones, placed `items`, `pressure_plates` — each with a `type`: `barrier` plus the `kind` it opens, or `firework` — and the ordered `barrier_kinds` list that defines the map's `BarrierKindId` table; per-map tuning lives in the `maps` registry).
+- `config/server/gameplay.json` — the sole gameplay configuration. It holds player and per-kind actor bodies; shared projectile, missile-lock, and portal tuning; server-only actor behaviour, missile guidance, combat, scoring, power-ups, item respawns, feeds, and weather/lighting cycles; and the named-map registry. `ServerGameplayConfig` nests exactly like the file (`player`, `actors.{settings,kinds}`, `weapons.{projectiles,missiles,portals}`, `items.{power_ups,placed}`, `combat`, `scoring`, `cycles.{weather,lighting}`, `feed`, `maps`), so a validation error's path is the JSON path. Each map owns its complete `movement` block (gravity, player/actor/projectile/missile speeds, ladder climb ratio, knockback), weapon availability, required nullable `barrier_kinds`, optional `random_items`, quests, skybox, weather, and lighting. A quest's points live beside that quest, and quest ids need only be unique within their map. `default_map` selects the map unless `--map <name>` overrides it. The server validates everything once and sends a client-only gameplay projection plus the selected map through `SInit`; clients do not load gameplay JSON. Actor movement tuning is resolved once into each server actor's component rather than looked up by kind during movement.
+- `config/server/maps/` — one map JSON per named map (geometry, zones, placed `items`, and `pressure_plates` — each with a `type`: `barrier` plus the `kind` it opens, or `firework`; per-map tuning and kind catalogs live in the `maps` registry in `gameplay.json`).
 - `cert.pem` / `key.pem` — local-dev TLS for QUIC (not production-safe).
 - `launch_clients.sh` — spawns N tiled windowed clients for local multiplayer testing (`./launch_clients.sh [num_clients] [lag_ms] [drop]`, macOS).
 - `bacon.toml` — `bacon` job definitions; use `bacon clippy`, `bacon test`, etc. as the watch loop.
@@ -82,7 +82,7 @@ The message roles (bootstrap, state, cues, events) and the two lanes are defined
 
 #### Barriers & keys
 
-Each `BarrierKindId` gets a dedicated Rapier collision group (bits 3..31, max 29 kinds). The id table is the map file's ordered `barrier_kinds`, built by `generate_map` and shipped as `SInit.world.map.barrier_kinds`. Players hold a sorted `Vec<BarrierKindId>` in `PlayerInfo.life.held_keys`; the character filter drops the matching groups so they pass through. Defined in `common/src/physics/world/colliders.rs` and `common/src/types/barrier_kind.rs`. The HUD draws one key slot per kind the map places a key for (`SInit.world.map.key_kinds`, from `MapConfig::key_kinds`), not per barrier kind.
+Each `BarrierKindId` gets a dedicated Rapier collision group (bits 3..31, max 29 kinds). The id table comes from the selected map's ordered `barrier_kinds` in `gameplay.json`, is built once at server and client startup, and reaches the client inside `SInit.world.map.settings`. Players hold a sorted `Vec<BarrierKindId>` in `PlayerInfo.life.held_keys`; the character filter drops the matching groups so they pass through. Defined in `common/src/physics/world/colliders.rs` and `common/src/types/barrier_kind.rs`. The HUD draws one key slot per kind the map places a key for (`SInit.world.map.key_kinds`, from `MapConfig::key_kinds`), not per barrier kind.
 
 #### Pressure plates
 
@@ -160,9 +160,9 @@ The canvas IS the UI. Do not add coordinate readouts, row/col numbers, or
 status-bar grid info — if something needs explaining, it should be drawn on
 the canvas itself. PySide6 with mouse-driven click/drag interactions per
 mode (floors, grass, walls, ramps, ladders, barriers, spawn zones, items,
-materials, lights, pressure plates). The editor never reads the server
-config: barrier kinds come from the map's own `barrier_kinds` list, colours
-and material aliases from `config/client/assets.json`.
+materials, lights, pressure plates). It reads the edited map's barrier kinds
+from `config/server/gameplay.json`; colours and material aliases come from
+`config/client/assets.json`.
 
 ## Adding a texture
 

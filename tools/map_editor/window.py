@@ -28,6 +28,7 @@ from .constants import (
     MODE_RAMP_UP,
     MODE_SPAWN_ZONE_EDIT,
     STATUS_TIMEOUT_MS,
+    load_map_barrier_kinds,
 )
 from .document import MapDocument
 from .erase import EraseMixin
@@ -61,6 +62,7 @@ class EditorWindow(
         # The document is the map being edited (data, file identity, dirty
         # state, undo history); the window holds view/tool state and widgets.
         self.doc = MapDocument(path)
+        self._barrier_kinds = load_map_barrier_kinds(path.stem)
         # If a newer autosave sits next to the file we just opened, offer to
         # recover it. Done before any UI is built so the user sees their
         # restored work as the initial state.
@@ -149,7 +151,11 @@ class EditorWindow(
 
     @property
     def barrier_kinds(self) -> list[str]:
-        return self.doc.barrier_kinds
+        return self._barrier_kinds
+
+    @barrier_kinds.setter
+    def barrier_kinds(self, value: list[str]) -> None:
+        self._barrier_kinds = value
 
     @property
     def dirty(self) -> bool:
@@ -417,7 +423,7 @@ class EditorWindow(
         self.resize(self.sizeHint())
 
     def update_status(self) -> None:
-        errors = validate_map(self.map_data)
+        errors = validate_map(self.map_data, self.barrier_kinds)
         if errors:
             self.status_label.setText(f"{len(errors)} structural issue(s)")
             self.status_label.setToolTip("\n".join(errors[:20]))

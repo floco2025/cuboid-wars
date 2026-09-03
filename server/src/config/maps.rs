@@ -1,11 +1,11 @@
 use std::collections::{HashMap, HashSet};
 
-use anyhow::{Result, bail};
+use anyhow::{Context, Result, bail};
 use serde::Deserialize;
 
 use super::quests::{Quest, validate_quests};
 use super::validation::{deserialize_required_option, validate_covers_actor_kinds, validate_positive_finite};
-use common::protocol::{ItemType, MapSettings, MapWeaponSettings};
+use common::protocol::{BarrierKindTable, ItemType, MapSettings, MapWeaponSettings};
 
 // Server-side wrapper around the wire `MapSettings`: the flattened settings
 // ship to clients in `SInit`, while the rest stays server-only.
@@ -90,6 +90,8 @@ pub(super) fn validate_maps<T>(
         if entry.settings.skybox.is_empty() {
             bail!("{path}.skybox must not be empty");
         }
+        BarrierKindTable::from_ids(entry.settings.barrier_kinds.clone().unwrap_or_default())
+            .with_context(|| format!("invalid {path}.barrier_kinds"))?;
         let movement_path = format!("{path}.movement");
         let movement = &entry.settings.movement;
         validate_covers_actor_kinds(movement.actors.keys(), actors, &format!("{movement_path}.actors"))?;
@@ -200,6 +202,7 @@ mod tests {
                     missiles: true,
                     portals: PortalMode::Both,
                 },
+                barrier_kinds: None,
             },
             random_items: None,
             weather: WeatherMode::Clear,
@@ -255,6 +258,7 @@ mod tests {
                 "knockback": { "max_speed": 15.0, "up_speed": 7.0, "deceleration": 35.0 }
             },
             "weapons": { "projectiles": projectiles, "missiles": missiles, "portals": portals },
+            "barrier_kinds": null,
             "random_items": null,
             "quests": []
         });
@@ -382,6 +386,40 @@ mod tests {
         let missing_lighting =
             parse_map_entry(true, true, "both", Some("clear"), None).expect_err("lighting must be explicit");
         assert!(missing_lighting.to_string().contains("lighting"));
+    }
+
+    #[test]
+    fn map_entry_requires_explicit_barrier_kinds() {
+        let gameplay: serde_json::Value = serde_json::from_str(include_str!("../../../config/server/gameplay.json"))
+            .expect("server gameplay JSON is invalid");
+        let mut hotel = gameplay["maps"]["hotel"].clone();
+        hotel
+            .as_object_mut()
+            .expect("hotel map settings are not an object")
+            .remove("barrier_kinds");
+
+        let error = serde_json::from_value::<MapServerConfig>(hotel)
+            .expect_err("barrier_kinds must be explicit even when absent by design");
+        assert!(error.to_string().contains("barrier_kinds"));
+    }
+
+    #[test]
+    fn map_entry_accepts_null_barrier_kinds() {
+        let entry =
+            parse_map_entry(true, true, "both", Some("clear"), Some("bright")).expect("map entry should deserialize");
+        assert!(entry.settings.barrier_kinds.is_none());
+    }
+
+    #[test]
+    fn validate_maps_rejects_duplicate_barrier_kinds() {
+        let mut maps = one_map("hotel");
+        maps.get_mut("hotel")
+            .expect("hotel entry missing")
+            .settings
+            .barrier_kinds = Some(vec!["lobby".to_owned(), "lobby".to_owned()]);
+
+        let error = validate_test_maps(&maps, "hotel").expect_err("duplicate barrier kinds must be rejected");
+        assert!(error.to_string().contains("maps.hotel.barrier_kinds"));
     }
 
     #[test]

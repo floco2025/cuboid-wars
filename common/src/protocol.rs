@@ -220,8 +220,6 @@ pub struct WorldBootstrap {
 pub struct MapBootstrap {
     pub layout: MapLayout,
     pub settings: MapSettings,
-    // The map file's ordered `barrier_kinds`; index = `BarrierKindId`.
-    pub barrier_kinds: Vec<String>,
     // Derived from the map's placed keys; the client creates only the HUD key
     // slots available on this map.
     pub key_kinds: Vec<BarrierKindId>,

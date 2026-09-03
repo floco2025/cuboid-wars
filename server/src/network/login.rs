@@ -94,8 +94,8 @@ mod tests {
     use super::{MAX_NAME_CHARS, sanitize_player_name};
     use crate::config::ServerGameplayConfig;
     use common::protocol::{
-        BarrierKindId, MapBootstrap, MapLayout, PlayerBootstrap, PlayerId, PortalAccess, SInit, ServerMessage,
-        WorldBootstrap,
+        BarrierKindId, MapBootstrap, MapLayout, MapSettings, PlayerBootstrap, PlayerId, PortalAccess, SInit,
+        ServerMessage, WorldBootstrap,
     };
 
     #[test]
@@ -161,8 +161,10 @@ mod tests {
                 gameplay: config.gameplay_bootstrap(),
                 map: MapBootstrap {
                     layout: MapLayout::default(),
-                    settings: map_settings,
-                    barrier_kinds: vec!["lobby".to_owned(), "basement".to_owned()],
+                    settings: MapSettings {
+                        barrier_kinds: Some(vec!["lobby".to_owned(), "basement".to_owned()]),
+                        ..map_settings
+                    },
                     key_kinds: vec![BarrierKindId(1)],
                 },
             },
@@ -175,6 +177,10 @@ mod tests {
             panic!("decoded message was not SInit");
         };
         assert_eq!(decoded.player.id, PlayerId(7));
+        assert_eq!(
+            decoded.world.map.settings.barrier_kinds,
+            Some(vec!["lobby".to_owned(), "basement".to_owned()])
+        );
         assert_eq!(decoded.world.map.key_kinds, [BarrierKindId(1)]);
         assert_eq!(decoded.world.gameplay.actors.len(), config.actors.kinds.len());
     }

@@ -11,10 +11,6 @@ pub(crate) struct MapFile {
 pub(crate) struct MapDef {
     pub(crate) grid_cols: i32,
     pub(crate) grid_rows: i32,
-    // Ordered; index = `BarrierKindId`. Names every kind the map's barriers,
-    // keys, and barrier plates may use.
-    #[serde(default)]
-    pub(crate) barrier_kinds: Vec<String>,
     #[serde(default)]
     pub(crate) actor_spawn_zones: Vec<ActorSpawnZoneDef>,
     #[serde(default)]

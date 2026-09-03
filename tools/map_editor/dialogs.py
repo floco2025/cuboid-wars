@@ -74,8 +74,8 @@ class ActorSpawnFieldsDialog(QDialog):
 
 
 class BarrierKindDialog(QDialog):
-    """Modal dialog asking which barrier kind to use. `kinds` is the map's
-    own `barrier_kinds` list. Returns the chosen id string on accept, None on
+    """Modal dialog asking which barrier kind to use. `kinds` comes from the
+    map's gameplay settings. Returns the chosen id string on accept, None on
     cancel."""
 
     def __init__(self, parent, title: str, kinds: list[str], current: str | None):
@@ -105,7 +105,11 @@ class BarrierKindDialog(QDialog):
     @classmethod
     def prompt(cls, parent, title: str, kinds: list[str], current: str | None) -> str | None:
         if not kinds:
-            QMessageBox.warning(parent, title, "This map lists no barrier kinds. Add ids to its `barrier_kinds` first.")
+            QMessageBox.warning(
+                parent,
+                title,
+                "This map lists no barrier kinds. Add them to its gameplay settings first.",
+            )
             return None
         dialog = cls(parent, title, kinds, current)
         if dialog.exec() != QDialog.DialogCode.Accepted:
@@ -200,7 +204,11 @@ class ItemTypeDialog(QDialog):
             return None
         item_type, kind = dialog.values()
         if item_type == ITEM_KEY_TYPE and not kind:
-            QMessageBox.warning(parent, title, "This map lists no barrier kinds. Add ids to its `barrier_kinds` first.")
+            QMessageBox.warning(
+                parent,
+                title,
+                "This map lists no barrier kinds. Add them to its gameplay settings first.",
+            )
             return None
         return item_type, kind
 

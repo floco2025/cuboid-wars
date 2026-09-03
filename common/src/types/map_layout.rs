@@ -1,5 +1,6 @@
 use bevy_ecs::prelude::Resource;
 use bincode::{Decode, Encode};
+use serde::{Deserialize, Deserializer};
 
 use crate::config::MapMovementConfig;
 
@@ -172,14 +173,26 @@ impl MapLayout {
 
 // Per-map tuning defined in `config/server/gameplay.json` under `maps` and
 // shipped to clients in `SInit` so prediction uses the server's values.
-#[derive(Debug, Clone, Encode, Decode, Resource, serde::Deserialize)]
+fn deserialize_required_option<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Option::<T>::deserialize(deserializer)
+}
+
+#[derive(Debug, Clone, Encode, Decode, Resource, Deserialize)]
 pub struct MapSettings {
     pub skybox: String,
     pub movement: MapMovementConfig,
     pub weapons: MapWeaponSettings,
+    // Ordered ids used to assign this map's stable `BarrierKindId` values;
+    // `null` means the map has no barriers, keys, or barrier plates.
+    #[serde(deserialize_with = "deserialize_required_option")]
+    pub barrier_kinds: Option<Vec<String>>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode, Deserialize)]
 pub struct MapWeaponSettings {
     pub projectiles: bool,
     pub missiles: bool,
@@ -199,7 +212,7 @@ impl MapWeaponSettings {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PortalMode {
     None,

@@ -132,7 +132,7 @@ impl AssetSet {
         for id in barrier_kind_table.ids() {
             if self.barrier_kind_color_hex(id).is_none() {
                 bail!(
-                    "barrier kind {id:?} has no color in assets.json `barrier_kind_colors`; add an entry or remove the id from the map's `barrier_kinds`"
+                    "barrier kind {id:?} has no color in assets.json `barrier_kind_colors`; add an entry or remove the id from the map's gameplay `barrier_kinds`"
                 );
             }
         }
@@ -500,20 +500,19 @@ mod tests {
     // Every shipped map's `barrier_kinds`, since the client is validated
     // against whichever map the server selected.
     fn shipped_barrier_tables() -> Vec<(String, BarrierKindTable)> {
-        let maps_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../config/server/maps");
-        let mut tables = Vec::new();
-        for entry in fs::read_dir(&maps_dir).expect("maps dir readable") {
-            let path = entry.expect("maps dir entry readable").path();
-            if path.extension().and_then(|e| e.to_str()) != Some("json") {
-                continue;
-            }
-            let text = fs::read_to_string(&path).expect("map file readable");
-            let map: serde_json::Value = serde_json::from_str(&text).expect("parse map file");
-            let ids: Vec<String> = serde_json::from_value(map["map"]["barrier_kinds"].clone())
-                .expect("map.barrier_kinds is not a list of strings");
-            let table = BarrierKindTable::from_ids(ids).expect("build barrier table");
-            tables.push((path.display().to_string(), table));
-        }
+        let gameplay: serde_json::Value = serde_json::from_str(include_str!("../../../config/server/gameplay.json"))
+            .expect("parse server gameplay config");
+        let maps = gameplay["maps"].as_object().expect("maps is not an object");
+        let mut tables = maps
+            .iter()
+            .map(|(name, map)| {
+                let ids: Option<Vec<String>> = serde_json::from_value(map["barrier_kinds"].clone())
+                    .unwrap_or_else(|error| panic!("maps.{name}.barrier_kinds is invalid: {error}"));
+                let table = BarrierKindTable::from_ids(ids.unwrap_or_default()).expect("build barrier table");
+                (name.clone(), table)
+            })
+            .collect::<Vec<_>>();
+        tables.sort_by(|a, b| a.0.cmp(&b.0));
         assert!(!tables.is_empty(), "no shipped maps found");
         tables
     }

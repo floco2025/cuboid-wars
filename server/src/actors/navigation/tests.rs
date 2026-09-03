@@ -413,11 +413,23 @@ fn ramp_node_is_not_a_cover_destination() {
 fn shipping_map_zones_are_mutually_reachable() {
     let server_gameplay_config =
         crate::config::ServerGameplayConfig::load_default().expect("default server gameplay config should load");
+    let map_name = &server_gameplay_config.default_map;
+    let barrier_kinds = BarrierKindTable::from_ids(
+        server_gameplay_config
+            .maps
+            .get(map_name)
+            .expect("default map settings missing")
+            .settings
+            .barrier_kinds
+            .clone()
+            .unwrap_or_default(),
+    )
+    .expect("build default map barrier kinds");
     let GeneratedMap {
         config: map_config,
         geometry,
         ..
-    } = crate::map::generate_map(&server_gameplay_config.default_map).expect("generate default map");
+    } = crate::map::generate_map(map_name, &barrier_kinds).expect("generate default map");
     let zones = map_config.actor_spawn_zones.clone();
     let nav = NavGraph::new(map_config, geometry);
 
@@ -722,12 +734,22 @@ fn shipping_map_sentry_recentres_before_entering_the_basement_ramp_trench() {
     let server_gameplay_config =
         crate::config::ServerGameplayConfig::load_default().expect("default server gameplay config should load");
     let gameplay_config = server_gameplay_config.gameplay_config();
+    let barrier_kinds = BarrierKindTable::from_ids(
+        server_gameplay_config
+            .maps
+            .get("hotel")
+            .expect("hotel settings missing")
+            .settings
+            .barrier_kinds
+            .clone()
+            .unwrap_or_default(),
+    )
+    .expect("build hotel barrier kinds");
     let GeneratedMap {
         layout,
         config: map_config,
         geometry,
-        barrier_kinds,
-    } = crate::map::generate_map("hotel").expect("generate the hotel map");
+    } = crate::map::generate_map("hotel", &barrier_kinds).expect("generate the hotel map");
     let world = CollisionWorld::from_map_layout(&layout, &barrier_kinds);
     let nav = NavGraph::new(map_config, geometry);
     let sentry = gameplay_config.expect_actor("sentry").physics();
