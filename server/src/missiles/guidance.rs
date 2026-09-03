@@ -62,7 +62,7 @@ pub struct MissileGuidanceParams<'w, 's> {
 
 pub fn missiles_guidance_system(time: Res<Time>, mut params: MissileGuidanceParams) {
     let delta = time.delta_secs();
-    let config = params.server_gameplay_config.missiles;
+    let config = params.server_gameplay_config.weapons.missiles;
     let missile_speed = params.map_settings.movement.missile_speed;
 
     for (id, pos, mut velocity) in &mut params.missile_query {

@@ -30,8 +30,8 @@ pub(super) fn validate_covers_actor_kinds<'a, T>(
 
 pub(crate) fn validate_map_actor_kinds(config: &ServerGameplayConfig, map_config: &MapConfig) -> Result<()> {
     for (zone_idx, zone) in map_config.actor_spawn_zones.iter().enumerate() {
-        if !config.actors.contains_key(&zone.kind) {
-            let mut known: Vec<&str> = config.actors.keys().map(String::as_str).collect();
+        if !config.actors.kinds.contains_key(&zone.kind) {
+            let mut known: Vec<&str> = config.actors.kinds.keys().map(String::as_str).collect();
             known.sort_unstable();
             bail!(
                 "map actor spawn zone {zone_idx} references unknown actor kind {:?} (known kinds: {known:?})",
@@ -75,20 +75,10 @@ pub(crate) fn validate_map_quests(
     Ok(())
 }
 
-pub(super) fn validate_positive_finite(value: f32, path: &str) -> Result<()> {
-    if value.is_finite() && value > 0.0 {
-        return Ok(());
-    }
-    bail!("{path} must be positive and finite, got {value}");
-}
+pub(super) use common::config::{validate_non_negative_finite, validate_positive_finite};
 
-pub(super) fn validate_non_negative_finite(value: f32, path: &str) -> Result<()> {
-    if value.is_finite() && value >= 0.0 {
-        return Ok(());
-    }
-    bail!("{path} must be non-negative and finite, got {value}");
-}
-
+// Serde fills an absent `Option` field with `None`; routing it through
+// `deserialize_with` makes the key mandatory, so `null` is always a choice.
 pub(super) fn deserialize_required_option<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
 where
     D: Deserializer<'de>,
@@ -99,23 +89,11 @@ where
 
 #[cfg(test)]
 mod tests {
-    use common::protocol::BarrierKindTable;
-
     use super::*;
 
     fn config_and_map() -> (ServerGameplayConfig, MapConfig) {
         let server = ServerGameplayConfig::load_default().expect("load server gameplay");
-        let barriers = BarrierKindTable::from_ids(
-            server
-                .maps
-                .get("hotel")
-                .expect("hotel settings missing")
-                .settings
-                .barrier_kinds
-                .clone(),
-        )
-        .expect("build barrier table");
-        let (_, map, _) = crate::map::generate_map(&barriers, "hotel").expect("generate hotel map");
+        let map = crate::map::generate_map("hotel").expect("generate hotel map").config;
         (server, map)
     }
 
@@ -136,7 +114,7 @@ mod tests {
     #[test]
     fn missing_server_actor_kind_is_rejected() {
         let (mut server, map) = config_and_map();
-        server.actors.remove("mine");
+        server.actors.kinds.remove("mine");
 
         let error = validate_map_actor_kinds(&server, &map).expect_err("missing server actor kind must fail");
 

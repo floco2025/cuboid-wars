@@ -11,9 +11,9 @@ use crate::{
     combat::{PendingExplosions, combat_plugin},
     config::{ServerGameplayConfig, validate_map_actor_kinds, validate_map_quests},
     items::{ItemMap, ItemSpawner, RandomItems, items_plugin},
-    map::{LightState, OpenBarrierKinds, WeatherState, generate_map, map_plugin},
+    map::{GeneratedMap, LightState, OpenBarrierKinds, WeatherState, generate_map, map_plugin},
     missiles::{AirGraph, MissileMap, missiles_plugin},
-    network::{FromClientsChannel, SnapshotRequest, network_plugin},
+    network::{FromClientsChannel, SnapshotSchedule, network_plugin},
     players::{Invincibility, PlayerMap, UnlimitedMissiles, players_plugin},
     portals::{PortalAssignments, PortalMap, portals_plugin},
     projectiles::projectiles_plugin,
@@ -21,7 +21,7 @@ use crate::{
 };
 use common::{
     physics::{CollisionWorld, PortalSet},
-    protocol::{BarrierKindTable, MapBootstrap, WorldBootstrap},
+    protocol::{MapBootstrap, WorldBootstrap},
 };
 
 const LOG_FILTER: &str = "wgpu=error,naga=warn";
@@ -36,15 +36,19 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
         bail!("unknown map {map_name:?} (available: {known:?})");
     };
     let map_settings = map_server_config.settings.clone();
-    let weather_state = WeatherState::new(server_gameplay_config.weather_cycle.clone(), map_server_config.weather);
+    let weather_state = WeatherState::new(server_gameplay_config.cycles.weather.clone(), map_server_config.weather);
     let light_state = LightState::new(
-        server_gameplay_config.lighting_cycle.clone(),
+        server_gameplay_config.cycles.lighting.clone(),
         map_server_config.lighting,
     );
     let random_items = RandomItems::from_config(map_server_config.random_items.as_ref(), map_settings.weapons);
     let portal_assignments = PortalAssignments::new(map_settings.weapons.portals);
-    let barrier_kind_table = BarrierKindTable::from_ids(map_settings.barrier_kinds.clone().unwrap_or_default())?;
-    let (map_layout, map_config, map_geometry) = generate_map(&barrier_kind_table, map_name)?;
+    let GeneratedMap {
+        layout: map_layout,
+        config: map_config,
+        geometry: map_geometry,
+        barrier_kinds: barrier_kind_table,
+    } = generate_map(map_name)?;
     let collision_world = CollisionWorld::from_map_layout(&map_layout, &barrier_kind_table);
     let nav_graph = NavGraph::new(map_config.clone(), map_geometry);
     let air_graph = AirGraph::new(map_config.clone(), map_geometry);
@@ -62,6 +66,7 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
         map: MapBootstrap {
             layout: map_layout.clone(),
             settings: map_settings.clone(),
+            barrier_kinds: barrier_kind_table.ids().to_vec(),
             key_kinds: map_config.key_kinds(),
         },
     };
@@ -108,7 +113,7 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
         .insert_resource(portal_assignments)
         .insert_resource(PortalSet::default())
         .insert_resource(OpenBarrierKinds::default())
-        .insert_resource(SnapshotRequest::default());
+        .insert_resource(SnapshotSchedule::default());
 
     configure_server_schedule(&mut app);
     app.add_plugins((

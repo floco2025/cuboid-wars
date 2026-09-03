@@ -1,5 +1,5 @@
 {
-  "default_map": "obby",
+  "default_map": "hotel",
   "maps": {
     "hotel": {
       "skybox": "cloudy_day",
@@ -29,7 +29,6 @@
         "missiles": true,
         "portals": "both"
       },
-      "barrier_kinds": [ "treasure", "basement", "gravity", "lobby" ],
       "random_items": {
         "types": [ "speed", "multi_shot", "low_gravity", "health_potion", "missile_pack" ],
         "max_number": 30,
@@ -126,7 +125,6 @@
         "missiles": false,
         "portals": "single"
       },
-      "barrier_kinds": null,
       "random_items": null,
       "quests": []
     }

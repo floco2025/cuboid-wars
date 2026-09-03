@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use anyhow::Result;
 use serde::Deserialize;
 
-use super::{ActorKindServerConfig, validation::validate_covers_actor_kinds};
+use super::validation::validate_covers_actor_kinds;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct ScoringConfig {
@@ -15,7 +15,7 @@ pub struct ScoringConfig {
 }
 
 impl ScoringConfig {
-    pub(super) fn validate(&self, actors: &HashMap<String, ActorKindServerConfig>) -> Result<()> {
+    pub(super) fn validate<T>(&self, actors: &HashMap<String, T>) -> Result<()> {
         for (map, name) in [(&self.actor_hit, "actor_hit"), (&self.actor_kill, "actor_kill")] {
             validate_covers_actor_kinds(map.keys(), actors, &format!("scoring.{name}"))?;
         }
@@ -37,24 +37,8 @@ mod tests {
         }
     }
 
-    fn one_actor_kind(kind: &str) -> HashMap<String, ActorKindServerConfig> {
-        let json = serde_json::json!({
-            "collider": {
-                "width": 1.0,
-                "height": 1.0,
-                "depth": 1.0,
-                "y_offset": 0.1,
-                "y_offset_anchor": "bottom"
-            },
-            "support_probe": { "width": 0.2, "depth": 0.2 },
-            "eye_height": 1.0,
-            "respawn_secs": 60.0,
-            "vision_range": 40.0,
-            "roam_steps": 2,
-            "attack": { "type": "contact", "trigger_gap": 0.4 }
-        });
-        let actor: ActorKindServerConfig = serde_json::from_value(json).expect("actor fixture should deserialize");
-        HashMap::from([(kind.to_owned(), actor)])
+    fn one_actor_kind(kind: &str) -> HashMap<String, ()> {
+        HashMap::from([(kind.to_owned(), ())])
     }
 
     #[test]

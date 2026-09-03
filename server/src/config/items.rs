@@ -5,6 +5,19 @@ use super::validation::validate_non_negative_finite;
 use common::protocol::{ItemType, PowerUpKind};
 
 #[derive(Debug, Clone, Deserialize)]
+pub struct ItemsConfig {
+    pub power_ups: PowerUpsConfig,
+    pub placed: PlacedItemsConfig,
+}
+
+impl ItemsConfig {
+    pub(super) fn validate(&self, path: &str) -> Result<()> {
+        self.power_ups.validate(&format!("{path}.power_ups"))?;
+        self.placed.validate(&format!("{path}.placed"))
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct PowerUpsConfig {
     pub duration_secs: PowerUpDurationSecs,
 }
@@ -27,7 +40,7 @@ impl PowerUpsConfig {
         }
     }
 
-    pub(super) fn validate(&self, path: &str) -> Result<()> {
+    fn validate(&self, path: &str) -> Result<()> {
         let secs = &self.duration_secs;
         for (value, name) in [
             (secs.speed, "speed"),
@@ -71,7 +84,7 @@ impl PlacedItemsConfig {
         }
     }
 
-    pub(super) fn validate(&self, path: &str) -> Result<()> {
+    fn validate(&self, path: &str) -> Result<()> {
         let secs = &self.respawn_secs;
         for (value, name) in [
             (secs.speed, "speed"),

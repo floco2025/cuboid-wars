@@ -14,5 +14,5 @@ pub use broadcast::{broadcast_firework_show, broadcast_to_all, broadcast_to_othe
 pub use feed::{DeathCause, FeedAudience, FeedEvent, emit_feed};
 pub use plugin::network_plugin;
 pub use resources::FromClientsChannel;
-pub use snapshot::SnapshotRequest;
+pub use snapshot::SnapshotSchedule;
 pub use transport::{ClientToServer, ServerToClient, accept_connections_task};

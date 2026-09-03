@@ -20,6 +20,7 @@ def empty_map(grid_cols: int = DEFAULT_GRID_COLS, grid_rows: int = DEFAULT_GRID_
     return {
         "grid_cols": grid_cols,
         "grid_rows": grid_rows,
+        "barrier_kinds": [],
         "actor_spawn_zones": [],
         "player_spawn_zones": [
             {"level": 0, "cols": [0, 2], "rows": [0, 2]},

@@ -191,7 +191,7 @@ mod tests {
         config.combat.health.actors.remove("mine");
         let err = config
             .combat
-            .validate(&config.actors)
+            .validate(&config.actors.kinds)
             .expect_err("missing kind must fail");
         assert!(err.to_string().contains("combat.health.actors"));
         assert!(err.to_string().contains("mine"));
@@ -204,7 +204,7 @@ mod tests {
         config.combat.damage.actors.insert("banana".to_owned(), zapper);
         let err = config
             .combat
-            .validate(&config.actors)
+            .validate(&config.actors.kinds)
             .expect_err("unknown kind must fail");
         assert!(err.to_string().contains("combat.damage.actors"));
         assert!(err.to_string().contains("banana"));
@@ -222,7 +222,7 @@ mod tests {
             .beam_dps = Some(1.0);
         let err = config
             .combat
-            .validate(&config.actors)
+            .validate(&config.actors.kinds)
             .expect_err("beam dps on a contact kind must fail");
         assert!(err.to_string().contains("fires no beam"));
     }
@@ -239,7 +239,7 @@ mod tests {
             .beam_dps = None;
         let err = config
             .combat
-            .validate(&config.actors)
+            .validate(&config.actors.kinds)
             .expect_err("missing beam dps on a beam kind must fail");
         assert!(err.to_string().contains("fires a beam"));
     }
@@ -251,7 +251,7 @@ mod tests {
             config.combat.health.player.potion_heal = fraction;
             let err = config
                 .combat
-                .validate(&config.actors)
+                .validate(&config.actors.kinds)
                 .expect_err("out-of-range potion fraction must fail");
             assert!(err.to_string().contains("potion_heal"));
         }

@@ -152,7 +152,7 @@ fn consume_item(
         return;
     };
     if let ItemPlacement::Placed { respawn_countdown } = &mut item_info.placement {
-        *respawn_countdown = server_gameplay_config.placed_items.respawn_secs_for(item_type);
+        *respawn_countdown = server_gameplay_config.items.placed.respawn_secs_for(item_type);
         return;
     }
     if let Some(info) = items.remove(&item_id) {
@@ -248,7 +248,7 @@ fn collect_missile_pack(
         return;
     };
     let missiles = player_info.add_missiles(
-        server_gameplay_config.missiles.missiles_per_pack,
+        server_gameplay_config.weapons.missiles.missiles_per_pack,
         gameplay_config.missiles.max_missiles,
     );
     // Unicast pickup cue — the snapshot's `Player.missiles` is the system
@@ -271,7 +271,7 @@ fn collect_power_up(
     let Some(player_info) = players.get_mut(&player_id) else {
         return;
     };
-    player_info.grant_power_up(item_type, &server_gameplay_config.power_ups);
+    player_info.grant_power_up(item_type, &server_gameplay_config.items.power_ups);
     status_broadcasts.push(player_info.status(player_id));
 }
 
@@ -346,7 +346,7 @@ mod tests {
         let server_config = ServerGameplayConfig::load_default().expect("load default server gameplay config");
         let config = server_config.gameplay_config();
         let mut player = player();
-        player.grant_power_up(ItemType::SpeedPowerUp, &server_config.power_ups);
+        player.grant_power_up(ItemType::SpeedPowerUp, &server_config.items.power_ups);
         assert!(player.has_speed());
 
         assert!(pickup_has_effect(

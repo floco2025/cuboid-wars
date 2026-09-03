@@ -12,7 +12,6 @@ from PySide6.QtWidgets import QComboBox, QLabel, QMainWindow, QMenu, QToolBar
 from .canvas import Canvas
 from .commands import SetMapCommand
 from .constants import (
-    BARRIER_KIND_TABLE,
     DEFAULT_ACTOR_COUNT,
     DEFAULT_ALIAS,
     ERASE_MODES,
@@ -73,12 +72,13 @@ class EditorWindow(
         # of a session and remembers the last value across subsequent paints.
         self.recent_actor_spawn_kind: str = ""
         self.recent_actor_spawn_count: int = DEFAULT_ACTOR_COUNT
-        # Last-used barrier kind, seeded from the first configured kind so the
-        # picker dialog has a sensible default on the first paint.
-        self.recent_barrier_kind: str | None = BARRIER_KIND_TABLE[0] if BARRIER_KIND_TABLE else None
-        self.recent_pressure_plate_kind: str | None = BARRIER_KIND_TABLE[0] if BARRIER_KIND_TABLE else None
+        # Last-used barrier kind, seeded from the map's first listed kind so
+        # the picker dialog has a sensible default on the first paint.
+        first_kind = self.barrier_kinds[0] if self.barrier_kinds else None
+        self.recent_barrier_kind: str | None = first_kind
+        self.recent_pressure_plate_kind: str | None = first_kind
         self.recent_item_type: str = ITEM_TYPES[0]
-        self.recent_item_key_kind: str | None = BARRIER_KIND_TABLE[0] if BARRIER_KIND_TABLE else None
+        self.recent_item_key_kind: str | None = first_kind
         # (row_spacing, row_offset, col_spacing, col_offset) — remembered
         # across opens of the Auto-Place Lights dialog. Spacing is "cells
         # skipped between lights": 0 = every cell, 1 = every other, 2 = every
@@ -146,6 +146,10 @@ class EditorWindow(
     @map_data.setter
     def map_data(self, value: dict) -> None:
         self.doc.map_data = value
+
+    @property
+    def barrier_kinds(self) -> list[str]:
+        return self.doc.barrier_kinds
 
     @property
     def dirty(self) -> bool:

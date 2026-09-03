@@ -102,6 +102,7 @@ def format_map_file(wrapper: dict) -> str:
         '  "map": {',
         f'    "grid_cols": {map_data["grid_cols"]},',
         f'    "grid_rows": {map_data["grid_rows"]},',
+        f'    "barrier_kinds": {json.dumps(map_data.get("barrier_kinds", []))},',
         *with_trailing_comma(format_actor_spawn_zones(map_data["actor_spawn_zones"], 4)),
         *with_trailing_comma(format_player_spawn_zones(map_data["player_spawn_zones"], 4)),
         *with_trailing_comma(format_pressure_plates(map_data.get("pressure_plates", []), 4)),

@@ -1,6 +1,8 @@
-use anyhow::{Result, bail};
+use anyhow::Result;
 use bincode::{Decode, Encode};
 use serde::Deserialize;
+
+use super::validation::validate_positive_finite;
 
 #[derive(Debug, Clone, Copy, Encode, Decode, Deserialize)]
 pub struct PortalsConfig {
@@ -9,9 +11,6 @@ pub struct PortalsConfig {
 
 impl PortalsConfig {
     pub fn validate(&self, path: &str) -> Result<()> {
-        if !(self.range.is_finite() && self.range > 0.0) {
-            bail!("{path}.range must be positive, got {}", self.range);
-        }
-        Ok(())
+        validate_positive_finite(self.range, &format!("{path}.range"))
     }
 }

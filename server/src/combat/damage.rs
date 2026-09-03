@@ -294,18 +294,22 @@ mod tests {
 
     use super::*;
     use crate::config::{
-        ActorSettingsConfig, BlastConfig, CombatConfig, DamageConfig, FallDamageConfig, HealthConfig,
-        LightingCycleConfig, LightingMode, MapServerConfig, MissilesServerConfig, PlacedItemRespawnSecs,
-        PlacedItemsConfig, PlayerHealthConfig, PowerUpDurationSecs, PowerUpsConfig, ScoringConfig, WeatherCycleConfig,
-        WeatherMode,
+        ActorSettingsConfig, ActorsConfig, BlastConfig, CombatConfig, CyclesConfig, DamageConfig, FallDamageConfig,
+        HealthConfig, ItemsConfig, LightingCycleConfig, LightingMode, MapServerConfig, MissilesServerConfig,
+        PlacedItemRespawnSecs, PlacedItemsConfig, PlayerHealthConfig, PowerUpDurationSecs, PowerUpsConfig,
+        ScoringConfig, WeaponsConfig, WeatherCycleConfig, WeatherMode,
     };
-    use crate::{actors::ActorInfo, network::ServerToClient, players::PlayerInfo};
+    use crate::{
+        actors::ActorInfo,
+        network::ServerToClient,
+        players::{ConnectionPhase, PlayerInfo},
+    };
     use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
 
     fn logged_in_player(players: &mut PlayerMap, id: PlayerId, name: &str) -> UnboundedReceiver<ServerToClient> {
         let (tx, rx) = unbounded_channel();
         let mut info = PlayerInfo::new(Entity::PLACEHOLDER, tx);
-        info.connection.phase = crate::players::ConnectionPhase::Active;
+        info.connection.phase = ConnectionPhase::Active;
         info.connection.name = name.to_owned();
         players.insert(id, info);
         rx
@@ -362,17 +366,8 @@ mod tests {
             .settings
             .movement
             .clone();
-        let barrier_kinds = default
-            .maps
-            .get("hotel")
-            .expect("hotel map settings missing")
-            .settings
-            .barrier_kinds
-            .clone();
         ServerGameplayConfig {
-            player: default.player,
-            projectiles: default.projectiles,
-            portals: default.portals,
+            default_map: "hotel".to_owned(),
             maps: HashMap::from([(
                 "hotel".to_owned(),
                 MapServerConfig {
@@ -384,7 +379,6 @@ mod tests {
                             missiles: true,
                             portals: common::protocol::PortalMode::Both,
                         },
-                        barrier_kinds,
                     },
                     random_items: None,
                     weather: WeatherMode::Clear,
@@ -392,22 +386,47 @@ mod tests {
                     quests: Vec::new(),
                 },
             )]),
-            default_map: "hotel".to_owned(),
-            weather_cycle: WeatherCycleConfig {
-                min_clear_secs: 10.0,
-                max_clear_secs: 20.0,
-                min_rain_secs: 5.0,
-                max_rain_secs: 8.0,
-                ramp_in_secs: 2.0,
-                fade_out_secs: 4.0,
+            player: default.player,
+            actors: ActorsConfig {
+                settings: ActorSettingsConfig {
+                    spawn_warning_secs: 0.0,
+                    threat_memory_secs: 0.0,
+                },
+                kinds: HashMap::new(),
             },
-            lighting_cycle: LightingCycleConfig {
-                bright_secs: Some(20.0),
-                dim_secs: Some(6.0),
-                dark_secs: Some(10.0),
-                bright_dim_secs: Some(4.0),
-                dim_dark_secs: Some(2.0),
-                bright_dark_secs: None,
+            weapons: WeaponsConfig {
+                projectiles: default.weapons.projectiles,
+                missiles: MissilesServerConfig {
+                    gameplay: default.weapons.missiles.gameplay,
+                    turn_radius: 1.7,
+                    lifetime_secs: 10.0,
+                    launch_spread_degrees: 50.0,
+                    weave_strength: 0.35,
+                    proximity_fuse_distance: 1.5,
+                    stall_secs: 2.0,
+                    missiles_per_pack: 1,
+                },
+                portals: default.weapons.portals,
+            },
+            items: ItemsConfig {
+                power_ups: PowerUpsConfig {
+                    duration_secs: PowerUpDurationSecs {
+                        speed: 1.0,
+                        multi_shot: 1.0,
+                        low_gravity: 1.0,
+                    },
+                },
+                placed: PlacedItemsConfig {
+                    respawn_secs: PlacedItemRespawnSecs {
+                        speed: 60.0,
+                        multi_shot: 60.0,
+                        low_gravity: 60.0,
+                        health_potion: 60.0,
+                        cookie: 60.0,
+                        key: 30.0,
+                        missile_pack: 30.0,
+                    },
+                },
             },
             scoring: ScoringConfig {
                 player_kill: 1,
@@ -442,39 +461,24 @@ mod tests {
                     actors: HashMap::new(),
                 },
             },
-            missiles: MissilesServerConfig {
-                gameplay: default.missiles.gameplay,
-                turn_radius: 1.7,
-                lifetime_secs: 10.0,
-                launch_spread_degrees: 50.0,
-                weave_strength: 0.35,
-                proximity_fuse_distance: 1.5,
-                stall_secs: 2.0,
-                missiles_per_pack: 1,
-            },
-            power_ups: PowerUpsConfig {
-                duration_secs: PowerUpDurationSecs {
-                    speed: 1.0,
-                    multi_shot: 1.0,
-                    low_gravity: 1.0,
+            cycles: CyclesConfig {
+                weather: WeatherCycleConfig {
+                    min_clear_secs: 10.0,
+                    max_clear_secs: 20.0,
+                    min_rain_secs: 5.0,
+                    max_rain_secs: 8.0,
+                    ramp_in_secs: 2.0,
+                    fade_out_secs: 4.0,
+                },
+                lighting: LightingCycleConfig {
+                    bright_secs: Some(20.0),
+                    dim_secs: Some(6.0),
+                    dark_secs: Some(10.0),
+                    bright_dim_secs: Some(4.0),
+                    dim_dark_secs: Some(2.0),
+                    bright_dark_secs: None,
                 },
             },
-            placed_items: PlacedItemsConfig {
-                respawn_secs: PlacedItemRespawnSecs {
-                    speed: 60.0,
-                    multi_shot: 60.0,
-                    low_gravity: 60.0,
-                    health_potion: 60.0,
-                    cookie: 60.0,
-                    key: 30.0,
-                    missile_pack: 30.0,
-                },
-            },
-            actor_settings: ActorSettingsConfig {
-                spawn_warning_secs: 0.0,
-                threat_memory_secs: 0.0,
-            },
-            actors: HashMap::new(),
             feed: FeedConfig::all(true, &[]),
         }
     }
@@ -634,12 +638,12 @@ mod tests {
         // Receiver with a logged-in shooter so the broadcast can reach them.
         let (shooter_tx, mut shooter_rx) = unbounded_channel();
         let mut shooter = PlayerInfo::new(Entity::PLACEHOLDER, shooter_tx);
-        shooter.connection.phase = crate::players::ConnectionPhase::Active;
+        shooter.connection.phase = ConnectionPhase::Active;
         players.insert(PlayerId(1), shooter);
 
         // The dying player; also logged_in so the broadcast targets them too.
         let mut target = make_player_info();
-        target.connection.phase = crate::players::ConnectionPhase::Active;
+        target.connection.phase = ConnectionPhase::Active;
         let target_entity = target.entity().expect("new player has no entity");
         players.insert(PlayerId(2), target);
 

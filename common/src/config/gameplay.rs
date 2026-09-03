@@ -48,6 +48,8 @@ impl GameplayConfig {
     }
 }
 
+// Test-only view of `config/server/gameplay.json`: the source structs mirror
+// the server's `ServerGameplayConfig` layout, so the two change together.
 #[cfg(test)]
 pub(crate) fn load_test_gameplay() -> Result<GameplayConfig> {
     use anyhow::Context;

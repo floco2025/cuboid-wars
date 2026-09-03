@@ -23,7 +23,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .constants import BARRIER_KIND_TABLE, ITEM_KEY_TYPE, ITEM_TYPES
+from .constants import ITEM_KEY_TYPE, ITEM_TYPES
 
 
 class ActorSpawnFieldsDialog(QDialog):
@@ -74,19 +74,19 @@ class ActorSpawnFieldsDialog(QDialog):
 
 
 class BarrierKindDialog(QDialog):
-    """Modal dialog asking which barrier kind to use. The list of kinds comes
-    from the config-loaded `BARRIER_KIND_TABLE`. Returns the chosen id string
-    on accept, None on cancel."""
+    """Modal dialog asking which barrier kind to use. `kinds` is the map's
+    own `barrier_kinds` list. Returns the chosen id string on accept, None on
+    cancel."""
 
-    def __init__(self, parent, title: str, current: str | None):
+    def __init__(self, parent, title: str, kinds: list[str], current: str | None):
         super().__init__(parent)
         self.setWindowTitle(title)
 
         self._combo = QComboBox()
-        for id_ in BARRIER_KIND_TABLE:
+        for id_ in kinds:
             self._combo.addItem(id_)
-        if current and current in BARRIER_KIND_TABLE:
-            self._combo.setCurrentIndex(BARRIER_KIND_TABLE.index(current))
+        if current and current in kinds:
+            self._combo.setCurrentIndex(kinds.index(current))
 
         form = QFormLayout()
         form.addRow("Kind:", self._combo)
@@ -103,15 +103,11 @@ class BarrierKindDialog(QDialog):
         return self._combo.currentText()
 
     @classmethod
-    def prompt(cls, parent, title: str, current: str | None) -> str | None:
-        if not BARRIER_KIND_TABLE:
-            QMessageBox.warning(
-                parent,
-                title,
-                "No barrier kinds are configured in `config/server/gameplay.json::barrier_kinds`.",
-            )
+    def prompt(cls, parent, title: str, kinds: list[str], current: str | None) -> str | None:
+        if not kinds:
+            QMessageBox.warning(parent, title, "This map lists no barrier kinds. Add ids to its `barrier_kinds` first.")
             return None
-        dialog = cls(parent, title, current)
+        dialog = cls(parent, title, kinds, current)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return None
         return dialog.value()
@@ -157,7 +153,7 @@ class ItemTypeDialog(QDialog):
     pick a barrier kind; the kind combo is disabled for every other type.
     Returns (type, kind-or-None) on accept, None on cancel."""
 
-    def __init__(self, parent, title: str, current_type: str | None, current_kind: str | None):
+    def __init__(self, parent, title: str, kinds: list[str], current_type: str | None, current_kind: str | None):
         super().__init__(parent)
         self.setWindowTitle(title)
 
@@ -168,10 +164,10 @@ class ItemTypeDialog(QDialog):
             self._type_combo.setCurrentIndex(ITEM_TYPES.index(current_type))
 
         self._kind_combo = QComboBox()
-        for id_ in BARRIER_KIND_TABLE:
+        for id_ in kinds:
             self._kind_combo.addItem(id_)
-        if current_kind and current_kind in BARRIER_KIND_TABLE:
-            self._kind_combo.setCurrentIndex(BARRIER_KIND_TABLE.index(current_kind))
+        if current_kind and current_kind in kinds:
+            self._kind_combo.setCurrentIndex(kinds.index(current_kind))
         self._type_combo.currentTextChanged.connect(self._update_kind_enabled)
         self._update_kind_enabled(self._type_combo.currentText())
 
@@ -197,18 +193,14 @@ class ItemTypeDialog(QDialog):
 
     @classmethod
     def prompt(
-        cls, parent, title: str, current_type: str | None, current_kind: str | None
+        cls, parent, title: str, kinds: list[str], current_type: str | None, current_kind: str | None
     ) -> tuple[str, str | None] | None:
-        dialog = cls(parent, title, current_type, current_kind)
+        dialog = cls(parent, title, kinds, current_type, current_kind)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return None
         item_type, kind = dialog.values()
         if item_type == ITEM_KEY_TYPE and not kind:
-            QMessageBox.warning(
-                parent,
-                title,
-                "No barrier kinds are configured in `config/server/gameplay.json::barrier_kinds`.",
-            )
+            QMessageBox.warning(parent, title, "This map lists no barrier kinds. Add ids to its `barrier_kinds` first.")
             return None
         return item_type, kind
 

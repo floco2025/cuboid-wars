@@ -19,7 +19,7 @@
 ## Walls + Barriers
 
 - **Wall** — Drag along grid lines to place atomic wall edges.
-- **Barrier** — Drag along grid lines to place a translucent pulsating force-field; a dialog asks which kind to use. Kinds and colors are defined in `config/server/gameplay.json::barrier_kinds` + `config/client/assets.json::barrier_kind_colors`.
+- **Barrier** — Drag along grid lines to place a translucent pulsating force-field; a dialog asks which kind to use. Kinds are listed in the map's own `barrier_kinds`; colors come from `config/client/assets.json::barrier_kind_colors`.
 
 ## Ramps
 
@@ -50,7 +50,7 @@
 
 ## Items
 
-- **Item** — Left-click a floor cell to place an item; a dialog asks the type (power-ups, health potion, cookie, or key — keys also pick a barrier kind). Clicking a cell that already holds an item removes it. Placed items hide on pickup in-game and reappear after the per-type `placed_items.respawn_secs` delay from `config/server/gameplay.json`. Non-key items render as colored circles; keys as diamonds in their barrier-kind color.
+- **Item** — Left-click a floor cell to place an item; a dialog asks the type (power-ups, health potion, cookie, or key — keys also pick a barrier kind). Clicking a cell that already holds an item removes it. Placed items hide on pickup in-game and reappear after the per-type `items.placed.respawn_secs` delay from `config/server/gameplay.json`. Non-key items render as colored circles; keys as diamonds in their barrier-kind color.
 - **Erase Items** — Drag a rectangle to remove every item inside it on the current level.
 
 ## Erase

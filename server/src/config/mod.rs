@@ -10,22 +10,24 @@ mod network;
 mod quests;
 mod scoring;
 mod validation;
+mod weapons;
 
 pub use actors::{
-    ActorAttackConfig, ActorBeamAttackConfig, ActorKindServerConfig, ActorSettingsConfig, ContactAttackConfig,
-    ContactBeamAttackConfig,
+    ActorAttackConfig, ActorBeamAttackConfig, ActorKindServerConfig, ActorSettingsConfig, ActorsConfig,
+    ContactAttackConfig, ContactBeamAttackConfig,
 };
 pub use combat::{
     ActorDamageConfig, ActorHealthConfig, BlastConfig, CombatConfig, DamageConfig, FallDamageConfig, HealthConfig,
     PlayerHealthConfig,
 };
-pub use cycles::{LightingCycleConfig, WeatherCycleConfig};
+pub use cycles::{CyclesConfig, LightingCycleConfig, WeatherCycleConfig};
 pub use feed::FeedConfig;
 pub use gameplay::{PlayerServerConfig, ServerGameplayConfig};
-pub use items::{PlacedItemRespawnSecs, PlacedItemsConfig, PowerUpDurationSecs, PowerUpsConfig};
+pub use items::{ItemsConfig, PlacedItemRespawnSecs, PlacedItemsConfig, PowerUpDurationSecs, PowerUpsConfig};
 pub use maps::{LightingMode, MapServerConfig, RandomItemsConfig, WeatherMode};
 pub use missiles::MissilesServerConfig;
 pub use network::configure_server;
 pub use quests::{Quest, QuestKind};
 pub use scoring::ScoringConfig;
 pub(crate) use validation::{validate_map_actor_kinds, validate_map_quests};
+pub use weapons::WeaponsConfig;

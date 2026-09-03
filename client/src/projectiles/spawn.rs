@@ -65,13 +65,27 @@ impl ProjectileBundle {
         direction_pitch: f32,
         shooter_id: PlayerId,
     ) -> Self {
+        Self::with_motion(
+            projectile_assets,
+            position,
+            ProjectileMotion::new(direction_yaw, direction_pitch, projectile_speed, &gameplay.projectiles),
+            shooter_id,
+        )
+    }
+
+    fn with_motion(
+        projectile_assets: &ProjectileAssets,
+        position: Vec3,
+        proj_motion: ProjectileMotion,
+        shooter_id: PlayerId,
+    ) -> Self {
         Self {
             mesh: Mesh3d(projectile_assets.mesh.clone()),
             material: MeshMaterial3d(projectile_assets.material.clone()),
             transform: Transform::from_translation(position),
             position: position.into(),
             previous_tick_position: PreviousTickPosition(position.into()),
-            proj_motion: ProjectileMotion::new(direction_yaw, direction_pitch, projectile_speed, &gameplay.projectiles),
+            proj_motion,
             player_id: shooter_id,
             proj_marker: ProjectileMarker,
         }
@@ -91,18 +105,14 @@ pub fn spawn_ember_projectile(
     velocity: Vec3,
     shooter: Option<PlayerId>,
 ) {
-    let mut bundle = ProjectileBundle::new(
+    let mut motion = ProjectileMotion::from_velocity(velocity, &gameplay.projectiles);
+    motion.lifetime = Timer::from_seconds(EMBER_LIFETIME_SECS, TimerMode::Once);
+    commands.spawn(ProjectileBundle::with_motion(
         projectile_assets,
-        gameplay,
-        0.0,
         pos,
-        0.0,
-        0.0,
+        motion,
         shooter.unwrap_or(PlayerId(u32::MAX)),
-    );
-    bundle.proj_motion.velocity = velocity;
-    bundle.proj_motion.lifetime = Timer::from_seconds(EMBER_LIFETIME_SECS, TimerMode::Once);
-    commands.spawn(bundle);
+    ));
 }
 
 // ============================================================================

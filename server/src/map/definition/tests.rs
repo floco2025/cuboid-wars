@@ -90,6 +90,7 @@ fn map_with_zones(
     MapDef {
         grid_cols: grid,
         grid_rows: grid,
+        barrier_kinds: Vec::new(),
         actor_spawn_zones,
         player_spawn_zones,
         items: Vec::new(),
@@ -903,9 +904,9 @@ fn every_shipped_ladder_ascends_at_least_one_storey() {
             .get(map_name)
             .expect("shipped map missing from server gameplay config")
             .settings;
-        let kind_table = BarrierKindTable::from_ids(map_settings.barrier_kinds.clone())
-            .expect("barrier kinds should build from map config");
         let map_def = super::load_map(&path).expect("map file should load");
+        let kind_table = BarrierKindTable::from_ids(map_def.barrier_kinds.clone())
+            .expect("barrier kinds should build from the map file");
         let assets = MaterialRules::from_def(&map_def);
         let (layout, _, _) = compile_map(&map_def, &assets, &kind_table).expect("map should compile");
         let world = CollisionWorld::from_map_layout(&layout, &kind_table);

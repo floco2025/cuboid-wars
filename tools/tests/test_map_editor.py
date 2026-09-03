@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from map_editor.constants import BARRIER_KIND_TABLE, DEFAULT_ALIAS, FACES
+from map_editor.constants import DEFAULT_ALIAS, FACES
 from map_editor.geometry import ramp_axis, ramp_cells, wall_segments_between
 from map_editor.io import empty_map, read_map, write_map
 from map_editor.normalization import canonicalize_map, resize_map_data
@@ -16,6 +16,15 @@ def faces(alias: str = DEFAULT_ALIAS) -> dict[str, str]:
 
 def floor(col: int, row: int) -> dict:
     return {"col": col, "row": row, **faces()}
+
+
+KIND = "treasure"
+
+
+def map_with_kinds(cols: int, rows: int, kinds: list[str] = (KIND,)) -> dict:
+    data = empty_map(cols, rows)
+    data["barrier_kinds"] = list(kinds)
+    return data
 
 
 class GeometryTests(unittest.TestCase):
@@ -77,7 +86,7 @@ class FileIoTests(unittest.TestCase):
 
 class ResizeTests(unittest.TestCase):
     def test_center_resize_translates_every_coordinate_family(self) -> None:
-        data = empty_map(4, 4)
+        data = map_with_kinds(4, 4)
         data["levels"].append(
             {
                 "name": "Upper",
@@ -97,7 +106,7 @@ class ResizeTests(unittest.TestCase):
             {"level": 0, "cols": [1, 3], "rows": [1, 3], "kind": "mine", "count": 1}
         ]
         data["items"] = [{"level": 0, "col": 1, "row": 1, "type": "cookie"}]
-        data["pressure_plates"] = [{"level": 0, "col": 1, "row": 1, "type": "barrier", "kind": BARRIER_KIND_TABLE[0]}]
+        data["pressure_plates"] = [{"level": 0, "col": 1, "row": 1, "type": "barrier", "kind": KIND}]
         data["ramps"] = [{"lower_level": 0, "low": [1, 1], "high": [3, 2], **faces()}]
         data["ladders"] = [{"lower_level": 0, "col": 1, "row": 1, "side": "N", "levels": 1}]
 
@@ -115,9 +124,9 @@ class ResizeTests(unittest.TestCase):
 
 class PressurePlateTests(unittest.TestCase):
     def test_canonicalization_keeps_one_plate_per_type_on_a_cell(self) -> None:
-        data = empty_map(2, 2)
+        data = map_with_kinds(2, 2)
         data["levels"][0]["floors"] = [floor(0, 0)]
-        barrier = {"level": 0, "col": 0, "row": 0, "type": "barrier", "kind": BARRIER_KIND_TABLE[0]}
+        barrier = {"level": 0, "col": 0, "row": 0, "type": "barrier", "kind": KIND}
         firework = {"level": 0, "col": 0, "row": 0, "type": "firework"}
         data["pressure_plates"] = [firework, barrier, dict(firework)]
 
@@ -126,10 +135,10 @@ class PressurePlateTests(unittest.TestCase):
         self.assertEqual(result["pressure_plates"], [barrier, firework])
 
     def test_plates_round_trip_through_the_file_format(self) -> None:
-        data = empty_map(2, 2)
+        data = map_with_kinds(2, 2)
         data["levels"][0]["floors"] = [floor(0, 0), floor(1, 0)]
         data["pressure_plates"] = [
-            {"level": 0, "col": 0, "row": 0, "type": "barrier", "kind": BARRIER_KIND_TABLE[0]},
+            {"level": 0, "col": 0, "row": 0, "type": "barrier", "kind": KIND},
             {"level": 0, "col": 1, "row": 0, "type": "firework"},
         ]
 
@@ -141,12 +150,12 @@ class PressurePlateTests(unittest.TestCase):
             self.assertEqual(read_map(path)["pressure_plates"], data["pressure_plates"])
 
     def test_plate_validation_flags_bad_types_and_kinds(self) -> None:
-        data = empty_map(2, 2)
+        data = map_with_kinds(2, 2)
         data["levels"][0]["floors"] = [floor(0, 0)]
         data["pressure_plates"] = [
             {"level": 0, "col": 0, "row": 0, "type": "confetti"},
             {"level": 0, "col": 0, "row": 0, "type": "barrier", "kind": "nope"},
-            {"level": 0, "col": 1, "row": 0, "type": "firework", "kind": BARRIER_KIND_TABLE[0]},
+            {"level": 0, "col": 1, "row": 0, "type": "firework", "kind": KIND},
             {"level": 0, "col": 1, "row": 1, "type": "firework"},
             {"level": 0, "col": 1, "row": 1, "type": "firework"},
         ]
@@ -154,9 +163,48 @@ class PressurePlateTests(unittest.TestCase):
         errors = validate_map(data)
 
         self.assertTrue(any("unknown type 'confetti'" in error for error in errors))
-        self.assertTrue(any("unknown barrier kind 'nope'" in error for error in errors))
+        self.assertTrue(any("unknown barrier kind 'nope'; known: [treasure]" in error for error in errors))
         self.assertTrue(any("must not have `kind`" in error for error in errors))
         self.assertTrue(any("duplicates a plate" in error for error in errors))
+
+
+class BarrierKindTests(unittest.TestCase):
+    def test_unlisted_kind_is_flagged_naming_the_listed_ones(self) -> None:
+        data = map_with_kinds(2, 2, [KIND, "lobby"])
+        data["levels"][0]["floors"] = [floor(0, 0)]
+        data["levels"][0]["barriers"] = [{"c0": 0, "r0": 0, "c1": 1, "r1": 0, "kind": "nope"}]
+        data["items"] = [{"level": 0, "col": 0, "row": 0, "type": "key", "kind": "nope"}]
+
+        errors = validate_map(data)
+
+        self.assertTrue(any("barrier[0] has unknown kind 'nope'; known: [treasure, lobby]" in e for e in errors))
+        self.assertTrue(any("unknown key kind 'nope'; known: [treasure, lobby]" in e for e in errors))
+
+        data["barrier_kinds"] = []
+        errors = validate_map(data)
+        self.assertTrue(any("known: [(none listed)]" in e for e in errors))
+
+    def test_listed_kind_needs_a_color_and_no_duplicates(self) -> None:
+        data = map_with_kinds(2, 2, [KIND, KIND, "no_such_color", ""])
+        data["levels"][0]["floors"] = [floor(0, 0)]
+
+        errors = validate_map(data)
+
+        self.assertTrue(any("barrier_kinds[1] duplicates 'treasure'" in e for e in errors))
+        self.assertTrue(any("barrier_kinds[2] 'no_such_color' has no color" in e for e in errors))
+        self.assertTrue(any("barrier_kinds[3] is empty" in e for e in errors))
+
+    def test_barrier_kinds_round_trip_through_the_file_format(self) -> None:
+        data = map_with_kinds(2, 2, [KIND, "lobby"])
+        data["levels"][0]["floors"] = [floor(0, 0)]
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "map.json"
+            write_map(path, data)
+            text = path.read_text(encoding="utf-8")
+            self.assertIn('"barrier_kinds": ["treasure", "lobby"],', text)
+            self.assertEqual(read_map(path)["barrier_kinds"], [KIND, "lobby"])
+            self.assertEqual(read_map(path), canonicalize_map(data))
 
 
 class ValidationTests(unittest.TestCase):

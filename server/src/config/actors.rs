@@ -1,8 +1,32 @@
+use std::collections::HashMap;
+
 use anyhow::{Result, bail};
 use common::config::CharacterGameplayConfig;
 use serde::Deserialize;
 
 use super::validation::{deserialize_required_option, validate_non_negative_finite, validate_positive_finite};
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ActorsConfig {
+    pub settings: ActorSettingsConfig,
+    pub kinds: HashMap<String, ActorKindServerConfig>,
+}
+
+impl ActorsConfig {
+    pub(super) fn validate(&self, path: &str) -> Result<()> {
+        self.settings.validate(&format!("{path}.settings"))?;
+        if self.kinds.is_empty() {
+            bail!("{path}.kinds must define at least one kind");
+        }
+        for (kind, actor) in &self.kinds {
+            if kind.is_empty() {
+                bail!("{path}.kinds contains an empty kind name");
+            }
+            actor.validate(&format!("{path}.kinds.{kind}"))?;
+        }
+        Ok(())
+    }
+}
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct ActorSettingsConfig {
@@ -11,7 +35,7 @@ pub struct ActorSettingsConfig {
 }
 
 impl ActorSettingsConfig {
-    pub(super) fn validate(&self, path: &str) -> Result<()> {
+    fn validate(&self, path: &str) -> Result<()> {
         validate_non_negative_finite(self.spawn_warning_secs, &format!("{path}.spawn_warning_secs"))?;
         validate_non_negative_finite(self.threat_memory_secs, &format!("{path}.threat_memory_secs"))
     }
@@ -29,7 +53,8 @@ pub struct ActorKindServerConfig {
 }
 
 impl ActorKindServerConfig {
-    pub(super) fn validate(&self, path: &str) -> Result<()> {
+    fn validate(&self, path: &str) -> Result<()> {
+        self.character.validate(path)?;
         if let Some(delay_secs) = self.respawn_secs {
             validate_non_negative_finite(delay_secs, &format!("{path}.respawn_secs"))?;
         }
@@ -144,7 +169,7 @@ mod tests {
     #[test]
     fn actor_kind_rejects_zero_roam_steps() {
         let mut config = ServerGameplayConfig::load_default().expect("default server gameplay config should load");
-        let actor = config.actors.get_mut("mine").expect("mine config");
+        let actor = config.actors.kinds.get_mut("mine").expect("mine config");
         actor.roam_steps = 0;
         let err = actor.validate("actors.mine").expect_err("zero roam steps must fail");
         assert!(err.to_string().contains("roam_steps"));

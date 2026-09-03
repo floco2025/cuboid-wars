@@ -5,7 +5,7 @@ use common::physics::CollisionWorld;
 use common::protocol::{BarrierKindTable, MapLayout, Position, Wall};
 
 use super::{NavGraph, routing::COVER_SEARCH_MAX_STEPS};
-use crate::map::{ActorSpawnZone, CellGrid, EdgeGrid, LevelGrid, MapConfig};
+use crate::map::{ActorSpawnZone, CellGrid, EdgeGrid, GeneratedMap, LevelGrid, MapConfig};
 
 fn level(cells: CellGrid, edges: EdgeGrid) -> LevelGrid {
     let rows = i32::try_from(cells.rows.len()).unwrap_or(0);
@@ -413,16 +413,11 @@ fn ramp_node_is_not_a_cover_destination() {
 fn shipping_map_zones_are_mutually_reachable() {
     let server_gameplay_config =
         crate::config::ServerGameplayConfig::load_default().expect("default server gameplay config should load");
-    let gameplay_config = server_gameplay_config.gameplay_config();
-    let map_settings = &server_gameplay_config
-        .maps
-        .get(&server_gameplay_config.default_map)
-        .expect("default map settings missing")
-        .settings;
-    let kind_table = common::protocol::BarrierKindTable::from_ids(map_settings.barrier_kinds.clone())
-        .expect("barrier kind table should build from the default map config");
-    let (_, map_config, geometry) =
-        crate::map::generate_map(&kind_table, &server_gameplay_config.default_map).expect("generate default map");
+    let GeneratedMap {
+        config: map_config,
+        geometry,
+        ..
+    } = crate::map::generate_map(&server_gameplay_config.default_map).expect("generate default map");
     let zones = map_config.actor_spawn_zones.clone();
     let nav = NavGraph::new(map_config, geometry);
 
@@ -727,12 +722,13 @@ fn shipping_map_sentry_recentres_before_entering_the_basement_ramp_trench() {
     let server_gameplay_config =
         crate::config::ServerGameplayConfig::load_default().expect("default server gameplay config should load");
     let gameplay_config = server_gameplay_config.gameplay_config();
-    let hotel = server_gameplay_config.maps.get("hotel").expect("hotel settings missing");
-    let kind_table = common::protocol::BarrierKindTable::from_ids(hotel.settings.barrier_kinds.clone())
-        .expect("barrier kind table should build from the hotel map config");
-    let (layout, map_config, geometry) =
-        crate::map::generate_map(&kind_table, "hotel").expect("generate the hotel map");
-    let world = CollisionWorld::from_map_layout(&layout, &kind_table);
+    let GeneratedMap {
+        layout,
+        config: map_config,
+        geometry,
+        barrier_kinds,
+    } = crate::map::generate_map("hotel").expect("generate the hotel map");
+    let world = CollisionWorld::from_map_layout(&layout, &barrier_kinds);
     let nav = NavGraph::new(map_config, geometry);
     let sentry = gameplay_config.expect_actor("sentry").physics();
     let center = |level: u8, col: i32, row: i32| Position {

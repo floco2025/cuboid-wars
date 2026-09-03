@@ -7,6 +7,7 @@ use super::{
         handle_ping_message,
     },
     login::{handle_login_message, handle_ready_message},
+    snapshot::SnapshotSchedule,
 };
 use crate::{
     actors::{ActorMap, PendingActorSpawns},
@@ -37,7 +38,7 @@ pub(super) struct ClientMessageContext<'w, 's> {
     admin: AdminContext<'w>,
     pub(super) quest_board: ResMut<'w, QuestBoard>,
     pub(super) quest_catalog: Res<'w, QuestCatalog>,
-    pub(super) snapshot_request: ResMut<'w, super::snapshot::SnapshotRequest>,
+    pub(super) snapshot_schedule: ResMut<'w, SnapshotSchedule>,
 }
 
 pub(super) fn route_client_message(
@@ -80,27 +81,27 @@ pub(super) fn route_client_message(
                 &context.quest_catalog,
                 &context.quest_board,
             );
-            context.snapshot_request.force = true;
+            context.snapshot_schedule.force_next();
         }
-        ClientMessage::Login(_) | ClientMessage::Ready(_) => {
-            warn!(
-                "{} sent a bootstrap message in phase {:?}",
-                context.players.describe(&id),
-                phase
-            );
+        ClientMessage::Login(_) => {
+            warn!("{} sent a second login", context.players.describe(&id));
+            // Close to enforce a single-login flow.
             if let Some(player) = context.players.get(&id) {
                 let _ = player.connection.channel.send(ServerToClient::Close);
             }
+        }
+        // Each message rides its own QUIC stream, so traffic sent after
+        // `CReady` can land first. Drop it: the next commit or snapshot
+        // repairs the state, and a stray `CReady` changes nothing.
+        ClientMessage::Ready(_) => {
+            warn!("{} sent ready in phase {:?}", context.players.describe(&id), phase);
         }
         _ if phase != ConnectionPhase::Active => {
             warn!(
-                "{} sent gameplay traffic in phase {:?}",
+                "{} sent gameplay traffic in phase {:?} (out-of-order delivery?)",
                 context.players.describe(&id),
                 phase
             );
-            if let Some(player) = context.players.get(&id) {
-                let _ = player.connection.channel.send(ServerToClient::Close);
-            }
         }
         ClientMessage::Move(message) => {
             let Some(entity) = entity else {

@@ -170,7 +170,7 @@ pub fn collect_items(items: &ItemMap, item_positions: &Query<&Position, With<Ite
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::players::PlayerInfo;
+    use crate::players::{ConnectionPhase, PlayerInfo};
     use bevy::ecs::system::SystemState;
     use tokio::sync::mpsc::unbounded_channel;
 
@@ -190,7 +190,7 @@ mod tests {
     fn active_player(entity: Entity) -> PlayerInfo {
         let (tx, _rx) = unbounded_channel();
         let mut info = PlayerInfo::new(entity, tx);
-        info.connection.phase = crate::players::ConnectionPhase::Active;
+        info.connection.phase = ConnectionPhase::Active;
         info
     }
 

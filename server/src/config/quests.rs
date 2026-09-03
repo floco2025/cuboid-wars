@@ -148,6 +148,7 @@ mod tests {
         ServerGameplayConfig::load_default()
             .expect("default server gameplay config should load")
             .actors
+            .kinds
     }
 
     fn validate<T>(quests: &[Quest], actors: &HashMap<String, T>) -> Result<()> {

@@ -6,7 +6,6 @@ import copy
 
 from .constants import (
     ACTOR_ZONE_LIST,
-    BARRIER_KIND_TABLE,
     FACES,
     MODE_RAMP_UP,
     PLATE_TYPE_BARRIER,
@@ -185,21 +184,23 @@ class PlacementMixin:
         self.apply_change("Place Wall", after)
 
     def prompt_and_add_barrier_line(self, start: tuple[int, int], end: tuple[int, int]) -> None:
-        kind = BarrierKindDialog.prompt(self, "Place Barrier", self.recent_barrier_kind)
+        kind = BarrierKindDialog.prompt(self, "Place Barrier", self.barrier_kinds, self.recent_barrier_kind)
         if kind is None:
             return
         self.recent_barrier_kind = kind
         self.add_barrier_line(start, end, kind)
 
     def prompt_and_add_pressure_plate(self, col: int, row: int) -> None:
-        kind = BarrierKindDialog.prompt(self, "Place Barrier Plate", self.recent_pressure_plate_kind)
+        kind = BarrierKindDialog.prompt(
+            self, "Place Barrier Plate", self.barrier_kinds, self.recent_pressure_plate_kind
+        )
         if kind is None:
             return
         self.recent_pressure_plate_kind = kind
         self.add_pressure_plate(col, row, kind)
 
     def add_pressure_plate(self, col: int, row: int, kind: str) -> None:
-        if kind not in BARRIER_KIND_TABLE:
+        if kind not in self.barrier_kinds:
             self._flash_status(f"Unknown plate kind {kind!r}")
             return
         plate = {"level": self.current_level, "col": col, "row": row, "type": PLATE_TYPE_BARRIER, "kind": kind}
@@ -249,7 +250,7 @@ class PlacementMixin:
         edges = wall_segments_between(start, end)
         if not edges:
             return
-        if kind not in BARRIER_KIND_TABLE:
+        if kind not in self.barrier_kinds:
             self._flash_status(f"Unknown barrier kind {kind!r}")
             return
         after = copy.deepcopy(self.map_data)

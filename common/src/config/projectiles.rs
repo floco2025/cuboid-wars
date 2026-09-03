@@ -19,7 +19,7 @@ pub struct ProjectilesConfig {
 }
 
 impl ProjectilesConfig {
-    pub(super) fn validate(&self, path: &str) -> Result<()> {
+    pub fn validate(&self, path: &str) -> Result<()> {
         validate_positive_finite(self.lifetime_secs, &format!("{path}.lifetime_secs"))?;
         validate_positive_finite(self.spawn_offset, &format!("{path}.spawn_offset"))?;
         validate_positive_finite(self.radius, &format!("{path}.radius"))?;

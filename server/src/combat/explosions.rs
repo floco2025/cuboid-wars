@@ -439,8 +439,10 @@ fn source_description(source: &BlastSource, players: &PlayerMap) -> String {
 mod tests {
     use super::*;
     use crate::{
-        actors::ActorInfo, actors::actors_removal_system, characters::characters_health_regeneration_system,
-        players::PlayerInfo,
+        actors::ActorInfo,
+        actors::actors_removal_system,
+        characters::characters_health_regeneration_system,
+        players::{ConnectionPhase, PlayerInfo},
     };
     use common::protocol::{BarrierKindTable, MapLayout, SPlayerDeath};
     use tokio::sync::mpsc::unbounded_channel;
@@ -643,7 +645,7 @@ mod tests {
             .id();
         let (sender, receiver) = unbounded_channel();
         let mut info = PlayerInfo::new(entity, sender);
-        info.connection.phase = crate::players::ConnectionPhase::Active;
+        info.connection.phase = ConnectionPhase::Active;
         app.world_mut().resource_mut::<PlayerMap>().insert(id, info);
         (entity, receiver)
     }

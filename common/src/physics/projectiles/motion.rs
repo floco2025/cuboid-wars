@@ -28,8 +28,14 @@ pub struct ProjectileMotion {
 impl ProjectileMotion {
     #[must_use]
     pub fn new(face_yaw: f32, face_pitch: f32, speed: f32, config: &ProjectilesConfig) -> Self {
-        let velocity = crate::math::direction_from_yaw_pitch(face_yaw, face_pitch) * speed;
+        Self::from_velocity(
+            crate::math::direction_from_yaw_pitch(face_yaw, face_pitch) * speed,
+            config,
+        )
+    }
 
+    #[must_use]
+    pub fn from_velocity(velocity: Vec3, config: &ProjectilesConfig) -> Self {
         Self {
             velocity,
             lifetime: Timer::from_seconds(config.lifetime_secs, TimerMode::Once),

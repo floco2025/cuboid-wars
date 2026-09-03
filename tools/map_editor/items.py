@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import copy
 
-from .constants import BARRIER_KIND_TABLE, ITEM_KEY_TYPE, ITEMS_LIST
+from .constants import ITEM_KEY_TYPE, ITEMS_LIST
 from .dialogs import ItemTypeDialog
 from .geometry import ramp_cells, rect_from_cells
 
@@ -24,7 +24,9 @@ class ItemsMixin:
         return None
 
     def prompt_and_add_item(self, col: int, row: int) -> None:
-        result = ItemTypeDialog.prompt(self, "Place Item", self.recent_item_type, self.recent_item_key_kind)
+        result = ItemTypeDialog.prompt(
+            self, "Place Item", self.barrier_kinds, self.recent_item_type, self.recent_item_key_kind
+        )
         if result is None:
             return
         item_type, kind = result
@@ -38,7 +40,7 @@ class ItemsMixin:
         if error is not None:
             self._flash_status(f"Item not placed: {error}")
             return
-        if item_type == ITEM_KEY_TYPE and kind not in BARRIER_KIND_TABLE:
+        if item_type == ITEM_KEY_TYPE and kind not in self.barrier_kinds:
             self._flash_status(f"Unknown key kind {kind!r}")
             return
         after = copy.deepcopy(self.map_data)

@@ -311,7 +311,7 @@ fn zapper_acquires_visible_cross_level_player_in_beam_range() {
         actor_pos,
         fixture.gameplay.expect_actor("zapper").eye_height(),
         kind.vision_range,
-        fixture.server.actor_settings.threat_memory_secs,
+        fixture.server.actors.settings.threat_memory_secs,
         fixture.gameplay.player.physics(),
         &[PlayerState {
             id: PlayerId(7),

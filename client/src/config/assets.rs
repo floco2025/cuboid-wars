@@ -6,10 +6,7 @@ use std::{
 
 use anyhow::{Context, Result, bail};
 use bevy::prelude::Resource;
-use common::{
-    config::GameplayConfig,
-    protocol::{BarrierKindTable, ItemType},
-};
+use common::protocol::{BarrierKindTable, ItemType};
 use serde::Deserialize;
 
 const REQUIRED_PLAYER_SOUNDS: &[&str] = &[
@@ -116,16 +113,12 @@ impl AssetSet {
         Ok(())
     }
 
-    pub fn validate_gameplay_bindings(
+    pub fn validate_gameplay_bindings<'a>(
         &self,
-        gameplay_config: &GameplayConfig,
+        actor_kinds: impl IntoIterator<Item = &'a str>,
         barrier_kind_table: &BarrierKindTable,
     ) -> Result<()> {
-        let gameplay_kinds = gameplay_config
-            .actors
-            .keys()
-            .map(String::as_str)
-            .collect::<HashSet<_>>();
+        let gameplay_kinds = actor_kinds.into_iter().collect::<HashSet<_>>();
         let asset_kinds = self.actors.keys().map(String::as_str).collect::<HashSet<_>>();
         if gameplay_kinds != asset_kinds {
             let mut only_gameplay = gameplay_kinds.difference(&asset_kinds).copied().collect::<Vec<_>>();
@@ -139,7 +132,7 @@ impl AssetSet {
         for id in barrier_kind_table.ids() {
             if self.barrier_kind_color_hex(id).is_none() {
                 bail!(
-                    "barrier kind {id:?} has no color in assets.json `barrier_kind_colors`; add an entry or remove the id from the map's gameplay config"
+                    "barrier kind {id:?} has no color in assets.json `barrier_kind_colors`; add an entry or remove the id from the map's `barrier_kinds`"
                 );
             }
         }
@@ -490,77 +483,77 @@ impl AssetSet {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use common::config::{
-        CharacterGameplayConfig, GameplayConfig, MissilesConfig, PlayerGameplayConfig, PortalsConfig, ProjectilesConfig,
-    };
     use std::collections::HashSet;
 
-    fn gameplay_and_barriers() -> (GameplayConfig, BarrierKindTable) {
-        #[derive(Deserialize)]
-        struct Source {
-            player: PlayerGameplayConfig,
-            actors: Actors,
-            weapons: Weapons,
-            maps: HashMap<String, MapSource>,
+    // The server's actor kinds, straight from the shipped JSON.
+    fn server_actor_kinds() -> Vec<String> {
+        let gameplay: serde_json::Value = serde_json::from_str(include_str!("../../../config/server/gameplay.json"))
+            .expect("parse server gameplay config");
+        gameplay["actors"]["kinds"]
+            .as_object()
+            .expect("actors.kinds is not an object")
+            .keys()
+            .cloned()
+            .collect()
+    }
+
+    // Every shipped map's `barrier_kinds`, since the client is validated
+    // against whichever map the server selected.
+    fn shipped_barrier_tables() -> Vec<(String, BarrierKindTable)> {
+        let maps_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../config/server/maps");
+        let mut tables = Vec::new();
+        for entry in fs::read_dir(&maps_dir).expect("maps dir readable") {
+            let path = entry.expect("maps dir entry readable").path();
+            if path.extension().and_then(|e| e.to_str()) != Some("json") {
+                continue;
+            }
+            let text = fs::read_to_string(&path).expect("map file readable");
+            let map: serde_json::Value = serde_json::from_str(&text).expect("parse map file");
+            let ids: Vec<String> = serde_json::from_value(map["map"]["barrier_kinds"].clone())
+                .expect("map.barrier_kinds is not a list of strings");
+            let table = BarrierKindTable::from_ids(ids).expect("build barrier table");
+            tables.push((path.display().to_string(), table));
         }
-        #[derive(Deserialize)]
-        struct Actors {
-            kinds: HashMap<String, CharacterGameplayConfig>,
-        }
-        #[derive(Deserialize)]
-        struct Weapons {
-            projectiles: ProjectilesConfig,
-            missiles: MissilesConfig,
-            portals: PortalsConfig,
-        }
-        #[derive(Deserialize)]
-        struct MapSource {
-            #[serde(default)]
-            barrier_kinds: Vec<String>,
-        }
-        let source: Source = serde_json::from_str(include_str!("../../../config/server/gameplay.json"))
-            .expect("load gameplay projection from server config");
-        let gameplay = GameplayConfig {
-            player: source.player,
-            projectiles: source.weapons.projectiles,
-            missiles: source.weapons.missiles,
-            portals: source.weapons.portals,
-            actors: source.actors.kinds,
-        };
-        gameplay.validate().expect("gameplay projection validates");
-        let barriers = BarrierKindTable::from_ids(
-            source
-                .maps
-                .get("hotel")
-                .expect("hotel map config missing")
-                .barrier_kinds
-                .clone(),
-        )
-        .expect("build barrier table");
-        (gameplay, barriers)
+        assert!(!tables.is_empty(), "no shipped maps found");
+        tables
     }
 
     #[test]
-    fn default_assets_match_server_gameplay() {
+    fn default_assets_match_server_gameplay_on_every_map() {
         let assets = AssetSet::load_default().expect("load assets");
-        let (gameplay, barriers) = gameplay_and_barriers();
+        let kinds = server_actor_kinds();
 
-        assets
-            .validate_gameplay_bindings(&gameplay, &barriers)
-            .expect("client asset bindings validate");
+        for (map, barriers) in shipped_barrier_tables() {
+            assets
+                .validate_gameplay_bindings(kinds.iter().map(String::as_str), &barriers)
+                .unwrap_or_else(|error| panic!("client asset bindings fail for {map}: {error}"));
+        }
     }
 
     #[test]
     fn actor_kind_set_mismatch_is_rejected() {
         let mut assets = AssetSet::load_default().expect("load assets");
-        let (gameplay, barriers) = gameplay_and_barriers();
+        let kinds = server_actor_kinds();
         assets.actors.remove("mine");
 
         let error = assets
-            .validate_gameplay_bindings(&gameplay, &barriers)
+            .validate_gameplay_bindings(kinds.iter().map(String::as_str), &BarrierKindTable::default())
             .expect_err("missing actor assets must fail");
 
         assert!(error.to_string().contains("only in gameplay: [\"mine\"]"));
+    }
+
+    #[test]
+    fn uncoloured_barrier_kind_is_rejected() {
+        let assets = AssetSet::load_default().expect("load assets");
+        let kinds = server_actor_kinds();
+        let barriers = BarrierKindTable::from_ids(vec!["unpainted".to_owned()]).expect("build barrier table");
+
+        let error = assets
+            .validate_gameplay_bindings(kinds.iter().map(String::as_str), &barriers)
+            .expect_err("kind without a colour must fail");
+
+        assert!(error.to_string().contains("barrier_kind_colors"));
     }
 
     #[test]

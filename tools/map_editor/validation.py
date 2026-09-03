@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .constants import BARRIER_KIND_TABLE, FACES, ITEM_KEY_TYPE, ITEM_TYPES, LADDER_SIDES, LIGHT_SIDES, MATERIAL_ALIASES, PLATE_TYPES, PLATE_TYPE_BARRIER
+from .constants import BARRIER_KIND_COLORS, FACES, ITEM_KEY_TYPE, ITEM_TYPES, LADDER_SIDES, LIGHT_SIDES, MATERIAL_ALIASES, PLATE_TYPES, PLATE_TYPE_BARRIER
 from .display import level_label
 from .geometry import (
     grid_point_in_bounds,
@@ -23,6 +23,7 @@ def validate_map(map_data: dict) -> list[str]:
         errors.append("at least one level is required")
     if not map_data["player_spawn_zones"]:
         errors.append("at least one player_spawn_zones entry is required by the Rust loader")
+    kinds = _validate_barrier_kinds(map_data, errors)
 
     for idx, zone in enumerate(map_data["actor_spawn_zones"]):
         _validate_zone_rect(zone, f"actor_spawn_zones[{idx}]", map_data, errors)
@@ -34,9 +35,8 @@ def validate_map(map_data: dict) -> list[str]:
     for idx, zone in enumerate(map_data["player_spawn_zones"]):
         _validate_zone_rect(zone, f"player_spawn_zones[{idx}]", map_data, errors)
 
-    _validate_items(map_data, errors)
-    _validate_pressure_plates(map_data, errors)
-
+    _validate_items(map_data, kinds, errors)
+    _validate_pressure_plates(map_data, kinds, errors)
 
     for level_idx, level in enumerate(map_data["levels"]):
         prefix = level_label(level, level_idx)
@@ -72,9 +72,8 @@ def validate_map(map_data: dict) -> list[str]:
                 errors.append(f"{prefix}: barrier[{idx}] [{c0}, {r0}, {c1}, {r1}] is outside the grid-line bounds")
             if abs(c1 - c0) + abs(r1 - r0) != 1:
                 errors.append(f"{prefix}: barrier[{idx}] [{c0}, {r0}, {c1}, {r1}] is not one grid edge")
-            if kind not in BARRIER_KIND_TABLE:
-                known = ", ".join(BARRIER_KIND_TABLE) or "(none configured)"
-                errors.append(f"{prefix}: barrier[{idx}] has unknown kind {kind!r}; known: [{known}]")
+            if kind not in kinds:
+                errors.append(f"{prefix}: barrier[{idx}] has unknown kind {kind!r}; known: [{_known(kinds)}]")
             key = tuple(normalized_wall([c0, r0, c1, r1]))
             if key in wall_endpoints_set:
                 errors.append(f"{prefix}: barrier[{idx}] {list(key)} overlaps a wall")
@@ -107,6 +106,25 @@ def validate_map(map_data: dict) -> list[str]:
     _validate_face_aliases(map_data, errors)
 
     return errors
+
+
+def _validate_barrier_kinds(map_data: dict, errors: list[str]) -> list[str]:
+    kinds = list(map_data.get("barrier_kinds", []))
+    for idx, kind in enumerate(kinds):
+        if not kind:
+            errors.append(f"barrier_kinds[{idx}] is empty")
+        elif kind in kinds[:idx]:
+            errors.append(f"barrier_kinds[{idx}] duplicates {kind!r}")
+        elif kind not in BARRIER_KIND_COLORS:
+            errors.append(
+                f"barrier_kinds[{idx}] {kind!r} has no color in assets.json `barrier_kind_colors`; "
+                "add an entry or remove the id from the map"
+            )
+    return kinds
+
+
+def _known(kinds: list[str]) -> str:
+    return ", ".join(kinds) or "(none listed)"
 
 
 def _validate_ladders(map_data: dict, errors: list[str]) -> None:
@@ -144,7 +162,7 @@ def _validate_ladders(map_data: dict, errors: list[str]) -> None:
                 errors.append(f"{label} overlaps ladders[{other_idx}] on the same edge")
 
 
-def _validate_pressure_plates(map_data: dict, errors: list[str]) -> None:
+def _validate_pressure_plates(map_data: dict, kinds: list[str], errors: list[str]) -> None:
     cols = map_data["grid_cols"]
     rows = map_data["grid_rows"]
     seen: set[tuple] = set()
@@ -160,9 +178,8 @@ def _validate_pressure_plates(map_data: dict, errors: list[str]) -> None:
         plate_type = plate.get("type")
         if plate_type == PLATE_TYPE_BARRIER:
             kind = plate.get("kind")
-            if kind not in BARRIER_KIND_TABLE:
-                known = ", ".join(BARRIER_KIND_TABLE) or "(none configured)"
-                errors.append(f"{label} has unknown barrier kind {kind!r}; known: [{known}]")
+            if kind not in kinds:
+                errors.append(f"{label} has unknown barrier kind {kind!r}; known: [{_known(kinds)}]")
         elif plate_type not in PLATE_TYPES:
             known = ", ".join(PLATE_TYPES)
             errors.append(f"{label} has unknown type {plate_type!r}; known: [{known}]")
@@ -176,7 +193,7 @@ def _validate_pressure_plates(map_data: dict, errors: list[str]) -> None:
         seen.add(key)
 
 
-def _validate_items(map_data: dict, errors: list[str]) -> None:
+def _validate_items(map_data: dict, kinds: list[str], errors: list[str]) -> None:
     cols = map_data["grid_cols"]
     rows = map_data["grid_rows"]
     seen_cells: set[tuple[int, int, int]] = set()
@@ -192,9 +209,8 @@ def _validate_items(map_data: dict, errors: list[str]) -> None:
         item_type = item.get("type")
         if item_type == ITEM_KEY_TYPE:
             kind = item.get("kind")
-            if kind not in BARRIER_KIND_TABLE:
-                known = ", ".join(BARRIER_KIND_TABLE) or "(none configured)"
-                errors.append(f"{label} has unknown key kind {kind!r}; known: [{known}]")
+            if kind not in kinds:
+                errors.append(f"{label} has unknown key kind {kind!r}; known: [{_known(kinds)}]")
         elif item_type not in ITEM_TYPES:
             known = ", ".join(ITEM_TYPES)
             errors.append(f"{label} has unknown type {item_type!r}; known: [{known}]")

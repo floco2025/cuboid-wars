@@ -6,7 +6,6 @@ import copy
 
 from .constants import (
     ACTOR_ZONE_LIST,
-    BARRIER_KIND_TABLE,
     DEFAULT_ALIAS,
     DEFAULT_GRID_COLS,
     DEFAULT_GRID_ROWS,
@@ -21,6 +20,7 @@ from .geometry import normalized_wall, ramp_cells, wall_endpoints_for_cell_side
 def normalize_map(map_data: dict) -> dict:
     cols = int(map_data.get("grid_cols", DEFAULT_GRID_COLS))
     rows = int(map_data.get("grid_rows", DEFAULT_GRID_ROWS))
+    barrier_kinds = [str(kind) for kind in map_data.get("barrier_kinds", [])]
     actor_spawn_zones = [normalize_actor_spawn_zone(z) for z in map_data.get("actor_spawn_zones", [])]
     player_spawn_zones = [normalize_player_spawn_zone(z) for z in map_data.get("player_spawn_zones", [])]
     items = [normalize_item(i) for i in map_data.get("items", [])]
@@ -56,6 +56,7 @@ def normalize_map(map_data: dict) -> dict:
     return {
         "grid_cols": cols,
         "grid_rows": rows,
+        "barrier_kinds": barrier_kinds,
         "actor_spawn_zones": actor_spawn_zones,
         "player_spawn_zones": player_spawn_zones,
         "items": items,
@@ -91,12 +92,7 @@ def normalize_wall(wall: dict) -> dict:
 def normalize_barrier(barrier: dict) -> dict:
     # Migration: maps from before the kind-table refactor used `color`. Accept
     # either field name on read; serialize as `kind` going forward.
-    raw = barrier.get("kind", barrier.get("color", ""))
-    kind = str(raw)
-    if BARRIER_KIND_TABLE and kind not in BARRIER_KIND_TABLE:
-        # Unknown id stays as-is so `validate_map` can surface it; falling
-        # back silently would hide authoring errors.
-        kind = kind
+    kind = str(barrier.get("kind", barrier.get("color", "")))
     return {
         "c0": int(barrier["c0"]),
         "r0": int(barrier["r0"]),

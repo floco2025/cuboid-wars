@@ -10,26 +10,18 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 MAPS_DIR = REPO_ROOT / "config" / "server" / "maps"
 
 
-def _load_shared_configs() -> tuple[list[str], dict[str, str], set[str]]:
-    gameplay_path = REPO_ROOT / "config" / "server" / "gameplay.json"
+# Barrier kinds are per map (`map.barrier_kinds` in the map file); the shared
+# assets file only supplies the colours the game renders them with.
+def _load_shared_configs() -> tuple[dict[str, str], set[str]]:
     assets_path = REPO_ROOT / "config" / "client" / "assets.json"
-    with gameplay_path.open("r", encoding="utf-8") as handle:
-        gameplay = json.load(handle)
     with assets_path.open("r", encoding="utf-8") as handle:
         assets = json.load(handle)
-    ids: list[str] = list(gameplay.get("barrier_kinds", []))
     colors: dict[str, str] = dict(assets.get("barrier_kind_colors", {}))
     aliases: set[str] = set(assets.get("aliases", {}).keys())
-    for id_ in ids:
-        if id_ not in colors:
-            raise RuntimeError(
-                f"barrier kind {id_!r} has no color in assets.json `barrier_kind_colors`; "
-                "add an entry or remove the id from gameplay.json"
-            )
-    return ids, colors, aliases
+    return colors, aliases
 
 
-BARRIER_KIND_TABLE, BARRIER_KIND_COLORS, MATERIAL_ALIASES = _load_shared_configs()
+BARRIER_KIND_COLORS, MATERIAL_ALIASES = _load_shared_configs()
 
 # Editor-only: the game renders every plate alike, so this colour exists just
 # to tell firework plates from barrier plates on the canvas.

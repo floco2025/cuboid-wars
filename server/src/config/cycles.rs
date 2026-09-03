@@ -3,6 +3,19 @@ use serde::Deserialize;
 
 use super::validation::{deserialize_required_option, validate_positive_finite};
 
+#[derive(Debug, Clone, Deserialize)]
+pub struct CyclesConfig {
+    pub weather: WeatherCycleConfig,
+    pub lighting: LightingCycleConfig,
+}
+
+impl CyclesConfig {
+    pub(super) fn validate(&self, path: &str) -> Result<()> {
+        self.weather.validate(&format!("{path}.weather"))?;
+        self.lighting.validate(&format!("{path}.lighting"))
+    }
+}
+
 // Cadence of the automatic rain cycle: random clear stretch, ramp in, a
 // random rain stretch at full intensity, fade out, repeat. Global — maps
 // opt in with `weather: "auto"`.
@@ -125,7 +138,7 @@ mod tests {
     #[test]
     fn weather_cycle_accepts_valid_config() {
         ok_weather_cycle()
-            .validate("weather_cycle")
+            .validate("cycles.weather")
             .expect("valid weather cycle should pass");
     }
 
@@ -134,7 +147,7 @@ mod tests {
         let mut cycle = ok_weather_cycle();
         cycle.min_clear_secs = 30.0;
         let err = cycle
-            .validate("weather_cycle")
+            .validate("cycles.weather")
             .expect_err("min_clear > max_clear must be rejected");
         assert!(err.to_string().contains("min_clear_secs"));
     }
@@ -144,7 +157,7 @@ mod tests {
         let mut cycle = ok_weather_cycle();
         cycle.min_rain_secs = 30.0;
         let err = cycle
-            .validate("weather_cycle")
+            .validate("cycles.weather")
             .expect_err("min_rain > max_rain must be rejected");
         assert!(err.to_string().contains("min_rain_secs"));
     }
@@ -154,7 +167,7 @@ mod tests {
         let mut cycle = ok_weather_cycle();
         cycle.ramp_in_secs = 0.0;
         let err = cycle
-            .validate("weather_cycle")
+            .validate("cycles.weather")
             .expect_err("zero ramp_in must be rejected");
         assert!(err.to_string().contains("ramp_in_secs"));
     }
@@ -177,7 +190,7 @@ mod tests {
         )
         .expect("lighting cycle should deserialize");
         cycle
-            .validate("lighting_cycle")
+            .validate("cycles.lighting")
             .expect("valid lighting cycle should pass");
     }
 
@@ -208,7 +221,7 @@ mod tests {
             ),
         ] {
             let err = cycle
-                .validate("lighting_cycle")
+                .validate("cycles.lighting")
                 .expect_err("non-positive duration must be rejected");
             assert!(err.to_string().contains(field));
         }
@@ -222,7 +235,7 @@ mod tests {
             ..full_lighting_cycle()
         };
         bright_dim
-            .validate("lighting_cycle")
+            .validate("cycles.lighting")
             .expect("bright+dim cycle should pass");
 
         let dim_dark = LightingCycleConfig {
@@ -230,7 +243,9 @@ mod tests {
             bright_dim_secs: None,
             ..full_lighting_cycle()
         };
-        dim_dark.validate("lighting_cycle").expect("dim+dark cycle should pass");
+        dim_dark
+            .validate("cycles.lighting")
+            .expect("dim+dark cycle should pass");
 
         let bright_dark = LightingCycleConfig {
             dim_secs: None,
@@ -240,7 +255,7 @@ mod tests {
             ..full_lighting_cycle()
         };
         bright_dark
-            .validate("lighting_cycle")
+            .validate("cycles.lighting")
             .expect("bright+dark cycle should pass");
     }
 
@@ -254,7 +269,7 @@ mod tests {
             ..full_lighting_cycle()
         };
         let err = cycle
-            .validate("lighting_cycle")
+            .validate("cycles.lighting")
             .expect_err("single-stop cycle must be rejected");
         assert!(err.to_string().contains("at least two"));
     }
@@ -266,7 +281,7 @@ mod tests {
             ..full_lighting_cycle()
         };
         let err = missing
-            .validate("lighting_cycle")
+            .validate("cycles.lighting")
             .expect_err("missing bright_dim fade must be rejected");
         assert!(err.to_string().contains("bright_dim_secs is required"));
 
@@ -275,7 +290,7 @@ mod tests {
             ..full_lighting_cycle()
         };
         let err = unused
-            .validate("lighting_cycle")
+            .validate("cycles.lighting")
             .expect_err("bright_dark fade with dim present must be rejected");
         assert!(err.to_string().contains("bright_dark_secs is not used"));
 
@@ -287,7 +302,7 @@ mod tests {
             ..full_lighting_cycle()
         };
         let err = bright_dark_missing
-            .validate("lighting_cycle")
+            .validate("cycles.lighting")
             .expect_err("bright+dark cycle without its fade must be rejected");
         assert!(err.to_string().contains("bright_dark_secs is required"));
     }

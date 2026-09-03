@@ -14,9 +14,8 @@ use common::{physics::CollisionWorld, protocol::*};
 
 pub(crate) fn install_bootstrap(app: &mut App, message: SInit, asset_set: &AssetSet) -> anyhow::Result<()> {
     let gameplay_config = message.world.gameplay.gameplay_config()?;
-    let barrier_kind_table =
-        BarrierKindTable::from_ids(message.world.map.settings.barrier_kinds.clone().unwrap_or_default())?;
-    asset_set.validate_gameplay_bindings(&gameplay_config, &barrier_kind_table)?;
+    let barrier_kind_table = BarrierKindTable::from_ids(message.world.map.barrier_kinds)?;
+    asset_set.validate_gameplay_bindings(gameplay_config.actors.keys().map(String::as_str), &barrier_kind_table)?;
 
     let (barrier_assets, projectile_assets) = app.world_mut().resource_scope(|world, mut meshes: Mut<Assets<Mesh>>| {
         let mut materials = world.resource_mut::<Assets<StandardMaterial>>();

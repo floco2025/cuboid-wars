@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use anyhow::Result;
 use serde::Deserialize;
 
-use super::{actors::ActorKindServerConfig, validation::validate_covers_actor_kinds};
+use super::validation::validate_covers_actor_kinds;
 
 // Which feed lines everyone sees. The one broadcast gate: `emit_feed`
 // consults it for public audiences, nothing else decides.
@@ -25,7 +25,7 @@ pub struct FeedConfig {
 }
 
 impl FeedConfig {
-    pub(super) fn validate(&self, actors: &HashMap<String, ActorKindServerConfig>) -> Result<()> {
+    pub(super) fn validate<T>(&self, actors: &HashMap<String, T>) -> Result<()> {
         validate_covers_actor_kinds(self.actor_destroyed.keys(), actors, "feed.actor_destroyed")
     }
 
@@ -59,7 +59,7 @@ mod tests {
         config.feed.actor_destroyed.remove("mine");
         let err = config
             .feed
-            .validate(&config.actors)
+            .validate(&config.actors.kinds)
             .expect_err("missing kind must fail");
         assert!(err.to_string().contains("feed.actor_destroyed"));
         assert!(err.to_string().contains("mine"));
@@ -71,7 +71,7 @@ mod tests {
         config.feed.actor_destroyed.insert("banana".to_owned(), true);
         let err = config
             .feed
-            .validate(&config.actors)
+            .validate(&config.actors.kinds)
             .expect_err("unknown kind must fail");
         assert!(err.to_string().contains("feed.actor_destroyed"));
         assert!(err.to_string().contains("banana"));

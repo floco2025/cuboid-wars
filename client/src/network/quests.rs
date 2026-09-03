@@ -34,7 +34,11 @@ fn apply_quest_updates(quest_log: &mut QuestLog, banner: &mut HudBanner, message
             }
         };
         match reason {
-            QuestUpdateReason::Assigned | QuestUpdateReason::Progressed if change.inserted => {
+            // A late joiner also receives finished group quests; those are
+            // not something to go and do.
+            QuestUpdateReason::Assigned | QuestUpdateReason::Progressed
+                if change.inserted && !change.became_completed =>
+            {
                 announcements.push(change.announcement);
             }
             QuestUpdateReason::Completed if change.became_completed => {
@@ -105,6 +109,27 @@ mod tests {
 
         assert!(!apply(&mut log, &mut banner, updates));
         assert_eq!(banner.pending_texts().len(), 1, "known quests announce nothing");
+    }
+
+    #[test]
+    fn assigned_finished_quest_is_installed_silently() {
+        let mut log = QuestLog::default();
+        let mut banner = HudBanner::default();
+        let updates = vec![
+            update(
+                QuestUpdateReason::Assigned,
+                state("gold", QuestScope::Everyone, 10, true, 0),
+            ),
+            update(
+                QuestUpdateReason::Assigned,
+                state("show", QuestScope::Shared, 0, false, 1),
+            ),
+        ];
+
+        assert!(!apply(&mut log, &mut banner, updates));
+
+        assert!(log.entry("gold").expect("gold quest missing").completed);
+        assert_eq!(banner.pending_texts(), ["SHOW: do show"]);
     }
 
     #[test]

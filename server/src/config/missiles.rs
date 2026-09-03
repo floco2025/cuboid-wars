@@ -20,6 +20,7 @@ pub struct MissilesServerConfig {
 
 impl MissilesServerConfig {
     pub(super) fn validate(&self, path: &str) -> Result<()> {
+        self.gameplay.validate(path)?;
         validate_positive_finite(self.turn_radius, &format!("{path}.turn_radius"))?;
         validate_positive_finite(self.lifetime_secs, &format!("{path}.lifetime_secs"))?;
         if !(self.launch_spread_degrees.is_finite() && (0.0..=90.0).contains(&self.launch_spread_degrees)) {

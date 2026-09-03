@@ -65,9 +65,8 @@
 //    receipt as authoritative until a follow-up message updates it. There
 //    is no snapshot-side fallback — recovery from packet loss is QUIC's
 //    job, not the protocol's. Used today for quest assignment, progress, and
-//    completion (`SQuestUpdates`). Every update
-//    carries the complete current quest state, so it has no ordering dependency
-//    on an earlier quest message.
+//    completion (`SQuestUpdates`). Every update carries the complete current
+//    quest state, so it has no ordering dependency on an earlier quest message.
 //    Group quest state (pooled progress, players done, completion) is world
 //    state and also rides the snapshot.
 //
@@ -85,6 +84,7 @@
 // that ID out of the wire payload prevents clients from choosing their own
 // identity.
 
+use bevy_ecs::prelude::Resource;
 use bincode::{Decode, Encode};
 
 use crate::config::GameplayBootstrap;
@@ -194,7 +194,7 @@ pub struct PlayerBootstrap {
     pub portal_access: PortalAccess,
 }
 
-#[derive(Debug, Clone, Encode, Decode, bevy_ecs::prelude::Resource)]
+#[derive(Debug, Clone, Encode, Decode, Resource)]
 pub struct WorldBootstrap {
     pub gameplay: GameplayBootstrap,
     pub map: MapBootstrap,
@@ -204,8 +204,10 @@ pub struct WorldBootstrap {
 pub struct MapBootstrap {
     pub layout: MapLayout,
     pub settings: MapSettings,
-    // Derived from the map's placed keys rather than authored `MapSettings`;
-    // the client uses it to create only the HUD key slots available on this map.
+    // The map file's ordered `barrier_kinds`; index = `BarrierKindId`.
+    pub barrier_kinds: Vec<String>,
+    // Derived from the map's placed keys; the client creates only the HUD key
+    // slots available on this map.
     pub key_kinds: Vec<BarrierKindId>,
 }
 

@@ -19,3 +19,4 @@ pub use movement::{ActorMovementConfig, KnockbackConfig, MapMovementConfig, Play
 pub use network::{create_quinn_client_config, create_quinn_server_config, load_certs, load_private_key};
 pub use portals::PortalsConfig;
 pub use projectiles::{MultiShotConfig, MultiShotPatternConfig, ProjectilesConfig};
+pub use validation::{validate_non_negative_finite, validate_positive_finite};

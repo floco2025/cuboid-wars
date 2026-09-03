@@ -1,13 +1,11 @@
 use std::collections::{HashMap, HashSet};
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Result, bail};
 use serde::Deserialize;
 
 use super::quests::{Quest, validate_quests};
-use super::validation::{
-    deserialize_required_option, validate_covers_actor_kinds, validate_non_negative_finite, validate_positive_finite,
-};
-use common::protocol::{BarrierKindTable, ItemType, MapSettings, MapWeaponSettings};
+use super::validation::{deserialize_required_option, validate_covers_actor_kinds, validate_positive_finite};
+use common::protocol::{ItemType, MapSettings, MapWeaponSettings};
 
 // Server-side wrapper around the wire `MapSettings`: the flattened settings
 // ship to clients in `SInit`, while the rest stays server-only.
@@ -19,10 +17,10 @@ pub struct MapServerConfig {
     #[serde(deserialize_with = "deserialize_required_option")]
     pub random_items: Option<RandomItemsConfig>,
     // A concrete state holds until an admin command; `auto` runs the
-    // global `weather_cycle`. Mirrors `/weather rain|clear|auto`.
+    // global `cycles.weather`. Mirrors `/weather rain|clear|auto`.
     pub weather: WeatherMode,
     // A concrete look holds until an admin command; `auto` runs the
-    // global `lighting_cycle`. Mirrors `/light bright|dim|dark|auto`.
+    // global `cycles.lighting`. Mirrors `/light bright|dim|dark|auto`.
     pub lighting: LightingMode,
     pub quests: Vec<Quest>,
 }
@@ -67,7 +65,7 @@ pub struct RandomItemsConfig {
     // number of eligible floor cells so tiny test maps degrade.
     pub max_number: usize,
     // How long an uncollected random item sits in the world before being
-    // removed. Placed items use `placed_items.respawn_secs` instead.
+    // removed. Placed items use `items.placed.respawn_secs` instead.
     pub despawn_secs: f32,
 }
 
@@ -92,47 +90,10 @@ pub(super) fn validate_maps<T>(
         if entry.settings.skybox.is_empty() {
             bail!("{path}.skybox must not be empty");
         }
-        BarrierKindTable::from_ids(entry.settings.barrier_kinds.clone().unwrap_or_default())
-            .with_context(|| format!("invalid {path}.barrier_kinds"))?;
         let movement_path = format!("{path}.movement");
         let movement = &entry.settings.movement;
-        validate_positive_finite(
-            movement.player.walk_speed,
-            &format!("{movement_path}.player.walk_speed"),
-        )?;
-        validate_positive_finite(movement.player.run_speed, &format!("{movement_path}.player.run_speed"))?;
-        validate_positive_finite(
-            movement.player.speed_power_up,
-            &format!("{movement_path}.player.speed_power_up"),
-        )?;
         validate_covers_actor_kinds(movement.actors.keys(), actors, &format!("{movement_path}.actors"))?;
-        for (kind, actor) in &movement.actors {
-            validate_positive_finite(actor.roam_speed, &format!("{movement_path}.actors.{kind}.roam_speed"))?;
-            validate_positive_finite(
-                actor.active_speed,
-                &format!("{movement_path}.actors.{kind}.active_speed"),
-            )?;
-        }
-        validate_positive_finite(movement.missile_speed, &format!("{movement_path}.missile_speed"))?;
-        validate_positive_finite(movement.projectile_speed, &format!("{movement_path}.projectile_speed"))?;
-        validate_positive_finite(movement.gravity, &format!("{movement_path}.gravity"))?;
-        validate_non_negative_finite(movement.low_gravity, &format!("{movement_path}.low_gravity"))?;
-        validate_positive_finite(
-            movement.ladder_climb_ratio,
-            &format!("{movement_path}.ladder_climb_ratio"),
-        )?;
-        validate_positive_finite(
-            movement.knockback.max_speed,
-            &format!("{movement_path}.knockback.max_speed"),
-        )?;
-        validate_non_negative_finite(
-            movement.knockback.up_speed,
-            &format!("{movement_path}.knockback.up_speed"),
-        )?;
-        validate_positive_finite(
-            movement.knockback.deceleration,
-            &format!("{movement_path}.knockback.deceleration"),
-        )?;
+        movement.validate(&movement_path)?;
         if let Some(random_items) = &entry.random_items {
             random_items.validate(&format!("{path}.random_items"), entry.settings.weapons)?;
         }
@@ -239,7 +200,6 @@ mod tests {
                     missiles: true,
                     portals: PortalMode::Both,
                 },
-                barrier_kinds: None,
             },
             random_items: None,
             weather: WeatherMode::Clear,
@@ -295,7 +255,6 @@ mod tests {
                 "knockback": { "max_speed": 15.0, "up_speed": 7.0, "deceleration": 35.0 }
             },
             "weapons": { "projectiles": projectiles, "missiles": missiles, "portals": portals },
-            "barrier_kinds": null,
             "random_items": null,
             "quests": []
         });
@@ -312,28 +271,6 @@ mod tests {
     #[test]
     fn validate_maps_accepts_single_valid_entry() {
         validate_test_maps(&one_map("hotel"), "hotel").expect("valid map registry should pass");
-    }
-
-    #[test]
-    fn null_barrier_kinds_deserialize_as_none() {
-        let entry = parse_map_entry(true, true, "both", Some("clear"), Some("bright"))
-            .expect("map without barrier kinds should deserialize");
-        assert!(entry.settings.barrier_kinds.is_none());
-    }
-
-    #[test]
-    fn omitted_barrier_kinds_is_rejected() {
-        let mut value = serde_json::to_value(
-            parse_map_entry(true, true, "both", Some("clear"), Some("bright"))
-                .expect("map config should deserialize"),
-        )
-        .expect("map config should serialize");
-        value
-            .as_object_mut()
-            .expect("map entry JSON is not an object")
-            .remove("barrier_kinds");
-        let error = serde_json::from_value::<MapServerConfig>(value).expect_err("missing barrier_kinds accepted");
-        assert!(error.to_string().contains("barrier_kinds"));
     }
 
     #[test]

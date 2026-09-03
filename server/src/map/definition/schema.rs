@@ -11,6 +11,10 @@ pub(crate) struct MapFile {
 pub(crate) struct MapDef {
     pub(crate) grid_cols: i32,
     pub(crate) grid_rows: i32,
+    // Ordered; index = `BarrierKindId`. Names every kind the map's barriers,
+    // keys, and barrier plates may use.
+    #[serde(default)]
+    pub(crate) barrier_kinds: Vec<String>,
     #[serde(default)]
     pub(crate) actor_spawn_zones: Vec<ActorSpawnZoneDef>,
     #[serde(default)]
@@ -146,7 +150,7 @@ pub(crate) struct PlayerSpawnZoneDef {
 // A single map-authored item. `item_type` is an `ItemType` config id
 // (`ItemType::from_config_id`), or "key" with `kind` referencing the
 // `BarrierKindTable`. Placed items hide on pickup and reappear in place
-// after the per-type `placed_items.respawn_secs` delay.
+// after the per-type `items.placed.respawn_secs` delay.
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
 pub(crate) struct ItemDef {
     pub(crate) level: u32,

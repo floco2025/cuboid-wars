@@ -141,7 +141,7 @@ mod tests {
         let config = ServerGameplayConfig::load_default().expect("default server gameplay config failed to load");
         let actors = config.gameplay_bootstrap().actors;
         let combat = &config.combat;
-        assert_eq!(actors.len(), config.actors.len());
+        assert_eq!(actors.len(), config.actors.kinds.len());
         let kinds: Vec<&str> = actors.iter().map(|(kind, _)| kind.as_str()).collect();
         let mut sorted = kinds.clone();
         sorted.sort_unstable();
@@ -174,6 +174,7 @@ mod tests {
                 map: MapBootstrap {
                     layout: MapLayout::default(),
                     settings: map_settings,
+                    barrier_kinds: vec!["lobby".to_owned(), "basement".to_owned()],
                     key_kinds: vec![BarrierKindId(1)],
                 },
             },
@@ -187,6 +188,6 @@ mod tests {
         };
         assert_eq!(decoded.player.id, PlayerId(7));
         assert_eq!(decoded.world.map.key_kinds, [BarrierKindId(1)]);
-        assert_eq!(decoded.world.gameplay.actors.len(), config.actors.len());
+        assert_eq!(decoded.world.gameplay.actors.len(), config.actors.kinds.len());
     }
 }

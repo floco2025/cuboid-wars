@@ -190,7 +190,7 @@ pub(super) fn run_admin_command(
             let mut given = 0usize;
             for item_type in PowerUpKind::ALL.map(PowerUpKind::to_item_type) {
                 if weapons.allows_item(item_type) {
-                    info.grant_power_up(item_type, &admin.server_gameplay_config.power_ups);
+                    info.grant_power_up(item_type, &admin.server_gameplay_config.items.power_ups);
                     given += 1;
                 }
             }
@@ -212,7 +212,7 @@ pub(super) fn run_admin_command(
             let Some(info) = players.get_mut(&sender) else {
                 return Private("sender not found".to_owned());
             };
-            info.grant_power_up(item_type, &admin.server_gameplay_config.power_ups);
+            info.grant_power_up(item_type, &admin.server_gameplay_config.items.power_ups);
             Private(format!("gave the {power_up} power-up"))
         }
         AdminCommand::GiveMissiles => {
@@ -356,10 +356,10 @@ fn quest_status(players: &PlayerMap, board: &QuestBoard, catalog: &QuestCatalog,
 
 fn actor_kind_error(kind: Option<&str>, config: &ServerGameplayConfig) -> Option<String> {
     let kind = kind?;
-    if config.actors.contains_key(kind) {
+    if config.actors.kinds.contains_key(kind) {
         return None;
     }
-    let mut kinds: Vec<&str> = config.actors.keys().map(String::as_str).collect();
+    let mut kinds: Vec<&str> = config.actors.kinds.keys().map(String::as_str).collect();
     kinds.sort_unstable();
     Some(format!("unknown actor kind {kind:?} (kinds: {})", kinds.join(", ")))
 }
@@ -413,7 +413,7 @@ mod tests {
         assert!(!info.add_key(kind), "second add of the same key must be a no-op");
 
         let config = ServerGameplayConfig::load_default().expect("default server gameplay config failed to load");
-        info.grant_power_up(ItemType::SpeedPowerUp, &config.power_ups);
+        info.grant_power_up(ItemType::SpeedPowerUp, &config.items.power_ups);
         assert!(
             info.life.power_up_timers[common::protocol::PowerUpKind::Speed.index()] > 0.0,
             "speed timer must be armed"

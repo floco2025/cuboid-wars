@@ -21,10 +21,17 @@ use crate::missiles::{MissileMap, MissileVelocity};
 use crate::portals::PortalMap;
 
 #[derive(Resource, Default)]
-pub struct SnapshotRequest {
-    pub force: bool,
+pub struct SnapshotSchedule {
+    force: bool,
     timer: f32,
     seq: u32,
+}
+
+impl SnapshotSchedule {
+    // Broadcast on the next tick regardless of the cadence.
+    pub fn force_next(&mut self) {
+        self.force = true;
+    }
 }
 
 // Bundled: Bevy systems take at most 16 parameters and this one is over.
@@ -39,7 +46,7 @@ pub struct WorldConditions<'w> {
 
 pub(super) fn network_broadcast_snapshot_system(
     time: Res<Time>,
-    mut request: ResMut<SnapshotRequest>,
+    mut schedule: ResMut<SnapshotSchedule>,
     players: Res<PlayerMap>,
     actors: Res<ActorMap>,
     pending_spawns: Res<PendingActorSpawns>,
@@ -54,22 +61,22 @@ pub(super) fn network_broadcast_snapshot_system(
     missiles: Res<MissileMap>,
     missile_data: Query<(&Position, &MissileVelocity), With<MissileMarker>>,
 ) {
-    request.timer += time.delta_secs();
-    if request.timer < SNAPSHOT_SECS && !request.force {
+    schedule.timer += time.delta_secs();
+    if schedule.timer < SNAPSHOT_SECS && !schedule.force {
         return;
     }
     // Carry the phase remainder rather than zeroing, so the long-run rate
     // holds at SNAPSHOT_HZ instead of drifting slower by the leftover each tick.
-    if request.timer >= SNAPSHOT_SECS {
-        request.timer -= SNAPSHOT_SECS;
+    if schedule.timer >= SNAPSHOT_SECS {
+        schedule.timer -= SNAPSHOT_SECS;
     }
-    request.force = false;
+    schedule.force = false;
 
     if !players.has_active_players() {
         return;
     }
 
-    request.seq = request.seq.wrapping_add(1);
+    schedule.seq = schedule.seq.wrapping_add(1);
 
     let all_players = snapshot_active_players(&players, &player_data, &motions);
     let all_actors = snapshot_actors(&actors, &actor_data, &actor_motions);
@@ -78,7 +85,7 @@ pub(super) fn network_broadcast_snapshot_system(
 
     let (quests, locked_plate_purposes) = conditions.quests.snapshot_fields(&conditions.quest_catalog, &players);
     let msg = ServerMessage::Snapshot(SSnapshot {
-        seq: request.seq,
+        seq: schedule.seq,
         players: all_players,
         actors: all_actors,
         spawning_actors: snapshot_spawning_actors(&pending_spawns),
