@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use super::PreviousTickPosition;
 use crate::{
     actors::{ActorMap, ActorMovementQuery, actor_start_positions, apply_actor_moves, plan_actor_moves},
-    config::AssetSet,
+    config::{AssetSet, ClientSettings},
     players::{PlayerMap, PlayerMovementQuery, apply_player_moves, plan_player_moves},
 };
 use common::{
@@ -29,6 +29,7 @@ pub fn characters_movement_system(
     time: Res<Time>,
     asset_server: Res<AssetServer>,
     asset_set: Res<AssetSet>,
+    client_settings: Res<ClientSettings>,
     gameplay_config: Res<GameplayConfig>,
     collision_world: Res<CollisionWorld>,
     map_settings: Res<MapSettings>,
@@ -72,6 +73,7 @@ pub fn characters_movement_system(
         delta,
         &asset_server,
         &asset_set,
+        &client_settings.audio,
         &mut players_query,
         &planned_moves,
     );

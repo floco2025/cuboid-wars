@@ -1,17 +1,18 @@
 use bevy::prelude::*;
 use common::physics::{CharacterMovePlan, overlapping_character};
 
-use super::{
-    feedback::{release_collision_feedback_after_clear_frames, trigger_collision_feedback},
-    planning::PlayerMovementQuery,
-};
-use crate::config::AssetSet;
+use super::{feedback::bump, planning::PlayerMovementQuery};
+use crate::config::{AssetSet, AudioConfig};
+
+// Below this horizontal speed a tick counts as standing still.
+const STANDSTILL_SPEED: f32 = 0.5;
 
 pub(crate) fn apply_player_moves(
     commands: &mut Commands,
     delta: f32,
     asset_server: &AssetServer,
     asset_set: &AssetSet,
+    audio: &AudioConfig,
     query: &mut PlayerMovementQuery,
     planned_moves: &[CharacterMovePlan],
 ) {
@@ -29,19 +30,25 @@ pub(crate) fn apply_player_moves(
             motion.0 = planned_move.target_vertical_velocity;
 
             if is_local && let Some(state) = feedback_state.as_mut() {
-                trigger_collision_feedback(commands, asset_server, asset_set, state, false);
+                bump(commands, asset_server, asset_set, &audio.bump, state, false);
             }
         } else {
             *client_pos = planned_move.target;
             motion.0 = planned_move.target_vertical_velocity;
 
-            if let Some(state) = feedback_state.as_mut() {
+            if is_local && let Some(state) = feedback_state.as_mut() {
                 if planned_move.blocked {
-                    if is_local {
-                        trigger_collision_feedback(commands, asset_server, asset_set, state, true);
-                    }
+                    bump(commands, asset_server, asset_set, &audio.bump, state, true);
                 } else {
-                    release_collision_feedback_after_clear_frames(state, delta);
+                    let moved = (planned_move.target.x - planned_move.start.x)
+                        .hypot(planned_move.target.z - planned_move.start.z);
+                    // Standing still ends the run-up, so a hop at a wall from
+                    // beside it starts from nothing.
+                    state.run_up = if moved > delta * STANDSTILL_SPEED {
+                        state.run_up + moved
+                    } else {
+                        0.0
+                    };
                 }
             }
         }

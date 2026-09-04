@@ -30,7 +30,8 @@
   "audio": {
     "spatial_distance_scale": 0.1,
     "explosion_gain": 2.0,
-    "rain_volume": 1.0
+    "rain_volume": 1.0,
+    "bump": { "min_run_up": 1.0, "full_run_up": 6.0 }
   },
   "weather": {
     "rain_drops_per_second": 1000.0,

@@ -192,9 +192,9 @@ fn prepare_movement_request(
         project_move_onto_support(requested_horizontal_move, ground.normal)
     });
     // The perch slide is a separate term (not folded into
-    // `supported_horizontal_move`) so the blocked/bump check below keeps
+    // `supported_horizontal_move`) so the blocked/impact check below keeps
     // comparing requested body movement against actual movement — an idle
-    // player perched against a wall must not hear bump feedback.
+    // player perched against a wall has no impact.
     let requested_move = supported_horizontal_move + perch_slide_move + requested_vertical_move;
 
     MovementRequest {
@@ -288,11 +288,12 @@ fn finish_character_movement(
         collision.grounded && collision.translation.y > request.requested_total.y + CHARACTER_AUTOSTEP_EPSILON;
     let side_movement_blocked = collision.saw_side_contact
         && !stepped_up
-        && movement_progress_was_blocked(request.requested_horizontal, collision.translation);
+        && horizontal_shortfall(request.requested_horizontal, collision.translation)
+            > CHARACTER_BLOCKED_MOVEMENT_EPSILON;
     // A climb whose rise was cut short hit something overhead (e.g. riding
     // the wrong side of a ladder into the floor above) — surface it as
-    // blocked so the bump feedback fires. Scoped to climbing: ordinary jumps
-    // against ceilings stay silent.
+    // blocked. Scoped to climbing: ordinary jumps against ceilings stay
+    // silent.
     let climb_rise_blocked = request.ascending_ladder
         && request.requested_vertical.y > 0.0
         && collision.translation.y < request.requested_vertical.y - CHARACTER_BLOCKED_MOVEMENT_EPSILON;
@@ -330,17 +331,19 @@ fn finish_character_movement(
     }
 }
 
-fn movement_progress_was_blocked(desired: Vector, actual: Vector) -> bool {
+// How far short of the requested horizontal move the body fell, measured
+// along the requested direction; sliding sideways off a wall counts as
+// lost progress, moving further than asked does not.
+fn horizontal_shortfall(desired: Vector, actual: Vector) -> f32 {
     let desired_xz = Vec3::new(desired.x, 0.0, desired.z);
     let desired_len = desired_xz.length();
     if desired_len <= CHARACTER_BLOCKED_MOVEMENT_EPSILON {
-        return false;
+        return 0.0;
     }
 
     let actual_xz = Vec3::new(actual.x, 0.0, actual.z);
-    let desired_dir = desired_xz / desired_len;
-    let actual_along_desired = actual_xz.dot(desired_dir);
-    actual_along_desired < desired_len - CHARACTER_BLOCKED_MOVEMENT_EPSILON
+    let actual_along_desired = actual_xz.dot(desired_xz / desired_len);
+    (desired_len - actual_along_desired).max(0.0)
 }
 
 fn character_controller() -> KinematicCharacterController {

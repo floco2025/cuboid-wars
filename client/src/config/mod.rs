@@ -8,7 +8,7 @@ mod settings;
 mod vfx;
 
 pub use assets::{AssetSet, MaterialDef, ModelDef, SkyboxDef};
-pub use audio::AudioConfig;
+pub use audio::{AudioConfig, BumpAudioConfig};
 pub use local::{LOCAL_SETTINGS_VERSION, LocalSettings};
 pub use rendering::OpaqueRenderer;
 pub use settings::{ClientSettings, GrassConfig, LightingConfig, MoonLighting, SunLighting, WeatherConfig};

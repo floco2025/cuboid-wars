@@ -4,13 +4,12 @@ use bevy::prelude::*;
 // Components
 // ============================================================================
 
-// Debounces the local player's collision (bump) sound: `was_colliding` gates
-// re-triggering while still in contact, and `release_timer` keeps that gate
-// closed for a short window after the last blocked frame.
+// The local player's run-up for the bump sound: horizontal distance moved
+// since the body last stood still or hit something. Every hit spends it, so
+// holding or sliding against a wall never rebuilds one.
 #[derive(Component, Default)]
 pub struct BumpFeedbackState {
-    pub was_colliding: bool,
-    pub release_timer: f32,
+    pub run_up: f32,
 }
 
 // ============================================================================
