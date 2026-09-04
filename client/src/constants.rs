@@ -415,6 +415,11 @@ pub const BRIDGE_ALPHA_ON: f32 = 0.85;
 pub const BRIDGE_EMISSIVE: f32 = 6.0;
 // Time constant of the alpha ease between the two levels.
 pub const BRIDGE_FADE_SECS: f32 = 0.35;
+// Visible gap between a slab's free side and a floor's edge (a floor slab
+// reaches `WALL_HALF_THICKNESS` past its grid line, so the render inset is
+// that plus this); a side that meets another bridge stays flush. The
+// collider keeps the full rectangle.
+pub const BRIDGE_EDGE_GAP: f32 = 0.2;
 
 // ============================================================================
 // Rain

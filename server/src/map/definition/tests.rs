@@ -490,37 +490,6 @@ fn plate_defs_parse_every_purpose() {
     );
 }
 
-// The floor beside a bridge stops at the grid line: both tops sit at the
-// same height, so an extension under the translucent slab would z-fight.
-#[test]
-fn a_floor_beside_a_light_bridge_does_not_extend_under_it() {
-    use common::constants::WALL_HALF_THICKNESS;
-
-    let floor_edge = |cells: &[[i32; 2]]| {
-        let (layout, _, geometry) = compile_map(
-            &map_with_bridges(cells),
-            &assets(),
-            &empty_kind_table(),
-            &skyway_bridge_table(),
-        )
-        .expect("map failed to compile");
-        let floor = layout
-            .floors
-            .iter()
-            .find(|floor| floor.z1 < geometry.cell_to_world_z(1) - 0.5);
-        floor.expect("floor slab missing").x2 - geometry.cell_to_world_x(1)
-    };
-
-    assert!(
-        (floor_edge(&[]) - WALL_HALF_THICKNESS).abs() < 1e-4,
-        "an open side extends"
-    );
-    assert!(
-        floor_edge(&[[1, 0]]).abs() < 1e-4,
-        "a bridge side stops at the grid line"
-    );
-}
-
 #[test]
 fn compile_merges_light_bridge_cells_into_one_rectangle() {
     let map_def = map_with_bridges(&[[1, 0], [2, 0], [1, 1], [2, 1]]);
