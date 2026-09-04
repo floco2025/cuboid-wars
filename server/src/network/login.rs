@@ -4,10 +4,13 @@ use crate::{
     characters::{generate_player_spawn_position, spawn_face_yaw},
     network::{FeedAudience, FeedEvent, ServerToClient, emit_feed},
     players::{PlayerMap, UnlimitedMissiles},
-    portals::PortalAssignments,
+    portals::{PortalAssignments, PortalMap},
     quests::{QuestBoard, QuestCatalog, assign_quests},
 };
-use common::{physics::CharacterVerticalVelocity, protocol::*};
+use common::{
+    physics::{CharacterVerticalVelocity, PortalSet},
+    protocol::*,
+};
 
 use super::handlers::{CharacterQueries, SharedWorld};
 
@@ -36,6 +39,8 @@ pub(super) fn handle_login_message(
     quest_catalog: &QuestCatalog,
     quest_board: &QuestBoard,
     portal_assignments: &mut PortalAssignments,
+    portals: &mut PortalMap,
+    portal_set: &mut PortalSet,
     unlimited_missiles: &UnlimitedMissiles,
 ) {
     let Some(player_info) = players.get_mut(&id) else {
@@ -51,6 +56,11 @@ pub(super) fn handle_login_message(
     debug!("{} authenticated", players.describe(&id));
 
     let portal_access = portal_assignments.assign(id);
+    // A fresh assignment starts with no placed ends. Only a lone `single`
+    // player's second end can be here: this player now controls it.
+    if portals.remove_access(portal_access) {
+        *portal_set = portals.rebuild_set(&world.collision_world);
+    }
     let init_message = ServerMessage::Init(SInit {
         player: PlayerBootstrap { id, portal_access },
         world: (*world.world_bootstrap).clone(),

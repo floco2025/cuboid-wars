@@ -71,6 +71,8 @@ pub(super) fn route_client_message(
                 &context.quest_catalog,
                 &context.quest_board,
                 &mut context.portal_assignments,
+                &mut context.portals,
+                &mut context.portal_set,
                 &context.admin.unlimited_missiles,
             );
         }

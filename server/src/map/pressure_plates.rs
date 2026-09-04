@@ -43,6 +43,12 @@ pub fn player_on_plate(plate: &PressurePlateRuntime, pos: &Position, geometry: &
 // and the kind is open while the number of distinct held plates of that
 // kind is `>= required`.
 //
+// Solo play (exactly one logged-in player, dead or alive) replaces that rule
+// with switches: a fresh press on a barrier plate flips its kind open or
+// closed, and stepping off changes nothing. The switches start from the
+// plates held when solo play begins — a kind the remaining player was
+// holding open stays open — and are dropped once a second player logs in.
+//
 // Firework plates — required = min(firework_plates, active_alive_count);
 // the show launches on the tick the held count reaches it (edge-triggered,
 // so standing there doesn't restart it every tick).
@@ -69,6 +75,9 @@ pub fn pressure_plates_system(
     // Whether the firework threshold held last tick; the show launches on
     // the false→true edge.
     mut fireworks_ready: Local<bool>,
+    // Solo switch positions: the barrier kinds a lone player has flipped
+    // open. `None` outside solo play.
+    mut switches: Local<Option<HashSet<BarrierKindId>>>,
 ) {
     if map_config.pressure_plates.is_empty() {
         if !open.0.is_empty() {
@@ -76,6 +85,7 @@ pub fn pressure_plates_system(
         }
         prev_held.clear();
         *fireworks_ready = false;
+        *switches = None;
         return;
     }
 
@@ -87,10 +97,16 @@ pub fn pressure_plates_system(
         }
     }
 
-    let alive: usize = players
-        .iter()
-        .filter(|(_, info)| info.connection.logged_in && !info.is_dead())
-        .count();
+    let mut logged_in: usize = 0;
+    let mut alive: usize = 0;
+    for (_, info) in players.iter() {
+        if info.connection.logged_in {
+            logged_in += 1;
+            if !info.is_dead() {
+                alive += 1;
+            }
+        }
+    }
 
     // Per-tick: who holds each plate (the first alive player found on it).
     // Inactive plates are skipped outright, so they neither click nor count.
@@ -130,23 +146,44 @@ pub fn pressure_plates_system(
         );
     }
 
-    let mut next = Vec::new();
-    for (kind, plates_for_kind) in plates_per_kind.iter() {
-        let required = (*plates_for_kind).min(alive.saturating_sub(1));
-        let held = held_per_kind.get(kind).copied().unwrap_or(0);
-        if held >= required {
-            next.push(*kind);
+    // Kinds a solo press flipped this tick.
+    let mut flipped = Vec::new();
+    let mut next: Vec<BarrierKindId> = if logged_in == 1 {
+        let seeded = switches.is_none();
+        let switches = switches.get_or_insert_with(|| held_per_kind.keys().copied().collect());
+        if !seeded {
+            for idx in held_indices.difference(&prev_held) {
+                if let PlatePurpose::Barrier(kind) = plates[*idx].purpose {
+                    if !switches.remove(&kind) {
+                        switches.insert(kind);
+                    }
+                    flipped.push(kind);
+                }
+            }
         }
-    }
+        switches.iter().copied().collect()
+    } else {
+        *switches = None;
+        let mut next = Vec::new();
+        for (kind, plates_for_kind) in plates_per_kind.iter() {
+            let required = (*plates_for_kind).min(alive.saturating_sub(1));
+            let held = held_per_kind.get(kind).copied().unwrap_or(0);
+            if held >= required {
+                next.push(*kind);
+            }
+        }
+        next
+    };
     // Stable order for the equality diff below — without it, the HashMap
     // iteration order varies tick-to-tick and we'd rewrite the resource
     // every tick (defeating change detection on both server broadcast and
     // client visibility).
     next.sort_by_key(|k| k.0);
 
-    // Feed lines follow plate presses only. The alive-count term also opens
-    // and closes kinds (solo play, joins, deaths); those stay silent — the
-    // barriers themselves already show it.
+    // Feed lines follow plate presses only. The alive-count term and the
+    // switch-over into or out of solo play also open and close kinds
+    // (joins, leaves, deaths); those stay silent — the barriers themselves
+    // already show it.
     let kind_name = |kind: BarrierKindId| {
         barrier_kinds
             .id(kind)
@@ -171,7 +208,7 @@ pub fn pressure_plates_system(
     for kind in closed {
         let held_now = held_per_kind.get(&kind).copied().unwrap_or(0);
         let held_before = prev_held_per_kind.get(&kind).copied().unwrap_or(0);
-        if held_now < held_before {
+        if flipped.contains(&kind) || held_now < held_before {
             emit_feed(
                 &players,
                 &server_gameplay_config.feed,
@@ -455,7 +492,7 @@ mod system_tests {
         players::PlayerInfo,
         quests::{
             QuestCatalog,
-            test_support::{catalog, completed, drain, quest},
+            test_support::{catalog, completed, drain, feed_lines, quest},
         },
     };
     use common::{
@@ -463,12 +500,21 @@ mod system_tests {
         protocol::{QuestId, QuestScope},
     };
 
+    const LOBBY: BarrierKindId = BarrierKindId(0);
+
     fn firework_plate() -> PressurePlateRuntime {
         PressurePlateRuntime {
             level: 0,
             col: 0,
             row: 0,
             purpose: PlatePurpose::Firework,
+        }
+    }
+
+    fn lobby_plate() -> PressurePlateRuntime {
+        PressurePlateRuntime {
+            purpose: PlatePurpose::Barrier(LOBBY),
+            ..firework_plate()
         }
     }
 
@@ -493,27 +539,59 @@ mod system_tests {
             .insert_resource(config)
             .insert_resource(quest_catalog)
             .insert_resource(board)
-            .insert_resource(BarrierKindTable::default())
+            .insert_resource(BarrierKindTable::from_ids(vec!["lobby".to_owned()]).expect("one barrier kind"))
             .insert_resource(OpenBarrierKinds::default())
             .add_systems(Update, pressure_plates_system);
         app
     }
 
     // A logged-in player standing in the middle of cell (0, 0).
-    fn standing_player(app: &mut App) -> (Entity, UnboundedReceiver<ServerToClient>) {
+    fn standing_player(app: &mut App, id: u32) -> (Entity, UnboundedReceiver<ServerToClient>) {
         let geometry = *app.world().resource::<MapGeometry>();
         let pos = Position {
             x: geometry.cell_to_world_x(0) + GRID_CELL_SIZE / 2.0,
             y: 0.0,
             z: geometry.cell_to_world_z(0) + GRID_CELL_SIZE / 2.0,
         };
-        let entity = app.world_mut().spawn((PlayerMarker, PlayerId(1), pos)).id();
+        let entity = app.world_mut().spawn((PlayerMarker, PlayerId(id), pos)).id();
         let (tx, mut rx) = unbounded_channel();
         let mut info = PlayerInfo::new(entity, tx);
         info.connection.logged_in = true;
         while rx.try_recv().is_ok() {}
-        app.world_mut().resource_mut::<PlayerMap>().insert(PlayerId(1), info);
+        app.world_mut().resource_mut::<PlayerMap>().insert(PlayerId(id), info);
         (entity, rx)
+    }
+
+    fn leave(app: &mut App, id: u32, entity: Entity) {
+        app.world_mut().resource_mut::<PlayerMap>().remove(&PlayerId(id));
+        app.world_mut().despawn(entity);
+    }
+
+    fn step_off(app: &mut App, entity: Entity) {
+        app.world_mut()
+            .entity_mut(entity)
+            .get_mut::<Position>()
+            .expect("position")
+            .x += 100.0;
+    }
+
+    fn step_on(app: &mut App, entity: Entity) {
+        app.world_mut()
+            .entity_mut(entity)
+            .get_mut::<Position>()
+            .expect("position")
+            .x -= 100.0;
+    }
+
+    fn open_kinds(app: &App) -> Vec<BarrierKindId> {
+        app.world().resource::<OpenBarrierKinds>().0.clone()
+    }
+
+    fn barrier_lines(messages: &[ServerMessage]) -> Vec<String> {
+        feed_lines(messages)
+            .into_iter()
+            .filter(|line| line.contains("barriers"))
+            .collect()
     }
 
     fn shows(messages: &[ServerMessage]) -> usize {
@@ -537,7 +615,7 @@ mod system_tests {
             quest("show", QuestKind::Fireworks, QuestScope::Shared, 1, Some("gold")),
         ]);
         let mut app = app(config, vec![firework_plate()]);
-        let (_, mut rx) = standing_player(&mut app);
+        let (_, mut rx) = standing_player(&mut app, 1);
 
         app.update();
         app.update();
@@ -555,7 +633,7 @@ mod system_tests {
     fn an_unlocked_plate_fires_once_per_press() {
         let config = catalog(vec![quest("show", QuestKind::Fireworks, QuestScope::Shared, 1, None)]);
         let mut app = app(config, vec![firework_plate()]);
-        let (entity, mut rx) = standing_player(&mut app);
+        let (entity, mut rx) = standing_player(&mut app, 1);
 
         app.update();
         app.update();
@@ -572,21 +650,92 @@ mod system_tests {
         );
 
         // Step off, then back on: the show fires again, the latched quest doesn't.
-        let on_plate = *app.world().entity(entity).get::<Position>().expect("position");
-        app.world_mut()
-            .entity_mut(entity)
-            .get_mut::<Position>()
-            .expect("position")
-            .x += 100.0;
+        step_off(&mut app, entity);
         app.update();
         assert_eq!(clicks(&drain(&mut rx)), 1, "release click");
-        *app.world_mut()
-            .entity_mut(entity)
-            .get_mut::<Position>()
-            .expect("position") = on_plate;
+        step_on(&mut app, entity);
         app.update();
         let messages = drain(&mut rx);
         assert_eq!(shows(&messages), 1);
         assert!(!completed(&messages, "show"));
+    }
+
+    #[test]
+    fn a_lone_player_toggles_a_barrier_kind_with_each_press() {
+        let mut app = app(catalog(Vec::new()), vec![lobby_plate()]);
+        let (entity, mut rx) = standing_player(&mut app, 1);
+        step_off(&mut app, entity);
+        app.update();
+        assert!(open_kinds(&app).is_empty());
+
+        step_on(&mut app, entity);
+        app.update();
+        assert_eq!(open_kinds(&app), [LOBBY]);
+        let lines = barrier_lines(&drain(&mut rx));
+        assert_eq!(lines.len(), 1);
+        assert!(lines[0].contains("opened the lobby"), "{lines:?}");
+
+        step_off(&mut app, entity);
+        app.update();
+        assert_eq!(open_kinds(&app), [LOBBY], "stepping off leaves the switch alone");
+        assert!(barrier_lines(&drain(&mut rx)).is_empty());
+
+        step_on(&mut app, entity);
+        app.update();
+        assert!(open_kinds(&app).is_empty());
+        assert_eq!(barrier_lines(&drain(&mut rx)), ["The lobby barriers closed"]);
+    }
+
+    #[test]
+    fn a_first_login_prints_no_closed_lines() {
+        let mut app = app(catalog(Vec::new()), vec![lobby_plate()]);
+        app.update();
+        assert_eq!(open_kinds(&app), [LOBBY], "an empty server holds every plate kind open");
+
+        let (entity, mut rx) = standing_player(&mut app, 1);
+        step_off(&mut app, entity);
+        app.update();
+        assert!(open_kinds(&app).is_empty());
+        assert!(barrier_lines(&drain(&mut rx)).is_empty());
+    }
+
+    #[test]
+    fn a_second_login_restores_hold_to_open() {
+        let mut app = app(catalog(Vec::new()), vec![lobby_plate()]);
+        let (entity, _rx) = standing_player(&mut app, 1);
+        app.update();
+        step_off(&mut app, entity);
+        app.update();
+        assert_eq!(open_kinds(&app), [LOBBY], "switched open");
+
+        let (partner, _partner_rx) = standing_player(&mut app, 2);
+        step_off(&mut app, partner);
+        app.update();
+        assert!(open_kinds(&app).is_empty(), "two players: open only while held");
+
+        step_on(&mut app, entity);
+        app.update();
+        assert_eq!(open_kinds(&app), [LOBBY]);
+        step_off(&mut app, entity);
+        app.update();
+        assert!(open_kinds(&app).is_empty());
+    }
+
+    #[test]
+    fn solo_switches_start_from_the_plates_held_when_the_partner_leaves() {
+        let mut app = app(catalog(Vec::new()), vec![lobby_plate()]);
+        let (entity, mut rx) = standing_player(&mut app, 1);
+        let (partner, _partner_rx) = standing_player(&mut app, 2);
+        step_off(&mut app, partner);
+        app.update();
+        assert_eq!(open_kinds(&app), [LOBBY], "held open under the hold rule");
+        drain(&mut rx);
+
+        leave(&mut app, 2, partner);
+        app.update();
+        step_off(&mut app, entity);
+        app.update();
+        assert_eq!(open_kinds(&app), [LOBBY], "the held plate seeds the switch");
+        assert!(barrier_lines(&drain(&mut rx)).is_empty());
     }
 }

@@ -3,7 +3,7 @@ use bincode::{Decode, Encode};
 
 use super::{
     ActorMoveIntent, ActorMovementState, BarrierKindId, Health, ItemType, MissileMovementState, PlayerId,
-    PlayerMoveIntent, PlayerMovementState, Position, PowerUpKind,
+    PlayerMoveIntent, PlayerMovementState, PortalAccess, Position, PowerUpKind,
 };
 
 // Marker components disambiguating entity archetypes across server and client.
@@ -66,6 +66,9 @@ pub struct Player {
     pub stunned: bool,
     pub held_keys: Vec<BarrierKindId>,
     pub missiles: u32,
+    // Which portal ends this player may place. `SInit` seeds it; the snapshot
+    // keeps it current as players come and go.
+    pub portal_access: PortalAccess,
 }
 
 impl Player {
@@ -87,6 +90,7 @@ impl Player {
             stunned: false,
             held_keys: Vec::new(),
             missiles: 0,
+            portal_access: PortalAccess::None,
         }
     }
 

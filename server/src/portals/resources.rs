@@ -74,7 +74,9 @@ impl PortalMap {
 // Portal slots handed out at login under the map's fixed portal mode:
 // `both` gives each slot its own pair, `single` pairs adjacent slots as ends
 // A/B so two players share one pair. A freed slot is reused first, so a
-// partner's replacement joins the same pair.
+// partner's replacement joins the same pair. A lone `single` player holds
+// both ends of their pair — same pair id, so nothing they placed moves — and
+// the ends split A/B again once the adjacent slot fills.
 #[derive(Resource)]
 pub struct PortalAssignments {
     mode: PortalMode,
@@ -115,18 +117,28 @@ impl PortalAssignments {
         let Some(slot) = self.slot_of(player) else {
             return PortalAccess::None;
         };
+        // Read before the slot empties: that can make the partner solo, and
+        // the leaver must report only what they held.
+        let access = self.access(slot);
         self.slots[slot] = None;
-        self.access(slot)
+        access
     }
 
     fn slot_of(&self, player: &PlayerId) -> Option<usize> {
         self.slots.iter().position(|slot| slot.as_ref() == Some(player))
     }
 
+    // Occupied slots are exactly the logged-in players: assigned at login,
+    // released at disconnect.
+    fn is_solo(&self) -> bool {
+        self.slots.iter().flatten().count() == 1
+    }
+
     fn access(&self, slot: usize) -> PortalAccess {
         let pair = |index: usize| PortalPairId(u32::try_from(index + 1).expect("portal pair slot exceeds u32"));
         match self.mode {
             PortalMode::None => PortalAccess::None,
+            PortalMode::Single if self.is_solo() => PortalAccess::Both { pair: pair(slot / 2) },
             PortalMode::Single => PortalAccess::Single {
                 pair: pair(slot / 2),
                 end: if slot.is_multiple_of(2) {
@@ -222,46 +234,62 @@ mod tests {
         assert!(!map.rebuild_set(&world).is_empty());
     }
 
+    const fn single(pair: u32, end: PortalEnd) -> PortalAccess {
+        PortalAccess::Single {
+            pair: PortalPairId(pair),
+            end,
+        }
+    }
+
+    const fn both(pair: u32) -> PortalAccess {
+        PortalAccess::Both {
+            pair: PortalPairId(pair),
+        }
+    }
+
     #[test]
     fn single_assignments_pair_adjacent_slots_and_reuse_vacancies() {
         let mut assignments = PortalAssignments::new(PortalMode::Single);
-        let first = assignments.assign(PlayerId(10));
-        let second = assignments.assign(PlayerId(11));
-        let third = assignments.assign(PlayerId(12));
-        assert_eq!(
-            first,
-            PortalAccess::Single {
-                pair: PortalPairId(1),
-                end: PortalEnd::A
-            }
-        );
-        assert_eq!(
-            second,
-            PortalAccess::Single {
-                pair: PortalPairId(1),
-                end: PortalEnd::B
-            }
-        );
-        assert_eq!(
-            third,
-            PortalAccess::Single {
-                pair: PortalPairId(2),
-                end: PortalEnd::A
-            }
-        );
+        assert_eq!(assignments.assign(PlayerId(10)), both(1));
+        assert_eq!(assignments.assign(PlayerId(11)), single(1, PortalEnd::B));
+        assert_eq!(assignments.get(&PlayerId(10)), single(1, PortalEnd::A));
+        assert_eq!(assignments.assign(PlayerId(12)), single(2, PortalEnd::A));
 
-        assert_eq!(assignments.release(&PlayerId(11)), second);
-        assert_eq!(assignments.assign(PlayerId(13)), second);
-        assert_eq!(assignments.get(&PlayerId(10)), first);
+        assert_eq!(assignments.release(&PlayerId(11)), single(1, PortalEnd::B));
+        assert_eq!(assignments.assign(PlayerId(13)), single(1, PortalEnd::B));
+        assert_eq!(assignments.get(&PlayerId(10)), single(1, PortalEnd::A));
         assert_eq!(assignments.get(&PlayerId(11)), PortalAccess::None);
     }
 
     #[test]
+    fn a_lone_single_mode_player_keeps_their_pair_id_in_either_slot() {
+        let mut assignments = PortalAssignments::new(PortalMode::Single);
+        assignments.assign(PlayerId(10));
+        assignments.assign(PlayerId(11));
+        assignments.release(&PlayerId(10));
+        assert_eq!(assignments.get(&PlayerId(11)), both(1));
+
+        assignments.assign(PlayerId(12));
+        assert_eq!(assignments.get(&PlayerId(11)), single(1, PortalEnd::B));
+        assert_eq!(assignments.get(&PlayerId(12)), single(1, PortalEnd::A));
+    }
+
+    #[test]
+    fn release_reports_the_access_held_before_the_slot_empties() {
+        let mut assignments = PortalAssignments::new(PortalMode::Single);
+        assignments.assign(PlayerId(10));
+        assignments.assign(PlayerId(11));
+        assert_eq!(assignments.release(&PlayerId(11)), single(1, PortalEnd::B));
+        assert_eq!(assignments.release(&PlayerId(10)), both(1));
+        assert_eq!(assignments.release(&PlayerId(10)), PortalAccess::None);
+    }
+
+    #[test]
     fn both_assignments_give_every_slot_its_own_pair_and_none_mode_gives_nothing() {
-        let mut both = PortalAssignments::new(PortalMode::Both);
-        assert_eq!(both.assign(PlayerId(1)), PortalAccess::Both { pair: PortalPairId(1) });
-        assert_eq!(both.assign(PlayerId(2)), PortalAccess::Both { pair: PortalPairId(2) });
-        assert_eq!(both.assign(PlayerId(1)), PortalAccess::Both { pair: PortalPairId(1) });
+        let mut assignments = PortalAssignments::new(PortalMode::Both);
+        assert_eq!(assignments.assign(PlayerId(1)), both(1));
+        assert_eq!(assignments.assign(PlayerId(2)), both(2));
+        assert_eq!(assignments.assign(PlayerId(1)), both(1));
 
         let mut none = PortalAssignments::new(PortalMode::None);
         assert_eq!(none.assign(PlayerId(1)), PortalAccess::None);

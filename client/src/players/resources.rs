@@ -147,7 +147,7 @@ impl Default for LocalPlayerInfo {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use common::protocol::{Health, PlayerMovementState, Position};
+    use common::protocol::{Health, PlayerMovementState, PortalAccess, Position};
 
     fn snapshot_player() -> Player {
         Player {
@@ -159,6 +159,7 @@ mod tests {
             stunned: true,
             held_keys: vec![BarrierKindId(1), BarrierKindId(3)],
             missiles: 2,
+            portal_access: PortalAccess::None,
         }
     }
 

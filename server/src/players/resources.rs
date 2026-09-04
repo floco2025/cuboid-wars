@@ -6,7 +6,7 @@ use tokio::sync::mpsc::UnboundedSender;
 use crate::{config::PowerUpsConfig, network::ServerToClient};
 use common::protocol::{
     BarrierKindId, FaceYaw, Health, ItemType, Player, PlayerId, PlayerMarker, PlayerMoveIntent, PlayerMovementState,
-    Position, PowerUpKind, QuestId, QuestScope, SPlayerStatus,
+    PortalAccess, Position, PowerUpKind, QuestId, QuestScope, SPlayerStatus,
 };
 
 use super::PlayerFallState;
@@ -300,6 +300,7 @@ impl PlayerInfo {
         face_yaw: f32,
         health: Health,
         vertical_velocity: f32,
+        portal_access: PortalAccess,
     ) -> Player {
         Player {
             name: self.connection.name.clone(),
@@ -310,6 +311,7 @@ impl PlayerInfo {
             stunned: self.is_stunned(),
             held_keys: self.life.held_keys.clone(),
             missiles: self.life.missiles,
+            portal_access,
         }
     }
 
@@ -387,6 +389,7 @@ mod tests {
     use super::*;
     use crate::config::PowerUpDurationSecs;
     use bincode::config::standard;
+    use common::protocol::PortalPairId;
     use tokio::sync::mpsc::unbounded_channel;
 
     fn dummy_info() -> PlayerInfo {
@@ -552,9 +555,10 @@ mod tests {
         let face_yaw = 1.5;
         let health = Health(42.0);
         let vertical_velocity = -3.0;
+        let portal_access = PortalAccess::Both { pair: PortalPairId(1) };
 
         let status = info.status(id);
-        let player = info.snapshot_player(pos, move_intent, face_yaw, health, vertical_velocity);
+        let player = info.snapshot_player(pos, move_intent, face_yaw, health, vertical_velocity, portal_access);
 
         assert_eq!(player.name, info.connection.name);
         assert_eq!(player.score, info.session.score);
@@ -567,6 +571,7 @@ mod tests {
         assert_eq!(player.stunned, status.stunned);
         assert_eq!(player.held_keys, status.held_keys);
         assert_eq!(player.missiles, 2);
+        assert_eq!(player.portal_access, portal_access);
     }
 
     #[test]

@@ -18,7 +18,7 @@ use super::broadcast::{
     snapshot_spawning_actors,
 };
 use crate::missiles::{MissileMap, MissileVelocity};
-use crate::portals::PortalMap;
+use crate::portals::{PortalAssignments, PortalMap};
 
 // Bundled: Bevy systems take at most 16 parameters and this one is over.
 #[derive(SystemParam)]
@@ -28,6 +28,7 @@ pub struct WorldConditions<'w> {
     quests: Res<'w, QuestBoard>,
     quest_catalog: Res<'w, QuestCatalog>,
     portals: Res<'w, PortalMap>,
+    portal_assignments: Res<'w, PortalAssignments>,
 }
 
 pub(super) fn network_broadcast_snapshot_system(
@@ -62,7 +63,7 @@ pub(super) fn network_broadcast_snapshot_system(
 
     *seq = seq.wrapping_add(1);
 
-    let all_players = snapshot_active_players(&players, &player_data, &motions);
+    let all_players = snapshot_active_players(&players, &player_data, &motions, &conditions.portal_assignments);
     let all_actors = snapshot_actors(&actors, &actor_data, &actor_motions);
     let all_items = collect_items(&items, &item_positions);
     let all_missiles = snapshot_missiles(&missiles, &missile_data);

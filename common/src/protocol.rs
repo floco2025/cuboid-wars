@@ -848,6 +848,7 @@ mod tests {
                     stunned: false,
                     held_keys: Vec::new(),
                     missiles: 0,
+                    portal_access: PortalAccess::None,
                 },
             )
         };

@@ -5,6 +5,7 @@ use crate::{
     items::ItemMap,
     network::ServerToClient,
     players::{PlayerMap, PlayerStateQuery},
+    portals::PortalAssignments,
 };
 use common::{physics::CharacterVerticalVelocity, protocol::*};
 
@@ -57,6 +58,7 @@ pub fn snapshot_active_players(
     players: &PlayerMap,
     player_data: &PlayerStateQuery,
     motions: &Query<&CharacterVerticalVelocity, With<PlayerMarker>>,
+    portal_assignments: &PortalAssignments,
 ) -> Vec<(PlayerId, Player)> {
     players
         .iter()
@@ -73,7 +75,14 @@ pub fn snapshot_active_players(
             let vertical_velocity = motions.get(entity).map_or(0.0, |m| m.0);
             Some((
                 *player_id,
-                info.snapshot_player(*pos, *move_intent, face_yaw.0, *health, vertical_velocity),
+                info.snapshot_player(
+                    *pos,
+                    *move_intent,
+                    face_yaw.0,
+                    *health,
+                    vertical_velocity,
+                    portal_assignments.get(player_id),
+                ),
             ))
         })
         .collect()
@@ -212,7 +221,12 @@ mod tests {
             SystemState::new(&mut world);
         let (player_data, motions) = state.get(&world).expect("system params invalid for the test world");
 
-        let snapshot = snapshot_active_players(&players, &player_data, &motions);
+        let snapshot = snapshot_active_players(
+            &players,
+            &player_data,
+            &motions,
+            &PortalAssignments::new(PortalMode::None),
+        );
 
         assert_eq!(snapshot.len(), 1);
         assert_eq!(snapshot[0].0, PlayerId(1));

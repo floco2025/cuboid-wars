@@ -32,11 +32,11 @@ death/respawn flow.
   missile flies the map's airspace to it.
 - **Portal gun** — shoot portals onto any surface and step through one to
   come out the other; a map hands you both ends or one end shared with a
-  partner.
+  partner, and playing alone you always get both.
 - **Barriers & keys** — coloured barriers block everyone; the matching key
   lets you through until you die.
 - **Pressure plates** — some barrier colours open for everyone while
-  enough players stand on their plates.
+  enough players stand on their plates; alone, each plate is a switch.
 - **Actors** — mines, sentries, zappers, and reapers patrol and hunt; all
   explode when killed.
 - **Ladders** — climb between levels.

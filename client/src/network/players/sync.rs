@@ -24,6 +24,10 @@ pub(in crate::network) fn sync_players(
 ) {
     let update_ids: HashSet<PlayerId> = server_players.iter().map(|(id, _)| *id).collect();
 
+    if let Some((_, me)) = server_players.iter().find(|(id, _)| *id == my_player_id) {
+        *context.portal_access = me.portal_access;
+    }
+
     // Spawn newly-appeared players. Skip the local player if it's already in
     // the map (e.g., we kept its entity through death — see respawn handling
     // further down).
