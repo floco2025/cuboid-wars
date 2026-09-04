@@ -37,7 +37,7 @@
         { "id": "gravity", "color": "#5090ff" },
         { "id": "lobby", "color": "#22cc33" }
       ],
-      "bridge_kinds": [],
+      "bridge_kinds": [ ],
       "random_items": {
         "types": [ "speed", "multi_shot", "low_gravity", "health_potion", "missile_pack" ],
         "max_number": 30,
@@ -147,7 +147,10 @@
         "missiles": false,
         "portals": "single"
       },
-      "barrier_kinds": [],
+      "barrier_kinds": [
+        { "id": "barrier_1", "color": "#f0c020" }
+      ],
+
       "bridge_kinds": [
         { "id": "bridge_1", "color": "#30d8ff" },
         { "id": "bridge_2", "color": "#30d8ff" },
@@ -165,7 +168,7 @@
           "missile_pack": 30.0
         }
       },
-      "quests": []
+      "quests": [ ]
     }
   },
   "player": {
@@ -240,27 +243,27 @@
       "bounce_retention": 0.85,
       "multi_shot": {
         "spread_degrees": 1.2,
-        "allowed_patterns": ["star_4", "line_5"],
+        "allowed_patterns": [ "star_4", "line_5" ],
         "patterns": {
           "dice_5": {
             "column_scale": 1.0,
             "row_scale": 1.0,
-            "stencil": ["x.x", ".o.", "x.x"]
+            "stencil": [ "x.x", ".o.", "x.x" ]
           },
           "line_5": {
             "column_scale": 1.0,
             "row_scale": 1.0,
-            "stencil": ["xxoxx"]
+            "stencil": [ "xxoxx" ]
           },
           "star_4": {
             "column_scale": 1.0,
             "row_scale": 0.577,
-            "stencil": [".x.", "...", ".o.", "x.x"]
+            "stencil": [ ".x.", "...", ".o.", "x.x" ]
           },
           "triangle_3": {
             "column_scale": 1.0,
             "row_scale": 1.732,
-            "stencil": [".o.", "x.x"]
+            "stencil": [ ".o.", "x.x" ]
           }
         }
       }

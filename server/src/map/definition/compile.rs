@@ -1,13 +1,13 @@
 use anyhow::Context;
 use std::collections::HashSet;
 
-use super::schema::{BarrierDef, LadderDef, MapDef, PressurePlatePurposeDef, RampDef, WallSide};
+use super::schema::{LadderDef, MapDef, PressurePlatePurposeDef, RampDef, WallSide};
 use crate::{
     map::{
         ActorSpawnZone, CellGrid, EdgeGrid, LevelGrid, MapConfig, PlacedItem, PlayerSpawnZone, PressurePlateRuntime,
     },
     map::{
-        barriers::merge_barriers,
+        barriers::{BarrierEdge, merge_barriers, stack_barriers},
         bridges::merge_light_bridges,
         floors,
         lights::generate_wall_lights,
@@ -22,8 +22,8 @@ use common::{
     map::MapGeometry,
     protocol::FaceMaterials,
     protocol::{
-        Barrier, BarrierKindId, BarrierKindTable, BridgeKindTable, Floor, GrassCell, ItemType, Ladder, LightBridge,
-        MapLayout, PlatePurpose, Wall,
+        BarrierKindId, BarrierKindTable, BridgeKindTable, Floor, GrassCell, ItemType, Ladder, LightBridge, MapLayout,
+        PlatePurpose, Wall,
     },
 };
 
@@ -137,17 +137,21 @@ pub(crate) fn compile_map(
         all_wall_materials.extend(merged_materials);
     }
 
-    let mut all_barriers: Vec<Barrier> = Vec::new();
+    let mut barrier_edges: Vec<Vec<BarrierEdge>> = Vec::with_capacity(map_def.levels.len());
     for (level_idx, level) in map_def.levels.iter().enumerate() {
-        let level_u8 = u8::try_from(level_idx).unwrap_or(u8::MAX);
+        let mut edges = Vec::with_capacity(level.barriers.len());
         for (barrier_idx, b) in level.barriers.iter().enumerate() {
-            all_barriers.push(
-                barrier_from_def(b, &geometry, level_u8, kind_table)
-                    .with_context(|| format!("level {level_idx} barriers[{barrier_idx}]"))?,
-            );
+            let kind = kind_table
+                .resolve(&b.kind)
+                .with_context(|| format!("level {level_idx} barriers[{barrier_idx}]"))?;
+            edges.push(BarrierEdge {
+                edge: [b.c0, b.r0, b.c1, b.r1],
+                kind,
+            });
         }
+        barrier_edges.push(edges);
     }
-    let all_barriers = merge_barriers(all_barriers);
+    let all_barriers = merge_barriers(stack_barriers(&barrier_edges, &slab_masks, &geometry));
 
     let all_light_bridges = light_bridges(map_def, &geometry, bridge_table)?;
 
@@ -444,31 +448,4 @@ fn ladder_from_def(def: &LadderDef, geometry: &MapGeometry) -> Ladder {
         level,
         levels,
     }
-}
-
-// Convert an editor-authored one-edge barrier into a world-space `Barrier`
-// segment. Mirrors the wall world-space math (cell-corner → world-corner via
-// `MapGeometry`) so a barrier visually occupies the same edge as a wall would.
-fn barrier_from_def(
-    def: &BarrierDef,
-    geometry: &MapGeometry,
-    level: u8,
-    kind_table: &BarrierKindTable,
-) -> anyhow::Result<Barrier> {
-    let x1 = geometry.cell_to_world_x(def.c0);
-    let z1 = geometry.cell_to_world_z(def.r0);
-    let x2 = geometry.cell_to_world_x(def.c1);
-    let z2 = geometry.cell_to_world_z(def.r1);
-    let kind = kind_table.resolve(&def.kind)?;
-    Ok(Barrier {
-        x1,
-        z1,
-        x2,
-        z2,
-        width: geometry.barrier_thickness(),
-        y: geometry.level_y(level),
-        height: geometry.wall_height(),
-        level,
-        kind,
-    })
 }

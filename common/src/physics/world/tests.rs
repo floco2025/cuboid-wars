@@ -221,6 +221,7 @@ fn wall_surface_along_ray_ignores_barrier() {
         x2: 4.0,
         z2: 1.0,
         level: 1,
+        levels: 1,
         kind: BarrierKindId(0),
         y: LEVEL_HEIGHT,
         height: WALL_HEIGHT,

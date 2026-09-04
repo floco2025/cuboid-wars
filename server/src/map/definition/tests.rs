@@ -8,7 +8,7 @@ use super::{
 };
 use crate::{
     map::material_rules::MaterialRules,
-    test_geometry::{LEVEL_HEIGHT, sizes},
+    test_geometry::{LEVEL_HEIGHT, WALL_HEIGHT, sizes},
 };
 use common::protocol::{BarrierKindTable, BridgeKindTable, FaceMaterials};
 
@@ -392,6 +392,56 @@ fn compile_resolves_known_barrier_kind() {
         compile_map(&map_def, sizes(), &assets(), &red_only_kind_table(), &no_bridges()).expect("compile");
     assert_eq!(layout.barriers.len(), 1);
     assert_eq!(layout.barriers[0].kind, common::protocol::BarrierKindId(0));
+}
+
+#[test]
+fn stacked_barriers_compile_into_one_record_when_no_floor_splits_them() {
+    let mut map_def = map_with_zones(
+        4,
+        vec![level(vec![[0, 0]]), level(vec![[2, 2]])],
+        Vec::new(),
+        vec![player_zone(0, 0, 0)],
+        Vec::new(),
+    );
+    for level in &mut map_def.levels {
+        level.barriers.push(BarrierDef {
+            c0: 0,
+            r0: 0,
+            c1: 1,
+            r1: 0,
+            kind: "red".into(),
+        });
+    }
+    let (layout, _, _) =
+        compile_map(&map_def, sizes(), &assets(), &red_only_kind_table(), &no_bridges()).expect("compile");
+    assert_eq!(layout.barriers.len(), 1);
+    assert_eq!(layout.barriers[0].level, 0);
+    assert_eq!(layout.barriers[0].levels, 2);
+    assert_eq!(layout.barriers[0].height, LEVEL_HEIGHT + WALL_HEIGHT);
+}
+
+#[test]
+fn a_floor_beside_the_upper_barrier_keeps_the_storeys_apart() {
+    let mut map_def = map_with_zones(
+        4,
+        vec![level(vec![[0, 0]]), level(vec![[0, 0]])],
+        Vec::new(),
+        vec![player_zone(0, 0, 0)],
+        Vec::new(),
+    );
+    for level in &mut map_def.levels {
+        level.barriers.push(BarrierDef {
+            c0: 0,
+            r0: 0,
+            c1: 1,
+            r1: 0,
+            kind: "red".into(),
+        });
+    }
+    let (layout, _, _) =
+        compile_map(&map_def, sizes(), &assets(), &red_only_kind_table(), &no_bridges()).expect("compile");
+    assert_eq!(layout.barriers.len(), 2);
+    assert!(layout.barriers.iter().all(|barrier| barrier.levels == 1));
 }
 
 #[test]

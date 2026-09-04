@@ -121,6 +121,7 @@ fn barrier_impact_reports_kind_and_surface_normal() {
                 x2: 2.0,
                 z2: 1.0,
                 level: 0,
+                levels: 1,
                 kind,
                 y: 0.0,
                 height: WALL_HEIGHT,

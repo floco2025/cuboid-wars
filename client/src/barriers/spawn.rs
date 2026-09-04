@@ -8,11 +8,14 @@ use common::protocol::{Barrier, BarrierKindId, MapLayout, PlateState};
 #[derive(Component)]
 pub struct BarrierMarker;
 
-// Tags the barrier entity with its kind so the visibility system can hide
-// matching entities when the server reports the kind currently open via
-// pressure plates.
+// What the visibility rule needs beside `MapLevel`: the kind, hidden while
+// pressure plates hold it open, and the storeys spanned, so a stacked barrier
+// stays visible while any level it reaches is focused.
 #[derive(Component)]
-pub struct BarrierKindMarker(pub BarrierKindId);
+pub struct BarrierSpan {
+    kind: BarrierKindId,
+    levels: u8,
+}
 
 // Spawn one entity per `Barrier` in the current `MapLayout`. Re-runs whenever
 // `MapLayout` is inserted or replaced (e.g., reconnect / map change).
@@ -38,7 +41,13 @@ pub fn barriers_spawn_system(
             &mut commands,
             &barrier_assets,
             barrier,
-            barrier_visibility(&plates.open_barrier_kinds, *focused, barrier.kind, barrier.level),
+            barrier_visibility(
+                &plates.open_barrier_kinds,
+                *focused,
+                barrier.kind,
+                barrier.level,
+                barrier.levels,
+            ),
         );
     }
 }
@@ -64,7 +73,10 @@ fn spawn_barrier(commands: &mut Commands, assets: &BarrierAssets, barrier: &Barr
 
     commands.spawn((
         BarrierMarker,
-        BarrierKindMarker(barrier.kind),
+        BarrierSpan {
+            kind: barrier.kind,
+            levels: barrier.levels,
+        },
         MapLevel(barrier.level),
         Mesh3d(assets.mesh.clone()),
         MeshMaterial3d(assets.material_for(barrier.kind).clone()),
@@ -80,24 +92,34 @@ fn spawn_barrier(commands: &mut Commands, assets: &BarrierAssets, barrier: &Barr
 pub fn barriers_visibility_system(
     plates: Res<PlateState>,
     focused: Res<FocusedMapLevel>,
-    mut barriers: Query<(&BarrierKindMarker, &MapLevel, &mut Visibility), With<BarrierMarker>>,
+    mut barriers: Query<(&BarrierSpan, &MapLevel, &mut Visibility), With<BarrierMarker>>,
 ) {
     if !plates.is_changed() && !focused.is_changed() {
         return;
     }
     // An input change affects only some barriers; equal writes would retrigger propagation on the rest.
-    for (kind, level, mut visibility) in &mut barriers {
+    for (span, level, mut visibility) in &mut barriers {
         visibility.set_if_neq(barrier_visibility(
             &plates.open_barrier_kinds,
             *focused,
-            kind.0,
+            span.kind,
             level.0,
+            span.levels,
         ));
     }
 }
 
-fn barrier_visibility(open: &[BarrierKindId], focused: FocusedMapLevel, kind: BarrierKindId, level: u8) -> Visibility {
-    if open.contains(&kind) || focused.0.is_some_and(|focused| focused != level) {
+fn barrier_visibility(
+    open: &[BarrierKindId],
+    focused: FocusedMapLevel,
+    kind: BarrierKindId,
+    level: u8,
+    levels: u8,
+) -> Visibility {
+    let reaches_focused = focused
+        .0
+        .is_none_or(|focused| (level..level.saturating_add(levels)).contains(&focused));
+    if open.contains(&kind) || !reaches_focused {
         Visibility::Hidden
     } else {
         Visibility::Visible
@@ -113,16 +135,34 @@ mod tests {
         let kind = BarrierKindId(2);
 
         assert_eq!(
-            barrier_visibility(&[kind], FocusedMapLevel(Some(1)), kind, 1),
+            barrier_visibility(&[kind], FocusedMapLevel(Some(1)), kind, 1, 1),
             Visibility::Hidden
         );
         assert_eq!(
-            barrier_visibility(&[], FocusedMapLevel(Some(2)), kind, 1),
+            barrier_visibility(&[], FocusedMapLevel(Some(2)), kind, 1, 1),
             Visibility::Hidden
         );
         assert_eq!(
-            barrier_visibility(&[], FocusedMapLevel(Some(1)), kind, 1),
+            barrier_visibility(&[], FocusedMapLevel(Some(1)), kind, 1, 1),
             Visibility::Visible
+        );
+    }
+
+    #[test]
+    fn a_stacked_barrier_shows_on_every_storey_it_spans() {
+        let kind = BarrierKindId(0);
+
+        assert_eq!(
+            barrier_visibility(&[], FocusedMapLevel(Some(2)), kind, 1, 2),
+            Visibility::Visible
+        );
+        assert_eq!(
+            barrier_visibility(&[], FocusedMapLevel(Some(3)), kind, 1, 2),
+            Visibility::Hidden
+        );
+        assert_eq!(
+            barrier_visibility(&[], FocusedMapLevel(Some(0)), kind, 1, 2),
+            Visibility::Hidden
         );
     }
 }

@@ -80,6 +80,9 @@ pub struct WallLight {
     pub yaw: f32,
 }
 
+// `levels` counts the storeys spanned: stacked same-kind barriers with no
+// floor slab beside the edge between them compile into one record
+// (`server/src/map/barriers.rs`).
 #[derive(Debug, Clone, Encode, Decode, Copy)]
 pub struct Barrier {
     pub x1: f32,
@@ -90,6 +93,7 @@ pub struct Barrier {
     pub y: f32,
     pub height: f32,
     pub level: u8,
+    pub levels: u8,
     pub kind: BarrierKindId,
 }
 
