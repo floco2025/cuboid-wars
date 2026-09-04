@@ -74,6 +74,7 @@ pub fn ui_timed_lines_system(
                 background.0.set_alpha(alpha);
             }
         }
+        // A stable nonempty row count should not retrigger visibility propagation every frame.
         visibility.set_if_neq(if alive == 0 {
             Visibility::Hidden
         } else {

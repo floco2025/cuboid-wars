@@ -71,6 +71,7 @@ pub(super) fn route_client_message(
                 &context.quest_catalog,
                 &context.quest_board,
                 &mut context.portal_assignments,
+                &context.admin.unlimited_missiles,
             );
         }
         ClientMessage::Login(_) => {
@@ -145,6 +146,7 @@ pub(super) fn route_client_message(
                 &context.world.server_gameplay_config,
                 &context.world.map_settings,
                 &context.open_barrier_kinds,
+                context.admin.unlimited_missiles.0,
             );
         }
         ClientMessage::PortalShot(message) => {

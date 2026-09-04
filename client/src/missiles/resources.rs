@@ -39,5 +39,5 @@ impl MissileMap {
 // `lock_on_system`. `Some` only while a missile fired right now would track:
 // first person, alive, ammo in reserve, target on the aim ray with clear
 // sight. The crosshair color and the alt-fire gate both read this.
-#[derive(Resource, Default)]
+#[derive(Resource, Default, PartialEq, Eq)]
 pub struct LockOnTarget(pub Option<HomingTarget>);

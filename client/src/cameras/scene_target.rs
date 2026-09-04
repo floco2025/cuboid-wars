@@ -24,7 +24,7 @@ pub fn create_scene_image(images: &mut Assets<Image>, size: UVec2) -> Handle<Ima
 // Keep the scene image at the window size, capped at the configured render
 // resolution in fullscreen; a window always renders at its native size.
 pub fn scene_render_target_system(
-    windows: Query<&Window, With<PrimaryWindow>>,
+    windows: Query<Ref<Window>, With<PrimaryWindow>>,
     client_settings: Res<ClientSettings>,
     mut scene_target: ResMut<SceneRenderTarget>,
     mut images: ResMut<Assets<Image>>,
@@ -33,6 +33,9 @@ pub fn scene_render_target_system(
     let Ok(window) = windows.single() else {
         return;
     };
+    if !window.is_changed() && !client_settings.is_changed() {
+        return;
+    }
     let window_size = UVec2::new(window.physical_width(), window.physical_height());
     if window_size.x == 0 || window_size.y == 0 {
         return;

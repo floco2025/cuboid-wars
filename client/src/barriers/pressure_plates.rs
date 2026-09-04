@@ -18,7 +18,7 @@ pub struct PlatePurposeMarker(pub PlatePurpose);
 
 // Snapshot state: plate purposes still locked behind a quest. Their plates
 // are hidden here and inert server-side.
-#[derive(Resource, Default)]
+#[derive(Resource, Default, PartialEq, Eq)]
 pub struct LockedPlatePurposes(pub Vec<PlatePurpose>);
 
 fn plate_visibility(purpose: PlatePurpose, locked: &[PlatePurpose]) -> Visibility {
@@ -36,6 +36,10 @@ pub fn pressure_plates_visibility_system(
     locked: Res<LockedPlatePurposes>,
     mut plates: Query<(&PlatePurposeMarker, &mut Visibility), With<PressurePlateMarker>>,
 ) {
+    if !locked.is_changed() {
+        return;
+    }
+    // A lock change affects only matching purposes; equal writes would retrigger propagation on the rest.
     for (purpose, mut visibility) in &mut plates {
         visibility.set_if_neq(plate_visibility(purpose.0, &locked.0));
     }

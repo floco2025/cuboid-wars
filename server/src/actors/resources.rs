@@ -1,4 +1,4 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 
 use bevy::prelude::*;
 
@@ -125,15 +125,21 @@ impl ActorInfo {
 }
 
 #[derive(Resource, Default)]
-pub struct ActorMap(HashMap<ActorId, ActorInfo>);
+pub struct ActorMap {
+    entries: HashMap<ActorId, ActorInfo>,
+    // Actor removal records the zone so its respawn timer starts at the lifecycle boundary.
+    vacated_spawn_zones: HashSet<usize>,
+}
 
 impl ActorMap {
     pub fn insert(&mut self, id: ActorId, info: ActorInfo) -> Option<ActorInfo> {
-        self.0.insert(id, info)
+        self.entries.insert(id, info)
     }
 
     pub fn remove(&mut self, id: &ActorId) -> Option<ActorInfo> {
-        self.0.remove(id)
+        let info = self.entries.remove(id)?;
+        self.vacated_spawn_zones.insert(info.spawn_zone_index);
+        Some(info)
     }
 
     // "zapper#22" for logs; "actor#22" for unknown ids.
@@ -147,19 +153,28 @@ impl ActorMap {
 
     #[must_use]
     pub fn get(&self, id: &ActorId) -> Option<&ActorInfo> {
-        self.0.get(id)
+        self.entries.get(id)
     }
 
     pub fn get_mut(&mut self, id: &ActorId) -> Option<&mut ActorInfo> {
-        self.0.get_mut(id)
+        self.entries.get_mut(id)
     }
 
     pub fn values(&self) -> impl Iterator<Item = &ActorInfo> {
-        self.0.values()
+        self.entries.values()
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (&ActorId, &ActorInfo)> {
-        self.0.iter()
+        self.entries.iter()
+    }
+
+    pub(crate) fn drain_vacated_spawn_zones(&mut self) -> impl Iterator<Item = usize> + '_ {
+        self.vacated_spawn_zones.drain()
+    }
+
+    #[must_use]
+    pub fn has_vacated_spawn_zones(&self) -> bool {
+        !self.vacated_spawn_zones.is_empty()
     }
 }
 
@@ -169,7 +184,7 @@ pub struct ActorSpawner {
 }
 
 #[derive(Resource, Default)]
-pub struct ActorSpawnThrottles(pub HashMap<usize, f32>);
+pub struct ActorRespawnTimers(pub HashMap<usize, f32>);
 
 // A spawn that has been decided (id, spot, and heading reserved) but whose
 // beam-in warning window hasn't elapsed. The actor entity doesn't exist yet —
@@ -193,5 +208,24 @@ impl ActorSpawner {
         let id = ActorId(self.next_id);
         self.next_id = self.next_id.wrapping_add(1);
         id
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn actor_map_records_vacated_zones() {
+        let mut actors = ActorMap::default();
+        let id = ActorId(4);
+        let entity = Entity::from_bits(12);
+        actors.insert(id, ActorInfo::new(entity, 3, "zapper".to_owned()));
+
+        assert!(!actors.has_vacated_spawn_zones());
+
+        actors.remove(&id);
+
+        assert_eq!(actors.drain_vacated_spawn_zones().collect::<Vec<_>>(), vec![3]);
     }
 }

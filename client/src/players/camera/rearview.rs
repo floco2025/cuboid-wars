@@ -48,7 +48,7 @@ pub fn local_player_rearview_sync_system(
 
 // Update rearview camera viewport based on the scene image size.
 pub fn local_player_rearview_viewport_system(
-    windows: Query<&Window>,
+    windows: Query<Ref<Window>>,
     mut rearview_query: Query<&mut Camera, With<RearviewCameraMarker>>,
     view_mode: Res<CameraViewMode>,
     client_settings: Res<ClientSettings>,
@@ -58,6 +58,16 @@ pub fn local_player_rearview_viewport_system(
     let Ok(window) = windows.single() else {
         return;
     };
+
+    // These are the only inputs to the viewport and active state below.
+    if !window.is_changed()
+        && !view_mode.is_changed()
+        && !client_settings.is_changed()
+        && !ui_scale.is_changed()
+        && !scene_target.is_changed()
+    {
+        return;
+    }
 
     let Ok(mut camera) = rearview_query.single_mut() else {
         return;

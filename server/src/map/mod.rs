@@ -22,10 +22,10 @@ pub(crate) use edges::{CellSide, has_edge_on_cell_side};
 pub use common::physics::OpenBarrierKinds;
 pub use generation::{GeneratedMap, generate_map};
 pub use grid::grid_coords_from_position;
-pub use light_cycle::{LightState, light_cycle_system, light_preset_from_str};
+pub use light_cycle::{LightState, light_cycle_is_running, light_cycle_system, light_preset_from_str};
 pub use plugin::map_plugin;
 pub use pressure_plates::pressure_plates_system;
 pub use resources::{
     ActorSpawnZone, Cell, CellGrid, EdgeGrid, LevelGrid, MapConfig, PlacedItem, PlayerSpawnZone, PressurePlateRuntime,
 };
-pub use weather::{WeatherState, weather_system};
+pub use weather::{WeatherState, weather_needs_tick, weather_system};

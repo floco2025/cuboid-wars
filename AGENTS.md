@@ -66,6 +66,12 @@ python3 tools/editor.py hotel                               # edits config/serve
 
 **Client owns**: input, local movement prediction, rendering, camera, UI, the death overlay.
 
+### ECS system ownership and cadence
+
+Prefer handling discrete state at its change boundary when that keeps the code simple: ingress/lifecycle handlers own network-driven entity state, mode transitions own their presentation state, queries filtered with `Added<T>` handle entities created after initial setup, `Changed<T>` propagates component changes, and asset events drive post-load asset work. Small bounded scans are fine—especially for the game's small player, actor, and item collections—and are better than duplicated indexes, caches, or synchronization invariants. Guard equal writes only when they would wake a concrete change-detection consumer or renderer/UI propagation; a nearby comment should name that consequence.
+
+Each output component has one semantic owner. If visibility or another final value combines multiple inputs, one system computes the complete value; independent systems must not overwrite one another in a scheduled race. Zero-data ECS tags use the `...Marker` suffix. Before adding maintenance bookkeeping, compare its complexity and consistency cost with the bounded work it avoids; optimize only when the simpler scan is meaningfully expensive.
+
 ### Message dispatch
 
 Both server and client dispatch decoded wire payloads straight from ingress to one domain handler (`server/src/network/routing.rs`, `client/src/network/routing.rs`). Do not re-emit them as Bevy events: ingress is already a Bevy system with world access and each message has exactly one consumer, so an event layer adds no fan-out, scheduling, or parallelism — it has been tried, and it only obscured the receive-to-handler control flow. Reintroduce events only for a message that gains genuinely independent consumers. Bootstrap happens before the gameplay app runs: `main.rs` sends `CLogin`, waits for `SInit`, then builds and validates the app from it; the server spawns the body at login. The bootstrap rule that makes this safe without a readiness handshake is in the `protocol.rs` header. Once active, the server drops body-bound messages from a dead player, while `CPing`/`CAdmin`/`CChat` keep working through respawn.

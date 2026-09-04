@@ -17,13 +17,16 @@ fn compute_hud_scale(window_width: f32, reference_width: f32) -> Option<f32> {
 // frame and re-trigger the floating-label compensation (a full label
 // relayout per frame).
 pub fn ui_hud_scale_system(
-    windows: Query<&Window, With<PrimaryWindow>>,
+    windows: Query<Ref<Window>, With<PrimaryWindow>>,
     client_settings: Res<ClientSettings>,
     mut ui_scale: ResMut<UiScale>,
 ) {
     let Ok(window) = windows.single() else {
         return;
     };
+    if !window.is_changed() && !client_settings.is_changed() {
+        return;
+    }
     let Some(scale) = compute_hud_scale(window.width(), client_settings.hud.reference_width) else {
         return;
     };

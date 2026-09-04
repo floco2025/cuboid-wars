@@ -5,7 +5,7 @@ use super::{
     handler::AdminContext,
 };
 use crate::{
-    actors::{ActorMap, PendingActorSpawns, expire_actor_spawn_cooldowns},
+    actors::{ActorMap, PendingActorSpawns, expedite_actor_respawns},
     combat::{DeathSource, kill_player},
     config::ServerGameplayConfig,
     map::MapConfig,
@@ -84,6 +84,11 @@ pub(super) fn run_admin_command(
             let enabled = explicit.unwrap_or(!admin.invincibility.0);
             admin.invincibility.0 = enabled;
             admin.unlimited_missiles.0 = enabled;
+            if enabled {
+                for (_, info) in players.iter_mut() {
+                    info.life.missiles = gameplay_config.missiles.max_missiles;
+                }
+            }
             Public(format!("god mode {}", if enabled { "on" } else { "off" }))
         }
         AdminCommand::KillAllPlayers => {
@@ -116,10 +121,10 @@ pub(super) fn run_admin_command(
             if let Some(error) = actor_kind_error(kind.as_deref(), &admin.server_gameplay_config) {
                 return Private(error);
             }
-            let count = expire_actor_spawn_cooldowns(
+            let count = expedite_actor_respawns(
                 actors,
                 pending_actor_spawns,
-                &mut admin.actor_spawn_throttles,
+                &mut admin.actor_respawn_timers,
                 map_config,
                 &admin.server_gameplay_config,
                 kind.as_deref(),

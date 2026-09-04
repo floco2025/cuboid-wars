@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use super::BarrierAssets;
 use crate::constants::BARRIER_OVERLAP_EPS;
-use crate::map::MapLevel;
+use crate::map::{FocusedMapLevel, MapLevel};
 use common::{
     physics::OpenBarrierKinds,
     protocol::{Barrier, BarrierKindId, MapLayout},
@@ -23,6 +23,8 @@ pub fn barriers_spawn_system(
     mut commands: Commands,
     map_layout: Res<MapLayout>,
     barrier_assets: Res<BarrierAssets>,
+    open: Res<OpenBarrierKinds>,
+    focused: Res<FocusedMapLevel>,
     existing: Query<Entity, With<BarrierMarker>>,
 ) {
     let layout = map_layout;
@@ -35,11 +37,16 @@ pub fn barriers_spawn_system(
     }
 
     for barrier in &layout.barriers {
-        spawn_barrier(&mut commands, &barrier_assets, barrier);
+        spawn_barrier(
+            &mut commands,
+            &barrier_assets,
+            barrier,
+            barrier_visibility(&open, *focused, barrier.kind, barrier.level),
+        );
     }
 }
 
-fn spawn_barrier(commands: &mut Commands, assets: &BarrierAssets, barrier: &Barrier) {
+fn spawn_barrier(commands: &mut Commands, assets: &BarrierAssets, barrier: &Barrier, visibility: Visibility) {
     use common::constants::{BARRIER_HEIGHT, LEVEL_HEIGHT};
 
     let center_x = f32::midpoint(barrier.x1, barrier.x2);
@@ -71,31 +78,51 @@ fn spawn_barrier(commands: &mut Commands, assets: &BarrierAssets, barrier: &Barr
             rotation,
             scale,
         },
-        Visibility::Visible,
+        visibility,
     ));
 }
 
-// Force barriers of open kinds to `Visibility::Hidden`. Must run **after**
-// `map_level_focus_visibility_system`, which also writes `Visibility` on
-// barriers every tick (level focus toggles all map entities on the
-// current level). Without the ordering the two systems race per frame →
-// flicker.
-//
-// Why no `is_changed()` short-circuit: even if `OpenBarrierKinds` hasn't
-// changed, level-focus may have just re-set every barrier on this level
-// to Visible — we have to re-Hide the open ones each tick or they pop
-// back. The barrier set is small (typically < 100 entities), so the
-// unconditional loop is negligible.
-//
-// Only writes the `Hidden` direction; for closed kinds we leave whatever
-// level-focus set, so a barrier on a different level stays hidden.
 pub fn barriers_visibility_system(
     open: Res<OpenBarrierKinds>,
-    mut barriers: Query<(&BarrierKindMarker, &mut Visibility), With<BarrierMarker>>,
+    focused: Res<FocusedMapLevel>,
+    mut barriers: Query<(&BarrierKindMarker, &MapLevel, &mut Visibility), With<BarrierMarker>>,
 ) {
-    for (kind, mut vis) in &mut barriers {
-        if open.0.contains(&kind.0) {
-            *vis = Visibility::Hidden;
-        }
+    if !open.is_changed() && !focused.is_changed() {
+        return;
+    }
+    // An input change affects only some barriers; equal writes would retrigger propagation on the rest.
+    for (kind, level, mut visibility) in &mut barriers {
+        visibility.set_if_neq(barrier_visibility(&open, *focused, kind.0, level.0));
+    }
+}
+
+fn barrier_visibility(open: &OpenBarrierKinds, focused: FocusedMapLevel, kind: BarrierKindId, level: u8) -> Visibility {
+    if open.0.contains(&kind) || focused.0.is_some_and(|focused| focused != level) {
+        Visibility::Hidden
+    } else {
+        Visibility::Visible
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn visibility_combines_open_kind_and_level_focus() {
+        let kind = BarrierKindId(2);
+
+        assert_eq!(
+            barrier_visibility(&OpenBarrierKinds(vec![kind]), FocusedMapLevel(Some(1)), kind, 1),
+            Visibility::Hidden
+        );
+        assert_eq!(
+            barrier_visibility(&OpenBarrierKinds::default(), FocusedMapLevel(Some(2)), kind, 1),
+            Visibility::Hidden
+        );
+        assert_eq!(
+            barrier_visibility(&OpenBarrierKinds::default(), FocusedMapLevel(Some(1)), kind, 1),
+            Visibility::Visible
+        );
     }
 }

@@ -1,6 +1,8 @@
 use bevy::prelude::*;
 use common::protocol::*;
 
+use crate::barriers::{LockedPlatePurposes, OpenBarrierKinds};
+
 use super::{
     actors::{sync_actors, sync_spawning_actors},
     context::ServerMessageContext,
@@ -37,13 +39,13 @@ pub(super) fn handle_snapshot_message(
     sync_missiles(commands, context, &message.missiles);
     sync_portals(commands, context, &message.portals);
 
-    // The server sorts these vectors, so equality is stable across snapshots.
-    if context.open_barrier_kinds.0 != message.open_barrier_kinds {
-        context.open_barrier_kinds.0 = message.open_barrier_kinds;
-    }
-    if context.locked_plate_purposes.0 != message.locked_plate_purposes {
-        context.locked_plate_purposes.0 = message.locked_plate_purposes;
-    }
+    // Stable equality keeps identical snapshots from waking the visibility systems.
+    context
+        .open_barrier_kinds
+        .set_if_neq(OpenBarrierKinds(message.open_barrier_kinds));
+    context
+        .locked_plate_purposes
+        .set_if_neq(LockedPlatePurposes(message.locked_plate_purposes));
 
     context.rain_intensity.target = message.rain_intensity;
     if context.lighting.target != message.lighting {

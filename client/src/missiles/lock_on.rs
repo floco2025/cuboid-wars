@@ -56,9 +56,7 @@ pub fn lock_on_system(
         &weapon_mode,
     );
     // Write only on change so `ui_crosshair_lock_system`'s `is_changed()` gate works.
-    if lock.0 != new_lock {
-        lock.0 = new_lock;
-    }
+    lock.set_if_neq(LockOnTarget(new_lock));
 }
 
 #[expect(clippy::too_many_arguments, reason = "pure helper over the system's full guard set")]

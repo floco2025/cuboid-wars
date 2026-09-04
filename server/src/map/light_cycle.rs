@@ -86,6 +86,11 @@ impl LightState {
         }
     }
 
+    #[must_use]
+    fn is_auto(&self) -> bool {
+        matches!(self.mode, LightMode::Auto { .. })
+    }
+
     // Admin override: hold a named preset, absolute and cycle-independent;
     // any running cycle pauses.
     pub fn hold_preset(&mut self, name: &'static str) {
@@ -243,6 +248,10 @@ fn pos_for_blend(schedule: &LightingCycleConfig, blend: Blend) -> f32 {
 
 pub fn light_cycle_system(time: Res<Time>, mut light: ResMut<LightState>) {
     tick_light(&mut light, time.delta_secs());
+}
+
+pub fn light_cycle_is_running(light: Res<LightState>) -> bool {
+    light.is_auto()
 }
 
 fn tick_light(state: &mut LightState, delta: f32) {

@@ -7,11 +7,11 @@ mod resources;
 mod spawn;
 mod transform_sync;
 
+pub(crate) use camera::{LocalPlayerLabelMarker, local_player_light_layer_system, local_player_render_layer_system};
 pub use camera::{
     local_player_camera_sync_system, local_player_rearview_sync_system, local_player_rearview_viewport_system,
-    local_player_visibility_sync_system,
+    local_player_view_mode_system,
 };
-pub(crate) use camera::{local_player_light_layer_system, local_player_render_layer_system};
 pub use components::{BumpFeedbackState, CameraShake, CuboidShake, PortalTransitBlend};
 pub use death::death_overlay_visibility_system;
 pub use effects::{

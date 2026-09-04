@@ -15,20 +15,29 @@ use crate::{
 // `Presentation` and `Network` so grass burn reacts to this frame's scorch
 // marks and server-delivered explosions.
 pub fn map_plugin(app: &mut App) {
+    app.init_resource::<FocusedMapLevel>();
     app.add_systems(
         Update,
         (
             map_spawn_geometry_system,
             grass_spawn_system,
             grass_burn_system.after(grass_spawn_system),
-            map_level_focus_visibility_system,
+            update_focused_map_level_system,
+            map_level_focus_visibility_system
+                .after(update_focused_map_level_system)
+                .run_if(resource_changed::<FocusedMapLevel>),
+            added_map_level_visibility_system
+                .after(map_spawn_geometry_system)
+                .after(grass_spawn_system)
+                .after(update_focused_map_level_system)
+                .after(map_level_focus_visibility_system),
             map_wall_light_emissive_system,
             wall_light_flicker_system,
             barriers_spawn_system,
             barriers_pulsate_system,
-            // After `map_level_focus_visibility_system` so the open-kind
-            // override wins the per-frame race for barrier visibility.
-            barriers_visibility_system.after(map_level_focus_visibility_system),
+            barriers_visibility_system
+                .after(barriers_spawn_system)
+                .after(update_focused_map_level_system),
             pressure_plates_spawn_system,
             pressure_plates_visibility_system.after(pressure_plates_spawn_system),
         )

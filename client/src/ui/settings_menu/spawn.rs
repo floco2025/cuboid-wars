@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use bevy::ui::Checked;
 use bevy::window::{PresentMode, PrimaryWindow};
 
-use super::state::{CheckboxSetting, CyclerSetting, SettingsMenuRoot, SettingsMenuState, SliderSetting};
+use super::state::{CheckboxSetting, CyclerSetting, SettingsMenuRootMarker, SettingsMenuState, SliderSetting};
 use super::widgets::{checkbox_row, cycler_row, section_header, slider_row};
 use crate::config::ClientSettings;
 use crate::constants::{HUD_ROW_GAP_PX, SETTINGS_BACKDROP_COLOR, SETTINGS_OUTLINE_COLOR, SETTINGS_PANEL_BG_COLOR};
@@ -12,7 +12,7 @@ use crate::constants::{HUD_ROW_GAP_PX, SETTINGS_BACKDROP_COLOR, SETTINGS_OUTLINE
 // values and the widgets never go stale.
 pub(super) fn settings_menu_lifecycle_system(
     menu: Res<SettingsMenuState>,
-    existing: Query<Entity, With<SettingsMenuRoot>>,
+    existing: Query<Entity, With<SettingsMenuRootMarker>>,
     settings: Res<ClientSettings>,
     global_volume: Res<GlobalVolume>,
     windows: Query<&Window, With<PrimaryWindow>>,
@@ -36,7 +36,7 @@ pub(super) fn settings_menu_lifecycle_system(
 
     commands
         .spawn((
-            SettingsMenuRoot,
+            SettingsMenuRootMarker,
             GlobalZIndex(10),
             Node {
                 position_type: PositionType::Absolute,

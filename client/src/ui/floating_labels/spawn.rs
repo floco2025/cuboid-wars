@@ -17,7 +17,7 @@ use crate::constants::{
 pub struct CharacterLabelMeshMarker;
 
 #[derive(Component)]
-pub struct CharacterLabelRenderLayer;
+pub struct CharacterLabelRenderLayerMarker;
 
 // Markers for the name text and its padded background inside the label's
 // render-target UI tree. `floating_label_scale_compensation_system` rewrites
@@ -114,7 +114,7 @@ pub fn spawn_floating_player_label(
     let mesh_entity = commands
         .spawn((
             CharacterLabelMeshMarker,
-            CharacterLabelRenderLayer,
+            CharacterLabelRenderLayerMarker,
             RenderLayers::layer(CHARACTER_LABEL_RENDER_LAYER),
             Mesh3d(meshes.add(Rectangle::new(LABEL_PLAYER_MESH_WIDTH, LABEL_HEIGHT))),
             MeshMaterial3d(materials.add(StandardMaterial {
@@ -176,7 +176,7 @@ pub fn spawn_floating_health_bar(
                 max_health,
                 full_width: world_width,
             },
-            CharacterLabelRenderLayer,
+            CharacterLabelRenderLayerMarker,
             RenderLayers::layer(CHARACTER_LABEL_RENDER_LAYER),
             Mesh3d(bar_mesh.clone()),
             // Opaque, not blended: the fill must layer over the translucent
@@ -192,7 +192,7 @@ pub fn spawn_floating_health_bar(
     let track = commands
         .spawn((
             CharacterLabelMeshMarker,
-            CharacterLabelRenderLayer,
+            CharacterLabelRenderLayerMarker,
             RenderLayers::layer(CHARACTER_LABEL_RENDER_LAYER),
             Mesh3d(bar_mesh),
             // Blended: the track is intentionally translucent so the scene

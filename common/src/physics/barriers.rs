@@ -6,7 +6,7 @@ use crate::protocol::BarrierKindId;
 // and client-side prediction need to merge it with held keys via
 // `passable_barrier_kinds`. Resource form lives as a Bevy resource on both
 // sides; the wire shape ships in `SSnapshot.open_barrier_kinds`.
-#[derive(bevy_ecs::prelude::Resource, Debug, Default, Clone)]
+#[derive(bevy_ecs::prelude::Resource, Debug, Default, Clone, PartialEq, Eq)]
 pub struct OpenBarrierKinds(pub Vec<BarrierKindId>);
 
 // Merge per-player `held_keys` with the globally `open_kinds` (currently held

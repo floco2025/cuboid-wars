@@ -3,7 +3,7 @@ use rand::{RngExt, rng, rngs::ThreadRng};
 use std::f32::consts::TAU;
 
 use crate::{
-    actors::{ActorInfo, ActorMap, ActorSpawnThrottles, ActorSpawner, PendingActorSpawn, PendingActorSpawns},
+    actors::{ActorInfo, ActorMap, ActorRespawnTimers, ActorSpawner, PendingActorSpawn, PendingActorSpawns},
     characters::generate_actor_spawn_position_in_zone,
     config::ServerGameplayConfig,
     map::MapConfig,
@@ -15,27 +15,27 @@ use common::{
     protocol::{ActorMarker, ActorMoveIntent, FaceYaw, Health, MapSettings, PlayerMarker, Position},
 };
 
-// Per-tick decision for one zone: refill it, tick the cooldown down, or skip.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-enum SpawnDecision {
-    // Slot is at quota — prime the throttle so the next death pays a full
-    // cooldown wait. (Leaving the throttle at 0 here would let the very
-    // first death respawn instantly.)
-    Skip,
-    // Slot is short but the throttle is still running — tick it down.
-    Tick,
-    // Zone is short and throttle has expired — refill every missing slot.
-    Refill,
+pub fn actor_respawns_active(actors: Res<ActorMap>, timers: Res<ActorRespawnTimers>) -> bool {
+    actors.has_vacated_spawn_zones() || !timers.0.is_empty()
 }
 
-fn decide_spawn(live: u32, count: u32, throttle: f32) -> SpawnDecision {
-    if live >= count {
-        SpawnDecision::Skip
-    } else if throttle > 0.0 {
-        SpawnDecision::Tick
-    } else {
-        SpawnDecision::Refill
+pub fn pending_actor_spawns_active(pending: Res<PendingActorSpawns>) -> bool {
+    !pending.0.is_empty()
+}
+
+fn arm_actor_respawn(timers: &mut ActorRespawnTimers, zone_idx: usize, respawn_secs: f32) {
+    timers.0.entry(zone_idx).or_insert(respawn_secs);
+}
+
+fn tick_actor_respawns(timers: &mut ActorRespawnTimers, delta: f32) -> Vec<usize> {
+    for remaining_secs in timers.0.values_mut() {
+        *remaining_secs -= delta;
     }
+    timers
+        .0
+        .iter()
+        .filter_map(|(zone_idx, remaining_secs)| (*remaining_secs <= 0.0).then_some(*zone_idx))
+        .collect()
 }
 
 // Startup-only: fill every spawn zone to its `count`. Runs once when the
@@ -80,18 +80,11 @@ pub fn actors_initial_spawn_system(
     }
 }
 
-// Per-tick: refill zones whose kind opted into respawning. Non-respawning
-// kinds are skipped; their `ActorSpawnThrottles` entries are never inserted.
-//
-// For respawning kinds, the throttle clock is the existing model: it sits at
-// 0 while the slot is full; on a death the throttle clock starts ticking
-// (via `Tick`) and only reaches 0 — at which point every missing slot is
-// queued together and the throttle is reset to the kind's respawn delay.
 pub fn actors_respawn_system(
     mut pending: ResMut<PendingActorSpawns>,
     mut spawner: ResMut<ActorSpawner>,
-    mut throttles: ResMut<ActorSpawnThrottles>,
-    actors: Res<ActorMap>,
+    mut timers: ResMut<ActorRespawnTimers>,
+    mut actors: ResMut<ActorMap>,
     time: Res<Time>,
     map_config: Res<MapConfig>,
     map_geometry: Res<MapGeometry>,
@@ -101,73 +94,69 @@ pub fn actors_respawn_system(
     players: Query<&Position, With<PlayerMarker>>,
     actor_positions: Query<&Position, (With<ActorMarker>, Without<PlayerMarker>)>,
 ) {
+    // A zone gets one timer for all vacancies; later deaths do not restart it.
     let dt = time.delta_secs();
-    let mut occupied_positions: Vec<Position> = players.iter().chain(&actor_positions).copied().collect();
-    let mut rng = rng();
+    for zone_idx in actors.drain_vacated_spawn_zones() {
+        let Some(zone) = map_config.actor_spawn_zones.get(zone_idx) else {
+            continue;
+        };
+        let Some(respawn_secs) = server_gameplay_config.expect_actor(&zone.kind).respawn_secs else {
+            continue;
+        };
+        arm_actor_respawn(&mut timers, zone_idx, respawn_secs);
+    }
 
-    // One pass for per-zone live counts instead of rescanning the whole
-    // ActorMap once per zone (O(zones·actors)). Each zone reads its count once
-    // before its possible batch refill, which only adds to that same zone.
+    let due_zones = tick_actor_respawns(&mut timers, dt);
+    if due_zones.is_empty() {
+        return;
+    }
+
     let mut live_by_zone = vec![0u32; map_config.actor_spawn_zones.len()];
     for info in actors.values() {
         if let Some(count) = live_by_zone.get_mut(info.spawn_zone_index) {
             *count += 1;
         }
     }
-    // Pending spawns count toward their zone's quota (materialization is
-    // unconditional, so they are as good as live) and reserve their spot so
-    // a second spawn can't pick it during the warning window.
+    // Pending spawns already count toward quota and reserve their positions.
+    let mut occupied_positions: Vec<Position> = players.iter().chain(&actor_positions).copied().collect();
     for entry in &pending.0 {
         if let Some(count) = live_by_zone.get_mut(entry.zone_idx) {
             *count += 1;
         }
         occupied_positions.push(entry.pos);
     }
+    let mut rng = rng();
 
-    for (zone_idx, zone) in map_config.actor_spawn_zones.iter().enumerate() {
-        let kind_server_config = server_gameplay_config.expect_actor(&zone.kind);
-        let Some(throttle_time) = kind_server_config.respawn_secs else {
+    for zone_idx in due_zones {
+        timers.0.remove(&zone_idx);
+        let Some(zone) = map_config.actor_spawn_zones.get(zone_idx) else {
             continue;
         };
         let actor_config = gameplay_config.expect_actor(&zone.kind);
         let actor_physics = actor_config.physics();
-
         let live = live_by_zone[zone_idx];
-        let throttle = throttles.0.entry(zone_idx).or_insert(0.0);
-
-        match decide_spawn(live, zone.count, *throttle) {
-            // Slot is full: keep the throttle primed at `throttle_time` so
-            // the next death starts the countdown from full. Lazily-inserted
-            // entries start at 0.0, which without this would let the first
-            // death after startup respawn instantly.
-            SpawnDecision::Skip => *throttle = throttle_time,
-            SpawnDecision::Tick => *throttle -= dt,
-            SpawnDecision::Refill => {
-                for _ in live..zone.count {
-                    queue_actor_spawn_in_zone(
-                        &mut pending,
-                        &mut spawner,
-                        &mut occupied_positions,
-                        &mut rng,
-                        &map_config,
-                        &map_geometry,
-                        &collision_world,
-                        server_gameplay_config.actors.settings.spawn_warning_secs,
-                        actor_physics,
-                        zone_idx,
-                        &zone.kind,
-                    );
-                }
-                *throttle = throttle_time;
-            }
+        for _ in live..zone.count {
+            queue_actor_spawn_in_zone(
+                &mut pending,
+                &mut spawner,
+                &mut occupied_positions,
+                &mut rng,
+                &map_config,
+                &map_geometry,
+                &collision_world,
+                server_gameplay_config.actors.settings.spawn_warning_secs,
+                actor_physics,
+                zone_idx,
+                &zone.kind,
+            );
         }
     }
 }
 
-pub(crate) fn expire_actor_spawn_cooldowns(
+pub(crate) fn expedite_actor_respawns(
     actors: &ActorMap,
     pending: &mut PendingActorSpawns,
-    throttles: &mut ActorSpawnThrottles,
+    timers: &mut ActorRespawnTimers,
     map_config: &MapConfig,
     server_gameplay_config: &ServerGameplayConfig,
     actor_kind: Option<&str>,
@@ -197,7 +186,7 @@ pub(crate) fn expire_actor_spawn_cooldowns(
         if kind_server_config.respawn_secs.is_some() {
             let missing = zone.count.saturating_sub(occupied_by_zone[zone_idx]);
             if missing > 0 {
-                throttles.0.insert(zone_idx, 0.0);
+                timers.0.insert(zone_idx, 0.0);
                 respawning += missing as usize;
             }
         }
@@ -307,135 +296,24 @@ mod tests {
     use common::protocol::ActorId;
 
     #[test]
-    fn decide_skip_when_full() {
-        // Throttle value is irrelevant when the slot is at quota.
-        assert_eq!(decide_spawn(3, 3, 0.0), SpawnDecision::Skip);
-        assert_eq!(decide_spawn(3, 3, 5.0), SpawnDecision::Skip);
-        assert_eq!(decide_spawn(5, 3, 5.0), SpawnDecision::Skip);
+    fn respawn_timer_starts_at_the_configured_delay() {
+        let mut timers = ActorRespawnTimers::default();
+        arm_actor_respawn(&mut timers, 3, 2.0);
+
+        assert!(tick_actor_respawns(&mut timers, 1.0).is_empty());
+        assert_eq!(tick_actor_respawns(&mut timers, 1.0), vec![3]);
     }
 
     #[test]
-    fn decide_tick_when_throttle_positive() {
-        assert_eq!(decide_spawn(0, 3, 0.5), SpawnDecision::Tick);
-        assert_eq!(decide_spawn(2, 3, 1.0), SpawnDecision::Tick);
-    }
+    fn another_vacancy_does_not_restart_an_active_zone_timer() {
+        let mut timers = ActorRespawnTimers::default();
+        arm_actor_respawn(&mut timers, 3, 2.0);
+        assert!(tick_actor_respawns(&mut timers, 1.0).is_empty());
 
-    #[test]
-    fn decide_refill_when_throttle_zero_or_negative() {
-        assert_eq!(decide_spawn(0, 3, 0.0), SpawnDecision::Refill);
-        assert_eq!(decide_spawn(2, 3, -0.5), SpawnDecision::Refill);
-    }
+        arm_actor_respawn(&mut timers, 3, 2.0);
 
-    #[test]
-    fn kill_after_full_pays_full_delay() {
-        // Drive the slot to full first, then drop it and verify the throttle
-        // takes a full `delay` to reach zero before another spawn fires.
-        // Throttle starts at 2.0s — what the spawn that filled the slot left
-        // behind. dt=0.5 means it takes 4 ticks to reach zero.
-        let mut live = 3;
-        let mut throttle = 2.0_f32;
-        let count = 3;
-        let dt = 0.5;
-
-        // While full, decide is Skip and the throttle stays frozen at 2.0.
-        for _ in 0..10 {
-            assert_eq!(decide_spawn(live, count, throttle), SpawnDecision::Skip);
-        }
-
-        // A death drops live; throttle is unchanged.
-        live -= 1;
-
-        // Now the throttle ticks 4 times (at dt=0.5) before reaching zero.
-        for _ in 0..4 {
-            assert_eq!(decide_spawn(live, count, throttle), SpawnDecision::Tick);
-            throttle -= dt;
-        }
-
-        // Throttle is now 0.0; next decision is Refill.
-        assert_eq!(decide_spawn(live, count, throttle), SpawnDecision::Refill);
-    }
-
-    #[test]
-    fn continuous_kills_do_not_starve_the_slot() {
-        // count=1: kill the actor every tick, verify the spawner replaces it
-        // every `delay` regardless of how often deaths happen. (With the old
-        // cooldown-on-death model, this would starve forever because every
-        // death reset the timer.)
-        let count = 1;
-        // Per-refill throttle reset, applied below when a Refill fires.
-        let delay = 2.0_f32;
-        let dt = 1.0;
-
-        let mut live = 0;
-        let mut throttle = 0.0;
-        let mut spawns = 0;
-        for _ in 0..10 {
-            match decide_spawn(live, count, throttle) {
-                SpawnDecision::Skip => {
-                    // simulate kill: drop live to 0 immediately
-                    live = 0;
-                }
-                SpawnDecision::Tick => throttle -= dt,
-                SpawnDecision::Refill => {
-                    live += 1;
-                    throttle = delay;
-                    spawns += 1;
-                }
-            }
-        }
-        // Without the throttle every kill would respawn immediately (10
-        // spawns). With the throttle, one spawn at t=0, then one every
-        // `delay`/dt = 2 ticks. Over 10 ticks: spawns at ticks 0, 3, 6, 9
-        // (spawn → kill → 2 ticks → spawn ...). Either way the count is
-        // bounded and not zero.
-        assert!(
-            spawns >= 3,
-            "expected spawns to keep arriving under continuous kills, got {spawns}"
-        );
-    }
-
-    // Regression: the throttle map is lazily inserted at 0.0 on first
-    // access, which without the `Skip => prime` arm would let the very
-    // first death after startup respawn instantly while subsequent deaths
-    // paid the full delay.
-    #[test]
-    fn first_death_after_startup_pays_full_delay() {
-        let count = 1;
-        let delay = 2.0_f32;
-        let dt = 0.5;
-
-        // Simulate the production loop's body for one zone, including the
-        // lazy-insert at 0.0 and the Skip-prime fix.
-        let mut live = count; // initial spawn filled the slot
-        let mut throttle = 0.0_f32; // lazy-insert default
-
-        // A few ticks while full: each Skip should prime the throttle so a
-        // subsequent death starts from `delay`, not from 0.
-        for _ in 0..5 {
-            match decide_spawn(live, count, throttle) {
-                SpawnDecision::Skip => throttle = delay,
-                SpawnDecision::Tick => throttle -= dt,
-                SpawnDecision::Refill => {
-                    live += 1;
-                    throttle = delay;
-                }
-            }
-        }
-        assert_eq!(throttle, delay, "Skip should keep the throttle primed");
-
-        // Now kill — the throttle must Tick down for `delay` seconds before
-        // the next Refill is decided.
-        live -= 1;
-        let ticks_to_zero = (delay / dt).ceil() as u32;
-        for _ in 0..ticks_to_zero {
-            assert_eq!(
-                decide_spawn(live, count, throttle),
-                SpawnDecision::Tick,
-                "first death after startup must wait the full delay"
-            );
-            throttle -= dt;
-        }
-        assert_eq!(decide_spawn(live, count, throttle), SpawnDecision::Refill);
+        assert_eq!(timers.0[&3], 1.0);
+        assert_eq!(tick_actor_respawns(&mut timers, 1.0), vec![3]);
     }
 
     fn pending_spawn(id: u32, remaining_secs: f32) -> PendingActorSpawn {
@@ -483,14 +361,14 @@ mod tests {
         let mut zapper = pending_spawn(2, 2.0);
         zapper.zone_idx = 1;
         let mut pending = PendingActorSpawns(vec![mine, zapper]);
-        let mut throttles = ActorSpawnThrottles::default();
-        throttles.0.insert(0, 60.0);
-        throttles.0.insert(1, 120.0);
+        let mut timers = ActorRespawnTimers::default();
+        timers.0.insert(0, 60.0);
+        timers.0.insert(1, 120.0);
 
-        let count = expire_actor_spawn_cooldowns(
+        let count = expedite_actor_respawns(
             &ActorMap::default(),
             &mut pending,
-            &mut throttles,
+            &mut timers,
             &map_config,
             &config,
             Some("mine"),
@@ -499,8 +377,8 @@ mod tests {
         assert_eq!(count, 2);
         assert_eq!(pending.0[0].remaining_secs, 0.0);
         assert_eq!(pending.0[1].remaining_secs, 2.0);
-        assert_eq!(throttles.0[&0], 0.0);
-        assert_eq!(throttles.0[&1], 120.0);
+        assert_eq!(timers.0[&0], 0.0);
+        assert_eq!(timers.0[&1], 120.0);
     }
 
     #[test]

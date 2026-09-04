@@ -57,6 +57,11 @@ impl WeatherState {
         self.intensity
     }
 
+    #[must_use]
+    fn needs_tick(&self) -> bool {
+        self.auto || matches!(self.phase, WeatherPhase::RampIn { .. } | WeatherPhase::FadeOut { .. })
+    }
+
     // Admin override: rain now and hold it. Interrupting a fade scales the
     // ramp by the missing intensity, so the transition stays continuous
     // instead of snapping to zero and climbing back.
@@ -128,6 +133,10 @@ impl WeatherState {
 pub fn weather_system(time: Res<Time>, mut weather: ResMut<WeatherState>) {
     let mut rng = rand::rng();
     tick_weather(&mut weather, time.delta_secs(), &mut rng);
+}
+
+pub fn weather_needs_tick(weather: Res<WeatherState>) -> bool {
+    weather.needs_tick()
 }
 
 fn tick_weather(state: &mut WeatherState, delta: f32, rng: &mut ThreadRng) {

@@ -48,16 +48,16 @@ pub(super) struct CyclerButton {
 }
 
 #[derive(Component)]
-pub(super) struct SettingsMenuRoot;
+pub(super) struct SettingsMenuRootMarker;
 
 #[derive(Component)]
-pub(super) struct MenuSliderThumb;
+pub(super) struct MenuSliderThumbMarker;
 
 #[derive(Component)]
-pub(super) struct MenuCheckBox;
+pub(super) struct MenuCheckBoxMarker;
 
 #[derive(Component)]
-pub(super) struct MenuCheckMark;
+pub(super) struct MenuCheckMarkMarker;
 
 // A slider's value readout, rendered by the sync system from the setting.
 #[derive(Component)]

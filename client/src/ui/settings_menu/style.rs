@@ -5,14 +5,13 @@ use bevy::ui_widgets::{SliderRange, SliderValue};
 use bevy::window::{Monitor, OnMonitor, PrimaryWindow, WindowMode};
 
 use super::state::{
-    CheckboxSetting, CyclerButton, CyclerSetting, CyclerValueLabel, MenuCheckBox, MenuCheckMark, MenuSliderThumb,
-    SliderSetting, SliderValueLabel,
+    CheckboxSetting, CyclerButton, CyclerSetting, CyclerValueLabel, MenuCheckBoxMarker, MenuCheckMarkMarker,
+    MenuSliderThumbMarker, SliderSetting, SliderValueLabel,
 };
 use crate::config::ClientSettings;
 use crate::constants::{SETTINGS_ACCENT_COLOR, SETTINGS_OUTLINE_COLOR, SETTINGS_SLIDER_TRACK_COLOR};
 
-// The menu is ~20 nodes and transient, so these restyle unconditionally
-// every frame while open instead of change-detecting.
+// The menu is small and transient, but equal writes still trigger unnecessary UI work while it is open.
 pub(super) fn settings_menu_style_system(
     mut cycler_buttons: Query<
         (&Hovered, Has<Pressed>, Has<InteractionDisabled>, &mut BackgroundColor),
@@ -21,12 +20,19 @@ pub(super) fn settings_menu_style_system(
     checkboxes: Query<(Entity, &Hovered, Has<Checked>), With<CheckboxSetting>>,
     sliders: Query<(Entity, &Hovered), With<SliderSetting>>,
     children: Query<&Children>,
-    mut check_boxes: Query<&mut BorderColor, With<MenuCheckBox>>,
-    mut check_marks: Query<&mut BackgroundColor, (With<MenuCheckMark>, Without<CyclerButton>)>,
-    mut thumbs: Query<&mut BackgroundColor, (With<MenuSliderThumb>, Without<CyclerButton>, Without<MenuCheckMark>)>,
+    mut check_boxes: Query<&mut BorderColor, With<MenuCheckBoxMarker>>,
+    mut check_marks: Query<&mut BackgroundColor, (With<MenuCheckMarkMarker>, Without<CyclerButton>)>,
+    mut thumbs: Query<
+        &mut BackgroundColor,
+        (
+            With<MenuSliderThumbMarker>,
+            Without<CyclerButton>,
+            Without<MenuCheckMarkMarker>,
+        ),
+    >,
 ) {
     for (hovered, pressed, disabled, mut color) in &mut cycler_buttons {
-        color.0 = if disabled {
+        let target = if disabled {
             SETTINGS_SLIDER_TRACK_COLOR.with_alpha(0.2)
         } else if pressed {
             SETTINGS_ACCENT_COLOR
@@ -35,19 +41,22 @@ pub(super) fn settings_menu_style_system(
         } else {
             SETTINGS_SLIDER_TRACK_COLOR
         };
+        color.set_if_neq(BackgroundColor(target));
     }
 
     for (entity, hovered, checked) in &checkboxes {
         for child in children.iter_descendants(entity) {
             if let Ok(mut border) = check_boxes.get_mut(child) {
-                border.set_all(if hovered.get() {
+                let target = if hovered.get() {
                     SETTINGS_OUTLINE_COLOR.lighter(0.25)
                 } else {
                     SETTINGS_OUTLINE_COLOR
-                });
+                };
+                border.set_if_neq(BorderColor::all(target));
             }
             if let Ok(mut mark) = check_marks.get_mut(child) {
-                mark.0 = if checked { SETTINGS_ACCENT_COLOR } else { Color::NONE };
+                let target = if checked { SETTINGS_ACCENT_COLOR } else { Color::NONE };
+                mark.set_if_neq(BackgroundColor(target));
             }
         }
     }
@@ -55,26 +64,31 @@ pub(super) fn settings_menu_style_system(
     for (entity, hovered) in &sliders {
         for child in children.iter_descendants(entity) {
             if let Ok(mut thumb) = thumbs.get_mut(child) {
-                thumb.0 = if hovered.get() {
+                let target = if hovered.get() {
                     SETTINGS_ACCENT_COLOR.lighter(0.15)
                 } else {
                     SETTINGS_ACCENT_COLOR
                 };
+                thumb.set_if_neq(BackgroundColor(target));
             }
         }
     }
 }
 
 pub(super) fn settings_menu_slider_sync_system(
-    sliders: Query<(Entity, &SliderValue, &SliderRange, &SliderSetting)>,
+    sliders: Query<(Entity, &SliderValue, &SliderRange, &SliderSetting), Changed<SliderValue>>,
     children: Query<&Children>,
-    mut thumbs: Query<&mut Node, With<MenuSliderThumb>>,
+    mut thumbs: Query<&mut Node, With<MenuSliderThumbMarker>>,
     mut labels: Query<(&SliderValueLabel, &mut Text)>,
 ) {
+    // Equal node or text writes would make Bevy recompute the menu UI tree.
     for (entity, value, range, _) in &sliders {
         for child in children.iter_descendants(entity) {
             if let Ok(mut node) = thumbs.get_mut(child) {
-                node.left = Val::Percent(range.thumb_position(value.0) * 100.0);
+                let left = Val::Percent(range.thumb_position(value.0) * 100.0);
+                if node.left != left {
+                    node.left = left;
+                }
             }
         }
     }
@@ -83,9 +97,7 @@ pub(super) fn settings_menu_slider_sync_system(
             continue;
         };
         let rendered = slider_label(label.0, value.0);
-        if text.0 != rendered {
-            text.0 = rendered;
-        }
+        text.set_if_neq(Text(rendered));
     }
 }
 
@@ -101,6 +113,7 @@ fn slider_label(setting: SliderSetting, value: f32) -> String {
 // Cycler readouts come from the live sources every frame, so nothing the
 // user changes elsewhere (drag-resize, Cmd+F) can leave them stale. The
 // resolution row is a fullscreen setting and goes inactive while windowed.
+// Equal component writes stay suppressed so the continuous scan does not dirty the UI every frame.
 pub(super) fn settings_menu_window_sync_system(
     windows: Query<(&Window, Option<&OnMonitor>), With<PrimaryWindow>>,
     monitors: Query<&Monitor>,
@@ -148,17 +161,13 @@ pub(super) fn settings_menu_window_sync_system(
             }
             CyclerSetting::WindowMode => (if windowed { "Windowed" } else { "Fullscreen" }.to_owned(), false),
         };
-        if text.0 != rendered {
-            text.0 = rendered;
-        }
+        text.set_if_neq(Text(rendered));
         let target = if dimmed {
             Color::WHITE.with_alpha(0.35)
         } else {
             Color::WHITE
         };
-        if color.0 != target {
-            color.0 = target;
-        }
+        color.set_if_neq(TextColor(target));
     }
     for (entity, button, disabled) in &buttons {
         let desired = match button.setting {

@@ -3,25 +3,29 @@ use bevy::{camera::visibility::RenderLayers, prelude::*};
 use crate::{
     cameras::{CameraViewMode, MainCameraMarker},
     constants::{CHARACTER_LABEL_RENDER_LAYER, LOCAL_PLAYER_RENDER_LAYER, MAIN_VIEW_RENDER_LAYER},
-    players::{LocalPlayerInfo, LocalPlayerMarker},
-    ui::floating_labels::CharacterLabelRenderLayer,
+    players::LocalPlayerMarker,
+    ui::floating_labels::CharacterLabelRenderLayerMarker,
 };
 
-pub fn local_player_visibility_sync_system(
+#[derive(Component)]
+pub struct LocalPlayerLabelMarker;
+
+pub fn local_player_view_mode_system(
     view_mode: Res<CameraViewMode>,
-    local_player_info: Res<LocalPlayerInfo>,
-    mut local_player_query: Query<&mut Visibility, With<LocalPlayerMarker>>,
-    mut main_camera: Query<&mut RenderLayers, With<MainCameraMarker>>,
+    mut labels: Query<(Ref<LocalPlayerLabelMarker>, &mut Visibility)>,
+    mut main_cameras: Query<(Ref<MainCameraMarker>, &mut RenderLayers)>,
 ) {
-    let desired_visibility = if local_player_info.is_dead {
+    let label_visibility = if view_mode.is_first_person() {
         Visibility::Hidden
     } else {
-        Visibility::Visible
+        // A hidden player, such as a dead local player, must also hide its labels.
+        Visibility::Inherited
     };
-
-    for mut visibility in &mut local_player_query {
-        if *visibility != desired_visibility {
-            *visibility = desired_visibility;
+    let mode_changed = view_mode.is_changed();
+    // Labels can spawn without a mode change, so newly spawned ones still need the current mode.
+    for (marker, mut visibility) in &mut labels {
+        if mode_changed || marker.is_added() {
+            *visibility = label_visibility;
         }
     }
 
@@ -31,42 +35,48 @@ pub fn local_player_visibility_sync_system(
     if view_mode.is_top_down() {
         camera_layers = camera_layers.with(LOCAL_PLAYER_RENDER_LAYER);
     }
-    for mut layers in &mut main_camera {
-        if *layers != camera_layers {
+    for (marker, mut layers) in &mut main_cameras {
+        if mode_changed || marker.is_added() {
             *layers = camera_layers.clone();
         }
     }
 }
 
 #[derive(Component)]
-pub(crate) struct LocalPlayerRenderLayer;
+pub(crate) struct LocalPlayerRenderLayerMarker;
 
+// Scene meshes appear asynchronously, so tag each one once instead of rescanning the player hierarchy.
 pub(crate) fn local_player_render_layer_system(
     mut commands: Commands,
-    local_players: Query<Entity, With<LocalPlayerMarker>>,
-    children: Query<&Children>,
+    local_players: Query<(), With<LocalPlayerMarker>>,
+    parents: Query<&ChildOf>,
     meshes: Query<
-        (),
+        Entity,
         (
             With<Mesh3d>,
-            Without<LocalPlayerRenderLayer>,
-            Without<CharacterLabelRenderLayer>,
+            Added<Mesh3d>,
+            Without<LocalPlayerRenderLayerMarker>,
+            Without<CharacterLabelRenderLayerMarker>,
         ),
     >,
 ) {
-    for player in &local_players {
-        for descendant in children.iter_descendants(player) {
-            if meshes.contains(descendant) {
-                commands
-                    .entity(descendant)
-                    .insert((RenderLayers::layer(LOCAL_PLAYER_RENDER_LAYER), LocalPlayerRenderLayer));
+    for mesh in &meshes {
+        let mut ancestor = mesh;
+        while let Ok(parent) = parents.get(ancestor) {
+            ancestor = parent.parent();
+            if local_players.contains(ancestor) {
+                commands.entity(mesh).insert((
+                    RenderLayers::layer(LOCAL_PLAYER_RENDER_LAYER),
+                    LocalPlayerRenderLayerMarker,
+                ));
+                break;
             }
         }
     }
 }
 
 #[derive(Component)]
-pub(crate) struct LocalPlayerLightLayer;
+pub(crate) struct LocalPlayerLightLayerMarker;
 
 pub(crate) fn local_player_light_layer_system(
     mut commands: Commands,
@@ -74,13 +84,13 @@ pub(crate) fn local_player_light_layer_system(
         (Entity, Option<&RenderLayers>),
         (
             Or<(With<DirectionalLight>, With<PointLight>, With<SpotLight>)>,
-            Without<LocalPlayerLightLayer>,
+            Without<LocalPlayerLightLayerMarker>,
         ),
     >,
 ) {
     for (entity, layers) in &lights {
         let layers = layers.cloned().unwrap_or_default().with(LOCAL_PLAYER_RENDER_LAYER);
-        commands.entity(entity).insert((layers, LocalPlayerLightLayer));
+        commands.entity(entity).insert((layers, LocalPlayerLightLayerMarker));
     }
 }
 
@@ -89,20 +99,19 @@ mod tests {
     use super::*;
 
     #[test]
-    fn first_person_hides_local_meshes_from_main_camera_only() {
+    fn first_person_hides_local_labels_and_excludes_local_mesh_layer() {
         let mut app = App::new();
         app.insert_resource(CameraViewMode::FirstPerson)
-            .insert_resource(LocalPlayerInfo::default())
-            .add_systems(Update, local_player_visibility_sync_system);
-        let player = app.world_mut().spawn((LocalPlayerMarker, Visibility::Hidden)).id();
+            .add_systems(Update, local_player_view_mode_system);
+        let label = app
+            .world_mut()
+            .spawn((LocalPlayerLabelMarker, Visibility::Visible))
+            .id();
         let camera = app.world_mut().spawn((MainCameraMarker, RenderLayers::default())).id();
 
         app.update();
 
-        assert_eq!(
-            app.world().entity(player).get::<Visibility>(),
-            Some(&Visibility::Visible)
-        );
+        assert_eq!(app.world().entity(label).get::<Visibility>(), Some(&Visibility::Hidden));
         let layers = app
             .world()
             .entity(camera)
@@ -114,12 +123,11 @@ mod tests {
     }
 
     #[test]
-    fn top_down_camera_includes_local_player_layer() {
+    fn top_down_camera_includes_local_player_layer_and_labels_inherit_player_visibility() {
         let mut app = App::new();
         app.insert_resource(CameraViewMode::TopDown)
-            .insert_resource(LocalPlayerInfo::default())
-            .add_systems(Update, local_player_visibility_sync_system);
-        app.world_mut().spawn((LocalPlayerMarker, Visibility::Visible));
+            .add_systems(Update, local_player_view_mode_system);
+        let label = app.world_mut().spawn((LocalPlayerLabelMarker, Visibility::Hidden)).id();
         let camera = app.world_mut().spawn((MainCameraMarker, RenderLayers::default())).id();
 
         app.update();
@@ -130,6 +138,10 @@ mod tests {
             .get::<RenderLayers>()
             .expect("main camera render layers missing");
         assert!(layers.intersects(&RenderLayers::layer(LOCAL_PLAYER_RENDER_LAYER)));
+        assert_eq!(
+            app.world().entity(label).get::<Visibility>(),
+            Some(&Visibility::Inherited)
+        );
     }
 
     #[test]
@@ -159,5 +171,22 @@ mod tests {
             .expect("light render layers missing");
         assert!(light_layers.intersects(&RenderLayers::layer(0)));
         assert!(light_layers.intersects(&RenderLayers::layer(LOCAL_PLAYER_RENDER_LAYER)));
+    }
+
+    #[test]
+    fn newly_added_local_label_uses_current_view_mode() {
+        let mut app = App::new();
+        app.insert_resource(CameraViewMode::FirstPerson)
+            .add_systems(Update, local_player_view_mode_system);
+        app.world_mut().spawn((MainCameraMarker, RenderLayers::default()));
+        app.update();
+
+        let label = app
+            .world_mut()
+            .spawn((LocalPlayerLabelMarker, Visibility::Visible))
+            .id();
+        app.update();
+
+        assert_eq!(app.world().entity(label).get::<Visibility>(), Some(&Visibility::Hidden));
     }
 }

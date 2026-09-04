@@ -207,9 +207,7 @@ pub fn pressure_plates_system(
     *fireworks_ready = ready;
 
     *prev_held = held_indices;
-    if next != open.0 {
-        open.0 = next;
-    }
+    open.0 = next;
 }
 
 // Everyone alive is on a firework plate — or every plate is held when the

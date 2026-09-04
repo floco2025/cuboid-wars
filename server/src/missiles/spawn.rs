@@ -9,7 +9,7 @@ use crate::{
     map::OpenBarrierKinds,
     missiles::{MissileInfo, MissileMap, MissileVelocity, steering::sweep_clear},
     network::broadcast_to_all,
-    players::{PlayerInfo, PlayerMap, PlayerStateQuery},
+    players::{PlayerMap, PlayerStateQuery},
 };
 use common::constants::MISSILE_SPAWN_OFFSET;
 use common::{
@@ -44,6 +44,7 @@ pub fn handle_missile_shot_message(
     server_gameplay_config: &ServerGameplayConfig,
     map_settings: &MapSettings,
     open_barrier_kinds: &OpenBarrierKinds,
+    unlimited_missiles: bool,
 ) {
     if !map_settings.weapons.missiles {
         return;
@@ -108,7 +109,10 @@ pub fn handle_missile_shot_message(
         return;
     }
 
-    if !players.get_mut(&id).is_some_and(PlayerInfo::try_start_missile) {
+    if !players
+        .get_mut(&id)
+        .is_some_and(|player| player.try_start_missile(unlimited_missiles))
+    {
         return;
     }
 

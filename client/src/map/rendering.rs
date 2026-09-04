@@ -1,14 +1,13 @@
 use bevy::light::{DirectionalLightShadowMap, cluster::GlobalClusterSettings};
 use bevy::prelude::*;
-use std::collections::HashSet;
 
 use crate::{
-    barriers::{BarrierAssets, BarrierMarker},
+    barriers::BarrierAssets,
     config::{AssetSet, ClientSettings},
     map::{
-        DebugColorMode, DebugColors, GrassMarker, GroundMarker, LadderMarker, LevelFocusEnabled, MapGeometryBatch,
-        MapLevel, RampMarker, RoofMarker, WallLightMarker, WallMarker, batch_floor, batch_ramp, batch_wall,
-        spawn_ladder_from_layout, spawn_wall_light_from_layout,
+        DebugColorMode, DebugColors, FocusedMapLevel, GrassMarker, GroundMarker, LadderMarker, LevelFocusEnabled,
+        MapGeometryBatch, MapLevel, RampMarker, RoofMarker, WallLightMarker, WallMarker, batch_floor, batch_ramp,
+        batch_wall, spawn_ladder_from_layout, spawn_wall_light_from_layout,
     },
     materials::MaterialHandleCache,
     players::LocalPlayerMarker,
@@ -157,13 +156,26 @@ pub fn map_spawn_geometry_system(
 // Level Focus Visibility System
 // ============================================================================
 
-// When `LevelFocusEnabled` is on, hide level-bound map entities at any level
-// other than the local player's, and hide ramps that don't connect to the local
-// player's level. When off, show everything. Runs every frame because the
-// player's level can change as they walk up/down ramps.
-pub fn map_level_focus_visibility_system(
+pub fn update_focused_map_level_system(
     focus: Res<LevelFocusEnabled>,
     local_player: Query<&common::protocol::Position, With<LocalPlayerMarker>>,
+    mut focused: ResMut<FocusedMapLevel>,
+) {
+    // Reduce continuous player movement to the level value that controls the large visibility pass.
+    let focused_level = if focus.0 {
+        local_player
+            .single()
+            .ok()
+            .map(|position| visual_focus_level(position.y))
+    } else {
+        None
+    };
+    // Equal writes would rerun visibility updates across the entire map.
+    focused.set_if_neq(FocusedMapLevel(focused_level));
+}
+
+pub fn map_level_focus_visibility_system(
+    focused: Res<FocusedMapLevel>,
     mut level_entities: Query<
         (&MapLevel, &mut Visibility),
         (
@@ -173,7 +185,6 @@ pub fn map_level_focus_visibility_system(
                 With<GroundMarker>,
                 With<WallLightMarker>,
                 With<ItemMarker>,
-                With<BarrierMarker>,
                 With<GrassMarker>,
             )>,
             Without<RampMarker>,
@@ -183,49 +194,69 @@ pub fn map_level_focus_visibility_system(
     mut ramps: Query<(&MapLevel, &mut Visibility), (With<RampMarker>, Without<LadderMarker>)>,
     mut ladders: Query<(&MapLevel, &LadderMarker, &mut Visibility)>,
 ) {
-    // `set_if_neq` everywhere: writing every `Visibility` each frame would
-    // mark hundreds of unchanged entities dirty and re-run visibility
-    // propagation for all of them.
-    if !focus.0 {
-        for (_, mut vis) in &mut level_entities {
-            vis.set_if_neq(Visibility::Visible);
-        }
-        for (_, mut vis) in &mut ramps {
-            vis.set_if_neq(Visibility::Visible);
-        }
-        for (_, _, mut vis) in &mut ladders {
-            vis.set_if_neq(Visibility::Visible);
-        }
-        return;
-    }
-
-    let Ok(pos) = local_player.single() else {
-        return;
-    };
-    let player_level = visual_focus_level(pos.y);
-
+    // Equal writes would retrigger visibility propagation for hundreds of map entities.
     for (level, mut vis) in &mut level_entities {
-        vis.set_if_neq(if level.0 == player_level {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        });
+        vis.set_if_neq(level_visibility(*focused, level.0));
     }
     for (level, mut vis) in &mut ramps {
-        // Show a ramp if it touches the player's level on either side.
-        vis.set_if_neq(if level.0 == player_level || level.0 + 1 == player_level {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        });
+        vis.set_if_neq(ramp_visibility(*focused, level.0));
     }
     for (level, ladder, mut vis) in &mut ladders {
-        // Show a ladder from every level it spans, top landing included.
-        vis.set_if_neq(if (level.0..=level.0 + ladder.levels).contains(&player_level) {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        });
+        vis.set_if_neq(ladder_visibility(*focused, level.0, ladder.levels));
+    }
+}
+
+// Map entities can spawn without a level transition, so they still need the current visibility.
+pub fn added_map_level_visibility_system(
+    focused: Res<FocusedMapLevel>,
+    mut level_entities: Query<
+        (&MapLevel, &mut Visibility),
+        (
+            Added<MapLevel>,
+            Or<(
+                With<WallMarker>,
+                With<RoofMarker>,
+                With<GroundMarker>,
+                With<WallLightMarker>,
+                With<ItemMarker>,
+                With<GrassMarker>,
+            )>,
+            Without<RampMarker>,
+            Without<LadderMarker>,
+        ),
+    >,
+    mut ramps: Query<(&MapLevel, &mut Visibility), (Added<MapLevel>, With<RampMarker>, Without<LadderMarker>)>,
+    mut ladders: Query<(&MapLevel, &LadderMarker, &mut Visibility), (Added<MapLevel>, With<LadderMarker>)>,
+) {
+    for (level, mut visibility) in &mut level_entities {
+        *visibility = level_visibility(*focused, level.0);
+    }
+    for (level, mut visibility) in &mut ramps {
+        *visibility = ramp_visibility(*focused, level.0);
+    }
+    for (level, ladder, mut visibility) in &mut ladders {
+        *visibility = ladder_visibility(*focused, level.0, ladder.levels);
+    }
+}
+
+fn level_visibility(focused: FocusedMapLevel, level: u8) -> Visibility {
+    match focused.0 {
+        Some(focused_level) if level != focused_level => Visibility::Hidden,
+        _ => Visibility::Visible,
+    }
+}
+
+fn ramp_visibility(focused: FocusedMapLevel, level: u8) -> Visibility {
+    match focused.0 {
+        Some(focused_level) if level != focused_level && level.saturating_add(1) != focused_level => Visibility::Hidden,
+        _ => Visibility::Visible,
+    }
+}
+
+fn ladder_visibility(focused: FocusedMapLevel, level: u8, levels: u8) -> Visibility {
+    match focused.0 {
+        Some(focused_level) if !(level..=level.saturating_add(levels)).contains(&focused_level) => Visibility::Hidden,
+        _ => Visibility::Visible,
     }
 }
 
@@ -237,43 +268,46 @@ pub fn map_level_focus_visibility_system(
 pub fn map_wall_light_emissive_system(
     asset_set: Res<AssetSet>,
     barrier_assets: Res<BarrierAssets>,
+    mut asset_events: MessageReader<AssetEvent<StandardMaterial>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    mut processed: Local<HashSet<AssetId<StandardMaterial>>>,
 ) {
-    // Barrier materials match the "non-opaque" heuristic below but are
-    // managed by their own pulsation system — keep this pass off them.
-    for handle in barrier_assets.material_handles() {
-        processed.insert(handle.id());
-    }
-
     let emissive_luminance = asset_set.wall_light_model().emissive_luminance;
-
-    // Find unprocessed glass materials read-only first. `iter_mut()` flags
-    // EVERY returned material as `Modified` regardless of edits, forcing a
-    // per-frame GPU re-extract/re-prepare of all materials; `iter()` queues no
-    // change events. Once every glass material is processed this yields nothing
-    // and no material is touched again.
-    let candidates: Vec<AssetId<StandardMaterial>> = materials
-        .iter()
-        .filter(|(id, material)| {
-            !processed.contains(id) && (material.alpha_mode != AlphaMode::Opaque || material.base_color.alpha() < 1.0)
-        })
-        .map(|(id, _)| id)
-        .collect();
-
-    // Make wall-light glass emissive using configurable fixture settings.
     let warm_tint = (1.0, 0.95, 0.85);
-    for id in candidates {
+    let desired_emissive = LinearRgba::rgb(
+        warm_tint.0 * emissive_luminance,
+        warm_tint.1 * emissive_luminance,
+        warm_tint.2 * emissive_luminance,
+    );
+    // Material events avoid rescanning every loaded material while still catching late asset loads.
+    for event in asset_events.read() {
+        let Some(id) = (match event {
+            AssetEvent::Added { id } | AssetEvent::Modified { id } | AssetEvent::LoadedWithDependencies { id } => {
+                Some(*id)
+            }
+            AssetEvent::Removed { .. } | AssetEvent::Unused { .. } => None,
+        }) else {
+            continue;
+        };
+        // Barrier materials are translucent too, but their pulsation system owns them.
+        if barrier_assets.material_handles().iter().any(|handle| handle.id() == id) {
+            continue;
+        }
+        let Some(material) = materials.get(id) else {
+            continue;
+        };
+        if material.alpha_mode == AlphaMode::Opaque && material.base_color.alpha() >= 1.0 {
+            continue;
+        }
+        let desired_base_color = Color::srgba(warm_tint.0, warm_tint.1, warm_tint.2, material.base_color.alpha());
+        // Avoid emitting another Modified event in response to this system's own write.
+        if material.emissive == desired_emissive && material.base_color == desired_base_color {
+            continue;
+        }
         let Some(mut material) = materials.get_mut(id) else {
             continue;
         };
-        material.emissive = LinearRgba::rgb(
-            warm_tint.0 * emissive_luminance,
-            warm_tint.1 * emissive_luminance,
-            warm_tint.2 * emissive_luminance,
-        );
-        material.base_color = Color::srgba(warm_tint.0, warm_tint.1, warm_tint.2, material.base_color.alpha());
-        processed.insert(id);
+        material.emissive = desired_emissive;
+        material.base_color = desired_base_color;
     }
 }
 
@@ -282,4 +316,22 @@ pub(crate) fn visual_focus_level(y: f32) -> u8 {
         return 0;
     }
     (y / common::constants::LEVEL_HEIGHT).round().min(f32::from(u8::MAX)) as u8
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn focused_level_visibility_includes_connecting_ramps_and_ladders() {
+        let focused = FocusedMapLevel(Some(2));
+
+        assert_eq!(level_visibility(FocusedMapLevel(None), 1), Visibility::Visible);
+        assert_eq!(level_visibility(focused, 2), Visibility::Visible);
+        assert_eq!(level_visibility(focused, 1), Visibility::Hidden);
+        assert_eq!(ramp_visibility(focused, 1), Visibility::Visible);
+        assert_eq!(ramp_visibility(focused, 0), Visibility::Hidden);
+        assert_eq!(ladder_visibility(focused, 0, 2), Visibility::Visible);
+        assert_eq!(ladder_visibility(focused, 0, 1), Visibility::Hidden);
+    }
 }

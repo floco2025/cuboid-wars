@@ -17,21 +17,39 @@ const MAX_PENDING_MIPMAP_TASKS: usize = 2;
 pub struct MaterialMipmapState {
     processed: HashSet<AssetId<Image>>,
     pending: HashMap<AssetId<Image>, (Handle<Image>, Task<Option<Image>>)>,
+    // Material events can arrive before their images, so candidates retry until the image loads.
+    queued: HashMap<AssetId<Image>, MipmapCandidate>,
+}
+
+#[derive(Clone)]
+struct MipmapCandidate {
+    image_handle: Handle<Image>,
+    texture_slot: &'static str,
+    material_label: String,
 }
 
 pub fn generate_material_mipmaps_system(
     mut state: Local<MaterialMipmapState>,
+    mut material_events: MessageReader<AssetEvent<StandardMaterial>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut images: ResMut<Assets<Image>>,
     asset_server: Res<AssetServer>,
     client_settings: Res<ClientSettings>,
 ) {
-    // The upstream plugin's event-driven system can miss our textures because a
-    // StandardMaterial may be added before its Image assets have loaded. Scanning
-    // materials and retrying unloaded images makes mip generation robust for our
-    // asset-server-loaded material set.
     let updated_images = finish_mipmap_tasks(&mut state, &mut images);
     mark_materials_using_images_changed(&mut materials, &updated_images);
+
+    for event in material_events.read() {
+        let Some(material_id) = (match event {
+            AssetEvent::Added { id } | AssetEvent::Modified { id } | AssetEvent::LoadedWithDependencies { id } => {
+                Some(*id)
+            }
+            AssetEvent::Removed { .. } | AssetEvent::Unused { .. } => None,
+        }) else {
+            continue;
+        };
+        queue_material_images(&mut state, &materials, &asset_server, material_id);
+    }
 
     let settings = MipmapGeneratorSettings {
         anisotropic_filtering: client_settings.rendering.texture_anisotropy,
@@ -39,78 +57,100 @@ pub fn generate_material_mipmaps_system(
     };
 
     let thread_pool = AsyncComputeTaskPool::get();
-    for (material_id, material) in materials.iter() {
-        let material_label = asset_server
-            .get_path(material_id)
-            .map_or_else(|| format!("{material_id:?}"), |path| path.to_string());
-        for (texture_slot, image_handle) in standard_material_images(material) {
-            if state.pending.len() >= MAX_PENDING_MIPMAP_TASKS {
-                return;
-            }
-
-            let image_id = image_handle.id();
-            if state.processed.contains(&image_id) || state.pending.contains_key(&image_id) {
-                continue;
-            }
-
-            let Some(mut image) = images.get_mut(image_handle) else {
-                continue;
-            };
-
-            // Runtime render targets, such as floating label textures, are not
-            // source texture assets and can use formats the mipmap generator
-            // does not support. They render correctly without generated mips.
-            if image
-                .texture_descriptor
-                .usage
-                .contains(TextureUsages::RENDER_ATTACHMENT)
-            {
-                state.processed.insert(image_id);
-                continue;
-            }
-
-            configure_mipmap_sampler(&mut image, client_settings.rendering.texture_anisotropy);
-
-            if image.texture_descriptor.mip_level_count > 1 {
-                state.processed.insert(image_id);
-                continue;
-            }
-
-            if let Err(error) = check_image_compatible(&image) {
-                debug!(
-                    "skipping mipmap generation for {} ({texture_slot} of material {material_label}, format {:?}, size {}x{}x{}): {error}",
-                    image_label(image_handle),
-                    image.texture_descriptor.format,
-                    image.texture_descriptor.size.width,
-                    image.texture_descriptor.size.height,
-                    image.texture_descriptor.size.depth_or_array_layers,
-                );
-                state.processed.insert(image_id);
-                continue;
-            }
-
-            let mut image = image.clone();
-            let settings = settings.clone();
-            let image_label = image_label(image_handle);
-            let material_label = material_label.clone();
-            let format = image.texture_descriptor.format;
-            let size = image.texture_descriptor.size;
-            let task = thread_pool.spawn(async move {
-                let mut added_cache_size = 0;
-                generate_mips_texture(&mut image, &settings, &mut added_cache_size)
-                    .map(|()| image)
-                    .map_err(|error| {
-                        warn!(
-                            "failed to generate mipmaps for {image_label} ({texture_slot} of material {material_label}, format {format:?}, size {}x{}x{}): {error}",
-                            size.width,
-                            size.height,
-                            size.depth_or_array_layers,
-                        );
-                    })
-                    .ok()
-            });
-            state.pending.insert(image_id, (image_handle.clone(), task));
+    let queued_ids: Vec<_> = state.queued.keys().copied().collect();
+    for image_id in queued_ids {
+        if state.pending.len() >= MAX_PENDING_MIPMAP_TASKS {
+            break;
         }
+        let Some(candidate) = state.queued.get(&image_id).cloned() else {
+            continue;
+        };
+        let Some(image) = images.get(&candidate.image_handle) else {
+            continue;
+        };
+
+        // Render targets are not source textures and may use unsupported formats.
+        if image
+            .texture_descriptor
+            .usage
+            .contains(TextureUsages::RENDER_ATTACHMENT)
+            || image.texture_descriptor.mip_level_count > 1
+        {
+            state.queued.remove(&image_id);
+            state.processed.insert(image_id);
+            continue;
+        }
+        if let Err(error) = check_image_compatible(image) {
+            debug!(
+                "skipping mipmap generation for {} ({} of material {}, format {:?}, size {}x{}x{}): {error}",
+                image_label(&candidate.image_handle),
+                candidate.texture_slot,
+                candidate.material_label,
+                image.texture_descriptor.format,
+                image.texture_descriptor.size.width,
+                image.texture_descriptor.size.height,
+                image.texture_descriptor.size.depth_or_array_layers,
+            );
+            state.queued.remove(&image_id);
+            state.processed.insert(image_id);
+            continue;
+        }
+
+        let mut image = image.clone();
+        configure_mipmap_sampler(&mut image, client_settings.rendering.texture_anisotropy);
+        let settings = settings.clone();
+        let image_name = image_label(&candidate.image_handle);
+        let texture_slot = candidate.texture_slot;
+        let material_label = candidate.material_label;
+        let format = image.texture_descriptor.format;
+        let size = image.texture_descriptor.size;
+        let task = thread_pool.spawn(async move {
+            let mut added_cache_size = 0;
+            generate_mips_texture(&mut image, &settings, &mut added_cache_size)
+                .map(|()| image)
+                .map_err(|error| {
+                    warn!(
+                        "failed to generate mipmaps for {image_name} ({texture_slot} of material {material_label}, format {format:?}, size {}x{}x{}): {error}",
+                        size.width,
+                        size.height,
+                        size.depth_or_array_layers,
+                    );
+                })
+                .ok()
+        });
+        state.queued.remove(&image_id);
+        state.pending.insert(image_id, (candidate.image_handle, task));
+    }
+}
+
+fn queue_material_images(
+    state: &mut MaterialMipmapState,
+    materials: &Assets<StandardMaterial>,
+    asset_server: &AssetServer,
+    material_id: AssetId<StandardMaterial>,
+) {
+    let Some(material) = materials.get(material_id) else {
+        return;
+    };
+    let material_label = asset_server
+        .get_path(material_id)
+        .map_or_else(|| format!("{material_id:?}"), |path| path.to_string());
+    for (texture_slot, image_handle) in standard_material_images(material) {
+        let image_id = image_handle.id();
+        if state.processed.contains(&image_id)
+            || state.pending.contains_key(&image_id)
+            || state.queued.contains_key(&image_id)
+        {
+            continue;
+        }
+        state.queued.insert(
+            image_id,
+            MipmapCandidate {
+                image_handle: image_handle.clone(),
+                texture_slot,
+                material_label: material_label.clone(),
+            },
+        );
     }
 }
 
@@ -151,10 +191,9 @@ fn mark_materials_using_images_changed(
         .iter()
         .filter_map(|(material_id, material)| material_uses_any_image(material, updated_images).then_some(material_id))
         .collect::<Vec<_>>();
-
     for material_id in affected_materials {
         // Rebuild the bind group so it sees the replacement GPU image and sampler.
-        let _ = materials.get_mut(material_id).as_deref_mut();
+        let _ = materials.get_mut(material_id);
     }
 }
 

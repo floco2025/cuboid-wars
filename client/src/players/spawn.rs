@@ -1,6 +1,6 @@
 use bevy::{gltf::GltfAssetLabel, prelude::*};
 
-use super::BumpFeedbackState;
+use super::{BumpFeedbackState, LocalPlayerLabelMarker};
 use crate::{
     characters::{AnimationToPlay, character_animation_system},
     characters::{PreviousTickPosition, spawn_collider_box},
@@ -130,6 +130,11 @@ pub fn spawn_player(
     let bar_entity = spawn_floating_health_bar(
         commands, meshes, materials, entity, bar_width, bar_height, bar_y, max_health, health.0,
     );
+    if is_local {
+        commands
+            .entity(bar_entity)
+            .insert((LocalPlayerLabelMarker, Visibility::Hidden));
+    }
     children.push(bar_entity);
 
     // Name label: rendered into its own texture (text needs one), stacked just
@@ -151,6 +156,11 @@ pub fn spawn_player(
         name_bottom_y,
         client_settings.hud.font_sizes.floating_label,
     );
+    if is_local {
+        commands
+            .entity(name_mesh)
+            .insert((LocalPlayerLabelMarker, Visibility::Hidden));
+    }
     children.push(name_mesh);
 
     // The visibility system uses `camera` to render the name texture for the

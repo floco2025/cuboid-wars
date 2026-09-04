@@ -3,8 +3,8 @@ use bevy::prelude::*;
 use bevy::ui_widgets::{Button, Checkbox, Slider, SliderPrecision, SliderRange, SliderThumb, SliderValue, TrackClick};
 
 use super::state::{
-    CheckboxSetting, CyclerButton, CyclerSetting, CyclerValueLabel, MenuCheckBox, MenuCheckMark, MenuSliderThumb,
-    SliderSetting, SliderValueLabel,
+    CheckboxSetting, CyclerButton, CyclerSetting, CyclerValueLabel, MenuCheckBoxMarker, MenuCheckMarkMarker,
+    MenuSliderThumbMarker, SliderSetting, SliderValueLabel,
 };
 use crate::constants::{
     CONSOLE_TEXT_COLOR, SETTINGS_ACCENT_COLOR, SETTINGS_OUTLINE_COLOR, SETTINGS_SLIDER_TRACK_COLOR,
@@ -148,7 +148,7 @@ fn slider(control_width: f32, setting: SliderSetting, min: f32, max: f32, value:
                     ..default()
                 },
                 children![(
-                    MenuSliderThumb,
+                    MenuSliderThumbMarker,
                     SliderThumb,
                     Node {
                         position_type: PositionType::Absolute,
@@ -175,7 +175,7 @@ pub(super) fn checkbox_row(label: &str, font_size: f32, setting: CheckboxSetting
         children![
             label_text(label, font_size),
             (
-                MenuCheckBox,
+                MenuCheckBoxMarker,
                 Node {
                     width: Val::Px(16.0),
                     height: Val::Px(16.0),
@@ -187,7 +187,7 @@ pub(super) fn checkbox_row(label: &str, font_size: f32, setting: CheckboxSetting
                 },
                 BorderColor::all(SETTINGS_OUTLINE_COLOR),
                 children![(
-                    MenuCheckMark,
+                    MenuCheckMarkMarker,
                     Node {
                         width: Val::Px(8.0),
                         height: Val::Px(8.0),

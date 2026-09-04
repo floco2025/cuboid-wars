@@ -100,9 +100,7 @@ pub fn input_weapon_select_system(
         return;
     }
     let selected = loadout.select(*mode, advance);
-    if *mode != selected {
-        *mode = selected;
-    }
+    *mode = selected;
 }
 
 #[cfg(test)]

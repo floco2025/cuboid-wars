@@ -2,7 +2,7 @@ use bevy::{ecs::system::SystemParam, prelude::*};
 
 use super::execute::{AdminOutcome, run_admin_command};
 use crate::{
-    actors::{ActorMap, ActorSpawnThrottles, PendingActorSpawns},
+    actors::{ActorMap, ActorRespawnTimers, PendingActorSpawns},
     combat::PendingExplosions,
     config::ServerGameplayConfig,
     map::{LightState, MapConfig, WeatherState},
@@ -27,7 +27,7 @@ pub struct AdminContext<'w> {
     pub pending_explosions: ResMut<'w, PendingExplosions>,
     pub invincibility: ResMut<'w, Invincibility>,
     pub unlimited_missiles: ResMut<'w, UnlimitedMissiles>,
-    pub actor_spawn_throttles: ResMut<'w, ActorSpawnThrottles>,
+    pub actor_respawn_timers: ResMut<'w, ActorRespawnTimers>,
     pub server_gameplay_config: Res<'w, ServerGameplayConfig>,
     pub map_settings: Res<'w, MapSettings>,
     pub barrier_kind_table: Res<'w, BarrierKindTable>,

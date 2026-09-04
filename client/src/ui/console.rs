@@ -235,20 +235,20 @@ pub fn ui_console_render_system(
     console: Res<ConsoleState>,
     node: Single<(&mut Text, &mut TextColor, &mut Visibility), With<ConsoleMarker>>,
 ) {
+    if !console.is_changed() {
+        return;
+    }
     let (mut text, mut color, mut visibility) = node.into_inner();
+    // Console history can change without changing the prompt; equal writes would still dirty its UI nodes.
     if console.open {
         let line = prompt(&console.buffer);
-        if text.0 != line {
-            text.0 = line;
-        }
+        text.set_if_neq(Text(line));
         let wanted = if console.buffer.starts_with('/') {
             CONSOLE_TEXT_COLOR
         } else {
             FEED_CHAT_TEXT_COLOR
         };
-        if color.0 != wanted {
-            color.0 = wanted;
-        }
+        color.set_if_neq(TextColor(wanted));
     }
     visibility.set_if_neq(if console.open {
         Visibility::Visible

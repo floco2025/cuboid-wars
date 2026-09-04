@@ -6,6 +6,9 @@ use bevy::prelude::*;
 #[derive(Resource, PartialEq, Eq, Clone, Copy, Debug, Default)]
 pub struct LevelFocusEnabled(pub bool);
 
+#[derive(Resource, PartialEq, Eq, Clone, Copy, Debug, Default)]
+pub struct FocusedMapLevel(pub(crate) Option<u8>);
+
 // Map debug-color mode. Not configurable: every client starts `Off` and the
 // C key cycles it at runtime. The map mesh is re-spawned whenever it changes.
 #[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq)]

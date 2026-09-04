@@ -14,7 +14,10 @@ use crate::{
 // so a one-time render is enough; the multi-frame window (not a single frame)
 // makes that render land reliably regardless of frame timing. Health bars are
 // separate geometry now, so this no longer reacts to health at all.
-pub fn player_name_label_render_system(mut characters: Query<&mut LabelCamera>, mut cameras: Query<&mut Camera>) {
+pub fn player_name_label_render_system(
+    mut characters: Query<&mut LabelCamera, Changed<LabelCamera>>,
+    mut cameras: Query<&mut Camera>,
+) {
     for mut label_cam in &mut characters {
         let active = label_cam.render_ttl > 0;
         if let Ok(mut cam) = cameras.get_mut(label_cam.camera)

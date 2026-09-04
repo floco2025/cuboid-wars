@@ -27,6 +27,7 @@ pub fn ui_diagnostics_visibility_system(
     } else {
         Visibility::Hidden
     };
+    // Unrelated settings changes should not retrigger visibility propagation.
     visibility.set_if_neq(target);
 }
 

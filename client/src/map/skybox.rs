@@ -75,7 +75,7 @@ pub(super) struct SkyDisc {
 }
 
 #[derive(Component)]
-pub(super) struct SkyDiscAttached;
+pub(super) struct SkyDiscAttachedMarker;
 
 #[derive(Resource)]
 pub(super) struct SkyDiscAssets {
@@ -125,7 +125,7 @@ pub fn setup_sky_disc_system(
 pub(super) fn sky_disc_camera_system(
     mut commands: Commands,
     assets: Option<Res<SkyDiscAssets>>,
-    cameras: Query<(Entity, &SkyDiscRenderLayer), (With<Camera3d>, Without<SkyDiscAttached>)>,
+    cameras: Query<(Entity, &SkyDiscRenderLayer), (With<Camera3d>, Without<SkyDiscAttachedMarker>)>,
 ) {
     let Some(assets) = assets else {
         return;
@@ -141,7 +141,7 @@ pub(super) fn sky_disc_camera_system(
                 Transform::default(),
             ))
             .id();
-        commands.entity(camera).insert(SkyDiscAttached).add_child(disc);
+        commands.entity(camera).insert(SkyDiscAttachedMarker).add_child(disc);
     }
 }
 

@@ -4,7 +4,7 @@ use bevy::prelude::*;
 use crate::quests::{QuestBoard, QuestCatalog};
 use crate::{
     actors::{
-        ActorMap, ActorSpawnThrottles, ActorSpawner, PendingActorSpawns, actors_plugin,
+        ActorMap, ActorRespawnTimers, ActorSpawner, PendingActorSpawns, actors_plugin,
         navigation::{ActorTerritories, NavGraph},
     },
     characters::characters_plugin,
@@ -105,7 +105,7 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
         .insert_resource(random_items)
         .insert_resource(placed_items_config)
         .insert_resource(ActorSpawner::default())
-        .insert_resource(ActorSpawnThrottles::default())
+        .insert_resource(ActorRespawnTimers::default())
         .insert_resource(PendingActorSpawns::default())
         .insert_resource(from_clients)
         .insert_resource(PendingExplosions::default())

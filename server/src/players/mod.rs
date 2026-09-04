@@ -12,4 +12,4 @@ pub use resources::{
     PlayerStateQuery, UnlimitedMissiles,
 };
 pub use respawn::players_respawn_system;
-pub use status::{players_status_timers_system, players_unlimited_missiles_system};
+pub use status::players_status_timers_system;
