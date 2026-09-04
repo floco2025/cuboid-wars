@@ -23,4 +23,4 @@ pub use projectiles::{
     BarrierImpact, ProjectileEvent, ProjectileMotion, ProjectileSpawnInfo, SurfaceBounce, calculate_projectile_spawns,
     earliest_projectile_event, projectile_character_hit, projectile_overlaps_character,
 };
-pub use world::{CollisionWorld, ShapeCastHit, WorldSurfaceHit};
+pub use world::{CollisionWorld, ShapeCastHit, WorldSurfaceHit, powered_bridges_sync_system};

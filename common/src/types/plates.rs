@@ -3,10 +3,31 @@ use bincode::{Decode, Encode};
 
 use super::{BarrierKindId, BridgeKindId, PlatePurpose};
 
+// What a holding plate holds while enough of its plates are pressed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum HeldPurpose {
+    Barrier(BarrierKindId),
+    Bridge(BridgeKindId),
+}
+
+impl PlatePurpose {
+    // Fireworks are momentary, so this is the one place that says they hold
+    // nothing.
+    #[must_use]
+    pub fn held(self) -> Option<HeldPurpose> {
+        match self {
+            Self::Barrier(kind) => Some(HeldPurpose::Barrier(kind)),
+            Self::Bridge(kind) => Some(HeldPurpose::Bridge(kind)),
+            Self::Firework => None,
+        }
+    }
+}
+
 // What the pressure plates currently hold: barrier kinds open (passable and
 // invisible) and bridge kinds powered (solid and lit). One value on both
 // sides — the server's plate system writes it, every snapshot carries it,
-// and both sides feed it to the collision filters. Both lists stay sorted
+// the collision filters read the open kinds and `powered_bridges_sync_system`
+// applies the powered kinds to the bridge colliders. Both lists stay sorted
 // so equality diffs are stable.
 #[derive(Resource, Debug, Default, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct PlateState {
@@ -15,33 +36,32 @@ pub struct PlateState {
 }
 
 impl PlateState {
-    // Every held purpose, sorted; the plate system diffs consecutive ticks
-    // on this.
-    #[must_use]
-    pub fn purposes(&self) -> Vec<PlatePurpose> {
-        let mut purposes: Vec<PlatePurpose> = self
-            .open_barrier_kinds
-            .iter()
-            .map(|kind| PlatePurpose::Barrier(*kind))
-            .chain(self.powered_bridge_kinds.iter().map(|kind| PlatePurpose::Bridge(*kind)))
-            .collect();
-        purposes.sort();
-        purposes
-    }
-
-    // Fireworks are momentary, so they never hold.
-    pub fn from_purposes(purposes: impl IntoIterator<Item = PlatePurpose>) -> Self {
+    pub fn from_held(held: impl IntoIterator<Item = HeldPurpose>) -> Self {
         let mut state = Self::default();
-        for purpose in purposes {
+        for purpose in held {
             match purpose {
-                PlatePurpose::Barrier(kind) => state.open_barrier_kinds.push(kind),
-                PlatePurpose::Bridge(kind) => state.powered_bridge_kinds.push(kind),
-                PlatePurpose::Firework => {}
+                HeldPurpose::Barrier(kind) => state.open_barrier_kinds.push(kind),
+                HeldPurpose::Bridge(kind) => state.powered_bridge_kinds.push(kind),
             }
         }
         state.open_barrier_kinds.sort();
         state.powered_bridge_kinds.sort();
         state
+    }
+
+    pub fn held(&self) -> impl Iterator<Item = HeldPurpose> + '_ {
+        self.open_barrier_kinds
+            .iter()
+            .map(|kind| HeldPurpose::Barrier(*kind))
+            .chain(self.powered_bridge_kinds.iter().map(|kind| HeldPurpose::Bridge(*kind)))
+    }
+
+    #[must_use]
+    pub fn contains(&self, purpose: HeldPurpose) -> bool {
+        match purpose {
+            HeldPurpose::Barrier(kind) => self.open_barrier_kinds.contains(&kind),
+            HeldPurpose::Bridge(kind) => self.powered_bridge_kinds.contains(&kind),
+        }
     }
 }
 
@@ -50,23 +70,37 @@ mod tests {
     use super::*;
 
     #[test]
-    fn purposes_round_trip_sorted_and_without_fireworks() {
-        let state = PlateState::from_purposes([
-            PlatePurpose::Bridge(BridgeKindId(1)),
-            PlatePurpose::Firework,
-            PlatePurpose::Barrier(BarrierKindId(2)),
-            PlatePurpose::Barrier(BarrierKindId(0)),
+    fn only_barrier_and_bridge_plates_hold() {
+        assert_eq!(
+            PlatePurpose::Barrier(BarrierKindId(2)).held(),
+            Some(HeldPurpose::Barrier(BarrierKindId(2)))
+        );
+        assert_eq!(
+            PlatePurpose::Bridge(BridgeKindId(1)).held(),
+            Some(HeldPurpose::Bridge(BridgeKindId(1)))
+        );
+        assert_eq!(PlatePurpose::Firework.held(), None);
+    }
+
+    #[test]
+    fn held_purposes_round_trip_sorted() {
+        let state = PlateState::from_held([
+            HeldPurpose::Bridge(BridgeKindId(1)),
+            HeldPurpose::Barrier(BarrierKindId(2)),
+            HeldPurpose::Barrier(BarrierKindId(0)),
         ]);
         assert_eq!(state.open_barrier_kinds, [BarrierKindId(0), BarrierKindId(2)]);
         assert_eq!(state.powered_bridge_kinds, [BridgeKindId(1)]);
         assert_eq!(
-            state.purposes(),
+            state.held().collect::<Vec<_>>(),
             [
-                PlatePurpose::Barrier(BarrierKindId(0)),
-                PlatePurpose::Barrier(BarrierKindId(2)),
-                PlatePurpose::Bridge(BridgeKindId(1)),
+                HeldPurpose::Barrier(BarrierKindId(0)),
+                HeldPurpose::Barrier(BarrierKindId(2)),
+                HeldPurpose::Bridge(BridgeKindId(1)),
             ]
         );
-        assert_eq!(PlateState::from_purposes(state.purposes()), state);
+        assert!(state.contains(HeldPurpose::Bridge(BridgeKindId(1))));
+        assert!(!state.contains(HeldPurpose::Barrier(BarrierKindId(1))));
+        assert_eq!(PlateState::from_held(state.held()), state);
     }
 }

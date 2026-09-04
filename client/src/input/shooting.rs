@@ -104,7 +104,7 @@ pub fn input_shooting_system(
             &gameplay_config,
             shooter.map_settings.movement.projectile_speed,
             &collision_world,
-            &shooter.plates,
+            &shooter.plates.open_barrier_kinds,
             shooter.my_player_id.0,
         ) > 0
         {

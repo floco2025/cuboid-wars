@@ -22,7 +22,7 @@ fn no_bridges() -> BridgeKindTable {
 }
 
 fn skyway_bridge_table() -> BridgeKindTable {
-    BridgeKindTable::from_ids(vec!["skyway".into()]).expect("known-good")
+    BridgeKindTable::from_ids(vec!["skyway".into()]).expect("one-kind bridge table rejected")
 }
 
 fn red_only_kind_table() -> BarrierKindTable {
@@ -487,6 +487,37 @@ fn plate_defs_parse_every_purpose() {
     assert_eq!(
         defs[2].purpose,
         PressurePlatePurposeDef::Bridge { kind: "skyway".into() }
+    );
+}
+
+// The floor beside a bridge stops at the grid line: both tops sit at the
+// same height, so an extension under the translucent slab would z-fight.
+#[test]
+fn a_floor_beside_a_light_bridge_does_not_extend_under_it() {
+    use common::constants::WALL_HALF_THICKNESS;
+
+    let floor_edge = |cells: &[[i32; 2]]| {
+        let (layout, _, geometry) = compile_map(
+            &map_with_bridges(cells),
+            &assets(),
+            &empty_kind_table(),
+            &skyway_bridge_table(),
+        )
+        .expect("map failed to compile");
+        let floor = layout
+            .floors
+            .iter()
+            .find(|floor| floor.z1 < geometry.cell_to_world_z(1) - 0.5);
+        floor.expect("floor slab missing").x2 - geometry.cell_to_world_x(1)
+    };
+
+    assert!(
+        (floor_edge(&[]) - WALL_HALF_THICKNESS).abs() < 1e-4,
+        "an open side extends"
+    );
+    assert!(
+        floor_edge(&[[1, 0]]).abs() < 1e-4,
+        "a bridge side stops at the grid line"
     );
 }
 
@@ -1017,12 +1048,9 @@ fn every_shipped_ladder_ascends_at_least_one_storey() {
             .expect("shipped map missing from server gameplay config")
             .settings;
         let map_def = super::load_map(&path).expect("map file should load");
-        let kind_table = BarrierKindTable::from_ids(map_settings.barrier_kinds.clone().unwrap_or_default())
-            .expect("barrier kinds should build from the map settings");
+        let (kind_table, bridge_table) = map_settings.kind_tables().expect("shipped kind tables rejected");
         let assets = MaterialRules::from_def(&map_def);
-        let bridge_table = BridgeKindTable::from_ids(map_settings.bridge_kinds.clone().unwrap_or_default())
-            .expect("shipped bridge kinds should load");
-        let (layout, _, _) = compile_map(&map_def, &assets, &kind_table, &bridge_table).expect("map should compile");
+        let (layout, _, _) = compile_map(&map_def, &assets, &kind_table, &bridge_table).expect("map failed to compile");
         let world = CollisionWorld::from_map_layout(&layout, &kind_table);
 
         for ladder in &layout.ladders {
@@ -1050,7 +1078,6 @@ fn every_shipped_ladder_ascends_at_least_one_storey() {
                         collision_world: &world,
                         gravity: map_settings.movement.gravity,
                         passable_kinds: &[],
-                        powered_bridges: &[],
                         physics,
                         ladder_climb_ratio: map_settings.movement.ladder_climb_ratio,
                         portals: None,

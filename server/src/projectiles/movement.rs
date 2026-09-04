@@ -193,12 +193,7 @@ pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut 
                 &params.collision_world,
                 &params.plates.open_barrier_kinds,
             );
-            let surface_t = projectile.surface_collision_t(
-                &current_pos,
-                remaining_delta,
-                &params.collision_world,
-                &params.plates.powered_bridge_kinds,
-            );
+            let surface_t = projectile.surface_collision_t(&current_pos, remaining_delta, &params.collision_world);
             let portal_hop = params.portal_set.projectile_hop(
                 Vec3::from(current_pos),
                 projectile.velocity,
@@ -215,12 +210,7 @@ pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut 
                 }
                 ProjectileEvent::Surface => {
                     let bounce = projectile
-                        .bounce_at_world_surface(
-                            &current_pos,
-                            remaining_delta,
-                            &params.collision_world,
-                            &params.plates.powered_bridge_kinds,
-                        )
+                        .bounce_at_world_surface(&current_pos, remaining_delta, &params.collision_world)
                         .expect("surface event missing its collision");
                     current_pos = bounce.position;
                     remaining_delta = bounce.remaining_delta;

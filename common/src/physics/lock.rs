@@ -2,7 +2,7 @@ use bevy_math::Vec3;
 
 use crate::{
     config::CharacterPhysicsConfig,
-    protocol::{BridgeKindId, HomingTarget, Position},
+    protocol::{HomingTarget, Position},
 };
 
 use super::{CollisionWorld, characters::ball_character_hit};
@@ -19,7 +19,6 @@ const LOCK_RAY_RADIUS: f32 = 0.05;
 #[must_use]
 pub fn acquire_lock(
     collision_world: &CollisionWorld,
-    powered_bridges: &[BridgeKindId],
     origin: Vec3,
     aim_dir: Vec3,
     max_distance: f32,
@@ -31,7 +30,7 @@ pub fn acquire_lock(
         return None;
     }
     let world_t = collision_world
-        .cast_moving_ball(origin, translation, LOCK_RAY_RADIUS, powered_bridges)
+        .cast_moving_ball(origin, translation, LOCK_RAY_RADIUS)
         .map_or(1.0, |hit| hit.t);
     let origin_pos = Position::from(origin);
 
@@ -89,7 +88,6 @@ mod tests {
         let far = HomingTarget::Actor(ActorId(2));
         let locked = acquire_lock(
             &empty_world(),
-            &[],
             Vec3::new(0.0, 1.0, 0.0),
             Vec3::Z,
             60.0,
@@ -104,7 +102,6 @@ mod tests {
         let target = HomingTarget::Player(PlayerId(1));
         let locked = acquire_lock(
             &empty_world(),
-            &[],
             Vec3::new(0.0, 1.0, 0.0),
             Vec3::Z,
             60.0,
@@ -119,7 +116,6 @@ mod tests {
         let target = HomingTarget::Player(PlayerId(1));
         let locked = acquire_lock(
             &empty_world(),
-            &[],
             Vec3::new(0.0, 1.0, 0.0),
             Vec3::Z,
             10.0,
@@ -146,7 +142,6 @@ mod tests {
         let target = HomingTarget::Player(PlayerId(1));
         let locked = acquire_lock(
             &world,
-            &[],
             Vec3::new(0.0, 1.0, 0.0),
             Vec3::Z,
             60.0,
@@ -163,10 +158,10 @@ mod tests {
         let off_axis = (target, Position { x: 1.0, y: 0.0, z: 8.0 }, 0.0, physics());
         let aim = Vec3::new(0.0, 1.0, 0.0);
 
-        let strict = acquire_lock(&empty_world(), &[], aim, Vec3::Z, 60.0, 0.05, [off_axis].into_iter());
+        let strict = acquire_lock(&empty_world(), aim, Vec3::Z, 60.0, 0.05, [off_axis].into_iter());
         assert_eq!(strict, None, "thin ray misses the off-axis target");
 
-        let assisted = acquire_lock(&empty_world(), &[], aim, Vec3::Z, 60.0, 1.2, [off_axis].into_iter());
+        let assisted = acquire_lock(&empty_world(), aim, Vec3::Z, 60.0, 1.2, [off_axis].into_iter());
         assert_eq!(assisted, Some(target), "assist radius bridges the gap");
     }
 }

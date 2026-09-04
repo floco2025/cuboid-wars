@@ -36,6 +36,12 @@ struct Neighbors {
 // All tiers use the same `FLOOR_THICKNESS` so a hole in any level reads as
 // a real slab edge from below.
 //
+// `bridges`: this level's light bridge cells. A bridge fills its cell flush
+// to the grid line at the same top height, so a slab beside one stops there
+// too (an extension would z-fight under the translucent slab). Only the four
+// sides look at bridges: a bridge diagonal extends nothing, so it leaves the
+// N/S rule alone.
+//
 // `skip_corner_filler_edges`: horizontal wall edges (`EdgeGrid.horizontal`
 // index space) where the corner-filler branch must not emit. Populated from
 // the high end of each z-axis ramp arriving at this level — a filler there
@@ -44,6 +50,7 @@ struct Neighbors {
 #[must_use]
 pub fn emit_floor_tier(
     mask: &Mask,
+    bridges: &Mask,
     skip_corner_filler_edges: &HashSet<(i32, i32)>,
     geometry: &MapGeometry,
     level: u8,
@@ -55,6 +62,9 @@ pub fn emit_floor_tier(
     let mut floors = Vec::new();
 
     let in_mask = |r: i32, c: i32| r >= 0 && r < grid_rows && c >= 0 && c < grid_cols && mask[r as usize][c as usize];
+    let abuts = |r: i32, c: i32| {
+        in_mask(r, c) || (r >= 0 && r < grid_rows && c >= 0 && c < grid_cols && bridges[r as usize][c as usize])
+    };
 
     for row in 0..grid_rows {
         for col in 0..grid_cols {
@@ -68,10 +78,10 @@ pub fn emit_floor_tier(
             let z2_orig = grid_z(geometry, row + 1);
 
             let n = Neighbors {
-                w: in_mask(row, col - 1),
-                e: in_mask(row, col + 1),
-                n: in_mask(row - 1, col),
-                s: in_mask(row + 1, col),
+                w: abuts(row, col - 1),
+                e: abuts(row, col + 1),
+                n: abuts(row - 1, col),
+                s: abuts(row + 1, col),
                 nw: in_mask(row - 1, col - 1),
                 ne: in_mask(row - 1, col + 1),
                 sw: in_mask(row + 1, col - 1),

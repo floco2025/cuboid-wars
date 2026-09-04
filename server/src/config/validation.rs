@@ -90,23 +90,18 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use common::protocol::{BarrierKindTable, BridgeKindTable};
 
     fn config_and_map() -> (ServerGameplayConfig, MapConfig) {
         let server = ServerGameplayConfig::load_default().expect("load server gameplay");
-        let barrier_kinds = BarrierKindTable::from_ids(
-            server
-                .maps
-                .get("hotel")
-                .expect("hotel settings missing")
-                .settings
-                .barrier_kinds
-                .clone()
-                .unwrap_or_default(),
-        )
-        .expect("build hotel barrier kinds");
-        let map = crate::map::generate_map("hotel", &barrier_kinds, &BridgeKindTable::default())
-            .expect("generate hotel map")
+        let (barrier_kinds, bridge_kinds) = server
+            .maps
+            .get("hotel")
+            .expect("hotel settings missing")
+            .settings
+            .kind_tables()
+            .expect("hotel kind tables rejected");
+        let map = crate::map::generate_map("hotel", &barrier_kinds, &bridge_kinds)
+            .expect("hotel map failed to generate")
             .config;
         (server, map)
     }

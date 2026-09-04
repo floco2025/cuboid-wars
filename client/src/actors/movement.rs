@@ -101,7 +101,6 @@ pub(crate) fn plan_actor_moves(
                 collision_world,
                 gravity: map_settings.movement.gravity,
                 passable_kinds: &plates.open_barrier_kinds,
-                powered_bridges: &plates.powered_bridge_kinds,
                 physics: actor_physics,
                 ladder_climb_ratio: map_settings.movement.ladder_climb_ratio,
                 portals: None,

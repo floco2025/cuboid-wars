@@ -60,6 +60,17 @@ pub(crate) fn compile_map(
             m
         })
         .collect();
+    let bridge_masks: Vec<Mask> = map_def
+        .levels
+        .iter()
+        .map(|level| {
+            let mut m = empty_mask(cols, rows);
+            for bridge in &level.light_bridges {
+                m[bridge.row as usize][bridge.col as usize] = true;
+            }
+            m
+        })
+        .collect();
 
     // Barriers controlled by a pressure plate are treated as always open for
     // actor pathfinding: actors can't open them, but they seal a room with no
@@ -163,7 +174,14 @@ pub(crate) fn compile_map(
                 skip_corner_filler_edges.extend(ramp.high_end_horizontal_edges());
             }
         }
-        let mut tier = floors::emit_floor_tier(m, &skip_corner_filler_edges, &geometry, level_u8, y);
+        let mut tier = floors::emit_floor_tier(
+            m,
+            &bridge_masks[level_idx],
+            &skip_corner_filler_edges,
+            &geometry,
+            level_u8,
+            y,
+        );
         if level_idx > 0 {
             tier.extend(trim::emit_stacked_wall_trim(
                 &level_grids[level_idx - 1].edges,
@@ -251,7 +269,7 @@ pub(crate) fn compile_map(
     ))
 }
 
-fn ramp_spec_from_def(r: &RampDef) -> ramps::RampSpec {
+pub(super) fn ramp_spec_from_def(r: &RampDef) -> ramps::RampSpec {
     ramps::RampSpec {
         lower_level: r.lower_level,
         low: r.low,

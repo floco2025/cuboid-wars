@@ -7,11 +7,11 @@ use bevy_ecs::prelude::Resource;
 
 // A kind id: a stable on-wire index into one of the selected map's ordered
 // kind lists (`barrier_kinds`, `bridge_kinds`). The server ships those lists
-// in `SInit` so both sides assign the same indices. Every kind owns a Rapier
-// collision group, which is where `MAX` comes from; the bit budget is laid
-// out in `physics/world/colliders.rs`.
+// in `SInit` so both sides assign the same indices. `MAX` caps a catalog
+// whose kinds each own a Rapier collision group (the bit budget is laid out
+// in `physics/world/colliders.rs`); `None` when the kinds share one group.
 pub trait KindId: Copy + Debug + Eq + Hash + Ord + Send + Sync + 'static {
-    const MAX: usize;
+    const MAX: Option<usize>;
     // The `gameplay.json` key and the singular noun, for error messages.
     const CONFIG_KEY: &'static str;
     const NOUN: &'static str;
@@ -39,12 +39,13 @@ impl<K: KindId> Default for KindTable<K> {
 
 impl<K: KindId> KindTable<K> {
     pub fn from_ids(ids: Vec<String>) -> Result<Self> {
-        if ids.len() > K::MAX {
+        if let Some(max) = K::MAX
+            && ids.len() > max
+        {
             bail!(
-                "{} has {} entries; max is {} (limited by available Rapier collision groups)",
+                "{} has {} entries; max is {max} (limited by available Rapier collision groups)",
                 K::CONFIG_KEY,
                 ids.len(),
-                K::MAX
             );
         }
         let mut index_by_id = HashMap::with_capacity(ids.len());
@@ -104,36 +105,45 @@ mod tests {
 
     #[test]
     fn rejects_duplicate_ids() {
-        let err = BarrierKindTable::from_ids(vec!["a".into(), "a".into()]).expect_err("duplicate ids should fail");
+        let err = BarrierKindTable::from_ids(vec!["a".into(), "a".into()]).expect_err("duplicate ids loaded");
         assert!(err.to_string().contains("duplicate"));
     }
 
     #[test]
     fn rejects_empty_id() {
-        let err = BarrierKindTable::from_ids(vec!["a".into(), "".into()]).expect_err("empty id should fail");
+        let err = BarrierKindTable::from_ids(vec!["a".into(), "".into()]).expect_err("empty id loaded");
         assert!(err.to_string().contains("empty"));
+    }
+
+    fn barrier_max() -> usize {
+        BarrierKindId::MAX.expect("barrier kinds carry no collision-group cap")
     }
 
     #[test]
     fn rejects_more_than_max_kinds() {
-        let too_many: Vec<String> = (0..=BarrierKindId::MAX).map(|i| format!("k{i}")).collect();
-        let err = BarrierKindTable::from_ids(too_many).expect_err("over-max kinds should fail");
+        let too_many: Vec<String> = (0..=barrier_max()).map(|i| format!("k{i}")).collect();
+        let err = BarrierKindTable::from_ids(too_many).expect_err("over-max kinds loaded");
         assert!(err.to_string().contains("barrier_kinds has"));
         assert!(err.to_string().contains("max is"));
     }
 
     #[test]
-    fn accepts_exactly_max_kinds_of_each_table() {
-        let barriers: Vec<String> = (0..BarrierKindId::MAX).map(|i| format!("k{i}")).collect();
-        BarrierKindTable::from_ids(barriers).expect("BarrierKindId::MAX kinds should load");
-        let bridges: Vec<String> = (0..BridgeKindId::MAX).map(|i| format!("k{i}")).collect();
-        BridgeKindTable::from_ids(bridges).expect("BridgeKindId::MAX kinds should load");
+    fn accepts_exactly_max_barrier_kinds() {
+        let barriers: Vec<String> = (0..barrier_max()).map(|i| format!("k{i}")).collect();
+        BarrierKindTable::from_ids(barriers).expect("BarrierKindId::MAX kinds rejected");
+    }
+
+    #[test]
+    fn bridge_kinds_have_no_group_cap() {
+        assert_eq!(BridgeKindId::MAX, None);
+        let bridges: Vec<String> = (0..=barrier_max()).map(|i| format!("k{i}")).collect();
+        BridgeKindTable::from_ids(bridges).expect("bridge kinds past the barrier cap rejected");
     }
 
     #[test]
     fn round_trip_index_and_id() {
-        let table = BarrierKindTable::from_ids(vec!["basement".into(), "boss_room".into()])
-            .expect("two-kind table should load");
+        let table =
+            BarrierKindTable::from_ids(vec!["basement".into(), "boss_room".into()]).expect("two-kind table rejected");
         assert_eq!(table.index_of("basement"), Some(BarrierKindId(0)));
         assert_eq!(table.index_of("boss_room"), Some(BarrierKindId(1)));
         assert_eq!(table.index_of("unknown"), None);
@@ -144,9 +154,12 @@ mod tests {
 
     #[test]
     fn resolve_names_the_table_noun() {
-        let table = BridgeKindTable::from_ids(vec!["skyway".into()]).expect("one-kind table should load");
-        assert_eq!(table.resolve("skyway").expect("registered kind"), BridgeKindId(0));
-        let err = table.resolve("void").expect_err("unregistered kind should fail");
+        let table = BridgeKindTable::from_ids(vec!["skyway".into()]).expect("one-kind table rejected");
+        assert_eq!(
+            table.resolve("skyway").expect("registered kind unresolved"),
+            BridgeKindId(0)
+        );
+        let err = table.resolve("void").expect_err("unregistered kind resolved");
         assert!(err.to_string().contains("unknown bridge kind"), "{err}");
     }
 }

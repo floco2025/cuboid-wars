@@ -5,7 +5,7 @@ use common::{
         CharacterEnvironment, CharacterMovePlan, CharacterMovementResult, CharacterStep, CharacterSupport,
         CollisionWorld, character_move_plan_is_blocked, step_character_movement,
     },
-    protocol::{ActorMoveIntent, BarrierKindId, BridgeKindId, Position},
+    protocol::{ActorMoveIntent, BarrierKindId, Position},
 };
 
 #[derive(Copy, Clone)]
@@ -31,7 +31,6 @@ pub(super) struct ActorMoveContext<'a> {
     pub(super) planned_moves: &'a [CharacterMovePlan],
     pub(super) actor_starts: &'a [(Entity, Position, CharacterPhysicsConfig)],
     pub(super) open_barrier_kinds: &'a [BarrierKindId],
-    pub(super) powered_bridges: &'a [BridgeKindId],
     pub(super) gravity: f32,
     pub(super) ladder_climb_ratio: f32,
     pub(super) knockback_step: Vec3,
@@ -88,7 +87,6 @@ impl ActorMoveContext<'_> {
                 collision_world: self.collision_world,
                 gravity: self.gravity,
                 passable_kinds: self.open_barrier_kinds,
-                powered_bridges: self.powered_bridges,
                 physics: self.actor_physics,
                 ladder_climb_ratio: self.ladder_climb_ratio,
                 portals: None,

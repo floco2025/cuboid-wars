@@ -296,7 +296,7 @@ def canonicalize_map(map_data: dict) -> dict:
             b for b in _dedupe_barriers(level.get("barriers", []))
             if tuple(normalized_wall([b["c0"], b["r0"], b["c1"], b["r1"]])) not in wall_endpoints_set
         ]
-        level["light_bridges"] = _dedupe_light_bridges(level.get("light_bridges", []))
+        level["light_bridges"] = _dedupe_floors(level.get("light_bridges", []))
         cols, rows = b["grid_cols"], b["grid_rows"]
         in_bounds_lights = [
             l for l in level.get("lights", [])
@@ -379,13 +379,6 @@ def _dedupe_barriers(barriers: list[dict]) -> list[dict]:
         c0, r0, c1, r1 = normalized_wall([barrier["c0"], barrier["r0"], barrier["c1"], barrier["r1"]])
         by_edge[(c0, r0, c1, r1)] = {**barrier, "c0": c0, "r0": r0, "c1": c1, "r1": r1}
     return [by_edge[k] for k in sorted(by_edge.keys())]
-
-
-def _dedupe_light_bridges(bridges: list[dict]) -> list[dict]:
-    by_pos: dict[tuple[int, int], dict] = {}
-    for bridge in bridges:
-        by_pos.setdefault((bridge["col"], bridge["row"]), bridge)
-    return [by_pos[k] for k in sorted(by_pos.keys(), key=lambda p: (p[1], p[0]))]
 
 
 def _dedupe_lights(lights: list[dict]) -> list[dict]:

@@ -16,7 +16,8 @@ use common::{
     constants::{GRID_CELL_SIZE, MISSILE_RADIUS},
     physics::{CollisionWorld, character_center},
     protocol::{
-        ActorMarker, FaceYaw, HomingTarget, MapSettings, MissileId, MissileMarker, PlateState, PlayerMarker, Position,
+        ActorMarker, BarrierKindId, FaceYaw, HomingTarget, MapSettings, MissileId, MissileMarker, PlateState,
+        PlayerMarker, Position,
     },
 };
 
@@ -100,7 +101,7 @@ pub fn missiles_guidance_system(time: Res<Time>, mut params: MissileGuidancePara
 
             let objective_dir = if missile_sight_clear(
                 &params.collision_world,
-                &params.plates,
+                &params.plates.open_barrier_kinds,
                 pos,
                 target_center,
                 MISSILE_RADIUS,
@@ -110,7 +111,7 @@ pub fn missiles_guidance_system(time: Res<Time>, mut params: MissileGuidancePara
                 info,
                 &params.air_graph,
                 &params.collision_world,
-                &params.plates,
+                &params.plates.open_barrier_kinds,
                 origin,
                 target_center,
                 MISSILE_RADIUS,
@@ -121,7 +122,7 @@ pub fn missiles_guidance_system(time: Res<Time>, mut params: MissileGuidancePara
                 dodge_objective(
                     info,
                     &params.collision_world,
-                    &params.plates,
+                    &params.plates.open_barrier_kinds,
                     origin,
                     aim_point,
                     missile_speed,
@@ -169,7 +170,7 @@ fn route_objective(
     info: &mut MissileInfo,
     air_graph: &AirGraph,
     collision_world: &CollisionWorld,
-    plates: &PlateState,
+    open_kinds: &[BarrierKindId],
     origin: Vec3,
     target_center: Vec3,
     radius: f32,
@@ -192,7 +193,7 @@ fn route_objective(
         }
         info.path_retry_timer = MISSILE_PATH_RETRY_SECS;
     }
-    advance_waypoints(&mut info.path, origin, collision_world, plates, radius);
+    advance_waypoints(&mut info.path, origin, collision_world, open_kinds, radius);
     let waypoint = info.path.front()?;
     info.avoid_dir = None;
     Some(*waypoint - origin)
@@ -205,7 +206,7 @@ fn route_objective(
 fn dodge_objective(
     info: &mut MissileInfo,
     collision_world: &CollisionWorld,
-    plates: &PlateState,
+    open_kinds: &[BarrierKindId],
     origin: Vec3,
     aim_point: Vec3,
     missile_speed: f32,
@@ -215,10 +216,10 @@ fn dodge_objective(
     let lookahead = missile_speed * MISSILE_AVOID_LOOKAHEAD_SECS;
     let desired = (aim_point - origin).normalize_or_zero();
     let committed = info.avoid_dir.filter(|dir| {
-        info.avoid_timer > 0.0 && sweep_clear(collision_world, plates, origin, *dir * lookahead, MISSILE_RADIUS)
+        info.avoid_timer > 0.0 && sweep_clear(collision_world, open_kinds, origin, *dir * lookahead, MISSILE_RADIUS)
     });
     let chosen = committed.or_else(|| {
-        let picked = pick_clear_direction(collision_world, plates, origin, desired, lookahead, MISSILE_RADIUS);
+        let picked = pick_clear_direction(collision_world, open_kinds, origin, desired, lookahead, MISSILE_RADIUS);
         info.avoid_dir = picked;
         info.avoid_timer = MISSILE_AVOID_COMMIT_SECS;
         picked
@@ -258,13 +259,13 @@ fn resolve_target(
 // it — path around instead.
 fn missile_sight_clear(
     collision_world: &CollisionWorld,
-    plates: &PlateState,
+    open_kinds: &[BarrierKindId],
     pos: &Position,
     target_center: Vec3,
     radius: f32,
 ) -> bool {
     let origin = Vec3::from(*pos);
-    sweep_clear(collision_world, plates, origin, target_center - origin, radius)
+    sweep_clear(collision_world, open_kinds, origin, target_center - origin, radius)
 }
 
 // Pop reached waypoints, then string-pull: while the SECOND waypoint is
@@ -274,7 +275,7 @@ fn advance_waypoints(
     path: &mut VecDeque<Vec3>,
     origin: Vec3,
     collision_world: &CollisionWorld,
-    plates: &PlateState,
+    open_kinds: &[BarrierKindId],
     radius: f32,
 ) {
     while path.front().is_some_and(|wp| {
@@ -286,7 +287,7 @@ fn advance_waypoints(
         let Some(next) = path.get(1) else {
             break;
         };
-        if sweep_clear(collision_world, plates, origin, *next - origin, radius) {
+        if sweep_clear(collision_world, open_kinds, origin, *next - origin, radius) {
             path.pop_front();
         } else {
             break;

@@ -7,18 +7,20 @@ use rapier3d::prelude::{
 use crate::{
     constants::{BARRIER_HEIGHT, BARRIER_THICKNESS, BRIDGE_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT},
     map::{RampAxis, ramp_axis},
-    protocol::{Barrier, BarrierKindId, BridgeKindId, Floor, LightBridge, Ramp, Wall},
+    protocol::{Barrier, BarrierKindId, BridgeKindId, Floor, KindId, LightBridge, Ramp, Wall},
 };
 
-// Rapier's 32 collision groups, split once here (the kind tables' `MAX`
-// values follow from it): walls/floors/ramps take bits 0..2, barrier kinds
-// bits 3..18 (`BarrierKindId(n)` → bit `3 + n`), bridge kinds bits 19..31
-// (`BridgeKindId(n)` → bit `19 + n`).
+// Rapier's 32 collision groups, split once here: walls/floors/ramps take
+// bits 0..2, every light bridge shares bit 3 (a bridge collider is a member
+// only while its kind is powered — `CollisionWorld::set_powered_bridges`),
+// and barrier kinds take bits 4..31 (`BarrierKindId(n)` → bit `4 + n`),
+// which is where `BarrierKindId::MAX` comes from.
 pub(super) const WALL_COLLISION_GROUP: Group = Group::GROUP_1;
 pub(super) const FLOOR_COLLISION_GROUP: Group = Group::GROUP_2;
 const RAMP_COLLISION_GROUP: Group = Group::GROUP_3;
-const BARRIER_GROUP_BIT_OFFSET: u32 = 3;
-const BRIDGE_GROUP_BIT_OFFSET: u32 = 19;
+pub(super) const BRIDGE_COLLISION_GROUP: Group = Group::GROUP_4;
+const BARRIER_GROUP_BIT_OFFSET: u32 = 4;
+const _: () = assert!(matches!(BarrierKindId::MAX, Some(max) if BARRIER_GROUP_BIT_OFFSET as usize + max == 32));
 const COLLIDER_KIND_MASK: u128 = 0xff;
 const KIND_SHIFT: u32 = 8;
 
@@ -27,25 +29,16 @@ pub(crate) fn barrier_collision_group(kind: BarrierKindId) -> Group {
     Group::from_bits_retain(1u32 << (BARRIER_GROUP_BIT_OFFSET + u32::from(kind.0)))
 }
 
-#[must_use]
-pub(crate) fn bridge_collision_group(kind: BridgeKindId) -> Group {
-    Group::from_bits_retain(1u32 << (BRIDGE_GROUP_BIT_OFFSET + u32::from(kind.0)))
-}
-
 // Static world geometry that bounces projectiles (walls, floors, ramps).
 // Barriers terminate projectiles instead, so they're NOT in this mask.
 pub(super) fn world_collision_groups() -> Group {
     WALL_COLLISION_GROUP | FLOOR_COLLISION_GROUP | RAMP_COLLISION_GROUP
 }
 
-// The static world plus every powered light bridge: what characters stand
+// The static world plus the powered light bridges: what characters stand
 // on and projectiles bounce off right now.
-pub(super) fn surface_collision_groups(powered_bridges: &[BridgeKindId]) -> Group {
-    let mut groups = world_collision_groups();
-    for kind in powered_bridges {
-        groups |= bridge_collision_group(*kind);
-    }
-    groups
+pub(super) fn surface_collision_groups() -> Group {
+    world_collision_groups() | BRIDGE_COLLISION_GROUP
 }
 
 pub(super) fn ground_collision_groups() -> Group {
@@ -54,16 +47,11 @@ pub(super) fn ground_collision_groups() -> Group {
 
 // Filter for character (player + actor) movement. Starts from the surface
 // groups plus every configured barrier kind, then removes each kind in
-// `passable_kinds` (the per-player union of held keys and
-// pressure-plate open kinds — caller merges via
-// `crate::physics::passable_barrier_kinds`).
-// Actors call with `passable_kinds: &[]` and never get a free pass.
-pub(super) fn character_collision_groups(
-    passable_kinds: &[BarrierKindId],
-    powered_bridges: &[BridgeKindId],
-    all_barriers: Group,
-) -> Group {
-    let mut groups = surface_collision_groups(powered_bridges) | all_barriers;
+// `passable_kinds`: for players the union of held keys and pressure-plate
+// open kinds (`crate::physics::passable_barrier_kinds`), for actors the open
+// kinds alone.
+pub(super) fn character_collision_groups(passable_kinds: &[BarrierKindId], all_barriers: Group) -> Group {
+    let mut groups = surface_collision_groups() | all_barriers;
     for kind in passable_kinds {
         groups.remove(barrier_collision_group(*kind));
     }
@@ -74,7 +62,7 @@ pub(super) fn query_filter(groups: Group) -> QueryFilter<'static> {
     InteractionGroups::new(Group::ALL, groups, InteractionTestMode::And).into()
 }
 
-fn collider_interaction_groups(group: Group) -> InteractionGroups {
+pub(super) fn collider_interaction_groups(group: Group) -> InteractionGroups {
     InteractionGroups::new(group, Group::ALL, InteractionTestMode::And)
 }
 
@@ -193,8 +181,9 @@ pub(super) fn insert_barrier_collider(colliders: &mut ColliderSet, barrier: &Bar
     )
 }
 
-// A light bridge is a floor slab in its kind's own group, so the filters
-// can include it only while the kind is powered.
+// A light bridge is a floor slab that starts unpowered: a member of no group,
+// so no query sees it until `set_powered_bridges` moves it into
+// `BRIDGE_COLLISION_GROUP`.
 pub(super) fn insert_bridge_collider(colliders: &mut ColliderSet, bridge: &LightBridge) -> ColliderHandle {
     let (min_x, max_x, min_z, max_z) = bridge.bounds_xz();
     let center = Vec3::new(
@@ -208,7 +197,7 @@ pub(super) fn insert_bridge_collider(colliders: &mut ColliderSet, bridge: &Light
         center,
         half_extents,
         ColliderKind::bridge_user_data(bridge.kind),
-        bridge_collision_group(bridge.kind),
+        Group::empty(),
     )
 }
 
@@ -305,31 +294,29 @@ mod tests {
     }
 
     #[test]
-    fn bridge_collision_groups_are_disjoint_from_barriers_and_the_world() {
-        use crate::protocol::{BridgeKindId as Bridge, KindId};
-        let barriers = barrier_mask(u16::try_from(BarrierKindId::MAX).expect("barrier max fits u16"));
-        let world = world_collision_groups();
+    fn every_barrier_kind_is_disjoint_from_the_world_and_the_bridge_group() {
+        let max = u16::try_from(BarrierKindId::MAX.expect("barrier kinds carry no collision-group cap"))
+            .expect("barrier kind cap exceeds u16");
+        let reserved = surface_collision_groups();
         let mut seen = Group::empty();
-        for idx in 0..u16::try_from(Bridge::MAX).expect("bridge max fits u16") {
-            let group = bridge_collision_group(Bridge(idx));
-            assert!((group & (barriers | world | seen)).is_empty(), "bridge {idx} overlaps");
+        for idx in 0..max {
+            let group = barrier_collision_group(BarrierKindId(idx));
+            assert!((group & (reserved | seen)).is_empty(), "barrier {idx} overlaps");
             seen |= group;
         }
     }
 
     #[test]
-    fn character_collision_groups_includes_only_powered_bridges() {
-        let all = barrier_mask(2);
-        let groups = character_collision_groups(&[], &[BridgeKindId(1)], all);
-        assert!(groups.contains(bridge_collision_group(BridgeKindId(1))));
-        assert!(!groups.contains(bridge_collision_group(BridgeKindId(0))));
+    fn character_collision_groups_includes_the_bridge_group() {
+        let groups = character_collision_groups(&[], barrier_mask(2));
+        assert!(groups.contains(BRIDGE_COLLISION_GROUP));
         assert!(groups.contains(FLOOR_COLLISION_GROUP));
     }
 
     #[test]
-    fn character_collision_groups_keeps_all_barriers_for_actors() {
+    fn character_collision_groups_keeps_all_barriers_without_passable_kinds() {
         let all = barrier_mask(3);
-        let groups = character_collision_groups(&[], &[], all);
+        let groups = character_collision_groups(&[], all);
         assert_eq!(groups & all, all);
         assert!(groups.contains(WALL_COLLISION_GROUP));
     }
@@ -338,7 +325,7 @@ mod tests {
     fn character_collision_groups_removes_held_key_kinds() {
         let all = barrier_mask(3);
         let held = [BarrierKindId(1)];
-        let groups = character_collision_groups(&held, &[], all);
+        let groups = character_collision_groups(&held, all);
         assert!(!groups.contains(barrier_collision_group(BarrierKindId(1))));
         assert!(groups.contains(barrier_collision_group(BarrierKindId(0))));
         assert!(groups.contains(barrier_collision_group(BarrierKindId(2))));
@@ -355,7 +342,7 @@ mod tests {
         let held = [BarrierKindId(1)];
         let open = [BarrierKindId(3)];
         let merged = crate::physics::passable_barrier_kinds(&held, &open);
-        let groups = character_collision_groups(&merged, &[], all);
+        let groups = character_collision_groups(&merged, all);
         assert!(!groups.contains(barrier_collision_group(BarrierKindId(1))));
         assert!(!groups.contains(barrier_collision_group(BarrierKindId(3))));
         assert!(groups.contains(barrier_collision_group(BarrierKindId(0))));

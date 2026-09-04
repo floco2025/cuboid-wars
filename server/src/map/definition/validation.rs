@@ -4,6 +4,7 @@ use anyhow::{Context, Result, anyhow};
 
 use common::protocol::ItemType;
 
+use super::compile::ramp_spec_from_def;
 use super::schema::{ActorSpawnZoneDef, LadderDef, LevelDef, MapDef, PlayerSpawnZoneDef, RampDef, WallSide};
 
 pub(super) fn validate_map(map_def: &MapDef) -> Result<()> {
@@ -273,19 +274,16 @@ fn validate_light_bridges(
 // Footprint cells of every ramp touching a level; a ramp occupies its cells
 // on both the level it leaves and the one it reaches.
 fn ramp_cells_on_level(map_def: &MapDef, level_idx: usize) -> BTreeSet<[i32; 2]> {
-    let mut cells = BTreeSet::new();
-    for ramp in &map_def.ramps {
-        let lower = ramp.lower_level as usize;
-        if level_idx != lower && level_idx != lower + 1 {
-            continue;
-        }
-        for row in ramp.low[1].min(ramp.high[1])..ramp.low[1].max(ramp.high[1]) {
-            for col in ramp.low[0].min(ramp.high[0])..ramp.low[0].max(ramp.high[0]) {
-                cells.insert([col, row]);
-            }
-        }
-    }
-    cells
+    map_def
+        .ramps
+        .iter()
+        .filter(|ramp| {
+            let lower = ramp.lower_level as usize;
+            level_idx == lower || level_idx == lower + 1
+        })
+        .flat_map(|ramp| ramp_spec_from_def(ramp).footprint_cells())
+        .map(|(row, col)| [col, row])
+        .collect()
 }
 
 fn validate_regular_floors(

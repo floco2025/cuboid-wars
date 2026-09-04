@@ -7,7 +7,7 @@ use super::kind_table::{KindId, KindTable};
 pub struct BarrierKindId(pub u16);
 
 impl KindId for BarrierKindId {
-    const MAX: usize = 16;
+    const MAX: Option<usize> = Some(28);
     const CONFIG_KEY: &'static str = "barrier_kinds";
     const NOUN: &'static str = "barrier";
 

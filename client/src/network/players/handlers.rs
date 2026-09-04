@@ -103,7 +103,7 @@ pub(in crate::network) fn handle_projectile_shot_message(
                 &context.gameplay_config,
                 context.map_settings.movement.projectile_speed,
                 &context.collision_world,
-                &context.plates,
+                &context.plates.open_barrier_kinds,
                 message.id,
             ) > 0
         {

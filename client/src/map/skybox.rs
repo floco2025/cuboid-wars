@@ -9,6 +9,7 @@ use crate::{
     cameras::{MainCameraMarker, RearviewCameraMarker, SkyDiscRenderLayer},
     config::{AssetSet, ClientSettings, LightingConfig, MoonLighting, SkyboxDef, SunLighting},
     constants::{MOON_DISC_COLOR, SUN_DISC_COLOR},
+    vfx::ease_blend,
 };
 use common::protocol::{LightingBlend, MapSettings};
 
@@ -389,7 +390,7 @@ pub(super) fn lighting_blend_system(
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
     let blend = if lighting.eased {
-        1.0 - (-time.delta_secs() / LIGHT_FADE_TAU_SECS).exp()
+        ease_blend(time.delta_secs(), LIGHT_FADE_TAU_SECS)
     } else {
         // Keep snapping until the first snapshot's blend has been applied;
         // only later changes get the fade.

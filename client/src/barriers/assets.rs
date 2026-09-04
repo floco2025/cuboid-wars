@@ -1,6 +1,10 @@
 use bevy::prelude::*;
 
-use crate::{config::AssetSet, constants::*, vfx::with_white_vertex_colors};
+use crate::{
+    config::{AssetSet, assets::parse_hex_color},
+    constants::*,
+    vfx::{translucent_kind_material, with_white_vertex_colors},
+};
 use common::{
     constants::BARRIER_THICKNESS,
     protocol::{BarrierKindId, BarrierKindTable},
@@ -59,14 +63,11 @@ pub fn build_barrier_assets(
     kind_table: &BarrierKindTable,
     asset_set: &AssetSet,
 ) -> BarrierAssets {
-    let alpha_max = BARRIER_ALPHA_MAX;
-    let emissive = BARRIER_EMISSIVE;
     // Barrier mesh: unit X and Y so per-instance `Transform.scale` can
     // encode the merged segment's length and barrier height. Thickness
     // stays baked in the mesh — no instance ever wants a different thickness.
-    // Both meshes carry white vertex colors: the material is lit translucent
-    // (emissive needs a lit material), and only the vertex-color Blend
-    // permutation renders correctly in this app.
+    // Both meshes carry the white vertex colors `translucent_kind_material`
+    // needs to render.
     let mesh = meshes.add(with_white_vertex_colors(
         Cuboid::new(1.0, 1.0, BARRIER_THICKNESS).into(),
     ));
@@ -82,7 +83,7 @@ pub fn build_barrier_assets(
             .barrier_kind_color_hex(id)
             .expect("barrier kind color missing from config");
         let color = parse_hex_color(hex).unwrap_or_else(|err| panic!("invalid color {hex:?} for kind {id:?}: {err}"));
-        handles.push(materials.add(barrier_material(color, alpha_max, emissive)));
+        handles.push(materials.add(translucent_kind_material(color, BARRIER_ALPHA_MAX, BARRIER_EMISSIVE)));
         base_colors.push(color);
     }
 
@@ -96,54 +97,5 @@ pub fn build_barrier_assets(
         mesh,
         materials: handles,
         base_colors,
-    }
-}
-
-// Lit, not unlit: emissive is ignored on unlit materials. The emissive is
-// set once here and never pulsed — the pulsate system only animates
-// `base_color.alpha`.
-fn barrier_material(color: Color, alpha_max: f32, emissive: f32) -> StandardMaterial {
-    let linear = color.to_linear();
-    StandardMaterial {
-        base_color: Color::srgba(linear.red, linear.green, linear.blue, alpha_max),
-        emissive: LinearRgba::rgb(linear.red * emissive, linear.green * emissive, linear.blue * emissive),
-        alpha_mode: AlphaMode::Blend,
-        double_sided: true,
-        cull_mode: None,
-        ..default()
-    }
-}
-
-// Parse "#rrggbb" or "rrggbb" into a Color in sRGB space.
-fn parse_hex_color(hex: &str) -> Result<Color, String> {
-    let h = hex.strip_prefix('#').unwrap_or(hex);
-    if h.len() != 6 {
-        return Err(format!("expected 6 hex digits, got {}", h.len()));
-    }
-    let parse_byte = |s: &str| u8::from_str_radix(s, 16).map_err(|e| e.to_string());
-    let r = parse_byte(&h[0..2])? as f32 / 255.0;
-    let g = parse_byte(&h[2..4])? as f32 / 255.0;
-    let b = parse_byte(&h[4..6])? as f32 / 255.0;
-    Ok(Color::srgb(r, g, b))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn hex_color_parses_with_and_without_hash() {
-        let expected = Color::srgb(1.0, 0.0, 0.0);
-        assert_eq!(parse_hex_color("#ff0000").expect("hash form parses"), expected);
-        assert_eq!(parse_hex_color("ff0000").expect("bare form parses"), expected);
-        let mixed = parse_hex_color("#0080FF").expect("mixed case parses");
-        assert_eq!(mixed, Color::srgb(0.0, 128.0 / 255.0, 1.0));
-    }
-
-    #[test]
-    fn hex_color_rejects_wrong_length_and_bad_digits() {
-        assert!(parse_hex_color("#fff").is_err(), "3-digit shorthand is not supported");
-        assert!(parse_hex_color("").is_err());
-        assert!(parse_hex_color("#gggggg").is_err(), "non-hex digits must be rejected");
     }
 }

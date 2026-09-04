@@ -12,8 +12,8 @@ use common::{
     constants::{GRID_CELL_SIZE, LEVEL_HEIGHT},
     map::MapGeometry,
     protocol::{
-        BarrierKindId, BarrierKindTable, BridgeKindId, BridgeKindTable, PlatePurpose, PlateState, PlayerId,
-        PlayerMarker, Position, SPressurePlate, ServerMessage,
+        BarrierKindTable, BridgeKindTable, HeldPurpose, PlatePurpose, PlateState, PlayerId, PlayerMarker, Position,
+        SPressurePlate, ServerMessage,
     },
 };
 
@@ -53,8 +53,8 @@ pub fn player_on_plate(plate: &PressurePlateRuntime, pos: &Position, geometry: &
 //
 // Firework plates — required = min(firework_plates, active_alive_count);
 // the show launches on the tick the held count reaches it (edge-triggered,
-// so standing there doesn't restart it every tick). Fireworks are momentary,
-// so they never enter `PlateState`.
+// so standing there doesn't restart it every tick). Fireworks are momentary
+// (`PlatePurpose::held`), so they never enter `PlateState`.
 //
 // A plate is "held" when ≥ 1 alive player is inside the inner 25%-by-area
 // square of its cell (see `player_on_plate`).
@@ -75,13 +75,13 @@ pub fn pressure_plates_system(
     mut prev_held: Local<HashSet<usize>>,
     // Holding-plate count per purpose. Derived from the immutable map, so it
     // is built once on first run rather than rebuilt every tick.
-    mut plates_per_purpose: Local<HashMap<PlatePurpose, usize>>,
+    mut plates_per_purpose: Local<HashMap<HeldPurpose, usize>>,
     // Whether the firework threshold held last tick; the show launches on
     // the false→true edge.
     mut fireworks_ready: Local<bool>,
     // Solo switch positions: the purposes a lone player has flipped on.
     // `None` outside solo play.
-    mut switches: Local<Option<HashSet<PlatePurpose>>>,
+    mut switches: Local<Option<HashSet<HeldPurpose>>>,
 ) {
     if map_config.pressure_plates.is_empty() {
         plates_state.set_if_neq(PlateState::default());
@@ -92,10 +92,12 @@ pub fn pressure_plates_system(
     }
 
     if plates_per_purpose.is_empty() {
-        for plate in &map_config.pressure_plates {
-            if holds_state(plate.purpose) {
-                *plates_per_purpose.entry(plate.purpose).or_insert(0) += 1;
-            }
+        for purpose in map_config
+            .pressure_plates
+            .iter()
+            .filter_map(|plate| plate.purpose.held())
+        {
+            *plates_per_purpose.entry(purpose).or_insert(0) += 1;
         }
     }
 
@@ -133,7 +135,6 @@ pub fn pressure_plates_system(
     let held_indices: HashSet<usize> = holders.keys().copied().collect();
     let held_per_purpose = held_count_per_purpose(&held_indices, plates);
     let prev_held_per_purpose = held_count_per_purpose(&prev_held, plates);
-    let previous = plates_state.purposes();
 
     // Edge-triggered cues: at most one press and one release cue per tick,
     // regardless of how many plates flipped — the messages carry no plate
@@ -151,15 +152,14 @@ pub fn pressure_plates_system(
 
     // Purposes a solo press flipped this tick.
     let mut flipped = Vec::new();
-    let mut next: Vec<PlatePurpose> = if logged_in == 1 {
+    let mut next: Vec<HeldPurpose> = if logged_in == 1 {
         let seeded = switches.is_none();
         let switches = switches.get_or_insert_with(|| held_per_purpose.keys().copied().collect());
         if !seeded {
-            for idx in held_indices.difference(&prev_held) {
-                let purpose = plates[*idx].purpose;
-                if !holds_state(purpose) {
-                    continue;
-                }
+            for purpose in held_indices
+                .difference(&prev_held)
+                .filter_map(|idx| plates[*idx].purpose.held())
+            {
                 if !switches.remove(&purpose) {
                     switches.insert(purpose);
                 }
@@ -179,67 +179,49 @@ pub fn pressure_plates_system(
         }
         next
     };
-    // Stable order for the equality diff below — without it, the HashMap
-    // iteration order varies tick-to-tick and we'd rewrite the resource
-    // every tick (defeating change detection on both server broadcast and
-    // client visibility).
+    // `PlateState` keeps sorted lists, so the equality check at the end only
+    // holds if this is sorted too; without it the HashMap order would rewrite
+    // the resource every tick.
     next.sort();
 
     // Feed lines follow plate presses only. The alive-count term and the
     // switch-over into or out of solo play also flip purposes (joins,
     // leaves, deaths); those stay silent — the barriers and bridges
     // themselves already show it.
-    let barrier_name = |kind: BarrierKindId| {
-        barrier_kinds
+    let kind_name = |purpose: HeldPurpose| match purpose {
+        HeldPurpose::Barrier(kind) => barrier_kinds
             .id(kind)
             .expect("barrier kind missing from BarrierKindTable")
-            .to_owned()
-    };
-    let bridge_name = |kind: BridgeKindId| {
-        bridge_kinds
+            .to_owned(),
+        HeldPurpose::Bridge(kind) => bridge_kinds
             .id(kind)
             .expect("bridge kind missing from BridgeKindTable")
-            .to_owned()
+            .to_owned(),
     };
-    let (opened, closed) = purpose_transitions(&previous, &next);
-    for purpose in opened {
+    for purpose in next.iter().copied().filter(|purpose| !plates_state.contains(*purpose)) {
         let Some(presser) = presser_of_purpose(purpose, &holders, &prev_held, plates) else {
             continue;
         };
         let name = players.display_name(&presser);
-        let event = match purpose {
-            PlatePurpose::Barrier(kind) => FeedEvent::BarrierOpened {
-                name,
-                kind,
-                kind_name: barrier_name(kind),
-            },
-            PlatePurpose::Bridge(kind) => FeedEvent::BridgePowered {
-                name,
-                kind,
-                kind_name: bridge_name(kind),
-            },
-            PlatePurpose::Firework => continue,
-        };
-        emit_feed(&players, &server_gameplay_config.feed, FeedAudience::Everyone, event);
+        emit_feed(
+            &players,
+            &server_gameplay_config.feed,
+            FeedAudience::Everyone,
+            FeedEvent::plate_held(purpose, name, kind_name(purpose)),
+        );
     }
-    for purpose in closed {
+    for purpose in plates_state.held().filter(|purpose| !next.contains(purpose)) {
         let held_now = held_per_purpose.get(&purpose).copied().unwrap_or(0);
         let held_before = prev_held_per_purpose.get(&purpose).copied().unwrap_or(0);
         if !flipped.contains(&purpose) && held_now >= held_before {
             continue;
         }
-        let event = match purpose {
-            PlatePurpose::Barrier(kind) => FeedEvent::BarrierClosed {
-                kind,
-                kind_name: barrier_name(kind),
-            },
-            PlatePurpose::Bridge(kind) => FeedEvent::BridgeUnpowered {
-                kind,
-                kind_name: bridge_name(kind),
-            },
-            PlatePurpose::Firework => continue,
-        };
-        emit_feed(&players, &server_gameplay_config.feed, FeedAudience::Everyone, event);
+        emit_feed(
+            &players,
+            &server_gameplay_config.feed,
+            FeedAudience::Everyone,
+            FeedEvent::plate_released(purpose, kind_name(purpose)),
+        );
     }
 
     let firework_plates = plates
@@ -265,13 +247,10 @@ pub fn pressure_plates_system(
     *fireworks_ready = ready;
 
     *prev_held = held_indices;
-    plates_state.set_if_neq(PlateState::from_purposes(next));
-}
-
-// Fireworks fire once and hold nothing, so they stay out of `PlateState`
-// and out of every count that feeds it.
-fn holds_state(purpose: PlatePurpose) -> bool {
-    !matches!(purpose, PlatePurpose::Firework)
+    // The bridge collider sync (`powered_bridges_sync_system`) and the
+    // client's barrier visibility react to a change, so an equal state must
+    // not count as one.
+    plates_state.set_if_neq(PlateState::from_held(next));
 }
 
 // Everyone alive is on a firework plate — or every plate is held when the
@@ -285,13 +264,10 @@ fn plate_active(plate: &PressurePlateRuntime, locked: &[PlatePurpose]) -> bool {
     !locked.contains(&plate.purpose)
 }
 
-fn held_count_per_purpose(held: &HashSet<usize>, plates: &[PressurePlateRuntime]) -> HashMap<PlatePurpose, usize> {
+fn held_count_per_purpose(held: &HashSet<usize>, plates: &[PressurePlateRuntime]) -> HashMap<HeldPurpose, usize> {
     let mut counts = HashMap::new();
-    for idx in held {
-        let purpose = plates[*idx].purpose;
-        if holds_state(purpose) {
-            *counts.entry(purpose).or_insert(0) += 1;
-        }
+    for purpose in held.iter().filter_map(|idx| plates[*idx].purpose.held()) {
+        *counts.entry(purpose).or_insert(0) += 1;
     }
     counts
 }
@@ -300,14 +276,14 @@ fn held_count_per_purpose(held: &HashSet<usize>, plates: &[PressurePlateRuntime]
 // plates that was not held last tick, else any current holder. `None` when
 // nobody is on a plate of that purpose — the alive-count term flipped it.
 fn presser_of_purpose(
-    purpose: PlatePurpose,
+    purpose: HeldPurpose,
     holders: &HashMap<usize, PlayerId>,
     prev_held: &HashSet<usize>,
     plates: &[PressurePlateRuntime],
 ) -> Option<PlayerId> {
     let mut standing = None;
     for (idx, id) in holders {
-        if plates[*idx].purpose != purpose {
+        if plates[*idx].purpose.held() != Some(purpose) {
             continue;
         }
         if !prev_held.contains(idx) {
@@ -318,17 +294,10 @@ fn presser_of_purpose(
     standing
 }
 
-// (purposes in `next` but not `prev`, purposes in `prev` but not `next`).
-fn purpose_transitions(prev: &[PlatePurpose], next: &[PlatePurpose]) -> (Vec<PlatePurpose>, Vec<PlatePurpose>) {
-    let opened = next.iter().copied().filter(|purpose| !prev.contains(purpose)).collect();
-    let closed = prev.iter().copied().filter(|purpose| !next.contains(purpose)).collect();
-    (opened, closed)
-}
-
 #[cfg(test)]
 mod player_on_plate_tests {
     use super::*;
-    use common::constants::GRID_CELL_SIZE;
+    use common::{constants::GRID_CELL_SIZE, protocol::BarrierKindId};
 
     fn make_plate(level: u8, col: i32, row: i32) -> PressurePlateRuntime {
         PressurePlateRuntime {
@@ -429,24 +398,9 @@ mod player_on_plate_tests {
 }
 
 #[cfg(test)]
-mod transition_tests {
+mod presser_tests {
     use super::*;
-
-    #[test]
-    fn purpose_transitions_reports_flipped_purposes_of_either_kind() {
-        let (opened, closed) = purpose_transitions(
-            &[
-                PlatePurpose::Barrier(BarrierKindId(0)),
-                PlatePurpose::Barrier(BarrierKindId(1)),
-            ],
-            &[
-                PlatePurpose::Barrier(BarrierKindId(1)),
-                PlatePurpose::Bridge(BridgeKindId(0)),
-            ],
-        );
-        assert_eq!(opened, vec![PlatePurpose::Bridge(BridgeKindId(0))]);
-        assert_eq!(closed, vec![PlatePurpose::Barrier(BarrierKindId(0))]);
-    }
+    use common::protocol::BarrierKindId;
 
     #[test]
     fn presser_prefers_a_fresh_press_over_a_standing_holder() {
@@ -474,15 +428,15 @@ mod transition_tests {
         let prev_held = HashSet::from([0]);
 
         assert_eq!(
-            presser_of_purpose(PlatePurpose::Barrier(BarrierKindId(0)), &holders, &prev_held, &plates),
+            presser_of_purpose(HeldPurpose::Barrier(BarrierKindId(0)), &holders, &prev_held, &plates),
             Some(PlayerId(2))
         );
         assert_eq!(
-            presser_of_purpose(PlatePurpose::Barrier(BarrierKindId(1)), &holders, &prev_held, &plates),
+            presser_of_purpose(HeldPurpose::Barrier(BarrierKindId(1)), &holders, &prev_held, &plates),
             Some(PlayerId(3))
         );
         assert_eq!(
-            presser_of_purpose(PlatePurpose::Barrier(BarrierKindId(2)), &holders, &prev_held, &plates),
+            presser_of_purpose(HeldPurpose::Barrier(BarrierKindId(2)), &holders, &prev_held, &plates),
             None
         );
     }
@@ -534,7 +488,7 @@ mod system_tests {
     };
     use common::{
         constants::GRID_CELL_SIZE,
-        protocol::{QuestId, QuestScope},
+        protocol::{BarrierKindId, BridgeKindId, QuestId, QuestScope},
     };
 
     const LOBBY: BarrierKindId = BarrierKindId(0);

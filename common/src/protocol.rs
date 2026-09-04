@@ -737,6 +737,11 @@ mod tests {
         }
     }
 
+    fn barrier_kind_cap() -> u16 {
+        u16::try_from(BarrierKindId::MAX.expect("barrier kinds carry no collision-group cap"))
+            .expect("barrier kind cap exceeds u16")
+    }
+
     #[test]
     fn unreliable_lane_messages_fit_one_datagram() {
         let messages = [
@@ -744,7 +749,7 @@ mod tests {
                 id: PlayerId(1),
                 power_ups: [true; PowerUpKind::COUNT],
                 stunned: true,
-                held_keys: (0..29u16).map(BarrierKindId).collect(),
+                held_keys: (0..barrier_kind_cap()).map(BarrierKindId).collect(),
             }),
             ServerMessage::PortalOpened(SPortalOpened {
                 shooter: PlayerId(1),

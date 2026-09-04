@@ -114,12 +114,10 @@ pub fn missiles_movement_system(mut commands: Commands, time: Res<Time>, mut par
                 earliest_t = Some(t);
             }
         };
-        if let Some(hit) = params.collision_world.cast_moving_ball(
-            origin,
-            translation,
-            MISSILE_RADIUS,
-            &params.plates.powered_bridge_kinds,
-        ) {
+        if let Some(hit) = params
+            .collision_world
+            .cast_moving_ball(origin, translation, MISSILE_RADIUS)
+        {
             consider(hit.t);
         }
         if let Some(hit) = params.collision_world.cast_moving_ball_against_barriers(

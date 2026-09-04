@@ -18,7 +18,6 @@ from .dialogs import ActorSpawnFieldsDialog, KindDialog, MaterialAssignmentDialo
 from .normalization import pressure_plate_key
 from .geometry import (
     normalized_wall,
-    ramp_cells_on_level,
     ramp_error,
     ramp_points_from_cells,
     ramp_rect,
@@ -206,23 +205,12 @@ class PlacementMixin:
         c0, r0, c1, r1 = rect_from_cells(start, end)
         after = copy.deepcopy(self.map_data)
         level = after["levels"][self.current_level]
-        blocked = (
-            {(f["col"], f["row"]) for f in level["floors"]}
-            | {(f["col"], f["row"]) for f in level["inaccessible_floors"]}
-            | ramp_cells_on_level(after["ramps"], self.current_level)
-        )
         existing = {(b["col"], b["row"]): b for b in level.get("light_bridges", [])}
-        skipped = 0
         for row in range(r0, r1):
             for col in range(c0, c1):
-                if (col, row) in blocked:
-                    skipped += 1
-                    continue
                 existing[(col, row)] = {"col": col, "row": row, "kind": kind}
         level["light_bridges"] = list(existing.values())
         self.apply_change(f"Place Light Bridge ({kind})", after)
-        if skipped:
-            self._flash_status(f"Light Bridge: {skipped} cell(s) skipped (floor or ramp present)")
 
     def erase_light_bridges_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
         c0, r0, c1, r1 = rect_from_cells(start, end)

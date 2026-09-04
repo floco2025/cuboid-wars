@@ -1,7 +1,7 @@
 use crate::{
     config::GameplayConfig,
     physics::CollisionWorld,
-    protocol::{PlateState, Position},
+    protocol::{BarrierKindId, Position},
 };
 use bevy_math::Vec3;
 
@@ -34,7 +34,7 @@ pub fn calculate_projectile_spawns(
     shooter_eye_height: f32,
     gameplay: &GameplayConfig,
     collision_world: &CollisionWorld,
-    plates: &PlateState,
+    open_kinds: &[BarrierKindId],
 ) -> Vec<ProjectileSpawnInfo> {
     let mut spawns = Vec::new();
 
@@ -60,7 +60,7 @@ pub fn calculate_projectile_spawns(
             &spawn_position,
             gameplay.projectiles.radius,
             collision_world,
-            plates,
+            open_kinds,
         ) {
             continue;
         }
@@ -80,7 +80,7 @@ pub(super) fn projectile_spawn_is_blocked(
     end: &Position,
     radius: f32,
     collision_world: &CollisionWorld,
-    plates: &PlateState,
+    open_kinds: &[BarrierKindId],
 ) -> bool {
     let start_vec = Vec3::from(*start);
     let end_vec = Vec3::from(*end);
@@ -91,11 +91,11 @@ pub(super) fn projectile_spawn_is_blocked(
     // pressed against a barrier could spawn the projectile on the far side
     // of it. Open (plate-held) kinds are excluded from the barrier checks —
     // they're gone visually, so shots pass cleanly through them.
-    collision_world.projectile_spawn_overlaps_blocker(start_vec, radius, plates)
+    collision_world.projectile_spawn_overlaps_blocker(start_vec, radius, open_kinds)
         || collision_world
-            .cast_moving_ball(start_vec, translation, radius, &plates.powered_bridge_kinds)
+            .cast_moving_ball(start_vec, translation, radius)
             .is_some()
         || collision_world
-            .cast_moving_ball_against_barriers(start_vec, translation, radius, &plates.open_barrier_kinds)
+            .cast_moving_ball_against_barriers(start_vec, translation, radius, open_kinds)
             .is_some()
 }

@@ -330,18 +330,57 @@ fn light_bridge_supports_a_character_only_while_powered() {
         }],
         ..Default::default()
     };
-    let world = CollisionWorld::from_map_layout(&layout, &crate::protocol::BarrierKindTable::default());
+    let mut world = CollisionWorld::from_map_layout(&layout, &crate::protocol::BarrierKindTable::default());
     assert_eq!(world.solid_kinds(), vec![ColliderKind::Bridge]);
 
     let physics: CharacterPhysicsConfig = wide_body();
     let shape = crate::physics::characters::character_shape(physics);
     let pose = Pose::translation(2.0, LEVEL_HEIGHT + physics.collider.bottom_y_offset() + 0.05, 2.0);
-    let probe = |powered: &[BridgeKindId]| world.ground_hit(&shape, &pose, 1.0, 0.0, &[], powered, &[]);
+    let probe = |world: &CollisionWorld| world.ground_hit(&shape, &pose, 1.0, 0.0, &[], &[]);
 
-    assert!(probe(&[]).is_none(), "an unpowered bridge is not ground");
+    assert!(probe(&world).is_none(), "an unpowered bridge is not ground");
+    world.set_powered_bridges(&[BridgeKindId(1)]);
+    assert!(probe(&world).is_none(), "another powered kind is not this bridge");
+    world.set_powered_bridges(&[BridgeKindId(0)]);
+    assert!(probe(&world).is_some(), "a powered bridge is ground");
+    world.set_powered_bridges(&[]);
+    assert!(probe(&world).is_none(), "power switches off again");
+}
+
+#[test]
+fn a_powered_light_bridge_stays_out_of_sight_and_ground_probes() {
+    use crate::protocol::{BridgeKindId, LightBridge};
+
+    let layout = MapLayout {
+        light_bridges: vec![LightBridge {
+            x1: -2.0,
+            z1: -2.0,
+            x2: 2.0,
+            z2: 2.0,
+            y: LEVEL_HEIGHT,
+            level: 1,
+            kind: BridgeKindId(0),
+        }],
+        ..Default::default()
+    };
+    let mut world = CollisionWorld::from_map_layout(&layout, &crate::protocol::BarrierKindTable::default());
+    world.set_powered_bridges(&[BridgeKindId(0)]);
+    let above = bevy_math::Vec3::new(0.0, LEVEL_HEIGHT + 1.0, 0.0);
+    let below = bevy_math::Vec3::new(0.0, LEVEL_HEIGHT - 1.0, 0.0);
+
     assert!(
-        probe(&[BridgeKindId(1)]).is_none(),
-        "another powered kind is not this bridge"
+        world.cast_moving_ball(above, below - above, 0.1).is_some(),
+        "a surface query sees it"
     );
-    assert!(probe(&[BridgeKindId(0)]).is_some(), "a powered bridge is ground");
+    assert!(world.line_of_sight_clear(above, below), "sight reaches through it");
+    assert!(
+        world.ground_surface_below(above, 2.0).is_none(),
+        "rain and scorch probes ignore it"
+    );
+    assert!(
+        world
+            .world_surface_along_ray(above, bevy_math::Vec3::NEG_Y, 2.0)
+            .is_none(),
+        "a portal never lands on it"
+    );
 }

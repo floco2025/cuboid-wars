@@ -52,7 +52,6 @@ pub(crate) fn plan_actor_moves(
             planned_moves,
             actor_starts,
             open_barrier_kinds: &plates.open_barrier_kinds,
-            powered_bridges: &plates.powered_bridge_kinds,
             gravity: map_settings.movement.gravity,
             ladder_climb_ratio: map_settings.movement.ladder_climb_ratio,
             knockback_step: knockback.map_or(Vec3::ZERO, |velocity| velocity.step(delta)),

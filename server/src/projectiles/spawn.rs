@@ -59,7 +59,7 @@ pub fn handle_projectile_shot_message(
             gameplay_config.player.eye_height(),
             gameplay_config,
             collision_world,
-            plates,
+            &plates.open_barrier_kinds,
         );
 
         // Spawn each projectile

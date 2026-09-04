@@ -102,16 +102,17 @@ const FIT_FRONT_RIM_SEGMENTS: usize = 64;
 
 // The portal must actually work as a hole: every sample around its visible
 // rim needs solid surface BEHIND the plane (no hanging past an edge) and
-// clear space IN FRONT of it (no floor slab or abutting wall cutting through
-// the oval). On top of the geometry, the aperture must not cover surface
-// fixtures: wall lights, and pressure plates for standable portals.
+// clear space IN FRONT of it (no floor slab, powered light bridge, or
+// abutting wall cutting through the oval). On top of the geometry, the
+// aperture must not cover surface fixtures: wall lights, and pressure plates
+// for standable portals.
 fn portal_fits(frame: &PortalFrame, collision_world: &CollisionWorld, map_layout: &MapLayout) -> bool {
     // Sweep the oval itself so geometry outside the visible rim cannot make
     // a portal float above a ramp, while geometry crossing the opening still
     // rejects between the backing probes.
     let rotation = Quat::from_mat3(&Mat3::from_cols(frame.right, frame.up, frame.normal));
     let front_center = frame.center + frame.normal * (FIT_FRONT_GAP + FIT_FRONT_DEPTH / 2.0);
-    if collision_world.oriented_shape_overlaps_world(front_center, rotation, front_clearance_shape().as_ref()) {
+    if collision_world.oriented_shape_overlaps_surface(front_center, rotation, front_clearance_shape().as_ref()) {
         return false;
     }
     // Each sample must meet a surface parallel to the shot face. Otherwise

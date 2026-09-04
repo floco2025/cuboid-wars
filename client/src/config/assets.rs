@@ -5,7 +5,7 @@ use std::{
 };
 
 use anyhow::{Context, Result, bail};
-use bevy::prelude::Resource;
+use bevy::prelude::{Color, Resource};
 use common::protocol::{BarrierKindTable, BridgeKindTable, ItemType};
 use serde::Deserialize;
 
@@ -185,7 +185,7 @@ impl AssetSet {
             .item_materials
             .get(name)
             .or_else(|| self.item_materials.get("default"))
-            .expect("item_materials must define `default`");
+            .expect("`default` missing from item_materials");
         self.exact_material(id)
     }
 
@@ -278,6 +278,20 @@ impl AssetSet {
             .get(resolved)
             .unwrap_or_else(|| panic!("alias {id:?} points to unknown material {resolved:?}"))
     }
+}
+
+// Parse a `barrier_kind_colors` / `bridge_kind_colors` entry ("#rrggbb" or
+// "rrggbb") into an sRGB colour.
+pub(crate) fn parse_hex_color(hex: &str) -> Result<Color, String> {
+    let h = hex.strip_prefix('#').unwrap_or(hex);
+    if h.len() != 6 || !h.is_ascii() {
+        return Err(format!("expected 6 hex digits, got {h:?}"));
+    }
+    let parse_byte = |s: &str| u8::from_str_radix(s, 16).map_err(|e| e.to_string());
+    let r = f32::from(parse_byte(&h[0..2])?) / 255.0;
+    let g = f32::from(parse_byte(&h[2..4])?) / 255.0;
+    let b = f32::from(parse_byte(&h[4..6])?) / 255.0;
+    Ok(Color::srgb(r, g, b))
 }
 
 fn validate_model(path: &str, model: &ModelDef) -> Result<()> {
@@ -499,10 +513,30 @@ mod tests {
     use super::*;
     use std::collections::HashSet;
 
+    #[test]
+    fn hex_color_parses_with_and_without_hash() {
+        let expected = Color::srgb(1.0, 0.0, 0.0);
+        assert_eq!(parse_hex_color("#ff0000").expect("hash form rejected"), expected);
+        assert_eq!(parse_hex_color("ff0000").expect("bare form rejected"), expected);
+        let mixed = parse_hex_color("#0080FF").expect("mixed case rejected");
+        assert_eq!(mixed, Color::srgb(0.0, 128.0 / 255.0, 1.0));
+    }
+
+    #[test]
+    fn hex_color_rejects_wrong_length_and_bad_digits() {
+        assert!(parse_hex_color("#fff").is_err(), "3-digit shorthand is not supported");
+        assert!(parse_hex_color("").is_err());
+        assert!(parse_hex_color("#gggggg").is_err(), "non-hex digits must be rejected");
+        assert!(
+            parse_hex_color("#aébbb").is_err(),
+            "non-ASCII input must be rejected, not sliced"
+        );
+    }
+
     // The server's actor kinds, straight from the shipped JSON.
     fn server_actor_kinds() -> Vec<String> {
         let gameplay: serde_json::Value = serde_json::from_str(include_str!("../../../config/server/gameplay.json"))
-            .expect("parse server gameplay config");
+            .expect("server gameplay config does not parse");
         gameplay["actors"]["kinds"]
             .as_object()
             .expect("actors.kinds is not an object")
@@ -521,15 +555,15 @@ mod tests {
     // client is validated against whichever map the server selected.
     fn shipped_kind_tables() -> Vec<(String, BarrierKindTable, BridgeKindTable)> {
         let gameplay: serde_json::Value = serde_json::from_str(include_str!("../../../config/server/gameplay.json"))
-            .expect("parse server gameplay config");
+            .expect("server gameplay config does not parse");
         let maps = gameplay["maps"].as_object().expect("maps is not an object");
         let mut tables = maps
             .iter()
             .map(|(name, map)| {
                 let barriers = BarrierKindTable::from_ids(shipped_kind_ids(name, map, "barrier_kinds"))
-                    .expect("build barrier table");
-                let bridges =
-                    BridgeKindTable::from_ids(shipped_kind_ids(name, map, "bridge_kinds")).expect("build bridge table");
+                    .expect("barrier kind ids rejected by the kind table");
+                let bridges = BridgeKindTable::from_ids(shipped_kind_ids(name, map, "bridge_kinds"))
+                    .expect("bridge kind ids rejected by the kind table");
                 (name.clone(), barriers, bridges)
             })
             .collect::<Vec<_>>();
@@ -540,7 +574,7 @@ mod tests {
 
     #[test]
     fn default_assets_match_server_gameplay_on_every_map() {
-        let assets = AssetSet::load_default().expect("load assets");
+        let assets = AssetSet::load_default().expect("shipped assets.json fails to load");
         let kinds = server_actor_kinds();
 
         for (map, barriers, bridges) in shipped_kind_tables() {
@@ -552,7 +586,7 @@ mod tests {
 
     #[test]
     fn actor_kind_set_mismatch_is_rejected() {
-        let mut assets = AssetSet::load_default().expect("load assets");
+        let mut assets = AssetSet::load_default().expect("shipped assets.json fails to load");
         let kinds = server_actor_kinds();
         assets.actors.remove("mine");
 
@@ -569,9 +603,10 @@ mod tests {
 
     #[test]
     fn uncoloured_barrier_kind_is_rejected() {
-        let assets = AssetSet::load_default().expect("load assets");
+        let assets = AssetSet::load_default().expect("shipped assets.json fails to load");
         let kinds = server_actor_kinds();
-        let barriers = BarrierKindTable::from_ids(vec!["unpainted".to_owned()]).expect("build barrier table");
+        let barriers = BarrierKindTable::from_ids(vec!["unpainted".to_owned()])
+            .expect("barrier kind ids rejected by the kind table");
 
         let error = assets
             .validate_gameplay_bindings(kinds.iter().map(String::as_str), &barriers, &BridgeKindTable::default())
@@ -582,9 +617,10 @@ mod tests {
 
     #[test]
     fn uncoloured_bridge_kind_is_rejected() {
-        let assets = AssetSet::load_default().expect("load assets");
+        let assets = AssetSet::load_default().expect("shipped assets.json fails to load");
         let kinds = server_actor_kinds();
-        let bridges = BridgeKindTable::from_ids(vec!["unpainted".to_owned()]).expect("build bridge table");
+        let bridges = BridgeKindTable::from_ids(vec!["unpainted".to_owned()])
+            .expect("bridge kind ids rejected by the kind table");
 
         let error = assets
             .validate_gameplay_bindings(kinds.iter().map(String::as_str), &BarrierKindTable::default(), &bridges)
@@ -595,11 +631,11 @@ mod tests {
 
     #[test]
     fn missing_required_actor_sound_is_rejected() {
-        let mut assets = AssetSet::load_default().expect("load assets");
+        let mut assets = AssetSet::load_default().expect("shipped assets.json fails to load");
         assets
             .actors
             .get_mut("mine")
-            .expect("mine assets")
+            .expect("mine actor missing from assets")
             .sounds
             .remove("explodes");
 
@@ -610,8 +646,13 @@ mod tests {
 
     #[test]
     fn invalid_actor_model_is_rejected() {
-        let mut assets = AssetSet::load_default().expect("load assets");
-        assets.actors.get_mut("mine").expect("mine assets").model.scale = 0.0;
+        let mut assets = AssetSet::load_default().expect("shipped assets.json fails to load");
+        assets
+            .actors
+            .get_mut("mine")
+            .expect("mine actor missing from assets")
+            .model
+            .scale = 0.0;
 
         let error = assets.validate().expect_err("invalid model must fail");
 
@@ -626,7 +667,7 @@ mod tests {
     // would be fooled by macOS's case-insensitive layer.
     #[test]
     fn referenced_assets_exist_case_exactly() {
-        let assets = AssetSet::load_default().expect("load assets");
+        let assets = AssetSet::load_default().expect("shipped assets.json fails to load");
         let assets_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("assets");
 
         let mut errors: Vec<String> = Vec::new();

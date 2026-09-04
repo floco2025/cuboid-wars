@@ -115,7 +115,6 @@ pub(crate) fn context<'a>(
         planned_moves,
         actor_starts,
         open_barrier_kinds: &[],
-        powered_bridges: &[],
         gravity: 25.0,
         ladder_climb_ratio: test_ladders(),
         knockback_step: bevy::prelude::Vec3::ZERO,

@@ -124,7 +124,7 @@ fn plan_player_moves(
             delta,
             has_low_gravity,
             held_keys,
-            plates,
+            open_kinds: &plates.open_barrier_kinds,
             knockback,
             portal_momentum: momentum.as_deref_mut(),
             collision_world,

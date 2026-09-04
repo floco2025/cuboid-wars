@@ -14,7 +14,7 @@ use crate::{
 use common::{
     config::GameplayConfig,
     physics::{CollisionWorld, acquire_lock},
-    protocol::{ActorMarker, BridgeKindId, FaceYaw, HomingTarget, MissileMarker, PlateState, PlayerMarker, Position},
+    protocol::{ActorMarker, FaceYaw, HomingTarget, MissileMarker, PlayerMarker, Position},
 };
 
 type LockCandidateQuery<'w, 's> = Query<
@@ -38,7 +38,6 @@ pub fn lock_on_system(
     character_data: LockCandidateQuery,
     camera_query: Query<&Transform, (With<Camera3d>, With<MainCameraMarker>)>,
     collision_world: Res<CollisionWorld>,
-    plates: Res<PlateState>,
     gameplay_config: Res<GameplayConfig>,
     weapon_mode: Res<WeaponMode>,
 ) {
@@ -53,7 +52,6 @@ pub fn lock_on_system(
         &character_data,
         &camera_query,
         &collision_world,
-        &plates.powered_bridge_kinds,
         &gameplay_config,
         &weapon_mode,
     );
@@ -73,7 +71,6 @@ fn compute_lock(
     character_data: &LockCandidateQuery,
     camera_query: &Query<&Transform, (With<Camera3d>, With<MainCameraMarker>)>,
     collision_world: &CollisionWorld,
-    powered_bridges: &[BridgeKindId],
     gameplay_config: &GameplayConfig,
     weapon_mode: &WeaponMode,
 ) -> Option<HomingTarget> {
@@ -116,7 +113,6 @@ fn compute_lock(
 
     acquire_lock(
         collision_world,
-        powered_bridges,
         camera.translation,
         *camera.forward(),
         gameplay_config.missiles.lock_range,

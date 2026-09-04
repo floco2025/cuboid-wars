@@ -21,7 +21,7 @@ use crate::{
 };
 use common::{
     physics::{CollisionWorld, PortalSet},
-    protocol::{BarrierKindTable, BridgeKindTable, MapBootstrap, WorldBootstrap},
+    protocol::{MapBootstrap, WorldBootstrap},
 };
 
 const LOG_FILTER: &str = "wgpu=error,naga=warn";
@@ -44,8 +44,7 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
     );
     let random_items = RandomItems::from_config(map_server_config.random_items.as_ref(), map_settings.weapons);
     let portal_assignments = PortalAssignments::new(map_settings.weapons.portals);
-    let barrier_kind_table = BarrierKindTable::from_ids(map_settings.barrier_kinds.clone().unwrap_or_default())?;
-    let bridge_kind_table = BridgeKindTable::from_ids(map_settings.bridge_kinds.clone().unwrap_or_default())?;
+    let (barrier_kind_table, bridge_kind_table) = map_settings.kind_tables()?;
     let GeneratedMap {
         layout: map_layout,
         config: map_config,

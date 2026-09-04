@@ -3,10 +3,20 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from map_editor.constants import DEFAULT_ALIAS, FACES, load_map_barrier_kinds, load_map_bridge_kinds
+from PySide6.QtCore import QPointF
+
+from map_editor.constants import (
+    DEFAULT_ALIAS,
+    FACES,
+    MODE_LIGHT_BRIDGE,
+    load_map_barrier_kinds,
+    load_map_bridge_kinds,
+)
+from map_editor.erase import EraseMixin
 from map_editor.geometry import ramp_axis, ramp_cells, wall_segments_between
 from map_editor.io import empty_map, read_map, write_map
 from map_editor.normalization import canonicalize_map, resize_map_data
+from map_editor.placement import PlacementMixin
 from map_editor.validation import validate_map
 
 
@@ -32,6 +42,21 @@ def upper_level(*floors: dict) -> dict:
         "barriers": [],
         "lights": [],
     }
+
+
+class EditorHost(PlacementMixin, EraseMixin):
+    def __init__(self, map_data: dict, bridge_kinds: list[str]) -> None:
+        self.map_data = map_data
+        self.current_level = 0
+        self.bridge_kinds = bridge_kinds
+        self.selected_spawn_zone_ref = None
+        self.statuses: list[str] = []
+
+    def apply_change(self, label: str, after: dict) -> None:
+        self.map_data = after
+
+    def _flash_status(self, message: str) -> None:
+        self.statuses.append(message)
 
 
 class GeometryTests(unittest.TestCase):
@@ -181,7 +206,7 @@ class BarrierKindTests(unittest.TestCase):
 
 
 class LightBridgeTests(unittest.TestCase):
-    def test_canonicalization_keeps_the_first_bridge_per_cell_sorted_by_row_then_col(self) -> None:
+    def test_canonicalization_keeps_the_last_bridge_per_cell_sorted_by_row_then_col(self) -> None:
         data = empty_map(3, 3)
         data["levels"][0]["floors"] = [floor(0, 0)]
         data["levels"][0]["light_bridges"] = [
@@ -198,9 +223,52 @@ class LightBridgeTests(unittest.TestCase):
             [
                 {"col": 1, "row": 0, "kind": BRIDGE_KIND},
                 {"col": 0, "row": 1, "kind": BRIDGE_KIND},
-                {"col": 2, "row": 1, "kind": BRIDGE_KIND},
+                {"col": 2, "row": 1, "kind": "other"},
             ],
         )
+
+    def test_placing_a_bridge_rect_covers_every_dragged_cell(self) -> None:
+        data = empty_map(3, 3)
+        data["levels"][0]["floors"] = [floor(0, 0)]
+        data["levels"][0]["inaccessible_floors"] = [floor(1, 0)]
+        data["levels"].append(upper_level())
+        data["ramps"] = [{"lower_level": 0, "low": [1, 1], "high": [3, 2], **faces()}]
+        host = EditorHost(data, [BRIDGE_KIND])
+
+        host.add_light_bridge_rect((0, 0), (2, 1), BRIDGE_KIND)
+
+        self.assertEqual(
+            {(b["col"], b["row"], b["kind"]) for b in host.map_data["levels"][0]["light_bridges"]},
+            {(col, row, BRIDGE_KIND) for row in range(2) for col in range(3)},
+        )
+        self.assertEqual(host.statuses, [])
+        errors = validate_map(host.map_data, [], [BRIDGE_KIND])
+        self.assertTrue(any("[0, 0] sits on a floor" in e for e in errors))
+        self.assertTrue(any("[1, 0] sits on a floor" in e for e in errors))
+        self.assertTrue(any("[1, 1] sits on a ramp" in e for e in errors))
+
+    def test_erase_keep_floors_leaves_bridges_in_place(self) -> None:
+        data = empty_map(3, 3)
+        level = data["levels"][0]
+        level["floors"] = [floor(0, 0)]
+        level["light_bridges"] = [{"col": 1, "row": 0, "kind": BRIDGE_KIND}]
+        level["walls"] = [{"c0": 1, "r0": 0, "c1": 2, "r1": 0, **faces()}]
+        host = EditorHost(data, [BRIDGE_KIND])
+
+        host.erase_cell_rect((0, 0), (2, 2), preserve_floors=True)
+
+        level = host.map_data["levels"][0]
+        self.assertEqual(level["walls"], [])
+        self.assertEqual(level["floors"], [floor(0, 0)])
+        self.assertEqual(level["light_bridges"], [{"col": 1, "row": 0, "kind": BRIDGE_KIND}])
+
+        bridge_center = QPointF(1.5, 0.5)
+        self.assertEqual(host.hit_at(bridge_center, 1.0), (MODE_LIGHT_BRIDGE, (1, 0)))
+        host.erase_at(bridge_center, 1.0, preserve_floors=True)
+        self.assertEqual(host.map_data["levels"][0]["light_bridges"], [{"col": 1, "row": 0, "kind": BRIDGE_KIND}])
+
+        host.erase_at(bridge_center, 1.0, preserve_floors=False)
+        self.assertEqual(host.map_data["levels"][0]["light_bridges"], [])
 
     def test_bridges_and_bridge_plates_round_trip_through_the_file_format(self) -> None:
         data = empty_map(2, 2)
@@ -248,8 +316,8 @@ class LightBridgeTests(unittest.TestCase):
         self.assertTrue(any("unknown bridge kind 'nope'; known: [skyway]" in e for e in errors))
 
     def test_shipped_bridge_kinds_are_loaded_from_gameplay_settings(self) -> None:
-        self.assertEqual(load_map_bridge_kinds("hotel"), [BRIDGE_KIND])
-        self.assertEqual(load_map_bridge_kinds("obby"), [])
+        self.assertEqual(load_map_bridge_kinds("hotel"), [])
+        self.assertEqual(load_map_bridge_kinds("obby"), ["bridge_1", "bridge_2", "bridge_3"])
         self.assertEqual(load_map_bridge_kinds("not_configured"), [])
 
 

@@ -11,6 +11,7 @@ use std::f32::consts::TAU;
 
 use super::{
     beam::take_emissions,
+    fade::ease_blend,
     particles::{ParticleCloud, ParticleClouds, ParticleSpawn},
 };
 use crate::{
@@ -68,7 +69,7 @@ pub struct RainIntensity {
 }
 
 pub fn rain_smoothing_system(time: Res<Time>, mut rain: ResMut<RainIntensity>) {
-    let blend = 1.0 - (-time.delta_secs() / SMOOTHING_TAU_SECS).exp();
+    let blend = ease_blend(time.delta_secs(), SMOOTHING_TAU_SECS);
     rain.current += (rain.target - rain.current) * blend;
 }
 

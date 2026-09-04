@@ -9,7 +9,7 @@ use crate::constants::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_THICKNESS};
 const TEST_PROJECTILE_LIFETIME: f32 = 8.0;
 const TEST_PROJECTILE_RADIUS: f32 = 0.11;
 use crate::physics::CollisionWorld;
-use crate::protocol::{Barrier, BarrierKindId, BarrierKindTable, Floor, MapLayout, PlateState, Position, Ramp, Wall};
+use crate::protocol::{Barrier, BarrierKindId, BarrierKindTable, Floor, MapLayout, Position, Ramp, Wall};
 
 fn test_projectile_motion(velocity: Vec3) -> ProjectileMotion {
     ProjectileMotion {
@@ -69,12 +69,12 @@ fn lower_level_projectile_ignores_upper_level_wall() {
 
     assert!(
         lower_motion
-            .bounce_at_world_surface(&pos, 0.1, &collision_world(&[test_wall(0)], &[], &[]), &[])
+            .bounce_at_world_surface(&pos, 0.1, &collision_world(&[test_wall(0)], &[], &[]))
             .is_some()
     );
     assert!(
         upper_motion
-            .bounce_at_world_surface(&pos, 0.1, &collision_world(&[test_wall(1)], &[], &[]), &[])
+            .bounce_at_world_surface(&pos, 0.1, &collision_world(&[test_wall(1)], &[], &[]))
             .is_none()
     );
 }
@@ -90,7 +90,7 @@ fn upper_level_projectile_hits_upper_level_wall() {
 
     assert!(
         motion
-            .bounce_at_world_surface(&pos, 0.1, &collision_world(&[test_wall(1)], &[], &[]), &[])
+            .bounce_at_world_surface(&pos, 0.1, &collision_world(&[test_wall(1)], &[], &[]))
             .is_some()
     );
 }
@@ -100,7 +100,7 @@ fn world_bounce_reports_first_contact_normal() {
     let pos = Position { x: 0.0, y: 1.0, z: 0.0 };
     let mut motion = test_projectile_motion(Vec3::new(0.0, 0.0, 20.0));
     let bounce = motion
-        .bounce_at_world_surface(&pos, 0.1, &collision_world(&[test_wall(0)], &[], &[]), &[])
+        .bounce_at_world_surface(&pos, 0.1, &collision_world(&[test_wall(0)], &[], &[]))
         .expect("projectile should bounce");
 
     assert!(bounce.normal.dot(Vec3::NEG_Z) > 0.99);
@@ -147,7 +147,7 @@ fn projectile_hits_level_zero_floor_underside() {
 
     assert!(
         motion
-            .bounce_at_world_surface(&pos, 0.1, &collision_world(&[], &[test_floor(0)], &[]), &[])
+            .bounce_at_world_surface(&pos, 0.1, &collision_world(&[], &[test_floor(0)], &[]))
             .is_some()
     );
     assert!(motion.velocity.y < 0.0);
@@ -157,7 +157,7 @@ mod spawning {
     use super::super::spawning::projectile_spawn_is_blocked;
     use crate::constants::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_THICKNESS};
     use crate::physics::CollisionWorld;
-    use crate::protocol::{Floor, MapLayout, PlateState, Position, Ramp, Wall};
+    use crate::protocol::{Floor, MapLayout, Position, Ramp, Wall};
 
     fn test_wall(level: u8) -> Wall {
         Wall {
@@ -231,14 +231,14 @@ mod spawning {
             &end,
             0.11,
             &collision_world(&[test_wall(0)], &[], &[]),
-            &PlateState::default()
+            &[]
         ));
         assert!(!projectile_spawn_is_blocked(
             &start,
             &end,
             0.11,
             &collision_world(&[test_wall(1)], &[], &[]),
-            &PlateState::default()
+            &[]
         ));
     }
 
@@ -253,14 +253,14 @@ mod spawning {
             &end,
             0.11,
             &collision_world(&[test_wall(1)], &[], &[]),
-            &PlateState::default()
+            &[]
         ));
         assert!(!projectile_spawn_is_blocked(
             &start,
             &end,
             0.11,
             &collision_world(&[test_wall(0)], &[], &[]),
-            &PlateState::default()
+            &[]
         ));
     }
 
@@ -282,7 +282,7 @@ mod spawning {
             &end,
             0.11,
             &collision_world(&[test_wall(0)], &[], &[]),
-            &PlateState::default()
+            &[]
         ));
     }
 
@@ -305,7 +305,7 @@ mod spawning {
             &end,
             0.11,
             &collision_world(&[], &[], &[floor]),
-            &PlateState::default()
+            &[]
         ));
     }
 
@@ -328,7 +328,7 @@ mod spawning {
             &end,
             0.11,
             &collision_world(&[], &[], &[floor]),
-            &PlateState::default()
+            &[]
         ));
     }
 
@@ -347,7 +347,7 @@ mod spawning {
             &end,
             0.11,
             &collision_world(&[], &[ramp], &[]),
-            &PlateState::default()
+            &[]
         ));
     }
 
@@ -362,7 +362,7 @@ mod spawning {
             &end,
             0.11,
             &collision_world(&[], &[ramp], &[]),
-            &PlateState::default()
+            &[]
         ));
     }
 
@@ -381,7 +381,7 @@ mod spawning {
             &end,
             0.11,
             &collision_world(&[], &[ramp], &[]),
-            &PlateState::default()
+            &[]
         ));
     }
 }
@@ -397,30 +397,12 @@ fn multi_shot_fires_the_configured_stencil() {
     let (yaw, pitch) = (0.3, 0.1);
     let close = |a: f32, b: f32| (a - b).abs() < 1e-5;
 
-    let single = calculate_projectile_spawns(
-        &shooter,
-        yaw,
-        pitch,
-        None,
-        1.6,
-        &gameplay,
-        &world,
-        &PlateState::default(),
-    );
+    let single = calculate_projectile_spawns(&shooter, yaw, pitch, None, 1.6, &gameplay, &world, &[]);
     assert_eq!(single.len(), 1);
     assert!(close(single[0].direction_yaw, yaw) && close(single[0].direction_pitch, pitch));
 
     let spread = 1.5_f32.to_radians();
-    let multi = calculate_projectile_spawns(
-        &shooter,
-        yaw,
-        pitch,
-        Some("test"),
-        1.6,
-        &gameplay,
-        &world,
-        &PlateState::default(),
-    );
+    let multi = calculate_projectile_spawns(&shooter, yaw, pitch, Some("test"), 1.6, &gameplay, &world, &[]);
     let offsets: Vec<(f32, f32)> = multi
         .iter()
         .map(|spawn| (spawn.direction_yaw - yaw, spawn.direction_pitch - pitch))

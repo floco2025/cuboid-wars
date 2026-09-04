@@ -97,7 +97,6 @@ pub fn handle_missile_shot_message(
             .collect::<Vec<_>>();
         acquire_lock(
             collision_world,
-            &plates.powered_bridge_kinds,
             eye,
             aim,
             gameplay_config.missiles.lock_range + LOCK_RANGE_GRACE,
@@ -139,7 +138,7 @@ pub fn handle_missile_shot_message(
         missile_speed * LAUNCH_CLEAR_SECS,
         MISSILE_RADIUS,
         collision_world,
-        plates,
+        &plates.open_barrier_kinds,
         &mut rand::rng(),
     );
     let velocity = launch_dir * missile_speed;
@@ -184,12 +183,12 @@ fn clear_launch_direction(
     runway: f32,
     radius: f32,
     collision_world: &CollisionWorld,
-    plates: &PlateState,
+    open_kinds: &[BarrierKindId],
     rng: &mut impl RngExt,
 ) -> Vec3 {
     for _ in 0..LAUNCH_SAMPLES {
         let candidate = launch_direction(aim, spread_rad, rng);
-        if sweep_clear(collision_world, plates, muzzle, candidate * runway, radius) {
+        if sweep_clear(collision_world, open_kinds, muzzle, candidate * runway, radius) {
             return candidate;
         }
     }

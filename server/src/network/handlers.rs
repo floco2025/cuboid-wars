@@ -86,7 +86,6 @@ pub(super) fn handle_jump_message(
     queries: &CharacterQueries,
     collision_world: &CollisionWorld,
     gameplay_config: &GameplayConfig,
-    plates: &PlateState,
 ) {
     if players.get(&id).is_some_and(PlayerInfo::is_stunned) {
         return;
@@ -105,7 +104,6 @@ pub(super) fn handle_jump_message(
         gameplay_config.player.physics(),
         gameplay_config.player.jump_speed,
         pos,
-        &plates.powered_bridge_kinds,
     ) else {
         return;
     };

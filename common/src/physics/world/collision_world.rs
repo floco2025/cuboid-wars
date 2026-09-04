@@ -15,14 +15,14 @@ use rapier3d::{
 use crate::{
     config::CharacterPhysicsConfig,
     physics::characters::{character_center, character_shape},
-    protocol::{BarrierKindId, BarrierKindTable, BridgeKindId, MapLayout, PlateState, Position},
+    protocol::{BarrierKindId, BarrierKindTable, BridgeKindId, MapLayout, Position},
 };
 
 use super::colliders::{
-    ColliderKind, FLOOR_COLLISION_GROUP, WALL_COLLISION_GROUP, barrier_collision_group, bridge_collision_group,
-    character_collision_groups, ground_collision_groups, insert_barrier_collider, insert_bridge_collider,
-    insert_floor_collider, insert_ramp_collider, insert_wall_collider, query_filter, surface_collision_groups,
-    world_collision_groups,
+    BRIDGE_COLLISION_GROUP, ColliderKind, FLOOR_COLLISION_GROUP, WALL_COLLISION_GROUP, barrier_collision_group,
+    character_collision_groups, collider_interaction_groups, ground_collision_groups, insert_barrier_collider,
+    insert_bridge_collider, insert_floor_collider, insert_ramp_collider, insert_wall_collider, query_filter,
+    surface_collision_groups, world_collision_groups,
 };
 
 use super::ladders::LadderVolume;
@@ -46,6 +46,8 @@ pub struct CollisionWorld {
     // by character filters and barrier-only shape casts so we don't loop
     // the table per query.
     all_barrier_groups: Group,
+    // Every light bridge collider with its kind, for `set_powered_bridges`.
+    bridge_colliders: Vec<(BridgeKindId, ColliderHandle)>,
     ladder_volumes: Vec<LadderVolume>,
 }
 
@@ -74,8 +76,11 @@ impl CollisionWorld {
             collider_handles.push(insert_barrier_collider(&mut colliders, barrier));
         }
 
+        let mut bridge_colliders = Vec::with_capacity(map_layout.light_bridges.len());
         for bridge in &map_layout.light_bridges {
-            collider_handles.push(insert_bridge_collider(&mut colliders, bridge));
+            let handle = insert_bridge_collider(&mut colliders, bridge);
+            collider_handles.push(handle);
+            bridge_colliders.push((bridge.kind, handle));
         }
 
         let mut broad_phase = BroadPhaseBvh::new();
@@ -103,7 +108,24 @@ impl CollisionWorld {
             broad_phase,
             narrow_phase,
             all_barrier_groups,
+            bridge_colliders,
             ladder_volumes,
+        }
+    }
+
+    // Bridge power is world state, not per-query state: the powered kinds'
+    // colliders join `BRIDGE_COLLISION_GROUP` and the rest leave every group,
+    // so each surface query sees the current bridges without carrying the
+    // powered set. Both sides apply `PlateState` here whenever it changes
+    // (`powered_bridges_sync_system`).
+    pub fn set_powered_bridges(&mut self, powered: &[BridgeKindId]) {
+        for (kind, handle) in &self.bridge_colliders {
+            let membership = if powered.contains(kind) {
+                BRIDGE_COLLISION_GROUP
+            } else {
+                Group::empty()
+            };
+            self.colliders[*handle].set_collision_groups(collider_interaction_groups(membership));
         }
     }
 
@@ -141,7 +163,6 @@ impl CollisionWorld {
         character_pos: &Pose,
         desired_translation: Vector,
         passable_kinds: &[BarrierKindId],
-        powered_bridges: &[BridgeKindId],
         excluded_colliders: &[ColliderHandle],
         events: impl FnMut(CharacterCollision),
     ) -> EffectiveCharacterMovement {
@@ -149,11 +170,7 @@ impl CollisionWorld {
         // a body overlapping the aperture, which is what lets it pass
         // through the surface.
         let allow = |handle: ColliderHandle, _: &rapier3d::prelude::Collider| !excluded_colliders.contains(&handle);
-        let mut filter = query_filter(character_collision_groups(
-            passable_kinds,
-            powered_bridges,
-            self.all_barrier_groups,
-        ));
+        let mut filter = query_filter(character_collision_groups(passable_kinds, self.all_barrier_groups));
         if !excluded_colliders.is_empty() {
             filter.predicate = Some(&allow);
         }
@@ -178,14 +195,8 @@ impl CollisionWorld {
     // `cast_moving_ball_against_barriers` instead, so they're filtered out
     // here.
     #[must_use]
-    pub fn cast_moving_ball(
-        &self,
-        position: Vec3,
-        translation: Vec3,
-        radius: f32,
-        powered_bridges: &[BridgeKindId],
-    ) -> Option<ShapeCastHit> {
-        self.cast_moving_ball_with_filter(position, translation, radius, surface_collision_groups(powered_bridges))
+    pub fn cast_moving_ball(&self, position: Vec3, translation: Vec3, radius: f32) -> Option<ShapeCastHit> {
+        self.cast_moving_ball_with_filter(position, translation, radius, surface_collision_groups())
     }
 
     // Cast a moving ball against barrier colliders only. Used by projectiles
@@ -338,15 +349,10 @@ impl CollisionWorld {
         max_distance: f32,
         target_distance: f32,
         passable_kinds: &[BarrierKindId],
-        powered_bridges: &[BridgeKindId],
         excluded_colliders: &[ColliderHandle],
     ) -> Option<ShapeCastHit> {
         let allow = |handle: ColliderHandle, _: &rapier3d::prelude::Collider| !excluded_colliders.contains(&handle);
-        let mut filter = query_filter(character_collision_groups(
-            passable_kinds,
-            powered_bridges,
-            self.all_barrier_groups,
-        ));
+        let mut filter = query_filter(character_collision_groups(passable_kinds, self.all_barrier_groups));
         if !excluded_colliders.is_empty() {
             filter.predicate = Some(&allow);
         }
@@ -369,17 +375,20 @@ impl CollisionWorld {
     }
 
     #[must_use]
-    pub(crate) fn projectile_spawn_overlaps_blocker(&self, position: Vec3, radius: f32, plates: &PlateState) -> bool {
+    pub(crate) fn projectile_spawn_overlaps_blocker(
+        &self,
+        position: Vec3,
+        radius: f32,
+        open_kinds: &[BarrierKindId],
+    ) -> bool {
         // Walls, floors, and powered bridges are always blockers. Barriers
         // block the muzzle unless the kind is currently open (pressure-plate
         // held) — those barriers are gone visually and shots pass through
         // them, so the muzzle clipping them is fine.
-        let mut groups = WALL_COLLISION_GROUP | FLOOR_COLLISION_GROUP | self.all_barrier_groups;
-        for kind in &plates.open_barrier_kinds {
+        let mut groups =
+            WALL_COLLISION_GROUP | FLOOR_COLLISION_GROUP | BRIDGE_COLLISION_GROUP | self.all_barrier_groups;
+        for kind in open_kinds {
             groups.remove(barrier_collision_group(*kind));
-        }
-        for kind in &plates.powered_bridge_kinds {
-            groups |= bridge_collision_group(*kind);
         }
         self.ball_overlaps_groups(position, radius, groups)
     }
@@ -428,13 +437,15 @@ impl CollisionWorld {
             .collect()
     }
 
+    // Whether the oriented shape touches anything a body could stand on or
+    // walk into right now: the static world plus the powered bridges.
     #[must_use]
-    pub(crate) fn oriented_shape_overlaps_world(&self, center: Vec3, rotation: Quat, shape: &dyn Shape) -> bool {
+    pub(crate) fn oriented_shape_overlaps_surface(&self, center: Vec3, rotation: Quat, shape: &dyn Shape) -> bool {
         let query_pipeline = self.broad_phase.as_query_pipeline(
             self.narrow_phase.query_dispatcher(),
             &self.bodies,
             &self.colliders,
-            query_filter(world_collision_groups()),
+            query_filter(surface_collision_groups()),
         );
         let axis_angle = rotation.to_scaled_axis();
         let pose = Pose::new(

@@ -6,7 +6,7 @@ use crate::{
     config::ProjectilesConfig,
     constants::PHYSICS_EPSILON,
     physics::CollisionWorld,
-    protocol::{BarrierKindId, BridgeKindId, Position},
+    protocol::{BarrierKindId, Position},
 };
 
 #[derive(Component)]
@@ -119,11 +119,10 @@ impl ProjectileMotion {
         projectile_pos: &Position,
         delta: f32,
         collision_world: &CollisionWorld,
-        powered_bridges: &[BridgeKindId],
     ) -> Option<f32> {
         let translation = self.velocity * delta;
         collision_world
-            .cast_moving_ball(Vec3::from(*projectile_pos), translation, self.radius, powered_bridges)
+            .cast_moving_ball(Vec3::from(*projectile_pos), translation, self.radius)
             .map(|hit| hit.t)
     }
 
@@ -133,11 +132,9 @@ impl ProjectileMotion {
         projectile_pos: &Position,
         delta: f32,
         collision_world: &CollisionWorld,
-        powered_bridges: &[BridgeKindId],
     ) -> Option<SurfaceBounce> {
         let translation = self.velocity * delta;
-        let collision =
-            collision_world.cast_moving_ball(Vec3::from(*projectile_pos), translation, self.radius, powered_bridges)?;
+        let collision = collision_world.cast_moving_ball(Vec3::from(*projectile_pos), translation, self.radius)?;
         let (position, remaining_delta) =
             self.step_after_collision(projectile_pos, delta, collision.normal, collision.t);
         Some(SurfaceBounce {

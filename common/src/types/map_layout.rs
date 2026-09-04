@@ -1,3 +1,4 @@
+use anyhow::Result;
 use bevy_ecs::prelude::Resource;
 use bincode::{Decode, Encode};
 use serde::{Deserialize, Deserializer};
@@ -5,7 +6,7 @@ use serde::{Deserialize, Deserializer};
 use crate::config::MapMovementConfig;
 
 use super::face_materials::FaceMaterials;
-use super::{BarrierKindId, BridgeKindId, ItemType, Position};
+use super::{BarrierKindId, BarrierKindTable, BridgeKindId, BridgeKindTable, ItemType, Position};
 
 #[derive(Debug, Clone, Encode, Decode, Copy)]
 pub struct Wall {
@@ -83,14 +84,10 @@ pub struct Barrier {
     pub kind: BarrierKindId,
 }
 
-// Freestanding climbable element anchored on a grid edge. The segment is the
-// edge span already shrunk to `LADDER_WIDTH` centered on the edge midpoint.
-// One-sided: the normal points at the FRONT — the climbable rail side —
-// while the back is passed through. No Rapier collider — the character step
-// queries the derived climb volumes directly.
 // A plate-powered walkway: one merged rectangle of same-kind cells, a thin
 // slab whose standing surface is `y`. Solid and lit only while its kind is
-// powered (`PlateState.powered_bridge_kinds`).
+// powered (`PlateState.powered_bridge_kinds`, applied to the collider by
+// `CollisionWorld::set_powered_bridges`).
 #[derive(Debug, Clone, Encode, Decode, Copy)]
 pub struct LightBridge {
     pub x1: f32,
@@ -114,6 +111,11 @@ impl LightBridge {
     }
 }
 
+// Freestanding climbable element anchored on a grid edge. The segment is the
+// edge span already shrunk to `LADDER_WIDTH` centered on the edge midpoint.
+// One-sided: the normal points at the FRONT — the climbable rail side —
+// while the back is passed through. No Rapier collider — the character step
+// queries the derived climb volumes directly.
 #[derive(Debug, Clone, Encode, Decode, Copy)]
 pub struct Ladder {
     pub x1: f32,
@@ -256,6 +258,14 @@ pub enum PortalMode {
 }
 
 impl MapSettings {
+    // The id tables both sides build once at startup from the ordered lists.
+    pub fn kind_tables(&self) -> Result<(BarrierKindTable, BridgeKindTable)> {
+        Ok((
+            BarrierKindTable::from_ids(self.barrier_kinds.clone().unwrap_or_default())?,
+            BridgeKindTable::from_ids(self.bridge_kinds.clone().unwrap_or_default())?,
+        ))
+    }
+
     #[must_use]
     pub fn gravity_for(&self, has_low_gravity: bool) -> f32 {
         if has_low_gravity {

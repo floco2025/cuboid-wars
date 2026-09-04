@@ -7,7 +7,7 @@ use super::kind_table::{KindId, KindTable};
 pub struct BridgeKindId(pub u16);
 
 impl KindId for BridgeKindId {
-    const MAX: usize = 13;
+    const MAX: Option<usize> = None;
     const CONFIG_KEY: &'static str = "bridge_kinds";
     const NOUN: &'static str = "bridge";
 

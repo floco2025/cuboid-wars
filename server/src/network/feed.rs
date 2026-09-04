@@ -1,6 +1,6 @@
 use super::{ServerToClient, broadcast_to_all, broadcast_to_others};
 use crate::{config::FeedConfig, players::PlayerMap};
-use common::protocol::{BarrierKindId, BridgeKindId, FeedSpan, FeedStyle, PlayerId, SFeed, ServerMessage};
+use common::protocol::{BarrierKindId, BridgeKindId, FeedSpan, FeedStyle, HeldPurpose, PlayerId, SFeed, ServerMessage};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DeathCause {
@@ -84,6 +84,23 @@ pub enum FeedEvent {
         name: String,
         text: String,
     },
+}
+
+impl FeedEvent {
+    // A plate press that flipped `purpose` on, credited to `name`.
+    pub fn plate_held(purpose: HeldPurpose, name: String, kind_name: String) -> Self {
+        match purpose {
+            HeldPurpose::Barrier(kind) => Self::BarrierOpened { name, kind, kind_name },
+            HeldPurpose::Bridge(kind) => Self::BridgePowered { name, kind, kind_name },
+        }
+    }
+
+    pub fn plate_released(purpose: HeldPurpose, kind_name: String) -> Self {
+        match purpose {
+            HeldPurpose::Barrier(kind) => Self::BarrierClosed { kind, kind_name },
+            HeldPurpose::Bridge(kind) => Self::BridgeUnpowered { kind, kind_name },
+        }
+    }
 }
 
 pub fn emit_feed(players: &PlayerMap, config: &FeedConfig, audience: FeedAudience, event: FeedEvent) {

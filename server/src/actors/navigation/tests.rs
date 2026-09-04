@@ -2,7 +2,7 @@ use bevy::prelude::Vec3;
 use common::constants::{GRID_CELL_SIZE, LEVEL_HEIGHT, WALL_THICKNESS};
 use common::map::MapGeometry;
 use common::physics::CollisionWorld;
-use common::protocol::{BarrierKindTable, BridgeKindTable, MapLayout, Position, Wall};
+use common::protocol::{BarrierKindTable, MapLayout, Position, Wall};
 
 use super::{NavGraph, routing::COVER_SEARCH_MAX_STEPS};
 use crate::map::{ActorSpawnZone, CellGrid, EdgeGrid, GeneratedMap, LevelGrid, MapConfig};
@@ -414,22 +414,18 @@ fn shipping_map_zones_are_mutually_reachable() {
     let server_gameplay_config =
         crate::config::ServerGameplayConfig::load_default().expect("default server gameplay config should load");
     let map_name = &server_gameplay_config.default_map;
-    let barrier_kinds = BarrierKindTable::from_ids(
-        server_gameplay_config
-            .maps
-            .get(map_name)
-            .expect("default map settings missing")
-            .settings
-            .barrier_kinds
-            .clone()
-            .unwrap_or_default(),
-    )
-    .expect("build default map barrier kinds");
+    let (barrier_kinds, bridge_kinds) = server_gameplay_config
+        .maps
+        .get(map_name)
+        .expect("default map settings missing")
+        .settings
+        .kind_tables()
+        .expect("default map kind tables rejected");
     let GeneratedMap {
         config: map_config,
         geometry,
         ..
-    } = crate::map::generate_map(map_name, &barrier_kinds, &BridgeKindTable::default()).expect("generate default map");
+    } = crate::map::generate_map(map_name, &barrier_kinds, &bridge_kinds).expect("default map failed to generate");
     let zones = map_config.actor_spawn_zones.clone();
     let nav = NavGraph::new(map_config, geometry);
 
@@ -734,22 +730,18 @@ fn shipping_map_sentry_recentres_before_entering_the_basement_ramp_trench() {
     let server_gameplay_config =
         crate::config::ServerGameplayConfig::load_default().expect("default server gameplay config should load");
     let gameplay_config = server_gameplay_config.gameplay_config();
-    let barrier_kinds = BarrierKindTable::from_ids(
-        server_gameplay_config
-            .maps
-            .get("hotel")
-            .expect("hotel settings missing")
-            .settings
-            .barrier_kinds
-            .clone()
-            .unwrap_or_default(),
-    )
-    .expect("build hotel barrier kinds");
+    let (barrier_kinds, bridge_kinds) = server_gameplay_config
+        .maps
+        .get("hotel")
+        .expect("hotel settings missing")
+        .settings
+        .kind_tables()
+        .expect("hotel kind tables rejected");
     let GeneratedMap {
         layout,
         config: map_config,
         geometry,
-    } = crate::map::generate_map("hotel", &barrier_kinds, &BridgeKindTable::default()).expect("generate the hotel map");
+    } = crate::map::generate_map("hotel", &barrier_kinds, &bridge_kinds).expect("hotel map failed to generate");
     let world = CollisionWorld::from_map_layout(&layout, &barrier_kinds);
     let nav = NavGraph::new(map_config, geometry);
     let sentry = gameplay_config.expect_actor("sentry").physics();

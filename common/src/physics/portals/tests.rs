@@ -859,6 +859,52 @@ fn wall_light_on_the_other_face_does_not_block_placement() {
     assert!((placement.pos.y - 1.6).abs() < 0.01);
 }
 
+// A powered bridge slab crossing the oval is as solid as a floor to a
+// traveller, so front clearance must see it; backing stays bridge-blind.
+#[test]
+fn placement_front_clearance_rejects_a_powered_light_bridge() {
+    use crate::constants::{BRIDGE_THICKNESS, PORTAL_HALF_HEIGHT, PORTAL_RIM_SCALE};
+    use crate::protocol::{BridgeKindId, LightBridge};
+
+    let mut layout = placement_layout();
+    layout.walls.push(Wall {
+        x1: -6.0,
+        z1: 0.0,
+        x2: 6.0,
+        z2: 0.0,
+        width: WALL_THICKNESS,
+        level: 1,
+    });
+    layout.light_bridges.push(LightBridge {
+        x1: -6.0,
+        z1: 0.0,
+        x2: 6.0,
+        z2: 4.0,
+        y: LEVEL_HEIGHT,
+        level: 1,
+        kind: BridgeKindId(0),
+    });
+    let mut world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
+    let origin = Vec3::new(0.0, 3.7, 3.0);
+    let aim = Vec3::new(0.0, 3.7, 0.0);
+    let shoot =
+        |world: &CollisionWorld| compute_portal_placement(origin, (aim - origin).normalize(), PI, 40.0, world, &layout);
+
+    let ghost = shoot(&world).expect("an unpowered bridge blocked the shot");
+    assert!(
+        (ghost.pos.y - aim.y).abs() < 1e-3,
+        "ghost bridge moved the portal to {ghost:?}"
+    );
+
+    world.set_powered_bridges(&[BridgeKindId(0)]);
+    let solid = shoot(&world).expect("no fitting spot below the powered bridge");
+    let rim_top = solid.pos.y + PORTAL_HALF_HEIGHT * PORTAL_RIM_SCALE;
+    assert!(
+        rim_top <= LEVEL_HEIGHT - BRIDGE_THICKNESS,
+        "portal rim at {rim_top} still crosses the powered bridge"
+    );
+}
+
 #[test]
 fn placement_rejects_a_floor_portal_covering_a_pressure_plate() {
     let mut layout = placement_layout();
@@ -918,7 +964,6 @@ fn perpetual_floor_fall_keeps_its_speed_across_hops() {
         collision_world: &world,
         gravity: 25.0,
         passable_kinds: &[],
-        powered_bridges: &[],
         physics,
         ladder_climb_ratio: LADDER_CLIMB_RATIO,
         portals: Some(&set),
@@ -1007,7 +1052,6 @@ fn floor_to_ceiling_fall_accelerates_toward_terminal_velocity() {
         collision_world: &world,
         gravity: 25.0,
         passable_kinds: &[],
-        powered_bridges: &[],
         physics,
         ladder_climb_ratio: LADDER_CLIMB_RATIO,
         portals: Some(&set),
@@ -1156,7 +1200,6 @@ fn steering_sideways_escapes_a_portal_fall_chain() {
         collision_world: &world,
         gravity: 25.0,
         passable_kinds: &[],
-        powered_bridges: &[],
         physics,
         ladder_climb_ratio: LADDER_CLIMB_RATIO,
         portals: Some(&set),
@@ -1280,7 +1323,6 @@ fn floor_portal_funnel_is_symmetric_through_character_movement() {
         collision_world: &world,
         gravity: 25.0,
         passable_kinds: &[],
-        powered_bridges: &[],
         physics,
         ladder_climb_ratio: LADDER_CLIMB_RATIO,
         portals: Some(&set),
@@ -1379,7 +1421,6 @@ fn misaligned_fall_loop_is_sustained_by_funneling() {
         collision_world: &world,
         gravity: 25.0,
         passable_kinds: &[],
-        powered_bridges: &[],
         physics,
         ladder_climb_ratio: LADDER_CLIMB_RATIO,
         portals: Some(&set),

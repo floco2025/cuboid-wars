@@ -15,10 +15,7 @@ use common::{physics::CollisionWorld, protocol::*};
 
 pub(crate) fn install_bootstrap(app: &mut App, message: SInit, asset_set: &AssetSet) -> anyhow::Result<()> {
     let gameplay_config = message.world.gameplay.gameplay_config()?;
-    let barrier_kind_table =
-        BarrierKindTable::from_ids(message.world.map.settings.barrier_kinds.clone().unwrap_or_default())?;
-    let bridge_kind_table =
-        BridgeKindTable::from_ids(message.world.map.settings.bridge_kinds.clone().unwrap_or_default())?;
+    let (barrier_kind_table, bridge_kind_table) = message.world.map.settings.kind_tables()?;
     asset_set.validate_gameplay_bindings(
         gameplay_config.actors.keys().map(String::as_str),
         &barrier_kind_table,
@@ -64,7 +61,6 @@ pub(crate) fn install_bootstrap(app: &mut App, message: SInit, asset_set: &Asset
         .insert_resource(gameplay_config)
         .insert_resource(barrier_kind_table)
         .insert_resource(barrier_assets)
-        .insert_resource(bridge_kind_table)
         .insert_resource(bridge_assets)
         .insert_resource(projectile_assets)
         .insert_resource(message.world.map.layout)

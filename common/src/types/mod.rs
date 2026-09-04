@@ -32,7 +32,7 @@ pub use map_layout::{
 pub use movement::{
     ActorMoveIntent, ActorMovementState, FaceYaw, MissileMovementState, PlayerMoveIntent, PlayerMovementState,
 };
-pub use plates::PlateState;
+pub use plates::{HeldPurpose, PlateState};
 pub use portals::{Portal, PortalAccess, PortalEnd};
 pub use position::Position;
 pub use quests::{QuestGroupProgress, QuestGroupStatus, QuestScope, QuestStateProgress, QuestStatus};

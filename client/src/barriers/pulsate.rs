@@ -3,13 +3,12 @@ use bevy::prelude::*;
 use std::f32::consts::TAU;
 
 use super::BarrierAssets;
-use crate::config::ClientSettings;
+use crate::{config::ClientSettings, vfx::color_with_alpha};
 
-// Drive each kind's shared material by a sine wave on `base_color.alpha`.
-// With `unlit: true` + `AlphaMode::Blend`, the surface alpha is the only
-// visual knob that actually responds (emissive is ignored when unlit). The
-// pulse therefore reads as a translucency fade in / out. Per-kind phase
-// offsets keep adjacent colors out of lockstep.
+// Drive each kind's shared material by a sine wave on `base_color.alpha`;
+// the emissive is set once on the material and never pulsed, so the pulse
+// reads as a translucency fade in / out. Per-kind phase offsets keep
+// adjacent colors out of lockstep.
 //
 // Because each material handle is shared across every barrier of that kind
 // (plus every same-kind key), one write here updates every visible instance
@@ -32,7 +31,6 @@ pub fn barriers_pulsate_system(
         let phase = idx as f32 * 0.5;
         let s = (t * pulse_hz * TAU + phase).sin() * 0.5 + 0.5;
         let alpha = alpha_min + (alpha_max - alpha_min) * s;
-        let linear = assets.base_colors[idx].to_linear();
-        mat.base_color = Color::srgba(linear.red, linear.green, linear.blue, alpha);
+        mat.base_color = color_with_alpha(assets.base_colors[idx], alpha);
     }
 }

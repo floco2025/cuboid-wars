@@ -50,6 +50,11 @@ class EraseMixin:
                 for floor in level["inaccessible_floors"]
                 if not (c0 <= floor["col"] < c1 and r0 <= floor["row"] < r1)
             ]
+            level["light_bridges"] = [
+                bridge
+                for bridge in level.get("light_bridges", [])
+                if not (c0 <= bridge["col"] < c1 and r0 <= bridge["row"] < r1)
+            ]
         # Grass is decoration, not a floor — both erase modes remove it.
         level["grass"] = [
             grass
@@ -65,11 +70,6 @@ class EraseMixin:
             barrier
             for barrier in level.get("barriers", [])
             if not wall_overlaps_rect([barrier["c0"], barrier["r0"], barrier["c1"], barrier["r1"]], (c0, r0, c1, r1))
-        ]
-        level["light_bridges"] = [
-            bridge
-            for bridge in level.get("light_bridges", [])
-            if not (c0 <= bridge["col"] < c1 and r0 <= bridge["row"] < r1)
         ]
         for list_name in SPAWN_ZONE_LISTS:
             after[list_name] = [

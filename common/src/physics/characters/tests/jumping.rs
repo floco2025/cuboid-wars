@@ -9,7 +9,7 @@ fn supported_player_can_start_jump() {
     let pos = Position { x: 0.0, y: 0.0, z: 0.0 };
 
     assert_eq!(
-        player_jump_velocity(0.0, &collision_world, player_physics(), TEST_JUMP_SPEED, &pos, &[]),
+        player_jump_velocity(0.0, &collision_world, player_physics(), TEST_JUMP_SPEED, &pos),
         Some(TEST_JUMP_SPEED)
     );
 }
@@ -21,7 +21,7 @@ fn airborne_player_cannot_start_jump() {
     let pos = Position { x: 0.0, y: 1.0, z: 0.0 };
 
     assert_eq!(
-        player_jump_velocity(0.0, &collision_world, player_physics(), TEST_JUMP_SPEED, &pos, &[]),
+        player_jump_velocity(0.0, &collision_world, player_physics(), TEST_JUMP_SPEED, &pos),
         None
     );
 }
@@ -31,7 +31,7 @@ fn upward_jump_velocity_moves_player_above_support() {
     let floor = lower_floor();
     let collision_world = collision_world(&[floor], &[]);
     let pos = Position { x: 0.0, y: 0.0, z: 0.0 };
-    let motion = player_jump_velocity(0.0, &collision_world, player_physics(), TEST_JUMP_SPEED, &pos, &[])
+    let motion = player_jump_velocity(0.0, &collision_world, player_physics(), TEST_JUMP_SPEED, &pos)
         .expect("supported player should start a jump");
 
     let step = step_character_movement(
@@ -40,7 +40,6 @@ fn upward_jump_velocity_moves_player_above_support() {
             collision_world: &collision_world,
             gravity: TEST_GRAVITY,
             passable_kinds: &[],
-            powered_bridges: &[],
             ladder_climb_ratio: test_ladders(),
             physics: player_physics(),
             portals: None,
@@ -64,7 +63,6 @@ fn landing_reports_ground_support() {
             collision_world: &collision_world,
             gravity: TEST_GRAVITY,
             passable_kinds: &[],
-            powered_bridges: &[],
             ladder_climb_ratio: test_ladders(),
             physics: player_physics(),
             portals: None,
@@ -88,7 +86,6 @@ fn upward_motion_hits_floor_underside() {
             collision_world: &collision_world,
             gravity: TEST_GRAVITY,
             passable_kinds: &[],
-            powered_bridges: &[],
             ladder_climb_ratio: test_ladders(),
             physics: player_physics(),
             portals: None,
@@ -113,7 +110,6 @@ fn initial_ceiling_contact_does_not_cancel_horizontal_movement() {
             collision_world: &collision_world,
             gravity: TEST_GRAVITY,
             passable_kinds: &[],
-            powered_bridges: &[],
             ladder_climb_ratio: test_ladders(),
             physics: player_physics(),
             portals: None,
@@ -139,7 +135,6 @@ fn upward_motion_ignores_floor_underside_outside_footprint() {
             collision_world: &collision_world,
             gravity: TEST_GRAVITY,
             passable_kinds: &[],
-            powered_bridges: &[],
             ladder_climb_ratio: test_ladders(),
             physics: player_physics(),
             portals: None,
@@ -167,7 +162,6 @@ fn upward_motion_under_floor_edge_hits_floor_side() {
             collision_world: &collision_world,
             gravity: TEST_GRAVITY,
             passable_kinds: &[],
-            powered_bridges: &[],
             ladder_climb_ratio: test_ladders(),
             physics: player_physics(),
             portals: None,
@@ -195,7 +189,6 @@ fn player_on_floor_top_can_move_over_adjacent_floor_slab_edge() {
             collision_world: &collision_world,
             gravity: TEST_GRAVITY,
             passable_kinds: &[],
-            powered_bridges: &[],
             ladder_climb_ratio: test_ladders(),
             physics: player_physics(),
             portals: None,

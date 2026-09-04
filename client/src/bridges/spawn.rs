@@ -1,17 +1,14 @@
-use bevy::prelude::*;
+use bevy::{light::NotShadowCaster, prelude::*};
 
 use super::BridgeAssets;
 use crate::map::MapLevel;
 use common::{
     constants::BRIDGE_THICKNESS,
-    protocol::{BridgeKindId, LightBridge, MapLayout},
+    protocol::{LightBridge, MapLayout},
 };
 
 #[derive(Component)]
 pub struct LightBridgeMarker;
-
-#[derive(Component)]
-pub struct BridgeKindMarker(pub BridgeKindId);
 
 // One entity per `LightBridge` rectangle in the current `MapLayout`. Level
 // focus drives `Visibility`; the powered state only moves the kind
@@ -39,10 +36,12 @@ fn spawn_bridge(commands: &mut Commands, assets: &BridgeAssets, bridge: &LightBr
     let (min_x, max_x, min_z, max_z) = bridge.bounds_xz();
     commands.spawn((
         LightBridgeMarker,
-        BridgeKindMarker(bridge.kind),
         MapLevel(bridge.level),
         Mesh3d(assets.mesh.clone()),
         MeshMaterial3d(assets.material_for(bridge.kind).clone()),
+        // The ghost alpha is above the shadow pass's discard threshold, so
+        // without this an unpowered bridge casts a fully opaque shadow.
+        NotShadowCaster,
         Transform {
             translation: Vec3::new(
                 f32::midpoint(min_x, max_x),
