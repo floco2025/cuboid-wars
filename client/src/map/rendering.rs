@@ -1,8 +1,8 @@
+use bevy::asset::AssetPath;
 use bevy::light::{DirectionalLightShadowMap, cluster::GlobalClusterSettings};
 use bevy::prelude::*;
 
 use crate::{
-    barriers::BarrierAssets,
     config::{AssetSet, ClientSettings},
     map::{
         DebugColorMode, DebugColors, FocusedMapLevel, GrassMarker, GroundMarker, LadderMarker, LevelFocusEnabled,
@@ -267,11 +267,13 @@ fn ladder_visibility(focused: FocusedMapLevel, level: u8, levels: u8) -> Visibil
 // System to make wall light glass materials emissive after they load
 pub fn map_wall_light_emissive_system(
     asset_set: Res<AssetSet>,
-    barrier_assets: Res<BarrierAssets>,
+    asset_server: Res<AssetServer>,
     mut asset_events: MessageReader<AssetEvent<StandardMaterial>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    let emissive_luminance = asset_set.wall_light_model().emissive_luminance;
+    let wall_light = asset_set.wall_light_model();
+    let scene_path = AssetPath::parse(&wall_light.scene);
+    let emissive_luminance = wall_light.emissive_luminance;
     let warm_tint = (1.0, 0.95, 0.85);
     let desired_emissive = LinearRgba::rgb(
         warm_tint.0 * emissive_luminance,
@@ -288,14 +290,17 @@ pub fn map_wall_light_emissive_system(
         }) else {
             continue;
         };
-        // Barrier materials are translucent too, but their pulsation system owns them.
-        if barrier_assets.material_handles().iter().any(|handle| handle.id() == id) {
+        // Only the lamp glb's own sub-materials; every other translucent material has its own owner.
+        if asset_server
+            .get_path(id)
+            .is_none_or(|path| path.path() != scene_path.path())
+        {
             continue;
         }
         let Some(material) = materials.get(id) else {
             continue;
         };
-        if material.alpha_mode == AlphaMode::Opaque && material.base_color.alpha() >= 1.0 {
+        if material.alpha_mode == AlphaMode::Opaque {
             continue;
         }
         let desired_base_color = Color::srgba(warm_tint.0, warm_tint.1, warm_tint.2, material.base_color.alpha());

@@ -29,9 +29,9 @@ fn plate_visibility(purpose: PlatePurpose, locked: &[PlatePurpose]) -> Visibilit
     }
 }
 
-// Runs after the spawn system so a re-spawn can't leave a locked plate
-// visible for a frame. Level focus never touches plates, so writing both
-// directions here races nothing.
+// Spawn sets the initial visibility; this only tracks later lock changes.
+// Level focus never touches plates, so writing both directions here races
+// nothing.
 pub fn pressure_plates_visibility_system(
     locked: Res<LockedPlatePurposes>,
     mut plates: Query<(&PlatePurposeMarker, &mut Visibility), With<PressurePlateMarker>>,

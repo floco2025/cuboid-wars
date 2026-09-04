@@ -33,13 +33,13 @@ pub fn map_plugin(app: &mut App) {
                 .after(map_level_focus_visibility_system),
             map_wall_light_emissive_system,
             wall_light_flicker_system,
-            barriers_spawn_system,
+            barriers_spawn_system.after(update_focused_map_level_system),
             barriers_pulsate_system,
             barriers_visibility_system
                 .after(barriers_spawn_system)
                 .after(update_focused_map_level_system),
             pressure_plates_spawn_system,
-            pressure_plates_visibility_system.after(pressure_plates_spawn_system),
+            pressure_plates_visibility_system,
         )
             .in_set(ClientSet::MapMaintenance),
     );

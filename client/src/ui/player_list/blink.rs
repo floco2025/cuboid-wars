@@ -25,9 +25,7 @@ pub fn ui_stunned_blink_system(
             } else {
                 base_color
             };
-            // Skip the write in the steady (unstunned) state so the row's
-            // `BackgroundColor` isn't marked changed every frame.
-            bg_color.set_if_neq(BackgroundColor(color));
+            bg_color.0 = color;
         }
     }
 }

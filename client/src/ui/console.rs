@@ -239,16 +239,16 @@ pub fn ui_console_render_system(
         return;
     }
     let (mut text, mut color, mut visibility) = node.into_inner();
-    // Console history can change without changing the prompt; equal writes would still dirty its UI nodes.
+    // Console history can change without changing the prompt; an equal `Text`
+    // write would rerun text layout and an equal `Visibility` write propagation.
     if console.open {
         let line = prompt(&console.buffer);
         text.set_if_neq(Text(line));
-        let wanted = if console.buffer.starts_with('/') {
+        color.0 = if console.buffer.starts_with('/') {
             CONSOLE_TEXT_COLOR
         } else {
             FEED_CHAT_TEXT_COLOR
         };
-        color.set_if_neq(TextColor(wanted));
     }
     visibility.set_if_neq(if console.open {
         Visibility::Visible

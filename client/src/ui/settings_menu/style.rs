@@ -11,7 +11,7 @@ use super::state::{
 use crate::config::ClientSettings;
 use crate::constants::{SETTINGS_ACCENT_COLOR, SETTINGS_OUTLINE_COLOR, SETTINGS_SLIDER_TRACK_COLOR};
 
-// The menu is small and transient, but equal writes still trigger unnecessary UI work while it is open.
+// Nothing change-detects these colors, so the restyle writes unconditionally while the menu is open.
 pub(super) fn settings_menu_style_system(
     mut cycler_buttons: Query<
         (&Hovered, Has<Pressed>, Has<InteractionDisabled>, &mut BackgroundColor),
@@ -41,7 +41,7 @@ pub(super) fn settings_menu_style_system(
         } else {
             SETTINGS_SLIDER_TRACK_COLOR
         };
-        color.set_if_neq(BackgroundColor(target));
+        color.0 = target;
     }
 
     for (entity, hovered, checked) in &checkboxes {
@@ -52,11 +52,11 @@ pub(super) fn settings_menu_style_system(
                 } else {
                     SETTINGS_OUTLINE_COLOR
                 };
-                border.set_if_neq(BorderColor::all(target));
+                border.set_all(target);
             }
             if let Ok(mut mark) = check_marks.get_mut(child) {
                 let target = if checked { SETTINGS_ACCENT_COLOR } else { Color::NONE };
-                mark.set_if_neq(BackgroundColor(target));
+                mark.0 = target;
             }
         }
     }
@@ -69,7 +69,7 @@ pub(super) fn settings_menu_style_system(
                 } else {
                     SETTINGS_ACCENT_COLOR
                 };
-                thumb.set_if_neq(BackgroundColor(target));
+                thumb.0 = target;
             }
         }
     }
@@ -113,7 +113,7 @@ fn slider_label(setting: SliderSetting, value: f32) -> String {
 // Cycler readouts come from the live sources every frame, so nothing the
 // user changes elsewhere (drag-resize, Cmd+F) can leave them stale. The
 // resolution row is a fullscreen setting and goes inactive while windowed.
-// Equal component writes stay suppressed so the continuous scan does not dirty the UI every frame.
+// Equal `Text` writes would rerun text layout every frame.
 pub(super) fn settings_menu_window_sync_system(
     windows: Query<(&Window, Option<&OnMonitor>), With<PrimaryWindow>>,
     monitors: Query<&Monitor>,
@@ -167,7 +167,7 @@ pub(super) fn settings_menu_window_sync_system(
         } else {
             Color::WHITE
         };
-        color.set_if_neq(TextColor(target));
+        color.0 = target;
     }
     for (entity, button, disabled) in &buttons {
         let desired = match button.setting {

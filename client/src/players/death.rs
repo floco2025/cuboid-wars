@@ -31,10 +31,8 @@ pub fn death_overlay_visibility_system(
     *prev_is_dead = local_player_info.is_dead;
 
     if *timer <= 0.0 {
-        // Once faded out, equal writes would keep dirtying the overlay every frame.
-        if color.0.alpha() != 0.0 {
-            color.0.set_alpha(0.0);
-        }
+        color.0.set_alpha(0.0);
+        // Once faded out, an equal `Visibility` write would rerun propagation every frame.
         visibility.set_if_neq(Visibility::Hidden);
         return;
     }
