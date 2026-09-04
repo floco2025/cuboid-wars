@@ -93,14 +93,9 @@ mod tests {
 
     fn config_and_map() -> (ServerGameplayConfig, MapConfig) {
         let server = ServerGameplayConfig::load_default().expect("load server gameplay");
-        let (barrier_kinds, bridge_kinds) = server
-            .maps
-            .get("hotel")
-            .expect("hotel settings missing")
-            .settings
-            .kind_tables()
-            .expect("hotel kind tables rejected");
-        let map = crate::map::generate_map("hotel", &barrier_kinds, &bridge_kinds)
+        let settings = &server.maps.get("hotel").expect("hotel settings missing").settings;
+        let (barrier_kinds, bridge_kinds) = settings.kind_tables().expect("hotel kind tables rejected");
+        let map = crate::map::generate_map("hotel", settings.geometry, &barrier_kinds, &bridge_kinds)
             .expect("hotel map failed to generate")
             .config;
         (server, map)

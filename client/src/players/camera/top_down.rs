@@ -1,8 +1,7 @@
 use bevy::prelude::*;
 
-use crate::map::visual_focus_level;
 use common::{
-    constants::LEVEL_HEIGHT,
+    config::MapGeometryConfig,
     protocol::{Floor, MapLayout, Position},
 };
 
@@ -62,6 +61,7 @@ pub(super) fn window_aspect_ratio(windows: &Query<&Window>) -> f32 {
 pub(super) fn topdown_camera_transform(
     player_pos: &Position,
     map_layout: Option<&MapLayout>,
+    geometry: MapGeometryConfig,
     aspect_ratio: f32,
     fov: f32,
     yaw: f32,
@@ -69,14 +69,21 @@ pub(super) fn topdown_camera_transform(
     tilt_degrees: f32,
 ) -> Transform {
     let view_direction = topdown_view_direction(yaw);
-    let player_level = visual_focus_level(player_pos.y);
+    let player_level = geometry.nearest_level_to_y(player_pos.y);
     let floor_bounds = map_layout.map_or_else(FloorBounds::fallback, |layout| {
         floor_bounds_for_level(layout, player_level)
     });
     let mut target = floor_bounds.center();
-    target.y = f32::from(player_level) * LEVEL_HEIGHT;
-    let camera_offset =
-        topdown_camera_offset_to_fit(floor_bounds, aspect_ratio, fov, view_direction, margin, tilt_degrees);
+    target.y = geometry.level_y(player_level);
+    let camera_offset = topdown_camera_offset_to_fit(
+        floor_bounds,
+        aspect_ratio,
+        fov,
+        view_direction,
+        margin,
+        tilt_degrees,
+        geometry.level_height,
+    );
     let center_shift = projected_center_shift(floor_bounds, camera_offset, view_direction);
     target += view_direction * center_shift;
 
@@ -109,6 +116,7 @@ fn topdown_camera_offset_to_fit(
     view_direction: Vec3,
     margin: f32,
     tilt_degrees: f32,
+    min_distance: f32,
 ) -> Vec3 {
     let tilt = tilt_degrees.to_radians();
     let half_vertical_fov_tan = (fov / 2.0).tan();
@@ -117,7 +125,7 @@ fn topdown_camera_offset_to_fit(
     let cross_extent = floor_extent_across_view(bounds, view_direction);
     let cross_distance = cross_extent * margin / (2.0 * half_horizontal_fov_tan);
     let view_distance = view_extent * tilt.cos() * margin / (2.0 * half_vertical_fov_tan);
-    let view_distance = cross_distance.max(view_distance).max(LEVEL_HEIGHT);
+    let view_distance = cross_distance.max(view_distance).max(min_distance);
 
     Vec3::Y * (view_distance * tilt.cos()) + view_direction * (view_distance * tilt.sin())
 }
@@ -160,6 +168,7 @@ fn topdown_view_direction(yaw: f32) -> Vec3 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_geometry::{LEVEL_HEIGHT, sizes};
     use std::f32::consts::FRAC_PI_2;
 
     fn wide_layout() -> MapLayout {
@@ -207,7 +216,7 @@ mod tests {
             y: 0.0,
             z: -3.0,
         };
-        let transform = topdown_camera_transform(&player, Some(&layout), 16.0 / 9.0, 1.0, 0.0, 1.1, 0.0);
+        let transform = topdown_camera_transform(&player, Some(&layout), sizes(), 16.0 / 9.0, 1.0, 0.0, 1.1, 0.0);
 
         // Straight-down view (no tilt, yaw 0): the camera hangs over the
         // floor center, not over the player.
@@ -220,7 +229,7 @@ mod tests {
     fn camera_height_covers_the_wider_axis_and_never_undershoots() {
         let layout = wide_layout();
         let player = Position::default();
-        let wide = topdown_camera_transform(&player, Some(&layout), 16.0 / 9.0, 1.0, 0.0, 1.1, 0.0);
+        let wide = topdown_camera_transform(&player, Some(&layout), sizes(), 16.0 / 9.0, 1.0, 0.0, 1.1, 0.0);
         // 40 m of width across a ~1 rad FOV needs far more height than the
         // LEVEL_HEIGHT floor.
         assert!(wide.translation.y > LEVEL_HEIGHT);
@@ -238,14 +247,14 @@ mod tests {
             }],
             ..Default::default()
         };
-        let close = topdown_camera_transform(&player, Some(&tiny), 16.0 / 9.0, 1.0, 0.0, 1.1, 0.0);
+        let close = topdown_camera_transform(&player, Some(&tiny), sizes(), 16.0 / 9.0, 1.0, 0.0, 1.1, 0.0);
         assert!(close.translation.y >= LEVEL_HEIGHT - 1e-3);
     }
 
     #[test]
     fn missing_layout_and_empty_level_fall_back_to_default_bounds() {
         let player = Position { x: 3.0, y: 0.0, z: 4.0 };
-        let fallback = topdown_camera_transform(&player, None, 16.0 / 9.0, 1.0, 0.0, 1.1, 0.0);
+        let fallback = topdown_camera_transform(&player, None, sizes(), 16.0 / 9.0, 1.0, 0.0, 1.1, 0.0);
 
         // A layout whose floors are all on another level behaves the same.
         let elevated = MapLayout {
@@ -260,7 +269,7 @@ mod tests {
             }],
             ..Default::default()
         };
-        let empty_level = topdown_camera_transform(&player, Some(&elevated), 16.0 / 9.0, 1.0, 0.0, 1.1, 0.0);
+        let empty_level = topdown_camera_transform(&player, Some(&elevated), sizes(), 16.0 / 9.0, 1.0, 0.0, 1.1, 0.0);
         assert!((fallback.translation - empty_level.translation).length() < 1e-3);
     }
 
@@ -268,8 +277,8 @@ mod tests {
     fn tilt_pushes_the_camera_back_along_the_view_direction() {
         let layout = wide_layout();
         let player = Position::default();
-        let straight = topdown_camera_transform(&player, Some(&layout), 16.0 / 9.0, 1.0, 0.0, 1.1, 0.0);
-        let tilted = topdown_camera_transform(&player, Some(&layout), 16.0 / 9.0, 1.0, 0.0, 1.1, 30.0);
+        let straight = topdown_camera_transform(&player, Some(&layout), sizes(), 16.0 / 9.0, 1.0, 0.0, 1.1, 0.0);
+        let tilted = topdown_camera_transform(&player, Some(&layout), sizes(), 16.0 / 9.0, 1.0, 0.0, 1.1, 30.0);
         assert!(
             tilted.translation.z.abs() > straight.translation.z.abs() + 1.0,
             "a tilted camera stands off horizontally"

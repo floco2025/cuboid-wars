@@ -57,8 +57,8 @@ mod tests {
         config::{
             CharacterColliderAnchor, CharacterColliderConfig, CharacterPhysicsConfig, CharacterSupportProbeConfig,
         },
-        constants::WALL_THICKNESS,
         protocol::{ActorId, BarrierKindTable, MapLayout, PlayerId, Wall},
+        test_geometry::{WALL_HEIGHT, WALL_THICKNESS},
     };
 
     fn physics() -> CharacterPhysicsConfig {
@@ -135,6 +135,8 @@ mod tests {
                 z2: 5.0,
                 width: WALL_THICKNESS,
                 level: 0,
+                y: 0.0,
+                height: WALL_HEIGHT,
             }],
             ..Default::default()
         };

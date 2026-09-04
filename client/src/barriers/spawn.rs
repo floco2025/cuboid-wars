@@ -44,15 +44,13 @@ pub fn barriers_spawn_system(
 }
 
 fn spawn_barrier(commands: &mut Commands, assets: &BarrierAssets, barrier: &Barrier, visibility: Visibility) {
-    use common::constants::{BARRIER_HEIGHT, LEVEL_HEIGHT};
-
     let center_x = f32::midpoint(barrier.x1, barrier.x2);
     let center_z = f32::midpoint(barrier.z1, barrier.z2);
     let dx = barrier.x2 - barrier.x1;
     let dz = barrier.z2 - barrier.z1;
     let length = dx.hypot(dz);
     let rotation = Quat::from_rotation_y(dz.atan2(dx));
-    let center_y = f32::from(barrier.level) * LEVEL_HEIGHT + BARRIER_HEIGHT / 2.0;
+    let center_y = barrier.y + barrier.height / 2.0;
 
     // Grow the segment by `BARRIER_OVERLAP_EPS` on each side along the long
     // axis (X local) and at the top/bottom (Y local), so coplanar contacts
@@ -60,7 +58,7 @@ fn spawn_barrier(commands: &mut Commands, assets: &BarrierAssets, barrier: &Barr
     // z-fighting. Thickness stays as baked in the mesh.
     let scale = Vec3::new(
         length + 2.0 * BARRIER_OVERLAP_EPS,
-        BARRIER_HEIGHT + 2.0 * BARRIER_OVERLAP_EPS,
+        barrier.height + 2.0 * BARRIER_OVERLAP_EPS,
         1.0,
     );
 

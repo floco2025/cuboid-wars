@@ -1,5 +1,5 @@
 use crate::map::CellGrid;
-use common::{constants::*, map::MapGeometry, protocol::Ramp};
+use common::{map::MapGeometry, protocol::Ramp};
 
 // Internal representation of a placed ramp. Downstream code converts it to
 // `Ramp` for the wire protocol and applies its flags to the matching lower-level
@@ -49,8 +49,8 @@ impl RampSpec {
     }
 
     fn to_ramp(&self, geometry: &MapGeometry) -> Ramp {
-        let y_low = self.lower_level as f32 * LEVEL_HEIGHT;
-        let y_high = (self.lower_level + 1) as f32 * LEVEL_HEIGHT;
+        let y_low = geometry.level_y(u8::try_from(self.lower_level).unwrap_or(u8::MAX));
+        let y_high = y_low + geometry.level_height();
 
         Ramp {
             x1: geometry.cell_to_world_x(self.low[0]),

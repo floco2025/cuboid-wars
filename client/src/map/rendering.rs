@@ -13,7 +13,7 @@ use crate::{
     materials::MaterialHandleCache,
     players::LocalPlayerMarker,
 };
-use common::protocol::{ItemMarker, MapLayout};
+use common::protocol::{ItemMarker, MapLayout, MapSettings};
 
 // ============================================================================
 // Scene Lighting Setup System
@@ -62,6 +62,7 @@ pub fn setup_scene_lighting_system(
 pub fn map_spawn_geometry_system(
     mut commands: Commands,
     map_layout: Res<MapLayout>,
+    map_settings: Res<MapSettings>,
     asset_server: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -101,7 +102,7 @@ pub fn map_spawn_geometry_system(
     }
 
     for light in &map_layout.wall_lights {
-        spawn_wall_light_from_layout(&mut commands, &asset_server, &asset_set, light);
+        spawn_wall_light_from_layout(&mut commands, &asset_server, &asset_set, map_settings.geometry, light);
     }
 
     if !map_layout.ladders.is_empty() {
@@ -131,7 +132,7 @@ pub fn map_spawn_geometry_system(
     }
 
     for (ramp, materials) in map_layout.ramps.iter().zip(map_layout.ramp_materials.iter()) {
-        batch_ramp(&mut geometry, &asset_set, ramp, materials);
+        batch_ramp(&mut geometry, &asset_set, map_settings.geometry, ramp, materials);
     }
 
     info!(
@@ -159,6 +160,7 @@ pub fn map_spawn_geometry_system(
 
 pub fn update_focused_map_level_system(
     focus: Res<LevelFocusEnabled>,
+    map_settings: Res<MapSettings>,
     local_player: Query<&common::protocol::Position, With<LocalPlayerMarker>>,
     mut focused: ResMut<FocusedMapLevel>,
 ) {
@@ -167,7 +169,7 @@ pub fn update_focused_map_level_system(
         local_player
             .single()
             .ok()
-            .map(|position| visual_focus_level(position.y))
+            .map(|position| map_settings.geometry.nearest_level_to_y(position.y))
     } else {
         None
     };
@@ -317,13 +319,6 @@ pub fn map_wall_light_emissive_system(
         material.emissive = desired_emissive;
         material.base_color = desired_base_color;
     }
-}
-
-pub(crate) fn visual_focus_level(y: f32) -> u8 {
-    if y <= 0.0 {
-        return 0;
-    }
-    (y / common::constants::LEVEL_HEIGHT).round().min(f32::from(u8::MAX)) as u8
 }
 
 #[cfg(test)]

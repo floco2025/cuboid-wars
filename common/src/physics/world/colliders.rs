@@ -5,7 +5,6 @@ use rapier3d::prelude::{
 };
 
 use crate::{
-    constants::{BARRIER_HEIGHT, BARRIER_THICKNESS, BRIDGE_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT},
     map::{RampAxis, ramp_axis},
     protocol::{Barrier, BarrierKindId, BridgeKindId, Floor, KindId, LightBridge, Ramp, Wall},
 };
@@ -118,12 +117,12 @@ pub(super) fn insert_wall_collider(colliders: &mut ColliderSet, wall: &Wall) -> 
     let is_horizontal = dx > dz;
     let half_extents = Vec3::new(
         if is_horizontal { dx / 2.0 } else { wall_half_thickness },
-        WALL_HEIGHT / 2.0,
+        wall.height / 2.0,
         if is_horizontal { wall_half_thickness } else { dz / 2.0 },
     );
     let center = Vec3::new(
         f32::midpoint(wall.x1, wall.x2),
-        f32::from(wall.level).mul_add(LEVEL_HEIGHT, WALL_HEIGHT / 2.0),
+        wall.y + wall.height / 2.0,
         f32::midpoint(wall.z1, wall.z2),
     );
 
@@ -160,16 +159,16 @@ pub(super) fn insert_floor_collider(colliders: &mut ColliderSet, floor: &Floor) 
 pub(super) fn insert_barrier_collider(colliders: &mut ColliderSet, barrier: &Barrier) -> ColliderHandle {
     let dx = (barrier.x2 - barrier.x1).abs();
     let dz = (barrier.z2 - barrier.z1).abs();
-    let half_thickness = BARRIER_THICKNESS / 2.0;
+    let half_thickness = barrier.width / 2.0;
     let is_horizontal = dx > dz;
     let half_extents = Vec3::new(
         if is_horizontal { dx / 2.0 } else { half_thickness },
-        BARRIER_HEIGHT / 2.0,
+        barrier.height / 2.0,
         if is_horizontal { half_thickness } else { dz / 2.0 },
     );
     let center = Vec3::new(
         f32::midpoint(barrier.x1, barrier.x2),
-        f32::from(barrier.level).mul_add(LEVEL_HEIGHT, BARRIER_HEIGHT / 2.0),
+        barrier.y + barrier.height / 2.0,
         f32::midpoint(barrier.z1, barrier.z2),
     );
     insert_cuboid_collider(
@@ -188,10 +187,10 @@ pub(super) fn insert_bridge_collider(colliders: &mut ColliderSet, bridge: &Light
     let (min_x, max_x, min_z, max_z) = bridge.bounds_xz();
     let center = Vec3::new(
         f32::midpoint(min_x, max_x),
-        bridge.y - BRIDGE_THICKNESS / 2.0,
+        bridge.y - bridge.thickness / 2.0,
         f32::midpoint(min_z, max_z),
     );
-    let half_extents = Vec3::new((max_x - min_x) / 2.0, BRIDGE_THICKNESS / 2.0, (max_z - min_z) / 2.0);
+    let half_extents = Vec3::new((max_x - min_x) / 2.0, bridge.thickness / 2.0, (max_z - min_z) / 2.0);
     insert_cuboid_collider(
         colliders,
         center,

@@ -7,7 +7,6 @@ pub mod spawn;
 
 pub(crate) use grass::GrassBurn;
 pub use grass::{GrassMarker, grass_burn_system, grass_spawn_system};
-pub(crate) use rendering::visual_focus_level;
 pub use rendering::{
     added_map_level_visibility_system, map_level_focus_visibility_system, map_spawn_geometry_system,
     map_wall_light_emissive_system, setup_scene_lighting_system, update_focused_map_level_system,

@@ -9,7 +9,7 @@ use super::{
     segments::{MERGE_EPS, horizontal_wall_segment, vertical_wall_segment},
 };
 use crate::map::EdgeGrid;
-use common::{constants::*, map::MapGeometry, protocol::FaceMaterials, protocol::Wall};
+use common::{map::MapGeometry, protocol::FaceMaterials, protocol::Wall};
 
 // Generate individual wall segments (no merging) with gap-filling extensions,
 // tagging each wall with `level`.
@@ -17,6 +17,9 @@ use common::{constants::*, map::MapGeometry, protocol::FaceMaterials, protocol::
 pub fn generate_walls(edge_grid: &EdgeGrid, geometry: &MapGeometry, level: u8) -> Vec<Wall> {
     let grid_cols = geometry.grid_cols;
     let grid_rows = geometry.grid_rows;
+    let y = geometry.level_y(level);
+    let height = geometry.wall_height();
+    let width = geometry.wall_thickness();
     let mut walls = Vec::new();
 
     // Process horizontal walls (north/south edges)
@@ -32,7 +35,9 @@ pub fn generate_walls(edge_grid: &EdgeGrid, geometry: &MapGeometry, level: u8) -
                 z1: segment.z,
                 x2: segment.x2,
                 z2: segment.z,
-                width: WALL_THICKNESS,
+                width,
+                y,
+                height,
                 level,
             });
         }
@@ -51,7 +56,9 @@ pub fn generate_walls(edge_grid: &EdgeGrid, geometry: &MapGeometry, level: u8) -
                 z1: segment.z1,
                 x2: segment.x,
                 z2: segment.z2,
-                width: WALL_THICKNESS,
+                width,
+                y,
+                height,
                 level,
             });
         }
@@ -194,6 +201,7 @@ fn merge_walls_with_materials(walls: Vec<(Wall, FaceMaterials)>) -> (Vec<Wall>, 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_geometry::{WALL_HEIGHT, WALL_THICKNESS};
 
     fn h_wall(x1: f32, x2: f32, z: f32) -> Wall {
         Wall {
@@ -203,6 +211,8 @@ mod tests {
             z2: z,
             width: WALL_THICKNESS,
             level: 0,
+            y: 0.0,
+            height: WALL_HEIGHT,
         }
     }
 
@@ -214,6 +224,8 @@ mod tests {
             z2,
             width: WALL_THICKNESS,
             level: 0,
+            y: 0.0,
+            height: WALL_HEIGHT,
         }
     }
 

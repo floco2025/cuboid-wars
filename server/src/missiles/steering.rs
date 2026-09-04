@@ -159,10 +159,8 @@ pub(super) fn steer(velocity: Vec3, to_objective: Vec3, turn_radius: f32, delta:
 #[cfg(test)]
 mod tests {
     use super::*;
-    use common::{
-        constants::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_THICKNESS},
-        protocol::{BarrierKindTable, Floor, MapLayout, Wall},
-    };
+    use crate::test_geometry::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS};
+    use common::protocol::{BarrierKindTable, Floor, MapLayout, Wall};
     use std::f32::consts::SQRT_2;
 
     #[test]
@@ -274,6 +272,8 @@ mod tests {
                 z2: 2.0,
                 width: WALL_THICKNESS,
                 level: 0,
+                y: 0.0,
+                height: WALL_HEIGHT,
             }],
             ..Default::default()
         };

@@ -13,4 +13,6 @@ pub mod portals;
 pub mod projectiles;
 pub mod quests;
 mod schedule;
+#[cfg(test)]
+pub(crate) mod test_geometry;
 pub mod watchdog;

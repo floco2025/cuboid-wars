@@ -4,7 +4,6 @@ use rand::{RngExt, rng, rngs::ThreadRng, seq::IndexedRandom};
 use crate::map::{ActorSpawnZone, MapConfig, PlayerSpawnZone};
 use common::{
     config::CharacterPhysicsConfig,
-    constants::{GRID_CELL_SIZE, LEVEL_HEIGHT},
     map::MapGeometry,
     physics::{CollisionWorld, character_center, character_paths_intersect, character_shape},
     protocol::Position,
@@ -147,16 +146,16 @@ fn random_position_in_spawn_cell(
     character_physics: CharacterPhysicsConfig,
 ) -> Position {
     let cell_min_x = geometry.cell_to_world_x(col);
-    let cell_max_x = cell_min_x + GRID_CELL_SIZE;
+    let cell_max_x = cell_min_x + geometry.cell_size();
     let cell_min_z = geometry.cell_to_world_z(row);
-    let cell_max_z = cell_min_z + GRID_CELL_SIZE;
+    let cell_max_z = cell_min_z + geometry.cell_size();
 
     Position {
         x: rng.random_range(
             (cell_min_x + character_physics.collider.width / 2.0)
                 ..=(cell_max_x - character_physics.collider.width / 2.0),
         ),
-        y: f32::from(level) * LEVEL_HEIGHT,
+        y: geometry.level_y(level),
         z: rng.random_range(
             (cell_min_z + character_physics.collider.depth / 2.0)
                 ..=(cell_max_z - character_physics.collider.depth / 2.0),
@@ -194,10 +193,8 @@ fn character_position_intersects_character(
 mod tests {
     use super::*;
     use crate::map::{CellGrid, EdgeGrid, LevelGrid, MapConfig, PlayerSpawnZone};
-    use common::{
-        constants::WALL_THICKNESS,
-        protocol::{MapLayout, Wall},
-    };
+    use crate::test_geometry::{LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS, geometry};
+    use common::protocol::{MapLayout, Wall};
 
     fn empty_layout() -> MapLayout {
         MapLayout::default()
@@ -261,6 +258,8 @@ mod tests {
             z2: 0.0,
             width: WALL_THICKNESS,
             level: 0,
+            y: 0.0,
+            height: WALL_HEIGHT,
         });
         let collision_world = collision_world(&layout);
 
@@ -282,6 +281,8 @@ mod tests {
             z2: 0.0,
             width: WALL_THICKNESS,
             level: 1,
+            y: LEVEL_HEIGHT,
+            height: WALL_HEIGHT,
         });
         let collision_world = collision_world(&layout);
 
@@ -298,7 +299,7 @@ mod tests {
         let layout = empty_layout();
         let collision_world = collision_world(&layout);
         let map_config = map_config_with_player_spawn(1, 0, 0);
-        let geometry = MapGeometry::new(1, 1);
+        let geometry = geometry(1, 1);
 
         let pos = generate_player_spawn_position(&map_config, &geometry, &collision_world, &[], character_physics());
 

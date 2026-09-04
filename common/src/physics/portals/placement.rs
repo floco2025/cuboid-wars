@@ -9,7 +9,7 @@ use rapier3d::{
 use super::PortalFrame;
 use crate::{
     constants::{
-        LEVEL_HEIGHT, PORTAL_FIXTURE_PLANE_DEPTH, PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH, PORTAL_LIGHT_CLEARANCE,
+        PORTAL_FIXTURE_PLANE_DEPTH, PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH, PORTAL_LIGHT_CLEARANCE,
         PORTAL_PLATE_CLEARANCE, PORTAL_RIM_SCALE, PORTAL_STANDABLE_NORMAL_Y, PORTAL_UP_DEGENERACY_LIMIT,
     },
     math::direction_from_yaw_pitch,
@@ -134,7 +134,7 @@ fn portal_fits(frame: &PortalFrame, collision_world: &CollisionWorld, map_layout
     }
     if frame.normal.y > PORTAL_STANDABLE_NORMAL_Y {
         for plate in &map_layout.pressure_plates {
-            let center = Vec3::new(plate.center_x, f32::from(plate.level) * LEVEL_HEIGHT, plate.center_z);
+            let center = Vec3::new(plate.center_x, plate.center_y, plate.center_z);
             if fixture_blocks(frame, center, PORTAL_PLATE_CLEARANCE) {
                 return false;
             }

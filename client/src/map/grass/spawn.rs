@@ -6,10 +6,7 @@ use crate::{
     materials::{GrassMaterial, GrassWindExtension},
 };
 use bevy::{camera::primitives::Aabb, light::NotShadowCaster, prelude::*};
-use common::{
-    constants::GRID_CELL_SIZE,
-    protocol::{GrassCell, MapLayout},
-};
+use common::protocol::{GrassCell, MapLayout, MapSettings};
 use std::collections::HashSet;
 
 #[derive(Component)]
@@ -32,8 +29,8 @@ pub(super) struct OpenEdges {
 }
 
 impl OpenEdges {
-    fn for_cell(cell: GrassCell, painted: &HashSet<(i64, i64, u8)>) -> Self {
-        let (x, z, level) = quantized_key(cell);
+    fn for_cell(cell: GrassCell, cell_size: f32, painted: &HashSet<(i64, i64, u8)>) -> Self {
+        let (x, z, level) = quantized_key(cell, cell_size);
         Self {
             pos_x: painted.contains(&(x + 2, z, level)),
             neg_x: painted.contains(&(x - 2, z, level)),
@@ -48,6 +45,7 @@ impl OpenEdges {
 pub fn grass_spawn_system(
     mut commands: Commands,
     map_layout: Res<MapLayout>,
+    map_settings: Res<MapSettings>,
     client_settings: Res<ClientSettings>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<GrassMaterial>>,
@@ -67,22 +65,23 @@ pub fn grass_spawn_system(
         return;
     }
 
+    let cell_size = map_settings.geometry.grid_cell_size;
     let material = materials.add(grass_material(grass));
-    let painted: HashSet<(i64, i64, u8)> = layout.grass.iter().map(|c| quantized_key(*c)).collect();
+    let painted: HashSet<(i64, i64, u8)> = layout.grass.iter().map(|c| quantized_key(*c, cell_size)).collect();
 
     for cell in layout.grass.iter().copied() {
-        let open = OpenEdges::for_cell(cell, &painted);
+        let open = OpenEdges::for_cell(cell, cell_size, &painted);
         commands.spawn((
             GrassMarker,
             GrassCellVisual { cell, open },
             MapLevel(cell.level),
-            Mesh3d(meshes.add(grass_cell_mesh(cell, grass, open, &[]))),
+            Mesh3d(meshes.add(grass_cell_mesh(cell, cell_size, grass, open, &[]))),
             MeshMaterial3d(material.clone()),
             Transform::default(),
             Visibility::Visible,
             // Belt-and-braces with `GrassWindExtension::enable_shadows()`.
             NotShadowCaster,
-            grass_cell_aabb(cell, grass),
+            grass_cell_aabb(cell, cell_size, grass),
         ));
     }
 }
@@ -110,21 +109,21 @@ fn grass_material(_config: &GrassConfig) -> GrassMaterial {
     }
 }
 
-// Cell centers sit at odd multiples of `GRID_CELL_SIZE / 2`, so doubling
-// before rounding recovers a stable integer independent of float noise —
-// all clients render identical grass regardless of `Vec` ordering. Adjacent
+// Cell centers sit at odd multiples of half a cell, so doubling before
+// rounding recovers a stable integer independent of float noise — all
+// clients render identical grass regardless of `Vec` ordering. Adjacent
 // cells differ by exactly 2 in the quantized coordinate.
-pub(super) fn quantized_key(cell: GrassCell) -> (i64, i64, u8) {
-    let quantized_x = (cell.x * 2.0 / GRID_CELL_SIZE).round() as i64;
-    let quantized_z = (cell.z * 2.0 / GRID_CELL_SIZE).round() as i64;
+pub(super) fn quantized_key(cell: GrassCell, cell_size: f32) -> (i64, i64, u8) {
+    let quantized_x = (cell.x * 2.0 / cell_size).round() as i64;
+    let quantized_z = (cell.z * 2.0 / cell_size).round() as i64;
     (quantized_x, quantized_z, cell.level)
 }
 
 // Pre-inserted so Bevy's `calculate_bounds` (which only fills absent Aabbs)
 // keeps the padded box; without the XZ pad, swaying tips could be culled at
 // frustum edges.
-pub(super) fn grass_cell_aabb(cell: GrassCell, _config: &GrassConfig) -> Aabb {
-    let pad = GRID_CELL_SIZE / 2.0 + BLADE_MAX_OVERHANG + GRASS_WIND_STRENGTH * WIND_SWAY_FACTOR + AABB_BASE_PAD;
+pub(super) fn grass_cell_aabb(cell: GrassCell, cell_size: f32, _config: &GrassConfig) -> Aabb {
+    let pad = cell_size / 2.0 + BLADE_MAX_OVERHANG + GRASS_WIND_STRENGTH * WIND_SWAY_FACTOR + AABB_BASE_PAD;
     Aabb::from_min_max(
         Vec3::new(cell.x - pad, cell.y, cell.z - pad),
         Vec3::new(cell.x + pad, cell.y + BLADE_HEIGHT_MAX, cell.z + pad),

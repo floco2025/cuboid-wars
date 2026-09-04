@@ -1,13 +1,13 @@
 use std::collections::HashMap;
 
-use common::{map::MapGeometry, protocol::FaceMaterials};
+use common::{config::MapGeometryConfig, map::MapGeometry, protocol::FaceMaterials};
 
 use super::{MaterialRules, query::SegmentMaterials};
 use crate::map::definition::MapDef;
 
 impl MaterialRules {
-    pub(crate) fn from_def(map_def: &MapDef) -> Self {
-        let geometry = MapGeometry::new(map_def.grid_cols, map_def.grid_rows);
+    pub(crate) fn from_def(map_def: &MapDef, sizes: MapGeometryConfig) -> Self {
+        let geometry = MapGeometry::new(map_def.grid_cols, map_def.grid_rows, sizes);
         let mut floor_materials: HashMap<(u8, i32, i32), FaceMaterials> = HashMap::new();
         let mut wall_materials: HashMap<(u8, [i32; 2], [i32; 2]), FaceMaterials> = HashMap::new();
         for (level_idx, level) in map_def.levels.iter().enumerate() {
@@ -57,12 +57,12 @@ pub(super) fn wall_edge_key(from: [i32; 2], to: [i32; 2]) -> ([i32; 2], [i32; 2]
 #[cfg(test)]
 mod tests {
     use super::super::MaterialRules;
-    use crate::map::generation::map_path;
+    use crate::{map::generation::map_path, test_geometry::sizes};
 
     #[test]
     fn hotel_material_rules_build_from_def() {
         let map_def = crate::map::definition::load_map(&map_path("hotel")).expect("hotel map should load");
-        let rules = MaterialRules::from_def(&map_def);
+        let rules = MaterialRules::from_def(&map_def, sizes());
         assert!(!rules.segments.floors.is_empty());
         assert!(!rules.segments.walls.is_empty());
         assert!(!rules.segments.ramps.is_empty());

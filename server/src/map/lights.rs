@@ -1,9 +1,7 @@
 use super::definition::{WallLightDef, WallSide};
 use super::edges::{CellSide, has_edge_on_cell_side};
 use crate::map::LevelGrid;
-use common::constants::WALL_HALF_THICKNESS;
 use common::{
-    constants::{GRID_CELL_SIZE, LEVEL_HEIGHT},
     map::MapGeometry,
     protocol::{Position, WallLight},
 };
@@ -14,9 +12,9 @@ use std::f32::consts::{FRAC_PI_2, PI};
 // `map.json`); this constant sets their height above the level floor.
 const WALL_LIGHT_HEIGHT: f32 = 2.5;
 
-// Lamps hang `MODEL_INSET` in front of the wall face so the lamp body sits
-// just inside the room, not flush with the wall texture.
-const MODEL_INSET: f32 = WALL_HALF_THICKNESS + 0.02;
+// Lamps hang this far in front of the wall face so the lamp body sits just
+// inside the room, not flush with the wall texture.
+const MODEL_INSET_PAST_WALL: f32 = 0.02;
 
 // Turn the per-level manual `lights: [{col, row, side}]` entries from
 // `map.json` into runtime `WallLight`s. Entries whose cell falls outside the
@@ -30,7 +28,7 @@ pub(crate) fn generate_wall_lights(
     level_idx: usize,
     defs: &[WallLightDef],
 ) -> Vec<WallLight> {
-    let light_y = (level_idx as f32).mul_add(LEVEL_HEIGHT, WALL_LIGHT_HEIGHT);
+    let light_y = geometry.level_y(u8::try_from(level_idx).unwrap_or(u8::MAX)) + WALL_LIGHT_HEIGHT;
 
     defs.iter()
         .filter_map(|def| {
@@ -56,15 +54,16 @@ fn cell_side_from_wall_side(side: WallSide) -> CellSide {
 }
 
 fn wall_light_for(geometry: &MapGeometry, light_y: f32, row: i32, col: i32, side: CellSide) -> WallLight {
-    let cell_center_x = geometry.cell_to_world_x(col) + GRID_CELL_SIZE / 2.0;
-    let cell_center_z = geometry.cell_to_world_z(row) + GRID_CELL_SIZE / 2.0;
-    let half = GRID_CELL_SIZE / 2.0;
+    let cell_center_x = geometry.cell_center_x(col);
+    let cell_center_z = geometry.cell_center_z(row);
+    let half = geometry.cell_size() / 2.0;
+    let model_inset = geometry.wall_half_thickness() + MODEL_INSET_PAST_WALL;
     match side {
         CellSide::North => WallLight {
             pos: Position {
                 x: cell_center_x,
                 y: light_y,
-                z: cell_center_z - half + MODEL_INSET,
+                z: cell_center_z - half + model_inset,
             },
             yaw: 0.0,
         },
@@ -72,13 +71,13 @@ fn wall_light_for(geometry: &MapGeometry, light_y: f32, row: i32, col: i32, side
             pos: Position {
                 x: cell_center_x,
                 y: light_y,
-                z: cell_center_z + half - MODEL_INSET,
+                z: cell_center_z + half - model_inset,
             },
             yaw: PI,
         },
         CellSide::West => WallLight {
             pos: Position {
-                x: cell_center_x - half + MODEL_INSET,
+                x: cell_center_x - half + model_inset,
                 y: light_y,
                 z: cell_center_z,
             },
@@ -86,7 +85,7 @@ fn wall_light_for(geometry: &MapGeometry, light_y: f32, row: i32, col: i32, side
         },
         CellSide::East => WallLight {
             pos: Position {
-                x: cell_center_x + half - MODEL_INSET,
+                x: cell_center_x + half - model_inset,
                 y: light_y,
                 z: cell_center_z,
             },
@@ -108,7 +107,10 @@ fn cell_in_bounds(level: &LevelGrid, row: i32, col: i32) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::map::{CellGrid, EdgeGrid};
+    use crate::{
+        map::{CellGrid, EdgeGrid},
+        test_geometry::{LEVEL_HEIGHT, geometry},
+    };
 
     fn level_with_walls(cols: i32, rows: i32) -> LevelGrid {
         // Single cell, all four sides walled. Lets us place lights on any
@@ -155,7 +157,7 @@ mod tests {
             },
         ];
 
-        let lights = generate_wall_lights(&MapGeometry::new(1, 1), &level, 0, &defs);
+        let lights = generate_wall_lights(&geometry(1, 1), &level, 0, &defs);
 
         assert_eq!(lights.len(), 4);
         let yaws: Vec<f32> = lights.iter().map(|l| l.yaw).collect();
@@ -174,10 +176,10 @@ mod tests {
             side: WallSide::North,
         }];
 
-        let lights = generate_wall_lights(&MapGeometry::new(1, 1), &level, 2, &defs);
+        let lights = generate_wall_lights(&geometry(1, 1), &level, 2, &defs);
 
         assert_eq!(lights.len(), 1);
-        assert!((lights[0].pos.y - 2.0_f32.mul_add(LEVEL_HEIGHT, WALL_LIGHT_HEIGHT)).abs() < 1e-5);
+        assert!((lights[0].pos.y - (2.0 * LEVEL_HEIGHT + WALL_LIGHT_HEIGHT)).abs() < 1e-5);
     }
 
     #[test]
@@ -197,7 +199,7 @@ mod tests {
             },
         ];
 
-        let lights = generate_wall_lights(&MapGeometry::new(1, 1), &level, 0, &defs);
+        let lights = generate_wall_lights(&geometry(1, 1), &level, 0, &defs);
 
         assert_eq!(lights.len(), 1);
         assert_eq!(lights[0].yaw, PI);
@@ -212,7 +214,7 @@ mod tests {
             side: WallSide::North,
         }];
 
-        let lights = generate_wall_lights(&MapGeometry::new(1, 1), &level, 0, &defs);
+        let lights = generate_wall_lights(&geometry(1, 1), &level, 0, &defs);
 
         assert!(lights.is_empty());
     }

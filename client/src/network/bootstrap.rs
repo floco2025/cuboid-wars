@@ -23,8 +23,18 @@ pub(crate) fn install_bootstrap(app: &mut App, message: SInit, asset_set: &Asset
         app.world_mut().resource_scope(|world, mut meshes: Mut<Assets<Mesh>>| {
             let mut materials = world.resource_mut::<Assets<StandardMaterial>>();
             (
-                build_barrier_assets(&mut meshes, &mut materials, map_settings.barrier_kind_defs()),
-                build_bridge_assets(&mut meshes, &mut materials, map_settings.bridge_kind_defs()),
+                build_barrier_assets(
+                    &mut meshes,
+                    &mut materials,
+                    &map_settings.barrier_kinds,
+                    map_settings.geometry.barrier_thickness(),
+                ),
+                build_bridge_assets(
+                    &mut meshes,
+                    &mut materials,
+                    &map_settings.bridge_kinds,
+                    map_settings.geometry.bridge_thickness(),
+                ),
                 ProjectileAssets::new(&mut meshes, &mut materials, gameplay_config.projectiles.radius),
             )
         });

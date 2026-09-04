@@ -5,7 +5,7 @@ use super::{
     ramp_mesh::build_ramp_meshes,
 };
 use crate::config::AssetSet;
-use common::{constants::LEVEL_HEIGHT, protocol::*};
+use common::{config::MapGeometryConfig, protocol::*};
 
 // Spawn a ramp entity based on shared `Ramp` config.
 //
@@ -14,7 +14,13 @@ use common::{constants::LEVEL_HEIGHT, protocol::*};
 // editor writes a single material to all four perimeter faces uniformly, so we
 // just read `north` and use it for the entire side mesh; if per-cardinal ramp
 // sides are added later, this is the spot to split them.
-pub fn batch_ramp(batcher: &mut MapGeometryBatch, asset_set: &AssetSet, ramp: &Ramp, material_ids: &FaceMaterials) {
+pub fn batch_ramp(
+    batcher: &mut MapGeometryBatch,
+    asset_set: &AssetSet,
+    geometry: MapGeometryConfig,
+    ramp: &Ramp,
+    material_ids: &FaceMaterials,
+) {
     batcher.begin_segment();
     let top_material_id = material_ids.top.clone();
     let side_material_id = material_ids.north.clone();
@@ -35,7 +41,7 @@ pub fn batch_ramp(batcher: &mut MapGeometryBatch, asset_set: &AssetSet, ramp: &R
 
     // Lower of the two levels this ramp connects (derived from the lower y).
     let y_low = ramp.y1.min(ramp.y2);
-    let lower_level = (y_low / LEVEL_HEIGHT).round().clamp(0.0, f32::from(u8::MAX)) as u8;
+    let lower_level = geometry.nearest_level_to_y(y_low);
 
     batcher.add_mesh(
         MapGeometryKind::Ramp,

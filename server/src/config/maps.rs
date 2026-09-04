@@ -94,10 +94,11 @@ pub(super) fn validate_maps<T>(
         if entry.settings.skybox.is_empty() {
             bail!("{path}.skybox must not be empty");
         }
-        BarrierKindTable::from_defs(entry.settings.barrier_kind_defs())
+        BarrierKindTable::from_defs(&entry.settings.barrier_kinds)
             .with_context(|| format!("invalid {path}.barrier_kinds"))?;
-        BridgeKindTable::from_defs(entry.settings.bridge_kind_defs())
+        BridgeKindTable::from_defs(&entry.settings.bridge_kinds)
             .with_context(|| format!("invalid {path}.bridge_kinds"))?;
+        entry.settings.geometry.validate(&format!("{path}.geometry"))?;
         let movement_path = format!("{path}.movement");
         let movement = &entry.settings.movement;
         validate_covers_actor_kinds(movement.actors.keys(), actors, &format!("{movement_path}.actors"))?;
@@ -150,6 +151,7 @@ impl RandomItemsConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_geometry::sizes;
     use common::protocol::{HexColor, KindDef};
     use common::{
         config::{ActorMovementConfig, KnockbackConfig, MapMovementConfig, PlayerMovementConfig},
@@ -211,14 +213,15 @@ mod tests {
         MapServerConfig {
             settings: MapSettings {
                 skybox: "cloudy_day".to_owned(),
+                geometry: sizes(),
                 movement: ok_movement(),
                 weapons: MapWeaponSettings {
                     projectiles: true,
                     missiles: true,
                     portals: PortalMode::Both,
                 },
-                barrier_kinds: None,
-                bridge_kinds: None,
+                barrier_kinds: Vec::new(),
+                bridge_kinds: Vec::new(),
             },
             random_items: None,
             placed_items: ok_placed_items(),
@@ -273,6 +276,7 @@ mod tests {
     ) -> Result<MapServerConfig, serde_json::Error> {
         let mut value = serde_json::json!({
             "skybox": "cloudy_day",
+            "geometry": { "grid_cell_size": 3.4, "level_height": 4.4, "floor_thickness": 0.4, "wall_thickness": 0.3 },
             "movement": {
                 "player": { "walk_speed": 6.0, "run_speed": 9.0, "speed_power_up": 1.6 },
                 "actors": {
@@ -289,8 +293,8 @@ mod tests {
                 "knockback": { "max_speed": 15.0, "up_speed": 7.0, "deceleration": 35.0 }
             },
             "weapons": { "projectiles": projectiles, "missiles": missiles, "portals": portals },
-            "barrier_kinds": null,
-            "bridge_kinds": null,
+            "barrier_kinds": [],
+            "bridge_kinds": [],
             "random_items": null,
             "placed_items": {
                 "respawn_secs": {
@@ -348,6 +352,18 @@ mod tests {
             .gravity = 0.0;
         let err = validate_test_maps(&maps, "hotel").expect_err("zero gravity must be rejected");
         assert!(err.to_string().contains("gravity"));
+    }
+
+    #[test]
+    fn validate_maps_rejects_non_positive_cell_size() {
+        let mut maps = one_map("hotel");
+        maps.get_mut("hotel")
+            .expect("hotel entry missing")
+            .settings
+            .geometry
+            .grid_cell_size = 0.0;
+        let err = validate_test_maps(&maps, "hotel").expect_err("zero cell size must be rejected");
+        assert!(err.to_string().contains("maps.hotel.geometry.grid_cell_size"));
     }
 
     #[test]
@@ -479,10 +495,26 @@ mod tests {
     }
 
     #[test]
-    fn map_entry_accepts_null_barrier_kinds() {
-        let entry =
-            parse_map_entry(true, true, "both", Some("clear"), Some("bright")).expect("map entry should deserialize");
-        assert!(entry.settings.barrier_kinds.is_none());
+    fn map_entry_accepts_empty_kind_catalogs() {
+        let entry = parse_map_entry(true, true, "both", Some("clear"), Some("bright"))
+            .expect("map entry failed to deserialize");
+        assert!(entry.settings.barrier_kinds.is_empty());
+        assert!(entry.settings.bridge_kinds.is_empty());
+    }
+
+    #[test]
+    fn map_entry_rejects_null_kind_catalogs() {
+        for key in ["barrier_kinds", "bridge_kinds"] {
+            let gameplay: serde_json::Value =
+                serde_json::from_str(include_str!("../../../config/server/gameplay.json"))
+                    .expect("server gameplay JSON is invalid");
+            let mut hotel = gameplay["maps"]["hotel"].clone();
+            hotel[key] = serde_json::Value::Null;
+
+            let error = serde_json::from_value::<MapServerConfig>(hotel)
+                .expect_err("a null kind catalog deserialized; an empty map lists []");
+            assert!(error.to_string().contains("expected a sequence"), "{key}: {error}");
+        }
     }
 
     #[test]
@@ -491,7 +523,7 @@ mod tests {
         maps.get_mut("hotel")
             .expect("hotel entry missing")
             .settings
-            .barrier_kinds = Some(vec![kind("lobby"), kind("lobby")]);
+            .barrier_kinds = vec![kind("lobby"), kind("lobby")];
 
         let error = validate_test_maps(&maps, "hotel").expect_err("duplicate barrier kinds must be rejected");
         assert!(error.to_string().contains("maps.hotel.barrier_kinds"));
@@ -518,7 +550,7 @@ mod tests {
         maps.get_mut("hotel")
             .expect("hotel entry missing")
             .settings
-            .bridge_kinds = Some(vec![kind("skyway"), kind("skyway")]);
+            .bridge_kinds = vec![kind("skyway"), kind("skyway")];
 
         let error = validate_test_maps(&maps, "hotel").expect_err("duplicate bridge kinds must be rejected");
         assert!(error.to_string().contains("maps.hotel.bridge_kinds"));

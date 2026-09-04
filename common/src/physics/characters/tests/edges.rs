@@ -146,6 +146,8 @@ fn blocked_slide_keeps_velocity_zeroed() {
         z2: 100.0,
         width: 0.2,
         level: 0,
+        y: 0.0,
+        height: WALL_HEIGHT,
     };
     let collision_world = collision_world_with(&[wall], &[floor], &[]);
     let physics = player_physics();

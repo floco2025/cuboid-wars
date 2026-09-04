@@ -103,6 +103,7 @@ fn merge_line(list: Vec<Barrier>, axis: Axis, out: &mut Vec<Barrier>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_geometry::{BARRIER_THICKNESS, WALL_HEIGHT};
     use common::protocol::BarrierKindId;
 
     const RED: BarrierKindId = BarrierKindId(0);
@@ -117,6 +118,9 @@ mod tests {
             z2: z,
             level: 0,
             kind,
+            y: 0.0,
+            height: WALL_HEIGHT,
+            width: BARRIER_THICKNESS,
         }
     }
 
@@ -128,6 +132,9 @@ mod tests {
             z2,
             level: 0,
             kind,
+            y: 0.0,
+            height: WALL_HEIGHT,
+            width: BARRIER_THICKNESS,
         }
     }
 

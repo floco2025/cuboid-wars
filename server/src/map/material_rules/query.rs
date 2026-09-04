@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use common::{
-    constants::GRID_CELL_SIZE,
     map::MapGeometry,
     protocol::FaceMaterials,
     protocol::{Floor, Ramp, Wall},
@@ -78,7 +77,8 @@ impl MaterialRules {
     fn corner_filler_originating_cell_materials(&self, floor: &Floor) -> Option<FaceMaterials> {
         let z_extent = (floor.z2 - floor.z1).abs();
         let x_extent = (floor.x2 - floor.x1).abs();
-        if z_extent >= GRID_CELL_SIZE / 2.0 && x_extent >= GRID_CELL_SIZE / 2.0 {
+        let half_cell = self.geometry.cell_size() / 2.0;
+        if z_extent >= half_cell && x_extent >= half_cell {
             return None;
         }
         let mid_col = self.geometry.cell_col_containing_x(f32::midpoint(floor.x1, floor.x2));
@@ -189,7 +189,7 @@ impl MaterialRules {
 
     #[must_use]
     pub fn materials_for_ramp_top(&self, ramp: &Ramp) -> FaceMaterials {
-        let lower_level = ramp_lower_level(ramp);
+        let lower_level = ramp_lower_level(&self.geometry, ramp);
         for (col, row) in ramp_cells(&self.geometry, ramp) {
             if let Some(materials) = self.segments.ramps.get(&(lower_level, col, row)) {
                 return materials.clone();

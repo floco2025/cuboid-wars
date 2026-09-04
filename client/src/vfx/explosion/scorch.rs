@@ -11,11 +11,7 @@ use crate::constants::{
     EXPLOSION_SCORCH_RING_ALPHA, EXPLOSION_SCORCH_RING_RADII, EXPLOSION_SCORCH_SURFACE_OFFSET,
     EXPLOSION_SCORCH_WALL_SEAM_OVERSCAN_FACTOR,
 };
-use common::{
-    constants::{LEVEL_HEIGHT, WALL_HEIGHT},
-    physics::WorldSurfaceHit,
-    protocol::MapLayout,
-};
+use common::{physics::WorldSurfaceHit, protocol::MapLayout};
 
 use bevy::light::NotShadowCaster;
 
@@ -125,8 +121,8 @@ pub(super) fn wall_scorch_placements(
             &[-side]
         };
 
-        let bottom = f32::from(wall.level) * LEVEL_HEIGHT;
-        let top = bottom + WALL_HEIGHT;
+        let bottom = wall.y;
+        let top = wall.y + wall.height;
         for normal in normals {
             let point = Vec3::new(
                 closest.x + normal.x * wall.width * 0.5,

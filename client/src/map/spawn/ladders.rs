@@ -3,7 +3,7 @@ use bevy::{asset::RenderAssetUsages, light::NotShadowCaster, prelude::*, render:
 use crate::constants::{LADDER_RAIL_HALF_THICKNESS, LADDER_RUNG_HALF_THICKNESS, LADDER_RUNG_SPACING};
 use crate::map::MapLevel;
 use common::{
-    constants::{LADDER_OVERSHOOT, LADDER_RAIL_INSET, LADDER_WIDTH, LEVEL_HEIGHT},
+    constants::{LADDER_OVERSHOOT, LADDER_RAIL_INSET, LADDER_WIDTH},
     protocol::Ladder,
 };
 
@@ -47,8 +47,8 @@ pub fn spawn_ladder_from_layout(
 // against. The rails poke `LADDER_OVERSHOOT` above the top landing as the
 // step-off affordance, matching the climb volume's reach.
 fn build_ladder_mesh(ladder: &Ladder, tile_size: f32) -> Mesh {
-    let base_y = f32::from(ladder.level) * LEVEL_HEIGHT;
-    let top_y = (f32::from(ladder.level) + f32::from(ladder.levels)) * LEVEL_HEIGHT + LADDER_OVERSHOOT;
+    let base_y = ladder.y;
+    let top_y = ladder.y + ladder.height + LADDER_OVERSHOOT;
 
     let a = Vec3::new(ladder.x1, base_y, ladder.z1);
     let b = Vec3::new(ladder.x2, base_y, ladder.z2);
@@ -194,6 +194,7 @@ impl BoxMeshData {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_geometry::LEVEL_HEIGHT;
     use common::protocol::Ladder;
 
     #[test]
@@ -207,6 +208,8 @@ mod tests {
             nz: -1.0,
             level: 0,
             levels: 1,
+            y: 0.0,
+            height: LEVEL_HEIGHT,
         };
         let mesh = build_ladder_mesh(&ladder, 0.6);
         let uvs = match mesh.attribute(Mesh::ATTRIBUTE_UV_0) {
@@ -242,6 +245,8 @@ mod tests {
             nz: -1.0,
             level: 0,
             levels: 1,
+            y: 0.0,
+            height: LEVEL_HEIGHT,
         };
         let mesh = build_ladder_mesh(&ladder, 0.6);
         let tangents = match mesh.attribute(Mesh::ATTRIBUTE_TANGENT) {

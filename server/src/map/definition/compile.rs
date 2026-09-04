@@ -17,7 +17,8 @@ use crate::{
     },
 };
 use common::{
-    constants::*,
+    config::MapGeometryConfig,
+    constants::LADDER_WIDTH,
     map::MapGeometry,
     protocol::FaceMaterials,
     protocol::{
@@ -28,13 +29,14 @@ use common::{
 
 pub(crate) fn compile_map(
     map_def: &MapDef,
+    sizes: MapGeometryConfig,
     assets: &MaterialRules,
     kind_table: &BarrierKindTable,
     bridge_table: &BridgeKindTable,
 ) -> anyhow::Result<(MapLayout, MapConfig, MapGeometry)> {
     let cols = map_def.grid_cols;
     let rows = map_def.grid_rows;
-    let geometry = MapGeometry::new(cols, rows);
+    let geometry = MapGeometry::new(cols, rows, sizes);
 
     let ramp_specs: Vec<ramps::RampSpec> = map_def.ramps.iter().map(ramp_spec_from_def).collect();
 
@@ -153,7 +155,7 @@ pub(crate) fn compile_map(
     let mut all_floor_materials: Vec<FaceMaterials> = Vec::new();
     for (level_idx, m) in slab_masks.iter().enumerate() {
         let level_u8 = u8::try_from(level_idx).unwrap_or(u8::MAX);
-        let y = f32::from(level_u8) * LEVEL_HEIGHT;
+        let y = geometry.level_y(level_u8);
         // Tell floor emission to skip its corner-filler strip at the high
         // end of each z-axis ramp arriving at this level — a strip there
         // would hover above where the slope already meets the upper floor.
@@ -185,15 +187,15 @@ pub(crate) fn compile_map(
     let mut grass: Vec<GrassCell> = Vec::new();
     for (level_idx, level) in map_def.levels.iter().enumerate() {
         let level_u8 = u8::try_from(level_idx).unwrap_or(u8::MAX);
-        let y = f32::from(level_u8) * LEVEL_HEIGHT;
+        let y = geometry.level_y(level_u8);
         for cell in &level.grass {
             if !slab_masks[level_idx][cell.row as usize][cell.col as usize] {
                 continue;
             }
             grass.push(GrassCell {
-                x: geometry.cell_to_world_x(cell.col) + GRID_CELL_SIZE / 2.0,
+                x: geometry.cell_center_x(cell.col),
                 y,
-                z: geometry.cell_to_world_z(cell.row) + GRID_CELL_SIZE / 2.0,
+                z: geometry.cell_center_z(cell.row),
                 level: level_u8,
             });
         }
@@ -222,8 +224,9 @@ pub(crate) fn compile_map(
             .iter()
             .map(|p| common::protocol::PressurePlate {
                 level: p.level,
-                center_x: geometry.cell_to_world_x(p.col) + GRID_CELL_SIZE / 2.0,
-                center_z: geometry.cell_to_world_z(p.row) + GRID_CELL_SIZE / 2.0,
+                center_x: geometry.cell_center_x(p.col),
+                center_y: geometry.level_y(p.level),
+                center_z: geometry.cell_center_z(p.row),
                 purpose: p.purpose,
             })
             .collect(),
@@ -353,7 +356,8 @@ fn light_bridges(
             z1: geometry.cell_to_world_z(rect.r0),
             x2: geometry.cell_to_world_x(rect.c1),
             z2: geometry.cell_to_world_z(rect.r1),
-            y: f32::from(level_u8) * LEVEL_HEIGHT,
+            y: geometry.level_y(level_u8),
+            thickness: geometry.bridge_thickness(),
             level: level_u8,
             kind: rect.kind,
         }));
@@ -411,21 +415,23 @@ fn set_edge(edges: &mut EdgeGrid, edge: [i32; 4]) {
 fn ladder_from_def(def: &LadderDef, geometry: &MapGeometry) -> Ladder {
     let cell_x = geometry.cell_to_world_x(def.col);
     let cell_z = geometry.cell_to_world_z(def.row);
-    let center_x = cell_x + GRID_CELL_SIZE / 2.0;
-    let center_z = cell_z + GRID_CELL_SIZE / 2.0;
+    let center_x = geometry.cell_center_x(def.col);
+    let center_z = geometry.cell_center_z(def.row);
     let half_width = LADDER_WIDTH / 2.0;
     let (x1, z1, x2, z2, nx, nz) = match def.side {
         WallSide::North => (center_x - half_width, cell_z, center_x + half_width, cell_z, 0.0, -1.0),
         WallSide::South => {
-            let z = cell_z + GRID_CELL_SIZE;
+            let z = cell_z + geometry.cell_size();
             (center_x - half_width, z, center_x + half_width, z, 0.0, 1.0)
         }
         WallSide::West => (cell_x, center_z - half_width, cell_x, center_z + half_width, -1.0, 0.0),
         WallSide::East => {
-            let x = cell_x + GRID_CELL_SIZE;
+            let x = cell_x + geometry.cell_size();
             (x, center_z - half_width, x, center_z + half_width, 1.0, 0.0)
         }
     };
+    let level = u8::try_from(def.lower_level).unwrap_or(u8::MAX);
+    let levels = u8::try_from(def.levels).unwrap_or(u8::MAX);
     Ladder {
         x1,
         z1,
@@ -433,8 +439,10 @@ fn ladder_from_def(def: &LadderDef, geometry: &MapGeometry) -> Ladder {
         z2,
         nx,
         nz,
-        level: u8::try_from(def.lower_level).unwrap_or(u8::MAX),
-        levels: u8::try_from(def.levels).unwrap_or(u8::MAX),
+        y: geometry.level_y(level),
+        height: f32::from(levels) * geometry.level_height(),
+        level,
+        levels,
     }
 }
 
@@ -457,6 +465,9 @@ fn barrier_from_def(
         z1,
         x2,
         z2,
+        width: geometry.barrier_thickness(),
+        y: geometry.level_y(level),
+        height: geometry.wall_height(),
         level,
         kind,
     })

@@ -32,12 +32,10 @@ def load_map_kinds(map_name: str, key: str) -> dict[str, str]:
     if map_settings is None:
         return {}
     if key not in map_settings:
-        raise ValueError(f"maps.{map_name}.{key} is required; use null when the map has none")
+        raise ValueError(f"maps.{map_name}.{key} is required; use [] when the map has none")
     value = map_settings[key]
-    if value is None:
-        return {}
     if not isinstance(value, list):
-        raise ValueError(f"maps.{map_name}.{key} must be an array of {{id, color}} objects or null")
+        raise ValueError(f"maps.{map_name}.{key} must be an array of {{id, color}} objects")
     kinds: dict[str, str] = {}
     for idx, entry in enumerate(value):
         path = f"maps.{map_name}.{key}[{idx}]"

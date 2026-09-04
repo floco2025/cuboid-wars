@@ -12,7 +12,7 @@ use crate::{
 };
 use common::{
     config::{CharacterPhysicsConfig, GameplayConfig},
-    constants::{GRID_CELL_SIZE, PHYSICS_EPSILON},
+    constants::PHYSICS_EPSILON,
     physics::CollisionWorld,
     protocol::{ActorId, ActorMarker, PlayerId, PlayerMarker, Position, SActorBeam, ServerMessage},
 };
@@ -31,7 +31,8 @@ const WAYPOINT_REACHED_DISTANCE: f32 = 0.5;
 // rethink — roughly one cell at active speed.
 const SHAKE_SECS: f32 = 0.6;
 const DIRECT_ROUTE_CLEARANCE_MARGIN: f32 = 0.1;
-const COVER_MIN_THREAT_DISTANCE: f32 = GRID_CELL_SIZE * 0.75;
+// Cover closer than this to a threat (in grid cells) is not cover.
+const COVER_MIN_THREAT_DISTANCE_CELLS: f32 = 0.75;
 
 pub fn actors_behavior_system(
     time: Res<Time>,
@@ -266,9 +267,10 @@ impl BehaviorContext<'_> {
     }
 
     pub(super) fn stable_cover(&self, pos: &Position, threats: &[Position]) -> bool {
+        let min_threat_distance = COVER_MIN_THREAT_DISTANCE_CELLS * self.nav_graph.cell_size();
         if threats
             .iter()
-            .any(|threat| pos.horizontal_distance_sq(threat) < COVER_MIN_THREAT_DISTANCE * COVER_MIN_THREAT_DISTANCE)
+            .any(|threat| pos.horizontal_distance_sq(threat) < min_threat_distance * min_threat_distance)
         {
             return false;
         }

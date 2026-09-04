@@ -5,12 +5,13 @@ use bevy_math::Vec3;
 use super::{traversal::traverse_yaw, *};
 use crate::{
     config::{CharacterPhysicsConfig, KnockbackConfig, MapMovementConfig, PlayerMovementConfig},
-    constants::{PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH, PORTAL_LIGHT_CLEARANCE, PORTAL_RIM_SCALE, WALL_HEIGHT},
+    constants::{PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH, PORTAL_LIGHT_CLEARANCE, PORTAL_RIM_SCALE},
     math::angle_delta_radians,
     physics::{
         CharacterMovementResult, CharacterSupport, CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity,
     },
     protocol::{FaceYaw, MapLayout, PlayerMoveIntent, Portal, PortalEnd, PortalPairId, Position},
+    test_geometry::{LEVEL_HEIGHT, WALL_HEIGHT},
 };
 
 const CAP: f32 = 22.5;
@@ -519,8 +520,8 @@ fn half_placed_pair_is_inert() {
     assert!(hop.is_none());
 }
 
-use crate::constants::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_THICKNESS};
 use crate::protocol::{BarrierKindTable, Floor, PlatePurpose, PressurePlate, Ramp, Wall, WallLight};
+use crate::test_geometry::{FLOOR_THICKNESS, WALL_THICKNESS};
 
 // One 12 m wall along X at z = 0 (level 0) with the room floor on +Z.
 fn placement_layout() -> MapLayout {
@@ -532,6 +533,8 @@ fn placement_layout() -> MapLayout {
             z2: 0.0,
             width: WALL_THICKNESS,
             level: 0,
+            y: 0.0,
+            height: WALL_HEIGHT,
         }],
         floors: vec![Floor {
             x1: -6.0,
@@ -694,6 +697,8 @@ fn ramp_side_portal_rim_can_meet_the_slope() {
             z2: ramp_length,
             width: WALL_THICKNESS,
             level: 0,
+            y: 0.0,
+            height: WALL_HEIGHT,
         }],
         ramps: vec![Ramp {
             x1: -2.0,
@@ -729,6 +734,8 @@ fn wall_portal_near_ramp_excludes_only_wall_backing() {
             z2: ramp_length,
             width: WALL_THICKNESS,
             level: 0,
+            y: 0.0,
+            height: WALL_HEIGHT,
         }],
         ramps: vec![Ramp {
             x1: -2.0,
@@ -806,6 +813,8 @@ fn floor_shot_under_a_crossing_wall_nudges_clear_of_it() {
         z2: 3.2,
         width: WALL_THICKNESS,
         level: 0,
+        y: 0.0,
+        height: WALL_HEIGHT,
     });
     let placement = place(&layout, Vec3::new(2.0, 1.6, 2.5), Vec3::new(2.0, 0.0, 2.5), 0.0)
         .expect("wall-cut floor shot did not nudge clear");
@@ -863,8 +872,9 @@ fn wall_light_on_the_other_face_does_not_block_placement() {
 // traveller, so front clearance must see it; backing stays bridge-blind.
 #[test]
 fn placement_front_clearance_rejects_a_powered_light_bridge() {
-    use crate::constants::{BRIDGE_THICKNESS, PORTAL_HALF_HEIGHT, PORTAL_RIM_SCALE};
+    use crate::constants::{PORTAL_HALF_HEIGHT, PORTAL_RIM_SCALE};
     use crate::protocol::{BridgeKindId, LightBridge};
+    use crate::test_geometry::BRIDGE_THICKNESS;
 
     let mut layout = placement_layout();
     layout.walls.push(Wall {
@@ -874,6 +884,8 @@ fn placement_front_clearance_rejects_a_powered_light_bridge() {
         z2: 0.0,
         width: WALL_THICKNESS,
         level: 1,
+        y: LEVEL_HEIGHT,
+        height: WALL_HEIGHT,
     });
     layout.light_bridges.push(LightBridge {
         x1: -6.0,
@@ -883,6 +895,7 @@ fn placement_front_clearance_rejects_a_powered_light_bridge() {
         y: LEVEL_HEIGHT,
         level: 1,
         kind: BridgeKindId(0),
+        thickness: BRIDGE_THICKNESS,
     });
     let mut world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
     let origin = Vec3::new(0.0, 3.7, 3.0);
@@ -913,6 +926,7 @@ fn placement_rejects_a_floor_portal_covering_a_pressure_plate() {
         center_x: 3.0,
         center_z: 3.0,
         purpose: PlatePurpose::Firework,
+        center_y: 0.0,
     });
     assert!(place(&layout, Vec3::new(3.0, 1.6, 3.0), Vec3::new(3.0, 0.0, 3.0), 0.0).is_none());
     // The same shot well away from the plate lands.

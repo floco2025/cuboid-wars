@@ -23,6 +23,7 @@ pub(in crate::network) fn sync_items(
             &context.item_assets,
             &context.barrier_assets,
             &context.missile_assets,
+            context.map_settings.geometry,
             *item_id,
             item.item_type,
             &item.pos,

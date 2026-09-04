@@ -4,10 +4,7 @@ use crate::{
     constants::*,
     vfx::{srgb_color, translucent_kind_material, with_white_vertex_colors},
 };
-use common::{
-    constants::BARRIER_THICKNESS,
-    protocol::{BarrierKindId, KindDef},
-};
+use common::protocol::{BarrierKindId, KindDef};
 
 // Mesh + materials for both barriers (full-size, scaled per-instance to
 // match the segment length) and keys (a small rotating cuboid that reuses
@@ -60,15 +57,14 @@ pub fn build_barrier_assets(
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
     kinds: &[KindDef],
+    thickness: f32,
 ) -> BarrierAssets {
     // Barrier mesh: unit X and Y so per-instance `Transform.scale` can
     // encode the merged segment's length and barrier height. Thickness
     // stays baked in the mesh — no instance ever wants a different thickness.
     // Both meshes carry the white vertex colors `translucent_kind_material`
     // needs to render.
-    let mesh = meshes.add(with_white_vertex_colors(
-        Cuboid::new(1.0, 1.0, BARRIER_THICKNESS).into(),
-    ));
+    let mesh = meshes.add(with_white_vertex_colors(Cuboid::new(1.0, 1.0, thickness).into()));
     // Key mesh: a small fixed-size cuboid, no per-instance scaling.
     let key_mesh = meshes.add(with_white_vertex_colors(
         Cuboid::new(KEY_WIDTH, KEY_HEIGHT, KEY_DEPTH).into(),

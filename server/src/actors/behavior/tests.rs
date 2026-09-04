@@ -13,10 +13,10 @@ use crate::{
     },
     config::ServerGameplayConfig,
     map::{ActorSpawnZone, CellGrid, EdgeGrid, LevelGrid, MapConfig},
+    test_geometry::{CELL, LEVEL_HEIGHT, WALL_HEIGHT, geometry},
 };
 use common::{
     config::GameplayConfig,
-    constants::{GRID_CELL_SIZE, LEVEL_HEIGHT},
     map::MapGeometry,
     physics::{CharacterSupport, CollisionWorld},
     protocol::{BarrierKindTable, MapLayout, PlayerId, Position, Wall},
@@ -82,7 +82,7 @@ impl Fixture {
             placed_items: Vec::new(),
             pressure_plates: Vec::new(),
         };
-        let geometry = MapGeometry::new(cols, rows);
+        let geometry = geometry(cols, rows);
         let graph = NavGraph::new(map.clone(), geometry);
         let server = ServerGameplayConfig::load_default().expect("default server gameplay config should load");
         let territories = ActorTerritories::new(&graph, &map, &server).expect("test territory should build");
@@ -571,6 +571,8 @@ fn occluded_player_keeps_last_seen_state_without_refresh() {
                 z2: actor_pos.z + 3.0,
                 width: 0.2,
                 level: 0,
+                y: 0.0,
+                height: WALL_HEIGHT,
             }],
             ..MapLayout::default()
         },
@@ -614,6 +616,8 @@ fn actor_already_in_stable_cover_holds_position() {
                 z2: actor_pos.z + 3.0,
                 width: 0.2,
                 level: 0,
+                y: 0.0,
+                height: WALL_HEIGHT,
             }],
             ..MapLayout::default()
         },
@@ -649,6 +653,8 @@ fn evade_route_is_replaced_when_same_cell_threat_exposes_destination() {
                 z2: destination.z + 0.5,
                 width: 0.2,
                 level: 0,
+                y: 0.0,
+                height: WALL_HEIGHT,
             }],
             ..MapLayout::default()
         },
@@ -825,7 +831,7 @@ fn stalled_actor_hops_to_a_random_neighbor_before_rethinking() {
     assert_eq!(route.waypoints.len(), 1, "one-leg hop");
     let hop_distance = pos.horizontal_distance_sq(&route.destination).sqrt();
     assert!(
-        hop_distance > 0.1 && hop_distance < GRID_CELL_SIZE * 1.6,
+        hop_distance > 0.1 && hop_distance < CELL * 1.6,
         "hop lands in a neighboring cell, got {hop_distance}"
     );
     assert!(info.decision_timer > 0.0, "controller deferred during the hop");

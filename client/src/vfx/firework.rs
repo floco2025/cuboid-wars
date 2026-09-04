@@ -14,8 +14,7 @@ use crate::{
     vfx::{BlastRadii, ExplosionAssets, ExplosionSpawnCtx, ExplosionVfxBudget, spawn_missile_explosion},
 };
 use common::{
-    config::GameplayConfig,
-    constants::LEVEL_HEIGHT,
+    config::{GameplayConfig, MapGeometryConfig},
     physics::CollisionWorld,
     protocol::{MapLayout, Position},
 };
@@ -79,12 +78,12 @@ pub struct FireworkShow {
 impl FireworkShow {
     // The server broadcasts every trigger (it cannot know a show's length),
     // so a show that is still playing wins over a new seed.
-    pub fn start(&mut self, seed: u64, map_layout: Option<&MapLayout>) {
+    pub fn start(&mut self, seed: u64, map_layout: Option<&MapLayout>, geometry: MapGeometryConfig) {
         if !self.events.is_empty() {
             return;
         }
         self.elapsed = 0.0;
-        self.events = build_show(seed, map_layout);
+        self.events = build_show(seed, map_layout, geometry);
     }
 }
 
@@ -116,7 +115,7 @@ struct ShowField {
     ring_radius: f32,
 }
 
-fn show_field(map_layout: Option<&MapLayout>) -> ShowField {
+fn show_field(map_layout: Option<&MapLayout>, geometry: MapGeometryConfig) -> ShowField {
     let (min_x, max_x, min_z, max_z, max_level) = map_layout
         .filter(|layout| !layout.floors.is_empty())
         .map(|layout| {
@@ -148,13 +147,13 @@ fn show_field(map_layout: Option<&MapLayout>) -> ShowField {
         center: Vec3::new((min_x + max_x) / 2.0, 0.0, (min_z + max_z) / 2.0),
         half_x,
         half_z,
-        sky_base: f32::from(max_level + 1) * LEVEL_HEIGHT + SKY_CLEARANCE,
+        sky_base: geometry.level_y(max_level + 1) + SKY_CLEARANCE,
         ring_radius: half_x.hypot(half_z) + RING_MARGIN,
     }
 }
 
-fn build_show(seed: u64, map_layout: Option<&MapLayout>) -> VecDeque<FireworkEvent> {
-    let field = show_field(map_layout);
+fn build_show(seed: u64, map_layout: Option<&MapLayout>, geometry: MapGeometryConfig) -> VecDeque<FireworkEvent> {
+    let field = show_field(map_layout, geometry);
     let mut rng = StdRng::seed_from_u64(seed);
     let mut events: Vec<FireworkEvent> = Vec::new();
 
@@ -476,6 +475,7 @@ fn spawn_laser_beams(commands: &mut Commands, vfx: &mut FireworkVfx, assets: &Fi
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_geometry::{LEVEL_HEIGHT, sizes};
     use common::protocol::Floor;
 
     fn layout() -> MapLayout {
@@ -517,15 +517,15 @@ mod tests {
     #[test]
     fn same_seed_builds_the_identical_show() {
         let layout = layout();
-        let a = build_show(42, Some(&layout));
-        let b = build_show(42, Some(&layout));
+        let a = build_show(42, Some(&layout), sizes());
+        let b = build_show(42, Some(&layout), sizes());
         assert_eq!(positions(&a), positions(&b), "cross-client sync relies on determinism");
         assert!(!a.is_empty());
     }
 
     #[test]
     fn events_are_time_sorted() {
-        let show = build_show(7, Some(&layout()));
+        let show = build_show(7, Some(&layout()), sizes());
         let times: Vec<f32> = show.iter().map(|event| event.at_secs).collect();
         let mut sorted = times.clone();
         sorted.sort_by(f32::total_cmp);
@@ -535,8 +535,8 @@ mod tests {
     #[test]
     fn rockets_launch_outside_and_below_and_pop_safely_high() {
         let layout = layout();
-        let field = show_field(Some(&layout));
-        let show = build_show(123, Some(&layout));
+        let field = show_field(Some(&layout), sizes());
+        let show = build_show(123, Some(&layout), sizes());
         for event in &show {
             match &event.action {
                 // Ground launches (fuse > star fuse) start outside the
@@ -572,12 +572,12 @@ mod tests {
     #[test]
     fn a_running_show_ignores_a_new_seed() {
         let mut show = FireworkShow::default();
-        show.start(1, None);
+        show.start(1, None, sizes());
         show.elapsed = 5.0;
         show.events.pop_front();
         let remaining = show.events.len();
 
-        show.start(2, None);
+        show.start(2, None, sizes());
 
         assert_eq!(show.events.len(), remaining);
         assert_eq!(show.elapsed, 5.0);
@@ -586,11 +586,11 @@ mod tests {
     #[test]
     fn a_finished_show_starts_again() {
         let mut show = FireworkShow::default();
-        show.start(1, None);
+        show.start(1, None, sizes());
         show.elapsed = 40.0;
         show.events.clear();
 
-        show.start(2, None);
+        show.start(2, None, sizes());
 
         assert!(!show.events.is_empty());
         assert_eq!(show.elapsed, 0.0);

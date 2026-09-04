@@ -9,7 +9,7 @@ use crate::{
 };
 use common::{
     config::GameplayConfig,
-    protocol::{MapLayout, Position},
+    protocol::{MapLayout, MapSettings, Position},
 };
 
 // Update camera position to follow local player. Physics ticks at 30 Hz;
@@ -18,6 +18,7 @@ use common::{
 pub fn local_player_camera_sync_system(
     local_player_query: Query<(&Position, &PreviousTickPosition), With<LocalPlayerMarker>>,
     map_layout: Res<MapLayout>,
+    map_settings: Res<MapSettings>,
     windows: Query<&Window>,
     fixed_time: Res<Time<Fixed>>,
     mut camera_query: Query<
@@ -63,6 +64,7 @@ pub fn local_player_camera_sync_system(
             *camera_transform = topdown_camera_transform(
                 player_pos,
                 Some(&map_layout),
+                map_settings.geometry,
                 window_aspect_ratio(&windows),
                 persp.fov,
                 top_down_camera_yaw.0,

@@ -1,7 +1,4 @@
-use crate::{
-    constants::{LEVEL_CLASSIFICATION_TOLERANCE, LEVEL_HEIGHT, PHYSICS_EPSILON},
-    protocol::Ramp,
-};
+use crate::{constants::PHYSICS_EPSILON, protocol::Ramp};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RampAxis {
@@ -37,28 +34,10 @@ pub fn ramp_surface_at(ramp: &Ramp, x: f32, z: f32) -> f32 {
     ramp.y1 + progress * (ramp.y2 - ramp.y1)
 }
 
-// Determine which level a player is on from their Y position. The level
-// surface for level k is at `k * LEVEL_HEIGHT`; a player counts as "on level k"
-// from `k*LEVEL_HEIGHT - LEVEL_CLASSIFICATION_TOLERANCE` up to just below the next
-// level's surface, so brief jumps don't change levels. Negative `y` (e.g.
-// mid-fall through a ground hole) clamps to level 0.
-#[must_use]
-pub fn level_for_y(y: f32) -> u8 {
-    if y < -LEVEL_CLASSIFICATION_TOLERANCE {
-        return 0;
-    }
-    let raw = ((y + LEVEL_CLASSIFICATION_TOLERANCE) / LEVEL_HEIGHT).floor();
-    if raw < 0.0 {
-        0
-    } else {
-        raw.min(f32::from(u8::MAX)) as u8
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::constants::LEVEL_HEIGHT;
+    use crate::test_geometry::LEVEL_HEIGHT;
 
     #[test]
     fn ramp_axis_and_surface_follow_longer_x_axis() {

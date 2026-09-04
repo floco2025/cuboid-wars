@@ -4,10 +4,7 @@ use crate::{
     constants::{BRIDGE_ALPHA_OFF, BRIDGE_EMISSIVE},
     vfx::{srgb_color, translucent_kind_material, with_white_vertex_colors},
 };
-use common::{
-    constants::BRIDGE_THICKNESS,
-    protocol::{BridgeKindId, KindDef},
-};
+use common::protocol::{BridgeKindId, KindDef};
 
 // One unit slab for every bridge (per-instance `Transform.scale` encodes the
 // rectangle) and one material per kind, indexed by `BridgeKindId.0`, so the
@@ -39,8 +36,9 @@ pub fn build_bridge_assets(
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
     kinds: &[KindDef],
+    thickness: f32,
 ) -> BridgeAssets {
-    let mesh = meshes.add(with_white_vertex_colors(Cuboid::new(1.0, BRIDGE_THICKNESS, 1.0).into()));
+    let mesh = meshes.add(with_white_vertex_colors(Cuboid::new(1.0, thickness, 1.0).into()));
 
     let mut handles = Vec::with_capacity(kinds.len());
     let mut base_colors = Vec::with_capacity(kinds.len());

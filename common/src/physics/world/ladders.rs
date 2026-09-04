@@ -3,7 +3,7 @@ use bevy_math::Vec3;
 use crate::{
     constants::{
         LADDER_BAND_DEPTH, LADDER_BASE_OVERSHOOT, LADDER_OVERSHOOT, LADDER_RAIL_INSET, LADDER_VOLUME_DEPTH,
-        LEVEL_HEIGHT, PHYSICS_EPSILON,
+        PHYSICS_EPSILON,
     },
     protocol::{Ladder, Position},
 };
@@ -47,8 +47,8 @@ pub struct LadderVolume {
 impl LadderVolume {
     #[must_use]
     pub fn from_ladder(ladder: &Ladder) -> Self {
-        let y_min = f32::from(ladder.level) * LEVEL_HEIGHT;
-        let top_landing = (f32::from(ladder.level) + f32::from(ladder.levels)) * LEVEL_HEIGHT;
+        let y_min = ladder.y;
+        let top_landing = ladder.y + ladder.height;
         // Everything is measured from the RAIL plane — where the client
         // draws the rails — not the anchoring grid edge, so the physics
         // uses the ladder where it visibly is.

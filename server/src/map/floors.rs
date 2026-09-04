@@ -5,7 +5,7 @@ use super::{
     material_rules::MaterialRules,
     segments::{MERGE_EPS, grid_x, grid_z},
 };
-use common::{constants::*, map::MapGeometry, protocol::FaceMaterials, protocol::Floor};
+use common::{map::MapGeometry, protocol::FaceMaterials, protocol::Floor};
 
 // One floor cell's 8 neighbours within the level's slab mask.
 struct Neighbors {
@@ -22,7 +22,7 @@ struct Neighbors {
 // Emit a `Floor` cuboid for every cell in `mask` at level `level` (Y = `y`).
 //
 // Slab + extensions: each cell starts at its grid bounds. Sides without a
-// 4-connected neighbour extend outward by `HALF_WALL_THICKNESS` so the slab
+// 4-connected neighbour extend outward by half the wall thickness so the slab
 // covers where a perimeter wall would sit; sides with a neighbour stop at
 // the grid line (their slabs meet there). N/S extensions are additionally
 // suppressed when a diagonal cell sits on that side, since the diagonal's
@@ -33,7 +33,7 @@ struct Neighbors {
 // thin strip patches that gap out to the wall face. Fillers exist only in the
 // N/S direction (E/W extensions don't have a diagonal-suppression case).
 //
-// All tiers use the same `FLOOR_THICKNESS` so a hole in any level reads as
+// All tiers use the map's floor thickness so a hole in any level reads as
 // a real slab edge from below.
 //
 // `skip_corner_filler_edges`: horizontal wall edges (`EdgeGrid.horizontal`
@@ -51,7 +51,8 @@ pub fn emit_floor_tier(
 ) -> Vec<Floor> {
     let grid_cols = geometry.grid_cols;
     let grid_rows = geometry.grid_rows;
-    let thickness = FLOOR_THICKNESS;
+    let thickness = geometry.floor_thickness();
+    let wall_half_thickness = geometry.wall_half_thickness();
     let mut floors = Vec::new();
 
     let in_mask = |r: i32, c: i32| r >= 0 && r < grid_rows && c >= 0 && c < grid_cols && mask[r as usize][c as usize];
@@ -87,22 +88,22 @@ pub fn emit_floor_tier(
             let extend_s = !n.s && !n.sw && !n.se;
 
             let x1 = if extend_w {
-                x1_orig - WALL_HALF_THICKNESS
+                x1_orig - wall_half_thickness
             } else {
                 x1_orig
             };
             let x2 = if extend_e {
-                x2_orig + WALL_HALF_THICKNESS
+                x2_orig + wall_half_thickness
             } else {
                 x2_orig
             };
             let z1 = if extend_n {
-                z1_orig - WALL_HALF_THICKNESS
+                z1_orig - wall_half_thickness
             } else {
                 z1_orig
             };
             let z2 = if extend_s {
-                z2_orig + WALL_HALF_THICKNESS
+                z2_orig + wall_half_thickness
             } else {
                 z2_orig
             };
@@ -123,7 +124,7 @@ pub fn emit_floor_tier(
             // filler lands at horizontal[row][col]; the S filler at
             // horizontal[row+1][col]. Skip emission if that edge is in the
             // skip set (a ramp's high-end edge).
-            let pad = WALL_HALF_THICKNESS;
+            let pad = wall_half_thickness;
             if pad <= 0.0 {
                 continue;
             }
@@ -298,6 +299,7 @@ fn try_merge_z(acc: &mut Floor, acc_m: &mut FaceMaterials, b: &Floor, b_m: &Face
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_geometry::FLOOR_THICKNESS;
 
     fn rect(x1: f32, x2: f32, z1: f32, z2: f32) -> Floor {
         Floor {

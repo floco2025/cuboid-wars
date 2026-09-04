@@ -369,14 +369,15 @@ mod tests {
                 MapServerConfig {
                     settings: common::protocol::MapSettings {
                         skybox: "cloudy_day".to_owned(),
+                        geometry: crate::test_geometry::sizes(),
                         movement,
                         weapons: common::protocol::MapWeaponSettings {
                             projectiles: true,
                             missiles: true,
                             portals: common::protocol::PortalMode::Both,
                         },
-                        barrier_kinds: None,
-                        bridge_kinds: None,
+                        barrier_kinds: Vec::new(),
+                        bridge_kinds: Vec::new(),
                     },
                     random_items: None,
                     placed_items: PlacedItemsConfig {

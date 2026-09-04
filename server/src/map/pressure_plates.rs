@@ -9,7 +9,6 @@ use crate::{
     quests::{QuestBoard, QuestCatalog, QuestEvent, record_event},
 };
 use common::{
-    constants::{GRID_CELL_SIZE, LEVEL_HEIGHT},
     map::MapGeometry,
     protocol::{
         BarrierKindTable, BridgeKindTable, HeldPurpose, PlatePurpose, PlateState, PlayerId, PlayerMarker, Position,
@@ -18,21 +17,21 @@ use common::{
 };
 
 // World-space test: is `pos` inside this plate's inner 25%-by-area square AND
-// on the plate's level? Y matches when `|pos.y - level * LEVEL_HEIGHT| <
-// LEVEL_HEIGHT / 2`, which keeps a player on the floor above from triggering
-// a plate one level down.
+// on the plate's level? Y matches within half a storey of the plate's floor,
+// which keeps a player on the floor above from triggering a plate one level
+// down.
 #[must_use]
 pub fn player_on_plate(plate: &PressurePlateRuntime, pos: &Position, geometry: &MapGeometry) -> bool {
-    let plate_y = f32::from(plate.level) * LEVEL_HEIGHT;
-    if (pos.y - plate_y).abs() >= LEVEL_HEIGHT / 2.0 {
+    if (pos.y - geometry.level_y(plate.level)).abs() >= geometry.level_height() / 2.0 {
         return false;
     }
+    let cell = geometry.cell_size();
     let cell_x = geometry.cell_to_world_x(plate.col);
     let cell_z = geometry.cell_to_world_z(plate.row);
-    let min_x = cell_x + GRID_CELL_SIZE * 0.25;
-    let max_x = cell_x + GRID_CELL_SIZE * 0.75;
-    let min_z = cell_z + GRID_CELL_SIZE * 0.25;
-    let max_z = cell_z + GRID_CELL_SIZE * 0.75;
+    let min_x = cell_x + cell * 0.25;
+    let max_x = cell_x + cell * 0.75;
+    let min_z = cell_z + cell * 0.25;
+    let max_z = cell_z + cell * 0.75;
     pos.x >= min_x && pos.x <= max_x && pos.z >= min_z && pos.z <= max_z
 }
 
@@ -297,7 +296,8 @@ fn presser_of_purpose(
 #[cfg(test)]
 mod player_on_plate_tests {
     use super::*;
-    use common::{constants::GRID_CELL_SIZE, protocol::BarrierKindId};
+    use crate::test_geometry::{CELL, LEVEL_HEIGHT, geometry};
+    use common::protocol::BarrierKindId;
 
     fn make_plate(level: u8, col: i32, row: i32) -> PressurePlateRuntime {
         PressurePlateRuntime {
@@ -309,10 +309,10 @@ mod player_on_plate_tests {
     }
 
     // Grid 1x1 centers the world origin on the cell at (0, 0), so the plate
-    // covers world-x in [-GRID_CELL_SIZE/2, GRID_CELL_SIZE/2] and the inner-
-    // 50% rect is [-GRID_CELL_SIZE/4, GRID_CELL_SIZE/4] on each axis.
+    // covers world-x in [-CELL/2, CELL/2] and the inner-50% rect is
+    // [-CELL/4, CELL/4] on each axis.
     fn geom() -> MapGeometry {
-        MapGeometry::new(1, 1)
+        geometry(1, 1)
     }
 
     #[test]
@@ -328,7 +328,7 @@ mod player_on_plate_tests {
         // Inner rect goes from cell_x + 0.25*size to cell_x + 0.75*size.
         // cell_x for col=0 on a 1x1 grid is -size/2. So inner-rect minimum x
         // is -size/2 + 0.25*size = -0.25 * size. Sample just inside.
-        let just_inside = -0.25 * GRID_CELL_SIZE + 0.01;
+        let just_inside = -0.25 * CELL + 0.01;
         let pos = Position {
             x: just_inside,
             y: 0.0,
@@ -341,7 +341,7 @@ mod player_on_plate_tests {
     fn just_outside_inner_rect_does_not_trigger() {
         let plate = make_plate(0, 0, 0);
         // Just outside the inner-50% rect on x; z still centered.
-        let outside_x = -0.25 * GRID_CELL_SIZE - 0.01;
+        let outside_x = -0.25 * CELL - 0.01;
         let pos = Position {
             x: outside_x,
             y: 0.0,
@@ -356,9 +356,9 @@ mod player_on_plate_tests {
         // Cell corner sits at +/- size/2 on both axes — well outside the
         // inner-50% rect.
         let pos = Position {
-            x: GRID_CELL_SIZE / 2.0,
+            x: CELL / 2.0,
             y: 0.0,
-            z: GRID_CELL_SIZE / 2.0,
+            z: CELL / 2.0,
         };
         assert!(!player_on_plate(&plate, &pos, &geom()));
     }
@@ -476,6 +476,7 @@ mod system_tests {
     use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
 
     use super::*;
+    use crate::test_geometry::geometry;
     use crate::{
         config::{QuestKind, ServerGameplayConfig},
         map::{CellGrid, EdgeGrid, LevelGrid},
@@ -486,10 +487,7 @@ mod system_tests {
             test_support::{catalog, completed, drain, feed_lines, quest},
         },
     };
-    use common::{
-        constants::GRID_CELL_SIZE,
-        protocol::{BarrierKindId, BridgeKindId, QuestId, QuestScope},
-    };
+    use common::protocol::{BarrierKindId, BridgeKindId, QuestId, QuestScope};
 
     const LOBBY: BarrierKindId = BarrierKindId(0);
     const SKYWAY: BridgeKindId = BridgeKindId(0);
@@ -533,7 +531,7 @@ mod system_tests {
                 placed_items: Vec::new(),
                 pressure_plates: plates,
             })
-            .insert_resource(MapGeometry::new(2, 2))
+            .insert_resource(geometry(2, 2))
             .insert_resource(PlayerMap::default())
             .insert_resource(config)
             .insert_resource(quest_catalog)
@@ -549,9 +547,9 @@ mod system_tests {
     fn standing_player(app: &mut App, id: u32) -> (Entity, UnboundedReceiver<ServerToClient>) {
         let geometry = *app.world().resource::<MapGeometry>();
         let pos = Position {
-            x: geometry.cell_to_world_x(0) + GRID_CELL_SIZE / 2.0,
+            x: geometry.cell_center_x(0),
             y: 0.0,
-            z: geometry.cell_to_world_z(0) + GRID_CELL_SIZE / 2.0,
+            z: geometry.cell_center_z(0),
         };
         let entity = app.world_mut().spawn((PlayerMarker, PlayerId(id), pos)).id();
         let (tx, mut rx) = unbounded_channel();

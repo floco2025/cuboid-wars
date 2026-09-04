@@ -1,5 +1,6 @@
 mod characters;
 pub mod gameplay;
+mod geometry;
 mod missiles;
 mod movement;
 pub mod network;
@@ -14,6 +15,7 @@ pub use characters::{
 pub use gameplay::{
     ActorGameplayBootstrap, GameplayBootstrap, GameplayConfig, MissilesGameplayBootstrap, PlayerGameplayBootstrap,
 };
+pub use geometry::MapGeometryConfig;
 pub use missiles::MissilesConfig;
 pub use movement::{ActorMovementConfig, KnockbackConfig, MapMovementConfig, PlayerMovementConfig};
 pub use network::{create_quinn_client_config, create_quinn_server_config, load_certs, load_private_key};

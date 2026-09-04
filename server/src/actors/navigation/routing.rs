@@ -1,13 +1,14 @@
 use std::collections::{HashMap, VecDeque};
 
-use common::{config::CharacterPhysicsConfig, constants::GRID_CELL_SIZE, physics::CollisionWorld, protocol::Position};
+use common::{config::CharacterPhysicsConfig, physics::CollisionWorld, protocol::Position};
 use rand::{Rng, RngExt};
 
 use super::{NavGraph, NavNode, territory::ActorTerritory};
 
-const PRIMARY_THREAT_EXCLUSION_RADIUS: f32 = GRID_CELL_SIZE * 1.5;
-const FALLBACK_THREAT_EXCLUSION_RADIUS: f32 = GRID_CELL_SIZE * 0.75;
-const MINIMUM_THREAT_EXCLUSION_RADIUS: f32 = GRID_CELL_SIZE * 0.25;
+// Threat exclusion radii for cover search, in grid cells.
+const PRIMARY_THREAT_EXCLUSION_CELLS: f32 = 1.5;
+const FALLBACK_THREAT_EXCLUSION_CELLS: f32 = 0.75;
+const MINIMUM_THREAT_EXCLUSION_CELLS: f32 = 0.25;
 const DIRECT_ROUTE_CLEARANCE_MARGIN: f32 = 0.1;
 pub(super) const COVER_SEARCH_MAX_STEPS: usize = 12;
 
@@ -150,11 +151,12 @@ impl NavGraph {
         is_stable_cover: impl FnMut(&Position) -> bool + Copy,
     ) -> Option<PlannedRoute> {
         let start_node = self.node_for_position(start)?;
-        for exclusion_radius in [
-            PRIMARY_THREAT_EXCLUSION_RADIUS,
-            FALLBACK_THREAT_EXCLUSION_RADIUS,
-            MINIMUM_THREAT_EXCLUSION_RADIUS,
+        for exclusion_cells in [
+            PRIMARY_THREAT_EXCLUSION_CELLS,
+            FALLBACK_THREAT_EXCLUSION_CELLS,
+            MINIMUM_THREAT_EXCLUSION_CELLS,
         ] {
+            let exclusion_radius = exclusion_cells * self.cell_size();
             if let Some(route) = self.nearest_cover_route(start_node, threats, exclusion_radius, is_stable_cover) {
                 return Some(route);
             }
@@ -184,7 +186,8 @@ impl NavGraph {
     }
 
     fn safest_reachable_route(&self, start: NavNode, threats: &[Position]) -> Option<PlannedRoute> {
-        let minimum_exclusion_sq = MINIMUM_THREAT_EXCLUSION_RADIUS * MINIMUM_THREAT_EXCLUSION_RADIUS;
+        let minimum_exclusion = MINIMUM_THREAT_EXCLUSION_CELLS * self.cell_size();
+        let minimum_exclusion_sq = minimum_exclusion * minimum_exclusion;
         let search = self.reachable(
             start,
             |node| {

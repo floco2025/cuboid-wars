@@ -2,27 +2,19 @@
 // Map Geometry
 // ============================================================================
 
-// Grid
-pub const GRID_CELL_SIZE: f32 = 3.4;
-
-// Walls
-pub const WALL_THICKNESS: f32 = 0.3;
-pub const WALL_HALF_THICKNESS: f32 = WALL_THICKNESS / 2.0;
-pub const WALL_HEIGHT: f32 = 4.0;
+// The grid cell size, storey height, and floor and wall thicknesses are per
+// map (`MapGeometryConfig` in the map settings); every size that follows them
+// is a fraction here, computed there.
 
 // Barriers. Force-field segments authored on grid edges; same shape as walls
-// but rendered as translucent pulsating geometry on the client. Each kind
-// gets its own collision group (`barrier_collision_group`) so held keys and
-// open pressure plates gate pass-through per color
-// (`passable_barrier_kinds`).
-pub const BARRIER_THICKNESS: f32 = WALL_THICKNESS / 6.0;
-pub const BARRIER_HEIGHT: f32 = WALL_HEIGHT;
+// (wall height, this fraction of the wall thickness) but rendered as
+// translucent pulsating geometry on the client. Each kind gets its own
+// collision group (`barrier_collision_group`) so held keys and open pressure
+// plates gate pass-through per color (`passable_barrier_kinds`).
+pub const BARRIER_THICKNESS_FRACTION: f32 = 1.0 / 6.0;
 
-// Floors
-pub const FLOOR_THICKNESS: f32 = 0.4;
-
-// Slab thickness of a light bridge.
-pub const BRIDGE_THICKNESS: f32 = 0.1;
+// Slab thickness of a light bridge, as a fraction of the floor thickness.
+pub const BRIDGE_THICKNESS_FRACTION: f32 = 0.25;
 
 // Ladders. Freestanding climbable elements anchored on grid edges. One-sided:
 // the rail side (front) climbs and fences; the back is passed through. No
@@ -66,11 +58,9 @@ pub const LADDER_CLIMB_MIN_SPEED: f32 = 1.0;
 // alongside the pull, allowing enough sideways input to overpower it.
 pub const LADDER_FUNNEL_GAIN: f32 = 4.0;
 
-// Levels
-pub const LEVEL_HEIGHT: f32 = WALL_HEIGHT + FLOOR_THICKNESS;
-
-// Y tolerance for mapping a world position to a discrete map level. This keeps
-// brief jumps and small vertical prediction differences from changing render/filter level.
+// Y tolerance for mapping a world position to a discrete map level
+// (`MapGeometryConfig::level_for_y`). This keeps brief jumps and small
+// vertical prediction differences from changing render/filter level.
 pub const LEVEL_CLASSIFICATION_TOLERANCE: f32 = 0.5;
 
 // ============================================================================

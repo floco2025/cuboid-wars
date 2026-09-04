@@ -1,14 +1,12 @@
 use bevy::prelude::*;
 
-use common::{
-    map::MapGeometry,
-    protocol::{BarrierKindId, ItemMarker, ItemType, MapSettings, MapWeaponSettings, PortalMode},
-};
+use common::protocol::{BarrierKindId, ItemMarker, ItemType, MapSettings, MapWeaponSettings, PortalMode};
 
 use crate::map::{CellGrid, EdgeGrid, LevelGrid, MapConfig, PlacedItem};
 use crate::{
     config::RandomItemsConfig,
     items::{ItemMap, ItemSpawner, RandomItems},
+    test_geometry::geometry,
 };
 
 use super::{
@@ -107,7 +105,7 @@ fn placed_item_spawn_system_spawns_every_placed_item_visible() {
 
     let mut world = World::new();
     world.insert_resource(config);
-    world.insert_resource(MapGeometry::new(2, 1));
+    world.insert_resource(geometry(2, 1));
     world.insert_resource(map_settings(true, true));
     world.insert_resource(ItemMap::default());
     world.insert_resource(ItemSpawner::default());
@@ -155,7 +153,7 @@ fn placed_item_spawn_system_skips_disabled_weapon_pickups() {
 
     let mut world = World::new();
     world.insert_resource(config);
-    world.insert_resource(MapGeometry::new(3, 1));
+    world.insert_resource(geometry(3, 1));
     world.insert_resource(map_settings(false, false));
     world.insert_resource(ItemMap::default());
     world.insert_resource(ItemSpawner::default());

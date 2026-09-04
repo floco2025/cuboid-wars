@@ -11,7 +11,7 @@ use crate::{
     },
 };
 use bevy::{asset::RenderAssetUsages, mesh::Indices, prelude::*, render::render_resource::PrimitiveTopology};
-use common::{constants::GRID_CELL_SIZE, protocol::GrassCell};
+use common::protocol::GrassCell;
 use rand::{RngExt, SeedableRng, rngs::SmallRng};
 use std::f32::consts::TAU;
 
@@ -61,16 +61,22 @@ pub(super) const AABB_BASE_PAD: f32 = 0.01;
 // `MapGeometryBatch` convention). UV0 = (sway weight: 0 root / 1 tip,
 // per-blade phase) — a deliberate exception to the world-position-UV
 // convention, which exists for texture tiling; this material is untextured.
-pub(super) fn grass_cell_mesh(cell: GrassCell, config: &GrassConfig, open: OpenEdges, burns: &[GrassBurn]) -> Mesh {
-    let mut rng = SmallRng::seed_from_u64(cell_seed(cell));
-    let tuft_count = cell_tuft_count(config);
+pub(super) fn grass_cell_mesh(
+    cell: GrassCell,
+    cell_size: f32,
+    config: &GrassConfig,
+    open: OpenEdges,
+    burns: &[GrassBurn],
+) -> Mesh {
+    let mut rng = SmallRng::seed_from_u64(cell_seed(cell, cell_size));
+    let tuft_count = cell_tuft_count(config, cell_size);
     let vertex_count = tuft_count * BLADES_PER_TUFT * VERTICES_PER_BLADE;
     let mut positions: Vec<[f32; 3]> = Vec::with_capacity(vertex_count);
     let mut uvs: Vec<[f32; 2]> = Vec::with_capacity(vertex_count);
     let mut colors: Vec<[f32; 4]> = Vec::with_capacity(vertex_count);
     let mut indices: Vec<u32> = Vec::with_capacity(tuft_count * BLADES_PER_TUFT * INDICES_PER_BLADE);
 
-    let half = GRID_CELL_SIZE / 2.0;
+    let half = cell_size / 2.0;
     let edge = |is_open: bool| if is_open { half } else { half - BLADE_MAX_OVERHANG };
     let (x_min, x_max) = (-edge(open.neg_x), edge(open.pos_x));
     let (z_min, z_max) = (-edge(open.neg_z), edge(open.pos_z));
@@ -174,12 +180,12 @@ pub(super) fn grass_cell_mesh(cell: GrassCell, config: &GrassConfig, open: OpenE
     mesh
 }
 
-pub(super) fn cell_tuft_count(config: &GrassConfig) -> usize {
-    (config.tufts_per_m2 * GRID_CELL_SIZE * GRID_CELL_SIZE).round() as usize
+pub(super) fn cell_tuft_count(config: &GrassConfig, cell_size: f32) -> usize {
+    (config.tufts_per_m2 * cell_size * cell_size).round() as usize
 }
 
-fn cell_seed(cell: GrassCell) -> u64 {
-    let (quantized_x, quantized_z, level) = quantized_key(cell);
+fn cell_seed(cell: GrassCell, cell_size: f32) -> u64 {
+    let (quantized_x, quantized_z, level) = quantized_key(cell, cell_size);
     (quantized_x as u64)
         .wrapping_mul(0x9E37_79B9_7F4A_7C15)
         .wrapping_add((quantized_z as u64).wrapping_mul(0xC2B2_AE3D_27D4_EB4F))

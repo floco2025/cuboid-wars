@@ -1,8 +1,11 @@
 use crate::config::{
     CharacterColliderAnchor, CharacterColliderConfig, CharacterPhysicsConfig, CharacterSupportProbeConfig,
 };
-use crate::constants::{FLOOR_THICKNESS, LADDER_OVERSHOOT, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS};
+use crate::constants::LADDER_OVERSHOOT;
 use crate::protocol::{Barrier, BarrierKindId, Floor, Ladder, MapLayout, Position, Ramp, Wall};
+use crate::test_geometry::{
+    BARRIER_THICKNESS, BRIDGE_THICKNESS, FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS,
+};
 
 use super::{CollisionWorld, colliders::ColliderKind};
 
@@ -15,6 +18,8 @@ fn test_map_layout() -> MapLayout {
             z2: 0.0,
             width: WALL_THICKNESS,
             level: 1,
+            y: LEVEL_HEIGHT,
+            height: WALL_HEIGHT,
         }],
         floors: vec![Floor {
             x1: 0.0,
@@ -60,6 +65,8 @@ fn ladder_volume_covers_the_front_and_overshoot() {
             nz: -1.0,
             level: 0,
             levels: 2,
+            y: 0.0,
+            height: 2.0 * LEVEL_HEIGHT,
         }],
         ..Default::default()
     };
@@ -88,6 +95,8 @@ fn ladder_volume_is_not_a_solid() {
             nz: -1.0,
             level: 0,
             levels: 1,
+            y: 0.0,
+            height: LEVEL_HEIGHT,
         }],
         ..Default::default()
     };
@@ -213,6 +222,9 @@ fn wall_surface_along_ray_ignores_barrier() {
         z2: 1.0,
         level: 1,
         kind: BarrierKindId(0),
+        y: LEVEL_HEIGHT,
+        height: WALL_HEIGHT,
+        width: BARRIER_THICKNESS,
     });
     let world = CollisionWorld::from_map_layout(&layout, &crate::protocol::BarrierKindTable::default());
 
@@ -239,6 +251,8 @@ fn wall_end_world() -> CollisionWorld {
                 z2: -8.0,
                 width: WALL_THICKNESS,
                 level: 0,
+                y: 0.0,
+                height: WALL_HEIGHT,
             }],
             floors: vec![Floor {
                 x1: -8.0,
@@ -327,6 +341,7 @@ fn light_bridge_supports_a_character_only_while_powered() {
             y: LEVEL_HEIGHT,
             level: 1,
             kind: BridgeKindId(0),
+            thickness: BRIDGE_THICKNESS,
         }],
         ..Default::default()
     };
@@ -360,6 +375,7 @@ fn a_powered_light_bridge_stays_out_of_sight_and_ground_probes() {
             y: LEVEL_HEIGHT,
             level: 1,
             kind: BridgeKindId(0),
+            thickness: BRIDGE_THICKNESS,
         }],
         ..Default::default()
     };

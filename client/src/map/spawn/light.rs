@@ -7,11 +7,11 @@ use crate::{
     },
     map::MapLevel,
 };
+use common::{config::MapGeometryConfig, protocol::WallLight};
 
 // Marker for the lamp scene root and its emitting `PointLight` child entities.
 #[derive(Component)]
 pub struct WallLightMarker;
-use common::{map::level_for_y, protocol::WallLight};
 
 // Per-light flicker state; phase is derived from the light's position so
 // neighbouring lights never dip in sync.
@@ -26,12 +26,13 @@ pub fn spawn_wall_light_from_layout(
     commands: &mut Commands,
     asset_server: &Res<AssetServer>,
     asset_set: &AssetSet,
+    geometry: MapGeometryConfig,
     light: &WallLight,
 ) {
     let wall_light = asset_set.wall_light_model();
     let light_scene: Handle<WorldAsset> =
         asset_server.load(GltfAssetLabel::Scene(0).from_asset(wall_light.scene.clone()));
-    let level = MapLevel(level_for_y(light.pos.y));
+    let level = MapLevel(geometry.level_for_y(light.pos.y));
 
     let model_yaw = Quat::from_rotation_y(light.yaw);
     let (sin_yaw, cos_yaw) = light.yaw.sin_cos();

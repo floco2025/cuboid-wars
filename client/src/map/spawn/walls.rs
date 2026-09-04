@@ -5,7 +5,7 @@ use super::{
     geometry_batch::{MapGeometryBatch, MapGeometryKind},
 };
 use crate::config::AssetSet;
-use common::{constants::*, protocol::FaceMaterials, protocol::*};
+use common::protocol::{FaceMaterials, Wall};
 
 #[derive(Clone, Copy)]
 enum CardinalDirection {
@@ -50,15 +50,14 @@ pub fn batch_wall(batcher: &mut MapGeometryBatch, asset_set: &AssetSet, wall: &W
     let mesh_size_z = wall.width;
     let rotation = Quat::from_rotation_y(dz.atan2(dx));
 
-    let level_y = f32::from(wall.level) * LEVEL_HEIGHT;
-    let world_center = Vec3::new(center_x, level_y + WALL_HEIGHT / 2.0, center_z);
+    let world_center = Vec3::new(center_x, wall.y + wall.height / 2.0, center_z);
     let transform = Transform::from_translation(world_center).with_rotation(rotation);
 
     if material_ids.is_uniform() {
         let material_def = asset_set.material_by_id(material_ids.primary());
         let mesh = tiled_cuboid(
             mesh_size_x,
-            WALL_HEIGHT,
+            wall.height,
             mesh_size_z,
             material_def.tile_size(),
             world_center,
@@ -90,7 +89,7 @@ pub fn batch_wall(batcher: &mut MapGeometryBatch, asset_set: &AssetSet, wall: &W
     let bottom_material_def = asset_set.material_by_id(&material_ids.bottom);
     let surface_meshes = tiled_wall_surface_meshes(
         mesh_size_x,
-        WALL_HEIGHT,
+        wall.height,
         mesh_size_z,
         world_center,
         rotation,

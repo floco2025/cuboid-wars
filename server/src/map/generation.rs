@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use crate::map::MapConfig;
 use anyhow::{Context, Result};
 use common::{
+    config::MapGeometryConfig,
     map::MapGeometry,
     protocol::{BarrierKindTable, BridgeKindTable, MapLayout},
 };
@@ -17,13 +18,14 @@ pub struct GeneratedMap {
 
 pub fn generate_map(
     map_name: &str,
+    sizes: MapGeometryConfig,
     barrier_kinds: &BarrierKindTable,
     bridge_kinds: &BridgeKindTable,
 ) -> Result<GeneratedMap> {
     let path = map_path(map_name);
     let map_def = definition::load_map(&path).with_context(|| format!("failed to load map at {}", path.display()))?;
-    let assets = MaterialRules::from_def(&map_def);
-    let (layout, config, geometry) = definition::compile_map(&map_def, &assets, barrier_kinds, bridge_kinds)
+    let assets = MaterialRules::from_def(&map_def, sizes);
+    let (layout, config, geometry) = definition::compile_map(&map_def, sizes, &assets, barrier_kinds, bridge_kinds)
         .with_context(|| format!("failed to compile map at {}", path.display()))?;
     Ok(GeneratedMap {
         layout,
@@ -44,11 +46,13 @@ pub(crate) fn map_path(map_name: &str) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_geometry::sizes;
 
     #[test]
     fn missing_map_returns_contextual_error() {
         let error = generate_map(
             "definitely-not-a-real-map",
+            sizes(),
             &BarrierKindTable::default(),
             &BridgeKindTable::default(),
         )

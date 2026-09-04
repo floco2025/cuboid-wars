@@ -49,7 +49,7 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
         layout: map_layout,
         config: map_config,
         geometry: map_geometry,
-    } = generate_map(map_name, &barrier_kind_table, &bridge_kind_table)?;
+    } = generate_map(map_name, map_settings.geometry, &barrier_kind_table, &bridge_kind_table)?;
     let collision_world = CollisionWorld::from_map_layout(&map_layout, &barrier_kind_table);
     let nav_graph = NavGraph::new(map_config.clone(), map_geometry);
     let air_graph = AirGraph::new(map_config.clone(), map_geometry);

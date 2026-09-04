@@ -1,12 +1,14 @@
 pub(super) use bevy::prelude::Entity;
 pub(super) use common::{
     config::CharacterPhysicsConfig,
-    constants::{FLOOR_THICKNESS, WALL_THICKNESS},
     physics::{CharacterMovePlan, CollisionWorld},
     protocol::{ActorId, ActorMoveIntent, Floor, MapLayout, Position, Wall},
 };
 
-pub(super) use crate::actors::{ActorInfo, ActorMode, ActorRoute, BeamState, navigation::NavNode};
+pub(super) use crate::{
+    actors::{ActorInfo, ActorMode, ActorRoute, BeamState, navigation::NavNode},
+    test_geometry::{FLOOR_THICKNESS, WALL_HEIGHT, WALL_THICKNESS},
+};
 
 pub(super) use super::super::{
     context::{ActorMoveContext, blocked_step_made_useful_progress},
@@ -84,6 +86,8 @@ pub(crate) fn wall() -> Wall {
         z2: 2.0,
         width: WALL_THICKNESS,
         level: 0,
+        y: 0.0,
+        height: WALL_HEIGHT,
     }
 }
 

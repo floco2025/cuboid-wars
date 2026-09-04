@@ -325,7 +325,7 @@ mod tests {
     use super::super::scorch::ScorchMark;
     use super::*;
     use crate::map::GrassBurn;
-    use common::constants::WALL_HEIGHT;
+    use crate::test_geometry::WALL_HEIGHT;
     use common::protocol::{BarrierKindTable, Floor, MapLayout, Wall};
 
     #[test]
@@ -434,6 +434,8 @@ mod tests {
                 z2: 1.0,
                 width: 0.2,
                 level: 0,
+                y: 0.0,
+                height: WALL_HEIGHT,
             }],
             floors: vec![Floor {
                 x1: -10.0,

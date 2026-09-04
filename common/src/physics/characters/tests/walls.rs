@@ -177,6 +177,8 @@ fn repeated_diagonal_wall_pressure_keeps_sliding() {
         z2: 100.0,
         width: WALL_THICKNESS,
         level: 0,
+        y: 0.0,
+        height: WALL_HEIGHT,
     };
     let floor = lower_floor();
     let collision_world = collision_world_with(&[wall], &[floor], &[]);

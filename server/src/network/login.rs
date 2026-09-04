@@ -176,7 +176,7 @@ mod tests {
                 map: MapBootstrap {
                     layout: MapLayout::default(),
                     settings: MapSettings {
-                        barrier_kinds: Some(vec![
+                        barrier_kinds: vec![
                             KindDef {
                                 id: "lobby".to_owned(),
                                 color: HexColor([0x22, 0xcc, 0x33]),
@@ -185,7 +185,7 @@ mod tests {
                                 id: "basement".to_owned(),
                                 color: HexColor([0xf0, 0xc0, 0x20]),
                             },
-                        ]),
+                        ],
                         ..map_settings
                     },
                     key_kinds: vec![BarrierKindId(1)],
@@ -200,7 +200,7 @@ mod tests {
             panic!("decoded message was not SInit");
         };
         assert_eq!(decoded.player.id, PlayerId(7));
-        let kinds = decoded.world.map.settings.barrier_kind_defs();
+        let kinds = &decoded.world.map.settings.barrier_kinds;
         assert_eq!(
             kinds.iter().map(|kind| kind.id.as_str()).collect::<Vec<_>>(),
             ["lobby", "basement"]

@@ -1,7 +1,7 @@
 pub(super) use super::super::*;
+pub(super) use crate::test_geometry::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS};
 pub(super) use crate::{
     config::CharacterPhysicsConfig,
-    constants::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_THICKNESS},
     map::ramp_surface_at,
     physics::{CollisionWorld, character_overlaps_item},
     protocol::{Floor, Ladder, MapLayout, Position, Ramp, Wall},
@@ -84,6 +84,8 @@ pub(crate) fn test_ladder() -> Ladder {
         nz: -1.0,
         level: 0,
         levels: 1,
+        y: 0.0,
+        height: LEVEL_HEIGHT,
     }
 }
 
@@ -104,6 +106,7 @@ pub(crate) fn ladder_front_base_floor() -> Floor {
 pub(crate) fn test_ladder_two_storey() -> Ladder {
     Ladder {
         levels: 2,
+        height: 2.0 * LEVEL_HEIGHT,
         ..test_ladder()
     }
 }
@@ -148,6 +151,8 @@ pub(crate) fn test_ladder_facing_x() -> Ladder {
         nz: 0.0,
         level: 0,
         levels: 1,
+        y: 0.0,
+        height: LEVEL_HEIGHT,
     }
 }
 
@@ -183,6 +188,8 @@ pub(crate) fn test_wall() -> Wall {
         z2: 2.0,
         width: 0.2,
         level: 0,
+        y: 0.0,
+        height: WALL_HEIGHT,
     }
 }
 
@@ -194,6 +201,8 @@ pub(crate) fn horizontal_wall() -> Wall {
         z2: 0.0,
         width: 0.2,
         level: 0,
+        y: 0.0,
+        height: WALL_HEIGHT,
     }
 }
 
@@ -205,6 +214,8 @@ pub(crate) fn upper_horizontal_wall() -> Wall {
         z2: 32.0,
         width: 0.3,
         level: 2,
+        y: 2.0 * LEVEL_HEIGHT,
+        height: WALL_HEIGHT,
     }
 }
 

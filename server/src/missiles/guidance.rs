@@ -13,7 +13,7 @@ use crate::{
 };
 use common::{
     config::GameplayConfig,
-    constants::{GRID_CELL_SIZE, MISSILE_RADIUS},
+    constants::MISSILE_RADIUS,
     physics::{CollisionWorld, character_center},
     protocol::{
         ActorMarker, BarrierKindId, FaceYaw, HomingTarget, MapSettings, MissileId, MissileMarker, PlateState,
@@ -33,6 +33,8 @@ const MISSILE_AVOID_LOOKAHEAD_SECS: f32 = 0.6;
 // Waypoint following along the air-graph route.
 const MISSILE_WAYPOINT_REACH_DISTANCE: f32 = 1.7;
 const MISSILE_PATH_RETRY_SECS: f32 = 0.5;
+// How far (in grid cells) the target may drift before the route is replanned.
+const MISSILE_PATH_TARGET_MOVED_CELLS: f32 = 1.0;
 
 type MissileGuidanceQuery<'w, 's> =
     Query<'w, 's, (&'static MissileId, &'static Position, &'static mut MissileVelocity), With<MissileMarker>>;
@@ -177,9 +179,10 @@ fn route_objective(
     delta: f32,
 ) -> Option<Vec3> {
     info.path_retry_timer -= delta;
+    let moved_threshold = MISSILE_PATH_TARGET_MOVED_CELLS * air_graph.cell_size();
     let target_moved = info
         .path_target
-        .is_some_and(|prev| prev.distance_squared(target_center) > GRID_CELL_SIZE * GRID_CELL_SIZE);
+        .is_some_and(|prev| prev.distance_squared(target_center) > moved_threshold * moved_threshold);
     if info.path.is_empty() || target_moved || info.path_retry_timer <= 0.0 {
         match air_graph.path(origin, target_center) {
             Some(path) => {

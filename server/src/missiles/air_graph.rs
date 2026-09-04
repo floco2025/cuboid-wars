@@ -2,10 +2,7 @@ use std::collections::{HashSet, VecDeque};
 
 use bevy::prelude::*;
 
-use common::{
-    constants::{GRID_CELL_SIZE, LEVEL_HEIGHT},
-    map::MapGeometry,
-};
+use common::map::MapGeometry;
 
 use crate::map::{Cell, CellSide, MapConfig, has_edge_on_cell_side};
 use crate::pathfind::bfs_path;
@@ -58,8 +55,13 @@ impl AirGraph {
         Some(nodes.into_iter().map(|node| self.node_center(node)).collect())
     }
 
+    #[must_use]
+    pub fn cell_size(&self) -> f32 {
+        self.geometry.cell_size()
+    }
+
     fn node_at(&self, pos: Vec3) -> AirNode {
-        let layer = (pos.y / LEVEL_HEIGHT).floor() as i32;
+        let layer = (pos.y / self.geometry.level_height()).floor() as i32;
         AirNode {
             layer: layer.clamp(0, self.layers - 1),
             row: self.geometry.cell_row_containing_z(pos.z),
@@ -69,9 +71,9 @@ impl AirGraph {
 
     fn node_center(&self, node: AirNode) -> Vec3 {
         Vec3::new(
-            self.geometry.cell_to_world_x(node.col) + GRID_CELL_SIZE / 2.0,
-            node.layer as f32 * LEVEL_HEIGHT + LEVEL_HEIGHT / 2.0,
-            self.geometry.cell_to_world_z(node.row) + GRID_CELL_SIZE / 2.0,
+            self.geometry.cell_center_x(node.col),
+            (node.layer as f32 + 0.5) * self.geometry.level_height(),
+            self.geometry.cell_center_z(node.row),
         )
     }
 
@@ -181,7 +183,10 @@ impl AirGraph {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::map::{CellGrid, EdgeGrid, LevelGrid};
+    use crate::{
+        map::{CellGrid, EdgeGrid, LevelGrid},
+        test_geometry::{LEVEL_HEIGHT, geometry},
+    };
 
     fn level(cells: CellGrid, edges: EdgeGrid) -> LevelGrid {
         let rows = i32::try_from(cells.rows.len()).unwrap_or(0);
@@ -227,7 +232,7 @@ mod tests {
                 level(lower, EdgeGrid::new(2, 1)),
                 level(upper, EdgeGrid::new(2, 1)),
             ]),
-            MapGeometry::new(2, 1),
+            geometry(2, 1),
         );
         let from = graph.node_center(AirNode {
             layer: 1,
@@ -260,7 +265,7 @@ mod tests {
         let mut edges = EdgeGrid::new(2, 1);
         edges.vertical[0][1] = true;
 
-        let graph = AirGraph::new(config(vec![level(cells, edges)]), MapGeometry::new(2, 1));
+        let graph = AirGraph::new(config(vec![level(cells, edges)]), geometry(2, 1));
         let from = graph.node_center(AirNode {
             layer: 0,
             row: 0,
@@ -294,7 +299,7 @@ mod tests {
 
         let graph = AirGraph::new(
             config(vec![level(cells, edges), level(roof, EdgeGrid::new(2, 1))]),
-            MapGeometry::new(2, 1),
+            geometry(2, 1),
         );
         let from = graph.node_center(AirNode {
             layer: 0,

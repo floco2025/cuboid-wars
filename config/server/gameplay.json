@@ -3,6 +3,7 @@
   "maps": {
     "hotel": {
       "skybox": "cloudy_day",
+      "geometry": { "grid_cell_size": 3.4, "level_height": 4.4, "floor_thickness": 0.4, "wall_thickness": 0.3 },
       "weather": "auto",
       "lighting": "auto",
       "movement": {
@@ -35,7 +36,7 @@
         { "id": "gravity", "color": "#5090ff" },
         { "id": "lobby", "color": "#22cc33" }
       ],
-      "bridge_kinds": null,
+      "bridge_kinds": [],
       "random_items": {
         "types": [ "speed", "multi_shot", "low_gravity", "health_potion", "missile_pack" ],
         "max_number": 30,
@@ -117,6 +118,7 @@
     },
     "obby": {
       "skybox": "cloudy_day",
+      "geometry": { "grid_cell_size": 3.4, "level_height": 4.4, "floor_thickness": 0.4, "wall_thickness": 0.3 },
       "weather": "auto",
       "lighting": "auto",
       "movement": {
@@ -143,7 +145,7 @@
         "missiles": false,
         "portals": "single"
       },
-      "barrier_kinds": null,
+      "barrier_kinds": [],
       "bridge_kinds": [
         { "id": "bridge_1", "color": "#30d8ff" },
         { "id": "bridge_2", "color": "#30d8ff" },
@@ -276,7 +278,7 @@
       "missiles_per_pack": 1
     },
     "portals": {
-      "range": 40.0
+      "range": 100.0
     }
   },
   "items": {

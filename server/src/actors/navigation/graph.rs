@@ -3,12 +3,7 @@ use std::collections::HashMap;
 use std::collections::{HashSet, VecDeque};
 
 use bevy::prelude::Resource;
-use common::{
-    constants::{GRID_CELL_SIZE, LEVEL_HEIGHT},
-    map::MapGeometry,
-    map::level_for_y,
-    protocol::Position,
-};
+use common::{map::MapGeometry, protocol::Position};
 
 use crate::map::{ActorSpawnZone, Cell, CellSide, MapConfig, has_edge_on_cell_side};
 #[cfg(test)]
@@ -80,9 +75,9 @@ impl NavGraph {
             .cells()
             .filter_map(|(col, row)| {
                 self.node_for_position(&Position {
-                    x: self.geometry.cell_to_world_x(col) + GRID_CELL_SIZE / 2.0,
-                    y: f32::from(zone.level) * LEVEL_HEIGHT,
-                    z: self.geometry.cell_to_world_z(row) + GRID_CELL_SIZE / 2.0,
+                    x: self.geometry.cell_center_x(col),
+                    y: self.geometry.level_y(zone.level),
+                    z: self.geometry.cell_center_z(row),
                 })
             })
             .collect();
@@ -97,10 +92,15 @@ impl NavGraph {
 
     pub(super) fn node_center(&self, node: NavNode) -> Position {
         Position {
-            x: self.geometry.cell_to_world_x(node.col) + GRID_CELL_SIZE / 2.0,
-            y: f32::from(node.level) * LEVEL_HEIGHT,
-            z: self.geometry.cell_to_world_z(node.row) + GRID_CELL_SIZE / 2.0,
+            x: self.geometry.cell_center_x(node.col),
+            y: self.geometry.level_y(node.level),
+            z: self.geometry.cell_center_z(node.row),
         }
+    }
+
+    #[must_use]
+    pub(crate) fn cell_size(&self) -> f32 {
+        self.geometry.cell_size()
     }
 
     pub(super) fn flat_path_is_clear(
@@ -110,14 +110,14 @@ impl NavGraph {
         half_width: f32,
         half_depth: f32,
     ) -> bool {
-        let level = level_for_y(start.y);
-        if level_for_y(target.y) != level {
+        let level = self.geometry.level_for_y(start.y);
+        if self.geometry.level_for_y(target.y) != level {
             return false;
         }
         let dx = target.x - start.x;
         let dz = target.z - start.z;
         let distance = dx.hypot(dz);
-        let steps = (distance / (GRID_CELL_SIZE / 4.0)).ceil().max(1.0) as usize;
+        let steps = (distance / (self.geometry.cell_size() / 4.0)).ceil().max(1.0) as usize;
         let traces = [
             (0.0, 0.0),
             (-half_width, -half_depth),
@@ -151,8 +151,8 @@ impl NavGraph {
         half_width: f32,
         half_depth: f32,
     ) -> bool {
-        let level = level_for_y(start.y);
-        if level_for_y(target.y) != level
+        let level = self.geometry.level_for_y(start.y);
+        if self.geometry.level_for_y(target.y) != level
             || self.flat_floor_node_at(start.x, start.z, level).is_none()
             || self.flat_floor_node_at(target.x, target.z, level).is_none()
         {
@@ -210,7 +210,7 @@ impl NavGraph {
     }
 
     fn nearest_node_for_position(&self, pos: &Position) -> Option<NavNode> {
-        let level = level_for_y(pos.y);
+        let level = self.geometry.level_for_y(pos.y);
         let row = self.geometry.cell_row_containing_z(pos.z);
         let col = self.geometry.cell_col_containing_x(pos.x);
         let direct = NavNode { level, row, col };
@@ -425,7 +425,7 @@ const fn ramp_base_on_side(cell: &Cell, side: CellSide) -> bool {
 
 // A ramp is a solid wedge with no authored wall edges around it: at the
 // lower level only its base edge is walkable. The side faces are vertical
-// wedge walls and the high edge is an up-to-LEVEL_HEIGHT face over solid
+// wedge walls and the high edge is a storey-high face over solid
 // volume, so those crossings are physically blocked even though the edge
 // grids are empty there. Two adjacent ramp cells are the same wedge's
 // footprint (lateral or along-axis on the slope) or two bases meeting at

@@ -1,13 +1,17 @@
 use anyhow::Result;
 use bevy_ecs::prelude::Resource;
 use bincode::{Decode, Encode};
-use serde::{Deserialize, Deserializer};
+use serde::Deserialize;
 
-use crate::config::MapMovementConfig;
+use crate::config::{MapGeometryConfig, MapMovementConfig};
 
 use super::face_materials::FaceMaterials;
 use super::{BarrierKindId, BarrierKindTable, BridgeKindId, BridgeKindTable, ItemType, KindDef, Position};
 
+// Layout records are world space: `y` is the base surface and `height` the
+// rise, both filled by the server from the map's geometry, so neither the
+// physics nor the client needs the map's sizes to place them. `level` is the
+// storey tag the client's level focus filters on.
 #[derive(Debug, Clone, Encode, Decode, Copy)]
 pub struct Wall {
     pub x1: f32,
@@ -15,6 +19,8 @@ pub struct Wall {
     pub x2: f32,
     pub z2: f32,
     pub width: f32,
+    pub y: f32,
+    pub height: f32,
     pub level: u8,
 }
 
@@ -80,6 +86,9 @@ pub struct Barrier {
     pub z1: f32,
     pub x2: f32,
     pub z2: f32,
+    pub width: f32,
+    pub y: f32,
+    pub height: f32,
     pub level: u8,
     pub kind: BarrierKindId,
 }
@@ -95,6 +104,7 @@ pub struct LightBridge {
     pub x2: f32,
     pub z2: f32,
     pub y: f32,
+    pub thickness: f32,
     pub level: u8,
     pub kind: BridgeKindId,
 }
@@ -124,6 +134,9 @@ pub struct Ladder {
     pub z2: f32,
     pub nx: f32,
     pub nz: f32,
+    // Base landing surface and the rise to the top landing.
+    pub y: f32,
+    pub height: f32,
     pub level: u8,
     pub levels: u8,
 }
@@ -154,6 +167,7 @@ pub enum PlatePurpose {
 pub struct PressurePlate {
     pub level: u8,
     pub center_x: f32,
+    pub center_y: f32,
     pub center_z: f32,
     pub purpose: PlatePurpose,
 }
@@ -206,27 +220,18 @@ impl MapLayout {
 
 // Per-map tuning defined in `config/server/gameplay.json` under `maps` and
 // shipped to clients in `SInit` so prediction uses the server's values.
-fn deserialize_required_option<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
-where
-    D: Deserializer<'de>,
-    T: Deserialize<'de>,
-{
-    Option::<T>::deserialize(deserializer)
-}
-
 #[derive(Debug, Clone, Encode, Decode, Resource, Deserialize)]
 pub struct MapSettings {
     pub skybox: String,
+    pub geometry: MapGeometryConfig,
     pub movement: MapMovementConfig,
     pub weapons: MapWeaponSettings,
     // Ordered catalog assigning this map's stable `BarrierKindId` values;
-    // `null` means the map has no barriers, keys, or barrier plates.
-    #[serde(deserialize_with = "deserialize_required_option")]
-    pub barrier_kinds: Option<Vec<KindDef>>,
-    // Same for `BridgeKindId`; `null` means the map has no light bridges or
+    // empty when the map has no barriers, keys, or barrier plates.
+    pub barrier_kinds: Vec<KindDef>,
+    // Same for `BridgeKindId`; empty when the map has no light bridges or
     // bridge plates.
-    #[serde(deserialize_with = "deserialize_required_option")]
-    pub bridge_kinds: Option<Vec<KindDef>>,
+    pub bridge_kinds: Vec<KindDef>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode, Deserialize)]
@@ -258,21 +263,11 @@ pub enum PortalMode {
 }
 
 impl MapSettings {
-    #[must_use]
-    pub fn barrier_kind_defs(&self) -> &[KindDef] {
-        self.barrier_kinds.as_deref().unwrap_or_default()
-    }
-
-    #[must_use]
-    pub fn bridge_kind_defs(&self) -> &[KindDef] {
-        self.bridge_kinds.as_deref().unwrap_or_default()
-    }
-
     // The id tables both sides build once at startup from the catalogs.
     pub fn kind_tables(&self) -> Result<(BarrierKindTable, BridgeKindTable)> {
         Ok((
-            BarrierKindTable::from_defs(self.barrier_kind_defs())?,
-            BridgeKindTable::from_defs(self.bridge_kind_defs())?,
+            BarrierKindTable::from_defs(&self.barrier_kinds)?,
+            BridgeKindTable::from_defs(&self.bridge_kinds)?,
         ))
     }
 

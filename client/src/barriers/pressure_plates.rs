@@ -4,10 +4,7 @@ use crate::{
     config::{AssetSet, ClientSettings, MaterialDef},
     map::{MapLevel, tiled_cuboid},
 };
-use common::{
-    constants::{GRID_CELL_SIZE, LEVEL_HEIGHT},
-    protocol::{MapLayout, PlatePurpose},
-};
+use common::protocol::{MapLayout, MapSettings, PlatePurpose};
 
 #[derive(Component)]
 pub struct PressurePlateMarker;
@@ -45,23 +42,23 @@ pub fn pressure_plates_visibility_system(
     }
 }
 
-// Plate footprint: inner 50% per side (≈25% by area). Slightly above the
-// floor to avoid z-fighting with the floor slab beneath.
-const PLATE_SIDE: f32 = GRID_CELL_SIZE * 0.5;
+// Plate footprint: inner 50% of the cell per side (≈25% by area). Slightly
+// above the floor to avoid z-fighting with the floor slab beneath.
+const PLATE_SIDE_CELLS: f32 = 0.5;
 const PLATE_Y_OFFSET: f32 = 0.01;
 // Housing: a frame slab spanning the footprint with the panel inset on top
 // (materials from `assets.json::pressure_plate`) — a physical mechanism
 // rather than a painted decal. Every plate looks the same; its purpose is
 // not shown.
 const PLATE_FRAME_HEIGHT: f32 = 0.05;
-const PLATE_PANEL_SIDE: f32 = PLATE_SIDE * 0.7;
+const PLATE_PANEL_FRACTION: f32 = 0.7;
 const PLATE_PANEL_HEIGHT: f32 = 0.05;
 // The panel sinks this far into the frame so no gap can show at the seam.
 const PLATE_PANEL_OVERLAP: f32 = 0.01;
 
-// Shared across every plate. Pub only because it appears in the spawn
-// system's `Local` parameter.
-pub struct PlateAssets {
+// Shared across every plate of one layout; the meshes follow the map's cell
+// size, so they are rebuilt with the layout.
+struct PlateAssets {
     frame_mesh: Handle<Mesh>,
     panel_mesh: Handle<Mesh>,
     frame_material: Handle<StandardMaterial>,
@@ -75,6 +72,7 @@ impl PlateAssets {
         asset_server: &AssetServer,
         asset_set: &AssetSet,
         client_settings: &ClientSettings,
+        side: f32,
     ) -> Self {
         let rendering = &client_settings.rendering;
         let frame = asset_set.plate_frame_material_def();
@@ -83,8 +81,12 @@ impl PlateAssets {
             materials.add(def.standard_material(asset_server, rendering.texture_anisotropy, rendering.mipmaps))
         };
         Self {
-            frame_mesh: meshes.add(plate_box(PLATE_SIDE, PLATE_FRAME_HEIGHT, frame.tile_size())),
-            panel_mesh: meshes.add(plate_box(PLATE_PANEL_SIDE, PLATE_PANEL_HEIGHT, panel.tile_size())),
+            frame_mesh: meshes.add(plate_box(side, PLATE_FRAME_HEIGHT, frame.tile_size())),
+            panel_mesh: meshes.add(plate_box(
+                side * PLATE_PANEL_FRACTION,
+                PLATE_PANEL_HEIGHT,
+                panel.tile_size(),
+            )),
             frame_material: material(frame),
             panel_material: material(panel),
         }
@@ -109,12 +111,12 @@ fn plate_box(side: f32, height: f32, tile_size: f32) -> Mesh {
 pub fn pressure_plates_spawn_system(
     mut commands: Commands,
     map_layout: Res<MapLayout>,
+    map_settings: Res<MapSettings>,
     asset_set: Res<AssetSet>,
     asset_server: Res<AssetServer>,
     client_settings: Res<ClientSettings>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    mut plate_assets: Local<Option<PlateAssets>>,
     existing: Query<Entity, With<PressurePlateMarker>>,
     locked: Res<LockedPlatePurposes>,
 ) {
@@ -130,12 +132,17 @@ pub fn pressure_plates_spawn_system(
         return;
     }
 
-    let plate_assets = plate_assets.get_or_insert_with(|| {
-        PlateAssets::new(&mut meshes, &mut materials, &asset_server, &asset_set, &client_settings)
-    });
+    let plate_assets = PlateAssets::new(
+        &mut meshes,
+        &mut materials,
+        &asset_server,
+        &asset_set,
+        &client_settings,
+        map_settings.geometry.grid_cell_size * PLATE_SIDE_CELLS,
+    );
 
     for plate in &layout.pressure_plates {
-        let floor_y = f32::from(plate.level) * LEVEL_HEIGHT + PLATE_Y_OFFSET;
+        let floor_y = plate.center_y + PLATE_Y_OFFSET;
         commands
             .spawn((
                 PressurePlateMarker,

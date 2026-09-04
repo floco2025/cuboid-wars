@@ -2,9 +2,7 @@ use rand::{RngExt, rngs::ThreadRng};
 
 use crate::{map::MapConfig, map::grid_coords_from_position};
 use common::{
-    constants::{GRID_CELL_SIZE, LEVEL_HEIGHT},
     map::MapGeometry,
-    map::level_for_y,
     protocol::{ItemType, Position},
 };
 
@@ -27,9 +25,9 @@ pub(super) struct ItemSpawnCell {
 impl ItemSpawnCell {
     pub(super) fn position(self, geometry: &MapGeometry) -> Position {
         Position {
-            x: geometry.cell_to_world_x(self.col) + GRID_CELL_SIZE / 2.0,
-            y: f32::from(self.level) * LEVEL_HEIGHT,
-            z: geometry.cell_to_world_z(self.row) + GRID_CELL_SIZE / 2.0,
+            x: geometry.cell_center_x(self.col),
+            y: geometry.level_y(self.level),
+            z: geometry.cell_center_z(self.row),
         }
     }
 }
@@ -37,7 +35,7 @@ impl ItemSpawnCell {
 pub(super) fn item_spawn_cell_from_position(geometry: &MapGeometry, pos: &Position) -> ItemSpawnCell {
     let (col, row) = grid_coords_from_position(geometry, pos);
     ItemSpawnCell {
-        level: level_for_y(pos.y),
+        level: geometry.level_for_y(pos.y),
         col,
         row,
     }

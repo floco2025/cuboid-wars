@@ -3,7 +3,7 @@ use bevy_time::{Timer, TimerMode};
 
 use super::{ProjectileMotion, calculate_projectile_spawns};
 use crate::config::MultiShotConfig;
-use crate::constants::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_THICKNESS};
+use crate::test_geometry::{BARRIER_THICKNESS, FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS};
 
 // Test copies of the default `projectiles` config values.
 const TEST_PROJECTILE_LIFETIME: f32 = 8.0;
@@ -30,6 +30,8 @@ fn test_wall(level: u8) -> Wall {
         z2: 1.0,
         width: WALL_THICKNESS,
         level,
+        y: f32::from(level) * LEVEL_HEIGHT,
+        height: WALL_HEIGHT,
     }
 }
 
@@ -120,6 +122,9 @@ fn barrier_impact_reports_kind_and_surface_normal() {
                 z2: 1.0,
                 level: 0,
                 kind,
+                y: 0.0,
+                height: WALL_HEIGHT,
+                width: BARRIER_THICKNESS,
             }],
             ..Default::default()
         },
@@ -155,9 +160,10 @@ fn projectile_hits_level_zero_floor_underside() {
 
 mod spawning {
     use super::super::spawning::projectile_spawn_is_blocked;
-    use crate::constants::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_THICKNESS};
     use crate::physics::CollisionWorld;
     use crate::protocol::{Floor, MapLayout, Position, Ramp, Wall};
+    use crate::test_geometry::{FLOOR_THICKNESS, WALL_THICKNESS};
+    use crate::test_geometry::{LEVEL_HEIGHT, WALL_HEIGHT};
 
     fn test_wall(level: u8) -> Wall {
         Wall {
@@ -167,6 +173,8 @@ mod spawning {
             z2: 1.0,
             width: WALL_THICKNESS,
             level,
+            y: f32::from(level) * LEVEL_HEIGHT,
+            height: WALL_HEIGHT,
         }
     }
 
