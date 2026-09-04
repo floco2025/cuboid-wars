@@ -78,19 +78,24 @@ DEFAULT_ALIAS: str = next(iter(sorted(MATERIAL_ALIASES)), "")
 
 MODE_FLOOR = "Floor"
 MODE_INACCESSIBLE_FLOOR = "Blocked Floor"
+MODE_ERASE_FLOORS = "Erase Floors"
 MODE_GRASS = "Grass"
 MODE_ERASE_GRASS = "Erase Grass"
 MODE_ACTOR_SPAWN_PAINT = "Actor Spawn Zone (Paint)"
 MODE_PLAYER_SPAWN_PAINT = "Player Spawn Zone (Paint)"
 MODE_SPAWN_ZONE_EDIT = "Spawn Zone (Edit)"
+MODE_ERASE_SPAWN_ZONES = "Erase Spawn Zones"
 MODE_ITEM = "Item"
 MODE_ERASE_ITEMS = "Erase Items"
 MODE_WALL = "Wall"
+MODE_ERASE_WALLS = "Erase Walls"
 MODE_BARRIER = "Barrier"
+MODE_ERASE_BARRIERS = "Erase Barriers"
 MODE_LIGHT_BRIDGE = "Light Bridge"
 MODE_ERASE_LIGHT_BRIDGES = "Erase Light Bridges"
 MODE_RAMP_UP = "Ramp (Up)"
 MODE_RAMP_DOWN = "Ramp (Down)"
+MODE_ERASE_RAMPS = "Erase Ramps"
 MODE_ERASE = "Erase"
 MODE_ERASE_KEEP_FLOORS = "Erase (Keep Floors)"
 MODE_FLOOR_MATERIAL = "Floor Material"
@@ -103,7 +108,7 @@ MODE_ERASE_LADDERS = "Erase Ladders"
 MODE_PRESSURE_PLATE = "Barrier Plate"
 MODE_BRIDGE_PLATE = "Bridge Plate"
 MODE_FIREWORK_PLATE = "Firework Plate"
-MODE_ERASE_PRESSURE_PLATES = "Erase Plates"
+MODE_ERASE_PRESSURE_PLATES = "Erase Pressure Plates"
 RAMP_MODES = (MODE_RAMP_UP, MODE_RAMP_DOWN)
 ERASE_MODES = (MODE_ERASE, MODE_ERASE_KEEP_FLOORS)
 SPAWN_PAINT_MODES = (MODE_ACTOR_SPAWN_PAINT, MODE_PLAYER_SPAWN_PAINT)
@@ -131,9 +136,11 @@ ITEM_TYPE_COLORS = {
 # Modes grouped by category for the mode picker. Each tuple is
 # `(category label, ordered list of modes)`. The label is shown as a
 # disabled separator row in the dropdown so the user sees the taxonomy
-# instead of one flat list.
+# instead of one flat list. Every element group is one map list and ends
+# with its own `Erase <group>`, which clears only that element inside a
+# dragged rectangle; the Erase group holds the two cross-element tools.
 MODE_CATEGORIES: list[tuple[str, list[str]]] = [
-    ("Floors", [MODE_FLOOR, MODE_INACCESSIBLE_FLOOR]),
+    ("Floors", [MODE_FLOOR, MODE_INACCESSIBLE_FLOOR, MODE_ERASE_FLOORS]),
     ("Grass", [MODE_GRASS, MODE_ERASE_GRASS]),
     (
         "Spawn Zones",
@@ -141,11 +148,13 @@ MODE_CATEGORIES: list[tuple[str, list[str]]] = [
             MODE_ACTOR_SPAWN_PAINT,
             MODE_PLAYER_SPAWN_PAINT,
             MODE_SPAWN_ZONE_EDIT,
+            MODE_ERASE_SPAWN_ZONES,
         ],
     ),
-    ("Walls + Barriers", [MODE_WALL, MODE_BARRIER]),
+    ("Walls", [MODE_WALL, MODE_ERASE_WALLS]),
+    ("Barriers", [MODE_BARRIER, MODE_ERASE_BARRIERS]),
     ("Light Bridges", [MODE_LIGHT_BRIDGE, MODE_ERASE_LIGHT_BRIDGES]),
-    ("Ramps", [MODE_RAMP_UP, MODE_RAMP_DOWN]),
+    ("Ramps", [MODE_RAMP_UP, MODE_RAMP_DOWN, MODE_ERASE_RAMPS]),
     ("Ladders", [MODE_LADDER, MODE_ERASE_LADDERS]),
     ("Materials", [MODE_FLOOR_MATERIAL, MODE_WALL_MATERIAL, MODE_RAMP_MATERIAL]),
     ("Lights", [MODE_LIGHT, MODE_ERASE_LIGHTS]),

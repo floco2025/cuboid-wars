@@ -290,11 +290,11 @@ class PlacementMixin:
             if not (p["level"] == self.current_level and c0 <= p["col"] < c1 and r0 <= p["row"] < r1)
         ]
         if len(kept) == len(plates):
-            self._flash_status("Erase Plates: no plates in selection.")
+            self._flash_status("Erase Pressure Plates: no plates in selection.")
             return
         after = copy.deepcopy(self.map_data)
         after["pressure_plates"] = kept
-        self.apply_change("Erase Plates", after)
+        self.apply_change("Erase Pressure Plates", after)
 
     def add_barrier_line(self, start: tuple[int, int], end: tuple[int, int], kind: str) -> None:
         edges = wall_segments_between(start, end)

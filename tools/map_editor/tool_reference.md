@@ -1,9 +1,12 @@
 # Tool Reference
 
+Every element group ends with its own **Erase** tool that removes only that element inside a dragged rectangle on the current level. The **Erase** group at the bottom holds the two tools that clear every element at once.
+
 ## Floors
 
 - **Floor** — Drag cells to add floor.
 - **Blocked Floor** — Drag cells to add floor slabs that never spawn items, players, or lights.
+- **Erase Floors** — Drag a rectangle to remove every floor and blocked floor inside it; grass and items standing on them go too.
 
 ## Grass
 
@@ -15,11 +18,17 @@
 - **Actor Spawn Zone (Paint)** — Drag a rectangle, then enter Kind and Count.
 - **Player Spawn Zone (Paint)** — Drag a rectangle. No prompt — players spawn anywhere in any player zone.
 - **Spawn Zone (Edit)** — Click any spawn zone (actor or player) to select; drag the body to move, drag a corner/edge handle to resize. Right-click to edit fields (actor zones) or delete.
+- **Erase Spawn Zones** — Drag a rectangle to remove every actor and player spawn zone it touches on the current level.
 
-## Walls + Barriers
+## Walls
 
 - **Wall** — Drag along grid lines to place atomic wall edges.
+- **Erase Walls** — Drag a rectangle to remove every wall edge inside or on its border; lights on those walls go too.
+
+## Barriers
+
 - **Barrier** — Drag along grid lines to place a translucent pulsating force-field; a dialog asks which kind to use. Kinds come from that map's `barrier_kinds` in `config/server/gameplay.json`; colors come from `config/client/assets.json::barrier_kind_colors`.
+- **Erase Barriers** — Drag a rectangle to remove every barrier edge inside or on its border.
 
 ## Light Bridges
 
@@ -30,6 +39,7 @@
 
 - **Ramp (Up)** — Drag from this level toward the upper level.
 - **Ramp (Down)** — Drag from this level toward the lower level.
+- **Erase Ramps** — Drag a rectangle to remove every ramp it touches that leaves from or arrives at the current level.
 
 ## Ladders
 
@@ -52,7 +62,7 @@
 - **Barrier Plate** — Left-click a cell to place a plate (square in the barrier kind's color); a dialog asks which barrier kind. While enough plates of a kind are pressed — one fewer than the players alive, capped by the plate count — every barrier of that kind opens globally. Clicking a cell that already holds a plate removes it.
 - **Bridge Plate** — Left-click a cell to place a plate (diamond in the bridge kind's color); a dialog asks which bridge kind. While enough plates of a kind are pressed — the same count as for barrier plates — every light bridge of that kind turns solid. Clicking a cell that already holds a plate removes it.
 - **Firework Plate** — Left-click a cell to place a firework plate (circle). When every player alive stands on a firework plate — or every plate is held when players outnumber the plates — the firework show starts. Clicking a cell that already holds a plate removes it.
-- **Erase Plates** — Drag a rectangle to remove every plate inside it on the current level.
+- **Erase Pressure Plates** — Drag a rectangle to remove every plate inside it on the current level.
 
 ## Items
 
@@ -61,8 +71,8 @@
 
 ## Erase
 
-- **Erase** — Click an item, drag cells to erase an area, or right-click for the context menu.
-- **Erase (Keep Floors)** — Erase walls, ramps, and spawn zones while preserving floor, inaccessible floor, and light bridge cells.
+- **Erase** — Click an element to remove it, or drag a rectangle to clear every element inside it. Right-click for the context menu.
+- **Erase (Keep Floors)** — The same, but floor, blocked floor, and light bridge cells stay, along with the items and plates standing on them.
 
 ## Keyboard Shortcuts
 

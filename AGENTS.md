@@ -170,7 +170,10 @@ The canvas IS the UI. Do not add coordinate readouts, row/col numbers, or
 status-bar grid info — if something needs explaining, it should be drawn on
 the canvas itself. PySide6 with mouse-driven click/drag interactions per
 mode (floors, grass, walls, ramps, ladders, barriers, light bridges, spawn
-zones, items, materials, lights, pressure plates). It reads the edited map's
+zones, items, materials, lights, pressure plates). Every element group in
+`MODE_CATEGORIES` is one map list and ends with its own `Erase <group>` mode
+that clears only that element in a dragged rectangle; the Erase group holds
+the two cross-element tools. It reads the edited map's
 barrier and bridge kinds
 from `config/server/gameplay.json`; colours and material aliases come from
 `config/client/assets.json`.
