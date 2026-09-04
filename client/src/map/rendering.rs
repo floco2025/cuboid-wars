@@ -3,6 +3,7 @@ use bevy::light::{DirectionalLightShadowMap, cluster::GlobalClusterSettings};
 use bevy::prelude::*;
 
 use crate::{
+    bridges::LightBridgeMarker,
     config::{AssetSet, ClientSettings},
     map::{
         DebugColorMode, DebugColors, FocusedMapLevel, GrassMarker, GroundMarker, LadderMarker, LevelFocusEnabled,
@@ -186,6 +187,7 @@ pub fn map_level_focus_visibility_system(
                 With<WallLightMarker>,
                 With<ItemMarker>,
                 With<GrassMarker>,
+                With<LightBridgeMarker>,
             )>,
             Without<RampMarker>,
             Without<LadderMarker>,
@@ -220,6 +222,7 @@ pub fn added_map_level_visibility_system(
                 With<WallLightMarker>,
                 With<ItemMarker>,
                 With<GrassMarker>,
+                With<LightBridgeMarker>,
             )>,
             Without<RampMarker>,
             Without<LadderMarker>,
@@ -338,5 +341,32 @@ mod tests {
         assert_eq!(ramp_visibility(focused, 0), Visibility::Hidden);
         assert_eq!(ladder_visibility(focused, 0, 2), Visibility::Visible);
         assert_eq!(ladder_visibility(focused, 0, 1), Visibility::Hidden);
+    }
+
+    #[test]
+    fn a_light_bridge_follows_level_focus_like_a_floor() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .insert_resource(FocusedMapLevel(Some(1)))
+            .add_systems(
+                Update,
+                (map_level_focus_visibility_system, added_map_level_visibility_system).chain(),
+            );
+        let bridge = app
+            .world_mut()
+            .spawn((LightBridgeMarker, MapLevel(2), Visibility::Visible))
+            .id();
+        let visibility = |app: &App| {
+            *app.world()
+                .get::<Visibility>(bridge)
+                .expect("bridge lost its visibility")
+        };
+
+        app.update();
+        assert_eq!(visibility(&app), Visibility::Hidden);
+
+        app.insert_resource(FocusedMapLevel(Some(2)));
+        app.update();
+        assert_eq!(visibility(&app), Visibility::Visible);
     }
 }

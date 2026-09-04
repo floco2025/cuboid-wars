@@ -5,14 +5,15 @@ use common::{
         CharacterMovePlan, CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity, PlayerMovementStep,
         PortalMomentum, PortalSet, overlapping_character, player_control_velocity, step_player_movement,
     },
-    protocol::{ActorMarker, BarrierKindId, MapSettings, PlayerId, PlayerMarker, PlayerMoveIntent, Position},
+    protocol::{
+        ActorMarker, BarrierKindId, MapSettings, PlateState, PlayerId, PlayerMarker, PlayerMoveIntent, Position,
+    },
 };
 
 use crate::{
     actors::ActorMap,
     actors::{ActorMovementQuery, apply_actor_moves, plan_actor_moves},
     config::ServerGameplayConfig,
-    map::OpenBarrierKinds,
     players::{PlayerInfo, PlayerMap},
 };
 
@@ -40,7 +41,7 @@ pub fn characters_movement_system(
     server_gameplay_config: Res<ServerGameplayConfig>,
     map_settings: Res<MapSettings>,
     mut players: ResMut<PlayerMap>,
-    open_barrier_kinds: Res<OpenBarrierKinds>,
+    plates: Res<PlateState>,
     portal_set: Res<PortalSet>,
     actors: Res<ActorMap>,
     mut player_query: PlayerMovementQuery,
@@ -63,7 +64,7 @@ pub fn characters_movement_system(
         &gameplay_config,
         &map_settings,
         &mut players,
-        &open_barrier_kinds,
+        &plates,
         &portal_set,
         &mut player_query,
         &mut planned_moves,
@@ -74,7 +75,7 @@ pub fn characters_movement_system(
         &gameplay_config,
         &map_settings,
         &players,
-        &open_barrier_kinds,
+        &plates,
         &actors,
         &actor_starts,
         &mut actor_query,
@@ -97,7 +98,7 @@ fn plan_player_moves(
     gameplay_config: &GameplayConfig,
     map_settings: &MapSettings,
     players: &mut PlayerMap,
-    open_barrier_kinds: &OpenBarrierKinds,
+    plates: &PlateState,
     portal_set: &PortalSet,
     query: &mut PlayerMovementQuery,
     planned_moves: &mut Vec<CharacterMovePlan>,
@@ -123,7 +124,7 @@ fn plan_player_moves(
             delta,
             has_low_gravity,
             held_keys,
-            open_barrier_kinds: &open_barrier_kinds.0,
+            plates,
             knockback,
             portal_momentum: momentum.as_deref_mut(),
             collision_world,

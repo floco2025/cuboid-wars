@@ -6,7 +6,8 @@ use common::{
         PortalMomentum, PortalSet, player_control_velocity, step_player_movement,
     },
     protocol::{
-        ActorMarker, BarrierKindId, MapSettings, PlayerId, PlayerMarker, PlayerMoveIntent, Position, PowerUpKind,
+        ActorMarker, BarrierKindId, MapSettings, PlateState, PlayerId, PlayerMarker, PlayerMoveIntent, Position,
+        PowerUpKind,
     },
 };
 
@@ -24,7 +25,7 @@ pub(crate) fn plan_player_moves(
     map_settings: &MapSettings,
     gameplay_config: &GameplayConfig,
     players: &mut PlayerMap,
-    open_barrier_kinds: &crate::barriers::OpenBarrierKinds,
+    plates: &PlateState,
     portal_set: &PortalSet,
     query: &mut PlayerMovementQuery,
     planned_moves: &mut Vec<CharacterMovePlan>,
@@ -108,7 +109,7 @@ pub(crate) fn plan_player_moves(
             delta,
             has_low_gravity,
             held_keys,
-            open_barrier_kinds: &open_barrier_kinds.0,
+            plates,
             knockback,
             portal_momentum: portal_momentum.as_deref_mut(),
             collision_world,

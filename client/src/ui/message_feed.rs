@@ -6,6 +6,7 @@ use common::protocol::{FeedStyle, SFeed};
 use super::timed_lines::{TimedLine, TimedLines};
 use crate::{
     barriers::BarrierAssets,
+    bridges::BridgeAssets,
     config::ClientSettings,
     constants::{CONSOLE_TEXT_COLOR, FEED_CHAT_TEXT_COLOR, FEED_DIM_TEXT_COLOR, FEED_TEXT_COLOR, HUD_ROW_GAP_PX},
 };
@@ -46,6 +47,7 @@ pub fn ui_message_feed_system(
     mut feed: ResMut<MessageFeed>,
     client_settings: Res<ClientSettings>,
     barrier_assets: Res<BarrierAssets>,
+    bridge_assets: Res<BridgeAssets>,
     root: Single<Entity, With<MessageFeedMarker>>,
 ) {
     if feed.pending.is_empty() {
@@ -73,25 +75,26 @@ pub fn ui_message_feed_system(
                             font_size: FontSize::Px(font_size),
                             ..default()
                         },
-                        TextColor(style_color(span.style, &barrier_assets)),
+                        TextColor(style_color(span.style, &barrier_assets, &bridge_assets)),
                     ));
                 }
             });
     }
 }
 
-fn style_color(style: FeedStyle, barrier_assets: &BarrierAssets) -> Color {
+fn style_color(style: FeedStyle, barrier_assets: &BarrierAssets, bridge_assets: &BridgeAssets) -> Color {
     match style {
         FeedStyle::Default => FEED_TEXT_COLOR,
         FeedStyle::Dim => FEED_DIM_TEXT_COLOR,
         FeedStyle::Chat => FEED_CHAT_TEXT_COLOR,
         FeedStyle::Console => CONSOLE_TEXT_COLOR,
         FeedStyle::Barrier(kind) => color_with_full_alpha(barrier_assets.base_color(kind)),
+        FeedStyle::Bridge(kind) => color_with_full_alpha(bridge_assets.base_color(kind)),
     }
 }
 
-// The barrier mesh deliberately uses translucent alpha for the in-world
-// pulse, but text needs full opacity to be legible.
+// The barrier and bridge meshes deliberately use translucent alpha in the
+// world, but text needs full opacity to be legible.
 fn color_with_full_alpha(color: Color) -> Color {
     let srgba = color.to_srgba();
     Color::srgba(srgba.red, srgba.green, srgba.blue, 1.0)

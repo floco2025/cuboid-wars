@@ -9,14 +9,16 @@ from .constants import (
     FACES,
     MODE_RAMP_UP,
     PLATE_TYPE_BARRIER,
+    PLATE_TYPE_BRIDGE,
     PLATE_TYPE_FIREWORK,
     PLAYER_ZONE_LIST,
     SPAWN_ZONE_LISTS,
 )
-from .dialogs import ActorSpawnFieldsDialog, BarrierKindDialog, MaterialAssignmentDialog
+from .dialogs import ActorSpawnFieldsDialog, KindDialog, MaterialAssignmentDialog
 from .normalization import pressure_plate_key
 from .geometry import (
     normalized_wall,
+    ramp_cells_on_level,
     ramp_error,
     ramp_points_from_cells,
     ramp_rect,
@@ -184,15 +186,59 @@ class PlacementMixin:
         self.apply_change("Place Wall", after)
 
     def prompt_and_add_barrier_line(self, start: tuple[int, int], end: tuple[int, int]) -> None:
-        kind = BarrierKindDialog.prompt(self, "Place Barrier", self.barrier_kinds, self.recent_barrier_kind)
+        kind = KindDialog.prompt(self, "Place Barrier", self.barrier_kinds, self.recent_barrier_kind, "barrier")
         if kind is None:
             return
         self.recent_barrier_kind = kind
         self.add_barrier_line(start, end, kind)
 
+    def prompt_and_add_light_bridge_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
+        kind = KindDialog.prompt(self, "Place Light Bridge", self.bridge_kinds, self.recent_bridge_kind, "bridge")
+        if kind is None:
+            return
+        self.recent_bridge_kind = kind
+        self.add_light_bridge_rect(start, end, kind)
+
+    def add_light_bridge_rect(self, start: tuple[int, int], end: tuple[int, int], kind: str) -> None:
+        if kind not in self.bridge_kinds:
+            self._flash_status(f"Unknown bridge kind {kind!r}")
+            return
+        c0, r0, c1, r1 = rect_from_cells(start, end)
+        after = copy.deepcopy(self.map_data)
+        level = after["levels"][self.current_level]
+        blocked = (
+            {(f["col"], f["row"]) for f in level["floors"]}
+            | {(f["col"], f["row"]) for f in level["inaccessible_floors"]}
+            | ramp_cells_on_level(after["ramps"], self.current_level)
+        )
+        existing = {(b["col"], b["row"]): b for b in level.get("light_bridges", [])}
+        skipped = 0
+        for row in range(r0, r1):
+            for col in range(c0, c1):
+                if (col, row) in blocked:
+                    skipped += 1
+                    continue
+                existing[(col, row)] = {"col": col, "row": row, "kind": kind}
+        level["light_bridges"] = list(existing.values())
+        self.apply_change(f"Place Light Bridge ({kind})", after)
+        if skipped:
+            self._flash_status(f"Light Bridge: {skipped} cell(s) skipped (floor or ramp present)")
+
+    def erase_light_bridges_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
+        c0, r0, c1, r1 = rect_from_cells(start, end)
+        level_idx = self.current_level
+        bridges = self.map_data["levels"][level_idx].get("light_bridges", [])
+        kept = [b for b in bridges if not (c0 <= b["col"] < c1 and r0 <= b["row"] < r1)]
+        if len(kept) == len(bridges):
+            self._flash_status("Erase Light Bridges: no bridges in selection.")
+            return
+        after = copy.deepcopy(self.map_data)
+        after["levels"][level_idx]["light_bridges"] = kept
+        self.apply_change("Erase Light Bridges", after)
+
     def prompt_and_add_pressure_plate(self, col: int, row: int) -> None:
-        kind = BarrierKindDialog.prompt(
-            self, "Place Barrier Plate", self.barrier_kinds, self.recent_pressure_plate_kind
+        kind = KindDialog.prompt(
+            self, "Place Barrier Plate", self.barrier_kinds, self.recent_pressure_plate_kind, "barrier"
         )
         if kind is None:
             return
@@ -205,6 +251,22 @@ class PlacementMixin:
             return
         plate = {"level": self.current_level, "col": col, "row": row, "type": PLATE_TYPE_BARRIER, "kind": kind}
         self._add_plate(plate, f"Place Barrier Plate ({kind})")
+
+    def prompt_and_add_bridge_plate(self, col: int, row: int) -> None:
+        kind = KindDialog.prompt(
+            self, "Place Bridge Plate", self.bridge_kinds, self.recent_bridge_plate_kind, "bridge"
+        )
+        if kind is None:
+            return
+        self.recent_bridge_plate_kind = kind
+        self.add_bridge_plate(col, row, kind)
+
+    def add_bridge_plate(self, col: int, row: int, kind: str) -> None:
+        if kind not in self.bridge_kinds:
+            self._flash_status(f"Unknown plate kind {kind!r}")
+            return
+        plate = {"level": self.current_level, "col": col, "row": row, "type": PLATE_TYPE_BRIDGE, "kind": kind}
+        self._add_plate(plate, f"Place Bridge Plate ({kind})")
 
     def add_firework_plate(self, col: int, row: int) -> None:
         plate = {"level": self.current_level, "col": col, "row": row, "type": PLATE_TYPE_FIREWORK}

@@ -1,7 +1,6 @@
 use bevy::prelude::*;
 
 use crate::{
-    map::OpenBarrierKinds,
     network::broadcast_to_others,
     players::{PlayerMap, PlayerStateQuery},
 };
@@ -22,7 +21,7 @@ pub fn handle_projectile_shot_message(
     collision_world: &CollisionWorld,
     gameplay_config: &GameplayConfig,
     map_settings: &MapSettings,
-    open_barrier_kinds: &OpenBarrierKinds,
+    plates: &PlateState,
 ) {
     if !map_settings.weapons.projectiles {
         return;
@@ -60,7 +59,7 @@ pub fn handle_projectile_shot_message(
             gameplay_config.player.eye_height(),
             gameplay_config,
             collision_world,
-            &open_barrier_kinds.0,
+            plates,
         );
 
         // Spawn each projectile

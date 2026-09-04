@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from map_editor.constants import DEFAULT_ALIAS, FACES, load_map_barrier_kinds
+from map_editor.constants import DEFAULT_ALIAS, FACES, load_map_barrier_kinds, load_map_bridge_kinds
 from map_editor.geometry import ramp_axis, ramp_cells, wall_segments_between
 from map_editor.io import empty_map, read_map, write_map
 from map_editor.normalization import canonicalize_map, resize_map_data
@@ -19,6 +19,19 @@ def floor(col: int, row: int) -> dict:
 
 
 KIND = "treasure"
+BRIDGE_KIND = "skyway"
+
+
+def upper_level(*floors: dict) -> dict:
+    return {
+        "name": "Upper",
+        "floors": list(floors),
+        "inaccessible_floors": [],
+        "grass": [],
+        "walls": [],
+        "barriers": [],
+        "lights": [],
+    }
 
 
 class GeometryTests(unittest.TestCase):
@@ -37,17 +50,7 @@ class GeometryTests(unittest.TestCase):
 class NormalizationTests(unittest.TestCase):
     def test_canonicalization_deduplicates_edges_and_applies_ramp_floor_rules(self) -> None:
         data = empty_map(4, 4)
-        data["levels"].append(
-            {
-                "name": "Upper",
-                "floors": [floor(0, 0), floor(1, 0)],
-                "inaccessible_floors": [],
-                "grass": [],
-                "walls": [],
-                "barriers": [],
-                "lights": [],
-            }
-        )
+        data["levels"].append(upper_level(floor(0, 0), floor(1, 0)))
         data["levels"][0]["walls"] = [
             {"c0": 1, "r0": 1, "c1": 0, "r1": 1, **faces()},
             {"c0": 0, "r0": 1, "c1": 1, "r1": 1, **faces()},
@@ -82,21 +85,12 @@ class FileIoTests(unittest.TestCase):
 class ResizeTests(unittest.TestCase):
     def test_center_resize_translates_every_coordinate_family(self) -> None:
         data = empty_map(4, 4)
-        data["levels"].append(
-            {
-                "name": "Upper",
-                "floors": [],
-                "inaccessible_floors": [],
-                "grass": [],
-                "walls": [],
-                "barriers": [],
-                "lights": [],
-            }
-        )
+        data["levels"].append(upper_level())
         level = data["levels"][0]
         level["floors"] = [floor(1, 1)]
         level["walls"] = [{"c0": 1, "r0": 1, "c1": 2, "r1": 1, **faces()}]
         level["lights"] = [{"col": 1, "row": 1, "side": "N"}]
+        level["light_bridges"] = [{"col": 1, "row": 3, "kind": BRIDGE_KIND}]
         data["actor_spawn_zones"] = [
             {"level": 0, "cols": [1, 3], "rows": [1, 3], "kind": "mine", "count": 1}
         ]
@@ -111,6 +105,8 @@ class ResizeTests(unittest.TestCase):
         wall = result["levels"][0]["walls"][0]
         self.assertEqual((wall["c0"], wall["r0"], wall["c1"], wall["r1"]), (2, 2, 3, 2))
         self.assertEqual(result["actor_spawn_zones"][0]["cols"], [2, 4])
+        bridge = result["levels"][0]["light_bridges"][0]
+        self.assertEqual((bridge["col"], bridge["row"], bridge["kind"]), (2, 4, BRIDGE_KIND))
         self.assertEqual((result["items"][0]["col"], result["items"][0]["row"]), (2, 2))
         self.assertEqual((result["pressure_plates"][0]["col"], result["pressure_plates"][0]["row"]), (2, 2))
         self.assertEqual(result["ramps"][0]["low"], [2, 2])
@@ -155,7 +151,7 @@ class PressurePlateTests(unittest.TestCase):
             {"level": 0, "col": 1, "row": 1, "type": "firework"},
         ]
 
-        errors = validate_map(data, [KIND])
+        errors = validate_map(data, [KIND], [])
 
         self.assertTrue(any("unknown type 'confetti'" in error for error in errors))
         self.assertTrue(any("unknown barrier kind 'nope'; known: [treasure]" in error for error in errors))
@@ -170,12 +166,12 @@ class BarrierKindTests(unittest.TestCase):
         data["levels"][0]["barriers"] = [{"c0": 0, "r0": 0, "c1": 1, "r1": 0, "kind": "nope"}]
         data["items"] = [{"level": 0, "col": 0, "row": 0, "type": "key", "kind": "nope"}]
 
-        errors = validate_map(data, [KIND, "lobby"])
+        errors = validate_map(data, [KIND, "lobby"], [])
 
         self.assertTrue(any("barrier[0] has unknown kind 'nope'; known: [treasure, lobby]" in e for e in errors))
         self.assertTrue(any("unknown key kind 'nope'; known: [treasure, lobby]" in e for e in errors))
 
-        errors = validate_map(data, [])
+        errors = validate_map(data, [], [])
         self.assertTrue(any("known: [(none listed)]" in e for e in errors))
 
     def test_shipped_kinds_are_loaded_from_gameplay_settings(self) -> None:
@@ -184,11 +180,84 @@ class BarrierKindTests(unittest.TestCase):
         self.assertEqual(load_map_barrier_kinds("not_configured"), [])
 
 
+class LightBridgeTests(unittest.TestCase):
+    def test_canonicalization_keeps_the_first_bridge_per_cell_sorted_by_row_then_col(self) -> None:
+        data = empty_map(3, 3)
+        data["levels"][0]["floors"] = [floor(0, 0)]
+        data["levels"][0]["light_bridges"] = [
+            {"col": 2, "row": 1, "kind": BRIDGE_KIND},
+            {"col": 1, "row": 0, "kind": BRIDGE_KIND},
+            {"col": 2, "row": 1, "kind": "other"},
+            {"col": 0, "row": 1, "kind": BRIDGE_KIND},
+        ]
+
+        result = canonicalize_map(data)
+
+        self.assertEqual(
+            result["levels"][0]["light_bridges"],
+            [
+                {"col": 1, "row": 0, "kind": BRIDGE_KIND},
+                {"col": 0, "row": 1, "kind": BRIDGE_KIND},
+                {"col": 2, "row": 1, "kind": BRIDGE_KIND},
+            ],
+        )
+
+    def test_bridges_and_bridge_plates_round_trip_through_the_file_format(self) -> None:
+        data = empty_map(2, 2)
+        data["levels"][0]["floors"] = [floor(0, 0)]
+        data["levels"][0]["light_bridges"] = [{"col": 1, "row": 0, "kind": BRIDGE_KIND}]
+        data["pressure_plates"] = [{"level": 0, "col": 0, "row": 0, "type": "bridge", "kind": BRIDGE_KIND}]
+        self.assertEqual(validate_map(data, [], [BRIDGE_KIND]), [])
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "map.json"
+            write_map(path, data)
+            text = path.read_text(encoding="utf-8")
+            self.assertIn('"light_bridges": [', text)
+            self.assertIn('"type": "bridge"', text)
+            loaded = read_map(path)
+            self.assertEqual(loaded["levels"][0]["light_bridges"], data["levels"][0]["light_bridges"])
+            self.assertEqual(loaded["pressure_plates"], data["pressure_plates"])
+
+    def test_bridge_validation_flags_kinds_cells_and_plate_conflicts(self) -> None:
+        data = empty_map(3, 3)
+        data["levels"][0]["floors"] = [floor(0, 0)]
+        data["levels"][0]["inaccessible_floors"] = [floor(1, 0)]
+        data["levels"].append(upper_level(floor(2, 2)))
+        data["ramps"] = [{"lower_level": 0, "low": [1, 1], "high": [3, 2], **faces()}]
+        data["levels"][0]["light_bridges"] = [
+            {"col": 0, "row": 0, "kind": "nope"},
+            {"col": 1, "row": 0, "kind": BRIDGE_KIND},
+            {"col": 1, "row": 1, "kind": BRIDGE_KIND},
+            {"col": 2, "row": 2, "kind": BRIDGE_KIND},
+            {"col": 2, "row": 2, "kind": BRIDGE_KIND},
+        ]
+        data["pressure_plates"] = [
+            {"level": 0, "col": 2, "row": 2, "type": "firework"},
+            {"level": 0, "col": 0, "row": 0, "type": "bridge", "kind": "nope"},
+        ]
+
+        errors = validate_map(data, [], [BRIDGE_KIND])
+
+        self.assertTrue(any("light_bridge[0] has unknown kind 'nope'; known: [skyway]" in e for e in errors))
+        self.assertTrue(any("light_bridge[0] [0, 0] sits on a floor" in e for e in errors))
+        self.assertTrue(any("light_bridge[1] [1, 0] sits on a floor" in e for e in errors))
+        self.assertTrue(any("light_bridge[2] [1, 1] sits on a ramp" in e for e in errors))
+        self.assertTrue(any("light_bridge[4] [2, 2] duplicates another light bridge" in e for e in errors))
+        self.assertTrue(any("pressure_plates[0] [2, 2] sits on a light bridge" in e for e in errors))
+        self.assertTrue(any("unknown bridge kind 'nope'; known: [skyway]" in e for e in errors))
+
+    def test_shipped_bridge_kinds_are_loaded_from_gameplay_settings(self) -> None:
+        self.assertEqual(load_map_bridge_kinds("hotel"), [BRIDGE_KIND])
+        self.assertEqual(load_map_bridge_kinds("obby"), [])
+        self.assertEqual(load_map_bridge_kinds("not_configured"), [])
+
+
 class ValidationTests(unittest.TestCase):
     def test_valid_minimal_map_has_no_errors(self) -> None:
         data = empty_map(2, 2)
         data["levels"][0]["floors"] = [floor(0, 0)]
-        self.assertEqual(validate_map(data, []), [])
+        self.assertEqual(validate_map(data, [], []), [])
 
     def test_invalid_geometry_item_and_ladder_are_reported(self) -> None:
         data = empty_map(2, 2)
@@ -197,7 +266,7 @@ class ValidationTests(unittest.TestCase):
         data["items"] = [{"level": 0, "col": 1, "row": 1, "type": "cookie"}]
         data["ladders"] = [{"lower_level": 0, "col": 0, "row": 0, "side": "N", "levels": 1}]
 
-        errors = validate_map(data, [])
+        errors = validate_map(data, [], [])
 
         self.assertTrue(any("is not one grid edge" in error for error in errors))
         self.assertTrue(any("has no regular floor" in error for error in errors))

@@ -6,7 +6,7 @@ use crate::{
     config::ProjectilesConfig,
     constants::PHYSICS_EPSILON,
     physics::CollisionWorld,
-    protocol::{BarrierKindId, Position},
+    protocol::{BarrierKindId, BridgeKindId, Position},
 };
 
 #[derive(Component)]
@@ -102,7 +102,7 @@ impl ProjectileMotion {
         projectile_pos: &Position,
         delta: f32,
         collision_world: &CollisionWorld,
-        open_kinds: &[crate::protocol::BarrierKindId],
+        open_kinds: &[BarrierKindId],
     ) -> Option<f32> {
         let translation = self.velocity * delta;
         collision_world
@@ -111,17 +111,19 @@ impl ProjectileMotion {
     }
 
     // Fraction of this tick's travel at which the straight path first meets a
-    // bounce surface (wall/floor/ramp), if any, without mutating velocity.
+    // bounce surface (wall/floor/ramp/powered bridge), if any, without
+    // mutating velocity.
     #[must_use]
     pub fn surface_collision_t(
         &self,
         projectile_pos: &Position,
         delta: f32,
         collision_world: &CollisionWorld,
+        powered_bridges: &[BridgeKindId],
     ) -> Option<f32> {
         let translation = self.velocity * delta;
         collision_world
-            .cast_moving_ball(Vec3::from(*projectile_pos), translation, self.radius)
+            .cast_moving_ball(Vec3::from(*projectile_pos), translation, self.radius, powered_bridges)
             .map(|hit| hit.t)
     }
 
@@ -131,9 +133,11 @@ impl ProjectileMotion {
         projectile_pos: &Position,
         delta: f32,
         collision_world: &CollisionWorld,
+        powered_bridges: &[BridgeKindId],
     ) -> Option<SurfaceBounce> {
         let translation = self.velocity * delta;
-        let collision = collision_world.cast_moving_ball(Vec3::from(*projectile_pos), translation, self.radius)?;
+        let collision =
+            collision_world.cast_moving_ball(Vec3::from(*projectile_pos), translation, self.radius, powered_bridges)?;
         let (position, remaining_delta) =
             self.step_after_collision(projectile_pos, delta, collision.normal, collision.t);
         Some(SurfaceBounce {
@@ -156,7 +160,7 @@ impl ProjectileMotion {
         projectile_pos: &Position,
         delta: f32,
         collision_world: &CollisionWorld,
-        open_kinds: &[crate::protocol::BarrierKindId],
+        open_kinds: &[BarrierKindId],
     ) -> Option<BarrierImpact> {
         let translation = self.velocity * delta;
         let hit = collision_world.cast_moving_ball_against_barriers(

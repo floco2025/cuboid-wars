@@ -6,7 +6,7 @@ use std::{
 
 use anyhow::{Context, Result, bail};
 use bevy::prelude::Resource;
-use common::protocol::{BarrierKindTable, ItemType};
+use common::protocol::{BarrierKindTable, BridgeKindTable, ItemType};
 use serde::Deserialize;
 
 const REQUIRED_PLAYER_SOUNDS: &[&str] = &[
@@ -43,6 +43,8 @@ pub struct AssetSet {
     item_materials: HashMap<String, String>,
     #[serde(default)]
     barrier_kind_colors: HashMap<String, String>,
+    #[serde(default)]
+    bridge_kind_colors: HashMap<String, String>,
     player: PlayerAssets,
     actors: HashMap<String, ActorAssets>,
     models: GenericModels,
@@ -117,6 +119,7 @@ impl AssetSet {
         &self,
         actor_kinds: impl IntoIterator<Item = &'a str>,
         barrier_kind_table: &BarrierKindTable,
+        bridge_kind_table: &BridgeKindTable,
     ) -> Result<()> {
         let gameplay_kinds = actor_kinds.into_iter().collect::<HashSet<_>>();
         let asset_kinds = self.actors.keys().map(String::as_str).collect::<HashSet<_>>();
@@ -133,6 +136,13 @@ impl AssetSet {
             if self.barrier_kind_color_hex(id).is_none() {
                 bail!(
                     "barrier kind {id:?} has no color in assets.json `barrier_kind_colors`; add an entry or remove the id from the map's gameplay `barrier_kinds`"
+                );
+            }
+        }
+        for id in bridge_kind_table.ids() {
+            if self.bridge_kind_color_hex(id).is_none() {
+                bail!(
+                    "bridge kind {id:?} has no color in assets.json `bridge_kind_colors`; add an entry or remove the id from the map's gameplay `bridge_kinds`"
                 );
             }
         }
@@ -198,6 +208,10 @@ impl AssetSet {
     // builder) should treat this as a hard error.
     pub fn barrier_kind_color_hex(&self, id: &str) -> Option<&str> {
         self.barrier_kind_colors.get(id).map(String::as_str)
+    }
+
+    pub fn bridge_kind_color_hex(&self, id: &str) -> Option<&str> {
+        self.bridge_kind_colors.get(id).map(String::as_str)
     }
 
     pub fn player_model(&self) -> &ModelDef {
@@ -497,19 +511,26 @@ mod tests {
             .collect()
     }
 
-    // Every shipped map's `barrier_kinds`, since the client is validated
-    // against whichever map the server selected.
-    fn shipped_barrier_tables() -> Vec<(String, BarrierKindTable)> {
+    fn shipped_kind_ids(map_name: &str, map: &serde_json::Value, key: &str) -> Vec<String> {
+        let ids: Option<Vec<String>> = serde_json::from_value(map[key].clone())
+            .unwrap_or_else(|error| panic!("maps.{map_name}.{key} is invalid: {error}"));
+        ids.unwrap_or_default()
+    }
+
+    // Every shipped map's `barrier_kinds` and `bridge_kinds`, since the
+    // client is validated against whichever map the server selected.
+    fn shipped_kind_tables() -> Vec<(String, BarrierKindTable, BridgeKindTable)> {
         let gameplay: serde_json::Value = serde_json::from_str(include_str!("../../../config/server/gameplay.json"))
             .expect("parse server gameplay config");
         let maps = gameplay["maps"].as_object().expect("maps is not an object");
         let mut tables = maps
             .iter()
             .map(|(name, map)| {
-                let ids: Option<Vec<String>> = serde_json::from_value(map["barrier_kinds"].clone())
-                    .unwrap_or_else(|error| panic!("maps.{name}.barrier_kinds is invalid: {error}"));
-                let table = BarrierKindTable::from_ids(ids.unwrap_or_default()).expect("build barrier table");
-                (name.clone(), table)
+                let barriers = BarrierKindTable::from_ids(shipped_kind_ids(name, map, "barrier_kinds"))
+                    .expect("build barrier table");
+                let bridges =
+                    BridgeKindTable::from_ids(shipped_kind_ids(name, map, "bridge_kinds")).expect("build bridge table");
+                (name.clone(), barriers, bridges)
             })
             .collect::<Vec<_>>();
         tables.sort_by(|a, b| a.0.cmp(&b.0));
@@ -522,9 +543,9 @@ mod tests {
         let assets = AssetSet::load_default().expect("load assets");
         let kinds = server_actor_kinds();
 
-        for (map, barriers) in shipped_barrier_tables() {
+        for (map, barriers, bridges) in shipped_kind_tables() {
             assets
-                .validate_gameplay_bindings(kinds.iter().map(String::as_str), &barriers)
+                .validate_gameplay_bindings(kinds.iter().map(String::as_str), &barriers, &bridges)
                 .unwrap_or_else(|error| panic!("client asset bindings fail for {map}: {error}"));
         }
     }
@@ -536,7 +557,11 @@ mod tests {
         assets.actors.remove("mine");
 
         let error = assets
-            .validate_gameplay_bindings(kinds.iter().map(String::as_str), &BarrierKindTable::default())
+            .validate_gameplay_bindings(
+                kinds.iter().map(String::as_str),
+                &BarrierKindTable::default(),
+                &BridgeKindTable::default(),
+            )
             .expect_err("missing actor assets must fail");
 
         assert!(error.to_string().contains("only in gameplay: [\"mine\"]"));
@@ -549,10 +574,23 @@ mod tests {
         let barriers = BarrierKindTable::from_ids(vec!["unpainted".to_owned()]).expect("build barrier table");
 
         let error = assets
-            .validate_gameplay_bindings(kinds.iter().map(String::as_str), &barriers)
+            .validate_gameplay_bindings(kinds.iter().map(String::as_str), &barriers, &BridgeKindTable::default())
             .expect_err("kind without a colour must fail");
 
         assert!(error.to_string().contains("barrier_kind_colors"));
+    }
+
+    #[test]
+    fn uncoloured_bridge_kind_is_rejected() {
+        let assets = AssetSet::load_default().expect("load assets");
+        let kinds = server_actor_kinds();
+        let bridges = BridgeKindTable::from_ids(vec!["unpainted".to_owned()]).expect("build bridge table");
+
+        let error = assets
+            .validate_gameplay_bindings(kinds.iter().map(String::as_str), &BarrierKindTable::default(), &bridges)
+            .expect_err("kind without a colour must fail");
+
+        assert!(error.to_string().contains("bridge_kind_colors"));
     }
 
     #[test]

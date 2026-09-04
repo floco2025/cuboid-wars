@@ -2,7 +2,7 @@ use bevy::prelude::Vec3;
 use common::constants::{GRID_CELL_SIZE, LEVEL_HEIGHT, WALL_THICKNESS};
 use common::map::MapGeometry;
 use common::physics::CollisionWorld;
-use common::protocol::{BarrierKindTable, MapLayout, Position, Wall};
+use common::protocol::{BarrierKindTable, BridgeKindTable, MapLayout, Position, Wall};
 
 use super::{NavGraph, routing::COVER_SEARCH_MAX_STEPS};
 use crate::map::{ActorSpawnZone, CellGrid, EdgeGrid, GeneratedMap, LevelGrid, MapConfig};
@@ -429,7 +429,7 @@ fn shipping_map_zones_are_mutually_reachable() {
         config: map_config,
         geometry,
         ..
-    } = crate::map::generate_map(map_name, &barrier_kinds).expect("generate default map");
+    } = crate::map::generate_map(map_name, &barrier_kinds, &BridgeKindTable::default()).expect("generate default map");
     let zones = map_config.actor_spawn_zones.clone();
     let nav = NavGraph::new(map_config, geometry);
 
@@ -749,7 +749,7 @@ fn shipping_map_sentry_recentres_before_entering_the_basement_ramp_trench() {
         layout,
         config: map_config,
         geometry,
-    } = crate::map::generate_map("hotel", &barrier_kinds).expect("generate the hotel map");
+    } = crate::map::generate_map("hotel", &barrier_kinds, &BridgeKindTable::default()).expect("generate the hotel map");
     let world = CollisionWorld::from_map_layout(&layout, &barrier_kinds);
     let nav = NavGraph::new(map_config, geometry);
     let sentry = gameplay_config.expect_actor("sentry").physics();

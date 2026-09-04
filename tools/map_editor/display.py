@@ -10,11 +10,13 @@ from .constants import (
     DEFAULT_ALIAS,
     FACES,
     FIREWORK_PLATE_COLOR,
+    MODE_BRIDGE_PLATE,
     MODE_ERASE,
     MODE_ERASE_GRASS,
     MODE_ERASE_ITEMS,
     MODE_ERASE_KEEP_FLOORS,
     MODE_ERASE_LADDERS,
+    MODE_ERASE_LIGHT_BRIDGES,
     MODE_ERASE_LIGHTS,
     MODE_ERASE_PRESSURE_PLATES,
     MODE_FIREWORK_PLATE,
@@ -24,6 +26,7 @@ from .constants import (
     MODE_INACCESSIBLE_FLOOR,
     MODE_ITEM,
     MODE_LADDER,
+    MODE_LIGHT_BRIDGE,
     MODE_PLAYER_SPAWN_PAINT,
     MODE_PRESSURE_PLATE,
     MODE_RAMP_MATERIAL,
@@ -73,6 +76,9 @@ DRAG_PREVIEW_COLORS: dict[str, QColor] = {
     MODE_ERASE_ITEMS: QColor(245, 158, 11, 120),  # amber family, like Erase Lights
     MODE_LADDER: QColor(251, 146, 60, 120),  # orange — matches the ladder glyph
     MODE_ERASE_LADDERS: QColor(251, 146, 60, 120),
+    # Kind is picked after the drag, so the preview uses the generic bridge cyan.
+    MODE_LIGHT_BRIDGE: QColor(48, 216, 255, 120),
+    MODE_ERASE_LIGHT_BRIDGES: QColor(245, 158, 11, 120),  # amber family, like Erase Items
     MODE_FLOOR_MATERIAL: QColor(236, 72, 153, 120),
     MODE_RAMP_MATERIAL: QColor(168, 85, 247, 120),  # purple to distinguish from floor mode pink
     MODE_ERASE: QColor(248, 113, 113, 120),
@@ -80,6 +86,7 @@ DRAG_PREVIEW_COLORS: dict[str, QColor] = {
     MODE_ERASE_LIGHTS: QColor(250, 204, 21, 120),   # amber — distinct from red erase tools
     # Kind is picked after the click (like items): neutral off-white ghost.
     MODE_PRESSURE_PLATE: QColor(220, 220, 220, 110),
+    MODE_BRIDGE_PLATE: QColor(220, 220, 220, 110),
     MODE_FIREWORK_PLATE: _translucent(FIREWORK_PLATE_COLOR, 120),
     MODE_ERASE_PRESSURE_PLATES: QColor(245, 158, 11, 120),  # amber family, like Erase Items
 }

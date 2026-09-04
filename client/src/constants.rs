@@ -404,6 +404,19 @@ pub const BARRIER_PULSE_HZ: f32 = 0.5;
 pub const BARRIER_EMISSIVE: f32 = 2000.0;
 
 // ============================================================================
+// Light bridges
+// ============================================================================
+
+// Surface alpha of a kind's material: a ghost while unpowered, near-solid
+// while powered. Alpha also scales the emissive contribution, so the
+// emissive stays far below the barrier value.
+pub const BRIDGE_ALPHA_OFF: f32 = 0.12;
+pub const BRIDGE_ALPHA_ON: f32 = 0.85;
+pub const BRIDGE_EMISSIVE: f32 = 6.0;
+// Time constant of the alpha ease between the two levels.
+pub const BRIDGE_FADE_SECS: f32 = 0.35;
+
+// ============================================================================
 // Rain
 // ============================================================================
 // Presentation of the server-scheduled rain: how a given intensity looks.

@@ -311,3 +311,37 @@ fn character_sweep_ignores_floors_and_ramps() {
 
     assert!(!world.character_sweep_hits_wall(&start, &target, wide_body()));
 }
+
+#[test]
+fn light_bridge_supports_a_character_only_while_powered() {
+    use crate::config::CharacterPhysicsConfig;
+    use crate::protocol::{BridgeKindId, LightBridge};
+    use rapier3d::prelude::Pose;
+
+    let layout = MapLayout {
+        light_bridges: vec![LightBridge {
+            x1: 0.0,
+            z1: 0.0,
+            x2: 4.0,
+            z2: 4.0,
+            y: LEVEL_HEIGHT,
+            level: 1,
+            kind: BridgeKindId(0),
+        }],
+        ..Default::default()
+    };
+    let world = CollisionWorld::from_map_layout(&layout, &crate::protocol::BarrierKindTable::default());
+    assert_eq!(world.solid_kinds(), vec![ColliderKind::Bridge]);
+
+    let physics: CharacterPhysicsConfig = wide_body();
+    let shape = crate::physics::characters::character_shape(physics);
+    let pose = Pose::translation(2.0, LEVEL_HEIGHT + physics.collider.bottom_y_offset() + 0.05, 2.0);
+    let probe = |powered: &[BridgeKindId]| world.ground_hit(&shape, &pose, 1.0, 0.0, &[], powered, &[]);
+
+    assert!(probe(&[]).is_none(), "an unpowered bridge is not ground");
+    assert!(
+        probe(&[BridgeKindId(1)]).is_none(),
+        "another powered kind is not this bridge"
+    );
+    assert!(probe(&[BridgeKindId(0)]).is_some(), "a powered bridge is ground");
+}

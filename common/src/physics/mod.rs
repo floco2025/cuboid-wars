@@ -5,7 +5,7 @@ mod portals;
 mod projectiles;
 mod world;
 
-pub use barriers::{OpenBarrierKinds, passable_barrier_kinds};
+pub use barriers::passable_barrier_kinds;
 pub use characters::{
     BallCharacterHit, CharacterEnvironment, CharacterMovePlan, CharacterMovementResult, CharacterStep,
     CharacterSupport, CharacterVerticalVelocity, HitDirection, KnockbackVelocity, PlayerMovementStep,

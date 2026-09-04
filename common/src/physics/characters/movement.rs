@@ -19,7 +19,7 @@ use crate::{
     config::CharacterPhysicsConfig,
     constants::{CHARACTER_STEP_HEIGHT, CHARACTER_STEP_MIN_WIDTH, CHARACTER_TERMINAL_VELOCITY, PHYSICS_EPSILON},
     physics::world::CollisionWorld,
-    protocol::Position,
+    protocol::{BarrierKindId, BridgeKindId, Position},
 };
 
 const CHARACTER_CONTACT_OFFSET: f32 = 0.01;
@@ -33,11 +33,14 @@ pub fn player_jump_velocity(
     physics: CharacterPhysicsConfig,
     jump_speed: f32,
     pos: &Position,
+    powered_bridges: &[BridgeKindId],
 ) -> Option<f32> {
     // Jumping is how a character detaches mid-climb, so it must work even
     // while the ladder is supplying upward velocity.
     let on_ladder = collision_world.ladder_volume_at(pos).is_some();
-    if !on_ladder && (vertical_velocity > 0.0 || !position_has_floor_support(collision_world, pos, physics)) {
+    if !on_ladder
+        && (vertical_velocity > 0.0 || !position_has_floor_support(collision_world, pos, physics, powered_bridges))
+    {
         return None;
     }
 
@@ -63,7 +66,9 @@ pub struct CharacterStep {
 pub struct CharacterEnvironment<'a> {
     pub collision_world: &'a CollisionWorld,
     pub gravity: f32,
-    pub passable_kinds: &'a [crate::protocol::BarrierKindId],
+    pub passable_kinds: &'a [BarrierKindId],
+    // Light bridge kinds that are solid this tick (`PlateState`).
+    pub powered_bridges: &'a [BridgeKindId],
     pub physics: CharacterPhysicsConfig,
     pub ladder_climb_ratio: f32,
     // Portal pass-through: while the body overlaps a linked aperture, its
@@ -119,6 +124,7 @@ fn prepare_movement_request(
             support_shape,
             start_pos,
             passable_kinds,
+            env.powered_bridges,
             excluded_colliders,
             physics,
         )
@@ -153,6 +159,7 @@ fn prepare_movement_request(
             character_shape,
             start_pos,
             passable_kinds,
+            env.powered_bridges,
             excluded_colliders,
             physics,
             step.delta,
@@ -231,6 +238,7 @@ fn resolve_character_collision(
         &character_pose(&step.start, env.physics),
         request.requested_total,
         env.passable_kinds,
+        env.powered_bridges,
         excluded_colliders,
         |collision| {
             let normal = vec3(collision.hit.normal1);
@@ -272,6 +280,7 @@ fn finish_character_movement(
             support_shape,
             &resolved,
             env.passable_kinds,
+            env.powered_bridges,
             excluded_colliders,
             env.physics,
         )

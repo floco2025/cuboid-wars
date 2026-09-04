@@ -11,7 +11,7 @@ from .display import level_label
 from .geometry import (
     cell_side_from_click,
     normalized_wall,
-    ramp_cells,
+    ramp_cells_on_level,
     rect_from_cells,
     wall_endpoints_for_cell_side,
 )
@@ -22,11 +22,7 @@ class LightsMixin:
     # === Lights ===
 
     def _ramp_cells_for_level(self, level_idx: int) -> set[tuple[int, int]]:
-        cells: set[tuple[int, int]] = set()
-        for ramp in self.map_data["ramps"]:
-            if level_idx in (ramp["lower_level"], ramp["lower_level"] + 1):
-                cells.update(ramp_cells(ramp))
-        return cells
+        return ramp_cells_on_level(self.map_data["ramps"], level_idx)
 
     def _wall_endpoints_for_level(self, level_idx: int) -> set[tuple[int, int, int, int]]:
         return {

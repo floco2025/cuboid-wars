@@ -5,7 +5,8 @@ use common::{
     protocol::{BarrierKindId, ItemType},
 };
 
-// Cell flags.
+// Cell flags. Light bridges deliberately set none of them: actors never
+// walk a bridge, and item, spawn, and air-graph cells ignore them too.
 #[derive(Copy, Clone, Debug, Default)]
 pub struct Cell {
     pub has_ramp: bool,

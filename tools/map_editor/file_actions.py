@@ -6,7 +6,13 @@ from pathlib import Path
 
 from PySide6.QtWidgets import QFileDialog, QMessageBox
 
-from .constants import DEFAULT_GRID_COLS, DEFAULT_GRID_ROWS, MAPS_DIR, load_map_barrier_kinds
+from .constants import (
+    DEFAULT_GRID_COLS,
+    DEFAULT_GRID_ROWS,
+    MAPS_DIR,
+    load_map_barrier_kinds,
+    load_map_bridge_kinds,
+)
 from .dialogs import ResizeMapDialog
 from .io import empty_map, read_map
 from .validation import validate_map
@@ -27,6 +33,7 @@ class FileActionsMixin:
         new_cols, new_rows, _, _ = result
         self.doc.replace_with_new(empty_map(new_cols, new_rows))
         self.barrier_kinds = []
+        self.bridge_kinds = []
         self.current_level = 0
         self.refresh_ui()
 
@@ -42,13 +49,14 @@ class FileActionsMixin:
         try:
             loaded = read_map(path)
             barrier_kinds = load_map_barrier_kinds(path.stem)
+            bridge_kinds = load_map_bridge_kinds(path.stem)
         except Exception as exc:
             QMessageBox.critical(self, "Open Failed", str(exc))
             return
         # Surface structural issues at load time instead of waiting for the
         # user to discover them on save. We still let them load (so they
         # can edit and fix), but the modal makes the problems visible.
-        errors = validate_map(loaded, barrier_kinds)
+        errors = validate_map(loaded, barrier_kinds, bridge_kinds)
         if errors:
             QMessageBox.warning(
                 self,
@@ -59,6 +67,7 @@ class FileActionsMixin:
             )
         self.doc.load(path)
         self.barrier_kinds = barrier_kinds
+        self.bridge_kinds = bridge_kinds
         self.current_level = 0
         self._record_recent_path(path)
         self.refresh_ui()
@@ -67,7 +76,7 @@ class FileActionsMixin:
         if self.path is None:
             self.save_as()
             return
-        errors = validate_map(self.map_data, self.barrier_kinds)
+        errors = validate_map(self.map_data, self.barrier_kinds, self.bridge_kinds)
         if errors:
             QMessageBox.warning(
                 self,
@@ -103,11 +112,13 @@ class FileActionsMixin:
         new_path = Path(path)
         try:
             barrier_kinds = load_map_barrier_kinds(new_path.stem)
+            bridge_kinds = load_map_bridge_kinds(new_path.stem)
         except Exception as exc:
             QMessageBox.critical(self, "Save Failed", str(exc))
             return
         self.path = new_path
         self.barrier_kinds = barrier_kinds
+        self.bridge_kinds = bridge_kinds
         # No baseline mtime for the new destination — we never read it, so any
         # existing file at this path is something the user chose to overwrite.
         self.path_mtime = None

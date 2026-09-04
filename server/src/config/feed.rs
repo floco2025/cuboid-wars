@@ -20,6 +20,8 @@ pub struct FeedConfig {
     pub group_quest_completed: bool,
     pub barrier_opened: bool,
     pub barrier_closed: bool,
+    pub bridge_powered: bool,
+    pub bridge_unpowered: bool,
     pub admin_action: bool,
     pub chat: bool,
 }
@@ -43,6 +45,8 @@ impl FeedConfig {
             group_quest_completed: enabled,
             barrier_opened: enabled,
             barrier_closed: enabled,
+            bridge_powered: enabled,
+            bridge_unpowered: enabled,
             admin_action: enabled,
             chat: enabled,
         }

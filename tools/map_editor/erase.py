@@ -4,7 +4,14 @@ from __future__ import annotations
 
 import copy
 
-from .constants import FLOOR_HIT_KINDS, MODE_FLOOR, MODE_GRASS, MODE_INACCESSIBLE_FLOOR, SPAWN_ZONE_LISTS
+from .constants import (
+    FLOOR_HIT_KINDS,
+    MODE_FLOOR,
+    MODE_GRASS,
+    MODE_INACCESSIBLE_FLOOR,
+    MODE_LIGHT_BRIDGE,
+    SPAWN_ZONE_LISTS,
+)
 from .geometry import (
     normalized_wall,
     point_near_wall,
@@ -58,6 +65,11 @@ class EraseMixin:
             barrier
             for barrier in level.get("barriers", [])
             if not wall_overlaps_rect([barrier["c0"], barrier["r0"], barrier["c1"], barrier["r1"]], (c0, r0, c1, r1))
+        ]
+        level["light_bridges"] = [
+            bridge
+            for bridge in level.get("light_bridges", [])
+            if not (c0 <= bridge["col"] < c1 and r0 <= bridge["row"] < r1)
         ]
         for list_name in SPAWN_ZONE_LISTS:
             after[list_name] = [
@@ -119,6 +131,8 @@ class EraseMixin:
             c0, r0, c1, r1 = ramp_rect(ramp)
             if c0 <= col < c1 and r0 <= row < r1:
                 return ("Ramp", (lower, tuple(ramp["low"]), tuple(ramp["high"])))
+        if any(b["col"] == col and b["row"] == row for b in level.get("light_bridges", [])):
+            return (MODE_LIGHT_BRIDGE, (col, row))
         # Grass sits on top of a floor, so a click peels the grass first; the
         # next click then hits the floor underneath.
         if any(g["col"] == col and g["row"] == row for g in level.get("grass", [])):
@@ -147,6 +161,10 @@ class EraseMixin:
             level["inaccessible_floors"] = [
                 floor for floor in level["inaccessible_floors"]
                 if (floor["col"], floor["row"]) != value
+            ]
+        elif kind == MODE_LIGHT_BRIDGE:
+            level["light_bridges"] = [
+                bridge for bridge in level.get("light_bridges", []) if (bridge["col"], bridge["row"]) != value
             ]
         elif kind == "Spawn Zone":
             list_name, target_idx = value

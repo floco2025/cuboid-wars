@@ -11,52 +11,62 @@ MAPS_DIR = REPO_ROOT / "config" / "server" / "maps"
 GAMEPLAY_PATH = REPO_ROOT / "config" / "server" / "gameplay.json"
 
 
-def _load_shared_configs() -> tuple[dict[str, str], set[str]]:
+def _load_shared_configs() -> tuple[dict[str, str], dict[str, str], set[str]]:
     assets_path = REPO_ROOT / "config" / "client" / "assets.json"
     with assets_path.open("r", encoding="utf-8") as handle:
         assets = json.load(handle)
-    colors: dict[str, str] = dict(assets.get("barrier_kind_colors", {}))
+    barrier_colors: dict[str, str] = dict(assets.get("barrier_kind_colors", {}))
+    bridge_colors: dict[str, str] = dict(assets.get("bridge_kind_colors", {}))
     aliases: set[str] = set(assets.get("aliases", {}).keys())
-    return colors, aliases
+    return barrier_colors, bridge_colors, aliases
 
 
-BARRIER_KIND_COLORS, MATERIAL_ALIASES = _load_shared_configs()
+BARRIER_KIND_COLORS, BRIDGE_KIND_COLORS, MATERIAL_ALIASES = _load_shared_configs()
 
 
-def load_map_barrier_kinds(map_name: str) -> list[str]:
+def load_map_kinds(map_name: str, key: str, colors: dict[str, str], color_key: str) -> list[str]:
     with GAMEPLAY_PATH.open("r", encoding="utf-8") as handle:
         gameplay = json.load(handle)
     map_settings = gameplay.get("maps", {}).get(map_name)
     if map_settings is None:
         return []
-    if "barrier_kinds" not in map_settings:
-        raise ValueError(f"maps.{map_name}.barrier_kinds is required; use null when the map has none")
-    value = map_settings["barrier_kinds"]
+    if key not in map_settings:
+        raise ValueError(f"maps.{map_name}.{key} is required; use null when the map has none")
+    value = map_settings[key]
     if value is None:
         return []
     if not isinstance(value, list) or not all(isinstance(kind, str) for kind in value):
-        raise ValueError(f"maps.{map_name}.barrier_kinds must be an array of strings or null")
+        raise ValueError(f"maps.{map_name}.{key} must be an array of strings or null")
     kinds = list(value)
     for idx, kind in enumerate(kinds):
         if not kind:
-            raise ValueError(f"maps.{map_name}.barrier_kinds[{idx}] is empty")
+            raise ValueError(f"maps.{map_name}.{key}[{idx}] is empty")
         if kind in kinds[:idx]:
-            raise ValueError(f"maps.{map_name}.barrier_kinds[{idx}] duplicates {kind!r}")
-        if kind not in BARRIER_KIND_COLORS:
+            raise ValueError(f"maps.{map_name}.{key}[{idx}] duplicates {kind!r}")
+        if kind not in colors:
             raise ValueError(
-                f"maps.{map_name}.barrier_kinds[{idx}] {kind!r} has no color in "
-                "config/client/assets.json `barrier_kind_colors`"
+                f"maps.{map_name}.{key}[{idx}] {kind!r} has no color in "
+                f"config/client/assets.json `{color_key}`"
             )
     return kinds
+
+
+def load_map_barrier_kinds(map_name: str) -> list[str]:
+    return load_map_kinds(map_name, "barrier_kinds", BARRIER_KIND_COLORS, "barrier_kind_colors")
+
+
+def load_map_bridge_kinds(map_name: str) -> list[str]:
+    return load_map_kinds(map_name, "bridge_kinds", BRIDGE_KIND_COLORS, "bridge_kind_colors")
 
 # Editor-only: the game renders every plate alike, so this colour exists just
 # to tell firework plates from barrier plates on the canvas.
 FIREWORK_PLATE_COLOR = "#e040fb"
 
-# Pressure plate `type` values; barrier plates also carry a `kind`.
+# Pressure plate `type` values; barrier and bridge plates also carry a `kind`.
 PLATE_TYPE_BARRIER = "barrier"
+PLATE_TYPE_BRIDGE = "bridge"
 PLATE_TYPE_FIREWORK = "firework"
-PLATE_TYPES = (PLATE_TYPE_BARRIER, PLATE_TYPE_FIREWORK)
+PLATE_TYPES = (PLATE_TYPE_BARRIER, PLATE_TYPE_BRIDGE, PLATE_TYPE_FIREWORK)
 
 # Stable fallback alias used when a segment has no material data, when a new
 # segment is created without an explicit choice, or when we need *some* legal
@@ -77,6 +87,8 @@ MODE_ITEM = "Item"
 MODE_ERASE_ITEMS = "Erase Items"
 MODE_WALL = "Wall"
 MODE_BARRIER = "Barrier"
+MODE_LIGHT_BRIDGE = "Light Bridge"
+MODE_ERASE_LIGHT_BRIDGES = "Erase Light Bridges"
 MODE_RAMP_UP = "Ramp (Up)"
 MODE_RAMP_DOWN = "Ramp (Down)"
 MODE_ERASE = "Erase"
@@ -89,6 +101,7 @@ MODE_ERASE_LIGHTS = "Erase Lights"
 MODE_LADDER = "Ladder"
 MODE_ERASE_LADDERS = "Erase Ladders"
 MODE_PRESSURE_PLATE = "Barrier Plate"
+MODE_BRIDGE_PLATE = "Bridge Plate"
 MODE_FIREWORK_PLATE = "Firework Plate"
 MODE_ERASE_PRESSURE_PLATES = "Erase Plates"
 RAMP_MODES = (MODE_RAMP_UP, MODE_RAMP_DOWN)
@@ -131,11 +144,12 @@ MODE_CATEGORIES: list[tuple[str, list[str]]] = [
         ],
     ),
     ("Walls + Barriers", [MODE_WALL, MODE_BARRIER]),
+    ("Light Bridges", [MODE_LIGHT_BRIDGE, MODE_ERASE_LIGHT_BRIDGES]),
     ("Ramps", [MODE_RAMP_UP, MODE_RAMP_DOWN]),
     ("Ladders", [MODE_LADDER, MODE_ERASE_LADDERS]),
     ("Materials", [MODE_FLOOR_MATERIAL, MODE_WALL_MATERIAL, MODE_RAMP_MATERIAL]),
     ("Lights", [MODE_LIGHT, MODE_ERASE_LIGHTS]),
-    ("Pressure Plates", [MODE_PRESSURE_PLATE, MODE_FIREWORK_PLATE, MODE_ERASE_PRESSURE_PLATES]),
+    ("Pressure Plates", [MODE_PRESSURE_PLATE, MODE_BRIDGE_PLATE, MODE_FIREWORK_PLATE, MODE_ERASE_PRESSURE_PLATES]),
     ("Items", [MODE_ITEM, MODE_ERASE_ITEMS]),
     ("Erase", [MODE_ERASE, MODE_ERASE_KEEP_FLOORS]),
 ]

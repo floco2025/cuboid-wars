@@ -89,6 +89,16 @@ def ramp_cells(ramp: dict) -> set[tuple[int, int]]:
     return {(col, row) for row in range(r0, r1) for col in range(c0, c1)}
 
 
+def ramp_cells_on_level(ramps: list[dict], level_idx: int) -> set[tuple[int, int]]:
+    """Footprint cells of every ramp touching a level — a ramp occupies its
+    cells on both the lower and the upper level."""
+    cells: set[tuple[int, int]] = set()
+    for ramp in ramps:
+        if level_idx in (ramp["lower_level"], ramp["lower_level"] + 1):
+            cells.update(ramp_cells(ramp))
+    return cells
+
+
 def ramp_axis(ramp: dict) -> str:
     low = ramp["low"]
     high = ramp["high"]

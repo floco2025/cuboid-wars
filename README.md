@@ -35,6 +35,7 @@ death/respawn flow.
   partner, and playing alone you always get both.
 - **Barriers & keys** — coloured barriers block everyone; the matching key
   lets you through until you die.
+- **Light bridges** — ghostly walkways that turn solid while their plates are held.
 - **Pressure plates** — some barrier colours open for everyone while
   enough players stand on their plates; alone, each plate is a switch.
 - **Actors** — mines, sentries, zappers, and reapers patrol and hunt; all

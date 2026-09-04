@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import math
 
-from PySide6.QtCore import QPoint, QRectF, Qt
+from PySide6.QtCore import QPoint, QPointF, QRectF, Qt
 from PySide6.QtGui import QBrush, QColor, QPainter, QPen
 
 from .constants import (
     ACTOR_ZONE_LIST,
     BARRIER_KIND_COLORS,
+    BRIDGE_KIND_COLORS,
     FIREWORK_PLATE_COLOR,
     ITEMS_LIST,
     ITEM_KEY_TYPE,
@@ -21,6 +22,7 @@ from .constants import (
     MODE_SPAWN_ZONE_EDIT,
     MODE_WALL,
     MODE_WALL_MATERIAL,
+    PLATE_TYPE_BRIDGE,
     PLATE_TYPE_FIREWORK,
     PLAYER_ZONE_LIST,
     RAMP_MODES,
@@ -78,6 +80,7 @@ class CanvasPaintingMixin:
         if self.window.show_adjacent_levels:
             self._paint_adjacent_level_ghosts(painter, cell, level_idx)
         self._paint_floors(painter, level, cell)
+        self._paint_light_bridges(painter, level, cell)
         self._paint_grass(painter, level, cell)
         self._paint_pressure_plates(painter, cell, level_idx)
         self._paint_items(painter, cell, level_idx)
@@ -197,6 +200,32 @@ class CanvasPaintingMixin:
             painter.drawLine(mid_x, rect.bottom(), rect.right(), mid_y)
             painter.setPen(Qt.PenStyle.NoPen)
 
+    def _paint_light_bridges(self, painter: QPainter, level: dict, cell: float) -> None:
+        # Translucent fill plus a one-way diagonal hatch, so a bridge reads as
+        # a walkway that is not a floor (blocked floors cross-hatch).
+        bridges = level.get("light_bridges", [])
+        if not bridges:
+            return
+        for bridge in bridges:
+            color = QColor(BRIDGE_KIND_COLORS.get(bridge.get("kind", ""), "#30d8ff"))
+            rect = QRectF(bridge["col"] * cell + 1, bridge["row"] * cell + 1, cell - 2, cell - 2)
+            fill = QColor(color)
+            fill.setAlpha(115)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(fill)
+            painter.drawRect(rect)
+            painter.setPen(QPen(color, 1))
+            size = rect.width()
+            for offset in (size * 0.5, size, size * 1.5):
+                if offset <= size:
+                    start = QPointF(rect.left(), rect.top() + offset)
+                    end = QPointF(rect.left() + offset, rect.top())
+                else:
+                    start = QPointF(rect.left() + offset - size, rect.bottom())
+                    end = QPointF(rect.right(), rect.top() + offset - size)
+                painter.drawLine(start, end)
+        painter.setPen(Qt.PenStyle.NoPen)
+
     # Sub-cell tuft anchors, in cell units. Fixed so tufts don't jump between
     # repaints; scattered enough to read as grass without hiding the floor's
     # material-overlay color underneath.
@@ -219,9 +248,9 @@ class CanvasPaintingMixin:
 
     def _paint_pressure_plates(self, painter: QPainter, cell: float, level_idx: int) -> None:
         # Inner 50% of the cell (≈25% by area) — the in-game footprint. Barrier
-        # plates are squares in their kind's color; firework plates are circles
-        # in the firework color, shape-distinct from plates and key diamonds so
-        # stacked glyphs still read.
+        # plates are squares in their kind's color, bridge plates diamonds in
+        # theirs, firework plates circles in the firework color — one shape per
+        # purpose so plates sharing a cell still read.
         plates = self.window.map_data.get("pressure_plates", [])
         if not plates:
             return
@@ -234,6 +263,18 @@ class CanvasPaintingMixin:
             if plate.get("type") == PLATE_TYPE_FIREWORK:
                 painter.setBrush(QColor(FIREWORK_PLATE_COLOR))
                 painter.drawEllipse(rect)
+            elif plate.get("type") == PLATE_TYPE_BRIDGE:
+                painter.setBrush(QColor(BRIDGE_KIND_COLORS.get(plate.get("kind", ""), "#30d8ff")))
+                cx, cy = rect.center().x(), rect.center().y()
+                half = cell * 0.25
+                painter.drawPolygon(
+                    [
+                        QPoint(round(cx), round(cy - half)),
+                        QPoint(round(cx + half), round(cy)),
+                        QPoint(round(cx), round(cy + half)),
+                        QPoint(round(cx - half), round(cy)),
+                    ]
+                )
             else:
                 painter.setBrush(QColor(BARRIER_KIND_COLORS.get(plate.get("kind", ""), "#38bdf8")))
                 painter.drawRect(rect)
@@ -425,6 +466,7 @@ class CanvasPaintingMixin:
             if 0 <= target < len(levels):
                 neighbor = levels[target]
                 self._paint_floors(painter, neighbor, cell)
+                self._paint_light_bridges(painter, neighbor, cell)
                 self._paint_ramps(painter, cell, target)
                 self._paint_walls(painter, neighbor, cell)
                 self._paint_barriers(painter, neighbor, cell)

@@ -30,6 +30,7 @@
         "portals": "both"
       },
       "barrier_kinds": [ "treasure", "basement", "gravity", "lobby" ],
+      "bridge_kinds": null,
       "random_items": {
         "types": [ "speed", "multi_shot", "low_gravity", "health_potion", "missile_pack" ],
         "max_number": 30,
@@ -138,6 +139,7 @@
         "portals": "single"
       },
       "barrier_kinds": null,
+      "bridge_kinds": [ "bridge_1", "bridge_2", "bridge_3" ],
       "random_items": null,
       "placed_items": {
         "respawn_secs": {
@@ -342,6 +344,8 @@
     "group_quest_completed": true,
     "barrier_opened": true,
     "barrier_closed": true,
+    "bridge_powered": true,
+    "bridge_unpowered": true,
     "admin_action": true,
     "chat": true
   }

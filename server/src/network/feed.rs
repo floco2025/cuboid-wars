@@ -1,6 +1,6 @@
 use super::{ServerToClient, broadcast_to_all, broadcast_to_others};
 use crate::{config::FeedConfig, players::PlayerMap};
-use common::protocol::{BarrierKindId, FeedSpan, FeedStyle, PlayerId, SFeed, ServerMessage};
+use common::protocol::{BarrierKindId, BridgeKindId, FeedSpan, FeedStyle, PlayerId, SFeed, ServerMessage};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DeathCause {
@@ -64,6 +64,15 @@ pub enum FeedEvent {
         kind: BarrierKindId,
         kind_name: String,
     },
+    BridgePowered {
+        name: String,
+        kind: BridgeKindId,
+        kind_name: String,
+    },
+    BridgeUnpowered {
+        kind: BridgeKindId,
+        kind_name: String,
+    },
     AdminReply {
         text: String,
     },
@@ -109,6 +118,8 @@ fn announces(config: &FeedConfig, event: &FeedEvent) -> bool {
         FeedEvent::GroupQuestCompleted { .. } => config.group_quest_completed,
         FeedEvent::BarrierOpened { .. } => config.barrier_opened,
         FeedEvent::BarrierClosed { .. } => config.barrier_closed,
+        FeedEvent::BridgePowered { .. } => config.bridge_powered,
+        FeedEvent::BridgeUnpowered { .. } => config.bridge_unpowered,
         FeedEvent::AdminReply { .. } => false,
         FeedEvent::AdminAction { .. } => config.admin_action,
         FeedEvent::Chat { .. } => config.chat,
@@ -145,6 +156,16 @@ fn render(event: FeedEvent) -> SFeed {
             span("The ", FeedStyle::Dim),
             span(kind_name, FeedStyle::Barrier(kind)),
             span(" barriers closed", FeedStyle::Dim),
+        ],
+        FeedEvent::BridgePowered { name, kind, kind_name } => vec![
+            span(format!("{name} powered the "), FeedStyle::Default),
+            span(kind_name, FeedStyle::Bridge(kind)),
+            span(" bridges", FeedStyle::Default),
+        ],
+        FeedEvent::BridgeUnpowered { kind, kind_name } => vec![
+            span("The ", FeedStyle::Dim),
+            span(kind_name, FeedStyle::Bridge(kind)),
+            span(" bridges went dark", FeedStyle::Dim),
         ],
         FeedEvent::AdminReply { text } => one(text, FeedStyle::Console),
         FeedEvent::AdminAction { name, text } => one(format!("{name}: {text}"), FeedStyle::Console),
@@ -305,6 +326,26 @@ mod tests {
 
         assert_eq!(text(&line), "Marc opened the treasure barriers");
         assert_eq!(line.spans[1].style, FeedStyle::Barrier(BarrierKindId(2)));
+    }
+
+    #[test]
+    fn bridge_lines_color_only_the_kind_word() {
+        let kind = BridgeKindId(1);
+        let powered = render(FeedEvent::BridgePowered {
+            name: "Marc".to_owned(),
+            kind,
+            kind_name: "skyway".to_owned(),
+        });
+        assert_eq!(text(&powered), "Marc powered the skyway bridges");
+        assert_eq!(powered.spans[1].style, FeedStyle::Bridge(kind));
+
+        let dark = render(FeedEvent::BridgeUnpowered {
+            kind,
+            kind_name: "skyway".to_owned(),
+        });
+        assert_eq!(text(&dark), "The skyway bridges went dark");
+        assert_eq!(dark.spans[0].style, FeedStyle::Dim);
+        assert_eq!(dark.spans[1].style, FeedStyle::Bridge(kind));
     }
 
     #[test]

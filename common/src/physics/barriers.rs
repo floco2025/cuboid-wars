@@ -1,19 +1,11 @@
 use crate::protocol::BarrierKindId;
 
-// Barrier kinds currently held open by pressure plates. Sorted ascending so
-// snapshot equality diffs and client-side change detection are stable.
-// Defined here (not per-crate) because both server-authoritative movement
-// and client-side prediction need to merge it with held keys via
-// `passable_barrier_kinds`. Resource form lives as a Bevy resource on both
-// sides; the wire shape ships in `SSnapshot.open_barrier_kinds`.
-#[derive(bevy_ecs::prelude::Resource, Debug, Default, Clone, PartialEq, Eq)]
-pub struct OpenBarrierKinds(pub Vec<BarrierKindId>);
-
 // Merge per-player `held_keys` with the globally `open_kinds` (currently held
-// open by pressure plates) into the slice that `step_character_movement`
-// treats as "barriers I can pass through". One source of truth used by both
-// server-authoritative movement and client-side prediction — keeps the two
-// sides in agreement about what's passable.
+// open by pressure plates, `PlateState.open_barrier_kinds`) into the slice
+// that `step_character_movement` treats as "barriers I can pass through".
+// One source of truth used by both server-authoritative movement and
+// client-side prediction — keeps the two sides in agreement about what's
+// passable.
 #[must_use]
 pub fn passable_barrier_kinds(held_keys: &[BarrierKindId], open_kinds: &[BarrierKindId]) -> Vec<BarrierKindId> {
     if open_kinds.is_empty() {

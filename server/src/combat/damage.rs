@@ -376,6 +376,7 @@ mod tests {
                             portals: common::protocol::PortalMode::Both,
                         },
                         barrier_kinds: None,
+                        bridge_kinds: None,
                     },
                     random_items: None,
                     placed_items: PlacedItemsConfig {

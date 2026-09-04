@@ -8,7 +8,7 @@ use super::{
     items::PlacedItemsConfig,
     quests::{Quest, validate_quests},
 };
-use common::protocol::{BarrierKindTable, ItemType, MapSettings, MapWeaponSettings};
+use common::protocol::{BarrierKindTable, BridgeKindTable, ItemType, MapSettings, MapWeaponSettings};
 
 // Server-side wrapper around the wire `MapSettings`: the flattened settings
 // ship to clients in `SInit`, while the rest stays server-only.
@@ -96,6 +96,8 @@ pub(super) fn validate_maps<T>(
         }
         BarrierKindTable::from_ids(entry.settings.barrier_kinds.clone().unwrap_or_default())
             .with_context(|| format!("invalid {path}.barrier_kinds"))?;
+        BridgeKindTable::from_ids(entry.settings.bridge_kinds.clone().unwrap_or_default())
+            .with_context(|| format!("invalid {path}.bridge_kinds"))?;
         let movement_path = format!("{path}.movement");
         let movement = &entry.settings.movement;
         validate_covers_actor_kinds(movement.actors.keys(), actors, &format!("{movement_path}.actors"))?;
@@ -208,6 +210,7 @@ mod tests {
                     portals: PortalMode::Both,
                 },
                 barrier_kinds: None,
+                bridge_kinds: None,
             },
             random_items: None,
             placed_items: ok_placed_items(),
@@ -279,6 +282,7 @@ mod tests {
             },
             "weapons": { "projectiles": projectiles, "missiles": missiles, "portals": portals },
             "barrier_kinds": null,
+            "bridge_kinds": null,
             "random_items": null,
             "placed_items": {
                 "respawn_secs": {
@@ -483,6 +487,33 @@ mod tests {
 
         let error = validate_test_maps(&maps, "hotel").expect_err("duplicate barrier kinds must be rejected");
         assert!(error.to_string().contains("maps.hotel.barrier_kinds"));
+    }
+
+    #[test]
+    fn map_entry_requires_explicit_bridge_kinds() {
+        let gameplay: serde_json::Value = serde_json::from_str(include_str!("../../../config/server/gameplay.json"))
+            .expect("server gameplay JSON is invalid");
+        let mut hotel = gameplay["maps"]["hotel"].clone();
+        hotel
+            .as_object_mut()
+            .expect("hotel map settings are not an object")
+            .remove("bridge_kinds");
+
+        let error = serde_json::from_value::<MapServerConfig>(hotel)
+            .expect_err("bridge_kinds must be explicit even when absent by design");
+        assert!(error.to_string().contains("bridge_kinds"));
+    }
+
+    #[test]
+    fn validate_maps_rejects_duplicate_bridge_kinds() {
+        let mut maps = one_map("hotel");
+        maps.get_mut("hotel")
+            .expect("hotel entry missing")
+            .settings
+            .bridge_kinds = Some(vec!["skyway".to_owned(), "skyway".to_owned()]);
+
+        let error = validate_test_maps(&maps, "hotel").expect_err("duplicate bridge kinds must be rejected");
+        assert!(error.to_string().contains("maps.hotel.bridge_kinds"));
     }
 
     #[test]

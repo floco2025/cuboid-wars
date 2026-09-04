@@ -21,6 +21,11 @@
 - **Wall** — Drag along grid lines to place atomic wall edges.
 - **Barrier** — Drag along grid lines to place a translucent pulsating force-field; a dialog asks which kind to use. Kinds come from that map's `barrier_kinds` in `config/server/gameplay.json`; colors come from `config/client/assets.json::barrier_kind_colors`.
 
+## Light Bridges
+
+- **Light Bridge** — Drag cells to place a translucent walkway that is solid only while a bridge plate of its kind is held; a dialog asks which kind to use. Kinds come from that map's `bridge_kinds` in `config/server/gameplay.json`; colors come from `config/client/assets.json::bridge_kind_colors`. A bridge cannot share a cell with a floor or a ramp — such cells are skipped.
+- **Erase Light Bridges** — Drag a rectangle to remove every light bridge inside it on the current level.
+
 ## Ramps
 
 - **Ramp (Up)** — Drag from this level toward the upper level.
@@ -45,6 +50,7 @@
 ## Pressure Plates
 
 - **Barrier Plate** — Left-click a cell to place a plate (square in the barrier kind's color); a dialog asks which barrier kind. While enough plates of a kind are pressed — one fewer than the players alive, capped by the plate count — every barrier of that kind opens globally. Clicking a cell that already holds a plate removes it.
+- **Bridge Plate** — Left-click a cell to place a plate (diamond in the bridge kind's color); a dialog asks which bridge kind. While enough plates of a kind are pressed — the same count as for barrier plates — every light bridge of that kind turns solid. Clicking a cell that already holds a plate removes it.
 - **Firework Plate** — Left-click a cell to place a firework plate (circle). When every player alive stands on a firework plate — or every plate is held when players outnumber the plates — the firework show starts. Clicking a cell that already holds a plate removes it.
 - **Erase Plates** — Drag a rectangle to remove every plate inside it on the current level.
 

@@ -5,7 +5,7 @@ use serde::{Deserialize, Deserializer};
 use crate::config::MapMovementConfig;
 
 use super::face_materials::FaceMaterials;
-use super::{BarrierKindId, ItemType, Position};
+use super::{BarrierKindId, BridgeKindId, ItemType, Position};
 
 #[derive(Debug, Clone, Encode, Decode, Copy)]
 pub struct Wall {
@@ -88,6 +88,32 @@ pub struct Barrier {
 // One-sided: the normal points at the FRONT — the climbable rail side —
 // while the back is passed through. No Rapier collider — the character step
 // queries the derived climb volumes directly.
+// A plate-powered walkway: one merged rectangle of same-kind cells, a thin
+// slab whose standing surface is `y`. Solid and lit only while its kind is
+// powered (`PlateState.powered_bridge_kinds`).
+#[derive(Debug, Clone, Encode, Decode, Copy)]
+pub struct LightBridge {
+    pub x1: f32,
+    pub z1: f32,
+    pub x2: f32,
+    pub z2: f32,
+    pub y: f32,
+    pub level: u8,
+    pub kind: BridgeKindId,
+}
+
+impl LightBridge {
+    #[must_use]
+    pub const fn bounds_xz(&self) -> (f32, f32, f32, f32) {
+        (
+            self.x1.min(self.x2),
+            self.x1.max(self.x2),
+            self.z1.min(self.z2),
+            self.z1.max(self.z2),
+        )
+    }
+}
+
 #[derive(Debug, Clone, Encode, Decode, Copy)]
 pub struct Ladder {
     pub x1: f32,
@@ -106,12 +132,15 @@ pub struct Ladder {
 // Physics ignores the material vectors.
 // What holding a plate does. Barrier plates open every barrier of their kind
 // (fully passable + invisible, globally) while enough of them are held —
-// distinct from keys (per-player filter). Firework plates launch the show
-// once enough players stand on them. Thresholds live on the server; clients
-// receive the open kinds via `SSnapshot` and the show via `SFirework`.
+// distinct from keys (per-player filter). Bridge plates power every light
+// bridge of their kind (solid + lit) on the same terms. Firework plates
+// launch the show once enough players stand on them. Thresholds live on the
+// server; clients receive the held state via `SSnapshot.plates` and the
+// show via `SFirework`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encode, Decode)]
 pub enum PlatePurpose {
     Barrier(BarrierKindId),
+    Bridge(BridgeKindId),
     Firework,
 }
 
@@ -148,6 +177,7 @@ pub struct MapLayout {
     pub floor_materials: Vec<FaceMaterials>,
     pub wall_lights: Vec<WallLight>,
     pub barriers: Vec<Barrier>,
+    pub light_bridges: Vec<LightBridge>,
     pub ladders: Vec<Ladder>,
     pub pressure_plates: Vec<PressurePlate>,
     pub grass: Vec<GrassCell>,
@@ -159,12 +189,13 @@ impl MapLayout {
     #[must_use]
     pub fn summary(&self) -> String {
         format!(
-            "{} walls, {} floors, {} ramps, {} ladders, {} barriers, {} wall lights, {} pressure plates",
+            "{} walls, {} floors, {} ramps, {} ladders, {} barriers, {} light bridges, {} wall lights, {} pressure plates",
             self.walls.len(),
             self.floors.len(),
             self.ramps.len(),
             self.ladders.len(),
             self.barriers.len(),
+            self.light_bridges.len(),
             self.wall_lights.len(),
             self.pressure_plates.len(),
         )
@@ -190,6 +221,10 @@ pub struct MapSettings {
     // `null` means the map has no barriers, keys, or barrier plates.
     #[serde(deserialize_with = "deserialize_required_option")]
     pub barrier_kinds: Option<Vec<String>>,
+    // Same for `BridgeKindId`; `null` means the map has no light bridges or
+    // bridge plates.
+    #[serde(deserialize_with = "deserialize_required_option")]
+    pub bridge_kinds: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode, Deserialize)]

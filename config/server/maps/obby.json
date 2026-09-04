@@ -6,7 +6,10 @@
     "player_spawn_zones": [
       {"level": 0, "cols": [6, 7], "rows": [5, 6]}
     ],
-    "pressure_plates": [],
+    "pressure_plates": [
+      {"level": 0, "col": 4, "row": 12, "type": "bridge", "kind": "bridge_1"},
+      {"level": 0, "col": 15, "row": 12, "type": "bridge", "kind": "bridge_1"}
+    ],
     "items": [
       {"level": 0, "col": 4, "row": 8, "type": "speed"},
       {"level": 0, "col": 4, "row": 9, "type": "low_gravity"}
@@ -85,6 +88,13 @@
         "grass": [],
         "walls": [],
         "barriers": [],
+        "light_bridges": [
+          {"col": 7, "row": 13, "kind": "bridge_1"},
+          {"col": 8, "row": 13, "kind": "bridge_1"},
+          {"col": 9, "row": 13, "kind": "bridge_1"},
+          {"col": 10, "row": 13, "kind": "bridge_1"},
+          {"col": 11, "row": 13, "kind": "bridge_1"}
+        ],
         "lights": []
       }
     ],

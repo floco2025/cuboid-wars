@@ -11,9 +11,9 @@ use crate::{
 use common::{
     constants::{GRID_CELL_SIZE, LEVEL_HEIGHT},
     map::MapGeometry,
-    physics::OpenBarrierKinds,
     protocol::{
-        BarrierKindId, BarrierKindTable, PlatePurpose, PlayerId, PlayerMarker, Position, SPressurePlate, ServerMessage,
+        BarrierKindId, BarrierKindTable, BridgeKindId, BridgeKindTable, PlatePurpose, PlateState, PlayerId,
+        PlayerMarker, Position, SPressurePlate, ServerMessage,
     },
 };
 
@@ -38,20 +38,23 @@ pub fn player_on_plate(plate: &PressurePlateRuntime, pos: &Position, geometry: &
 
 // Per-tick plate occupancy, then the two plate rules.
 //
-// Barrier plates — for each kind that has at least one plate on the map:
-//   required = min(plates_for_kind, max(0, active_alive_count - 1))
-// and the kind is open while the number of distinct held plates of that
-// kind is `>= required`.
+// Holding plates — barrier plates open every barrier of their kind, bridge
+// plates make every light bridge of their kind solid and lit. Both follow one
+// rule; for each purpose that has at least one plate on the map:
+//   required = min(plates_for_purpose, max(0, active_alive_count - 1))
+// and the purpose is held while the number of distinct held plates of that
+// purpose is `>= required`.
 //
 // Solo play (exactly one logged-in player, dead or alive) replaces that rule
-// with switches: a fresh press on a barrier plate flips its kind open or
-// closed, and stepping off changes nothing. The switches start from the
-// plates held when solo play begins — a kind the remaining player was
-// holding open stays open — and are dropped once a second player logs in.
+// with switches: a fresh press flips its purpose on or off, and stepping off
+// changes nothing. The switches start from the plates held when solo play
+// begins — a purpose the remaining player was holding stays held — and are
+// dropped once a second player logs in.
 //
 // Firework plates — required = min(firework_plates, active_alive_count);
 // the show launches on the tick the held count reaches it (edge-triggered,
-// so standing there doesn't restart it every tick).
+// so standing there doesn't restart it every tick). Fireworks are momentary,
+// so they never enter `PlateState`.
 //
 // A plate is "held" when ≥ 1 alive player is inside the inner 25%-by-area
 // square of its cell (see `player_on_plate`).
@@ -63,36 +66,35 @@ pub fn pressure_plates_system(
     mut quest_board: ResMut<QuestBoard>,
     quest_catalog: Res<QuestCatalog>,
     barrier_kinds: Res<BarrierKindTable>,
+    bridge_kinds: Res<BridgeKindTable>,
     positions: Query<&Position, With<PlayerMarker>>,
-    mut open: ResMut<OpenBarrierKinds>,
+    mut plates_state: ResMut<PlateState>,
     // Plate indices held last tick. Fires `SPressurePlate` only on the
     // unpressed→pressed edge (step-on cue), not every tick a player keeps
     // standing, and tells a fresh press from a standing one for feed lines.
     mut prev_held: Local<HashSet<usize>>,
-    // Barrier plate count per kind. Derived from the immutable map, so it is
-    // built once on first run rather than rebuilt every tick.
-    mut plates_per_kind: Local<HashMap<BarrierKindId, usize>>,
+    // Holding-plate count per purpose. Derived from the immutable map, so it
+    // is built once on first run rather than rebuilt every tick.
+    mut plates_per_purpose: Local<HashMap<PlatePurpose, usize>>,
     // Whether the firework threshold held last tick; the show launches on
     // the false→true edge.
     mut fireworks_ready: Local<bool>,
-    // Solo switch positions: the barrier kinds a lone player has flipped
-    // open. `None` outside solo play.
-    mut switches: Local<Option<HashSet<BarrierKindId>>>,
+    // Solo switch positions: the purposes a lone player has flipped on.
+    // `None` outside solo play.
+    mut switches: Local<Option<HashSet<PlatePurpose>>>,
 ) {
     if map_config.pressure_plates.is_empty() {
-        if !open.0.is_empty() {
-            open.0.clear();
-        }
+        plates_state.set_if_neq(PlateState::default());
         prev_held.clear();
         *fireworks_ready = false;
         *switches = None;
         return;
     }
 
-    if plates_per_kind.is_empty() {
+    if plates_per_purpose.is_empty() {
         for plate in &map_config.pressure_plates {
-            if let PlatePurpose::Barrier(kind) = plate.purpose {
-                *plates_per_kind.entry(kind).or_insert(0) += 1;
+            if holds_state(plate.purpose) {
+                *plates_per_purpose.entry(plate.purpose).or_insert(0) += 1;
             }
         }
     }
@@ -129,13 +131,14 @@ pub fn pressure_plates_system(
         }
     }
     let held_indices: HashSet<usize> = holders.keys().copied().collect();
-    let held_per_kind = held_count_per_kind(&held_indices, plates);
-    let prev_held_per_kind = held_count_per_kind(&prev_held, plates);
+    let held_per_purpose = held_count_per_purpose(&held_indices, plates);
+    let prev_held_per_purpose = held_count_per_purpose(&prev_held, plates);
+    let previous = plates_state.purposes();
 
     // Edge-triggered cues: at most one press and one release cue per tick,
     // regardless of how many plates flipped — the messages carry no plate
     // identity, so collapsing simultaneous flips is lossless. Persistent state
-    // lives in `OpenBarrierKinds` + snapshot; these are pure click/clunk SFX.
+    // lives in `PlateState` + snapshot; these are pure click/clunk SFX.
     if held_indices.difference(&prev_held).next().is_some() {
         broadcast_to_all(&players, ServerMessage::PressurePlate(SPressurePlate { pressed: true }));
     }
@@ -146,30 +149,32 @@ pub fn pressure_plates_system(
         );
     }
 
-    // Kinds a solo press flipped this tick.
+    // Purposes a solo press flipped this tick.
     let mut flipped = Vec::new();
-    let mut next: Vec<BarrierKindId> = if logged_in == 1 {
+    let mut next: Vec<PlatePurpose> = if logged_in == 1 {
         let seeded = switches.is_none();
-        let switches = switches.get_or_insert_with(|| held_per_kind.keys().copied().collect());
+        let switches = switches.get_or_insert_with(|| held_per_purpose.keys().copied().collect());
         if !seeded {
             for idx in held_indices.difference(&prev_held) {
-                if let PlatePurpose::Barrier(kind) = plates[*idx].purpose {
-                    if !switches.remove(&kind) {
-                        switches.insert(kind);
-                    }
-                    flipped.push(kind);
+                let purpose = plates[*idx].purpose;
+                if !holds_state(purpose) {
+                    continue;
                 }
+                if !switches.remove(&purpose) {
+                    switches.insert(purpose);
+                }
+                flipped.push(purpose);
             }
         }
         switches.iter().copied().collect()
     } else {
         *switches = None;
         let mut next = Vec::new();
-        for (kind, plates_for_kind) in plates_per_kind.iter() {
-            let required = (*plates_for_kind).min(alive.saturating_sub(1));
-            let held = held_per_kind.get(kind).copied().unwrap_or(0);
+        for (purpose, plates_for_purpose) in plates_per_purpose.iter() {
+            let required = (*plates_for_purpose).min(alive.saturating_sub(1));
+            let held = held_per_purpose.get(purpose).copied().unwrap_or(0);
             if held >= required {
-                next.push(*kind);
+                next.push(*purpose);
             }
         }
         next
@@ -178,47 +183,63 @@ pub fn pressure_plates_system(
     // iteration order varies tick-to-tick and we'd rewrite the resource
     // every tick (defeating change detection on both server broadcast and
     // client visibility).
-    next.sort_by_key(|k| k.0);
+    next.sort();
 
     // Feed lines follow plate presses only. The alive-count term and the
-    // switch-over into or out of solo play also open and close kinds
-    // (joins, leaves, deaths); those stay silent — the barriers themselves
-    // already show it.
-    let kind_name = |kind: BarrierKindId| {
+    // switch-over into or out of solo play also flip purposes (joins,
+    // leaves, deaths); those stay silent — the barriers and bridges
+    // themselves already show it.
+    let barrier_name = |kind: BarrierKindId| {
         barrier_kinds
             .id(kind)
             .expect("barrier kind missing from BarrierKindTable")
             .to_owned()
     };
-    let (opened, closed) = barrier_transitions(&open.0, &next);
-    for kind in opened {
-        if let Some(presser) = presser_of_kind(kind, &holders, &prev_held, plates) {
-            emit_feed(
-                &players,
-                &server_gameplay_config.feed,
-                FeedAudience::Everyone,
-                FeedEvent::BarrierOpened {
-                    name: players.display_name(&presser),
-                    kind,
-                    kind_name: kind_name(kind),
-                },
-            );
-        }
+    let bridge_name = |kind: BridgeKindId| {
+        bridge_kinds
+            .id(kind)
+            .expect("bridge kind missing from BridgeKindTable")
+            .to_owned()
+    };
+    let (opened, closed) = purpose_transitions(&previous, &next);
+    for purpose in opened {
+        let Some(presser) = presser_of_purpose(purpose, &holders, &prev_held, plates) else {
+            continue;
+        };
+        let name = players.display_name(&presser);
+        let event = match purpose {
+            PlatePurpose::Barrier(kind) => FeedEvent::BarrierOpened {
+                name,
+                kind,
+                kind_name: barrier_name(kind),
+            },
+            PlatePurpose::Bridge(kind) => FeedEvent::BridgePowered {
+                name,
+                kind,
+                kind_name: bridge_name(kind),
+            },
+            PlatePurpose::Firework => continue,
+        };
+        emit_feed(&players, &server_gameplay_config.feed, FeedAudience::Everyone, event);
     }
-    for kind in closed {
-        let held_now = held_per_kind.get(&kind).copied().unwrap_or(0);
-        let held_before = prev_held_per_kind.get(&kind).copied().unwrap_or(0);
-        if flipped.contains(&kind) || held_now < held_before {
-            emit_feed(
-                &players,
-                &server_gameplay_config.feed,
-                FeedAudience::Everyone,
-                FeedEvent::BarrierClosed {
-                    kind,
-                    kind_name: kind_name(kind),
-                },
-            );
+    for purpose in closed {
+        let held_now = held_per_purpose.get(&purpose).copied().unwrap_or(0);
+        let held_before = prev_held_per_purpose.get(&purpose).copied().unwrap_or(0);
+        if !flipped.contains(&purpose) && held_now >= held_before {
+            continue;
         }
+        let event = match purpose {
+            PlatePurpose::Barrier(kind) => FeedEvent::BarrierClosed {
+                kind,
+                kind_name: barrier_name(kind),
+            },
+            PlatePurpose::Bridge(kind) => FeedEvent::BridgeUnpowered {
+                kind,
+                kind_name: bridge_name(kind),
+            },
+            PlatePurpose::Firework => continue,
+        };
+        emit_feed(&players, &server_gameplay_config.feed, FeedAudience::Everyone, event);
     }
 
     let firework_plates = plates
@@ -244,7 +265,13 @@ pub fn pressure_plates_system(
     *fireworks_ready = ready;
 
     *prev_held = held_indices;
-    open.0 = next;
+    plates_state.set_if_neq(PlateState::from_purposes(next));
+}
+
+// Fireworks fire once and hold nothing, so they stay out of `PlateState`
+// and out of every count that feeds it.
+fn holds_state(purpose: PlatePurpose) -> bool {
+    !matches!(purpose, PlatePurpose::Firework)
 }
 
 // Everyone alive is on a firework plate — or every plate is held when the
@@ -258,28 +285,29 @@ fn plate_active(plate: &PressurePlateRuntime, locked: &[PlatePurpose]) -> bool {
     !locked.contains(&plate.purpose)
 }
 
-fn held_count_per_kind(held: &HashSet<usize>, plates: &[PressurePlateRuntime]) -> HashMap<BarrierKindId, usize> {
+fn held_count_per_purpose(held: &HashSet<usize>, plates: &[PressurePlateRuntime]) -> HashMap<PlatePurpose, usize> {
     let mut counts = HashMap::new();
     for idx in held {
-        if let PlatePurpose::Barrier(kind) = plates[*idx].purpose {
-            *counts.entry(kind).or_insert(0) += 1;
+        let purpose = plates[*idx].purpose;
+        if holds_state(purpose) {
+            *counts.entry(purpose).or_insert(0) += 1;
         }
     }
     counts
 }
 
-// Who gets credit for opening a kind: the holder of one of its plates that
-// was not held last tick, else any current holder. `None` when nobody is on
-// a plate of that kind — the alive-count term opened it.
-fn presser_of_kind(
-    kind: BarrierKindId,
+// Who gets credit for flipping a purpose on: the holder of one of its
+// plates that was not held last tick, else any current holder. `None` when
+// nobody is on a plate of that purpose — the alive-count term flipped it.
+fn presser_of_purpose(
+    purpose: PlatePurpose,
     holders: &HashMap<usize, PlayerId>,
     prev_held: &HashSet<usize>,
     plates: &[PressurePlateRuntime],
 ) -> Option<PlayerId> {
     let mut standing = None;
     for (idx, id) in holders {
-        if plates[*idx].purpose != PlatePurpose::Barrier(kind) {
+        if plates[*idx].purpose != purpose {
             continue;
         }
         if !prev_held.contains(idx) {
@@ -290,10 +318,10 @@ fn presser_of_kind(
     standing
 }
 
-// (kinds in `next` but not `prev`, kinds in `prev` but not `next`).
-fn barrier_transitions(prev: &[BarrierKindId], next: &[BarrierKindId]) -> (Vec<BarrierKindId>, Vec<BarrierKindId>) {
-    let opened = next.iter().copied().filter(|kind| !prev.contains(kind)).collect();
-    let closed = prev.iter().copied().filter(|kind| !next.contains(kind)).collect();
+// (purposes in `next` but not `prev`, purposes in `prev` but not `next`).
+fn purpose_transitions(prev: &[PlatePurpose], next: &[PlatePurpose]) -> (Vec<PlatePurpose>, Vec<PlatePurpose>) {
+    let opened = next.iter().copied().filter(|purpose| !prev.contains(purpose)).collect();
+    let closed = prev.iter().copied().filter(|purpose| !next.contains(purpose)).collect();
     (opened, closed)
 }
 
@@ -405,13 +433,19 @@ mod transition_tests {
     use super::*;
 
     #[test]
-    fn barrier_transitions_reports_opened_and_closed_kinds() {
-        let (opened, closed) = barrier_transitions(
-            &[BarrierKindId(0), BarrierKindId(1)],
-            &[BarrierKindId(1), BarrierKindId(2)],
+    fn purpose_transitions_reports_flipped_purposes_of_either_kind() {
+        let (opened, closed) = purpose_transitions(
+            &[
+                PlatePurpose::Barrier(BarrierKindId(0)),
+                PlatePurpose::Barrier(BarrierKindId(1)),
+            ],
+            &[
+                PlatePurpose::Barrier(BarrierKindId(1)),
+                PlatePurpose::Bridge(BridgeKindId(0)),
+            ],
         );
-        assert_eq!(opened, vec![BarrierKindId(2)]);
-        assert_eq!(closed, vec![BarrierKindId(0)]);
+        assert_eq!(opened, vec![PlatePurpose::Bridge(BridgeKindId(0))]);
+        assert_eq!(closed, vec![PlatePurpose::Barrier(BarrierKindId(0))]);
     }
 
     #[test]
@@ -440,14 +474,17 @@ mod transition_tests {
         let prev_held = HashSet::from([0]);
 
         assert_eq!(
-            presser_of_kind(BarrierKindId(0), &holders, &prev_held, &plates),
+            presser_of_purpose(PlatePurpose::Barrier(BarrierKindId(0)), &holders, &prev_held, &plates),
             Some(PlayerId(2))
         );
         assert_eq!(
-            presser_of_kind(BarrierKindId(1), &holders, &prev_held, &plates),
+            presser_of_purpose(PlatePurpose::Barrier(BarrierKindId(1)), &holders, &prev_held, &plates),
             Some(PlayerId(3))
         );
-        assert_eq!(presser_of_kind(BarrierKindId(2), &holders, &prev_held, &plates), None);
+        assert_eq!(
+            presser_of_purpose(PlatePurpose::Barrier(BarrierKindId(2)), &holders, &prev_held, &plates),
+            None
+        );
     }
 }
 
@@ -501,6 +538,7 @@ mod system_tests {
     };
 
     const LOBBY: BarrierKindId = BarrierKindId(0);
+    const SKYWAY: BridgeKindId = BridgeKindId(0);
 
     fn firework_plate() -> PressurePlateRuntime {
         PressurePlateRuntime {
@@ -514,6 +552,13 @@ mod system_tests {
     fn lobby_plate() -> PressurePlateRuntime {
         PressurePlateRuntime {
             purpose: PlatePurpose::Barrier(LOBBY),
+            ..firework_plate()
+        }
+    }
+
+    fn skyway_plate() -> PressurePlateRuntime {
+        PressurePlateRuntime {
+            purpose: PlatePurpose::Bridge(SKYWAY),
             ..firework_plate()
         }
     }
@@ -540,7 +585,8 @@ mod system_tests {
             .insert_resource(quest_catalog)
             .insert_resource(board)
             .insert_resource(BarrierKindTable::from_ids(vec!["lobby".to_owned()]).expect("one barrier kind"))
-            .insert_resource(OpenBarrierKinds::default())
+            .insert_resource(BridgeKindTable::from_ids(vec!["skyway".to_owned()]).expect("one bridge kind"))
+            .insert_resource(PlateState::default())
             .add_systems(Update, pressure_plates_system);
         app
     }
@@ -584,13 +630,24 @@ mod system_tests {
     }
 
     fn open_kinds(app: &App) -> Vec<BarrierKindId> {
-        app.world().resource::<OpenBarrierKinds>().0.clone()
+        app.world().resource::<PlateState>().open_barrier_kinds.clone()
+    }
+
+    fn powered_kinds(app: &App) -> Vec<BridgeKindId> {
+        app.world().resource::<PlateState>().powered_bridge_kinds.clone()
     }
 
     fn barrier_lines(messages: &[ServerMessage]) -> Vec<String> {
         feed_lines(messages)
             .into_iter()
             .filter(|line| line.contains("barriers"))
+            .collect()
+    }
+
+    fn bridge_lines(messages: &[ServerMessage]) -> Vec<String> {
+        feed_lines(messages)
+            .into_iter()
+            .filter(|line| line.contains("bridges"))
             .collect()
     }
 
@@ -719,6 +776,68 @@ mod system_tests {
         step_off(&mut app, entity);
         app.update();
         assert!(open_kinds(&app).is_empty());
+    }
+
+    #[test]
+    fn a_bridge_plate_powers_only_its_own_kind_and_says_so() {
+        let mut app = app(catalog(Vec::new()), vec![skyway_plate(), lobby_plate()]);
+        let (entity, mut rx) = standing_player(&mut app, 1);
+        let (partner, _partner_rx) = standing_player(&mut app, 2);
+        step_off(&mut app, entity);
+        step_off(&mut app, partner);
+        app.update();
+        assert!(powered_kinds(&app).is_empty());
+        drain(&mut rx);
+
+        step_on(&mut app, entity);
+        app.update();
+        assert_eq!(powered_kinds(&app), [SKYWAY], "the held plate powers its bridges");
+        assert_eq!(
+            open_kinds(&app),
+            [LOBBY],
+            "and the barrier plate on the same cell opens its kind"
+        );
+        let lines = bridge_lines(&drain(&mut rx));
+        assert_eq!(lines.len(), 1);
+        assert!(lines[0].contains("powered the skyway"), "{lines:?}");
+
+        step_off(&mut app, entity);
+        app.update();
+        assert!(powered_kinds(&app).is_empty());
+        assert_eq!(bridge_lines(&drain(&mut rx)), ["The skyway bridges went dark"]);
+    }
+
+    #[test]
+    fn a_barrier_plate_never_powers_a_bridge_kind() {
+        let mut app = app(catalog(Vec::new()), vec![lobby_plate()]);
+        let (entity, _rx) = standing_player(&mut app, 1);
+        app.update();
+        assert_eq!(open_kinds(&app), [LOBBY]);
+        assert!(powered_kinds(&app).is_empty());
+        step_off(&mut app, entity);
+        app.update();
+        assert!(powered_kinds(&app).is_empty());
+    }
+
+    #[test]
+    fn a_lone_player_toggles_a_bridge_kind_with_each_press() {
+        let mut app = app(catalog(Vec::new()), vec![skyway_plate()]);
+        let (entity, _rx) = standing_player(&mut app, 1);
+        step_off(&mut app, entity);
+        app.update();
+        assert!(powered_kinds(&app).is_empty());
+
+        step_on(&mut app, entity);
+        app.update();
+        assert_eq!(powered_kinds(&app), [SKYWAY]);
+
+        step_off(&mut app, entity);
+        app.update();
+        assert_eq!(powered_kinds(&app), [SKYWAY], "stepping off leaves the switch alone");
+
+        step_on(&mut app, entity);
+        app.update();
+        assert!(powered_kinds(&app).is_empty());
     }
 
     #[test]

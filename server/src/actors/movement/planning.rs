@@ -2,7 +2,7 @@ use std::f32::consts::FRAC_PI_2;
 
 use bevy::prelude::Vec3;
 
-use crate::{actors::ActorMap, map::OpenBarrierKinds, network::broadcast_to_all, players::PlayerMap};
+use crate::{actors::ActorMap, map::PlateState, network::broadcast_to_all, players::PlayerMap};
 use common::{
     config::{CharacterPhysicsConfig, GameplayConfig},
     physics::{CharacterMovePlan, CollisionWorld},
@@ -23,7 +23,7 @@ pub(crate) fn plan_actor_moves(
     gameplay_config: &GameplayConfig,
     map_settings: &MapSettings,
     players: &PlayerMap,
-    open_barrier_kinds: &OpenBarrierKinds,
+    plates: &PlateState,
     actors: &ActorMap,
     actor_starts: &[(bevy::prelude::Entity, Position, CharacterPhysicsConfig)],
     query: &mut ActorMovementQuery,
@@ -51,7 +51,8 @@ pub(crate) fn plan_actor_moves(
             collision_world,
             planned_moves,
             actor_starts,
-            open_barrier_kinds: &open_barrier_kinds.0,
+            open_barrier_kinds: &plates.open_barrier_kinds,
+            powered_bridges: &plates.powered_bridge_kinds,
             gravity: map_settings.movement.gravity,
             ladder_climb_ratio: map_settings.movement.ladder_climb_ratio,
             knockback_step: knockback.map_or(Vec3::ZERO, |velocity| velocity.step(delta)),

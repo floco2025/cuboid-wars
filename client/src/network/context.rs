@@ -7,7 +7,7 @@ use common::{
 
 use crate::{
     actors::{ActorGhostMap, ActorMap, ActorSpawnWarningSecs},
-    barriers::{BarrierAssets, LockedPlatePurposes, OpenBarrierKinds},
+    barriers::{BarrierAssets, LockedPlatePurposes},
     cameras::MainCameraMarker,
     characters::MaxHealth,
     config::{AssetSet, ClientSettings},
@@ -64,7 +64,7 @@ pub(super) struct ServerMessageContext<'w, 's> {
     pub(super) banner: ResMut<'w, HudBanner>,
     pub(super) feed: ResMut<'w, MessageFeed>,
     pub(super) firework_show: ResMut<'w, FireworkShow>,
-    pub(super) open_barrier_kinds: ResMut<'w, OpenBarrierKinds>,
+    pub(super) plates: ResMut<'w, PlateState>,
     pub(super) locked_plate_purposes: ResMut<'w, LockedPlatePurposes>,
     pub(super) rain_intensity: ResMut<'w, RainIntensity>,
     pub(super) lighting: ResMut<'w, LightingState>,

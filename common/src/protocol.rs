@@ -255,10 +255,11 @@ pub struct SSnapshot {
     // they fly for seconds and steer server-side, so presence and position
     // self-heal here while `SMissileMove` carries course changes.
     pub missiles: Vec<(MissileId, Missile)>,
-    // Barrier kinds currently fully open (pressure-plate threshold met).
-    // Empty in v1 maps with no plates. Client hides matching barriers; server
-    // unions this with each player's `held_keys` for the collision filter.
-    pub open_barrier_kinds: Vec<BarrierKindId>,
+    // What the pressure plates hold right now: open barrier kinds (the
+    // client hides them; the server unions them with each player's
+    // `held_keys` for the collision filter) and powered bridge kinds (solid
+    // and lit on both sides). Empty on maps with no plates.
+    pub plates: PlateState,
     // Every unlocked `shared` / `everyone` quest. Completed ones stay listed
     // (completions are latched for the session) so late joiners and dropped
     // cues self-heal.
@@ -883,7 +884,7 @@ mod tests {
             spawning_actors: Vec::new(),
             items: (0..74).map(item).collect(),
             missiles: Vec::new(),
-            open_barrier_kinds: Vec::new(),
+            plates: PlateState::default(),
             quests: Vec::new(),
             locked_plate_purposes: Vec::new(),
             rain_intensity: 0.0,

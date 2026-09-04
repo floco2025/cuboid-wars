@@ -5,9 +5,9 @@ use common::{
     config::{CharacterPhysicsConfig, GameplayConfig},
     physics::{
         CharacterEnvironment, CharacterMovePlan, CharacterStep, CharacterVerticalVelocity, CollisionWorld,
-        OpenBarrierKinds, blocking_character_move_plan, character_move_plan_is_blocked, step_character_movement,
+        blocking_character_move_plan, character_move_plan_is_blocked, step_character_movement,
     },
-    protocol::{ActorId, ActorMarker, ActorMoveIntent, MapSettings, PlayerMarker, Position},
+    protocol::{ActorId, ActorMarker, ActorMoveIntent, MapSettings, PlateState, PlayerMarker, Position},
 };
 
 use super::reconciliation::{ActorReconciliationOutcome, reconcile_actor};
@@ -51,7 +51,7 @@ pub(crate) fn plan_actor_moves(
     map_settings: &MapSettings,
     gameplay_config: &GameplayConfig,
     actors: &ActorMap,
-    open_barrier_kinds: &OpenBarrierKinds,
+    plates: &PlateState,
     actor_starts: &[(Entity, Position, CharacterPhysicsConfig)],
     query: &mut ActorMovementQuery,
     planned_moves: &mut Vec<CharacterMovePlan>,
@@ -100,7 +100,8 @@ pub(crate) fn plan_actor_moves(
             &CharacterEnvironment {
                 collision_world,
                 gravity: map_settings.movement.gravity,
-                passable_kinds: &open_barrier_kinds.0,
+                passable_kinds: &plates.open_barrier_kinds,
+                powered_bridges: &plates.powered_bridge_kinds,
                 physics: actor_physics,
                 ladder_climb_ratio: map_settings.movement.ladder_climb_ratio,
                 portals: None,

@@ -78,6 +78,7 @@ class StructureMixin:
                 "grass": [],
                 "walls": [],
                 "barriers": [],
+                "light_bridges": [],
                 "lights": [],
             },
         )
@@ -141,6 +142,7 @@ class StructureMixin:
         wall_count = len(level["walls"])
         light_count = len(level["lights"])
         barrier_count = len(level.get("barriers", []))
+        bridge_count = len(level.get("light_bridges", []))
         parts = [f"all geometry on {level_label(level, removed)}"]
         details = []
         if floor_count:
@@ -151,6 +153,8 @@ class StructureMixin:
             details.append(f"{light_count} light(s)")
         if barrier_count:
             details.append(f"{barrier_count} barrier(s)")
+        if bridge_count:
+            details.append(f"{bridge_count} light bridge(s)")
         if dropped_zones:
             parts.append(f"{dropped_zones} spawn zone(s) on this level")
         if dropped_items:

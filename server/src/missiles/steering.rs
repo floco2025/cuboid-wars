@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use std::f32::consts::TAU;
 
-use common::{physics::CollisionWorld, protocol::BarrierKindId};
+use common::{physics::CollisionWorld, protocol::PlateState};
 
 // Candidate fan around the blocked to-target direction, evaluated in order
 // of deviation from it. No up/down preference: the clear test rejects
@@ -23,14 +23,16 @@ const MISSILE_LEAD_MAX_TARGET_SPEED: f32 = 15.0;
 
 pub(super) fn sweep_clear(
     collision_world: &CollisionWorld,
-    open_kinds: &[BarrierKindId],
+    plates: &PlateState,
     origin: Vec3,
     translation: Vec3,
     radius: f32,
 ) -> bool {
-    collision_world.cast_moving_ball(origin, translation, radius).is_none()
+    collision_world
+        .cast_moving_ball(origin, translation, radius, &plates.powered_bridge_kinds)
+        .is_none()
         && collision_world
-            .cast_moving_ball_against_barriers(origin, translation, radius, open_kinds)
+            .cast_moving_ball_against_barriers(origin, translation, radius, &plates.open_barrier_kinds)
             .is_none()
 }
 
@@ -41,7 +43,7 @@ pub(super) fn sweep_clear(
 // the lookahead).
 pub(super) fn pick_clear_direction(
     collision_world: &CollisionWorld,
-    open_kinds: &[BarrierKindId],
+    plates: &PlateState,
     origin: Vec3,
     desired: Vec3,
     lookahead: f32,
@@ -73,7 +75,7 @@ pub(super) fn pick_clear_direction(
     candidates.sort_by(|a, b| a.0.total_cmp(&b.0));
     candidates
         .into_iter()
-        .find(|(_, candidate)| sweep_clear(collision_world, open_kinds, origin, *candidate * lookahead, radius))
+        .find(|(_, candidate)| sweep_clear(collision_world, plates, origin, *candidate * lookahead, radius))
         .map(|(_, candidate)| candidate)
 }
 
@@ -280,8 +282,8 @@ mod tests {
         let world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
         let origin = Vec3::new(0.0, 2.0, 0.0);
 
-        let picked =
-            pick_clear_direction(&world, &[], origin, Vec3::Z, 7.2, 0.3).expect("an upward candidate should be clear");
+        let picked = pick_clear_direction(&world, &PlateState::default(), origin, Vec3::Z, 7.2, 0.3)
+            .expect("an upward candidate should be clear");
 
         assert!(picked.y > 0.5, "expected a climbing direction, got {picked}");
     }
@@ -289,8 +291,15 @@ mod tests {
     #[test]
     fn pick_clear_direction_in_open_space_returns_desired() {
         let world = CollisionWorld::from_map_layout(&MapLayout::default(), &BarrierKindTable::default());
-        let picked = pick_clear_direction(&world, &[], Vec3::new(0.0, 5.0, 0.0), Vec3::Z, 7.2, 0.3)
-            .expect("open space always has a clear candidate");
+        let picked = pick_clear_direction(
+            &world,
+            &PlateState::default(),
+            Vec3::new(0.0, 5.0, 0.0),
+            Vec3::Z,
+            7.2,
+            0.3,
+        )
+        .expect("open space always has a clear candidate");
         assert!(
             picked.angle_between(Vec3::Z).to_degrees() < 1.0,
             "nothing blocked: fly at the target"
@@ -317,8 +326,15 @@ mod tests {
         let world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
         // Straight down onto the slab is blocked; the fan must find the
         // descending direction past the slab edge.
-        let picked = pick_clear_direction(&world, &[], Vec3::new(0.0, 6.0, 0.0), Vec3::NEG_Y, 7.2, 0.3)
-            .expect("a descending candidate past the slab edge should be clear");
+        let picked = pick_clear_direction(
+            &world,
+            &PlateState::default(),
+            Vec3::new(0.0, 6.0, 0.0),
+            Vec3::NEG_Y,
+            7.2,
+            0.3,
+        )
+        .expect("a descending candidate past the slab edge should be clear");
 
         assert!(picked.y < -0.2, "expected a diving direction, got {picked}");
     }

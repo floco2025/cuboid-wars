@@ -15,13 +15,14 @@ use rapier3d::{
 use crate::{
     config::CharacterPhysicsConfig,
     physics::characters::{character_center, character_shape},
-    protocol::{BarrierKindId, BarrierKindTable, MapLayout, Position},
+    protocol::{BarrierKindId, BarrierKindTable, BridgeKindId, MapLayout, PlateState, Position},
 };
 
 use super::colliders::{
-    ColliderKind, FLOOR_COLLISION_GROUP, WALL_COLLISION_GROUP, barrier_collision_group, character_collision_groups,
-    ground_collision_groups, insert_barrier_collider, insert_floor_collider, insert_ramp_collider,
-    insert_wall_collider, query_filter, world_collision_groups,
+    ColliderKind, FLOOR_COLLISION_GROUP, WALL_COLLISION_GROUP, barrier_collision_group, bridge_collision_group,
+    character_collision_groups, ground_collision_groups, insert_barrier_collider, insert_bridge_collider,
+    insert_floor_collider, insert_ramp_collider, insert_wall_collider, query_filter, surface_collision_groups,
+    world_collision_groups,
 };
 
 use super::ladders::LadderVolume;
@@ -71,6 +72,10 @@ impl CollisionWorld {
 
         for barrier in &map_layout.barriers {
             collider_handles.push(insert_barrier_collider(&mut colliders, barrier));
+        }
+
+        for bridge in &map_layout.light_bridges {
+            collider_handles.push(insert_bridge_collider(&mut colliders, bridge));
         }
 
         let mut broad_phase = BroadPhaseBvh::new();
@@ -136,6 +141,7 @@ impl CollisionWorld {
         character_pos: &Pose,
         desired_translation: Vector,
         passable_kinds: &[BarrierKindId],
+        powered_bridges: &[BridgeKindId],
         excluded_colliders: &[ColliderHandle],
         events: impl FnMut(CharacterCollision),
     ) -> EffectiveCharacterMovement {
@@ -143,7 +149,11 @@ impl CollisionWorld {
         // a body overlapping the aperture, which is what lets it pass
         // through the surface.
         let allow = |handle: ColliderHandle, _: &rapier3d::prelude::Collider| !excluded_colliders.contains(&handle);
-        let mut filter = query_filter(character_collision_groups(passable_kinds, self.all_barrier_groups));
+        let mut filter = query_filter(character_collision_groups(
+            passable_kinds,
+            powered_bridges,
+            self.all_barrier_groups,
+        ));
         if !excluded_colliders.is_empty() {
             filter.predicate = Some(&allow);
         }
@@ -163,12 +173,19 @@ impl CollisionWorld {
         )
     }
 
-    // Cast a moving ball against walls/floors/ramps (the "bouncy" world).
-    // Barriers terminate projectiles via `cast_moving_ball_against_barriers`
-    // instead, so they're filtered out here.
+    // Cast a moving ball against walls/floors/ramps and the powered light
+    // bridges (the "bouncy" world). Barriers terminate projectiles via
+    // `cast_moving_ball_against_barriers` instead, so they're filtered out
+    // here.
     #[must_use]
-    pub fn cast_moving_ball(&self, position: Vec3, translation: Vec3, radius: f32) -> Option<ShapeCastHit> {
-        self.cast_moving_ball_with_filter(position, translation, radius, world_collision_groups())
+    pub fn cast_moving_ball(
+        &self,
+        position: Vec3,
+        translation: Vec3,
+        radius: f32,
+        powered_bridges: &[BridgeKindId],
+    ) -> Option<ShapeCastHit> {
+        self.cast_moving_ball_with_filter(position, translation, radius, surface_collision_groups(powered_bridges))
     }
 
     // Cast a moving ball against barrier colliders only. Used by projectiles
@@ -238,11 +255,14 @@ impl CollisionWorld {
     // Line of sight is blocked by walls/floors/ramps only. Barriers don't
     // block sight — actors see through and pursue; the kinematic controller
     // stops them at the barrier surface, where normal wall-avoidance kicks in.
+    // Light bridges don't either, powered or not: sight, beams, and blasts
+    // reach through them, so nothing here has to follow the plate state.
     #[must_use]
     pub fn line_of_sight_clear(&self, from: Vec3, to: Vec3) -> bool {
         const SIGHT_RADIUS: f32 = 0.08;
         let translation = to - from;
-        self.cast_moving_ball(from, translation, SIGHT_RADIUS).is_none()
+        self.cast_moving_ball_with_filter(from, translation, SIGHT_RADIUS, world_collision_groups())
+            .is_none()
     }
 
     #[must_use]
@@ -259,7 +279,8 @@ impl CollisionWorld {
 
     // First static-world surface (wall/floor/ramp) along the ray — the same
     // filter as `line_of_sight_clear`, so a beam clipped at this point stops
-    // exactly where sight does.
+    // exactly where sight does. Light bridges are excluded, so a portal
+    // never lands on one.
     #[must_use]
     pub fn world_surface_along_ray(&self, origin: Vec3, direction: Vec3, max_distance: f32) -> Option<WorldSurfaceHit> {
         self.surface_along_ray(origin, direction, max_distance, world_collision_groups())
@@ -317,10 +338,15 @@ impl CollisionWorld {
         max_distance: f32,
         target_distance: f32,
         passable_kinds: &[BarrierKindId],
+        powered_bridges: &[BridgeKindId],
         excluded_colliders: &[ColliderHandle],
     ) -> Option<ShapeCastHit> {
         let allow = |handle: ColliderHandle, _: &rapier3d::prelude::Collider| !excluded_colliders.contains(&handle);
-        let mut filter = query_filter(character_collision_groups(passable_kinds, self.all_barrier_groups));
+        let mut filter = query_filter(character_collision_groups(
+            passable_kinds,
+            powered_bridges,
+            self.all_barrier_groups,
+        ));
         if !excluded_colliders.is_empty() {
             filter.predicate = Some(&allow);
         }
@@ -343,25 +369,19 @@ impl CollisionWorld {
     }
 
     #[must_use]
-    pub(crate) fn projectile_spawn_overlaps_blocker(
-        &self,
-        position: Vec3,
-        radius: f32,
-        open_kinds: &[BarrierKindId],
-    ) -> bool {
-        // Walls + floors are always blockers. Barriers block the muzzle
-        // unless the kind is currently open (pressure-plate held) — those
-        // barriers are gone visually and shots pass through them, so the
-        // muzzle clipping them is fine.
-        let mut barrier_groups = self.all_barrier_groups;
-        for kind in open_kinds {
-            barrier_groups.remove(barrier_collision_group(*kind));
+    pub(crate) fn projectile_spawn_overlaps_blocker(&self, position: Vec3, radius: f32, plates: &PlateState) -> bool {
+        // Walls, floors, and powered bridges are always blockers. Barriers
+        // block the muzzle unless the kind is currently open (pressure-plate
+        // held) — those barriers are gone visually and shots pass through
+        // them, so the muzzle clipping them is fine.
+        let mut groups = WALL_COLLISION_GROUP | FLOOR_COLLISION_GROUP | self.all_barrier_groups;
+        for kind in &plates.open_barrier_kinds {
+            groups.remove(barrier_collision_group(*kind));
         }
-        self.ball_overlaps_groups(
-            position,
-            radius,
-            WALL_COLLISION_GROUP | FLOOR_COLLISION_GROUP | barrier_groups,
-        )
+        for kind in &plates.powered_bridge_kinds {
+            groups |= bridge_collision_group(*kind);
+        }
+        self.ball_overlaps_groups(position, radius, groups)
     }
 
     // Portal backing colliders matching the surface kind at the aperture

@@ -135,7 +135,7 @@ pub fn spawn_projectiles(
     gameplay: &GameplayConfig,
     projectile_speed: f32,
     collision_world: &CollisionWorld,
-    open_kinds: &[BarrierKindId],
+    plates: &PlateState,
     shooter_id: PlayerId,
 ) -> usize {
     let spawns = calculate_projectile_spawns(
@@ -146,7 +146,7 @@ pub fn spawn_projectiles(
         shooter_eye_height,
         gameplay,
         collision_world,
-        open_kinds,
+        plates,
     );
 
     for spawn_info in &spawns {

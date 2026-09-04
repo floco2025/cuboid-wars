@@ -8,6 +8,7 @@ use crate::{
     },
     map::{
         barriers::merge_barriers,
+        bridges::merge_light_bridges,
         floors,
         lights::generate_wall_lights,
         mask::{Mask, mark_has_floor, mark_has_floor_above, mark_has_floor_slab},
@@ -20,7 +21,8 @@ use common::{
     map::MapGeometry,
     protocol::FaceMaterials,
     protocol::{
-        Barrier, BarrierKindId, BarrierKindTable, Floor, GrassCell, ItemType, Ladder, MapLayout, PlatePurpose, Wall,
+        Barrier, BarrierKindId, BarrierKindTable, BridgeKindTable, Floor, GrassCell, ItemType, Ladder, LightBridge,
+        MapLayout, PlatePurpose, Wall,
     },
 };
 
@@ -28,6 +30,7 @@ pub(crate) fn compile_map(
     map_def: &MapDef,
     assets: &MaterialRules,
     kind_table: &BarrierKindTable,
+    bridge_table: &BridgeKindTable,
 ) -> anyhow::Result<(MapLayout, MapConfig, MapGeometry)> {
     let cols = map_def.grid_cols;
     let rows = map_def.grid_rows;
@@ -63,12 +66,12 @@ pub(crate) fn compile_map(
     // alternative route, so assuming open lets a returning actor head home and
     // physics holds it at the barrier until someone opens it. Every other
     // barrier (key-only / static) stays closed for actors.
-    let pressure_plates = pressure_plates(map_def, kind_table)?;
+    let pressure_plates = pressure_plates(map_def, kind_table, bridge_table)?;
     let pressure_plate_kinds: HashSet<BarrierKindId> = pressure_plates
         .iter()
         .filter_map(|plate| match plate.purpose {
             PlatePurpose::Barrier(kind) => Some(kind),
-            PlatePurpose::Firework => None,
+            PlatePurpose::Bridge(_) | PlatePurpose::Firework => None,
         })
         .collect();
 
@@ -144,6 +147,8 @@ pub(crate) fn compile_map(
     }
     let all_barriers = merge_barriers(all_barriers);
 
+    let all_light_bridges = light_bridges(map_def, &geometry, bridge_table)?;
+
     let mut all_floors: Vec<Floor> = Vec::new();
     let mut all_floor_materials: Vec<FaceMaterials> = Vec::new();
     for (level_idx, m) in slab_masks.iter().enumerate() {
@@ -212,6 +217,7 @@ pub(crate) fn compile_map(
         floors: all_floors,
         floor_materials: all_floor_materials,
         barriers: all_barriers,
+        light_bridges: all_light_bridges,
         pressure_plates: pressure_plates
             .iter()
             .map(|p| common::protocol::PressurePlate {
@@ -321,7 +327,45 @@ fn placed_items(
         .collect()
 }
 
-fn pressure_plates(map_def: &MapDef, kind_table: &BarrierKindTable) -> anyhow::Result<Vec<PressurePlateRuntime>> {
+// Bridges deliberately set no `Cell` flags, so navigation, item cells,
+// spawn cells, and the air graph never see them.
+fn light_bridges(
+    map_def: &MapDef,
+    geometry: &MapGeometry,
+    bridge_table: &BridgeKindTable,
+) -> anyhow::Result<Vec<LightBridge>> {
+    let mut out = Vec::new();
+    for (level_idx, level) in map_def.levels.iter().enumerate() {
+        let level_u8 = u8::try_from(level_idx).unwrap_or(u8::MAX);
+        let cells = level
+            .light_bridges
+            .iter()
+            .enumerate()
+            .map(|(idx, def)| {
+                let kind = bridge_table
+                    .resolve(&def.kind)
+                    .with_context(|| format!("level {level_idx} light_bridges[{idx}]"))?;
+                Ok((def.col, def.row, kind))
+            })
+            .collect::<anyhow::Result<Vec<_>>>()?;
+        out.extend(merge_light_bridges(&cells).into_iter().map(|rect| LightBridge {
+            x1: geometry.cell_to_world_x(rect.c0),
+            z1: geometry.cell_to_world_z(rect.r0),
+            x2: geometry.cell_to_world_x(rect.c1),
+            z2: geometry.cell_to_world_z(rect.r1),
+            y: f32::from(level_u8) * LEVEL_HEIGHT,
+            level: level_u8,
+            kind: rect.kind,
+        }));
+    }
+    Ok(out)
+}
+
+fn pressure_plates(
+    map_def: &MapDef,
+    kind_table: &BarrierKindTable,
+    bridge_table: &BridgeKindTable,
+) -> anyhow::Result<Vec<PressurePlateRuntime>> {
     map_def
         .pressure_plates
         .iter()
@@ -330,6 +374,11 @@ fn pressure_plates(map_def: &MapDef, kind_table: &BarrierKindTable) -> anyhow::R
             let purpose = match &p.purpose {
                 PressurePlatePurposeDef::Barrier { kind } => PlatePurpose::Barrier(
                     kind_table
+                        .resolve(kind)
+                        .with_context(|| format!("pressure_plates[{idx}]"))?,
+                ),
+                PressurePlatePurposeDef::Bridge { kind } => PlatePurpose::Bridge(
+                    bridge_table
                         .resolve(kind)
                         .with_context(|| format!("pressure_plates[{idx}]"))?,
                 ),

@@ -158,6 +158,19 @@ fn validate_pressure_plates(map_def: &MapDef) -> Result<()> {
                 map_def.grid_rows
             ));
         }
+        // A plate needs a floor to sit on, and a light bridge is not one.
+        if map_def.levels[plate.level as usize]
+            .light_bridges
+            .iter()
+            .any(|bridge| bridge.col == plate.col && bridge.row == plate.row)
+        {
+            return Err(anyhow!(
+                "{label} sits on a light bridge at level {} col {} row {}",
+                plate.level,
+                plate.col,
+                plate.row
+            ));
+        }
         // Per-purpose uniqueness on (level, col, row). Different purposes
         // may stack on the same cell — design choice; drop the purpose from
         // the tuple to disallow that too.
@@ -213,12 +226,66 @@ fn validate_levels(map_def: &MapDef) -> Result<()> {
         }
 
         let floors = validate_regular_floors(level, &label, map_def.grid_cols, map_def.grid_rows)?;
-        validate_inaccessible_floors(level, &label, map_def.grid_cols, map_def.grid_rows, &floors)?;
+        let inaccessible = validate_inaccessible_floors(level, &label, map_def.grid_cols, map_def.grid_rows, &floors)?;
         validate_grass(level, &label, map_def.grid_cols, map_def.grid_rows)?;
         let walls = validate_walls(level, &label, map_def.grid_cols, map_def.grid_rows)?;
         validate_barriers(level, &label, map_def.grid_cols, map_def.grid_rows, &walls)?;
+        validate_light_bridges(level, &label, map_def, level_idx, &floors, &inaccessible)?;
     }
     Ok(())
+}
+
+// A light bridge spans a gap, so it may not share a cell with anything a
+// player already stands on.
+fn validate_light_bridges(
+    level: &LevelDef,
+    label: &str,
+    map_def: &MapDef,
+    level_idx: usize,
+    floors: &BTreeSet<[i32; 2]>,
+    inaccessible: &BTreeSet<[i32; 2]>,
+) -> Result<()> {
+    if level.light_bridges.is_empty() {
+        return Ok(());
+    }
+    let ramps = ramp_cells_on_level(map_def, level_idx);
+    let mut seen = BTreeSet::new();
+    for (idx, bridge) in level.light_bridges.iter().enumerate() {
+        let key = [bridge.col, bridge.row];
+        validate_floor(key, map_def.grid_cols, map_def.grid_rows)
+            .with_context(|| format!("{label}: light_bridges[{idx}]"))?;
+        if bridge.kind.is_empty() {
+            return Err(anyhow!("{label}: light_bridges[{idx}] has empty `kind`"));
+        }
+        if floors.contains(&key) || inaccessible.contains(&key) {
+            return Err(anyhow!("{label}: light_bridges[{idx}] {key:?} sits on a floor"));
+        }
+        if ramps.contains(&key) {
+            return Err(anyhow!("{label}: light_bridges[{idx}] {key:?} sits on a ramp"));
+        }
+        if !seen.insert(key) {
+            return Err(anyhow!("{label}: duplicate light_bridge {key:?}"));
+        }
+    }
+    Ok(())
+}
+
+// Footprint cells of every ramp touching a level; a ramp occupies its cells
+// on both the level it leaves and the one it reaches.
+fn ramp_cells_on_level(map_def: &MapDef, level_idx: usize) -> BTreeSet<[i32; 2]> {
+    let mut cells = BTreeSet::new();
+    for ramp in &map_def.ramps {
+        let lower = ramp.lower_level as usize;
+        if level_idx != lower && level_idx != lower + 1 {
+            continue;
+        }
+        for row in ramp.low[1].min(ramp.high[1])..ramp.low[1].max(ramp.high[1]) {
+            for col in ramp.low[0].min(ramp.high[0])..ramp.low[0].max(ramp.high[0]) {
+                cells.insert([col, row]);
+            }
+        }
+    }
+    cells
 }
 
 fn validate_regular_floors(
@@ -244,7 +311,7 @@ fn validate_inaccessible_floors(
     grid_cols: i32,
     grid_rows: i32,
     floors: &BTreeSet<[i32; 2]>,
-) -> Result<()> {
+) -> Result<BTreeSet<[i32; 2]>> {
     let mut inaccessible_floors = BTreeSet::new();
     for (floor_idx, floor) in level.inaccessible_floors.iter().enumerate() {
         let key = [floor.col, floor.row];
@@ -257,7 +324,7 @@ fn validate_inaccessible_floors(
             return Err(anyhow!("{label}: inaccessible_floor {:?} overlaps a floor", key));
         }
     }
-    Ok(())
+    Ok(inaccessible_floors)
 }
 
 // No floor-presence check here: compile silently drops grass on floorless

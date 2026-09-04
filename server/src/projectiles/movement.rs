@@ -7,7 +7,6 @@ use crate::{
         kill_player,
     },
     config::ServerGameplayConfig,
-    map::OpenBarrierKinds,
     network::broadcast_to_all,
     players::{Invincibility, PlayerMap},
     quests::{QuestBoard, QuestCatalog},
@@ -90,7 +89,7 @@ pub struct ProjectileMovementParams<'w, 's> {
     server_gameplay_config: Res<'w, ServerGameplayConfig>,
     quest_board: ResMut<'w, QuestBoard>,
     quest_catalog: Res<'w, QuestCatalog>,
-    open_barrier_kinds: Res<'w, OpenBarrierKinds>,
+    plates: Res<'w, PlateState>,
     actors: ResMut<'w, ActorMap>,
     players: ResMut<'w, PlayerMap>,
     pending_explosions: ResMut<'w, PendingExplosions>,
@@ -192,9 +191,14 @@ pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut 
                 &current_pos,
                 remaining_delta,
                 &params.collision_world,
-                &params.open_barrier_kinds.0,
+                &params.plates.open_barrier_kinds,
             );
-            let surface_t = projectile.surface_collision_t(&current_pos, remaining_delta, &params.collision_world);
+            let surface_t = projectile.surface_collision_t(
+                &current_pos,
+                remaining_delta,
+                &params.collision_world,
+                &params.plates.powered_bridge_kinds,
+            );
             let portal_hop = params.portal_set.projectile_hop(
                 Vec3::from(current_pos),
                 projectile.velocity,
@@ -211,7 +215,12 @@ pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut 
                 }
                 ProjectileEvent::Surface => {
                     let bounce = projectile
-                        .bounce_at_world_surface(&current_pos, remaining_delta, &params.collision_world)
+                        .bounce_at_world_surface(
+                            &current_pos,
+                            remaining_delta,
+                            &params.collision_world,
+                            &params.plates.powered_bridge_kinds,
+                        )
                         .expect("surface event missing its collision");
                     current_pos = bounce.position;
                     remaining_delta = bounce.remaining_delta;

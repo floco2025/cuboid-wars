@@ -21,6 +21,11 @@ pub const BARRIER_HEIGHT: f32 = WALL_HEIGHT;
 // Floors
 pub const FLOOR_THICKNESS: f32 = 0.4;
 
+// Light bridges. Plate-powered walkways: a thin slab per merged cell run,
+// solid only while its kind is powered. Each kind gets its own collision
+// group (`bridge_collision_group`) that the filters include on demand.
+pub const BRIDGE_THICKNESS: f32 = 0.1;
+
 // Ladders. Freestanding climbable elements anchored on grid edges. One-sided:
 // the rail side (front) climbs and fences; the back is passed through. No
 // Rapier collider — the character step queries the derived volumes directly.

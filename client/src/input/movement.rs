@@ -7,7 +7,7 @@ use bevy::{
 use common::{
     config::GameplayConfig,
     physics::{CharacterVerticalVelocity, CollisionWorld, player_jump_velocity},
-    protocol::{CJump, ClientMessage, FaceYaw, PlayerMoveIntent, Position},
+    protocol::{BridgeKindId, CJump, ClientMessage, FaceYaw, PlateState, PlayerMoveIntent, Position},
 };
 use std::f32::consts::{FRAC_PI_2, PI};
 
@@ -52,6 +52,7 @@ pub fn input_movement_system(
     mut camera_query: Query<&mut Transform, (With<Camera3d>, With<MainCameraMarker>)>,
     view_mode: Res<CameraViewMode>,
     collision_world: Res<CollisionWorld>,
+    plates: Res<PlateState>,
     gameplay_config: Res<GameplayConfig>,
     client_settings: Res<ClientSettings>,
     console: Res<ConsoleState>,
@@ -98,6 +99,7 @@ pub fn input_movement_system(
         face_yaw,
         jump_requested,
         &collision_world,
+        &plates.powered_bridge_kinds,
         &gameplay_config,
         &mut local_player_query,
     );
@@ -202,6 +204,7 @@ fn update_player_input_face_and_jump(
     face_yaw: f32,
     jump_requested: bool,
     collision_world: &CollisionWorld,
+    powered_bridges: &[BridgeKindId],
     gameplay_config: &GameplayConfig,
     local_player_query: &mut LocalPlayerInputQuery,
 ) {
@@ -215,6 +218,7 @@ fn update_player_input_face_and_jump(
                 gameplay_config.player.physics(),
                 gameplay_config.player.jump_speed,
                 pos,
+                powered_bridges,
             )
         {
             motion.0 = vertical_velocity;

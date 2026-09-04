@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use common::protocol::*;
 
-use crate::barriers::{LockedPlatePurposes, OpenBarrierKinds};
+use crate::barriers::LockedPlatePurposes;
 
 use super::{
     actors::{sync_actors, sync_spawning_actors},
@@ -40,9 +40,7 @@ pub(super) fn handle_snapshot_message(
     sync_portals(commands, context, &message.portals);
 
     // Stable equality keeps identical snapshots from waking the visibility systems.
-    context
-        .open_barrier_kinds
-        .set_if_neq(OpenBarrierKinds(message.open_barrier_kinds));
+    context.plates.set_if_neq(message.plates);
     context
         .locked_plate_purposes
         .set_if_neq(LockedPlatePurposes(message.locked_plate_purposes));

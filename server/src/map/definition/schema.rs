@@ -59,6 +59,8 @@ pub(crate) struct LevelDef {
     #[serde(default)]
     pub(crate) barriers: Vec<BarrierDef>,
     #[serde(default)]
+    pub(crate) light_bridges: Vec<LightBridgeDef>,
+    #[serde(default)]
     pub(crate) lights: Vec<WallLightDef>,
 }
 
@@ -118,6 +120,16 @@ pub(crate) struct BarrierDef {
     pub(crate) kind: String,
 }
 
+// One cell of a light bridge. Same-kind cells merge into rectangles at
+// compile time (`map::bridges`), so authoring stays per cell like floors.
+#[derive(Debug, Deserialize)]
+pub(crate) struct LightBridgeDef {
+    pub(crate) col: i32,
+    pub(crate) row: i32,
+    // String id, looked up in the loaded `BridgeKindTable` at compile time.
+    pub(crate) kind: String,
+}
+
 #[derive(Debug, Deserialize)]
 pub(crate) struct RampDef {
     pub(crate) low: [i32; 2],
@@ -159,8 +171,9 @@ pub(crate) struct ItemDef {
 }
 
 // A single-cell plate with a purpose (see `pressure_plates_system`): open
-// every barrier of a kind while enough plates of that kind are held, or
-// launch the firework show once enough players stand on firework plates.
+// every barrier of a kind, power every light bridge of a kind while enough
+// plates of that kind are held, or launch the firework show once enough
+// players stand on firework plates.
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
 pub(crate) struct PressurePlateDef {
     pub(crate) level: u32,
@@ -170,11 +183,13 @@ pub(crate) struct PressurePlateDef {
     pub(crate) purpose: PressurePlatePurposeDef,
 }
 
-// `{"type": "barrier", "kind": "lobby"}` / `{"type": "firework"}`; `kind`
-// references `BarrierKindTable` by id.
+// `{"type": "barrier", "kind": "lobby"}` / `{"type": "bridge", "kind":
+// "skyway"}` / `{"type": "firework"}`; `kind` references `BarrierKindTable`
+// or `BridgeKindTable` by id, whichever the type names.
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub(crate) enum PressurePlatePurposeDef {
     Barrier { kind: String },
+    Bridge { kind: String },
     Firework,
 }

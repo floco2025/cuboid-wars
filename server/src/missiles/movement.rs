@@ -3,7 +3,6 @@ use bevy::{ecs::system::SystemParam, prelude::*};
 use crate::{
     actors::ActorMap,
     combat::PendingExplosions,
-    map::OpenBarrierKinds,
     missiles::{MissileMap, MissileVelocity},
     network::broadcast_to_all,
     players::PlayerMap,
@@ -57,7 +56,7 @@ pub struct MissileMovementParams<'w, 's> {
     actors: Res<'w, ActorMap>,
     pending_explosions: ResMut<'w, PendingExplosions>,
     collision_world: Res<'w, CollisionWorld>,
-    open_barrier_kinds: Res<'w, OpenBarrierKinds>,
+    plates: Res<'w, PlateState>,
     gameplay_config: Res<'w, GameplayConfig>,
 }
 
@@ -115,17 +114,19 @@ pub fn missiles_movement_system(mut commands: Commands, time: Res<Time>, mut par
                 earliest_t = Some(t);
             }
         };
-        if let Some(hit) = params
-            .collision_world
-            .cast_moving_ball(origin, translation, MISSILE_RADIUS)
-        {
+        if let Some(hit) = params.collision_world.cast_moving_ball(
+            origin,
+            translation,
+            MISSILE_RADIUS,
+            &params.plates.powered_bridge_kinds,
+        ) {
             consider(hit.t);
         }
         if let Some(hit) = params.collision_world.cast_moving_ball_against_barriers(
             origin,
             translation,
             MISSILE_RADIUS,
-            &params.open_barrier_kinds.0,
+            &params.plates.open_barrier_kinds,
         ) {
             consider(hit.t);
         }

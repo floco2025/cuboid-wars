@@ -3,10 +3,12 @@ use common::{
     config::GameplayConfig,
     constants::{PHYSICS_EPSILON, PROJECTILE_EVENT_LIMIT},
     physics::{
-        CollisionWorld, OpenBarrierKinds, PortalSet, ProjectileEvent, ProjectileMotion, earliest_projectile_event,
+        CollisionWorld, PortalSet, ProjectileEvent, ProjectileMotion, earliest_projectile_event,
         projectile_overlaps_character,
     },
-    protocol::{ActorId, ActorMarker, FaceYaw, MapSettings, PlayerId, PlayerMarker, Position, ProjectileMarker},
+    protocol::{
+        ActorId, ActorMarker, FaceYaw, MapSettings, PlateState, PlayerId, PlayerMarker, Position, ProjectileMarker,
+    },
 };
 
 use super::{
@@ -30,7 +32,7 @@ pub struct ProjectileWorld<'w> {
     collision_world: Res<'w, CollisionWorld>,
     map_settings: Res<'w, MapSettings>,
     gameplay_config: Res<'w, GameplayConfig>,
-    open_barrier_kinds: Res<'w, OpenBarrierKinds>,
+    plates: Res<'w, PlateState>,
     portal_set: Res<'w, PortalSet>,
 }
 // Runs in `FixedUpdate` at the shared `TICK_HZ`. The semi-implicit Euler
@@ -130,9 +132,14 @@ pub fn projectiles_movement_system(
                 &current_pos,
                 remaining_delta,
                 collision_world,
-                &world.open_barrier_kinds.0,
+                &world.plates.open_barrier_kinds,
             );
-            let surface_t = projectile.surface_collision_t(&current_pos, remaining_delta, collision_world);
+            let surface_t = projectile.surface_collision_t(
+                &current_pos,
+                remaining_delta,
+                collision_world,
+                &world.plates.powered_bridge_kinds,
+            );
             let portal_hop = world.portal_set.projectile_hop(
                 Vec3::from(current_pos),
                 projectile.velocity,
@@ -159,7 +166,7 @@ pub fn projectiles_movement_system(
                         &current_pos,
                         remaining_delta,
                         collision_world,
-                        &world.open_barrier_kinds.0,
+                        &world.plates.open_barrier_kinds,
                     );
                     assert!(hit, "barrier event missing its collision");
                     terminated = true;
@@ -168,7 +175,12 @@ pub fn projectiles_movement_system(
                 ProjectileEvent::Surface => {
                     let speed_before = projectile.velocity.length();
                     let bounce = projectile
-                        .bounce_at_world_surface(&current_pos, remaining_delta, collision_world)
+                        .bounce_at_world_surface(
+                            &current_pos,
+                            remaining_delta,
+                            collision_world,
+                            &world.plates.powered_bridge_kinds,
+                        )
                         .expect("surface event missing its collision");
                     current_pos = bounce.position;
                     remaining_delta = bounce.remaining_delta;

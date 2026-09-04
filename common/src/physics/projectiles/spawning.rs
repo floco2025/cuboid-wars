@@ -1,7 +1,7 @@
 use crate::{
     config::GameplayConfig,
     physics::CollisionWorld,
-    protocol::{BarrierKindId, Position},
+    protocol::{PlateState, Position},
 };
 use bevy_math::Vec3;
 
@@ -34,7 +34,7 @@ pub fn calculate_projectile_spawns(
     shooter_eye_height: f32,
     gameplay: &GameplayConfig,
     collision_world: &CollisionWorld,
-    open_kinds: &[BarrierKindId],
+    plates: &PlateState,
 ) -> Vec<ProjectileSpawnInfo> {
     let mut spawns = Vec::new();
 
@@ -60,7 +60,7 @@ pub fn calculate_projectile_spawns(
             &spawn_position,
             gameplay.projectiles.radius,
             collision_world,
-            open_kinds,
+            plates,
         ) {
             continue;
         }
@@ -80,22 +80,22 @@ pub(super) fn projectile_spawn_is_blocked(
     end: &Position,
     radius: f32,
     collision_world: &CollisionWorld,
-    open_kinds: &[BarrierKindId],
+    plates: &PlateState,
 ) -> bool {
     let start_vec = Vec3::from(*start);
     let end_vec = Vec3::from(*end);
     let translation = end_vec - start_vec;
 
-    // Walls/floors/ramps and barriers live in separate filter groups; check
-    // both along the muzzle→spawn segment. Without the barrier cast, a
-    // shooter pressed against a barrier could spawn the projectile on the
-    // far side of it. Open (plate-held) kinds are excluded from the barrier
-    // checks — they're gone visually, so shots pass cleanly through them.
-    collision_world.projectile_spawn_overlaps_blocker(start_vec, radius, open_kinds)
+    // Surfaces and barriers live in separate filter groups; check both
+    // along the muzzle→spawn segment. Without the barrier cast, a shooter
+    // pressed against a barrier could spawn the projectile on the far side
+    // of it. Open (plate-held) kinds are excluded from the barrier checks —
+    // they're gone visually, so shots pass cleanly through them.
+    collision_world.projectile_spawn_overlaps_blocker(start_vec, radius, plates)
         || collision_world
-            .cast_moving_ball(start_vec, translation, radius)
+            .cast_moving_ball(start_vec, translation, radius, &plates.powered_bridge_kinds)
             .is_some()
         || collision_world
-            .cast_moving_ball_against_barriers(start_vec, translation, radius, open_kinds)
+            .cast_moving_ball_against_barriers(start_vec, translation, radius, &plates.open_barrier_kinds)
             .is_some()
 }

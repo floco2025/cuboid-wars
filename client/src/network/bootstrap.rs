@@ -3,6 +3,7 @@ use bevy::prelude::*;
 use crate::{
     actors::ActorSpawnWarningSecs,
     barriers::{KeyKinds, build_barrier_assets},
+    bridges::build_bridge_assets,
     characters::MaxHealth,
     config::AssetSet,
     players::MyPlayerId,
@@ -16,15 +17,23 @@ pub(crate) fn install_bootstrap(app: &mut App, message: SInit, asset_set: &Asset
     let gameplay_config = message.world.gameplay.gameplay_config()?;
     let barrier_kind_table =
         BarrierKindTable::from_ids(message.world.map.settings.barrier_kinds.clone().unwrap_or_default())?;
-    asset_set.validate_gameplay_bindings(gameplay_config.actors.keys().map(String::as_str), &barrier_kind_table)?;
+    let bridge_kind_table =
+        BridgeKindTable::from_ids(message.world.map.settings.bridge_kinds.clone().unwrap_or_default())?;
+    asset_set.validate_gameplay_bindings(
+        gameplay_config.actors.keys().map(String::as_str),
+        &barrier_kind_table,
+        &bridge_kind_table,
+    )?;
 
-    let (barrier_assets, projectile_assets) = app.world_mut().resource_scope(|world, mut meshes: Mut<Assets<Mesh>>| {
-        let mut materials = world.resource_mut::<Assets<StandardMaterial>>();
-        (
-            build_barrier_assets(&mut meshes, &mut materials, &barrier_kind_table, asset_set),
-            ProjectileAssets::new(&mut meshes, &mut materials, gameplay_config.projectiles.radius),
-        )
-    });
+    let (barrier_assets, bridge_assets, projectile_assets) =
+        app.world_mut().resource_scope(|world, mut meshes: Mut<Assets<Mesh>>| {
+            let mut materials = world.resource_mut::<Assets<StandardMaterial>>();
+            (
+                build_barrier_assets(&mut meshes, &mut materials, &barrier_kind_table, asset_set),
+                build_bridge_assets(&mut meshes, &mut materials, &bridge_kind_table, asset_set),
+                ProjectileAssets::new(&mut meshes, &mut materials, gameplay_config.projectiles.radius),
+            )
+        });
 
     let max_health = MaxHealth {
         player: message.world.gameplay.player.max_health,
@@ -55,6 +64,8 @@ pub(crate) fn install_bootstrap(app: &mut App, message: SInit, asset_set: &Asset
         .insert_resource(gameplay_config)
         .insert_resource(barrier_kind_table)
         .insert_resource(barrier_assets)
+        .insert_resource(bridge_kind_table)
+        .insert_resource(bridge_assets)
         .insert_resource(projectile_assets)
         .insert_resource(message.world.map.layout)
         .insert_resource(message.world.map.settings)

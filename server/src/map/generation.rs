@@ -4,7 +4,7 @@ use crate::map::MapConfig;
 use anyhow::{Context, Result};
 use common::{
     map::MapGeometry,
-    protocol::{BarrierKindTable, MapLayout},
+    protocol::{BarrierKindTable, BridgeKindTable, MapLayout},
 };
 
 use super::{definition, material_rules::MaterialRules};
@@ -15,11 +15,15 @@ pub struct GeneratedMap {
     pub geometry: MapGeometry,
 }
 
-pub fn generate_map(map_name: &str, barrier_kinds: &BarrierKindTable) -> Result<GeneratedMap> {
+pub fn generate_map(
+    map_name: &str,
+    barrier_kinds: &BarrierKindTable,
+    bridge_kinds: &BridgeKindTable,
+) -> Result<GeneratedMap> {
     let path = map_path(map_name);
     let map_def = definition::load_map(&path).with_context(|| format!("failed to load map at {}", path.display()))?;
     let assets = MaterialRules::from_def(&map_def);
-    let (layout, config, geometry) = definition::compile_map(&map_def, &assets, barrier_kinds)
+    let (layout, config, geometry) = definition::compile_map(&map_def, &assets, barrier_kinds, bridge_kinds)
         .with_context(|| format!("failed to compile map at {}", path.display()))?;
     Ok(GeneratedMap {
         layout,
@@ -43,9 +47,13 @@ mod tests {
 
     #[test]
     fn missing_map_returns_contextual_error() {
-        let error = generate_map("definitely-not-a-real-map", &BarrierKindTable::default())
-            .err()
-            .expect("missing map must fail");
+        let error = generate_map(
+            "definitely-not-a-real-map",
+            &BarrierKindTable::default(),
+            &BridgeKindTable::default(),
+        )
+        .err()
+        .expect("missing map must fail");
 
         assert!(error.to_string().contains("failed to load map at"));
         assert!(error.to_string().contains("definitely-not-a-real-map.json"));

@@ -3,7 +3,7 @@ use bevy::{ecs::system::SystemParam, prelude::*};
 use crate::{
     actors::{ActorMap, ActorStateQuery, PendingActorSpawns},
     items::ItemMap,
-    map::{LightState, OpenBarrierKinds, WeatherState},
+    map::{LightState, PlateState, WeatherState},
     players::{PlayerMap, PlayerStateQuery},
     quests::{QuestBoard, QuestCatalog},
 };
@@ -39,7 +39,7 @@ pub(super) fn network_broadcast_snapshot_system(
     actors: Res<ActorMap>,
     pending_spawns: Res<PendingActorSpawns>,
     items: Res<ItemMap>,
-    open_barrier_kinds: Res<OpenBarrierKinds>,
+    plates: Res<PlateState>,
     conditions: WorldConditions,
     player_data: PlayerStateQuery,
     motions: Query<&CharacterVerticalVelocity, With<PlayerMarker>>,
@@ -76,7 +76,7 @@ pub(super) fn network_broadcast_snapshot_system(
         spawning_actors: snapshot_spawning_actors(&pending_spawns),
         items: all_items,
         missiles: all_missiles,
-        open_barrier_kinds: open_barrier_kinds.0.clone(),
+        plates: (*plates).clone(),
         quests,
         locked_plate_purposes,
         rain_intensity: conditions.weather.intensity(),

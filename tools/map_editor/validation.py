@@ -2,18 +2,29 @@
 
 from __future__ import annotations
 
-from .constants import FACES, ITEM_KEY_TYPE, ITEM_TYPES, LADDER_SIDES, LIGHT_SIDES, MATERIAL_ALIASES, PLATE_TYPES, PLATE_TYPE_BARRIER
+from .constants import (
+    FACES,
+    ITEM_KEY_TYPE,
+    ITEM_TYPES,
+    LADDER_SIDES,
+    LIGHT_SIDES,
+    MATERIAL_ALIASES,
+    PLATE_TYPE_BARRIER,
+    PLATE_TYPE_BRIDGE,
+    PLATE_TYPES,
+)
 from .display import level_label
 from .geometry import (
     grid_point_in_bounds,
     normalized_wall,
     ramp_cells,
+    ramp_cells_on_level,
     ramp_error,
     wall_endpoints_for_cell_side,
 )
 
 
-def validate_map(map_data: dict, barrier_kinds: list[str]) -> list[str]:
+def validate_map(map_data: dict, barrier_kinds: list[str], bridge_kinds: list[str]) -> list[str]:
     errors: list[str] = []
     cols = map_data["grid_cols"]
     rows = map_data["grid_rows"]
@@ -36,7 +47,7 @@ def validate_map(map_data: dict, barrier_kinds: list[str]) -> list[str]:
         _validate_zone_rect(zone, f"player_spawn_zones[{idx}]", map_data, errors)
 
     _validate_items(map_data, kinds, errors)
-    _validate_pressure_plates(map_data, kinds, errors)
+    _validate_pressure_plates(map_data, kinds, bridge_kinds, errors)
 
     for level_idx, level in enumerate(map_data["levels"]):
         prefix = level_label(level, level_idx)
@@ -80,6 +91,24 @@ def validate_map(map_data: dict, barrier_kinds: list[str]) -> list[str]:
             if key in barrier_seen:
                 errors.append(f"{prefix}: barrier[{idx}] {list(key)} duplicates another barrier")
             barrier_seen.add(key)
+
+        slab_set = floor_set | {(f["col"], f["row"]) for f in level["inaccessible_floors"]}
+        ramp_set = ramp_cells_on_level(map_data["ramps"], level_idx)
+        bridge_seen: set[tuple[int, int]] = set()
+        for idx, bridge in enumerate(level.get("light_bridges", [])):
+            c, r, kind = bridge["col"], bridge["row"], bridge.get("kind")
+            label = f"{prefix}: light_bridge[{idx}]"
+            if not (0 <= c < cols and 0 <= r < rows):
+                errors.append(f"{label} [{c}, {r}] is outside the grid")
+            if kind not in bridge_kinds:
+                errors.append(f"{label} has unknown kind {kind!r}; known: [{_known(bridge_kinds)}]")
+            if (c, r) in slab_set:
+                errors.append(f"{label} [{c}, {r}] sits on a floor")
+            if (c, r) in ramp_set:
+                errors.append(f"{label} [{c}, {r}] sits on a ramp")
+            if (c, r) in bridge_seen:
+                errors.append(f"{label} [{c}, {r}] duplicates another light bridge")
+            bridge_seen.add((c, r))
 
         for light in level.get("lights", []):
             c, r, side = light["col"], light["row"], light["side"]
@@ -147,7 +176,7 @@ def _validate_ladders(map_data: dict, errors: list[str]) -> None:
                 errors.append(f"{label} overlaps ladders[{other_idx}] on the same edge")
 
 
-def _validate_pressure_plates(map_data: dict, kinds: list[str], errors: list[str]) -> None:
+def _validate_pressure_plates(map_data: dict, kinds: list[str], bridge_kinds: list[str], errors: list[str]) -> None:
     cols = map_data["grid_cols"]
     rows = map_data["grid_rows"]
     seen: set[tuple] = set()
@@ -165,13 +194,20 @@ def _validate_pressure_plates(map_data: dict, kinds: list[str], errors: list[str
             kind = plate.get("kind")
             if kind not in kinds:
                 errors.append(f"{label} has unknown barrier kind {kind!r}; known: [{_known(kinds)}]")
+        elif plate_type == PLATE_TYPE_BRIDGE:
+            kind = plate.get("kind")
+            if kind not in bridge_kinds:
+                errors.append(f"{label} has unknown bridge kind {kind!r}; known: [{_known(bridge_kinds)}]")
         elif plate_type not in PLATE_TYPES:
             known = ", ".join(PLATE_TYPES)
             errors.append(f"{label} has unknown type {plate_type!r}; known: [{known}]")
         elif "kind" in plate:
-            errors.append(f"{label} ({plate_type}) must not have `kind` — only barrier plates take one")
-        # The Rust loader dedupes per purpose: a barrier plate and a firework
-        # plate may share a cell, two identical plates may not.
+            errors.append(f"{label} ({plate_type}) must not have `kind` — only barrier and bridge plates take one")
+        level = map_data["levels"][level_idx]
+        if any(b["col"] == col and b["row"] == row for b in level.get("light_bridges", [])):
+            errors.append(f"{label} [{col}, {row}] sits on a light bridge")
+        # The Rust loader dedupes per purpose: plates of different purposes
+        # may share a cell, two identical plates may not.
         key = (level_idx, col, row, plate_type, plate.get("kind"))
         if key in seen:
             errors.append(f"{label} duplicates a plate at level {level_idx} [{col}, {row}]")

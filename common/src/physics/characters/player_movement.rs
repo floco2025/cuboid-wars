@@ -3,7 +3,7 @@ use bevy_math::Vec3;
 use crate::{
     config::GameplayConfig,
     physics::{CollisionWorld, PortalMomentum, PortalSet, momentum_displacement, passable_barrier_kinds},
-    protocol::{BarrierKindId, MapSettings, Position},
+    protocol::{BarrierKindId, MapSettings, PlateState, Position},
 };
 
 use super::{
@@ -19,7 +19,7 @@ pub struct PlayerMovementStep<'a> {
     pub delta: f32,
     pub has_low_gravity: bool,
     pub held_keys: &'a [BarrierKindId],
-    pub open_barrier_kinds: &'a [BarrierKindId],
+    pub plates: &'a PlateState,
     pub knockback: Option<&'a KnockbackVelocity>,
     pub portal_momentum: Option<&'a mut PortalMomentum>,
     pub collision_world: &'a CollisionWorld,
@@ -30,7 +30,7 @@ pub struct PlayerMovementStep<'a> {
 
 #[must_use]
 pub fn step_player_movement(mut step: PlayerMovementStep<'_>) -> CharacterMovementResult {
-    let passable_kinds = passable_barrier_kinds(step.held_keys, step.open_barrier_kinds);
+    let passable_kinds = passable_barrier_kinds(step.held_keys, &step.plates.open_barrier_kinds);
     let external_displacement = step.additional_displacement
         + momentum_displacement(step.knockback, step.portal_momentum.as_deref(), step.delta);
     let movement = step_character_movement(
@@ -45,6 +45,7 @@ pub fn step_player_movement(mut step: PlayerMovementStep<'_>) -> CharacterMoveme
             collision_world: step.collision_world,
             gravity: step.map_settings.gravity_for(step.has_low_gravity),
             passable_kinds: &passable_kinds,
+            powered_bridges: &step.plates.powered_bridge_kinds,
             physics: step.gameplay_config.player.physics(),
             ladder_climb_ratio: step.map_settings.movement.ladder_climb_ratio,
             portals: Some(step.portal_set),

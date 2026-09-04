@@ -9,7 +9,7 @@ use crate::{
 use common::{
     config::GameplayConfig,
     physics::{CollisionWorld, PortalSet},
-    protocol::{ActorMarker, MapSettings, PlayerMarker, Position},
+    protocol::{ActorMarker, MapSettings, PlateState, PlayerMarker, Position},
 };
 
 // Run at the start of each fixed tick, before `characters_movement_system`,
@@ -34,7 +34,7 @@ pub fn characters_movement_system(
     map_settings: Res<MapSettings>,
     mut players: ResMut<PlayerMap>,
     actors: Res<ActorMap>,
-    open_barrier_kinds: Res<crate::barriers::OpenBarrierKinds>,
+    plates: Res<PlateState>,
     portal_set: Res<PortalSet>,
     mut players_query: PlayerMovementQuery,
     mut actors_query: ActorMovementQuery,
@@ -50,7 +50,7 @@ pub fn characters_movement_system(
         &map_settings,
         &gameplay_config,
         &mut players,
-        &open_barrier_kinds,
+        &plates,
         &portal_set,
         &mut players_query,
         &mut planned_moves,
@@ -62,7 +62,7 @@ pub fn characters_movement_system(
         &map_settings,
         &gameplay_config,
         &actors,
-        &open_barrier_kinds,
+        &plates,
         &actor_starts,
         &mut actors_query,
         &mut planned_moves,

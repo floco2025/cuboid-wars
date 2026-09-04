@@ -10,7 +10,7 @@ use super::{
 };
 use crate::{
     actors::{ActorMap, PendingActorSpawns},
-    map::OpenBarrierKinds,
+    map::PlateState,
     missiles::{MissileMap, handle_missile_shot_message},
     network::ServerToClient,
     players::PlayerMap,
@@ -28,7 +28,7 @@ pub(super) struct ClientMessageContext<'w, 's> {
     pub(super) world: SharedWorld<'w>,
     queries: CharacterQueries<'w, 's>,
     actors: Res<'w, ActorMap>,
-    open_barrier_kinds: Res<'w, OpenBarrierKinds>,
+    plates: Res<'w, PlateState>,
     missiles: ResMut<'w, MissileMap>,
     pending_actor_spawns: ResMut<'w, PendingActorSpawns>,
     pub(super) portals: ResMut<'w, PortalMap>,
@@ -107,6 +107,7 @@ pub(super) fn route_client_message(
                 &context.queries,
                 &context.world.collision_world,
                 &context.world.gameplay_config,
+                &context.plates,
             );
         }
         ClientMessage::ProjectileShot(message) => {
@@ -125,7 +126,7 @@ pub(super) fn route_client_message(
                 &context.world.collision_world,
                 &context.world.gameplay_config,
                 &context.world.map_settings,
-                &context.open_barrier_kinds,
+                &context.plates,
             );
         }
         ClientMessage::MissileShot(message) => {
@@ -147,7 +148,7 @@ pub(super) fn route_client_message(
                 &context.world.gameplay_config,
                 &context.world.server_gameplay_config,
                 &context.world.map_settings,
-                &context.open_barrier_kinds,
+                &context.plates,
                 context.admin.unlimited_missiles.0,
             );
         }

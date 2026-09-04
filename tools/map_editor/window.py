@@ -17,6 +17,7 @@ from .constants import (
     ERASE_MODES,
     ITEM_TYPES,
     MODES,
+    MODE_BRIDGE_PLATE,
     MODE_CATEGORIES,
     MODE_FIREWORK_PLATE,
     MODE_FLOOR,
@@ -29,6 +30,7 @@ from .constants import (
     MODE_SPAWN_ZONE_EDIT,
     STATUS_TIMEOUT_MS,
     load_map_barrier_kinds,
+    load_map_bridge_kinds,
 )
 from .document import MapDocument
 from .erase import EraseMixin
@@ -63,6 +65,7 @@ class EditorWindow(
         # state, undo history); the window holds view/tool state and widgets.
         self.doc = MapDocument(path)
         self._barrier_kinds = load_map_barrier_kinds(path.stem)
+        self._bridge_kinds = load_map_bridge_kinds(path.stem)
         # If a newer autosave sits next to the file we just opened, offer to
         # recover it. Done before any UI is built so the user sees their
         # restored work as the initial state.
@@ -81,6 +84,9 @@ class EditorWindow(
         self.recent_pressure_plate_kind: str | None = first_kind
         self.recent_item_type: str = ITEM_TYPES[0]
         self.recent_item_key_kind: str | None = first_kind
+        first_bridge_kind = self.bridge_kinds[0] if self.bridge_kinds else None
+        self.recent_bridge_kind: str | None = first_bridge_kind
+        self.recent_bridge_plate_kind: str | None = first_bridge_kind
         # (row_spacing, row_offset, col_spacing, col_offset) — remembered
         # across opens of the Auto-Place Lights dialog. Spacing is "cells
         # skipped between lights": 0 = every cell, 1 = every other, 2 = every
@@ -158,6 +164,14 @@ class EditorWindow(
         self._barrier_kinds = value
 
     @property
+    def bridge_kinds(self) -> list[str]:
+        return self._bridge_kinds
+
+    @bridge_kinds.setter
+    def bridge_kinds(self, value: list[str]) -> None:
+        self._bridge_kinds = value
+
+    @property
     def dirty(self) -> bool:
         return self.doc.dirty
 
@@ -210,7 +224,7 @@ class EditorWindow(
     # Map each mode to the cursor it should display so a peripheral glance
     # tells the user which tool is active without reading the toolbar.
     def _cursor_for_mode(self, mode: str) -> Qt.CursorShape:
-        if mode in (MODE_LIGHT, MODE_LADDER, MODE_PRESSURE_PLATE, MODE_FIREWORK_PLATE, MODE_ITEM):
+        if mode in (MODE_LIGHT, MODE_LADDER, MODE_PRESSURE_PLATE, MODE_BRIDGE_PLATE, MODE_FIREWORK_PLATE, MODE_ITEM):
             return Qt.CursorShape.PointingHandCursor
         if mode == MODE_SPAWN_ZONE_EDIT:
             return Qt.CursorShape.OpenHandCursor
@@ -423,7 +437,7 @@ class EditorWindow(
         self.resize(self.sizeHint())
 
     def update_status(self) -> None:
-        errors = validate_map(self.map_data, self.barrier_kinds)
+        errors = validate_map(self.map_data, self.barrier_kinds, self.bridge_kinds)
         if errors:
             self.status_label.setText(f"{len(errors)} structural issue(s)")
             self.status_label.setToolTip("\n".join(errors[:20]))

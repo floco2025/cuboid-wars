@@ -7,7 +7,6 @@ use bevy::{
 
 use crate::{
     audio::play_sound,
-    barriers::OpenBarrierKinds,
     cameras::{CameraViewMode, MainCameraMarker},
     config::AssetSet,
     network::{ClientToServer, ClientToServerChannel},
@@ -23,7 +22,7 @@ use super::WeaponMode;
 #[derive(SystemParam)]
 pub struct ShooterContext<'w> {
     pub my_player_id: Res<'w, MyPlayerId>,
-    pub open_barrier_kinds: Res<'w, OpenBarrierKinds>,
+    pub plates: Res<'w, PlateState>,
     pub map_settings: Res<'w, MapSettings>,
 }
 
@@ -105,7 +104,7 @@ pub fn input_shooting_system(
             &gameplay_config,
             shooter.map_settings.movement.projectile_speed,
             &collision_world,
-            &shooter.open_barrier_kinds.0,
+            &shooter.plates,
             shooter.my_player_id.0,
         ) > 0
         {

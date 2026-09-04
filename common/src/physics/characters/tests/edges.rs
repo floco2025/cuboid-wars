@@ -27,6 +27,7 @@ fn edge_overhang_slides_off_and_falls() {
                 collision_world: &collision_world,
                 gravity: TEST_GRAVITY,
                 passable_kinds: &[],
+                powered_bridges: &[],
                 ladder_climb_ratio: test_ladders(),
                 physics,
                 portals: None,
@@ -54,7 +55,10 @@ fn edge_overhang_denies_jump() {
         y: floor.y,
         z: 0.0,
     };
-    assert_eq!(player_jump_velocity(0.0, &collision_world, physics, 12.0, &pos), None);
+    assert_eq!(
+        player_jump_velocity(0.0, &collision_world, physics, 12.0, &pos, &[]),
+        None
+    );
 }
 
 #[test]
@@ -76,6 +80,7 @@ fn probe_grounded_near_edge_does_not_slide() {
                 collision_world: &collision_world,
                 gravity: TEST_GRAVITY,
                 passable_kinds: &[],
+                powered_bridges: &[],
                 ladder_climb_ratio: test_ladders(),
                 physics,
                 portals: None,
@@ -116,6 +121,7 @@ fn input_overrides_perch_slide() {
                 collision_world: &collision_world,
                 gravity: TEST_GRAVITY,
                 passable_kinds: &[],
+                powered_bridges: &[],
                 ladder_climb_ratio: test_ladders(),
                 physics,
                 portals: None,
@@ -126,7 +132,7 @@ fn input_overrides_perch_slide() {
     }
 
     assert!(
-        position_has_floor_support(&collision_world, &pos, physics),
+        position_has_floor_support(&collision_world, &pos, physics, &[]),
         "expected the walk-back to regain probe support: {pos:?}"
     );
     assert!((pos.y - floor.y).abs() < 0.05);
@@ -164,6 +170,7 @@ fn blocked_slide_keeps_velocity_zeroed() {
                 collision_world: &collision_world,
                 gravity: TEST_GRAVITY,
                 passable_kinds: &[],
+                powered_bridges: &[],
                 ladder_climb_ratio: test_ladders(),
                 physics,
                 portals: None,

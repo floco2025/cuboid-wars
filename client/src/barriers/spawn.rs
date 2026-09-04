@@ -3,10 +3,7 @@ use bevy::prelude::*;
 use super::BarrierAssets;
 use crate::constants::BARRIER_OVERLAP_EPS;
 use crate::map::{FocusedMapLevel, MapLevel};
-use common::{
-    physics::OpenBarrierKinds,
-    protocol::{Barrier, BarrierKindId, MapLayout},
-};
+use common::protocol::{Barrier, BarrierKindId, MapLayout, PlateState};
 
 #[derive(Component)]
 pub struct BarrierMarker;
@@ -23,7 +20,7 @@ pub fn barriers_spawn_system(
     mut commands: Commands,
     map_layout: Res<MapLayout>,
     barrier_assets: Res<BarrierAssets>,
-    open: Res<OpenBarrierKinds>,
+    plates: Res<PlateState>,
     focused: Res<FocusedMapLevel>,
     existing: Query<Entity, With<BarrierMarker>>,
 ) {
@@ -41,7 +38,7 @@ pub fn barriers_spawn_system(
             &mut commands,
             &barrier_assets,
             barrier,
-            barrier_visibility(&open, *focused, barrier.kind, barrier.level),
+            barrier_visibility(&plates.open_barrier_kinds, *focused, barrier.kind, barrier.level),
         );
     }
 }
@@ -83,21 +80,26 @@ fn spawn_barrier(commands: &mut Commands, assets: &BarrierAssets, barrier: &Barr
 }
 
 pub fn barriers_visibility_system(
-    open: Res<OpenBarrierKinds>,
+    plates: Res<PlateState>,
     focused: Res<FocusedMapLevel>,
     mut barriers: Query<(&BarrierKindMarker, &MapLevel, &mut Visibility), With<BarrierMarker>>,
 ) {
-    if !open.is_changed() && !focused.is_changed() {
+    if !plates.is_changed() && !focused.is_changed() {
         return;
     }
     // An input change affects only some barriers; equal writes would retrigger propagation on the rest.
     for (kind, level, mut visibility) in &mut barriers {
-        visibility.set_if_neq(barrier_visibility(&open, *focused, kind.0, level.0));
+        visibility.set_if_neq(barrier_visibility(
+            &plates.open_barrier_kinds,
+            *focused,
+            kind.0,
+            level.0,
+        ));
     }
 }
 
-fn barrier_visibility(open: &OpenBarrierKinds, focused: FocusedMapLevel, kind: BarrierKindId, level: u8) -> Visibility {
-    if open.0.contains(&kind) || focused.0.is_some_and(|focused| focused != level) {
+fn barrier_visibility(open: &[BarrierKindId], focused: FocusedMapLevel, kind: BarrierKindId, level: u8) -> Visibility {
+    if open.contains(&kind) || focused.0.is_some_and(|focused| focused != level) {
         Visibility::Hidden
     } else {
         Visibility::Visible
@@ -113,15 +115,15 @@ mod tests {
         let kind = BarrierKindId(2);
 
         assert_eq!(
-            barrier_visibility(&OpenBarrierKinds(vec![kind]), FocusedMapLevel(Some(1)), kind, 1),
+            barrier_visibility(&[kind], FocusedMapLevel(Some(1)), kind, 1),
             Visibility::Hidden
         );
         assert_eq!(
-            barrier_visibility(&OpenBarrierKinds::default(), FocusedMapLevel(Some(2)), kind, 1),
+            barrier_visibility(&[], FocusedMapLevel(Some(2)), kind, 1),
             Visibility::Hidden
         );
         assert_eq!(
-            barrier_visibility(&OpenBarrierKinds::default(), FocusedMapLevel(Some(1)), kind, 1),
+            barrier_visibility(&[], FocusedMapLevel(Some(1)), kind, 1),
             Visibility::Visible
         );
     }

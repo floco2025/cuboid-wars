@@ -34,6 +34,7 @@ def normalize_map(map_data: dict) -> dict:
                 "grass": [normalize_grass(g) for g in level.get("grass", [])],
                 "walls": [normalize_wall(w) for w in level.get("walls", [])],
                 "barriers": [normalize_barrier(b) for b in level.get("barriers", [])],
+                "light_bridges": [normalize_light_bridge(b) for b in level.get("light_bridges", [])],
                 "lights": [normalize_light(l) for l in level.get("lights", [])],
             }
         )
@@ -46,6 +47,7 @@ def normalize_map(map_data: dict) -> dict:
                 "grass": [],
                 "walls": [],
                 "barriers": [],
+                "light_bridges": [],
                 "lights": [],
             }
         ]
@@ -98,6 +100,10 @@ def normalize_barrier(barrier: dict) -> dict:
         "r1": int(barrier["r1"]),
         "kind": kind,
     }
+
+
+def normalize_light_bridge(bridge: dict) -> dict:
+    return {"col": int(bridge["col"]), "row": int(bridge["row"]), "kind": str(bridge.get("kind", ""))}
 
 
 def normalize_ramp(ramp: dict) -> dict:
@@ -196,8 +202,8 @@ def normalize_pressure_plate(plate: dict) -> dict:
         "row": int(plate.get("row", 0)),
         "type": str(plate.get("type", "")),
     }
-    # Only barrier plates take a kind; a stray one is kept for the validator
-    # to flag rather than silently dropped.
+    # Only barrier and bridge plates take a kind; a stray one is kept for the
+    # validator to flag rather than silently dropped.
     if "kind" in plate:
         normalized["kind"] = str(plate["kind"])
     return normalized
@@ -290,6 +296,7 @@ def canonicalize_map(map_data: dict) -> dict:
             b for b in _dedupe_barriers(level.get("barriers", []))
             if tuple(normalized_wall([b["c0"], b["r0"], b["c1"], b["r1"]])) not in wall_endpoints_set
         ]
+        level["light_bridges"] = _dedupe_light_bridges(level.get("light_bridges", []))
         cols, rows = b["grid_cols"], b["grid_rows"]
         in_bounds_lights = [
             l for l in level.get("lights", [])
@@ -374,6 +381,13 @@ def _dedupe_barriers(barriers: list[dict]) -> list[dict]:
     return [by_edge[k] for k in sorted(by_edge.keys())]
 
 
+def _dedupe_light_bridges(bridges: list[dict]) -> list[dict]:
+    by_pos: dict[tuple[int, int], dict] = {}
+    for bridge in bridges:
+        by_pos.setdefault((bridge["col"], bridge["row"]), bridge)
+    return [by_pos[k] for k in sorted(by_pos.keys(), key=lambda p: (p[1], p[0]))]
+
+
 def _dedupe_lights(lights: list[dict]) -> list[dict]:
     by_key: dict[tuple, dict] = {}
     for light in lights:
@@ -437,6 +451,9 @@ def resize_map_data(
         level["walls"] = [w for w in (shift_wall(w) for w in level["walls"]) if w is not None]
         level["barriers"] = [
             b for b in (shift_wall(b) for b in level.get("barriers", [])) if b is not None
+        ]
+        level["light_bridges"] = [
+            b for b in (shift_floor(b) for b in level.get("light_bridges", [])) if b is not None
         ]
         level["lights"] = [
             l for l in (shift_light(l) for l in level.get("lights", [])) if l is not None

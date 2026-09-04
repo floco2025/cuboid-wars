@@ -11,7 +11,7 @@ use crate::{
     combat::{PendingExplosions, combat_plugin},
     config::{ServerGameplayConfig, validate_map_actor_kinds, validate_map_quests},
     items::{ItemMap, ItemSpawner, RandomItems, items_plugin},
-    map::{GeneratedMap, LightState, OpenBarrierKinds, WeatherState, generate_map, map_plugin},
+    map::{GeneratedMap, LightState, PlateState, WeatherState, generate_map, map_plugin},
     missiles::{AirGraph, MissileMap, missiles_plugin},
     network::{FromClientsChannel, network_plugin},
     players::{Invincibility, PlayerMap, UnlimitedMissiles, players_plugin},
@@ -21,7 +21,7 @@ use crate::{
 };
 use common::{
     physics::{CollisionWorld, PortalSet},
-    protocol::{BarrierKindTable, MapBootstrap, WorldBootstrap},
+    protocol::{BarrierKindTable, BridgeKindTable, MapBootstrap, WorldBootstrap},
 };
 
 const LOG_FILTER: &str = "wgpu=error,naga=warn";
@@ -45,11 +45,12 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
     let random_items = RandomItems::from_config(map_server_config.random_items.as_ref(), map_settings.weapons);
     let portal_assignments = PortalAssignments::new(map_settings.weapons.portals);
     let barrier_kind_table = BarrierKindTable::from_ids(map_settings.barrier_kinds.clone().unwrap_or_default())?;
+    let bridge_kind_table = BridgeKindTable::from_ids(map_settings.bridge_kinds.clone().unwrap_or_default())?;
     let GeneratedMap {
         layout: map_layout,
         config: map_config,
         geometry: map_geometry,
-    } = generate_map(map_name, &barrier_kind_table)?;
+    } = generate_map(map_name, &barrier_kind_table, &bridge_kind_table)?;
     let collision_world = CollisionWorld::from_map_layout(&map_layout, &barrier_kind_table);
     let nav_graph = NavGraph::new(map_config.clone(), map_geometry);
     let air_graph = AirGraph::new(map_config.clone(), map_geometry);
@@ -94,6 +95,7 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
         .insert_resource(actor_territories)
         .insert_resource(air_graph)
         .insert_resource(barrier_kind_table)
+        .insert_resource(bridge_kind_table)
         .insert_resource(gameplay_config)
         .insert_resource(server_gameplay_config)
         .insert_resource(quest_catalog)
@@ -113,7 +115,7 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
         .insert_resource(PortalMap::default())
         .insert_resource(portal_assignments)
         .insert_resource(PortalSet::default())
-        .insert_resource(OpenBarrierKinds::default());
+        .insert_resource(PlateState::default());
 
     configure_server_schedule(&mut app);
     app.add_plugins((

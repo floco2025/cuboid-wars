@@ -121,6 +121,9 @@ def format_map_file(wrapper: dict) -> str:
                 *with_trailing_comma(format_object_array("grass", level.get("grass", []), _grass_body, 8)),
                 *with_trailing_comma(format_object_array("walls", level["walls"], _wall_body, 8)),
                 *with_trailing_comma(format_object_array("barriers", level.get("barriers", []), _barrier_body, 8)),
+                *with_trailing_comma(
+                    format_object_array("light_bridges", level.get("light_bridges", []), _light_bridge_body, 8)
+                ),
                 *format_object_array("lights", level.get("lights", []), _light_body, 8),
                 "      }" + ("," if level_idx + 1 < len(map_data["levels"]) else ""),
             ]
@@ -197,6 +200,10 @@ def _barrier_body(barrier: dict) -> str:
         "kind": barrier["kind"],
     }
     return _inline_object_body(body)
+
+
+def _light_bridge_body(bridge: dict) -> str:
+    return _inline_object_body({"col": bridge["col"], "row": bridge["row"], "kind": bridge["kind"]})
 
 
 def _inline_object_body(body: dict) -> str:

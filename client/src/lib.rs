@@ -2,6 +2,7 @@ pub mod actors;
 pub mod app;
 pub mod audio;
 pub mod barriers;
+pub mod bridges;
 pub mod cameras;
 pub mod characters;
 pub mod config;
