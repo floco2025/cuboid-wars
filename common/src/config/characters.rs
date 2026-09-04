@@ -12,13 +12,6 @@ pub struct CharacterGameplayConfig {
     pub eye_height: f32,
 }
 
-#[derive(Debug, Clone, Encode, Decode, Deserialize)]
-pub struct PlayerGameplayConfig {
-    #[serde(flatten)]
-    pub character: CharacterGameplayConfig,
-    pub jump_speed: f32,
-}
-
 impl CharacterGameplayConfig {
     #[must_use]
     pub const fn physics(&self) -> CharacterPhysicsConfig {
@@ -37,23 +30,6 @@ impl CharacterGameplayConfig {
         self.collider.validate(&format!("{path}.collider"))?;
         self.support_probe.validate(&format!("{path}.support_probe"))?;
         validate_positive_finite(self.eye_height, &format!("{path}.eye_height"))
-    }
-}
-
-impl PlayerGameplayConfig {
-    #[must_use]
-    pub const fn physics(&self) -> CharacterPhysicsConfig {
-        self.character.physics()
-    }
-
-    #[must_use]
-    pub const fn eye_height(&self) -> f32 {
-        self.character.eye_height()
-    }
-
-    pub fn validate(&self, path: &str) -> Result<()> {
-        self.character.validate(path)?;
-        validate_positive_finite(self.jump_speed, &format!("{path}.jump_speed"))
     }
 }
 

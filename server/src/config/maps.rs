@@ -171,6 +171,7 @@ mod tests {
                 walk_speed: 6.0,
                 run_speed: 9.0,
                 speed_power_up: 1.6,
+                jump_speed: 12.0,
             },
             actors: [
                 ("mine", 3.0, 5.0),
@@ -278,7 +279,7 @@ mod tests {
             "skybox": "cloudy_day",
             "geometry": { "grid_cell_size": 3.4, "level_height": 4.4, "floor_thickness": 0.4, "wall_thickness": 0.3 },
             "movement": {
-                "player": { "walk_speed": 6.0, "run_speed": 9.0, "speed_power_up": 1.6 },
+                "player": { "walk_speed": 6.0, "run_speed": 9.0, "speed_power_up": 1.6, "jump_speed": 12.0 },
                 "actors": {
                     "mine": { "roam_speed": 3.0, "active_speed": 5.0 },
                     "sentry": { "roam_speed": 5.0, "active_speed": 8.0 },

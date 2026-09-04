@@ -107,6 +107,7 @@ pub(super) fn route_client_message(
                 &context.queries,
                 &context.world.collision_world,
                 &context.world.gameplay_config,
+                &context.world.map_settings,
             );
         }
         ClientMessage::ProjectileShot(message) => {

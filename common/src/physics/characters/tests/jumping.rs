@@ -1,5 +1,5 @@
 use super::*;
-// Test copy of the default `player.jump_speed` config value.
+// Test copy of the shipped maps' `movement.player.jump_speed`.
 const TEST_JUMP_SPEED: f32 = 12.0;
 
 #[test]

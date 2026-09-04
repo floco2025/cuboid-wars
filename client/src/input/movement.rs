@@ -7,7 +7,7 @@ use bevy::{
 use common::{
     config::GameplayConfig,
     physics::{CharacterVerticalVelocity, CollisionWorld, player_jump_velocity},
-    protocol::{CJump, ClientMessage, FaceYaw, PlayerMoveIntent, Position},
+    protocol::{CJump, ClientMessage, FaceYaw, MapSettings, PlayerMoveIntent, Position},
 };
 use std::f32::consts::{FRAC_PI_2, PI};
 
@@ -53,6 +53,7 @@ pub fn input_movement_system(
     view_mode: Res<CameraViewMode>,
     collision_world: Res<CollisionWorld>,
     gameplay_config: Res<GameplayConfig>,
+    map_settings: Res<MapSettings>,
     client_settings: Res<ClientSettings>,
     console: Res<ConsoleState>,
 ) {
@@ -99,6 +100,7 @@ pub fn input_movement_system(
         jump_requested,
         &collision_world,
         &gameplay_config,
+        map_settings.movement.player.jump_speed,
         &mut local_player_query,
     );
 
@@ -203,6 +205,7 @@ fn update_player_input_face_and_jump(
     jump_requested: bool,
     collision_world: &CollisionWorld,
     gameplay_config: &GameplayConfig,
+    jump_speed: f32,
     local_player_query: &mut LocalPlayerInputQuery,
 ) {
     for (pos, mut input, mut face_direction, mut motion) in local_player_query.iter_mut() {
@@ -213,7 +216,7 @@ fn update_player_input_face_and_jump(
                 motion.0,
                 collision_world,
                 gameplay_config.player.physics(),
-                gameplay_config.player.jump_speed,
+                jump_speed,
                 pos,
             )
         {

@@ -28,6 +28,7 @@ pub struct PlayerMovementConfig {
     pub walk_speed: f32,
     pub run_speed: f32,
     pub speed_power_up: f32,
+    pub jump_speed: f32,
 }
 
 // A component on server actors so movement ticks do not hash the kind string.
@@ -62,7 +63,8 @@ impl PlayerMovementConfig {
     fn validate(&self, path: &str) -> Result<()> {
         validate_positive_finite(self.walk_speed, &format!("{path}.walk_speed"))?;
         validate_positive_finite(self.run_speed, &format!("{path}.run_speed"))?;
-        validate_positive_finite(self.speed_power_up, &format!("{path}.speed_power_up"))
+        validate_positive_finite(self.speed_power_up, &format!("{path}.speed_power_up"))?;
+        validate_positive_finite(self.jump_speed, &format!("{path}.jump_speed"))
     }
 }
 

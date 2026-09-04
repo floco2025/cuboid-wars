@@ -10,7 +10,7 @@ mod validation;
 
 pub use characters::{
     CharacterColliderAnchor, CharacterColliderConfig, CharacterGameplayConfig, CharacterPhysicsConfig,
-    CharacterSupportProbeConfig, PlayerGameplayConfig,
+    CharacterSupportProbeConfig,
 };
 pub use gameplay::{
     ActorGameplayBootstrap, GameplayBootstrap, GameplayConfig, MissilesGameplayBootstrap, PlayerGameplayBootstrap,

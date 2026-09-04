@@ -33,6 +33,7 @@ mod tests {
                 walk_speed: 4.0,
                 run_speed: 7.0,
                 speed_power_up: 1.5,
+                jump_speed: 12.0,
             },
             actors: HashMap::new(),
             missile_speed: 16.0,

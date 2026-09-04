@@ -16,8 +16,8 @@ use super::{
     weapons::WeaponsConfig,
 };
 use common::config::{
-    ActorGameplayBootstrap, GameplayBootstrap, GameplayConfig, MissilesGameplayBootstrap, PlayerGameplayBootstrap,
-    PlayerGameplayConfig,
+    ActorGameplayBootstrap, CharacterGameplayConfig, GameplayBootstrap, GameplayConfig, MissilesGameplayBootstrap,
+    PlayerGameplayBootstrap,
 };
 
 // Nested exactly like `config/server/gameplay.json`, so a validation path
@@ -141,7 +141,7 @@ impl ServerGameplayConfig {
 #[derive(Debug, Clone, Deserialize)]
 pub struct PlayerServerConfig {
     #[serde(flatten)]
-    pub gameplay: PlayerGameplayConfig,
+    pub gameplay: CharacterGameplayConfig,
     pub respawn_secs: f32,
 }
 

@@ -11,7 +11,9 @@
       {"level": 0, "col": 15, "row": 12, "type": "bridge", "kind": "bridge_1"}
     ],
     "items": [
+      {"level": 0, "col": 14, "row": 7, "type": "speed"},
       {"level": 0, "col": 4, "row": 8, "type": "speed"},
+      {"level": 0, "col": 14, "row": 8, "type": "low_gravity"},
       {"level": 0, "col": 4, "row": 9, "type": "low_gravity"}
     ],
     "levels": [
@@ -86,7 +88,12 @@
         ],
         "inaccessible_floors": [],
         "grass": [],
-        "walls": [],
+        "walls": [
+          {"c0": 16, "r0": 5, "c1": 16, "r1": 6, "all": "basement-floor"},
+          {"c0": 16, "r0": 6, "c1": 16, "r1": 7, "all": "basement-floor"},
+          {"c0": 16, "r0": 7, "c1": 16, "r1": 8, "all": "basement-floor"},
+          {"c0": 16, "r0": 8, "c1": 16, "r1": 9, "all": "basement-floor"}
+        ],
         "barriers": [],
         "light_bridges": [
           {"col": 7, "row": 13, "kind": "bridge_1"},
@@ -127,6 +134,68 @@
           {"col": 14, "row": 18, "kind": "bridge_1"},
           {"col": 15, "row": 18, "kind": "bridge_1"}
         ],
+        "lights": []
+      },
+      {
+        "name": "Level 1",
+        "floors": [
+          {"col": 16, "row": 5, "all": "basement-floor"}
+        ],
+        "inaccessible_floors": [],
+        "grass": [],
+        "walls": [
+          {"c0": 16, "r0": 6, "c1": 16, "r1": 7, "all": "basement-floor"},
+          {"c0": 16, "r0": 6, "c1": 17, "r1": 6, "all": "basement-floor"},
+          {"c0": 16, "r0": 7, "c1": 16, "r1": 8, "all": "basement-floor"},
+          {"c0": 16, "r0": 8, "c1": 16, "r1": 9, "all": "basement-floor"}
+        ],
+        "barriers": [],
+        "light_bridges": [],
+        "lights": []
+      },
+      {
+        "name": "Level 2",
+        "floors": [
+          {"col": 16, "row": 6, "all": "basement-floor"}
+        ],
+        "inaccessible_floors": [],
+        "grass": [],
+        "walls": [
+          {"c0": 16, "r0": 7, "c1": 16, "r1": 8, "all": "basement-floor"},
+          {"c0": 16, "r0": 7, "c1": 17, "r1": 7, "all": "basement-floor"},
+          {"c0": 16, "r0": 8, "c1": 16, "r1": 9, "all": "basement-floor"}
+        ],
+        "barriers": [],
+        "light_bridges": [],
+        "lights": []
+      },
+      {
+        "name": "Level 3",
+        "floors": [
+          {"col": 16, "row": 7, "all": "basement-floor"}
+        ],
+        "inaccessible_floors": [],
+        "grass": [],
+        "walls": [
+          {"c0": 16, "r0": 8, "c1": 16, "r1": 9, "all": "basement-floor"},
+          {"c0": 16, "r0": 8, "c1": 17, "r1": 8, "all": "basement-floor"}
+        ],
+        "barriers": [],
+        "light_bridges": [],
+        "lights": []
+      },
+      {
+        "name": "Level 1",
+        "floors": [
+          {"col": 16, "row": 8, "all": "basement-floor"}
+        ],
+        "inaccessible_floors": [],
+        "grass": [],
+        "walls": [
+          {"c0": 16, "r0": 9, "c1": 17, "r1": 9, "all": "basement-floor"}
+        ],
+        "barriers": [],
+        "light_bridges": [],
         "lights": []
       }
     ],

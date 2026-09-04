@@ -6,13 +6,13 @@ use bincode::{Decode, Encode};
 use serde::Deserialize;
 
 use super::{
-    CharacterGameplayConfig, MissilesConfig, PlayerGameplayConfig, PortalsConfig, ProjectilesConfig,
+    CharacterGameplayConfig, MissilesConfig, PortalsConfig, ProjectilesConfig,
     validation::{validate_non_negative_finite, validate_positive_finite},
 };
 
 #[derive(Resource, Debug, Clone, Deserialize)]
 pub struct GameplayConfig {
-    pub player: PlayerGameplayConfig,
+    pub player: CharacterGameplayConfig,
     pub projectiles: ProjectilesConfig,
     pub missiles: MissilesConfig,
     pub portals: PortalsConfig,
@@ -56,7 +56,7 @@ pub(crate) fn load_test_gameplay() -> Result<GameplayConfig> {
 
     #[derive(Deserialize)]
     struct TestGameplaySource {
-        player: PlayerGameplayConfig,
+        player: CharacterGameplayConfig,
         actors: TestActorsSource,
         weapons: TestWeaponsSource,
     }
@@ -100,7 +100,7 @@ pub struct GameplayBootstrap {
 
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct PlayerGameplayBootstrap {
-    pub gameplay: PlayerGameplayConfig,
+    pub gameplay: CharacterGameplayConfig,
     pub max_health: f32,
     pub death_blast_radius: f32,
 }

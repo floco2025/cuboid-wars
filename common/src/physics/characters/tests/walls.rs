@@ -243,3 +243,106 @@ fn diagonal_wall_end_hit_slides_along_wall() {
     assert!(step.position.x > pos.x);
     assert!(step.position.z < 0.0);
 }
+
+#[test]
+fn jumping_while_pushing_into_a_wall_still_rises() {
+    let collision_world = collision_world_with(&[test_wall()], &[lower_floor()], &[]);
+    let env = CharacterEnvironment {
+        collision_world: &collision_world,
+        gravity: TEST_GRAVITY,
+        passable_kinds: &[],
+        ladder_climb_ratio: test_ladders(),
+        physics: player_physics(),
+        portals: None,
+    };
+    let delta = 1.0 / 30.0;
+    let mut pos = Position {
+        x: -1.0,
+        y: 0.0,
+        z: 0.0,
+    };
+    for _ in 0..30 {
+        pos = step_character_movement(character_step_toward(pos, 0.0, pos.x + 0.2, pos.z, delta), &env).position;
+    }
+    let pressed = step_character_movement(character_step_toward(pos, 0.0, pos.x + 0.2, pos.z, delta), &env);
+    assert!(pressed.blocked, "the run-up never reached the wall");
+
+    let launch = player_jump_velocity(0.0, &collision_world, player_physics(), 12.0, &pos);
+    assert_eq!(
+        launch,
+        Some(12.0),
+        "the jump was refused while pressed into the wall at {pos:?}"
+    );
+
+    let mut vertical_velocity = 12.0;
+    let mut heights = Vec::new();
+    for _ in 0..6 {
+        let step = step_character_movement(
+            character_step_toward(pos, vertical_velocity, pos.x + 0.2, pos.z, delta),
+            &env,
+        );
+        pos = step.position;
+        vertical_velocity = step.vertical_velocity;
+        heights.push(pos.y);
+    }
+    assert!(
+        heights.windows(2).all(|pair| pair[1] > pair[0]) && vertical_velocity > 0.0,
+        "a jump into the wall stalled: heights {heights:?}, velocity {vertical_velocity}"
+    );
+}
+
+// A diagonal run along the wall meets the wall's end with a slanted contact
+// normal, which costs more rise per tick than a straight push.
+#[test]
+fn jumping_while_sliding_diagonally_along_a_wall_keeps_rising() {
+    let collision_world = collision_world_with(&[test_wall()], &[lower_floor()], &[]);
+    let env = CharacterEnvironment {
+        collision_world: &collision_world,
+        gravity: TEST_GRAVITY,
+        passable_kinds: &[],
+        ladder_climb_ratio: test_ladders(),
+        physics: player_physics(),
+        portals: None,
+    };
+    let delta = 1.0 / 30.0;
+    let step = |pos: Position, vertical_velocity: f32| {
+        step_character_movement(
+            CharacterStep {
+                start: pos,
+                vertical_velocity,
+                control_velocity: Vec3::new(9.0, 0.0, 9.0),
+                external_displacement: Vec3::ZERO,
+                delta,
+            },
+            &env,
+        )
+    };
+    let mut pos = Position {
+        x: -1.26,
+        y: 0.0,
+        z: -0.7,
+    };
+    let mut vertical_velocity = 0.0;
+    for _ in 0..3 {
+        let result = step(pos, vertical_velocity);
+        pos = result.position;
+        vertical_velocity = result.vertical_velocity;
+    }
+    assert_eq!(
+        player_jump_velocity(vertical_velocity, &collision_world, player_physics(), 12.0, &pos),
+        Some(12.0)
+    );
+
+    vertical_velocity = 12.0;
+    let mut heights = Vec::new();
+    for _ in 0..8 {
+        let result = step(pos, vertical_velocity);
+        pos = result.position;
+        vertical_velocity = result.vertical_velocity;
+        heights.push(pos.y);
+    }
+    assert!(
+        heights.windows(2).all(|pair| pair[1] > pair[0]) && vertical_velocity > 0.0,
+        "a diagonal jump along the wall stalled: heights {heights:?}, velocity {vertical_velocity}"
+    );
+}

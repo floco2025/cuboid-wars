@@ -17,7 +17,7 @@ use super::{
 };
 use crate::{
     config::CharacterPhysicsConfig,
-    constants::{CHARACTER_STEP_HEIGHT, CHARACTER_STEP_MIN_WIDTH, CHARACTER_TERMINAL_VELOCITY, PHYSICS_EPSILON},
+    constants::{CHARACTER_STEP_HEIGHT, CHARACTER_STEP_MIN_WIDTH, CHARACTER_TERMINAL_VELOCITY},
     physics::world::CollisionWorld,
     protocol::{BarrierKindId, Position},
 };
@@ -295,7 +295,7 @@ fn finish_character_movement(
     // against ceilings stay silent.
     let climb_rise_blocked = request.ascending_ladder
         && request.requested_vertical.y > 0.0
-        && collision.translation.y < request.requested_vertical.y - PHYSICS_EPSILON;
+        && collision.translation.y < request.requested_vertical.y - CHARACTER_BLOCKED_MOVEMENT_EPSILON;
     let blocked = side_movement_blocked || climb_rise_blocked;
 
     let grounded = resolved_ground.is_some() || collision.grounded;
@@ -305,10 +305,12 @@ fn finish_character_movement(
     // persist — without this, gravity would pump fall velocity for seconds
     // while the body never moves.
     let landed_while_falling = grounded && vertical_velocity < 0.0;
+    // Only a contact from above ends a rise. A shortfall in the achieved
+    // rise cannot: sliding up a wall loses rise in proportion to the push
+    // speed and the slant of a corner contact, which reads as a ceiling at
+    // run speed.
     let hit_ceiling_while_rising = collision.hit_ceiling && vertical_velocity > 0.0;
-    let upward_move_was_blocked =
-        request.requested_vertical.y > 0.0 && collision.translation.y < request.requested_total.y - PHYSICS_EPSILON;
-    if landed_while_falling || hit_ceiling_while_rising || upward_move_was_blocked {
+    if landed_while_falling || hit_ceiling_while_rising {
         vertical_velocity = 0.0;
     }
 

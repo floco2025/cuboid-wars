@@ -34,6 +34,7 @@ pub(crate) fn map_settings() -> MapSettings {
                 walk_speed: 4.0,
                 run_speed: 7.0,
                 speed_power_up: 1.5,
+                jump_speed: 12.0,
             },
             actors: HashMap::new(),
             missile_speed: 20.0,
