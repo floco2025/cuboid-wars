@@ -375,16 +375,5 @@
         "luminance": 50000000.0
       }
     }
-  },
-  "barrier_kind_colors": {
-    "treasure": "#ff3333",
-    "basement": "#f0c020",
-    "gravity": "#5090ff",
-    "lobby": "#22cc33"
-  },
-  "bridge_kind_colors": {
-    "bridge_1": "#30d8ff",
-    "bridge_2": "#30d8ff",
-    "bridge_3": "#30d8ff"
   }
 }

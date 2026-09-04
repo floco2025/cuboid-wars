@@ -4,10 +4,23 @@ use std::hash::Hash;
 
 use anyhow::{Result, anyhow, bail};
 use bevy_ecs::prelude::Resource;
+use bincode::{Decode, Encode};
+use serde::Deserialize;
+
+use super::color::HexColor;
+
+// One entry of a map's kind catalog (`barrier_kinds`, `bridge_kinds` in
+// `gameplay.json`): the stable id and the colour the client and the map
+// editor draw that kind in.
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, Deserialize)]
+pub struct KindDef {
+    pub id: String,
+    pub color: HexColor,
+}
 
 // A kind id: a stable on-wire index into one of the selected map's ordered
-// kind lists (`barrier_kinds`, `bridge_kinds`). The server ships those lists
-// in `SInit` so both sides assign the same indices. `MAX` caps a catalog
+// kind catalogs. The server ships those catalogs in `SInit` so both sides
+// assign the same indices. `MAX` caps a catalog
 // whose kinds each own a Rapier collision group (the bit budget is laid out
 // in `physics/world/colliders.rs`); `None` when the kinds share one group.
 pub trait KindId: Copy + Debug + Eq + Hash + Ord + Send + Sync + 'static {
@@ -38,6 +51,10 @@ impl<K: KindId> Default for KindTable<K> {
 }
 
 impl<K: KindId> KindTable<K> {
+    pub fn from_defs(defs: &[KindDef]) -> Result<Self> {
+        Self::from_ids(defs.iter().map(|def| def.id.clone()).collect())
+    }
+
     pub fn from_ids(ids: Vec<String>) -> Result<Self> {
         if let Some(max) = K::MAX
             && ids.len() > max

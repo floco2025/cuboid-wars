@@ -410,16 +410,16 @@ pub const BARRIER_EMISSIVE: f32 = 2000.0;
 // Surface alpha of a kind's material: a ghost while unpowered, near-solid
 // while powered. Alpha also scales the emissive contribution, so the
 // emissive stays far below the barrier value.
-pub const BRIDGE_ALPHA_OFF: f32 = 0.12;
-pub const BRIDGE_ALPHA_ON: f32 = 0.85;
+pub const BRIDGE_ALPHA_OFF: f32 = 0.15;
+pub const BRIDGE_ALPHA_ON: f32 = 0.80;
 pub const BRIDGE_EMISSIVE: f32 = 6.0;
 // Time constant of the alpha ease between the two levels.
-pub const BRIDGE_FADE_SECS: f32 = 0.35;
+pub const BRIDGE_FADE_SECS: f32 = 0.25;
 // Visible gap between a slab's free side and a floor's edge (a floor slab
 // reaches `WALL_HALF_THICKNESS` past its grid line, so the render inset is
 // that plus this); a side that meets another bridge stays flush. The
 // collider keeps the full rectangle.
-pub const BRIDGE_EDGE_GAP: f32 = 0.2;
+pub const BRIDGE_EDGE_GAP: f32 = 0.3;
 
 // ============================================================================
 // Rain

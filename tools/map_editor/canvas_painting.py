@@ -9,8 +9,6 @@ from PySide6.QtGui import QBrush, QColor, QPainter, QPen
 
 from .constants import (
     ACTOR_ZONE_LIST,
-    BARRIER_KIND_COLORS,
-    BRIDGE_KIND_COLORS,
     FIREWORK_PLATE_COLOR,
     ITEMS_LIST,
     ITEM_KEY_TYPE,
@@ -207,7 +205,7 @@ class CanvasPaintingMixin:
         if not bridges:
             return
         for bridge in bridges:
-            color = QColor(BRIDGE_KIND_COLORS.get(bridge.get("kind", ""), "#30d8ff"))
+            color = QColor(self.window.bridge_kind_colors.get(bridge.get("kind", ""), "#30d8ff"))
             rect = QRectF(bridge["col"] * cell + 1, bridge["row"] * cell + 1, cell - 2, cell - 2)
             fill = QColor(color)
             fill.setAlpha(115)
@@ -264,7 +262,7 @@ class CanvasPaintingMixin:
                 painter.setBrush(QColor(FIREWORK_PLATE_COLOR))
                 painter.drawEllipse(rect)
             elif plate.get("type") == PLATE_TYPE_BRIDGE:
-                painter.setBrush(QColor(BRIDGE_KIND_COLORS.get(plate.get("kind", ""), "#30d8ff")))
+                painter.setBrush(QColor(self.window.bridge_kind_colors.get(plate.get("kind", ""), "#30d8ff")))
                 cx, cy = rect.center().x(), rect.center().y()
                 half = cell * 0.25
                 painter.drawPolygon(
@@ -276,7 +274,7 @@ class CanvasPaintingMixin:
                     ]
                 )
             else:
-                painter.setBrush(QColor(BARRIER_KIND_COLORS.get(plate.get("kind", ""), "#38bdf8")))
+                painter.setBrush(QColor(self.window.barrier_kind_colors.get(plate.get("kind", ""), "#38bdf8")))
                 painter.drawRect(rect)
 
     def _paint_items(self, painter: QPainter, cell: float, level_idx: int) -> None:
@@ -296,7 +294,7 @@ class CanvasPaintingMixin:
             cy = (item["row"] + 0.5) * cell
             item_type = item["type"]
             if item_type == ITEM_KEY_TYPE:
-                painter.setBrush(QColor(BARRIER_KIND_COLORS.get(item.get("kind", ""), "#cccccc")))
+                painter.setBrush(QColor(self.window.barrier_kind_colors.get(item.get("kind", ""), "#cccccc")))
                 half = cell * 0.28
                 painter.drawPolygon(
                     [
@@ -372,7 +370,7 @@ class CanvasPaintingMixin:
             # know it yet. Use the recently-chosen kind's color, or fall back
             # to a neutral cyan if nothing's been picked yet.
             recent = self.window.recent_barrier_kind
-            hex_color = BARRIER_KIND_COLORS.get(recent, "#38bdf8")
+            hex_color = self.window.barrier_kind_colors.get(recent, "#38bdf8")
             self.paint_wall_preview(painter, self.drag_start_point, end, cell, color=QColor(hex_color))
         elif self.drag_start_cell and self.drag_current_cell and self.window.mode in RAMP_MODES:
             self.paint_ramp_preview(painter, self.drag_start_cell, self.drag_current_cell, cell)
@@ -400,7 +398,7 @@ class CanvasPaintingMixin:
         # which makes the line look shifted toward its start.)
         for barrier in level.get("barriers", []):
             kind = barrier.get("kind", "")
-            display = BARRIER_KIND_COLORS.get(kind, "#ff5050")
+            display = self.window.barrier_kind_colors.get(kind, "#ff5050")
             painter.setPen(QPen(QColor(display), BARRIER_PEN_WIDTH, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
             painter.drawLine(
                 barrier["c0"] * cell,

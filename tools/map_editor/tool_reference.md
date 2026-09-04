@@ -27,12 +27,12 @@ Every element group ends with its own **Erase** tool that removes only that elem
 
 ## Barriers
 
-- **Barrier** — Drag along grid lines to place a translucent pulsating force-field; a dialog asks which kind to use. Kinds come from that map's `barrier_kinds` in `config/server/gameplay.json`; colors come from `config/client/assets.json::barrier_kind_colors`.
+- **Barrier** — Drag along grid lines to place a translucent pulsating force-field; a dialog asks which kind to use. Kinds and their colors come from that map's `barrier_kinds` in `config/server/gameplay.json`.
 - **Erase Barriers** — Drag a rectangle to remove every barrier edge inside or on its border.
 
 ## Light Bridges
 
-- **Light Bridge** — Drag cells to place a translucent walkway that is solid only while a bridge plate of its kind is held; a dialog asks which kind to use. Kinds come from that map's `bridge_kinds` in `config/server/gameplay.json`; colors come from `config/client/assets.json::bridge_kind_colors`. The validator flags a bridge that shares a cell with a floor or a ramp.
+- **Light Bridge** — Drag cells to place a translucent walkway that is solid only while a bridge plate of its kind is held; a dialog asks which kind to use. Kinds and their colors come from that map's `bridge_kinds` in `config/server/gameplay.json`. The validator flags a bridge that shares a cell with a floor or a ramp.
 - **Erase Light Bridges** — Drag a rectangle to remove every light bridge inside it on the current level.
 
 ## Ramps

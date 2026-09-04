@@ -64,8 +64,8 @@ class EditorWindow(
         # The document is the map being edited (data, file identity, dirty
         # state, undo history); the window holds view/tool state and widgets.
         self.doc = MapDocument(path)
-        self._barrier_kinds = load_map_barrier_kinds(path.stem)
-        self._bridge_kinds = load_map_bridge_kinds(path.stem)
+        self.barrier_kind_colors = load_map_barrier_kinds(path.stem)
+        self.bridge_kind_colors = load_map_bridge_kinds(path.stem)
         # If a newer autosave sits next to the file we just opened, offer to
         # recover it. Done before any UI is built so the user sees their
         # restored work as the initial state.
@@ -157,19 +157,11 @@ class EditorWindow(
 
     @property
     def barrier_kinds(self) -> list[str]:
-        return self._barrier_kinds
-
-    @barrier_kinds.setter
-    def barrier_kinds(self, value: list[str]) -> None:
-        self._barrier_kinds = value
+        return list(self.barrier_kind_colors)
 
     @property
     def bridge_kinds(self) -> list[str]:
-        return self._bridge_kinds
-
-    @bridge_kinds.setter
-    def bridge_kinds(self, value: list[str]) -> None:
-        self._bridge_kinds = value
+        return list(self.bridge_kind_colors)
 
     @property
     def dirty(self) -> bool:

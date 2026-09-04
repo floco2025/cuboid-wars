@@ -6,7 +6,7 @@ use serde::{Deserialize, Deserializer};
 use crate::config::MapMovementConfig;
 
 use super::face_materials::FaceMaterials;
-use super::{BarrierKindId, BarrierKindTable, BridgeKindId, BridgeKindTable, ItemType, Position};
+use super::{BarrierKindId, BarrierKindTable, BridgeKindId, BridgeKindTable, ItemType, KindDef, Position};
 
 #[derive(Debug, Clone, Encode, Decode, Copy)]
 pub struct Wall {
@@ -219,14 +219,14 @@ pub struct MapSettings {
     pub skybox: String,
     pub movement: MapMovementConfig,
     pub weapons: MapWeaponSettings,
-    // Ordered ids used to assign this map's stable `BarrierKindId` values;
+    // Ordered catalog assigning this map's stable `BarrierKindId` values;
     // `null` means the map has no barriers, keys, or barrier plates.
     #[serde(deserialize_with = "deserialize_required_option")]
-    pub barrier_kinds: Option<Vec<String>>,
+    pub barrier_kinds: Option<Vec<KindDef>>,
     // Same for `BridgeKindId`; `null` means the map has no light bridges or
     // bridge plates.
     #[serde(deserialize_with = "deserialize_required_option")]
-    pub bridge_kinds: Option<Vec<String>>,
+    pub bridge_kinds: Option<Vec<KindDef>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode, Deserialize)]
@@ -258,11 +258,21 @@ pub enum PortalMode {
 }
 
 impl MapSettings {
-    // The id tables both sides build once at startup from the ordered lists.
+    #[must_use]
+    pub fn barrier_kind_defs(&self) -> &[KindDef] {
+        self.barrier_kinds.as_deref().unwrap_or_default()
+    }
+
+    #[must_use]
+    pub fn bridge_kind_defs(&self) -> &[KindDef] {
+        self.bridge_kinds.as_deref().unwrap_or_default()
+    }
+
+    // The id tables both sides build once at startup from the catalogs.
     pub fn kind_tables(&self) -> Result<(BarrierKindTable, BridgeKindTable)> {
         Ok((
-            BarrierKindTable::from_ids(self.barrier_kinds.clone().unwrap_or_default())?,
-            BridgeKindTable::from_ids(self.bridge_kinds.clone().unwrap_or_default())?,
+            BarrierKindTable::from_defs(self.barrier_kind_defs())?,
+            BridgeKindTable::from_defs(self.bridge_kind_defs())?,
         ))
     }
 

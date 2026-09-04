@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -11,52 +12,54 @@ MAPS_DIR = REPO_ROOT / "config" / "server" / "maps"
 GAMEPLAY_PATH = REPO_ROOT / "config" / "server" / "gameplay.json"
 
 
-def _load_shared_configs() -> tuple[dict[str, str], dict[str, str], set[str]]:
+def _load_material_aliases() -> set[str]:
     assets_path = REPO_ROOT / "config" / "client" / "assets.json"
     with assets_path.open("r", encoding="utf-8") as handle:
         assets = json.load(handle)
-    barrier_colors: dict[str, str] = dict(assets.get("barrier_kind_colors", {}))
-    bridge_colors: dict[str, str] = dict(assets.get("bridge_kind_colors", {}))
-    aliases: set[str] = set(assets.get("aliases", {}).keys())
-    return barrier_colors, bridge_colors, aliases
+    return set(assets.get("aliases", {}).keys())
 
 
-BARRIER_KIND_COLORS, BRIDGE_KIND_COLORS, MATERIAL_ALIASES = _load_shared_configs()
+MATERIAL_ALIASES = _load_material_aliases()
+
+HEX_COLOR = re.compile(r"#[0-9a-fA-F]{6}")
 
 
-def load_map_kinds(map_name: str, key: str, colors: dict[str, str], color_key: str) -> list[str]:
+# A map's kind catalog from its gameplay settings, in catalog order: id → "#rrggbb".
+def load_map_kinds(map_name: str, key: str) -> dict[str, str]:
     with GAMEPLAY_PATH.open("r", encoding="utf-8") as handle:
         gameplay = json.load(handle)
     map_settings = gameplay.get("maps", {}).get(map_name)
     if map_settings is None:
-        return []
+        return {}
     if key not in map_settings:
         raise ValueError(f"maps.{map_name}.{key} is required; use null when the map has none")
     value = map_settings[key]
     if value is None:
-        return []
-    if not isinstance(value, list) or not all(isinstance(kind, str) for kind in value):
-        raise ValueError(f"maps.{map_name}.{key} must be an array of strings or null")
-    kinds = list(value)
-    for idx, kind in enumerate(kinds):
+        return {}
+    if not isinstance(value, list):
+        raise ValueError(f"maps.{map_name}.{key} must be an array of {{id, color}} objects or null")
+    kinds: dict[str, str] = {}
+    for idx, entry in enumerate(value):
+        path = f"maps.{map_name}.{key}[{idx}]"
+        if not isinstance(entry, dict) or not isinstance(entry.get("id"), str) or not isinstance(entry.get("color"), str):
+            raise ValueError(f"{path} must be an object with string `id` and `color`")
+        kind, color = entry["id"], entry["color"]
         if not kind:
-            raise ValueError(f"maps.{map_name}.{key}[{idx}] is empty")
-        if kind in kinds[:idx]:
-            raise ValueError(f"maps.{map_name}.{key}[{idx}] duplicates {kind!r}")
-        if kind not in colors:
-            raise ValueError(
-                f"maps.{map_name}.{key}[{idx}] {kind!r} has no color in "
-                f"config/client/assets.json `{color_key}`"
-            )
+            raise ValueError(f"{path}.id is empty")
+        if kind in kinds:
+            raise ValueError(f"{path}.id duplicates {kind!r}")
+        if not HEX_COLOR.fullmatch(color):
+            raise ValueError(f"{path}.color must look like #rrggbb, got {color!r}")
+        kinds[kind] = color
     return kinds
 
 
-def load_map_barrier_kinds(map_name: str) -> list[str]:
-    return load_map_kinds(map_name, "barrier_kinds", BARRIER_KIND_COLORS, "barrier_kind_colors")
+def load_map_barrier_kinds(map_name: str) -> dict[str, str]:
+    return load_map_kinds(map_name, "barrier_kinds")
 
 
-def load_map_bridge_kinds(map_name: str) -> list[str]:
-    return load_map_kinds(map_name, "bridge_kinds", BRIDGE_KIND_COLORS, "bridge_kind_colors")
+def load_map_bridge_kinds(map_name: str) -> dict[str, str]:
+    return load_map_kinds(map_name, "bridge_kinds")
 
 # Editor-only: the game renders every plate alike, so this colour exists just
 # to tell firework plates from barrier plates on the canvas.

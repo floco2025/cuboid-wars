@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use common::protocol::HexColor;
 
 // Lit translucent material for a colour-keyed kind (barriers, light bridges).
 // Lit because emissive is ignored on unlit materials; this Blend permutation
@@ -27,6 +28,11 @@ pub(crate) fn color_with_alpha(color: Color, alpha: f32) -> Color {
 // independent exponential approach with time constant `tau_secs`.
 pub(crate) fn ease_blend(delta_secs: f32, tau_secs: f32) -> f32 {
     1.0 - (-delta_secs / tau_secs).exp()
+}
+
+pub(crate) fn srgb_color(color: HexColor) -> Color {
+    let [r, g, b] = color.0;
+    Color::srgb_u8(r, g, b)
 }
 
 #[cfg(test)]

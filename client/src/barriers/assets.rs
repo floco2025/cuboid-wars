@@ -1,13 +1,12 @@
 use bevy::prelude::*;
 
 use crate::{
-    config::{AssetSet, assets::parse_hex_color},
     constants::*,
-    vfx::{translucent_kind_material, with_white_vertex_colors},
+    vfx::{srgb_color, translucent_kind_material, with_white_vertex_colors},
 };
 use common::{
     constants::BARRIER_THICKNESS,
-    protocol::{BarrierKindId, BarrierKindTable},
+    protocol::{BarrierKindId, KindDef},
 };
 
 // Mesh + materials for both barriers (full-size, scaled per-instance to
@@ -60,8 +59,7 @@ impl BarrierAssets {
 pub fn build_barrier_assets(
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
-    kind_table: &BarrierKindTable,
-    asset_set: &AssetSet,
+    kinds: &[KindDef],
 ) -> BarrierAssets {
     // Barrier mesh: unit X and Y so per-instance `Transform.scale` can
     // encode the merged segment's length and barrier height. Thickness
@@ -76,13 +74,10 @@ pub fn build_barrier_assets(
         Cuboid::new(KEY_WIDTH, KEY_HEIGHT, KEY_DEPTH).into(),
     ));
 
-    let mut handles = Vec::with_capacity(kind_table.len());
-    let mut base_colors = Vec::with_capacity(kind_table.len());
-    for id in kind_table.ids() {
-        let hex = asset_set
-            .barrier_kind_color_hex(id)
-            .expect("barrier kind color missing from config");
-        let color = parse_hex_color(hex).unwrap_or_else(|err| panic!("invalid color {hex:?} for kind {id:?}: {err}"));
+    let mut handles = Vec::with_capacity(kinds.len());
+    let mut base_colors = Vec::with_capacity(kinds.len());
+    for kind in kinds {
+        let color = srgb_color(kind.color);
         handles.push(materials.add(translucent_kind_material(color, BARRIER_ALPHA_MAX, BARRIER_EMISSIVE)));
         base_colors.push(color);
     }

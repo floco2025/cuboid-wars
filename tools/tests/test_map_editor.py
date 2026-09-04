@@ -200,9 +200,12 @@ class BarrierKindTests(unittest.TestCase):
         self.assertTrue(any("known: [(none listed)]" in e for e in errors))
 
     def test_shipped_kinds_are_loaded_from_gameplay_settings(self) -> None:
-        self.assertEqual(load_map_barrier_kinds("hotel"), ["treasure", "basement", "gravity", "lobby"])
-        self.assertEqual(load_map_barrier_kinds("obby"), [])
-        self.assertEqual(load_map_barrier_kinds("not_configured"), [])
+        self.assertEqual(
+            load_map_barrier_kinds("hotel"),
+            {"treasure": "#ff3333", "basement": "#f0c020", "gravity": "#5090ff", "lobby": "#22cc33"},
+        )
+        self.assertEqual(load_map_barrier_kinds("obby"), {})
+        self.assertEqual(load_map_barrier_kinds("not_configured"), {})
 
 
 class LightBridgeTests(unittest.TestCase):
@@ -316,9 +319,12 @@ class LightBridgeTests(unittest.TestCase):
         self.assertTrue(any("unknown bridge kind 'nope'; known: [skyway]" in e for e in errors))
 
     def test_shipped_bridge_kinds_are_loaded_from_gameplay_settings(self) -> None:
-        self.assertEqual(load_map_bridge_kinds("hotel"), [])
-        self.assertEqual(load_map_bridge_kinds("obby"), ["bridge_1", "bridge_2", "bridge_3"])
-        self.assertEqual(load_map_bridge_kinds("not_configured"), [])
+        self.assertEqual(load_map_bridge_kinds("hotel"), {})
+        self.assertEqual(
+            load_map_bridge_kinds("obby"),
+            {"bridge_1": "#30d8ff", "bridge_2": "#30d8ff", "bridge_3": "#30d8ff"},
+        )
+        self.assertEqual(load_map_bridge_kinds("not_configured"), {})
 
 
 def wall(c0: int, r0: int, c1: int, r1: int) -> dict:

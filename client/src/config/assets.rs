@@ -5,8 +5,8 @@ use std::{
 };
 
 use anyhow::{Context, Result, bail};
-use bevy::prelude::{Color, Resource};
-use common::protocol::{BarrierKindTable, BridgeKindTable, ItemType};
+use bevy::prelude::Resource;
+use common::protocol::ItemType;
 use serde::Deserialize;
 
 const REQUIRED_PLAYER_SOUNDS: &[&str] = &[
@@ -41,10 +41,6 @@ pub struct AssetSet {
     #[serde(default)]
     aliases: HashMap<String, String>,
     item_materials: HashMap<String, String>,
-    #[serde(default)]
-    barrier_kind_colors: HashMap<String, String>,
-    #[serde(default)]
-    bridge_kind_colors: HashMap<String, String>,
     player: PlayerAssets,
     actors: HashMap<String, ActorAssets>,
     models: GenericModels,
@@ -115,12 +111,7 @@ impl AssetSet {
         Ok(())
     }
 
-    pub fn validate_gameplay_bindings<'a>(
-        &self,
-        actor_kinds: impl IntoIterator<Item = &'a str>,
-        barrier_kind_table: &BarrierKindTable,
-        bridge_kind_table: &BridgeKindTable,
-    ) -> Result<()> {
+    pub fn validate_gameplay_bindings<'a>(&self, actor_kinds: impl IntoIterator<Item = &'a str>) -> Result<()> {
         let gameplay_kinds = actor_kinds.into_iter().collect::<HashSet<_>>();
         let asset_kinds = self.actors.keys().map(String::as_str).collect::<HashSet<_>>();
         if gameplay_kinds != asset_kinds {
@@ -131,20 +122,6 @@ impl AssetSet {
             bail!(
                 "actor kinds disagree between server gameplay and client asset configs (only in gameplay: {only_gameplay:?}, only in assets: {only_assets:?})"
             );
-        }
-        for id in barrier_kind_table.ids() {
-            if self.barrier_kind_color_hex(id).is_none() {
-                bail!(
-                    "barrier kind {id:?} has no color in assets.json `barrier_kind_colors`; add an entry or remove the id from the map's gameplay `barrier_kinds`"
-                );
-            }
-        }
-        for id in bridge_kind_table.ids() {
-            if self.bridge_kind_color_hex(id).is_none() {
-                bail!(
-                    "bridge kind {id:?} has no color in assets.json `bridge_kind_colors`; add an entry or remove the id from the map's gameplay `bridge_kinds`"
-                );
-            }
         }
         Ok(())
     }
@@ -201,17 +178,6 @@ impl AssetSet {
 
     pub fn material_by_id(&self, id: &str) -> &MaterialDef {
         self.material(id)
-    }
-
-    // Hex color string (e.g. "#5090ff") configured for the given barrier kind
-    // id. `None` if the kind has no color entry — the caller (BarrierKindColors
-    // builder) should treat this as a hard error.
-    pub fn barrier_kind_color_hex(&self, id: &str) -> Option<&str> {
-        self.barrier_kind_colors.get(id).map(String::as_str)
-    }
-
-    pub fn bridge_kind_color_hex(&self, id: &str) -> Option<&str> {
-        self.bridge_kind_colors.get(id).map(String::as_str)
     }
 
     pub fn player_model(&self) -> &ModelDef {
@@ -278,20 +244,6 @@ impl AssetSet {
             .get(resolved)
             .unwrap_or_else(|| panic!("alias {id:?} points to unknown material {resolved:?}"))
     }
-}
-
-// Parse a `barrier_kind_colors` / `bridge_kind_colors` entry ("#rrggbb" or
-// "rrggbb") into an sRGB colour.
-pub(crate) fn parse_hex_color(hex: &str) -> Result<Color, String> {
-    let h = hex.strip_prefix('#').unwrap_or(hex);
-    if h.len() != 6 || !h.is_ascii() {
-        return Err(format!("expected 6 hex digits, got {h:?}"));
-    }
-    let parse_byte = |s: &str| u8::from_str_radix(s, 16).map_err(|e| e.to_string());
-    let r = f32::from(parse_byte(&h[0..2])?) / 255.0;
-    let g = f32::from(parse_byte(&h[2..4])?) / 255.0;
-    let b = f32::from(parse_byte(&h[4..6])?) / 255.0;
-    Ok(Color::srgb(r, g, b))
 }
 
 fn validate_model(path: &str, model: &ModelDef) -> Result<()> {
@@ -513,26 +465,6 @@ mod tests {
     use super::*;
     use std::collections::HashSet;
 
-    #[test]
-    fn hex_color_parses_with_and_without_hash() {
-        let expected = Color::srgb(1.0, 0.0, 0.0);
-        assert_eq!(parse_hex_color("#ff0000").expect("hash form rejected"), expected);
-        assert_eq!(parse_hex_color("ff0000").expect("bare form rejected"), expected);
-        let mixed = parse_hex_color("#0080FF").expect("mixed case rejected");
-        assert_eq!(mixed, Color::srgb(0.0, 128.0 / 255.0, 1.0));
-    }
-
-    #[test]
-    fn hex_color_rejects_wrong_length_and_bad_digits() {
-        assert!(parse_hex_color("#fff").is_err(), "3-digit shorthand is not supported");
-        assert!(parse_hex_color("").is_err());
-        assert!(parse_hex_color("#gggggg").is_err(), "non-hex digits must be rejected");
-        assert!(
-            parse_hex_color("#aébbb").is_err(),
-            "non-ASCII input must be rejected, not sliced"
-        );
-    }
-
     // The server's actor kinds, straight from the shipped JSON.
     fn server_actor_kinds() -> Vec<String> {
         let gameplay: serde_json::Value = serde_json::from_str(include_str!("../../../config/server/gameplay.json"))
@@ -545,43 +477,14 @@ mod tests {
             .collect()
     }
 
-    fn shipped_kind_ids(map_name: &str, map: &serde_json::Value, key: &str) -> Vec<String> {
-        let ids: Option<Vec<String>> = serde_json::from_value(map[key].clone())
-            .unwrap_or_else(|error| panic!("maps.{map_name}.{key} is invalid: {error}"));
-        ids.unwrap_or_default()
-    }
-
-    // Every shipped map's `barrier_kinds` and `bridge_kinds`, since the
-    // client is validated against whichever map the server selected.
-    fn shipped_kind_tables() -> Vec<(String, BarrierKindTable, BridgeKindTable)> {
-        let gameplay: serde_json::Value = serde_json::from_str(include_str!("../../../config/server/gameplay.json"))
-            .expect("server gameplay config does not parse");
-        let maps = gameplay["maps"].as_object().expect("maps is not an object");
-        let mut tables = maps
-            .iter()
-            .map(|(name, map)| {
-                let barriers = BarrierKindTable::from_ids(shipped_kind_ids(name, map, "barrier_kinds"))
-                    .expect("barrier kind ids rejected by the kind table");
-                let bridges = BridgeKindTable::from_ids(shipped_kind_ids(name, map, "bridge_kinds"))
-                    .expect("bridge kind ids rejected by the kind table");
-                (name.clone(), barriers, bridges)
-            })
-            .collect::<Vec<_>>();
-        tables.sort_by(|a, b| a.0.cmp(&b.0));
-        assert!(!tables.is_empty(), "no shipped maps found");
-        tables
-    }
-
     #[test]
-    fn default_assets_match_server_gameplay_on_every_map() {
+    fn default_assets_match_server_gameplay() {
         let assets = AssetSet::load_default().expect("shipped assets.json fails to load");
         let kinds = server_actor_kinds();
 
-        for (map, barriers, bridges) in shipped_kind_tables() {
-            assets
-                .validate_gameplay_bindings(kinds.iter().map(String::as_str), &barriers, &bridges)
-                .unwrap_or_else(|error| panic!("client asset bindings fail for {map}: {error}"));
-        }
+        assets
+            .validate_gameplay_bindings(kinds.iter().map(String::as_str))
+            .expect("client asset bindings fail for the shipped gameplay");
     }
 
     #[test]
@@ -591,42 +494,10 @@ mod tests {
         assets.actors.remove("mine");
 
         let error = assets
-            .validate_gameplay_bindings(
-                kinds.iter().map(String::as_str),
-                &BarrierKindTable::default(),
-                &BridgeKindTable::default(),
-            )
+            .validate_gameplay_bindings(kinds.iter().map(String::as_str))
             .expect_err("missing actor assets must fail");
 
         assert!(error.to_string().contains("only in gameplay: [\"mine\"]"));
-    }
-
-    #[test]
-    fn uncoloured_barrier_kind_is_rejected() {
-        let assets = AssetSet::load_default().expect("shipped assets.json fails to load");
-        let kinds = server_actor_kinds();
-        let barriers = BarrierKindTable::from_ids(vec!["unpainted".to_owned()])
-            .expect("barrier kind ids rejected by the kind table");
-
-        let error = assets
-            .validate_gameplay_bindings(kinds.iter().map(String::as_str), &barriers, &BridgeKindTable::default())
-            .expect_err("kind without a colour must fail");
-
-        assert!(error.to_string().contains("barrier_kind_colors"));
-    }
-
-    #[test]
-    fn uncoloured_bridge_kind_is_rejected() {
-        let assets = AssetSet::load_default().expect("shipped assets.json fails to load");
-        let kinds = server_actor_kinds();
-        let bridges = BridgeKindTable::from_ids(vec!["unpainted".to_owned()])
-            .expect("bridge kind ids rejected by the kind table");
-
-        let error = assets
-            .validate_gameplay_bindings(kinds.iter().map(String::as_str), &BarrierKindTable::default(), &bridges)
-            .expect_err("kind without a colour must fail");
-
-        assert!(error.to_string().contains("bridge_kind_colors"));
     }
 
     #[test]

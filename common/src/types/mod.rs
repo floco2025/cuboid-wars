@@ -1,5 +1,6 @@
 mod barrier_kind;
 mod bridge_kind;
+mod color;
 mod entities;
 mod face_materials;
 mod feed;
@@ -17,6 +18,7 @@ pub use crate::health::Health;
 
 pub use barrier_kind::{BarrierKindId, BarrierKindTable};
 pub use bridge_kind::{BridgeKindId, BridgeKindTable};
+pub use color::HexColor;
 pub use entities::{
     Actor, ActorMarker, Item, ItemMarker, Missile, MissileMarker, Player, PlayerMarker, ProjectileMarker, SpawningActor,
 };
@@ -24,7 +26,7 @@ pub use face_materials::FaceMaterials;
 pub use feed::{FeedSpan, FeedStyle};
 pub use ids::{ActorId, HomingTarget, ItemId, MissileId, PlayerId, PortalPairId, QuestId};
 pub use items::{ItemType, PowerUpKind};
-pub use kind_table::{KindId, KindTable};
+pub use kind_table::{KindDef, KindId, KindTable};
 pub use map_layout::{
     Barrier, Floor, GrassCell, Ladder, LightBridge, MapLayout, MapSettings, MapWeaponSettings, PlatePurpose,
     PortalMode, PressurePlate, Ramp, Wall, WallLight,

@@ -33,9 +33,9 @@ Other notable paths:
 
 - `tools/editor.py` — launcher for the PySide6 map editor (code lives in `tools/map_editor/`); takes a map name and edits `config/server/maps/<name>.json`.
 - `client/assets/` — 3D models, textures, audio.
-- `config/client/assets.json` — hand-edited asset set (materials, material rules, models, sounds, barrier and bridge kind colours).
+- `config/client/assets.json` — hand-edited asset set (materials, material rules, models, sounds).
 - `config/client/client_local.json` — local values from the settings menu and fullscreen shortcuts. Gitignored, so `git pull` cannot update it: unlike every other JSON it carries a version, and any format change must bump `LOCAL_SETTINGS_VERSION` (`client/src/config/local.rs`) — a stale version is discarded and rewritten, never migrated.
-- `config/server/gameplay.json` — the sole gameplay configuration. It holds player and per-kind actor bodies; shared projectile, missile-lock, and portal tuning; server-only actor behaviour, missile guidance, combat, scoring, power-ups, feeds, and weather/lighting cycles; and the named-map registry. `ServerGameplayConfig` nests exactly like the file (`player`, `actors.{settings,kinds}`, `weapons.{projectiles,missiles,portals}`, `items.power_ups`, `combat`, `scoring`, `cycles.{weather,lighting}`, `feed`, `maps`), so a validation error's path is the JSON path. Each map owns its complete `movement` block (gravity, player/actor/projectile/missile speeds, ladder climb ratio, knockback), weapon availability, required nullable `barrier_kinds` and `bridge_kinds`, optional `random_items`, placed-item respawn times in `placed_items`, quests, skybox, weather, and lighting. A quest's points live beside that quest, and quest ids need only be unique within their map. `default_map` selects the map unless `--map <name>` overrides it. The server validates everything once and sends a client-only gameplay projection plus the selected map through `SInit`; clients do not load gameplay JSON. Actor movement tuning is resolved once into each server actor's component rather than looked up by kind during movement.
+- `config/server/gameplay.json` — the sole gameplay configuration. It holds player and per-kind actor bodies; shared projectile, missile-lock, and portal tuning; server-only actor behaviour, missile guidance, combat, scoring, power-ups, feeds, and weather/lighting cycles; and the named-map registry. `ServerGameplayConfig` nests exactly like the file (`player`, `actors.{settings,kinds}`, `weapons.{projectiles,missiles,portals}`, `items.power_ups`, `combat`, `scoring`, `cycles.{weather,lighting}`, `feed`, `maps`), so a validation error's path is the JSON path. Each map owns its complete `movement` block (gravity, player/actor/projectile/missile speeds, ladder climb ratio, knockback), weapon availability, required nullable `barrier_kinds` and `bridge_kinds` (ordered catalogs of `id` plus `color`, shipped to the client in the map settings), optional `random_items`, placed-item respawn times in `placed_items`, quests, skybox, weather, and lighting. A quest's points live beside that quest, and quest ids need only be unique within their map. `default_map` selects the map unless `--map <name>` overrides it. The server validates everything once and sends a client-only gameplay projection plus the selected map through `SInit`; clients do not load gameplay JSON. Actor movement tuning is resolved once into each server actor's component rather than looked up by kind during movement.
 - `config/server/maps/` — one map JSON per named map (geometry, zones, placed `items`, per-cell `light_bridges`, and `pressure_plates` — each with a `type`: `barrier` or `bridge` plus the `kind` it opens or powers, or `firework`; per-map tuning and kind catalogs live in the `maps` registry in `gameplay.json`).
 - `cert.pem` / `key.pem` — local-dev TLS for QUIC (not production-safe).
 - `launch_clients.sh` — spawns N tiled windowed clients for local multiplayer testing (`./launch_clients.sh [num_clients] [lag_ms] [drop]`, macOS).
@@ -92,7 +92,7 @@ Each `BarrierKindId` gets a dedicated Rapier collision group; `common/src/physic
 
 #### Light bridges
 
-Plate-powered walkways: translucent slabs that are a faint ghost by default and turn solid and lit while a bridge plate of their kind is held. Kinds come from the selected map's `bridge_kinds` in `gameplay.json` (required, nullable, like `barrier_kinds`) with colours in `assets.json`'s `bridge_kind_colors`. Authored per cell in the map editor and merged largest-rectangle-first at compile time (`server/src/map/bridges.rs`, which says why). Bridge power is world state: every bridge shares one collision group that a collider joins only while its kind is powered, applied from `PlateState` by the shared `powered_bridges_sync_system` on both sides, so no query carries the powered set; which queries see bridges and which stay bridge-blind is stated in `common/src/physics/world/collision_world.rs`. Bridges set no `Cell` flags, so actors never walk them and item, spawn, and air-graph cells never see them.
+Plate-powered walkways: translucent slabs that are a faint ghost by default and turn solid and lit while a bridge plate of their kind is held. Kinds and their colours come from the selected map's `bridge_kinds` in `gameplay.json` (required, nullable, like `barrier_kinds`). Authored per cell in the map editor and merged largest-rectangle-first at compile time (`server/src/map/bridges.rs`, which says why). Bridge power is world state: every bridge shares one collision group that a collider joins only while its kind is powered, applied from `PlateState` by the shared `powered_bridges_sync_system` on both sides, so no query carries the powered set; which queries see bridges and which stay bridge-blind is stated in `common/src/physics/world/collision_world.rs`. Bridges set no `Cell` flags, so actors never walk them and item, spawn, and air-graph cells never see them.
 
 #### Pressure plates
 
@@ -173,10 +173,9 @@ mode (floors, grass, walls, ramps, ladders, barriers, light bridges, spawn
 zones, items, materials, lights, pressure plates). Every element group in
 `MODE_CATEGORIES` is one map list and ends with its own `Erase <group>` mode
 that clears only that element in a dragged rectangle; the Erase group holds
-the two cross-element tools. It reads the edited map's
-barrier and bridge kinds
-from `config/server/gameplay.json`; colours and material aliases come from
-`config/client/assets.json`.
+the two cross-element tools. It reads the edited map's barrier and bridge
+kinds, with their colours, from `config/server/gameplay.json`; material
+aliases come from `config/client/assets.json`.
 
 ## Adding a texture
 

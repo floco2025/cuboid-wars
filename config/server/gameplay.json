@@ -29,7 +29,12 @@
         "missiles": true,
         "portals": "both"
       },
-      "barrier_kinds": [ "treasure", "basement", "gravity", "lobby" ],
+      "barrier_kinds": [
+        { "id": "treasure", "color": "#ff3333" },
+        { "id": "basement", "color": "#f0c020" },
+        { "id": "gravity", "color": "#5090ff" },
+        { "id": "lobby", "color": "#22cc33" }
+      ],
       "bridge_kinds": null,
       "random_items": {
         "types": [ "speed", "multi_shot", "low_gravity", "health_potion", "missile_pack" ],
@@ -139,7 +144,11 @@
         "portals": "single"
       },
       "barrier_kinds": null,
-      "bridge_kinds": [ "bridge_1", "bridge_2", "bridge_3" ],
+      "bridge_kinds": [
+        { "id": "bridge_1", "color": "#30d8ff" },
+        { "id": "bridge_2", "color": "#30d8ff" },
+        { "id": "bridge_3", "color": "#30d8ff" }
+      ],
       "random_items": null,
       "placed_items": {
         "respawn_secs": {

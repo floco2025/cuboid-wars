@@ -32,8 +32,8 @@ class FileActionsMixin:
             return
         new_cols, new_rows, _, _ = result
         self.doc.replace_with_new(empty_map(new_cols, new_rows))
-        self.barrier_kinds = []
-        self.bridge_kinds = []
+        self.barrier_kind_colors = {}
+        self.bridge_kind_colors = {}
         self.current_level = 0
         self.refresh_ui()
 
@@ -56,7 +56,7 @@ class FileActionsMixin:
         # Surface structural issues at load time instead of waiting for the
         # user to discover them on save. We still let them load (so they
         # can edit and fix), but the modal makes the problems visible.
-        errors = validate_map(loaded, barrier_kinds, bridge_kinds)
+        errors = validate_map(loaded, list(barrier_kinds), list(bridge_kinds))
         if errors:
             QMessageBox.warning(
                 self,
@@ -66,8 +66,8 @@ class FileActionsMixin:
                 + ("\n…" if len(errors) > 12 else ""),
             )
         self.doc.load(path)
-        self.barrier_kinds = barrier_kinds
-        self.bridge_kinds = bridge_kinds
+        self.barrier_kind_colors = barrier_kinds
+        self.bridge_kind_colors = bridge_kinds
         self.current_level = 0
         self._record_recent_path(path)
         self.refresh_ui()
@@ -117,8 +117,8 @@ class FileActionsMixin:
             QMessageBox.critical(self, "Save Failed", str(exc))
             return
         self.path = new_path
-        self.barrier_kinds = barrier_kinds
-        self.bridge_kinds = bridge_kinds
+        self.barrier_kind_colors = barrier_kinds
+        self.bridge_kind_colors = bridge_kinds
         # No baseline mtime for the new destination — we never read it, so any
         # existing file at this path is something the user chose to overwrite.
         self.path_mtime = None

@@ -108,8 +108,8 @@ mod tests {
     use super::{MAX_NAME_CHARS, sanitize_player_name};
     use crate::config::ServerGameplayConfig;
     use common::protocol::{
-        BarrierKindId, MapBootstrap, MapLayout, MapSettings, PlayerBootstrap, PlayerId, PortalAccess, SInit,
-        ServerMessage, WorldBootstrap,
+        BarrierKindId, HexColor, KindDef, MapBootstrap, MapLayout, MapSettings, PlayerBootstrap, PlayerId,
+        PortalAccess, SInit, ServerMessage, WorldBootstrap,
     };
 
     #[test]
@@ -176,7 +176,16 @@ mod tests {
                 map: MapBootstrap {
                     layout: MapLayout::default(),
                     settings: MapSettings {
-                        barrier_kinds: Some(vec!["lobby".to_owned(), "basement".to_owned()]),
+                        barrier_kinds: Some(vec![
+                            KindDef {
+                                id: "lobby".to_owned(),
+                                color: HexColor([0x22, 0xcc, 0x33]),
+                            },
+                            KindDef {
+                                id: "basement".to_owned(),
+                                color: HexColor([0xf0, 0xc0, 0x20]),
+                            },
+                        ]),
                         ..map_settings
                     },
                     key_kinds: vec![BarrierKindId(1)],
@@ -191,10 +200,12 @@ mod tests {
             panic!("decoded message was not SInit");
         };
         assert_eq!(decoded.player.id, PlayerId(7));
+        let kinds = decoded.world.map.settings.barrier_kind_defs();
         assert_eq!(
-            decoded.world.map.settings.barrier_kinds,
-            Some(vec!["lobby".to_owned(), "basement".to_owned()])
+            kinds.iter().map(|kind| kind.id.as_str()).collect::<Vec<_>>(),
+            ["lobby", "basement"]
         );
+        assert_eq!(kinds[1].color, HexColor([0xf0, 0xc0, 0x20]));
         assert_eq!(decoded.world.map.key_kinds, [BarrierKindId(1)]);
         assert_eq!(decoded.world.gameplay.actors.len(), config.actors.kinds.len());
     }

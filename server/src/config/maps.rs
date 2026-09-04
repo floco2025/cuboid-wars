@@ -94,9 +94,9 @@ pub(super) fn validate_maps<T>(
         if entry.settings.skybox.is_empty() {
             bail!("{path}.skybox must not be empty");
         }
-        BarrierKindTable::from_ids(entry.settings.barrier_kinds.clone().unwrap_or_default())
+        BarrierKindTable::from_defs(entry.settings.barrier_kind_defs())
             .with_context(|| format!("invalid {path}.barrier_kinds"))?;
-        BridgeKindTable::from_ids(entry.settings.bridge_kinds.clone().unwrap_or_default())
+        BridgeKindTable::from_defs(entry.settings.bridge_kind_defs())
             .with_context(|| format!("invalid {path}.bridge_kinds"))?;
         let movement_path = format!("{path}.movement");
         let movement = &entry.settings.movement;
@@ -150,6 +150,7 @@ impl RandomItemsConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use common::protocol::{HexColor, KindDef};
     use common::{
         config::{ActorMovementConfig, KnockbackConfig, MapMovementConfig, PlayerMovementConfig},
         protocol::{MapWeaponSettings, PortalMode},
@@ -196,6 +197,13 @@ mod tests {
                 up_speed: 7.0,
                 deceleration: 35.0,
             },
+        }
+    }
+
+    fn kind(id: &str) -> KindDef {
+        KindDef {
+            id: id.to_owned(),
+            color: HexColor([0; 3]),
         }
     }
 
@@ -483,7 +491,7 @@ mod tests {
         maps.get_mut("hotel")
             .expect("hotel entry missing")
             .settings
-            .barrier_kinds = Some(vec!["lobby".to_owned(), "lobby".to_owned()]);
+            .barrier_kinds = Some(vec![kind("lobby"), kind("lobby")]);
 
         let error = validate_test_maps(&maps, "hotel").expect_err("duplicate barrier kinds must be rejected");
         assert!(error.to_string().contains("maps.hotel.barrier_kinds"));
@@ -510,7 +518,7 @@ mod tests {
         maps.get_mut("hotel")
             .expect("hotel entry missing")
             .settings
-            .bridge_kinds = Some(vec!["skyway".to_owned(), "skyway".to_owned()]);
+            .bridge_kinds = Some(vec![kind("skyway"), kind("skyway")]);
 
         let error = validate_test_maps(&maps, "hotel").expect_err("duplicate bridge kinds must be rejected");
         assert!(error.to_string().contains("maps.hotel.bridge_kinds"));
