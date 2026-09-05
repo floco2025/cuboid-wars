@@ -132,7 +132,7 @@ impl PlayerInput {
 // Client to Server: the input, committed every tick whether it changed or
 // not, so a lost commit heals at the next one. Like `SSnapshot`, it replaces
 // state wholesale, so it carries a sequence and the server ignores a commit
-// older than the last one it applied. `hops` is how many portal crossings the
+// older than the last one it took in. `hops` is how many portal crossings the
 // client's own simulation of its player has made: the intent is expressed on
 // that side of them, and the server applies it only once its player has made
 // the same ones.
