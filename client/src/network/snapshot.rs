@@ -10,6 +10,7 @@ use super::{
     missiles::sync_missiles,
     players::sync_players,
     portals::sync_portals,
+    resources::accept_newer_tick,
 };
 
 pub(super) fn handle_snapshot_message(
@@ -18,14 +19,13 @@ pub(super) fn handle_snapshot_message(
     my_player_id: PlayerId,
     context: &mut ServerMessageContext,
 ) {
-    if !sequence_is_newer(message.seq, context.last_snapshot_seq.0) {
+    if !accept_newer_tick(&mut context.last_snapshot_tick.0, message.tick) {
         warn!(
-            "ignoring an outdated snapshot (seq {}, last {})",
-            message.seq, context.last_snapshot_seq.0
+            "ignoring an outdated snapshot (tick {}, last {:?})",
+            message.tick, context.last_snapshot_tick.0
         );
         return;
     }
-    context.last_snapshot_seq.0 = message.seq;
 
     // Avoid marking an untouched quest log as changed on every snapshot.
     if !message.quests.is_empty() {

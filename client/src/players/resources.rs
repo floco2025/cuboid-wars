@@ -122,29 +122,32 @@ impl PlayerMap {
 }
 
 // A ring of the local player's own predicted positions, one per `CMove`,
-// keyed by its `seq` and tagged with our crossing count at the time: the
-// newest `COMMITTED_POSITION_RING_LEN` are kept, each slot overwritten by
-// the sequence that lands on it a ring later. The server's `PlayerMove`
-// names the slot and the count its position is measured against.
+// keyed by its `seq` and tagged with our crossing count and the tick we
+// simulated it at: the newest `COMMITTED_POSITION_RING_LEN` are kept, each
+// slot overwritten by the sequence that lands on it a ring later. The
+// server's `PlayerMove` names the slot and the count its position is
+// measured against, and the tick its message carries is measured against
+// the recorded one.
 pub struct CommittedPositionRing([Option<CommittedPosition>; COMMITTED_POSITION_RING_LEN]);
 
 #[derive(Clone, Copy)]
-struct CommittedPosition {
+pub struct CommittedPosition {
     seq: u32,
     hops: u32,
-    pos: Position,
+    pub tick: u32,
+    pub pos: Position,
 }
 
 impl CommittedPositionRing {
-    pub fn record(&mut self, seq: u32, hops: u32, pos: Position) {
-        self.0[Self::slot(seq)] = Some(CommittedPosition { seq, hops, pos });
+    pub fn record(&mut self, seq: u32, hops: u32, tick: u32, pos: Position) {
+        self.0[Self::slot(seq)] = Some(CommittedPosition { seq, hops, tick, pos });
     }
 
-    // The position recorded after `seq`, if it is still held and was on the
-    // same side of the same portal crossings.
+    // The record made after `seq`, if it is still held and was on the same
+    // side of the same portal crossings.
     #[must_use]
-    pub fn get(&self, seq: u32, hops: u32) -> Option<Position> {
-        self.0[Self::slot(seq)].and_then(|c| (c.seq == seq && c.hops == hops).then_some(c.pos))
+    pub fn get(&self, seq: u32, hops: u32) -> Option<CommittedPosition> {
+        self.0[Self::slot(seq)].filter(|c| c.seq == seq && c.hops == hops)
     }
 
     pub fn clear(&mut self) {
@@ -249,39 +252,41 @@ mod tests {
     fn committed_position_is_found_by_its_seq() {
         let mut positions = CommittedPositionRing::default();
         let pos = Position { x: 1.0, y: 2.0, z: 3.0 };
-        positions.record(7, 0, pos);
-        assert_eq!(positions.get(7, 0), Some(pos));
+        positions.record(7, 0, 100, pos);
+        let recorded = positions.get(7, 0).expect("seq 7 missing from the ring");
+        assert_eq!(recorded.pos, pos);
+        assert_eq!(recorded.tick, 100);
     }
 
     #[test]
     fn committed_position_misses_an_unrecorded_seq() {
         let mut positions = CommittedPositionRing::default();
-        assert_eq!(positions.get(0, 0), None);
-        positions.record(7, 0, Position::default());
-        assert_eq!(positions.get(7 + COMMITTED_POSITION_RING_LEN as u32, 0), None);
+        assert!(positions.get(0, 0).is_none());
+        positions.record(7, 0, 0, Position::default());
+        assert!(positions.get(7 + COMMITTED_POSITION_RING_LEN as u32, 0).is_none());
     }
 
     #[test]
     fn committed_position_is_overwritten_a_ring_later() {
         let mut positions = CommittedPositionRing::default();
-        positions.record(7, 0, Position::default());
-        positions.record(7 + COMMITTED_POSITION_RING_LEN as u32, 0, Position::default());
-        assert_eq!(positions.get(7, 0), None);
+        positions.record(7, 0, 0, Position::default());
+        positions.record(7 + COMMITTED_POSITION_RING_LEN as u32, 0, 0, Position::default());
+        assert!(positions.get(7, 0).is_none());
     }
 
     #[test]
     fn committed_position_misses_from_the_other_side_of_a_crossing() {
         let mut positions = CommittedPositionRing::default();
-        positions.record(7, 1, Position::default());
-        assert_eq!(positions.get(7, 0), None);
-        assert_eq!(positions.get(7, 1), Some(Position::default()));
+        positions.record(7, 1, 0, Position::default());
+        assert!(positions.get(7, 0).is_none());
+        assert!(positions.get(7, 1).is_some());
     }
 
     #[test]
     fn cleared_ring_holds_nothing() {
         let mut positions = CommittedPositionRing::default();
-        positions.record(7, 0, Position::default());
+        positions.record(7, 0, 0, Position::default());
         positions.clear();
-        assert_eq!(positions.get(7, 0), None);
+        assert!(positions.get(7, 0).is_none());
     }
 }

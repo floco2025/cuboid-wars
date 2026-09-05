@@ -8,4 +8,5 @@ pub mod physics;
 pub mod protocol;
 #[cfg(test)]
 pub(crate) mod test_geometry;
+pub mod tick;
 pub mod types;

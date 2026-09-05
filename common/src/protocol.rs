@@ -12,8 +12,8 @@
 //   tolerates both. The transport picks the carrier per send (a datagram
 //   when the message fits one packet, its own stream otherwise) and never
 //   drops anything. `SSnapshot` and `SPlayerMoves` replace state wholesale,
-//   so each carries its own sequence number and the client ignores an older
-//   one.
+//   so each carries the server tick it reflects and the client ignores an
+//   older one; that tick is also the clock the client keeps (`ServerTick`).
 //
 // Roles, in both directions:
 //
@@ -130,9 +130,10 @@ impl PlayerInput {
 }
 
 // Client to Server: the input, committed every tick whether it changed or
-// not, so a lost commit heals at the next one. Like `SSnapshot`, it replaces
-// state wholesale, so it carries a sequence and the server ignores a commit
-// older than the last one it took in. `hops` is how many portal crossings the
+// not, so a lost commit heals at the next one. It replaces state wholesale,
+// so it carries a sequence and the server ignores a commit older than the
+// last one it took in; the sequence names the commit, which is why it is
+// not the client's tick estimate. `hops` is how many portal crossings the
 // client's own simulation of its player has made: the intent is expressed on
 // that side of them, and the server applies it only once its player has made
 // the same ones.
@@ -254,9 +255,9 @@ pub struct LightingBlend {
 // presence; cues are paired against it for sub-tick latency.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SSnapshot {
-    // The one unreliable message that replaces state wholesale: the client
-    // ignores a snapshot older than the last one it applied.
-    pub seq: u32,
+    // The server tick whose state this is; the client ignores a snapshot
+    // older than the last one it applied.
+    pub tick: u32,
     pub players: Vec<(PlayerId, Player)>,
     pub actors: Vec<(ActorId, Actor)>,
     // Reserved spawns still in their warning window. An id moves from here
@@ -301,11 +302,12 @@ pub struct SSnapshot {
 // every player once per tick, the receiver's own included. Remote players
 // take their intent, facing, and vertical velocity from it; every player
 // reconciles against it. Presence is the snapshot's alone: a client ignores
-// entries for players it does not know. Like `SSnapshot`, it carries a
-// sequence and the client ignores an older one.
+// entries for players it does not know. Like `SSnapshot`, it carries the
+// server tick it reflects and the client ignores an older one; paired with
+// each entry's `move_seq`, that tick is how the client corrects its clock.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SPlayerMoves {
-    pub seq: u32,
+    pub tick: u32,
     pub moves: Vec<PlayerMove>,
 }
 
@@ -911,7 +913,7 @@ mod tests {
             )
         };
         let snapshot = ServerMessage::Snapshot(SSnapshot {
-            seq: 1,
+            tick: 1,
             players: (0..4).map(player).collect(),
             actors: (0..24).map(actor).collect(),
             spawning_actors: Vec::new(),

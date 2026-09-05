@@ -17,11 +17,11 @@ use crate::{
     players::{Invincibility, PlayerMap, UnlimitedMissiles, players_plugin},
     portals::{PortalAssignments, PortalMap, portals_plugin},
     projectiles::projectiles_plugin,
-    schedule::configure_server_schedule,
+    schedule::{ServerSet, configure_server_schedule},
 };
 use common::{
     physics::{CollisionWorld, PortalSet},
-    protocol::{MapBootstrap, WorldBootstrap},
+    protocol::{MapBootstrap, ServerTick, WorldBootstrap, server_tick_advance_system},
 };
 
 const LOG_FILTER: &str = "wgpu=error,naga=warn";
@@ -114,9 +114,11 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
         .insert_resource(PortalMap::default())
         .insert_resource(portal_assignments)
         .insert_resource(PortalSet::default())
-        .insert_resource(PlateState::default());
+        .insert_resource(PlateState::default())
+        .insert_resource(ServerTick::default());
 
     configure_server_schedule(&mut app);
+    app.add_systems(Update, server_tick_advance_system.in_set(ServerSet::Prepare));
     app.add_plugins((
         actors_plugin,
         characters_plugin,

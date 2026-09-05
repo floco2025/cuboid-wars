@@ -5,16 +5,28 @@ use tokio::sync::mpsc::{
     error::{SendError, TryRecvError},
 };
 
+use common::protocol::sequence_is_newer;
+
 use super::transport::{ClientToServer, ServerToClient};
 
-// Newest `SSnapshot.seq` applied; an older snapshot is ignored. 0 until
-// the first one, since the server counts from 1.
+// Newest `SSnapshot.tick` applied; an older snapshot is ignored. `None`
+// until the first one.
 #[derive(Resource, Default)]
-pub struct LastSnapshotSeq(pub u32);
+pub struct LastSnapshotTick(pub Option<u32>);
 
-// Newest `SPlayerMoves.seq` applied; same contract as `LastSnapshotSeq`.
+// Newest `SPlayerMoves.tick` applied; same contract as `LastSnapshotTick`.
 #[derive(Resource, Default)]
-pub struct LastPlayerMovesSeq(pub u32);
+pub struct LastPlayerMovesTick(pub Option<u32>);
+
+// Records `tick` as the newest applied and says whether it was newer than
+// the last; a first tick is always newest.
+pub fn accept_newer_tick(last: &mut Option<u32>, tick: u32) -> bool {
+    if last.is_some_and(|last| !sequence_is_newer(tick, last)) {
+        return false;
+    }
+    *last = Some(tick);
+    true
+}
 
 // Round-trip time to server.
 #[derive(Resource, Default)]
@@ -57,13 +69,19 @@ impl ServerToClientChannel {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use common::protocol::sequence_is_newer;
 
     #[test]
-    fn snapshot_sequence_wraps_forward() {
-        let last = LastSnapshotSeq(u32::MAX);
-        assert!(sequence_is_newer(1, LastSnapshotSeq::default().0));
-        assert!(sequence_is_newer(0, last.0));
-        assert!(!sequence_is_newer(u32::MAX - 1, last.0));
+    fn any_first_tick_is_accepted() {
+        let mut last = None;
+        assert!(accept_newer_tick(&mut last, u32::MAX - 3));
+        assert_eq!(last, Some(u32::MAX - 3));
+    }
+
+    #[test]
+    fn ticks_wrap_forward_and_older_ones_are_rejected() {
+        let mut last = Some(u32::MAX);
+        assert!(accept_newer_tick(&mut last, 0));
+        assert!(!accept_newer_tick(&mut last, u32::MAX - 1));
+        assert_eq!(last, Some(0));
     }
 }

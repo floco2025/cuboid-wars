@@ -20,6 +20,15 @@ pub const COMMITTED_POSITION_RING_LEN: usize = 64;
 pub const PING_INTERVAL: f32 = 1.0;
 
 // ============================================================================
+// Server tick
+// ============================================================================
+
+// Consecutive echoes that must all report a clock error in the same
+// direction before `TickSync` shifts the clock; half a second outlasts any
+// delivery jitter.
+pub const TICK_SYNC_WINDOW_TICKS: usize = 15;
+
+// ============================================================================
 // Server Reconciliation
 // ============================================================================
 //

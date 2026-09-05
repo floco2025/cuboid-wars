@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use common::protocol::{CMove, ClientMessage, FaceYaw, PlayerInput, PlayerMoveIntent, Position};
+use common::protocol::{CMove, ClientMessage, FaceYaw, PlayerInput, PlayerMoveIntent, Position, ServerTick};
 
 use crate::{
     network::{ClientToServer, ClientToServerChannel},
@@ -39,12 +39,14 @@ pub fn commit_player_input_system(
 }
 
 // After this tick's movement, remember where the newest `CMove` left us,
-// under its sequence and our crossing count, for the server's echo of that
-// `CMove` to be measured against. Runs after the portal transit so a
-// crossing is in the record the way it is in the server's.
+// under its sequence, our crossing count, and the tick we simulated, for
+// the server's echo of that `CMove` to be measured against. Runs after the
+// portal transit so a crossing is in the record the way it is in the
+// server's.
 pub fn record_committed_position_system(
     my_player_id: Res<MyPlayerId>,
     players: Res<PlayerMap>,
+    server_tick: Res<ServerTick>,
     mut local_player_info: ResMut<LocalPlayerInfo>,
     local_player_query: Query<&Position, With<LocalPlayerMarker>>,
 ) {
@@ -56,5 +58,7 @@ pub fn record_committed_position_system(
     }
     let hops = players.get(&my_player_id.0).map_or(0, |info| info.hops);
     let seq = local_player_info.move_seq;
-    local_player_info.committed_positions.record(seq, hops, *pos);
+    local_player_info
+        .committed_positions
+        .record(seq, hops, server_tick.0, *pos);
 }

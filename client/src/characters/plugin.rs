@@ -1,6 +1,8 @@
 use super::*;
 use bevy::prelude::*;
 
+use common::protocol::server_tick_advance_system;
+
 use crate::{
     actors::actors_transform_sync_system,
     input::{commit_player_input_system, record_committed_position_system},
@@ -13,15 +15,18 @@ use crate::{
     },
 };
 
-// Character prediction runs at the shared `TICK_HZ` tick. The
-// commit system sends the player's input to the server before
-// physics consumes it (so what physics simulates is what was sent).
-// The capture system stamps `PreviousTickPosition` before movement
-// so the render-rate transform sync can interpolate.
+// Character prediction runs at the shared `TICK_HZ` tick. The tick
+// advances first, so everything the step simulates and records is
+// stamped with the tick it belongs to. The commit system sends the
+// player's input to the server before physics consumes it (so what
+// physics simulates is what was sent). The capture system stamps
+// `PreviousTickPosition` before movement so the render-rate transform
+// sync can interpolate.
 pub fn prediction_plugin(app: &mut App) {
     app.add_systems(
         FixedUpdate,
         (
+            server_tick_advance_system,
             commit_player_input_system,
             capture_previous_tick_position_system,
             characters_movement_system,

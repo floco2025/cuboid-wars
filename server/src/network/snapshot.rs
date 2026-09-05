@@ -34,7 +34,7 @@ pub struct WorldConditions<'w> {
 // Every active player's movement state after this tick's movement, to
 // everyone, every tick.
 pub(super) fn network_broadcast_player_moves_system(
-    mut seq: Local<u32>,
+    tick: Res<ServerTick>,
     players: Res<PlayerMap>,
     player_data: PlayerStateQuery,
     motions: Query<&CharacterVerticalVelocity, With<PlayerMarker>>,
@@ -43,14 +43,16 @@ pub(super) fn network_broadcast_player_moves_system(
     if moves.is_empty() {
         return;
     }
-    *seq = seq.wrapping_add(1);
-    broadcast_to_all(&players, ServerMessage::PlayerMoves(SPlayerMoves { seq: *seq, moves }));
+    broadcast_to_all(
+        &players,
+        ServerMessage::PlayerMoves(SPlayerMoves { tick: tick.0, moves }),
+    );
 }
 
 pub(super) fn network_broadcast_snapshot_system(
     time: Res<Time>,
     mut timer: Local<f32>,
-    mut seq: Local<u32>,
+    tick: Res<ServerTick>,
     players: Res<PlayerMap>,
     actors: Res<ActorMap>,
     pending_spawns: Res<PendingActorSpawns>,
@@ -77,8 +79,6 @@ pub(super) fn network_broadcast_snapshot_system(
         return;
     }
 
-    *seq = seq.wrapping_add(1);
-
     let all_players = snapshot_active_players(&players, &player_data, &motions, &conditions.portal_assignments);
     let all_actors = snapshot_actors(&actors, &actor_data, &actor_motions);
     let all_items = collect_items(&items, &item_positions);
@@ -86,7 +86,7 @@ pub(super) fn network_broadcast_snapshot_system(
 
     let (quests, locked_plate_purposes) = conditions.quests.snapshot_fields(&conditions.quest_catalog, &players);
     let msg = ServerMessage::Snapshot(SSnapshot {
-        seq: *seq,
+        tick: tick.0,
         players: all_players,
         actors: all_actors,
         spawning_actors: snapshot_spawning_actors(&pending_spawns),

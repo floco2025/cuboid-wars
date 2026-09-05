@@ -17,7 +17,7 @@ use crate::{
     materials::{GrassMaterialPlugin, generate_material_mipmaps_system},
     missiles::{LockOnTarget, MissileAssets, MissileMap},
     network::{
-        ClientToServerChannel, LastPlayerMovesSeq, LastSnapshotSeq, RoundTripTime, ServerToClientChannel,
+        ClientToServerChannel, LastPlayerMovesTick, LastSnapshotTick, RoundTripTime, ServerToClientChannel, TickSync,
         install_bootstrap, network_plugin,
     },
     players::{LocalPlayerInfo, PlayerMap, camera_plugin},
@@ -27,7 +27,11 @@ use crate::{
     ui::{ConsoleState, FpsMeasurement, HudShapeAssets, MessageFeed, hud_plugin, setup_ui_system},
     vfx::{ExplosionAssets, ExplosionVfxBudget, ParticleClouds, RainIntensity, presentation_plugin},
 };
-use common::{constants::TICK_HZ, physics::PortalSet, protocol::SInit};
+use common::{
+    constants::TICK_HZ,
+    physics::PortalSet,
+    protocol::{SInit, ServerTick},
+};
 
 pub struct ClientAppOptions {
     pub window_x: Option<i32>,
@@ -88,8 +92,10 @@ pub fn build_client_app(
         .insert_resource(LocalPlayerInfo::default())
         .insert_resource(RoundTripTime::default())
         .insert_resource(FpsMeasurement::default())
-        .insert_resource(LastSnapshotSeq::default())
-        .insert_resource(LastPlayerMovesSeq::default())
+        .insert_resource(LastSnapshotTick::default())
+        .insert_resource(LastPlayerMovesTick::default())
+        .insert_resource(ServerTick::default())
+        .insert_resource(TickSync::default())
         .insert_resource(PlateState::default())
         .insert_resource(LockedPlatePurposes::default())
         .insert_resource(CameraViewMode::default())

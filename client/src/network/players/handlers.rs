@@ -5,7 +5,7 @@ use crate::constants::HOP_DISPUTE_SLACK_SECS;
 use crate::{
     audio::{play_explosion_sound, play_sound, play_spatial_sound},
     characters::PreviousTickPosition,
-    network::{ServerReconciliation, extrapolated_correction, recorded_correction},
+    network::{ServerReconciliation, extrapolated_correction, recorded_correction, resources::accept_newer_tick},
     players::{CameraShake, CuboidShake, LocalPlayerInfo, PlayerMap},
     projectiles::spawn_projectiles,
     ui::{BannerMessage, HudBanner},
@@ -28,14 +28,14 @@ pub(in crate::network) fn handle_player_moves_message(
     context: &mut ServerMessageContext,
 ) {
     trace!("moves: {:?}", message);
-    if !sequence_is_newer(message.seq, context.last_player_moves_seq.0) {
+    if !accept_newer_tick(&mut context.last_player_moves_tick.0, message.tick) {
         debug!(
-            "ignoring outdated player moves (seq {}, last {})",
-            message.seq, context.last_player_moves_seq.0
+            "ignoring outdated player moves (tick {}, last {:?})",
+            message.tick, context.last_player_moves_tick.0
         );
         return;
     }
-    context.last_player_moves_seq.0 = message.seq;
+    let tick = message.tick;
     // A crossing the server has yet to make shows up within a round trip;
     // one still missing after that was mispredicted, and the server's side
     // stands. Until the round trip has been measured no dispute can be
@@ -112,15 +112,22 @@ pub(in crate::network) fn handle_player_moves_message(
             );
             let correction_delta = if id == my_player_id {
                 // Own state names the `CMove` it reflects: measure against
-                // where our simulation stood after that `CMove`. One the ring
+                // where our simulation stood after that `CMove`, and our
+                // clock against the tick we simulated it at. One the ring
                 // does not hold (before the first commit, after a snap, or
                 // after a one-way stall longer than the ring) is measured
                 // against where we stand now, the plain gap to the server.
-                let recorded_pos = context
-                    .local_player_info
-                    .committed_positions
-                    .get(move_seq, hops)
-                    .unwrap_or(*client_pos);
+                let recorded = context.local_player_info.committed_positions.get(move_seq, hops);
+                if let Some(recorded) = recorded {
+                    let error = tick.wrapping_sub(recorded.tick) as i32;
+                    trace!("clock error {error} ticks at the echo of seq {move_seq}");
+                    let committed_seq = context.local_player_info.move_seq;
+                    if let Some(shift) = context.tick_sync.observe(error, move_seq, committed_seq) {
+                        context.server_tick.0 = context.server_tick.0.wrapping_add_signed(shift);
+                        info!("clock shifted by {shift} ticks to {}", context.server_tick.0);
+                    }
+                }
+                let recorded_pos = recorded.map_or(*client_pos, |recorded| recorded.pos);
                 recorded_correction(recorded_pos, movement.pos)
             } else {
                 extrapolated_correction(*client_pos, movement.pos, server_velocity, &context.rtt)
