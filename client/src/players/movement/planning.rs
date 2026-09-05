@@ -21,6 +21,7 @@ use super::reconciliation::{PlayerReconciliationOutcome, decayed_snap_speed, rec
 pub(crate) fn plan_player_moves(
     commands: &mut Commands,
     delta: f32,
+    now: f32,
     collision_world: &CollisionWorld,
     map_settings: &MapSettings,
     gameplay_config: &GameplayConfig,
@@ -45,12 +46,13 @@ pub(crate) fn plan_player_moves(
         _,
     ) in query
     {
-        // Decay snap_speed each tick; new snapshot speed wins if larger.
+        // Decay snap_speed each tick; a newer, faster server speed wins.
         // Persisted on `PlayerInfo`. Deliberately fed by the SERVER velocity
         // (authoritative recent speed for the snap threshold), while the
         // correction window reads the predicted velocity — what the player
-        // perceives right now.
-        let current_server_speed = recon_option.as_ref().map_or(0.0, |r| r.server_velocity.xz().length());
+        // perceives right now. Vertical speed counts, as it does for the
+        // window: a fall is motion.
+        let current_server_speed = recon_option.as_ref().map_or(0.0, |r| r.server_velocity.length());
         let snap_speed = match players.get_mut(player_id) {
             Some(info) => {
                 info.snap_speed = decayed_snap_speed(info.snap_speed, current_server_speed, run_speed, delta);
@@ -90,6 +92,11 @@ pub(crate) fn plan_player_moves(
             ) {
                 PlayerReconciliationOutcome::Displacement(displacement) => displacement,
                 PlayerReconciliationOutcome::Snapped => {
+                    // A snap is a local teleport: echoes still in flight were
+                    // measured against pre-snap records and would snap again.
+                    if let Some(info) = players.get_mut(player_id) {
+                        info.last_teleport_time = now;
+                    }
                     planned_moves.push(CharacterMovePlan::stationary(
                         entity,
                         *client_pos,

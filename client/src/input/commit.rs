@@ -9,7 +9,7 @@ use crate::{
 
 // Once per fixed tick, send the local player's input (move intent + facing)
 // to the server, changed or not, so the next commit heals a lost one. The
-// stream only holds briefly after a local portal hop, and stops while dead,
+// stream only holds briefly after a local teleport, and stops while dead,
 // since the server drops a dead player's input. Jump is event-shaped and sent
 // immediately by `input_movement_system` — not handled here.
 pub fn commit_player_input_system(

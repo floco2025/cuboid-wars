@@ -49,8 +49,8 @@
 //    message and are healed by it, so a lost cue costs at most a sound, a
 //    shake, or a snapshot interval of latency. A cue exists only when the
 //    snapshot alone can't carry it, which is one of:
-//      * Sub-tick latency matters. Movement prediction inputs (`SPlayerJump`,
-//        `SActorMove`, `SMissileMove`, `SMissileLaunch`) must
+//      * Sub-tick latency matters. Movement prediction inputs (`SActorMove`,
+//        `SMissileMove`, `SMissileLaunch`) must
 //        arrive faster than snapshot cadence so clients can dead-reckon
 //        between snapshots; camera shake from `SPlayerHit` needs to land on
 //        the impact frame, not 1–2 ticks later.
@@ -289,9 +289,10 @@ pub struct SSnapshot {
 
 // Every active player's movement state after this tick's movement, sent to
 // every player once per tick, the receiver's own included. Remote players
-// are predicted from it; every player reconciles against it. Presence is the
-// snapshot's alone: a client ignores entries for players it does not know.
-// Like `SSnapshot`, it carries a sequence and the client ignores an older one.
+// take their intent, facing, and vertical velocity from it; every player
+// reconciles against it. Presence is the snapshot's alone: a client ignores
+// entries for players it does not know. Like `SSnapshot`, it carries a
+// sequence and the client ignores an older one.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SPlayerMoves {
     pub seq: u32,
@@ -310,17 +311,6 @@ pub struct PlayerMove {
 }
 
 // --- Cues (ahead of the next snapshot, healed by it) ---
-
-// Player started a jump with authoritative vertical velocity. Same payload as
-// a `PlayerMove`, different contract: sent to the other players only, and the
-// one message allowed to overwrite the remote player's simulated vertical
-// velocity (the move stream never touches it — its value would be stale
-// mid-flight).
-#[derive(Debug, Clone, Encode, Decode)]
-pub struct SPlayerJump {
-    pub id: PlayerId,
-    pub movement: PlayerMovementState,
-}
 
 // Player fired a shot. Projectile entities are intentionally not carried in
 // `SSnapshot`: clients spawn and simulate them for presentation, while the
@@ -651,7 +641,6 @@ pub enum ServerMessage {
     Snapshot(SSnapshot),
     PlayerMoves(SPlayerMoves),
     // Cues
-    PlayerJump(SPlayerJump),
     ProjectileShot(SProjectileShot),
     ActorMove(SActorMove),
     MissileLaunch(SMissileLaunch),
@@ -714,7 +703,6 @@ impl ServerMessage {
             Self::Init(_) | Self::Feed(_) | Self::QuestUpdates(_) | Self::Firework(_) => Lane::Reliable,
             Self::Snapshot(_)
             | Self::PlayerMoves(_)
-            | Self::PlayerJump(_)
             | Self::ProjectileShot(_)
             | Self::ActorMove(_)
             | Self::MissileLaunch(_)

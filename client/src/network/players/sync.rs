@@ -2,18 +2,17 @@ use bevy::prelude::*;
 use std::collections::HashSet;
 use std::f32::consts::PI;
 
-use super::{super::context::ServerMessageContext, handlers::player_movement_velocity};
+use super::super::context::ServerMessageContext;
 use crate::{
     cameras::MainCameraMarker,
     characters::PreviousTickPosition,
-    constants::RECON_TELEPORT_SUPPRESS_SECS,
-    network::{ServerReconciliation, extrapolated_correction},
+    network::ServerReconciliation,
     players::{LocalPlayerInfo, PlayerInfo, spawn_player},
     ui::BannerMessage,
 };
 use common::{
     physics::{CharacterVerticalVelocity, PortalMomentum},
-    protocol::{FaceYaw, Player, PlayerId, Position, PowerUpKind},
+    protocol::{FaceYaw, Player, PlayerId, Position},
 };
 
 pub(in crate::network) fn sync_players(
@@ -111,14 +110,11 @@ pub(in crate::network) fn sync_players(
     }
 
     for (id, server_player) in server_players {
-        // On the respawn frame the local player was just hard-teleported by
-        // the block above; the Query still sees the pre-respawn position,
-        // so handing it to `update_snapshot_player` would produce a huge
-        // bogus reconciliation delta. Their `PlayerInfo` was already synced.
+        // The respawn block above already synced the local player.
         if local_just_respawned && *id == my_player_id {
             continue;
         }
-        update_snapshot_player(commands, context, my_player_id, *id, server_player);
+        update_snapshot_player(commands, context, *id, server_player);
     }
 }
 
@@ -192,44 +188,10 @@ pub(super) fn apply_local_spawn_facing(
 fn update_snapshot_player(
     commands: &mut Commands,
     context: &mut ServerMessageContext,
-    my_player_id: PlayerId,
     id: PlayerId,
     server_player: &Player,
 ) {
     if let Some(client_player) = context.players.get_mut(&id) {
-        // The local player reconciles from the per-tick move stream alone,
-        // where its own input sequence gives a measured error.
-        if id != my_player_id
-            && let Ok((client_pos, _, _)) = context.player_data.get(client_player.entity)
-        {
-            let server_velocity = player_movement_velocity(
-                server_player.movement,
-                &context.map_settings.movement,
-                server_player.power_up(PowerUpKind::Speed),
-                server_player.stunned,
-            );
-
-            // Fully stand down right after a teleport: this snapshot may have
-            // been built pre-teleport, and applying it — reconciliation,
-            // intent, facing, and vertical velocity — drags the traveler back
-            // to a stale phase of a portal loop (`RECON_TELEPORT_SUPPRESS_SECS`).
-            let suppressed =
-                context.time.elapsed_secs() - client_player.last_teleport_time < RECON_TELEPORT_SUPPRESS_SECS;
-            if !suppressed {
-                commands.entity(client_player.entity).insert((
-                    server_player.movement.move_intent,
-                    FaceYaw(server_player.movement.face_yaw),
-                    CharacterVerticalVelocity(server_player.movement.vertical_velocity),
-                    ServerReconciliation::new(
-                        extrapolated_correction(*client_pos, server_player.movement.pos, server_velocity, &context.rtt),
-                        server_player.movement.pos,
-                        server_velocity,
-                        &context.rtt,
-                    ),
-                ));
-            }
-        }
-
         client_player.apply_snapshot(server_player);
         commands.entity(client_player.entity).insert(server_player.health);
     }

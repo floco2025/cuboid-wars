@@ -18,8 +18,8 @@ use common::{
 };
 
 // This tick's movement state of every player, with server reconciliation.
-// The local player's intent and facing are its own; only the reconciliation
-// applies to it.
+// The local player's intent, facing, and vertical velocity are its own; only
+// the reconciliation applies to it.
 pub(in crate::network) fn handle_player_moves_message(
     message: SPlayerMoves,
     commands: &mut Commands,
@@ -40,16 +40,22 @@ pub(in crate::network) fn handle_player_moves_message(
         let Some(player) = context.players.get(&id) else {
             continue;
         };
+        // The stream stands down after a local teleport, a portal hop or a
+        // snap: states built before it keep arriving for a round trip, and
+        // steering or reconciling from them drags the body back
+        // (`RECON_TELEPORT_SUPPRESS_SECS`).
+        if now - player.last_teleport_time < RECON_TELEPORT_SUPPRESS_SECS + context.rtt.rtt.as_secs_f32() {
+            continue;
+        }
         let mut entity = commands.entity(player.entity);
         if id != my_player_id {
-            entity.insert((movement.move_intent, FaceYaw(movement.face_yaw)));
+            entity.insert((
+                movement.move_intent,
+                FaceYaw(movement.face_yaw),
+                CharacterVerticalVelocity(movement.vertical_velocity),
+            ));
         }
-        // Reconciliation stands down after a teleport cue: this state may
-        // predate the teleport (`RECON_TELEPORT_SUPPRESS_SECS`).
-        let suppress_recon = now - player.last_teleport_time < RECON_TELEPORT_SUPPRESS_SECS;
-        if let Ok((client_pos, _, _)) = context.player_data.get(player.entity)
-            && !suppress_recon
-        {
+        if let Ok((client_pos, _, _)) = context.player_data.get(player.entity) {
             let server_velocity = player_movement_velocity(
                 movement,
                 &context.map_settings.movement,
@@ -74,38 +80,6 @@ pub(in crate::network) fn handle_player_moves_message(
             entity.insert(ServerReconciliation::new(
                 correction_delta,
                 movement.pos,
-                server_velocity,
-                &context.rtt,
-            ));
-        }
-    }
-}
-
-// Remote players only; the jumper predicted its own launch.
-pub(in crate::network) fn handle_player_jump_message(
-    message: SPlayerJump,
-    commands: &mut Commands,
-    context: &mut ServerMessageContext,
-) {
-    if let Some(player) = context.players.get(&message.id)
-        && let Ok((client_pos, _, _)) = context.player_data.get(player.entity)
-    {
-        let server_velocity = player_movement_velocity(
-            message.movement,
-            &context.map_settings.movement,
-            player.power_up(PowerUpKind::Speed),
-            player.stunned,
-        );
-        commands.entity(player.entity).insert((
-            message.movement.move_intent,
-            FaceYaw(message.movement.face_yaw),
-            CharacterVerticalVelocity(message.movement.vertical_velocity),
-        ));
-        // Same teleport stand-down as the move stream.
-        if context.time.elapsed_secs() - player.last_teleport_time >= RECON_TELEPORT_SUPPRESS_SECS {
-            commands.entity(player.entity).insert(ServerReconciliation::new(
-                extrapolated_correction(*client_pos, message.movement.pos, server_velocity, &context.rtt),
-                message.movement.pos,
                 server_velocity,
                 &context.rtt,
             ));

@@ -7,9 +7,13 @@ use crate::network::resources::RoundTripTime;
 // Components
 // ============================================================================
 
-// The server's authoritative position for this entity and the gap to close
-// toward it: `recorded_correction` for the local player,
-// `extrapolated_correction` for everything else.
+// The gap between where the server has this entity and where the client
+// has it, to close over a correction window: `recorded_correction` for the
+// local player, `extrapolated_correction` for everything else. A gap too big
+// to ease snaps to `server_pos` instead. That target is absolute on purpose:
+// adding the gap to the current position re-adds it for every echo still in
+// flight, measured against pre-snap positions, and that delayed feedback
+// grows without bound.
 #[derive(Component)]
 pub struct ServerReconciliation {
     pub correction_delta: Vec3,

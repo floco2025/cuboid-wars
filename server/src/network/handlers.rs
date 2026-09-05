@@ -1,9 +1,6 @@
 use bevy::{ecs::system::SystemParam, prelude::*};
 
-use super::{
-    broadcast::broadcast_to_others,
-    feed::{FeedAudience, FeedEvent, emit_feed},
-};
+use super::feed::{FeedAudience, FeedEvent, emit_feed};
 use crate::{
     actors::ActorStateQuery,
     config::{FeedConfig, ServerGameplayConfig},
@@ -80,7 +77,7 @@ pub(super) fn handle_jump_message(
         return;
     }
 
-    let Ok((pos, move_intent, face_yaw, _)) = queries.player_data.get(entity) else {
+    let Ok((pos, _, _, _)) = queries.player_data.get(entity) else {
         return;
     };
     let Ok(motion) = queries.player_motions.get(entity) else {
@@ -100,16 +97,6 @@ pub(super) fn handle_jump_message(
     commands
         .entity(entity)
         .insert(CharacterVerticalVelocity(next_vertical_velocity));
-    // Others only: the jumper applied the launch at the keypress, and a
-    // correction sampled there is where its predicted height leads the most.
-    broadcast_to_others(
-        players,
-        id,
-        ServerMessage::PlayerJump(SPlayerJump {
-            id,
-            movement: PlayerMovementState::new(*pos, *move_intent, next_vertical_velocity, face_yaw.0),
-        }),
-    );
 }
 
 pub(super) fn handle_ping_message(id: PlayerId, message: CPing, players: &PlayerMap) {

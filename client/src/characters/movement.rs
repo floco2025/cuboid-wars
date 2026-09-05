@@ -47,6 +47,7 @@ pub fn characters_movement_system(
     plan_player_moves(
         &mut commands,
         delta,
+        time.elapsed_secs(),
         &collision_world,
         &map_settings,
         &gameplay_config,

@@ -55,10 +55,10 @@ pub const RECON_PLAYER_SNAP_DECAY_SECS: f32 = 1.0;
 // corrections more clearly than moving ones, so smooth them slowly.
 pub const RECON_PLAYER_IDLE_CORRECTION_SECS: f32 = 8.0;
 
-// Snapshots and moves built before a portal crossing reconcile — and face
-// and pace — the traveler back to a stale phase of a loop, so all of that
-// stands down this long after each locally simulated crossing (snapshot
-// period plus transit slack); the crossings themselves re-anchor exactly on
+// Moves built before a local teleport — a portal crossing or a snap —
+// reconcile, face, and pace the traveler back to a stale phase, and they keep
+// arriving for a round trip after it, so the stream stands down for the RTT
+// plus this slack after each; the crossings themselves re-anchor exactly on
 // every hop.
 pub const RECON_TELEPORT_SUPPRESS_SECS: f32 = 0.3;
 
