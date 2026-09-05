@@ -22,7 +22,10 @@ pub enum DeathSource {
     Beam { kind: String },
     PlayerBlast(PlayerId),
     ActorBlast { kind: String },
+    // A lethal landing.
     Fall,
+    // Fell out of the world.
+    Void,
     Admin,
 }
 
@@ -36,6 +39,7 @@ pub fn kill_credit(source: &DeathSource, victim: PlayerId, players: &PlayerMap) 
         | DeathSource::PlayerBlast(_)
         | DeathSource::ActorBlast { .. }
         | DeathSource::Fall
+        | DeathSource::Void
         | DeathSource::Admin => None,
     }
 }
@@ -55,17 +59,17 @@ fn death_cause(source: &DeathSource, victim: PlayerId, players: &PlayerMap) -> D
             by: players.display_name(by),
         },
         DeathSource::ActorBlast { kind } => DeathCause::ActorBlast { kind: kind.clone() },
-        DeathSource::Fall => DeathCause::Fall,
+        DeathSource::Fall | DeathSource::Void => DeathCause::Fall,
         DeathSource::Admin => DeathCause::Admin,
     }
 }
 
 // Run the death sequence for one player: replace its life with the dead
-// lifecycle, queue the death explosion, despawn the entity, broadcast
-// `SPlayerDeath` so clients run death-side effects on the impact tick
-// instead of waiting a snapshot, and announce the feed line. Called from
-// every code path that takes a player to zero health (projectile hits,
-// beams, explosions, falls, `/kill`).
+// lifecycle, queue the death explosion (not for a void fall), despawn the
+// entity, broadcast `SPlayerDeath` so clients run death-side effects on the
+// impact tick instead of waiting a snapshot, and announce the feed line.
+// Called from every code path that takes a player to zero health
+// (projectile hits, beams, explosions, falls, `/kill`).
 #[expect(
     clippy::too_many_arguments,
     reason = "the one-stop death sequence threads all death state"
@@ -89,10 +93,13 @@ pub fn kill_player(
         return;
     }
     info.begin_respawn(respawn_secs);
-    // Every death detonates — `explosions_system` drains the queue
-    // this tick and applies the blast (void falls at CHARACTER_FALL_DEATH_Y
-    // are too deep for the blast to reach the map).
-    pending_explosions.push_player(id, pos);
+    // Every death but a void fall detonates — `explosions_system` drains
+    // the queue this tick and applies the blast. That deep a blast would
+    // reach nothing, and the cue tells clients to show nothing.
+    let explodes = !matches!(source, DeathSource::Void);
+    if explodes {
+        pending_explosions.push_player(id, pos);
+    }
     commands.entity(entity).despawn();
     // Snapshot the post-death scores so the cue carries the early-apply
     // values (HUD bumps on impact tick rather than next snapshot).
@@ -106,6 +113,7 @@ pub fn kill_player(
             killer,
             victim_score,
             killer_score,
+            explodes,
         }),
     );
     emit_feed(
@@ -797,6 +805,41 @@ mod tests {
         assert!(info.life.held_keys.is_empty());
         assert_eq!(info.entity(), None);
         assert!(info.is_dead());
+    }
+
+    #[test]
+    fn void_fall_queues_no_explosion() {
+        let mut app = App::new();
+        let mut players = PlayerMap::default();
+        let info = make_player_info();
+        let entity = info.entity().expect("new player has no entity");
+        let mut info = info;
+        info.life.power_up_timers[common::protocol::PowerUpKind::Speed.index()] = 1.5;
+        info.add_key(common::protocol::BarrierKindId(0));
+        players.insert(PlayerId(7), info);
+
+        let world = app.world_mut();
+        let mut commands_queue = bevy::ecs::world::CommandQueue::default();
+        let mut pending_explosions = PendingExplosions::default();
+        {
+            let mut commands = bevy::ecs::system::Commands::new(&mut commands_queue, world);
+            kill_player(
+                &mut commands,
+                &mut players,
+                PlayerId(7),
+                entity,
+                Position::default(),
+                2.0,
+                DeathSource::Void,
+                &FeedConfig::all(true, &[]),
+                &mut pending_explosions,
+            );
+        }
+        commands_queue.apply(world);
+        assert!(
+            pending_explosions.0.is_empty(),
+            "a void fall must not queue an explosion"
+        );
     }
 
     #[test]

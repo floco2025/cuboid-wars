@@ -97,7 +97,7 @@ pub const PHYSICS_EPSILON: f32 = 1e-6;
 
 // Characters whose Y falls below this are killed (players run through the
 // normal death/respawn flow; actors are despawned outright).
-pub const CHARACTER_FALL_DEATH_Y: f32 = -100.0;
+pub const CHARACTER_FALL_DEATH_Y: f32 = -25.0;
 
 // Hard cap on a falling character's downward speed. Prevents arbitrarily large
 // velocities from very tall drops.

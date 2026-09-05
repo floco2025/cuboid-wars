@@ -125,7 +125,7 @@ pub fn players_fall_death_system(
             entity,
             *pos,
             server_gameplay_config.player.respawn_secs,
-            DeathSource::Fall,
+            DeathSource::Void,
             &server_gameplay_config.feed,
             &mut pending_explosions,
         );

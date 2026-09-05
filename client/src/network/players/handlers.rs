@@ -184,19 +184,35 @@ pub(in crate::network) fn handle_player_death_message(
     context: &mut ServerMessageContext,
 ) {
     // Keep audio outside the state handler so its unit test does not need an asset server.
-    play_explosion_sound(
-        commands,
-        &context.asset_server,
-        context.asset_set.player_sound("explodes"),
-        &context.client_settings.audio,
-        Vec3::from(message.pos),
-        Some(context.blast_radii.player),
-    );
-    // Positional, so it fires even if the victim isn't in `PlayerMap` yet.
-    // For the local player the fireball's backfaces are culled, so the
-    // first-person camera inside the sphere sees shards/ring/light rather
-    // than an orange screen wash.
-    spawn_player_explosion(commands, &mut context.explosion_ctx(), message.pos);
+    if message.explodes {
+        play_explosion_sound(
+            commands,
+            &context.asset_server,
+            context.asset_set.player_sound("explodes"),
+            &context.client_settings.audio,
+            Vec3::from(message.pos),
+            Some(context.blast_radii.player),
+        );
+        // Positional, so it fires even if the victim isn't in `PlayerMap` yet.
+        // For the local player the fireball's backfaces are culled, so the
+        // first-person camera inside the sphere sees shards/ring/light rather
+        // than an orange screen wash.
+        spawn_player_explosion(commands, &mut context.explosion_ctx(), message.pos);
+    } else if message.id == my_player_id {
+        play_sound(
+            commands,
+            &context.asset_server,
+            context.asset_set.player_sound("void_fall"),
+        );
+    } else {
+        play_spatial_sound(
+            commands,
+            &context.asset_server,
+            context.asset_set.player_sound("void_fall"),
+            &context.client_settings.audio,
+            Vec3::from(message.pos),
+        );
+    }
     apply_player_death(
         commands,
         &mut context.players,
@@ -507,6 +523,7 @@ mod tests {
                     killer: None,
                     victim_score: 0,
                     killer_score: None,
+                    explodes: true,
                 },
             );
         }
