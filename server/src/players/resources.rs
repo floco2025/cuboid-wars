@@ -75,8 +75,9 @@ pub struct PlayerConnection {
 
 #[derive(Default)]
 pub struct PlayerSession {
-    // Newest `CMove.seq` applied; an older commit is ignored. Per session,
-    // so a respawn does not reset it under a counter that keeps climbing.
+    // Newest `CMove.seq` taken in, applied or held for a crossing; an older
+    // commit is ignored. Per session, so a respawn does not reset it under a
+    // counter that keeps climbing.
     pub last_move_seq: u32,
     // Portal crossings this player has made, per session like the sequence.
     // An input is expressed on the side the client's own simulation is on

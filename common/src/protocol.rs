@@ -313,10 +313,11 @@ pub struct SPlayerMoves {
 pub struct PlayerMove {
     pub id: PlayerId,
     pub movement: PlayerMovementState,
-    // The newest `CMove.seq` applied before this state was computed. Only the
-    // player it belongs to can use it: they compare `movement.pos` with the
-    // position they predicted after that same `CMove`, a measured error
-    // rather than an extrapolated one.
+    // The newest `CMove.seq` the server had taken in before this state was
+    // computed; a commit held for a portal crossing counts, its input
+    // unapplied. Only the player it belongs to can use it: they compare
+    // `movement.pos` with the position they predicted after that same
+    // `CMove`, a measured error rather than an extrapolated one.
     pub move_seq: u32,
     // How many portal crossings the server's player has made. A client
     // steers or reconciles a player only from a state whose count matches

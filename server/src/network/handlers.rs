@@ -59,11 +59,11 @@ pub(super) fn handle_move_message(
     info.session.last_move_seq = message.seq;
     // The intent is expressed on the side of the crossings the client's own
     // simulation has made; until this player has made the same ones, the
-    // persisted intent, mapped through each hop, is the right one. The
-    // sequence advances regardless: the echo names the newest commit
-    // received, and the client measuring its record after that commit
-    // against a position that did not apply it finds the real divergence
-    // an unapplied input created, which is what it must then close.
+    // persisted intent, mapped through each hop, is the right one. The sequence
+    // advances regardless: the echo names the newest commit received, and the
+    // client measuring its record after that commit against a position that did
+    // not apply it finds the real divergence an unapplied input created, which
+    // is what it must then close.
     if message.hops != info.session.hops {
         trace!(
             "holding {:?}'s input: {} hops there, {} here",

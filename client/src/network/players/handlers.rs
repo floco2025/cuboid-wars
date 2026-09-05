@@ -63,7 +63,12 @@ pub(in crate::network) fn handle_player_moves_message(
             // The server's side stands: put the player there outright. The
             // gap between two portals can sit under the snap threshold, and a
             // vertical gap is never eased, so ordinary reconciliation could
-            // leave the player on the wrong side with the right count.
+            // leave the player on the wrong side with the right count. The
+            // local player's view stays mapped through the rejected crossing
+            // on purpose: intent is rebuilt every frame from keys and camera,
+            // knockback decays within a second, and unmapping the view would
+            // need the last crossing's pair, for a case that already needs
+            // the two simulations to disagree about shared geometry.
             warn!(
                 "{} crossing dispute settled for the server: {} hops there, {} here; teleporting",
                 player.name, hops, player.hops
