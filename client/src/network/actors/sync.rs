@@ -1,7 +1,10 @@
 use bevy::prelude::*;
 use std::collections::HashSet;
 
-use super::super::{components::ServerReconciliation, context::ServerMessageContext};
+use super::super::{
+    components::{ServerReconciliation, extrapolated_correction},
+    context::ServerMessageContext,
+};
 use crate::{
     actors::{ActorInfo, ActorMap, beam_in_ghost_state, spawn_actor, spawn_actor_ghost},
     network::RoundTripTime,
@@ -136,7 +139,7 @@ pub(super) fn apply_actor_movement_state(
 
     if let Ok((client_pos, _, _)) = actor_data.get(client_actor.entity) {
         commands.entity(client_actor.entity).insert(ServerReconciliation::new(
-            *client_pos,
+            extrapolated_correction(*client_pos, movement.pos, server_velocity, rtt),
             movement.pos,
             server_velocity,
             rtt,

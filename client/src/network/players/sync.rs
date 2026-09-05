@@ -7,7 +7,7 @@ use crate::{
     cameras::MainCameraMarker,
     characters::PreviousTickPosition,
     constants::RECON_TELEPORT_SUPPRESS_SECS,
-    network::ServerReconciliation,
+    network::{ServerReconciliation, extrapolated_correction},
     players::{LocalPlayerInfo, PlayerInfo, spawn_player},
     ui::BannerMessage,
 };
@@ -197,7 +197,11 @@ fn update_snapshot_player(
     server_player: &Player,
 ) {
     if let Some(client_player) = context.players.get_mut(&id) {
-        if let Ok((client_pos, _, _)) = context.player_data.get(client_player.entity) {
+        // The local player reconciles from the per-tick move stream alone,
+        // where its own input sequence gives a measured error.
+        if id != my_player_id
+            && let Ok((client_pos, _, _)) = context.player_data.get(client_player.entity)
+        {
             let server_velocity = player_movement_velocity(
                 server_player.movement,
                 &context.map_settings.movement,
@@ -206,25 +210,22 @@ fn update_snapshot_player(
             );
 
             // Fully stand down right after a teleport: this snapshot may have
-            // been built pre-teleport, and applying it — reconciliation, and
-            // for remote players intent, facing, and vertical velocity too —
-            // drags the traveler back to a stale phase of a portal loop
-            // (`RECON_TELEPORT_SUPPRESS_SECS`).
+            // been built pre-teleport, and applying it — reconciliation,
+            // intent, facing, and vertical velocity — drags the traveler back
+            // to a stale phase of a portal loop (`RECON_TELEPORT_SUPPRESS_SECS`).
             let suppressed =
                 context.time.elapsed_secs() - client_player.last_teleport_time < RECON_TELEPORT_SUPPRESS_SECS;
             if !suppressed {
-                if id != my_player_id {
-                    commands.entity(client_player.entity).insert((
-                        server_player.movement.move_intent,
-                        FaceYaw(server_player.movement.face_yaw),
-                        CharacterVerticalVelocity(server_player.movement.vertical_velocity),
-                    ));
-                }
-                commands.entity(client_player.entity).insert(ServerReconciliation::new(
-                    *client_pos,
-                    server_player.movement.pos,
-                    server_velocity,
-                    &context.rtt,
+                commands.entity(client_player.entity).insert((
+                    server_player.movement.move_intent,
+                    FaceYaw(server_player.movement.face_yaw),
+                    CharacterVerticalVelocity(server_player.movement.vertical_velocity),
+                    ServerReconciliation::new(
+                        extrapolated_correction(*client_pos, server_player.movement.pos, server_velocity, &context.rtt),
+                        server_player.movement.pos,
+                        server_velocity,
+                        &context.rtt,
+                    ),
                 ));
             }
         }

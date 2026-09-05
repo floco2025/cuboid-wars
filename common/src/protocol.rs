@@ -302,6 +302,11 @@ pub struct SPlayerMoves {
 pub struct PlayerMove {
     pub id: PlayerId,
     pub movement: PlayerMovementState,
+    // The newest `CMove.seq` applied before this state was computed. Only the
+    // player it belongs to can use it: they compare `movement.pos` with the
+    // position they predicted after that same `CMove`, a measured error
+    // rather than an extrapolated one.
+    pub move_seq: u32,
 }
 
 // --- Cues (ahead of the next snapshot, healed by it) ---

@@ -1,7 +1,10 @@
 use bevy::prelude::*;
 use std::collections::HashSet;
 
-use super::super::{components::ServerReconciliation, context::ServerMessageContext};
+use super::super::{
+    components::{ServerReconciliation, extrapolated_correction},
+    context::ServerMessageContext,
+};
 use crate::{
     missiles::{MissileMap, MissileVelocity, spawn_missile},
     network::RoundTripTime,
@@ -62,8 +65,11 @@ pub(super) fn apply_missile_movement_state(
     let velocity = movement.velocity();
     commands.entity(entity).insert(MissileVelocity(velocity));
     if let Ok(client_pos) = missile_data.get(entity) {
-        commands
-            .entity(entity)
-            .insert(ServerReconciliation::new(*client_pos, movement.pos, velocity, rtt));
+        commands.entity(entity).insert(ServerReconciliation::new(
+            extrapolated_correction(*client_pos, movement.pos, velocity, rtt),
+            movement.pos,
+            velocity,
+            rtt,
+        ));
     }
 }

@@ -7,7 +7,7 @@ mod shooting;
 mod toggles;
 mod weapons;
 
-pub use commit::commit_player_input_system;
+pub use commit::{commit_player_input_system, record_committed_position_system};
 pub use cursor::input_cursor_capture_system;
 pub use missiles::input_missile_system;
 pub use movement::{MAX_PITCH, input_movement_system};

@@ -1,7 +1,9 @@
 use bevy::prelude::*;
 use std::collections::HashMap;
 
-use common::protocol::{BarrierKindId, Player, PlayerId, PowerUpKind, SPlayerStatus};
+use common::protocol::{BarrierKindId, Player, PlayerId, Position, PowerUpKind, SPlayerStatus};
+
+use crate::constants::COMMITTED_POSITION_RING_LEN;
 
 // My player ID assigned by the server.
 #[derive(Resource)]
@@ -114,12 +116,42 @@ impl PlayerMap {
     }
 }
 
+// A ring of the local player's own predicted positions, one per `CMove`,
+// keyed by its `seq`: the newest `COMMITTED_POSITION_RING_LEN` are kept, each
+// slot overwritten by the sequence that lands on it a ring later. The
+// server's `PlayerMove.move_seq` names the slot its position is measured
+// against.
+pub struct CommittedPositionRing([Option<(u32, Position)>; COMMITTED_POSITION_RING_LEN]);
+
+impl CommittedPositionRing {
+    pub fn record(&mut self, seq: u32, pos: Position) {
+        self.0[Self::slot(seq)] = Some((seq, pos));
+    }
+
+    // `None` unless `seq` is recorded and no later sequence has taken its slot.
+    #[must_use]
+    pub fn get(&self, seq: u32) -> Option<Position> {
+        self.0[Self::slot(seq)].and_then(|(recorded, pos)| (recorded == seq).then_some(pos))
+    }
+
+    fn slot(seq: u32) -> usize {
+        seq as usize % COMMITTED_POSITION_RING_LEN
+    }
+}
+
+impl Default for CommittedPositionRing {
+    fn default() -> Self {
+        Self([None; COMMITTED_POSITION_RING_LEN])
+    }
+}
+
 // Client-only local player state (not synced).
 #[derive(Resource)]
 pub struct LocalPlayerInfo {
     pub last_shot_time: f32,
     // Stamped on every `CMove`; the server ignores an older one.
     pub move_seq: u32,
+    pub committed_positions: CommittedPositionRing,
     pub stored_yaw: f32,
     pub stored_pitch: f32,
     // True from the moment the local player vanishes from `SSnapshot` until
@@ -133,6 +165,7 @@ impl Default for LocalPlayerInfo {
         Self {
             last_shot_time: f32::NEG_INFINITY,
             move_seq: 0,
+            committed_positions: CommittedPositionRing::default(),
             stored_yaw: 0.0,
             stored_pitch: 0.0,
             is_dead: false,
@@ -192,5 +225,29 @@ mod tests {
         assert_eq!(info.power_ups, status.power_ups);
         assert_eq!(info.stunned, status.stunned);
         assert_eq!(info.held_keys, status.held_keys);
+    }
+
+    #[test]
+    fn committed_position_is_found_by_its_seq() {
+        let mut positions = CommittedPositionRing::default();
+        let pos = Position { x: 1.0, y: 2.0, z: 3.0 };
+        positions.record(7, pos);
+        assert_eq!(positions.get(7), Some(pos));
+    }
+
+    #[test]
+    fn committed_position_misses_an_unrecorded_seq() {
+        let mut positions = CommittedPositionRing::default();
+        assert_eq!(positions.get(0), None);
+        positions.record(7, Position::default());
+        assert_eq!(positions.get(7 + COMMITTED_POSITION_RING_LEN as u32), None);
+    }
+
+    #[test]
+    fn committed_position_is_overwritten_a_ring_later() {
+        let mut positions = CommittedPositionRing::default();
+        positions.record(7, Position::default());
+        positions.record(7 + COMMITTED_POSITION_RING_LEN as u32, Position::default());
+        assert_eq!(positions.get(7), None);
     }
 }

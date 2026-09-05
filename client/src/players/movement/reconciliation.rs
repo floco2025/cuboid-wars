@@ -49,7 +49,7 @@ pub(super) fn reconcile_player(
         commands.entity(entity).remove::<ServerReconciliation>();
     }
 
-    let correction_delta = recon.extrapolated_delta();
+    let correction_delta = recon.correction_delta;
 
     // Y is purely predicted: client owns jump intent and gravity, so vy is
     // locally authoritative. The snap branch still catches big disagreements

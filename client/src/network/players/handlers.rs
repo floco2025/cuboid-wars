@@ -5,7 +5,7 @@ use crate::constants::RECON_TELEPORT_SUPPRESS_SECS;
 use crate::{
     audio::{play_explosion_sound, play_sound, play_spatial_sound},
     characters::PreviousTickPosition,
-    network::ServerReconciliation,
+    network::{ServerReconciliation, extrapolated_correction, recorded_correction},
     players::{CameraShake, CuboidShake, LocalPlayerInfo, PlayerMap},
     projectiles::spawn_projectiles,
     ui::{BannerMessage, HudBanner},
@@ -36,7 +36,7 @@ pub(in crate::network) fn handle_player_moves_message(
     }
     context.last_player_moves_seq.0 = message.seq;
     let now = context.time.elapsed_secs();
-    for PlayerMove { id, movement } in message.moves {
+    for PlayerMove { id, movement, move_seq } in message.moves {
         let Some(player) = context.players.get(&id) else {
             continue;
         };
@@ -56,8 +56,23 @@ pub(in crate::network) fn handle_player_moves_message(
                 player.power_up(PowerUpKind::Speed),
                 player.stunned,
             );
+            let correction_delta = if id == my_player_id {
+                // Own state names the `CMove` it reflects: measure against
+                // where our simulation stood after that `CMove`. One the ring
+                // does not hold (before the first commit, or after a one-way
+                // stall longer than the ring) is measured against where we
+                // stand now, the plain gap to the server.
+                let recorded_pos = context
+                    .local_player_info
+                    .committed_positions
+                    .get(move_seq)
+                    .unwrap_or(*client_pos);
+                recorded_correction(recorded_pos, movement.pos)
+            } else {
+                extrapolated_correction(*client_pos, movement.pos, server_velocity, &context.rtt)
+            };
             entity.insert(ServerReconciliation::new(
-                *client_pos,
+                correction_delta,
                 movement.pos,
                 server_velocity,
                 &context.rtt,
@@ -89,7 +104,7 @@ pub(in crate::network) fn handle_player_jump_message(
         // Same teleport stand-down as the move stream.
         if context.time.elapsed_secs() - player.last_teleport_time >= RECON_TELEPORT_SUPPRESS_SECS {
             commands.entity(player.entity).insert(ServerReconciliation::new(
-                *client_pos,
+                extrapolated_correction(*client_pos, message.movement.pos, server_velocity, &context.rtt),
                 message.movement.pos,
                 server_velocity,
                 &context.rtt,

@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use common::protocol::{CMove, ClientMessage, FaceYaw, PlayerInput, PlayerMoveIntent};
+use common::protocol::{CMove, ClientMessage, FaceYaw, PlayerInput, PlayerMoveIntent, Position};
 
 use crate::{
     constants::COMMIT_TELEPORT_HOLD_SECS,
@@ -9,8 +9,9 @@ use crate::{
 
 // Once per fixed tick, send the local player's input (move intent + facing)
 // to the server, changed or not, so the next commit heals a lost one. The
-// stream only holds briefly after a local portal hop. Jump is event-shaped
-// and sent immediately by `input_movement_system` — not handled here.
+// stream only holds briefly after a local portal hop, and stops while dead,
+// since the server drops a dead player's input. Jump is event-shaped and sent
+// immediately by `input_movement_system` — not handled here.
 pub fn commit_player_input_system(
     time: Res<Time>,
     to_server: Res<ClientToServerChannel>,
@@ -25,7 +26,7 @@ pub fn commit_player_input_system(
     let last_teleport_time = players
         .get(&my_player_id.0)
         .map_or(f32::NEG_INFINITY, |info| info.last_teleport_time);
-    if commit_held(time.elapsed_secs(), last_teleport_time) {
+    if local_player_info.is_dead || commit_held(time.elapsed_secs(), last_teleport_time) {
         return;
     }
     local_player_info.move_seq = local_player_info.move_seq.wrapping_add(1);
@@ -41,6 +42,21 @@ pub fn commit_player_input_system(
 // Why the hold exists is at `COMMIT_TELEPORT_HOLD_SECS`.
 fn commit_held(now: f32, last_teleport_time: f32) -> bool {
     now - last_teleport_time < COMMIT_TELEPORT_HOLD_SECS
+}
+
+// After this tick's movement, remember where the newest `CMove` left us,
+// under its sequence, for the server's echo of that `CMove` to be measured
+// against. Runs after the portal transit so a crossing is in the record the
+// way it is in the server's.
+pub fn record_committed_position_system(
+    mut local_player_info: ResMut<LocalPlayerInfo>,
+    local_player_query: Query<&Position, With<LocalPlayerMarker>>,
+) {
+    let Ok(pos) = local_player_query.single() else {
+        return;
+    };
+    let seq = local_player_info.move_seq;
+    local_player_info.committed_positions.record(seq, *pos);
 }
 
 #[cfg(test)]

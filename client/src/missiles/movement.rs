@@ -48,7 +48,7 @@ pub fn missiles_movement_system(
                 commands.entity(entity).remove::<ServerReconciliation>();
             }
 
-            let correction_delta = recon.extrapolated_delta();
+            let correction_delta = recon.correction_delta;
             let (worst_axis, worst_magnitude) = worst_axis_divergence(correction_delta);
             if worst_magnitude >= RECON_MISSILE_SNAP_DISTANCE {
                 warn!(

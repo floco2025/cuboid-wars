@@ -38,7 +38,7 @@ pub(super) fn reconcile_actor(
         commands.entity(entity).remove::<ServerReconciliation>();
     }
 
-    let correction_delta = recon.extrapolated_delta();
+    let correction_delta = recon.correction_delta;
     let (worst_axis, worst_magnitude) = worst_axis_divergence(correction_delta);
     if worst_magnitude >= RECON_ACTOR_SNAP_DISTANCE {
         warn!(

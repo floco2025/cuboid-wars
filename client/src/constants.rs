@@ -13,6 +13,10 @@ use bevy::color::Color;
 // jitter.
 pub const COMMIT_TELEPORT_HOLD_SECS: f32 = 0.1;
 
+// Slots in the local player's ring of committed positions, one per tick;
+// 64 is two seconds, more than any round trip worth playing over.
+pub const COMMITTED_POSITION_RING_LEN: usize = 64;
+
 // ============================================================================
 // RTT measurement
 // ============================================================================

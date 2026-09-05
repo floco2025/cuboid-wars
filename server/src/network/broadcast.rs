@@ -107,6 +107,7 @@ pub fn collect_player_moves(
             Some(PlayerMove {
                 id: *player_id,
                 movement: PlayerMovementState::new(*pos, *move_intent, vertical_velocity, face_yaw.0),
+                move_seq: info.session.last_move_seq,
             })
         })
         .collect()
