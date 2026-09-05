@@ -14,7 +14,7 @@ use common::{
 };
 
 use super::broadcast::{
-    broadcast_to_all, collect_items, snapshot_active_players, snapshot_actors, snapshot_missiles,
+    broadcast_to_all, collect_items, collect_player_moves, snapshot_active_players, snapshot_actors, snapshot_missiles,
     snapshot_spawning_actors,
 };
 use crate::missiles::{MissileMap, MissileVelocity};
@@ -29,6 +29,22 @@ pub struct WorldConditions<'w> {
     quest_catalog: Res<'w, QuestCatalog>,
     portals: Res<'w, PortalMap>,
     portal_assignments: Res<'w, PortalAssignments>,
+}
+
+// Every active player's movement state after this tick's movement, to
+// everyone, every tick.
+pub(super) fn network_broadcast_player_moves_system(
+    mut seq: Local<u32>,
+    players: Res<PlayerMap>,
+    player_data: PlayerStateQuery,
+    motions: Query<&CharacterVerticalVelocity, With<PlayerMarker>>,
+) {
+    let moves = collect_player_moves(&players, &player_data, &motions);
+    if moves.is_empty() {
+        return;
+    }
+    *seq = seq.wrapping_add(1);
+    broadcast_to_all(&players, ServerMessage::PlayerMoves(SPlayerMoves { seq: *seq, moves }));
 }
 
 pub(super) fn network_broadcast_snapshot_system(

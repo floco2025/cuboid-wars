@@ -20,5 +20,5 @@ pub(crate) use bootstrap::install_bootstrap;
 pub use components::{ServerReconciliation, worst_axis_divergence};
 pub use impairment::Impairment;
 pub use plugin::network_plugin;
-pub use resources::{ClientToServerChannel, LastSnapshotSeq, RoundTripTime, ServerToClientChannel};
+pub use resources::{ClientToServerChannel, LastPlayerMovesSeq, LastSnapshotSeq, RoundTripTime, ServerToClientChannel};
 pub use transport::{ClientToServer, ServerToClient, configure_client, network_io_task};

@@ -88,6 +88,30 @@ pub fn snapshot_active_players(
         .collect()
 }
 
+// Every active, alive player's movement state, for `SPlayerMoves`.
+#[must_use]
+pub fn collect_player_moves(
+    players: &PlayerMap,
+    player_data: &PlayerStateQuery,
+    motions: &Query<&CharacterVerticalVelocity, With<PlayerMarker>>,
+) -> Vec<PlayerMove> {
+    players
+        .iter()
+        .filter_map(|(player_id, info)| {
+            if !info.connection.logged_in {
+                return None;
+            }
+            let entity = info.entity()?;
+            let (pos, move_intent, face_yaw, _) = player_data.get(entity).ok()?;
+            let vertical_velocity = motions.get(entity).map_or(0.0, |m| m.0);
+            Some(PlayerMove {
+                id: *player_id,
+                movement: PlayerMovementState::new(*pos, *move_intent, vertical_velocity, face_yaw.0),
+            })
+        })
+        .collect()
+}
+
 // Collect all server-controlled actors for network updates.
 #[must_use]
 pub fn snapshot_actors(
@@ -230,6 +254,28 @@ mod tests {
 
         assert_eq!(snapshot.len(), 1);
         assert_eq!(snapshot[0].0, PlayerId(1));
+    }
+
+    #[test]
+    fn player_moves_exclude_dead_players() {
+        let mut world = World::new();
+        let alive_entity = spawn_player_entity(&mut world);
+        let dead_entity = spawn_player_entity(&mut world);
+
+        let mut players = PlayerMap::default();
+        players.insert(PlayerId(1), active_player(alive_entity));
+        let mut dead = active_player(dead_entity);
+        dead.begin_respawn(2.0);
+        players.insert(PlayerId(2), dead);
+
+        let mut state: SystemState<(PlayerStateQuery, Query<&CharacterVerticalVelocity, With<PlayerMarker>>)> =
+            SystemState::new(&mut world);
+        let (player_data, motions) = state.get(&world).expect("system params invalid for the test world");
+
+        let moves = collect_player_moves(&players, &player_data, &motions);
+
+        assert_eq!(moves.len(), 1);
+        assert_eq!(moves[0].id, PlayerId(1));
     }
 
     #[test]

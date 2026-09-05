@@ -14,7 +14,7 @@ use crate::{
     items::{ItemAssets, ItemMap},
     map::skybox::LightingState,
     missiles::{MissileAssets, MissileMap},
-    network::{LastSnapshotSeq, RoundTripTime},
+    network::{LastPlayerMovesSeq, LastSnapshotSeq, RoundTripTime},
     players::{LocalPlayerInfo, MyPlayerId, PlayerMap},
     portals::{PortalAssets, PortalMap as PortalVisuals},
     projectiles::ProjectileAssets,
@@ -58,6 +58,7 @@ pub(super) struct ServerMessageContext<'w, 's> {
     pub(super) actor_ghosts: ResMut<'w, ActorGhostMap>,
     pub(super) actor_spawn_warning_secs: Res<'w, ActorSpawnWarningSecs>,
     pub(super) last_snapshot_seq: ResMut<'w, LastSnapshotSeq>,
+    pub(super) last_player_moves_seq: ResMut<'w, LastPlayerMovesSeq>,
 
     pub(super) local_player_info: ResMut<'w, LocalPlayerInfo>,
     pub(super) quest_log: ResMut<'w, QuestLog>,

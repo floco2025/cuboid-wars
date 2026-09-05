@@ -1,7 +1,7 @@
 use bevy::{ecs::system::SystemParam, prelude::*};
 
 use super::{
-    broadcast::{broadcast_to_all, broadcast_to_others},
+    broadcast::broadcast_to_others,
     feed::{FeedAudience, FeedEvent, emit_feed},
 };
 use crate::{
@@ -44,7 +44,6 @@ pub(super) fn handle_move_message(
     id: PlayerId,
     message: CMove,
     players: &mut PlayerMap,
-    queries: &CharacterQueries,
 ) {
     // Reject non-finite input before it can corrupt authoritative movement.
     if !message.input.is_finite() {
@@ -65,16 +64,6 @@ pub(super) fn handle_move_message(
     commands
         .entity(entity)
         .insert((input.move_intent, FaceYaw(input.face_yaw)));
-
-    if let (Ok((pos, _, _, _)), Ok(motion)) = (queries.player_data.get(entity), queries.player_motions.get(entity)) {
-        broadcast_to_all(
-            players,
-            ServerMessage::PlayerMove(SPlayerMove {
-                id,
-                movement: PlayerMovementState::new(*pos, input.move_intent, motion.0, input.face_yaw),
-            }),
-        );
-    }
 }
 
 pub(super) fn handle_jump_message(

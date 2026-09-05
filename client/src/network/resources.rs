@@ -12,6 +12,10 @@ use super::transport::{ClientToServer, ServerToClient};
 #[derive(Resource, Default)]
 pub struct LastSnapshotSeq(pub u32);
 
+// Newest `SPlayerMoves.seq` applied; same contract as `LastSnapshotSeq`.
+#[derive(Resource, Default)]
+pub struct LastPlayerMovesSeq(pub u32);
+
 // Round-trip time to server.
 #[derive(Resource, Default)]
 pub struct RoundTripTime {

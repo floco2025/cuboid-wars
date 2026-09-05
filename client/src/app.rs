@@ -17,7 +17,8 @@ use crate::{
     materials::{GrassMaterialPlugin, generate_material_mipmaps_system},
     missiles::{LockOnTarget, MissileAssets, MissileMap},
     network::{
-        ClientToServerChannel, LastSnapshotSeq, RoundTripTime, ServerToClientChannel, install_bootstrap, network_plugin,
+        ClientToServerChannel, LastPlayerMovesSeq, LastSnapshotSeq, RoundTripTime, ServerToClientChannel,
+        install_bootstrap, network_plugin,
     },
     players::{LocalPlayerInfo, PlayerMap, camera_plugin},
     portals::{PortalAssets, PortalMap, portal_render_plugin},
@@ -88,6 +89,7 @@ pub fn build_client_app(
         .insert_resource(RoundTripTime::default())
         .insert_resource(FpsMeasurement::default())
         .insert_resource(LastSnapshotSeq::default())
+        .insert_resource(LastPlayerMovesSeq::default())
         .insert_resource(PlateState::default())
         .insert_resource(LockedPlatePurposes::default())
         .insert_resource(CameraViewMode::default())

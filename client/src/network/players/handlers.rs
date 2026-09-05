@@ -17,41 +17,52 @@ use common::{
     protocol::*,
 };
 
-// Handle player move update (intent + facing) with server reconciliation.
+// This tick's movement state of every player, with server reconciliation.
 // The local player's intent and facing are its own; only the reconciliation
 // applies to it.
-pub(in crate::network) fn handle_player_move_message(
-    message: SPlayerMove,
+pub(in crate::network) fn handle_player_moves_message(
+    message: SPlayerMoves,
     commands: &mut Commands,
     my_player_id: PlayerId,
     context: &mut ServerMessageContext,
 ) {
-    trace!("{:?} move: {:?}", message.id, message);
-    let Some(player) = context.players.get(&message.id) else {
-        return;
-    };
-    let mut entity = commands.entity(player.entity);
-    if message.id != my_player_id {
-        entity.insert((message.movement.move_intent, FaceYaw(message.movement.face_yaw)));
-    }
-    // Reconciliation stands down after a teleport cue: this move's data
-    // may predate the teleport (`RECON_TELEPORT_SUPPRESS_SECS`).
-    let suppress_recon = context.time.elapsed_secs() - player.last_teleport_time < RECON_TELEPORT_SUPPRESS_SECS;
-    if let Ok((client_pos, _, _)) = context.player_data.get(player.entity)
-        && !suppress_recon
-    {
-        let server_velocity = player_movement_velocity(
-            message.movement,
-            &context.map_settings.movement,
-            player.power_up(PowerUpKind::Speed),
-            player.stunned,
+    trace!("moves: {:?}", message);
+    if !sequence_is_newer(message.seq, context.last_player_moves_seq.0) {
+        debug!(
+            "ignoring outdated player moves (seq {}, last {})",
+            message.seq, context.last_player_moves_seq.0
         );
-        entity.insert(ServerReconciliation::new(
-            *client_pos,
-            message.movement.pos,
-            server_velocity,
-            &context.rtt,
-        ));
+        return;
+    }
+    context.last_player_moves_seq.0 = message.seq;
+    let now = context.time.elapsed_secs();
+    for PlayerMove { id, movement } in message.moves {
+        let Some(player) = context.players.get(&id) else {
+            continue;
+        };
+        let mut entity = commands.entity(player.entity);
+        if id != my_player_id {
+            entity.insert((movement.move_intent, FaceYaw(movement.face_yaw)));
+        }
+        // Reconciliation stands down after a teleport cue: this state may
+        // predate the teleport (`RECON_TELEPORT_SUPPRESS_SECS`).
+        let suppress_recon = now - player.last_teleport_time < RECON_TELEPORT_SUPPRESS_SECS;
+        if let Ok((client_pos, _, _)) = context.player_data.get(player.entity)
+            && !suppress_recon
+        {
+            let server_velocity = player_movement_velocity(
+                movement,
+                &context.map_settings.movement,
+                player.power_up(PowerUpKind::Speed),
+                player.stunned,
+            );
+            entity.insert(ServerReconciliation::new(
+                *client_pos,
+                movement.pos,
+                server_velocity,
+                &context.rtt,
+            ));
+        }
     }
 }
 

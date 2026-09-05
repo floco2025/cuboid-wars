@@ -11,9 +11,9 @@
 // * Unreliable — may be lost and may arrive out of order; every handler
 //   tolerates both. The transport picks the carrier per send (a datagram
 //   when the message fits one packet, its own stream otherwise) and never
-//   drops anything. `SSnapshot` is the one message that replaces state
-//   wholesale, so it carries its own sequence number and the client ignores
-//   an older one.
+//   drops anything. `SSnapshot` and `SPlayerMoves` replace state wholesale,
+//   so each carries its own sequence number and the client ignores an older
+//   one.
 //
 // Roles, in both directions:
 //
@@ -33,7 +33,10 @@
 //    `SSnapshot` they show up in and disappears in the first they're absent
 //    from. Presence includes pre-presence: `spawning_actors` carries reserved
 //    actor spawns during their warning window, so clients render a beam-in
-//    ghost before the actor exists.
+//    ghost before the actor exists. `SPlayerMoves` is the per-tick companion
+//    for the one thing clients simulate ahead: every active player's
+//    `PlayerMovementState` after each tick's movement, the receiver's own
+//    included, so every client reconciles and dead-reckons every tick.
 //
 //    Projectiles are the deliberate exception. They are short-lived, fast,
 //    and numerous, so they are replicated as shot cues (`SProjectileShot`)
@@ -46,8 +49,8 @@
 //    message and are healed by it, so a lost cue costs at most a sound, a
 //    shake, or a snapshot interval of latency. A cue exists only when the
 //    snapshot alone can't carry it, which is one of:
-//      * Sub-tick latency matters. Movement prediction inputs (`SPlayerMove`,
-//        `SPlayerJump`, `SActorMove`, `SMissileMove`, `SMissileLaunch`) must
+//      * Sub-tick latency matters. Movement prediction inputs (`SPlayerJump`,
+//        `SActorMove`, `SMissileMove`, `SMissileLaunch`) must
 //        arrive faster than snapshot cadence so clients can dead-reckon
 //        between snapshots; camera shake from `SPlayerHit` needs to land on
 //        the impact frame, not 1–2 ticks later.
@@ -121,11 +124,9 @@ impl PlayerInput {
 }
 
 // Client to Server: the input, committed every tick whether it changed or
-// not, so a lost commit heals at the next one.
-// Every commit is broadcast to every player, the sender included, as
-// `SPlayerMove`, so the local player reconciles as often as remote ones. Like
-// `SSnapshot`, it replaces state wholesale, so it carries a sequence and the
-// server ignores a commit older than the last one it applied.
+// not, so a lost commit heals at the next one. Like `SSnapshot`, it replaces
+// state wholesale, so it carries a sequence and the server ignores a commit
+// older than the last one it applied.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct CMove {
     pub seq: u32,
@@ -286,19 +287,27 @@ pub struct SSnapshot {
     pub portals: Vec<Portal>,
 }
 
-// --- Cues (ahead of the next snapshot, healed by it) ---
-
-// Player input change (movement intent + facing) with the server's position:
-// remote players are predicted from it, and every player, the sender
-// included, reconciles against it.
+// Every active player's movement state after this tick's movement, sent to
+// every player once per tick, the receiver's own included. Remote players
+// are predicted from it; every player reconciles against it. Presence is the
+// snapshot's alone: a client ignores entries for players it does not know.
+// Like `SSnapshot`, it carries a sequence and the client ignores an older one.
 #[derive(Debug, Clone, Encode, Decode)]
-pub struct SPlayerMove {
+pub struct SPlayerMoves {
+    pub seq: u32,
+    pub moves: Vec<PlayerMove>,
+}
+
+#[derive(Debug, Clone, Copy, Encode, Decode)]
+pub struct PlayerMove {
     pub id: PlayerId,
     pub movement: PlayerMovementState,
 }
 
+// --- Cues (ahead of the next snapshot, healed by it) ---
+
 // Player started a jump with authoritative vertical velocity. Same payload as
-// `SPlayerMove`, different contract: sent to the other players only, and the
+// a `PlayerMove`, different contract: sent to the other players only, and the
 // one message allowed to overwrite the remote player's simulated vertical
 // velocity (the move stream never touches it — its value would be stale
 // mid-flight).
@@ -635,8 +644,8 @@ pub enum ServerMessage {
     Init(SInit),
     // State
     Snapshot(SSnapshot),
+    PlayerMoves(SPlayerMoves),
     // Cues
-    PlayerMove(SPlayerMove),
     PlayerJump(SPlayerJump),
     ProjectileShot(SProjectileShot),
     ActorMove(SActorMove),
@@ -699,7 +708,7 @@ impl ServerMessage {
         match self {
             Self::Init(_) | Self::Feed(_) | Self::QuestUpdates(_) | Self::Firework(_) => Lane::Reliable,
             Self::Snapshot(_)
-            | Self::PlayerMove(_)
+            | Self::PlayerMoves(_)
             | Self::PlayerJump(_)
             | Self::ProjectileShot(_)
             | Self::ActorMove(_)
