@@ -14,6 +14,7 @@ use rapier3d::{
 
 use crate::{
     config::CharacterPhysicsConfig,
+    constants::PORTAL_BACKING_FLUSH_EPSILON,
     physics::characters::{character_center, character_shape},
     protocol::{BarrierKindId, BarrierKindTable, BridgeKindId, MapLayout, Position},
 };
@@ -393,9 +394,11 @@ impl CollisionWorld {
         self.ball_overlaps_groups(position, radius, groups)
     }
 
-    // Portal backing colliders matching the surface kind at the aperture
-    // center. An adjoining ramp may overlap a wall portal's backing volume,
-    // but it must remain solid while the wall itself opens for transit.
+    // Portal backing colliders: what the aperture's backing volume touches
+    // that lies entirely behind the surface plane. An adjoining ramp, or the
+    // floor a wall portal stands on, reaches in front of the plane and must
+    // remain solid while the surface itself opens for transit; a stacked
+    // wall's trim strip is flush with the wall faces and opens with them.
     #[must_use]
     pub(crate) fn portal_backing_colliders(
         &self,
@@ -407,15 +410,8 @@ impl CollisionWorld {
         let Some(surface_normal) = surface_normal.try_normalize() else {
             return Vec::new();
         };
-        let Some((surface_handle, _)) = self.surface_with_handle_along_ray(
-            surface_center + surface_normal * 0.05,
-            -surface_normal,
-            0.1,
-            world_collision_groups(),
-        ) else {
-            return Vec::new();
-        };
-        let backing_kind = ColliderKind::from_user_data(self.colliders[surface_handle].user_data);
+        let plane_reach = surface_center.dot(surface_normal) + PORTAL_BACKING_FLUSH_EPSILON;
+        let outward = Vector::new(surface_normal.x, surface_normal.y, surface_normal.z);
         let query_pipeline = self.broad_phase.as_query_pipeline(
             self.narrow_phase.query_dispatcher(),
             &self.bodies,
@@ -432,7 +428,11 @@ impl CollisionWorld {
         query_pipeline
             .intersect_shape(pose, &shape)
             .filter_map(|(handle, collider)| {
-                (ColliderKind::from_user_data(collider.user_data) == backing_kind).then_some(handle)
+                let front = collider
+                    .shape()
+                    .as_support_map()?
+                    .support_point(collider.position(), outward);
+                (Vec3::new(front.x, front.y, front.z).dot(surface_normal) <= plane_reach).then_some(handle)
             })
             .collect()
     }

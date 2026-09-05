@@ -763,6 +763,88 @@ fn wall_portal_near_ramp_excludes_only_wall_backing() {
 }
 
 #[test]
+fn wall_portal_across_a_stacked_wall_opens_its_trim_strip() {
+    let wall = |level: u8, y: f32| Wall {
+        x1: -3.0,
+        z1: 0.0,
+        x2: 3.0,
+        z2: 0.0,
+        width: WALL_THICKNESS,
+        level,
+        y,
+        height: WALL_HEIGHT,
+    };
+    let layout = MapLayout {
+        walls: vec![wall(0, 0.0), wall(1, LEVEL_HEIGHT)],
+        floors: vec![Floor {
+            x1: -3.0,
+            z1: -WALL_THICKNESS / 2.0,
+            x2: 3.0,
+            z2: WALL_THICKNESS / 2.0,
+            y: LEVEL_HEIGHT,
+            thickness: FLOOR_THICKNESS,
+            level: 1,
+        }],
+        ..Default::default()
+    };
+    let world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
+    let set = PortalSet::rebuild(
+        &[
+            portal(
+                PortalEnd::A,
+                Vec3::new(0.0, LEVEL_HEIGHT, -WALL_THICKNESS / 2.0),
+                -Vec3::Z,
+                0.0,
+            ),
+            portal(PortalEnd::B, Vec3::new(10.0, 1.6, 10.0), Vec3::Z, 0.0),
+        ],
+        &world,
+    );
+    let physics = player_physics();
+    let origin = Vec3::new(0.0, LEVEL_HEIGHT - physics.collider.top_y_offset() / 2.0, -0.5);
+
+    assert_eq!(set.collision_exclusions(origin, physics).len(), 3);
+}
+
+#[test]
+fn wall_portal_keeps_the_floor_it_stands_on_solid() {
+    let layout = MapLayout {
+        walls: vec![Wall {
+            x1: -3.0,
+            z1: 0.0,
+            x2: 3.0,
+            z2: 0.0,
+            width: WALL_THICKNESS,
+            level: 0,
+            y: 0.0,
+            height: WALL_HEIGHT,
+        }],
+        floors: vec![Floor {
+            x1: -4.0,
+            z1: -4.0,
+            x2: 4.0,
+            z2: 4.0,
+            y: 0.0,
+            thickness: FLOOR_THICKNESS,
+            level: 0,
+        }],
+        ..Default::default()
+    };
+    let world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
+    let set = PortalSet::rebuild(
+        &[
+            portal(PortalEnd::A, Vec3::new(0.0, 1.0, -WALL_THICKNESS / 2.0), -Vec3::Z, 0.0),
+            portal(PortalEnd::B, Vec3::new(10.0, 1.6, 10.0), Vec3::Z, 0.0),
+        ],
+        &world,
+    );
+    let physics = player_physics();
+    let origin = Vec3::new(0.0, 1.0 - physics.collider.top_y_offset() / 2.0, -0.5);
+
+    assert_eq!(set.collision_exclusions(origin, physics).len(), 1);
+}
+
+#[test]
 fn shot_past_the_walls_end_nudges_back_onto_it() {
     let layout = placement_layout();
     let placement = place(&layout, Vec3::new(5.9, 1.6, 3.0), Vec3::new(5.9, 1.6, 0.0), PI)

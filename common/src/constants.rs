@@ -179,6 +179,9 @@ pub const PORTAL_PROJECTILE_EXIT_STANDOFF: f32 = 0.02;
 // Above this |normal.y| world-up has no usable in-plane projection and the
 // placement yaw orients the aperture frame instead.
 pub const PORTAL_UP_DEGENERACY_LIMIT: f32 = 0.99;
+// How far a collider may poke past a portal's surface plane and still count
+// as flush backing; coplanar grid faces differ by float noise only.
+pub const PORTAL_BACKING_FLUSH_EPSILON: f32 = 0.02;
 // A projectile's portal crossing and its bounce off the portal's own surface
 // register at nearly the same time of impact; within this fraction-of-tick
 // tie the portal wins.
