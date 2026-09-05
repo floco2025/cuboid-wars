@@ -14,7 +14,7 @@ use crate::{
 use common::{
     config::MapMovementConfig,
     constants::TICK_HZ,
-    physics::{CharacterVerticalVelocity, KnockbackVelocity, PortalMomentum, player_control_velocity},
+    physics::{AirborneMomentum, CharacterVerticalVelocity, KnockbackVelocity, player_control_velocity},
     protocol::*,
 };
 
@@ -86,7 +86,7 @@ pub(in crate::network) fn handle_player_moves_message(
                     PreviousTickPosition(movement.pos),
                     CharacterVerticalVelocity(movement.vertical_velocity),
                 ))
-                .remove::<(ServerReconciliation, PortalMomentum)>();
+                .remove::<(ServerReconciliation, AirborneMomentum)>();
             if id == my_player_id {
                 context.local_player_info.committed_positions.clear();
             } else {
@@ -431,7 +431,7 @@ fn apply_player_death(
             commands
                 .entity(info.entity)
                 .insert((Visibility::Hidden, event.pos, PreviousTickPosition(event.pos)))
-                .remove::<(ServerReconciliation, PortalMomentum)>();
+                .remove::<(ServerReconciliation, AirborneMomentum)>();
         }
         local_player_info.is_dead = true;
         // Centered "You died!" banner. The red full-screen

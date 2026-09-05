@@ -17,6 +17,7 @@ from .constants import (
     MODE_BARRIER,
     MODE_LADDER,
     MODE_LIGHT,
+    MODE_MOVING_FLOOR,
     MODE_SPAWN_ZONE_EDIT,
     MODE_WALL,
     MODE_WALL_MATERIAL,
@@ -27,12 +28,13 @@ from .constants import (
     SPAWN_PAINT_MODES,
     SPAWN_ZONE_HANDLE_PIXELS,
 )
-from .normalization import ladder_spans_level
+from .normalization import ladder_spans_level, moving_floor_spans_level
 
 from .display import (
     BARRIER_PEN_WIDTH,
     DRAG_PREVIEW_COLORS,
     DRAG_PREVIEW_FALLBACK,
+    MOVING_FLOOR_COLOR,
     WALL_HIGHLIGHT_WIDTH,
     WALL_PEN_WIDTH,
     face_color,
@@ -79,6 +81,7 @@ class CanvasPaintingMixin:
             self._paint_adjacent_level_ghosts(painter, cell, level_idx)
         self._paint_floors(painter, level, cell)
         self._paint_light_bridges(painter, level, cell)
+        self._paint_moving_floors(painter, cell, level_idx)
         self._paint_grass(painter, level, cell)
         self._paint_pressure_plates(painter, cell, level_idx)
         self._paint_items(painter, cell, level_idx)
@@ -162,6 +165,10 @@ class CanvasPaintingMixin:
             return
         col, row = self.hover_cell
         if not (0 <= col < self.window.map_data["grid_cols"] and 0 <= row < self.window.map_data["grid_rows"]):
+            return
+        if mode == MODE_MOVING_FLOOR:
+            self._paint_moving_floor_tile(painter, (col, row), cell)
+            painter.setPen(Qt.PenStyle.NoPen)
             return
         color = DRAG_PREVIEW_COLORS.get(mode, DRAG_PREVIEW_FALLBACK)
         # Slightly dimmer than the drag preview so a static hover doesn't
@@ -354,6 +361,9 @@ class CanvasPaintingMixin:
             return
         if self.window.mode not in DRAG_PREVIEW_COLORS and self.window.mode not in SPAWN_PAINT_MODES:
             return
+        # A moving floor drag is two ends and an arrow, not a rectangle.
+        if self.window.mode == MODE_MOVING_FLOOR:
+            return
         c0, r0, c1, r1 = rect_from_cells(self.drag_start_cell, self.drag_current_cell)
         color = DRAG_PREVIEW_COLORS.get(self.window.mode, DRAG_PREVIEW_FALLBACK)
         painter.setBrush(color)
@@ -374,6 +384,8 @@ class CanvasPaintingMixin:
             self.paint_wall_preview(painter, self.drag_start_point, end, cell, color=QColor(hex_color))
         elif self.drag_start_cell and self.drag_current_cell and self.window.mode in RAMP_MODES:
             self.paint_ramp_preview(painter, self.drag_start_cell, self.drag_current_cell, cell)
+        elif self.drag_start_cell and self.drag_current_cell and self.window.mode == MODE_MOVING_FLOOR:
+            self._paint_moving_floor_drag(painter, cell)
 
     def _paint_grid_lines(self, painter: QPainter, cell: float, cols: int, rows: int) -> None:
         painter.setPen(QPen(QColor("#2e343b"), 1))
@@ -418,6 +430,98 @@ class CanvasPaintingMixin:
         for ladder in ladders:
             for x0, y0, x1, y1 in ladder_marker_lines(ladder, cell):
                 painter.drawLine(round(x0), round(y0), round(x1), round(y1))
+
+    def _paint_moving_floors(self, painter: QPainter, cell: float, level_idx: int) -> None:
+        # A tile paints its whole span on every level it passes through, so
+        # a lift's far end is visible, and placeable, from the storey it
+        # lands on.
+        for floor in self.window.map_data.get("moving_floors", []):
+            if moving_floor_spans_level(floor, level_idx):
+                self.paint_moving_floor_span(
+                    painter, tuple(floor["from"]), tuple(floor["to"]), floor["level"], floor["to_level"], level_idx, cell
+                )
+
+    def paint_moving_floor_span(
+        self,
+        painter: QPainter,
+        start: tuple[int, int],
+        end: tuple[int, int],
+        start_level: int,
+        end_level: int,
+        level_idx: int,
+        cell: float,
+        dim: bool = False,
+    ) -> None:
+        # One language: a square at each end of the tile's travel, numbered
+        # 1 (where it rests at phase zero) and 2, a band over the cells it
+        # sweeps between them (what must stay clear), and a hollow square for
+        # an end on another storey. The tile goes back and forth, so nothing
+        # points one way.
+        inset = max(2.0, cell * 0.12)
+        tile = cell - 2 * inset
+        scale = 0.5 if dim else 1.0
+        line = QColor(MOVING_FLOOR_COLOR)
+        line.setAlpha(int(230 * scale))
+        fill = QColor(MOVING_FLOOR_COLOR)
+        fill.setAlpha(int(160 * scale))
+        band = QColor(MOVING_FLOOR_COLOR)
+        band.setAlpha(int(70 * scale))
+        center = lambda pos: ((pos[0] + 0.5) * cell, (pos[1] + 0.5) * cell)
+        if end != start:
+            (sx, sy), (ex, ey) = center(start), center(end)
+            painter.save()
+            painter.translate(sx, sy)
+            painter.rotate(math.degrees(math.atan2(ey - sy, ex - sx)))
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(band)
+            painter.drawRect(QRectF(0.0, -tile / 2, math.hypot(ex - sx, ey - sy), tile))
+            painter.restore()
+
+        if end != start:
+            ends = [(start, start_level, "1"), (end, end_level, "2")]
+        elif start_level == level_idx:
+            ends = [(start, start_level, "1")]
+        elif end_level == level_idx:
+            ends = [(end, end_level, "2")]
+        else:
+            ends = [(start, level_idx + 1, "")]
+        for pos, level, number in ends:
+            here = level == level_idx
+            cx, cy = center(pos)
+            rect = QRectF(cx - tile / 2, cy - tile / 2, tile, tile)
+            painter.setPen(QPen(line, 2))
+            painter.setBrush(fill if here else Qt.BrushStyle.NoBrush)
+            painter.drawRect(rect)
+            if number:
+                painter.setPen(QColor("#ffffff") if here else line)
+                painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, number)
+        painter.setPen(Qt.PenStyle.NoPen)
+
+    def _paint_moving_floor_drag(self, painter: QPainter, cell: float) -> None:
+        # A drag from an existing end previews that end at the cursor with
+        # the other end where it is; any other drag previews a new tile.
+        start, current = self.drag_start_cell, self.drag_current_cell
+        level_idx = self.window.current_level
+        hit = self.window.moving_floor_end_at(start)
+        if hit is None:
+            self.paint_moving_floor_span(painter, start, current, level_idx, level_idx, level_idx, cell, dim=True)
+            return
+        floor, end = hit
+        moved = {**floor, end: [current[0], current[1]]}
+        self.paint_moving_floor_span(
+            painter, tuple(moved["from"]), tuple(moved["to"]), floor["level"], floor["to_level"], level_idx, cell, dim=True
+        )
+
+    def _paint_moving_floor_tile(self, painter: QPainter, cell_pos: tuple[int, int], cell: float) -> None:
+        inset = max(2.0, cell * 0.12)
+        rect = QRectF(cell_pos[0] * cell + inset, cell_pos[1] * cell + inset, cell - 2 * inset, cell - 2 * inset)
+        line = QColor(MOVING_FLOOR_COLOR)
+        line.setAlpha(140)
+        fill = QColor(MOVING_FLOOR_COLOR)
+        fill.setAlpha(80)
+        painter.setBrush(fill)
+        painter.setPen(QPen(line, 2))
+        painter.drawRect(rect)
 
     def _paint_wall_material_drag(self, painter: QPainter, cell: float) -> None:
         # Grid-point based: 2D rectangle when the drag spans both axes, or a
@@ -465,6 +569,7 @@ class CanvasPaintingMixin:
                 neighbor = levels[target]
                 self._paint_floors(painter, neighbor, cell)
                 self._paint_light_bridges(painter, neighbor, cell)
+                self._paint_moving_floors(painter, cell, target)
                 self._paint_ramps(painter, cell, target)
                 self._paint_walls(painter, neighbor, cell)
                 self._paint_barriers(painter, neighbor, cell)

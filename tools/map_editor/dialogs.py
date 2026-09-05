@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
     QDialogButtonBox,
+    QDoubleSpinBox,
     QFormLayout,
     QGridLayout,
     QGroupBox,
@@ -148,6 +149,73 @@ class LadderLevelsDialog(QDialog):
     @classmethod
     def prompt(cls, parent, max_levels: int, current: int) -> int | None:
         dialog = cls(parent, max_levels, current)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return None
+        return dialog.value()
+
+
+class MovingFloorDialog(QDialog):
+    """Modal dialog asking where a new moving floor travels to and how: the
+    level of its far end, its speed, the pause at each end, and the phase
+    offset of its cycle. `recent` is the previous answer, remembered for the
+    next placement. Returns `(to_level, speed, pause_secs, phase_secs)` on
+    accept, None on cancel."""
+
+    def __init__(
+        self,
+        parent,
+        level_count: int,
+        current_level: int,
+        recent: tuple[int, float, float, float] | None,
+        title: str = "Place Moving Floor",
+    ):
+        super().__init__(parent)
+        self.setWindowTitle(title)
+        to_level, speed, pause_secs, phase_secs = recent or (current_level, 2.0, 1.0, 0.0)
+
+        self._to_level = QSpinBox()
+        self._to_level.setRange(0, max(0, level_count - 1))
+        self._to_level.setValue(min(max(0, to_level), max(0, level_count - 1)))
+        self._speed = QDoubleSpinBox()
+        self._speed.setRange(0.1, 30.0)
+        self._speed.setSingleStep(0.5)
+        self._speed.setValue(speed)
+        self._pause = QDoubleSpinBox()
+        self._pause.setRange(0.0, 60.0)
+        self._pause.setSingleStep(0.5)
+        self._pause.setValue(pause_secs)
+        self._phase = QDoubleSpinBox()
+        self._phase.setRange(0.0, 120.0)
+        self._phase.setSingleStep(0.5)
+        self._phase.setValue(phase_secs)
+
+        form = QFormLayout()
+        form.addRow("To level:", self._to_level)
+        form.addRow("Speed (m/s):", self._speed)
+        form.addRow("Pause at each end (s):", self._pause)
+        form.addRow("Phase offset from the start (s):", self._phase)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+
+        layout = QVBoxLayout(self)
+        layout.addLayout(form)
+        layout.addWidget(buttons)
+
+    def value(self) -> tuple[int, float, float, float]:
+        return (self._to_level.value(), self._speed.value(), self._pause.value(), self._phase.value())
+
+    @classmethod
+    def prompt(
+        cls,
+        parent,
+        level_count: int,
+        current_level: int,
+        recent: tuple[int, float, float, float] | None,
+        title: str = "Place Moving Floor",
+    ) -> tuple[int, float, float, float] | None:
+        dialog = cls(parent, level_count, current_level, recent, title)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return None
         return dialog.value()

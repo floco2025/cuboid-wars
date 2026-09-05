@@ -105,7 +105,6 @@
           {"col": 5, "row": 8, "all": "basement-floor"},
           {"col": 6, "row": 8, "all": "basement-floor"},
           {"col": 14, "row": 8, "all": "basement-floor"},
-          {"col": 15, "row": 8, "all": "basement-floor"},
           {"col": 4, "row": 9, "all": "basement-floor"},
           {"col": 5, "row": 9, "all": "basement-floor"},
           {"col": 6, "row": 9, "all": "basement-floor"},
@@ -218,18 +217,6 @@
       {
         "name": "Level 1",
         "floors": [
-          {"col": 10, "row": 1, "all": "basement-floor"},
-          {"col": 11, "row": 1, "all": "basement-floor"},
-          {"col": 12, "row": 1, "all": "basement-floor"},
-          {"col": 16, "row": 1, "all": "basement-floor"},
-          {"col": 9, "row": 2, "all": "basement-floor"},
-          {"col": 10, "row": 2, "all": "basement-floor"},
-          {"col": 11, "row": 2, "all": "basement-floor"},
-          {"col": 16, "row": 2, "all": "basement-floor"},
-          {"col": 8, "row": 3, "all": "basement-floor"},
-          {"col": 9, "row": 3, "all": "basement-floor"},
-          {"col": 10, "row": 3, "all": "basement-floor"},
-          {"col": 16, "row": 3, "all": "basement-floor"},
           {"col": 16, "row": 5, "all": "basement-floor"}
         ],
         "inaccessible_floors": [],
@@ -321,6 +308,14 @@
       }
     ],
     "ladders": [],
-    "ramps": []
+    "ramps": [],
+    "moving_floors": [
+      {"level": 0, "from": [0, 4], "to": [0, 7], "to_level": 0, "speed": 4.0, "pause_secs": 1.0, "phase_secs": 4.0, "all": "basement-floor"},
+      {"level": 0, "from": [0, 8], "to": [3, 8], "to_level": 0, "speed": 4.0, "pause_secs": 1.0, "phase_secs": 8.0, "all": "basement-floor"},
+      {"level": 0, "from": [3, 3], "to": [0, 3], "to_level": 0, "speed": 4.0, "pause_secs": 1.0, "phase_secs": 0.0, "all": "basement-floor"},
+      {"level": 0, "from": [8, 4], "to": [11, 1], "to_level": 0, "speed": 5.0, "pause_secs": 1.0, "phase_secs": 0.0, "all": "basement-floor"},
+      {"level": 0, "from": [18, 4], "to": [17, 8], "to_level": 4, "speed": 2.0, "pause_secs": 1.0, "phase_secs": 0.0, "all": "basement-floor"},
+      {"level": 4, "from": [15, 8], "to": [15, 8], "to_level": 0, "speed": 5.0, "pause_secs": 2.0, "phase_secs": 0.0, "all": "basement-floor"}
+    ]
   }
 }

@@ -36,6 +36,37 @@ impl KnockbackVelocity {
     }
 }
 
+// Horizontal velocity a body keeps while airborne: a portal exit's launch,
+// or the velocity of a moving floor it jumped or walked off. Constant in the
+// air; movement planning clears it on landing or collision.
+#[derive(Component, Debug, Default, Clone, Copy)]
+pub struct AirborneMomentum(pub Vec3);
+
+impl AirborneMomentum {
+    #[must_use]
+    pub fn step(&self, delta: f32) -> Vec3 {
+        self.0 * delta
+    }
+
+    pub fn finish_step(&mut self, movement: &CharacterMovementResult) {
+        if movement.support == CharacterSupport::Airborne && !movement.blocked {
+            self.0 += movement.floor_velocity.with_y(0.0);
+        } else {
+            self.0 = Vec3::ZERO;
+        }
+    }
+}
+
+#[must_use]
+pub fn momentum_displacement(
+    knockback: Option<&KnockbackVelocity>,
+    momentum: Option<&AirborneMomentum>,
+    delta: f32,
+) -> Vec3 {
+    knockback.map_or(Vec3::ZERO, |velocity| velocity.step(delta))
+        + momentum.map_or(Vec3::ZERO, |momentum| momentum.step(delta))
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CharacterMovementResult {
     pub position: Position,
@@ -44,6 +75,10 @@ pub struct CharacterMovementResult {
     // True when static-world collision materially blocked requested movement.
     // Side contacts that Rapier resolves by auto-stepping are not treated as blocked.
     pub blocked: bool,
+    // Velocity of the moving floor that carried the body this step, zero
+    // otherwise. Its vertical part is already in `vertical_velocity` when the
+    // body ends airborne; the horizontal part becomes `AirborneMomentum`.
+    pub floor_velocity: Vec3,
 }
 
 // Derived independently each step and never read back by the movement motor.

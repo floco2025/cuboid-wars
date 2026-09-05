@@ -3,6 +3,7 @@ use bevy::prelude::*;
 use crate::{actors::ActorMap, network::ServerReconciliation};
 use common::{
     config::{CharacterPhysicsConfig, GameplayConfig},
+    map::MovingFloors,
     physics::{
         CharacterEnvironment, CharacterMovePlan, CharacterStep, CharacterVerticalVelocity, CollisionWorld,
         blocking_character_move_plan, character_move_plan_is_blocked, step_character_movement,
@@ -52,6 +53,7 @@ pub(crate) fn plan_actor_moves(
     gameplay_config: &GameplayConfig,
     actors: &ActorMap,
     plates: &PlateState,
+    moving_floors: &MovingFloors,
     actor_starts: &[(Entity, Position, CharacterPhysicsConfig)],
     query: &mut ActorMovementQuery,
     planned_moves: &mut Vec<CharacterMovePlan>,
@@ -104,6 +106,7 @@ pub(crate) fn plan_actor_moves(
                 physics: actor_physics,
                 ladder_climb_ratio: map_settings.movement.ladder_climb_ratio,
                 portals: None,
+                moving_floors,
             },
         );
         push_actor_planned_move(

@@ -1,7 +1,7 @@
 """The map being edited, independent of any UI.
 
 `MapDocument` owns file identity, map data, the dirty flag, undo history,
-and persistence (load/save/autosave). Widgets and dialogs stay in the
+and persistence (load/save). Widgets and dialogs stay in the
 window/mixins; everything here is prompt-free so it can be exercised
 without Qt widgets.
 """
@@ -76,58 +76,3 @@ class MapDocument:
         write_map(self.path, self.map_data)
         self.path_mtime = self.path.stat().st_mtime
         self.dirty = False
-        self.clear_autosave()
-
-    # === Autosave / crash recovery ===
-
-    def autosave_path(self) -> Path | None:
-        if self.path is None:
-            return None
-        return self.path.with_suffix(".autosave.json")
-
-    def write_autosave(self) -> None:
-        if not self.dirty:
-            return
-        autosave = self.autosave_path()
-        if autosave is None:
-            return
-        try:
-            write_map(autosave, self.map_data)
-        except Exception:
-            # Autosave is best-effort; never interrupt the user with a modal.
-            pass
-
-    def clear_autosave(self) -> None:
-        autosave = self.autosave_path()
-        if autosave is not None and autosave.exists():
-            try:
-                autosave.unlink()
-            except OSError:
-                pass
-
-    def has_recoverable_autosave(self) -> bool:
-        """True when a `<file>.autosave.json` sibling is newer than the
-        backing file."""
-        if self.path is None or not self.path.exists():
-            return False
-        autosave = self.autosave_path()
-        if autosave is None or not autosave.exists():
-            return False
-        try:
-            return autosave.stat().st_mtime > self.path.stat().st_mtime
-        except OSError:
-            return False
-
-    def recover_autosave(self) -> bool:
-        """Adopt the autosave's contents; returns False if it can't be read."""
-        autosave = self.autosave_path()
-        if autosave is None:
-            return False
-        try:
-            recovered = read_map(autosave)
-        except Exception:
-            return False
-        self.map_data = recovered
-        # Unsaved by definition until the user writes the real file.
-        self.dirty = True
-        return True

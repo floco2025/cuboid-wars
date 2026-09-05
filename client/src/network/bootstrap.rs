@@ -11,7 +11,7 @@ use crate::{
     ui::{HudBanner, QuestLog},
     vfx::BlastRadii,
 };
-use common::{physics::CollisionWorld, protocol::*};
+use common::{map::MovingFloors, physics::CollisionWorld, protocol::*};
 
 pub(crate) fn install_bootstrap(app: &mut App, message: SInit, asset_set: &AssetSet) -> anyhow::Result<()> {
     let gameplay_config = message.world.gameplay.gameplay_config()?;
@@ -61,6 +61,7 @@ pub(crate) fn install_bootstrap(app: &mut App, message: SInit, asset_set: &Asset
             .collect(),
     };
     let collision_world = CollisionWorld::from_map_layout(&message.world.map.layout, &barrier_kind_table);
+    let moving_floors = MovingFloors::from_layout(&message.world.map.layout);
 
     debug!("received Init: my_id=player#{}", message.player.id.0);
     app.insert_resource(MyPlayerId(message.player.id))
@@ -73,6 +74,7 @@ pub(crate) fn install_bootstrap(app: &mut App, message: SInit, asset_set: &Asset
         .insert_resource(message.world.map.layout)
         .insert_resource(message.world.map.settings)
         .insert_resource(collision_world)
+        .insert_resource(moving_floors)
         .insert_resource(blast_radii)
         .insert_resource(max_health)
         .insert_resource(KeyKinds(message.world.map.key_kinds))

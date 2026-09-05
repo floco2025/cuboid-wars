@@ -11,6 +11,7 @@ use crate::{
         batch_wall, spawn_ladder_from_layout, spawn_wall_light_from_layout,
     },
     materials::MaterialHandleCache,
+    moving_floors::MovingFloorMarker,
     players::LocalPlayerMarker,
 };
 use common::protocol::{ItemMarker, MapLayout, MapSettings};
@@ -193,10 +194,15 @@ pub fn map_level_focus_visibility_system(
             )>,
             Without<RampMarker>,
             Without<LadderMarker>,
+            Without<MovingFloorMarker>,
         ),
     >,
-    mut ramps: Query<(&MapLevel, &mut Visibility), (With<RampMarker>, Without<LadderMarker>)>,
-    mut ladders: Query<(&MapLevel, &LadderMarker, &mut Visibility)>,
+    mut ramps: Query<
+        (&MapLevel, &mut Visibility),
+        (With<RampMarker>, Without<LadderMarker>, Without<MovingFloorMarker>),
+    >,
+    mut ladders: Query<(&MapLevel, &LadderMarker, &mut Visibility), Without<MovingFloorMarker>>,
+    mut moving_floors: Query<(&MapLevel, &MovingFloorMarker, &mut Visibility)>,
 ) {
     // Equal writes would retrigger visibility propagation for hundreds of map entities.
     for (level, mut vis) in &mut level_entities {
@@ -207,6 +213,9 @@ pub fn map_level_focus_visibility_system(
     }
     for (level, ladder, mut vis) in &mut ladders {
         vis.set_if_neq(ladder_visibility(*focused, level.0, ladder.levels));
+    }
+    for (level, tile, mut vis) in &mut moving_floors {
+        vis.set_if_neq(ladder_visibility(*focused, level.0, tile.levels));
     }
 }
 
@@ -228,10 +237,23 @@ pub fn added_map_level_visibility_system(
             )>,
             Without<RampMarker>,
             Without<LadderMarker>,
+            Without<MovingFloorMarker>,
         ),
     >,
-    mut ramps: Query<(&MapLevel, &mut Visibility), (Added<MapLevel>, With<RampMarker>, Without<LadderMarker>)>,
-    mut ladders: Query<(&MapLevel, &LadderMarker, &mut Visibility), (Added<MapLevel>, With<LadderMarker>)>,
+    mut ramps: Query<
+        (&MapLevel, &mut Visibility),
+        (
+            Added<MapLevel>,
+            With<RampMarker>,
+            Without<LadderMarker>,
+            Without<MovingFloorMarker>,
+        ),
+    >,
+    mut ladders: Query<
+        (&MapLevel, &LadderMarker, &mut Visibility),
+        (Added<MapLevel>, With<LadderMarker>, Without<MovingFloorMarker>),
+    >,
+    mut moving_floors: Query<(&MapLevel, &MovingFloorMarker, &mut Visibility), Added<MapLevel>>,
 ) {
     for (level, mut visibility) in &mut level_entities {
         *visibility = level_visibility(*focused, level.0);
@@ -241,6 +263,9 @@ pub fn added_map_level_visibility_system(
     }
     for (level, ladder, mut visibility) in &mut ladders {
         *visibility = ladder_visibility(*focused, level.0, ladder.levels);
+    }
+    for (level, tile, mut visibility) in &mut moving_floors {
+        *visibility = ladder_visibility(*focused, level.0, tile.levels);
     }
 }
 
@@ -363,5 +388,34 @@ mod tests {
         app.insert_resource(FocusedMapLevel(Some(2)));
         app.update();
         assert_eq!(visibility(&app), Visibility::Visible);
+    }
+
+    #[test]
+    fn a_moving_floor_follows_level_focus_like_a_ladder() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .insert_resource(FocusedMapLevel(Some(1)))
+            .add_systems(
+                Update,
+                (map_level_focus_visibility_system, added_map_level_visibility_system).chain(),
+            );
+        let lift = app
+            .world_mut()
+            .spawn((
+                MovingFloorMarker { index: 0, levels: 1 },
+                MapLevel(2),
+                Visibility::Visible,
+            ))
+            .id();
+        let visibility = |app: &App| *app.world().get::<Visibility>(lift).expect("lift lost its visibility");
+
+        app.update();
+        assert_eq!(visibility(&app), Visibility::Hidden);
+
+        for focused in [2, 3] {
+            app.insert_resource(FocusedMapLevel(Some(focused)));
+            app.update();
+            assert_eq!(visibility(&app), Visibility::Visible, "focused on {focused}");
+        }
     }
 }

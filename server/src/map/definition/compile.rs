@@ -1,7 +1,8 @@
 use anyhow::Context;
+use bevy::math::Vec3;
 use std::collections::HashSet;
 
-use super::schema::{LadderDef, MapDef, PressurePlatePurposeDef, RampDef, WallSide};
+use super::schema::{LadderDef, MapDef, MovingFloorDef, PressurePlatePurposeDef, RampDef, WallSide};
 use crate::{
     map::{
         ActorSpawnZone, CellGrid, EdgeGrid, LevelGrid, MapConfig, PlacedItem, PlayerSpawnZone, PressurePlateRuntime,
@@ -18,12 +19,12 @@ use crate::{
 };
 use common::{
     config::MapGeometryConfig,
-    constants::LADDER_WIDTH,
+    constants::{LADDER_WIDTH, MOVING_FLOOR_INSET_FRACTION, TICK_HZ},
     map::MapGeometry,
     protocol::FaceMaterials,
     protocol::{
         BarrierKindId, BarrierKindTable, BridgeKindTable, Floor, GrassCell, ItemType, Ladder, LightBridge, MapLayout,
-        PlatePurpose, Wall,
+        MovingFloor, PlatePurpose, Wall,
     },
 };
 
@@ -213,6 +214,11 @@ pub(crate) fn compile_map(
         .iter()
         .map(|def| ladder_from_def(def, &geometry))
         .collect();
+    let (moving_floors, moving_floor_materials) = map_def
+        .moving_floors
+        .iter()
+        .map(|def| (moving_floor_from_def(def, &geometry), def.materials.clone()))
+        .unzip();
 
     let map_layout = MapLayout {
         walls: all_walls,
@@ -224,6 +230,8 @@ pub(crate) fn compile_map(
         floor_materials: all_floor_materials,
         barriers: all_barriers,
         light_bridges: all_light_bridges,
+        moving_floors,
+        moving_floor_materials,
         pressure_plates: pressure_plates
             .iter()
             .map(|p| common::protocol::PressurePlate {
@@ -242,6 +250,7 @@ pub(crate) fn compile_map(
     assert_eq!(map_layout.walls.len(), map_layout.wall_materials.len());
     assert_eq!(map_layout.floors.len(), map_layout.floor_materials.len());
     assert_eq!(map_layout.ramps.len(), map_layout.ramp_materials.len());
+    assert_eq!(map_layout.moving_floors.len(), map_layout.moving_floor_materials.len());
 
     let placed_items = placed_items(map_def, kind_table, &level_grids)?;
 
@@ -408,6 +417,42 @@ fn set_edge(edges: &mut EdgeGrid, edge: [i32; 4]) {
         edges.horizontal[r0 as usize][c0.min(c1) as usize] = true;
     } else {
         edges.vertical[r0.min(r1) as usize][c0 as usize] = true;
+    }
+}
+
+// A moving floor sets no `Cell` flags, like a light bridge: navigation,
+// item cells, spawn cells, and the air graph never see it. Its timing is
+// whole ticks so both sides place it exactly from the shared tick.
+fn moving_floor_from_def(def: &MovingFloorDef, geometry: &MapGeometry) -> MovingFloor {
+    let level = u8::try_from(def.level).unwrap_or(u8::MAX);
+    let to_level = u8::try_from(def.to_level()).unwrap_or(u8::MAX);
+    let end1 = Vec3::new(
+        geometry.cell_center_x(def.from[0]),
+        geometry.level_y(level),
+        geometry.cell_center_z(def.from[1]),
+    );
+    let end2 = Vec3::new(
+        geometry.cell_center_x(def.to[0]),
+        geometry.level_y(to_level),
+        geometry.cell_center_z(def.to[1]),
+    );
+    let half = geometry.cell_size() / 2.0 - geometry.cell_size() * MOVING_FLOOR_INSET_FRACTION;
+    let ticks = |secs: f32| (secs * TICK_HZ as f32).round() as u32;
+    MovingFloor {
+        x1: end1.x,
+        y1: end1.y,
+        z1: end1.z,
+        x2: end2.x,
+        y2: end2.y,
+        z2: end2.z,
+        half_x: half,
+        half_z: half,
+        thickness: geometry.floor_thickness(),
+        travel_ticks: ticks(end1.distance(end2) / def.speed).max(1),
+        pause_ticks: ticks(def.pause_secs),
+        phase_ticks: ticks(def.phase_secs),
+        level: level.min(to_level),
+        levels: level.abs_diff(to_level),
     }
 }
 

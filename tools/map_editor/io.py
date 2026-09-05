@@ -40,6 +40,7 @@ def empty_map(grid_cols: int = DEFAULT_GRID_COLS, grid_rows: int = DEFAULT_GRID_
         ],
         "ramps": [],
         "ladders": [],
+        "moving_floors": [],
     }
 
 

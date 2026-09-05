@@ -21,7 +21,8 @@ pub use player_control::player_control_velocity;
 pub use player_movement::{PlayerMovementStep, step_player_movement};
 pub use support::position_has_floor_support;
 pub use types::{
-    CharacterMovePlan, CharacterMovementResult, CharacterSupport, CharacterVerticalVelocity, KnockbackVelocity,
+    AirborneMomentum, CharacterMovePlan, CharacterMovementResult, CharacterSupport, CharacterVerticalVelocity,
+    KnockbackVelocity, momentum_displacement,
 };
 
 #[cfg(test)]

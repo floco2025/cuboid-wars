@@ -11,7 +11,7 @@ use crate::{
     ui::BannerMessage,
 };
 use common::{
-    physics::{CharacterVerticalVelocity, PortalMomentum},
+    physics::{AirborneMomentum, CharacterVerticalVelocity},
     protocol::{FaceYaw, Player, PlayerId, Position},
 };
 
@@ -99,7 +99,7 @@ pub(in crate::network) fn sync_players(
         // pre-death position.
         commands
             .entity(entity)
-            .remove::<(ServerReconciliation, PortalMomentum)>();
+            .remove::<(ServerReconciliation, AirborneMomentum)>();
         info.apply_snapshot(server_player);
         // The pre-death records and any pending crossing dispute describe a
         // player that no longer exists.

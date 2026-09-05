@@ -2,13 +2,14 @@ use bevy_math::Vec3;
 
 use crate::{
     config::GameplayConfig,
-    physics::{CollisionWorld, PortalMomentum, PortalSet, momentum_displacement, passable_barrier_kinds},
+    map::MovingFloors,
+    physics::{CollisionWorld, PortalSet, passable_barrier_kinds},
     protocol::{BarrierKindId, MapSettings, Position},
 };
 
 use super::{
     movement::{CharacterEnvironment, CharacterStep, step_character_movement},
-    types::{CharacterMovementResult, KnockbackVelocity},
+    types::{AirborneMomentum, CharacterMovementResult, KnockbackVelocity, momentum_displacement},
 };
 
 pub struct PlayerMovementStep<'a> {
@@ -22,18 +23,19 @@ pub struct PlayerMovementStep<'a> {
     // Barrier kinds the pressure plates hold open (`PlateState`).
     pub open_kinds: &'a [BarrierKindId],
     pub knockback: Option<&'a KnockbackVelocity>,
-    pub portal_momentum: Option<&'a mut PortalMomentum>,
+    pub airborne_momentum: Option<&'a mut AirborneMomentum>,
     pub collision_world: &'a CollisionWorld,
     pub map_settings: &'a MapSettings,
     pub gameplay_config: &'a GameplayConfig,
     pub portal_set: &'a PortalSet,
+    pub moving_floors: &'a MovingFloors,
 }
 
 #[must_use]
 pub fn step_player_movement(mut step: PlayerMovementStep<'_>) -> CharacterMovementResult {
     let passable_kinds = passable_barrier_kinds(step.held_keys, step.open_kinds);
     let external_displacement = step.additional_displacement
-        + momentum_displacement(step.knockback, step.portal_momentum.as_deref(), step.delta);
+        + momentum_displacement(step.knockback, step.airborne_momentum.as_deref(), step.delta);
     let movement = step_character_movement(
         CharacterStep {
             start: step.start,
@@ -49,9 +51,10 @@ pub fn step_player_movement(mut step: PlayerMovementStep<'_>) -> CharacterMoveme
             physics: step.gameplay_config.player.physics(),
             ladder_climb_ratio: step.map_settings.movement.ladder_climb_ratio,
             portals: Some(step.portal_set),
+            moving_floors: step.moving_floors,
         },
     );
-    if let Some(momentum) = step.portal_momentum.as_mut() {
+    if let Some(momentum) = step.airborne_momentum.as_mut() {
         momentum.finish_step(&movement);
     }
     movement

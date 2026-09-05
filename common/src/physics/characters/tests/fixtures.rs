@@ -2,7 +2,7 @@ pub(super) use super::super::*;
 pub(super) use crate::test_geometry::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS};
 pub(super) use crate::{
     config::CharacterPhysicsConfig,
-    map::ramp_surface_at,
+    map::{MovingFloors, ramp_surface_at},
     physics::{CollisionWorld, character_overlaps_item},
     protocol::{Floor, Ladder, MapLayout, Position, Ramp, Wall},
 };

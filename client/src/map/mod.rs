@@ -15,7 +15,7 @@ pub use resources::{DebugColorMode, DebugColors, FocusedMapLevel, LevelFocusEnab
 pub use spawn::{
     GroundMarker, LadderMarker, MapGeometryBatch, MapLevel, RampMarker, RoofMarker, WallLightMarker, WallMarker,
     batch_floor, batch_ramp, batch_wall, spawn_ladder_from_layout, spawn_wall_light_from_layout, tiled_cuboid,
-    wall_light_flicker_system,
+    tiled_floor_surface_meshes, wall_light_flicker_system,
 };
 
 mod plugin;

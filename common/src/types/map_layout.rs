@@ -1,5 +1,6 @@
 use anyhow::Result;
 use bevy_ecs::prelude::Resource;
+use bevy_math::Vec3;
 use bincode::{Decode, Encode};
 use serde::Deserialize;
 
@@ -125,6 +126,41 @@ impl LightBridge {
     }
 }
 
+// A tile that slides between two poses, `(x1, y1, z1)` and `(x2, y2, z2)`
+// being its surface center at each end; where it is at a tick is
+// `map::surface_center_at`, a pure function of the shared tick. Smaller than
+// a cell (`half_x`/`half_z`), `thickness` deep below the surface, and
+// spanning `levels` storeys above `level` like a ladder.
+#[derive(Debug, Clone, Encode, Decode, Copy)]
+pub struct MovingFloor {
+    pub x1: f32,
+    pub y1: f32,
+    pub z1: f32,
+    pub x2: f32,
+    pub y2: f32,
+    pub z2: f32,
+    pub half_x: f32,
+    pub half_z: f32,
+    pub thickness: f32,
+    pub travel_ticks: u32,
+    pub pause_ticks: u32,
+    pub phase_ticks: u32,
+    pub level: u8,
+    pub levels: u8,
+}
+
+impl MovingFloor {
+    #[must_use]
+    pub const fn end1(&self) -> Vec3 {
+        Vec3::new(self.x1, self.y1, self.z1)
+    }
+
+    #[must_use]
+    pub const fn end2(&self) -> Vec3 {
+        Vec3::new(self.x2, self.y2, self.z2)
+    }
+}
+
 // Freestanding climbable element anchored on a grid edge. The segment is the
 // edge span already shrunk to `LADDER_WIDTH` centered on the edge midpoint.
 // One-sided: the normal points at the FRONT — the climbable rail side —
@@ -198,6 +234,8 @@ pub struct MapLayout {
     pub wall_lights: Vec<WallLight>,
     pub barriers: Vec<Barrier>,
     pub light_bridges: Vec<LightBridge>,
+    pub moving_floors: Vec<MovingFloor>,
+    pub moving_floor_materials: Vec<FaceMaterials>,
     pub ladders: Vec<Ladder>,
     pub pressure_plates: Vec<PressurePlate>,
     pub grass: Vec<GrassCell>,
@@ -209,13 +247,14 @@ impl MapLayout {
     #[must_use]
     pub fn summary(&self) -> String {
         format!(
-            "{} walls, {} floors, {} ramps, {} ladders, {} barriers, {} light bridges, {} wall lights, {} pressure plates",
+            "{} walls, {} floors, {} ramps, {} ladders, {} barriers, {} light bridges, {} moving floors, {} wall lights, {} pressure plates",
             self.walls.len(),
             self.floors.len(),
             self.ramps.len(),
             self.ladders.len(),
             self.barriers.len(),
             self.light_bridges.len(),
+            self.moving_floors.len(),
             self.wall_lights.len(),
             self.pressure_plates.len(),
         )

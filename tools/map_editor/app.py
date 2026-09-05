@@ -7,7 +7,7 @@ import re
 import signal
 import sys
 
-from PySide6.QtCore import QPointF, QRectF, Qt, QTimer
+from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QBrush, QColor, QIcon, QPainter, QPen, QPixmap, QPolygonF
 from PySide6.QtWidgets import QApplication
 
@@ -55,10 +55,10 @@ def main() -> int:
     app.setOrganizationName("CuboidWars")
     app.setApplicationName("MapEditor")
     app.setWindowIcon(_build_window_icon())
-    signal.signal(signal.SIGINT, lambda _signum, _frame: app.exit(130))
-    sigint_timer = QTimer()
-    sigint_timer.timeout.connect(lambda: None)
-    sigint_timer.start(100)
+    # Ctrl-C ends the process outright: a Python-level handler could only
+    # ask the main event loop to quit, which a modal dialog's nested loop
+    # never gets around to.
+    signal.signal(signal.SIGINT, signal.SIG_DFL)
 
     window = EditorWindow(map_path)
     window.show()

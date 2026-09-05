@@ -24,6 +24,7 @@ from .constants import (
     MODE_ERASE_LADDERS,
     MODE_ERASE_LIGHT_BRIDGES,
     MODE_ERASE_LIGHTS,
+    MODE_ERASE_MOVING_FLOORS,
     MODE_ERASE_PRESSURE_PLATES,
     MODE_ERASE_RAMPS,
     MODE_ERASE_SPAWN_ZONES,
@@ -37,6 +38,7 @@ from .constants import (
     MODE_LADDER,
     MODE_LIGHT,
     MODE_LIGHT_BRIDGE,
+    MODE_MOVING_FLOOR,
     MODE_PLAYER_SPAWN_PAINT,
     MODE_PRESSURE_PLATE,
     MODE_RAMP_MATERIAL,
@@ -109,6 +111,11 @@ def _ramp_tool(canvas: "Canvas", event) -> None:
         canvas.window.add_ramp(canvas.drag_start_cell, canvas.drag_current_cell, canvas.window.mode)
 
 
+def _moving_floor_tool(canvas: "Canvas", event) -> None:
+    if canvas.drag_start_cell and canvas.drag_current_cell:
+        canvas.window.drag_moving_floor(canvas.drag_start_cell, canvas.drag_current_cell)
+
+
 def _spawn_zone_commit_tool(canvas: "Canvas", event) -> None:
     canvas.window.commit_spawn_zone_edit_drag()
 
@@ -177,6 +184,8 @@ RELEASE_TOOLS = {
     MODE_ERASE_ITEMS: _cell_rect_tool("erase_items_rect"),
     MODE_ERASE_LIGHTS: _cell_rect_tool("erase_lights_rect"),
     MODE_ERASE_RAMPS: _cell_rect_tool("erase_ramps_rect"),
+    MODE_MOVING_FLOOR: _moving_floor_tool,
+    MODE_ERASE_MOVING_FLOORS: _cell_rect_tool("erase_moving_floors_rect"),
     **dict.fromkeys(RAMP_MODES, _ramp_tool),
     **dict.fromkeys(ERASE_MODES, _erase_cells_tool),
 }
@@ -443,6 +452,8 @@ class Canvas(CanvasPaintingMixin, QWidget):
             return
         hit = self.window.hit_at(event.pos(), self.cell_size())
         preserve_floors = self.window.mode == MODE_ERASE_KEEP_FLOORS
+        if hit and hit[0] == MODE_MOVING_FLOOR:
+            menu.addAction("Edit Moving Floor...", lambda: self.window.edit_moving_floor(hit[1]))
         if hit and not (preserve_floors and hit[0] in FLOOR_HIT_KINDS):
             menu.addAction(
                 f"Erase {hit[0]}",

@@ -41,6 +41,7 @@ death/respawn flow.
 - **Actors** — mines, sentries, zappers, and reapers patrol and hunt; all
   explode when killed.
 - **Ladders** — climb between levels.
+- **Moving floors** — ride sliding and lifting tiles between platforms and storeys.
 - **Fall damage** — short drops are safe; long falls scale up to lethal.
 - **Death & respawn** — dying drops your keys and ammo; you respawn after
   a short delay.

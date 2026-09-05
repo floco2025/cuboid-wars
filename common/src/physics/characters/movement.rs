@@ -17,7 +17,8 @@ use super::{
 };
 use crate::{
     config::CharacterPhysicsConfig,
-    constants::{CHARACTER_STEP_HEIGHT, CHARACTER_STEP_MIN_WIDTH, CHARACTER_TERMINAL_VELOCITY},
+    constants::{CHARACTER_STEP_HEIGHT, CHARACTER_STEP_MIN_WIDTH, CHARACTER_TERMINAL_VELOCITY, TICK_SECS},
+    map::MovingFloors,
     physics::world::CollisionWorld,
     protocol::{BarrierKindId, Position},
 };
@@ -70,16 +71,29 @@ pub struct CharacterEnvironment<'a> {
     // backing colliders are excluded from this step's collision and support
     // queries. `None` for characters that cannot use portals (actors).
     pub portals: Option<&'a super::super::portals::PortalSet>,
+    // The moving floors at this tick's pose, already applied to
+    // `collision_world`; a body standing on one rides with it.
+    pub moving_floors: &'a MovingFloors,
 }
 
 #[must_use]
 pub fn step_character_movement(step: CharacterStep, env: &CharacterEnvironment) -> CharacterMovementResult {
+    // The tile's collider already sits at this tick's pose, and a probe that
+    // starts inside a collider finds no ground, so the body follows the
+    // tile's rise or drop before anything probes. The horizontal part rides
+    // the move instead, so a wall still blocks a body the tile pushes into it.
+    let carry = env
+        .moving_floors
+        .carry_at(Vec3::new(step.start.x, step.start.y, step.start.z), env.physics);
+    let mut step = step;
+    step.start.y += carry.y;
+    let carry_xz = carry.with_y(0.0);
     let character_shape = character_shape(env.physics);
     let support_shape = character_support_probe_shape(env.physics);
     let support_excluded = env.portals.map_or_else(Vec::new, |portals| {
         portals.collision_exclusions(Vec3::new(step.start.x, step.start.y, step.start.z), env.physics)
     });
-    let request = prepare_movement_request(step, env, &support_excluded, &character_shape, &support_shape);
+    let request = prepare_movement_request(step, env, carry_xz, &support_excluded, &character_shape, &support_shape);
     let movement_excluded = env.portals.map_or_else(Vec::new, |portals| {
         portals.movement_collision_exclusions(
             Vec3::new(step.start.x, step.start.y, step.start.z),
@@ -88,7 +102,15 @@ pub fn step_character_movement(step: CharacterStep, env: &CharacterEnvironment) 
         )
     });
     let collision = resolve_character_collision(step, env, &movement_excluded, &character_shape, &request);
-    finish_character_movement(step, env, &movement_excluded, &support_shape, request, collision)
+    finish_character_movement(
+        step,
+        env,
+        &movement_excluded,
+        &support_shape,
+        request,
+        collision,
+        carry / TICK_SECS,
+    )
 }
 
 struct MovementRequest {
@@ -104,6 +126,7 @@ struct MovementRequest {
 fn prepare_movement_request(
     step: CharacterStep,
     env: &CharacterEnvironment,
+    carry_xz: Vec3,
     excluded_colliders: &[ColliderHandle],
     character_shape: &Cuboid,
     support_shape: &Cuboid,
@@ -173,10 +196,12 @@ fn prepare_movement_request(
     let ladder_funnel = ladder.funnel_displacement(start_pos, step.delta);
     let target_x = step.control_velocity.x.mul_add(step.delta, start_pos.x)
         + step.external_displacement.x
+        + carry_xz.x
         + portal_funnel.x
         + ladder_funnel.x;
     let target_z = step.control_velocity.z.mul_add(step.delta, start_pos.z)
         + step.external_displacement.z
+        + carry_xz.z
         + portal_funnel.z
         + ladder_funnel.z;
     let (target_x, target_z) = ladder.constrain_target(start_pos, target_x, target_z, collision_world, physics);
@@ -260,6 +285,7 @@ fn finish_character_movement(
     support_shape: &Cuboid,
     request: MovementRequest,
     collision: CharacterCollisionResult,
+    floor_velocity: Vec3,
 ) -> CharacterMovementResult {
     let mut resolved = Position {
         x: step.start.x + collision.translation.x,
@@ -322,12 +348,18 @@ fn finish_character_movement(
     } else {
         CharacterSupport::Airborne
     };
+    // Leaving a tile keeps its rise or drop: a jump off a rising lift goes
+    // higher, the way it does off a real one.
+    if support == CharacterSupport::Airborne {
+        vertical_velocity += floor_velocity.y;
+    }
 
     CharacterMovementResult {
         position: resolved,
         vertical_velocity,
         support,
         blocked,
+        floor_velocity,
     }
 }
 

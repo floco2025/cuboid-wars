@@ -15,8 +15,10 @@ from map_editor.constants import (
 from map_editor.erase import EraseMixin
 from map_editor.geometry import ramp_axis, ramp_cells, wall_segments_between
 from map_editor.io import empty_map, read_map, write_map
+from map_editor.moving_floors import MovingFloorsMixin
 from map_editor.normalization import canonicalize_map, resize_map_data
 from map_editor.placement import PlacementMixin
+from map_editor.structure import insert_level_data, remove_level_data
 from map_editor.validation import validate_map
 
 
@@ -44,11 +46,12 @@ def upper_level(*floors: dict) -> dict:
     }
 
 
-class EditorHost(PlacementMixin, EraseMixin):
+class EditorHost(PlacementMixin, MovingFloorsMixin, EraseMixin):
     def __init__(self, map_data: dict, bridge_kinds: list[str]) -> None:
         self.map_data = map_data
         self.current_level = 0
         self.bridge_kinds = bridge_kinds
+        self.current_material = DEFAULT_ALIAS
         self.selected_spawn_zone_ref = None
         self.statuses: list[str] = []
 
@@ -437,6 +440,208 @@ class ValidationTests(unittest.TestCase):
         self.assertTrue(any("is not one grid edge" in error for error in errors))
         self.assertTrue(any("has no regular floor" in error for error in errors))
         self.assertTrue(any("but the map has 1 level(s)" in error for error in errors))
+
+
+def moving_floor(level: int, start: list[int], end: list[int], to_level: int | None = None) -> dict:
+    return {
+        "level": level,
+        "from": start,
+        "to": end,
+        "to_level": level if to_level is None else to_level,
+        "speed": 2.0,
+        "pause_secs": 1.0,
+        "phase_secs": 0.0,
+        **faces(),
+    }
+
+
+class MovingFloorTests(unittest.TestCase):
+    def test_placing_a_moving_floor_stores_both_cells_and_timing(self) -> None:
+        host = EditorHost(empty_map(6, 6), [])
+        host.place_moving_floor((1, 1), (4, 3), 0, 2.5, 0.5, 1.0)
+
+        self.assertEqual(
+            host.map_data["moving_floors"],
+            [{**moving_floor(0, [1, 1], [4, 3]), "speed": 2.5, "pause_secs": 0.5, "phase_secs": 1.0}],
+        )
+        host.place_moving_floor((1, 1), (1, 1), 0, 2.0, 0.0, 0.0)
+        self.assertEqual(len(host.map_data["moving_floors"]), 1)
+        self.assertTrue(host.statuses[-1].startswith("Moving floor not placed"))
+
+    def test_dragging_an_end_moves_only_that_end(self) -> None:
+        data = empty_map(6, 6)
+        data["levels"].append(upper_level(floor(0, 0)))
+        data["moving_floors"] = [moving_floor(0, [1, 1], [1, 1], 1), moving_floor(0, [3, 3], [5, 3])]
+        host = EditorHost(data, [])
+
+        host.current_level = 1
+        host.drag_moving_floor((1, 1), (4, 2))
+        self.assertEqual((host.map_data["moving_floors"][0]["from"], host.map_data["moving_floors"][0]["to"]), ([1, 1], [4, 2]))
+        self.assertEqual(host.map_data["moving_floors"][0]["to_level"], 1)
+
+        host.current_level = 0
+        host.drag_moving_floor((5, 3), (5, 5))
+        self.assertEqual(host.map_data["moving_floors"][1]["to"], [5, 5])
+        host.drag_moving_floor((3, 3), (0, 3))
+        self.assertEqual(host.map_data["moving_floors"][1]["from"], [0, 3])
+
+        host.drag_moving_floor((0, 3), (5, 5))
+        self.assertTrue(host.statuses[-1].startswith("Moving floor end not moved"))
+        self.assertEqual(host.map_data["moving_floors"][1]["from"], [0, 3])
+
+    def test_editing_properties_keeps_both_ends(self) -> None:
+        data = empty_map(6, 6)
+        data["levels"].append(upper_level(floor(0, 0)))
+        data["moving_floors"] = [moving_floor(0, [1, 1], [4, 1])]
+        host = EditorHost(data, [])
+        key = (0, (1, 1), 0, (4, 1))
+
+        host.set_moving_floor_properties(key, 1, 3.5, 0.25, 2.0)
+
+        tile = host.map_data["moving_floors"][0]
+        self.assertEqual((tile["from"], tile["to"]), ([1, 1], [4, 1]))
+        self.assertEqual((tile["to_level"], tile["speed"], tile["pause_secs"], tile["phase_secs"]), (1, 3.5, 0.25, 2.0))
+
+        lift = moving_floor(0, [2, 2], [2, 2], 1)
+        host.map_data["moving_floors"].append(lift)
+        host.set_moving_floor_properties((0, (2, 2), 1, (2, 2)), 0, 2.0, 0.0, 0.0)
+        self.assertTrue(host.statuses[-1].startswith("Moving floor not changed"))
+        self.assertEqual(host.map_data["moving_floors"][1]["to_level"], 1)
+
+    def test_placing_on_the_same_start_cell_replaces_the_old_tile(self) -> None:
+        host = EditorHost(empty_map(6, 6), [])
+        host.place_moving_floor((1, 1), (4, 1), 0, 2.0, 0.0, 0.0)
+        host.place_moving_floor((1, 1), (1, 4), 0, 2.0, 0.0, 0.0)
+
+        self.assertEqual([f["to"] for f in host.map_data["moving_floors"]], [[1, 4]])
+
+    def test_canonicalization_sorts_and_dedupes_moving_floors(self) -> None:
+        data = empty_map(6, 6)
+        data["levels"].append(upper_level(floor(0, 0)))
+        data["moving_floors"] = [
+            moving_floor(0, [3, 3], [5, 3]),
+            moving_floor(0, [1, 1], [1, 4]),
+            moving_floor(0, [1, 1], [4, 1]),
+            moving_floor(0, [2, 2], [2, 2]),
+            moving_floor(0, [2, 2], [9, 9]),
+            moving_floor(0, [4, 4], [4, 4], 3),
+        ]
+
+        result = canonicalize_map(data)
+
+        self.assertEqual(
+            [(f["from"], f["to"]) for f in result["moving_floors"]],
+            [([1, 1], [4, 1]), ([3, 3], [5, 3])],
+        )
+
+    def test_moving_floors_round_trip_through_the_file_format(self) -> None:
+        data = empty_map(6, 6)
+        data["levels"][0]["floors"] = [floor(0, 0)]
+        data["levels"].append(upper_level(floor(0, 0)))
+        data["moving_floors"] = [moving_floor(0, [2, 2], [4, 4]), moving_floor(0, [1, 1], [1, 1], 1)]
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "map.json"
+            write_map(path, data)
+            text = path.read_text(encoding="utf-8")
+            self.assertIn('"moving_floors": [', text)
+            self.assertIn('"to_level": 1', text)
+            self.assertEqual(read_map(path), canonicalize_map(data))
+
+    def test_resize_drops_a_moving_floor_with_an_endpoint_outside(self) -> None:
+        data = empty_map(4, 4)
+        data["moving_floors"] = [moving_floor(0, [1, 1], [3, 1]), moving_floor(0, [0, 0], [0, 3])]
+
+        result = resize_map_data(data, 6, 6, 1, 1)
+        self.assertEqual([(f["from"], f["to"]) for f in result["moving_floors"]], [([2, 2], [4, 2]), ([1, 1], [1, 4])])
+
+        result = resize_map_data(data, 3, 3, 0, 0)
+        self.assertEqual(result["moving_floors"], [])
+
+    def test_remove_level_drops_spanning_moving_floors_and_renumbers_the_rest(self) -> None:
+        data = empty_map(6, 6)
+        data["levels"].extend([upper_level(floor(0, 0)), upper_level(floor(0, 0))])
+        data["moving_floors"] = [
+            moving_floor(0, [1, 1], [1, 1], 1),
+            moving_floor(2, [3, 3], [5, 3]),
+            moving_floor(0, [4, 4], [4, 4], 2),
+        ]
+
+        after = remove_level_data(data, 1)
+
+        self.assertEqual(
+            [(f["level"], f["to_level"], f["from"]) for f in after["moving_floors"]],
+            [(1, 1, [3, 3])],
+        )
+
+    def test_insert_level_stretches_a_lift_it_lands_inside(self) -> None:
+        data = empty_map(6, 6)
+        data["levels"].append(upper_level(floor(0, 0)))
+        data["moving_floors"] = [moving_floor(0, [1, 1], [1, 1], 1), moving_floor(1, [3, 3], [5, 3])]
+
+        after = insert_level_data(data, 1)
+
+        self.assertEqual(len(after["levels"]), 3)
+        self.assertEqual(
+            [(f["level"], f["to_level"]) for f in after["moving_floors"]],
+            [(0, 2), (2, 2)],
+        )
+
+    def test_erase_moving_floors_clears_only_tiles_touching_the_rectangle(self) -> None:
+        data = empty_map(6, 6)
+        data["levels"].append(upper_level(floor(0, 0)))
+        data["moving_floors"] = [
+            moving_floor(0, [1, 1], [4, 1]),
+            moving_floor(0, [0, 5], [0, 5], 1),
+            moving_floor(0, [5, 5], [3, 5]),
+        ]
+        host = EditorHost(data, [])
+
+        host.erase_moving_floors_rect((4, 0), (5, 1))
+        self.assertEqual([f["from"] for f in host.map_data["moving_floors"]], [[0, 5], [5, 5]])
+
+        host.current_level = 1
+        host.erase_moving_floors_rect((0, 5), (0, 5))
+        self.assertEqual([f["from"] for f in host.map_data["moving_floors"]], [[5, 5]])
+
+        host.erase_moving_floors_rect((0, 0), (0, 0))
+        self.assertEqual(host.statuses[-1], "Erase Moving Floors: no moving floors in selection.")
+
+    def test_moving_floor_over_a_floor_ramp_or_wall_is_reported(self) -> None:
+        data = empty_map(6, 6)
+        data["levels"][0]["floors"] = [floor(0, 0), floor(3, 1)]
+        data["levels"][0]["walls"] = [{"c0": 2, "r0": 4, "c1": 2, "r1": 5, **faces()}]
+        data["levels"].append(upper_level(floor(0, 0)))
+        data["ramps"] = [{"lower_level": 0, "low": [4, 3], "high": [6, 4], **faces()}]
+        data["moving_floors"] = [
+            moving_floor(0, [1, 1], [4, 1]),
+            moving_floor(0, [1, 4], [3, 4]),
+            moving_floor(0, [4, 3], [4, 3], 1),
+            moving_floor(0, [2, 2], [2, 2]),
+            moving_floor(0, [5, 5], [5, 5], 1),
+        ]
+
+        errors = validate_map(data, [], [])
+
+        self.assertTrue(any("passes over a floor" in error for error in errors), errors)
+        self.assertTrue(any("crosses a wall" in error for error in errors), errors)
+        self.assertTrue(any("starts on a ramp" in error for error in errors), errors)
+        self.assertTrue(any("must travel" in error for error in errors), errors)
+        self.assertFalse(any("moving_floors[4]" in error for error in errors), errors)
+
+    def test_moving_floor_sweeps_only_the_cells_under_its_straight_path(self) -> None:
+        data = empty_map(6, 6)
+        data["levels"][0]["floors"] = [floor(1, 1), floor(4, 4), floor(5, 2)]
+        data["moving_floors"] = [moving_floor(0, [1, 4], [4, 1])]
+        self.assertEqual([e for e in validate_map(data, [], []) if "moving_floors" in e], [])
+
+        data["levels"][0]["floors"].append(floor(2, 3))
+        errors = validate_map(data, [], [])
+        self.assertTrue(any("moving_floors[0] passes over a floor" in error for error in errors), errors)
+
+        data["levels"][0]["floors"] = [floor(1, 4)]
+        errors = validate_map(data, [], [])
+        self.assertTrue(any("starts on a floor" in error for error in errors), errors)
 
 
 if __name__ == "__main__":

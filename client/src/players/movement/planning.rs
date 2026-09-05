@@ -1,9 +1,10 @@
 use bevy::prelude::*;
 use common::{
     config::GameplayConfig,
+    map::MovingFloors,
     physics::{
-        CharacterMovePlan, CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity, PlayerMovementStep,
-        PortalMomentum, PortalSet, player_control_velocity, step_player_movement,
+        AirborneMomentum, CharacterMovePlan, CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity,
+        PlayerMovementStep, PortalSet, player_control_velocity, step_player_movement,
     },
     protocol::{
         ActorMarker, BarrierKindId, MapSettings, PlateState, PlayerId, PlayerMarker, PlayerMoveIntent, Position,
@@ -28,6 +29,7 @@ pub(crate) fn plan_player_moves(
     local_player_info: &mut LocalPlayerInfo,
     plates: &PlateState,
     portal_set: &PortalSet,
+    moving_floors: &MovingFloors,
     query: &mut PlayerMovementQuery,
     planned_moves: &mut Vec<CharacterMovePlan>,
 ) {
@@ -42,7 +44,7 @@ pub(crate) fn plan_player_moves(
         _,
         mut recon_option,
         knockback,
-        mut portal_momentum,
+        mut airborne_momentum,
         is_local,
     ) in query
     {
@@ -118,11 +120,12 @@ pub(crate) fn plan_player_moves(
             held_keys,
             open_kinds: &plates.open_barrier_kinds,
             knockback,
-            portal_momentum: portal_momentum.as_deref_mut(),
+            airborne_momentum: airborne_momentum.as_deref_mut(),
             collision_world,
             map_settings,
             gameplay_config,
             portal_set,
+            moving_floors,
         });
         planned_moves.push(CharacterMovePlan::from_movement_result(
             entity,
@@ -145,7 +148,7 @@ pub(crate) type PlayerMovementQuery<'w, 's> = Query<
         Option<&'static mut BumpFeedbackState>,
         Option<&'static mut ServerReconciliation>,
         Option<&'static KnockbackVelocity>,
-        Option<&'static mut PortalMomentum>,
+        Option<&'static mut AirborneMomentum>,
         Has<LocalPlayerMarker>,
     ),
     (With<PlayerMarker>, Without<ActorMarker>),

@@ -5,7 +5,9 @@ use anyhow::{Context, Result, anyhow};
 use common::protocol::ItemType;
 
 use super::compile::ramp_spec_from_def;
-use super::schema::{ActorSpawnZoneDef, LadderDef, LevelDef, MapDef, PlayerSpawnZoneDef, RampDef, WallSide};
+use super::schema::{
+    ActorSpawnZoneDef, LadderDef, LevelDef, MapDef, MovingFloorDef, PlayerSpawnZoneDef, RampDef, WallSide,
+};
 
 pub(super) fn validate_map(map_def: &MapDef) -> Result<()> {
     if map_def.grid_cols <= 0 || map_def.grid_rows <= 0 {
@@ -25,6 +27,7 @@ pub(super) fn validate_map(map_def: &MapDef) -> Result<()> {
     validate_levels(map_def)?;
     validate_ramps(map_def)?;
     validate_ladders(map_def)?;
+    validate_moving_floors(map_def)?;
 
     Ok(())
 }
@@ -421,6 +424,114 @@ fn validate_ladders(map_def: &MapDef) -> Result<()> {
     Ok(())
 }
 
+// A moving floor's whole path must be clear: no slab, ramp, or light bridge
+// on any cell its body sweeps over, on any storey it passes through, and no
+// wall or barrier edge its body sweeps through (an edge along the side of
+// its path is fine). Ends are keyed on `(level, from)`.
+fn validate_moving_floors(map_def: &MapDef) -> Result<()> {
+    let mut seen = BTreeSet::new();
+    for (idx, floor) in map_def.moving_floors.iter().enumerate() {
+        validate_moving_floor(floor, map_def).with_context(|| format!("moving_floors[{idx}]"))?;
+        if !seen.insert((floor.level, floor.from)) {
+            return Err(anyhow!(
+                "moving_floors[{idx}] duplicates a moving floor starting at level {} cell {:?}",
+                floor.level,
+                floor.from
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn validate_moving_floor(floor: &MovingFloorDef, map_def: &MapDef) -> Result<()> {
+    let level_count = map_def.levels.len();
+    for level in [floor.level, floor.to_level()] {
+        if level as usize >= level_count {
+            return Err(anyhow!("level {level} out of range (level count = {level_count})"));
+        }
+    }
+    validate_floor(floor.from, map_def.grid_cols, map_def.grid_rows).context("from")?;
+    validate_floor(floor.to, map_def.grid_cols, map_def.grid_rows).context("to")?;
+    if floor.from == floor.to && floor.level == floor.to_level() {
+        return Err(anyhow!("from and to are the same place; a moving floor must travel"));
+    }
+    if !(floor.speed.is_finite() && floor.speed > 0.0) {
+        return Err(anyhow!("speed must be positive, got {}", floor.speed));
+    }
+    if !(floor.pause_secs.is_finite() && floor.pause_secs >= 0.0) {
+        return Err(anyhow!("pause_secs must not be negative, got {}", floor.pause_secs));
+    }
+    if !(floor.phase_secs.is_finite() && floor.phase_secs >= 0.0) {
+        return Err(anyhow!("phase_secs must not be negative, got {}", floor.phase_secs));
+    }
+    for level_idx in floor.swept_levels() {
+        let level = &map_def.levels[level_idx as usize];
+        let label = level_label(level_idx as usize, level);
+        let relation = |cell: [i32; 2]| {
+            if cell == floor.from && level_idx == floor.level {
+                "starts on"
+            } else if cell == floor.to && level_idx == floor.to_level() {
+                "ends on"
+            } else {
+                "passes over"
+            }
+        };
+        if let Some(slab) = level
+            .floors
+            .iter()
+            .chain(level.inaccessible_floors.iter())
+            .find(|slab| floor.path_reaches_cell([slab.col, slab.row]))
+        {
+            let cell = [slab.col, slab.row];
+            return Err(anyhow!(
+                "{} a floor at {label} cell {cell:?}; a moving floor needs floorless cells wherever it goes",
+                relation(cell)
+            ));
+        }
+        if let Some(bridge) = level
+            .light_bridges
+            .iter()
+            .find(|bridge| floor.path_reaches_cell([bridge.col, bridge.row]))
+        {
+            let cell = [bridge.col, bridge.row];
+            return Err(anyhow!("{} a light bridge at {label} cell {cell:?}", relation(cell)));
+        }
+        if let Some(cell) = ramp_cells_on_level(map_def, level_idx as usize)
+            .into_iter()
+            .find(|cell| floor.path_reaches_cell(*cell))
+        {
+            return Err(anyhow!("{} a ramp at {label} cell {cell:?}", relation(cell)));
+        }
+        if let Some(wall) = level
+            .walls
+            .iter()
+            .find(|wall| floor.path_reaches_edge([wall.c0, wall.r0, wall.c1, wall.r1]))
+        {
+            return Err(anyhow!(
+                "crosses a wall at {label} edge [{}, {}]-[{}, {}]",
+                wall.c0,
+                wall.r0,
+                wall.c1,
+                wall.r1
+            ));
+        }
+        if let Some(barrier) = level
+            .barriers
+            .iter()
+            .find(|barrier| floor.path_reaches_edge([barrier.c0, barrier.r0, barrier.c1, barrier.r1]))
+        {
+            return Err(anyhow!(
+                "crosses a barrier at {label} edge [{}, {}]-[{}, {}]",
+                barrier.c0,
+                barrier.r0,
+                barrier.c1,
+                barrier.r1
+            ));
+        }
+    }
+    Ok(())
+}
+
 fn ladder_edge(ladder: &LadderDef) -> [(i32, i32); 2] {
     let (col, row) = (ladder.col, ladder.row);
     match ladder.side {
@@ -556,6 +667,13 @@ pub(super) fn canonicalize(map_def: &mut MapDef) {
         .ladders
         .sort_by_key(|l| (l.lower_level, l.row, l.col, l.side as u8, l.levels));
     map_def.ladders.dedup();
+
+    map_def
+        .moving_floors
+        .sort_by_key(|f| (f.level, f.from, f.to_level(), f.to));
+    map_def
+        .moving_floors
+        .dedup_by_key(|f| (f.level, f.from, f.to_level(), f.to));
 }
 
 fn normalized_wall(wall: [i32; 4]) -> [i32; 4] {

@@ -6,10 +6,101 @@ import copy
 
 from PySide6.QtWidgets import QInputDialog, QMessageBox
 
-from .constants import ITEMS_LIST, SPAWN_ZONE_LISTS
+from .constants import ITEMS_LIST, MOVING_FLOORS_LIST, SPAWN_ZONE_LISTS
 from .dialogs import ResizeMapDialog, ToolReferenceDialog
 from .display import level_label
 from .normalization import resize_map_data
+
+
+def insert_level_data(map_data: dict, insert_at: int) -> dict:
+    """A copy of `map_data` with an empty level at `insert_at`; everything
+    on or above it moves up one storey."""
+    after = copy.deepcopy(map_data)
+    after["levels"].insert(
+        insert_at,
+        {
+            "name": f"Level {insert_at}",
+            "floors": [],
+            "inaccessible_floors": [],
+            "grass": [],
+            "walls": [],
+            "barriers": [],
+            "light_bridges": [],
+            "lights": [],
+        },
+    )
+    for list_name in SPAWN_ZONE_LISTS:
+        for zone in after[list_name]:
+            if zone["level"] >= insert_at:
+                zone["level"] += 1
+    for item in after.get(ITEMS_LIST, []):
+        if item["level"] >= insert_at:
+            item["level"] += 1
+    for plate in after.get("pressure_plates", []):
+        if plate["level"] >= insert_at:
+            plate["level"] += 1
+    for ramp in after["ramps"]:
+        if ramp["lower_level"] >= insert_at:
+            ramp["lower_level"] += 1
+    for ladder in after.get("ladders", []):
+        if ladder["lower_level"] >= insert_at:
+            ladder["lower_level"] += 1
+        elif ladder["lower_level"] + ladder["levels"] >= insert_at:
+            # The insertion lands inside the span: stretch so both
+            # endpoints keep their storeys.
+            ladder["levels"] += 1
+    # Each end keeps its storey, so a lift the insertion lands inside
+    # stretches by itself.
+    for floor in after.get(MOVING_FLOORS_LIST, []):
+        for key in ("level", "to_level"):
+            if floor[key] >= insert_at:
+                floor[key] += 1
+    return after
+
+
+def remove_level_data(map_data: dict, removed: int) -> dict:
+    """A copy of `map_data` without level `removed`: everything on it goes,
+    everything spanning it goes, everything above it moves down one storey."""
+    after = copy.deepcopy(map_data)
+    after["levels"].pop(removed)
+    for list_name in (*SPAWN_ZONE_LISTS, ITEMS_LIST, "pressure_plates"):
+        adjusted_entries = []
+        for entry in after.get(list_name, []):
+            if entry["level"] == removed:
+                continue
+            if entry["level"] > removed:
+                entry["level"] -= 1
+            adjusted_entries.append(entry)
+        after[list_name] = adjusted_entries
+    adjusted = []
+    for ramp in after["ramps"]:
+        lower = ramp["lower_level"]
+        upper = lower + 1
+        if removed in (lower, upper):
+            continue
+        if lower > removed:
+            ramp["lower_level"] = lower - 1
+        adjusted.append(ramp)
+    after["ramps"] = adjusted
+    adjusted_ladders = []
+    for ladder in after.get("ladders", []):
+        lower = ladder["lower_level"]
+        if lower <= removed <= lower + ladder["levels"]:
+            continue
+        if lower > removed:
+            ladder["lower_level"] = lower - 1
+        adjusted_ladders.append(ladder)
+    after["ladders"] = adjusted_ladders
+    adjusted_floors = []
+    for floor in after.get(MOVING_FLOORS_LIST, []):
+        if min(floor["level"], floor["to_level"]) <= removed <= max(floor["level"], floor["to_level"]):
+            continue
+        for key in ("level", "to_level"):
+            if floor[key] > removed:
+                floor[key] -= 1
+        adjusted_floors.append(floor)
+    after[MOVING_FLOORS_LIST] = adjusted_floors
+    return after
 
 
 class StructureMixin:
@@ -31,17 +122,22 @@ class StructureMixin:
         before_walls = sum(len(l["walls"]) for l in self.map_data["levels"])
         before_zones = len(self.map_data["actor_spawn_zones"]) + len(self.map_data["player_spawn_zones"])
         before_ramps = len(self.map_data["ramps"])
+        before_moving = len(self.map_data.get(MOVING_FLOORS_LIST, []))
         after_floors = sum(len(l["floors"]) for l in after["levels"])
         after_inacc = sum(len(l["inaccessible_floors"]) for l in after["levels"])
         after_walls = sum(len(l["walls"]) for l in after["levels"])
         after_zones = len(after["actor_spawn_zones"]) + len(after["player_spawn_zones"])
         after_ramps = len(after["ramps"])
+        after_moving = len(after.get(MOVING_FLOORS_LIST, []))
         dropped_floors = before_floors - after_floors
         dropped_inacc = before_inacc - after_inacc
         dropped_walls = before_walls - after_walls
         dropped_zones = before_zones - after_zones
         dropped_ramps = before_ramps - after_ramps
-        if any(n > 0 for n in (dropped_floors, dropped_inacc, dropped_walls, dropped_zones, dropped_ramps)):
+        dropped_moving = before_moving - after_moving
+        if any(
+            n > 0 for n in (dropped_floors, dropped_inacc, dropped_walls, dropped_zones, dropped_ramps, dropped_moving)
+        ):
             parts = []
             if dropped_floors:
                 parts.append(f"{dropped_floors} floor cell(s)")
@@ -53,6 +149,8 @@ class StructureMixin:
                 parts.append(f"{dropped_zones} spawn zone(s)")
             if dropped_ramps:
                 parts.append(f"{dropped_ramps} ramp(s)")
+            if dropped_moving:
+                parts.append(f"{dropped_moving} moving floor(s)")
             response = QMessageBox.question(
                 self,
                 "Resize Map",
@@ -67,42 +165,8 @@ class StructureMixin:
         self.resize_to_map()
 
     def add_level(self) -> None:
-        after = copy.deepcopy(self.map_data)
         insert_at = self.current_level + 1
-        after["levels"].insert(
-            insert_at,
-            {
-                "name": f"Level {insert_at}",
-                "floors": [],
-                "inaccessible_floors": [],
-                "grass": [],
-                "walls": [],
-                "barriers": [],
-                "light_bridges": [],
-                "lights": [],
-            },
-        )
-        for list_name in SPAWN_ZONE_LISTS:
-            for zone in after[list_name]:
-                if zone["level"] >= insert_at:
-                    zone["level"] += 1
-        for item in after.get(ITEMS_LIST, []):
-            if item["level"] >= insert_at:
-                item["level"] += 1
-        for plate in after.get("pressure_plates", []):
-            if plate["level"] >= insert_at:
-                plate["level"] += 1
-        for ramp in after["ramps"]:
-            if ramp["lower_level"] >= insert_at:
-                ramp["lower_level"] += 1
-        for ladder in after.get("ladders", []):
-            if ladder["lower_level"] >= insert_at:
-                ladder["lower_level"] += 1
-            elif ladder["lower_level"] + ladder["levels"] >= insert_at:
-                # The insertion lands inside the span: stretch so both
-                # endpoints keep their storeys.
-                ladder["levels"] += 1
-        self.apply_change("Add Level", after)
+        self.apply_change("Add Level", insert_level_data(self.map_data, insert_at))
         self.current_level = insert_at
         self.refresh_ui()
 
@@ -137,6 +201,11 @@ class StructureMixin:
             for ladder in self.map_data.get("ladders", [])
             if ladder["lower_level"] <= removed <= ladder["lower_level"] + ladder["levels"]
         )
+        dropped_moving = sum(
+            1
+            for floor in self.map_data.get(MOVING_FLOORS_LIST, [])
+            if min(floor["level"], floor["to_level"]) <= removed <= max(floor["level"], floor["to_level"])
+        )
         level = self.map_data["levels"][removed]
         floor_count = len(level["floors"]) + len(level["inaccessible_floors"])
         wall_count = len(level["walls"])
@@ -165,6 +234,8 @@ class StructureMixin:
             parts.append(f"{dropped_ramps} ramp(s) that span this level")
         if dropped_ladders:
             parts.append(f"{dropped_ladders} ladder(s) that span this level")
+        if dropped_moving:
+            parts.append(f"{dropped_moving} moving floor(s) that touch this level")
         body = f"Remove {level_label(level, removed)}?\n\nThis will drop:"
         body += "\n  - " + "\n  - ".join(parts)
         if details:
@@ -178,36 +249,7 @@ class StructureMixin:
         )
         if result != QMessageBox.StandardButton.Yes:
             return
-        after = copy.deepcopy(self.map_data)
-        after["levels"].pop(removed)
-        for list_name in (*SPAWN_ZONE_LISTS, ITEMS_LIST, "pressure_plates"):
-            adjusted_entries = []
-            for entry in after.get(list_name, []):
-                if entry["level"] == removed:
-                    continue
-                if entry["level"] > removed:
-                    entry["level"] -= 1
-                adjusted_entries.append(entry)
-            after[list_name] = adjusted_entries
-        adjusted = []
-        for ramp in after["ramps"]:
-            lower = ramp["lower_level"]
-            upper = lower + 1
-            if removed in (lower, upper):
-                continue
-            if lower > removed:
-                ramp["lower_level"] = lower - 1
-            adjusted.append(ramp)
-        after["ramps"] = adjusted
-        adjusted_ladders = []
-        for ladder in after.get("ladders", []):
-            lower = ladder["lower_level"]
-            if lower <= removed <= lower + ladder["levels"]:
-                continue
-            if lower > removed:
-                ladder["lower_level"] = lower - 1
-            adjusted_ladders.append(ladder)
-        after["ladders"] = adjusted_ladders
+        after = remove_level_data(self.map_data, removed)
         self.current_level = max(0, min(removed, len(after["levels"]) - 1))
         self.apply_change("Remove Level", after)
 

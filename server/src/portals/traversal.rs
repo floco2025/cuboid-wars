@@ -5,7 +5,7 @@ use bevy::prelude::*;
 use crate::players::PlayerMap;
 use common::{
     config::GameplayConfig,
-    physics::{CharacterVerticalVelocity, KnockbackVelocity, PortalMomentum, PortalSet},
+    physics::{AirborneMomentum, CharacterVerticalVelocity, KnockbackVelocity, PortalSet},
     protocol::{FaceYaw, MapSettings, PlayerId, PlayerMarker, PlayerMoveIntent, Position},
 };
 
@@ -31,7 +31,7 @@ pub fn players_portal_traversal_system(
             &mut CharacterVerticalVelocity,
             &mut PlayerMoveIntent,
             Option<&mut KnockbackVelocity>,
-            Option<&mut PortalMomentum>,
+            Option<&mut AirborneMomentum>,
         ),
         With<PlayerMarker>,
     >,

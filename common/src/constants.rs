@@ -16,6 +16,13 @@ pub const BARRIER_THICKNESS_FRACTION: f32 = 1.0 / 6.0;
 // Slab thickness of a light bridge, as a fraction of the floor thickness.
 pub const BRIDGE_THICKNESS_FRACTION: f32 = 0.25;
 
+// Moving floors. A tile is smaller than its cell by this fraction of the
+// cell size on every side, so it clears the floors it travels between.
+pub const MOVING_FLOOR_INSET_FRACTION: f32 = 0.075;
+// How far above or below a tile's surface a body's feet may rest and still
+// ride it (`MovingFloors::carry_at`); the ground snap leaves them closer.
+pub const MOVING_FLOOR_RIDE_TOLERANCE: f32 = 0.05;
+
 // Ladders. Freestanding climbable elements anchored on grid edges. One-sided:
 // the rail side (front) climbs and fences; the back is passed through. No
 // Rapier collider — the character step queries the derived volumes directly.

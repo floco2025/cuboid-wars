@@ -12,6 +12,7 @@ pub mod items;
 pub mod map;
 pub mod materials;
 pub mod missiles;
+pub mod moving_floors;
 pub mod network;
 pub mod players;
 pub mod portals;

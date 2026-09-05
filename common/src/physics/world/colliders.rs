@@ -6,19 +6,22 @@ use rapier3d::prelude::{
 
 use crate::{
     map::{RampAxis, ramp_axis},
-    protocol::{Barrier, BarrierKindId, BridgeKindId, Floor, KindId, LightBridge, Ramp, Wall},
+    protocol::{Barrier, BarrierKindId, BridgeKindId, Floor, KindId, LightBridge, MovingFloor, Ramp, Wall},
 };
 
 // Rapier's 32 collision groups, split once here: walls/floors/ramps take
 // bits 0..2, every light bridge shares bit 3 (a bridge collider is a member
 // only while its kind is powered — `CollisionWorld::set_powered_bridges`),
-// and barrier kinds take bits 4..31 (`BarrierKindId(n)` → bit `4 + n`),
-// which is where `BarrierKindId::MAX` comes from.
+// every moving floor shares bit 4 (a walkable surface that is not world
+// geometry, so sight and the portal ray pass through it), and barrier kinds
+// take bits 5..31 (`BarrierKindId(n)` → bit `5 + n`), which is where
+// `BarrierKindId::MAX` comes from.
 pub(super) const WALL_COLLISION_GROUP: Group = Group::GROUP_1;
 pub(super) const FLOOR_COLLISION_GROUP: Group = Group::GROUP_2;
 const RAMP_COLLISION_GROUP: Group = Group::GROUP_3;
 pub(super) const BRIDGE_COLLISION_GROUP: Group = Group::GROUP_4;
-const BARRIER_GROUP_BIT_OFFSET: u32 = 4;
+pub(super) const MOVING_FLOOR_COLLISION_GROUP: Group = Group::GROUP_5;
+const BARRIER_GROUP_BIT_OFFSET: u32 = 5;
 const _: () = assert!(matches!(BarrierKindId::MAX, Some(max) if BARRIER_GROUP_BIT_OFFSET as usize + max == 32));
 const COLLIDER_KIND_MASK: u128 = 0xff;
 const KIND_SHIFT: u32 = 8;
@@ -34,10 +37,10 @@ pub(super) fn world_collision_groups() -> Group {
     WALL_COLLISION_GROUP | FLOOR_COLLISION_GROUP | RAMP_COLLISION_GROUP
 }
 
-// The static world plus the powered light bridges: what characters stand
-// on and projectiles bounce off right now.
+// The static world plus the powered light bridges and the moving floors:
+// what characters stand on and projectiles bounce off right now.
 pub(super) fn surface_collision_groups() -> Group {
-    world_collision_groups() | BRIDGE_COLLISION_GROUP
+    world_collision_groups() | BRIDGE_COLLISION_GROUP | MOVING_FLOOR_COLLISION_GROUP
 }
 
 pub(super) fn ground_collision_groups() -> Group {
@@ -72,6 +75,7 @@ pub(super) enum ColliderKind {
     Ramp,
     Barrier,
     Bridge,
+    MovingFloor,
 }
 
 impl ColliderKind {
@@ -82,6 +86,7 @@ impl ColliderKind {
             Self::Ramp => 3,
             Self::Barrier => 4,
             Self::Bridge => 5,
+            Self::MovingFloor => 6,
         }
     }
 
@@ -91,6 +96,11 @@ impl ColliderKind {
 
     fn bridge_user_data(kind: BridgeKindId) -> u128 {
         Self::Bridge.user_data() | (u128::from(kind.0) << KIND_SHIFT)
+    }
+
+    // The tile's index in `MapLayout.moving_floors`.
+    fn moving_floor_user_data(index: usize) -> u128 {
+        Self::MovingFloor.user_data() | ((index as u128) << KIND_SHIFT)
     }
 
     pub(super) fn barrier_kind_from_user_data(user_data: u128) -> Option<BarrierKindId> {
@@ -105,6 +115,7 @@ impl ColliderKind {
             3 => Some(Self::Ramp),
             4 => Some(Self::Barrier),
             5 => Some(Self::Bridge),
+            6 => Some(Self::MovingFloor),
             _ => None,
         }
     }
@@ -197,6 +208,22 @@ pub(super) fn insert_bridge_collider(colliders: &mut ColliderSet, bridge: &Light
         half_extents,
         ColliderKind::bridge_user_data(bridge.kind),
         Group::empty(),
+    )
+}
+
+// A moving floor starts at its first end; `CollisionWorld::set_moving_floor_centers`
+// moves it every tick.
+pub(super) fn insert_moving_floor_collider(
+    colliders: &mut ColliderSet,
+    floor: &MovingFloor,
+    index: usize,
+) -> ColliderHandle {
+    insert_cuboid_collider(
+        colliders,
+        floor.end1() - Vec3::Y * (floor.thickness / 2.0),
+        Vec3::new(floor.half_x, floor.thickness / 2.0, floor.half_z),
+        ColliderKind::moving_floor_user_data(index),
+        MOVING_FLOOR_COLLISION_GROUP,
     )
 }
 
@@ -293,7 +320,15 @@ mod tests {
     }
 
     #[test]
-    fn every_barrier_kind_is_disjoint_from_the_world_and_the_bridge_group() {
+    fn moving_floor_user_data_carries_its_index() {
+        let user_data = ColliderKind::moving_floor_user_data(3);
+        assert_eq!(ColliderKind::from_user_data(user_data), Some(ColliderKind::MovingFloor));
+        assert_eq!(user_data >> KIND_SHIFT, 3);
+        assert_eq!(ColliderKind::barrier_kind_from_user_data(user_data), None);
+    }
+
+    #[test]
+    fn every_barrier_kind_is_disjoint_from_the_shared_surface_groups() {
         let max = u16::try_from(BarrierKindId::MAX.expect("barrier kinds carry no collision-group cap"))
             .expect("barrier kind cap exceeds u16");
         let reserved = surface_collision_groups();
@@ -306,10 +341,18 @@ mod tests {
     }
 
     #[test]
-    fn character_collision_groups_includes_the_bridge_group() {
+    fn character_collision_groups_includes_the_bridge_and_moving_floor_groups() {
         let groups = character_collision_groups(&[], barrier_mask(2));
         assert!(groups.contains(BRIDGE_COLLISION_GROUP));
+        assert!(groups.contains(MOVING_FLOOR_COLLISION_GROUP));
         assert!(groups.contains(FLOOR_COLLISION_GROUP));
+    }
+
+    #[test]
+    fn moving_floors_are_surfaces_but_not_world_geometry() {
+        assert!(surface_collision_groups().contains(MOVING_FLOOR_COLLISION_GROUP));
+        assert!(!world_collision_groups().contains(MOVING_FLOOR_COLLISION_GROUP));
+        assert!(!ground_collision_groups().contains(MOVING_FLOOR_COLLISION_GROUP));
     }
 
     #[test]

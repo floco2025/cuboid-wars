@@ -1,9 +1,10 @@
 use bevy::prelude::*;
 use common::{
     config::{CharacterPhysicsConfig, GameplayConfig},
+    map::MovingFloors,
     physics::{
-        CharacterMovePlan, CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity, PlayerMovementStep,
-        PortalMomentum, PortalSet, overlapping_character, player_control_velocity, step_player_movement,
+        AirborneMomentum, CharacterMovePlan, CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity,
+        PlayerMovementStep, PortalSet, overlapping_character, player_control_velocity, step_player_movement,
     },
     protocol::{
         ActorMarker, BarrierKindId, MapSettings, PlateState, PlayerId, PlayerMarker, PlayerMoveIntent, Position,
@@ -29,7 +30,7 @@ type PlayerMovementQuery<'w, 's> = Query<
         &'static PlayerMoveIntent,
         &'static PlayerId,
         Option<&'static KnockbackVelocity>,
-        Option<&'static mut PortalMomentum>,
+        Option<&'static mut AirborneMomentum>,
     ),
     (With<PlayerMarker>, Without<ActorMarker>),
 >;
@@ -43,6 +44,7 @@ pub fn characters_movement_system(
     mut players: ResMut<PlayerMap>,
     plates: Res<PlateState>,
     portal_set: Res<PortalSet>,
+    moving_floors: Res<MovingFloors>,
     actors: Res<ActorMap>,
     mut player_query: PlayerMovementQuery,
     mut actor_health: Query<&mut common::protocol::Health, With<ActorMarker>>,
@@ -66,6 +68,7 @@ pub fn characters_movement_system(
         &mut players,
         &plates,
         &portal_set,
+        &moving_floors,
         &mut player_query,
         &mut planned_moves,
     );
@@ -76,6 +79,7 @@ pub fn characters_movement_system(
         &map_settings,
         &players,
         &plates,
+        &moving_floors,
         &actors,
         &actor_starts,
         &mut actor_query,
@@ -100,6 +104,7 @@ fn plan_player_moves(
     players: &mut PlayerMap,
     plates: &PlateState,
     portal_set: &PortalSet,
+    moving_floors: &MovingFloors,
     query: &mut PlayerMovementQuery,
     planned_moves: &mut Vec<CharacterMovePlan>,
 ) {
@@ -126,11 +131,12 @@ fn plan_player_moves(
             held_keys,
             open_kinds: &plates.open_barrier_kinds,
             knockback,
-            portal_momentum: momentum.as_deref_mut(),
+            airborne_momentum: momentum.as_deref_mut(),
             collision_world,
             map_settings,
             gameplay_config,
             portal_set,
+            moving_floors,
         });
         if let Some(info) = players.get_mut(player_id) {
             info.life.fall_state.set_support(step.support);

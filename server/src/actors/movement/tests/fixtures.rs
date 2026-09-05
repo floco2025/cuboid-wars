@@ -1,6 +1,9 @@
+use std::sync::LazyLock;
+
 pub(super) use bevy::prelude::Entity;
 pub(super) use common::{
     config::CharacterPhysicsConfig,
+    map::MovingFloors,
     physics::{CharacterMovePlan, CollisionWorld},
     protocol::{ActorId, ActorMoveIntent, Floor, MapLayout, Position, Wall},
 };
@@ -19,6 +22,7 @@ pub(super) use super::super::{
 
 pub(crate) const TEST_KIND: &str = "zapper";
 pub(crate) const TEST_DELTA: f32 = 0.1;
+static NO_MOVING_FLOORS: LazyLock<MovingFloors> = LazyLock::new(MovingFloors::default);
 
 pub(crate) fn order(entity_bits: u64, route_distance: f32, id: u32) -> ActorPlanOrder {
     ActorPlanOrder {
@@ -122,6 +126,7 @@ pub(crate) fn context<'a>(
         gravity: 25.0,
         ladder_climb_ratio: test_ladders(),
         knockback_step: bevy::prelude::Vec3::ZERO,
+        moving_floors: &NO_MOVING_FLOORS,
     }
 }
 

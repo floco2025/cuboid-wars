@@ -2,7 +2,7 @@ use super::{
     compile_map,
     schema::{
         ActorSpawnZoneDef, BarrierDef, CellDef, FloorDef, ItemDef, LadderDef, LevelDef, LightBridgeDef, MapDef,
-        PlayerSpawnZoneDef, PressurePlateDef, PressurePlatePurposeDef, RampDef, WallDef, WallSide,
+        MovingFloorDef, PlayerSpawnZoneDef, PressurePlateDef, PressurePlatePurposeDef, RampDef, WallDef, WallSide,
     },
     validation::validate_map,
 };
@@ -126,7 +126,34 @@ fn map_with_zones(
         levels,
         ramps,
         ladders: Vec::new(),
+        moving_floors: Vec::new(),
     }
+}
+
+fn moving_floor(level: u32, from: [i32; 2], to: [i32; 2], to_level: u32) -> MovingFloorDef {
+    MovingFloorDef {
+        level,
+        from,
+        to,
+        to_level: Some(to_level),
+        speed: 2.0,
+        pause_secs: 0.5,
+        phase_secs: 0.0,
+        materials: FaceMaterials::uniform("test"),
+    }
+}
+
+// A floor at (0, 0) on two storeys, on a 6x6 grid, plus the moving floors.
+fn map_with_moving_floors(floors: Vec<MovingFloorDef>) -> MapDef {
+    let mut map_def = map_with_zones(
+        6,
+        vec![level(vec![[0, 0]]), level(vec![[0, 0]])],
+        Vec::new(),
+        vec![player_zone(0, 0, 0)],
+        Vec::new(),
+    );
+    map_def.moving_floors = floors;
+    map_def
 }
 
 fn ladder(lower_level: u32, col: i32, row: i32, side: WallSide, levels: u32) -> LadderDef {
@@ -1064,6 +1091,7 @@ fn validation_rejects_out_of_bounds_ladder() {
 fn every_shipped_ladder_ascends_at_least_one_storey() {
     use bevy::math::Vec3;
     use common::constants::TICK_SECS;
+    use common::map::MovingFloors;
     use common::physics::{CharacterEnvironment, CharacterStep, CollisionWorld, step_character_movement};
     use common::protocol::Position;
 
@@ -1122,6 +1150,7 @@ fn every_shipped_ladder_ascends_at_least_one_storey() {
                         physics,
                         ladder_climb_ratio: map_settings.movement.ladder_climb_ratio,
                         portals: None,
+                        moving_floors: &MovingFloors::default(),
                     },
                 );
                 pos = step.position;
@@ -1144,4 +1173,168 @@ fn every_shipped_ladder_ascends_at_least_one_storey() {
             );
         }
     }
+}
+
+#[test]
+fn moving_floor_over_a_floor_slab_is_rejected() {
+    let map_def = map_with_moving_floors(vec![moving_floor(0, [0, 2], [0, 0], 0)]);
+    let err = validate_map(&map_def).expect_err("a path over a floor was accepted");
+    assert!(format!("{err:#}").contains("ends on a floor"), "{err:#}");
+
+    let mut map_def = map_with_moving_floors(vec![moving_floor(0, [0, 3], [0, 1], 0)]);
+    map_def.levels[0].floors.push(floor_def(0, 2));
+    let err = validate_map(&map_def).expect_err("a path over a floor was accepted");
+    assert!(format!("{err:#}").contains("passes over a floor"), "{err:#}");
+}
+
+#[test]
+fn moving_floor_sweeps_only_the_cells_under_its_straight_path() {
+    // A diagonal from (1, 4) to (4, 1) never touches the box corners (1, 1)
+    // and (4, 4), nor a cell it slides past.
+    let mut map_def = map_with_moving_floors(vec![moving_floor(0, [1, 4], [4, 1], 0)]);
+    map_def.levels[0].floors.push(floor_def(1, 1));
+    map_def.levels[0].floors.push(floor_def(4, 4));
+    map_def.levels[0].floors.push(floor_def(5, 2));
+    validate_map(&map_def).expect("cells beside the diagonal were rejected");
+
+    map_def.levels[0].floors.push(floor_def(2, 3));
+    let err = validate_map(&map_def).expect_err("a cell on the diagonal was accepted");
+    assert!(format!("{err:#}").contains("passes over a floor"), "{err:#}");
+}
+
+#[test]
+fn moving_floor_with_equal_ends_is_rejected() {
+    let map_def = map_with_moving_floors(vec![moving_floor(0, [2, 2], [2, 2], 0)]);
+    let err = validate_map(&map_def).expect_err("a stationary moving floor was accepted");
+    assert!(format!("{err:#}").contains("must travel"), "{err:#}");
+}
+
+#[test]
+fn moving_floor_through_a_wall_is_rejected() {
+    let mut map_def = map_with_moving_floors(vec![moving_floor(0, [2, 2], [4, 2], 0)]);
+    map_def.levels[0].walls.push(WallDef {
+        c0: 3,
+        r0: 2,
+        c1: 3,
+        r1: 3,
+        materials: FaceMaterials::uniform("test"),
+    });
+    let err = validate_map(&map_def).expect_err("a path through a wall was accepted");
+    assert!(format!("{err:#}").contains("crosses a wall"), "{err:#}");
+
+    // The same wall on the path's boundary lines it and is fine.
+    map_def.levels[0].walls[0] = WallDef {
+        c0: 2,
+        r0: 2,
+        c1: 5,
+        r1: 2,
+        materials: FaceMaterials::uniform("test"),
+    };
+    map_def.levels[0].walls[0].c1 = 3;
+    validate_map(&map_def).expect("a wall along the path was rejected");
+}
+
+#[test]
+fn lift_compiles_with_the_storeys_it_spans() {
+    let map_def = map_with_moving_floors(vec![moving_floor(1, [3, 3], [3, 3], 0)]);
+    validate_map(&map_def).expect("lift rejected");
+    let (layout, _, _) =
+        compile_map(&map_def, sizes(), &assets(), &empty_kind_table(), &no_bridges()).expect("lift failed to compile");
+
+    assert_eq!(layout.moving_floors.len(), 1);
+    assert_eq!(layout.moving_floor_materials.len(), 1);
+    let lift = layout.moving_floors[0];
+    assert_eq!((lift.level, lift.levels), (0, 1));
+    assert_eq!(lift.y1, LEVEL_HEIGHT);
+    assert_eq!(lift.y2, 0.0);
+    assert_eq!((lift.x1, lift.z1), (lift.x2, lift.z2));
+    assert_eq!(lift.travel_ticks, (LEVEL_HEIGHT / 2.0 * 30.0).round() as u32);
+    assert_eq!(lift.pause_ticks, 15);
+    assert!(lift.half_x < sizes().grid_cell_size / 2.0);
+}
+
+// Every shipped moving floor carries a standing player through a whole
+// cycle: the feet stay on the tile's surface at every tick.
+#[test]
+fn every_shipped_moving_floor_carries_a_standing_player_through_its_cycle() {
+    use bevy::math::Vec3;
+    use common::constants::{MOVING_FLOOR_RIDE_TOLERANCE, TICK_SECS};
+    use common::map::{MovingFloors, surface_center_at};
+    use common::physics::{CharacterEnvironment, CharacterStep, CollisionWorld, step_character_movement};
+    use common::protocol::Position;
+
+    let server_gameplay =
+        crate::config::ServerGameplayConfig::load_default().expect("default server gameplay config should load");
+    let gameplay = server_gameplay.gameplay_config();
+    let physics = gameplay.player.physics();
+    let maps_dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../config/server/maps");
+    let mut checked = 0;
+    for entry in std::fs::read_dir(maps_dir).expect("maps dir readable") {
+        let path = entry.expect("maps dir entry readable").path();
+        if path.extension().and_then(|e| e.to_str()) != Some("json") {
+            continue;
+        }
+        let map_name = path
+            .file_stem()
+            .and_then(|name| name.to_str())
+            .expect("map file name is not UTF-8");
+        let map_settings = &server_gameplay
+            .maps
+            .get(map_name)
+            .expect("shipped map missing from server gameplay config")
+            .settings;
+        let map_def = super::load_map(&path).expect("map file should load");
+        let (kind_table, bridge_table) = map_settings.kind_tables().expect("shipped kind tables rejected");
+        let map_sizes = map_settings.geometry;
+        let assets = MaterialRules::from_def(&map_def, map_sizes);
+        let (layout, _, _) =
+            compile_map(&map_def, map_sizes, &assets, &kind_table, &bridge_table).expect("map failed to compile");
+        let mut world = CollisionWorld::from_map_layout(&layout, &kind_table);
+        let mut floors = MovingFloors::from_layout(&layout);
+
+        for (index, floor) in layout.moving_floors.iter().enumerate() {
+            floors.advance(0);
+            world.set_moving_floor_centers(&floors.collider_centers());
+            let mut pos = Position {
+                x: floor.x1,
+                y: floor.y1,
+                z: floor.z1,
+            };
+            let mut vertical_velocity = 0.0;
+            let cycle = 2 * (floor.travel_ticks + floor.pause_ticks);
+            for tick in 1..=cycle {
+                floors.advance(tick);
+                world.set_moving_floor_centers(&floors.collider_centers());
+                let step = step_character_movement(
+                    CharacterStep {
+                        start: pos,
+                        vertical_velocity,
+                        control_velocity: Vec3::ZERO,
+                        external_displacement: Vec3::ZERO,
+                        delta: TICK_SECS,
+                    },
+                    &CharacterEnvironment {
+                        collision_world: &world,
+                        gravity: map_settings.movement.gravity,
+                        passable_kinds: &[],
+                        physics,
+                        ladder_climb_ratio: map_settings.movement.ladder_climb_ratio,
+                        portals: None,
+                        moving_floors: &floors,
+                    },
+                );
+                pos = step.position;
+                vertical_velocity = step.vertical_velocity;
+                let surface = surface_center_at(floor, tick);
+                let gap = Vec3::new(pos.x - surface.x, pos.y - surface.y, pos.z - surface.z);
+                assert!(
+                    gap.length() <= MOVING_FLOOR_RIDE_TOLERANCE,
+                    "{}: moving floor {index} lost its rider at tick {tick}: feet {pos:?}, surface {surface}",
+                    path.display()
+                );
+            }
+            checked += 1;
+        }
+    }
+    assert!(checked > 0, "no shipped map carries a moving floor to check");
 }

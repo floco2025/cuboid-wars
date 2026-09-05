@@ -5,6 +5,7 @@ use bevy::prelude::Vec3;
 use crate::{actors::ActorMap, map::PlateState, network::broadcast_to_all, players::PlayerMap};
 use common::{
     config::{CharacterPhysicsConfig, GameplayConfig},
+    map::MovingFloors,
     physics::{CharacterMovePlan, CollisionWorld},
     protocol::{ActorId, ActorMoveIntent, ActorMovementState, MapSettings, Position, SActorMove, ServerMessage},
 };
@@ -24,6 +25,7 @@ pub(crate) fn plan_actor_moves(
     map_settings: &MapSettings,
     players: &PlayerMap,
     plates: &PlateState,
+    moving_floors: &MovingFloors,
     actors: &ActorMap,
     actor_starts: &[(bevy::prelude::Entity, Position, CharacterPhysicsConfig)],
     query: &mut ActorMovementQuery,
@@ -55,6 +57,7 @@ pub(crate) fn plan_actor_moves(
             gravity: map_settings.movement.gravity,
             ladder_climb_ratio: map_settings.movement.ladder_climb_ratio,
             knockback_step: knockback.map_or(Vec3::ZERO, |velocity| velocity.step(delta)),
+            moving_floors,
         };
 
         let mut hold_facing = None;

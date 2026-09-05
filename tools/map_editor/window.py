@@ -5,7 +5,8 @@ from __future__ import annotations
 import copy
 from pathlib import Path
 
-from PySide6.QtCore import QSettings, Qt, QTimer
+import shiboken6
+from PySide6.QtCore import QSettings, Qt
 from PySide6.QtGui import QAction, QFont, QKeySequence, QShortcut, QStandardItem, QStandardItemModel, QUndoStack
 from PySide6.QtWidgets import QComboBox, QLabel, QMainWindow, QMenu, QToolBar
 
@@ -41,6 +42,7 @@ from .io import load_materials_catalog
 from .items import ItemsMixin
 from .ladders import LaddersMixin
 from .lights import LightsMixin
+from .moving_floors import MovingFloorsMixin
 from .placement import PlacementMixin
 from .spawn_zones import SpawnZoneEditMixin
 from .structure import StructureMixin
@@ -54,6 +56,7 @@ class EditorWindow(
     ItemsMixin,
     LightsMixin,
     LaddersMixin,
+    MovingFloorsMixin,
     EraseMixin,
     StructureMixin,
     SpawnZoneEditMixin,
@@ -66,10 +69,6 @@ class EditorWindow(
         self.doc = MapDocument(path)
         self.barrier_kind_colors = load_map_barrier_kinds(path.stem)
         self.bridge_kind_colors = load_map_bridge_kinds(path.stem)
-        # If a newer autosave sits next to the file we just opened, offer to
-        # recover it. Done before any UI is built so the user sees their
-        # restored work as the initial state.
-        self._maybe_recover_autosave()
         self.current_level = 0
         self.mode = MODE_FLOOR
         self.shortcuts = []
@@ -93,6 +92,8 @@ class EditorWindow(
         # third.
         self.recent_auto_place_lights: tuple[int, int, int, int] = (0, 0, 0, 0)
         self.recent_ladder_levels: int = 1
+        # The last moving floor dialog answer: (to_level, speed, pause, phase).
+        self.recent_moving_floor: tuple[int, float, float, float] | None = None
         # `(level_idx, [light, ...])` while an Auto-Place Lights confirmation
         # is pending; canvas paints these as ghosts. `None` outside the
         # preview window.
@@ -135,13 +136,6 @@ class EditorWindow(
         self.statusBar().addPermanentWidget(self.status_label)
         self.refresh_ui()
         self.resize_to_map()
-
-        # Autosave timer — periodically writes a `.autosave.json` sibling when
-        # the map is dirty so a crash/kill doesn't lose work.
-        self._autosave_timer = QTimer(self)
-        self._autosave_timer.setInterval(self.AUTOSAVE_INTERVAL_MS)
-        self._autosave_timer.timeout.connect(self._tick_autosave)
-        self._autosave_timer.start()
 
     # === Document delegation ===
     # The mixins predate `MapDocument` and address document state through the
@@ -289,39 +283,6 @@ class EditorWindow(
         menu.addAction(action)
         return action
 
-    # === Autosave / crash recovery ===
-
-    AUTOSAVE_INTERVAL_MS = 60_000
-
-    def _maybe_recover_autosave(self) -> None:
-        # Called once, very early in __init__ (before UI is constructed). If a
-        # `<file>.autosave.json` sibling is newer than the file we just
-        # loaded, offer to restore it.
-        if not self.doc.has_recoverable_autosave():
-            return
-        autosave = self.doc.autosave_path()
-        from PySide6.QtWidgets import QMessageBox  # local import; avoids top-level cycle
-
-        response = QMessageBox.question(
-            self,
-            "Recover Autosave?",
-            f"An autosave exists at {autosave.name} that is newer than {self.doc.path.name}. Recover it?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.Yes,
-        )
-        if response != QMessageBox.StandardButton.Yes:
-            # Declined: the autosave is rejected work; drop it so the next
-            # launch doesn't offer it again.
-            self.doc.clear_autosave()
-            return
-        self.doc.recover_autosave()
-
-    def _tick_autosave(self) -> None:
-        self.doc.write_autosave()
-
-    def _clear_autosave(self) -> None:
-        self.doc.clear_autosave()
-
     # === Recent files ===
 
     RECENT_FILES_KEY = "recent_files"
@@ -461,6 +422,10 @@ class EditorWindow(
         self.statusBar().showMessage(message, STATUS_TIMEOUT_MS)
 
     def _on_undo_index_changed(self, new_index: int) -> None:
+        # A stack that still holds commands clears itself as it is destroyed
+        # and reports that as an index change; by then its wrapper is gone.
+        if not shiboken6.isValid(self.undo_stack):
+            return
         old_index = self._undo_index_seen
         self._undo_index_seen = new_index
         if new_index < old_index:
@@ -539,6 +504,9 @@ class EditorWindow(
 
     def closeEvent(self, event) -> None:
         if self.confirm_discard_changes():
+            # The stack clears itself as it is destroyed and reports that
+            # as an index change; the window is going with it.
+            self.undo_stack.indexChanged.disconnect(self._on_undo_index_changed)
             event.accept()
         else:
             event.ignore()

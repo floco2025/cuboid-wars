@@ -9,6 +9,7 @@ from .constants import (
     LADDER_SIDES,
     LIGHT_SIDES,
     MATERIAL_ALIASES,
+    MOVING_FLOOR_INSET_FRACTION,
     PLATE_TYPE_BARRIER,
     PLATE_TYPE_BRIDGE,
     PLATE_TYPES,
@@ -16,6 +17,8 @@ from .constants import (
 from .display import level_label
 from .geometry import (
     grid_point_in_bounds,
+    moving_floor_path_reaches_cell,
+    moving_floor_path_reaches_edge,
     normalized_wall,
     ramp_cells,
     ramp_cells_on_level,
@@ -127,6 +130,7 @@ def validate_map(map_data: dict, barrier_kinds: list[str], bridge_kinds: list[st
             errors.append(f"ramp {ramp}: {msg}")
 
     _validate_ladders(map_data, errors)
+    _validate_moving_floors(map_data, errors)
 
     # Face values on walls, floors, ramps must be aliases (assets.json::aliases).
     # Raw material ids are rejected — the alias system is the canonical way to
@@ -174,6 +178,78 @@ def _validate_ladders(map_data: dict, errors: list[str]) -> None:
                 and lower < other["lower_level"] + other["levels"]
             ):
                 errors.append(f"{label} overlaps ladders[{other_idx}] on the same edge")
+
+
+def _validate_moving_floors(map_data: dict, errors: list[str]) -> None:
+    # Mirrors the Rust loader: the whole path must be clear — no slab, ramp,
+    # or light bridge on any cell the tile's body sweeps over, on any storey
+    # it passes through, and no wall or barrier edge its body sweeps through
+    # (an edge along the side of its path is fine).
+    cols = map_data["grid_cols"]
+    rows = map_data["grid_rows"]
+    level_count = len(map_data["levels"])
+    seen: set[tuple] = set()
+    for idx, floor in enumerate(map_data.get("moving_floors", [])):
+        label = f"moving_floors[{idx}]"
+        level, to_level = floor["level"], floor["to_level"]
+        start, end = floor["from"], floor["to"]
+        if not (0 <= level < level_count and 0 <= to_level < level_count):
+            errors.append(f"{label} spans levels {level}..{to_level} but the map has {level_count} level(s)")
+            continue
+        if not all(0 <= c < cols and 0 <= r < rows for c, r in (start, end)):
+            errors.append(f"{label} {start}->{end} is outside the grid")
+            continue
+        if start == end and level == to_level:
+            errors.append(f"{label} at level {level} {start} must travel")
+        if not floor["speed"] > 0:
+            errors.append(f"{label} needs a positive speed")
+        if floor["pause_secs"] < 0 or floor["phase_secs"] < 0:
+            errors.append(f"{label} has a negative pause or phase")
+        key = (level, tuple(start))
+        if key in seen:
+            errors.append(f"{label} duplicates a moving floor starting at level {level} {start}")
+        seen.add(key)
+        half = 0.5 - MOVING_FLOOR_INSET_FRACTION
+
+        def relation(cell: tuple[int, int], level_idx: int) -> str:
+            if list(cell) == start and level_idx == level:
+                return "starts on"
+            if list(cell) == end and level_idx == to_level:
+                return "ends on"
+            return "passes over"
+
+        for level_idx in range(min(level, to_level), max(level, to_level) + 1):
+            level_data = map_data["levels"][level_idx]
+            prefix = level_label(level_data, level_idx)
+            slabs = level_data["floors"] + level_data["inaccessible_floors"]
+            for slab in slabs:
+                cell = (slab["col"], slab["row"])
+                if moving_floor_path_reaches_cell(floor, cell, half):
+                    errors.append(
+                        f"{label} {relation(cell, level_idx)} a floor at {prefix} [{cell[0]}, {cell[1]}]; "
+                        "a moving floor needs floorless cells wherever it goes"
+                    )
+                    break
+            for bridge in level_data.get("light_bridges", []):
+                cell = (bridge["col"], bridge["row"])
+                if moving_floor_path_reaches_cell(floor, cell, half):
+                    errors.append(
+                        f"{label} {relation(cell, level_idx)} a light bridge at {prefix} [{cell[0]}, {cell[1]}]"
+                    )
+                    break
+            for cell in sorted(ramp_cells_on_level(map_data["ramps"], level_idx)):
+                if moving_floor_path_reaches_cell(floor, cell, half):
+                    errors.append(f"{label} {relation(cell, level_idx)} a ramp at {prefix} [{cell[0]}, {cell[1]}]")
+                    break
+            for list_name, noun in (("walls", "wall"), ("barriers", "barrier")):
+                for edge in level_data.get(list_name, []):
+                    if moving_floor_path_reaches_edge(floor, [edge["c0"], edge["r0"], edge["c1"], edge["r1"]], half):
+                        errors.append(
+                            f"{label} crosses a {noun} at {prefix} "
+                            f"[{edge['c0']}, {edge['r0']}, {edge['c1']}, {edge['r1']}]"
+                        )
+                        break
+        _check_face_aliases(floor, f"{label} {start}->{end}", errors)
 
 
 def _validate_pressure_plates(map_data: dict, kinds: list[str], bridge_kinds: list[str], errors: list[str]) -> None:

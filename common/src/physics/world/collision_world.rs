@@ -20,10 +20,10 @@ use crate::{
 };
 
 use super::colliders::{
-    BRIDGE_COLLISION_GROUP, ColliderKind, FLOOR_COLLISION_GROUP, WALL_COLLISION_GROUP, barrier_collision_group,
-    character_collision_groups, collider_interaction_groups, ground_collision_groups, insert_barrier_collider,
-    insert_bridge_collider, insert_floor_collider, insert_ramp_collider, insert_wall_collider, query_filter,
-    surface_collision_groups, world_collision_groups,
+    BRIDGE_COLLISION_GROUP, ColliderKind, FLOOR_COLLISION_GROUP, MOVING_FLOOR_COLLISION_GROUP, WALL_COLLISION_GROUP,
+    barrier_collision_group, character_collision_groups, collider_interaction_groups, ground_collision_groups,
+    insert_barrier_collider, insert_bridge_collider, insert_floor_collider, insert_moving_floor_collider,
+    insert_ramp_collider, insert_wall_collider, query_filter, surface_collision_groups, world_collision_groups,
 };
 
 use super::ladders::LadderVolume;
@@ -49,6 +49,8 @@ pub struct CollisionWorld {
     all_barrier_groups: Group,
     // Every light bridge collider with its kind, for `set_powered_bridges`.
     bridge_colliders: Vec<(BridgeKindId, ColliderHandle)>,
+    // Every moving floor collider in layout order, for `set_moving_floor_centers`.
+    moving_floor_colliders: Vec<ColliderHandle>,
     ladder_volumes: Vec<LadderVolume>,
 }
 
@@ -84,6 +86,13 @@ impl CollisionWorld {
             bridge_colliders.push((bridge.kind, handle));
         }
 
+        let mut moving_floor_colliders = Vec::with_capacity(map_layout.moving_floors.len());
+        for (index, floor) in map_layout.moving_floors.iter().enumerate() {
+            let handle = insert_moving_floor_collider(&mut colliders, floor, index);
+            collider_handles.push(handle);
+            moving_floor_colliders.push(handle);
+        }
+
         let mut broad_phase = BroadPhaseBvh::new();
         let narrow_phase = NarrowPhase::new();
         let mut events = Vec::new();
@@ -110,8 +119,34 @@ impl CollisionWorld {
             narrow_phase,
             all_barrier_groups,
             bridge_colliders,
+            moving_floor_colliders,
             ladder_volumes,
         }
+    }
+
+    // Moving floors are the one geometry that moves. Each tick both sides put
+    // every tile's collider at its current pose (`moving_floors_advance_system`)
+    // and refresh the broad phase for exactly those handles, so every query
+    // that follows sees the tiles where they are; nothing else here ever
+    // moves, so the rest of the tree stays as built.
+    pub fn set_moving_floor_centers(&mut self, centers: &[Vec3]) {
+        assert_eq!(
+            centers.len(),
+            self.moving_floor_colliders.len(),
+            "moving floor count differs between the runtime state and the collision world"
+        );
+        for (handle, center) in self.moving_floor_colliders.iter().zip(centers) {
+            self.colliders[*handle].set_position(Pose::translation(center.x, center.y, center.z));
+        }
+        let mut events = Vec::new();
+        self.broad_phase.update(
+            &IntegrationParameters::default(),
+            &self.colliders,
+            &self.bodies,
+            &self.moving_floor_colliders,
+            &[],
+            &mut events,
+        );
     }
 
     // Bridge power is world state, not per-query state: the powered kinds'
@@ -382,12 +417,15 @@ impl CollisionWorld {
         radius: f32,
         open_kinds: &[BarrierKindId],
     ) -> bool {
-        // Walls, floors, and powered bridges are always blockers. Barriers
-        // block the muzzle unless the kind is currently open (pressure-plate
-        // held) — those barriers are gone visually and shots pass through
-        // them, so the muzzle clipping them is fine.
-        let mut groups =
-            WALL_COLLISION_GROUP | FLOOR_COLLISION_GROUP | BRIDGE_COLLISION_GROUP | self.all_barrier_groups;
+        // Walls, floors, powered bridges, and moving floors are always
+        // blockers. Barriers block the muzzle unless the kind is currently
+        // open (pressure-plate held) — those barriers are gone visually and
+        // shots pass through them, so the muzzle clipping them is fine.
+        let mut groups = WALL_COLLISION_GROUP
+            | FLOOR_COLLISION_GROUP
+            | BRIDGE_COLLISION_GROUP
+            | MOVING_FLOOR_COLLISION_GROUP
+            | self.all_barrier_groups;
         for kind in open_kinds {
             groups.remove(barrier_collision_group(*kind));
         }

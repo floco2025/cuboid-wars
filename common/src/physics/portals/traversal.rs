@@ -12,8 +12,7 @@ use crate::{
     },
     math::direction_from_yaw_pitch,
     physics::{
-        CharacterMovementResult, CharacterSupport, CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity,
-        player_control_velocity,
+        AirborneMomentum, CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity, player_control_velocity,
     },
     protocol::{FaceYaw, PlayerMoveIntent, Portal, PortalEnd, Position},
 };
@@ -89,34 +88,6 @@ fn body_support(half_extents: Vec3, direction: Vec3) -> f32 {
     direction.abs().dot(half_extents)
 }
 
-// Horizontal launch velocity produced by a portal. It stays constant in the
-// air; movement planning clears it on landing or collision.
-#[derive(Component, Debug, Default, Clone, Copy)]
-pub struct PortalMomentum(pub Vec3);
-
-impl PortalMomentum {
-    #[must_use]
-    pub fn step(&self, delta: f32) -> Vec3 {
-        self.0 * delta
-    }
-
-    pub fn finish_step(&mut self, movement: &CharacterMovementResult) {
-        if movement.support != CharacterSupport::Airborne || movement.blocked {
-            self.0 = Vec3::ZERO;
-        }
-    }
-}
-
-#[must_use]
-pub fn momentum_displacement(
-    knockback: Option<&KnockbackVelocity>,
-    portal_momentum: Option<&PortalMomentum>,
-    delta: f32,
-) -> Vec3 {
-    knockback.map_or(Vec3::ZERO, |velocity| velocity.step(delta))
-        + portal_momentum.map_or(Vec3::ZERO, |momentum| momentum.step(delta))
-}
-
 #[derive(Debug, Clone, Copy)]
 pub struct CharacterPortalHop {
     // New entity origin (feet): the entry pose mapped continuously through
@@ -155,7 +126,7 @@ impl CharacterPortalHop {
         commands: &mut Commands,
         entity: Entity,
         knockback: Option<Mut<'_, KnockbackVelocity>>,
-        portal_momentum: Option<Mut<'_, PortalMomentum>>,
+        portal_momentum: Option<Mut<'_, AirborneMomentum>>,
     ) {
         match knockback {
             Some(mut existing) => existing.0 = self.knockback,
@@ -166,7 +137,7 @@ impl CharacterPortalHop {
         match portal_momentum {
             Some(mut existing) => existing.0 = self.portal_momentum,
             None => {
-                commands.entity(entity).insert(PortalMomentum(self.portal_momentum));
+                commands.entity(entity).insert(AirborneMomentum(self.portal_momentum));
             }
         }
     }
@@ -261,7 +232,7 @@ impl PortalSet {
         has_speed: bool,
         stunned: bool,
         knockback: Option<&KnockbackVelocity>,
-        portal_momentum: Option<&PortalMomentum>,
+        portal_momentum: Option<&AirborneMomentum>,
         vertical_velocity: f32,
         yaw: f32,
     ) -> Option<CharacterPortalHop> {

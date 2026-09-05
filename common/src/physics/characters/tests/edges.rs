@@ -30,6 +30,7 @@ fn edge_overhang_slides_off_and_falls() {
                 ladder_climb_ratio: test_ladders(),
                 physics,
                 portals: None,
+                moving_floors: &MovingFloors::default(),
             },
         );
         pos = step.position;
@@ -79,6 +80,7 @@ fn probe_grounded_near_edge_does_not_slide() {
                 ladder_climb_ratio: test_ladders(),
                 physics,
                 portals: None,
+                moving_floors: &MovingFloors::default(),
             },
         );
         pos = step.position;
@@ -119,6 +121,7 @@ fn input_overrides_perch_slide() {
                 ladder_climb_ratio: test_ladders(),
                 physics,
                 portals: None,
+                moving_floors: &MovingFloors::default(),
             },
         );
         pos = step.position;
@@ -169,6 +172,7 @@ fn blocked_slide_keeps_velocity_zeroed() {
                 ladder_climb_ratio: test_ladders(),
                 physics,
                 portals: None,
+                moving_floors: &MovingFloors::default(),
             },
         );
         pos = step.position;

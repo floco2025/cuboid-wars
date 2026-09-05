@@ -401,3 +401,69 @@ fn a_powered_light_bridge_stays_out_of_sight_and_ground_probes() {
         "a portal never lands on it"
     );
 }
+
+fn slider_layout() -> MapLayout {
+    use crate::protocol::MovingFloor;
+
+    MapLayout {
+        moving_floors: vec![MovingFloor {
+            x1: 0.0,
+            y1: LEVEL_HEIGHT,
+            z1: 0.0,
+            x2: 8.0,
+            y2: LEVEL_HEIGHT,
+            z2: 0.0,
+            half_x: 1.5,
+            half_z: 1.5,
+            thickness: FLOOR_THICKNESS,
+            travel_ticks: 60,
+            pause_ticks: 0,
+            phase_ticks: 0,
+            level: 1,
+            levels: 0,
+        }],
+        ..Default::default()
+    }
+}
+
+#[test]
+fn moving_floor_collider_follows_its_current_center() {
+    use rapier3d::prelude::Pose;
+
+    let mut world = CollisionWorld::from_map_layout(&slider_layout(), &crate::protocol::BarrierKindTable::default());
+    assert_eq!(world.solid_kinds(), vec![ColliderKind::MovingFloor]);
+    let physics = wide_body();
+    let shape = crate::physics::characters::character_shape(physics);
+    let probe = |world: &CollisionWorld, x: f32| {
+        let pose = Pose::translation(x, LEVEL_HEIGHT + physics.collider.bottom_y_offset() + 0.05, 0.0);
+        world.ground_hit(&shape, &pose, 1.0, 0.0, &[], &[])
+    };
+
+    assert!(probe(&world, 0.0).is_some(), "the tile starts at its first end");
+    world.set_moving_floor_centers(&[bevy_math::Vec3::new(8.0, LEVEL_HEIGHT - FLOOR_THICKNESS / 2.0, 0.0)]);
+    assert!(probe(&world, 0.0).is_none(), "the tile left its first end");
+    assert!(probe(&world, 8.0).is_some(), "the tile arrived at its second end");
+}
+
+#[test]
+fn moving_floor_is_a_surface_but_not_world_geometry() {
+    let world = CollisionWorld::from_map_layout(&slider_layout(), &crate::protocol::BarrierKindTable::default());
+    let above = bevy_math::Vec3::new(0.0, LEVEL_HEIGHT + 1.0, 0.0);
+    let below = bevy_math::Vec3::new(0.0, LEVEL_HEIGHT - 1.0, 0.0);
+
+    assert!(
+        world.cast_moving_ball(above, below - above, 0.1).is_some(),
+        "a surface query sees it"
+    );
+    assert!(world.line_of_sight_clear(above, below), "sight reaches through it");
+    assert!(
+        world.ground_surface_below(above, 2.0).is_none(),
+        "rain and scorch probes ignore it"
+    );
+    assert!(
+        world
+            .world_surface_along_ray(above, bevy_math::Vec3::NEG_Y, 2.0)
+            .is_none(),
+        "a portal never lands on it"
+    );
+}
