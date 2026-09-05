@@ -20,12 +20,25 @@ use crate::constants::TICK_SYNC_WINDOW_TICKS;
 #[derive(Resource, Default)]
 pub struct TickSync {
     seeded: bool,
+    roughly_seeded: bool,
     window: VecDeque<i32>,
     last_measured_seq: u32,
     ignore_through_seq: u32,
 }
 
 impl TickSync {
+    // Whether the clock still needs its rough seed: until the first own echo
+    // measures it, the first state message puts the clock near the server's
+    // tick, so a joining client does not see the moving floors at tick zero
+    // for a round trip. True once, before any echo.
+    pub fn takes_rough_seed(&mut self) -> bool {
+        if self.seeded || self.roughly_seeded {
+            return false;
+        }
+        self.roughly_seeded = true;
+        true
+    }
+
     // `error` is the echoed tick minus the recorded one for `echoed_seq`;
     // `committed_seq` is the newest commit made so far. Returns the shift to
     // apply to the clock.
@@ -69,6 +82,16 @@ mod tests {
         let mut sync = TickSync::default();
         assert_eq!(sync.observe(0, 1, 1), None);
         sync
+    }
+
+    #[test]
+    fn a_rough_seed_is_taken_once_before_the_first_echo() {
+        let mut sync = TickSync::default();
+        assert!(sync.takes_rough_seed());
+        assert!(!sync.takes_rough_seed());
+        assert_eq!(sync.observe(3, 1, 1), Some(3));
+        let mut seeded = seeded();
+        assert!(!seeded.takes_rough_seed());
     }
 
     #[test]

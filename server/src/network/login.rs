@@ -8,7 +8,7 @@ use crate::{
     quests::{QuestBoard, QuestCatalog, assign_quests},
 };
 use common::{
-    physics::{CharacterVerticalVelocity, PortalSet},
+    physics::{AirborneMomentum, CharacterVerticalVelocity, PortalSet},
     protocol::*,
 };
 
@@ -99,6 +99,7 @@ pub(super) fn handle_login_message(
         PlayerMoveIntent::Idle,
         FaceYaw(spawn_face_yaw(&pos)),
         CharacterVerticalVelocity::default(),
+        AirborneMomentum::default(),
         Health(world.server_gameplay_config.combat.health.player.max),
     ));
 }

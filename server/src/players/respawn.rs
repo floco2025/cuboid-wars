@@ -7,7 +7,7 @@ use crate::map::MapConfig;
 use common::{
     config::GameplayConfig,
     map::MapGeometry,
-    physics::{CharacterVerticalVelocity, CollisionWorld},
+    physics::{AirborneMomentum, CharacterVerticalVelocity, CollisionWorld},
     protocol::{FaceYaw, Health, PlayerId, PlayerMarker, PlayerMoveIntent, Position},
 };
 
@@ -65,6 +65,7 @@ pub fn players_respawn_system(
                 move_intent,
                 FaceYaw(face_yaw),
                 CharacterVerticalVelocity::default(),
+                AirborneMomentum::default(),
                 Health(server_gameplay_config.combat.health.player.max),
             ))
             .id();

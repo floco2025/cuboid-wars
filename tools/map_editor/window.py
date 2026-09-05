@@ -6,7 +6,7 @@ import copy
 from pathlib import Path
 
 import shiboken6
-from PySide6.QtCore import QSettings, Qt
+from PySide6.QtCore import QSettings, Qt, QTimer
 from PySide6.QtGui import QAction, QFont, QKeySequence, QShortcut, QStandardItem, QStandardItemModel, QUndoStack
 from PySide6.QtWidgets import QComboBox, QLabel, QMainWindow, QMenu, QToolBar
 
@@ -69,6 +69,10 @@ class EditorWindow(
         self.doc = MapDocument(path)
         self.barrier_kind_colors = load_map_barrier_kinds(path.stem)
         self.bridge_kind_colors = load_map_bridge_kinds(path.stem)
+        # If a newer autosave sits next to the file we just opened, offer to
+        # recover it. Done before any UI is built so the user sees their
+        # restored work as the initial state.
+        self._maybe_recover_autosave()
         self.current_level = 0
         self.mode = MODE_FLOOR
         self.shortcuts = []
@@ -136,6 +140,13 @@ class EditorWindow(
         self.statusBar().addPermanentWidget(self.status_label)
         self.refresh_ui()
         self.resize_to_map()
+
+        # Autosave timer — periodically writes a `.autosave.json` sibling when
+        # the map is dirty so a crash/kill doesn't lose work.
+        self._autosave_timer = QTimer(self)
+        self._autosave_timer.setInterval(self.AUTOSAVE_INTERVAL_MS)
+        self._autosave_timer.timeout.connect(self._tick_autosave)
+        self._autosave_timer.start()
 
     # === Document delegation ===
     # The mixins predate `MapDocument` and address document state through the
@@ -282,6 +293,39 @@ class EditorWindow(
         action.triggered.connect(callback)
         menu.addAction(action)
         return action
+
+    # === Autosave / crash recovery ===
+
+    AUTOSAVE_INTERVAL_MS = 60_000
+
+    def _maybe_recover_autosave(self) -> None:
+        # Called once, very early in __init__ (before UI is constructed). If a
+        # `<file>.autosave.json` sibling is newer than the file we just
+        # loaded, offer to restore it.
+        if not self.doc.has_recoverable_autosave():
+            return
+        autosave = self.doc.autosave_path()
+        from PySide6.QtWidgets import QMessageBox  # local import; avoids top-level cycle
+
+        response = QMessageBox.question(
+            self,
+            "Recover Autosave?",
+            f"An autosave exists at {autosave.name} that is newer than {self.doc.path.name}. Recover it?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.Yes,
+        )
+        if response != QMessageBox.StandardButton.Yes:
+            # Declined: the autosave is rejected work; drop it so the next
+            # launch doesn't offer it again.
+            self.doc.clear_autosave()
+            return
+        self.doc.recover_autosave()
+
+    def _tick_autosave(self) -> None:
+        self.doc.write_autosave()
+
+    def _clear_autosave(self) -> None:
+        self.doc.clear_autosave()
 
     # === Recent files ===
 

@@ -36,6 +36,9 @@ pub(in crate::network) fn handle_player_moves_message(
         return;
     }
     let tick = message.tick;
+    if context.tick_sync.takes_rough_seed() {
+        context.server_tick.0 = tick.wrapping_add(1);
+    }
     // A crossing the server has yet to make shows up within a round trip;
     // one still missing after that was mispredicted, and the server's side
     // stands. Until the round trip has been measured no dispute can be
@@ -85,8 +88,9 @@ pub(in crate::network) fn handle_player_moves_message(
                     movement.pos,
                     PreviousTickPosition(movement.pos),
                     CharacterVerticalVelocity(movement.vertical_velocity),
+                    AirborneMomentum::default(),
                 ))
-                .remove::<(ServerReconciliation, AirborneMomentum)>();
+                .remove::<ServerReconciliation>();
             if id == my_player_id {
                 context.local_player_info.committed_positions.clear();
             } else {
@@ -430,8 +434,13 @@ fn apply_player_death(
             // lerp can't pull the corpse back off the death position.
             commands
                 .entity(info.entity)
-                .insert((Visibility::Hidden, event.pos, PreviousTickPosition(event.pos)))
-                .remove::<(ServerReconciliation, AirborneMomentum)>();
+                .insert((
+                    Visibility::Hidden,
+                    event.pos,
+                    PreviousTickPosition(event.pos),
+                    AirborneMomentum::default(),
+                ))
+                .remove::<ServerReconciliation>();
         }
         local_player_info.is_dead = true;
         // Centered "You died!" banner. The red full-screen

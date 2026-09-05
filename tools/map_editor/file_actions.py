@@ -134,4 +134,10 @@ class FileActionsMixin:
             QMessageBox.StandardButton.Discard | QMessageBox.StandardButton.Cancel,
             QMessageBox.StandardButton.Cancel,
         )
-        return result == QMessageBox.StandardButton.Discard
+        if result == QMessageBox.StandardButton.Discard:
+            # User chose to discard — the autosave is a persisted copy of the
+            # changes they just rejected, so it must go too. Otherwise next
+            # launch would offer to "recover" the discarded work.
+            self._clear_autosave()
+            return True
+        return False

@@ -55,9 +55,10 @@ def main() -> int:
     app.setOrganizationName("CuboidWars")
     app.setApplicationName("MapEditor")
     app.setWindowIcon(_build_window_icon())
-    # Ctrl-C ends the process outright: a Python-level handler could only
+    # Ctrl-C ends the process outright. A Python-level handler could only
     # ask the main event loop to quit, which a modal dialog's nested loop
-    # never gets around to.
+    # (the autosave recovery prompt runs before the main loop even starts)
+    # never gets around to; the autosave has already kept the work.
     signal.signal(signal.SIGINT, signal.SIG_DFL)
 
     window = EditorWindow(map_path)

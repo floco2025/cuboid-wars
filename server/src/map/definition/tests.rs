@@ -1295,10 +1295,11 @@ fn every_shipped_moving_floor_carries_a_standing_player_through_its_cycle() {
         for (index, floor) in layout.moving_floors.iter().enumerate() {
             floors.advance(0);
             world.set_moving_floor_centers(&floors.collider_centers());
+            let start = surface_center_at(floor, 0);
             let mut pos = Position {
-                x: floor.x1,
-                y: floor.y1,
-                z: floor.z1,
+                x: start.x,
+                y: start.y,
+                z: start.z,
             };
             let mut vertical_velocity = 0.0;
             let cycle = 2 * (floor.travel_ticks + floor.pause_ticks);

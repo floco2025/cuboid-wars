@@ -11,7 +11,11 @@ use crate::{
     },
     ui::floating_labels::{LabelCamera, setup_label_texture, spawn_floating_health_bar, spawn_floating_player_label},
 };
-use common::{config::GameplayConfig, physics::CharacterVerticalVelocity, protocol::*};
+use common::{
+    config::GameplayConfig,
+    physics::{AirborneMomentum, CharacterVerticalVelocity},
+    protocol::*,
+};
 
 // Marks the local-player entity (the player you control). Spawned by
 // `spawn_player` when `is_local` is true; queried by input, camera, UI,
@@ -88,6 +92,7 @@ pub fn spawn_player(
                 visibility: Visibility::Visible,
             },
             PreviousTickPosition(*position),
+            AirborneMomentum::default(),
             animation_to_play.clone(),
         ))
         .id();

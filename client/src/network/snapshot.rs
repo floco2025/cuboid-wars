@@ -26,6 +26,9 @@ pub(super) fn handle_snapshot_message(
         );
         return;
     }
+    if context.tick_sync.takes_rough_seed() {
+        context.server_tick.0 = message.tick.wrapping_add(1);
+    }
 
     // Avoid marking an untouched quest log as changed on every snapshot.
     if !message.quests.is_empty() {
