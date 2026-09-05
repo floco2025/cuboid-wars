@@ -126,11 +126,15 @@ impl PlayerInput {
 // Client to Server: the input, committed every tick whether it changed or
 // not, so a lost commit heals at the next one. Like `SSnapshot`, it replaces
 // state wholesale, so it carries a sequence and the server ignores a commit
-// older than the last one it applied.
+// older than the last one it applied. `hops` is how many portal crossings the
+// client's own simulation of its player has made: the intent is expressed on
+// that side of them, and the server applies it only once its player has made
+// the same ones.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct CMove {
     pub seq: u32,
     pub input: PlayerInput,
+    pub hops: u32,
 }
 
 // Client to Server: One-shot jump request.
@@ -308,6 +312,10 @@ pub struct PlayerMove {
     // position they predicted after that same `CMove`, a measured error
     // rather than an extrapolated one.
     pub move_seq: u32,
+    // How many portal crossings the server's player has made. A client
+    // steers or reconciles a player only from a state whose count matches
+    // its own simulation of that player (`PlayerInfo::hops` on the client).
+    pub hops: u32,
 }
 
 // --- Cues (ahead of the next snapshot, healed by it) ---
@@ -829,7 +837,10 @@ mod tests {
             move_intent: PlayerMoveIntent::Idle,
             face_yaw: 0.0,
         };
-        assert_eq!(ClientMessage::Move(CMove { seq: 1, input }).lane(), Lane::Unreliable);
+        assert_eq!(
+            ClientMessage::Move(CMove { seq: 1, input, hops: 0 }).lane(),
+            Lane::Unreliable
+        );
         assert_eq!(
             ClientMessage::Ping(CPing { timestamp_nanos: 0 }).lane(),
             Lane::Unreliable
@@ -860,6 +871,7 @@ mod tests {
                     held_keys: Vec::new(),
                     missiles: 0,
                     portal_access: PortalAccess::None,
+                    hops: 0,
                 },
             )
         };

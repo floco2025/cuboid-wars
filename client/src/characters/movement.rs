@@ -4,7 +4,7 @@ use super::PreviousTickPosition;
 use crate::{
     actors::{ActorMap, ActorMovementQuery, actor_start_positions, apply_actor_moves, plan_actor_moves},
     config::{AssetSet, ClientSettings},
-    players::{PlayerMap, PlayerMovementQuery, apply_player_moves, plan_player_moves},
+    players::{LocalPlayerInfo, PlayerMap, PlayerMovementQuery, apply_player_moves, plan_player_moves},
 };
 use common::{
     config::GameplayConfig,
@@ -34,6 +34,7 @@ pub fn characters_movement_system(
     collision_world: Res<CollisionWorld>,
     map_settings: Res<MapSettings>,
     mut players: ResMut<PlayerMap>,
+    mut local_player_info: ResMut<LocalPlayerInfo>,
     actors: Res<ActorMap>,
     plates: Res<PlateState>,
     portal_set: Res<PortalSet>,
@@ -47,11 +48,11 @@ pub fn characters_movement_system(
     plan_player_moves(
         &mut commands,
         delta,
-        time.elapsed_secs(),
         &collision_world,
         &map_settings,
         &gameplay_config,
         &mut players,
+        &mut local_player_info,
         &plates,
         &portal_set,
         &mut players_query,

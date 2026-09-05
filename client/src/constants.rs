@@ -6,12 +6,7 @@ use bevy::color::Color;
 
 // Player input is sampled at render rate (smooth camera) and committed once
 // per game tick (`common::constants::TICK_HZ`) in `commit_player_input_system`,
-// changed or not. After a local portal hop the stream holds this long: the
-// server maps its own persisted intent when its body crosses, about one-way
-// latency after ours, and a commit landing before that would steer the body
-// on the entry side in exit-frame terms. A few ticks cover tick phase and
-// jitter.
-pub const COMMIT_TELEPORT_HOLD_SECS: f32 = 0.1;
+// changed or not.
 
 // Slots in the local player's ring of committed positions, one per tick;
 // 64 is two seconds, more than any round trip worth playing over.
@@ -55,12 +50,11 @@ pub const RECON_PLAYER_SNAP_DECAY_SECS: f32 = 1.0;
 // corrections more clearly than moving ones, so smooth them slowly.
 pub const RECON_PLAYER_IDLE_CORRECTION_SECS: f32 = 8.0;
 
-// Moves built before a local teleport — a portal crossing or a snap —
-// reconcile, face, and pace the traveler back to a stale phase, and they keep
-// arriving for a round trip after it, so the stream stands down for the RTT
-// plus this slack after each; the crossings themselves re-anchor exactly on
-// every hop.
-pub const RECON_TELEPORT_SUPPRESS_SECS: f32 = 0.3;
+// A portal crossing the client has predicted shows up in the server's
+// states about one-way latency later. One still missing a round trip plus
+// this after it was mispredicted, and the server's side stands
+// (`PlayerInfo::disputed_echoes`).
+pub const HOP_DISPUTE_SLACK_SECS: f32 = 0.3;
 
 // --- Actor only ---
 

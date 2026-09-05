@@ -57,6 +57,12 @@ pub(super) fn handle_move_message(
         return;
     }
     info.session.last_move_seq = message.seq;
+    // The intent is expressed on the side of the crossings the client's own
+    // simulation has made; until this player has made the same ones, the
+    // persisted intent, mapped through each hop, is the right one.
+    if message.hops != info.session.hops {
+        return;
+    }
     let input = message.input;
     commands
         .entity(entity)

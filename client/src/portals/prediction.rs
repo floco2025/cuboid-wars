@@ -21,7 +21,6 @@ use common::{
 // ordinary snapshot correction.
 pub fn portal_transit_system(
     mut commands: Commands,
-    time: Res<Time>,
     portal_set: Res<PortalSet>,
     gameplay_config: Res<GameplayConfig>,
     map_settings: Res<MapSettings>,
@@ -75,9 +74,7 @@ pub fn portal_transit_system(
         // cut there, not a smear between the portals.
         prev.0 = *pos;
         if let Some(info) = players.get_mut(id) {
-            // Snapshot data built before the crossing would drag this player
-            // back to a stale phase; reconciliation stands down briefly.
-            info.last_teleport_time = time.elapsed_secs();
+            info.hops = info.hops.wrapping_add(1);
         }
         if my_player_id.0 == *id {
             apply_portal_view(

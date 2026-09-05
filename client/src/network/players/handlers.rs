@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use super::super::context::ServerMessageContext;
-use crate::constants::RECON_TELEPORT_SUPPRESS_SECS;
+use crate::constants::HOP_DISPUTE_SLACK_SECS;
 use crate::{
     audio::{play_explosion_sound, play_sound, play_spatial_sound},
     characters::PreviousTickPosition,
@@ -13,6 +13,7 @@ use crate::{
 };
 use common::{
     config::MapMovementConfig,
+    constants::TICK_HZ,
     physics::{CharacterVerticalVelocity, KnockbackVelocity, PortalMomentum, player_control_velocity},
     protocol::*,
 };
@@ -35,18 +36,31 @@ pub(in crate::network) fn handle_player_moves_message(
         return;
     }
     context.last_player_moves_seq.0 = message.seq;
-    let now = context.time.elapsed_secs();
-    for PlayerMove { id, movement, move_seq } in message.moves {
-        let Some(player) = context.players.get(&id) else {
+    // A crossing the server has yet to make shows up within a round trip;
+    // one still missing after that was mispredicted, and the server's side
+    // stands.
+    let dispute_limit = ((context.rtt.rtt.as_secs_f32() + HOP_DISPUTE_SLACK_SECS) * TICK_HZ as f32) as u32;
+    for PlayerMove {
+        id,
+        movement,
+        move_seq,
+        hops,
+    } in message.moves
+    {
+        let Some(player) = context.players.get_mut(&id) else {
             continue;
         };
-        // The stream stands down after a local teleport, a portal hop or a
-        // snap: states built before it keep arriving for a round trip, and
-        // steering or reconciling from them drags the body back
-        // (`RECON_TELEPORT_SUPPRESS_SECS`).
-        if now - player.last_teleport_time < RECON_TELEPORT_SUPPRESS_SECS + context.rtt.rtt.as_secs_f32() {
-            continue;
+        // A state pairs only with a simulation on the same side of the same
+        // portal crossings; one from across a crossing we have predicted, or
+        // not yet predicted, would steer and reconcile the body back through.
+        if hops != player.hops {
+            player.disputed_echoes += 1;
+            if player.disputed_echoes <= dispute_limit {
+                continue;
+            }
+            player.hops = hops;
         }
+        player.disputed_echoes = 0;
         let mut entity = commands.entity(player.entity);
         if id != my_player_id {
             entity.insert((
@@ -65,13 +79,13 @@ pub(in crate::network) fn handle_player_moves_message(
             let correction_delta = if id == my_player_id {
                 // Own state names the `CMove` it reflects: measure against
                 // where our simulation stood after that `CMove`. One the ring
-                // does not hold (before the first commit, or after a one-way
-                // stall longer than the ring) is measured against where we
-                // stand now, the plain gap to the server.
+                // does not hold (before the first commit, after a snap, or
+                // after a one-way stall longer than the ring) is measured
+                // against where we stand now, the plain gap to the server.
                 let recorded_pos = context
                     .local_player_info
                     .committed_positions
-                    .get(move_seq)
+                    .get(move_seq, hops)
                     .unwrap_or(*client_pos);
                 recorded_correction(recorded_pos, movement.pos)
             } else {
@@ -411,7 +425,8 @@ mod tests {
             snap_speed: 0.0,
             held_keys: Vec::new(),
             missiles: 0,
-            last_teleport_time: f32::NEG_INFINITY,
+            hops: 0,
+            disputed_echoes: 0,
         }
     }
 

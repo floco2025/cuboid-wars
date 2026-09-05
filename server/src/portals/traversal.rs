@@ -67,6 +67,7 @@ pub fn players_portal_traversal_system(
                 // No fall damage across a portal: the drop tracker restarts
                 // at the exit.
                 info.life.fall_state.reset();
+                info.session.hops = info.session.hops.wrapping_add(1);
             }
             // Not broadcast: every client simulates every player's crossings
             // from the shared geometry; the snapshot corrects a wrong guess.

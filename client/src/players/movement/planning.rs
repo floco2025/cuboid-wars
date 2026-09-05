@@ -13,7 +13,7 @@ use common::{
 
 use crate::{
     network::ServerReconciliation,
-    players::{BumpFeedbackState, LocalPlayerMarker, PlayerMap},
+    players::{BumpFeedbackState, LocalPlayerInfo, LocalPlayerMarker, PlayerMap},
 };
 
 use super::reconciliation::{PlayerReconciliationOutcome, decayed_snap_speed, reconcile_player};
@@ -21,11 +21,11 @@ use super::reconciliation::{PlayerReconciliationOutcome, decayed_snap_speed, rec
 pub(crate) fn plan_player_moves(
     commands: &mut Commands,
     delta: f32,
-    now: f32,
     collision_world: &CollisionWorld,
     map_settings: &MapSettings,
     gameplay_config: &GameplayConfig,
     players: &mut PlayerMap,
+    local_player_info: &mut LocalPlayerInfo,
     plates: &PlateState,
     portal_set: &PortalSet,
     query: &mut PlayerMovementQuery,
@@ -43,7 +43,7 @@ pub(crate) fn plan_player_moves(
         mut recon_option,
         knockback,
         mut portal_momentum,
-        _,
+        is_local,
     ) in query
     {
         // Decay snap_speed each tick; a newer, faster server speed wins.
@@ -92,10 +92,10 @@ pub(crate) fn plan_player_moves(
             ) {
                 PlayerReconciliationOutcome::Displacement(displacement) => displacement,
                 PlayerReconciliationOutcome::Snapped => {
-                    // A snap is a local teleport: echoes still in flight were
-                    // measured against pre-snap records and would snap again.
-                    if let Some(info) = players.get_mut(player_id) {
-                        info.last_teleport_time = now;
+                    // The snap voids every position recorded before it; echoes
+                    // still in flight are measured against the snapped body.
+                    if is_local {
+                        local_player_info.committed_positions.clear();
                     }
                     planned_moves.push(CharacterMovePlan::stationary(
                         entity,

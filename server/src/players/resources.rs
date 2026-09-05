@@ -78,6 +78,10 @@ pub struct PlayerSession {
     // Newest `CMove.seq` applied; an older commit is ignored. Per session,
     // so a respawn does not reset it under a counter that keeps climbing.
     pub last_move_seq: u32,
+    // Portal crossings this player has made, per session like the sequence.
+    // An input is expressed on the side the client's own simulation is on
+    // and applied only once this player has made the same crossings.
+    pub hops: u32,
     pub score: i32,
     pub quest_states: HashMap<QuestId, PlayerQuestState>,
 }
@@ -312,6 +316,7 @@ impl PlayerInfo {
             held_keys: self.life.held_keys.clone(),
             missiles: self.life.missiles,
             portal_access,
+            hops: self.session.hops,
         }
     }
 
