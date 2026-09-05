@@ -33,10 +33,16 @@
 //    `SSnapshot` they show up in and disappears in the first they're absent
 //    from. Presence includes pre-presence: `spawning_actors` carries reserved
 //    actor spawns during their warning window, so clients render a beam-in
-//    ghost before the actor exists. `SPlayerMoves` is the per-tick companion
-//    for the one thing clients simulate ahead: every active player's
-//    `PlayerMovementState` after each tick's movement, the receiver's own
-//    included, so every client reconciles and dead-reckons every tick.
+//    ghost before the actor exists. `SPlayerMoves` is the per-tick companion:
+//    every active player's `PlayerMovementState` after each tick's movement,
+//    the receiver's own included. It exists because the local player needs
+//    an echo of each input to measure its prediction error against; since
+//    the server sends it every tick anyway, every player rides it, which is
+//    what retires a separate per-change player cue and the snapshot's
+//    reconciliation of players. Actors and missiles have no such message:
+//    nothing about them needs an echo, and a per-tick roster of the many
+//    actors on a map would crowd a datagram, so they keep the per-change
+//    cue plus the snapshot.
 //
 //    Projectiles are the deliberate exception. They are short-lived, fast,
 //    and numerous, so they are replicated as shot cues (`SProjectileShot`)

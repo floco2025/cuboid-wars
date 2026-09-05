@@ -51,6 +51,9 @@ pub fn record_committed_position_system(
     let Ok(pos) = local_player_query.single() else {
         return;
     };
+    if local_player_info.is_dead {
+        return;
+    }
     let hops = players.get(&my_player_id.0).map_or(0, |info| info.hops);
     let seq = local_player_info.move_seq;
     local_player_info.committed_positions.record(seq, hops, *pos);

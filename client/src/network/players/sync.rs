@@ -101,6 +101,11 @@ pub(in crate::network) fn sync_players(
             .entity(entity)
             .remove::<(ServerReconciliation, PortalMomentum)>();
         info.apply_snapshot(server_player);
+        // The pre-death records and any pending crossing dispute describe a
+        // player that no longer exists.
+        info.hops = server_player.hops;
+        info.disputed_echoes = 0;
+        context.local_player_info.committed_positions.clear();
         context.local_player_info.is_dead = false;
         local_just_respawned = true;
 

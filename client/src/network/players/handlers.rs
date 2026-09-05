@@ -38,8 +38,10 @@ pub(in crate::network) fn handle_player_moves_message(
     context.last_player_moves_seq.0 = message.seq;
     // A crossing the server has yet to make shows up within a round trip;
     // one still missing after that was mispredicted, and the server's side
-    // stands.
-    let dispute_limit = ((context.rtt.rtt.as_secs_f32() + HOP_DISPUTE_SLACK_SECS) * TICK_HZ as f32) as u32;
+    // stands. Until the round trip has been measured no dispute can be
+    // judged, so none is.
+    let dispute_limit = (!context.rtt.measurements.is_empty())
+        .then(|| ((context.rtt.rtt.as_secs_f32() + HOP_DISPUTE_SLACK_SECS) * TICK_HZ as f32) as u32);
     for PlayerMove {
         id,
         movement,
@@ -55,10 +57,33 @@ pub(in crate::network) fn handle_player_moves_message(
         // not yet predicted, would steer and reconcile the body back through.
         if hops != player.hops {
             player.disputed_echoes += 1;
-            if player.disputed_echoes <= dispute_limit {
+            if dispute_limit.is_none_or(|limit| player.disputed_echoes <= limit) {
                 continue;
             }
+            // The server's side stands: put the player there outright. The
+            // gap between two portals can sit under the snap threshold, and a
+            // vertical gap is never eased, so ordinary reconciliation could
+            // leave the player on the wrong side with the right count.
+            warn!(
+                "{} crossing dispute settled for the server: {} hops there, {} here; teleporting",
+                player.name, hops, player.hops
+            );
             player.hops = hops;
+            player.disputed_echoes = 0;
+            let mut entity = commands.entity(player.entity);
+            entity
+                .insert((
+                    movement.pos,
+                    PreviousTickPosition(movement.pos),
+                    CharacterVerticalVelocity(movement.vertical_velocity),
+                ))
+                .remove::<(ServerReconciliation, PortalMomentum)>();
+            if id == my_player_id {
+                context.local_player_info.committed_positions.clear();
+            } else {
+                entity.insert((movement.move_intent, FaceYaw(movement.face_yaw)));
+            }
+            continue;
         }
         player.disputed_echoes = 0;
         let mut entity = commands.entity(player.entity);
