@@ -37,12 +37,14 @@ pub(super) fn reconcile_player(
     let motion_speed = control_velocity.x.hypot(control_velocity.z).hypot(vertical_velocity.0);
     let correction_factor = player_correction_factor(recon.rtt, motion_speed, run_speed);
 
-    // Each tick applies `delta / correction window` of the fixed delta, so
-    // the accumulator reaching `SNAPSHOT_SECS` coincides with exactly 100%
-    // of the correction applied — removing the component here is what stops
-    // over-correction, doubling as the dropped-snapshot fallback (normally
-    // the next snapshot replaces this component first).
+    // Each tick applies `delta / correction window` of the correction delta.
+    // The move stream replaces this component every tick, so in steady state
+    // this is an exponential pull toward a moving target; when the stream
+    // pauses (loss, the portal stand-down) the last one is finished linearly.
     recon.correction_progress += delta * correction_factor;
+    // The accumulator reaching `SNAPSHOT_SECS` coincides with the whole
+    // correction delta applied, to within one tick's share; any longer would
+    // over-correct.
     if recon.correction_progress >= SNAPSHOT_SECS {
         commands.entity(entity).remove::<ServerReconciliation>();
     }

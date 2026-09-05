@@ -36,7 +36,9 @@ pub(super) fn route_server_message(
         ServerMessage::Snapshot(message) => {
             handle_snapshot_message(message, commands, my_player_id, context);
         }
-        ServerMessage::PlayerMove(message) => handle_player_move_message(message, commands, context),
+        ServerMessage::PlayerMove(message) => {
+            handle_player_move_message(message, commands, my_player_id, context);
+        }
         ServerMessage::PlayerJump(message) => handle_player_jump_message(message, commands, context),
         ServerMessage::ProjectileShot(message) => handle_projectile_shot_message(message, commands, context),
         ServerMessage::ActorMove(message) => handle_actor_move_message(message, commands, context),

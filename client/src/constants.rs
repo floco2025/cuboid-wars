@@ -5,14 +5,13 @@ use bevy::color::Color;
 // ============================================================================
 
 // Player input is sampled at render rate (smooth camera) and committed once
-// per game tick (`common::constants::TICK_HZ`) in `commit_player_input_system`.
-// The tick rate alone gates send frequency; this threshold filters mouse-
-// sensor / hand jitter below a meaningful direction change.
-//
-// 1° at 10 m is ~17 cm of visual offset — well below human aim resolution.
-// State transitions (idle ↔ moving, walk ↔ run, jump) bypass the threshold
-// and always commit.
-pub const ANGLE_COMMIT_THRESHOLD_DEGREES: f32 = 1.0;
+// per game tick (`common::constants::TICK_HZ`) in `commit_player_input_system`,
+// changed or not. After a local portal hop the stream holds this long: the
+// server maps its own persisted intent when its body crosses, about one-way
+// latency after ours, and a commit landing before that would steer the body
+// on the entry side in exit-frame terms. A few ticks cover tick phase and
+// jitter.
+pub const COMMIT_TELEPORT_HOLD_SECS: f32 = 0.1;
 
 // ============================================================================
 // RTT measurement
@@ -25,10 +24,11 @@ pub const PING_INTERVAL: f32 = 1.0;
 // Server Reconciliation
 // ============================================================================
 //
-// Server snapshots blend into the client's predicted position over a
-// per-tick correction window. If the gap is too big to smooth, the client
-// snaps to the server pos instead — large divergence usually means a
-// teleport or a desync that won't close from gradual correction.
+// Server samples — snapshots, and for players the per-tick move stream —
+// blend into the client's predicted position over a correction window. If
+// the gap is too big to smooth, the client snaps to the server pos instead —
+// large divergence usually means a teleport or a desync that won't close
+// from gradual correction.
 
 // --- Shared (players + actors) ---
 

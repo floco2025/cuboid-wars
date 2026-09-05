@@ -1,7 +1,7 @@
 use bevy::{ecs::system::SystemParam, prelude::*};
 
 use super::{
-    broadcast::broadcast_to_others,
+    broadcast::{broadcast_to_all, broadcast_to_others},
     feed::{FeedAudience, FeedEvent, emit_feed},
 };
 use crate::{
@@ -54,7 +54,7 @@ pub(super) fn handle_move_message(
         return;
     };
     if !sequence_is_newer(message.seq, info.session.last_move_seq) {
-        warn!(
+        debug!(
             "ignoring an outdated move from {:?} (seq {}, last {})",
             id, message.seq, info.session.last_move_seq
         );
@@ -67,9 +67,8 @@ pub(super) fn handle_move_message(
         .insert((input.move_intent, FaceYaw(input.face_yaw)));
 
     if let (Ok((pos, _, _, _)), Ok(motion)) = (queries.player_data.get(entity), queries.player_motions.get(entity)) {
-        broadcast_to_others(
+        broadcast_to_all(
             players,
-            id,
             ServerMessage::PlayerMove(SPlayerMove {
                 id,
                 movement: PlayerMovementState::new(*pos, input.move_intent, motion.0, input.face_yaw),
@@ -112,6 +111,8 @@ pub(super) fn handle_jump_message(
     commands
         .entity(entity)
         .insert(CharacterVerticalVelocity(next_vertical_velocity));
+    // Others only: the jumper applied the launch at the keypress, and a
+    // correction sampled there is where its predicted height leads the most.
     broadcast_to_others(
         players,
         id,

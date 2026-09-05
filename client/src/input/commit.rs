@@ -1,64 +1,67 @@
 use bevy::prelude::*;
-use common::{
-    constants::SNAPSHOT_SECS,
-    math::angle_delta_radians,
-    protocol::{CMove, ClientMessage, FaceYaw, PlayerInput, PlayerMoveIntent},
-};
+use common::protocol::{CMove, ClientMessage, FaceYaw, PlayerInput, PlayerMoveIntent};
 
 use crate::{
-    constants::ANGLE_COMMIT_THRESHOLD_DEGREES,
+    constants::COMMIT_TELEPORT_HOLD_SECS,
     network::{ClientToServer, ClientToServerChannel},
-    players::{LocalPlayerInfo, LocalPlayerMarker},
+    players::{LocalPlayerInfo, LocalPlayerMarker, MyPlayerId, PlayerMap},
 };
 
 // Once per fixed tick, send the local player's input (move intent + facing)
-// to the server when any of it meaningfully changed since the last commit,
-// and every `SNAPSHOT_SECS` regardless so a lost commit heals. Tick cadence
-// gates the rate; the angle threshold filters mouse-sensor jitter. State
-// transitions (idle ↔ moving, walk ↔ run) always commit. Jump is event-shaped
-// and sent immediately by `input_movement_system` — not handled here.
+// to the server, changed or not: the next commit heals a lost one, and each
+// is also the server's cue to sample this body for everyone's reconciliation.
+// The stream only holds briefly after a local portal hop. Jump is
+// event-shaped and sent immediately by `input_movement_system` — not handled
+// here.
 pub fn commit_player_input_system(
     time: Res<Time>,
     to_server: Res<ClientToServerChannel>,
+    my_player_id: Res<MyPlayerId>,
+    players: Res<PlayerMap>,
     mut local_player_info: ResMut<LocalPlayerInfo>,
-    mut since_commit: Local<f32>,
     local_player_query: Query<(&PlayerMoveIntent, &FaceYaw), With<LocalPlayerMarker>>,
 ) {
     let Ok((move_intent, face_yaw)) = local_player_query.single() else {
         return;
     };
-    let current = (*move_intent, face_yaw.0);
-    *since_commit += time.delta_secs();
-    if !move_should_commit(current, local_player_info.last_sent_move) && *since_commit < SNAPSHOT_SECS {
+    let last_teleport_time = players
+        .get(&my_player_id.0)
+        .map_or(f32::NEG_INFINITY, |info| info.last_teleport_time);
+    if commit_held(time.elapsed_secs(), last_teleport_time) {
         return;
     }
-
-    let (move_intent, face_yaw) = current;
     local_player_info.move_seq = local_player_info.move_seq.wrapping_add(1);
     let _ = to_server.send(ClientToServer::Send(ClientMessage::Move(CMove {
         seq: local_player_info.move_seq,
-        input: PlayerInput { move_intent, face_yaw },
+        input: PlayerInput {
+            move_intent: *move_intent,
+            face_yaw: face_yaw.0,
+        },
     })));
-    local_player_info.last_sent_move = current;
-    *since_commit = 0.0;
 }
 
-fn move_should_commit(current: (PlayerMoveIntent, f32), last: (PlayerMoveIntent, f32)) -> bool {
-    move_intent_should_commit(current.0, last.0) || angle_should_commit(current.1, last.1)
+// Why the hold exists is at `COMMIT_TELEPORT_HOLD_SECS`.
+fn commit_held(now: f32, last_teleport_time: f32) -> bool {
+    now - last_teleport_time < COMMIT_TELEPORT_HOLD_SECS
 }
 
-fn move_intent_should_commit(current: PlayerMoveIntent, last: PlayerMoveIntent) -> bool {
-    let active_changed = current.direction().is_some() != last.direction().is_some();
-    let mode_changed = current.is_running() != last.is_running();
-    if active_changed || mode_changed {
-        return true;
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn commit_holds_right_after_a_local_hop() {
+        assert!(commit_held(10.0, 10.0));
+        assert!(commit_held(10.0 + COMMIT_TELEPORT_HOLD_SECS / 2.0, 10.0));
     }
-    match (current.direction(), last.direction()) {
-        (Some(new), Some(old)) => angle_should_commit(new, old),
-        _ => false,
-    }
-}
 
-fn angle_should_commit(current: f32, last: f32) -> bool {
-    angle_delta_radians(current, last).abs() >= ANGLE_COMMIT_THRESHOLD_DEGREES.to_radians()
+    #[test]
+    fn commit_resumes_once_the_hold_elapses() {
+        assert!(!commit_held(10.0 + COMMIT_TELEPORT_HOLD_SECS, 10.0));
+    }
+
+    #[test]
+    fn commit_runs_before_any_hop() {
+        assert!(!commit_held(0.0, f32::NEG_INFINITY));
+    }
 }

@@ -63,9 +63,9 @@
 //        entity teardown) one tick before the snapshot would catch up.
 //        `SActorBeam` ships the burst's start moment and duration, which the
 //        4 Hz snapshot can't carry.
-//    Inbound, `CMove` is both cue and state: sent on change and repeated
-//    every `SNAPSHOT_SECS`, so a lost one heals at the next. `CPing` / `SPong`
-//    measure RTT on the same terms.
+//    Inbound, `CMove` is both cue and state: sent every tick, changed or
+//    not, so a lost one heals at the next. `CPing` / `SPong` measure RTT on
+//    the same terms.
 //
 // 4. Events (reliable) — messages the snapshot cannot stand in for, so loss
 //    is not an option; the client treats receipt as authoritative until a
@@ -120,9 +120,10 @@ impl PlayerInput {
     }
 }
 
-// Client to Server: the input, committed whenever it changes enough and
-// every `SNAPSHOT_SECS` regardless, so a lost commit heals at the next one.
-// Every commit is broadcast to the other players as `SPlayerMove`. Like
+// Client to Server: the input, committed every tick whether it changed or
+// not, so a lost commit heals at the next one.
+// Every commit is broadcast to every player, the sender included, as
+// `SPlayerMove`, so the local player reconciles as often as remote ones. Like
 // `SSnapshot`, it replaces state wholesale, so it carries a sequence and the
 // server ignores a commit older than the last one it applied.
 #[derive(Debug, Clone, Encode, Decode)]
@@ -287,8 +288,9 @@ pub struct SSnapshot {
 
 // --- Cues (ahead of the next snapshot, healed by it) ---
 
-// Player input change (movement intent + facing) for client-side prediction
-// of remote players.
+// Player input change (movement intent + facing) with the server's position:
+// remote players are predicted from it, and every player, the sender
+// included, reconciles against it.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SPlayerMove {
     pub id: PlayerId,
@@ -296,9 +298,10 @@ pub struct SPlayerMove {
 }
 
 // Player started a jump with authoritative vertical velocity. Same payload as
-// `SPlayerMove`, different contract: this is the one message allowed to
-// overwrite the remote player's simulated vertical velocity (the move stream
-// never touches it — its value would be stale mid-flight).
+// `SPlayerMove`, different contract: sent to the other players only, and the
+// one message allowed to overwrite the remote player's simulated vertical
+// velocity (the move stream never touches it — its value would be stale
+// mid-flight).
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SPlayerJump {
     pub id: PlayerId,

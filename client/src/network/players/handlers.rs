@@ -18,38 +18,44 @@ use common::{
 };
 
 // Handle player move update (intent + facing) with server reconciliation.
+// The local player's intent and facing are its own; only the reconciliation
+// applies to it.
 pub(in crate::network) fn handle_player_move_message(
     message: SPlayerMove,
     commands: &mut Commands,
+    my_player_id: PlayerId,
     context: &mut ServerMessageContext,
 ) {
     trace!("{:?} move: {:?}", message.id, message);
-    if let Some(player) = context.players.get(&message.id) {
+    let Some(player) = context.players.get(&message.id) else {
+        return;
+    };
+    let mut entity = commands.entity(player.entity);
+    if message.id != my_player_id {
+        entity.insert((message.movement.move_intent, FaceYaw(message.movement.face_yaw)));
+    }
+    // Reconciliation stands down after a teleport cue: this move's data
+    // may predate the teleport (`RECON_TELEPORT_SUPPRESS_SECS`).
+    let suppress_recon = context.time.elapsed_secs() - player.last_teleport_time < RECON_TELEPORT_SUPPRESS_SECS;
+    if let Ok((client_pos, _, _)) = context.player_data.get(player.entity)
+        && !suppress_recon
+    {
         let server_velocity = player_movement_velocity(
             message.movement,
             &context.map_settings.movement,
             player.power_up(PowerUpKind::Speed),
             player.stunned,
         );
-
-        // Never the local player, so we can always overwrite intent + facing.
-        let input = (message.movement.move_intent, FaceYaw(message.movement.face_yaw));
-        // Reconciliation stands down after a teleport cue: this move's data
-        // may predate the teleport (`RECON_TELEPORT_SUPPRESS_SECS`).
-        let suppress_recon = context.time.elapsed_secs() - player.last_teleport_time < RECON_TELEPORT_SUPPRESS_SECS;
-        if let Ok((client_pos, _, _)) = context.player_data.get(player.entity)
-            && !suppress_recon
-        {
-            commands.entity(player.entity).insert((
-                input,
-                ServerReconciliation::new(*client_pos, message.movement.pos, server_velocity, &context.rtt),
-            ));
-        } else {
-            commands.entity(player.entity).insert(input);
-        }
+        entity.insert(ServerReconciliation::new(
+            *client_pos,
+            message.movement.pos,
+            server_velocity,
+            &context.rtt,
+        ));
     }
 }
 
+// Remote players only; the jumper predicted its own launch.
 pub(in crate::network) fn handle_player_jump_message(
     message: SPlayerJump,
     commands: &mut Commands,

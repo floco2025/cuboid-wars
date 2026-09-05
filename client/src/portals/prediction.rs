@@ -89,9 +89,6 @@ pub fn portal_transit_system(
                 &hop.exit,
                 hop.yaw,
             );
-            // The server maps this same persisted input during its hop, so
-            // the derived direction change is already synchronized.
-            local_player_info.last_sent_move = (*move_intent, face_yaw.0);
         }
     }
 }

@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use std::collections::HashMap;
 
-use common::protocol::{BarrierKindId, Player, PlayerId, PlayerMoveIntent, PowerUpKind, SPlayerStatus};
+use common::protocol::{BarrierKindId, Player, PlayerId, PowerUpKind, SPlayerStatus};
 
 // My player ID assigned by the server.
 #[derive(Resource)]
@@ -118,9 +118,6 @@ impl PlayerMap {
 #[derive(Resource)]
 pub struct LocalPlayerInfo {
     pub last_shot_time: f32,
-    // The `CMove` state (intent, yaw) most recently committed to the server;
-    // the commit system diffs against it.
-    pub last_sent_move: (PlayerMoveIntent, f32),
     // Stamped on every `CMove`; the server ignores an older one.
     pub move_seq: u32,
     pub stored_yaw: f32,
@@ -135,7 +132,6 @@ impl Default for LocalPlayerInfo {
     fn default() -> Self {
         Self {
             last_shot_time: f32::NEG_INFINITY,
-            last_sent_move: (PlayerMoveIntent::default(), 0.0),
             move_seq: 0,
             stored_yaw: 0.0,
             stored_pitch: 0.0,
@@ -147,7 +143,7 @@ impl Default for LocalPlayerInfo {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use common::protocol::{Health, PlayerMovementState, PortalAccess, Position};
+    use common::protocol::{Health, PlayerMoveIntent, PlayerMovementState, PortalAccess, Position};
 
     fn snapshot_player() -> Player {
         Player {
