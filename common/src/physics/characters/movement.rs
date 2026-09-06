@@ -1,6 +1,6 @@
 use bevy_math::Vec3;
 use rapier3d::{
-    control::{CharacterAutostep, CharacterLength, KinematicCharacterController},
+    control::{CharacterAutostep, CharacterCollision, CharacterLength, KinematicCharacterController},
     parry::shape::Cuboid,
     prelude::{ColliderHandle, Vector},
 };
@@ -194,6 +194,7 @@ struct MovementRequest {
     requested_horizontal: Vector,
     requested_vertical: Vector,
     requested_total: Vector,
+    carried: Vector,
     can_follow_ground: bool,
     ascending_ladder: bool,
     ladder_supported: bool,
@@ -300,6 +301,8 @@ fn prepare_movement_request(
     let supported_horizontal_move = current_ground.map_or(requested_horizontal_move, |ground| {
         project_move_onto_support(requested_horizontal_move, ground.normal)
     });
+    let carried = Vector::new(carry_xz.x, 0.0, carry_xz.z);
+    let carried = current_ground.map_or(carried, |ground| project_move_onto_support(carried, ground.normal));
     // The perch slide is a separate term (not folded into
     // `supported_horizontal_move`) so the blocked/impact check below keeps
     // comparing requested body movement against actual movement — an idle
@@ -311,6 +314,7 @@ fn prepare_movement_request(
         requested_horizontal: supported_horizontal_move,
         requested_vertical: requested_vertical_move,
         requested_total: requested_move,
+        carried,
         can_follow_ground,
         ascending_ladder,
         ladder_supported: ladder.is_supported(),
@@ -320,6 +324,8 @@ fn prepare_movement_request(
 
 struct CharacterCollisionResult {
     translation: Vector,
+    // Boarding after a side push is an ordinary step, not evidence of entrapment.
+    crush_start: Position,
     grounded: bool,
     saw_side_contact: bool,
     hit_ceiling: bool,
@@ -334,29 +340,66 @@ fn resolve_character_collision(
 ) -> CharacterCollisionResult {
     let mut saw_side_contact = false;
     let mut hit_ceiling = false;
+    let controller = character_controller();
+    let pose = character_pose(&step.start, env.physics);
+    let mut observe = |collision: CharacterCollision| {
+        let normal = vec3(collision.hit.normal1);
+        let is_side_contact = normal.y.abs() <= 0.5;
+        let is_ceiling = normal.y < -0.5 && request.requested_vertical.y > 0.0;
+        if is_side_contact {
+            saw_side_contact = true;
+        }
+        if is_ceiling {
+            hit_ceiling = true;
+        }
+    };
+    let mut carried = if request.carried == Vector::ZERO {
+        Vector::ZERO
+    } else {
+        env.collision_world
+            .move_character(
+                step.delta,
+                &controller,
+                character_shape,
+                &pose,
+                request.carried,
+                env.passable_kinds,
+                excluded_colliders,
+                &mut observe,
+            )
+            .translation
+    };
+    let mut motion_start = pose;
+    motion_start.translation += carried;
+    if !env.carriers.is_static() {
+        let push = env.collision_world.push_character_from_carriers(
+            step.delta,
+            &controller,
+            character_shape,
+            &motion_start,
+            env.carriers,
+            env.passable_kinds,
+            excluded_colliders,
+            &mut observe,
+        );
+        carried += push;
+        motion_start.translation += push;
+    }
+    // Resolve incoming geometry first so control input cannot cancel the push while still inside it.
     let movement = env.collision_world.move_character(
         step.delta,
-        &character_controller(),
+        &controller,
         character_shape,
-        &character_pose(&step.start, env.physics),
-        request.requested_total,
+        &motion_start,
+        request.requested_total - request.carried,
         env.passable_kinds,
         excluded_colliders,
-        |collision| {
-            let normal = vec3(collision.hit.normal1);
-            let is_side_contact = normal.y.abs() <= 0.5;
-            let is_ceiling = normal.y < -0.5 && request.requested_vertical.y > 0.0;
-            if is_side_contact {
-                saw_side_contact = true;
-            }
-            if is_ceiling {
-                hit_ceiling = true;
-            }
-        },
+        observe,
     );
 
     CharacterCollisionResult {
-        translation: movement.translation,
+        translation: carried + movement.translation,
+        crush_start: Position::from(Vec3::from(step.start) + vec3(carried)),
         grounded: movement.grounded,
         saw_side_contact,
         hit_ceiling,
@@ -452,7 +495,7 @@ fn finish_character_movement(
     // otherwise let the body through next tick.
     let crushed = !env.carriers.is_static()
         && env.collision_world.character_crushed(
-            &step.start,
+            &collision.crush_start,
             &resolved,
             env.physics,
             env.passable_kinds,

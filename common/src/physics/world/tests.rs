@@ -1,6 +1,6 @@
 use crate::config::{
     CharacterColliderAnchor, CharacterColliderConfig, CharacterPhysicsConfig, CharacterSupportProbeConfig,
-    PortalShotSettings,
+    PortalShotSettings, gameplay::load_test_gameplay,
 };
 use crate::constants::LADDER_OVERSHOOT;
 use crate::protocol::{
@@ -11,8 +11,18 @@ use crate::test_geometry::{
     BARRIER_THICKNESS, BRIDGE_THICKNESS, FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS,
 };
 use bevy_math::Vec3;
+use rapier3d::{
+    control::KinematicCharacterController,
+    prelude::{Pose, Vector},
+};
 
 use super::{CollisionWorld, colliders::ColliderKind};
+use crate::{
+    constants::TICK_SECS,
+    map::Carriers,
+    physics::characters::{character_center, character_shape},
+    protocol::Carrier,
+};
 
 fn test_map_layout() -> MapLayout {
     MapLayout {
@@ -47,6 +57,120 @@ fn test_map_layout() -> MapLayout {
             carrier: CarrierId::WORLD,
         }],
         ..Default::default()
+    }
+}
+
+#[test]
+fn carrier_pushes_respect_barrier_passability_bridge_power_and_portal_exclusions() {
+    let carrier = CarrierId(1);
+    let wall = Wall {
+        x1: -2.0,
+        x2: 2.0,
+        z1: 0.0,
+        z2: 0.0,
+        width: 0.4,
+        y: 0.0,
+        height: 3.0,
+        level: 0,
+        carrier,
+    };
+    let barrier = Barrier {
+        x1: wall.x1,
+        x2: wall.x2,
+        z1: wall.z1,
+        z2: wall.z2,
+        width: wall.width,
+        y: wall.y,
+        height: wall.height,
+        level: 0,
+        levels: 1,
+        kind: BarrierKindId(0),
+        carrier,
+    };
+    let bridge = LightBridge {
+        x1: -2.0,
+        x2: 2.0,
+        z1: -2.0,
+        z2: 0.2,
+        y: 1.5,
+        thickness: 1.0,
+        level: 0,
+        kind: BridgeKindId(0),
+        carrier,
+    };
+    let table = BarrierKindTable::from_ids(vec!["red".into()]).expect("barrier catalog invalid");
+    let physics = load_test_gameplay()
+        .expect("test gameplay config invalid")
+        .player
+        .physics();
+    let shape = character_shape(physics);
+    let center = character_center(
+        Position {
+            x: 0.0,
+            y: 0.0,
+            z: 0.2 + physics.collider.depth / 2.0 + 0.01,
+        },
+        physics,
+    );
+    let pose = Pose::translation(center.x, center.y, center.z);
+    for kind in [ColliderKind::Wall, ColliderKind::Barrier, ColliderKind::Bridge] {
+        let layout = MapLayout {
+            walls: if kind == ColliderKind::Wall { vec![wall] } else { vec![] },
+            barriers: if kind == ColliderKind::Barrier {
+                vec![barrier]
+            } else {
+                vec![]
+            },
+            light_bridges: if kind == ColliderKind::Bridge {
+                vec![bridge]
+            } else {
+                vec![]
+            },
+            carriers: vec![Carrier {
+                parent: CarrierId::WORLD,
+                level: 0,
+                levels: 0,
+                from: Position::default(),
+                to: Position { x: 0.0, y: 0.0, z: 4.0 },
+                travel_ticks: 60,
+                pause_ticks: 0,
+                phase_ticks: 0,
+            }],
+            ..Default::default()
+        };
+        let mut world = CollisionWorld::from_map_layout(&layout, &table);
+        let mut carriers = Carriers::from_layout(&layout);
+        carriers.advance(1);
+        world.set_carrier_poses(&carriers);
+        let handles: Vec<_> = world.colliders.iter().map(|(handle, _)| handle).collect();
+        for powered in [false, true] {
+            world.set_powered_bridges(if powered { &[BridgeKindId(0)] } else { &[] });
+            for passable in [vec![], vec![BarrierKindId(0)]] {
+                for excluded in [&[][..], handles.as_slice()] {
+                    let movement = world.push_character_from_carriers(
+                        TICK_SECS,
+                        &KinematicCharacterController::default(),
+                        &shape,
+                        &pose,
+                        &carriers,
+                        &passable,
+                        excluded,
+                        |_| {},
+                    );
+                    let solid = excluded.is_empty()
+                        && (kind != ColliderKind::Barrier || passable.is_empty())
+                        && (kind != ColliderKind::Bridge || powered);
+                    assert_eq!(
+                        movement.z > 0.05,
+                        solid,
+                        "kind {kind:?}, powered {powered}, passable {passable:?}, excluded {excluded:?}: {movement:?}"
+                    );
+                    if !solid {
+                        assert_eq!(movement, Vector::ZERO);
+                    }
+                }
+            }
+        }
     }
 }
 
