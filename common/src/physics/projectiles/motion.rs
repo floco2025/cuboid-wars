@@ -1,6 +1,7 @@
 use bevy_ecs::prelude::*;
 use bevy_math::Vec3;
 use bevy_time::{Timer, TimerMode};
+use rapier3d::prelude::ColliderHandle;
 
 use crate::{
     config::ProjectilesConfig,
@@ -119,10 +120,16 @@ impl ProjectileMotion {
         projectile_pos: &Position,
         delta: f32,
         collision_world: &CollisionWorld,
+        excluded_colliders: &[ColliderHandle],
     ) -> Option<f32> {
         let translation = self.velocity * delta;
         collision_world
-            .cast_moving_ball(Vec3::from(*projectile_pos), translation, self.radius)
+            .cast_moving_ball_excluding(
+                Vec3::from(*projectile_pos),
+                translation,
+                self.radius,
+                excluded_colliders,
+            )
             .map(|hit| hit.t)
     }
 
@@ -132,9 +139,15 @@ impl ProjectileMotion {
         projectile_pos: &Position,
         delta: f32,
         collision_world: &CollisionWorld,
+        excluded_colliders: &[ColliderHandle],
     ) -> Option<SurfaceBounce> {
         let translation = self.velocity * delta;
-        let collision = collision_world.cast_moving_ball(Vec3::from(*projectile_pos), translation, self.radius)?;
+        let collision = collision_world.cast_moving_ball_excluding(
+            Vec3::from(*projectile_pos),
+            translation,
+            self.radius,
+            excluded_colliders,
+        )?;
         let (position, remaining_delta) =
             self.step_after_collision(projectile_pos, delta, collision.normal, collision.t);
         Some(SurfaceBounce {

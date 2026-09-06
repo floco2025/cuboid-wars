@@ -5,12 +5,15 @@ use bevy_math::Vec3;
 use super::{traversal::traverse_yaw, *};
 use crate::{
     config::{CharacterPhysicsConfig, KnockbackConfig, MapMovementConfig, PlayerMovementConfig},
-    constants::{PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH, PORTAL_LIGHT_CLEARANCE, PORTAL_RIM_SCALE},
+    constants::{
+        PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH, PORTAL_LIGHT_CLEARANCE, PORTAL_PROJECTILE_EXIT_STANDOFF,
+        PORTAL_RIM_SCALE, TICK_SECS,
+    },
     map::{Carriers, carrier_offset_at},
     math::angle_delta_radians,
     physics::{
         AirborneMomentum, CharacterMovementResult, CharacterSupport, CharacterVerticalVelocity, CollisionWorld,
-        KnockbackVelocity, momentum_displacement,
+        KnockbackVelocity, ProjectileEvent, ProjectileMotion, earliest_projectile_event, momentum_displacement,
     },
     protocol::{Carrier, CarrierId, FaceYaw, MapLayout, PlayerMoveIntent, Portal, PortalEnd, PortalPairId, Position},
     test_geometry::{LEVEL_HEIGHT, WALL_HEIGHT},
@@ -517,6 +520,225 @@ fn projectile_continues_straight_through_a_facing_pair() {
     assert!((hop.exit_pos.x - hop.entry_point.x).abs() < 1e-4);
     assert!((hop.exit_pos.y - hop.entry_point.y).abs() < 1e-4);
     assert!((hop.exit_velocity.length() - velocity.length()).abs() < 1e-4);
+}
+
+fn moving_projectile_portals(entry_travel: Vec3, exit_travel: Vec3, obstacles: &[Wall]) -> (CollisionWorld, PortalSet) {
+    let carrier = Carrier {
+        parent: CarrierId::WORLD,
+        level: 0,
+        levels: 0,
+        from: Position::default(),
+        to: entry_travel.into(),
+        travel_ticks: 1,
+        pause_ticks: 0,
+        phase_ticks: 0,
+    };
+    let wall = Wall {
+        x1: -2.0,
+        x2: 2.0,
+        z1: -0.1,
+        z2: -0.1,
+        y: 0.0,
+        height: 3.0,
+        width: 0.2,
+        level: 0,
+        carrier: CarrierId(1),
+    };
+    let layout = MapLayout {
+        carriers: vec![
+            carrier,
+            Carrier {
+                from: (Vec3::X * 10.0).into(),
+                to: (Vec3::X * 10.0 + exit_travel).into(),
+                ..carrier
+            },
+        ],
+        walls: [
+            wall,
+            Wall {
+                carrier: CarrierId(2),
+                ..wall
+            },
+        ]
+        .into_iter()
+        .chain(obstacles.iter().copied())
+        .collect(),
+        ..Default::default()
+    };
+    let (world, carriers) = tile_world(&layout, 1);
+    let set = PortalSet::rebuild(
+        &[
+            Portal {
+                carrier: CarrierId(1),
+                ..portal(PortalEnd::A, Vec3::Y, Vec3::Z, 0.0)
+            },
+            Portal {
+                carrier: CarrierId(2),
+                ..portal(PortalEnd::B, Vec3::Y, Vec3::Z, 0.0)
+            },
+        ],
+        &world,
+        &carriers,
+    );
+    (world, set)
+}
+
+#[test]
+fn an_approaching_portal_catches_a_projectile_it_sweeps_across() {
+    let travel = Vec3::Z * 0.2;
+    let (_, set) = moving_projectile_portals(travel, Vec3::ZERO, &[]);
+    for speed in [-0.1, 0.0, 0.1] {
+        let start = Vec3::new(0.0, 1.0, 0.15);
+        let hop = set
+            .projectile_hop(start, Vec3::Z * speed, TICK_SECS, 0.08)
+            .expect("approaching portal missed the projectile");
+        assert!((hop.entry_point.z - travel.z * hop.t - 0.08).abs() < 1e-5, "{hop:?}");
+        assert!(
+            hop.entry_point
+                .abs_diff_eq(start + Vec3::Z * speed * TICK_SECS * hop.t, 1e-5)
+        );
+    }
+}
+
+#[test]
+fn a_retreating_portal_does_not_catch_a_projectile_that_keeps_its_distance() {
+    let travel = Vec3::NEG_Z * 0.2;
+    let (_, set) = moving_projectile_portals(travel, Vec3::ZERO, &[]);
+    assert!(
+        set.projectile_hop(Vec3::new(0.0, 1.0, 0.15), travel / TICK_SECS, TICK_SECS, 0.08)
+            .is_none()
+    );
+}
+
+#[test]
+fn a_sliding_portal_uses_its_aperture_at_the_crossing_time() {
+    let travel = Vec3::X * (4.0 * PORTAL_HALF_WIDTH);
+    let (_, set) = moving_projectile_portals(travel, Vec3::ZERO, &[]);
+    let velocity = Vec3::NEG_Z * 6.0;
+    let hop = set
+        .projectile_hop(Vec3::new(travel.x / 2.0, 1.0, 0.18), velocity, TICK_SECS, 0.08)
+        .expect("projectile missed the sliding aperture at mid-tick");
+    assert!((hop.t - 0.5).abs() < 1e-5);
+    assert!((hop.exit_pos.x - 10.0).abs() < 1e-5, "{hop:?}");
+    assert!(
+        set.projectile_hop(Vec3::new(0.0, 1.0, 0.18), velocity, TICK_SECS, 0.08)
+            .is_none()
+    );
+}
+
+#[test]
+fn a_projectile_segment_uses_only_the_portals_remaining_tick_travel() {
+    let (_, set) = moving_projectile_portals(Vec3::Z * 0.2, Vec3::ZERO, &[]);
+    let hop = set
+        .projectile_hop(Vec3::new(0.0, 1.0, 0.27), Vec3::ZERO, TICK_SECS / 4.0, 0.08)
+        .expect("portal missed the projectile during the final quarter tick");
+    assert!((hop.t - 0.8).abs() < 1e-5, "{hop:?}");
+}
+
+#[test]
+fn a_projectile_emerges_at_the_moving_exits_crossing_time() {
+    let travel = Vec3::new(0.4, 0.2, -0.1);
+    let (_, set) = moving_projectile_portals(Vec3::ZERO, travel, &[]);
+    let hop = set
+        .projectile_hop(Vec3::new(0.0, 1.0, 0.18), Vec3::NEG_Z * 6.0, TICK_SECS, 0.08)
+        .expect("projectile missed the static entry portal");
+    assert!((hop.t - 0.5).abs() < 1e-5);
+    let expected = Vec3::new(10.0, 1.0, 0.0) + travel * 0.5 + Vec3::Z * (0.08 + PORTAL_PROJECTILE_EXIT_STANDOFF);
+    assert!(hop.exit_pos.abs_diff_eq(expected, 1e-5), "{hop:?}");
+}
+
+#[test]
+fn an_approaching_portals_backing_wall_does_not_win_a_premature_bounce() {
+    let (world, set) = moving_projectile_portals(Vec3::Z * 0.2, Vec3::ZERO, &[]);
+    let start = Vec3::new(0.0, 1.0, 1.0);
+    let velocity = Vec3::NEG_Z * 90.0;
+    let hop = set
+        .projectile_hop(start, velocity, TICK_SECS, 0.08)
+        .expect("projectile missed the portal");
+    let surface = world.cast_moving_ball_excluding(start, velocity * TICK_SECS, 0.08, hop.entry_backing);
+    assert_eq!(
+        earliest_projectile_event(None, None, surface.map(|hit| hit.t), Some(hop.t)),
+        ProjectileEvent::Portal
+    );
+
+    let outside = Vec3::new(PORTAL_HALF_WIDTH * 2.0, 1.0, 1.0);
+    assert!(set.projectile_hop(outside, velocity, TICK_SECS, 0.08).is_none());
+    let surface = world.cast_moving_ball(outside, velocity * TICK_SECS, 0.08);
+    assert_eq!(
+        earliest_projectile_event(None, None, surface.map(|hit| hit.t), None),
+        ProjectileEvent::Surface
+    );
+}
+
+fn portal_test_projectile(velocity: Vec3) -> ProjectileMotion {
+    let mut config = crate::config::gameplay::load_test_gameplay()
+        .expect("test gameplay config invalid")
+        .projectiles;
+    config.radius = 0.08;
+    config.bounce_retention = 1.0;
+    ProjectileMotion::from_velocity(velocity, &config)
+}
+
+fn projectile_obstacle(z: f32, width: f32) -> Wall {
+    Wall {
+        x1: -2.0,
+        x2: 2.0,
+        z1: z,
+        z2: z,
+        y: 0.0,
+        height: 3.0,
+        width,
+        level: 0,
+        carrier: CarrierId::WORLD,
+    }
+}
+
+#[test]
+fn a_valid_portal_crossing_still_bounces_off_an_unrelated_obstacle() {
+    let (world, set) = moving_projectile_portals(Vec3::Z * 0.2, Vec3::ZERO, &[projectile_obstacle(0.18, 0.02)]);
+    let start = Position { x: 0.0, y: 1.0, z: 1.0 };
+    let mut projectile = portal_test_projectile(Vec3::NEG_Z * 90.0);
+    let hop = set
+        .projectile_hop(start.into(), projectile.velocity, TICK_SECS, 0.08)
+        .expect("projectile missed the portal");
+    let surface_t = projectile.surface_collision_t(&start, TICK_SECS, &world, hop.entry_backing);
+    assert_eq!(
+        earliest_projectile_event(None, None, surface_t, Some(hop.t)),
+        ProjectileEvent::Surface
+    );
+
+    let bounce = projectile
+        .bounce_at_world_surface(&start, TICK_SECS, &world, hop.entry_backing)
+        .expect("obstacle did not bounce the projectile");
+    assert!((bounce.position.z - 0.27).abs() < 1e-4, "{bounce:?}");
+    assert!(projectile.velocity.z > 0.0);
+}
+
+#[test]
+fn a_bounced_projectile_crosses_a_moving_portal_during_the_same_tick() {
+    let (world, set) = moving_projectile_portals(Vec3::Z * 0.2, Vec3::ZERO, &[projectile_obstacle(0.83, 0.2)]);
+    let start = Position { x: 0.0, y: 1.0, z: 0.4 };
+    let mut projectile = portal_test_projectile(Vec3::Z * 30.0);
+    let bounce = projectile
+        .bounce_at_world_surface(&start, TICK_SECS, &world, &[])
+        .expect("projectile missed the bounce wall");
+    assert!((bounce.remaining_delta / TICK_SECS - 0.75).abs() < 1e-4);
+
+    let hop = set
+        .projectile_hop(
+            bounce.position.into(),
+            projectile.velocity,
+            bounce.remaining_delta,
+            0.08,
+        )
+        .expect("bounced projectile missed the portal");
+    let crossing_tick = 1.0 - bounce.remaining_delta / TICK_SECS * (1.0 - hop.t);
+    assert!((hop.entry_point.z - 0.2 * crossing_tick - 0.08).abs() < 1e-4, "{hop:?}");
+    let surface_t = projectile.surface_collision_t(&bounce.position, bounce.remaining_delta, &world, hop.entry_backing);
+    assert_eq!(
+        earliest_projectile_event(None, None, surface_t, Some(hop.t)),
+        ProjectileEvent::Portal
+    );
 }
 
 #[test]

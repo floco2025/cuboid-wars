@@ -2,7 +2,7 @@
 
 ## Follow-ups
 
-Read [TODO.md](TODO.md) at the start of a task and keep it updated when discussing or completing follow-ups. Organize outstanding work into Fixes, Enhancements, and Testing, without deferred/proposed categories or repeated approval labels; listing an item does not authorize implementation. Remove completed items.
+Read [TODO.md](TODO.md) at the start of a task and keep it updated when discussing or completing follow-ups. Organize outstanding work into Fixes, Enhancements, and Testing, without deferred/proposed categories or repeated approval labels; listing an item does not authorize implementation. A Fix is behaviour that is wrong; style and cleanup work is an Enhancement. Remove completed items.
 
 ## Project structure
 
@@ -217,6 +217,7 @@ Texture sets are freepbr.com UE packs. To add one:
 - Rust edition 2024. Format with `cargo fmt` (see `rustfmt.toml`).
 - Workspace lints (root `Cargo.toml`): `unsafe_code = "forbid"`; `unwrap_used = "warn"` — prefer `expect("…")` with a message, or proper error handling; `todo = "warn"`.
 - Naming: `snake_case` functions/modules, `CamelCase` types, `SCREAMING_SNAKE_CASE` constants.
+- Imports are nested `use` trees wherever possible (one `use` per crate root, paths grouped in braces); no `use ... as` renames unless a name collision leaves no alternative.
 - Do not introduce `Arc` just to make borrowing or ownership convenient. Reserve it for genuine cross-thread shared ownership or APIs that require it (such as Quinn); otherwise prefer references, owned values, IDs/indices, or restructuring ownership.
 - Use `assert!` / `assert_eq!` / `assert_ne!` for invariants — never `debug_assert!`. Only release builds run, so `debug_assert!` is a no-op.
 - `mod.rs` files contain only `mod` declarations and `pub use` re-exports (attributes like `#[cfg(test)]` on them are fine) — no functions, types, or impls. Code that would land in a `mod.rs` goes in a named sibling file (e.g. `plugin.rs`) and gets re-exported.

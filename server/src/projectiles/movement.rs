@@ -193,12 +193,18 @@ pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut 
                 &params.collision_world,
                 &params.plates.open_barrier_kinds,
             );
-            let surface_t = projectile.surface_collision_t(&current_pos, remaining_delta, &params.collision_world);
             let portal_hop = params.portal_set.projectile_hop(
                 Vec3::from(current_pos),
                 projectile.velocity,
                 remaining_delta,
                 params.gameplay_config.projectiles.radius,
+            );
+            let excluded_colliders = portal_hop.map_or(&[][..], |hop| hop.entry_backing);
+            let surface_t = projectile.surface_collision_t(
+                &current_pos,
+                remaining_delta,
+                &params.collision_world,
+                excluded_colliders,
             );
 
             match earliest_projectile_event(character_t, barrier_t, surface_t, portal_hop.map(|hop| hop.t)) {
@@ -210,7 +216,12 @@ pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut 
                 }
                 ProjectileEvent::Surface => {
                     let bounce = projectile
-                        .bounce_at_world_surface(&current_pos, remaining_delta, &params.collision_world)
+                        .bounce_at_world_surface(
+                            &current_pos,
+                            remaining_delta,
+                            &params.collision_world,
+                            excluded_colliders,
+                        )
                         .expect("surface event missing its collision");
                     current_pos = bounce.position;
                     remaining_delta = bounce.remaining_delta;

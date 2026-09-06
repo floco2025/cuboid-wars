@@ -290,7 +290,24 @@ impl CollisionWorld {
     // here.
     #[must_use]
     pub fn cast_moving_ball(&self, position: Vec3, translation: Vec3, radius: f32) -> Option<ShapeCastHit> {
-        self.cast_moving_ball_with_filter(position, translation, radius, surface_collision_groups())
+        self.cast_moving_ball_excluding(position, translation, radius, &[])
+    }
+
+    #[must_use]
+    pub fn cast_moving_ball_excluding(
+        &self,
+        position: Vec3,
+        translation: Vec3,
+        radius: f32,
+        excluded_colliders: &[ColliderHandle],
+    ) -> Option<ShapeCastHit> {
+        self.cast_moving_ball_with_filter(
+            position,
+            translation,
+            radius,
+            surface_collision_groups(),
+            excluded_colliders,
+        )
     }
 
     #[must_use]
@@ -304,7 +321,7 @@ impl CollisionWorld {
         let groups = character_collision_groups(open_kinds, self.all_barrier_groups);
         !self.ball_overlaps_groups(position, radius, groups)
             && self
-                .cast_moving_ball_with_filter(position, translation, radius, groups)
+                .cast_moving_ball_with_filter(position, translation, radius, groups, &[])
                 .is_none()
     }
 
@@ -327,7 +344,7 @@ impl CollisionWorld {
         if groups.is_empty() {
             return None;
         }
-        self.cast_moving_ball_with_filter(position, translation, radius, groups)
+        self.cast_moving_ball_with_filter(position, translation, radius, groups, &[])
     }
 
     fn cast_moving_ball_with_filter(
@@ -336,16 +353,22 @@ impl CollisionWorld {
         translation: Vec3,
         radius: f32,
         groups: Group,
+        excluded_colliders: &[ColliderHandle],
     ) -> Option<ShapeCastHit> {
         if translation.length_squared() == 0.0 {
             return None;
         }
 
+        let allow = |handle: ColliderHandle, _: &Collider| !excluded_colliders.contains(&handle);
+        let mut filter = query_filter(groups);
+        if !excluded_colliders.is_empty() {
+            filter.predicate = Some(&allow);
+        }
         let query_pipeline = self.broad_phase.as_query_pipeline(
             self.narrow_phase.query_dispatcher(),
             &self.bodies,
             &self.colliders,
-            query_filter(groups),
+            filter,
         );
         let shape = Ball::new(radius);
         let pose = Pose::translation(position.x, position.y, position.z);
@@ -382,7 +405,7 @@ impl CollisionWorld {
     pub fn line_of_sight_clear(&self, from: Vec3, to: Vec3) -> bool {
         const SIGHT_RADIUS: f32 = 0.08;
         let translation = to - from;
-        self.cast_moving_ball_with_filter(from, translation, SIGHT_RADIUS, world_collision_groups())
+        self.cast_moving_ball_with_filter(from, translation, SIGHT_RADIUS, world_collision_groups(), &[])
             .is_none()
     }
 

@@ -8,7 +8,7 @@ use crate::{
     constants::{
         PORTAL_FUNNEL_CAPTURE_MARGIN, PORTAL_FUNNEL_GAIN, PORTAL_FUNNEL_MAX_SPEED, PORTAL_FUNNEL_MIN_APPROACH,
         PORTAL_FUNNEL_RELEASE_SPEED, PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH, PORTAL_KNOCKBACK_CARRY_FACTOR,
-        PORTAL_PROJECTILE_EXIT_STANDOFF, PORTAL_STANDABLE_NORMAL_Y, PORTAL_UP_DEGENERACY_LIMIT,
+        PORTAL_PROJECTILE_EXIT_STANDOFF, PORTAL_STANDABLE_NORMAL_Y, PORTAL_UP_DEGENERACY_LIMIT, TICK_SECS,
     },
     map::Carriers,
     math::direction_from_yaw_pitch,
@@ -144,14 +144,16 @@ impl CharacterPortalHop {
     }
 }
 
-// Fraction `t` of a projectile tick at which the swept ball touches an entry
+// Fraction `t` of the remaining projectile travel at which the swept ball touches an entry
 // plane, plus where and how it continues from the linked exit.
 #[derive(Debug, Clone, Copy)]
-pub struct ProjectileHop {
+pub struct ProjectileHop<'a> {
     pub t: f32,
     pub entry_point: Vec3,
     pub exit_pos: Vec3,
     pub exit_velocity: Vec3,
+    // The portal's host is already at tick end and can otherwise cause a premature projectile bounce.
+    pub entry_backing: &'a [ColliderHandle],
 }
 
 // One linked portal end: its wire value, its aperture frame at this tick,
@@ -495,19 +497,19 @@ impl PortalSet {
         Vec3::ZERO
     }
 
-    // First portal plane the swept ball touches from the front this tick,
-    // inside the aperture. Requiring a front-side start means an exiting
-    // projectile (standoff, outward velocity) can never re-fire the same end.
+    // `delta` is the time left in the fixed tick: prior bounces have already consumed part of the portal's travel.
     #[must_use]
-    pub fn projectile_hop(&self, pos: Vec3, velocity: Vec3, delta: f32, radius: f32) -> Option<ProjectileHop> {
+    pub fn projectile_hop(&self, pos: Vec3, velocity: Vec3, delta: f32, radius: f32) -> Option<ProjectileHop<'_>> {
         let translation = velocity * delta;
-        let mut best: Option<ProjectileHop> = None;
+        let remaining_tick = delta / TICK_SECS;
+        let mut best: Option<ProjectileHop<'_>> = None;
         for (entry_gate, exit_gate) in self.gates() {
             let entry = &entry_gate.frame;
             let exit = &exit_gate.frame;
-            let start = pos + entry_gate.carry;
-            let start_distance = (start - entry.center).dot(entry.normal);
-            let end_distance = (start + translation - entry.center).dot(entry.normal);
+            let start_offset = pos + entry_gate.carry * remaining_tick - entry.center;
+            let end_offset = pos + translation - entry.center;
+            let start_distance = start_offset.dot(entry.normal);
+            let end_distance = end_offset.dot(entry.normal);
             if start_distance <= radius || end_distance > radius {
                 continue;
             }
@@ -516,13 +518,14 @@ impl PortalSet {
                 continue;
             }
             let entry_point = pos + translation * t;
-            let offset = start + translation * t - entry.center;
+            let offset = start_offset.lerp(end_offset, t);
             if !in_aperture(offset, entry) {
                 continue;
             }
             // Exit at the frame-mirrored aperture offset, standing the ball
             // off the exit plane.
-            let exit_pos = exit.center - exit.right * offset.dot(entry.right)
+            let exit_center = exit.center - exit_gate.carry * remaining_tick * (1.0 - t);
+            let exit_pos = exit_center - exit.right * offset.dot(entry.right)
                 + exit.up * offset.dot(entry.up)
                 + exit.normal * (radius + PORTAL_PROJECTILE_EXIT_STANDOFF);
             best = Some(ProjectileHop {
@@ -530,6 +533,7 @@ impl PortalSet {
                 entry_point,
                 exit_pos,
                 exit_velocity: traverse_vector(entry, exit, velocity),
+                entry_backing: &entry_gate.backing,
             });
         }
         best
