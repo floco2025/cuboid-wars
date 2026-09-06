@@ -14,11 +14,14 @@ fn gameplay_input_active(console: Res<ConsoleState>, menu: Res<SettingsMenuState
 }
 
 pub fn input_plugin(app: &mut App) {
+    app.init_resource::<PendingWeaponSelection>();
     app.add_systems(
         Update,
         (
             input_movement_system.after(input_camera_view_toggle_system),
-            input_weapon_select_system.after(input_movement_system),
+            input_weapon_select_system
+                .after(input_movement_system)
+                .after(ClientSet::Network),
             (
                 input_shooting_system.after(input_weapon_select_system),
                 input_missile_system.after(input_weapon_select_system),

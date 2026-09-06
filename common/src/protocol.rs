@@ -53,8 +53,8 @@
 //
 // 3. Cues (unreliable) — short messages that arrive ahead of the next state
 //    message and are healed by it, so a lost cue costs at most a sound, a
-//    shake, or a snapshot interval of latency. A cue exists only when the
-//    snapshot alone can't carry it, which is one of:
+//    shake, automatic weapon selection, or a snapshot interval of latency.
+//    A cue exists only when the snapshot alone can't carry it, which is one of:
 //      * Sub-tick latency matters. Movement prediction inputs (`SActorMove`,
 //        `SMissileMove`, `SMissileLaunch`) must
 //        arrive faster than snapshot cadence so clients can dead-reckon
@@ -234,9 +234,7 @@ pub struct WorldBootstrap {
 pub struct MapBootstrap {
     pub layout: MapLayout,
     pub settings: MapSettings,
-    // Derived from the map's placed keys; the client creates only the HUD key
-    // slots available on this map.
-    pub key_kinds: Vec<BarrierKindId>,
+    pub items: MapItems,
 }
 
 // --- State ---
@@ -490,12 +488,14 @@ pub struct SActorBeam {
     pub duration_secs: f32,
 }
 
-// Player status flags changed (power-up gained/lost, stun toggle). The same
-// flags are also in `SSnapshot`, but this event is the edge trigger that fires
+// Player status changed (power-ups, stun, keys, or ammo). The same
+// state is also in `SSnapshot`, but this event is the edge trigger that fires
 // the associated sounds exactly once at the transition.
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct SPlayerStatus {
     pub id: PlayerId,
+    // A snapshot may already carry the resulting inventory when this pickup cue arrives.
+    pub collected: Option<ItemType>,
     // One bool per `PowerUpKind`, indexed by `PowerUpKind::index()`.
     pub power_ups: [bool; PowerUpKind::COUNT],
     pub stunned: bool,
@@ -503,6 +503,7 @@ pub struct SPlayerStatus {
     // bytes are deterministic and the client can change-detect via a single
     // equality test.
     pub held_keys: Vec<BarrierKindId>,
+    pub missiles: u32,
 }
 
 impl SPlayerStatus {
@@ -511,6 +512,10 @@ impl SPlayerStatus {
         self.power_ups[kind.index()]
     }
 }
+
+// An eraser entry plays a sound even with an empty inventory. Unicast to the entering player.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SEraserEntered;
 
 // Player collected a cookie. Sent only to the collecting player; drives the
 // pickup sound AND carries the post-pickup score for snappier HUD reaction.
@@ -523,9 +528,8 @@ pub struct SCookieCollected {
 
 // Player collected a health potion. Unicast cue for the pickup sound +
 // the post-pickup health value, so the HUD updates immediately rather than
-// waiting up to a snapshot interval. Exists because `SPlayerStatus` only
-// carries durable booleans and the potion has none to flip; the snapshot's
-// `Player.health` is still the system of record.
+// waiting up to a snapshot interval. `SPlayerStatus` carries no health;
+// the snapshot's `Player.health` is still the system of record.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SHealthPotionCollected {
     pub health: Health,
@@ -674,6 +678,7 @@ pub enum ServerMessage {
     ActorHit(SActorHit),
     ActorBeam(SActorBeam),
     PlayerStatus(SPlayerStatus),
+    EraserEntered(SEraserEntered),
     CookieCollected(SCookieCollected),
     HealthPotionCollected(SHealthPotionCollected),
     MissilesCollected(SMissilesCollected),
@@ -736,6 +741,7 @@ impl ServerMessage {
             | Self::ActorHit(_)
             | Self::ActorBeam(_)
             | Self::PlayerStatus(_)
+            | Self::EraserEntered(_)
             | Self::CookieCollected(_)
             | Self::HealthPotionCollected(_)
             | Self::MissilesCollected(_)
@@ -770,11 +776,14 @@ mod tests {
     #[test]
     fn unreliable_lane_messages_fit_one_datagram() {
         let messages = [
+            ServerMessage::EraserEntered(SEraserEntered),
             ServerMessage::PlayerStatus(SPlayerStatus {
+                collected: Some(ItemType::SpeedPowerUp),
                 id: PlayerId(1),
                 power_ups: [true; PowerUpKind::COUNT],
                 stunned: true,
                 held_keys: (0..barrier_kind_cap()).map(BarrierKindId).collect(),
+                missiles: 0,
             }),
             ServerMessage::PortalOpened(SPortalOpened {
                 shooter: PlayerId(1),

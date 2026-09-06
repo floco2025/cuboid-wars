@@ -104,6 +104,8 @@ pub(crate) struct LevelDef {
     #[serde(default)]
     pub(crate) barriers: Vec<BarrierDef>,
     #[serde(default)]
+    pub(crate) erasers: Vec<EraserDef>,
+    #[serde(default)]
     pub(crate) light_bridges: Vec<LightBridgeDef>,
     #[serde(default)]
     pub(crate) lights: Vec<WallLightDef>,
@@ -237,4 +239,12 @@ pub(crate) enum PressurePlatePurposeDef {
     Barrier { kind: String },
     Bridge { kind: String },
     Firework,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct EraserDef {
+    pub(crate) c0: i32,
+    pub(crate) r0: i32,
+    pub(crate) c1: i32,
+    pub(crate) r1: i32,
 }

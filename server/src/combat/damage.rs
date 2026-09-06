@@ -309,14 +309,14 @@ mod tests {
         actors::ActorInfo,
         config::{
             ActorSettingsConfig, ActorsConfig, BlastConfig, CombatConfig, CyclesConfig, DamageConfig, FallDamageConfig,
-            HealthConfig, ItemsConfig, LightingCycleConfig, LightingMode, MapServerConfig, MissilesServerConfig,
+            HealthConfig, LightingCycleConfig, LightingMode, MapServerConfig, MissilesServerConfig,
             PlacedItemRespawnSecs, PlacedItemsConfig, PlayerHealthConfig, PowerUpDurationSecs, PowerUpsConfig,
             ScoringConfig, WeaponsConfig, WeatherCycleConfig, WeatherMode,
         },
         network::ServerToClient,
-        players::PlayerInfo,
+        players::{PlayerInfo, PowerUpState},
     };
-    use common::protocol::CarrierId;
+    use common::protocol::{CarrierId, PowerUpKind};
     use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
 
     fn logged_in_player(players: &mut PlayerMap, id: PlayerId, name: &str) -> UnboundedReceiver<ServerToClient> {
@@ -391,18 +391,26 @@ mod tests {
                         movement,
                         weapons: common::protocol::MapWeaponSettings {
                             projectiles: true,
-                            missiles: true,
                             portals: common::protocol::PortalMode::Both,
                         },
                         barrier_kinds: Vec::new(),
                         bridge_kinds: Vec::new(),
                     },
                     random_items: None,
+                    power_ups: PowerUpsConfig {
+                        duration_secs: PowerUpDurationSecs {
+                            speed: 1.0,
+                            multi_shot: 1.0,
+                            low_gravity: 1.0,
+                            portal_gun: 0.0,
+                        },
+                    },
                     placed_items: PlacedItemsConfig {
                         respawn_secs: PlacedItemRespawnSecs {
                             speed: 60.0,
                             multi_shot: 60.0,
                             low_gravity: 60.0,
+                            portal_gun: 0.0,
                             health_potion: 60.0,
                             cookie: 60.0,
                             key: 30.0,
@@ -435,15 +443,6 @@ mod tests {
                     missiles_per_pack: 1,
                 },
                 portals: default.weapons.portals,
-            },
-            items: ItemsConfig {
-                power_ups: PowerUpsConfig {
-                    duration_secs: PowerUpDurationSecs {
-                        speed: 1.0,
-                        multi_shot: 1.0,
-                        low_gravity: 1.0,
-                    },
-                },
             },
             scoring: ScoringConfig {
                 player_kill: 1,
@@ -795,7 +794,7 @@ mod tests {
         let info = make_player_info();
         let entity = info.entity().expect("new player has no entity");
         let mut info = info;
-        info.life.power_up_timers[common::protocol::PowerUpKind::Speed.index()] = 1.5;
+        info.life.power_ups[PowerUpKind::Speed.index()] = PowerUpState::Timed(1.5);
         info.add_key(common::protocol::BarrierKindId(0));
         players.insert(PlayerId(7), info);
 
@@ -820,7 +819,7 @@ mod tests {
 
         let info = players.get(&PlayerId(7)).expect("player still tracked after death");
         assert_eq!(info.respawn_remaining_secs(), Some(2.0));
-        assert_eq!(info.life.power_up_timers, [0.0; common::protocol::PowerUpKind::COUNT]);
+        assert_eq!(info.life.power_ups, [PowerUpState::Inactive; PowerUpKind::COUNT]);
         assert!(info.life.held_keys.is_empty());
         assert_eq!(info.entity(), None);
         assert!(info.is_dead());
@@ -833,7 +832,7 @@ mod tests {
         let info = make_player_info();
         let entity = info.entity().expect("new player has no entity");
         let mut info = info;
-        info.life.power_up_timers[common::protocol::PowerUpKind::Speed.index()] = 1.5;
+        info.life.power_ups[PowerUpKind::Speed.index()] = PowerUpState::Timed(1.5);
         info.add_key(common::protocol::BarrierKindId(0));
         players.insert(PlayerId(7), info);
 
@@ -864,14 +863,14 @@ mod tests {
     #[test]
     fn begin_respawn_zeros_powerups_keys_and_cooldown() {
         let mut info = make_player_info();
-        info.life.power_up_timers = [1.0; common::protocol::PowerUpKind::COUNT];
+        info.life.power_ups = [PowerUpState::Timed(1.0); PowerUpKind::COUNT];
         info.life.stun_timer = 1.0;
         info.life.last_shot_time = 99.0;
         info.add_key(common::protocol::BarrierKindId(0));
 
         info.begin_respawn(2.0);
 
-        assert_eq!(info.life.power_up_timers, [0.0; common::protocol::PowerUpKind::COUNT]);
+        assert_eq!(info.life.power_ups, [PowerUpState::Inactive; PowerUpKind::COUNT]);
         assert_eq!(info.life.stun_timer, 0.0);
         assert_eq!(info.life.last_shot_time, f32::NEG_INFINITY);
         assert!(info.life.held_keys.is_empty());

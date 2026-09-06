@@ -121,6 +121,7 @@ def format_map_file(wrapper: dict) -> str:
                 *with_trailing_comma(format_object_array("grass", level.get("grass", []), _grass_body, 8)),
                 *with_trailing_comma(format_object_array("walls", level["walls"], _wall_body, 8)),
                 *with_trailing_comma(format_object_array("barriers", level.get("barriers", []), _barrier_body, 8)),
+                *with_trailing_comma(format_object_array("erasers", level.get("erasers", []), _eraser_body, 8)),
                 *with_trailing_comma(
                     format_object_array("light_bridges", level.get("light_bridges", []), _light_bridge_body, 8)
                 ),
@@ -227,3 +228,7 @@ def _inline_object_body(body: dict) -> str:
     # `json.dumps` brackets the whole object; strip the outer braces so the
     # caller can wrap with its own punctuation/comma.
     return json.dumps(body, separators=(", ", ": "))[1:-1]
+
+
+def _eraser_body(eraser: dict) -> str:
+    return _inline_object_body({key: eraser[key] for key in ("c0", "r0", "c1", "r1")})

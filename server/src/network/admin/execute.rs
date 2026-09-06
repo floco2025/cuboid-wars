@@ -196,7 +196,7 @@ pub(super) fn run_admin_command(
             let mut given = 0usize;
             for item_type in PowerUpKind::ALL.map(PowerUpKind::to_item_type) {
                 if weapons.allows_item(item_type) {
-                    info.grant_power_up(item_type, &admin.server_gameplay_config.items.power_ups);
+                    info.grant_power_up(item_type, &admin.power_ups);
                     given += 1;
                 }
             }
@@ -218,13 +218,10 @@ pub(super) fn run_admin_command(
             let Some(info) = players.get_mut(&sender) else {
                 return Private("sender not found".to_owned());
             };
-            info.grant_power_up(item_type, &admin.server_gameplay_config.items.power_ups);
+            info.grant_power_up(item_type, &admin.power_ups);
             Private(format!("gave the {power_up} power-up"))
         }
         AdminCommand::GiveMissiles => {
-            if !admin.map_settings.weapons.missiles {
-                return Private("missiles are disabled on this map".to_owned());
-            }
             let Some(info) = players.get_mut(&sender) else {
                 return Private("sender not found".to_owned());
             };
@@ -419,9 +416,9 @@ mod tests {
         assert!(!info.add_key(kind), "second add of the same key must be a no-op");
 
         let config = ServerGameplayConfig::load_default().expect("default server gameplay config failed to load");
-        info.grant_power_up(ItemType::SpeedPowerUp, &config.items.power_ups);
+        info.grant_power_up(ItemType::SpeedPowerUp, &config.maps["hotel"].power_ups);
         assert!(
-            info.life.power_up_timers[common::protocol::PowerUpKind::Speed.index()] > 0.0,
+            info.has(common::protocol::PowerUpKind::Speed),
             "speed timer must be armed"
         );
     }

@@ -113,6 +113,9 @@ MODE_ITEM = "Item"
 MODE_ERASE_ITEMS = "Erase Items"
 MODE_WALL = "Wall"
 MODE_ERASE_WALLS = "Erase Walls"
+MODE_EQUIPMENT_ERASER = "Equipment Eraser"
+MODE_ERASE_EQUIPMENT_ERASERS = "Erase Equipment Erasers"
+EQUIPMENT_ERASER_COLOR = "#bb88ff"
 MODE_BARRIER = "Barrier"
 MODE_ERASE_BARRIERS = "Erase Barriers"
 MODE_LIGHT_BRIDGE = "Light Bridge"
@@ -146,7 +149,7 @@ LADDER_SIDES = LIGHT_SIDES
 # Item type ids mirror `ItemType::from_config_id` in common/src/types/map.rs,
 # plus "key" (which additionally carries a barrier kind).
 ITEM_KEY_TYPE = "key"
-ITEM_TYPES = ("speed", "multi_shot", "low_gravity", "health_potion", "cookie", "missile_pack", ITEM_KEY_TYPE)
+ITEM_TYPES = ("speed", "multi_shot", "low_gravity", "portal_gun", "health_potion", "cookie", "missile_pack", ITEM_KEY_TYPE)
 # Canvas glyph colors for non-key items; keys use BARRIER_KIND_COLORS[kind].
 # Mirror the in-game `ITEM_*_COLOR` constants in client/src/constants.rs
 # (cookie renders from its gold texture in-game, so it keeps the gold the
@@ -155,6 +158,7 @@ ITEM_TYPE_COLORS = {
     "speed": "#ffd926",
     "multi_shot": "#ff4040",
     "low_gravity": "#4dd9ff",
+    "portal_gun": "#338cff",
     "health_potion": "#33f24d",
     "cookie": "#facc15",
     "missile_pack": "#f27319",
@@ -174,6 +178,7 @@ MODE_CATEGORIES: list[tuple[str, list[str]]] = [
     ),
     ("Walls", [MODE_WALL, MODE_ERASE_WALLS]),
     ("Barriers", [MODE_BARRIER, MODE_ERASE_BARRIERS]),
+    ("Equipment Erasers", [MODE_EQUIPMENT_ERASER, MODE_ERASE_EQUIPMENT_ERASERS]),
     ("Light Bridges", [MODE_LIGHT_BRIDGE, MODE_ERASE_LIGHT_BRIDGES]),
     ("Ramps", [MODE_RAMP_UP, MODE_RAMP_DOWN, MODE_ERASE_RAMPS]),
     ("Nested Maps", [MODE_NESTED_MAP, MODE_ERASE_NESTED_MAPS]),

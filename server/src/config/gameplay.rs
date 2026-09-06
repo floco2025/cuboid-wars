@@ -9,7 +9,6 @@ use super::{
     combat::CombatConfig,
     cycles::CyclesConfig,
     feed::FeedConfig,
-    items::ItemsConfig,
     maps::{MapServerConfig, validate_maps},
     scoring::ScoringConfig,
     validation::validate_positive_finite,
@@ -29,7 +28,6 @@ pub struct ServerGameplayConfig {
     pub player: PlayerServerConfig,
     pub actors: ActorsConfig,
     pub weapons: WeaponsConfig,
-    pub items: ItemsConfig,
     pub combat: CombatConfig,
     pub scoring: ScoringConfig,
     pub cycles: CyclesConfig,
@@ -55,7 +53,6 @@ impl ServerGameplayConfig {
         self.player.validate("player")?;
         self.actors.validate("actors")?;
         self.weapons.validate("weapons")?;
-        self.items.validate("items")?;
         self.combat.validate(&self.actors.kinds)?;
         self.scoring.validate(&self.actors.kinds)?;
         self.cycles.validate("cycles")?;

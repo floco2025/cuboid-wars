@@ -29,7 +29,7 @@ fn level_grid(cells: CellGrid) -> LevelGrid {
     }
 }
 
-fn map_settings(projectiles: bool, missiles: bool) -> MapSettings {
+fn map_settings(projectiles: bool) -> MapSettings {
     let mut settings = crate::config::ServerGameplayConfig::load_default()
         .expect("default server gameplay config should load")
         .maps
@@ -40,8 +40,7 @@ fn map_settings(projectiles: bool, missiles: bool) -> MapSettings {
     settings.skybox = "test".to_owned();
     settings.weapons = MapWeaponSettings {
         projectiles,
-        missiles,
-        portals: PortalMode::None,
+        portals: PortalMode::Both,
     };
     settings
 }
@@ -105,7 +104,7 @@ fn placed_item_spawn_system_spawns_every_placed_item_visible() {
     let mut world = World::new();
     world.insert_resource(config);
     world.insert_resource(geometry(2, 1));
-    world.insert_resource(map_settings(true, true));
+    world.insert_resource(map_settings(true));
     world.insert_resource(ItemMap::default());
     world.insert_resource(ItemSpawner::default());
     let mut schedule = Schedule::default();
@@ -156,7 +155,7 @@ fn placed_item_spawn_system_skips_disabled_weapon_pickups() {
     let mut world = World::new();
     world.insert_resource(config);
     world.insert_resource(geometry(3, 1));
-    world.insert_resource(map_settings(false, false));
+    world.insert_resource(map_settings(false));
     world.insert_resource(ItemMap::default());
     world.insert_resource(ItemSpawner::default());
     let mut schedule = Schedule::default();
@@ -164,8 +163,9 @@ fn placed_item_spawn_system_skips_disabled_weapon_pickups() {
     schedule.run(&mut world);
 
     let items = world.resource::<ItemMap>();
-    assert_eq!(items.iter().count(), 1);
-    assert!(items.values().all(|info| info.item_type == ItemType::Cookie));
+    assert_eq!(items.iter().count(), 2);
+    assert!(items.values().any(|info| info.item_type == ItemType::Cookie));
+    assert!(items.values().any(|info| info.item_type == ItemType::MissilePack));
 }
 
 #[test]
@@ -190,8 +190,8 @@ fn random_item_pool_omits_disabled_weapon_pickups() {
         max_number: 3,
         despawn_secs: 10.0,
     };
-    let random = RandomItems::from_config(Some(&config), map_settings(false, false).weapons);
-    assert_eq!(random.pool, vec![ItemType::Cookie]);
+    let random = RandomItems::from_config(Some(&config), map_settings(false).weapons);
+    assert_eq!(random.pool, vec![ItemType::MissilePack, ItemType::Cookie]);
 }
 
 #[cfg(test)]
@@ -201,22 +201,24 @@ mod collection_eligibility_tests {
     use tokio::sync::mpsc::unbounded_channel;
 
     use crate::{
-        config::ServerGameplayConfig,
+        config::{PowerUpsConfig, ServerGameplayConfig},
         items::{ItemInfo, ItemMap, ItemPlacement, item_collection_system},
         network::ServerToClient,
-        players::{PlayerInfo, PlayerMap},
+        players::{PlayerInfo, PlayerMap, PowerUpState},
         quests::{QuestBoard, QuestCatalog},
     };
     use common::{
         config::GameplayConfig,
         protocol::{
-            BarrierKindId, Health, ItemId, ItemMarker, ItemType, PlayerId, PlayerMarker, Position, ServerMessage,
+            BarrierKindId, Health, ItemId, ItemMarker, ItemType, PlayerId, PlayerMarker, Position, PowerUpKind,
+            ServerMessage,
         },
     };
 
     fn test_app() -> App {
         let server = ServerGameplayConfig::load_default().expect("default server gameplay config should load");
         let gameplay = server.gameplay_config();
+        let power_ups = server.maps[&server.default_map].power_ups.clone();
         let placed_items = server
             .maps
             .get(&server.default_map)
@@ -232,6 +234,7 @@ mod collection_eligibility_tests {
             .insert_resource(quest_board)
             .insert_resource(gameplay)
             .insert_resource(placed_items)
+            .insert_resource(power_ups)
             .insert_resource(PlayerMap::default())
             .insert_resource(ItemMap::default())
             .insert_resource(Carriers::default())
@@ -316,6 +319,114 @@ mod collection_eligibility_tests {
             app.world().resource::<ItemMap>().get(&item).is_some(),
             "a same-tick corpse must not vacuum up items"
         );
+    }
+
+    #[test]
+    fn permanent_power_up_stays_for_other_players_and_timed_pickup_refreshes() {
+        let mut app = test_app();
+        let mut config = app.world_mut().resource_mut::<PowerUpsConfig>();
+        config.duration_secs.portal_gun = 0.0;
+        config.duration_secs.speed = 30.0;
+        let id = PlayerId(1);
+        let (_, mut rx) = spawn_player(&mut app, id, Position::default());
+        spawn_item(
+            &mut app,
+            1,
+            ItemType::PortalGunPowerUp,
+            Position::default(),
+            random(0.0),
+        );
+        app.update();
+        assert!(std::iter::from_fn(|| rx.try_recv().ok()).any(|message| matches!(
+            message,
+            ServerToClient::Send(ServerMessage::PlayerStatus(status))
+                if status.collected == Some(ItemType::PortalGunPowerUp)
+        )));
+        let second = spawn_item(
+            &mut app,
+            2,
+            ItemType::PortalGunPowerUp,
+            Position::default(),
+            random(0.0),
+        );
+        app.update();
+        assert!(app.world().resource::<ItemMap>().get(&second).is_some());
+        let mut players = app.world_mut().resource_mut::<PlayerMap>();
+        let info = players.get_mut(&id).expect("player missing");
+        assert!(info.has_permanent(PowerUpKind::PortalGun));
+        info.life.power_ups[PowerUpKind::Speed.index()] = PowerUpState::Timed(1.0);
+        spawn_item(&mut app, 3, ItemType::SpeedPowerUp, Position::default(), random(0.0));
+        app.update();
+        assert_eq!(
+            app.world()
+                .resource::<PlayerMap>()
+                .get(&id)
+                .expect("player missing")
+                .life
+                .power_ups[PowerUpKind::Speed.index()],
+            PowerUpState::Timed(30.0)
+        );
+    }
+
+    #[test]
+    fn eraser_wins_over_same_tick_pickup_and_does_not_repeat_status() {
+        use crate::players::{EraserContacts, erase_equipment_system};
+        use common::{
+            physics::CollisionWorld,
+            protocol::{BarrierKindTable, Eraser, MapLayout, PowerUpKind},
+        };
+        let mut app = test_app();
+        let layout = MapLayout {
+            erasers: vec![Eraser {
+                x1: -2.0,
+                z1: 0.0,
+                x2: 2.0,
+                z2: 0.0,
+                width: 0.1,
+                y: 0.0,
+                height: 4.0,
+                level: 0,
+                carrier: CarrierId::WORLD,
+            }],
+            ..Default::default()
+        };
+        app.insert_resource(CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default()))
+            .init_resource::<EraserContacts>()
+            .add_systems(Update, erase_equipment_system.after(item_collection_system));
+        let id = PlayerId(1);
+        let (entity, mut rx) = spawn_player(&mut app, id, Position::default());
+        spawn_item(
+            &mut app,
+            1,
+            ItemType::PortalGunPowerUp,
+            Position::default(),
+            random(0.0),
+        );
+        app.world_mut()
+            .resource_mut::<PlayerMap>()
+            .get_mut(&id)
+            .expect("player missing")
+            .add_missiles(2, 3);
+        app.update();
+        let info = app.world().resource::<PlayerMap>().get(&id).expect("player missing");
+        assert!(!info.has(PowerUpKind::PortalGun));
+        assert_eq!(info.life.missiles, 0);
+        assert_eq!(app.world().get::<Health>(entity), Some(&Health(50.0)));
+        let mut last = None;
+        let mut collected = false;
+        while let Ok(ServerToClient::Send(message)) = rx.try_recv() {
+            if let ServerMessage::PlayerStatus(status) = message {
+                collected |= status.collected.is_some();
+                last = Some(status);
+            }
+        }
+        let status = last.expect("erasure status missing");
+        assert!(collected);
+        assert!(status.collected.is_none());
+        assert!(!status.power_up(PowerUpKind::PortalGun));
+        assert_eq!(status.missiles, 0);
+        app.update();
+        assert!(rx.try_recv().is_err());
     }
 
     #[test]

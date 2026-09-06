@@ -72,6 +72,13 @@ def paint_edges(
     return after
 
 
+def paint_erasers(data: dict, level_idx: int, start: tuple, end: tuple) -> dict:
+    existing = {edge_key(e): e for e in data["levels"][level_idx].get("erasers", [])}
+    for endpoints in wall_segments_between(start, end):
+        existing[tuple(endpoints)] = dict(zip(("c0", "r0", "c1", "r1"), endpoints))
+    return replace_records(data, "erasers", list(existing.values()), level_idx)
+
+
 def paint_bridges(data: dict, level_idx: int, rect: tuple, kind: str) -> dict:
     c0, r0, c1, r1 = rect
     existing = {(b["col"], b["row"]): b for b in data["levels"][level_idx].get("light_bridges", [])}

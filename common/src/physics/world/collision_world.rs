@@ -27,6 +27,7 @@ use super::{
         insert_bridge_collider, insert_floor_collider, insert_ramp_collider, insert_wall_collider, query_filter,
         surface_collision_groups, world_collision_groups,
     },
+    erasers::EraserVolume,
     ladders::LadderVolume,
     shape_cast::{ShapeCastHit, upward_surface_hit},
 };
@@ -60,6 +61,8 @@ pub struct CollisionWorld {
     // into world space by `set_carrier_poses`, which is what queries read.
     ladder_locals: Vec<(CarrierId, LadderVolume)>,
     ladder_volumes: Vec<LadderVolume>,
+    eraser_locals: Vec<EraserVolume>,
+    pub(super) eraser_volumes: Vec<EraserVolume>,
 }
 
 impl CollisionWorld {
@@ -136,6 +139,8 @@ impl CollisionWorld {
             .map(|ladder| (ladder.carrier, LadderVolume::from_ladder(ladder)))
             .collect();
         let ladder_volumes = ladder_locals.iter().map(|(_, volume)| *volume).collect();
+        let eraser_locals: Vec<_> = map_layout.erasers.iter().map(EraserVolume::from_eraser).collect();
+        let eraser_volumes = eraser_locals.clone();
 
         let mut world = Self {
             bodies,
@@ -148,6 +153,8 @@ impl CollisionWorld {
             carried_handles,
             ladder_locals,
             ladder_volumes,
+            eraser_locals,
+            eraser_volumes,
         };
         world.set_carrier_poses(&Carriers::from_layout(map_layout));
         world
@@ -184,6 +191,9 @@ impl CollisionWorld {
         );
         for (index, (carrier, local)) in self.ladder_locals.iter().enumerate() {
             self.ladder_volumes[index] = local.posed(&carriers.pose(*carrier));
+        }
+        for (index, local) in self.eraser_locals.iter().enumerate() {
+            self.eraser_volumes[index] = local.posed(&carriers.pose(local.carrier()));
         }
     }
 
@@ -449,7 +459,11 @@ impl CollisionWorld {
         if settings.light_bridges_block {
             groups |= BRIDGE_COLLISION_GROUP;
         }
-        self.surface_along_ray(origin, direction, max_distance, groups)
+        let hit = self.surface_along_ray(origin, direction, max_distance, groups)?;
+        if settings.erasers_block && self.eraser_blocks_segment(origin, hit.point) {
+            return None;
+        }
+        Some(hit)
     }
 
     fn surface_along_ray(

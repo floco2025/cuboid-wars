@@ -145,6 +145,20 @@ def validate_map(
                 errors.append(f"{prefix}: barrier[{idx}] {list(key)} duplicates another barrier")
             barrier_seen.add(key)
 
+        eraser_seen = set()
+        for idx, eraser in enumerate(level.get("erasers", [])):
+            errors.locate("erasers", eraser, level_idx)
+            c0, r0, c1, r1 = edge_key(eraser)
+            label = f"{prefix}: eraser[{idx}]"
+            if not (grid_point_in_bounds(c0, r0, cols, rows) and grid_point_in_bounds(c1, r1, cols, rows)):
+                errors.append(f"{label} is outside the grid-line bounds")
+            if abs(c1 - c0) + abs(r1 - r0) != 1:
+                errors.append(f"{label} is not one grid edge")
+            key = (c0, r0, c1, r1)
+            if key in eraser_seen:
+                errors.append(f"{label} duplicates another eraser")
+            eraser_seen.add(key)
+
         slab_set = floor_set | {(f["col"], f["row"]) for f in level["inaccessible_floors"]}
         ramp_set = ramp_cells_on_level(map_data["ramps"], level_idx)
         bridge_seen: set[tuple[int, int]] = set()

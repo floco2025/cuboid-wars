@@ -7,8 +7,9 @@ pub enum ItemType {
     SpeedPowerUp,
     MultiShotPowerUp,
     LowGravityPowerUp,
+    PortalGunPowerUp,
     // Instant heal on pickup; no durable state on `PlayerInfo` (unlike the
-    // other power-ups, which arm a timer). The heal amount comes from
+    // other power-ups, which persist). The heal amount comes from
     // `combat.health.player.potion_heal` in the server config.
     HealthPotion,
     Cookie,
@@ -27,14 +28,13 @@ impl ItemType {
     // carry — so key-accepting parsers must check this id themselves.
     pub const KEY_CONFIG_ID: &'static str = "key";
 
-    // Items that arm a per-player timer on pickup (the timer
-    // power-ups). `HealthPotion` is NOT one of these — its effect is
+    // Items that grant a persistent player effect on pickup. `HealthPotion` is NOT one of these — its effect is
     // instant; see `PowerUpKind`.
     #[must_use]
-    pub const fn is_timer_power_up(self) -> bool {
+    pub const fn is_power_up(self) -> bool {
         matches!(
             self,
-            Self::SpeedPowerUp | Self::MultiShotPowerUp | Self::LowGravityPowerUp
+            Self::SpeedPowerUp | Self::MultiShotPowerUp | Self::LowGravityPowerUp | Self::PortalGunPowerUp
         )
     }
 
@@ -44,6 +44,7 @@ impl ItemType {
             "speed" => Some(Self::SpeedPowerUp),
             "multi_shot" => Some(Self::MultiShotPowerUp),
             "low_gravity" => Some(Self::LowGravityPowerUp),
+            "portal_gun" => Some(Self::PortalGunPowerUp),
             "health_potion" => Some(Self::HealthPotion),
             "cookie" => Some(Self::Cookie),
             "missile_pack" => Some(Self::MissilePack),
@@ -57,6 +58,7 @@ impl ItemType {
             Self::SpeedPowerUp => "speed",
             Self::MultiShotPowerUp => "multi_shot",
             Self::LowGravityPowerUp => "low_gravity",
+            Self::PortalGunPowerUp => "portal_gun",
             Self::HealthPotion => "health_potion",
             Self::Cookie => "cookie",
             Self::Key(_) => Self::KEY_CONFIG_ID,
@@ -65,8 +67,7 @@ impl ItemType {
     }
 }
 
-// Timer-based power-up kinds — collected as items, arm a per-kind countdown
-// on the player. Indexed by `PowerUpKind::index()` for `[T; PowerUpKind::COUNT]`
+// Power-up kinds indexed by `PowerUpKind::index()` for `[T; PowerUpKind::COUNT]`
 // arrays on `PlayerInfo`, `Player`, and `SPlayerStatus`. `HealthPotion` is
 // deliberately NOT in this enum: it's an instant-effect item that mutates
 // `Health` directly and has no durable flag.
@@ -75,11 +76,12 @@ pub enum PowerUpKind {
     Speed,
     MultiShot,
     LowGravity,
+    PortalGun,
 }
 
 impl PowerUpKind {
-    pub const COUNT: usize = 3;
-    pub const ALL: [PowerUpKind; Self::COUNT] = [Self::Speed, Self::MultiShot, Self::LowGravity];
+    pub const COUNT: usize = 4;
+    pub const ALL: [PowerUpKind; Self::COUNT] = [Self::Speed, Self::MultiShot, Self::LowGravity, Self::PortalGun];
 
     #[must_use]
     pub const fn index(self) -> usize {
@@ -92,6 +94,7 @@ impl PowerUpKind {
             ItemType::SpeedPowerUp => Some(Self::Speed),
             ItemType::MultiShotPowerUp => Some(Self::MultiShot),
             ItemType::LowGravityPowerUp => Some(Self::LowGravity),
+            ItemType::PortalGunPowerUp => Some(Self::PortalGun),
             ItemType::HealthPotion | ItemType::Cookie | ItemType::Key(_) | ItemType::MissilePack => None,
         }
     }
@@ -102,6 +105,7 @@ impl PowerUpKind {
             Self::Speed => ItemType::SpeedPowerUp,
             Self::MultiShot => ItemType::MultiShotPowerUp,
             Self::LowGravity => ItemType::LowGravityPowerUp,
+            Self::PortalGun => ItemType::PortalGunPowerUp,
         }
     }
 }
@@ -116,6 +120,7 @@ mod tests {
             ItemType::SpeedPowerUp,
             ItemType::MultiShotPowerUp,
             ItemType::LowGravityPowerUp,
+            ItemType::PortalGunPowerUp,
             ItemType::HealthPotion,
             ItemType::Cookie,
             ItemType::MissilePack,

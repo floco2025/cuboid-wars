@@ -107,6 +107,19 @@ pub struct Barrier {
     pub carrier: CarrierId,
 }
 
+#[derive(Debug, Clone, Copy, Encode, Decode)]
+pub struct Eraser {
+    pub x1: f32,
+    pub z1: f32,
+    pub x2: f32,
+    pub z2: f32,
+    pub width: f32,
+    pub y: f32,
+    pub height: f32,
+    pub level: u8,
+    pub carrier: CarrierId,
+}
+
 // A plate-powered walkway: one merged rectangle of same-kind cells, a thin
 // slab whose standing surface is `y`. Solid and lit only while its kind is
 // powered (`PlateState.powered_bridge_kinds`, applied to the collider by
@@ -230,6 +243,7 @@ pub struct MapLayout {
     pub floor_materials: Vec<FaceMaterials>,
     pub wall_lights: Vec<WallLight>,
     pub barriers: Vec<Barrier>,
+    pub erasers: Vec<Eraser>,
     pub light_bridges: Vec<LightBridge>,
     pub carriers: Vec<Carrier>,
     pub ladders: Vec<Ladder>,
@@ -243,12 +257,13 @@ impl MapLayout {
     #[must_use]
     pub fn summary(&self) -> String {
         format!(
-            "{} walls, {} floors, {} ramps, {} ladders, {} barriers, {} light bridges, {} carriers, {} wall lights, {} pressure plates",
+            "{} walls, {} floors, {} ramps, {} ladders, {} barriers, {} erasers, {} light bridges, {} carriers, {} wall lights, {} pressure plates",
             self.walls.len(),
             self.floors.len(),
             self.ramps.len(),
             self.ladders.len(),
             self.barriers.len(),
+            self.erasers.len(),
             self.light_bridges.len(),
             self.carriers.len(),
             self.wall_lights.len(),
@@ -308,24 +323,14 @@ pub struct MapSettings {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode, Deserialize)]
 pub struct MapWeaponSettings {
     pub projectiles: bool,
-    pub missiles: bool,
     pub portals: PortalMode,
 }
 
 impl MapWeaponSettings {
-    // Whether players can hurt actors here at all; portals are not a weapon.
-    #[must_use]
-    pub const fn arms_players(self) -> bool {
-        self.projectiles || self.missiles
-    }
-
-    // A pickup for a disabled weapon never spawns or is granted: its ammo
-    // could not be fired here.
     #[must_use]
     pub const fn allows_item(self, item: ItemType) -> bool {
         match item {
             ItemType::MultiShotPowerUp => self.projectiles,
-            ItemType::MissilePack => self.missiles,
             _ => true,
         }
     }
@@ -334,9 +339,33 @@ impl MapWeaponSettings {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PortalMode {
-    None,
     Single,
     Both,
+}
+
+#[derive(Debug, Clone, Default, Encode, Decode, Resource)]
+pub struct MapItems(pub Vec<ItemType>);
+
+impl MapItems {
+    #[must_use]
+    pub fn contains(&self, item: ItemType) -> bool {
+        self.0.contains(&item)
+    }
+
+    #[must_use]
+    pub fn key_kinds(&self) -> Vec<BarrierKindId> {
+        let mut kinds: Vec<_> = self
+            .0
+            .iter()
+            .filter_map(|item| match item {
+                ItemType::Key(kind) => Some(*kind),
+                _ => None,
+            })
+            .collect();
+        kinds.sort_unstable();
+        kinds.dedup();
+        kinds
+    }
 }
 
 impl MapSettings {

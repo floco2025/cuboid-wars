@@ -2,9 +2,9 @@ use super::{
     compile_map,
     load::LoadedMaps,
     schema::{
-        ActorSpawnZoneDef, BarrierDef, CellDef, FloorDef, ItemDef, LadderDef, LevelDef, LightBridgeDef, MapDef,
-        MotionDef, NestedMapDef, PlayerSpawnZoneDef, PressurePlateDef, PressurePlatePurposeDef, RampDef, WallDef,
-        WallSide,
+        ActorSpawnZoneDef, BarrierDef, CellDef, EraserDef, FloorDef, ItemDef, LadderDef, LevelDef, LightBridgeDef,
+        MapDef, MotionDef, NestedMapDef, PlayerSpawnZoneDef, PressurePlateDef, PressurePlatePurposeDef, RampDef,
+        WallDef, WallSide,
     },
     validation::validate_map,
 };
@@ -86,6 +86,7 @@ fn level_with_inaccessible(floors: Vec<[i32; 2]>, inaccessible_floors: Vec<[i32;
         grass: Vec::new(),
         walls: Vec::new(),
         barriers: Vec::new(),
+        erasers: Vec::new(),
         light_bridges: Vec::new(),
         lights: Vec::new(),
     }
@@ -753,6 +754,7 @@ fn portal_shots_cannot_leak_through_compiled_bridge_landing_seams_or_outer_edges
     let settings = PortalShotSettings {
         barriers_block: true,
         light_bridges_block: true,
+        erasers_block: true,
     };
     let pad = geometry.wall_half_thickness();
     let floor_edge = geometry.cell_to_world_x(1) + pad;
@@ -1751,4 +1753,55 @@ fn nested_player_spawn_zones_items_and_plates_carry_their_carrier() {
     assert_eq!(config.placed_items[0].carrier, CarrierId(1));
     assert_eq!(config.pressure_plates.len(), 1);
     assert_eq!(config.pressure_plates[0].carrier, CarrierId(1));
+}
+
+#[test]
+fn eraser_edges_compile_to_full_storey_volumes_without_solid_geometry() {
+    let mut definition = map_with_zones(
+        4,
+        vec![level(vec![[0, 0], [1, 0]])],
+        Vec::new(),
+        vec![player_zone(0, 0, 0)],
+        Vec::new(),
+    );
+    definition.levels[0].erasers.push(EraserDef {
+        c0: 1,
+        r0: 0,
+        c1: 1,
+        r1: 1,
+    });
+    validate_map(&definition).expect("eraser map rejected");
+    let (layout, config) = compile_map(&definition, sizes(), &no_nested(), &empty_kind_table(), &no_bridges())
+        .expect("eraser map failed to compile");
+    assert_eq!(layout.erasers.len(), 1);
+    let field = layout.erasers[0];
+    assert_eq!(field.height, LEVEL_HEIGHT);
+    assert_eq!(field.carrier, CarrierId::WORLD);
+    let geometry = config.root_grid().geometry;
+    assert_eq!(field.x1, geometry.cell_to_world_x(1));
+    assert_eq!(field.z2, geometry.cell_to_world_z(1));
+    assert!(layout.barriers.is_empty());
+    assert!(layout.walls.is_empty());
+}
+
+#[test]
+fn eraser_validation_rejects_duplicates_diagonals_and_out_of_bounds_edges() {
+    for edges in [
+        vec![[1, 0, 1, 1], [1, 1, 1, 0]],
+        vec![[1, 0, 2, 1]],
+        vec![[-1, 0, 0, 0]],
+    ] {
+        let mut definition = map_with_zones(
+            4,
+            vec![level(vec![[0, 0]])],
+            Vec::new(),
+            vec![player_zone(0, 0, 0)],
+            Vec::new(),
+        );
+        definition.levels[0].erasers = edges
+            .into_iter()
+            .map(|[c0, r0, c1, r1]| EraserDef { c0, r0, c1, r1 })
+            .collect();
+        assert!(validate_map(&definition).is_err());
+    }
 }

@@ -109,8 +109,8 @@ mod tests {
     use super::{MAX_NAME_CHARS, sanitize_player_name};
     use crate::config::ServerGameplayConfig;
     use common::protocol::{
-        BarrierKindId, HexColor, KindDef, MapBootstrap, MapLayout, MapSettings, PlayerBootstrap, PlayerId,
-        PortalAccess, SInit, ServerMessage, WorldBootstrap,
+        BarrierKindId, HexColor, ItemType, KindDef, MapBootstrap, MapItems, MapLayout, MapSettings, PlayerBootstrap,
+        PlayerId, PortalAccess, SInit, ServerMessage, WorldBootstrap,
     };
 
     #[test]
@@ -189,7 +189,7 @@ mod tests {
                         ],
                         ..map_settings
                     },
-                    key_kinds: vec![BarrierKindId(1)],
+                    items: MapItems(vec![ItemType::Key(BarrierKindId(1))]),
                 },
             },
         });
@@ -207,7 +207,7 @@ mod tests {
             ["lobby", "basement"]
         );
         assert_eq!(kinds[1].color, HexColor([0xf0, 0xc0, 0x20]));
-        assert_eq!(decoded.world.map.key_kinds, [BarrierKindId(1)]);
+        assert_eq!(decoded.world.map.items.key_kinds(), [BarrierKindId(1)]);
         assert_eq!(decoded.world.gameplay.actors.len(), config.actors.kinds.len());
     }
 }

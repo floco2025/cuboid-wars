@@ -284,6 +284,7 @@
       "fall_damage": "sounds/Retro Impact Punch 07.wav",
       "void_fall": "sounds/Retro Turn Off 12.wav",
       "collect_power_up": "sounds/Retro PowerUP StereoUP 05.wav",
+      "eraser": "sounds/Retro Negative Short 23.wav",
       "collect_cookie": "sounds/metalClick.ogg",
       "bump_wall": "sounds/impactGlass_heavy_001.ogg",
       "bump_player": "sounds/impactTin_medium_004.ogg",

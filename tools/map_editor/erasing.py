@@ -10,6 +10,8 @@ from .constants import (
     LADDER_SIDES,
     LIGHT_SIDES,
     MODE_ERASE_BARRIERS,
+    MODE_EQUIPMENT_ERASER,
+    MODE_ERASE_EQUIPMENT_ERASERS,
     MODE_ERASE_FLOORS,
     MODE_ERASE_GRASS,
     MODE_ERASE_ITEMS,
@@ -179,6 +181,7 @@ ERASE_GROUPS = {
     MODE_ERASE_GRASS: ("grass", _keep_level_cells("grass")),
     MODE_ERASE_WALLS: ("walls", _keep_walls),
     MODE_ERASE_BARRIERS: ("barriers", _keep_level_edges("barriers")),
+    MODE_ERASE_EQUIPMENT_ERASERS: ("equipment erasers", _keep_level_edges("erasers")),
     MODE_ERASE_LIGHT_BRIDGES: ("light bridges", _keep_level_cells("light_bridges")),
     MODE_ERASE_LIGHTS: ("lights", _keep_level_cells("lights")),
     MODE_ERASE_SPAWN_ZONES: ("spawn zones", _keep_spawn_zones),
@@ -228,6 +231,7 @@ def erase_cell_rect(
     level = after["levels"][level_idx]
     level["grass"] = cells_outside(level.get("grass", []), rect)
     level["barriers"] = edges_outside(level.get("barriers", []), rect)
+    level["erasers"] = edges_outside(level.get("erasers", []), rect)
     for list_name in SPAWN_ZONE_LISTS:
         after[list_name] = zones_outside(after[list_name], level_idx, rect)
     after["ramps"] = ramps_outside(after["ramps"], level_idx, rect)
@@ -249,6 +253,10 @@ def hit_at(data: dict, level_idx: int, px: float, py: float):
         wall_arr = [wall["c0"], wall["r0"], wall["c1"], wall["r1"]]
         if point_near_wall(px, py, wall_arr):
             return ("Wall", tuple(wall_arr))
+    for eraser in level.get("erasers", []):
+        edge = list(edge_key(eraser))
+        if point_near_wall(px, py, edge):
+            return (MODE_EQUIPMENT_ERASER, tuple(edge))
     for barrier in level.get("barriers", []):
         arr = [barrier["c0"], barrier["r0"], barrier["c1"], barrier["r1"]]
         if point_near_wall(px, py, arr):
@@ -347,6 +355,8 @@ def erase_hit(data: dict, level_idx: int, hit, preserve_floors: bool = False) ->
             if edge_key(wall) != value
         ]
         level["lights"] = lights_on_walls(level.get("lights", []), level["walls"])
+    elif kind == MODE_EQUIPMENT_ERASER:
+        level["erasers"] = [eraser for eraser in level.get("erasers", []) if edge_key(eraser) != value]
     elif kind == "Barrier":
         level["barriers"] = [
             barrier

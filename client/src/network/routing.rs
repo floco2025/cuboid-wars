@@ -13,9 +13,9 @@ use super::{
         handle_missiles_collected_message,
     },
     players::{
-        handle_player_blast_message, handle_player_death_message, handle_player_fall_damage_message,
-        handle_player_hit_message, handle_player_moves_message, handle_player_status_message,
-        handle_projectile_shot_message,
+        handle_eraser_entered_message, handle_player_blast_message, handle_player_death_message,
+        handle_player_fall_damage_message, handle_player_hit_message, handle_player_moves_message,
+        handle_player_status_message, handle_projectile_shot_message,
     },
     portals::handle_portal_opened_message,
     presentation::{handle_feed_message, handle_firework_message, handle_pressure_plate_message},
@@ -61,6 +61,7 @@ pub(super) fn route_server_message(
         }
         ServerMessage::ActorHit(message) => handle_actor_hit_message(message, commands, context),
         ServerMessage::ActorBeam(message) => handle_actor_beam_message(message, commands, context),
+        ServerMessage::EraserEntered(_) => handle_eraser_entered_message(commands, context),
         ServerMessage::PlayerStatus(message) => {
             handle_player_status_message(message, commands, my_player_id, context);
         }

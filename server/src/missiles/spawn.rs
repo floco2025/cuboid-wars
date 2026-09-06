@@ -44,9 +44,6 @@ pub fn handle_missile_shot_message(
     plates: &PlateState,
     unlimited_missiles: bool,
 ) {
-    if !map_settings.weapons.missiles {
-        return;
-    }
     // Untrusted boundary: drop non-finite aim before it becomes a NaN
     // velocity. Checked before the ammo/cooldown gate so a bad message
     // doesn't burn a missile.

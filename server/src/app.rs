@@ -39,6 +39,7 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
         bail!("unknown map {map_name:?} (available: {known:?})");
     };
     let map_settings = map_server_config.settings.clone();
+    let power_ups_config = map_server_config.power_ups.clone();
     let placed_items_config = map_server_config.placed_items.clone();
     let weather_state = WeatherState::new(server_gameplay_config.cycles.weather.clone(), map_server_config.weather);
     let light_state = LightState::new(
@@ -59,6 +60,7 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
         &bridge_kind_table,
     )?;
     let map_geometry = map_config.root_grid().geometry;
+    let map_items = map_config.available_items(&random_items.pool, map_settings.weapons);
     let collision_world = CollisionWorld::from_map_layout(&map_layout, &barrier_kind_table);
     let carriers = Carriers::from_layout(&map_layout);
     let nav_graphs = NavGraphs::new(&map_config);
@@ -77,7 +79,7 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
         map: MapBootstrap {
             layout: map_layout.clone(),
             settings: map_settings.clone(),
-            key_kinds: map_config.key_kinds(),
+            items: map_items.clone(),
         },
     };
 
@@ -97,6 +99,7 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
     info!("generated map {map_name:?}: {}", map_layout.summary());
 
     app.insert_resource(map_layout)
+        .insert_resource(map_items)
         .insert_resource(map_settings)
         .insert_resource(world_bootstrap)
         .insert_resource(weather_state)
@@ -122,6 +125,7 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
         .insert_resource(ItemSpawner::default())
         .insert_resource(random_items)
         .insert_resource(placed_items_config)
+        .insert_resource(power_ups_config)
         .insert_resource(ActorSpawner::default())
         .insert_resource(ActorRespawnTimers::default())
         .insert_resource(PendingActorSpawns::default())

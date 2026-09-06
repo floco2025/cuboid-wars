@@ -838,6 +838,7 @@ fn opening_a_barrier_exposes_a_fitting_portal_surface_behind_it() {
             PortalShotSettings {
                 barriers_block: true,
                 light_bridges_block: true,
+                erasers_block: true,
             },
             &open,
         );
@@ -902,6 +903,7 @@ fn bridge_power_controls_portal_placement_on_the_floor_and_ceiling_beyond_it() {
                 PortalShotSettings {
                     barriers_block: true,
                     light_bridges_block: true,
+                    erasers_block: true,
                 },
                 &[],
             );

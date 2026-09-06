@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use common::{
     config::GameplayConfig,
-    protocol::{BarrierKindId, Health, MapSettings, PlayerId},
+    protocol::{BarrierKindId, Health, ItemType, MapItems, PlayerId, PowerUpKind},
 };
 use std::{
     collections::hash_map::DefaultHasher,
@@ -25,7 +25,7 @@ pub fn ui_player_list_rebuild_system(
     players: Res<PlayerMap>,
     my_player_id: Res<MyPlayerId>,
     gameplay_config: Res<GameplayConfig>,
-    map_settings: Res<MapSettings>,
+    map_items: Res<MapItems>,
     max_health: Res<MaxHealth>,
     client_settings: Res<ClientSettings>,
     key_kinds: Res<KeyKinds>,
@@ -59,8 +59,11 @@ pub fn ui_player_list_rebuild_system(
         min_entry_width: client_settings.hud.health_bars.player_list_width,
         health_bar_height: client_settings.hud.health_bars.player_list_height,
         max_missiles: gameplay_config.missiles.max_missiles,
-        show_multi_shot: map_settings.weapons.projectiles,
-        show_missiles: map_settings.weapons.missiles,
+        power_up_kinds: PowerUpKind::ALL
+            .into_iter()
+            .filter(|kind| map_items.contains(kind.to_item_type()))
+            .collect(),
+        show_missiles: map_items.contains(ItemType::MissilePack),
     };
     rebuild_player_list(
         &mut commands,

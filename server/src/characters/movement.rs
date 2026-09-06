@@ -14,7 +14,7 @@ use common::{
 use crate::{
     actors::{ActorMap, ActorMovementQuery, apply_actor_moves, plan_actor_moves},
     config::ServerGameplayConfig,
-    players::{PlayerInfo, PlayerMap},
+    players::{EraserContacts, PlayerInfo, PlayerMap},
 };
 
 use super::contact_explosions::detonate_actors_touching_players;
@@ -41,6 +41,7 @@ pub fn characters_movement_system(
     server_gameplay_config: Res<ServerGameplayConfig>,
     map_settings: Res<MapSettings>,
     mut players: ResMut<PlayerMap>,
+    mut eraser_contacts: ResMut<EraserContacts>,
     plates: Res<PlateState>,
     portal_set: Res<PortalSet>,
     carriers: Res<Carriers>,
@@ -84,7 +85,14 @@ pub fn characters_movement_system(
         &mut actor_query,
         &mut planned_moves,
     );
-    apply_player_moves(&mut player_query, &planned_moves);
+    apply_player_moves(&mut player_query, &planned_moves, |id, start, end| {
+        // Sweep before portal traversal; the arrival overlap is checked after item collection.
+        eraser_contacts.swept.extend(
+            collision_world
+                .character_eraser_contacts(start, end, gameplay_config.player.physics(), Some(&carriers))
+                .map(|field| (id, field)),
+        );
+    });
     detonate_actors_touching_players(
         &mut actor_health,
         &actors,
@@ -150,17 +158,23 @@ fn plan_player_moves(
     }
 }
 
-fn apply_player_moves(query: &mut PlayerMovementQuery, planned_moves: &[CharacterMovePlan]) {
+fn apply_player_moves(
+    query: &mut PlayerMovementQuery,
+    planned_moves: &[CharacterMovePlan],
+    mut record_move: impl FnMut(PlayerId, &Position, &Position),
+) {
     for planned_move in planned_moves {
-        let Ok((_, mut pos, mut motion, _, _, _, _)) = query.get_mut(planned_move.entity) else {
+        let Ok((_, mut pos, mut motion, _, id, _, _)) = query.get_mut(planned_move.entity) else {
             continue;
         };
 
+        let start = *pos;
         if overlapping_character(planned_move, planned_moves).is_some() {
             pos.y = planned_move.target.y;
         } else {
             *pos = planned_move.target;
         }
+        record_move(*id, &start, &pos);
         motion.0 = planned_move.target_vertical_velocity;
     }
 }

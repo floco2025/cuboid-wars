@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use crate::{
-    config::{PlacedItemsConfig, ServerGameplayConfig},
+    config::{PlacedItemsConfig, PowerUpsConfig, ServerGameplayConfig},
     items::{ItemMap, ItemPlacement},
     network::{FeedAudience, FeedEvent, ServerToClient, broadcast_to_all, emit_feed},
     players::{PlayerInfo, PlayerMap},
@@ -13,8 +13,8 @@ use common::{
     map::Carriers,
     physics::character_overlaps_item,
     protocol::{
-        BarrierKindId, Health, ItemId, ItemMarker, ItemType, PlayerId, PlayerMarker, Position, SCookieCollected,
-        SHealthPotionCollected, SMissilesCollected, SPlayerStatus, ServerMessage,
+        BarrierKindId, Health, ItemId, ItemMarker, ItemType, PlayerId, PlayerMarker, Position, PowerUpKind,
+        SCookieCollected, SHealthPotionCollected, SMissilesCollected, SPlayerStatus, ServerMessage,
     },
 };
 
@@ -30,6 +30,7 @@ pub fn item_collection_system(
     item_positions: Query<&Position, With<ItemMarker>>,
     carriers: Res<Carriers>,
     placed_items_config: Res<PlacedItemsConfig>,
+    power_ups_config: Res<PowerUpsConfig>,
     server_gameplay_config: Res<ServerGameplayConfig>,
     gameplay_config: Res<GameplayConfig>,
     mut quest_board: ResMut<QuestBoard>,
@@ -84,6 +85,11 @@ pub fn item_collection_system(
     let mut feed_events = Vec::new();
 
     for (player_id, item_id, item_type) in items_to_collect {
+        if let Some(kind) = PowerUpKind::from_item_type(item_type)
+            && players.get(&player_id).is_some_and(|info| info.has_permanent(kind))
+        {
+            continue;
+        }
         consume_item(&mut commands, &mut items, &placed_items_config, item_id, item_type);
         match item_type {
             ItemType::Cookie => collect_cookie(
@@ -100,15 +106,18 @@ pub fn item_collection_system(
             ItemType::MissilePack => {
                 collect_missile_pack(&mut players, player_id, &server_gameplay_config, &gameplay_config);
             }
-            ItemType::SpeedPowerUp | ItemType::MultiShotPowerUp | ItemType::LowGravityPowerUp => {
+            ItemType::SpeedPowerUp
+            | ItemType::MultiShotPowerUp
+            | ItemType::LowGravityPowerUp
+            | ItemType::PortalGunPowerUp => {
                 // Guarded by the enum arm so an item type whose taxonomy
                 // changes won't silently fall through to a power-up handler.
-                assert!(item_type.is_timer_power_up());
+                assert!(item_type.is_power_up());
                 collect_power_up(
                     &mut players,
                     player_id,
                     item_type,
-                    &server_gameplay_config,
+                    &power_ups_config,
                     &mut status_broadcasts,
                 );
             }
@@ -139,7 +148,8 @@ fn pickup_has_effect(
         ItemType::HealthPotion => {
             health.is_none_or(|health| health.0 < server_gameplay_config.combat.health.player.max)
         }
-        ItemType::Cookie | ItemType::SpeedPowerUp | ItemType::MultiShotPowerUp | ItemType::LowGravityPowerUp => true,
+        ItemType::Cookie => true,
+        item => PowerUpKind::from_item_type(item).is_some_and(|kind| !player_info.has_permanent(kind)),
     }
 }
 
@@ -209,7 +219,10 @@ fn collect_key(
     // re-broadcasting `SPlayerStatus`. Already-held kinds are filtered out
     // by the overlap pass before we get here, but be defensive.
     if player_info.add_key(kind) {
-        status_broadcasts.push(player_info.status(player_id));
+        status_broadcasts.push(SPlayerStatus {
+            collected: Some(ItemType::Key(kind)),
+            ..player_info.status(player_id)
+        });
         feed_events.push(FeedEvent::KeyFound { name, kind });
     }
 }
@@ -269,14 +282,17 @@ fn collect_power_up(
     players: &mut PlayerMap,
     player_id: PlayerId,
     item_type: ItemType,
-    server_gameplay_config: &ServerGameplayConfig,
+    power_ups_config: &PowerUpsConfig,
     status_broadcasts: &mut Vec<SPlayerStatus>,
 ) {
     let Some(player_info) = players.get_mut(&player_id) else {
         return;
     };
-    player_info.grant_power_up(item_type, &server_gameplay_config.items.power_ups);
-    status_broadcasts.push(player_info.status(player_id));
+    player_info.grant_power_up(item_type, power_ups_config);
+    status_broadcasts.push(SPlayerStatus {
+        collected: Some(item_type),
+        ..player_info.status(player_id)
+    });
 }
 
 #[cfg(test)]
@@ -350,7 +366,7 @@ mod tests {
         let server_config = ServerGameplayConfig::load_default().expect("load default server gameplay config");
         let config = server_config.gameplay_config();
         let mut player = player();
-        player.grant_power_up(ItemType::SpeedPowerUp, &server_config.items.power_ups);
+        player.grant_power_up(ItemType::SpeedPowerUp, &server_config.maps["hotel"].power_ups);
         assert!(player.has_speed());
 
         assert!(pickup_has_effect(

@@ -15,6 +15,8 @@ from .constants import (
     ITEM_TYPE_COLORS,
     MATERIAL_MODES,
     MODE_BARRIER,
+    MODE_EQUIPMENT_ERASER,
+    EQUIPMENT_ERASER_COLOR,
     MODE_LADDER,
     MODE_LIGHT,
     MODE_SELECT,
@@ -98,6 +100,7 @@ class CanvasPaintingMixin:
         self._paint_grid_lines(painter, cell, cols, rows)
         self._paint_walls(painter, level, cell)
         self._paint_barriers(painter, level, cell)
+        self._paint_erasers(painter, level, cell)
         self._paint_ladders(painter, cell, level_idx)
         self._paint_nested_maps(painter, cell, level_idx)
         self._paint_wall_material_drag(painter, cell)
@@ -165,7 +168,7 @@ class CanvasPaintingMixin:
         # Edge-based modes (Wall, Barrier): no ghost yet — the drag preview
         # is the discoverability path; a single-point ghost would only show
         # a 1px dot. Skip until we add a single-segment preview later.
-        if mode in (MODE_WALL, MODE_BARRIER):
+        if mode in (MODE_WALL, MODE_BARRIER, MODE_EQUIPMENT_ERASER):
             return
         if self.hover_cell is None:
             return
@@ -365,7 +368,13 @@ class CanvasPaintingMixin:
                 )
                 continue
             painter.setBrush(QColor(ITEM_TYPE_COLORS.get(item_type, "#f8fafc")))
-            if item_type == "cookie":
+            if item_type == "portal_gun":
+                painter.save()
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                painter.setPen(QPen(QColor(ITEM_TYPE_COLORS[item_type]), max(2, cell * 0.06)))
+                painter.drawEllipse(QRectF(cx - cell * 0.16, cy - cell * 0.30, cell * 0.32, cell * 0.60))
+                painter.restore()
+            elif item_type == "cookie":
                 # Half the power-up size, like COOKIE_SIZE vs ITEM_SIZE.
                 radius = cell * 0.13
                 painter.drawEllipse(QRectF(cx - radius, cy - radius, radius * 2, radius * 2))
@@ -434,6 +443,9 @@ class CanvasPaintingMixin:
             recent = self.window.recent_barrier_kind
             hex_color = self.window.barrier_kind_colors.get(recent, "#38bdf8")
             self.paint_wall_preview(painter, self.drag_start_point, end, cell, color=QColor(hex_color))
+        elif self.drag_start_point and self.drag_current_point and self.window.mode == MODE_EQUIPMENT_ERASER:
+            end = snapped_wall_end(self.drag_start_point, self.drag_current_point)
+            self.paint_wall_preview(painter, self.drag_start_point, end, cell, color=QColor(EQUIPMENT_ERASER_COLOR))
         elif self.drag_start_cell and self.drag_current_cell and self.window.mode in RAMP_MODES:
             self.paint_ramp_preview(painter, self.drag_start_cell, self.drag_current_cell, cell)
         elif self.drag_start_cell and self.drag_current_cell and (
@@ -475,6 +487,15 @@ class CanvasPaintingMixin:
                 barrier["c1"] * cell,
                 barrier["r1"] * cell,
             )
+
+    def _paint_erasers(self, painter: QPainter, level: dict, cell: float) -> None:
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.setPen(QPen(QColor(EQUIPMENT_ERASER_COLOR), max(1, cell * 0.04)))
+        for eraser in self.visible_entries("erasers", level.get("erasers", [])):
+            x1, x2 = sorted((eraser["c0"] * cell, eraser["c1"] * cell))
+            y1, y2 = sorted((eraser["r0"] * cell, eraser["r1"] * cell))
+            pad = cell * 0.06
+            painter.drawRect(QRectF(x1 - pad, y1 - pad, x2 - x1 + 2 * pad, y2 - y1 + 2 * pad))
 
     def _paint_ladders(self, painter: QPainter, cell: float, level_idx: int) -> None:
         # A ladder paints on every level it passes through (like ramps on
@@ -675,6 +696,7 @@ class CanvasPaintingMixin:
                 self._paint_ramps(painter, cell, target)
                 self._paint_walls(painter, neighbor, cell)
                 self._paint_barriers(painter, neighbor, cell)
+                self._paint_erasers(painter, neighbor, cell)
                 self._paint_ladders(painter, cell, target)
         painter.restore()
 

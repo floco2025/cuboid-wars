@@ -17,6 +17,7 @@
     "items": [
       {"level": 0, "col": 4, "row": 1, "type": "speed"},
       {"level": 0, "col": 4, "row": 2, "type": "low_gravity"},
+      {"level": 0, "col": 5, "row": 5, "type": "portal_gun"},
       {"level": 0, "col": 14, "row": 7, "type": "speed"},
       {"level": 0, "col": 37, "row": 7, "type": "speed"},
       {"level": 0, "col": 4, "row": 8, "type": "speed"},
@@ -228,6 +229,11 @@
           {"c0": 25, "r0": 3, "c1": 26, "r1": 3, "kind": "barrier_1"},
           {"c0": 26, "r0": 3, "c1": 27, "r1": 3, "kind": "barrier_1"}
         ],
+        "erasers": [
+          {"c0": 5, "r0": 14, "c1": 6, "r1": 14},
+          {"c0": 6, "r0": 1, "c1": 6, "r1": 2},
+          {"c0": 6, "r0": 2, "c1": 6, "r1": 3}
+        ],
         "light_bridges": [
           {"col": 19, "row": 0, "kind": "bridge_2"},
           {"col": 20, "row": 0, "kind": "bridge_2"},
@@ -342,6 +348,7 @@
           {"c0": 25, "r0": 3, "c1": 26, "r1": 3, "kind": "barrier_1"},
           {"c0": 26, "r0": 3, "c1": 27, "r1": 3, "kind": "barrier_1"}
         ],
+        "erasers": [],
         "light_bridges": [],
         "lights": []
       },
@@ -372,6 +379,7 @@
           {"c0": 39, "r0": 8, "c1": 39, "r1": 9, "all": "basement-floor"}
         ],
         "barriers": [],
+        "erasers": [],
         "light_bridges": [],
         "lights": []
       },
@@ -388,6 +396,7 @@
           {"c0": 39, "r0": 8, "c1": 39, "r1": 9, "all": "basement-floor"}
         ],
         "barriers": [],
+        "erasers": [],
         "light_bridges": [],
         "lights": []
       },
@@ -402,6 +411,7 @@
           {"c0": 16, "r0": 9, "c1": 17, "r1": 9, "all": "basement-floor"}
         ],
         "barriers": [],
+        "erasers": [],
         "light_bridges": [],
         "lights": []
       }

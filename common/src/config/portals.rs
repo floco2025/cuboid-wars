@@ -13,6 +13,7 @@ pub struct PortalsConfig {
 pub struct PortalShotSettings {
     pub barriers_block: bool,
     pub light_bridges_block: bool,
+    pub erasers_block: bool,
 }
 
 impl PortalsConfig {

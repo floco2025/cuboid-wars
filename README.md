@@ -26,13 +26,11 @@ death/respawn flow.
 
 - **Quests** — objectives assigned at login, worth points when completed.
 - **Cookies** — scattered pickups worth score and quest progress.
-- **Power-ups** — timed boosts (speed, multi-shot, low-gravity) and
-  instant-heal potions.
+- **Power-ups** — speed, multi-shot, low-gravity, and instant-heal potions.
 - **Seeking missiles** — collect a pack, lock onto a target, and fire; the
   missile flies the map's airspace to it.
-- **Portal gun** — shoot portals onto any surface, nested maps included,
-  and step through one to come out the other; a map hands you both ends or
-  one end shared with a partner, and playing alone you always get both.
+- **Portal guns** — collect a gun to place linked portals and travel between them.
+- **Equipment erasers** — walk-through energy fields that strip your equipment and portals.
 - **Barriers & keys** — coloured barriers block everyone; the matching key
   lets you through until you die.
 - **Light bridges** — ghostly walkways that turn solid while their plates are held.
@@ -68,6 +66,10 @@ death/respawn flow.
 | Cycle camera view (first-person ↔ top-down) | V |
 | Toggle level-focus (hide floors/walls on other levels) | R |
 | Toggle fullscreen | F11 / Ctrl-F / Cmd-F |
+
+Missile-pack and portal-gun pickups automatically select that weapon. Q skips
+missiles when ammo is empty; firing the last missile switches back to projectiles
+(or a held portal gun on maps without projectiles).
 
 ## Technical stack
 
@@ -108,7 +110,7 @@ python3 tools/editor.py hotel      # edits config/server/maps/hotel.json in plac
 
 Maps are registered in `config/server/gameplay.json` (`maps` + `default_map`).
 The editor (PySide6) covers everything in a map file: floors, grass, walls,
-ramps, ladders, barriers, spawn zones, items, pressure plates, lights, and
+ramps, ladders, barriers, equipment erasers, spawn zones, items, pressure plates, lights, and
 per-face materials.
 
 ## License

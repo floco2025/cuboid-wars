@@ -3,6 +3,7 @@ mod carrier_contacts;
 mod carrier_sync;
 mod colliders;
 mod collision_world;
+mod erasers;
 mod ladders;
 mod shape_cast;
 

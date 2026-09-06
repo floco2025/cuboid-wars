@@ -356,7 +356,14 @@ pub(in crate::network) fn handle_player_blast_message(
     ));
 }
 
-// Handle player status update (power-ups, stun).
+pub(in crate::network) fn handle_eraser_entered_message(commands: &mut Commands, context: &ServerMessageContext) {
+    play_sound(
+        commands,
+        &context.asset_server,
+        context.asset_set.player_sound("eraser"),
+    );
+}
+
 pub(in crate::network) fn handle_player_status_message(
     message: SPlayerStatus,
     commands: &mut Commands,
@@ -364,24 +371,15 @@ pub(in crate::network) fn handle_player_status_message(
     context: &mut ServerMessageContext,
 ) {
     if let Some(player_info) = context.players.get_mut(&message.id) {
-        // Play power-up sound effect only for the local player
-        if message.id == my_player_id {
-            // Don't play the power-up sound if this event is due to a stun change.
-            if player_info.stunned == message.stunned {
-                // Only play power-up sound effect if it wasn't a downgrade —
-                // i.e., no kind transitioned from active to inactive.
-                let lost_power_up = PowerUpKind::ALL
-                    .iter()
-                    .any(|kind| player_info.power_up(*kind) && !message.power_up(*kind));
-
-                if !lost_power_up {
-                    play_sound(
-                        commands,
-                        &context.asset_server,
-                        context.asset_set.player_sound("collect_power_up"),
-                    );
-                }
-            }
+        if message.id == my_player_id
+            && let Some(item) = message.collected
+        {
+            context.pending_weapon_selection.collect(item);
+            play_sound(
+                commands,
+                &context.asset_server,
+                context.asset_set.player_sound("collect_power_up"),
+            );
         }
 
         player_info.apply_status(&message);

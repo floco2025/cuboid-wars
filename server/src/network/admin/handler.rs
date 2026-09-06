@@ -4,7 +4,7 @@ use super::execute::{AdminOutcome, run_admin_command};
 use crate::{
     actors::{ActorMap, ActorRespawnTimers, PendingActorSpawns},
     combat::PendingExplosions,
-    config::ServerGameplayConfig,
+    config::{PowerUpsConfig, ServerGameplayConfig},
     map::{LightState, MapConfig, WeatherState},
     network::{FeedAudience, FeedEvent, emit_feed},
     players::{Invincibility, PlayerInfo, PlayerMap, PlayerStateQuery, UnlimitedMissiles},
@@ -29,6 +29,7 @@ pub struct AdminContext<'w> {
     pub unlimited_missiles: ResMut<'w, UnlimitedMissiles>,
     pub actor_respawn_timers: ResMut<'w, ActorRespawnTimers>,
     pub server_gameplay_config: Res<'w, ServerGameplayConfig>,
+    pub power_ups: Res<'w, PowerUpsConfig>,
     pub map_settings: Res<'w, MapSettings>,
     pub barrier_kind_table: Res<'w, BarrierKindTable>,
     pub quest_catalog: Res<'w, QuestCatalog>,

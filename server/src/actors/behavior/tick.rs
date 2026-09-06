@@ -15,7 +15,10 @@ use common::{
     constants::PHYSICS_EPSILON,
     map::{CarrierPose, Carriers},
     physics::CollisionWorld,
-    protocol::{ActorId, ActorMarker, MapSettings, PlayerId, PlayerMarker, Position, SActorBeam, ServerMessage},
+    protocol::{
+        ActorId, ActorMarker, ItemType, MapItems, MapSettings, PlayerId, PlayerMarker, Position, SActorBeam,
+        ServerMessage,
+    },
 };
 
 use super::{
@@ -45,6 +48,7 @@ pub fn actors_behavior_system(
     territories: Res<ActorTerritories>,
     carriers: Res<Carriers>,
     map_settings: Res<MapSettings>,
+    map_items: Res<MapItems>,
     mut actors: ResMut<ActorMap>,
     player_query: Query<(&PlayerId, &Position), With<PlayerMarker>>,
     actor_query: Query<(&ActorId, &Position), (With<ActorMarker>, Without<PlayerMarker>)>,
@@ -107,7 +111,7 @@ pub fn actors_behavior_system(
             territory,
             collision_world: &collision_world,
             kind_config,
-            players_armed: map_settings.weapons.arms_players(),
+            players_armed: map_settings.weapons.projectiles || map_items.contains(ItemType::MissilePack),
         };
         if stalled {
             shake_loose(info, &context, &mut rng);

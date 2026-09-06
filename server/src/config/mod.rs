@@ -23,7 +23,7 @@ pub use combat::{
 pub use cycles::{CyclesConfig, LightingCycleConfig, WeatherCycleConfig};
 pub use feed::FeedConfig;
 pub use gameplay::{PlayerServerConfig, ServerGameplayConfig};
-pub use items::{ItemsConfig, PlacedItemRespawnSecs, PlacedItemsConfig, PowerUpDurationSecs, PowerUpsConfig};
+pub use items::{PlacedItemRespawnSecs, PlacedItemsConfig, PowerUpDurationSecs, PowerUpsConfig};
 pub(crate) use maps::is_valid_map_name;
 pub use maps::{LightingMode, MapServerConfig, RandomItemsConfig, WeatherMode};
 pub use missiles::MissilesServerConfig;

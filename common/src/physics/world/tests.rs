@@ -211,6 +211,7 @@ fn portal_shots_only_pass_blocking_barriers_when_the_kind_is_globally_open() {
             let settings = PortalShotSettings {
                 barriers_block,
                 light_bridges_block,
+                erasers_block: true,
             };
             for open in [vec![], vec![BarrierKindId(1)], vec![BarrierKindId(0)]] {
                 let hit = world.portal_surface_along_ray(origin, Vec3::NEG_Z, 10.0, settings, &open);
@@ -248,6 +249,7 @@ fn portal_shots_only_stop_at_powered_bridges_when_configured() {
                 let settings = PortalShotSettings {
                     barriers_block,
                     light_bridges_block,
+                    erasers_block: true,
                 };
                 let hit = world.portal_surface_along_ray(origin, Vec3::NEG_Y, 10.0, settings, &[]);
                 assert_eq!(hit.is_some(), !powered || !light_bridges_block);

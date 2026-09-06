@@ -4,7 +4,7 @@ use anyhow::{Context, Result, bail};
 use serde::Deserialize;
 
 use super::{
-    items::PlacedItemsConfig,
+    items::{PlacedItemsConfig, PowerUpsConfig},
     quests::{Quest, validate_quests},
     validation::{deserialize_required_option, validate_covers_actor_kinds, validate_positive_finite},
 };
@@ -20,6 +20,7 @@ pub struct MapServerConfig {
     #[serde(deserialize_with = "deserialize_required_option")]
     pub random_items: Option<RandomItemsConfig>,
     pub placed_items: PlacedItemsConfig,
+    pub power_ups: PowerUpsConfig,
     // A concrete state holds until an admin command; `auto` runs the
     // global `cycles.weather`. Mirrors `/weather rain|clear|auto`.
     pub weather: WeatherMode,
@@ -114,6 +115,7 @@ pub(super) fn validate_maps<T>(
         if let Some(random_items) = &entry.random_items {
             random_items.validate(&format!("{path}.random_items"), entry.settings.weapons)?;
         }
+        entry.power_ups.validate(&format!("{path}.power_ups"))?;
         entry.placed_items.validate(&format!("{path}.placed_items"))?;
         validate_quests(&entry.quests, actors, &format!("{path}.quests"))?;
     }
@@ -226,7 +228,6 @@ mod tests {
                 movement: ok_movement(),
                 weapons: MapWeaponSettings {
                     projectiles: true,
-                    missiles: true,
                     portals: PortalMode::Both,
                 },
                 barrier_kinds: Vec::new(),
@@ -234,6 +235,14 @@ mod tests {
             },
             random_items: None,
             placed_items: ok_placed_items(),
+            power_ups: PowerUpsConfig {
+                duration_secs: crate::config::PowerUpDurationSecs {
+                    speed: 30.0,
+                    multi_shot: 25.0,
+                    low_gravity: 20.0,
+                    portal_gun: 0.0,
+                },
+            },
             weather: WeatherMode::Clear,
             lighting: LightingMode::Bright,
             quests: Vec::new(),
@@ -246,6 +255,7 @@ mod tests {
                 speed: 60.0,
                 multi_shot: 60.0,
                 low_gravity: 60.0,
+                portal_gun: 0.0,
                 health_potion: 60.0,
                 cookie: 60.0,
                 key: 30.0,
@@ -278,14 +288,13 @@ mod tests {
 
     fn parse_map_entry(
         projectiles: bool,
-        missiles: bool,
         portals: &str,
         weather: Option<&str>,
         lighting: Option<&str>,
     ) -> Result<MapServerConfig, serde_json::Error> {
         let mut value = serde_json::json!({
             "skybox": "cloudy_day",
-            "portal_shots": { "barriers_block": false, "light_bridges_block": false },
+            "portal_shots": { "barriers_block": false, "light_bridges_block": false, "erasers_block": true },
             "geometry": { "grid_cell_size": 3.4, "level_height": 4.4, "floor_thickness": 0.4, "wall_thickness": 0.3 },
             "movement": {
                 "player": { "walk_speed": 6.0, "run_speed": 9.0, "speed_power_up": 1.6, "jump_speed": 12.0 },
@@ -302,15 +311,17 @@ mod tests {
                 "ladder_climb_ratio": 0.4,
                 "knockback": { "max_speed": 15.0, "up_speed": 7.0, "deceleration": 35.0 }
             },
-            "weapons": { "projectiles": projectiles, "missiles": missiles, "portals": portals },
+            "weapons": { "projectiles": projectiles, "portals": portals },
             "barrier_kinds": [],
             "bridge_kinds": [],
             "random_items": null,
+            "power_ups": { "duration_secs": { "speed": 30.0, "multi_shot": 25.0, "low_gravity": 20.0, "portal_gun": 0.0 } },
             "placed_items": {
                 "respawn_secs": {
                     "speed": 60.0,
                     "multi_shot": 60.0,
                     "low_gravity": 60.0,
+                    "portal_gun": 1.0,
                     "health_potion": 60.0,
                     "cookie": 60.0,
                     "key": 30.0,
@@ -449,11 +460,11 @@ mod tests {
     #[test]
     fn map_entry_requires_explicit_weather_and_lighting() {
         let missing_both =
-            parse_map_entry(true, true, "both", None, None).expect_err("weather and lighting must be explicit");
+            parse_map_entry(true, "both", None, None).expect_err("weather and lighting must be explicit");
         assert!(missing_both.to_string().contains("weather"));
 
         let missing_lighting =
-            parse_map_entry(true, true, "both", Some("clear"), None).expect_err("lighting must be explicit");
+            parse_map_entry(true, "both", Some("clear"), None).expect_err("lighting must be explicit");
         assert!(missing_lighting.to_string().contains("lighting"));
     }
 
@@ -506,8 +517,8 @@ mod tests {
 
     #[test]
     fn map_entry_accepts_empty_kind_catalogs() {
-        let entry = parse_map_entry(true, true, "both", Some("clear"), Some("bright"))
-            .expect("map entry failed to deserialize");
+        let entry =
+            parse_map_entry(true, "both", Some("clear"), Some("bright")).expect("map entry failed to deserialize");
         assert!(entry.settings.barrier_kinds.is_empty());
         assert!(entry.settings.bridge_kinds.is_empty());
     }
@@ -589,30 +600,27 @@ mod tests {
 
     #[test]
     fn map_entry_parses_snake_case_weather_and_lighting() {
-        let entry =
-            parse_map_entry(true, true, "both", Some("rain"), Some("dark")).expect("map entry should deserialize");
+        let entry = parse_map_entry(true, "both", Some("rain"), Some("dark")).expect("map entry should deserialize");
         assert_eq!(entry.weather, WeatherMode::Rain);
         assert_eq!(entry.lighting, LightingMode::Dark);
     }
 
     #[test]
     fn map_entry_parses_auto_modes() {
-        let entry =
-            parse_map_entry(true, true, "both", Some("auto"), Some("auto")).expect("map entry should deserialize");
+        let entry = parse_map_entry(true, "both", Some("auto"), Some("auto")).expect("map entry should deserialize");
         assert_eq!(entry.weather, WeatherMode::Auto);
         assert_eq!(entry.lighting, LightingMode::Auto);
     }
 
     #[test]
-    fn map_entry_accepts_all_disabled_weapons_and_single_portals() {
+    fn map_entry_accepts_no_projectiles_and_single_or_both_portal_ownership() {
         let disabled =
-            parse_map_entry(false, false, "none", Some("clear"), Some("bright")).expect("map entry should deserialize");
+            parse_map_entry(false, "both", Some("clear"), Some("bright")).expect("map entry should deserialize");
         assert!(!disabled.settings.weapons.projectiles);
-        assert!(!disabled.settings.weapons.missiles);
-        assert_eq!(disabled.settings.weapons.portals, PortalMode::None);
+        assert_eq!(disabled.settings.weapons.portals, PortalMode::Both);
 
         let single =
-            parse_map_entry(true, true, "single", Some("clear"), Some("bright")).expect("map entry should deserialize");
+            parse_map_entry(true, "single", Some("clear"), Some("bright")).expect("map entry should deserialize");
         assert_eq!(single.settings.weapons.portals, PortalMode::Single);
     }
 
@@ -665,9 +673,8 @@ mod tests {
 
     #[test]
     fn validate_maps_rejects_random_pool_of_only_disabled_weapon_pickups() {
-        let mut maps = one_map_with_random_items("hotel", ok_random_items(&["missile_pack", "multi_shot"]));
+        let mut maps = one_map_with_random_items("hotel", ok_random_items(&["multi_shot"]));
         let entry = maps.get_mut("hotel").expect("hotel entry missing");
-        entry.settings.weapons.missiles = false;
         entry.settings.weapons.projectiles = false;
         let err = validate_test_maps(&maps, "hotel").expect_err("fully disabled pool must be rejected");
         assert!(err.to_string().contains("disables"));

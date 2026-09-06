@@ -26,6 +26,7 @@ def empty_level(index: int) -> dict:
         "grass": [],
         "walls": [],
         "barriers": [],
+        "erasers": [],
         "light_bridges": [],
         "lights": [],
     }
@@ -48,6 +49,7 @@ def normalize_map(map_data: dict) -> dict:
                 "grass": [normalize_grass(g) for g in level.get("grass", [])],
                 "walls": [normalize_wall(w) for w in level.get("walls", [])],
                 "barriers": [normalize_barrier(b) for b in level.get("barriers", [])],
+                "erasers": [normalize_eraser(e) for e in level.get("erasers", [])],
                 "light_bridges": [normalize_light_bridge(b) for b in level.get("light_bridges", [])],
                 "lights": [normalize_light(l) for l in level.get("lights", [])],
             }
@@ -92,6 +94,10 @@ def normalize_wall(wall: dict) -> dict:
         "r1": int(wall["r1"]),
         **expand_face_materials(wall),
     }
+
+
+def normalize_eraser(eraser: dict) -> dict:
+    return {key: int(eraser[key]) for key in ("c0", "r0", "c1", "r1")}
 
 
 def normalize_barrier(barrier: dict) -> dict:
@@ -317,7 +323,8 @@ def canonicalize_map(map_data: dict) -> dict:
             g for g in _dedupe_floors(level["grass"])
             if (g["col"], g["row"]) in slab_keys and (g["col"], g["row"]) not in ramp_set
         ]
-        level["walls"] = _dedupe_walls(level["walls"])
+        level["walls"] = _dedupe_edges(level["walls"])
+        level["erasers"] = _dedupe_edges(level.get("erasers", []))
         wall_endpoints_set = {
             edge_key(w)
             for w in level["walls"]
@@ -325,7 +332,7 @@ def canonicalize_map(map_data: dict) -> dict:
         # Drop barriers that share an edge with a wall on the same level so
         # canonical files satisfy the Rust loader's conflict rule.
         level["barriers"] = [
-            b for b in _dedupe_barriers(level.get("barriers", []))
+            b for b in _dedupe_edges(level.get("barriers", []))
             if edge_key(b) not in wall_endpoints_set
         ]
         level["light_bridges"] = _dedupe_floors(level.get("light_bridges", []))
@@ -405,19 +412,11 @@ def _dedupe_floors(floors: list[dict]) -> list[dict]:
     return [by_pos[k] for k in sorted(by_pos.keys(), key=lambda p: (p[1], p[0]))]
 
 
-def _dedupe_walls(walls: list[dict]) -> list[dict]:
+def _dedupe_edges(walls: list[dict]) -> list[dict]:
     by_edge: dict[tuple[int, int, int, int], dict] = {}
     for wall in walls:
         c0, r0, c1, r1 = normalized_wall([wall["c0"], wall["r0"], wall["c1"], wall["r1"]])
         by_edge[(c0, r0, c1, r1)] = {**wall, "c0": c0, "r0": r0, "c1": c1, "r1": r1}
-    return [by_edge[k] for k in sorted(by_edge.keys())]
-
-
-def _dedupe_barriers(barriers: list[dict]) -> list[dict]:
-    by_edge: dict[tuple[int, int, int, int], dict] = {}
-    for barrier in barriers:
-        c0, r0, c1, r1 = normalized_wall([barrier["c0"], barrier["r0"], barrier["c1"], barrier["r1"]])
-        by_edge[(c0, r0, c1, r1)] = {**barrier, "c0": c0, "r0": r0, "c1": c1, "r1": r1}
     return [by_edge[k] for k in sorted(by_edge.keys())]
 
 

@@ -24,7 +24,7 @@ pub(super) struct PlayerEntryStyle {
     pub min_entry_width: f32,
     pub health_bar_height: f32,
     pub max_missiles: u32,
-    pub show_multi_shot: bool,
+    pub power_up_kinds: Vec<PowerUpKind>,
     pub show_missiles: bool,
 }
 
@@ -104,10 +104,7 @@ pub(super) fn spawn_player_entry(
                 })
                 .with_children(|strip| {
                     spawn_icon_group(strip, |row| {
-                        for kind in PowerUpKind::ALL {
-                            if kind == PowerUpKind::MultiShot && !style.show_multi_shot {
-                                continue;
-                            }
+                        for &kind in &style.power_up_kinds {
                             spawn_power_up_icon(row, player_info.power_up(kind), kind, shapes);
                         }
                     });
@@ -175,6 +172,14 @@ fn spawn_power_up_icon(row: &mut ChildSpawnerCommands, active: bool, kind: Power
             let mut node = node;
             node.border_radius = BorderRadius::all(Val::Percent(50.0));
             row.spawn((node, BackgroundColor(color)));
+        }
+        PowerUpKind::PortalGun => {
+            let mut node = node;
+            node.width = Val::Px(8.0);
+            node.height = Val::Px(15.0);
+            node.border = UiRect::all(Val::Px(2.0));
+            node.border_radius = BorderRadius::all(Val::Percent(50.0));
+            row.spawn((node, BorderColor::all(color)));
         }
         PowerUpKind::MultiShot => {
             row.spawn((node, BackgroundColor(color)));

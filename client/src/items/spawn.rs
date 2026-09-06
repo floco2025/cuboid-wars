@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 use rand::random;
-use std::f32::consts::{FRAC_PI_4, TAU};
+use std::f32::consts::{FRAC_PI_2, FRAC_PI_4, TAU};
 
 use crate::{
     barriers::BarrierAssets,
@@ -10,7 +10,10 @@ use crate::{
     map::MapLevel,
     missiles::{MissileAssets, spawn_missile_pickup_visual},
 };
-use common::protocol::*;
+use common::{
+    constants::{PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH},
+    protocol::*,
+};
 
 // ============================================================================
 // Components
@@ -99,6 +102,20 @@ pub fn setup_item_assets(
     // The map editor mirrors these silhouettes as 2D glyphs
     // (tools/map_editor/canvas.py `_paint_items`) — keep the two in sync.
     let power_ups = vec![
+        PowerUpVisual {
+            item_type: ItemType::PortalGunPowerUp,
+            mesh: meshes.add(
+                Torus {
+                    minor_radius: ITEM_SIZE * 0.07,
+                    major_radius: ITEM_SIZE * 0.43,
+                }
+                .mesh()
+                .build()
+                .scaled_by(Vec3::new(1.0, 1.0, PORTAL_HALF_HEIGHT / PORTAL_HALF_WIDTH)),
+            ),
+            material: build_power_up(ItemType::PortalGunPowerUp),
+            base_orientation: Quat::from_rotation_x(FRAC_PI_2),
+        },
         // Speed: tetrahedron — angular silhouette reads as "fast". Default
         // Bevy `Tetrahedron` has two vertices at +y and two at -y (an edge
         // up); rotate so the vertex at (1,1,1) is the apex.
@@ -152,6 +169,7 @@ pub fn item_type_color(item_type: ItemType) -> Color {
         ItemType::SpeedPowerUp => ITEM_SPEED_COLOR,
         ItemType::MultiShotPowerUp => ITEM_MULTISHOT_COLOR,
         ItemType::LowGravityPowerUp => ITEM_LOW_GRAVITY_COLOR,
+        ItemType::PortalGunPowerUp => PORTAL_A_COLOR,
         ItemType::HealthPotion => ITEM_HEALTH_COLOR,
         ItemType::Cookie => Color::WHITE,
         ItemType::MissilePack => ITEM_MISSILE_COLOR,
@@ -176,9 +194,11 @@ pub fn spawn_item(
         ItemType::Cookie => spawn_cookie(commands, item_assets, item_id, position, level),
         ItemType::Key(kind) => spawn_key(commands, barrier_assets, item_id, position, level, kind),
         ItemType::MissilePack => spawn_missile_pack(commands, missile_assets, item_id, position, level),
-        ItemType::SpeedPowerUp | ItemType::MultiShotPowerUp | ItemType::LowGravityPowerUp | ItemType::HealthPotion => {
-            spawn_power_up(commands, item_assets, item_id, item_type, position, level)
-        }
+        ItemType::SpeedPowerUp
+        | ItemType::MultiShotPowerUp
+        | ItemType::LowGravityPowerUp
+        | ItemType::HealthPotion
+        | ItemType::PortalGunPowerUp => spawn_power_up(commands, item_assets, item_id, item_type, position, level),
     };
     commands.entity(entity).insert(ChildOf(carrier));
     entity

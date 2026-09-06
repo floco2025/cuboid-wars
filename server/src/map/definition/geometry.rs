@@ -21,8 +21,8 @@ use common::{
     constants::LADDER_WIDTH,
     map::MapGeometry,
     protocol::{
-        BarrierKindTable, BridgeKindTable, CarrierId, FaceMaterials, Floor, GrassCell, ItemType, Ladder, LightBridge,
-        PlatePurpose, PressurePlate, Wall,
+        BarrierKindTable, BridgeKindTable, CarrierId, Eraser, FaceMaterials, Floor, GrassCell, ItemType, Ladder,
+        LightBridge, PlatePurpose, PressurePlate, Wall,
     },
 };
 
@@ -237,6 +237,20 @@ pub(super) fn compile_geometry(
     layout.floors.extend(all_floors);
     layout.floor_materials.extend(all_floor_materials);
     layout.barriers.extend(all_barriers);
+    for (level, def) in map_def.levels.iter().enumerate() {
+        let level = u8::try_from(level).unwrap_or(u8::MAX);
+        layout.erasers.extend(def.erasers.iter().map(|edge| Eraser {
+            x1: geometry.cell_to_world_x(edge.c0),
+            z1: geometry.cell_to_world_z(edge.r0),
+            x2: geometry.cell_to_world_x(edge.c1),
+            z2: geometry.cell_to_world_z(edge.r1),
+            width: geometry.barrier_thickness(),
+            y: geometry.level_y(level),
+            height: geometry.level_height(),
+            level,
+            carrier,
+        }));
+    }
     layout.light_bridges.extend(all_light_bridges);
     layout
         .pressure_plates

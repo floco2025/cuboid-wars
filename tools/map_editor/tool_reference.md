@@ -15,7 +15,7 @@ Every element group ends with its own **Erase** tool that removes only that elem
 ## Select Tiles
 
 - **Select Tiles** — Where the editor starts. Click one tile or drag a rectangle to select tiles and their contents; empty tiles are selectable too. The blue outline marks the selection. Alt/Option-click a spawn zone to select it, then Alt/Option-drag its body or handles to move or resize it; Alt/Option-drag a nested map's end square to move that end. In every tool, right-click an element to edit its properties or erase it.
-- **Copy / Cut / Delete** — Available in Edit and the selection's right-click menu. Each asks how many levels to include, starting at the current level and going upward; the default is always 1. Copy and Cut put the entire block on the clipboard. Cut and Delete remove it. Walls and barriers on the rectangle's border are included. Include whole spawn zones, ramp footprints, ladder anchors and spans, and both ends of nested-map motion; a partial object prompts you to enlarge the selection. Removing a boundary wall with a light on its other side also needs that tile selected.
+- **Copy / Cut / Delete** — Available in Edit and the selection's right-click menu. Each asks how many levels to include, starting at the current level and going upward; the default is always 1. Copy and Cut put the entire block on the clipboard. Cut and Delete remove it. Walls, barriers, and equipment erasers on the rectangle's border are included. Include whole spawn zones, ramp footprints, ladder anchors and spans, and both ends of nested-map motion; a partial object prompts you to enlarge the selection. Removing a boundary wall with a light on its other side also needs that tile selected.
 - **Paste** — Select the destination tile (or a rectangle whose top-left tile is the destination), then paste. The dashed outline previews the footprint to replace; its label shows the tile dimensions and level count. Paste replaces all contents, including empty cells in the copied block, starting on the current level. Missing levels are added at the top. A block outside the grid is refused, and incompatible map kinds are reported. The clipboard works across open maps and editor windows. Cut, Delete, and Paste each undo in one step; Delete leaves the clipboard unchanged.
 
 ## Floors
@@ -39,6 +39,11 @@ Every element group ends with its own **Erase** tool that removes only that elem
 
 - **Wall** — Drag along grid lines to place atomic wall edges.
 - **Erase Walls** — Drag a rectangle to remove every wall edge inside or on its border; lights on those walls go too.
+
+## Equipment Erasers
+
+- **Equipment Eraser** — Drag along grid lines to place a walk-through field that removes a player's power-ups, keys, missile ammo, and controlled portal ends.
+- **Erase Equipment Erasers** — Drag a rectangle to remove every eraser edge inside or on its border.
 
 ## Barriers
 
@@ -92,7 +97,7 @@ Different purposes may share a tile, including multiple barrier or bridge kinds.
 
 ## Items
 
-- **Item** — Choose the type in the toolbar (power-ups, health potion, cookie, or key — keys also pick a barrier kind), then left-click a floor cell to place it. Right-click an item to change its type or erase it. Placed items hide on pickup in-game and reappear after the map's per-type `placed_items.respawn_secs` delay from `config/server/gameplay.json`. Non-key items render as colored circles; keys as diamonds in their barrier-kind color.
+- **Item** — Choose the type in the toolbar (power-ups, health potion, cookie, or key — keys also pick a barrier kind), then left-click a floor cell to place it. Right-click an item to change its type or erase it. Placed items hide on pickup in-game and reappear after the map's per-type `placed_items.respawn_secs` delay from `config/server/gameplay.json`. Item glyphs match their in-game silhouettes; portal guns use a hollow oval ring, and keys use diamonds in their barrier-kind color.
 - **Erase Items** — Drag a rectangle to remove every item inside it on the current level.
 
 ## Erase

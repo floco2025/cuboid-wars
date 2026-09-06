@@ -88,6 +88,7 @@ pub(in crate::network) fn handle_missiles_collected_message(
 ) {
     if let Some(info) = context.players.get_mut(&my_player_id) {
         info.missiles = message.missiles;
+        context.pending_weapon_selection.collect(ItemType::MissilePack);
     }
     play_sound(
         commands,

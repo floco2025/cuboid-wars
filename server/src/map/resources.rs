@@ -2,7 +2,7 @@ use bevy::prelude::Resource;
 
 use common::{
     map::MapGeometry,
-    protocol::{BarrierKindId, CarrierId, ItemType},
+    protocol::{CarrierId, ItemType, MapItems, MapWeaponSettings},
 };
 
 // Cell flags. Light bridges deliberately set none of them: actors never
@@ -213,26 +213,27 @@ impl MapConfig {
             .expect("carrier named by a zone, item, or plate has no grid")
     }
 
-    // Sorted for deterministic encoding.
     #[must_use]
-    pub fn key_kinds(&self) -> Vec<BarrierKindId> {
-        let mut kinds: Vec<BarrierKindId> = self
+    pub fn available_items(&self, random_pool: &[ItemType], weapons: MapWeaponSettings) -> MapItems {
+        let mut items = Vec::new();
+        for item in self
             .placed_items
             .iter()
-            .filter_map(|item| match item.item_type {
-                ItemType::Key(kind) => Some(kind),
-                _ => None,
-            })
-            .collect();
-        kinds.sort_unstable();
-        kinds.dedup();
-        kinds
+            .map(|item| item.item_type)
+            .chain(random_pool.iter().copied())
+        {
+            if weapons.allows_item(item) && !items.contains(&item) {
+                items.push(item);
+            }
+        }
+        MapItems(items)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use common::protocol::{BarrierKindId, PortalMode};
 
     fn key(kind: u16) -> PlacedItem {
         PlacedItem {
@@ -259,6 +260,36 @@ mod tests {
             ..MapConfig::for_grid(Vec::new(), crate::test_geometry::geometry(1, 1))
         };
 
-        assert_eq!(config.key_kinds(), [BarrierKindId(0), BarrierKindId(2)]);
+        let items = config.available_items(
+            &[],
+            MapWeaponSettings {
+                projectiles: true,
+                portals: PortalMode::Both,
+            },
+        );
+        assert_eq!(items.key_kinds(), [BarrierKindId(0), BarrierKindId(2)]);
+    }
+
+    #[test]
+    fn available_items_include_placed_and_random_pickups_and_filter_multi_shot() {
+        let config = MapConfig {
+            placed_items: vec![PlacedItem {
+                item_type: ItemType::PortalGunPowerUp,
+                ..key(0)
+            }],
+            ..MapConfig::for_grid(Vec::new(), crate::test_geometry::geometry(1, 1))
+        };
+        let items = config.available_items(
+            &[
+                ItemType::MissilePack,
+                ItemType::PortalGunPowerUp,
+                ItemType::MultiShotPowerUp,
+            ],
+            MapWeaponSettings {
+                projectiles: false,
+                portals: PortalMode::Both,
+            },
+        );
+        assert_eq!(items.0, [ItemType::PortalGunPowerUp, ItemType::MissilePack]);
     }
 }

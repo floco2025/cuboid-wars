@@ -25,8 +25,7 @@ impl PortalPair {
 }
 
 // Every placed portal end, keyed by pair. The authoritative store — the
-// snapshot list and the traversal `PortalSet` are derived views. Portals
-// survive their controller's death and leave with their disconnect.
+// snapshot list and the traversal `PortalSet` are derived views.
 #[derive(Resource, Default)]
 pub struct PortalMap(HashMap<PortalPairId, PortalPair>);
 
@@ -94,9 +93,6 @@ impl PortalAssignments {
     }
 
     pub fn assign(&mut self, player: PlayerId) -> PortalAccess {
-        if self.mode == PortalMode::None {
-            return PortalAccess::None;
-        }
         let slot = self.slot_of(&player).unwrap_or_else(|| {
             let slot = self.slots.iter().position(Option::is_none).unwrap_or_else(|| {
                 self.slots.push(None);
@@ -138,7 +134,6 @@ impl PortalAssignments {
     fn access(&self, slot: usize) -> PortalAccess {
         let pair = |index: usize| PortalPairId(u32::try_from(index + 1).expect("portal pair slot exceeds u32"));
         match self.mode {
-            PortalMode::None => PortalAccess::None,
             PortalMode::Single if self.is_solo() => PortalAccess::Both { pair: pair(slot / 2) },
             PortalMode::Single => PortalAccess::Single {
                 pair: pair(slot / 2),
@@ -289,14 +284,10 @@ mod tests {
     }
 
     #[test]
-    fn both_assignments_give_every_slot_its_own_pair_and_none_mode_gives_nothing() {
+    fn both_assignments_give_every_slot_its_own_pair() {
         let mut assignments = PortalAssignments::new(PortalMode::Both);
         assert_eq!(assignments.assign(PlayerId(1)), both(1));
         assert_eq!(assignments.assign(PlayerId(2)), both(2));
         assert_eq!(assignments.assign(PlayerId(1)), both(1));
-
-        let mut none = PortalAssignments::new(PortalMode::None);
-        assert_eq!(none.assign(PlayerId(1)), PortalAccess::None);
-        assert_eq!(none.get(&PlayerId(1)), PortalAccess::None);
     }
 }

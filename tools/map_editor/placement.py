@@ -14,7 +14,7 @@ from .constants import (
     PLAYER_ZONE_LIST,
 )
 from .dialogs import ActorSpawnFieldsDialog, KindDialog, MaterialAssignmentDialog
-from .editing import material_values, paint_bridges, paint_edges, paint_floors, paint_grass, place_plate, place_ramp, top_left_materials, update_records
+from .editing import material_values, paint_bridges, paint_edges, paint_erasers, paint_floors, paint_grass, place_plate, place_ramp, top_left_materials, update_records
 from .normalization import pressure_plate_key
 from .geometry import (
     ramp_error,
@@ -92,6 +92,9 @@ class PlacementMixin:
 
     def add_wall_line(self, start: tuple[int, int], end: tuple[int, int]) -> None:
         self.apply_change("Place Wall", paint_edges(self.map_data, self.current_level, start, end, material=self.current_material))
+
+    def add_equipment_eraser_line(self, start: tuple[int, int], end: tuple[int, int]) -> None:
+        self.apply_change("Place Equipment Eraser", paint_erasers(self.map_data, self.current_level, start, end))
 
     def prompt_and_add_barrier_line(self, start: tuple[int, int], end: tuple[int, int]) -> None:
         kind = self.placement_kind("Place Barrier", self.barrier_kinds, self.recent_barrier_kind, "barrier")

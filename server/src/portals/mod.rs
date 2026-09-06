@@ -1,3 +1,4 @@
+mod equipment;
 mod plugin;
 mod resources;
 mod spawn;

@@ -110,6 +110,7 @@ impl PlayerInfo {
         self.power_ups = status.power_ups;
         self.stunned = status.stunned;
         self.held_keys.clone_from(&status.held_keys);
+        self.missiles = status.missiles;
     }
 
     #[must_use]
@@ -255,7 +256,7 @@ mod tests {
             movement: PlayerMovementState::new(Position::default(), PlayerMoveIntent::default(), 0.0, 0.0),
             health: Health(100.0),
             score: 7,
-            power_ups: [true, true, false],
+            power_ups: [true, true, false, false],
             stunned: true,
             held_keys: vec![BarrierKindId(1), BarrierKindId(3)],
             missiles: 2,
@@ -362,10 +363,12 @@ mod tests {
         let player = snapshot_player();
         let mut info = PlayerInfo::from_snapshot(Entity::PLACEHOLDER, &player, 0);
         let status = SPlayerStatus {
+            collected: None,
             id: PlayerId(12),
-            power_ups: [false, false, true],
+            power_ups: [false, false, true, false],
             stunned: false,
             held_keys: vec![BarrierKindId(2)],
+            missiles: 0,
         };
 
         info.apply_status(&status);
@@ -375,6 +378,7 @@ mod tests {
         assert_eq!(info.power_ups, status.power_ups);
         assert_eq!(info.stunned, status.stunned);
         assert_eq!(info.held_keys, status.held_keys);
+        assert_eq!(info.missiles, status.missiles);
     }
 
     #[test]

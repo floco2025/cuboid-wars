@@ -25,6 +25,7 @@ def furnished_block() -> dict:
         "grass": [{"col": 0, "row": 0}],
         "walls": [{"c0": 0, "r0": 0, "c1": 1, "r1": 0, "all": DEFAULT_ALIAS}],
         "barriers": [{"c0": 3, "r0": 0, "c1": 4, "r1": 0, "kind": "gate"}],
+        "erasers": [{"c0": 1, "r0": 1, "c1": 2, "r1": 1}],
         "light_bridges": [{"col": 2, "row": 0, "kind": "bridge"}],
         "lights": [{"col": 0, "row": 0, "side": "N"}],
     })

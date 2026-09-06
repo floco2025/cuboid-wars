@@ -3,7 +3,7 @@
   "maps": {
     "hotel": {
       "skybox": "cloudy_day",
-      "portal_shots": { "barriers_block": true, "light_bridges_block": true },
+      "portal_shots": { "barriers_block": true, "light_bridges_block": true, "erasers_block": true },
       "geometry": { "grid_cell_size": 3.4, "level_height": 4.4, "floor_thickness": 0.4, "wall_thickness": 0.3 },
       "weather": "auto",
       "lighting": "auto",
@@ -29,7 +29,6 @@
       },
       "weapons": {
         "projectiles": true,
-        "missiles": true,
         "portals": "both"
       },
       "barrier_kinds": [
@@ -40,10 +39,11 @@
       ],
       "bridge_kinds": [ ],
       "random_items": {
-        "types": [ "speed", "multi_shot", "low_gravity", "health_potion", "missile_pack" ],
+        "types": [ "speed", "multi_shot", "low_gravity", "portal_gun", "health_potion", "missile_pack" ],
         "max_number": 30,
         "despawn_secs": 60.0
       },
+      "power_ups": { "duration_secs": { "speed": 30.0, "multi_shot": 25.0, "low_gravity": 20.0, "portal_gun": 25.0 } },
       "placed_items": {
         "respawn_secs": {
           "speed": 60.0,
@@ -52,7 +52,8 @@
           "health_potion": 60.0,
           "cookie": 60.0,
           "key": 30.0,
-          "missile_pack": 30.0
+          "missile_pack": 30.0,
+          "portal_gun": 1.0
         }
       },
       "quests": [
@@ -120,7 +121,7 @@
     },
     "obby": {
       "skybox": "cloudy_day",
-      "portal_shots": { "barriers_block": true, "light_bridges_block": true },
+      "portal_shots": { "barriers_block": true, "light_bridges_block": true, "erasers_block": true },
       "geometry": { "grid_cell_size": 4.0, "level_height": 2.4, "floor_thickness": 0.4, "wall_thickness": 0.4 },
       "weather": "clear",
       "lighting": "bright",
@@ -146,7 +147,6 @@
       },
       "weapons": {
         "projectiles": true,
-        "missiles": true,
         "portals": "single"
       },
       "barrier_kinds": [
@@ -159,22 +159,24 @@
         { "id": "bridge_3", "color": "#30d8ff" }
       ],
       "random_items": null,
+      "power_ups": { "duration_secs": { "speed": 0.0, "multi_shot": 0.0, "low_gravity": 0.0, "portal_gun": 0.0 } },
       "placed_items": {
         "respawn_secs": {
-          "speed": 10.0,
-          "multi_shot": 60.0,
-          "low_gravity": 10.0,
-          "health_potion": 60.0,
+          "speed": 5.0,
+          "multi_shot": 5.0,
+          "low_gravity": 5.0,
+          "health_potion": 5.0,
           "cookie": 60.0,
-          "key": 30.0,
-          "missile_pack": 30.0
+          "key": 5.0,
+          "missile_pack": 5.0,
+          "portal_gun": 5.0
         }
       },
       "quests": [ ]
     },
     "relay": {
       "skybox": "cloudy_day",
-      "portal_shots": { "barriers_block": true, "light_bridges_block": true },
+      "portal_shots": { "barriers_block": true, "light_bridges_block": true, "erasers_block": true },
       "geometry": { "grid_cell_size": 4.0, "level_height": 4.0, "floor_thickness": 0.4, "wall_thickness": 0.4 },
       "weather": "clear",
       "lighting": "bright",
@@ -200,7 +202,6 @@
       },
       "weapons": {
         "projectiles": false,
-        "missiles": false,
         "portals": "both"
       },
       "barrier_kinds": [
@@ -212,15 +213,17 @@
         { "id": "power", "color": "#22cc33" }
       ],
       "random_items": null,
+      "power_ups": { "duration_secs": { "speed": 0.0, "multi_shot": 0.0, "low_gravity": 0.0, "portal_gun": 0.0 } },
       "placed_items": {
         "respawn_secs": {
-          "speed": 60.0,
-          "multi_shot": 60.0,
-          "low_gravity": 60.0,
-          "health_potion": 10.0,
+          "speed": 5.0,
+          "multi_shot": 5.0,
+          "low_gravity": 5.0,
+          "health_potion": 5.0,
           "cookie": 86400.0,
-          "key": 2.0,
-          "missile_pack": 30.0
+          "key": 5.0,
+          "missile_pack": 5.0,
+          "portal_gun": 5.0
         }
       },
       "quests": [
@@ -363,11 +366,6 @@
     },
     "portals": {
       "range": 100.0
-    }
-  },
-  "items": {
-    "power_ups": {
-      "duration_secs": { "speed": 30.0, "multi_shot": 25.0, "low_gravity": 20.0 }
     }
   },
   "combat": {

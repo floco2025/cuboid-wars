@@ -1,4 +1,5 @@
 pub mod cubemap;
+mod erasers;
 mod grass;
 mod rendering;
 mod resources;

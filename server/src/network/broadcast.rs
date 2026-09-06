@@ -254,7 +254,7 @@ mod tests {
             &players,
             &player_data,
             &motions,
-            &PortalAssignments::new(PortalMode::None),
+            &PortalAssignments::new(PortalMode::Both),
         );
 
         assert_eq!(snapshot.len(), 1);

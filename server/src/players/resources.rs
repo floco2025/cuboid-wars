@@ -9,7 +9,7 @@ use common::protocol::{
     PortalAccess, Position, PowerUpKind, QuestId, QuestScope, SPlayerStatus,
 };
 
-use super::PlayerFallState;
+use super::{PlayerFallState, PowerUpState};
 
 pub type PlayerStateQuery<'w, 's> = Query<
     'w,
@@ -94,9 +94,7 @@ enum PlayerLifecycle {
 
 pub struct PlayerLife {
     lifecycle: PlayerLifecycle,
-    // Per-kind countdown to power-up expiry. Indexed by `PowerUpKind::index()`.
-    // `> 0.0` means active; ticked down by `tick_timers`.
-    pub power_up_timers: [f32; PowerUpKind::COUNT],
+    pub power_ups: [PowerUpState; PowerUpKind::COUNT],
     pub stun_timer: f32,
     pub last_shot_time: f32,
     // Missile ammo, collected from `missile_pack` items up to the configured
@@ -117,7 +115,7 @@ impl PlayerLife {
     fn with_lifecycle(lifecycle: PlayerLifecycle) -> Self {
         Self {
             lifecycle,
-            power_up_timers: [0.0; PowerUpKind::COUNT],
+            power_ups: [PowerUpState::Inactive; PowerUpKind::COUNT],
             stun_timer: 0.0,
             last_shot_time: f32::NEG_INFINITY,
             missiles: 0,
@@ -214,7 +212,22 @@ impl PlayerInfo {
 
     #[must_use]
     pub fn has(&self, kind: PowerUpKind) -> bool {
-        self.life.power_up_timers[kind.index()] > 0.0
+        self.life.power_ups[kind.index()].is_active()
+    }
+
+    #[must_use]
+    pub fn has_permanent(&self, kind: PowerUpKind) -> bool {
+        self.life.power_ups[kind.index()] == PowerUpState::Permanent
+    }
+
+    pub fn erase_equipment(&mut self) -> bool {
+        let changed = self.life.power_ups.iter().any(|state| state.is_active())
+            || !self.life.held_keys.is_empty()
+            || self.life.missiles != 0;
+        self.life.power_ups.fill(PowerUpState::Inactive);
+        self.life.held_keys.clear();
+        self.life.missiles = 0;
+        changed
     }
 
     #[must_use]
@@ -245,9 +258,9 @@ impl PlayerInfo {
 
     pub fn grant_power_up(&mut self, item_type: ItemType, durations: &PowerUpsConfig) {
         let Some(kind) = PowerUpKind::from_item_type(item_type) else {
-            unreachable!("only timer-based power-ups call grant_power_up; health potion is applied to Health directly");
+            unreachable!("non-power-up item passed to grant_power_up");
         };
-        self.life.power_up_timers[kind.index()] = durations.duration_secs_for(kind);
+        self.life.power_ups[kind.index()] = PowerUpState::from_duration(durations.duration_secs_for(kind));
     }
 
     pub fn try_start_shot(&mut self, now: f32, cooldown_secs: f32) -> Option<bool> {
@@ -258,7 +271,7 @@ impl PlayerInfo {
     }
 
     pub fn try_start_portal_shot(&mut self, now: f32, cooldown_secs: f32) -> bool {
-        self.try_start_weapon_fire(now, cooldown_secs)
+        self.has(PowerUpKind::PortalGun) && self.try_start_weapon_fire(now, cooldown_secs)
     }
 
     fn try_start_weapon_fire(&mut self, now: f32, cooldown_secs: f32) -> bool {
@@ -291,9 +304,11 @@ impl PlayerInfo {
     pub fn status(&self, id: PlayerId) -> SPlayerStatus {
         SPlayerStatus {
             id,
+            collected: None,
             power_ups: self.active_power_ups(),
             stunned: self.is_stunned(),
             held_keys: self.life.held_keys.clone(),
+            missiles: self.life.missiles,
         }
     }
 
@@ -322,8 +337,8 @@ impl PlayerInfo {
     }
 
     pub fn tick_timers(&mut self, delta: f32) {
-        for t in &mut self.life.power_up_timers {
-            tick_timer(t, delta);
+        for state in &mut self.life.power_ups {
+            state.tick(delta);
         }
         tick_timer(&mut self.life.stun_timer, delta);
     }
@@ -410,6 +425,7 @@ mod tests {
                 speed: 1.0,
                 multi_shot: 1.0,
                 low_gravity: 1.0,
+                portal_gun: 0.0,
             },
         }
     }
@@ -476,8 +492,53 @@ mod tests {
     }
 
     #[test]
+    fn missing_or_expired_gun_rejects_portal_fire_without_spending_cooldown() {
+        let mut info = dummy_info();
+        assert!(!info.try_start_portal_shot(1.0, 0.1));
+        assert_eq!(info.try_start_shot(1.0, 0.1), Some(false));
+        let mut config = test_power_ups_config();
+        config.duration_secs.portal_gun = 2.0;
+        info.grant_power_up(ItemType::PortalGunPowerUp, &config);
+        info.tick_timers(1.0);
+        assert!(info.try_start_portal_shot(2.0, 0.1));
+        info.grant_power_up(ItemType::PortalGunPowerUp, &config);
+        info.tick_timers(1.5);
+        assert!(info.has(PowerUpKind::PortalGun));
+        info.tick_timers(0.5);
+        assert!(!info.try_start_portal_shot(3.0, 0.1));
+        assert_eq!(info.try_start_shot(3.0, 0.1), Some(false));
+    }
+
+    #[test]
+    fn erasure_clears_equipment_and_preserves_other_player_state() {
+        let mut info = dummy_info();
+        info.session.score = 42;
+        info.session
+            .quest_states
+            .insert(QuestId("quest".into()), PlayerQuestState::Individual { progress: 3 });
+        info.life.stun_timer = 2.0;
+        info.add_key(BarrierKindId(1));
+        info.add_missiles(2, 3);
+        for kind in PowerUpKind::ALL {
+            info.grant_power_up(kind.to_item_type(), &test_power_ups_config());
+        }
+        assert!(info.erase_equipment());
+        assert!(!info.erase_equipment());
+        assert!(PowerUpKind::ALL.into_iter().all(|kind| !info.has(kind)));
+        assert!(info.life.held_keys.is_empty());
+        assert_eq!(info.life.missiles, 0);
+        assert_eq!(info.life.stun_timer, 2.0);
+        assert_eq!(info.session.score, 42);
+        assert_eq!(
+            info.session.quest_states[&QuestId("quest".into())].own_progress(),
+            Some(3)
+        );
+    }
+
+    #[test]
     fn projectile_and_portal_shots_share_a_cooldown() {
         let mut info = dummy_info();
+        info.grant_power_up(ItemType::PortalGunPowerUp, &test_power_ups_config());
         const COOLDOWN: f32 = 0.1;
 
         assert!(info.try_start_portal_shot(10.0, COOLDOWN));
@@ -549,8 +610,8 @@ mod tests {
         let mut info = dummy_info();
         info.connection.name = "Alice".to_owned();
         info.session.score = 5;
-        info.life.power_up_timers[PowerUpKind::Speed.index()] = 1.0;
-        info.life.power_up_timers[PowerUpKind::LowGravity.index()] = 2.0;
+        info.life.power_ups[PowerUpKind::Speed.index()] = PowerUpState::Timed(1.0);
+        info.life.power_ups[PowerUpKind::LowGravity.index()] = PowerUpState::Timed(2.0);
         info.life.stun_timer = 0.5;
         info.add_key(BarrierKindId(1));
         info.add_key(BarrierKindId(3));
@@ -588,13 +649,13 @@ mod tests {
             .quest_states
             .insert(quest_id.clone(), PlayerQuestState::Individual { progress: 7 });
         info.session.score = 42;
-        info.life.power_up_timers[PowerUpKind::Speed.index()] = 5.0;
+        info.life.power_ups[PowerUpKind::Speed.index()] = PowerUpState::Timed(5.0);
 
         info.begin_respawn(2.0);
 
         assert_eq!(
-            info.life.power_up_timers[PowerUpKind::Speed.index()],
-            0.0,
+            info.life.power_ups[PowerUpKind::Speed.index()],
+            PowerUpState::Inactive,
             "power-up timers reset on death"
         );
         assert_eq!(

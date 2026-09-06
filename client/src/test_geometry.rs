@@ -49,8 +49,7 @@ pub(crate) fn map_settings() -> MapSettings {
         },
         weapons: MapWeaponSettings {
             projectiles: true,
-            missiles: false,
-            portals: PortalMode::None,
+            portals: PortalMode::Both,
         },
         barrier_kinds: Vec::new(),
         bridge_kinds: Vec::new(),

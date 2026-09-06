@@ -21,6 +21,7 @@ pub fn map_plugin(app: &mut App) {
         Update,
         (
             map_spawn_geometry_system,
+            erasers::erasers_spawn_system,
             grass_spawn_system,
             grass_burn_system.after(grass_spawn_system),
             update_focused_map_level_system,
@@ -29,6 +30,7 @@ pub fn map_plugin(app: &mut App) {
                 .run_if(resource_changed::<FocusedMapLevel>),
             added_map_level_visibility_system
                 .after(map_spawn_geometry_system)
+                .after(erasers::erasers_spawn_system)
                 .after(grass_spawn_system)
                 .after(update_focused_map_level_system)
                 .after(map_level_focus_visibility_system),

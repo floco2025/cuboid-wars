@@ -8,7 +8,7 @@ from .constants import SPAWN_ZONE_LISTS
 
 
 CELL_LISTS = ("floors", "inaccessible_floors", "grass", "light_bridges", "lights")
-EDGE_LISTS = ("walls", "barriers")
+EDGE_LISTS = ("walls", "barriers", "erasers")
 LEVEL_LISTS = (*CELL_LISTS, *EDGE_LISTS)
 GLOBAL_LISTS = (*SPAWN_ZONE_LISTS, "items", "pressure_plates", "ramps", "ladders", "nested_maps")
 

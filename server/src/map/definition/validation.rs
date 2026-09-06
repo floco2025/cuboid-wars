@@ -229,6 +229,15 @@ fn validate_levels(map_def: &MapDef) -> Result<()> {
         validate_grass(level, &label, map_def.grid_cols, map_def.grid_rows)?;
         let walls = validate_walls(level, &label, map_def.grid_cols, map_def.grid_rows)?;
         validate_barriers(level, &label, map_def.grid_cols, map_def.grid_rows, &walls)?;
+        let mut erasers_seen = BTreeSet::new();
+        for (idx, eraser) in level.erasers.iter().enumerate() {
+            let key = [eraser.c0, eraser.r0, eraser.c1, eraser.r1];
+            validate_wall(key, map_def.grid_cols, map_def.grid_rows)
+                .with_context(|| format!("{label}: erasers[{idx}]"))?;
+            if !erasers_seen.insert(normalized_wall(key)) {
+                return Err(anyhow!("{label}: duplicate eraser {:?}", key));
+            }
+        }
         validate_light_bridges(level, &label, map_def, level_idx, &floors, &inaccessible)?;
     }
     Ok(())

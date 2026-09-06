@@ -17,7 +17,7 @@ pub use toggles::{
     enter_borderless_fullscreen, input_camera_view_toggle_system, input_debug_colors_cycle_system,
     input_fullscreen_toggle_system, input_level_focus_toggle_system,
 };
-pub use weapons::{WeaponMode, input_weapon_select_system};
+pub use weapons::{PendingWeaponSelection, WeaponMode, input_weapon_select_system};
 
 mod plugin;
 
