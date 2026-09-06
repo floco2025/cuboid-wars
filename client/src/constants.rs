@@ -59,11 +59,15 @@ pub const RECON_PLAYER_SNAP_DECAY_SECS: f32 = 1.0;
 // corrections more clearly than moving ones, so smooth them slowly.
 pub const RECON_PLAYER_IDLE_CORRECTION_SECS: f32 = 8.0;
 
-// A portal crossing the client has predicted shows up in the server's
-// states about one-way latency later. One still missing a round trip plus
-// this after it was mispredicted, and the server's side stands
-// (`PlayerInfo::disputed_echoes`).
-pub const HOP_DISPUTE_SLACK_SECS: f32 = 0.3;
+// How long, in server ticks, a state disputing a player's portal crossing
+// count must keep doing so before the server's side stands
+// (`PlayerInfo::judge_crossing`). The client's copy of a remote player may
+// cross up to this long after the server's crossing state arrives (its
+// intent lands late and its correction is smoothed), and the local player's
+// own crossing may land a tick or two late on the server after a lost
+// commit; a third of a second covers both. Latency shifts the evidence and
+// the copy together, so the slack does not have to cover it.
+pub const HOP_DISPUTE_SLACK_TICKS: u32 = 10;
 
 // --- Actor only ---
 

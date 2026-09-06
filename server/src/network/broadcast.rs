@@ -151,9 +151,11 @@ pub fn snapshot_spawning_actors(pending: &PendingActorSpawns) -> Vec<(ActorId, S
                 spawn.actor_id,
                 SpawningActor {
                     kind: spawn.kind.clone(),
+                    carrier: spawn.carrier,
                     pos: spawn.pos,
                     face_yaw: spawn.face_yaw,
-                    remaining_secs: spawn.remaining_secs,
+                    reserved_tick: spawn.reserved_tick,
+                    due_tick: spawn.due_tick,
                 },
             )
         })

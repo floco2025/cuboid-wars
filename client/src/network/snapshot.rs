@@ -35,7 +35,7 @@ pub(super) fn handle_snapshot_message(
         context.quest_log.apply_group_status(&message.quests);
     }
 
-    sync_players(commands, context, my_player_id, &message.players);
+    sync_players(commands, context, my_player_id, message.tick, &message.players);
     sync_actors(commands, context, &message.actors);
     sync_spawning_actors(commands, context, &message.spawning_actors);
     sync_items(commands, context, &message.items);

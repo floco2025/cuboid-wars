@@ -1,7 +1,7 @@
 use bevy_ecs::prelude::Resource;
 use bevy_math::Vec3;
 
-use crate::protocol::{Carrier, CarrierId, MapLayout};
+use crate::protocol::{Carrier, CarrierId, MapLayout, Position};
 
 // A carrier's placement in world space. Translation only for now; a
 // rotation about the vertical axis joins later, and every consumer goes
@@ -29,6 +29,16 @@ impl CarrierPose {
     #[must_use]
     pub fn inverse_transform_point(&self, point: Vec3) -> Vec3 {
         point - self.translation
+    }
+
+    #[must_use]
+    pub fn transform_position(&self, pos: &Position) -> Position {
+        Position::from(self.transform_point(Vec3::from(*pos)))
+    }
+
+    #[must_use]
+    pub fn inverse_transform_position(&self, pos: &Position) -> Position {
+        Position::from(self.inverse_transform_point(Vec3::from(*pos)))
     }
 
     #[must_use]
@@ -165,6 +175,14 @@ impl Carriers {
     pub fn pose(&self, id: CarrierId) -> CarrierPose {
         self.carried(id)
             .map_or(CarrierPose::IDENTITY, |runtime| runtime.current)
+    }
+
+    // The carrier's world pose at the last tick, where a body that rode it
+    // was left standing; the identity for the world.
+    #[must_use]
+    pub fn previous_pose(&self, id: CarrierId) -> CarrierPose {
+        self.carried(id)
+            .map_or(CarrierPose::IDENTITY, |runtime| runtime.previous)
     }
 
     // The pose between the last two ticks, for render-rate interpolation.

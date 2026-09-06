@@ -1,7 +1,6 @@
 use bevy::prelude::*;
 
 use crate::{
-    actors::ActorSpawnWarningSecs,
     barriers::{KeyKinds, build_barrier_assets},
     bridges::build_bridge_assets,
     carriers::{CarrierStoreys, spawn_carrier_entities},
@@ -83,7 +82,6 @@ pub(crate) fn install_bootstrap(app: &mut App, message: SInit, asset_set: &Asset
         .insert_resource(blast_radii)
         .insert_resource(max_health)
         .insert_resource(KeyKinds(message.world.map.key_kinds))
-        .insert_resource(ActorSpawnWarningSecs(message.world.gameplay.actor_spawn_warning_secs))
         .insert_resource(QuestLog::default())
         .insert_resource(HudBanner::default());
     Ok(())

@@ -1,9 +1,9 @@
 use bevy::prelude::*;
 use std::collections::HashMap;
 
-use common::protocol::{BarrierKindId, Player, PlayerId, Position, PowerUpKind, SPlayerStatus};
+use common::protocol::{BarrierKindId, Player, PlayerId, Position, PowerUpKind, SPlayerStatus, sequence_is_newer};
 
-use crate::constants::COMMITTED_POSITION_RING_LEN;
+use crate::constants::{COMMITTED_POSITION_RING_LEN, HOP_DISPUTE_SLACK_TICKS};
 
 // My player ID assigned by the server.
 #[derive(Resource)]
@@ -31,14 +31,28 @@ pub struct PlayerInfo {
     // seeded from the snapshot. A server state pairs with that simulation
     // only while its count matches.
     pub hops: u32,
-    // Consecutive server states from the other side of a crossing; past the
-    // dispute limit the server's side stands.
-    pub disputed_echoes: u32,
+    // The tick our simulation made its last crossing at (the snapshot's tick
+    // at appearance). A state from before it is from the other side by
+    // right, not in dispute.
+    pub hop_tick: u32,
+    // The server tick of the first state disputing our count, while a
+    // dispute is open.
+    pub disputed_since: Option<u32>,
+}
+
+// How a server state relates to our simulation of the player: on the same
+// side of the same crossings, from the other side (not to be steered or
+// reconciled from), or settling a dispute for the server.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CrossingVerdict {
+    Paired,
+    Skipped,
+    Settled,
 }
 
 impl PlayerInfo {
     #[must_use]
-    pub fn from_snapshot(entity: Entity, player: &Player) -> Self {
+    pub fn from_snapshot(entity: Entity, player: &Player, tick: u32) -> Self {
         let mut info = Self {
             entity,
             score: 0,
@@ -49,10 +63,38 @@ impl PlayerInfo {
             missiles: 0,
             snap_speed: 0.0,
             hops: player.hops,
-            disputed_echoes: 0,
+            hop_tick: tick,
+            disputed_since: None,
         };
         info.apply_snapshot(player);
         info
+    }
+
+    // Judges a state carrying `hops` at server tick `tick`. A state from
+    // before our own crossing is from the other side by right and is only
+    // skipped; one from at or after it without the crossing, or one carrying
+    // a crossing we never made, is evidence of a misprediction, and evidence
+    // outlasting `HOP_DISPUTE_SLACK_TICKS` settles for the server, whose
+    // count and tick we adopt. Nothing settles until `TickSync` has
+    // measured the clock: under the rough seed `hop_tick` sits a round trip
+    // early.
+    pub fn judge_crossing(&mut self, tick: u32, hops: u32, clock_seeded: bool) -> CrossingVerdict {
+        if hops == self.hops {
+            self.disputed_since = None;
+            return CrossingVerdict::Paired;
+        }
+        let evidence = sequence_is_newer(hops, self.hops) || !sequence_is_newer(self.hop_tick, tick);
+        if !evidence || !clock_seeded {
+            return CrossingVerdict::Skipped;
+        }
+        let since = *self.disputed_since.get_or_insert(tick);
+        if tick.wrapping_sub(since) < HOP_DISPUTE_SLACK_TICKS {
+            return CrossingVerdict::Skipped;
+        }
+        self.hops = hops;
+        self.hop_tick = tick;
+        self.disputed_since = None;
+        CrossingVerdict::Settled
     }
 
     pub fn apply_snapshot(&mut self, player: &Player) {
@@ -114,6 +156,10 @@ impl PlayerMap {
 
     pub fn iter(&self) -> impl Iterator<Item = (&PlayerId, &PlayerInfo)> {
         self.0.iter()
+    }
+
+    pub fn values_mut(&mut self) -> impl Iterator<Item = &mut PlayerInfo> {
+        self.0.values_mut()
     }
 
     pub fn retain(&mut self, f: impl FnMut(&PlayerId, &mut PlayerInfo) -> bool) {
@@ -217,7 +263,7 @@ mod tests {
     fn from_snapshot_copies_player_info_state() {
         let player = snapshot_player();
 
-        let info = PlayerInfo::from_snapshot(Entity::PLACEHOLDER, &player);
+        let info = PlayerInfo::from_snapshot(Entity::PLACEHOLDER, &player, 42);
 
         assert_eq!(info.entity, Entity::PLACEHOLDER);
         assert_eq!(info.score, player.score);
@@ -226,12 +272,90 @@ mod tests {
         assert_eq!(info.stunned, player.stunned);
         assert_eq!(info.held_keys, player.held_keys);
         assert_eq!(info.missiles, player.missiles);
+        assert_eq!(info.hops, player.hops);
+        assert_eq!(info.hop_tick, 42);
+    }
+
+    fn crossing_info(hops: u32, hop_tick: u32) -> PlayerInfo {
+        let mut info = PlayerInfo::from_snapshot(Entity::PLACEHOLDER, &snapshot_player(), hop_tick);
+        info.hops = hops;
+        info
+    }
+
+    #[test]
+    fn a_matching_state_pairs_and_clears_a_dispute() {
+        let mut info = crossing_info(3, 100);
+        info.disputed_since = Some(90);
+
+        assert_eq!(info.judge_crossing(101, 3, true), CrossingVerdict::Paired);
+        assert_eq!(info.disputed_since, None);
+    }
+
+    #[test]
+    fn a_state_from_before_our_crossing_is_skipped_not_evidence() {
+        let mut info = crossing_info(3, 100);
+
+        assert_eq!(info.judge_crossing(95, 2, true), CrossingVerdict::Skipped);
+        assert_eq!(info.disputed_since, None);
+        assert_eq!(info.hops, 3);
+    }
+
+    #[test]
+    fn a_missing_crossing_settles_after_the_slack() {
+        let mut info = crossing_info(3, 100);
+        for tick in 100..100 + HOP_DISPUTE_SLACK_TICKS {
+            assert_eq!(
+                info.judge_crossing(tick, 2, true),
+                CrossingVerdict::Skipped,
+                "tick {tick}"
+            );
+        }
+        assert_eq!(info.disputed_since, Some(100));
+
+        let settled = 100 + HOP_DISPUTE_SLACK_TICKS;
+        assert_eq!(info.judge_crossing(settled, 2, true), CrossingVerdict::Settled);
+        assert_eq!(info.hops, 2);
+        assert_eq!(info.hop_tick, settled);
+        assert_eq!(info.disputed_since, None);
+    }
+
+    #[test]
+    fn a_server_crossing_we_did_not_make_settles_after_the_slack() {
+        let mut info = crossing_info(3, 50);
+
+        assert_eq!(info.judge_crossing(200, 4, true), CrossingVerdict::Skipped);
+        assert_eq!(info.disputed_since, Some(200));
+        assert_eq!(
+            info.judge_crossing(200 + HOP_DISPUTE_SLACK_TICKS, 4, true),
+            CrossingVerdict::Settled
+        );
+        assert_eq!(info.hops, 4);
+    }
+
+    #[test]
+    fn an_unseeded_clock_never_settles() {
+        let mut info = crossing_info(3, 100);
+        for tick in 100..200 {
+            assert_eq!(info.judge_crossing(tick, 2, false), CrossingVerdict::Skipped);
+        }
+        assert_eq!(info.hops, 3);
+        assert_eq!(info.disputed_since, None);
+    }
+
+    #[test]
+    fn a_pairing_within_the_slack_ends_the_dispute() {
+        let mut info = crossing_info(3, 100);
+        assert_eq!(info.judge_crossing(100, 2, true), CrossingVerdict::Skipped);
+        assert_eq!(info.disputed_since, Some(100));
+
+        assert_eq!(info.judge_crossing(103, 3, true), CrossingVerdict::Paired);
+        assert_eq!(info.disputed_since, None);
     }
 
     #[test]
     fn apply_status_updates_status_fields_only() {
         let player = snapshot_player();
-        let mut info = PlayerInfo::from_snapshot(Entity::PLACEHOLDER, &player);
+        let mut info = PlayerInfo::from_snapshot(Entity::PLACEHOLDER, &player, 0);
         let status = SPlayerStatus {
             id: PlayerId(12),
             power_ups: [false, false, true],

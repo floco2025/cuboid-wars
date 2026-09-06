@@ -1,4 +1,4 @@
-use common::protocol::CarrierId;
+pub(super) use common::protocol::CarrierId;
 use std::sync::LazyLock;
 
 pub(super) use bevy::prelude::Entity;
@@ -34,7 +34,7 @@ pub(crate) fn order(entity_bits: u64, route_distance: f32, id: u32) -> ActorPlan
 }
 
 pub(crate) fn actor_info() -> ActorInfo {
-    ActorInfo::new(test_entity(1), 0, TEST_KIND.into())
+    ActorInfo::new(test_entity(1), 0, TEST_KIND.into(), CarrierId::WORLD)
 }
 
 pub(crate) fn route(target: Position) -> ActorRoute {
@@ -129,6 +129,7 @@ pub(crate) fn context<'a>(
         gravity: 25.0,
         ladder_climb_ratio: test_ladders(),
         knockback_step: bevy::prelude::Vec3::ZERO,
+        carrier_step: bevy::prelude::Vec3::ZERO,
         carriers: &NO_CARRIERS,
     }
 }

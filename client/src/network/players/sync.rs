@@ -19,6 +19,7 @@ pub(in crate::network) fn sync_players(
     commands: &mut Commands,
     context: &mut ServerMessageContext,
     my_player_id: PlayerId,
+    tick: u32,
     server_players: &[(PlayerId, Player)],
 ) {
     let update_ids: HashSet<PlayerId> = server_players.iter().map(|(id, _)| *id).collect();
@@ -35,7 +36,7 @@ pub(in crate::network) fn sync_players(
             continue;
         }
 
-        spawn_snapshot_player(commands, context, my_player_id, *id, player);
+        spawn_snapshot_player(commands, context, my_player_id, tick, *id, player);
     }
 
     // Handle players no longer in the snapshot:
@@ -105,7 +106,8 @@ pub(in crate::network) fn sync_players(
         // The pre-death records and any pending crossing dispute describe a
         // player that no longer exists.
         info.hops = server_player.hops;
-        info.disputed_echoes = 0;
+        info.hop_tick = tick;
+        info.disputed_since = None;
         context.local_player_info.committed_positions.clear();
         context.local_player_info.is_dead = false;
         local_just_respawned = true;
@@ -128,6 +130,7 @@ fn spawn_snapshot_player(
     commands: &mut Commands,
     context: &mut ServerMessageContext,
     my_player_id: PlayerId,
+    tick: u32,
     id: PlayerId,
     player: &Player,
 ) {
@@ -169,7 +172,9 @@ fn spawn_snapshot_player(
         );
     }
 
-    context.players.insert(id, PlayerInfo::from_snapshot(entity, player));
+    context
+        .players
+        .insert(id, PlayerInfo::from_snapshot(entity, player, tick));
 }
 
 // Point the main camera (and the stored mouse-look fallback state) at the

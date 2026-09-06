@@ -86,7 +86,7 @@ fn find_beam_target(info: &ActorInfo, context: &BehaviorContext<'_>) -> Option<A
     let fire = beam_attack(context);
     info.awareness
         .iter()
-        .find(|aware| aware.visible && context.pos.distance_sq(&aware.pos) <= fire.range * fire.range)
+        .find(|aware| aware.visible && context.world_pos.distance_sq(&aware.pos) <= fire.range * fire.range)
         .copied()
 }
 

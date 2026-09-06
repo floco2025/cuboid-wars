@@ -2,10 +2,9 @@ use std::collections::HashMap;
 #[cfg(test)]
 use std::collections::{HashSet, VecDeque};
 
-use bevy::prelude::Resource;
-use common::{map::MapGeometry, protocol::Position};
+use common::{constants::LEVEL_CLASSIFICATION_TOLERANCE, map::MapGeometry, protocol::Position};
 
-use crate::map::{ActorSpawnZone, Cell, CellSide, MapConfig, has_edge_on_cell_side};
+use crate::map::{ActorSpawnZone, CarrierGrid, Cell, CellSide, LevelGrid, has_edge_on_cell_side};
 #[cfg(test)]
 use crate::pathfind::bfs_path;
 
@@ -16,21 +15,21 @@ pub(crate) struct NavNode {
     pub(crate) col: i32,
 }
 
-#[derive(Clone, Resource)]
+// The walkable cells of one grid, in that grid's own frame: positions in
+// and out are carrier-local, and the caller converts at the world boundary.
+#[derive(Clone)]
 pub struct NavGraph {
-    map_config: MapConfig,
+    levels: Vec<LevelGrid>,
     geometry: MapGeometry,
     adjacency: HashMap<NavNode, Vec<NavNode>>,
 }
 
 impl NavGraph {
-    // Walks the root map's grid; actors do not ride nested maps yet.
     #[must_use]
-    pub fn new(map_config: MapConfig) -> Self {
-        let geometry = map_config.root_grid().geometry;
+    pub fn new(grid: &CarrierGrid) -> Self {
         let mut graph = Self {
-            map_config,
-            geometry,
+            levels: grid.levels.clone(),
+            geometry: grid.geometry,
             adjacency: HashMap::new(),
         };
         graph.adjacency = graph
@@ -38,6 +37,20 @@ impl NavGraph {
             .map(|node| (node, graph.calculate_neighbors(node)))
             .collect();
         graph
+    }
+
+    // Inside the grid's volume: within its columns and rows, not below its
+    // ground storey, and not above its top one. A route target outside it
+    // is unreachable, so a player beside a nested map or under a lifted
+    // tile is never chased off the map.
+    #[must_use]
+    pub(crate) fn contains(&self, pos: &Position) -> bool {
+        let col = self.geometry.cell_col_containing_x(pos.x);
+        let row = self.geometry.cell_row_containing_z(pos.z);
+        (0..self.geometry.grid_cols).contains(&col)
+            && (0..self.geometry.grid_rows).contains(&row)
+            && pos.y >= -LEVEL_CLASSIFICATION_TOLERANCE
+            && usize::from(self.geometry.level_for_y(pos.y)) < self.levels.len()
     }
 
     #[cfg(test)]
@@ -228,27 +241,22 @@ impl NavGraph {
     }
 
     fn all_traversable_nodes(&self) -> impl Iterator<Item = NavNode> + '_ {
-        self.map_config
-            .root_grid()
-            .levels
-            .iter()
-            .enumerate()
-            .flat_map(move |(level_idx, level_grid)| {
-                let level = u8::try_from(level_idx).unwrap_or(u8::MAX);
-                level_grid
-                    .cells
-                    .rows
-                    .iter()
-                    .enumerate()
-                    .flat_map(move |(row_idx, cells)| {
-                        let row = i32::try_from(row_idx).unwrap_or(i32::MAX);
-                        cells.iter().enumerate().filter_map(move |(col_idx, _)| {
-                            let col = i32::try_from(col_idx).unwrap_or(i32::MAX);
-                            let node = NavNode { level, row, col };
-                            self.is_traversable(node).then_some(node)
-                        })
+        self.levels.iter().enumerate().flat_map(move |(level_idx, level_grid)| {
+            let level = u8::try_from(level_idx).unwrap_or(u8::MAX);
+            level_grid
+                .cells
+                .rows
+                .iter()
+                .enumerate()
+                .flat_map(move |(row_idx, cells)| {
+                    let row = i32::try_from(row_idx).unwrap_or(i32::MAX);
+                    cells.iter().enumerate().filter_map(move |(col_idx, _)| {
+                        let col = i32::try_from(col_idx).unwrap_or(i32::MAX);
+                        let node = NavNode { level, row, col };
+                        self.is_traversable(node).then_some(node)
                     })
-            })
+                })
+        })
     }
 
     fn node_position_score(&self, node: NavNode, pos: &Position, preferred_level: u8) -> f32 {
@@ -369,7 +377,7 @@ impl NavGraph {
     // grid holds only barriers actors can never pass (no pressure plate);
     // pressure-plate barriers are omitted upstream so nav routes through them.
     fn has_blocking_edge_on_side(&self, node: NavNode, side: CellSide) -> bool {
-        let Some(level) = self.map_config.root_grid().levels.get(usize::from(node.level)) else {
+        let Some(level) = self.levels.get(usize::from(node.level)) else {
             return true;
         };
         has_edge_on_cell_side(&level.edges, node.row, node.col, side)
@@ -387,7 +395,7 @@ impl NavGraph {
     }
 
     fn cell(&self, node: NavNode) -> Option<&Cell> {
-        let level = self.map_config.root_grid().levels.get(usize::from(node.level))?;
+        let level = self.levels.get(usize::from(node.level))?;
         if node.row < 0 || node.col < 0 {
             return None;
         }

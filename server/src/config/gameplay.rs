@@ -127,7 +127,6 @@ impl ServerGameplayConfig {
                 death_blast_radius: combat.damage.player_blast.radius,
             },
             actors,
-            actor_spawn_warning_secs: self.actors.settings.spawn_warning_secs,
             projectiles: self.weapons.projectiles.clone(),
             missiles: MissilesGameplayBootstrap {
                 gameplay: self.weapons.missiles.gameplay,

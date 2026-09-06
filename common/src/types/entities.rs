@@ -32,14 +32,18 @@ pub struct Actor {
 
 // A reserved actor spawn during its warning window. The actor doesn't exist
 // yet — clients render a purely visual beam-in ghost at the reserved spot.
-// `remaining_secs` carries the fade state; the full warning duration is static
-// bootstrap data, so snapshots only resynchronize the changing value.
+// `pos` is in the carrier's frame (world space on the world carrier), so the
+// ghost rides its carrier like an item. The window is the server ticks it
+// was reserved at and is due at; the client reads its shared tick against
+// them, so the fade is a pure function of the tick and nothing counts down.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SpawningActor {
     pub kind: String,
+    pub carrier: CarrierId,
     pub pos: Position,
     pub face_yaw: f32,
-    pub remaining_secs: f32,
+    pub reserved_tick: u32,
+    pub due_tick: u32,
 }
 
 impl Actor {

@@ -23,18 +23,14 @@ use crate::{
 };
 use common::{
     config::MapGeometryConfig,
-    constants::{LADDER_WIDTH, TICK_HZ},
+    constants::LADDER_WIDTH,
     map::MapGeometry,
     protocol::FaceMaterials,
     protocol::{
         BarrierKindId, BarrierKindTable, BridgeKindTable, Carrier, CarrierId, Floor, GrassCell, ItemType, Ladder,
-        LightBridge, MapLayout, PlatePurpose, PressurePlate, Wall,
+        LightBridge, MapLayout, PlatePurpose, PressurePlate, Wall, ticks_from_secs,
     },
 };
-
-// What compile skipped rather than rejected; the caller logs them, since
-// compile runs before the log plugin is installed.
-pub(crate) type CompileWarnings = Vec<String>;
 
 // The map being played and every map it nests, into one layout and one
 // config: the root's records on the world carrier, each nested map's on its
@@ -46,7 +42,7 @@ pub(crate) fn compile_map(
     nested: &LoadedMaps,
     kind_table: &BarrierKindTable,
     bridge_table: &BridgeKindTable,
-) -> anyhow::Result<(MapLayout, MapConfig, CompileWarnings)> {
+) -> anyhow::Result<(MapLayout, MapConfig)> {
     let mut out = CompileOutput {
         layout: MapLayout::default(),
         config: MapConfig {
@@ -56,7 +52,6 @@ pub(crate) fn compile_map(
             placed_items: Vec::new(),
             pressure_plates: Vec::new(),
         },
-        warnings: Vec::new(),
     };
     let scope = CompileScope {
         sizes,
@@ -64,13 +59,13 @@ pub(crate) fn compile_map(
         kind_table,
         bridge_table,
     };
-    compile_carrier(None, root, &scope, CarrierId::WORLD, &mut out)?;
+    compile_carrier(root, &scope, CarrierId::WORLD, &mut out)?;
     // The renderer indexes the material vectors by segment position, so any
     // length divergence is a bug here, not in the client.
     assert_eq!(out.layout.walls.len(), out.layout.wall_materials.len());
     assert_eq!(out.layout.floors.len(), out.layout.floor_materials.len());
     assert_eq!(out.layout.ramps.len(), out.layout.ramp_materials.len());
-    Ok((out.layout, out.config, out.warnings))
+    Ok((out.layout, out.config))
 }
 
 struct CompileScope<'a> {
@@ -83,14 +78,12 @@ struct CompileScope<'a> {
 struct CompileOutput {
     layout: MapLayout,
     config: MapConfig,
-    warnings: CompileWarnings,
 }
 
 // One map's records onto `carrier`, then its nested maps as child
 // carriers, each taking the next id right before it is compiled, so parents
 // precede their descendants in the carrier list.
 fn compile_carrier(
-    name: Option<&str>,
     map_def: &MapDef,
     scope: &CompileScope,
     carrier: CarrierId,
@@ -331,15 +324,7 @@ fn compile_carrier(
 
     let config = &mut out.config;
     config.grids.push(CarrierGrid::new(carrier, geometry, level_grids));
-    if carrier.is_world() {
-        config.actor_spawn_zones.extend(actor_spawn_zones(map_def));
-    } else if !map_def.actor_spawn_zones.is_empty() {
-        out.warnings.push(format!(
-            "map {:?} is nested; its {} actor spawn zone(s) are ignored until actors ride carriers",
-            name.unwrap_or_default(),
-            map_def.actor_spawn_zones.len()
-        ));
-    }
+    config.actor_spawn_zones.extend(actor_spawn_zones(map_def, carrier));
     config.player_spawn_zones.extend(player_spawn_zones(map_def, carrier));
     config.placed_items.extend(placed_items);
     config.pressure_plates.extend(pressure_plates);
@@ -362,8 +347,7 @@ fn compile_carrier(
             "nested map {:?} reaches past the last storey a level tag can name",
             entry.map
         );
-        compile_carrier(Some(&entry.map), child_def, scope, id, out)
-            .with_context(|| format!("nested map {:?}", entry.map))?;
+        compile_carrier(child_def, scope, id, out).with_context(|| format!("nested map {:?}", entry.map))?;
     }
     Ok(())
 }
@@ -384,11 +368,12 @@ fn empty_mask(grid_cols: i32, grid_rows: i32) -> Mask {
     vec![vec![false; grid_cols as usize]; grid_rows as usize]
 }
 
-fn actor_spawn_zones(map_def: &MapDef) -> Vec<ActorSpawnZone> {
+fn actor_spawn_zones(map_def: &MapDef, carrier: CarrierId) -> Vec<ActorSpawnZone> {
     map_def
         .actor_spawn_zones
         .iter()
         .map(|zone| ActorSpawnZone {
+            carrier,
             level: u8::try_from(zone.level).unwrap_or(u8::MAX),
             cols: zone.cols,
             rows: zone.rows,
@@ -541,7 +526,6 @@ fn set_edge(edges: &mut EdgeGrid, edge: [i32; 4]) {
 fn carrier_from_motion(end1: Vec3, end2: Vec3, motion: &MotionDef, nudge_scale: Vec3, parent: CarrierId) -> Carrier {
     let level = u8::try_from(motion.level).unwrap_or(u8::MAX);
     let to_level = u8::try_from(motion.to_level()).unwrap_or(u8::MAX);
-    let ticks = |secs: f32| (secs * TICK_HZ as f32).round() as u32;
     let from = end1 + Vec3::from(motion.from_nudge) * nudge_scale;
     let to = end2 + Vec3::from(motion.to_nudge) * nudge_scale;
     Carrier {
@@ -550,9 +534,9 @@ fn carrier_from_motion(end1: Vec3, end2: Vec3, motion: &MotionDef, nudge_scale: 
         levels: level.abs_diff(to_level),
         from: from.into(),
         to: to.into(),
-        travel_ticks: ticks(motion.travel_secs).max(1),
-        pause_ticks: ticks(motion.pause_secs),
-        phase_ticks: ticks(motion.phase_secs),
+        travel_ticks: ticks_from_secs(motion.travel_secs).max(1),
+        pause_ticks: ticks_from_secs(motion.pause_secs),
+        phase_ticks: ticks_from_secs(motion.phase_secs),
     }
 }
 

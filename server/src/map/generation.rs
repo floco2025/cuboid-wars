@@ -12,9 +12,6 @@ use super::definition::{self, load_map_tree};
 pub struct GeneratedMap {
     pub layout: MapLayout,
     pub config: MapConfig,
-    // What compile skipped; logged by the caller, since compile runs before
-    // the log plugin is installed.
-    pub warnings: Vec<String>,
 }
 
 // `nested_geometry` is the registry lookup for the maps this one nests.
@@ -36,13 +33,9 @@ pub fn generate_map(
     let nested = load_map_tree(map_name, &map_def, sizes, nested_geometry, &mut |name| {
         definition::load_map(&map_path(name))
     })?;
-    let (layout, config, warnings) = definition::compile_map(&map_def, sizes, &nested, barrier_kinds, bridge_kinds)
+    let (layout, config) = definition::compile_map(&map_def, sizes, &nested, barrier_kinds, bridge_kinds)
         .with_context(|| format!("failed to compile map at {}", path.display()))?;
-    Ok(GeneratedMap {
-        layout,
-        config,
-        warnings,
-    })
+    Ok(GeneratedMap { layout, config })
 }
 
 pub(crate) fn map_path(map_name: &str) -> PathBuf {

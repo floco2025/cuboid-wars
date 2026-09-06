@@ -11,7 +11,9 @@ fn roaming_route_uses_roam_speed() {
     info.mode = ActorMode::Roam;
     info.route = Some(route(target));
 
-    let ActorDesire::Move { intent, target: actual } = desired_move(&info, &Position::default(), 2.0, 4.0) else {
+    let ActorDesire::Move { intent, target: actual } =
+        desired_move(&info, &Position::default(), &Position::default(), 2.0, 4.0)
+    else {
         panic!("expected route movement");
     };
     assert_eq!(intent.speed(), Some(2.0));
@@ -31,7 +33,8 @@ fn combat_route_uses_active_speed() {
     };
     info.route = Some(route(target));
 
-    let ActorDesire::Move { intent, .. } = desired_move(&info, &Position::default(), 2.0, 4.0) else {
+    let ActorDesire::Move { intent, .. } = desired_move(&info, &Position::default(), &Position::default(), 2.0, 4.0)
+    else {
         panic!("expected route movement");
     };
     assert_eq!(intent.speed(), Some(4.0));
@@ -53,7 +56,9 @@ fn firing_actor_holds_and_faces_live_target() {
         target_pos: target,
     };
 
-    let ActorDesire::HoldFacing { direction } = desired_move(&info, &Position::default(), 2.0, 4.0) else {
+    let ActorDesire::HoldFacing { direction } =
+        desired_move(&info, &Position::default(), &Position::default(), 2.0, 4.0)
+    else {
         panic!("expected firing hold");
     };
     assert_eq!(direction, direction_toward(&Position::default(), &target));
@@ -76,7 +81,8 @@ fn firing_actor_with_route_moves_at_active_speed() {
     };
     info.route = Some(route(target));
 
-    let ActorDesire::Move { intent, .. } = desired_move(&info, &Position::default(), 2.0, 4.0) else {
+    let ActorDesire::Move { intent, .. } = desired_move(&info, &Position::default(), &Position::default(), 2.0, 4.0)
+    else {
         panic!("expected route movement while firing");
     };
     assert_eq!(intent.speed(), Some(4.0));

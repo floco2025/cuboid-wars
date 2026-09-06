@@ -31,7 +31,7 @@ pub(crate) fn plan_actor_moves(
     query: &mut ActorMovementQuery,
     planned_moves: &mut Vec<CharacterMovePlan>,
 ) {
-    let actor_order = sorted_actor_plan_order(query, actors);
+    let actor_order = sorted_actor_plan_order(query, actors, carriers);
 
     for actor_order in actor_order {
         let Ok((entity, id, actor_movement, pos, motion, mut move_intent, mut face_yaw, knockback)) =
@@ -44,6 +44,12 @@ pub(crate) fn plan_actor_moves(
         };
         let actor_physics = gameplay_config.expect_actor(&info.spawn_kind).physics();
         let current_pos = *pos;
+        // The carriers already advanced to this tick while the actor still
+        // stands where the previous pose left it, so that pose maps it into
+        // its carrier's frame exactly; the current one would lead it by a
+        // tick of carrier travel.
+        let pose = carriers.previous_pose(info.carrier);
+        let local_pos = pose.inverse_transform_position(&current_pos);
         let move_context = ActorMoveContext {
             entity,
             pos: &current_pos,
@@ -57,12 +63,14 @@ pub(crate) fn plan_actor_moves(
             gravity: map_settings.movement.gravity,
             ladder_climb_ratio: map_settings.movement.ladder_climb_ratio,
             knockback_step: knockback.map_or(Vec3::ZERO, |velocity| velocity.step(delta)),
+            carrier_step: carriers.displacement(info.carrier),
             carriers,
         };
 
         let mut hold_facing = None;
         let selected = match desired_move(
             info,
+            &local_pos,
             &current_pos,
             actor_movement.roam_speed,
             actor_movement.active_speed,
@@ -72,7 +80,9 @@ pub(crate) fn plan_actor_moves(
                 hold_facing = Some(direction);
                 move_context.idle_move()
             }
-            ActorDesire::Move { intent, target } => select_route_move(&move_context, intent, &target),
+            ActorDesire::Move { intent, target } => {
+                select_route_move(&move_context, intent, &pose.transform_position(&target))
+            }
         };
 
         let changed = *move_intent != selected.intent;

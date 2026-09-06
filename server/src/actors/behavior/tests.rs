@@ -4,32 +4,37 @@ use rand::{SeedableRng, rngs::StdRng};
 use super::{
     controllers::{BeamStarted, decide_beam_actor, decide_contact_actor, decide_contact_beam_actor},
     perception::{PlayerState, update_awareness},
-    tick::{BehaviorContext, enter_evade, shake_loose, tick_runtime_state},
+    tick::{BehaviorContext, enter_evade, keep_or_install_engagement_route, shake_loose, tick_runtime_state},
 };
 use crate::{
     actors::{
         ActorInfo, ActorMode, ActorRoute, BeamState,
-        navigation::{ActorTerritories, NavGraph},
+        navigation::{ActorTerritories, NavGraph, NavGraphs},
     },
     config::ServerGameplayConfig,
-    map::{ActorSpawnZone, CellGrid, EdgeGrid, LevelGrid, MapConfig},
+    map::{ActorSpawnZone, CarrierGrid, CellGrid, EdgeGrid, LevelGrid, MapConfig},
     test_geometry::{CELL, LEVEL_HEIGHT, WALL_HEIGHT, geometry},
 };
 use common::protocol::CarrierId;
 use common::{
     config::GameplayConfig,
-    map::MapGeometry,
+    map::{CarrierPose, Carriers, MapGeometry},
     physics::{CharacterSupport, CollisionWorld},
-    protocol::{BarrierKindTable, MapLayout, PlayerId, Position, Wall},
+    protocol::{BarrierKindTable, Carrier, MapLayout, PlayerId, Position, Wall},
 };
 
+// A 12x5 all-floor grid with one zone at (1, 2). With a carrier, the zone's
+// grid is nested on a static carrier resting at `rest`, so `pos` is in the
+// carrier's frame and the world is `pose()` away.
 struct Fixture {
-    graph: NavGraph,
+    graphs: NavGraphs,
     territories: ActorTerritories,
     collision_world: CollisionWorld,
     gameplay: GameplayConfig,
     server: ServerGameplayConfig,
     geometry: MapGeometry,
+    carrier: CarrierId,
+    carriers: Carriers,
 }
 
 impl Fixture {
@@ -53,48 +58,91 @@ impl Fixture {
     }
 
     fn with_levels_and_world(kind: &str, level_count: usize, collision_world: CollisionWorld) -> Self {
+        Self::build(kind, level_count, collision_world, None)
+    }
+
+    fn with_carrier(kind: &str, rest: Position) -> Self {
+        Self::build(
+            kind,
+            1,
+            CollisionWorld::from_map_layout(&MapLayout::default(), &BarrierKindTable::default()),
+            Some(rest),
+        )
+    }
+
+    fn build(kind: &str, level_count: usize, collision_world: CollisionWorld, rest: Option<Position>) -> Self {
         let cols = 12;
         let rows = 5;
-        let levels = (0..level_count)
-            .map(|_| {
-                let mut cells = CellGrid::new(cols, rows);
-                for row in &mut cells.rows {
-                    for cell in row {
-                        cell.has_floor = true;
+        let levels = |count: usize| -> Vec<LevelGrid> {
+            (0..count)
+                .map(|_| {
+                    let mut cells = CellGrid::new(cols, rows);
+                    for row in &mut cells.rows {
+                        for cell in row {
+                            cell.has_floor = true;
+                        }
                     }
-                }
-                LevelGrid {
-                    cells,
-                    edges: EdgeGrid::new(cols, rows),
-                    barrier_edges: EdgeGrid::new(cols, rows),
-                }
-            })
-            .collect();
+                    LevelGrid {
+                        cells,
+                        edges: EdgeGrid::new(cols, rows),
+                        barrier_edges: EdgeGrid::new(cols, rows),
+                    }
+                })
+                .collect()
+        };
         let geometry = geometry(cols, rows);
-        let map = MapConfig {
+        let carrier = if rest.is_some() { CarrierId(1) } else { CarrierId::WORLD };
+        let mut map = MapConfig {
             actor_spawn_zones: vec![ActorSpawnZone {
+                carrier,
                 level: 0,
                 cols: [1, 2],
                 rows: [2, 3],
                 kind: kind.to_owned(),
                 count: 1,
             }],
-            ..MapConfig::for_grid(levels, geometry)
+            ..MapConfig::for_grid(levels(level_count), geometry)
         };
-        let graph = NavGraph::new(map.clone());
+        let mut layout = MapLayout::default();
+        if let Some(rest) = rest {
+            map.grids.push(CarrierGrid::new(carrier, geometry, levels(1)));
+            layout.carriers.push(Carrier {
+                parent: CarrierId::WORLD,
+                level: 0,
+                levels: 0,
+                from: rest,
+                to: rest,
+                travel_ticks: 1,
+                pause_ticks: 0,
+                phase_ticks: 0,
+            });
+        }
+        let carriers = Carriers::from_layout(&layout);
+        let graphs = NavGraphs::new(&map);
         let server = ServerGameplayConfig::load_default().expect("default server gameplay config should load");
-        let territories = ActorTerritories::new(&graph, &map, &server).expect("test territory should build");
+        let territories = ActorTerritories::new(&graphs, &map, &server).expect("test territory should build");
         let gameplay = server.gameplay_config();
         Self {
-            graph,
+            graphs,
             territories,
             collision_world,
             gameplay,
             server,
             geometry,
+            carrier,
+            carriers,
         }
     }
 
+    fn graph(&self) -> &NavGraph {
+        self.graphs.get(self.carrier)
+    }
+
+    fn pose(&self) -> CarrierPose {
+        self.carriers.pose(self.carrier)
+    }
+
+    // Off-centre inside the cell, in the zone's grid frame.
     fn pos(&self, col: i32, row: i32) -> Position {
         Position {
             x: self.geometry.cell_to_world_x(col) + 2.0,
@@ -105,12 +153,15 @@ impl Fixture {
 
     fn context(&self, kind: &str, pos: Position) -> BehaviorContext<'_> {
         let actor = self.gameplay.expect_actor(kind);
+        let pose = self.pose();
         BehaviorContext {
             pos,
+            world_pos: pose.transform_position(&pos),
+            pose,
             actor_physics: actor.physics(),
             actor_eye_height: actor.eye_height(),
             player_physics: self.gameplay.player.physics(),
-            nav_graph: &self.graph,
+            nav_graph: self.graph(),
             territory: self.territories.get(0),
             collision_world: &self.collision_world,
             kind_config: self.server.expect_actor(kind),
@@ -119,7 +170,7 @@ impl Fixture {
 }
 
 fn info(kind: &str) -> ActorInfo {
-    ActorInfo::new(Entity::from_bits(1), 0, kind.to_owned())
+    ActorInfo::new(Entity::from_bits(1), 0, kind.to_owned(), CarrierId::WORLD)
 }
 
 fn aware(id: u32, pos: Position, support: CharacterSupport, visible: bool) -> crate::actors::resources::AwarePlayer {
@@ -162,7 +213,7 @@ fn contact_actor_pursues_reachable_player_outside_home_region() {
     let target = fixture.pos(10, 2);
     assert!(
         !fixture
-            .graph
+            .graph()
             .position_in_roam_region(&target, fixture.territories.get(0))
     );
     let mut info = info("mine");
@@ -293,7 +344,7 @@ fn zapper_acquires_visible_cross_level_player_in_beam_range() {
     let zapper = fixture.gameplay.expect_actor("zapper");
     assert!(
         fixture
-            .graph
+            .graph()
             .engagement_route(
                 &actor_pos,
                 &target,
@@ -666,8 +717,8 @@ fn evade_route_is_replaced_when_same_cell_threat_exposes_destination() {
     assert!(context.stable_cover(&destination, &[protected_threat]));
     assert!(!context.stable_cover(&destination, &[exposed_threat]));
     assert_eq!(
-        fixture.graph.node_for_position(&protected_threat),
-        fixture.graph.node_for_position(&exposed_threat)
+        fixture.graph().node_for_position(&protected_threat),
+        fixture.graph().node_for_position(&exposed_threat)
     );
 
     let mut info = info("mine");
@@ -676,7 +727,7 @@ fn evade_route_is_replaced_when_same_cell_threat_exposes_destination() {
         waypoints: [destination].into(),
         destination,
         destination_node: fixture
-            .graph
+            .graph()
             .node_for_position(&destination)
             .expect("destination nav node"),
     });
@@ -717,7 +768,7 @@ fn route_through(waypoints: &[Position], fixture: &Fixture) -> ActorRoute {
         waypoints: waypoints.iter().copied().collect(),
         destination,
         destination_node: fixture
-            .graph
+            .graph()
             .node_for_position(&destination)
             .expect("destination nav node"),
     }
@@ -836,4 +887,115 @@ fn stalled_actor_hops_to_a_random_neighbor_before_rethinking() {
         "hop lands in a neighboring cell, got {hop_distance}"
     );
     assert!(info.decision_timer > 0.0, "controller deferred during the hop");
+}
+
+// === Carriers ===
+
+fn carrier_rest() -> Position {
+    Position {
+        x: 40.0,
+        y: LEVEL_HEIGHT,
+        z: -30.0,
+    }
+}
+
+#[test]
+fn carried_actor_roams_in_its_carriers_frame() {
+    let fixture = Fixture::with_carrier("mine", carrier_rest());
+    let mut info = info("mine");
+    let mut rng = StdRng::seed_from_u64(1);
+
+    decide_contact_actor(&mut info, &fixture.context("mine", fixture.pos(1, 2)), &mut rng);
+
+    assert_eq!(info.mode, ActorMode::Roam);
+    let route = info.route.expect("a roam route");
+    for waypoint in &route.waypoints {
+        assert!(
+            fixture.graph().contains(waypoint),
+            "{waypoint:?} is off the carrier's grid"
+        );
+        assert_eq!(waypoint.y, 0.0);
+    }
+}
+
+#[test]
+fn player_off_the_carrier_is_unreachable() {
+    let fixture = Fixture::with_carrier("mine", carrier_rest());
+    let mut info = info("mine");
+    let context = fixture.context("mine", fixture.pos(1, 2));
+    let beside = Position {
+        x: carrier_rest().x + fixture.geometry.width() / 2.0 + CELL,
+        ..carrier_rest()
+    };
+    let underneath = Position {
+        y: carrier_rest().y - LEVEL_HEIGHT,
+        ..context.world_pos
+    };
+
+    assert!(!keep_or_install_engagement_route(
+        &mut info,
+        &context,
+        PlayerId(1),
+        beside
+    ));
+    assert!(!keep_or_install_engagement_route(
+        &mut info,
+        &context,
+        PlayerId(1),
+        underneath
+    ));
+    assert!(info.route.is_none());
+}
+
+#[test]
+fn player_aboard_the_carrier_is_engaged_along_a_carrier_local_route() {
+    let fixture = Fixture::with_carrier("mine", carrier_rest());
+    let mut info = info("mine");
+    let context = fixture.context("mine", fixture.pos(1, 2));
+    let target_local = fixture.pos(8, 2);
+    let target_world = fixture.pose().transform_position(&target_local);
+
+    assert!(keep_or_install_engagement_route(
+        &mut info,
+        &context,
+        PlayerId(1),
+        target_world
+    ));
+
+    let route = info.route.as_ref().expect("an engagement route");
+    assert!(
+        route.destination.distance_sq(&target_local) < 1e-6,
+        "{:?}",
+        route.destination
+    );
+    assert!(
+        route
+            .waypoints
+            .iter()
+            .all(|waypoint| fixture.graph().contains(waypoint))
+    );
+    assert_eq!(
+        info.mode,
+        ActorMode::Engage {
+            target: PlayerId(1),
+            target_pos: target_world
+        }
+    );
+}
+
+#[test]
+fn cover_is_judged_at_the_candidates_world_position() {
+    let fixture = Fixture::with_carrier("mine", carrier_rest());
+    let context = fixture.context("mine", fixture.pos(1, 2));
+    let candidate = fixture.pos(8, 2);
+    // A threat standing on the candidate in the world; in an open world
+    // nothing is ever cover, so only the too-close test can decide.
+    let threat_on_it = fixture.pose().transform_position(&candidate);
+    let threat_far = Position {
+        x: threat_on_it.x + 100.0,
+        ..threat_on_it
+    };
+
+    assert!(!context.stable_cover(&candidate, &[threat_on_it]));
+    assert!(!context.stable_cover(&candidate, &[threat_far]));
 }

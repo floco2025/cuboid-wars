@@ -9,7 +9,7 @@ use crate::{
 use common::{
     config::GameplayConfig,
     physics::{AirborneMomentum, CharacterVerticalVelocity, KnockbackVelocity, PortalSet},
-    protocol::{FaceYaw, MapSettings, PlayerId, PlayerMarker, PlayerMoveIntent, Position, PowerUpKind},
+    protocol::{FaceYaw, MapSettings, PlayerId, PlayerMarker, PlayerMoveIntent, Position, PowerUpKind, ServerTick},
 };
 
 // Portal transit for every simulated player, local and remote alike — the
@@ -25,6 +25,7 @@ pub fn portal_transit_system(
     gameplay_config: Res<GameplayConfig>,
     map_settings: Res<MapSettings>,
     my_player_id: Res<MyPlayerId>,
+    server_tick: Res<ServerTick>,
     mut players: ResMut<PlayerMap>,
     mut local_player_info: ResMut<LocalPlayerInfo>,
     cameras: Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
@@ -75,6 +76,7 @@ pub fn portal_transit_system(
         prev.0 = *pos;
         if let Some(info) = players.get_mut(id) {
             info.hops = info.hops.wrapping_add(1);
+            info.hop_tick = server_tick.0;
         }
         if my_player_id.0 == *id {
             apply_portal_view(

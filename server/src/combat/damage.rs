@@ -308,6 +308,7 @@ mod tests {
         ScoringConfig, WeaponsConfig, WeatherCycleConfig, WeatherMode,
     };
     use crate::{actors::ActorInfo, network::ServerToClient, players::PlayerInfo};
+    use common::protocol::CarrierId;
     use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
 
     fn logged_in_player(players: &mut PlayerMap, id: PlayerId, name: &str) -> UnboundedReceiver<ServerToClient> {
@@ -739,9 +740,18 @@ mod tests {
         let zapper = world.spawn_empty().id();
         let uncredited = world.spawn_empty().id();
         let mut actors = ActorMap::default();
-        actors.insert(ActorId(1), ActorInfo::new(sentry, 0, "sentry".to_owned()));
-        actors.insert(ActorId(2), ActorInfo::new(zapper, 0, "zapper".to_owned()));
-        actors.insert(ActorId(3), ActorInfo::new(uncredited, 0, "sentry".to_owned()));
+        actors.insert(
+            ActorId(1),
+            ActorInfo::new(sentry, 0, "sentry".to_owned(), CarrierId::WORLD),
+        );
+        actors.insert(
+            ActorId(2),
+            ActorInfo::new(zapper, 0, "zapper".to_owned(), CarrierId::WORLD),
+        );
+        actors.insert(
+            ActorId(3),
+            ActorInfo::new(uncredited, 0, "sentry".to_owned(), CarrierId::WORLD),
+        );
         let mut pending_explosions = PendingExplosions::default();
         let mut commands_queue = bevy::ecs::world::CommandQueue::default();
         {

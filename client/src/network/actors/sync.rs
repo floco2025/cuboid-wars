@@ -86,12 +86,9 @@ pub(in crate::network) fn sync_spawning_actors(
 
     for (id, spawning) in spawning_actors {
         if let Some(entity) = context.actor_ghosts.get(id) {
-            let update = beam_in_ghost_state(&context.gameplay_config, context.actor_spawn_warning_secs.0, spawning);
             commands
                 .entity(entity)
-                .entry::<crate::vfx::BeamInGhost>()
-                .and_modify(move |mut ghost| ghost.resync(update))
-                .or_insert(update);
+                .insert(beam_in_ghost_state(&context.gameplay_config, spawning));
             continue;
         }
         let entity = spawn_actor_ghost(
@@ -99,7 +96,7 @@ pub(in crate::network) fn sync_spawning_actors(
             &context.asset_server,
             &context.asset_set,
             &context.gameplay_config,
-            context.actor_spawn_warning_secs.0,
+            context.carrier_entities.get(spawning.carrier),
             spawning,
         );
         context.actor_ghosts.insert(*id, entity);

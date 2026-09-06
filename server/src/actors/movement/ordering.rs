@@ -1,5 +1,8 @@
 use bevy::prelude::Entity;
-use common::protocol::{ActorId, Position};
+use common::{
+    map::Carriers,
+    protocol::{ActorId, Position},
+};
 
 use crate::actors::{ActorInfo, ActorMap};
 
@@ -12,13 +15,25 @@ pub(super) struct ActorPlanOrder {
     pub(super) id: ActorId,
 }
 
-pub(super) fn sorted_actor_plan_order(query: &ActorMovementQuery, actors: &ActorMap) -> Vec<ActorPlanOrder> {
+// Routes are carrier-local, so each actor is measured in its carrier's
+// frame at the pose its position was resolved at (see `plan_actor_moves`).
+pub(super) fn sorted_actor_plan_order(
+    query: &ActorMovementQuery,
+    actors: &ActorMap,
+    carriers: &Carriers,
+) -> Vec<ActorPlanOrder> {
     let mut order: Vec<ActorPlanOrder> = query
         .iter()
-        .map(|(entity, id, _, pos, _, _, _, _)| ActorPlanOrder {
-            entity,
-            route_distance: actor_route_distance(pos, actors.get(id)),
-            id: *id,
+        .map(|(entity, id, _, pos, _, _, _, _)| {
+            let info = actors.get(id);
+            let local_pos = info.map_or(*pos, |info| {
+                carriers.previous_pose(info.carrier).inverse_transform_position(pos)
+            });
+            ActorPlanOrder {
+                entity,
+                route_distance: actor_route_distance(&local_pos, info),
+                id: *id,
+            }
         })
         .collect();
     sort_actor_plan_order(&mut order);

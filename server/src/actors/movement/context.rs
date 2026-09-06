@@ -35,6 +35,8 @@ pub(super) struct ActorMoveContext<'a> {
     pub(super) gravity: f32,
     pub(super) ladder_climb_ratio: f32,
     pub(super) knockback_step: Vec3,
+    // The actor's own carrier's travel this tick, zero for the world.
+    pub(super) carrier_step: Vec3,
     pub(super) carriers: &'a Carriers,
 }
 
@@ -63,12 +65,11 @@ impl ActorMoveContext<'_> {
         if !selected.step.blocked {
             return CandidateStep::Clear(selected);
         }
-        if blocked_step_made_useful_progress(
-            self.pos,
-            &selected.step.position,
-            intent.speed().unwrap_or(0.0),
-            self.delta,
-        ) && selected.step.position.horizontal_distance_sq(target) < self.pos.horizontal_distance_sq(target)
+        // Progress is the actor's own: the step's position includes the
+        // carry, which is measured out so a ride does not pass for a graze.
+        let landed = Position::from(Vec3::from(selected.step.position) - self.carrier_step);
+        if blocked_step_made_useful_progress(self.pos, &landed, intent.speed().unwrap_or(0.0), self.delta)
+            && landed.horizontal_distance_sq(target) < self.pos.horizontal_distance_sq(target)
         {
             CandidateStep::Graze(selected)
         } else {

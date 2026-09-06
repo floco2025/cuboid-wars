@@ -4,8 +4,9 @@ use crate::{config::ServerGameplayConfig, map::MapConfig};
 use anyhow::{Result, bail};
 use bevy::prelude::Resource;
 
-use super::{NavGraph, NavNode};
+use super::{NavGraph, NavGraphs, NavNode};
 
+// A zone's roam region, in the frame of the zone's carrier.
 #[derive(Clone)]
 pub(crate) struct ActorTerritory {
     pub(crate) roam: HashSet<NavNode>,
@@ -16,12 +17,16 @@ pub(crate) struct ActorTerritory {
 pub struct ActorTerritories(Vec<ActorTerritory>);
 
 impl ActorTerritories {
-    pub fn new(graph: &NavGraph, map: &MapConfig, config: &ServerGameplayConfig) -> Result<Self> {
+    pub fn new(graphs: &NavGraphs, map: &MapConfig, config: &ServerGameplayConfig) -> Result<Self> {
         let mut territories = Vec::with_capacity(map.actor_spawn_zones.len());
         for (index, zone) in map.actor_spawn_zones.iter().enumerate() {
+            let graph = graphs.get(zone.carrier);
             let seeds = graph.zone_nodes(zone);
             if seeds.is_empty() {
-                bail!("actor spawn zone {index} has no traversable navigation cells");
+                bail!(
+                    "actor spawn zone {index} on carrier {} has no traversable navigation cells",
+                    zone.carrier.0
+                );
             }
             let kind = config.expect_actor(&zone.kind);
             let roam = expand_region(graph, &seeds, kind.roam_steps);

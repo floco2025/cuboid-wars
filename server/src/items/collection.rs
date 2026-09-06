@@ -45,7 +45,7 @@ pub fn item_collection_system(
             }
 
             let item_pos = item_positions.get(item_info.entity).ok()?;
-            let item_pos = &Position::from(carriers.pose(item_info.carrier).transform_point(Vec3::from(*item_pos)));
+            let item_pos = &carriers.pose(item_info.carrier).transform_position(item_pos);
 
             for (player_id, player_info) in players.iter() {
                 // A killed player's entity despawn is deferred, so a same-tick

@@ -4,7 +4,7 @@ use rand::{Rng, rng};
 use crate::{
     actors::{
         ActorInfo, ActorMap, ActorMode, ActorRoute, BeamState,
-        navigation::{ActorTerritories, NavGraph, PlannedRoute},
+        navigation::{ActorTerritories, NavGraph, NavGraphs, PlannedRoute},
     },
     config::{ActorAttackConfig, ActorKindServerConfig, ServerGameplayConfig},
     network::broadcast_to_all,
@@ -13,6 +13,7 @@ use crate::{
 use common::{
     config::{CharacterPhysicsConfig, GameplayConfig},
     constants::PHYSICS_EPSILON,
+    map::{CarrierPose, Carriers},
     physics::CollisionWorld,
     protocol::{ActorId, ActorMarker, PlayerId, PlayerMarker, Position, SActorBeam, ServerMessage},
 };
@@ -40,8 +41,9 @@ pub fn actors_behavior_system(
     collision_world: Res<CollisionWorld>,
     gameplay_config: Res<GameplayConfig>,
     server_gameplay_config: Res<ServerGameplayConfig>,
-    nav_graph: Res<NavGraph>,
+    nav_graphs: Res<NavGraphs>,
     territories: Res<ActorTerritories>,
+    carriers: Res<Carriers>,
     mut actors: ResMut<ActorMap>,
     player_query: Query<(&PlayerId, &Position), With<PlayerMarker>>,
     actor_query: Query<(&ActorId, &Position), (With<ActorMarker>, Without<PlayerMarker>)>,
@@ -68,7 +70,11 @@ pub fn actors_behavior_system(
         };
         let actor_config = gameplay_config.expect_actor(&info.spawn_kind);
         let kind_config = server_gameplay_config.expect_actor(&info.spawn_kind);
-        let stalled = tick_runtime_state(info, *pos, delta, kind_config, &player_states);
+        // Behaviour runs before the carriers advance, so this pose is the
+        // one the actor's position was last resolved at.
+        let pose = carriers.pose(info.carrier);
+        let local_pos = pose.inverse_transform_position(pos);
+        let stalled = tick_runtime_state(info, local_pos, delta, kind_config, &player_states);
         if stalled {
             info.decision_timer = 0.0;
         }
@@ -90,11 +96,13 @@ pub fn actors_behavior_system(
         );
 
         let context = BehaviorContext {
-            pos: *pos,
+            pos: local_pos,
+            world_pos: *pos,
+            pose,
             actor_physics: actor_config.physics(),
             actor_eye_height: actor_config.eye_height(),
             player_physics: gameplay_config.player.physics(),
-            nav_graph: &nav_graph,
+            nav_graph: nav_graphs.get(info.carrier),
             territory,
             collision_world: &collision_world,
             kind_config,
@@ -124,6 +132,8 @@ pub fn actors_behavior_system(
     }
 }
 
+// `pos` is in the actor's carrier frame, like its route: a ride is not
+// progress along the route, and walking against the carrier is.
 pub(super) fn tick_runtime_state(
     info: &mut ActorInfo,
     pos: Position,
@@ -245,8 +255,13 @@ fn tick_beam_state(info: &mut ActorInfo, delta: f32, kind_config: &ActorKindServ
     }
 }
 
+// Navigation happens in the actor's carrier frame and everything physical
+// in the world: `pos` and every route position are carrier-local, the
+// awareness and `world_pos` are world, and `pose` converts between them.
 pub(super) struct BehaviorContext<'a> {
     pub(super) pos: Position,
+    pub(super) world_pos: Position,
+    pub(super) pose: CarrierPose,
     pub(super) actor_physics: CharacterPhysicsConfig,
     pub(super) actor_eye_height: f32,
     pub(super) player_physics: CharacterPhysicsConfig,
@@ -257,16 +272,31 @@ pub(super) struct BehaviorContext<'a> {
 }
 
 impl BehaviorContext<'_> {
+    pub(super) fn to_world(&self, local: &Position) -> Position {
+        self.pose.transform_position(local)
+    }
+
+    pub(super) fn to_local(&self, world: &Position) -> Position {
+        self.pose.inverse_transform_position(world)
+    }
+
     fn install_route(&self, info: &mut ActorInfo, planned: Option<PlannedRoute>) {
         let route = planned.and_then(|mut planned| {
-            self.nav_graph
-                .anchor_route_start(&self.pos, &mut planned, self.collision_world, self.actor_physics);
+            self.nav_graph.anchor_route_start(
+                &self.pos,
+                &mut planned,
+                self.collision_world,
+                self.actor_physics,
+                self.pose,
+            );
             ActorRoute::new(planned)
         });
         info.set_route(route);
     }
 
-    pub(super) fn stable_cover(&self, pos: &Position, threats: &[Position]) -> bool {
+    // `candidate` is carrier-local; the threats are world positions.
+    pub(super) fn stable_cover(&self, candidate: &Position, threats: &[Position]) -> bool {
+        let pos = &self.to_world(candidate);
         let min_threat_distance = COVER_MIN_THREAT_DISTANCE_CELLS * self.nav_graph.cell_size();
         if threats
             .iter()
@@ -327,9 +357,13 @@ pub(super) fn enter_evade(info: &mut ActorInfo, context: &BehaviorContext<'_>) {
     if continuing_evade && info.evade_replan_remaining_secs > 0.0 {
         return;
     }
-    let planned = context.nav_graph.safe_cover_route(&context.pos, &threats, |candidate| {
-        context.stable_cover(candidate, &threats)
-    });
+    // The cover search measures cell distances in the graph's frame.
+    let local_threats: Vec<_> = threats.iter().map(|threat| context.to_local(threat)).collect();
+    let planned = context
+        .nav_graph
+        .safe_cover_route(&context.pos, &local_threats, |candidate| {
+            context.stable_cover(candidate, &threats)
+        });
     context.install_route(info, planned);
     info.evade_replan_remaining_secs = EVADE_REPLAN_INTERVAL_SECS;
 }
@@ -359,13 +393,19 @@ pub(super) fn enter_roam_or_return(info: &mut ActorInfo, context: &BehaviorConte
     }
 }
 
+// `target_pos` is the world anchor; the route is planned toward it in the
+// actor's carrier frame, and a target off the actor's map is unreachable.
 pub(super) fn keep_or_install_engagement_route(
     info: &mut ActorInfo,
     context: &BehaviorContext<'_>,
     target: PlayerId,
     target_pos: Position,
 ) -> bool {
-    let Some(target_node) = context.nav_graph.node_for_position(&target_pos) else {
+    let anchor = context.to_local(&target_pos);
+    if !context.nav_graph.contains(&anchor) {
+        return false;
+    }
+    let Some(target_node) = context.nav_graph.node_for_position(&anchor) else {
         return false;
     };
     if matches!(info.mode, ActorMode::Engage { target: route_target, .. } if route_target == target)
@@ -375,11 +415,11 @@ pub(super) fn keep_or_install_engagement_route(
         let final_leg_start = route.waypoints.iter().rev().nth(1).copied().unwrap_or(context.pos);
         if context.nav_graph.engagement_retarget_is_valid(
             &final_leg_start,
-            &target_pos,
+            &anchor,
             context.actor_physics.collider.width / 2.0 + DIRECT_ROUTE_CLEARANCE_MARGIN,
             context.actor_physics.collider.depth / 2.0 + DIRECT_ROUTE_CLEARANCE_MARGIN,
         ) {
-            route.retarget(target_pos);
+            route.retarget(anchor);
             info.mode = ActorMode::Engage { target, target_pos };
             info.evade_replan_remaining_secs = 0.0;
             return true;
@@ -387,7 +427,7 @@ pub(super) fn keep_or_install_engagement_route(
     }
     let Some(planned) = context.nav_graph.engagement_route(
         &context.pos,
-        &target_pos,
+        &anchor,
         context.actor_physics.collider.width / 2.0,
         context.actor_physics.collider.depth / 2.0,
     ) else {

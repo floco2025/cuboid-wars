@@ -1,6 +1,6 @@
 use std::collections::{HashMap, VecDeque};
 
-use common::{config::CharacterPhysicsConfig, physics::CollisionWorld, protocol::Position};
+use common::{config::CharacterPhysicsConfig, map::CarrierPose, physics::CollisionWorld, protocol::Position};
 use rand::{Rng, RngExt};
 
 use super::{NavGraph, NavNode, territory::ActorTerritory};
@@ -110,17 +110,24 @@ impl NavGraph {
     // starts wherever it stands inside its cell: a first leg cut from a cell
     // corner can drag the body through a wall end, and the motor parks
     // instead of scraping along it. Detour via the current cell's centre.
+    // The sweep is the one world query here, so `pose` (the graph's
+    // carrier) puts the leg where the colliders are.
     pub(crate) fn anchor_route_start(
         &self,
         start: &Position,
         route: &mut PlannedRoute,
         collision_world: &CollisionWorld,
         physics: CharacterPhysicsConfig,
+        pose: CarrierPose,
     ) {
         let Some(first) = route.waypoints.front() else {
             return;
         };
-        if !collision_world.character_sweep_hits_wall(start, first, physics) {
+        if !collision_world.character_sweep_hits_wall(
+            &pose.transform_position(start),
+            &pose.transform_position(first),
+            physics,
+        ) {
             return;
         }
         let Some(node) = self.node_for_position(start) else {

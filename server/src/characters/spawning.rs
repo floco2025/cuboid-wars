@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use rand::{RngExt, rng, rngs::ThreadRng, seq::IndexedRandom};
 
-use crate::map::{CarrierGrid, MapConfig};
+use crate::map::{ActorSpawnZone, CarrierGrid, MapConfig};
 use common::{
     config::CharacterPhysicsConfig,
     map::{Carriers, MapGeometry},
@@ -48,35 +48,38 @@ pub fn generate_player_spawn_position(
         collision_world,
         occupied_positions,
         character_physics,
-        "player",
     )
+    .unwrap_or_else(|| {
+        warn!(
+            "no clear player spawn position among {} spawnable cells, spawning at center",
+            valid_cells.len()
+        );
+        Position::default()
+    })
 }
 
-// Pick a random clear position from a single actor spawn zone. Used by the
-// actor quota spawner — when topping a specific zone up, we never want to
-// spill into other zones.
+// Pick a random clear position from a single actor spawn zone, on the zone's
+// carrier. Used by the actor quota spawner — when topping a specific zone
+// up, we never want to spill into other zones. `None` when the zone has no
+// clear spot right now; the caller leaves the slot empty rather than spawn
+// somewhere the actor does not belong.
 #[must_use]
 pub fn generate_actor_spawn_position_in_zone(
     map_config: &MapConfig,
-    zone_index: usize,
+    carriers: &Carriers,
+    zone: &ActorSpawnZone,
     collision_world: &CollisionWorld,
     occupied_positions: &[Position],
     character_physics: CharacterPhysicsConfig,
-) -> Position {
-    let Some(zone) = map_config.actor_spawn_zones.get(zone_index) else {
-        warn!("actor spawn zone index {zone_index} out of range; spawning at center");
-        return Position::default();
-    };
-    // Actor zones are the root map's, so no carrier pose is involved.
-    let valid_cells = collect_valid_cells(map_config.root_grid(), zone.level, zone.cells());
+) -> Option<Position> {
+    let valid_cells = collect_valid_cells(map_config.grid(zone.carrier), zone.level, zone.cells());
     pick_clear_position(
         &valid_cells,
         map_config,
-        &Carriers::default(),
+        carriers,
         collision_world,
         occupied_positions,
         character_physics,
-        "actor",
     )
 }
 
@@ -108,7 +111,8 @@ fn collect_valid_cells(grid: &CarrierGrid, level: u8, cells: impl Iterator<Item 
 }
 
 // The cell's position is in its carrier's frame; the carrier's pose at this
-// tick puts it in the world, where the colliders are.
+// tick puts it in the world, where the colliders are. `None` when no cell
+// is spawnable or no random spot came up clear.
 fn pick_clear_position(
     valid_cells: &[SpawnCell],
     map_config: &MapConfig,
@@ -116,30 +120,19 @@ fn pick_clear_position(
     collision_world: &CollisionWorld,
     occupied_positions: &[Position],
     character_physics: CharacterPhysicsConfig,
-    label: &str,
-) -> Position {
-    if valid_cells.is_empty() {
-        warn!("no valid spawn cells for {label:?} (all obstructions or empty), spawning at center");
-        return Position::default();
-    }
-
+) -> Option<Position> {
     let mut rng = rng();
     for _ in 0..SPAWN_MAX_ATTEMPTS {
-        let &(carrier, level, col, row) = valid_cells.choose(&mut rng).expect("valid_cells should not be empty");
+        let &(carrier, level, col, row) = valid_cells.choose(&mut rng)?;
         let geometry = &map_config.grid(carrier).geometry;
         let local = random_position_in_spawn_cell(&mut rng, geometry, level, col, row, character_physics);
-        let pos = Position::from(carriers.pose(carrier).transform_point(Vec3::from(local)));
+        let pos = carriers.pose(carrier).transform_position(&local);
 
         if character_spawn_position_is_clear(&pos, collision_world, occupied_positions, character_physics) {
-            return pos;
+            return Some(pos);
         }
     }
-
-    warn!(
-        "could not generate spawn position for {label:?} after {} attempts, spawning at center",
-        SPAWN_MAX_ATTEMPTS
-    );
-    Position::default()
+    None
 }
 
 fn random_position_in_spawn_cell(
@@ -197,10 +190,10 @@ fn character_position_intersects_character(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::map::{CellGrid, EdgeGrid, LevelGrid, MapConfig, PlayerSpawnZone};
+    use crate::map::{CarrierGrid, CellGrid, EdgeGrid, LevelGrid, MapConfig, PlayerSpawnZone};
     use crate::test_geometry::{LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS, geometry};
     use common::protocol::CarrierId;
-    use common::protocol::{MapLayout, Wall};
+    use common::protocol::{Carrier, MapLayout, Wall};
 
     fn empty_layout() -> MapLayout {
         MapLayout::default()
@@ -298,6 +291,99 @@ mod tests {
             &[],
             character_physics()
         ));
+    }
+
+    fn floor_level(cols: i32, rows: i32, floored: &[(i32, i32)]) -> LevelGrid {
+        let mut level = LevelGrid {
+            cells: CellGrid::new(cols, rows),
+            edges: EdgeGrid::new(cols, rows),
+            barrier_edges: EdgeGrid::new(cols, rows),
+        };
+        for &(col, row) in floored {
+            level.cells.rows[row as usize][col as usize].has_floor = true;
+        }
+        level
+    }
+
+    // A 2x2 nested grid resting at `rest`, holding one mine zone on its
+    // (1, 1) cell: a floor, or a ramp, which is never spawnable.
+    fn nested_zone_fixture(rest: Position, floored: bool) -> (MapConfig, Carriers, ActorSpawnZone) {
+        let mut map_config = MapConfig::for_grid(vec![floor_level(2, 2, &[])], geometry(2, 2));
+        let mut nested = floor_level(2, 2, &[(1, 1)]);
+        if !floored {
+            nested.cells.rows[1][1].has_ramp = true;
+        }
+        map_config
+            .grids
+            .push(CarrierGrid::new(CarrierId(1), geometry(2, 2), vec![nested]));
+        let carriers = Carriers::from_layout(&MapLayout {
+            carriers: vec![Carrier {
+                parent: CarrierId::WORLD,
+                level: 0,
+                levels: 0,
+                from: rest,
+                to: rest,
+                travel_ticks: 1,
+                pause_ticks: 0,
+                phase_ticks: 0,
+            }],
+            ..MapLayout::default()
+        });
+        let zone = ActorSpawnZone {
+            carrier: CarrierId(1),
+            level: 0,
+            cols: [1, 2],
+            rows: [1, 2],
+            kind: "mine".to_owned(),
+            count: 1,
+        };
+        (map_config, carriers, zone)
+    }
+
+    #[test]
+    fn actor_spawn_in_a_nested_zone_goes_through_the_carriers_pose() {
+        let collision_world = collision_world(&empty_layout());
+        let rest = Position {
+            x: 30.0,
+            y: LEVEL_HEIGHT,
+            z: -10.0,
+        };
+        let (map_config, carriers, zone) = nested_zone_fixture(rest, true);
+
+        let pos = generate_actor_spawn_position_in_zone(
+            &map_config,
+            &carriers,
+            &zone,
+            &collision_world,
+            &[],
+            character_physics(),
+        )
+        .expect("the floored cell is spawnable");
+
+        let local = carriers.pose(CarrierId(1)).inverse_transform_position(&pos);
+        let geometry = geometry(2, 2);
+        assert_eq!(pos.y, LEVEL_HEIGHT);
+        assert_eq!(local.y, 0.0);
+        assert!(local.x >= geometry.cell_to_world_x(1) && local.x <= geometry.cell_to_world_x(2));
+        assert!(local.z >= geometry.cell_to_world_z(1) && local.z <= geometry.cell_to_world_z(2));
+    }
+
+    #[test]
+    fn actor_spawn_in_a_zone_without_a_spawnable_cell_yields_nothing() {
+        let collision_world = collision_world(&empty_layout());
+        let (map_config, carriers, zone) = nested_zone_fixture(Position::default(), false);
+
+        assert!(
+            generate_actor_spawn_position_in_zone(
+                &map_config,
+                &carriers,
+                &zone,
+                &collision_world,
+                &[],
+                character_physics(),
+            )
+            .is_none()
+        );
     }
 
     #[test]

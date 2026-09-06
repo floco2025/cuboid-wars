@@ -27,7 +27,7 @@ fn actor_plan_order_uses_actor_id_as_tie_breaker() {
 #[test]
 fn actor_without_route_plans_after_routed_actor() {
     let pos = Position::default();
-    let mut targeted = ActorInfo::new(Entity::from_bits(1), 0, TEST_KIND.into());
+    let mut targeted = ActorInfo::new(Entity::from_bits(1), 0, TEST_KIND.into(), CarrierId::WORLD);
     targeted.route = Some(route(Position { x: 1.0, y: 0.0, z: 0.0 }));
 
     assert!(actor_route_distance(&pos, Some(&targeted)).is_finite());
@@ -41,7 +41,7 @@ fn multi_waypoint_queue_plans_front_actor_before_rear_actor() {
         y: 0.0,
         z: 0.0,
     };
-    let mut rear = ActorInfo::new(Entity::from_bits(1), 0, TEST_KIND.into());
+    let mut rear = ActorInfo::new(Entity::from_bits(1), 0, TEST_KIND.into(), CarrierId::WORLD);
     rear.route = Some(ActorRoute {
         waypoints: [Position { x: 1.0, y: 0.0, z: 0.0 }, target].into(),
         destination: target,
@@ -51,7 +51,7 @@ fn multi_waypoint_queue_plans_front_actor_before_rear_actor() {
             col: 2,
         },
     });
-    let mut front = ActorInfo::new(Entity::from_bits(2), 0, TEST_KIND.into());
+    let mut front = ActorInfo::new(Entity::from_bits(2), 0, TEST_KIND.into(), CarrierId::WORLD);
     front.route = Some(ActorRoute {
         waypoints: [Position { x: 9.0, y: 0.0, z: 0.0 }, target].into(),
         destination: target,

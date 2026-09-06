@@ -1,19 +1,17 @@
 use bevy::prelude::*;
 
 use super::super::context::ServerMessageContext;
-use crate::constants::HOP_DISPUTE_SLACK_SECS;
 use crate::{
     audio::{play_explosion_sound, play_sound, play_spatial_sound},
     characters::PreviousTickPosition,
     network::{ServerReconciliation, extrapolated_correction, recorded_correction, resources::accept_newer_tick},
-    players::{CameraShake, CuboidShake, LocalPlayerInfo, PlayerMap},
+    players::{CameraShake, CrossingVerdict, CuboidShake, LocalPlayerInfo, PlayerMap},
     projectiles::spawn_projectiles,
     ui::{BannerMessage, HudBanner},
     vfx::spawn_player_explosion,
 };
 use common::{
     config::MapMovementConfig,
-    constants::TICK_HZ,
     physics::{AirborneMomentum, CharacterVerticalVelocity, KnockbackVelocity, player_control_velocity},
     protocol::*,
 };
@@ -39,12 +37,8 @@ pub(in crate::network) fn handle_player_moves_message(
     if context.tick_sync.takes_rough_seed() {
         context.server_tick.0 = tick.wrapping_add(1);
     }
-    // A crossing the server has yet to make shows up within a round trip;
-    // one still missing after that was mispredicted, and the server's side
-    // stands. Until the round trip has been measured no dispute can be
-    // judged, so none is.
-    let dispute_limit = (!context.rtt.measurements.is_empty())
-        .then(|| ((context.rtt.rtt.as_secs_f32() + HOP_DISPUTE_SLACK_SECS) * TICK_HZ as f32) as u32);
+    let clock_seeded = context.tick_sync.is_seeded();
+    let mut clock_shift = None;
     for PlayerMove {
         id,
         movement,
@@ -58,47 +52,46 @@ pub(in crate::network) fn handle_player_moves_message(
         // A state pairs only with a simulation on the same side of the same
         // portal crossings; one from across a crossing we have predicted, or
         // not yet predicted, would steer and reconcile the body back through.
-        if hops != player.hops {
-            player.disputed_echoes += 1;
-            if dispute_limit.is_none_or(|limit| player.disputed_echoes <= limit) {
+        // Which side is right is judged by tick (`judge_crossing`).
+        let ours = player.hops;
+        match player.judge_crossing(tick, hops, clock_seeded) {
+            CrossingVerdict::Paired => {}
+            CrossingVerdict::Skipped => continue,
+            CrossingVerdict::Settled => {
+                // The server's side stands: put the player there outright. The
+                // gap between two portals can sit under the snap threshold, and a
+                // vertical gap is never eased, so ordinary reconciliation could
+                // leave the player on the wrong side with the right count. The
+                // local player's view stays mapped through the rejected crossing
+                // on purpose: intent is rebuilt every frame from keys and camera,
+                // knockback decays within a second, and unmapping the view would
+                // need the last crossing's pair, for a case that takes the two
+                // simulations drifting apart right at an aperture's edge. The
+                // teleport lands when commands flush, so a second move message
+                // in this same receive pass still measures against the old
+                // position; that costs one tick of a fraction of the gap before
+                // the next echo measures against the teleported one.
+                warn!(
+                    "{} crossing dispute settled for the server: {} hops there, {} here; teleporting",
+                    player.name, hops, ours
+                );
+                let mut entity = commands.entity(player.entity);
+                entity
+                    .insert((
+                        movement.pos,
+                        PreviousTickPosition(movement.pos),
+                        CharacterVerticalVelocity(movement.vertical_velocity),
+                        AirborneMomentum::default(),
+                    ))
+                    .remove::<ServerReconciliation>();
+                if id == my_player_id {
+                    context.local_player_info.committed_positions.clear();
+                } else {
+                    entity.insert((movement.move_intent, FaceYaw(movement.face_yaw)));
+                }
                 continue;
             }
-            // The server's side stands: put the player there outright. The
-            // gap between two portals can sit under the snap threshold, and a
-            // vertical gap is never eased, so ordinary reconciliation could
-            // leave the player on the wrong side with the right count. The
-            // local player's view stays mapped through the rejected crossing
-            // on purpose: intent is rebuilt every frame from keys and camera,
-            // knockback decays within a second, and unmapping the view would
-            // need the last crossing's pair, for a case that takes the two
-            // simulations drifting apart right at an aperture's edge. The
-            // teleport lands when commands flush, so a second move message
-            // in this same receive pass still measures against the old
-            // position; that costs one tick of a fraction of the gap before
-            // the next echo measures against the teleported one.
-            warn!(
-                "{} crossing dispute settled for the server: {} hops there, {} here; teleporting",
-                player.name, hops, player.hops
-            );
-            player.hops = hops;
-            player.disputed_echoes = 0;
-            let mut entity = commands.entity(player.entity);
-            entity
-                .insert((
-                    movement.pos,
-                    PreviousTickPosition(movement.pos),
-                    CharacterVerticalVelocity(movement.vertical_velocity),
-                    AirborneMomentum::default(),
-                ))
-                .remove::<ServerReconciliation>();
-            if id == my_player_id {
-                context.local_player_info.committed_positions.clear();
-            } else {
-                entity.insert((movement.move_intent, FaceYaw(movement.face_yaw)));
-            }
-            continue;
         }
-        player.disputed_echoes = 0;
         let mut entity = commands.entity(player.entity);
         if id != my_player_id {
             entity.insert((
@@ -128,6 +121,7 @@ pub(in crate::network) fn handle_player_moves_message(
                     let committed_seq = context.local_player_info.move_seq;
                     if let Some(shift) = context.tick_sync.observe(error, move_seq, committed_seq) {
                         context.server_tick.0 = context.server_tick.0.wrapping_add_signed(shift);
+                        clock_shift = Some(shift);
                         info!("clock shifted by {shift} ticks to {}", context.server_tick.0);
                     }
                 }
@@ -142,6 +136,13 @@ pub(in crate::network) fn handle_player_moves_message(
                 server_velocity,
                 &context.rtt,
             ));
+        }
+    }
+    // A crossing tick recorded under the old clock keeps its meaning under
+    // the shifted one.
+    if let Some(shift) = clock_shift {
+        for player in context.players.values_mut() {
+            player.hop_tick = player.hop_tick.wrapping_add_signed(shift);
         }
     }
 }
@@ -492,7 +493,8 @@ mod tests {
             held_keys: Vec::new(),
             missiles: 0,
             hops: 0,
-            disputed_echoes: 0,
+            hop_tick: 0,
+            disputed_since: None,
         }
     }
 

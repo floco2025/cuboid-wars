@@ -439,10 +439,12 @@ fn source_description(source: &BlastSource, players: &PlayerMap) -> String {
 mod tests {
     use super::*;
     use crate::{
-        actors::ActorInfo, actors::actors_removal_system, characters::characters_health_regeneration_system,
-        players::PlayerInfo,
+        actors::ActorInfo, actors::actors_removal_system, actors::navigation::NavGraphs,
+        characters::characters_health_regeneration_system, map::MapConfig, players::PlayerInfo,
+        test_geometry::geometry,
     };
     use common::protocol::{BarrierKindTable, MapLayout, SPlayerDeath};
+    use common::{map::Carriers, protocol::CarrierId};
     use tokio::sync::mpsc::unbounded_channel;
 
     fn test_app() -> App {
@@ -464,6 +466,8 @@ mod tests {
             .insert_resource(server)
             .insert_resource(quest_catalog)
             .insert_resource(collision_world)
+            .insert_resource(Carriers::default())
+            .insert_resource(NavGraphs::new(&MapConfig::for_grid(Vec::new(), geometry(1, 1))))
             .insert_resource(PlayerMap::default())
             .insert_resource(ActorMap::default())
             .insert_resource(Invincibility(false))
@@ -486,7 +490,7 @@ mod tests {
             .id();
         app.world_mut()
             .resource_mut::<ActorMap>()
-            .insert(id, ActorInfo::new(entity, 0, "zapper".to_owned()));
+            .insert(id, ActorInfo::new(entity, 0, "zapper".to_owned(), CarrierId::WORLD));
         entity
     }
 

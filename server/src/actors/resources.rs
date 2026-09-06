@@ -3,8 +3,9 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use bevy::prelude::*;
 
 use common::{
+    map::Carriers,
     physics::CharacterSupport,
-    protocol::{ActorId, ActorMarker, ActorMoveIntent, FaceYaw, Health, PlayerId, Position},
+    protocol::{ActorId, ActorMarker, ActorMoveIntent, CarrierId, FaceYaw, Health, PlayerId, Position},
 };
 
 use super::navigation::{NavNode, PlannedRoute};
@@ -82,10 +83,15 @@ pub(crate) struct AwarePlayer {
     pub(crate) attack_anchor: Option<Position>,
 }
 
+// An actor belongs to the carrier its zone is on for life: it navigates
+// that carrier's grid in the carrier's frame (`route` is carrier-local) and
+// despawns if it leaves the carrier's map. `mode` and `awareness` keep
+// world positions, since perception and facing are world-space.
 pub struct ActorInfo {
     pub entity: Entity,
     pub spawn_zone_index: usize,
     pub spawn_kind: String,
+    pub carrier: CarrierId,
     pub(crate) mode: ActorMode,
     pub(crate) route: Option<ActorRoute>,
     pub(crate) beam: BeamState,
@@ -102,11 +108,12 @@ pub struct ActorInfo {
 
 impl ActorInfo {
     #[must_use]
-    pub fn new(entity: Entity, spawn_zone_index: usize, spawn_kind: String) -> Self {
+    pub fn new(entity: Entity, spawn_zone_index: usize, spawn_kind: String, carrier: CarrierId) -> Self {
         Self {
             entity,
             spawn_zone_index,
             spawn_kind,
+            carrier,
             mode: ActorMode::Roam,
             route: None,
             beam: BeamState::Ready,
@@ -190,14 +197,25 @@ pub struct ActorRespawnTimers(pub HashMap<usize, f32>);
 // beam-in warning window hasn't elapsed. The actor entity doesn't exist yet —
 // clients render a ghost from the snapshot's `spawning_actors` list. Counts
 // toward the zone quota and occupies its spot, since materialization is
-// unconditional.
+// unconditional. `pos` is in the zone's carrier frame, so the spot rides
+// the carrier through the window, which runs from `reserved_tick` to
+// `due_tick` on the shared tick.
 pub struct PendingActorSpawn {
     pub actor_id: ActorId,
     pub zone_idx: usize,
     pub kind: String,
+    pub carrier: CarrierId,
     pub pos: Position,
     pub face_yaw: f32,
-    pub remaining_secs: f32,
+    pub reserved_tick: u32,
+    pub due_tick: u32,
+}
+
+impl PendingActorSpawn {
+    #[must_use]
+    pub fn world_position(&self, carriers: &Carriers) -> Position {
+        carriers.pose(self.carrier).transform_position(&self.pos)
+    }
 }
 
 #[derive(Resource, Default)]
@@ -220,7 +238,7 @@ mod tests {
         let mut actors = ActorMap::default();
         let id = ActorId(4);
         let entity = Entity::from_bits(12);
-        actors.insert(id, ActorInfo::new(entity, 3, "zapper".to_owned()));
+        actors.insert(id, ActorInfo::new(entity, 3, "zapper".to_owned(), CarrierId::WORLD));
 
         assert!(!actors.has_vacated_spawn_zones());
 

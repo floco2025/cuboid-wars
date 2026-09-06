@@ -7,7 +7,7 @@ use common::{
 };
 
 use crate::{
-    actors::{ActorGhostMap, ActorMap, ActorSpawnWarningSecs},
+    actors::{ActorGhostMap, ActorMap},
     barriers::{BarrierAssets, LockedPlatePurposes},
     cameras::MainCameraMarker,
     carriers::{CarrierEntities, CarrierStoreys},
@@ -61,7 +61,6 @@ pub(super) struct ServerMessageContext<'w, 's> {
     pub(super) portal_set: ResMut<'w, PortalSet>,
     pub(super) portal_access: ResMut<'w, PortalAccess>,
     pub(super) actor_ghosts: ResMut<'w, ActorGhostMap>,
-    pub(super) actor_spawn_warning_secs: Res<'w, ActorSpawnWarningSecs>,
     pub(super) last_snapshot_tick: ResMut<'w, LastSnapshotTick>,
     pub(super) last_player_moves_tick: ResMut<'w, LastPlayerMovesTick>,
     pub(super) server_tick: ResMut<'w, ServerTick>,

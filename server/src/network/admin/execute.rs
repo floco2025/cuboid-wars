@@ -127,6 +127,7 @@ pub(super) fn run_admin_command(
                 &mut admin.actor_respawn_timers,
                 map_config,
                 &admin.server_gameplay_config,
+                admin.server_tick.0,
                 kind.as_deref(),
             );
             Public(format!("respawning {count} actor(s)"))

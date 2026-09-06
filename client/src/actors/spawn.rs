@@ -107,35 +107,33 @@ pub fn spawn_actor(
     entity
 }
 
-// Fade state for a ghost, straight from the wire fields. Also inserted onto
-// existing ghosts on every snapshot, resyncing the locally-ticked fade.
+// Fade state for a ghost, straight from the wire ticks. Re-inserted onto
+// an existing ghost on every snapshot, since `/spawn` moves the due tick.
 #[must_use]
-pub fn beam_in_ghost_state(
-    gameplay_config: &GameplayConfig,
-    warning_secs: f32,
-    spawning: &SpawningActor,
-) -> BeamInGhost {
+pub fn beam_in_ghost_state(gameplay_config: &GameplayConfig, spawning: &SpawningActor) -> BeamInGhost {
     let collider = gameplay_config
         .actor(&spawning.kind)
         .expect("actor kind sent by server is missing from gameplay config")
         .physics()
         .collider;
     BeamInGhost {
-        remaining_secs: spawning.remaining_secs,
-        warning_secs,
+        reserved_tick: spawning.reserved_tick,
+        due_tick: spawning.due_tick,
         half_extents: Vec3::new(collider.width, collider.height, collider.depth) / 2.0,
     }
 }
 
 // Beam-in ghost: the per-kind model at the reserved spot, fading in and
 // sparkling for the warning window. No gameplay components — the actor
-// doesn't exist yet; this is pure presentation.
+// doesn't exist yet; this is pure presentation. The spot is in the
+// carrier's frame, so the ghost hangs under its carrier's entity like an
+// item and rides with it.
 pub fn spawn_actor_ghost(
     commands: &mut Commands,
     asset_server: &AssetServer,
     asset_set: &AssetSet,
     gameplay_config: &GameplayConfig,
-    warning_secs: f32,
+    carrier: Entity,
     spawning: &SpawningActor,
 ) -> Entity {
     let actor_model = asset_set.actor_model(&spawning.kind);
@@ -146,6 +144,7 @@ pub fn spawn_actor_ghost(
 
     let entity = commands
         .spawn((
+            ChildOf(carrier),
             Transform::from_xyz(
                 spawning.pos.x,
                 actor_physics.collider_center_y(spawning.pos.y),
@@ -153,7 +152,7 @@ pub fn spawn_actor_ghost(
             )
             .with_rotation(Quat::from_rotation_y(spawning.face_yaw)),
             Visibility::Visible,
-            beam_in_ghost_state(gameplay_config, warning_secs, spawning),
+            beam_in_ghost_state(gameplay_config, spawning),
             BeamEmitter::default(),
             PointLight {
                 color: BEAM_IN_COLOR,

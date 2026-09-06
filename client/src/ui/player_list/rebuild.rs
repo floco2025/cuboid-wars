@@ -154,7 +154,8 @@ mod tests {
             missiles: 0,
             snap_speed: 0.0,
             hops: 0,
-            disputed_echoes: 0,
+            hop_tick: 0,
+            disputed_since: None,
         }
     }
 

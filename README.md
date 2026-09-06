@@ -41,7 +41,7 @@ death/respawn flow.
 - **Actors** — mines, sentries, zappers, and reapers patrol and hunt; all
   explode when killed.
 - **Ladders** — climb between levels.
-- **Moving maps** — tiles, rooms, and whole buildings that slide or lift through a map, everything inside riding along.
+- **Moving maps** — tiles, rooms, and whole buildings that slide or lift through a map, everything inside riding along, monsters included.
 - **Fall damage** — short drops are safe; long falls scale up to lethal.
 - **Death & respawn** — dying drops your keys and ammo; you respawn after
   a short delay.

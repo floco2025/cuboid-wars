@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 // ============================================================================
 // Map Geometry
 // ============================================================================
@@ -90,6 +92,7 @@ pub const SNAPSHOT_SECS: f32 = 1.0 / SNAPSHOT_HZ as f32;
 // responsive AI and input.
 pub const TICK_HZ: u32 = 30;
 pub const TICK_SECS: f32 = 1.0 / TICK_HZ as f32;
+pub const TICK_DURATION: Duration = Duration::from_nanos(1_000_000_000 / TICK_HZ as u64);
 
 // ============================================================================
 // Physics

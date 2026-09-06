@@ -6,8 +6,7 @@ use bincode::{Decode, Encode};
 use serde::Deserialize;
 
 use super::{
-    CharacterGameplayConfig, MissilesConfig, PortalsConfig, ProjectilesConfig,
-    validation::{validate_non_negative_finite, validate_positive_finite},
+    CharacterGameplayConfig, MissilesConfig, PortalsConfig, ProjectilesConfig, validation::validate_positive_finite,
 };
 
 #[derive(Resource, Debug, Clone, Deserialize)]
@@ -92,7 +91,6 @@ pub(crate) fn load_test_gameplay() -> Result<GameplayConfig> {
 pub struct GameplayBootstrap {
     pub player: PlayerGameplayBootstrap,
     pub actors: Vec<(String, ActorGameplayBootstrap)>,
-    pub actor_spawn_warning_secs: f32,
     pub projectiles: ProjectilesConfig,
     pub missiles: MissilesGameplayBootstrap,
     pub portals: PortalsConfig,
@@ -123,7 +121,6 @@ impl GameplayBootstrap {
         validate_positive_finite(self.player.max_health, "gameplay.player.max_health")?;
         validate_positive_finite(self.player.death_blast_radius, "gameplay.player.death_blast_radius")?;
         validate_positive_finite(self.missiles.blast_radius, "gameplay.missiles.blast_radius")?;
-        validate_non_negative_finite(self.actor_spawn_warning_secs, "gameplay.actor_spawn_warning_secs")?;
 
         let mut actors = HashMap::with_capacity(self.actors.len());
         for (kind, actor) in &self.actors {
@@ -177,7 +174,6 @@ mod tests {
                 death_blast_radius: 5.0,
             },
             actors,
-            actor_spawn_warning_secs: 2.0,
             projectiles: gameplay.projectiles,
             missiles: MissilesGameplayBootstrap {
                 gameplay: gameplay.missiles,

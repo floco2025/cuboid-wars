@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use anyhow::{Result, bail};
-use common::config::CharacterGameplayConfig;
+use common::{config::CharacterGameplayConfig, protocol::ticks_from_secs};
 use serde::Deserialize;
 
 use super::validation::{deserialize_required_option, validate_non_negative_finite, validate_positive_finite};
@@ -35,6 +35,11 @@ pub struct ActorSettingsConfig {
 }
 
 impl ActorSettingsConfig {
+    #[must_use]
+    pub fn spawn_warning_ticks(&self) -> u32 {
+        ticks_from_secs(self.spawn_warning_secs)
+    }
+
     fn validate(&self, path: &str) -> Result<()> {
         validate_non_negative_finite(self.spawn_warning_secs, &format!("{path}.spawn_warning_secs"))?;
         validate_non_negative_finite(self.threat_memory_secs, &format!("{path}.threat_memory_secs"))

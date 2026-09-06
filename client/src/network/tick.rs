@@ -39,6 +39,13 @@ impl TickSync {
         true
     }
 
+    // Whether an own echo has measured the clock; the rough seed does not
+    // count.
+    #[must_use]
+    pub fn is_seeded(&self) -> bool {
+        self.seeded
+    }
+
     // `error` is the echoed tick minus the recorded one for `echoed_seq`;
     // `committed_seq` is the newest commit made so far. Returns the shift to
     // apply to the clock.

@@ -95,6 +95,7 @@ pub struct LevelGrid {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ActorSpawnZone {
+    pub carrier: CarrierId,
     pub level: u8,
     pub cols: [i32; 2],
     pub rows: [i32; 2],
@@ -107,15 +108,6 @@ impl ActorSpawnZone {
         let cols = self.cols[0]..self.cols[1];
         let rows = self.rows[0]..self.rows[1];
         rows.flat_map(move |r| cols.clone().map(move |c| (c, r)))
-    }
-
-    #[must_use]
-    pub fn xz_bounds(&self, geometry: &MapGeometry) -> (f32, f32, f32, f32) {
-        let min_x = geometry.cell_to_world_x(self.cols[0]);
-        let max_x = geometry.cell_to_world_x(self.cols[1]);
-        let min_z = geometry.cell_to_world_z(self.rows[0]);
-        let max_z = geometry.cell_to_world_z(self.rows[1]);
-        (min_x, min_z, max_x, max_z)
     }
 }
 
@@ -182,8 +174,7 @@ impl CarrierGrid {
 }
 
 // The grid data of the map being played and every map nested in it, plus
-// the flat lists that name their carrier. Actor spawn zones are the root's
-// only: actors do not ride nested maps yet.
+// the flat lists that name their carrier.
 #[derive(Resource, Clone, Debug)]
 pub struct MapConfig {
     pub grids: Vec<CarrierGrid>,

@@ -6,10 +6,10 @@ use clap::Parser;
 use quinn::Endpoint;
 use tokio::{
     sync::mpsc::unbounded_channel,
-    time::{self, Duration, Instant, MissedTickBehavior},
+    time::{self, Instant, MissedTickBehavior},
 };
 
-use common::constants::TICK_HZ;
+use common::constants::TICK_DURATION;
 use server::{
     app::build_server_app,
     config::configure_server,
@@ -39,8 +39,7 @@ async fn main() -> Result<()> {
 
     info!("starting ECS server loop...");
 
-    let tick_duration = Duration::from_nanos(1_000_000_000 / u64::from(TICK_HZ));
-    let mut interval = time::interval(tick_duration);
+    let mut interval = time::interval(TICK_DURATION);
     interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
 
     let mut frame: u64 = 0;
@@ -51,12 +50,12 @@ async fn main() -> Result<()> {
         app.update();
         let update_elapsed = update_start.elapsed();
 
-        if update_elapsed > tick_duration {
+        if update_elapsed > TICK_DURATION {
             warn!(
                 "tick {} took {:.2}ms (exceeded {:.2}ms budget)",
                 frame,
                 update_elapsed.as_secs_f64() * 1000.0,
-                tick_duration.as_secs_f64() * 1000.0
+                TICK_DURATION.as_secs_f64() * 1000.0
             );
         }
 

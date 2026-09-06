@@ -232,7 +232,7 @@ fn inaccessible_floor_emits_physical_slab_but_not_regular_floor() {
         Vec::new(),
     );
 
-    let (layout, config, _) =
+    let (layout, config) =
         compile_map(&map_def, sizes(), &no_nested(), &empty_kind_table(), &no_bridges()).expect("compile");
     let geometry = config.root_grid().geometry;
     let inaccessible_cell = config.root_grid().levels[0].cells.rows[0][2];
@@ -393,7 +393,7 @@ fn compile_resolves_known_barrier_kind() {
         r1: 0,
         kind: "red".into(),
     });
-    let (layout, _, _) =
+    let (layout, _) =
         compile_map(&map_def, sizes(), &no_nested(), &red_only_kind_table(), &no_bridges()).expect("compile");
     assert_eq!(layout.barriers.len(), 1);
     assert_eq!(layout.barriers[0].kind, common::protocol::BarrierKindId(0));
@@ -417,7 +417,7 @@ fn stacked_barriers_compile_into_one_record_when_no_floor_splits_them() {
             kind: "red".into(),
         });
     }
-    let (layout, _, _) =
+    let (layout, _) =
         compile_map(&map_def, sizes(), &no_nested(), &red_only_kind_table(), &no_bridges()).expect("compile");
     assert_eq!(layout.barriers.len(), 1);
     assert_eq!(layout.barriers[0].level, 0);
@@ -443,7 +443,7 @@ fn a_floor_beside_the_upper_barrier_keeps_the_storeys_apart() {
             kind: "red".into(),
         });
     }
-    let (layout, _, _) =
+    let (layout, _) =
         compile_map(&map_def, sizes(), &no_nested(), &red_only_kind_table(), &no_bridges()).expect("compile");
     assert_eq!(layout.barriers.len(), 2);
     assert!(layout.barriers.iter().all(|barrier| barrier.levels == 1));
@@ -481,7 +481,7 @@ fn pressure_plate_barrier_is_open_for_pathfinding() {
         purpose: PressurePlatePurposeDef::Barrier { kind: "red".into() },
     });
 
-    let (_, config, _) =
+    let (_, config) =
         compile_map(&map_def, sizes(), &no_nested(), &three_kind_table(), &no_bridges()).expect("compile");
     let barrier_edges = &config.root_grid().levels[0].barrier_edges;
     assert!(
@@ -514,7 +514,7 @@ fn firework_plate_does_not_open_any_barrier_kind() {
         purpose: PressurePlatePurposeDef::Firework,
     });
 
-    let (layout, config, _) =
+    let (layout, config) =
         compile_map(&map_def, sizes(), &no_nested(), &three_kind_table(), &no_bridges()).expect("compile");
     assert!(
         config.root_grid().levels[0].barrier_edges.vertical[0][1],
@@ -551,7 +551,7 @@ fn plate_defs_parse_every_purpose() {
 fn compile_merges_light_bridge_cells_into_one_rectangle() {
     let map_def = map_with_bridges(&[[1, 0], [2, 0], [1, 1], [2, 1]]);
 
-    let (layout, config, _) = compile_map(
+    let (layout, config) = compile_map(
         &map_def,
         sizes(),
         &no_nested(),
@@ -691,7 +691,7 @@ fn compile_resolves_three_distinct_kinds() {
         r1: 0,
         kind: "green".into(),
     });
-    let (layout, _, _) =
+    let (layout, _) =
         compile_map(&map_def, sizes(), &no_nested(), &three_kind_table(), &no_bridges()).expect("compile");
     assert_eq!(layout.barriers.len(), 3);
     let kinds: Vec<u16> = layout.barriers.iter().map(|b| b.kind.0).collect();
@@ -710,7 +710,7 @@ fn compile_drops_grass_without_floor() {
     );
     map_def.levels[0].grass.push(cell_def(0, 0));
     map_def.levels[0].grass.push(cell_def(2, 2));
-    let (layout, _, _) =
+    let (layout, _) =
         compile_map(&map_def, sizes(), &no_nested(), &empty_kind_table(), &no_bridges()).expect("compile");
     assert_eq!(layout.grass.len(), 1);
     assert_eq!(layout.grass[0].level, 0);
@@ -726,7 +726,7 @@ fn grass_compiles_to_cell_center_and_floor_top() {
         Vec::new(),
     );
     map_def.levels[1].grass.push(cell_def(1, 2));
-    let (layout, config, _) =
+    let (layout, config) =
         compile_map(&map_def, sizes(), &no_nested(), &empty_kind_table(), &no_bridges()).expect("compile");
     let geometry = config.root_grid().geometry;
     assert_eq!(layout.grass.len(), 1);
@@ -750,7 +750,7 @@ fn grass_allowed_on_inaccessible_floor() {
     );
     map_def.levels[0].grass.push(cell_def(1, 0));
     validate_map(&map_def).expect("grass on an inaccessible floor should load");
-    let (layout, _, _) =
+    let (layout, _) =
         compile_map(&map_def, sizes(), &no_nested(), &empty_kind_table(), &no_bridges()).expect("compile");
     assert_eq!(layout.grass.len(), 1);
 }
@@ -890,7 +890,7 @@ fn compile_resolves_key_item_barrier_kind() {
         Vec::new(),
     );
     map_def.items.push(item_def(0, 0, 0, "key", Some("red")));
-    let (_, config, _) =
+    let (_, config) =
         compile_map(&map_def, sizes(), &no_nested(), &red_only_kind_table(), &no_bridges()).expect("compile");
     assert_eq!(config.placed_items.len(), 1);
     assert_eq!(
@@ -937,7 +937,7 @@ fn ladder_compiles_to_world_segment_and_normal() {
     );
     map_def.ladders.push(ladder(0, 1, 1, WallSide::North, 1));
 
-    let (layout, _, _) =
+    let (layout, _) =
         compile_map(&map_def, sizes(), &no_nested(), &empty_kind_table(), &no_bridges()).expect("compile");
 
     assert_eq!(layout.ladders.len(), 1);
@@ -1308,10 +1308,7 @@ fn tree(maps: Vec<(&str, MapDef)>) -> LoadedMaps {
     maps.into_iter().map(|(name, def)| (name.to_owned(), def)).collect()
 }
 
-fn compile_host(
-    host: &MapDef,
-    nested: &LoadedMaps,
-) -> (common::protocol::MapLayout, crate::map::MapConfig, Vec<String>) {
+fn compile_host(host: &MapDef, nested: &LoadedMaps) -> (common::protocol::MapLayout, crate::map::MapConfig) {
     compile_map(host, sizes(), nested, &empty_kind_table(), &no_bridges()).expect("host failed to compile")
 }
 
@@ -1357,8 +1354,8 @@ fn nudges_displace_each_end_by_wall_widths_across_and_floor_thicknesses_up() {
     entry.motion.from_nudge = [1.0, 0.0, 0.0];
     entry.motion.to_nudge = [0.0, -2.0, 3.0];
     let plain = host(vec![nested("room", 0, [1, 3], [5, 3], 0)]);
-    let (plain_layout, _, _) = compile_host(&plain, &tree(vec![("room", room())]));
-    let (layout, _, _) = compile_host(&host(vec![entry]), &tree(vec![("room", room())]));
+    let (plain_layout, _) = compile_host(&plain, &tree(vec![("room", room())]));
+    let (layout, _) = compile_host(&host(vec![entry]), &tree(vec![("room", room())]));
     let (plain_from, plain_to) = (
         Vec3::from(plain_layout.carriers[0].from),
         Vec3::from(plain_layout.carriers[0].to),
@@ -1394,7 +1391,7 @@ fn travel_time_sets_the_travel_ticks_whatever_the_distance() {
     short.motion.travel_secs = 1.5;
     let mut long = nested("room", 0, [1, 3], [5, 3], 0);
     long.motion.travel_secs = 1.5;
-    let (layout, _, _) = compile_host(&host(vec![short, long]), &tree(vec![("room", room())]));
+    let (layout, _) = compile_host(&host(vec![short, long]), &tree(vec![("room", room())]));
     assert_eq!(layout.carriers[0].travel_ticks, 45);
     assert_eq!(layout.carriers[1].travel_ticks, 45);
 }
@@ -1428,7 +1425,7 @@ fn nested_cell_zero_lands_on_the_parent_anchor_cell() {
     use common::protocol::CarrierId;
 
     let host_def = host(vec![nested("room", 1, [2, 3], [4, 3], 1)]);
-    let (layout, _, _) = compile_host(&host_def, &tree(vec![("room", room())]));
+    let (layout, _) = compile_host(&host_def, &tree(vec![("room", room())]));
     let carrier = layout.carriers[0];
     let parent = MapGeometry::new(6, 6, sizes());
     let child = MapGeometry::new(3, 2, sizes());
@@ -1447,7 +1444,7 @@ fn nested_records_stay_in_their_own_frame_and_carry_their_id() {
     use common::protocol::CarrierId;
 
     let host_def = host(vec![nested("room", 0, [2, 2], [2, 2], 0)]);
-    let (layout, _, _) = compile_host(&host_def, &tree(vec![("room", room())]));
+    let (layout, _) = compile_host(&host_def, &tree(vec![("room", room())]));
     let child = MapGeometry::new(3, 2, sizes());
     let room_walls: Vec<_> = layout
         .walls
@@ -1481,7 +1478,7 @@ fn nested_kinds_resolve_against_the_root_tables_and_an_unknown_kind_names_the_ne
     let host_def = host(vec![nested("room", 0, [2, 2], [2, 2], 0)]);
     let nested_maps = tree(vec![("room", keyed_room)]);
 
-    let (layout, _, _) = compile_map(&host_def, sizes(), &nested_maps, &red_only_kind_table(), &no_bridges())
+    let (layout, _) = compile_map(&host_def, sizes(), &nested_maps, &red_only_kind_table(), &no_bridges())
         .expect("a nested barrier of a root kind failed to compile");
     assert_eq!(layout.barriers.len(), 1);
 
@@ -1500,7 +1497,7 @@ fn a_doubly_nested_carrier_is_parented_to_its_nesting_carrier_and_ids_come_paren
         nested("middle", 0, [2, 2], [2, 2], 0),
         nested("inner", 0, [0, 4], [0, 4], 0),
     ]);
-    let (layout, config, _) = compile_host(&host_def, &tree(vec![("middle", middle), ("inner", room())]));
+    let (layout, config) = compile_host(&host_def, &tree(vec![("middle", middle), ("inner", room())]));
 
     // middle = 1, its inner = 2, the host's own inner = 3.
     assert_eq!(layout.carriers.len(), 3);
@@ -1515,12 +1512,15 @@ fn a_doubly_nested_carrier_is_parented_to_its_nesting_carrier_and_ids_come_paren
 }
 
 #[test]
-fn nested_actor_spawn_zones_are_ignored_with_a_warning() {
+fn nested_actor_spawn_zones_carry_their_carrier() {
+    use common::protocol::CarrierId;
+
     let host_def = host(vec![nested("room", 0, [2, 2], [2, 2], 0)]);
-    let (_, config, warnings) = compile_host(&host_def, &tree(vec![("room", room())]));
-    assert!(config.actor_spawn_zones.is_empty());
-    assert_eq!(warnings.len(), 1);
-    assert!(warnings[0].contains("\"room\""), "{}", warnings[0]);
+    let (_, config) = compile_host(&host_def, &tree(vec![("room", room())]));
+    assert_eq!(config.actor_spawn_zones.len(), 1);
+    assert_eq!(config.actor_spawn_zones[0].carrier, CarrierId(1));
+    assert_eq!(config.actor_spawn_zones[0].cols, [1, 2]);
+    assert_eq!(config.actor_spawn_zones[0].rows, [1, 2]);
 }
 
 #[test]
@@ -1528,7 +1528,7 @@ fn nested_player_spawn_zones_items_and_plates_carry_their_carrier() {
     use common::protocol::CarrierId;
 
     let host_def = host(vec![nested("room", 0, [2, 2], [2, 2], 0)]);
-    let (_, config, _) = compile_host(&host_def, &tree(vec![("room", room())]));
+    let (_, config) = compile_host(&host_def, &tree(vec![("room", room())]));
     assert_eq!(config.player_spawn_zones.len(), 2);
     assert_eq!(config.player_spawn_zones[1].carrier, CarrierId(1));
     assert_eq!(config.placed_items.len(), 1);

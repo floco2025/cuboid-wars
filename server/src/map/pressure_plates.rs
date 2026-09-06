@@ -128,7 +128,7 @@ pub fn pressure_plates_system(
                     .entity()
                     .and_then(|entity| positions.get(entity).ok())
                     .is_some_and(|pos| {
-                        let local = Position::from(pose.inverse_transform_point(Vec3::from(*pos)));
+                        let local = pose.inverse_transform_position(pos);
                         player_on_plate(plate, &local, geometry)
                     })
         });

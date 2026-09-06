@@ -5,7 +5,7 @@ use crate::quests::{QuestBoard, QuestCatalog};
 use crate::{
     actors::{
         ActorMap, ActorRespawnTimers, ActorSpawner, PendingActorSpawns, actors_plugin,
-        navigation::{ActorTerritories, NavGraph},
+        navigation::{ActorTerritories, NavGraphs},
     },
     characters::characters_plugin,
     combat::{PendingExplosions, combat_plugin},
@@ -19,7 +19,9 @@ use crate::{
     projectiles::projectiles_plugin,
     schedule::{ServerSet, configure_server_schedule},
 };
+use bevy::time::TimeUpdateStrategy;
 use common::{
+    constants::TICK_DURATION,
     map::Carriers,
     physics::{CollisionWorld, PortalSet},
     protocol::{MapBootstrap, ServerTick, WorldBootstrap, server_tick_advance_system},
@@ -49,7 +51,6 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
     let GeneratedMap {
         layout: map_layout,
         config: map_config,
-        warnings: map_warnings,
     } = generate_map(
         map_name,
         map_settings.geometry,
@@ -60,7 +61,7 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
     let map_geometry = map_config.root_grid().geometry;
     let collision_world = CollisionWorld::from_map_layout(&map_layout, &barrier_kind_table);
     let carriers = Carriers::from_layout(&map_layout);
-    let nav_graph = NavGraph::new(map_config.clone());
+    let nav_graphs = NavGraphs::new(&map_config);
     let air_graph = AirGraph::new(map_config.clone());
     validate_map_actor_kinds(&server_gameplay_config, &map_config)?;
     validate_map_quests(
@@ -70,7 +71,7 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
     )?;
     let quest_catalog = QuestCatalog::from_quests(&map_server_config.quests);
     let quest_board = QuestBoard::from_catalog(&quest_catalog);
-    let actor_territories = ActorTerritories::new(&nav_graph, &map_config, &server_gameplay_config)?;
+    let actor_territories = ActorTerritories::new(&nav_graphs, &map_config, &server_gameplay_config)?;
     let world_bootstrap = WorldBootstrap {
         gameplay: server_gameplay_config.gameplay_bootstrap(),
         map: MapBootstrap {
@@ -81,6 +82,12 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
     };
 
     let mut app = App::new();
+    // Server time is tick time: every update advances `Time` by exactly one
+    // tick, so delta-driven timers and tick-driven carriers agree and the
+    // integration matches the client's fixed step. An overrun skips wall
+    // time (`MissedTickBehavior::Skip` in main.rs) instead of stretching a
+    // tick.
+    app.insert_resource(TimeUpdateStrategy::ManualDuration(TICK_DURATION));
     app.add_plugins(MinimalPlugins).add_plugins(bevy::log::LogPlugin {
         level: bevy::log::Level::INFO,
         filter: LOG_FILTER.to_string(),
@@ -88,9 +95,6 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
     });
 
     info!("generated map {map_name:?}: {}", map_layout.summary());
-    for warning in &map_warnings {
-        warn!("{warning}");
-    }
 
     app.insert_resource(map_layout)
         .insert_resource(map_settings)
@@ -103,7 +107,7 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
         .insert_resource(carriers)
         .insert_resource(map_config)
         .insert_resource(map_geometry)
-        .insert_resource(nav_graph)
+        .insert_resource(nav_graphs)
         .insert_resource(actor_territories)
         .insert_resource(air_graph)
         .insert_resource(barrier_kind_table)
@@ -146,4 +150,25 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
     ));
 
     Ok(app)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use common::constants::TICK_SECS;
+
+    #[test]
+    fn server_time_advances_exactly_one_tick_per_update() {
+        let mut app = App::new();
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(TICK_DURATION));
+        app.add_plugins(MinimalPlugins);
+        // The first update only records the start instant.
+        for _ in 0..3 {
+            app.update();
+        }
+
+        let time = app.world().resource::<Time>();
+        assert!((time.delta_secs() - TICK_SECS).abs() < 1e-6);
+        assert!((time.elapsed_secs() - 2.0 * TICK_SECS).abs() < 1e-6);
+    }
 }

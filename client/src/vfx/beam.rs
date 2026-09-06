@@ -7,27 +7,32 @@ use rand::{RngExt, rng};
 use super::cube::smoothstep;
 use super::particles::{ParticleCloud, ParticleClouds, ParticleSpawn};
 use crate::{config::ClientSettings, constants::*};
+use common::protocol::{ServerTick, sequence_is_newer};
 
+// The warning window in server ticks; the fade is a pure function of the
+// shared tick, so nothing counts down or resyncs.
 #[derive(Component, Clone, Copy)]
 pub struct BeamInGhost {
-    pub remaining_secs: f32,
-    pub warning_secs: f32,
+    pub reserved_tick: u32,
+    pub due_tick: u32,
     pub half_extents: Vec3,
 }
 
 impl BeamInGhost {
-    pub fn resync(&mut self, update: Self) {
-        self.remaining_secs = self.remaining_secs.min(update.remaining_secs);
-        self.warning_secs = update.warning_secs;
-        self.half_extents = update.half_extents;
+    // `overstep` is the render frame's fraction of the current tick. The
+    // age is signed so a clock shifted a tick back clamps to zero rather
+    // than wrapping.
+    fn fade_progress(&self, tick: u32, overstep: f32) -> f32 {
+        let window = self.due_tick.wrapping_sub(self.reserved_tick) as i32 as f32;
+        if window <= 0.0 {
+            return 1.0;
+        }
+        let age = tick.wrapping_sub(self.reserved_tick) as i32 as f32 + overstep;
+        (age / window).clamp(0.0, 1.0)
     }
 
-    fn fade_progress(&self) -> f32 {
-        if self.warning_secs <= 0.0 {
-            1.0
-        } else {
-            (1.0 - self.remaining_secs / self.warning_secs).clamp(0.0, 1.0)
-        }
+    fn is_due(&self, tick: u32) -> bool {
+        !sequence_is_newer(self.due_tick, tick)
     }
 
     fn volume(&self) -> f32 {
@@ -99,16 +104,16 @@ pub fn ghost_fade_setup_system(
 }
 
 pub fn beam_ghost_fade_system(
-    time: Res<Time>,
+    tick: Res<ServerTick>,
+    fixed_time: Res<Time<Fixed>>,
     _settings: Res<ClientSettings>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    mut ghosts: Query<(&mut BeamInGhost, &mut PointLight, &Children)>,
+    mut ghosts: Query<(&BeamInGhost, &mut PointLight, &Children)>,
     faders: Query<&GhostFadeMaterials>,
 ) {
-    let delta = time.delta_secs();
-    for (mut ghost, mut light, children) in &mut ghosts {
-        ghost.remaining_secs = (ghost.remaining_secs - delta).max(0.0);
-        let progress = smoothstep(ghost.fade_progress());
+    let overstep = fixed_time.overstep_fraction();
+    for (ghost, mut light, children) in &mut ghosts {
+        let progress = smoothstep(ghost.fade_progress(tick.0, overstep));
         let full_intensity = (BEAM_IN_LIGHT_INTENSITY_LUMENS_PER_M3 * ghost.volume()).max(BEAM_IN_LIGHT_MIN_INTENSITY);
         light.intensity = full_intensity * progress;
         for child in children {
@@ -126,6 +131,7 @@ pub fn beam_ghost_fade_system(
 
 pub fn beam_ghost_sparkle_system(
     time: Res<Time>,
+    tick: Res<ServerTick>,
     _settings: Res<ClientSettings>,
     mut clouds: ResMut<ParticleClouds>,
     mut ghosts: Query<(&GlobalTransform, &BeamInGhost, &mut BeamEmitter)>,
@@ -160,7 +166,7 @@ pub fn beam_ghost_sparkle_system(
             });
         }
 
-        if ghost.remaining_secs <= f32::EPSILON && !emitter.materialization_emitted {
+        if ghost.is_due(tick.0) && !emitter.materialization_emitted {
             if BEAM_IN_MATERIALIZATION_RING_ENABLED {
                 spawn_materialization_ring(&mut clouds.sparkles, transform, ghost);
             }
@@ -238,16 +244,19 @@ mod tests {
 
     #[test]
     fn fade_progress_clamps_to_the_warning_window() {
-        let mut ghost = BeamInGhost {
-            remaining_secs: 3.0,
-            warning_secs: 3.0,
+        let ghost = BeamInGhost {
+            reserved_tick: 100,
+            due_tick: 190,
             half_extents: Vec3::ONE,
         };
-        assert_eq!(ghost.fade_progress(), 0.0);
-        ghost.remaining_secs = 1.5;
-        assert_eq!(ghost.fade_progress(), 0.5);
-        ghost.remaining_secs = 0.0;
-        assert_eq!(ghost.fade_progress(), 1.0);
+        assert_eq!(ghost.fade_progress(100, 0.0), 0.0);
+        assert_eq!(ghost.fade_progress(145, 0.0), 0.5);
+        assert!((ghost.fade_progress(144, 0.5) - 44.5 / 90.0).abs() < 1e-6);
+        assert_eq!(ghost.fade_progress(190, 0.0), 1.0);
+        assert_eq!(ghost.fade_progress(99, 0.9), 0.0);
+        assert_eq!(ghost.fade_progress(250, 0.0), 1.0);
+        assert!(!ghost.is_due(189));
+        assert!(ghost.is_due(190));
     }
 
     #[test]
@@ -271,23 +280,5 @@ mod tests {
         assert_eq!(sparkle_rate(0.01, 200.0), 20.0);
         assert_eq!(sparkle_rate(0.01, 100.0), 10.0);
         assert_eq!(sparkle_rate(0.01, 0.0), 0.0);
-    }
-
-    #[test]
-    fn snapshot_resync_never_rewinds_the_fade() {
-        let mut ghost = BeamInGhost {
-            remaining_secs: 1.0,
-            warning_secs: 3.0,
-            half_extents: Vec3::ONE,
-        };
-        ghost.resync(BeamInGhost {
-            remaining_secs: 1.2,
-            warning_secs: 4.0,
-            half_extents: Vec3::splat(2.0),
-        });
-
-        assert_eq!(ghost.remaining_secs, 1.0);
-        assert_eq!(ghost.warning_secs, 4.0);
-        assert_eq!(ghost.half_extents, Vec3::splat(2.0));
     }
 }

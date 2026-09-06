@@ -12,7 +12,7 @@ use crate::{
 };
 use common::{
     config::GameplayConfig,
-    protocol::{BarrierKindTable, CAdmin, MapSettings, PlayerId},
+    protocol::{BarrierKindTable, CAdmin, MapSettings, PlayerId, ServerTick},
 };
 
 fn admin_authorized(_info: &PlayerInfo) -> bool {
@@ -32,6 +32,7 @@ pub struct AdminContext<'w> {
     pub map_settings: Res<'w, MapSettings>,
     pub barrier_kind_table: Res<'w, BarrierKindTable>,
     pub quest_catalog: Res<'w, QuestCatalog>,
+    pub server_tick: Res<'w, ServerTick>,
 }
 
 pub fn handle_admin_message(
