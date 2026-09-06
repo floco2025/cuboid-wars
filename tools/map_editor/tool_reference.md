@@ -2,6 +2,16 @@
 
 Every element group ends with its own **Erase** tool that removes only that element inside a dragged rectangle on the current level. The **Erase** group at the bottom holds the two tools that clear every element at once.
 
+## Navigation and Tool Settings
+
+- **Zoom / Pan / Fit Map** — Wheel to zoom around the pointer; hold Space and drag, or middle-drag, to pan. View → Fit Map (`F`) shows the whole map. Zooming in reveals small details; only visible geometry is painted.
+- **Window** — Size, position, and maximized state are remembered across launches, shared by every map. Off-screen positions are brought back onto an available screen. New, Open, and Resize Map fit the canvas without changing the window size.
+- **Tool Settings** — Properties appear beside the Tool picker in the top toolbar, only for tools that need them. Placement always uses the previous values; a dialog is needed only when no usable choice has been made yet. Change values in the toolbar, or open nested-map motion through **Settings…**. Right-click property editing still opens a dialog.
+- **Single-tile tools** — Ladders, lights, plates, and items preview one tile or edge, never a range. Holding the mouse button lets you adjust the target; releasing places once. Escape or releasing off-grid cancels.
+- **Feedback** — Placement warnings and copy confirmations appear briefly over the canvas without taking focus or blocking clicks. Undo and Redo menus name the available actions; no bottom status bar is reserved.
+- **Map Issues / Review Repairs** — The toolbar's **Issues** button appears only when problems exist; it and View → Map Issues open the issues list. Click a result to focus its level and highlight the object. Loading preserves invalid records; Edit → Review Repairs lists automatic changes for approval. Accepted repairs undo in one step. While repairs are pending, edits preserve records for manual correction; saving remains blocked by validation errors.
+- **Recovery / Dependencies** — Unsaved maps receive recovery copies every 15 seconds, including untitled maps. Use File → Recover Unsaved Map to restore an untitled session after a crash; active sessions cannot be recovered by a second editor. Named maps offer newer autosaves when opened. Changes to nested-map files and gameplay/material catalogs refresh the editor automatically.
+
 ## Select Tiles
 
 - **Select Tiles** — Where the editor starts. Click one tile or drag a rectangle to select tiles and their contents; empty tiles are selectable too. The blue outline marks the selection. Alt/Option-click a spawn zone to select it, then Alt/Option-drag its body or handles to move or resize it; Alt/Option-drag a nested map's end square to move that end. In every tool, right-click an element to edit its properties or erase it.
@@ -21,7 +31,7 @@ Every element group ends with its own **Erase** tool that removes only that elem
 
 ## Spawn Zones
 
-- **Actor Spawn Zone** — Drag a rectangle, then enter Kind and Count.
+- **Actor Spawn Zone** — Choose Actor and Count in the toolbar, then drag a rectangle. If no actor is selected yet, the first placement asks for one.
 - **Player Spawn Zone** — Drag a rectangle. No prompt — players spawn anywhere in any player zone.
 - **Erase Spawn Zones** — Drag a rectangle to remove every actor and player spawn zone it touches on the current level.
 
@@ -32,12 +42,12 @@ Every element group ends with its own **Erase** tool that removes only that elem
 
 ## Barriers
 
-- **Barrier** — Drag along grid lines to place a translucent pulsating force-field; a dialog asks which kind to use. Kinds and their colors come from that map's `barrier_kinds` in `config/server/gameplay.json`.
+- **Barrier** — Choose Kind in the toolbar and drag along grid lines to place a translucent pulsating force-field. Kinds and their colors come from that map's `barrier_kinds` in `config/server/gameplay.json`.
 - **Erase Barriers** — Drag a rectangle to remove every barrier edge inside or on its border.
 
 ## Light Bridges
 
-- **Light Bridge** — Drag cells to place a translucent walkway that is solid only while a bridge plate of its kind is held; a dialog asks which kind to use. Kinds and their colors come from that map's `bridge_kinds` in `config/server/gameplay.json`. The validator flags a bridge that shares a cell with a floor or a ramp.
+- **Light Bridge** — Choose Kind in the toolbar and drag cells to place a translucent walkway that is solid only while a bridge plate of its kind is held. Kinds and their colors come from that map's `bridge_kinds` in `config/server/gameplay.json`. The validator flags a bridge that shares a cell with a floor or a ramp.
 - **Erase Light Bridges** — Drag a rectangle to remove every light bridge inside it on the current level.
 
 ## Ramps
@@ -45,6 +55,7 @@ Every element group ends with its own **Erase** tool that removes only that elem
 - **Ramp (Up)** — Drag from this level toward the upper level.
 - **Ramp (Down)** — Drag from this level toward the lower level.
 - **Erase Ramps** — Drag a rectangle to remove every ramp it touches that leaves from or arrives at the current level.
+- **Insert Level** — If insertion would separate a ramp's endpoints, the affected ramps are highlighted. Cancel, or remove them and insert the level as one undoable edit.
 
 ## Nested Maps
 
@@ -53,10 +64,13 @@ Every element group ends with its own **Erase** tool that removes only that elem
 
 ## Ladders
 
-- **Ladder** — Click the cell where the ladder's rails should stand, near the edge it climbs; the hover ghost previews it under the cursor. A dialog asks how many storeys it spans (starting at the current level). Ladders are climbable from both sides and block walking through below their top; no wall or floor is required — a ladder can stand at an open balcony front. Click an existing ladder (from either side of its edge) to remove it.
+- **Ladder** — Set Storeys in the toolbar, then click the cell where the ladder's rails should stand, near the edge it climbs; the hover ghost previews it under the cursor. The span starts at the current level and is capped at the map's top level. Ladders are climbable from both sides and block walking through below their top; no wall or floor is required — a ladder can stand at an open balcony front. Click an existing ladder (from either side of its edge) to remove it.
 - **Erase Ladders** — Drag a rectangle to remove every ladder whose anchor edge is inside it and whose span touches the current level.
 
 ## Materials
+
+Faces with different materials across the selection start at **Mixed / leave unchanged**. Those faces keep their individual values unless you choose a material; **Apply Top to all faces** uses the Top choice for every face.
+**Use top-left materials** fills all six fields from the topmost, then leftmost selected floor, wall, or ramp, independently of file order or drag direction. You can adjust the fields before pressing OK; Cancel leaves the map unchanged.
 
 - **Floor Material** — Click a single floor cell, or drag a rectangle to cover many; the dialog assigns materials to every face.
 - **Wall Material** — Click a single wall to select it, or drag along grid lines to span many; the dialog assigns materials to every face.
@@ -69,14 +83,16 @@ Every element group ends with its own **Erase** tool that removes only that elem
 
 ## Pressure Plates
 
-- **Barrier Plate** — Left-click a cell to place a plate (square in the barrier kind's color); a dialog asks which barrier kind. While enough plates of a kind are pressed — one fewer than the players alive, capped by the plate count — every barrier of that kind opens globally. Right-click a plate to change its kind or erase it.
-- **Bridge Plate** — Left-click a cell to place a plate (diamond in the bridge kind's color); a dialog asks which bridge kind. While enough plates of a kind are pressed — the same count as for barrier plates — every light bridge of that kind turns solid. Right-click a plate to change its kind or erase it.
-- **Firework Plate** — Left-click a cell to place a firework plate (circle). When every player alive stands on a firework plate — or every plate is held when players outnumber the plates — the firework show starts. Right-click a plate to change its kind or erase it.
+Different purposes may share a tile, including multiple barrier or bridge kinds. Right-click actions name each purpose and edit or erase only that plate.
+
+- **Barrier Plate** — Choose Kind in the toolbar and left-click a cell to place a plate (square in the barrier kind's color). While enough plates of a kind are pressed — one fewer than the players alive, capped by the plate count — every barrier of that kind opens globally. Right-click a plate to change its kind or erase it.
+- **Bridge Plate** — Choose Kind in the toolbar and left-click a cell to place a plate (diamond in the bridge kind's color). While enough plates of a kind are pressed — the same count as for barrier plates — every light bridge of that kind turns solid. Right-click a plate to change its kind or erase it.
+- **Firework Plate** — Left-click a cell to place a firework plate (circle). When every player alive stands on a firework plate — or every plate is held when players outnumber the plates — the firework show starts. Right-click a plate to erase it.
 - **Erase Pressure Plates** — Drag a rectangle to remove every plate inside it on the current level.
 
 ## Items
 
-- **Item** — Left-click a floor cell to place an item; a dialog asks the type (power-ups, health potion, cookie, or key — keys also pick a barrier kind). Right-click an item to change its type or erase it. Placed items hide on pickup in-game and reappear after the map's per-type `placed_items.respawn_secs` delay from `config/server/gameplay.json`. Non-key items render as colored circles; keys as diamonds in their barrier-kind color.
+- **Item** — Choose the type in the toolbar (power-ups, health potion, cookie, or key — keys also pick a barrier kind), then left-click a floor cell to place it. Right-click an item to change its type or erase it. Placed items hide on pickup in-game and reappear after the map's per-type `placed_items.respawn_secs` delay from `config/server/gameplay.json`. Non-key items render as colored circles; keys as diamonds in their barrier-kind color.
 - **Erase Items** — Drag a rectangle to remove every item inside it on the current level.
 
 ## Erase
@@ -91,7 +107,10 @@ Every element group ends with its own **Erase** tool that removes only that elem
 | `↑` / `↓` | Next / previous level |
 | `←` / `→` | Previous / next tool |
 | `M` | Toggle Show Material Overlay |
-| `Shift+M` | Toggle Show Adjacent Levels |
+| `L` | Toggle Show Adjacent Levels |
+| Wheel / `Ctrl/Cmd+Plus` / `Ctrl/Cmd+Minus` | Zoom |
+| Space-drag / middle-drag | Pan |
+| `F` | Fit the whole map |
 | `Ctrl/Cmd+Z` | Undo |
 | `Ctrl/Cmd+Shift+Z` | Redo |
 | `Ctrl/Cmd+C` | Copy selected tiles; ask level count |

@@ -8,12 +8,9 @@ from dataclasses import dataclass
 from .constants import SPAWN_ZONE_LISTS
 from .geometry import ramp_rect, rects_overlap, wall_endpoints_for_cell_side, wall_overlaps_rect, zone_rect
 from .io import empty_map
+from .transforms import EDGE_LISTS, GLOBAL_LISTS, LEVEL_LISTS, translate_map
 
 
-CELL_LISTS = ("floors", "inaccessible_floors", "grass", "light_bridges", "lights")
-EDGE_LISTS = ("walls", "barriers")
-LEVEL_LISTS = (*CELL_LISTS, *EDGE_LISTS)
-GLOBAL_LISTS = (*SPAWN_ZONE_LISTS, "items", "pressure_plates", "ramps", "ladders", "nested_maps")
 
 
 @dataclass(frozen=True)
@@ -104,40 +101,12 @@ def _partition(data: dict, region: TileRegion) -> tuple[dict, dict]:
     return chosen, remaining
 
 
-def _translate(data: dict, dc: int, dr: int, dl: int) -> dict:
-    moved = copy.deepcopy(data)
-    for level in moved["levels"]:
-        for name in CELL_LISTS:
-            for entry in level[name]:
-                entry["col"] += dc
-                entry["row"] += dr
-        for name in EDGE_LISTS:
-            for entry in level[name]:
-                for key in ("c0", "c1"):
-                    entry[key] += dc
-                for key in ("r0", "r1"):
-                    entry[key] += dr
-    for name in GLOBAL_LISTS:
-        for entry in moved[name]:
-            if name in SPAWN_ZONE_LISTS:
-                entry["cols"] = [col + dc for col in entry["cols"]]
-                entry["rows"] = [row + dr for row in entry["rows"]]
-            elif name in ("ramps", "nested_maps"):
-                for key in (("low", "high") if name == "ramps" else ("from", "to")):
-                    entry[key] = [entry[key][0] + dc, entry[key][1] + dr]
-            else:
-                entry["col"] += dc
-                entry["row"] += dr
-            for key in ("level", "lower_level", "to_level"):
-                if key in entry:
-                    entry[key] += dl
-    return moved
 
 
 def copy_region(data: dict, region: TileRegion) -> dict:
     chosen, _ = _partition(data, region)
     c0, r0, c1, r1 = region.rect
-    chosen = _translate(chosen, -c0, -r0, -region.level)
+    chosen = translate_map(chosen, -c0, -r0, -region.level)
     chosen["grid_cols"], chosen["grid_rows"] = c1 - c0, r1 - r0
     return chosen
 
@@ -168,7 +137,7 @@ def paste_region(data: dict, block: dict, cell: tuple[int, int], level: int) -> 
         expanded["levels"].append(blank)
     destination.check_bounds(expanded)
     _, remaining = _partition(expanded, destination)
-    moved = _translate(block, col, row, level)
+    moved = translate_map(block, col, row, level)
     for offset, source in enumerate(moved["levels"]):
         for name in LEVEL_LISTS:
             remaining["levels"][level + offset][name].extend(source[name])

@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QSize, Qt
+from PySide6.QtCore import QPointF, QRectF, QSize, Qt
 from PySide6.QtWidgets import QLabel, QMenu, QSizePolicy, QWidget
 
 from .constants import (
@@ -11,7 +12,6 @@ from .constants import (
     ERASE_MODES,
     FLOOR_HIT_KINDS,
     MATERIAL_MODES,
-    MIN_CELL,
     MODE_ACTOR_SPAWN_ZONE,
     MODE_BARRIER,
     MODE_BRIDGE_PLATE,
@@ -50,6 +50,7 @@ from .display import (
     materials_summary,
 )
 from .types import ZoneRef
+from .normalization import pressure_plate_key
 from .geometry import (
     cell_side_from_click,
     point_near_wall,
@@ -59,6 +60,12 @@ from .geometry import (
 )
 
 from .canvas_painting import CanvasPaintingMixin
+from .viewport import Viewport
+from .transforms import record_rect
+from .notice import CanvasNotice
+
+if TYPE_CHECKING:
+    from .window import EditorWindow
 
 
 # ============================================================================
@@ -92,11 +99,12 @@ def _wall_line_tool(method: str):
 
 
 def _click_place_tool(add_method: str):
-    """Click places on the pressed cell: `window.<add_method>(col, row)`."""
+    """Click places on the released cell: `window.<add_method>(col, row)`."""
 
     def handler(canvas: "Canvas", event) -> None:
-        if canvas.drag_start_cell:
-            getattr(canvas.window, add_method)(*canvas.drag_start_cell)
+        cell = canvas.point_to_cell(event.position())
+        if cell is not None:
+            getattr(canvas.window, add_method)(*cell)
 
     return handler
 
@@ -128,13 +136,11 @@ def _wall_material_tool(canvas: "Canvas", event) -> None:
 
 
 def _light_tool(canvas: "Canvas", event) -> None:
-    if canvas.drag_start_cell:
-        canvas.window.add_light_at(event.position(), canvas.cell_size())
+    canvas.window.add_light_at(canvas.map_position(event.position()), canvas.cell_size())
 
 
 def _ladder_tool(canvas: "Canvas", event) -> None:
-    if canvas.drag_start_cell:
-        canvas.window.toggle_ladder_at(event.position(), canvas.cell_size())
+    canvas.window.toggle_ladder_at(canvas.map_position(event.position()), canvas.cell_size())
 
 
 def _erase_cells_tool(canvas: "Canvas", event) -> None:
@@ -142,7 +148,17 @@ def _erase_cells_tool(canvas: "Canvas", event) -> None:
     if canvas.drag_start_cell and canvas.drag_current_cell and canvas.drag_start_cell != canvas.drag_current_cell:
         canvas.window.erase_cell_rect(canvas.drag_start_cell, canvas.drag_current_cell, preserve_floors)
     else:
-        canvas.window.erase_at(event.position(), canvas.cell_size(), preserve_floors)
+        canvas.window.erase_at(canvas.map_position(event.position()), canvas.cell_size(), preserve_floors)
+
+
+CLICK_TOOLS = {
+    MODE_LIGHT: _light_tool,
+    MODE_LADDER: _ladder_tool,
+    MODE_PRESSURE_PLATE: _click_place_tool("prompt_and_add_pressure_plate"),
+    MODE_BRIDGE_PLATE: _click_place_tool("prompt_and_add_bridge_plate"),
+    MODE_FIREWORK_PLATE: _click_place_tool("add_firework_plate"),
+    MODE_ITEM: _click_place_tool("prompt_and_add_item"),
+}
 
 
 RELEASE_TOOLS = {
@@ -163,14 +179,8 @@ RELEASE_TOOLS = {
     MODE_FLOOR_MATERIAL: _cell_rect_tool("assign_floor_materials_rect"),
     MODE_WALL_MATERIAL: _wall_material_tool,
     MODE_RAMP_MATERIAL: _cell_rect_tool("assign_ramp_materials_rect"),
-    MODE_LIGHT: _light_tool,
-    MODE_LADDER: _ladder_tool,
     MODE_ERASE_LADDERS: _cell_rect_tool("erase_ladders_rect"),
-    MODE_PRESSURE_PLATE: _click_place_tool("prompt_and_add_pressure_plate"),
-    MODE_BRIDGE_PLATE: _click_place_tool("prompt_and_add_bridge_plate"),
-    MODE_FIREWORK_PLATE: _click_place_tool("add_firework_plate"),
     MODE_ERASE_PRESSURE_PLATES: _cell_rect_tool("erase_pressure_plates_rect"),
-    MODE_ITEM: _click_place_tool("prompt_and_add_item"),
     MODE_ERASE_ITEMS: _cell_rect_tool("erase_items_rect"),
     MODE_ERASE_LIGHTS: _cell_rect_tool("erase_lights_rect"),
     MODE_ERASE_RAMPS: _cell_rect_tool("erase_ramps_rect"),
@@ -185,6 +195,11 @@ class Canvas(CanvasPaintingMixin, QWidget):
     def __init__(self, window: "EditorWindow"):
         super().__init__()
         self.window = window
+        self.viewport = Viewport()
+        self.pan_key = False
+        self.pan_origin: QPointF | None = None
+        self.issue_rects: list[tuple] = []
+        self.click_pending = False
         self.drag_start_cell: tuple[int, int] | None = None
         self.drag_start_point: tuple[int, int] | None = None
         self.drag_current_cell: tuple[int, int] | None = None
@@ -215,6 +230,8 @@ class Canvas(CanvasPaintingMixin, QWidget):
             "padding: 4px 8px;"
         )
         self._hover_label.hide()
+        self.notice = CanvasNotice(self)
+        self.setToolTip("Wheel: zoom · Space-drag or middle-drag: pan · F: fit map")
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.DefaultContextMenu)
@@ -229,26 +246,77 @@ class Canvas(CanvasPaintingMixin, QWidget):
         return QSize(cols * EDITOR_CELL, rows * EDITOR_CELL).expandedTo(self.minimumSizeHint())
 
     def cell_size(self) -> float:
-        cols = max(1, self.window.map_data["grid_cols"])
-        rows = max(1, self.window.map_data["grid_rows"])
-        return max(MIN_CELL, min(self.width() / cols, self.height() / rows))
+        return self.viewport.cell
+
+    def map_position(self, pos) -> QPointF:
+        return QPointF(pos) - self.viewport.offset
+
+    def resizeEvent(self, event) -> None:
+        if self.viewport.fitted:
+            self.fit_map()
+        self.notice.reposition()
+        super().resizeEvent(event)
+
+    def fit_map(self) -> None:
+        self.viewport.fit(self.width(), self.height(), self.window.map_data["grid_cols"], self.window.map_data["grid_rows"])
+        self._clear_hover()
+        self.update()
+
+    def zoom_by(self, factor: float, anchor: QPointF | None = None) -> None:
+        self.viewport.zoom(factor, anchor if anchor is not None else QPointF(self.width() / 2, self.height() / 2))
+        self._clear_hover()
+        self.update()
+
+    def wheelEvent(self, event) -> None:
+        delta = event.angleDelta().y() or event.pixelDelta().y()
+        self.zoom_by(1.2 ** (delta / 120), event.position())
+        event.accept()
+
+    def keyPressEvent(self, event) -> None:
+        if event.key() == Qt.Key.Key_Space:
+            self.pan_key = True
+            self.setCursor(Qt.CursorShape.OpenHandCursor)
+            event.accept()
+        else:
+            super().keyPressEvent(event)
+
+    def keyReleaseEvent(self, event) -> None:
+        if event.key() == Qt.Key.Key_Space and not event.isAutoRepeat():
+            self.pan_key = False
+            self.setCursor(self.window._cursor_for_mode(self.window.mode))
+            event.accept()
+        else:
+            super().keyReleaseEvent(event)
+
+    def focusOutEvent(self, event) -> None:
+        self.pan_key = False
+        self.pan_origin = None
+        self.setCursor(self.window._cursor_for_mode(self.window.mode))
+        super().focusOutEvent(event)
+
+    def visible_entries(self, name: str, entries: list[dict]):
+        visible = self.viewport.visible_rect(self.width(), self.height()).adjusted(-1, -1, 1, 1)
+        for entry in entries:
+            c0, r0, c1, r1 = record_rect(name, entry)
+            if visible.intersects(QRectF(c0, r0, max(.1, c1 - c0), max(.1, r1 - r0))):
+                yield entry
 
     def grid_bounds(self) -> tuple[float, float]:
         cell = self.cell_size()
         return self.window.map_data["grid_cols"] * cell, self.window.map_data["grid_rows"] * cell
 
     def point_to_cell(self, pos) -> tuple[int, int] | None:
-        cell = self.cell_size()
-        col = int(pos.x() // cell)
-        row = int(pos.y() // cell)
+        grid = self.viewport.to_grid(QPointF(pos))
+        col = int(grid.x() // 1)
+        row = int(grid.y() // 1)
         if 0 <= col < self.window.map_data["grid_cols"] and 0 <= row < self.window.map_data["grid_rows"]:
             return col, row
         return None
 
     def point_to_grid_point(self, pos) -> tuple[int, int]:
-        cell = self.cell_size()
-        col = round(pos.x() / cell)
-        row = round(pos.y() / cell)
+        grid = self.viewport.to_grid(QPointF(pos))
+        col = round(grid.x())
+        row = round(grid.y())
         return (
             max(0, min(self.window.map_data["grid_cols"], col)),
             max(0, min(self.window.map_data["grid_rows"], row)),
@@ -271,12 +339,21 @@ class Canvas(CanvasPaintingMixin, QWidget):
         ]
 
     def mousePressEvent(self, event) -> None:
+        if event.button() == Qt.MouseButton.MiddleButton or (self.pan_key and event.button() == Qt.MouseButton.LeftButton):
+            self.window.cancel_interaction()
+            self.pan_origin = event.position()
+            self.setCursor(Qt.CursorShape.ClosedHandCursor)
+            return
         if event.button() != Qt.MouseButton.LeftButton:
             return
         self.setFocus(Qt.FocusReason.MouseFocusReason)
         self.clear_drag()
+        if self.window.mode in CLICK_TOOLS:
+            self.click_pending = self.point_to_cell(event.position()) is not None
+            self._update_cell_hover(event.position())
+            return
         if self.window.mode == MODE_SELECT and not self.window.begin_select_press(
-            event.position(), self.cell_size(),
+            self.map_position(event.position()), self.cell_size(),
             edit_objects=bool(event.modifiers() & Qt.KeyboardModifier.AltModifier),
         ):
             self.update()
@@ -288,7 +365,12 @@ class Canvas(CanvasPaintingMixin, QWidget):
         self.update()
 
     def mouseMoveEvent(self, event) -> None:
-        if not (event.buttons() & Qt.MouseButton.LeftButton):
+        if self.pan_origin is not None:
+            self.viewport.pan(event.position() - self.pan_origin)
+            self.pan_origin = event.position()
+            self.update()
+            return
+        if self.window.mode in CLICK_TOOLS or not (event.buttons() & Qt.MouseButton.LeftButton):
             if self.window.mode in MATERIAL_MODES:
                 self._update_material_hover(event.position())
             else:
@@ -298,7 +380,7 @@ class Canvas(CanvasPaintingMixin, QWidget):
                 self._update_cell_hover(event.position())
             return
         if self.window.mode == MODE_SELECT:
-            self.window.update_select_drag(event.position(), self.cell_size())
+            self.window.update_select_drag(self.map_position(event.position()), self.cell_size())
         self.drag_current_cell = self.point_to_cell(event.position()) or self.drag_current_cell
         self.drag_current_point = self.point_to_grid_point(event.position())
         self.update()
@@ -323,7 +405,8 @@ class Canvas(CanvasPaintingMixin, QWidget):
         edge_side = None
         if self.window.mode in (MODE_LADDER, MODE_LIGHT) and cell is not None:
             size = self.cell_size()
-            edge_side = cell_side_from_click(cell[0], cell[1], pos.x() / size, pos.y() / size)
+            point = self.map_position(pos)
+            edge_side = cell_side_from_click(cell[0], cell[1], point.x() / size, point.y() / size)
         if cell == self.hover_cell and grid_point == self.hover_grid_point and edge_side == self.hover_edge_side:
             return
         self.hover_cell = cell
@@ -332,7 +415,6 @@ class Canvas(CanvasPaintingMixin, QWidget):
         self.update()
 
     def _update_material_hover(self, pos) -> None:
-        cell_size = self.cell_size()
         level_idx = self.window.current_level
         level = self.window.map_data["levels"][level_idx]
 
@@ -391,6 +473,7 @@ class Canvas(CanvasPaintingMixin, QWidget):
             self._hover_label.hide()
 
     def _wall_near_position(self, pos) -> dict | None:
+        pos = self.map_position(pos)
         cell_size = self.cell_size()
         px = pos.x() / cell_size
         py = pos.y() / cell_size
@@ -402,7 +485,17 @@ class Canvas(CanvasPaintingMixin, QWidget):
         return None
 
     def mouseReleaseEvent(self, event) -> None:
+        if self.pan_origin is not None:
+            self.pan_origin = None
+            self.setCursor(Qt.CursorShape.OpenHandCursor if self.pan_key else self.window._cursor_for_mode(self.window.mode))
+            return
         if event.button() != Qt.MouseButton.LeftButton:
+            return
+        if self.click_pending:
+            self.clear_drag()
+            if self.point_to_cell(event.position()) is not None:
+                CLICK_TOOLS[self.window.mode](self, event)
+            self._update_cell_hover(event.position())
             return
         if self.drag_start_cell is None and self.drag_start_point is None and self.window.select_drag_kind is None:
             return
@@ -427,7 +520,7 @@ class Canvas(CanvasPaintingMixin, QWidget):
             for action in (self.window.cut_action, self.window.copy_action, self.window.paste_action, self.window.delete_action):
                 menu.addAction(action)
             menu.addSeparator()
-        hit = self.window.hit_at(event.pos(), self.cell_size())
+        hit = self.window.hit_at(self.map_position(event.pos()), self.cell_size())
         preserve_floors = self.window.mode == MODE_ERASE_KEEP_FLOORS
         if hit is None:
             nothing = menu.addAction("Nothing here")
@@ -445,16 +538,21 @@ class Canvas(CanvasPaintingMixin, QWidget):
         elif kind == "Item":
             menu.addAction("Edit Item...", lambda: self.window.edit_item_at(*value))
         elif kind == "Pressure Plate":
-            for plate_type in self.window.editable_plate_types_at(*value):
-                menu.addAction(
-                    f"Edit {plate_type.capitalize()} Plate...",
-                    lambda plate_type=plate_type: self.window.edit_pressure_plate_at(value[0], value[1], plate_type),
-                )
-        if not (preserve_floors and kind in FLOOR_HIT_KINDS):
+            for plate in self.window.plates_at(*value):
+                label = f"{plate['type'].capitalize()} Plate"
+                if "kind" in plate:
+                    label += f" ({plate['kind']})"
+                    menu.addAction(
+                        f"Edit {label}...",
+                        lambda _checked=False, key=pressure_plate_key(plate): self.window.edit_pressure_plate_at(key),
+                    )
+                menu.addAction(f"Erase {label}", lambda _checked=False, key=pressure_plate_key(plate): self.window.erase_pressure_plate(key))
+        if kind != "Pressure Plate" and not (preserve_floors and kind in FLOOR_HIT_KINDS):
             menu.addAction(f"Erase {kind}", lambda: self.window.erase_hit(hit, preserve_floors))
         menu.exec(event.globalPos())
 
     def clear_drag(self) -> None:
+        self.click_pending = False
         self.drag_start_cell = None
         self.drag_current_cell = None
         self.drag_start_point = None

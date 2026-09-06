@@ -9,8 +9,10 @@ from PySide6.QtWidgets import QInputDialog, QMessageBox
 from .constants import ITEMS_LIST, NESTED_MAPS_LIST, SPAWN_ZONE_LISTS
 from .dialogs import ResizeMapDialog, ToolReferenceDialog
 from .display import level_label
-from .normalization import canonicalize_map, resize_map_data
-from .regions import GLOBAL_LISTS, LEVEL_LISTS
+from .geometry import ramp_rect
+from .io import empty_map
+from .repairs import maintain_edit
+from .transforms import GLOBAL_LISTS, LEVEL_LISTS, remap_levels, resize_map_data
 
 
 def element_counts(data: dict) -> dict[str, int]:
@@ -20,95 +22,23 @@ def element_counts(data: dict) -> dict[str, int]:
     }
 
 
-def insert_level_data(map_data: dict, insert_at: int) -> dict:
-    """A copy of `map_data` with an empty level at `insert_at`; everything
-    on or above it moves up one storey."""
-    after = copy.deepcopy(map_data)
-    after["levels"].insert(
-        insert_at,
-        {
-            "name": f"Level {insert_at}",
-            "floors": [],
-            "inaccessible_floors": [],
-            "grass": [],
-            "walls": [],
-            "barriers": [],
-            "light_bridges": [],
-            "lights": [],
-        },
-    )
-    for list_name in SPAWN_ZONE_LISTS:
-        for zone in after[list_name]:
-            if zone["level"] >= insert_at:
-                zone["level"] += 1
-    for item in after.get(ITEMS_LIST, []):
-        if item["level"] >= insert_at:
-            item["level"] += 1
-    for plate in after.get("pressure_plates", []):
-        if plate["level"] >= insert_at:
-            plate["level"] += 1
-    for ramp in after["ramps"]:
-        if ramp["lower_level"] >= insert_at:
-            ramp["lower_level"] += 1
-    for ladder in after.get("ladders", []):
-        if ladder["lower_level"] >= insert_at:
-            ladder["lower_level"] += 1
-        elif ladder["lower_level"] + ladder["levels"] >= insert_at:
-            # The insertion lands inside the span: stretch so both
-            # endpoints keep their storeys.
-            ladder["levels"] += 1
-    # A nested map's own storeys live in its file; only its ends move, each
-    # keeping its storey, so a lift the insertion lands inside stretches by
-    # itself.
-    for entry in after.get(NESTED_MAPS_LIST, []):
-        for key in ("level", "to_level"):
-            if entry[key] >= insert_at:
-                entry[key] += 1
+def insert_level_data(map_data: dict, insert_at: int, *, remove_crossing_ramps: bool = False) -> dict:
+    crossing = [ramp for ramp in map_data["ramps"] if ramp["lower_level"] + 1 == insert_at]
+    if crossing and not remove_crossing_ramps:
+        raise ValueError("The inserted level separates ramp endpoints.")
+    after = remap_levels(map_data, insert_at, remove=False)
+    after["ramps"] = [ramp for ramp in after["ramps"] if ramp["lower_level"] + 1 != insert_at]
+    blank = empty_map()["levels"][0]
+    blank["name"] = f"Level {insert_at}"
+    after["levels"].insert(insert_at, blank)
     return after
 
 
 def remove_level_data(map_data: dict, removed: int) -> dict:
-    """A copy of `map_data` without level `removed`: everything on it goes,
-    everything spanning it goes, everything above it moves down one storey."""
-    after = copy.deepcopy(map_data)
+    if len(map_data["levels"]) <= 1:
+        raise ValueError("A map needs at least one level.")
+    after = remap_levels(map_data, removed, remove=True)
     after["levels"].pop(removed)
-    for list_name in (*SPAWN_ZONE_LISTS, ITEMS_LIST, "pressure_plates"):
-        adjusted_entries = []
-        for entry in after.get(list_name, []):
-            if entry["level"] == removed:
-                continue
-            if entry["level"] > removed:
-                entry["level"] -= 1
-            adjusted_entries.append(entry)
-        after[list_name] = adjusted_entries
-    adjusted = []
-    for ramp in after["ramps"]:
-        lower = ramp["lower_level"]
-        upper = lower + 1
-        if removed in (lower, upper):
-            continue
-        if lower > removed:
-            ramp["lower_level"] = lower - 1
-        adjusted.append(ramp)
-    after["ramps"] = adjusted
-    adjusted_ladders = []
-    for ladder in after.get("ladders", []):
-        lower = ladder["lower_level"]
-        if lower <= removed <= lower + ladder["levels"]:
-            continue
-        if lower > removed:
-            ladder["lower_level"] = lower - 1
-        adjusted_ladders.append(ladder)
-    after["ladders"] = adjusted_ladders
-    adjusted_nested = []
-    for entry in after.get(NESTED_MAPS_LIST, []):
-        if min(entry["level"], entry["to_level"]) <= removed <= max(entry["level"], entry["to_level"]):
-            continue
-        for key in ("level", "to_level"):
-            if entry[key] > removed:
-                entry[key] -= 1
-        adjusted_nested.append(entry)
-    after[NESTED_MAPS_LIST] = adjusted_nested
     return after
 
 
@@ -124,7 +54,7 @@ class StructureMixin:
         new_cols, new_rows, anchor_x, anchor_y = result
         if new_cols == self.map_data["grid_cols"] and new_rows == self.map_data["grid_rows"]:
             return
-        after = canonicalize_map(resize_map_data(self.map_data, new_cols, new_rows, anchor_x, anchor_y))
+        after = maintain_edit(self.map_data, resize_map_data(self.map_data, new_cols, new_rows, anchor_x, anchor_y))
         before_counts, after_counts = element_counts(self.map_data), element_counts(after)
         parts = [
             f"{count - after_counts[name]} {name.replace('_', ' ')}"
@@ -143,11 +73,24 @@ class StructureMixin:
 
         self.clear_selection()
         self.apply_change("Resize Map", after)
-        self.resize_to_map()
+        self.canvas.fit_map()
 
     def add_level(self) -> None:
         insert_at = self.current_level + 1
-        self.apply_change("Add Level", insert_level_data(self.map_data, insert_at))
+        crossing = [ramp for ramp in self.map_data["ramps"] if ramp["lower_level"] + 1 == insert_at]
+        if crossing:
+            self.canvas.issue_rects = [ramp_rect(ramp) for ramp in crossing]
+            self.canvas.update()
+            answer = QMessageBox.question(
+                self, "Insert Level Through Ramps",
+                f"Inserting here separates the endpoints of {len(crossing)} highlighted ramp(s). Remove those ramps and insert the level?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel, QMessageBox.StandardButton.Cancel,
+            )
+            self.canvas.issue_rects = []
+            self.canvas.update()
+            if answer != QMessageBox.StandardButton.Yes:
+                return
+        self.apply_change("Add Level", insert_level_data(self.map_data, insert_at, remove_crossing_ramps=True))
         self.current_level = insert_at
         self.refresh_ui()
 

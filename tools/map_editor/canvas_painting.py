@@ -71,6 +71,7 @@ class CanvasPaintingMixin:
         rows = self.window.map_data["grid_rows"]
         level_idx = self.window.current_level
         level = self.window.map_data["levels"][level_idx]
+        painter.translate(self.viewport.offset)
 
         # Painting is layered: each pass draws on top of the previous one.
         # The order here is load-bearing — moving a pass changes occlusion.
@@ -108,6 +109,10 @@ class CanvasPaintingMixin:
         self.paint_hover_highlight(painter, cell, level_idx)
         self._paint_hover_ghost(painter, cell)
         self._paint_tile_selection(painter, cell)
+        painter.setPen(QPen(QColor("#fb7185"), 3, Qt.PenStyle.DashLine))
+        painter.setBrush(QColor(251, 113, 133, 45))
+        for c0, r0, c1, r1 in self.issue_rects:
+            painter.drawRect(QRectF(c0 * cell, r0 * cell, max(4, (c1 - c0) * cell), max(4, (r1 - r0) * cell)))
 
     def _paint_tile_selection(self, painter: QPainter, cell: float) -> None:
         window = self.window
@@ -121,7 +126,8 @@ class CanvasPaintingMixin:
         c0, r0, c1, r1 = rect
         painter.setPen(QPen(QColor("#38bdf8"), 2))
         painter.setBrush(QColor(56, 189, 248, 55))
-        painter.drawRect(QRectF(c0 * cell + 1, r0 * cell + 1, (c1 - c0) * cell - 2, (r1 - r0) * cell - 2))
+        inset = min(1, cell * 0.1)
+        painter.drawRect(QRectF(c0 * cell, r0 * cell, (c1 - c0) * cell, (r1 - r0) * cell).adjusted(inset, inset, -inset, -inset))
         block = window.tile_clipboard
         if block is None or window.select_drag_kind is not None:
             return
@@ -130,14 +136,16 @@ class CanvasPaintingMixin:
         color = QColor("#86efac" if fits else "#f87171")
         painter.setPen(QPen(color, 2, Qt.PenStyle.DashLine))
         painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.drawRect(QRectF(c0 * cell + 3, r0 * cell + 3, width * cell - 6, height * cell - 6))
+        inset = min(3, cell * 0.15)
+        painter.drawRect(QRectF(c0 * cell, r0 * cell, width * cell, height * cell).adjusted(inset, inset, -inset, -inset))
         text = f"Paste replaces {width} × {height} tiles · {levels} level(s)"
         if not fits:
             text += " · outside map"
         label_width = painter.fontMetrics().horizontalAdvance(text) + 16
         label_height = painter.fontMetrics().height() + 8
-        x = max(0, min(c0 * cell, self.width() - label_width))
-        y = r0 * cell - label_height if r0 * cell >= label_height else r0 * cell + 4
+        ox, oy = self.viewport.offset.x(), self.viewport.offset.y()
+        x = max(-ox, min(c0 * cell, self.width() - ox - label_width))
+        y = max(-oy, min(r0 * cell - label_height, self.height() - oy - label_height))
         label = QRectF(x, y, label_width, label_height)
         painter.fillRect(label, QColor("#111418"))
         painter.drawText(label, Qt.AlignmentFlag.AlignCenter, text)
@@ -214,22 +222,25 @@ class CanvasPaintingMixin:
         painter.drawRect(QRectF(col * cell + 1, row * cell + 1, cell - 2, cell - 2))
 
     def _paint_floors(self, painter: QPainter, level: dict, cell: float) -> None:
+        inset = min(1, cell * 0.1)
         painter.setPen(Qt.PenStyle.NoPen)
         overlay = self.window.show_material_overlay
         default_floor = QColor("#454f5b")
-        for floor in level["floors"]:
+        for floor in self.visible_entries("floors", level["floors"]):
             col, row = floor["col"], floor["row"]
             painter.setBrush(face_color(floor) if overlay else default_floor)
-            painter.drawRect(QRectF(col * cell + 1, row * cell + 1, cell - 2, cell - 2))
+            painter.drawRect(QRectF(col * cell + inset, row * cell + inset, cell - 2 * inset, cell - 2 * inset))
         # Blocked-floor fill is darker than walkable, with a denser cross-hatch
         # in a brighter slate so the "you can't walk here" reads at a glance.
         blocked_fill = QColor("#3a4250")
         blocked_hatch = QColor("#b8c4d4")
-        for floor in level["inaccessible_floors"]:
+        for floor in self.visible_entries("inaccessible_floors", level["inaccessible_floors"]):
             col, row = floor["col"], floor["row"]
-            rect = QRectF(col * cell + 1, row * cell + 1, cell - 2, cell - 2)
+            rect = QRectF(col * cell + inset, row * cell + inset, cell - 2 * inset, cell - 2 * inset)
             painter.setBrush(face_color(floor) if overlay else blocked_fill)
             painter.drawRect(rect)
+            if cell < 8:
+                continue
             painter.setPen(QPen(blocked_hatch, 2))
             painter.drawLine(rect.topLeft(), rect.bottomRight())
             painter.drawLine(rect.bottomLeft(), rect.topRight())
@@ -246,14 +257,17 @@ class CanvasPaintingMixin:
         bridges = level.get("light_bridges", [])
         if not bridges:
             return
-        for bridge in bridges:
+        for bridge in self.visible_entries("light_bridges", bridges):
             color = QColor(self.window.bridge_kind_colors.get(bridge.get("kind", ""), "#30d8ff"))
-            rect = QRectF(bridge["col"] * cell + 1, bridge["row"] * cell + 1, cell - 2, cell - 2)
+            inset = min(1, cell * 0.1)
+            rect = QRectF(bridge["col"] * cell + inset, bridge["row"] * cell + inset, cell - 2 * inset, cell - 2 * inset)
             fill = QColor(color)
             fill.setAlpha(115)
             painter.setPen(Qt.PenStyle.NoPen)
             painter.setBrush(fill)
             painter.drawRect(rect)
+            if cell < 8:
+                continue
             painter.setPen(QPen(color, 1))
             size = rect.width()
             for offset in (size * 0.5, size, size * 1.5):
@@ -272,12 +286,14 @@ class CanvasPaintingMixin:
     _GRASS_TUFT_ANCHORS = ((0.25, 0.35), (0.65, 0.25), (0.45, 0.6), (0.2, 0.8), (0.75, 0.75))
 
     def _paint_grass(self, painter: QPainter, level: dict, cell: float) -> None:
+        if cell < 8:
+            return
         grass = level.get("grass", [])
         if not grass:
             return
         painter.setPen(QPen(QColor(132, 204, 22, 230), 2))
         blade = cell * 0.14
-        for tuft in grass:
+        for tuft in self.visible_entries("grass", grass):
             for dx, dy in self._GRASS_TUFT_ANCHORS:
                 base_x = (tuft["col"] + dx) * cell
                 base_y = (tuft["row"] + dy) * cell
@@ -295,7 +311,7 @@ class CanvasPaintingMixin:
         if not plates:
             return
         painter.setPen(Qt.PenStyle.NoPen)
-        for plate in plates:
+        for plate in self.visible_entries("pressure_plates", plates):
             if plate["level"] != level_idx:
                 continue
             inset = cell * 0.25
@@ -329,7 +345,7 @@ class CanvasPaintingMixin:
         if not items:
             return
         painter.setPen(QPen(QColor("#0f172a"), 1))
-        for item in items:
+        for item in self.visible_entries("items", items):
             if item["level"] != level_idx:
                 continue
             cx = (item["col"] + 0.5) * cell
@@ -386,7 +402,7 @@ class CanvasPaintingMixin:
         painter.setPen(Qt.PenStyle.NoPen)
 
     def _paint_ramps(self, painter: QPainter, cell: float, level_idx: int) -> None:
-        for ramp in self.window.map_data["ramps"]:
+        for ramp in self.visible_entries("ramps", self.window.map_data["ramps"]):
             lower = ramp["lower_level"]
             if level_idx in (lower, lower + 1):
                 self.paint_ramp(painter, ramp, cell, lower == level_idx)
@@ -425,30 +441,33 @@ class CanvasPaintingMixin:
             self._paint_nested_map_drag(painter, cell)
 
     def _paint_grid_lines(self, painter: QPainter, cell: float, cols: int, rows: int) -> None:
+        if cell < 4:
+            return
         painter.setPen(QPen(QColor("#2e343b"), 1))
-        for col in range(cols + 1):
+        visible = self.viewport.visible_rect(self.width(), self.height())
+        for col in range(max(0, math.floor(visible.left())), min(cols, math.ceil(visible.right())) + 1):
             x = col * cell
             painter.drawLine(x, 0, x, rows * cell)
-        for row in range(rows + 1):
+        for row in range(max(0, math.floor(visible.top())), min(rows, math.ceil(visible.bottom())) + 1):
             y = row * cell
             painter.drawLine(0, y, cols * cell, y)
 
     def _paint_walls(self, painter: QPainter, level: dict, cell: float) -> None:
         overlay = self.window.show_material_overlay
         default_wall_color = QColor("#f1f5f9")
-        for wall in level["walls"]:
+        for wall in self.visible_entries("walls", level["walls"]):
             color = face_color(wall) if overlay else default_wall_color
-            painter.setPen(QPen(color, WALL_PEN_WIDTH, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+            painter.setPen(QPen(color, min(WALL_PEN_WIDTH, max(1, cell * 0.2)), Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
             painter.drawLine(wall["c0"] * cell, wall["r0"] * cell, wall["c1"] * cell, wall["r1"] * cell)
 
     def _paint_barriers(self, painter: QPainter, level: dict, cell: float) -> None:
         # Solid stroke, thinner than walls so the two read as distinct on
         # the grid. (A dashed stroke ends mid-gap on a one-cell segment,
         # which makes the line look shifted toward its start.)
-        for barrier in level.get("barriers", []):
+        for barrier in self.visible_entries("barriers", level.get("barriers", [])):
             kind = barrier.get("kind", "")
             display = self.window.barrier_kind_colors.get(kind, "#ff5050")
-            painter.setPen(QPen(QColor(display), BARRIER_PEN_WIDTH, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+            painter.setPen(QPen(QColor(display), min(BARRIER_PEN_WIDTH, max(1, cell * 0.15)), Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
             painter.drawLine(
                 barrier["c0"] * cell,
                 barrier["r0"] * cell,
@@ -464,7 +483,7 @@ class CanvasPaintingMixin:
         if not ladders:
             return
         painter.setPen(QPen(QColor("#fb923c"), 2, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
-        for ladder in ladders:
+        for ladder in self.visible_entries("ladders", ladders):
             for x0, y0, x1, y1 in ladder_marker_lines(ladder, cell):
                 painter.drawLine(round(x0), round(y0), round(x1), round(y1))
 
@@ -487,7 +506,7 @@ class CanvasPaintingMixin:
         # one way. An end is "here" on any of the map's own `storeys` above
         # the storey it rests on.
         color = NESTED_MAP_COLOR
-        inset = max(2.0, cell * 0.12)
+        inset = cell * 0.12
         tile = cell - 2 * inset
         scale = 0.5 if dim else 1.0
         line = QColor(color)
@@ -522,7 +541,7 @@ class CanvasPaintingMixin:
             painter.setPen(QPen(line, 2))
             painter.setBrush(fill if here else Qt.BrushStyle.NoBrush)
             painter.drawRect(rect)
-            if number:
+            if number and cell >= 12:
                 painter.setPen(QColor("#ffffff") if here else line)
                 painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, number)
         painter.setPen(Qt.PenStyle.NoPen)
@@ -635,7 +654,7 @@ class CanvasPaintingMixin:
             return
         painter.setBrush(QColor(250, 204, 21, 220))
         painter.setPen(QPen(QColor(202, 138, 4, 255), 1))
-        for light in lights:
+        for light in self.visible_entries("lights", lights):
             painter.drawPolygon(light_marker_polygon(light, cell))
 
     def _paint_adjacent_level_ghosts(self, painter: QPainter, cell: float, level_idx: int) -> None:
@@ -701,16 +720,17 @@ class CanvasPaintingMixin:
 
     def paint_spawn_zones(self, painter: QPainter, cell: float, level_idx: int) -> None:
         # Player zones first (background), then actor (top — has the kind label).
-        for zone in self.window.map_data[PLAYER_ZONE_LIST]:
+        for zone in self.visible_entries(PLAYER_ZONE_LIST, self.window.map_data[PLAYER_ZONE_LIST]):
             if zone["level"] == level_idx:
                 self.paint_player_spawn_zone(painter, zone, cell)
-        for zone in self.window.map_data[ACTOR_ZONE_LIST]:
+        for zone in self.visible_entries(ACTOR_ZONE_LIST, self.window.map_data[ACTOR_ZONE_LIST]):
             if zone["level"] == level_idx:
                 self.paint_actor_spawn_zone(painter, zone, cell)
 
     def paint_actor_spawn_zone(self, painter: QPainter, zone: dict, cell: float) -> None:
         c0, r0, c1, r1 = zone_rect(zone)
-        rect = QRectF(c0 * cell + 2, r0 * cell + 2, (c1 - c0) * cell - 4, (r1 - r0) * cell - 4)
+        inset = min(2, cell * 0.1)
+        rect = QRectF(c0 * cell, r0 * cell, (c1 - c0) * cell, (r1 - r0) * cell).adjusted(inset, inset, -inset, -inset)
         outline_color = zone_color(zone["kind"])
         fill_color = QColor(outline_color)
         fill_color.setAlpha(70)
@@ -719,11 +739,13 @@ class CanvasPaintingMixin:
         painter.drawRect(rect)
         painter.setPen(QColor("#f8fafc"))
         label = f"{zone['kind']}:{zone['count']}" if zone["kind"] else "(empty)"
-        painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, label)
+        if cell >= 8:
+            painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, label)
 
     def paint_player_spawn_zone(self, painter: QPainter, zone: dict, cell: float) -> None:
         c0, r0, c1, r1 = zone_rect(zone)
-        rect = QRectF(c0 * cell + 2, r0 * cell + 2, (c1 - c0) * cell - 4, (r1 - r0) * cell - 4)
+        inset = min(2, cell * 0.1)
+        rect = QRectF(c0 * cell, r0 * cell, (c1 - c0) * cell, (r1 - r0) * cell).adjusted(inset, inset, -inset, -inset)
         outline_color = tag_color("player")
         fill_color = QColor(outline_color)
         fill_color.setAlpha(70)
@@ -731,7 +753,8 @@ class CanvasPaintingMixin:
         painter.setPen(QPen(outline_color, 2, Qt.PenStyle.DashLine))
         painter.drawRect(rect)
         painter.setPen(QColor("#f8fafc"))
-        painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, "player")
+        if cell >= 8:
+            painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, "player")
 
     def paint_spawn_zone_selection(self, painter: QPainter, cell: float, level_idx: int) -> None:
         zone = self.window.selected_spawn_zone()
@@ -769,7 +792,10 @@ class CanvasPaintingMixin:
             painter.setBrush(face_color(ramp))
         else:
             painter.setBrush(QColor("#d97706") if is_lower_level else QColor("#8b5cf6"))
-        painter.drawRect(QRectF(c0 * cell + 3, r0 * cell + 3, (c1 - c0) * cell - 6, (r1 - r0) * cell - 6))
+        inset = min(3, cell * 0.15)
+        painter.drawRect(QRectF(c0 * cell, r0 * cell, (c1 - c0) * cell, (r1 - r0) * cell).adjusted(inset, inset, -inset, -inset))
+        if cell < 8:
+            return
 
         if is_lower_level:
             direction = ramp_axis(ramp)

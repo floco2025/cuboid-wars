@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 
 from .constants import (
     FACES,
@@ -25,6 +26,30 @@ from .geometry import (
     ramp_error,
     wall_endpoints_for_cell_side,
 )
+from .transforms import record_levels, record_rect
+
+
+@dataclass(frozen=True)
+class ValidationIssue:
+    message: str
+    level: int | None = None
+    rect: tuple[int, int, int, int] | None = None
+
+
+class ValidationErrors(list):
+    def __init__(self):
+        super().__init__()
+        self.issues: list[ValidationIssue] = []
+        self.level = None
+        self.rect = None
+
+    def locate(self, name: str | None = None, entry: dict | None = None, level: int | None = None) -> None:
+        self.level = record_levels(entry, level)[0] if entry is not None else level
+        self.rect = record_rect(name, entry) if entry is not None else None
+
+    def append(self, message: str) -> None:
+        super().append(message)
+        self.issues.append(ValidationIssue(message, self.level, self.rect))
 
 
 def validate_map(
@@ -34,11 +59,13 @@ def validate_map(
     *,
     map_name: str | None = None,
     nested_lookup=None,
-) -> list[str]:
+    actor_kinds: list[str] | None = None,
+    material_aliases: list[str] | None = None,
+) -> ValidationErrors:
     """`map_name` is the edited file's name and `nested_lookup(name)` a
     nested map's shape (see `nested_maps.py`); without them the nested-map
     checks that need other files are skipped."""
-    errors: list[str] = []
+    errors = ValidationErrors()
     cols = map_data["grid_cols"]
     rows = map_data["grid_rows"]
     if cols <= 0 or rows <= 0:
@@ -48,13 +75,17 @@ def validate_map(
     kinds = barrier_kinds
 
     for idx, zone in enumerate(map_data["actor_spawn_zones"]):
+        errors.locate("actor_spawn_zones", zone)
         _validate_zone_rect(zone, f"actor_spawn_zones[{idx}]", map_data, errors)
         if not zone["kind"]:
             errors.append(f"actor_spawn_zones[{idx}] has empty `kind`")
+        elif actor_kinds is not None and zone["kind"] not in actor_kinds:
+            errors.append(f"actor_spawn_zones[{idx}] has unknown actor kind {zone['kind']!r}")
         if zone["count"] < 0:
             errors.append(f"actor_spawn_zones[{idx}] has negative count")
 
     for idx, zone in enumerate(map_data["player_spawn_zones"]):
+        errors.locate("player_spawn_zones", zone)
         _validate_zone_rect(zone, f"player_spawn_zones[{idx}]", map_data, errors)
 
     _validate_items(map_data, kinds, errors)
@@ -64,16 +95,19 @@ def validate_map(
         prefix = level_label(level, level_idx)
         floor_set = {(f["col"], f["row"]) for f in level["floors"]}
         for floor in level["floors"]:
+            errors.locate("floors", floor, level_idx)
             c, r = floor["col"], floor["row"]
             if not (0 <= c < cols and 0 <= r < rows):
                 errors.append(f"{prefix}: floor [{c}, {r}] is outside the grid")
         for floor in level["inaccessible_floors"]:
+            errors.locate("inaccessible_floors", floor, level_idx)
             c, r = floor["col"], floor["row"]
             if not (0 <= c < cols and 0 <= r < rows):
                 errors.append(f"{prefix}: inaccessible floor [{c}, {r}] is outside the grid")
             if (c, r) in floor_set:
                 errors.append(f"{prefix}: inaccessible floor [{c}, {r}] overlaps a floor")
         for wall in level["walls"]:
+            errors.locate("walls", wall, level_idx)
             c0, r0, c1, r1 = wall["c0"], wall["r0"], wall["c1"], wall["r1"]
             if not (grid_point_in_bounds(c0, r0, cols, rows) and grid_point_in_bounds(c1, r1, cols, rows)):
                 errors.append(f"{prefix}: wall [{c0}, {r0}, {c1}, {r1}] is outside the grid-line bounds")
@@ -86,6 +120,7 @@ def validate_map(
         }
         barrier_seen: set[tuple[int, int, int, int]] = set()
         for idx, barrier in enumerate(level.get("barriers", [])):
+            errors.locate("barriers", barrier, level_idx)
             c0, r0, c1, r1 = barrier["c0"], barrier["r0"], barrier["c1"], barrier["r1"]
             kind = barrier.get("kind")
             if not (grid_point_in_bounds(c0, r0, cols, rows) and grid_point_in_bounds(c1, r1, cols, rows)):
@@ -105,6 +140,7 @@ def validate_map(
         ramp_set = ramp_cells_on_level(map_data["ramps"], level_idx)
         bridge_seen: set[tuple[int, int]] = set()
         for idx, bridge in enumerate(level.get("light_bridges", [])):
+            errors.locate("light_bridges", bridge, level_idx)
             c, r, kind = bridge["col"], bridge["row"], bridge.get("kind")
             label = f"{prefix}: light_bridge[{idx}]"
             if not (0 <= c < cols and 0 <= r < rows):
@@ -120,6 +156,7 @@ def validate_map(
             bridge_seen.add((c, r))
 
         for light in level.get("lights", []):
+            errors.locate("lights", light, level_idx)
             c, r, side = light["col"], light["row"], light["side"]
             if not (0 <= c < cols and 0 <= r < rows):
                 errors.append(f"{prefix}: light [{c}, {r}, {side}] is outside the grid")
@@ -131,6 +168,7 @@ def validate_map(
                 errors.append(f"{prefix}: light [{c}, {r}, {side}] has no wall on that side")
 
     for ramp in map_data["ramps"]:
+        errors.locate("ramps", ramp)
         msg = ramp_error(ramp["low"], ramp["high"], ramp["lower_level"], cols, rows, len(map_data["levels"]))
         if msg:
             errors.append(f"ramp {ramp}: {msg}")
@@ -142,7 +180,7 @@ def validate_map(
     # Raw material ids are rejected — the alias system is the canonical way to
     # name a material role; raw ids in map.json would let the catalog drift
     # silently. The renderer enforces the same rule.
-    _validate_face_aliases(map_data, errors)
+    _validate_face_aliases(map_data, errors, MATERIAL_ALIASES if material_aliases is None else material_aliases)
 
     return errors
 
@@ -159,6 +197,7 @@ def _validate_ladders(map_data: dict, errors: list[str]) -> None:
     rows = map_data["grid_rows"]
     level_count = len(map_data["levels"])
     for idx, ladder in enumerate(map_data.get("ladders", [])):
+        errors.locate("ladders", ladder)
         label = f"ladders[{idx}]"
         col, row, side = ladder["col"], ladder["row"], ladder["side"]
         lower, levels = ladder["lower_level"], ladder["levels"]
@@ -179,6 +218,7 @@ def _validate_ladders(map_data: dict, errors: list[str]) -> None:
         for other_idx, other in enumerate(map_data["ladders"][:idx]):
             if (
                 edge is not None
+                and other["side"] in LADDER_SIDES
                 and wall_endpoints_for_cell_side(other["col"], other["row"], other["side"]) == edge
                 and other["lower_level"] < lower + levels
                 and lower < other["lower_level"] + other["levels"]
@@ -197,6 +237,7 @@ def _validate_nested_maps(map_data: dict, errors: list[str], map_name: str | Non
     seen: set[tuple] = set()
     entries = map_data.get("nested_maps", [])
     for idx, entry in enumerate(entries):
+        errors.locate("nested_maps", entry)
         label = f"nested_maps[{idx}]"
         name = entry["map"]
         if not MAP_NAME_RE.match(name):
@@ -240,6 +281,7 @@ def _validate_pressure_plates(map_data: dict, kinds: list[str], bridge_kinds: li
     rows = map_data["grid_rows"]
     seen: set[tuple] = set()
     for idx, plate in enumerate(map_data.get("pressure_plates", [])):
+        errors.locate("pressure_plates", plate)
         label = f"pressure_plates[{idx}]"
         level_idx, col, row = plate["level"], plate["col"], plate["row"]
         if not (0 <= level_idx < len(map_data["levels"])):
@@ -278,6 +320,7 @@ def _validate_items(map_data: dict, kinds: list[str], errors: list[str]) -> None
     rows = map_data["grid_rows"]
     seen_cells: set[tuple[int, int, int]] = set()
     for idx, item in enumerate(map_data.get("items", [])):
+        errors.locate("items", item)
         label = f"items[{idx}]"
         level_idx, col, row = item["level"], item["col"], item["row"]
         if not (0 <= level_idx < len(map_data["levels"])):
@@ -310,27 +353,31 @@ def _validate_items(map_data: dict, kinds: list[str], errors: list[str]) -> None
         seen_cells.add((level_idx, col, row))
 
 
-def _validate_face_aliases(map_data: dict, errors: list[str]) -> None:
-    if not MATERIAL_ALIASES:
+def _validate_face_aliases(map_data: dict, errors: ValidationErrors, aliases) -> None:
+    if not aliases:
         return  # no catalog loaded — skip rather than block all maps
     for level_idx, level in enumerate(map_data["levels"]):
         prefix = level_label(level, level_idx)
         for floor in level["floors"]:
-            _check_face_aliases(floor, f"{prefix}: floor [{floor['col']}, {floor['row']}]", errors)
+            errors.locate("floors", floor, level_idx)
+            _check_face_aliases(floor, f"{prefix}: floor [{floor['col']}, {floor['row']}]", errors, aliases)
         for floor in level["inaccessible_floors"]:
-            _check_face_aliases(floor, f"{prefix}: inaccessible_floor [{floor['col']}, {floor['row']}]", errors)
+            errors.locate("inaccessible_floors", floor, level_idx)
+            _check_face_aliases(floor, f"{prefix}: inaccessible_floor [{floor['col']}, {floor['row']}]", errors, aliases)
         for wall in level["walls"]:
+            errors.locate("walls", wall, level_idx)
             label = f"{prefix}: wall [{wall['c0']}, {wall['r0']}, {wall['c1']}, {wall['r1']}]"
-            _check_face_aliases(wall, label, errors)
+            _check_face_aliases(wall, label, errors, aliases)
     for ramp in map_data["ramps"]:
+        errors.locate("ramps", ramp)
         label = f"ramp {ramp['low']}->{ramp['high']} (level {ramp['lower_level']})"
-        _check_face_aliases(ramp, label, errors)
+        _check_face_aliases(ramp, label, errors, aliases)
 
 
-def _check_face_aliases(seg: dict, label: str, errors: list[str]) -> None:
+def _check_face_aliases(seg: dict, label: str, errors: list[str], aliases) -> None:
     for face in FACES:
         value = seg.get(face)
-        if value is None or value in MATERIAL_ALIASES:
+        if value is None or value in aliases:
             continue
         errors.append(
             f"{label}: face {face!r} value {value!r} is not an alias; "

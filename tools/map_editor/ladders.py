@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import copy
 
-from .dialogs import LadderLevelsDialog
+from .constants import LADDER_SIDES
+from .erasing import ladders_outside
 from .geometry import (
     cell_side_from_click,
     ladder_anchor_from_click,
     rect_from_cells,
     wall_endpoints_for_cell_side,
-    wall_overlaps_rect,
 )
 from .normalization import ladder_key, ladder_spans_level
 
@@ -40,7 +40,7 @@ class LaddersMixin:
         existing = next(
             (
                 l for l in self.map_data.get("ladders", [])
-                if wall_endpoints_for_cell_side(l["col"], l["row"], l["side"]) == edge
+                if l["side"] in LADDER_SIDES and wall_endpoints_for_cell_side(l["col"], l["row"], l["side"]) == edge
                 and ladder_spans_level(l, level_idx)
             ),
             None,
@@ -58,9 +58,7 @@ class LaddersMixin:
         if max_levels < 1:
             self._flash_status("A ladder needs a level above this one to climb to.")
             return
-        levels = LadderLevelsDialog.prompt(self, max_levels, self.recent_ladder_levels)
-        if levels is None:
-            return
+        levels = min(max_levels, max(1, self.recent_ladder_levels))
         self.recent_ladder_levels = levels
 
         new_ladder = {
@@ -71,7 +69,7 @@ class LaddersMixin:
             "levels": levels,
         }
         overlapping = any(
-            wall_endpoints_for_cell_side(l["col"], l["row"], l["side"]) == edge
+            l["side"] in LADDER_SIDES and wall_endpoints_for_cell_side(l["col"], l["row"], l["side"]) == edge
             and l["lower_level"] < level_idx + levels
             and level_idx < l["lower_level"] + l["levels"]
             for l in self.map_data.get("ladders", [])
@@ -87,13 +85,7 @@ class LaddersMixin:
         rect = rect_from_cells(start, end)
         level_idx = self.current_level
         ladders = self.map_data.get("ladders", [])
-        kept = [
-            l for l in ladders
-            if not (
-                ladder_spans_level(l, level_idx)
-                and wall_overlaps_rect(list(wall_endpoints_for_cell_side(l["col"], l["row"], l["side"])), rect)
-            )
-        ]
+        kept = ladders_outside(ladders, level_idx, rect)
         if len(kept) == len(ladders):
             self._flash_status("Erase Ladders: no ladders in selection.")
             return

@@ -10,7 +10,7 @@ from PySide6.QtWidgets import QApplication, QInputDialog, QMessageBox
 
 from .constants import MODE_SELECT
 from .geometry import rect_from_cells
-from .normalization import canonicalize_map, nested_map_key
+from .normalization import normalize_map, nested_map_key
 from .regions import TileRegion, copy_region, delete_region, paste_region
 from .validation import validate_map
 
@@ -37,7 +37,7 @@ class SelectMixin:
         if mime is not None and mime.hasFormat(CLIPBOARD_MIME):
             try:
                 data = json.loads(bytes(mime.data(CLIPBOARD_MIME)))["map"]
-                block = canonicalize_map(data)
+                block = normalize_map(data)
                 if block["grid_cols"] > 0 and block["grid_rows"] > 0:
                     self.tile_clipboard = block
             except (ValueError, TypeError, KeyError, IndexError, AttributeError, OverflowError):
@@ -67,6 +67,7 @@ class SelectMixin:
         self.select_drag_kind = None
         self.canvas.clear_drag()
         self.canvas._clear_hover()
+        self.canvas.pan_origin = None
 
     def select_all_tiles(self) -> None:
         self.mode_combo.setCurrentText(MODE_SELECT)
@@ -144,7 +145,7 @@ class SelectMixin:
         if after is not None:
             self.apply_change(f"{operation} Tiles ({region.levels} level(s))", after)
         else:
-            self._set_last_action(f"Copied tiles from {region.levels} level(s)")
+            self._flash_status(f"Copied tiles from {region.levels} level(s)")
 
     def paste_selection(self) -> None:
         if self.mode != MODE_SELECT or self.tile_selection is None or self.tile_clipboard is None:
@@ -156,11 +157,14 @@ class SelectMixin:
             errors = validate_map(
                 self.tile_clipboard, self.barrier_kinds, self.bridge_kinds,
                 map_name=self.edited_map_name(), nested_lookup=self.nested_map_shape,
+                actor_kinds=self.actor_kinds,
+                material_aliases=self.materials_catalog,
             )
             if errors:
                 raise ValueError("The copied block cannot be used in this map:\n\n" + "\n".join(errors[:8]))
-            before_errors = set(validate_map(self.map_data, self.barrier_kinds, self.bridge_kinds))
-            added_errors = [error for error in validate_map(after, self.barrier_kinds, self.bridge_kinds) if error not in before_errors]
+            catalogs = dict(actor_kinds=self.actor_kinds, material_aliases=self.materials_catalog)
+            before_errors = set(validate_map(self.map_data, self.barrier_kinds, self.bridge_kinds, **catalogs))
+            added_errors = [error for error in validate_map(after, self.barrier_kinds, self.bridge_kinds, **catalogs) if error not in before_errors]
             if added_errors:
                 raise ValueError("The pasted block conflicts with the destination:\n\n" + "\n".join(added_errors[:8]))
         except ValueError as exc:

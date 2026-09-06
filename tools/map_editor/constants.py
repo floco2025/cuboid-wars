@@ -12,6 +12,11 @@ MAPS_DIR = REPO_ROOT / "config" / "server" / "maps"
 GAMEPLAY_PATH = REPO_ROOT / "config" / "server" / "gameplay.json"
 
 
+def load_actor_kinds() -> list[str]:
+    with GAMEPLAY_PATH.open(encoding="utf-8") as handle:
+        return sorted(json.load(handle)["actors"]["kinds"])
+
+
 def _load_material_aliases() -> set[str]:
     assets_path = REPO_ROOT / "config" / "client" / "assets.json"
     with assets_path.open("r", encoding="utf-8") as handle:

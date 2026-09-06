@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 from .constants import MAPS_DIR, NESTED_MAPS_LIST, list_map_names
 from .dialogs import MotionDialog, Nudge
-from .erase import nested_maps_outside
+from .erasing import nested_maps_outside
 from .geometry import rect_from_cells
 from .io import read_map
 from .normalization import nested_map_key
@@ -77,6 +77,8 @@ def nested_map_rest_points(entry: dict, wall_width_cells: float) -> tuple[tuple[
     canvas shows the plan, and a storey's height is not a canvas distance."""
 
     def rest(anchor: list[int], nudge: list[float]) -> tuple[float, float]:
+        if len(nudge) != 3:
+            return tuple(anchor)
         return (anchor[0] + nudge[0] * wall_width_cells, anchor[1] + nudge[2] * wall_width_cells)
 
     return rest(entry["from"], entry["from_nudge"]), rest(entry["to"], entry["to_nudge"])
@@ -85,7 +87,7 @@ def nested_map_rest_points(entry: dict, wall_width_cells: float) -> tuple[tuple[
 def nested_map_label(name: str, nudge: list[float]) -> str:
     """The footprint's label: the map's name, and its y nudge when it has
     one, since the plan cannot draw a vertical displacement."""
-    return name if nudge[1] == 0 else f"{name} y{nudge[1]:+g}"
+    return name if len(nudge) != 3 or nudge[1] == 0 else f"{name} y{nudge[1]:+g}"
 
 
 def nested_map_error(map_name: str, edited: str | None) -> str | None:
@@ -216,6 +218,11 @@ class NestedMapsMixin:
         self.apply_change("Move Nested Map End", after)
 
     def add_nested_map(self, start_cell: tuple[int, int], end_cell: tuple[int, int]) -> None:
+        if (self.recent_nested_map is not None
+                and 0 <= self.recent_nested_map[1] < len(self.map_data["levels"])
+                and self.recent_nested_map[0] in list_map_names(exclude=self.edited_map_name())):
+            self.place_nested_map(start_cell, end_cell, *self.recent_nested_map)
+            return
         result = MotionDialog.prompt_nested(
             self,
             len(self.map_data["levels"]),

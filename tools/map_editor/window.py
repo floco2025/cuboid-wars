@@ -5,20 +5,18 @@ from __future__ import annotations
 import copy
 from pathlib import Path
 
-import shiboken6
 from PySide6.QtCore import QSettings, Qt, QTimer
 from PySide6.QtGui import QAction, QFont, QKeySequence, QShortcut, QStandardItem, QStandardItemModel, QUndoStack
-from PySide6.QtWidgets import QComboBox, QLabel, QMainWindow, QMenu, QToolBar
+from PySide6.QtWidgets import QComboBox, QFileDialog, QLabel, QMainWindow, QMenu, QMessageBox, QToolBar
 
 from .canvas import Canvas
-from .commands import SetMapCommand
 from .dialogs import NestedMotion
 from .constants import (
     DEFAULT_ACTOR_COUNT,
     DEFAULT_ALIAS,
+    DEFAULT_WALL_WIDTH_CELLS,
     ERASE_MODES,
     ITEM_TYPES,
-    MODES,
     MODE_BRIDGE_PLATE,
     MODE_CATEGORIES,
     MODE_FIREWORK_PLATE,
@@ -29,16 +27,15 @@ from .constants import (
     MODE_PRESSURE_PLATE,
     MODE_RAMP_DOWN,
     MODE_RAMP_UP,
-    STATUS_TIMEOUT_MS,
     load_map_barrier_kinds,
     load_map_bridge_kinds,
     load_map_wall_width_cells,
+    load_actor_kinds,
 )
 from .document import MapDocument
 from .erase import EraseMixin
 from .file_actions import FileActionsMixin
 from .display import level_label
-from .normalization import canonicalize_map
 from .io import load_materials_catalog
 from .items import ItemsMixin
 from .ladders import LaddersMixin
@@ -50,6 +47,10 @@ from .spawn_zones import SpawnZoneEditMixin
 from .structure import StructureMixin
 from .types import SpawnZoneDrag, ZoneRef
 from .validation import validate_map
+from .issues import IssuesPanel
+from .dependencies import MapDependencies
+from .tool_settings import ToolSettings
+from .window_geometry import WindowGeometry
 
 
 class EditorWindow(
@@ -65,14 +66,16 @@ class EditorWindow(
     SpawnZoneEditMixin,
     QMainWindow,
 ):
-    def __init__(self, path: Path):
+    def __init__(self, path: Path, *, preferences: QSettings | None = None):
         super().__init__()
+        self.preferences = preferences if preferences is not None else QSettings()
         # The document is the map being edited (data, file identity, dirty
         # state, undo history); the window holds view/tool state and widgets.
         self.doc = MapDocument(path)
         self.barrier_kind_colors = load_map_barrier_kinds(path.stem)
         self.bridge_kind_colors = load_map_bridge_kinds(path.stem)
         self.wall_width_cells = load_map_wall_width_cells(path.stem)
+        self.actor_kinds = load_actor_kinds()
         self.current_level = 0
         self.mode = MODE_SELECT
         self.shortcuts = []
@@ -130,21 +133,25 @@ class EditorWindow(
         self.level_combo.currentIndexChanged.connect(self.select_level)
         self.mode_combo = self._build_mode_combo()
         self.mode_combo.currentTextChanged.connect(self.set_mode)
-        # Status bar: left = persistent last-action message, right = red
-        # structural-issue badge (hidden when the map is valid).
-        self.last_action_label = QLabel()
-        self.status_label = QLabel()
-        # Track the previous undo-stack index so transitions can be labelled
-        # "Undid X" / "Redid X" instead of just showing the new tip.
-        self._undo_index_seen = 0
-        self.undo_stack.indexChanged.connect(self._on_undo_index_changed)
+        self.issues_panel = IssuesPanel(self)
+        self.issues_panel.focused.connect(self.focus_issue)
+        self.issues_panel.repair_requested.connect(self.review_repairs)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.issues_panel)
+        self.issues_panel.hide()
+        self.tool_settings = ToolSettings(self)
+        self.issues_action = QAction("Issues", self)
+        self.issues_action.triggered.connect(self.issues_panel.show)
+        self.issues_action.setVisible(False)
 
         self.build_menus()
         self.build_toolbar()
-        self.statusBar().addWidget(self.last_action_label, 1)
-        self.statusBar().addPermanentWidget(self.status_label)
+        self.doc.changed.connect(self._on_document_changed)
+        self.doc.saved.connect(self.refresh_ui)
+        self.dependencies = MapDependencies(self)
+        self.dependencies.changed.connect(self.reload_dependencies)
         self.refresh_ui()
-        self.resize_to_map()
+        self.window_geometry = WindowGeometry(self, self.preferences)
+        self.canvas.fit_map()
 
         # Autosave timer — periodically writes a `.autosave.json` sibling when
         # the map is dirty so a crash/kill doesn't lose work.
@@ -238,6 +245,7 @@ class EditorWindow(
         file_menu = self.menuBar().addMenu("&File")
         self.add_menu_action(file_menu, "&New...", QKeySequence.StandardKey.New, self.new_file)
         self.add_menu_action(file_menu, "&Open...", QKeySequence.StandardKey.Open, self.open_file)
+        self.add_menu_action(file_menu, "Recover &Unsaved Map...", None, self.recover_unsaved_map)
         self.recent_menu = file_menu.addMenu("Open &Recent")
         self._rebuild_recent_menu()
         # Track the initial path as a recent so it shows up next launch.
@@ -257,6 +265,7 @@ class EditorWindow(
         edit_menu.addAction(redo_action)
         edit_menu.addSeparator()
         self.build_selection_actions(edit_menu)
+        self.add_menu_action(edit_menu, "Review &Repairs...", None, self.review_repairs)
         edit_menu.addSeparator()
         self.add_menu_action(edit_menu, "Resi&ze Map...", None, self.resize_map)
         edit_menu.addSeparator()
@@ -268,16 +277,24 @@ class EditorWindow(
         self.add_menu_action(edit_menu, "&Clear Lights On Level", None, self.clear_lights_on_current_level)
 
         view_menu = self.menuBar().addMenu("&View")
+        self.add_menu_action(view_menu, "Zoom &In", QKeySequence.StandardKey.ZoomIn, lambda: self.canvas.zoom_by(1.25))
+        self.add_menu_action(view_menu, "Zoom &Out", QKeySequence.StandardKey.ZoomOut, lambda: self.canvas.zoom_by(0.8))
+        fit_action = self.add_menu_action(view_menu, "&Fit Map", QKeySequence("F"), self.canvas.fit_map)
+        self.canvas_shortcut(fit_action)
+        view_menu.addSeparator()
+        view_menu.addAction(self.issues_panel.toggleViewAction())
         self.material_overlay_action = QAction("Show &Material Overlay", self)
         self.material_overlay_action.setCheckable(True)
         self.material_overlay_action.setShortcut(QKeySequence("M"))
         self.material_overlay_action.toggled.connect(self.set_material_overlay)
         view_menu.addAction(self.material_overlay_action)
+        self.canvas_shortcut(self.material_overlay_action)
         self.adjacent_levels_action = QAction("Show &Adjacent Levels", self)
         self.adjacent_levels_action.setCheckable(True)
-        self.adjacent_levels_action.setShortcut(QKeySequence("Shift+M"))
+        self.adjacent_levels_action.setShortcut(QKeySequence("L"))
         self.adjacent_levels_action.toggled.connect(self.set_adjacent_levels)
         view_menu.addAction(self.adjacent_levels_action)
+        self.canvas_shortcut(self.adjacent_levels_action)
 
         help_menu = self.menuBar().addMenu("&Help")
         self.add_menu_action(help_menu, "Tool &Reference", None, self.show_tool_reference)
@@ -292,6 +309,10 @@ class EditorWindow(
         shortcut.setContext(Qt.ShortcutContext.WidgetShortcut)
         shortcut.activated.connect(callback)
         self.shortcuts.append(shortcut)
+
+    def canvas_shortcut(self, action: QAction) -> None:
+        action.setShortcutContext(Qt.ShortcutContext.WidgetShortcut)
+        self.canvas.addAction(action)
 
     def add_menu_action(self, menu: QMenu, text: str, shortcut, callback) -> QAction:
         action = QAction(text, self)
@@ -311,6 +332,7 @@ class EditorWindow(
         before the app has a visible window opens behind whatever is in
         front, and the editor looks as if it were doing nothing."""
         if not self.doc.has_recoverable_autosave():
+            self.review_repairs(quiet=True)
             return
         autosave = self.doc.autosave_path()
         from PySide6.QtWidgets import QMessageBox  # local import; avoids top-level cycle
@@ -324,10 +346,60 @@ class EditorWindow(
             # Declined: the autosave is rejected work; drop it so the next
             # launch doesn't offer it again.
             self.doc.clear_autosave()
+            self.review_repairs(quiet=True)
             return
         if self.doc.recover_autosave():
             self.current_level = 0
             self.refresh_ui()
+        self.review_repairs(quiet=True)
+
+    def review_repairs(self, *, quiet: bool = False) -> None:
+        repaired, summary = self.doc.proposed_repairs()
+        if not summary:
+            if not quiet:
+                QMessageBox.information(self, "Map Repairs", "No automatic repairs are needed. Other issues can be edited from Map Issues.")
+            return
+        box = QMessageBox(self)
+        box.setWindowTitle("Review Map Repairs")
+        box.setText("The map contains records that need repair. Apply these changes as one undoable edit?")
+        box.setInformativeText("\n".join(summary[:12]))
+        box.setDetailedText("\n".join(summary))
+        box.setStandardButtons(QMessageBox.StandardButton.Apply | QMessageBox.StandardButton.Cancel)
+        box.setDefaultButton(QMessageBox.StandardButton.Cancel)
+        if box.exec() == QMessageBox.StandardButton.Apply:
+            self.doc.apply_change("Repair Map", repaired, repair=True)
+
+    def recover_unsaved_map(self) -> None:
+        if not self.confirm_discard_changes():
+            return
+        path, _ = QFileDialog.getOpenFileName(self, "Recover Unsaved Map", str(self.doc.recovery_dir), "Autosaved maps (*.autosave.json)")
+        if not path:
+            return
+        try:
+            recovered = self.doc.recover_session(Path(path))
+        except Exception as exc:
+            QMessageBox.warning(self, "Recovery Failed", str(exc))
+            return
+        if not recovered:
+            QMessageBox.information(self, "Map In Use", "That recovery file belongs to an editor that is still running.")
+            return
+        self.clear_selection()
+        self.current_level = 0
+        self.barrier_kind_colors = {}
+        self.bridge_kind_colors = {}
+        self.wall_width_cells = DEFAULT_WALL_WIDTH_CELLS
+        self.forget_nested_map_shapes()
+        self.refresh_ui()
+        self.canvas.fit_map()
+        self.review_repairs(quiet=True)
+
+    def focus_issue(self, issue) -> None:
+        if issue.level is not None:
+            self.set_level_index(issue.level)
+        self.canvas.issue_rects = [issue.rect] if issue.rect is not None else []
+        if issue.rect is not None:
+            self.canvas.viewport.focus(issue.rect, self.canvas.width(), self.canvas.height())
+        self.canvas.update()
 
     def _tick_autosave(self) -> None:
         self.doc.write_autosave()
@@ -341,8 +413,7 @@ class EditorWindow(
     RECENT_FILES_MAX = 5
 
     def _load_recent_paths(self) -> list[str]:
-        settings = QSettings()
-        raw = settings.value(self.RECENT_FILES_KEY) or []
+        raw = self.preferences.value(self.RECENT_FILES_KEY) or []
         # QSettings on some platforms unwraps single-element lists to scalars.
         if isinstance(raw, str):
             return [raw]
@@ -353,7 +424,7 @@ class EditorWindow(
         recents = [p for p in self._load_recent_paths() if p != canonical]
         recents.insert(0, canonical)
         del recents[self.RECENT_FILES_MAX :]
-        QSettings().setValue(self.RECENT_FILES_KEY, recents)
+        self.preferences.setValue(self.RECENT_FILES_KEY, recents)
         self._rebuild_recent_menu()
 
     def _rebuild_recent_menu(self) -> None:
@@ -377,7 +448,7 @@ class EditorWindow(
             self._flash_status(f"Recent file missing: {candidate}")
             # Drop the dead entry so the user doesn't keep tripping on it.
             remaining = [p for p in self._load_recent_paths() if p != path_str]
-            QSettings().setValue(self.RECENT_FILES_KEY, remaining)
+            self.preferences.setValue(self.RECENT_FILES_KEY, remaining)
             self._rebuild_recent_menu()
             return
         # Re-use the same load path as File → Open so validation, mtime
@@ -393,24 +464,31 @@ class EditorWindow(
         toolbar.addWidget(QLabel("Tool "))
         toolbar.addWidget(self.mode_combo)
         self.mode_combo.setToolTip("Select Tiles: click or drag tiles. Alt/Option edits spawn zones and nested-map ends.")
+        tool_settings_action = toolbar.addWidget(self.tool_settings)
+        self.tool_settings.available_changed.connect(tool_settings_action.setVisible)
+        tool_settings_action.setVisible(False)
         # Persistent "Building UP/DOWN" hint that disambiguates the two ramp
         # modes mid-drag. Hidden outside ramp modes so it doesn't clutter the
         # toolbar.
         self.ramp_direction_label = QLabel()
         self.ramp_direction_label.setStyleSheet("color: #fbbf24; padding: 0 8px;")
         toolbar.addWidget(self.ramp_direction_label)
+        toolbar.addAction(self.issues_action)
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, toolbar)
 
     # === State updates & UI refresh ===
 
     def set_map(self, map_data: dict, mark_dirty: bool) -> None:
+        self.doc.set_data(map_data, mark_dirty)
+
+    def _on_document_changed(self, before: dict) -> None:
         self.cancel_interaction()
+        self.canvas.issue_rects = []
         prior_selection: tuple[str, dict] | None = None
         if self.selected_spawn_zone_ref is not None:
             ref = self.selected_spawn_zone_ref
-            if 0 <= ref.index < len(self.map_data[ref.list_name]):
-                prior_selection = (ref.list_name, copy.deepcopy(self.map_data[ref.list_name][ref.index]))
-        self.doc.set_data(map_data, mark_dirty)
+            if 0 <= ref.index < len(before[ref.list_name]):
+                prior_selection = (ref.list_name, copy.deepcopy(before[ref.list_name][ref.index]))
         if self.tile_selection is not None:
             c0, r0, c1, r1 = self.tile_selection
             c1 = min(c1, self.map_data["grid_cols"])
@@ -425,12 +503,7 @@ class EditorWindow(
         self.refresh_ui()
 
     def apply_change(self, label: str, after: dict) -> None:
-        before = self.map_data
-        after = canonicalize_map(after)
-        if before == after:
-            return
-        self.undo_stack.push(SetMapCommand(self, label, before, after))
-        self._set_last_action(label)
+        self.doc.apply_change(label, after)
 
     def refresh_ui(self) -> None:
         self.level_combo.blockSignals(True)
@@ -445,10 +518,22 @@ class EditorWindow(
         suffix = "*" if self.dirty else ""
         file_name = str(self.path) if self.path else "Untitled"
         self.setWindowTitle(f"Cuboid Wars Editor - {file_name}{suffix}")
+        self.dependencies.watch(self.nested_map_shapes)
+        self.tool_settings.refresh()
 
-    def resize_to_map(self) -> None:
-        self.canvas.updateGeometry()
-        self.resize(self.sizeHint())
+    def reload_dependencies(self) -> None:
+        self.forget_nested_map_shapes()
+        try:
+            self.actor_kinds = load_actor_kinds()
+            self.materials_catalog = load_materials_catalog()
+            if self.current_material not in self.materials_catalog:
+                self.current_material = next(iter(self.materials_catalog), "")
+            self.barrier_kind_colors = load_map_barrier_kinds(self.edited_map_name())
+            self.bridge_kind_colors = load_map_bridge_kinds(self.edited_map_name())
+            self.wall_width_cells = load_map_wall_width_cells(self.edited_map_name())
+        except (OSError, ValueError, KeyError) as exc:
+            self._flash_status(f"Catalog reload failed: {exc}")
+        self.refresh_ui()
 
     def update_status(self, *, validate: bool = True) -> None:
         if validate:
@@ -458,14 +543,13 @@ class EditorWindow(
                 self.bridge_kinds,
                 map_name=self.edited_map_name(),
                 nested_lookup=self.nested_map_shape,
+                actor_kinds=self.actor_kinds,
+                material_aliases=self.materials_catalog,
             )
-            if errors:
-                self.status_label.setText(f"{len(errors)} structural issue(s)")
-                self.status_label.setToolTip("\n".join(errors[:20]))
-                self.status_label.setStyleSheet("color: #f87171;")
-                self.status_label.setVisible(True)
-            else:
-                self.status_label.setVisible(False)
+            self.issues_panel.set_issues(errors.issues)
+            self.issues_action.setText(f"Issues ({len(errors)})")
+            self.issues_action.setToolTip("\n".join(errors[:20]))
+            self.issues_action.setVisible(bool(errors))
         # Ramp-direction hint: only visible in MODE_RAMP_UP / MODE_RAMP_DOWN,
         # otherwise the label is empty (it still occupies the toolbar slot but
         # doesn't show text).
@@ -478,34 +562,8 @@ class EditorWindow(
         else:
             self.ramp_direction_label.setText("")
 
-    def _set_last_action(self, message: str) -> None:
-        self.last_action_label.setText(message)
-
     def _flash_status(self, message: str) -> None:
-        # Soft-rejection feedback: pin the message to the last-action label
-        # and also raise a transient toast so it's noticed immediately.
-        self._set_last_action(message)
-        self.statusBar().showMessage(message, STATUS_TIMEOUT_MS)
-
-    def _on_undo_index_changed(self, new_index: int) -> None:
-        # A stack that still holds commands clears itself as it is destroyed
-        # and reports that as an index change; by then its wrapper is gone.
-        if not shiboken6.isValid(self.undo_stack):
-            return
-        old_index = self._undo_index_seen
-        self._undo_index_seen = new_index
-        if new_index < old_index:
-            # We undid: the command at `new_index` is what was just reverted.
-            cmd = self.undo_stack.command(new_index)
-            if cmd is not None:
-                self._set_last_action(f"Undid {cmd.text()}")
-        elif new_index > old_index:
-            # We redid: the command at `new_index - 1` is what was just
-            # re-applied. Skip when the bump came from `push` (apply_change
-            # already set the label with the action name).
-            cmd = self.undo_stack.command(new_index - 1)
-            if cmd is not None and self.last_action_label.text() != cmd.text():
-                self._set_last_action(f"Redid {cmd.text()}")
+        self.canvas.notice.show_message(message)
 
     # === Navigation (level / tool selection) ===
 
@@ -514,8 +572,6 @@ class EditorWindow(
             self.cancel_interaction()
             self.current_level = index
             self.canvas.update()
-            # Keep the status bar + ramp-direction label in sync with the
-            # new level; otherwise "Building UP to Level N" lags one click.
             self.update_status(validate=False)
 
     def set_mode(self, mode: str) -> None:
@@ -525,6 +581,7 @@ class EditorWindow(
         self.canvas.update()
         self.update_selection_actions()
         self.update_status(validate=False)
+        self.tool_settings.refresh()
 
     def set_material_overlay(self, enabled: bool) -> None:
         self.show_material_overlay = enabled
@@ -573,9 +630,7 @@ class EditorWindow(
     def closeEvent(self, event) -> None:
         if self.confirm_discard_changes():
             self._clear_autosave()
-            # The stack clears itself as it is destroyed and reports that
-            # as an index change; the window is going with it.
-            self.undo_stack.indexChanged.disconnect(self._on_undo_index_changed)
+            self.window_geometry.save()
             event.accept()
         else:
             event.ignore()

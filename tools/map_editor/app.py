@@ -47,8 +47,7 @@ def main() -> int:
         print(f"map '{args.map}' has no file yet; Save will create {map_path}", file=sys.stderr)
 
     app = QApplication(sys.argv)
-    # Used by QSettings for the recent-files list — both must be set so the
-    # settings land in a predictable, per-OS location.
+    # Both names keep editor preferences in a predictable, per-OS location.
     app.setOrganizationName("CuboidWars")
     app.setApplicationName("MapEditor")
     app.setWindowIcon(_build_window_icon())

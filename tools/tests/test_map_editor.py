@@ -519,7 +519,7 @@ class RightClickAndSelectTests(unittest.TestCase):
         self.assertEqual(host.hit_at(near_top, cell)[0], "Wall")
 
         self.assertEqual(host.hit_at(center, cell), ("Pressure Plate", (1, 1)))
-        self.assertEqual(host.editable_plate_types_at(1, 1), ["barrier"])
+        self.assertEqual([p["type"] for p in host.editable_plates_at(1, 1)], ["barrier"])
         host.erase_hit(("Pressure Plate", (1, 1)))
         self.assertEqual(host.map_data["pressure_plates"], [])
 

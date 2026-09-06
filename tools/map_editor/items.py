@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import copy
 
-from .constants import ITEM_KEY_TYPE, ITEMS_LIST
+from .constants import ITEM_KEY_TYPE, ITEMS_LIST, ITEM_TYPES
 from .dialogs import ItemTypeDialog
 from .geometry import ramp_cells, rect_from_cells
 
@@ -37,6 +37,10 @@ class ItemsMixin:
         if self.item_at(col, row) is not None:
             self._flash_status(f"Item not placed: cell [{col}, {row}] already holds one; right-click it to edit or erase.")
             return
+        if self.recent_item_type in ITEM_TYPES:
+            if self.recent_item_type != ITEM_KEY_TYPE or self.recent_item_key_kind in self.barrier_kinds:
+                self.add_item(col, row, self.recent_item_type, self.recent_item_key_kind)
+                return
         result = ItemTypeDialog.prompt(
             self, "Place Item", self.barrier_kinds, self.recent_item_type, self.recent_item_key_kind
         )

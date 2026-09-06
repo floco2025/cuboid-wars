@@ -42,6 +42,7 @@ class FileActionsMixin:
         self.forget_nested_map_shapes()
         self.current_level = 0
         self.refresh_ui()
+        self.canvas.fit_map()
 
     def open_file(self) -> None:
         if not self.confirm_discard_changes():
@@ -68,6 +69,8 @@ class FileActionsMixin:
         errors = validate_map(
             loaded, list(barrier_kinds), list(bridge_kinds),
             map_name=path.stem, nested_lookup=self.nested_map_shape,
+            actor_kinds=self.actor_kinds,
+            material_aliases=self.materials_catalog,
         )
         if errors:
             QMessageBox.warning(
@@ -90,6 +93,7 @@ class FileActionsMixin:
         self.current_level = 0
         self._record_recent_path(path)
         self.refresh_ui()
+        self.canvas.fit_map()
         QTimer.singleShot(0, self.maybe_recover_autosave)
 
     def save(self) -> bool:
@@ -102,6 +106,8 @@ class FileActionsMixin:
         errors = validate_map(
             self.map_data, list(barrier_kinds), list(bridge_kinds),
             map_name=path.stem, nested_lookup=self.nested_map_shape,
+            actor_kinds=self.actor_kinds,
+            material_aliases=self.materials_catalog,
         )
         if errors:
             QMessageBox.warning(

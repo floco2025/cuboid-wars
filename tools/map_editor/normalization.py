@@ -17,6 +17,7 @@ from .constants import (
 )
 from .display import expand_face_materials
 from .geometry import normalized_wall, ramp_cells, wall_endpoints_for_cell_side
+from .transforms import resize_map_data as resize_map_data
 
 def normalize_map(map_data: dict) -> dict:
     cols = int(map_data.get("grid_cols", DEFAULT_GRID_COLS))
@@ -119,13 +120,13 @@ def normalize_ramp(ramp: dict) -> dict:
 
 
 def normalize_ladder(ladder: dict) -> dict:
-    side = str(ladder.get("side", "")).upper()
+    side = str(ladder.get("side", "N")).upper()
     return {
         "lower_level": int(ladder.get("lower_level", 0)),
         "col": int(ladder["col"]),
         "row": int(ladder["row"]),
-        "side": side if side in LADDER_SIDES else "N",
-        "levels": max(1, int(ladder.get("levels", 1))),
+        "side": side,
+        "levels": int(ladder.get("levels", 1)),
     }
 
 
@@ -172,11 +173,11 @@ def nested_map_spans_level(entry: dict, level_idx: int, level_count: int) -> boo
 
 
 def normalize_light(light: dict) -> dict:
-    side = str(light.get("side", "")).upper()
+    side = str(light.get("side", "N")).upper()
     return {
         "col": int(light["col"]),
         "row": int(light["row"]),
-        "side": side if side in LIGHT_SIDES else "N",
+        "side": side,
     }
 
 
@@ -200,7 +201,7 @@ def normalize_actor_spawn_zone(zone: dict) -> dict:
         count = int(zone.get("count", 0))
     except (TypeError, ValueError):
         count = 0
-    return {**_normalize_zone_rect(zone), "kind": kind, "count": max(0, count)}
+    return {**_normalize_zone_rect(zone), "kind": kind, "count": count}
 
 
 def normalize_player_spawn_zone(zone: dict) -> dict:
@@ -214,9 +215,7 @@ def normalize_item(item: dict) -> dict:
         "row": int(item.get("row", 0)),
         "type": str(item.get("type", "")),
     }
-    # Only keys carry a kind; a stray kind on another type is dropped here
-    # so it can't survive into the saved file (the Rust loader rejects it).
-    if out["type"] == ITEM_KEY_TYPE:
+    if out["type"] == ITEM_KEY_TYPE or "kind" in item:
         out["kind"] = str(item.get("kind", ""))
     return out
 
@@ -371,6 +370,7 @@ def canonicalize_map(map_data: dict) -> dict:
     in_bounds_ladders = [
         l for l in b["ladders"]
         if 0 <= l["col"] < cols and 0 <= l["row"] < rows
+        and l["side"] in LADDER_SIDES and l["levels"] >= 1
         and l["lower_level"] >= 0
         and l["lower_level"] + l["levels"] < len(b["levels"])
     ]
@@ -430,127 +430,6 @@ def _dedupe_lights(lights: list[dict]) -> list[dict]:
     return [by_key[k] for k in sorted(by_key.keys())]
 
 
-def resize_map_data(
-    map_data: dict, new_cols: int, new_rows: int, anchor_x: int, anchor_y: int
-) -> dict:
-    """Translate and clip every coordinate in a map to fit a new grid size.
-
-    `anchor_x` and `anchor_y` are each one of {0, 1, 2} indicating where the
-    old grid sits inside the new grid (0=left/top, 1=center, 2=right/bottom).
-    Cells, wall endpoints, and ramp endpoints are translated by the resulting
-    offset; anything that falls outside the new bounds is dropped. Materials
-    ride along with each segment.
-    """
-    old_cols = map_data["grid_cols"]
-    old_rows = map_data["grid_rows"]
-    dc = (new_cols - old_cols) * anchor_x // 2
-    dr = (new_rows - old_rows) * anchor_y // 2
-
-    out = copy.deepcopy(map_data)
-    out["grid_cols"] = new_cols
-    out["grid_rows"] = new_rows
-
-    def cell_in_bounds(c: int, r: int) -> bool:
-        return 0 <= c < new_cols and 0 <= r < new_rows
-
-    def line_in_bounds(c: int, r: int) -> bool:
-        return 0 <= c <= new_cols and 0 <= r <= new_rows
-
-    def shift_floor(f: dict) -> dict | None:
-        nc, nr = f["col"] + dc, f["row"] + dr
-        if not cell_in_bounds(nc, nr):
-            return None
-        return {**f, "col": nc, "row": nr}
-
-    def shift_wall(w: dict) -> dict | None:
-        nc0, nr0 = w["c0"] + dc, w["r0"] + dr
-        nc1, nr1 = w["c1"] + dc, w["r1"] + dr
-        if not (line_in_bounds(nc0, nr0) and line_in_bounds(nc1, nr1)):
-            return None
-        return {**w, "c0": nc0, "r0": nr0, "c1": nc1, "r1": nr1}
-
-    def shift_light(light: dict) -> dict | None:
-        nc, nr = light["col"] + dc, light["row"] + dr
-        if not cell_in_bounds(nc, nr):
-            return None
-        return {**light, "col": nc, "row": nr}
-
-    for level in out["levels"]:
-        level["floors"] = [f for f in (shift_floor(f) for f in level["floors"]) if f is not None]
-        level["inaccessible_floors"] = [
-            f for f in (shift_floor(f) for f in level["inaccessible_floors"]) if f is not None
-        ]
-        level["grass"] = [
-            g for g in (shift_floor(g) for g in level.get("grass", [])) if g is not None
-        ]
-        level["walls"] = [w for w in (shift_wall(w) for w in level["walls"]) if w is not None]
-        level["barriers"] = [
-            b for b in (shift_wall(b) for b in level.get("barriers", [])) if b is not None
-        ]
-        level["light_bridges"] = [
-            b for b in (shift_floor(b) for b in level.get("light_bridges", [])) if b is not None
-        ]
-        level["lights"] = [
-            l for l in (shift_light(l) for l in level.get("lights", [])) if l is not None
-        ]
-
-    def clip_zone(zone: dict) -> dict | None:
-        c0, c1 = zone["cols"]
-        r0, r1 = zone["rows"]
-        nc0 = max(0, c0 + dc)
-        nc1 = min(new_cols, c1 + dc)
-        nr0 = max(0, r0 + dr)
-        nr1 = min(new_rows, r1 + dr)
-        if nc1 <= nc0 or nr1 <= nr0:
-            return None
-        zone["cols"] = [nc0, nc1]
-        zone["rows"] = [nr0, nr1]
-        return zone
-
-    out["actor_spawn_zones"] = [
-        z for z in (clip_zone(z) for z in out["actor_spawn_zones"]) if z is not None
-    ]
-    out["player_spawn_zones"] = [
-        z for z in (clip_zone(z) for z in out["player_spawn_zones"]) if z is not None
-    ]
-
-    def clip_cell_entry(entry: dict) -> dict | None:
-        nc = entry["col"] + dc
-        nr = entry["row"] + dr
-        if not (0 <= nc < new_cols and 0 <= nr < new_rows):
-            return None
-        entry["col"] = nc
-        entry["row"] = nr
-        return entry
-
-    out["pressure_plates"] = [
-        p for p in (clip_cell_entry(p) for p in out.get("pressure_plates", [])) if p is not None
-    ]
-    out["items"] = [i for i in (clip_cell_entry(i) for i in out.get("items", [])) if i is not None]
-
-    kept_ramps = []
-    for ramp in out["ramps"]:
-        low_c, low_r = ramp["low"][0] + dc, ramp["low"][1] + dr
-        high_c, high_r = ramp["high"][0] + dc, ramp["high"][1] + dr
-        if line_in_bounds(low_c, low_r) and line_in_bounds(high_c, high_r):
-            ramp["low"] = [low_c, low_r]
-            ramp["high"] = [high_c, high_r]
-            kept_ramps.append(ramp)
-    out["ramps"] = kept_ramps
-
-    out["ladders"] = [
-        l for l in (clip_cell_entry(l) for l in out.get("ladders", [])) if l is not None
-    ]
-
-    kept_nested = []
-    for entry in out.get("nested_maps", []):
-        moved = [[c + dc, r + dr] for c, r in (entry["from"], entry["to"])]
-        if all(cell_in_bounds(c, r) for c, r in moved):
-            entry["from"], entry["to"] = moved
-            kept_nested.append(entry)
-    out["nested_maps"] = kept_nested
-
-    return out
 
 
 def enforce_ramp_floor_rules(map_data: dict) -> None:
@@ -591,4 +470,3 @@ def enforce_ramp_floor_rules(map_data: dict) -> None:
             f for f in map_data["levels"][upper]["inaccessible_floors"]
             if (f["col"], f["row"]) not in cells
         ]
-

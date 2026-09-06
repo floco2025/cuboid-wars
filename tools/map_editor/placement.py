@@ -12,32 +12,29 @@ from .constants import (
     PLATE_TYPE_BRIDGE,
     PLATE_TYPE_FIREWORK,
     PLAYER_ZONE_LIST,
-    SPAWN_ZONE_LISTS,
 )
 from .dialogs import ActorSpawnFieldsDialog, KindDialog, MaterialAssignmentDialog
+from .editing import material_values, paint_bridges, paint_edges, paint_floors, paint_grass, place_plate, place_ramp, top_left_materials, update_records
+from .normalization import pressure_plate_key
 from .geometry import (
-    normalized_wall,
     ramp_error,
     ramp_points_from_cells,
     ramp_rect,
     rect_from_cells,
     rects_overlap,
-    wall_segments_between,
-    zone_intersects_rect,
 )
 
 
 class PlacementMixin:
+    def placement_kind(self, title: str, kinds: list[str], recent: str | None, noun: str) -> str | None:
+        if recent in kinds:
+            return recent
+        return KindDialog.prompt(self, title, kinds, recent, noun)
+
     # === Placement (paint / draw new segments) ===
 
     def _face_materials_for_current(self) -> dict[str, str]:
         return {face: self.current_material for face in FACES}
-
-    def _new_floor(self, col: int, row: int) -> dict:
-        return {"col": col, "row": row, **self._face_materials_for_current()}
-
-    def _new_wall(self, c0: int, r0: int, c1: int, r1: int) -> dict:
-        return {"c0": c0, "r0": r0, "c1": c1, "r1": r1, **self._face_materials_for_current()}
 
     def _new_ramp(self, low: list[int], high: list[int], lower_level: int) -> dict:
         return {
@@ -48,61 +45,13 @@ class PlacementMixin:
         }
 
     def add_floor_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
-        c0, r0, c1, r1 = rect_from_cells(start, end)
-        after = copy.deepcopy(self.map_data)
-        level = after["levels"][self.current_level]
-        existing_floors = {(f["col"], f["row"]): f for f in level["floors"]}
-        existing_inacc = {(f["col"], f["row"]): f for f in level["inaccessible_floors"]}
-        for row in range(r0, r1):
-            for col in range(c0, c1):
-                if (col, row) not in existing_floors:
-                    existing_floors[(col, row)] = self._new_floor(col, row)
-                existing_inacc.pop((col, row), None)
-        level["floors"] = list(existing_floors.values())
-        level["inaccessible_floors"] = list(existing_inacc.values())
-        self.apply_change("Paint Floor", after)
+        self.apply_change("Paint Floor", paint_floors(self.map_data, self.current_level, rect_from_cells(start, end), self.current_material))
 
     def add_inaccessible_floor_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
-        c0, r0, c1, r1 = rect_from_cells(start, end)
-        after = copy.deepcopy(self.map_data)
-        level = after["levels"][self.current_level]
-        existing_floors = {(f["col"], f["row"]): f for f in level["floors"]}
-        existing_inacc = {(f["col"], f["row"]): f for f in level["inaccessible_floors"]}
-        for row in range(r0, r1):
-            for col in range(c0, c1):
-                existing_floors.pop((col, row), None)
-                if (col, row) not in existing_inacc:
-                    existing_inacc[(col, row)] = self._new_floor(col, row)
-        level["floors"] = list(existing_floors.values())
-        level["inaccessible_floors"] = list(existing_inacc.values())
-        # Drop any spawn zone whose rect intersects the new inaccessible-floor rect on this level.
-        for list_name in SPAWN_ZONE_LISTS:
-            after[list_name] = [
-                zone
-                for zone in after[list_name]
-                if not (zone["level"] == self.current_level and zone_intersects_rect(zone, (c0, r0, c1, r1)))
-            ]
-        self.apply_change("Paint Inaccessible Floor", after)
+        self.apply_change("Paint Inaccessible Floor", paint_floors(self.map_data, self.current_level, rect_from_cells(start, end), self.current_material, blocked=True))
 
     def add_grass_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
-        c0, r0, c1, r1 = rect_from_cells(start, end)
-        after = copy.deepcopy(self.map_data)
-        level = after["levels"][self.current_level]
-        slab_cells = {(f["col"], f["row"]) for f in level["floors"]} | {
-            (f["col"], f["row"]) for f in level["inaccessible_floors"]
-        }
-        grass = level.setdefault("grass", [])
-        existing = {(g["col"], g["row"]) for g in grass}
-        added = False
-        for row in range(r0, r1):
-            for col in range(c0, c1):
-                if (col, row) in slab_cells and (col, row) not in existing:
-                    grass.append({"col": col, "row": row})
-                    added = True
-        # All-floorless drag: no-op rather than an empty undo entry.
-        if not added:
-            return
-        self.apply_change("Paint Grass", after)
+        self.apply_change("Paint Grass", paint_grass(self.map_data, self.current_level, rect_from_cells(start, end)))
 
     def erase_grass_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
         c0, r0, c1, r1 = rect_from_cells(start, end)
@@ -131,9 +80,9 @@ class PlacementMixin:
             "count": count,
         }
         after[ACTOR_ZONE_LIST].append(new_zone)
-        self.apply_change("Paint Actor Spawn Zone", after)
         self.recent_actor_spawn_kind = kind
         self.recent_actor_spawn_count = count
+        self.apply_change("Paint Actor Spawn Zone", after)
         self.selected_spawn_zone_ref = self._zone_ref_after_change(ACTOR_ZONE_LIST, new_zone)
 
     def add_player_spawn_zone_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
@@ -153,6 +102,8 @@ class PlacementMixin:
         kind: str | None = None,
         count: int | None = None,
     ) -> tuple[str, int] | None:
+        if kind is None and self.recent_actor_spawn_kind in self.actor_kinds:
+            return self.recent_actor_spawn_kind, self.recent_actor_spawn_count
         return ActorSpawnFieldsDialog.prompt(
             self,
             kind if kind is not None else self.recent_actor_spawn_kind,
@@ -160,38 +111,17 @@ class PlacementMixin:
         )
 
     def add_wall_line(self, start: tuple[int, int], end: tuple[int, int]) -> None:
-        edges = wall_segments_between(start, end)
-        if not edges:
-            return
-        after = copy.deepcopy(self.map_data)
-        existing = {
-            tuple(normalized_wall([w["c0"], w["r0"], w["c1"], w["r1"]])): w
-            for w in after["levels"][self.current_level]["walls"]
-        }
-        for edge in edges:
-            key = tuple(normalized_wall(edge))
-            if key not in existing:
-                c0, r0, c1, r1 = key
-                existing[key] = self._new_wall(c0, r0, c1, r1)
-        after["levels"][self.current_level]["walls"] = list(existing.values())
-        # Painting a wall on an edge displaces any barrier on the same edge
-        # (the loader rejects co-located walls + barriers).
-        new_wall_keys = {key for key in existing.keys()}
-        after["levels"][self.current_level]["barriers"] = [
-            b for b in after["levels"][self.current_level].get("barriers", [])
-            if tuple(normalized_wall([b["c0"], b["r0"], b["c1"], b["r1"]])) not in new_wall_keys
-        ]
-        self.apply_change("Place Wall", after)
+        self.apply_change("Place Wall", paint_edges(self.map_data, self.current_level, start, end, material=self.current_material))
 
     def prompt_and_add_barrier_line(self, start: tuple[int, int], end: tuple[int, int]) -> None:
-        kind = KindDialog.prompt(self, "Place Barrier", self.barrier_kinds, self.recent_barrier_kind, "barrier")
+        kind = self.placement_kind("Place Barrier", self.barrier_kinds, self.recent_barrier_kind, "barrier")
         if kind is None:
             return
         self.recent_barrier_kind = kind
         self.add_barrier_line(start, end, kind)
 
     def prompt_and_add_light_bridge_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
-        kind = KindDialog.prompt(self, "Place Light Bridge", self.bridge_kinds, self.recent_bridge_kind, "bridge")
+        kind = self.placement_kind("Place Light Bridge", self.bridge_kinds, self.recent_bridge_kind, "bridge")
         if kind is None:
             return
         self.recent_bridge_kind = kind
@@ -201,15 +131,7 @@ class PlacementMixin:
         if kind not in self.bridge_kinds:
             self._flash_status(f"Unknown bridge kind {kind!r}")
             return
-        c0, r0, c1, r1 = rect_from_cells(start, end)
-        after = copy.deepcopy(self.map_data)
-        level = after["levels"][self.current_level]
-        existing = {(b["col"], b["row"]): b for b in level.get("light_bridges", [])}
-        for row in range(r0, r1):
-            for col in range(c0, c1):
-                existing[(col, row)] = {"col": col, "row": row, "kind": kind}
-        level["light_bridges"] = list(existing.values())
-        self.apply_change(f"Place Light Bridge ({kind})", after)
+        self.apply_change(f"Place Light Bridge ({kind})", paint_bridges(self.map_data, self.current_level, rect_from_cells(start, end), kind))
 
     def erase_light_bridges_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
         c0, r0, c1, r1 = rect_from_cells(start, end)
@@ -224,8 +146,8 @@ class PlacementMixin:
         self.apply_change("Erase Light Bridges", after)
 
     def prompt_and_add_pressure_plate(self, col: int, row: int) -> None:
-        kind = KindDialog.prompt(
-            self, "Place Barrier Plate", self.barrier_kinds, self.recent_pressure_plate_kind, "barrier"
+        kind = self.placement_kind(
+            "Place Barrier Plate", self.barrier_kinds, self.recent_pressure_plate_kind, "barrier"
         )
         if kind is None:
             return
@@ -240,8 +162,8 @@ class PlacementMixin:
         self._add_plate(plate, f"Place Barrier Plate ({kind})")
 
     def prompt_and_add_bridge_plate(self, col: int, row: int) -> None:
-        kind = KindDialog.prompt(
-            self, "Place Bridge Plate", self.bridge_kinds, self.recent_bridge_plate_kind, "bridge"
+        kind = self.placement_kind(
+            "Place Bridge Plate", self.bridge_kinds, self.recent_bridge_plate_kind, "bridge"
         )
         if kind is None:
             return
@@ -266,41 +188,38 @@ class PlacementMixin:
             if plate["level"] == self.current_level and (plate["col"], plate["row"]) == (col, row)
         ]
 
-    def editable_plate_types_at(self, col: int, row: int) -> list[str]:
-        """The plate types on the cell that carry a kind: what right-click edits."""
-        return [plate["type"] for plate in self.plates_at(col, row) if plate["type"] != PLATE_TYPE_FIREWORK]
+    def editable_plates_at(self, col: int, row: int) -> list[dict]:
+        return [plate for plate in self.plates_at(col, row) if plate["type"] != PLATE_TYPE_FIREWORK]
 
-    def edit_pressure_plate_at(self, col: int, row: int, plate_type: str) -> None:
-        plate = next((p for p in self.plates_at(col, row) if p["type"] == plate_type), None)
-        if plate is None or plate_type == PLATE_TYPE_FIREWORK:
+    def edit_pressure_plate_at(self, key: tuple) -> None:
+        plate = next((p for p in self.map_data["pressure_plates"] if pressure_plate_key(p) == key), None)
+        if plate is None or plate["type"] == PLATE_TYPE_FIREWORK:
             return
-        if plate_type == PLATE_TYPE_BARRIER:
-            kinds, noun, title = self.barrier_kinds, "barrier", "Edit Barrier Plate"
-        else:
-            kinds, noun, title = self.bridge_kinds, "bridge", "Edit Bridge Plate"
+        barrier = plate["type"] == PLATE_TYPE_BARRIER
+        kinds, noun = (self.barrier_kinds, "barrier") if barrier else (self.bridge_kinds, "bridge")
+        title = f"Edit {noun.capitalize()} Plate"
         kind = KindDialog.prompt(self, title, kinds, plate["kind"], noun)
         if kind is None or kind == plate["kind"]:
             return
-        after = copy.deepcopy(self.map_data)
-        for candidate in after["pressure_plates"]:
-            if (
-                candidate["level"] == self.current_level
-                and (candidate["col"], candidate["row"]) == (col, row)
-                and candidate["type"] == plate_type
-            ):
-                candidate["kind"] = kind
-        self.apply_change(f"{title} ({kind})", after)
+        try:
+            after = place_plate(self.map_data, {**plate, "kind": kind}, replacing=key)
+        except ValueError as exc:
+            self._flash_status(str(exc))
+            return
+        self.apply_change(title, after)
 
     def _add_plate(self, plate: dict, label: str) -> None:
-        # Different plate types may share a cell; the same type may not.
-        if any(p["type"] == plate["type"] for p in self.plates_at(plate["col"], plate["row"])):
-            self._flash_status(
-                f"Plate not placed: cell [{plate['col']}, {plate['row']}] already holds one; right-click it to edit or erase."
-            )
+        try:
+            after = place_plate(self.map_data, plate)
+        except ValueError as exc:
+            self._flash_status(f"Plate not placed: {exc}")
             return
-        after = copy.deepcopy(self.map_data)
-        after.setdefault("pressure_plates", []).append(plate)
         self.apply_change(label, after)
+
+    def erase_pressure_plate(self, key: tuple) -> None:
+        after = copy.deepcopy(self.map_data)
+        after["pressure_plates"] = [p for p in after["pressure_plates"] if pressure_plate_key(p) != key]
+        self.apply_change("Erase Pressure Plate", after)
 
     def erase_pressure_plates_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
         c0, r0, c1, r1 = rect_from_cells(start, end)
@@ -318,30 +237,10 @@ class PlacementMixin:
         self.apply_change("Erase Pressure Plates", after)
 
     def add_barrier_line(self, start: tuple[int, int], end: tuple[int, int], kind: str) -> None:
-        edges = wall_segments_between(start, end)
-        if not edges:
-            return
         if kind not in self.barrier_kinds:
             self._flash_status(f"Unknown barrier kind {kind!r}")
             return
-        after = copy.deepcopy(self.map_data)
-        level = after["levels"][self.current_level]
-        wall_keys = {
-            tuple(normalized_wall([w["c0"], w["r0"], w["c1"], w["r1"]]))
-            for w in level["walls"]
-        }
-        existing = {
-            tuple(normalized_wall([b["c0"], b["r0"], b["c1"], b["r1"]])): b
-            for b in level.get("barriers", [])
-        }
-        for edge in edges:
-            key = tuple(normalized_wall(edge))
-            if key in wall_keys:
-                continue
-            c0, r0, c1, r1 = key
-            existing[key] = {"c0": c0, "r0": r0, "c1": c1, "r1": r1, "kind": kind}
-        level["barriers"] = list(existing.values())
-        self.apply_change(f"Place Barrier ({kind})", after)
+        self.apply_change(f"Place Barrier ({kind})", paint_edges(self.map_data, self.current_level, start, end, kind=kind))
 
     def add_ramp(self, start_cell: tuple[int, int], end_cell: tuple[int, int], mode: str) -> None:
         start_point, end_point = ramp_points_from_cells(start_cell, end_cell)
@@ -372,16 +271,7 @@ class PlacementMixin:
             self._flash_status(f"Ramp not placed: {msg}")
             return
         new_ramp = self._new_ramp(low, high, lower_level)
-        new_rect = ramp_rect(new_ramp)
-        after = copy.deepcopy(self.map_data)
-        after["ramps"] = [
-            ramp
-            for ramp in after["ramps"]
-            if self.current_level not in (ramp["lower_level"], ramp["lower_level"] + 1)
-            or not rects_overlap(new_rect, ramp_rect(ramp))
-        ]
-        after["ramps"].append(new_ramp)
-        self.apply_change(f"Place {mode}", after)
+        self.apply_change(f"Place {mode}", place_ramp(self.map_data, new_ramp))
 
     # === Material assignment ===
 
@@ -399,22 +289,17 @@ class PlacementMixin:
         if not affected_floors:
             self._flash_status("No floor segments in selection.")
             return
-        seed = affected_floors[0]
         result = MaterialAssignmentDialog.prompt(
             self, "Floor Materials",
             f"{len(affected_floors)} floor cell(s) in selection",
             self.materials_catalog,
-            {face: seed.get(face, self.current_material) for face in FACES},
+            material_values(affected_floors),
+            source=top_left_materials(affected_floors, "floors"),
         )
         if result is None:
             return
-        after = copy.deepcopy(self.map_data)
-        for floor in after["levels"][level_idx]["floors"]:
-            if floor_in_rect(floor):
-                floor.update(result)
-        for floor in after["levels"][level_idx]["inaccessible_floors"]:
-            if floor_in_rect(floor):
-                floor.update(result)
+        after = update_records(self.map_data, "floors", floor_in_rect, result, level_idx)
+        after = update_records(after, "inaccessible_floors", floor_in_rect, result, level_idx)
         self.apply_change("Assign Floor Materials", after)
 
     def assign_wall_materials_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
@@ -440,19 +325,16 @@ class PlacementMixin:
         if not affected_walls:
             self._flash_status("No wall edges in selection.")
             return
-        seed = affected_walls[0]
         result = MaterialAssignmentDialog.prompt(
             self, "Wall Materials",
             f"{len(affected_walls)} wall edge(s) in selection",
             self.materials_catalog,
-            {face: seed.get(face, self.current_material) for face in FACES},
+            material_values(affected_walls),
+            source=top_left_materials(affected_walls, "walls"),
         )
         if result is None:
             return
-        after = copy.deepcopy(self.map_data)
-        for wall in after["levels"][level_idx]["walls"]:
-            if edge_inside(wall):
-                wall.update(result)
+        after = update_records(self.map_data, "walls", edge_inside, result, level_idx)
         self.apply_change("Assign Wall Materials", after)
 
     def assign_ramp_materials_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
@@ -471,17 +353,14 @@ class PlacementMixin:
         if not affected_ramps:
             self._flash_status("No ramps in selection.")
             return
-        seed = affected_ramps[0]
         result = MaterialAssignmentDialog.prompt(
             self, "Ramp Materials",
             f"{len(affected_ramps)} ramp(s) in selection",
             self.materials_catalog,
-            {face: seed.get(face, self.current_material) for face in FACES},
+            material_values(affected_ramps),
+            source=top_left_materials(affected_ramps, "ramps"),
         )
         if result is None:
             return
-        after = copy.deepcopy(self.map_data)
-        for ramp in after["ramps"]:
-            if ramp_in_rect(ramp):
-                ramp.update(result)
+        after = update_records(self.map_data, "ramps", ramp_in_rect, result)
         self.apply_change("Assign Ramp Materials", after)

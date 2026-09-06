@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from PySide6.QtCore import QEvent, QMimeData, QPoint, Qt
+from PySide6.QtCore import QEvent, QMimeData, QPoint, QSettings, Qt
 from PySide6.QtGui import QKeySequence
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QMessageBox
@@ -140,7 +140,8 @@ class WindowTests(unittest.TestCase):
         self.recents = patch.object(EditorWindow, "_record_recent_path")
         self.recents.start()
         self.app.clipboard().clear()
-        self.window = EditorWindow(self.path)
+        preferences = QSettings(str(Path(self.temp.name) / "preferences.ini"), QSettings.Format.IniFormat)
+        self.window = EditorWindow(self.path, preferences=preferences)
         self.window._autosave_timer.stop()
         self.window.show()
         self.app.processEvents()
@@ -331,12 +332,14 @@ class WindowTests(unittest.TestCase):
 
 
 class DocumentTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.app = QApplication.instance() or QApplication([])
+
     def test_unsaved_document_starts_dirty(self):
-        app = QApplication.instance() or QApplication([])
         self.assertTrue(MapDocument(None).dirty)
 
     def test_save_as_failure_keeps_autosave_and_original_identity(self):
-        app = QApplication.instance() or QApplication([])
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp) / "original.json"
             write_map(path, empty_map())
