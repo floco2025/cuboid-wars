@@ -12,5 +12,4 @@
 
 ## Testing
 
-- **Nested-map missile guidance:** Fire at cabin actors from outside in obby, both while the cabin rests and during travel, from several angles. Routes use each map's own airspace and current collision geometry; blocked routes replan, and steering checks turns, lead, and weave. Confirm missiles navigate openings and interior walls without clipping them.
 - **Playtest and refine Relay:** The prototype is playable. The user handles in-game testing; refine the puzzles based on their feedback.
