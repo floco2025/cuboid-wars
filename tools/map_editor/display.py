@@ -34,7 +34,7 @@ from .constants import (
     MODE_LIGHT_BRIDGE,
     MODE_NESTED_MAP,
     MODE_ERASE_NESTED_MAPS,
-    MODE_PLAYER_SPAWN_PAINT,
+    MODE_PLAYER_SPAWN_ZONE,
     MODE_PRESSURE_PLATE,
     MODE_RAMP_MATERIAL,
 )
@@ -80,7 +80,7 @@ DRAG_PREVIEW_COLORS: dict[str, QColor] = {
     MODE_INACCESSIBLE_FLOOR: QColor(148, 163, 184, 120),
     MODE_GRASS: QColor(132, 204, 22, 120),  # lime — matches the grass tuft strokes
     MODE_ERASE_GRASS: QColor(120, 113, 108, 120),  # stone — mowed-down grass, not a red erase tool
-    MODE_PLAYER_SPAWN_PAINT: QColor(99, 102, 241, 120),
+    MODE_PLAYER_SPAWN_ZONE: QColor(99, 102, 241, 120),
     # Type is picked *after* the click, so the hover ghost is a neutral
     # off-white. The placed glyph is then color-coded by its type.
     MODE_ITEM: QColor(220, 220, 220, 110),

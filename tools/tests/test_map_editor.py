@@ -9,14 +9,27 @@ from map_editor.constants import (
     DEFAULT_ALIAS,
     FACES,
     MODE_LIGHT_BRIDGE,
+    MODE_NONE,
+    MODES,
     load_map_barrier_kinds,
     load_map_bridge_kinds,
 )
 from map_editor.erase import EraseMixin
+from map_editor.items import ItemsMixin
+from map_editor.lights import LightsMixin
+from map_editor.select import SelectMixin
+from map_editor.spawn_zones import SpawnZoneEditMixin
+from map_editor.types import ZoneRef
 from map_editor.geometry import ramp_axis, ramp_cells, wall_segments_between
 from map_editor.io import empty_map, read_map, write_map
-from map_editor.nested_maps import NestedMapShape, NestedMapsMixin, nested_map_cycle
-from map_editor.normalization import canonicalize_map, resize_map_data
+from map_editor.nested_maps import (
+    NestedMapShape,
+    NestedMapsMixin,
+    nested_map_cycle,
+    nested_map_label,
+    nested_map_rest_points,
+)
+from map_editor.normalization import canonicalize_map, normalize_nested_map, resize_map_data
 from map_editor.placement import PlacementMixin
 from map_editor.structure import insert_level_data, remove_level_data
 from map_editor.validation import validate_map
@@ -55,11 +68,22 @@ NESTED_SHAPES = {
 }
 
 
-class EditorHost(PlacementMixin, NestedMapsMixin, EraseMixin):
+class StubCanvas:
+    def update(self) -> None:
+        pass
+
+    def spawn_zone_handle_centers(self, zone: dict, cell: float) -> list[tuple[float, float]]:
+        return []
+
+
+class EditorHost(PlacementMixin, ItemsMixin, LightsMixin, NestedMapsMixin, EraseMixin, SelectMixin, SpawnZoneEditMixin):
     def __init__(self, map_data: dict, bridge_kinds: list[str]) -> None:
         self.map_data = map_data
         self.current_level = 0
         self.bridge_kinds = bridge_kinds
+        self.barrier_kinds = ["barrier_1"]
+        self.canvas = StubCanvas()
+        self.spawn_zone_drag = None
         self.current_material = DEFAULT_ALIAS
         self.selected_spawn_zone_ref = None
         self.statuses: list[str] = []
@@ -456,6 +480,97 @@ class ValidationTests(unittest.TestCase):
         self.assertTrue(any("but the map has 1 level(s)" in error for error in errors))
 
 
+class ModeTests(unittest.TestCase):
+    def test_no_tool_comes_first_and_does_nothing_on_release(self) -> None:
+        from map_editor.canvas import RELEASE_TOOLS
+
+        self.assertEqual(MODES[0], MODE_NONE)
+        self.assertNotIn(MODE_NONE, RELEASE_TOOLS)
+
+
+class RightClickAndSelectTests(unittest.TestCase):
+    CELL = 10.0
+
+    def furnished(self) -> EditorHost:
+        data = empty_map(8, 8)
+        level = data["levels"][0]
+        level["floors"] = [floor(1, 1), floor(2, 2)]
+        level["walls"] = [{"c0": 1, "r0": 1, "c1": 2, "r1": 1, "all": DEFAULT_ALIAS}]
+        level["lights"] = [{"col": 1, "row": 1, "side": "N"}]
+        data["pressure_plates"] = [{"level": 0, "col": 1, "row": 1, "type": "barrier", "kind": "barrier_1"}]
+        data["items"] = [{"level": 0, "col": 1, "row": 1, "type": "cookie"}]
+        data["player_spawn_zones"] = []
+        return EditorHost(data, ["bridge_1"])
+
+    def test_right_click_peels_the_light_then_plate_item_and_floor_off_a_cell(self) -> None:
+        host = self.furnished()
+        cell = self.CELL
+        near_top = QPointF(1.5 * cell, 1.05 * cell)
+        center = QPointF(1.5 * cell, 1.5 * cell)
+
+        self.assertEqual(host.hit_at(near_top, cell), ("Light", (1, 1, "N")))
+        host.erase_hit(("Light", (1, 1, "N")))
+        self.assertEqual(host.map_data["levels"][0]["lights"], [])
+        self.assertEqual(host.hit_at(near_top, cell)[0], "Wall")
+
+        self.assertEqual(host.hit_at(center, cell), ("Pressure Plate", (1, 1)))
+        self.assertEqual(host.editable_plate_types_at(1, 1), ["barrier"])
+        host.erase_hit(("Pressure Plate", (1, 1)))
+        self.assertEqual(host.map_data["pressure_plates"], [])
+
+        self.assertEqual(host.hit_at(center, cell), ("Item", (1, 1)))
+        host.erase_hit(("Item", (1, 1)))
+        self.assertEqual(host.map_data["items"], [])
+        self.assertEqual(host.hit_at(center, cell), ("Floor", (1, 1)))
+
+    def test_placing_on_an_occupied_cell_flashes_instead_of_removing(self) -> None:
+        host = self.furnished()
+        host.prompt_and_add_item(1, 1)
+        self.assertTrue(host.statuses[-1].startswith("Item not placed"))
+        host.add_pressure_plate(1, 1, "barrier_1")
+        self.assertTrue(host.statuses[-1].startswith("Plate not placed"))
+        host.add_light_at(QPointF(1.5 * self.CELL, 1.05 * self.CELL), self.CELL)
+        self.assertIn("already a light", host.statuses[-1])
+        self.assertEqual(len(host.map_data["items"]), 1)
+        self.assertEqual(len(host.map_data["pressure_plates"]), 1)
+        self.assertEqual(len(host.map_data["levels"][0]["lights"]), 1)
+
+    def test_a_press_selects_a_spawn_zone_before_a_drag_can_move_it(self) -> None:
+        data = empty_map(8, 8)
+        data["actor_spawn_zones"] = [{"level": 0, "cols": [1, 3], "rows": [1, 3], "kind": "beetle", "count": 2}]
+        host = EditorHost(data, [])
+        cell = self.CELL
+        inside = QPointF(2.5 * cell, 2.5 * cell)
+
+        self.assertFalse(host.begin_select_press(inside, cell))
+        self.assertEqual(host.selected_spawn_zone_ref, ZoneRef("actor_spawn_zones", 0))
+        self.assertIsNone(host.spawn_zone_drag)
+
+        self.assertFalse(host.begin_select_press(inside, cell))
+        self.assertEqual(host.spawn_zone_drag.handle, "move")
+        host.update_select_drag(QPointF(4.5 * cell, 2.5 * cell), cell)
+        host.end_select_drag(None, None)
+        zone = host.map_data["actor_spawn_zones"][0]
+        self.assertEqual((zone["cols"], zone["rows"]), ([3, 5], [1, 3]))
+
+        self.assertFalse(host.begin_select_press(QPointF(6.5 * cell, 6.5 * cell), cell))
+        self.assertIsNone(host.selected_spawn_zone_ref)
+
+    def test_dragging_a_nested_map_end_in_no_tool_moves_only_that_end(self) -> None:
+        data = empty_map(8, 8)
+        data["nested_maps"] = [nested("cabin", 0, [1, 1], [5, 1])]
+        host = EditorHost(data, [])
+        cell = self.CELL
+
+        self.assertTrue(host.begin_select_press(QPointF(5.5 * cell, 1.5 * cell), cell))
+        host.end_select_drag((5, 1), (5, 4))
+        entry = host.map_data["nested_maps"][0]
+        self.assertEqual((entry["from"], entry["to"]), ([1, 1], [5, 4]))
+        host.end_select_drag((5, 4), (5, 4))
+        self.assertEqual(host.map_data["nested_maps"][0]["to"], [5, 4])
+        self.assertFalse(host.begin_select_press(QPointF(3.5 * cell, 3.5 * cell), cell))
+
+
 def nested(map_name: str, level: int, start: list[int], end: list[int], to_level: int | None = None) -> dict:
     return {
         "map": map_name,
@@ -463,26 +578,34 @@ def nested(map_name: str, level: int, start: list[int], end: list[int], to_level
         "from": start,
         "to": end,
         "to_level": level if to_level is None else to_level,
-        "speed": 2.0,
+        "travel_secs": 2.0,
         "pause_secs": 1.0,
         "phase_secs": 0.0,
+        "from_nudge": [0.0, 0.0, 0.0],
+        "to_nudge": [0.0, 0.0, 0.0],
     }
 
 
 class NestedMapTests(unittest.TestCase):
     def test_a_click_places_a_still_nested_map_and_a_drag_a_sliding_one(self) -> None:
         host = EditorHost(empty_map(8, 8), [])
-        host.place_nested_map((1, 1), (1, 1), "cabin", 0, 2.0, 1.0, 0.0)
-        host.place_nested_map((4, 1), (6, 3), "cabin", 0, 3.0, 0.5, 2.0)
+        host.place_nested_map((1, 1), (1, 1), "cabin", 0, 2.0, 1.0, 0.0, (0.0, 0.0, 0.0), (0.0, 0.0, 0.0))
+        host.place_nested_map((4, 1), (6, 3), "cabin", 0, 3.0, 0.5, 2.0, (0.4, 0.0, 0.0), (0.0, 0.0, 0.0))
 
         self.assertEqual(
             host.map_data["nested_maps"],
             [
                 nested("cabin", 0, [1, 1], [1, 1]),
-                {**nested("cabin", 0, [4, 1], [6, 3]), "speed": 3.0, "pause_secs": 0.5, "phase_secs": 2.0},
+                {
+                    **nested("cabin", 0, [4, 1], [6, 3]),
+                    "travel_secs": 3.0,
+                    "pause_secs": 0.5,
+                    "phase_secs": 2.0,
+                    "from_nudge": [0.4, 0.0, 0.0],
+                },
             ],
         )
-        host.place_nested_map((2, 2), (2, 2), "", 0, 2.0, 0.0, 0.0)
+        host.place_nested_map((2, 2), (2, 2), "", 0, 2.0, 0.0, 0.0, (0.0, 0.0, 0.0), (0.0, 0.0, 0.0))
         self.assertEqual(len(host.map_data["nested_maps"]), 2)
         self.assertTrue(host.statuses[-1].startswith("Nested map not placed"))
 
@@ -504,19 +627,20 @@ class NestedMapTests(unittest.TestCase):
         host = EditorHost(data, [])
         key = (0, (1, 1), 0, (4, 1), "cabin")
 
-        host.set_nested_map_properties(key, "loop_a", 1, 3.5, 0.25, 2.0)
+        host.set_nested_map_properties(key, "loop_a", 1, 3.5, 0.25, 2.0, (0.0, 0.0, 0.0), (0.0, -0.5, 0.5))
 
         entry = host.map_data["nested_maps"][0]
         self.assertEqual((entry["from"], entry["to"]), ([1, 1], [4, 1]))
         self.assertEqual(
-            (entry["map"], entry["to_level"], entry["speed"], entry["pause_secs"], entry["phase_secs"]),
+            (entry["map"], entry["to_level"], entry["travel_secs"], entry["pause_secs"], entry["phase_secs"]),
             ("loop_a", 1, 3.5, 0.25, 2.0),
         )
+        self.assertEqual((entry["from_nudge"], entry["to_nudge"]), ([0.0, 0.0, 0.0], [0.0, -0.5, 0.5]))
 
     def test_placing_on_the_same_start_cell_replaces_the_old_nested_map(self) -> None:
         host = EditorHost(empty_map(8, 8), [])
-        host.place_nested_map((1, 1), (4, 1), "cabin", 0, 2.0, 0.0, 0.0)
-        host.place_nested_map((1, 1), (1, 4), "loop_a", 0, 2.0, 0.0, 0.0)
+        host.place_nested_map((1, 1), (4, 1), "cabin", 0, 2.0, 0.0, 0.0, (0.0, 0.0, 0.0), (0.0, 0.0, 0.0))
+        host.place_nested_map((1, 1), (1, 4), "loop_a", 0, 2.0, 0.0, 0.0, (0.0, 0.0, 0.0), (0.0, 0.0, 0.0))
 
         self.assertEqual([(e["map"], e["to"]) for e in host.map_data["nested_maps"]], [("loop_a", [1, 4])])
 
@@ -533,7 +657,7 @@ class NestedMapTests(unittest.TestCase):
 
     def test_nested_maps_round_trip_and_are_the_last_key(self) -> None:
         data = empty_map(6, 6)
-        data["nested_maps"] = [nested("cabin", 0, [2, 2], [4, 2])]
+        data["nested_maps"] = [{**nested("cabin", 0, [2, 2], [4, 2]), "from_nudge": [0.3, 0.0, 0.0], "to_nudge": [0.0, -1.0, 1.01]}]
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "nested.json"
             write_map(path, data)
@@ -588,7 +712,7 @@ class NestedMapTests(unittest.TestCase):
             nested("ghost", 0, [1, 1], [1, 1]),
             nested("loop_a", 0, [2, 2], [2, 2]),
             nested("home", 0, [3, 3], [3, 3]),
-            {**nested("cabin", 0, [4, 4], [7, 4]), "speed": 0.0, "phase_secs": -1.0},
+            {**nested("cabin", 0, [4, 4], [7, 4]), "travel_secs": 0.0, "phase_secs": -1.0, "to_nudge": [1.0, 2.0]},
             nested("cabin", 0, [4, 4], [4, 4], 3),
         ]
         errors = validate_map(data, [], [], map_name="home", nested_lookup=NESTED_SHAPES.get)
@@ -596,8 +720,9 @@ class NestedMapTests(unittest.TestCase):
         self.assertTrue(any("nested maps loop" in error and "loop_a -> loop_b -> loop_a" in error for error in errors))
         self.assertTrue(any("nests the edited map itself" in error for error in errors))
         self.assertTrue(any("is outside the grid" in error for error in errors))
-        self.assertTrue(any("positive speed" in error for error in errors))
+        self.assertTrue(any("positive travel time" in error for error in errors))
         self.assertTrue(any("negative pause or phase" in error for error in errors))
+        self.assertTrue(any("to_nudge is not three numbers" in error for error in errors))
         self.assertTrue(any("but the map has 1 level(s)" in error for error in errors))
         self.assertTrue(any("duplicates a nested map" in error for error in errors))
 
@@ -616,3 +741,18 @@ class NestedMapTests(unittest.TestCase):
             ["loop_a", "loop_b", "loop_a"],
         )
         self.assertIsNone(nested_map_cycle("home", [nested("cabin", 0, [0, 0], [0, 0])], NESTED_SHAPES.get))
+
+    def test_nudges_shift_each_footprint_by_wall_widths_in_the_canvas_plane(self) -> None:
+        entry = {**nested("cabin", 0, [2, 3], [6, 3]), "from_nudge": [1.0, -2.0, 0.0], "to_nudge": [-1.01, 0.0, 3.0]}
+        start, end = nested_map_rest_points(entry, 0.1)
+        self.assertAlmostEqual(start[0], 2.1)
+        self.assertAlmostEqual(start[1], 3.0)
+        self.assertAlmostEqual(end[0], 5.899)
+        self.assertAlmostEqual(end[1], 3.3)
+        self.assertEqual(nested_map_label("cabin", entry["from_nudge"]), "cabin y-2")
+        self.assertEqual(nested_map_label("cabin", entry["to_nudge"]), "cabin")
+
+    def test_nested_map_nudges_default_to_zero(self) -> None:
+        entry = normalize_nested_map({"map": "cabin", "level": 0, "from": [1, 1], "to": [2, 1]})
+        self.assertEqual((entry["from_nudge"], entry["to_nudge"]), ([0.0, 0.0, 0.0], [0.0, 0.0, 0.0]))
+        self.assertEqual(entry["travel_secs"], 2.0)

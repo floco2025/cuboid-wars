@@ -7,13 +7,12 @@ from PySide6.QtCore import QSize, Qt
 from PySide6.QtWidgets import QLabel, QMenu, QSizePolicy, QWidget
 
 from .constants import (
-    ACTOR_ZONE_LIST,
     EDITOR_CELL,
     ERASE_MODES,
     FLOOR_HIT_KINDS,
     MATERIAL_MODES,
     MIN_CELL,
-    MODE_ACTOR_SPAWN_PAINT,
+    MODE_ACTOR_SPAWN_ZONE,
     MODE_BARRIER,
     MODE_BRIDGE_PLATE,
     MODE_ERASE_BARRIERS,
@@ -37,20 +36,20 @@ from .constants import (
     MODE_ITEM,
     MODE_LADDER,
     MODE_LIGHT,
+    MODE_NONE,
     MODE_LIGHT_BRIDGE,
     MODE_NESTED_MAP,
-    MODE_PLAYER_SPAWN_PAINT,
+    MODE_PLAYER_SPAWN_ZONE,
     MODE_PRESSURE_PLATE,
     MODE_RAMP_MATERIAL,
-    MODE_SPAWN_ZONE_EDIT,
     MODE_WALL,
     MODE_WALL_MATERIAL,
-    PLAYER_ZONE_LIST,
     RAMP_MODES,
 )
 from .display import (
     materials_summary,
 )
+from .types import ZoneRef
 from .geometry import (
     cell_side_from_click,
     point_near_wall,
@@ -92,16 +91,12 @@ def _wall_line_tool(method: str):
     return handler
 
 
-def _click_toggle_tool(remove_method: str, add_method: str):
-    """Click toggles cell occupancy: an occupied cell removes; an empty cell
-    prompts for a kind and places. Right-click also removes (handled in
-    `contextMenuEvent`)."""
+def _click_place_tool(add_method: str):
+    """Click places on the pressed cell: `window.<add_method>(col, row)`."""
 
     def handler(canvas: "Canvas", event) -> None:
         if canvas.drag_start_cell:
-            col, row = canvas.drag_start_cell
-            if not getattr(canvas.window, remove_method)(col, row):
-                getattr(canvas.window, add_method)(col, row)
+            getattr(canvas.window, add_method)(*canvas.drag_start_cell)
 
     return handler
 
@@ -114,10 +109,6 @@ def _ramp_tool(canvas: "Canvas", event) -> None:
 def _nested_map_tool(canvas: "Canvas", event) -> None:
     if canvas.drag_start_cell and canvas.drag_current_cell:
         canvas.window.drag_nested_map(canvas.drag_start_cell, canvas.drag_current_cell)
-
-
-def _spawn_zone_commit_tool(canvas: "Canvas", event) -> None:
-    canvas.window.commit_spawn_zone_edit_drag()
 
 
 def _wall_material_tool(canvas: "Canvas", event) -> None:
@@ -138,7 +129,7 @@ def _wall_material_tool(canvas: "Canvas", event) -> None:
 
 def _light_tool(canvas: "Canvas", event) -> None:
     if canvas.drag_start_cell:
-        canvas.window.toggle_light_at(event.position(), canvas.cell_size())
+        canvas.window.add_light_at(event.position(), canvas.cell_size())
 
 
 def _ladder_tool(canvas: "Canvas", event) -> None:
@@ -160,9 +151,8 @@ RELEASE_TOOLS = {
     MODE_ERASE_FLOORS: _cell_rect_tool("erase_floors_rect"),
     MODE_GRASS: _cell_rect_tool("add_grass_rect"),
     MODE_ERASE_GRASS: _cell_rect_tool("erase_grass_rect"),
-    MODE_ACTOR_SPAWN_PAINT: _cell_rect_tool("add_actor_spawn_zone_rect"),
-    MODE_PLAYER_SPAWN_PAINT: _cell_rect_tool("add_player_spawn_zone_rect"),
-    MODE_SPAWN_ZONE_EDIT: _spawn_zone_commit_tool,
+    MODE_ACTOR_SPAWN_ZONE: _cell_rect_tool("add_actor_spawn_zone_rect"),
+    MODE_PLAYER_SPAWN_ZONE: _cell_rect_tool("add_player_spawn_zone_rect"),
     MODE_ERASE_SPAWN_ZONES: _cell_rect_tool("erase_spawn_zones_rect"),
     MODE_WALL: _wall_line_tool("add_wall_line"),
     MODE_ERASE_WALLS: _cell_rect_tool("erase_walls_rect"),
@@ -176,11 +166,11 @@ RELEASE_TOOLS = {
     MODE_LIGHT: _light_tool,
     MODE_LADDER: _ladder_tool,
     MODE_ERASE_LADDERS: _cell_rect_tool("erase_ladders_rect"),
-    MODE_PRESSURE_PLATE: _click_toggle_tool("remove_pressure_plate_at", "prompt_and_add_pressure_plate"),
-    MODE_BRIDGE_PLATE: _click_toggle_tool("remove_pressure_plate_at", "prompt_and_add_bridge_plate"),
-    MODE_FIREWORK_PLATE: _click_toggle_tool("remove_pressure_plate_at", "add_firework_plate"),
+    MODE_PRESSURE_PLATE: _click_place_tool("prompt_and_add_pressure_plate"),
+    MODE_BRIDGE_PLATE: _click_place_tool("prompt_and_add_bridge_plate"),
+    MODE_FIREWORK_PLATE: _click_place_tool("add_firework_plate"),
     MODE_ERASE_PRESSURE_PLATES: _cell_rect_tool("erase_pressure_plates_rect"),
-    MODE_ITEM: _click_toggle_tool("remove_item_at", "prompt_and_add_item"),
+    MODE_ITEM: _click_place_tool("prompt_and_add_item"),
     MODE_ERASE_ITEMS: _cell_rect_tool("erase_items_rect"),
     MODE_ERASE_LIGHTS: _cell_rect_tool("erase_lights_rect"),
     MODE_ERASE_RAMPS: _cell_rect_tool("erase_ramps_rect"),
@@ -280,12 +270,9 @@ class Canvas(CanvasPaintingMixin, QWidget):
         ]
 
     def mousePressEvent(self, event) -> None:
-        if event.button() == Qt.MouseButton.RightButton:
-            return
         if event.button() != Qt.MouseButton.LeftButton:
             return
-        if self.window.mode == MODE_SPAWN_ZONE_EDIT:
-            self.window.begin_spawn_zone_edit_press(event.position(), self.cell_size())
+        if self.window.mode == MODE_NONE and not self.window.begin_select_press(event.position(), self.cell_size()):
             self.update()
             return
         self.drag_start_cell = self.point_to_cell(event.position())
@@ -304,10 +291,8 @@ class Canvas(CanvasPaintingMixin, QWidget):
                 # `_paint_hover_ghost` can show a per-mode preview.
                 self._update_cell_hover(event.position())
             return
-        if self.window.mode == MODE_SPAWN_ZONE_EDIT:
-            self.window.update_spawn_zone_edit_drag(event.position(), self.cell_size())
-            self.update()
-            return
+        if self.window.mode == MODE_NONE:
+            self.window.update_select_drag(event.position(), self.cell_size())
         self.drag_current_cell = self.point_to_cell(event.position()) or self.drag_current_cell
         self.drag_current_point = self.point_to_grid_point(event.position())
         self.update()
@@ -413,55 +398,44 @@ class Canvas(CanvasPaintingMixin, QWidget):
     def mouseReleaseEvent(self, event) -> None:
         if event.button() != Qt.MouseButton.LeftButton:
             return
-        tool = RELEASE_TOOLS.get(self.window.mode)
-        if tool is not None:
-            tool(self, event)
+        if self.window.mode == MODE_NONE:
+            self.window.end_select_drag(self.drag_start_cell, self.drag_current_cell)
+        else:
+            tool = RELEASE_TOOLS.get(self.window.mode)
+            if tool is not None:
+                tool(self, event)
         self.clear_drag()
         self.update()
 
     def contextMenuEvent(self, event) -> None:
+        # One menu in every tool: whatever is under the cursor can be edited
+        # when it has properties, and erased.
         menu = QMenu(self)
-        # Spawn-zone context menu fires in the dedicated Edit mode AND in
-        # the paint modes when the click lands on a zone of the matching
-        # type. Lets users edit/delete what they just painted without first
-        # switching to Edit mode.
-        mode_to_zone_list = {
-            MODE_ACTOR_SPAWN_PAINT: ACTOR_ZONE_LIST,
-            MODE_PLAYER_SPAWN_PAINT: PLAYER_ZONE_LIST,
-        }
-        if self.window.mode == MODE_SPAWN_ZONE_EDIT or self.window.mode in mode_to_zone_list:
-            picked = self.window.spawn_zone_at(event.pos(), self.cell_size())
-            # In a paint mode, only react to zones of that paint's type so
-            # the menu doesn't surprise the user with unrelated zones.
-            if picked is not None and self.window.mode in mode_to_zone_list:
-                if picked.list_name != mode_to_zone_list[self.window.mode]:
-                    picked = None
-            if picked is None:
-                disabled = menu.addAction("No spawn zone here")
-                disabled.setEnabled(False)
-            else:
-                self.window.set_selected_spawn_zone(picked)
-                self.update()
-                if self.window.selected_spawn_zone_has_fields():
-                    menu.addAction("Edit Fields...", lambda: self.window.edit_selected_spawn_zone_fields())
-                menu.addAction(
-                    "Delete Spawn Zone",
-                    lambda: self.window.delete_selected_spawn_zone(),
-                )
-            menu.exec(event.globalPos())
-            return
         hit = self.window.hit_at(event.pos(), self.cell_size())
         preserve_floors = self.window.mode == MODE_ERASE_KEEP_FLOORS
-        if hit and hit[0] == MODE_NESTED_MAP:
-            menu.addAction("Edit Nested Map...", lambda: self.window.edit_nested_map(hit[1]))
-        if hit and not (preserve_floors and hit[0] in FLOOR_HIT_KINDS):
-            menu.addAction(
-                f"Erase {hit[0]}",
-                lambda: self.window.erase_hit(hit, preserve_floors),
-            )
-        else:
-            disabled = menu.addAction("Nothing to erase")
-            disabled.setEnabled(False)
+        if hit is None:
+            nothing = menu.addAction("Nothing here")
+            nothing.setEnabled(False)
+            menu.exec(event.globalPos())
+            return
+        kind, value = hit
+        if kind == "Spawn Zone":
+            list_name, index = value
+            self.window.set_selected_spawn_zone(ZoneRef(list_name, index))
+            if self.window.selected_spawn_zone_has_fields():
+                menu.addAction("Edit Spawn Zone...", lambda: self.window.edit_selected_spawn_zone_fields())
+        elif kind == MODE_NESTED_MAP:
+            menu.addAction("Edit Nested Map...", lambda: self.window.edit_nested_map(value))
+        elif kind == "Item":
+            menu.addAction("Edit Item...", lambda: self.window.edit_item_at(*value))
+        elif kind == "Pressure Plate":
+            for plate_type in self.window.editable_plate_types_at(*value):
+                menu.addAction(
+                    f"Edit {plate_type.capitalize()} Plate...",
+                    lambda plate_type=plate_type: self.window.edit_pressure_plate_at(value[0], value[1], plate_type),
+                )
+        if not (preserve_floors and kind in FLOOR_HIT_KINDS):
+            menu.addAction(f"Erase {kind}", lambda: self.window.erase_hit(hit, preserve_floors))
         menu.exec(event.globalPos())
 
     def clear_drag(self) -> None:

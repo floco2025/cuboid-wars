@@ -15,7 +15,6 @@ from .constants import (
     SPAWN_ZONE_LISTS,
 )
 from .dialogs import ActorSpawnFieldsDialog, KindDialog, MaterialAssignmentDialog
-from .normalization import pressure_plate_key
 from .geometry import (
     normalized_wall,
     ramp_error,
@@ -260,26 +259,48 @@ class PlacementMixin:
         plate = {"level": self.current_level, "col": col, "row": row, "type": PLATE_TYPE_FIREWORK}
         self._add_plate(plate, "Place Firework Plate")
 
-    def _add_plate(self, plate: dict, label: str) -> None:
-        after = copy.deepcopy(self.map_data)
-        plates = after.setdefault("pressure_plates", [])
-        # The same plate on the same cell is a no-op; different types may share a cell.
-        if pressure_plate_key(plate) in {pressure_plate_key(p) for p in plates}:
-            return
-        plates.append(plate)
-        self.apply_change(label, after)
+    def plates_at(self, col: int, row: int) -> list[dict]:
+        return [
+            plate
+            for plate in self.map_data.get("pressure_plates", [])
+            if plate["level"] == self.current_level and (plate["col"], plate["row"]) == (col, row)
+        ]
 
-    def remove_pressure_plate_at(self, col: int, row: int) -> bool:
-        """Remove every plate at (current_level, col, row). Returns True if a
-        plate was removed."""
+    def editable_plate_types_at(self, col: int, row: int) -> list[str]:
+        """The plate types on the cell that carry a kind: what right-click edits."""
+        return [plate["type"] for plate in self.plates_at(col, row) if plate["type"] != PLATE_TYPE_FIREWORK]
+
+    def edit_pressure_plate_at(self, col: int, row: int, plate_type: str) -> None:
+        plate = next((p for p in self.plates_at(col, row) if p["type"] == plate_type), None)
+        if plate is None or plate_type == PLATE_TYPE_FIREWORK:
+            return
+        if plate_type == PLATE_TYPE_BARRIER:
+            kinds, noun, title = self.barrier_kinds, "barrier", "Edit Barrier Plate"
+        else:
+            kinds, noun, title = self.bridge_kinds, "bridge", "Edit Bridge Plate"
+        kind = KindDialog.prompt(self, title, kinds, plate["kind"], noun)
+        if kind is None or kind == plate["kind"]:
+            return
         after = copy.deepcopy(self.map_data)
-        plates = after.get("pressure_plates", [])
-        keep = [p for p in plates if not (p["level"] == self.current_level and p["col"] == col and p["row"] == row)]
-        if len(keep) == len(plates):
-            return False
-        after["pressure_plates"] = keep
-        self.apply_change("Remove Pressure Plate", after)
-        return True
+        for candidate in after["pressure_plates"]:
+            if (
+                candidate["level"] == self.current_level
+                and (candidate["col"], candidate["row"]) == (col, row)
+                and candidate["type"] == plate_type
+            ):
+                candidate["kind"] = kind
+        self.apply_change(f"{title} ({kind})", after)
+
+    def _add_plate(self, plate: dict, label: str) -> None:
+        # Different plate types may share a cell; the same type may not.
+        if any(p["type"] == plate["type"] for p in self.plates_at(plate["col"], plate["row"])):
+            self._flash_status(
+                f"Plate not placed: cell [{plate['col']}, {plate['row']}] already holds one; right-click it to edit or erase."
+            )
+            return
+        after = copy.deepcopy(self.map_data)
+        after.setdefault("pressure_plates", []).append(plate)
+        self.apply_change(label, after)
 
     def erase_pressure_plates_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
         c0, r0, c1, r1 = rect_from_cells(start, end)

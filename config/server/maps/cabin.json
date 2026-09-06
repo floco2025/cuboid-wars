@@ -31,10 +31,8 @@
         "walls": [
           {"c0": 0, "r0": 0, "c1": 0, "r1": 1, "all": "basement-floor"},
           {"c0": 0, "r0": 0, "c1": 1, "r1": 0, "all": "basement-floor"},
-          {"c0": 0, "r0": 1, "c1": 0, "r1": 2, "all": "basement-floor"},
           {"c0": 0, "r0": 2, "c1": 0, "r1": 3, "all": "basement-floor"},
           {"c0": 0, "r0": 3, "c1": 1, "r1": 3, "all": "basement-floor"},
-          {"c0": 1, "r0": 0, "c1": 2, "r1": 0, "all": "basement-floor"},
           {"c0": 1, "r0": 3, "c1": 2, "r1": 3, "all": "basement-floor"},
           {"c0": 2, "r0": 0, "c1": 3, "r1": 0, "all": "basement-floor"},
           {"c0": 2, "r0": 3, "c1": 3, "r1": 3, "all": "basement-floor"}
@@ -59,18 +57,6 @@
       },
       {
         "name": "Level 2",
-        "floors": [],
-        "inaccessible_floors": [],
-        "grass": [],
-        "walls": [
-          {"c0": 3, "r0": 1, "c1": 3, "r1": 2, "all": "basement-floor"}
-        ],
-        "barriers": [],
-        "light_bridges": [],
-        "lights": []
-      },
-      {
-        "name": "Level 3",
         "floors": [],
         "inaccessible_floors": [],
         "grass": [],

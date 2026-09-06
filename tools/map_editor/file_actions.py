@@ -10,8 +10,10 @@ from .constants import (
     DEFAULT_GRID_COLS,
     DEFAULT_GRID_ROWS,
     MAPS_DIR,
+    DEFAULT_WALL_WIDTH_CELLS,
     load_map_barrier_kinds,
     load_map_bridge_kinds,
+    load_map_wall_width_cells,
 )
 from .dialogs import ResizeMapDialog
 from .io import empty_map, read_map
@@ -34,6 +36,7 @@ class FileActionsMixin:
         self.doc.replace_with_new(empty_map(new_cols, new_rows))
         self.barrier_kind_colors = {}
         self.bridge_kind_colors = {}
+        self.wall_width_cells = DEFAULT_WALL_WIDTH_CELLS
         self.forget_nested_map_shapes()
         self.current_level = 0
         self.refresh_ui()
@@ -51,6 +54,7 @@ class FileActionsMixin:
             loaded = read_map(path)
             barrier_kinds = load_map_barrier_kinds(path.stem)
             bridge_kinds = load_map_bridge_kinds(path.stem)
+            wall_width_cells = load_map_wall_width_cells(path.stem)
         except Exception as exc:
             QMessageBox.critical(self, "Open Failed", str(exc))
             return
@@ -69,6 +73,7 @@ class FileActionsMixin:
         self.doc.load(path)
         self.barrier_kind_colors = barrier_kinds
         self.bridge_kind_colors = bridge_kinds
+        self.wall_width_cells = wall_width_cells
         self.forget_nested_map_shapes()
         self.current_level = 0
         self._record_recent_path(path)
@@ -116,12 +121,14 @@ class FileActionsMixin:
         try:
             barrier_kinds = load_map_barrier_kinds(new_path.stem)
             bridge_kinds = load_map_bridge_kinds(new_path.stem)
+            wall_width_cells = load_map_wall_width_cells(new_path.stem)
         except Exception as exc:
             QMessageBox.critical(self, "Save Failed", str(exc))
             return
         self.path = new_path
         self.barrier_kind_colors = barrier_kinds
         self.bridge_kind_colors = bridge_kinds
+        self.wall_width_cells = wall_width_cells
         self.forget_nested_map_shapes()
         # No baseline mtime for the new destination — we never read it, so any
         # existing file at this path is something the user chose to overwrite.

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+
 from .constants import (
     FACES,
     ITEM_KEY_TYPE,
@@ -209,10 +211,18 @@ def _validate_nested_maps(map_data: dict, errors: list[str], map_name: str | Non
             errors.append(f"{label} spans levels {level}..{to_level} but the map has {level_count} level(s)")
         if not all(0 <= c < cols and 0 <= r < rows for c, r in (start, end)):
             errors.append(f"{label} {start}->{end} is outside the grid")
-        if not entry["speed"] > 0:
-            errors.append(f"{label} needs a positive speed")
+        if not entry["travel_secs"] > 0:
+            errors.append(f"{label} needs a positive travel time")
         if entry["pause_secs"] < 0 or entry["phase_secs"] < 0:
             errors.append(f"{label} has a negative pause or phase")
+        for end in ("from_nudge", "to_nudge"):
+            nudge = entry[end]
+            if not (
+                isinstance(nudge, list)
+                and len(nudge) == 3
+                and all(isinstance(axis, (int, float)) and math.isfinite(axis) for axis in nudge)
+            ):
+                errors.append(f"{label} {end} is not three numbers")
         key = (level, tuple(start))
         if key in seen:
             errors.append(f"{label} duplicates a nested map starting at level {level} {start}")

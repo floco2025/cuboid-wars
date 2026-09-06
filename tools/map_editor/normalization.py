@@ -152,9 +152,11 @@ def normalize_nested_map(entry: dict) -> dict:
         "from": [int(entry["from"][0]), int(entry["from"][1])],
         "to": [int(entry["to"][0]), int(entry["to"][1])],
         "to_level": int(entry.get("to_level", level)),
-        "speed": float(entry.get("speed", 1.0)),
+        "travel_secs": float(entry.get("travel_secs", 2.0)),
         "pause_secs": float(entry.get("pause_secs", 0.0)),
         "phase_secs": float(entry.get("phase_secs", 0.0)),
+        "from_nudge": [float(axis) for axis in entry.get("from_nudge", (0.0, 0.0, 0.0))],
+        "to_nudge": [float(axis) for axis in entry.get("to_nudge", (0.0, 0.0, 0.0))],
     }
 
 

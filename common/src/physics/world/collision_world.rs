@@ -7,8 +7,8 @@ use rapier3d::{
         shape::{Ball, Cuboid},
     },
     prelude::{
-        BroadPhaseBvh, ColliderHandle, ColliderSet, Group, IntegrationParameters, NarrowPhase, Pose, Ray, RigidBodySet,
-        Shape, Vector,
+        BroadPhaseBvh, Collider, ColliderHandle, ColliderSet, Group, IntegrationParameters, NarrowPhase, Pose, Ray,
+        RigidBodySet, Shape, Vector,
     },
 };
 
@@ -418,11 +418,52 @@ impl CollisionWorld {
         passable_kinds: &[BarrierKindId],
         excluded_colliders: &[ColliderHandle],
     ) -> Option<ShapeCastHit> {
-        let allow = |handle: ColliderHandle, _: &rapier3d::prelude::Collider| !excluded_colliders.contains(&handle);
+        let allow = |handle: ColliderHandle, _: &Collider| !excluded_colliders.contains(&handle);
+        let predicate =
+            (!excluded_colliders.is_empty()).then_some(&allow as &dyn Fn(ColliderHandle, &Collider) -> bool);
+        self.ground_hit_filtered(
+            character_shape,
+            character_pos,
+            max_distance,
+            target_distance,
+            passable_kinds,
+            predicate,
+        )
+    }
+
+    // The nearest carried surface under the body, world surfaces ignored.
+    #[must_use]
+    pub(crate) fn carried_ground_hit(
+        &self,
+        character_shape: &dyn Shape,
+        character_pos: &Pose,
+        max_distance: f32,
+        passable_kinds: &[BarrierKindId],
+    ) -> Option<ShapeCastHit> {
+        let carried = |_: ColliderHandle, collider: &Collider| {
+            !ColliderKind::carrier_from_user_data(collider.user_data).is_world()
+        };
+        self.ground_hit_filtered(
+            character_shape,
+            character_pos,
+            max_distance,
+            0.0,
+            passable_kinds,
+            Some(&carried),
+        )
+    }
+
+    fn ground_hit_filtered(
+        &self,
+        character_shape: &dyn Shape,
+        character_pos: &Pose,
+        max_distance: f32,
+        target_distance: f32,
+        passable_kinds: &[BarrierKindId],
+        predicate: Option<&dyn Fn(ColliderHandle, &Collider) -> bool>,
+    ) -> Option<ShapeCastHit> {
         let mut filter = query_filter(character_collision_groups(passable_kinds, self.all_barrier_groups));
-        if !excluded_colliders.is_empty() {
-            filter.predicate = Some(&allow);
-        }
+        filter.predicate = predicate;
         let query_pipeline = self.broad_phase.as_query_pipeline(
             self.narrow_phase.query_dispatcher(),
             &self.bodies,

@@ -23,7 +23,20 @@ class ItemsMixin:
                 return f"cell [{col}, {row}] is inside a ramp footprint."
         return None
 
+    def item_at(self, col: int, row: int) -> dict | None:
+        return next(
+            (
+                item
+                for item in self.map_data.get(ITEMS_LIST, [])
+                if item["level"] == self.current_level and (item["col"], item["row"]) == (col, row)
+            ),
+            None,
+        )
+
     def prompt_and_add_item(self, col: int, row: int) -> None:
+        if self.item_at(col, row) is not None:
+            self._flash_status(f"Item not placed: cell [{col}, {row}] already holds one; right-click it to edit or erase.")
+            return
         result = ItemTypeDialog.prompt(
             self, "Place Item", self.barrier_kinds, self.recent_item_type, self.recent_item_key_kind
         )
@@ -35,7 +48,17 @@ class ItemsMixin:
             self.recent_item_key_kind = kind
         self.add_item(col, row, item_type, kind)
 
-    def add_item(self, col: int, row: int, item_type: str, kind: str | None) -> None:
+    def edit_item_at(self, col: int, row: int) -> None:
+        item = self.item_at(col, row)
+        if item is None:
+            return
+        result = ItemTypeDialog.prompt(self, "Edit Item", self.barrier_kinds, item["type"], item.get("kind"))
+        if result is None:
+            return
+        item_type, kind = result
+        self.add_item(col, row, item_type, kind, label="Edit Item")
+
+    def add_item(self, col: int, row: int, item_type: str, kind: str | None, label: str | None = None) -> None:
         error = self._item_cell_error(col, row)
         if error is not None:
             self._flash_status(f"Item not placed: {error}")
@@ -53,20 +76,9 @@ class ItemsMixin:
         if item_type == ITEM_KEY_TYPE:
             new_item["kind"] = kind
         items.append(new_item)
-        label = f"Place Item ({item_type} {kind})" if kind else f"Place Item ({item_type})"
+        if label is None:
+            label = f"Place Item ({item_type} {kind})" if kind else f"Place Item ({item_type})"
         self.apply_change(label, after)
-
-    def remove_item_at(self, col: int, row: int) -> bool:
-        """Remove any item at (current_level, col, row). Returns True if an
-        item was removed."""
-        after = copy.deepcopy(self.map_data)
-        items = after.get(ITEMS_LIST, [])
-        keep = [i for i in items if not (i["level"] == self.current_level and i["col"] == col and i["row"] == row)]
-        if len(keep) == len(items):
-            return False
-        after[ITEMS_LIST] = keep
-        self.apply_change("Remove Item", after)
-        return True
 
     def erase_items_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
         c0, r0, c1, r1 = rect_from_cells(start, end)

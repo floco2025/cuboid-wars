@@ -6,7 +6,7 @@ import copy
 from dataclasses import dataclass
 
 from .constants import MAPS_DIR, NESTED_MAPS_LIST, list_map_names
-from .dialogs import MotionDialog
+from .dialogs import MotionDialog, Nudge
 from .erase import nested_maps_outside
 from .geometry import rect_from_cells
 from .io import read_map
@@ -67,6 +67,23 @@ def nested_map_cycle(edited: str | None, entries: list[dict], lookup) -> list[st
     return None
 
 
+def nested_map_rest_points(entry: dict, wall_width_cells: float) -> tuple[tuple[float, float], tuple[float, float]]:
+    """Where the nested map's cell (0, 0) rests at each end, in cell units:
+    the anchor plus the nudge's x and z parts. The y part is left out; the
+    canvas shows the plan, and a storey's height is not a canvas distance."""
+
+    def rest(anchor: list[int], nudge: list[float]) -> tuple[float, float]:
+        return (anchor[0] + nudge[0] * wall_width_cells, anchor[1] + nudge[2] * wall_width_cells)
+
+    return rest(entry["from"], entry["from_nudge"]), rest(entry["to"], entry["to_nudge"])
+
+
+def nested_map_label(name: str, nudge: list[float]) -> str:
+    """The footprint's label: the map's name, and its y nudge when it has
+    one, since the plan cannot draw a vertical displacement."""
+    return name if nudge[1] == 0 else f"{name} y{nudge[1]:+g}"
+
+
 def nested_map_error(map_name: str, edited: str | None) -> str | None:
     if not map_name:
         return "pick a map to nest"
@@ -125,7 +142,15 @@ class NestedMapsMixin:
         entry = next((e for e in self.map_data.get(NESTED_MAPS_LIST, []) if nested_map_key(e) == key), None)
         if entry is None:
             return
-        current = (entry["map"], entry["to_level"], entry["speed"], entry["pause_secs"], entry["phase_secs"])
+        current = (
+            entry["map"],
+            entry["to_level"],
+            entry["travel_secs"],
+            entry["pause_secs"],
+            entry["phase_secs"],
+            tuple(entry["from_nudge"]),
+            tuple(entry["to_nudge"]),
+        )
         result = MotionDialog.prompt_nested(
             self,
             len(self.map_data["levels"]),
@@ -140,7 +165,15 @@ class NestedMapsMixin:
         self.set_nested_map_properties(key, *result)
 
     def set_nested_map_properties(
-        self, key: tuple, map_name: str, to_level: int, speed: float, pause_secs: float, phase_secs: float
+        self,
+        key: tuple,
+        map_name: str,
+        to_level: int,
+        travel_secs: float,
+        pause_secs: float,
+        phase_secs: float,
+        from_nudge: Nudge,
+        to_nudge: Nudge,
     ) -> None:
         msg = nested_map_error(map_name, self.edited_map_name())
         if msg:
@@ -151,7 +184,15 @@ class NestedMapsMixin:
         if entry is None:
             return
         entry.update(
-            {"map": map_name, "to_level": to_level, "speed": speed, "pause_secs": pause_secs, "phase_secs": phase_secs}
+            {
+                "map": map_name,
+                "to_level": to_level,
+                "travel_secs": travel_secs,
+                "pause_secs": pause_secs,
+                "phase_secs": phase_secs,
+                "from_nudge": list(from_nudge),
+                "to_nudge": list(to_nudge),
+            }
         )
         self.apply_change("Edit Nested Map", after)
 
@@ -181,8 +222,7 @@ class NestedMapsMixin:
         if result is None:
             return
         self.recent_nested_map = result
-        map_name, to_level, speed, pause_secs, phase_secs = result
-        self.place_nested_map(start_cell, end_cell, map_name, to_level, speed, pause_secs, phase_secs)
+        self.place_nested_map(start_cell, end_cell, *result)
 
     def place_nested_map(
         self,
@@ -190,9 +230,11 @@ class NestedMapsMixin:
         end_cell: tuple[int, int],
         map_name: str,
         to_level: int,
-        speed: float,
+        travel_secs: float,
         pause_secs: float,
         phase_secs: float,
+        from_nudge: Nudge,
+        to_nudge: Nudge,
     ) -> None:
         msg = nested_map_error(map_name, self.edited_map_name())
         if msg:
@@ -204,9 +246,11 @@ class NestedMapsMixin:
             "from": [start_cell[0], start_cell[1]],
             "to": [end_cell[0], end_cell[1]],
             "to_level": to_level,
-            "speed": speed,
+            "travel_secs": travel_secs,
             "pause_secs": pause_secs,
             "phase_secs": phase_secs,
+            "from_nudge": list(from_nudge),
+            "to_nudge": list(to_nudge),
         }
         after = copy.deepcopy(self.map_data)
         # One nested map per starting cell and level: a new one replaces it.

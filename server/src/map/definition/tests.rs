@@ -8,7 +8,8 @@ use super::{
     },
     validation::validate_map,
 };
-use crate::test_geometry::{LEVEL_HEIGHT, WALL_HEIGHT, sizes};
+use crate::test_geometry::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS, sizes};
+use bevy::math::Vec3;
 use common::protocol::{BarrierKindTable, BridgeKindTable, FaceMaterials};
 
 fn empty_kind_table() -> BarrierKindTable {
@@ -135,9 +136,11 @@ fn motion(level: u32, from: [i32; 2], to: [i32; 2], to_level: u32) -> MotionDef 
         from,
         to,
         to_level: Some(to_level),
-        speed: 2.0,
+        travel_secs: 2.0,
         pause_secs: 0.5,
         phase_secs: 0.0,
+        from_nudge: [0.0; 3],
+        to_nudge: [0.0; 3],
     }
 }
 
@@ -1237,8 +1240,9 @@ fn every_shipped_carrier_carries_a_standing_player_through_its_cycle() {
                 let gap = Vec3::from(pos) - surface;
                 assert!(
                     gap.length() <= CARRIER_RIDE_TOLERANCE,
-                    "{}: carrier {index} lost its rider at tick {tick}: feet {pos:?}, surface {surface}",
-                    path.display()
+                    "{}: carrier {} lost its rider at tick {tick}: feet {pos:?}, surface {surface}",
+                    path.display(),
+                    id.0
                 );
             }
             checked += 1;
@@ -1333,8 +1337,66 @@ fn validation_rejects_nested_map_level_out_of_range() {
 #[test]
 fn validation_rejects_non_positive_nested_map_speed() {
     let mut map_def = host(vec![nested("room", 0, [2, 2], [4, 2], 0)]);
-    map_def.nested_maps[0].motion.speed = 0.0;
+    map_def.nested_maps[0].motion.travel_secs = 0.0;
     assert!(validate_map(&map_def).is_err());
+}
+
+#[test]
+fn validation_rejects_a_non_finite_nudge() {
+    let mut map_def = host(vec![nested("room", 0, [2, 2], [4, 2], 0)]);
+    map_def.nested_maps[0].motion.to_nudge = [0.0, f32::NAN, 0.0];
+    let error = validate_map(&map_def).expect_err("non-finite nudge accepted");
+    assert!(format!("{error:#}").contains("to_nudge"), "{error:#}");
+}
+
+#[test]
+fn nudges_displace_each_end_by_wall_widths_across_and_floor_thicknesses_up() {
+    use common::protocol::CarrierId;
+
+    let mut entry = nested("room", 0, [1, 3], [5, 3], 0);
+    entry.motion.from_nudge = [1.0, 0.0, 0.0];
+    entry.motion.to_nudge = [0.0, -2.0, 3.0];
+    let plain = host(vec![nested("room", 0, [1, 3], [5, 3], 0)]);
+    let (plain_layout, _, _) = compile_host(&plain, &tree(vec![("room", room())]));
+    let (layout, _, _) = compile_host(&host(vec![entry]), &tree(vec![("room", room())]));
+    let (plain_from, plain_to) = (
+        Vec3::from(plain_layout.carriers[0].from),
+        Vec3::from(plain_layout.carriers[0].to),
+    );
+    let carrier = layout.carriers[0];
+
+    assert_eq!(carrier.parent, CarrierId::WORLD);
+    let expected_from = plain_from + Vec3::X * WALL_THICKNESS;
+    let expected_to = plain_to + Vec3::new(0.0, -2.0 * FLOOR_THICKNESS, 3.0 * WALL_THICKNESS);
+    assert!(
+        (Vec3::from(carrier.from) - expected_from).length() < 1e-5,
+        "from {:?}",
+        carrier.from
+    );
+    assert!(
+        (Vec3::from(carrier.to) - expected_to).length() < 1e-5,
+        "to {:?}",
+        carrier.to
+    );
+}
+
+#[test]
+fn nudges_default_to_zero() {
+    let entry: NestedMapDef =
+        serde_json::from_str(r#"{"map": "room", "level": 0, "from": [1, 1], "to": [3, 1], "travel_secs": 2.0}"#)
+            .expect("entry without nudges rejected");
+    assert_eq!((entry.motion.from_nudge, entry.motion.to_nudge), ([0.0; 3], [0.0; 3]));
+}
+
+#[test]
+fn travel_time_sets_the_travel_ticks_whatever_the_distance() {
+    let mut short = nested("room", 0, [1, 3], [2, 3], 0);
+    short.motion.travel_secs = 1.5;
+    let mut long = nested("room", 0, [1, 3], [5, 3], 0);
+    long.motion.travel_secs = 1.5;
+    let (layout, _, _) = compile_host(&host(vec![short, long]), &tree(vec![("room", room())]));
+    assert_eq!(layout.carriers[0].travel_ticks, 45);
+    assert_eq!(layout.carriers[1].travel_ticks, 45);
 }
 
 #[test]

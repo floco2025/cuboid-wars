@@ -29,9 +29,14 @@ pub(crate) struct MapDef {
 }
 
 // How a nested map moves: between two cells, `from` on `level` and `to` on
-// `to_level`, at `speed` meters per second, resting `pause_secs` at each
+// `to_level`, one leg taking `travel_secs`, resting `pause_secs` at each
 // end; `phase_secs` offsets its cycle so neighbours need not move in step.
-// Top-level like ramps and ladders because it may cross storeys.
+// `from_nudge` and `to_nudge` displace each end from its anchor: x and z
+// in wall widths (across columns and rows), y in floor thicknesses (up).
+// Two floors meeting at a grid line overlap by one wall width (each
+// extends half past its line), so a nudge of one width and a hair back
+// along the travel keeps a floor clear of the one it meets. Top-level like
+// ramps and ladders because it may cross storeys.
 #[derive(Debug, Clone, Deserialize)]
 pub(crate) struct MotionDef {
     pub(crate) level: u32,
@@ -39,11 +44,15 @@ pub(crate) struct MotionDef {
     pub(crate) to: [i32; 2],
     #[serde(default)]
     pub(crate) to_level: Option<u32>,
-    pub(crate) speed: f32,
+    pub(crate) travel_secs: f32,
     #[serde(default)]
     pub(crate) pause_secs: f32,
     #[serde(default)]
     pub(crate) phase_secs: f32,
+    #[serde(default)]
+    pub(crate) from_nudge: [f32; 3],
+    #[serde(default)]
+    pub(crate) to_nudge: [f32; 3],
 }
 
 impl MotionDef {

@@ -30,7 +30,7 @@ class LightsMixin:
             for w in self.map_data["levels"][level_idx]["walls"]
         }
 
-    def toggle_light_at(self, pos, cell_size: float) -> None:
+    def add_light_at(self, pos, cell_size: float) -> None:
         px = pos.x() / cell_size
         py = pos.y() / cell_size
         cols = self.map_data["grid_cols"]
@@ -48,18 +48,16 @@ class LightsMixin:
         if (col, row) in self._ramp_cells_for_level(level_idx):
             self._flash_status(f"Cannot place a light inside a ramp footprint ([{col}, {row}]).")
             return
-        after = copy.deepcopy(self.map_data)
-        lights = after["levels"][level_idx]["lights"]
         new_light = {"col": col, "row": row, "side": side}
         key = light_key(new_light)
-        existing_idx = next((i for i, l in enumerate(lights) if light_key(l) == key), None)
-        if existing_idx is not None:
-            del lights[existing_idx]
-            label = "Remove Light"
-        else:
-            lights.append(new_light)
-            label = "Add Light"
-        self.apply_change(label, after)
+        if any(light_key(light) == key for light in self.map_data["levels"][level_idx]["lights"]):
+            self._flash_status(
+                f"There is already a light on the {side} side of cell [{col}, {row}]; right-click it to erase."
+            )
+            return
+        after = copy.deepcopy(self.map_data)
+        after["levels"][level_idx]["lights"].append(new_light)
+        self.apply_change("Add Light", after)
 
     def auto_place_lights_on_current_level(
         self,

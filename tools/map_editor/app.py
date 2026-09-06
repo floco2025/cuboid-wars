@@ -6,7 +6,7 @@ import argparse
 import signal
 import sys
 
-from PySide6.QtCore import QPointF, QRectF, Qt
+from PySide6.QtCore import QPointF, QTimer, Qt
 from PySide6.QtGui import QBrush, QColor, QIcon, QPainter, QPen, QPixmap, QPolygonF
 from PySide6.QtWidgets import QApplication
 
@@ -54,10 +54,14 @@ def main() -> int:
     app.setWindowIcon(_build_window_icon())
     # Ctrl-C ends the process outright. A Python-level handler could only
     # ask the main event loop to quit, which a modal dialog's nested loop
-    # (the autosave recovery prompt runs before the main loop even starts)
     # never gets around to; the autosave has already kept the work.
     signal.signal(signal.SIGINT, signal.SIG_DFL)
 
     window = EditorWindow(map_path)
     window.show()
+    window.raise_()
+    window.activateWindow()
+    # Once the window is up and the app is in front, so the prompt lands on
+    # top of it.
+    QTimer.singleShot(0, window.maybe_recover_autosave)
     return app.exec()

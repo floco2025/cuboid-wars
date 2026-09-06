@@ -16,7 +16,7 @@ from .types import SpawnZoneDrag, ZoneRef
 
 
 class SpawnZoneEditMixin:
-    # === Spawn-zone edit mode ===
+    # === Spawn-zone selection and drags, driven by No Tool ===
 
     def selected_spawn_zone(self) -> dict | None:
         ref = self.selected_spawn_zone_ref
@@ -60,8 +60,10 @@ class SpawnZoneEditMixin:
                     return ZoneRef(list_name, idx)
         return None
 
-    def begin_spawn_zone_edit_press(self, pos, cell_size: float) -> None:
-        # Try a handle on the currently selected zone first.
+    def begin_spawn_zone_drag(self, pos, cell_size: float) -> bool:
+        """A press on a spawn zone. A handle of the selected zone starts a
+        resize and its body a move; any other zone is only selected, so a
+        stray drag moves nothing. Returns whether a zone took the press."""
         zone = self.selected_spawn_zone()
         if zone is not None and zone["level"] == self.current_level:
             handle = self._handle_at_pos(zone, pos, cell_size)
@@ -75,14 +77,15 @@ class SpawnZoneEditMixin:
                     origin=(pos.x() / cell_size, pos.y() / cell_size),
                     original_zone=copy.deepcopy(zone),
                 )
-                return
-        # Otherwise pick the zone under the cursor.
+                return True
         ref = self.spawn_zone_at(pos, cell_size)
+        self.spawn_zone_drag = None
         if ref is None:
             self.set_selected_spawn_zone(None)
-            self.spawn_zone_drag = None
-            return
-        self.set_selected_spawn_zone(ref)
+            return False
+        if ref != self.selected_spawn_zone_ref:
+            self.set_selected_spawn_zone(ref)
+            return True
         self.spawn_zone_drag = SpawnZoneDrag(
             list_name=ref.list_name,
             index=ref.index,
@@ -90,6 +93,7 @@ class SpawnZoneEditMixin:
             origin=(pos.x() / cell_size, pos.y() / cell_size),
             original_zone=copy.deepcopy(self.map_data[ref.list_name][ref.index]),
         )
+        return True
 
     def _handle_at_pos(self, zone: dict, pos, cell_size: float) -> str | None:
         handle_names = ["nw", "n", "ne", "e", "se", "s", "sw", "w"]
@@ -177,14 +181,3 @@ class SpawnZoneEditMixin:
         self.recent_actor_spawn_kind = kind
         self.recent_actor_spawn_count = count
         self.selected_spawn_zone_ref = self._zone_ref_after_change(ref.list_name, after[ref.list_name][ref.index])
-
-    def delete_selected_spawn_zone(self) -> None:
-        ref = self.selected_spawn_zone_ref
-        if ref is None:
-            return
-        if not (0 <= ref.index < len(self.map_data[ref.list_name])):
-            return
-        after = copy.deepcopy(self.map_data)
-        del after[ref.list_name][ref.index]
-        self.selected_spawn_zone_ref = None
-        self.apply_change("Delete Spawn Zone", after)

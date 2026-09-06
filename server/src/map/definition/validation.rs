@@ -450,8 +450,13 @@ fn validate_motion(motion: &MotionDef, map_def: &MapDef) -> Result<()> {
     }
     validate_floor(motion.from, map_def.grid_cols, map_def.grid_rows).context("from")?;
     validate_floor(motion.to, map_def.grid_cols, map_def.grid_rows).context("to")?;
-    if !(motion.speed.is_finite() && motion.speed > 0.0) {
-        return Err(anyhow!("speed must be positive, got {}", motion.speed));
+    if !(motion.travel_secs.is_finite() && motion.travel_secs > 0.0) {
+        return Err(anyhow!("travel_secs must be positive, got {}", motion.travel_secs));
+    }
+    for (name, nudge) in [("from_nudge", motion.from_nudge), ("to_nudge", motion.to_nudge)] {
+        if !nudge.iter().all(|axis| axis.is_finite()) {
+            return Err(anyhow!("{name} must be finite, got {nudge:?}"));
+        }
     }
     if !(motion.pause_secs.is_finite() && motion.pause_secs >= 0.0) {
         return Err(anyhow!("pause_secs must not be negative, got {}", motion.pause_secs));

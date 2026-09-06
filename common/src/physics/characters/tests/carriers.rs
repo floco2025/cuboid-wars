@@ -124,6 +124,38 @@ fn rider_slides_with_the_tile() {
     );
 }
 
+// The tile slides through a static floor at its own height: the rider's
+// probe sees two surfaces a cast-noise apart, and the carried one carries.
+#[test]
+fn rider_keeps_riding_through_a_coincident_static_floor() {
+    let (carrier, tile) = slider();
+    let floor = Floor {
+        x1: 1.0,
+        z1: -1.5,
+        x2: 5.0,
+        z2: 1.5,
+        y: 0.0,
+        thickness: FLOOR_THICKNESS,
+        level: 0,
+        carrier: CarrierId::WORLD,
+    };
+    let mut pos = Position::default();
+    let mut vertical_velocity = 0.0;
+    for tick in 1..=60 {
+        let (world, carriers) = carried_world((carrier, tile), &[], &[floor], tick);
+        let step = ride(&world, &carriers, pos, vertical_velocity, Vec3::ZERO, TICK_SECS);
+        pos = step.position;
+        vertical_velocity = step.vertical_velocity;
+        let surface = carriers.pose(TILE).translation;
+        assert!(
+            (pos.x - surface.x).abs() < 1e-3,
+            "tick {tick}: rider at {:?}, tile at {surface}",
+            pos
+        );
+        assert_eq!(step.support, CharacterSupport::Ground, "tick {tick}");
+    }
+}
+
 #[test]
 fn rider_rises_with_a_lift() {
     let (world, carriers) = carried_world(lift(), &[], &[], 1);

@@ -17,17 +17,18 @@ from .constants import (
     MODE_BARRIER,
     MODE_LADDER,
     MODE_LIGHT,
+    MODE_NONE,
     MODE_NESTED_MAP,
-    MODE_SPAWN_ZONE_EDIT,
     MODE_WALL,
     MODE_WALL_MATERIAL,
     PLATE_TYPE_BRIDGE,
     PLATE_TYPE_FIREWORK,
     PLAYER_ZONE_LIST,
     RAMP_MODES,
-    SPAWN_PAINT_MODES,
+    SPAWN_ZONE_MODES,
     SPAWN_ZONE_HANDLE_PIXELS,
 )
+from .nested_maps import nested_map_label, nested_map_rest_points
 from .normalization import ladder_spans_level, nested_map_spans_level
 
 from .display import (
@@ -86,10 +87,10 @@ class CanvasPaintingMixin:
         self._paint_items(painter, cell, level_idx)
         self._paint_ramps(painter, cell, level_idx)
         self.paint_spawn_zones(painter, cell, level_idx)
-        if self.window.mode == MODE_SPAWN_ZONE_EDIT:
+        if self.window.mode == MODE_NONE:
             self.paint_spawn_zone_selection(painter, cell, level_idx)
         self._paint_drag_preview_rect(painter, cell)
-        if self.window.mode == MODE_SPAWN_ZONE_EDIT and self.window.spawn_zone_drag is not None:
+        if self.window.mode == MODE_NONE and self.window.spawn_zone_drag is not None:
             self.paint_spawn_zone_drag_preview(painter, cell)
         self._paint_wall_and_ramp_drag_previews(painter, cell)
         self._paint_grid_lines(painter, cell, cols, rows)
@@ -116,7 +117,7 @@ class CanvasPaintingMixin:
         if self.drag_start_cell is not None or self.drag_start_point is not None:
             return
         mode = self.window.mode
-        if mode == MODE_SPAWN_ZONE_EDIT or mode in MATERIAL_MODES:
+        if mode == MODE_NONE or mode in MATERIAL_MODES:
             return
         # Edge-based modes (Wall, Barrier): no ghost yet — the drag preview
         # is the discoverability path; a single-point ghost would only show
@@ -359,7 +360,7 @@ class CanvasPaintingMixin:
     def _paint_drag_preview_rect(self, painter: QPainter, cell: float) -> None:
         if not (self.drag_start_cell and self.drag_current_cell):
             return
-        if self.window.mode not in DRAG_PREVIEW_COLORS and self.window.mode not in SPAWN_PAINT_MODES:
+        if self.window.mode not in DRAG_PREVIEW_COLORS and self.window.mode not in SPAWN_ZONE_MODES:
             return
         # A nested map drag is two ends and a band, not a rectangle.
         if self.window.mode == MODE_NESTED_MAP:
@@ -384,7 +385,7 @@ class CanvasPaintingMixin:
             self.paint_wall_preview(painter, self.drag_start_point, end, cell, color=QColor(hex_color))
         elif self.drag_start_cell and self.drag_current_cell and self.window.mode in RAMP_MODES:
             self.paint_ramp_preview(painter, self.drag_start_cell, self.drag_current_cell, cell)
-        elif self.drag_start_cell and self.drag_current_cell and self.window.mode == MODE_NESTED_MAP:
+        elif self.drag_start_cell and self.drag_current_cell and self.window.mode in (MODE_NESTED_MAP, MODE_NONE):
             self._paint_nested_map_drag(painter, cell)
 
     def _paint_grid_lines(self, painter: QPainter, cell: float, cols: int, rows: int) -> None:
@@ -501,18 +502,26 @@ class CanvasPaintingMixin:
                 continue
             start, end = tuple(entry["from"]), tuple(entry["to"])
             self.paint_motion_span(painter, start, end, entry["level"], entry["to_level"], level_idx, cell, storeys)
-            self._paint_nested_map_footprint(painter, start, entry["map"], cell, dashed=False)
-            if end != start:
-                self._paint_nested_map_footprint(painter, end, entry["map"], cell, dashed=True)
+            # The footprints sit where the map rests: each anchor nudged.
+            rest_start, rest_end = nested_map_rest_points(entry, self.window.wall_width_cells)
+            name = entry["map"]
+            self._paint_nested_map_footprint(
+                painter, rest_start, name, cell, label=nested_map_label(name, entry["from_nudge"])
+            )
+            if end != start or rest_end != rest_start:
+                self._paint_nested_map_footprint(
+                    painter, rest_end, name, cell, dashed=True, label=nested_map_label(name, entry["to_nudge"])
+                )
 
     def _paint_nested_map_footprint(
         self,
         painter: QPainter,
-        anchor: tuple[int, int],
+        anchor: tuple[float, float],
         name: str | None,
         cell: float,
         dashed: bool = False,
         dim: bool = False,
+        label: str | None = None,
     ) -> None:
         # The nested map's grid with its cell (0, 0) on the anchor, outlined
         # solid where it starts and dashed where it arrives, named in the
@@ -521,7 +530,8 @@ class CanvasPaintingMixin:
         if shape is None:
             cols, rows, color, label = 1, 1, QColor(248, 113, 113), f"{name or '?'}?"
         else:
-            cols, rows, color, label = shape.grid_cols, shape.grid_rows, QColor(NESTED_MAP_COLOR), name
+            cols, rows, color = shape.grid_cols, shape.grid_rows, QColor(NESTED_MAP_COLOR)
+            label = label or name
         color.setAlpha(120 if dim else 230)
         rect = QRectF(anchor[0] * cell + 2, anchor[1] * cell + 2, cols * cell - 4, rows * cell - 4)
         pen = QPen(color, 2)

@@ -16,6 +16,7 @@ from .constants import (
     SPAWN_ZONE_LISTS,
 )
 from .geometry import (
+    cell_side_from_click,
     normalized_wall,
     point_near_wall,
     ramp_rect,
@@ -175,6 +176,11 @@ class EraseMixin:
         px = pos.x() / cell_size
         py = pos.y() / cell_size
 
+        # A light sits on the wall side nearest the click, as when placing
+        # one, and peels before the wall it hangs on.
+        side = cell_side_from_click(col, row, px, py)
+        if any((l["col"], l["row"], l["side"]) == (col, row, side) for l in level.get("lights", [])):
+            return ("Light", (col, row, side))
         for wall in level["walls"]:
             wall_arr = [wall["c0"], wall["r0"], wall["c1"], wall["r1"]]
             if point_near_wall(px, py, wall_arr):
@@ -189,6 +195,11 @@ class EraseMixin:
             edge = list(wall_endpoints_for_cell_side(ladder["col"], ladder["row"], ladder["side"]))
             if point_near_wall(px, py, edge):
                 return ("Ladder", ladder_key(ladder))
+        on_level = self.current_level
+        if any(p["level"] == on_level and (p["col"], p["row"]) == (col, row) for p in self.map_data.get("pressure_plates", [])):
+            return ("Pressure Plate", (col, row))
+        if any(i["level"] == on_level and (i["col"], i["row"]) == (col, row) for i in self.map_data.get(ITEMS_LIST, [])):
+            return ("Item", (col, row))
         # Walk every zone list in reverse so the most-recently-painted entry
         # wins. SPAWN_ZONE_LISTS is ordered actor → player, so when both zone
         # types share a cell the actor zone is preferred.
@@ -256,6 +267,22 @@ class EraseMixin:
                 del after[list_name][target_idx]
                 if self.selected_spawn_zone_ref == ZoneRef(list_name, target_idx):
                     self.selected_spawn_zone_ref = None
+        elif kind == "Light":
+            level["lights"] = [
+                light for light in level.get("lights", []) if (light["col"], light["row"], light["side"]) != value
+            ]
+        elif kind == "Pressure Plate":
+            after["pressure_plates"] = [
+                plate
+                for plate in after.get("pressure_plates", [])
+                if not (plate["level"] == self.current_level and (plate["col"], plate["row"]) == value)
+            ]
+        elif kind == "Item":
+            after[ITEMS_LIST] = [
+                item
+                for item in after.get(ITEMS_LIST, [])
+                if not (item["level"] == self.current_level and (item["col"], item["row"]) == value)
+            ]
         elif kind == "Wall":
             level["walls"] = [
                 wall for wall in level["walls"]

@@ -531,21 +531,26 @@ fn set_edge(edges: &mut EdgeGrid, edge: [i32; 4]) {
     }
 }
 
-// A carrier's motion between two points of its parent's frame; the timing
-// is whole ticks so both sides place it exactly from the shared tick, and a
-// stationary motion is a single tick that never leaves `from`. A tile is a
-// nested one-cell map, so nothing here is special about it.
-fn carrier_from_motion(end1: Vec3, end2: Vec3, motion: &MotionDef, parent: CarrierId) -> Carrier {
+// A carrier's motion between two points of its parent's frame, each end
+// displaced from its anchor by its nudge, x and z in wall widths and y in
+// floor thicknesses (`nudge_scale` holds the three sizes). The
+// timing is whole ticks so both sides place it exactly from the shared
+// tick, and a stationary motion is a single tick that never leaves its
+// start. A tile is a nested one-cell map, so nothing here is special about
+// it.
+fn carrier_from_motion(end1: Vec3, end2: Vec3, motion: &MotionDef, nudge_scale: Vec3, parent: CarrierId) -> Carrier {
     let level = u8::try_from(motion.level).unwrap_or(u8::MAX);
     let to_level = u8::try_from(motion.to_level()).unwrap_or(u8::MAX);
     let ticks = |secs: f32| (secs * TICK_HZ as f32).round() as u32;
+    let from = end1 + Vec3::from(motion.from_nudge) * nudge_scale;
+    let to = end2 + Vec3::from(motion.to_nudge) * nudge_scale;
     Carrier {
         parent,
         level: level.min(to_level),
         levels: level.abs_diff(to_level),
-        from: end1.into(),
-        to: end2.into(),
-        travel_ticks: ticks(end1.distance(end2) / motion.speed).max(1),
+        from: from.into(),
+        to: to.into(),
+        travel_ticks: ticks(motion.travel_secs).max(1),
         pause_ticks: ticks(motion.pause_secs),
         phase_ticks: ticks(motion.phase_secs),
     }
@@ -560,7 +565,12 @@ fn nested_carrier(parent: &MapGeometry, nested: &MapGeometry, motion: &MotionDef
     let to_level = u8::try_from(motion.to_level()).unwrap_or(u8::MAX);
     let end1 = nested_origin_offset(parent, nested, motion.from, level);
     let end2 = nested_origin_offset(parent, nested, motion.to, to_level);
-    carrier_from_motion(end1, end2, motion, parent_id)
+    let nudge_scale = Vec3::new(
+        parent.wall_thickness(),
+        parent.floor_thickness(),
+        parent.wall_thickness(),
+    );
+    carrier_from_motion(end1, end2, motion, nudge_scale, parent_id)
 }
 
 fn nested_origin_offset(parent: &MapGeometry, nested: &MapGeometry, cell: [i32; 2], level: u8) -> Vec3 {

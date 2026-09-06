@@ -202,9 +202,11 @@ def _nested_map_body(entry: dict) -> str:
         "from": entry["from"],
         "to": entry["to"],
         "to_level": entry["to_level"],
-        "speed": entry["speed"],
+        "travel_secs": entry["travel_secs"],
         "pause_secs": entry["pause_secs"],
         "phase_secs": entry["phase_secs"],
+        "from_nudge": entry["from_nudge"],
+        "to_nudge": entry["to_nudge"],
     }
     return _inline_object_body(body)
 

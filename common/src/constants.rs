@@ -19,6 +19,9 @@ pub const BRIDGE_THICKNESS_FRACTION: f32 = 0.25;
 // Carriers. How far above a carrier's surface a body's feet may rest and
 // still ride it (`supporting_carrier`); the ground snap leaves them closer.
 pub const CARRIER_RIDE_TOLERANCE: f32 = 0.05;
+// Surfaces within this of each other under the feet are coincident; the
+// cast's depth noise is about a millionth of a meter.
+pub const CARRIER_SURFACE_TIE_EPSILON: f32 = 0.01;
 
 // Ladders. Freestanding climbable elements anchored on grid edges. One-sided:
 // the rail side (front) climbs and fences; the back is passed through. No

@@ -82,7 +82,9 @@ mod tests {
             r#"{{"grid_cols": 2, "grid_rows": 2, "levels": [{{}}], "nested_maps": [{}]}}"#,
             names
                 .iter()
-                .map(|name| format!(r#"{{"map": "{name}", "level": 0, "from": [0, 0], "to": [0, 0], "speed": 1.0}}"#))
+                .map(|name| format!(
+                    r#"{{"map": "{name}", "level": 0, "from": [0, 0], "to": [0, 0], "travel_secs": 1.0}}"#
+                ))
                 .collect::<Vec<_>>()
                 .join(", ")
         );

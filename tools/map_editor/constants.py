@@ -60,6 +60,22 @@ def load_map_bridge_kinds(map_name: str) -> dict[str, str]:
     return load_map_kinds(map_name, "bridge_kinds")
 
 
+# A nested-only map has no registry entry; its nudges are drawn at obby's
+# ratio until it is played through a host.
+DEFAULT_WALL_WIDTH_CELLS = 0.1
+
+
+def load_map_wall_width_cells(map_name: str) -> float:
+    """One wall width in cells, the unit a nested map's nudge is drawn in."""
+    with GAMEPLAY_PATH.open("r", encoding="utf-8") as handle:
+        gameplay = json.load(handle)
+    map_settings = gameplay.get("maps", {}).get(map_name)
+    if map_settings is None:
+        return DEFAULT_WALL_WIDTH_CELLS
+    geometry = map_settings["geometry"]
+    return float(geometry["wall_thickness"]) / float(geometry["grid_cell_size"])
+
+
 # Editor-only: the game renders every plate alike, so this colour exists just
 # to tell firework plates from barrier plates on the canvas.
 FIREWORK_PLATE_COLOR = "#e040fb"
@@ -78,14 +94,16 @@ PLATE_TYPES = (PLATE_TYPE_BARRIER, PLATE_TYPE_BRIDGE, PLATE_TYPE_FIREWORK)
 # (validator skips the check in that case, so an empty value is harmless).
 DEFAULT_ALIAS: str = next(iter(sorted(MATERIAL_ALIASES)), "")
 
+# The tool the editor starts with: the canvas only selects, moves, and
+# resizes what is already there, and right-click edits or erases.
+MODE_NONE = "No Tool"
 MODE_FLOOR = "Floor"
 MODE_INACCESSIBLE_FLOOR = "Blocked Floor"
 MODE_ERASE_FLOORS = "Erase Floors"
 MODE_GRASS = "Grass"
 MODE_ERASE_GRASS = "Erase Grass"
-MODE_ACTOR_SPAWN_PAINT = "Actor Spawn Zone (Paint)"
-MODE_PLAYER_SPAWN_PAINT = "Player Spawn Zone (Paint)"
-MODE_SPAWN_ZONE_EDIT = "Spawn Zone (Edit)"
+MODE_ACTOR_SPAWN_ZONE = "Actor Spawn Zone"
+MODE_PLAYER_SPAWN_ZONE = "Player Spawn Zone"
 MODE_ERASE_SPAWN_ZONES = "Erase Spawn Zones"
 MODE_ITEM = "Item"
 MODE_ERASE_ITEMS = "Erase Items"
@@ -115,7 +133,7 @@ MODE_FIREWORK_PLATE = "Firework Plate"
 MODE_ERASE_PRESSURE_PLATES = "Erase Pressure Plates"
 RAMP_MODES = (MODE_RAMP_UP, MODE_RAMP_DOWN)
 ERASE_MODES = (MODE_ERASE, MODE_ERASE_KEEP_FLOORS)
-SPAWN_PAINT_MODES = (MODE_ACTOR_SPAWN_PAINT, MODE_PLAYER_SPAWN_PAINT)
+SPAWN_ZONE_MODES = (MODE_ACTOR_SPAWN_ZONE, MODE_PLAYER_SPAWN_ZONE)
 MATERIAL_MODES = (MODE_FLOOR_MATERIAL, MODE_WALL_MATERIAL, MODE_RAMP_MATERIAL)
 FLOOR_HIT_KINDS = (MODE_FLOOR, MODE_INACCESSIBLE_FLOOR, MODE_LIGHT_BRIDGE, MODE_NESTED_MAP)
 LIGHT_SIDES = ("N", "S", "E", "W")
@@ -148,12 +166,7 @@ MODE_CATEGORIES: list[tuple[str, list[str]]] = [
     ("Grass", [MODE_GRASS, MODE_ERASE_GRASS]),
     (
         "Spawn Zones",
-        [
-            MODE_ACTOR_SPAWN_PAINT,
-            MODE_PLAYER_SPAWN_PAINT,
-            MODE_SPAWN_ZONE_EDIT,
-            MODE_ERASE_SPAWN_ZONES,
-        ],
+        [MODE_ACTOR_SPAWN_ZONE, MODE_PLAYER_SPAWN_ZONE, MODE_ERASE_SPAWN_ZONES],
     ),
     ("Walls", [MODE_WALL, MODE_ERASE_WALLS]),
     ("Barriers", [MODE_BARRIER, MODE_ERASE_BARRIERS]),
@@ -168,9 +181,10 @@ MODE_CATEGORIES: list[tuple[str, list[str]]] = [
     ("Erase", [MODE_ERASE, MODE_ERASE_KEEP_FLOORS]),
 ]
 
-# Flat list of every mode in display order. Derived from `MODE_CATEGORIES`
-# so the two never drift apart; if you add a mode, add it to its category.
-MODES: list[str] = [mode for _, group in MODE_CATEGORIES for mode in group]
+# Flat list of every mode in display order: no tool first, then the
+# categories, so the two never drift apart; if you add a mode, add it to
+# its category.
+MODES: list[str] = [MODE_NONE, *(mode for _, group in MODE_CATEGORIES for mode in group)]
 
 # Named lists in map_data so the editor can refer to them generically.
 ACTOR_ZONE_LIST = "actor_spawn_zones"

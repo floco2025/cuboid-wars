@@ -12,6 +12,7 @@ from PySide6.QtWidgets import QComboBox, QLabel, QMainWindow, QMenu, QToolBar
 
 from .canvas import Canvas
 from .commands import SetMapCommand
+from .dialogs import NestedMotion
 from .constants import (
     DEFAULT_ACTOR_COUNT,
     DEFAULT_ALIAS,
@@ -21,17 +22,17 @@ from .constants import (
     MODE_BRIDGE_PLATE,
     MODE_CATEGORIES,
     MODE_FIREWORK_PLATE,
-    MODE_FLOOR,
     MODE_ITEM,
     MODE_LADDER,
     MODE_LIGHT,
+    MODE_NONE,
     MODE_PRESSURE_PLATE,
     MODE_RAMP_DOWN,
     MODE_RAMP_UP,
-    MODE_SPAWN_ZONE_EDIT,
     STATUS_TIMEOUT_MS,
     load_map_barrier_kinds,
     load_map_bridge_kinds,
+    load_map_wall_width_cells,
 )
 from .document import MapDocument
 from .erase import EraseMixin
@@ -44,6 +45,7 @@ from .ladders import LaddersMixin
 from .lights import LightsMixin
 from .nested_maps import NestedMapsMixin
 from .placement import PlacementMixin
+from .select import SelectMixin
 from .spawn_zones import SpawnZoneEditMixin
 from .structure import StructureMixin
 from .types import SpawnZoneDrag, ZoneRef
@@ -59,6 +61,7 @@ class EditorWindow(
     NestedMapsMixin,
     EraseMixin,
     StructureMixin,
+    SelectMixin,
     SpawnZoneEditMixin,
     QMainWindow,
 ):
@@ -69,12 +72,9 @@ class EditorWindow(
         self.doc = MapDocument(path)
         self.barrier_kind_colors = load_map_barrier_kinds(path.stem)
         self.bridge_kind_colors = load_map_bridge_kinds(path.stem)
-        # If a newer autosave sits next to the file we just opened, offer to
-        # recover it. Done before any UI is built so the user sees their
-        # restored work as the initial state.
-        self._maybe_recover_autosave()
+        self.wall_width_cells = load_map_wall_width_cells(path.stem)
         self.current_level = 0
-        self.mode = MODE_FLOOR
+        self.mode = MODE_NONE
         self.shortcuts = []
         # No default kind: the dialog opens with Kind blank on the first paint
         # of a session and remembers the last value across subsequent paints.
@@ -96,8 +96,9 @@ class EditorWindow(
         # third.
         self.recent_auto_place_lights: tuple[int, int, int, int] = (0, 0, 0, 0)
         self.recent_ladder_levels: int = 1
-        # The last nested map dialog answer: (map, to_level, speed, pause, phase).
-        self.recent_nested_map: tuple[str, int, float, float, float] | None = None
+        # The last nested map dialog answer:
+        # (map, to_level, travel_secs, pause, phase, from_nudge, to_nudge).
+        self.recent_nested_map: NestedMotion | None = None
         self.nested_map_shapes: dict = {}
         # `(level_idx, [light, ...])` while an Auto-Place Lights confirmation
         # is pending; canvas paints these as ghosts. `None` outside the
@@ -204,6 +205,7 @@ class EditorWindow(
         # modes. Tool descriptions live in Help → Tool Reference.
         combo = QComboBox()
         model = QStandardItemModel(combo)
+        model.appendRow(QStandardItem(MODE_NONE))
         header_font = QFont()
         header_font.setBold(True)
         for label, modes in MODE_CATEGORIES:
@@ -215,17 +217,16 @@ class EditorWindow(
             for mode in modes:
                 model.appendRow(QStandardItem(mode))
         combo.setModel(model)
-        # Headers aren't selectable; first selectable item is row 1.
-        combo.setCurrentIndex(1)
+        combo.setCurrentIndex(0)
         return combo
 
     # Map each mode to the cursor it should display so a peripheral glance
     # tells the user which tool is active without reading the toolbar.
     def _cursor_for_mode(self, mode: str) -> Qt.CursorShape:
+        if mode == MODE_NONE:
+            return Qt.CursorShape.ArrowCursor
         if mode in (MODE_LIGHT, MODE_LADDER, MODE_PRESSURE_PLATE, MODE_BRIDGE_PLATE, MODE_FIREWORK_PLATE, MODE_ITEM):
             return Qt.CursorShape.PointingHandCursor
-        if mode == MODE_SPAWN_ZONE_EDIT:
-            return Qt.CursorShape.OpenHandCursor
         if mode in ERASE_MODES:
             return Qt.CursorShape.ForbiddenCursor
         return Qt.CursorShape.CrossCursor
@@ -297,12 +298,13 @@ class EditorWindow(
 
     # === Autosave / crash recovery ===
 
-    AUTOSAVE_INTERVAL_MS = 60_000
+    AUTOSAVE_INTERVAL_MS = 15_000
 
-    def _maybe_recover_autosave(self) -> None:
-        # Called once, very early in __init__ (before UI is constructed). If a
-        # `<file>.autosave.json` sibling is newer than the file we just
-        # loaded, offer to restore it.
+    def maybe_recover_autosave(self) -> None:
+        """Offer to restore a `<file>.autosave.json` sibling newer than the
+        opened file. Asked once the window is on screen: a prompt raised
+        before the app has a visible window opens behind whatever is in
+        front, and the editor looks as if it were doing nothing."""
         if not self.doc.has_recoverable_autosave():
             return
         autosave = self.doc.autosave_path()
@@ -313,19 +315,14 @@ class EditorWindow(
         box.setText(f"An autosave exists at {autosave.name} that is newer than {self.doc.path.name}. Recover it?")
         box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         box.setDefaultButton(QMessageBox.StandardButton.Yes)
-        # The main window is not shown yet, so nothing has activated the app:
-        # left to itself the prompt opens behind whatever is in front.
-        box.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
-        box.show()
-        box.raise_()
-        box.activateWindow()
-        response = box.exec()
-        if response != QMessageBox.StandardButton.Yes:
+        if box.exec() != QMessageBox.StandardButton.Yes:
             # Declined: the autosave is rejected work; drop it so the next
             # launch doesn't offer it again.
             self.doc.clear_autosave()
             return
-        self.doc.recover_autosave()
+        if self.doc.recover_autosave():
+            self.current_level = 0
+            self.refresh_ui()
 
     def _tick_autosave(self) -> None:
         self.doc.write_autosave()

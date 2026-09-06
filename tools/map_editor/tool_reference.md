@@ -2,6 +2,10 @@
 
 Every element group ends with its own **Erase** tool that removes only that element inside a dragged rectangle on the current level. The **Erase** group at the bottom holds the two tools that clear every element at once.
 
+## No Tool
+
+- **No Tool** — Where the editor starts. Click a spawn zone to select it, then drag its body to move it or a corner/edge handle to resize it; drag a nested map's end square to move that end. A press anywhere else does nothing, so a stray click draws nothing. In every tool, right-click an element to edit its properties or erase it.
+
 ## Floors
 
 - **Floor** — Drag cells to add floor.
@@ -15,9 +19,8 @@ Every element group ends with its own **Erase** tool that removes only that elem
 
 ## Spawn Zones
 
-- **Actor Spawn Zone (Paint)** — Drag a rectangle, then enter Kind and Count.
-- **Player Spawn Zone (Paint)** — Drag a rectangle. No prompt — players spawn anywhere in any player zone.
-- **Spawn Zone (Edit)** — Click any spawn zone (actor or player) to select; drag the body to move, drag a corner/edge handle to resize. Right-click to edit fields (actor zones) or delete.
+- **Actor Spawn Zone** — Drag a rectangle, then enter Kind and Count.
+- **Player Spawn Zone** — Drag a rectangle. No prompt — players spawn anywhere in any player zone.
 - **Erase Spawn Zones** — Drag a rectangle to remove every actor and player spawn zone it touches on the current level.
 
 ## Walls
@@ -43,7 +46,7 @@ Every element group ends with its own **Erase** tool that removes only that elem
 
 ## Nested Maps
 
-- **Nested Map** — Click a cell to place another map file with its cell (0, 0) on it, standing still; drag to a second cell to make it slide there and back. A moving tile is a nested one-cell map (`tile`), and a lift is one whose far end is on another level. A dialog asks which map (any other file in `config/server/maps`), the level of the far end, the speed, the pause at each end, and a phase offset. Everything in the nested map rides along: floors, walls, ladders, plates, items, and its own nested maps. On the canvas the ends are numbered squares 1 and 2 with a band between them, and the nested map's footprint is outlined and named at each end, solid where it starts and dashed where it arrives; a red `name?` is a map file that is missing. Nothing checks for overlap with the map around it. Dragging from an end moves that end, clicking an end opens the entry's properties, and right-clicking an end offers the same in any tool, beside Erase.
+- **Nested Map** — Click a cell to place another map file with its cell (0, 0) on it, standing still; drag to a second cell to make it slide there and back. A moving tile is a nested one-cell map (`tile`), and a lift is one whose far end is on another level. A dialog asks which map (any other file in `config/server/maps`), the level of the far end, how long one leg takes, the pause at each end, a phase offset, and a nudge for each end, its (x, y, z) displacement from the anchor, x and z in wall widths (across columns and rows) and y in floor widths (up), zero by default; two floors meeting at a grid line overlap by one wall width, so a nudge of 1.01 back along the travel leaves them just clear. Everything in the nested map rides along: floors, walls, ladders, plates, items, and its own nested maps. On the canvas the ends are numbered squares 1 and 2 with a band between them, and the nested map's footprint is outlined and named where it rests at each end, its nudge applied, solid where it starts and dashed where it arrives (a y nudge cannot be drawn on the plan, so it is written after the name); a red `name?` is a map file that is missing. Nothing checks for overlap with the map around it. Dragging from an end moves that end, clicking an end opens the entry's properties, and right-clicking an end offers the same in any tool, beside Erase.
 - **Erase Nested Maps** — Drag a rectangle to remove every nested map whose start or end cell on the current level is inside it.
 
 ## Ladders
@@ -59,19 +62,19 @@ Every element group ends with its own **Erase** tool that removes only that elem
 
 ## Lights
 
-- **Light** — Click a cell near a wall to add a wall light on that side; the hover ghost shows the side a click would use, and only where a wall accepts one. Click an existing light marker to remove it. Use **Edit → Auto-Place Lights** to fill the current level on a stride; **Edit → Clear Lights On Level** to start over.
+- **Light** — Click a cell near a wall to add a wall light on that side; the hover ghost shows the side a click would use, and only where a wall accepts one. Right-click a light to erase it. Use **Edit → Auto-Place Lights** to fill the current level on a stride; **Edit → Clear Lights On Level** to start over.
 - **Erase Lights** — Drag a rectangle to remove every light inside it on the current level.
 
 ## Pressure Plates
 
-- **Barrier Plate** — Left-click a cell to place a plate (square in the barrier kind's color); a dialog asks which barrier kind. While enough plates of a kind are pressed — one fewer than the players alive, capped by the plate count — every barrier of that kind opens globally. Clicking a cell that already holds a plate removes it.
-- **Bridge Plate** — Left-click a cell to place a plate (diamond in the bridge kind's color); a dialog asks which bridge kind. While enough plates of a kind are pressed — the same count as for barrier plates — every light bridge of that kind turns solid. Clicking a cell that already holds a plate removes it.
-- **Firework Plate** — Left-click a cell to place a firework plate (circle). When every player alive stands on a firework plate — or every plate is held when players outnumber the plates — the firework show starts. Clicking a cell that already holds a plate removes it.
+- **Barrier Plate** — Left-click a cell to place a plate (square in the barrier kind's color); a dialog asks which barrier kind. While enough plates of a kind are pressed — one fewer than the players alive, capped by the plate count — every barrier of that kind opens globally. Right-click a plate to change its kind or erase it.
+- **Bridge Plate** — Left-click a cell to place a plate (diamond in the bridge kind's color); a dialog asks which bridge kind. While enough plates of a kind are pressed — the same count as for barrier plates — every light bridge of that kind turns solid. Right-click a plate to change its kind or erase it.
+- **Firework Plate** — Left-click a cell to place a firework plate (circle). When every player alive stands on a firework plate — or every plate is held when players outnumber the plates — the firework show starts. Right-click a plate to change its kind or erase it.
 - **Erase Pressure Plates** — Drag a rectangle to remove every plate inside it on the current level.
 
 ## Items
 
-- **Item** — Left-click a floor cell to place an item; a dialog asks the type (power-ups, health potion, cookie, or key — keys also pick a barrier kind). Clicking a cell that already holds an item removes it. Placed items hide on pickup in-game and reappear after the map's per-type `placed_items.respawn_secs` delay from `config/server/gameplay.json`. Non-key items render as colored circles; keys as diamonds in their barrier-kind color.
+- **Item** — Left-click a floor cell to place an item; a dialog asks the type (power-ups, health potion, cookie, or key — keys also pick a barrier kind). Right-click an item to change its type or erase it. Placed items hide on pickup in-game and reappear after the map's per-type `placed_items.respawn_secs` delay from `config/server/gameplay.json`. Non-key items render as colored circles; keys as diamonds in their barrier-kind color.
 - **Erase Items** — Drag a rectangle to remove every item inside it on the current level.
 
 ## Erase

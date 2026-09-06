@@ -8,8 +8,8 @@ use super::geometry::{character_pose, character_support_probe_pose, character_su
 use crate::{
     config::CharacterPhysicsConfig,
     constants::{
-        CARRIER_RIDE_TOLERANCE, CHARACTER_GROUND_SNAP_DISTANCE, CHARACTER_PERCH_SLIDE_SPEED, CHARACTER_STEP_HEIGHT,
-        PHYSICS_EPSILON,
+        CARRIER_RIDE_TOLERANCE, CARRIER_SURFACE_TIE_EPSILON, CHARACTER_GROUND_SNAP_DISTANCE,
+        CHARACTER_PERCH_SLIDE_SPEED, CHARACTER_STEP_HEIGHT, PHYSICS_EPSILON,
     },
     map::Carriers,
     physics::world::{CollisionWorld, ShapeCastHit},
@@ -52,7 +52,11 @@ pub(super) fn character_ground_hit(
 // made (a cast that starts inside a floor that rose through the feet would
 // snap wrongly) and reaches below the largest drop. No vertical-velocity
 // condition: the tick a jump leaves a carrier the feet are still on it, and
-// that tick's carry is what hands the jumper the carrier's velocity.
+// that tick's carry is what hands the jumper the carrier's velocity. Of two
+// coincident surfaces the carried one carries: a rider crossing a static
+// floor at the tile's own height keeps riding instead of being dropped by
+// the cast's tie order, and a body standing where a tile slides through at
+// floor height goes with it.
 pub(super) fn supporting_carrier(
     collision_world: &CollisionWorld,
     shape: &Cuboid,
@@ -67,16 +71,12 @@ pub(super) fn supporting_carrier(
         ..*pos
     };
     let pose = character_support_probe_pose(&lifted, physics);
-    collision_world
-        .ground_hit(
-            shape,
-            &pose,
-            physics.collider.bottom_y_offset() + rise + carriers.max_drop() + CARRIER_RIDE_TOLERANCE,
-            0.0,
-            passable_kinds,
-            &[],
-        )
-        .map(|hit| hit.carrier)
+    let reach = physics.collider.bottom_y_offset() + rise + carriers.max_drop() + CARRIER_RIDE_TOLERANCE;
+    let carried = collision_world.carried_ground_hit(shape, &pose, reach, passable_kinds)?;
+    let world_above = collision_world
+        .ground_hit(shape, &pose, reach, 0.0, passable_kinds, &[])
+        .is_some_and(|hit| hit.carrier.is_world() && hit.t + CARRIER_SURFACE_TIE_EPSILON < carried.t);
+    (!world_above).then_some(carried.carrier)
 }
 
 pub(super) fn snap_position_to_ground(pos: &mut Position, ground: ShapeCastHit, physics: CharacterPhysicsConfig) {
