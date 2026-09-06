@@ -7,9 +7,9 @@ import os
 import tempfile
 from pathlib import Path
 
-from .constants import DEFAULT_GRID_COLS, DEFAULT_GRID_ROWS, REPO_ROOT
+from .constants import ASSETS_PATH, DEFAULT_GRID_COLS, DEFAULT_GRID_ROWS
 from .formatting import format_map_file
-from .normalization import normalize_map
+from .normalization import empty_level, normalize_map
 
 
 def empty_map(grid_cols: int = DEFAULT_GRID_COLS, grid_rows: int = DEFAULT_GRID_ROWS) -> dict:
@@ -26,18 +26,7 @@ def empty_map(grid_cols: int = DEFAULT_GRID_COLS, grid_rows: int = DEFAULT_GRID_
         ],
         "items": [],
         "pressure_plates": [],
-        "levels": [
-            {
-                "name": "Level 0",
-                "floors": [],
-                "inaccessible_floors": [],
-                "grass": [],
-                "walls": [],
-                "barriers": [],
-                "light_bridges": [],
-                "lights": [],
-            }
-        ],
+        "levels": [empty_level(0)],
         "ramps": [],
         "ladders": [],
         "nested_maps": [],
@@ -57,10 +46,9 @@ def load_materials_catalog() -> list[str]:
     implementation detail of the renderer. Falls back to the raw `materials`
     keys if no aliases are defined. Returns an empty list if the file can't
     be located — callers handle that gracefully."""
-    catalog_path = REPO_ROOT / "config" / "client" / "assets.json"
-    if catalog_path.exists():
+    if ASSETS_PATH.exists():
         try:
-            with catalog_path.open("r", encoding="utf-8") as handle:
+            with ASSETS_PATH.open("r", encoding="utf-8") as handle:
                 assets = json.load(handle)
             aliases = assets.get("aliases") or {}
             if aliases:

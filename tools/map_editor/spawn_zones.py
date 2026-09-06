@@ -10,7 +10,7 @@ from .constants import (
     SPAWN_ZONE_HANDLE_PIXELS,
     SPAWN_ZONE_LISTS,
 )
-from .geometry import zone_contains_cell, zone_rect
+from .geometry import zone_contains_cell, zone_handle_centers, zone_rect
 from .normalization import zone_key
 from .types import SpawnZoneDrag, ZoneRef
 
@@ -46,9 +46,9 @@ class SpawnZoneEditMixin:
         new_idx = self._find_zone_index(list_name, target)
         return ZoneRef(list_name, new_idx) if new_idx is not None else None
 
-    def spawn_zone_at(self, pos, cell_size: float) -> ZoneRef | None:
-        col = int(pos.x() // cell_size)
-        row = int(pos.y() // cell_size)
+    def spawn_zone_at(self, pos) -> ZoneRef | None:
+        col = int(pos.x() // 1)
+        row = int(pos.y() // 1)
         # Priority order when zones overlap a cell: actor → player. Actor
         # zones carry per-zone configuration (kind / count), so the user is
         # more likely to want them. Within each list, iterate in reverse so
@@ -60,13 +60,14 @@ class SpawnZoneEditMixin:
                     return ZoneRef(list_name, idx)
         return None
 
-    def begin_spawn_zone_drag(self, pos, cell_size: float) -> bool:
-        """A press on a spawn zone. A handle of the selected zone starts a
-        resize and its body a move; any other zone is only selected, so a
-        stray drag moves nothing. Returns whether a zone took the press."""
+    def begin_spawn_zone_drag(self, pos) -> bool:
+        """A press on a spawn zone, `pos` in grid units. A handle of the
+        selected zone starts a resize and its body a move; any other zone is
+        only selected, so a stray drag moves nothing. Returns whether a zone
+        took the press."""
         zone = self.selected_spawn_zone()
         if zone is not None and zone["level"] == self.current_level:
-            handle = self._handle_at_pos(zone, pos, cell_size)
+            handle = self._handle_at_pos(zone, pos)
             if handle is not None:
                 assert self.selected_spawn_zone_ref is not None
                 ref = self.selected_spawn_zone_ref
@@ -74,11 +75,11 @@ class SpawnZoneEditMixin:
                     list_name=ref.list_name,
                     index=ref.index,
                     handle=handle,
-                    origin=(pos.x() / cell_size, pos.y() / cell_size),
+                    origin=(pos.x(), pos.y()),
                     original_zone=copy.deepcopy(zone),
                 )
                 return True
-        ref = self.spawn_zone_at(pos, cell_size)
+        ref = self.spawn_zone_at(pos)
         self.spawn_zone_drag = None
         if ref is None:
             self.set_selected_spawn_zone(None)
@@ -90,24 +91,25 @@ class SpawnZoneEditMixin:
             list_name=ref.list_name,
             index=ref.index,
             handle="move",
-            origin=(pos.x() / cell_size, pos.y() / cell_size),
+            origin=(pos.x(), pos.y()),
             original_zone=copy.deepcopy(self.map_data[ref.list_name][ref.index]),
         )
         return True
 
-    def _handle_at_pos(self, zone: dict, pos, cell_size: float) -> str | None:
+    # A handle is hit within a screen-sized radius, so it stays grabbable at
+    # any zoom.
+    def _handle_at_pos(self, zone: dict, pos) -> str | None:
         handle_names = ["nw", "n", "ne", "e", "se", "s", "sw", "w"]
-        centers = self.canvas.spawn_zone_handle_centers(zone, cell_size)
-        radius = max(SPAWN_ZONE_HANDLE_PIXELS * 0.75, 6.0)
-        for name, (cx, cy) in zip(handle_names, centers):
+        radius = self.canvas.cells_per_pixel(max(SPAWN_ZONE_HANDLE_PIXELS * 0.75, 6.0))
+        for name, (cx, cy) in zip(handle_names, zone_handle_centers(zone)):
             if abs(pos.x() - cx) <= radius and abs(pos.y() - cy) <= radius:
                 return name
         return None
 
-    def update_spawn_zone_edit_drag(self, pos, cell_size: float) -> None:
+    def update_spawn_zone_edit_drag(self, pos) -> None:
         if self.spawn_zone_drag is None:
             return
-        self.spawn_zone_drag.current = (pos.x() / cell_size, pos.y() / cell_size)
+        self.spawn_zone_drag.current = (pos.x(), pos.y())
 
     def spawn_zone_candidate_rect(self) -> tuple[int, int, int, int] | None:
         drag = self.spawn_zone_drag

@@ -5,11 +5,9 @@ from __future__ import annotations
 import copy
 
 from .constants import LADDER_SIDES
-from .erasing import ladders_outside
 from .geometry import (
     cell_side_from_click,
     ladder_anchor_from_click,
-    rect_from_cells,
     wall_endpoints_for_cell_side,
 )
 from .normalization import ladder_key, ladder_spans_level
@@ -18,9 +16,9 @@ from .normalization import ladder_key, ladder_spans_level
 class LaddersMixin:
     # === Ladders ===
 
-    def toggle_ladder_at(self, pos, cell_size: float) -> None:
-        px = pos.x() / cell_size
-        py = pos.y() / cell_size
+    def toggle_ladder_at(self, pos) -> None:
+        px = pos.x()
+        py = pos.y()
         cols = self.map_data["grid_cols"]
         rows = self.map_data["grid_rows"]
         col = int(px)
@@ -52,11 +50,11 @@ class LaddersMixin:
             return
 
         if not (0 <= anchor_col < cols and 0 <= anchor_row < rows):
-            self._flash_status("No cell across that edge to climb to.")
+            self.notify("No cell across that edge to climb to.")
             return
         max_levels = len(self.map_data["levels"]) - 1 - level_idx
         if max_levels < 1:
-            self._flash_status("A ladder needs a level above this one to climb to.")
+            self.notify("A ladder needs a level above this one to climb to.")
             return
         levels = min(max_levels, max(1, self.recent_ladder_levels))
         self.recent_ladder_levels = levels
@@ -75,20 +73,8 @@ class LaddersMixin:
             for l in self.map_data.get("ladders", [])
         )
         if overlapping:
-            self._flash_status(f"A ladder already spans that edge ({side} side of [{col}, {row}]).")
+            self.notify(f"A ladder already spans that edge ({side} side of [{col}, {row}]).")
             return
         after = copy.deepcopy(self.map_data)
         after.setdefault("ladders", []).append(new_ladder)
         self.apply_change("Add Ladder", after)
-
-    def erase_ladders_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
-        rect = rect_from_cells(start, end)
-        level_idx = self.current_level
-        ladders = self.map_data.get("ladders", [])
-        kept = ladders_outside(ladders, level_idx, rect)
-        if len(kept) == len(ladders):
-            self._flash_status("Erase Ladders: no ladders in selection.")
-            return
-        after = copy.deepcopy(self.map_data)
-        after["ladders"] = kept
-        self.apply_change("Erase Ladders", after)

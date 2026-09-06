@@ -2,7 +2,7 @@
 
 from PySide6.QtCore import QFileSystemWatcher, QObject, QTimer, Signal
 
-from .constants import GAMEPLAY_PATH, MAPS_DIR, REPO_ROOT
+from .constants import ASSETS_PATH, GAMEPLAY_PATH, MAPS_DIR
 
 
 class MapDependencies(QObject):
@@ -19,7 +19,7 @@ class MapDependencies(QObject):
         self.watcher.directoryChanged.connect(lambda _: self.timer.start())
 
     def watch(self, names) -> None:
-        files = {GAMEPLAY_PATH, REPO_ROOT / "config/client/assets.json"}
+        files = {GAMEPLAY_PATH, ASSETS_PATH}
         files.update(MAPS_DIR / f"{name}.json" for name in names)
         directories = {MAPS_DIR, *(path.parent for path in files)}
         desired = {str(path.resolve()) for path in files | directories if path.exists()}

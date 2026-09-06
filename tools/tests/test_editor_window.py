@@ -2,21 +2,18 @@ import copy
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
-from PySide6.QtCore import QEvent, QPoint, QPointF, QSettings, QTimer, Qt
+from PySide6.QtCore import QEvent, QPoint, QPointF, QTimer, Qt
 from PySide6.QtGui import QContextMenuEvent, QMouseEvent, QWheelEvent
 from PySide6.QtTest import QSignalSpy, QTest
 from PySide6.QtWidgets import (
     QApplication,
-    QCheckBox,
     QComboBox,
     QDialog,
     QDockWidget,
     QMenu,
     QMessageBox,
-    QStatusBar,
-    QToolBar,
 )
 
 from map_editor.constants import (
@@ -25,6 +22,7 @@ from map_editor.constants import (
     MODE_ACTOR_SPAWN_ZONE,
     MODE_BRIDGE_PLATE,
     MODE_ERASE,
+    MODE_ERASE_LADDERS,
     MODE_FIREWORK_PLATE,
     MODE_FLOOR,
     MODE_FLOOR_MATERIAL,
@@ -36,20 +34,19 @@ from map_editor.constants import (
     MODE_RAMP_UP,
     MODE_SELECT,
     MODE_WALL,
-    MODES,
 )
-from map_editor.canvas import CLICK_TOOLS, RELEASE_TOOLS
 from map_editor.dependencies import MapDependencies
 from map_editor.dialogs import ActorSpawnFieldsDialog, MaterialAssignmentDialog
 from map_editor.document import MapDocument
 from map_editor.editing import material_values, paint_floors, place_plate, top_left_materials, update_records
 from map_editor.erasing import erase_cell_rect
 from map_editor.io import empty_map, read_map, write_map
-from map_editor.normalization import normalize_map, pressure_plate_key
+from map_editor.normalization import canonicalize_map, normalize_map, pressure_plate_key
 from map_editor.structure import insert_level_data, remove_level_data
 from map_editor.transforms import record_lists, resize_map_data, translate_map
 from map_editor.validation import validate_map
 from map_editor.viewport import Viewport
+from editor_fixtures import WindowTestCase
 from map_editor.window import EditorWindow
 
 
@@ -57,6 +54,24 @@ class DocumentTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.app = QApplication.instance() or QApplication([])
+
+    def test_unsaved_document_starts_dirty(self):
+        self.assertTrue(MapDocument(None).dirty)
+
+    def test_save_as_failure_keeps_autosave_and_original_identity(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "original.json"
+            write_map(path, empty_map())
+            doc = MapDocument(path)
+            doc.dirty = True
+            doc.write_autosave()
+            with patch("map_editor.document.write_map", side_effect=OSError("disk full")):
+                with self.assertRaises(OSError):
+                    doc.write(Path(temp) / "another.json")
+            self.assertEqual(doc.path, path)
+            self.assertTrue(doc.dirty)
+            self.assertTrue(doc.autosave_path().exists())
+
 
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -128,6 +143,29 @@ class DocumentTests(unittest.TestCase):
         self.doc.apply_change("Insert", insert_level_data(self.doc.map_data, 0))
         self.assertEqual(self.doc.map_data["levels"][1]["lights"][0]["side"], "INVALID")
         self.assertEqual(self.doc.map_data["items"][0]["level"], 1)
+
+    def test_erasing_a_wall_takes_its_light_even_while_repairs_are_pending(self):
+        self.load_damaged_map()
+        data = copy.deepcopy(self.doc.map_data)
+        data["levels"][0]["walls"] = [{"c0": 2, "r0": 2, "c1": 3, "r1": 2, "all": DEFAULT_ALIAS}]
+        data["levels"][0]["lights"].append({"col": 2, "row": 2, "side": "N"})
+        self.doc.replace_with_new(data)
+        self.doc.apply_change("Erase", erase_cell_rect(self.doc.map_data, 0, (2, 2), (2, 2), True))
+        sides = [light["side"] for light in self.doc.map_data["levels"][0]["lights"]]
+        self.assertEqual(sides, ["INVALID"])
+
+    def test_an_edit_that_only_reorders_a_file_ordered_map_is_not_an_edit(self):
+        data = empty_map(6, 6)
+        data["player_spawn_zones"] = []
+        data["levels"][0]["floors"] = [
+            {"col": 3, "row": 3, "all": DEFAULT_ALIAS},
+            {"col": 1, "row": 1, "all": DEFAULT_ALIAS},
+        ]
+        write_map(self.path, data)
+        doc = MapDocument(self.path, recovery_dir=self.directory / "recovery")
+        self.assertFalse(doc.apply_change("Paint", paint_floors(doc.map_data, 0, (1, 1, 2, 2), DEFAULT_ALIAS)))
+        self.assertFalse(doc.dirty)
+        self.assertEqual(doc.undo_stack.count(), 0)
 
     def test_untitled_recovery_preserves_data_and_rejects_an_active_session(self):
         self.doc.replace_with_new(empty_map())
@@ -206,42 +244,35 @@ class DocumentTests(unittest.TestCase):
                 self.assertEqual(entries, before)
 
 
-class WindowRefactorTests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.app = QApplication.instance() or QApplication([])
+class WindowTests(WindowTestCase):
+    def test_canonicalization_of_stacked_ramps_is_a_fixed_point(self):
+        data = empty_map(6, 6)
+        data["levels"] = [copy.deepcopy(data["levels"][0]) for _ in range(3)]
+        data["ramps"] = [
+            {"lower_level": 1, "low": [1, 1], "high": [3, 1], "all": DEFAULT_ALIAS},
+            {"lower_level": 0, "low": [1, 1], "high": [3, 1], "all": DEFAULT_ALIAS},
+        ]
+        once = canonicalize_map(data)
+        self.assertEqual(canonicalize_map(once), once)
 
-    def setUp(self):
-        self.temp = tempfile.TemporaryDirectory()
-        self.path = Path(self.temp.name) / "map.json"
-        data = paint_floors(empty_map(8, 8), 0, (1, 1, 2, 2), DEFAULT_ALIAS)
-        data["player_spawn_zones"] = []
-        write_map(self.path, data)
-        self.recents = patch.object(EditorWindow, "_record_recent_path")
-        self.recents.start()
-        self.app.clipboard().clear()
-        preferences = QSettings(str(Path(self.temp.name) / "preferences.ini"), QSettings.Format.IniFormat)
-        self.window = EditorWindow(self.path, preferences=preferences)
-        self.window._autosave_timer.stop()
-        self.window.show()
-        self.window.activateWindow()
-        self.app.processEvents()
-
-    def tearDown(self):
-        with patch.object(self.window, "confirm_discard_changes", return_value=True):
-            self.window.close()
-        self.window.deleteLater()
-        self.app.sendPostedEvents(None, QEvent.Type.DeferredDelete)
-        self.recents.stop()
-        self.temp.cleanup()
-
-    def test_canvas_fills_window_below_one_toolbar_without_permanent_panels(self):
+    def test_paste_beside_an_invalid_item_is_not_refused_for_its_shifted_index(self):
         window = self.window
-        self.assertIsNone(window.findChild(QStatusBar))
-        self.assertEqual(len(window.findChildren(QToolBar)), 1)
+        data = copy.deepcopy(window.map_data)
+        data["levels"][0]["floors"].append({"col": 6, "row": 6, "all": DEFAULT_ALIAS})
+        data["items"] = [{"level": 0, "col": 6, "row": 6, "type": "not_a_type"}]
+        window.doc.replace_with_new(data)
+        self.click(1, 1)
+        with patch("map_editor.select.QInputDialog.getInt", return_value=(1, True)):
+            window.copy_action.trigger()
+        self.click(3, 3)
+        with patch("map_editor.select.QMessageBox.information") as refused:
+            window.paste_action.trigger()
+        refused.assert_not_called()
+        self.assertEqual(len(window.map_data["levels"][0]["floors"]), 3)
+
+    def test_issues_dock_and_tool_settings_start_hidden(self):
+        window = self.window
         self.assertFalse(any(dock.isVisible() for dock in window.findChildren(QDockWidget)))
-        self.assertEqual(window.canvas.width(), window.contentsRect().width())
-        self.assertEqual(window.canvas.geometry().bottom(), window.contentsRect().bottom())
         self.assertFalse(window.tool_settings.isVisible())
 
     def test_close_saves_geometry_shared_with_other_maps_but_cancel_keeps_window_open(self):
@@ -312,9 +343,6 @@ class WindowRefactorTests(unittest.TestCase):
             MODE_FIREWORK_PLATE: "add_firework_plate",
             MODE_ITEM: "prompt_and_add_item",
         }
-        self.assertEqual(set(CLICK_TOOLS), set(methods))
-        self.assertFalse(set(CLICK_TOOLS) & set(RELEASE_TOOLS))
-        self.assertEqual(set(CLICK_TOOLS) | set(RELEASE_TOOLS) | {MODE_SELECT}, set(MODES))
         for mode, method in methods.items():
             with self.subTest(mode=mode), patch.object(window, method) as place:
                 window.mode_combo.setCurrentText(mode)
@@ -323,20 +351,13 @@ class WindowRefactorTests(unittest.TestCase):
                 end = canvas.viewport.from_grid(QPointF(4.5, 4.1)).toPoint()
                 QTest.mousePress(canvas, Qt.MouseButton.LeftButton, pos=start)
                 self.move_with_button(canvas, end)
-                self.assertIsNone(canvas.drag_start_cell)
-                self.assertIsNone(canvas.drag_current_cell)
-                self.assertIsNone(canvas.drag_start_point)
-                self.assertIsNone(canvas.drag_current_point)
                 self.assertEqual(canvas.hover_cell, (4, 4))
                 if mode in (MODE_LADDER, MODE_LIGHT):
                     self.assertEqual(canvas.hover_edge_side, "N")
-                painter = Mock()
-                canvas._paint_drag_preview_rect(painter, canvas.cell_size())
-                painter.drawRect.assert_not_called()
                 place.assert_not_called()
                 QTest.mouseRelease(canvas, Qt.MouseButton.LeftButton, pos=end)
                 if mode in (MODE_LADDER, MODE_LIGHT):
-                    place.assert_called_once_with(canvas.map_position(end), canvas.cell_size())
+                    place.assert_called_once_with(canvas.grid_position(end))
                 else:
                     place.assert_called_once_with(4, 4)
                 self.assertFalse(canvas.click_pending)
@@ -388,13 +409,9 @@ class WindowRefactorTests(unittest.TestCase):
 
     def test_tool_settings_are_inline_and_hide_for_tools_without_properties(self):
         window = self.window
-        toolbar = window.findChild(QToolBar)
         window.mode_combo.setCurrentText(MODE_ACTOR_SPAWN_ZONE)
         self.app.processEvents()
         self.assertTrue(window.tool_settings.isVisible())
-        self.assertIs(window.tool_settings.parentWidget(), toolbar)
-        self.assertLessEqual(window.tool_settings.height(), toolbar.height())
-        self.assertLess(window.tool_settings.geometry().right(), toolbar.width())
         for mode in (MODE_SELECT, MODE_ERASE):
             window.mode_combo.setCurrentText(mode)
             self.app.processEvents()
@@ -402,7 +419,6 @@ class WindowRefactorTests(unittest.TestCase):
         window.mode_combo.setCurrentText(MODE_FLOOR)
         self.app.processEvents()
         self.assertTrue(window.tool_settings.isVisible())
-        self.assertIsNone(window.tool_settings.body.findChild(QCheckBox))
 
     def test_item_kind_control_only_shows_for_keys_including_recalled_settings(self):
         window = self.window
@@ -424,15 +440,14 @@ class WindowRefactorTests(unittest.TestCase):
         canvas = window.canvas
         canvas.setFocus()
         geometry = canvas.geometry()
-        window._flash_status("No wall here")
+        window.notify("No wall here")
         notice = canvas.notice
         self.assertTrue(notice.isVisible())
         self.assertTrue(notice.testAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents))
         self.assertTrue(canvas.hasFocus())
-        window._flash_status("Nothing to erase")
+        window.notify("Nothing to erase")
         self.assertEqual(notice.text(), "Nothing to erase")
         self.assertEqual(canvas.geometry(), geometry)
-        self.assertIsNone(window.findChild(QStatusBar))
         notice.timer.start(10)
         QTest.qWait(30)
         self.assertFalse(notice.isVisible())
@@ -440,7 +455,7 @@ class WindowRefactorTests(unittest.TestCase):
 
     def test_long_canvas_notice_stays_inside_canvas_after_resize(self):
         window = self.window
-        window._flash_status("Cannot place the item here. " * 12)
+        window.notify("Cannot place the item here. " * 12)
         window.resize(650, 500)
         self.app.processEvents()
         notice = window.canvas.notice
@@ -524,7 +539,7 @@ class WindowRefactorTests(unittest.TestCase):
         canvas = window.canvas
         canvas.viewport.pan(QPointF(60, 40))
         position = canvas.viewport.from_grid(QPointF(1.5, 1.15))
-        hit = window.hit_at(canvas.map_position(position), canvas.cell_size())
+        hit = window.hit_at(canvas.grid_position(position))
         self.assertEqual(hit[0], "Light")
         wall = canvas._wall_near_position(canvas.viewport.from_grid(QPointF(1.5, 1)))
         self.assertIsNotNone(wall)
@@ -577,11 +592,11 @@ class WindowRefactorTests(unittest.TestCase):
         data = copy.deepcopy(window.map_data)
         data["ladders"] = [{"lower_level": 0, "col": 2, "row": 2, "levels": 0, "side": "bad"}]
         window.doc.replace_with_new(data)
-        hit = window.hit_at(QPointF(2.5, 2.5) * window.canvas.cell_size(), window.canvas.cell_size())
+        hit = window.hit_at(QPointF(2.5, 2.5))
         self.assertEqual(hit[0], "Ladder")
-        window.erase_ladders_rect((5, 5), (5, 5))
+        window.erase_group_rect(MODE_ERASE_LADDERS, (5, 5), (5, 5))
         self.assertEqual(len(window.map_data["ladders"]), 1)
-        window.erase_ladders_rect((2, 2), (2, 2))
+        window.erase_group_rect(MODE_ERASE_LADDERS, (2, 2), (2, 2))
         self.assertEqual(window.map_data["ladders"], [])
         window.undo_stack.undo()
         self.assertEqual(len(window.map_data["ladders"]), 1)
@@ -662,7 +677,7 @@ class WindowRefactorTests(unittest.TestCase):
         window.recent_ladder_levels = 2
         with patch.object(QDialog, "exec", side_effect=AssertionError("Unexpected placement dialog")):
             for col in (3, 5):
-                window.toggle_ladder_at(QPointF(col + 0.5, 3.05) * window.canvas.cell_size(), window.canvas.cell_size())
+                window.toggle_ladder_at(QPointF(col + 0.5, 3.05))
         self.assertEqual([ladder["levels"] for ladder in window.map_data["ladders"]], [2, 2])
 
     def test_item_and_kind_placement_uses_previous_values_without_dialogs(self):

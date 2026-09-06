@@ -33,16 +33,8 @@ class PlacementMixin:
 
     # === Placement (paint / draw new segments) ===
 
-    def _face_materials_for_current(self) -> dict[str, str]:
-        return {face: self.current_material for face in FACES}
-
     def _new_ramp(self, low: list[int], high: list[int], lower_level: int) -> dict:
-        return {
-            "low": low,
-            "high": high,
-            "lower_level": lower_level,
-            **self._face_materials_for_current(),
-        }
+        return {"low": low, "high": high, "lower_level": lower_level, **dict.fromkeys(FACES, self.current_material)}
 
     def add_floor_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
         self.apply_change("Paint Floor", paint_floors(self.map_data, self.current_level, rect_from_cells(start, end), self.current_material))
@@ -52,18 +44,6 @@ class PlacementMixin:
 
     def add_grass_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
         self.apply_change("Paint Grass", paint_grass(self.map_data, self.current_level, rect_from_cells(start, end)))
-
-    def erase_grass_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
-        c0, r0, c1, r1 = rect_from_cells(start, end)
-        level_idx = self.current_level
-        grass = self.map_data["levels"][level_idx].get("grass", [])
-        kept = [g for g in grass if not (c0 <= g["col"] < c1 and r0 <= g["row"] < r1)]
-        if len(kept) == len(grass):
-            self._flash_status("Erase Grass: no grass in selection.")
-            return
-        after = copy.deepcopy(self.map_data)
-        after["levels"][level_idx]["grass"] = kept
-        self.apply_change("Erase Grass", after)
 
     def add_actor_spawn_zone_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
         result = self.prompt_for_actor_spawn_fields()
@@ -129,21 +109,9 @@ class PlacementMixin:
 
     def add_light_bridge_rect(self, start: tuple[int, int], end: tuple[int, int], kind: str) -> None:
         if kind not in self.bridge_kinds:
-            self._flash_status(f"Unknown bridge kind {kind!r}")
+            self.notify(f"Unknown bridge kind {kind!r}")
             return
         self.apply_change(f"Place Light Bridge ({kind})", paint_bridges(self.map_data, self.current_level, rect_from_cells(start, end), kind))
-
-    def erase_light_bridges_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
-        c0, r0, c1, r1 = rect_from_cells(start, end)
-        level_idx = self.current_level
-        bridges = self.map_data["levels"][level_idx].get("light_bridges", [])
-        kept = [b for b in bridges if not (c0 <= b["col"] < c1 and r0 <= b["row"] < r1)]
-        if len(kept) == len(bridges):
-            self._flash_status("Erase Light Bridges: no bridges in selection.")
-            return
-        after = copy.deepcopy(self.map_data)
-        after["levels"][level_idx]["light_bridges"] = kept
-        self.apply_change("Erase Light Bridges", after)
 
     def prompt_and_add_pressure_plate(self, col: int, row: int) -> None:
         kind = self.placement_kind(
@@ -156,7 +124,7 @@ class PlacementMixin:
 
     def add_pressure_plate(self, col: int, row: int, kind: str) -> None:
         if kind not in self.barrier_kinds:
-            self._flash_status(f"Unknown plate kind {kind!r}")
+            self.notify(f"Unknown plate kind {kind!r}")
             return
         plate = {"level": self.current_level, "col": col, "row": row, "type": PLATE_TYPE_BARRIER, "kind": kind}
         self._add_plate(plate, f"Place Barrier Plate ({kind})")
@@ -172,7 +140,7 @@ class PlacementMixin:
 
     def add_bridge_plate(self, col: int, row: int, kind: str) -> None:
         if kind not in self.bridge_kinds:
-            self._flash_status(f"Unknown plate kind {kind!r}")
+            self.notify(f"Unknown plate kind {kind!r}")
             return
         plate = {"level": self.current_level, "col": col, "row": row, "type": PLATE_TYPE_BRIDGE, "kind": kind}
         self._add_plate(plate, f"Place Bridge Plate ({kind})")
@@ -188,9 +156,6 @@ class PlacementMixin:
             if plate["level"] == self.current_level and (plate["col"], plate["row"]) == (col, row)
         ]
 
-    def editable_plates_at(self, col: int, row: int) -> list[dict]:
-        return [plate for plate in self.plates_at(col, row) if plate["type"] != PLATE_TYPE_FIREWORK]
-
     def edit_pressure_plate_at(self, key: tuple) -> None:
         plate = next((p for p in self.map_data["pressure_plates"] if pressure_plate_key(p) == key), None)
         if plate is None or plate["type"] == PLATE_TYPE_FIREWORK:
@@ -204,7 +169,7 @@ class PlacementMixin:
         try:
             after = place_plate(self.map_data, {**plate, "kind": kind}, replacing=key)
         except ValueError as exc:
-            self._flash_status(str(exc))
+            self.notify(str(exc))
             return
         self.apply_change(title, after)
 
@@ -212,7 +177,7 @@ class PlacementMixin:
         try:
             after = place_plate(self.map_data, plate)
         except ValueError as exc:
-            self._flash_status(f"Plate not placed: {exc}")
+            self.notify(f"Plate not placed: {exc}")
             return
         self.apply_change(label, after)
 
@@ -221,24 +186,9 @@ class PlacementMixin:
         after["pressure_plates"] = [p for p in after["pressure_plates"] if pressure_plate_key(p) != key]
         self.apply_change("Erase Pressure Plate", after)
 
-    def erase_pressure_plates_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
-        c0, r0, c1, r1 = rect_from_cells(start, end)
-        plates = self.map_data.get("pressure_plates", [])
-        kept = [
-            p
-            for p in plates
-            if not (p["level"] == self.current_level and c0 <= p["col"] < c1 and r0 <= p["row"] < r1)
-        ]
-        if len(kept) == len(plates):
-            self._flash_status("Erase Pressure Plates: no plates in selection.")
-            return
-        after = copy.deepcopy(self.map_data)
-        after["pressure_plates"] = kept
-        self.apply_change("Erase Pressure Plates", after)
-
     def add_barrier_line(self, start: tuple[int, int], end: tuple[int, int], kind: str) -> None:
         if kind not in self.barrier_kinds:
-            self._flash_status(f"Unknown barrier kind {kind!r}")
+            self.notify(f"Unknown barrier kind {kind!r}")
             return
         self.apply_change(f"Place Barrier ({kind})", paint_edges(self.map_data, self.current_level, start, end, kind=kind))
 
@@ -246,14 +196,14 @@ class PlacementMixin:
         start_point, end_point = ramp_points_from_cells(start_cell, end_cell)
         if mode == MODE_RAMP_UP:
             if self.current_level + 1 >= len(self.map_data["levels"]):
-                self._flash_status("Ramp not placed: Ramp (Up) needs an upper level")
+                self.notify("Ramp not placed: Ramp (Up) needs an upper level")
                 return
             lower_level = self.current_level
             low = start_point
             high = end_point
         else:
             if self.current_level == 0:
-                self._flash_status("Ramp not placed: Ramp (Down) needs a lower level")
+                self.notify("Ramp not placed: Ramp (Down) needs a lower level")
                 return
             lower_level = self.current_level - 1
             low = end_point
@@ -268,7 +218,7 @@ class PlacementMixin:
             len(self.map_data["levels"]),
         )
         if msg:
-            self._flash_status(f"Ramp not placed: {msg}")
+            self.notify(f"Ramp not placed: {msg}")
             return
         new_ramp = self._new_ramp(low, high, lower_level)
         self.apply_change(f"Place {mode}", place_ramp(self.map_data, new_ramp))
@@ -287,7 +237,7 @@ class PlacementMixin:
             f for f in level["inaccessible_floors"] if floor_in_rect(f)
         ]
         if not affected_floors:
-            self._flash_status("No floor segments in selection.")
+            self.notify("No floor segments in selection.")
             return
         result = MaterialAssignmentDialog.prompt(
             self, "Floor Materials",
@@ -323,7 +273,7 @@ class PlacementMixin:
 
         affected_walls = [w for w in level["walls"] if edge_inside(w)]
         if not affected_walls:
-            self._flash_status("No wall edges in selection.")
+            self.notify("No wall edges in selection.")
             return
         result = MaterialAssignmentDialog.prompt(
             self, "Wall Materials",
@@ -351,7 +301,7 @@ class PlacementMixin:
 
         affected_ramps = [r for r in self.map_data["ramps"] if ramp_in_rect(r)]
         if not affected_ramps:
-            self._flash_status("No ramps in selection.")
+            self.notify("No ramps in selection.")
             return
         result = MaterialAssignmentDialog.prompt(
             self, "Ramp Materials",

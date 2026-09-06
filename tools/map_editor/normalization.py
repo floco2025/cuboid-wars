@@ -1,4 +1,4 @@
-"""Map-data normalization, canonical ordering, dedupe, and resize."""
+"""Map-data normalization, canonical ordering, and dedupe."""
 
 from __future__ import annotations
 
@@ -17,7 +17,19 @@ from .constants import (
 )
 from .display import expand_face_materials
 from .geometry import normalized_wall, ramp_cells, wall_endpoints_for_cell_side
-from .transforms import resize_map_data as resize_map_data
+
+def empty_level(index: int) -> dict:
+    return {
+        "name": f"Level {index}",
+        "floors": [],
+        "inaccessible_floors": [],
+        "grass": [],
+        "walls": [],
+        "barriers": [],
+        "light_bridges": [],
+        "lights": [],
+    }
+
 
 def normalize_map(map_data: dict) -> dict:
     cols = int(map_data.get("grid_cols", DEFAULT_GRID_COLS))
@@ -41,18 +53,7 @@ def normalize_map(map_data: dict) -> dict:
             }
         )
     if not levels:
-        levels = [
-            {
-                "name": "Level 0",
-                "floors": [],
-                "inaccessible_floors": [],
-                "grass": [],
-                "walls": [],
-                "barriers": [],
-                "light_bridges": [],
-                "lights": [],
-            }
-        ]
+        levels = [empty_level(0)]
 
     ramps = [normalize_ramp(r) for r in map_data.get("ramps", [])]
     ladders = [normalize_ladder(l) for l in map_data.get("ladders", [])]
@@ -94,9 +95,7 @@ def normalize_wall(wall: dict) -> dict:
 
 
 def normalize_barrier(barrier: dict) -> dict:
-    # Migration: maps from before the kind-table refactor used `color`. Accept
-    # either field name on read; serialize as `kind` going forward.
-    kind = str(barrier.get("kind", barrier.get("color", "")))
+    kind = str(barrier.get("kind", ""))
     return {
         "c0": int(barrier["c0"]),
         "r0": int(barrier["r0"]),
@@ -181,6 +180,11 @@ def normalize_light(light: dict) -> dict:
     }
 
 
+# A wall's or barrier's grid edge, endpoint order normalized.
+def edge_key(entry: dict) -> tuple[int, int, int, int]:
+    return tuple(normalized_wall([entry["c0"], entry["r0"], entry["c1"], entry["r1"]]))
+
+
 def light_key(light: dict) -> tuple:
     return (light["row"], light["col"], light["side"])
 
@@ -218,10 +222,6 @@ def normalize_item(item: dict) -> dict:
     if out["type"] == ITEM_KEY_TYPE or "kind" in item:
         out["kind"] = str(item.get("kind", ""))
     return out
-
-
-def item_key(item: dict) -> tuple:
-    return (item["level"], item["row"], item["col"])
 
 
 def normalize_pressure_plate(plate: dict) -> dict:
@@ -284,6 +284,9 @@ def _dedupe_sorted(zones: list[dict], key_fn) -> list[dict]:
 
 def canonicalize_map(map_data: dict) -> dict:
     b = normalize_map(copy.deepcopy(map_data))
+    # Sorted before the floor rules, which resolve stacked ramps in list
+    # order: the result must not depend on the file's order.
+    b["ramps"] = sorted(b["ramps"], key=lambda r: (r["lower_level"], tuple(r["low"]), tuple(r["high"])))
     enforce_ramp_floor_rules(b)
     b["actor_spawn_zones"] = _dedupe_sorted(b["actor_spawn_zones"], actor_zone_key)
     b["player_spawn_zones"] = _dedupe_sorted(b["player_spawn_zones"], player_zone_key)
@@ -316,14 +319,14 @@ def canonicalize_map(map_data: dict) -> dict:
         ]
         level["walls"] = _dedupe_walls(level["walls"])
         wall_endpoints_set = {
-            tuple(normalized_wall([w["c0"], w["r0"], w["c1"], w["r1"]]))
+            edge_key(w)
             for w in level["walls"]
         }
         # Drop barriers that share an edge with a wall on the same level so
         # canonical files satisfy the Rust loader's conflict rule.
         level["barriers"] = [
             b for b in _dedupe_barriers(level.get("barriers", []))
-            if tuple(normalized_wall([b["c0"], b["r0"], b["c1"], b["r1"]])) not in wall_endpoints_set
+            if edge_key(b) not in wall_endpoints_set
         ]
         level["light_bridges"] = _dedupe_floors(level.get("light_bridges", []))
         cols, rows = b["grid_cols"], b["grid_rows"]
@@ -357,11 +360,6 @@ def canonicalize_map(map_data: dict) -> dict:
         # user's most recent placement stays.
         items_by_cell[(level_idx, item["col"], item["row"])] = item
     b["items"] = [items_by_cell[k] for k in sorted(items_by_cell.keys(), key=lambda k: (k[0], k[2], k[1]))]
-
-    b["ramps"] = sorted(
-        b["ramps"],
-        key=lambda r: (r["lower_level"], tuple(r["low"]), tuple(r["high"])),
-    )
 
     # Ladders: drop out-of-bounds anchors and spans past the top level (both
     # hard errors in the Rust loader), then keep the first ladder per
@@ -428,8 +426,6 @@ def _dedupe_lights(lights: list[dict]) -> list[dict]:
     for light in lights:
         by_key[light_key(light)] = light
     return [by_key[k] for k in sorted(by_key.keys())]
-
-
 
 
 def enforce_ramp_floor_rules(map_data: dict) -> None:

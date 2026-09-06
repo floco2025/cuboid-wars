@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import re
 from dataclasses import dataclass
 
 from .constants import (
@@ -18,6 +19,7 @@ from .constants import (
     PLATE_TYPES,
 )
 from .display import level_label
+from .normalization import edge_key
 from .geometry import (
     grid_point_in_bounds,
     normalized_wall,
@@ -28,12 +30,19 @@ from .geometry import (
 )
 from .transforms import record_levels, record_rect
 
+_INDEX_RE = re.compile(r"\[\d+\]")
+
 
 @dataclass(frozen=True)
 class ValidationIssue:
     message: str
     level: int | None = None
     rect: tuple[int, int, int, int] | None = None
+
+    # The issue without its list index, which shifts whenever an earlier
+    # record comes or goes: what an edit added is judged by this.
+    def identity(self) -> tuple:
+        return (self.level, self.rect, _INDEX_RE.sub("[]", self.message))
 
 
 class ValidationErrors(list):
@@ -115,7 +124,7 @@ def validate_map(
                 errors.append(f"{prefix}: wall [{c0}, {r0}, {c1}, {r1}] is not one grid edge")
 
         wall_endpoints_set = {
-            tuple(normalized_wall([w["c0"], w["r0"], w["c1"], w["r1"]]))
+            edge_key(w)
             for w in level["walls"]
         }
         barrier_seen: set[tuple[int, int, int, int]] = set()

@@ -6,7 +6,7 @@ import copy
 
 from .constants import ITEM_KEY_TYPE, ITEMS_LIST, ITEM_TYPES
 from .dialogs import ItemTypeDialog
-from .geometry import ramp_cells, rect_from_cells
+from .geometry import ramp_cells
 
 
 class ItemsMixin:
@@ -35,7 +35,7 @@ class ItemsMixin:
 
     def prompt_and_add_item(self, col: int, row: int) -> None:
         if self.item_at(col, row) is not None:
-            self._flash_status(f"Item not placed: cell [{col}, {row}] already holds one; right-click it to edit or erase.")
+            self.notify(f"Item not placed: cell [{col}, {row}] already holds one; right-click it to edit or erase.")
             return
         if self.recent_item_type in ITEM_TYPES:
             if self.recent_item_type != ITEM_KEY_TYPE or self.recent_item_key_kind in self.barrier_kinds:
@@ -65,10 +65,10 @@ class ItemsMixin:
     def add_item(self, col: int, row: int, item_type: str, kind: str | None, label: str | None = None) -> None:
         error = self._item_cell_error(col, row)
         if error is not None:
-            self._flash_status(f"Item not placed: {error}")
+            self.notify(f"Item not placed: {error}")
             return
         if item_type == ITEM_KEY_TYPE and kind not in self.barrier_kinds:
-            self._flash_status(f"Unknown key kind {kind!r}")
+            self.notify(f"Unknown key kind {kind!r}")
             return
         after = copy.deepcopy(self.map_data)
         items = after.setdefault(ITEMS_LIST, [])
@@ -83,18 +83,3 @@ class ItemsMixin:
         if label is None:
             label = f"Place Item ({item_type} {kind})" if kind else f"Place Item ({item_type})"
         self.apply_change(label, after)
-
-    def erase_items_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
-        c0, r0, c1, r1 = rect_from_cells(start, end)
-        items = self.map_data.get(ITEMS_LIST, [])
-        kept = [
-            i
-            for i in items
-            if not (i["level"] == self.current_level and c0 <= i["col"] < c1 and r0 <= i["row"] < r1)
-        ]
-        if len(kept) == len(items):
-            self._flash_status("Erase Items: no items in selection.")
-            return
-        after = copy.deepcopy(self.map_data)
-        after[ITEMS_LIST] = kept
-        self.apply_change("Erase Items", after)

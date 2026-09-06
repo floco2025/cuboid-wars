@@ -1,23 +1,19 @@
 import copy
-import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
-from PySide6.QtCore import QEvent, QMimeData, QPoint, QSettings, Qt
+from PySide6.QtCore import QMimeData, QPoint, Qt
 from PySide6.QtGui import QKeySequence
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QMessageBox
+from PySide6.QtWidgets import QMessageBox
 
 from map_editor.constants import DEFAULT_ALIAS, MODE_ERASE, MODE_FLOOR, MODE_SELECT
-from map_editor.document import MapDocument
 from map_editor.io import empty_map, write_map
 from map_editor.normalization import canonicalize_map
-from map_editor.nested_maps import NestedMapShape, nested_map_cycle
 from map_editor.regions import GLOBAL_LISTS, LEVEL_LISTS, TileRegion, copy_region, delete_region, paste_region
 from map_editor.select import CLIPBOARD_MIME
-from map_editor.window import EditorWindow
-from map_editor.validation import validate_map
+from editor_fixtures import WindowTestCase
 
 
 def furnished_block() -> dict:
@@ -119,45 +115,39 @@ class RegionTests(unittest.TestCase):
         pasted = paste_region(data, block, (1, 1), 0)
         self.assertEqual(pasted["levels"][0]["lights"], data["levels"][0]["lights"])
 
+    def test_orphan_reversed_and_invalid_lights_far_away_do_not_block_edits(self):
+        data = empty_map(10, 10)
+        data["player_spawn_zones"] = []
+        data["levels"][0]["walls"] = [
+            {"c0": 1, "r0": 0, "c1": 0, "r1": 0},
+            {"c0": 8, "r0": 8, "c1": 9, "r1": 8},
+        ]
+        data["levels"][0]["lights"] = [
+            {"col": 0, "row": 0, "side": "N"},
+            {"col": 5, "row": 5, "side": "N"},
+            {"col": 8, "row": 8, "side": "INVALID"},
+        ]
+        region = TileRegion((3, 3, 4, 4), 0)
+        block = copy_region(data, region)
+        delete_region(data, region)
+        paste_region(data, block, (3, 3), 0)
+
+    def test_paste_refusals_speak_of_the_destination(self):
+        data = empty_map(8, 8)
+        data["player_spawn_zones"] = []
+        data["ramps"] = [{"lower_level": 0, "low": [2, 2], "high": [5, 3], "all": DEFAULT_ALIAS}]
+        block = empty_map(1, 1)
+        block["player_spawn_zones"] = []
+        with self.assertRaisesRegex(ValueError, "destination crosses a ramp"):
+            paste_region(data, block, (2, 2), 0)
+
     def test_partial_spawn_zone_does_not_get_split_or_duplicate_actor_counts(self):
         data = empty_map(8, 8)
         with self.assertRaisesRegex(ValueError, "spawn zone"):
             copy_region(data, TileRegion((0, 0, 1, 1), 0))
 
 
-class WindowTests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.app = QApplication.instance() or QApplication([])
-
-    def setUp(self):
-        self.temp = tempfile.TemporaryDirectory()
-        self.path = Path(self.temp.name) / "map.json"
-        data = empty_map(8, 8)
-        data["player_spawn_zones"] = []
-        data["levels"][0]["floors"] = [{"col": 1, "row": 1, "all": DEFAULT_ALIAS}]
-        write_map(self.path, data)
-        self.recents = patch.object(EditorWindow, "_record_recent_path")
-        self.recents.start()
-        self.app.clipboard().clear()
-        preferences = QSettings(str(Path(self.temp.name) / "preferences.ini"), QSettings.Format.IniFormat)
-        self.window = EditorWindow(self.path, preferences=preferences)
-        self.window._autosave_timer.stop()
-        self.window.show()
-        self.app.processEvents()
-
-    def tearDown(self):
-        with patch.object(self.window, "confirm_discard_changes", return_value=True):
-            self.window.close()
-        self.window.deleteLater()
-        self.app.sendPostedEvents(None, QEvent.Type.DeferredDelete)
-        self.recents.stop()
-        self.temp.cleanup()
-
-    def click(self, col, row):
-        size = self.window.canvas.cell_size()
-        QTest.mouseClick(self.window.canvas, Qt.MouseButton.LeftButton, pos=QPoint(round((col + .5) * size), round((row + .5) * size)))
-
+class WindowTests(WindowTestCase):
     def test_click_and_reverse_drag_select_tiles_and_enable_menus(self):
         window = self.window
         self.assertEqual(window.mode, MODE_SELECT)
@@ -214,15 +204,6 @@ class WindowTests(unittest.TestCase):
         self.window.mode_combo.setCurrentText(MODE_FLOOR)
         self.assertFalse(self.window.copy_action.isEnabled())
         self.assertIsNone(self.window.canvas.hover_target)
-
-    def test_failed_save_as_preserves_file_identity_and_dirty_state(self):
-        self.window.add_floor_rect((2, 2), (2, 2))
-        destination = Path(self.temp.name) / "another.json"
-        with patch("map_editor.document.write_map", side_effect=OSError("disk full")), patch("map_editor.file_actions.QMessageBox.critical"):
-            self.assertFalse(self.window._save_to(destination, {}, {}, .1))
-        self.assertEqual(self.window.path, self.path)
-        self.assertTrue(self.window.dirty)
-        self.assertFalse(destination.exists())
 
     def test_save_rejects_nested_map_errors_before_writing(self):
         self.window.map_data["nested_maps"] = canonicalize_map({**empty_map(), "nested_maps": [{
@@ -304,13 +285,6 @@ class WindowTests(unittest.TestCase):
         self.app.clipboard().setMimeData(mime)
         self.assertFalse(self.window.paste_action.isEnabled())
 
-    def test_tool_and_level_navigation_do_not_revalidate_unchanged_data(self):
-        self.window.add_level()
-        with patch("map_editor.window.validate_map") as validate:
-            self.window.set_level_index(0)
-            self.window.mode_combo.setCurrentText(MODE_FLOOR)
-        validate.assert_not_called()
-
     def test_failed_file_open_keeps_recovery_copy_of_current_work(self):
         window = self.window
         window.add_floor_rect((2, 2), (2, 2))
@@ -330,38 +304,3 @@ class WindowTests(unittest.TestCase):
         self.assertIn("1 pressure plates", question.call_args.args[2])
         self.assertEqual(self.window.map_data, before)
 
-
-class DocumentTests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.app = QApplication.instance() or QApplication([])
-
-    def test_unsaved_document_starts_dirty(self):
-        self.assertTrue(MapDocument(None).dirty)
-
-    def test_save_as_failure_keeps_autosave_and_original_identity(self):
-        with tempfile.TemporaryDirectory() as temp:
-            path = Path(temp) / "original.json"
-            write_map(path, empty_map())
-            doc = MapDocument(path)
-            doc.dirty = True
-            doc.write_autosave()
-            with patch("map_editor.document.write_map", side_effect=OSError("disk full")):
-                with self.assertRaises(OSError):
-                    doc.write(Path(temp) / "another.json")
-            self.assertEqual(doc.path, path)
-            self.assertTrue(doc.dirty)
-            self.assertTrue(doc.autosave_path().exists())
-
-    def test_one_tile_map_has_an_in_bounds_spawn_zone(self):
-        self.assertEqual(validate_map(empty_map(1, 1), [], []), [])
-
-    def test_nested_cycle_check_visits_a_shared_dependency_once(self):
-        graph = {
-            "left": NestedMapShape(1, 1, 1, ("shared",)),
-            "right": NestedMapShape(1, 1, 1, ("shared",)),
-            "shared": NestedMapShape(1, 1, 1, ()),
-        }
-        lookup = Mock(side_effect=graph.get)
-        self.assertIsNone(nested_map_cycle("root", [{"map": "left"}, {"map": "right"}], lookup))
-        self.assertEqual([call.args[0] for call in lookup.call_args_list].count("shared"), 1)

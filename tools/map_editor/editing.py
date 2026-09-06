@@ -5,8 +5,8 @@ from __future__ import annotations
 import copy
 
 from .constants import FACES, SPAWN_ZONE_LISTS
-from .geometry import normalized_wall, ramp_rect, rects_overlap, wall_segments_between, zone_intersects_rect
-from .normalization import pressure_plate_key
+from .geometry import ramp_rect, rects_overlap, wall_segments_between, zone_intersects_rect
+from .normalization import edge_key, pressure_plate_key
 from .transforms import record_rect
 
 
@@ -15,11 +15,6 @@ def replace_records(data: dict, name: str, entries: list[dict], level: int | Non
     target = after if level is None else after["levels"][level]
     target[name] = copy.deepcopy(entries)
     return after
-
-
-def append_record(data: dict, name: str, entry: dict, level: int | None = None) -> dict:
-    target = data if level is None else data["levels"][level]
-    return replace_records(data, name, [*target.get(name, []), entry], level)
 
 
 def update_records(data: dict, name: str, predicate, values: dict, level: int | None = None) -> dict:
@@ -62,11 +57,8 @@ def paint_edges(
     level = after["levels"][level_idx]
     name = "walls" if material is not None else "barriers"
 
-    def edge(entry):
-        return tuple(normalized_wall([entry[k] for k in ("c0", "r0", "c1", "r1")]))
-
-    walls = {edge(w) for w in level["walls"]}
-    existing = {edge(e): e for e in level[name]}
+    walls = {edge_key(w) for w in level["walls"]}
+    existing = {edge_key(e): e for e in level[name]}
     for endpoints in wall_segments_between(start, end):
         key = tuple(endpoints)
         entry = dict(zip(("c0", "r0", "c1", "r1"), endpoints))
@@ -76,7 +68,7 @@ def paint_edges(
             existing[key] = {**entry, "kind": kind}
     level[name] = list(existing.values())
     if material is not None:
-        level["barriers"] = [b for b in level["barriers"] if edge(b) not in existing]
+        level["barriers"] = [b for b in level["barriers"] if edge_key(b) not in existing]
     return after
 
 

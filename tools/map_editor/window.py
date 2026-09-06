@@ -7,9 +7,9 @@ from pathlib import Path
 
 from PySide6.QtCore import QSettings, Qt, QTimer
 from PySide6.QtGui import QAction, QFont, QKeySequence, QShortcut, QStandardItem, QStandardItemModel, QUndoStack
-from PySide6.QtWidgets import QComboBox, QFileDialog, QLabel, QMainWindow, QMenu, QMessageBox, QToolBar
+from PySide6.QtWidgets import QComboBox, QLabel, QMainWindow, QMenu, QToolBar
 
-from .canvas import Canvas
+from .canvas import CLICK_TOOLS, Canvas
 from .dialogs import NestedMotion
 from .constants import (
     DEFAULT_ACTOR_COUNT,
@@ -17,14 +17,8 @@ from .constants import (
     DEFAULT_WALL_WIDTH_CELLS,
     ERASE_MODES,
     ITEM_TYPES,
-    MODE_BRIDGE_PLATE,
     MODE_CATEGORIES,
-    MODE_FIREWORK_PLATE,
-    MODE_ITEM,
-    MODE_LADDER,
-    MODE_LIGHT,
     MODE_SELECT,
-    MODE_PRESSURE_PLATE,
     MODE_RAMP_DOWN,
     MODE_RAMP_UP,
     load_map_barrier_kinds,
@@ -46,7 +40,7 @@ from .select import SelectMixin
 from .spawn_zones import SpawnZoneEditMixin
 from .structure import StructureMixin
 from .types import SpawnZoneDrag, ZoneRef
-from .validation import validate_map
+from .validation import ValidationErrors, validate_map
 from .issues import IssuesPanel
 from .dependencies import MapDependencies
 from .tool_settings import ToolSettings
@@ -79,12 +73,10 @@ class EditorWindow(
         self.current_level = 0
         self.mode = MODE_SELECT
         self.shortcuts = []
-        # No default kind: the dialog opens with Kind blank on the first paint
-        # of a session and remembers the last value across subsequent paints.
+        # The last values placed, shown in the toolbar and reused without a
+        # prompt; the kinds start on the map's first listed kind.
         self.recent_actor_spawn_kind: str = ""
         self.recent_actor_spawn_count: int = DEFAULT_ACTOR_COUNT
-        # Last-used barrier kind, seeded from the map's first listed kind so
-        # the picker dialog has a sensible default on the first paint.
         first_kind = self.barrier_kinds[0] if self.barrier_kinds else None
         self.recent_barrier_kind: str | None = first_kind
         self.recent_pressure_plate_kind: str | None = first_kind
@@ -116,16 +108,13 @@ class EditorWindow(
         # Show prev/next level geometry as ghosted overlays — helps when
         # placing ramps that span two levels.
         self.show_adjacent_levels = False
-        # Material used as the default for newly painted floors / walls / ramps.
-        # The user picks a different one from the materials palette.
-        # Default for newly-painted segments. Must be an alias (face values
-        # are validated against `MATERIAL_ALIASES` on save) — see
-        # `DEFAULT_ALIAS` in constants.py for the selection rule.
+        # Material for newly painted floors, walls, and ramps; an alias, since
+        # face values are validated against the catalog on save.
         self.current_material: str = DEFAULT_ALIAS
         self.materials_catalog: list[str] = load_materials_catalog()
 
         self.canvas = Canvas(self)
-        self.canvas.setCursor(self._cursor_for_mode(self.mode))
+        self.canvas.setCursor(self.cursor_for_mode(self.mode))
         self.setCentralWidget(self.canvas)
         self.setWindowTitle("Cuboid Wars Editor")
 
@@ -153,24 +142,18 @@ class EditorWindow(
         self.window_geometry = WindowGeometry(self, self.preferences)
         self.canvas.fit_map()
 
-        # Autosave timer — periodically writes a `.autosave.json` sibling when
-        # the map is dirty so a crash/kill doesn't lose work.
+        # Writes the recovery copy while the map is dirty, so a crash loses
+        # at most the interval.
         self._autosave_timer = QTimer(self)
         self._autosave_timer.setInterval(self.AUTOSAVE_INTERVAL_MS)
         self._autosave_timer.timeout.connect(self._tick_autosave)
         self._autosave_timer.start()
 
     # === Document delegation ===
-    # The mixins predate `MapDocument` and address document state through the
-    # window; these properties keep that surface while the document owns it.
 
     @property
     def map_data(self) -> dict:
         return self.doc.map_data
-
-    @map_data.setter
-    def map_data(self, value: dict) -> None:
-        self.doc.map_data = value
 
     @property
     def barrier_kinds(self) -> list[str]:
@@ -184,29 +167,44 @@ class EditorWindow(
     def dirty(self) -> bool:
         return self.doc.dirty
 
-    @dirty.setter
-    def dirty(self, value: bool) -> None:
-        self.doc.dirty = value
-
     @property
     def path(self) -> Path | None:
         return self.doc.path
 
-    @path.setter
-    def path(self, value: Path | None) -> None:
-        self.doc.path = value
-
-    @property
-    def path_mtime(self) -> float | None:
-        return self.doc.path_mtime
-
-    @path_mtime.setter
-    def path_mtime(self, value: float | None) -> None:
-        self.doc.path_mtime = value
-
     @property
     def undo_stack(self) -> QUndoStack:
         return self.doc.undo_stack
+
+    # The edited map's validation: the same rules on every path (save, open,
+    # paste, the Issues panel), including the nested-map checks that need the
+    # neighbouring files.
+    def validate(self, data: dict, *, map_name: str | None = None) -> ValidationErrors:
+        return validate_map(
+            data,
+            self.barrier_kinds if map_name is None else list(load_map_barrier_kinds(map_name)),
+            self.bridge_kinds if map_name is None else list(load_map_bridge_kinds(map_name)),
+            map_name=self.edited_map_name() if map_name is None else map_name,
+            nested_lookup=self.nested_map_shape,
+            actor_kinds=self.actor_kinds,
+            material_aliases=self.materials_catalog,
+        )
+
+    # After the document adopts another map (new, open, save as, recovery):
+    # its catalogs, and every view state that named the old one.
+    def adopt_map(self, map_name: str | None) -> None:
+        self.clear_selection()
+        if map_name is None:
+            self.barrier_kind_colors = {}
+            self.bridge_kind_colors = {}
+            self.wall_width_cells = DEFAULT_WALL_WIDTH_CELLS
+        else:
+            self.barrier_kind_colors = load_map_barrier_kinds(map_name)
+            self.bridge_kind_colors = load_map_bridge_kinds(map_name)
+            self.wall_width_cells = load_map_wall_width_cells(map_name)
+        self.forget_nested_map_shapes()
+        self.current_level = 0
+        self.refresh_ui()
+        self.canvas.fit_map()
 
     # === Menus & toolbar ===
 
@@ -232,10 +230,10 @@ class EditorWindow(
 
     # Map each mode to the cursor it should display so a peripheral glance
     # tells the user which tool is active without reading the toolbar.
-    def _cursor_for_mode(self, mode: str) -> Qt.CursorShape:
+    def cursor_for_mode(self, mode: str) -> Qt.CursorShape:
         if mode == MODE_SELECT:
             return Qt.CursorShape.ArrowCursor
-        if mode in (MODE_LIGHT, MODE_LADDER, MODE_PRESSURE_PLATE, MODE_BRIDGE_PLATE, MODE_FIREWORK_PLATE, MODE_ITEM):
+        if mode in CLICK_TOOLS:
             return Qt.CursorShape.PointingHandCursor
         if mode in ERASE_MODES:
             return Qt.CursorShape.ForbiddenCursor
@@ -322,139 +320,6 @@ class EditorWindow(
         menu.addAction(action)
         return action
 
-    # === Autosave / crash recovery ===
-
-    AUTOSAVE_INTERVAL_MS = 15_000
-
-    def maybe_recover_autosave(self) -> None:
-        """Offer to restore a `<file>.autosave.json` sibling newer than the
-        opened file. Asked once the window is on screen: a prompt raised
-        before the app has a visible window opens behind whatever is in
-        front, and the editor looks as if it were doing nothing."""
-        if not self.doc.has_recoverable_autosave():
-            self.review_repairs(quiet=True)
-            return
-        autosave = self.doc.autosave_path()
-        from PySide6.QtWidgets import QMessageBox  # local import; avoids top-level cycle
-
-        box = QMessageBox(self)
-        box.setWindowTitle("Recover Autosave?")
-        box.setText(f"An autosave exists at {autosave.name} that is newer than {self.doc.path.name}. Recover it?")
-        box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-        box.setDefaultButton(QMessageBox.StandardButton.Yes)
-        if box.exec() != QMessageBox.StandardButton.Yes:
-            # Declined: the autosave is rejected work; drop it so the next
-            # launch doesn't offer it again.
-            self.doc.clear_autosave()
-            self.review_repairs(quiet=True)
-            return
-        if self.doc.recover_autosave():
-            self.current_level = 0
-            self.refresh_ui()
-        self.review_repairs(quiet=True)
-
-    def review_repairs(self, *, quiet: bool = False) -> None:
-        repaired, summary = self.doc.proposed_repairs()
-        if not summary:
-            if not quiet:
-                QMessageBox.information(self, "Map Repairs", "No automatic repairs are needed. Other issues can be edited from Map Issues.")
-            return
-        box = QMessageBox(self)
-        box.setWindowTitle("Review Map Repairs")
-        box.setText("The map contains records that need repair. Apply these changes as one undoable edit?")
-        box.setInformativeText("\n".join(summary[:12]))
-        box.setDetailedText("\n".join(summary))
-        box.setStandardButtons(QMessageBox.StandardButton.Apply | QMessageBox.StandardButton.Cancel)
-        box.setDefaultButton(QMessageBox.StandardButton.Cancel)
-        if box.exec() == QMessageBox.StandardButton.Apply:
-            self.doc.apply_change("Repair Map", repaired, repair=True)
-
-    def recover_unsaved_map(self) -> None:
-        if not self.confirm_discard_changes():
-            return
-        path, _ = QFileDialog.getOpenFileName(self, "Recover Unsaved Map", str(self.doc.recovery_dir), "Autosaved maps (*.autosave.json)")
-        if not path:
-            return
-        try:
-            recovered = self.doc.recover_session(Path(path))
-        except Exception as exc:
-            QMessageBox.warning(self, "Recovery Failed", str(exc))
-            return
-        if not recovered:
-            QMessageBox.information(self, "Map In Use", "That recovery file belongs to an editor that is still running.")
-            return
-        self.clear_selection()
-        self.current_level = 0
-        self.barrier_kind_colors = {}
-        self.bridge_kind_colors = {}
-        self.wall_width_cells = DEFAULT_WALL_WIDTH_CELLS
-        self.forget_nested_map_shapes()
-        self.refresh_ui()
-        self.canvas.fit_map()
-        self.review_repairs(quiet=True)
-
-    def focus_issue(self, issue) -> None:
-        if issue.level is not None:
-            self.set_level_index(issue.level)
-        self.canvas.issue_rects = [issue.rect] if issue.rect is not None else []
-        if issue.rect is not None:
-            self.canvas.viewport.focus(issue.rect, self.canvas.width(), self.canvas.height())
-        self.canvas.update()
-
-    def _tick_autosave(self) -> None:
-        self.doc.write_autosave()
-
-    def _clear_autosave(self) -> None:
-        self.doc.clear_autosave()
-
-    # === Recent files ===
-
-    RECENT_FILES_KEY = "recent_files"
-    RECENT_FILES_MAX = 5
-
-    def _load_recent_paths(self) -> list[str]:
-        raw = self.preferences.value(self.RECENT_FILES_KEY) or []
-        # QSettings on some platforms unwraps single-element lists to scalars.
-        if isinstance(raw, str):
-            return [raw]
-        return [str(p) for p in raw]
-
-    def _record_recent_path(self, path: Path) -> None:
-        canonical = str(Path(path).resolve())
-        recents = [p for p in self._load_recent_paths() if p != canonical]
-        recents.insert(0, canonical)
-        del recents[self.RECENT_FILES_MAX :]
-        self.preferences.setValue(self.RECENT_FILES_KEY, recents)
-        self._rebuild_recent_menu()
-
-    def _rebuild_recent_menu(self) -> None:
-        self.recent_menu.clear()
-        recents = self._load_recent_paths()
-        if not recents:
-            empty = QAction("(empty)", self)
-            empty.setEnabled(False)
-            self.recent_menu.addAction(empty)
-            return
-        for entry in recents:
-            action = QAction(entry, self)
-            action.triggered.connect(lambda _checked=False, p=entry: self._open_recent_path(p))
-            self.recent_menu.addAction(action)
-
-    def _open_recent_path(self, path_str: str) -> None:
-        if not self.confirm_discard_changes():
-            return
-        candidate = Path(path_str)
-        if not candidate.exists():
-            self._flash_status(f"Recent file missing: {candidate}")
-            # Drop the dead entry so the user doesn't keep tripping on it.
-            remaining = [p for p in self._load_recent_paths() if p != path_str]
-            self.preferences.setValue(self.RECENT_FILES_KEY, remaining)
-            self._rebuild_recent_menu()
-            return
-        # Re-use the same load path as File → Open so validation, mtime
-        # tracking, and undo-clear all run.
-        self.load_path(candidate)
-
     def build_toolbar(self) -> None:
         toolbar = QToolBar("Tools", self)
         toolbar.setMovable(False)
@@ -463,7 +328,6 @@ class EditorWindow(
         toolbar.addSeparator()
         toolbar.addWidget(QLabel("Tool "))
         toolbar.addWidget(self.mode_combo)
-        self.mode_combo.setToolTip("Select Tiles: click or drag tiles. Alt/Option edits spawn zones and nested-map ends.")
         tool_settings_action = toolbar.addWidget(self.tool_settings)
         self.tool_settings.available_changed.connect(tool_settings_action.setVisible)
         tool_settings_action.setVisible(False)
@@ -477,9 +341,6 @@ class EditorWindow(
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, toolbar)
 
     # === State updates & UI refresh ===
-
-    def set_map(self, map_data: dict, mark_dirty: bool) -> None:
-        self.doc.set_data(map_data, mark_dirty)
 
     def _on_document_changed(self, before: dict) -> None:
         self.cancel_interaction()
@@ -514,45 +375,20 @@ class EditorWindow(
         self.level_combo.blockSignals(False)
         self.canvas.update()
         self.update_selection_actions()
-        self.update_status()
+        self.refresh_issues()
         suffix = "*" if self.dirty else ""
         file_name = str(self.path) if self.path else "Untitled"
         self.setWindowTitle(f"Cuboid Wars Editor - {file_name}{suffix}")
         self.dependencies.watch(self.nested_map_shapes)
         self.tool_settings.refresh()
 
-    def reload_dependencies(self) -> None:
-        self.forget_nested_map_shapes()
-        try:
-            self.actor_kinds = load_actor_kinds()
-            self.materials_catalog = load_materials_catalog()
-            if self.current_material not in self.materials_catalog:
-                self.current_material = next(iter(self.materials_catalog), "")
-            self.barrier_kind_colors = load_map_barrier_kinds(self.edited_map_name())
-            self.bridge_kind_colors = load_map_bridge_kinds(self.edited_map_name())
-            self.wall_width_cells = load_map_wall_width_cells(self.edited_map_name())
-        except (OSError, ValueError, KeyError) as exc:
-            self._flash_status(f"Catalog reload failed: {exc}")
-        self.refresh_ui()
-
-    def update_status(self, *, validate: bool = True) -> None:
+    def refresh_issues(self, *, validate: bool = True) -> None:
         if validate:
-            errors = validate_map(
-                self.map_data,
-                self.barrier_kinds,
-                self.bridge_kinds,
-                map_name=self.edited_map_name(),
-                nested_lookup=self.nested_map_shape,
-                actor_kinds=self.actor_kinds,
-                material_aliases=self.materials_catalog,
-            )
+            errors = self.validate(self.map_data)
             self.issues_panel.set_issues(errors.issues)
             self.issues_action.setText(f"Issues ({len(errors)})")
             self.issues_action.setToolTip("\n".join(errors[:20]))
             self.issues_action.setVisible(bool(errors))
-        # Ramp-direction hint: only visible in MODE_RAMP_UP / MODE_RAMP_DOWN,
-        # otherwise the label is empty (it still occupies the toolbar slot but
-        # doesn't show text).
         if self.mode == MODE_RAMP_UP:
             target = self.current_level + 1
             self.ramp_direction_label.setText(f"↑ Building UP to Level {target}")
@@ -562,8 +398,16 @@ class EditorWindow(
         else:
             self.ramp_direction_label.setText("")
 
-    def _flash_status(self, message: str) -> None:
+    def notify(self, message: str) -> None:
         self.canvas.notice.show_message(message)
+
+    def focus_issue(self, issue) -> None:
+        if issue.level is not None:
+            self.set_level_index(issue.level)
+        self.canvas.issue_rects = [issue.rect] if issue.rect is not None else []
+        if issue.rect is not None:
+            self.canvas.viewport.focus(issue.rect, self.canvas.width(), self.canvas.height())
+        self.canvas.update()
 
     # === Navigation (level / tool selection) ===
 
@@ -572,15 +416,15 @@ class EditorWindow(
             self.cancel_interaction()
             self.current_level = index
             self.canvas.update()
-            self.update_status(validate=False)
+            self.refresh_issues(validate=False)
 
     def set_mode(self, mode: str) -> None:
         self.cancel_interaction()
         self.mode = mode
-        self.canvas.setCursor(self._cursor_for_mode(mode))
+        self.canvas.setCursor(self.cursor_for_mode(mode))
         self.canvas.update()
         self.update_selection_actions()
-        self.update_status(validate=False)
+        self.refresh_issues(validate=False)
         self.tool_settings.refresh()
 
     def set_material_overlay(self, enabled: bool) -> None:

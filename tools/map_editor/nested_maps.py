@@ -7,8 +7,6 @@ from dataclasses import dataclass
 
 from .constants import MAPS_DIR, NESTED_MAPS_LIST, list_map_names
 from .dialogs import MotionDialog, Nudge
-from .erasing import nested_maps_outside
-from .geometry import rect_from_cells
 from .io import read_map
 from .normalization import nested_map_key
 
@@ -183,7 +181,7 @@ class NestedMapsMixin:
     ) -> None:
         msg = nested_map_error(map_name, self.edited_map_name())
         if msg:
-            self._flash_status(f"Nested map not changed: {msg}")
+            self.notify(f"Nested map not changed: {msg}")
             return
         after = copy.deepcopy(self.map_data)
         entry = next((e for e in after.get(NESTED_MAPS_LIST, []) if nested_map_key(e) == key), None)
@@ -212,7 +210,7 @@ class NestedMapsMixin:
         if end == "from" and any(
             e is not entry and e["level"] == entry["level"] and e["from"] == moved for e in entries
         ):
-            self._flash_status("Nested map end not moved: another nested map starts on that cell")
+            self.notify("Nested map end not moved: another nested map starts on that cell")
             return
         entry[end] = moved
         self.apply_change("Move Nested Map End", after)
@@ -249,7 +247,7 @@ class NestedMapsMixin:
     ) -> None:
         msg = nested_map_error(map_name, self.edited_map_name())
         if msg:
-            self._flash_status(f"Nested map not placed: {msg}")
+            self.notify(f"Nested map not placed: {msg}")
             return
         new_entry = {
             "map": map_name,
@@ -272,14 +270,3 @@ class NestedMapsMixin:
         ]
         after[NESTED_MAPS_LIST].append(new_entry)
         self.apply_change("Place Nested Map", after)
-
-    def erase_nested_maps_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
-        rect = rect_from_cells(start, end)
-        entries = self.map_data.get(NESTED_MAPS_LIST, [])
-        kept = nested_maps_outside(entries, self.current_level, rect)
-        if len(kept) == len(entries):
-            self._flash_status("Erase Nested Maps: no nested maps in selection.")
-            return
-        after = copy.deepcopy(self.map_data)
-        after[NESTED_MAPS_LIST] = kept
-        self.apply_change("Erase Nested Maps", after)

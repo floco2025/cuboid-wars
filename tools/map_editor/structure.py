@@ -6,11 +6,10 @@ import copy
 
 from PySide6.QtWidgets import QInputDialog, QMessageBox
 
-from .constants import ITEMS_LIST, NESTED_MAPS_LIST, SPAWN_ZONE_LISTS
 from .dialogs import ResizeMapDialog, ToolReferenceDialog
 from .display import level_label
 from .geometry import ramp_rect
-from .io import empty_map
+from .normalization import empty_level
 from .repairs import maintain_edit
 from .transforms import GLOBAL_LISTS, LEVEL_LISTS, remap_levels, resize_map_data
 
@@ -22,15 +21,29 @@ def element_counts(data: dict) -> dict[str, int]:
     }
 
 
+# What an edit drops, per record list, for the confirmation before it;
+# empty when nothing goes.
+def dropped_summary(before: dict, after: dict) -> str:
+    before_counts, after_counts = element_counts(before), element_counts(after)
+    parts = [
+        f"{count - after_counts[name]} {name.replace('_', ' ')}"
+        for name, count in before_counts.items()
+        if count > after_counts[name]
+    ]
+    return "This will drop:\n  - " + "\n  - ".join(parts) if parts else ""
+
+
+# The ramps a level inserted at `insert_at` would separate from their top.
+def crossing_ramps(map_data: dict, insert_at: int) -> list[dict]:
+    return [ramp for ramp in map_data["ramps"] if ramp["lower_level"] + 1 == insert_at]
+
+
 def insert_level_data(map_data: dict, insert_at: int, *, remove_crossing_ramps: bool = False) -> dict:
-    crossing = [ramp for ramp in map_data["ramps"] if ramp["lower_level"] + 1 == insert_at]
-    if crossing and not remove_crossing_ramps:
+    if crossing_ramps(map_data, insert_at) and not remove_crossing_ramps:
         raise ValueError("The inserted level separates ramp endpoints.")
     after = remap_levels(map_data, insert_at, remove=False)
     after["ramps"] = [ramp for ramp in after["ramps"] if ramp["lower_level"] + 1 != insert_at]
-    blank = empty_map()["levels"][0]
-    blank["name"] = f"Level {insert_at}"
-    after["levels"].insert(insert_at, blank)
+    after["levels"].insert(insert_at, empty_level(insert_at))
     return after
 
 
@@ -55,16 +68,12 @@ class StructureMixin:
         if new_cols == self.map_data["grid_cols"] and new_rows == self.map_data["grid_rows"]:
             return
         after = maintain_edit(self.map_data, resize_map_data(self.map_data, new_cols, new_rows, anchor_x, anchor_y))
-        before_counts, after_counts = element_counts(self.map_data), element_counts(after)
-        parts = [
-            f"{count - after_counts[name]} {name.replace('_', ' ')}"
-            for name, count in before_counts.items() if count > after_counts[name]
-        ]
-        if parts:
+        summary = dropped_summary(self.map_data, after)
+        if summary:
             response = QMessageBox.question(
                 self,
                 "Resize Map",
-                "Resizing will drop:\n  - " + "\n  - ".join(parts) + "\n\nContinue?",
+                summary + "\n\nContinue?",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
                 QMessageBox.StandardButton.Cancel,
             )
@@ -77,7 +86,7 @@ class StructureMixin:
 
     def add_level(self) -> None:
         insert_at = self.current_level + 1
-        crossing = [ramp for ramp in self.map_data["ramps"] if ramp["lower_level"] + 1 == insert_at]
+        crossing = crossing_ramps(self.map_data, insert_at)
         if crossing:
             self.canvas.issue_rects = [ramp_rect(ramp) for ramp in crossing]
             self.canvas.update()
@@ -108,72 +117,17 @@ class StructureMixin:
             QMessageBox.information(self, "Remove Level", "A map must have at least one level.")
             return
         removed = self.current_level
-        # Enumerate everything that will be dropped so the user sees the
-        # blast radius before confirming. Mirrors the Resize Map dialog.
-        dropped_zones = 0
-        for list_name in SPAWN_ZONE_LISTS:
-            dropped_zones += sum(1 for zone in self.map_data[list_name] if zone["level"] == removed)
-        dropped_items = sum(1 for item in self.map_data.get(ITEMS_LIST, []) if item["level"] == removed)
-        dropped_plates = sum(1 for plate in self.map_data.get("pressure_plates", []) if plate["level"] == removed)
-        dropped_ramps = 0
-        for ramp in self.map_data["ramps"]:
-            lower = ramp["lower_level"]
-            if removed in (lower, lower + 1):
-                dropped_ramps += 1
-        dropped_ladders = sum(
-            1
-            for ladder in self.map_data.get("ladders", [])
-            if ladder["lower_level"] <= removed <= ladder["lower_level"] + ladder["levels"]
-        )
-        dropped_nested = sum(
-            1
-            for entry in self.map_data.get(NESTED_MAPS_LIST, [])
-            if min(entry["level"], entry["to_level"]) <= removed <= max(entry["level"], entry["to_level"])
-        )
+        after = remove_level_data(self.map_data, removed)
         level = self.map_data["levels"][removed]
-        floor_count = len(level["floors"]) + len(level["inaccessible_floors"])
-        wall_count = len(level["walls"])
-        light_count = len(level["lights"])
-        barrier_count = len(level.get("barriers", []))
-        bridge_count = len(level.get("light_bridges", []))
-        parts = [f"all geometry on {level_label(level, removed)}"]
-        details = []
-        if floor_count:
-            details.append(f"{floor_count} floor cell(s)")
-        if wall_count:
-            details.append(f"{wall_count} wall(s)")
-        if light_count:
-            details.append(f"{light_count} light(s)")
-        if barrier_count:
-            details.append(f"{barrier_count} barrier(s)")
-        if bridge_count:
-            details.append(f"{bridge_count} light bridge(s)")
-        if dropped_zones:
-            parts.append(f"{dropped_zones} spawn zone(s) on this level")
-        if dropped_items:
-            parts.append(f"{dropped_items} item(s) on this level")
-        if dropped_plates:
-            parts.append(f"{dropped_plates} pressure plate(s) on this level")
-        if dropped_ramps:
-            parts.append(f"{dropped_ramps} ramp(s) that span this level")
-        if dropped_ladders:
-            parts.append(f"{dropped_ladders} ladder(s) that span this level")
-        if dropped_nested:
-            parts.append(f"{dropped_nested} nested map(s) whose ends touch this level")
-        body = f"Remove {level_label(level, removed)}?\n\nThis will drop:"
-        body += "\n  - " + "\n  - ".join(parts)
-        if details:
-            body += "\n\n(geometry: " + ", ".join(details) + ")"
         result = QMessageBox.question(
             self,
             "Remove Level",
-            body,
+            f"Remove {level_label(level, removed)}?\n\n" + dropped_summary(self.map_data, after),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
             QMessageBox.StandardButton.Cancel,
         )
         if result != QMessageBox.StandardButton.Yes:
             return
-        after = remove_level_data(self.map_data, removed)
         self.current_level = max(0, min(removed, len(after["levels"]) - 1))
         self.apply_change("Remove Level", after)
 

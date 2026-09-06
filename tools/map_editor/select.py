@@ -12,7 +12,7 @@ from .constants import MODE_SELECT
 from .geometry import rect_from_cells
 from .normalization import normalize_map, nested_map_key
 from .regions import TileRegion, copy_region, delete_region, paste_region
-from .validation import validate_map
+from .types import DRAG_NESTED_END, DRAG_SPAWN_ZONE, DRAG_TILES
 
 
 CLIPBOARD_MIME = "application/x-cuboid-wars-map-block+json"
@@ -65,45 +65,44 @@ class SelectMixin:
     def cancel_interaction(self) -> None:
         self.spawn_zone_drag = None
         self.select_drag_kind = None
-        self.canvas.clear_drag()
-        self.canvas._clear_hover()
-        self.canvas.pan_origin = None
+        self.canvas.cancel()
 
     def select_all_tiles(self) -> None:
         self.mode_combo.setCurrentText(MODE_SELECT)
         self.set_tile_selection((0, 0, self.map_data["grid_cols"], self.map_data["grid_rows"]))
 
-    def begin_select_press(self, pos, cell_size: float, *, edit_objects: bool = False) -> bool:
+    # `pos` is in grid units.
+    def begin_select_press(self, pos, *, edit_objects: bool = False) -> bool:
         self.select_drag_kind = None
         if edit_objects:
             self.tile_selection = None
-            if self.begin_spawn_zone_drag(pos, cell_size):
-                self.select_drag_kind = "zone"
+            if self.begin_spawn_zone_drag(pos):
+                self.select_drag_kind = DRAG_SPAWN_ZONE
                 self.update_selection_actions()
                 return False
-            cell = (int(pos.x() // cell_size), int(pos.y() // cell_size))
+            cell = (int(pos.x() // 1), int(pos.y() // 1))
             if self.nested_map_end_at(cell) is not None:
-                self.select_drag_kind = "nested"
+                self.select_drag_kind = DRAG_NESTED_END
                 self.update_selection_actions()
                 return True
         self.set_tile_selection(None)
-        self.select_drag_kind = "tiles"
+        self.select_drag_kind = DRAG_TILES
         self.update_selection_actions()
         return True
 
-    def update_select_drag(self, pos, cell_size: float) -> None:
-        if self.select_drag_kind == "zone":
-            self.update_spawn_zone_edit_drag(pos, cell_size)
+    def update_select_drag(self, pos) -> None:
+        if self.select_drag_kind == DRAG_SPAWN_ZONE:
+            self.update_spawn_zone_edit_drag(pos)
 
     def end_select_drag(self, start_cell: tuple[int, int] | None, end_cell: tuple[int, int] | None) -> None:
         kind = self.select_drag_kind
         self.select_drag_kind = None
-        if kind == "zone":
+        if kind == DRAG_SPAWN_ZONE:
             self.commit_spawn_zone_edit_drag()
         elif start_cell is not None and end_cell is not None:
-            if kind == "tiles":
+            if kind == DRAG_TILES:
                 self.set_tile_selection(rect_from_cells(start_cell, end_cell))
-            elif kind == "nested" and end_cell != start_cell:
+            elif kind == DRAG_NESTED_END and end_cell != start_cell:
                 hit = self.nested_map_end_at(start_cell)
                 if hit is not None:
                     entry, end = hit
@@ -145,7 +144,7 @@ class SelectMixin:
         if after is not None:
             self.apply_change(f"{operation} Tiles ({region.levels} level(s))", after)
         else:
-            self._flash_status(f"Copied tiles from {region.levels} level(s)")
+            self.notify(f"Copied tiles from {region.levels} level(s)")
 
     def paste_selection(self) -> None:
         if self.mode != MODE_SELECT or self.tile_selection is None or self.tile_clipboard is None:
@@ -154,17 +153,11 @@ class SelectMixin:
         try:
             self.forget_nested_map_shapes()
             after = paste_region(self.map_data, self.tile_clipboard, (col, row), self.current_level)
-            errors = validate_map(
-                self.tile_clipboard, self.barrier_kinds, self.bridge_kinds,
-                map_name=self.edited_map_name(), nested_lookup=self.nested_map_shape,
-                actor_kinds=self.actor_kinds,
-                material_aliases=self.materials_catalog,
-            )
+            errors = self.validate(self.tile_clipboard)
             if errors:
                 raise ValueError("The copied block cannot be used in this map:\n\n" + "\n".join(errors[:8]))
-            catalogs = dict(actor_kinds=self.actor_kinds, material_aliases=self.materials_catalog)
-            before_errors = set(validate_map(self.map_data, self.barrier_kinds, self.bridge_kinds, **catalogs))
-            added_errors = [error for error in validate_map(after, self.barrier_kinds, self.bridge_kinds, **catalogs) if error not in before_errors]
+            before = {issue.identity() for issue in self.validate(self.map_data).issues}
+            added_errors = [issue.message for issue in self.validate(after).issues if issue.identity() not in before]
             if added_errors:
                 raise ValueError("The pasted block conflicts with the destination:\n\n" + "\n".join(added_errors[:8]))
         except ValueError as exc:

@@ -14,7 +14,6 @@ from .constants import MAP_NAME_RE, MAPS_DIR
 from .window import EditorWindow
 
 
-
 def _build_window_icon() -> QIcon:
     # Render a small isometric cuboid into a QPixmap so the editor has a
     # recognizable taskbar/dock icon without shipping a binary asset.

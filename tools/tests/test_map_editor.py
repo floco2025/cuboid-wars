@@ -1,6 +1,7 @@
 import json
 import tempfile
 import unittest
+from unittest.mock import Mock
 from pathlib import Path
 
 from PySide6.QtCore import QPointF
@@ -8,9 +9,15 @@ from PySide6.QtCore import QPointF
 from map_editor.constants import (
     DEFAULT_ALIAS,
     FACES,
+    MODES,
+    MODE_ERASE_BARRIERS,
+    MODE_ERASE_FLOORS,
+    MODE_ERASE_NESTED_MAPS,
+    MODE_ERASE_RAMPS,
+    MODE_ERASE_SPAWN_ZONES,
+    MODE_ERASE_WALLS,
     MODE_LIGHT_BRIDGE,
     MODE_SELECT,
-    MODES,
     load_map_barrier_kinds,
     load_map_bridge_kinds,
 )
@@ -29,7 +36,8 @@ from map_editor.nested_maps import (
     nested_map_label,
     nested_map_rest_points,
 )
-from map_editor.normalization import canonicalize_map, normalize_nested_map, resize_map_data
+from map_editor.normalization import canonicalize_map, normalize_nested_map
+from map_editor.transforms import resize_map_data
 from map_editor.placement import PlacementMixin
 from map_editor.structure import insert_level_data, remove_level_data
 from map_editor.validation import validate_map
@@ -72,8 +80,8 @@ class StubCanvas:
     def update(self) -> None:
         pass
 
-    def spawn_zone_handle_centers(self, zone: dict, cell: float) -> list[tuple[float, float]]:
-        return []
+    def cells_per_pixel(self, pixels: float) -> float:
+        return pixels / 36.0
 
 
 class EditorHost(PlacementMixin, ItemsMixin, LightsMixin, NestedMapsMixin, EraseMixin, SelectMixin, SpawnZoneEditMixin):
@@ -98,7 +106,7 @@ class EditorHost(PlacementMixin, ItemsMixin, LightsMixin, NestedMapsMixin, Erase
     def apply_change(self, label: str, after: dict) -> None:
         self.map_data = after
 
-    def _flash_status(self, message: str) -> None:
+    def notify(self, message: str) -> None:
         self.statuses.append(message)
 
     def update_selection_actions(self) -> None:
@@ -312,11 +320,11 @@ class LightBridgeTests(unittest.TestCase):
         self.assertEqual(level["light_bridges"], [{"col": 1, "row": 0, "kind": BRIDGE_KIND}])
 
         bridge_center = QPointF(1.5, 0.5)
-        self.assertEqual(host.hit_at(bridge_center, 1.0), (MODE_LIGHT_BRIDGE, (1, 0)))
-        host.erase_at(bridge_center, 1.0, preserve_floors=True)
+        self.assertEqual(host.hit_at(bridge_center), (MODE_LIGHT_BRIDGE, (1, 0)))
+        host.erase_at(bridge_center, preserve_floors=True)
         self.assertEqual(host.map_data["levels"][0]["light_bridges"], [{"col": 1, "row": 0, "kind": BRIDGE_KIND}])
 
-        host.erase_at(bridge_center, 1.0, preserve_floors=False)
+        host.erase_at(bridge_center, preserve_floors=False)
         self.assertEqual(host.map_data["levels"][0]["light_bridges"], [])
 
     def test_bridges_and_bridge_plates_round_trip_through_the_file_format(self) -> None:
@@ -404,7 +412,7 @@ class LayerEraserTests(unittest.TestCase):
 
     def test_erase_floors_removes_only_floors_in_the_rectangle(self) -> None:
         host = self.host()
-        host.erase_floors_rect((0, 0), (1, 1))
+        host.erase_group_rect(MODE_ERASE_FLOORS, (0, 0), (1, 1))
         level = host.map_data["levels"][0]
         self.assertEqual(level["floors"], [floor(3, 3)])
         self.assertEqual(level["inaccessible_floors"], [])
@@ -413,12 +421,12 @@ class LayerEraserTests(unittest.TestCase):
 
     def test_erase_walls_and_erase_barriers_leave_each_other_alone(self) -> None:
         host = self.host()
-        host.erase_walls_rect((0, 0), (1, 1))
+        host.erase_group_rect(MODE_ERASE_WALLS, (0, 0), (1, 1))
         level = host.map_data["levels"][0]
         self.assertEqual(level["walls"], [wall(3, 3, 4, 3)])
         self.assertEqual(len(level["barriers"]), 1)
 
-        host.erase_barriers_rect((0, 0), (1, 1))
+        host.erase_group_rect(MODE_ERASE_BARRIERS, (0, 0), (1, 1))
         level = host.map_data["levels"][0]
         self.assertEqual(level["barriers"], [])
         self.assertEqual(level["walls"], [wall(3, 3, 4, 3)])
@@ -426,13 +434,13 @@ class LayerEraserTests(unittest.TestCase):
 
     def test_erase_ramps_touches_only_ramps_on_the_current_level(self) -> None:
         host = self.host()
-        host.erase_ramps_rect((0, 0), (3, 3))
+        host.erase_group_rect(MODE_ERASE_RAMPS, (0, 0), (3, 3))
         self.assertEqual([ramp["lower_level"] for ramp in host.map_data["ramps"]], [1])
 
     def test_erase_spawn_zones_clears_both_zone_lists_on_the_current_level(self) -> None:
         host = self.host()
         host.selected_spawn_zone_ref = object()
-        host.erase_spawn_zones_rect((1, 1), (3, 3))
+        host.erase_group_rect(MODE_ERASE_SPAWN_ZONES, (1, 1), (3, 3))
         self.assertEqual(host.map_data["actor_spawn_zones"], [actor_zone(1, 0, 0, 2, 2)])
         self.assertEqual(host.map_data["player_spawn_zones"], [])
         self.assertIsNone(host.selected_spawn_zone_ref)
@@ -440,8 +448,8 @@ class LayerEraserTests(unittest.TestCase):
     def test_an_empty_selection_flashes_and_changes_nothing(self) -> None:
         host = self.host()
         before = json.dumps(host.map_data, sort_keys=True)
-        host.erase_walls_rect((2, 1), (2, 2))
-        host.erase_ramps_rect((3, 0), (3, 1))
+        host.erase_group_rect(MODE_ERASE_WALLS, (2, 1), (2, 2))
+        host.erase_group_rect(MODE_ERASE_RAMPS, (3, 0), (3, 1))
         self.assertEqual(json.dumps(host.map_data, sort_keys=True), before)
         self.assertEqual(
             host.statuses,
@@ -466,6 +474,9 @@ class LayerEraserTests(unittest.TestCase):
 
 
 class ValidationTests(unittest.TestCase):
+    def test_one_tile_map_has_an_in_bounds_spawn_zone(self) -> None:
+        self.assertEqual(validate_map(empty_map(1, 1), [], []), [])
+
     def test_valid_minimal_map_has_no_errors(self) -> None:
         data = empty_map(2, 2)
         data["levels"][0]["floors"] = [floor(0, 0)]
@@ -509,24 +520,23 @@ class RightClickAndSelectTests(unittest.TestCase):
 
     def test_right_click_peels_the_light_then_plate_item_and_floor_off_a_cell(self) -> None:
         host = self.furnished()
-        cell = self.CELL
-        near_top = QPointF(1.5 * cell, 1.05 * cell)
-        center = QPointF(1.5 * cell, 1.5 * cell)
+        near_top = QPointF(1.5, 1.05)
+        center = QPointF(1.5, 1.5)
 
-        self.assertEqual(host.hit_at(near_top, cell), ("Light", (1, 1, "N")))
+        self.assertEqual(host.hit_at(near_top), ("Light", (1, 1, "N")))
         host.erase_hit(("Light", (1, 1, "N")))
         self.assertEqual(host.map_data["levels"][0]["lights"], [])
-        self.assertEqual(host.hit_at(near_top, cell)[0], "Wall")
+        self.assertEqual(host.hit_at(near_top)[0], "Wall")
 
-        self.assertEqual(host.hit_at(center, cell), ("Pressure Plate", (1, 1)))
-        self.assertEqual([p["type"] for p in host.editable_plates_at(1, 1)], ["barrier"])
+        self.assertEqual(host.hit_at(center), ("Pressure Plate", (1, 1)))
+        self.assertEqual([p["type"] for p in host.plates_at(1, 1)], ["barrier"])
         host.erase_hit(("Pressure Plate", (1, 1)))
         self.assertEqual(host.map_data["pressure_plates"], [])
 
-        self.assertEqual(host.hit_at(center, cell), ("Item", (1, 1)))
+        self.assertEqual(host.hit_at(center), ("Item", (1, 1)))
         host.erase_hit(("Item", (1, 1)))
         self.assertEqual(host.map_data["items"], [])
-        self.assertEqual(host.hit_at(center, cell), ("Floor", (1, 1)))
+        self.assertEqual(host.hit_at(center), ("Floor", (1, 1)))
 
     def test_placing_on_an_occupied_cell_flashes_instead_of_removing(self) -> None:
         host = self.furnished()
@@ -534,7 +544,7 @@ class RightClickAndSelectTests(unittest.TestCase):
         self.assertTrue(host.statuses[-1].startswith("Item not placed"))
         host.add_pressure_plate(1, 1, "barrier_1")
         self.assertTrue(host.statuses[-1].startswith("Plate not placed"))
-        host.add_light_at(QPointF(1.5 * self.CELL, 1.05 * self.CELL), self.CELL)
+        host.add_light_at(QPointF(1.5, 1.05))
         self.assertIn("already a light", host.statuses[-1])
         self.assertEqual(len(host.map_data["items"]), 1)
         self.assertEqual(len(host.map_data["pressure_plates"]), 1)
@@ -544,36 +554,34 @@ class RightClickAndSelectTests(unittest.TestCase):
         data = empty_map(8, 8)
         data["actor_spawn_zones"] = [{"level": 0, "cols": [1, 3], "rows": [1, 3], "kind": "beetle", "count": 2}]
         host = EditorHost(data, [])
-        cell = self.CELL
-        inside = QPointF(2.5 * cell, 2.5 * cell)
+        inside = QPointF(2.5, 2.5)
 
-        self.assertFalse(host.begin_select_press(inside, cell, edit_objects=True))
+        self.assertFalse(host.begin_select_press(inside, edit_objects=True))
         self.assertEqual(host.selected_spawn_zone_ref, ZoneRef("actor_spawn_zones", 0))
         self.assertIsNone(host.spawn_zone_drag)
 
-        self.assertFalse(host.begin_select_press(inside, cell, edit_objects=True))
+        self.assertFalse(host.begin_select_press(inside, edit_objects=True))
         self.assertEqual(host.spawn_zone_drag.handle, "move")
-        host.update_select_drag(QPointF(4.5 * cell, 2.5 * cell), cell)
+        host.update_select_drag(QPointF(4.5, 2.5))
         host.end_select_drag(None, None)
         zone = host.map_data["actor_spawn_zones"][0]
         self.assertEqual((zone["cols"], zone["rows"]), ([3, 5], [1, 3]))
 
-        self.assertTrue(host.begin_select_press(QPointF(6.5 * cell, 6.5 * cell), cell))
+        self.assertTrue(host.begin_select_press(QPointF(6.5, 6.5)))
         self.assertIsNone(host.selected_spawn_zone_ref)
 
     def test_object_drag_moves_only_the_chosen_nested_map_end(self) -> None:
         data = empty_map(8, 8)
         data["nested_maps"] = [nested("cabin", 0, [1, 1], [5, 1])]
         host = EditorHost(data, [])
-        cell = self.CELL
 
-        self.assertTrue(host.begin_select_press(QPointF(5.5 * cell, 1.5 * cell), cell, edit_objects=True))
+        self.assertTrue(host.begin_select_press(QPointF(5.5, 1.5), edit_objects=True))
         host.end_select_drag((5, 1), (5, 4))
         entry = host.map_data["nested_maps"][0]
         self.assertEqual((entry["from"], entry["to"]), ([1, 1], [5, 4]))
         host.end_select_drag((5, 4), (5, 4))
         self.assertEqual(host.map_data["nested_maps"][0]["to"], [5, 4])
-        self.assertTrue(host.begin_select_press(QPointF(3.5 * cell, 3.5 * cell), cell))
+        self.assertTrue(host.begin_select_press(QPointF(3.5, 3.5)))
 
 
 def nested(map_name: str, level: int, start: list[int], end: list[int], to_level: int | None = None) -> dict:
@@ -696,9 +704,9 @@ class NestedMapTests(unittest.TestCase):
         data["nested_maps"] = [nested("cabin", 0, [1, 1], [4, 1]), nested("cabin", 0, [0, 5], [0, 5])]
         host = EditorHost(data, [])
 
-        host.erase_nested_maps_rect((4, 0), (5, 1))
+        host.erase_group_rect(MODE_ERASE_NESTED_MAPS, (4, 0), (5, 1))
         self.assertEqual([e["from"] for e in host.map_data["nested_maps"]], [[0, 5]])
-        host.erase_nested_maps_rect((3, 3), (3, 3))
+        host.erase_group_rect(MODE_ERASE_NESTED_MAPS, (3, 3), (3, 3))
         self.assertEqual(host.statuses[-1], "Erase Nested Maps: no nested maps in selection.")
 
     def test_erase_keep_floors_leaves_nested_maps_in_place(self) -> None:
@@ -739,6 +747,16 @@ class NestedMapTests(unittest.TestCase):
         self.assertTrue(nested_map_spans_level(lift, 1, 2))
         self.assertTrue(nested_map_spans_level(lift, 3, 2))
         self.assertFalse(nested_map_spans_level(lift, 4, 2))
+
+    def test_nested_cycle_check_visits_a_shared_dependency_once(self) -> None:
+        graph = {
+            "left": NestedMapShape(1, 1, 1, ("shared",)),
+            "right": NestedMapShape(1, 1, 1, ("shared",)),
+            "shared": NestedMapShape(1, 1, 1, ()),
+        }
+        lookup = Mock(side_effect=graph.get)
+        self.assertIsNone(nested_map_cycle("root", [{"map": "left"}, {"map": "right"}], lookup))
+        self.assertEqual([call.args[0] for call in lookup.call_args_list].count("shared"), 1)
 
     def test_nested_map_cycle_names_the_loop(self) -> None:
         self.assertEqual(

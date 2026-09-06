@@ -5,6 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
+# What a press in Select Tiles started dragging.
+DRAG_TILES = "tiles"
+DRAG_SPAWN_ZONE = "spawn zone"
+DRAG_NESTED_END = "nested end"
+
+
 @dataclass
 class ZoneRef:
     """Identifies a spawn zone by which list it belongs to and its index."""

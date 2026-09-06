@@ -10,6 +10,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 # One map JSON per named map; the editor's CLI argument is the map name.
 MAPS_DIR = REPO_ROOT / "config" / "server" / "maps"
 GAMEPLAY_PATH = REPO_ROOT / "config" / "server" / "gameplay.json"
+ASSETS_PATH = REPO_ROOT / "config" / "client" / "assets.json"
 
 
 def load_actor_kinds() -> list[str]:
@@ -18,7 +19,7 @@ def load_actor_kinds() -> list[str]:
 
 
 def _load_material_aliases() -> set[str]:
-    assets_path = REPO_ROOT / "config" / "client" / "assets.json"
+    assets_path = ASSETS_PATH
     with assets_path.open("r", encoding="utf-8") as handle:
         assets = json.load(handle)
     return set(assets.get("aliases", {}).keys())
@@ -215,9 +216,6 @@ DEFAULT_ACTOR_COUNT = 1
 SPAWN_ZONE_HANDLE_PIXELS = 8.0
 STATUS_TIMEOUT_MS = 4000
 
-
-
-MIN_CELL = 12.0
 EDITOR_CELL = 36
 DEFAULT_GRID_COLS = 20
 DEFAULT_GRID_ROWS = 20

@@ -10,12 +10,10 @@ from .dialogs import AutoPlaceLightsDialog
 from .display import level_label
 from .geometry import (
     cell_side_from_click,
-    normalized_wall,
     ramp_cells_on_level,
-    rect_from_cells,
     wall_endpoints_for_cell_side,
 )
-from .normalization import light_key
+from .normalization import edge_key, light_key
 
 
 class LightsMixin:
@@ -26,13 +24,13 @@ class LightsMixin:
 
     def _wall_endpoints_for_level(self, level_idx: int) -> set[tuple[int, int, int, int]]:
         return {
-            tuple(normalized_wall([w["c0"], w["r0"], w["c1"], w["r1"]]))
+            edge_key(w)
             for w in self.map_data["levels"][level_idx]["walls"]
         }
 
-    def add_light_at(self, pos, cell_size: float) -> None:
-        px = pos.x() / cell_size
-        py = pos.y() / cell_size
+    def add_light_at(self, pos) -> None:
+        px = pos.x()
+        py = pos.y()
         cols = self.map_data["grid_cols"]
         rows = self.map_data["grid_rows"]
         col = int(px)
@@ -43,15 +41,15 @@ class LightsMixin:
         level_idx = self.current_level
         endpoints = wall_endpoints_for_cell_side(col, row, side)
         if endpoints not in self._wall_endpoints_for_level(level_idx):
-            self._flash_status(f"No wall on the {side} side of cell [{col}, {row}].")
+            self.notify(f"No wall on the {side} side of cell [{col}, {row}].")
             return
         if (col, row) in self._ramp_cells_for_level(level_idx):
-            self._flash_status(f"Cannot place a light inside a ramp footprint ([{col}, {row}]).")
+            self.notify(f"Cannot place a light inside a ramp footprint ([{col}, {row}]).")
             return
         new_light = {"col": col, "row": row, "side": side}
         key = light_key(new_light)
         if any(light_key(light) == key for light in self.map_data["levels"][level_idx]["lights"]):
-            self._flash_status(
+            self.notify(
                 f"There is already a light on the {side} side of cell [{col}, {row}]; right-click it to erase."
             )
             return
@@ -96,7 +94,7 @@ class LightsMixin:
                         candidates.append({"col": c, "row": r, "side": side})
 
         if not candidates:
-            self._flash_status("Auto-Place Lights: no walls matched the stride.")
+            self.notify("Auto-Place Lights: no walls matched the stride.")
             return
 
         after = copy.deepcopy(self.map_data)
@@ -107,7 +105,7 @@ class LightsMixin:
         # ones already on the level.
         new_lights = [c for c in candidates if light_key(c) not in existing_keys]
         if not new_lights:
-            self._flash_status("Auto-Place Lights: nothing new to add.")
+            self.notify("Auto-Place Lights: nothing new to add.")
             return
 
         # Ghost preview: stash the candidate list, repaint the canvas (so
@@ -125,12 +123,12 @@ class LightsMixin:
         self.pending_auto_lights = None
         self.canvas.update()
         if response != QMessageBox.StandardButton.Yes:
-            self._flash_status("Auto-Place Lights: cancelled.")
+            self.notify("Auto-Place Lights: cancelled.")
             return
         for candidate in new_lights:
             existing.append(candidate)
         self.apply_change("Auto-Place Lights", after)
-        self._flash_status(f"Auto-Place Lights: added {len(new_lights)} light(s).")
+        self.notify(f"Auto-Place Lights: added {len(new_lights)} light(s).")
 
     def open_auto_place_lights_dialog(self) -> None:
         result = AutoPlaceLightsDialog.prompt(
@@ -149,7 +147,7 @@ class LightsMixin:
         level = self.map_data["levels"][level_idx]
         light_count = len(level["lights"])
         if light_count == 0:
-            self._flash_status("Clear Lights: this level has no lights.")
+            self.notify("Clear Lights: this level has no lights.")
             return
         # Wiping every light on a level is one menu click away — sanity-prompt
         # in line with Remove Level. Undo recovers but the modal makes the
@@ -166,15 +164,3 @@ class LightsMixin:
         after = copy.deepcopy(self.map_data)
         after["levels"][level_idx]["lights"] = []
         self.apply_change("Clear Lights", after)
-
-    def erase_lights_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
-        c0, r0, c1, r1 = rect_from_cells(start, end)
-        level_idx = self.current_level
-        lights = self.map_data["levels"][level_idx]["lights"]
-        kept = [l for l in lights if not (c0 <= l["col"] < c1 and r0 <= l["row"] < r1)]
-        if len(kept) == len(lights):
-            self._flash_status("Erase Lights: no lights in selection.")
-            return
-        after = copy.deepcopy(self.map_data)
-        after["levels"][level_idx]["lights"] = kept
-        self.apply_change("Erase Lights", after)

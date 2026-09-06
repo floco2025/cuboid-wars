@@ -59,7 +59,9 @@ class MapDocument(QObject):
 
     def apply_change(self, label: str, after: dict, *, repair: bool = False) -> bool:
         after = canonicalize_map(after) if repair else maintain_edit(self.map_data, after)
-        if after == self.map_data:
+        # A file may be in any record order; an edit that only reorders is
+        # not an edit.
+        if after == maintain_edit(self.map_data, self.map_data):
             return False
         self.undo_stack.push(SetMapCommand(self, label, self.map_data, after))
         return True

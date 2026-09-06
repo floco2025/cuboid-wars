@@ -5,12 +5,11 @@ from __future__ import annotations
 import copy
 from dataclasses import dataclass
 
-from .constants import SPAWN_ZONE_LISTS
-from .geometry import ramp_rect, rects_overlap, wall_endpoints_for_cell_side, wall_overlaps_rect, zone_rect
-from .io import empty_map
-from .transforms import EDGE_LISTS, GLOBAL_LISTS, LEVEL_LISTS, translate_map
-
-
+from .constants import LIGHT_SIDES, SPAWN_ZONE_LISTS
+from .geometry import rects_overlap, wall_endpoints_for_cell_side, wall_overlaps_rect
+from .normalization import edge_key
+from .io import empty_level, empty_map
+from .transforms import EDGE_LISTS, GLOBAL_LISTS, LEVEL_LISTS, record_levels, record_rect, translate_map
 
 
 @dataclass(frozen=True)
@@ -53,17 +52,15 @@ def _whole_object(region: TileRegion, rect: tuple[int, int, int, int], lower: in
     return touches
 
 
+# The whole-object rule for every record spanning cells or levels; a
+# nested map's two ends are judged separately.
+WHOLE_OBJECT_NOUNS = {**dict.fromkeys(SPAWN_ZONE_LISTS, "spawn zone"), "ramps": "ramp", "ladders": "ladder"}
+
+
 def _global_selected(name: str, entry: dict, region: TileRegion) -> bool:
-    if name in SPAWN_ZONE_LISTS:
-        return _whole_object(region, zone_rect(entry), entry["level"], entry["level"], "spawn zone")
-    if name == "ramps":
-        return _whole_object(region, ramp_rect(entry), entry["lower_level"], entry["lower_level"] + 1, "ramp")
-    if name == "ladders":
-        col, row = entry["col"], entry["row"]
-        return _whole_object(
-            region, (col, row, col + 1, row + 1),
-            entry["lower_level"], entry["lower_level"] + entry["levels"], "ladder",
-        )
+    if name in WHOLE_OBJECT_NOUNS:
+        lower, upper = record_levels(entry)
+        return _whole_object(region, record_rect(name, entry), lower, upper, WHOLE_OBJECT_NOUNS[name])
     if name == "nested_maps":
         start = region.contains_level(entry["level"]) and region.contains_cell(*entry["from"])
         end = region.contains_level(entry["to_level"]) and region.contains_cell(*entry["to"])
@@ -101,8 +98,6 @@ def _partition(data: dict, region: TileRegion) -> tuple[dict, dict]:
     return chosen, remaining
 
 
-
-
 def copy_region(data: dict, region: TileRegion) -> dict:
     chosen, _ = _partition(data, region)
     c0, r0, c1, r1 = region.rect
@@ -117,14 +112,20 @@ def delete_region(data: dict, region: TileRegion) -> dict:
     return remaining
 
 
+# A light outside the region whose wall this edit removes would be
+# orphaned; a light already orphaned or on an unknown side is the repair
+# dialog's business, not this edit's.
 def _check_boundary_lights(before: dict, after: dict, region: TileRegion) -> None:
     for index in range(region.level, region.top):
-        walls = {tuple(_edge(wall)) for wall in after["levels"][index]["walls"]}
+        edges = lambda level: {edge_key(wall) for wall in level["walls"]}
+        removed = edges(before["levels"][index]) - edges(after["levels"][index])
         for light in before["levels"][index].get("lights", []):
-            if not region.contains_cell(light["col"], light["row"]):
-                edge = wall_endpoints_for_cell_side(light["col"], light["row"], light["side"])
-                if edge not in walls:
-                    raise ValueError("A boundary wall holds a light outside the selection. Include the tile on that side too.")
+            if (
+                light["side"] in LIGHT_SIDES
+                and not region.contains_cell(light["col"], light["row"])
+                and wall_endpoints_for_cell_side(light["col"], light["row"], light["side"]) in removed
+            ):
+                raise ValueError("A boundary wall holds a light outside the selection. Include the tile on that side too.")
 
 
 def paste_region(data: dict, block: dict, cell: tuple[int, int], level: int) -> dict:
@@ -132,11 +133,13 @@ def paste_region(data: dict, block: dict, cell: tuple[int, int], level: int) -> 
     destination = TileRegion((col, row, col + block["grid_cols"], row + block["grid_rows"]), level, len(block["levels"]))
     expanded = copy.deepcopy(data)
     while len(expanded["levels"]) < destination.top:
-        blank = empty_map()["levels"][0]
-        blank["name"] = f"Level {len(expanded['levels'])}"
-        expanded["levels"].append(blank)
+        expanded["levels"].append(empty_level(len(expanded["levels"])))
     destination.check_bounds(expanded)
-    _, remaining = _partition(expanded, destination)
+    try:
+        _, remaining = _partition(expanded, destination)
+    except ValueError as exc:
+        raise ValueError(str(exc).replace("The selection crosses", "The destination crosses").replace(
+            "Include", "Choose a tile whose block includes")) from exc
     moved = translate_map(block, col, row, level)
     for offset, source in enumerate(moved["levels"]):
         for name in LEVEL_LISTS:

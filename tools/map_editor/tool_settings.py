@@ -111,18 +111,7 @@ class ToolSettings(QWidget):
             self.bindings.append((box, attribute))
             field(label, box)
 
-        if mode in (MODE_FLOOR, MODE_INACCESSIBLE_FLOOR, MODE_WALL, *RAMP_MODES):
-            combo("Material", "current_material", window.materials_catalog, required=True)
-        elif mode == MODE_ACTOR_SPAWN_ZONE:
-            combo("Actor", "recent_actor_spawn_kind", window.actor_kinds, editable=True)
-            number("Count", "recent_actor_spawn_count", 0, 9999)
-        elif mode in (MODE_BARRIER, MODE_PRESSURE_PLATE):
-            attribute = "recent_barrier_kind" if mode == MODE_BARRIER else "recent_pressure_plate_kind"
-            combo("Kind", attribute, window.barrier_kinds)
-        elif mode in (MODE_LIGHT_BRIDGE, MODE_BRIDGE_PLATE):
-            attribute = "recent_bridge_kind" if mode == MODE_LIGHT_BRIDGE else "recent_bridge_plate_kind"
-            combo("Kind", attribute, window.bridge_kinds)
-        elif mode == MODE_ITEM:
+        def item_controls():
             item, _ = combo("Item", "recent_item_type", list(ITEM_TYPES), required=True)
             key, label = combo("Kind", "recent_item_key_kind", window.barrier_kinds)
             self.key_controls = (key, label)
@@ -133,13 +122,33 @@ class ToolSettings(QWidget):
 
             item.currentTextChanged.connect(show_key_kind)
             show_key_kind(window.recent_item_type)
-        elif mode == MODE_LADDER:
-            number("Storeys", "recent_ladder_levels", 1, max(1, len(window.map_data["levels"]) - 1))
-        elif mode == MODE_NESTED_MAP:
+
+        def motion_button():
             button = QPushButton("Settings…")
             button.setToolTip("Choose the nested map and its motion")
             button.clicked.connect(self.configure_motion)
             form.addWidget(button)
+
+        # The controls each tool needs, by mode.
+        builders = {
+            **dict.fromkeys(
+                (MODE_FLOOR, MODE_INACCESSIBLE_FLOOR, MODE_WALL, *RAMP_MODES),
+                lambda: combo("Material", "current_material", window.materials_catalog, required=True),
+            ),
+            MODE_ACTOR_SPAWN_ZONE: lambda: (
+                combo("Actor", "recent_actor_spawn_kind", window.actor_kinds, editable=True),
+                number("Count", "recent_actor_spawn_count", 0, 9999),
+            ),
+            MODE_BARRIER: lambda: combo("Kind", "recent_barrier_kind", window.barrier_kinds),
+            MODE_PRESSURE_PLATE: lambda: combo("Kind", "recent_pressure_plate_kind", window.barrier_kinds),
+            MODE_LIGHT_BRIDGE: lambda: combo("Kind", "recent_bridge_kind", window.bridge_kinds),
+            MODE_BRIDGE_PLATE: lambda: combo("Kind", "recent_bridge_plate_kind", window.bridge_kinds),
+            MODE_ITEM: item_controls,
+            MODE_LADDER: lambda: number("Storeys", "recent_ladder_levels", 1, max(1, len(window.map_data["levels"]) - 1)),
+            MODE_NESTED_MAP: motion_button,
+        }
+        if mode in builders:
+            builders[mode]()
         has_settings = form.count() > 0
         previous = self.body
         self.body = body

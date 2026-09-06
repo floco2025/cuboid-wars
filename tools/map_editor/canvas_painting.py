@@ -42,13 +42,13 @@ from .display import (
     tag_color,
     zone_color,
 )
+from .types import DRAG_NESTED_END, DRAG_TILES
 from .geometry import (
     draw_direction,
     ladder_anchor_from_click,
     ladder_marker_lines,
     light_marker_polygon,
     opposite_direction,
-    wall_endpoints_for_cell_side,
     orthogonal_arrow_points,
     ramp_axis,
     ramp_cells,
@@ -56,9 +56,10 @@ from .geometry import (
     ramp_rect,
     rect_from_cells,
     snapped_wall_end,
+    wall_endpoints_for_cell_side,
+    zone_handle_centers,
     zone_rect,
 )
-
 
 
 class CanvasPaintingMixin:
@@ -119,7 +120,7 @@ class CanvasPaintingMixin:
         if window.mode != MODE_SELECT:
             return
         rect = window.tile_selection
-        if window.select_drag_kind == "tiles" and self.drag_start_cell is not None and self.drag_current_cell is not None:
+        if window.select_drag_kind == DRAG_TILES and self.drag_start_cell is not None and self.drag_current_cell is not None:
             rect = rect_from_cells(self.drag_start_cell, self.drag_current_cell)
         if rect is None:
             return
@@ -138,7 +139,7 @@ class CanvasPaintingMixin:
         painter.setBrush(Qt.BrushStyle.NoBrush)
         inset = min(3, cell * 0.15)
         painter.drawRect(QRectF(c0 * cell, r0 * cell, width * cell, height * cell).adjusted(inset, inset, -inset, -inset))
-        text = f"Paste replaces {width} × {height} tiles · {levels} level(s)"
+        text = f"Paste replaces {levels} level(s)"
         if not fits:
             text += " · outside map"
         label_width = painter.fontMetrics().horizontalAdvance(text) + 16
@@ -436,7 +437,7 @@ class CanvasPaintingMixin:
         elif self.drag_start_cell and self.drag_current_cell and self.window.mode in RAMP_MODES:
             self.paint_ramp_preview(painter, self.drag_start_cell, self.drag_current_cell, cell)
         elif self.drag_start_cell and self.drag_current_cell and (
-            self.window.mode == MODE_NESTED_MAP or self.window.select_drag_kind == "nested"
+            self.window.mode == MODE_NESTED_MAP or self.window.select_drag_kind == DRAG_NESTED_END
         ):
             self._paint_nested_map_drag(painter, cell)
 
@@ -769,8 +770,8 @@ class CanvasPaintingMixin:
         handle = SPAWN_ZONE_HANDLE_PIXELS
         painter.setBrush(QColor("#f1f5f9"))
         painter.setPen(QPen(QColor("#0f172a"), 1))
-        for cx, cy in self.spawn_zone_handle_centers(zone, cell):
-            painter.drawRect(QRectF(cx - handle / 2, cy - handle / 2, handle, handle))
+        for cx, cy in zone_handle_centers(zone):
+            painter.drawRect(QRectF(cx * cell - handle / 2, cy * cell - handle / 2, handle, handle))
 
     def paint_spawn_zone_drag_preview(self, painter: QPainter, cell: float) -> None:
         drag = self.window.spawn_zone_drag

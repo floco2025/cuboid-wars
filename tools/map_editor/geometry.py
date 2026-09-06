@@ -38,11 +38,11 @@ def normalized_wall(wall: list[int]) -> list[int]:
     return [c0, r0, c1, r1]
 
 
-
-def zone_cells(zone: dict) -> list[tuple[int, int]]:
-    c0, c1 = zone["cols"]
-    r0, r1 = zone["rows"]
-    return [(c, r) for r in range(r0, r1) for c in range(c0, c1)]
+# The eight resize handles of a zone, nw clockwise, in grid units.
+def zone_handle_centers(zone: dict) -> list[tuple[float, float]]:
+    c0, r0, c1, r1 = zone_rect(zone)
+    mx, my = (c0 + c1) / 2, (r0 + r1) / 2
+    return [(c0, r0), (mx, r0), (c1, r0), (c1, my), (c1, r1), (mx, r1), (c0, r1), (c0, my)]
 
 
 def zone_rect(zone: dict) -> tuple[int, int, int, int]:
