@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use crate::{
-    actors::{ActorInfo, ActorMap, navigation::NavGraphs},
+    actors::{ActorCrushed, ActorInfo, ActorMap, navigation::NavGraphs},
     combat::{PendingExplosions, kill_actor},
     config::ServerGameplayConfig,
     players::PlayerMap,
@@ -11,10 +11,11 @@ use common::map::Carriers;
 use common::protocol::{ActorId, ActorMarker, CarrierId, Health, PlayerId, Position};
 
 // Despawn actors that have fallen below the death threshold, left their
-// nested map, or had their health reduced to zero. Health-zero death
-// broadcasts its cue and queues a blast for the shared resolver. Falls and
-// departures are silent — falls were teleports before, so the asymmetry is
-// preserved, and an actor off its carrier has no grid to navigate.
+// nested map, been crushed by a carrier, or had their health reduced to
+// zero. Health-zero death broadcasts its cue and queues a blast for the
+// shared resolver. Falls, departures, and crushes are silent — falls were
+// teleports before, so the asymmetry is preserved, and an actor off its
+// carrier has no grid to navigate.
 //
 // Actor entities are despawned outright; the `actors_respawn_system` will
 // pick the missing slots up next tick and create replacements.
@@ -26,15 +27,17 @@ pub fn actors_removal_system(
     carriers: Res<Carriers>,
     nav_graphs: Res<NavGraphs>,
     mut pending_explosions: ResMut<PendingExplosions>,
-    query: Query<(Entity, &ActorId, &Position, &Health), With<ActorMarker>>,
+    query: Query<(Entity, &ActorId, &Position, &Health, &ActorCrushed), With<ActorMarker>>,
 ) {
     let mut deaths: Vec<ActorDeath> = Vec::new();
-    for (entity, id, pos, health) in query.iter() {
+    for (entity, id, pos, health, crushed) in query.iter() {
         let Some(info) = actors.get(id) else {
             continue;
         };
         let kind = if pos.y < CHARACTER_FALL_DEATH_Y {
             ActorDeathKind::Fall
+        } else if crushed.0 {
+            ActorDeathKind::Crushed
         } else if left_carrier(info, pos, &carriers, &nav_graphs) {
             ActorDeathKind::LeftCarrier(info.carrier)
         } else if health.0 <= 0.0 {
@@ -77,6 +80,15 @@ pub fn actors_removal_system(
                 commands.entity(death.entity).despawn();
                 actors.remove(&death.id);
             }
+            ActorDeathKind::Crushed => {
+                info!(
+                    "{} was crushed by moving geometry at {:?}",
+                    actors.describe(&death.id),
+                    death.pos
+                );
+                commands.entity(death.entity).despawn();
+                actors.remove(&death.id);
+            }
             ActorDeathKind::LeftCarrier(carrier) => {
                 info!(
                     "{} left carrier {} and despawned at {:?}",
@@ -104,6 +116,7 @@ fn left_carrier(info: &ActorInfo, pos: &Position, carriers: &Carriers, nav_graph
 #[derive(Copy, Clone)]
 enum ActorDeathKind {
     Fall,
+    Crushed,
     LeftCarrier(CarrierId),
     Killed,
 }

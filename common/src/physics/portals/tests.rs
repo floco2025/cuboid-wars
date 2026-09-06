@@ -351,6 +351,7 @@ fn portal_momentum_ends_on_support_or_collision() {
         support: CharacterSupport::Airborne,
         blocked: false,
         floor_velocity: Vec3::ZERO,
+        crushed: false,
     };
     let mut momentum = AirborneMomentum(Vec3::X);
     momentum.finish_step(&airborne);

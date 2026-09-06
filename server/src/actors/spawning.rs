@@ -3,7 +3,9 @@ use rand::{RngExt, rng, rngs::ThreadRng};
 use std::f32::consts::TAU;
 
 use crate::{
-    actors::{ActorInfo, ActorMap, ActorRespawnTimers, ActorSpawner, PendingActorSpawn, PendingActorSpawns},
+    actors::{
+        ActorCrushed, ActorInfo, ActorMap, ActorRespawnTimers, ActorSpawner, PendingActorSpawn, PendingActorSpawns,
+    },
     characters::generate_actor_spawn_position_in_zone,
     config::ServerGameplayConfig,
     map::{ActorSpawnZone, MapConfig},
@@ -349,6 +351,7 @@ fn materialize_actor(
             FaceYaw(spawn.face_yaw),
             CharacterVerticalVelocity::default(),
             Health(max_health),
+            ActorCrushed::default(),
         ))
         .id();
 

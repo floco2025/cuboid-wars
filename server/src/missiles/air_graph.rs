@@ -1,189 +1,201 @@
-use std::collections::{HashSet, VecDeque};
+use std::collections::VecDeque;
 
 use bevy::prelude::*;
 
-use common::map::MapGeometry;
+use common::{
+    map::{Carriers, MapGeometry},
+    physics::CollisionWorld,
+    protocol::{BarrierKindId, CarrierId},
+};
 
-use crate::map::{Cell, CellSide, MapConfig, has_edge_on_cell_side};
-use crate::pathfind::bfs_path;
+use super::steering::sweep_clear;
+use crate::{map::MapConfig, pathfind::bfs_path};
 
-// Adjacency offsets (layer, row, col) for the 6-connected air grid.
 const ADJACENT: [(i32, i32, i32); 6] = [(0, -1, 0), (0, 1, 0), (0, 0, -1), (0, 0, 1), (-1, 0, 0), (1, 0, 0)];
-// Cap on the nearest-open-volume fallback search.
-const NEAREST_FLYABLE_MAX_VISITS: usize = 64;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct AirNode {
+    grid: usize,
     layer: i32,
     row: i32,
     col: i32,
 }
 
-// Full-3D flyable-airspace graph for missiles: one node per storey-sized air
-// volume (grid cell × level), plus one open sky layer above the top level.
-// Horizontal neighbors connect where no wall/keyed-barrier edge separates
-// them; vertical neighbors connect where the upper volume has no physical
-// floor slab. Ramp cells are excluded — the wedge fills their air. Unlike
-// the actors' `NavGraph`, standability is irrelevant: missiles fly, with no
-// preferred direction.
-#[derive(Resource)]
-pub struct AirGraph {
-    map_config: MapConfig,
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum SearchNode {
+    Origin,
+    Air(AirNode),
+}
+
+struct AirGrid {
+    carrier: CarrierId,
     geometry: MapGeometry,
     layers: i32,
 }
 
+// Each carrier supplies air-volume centers in its own frame, including a sky
+// layer. Collision sweeps alone decide connectivity, including between grids.
+#[derive(Resource)]
+pub struct AirGraph {
+    grids: Vec<AirGrid>,
+}
+
 impl AirGraph {
-    // Flies the root map's airspace; a missile inside a nested map goes by
-    // sight and the stall watchdog.
     #[must_use]
-    pub fn new(map_config: MapConfig) -> Self {
-        let geometry = map_config.root_grid().geometry;
-        let layers = i32::try_from(map_config.root_grid().levels.len()).unwrap_or(0) + 1;
+    pub fn new(map_config: &MapConfig) -> Self {
         Self {
-            map_config,
-            geometry,
-            layers,
+            grids: map_config
+                .grids
+                .iter()
+                .map(|grid| AirGrid {
+                    carrier: grid.carrier,
+                    geometry: grid.geometry,
+                    layers: i32::try_from(grid.levels.len()).expect("map level count exceeds i32") + 1,
+                })
+                .collect(),
         }
     }
 
-    // BFS route from `from` to `to` as waypoints at air-volume centers.
-    // `None` when no route through open air exists.
     #[must_use]
-    pub fn path(&self, from: Vec3, to: Vec3) -> Option<VecDeque<Vec3>> {
-        let start = self.nearest_flyable(self.node_at(from))?;
-        let goal = self.nearest_flyable(self.node_at(to))?;
-
-        let nodes = bfs_path(start, |node| *node == goal, |node| self.neighbors(node))?;
-        Some(nodes.into_iter().map(|node| self.node_center(node)).collect())
+    pub fn path(
+        &self,
+        carriers: &Carriers,
+        world: &CollisionWorld,
+        open_kinds: &[BarrierKindId],
+        from: Vec3,
+        to: Vec3,
+        radius: f32,
+    ) -> Option<VecDeque<Vec3>> {
+        let clear = |a: Vec3, b: Vec3| sweep_clear(world, open_kinds, a, b - a, radius);
+        if clear(from, to) {
+            return Some(VecDeque::from([to]));
+        }
+        if !clear(from, from) {
+            return None;
+        }
+        let nodes = bfs_path(
+            SearchNode::Origin,
+            |node| match node {
+                SearchNode::Origin => false,
+                SearchNode::Air(node) => clear(self.node_center(carriers, *node), to),
+            },
+            |node| {
+                let (origin, candidates) = match node {
+                    SearchNode::Origin => (from, self.endpoint_candidates(carriers, from)),
+                    SearchNode::Air(node) => (self.node_center(carriers, node), self.neighbors(carriers, node)),
+                };
+                candidates
+                    .into_iter()
+                    .filter(|node| clear(origin, self.node_center(carriers, *node)))
+                    .map(SearchNode::Air)
+                    .collect()
+            },
+        )?;
+        let mut path: VecDeque<_> = nodes
+            .into_iter()
+            .filter_map(|node| match node {
+                SearchNode::Origin => None,
+                SearchNode::Air(node) => Some(self.node_center(carriers, node)),
+            })
+            .collect();
+        if path.back() != Some(&to) {
+            path.push_back(to);
+        }
+        Some(path)
     }
 
     #[must_use]
     pub fn cell_size(&self) -> f32 {
-        self.geometry.cell_size()
+        self.grids
+            .first()
+            .expect("air graph has no root grid")
+            .geometry
+            .cell_size()
     }
 
-    fn node_at(&self, pos: Vec3) -> AirNode {
-        let layer = (pos.y / self.geometry.level_height()).floor() as i32;
+    fn node_at(&self, carriers: &Carriers, grid: usize, pos: Vec3) -> AirNode {
+        let source = &self.grids[grid];
+        let local = carriers.pose(source.carrier).inverse_transform_point(pos);
         AirNode {
-            layer: layer.clamp(0, self.layers - 1),
-            row: self.geometry.cell_row_containing_z(pos.z),
-            col: self.geometry.cell_col_containing_x(pos.x),
+            grid,
+            layer: (local.y / source.geometry.level_height()).floor() as i32,
+            row: source.geometry.cell_row_containing_z(local.z),
+            col: source.geometry.cell_col_containing_x(local.x),
         }
     }
 
-    fn node_center(&self, node: AirNode) -> Vec3 {
-        Vec3::new(
-            self.geometry.cell_center_x(node.col),
-            (node.layer as f32 + 0.5) * self.geometry.level_height(),
-            self.geometry.cell_center_z(node.row),
-        )
+    fn node_center(&self, carriers: &Carriers, node: AirNode) -> Vec3 {
+        let grid = &self.grids[node.grid];
+        carriers.pose(grid.carrier).transform_point(Vec3::new(
+            grid.geometry.cell_center_x(node.col),
+            (node.layer as f32 + 0.5) * grid.geometry.level_height(),
+            grid.geometry.cell_center_z(node.row),
+        ))
     }
 
     fn in_bounds(&self, node: AirNode) -> bool {
-        (0..self.layers).contains(&node.layer)
-            && (0..self.geometry.grid_rows).contains(&node.row)
-            && (0..self.geometry.grid_cols).contains(&node.col)
+        let grid = &self.grids[node.grid];
+        (0..grid.layers).contains(&node.layer)
+            && (0..grid.geometry.grid_rows).contains(&node.row)
+            && (0..grid.geometry.grid_cols).contains(&node.col)
     }
 
-    fn flyable(&self, node: AirNode) -> bool {
-        if !self.in_bounds(node) {
-            return false;
+    fn endpoint_candidates(&self, carriers: &Carriers, pos: Vec3) -> Vec<AirNode> {
+        let mut nodes = Vec::new();
+        for (grid, source) in self.grids.iter().enumerate() {
+            let mut nearest = self.node_at(carriers, grid, pos);
+            nearest.layer = nearest.layer.clamp(0, source.layers - 1);
+            nearest.row = nearest.row.clamp(0, source.geometry.grid_rows - 1);
+            nearest.col = nearest.col.clamp(0, source.geometry.grid_cols - 1);
+            for dl in -1..=1 {
+                for dr in -1..=1 {
+                    for dc in -1..=1 {
+                        let node = AirNode {
+                            layer: nearest.layer + dl,
+                            row: nearest.row + dr,
+                            col: nearest.col + dc,
+                            ..nearest
+                        };
+                        if self.in_bounds(node) {
+                            nodes.push(node);
+                        }
+                    }
+                }
+            }
         }
-        self.cell(node).is_none_or(|cell| !cell.has_ramp)
+        nodes.sort_by(|a, b| {
+            self.node_center(carriers, *a)
+                .distance_squared(pos)
+                .total_cmp(&self.node_center(carriers, *b).distance_squared(pos))
+        });
+        nodes
     }
 
-    // `None` above the top map level (open sky) or off-grid.
-    fn cell(&self, node: AirNode) -> Option<&Cell> {
-        let level = self
-            .map_config
-            .root_grid()
-            .levels
-            .get(usize::try_from(node.layer).ok()?)?;
-        level
-            .cells
-            .rows
-            .get(usize::try_from(node.row).ok()?)?
-            .get(usize::try_from(node.col).ok()?)
-    }
-
-    // A clamped start/target can land in a ramp cell (a target standing on a
-    // ramp): fall back to the nearest open volume.
-    fn nearest_flyable(&self, node: AirNode) -> Option<AirNode> {
-        if self.flyable(node) {
-            return Some(node);
-        }
-        let mut queue = VecDeque::from([node]);
-        let mut seen: HashSet<AirNode> = HashSet::from([node]);
-        while let Some(current) = queue.pop_front() {
-            if seen.len() > NEAREST_FLYABLE_MAX_VISITS {
-                break;
+    fn neighbors(&self, carriers: &Carriers, node: AirNode) -> Vec<AirNode> {
+        let mut nodes = Vec::new();
+        let center = self.node_center(carriers, node);
+        for grid in 0..self.grids.len() {
+            let nearest = if grid == node.grid {
+                node
+            } else {
+                self.node_at(carriers, grid, center)
+            };
+            if grid != node.grid && self.in_bounds(nearest) {
+                nodes.push(nearest);
             }
             for (dl, dr, dc) in ADJACENT {
                 let next = AirNode {
-                    layer: current.layer + dl,
-                    row: current.row + dr,
-                    col: current.col + dc,
+                    layer: nearest.layer + dl,
+                    row: nearest.row + dr,
+                    col: nearest.col + dc,
+                    ..nearest
                 };
-                if !self.in_bounds(next) || !seen.insert(next) {
-                    continue;
+                if self.in_bounds(next) {
+                    nodes.push(next);
                 }
-                if self.flyable(next) {
-                    return Some(next);
-                }
-                queue.push_back(next);
             }
         }
-        None
-    }
-
-    fn neighbors(&self, node: AirNode) -> Vec<AirNode> {
-        let mut out = Vec::with_capacity(6);
-        self.push_horizontal(&mut out, node, -1, 0, CellSide::North);
-        self.push_horizontal(&mut out, node, 1, 0, CellSide::South);
-        self.push_horizontal(&mut out, node, 0, -1, CellSide::West);
-        self.push_horizontal(&mut out, node, 0, 1, CellSide::East);
-        self.push_vertical(&mut out, node, 1);
-        self.push_vertical(&mut out, node, -1);
-        out
-    }
-
-    fn push_horizontal(&self, out: &mut Vec<AirNode>, node: AirNode, dr: i32, dc: i32, side: CellSide) {
-        let next = AirNode {
-            row: node.row + dr,
-            col: node.col + dc,
-            ..node
-        };
-        if !self.flyable(next) {
-            return;
-        }
-        // The sky layer has no edge grids; map layers block on wall and
-        // keyed-barrier edges (plate barriers are omitted upstream, so a
-        // path may cross a closed plate and detonate there — accepted).
-        if let Ok(layer) = usize::try_from(node.layer)
-            && let Some(level) = self.map_config.root_grid().levels.get(layer)
-            && (has_edge_on_cell_side(&level.edges, node.row, node.col, side)
-                || has_edge_on_cell_side(&level.barrier_edges, node.row, node.col, side))
-        {
-            return;
-        }
-        out.push(next);
-    }
-
-    fn push_vertical(&self, out: &mut Vec<AirNode>, node: AirNode, up: i32) {
-        let next = AirNode {
-            layer: node.layer + up,
-            ..node
-        };
-        if !self.flyable(next) {
-            return;
-        }
-        // The slab between two stacked volumes belongs to the upper one.
-        let upper = if up > 0 { next } else { node };
-        if self.cell(upper).is_some_and(|cell| cell.has_floor_slab) {
-            return;
-        }
-        out.push(next);
+        nodes
     }
 }
 
@@ -192,120 +204,246 @@ mod tests {
     use super::*;
     use crate::{
         map::{CellGrid, EdgeGrid, LevelGrid},
-        test_geometry::{LEVEL_HEIGHT, geometry},
+        test_geometry::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS, geometry},
+    };
+    use common::{
+        constants::MISSILE_RADIUS,
+        protocol::{Barrier, BarrierKindTable, Carrier, Floor, MapLayout, Position, Wall},
     };
 
-    fn level(cells: CellGrid, edges: EdgeGrid) -> LevelGrid {
-        let rows = i32::try_from(cells.rows.len()).unwrap_or(0);
-        let cols = i32::try_from(cells.rows.first().map_or(0, Vec::len)).unwrap_or(0);
-        LevelGrid {
-            cells,
-            edges,
-            barrier_edges: EdgeGrid::new(cols, rows),
+    fn map(cols: i32, rows: i32, levels: usize) -> MapConfig {
+        MapConfig::for_grid(
+            (0..levels)
+                .map(|_| LevelGrid {
+                    cells: CellGrid::new(cols, rows),
+                    edges: EdgeGrid::new(cols, rows),
+                    barrier_edges: EdgeGrid::new(cols, rows),
+                })
+                .collect(),
+            geometry(cols, rows),
+        )
+    }
+
+    fn wall(x1: f32, z1: f32, x2: f32, z2: f32) -> Wall {
+        Wall {
+            x1,
+            z1,
+            x2,
+            z2,
+            width: WALL_THICKNESS,
+            y: 0.0,
+            height: WALL_HEIGHT,
+            level: 0,
+            carrier: CarrierId::WORLD,
         }
     }
 
-    fn floored_cell() -> Cell {
-        Cell {
-            has_floor: true,
-            has_floor_slab: true,
-            ..Cell::default()
+    fn floor(x1: f32, z1: f32, x2: f32, z2: f32, y: f32) -> Floor {
+        Floor {
+            x1,
+            z1,
+            x2,
+            z2,
+            y,
+            thickness: FLOOR_THICKNESS,
+            level: 1,
+            carrier: CarrierId::WORLD,
         }
+    }
+
+    fn world(layout: &MapLayout) -> CollisionWorld {
+        CollisionWorld::from_map_layout(layout, &BarrierKindTable::default())
+    }
+
+    fn assert_clear_path(world: &CollisionWorld, from: Vec3, to: Vec3, path: &VecDeque<Vec3>) {
+        let mut previous = from;
+        for point in path {
+            assert!(
+                sweep_clear(world, &[], previous, *point - previous, MISSILE_RADIUS),
+                "blocked leg {previous} -> {point}"
+            );
+            previous = *point;
+        }
+        assert_eq!(previous, to);
     }
 
     #[test]
     fn air_path_descends_through_a_floor_opening() {
-        // Two columns, two levels. The upper level has a slab over col 0 and
-        // an opening at col 1: a missile above the slab must route sideways
-        // and dive through the opening to reach the lower level.
-        let mut lower = CellGrid::new(2, 1);
-        lower.rows[0][0] = floored_cell();
-        lower.rows[0][1] = floored_cell();
-        let mut upper = CellGrid::new(2, 1);
-        upper.rows[0][0] = floored_cell();
-
-        let graph = AirGraph::new(MapConfig::for_grid(
-            vec![level(lower, EdgeGrid::new(2, 1)), level(upper, EdgeGrid::new(2, 1))],
-            geometry(2, 1),
-        ));
-        let from = graph.node_center(AirNode {
-            layer: 1,
-            row: 0,
-            col: 0,
-        });
-        let to = graph.node_center(AirNode {
-            layer: 0,
-            row: 0,
-            col: 0,
-        });
-
-        let path = graph.path(from, to).expect("route through the opening should exist");
-
-        assert!(
-            path.iter().any(|wp| wp.y < LEVEL_HEIGHT),
-            "path must descend into the lower level: {path:?}"
-        );
-        let last = path.back().expect("path is non-empty");
-        assert!((*last - to).length() < 0.01, "path ends at the target volume");
+        let graph = AirGraph::new(&map(2, 1, 2));
+        let layout = MapLayout {
+            floors: vec![floor(-3.4, -1.7, 0.0, 1.7, LEVEL_HEIGHT)],
+            ..default()
+        };
+        let world = world(&layout);
+        let from = Vec3::new(-1.7, LEVEL_HEIGHT + 1.0, 0.0);
+        let to = Vec3::new(-1.7, 1.0, 0.0);
+        let path = graph
+            .path(&Carriers::default(), &world, &[], from, to, MISSILE_RADIUS)
+            .expect("route through floor opening missing");
+        assert_clear_path(&world, from, to, &path);
+        assert!(path.iter().any(|point| point.x > 0.0));
     }
 
     #[test]
     fn air_path_crests_over_an_open_topped_wall() {
-        // One level, a full-height wall between the two columns, open sky
-        // above: the only route is up and over.
-        let mut cells = CellGrid::new(2, 1);
-        cells.rows[0][0] = floored_cell();
-        cells.rows[0][1] = floored_cell();
-        let mut edges = EdgeGrid::new(2, 1);
-        edges.vertical[0][1] = true;
-
-        let graph = AirGraph::new(MapConfig::for_grid(vec![level(cells, edges)], geometry(2, 1)));
-        let from = graph.node_center(AirNode {
-            layer: 0,
-            row: 0,
-            col: 0,
-        });
-        let to = graph.node_center(AirNode {
-            layer: 0,
-            row: 0,
-            col: 1,
-        });
-
-        let path = graph.path(from, to).expect("route over the wall should exist");
-
-        assert!(
-            path.iter().any(|wp| wp.y > LEVEL_HEIGHT),
-            "path must climb over the wall: {path:?}"
-        );
+        let graph = AirGraph::new(&map(2, 1, 1));
+        let layout = MapLayout {
+            walls: vec![wall(0.0, -2.0, 0.0, 2.0)],
+            ..default()
+        };
+        let world = world(&layout);
+        let from = Vec3::new(-1.7, 1.0, 0.0);
+        let to = Vec3::new(1.7, 1.0, 0.0);
+        let path = graph
+            .path(&Carriers::default(), &world, &[], from, to, MISSILE_RADIUS)
+            .expect("route over wall missing");
+        assert_clear_path(&world, from, to, &path);
+        assert!(path.iter().any(|point| point.y > WALL_HEIGHT));
     }
 
     #[test]
     fn air_path_fails_when_fully_roofed() {
-        // Same wall, but a solid roof over both columns: no route.
-        let mut cells = CellGrid::new(2, 1);
-        cells.rows[0][0] = floored_cell();
-        cells.rows[0][1] = floored_cell();
-        let mut edges = EdgeGrid::new(2, 1);
-        edges.vertical[0][1] = true;
-        let mut roof = CellGrid::new(2, 1);
-        roof.rows[0][0].has_floor_slab = true;
-        roof.rows[0][1].has_floor_slab = true;
+        let graph = AirGraph::new(&map(2, 1, 2));
+        let layout = MapLayout {
+            walls: vec![wall(0.0, -2.0, 0.0, 2.0)],
+            floors: vec![floor(-3.5, -2.0, 3.5, 2.0, LEVEL_HEIGHT)],
+            ..default()
+        };
+        let world = world(&layout);
+        assert!(
+            graph
+                .path(
+                    &Carriers::default(),
+                    &world,
+                    &[],
+                    Vec3::new(-1.7, 1.0, 0.0),
+                    Vec3::new(1.7, 1.0, 0.0),
+                    MISSILE_RADIUS
+                )
+                .is_none()
+        );
+    }
 
-        let graph = AirGraph::new(MapConfig::for_grid(
-            vec![level(cells, edges), level(roof, EdgeGrid::new(2, 1))],
-            geometry(2, 1),
-        ));
-        let from = graph.node_center(AirNode {
-            layer: 0,
-            row: 0,
-            col: 0,
+    #[test]
+    fn routes_into_a_shifted_room_keep_clear_of_its_walls_floor_and_roof() {
+        let mut map = map(7, 7, 3);
+        let room_grid = geometry(3, 3);
+        let mut room = self::map(3, 3, 2).grids.remove(0);
+        room.carrier = CarrierId(1);
+        map.grids.push(room);
+        let graph = AirGraph::new(&map);
+        let half = room_grid.width() / 2.0;
+        let door_half = room_grid.cell_size() / 2.0;
+        let walls = [
+            wall(-half, -half, half, -half),
+            wall(-half, half, half, half),
+            wall(half, -half, half, half),
+            wall(-half, -half, -half, -door_half),
+            wall(-half, door_half, -half, half),
+            wall(0.0, -half, 0.0, door_half),
+        ]
+        .map(|wall| Wall {
+            carrier: CarrierId(1),
+            ..wall
         });
-        let to = graph.node_center(AirNode {
-            layer: 0,
-            row: 0,
-            col: 1,
-        });
+        let layout = MapLayout {
+            walls: walls.to_vec(),
+            floors: vec![
+                Floor {
+                    carrier: CarrierId(1),
+                    ..floor(-half, -half, half, half, 0.0)
+                },
+                Floor {
+                    carrier: CarrierId(1),
+                    ..floor(-half, -half, half, half, LEVEL_HEIGHT)
+                },
+            ],
+            carriers: vec![Carrier {
+                parent: CarrierId::WORLD,
+                level: 0,
+                levels: 1,
+                from: Position::from(Vec3::new(-1.1, 0.0, -0.7)),
+                to: Position::from(Vec3::new(1.2, 2.3, 1.0)),
+                travel_ticks: 120,
+                pause_ticks: 30,
+                phase_ticks: 0,
+            }],
+            ..default()
+        };
+        let mut carriers = Carriers::from_layout(&layout);
+        let mut world = world(&layout);
+        for tick in [0, 30, 60, 90, 120, 180, 240] {
+            carriers.advance(tick);
+            world.set_carrier_poses(&carriers);
+            let target = carriers.pose(CarrierId(1)).transform_point(Vec3::new(2.0, 1.0, 1.0));
+            for offset in [Vec3::X, Vec3::NEG_X, Vec3::Z, Vec3::NEG_Z] {
+                let from = (target + offset * 8.0).with_y(1.5);
+                let path = graph
+                    .path(&carriers, &world, &[], from, target, MISSILE_RADIUS)
+                    .expect("route through moving room's door missing");
+                assert_clear_path(&world, from, target, &path);
+            }
+        }
+    }
 
-        assert!(graph.path(from, to).is_none(), "sealed rooms have no air route");
+    #[test]
+    fn a_gap_narrower_than_the_missile_diameter_is_not_a_route() {
+        let graph = AirGraph::new(&map(2, 1, 1));
+        let layout = MapLayout {
+            walls: vec![wall(0.0, -2.0, 0.0, -0.2), wall(0.0, 0.2, 0.0, 2.0)],
+            floors: vec![floor(-3.5, -2.0, 3.5, 2.0, LEVEL_HEIGHT)],
+            ..default()
+        };
+        let world = world(&layout);
+        let from = Vec3::new(-1.7, 1.0, 0.0);
+        let to = Vec3::new(1.7, 1.0, 0.0);
+        assert!(
+            graph
+                .path(&Carriers::default(), &world, &[], from, to, MISSILE_RADIUS)
+                .is_none()
+        );
+        assert!(graph.path(&Carriers::default(), &world, &[], from, to, 0.1).is_some());
+    }
+
+    #[test]
+    fn opened_barriers_allow_a_route_without_stale_grid_flags() {
+        let graph = AirGraph::new(&map(2, 1, 1));
+        let layout = MapLayout {
+            barriers: vec![Barrier {
+                x1: 0.0,
+                z1: -2.0,
+                x2: 0.0,
+                z2: 2.0,
+                width: 0.2,
+                y: 0.0,
+                height: WALL_HEIGHT,
+                level: 0,
+                levels: 1,
+                carrier: CarrierId::WORLD,
+                kind: BarrierKindId(0),
+            }],
+            floors: vec![floor(-3.5, -2.0, 3.5, 2.0, LEVEL_HEIGHT)],
+            ..default()
+        };
+        let kinds = BarrierKindTable::from_ids(vec!["gate".into()]).expect("test barrier catalog invalid");
+        let world = CollisionWorld::from_map_layout(&layout, &kinds);
+        let from = Vec3::new(-1.7, 1.0, 0.0);
+        let to = Vec3::new(1.7, 1.0, 0.0);
+        assert!(
+            graph
+                .path(&Carriers::default(), &world, &[], from, to, MISSILE_RADIUS)
+                .is_none()
+        );
+        assert_eq!(
+            graph.path(
+                &Carriers::default(),
+                &world,
+                &[BarrierKindId(0)],
+                from,
+                to,
+                MISSILE_RADIUS
+            ),
+            Some(VecDeque::from([to]))
+        );
     }
 }

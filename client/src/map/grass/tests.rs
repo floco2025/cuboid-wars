@@ -87,7 +87,7 @@ fn burned_grass_remains_visible_short_dark_and_still() {
     let cell = test_cell();
     let config = GrassConfig::default();
     let normal = grass_cell_mesh(cell, CELL, &config, ALL_OPEN, &[]);
-    let burn = GrassBurn::new(Vec3::new(cell.x, cell.y, cell.z), CELL * 4.0, 0.7, 3);
+    let burn = GrassBurn::new(CarrierId::WORLD, Vec3::new(cell.x, cell.y, cell.z), CELL * 4.0, 0.7, 3);
     let burned = grass_cell_mesh(cell, CELL, &config, ALL_OPEN, &[burn]);
 
     assert!(!positions(&burned).is_empty());
@@ -111,7 +111,7 @@ fn recovering_grass_interpolates_between_burned_and_healthy() {
     let cell = test_cell();
     let config = GrassConfig::default();
     let normal = grass_cell_mesh(cell, CELL, &config, ALL_OPEN, &[]);
-    let mut burn = GrassBurn::new(Vec3::new(cell.x, cell.y, cell.z), CELL * 4.0, 0.7, 3);
+    let mut burn = GrassBurn::new(CarrierId::WORLD, Vec3::new(cell.x, cell.y, cell.z), CELL * 4.0, 0.7, 3);
     let burned = grass_cell_mesh(cell, CELL, &config, ALL_OPEN, &[burn]);
     burn.set_intensity(0.5);
     let recovering = grass_cell_mesh(cell, CELL, &config, ALL_OPEN, &[burn]);
@@ -131,8 +131,8 @@ fn recovering_grass_interpolates_between_burned_and_healthy() {
 #[test]
 fn different_scorch_variants_produce_different_burn_outlines() {
     let center = Vec3::ZERO;
-    let first = GrassBurn::new(center, 10.0, 0.4, 0);
-    let second = GrassBurn::new(center, 10.0, 0.4, 1);
+    let first = GrassBurn::new(CarrierId::WORLD, center, 10.0, 0.4, 0);
+    let second = GrassBurn::new(CarrierId::WORLD, center, 10.0, 0.4, 1);
     let first_samples: Vec<f32> = (0..32)
         .map(|index| {
             let angle = index as f32 / 32.0 * TAU;
@@ -156,6 +156,7 @@ fn burn_on_another_level_does_not_change_grass() {
     let config = GrassConfig::default();
     let normal = grass_cell_mesh(cell, CELL, &config, ALL_OPEN, &[]);
     let burn = GrassBurn::new(
+        CarrierId::WORLD,
         Vec3::new(cell.x, cell.y + EXPLOSION_GRASS_BURN_VERTICAL_TOLERANCE * 2.0, cell.z),
         CELL * 4.0,
         0.0,
@@ -173,8 +174,8 @@ fn weaker_overlapping_burn_does_not_override_stronger_burn() {
     let cell = test_cell();
     let config = GrassConfig::default();
     let center = Vec3::new(cell.x, cell.y, cell.z);
-    let strong = GrassBurn::new(center, CELL * 4.0, 0.0, 0);
-    let weak = GrassBurn::new(center, CELL, 1.0, 1);
+    let strong = GrassBurn::new(CarrierId::WORLD, center, CELL * 4.0, 0.0, 0);
+    let weak = GrassBurn::new(CarrierId::WORLD, center, CELL, 1.0, 1);
     let strong_only = grass_cell_mesh(cell, CELL, &config, ALL_OPEN, &[strong]);
     let overlapping = grass_cell_mesh(cell, CELL, &config, ALL_OPEN, &[weak, strong]);
 
@@ -203,7 +204,13 @@ fn removing_burn_restores_original_grass_mesh() {
         .spawn((GrassCellVisual { cell, open: ALL_OPEN }, Mesh3d(mesh_handle.clone())));
     let burn_entity = app
         .world_mut()
-        .spawn(GrassBurn::new(Vec3::new(cell.x, cell.y, cell.z), CELL * 4.0, 0.0, 0))
+        .spawn(GrassBurn::new(
+            CarrierId::WORLD,
+            Vec3::new(cell.x, cell.y, cell.z),
+            CELL * 4.0,
+            0.0,
+            0,
+        ))
         .id();
 
     app.update();

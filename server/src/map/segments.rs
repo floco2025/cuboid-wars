@@ -133,7 +133,7 @@ pub(super) fn vertical_wall_segment(
     let half = geometry.wall_half_thickness();
     let has_top = row > 0 && has_vertical_edge(edge_grid, row - 1, col);
     let has_bottom = row < grid_rows - 1 && has_vertical_edge(edge_grid, row + 1, col);
-    let (has_perp_top, has_perp_bottom) = has_perpendicular_horizontal_walls(edge_grid, row, col, grid_cols, grid_rows);
+    let (has_perp_top, has_perp_bottom) = has_perpendicular_horizontal_walls(edge_grid, row, col, grid_cols);
 
     let z1 = grid_z(geometry, row)
         + if has_perp_top && !has_top {
@@ -159,21 +159,15 @@ pub(super) fn vertical_wall_segment(
     }
 }
 
+// Horizontal walls meeting the vertical edge `(row, col)` at its top and
+// bottom grid points. The horizontal grid has a row per grid line, the
+// map's outer ones included, so a wall on the map border meets its
+// perpendicular like any other.
 #[inline]
-fn has_perpendicular_horizontal_walls(
-    edge_grid: &EdgeGrid,
-    row: i32,
-    col: i32,
-    grid_cols: i32,
-    grid_rows: i32,
-) -> (bool, bool) {
-    let has_perp_top = row > 0
-        && ((col < grid_cols && has_horizontal_edge(edge_grid, row, col))
-            || (col > 0 && has_horizontal_edge(edge_grid, row, col - 1)));
-
-    let has_perp_bottom = row < grid_rows
-        && ((col < grid_cols && has_horizontal_edge(edge_grid, row + 1, col))
-            || (col > 0 && has_horizontal_edge(edge_grid, row + 1, col - 1)));
-
-    (has_perp_top, has_perp_bottom)
+fn has_perpendicular_horizontal_walls(edge_grid: &EdgeGrid, row: i32, col: i32, grid_cols: i32) -> (bool, bool) {
+    let meets = |line: i32| {
+        (col < grid_cols && has_horizontal_edge(edge_grid, line, col))
+            || (col > 0 && has_horizontal_edge(edge_grid, line, col - 1))
+    };
+    (meets(row), meets(row + 1))
 }

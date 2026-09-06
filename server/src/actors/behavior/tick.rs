@@ -15,7 +15,7 @@ use common::{
     constants::PHYSICS_EPSILON,
     map::{CarrierPose, Carriers},
     physics::CollisionWorld,
-    protocol::{ActorId, ActorMarker, PlayerId, PlayerMarker, Position, SActorBeam, ServerMessage},
+    protocol::{ActorId, ActorMarker, MapSettings, PlayerId, PlayerMarker, Position, SActorBeam, ServerMessage},
 };
 
 use super::{
@@ -24,7 +24,7 @@ use super::{
 };
 
 const AI_DECISION_INTERVAL_SECS: f32 = 0.1;
-const EVADE_REPLAN_INTERVAL_SECS: f32 = 0.5;
+pub(super) const EVADE_REPLAN_INTERVAL_SECS: f32 = 0.5;
 const ROUTE_STALL_PROGRESS_DISTANCE: f32 = 0.5;
 const ROUTE_STALL_TIMEOUT_SECS: f32 = 1.5;
 const WAYPOINT_REACHED_DISTANCE: f32 = 0.5;
@@ -44,6 +44,7 @@ pub fn actors_behavior_system(
     nav_graphs: Res<NavGraphs>,
     territories: Res<ActorTerritories>,
     carriers: Res<Carriers>,
+    map_settings: Res<MapSettings>,
     mut actors: ResMut<ActorMap>,
     player_query: Query<(&PlayerId, &Position), With<PlayerMarker>>,
     actor_query: Query<(&ActorId, &Position), (With<ActorMarker>, Without<PlayerMarker>)>,
@@ -106,6 +107,7 @@ pub fn actors_behavior_system(
             territory,
             collision_world: &collision_world,
             kind_config,
+            players_armed: map_settings.weapons.arms_players(),
         };
         if stalled {
             shake_loose(info, &context, &mut rng);
@@ -269,6 +271,8 @@ pub(super) struct BehaviorContext<'a> {
     pub(super) territory: &'a crate::actors::navigation::ActorTerritory,
     pub(super) collision_world: &'a CollisionWorld,
     pub(super) kind_config: &'a ActorKindServerConfig,
+    // Whether the map lets players hurt actors at all.
+    pub(super) players_armed: bool,
 }
 
 impl BehaviorContext<'_> {
@@ -335,35 +339,45 @@ impl BehaviorContext<'_> {
     }
 }
 
-pub(super) fn enter_evade(info: &mut ActorInfo, context: &BehaviorContext<'_>) {
+// Hiding beats running: a stable cover route is kept while its destination
+// still hides, and a fresh search after the replan interval replaces one
+// that got exposed. With no cover in reach the actor flees to a random cell
+// instead, and that leg is kept until it ends, since a flight re-rolled
+// every decision is a jitter, not a flight.
+pub(super) fn enter_evade(info: &mut ActorInfo, context: &BehaviorContext<'_>, rng: &mut impl Rng) {
     let threats: Vec<_> = info.awareness.iter().map(|aware| aware.pos).collect();
-    let continuing_evade = matches!(info.mode, ActorMode::Evade);
-    info.mode = ActorMode::Evade;
-
-    if continuing_evade
+    let evading = match info.mode {
+        ActorMode::Evade { fleeing } => Some(fleeing),
+        _ => None,
+    };
+    if let Some(fleeing) = evading
         && info
             .route
             .as_ref()
-            .is_some_and(|route| context.stable_cover(&route.destination, &threats))
+            .is_some_and(|route| fleeing || context.stable_cover(&route.destination, &threats))
     {
         return;
     }
 
-    info.set_route(None);
     if context.stable_cover(&context.pos, &threats) {
+        info.mode = ActorMode::Evade { fleeing: false };
+        info.set_route(None);
         info.evade_replan_remaining_secs = EVADE_REPLAN_INTERVAL_SECS;
         return;
     }
-    if continuing_evade && info.evade_replan_remaining_secs > 0.0 {
+    if evading == Some(false) && info.evade_replan_remaining_secs > 0.0 {
         return;
     }
-    // The cover search measures cell distances in the graph's frame.
+    // The searches measure cell distances in the graph's frame.
     let local_threats: Vec<_> = threats.iter().map(|threat| context.to_local(threat)).collect();
-    let planned = context
+    let cover = context
         .nav_graph
         .safe_cover_route(&context.pos, &local_threats, |candidate| {
             context.stable_cover(candidate, &threats)
         });
+    let fleeing = cover.is_none();
+    let planned = cover.or_else(|| context.nav_graph.flee_route(&context.pos, &local_threats, rng));
+    info.mode = ActorMode::Evade { fleeing };
     context.install_route(info, planned);
     info.evade_replan_remaining_secs = EVADE_REPLAN_INTERVAL_SECS;
 }

@@ -15,10 +15,14 @@ use common::{
     protocol::{FaceYaw, Health, MapSettings, PlayerId, PlayerMarker, Position, SPlayerFallDamage, ServerMessage},
 };
 
+// What this tick's movement step found under and around the player: the
+// support, for fall tracking, and whether a carrier left the body inside
+// its geometry, which is a death.
 #[derive(Debug, Clone, Copy)]
 pub struct PlayerFallState {
     support: CharacterSupport,
     peak_y: f32,
+    crushed: bool,
 }
 
 impl Default for PlayerFallState {
@@ -26,6 +30,7 @@ impl Default for PlayerFallState {
         Self {
             support: CharacterSupport::Airborne,
             peak_y: f32::NEG_INFINITY,
+            crushed: false,
         }
     }
 }
@@ -36,8 +41,14 @@ impl PlayerFallState {
         self.support
     }
 
-    pub(crate) fn set_support(&mut self, support: CharacterSupport) {
+    #[must_use]
+    pub(crate) const fn is_crushed(&self) -> bool {
+        self.crushed
+    }
+
+    pub(crate) fn set_support(&mut self, support: CharacterSupport, crushed: bool) {
         self.support = support;
+        self.crushed = crushed;
     }
 
     pub(crate) fn reset(&mut self) {
@@ -60,10 +71,11 @@ impl PlayerFallState {
 // Players Fall Death System
 // ============================================================================
 
-// Detect players that have fallen below the death threshold and kill them
-// using the same flow as any other death (clear per-life state, arm respawn
-// timer, despawn entity). The respawn system brings them back at a fresh
-// spawn-zone cell after `respawn_secs`.
+// Detect players that have fallen below the death threshold, or that a
+// carrier crushed this tick, and kill them using the same flow as any other
+// death (clear per-life state, arm respawn timer, despawn entity). The
+// respawn system brings them back at a fresh spawn-zone cell after
+// `respawn_secs`.
 pub fn players_fall_death_system(
     mut commands: Commands,
     mut players: ResMut<PlayerMap>,
@@ -77,12 +89,28 @@ pub fn players_fall_death_system(
     player_query: Query<(Entity, &PlayerId, &Position), With<PlayerMarker>>,
 ) {
     for (entity, id, pos) in player_query.iter() {
-        if pos.y >= CHARACTER_FALL_DEATH_Y {
-            continue;
-        }
         // Skip players already dead this tick (e.g. killed by a projectile
         // before falling out of the world).
         if players.get(id).is_some_and(|info| info.is_dead()) {
+            continue;
+        }
+        let crushed = players.get(id).is_some_and(|info| info.life.fall_state.is_crushed());
+        if crushed && !invincibility.0 {
+            info!("{} was crushed by moving geometry at {:?}", players.describe(id), pos);
+            kill_player(
+                &mut commands,
+                &mut players,
+                *id,
+                entity,
+                *pos,
+                server_gameplay_config.player.respawn_secs,
+                DeathSource::Crushed,
+                &server_gameplay_config.feed,
+                &mut pending_explosions,
+            );
+            continue;
+        }
+        if pos.y >= CHARACTER_FALL_DEATH_Y {
             continue;
         }
         if invincibility.0 {
@@ -263,6 +291,9 @@ fn fall_damage_for_distance(distance: f32, safe: f32, lethal: f32, max_health: f
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{players::PlayerInfo, test_geometry::geometry};
+    use common::protocol::{BarrierKindTable, MapLayout};
+    use tokio::sync::mpsc::unbounded_channel;
 
     // Matches the shipping map's normal-gravity setting.
     const TEST_GRAVITY: f32 = 25.0;
@@ -295,6 +326,7 @@ mod tests {
         let mut state = PlayerFallState {
             support: CharacterSupport::Ground,
             peak_y: 10.0,
+            ..default()
         };
 
         let impact = state.update(4.0);
@@ -308,6 +340,7 @@ mod tests {
         let mut state = PlayerFallState {
             support: CharacterSupport::Ladder,
             peak_y: 10.0,
+            ..default()
         };
 
         let impact = state.update(4.0);
@@ -321,12 +354,78 @@ mod tests {
         let mut state = PlayerFallState {
             support: CharacterSupport::Ground,
             peak_y: 4.0,
+            ..default()
         };
 
         let impact = state.update(4.0);
 
         assert_eq!(impact, None);
         assert_eq!(state.peak_y, f32::NEG_INFINITY);
+    }
+
+    #[test]
+    fn a_crush_is_reported_for_the_step_that_found_it() {
+        let mut state = PlayerFallState::default();
+
+        state.set_support(CharacterSupport::Ground, true);
+        assert!(state.is_crushed());
+
+        state.set_support(CharacterSupport::Ground, false);
+        assert!(!state.is_crushed());
+    }
+
+    #[test]
+    fn a_crushed_player_dies_where_it_stands() {
+        let server = ServerGameplayConfig::load_default().expect("default server gameplay config missing");
+        let gameplay = server.gameplay_config();
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .insert_resource(gameplay)
+            .insert_resource(server)
+            .insert_resource(MapConfig::for_grid(Vec::new(), geometry(1, 1)))
+            .insert_resource(Carriers::default())
+            .insert_resource(CollisionWorld::from_map_layout(
+                &MapLayout::default(),
+                &BarrierKindTable::default(),
+            ))
+            .insert_resource(PlayerMap::default())
+            .insert_resource(Invincibility(false))
+            .insert_resource(PendingExplosions::default())
+            .add_systems(Update, players_fall_death_system);
+        let id = PlayerId(1);
+        let entity = app
+            .world_mut()
+            .spawn((
+                PlayerMarker,
+                id,
+                Position::default(),
+                Health(100.0),
+                CharacterVerticalVelocity::default(),
+            ))
+            .id();
+        let (sender, mut receiver) = unbounded_channel();
+        let mut info = PlayerInfo::new(entity, sender);
+        info.connection.logged_in = true;
+        info.life.fall_state.set_support(CharacterSupport::Ground, true);
+        app.world_mut().resource_mut::<PlayerMap>().insert(id, info);
+
+        app.update();
+
+        assert!(
+            app.world()
+                .resource::<PlayerMap>()
+                .get(&id)
+                .is_some_and(PlayerInfo::is_dead)
+        );
+        assert!(app.world().get_entity(entity).is_err());
+        let death = loop {
+            match receiver.try_recv().expect("no death message reached the player") {
+                ServerToClient::Send(ServerMessage::PlayerDeath(death)) => break death,
+                _ => continue,
+            }
+        };
+        assert_eq!(death.id, id);
+        assert_eq!(death.killer, None);
     }
 
     #[test]

@@ -2,7 +2,10 @@ use super::*;
 use crate::{
     constants::TICK_SECS,
     map::Carriers,
-    physics::AirborneMomentum,
+    physics::{
+        AirborneMomentum,
+        characters::geometry::{character_center, character_shape},
+    },
     protocol::{BarrierKindTable, Carrier, CarrierId, Floor},
 };
 
@@ -197,6 +200,73 @@ fn rider_sinks_with_a_lift() {
         "floor velocity {}",
         step.floor_velocity
     );
+    assert!(!step.crushed, "riding on top is not a crush");
+}
+
+// The top of the collision box above the feet.
+fn head_height() -> f32 {
+    let physics = player_physics();
+    character_center(Position::default(), physics).y + character_shape(physics).half_extents.y
+}
+
+fn ground() -> Floor {
+    Floor {
+        x1: -2.0,
+        z1: -2.0,
+        x2: 2.0,
+        z2: 2.0,
+        y: 0.0,
+        thickness: FLOOR_THICKNESS,
+        level: 0,
+        carrier: CarrierId::WORLD,
+    }
+}
+
+// A body on the ground under a descending lift can go neither down nor
+// aside: once the slab is inside it, the step reports a crush.
+#[test]
+fn a_lift_descending_onto_a_standing_body_crushes_it() {
+    let (carrier, floor) = lift();
+    let sinking = Carrier {
+        phase_ticks: 60,
+        ..carrier
+    };
+    let head = head_height();
+    let ticks_to = |slab_top: f32| ((LEVEL_HEIGHT - slab_top) / RISE_PER_TICK).round() as u32;
+
+    let clear_tick = ticks_to(head + FLOOR_THICKNESS + 1.0);
+    let (world, carriers) = carried_world((sinking, floor), &[], &[ground()], clear_tick);
+    let step = ride(&world, &carriers, Position::default(), 0.0, Vec3::ZERO, TICK_SECS);
+    assert!(!step.crushed, "crushed with a meter of headroom");
+    assert_eq!(step.support, CharacterSupport::Ground);
+
+    let crushing_tick = ticks_to(head / 2.0);
+    let (world, carriers) = carried_world((sinking, floor), &[], &[ground()], crushing_tick);
+    let step = ride(&world, &carriers, Position::default(), 0.0, Vec3::ZERO, TICK_SECS);
+    assert!(step.crushed, "not crushed at {:?}", step.position);
+}
+
+// A rider carried up into a static ceiling stops at the ceiling while the
+// slab keeps rising through its feet.
+#[test]
+fn a_lift_rising_into_a_ceiling_crushes_its_rider() {
+    let (carrier, floor) = lift();
+    let tick: u16 = 10;
+    let feet = f32::from(tick - 1) * RISE_PER_TICK;
+    let ceiling = Floor {
+        y: feet + head_height() + 0.02 + FLOOR_THICKNESS,
+        ..ground()
+    };
+    let (world, carriers) = carried_world((carrier, floor), &[], &[ceiling], u32::from(tick));
+    let start = Position {
+        x: 0.0,
+        y: feet,
+        z: 0.0,
+    };
+
+    let step = ride(&world, &carriers, start, 0.0, Vec3::ZERO, TICK_SECS);
+
+    assert!(step.crushed, "not crushed at {:?}", step.position);
 }
 
 #[test]
@@ -330,6 +400,66 @@ fn a_body_on_static_ground_beside_a_rising_lift_is_not_carried() {
     );
     assert_eq!(step.floor_velocity, Vec3::ZERO);
     assert_eq!(step.support, CharacterSupport::Ground);
+}
+
+#[test]
+fn boarding_a_descending_lift_near_the_landing_does_not_crush() {
+    let (carrier, floor) = lift();
+    let carrier = Carrier {
+        to: Position { x: 0.0, y: 4.0, z: 0.0 },
+        travel_ticks: 120,
+        pause_ticks: 120,
+        phase_ticks: 240,
+        ..carrier
+    };
+    for axis in [Vec3::X, Vec3::Z] {
+        let landing = if axis == Vec3::X {
+            Floor {
+                x1: floor.x2 + 0.02,
+                x2: 6.0,
+                ..ground()
+            }
+        } else {
+            Floor {
+                z1: floor.z2 + 0.02,
+                z2: 6.0,
+                ..ground()
+            }
+        };
+        for with_upper_landing in [false, true] {
+            let mut floors = vec![landing];
+            if with_upper_landing {
+                floors.push(Floor {
+                    y: 4.0,
+                    level: 1,
+                    ..landing
+                });
+            }
+            for first_tick in [90, 100, 110, 112, 118, 120, 130] {
+                let mut pos = Position::from(axis * (floor.x2 + 0.65));
+                let mut velocity = 0.0;
+                for tick in first_tick..first_tick + 60 {
+                    let (world, carriers) = carried_world((carrier, floor), &[], &floors, tick);
+                    let control = if Vec3::from(pos).dot(axis) > 0.25 {
+                        -axis * 4.5
+                    } else {
+                        Vec3::ZERO
+                    };
+                    let step = ride(&world, &carriers, pos, velocity, control, TICK_SECS);
+                    assert!(
+                        !step.crushed,
+                        "first tick {first_tick}, tick {tick}, axis {axis}, upper landing {with_upper_landing}, platform at {:?}, start {pos:?}, result {step:?}",
+                        carriers.pose(TILE).translation
+                    );
+                    pos = step.position;
+                    velocity = step.vertical_velocity;
+                }
+                assert!(Vec3::from(pos).dot(axis) < 0.3, "did not board: {pos:?}");
+                assert!(pos.y.abs() < 1e-3, "not on the platform: {pos:?}");
+                assert_eq!(velocity, 0.0);
+            }
+        }
+    }
 }
 
 #[test]

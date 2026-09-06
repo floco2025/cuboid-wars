@@ -168,7 +168,40 @@ impl NavGraph {
                 return Some(route);
             }
         }
-        self.safest_reachable_route(start_node, threats)
+        None
+    }
+
+    // With no cover in reach the actor runs: a random cell within the cover
+    // search's reach that is farther from the nearest threat than it stands,
+    // or any reachable cell when it is cornered. `enter_evade` re-rolls the
+    // leg when it ends.
+    pub(crate) fn flee_route(
+        &self,
+        start: &Position,
+        threats: &[Position],
+        rng: &mut impl Rng,
+    ) -> Option<PlannedRoute> {
+        let start_node = self.node_for_position(start)?;
+        let search = self.reachable(start_node, |_| true, COVER_SEARCH_MAX_STEPS);
+        let mut reachable: Vec<NavNode> = search
+            .depths
+            .keys()
+            .copied()
+            .filter(|node| *node != start_node && self.is_cover_destination(*node))
+            .collect();
+        reachable.sort_unstable();
+        let here = minimum_threat_distance_sq(*start, threats);
+        let away: Vec<NavNode> = reachable
+            .iter()
+            .copied()
+            .filter(|node| minimum_threat_distance_sq(self.node_center(*node), threats) > here)
+            .collect();
+        let candidates = if away.is_empty() { &reachable } else { &away };
+        if candidates.is_empty() {
+            return None;
+        }
+        let target = candidates[rng.random_range(0..candidates.len())];
+        self.route_from_search(start_node, target, &search.came_from)
     }
 
     fn nearest_cover_route(
@@ -190,36 +223,6 @@ impl NavGraph {
             },
             COVER_SEARCH_MAX_STEPS,
         )
-    }
-
-    fn safest_reachable_route(&self, start: NavNode, threats: &[Position]) -> Option<PlannedRoute> {
-        let minimum_exclusion = MINIMUM_THREAT_EXCLUSION_CELLS * self.cell_size();
-        let minimum_exclusion_sq = minimum_exclusion * minimum_exclusion;
-        let search = self.reachable(
-            start,
-            |node| {
-                node == start
-                    || threats
-                        .iter()
-                        .all(|threat| self.node_center(node).horizontal_distance_sq(threat) >= minimum_exclusion_sq)
-            },
-            COVER_SEARCH_MAX_STEPS,
-        );
-        let target = search
-            .depths
-            .iter()
-            .filter(|(node, _)| self.is_cover_destination(**node))
-            .max_by(|(a, a_depth), (b, b_depth)| {
-                minimum_threat_distance_sq(self.node_center(**a), threats)
-                    .total_cmp(&minimum_threat_distance_sq(self.node_center(**b), threats))
-                    .then_with(|| b_depth.cmp(a_depth))
-                    .then_with(|| a.cmp(b))
-            })
-            .map(|(node, _)| *node)?;
-        if target == start {
-            return None;
-        }
-        self.route_from_search(start, target, &search.came_from)
     }
 
     fn route_between_nodes(

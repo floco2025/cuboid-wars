@@ -120,7 +120,7 @@
     },
     "obby": {
       "skybox": "cloudy_day",
-      "portal_shots": { "barriers_block": false, "light_bridges_block": false },
+      "portal_shots": { "barriers_block": true, "light_bridges_block": true },
       "geometry": { "grid_cell_size": 4.0, "level_height": 2.4, "floor_thickness": 0.4, "wall_thickness": 0.4 },
       "weather": "clear",
       "lighting": "bright",
@@ -145,8 +145,8 @@
         "knockback": { "max_speed": 15.0, "up_speed": 7.0, "deceleration": 35.0 }
       },
       "weapons": {
-        "projectiles": false,
-        "missiles": false,
+        "projectiles": true,
+        "missiles": true,
         "portals": "single"
       },
       "barrier_kinds": [

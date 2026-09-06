@@ -94,6 +94,43 @@ fn probe_grounded_near_edge_does_not_slide() {
 }
 
 #[test]
+fn ground_snap_does_not_undo_a_step_onto_a_raised_edge() {
+    let ledge = Floor {
+        x2: 1.5,
+        y: 0.6,
+        ..lower_floor()
+    };
+    let landing = Floor {
+        x1: 1.52,
+        ..lower_floor()
+    };
+    let world = collision_world(&[ledge, landing], &[]);
+    let physics = player_physics();
+    let start = Position {
+        x: 2.01,
+        y: 0.0,
+        z: 0.0,
+    };
+    let step = step_character_movement(
+        character_step_toward(start, 0.0, start.x - 0.15, start.z, TICK_SECS),
+        &CharacterEnvironment {
+            collision_world: &world,
+            gravity: TEST_GRAVITY,
+            passable_kinds: &[],
+            ladder_climb_ratio: test_ladders(),
+            physics,
+            portals: None,
+            carriers: &Carriers::default(),
+        },
+    );
+    assert!(step.position.x < start.x - 0.1, "did not step forward: {step:?}");
+    assert!(
+        step.position.y + physics.collider.bottom_y_offset() >= ledge.y,
+        "snapped into the ledge: {step:?}"
+    );
+}
+
+#[test]
 fn input_overrides_perch_slide() {
     let floor = lower_floor();
     let collision_world = collision_world(&[floor], &[]);

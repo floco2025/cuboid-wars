@@ -7,10 +7,12 @@ use super::scorch::{
 };
 use super::shards::spawn_shard_cloud;
 use super::smoke::spawn_smoke_cloud;
+use crate::carriers::CarrierEntities;
 use crate::constants::*;
 use bevy::{light::NotShadowCaster, prelude::*};
 use common::{
     config::GameplayConfig,
+    map::Carriers,
     physics::CollisionWorld,
     protocol::{MapLayout, Position},
 };
@@ -34,10 +36,33 @@ pub struct ExplosionSpawnCtx<'a> {
     pub gameplay_config: &'a GameplayConfig,
     pub collision_world: Option<&'a CollisionWorld>,
     pub map_layout: Option<&'a MapLayout>,
+    pub carriers: &'a Carriers,
+    pub carrier_entities: &'a CarrierEntities,
     pub blast_radii: &'a BlastRadii,
 }
 
+impl<'a> ExplosionSpawnCtx<'a> {
+    fn surfaces(&self) -> ExplosionSurfaces<'a> {
+        ExplosionSurfaces {
+            collision_world: self.collision_world,
+            map_layout: self.map_layout,
+            carriers: self.carriers,
+            carrier_entities: self.carrier_entities,
+        }
+    }
+}
+
+// What an explosion's surface effects land on: the geometry to probe, and
+// the carrier roots a mark hangs under.
+struct ExplosionSurfaces<'a> {
+    collision_world: Option<&'a CollisionWorld>,
+    map_layout: Option<&'a MapLayout>,
+    carriers: &'a Carriers,
+    carrier_entities: &'a CarrierEntities,
+}
+
 pub fn spawn_actor_explosion(commands: &mut Commands, ctx: &mut ExplosionSpawnCtx, actor_kind: &str, pos: Position) {
+    let surfaces = ctx.surfaces();
     let actor_physics = ctx
         .gameplay_config
         .actor(actor_kind)
@@ -59,12 +84,12 @@ pub fn spawn_actor_explosion(commands: &mut Commands, ctx: &mut ExplosionSpawnCt
             fireball_diameter,
             blast_radius,
         },
-        ctx.collision_world,
-        ctx.map_layout,
+        &surfaces,
     );
 }
 
 pub fn spawn_player_explosion(commands: &mut Commands, ctx: &mut ExplosionSpawnCtx, pos: Position) {
+    let surfaces = ctx.surfaces();
     let player_physics = ctx.gameplay_config.player.physics();
     let blast_radius = (ctx.blast_radii.player > 0.0).then_some(ctx.blast_radii.player);
     spawn_explosion(
@@ -81,14 +106,14 @@ pub fn spawn_player_explosion(commands: &mut Commands, ctx: &mut ExplosionSpawnC
             }),
             blast_radius,
         },
-        ctx.collision_world,
-        ctx.map_layout,
+        &surfaces,
     );
 }
 
 // A missile detonation: the blast origin is the detonation point itself (no
 // character body).
 pub fn spawn_missile_explosion(commands: &mut Commands, ctx: &mut ExplosionSpawnCtx, pos: Position) {
+    let surfaces = ctx.surfaces();
     let blast_radius = (ctx.blast_radii.missile > 0.0).then_some(ctx.blast_radii.missile);
     spawn_explosion(
         commands,
@@ -104,8 +129,7 @@ pub fn spawn_missile_explosion(commands: &mut Commands, ctx: &mut ExplosionSpawn
             }),
             blast_radius,
         },
-        ctx.collision_world,
-        ctx.map_layout,
+        &surfaces,
     );
 }
 
@@ -119,8 +143,7 @@ fn spawn_explosion(
     budget: &mut ExplosionVfxBudget,
     explosion_assets: &ExplosionAssets,
     spec: ExplosionSpec,
-    collision_world: Option<&CollisionWorld>,
-    map_layout: Option<&MapLayout>,
+    surfaces: &ExplosionSurfaces<'_>,
 ) {
     let ExplosionSpec {
         center,
@@ -128,6 +151,12 @@ fn spawn_explosion(
         fireball_diameter,
         blast_radius,
     } = spec;
+    let ExplosionSurfaces {
+        collision_world,
+        map_layout,
+        carriers,
+        carrier_entities,
+    } = *surfaces;
     // `None` = cosmetic burst with no area damage (unknown-kind fallback):
     // shards and light size off the fireball, and no ring is spawned — a
     // ring always marks a real danger area.
@@ -162,12 +191,14 @@ fn spawn_explosion(
             surface.normal,
             blast_radius * EXPLOSION_SHOCKWAVE_DIAMETER_FACTOR,
         ));
+        let point = carriers.pose(surface.carrier).inverse_transform_point(surface.point);
         commands.spawn((
             Mesh3d(ring_mesh),
             MeshMaterial3d(ring_material.clone()),
             NotShadowCaster,
+            ChildOf(carrier_entities.get(surface.carrier)),
             Transform {
-                translation: surface.point + surface.normal * EXPLOSION_SHOCKWAVE_SURFACE_OFFSET,
+                translation: point + surface.normal * EXPLOSION_SHOCKWAVE_SURFACE_OFFSET,
                 rotation: Quat::from_rotation_arc(Vec3::Y, surface.normal),
                 scale: Vec3::splat(0.01),
             },
@@ -194,7 +225,8 @@ fn spawn_explosion(
                 materials,
                 budget,
                 explosion_assets,
-                ScorchPlacement::on_surface(surface, diameter, scorch_style),
+                carrier_entities,
+                ScorchPlacement::on_surface(surface, carriers, diameter, scorch_style),
                 scorch_style,
                 EXPLOSION_SCORCH_MAX_ACTIVE,
             );
@@ -203,6 +235,7 @@ fn spawn_explosion(
     if let Some(map_layout) = map_layout {
         for placement in wall_scorch_placements(
             map_layout,
+            carriers,
             center,
             scorch_radius,
             EXPLOSION_SCORCH_WALL_REACH_FACTOR,
@@ -213,6 +246,7 @@ fn spawn_explosion(
                 materials,
                 budget,
                 explosion_assets,
+                carrier_entities,
                 placement,
                 scorch_style,
                 EXPLOSION_SCORCH_MAX_ACTIVE,
@@ -233,7 +267,8 @@ fn spawn_explosion(
                     materials,
                     budget,
                     explosion_assets,
-                    ScorchPlacement::on_surface(surface, diameter, scorch_style),
+                    carrier_entities,
+                    ScorchPlacement::on_surface(surface, carriers, diameter, scorch_style),
                     scorch_style,
                     EXPLOSION_SCORCH_MAX_ACTIVE,
                 );
@@ -326,8 +361,7 @@ mod tests {
     use super::*;
     use crate::map::GrassBurn;
     use crate::test_geometry::WALL_HEIGHT;
-    use common::protocol::CarrierId;
-    use common::protocol::{BarrierKindTable, Floor, MapLayout, Wall};
+    use common::protocol::{BarrierKindTable, Carrier, CarrierId, Floor, MapLayout, Wall};
 
     #[test]
     fn shard_count_clamps_to_bounds() {
@@ -371,27 +405,22 @@ mod tests {
         assert_eq!(disabled, 0);
     }
 
-    #[test]
-    fn large_grounded_explosion_spawns_one_sized_scorch_and_grass_burn() {
-        let map_layout = MapLayout {
-            floors: vec![Floor {
-                x1: -10.0,
-                z1: -10.0,
-                x2: 10.0,
-                z2: 10.0,
-                y: 0.0,
-                thickness: 1.0,
-                level: 0,
-                carrier: CarrierId::WORLD,
-            }],
-            ..default()
-        };
-        let collision_world = CollisionWorld::from_map_layout(&map_layout, &BarrierKindTable::default());
+    // The marks an explosion at `center` leaves on `map_layout`, with one
+    // root entity per carrier, at the carriers' pose at tick 0.
+    fn explode(map_layout: &MapLayout, center: Vec3, blast_radius: f32) -> (World, Vec<Entity>) {
+        let mut collision_world = CollisionWorld::from_map_layout(map_layout, &BarrierKindTable::default());
+        let mut carriers = Carriers::from_layout(map_layout);
+        carriers.advance(0);
+        collision_world.set_carrier_poses(&carriers);
         let mut meshes = Assets::<Mesh>::default();
         let mut materials = Assets::<StandardMaterial>::default();
         let explosion_assets = ExplosionAssets::new(&mut meshes, &mut materials);
         let mut budget = ExplosionVfxBudget::default();
         let mut world = World::new();
+        let roots: Vec<Entity> = (0..=map_layout.carriers.len())
+            .map(|_| world.spawn_empty().id())
+            .collect();
+        let carrier_entities = CarrierEntities::new(roots.clone());
         let mut queue = bevy::ecs::world::CommandQueue::default();
 
         {
@@ -403,16 +432,57 @@ mod tests {
                 &mut budget,
                 &explosion_assets,
                 ExplosionSpec {
-                    center: Vec3::new(0.0, 1.0, 0.0),
-                    ground_y: 0.0,
-                    fireball_diameter: 15.0,
-                    blast_radius: Some(15.0),
+                    center,
+                    ground_y: center.y - 1.0,
+                    fireball_diameter: blast_radius,
+                    blast_radius: Some(blast_radius),
                 },
-                Some(&collision_world),
-                Some(&map_layout),
+                &ExplosionSurfaces {
+                    collision_world: Some(&collision_world),
+                    map_layout: Some(map_layout),
+                    carriers: &carriers,
+                    carrier_entities: &carrier_entities,
+                },
             );
         }
         queue.apply(&mut world);
+        (world, roots)
+    }
+
+    fn floor(carrier: CarrierId) -> Floor {
+        Floor {
+            x1: -10.0,
+            z1: -10.0,
+            x2: 10.0,
+            z2: 10.0,
+            y: 0.0,
+            thickness: 1.0,
+            level: 0,
+            carrier,
+        }
+    }
+
+    fn wall(carrier: CarrierId) -> Wall {
+        Wall {
+            x1: -10.0,
+            z1: 1.0,
+            x2: 10.0,
+            z2: 1.0,
+            width: 0.2,
+            level: 0,
+            y: 0.0,
+            height: WALL_HEIGHT,
+            carrier,
+        }
+    }
+
+    #[test]
+    fn large_grounded_explosion_spawns_one_sized_scorch_and_grass_burn() {
+        let map_layout = MapLayout {
+            floors: vec![floor(CarrierId::WORLD)],
+            ..default()
+        };
+        let (mut world, _) = explode(&map_layout, Vec3::new(0.0, 1.0, 0.0), 15.0);
 
         let mut marks = world.query::<(&ScorchMark, &Transform)>();
         let marks: Vec<_> = marks.iter(&world).collect();
@@ -429,56 +499,11 @@ mod tests {
     #[test]
     fn explosion_next_to_wall_spawns_wall_scorch_mark() {
         let map_layout = MapLayout {
-            walls: vec![Wall {
-                x1: -10.0,
-                z1: 1.0,
-                x2: 10.0,
-                z2: 1.0,
-                width: 0.2,
-                level: 0,
-                y: 0.0,
-                height: WALL_HEIGHT,
-                carrier: CarrierId::WORLD,
-            }],
-            floors: vec![Floor {
-                x1: -10.0,
-                z1: -10.0,
-                x2: 10.0,
-                z2: 10.0,
-                y: 0.0,
-                thickness: 1.0,
-                level: 0,
-                carrier: CarrierId::WORLD,
-            }],
+            walls: vec![wall(CarrierId::WORLD)],
+            floors: vec![floor(CarrierId::WORLD)],
             ..default()
         };
-        let collision_world = CollisionWorld::from_map_layout(&map_layout, &BarrierKindTable::default());
-        let mut meshes = Assets::<Mesh>::default();
-        let mut materials = Assets::<StandardMaterial>::default();
-        let explosion_assets = ExplosionAssets::new(&mut meshes, &mut materials);
-        let mut budget = ExplosionVfxBudget::default();
-        let mut world = World::new();
-        let mut queue = bevy::ecs::world::CommandQueue::default();
-
-        {
-            let mut commands = Commands::new(&mut queue, &world);
-            spawn_explosion(
-                &mut commands,
-                &mut meshes,
-                &mut materials,
-                &mut budget,
-                &explosion_assets,
-                ExplosionSpec {
-                    center: Vec3::new(0.0, 1.0, 0.0),
-                    ground_y: 0.0,
-                    fireball_diameter: 6.0,
-                    blast_radius: Some(6.0),
-                },
-                Some(&collision_world),
-                Some(&map_layout),
-            );
-        }
-        queue.apply(&mut world);
+        let (mut world, _) = explode(&map_layout, Vec3::new(0.0, 1.0, 0.0), 6.0);
 
         let mut marks = world.query::<(&ScorchMark, &Transform)>();
         let marks: Vec<_> = marks.iter(&world).collect();
@@ -497,5 +522,51 @@ mod tests {
         assert!(wall_transform.translation.y + wall_transform.scale.z * 0.5 <= WALL_HEIGHT + 0.001);
         drop(marks);
         assert_eq!(world.query::<&GrassBurn>().iter(&world).count(), 1);
+    }
+
+    // A carrier resting at x = 30 carries the floor and wall; the blast at
+    // world x = 30 marks both in the carrier's frame, under its root.
+    #[test]
+    fn marks_on_a_carrier_hang_under_it_in_its_frame() {
+        let rest = Position {
+            x: 30.0,
+            y: 0.0,
+            z: 0.0,
+        };
+        let map_layout = MapLayout {
+            walls: vec![wall(CarrierId(1))],
+            floors: vec![floor(CarrierId(1))],
+            carriers: vec![Carrier {
+                parent: CarrierId::WORLD,
+                level: 0,
+                levels: 0,
+                from: rest,
+                to: rest,
+                travel_ticks: 1,
+                pause_ticks: 0,
+                phase_ticks: 0,
+            }],
+            ..default()
+        };
+        let (mut world, roots) = explode(&map_layout, Vec3::new(30.0, 1.0, 0.0), 6.0);
+
+        let carrier_root = roots[1];
+        let mut marks = world.query::<(&ScorchMark, &Transform, &ChildOf)>();
+        let marks: Vec<_> = marks.iter(&world).collect();
+        assert_eq!(marks.len(), 2);
+        assert!(marks.iter().all(|(_, _, child_of)| child_of.parent() == carrier_root));
+        let floor_mark = marks
+            .iter()
+            .find(|(_, transform, _)| (transform.rotation * Vec3::Y).dot(Vec3::Y) > 0.999)
+            .expect("floor mark");
+        assert!(
+            floor_mark.1.translation.x.abs() < 0.001,
+            "not in the carrier's frame: {:?}",
+            floor_mark.1.translation
+        );
+        drop(marks);
+        let burns: Vec<_> = world.query::<&GrassBurn>().iter(&world).copied().collect();
+        assert_eq!(burns.len(), 1);
+        assert_eq!(burns[0].carrier, CarrierId(1));
     }
 }

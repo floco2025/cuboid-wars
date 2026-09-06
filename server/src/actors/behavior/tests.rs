@@ -4,7 +4,10 @@ use rand::{SeedableRng, rngs::StdRng};
 use super::{
     controllers::{BeamStarted, decide_beam_actor, decide_contact_actor, decide_contact_beam_actor},
     perception::{PlayerState, update_awareness},
-    tick::{BehaviorContext, enter_evade, keep_or_install_engagement_route, shake_loose, tick_runtime_state},
+    tick::{
+        BehaviorContext, EVADE_REPLAN_INTERVAL_SECS, enter_evade, keep_or_install_engagement_route, shake_loose,
+        tick_runtime_state,
+    },
 };
 use crate::{
     actors::{
@@ -165,6 +168,7 @@ impl Fixture {
             territory: self.territories.get(0),
             collision_world: &self.collision_world,
             kind_config: self.server.expect_actor(kind),
+            players_armed: true,
         }
     }
 }
@@ -273,7 +277,7 @@ fn ladder_target_makes_contact_actor_evade() {
 
     decide_contact_actor(&mut info, &fixture.context("mine", actor_pos), &mut rng);
 
-    assert_eq!(info.mode, ActorMode::Evade);
+    assert!(matches!(info.mode, ActorMode::Evade { .. }));
 }
 
 #[test]
@@ -395,7 +399,7 @@ fn cooling_zapper_evades_instead_of_approaching() {
 
     decide_beam_actor(&mut info, &fixture.context("zapper", actor_pos), &mut rng);
 
-    assert_eq!(info.mode, ActorMode::Evade);
+    assert!(matches!(info.mode, ActorMode::Evade { .. }));
 }
 
 #[test]
@@ -443,7 +447,7 @@ fn completed_beam_enters_cooldown_and_evade() {
 
     decide_beam_actor(&mut info, &fixture.context("zapper", actor_pos), &mut rng);
 
-    assert_eq!(info.mode, ActorMode::Evade);
+    assert!(matches!(info.mode, ActorMode::Evade { .. }));
 }
 
 #[test]
@@ -678,9 +682,13 @@ fn actor_already_in_stable_cover_holds_position() {
     let mut info = info("mine");
     info.awareness.push(aware(7, threat, CharacterSupport::Ladder, false));
 
-    enter_evade(&mut info, &fixture.context("mine", actor_pos));
+    enter_evade(
+        &mut info,
+        &fixture.context("mine", actor_pos),
+        &mut StdRng::seed_from_u64(1),
+    );
 
-    assert_eq!(info.mode, ActorMode::Evade);
+    assert!(matches!(info.mode, ActorMode::Evade { .. }));
     assert!(info.route.is_none());
 }
 
@@ -722,7 +730,7 @@ fn evade_route_is_replaced_when_same_cell_threat_exposes_destination() {
     );
 
     let mut info = info("mine");
-    info.mode = ActorMode::Evade;
+    info.mode = ActorMode::Evade { fleeing: false };
     info.route = Some(ActorRoute {
         waypoints: [destination].into(),
         destination,
@@ -734,7 +742,7 @@ fn evade_route_is_replaced_when_same_cell_threat_exposes_destination() {
     info.awareness
         .push(aware(7, exposed_threat, CharacterSupport::Ladder, true));
 
-    enter_evade(&mut info, &context);
+    enter_evade(&mut info, &context, &mut StdRng::seed_from_u64(1));
 
     assert!(info.route.as_ref().is_none_or(|route| route.destination != destination));
 }
@@ -745,21 +753,108 @@ fn failed_cover_search_waits_before_trying_again() {
     let actor_pos = fixture.pos(2, 2);
     let threat = fixture.pos(1, 2);
     let mut waiting = info("mine");
-    waiting.mode = ActorMode::Evade;
+    waiting.mode = ActorMode::Evade { fleeing: false };
     waiting.evade_replan_remaining_secs = 0.4;
     waiting.awareness.push(aware(7, threat, CharacterSupport::Ladder, true));
 
-    enter_evade(&mut waiting, &fixture.context("mine", actor_pos));
+    enter_evade(
+        &mut waiting,
+        &fixture.context("mine", actor_pos),
+        &mut StdRng::seed_from_u64(1),
+    );
 
     assert!(waiting.route.is_none());
 
     let mut ready = info("mine");
-    ready.mode = ActorMode::Evade;
+    ready.mode = ActorMode::Evade { fleeing: false };
     ready.awareness.push(aware(7, threat, CharacterSupport::Ladder, true));
 
-    enter_evade(&mut ready, &fixture.context("mine", actor_pos));
+    enter_evade(
+        &mut ready,
+        &fixture.context("mine", actor_pos),
+        &mut StdRng::seed_from_u64(1),
+    );
 
     assert!(ready.route.is_some());
+}
+
+#[test]
+fn no_cover_in_reach_sends_the_actor_fleeing_from_the_threat() {
+    let fixture = Fixture::new("mine");
+    let actor_pos = fixture.pos(4, 2);
+    let threat = fixture.pos(1, 2);
+    let mut info = info("mine");
+    info.awareness.push(aware(7, threat, CharacterSupport::Ladder, true));
+
+    enter_evade(
+        &mut info,
+        &fixture.context("mine", actor_pos),
+        &mut StdRng::seed_from_u64(1),
+    );
+
+    assert_eq!(info.mode, ActorMode::Evade { fleeing: true });
+    let route = info.route.as_ref().expect("a flight leg");
+    assert!(
+        route.destination.horizontal_distance_sq(&threat) > actor_pos.horizontal_distance_sq(&threat),
+        "ran toward the threat: {:?}",
+        route.destination
+    );
+}
+
+#[test]
+fn a_flight_leg_is_kept_until_it_ends() {
+    let fixture = Fixture::new("mine");
+    let actor_pos = fixture.pos(4, 2);
+    let threat = fixture.pos(1, 2);
+    let leg = route_through(&[fixture.pos(5, 2), fixture.pos(6, 2)], &fixture);
+    let mut info = info("mine");
+    info.mode = ActorMode::Evade { fleeing: true };
+    info.route = Some(leg.clone());
+    info.evade_replan_remaining_secs = 0.0;
+    info.awareness.push(aware(7, threat, CharacterSupport::Ladder, true));
+
+    enter_evade(
+        &mut info,
+        &fixture.context("mine", actor_pos),
+        &mut StdRng::seed_from_u64(1),
+    );
+
+    assert_eq!(info.route, Some(leg));
+
+    info.route = None;
+    info.evade_replan_remaining_secs = EVADE_REPLAN_INTERVAL_SECS;
+
+    enter_evade(
+        &mut info,
+        &fixture.context("mine", actor_pos),
+        &mut StdRng::seed_from_u64(1),
+    );
+
+    assert!(info.route.is_some(), "no new leg on arrival");
+}
+
+#[test]
+fn unarmed_players_are_not_evaded() {
+    let fixture = Fixture::new("mine");
+    let actor_pos = fixture.pos(1, 2);
+    let mut info = info("mine");
+    info.awareness.push(aware(
+        7,
+        Position {
+            y: 3.0,
+            ..fixture.pos(4, 2)
+        },
+        CharacterSupport::Ladder,
+        true,
+    ));
+    let context = BehaviorContext {
+        players_armed: false,
+        ..fixture.context("mine", actor_pos)
+    };
+
+    decide_contact_actor(&mut info, &context, &mut StdRng::seed_from_u64(1));
+
+    assert!(!matches!(info.mode, ActorMode::Evade { .. }), "evaded: {:?}", info.mode);
 }
 
 fn route_through(waypoints: &[Position], fixture: &Fixture) -> ActorRoute {

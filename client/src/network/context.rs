@@ -93,6 +93,8 @@ impl ServerMessageContext<'_, '_> {
             gameplay_config: &self.gameplay_config,
             collision_world: Some(&self.collision_world),
             map_layout: Some(&self.map_layout),
+            carriers: &self.carriers,
+            carrier_entities: &self.carrier_entities,
             blast_radii: &self.blast_radii,
         }
     }

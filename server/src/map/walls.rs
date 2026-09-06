@@ -234,6 +234,40 @@ mod tests {
         }
     }
 
+    // An L of walls meets the same way in the map's corner as anywhere
+    // else: the vertical wall stops a half thickness short of the
+    // horizontal one's centreline instead of crossing it.
+    #[test]
+    fn walls_meet_flush_in_every_corner_of_the_map() {
+        use crate::test_geometry::geometry;
+
+        let geometry = geometry(4, 4);
+        let half = geometry.wall_half_thickness();
+        let corners = [
+            ((0, 0), (0, 0), 1.0),
+            ((0, 3), (0, 4), -1.0),
+            ((3, 0), (4, 0), 1.0),
+            ((3, 3), (4, 4), -1.0),
+        ];
+        for ((col, row), (h_col, h_row), toward) in corners {
+            let mut edges = EdgeGrid::new(4, 4);
+            edges.horizontal[h_row as usize][col as usize] = true;
+            edges.vertical[row as usize][h_col as usize] = true;
+            let walls = generate_walls(&edges, &geometry, 0);
+            let vertical = walls
+                .iter()
+                .find(|wall| (wall.x1 - wall.x2).abs() < MERGE_EPS)
+                .expect("vertical wall missing");
+            let line_z = geometry.cell_to_world_z(h_row);
+            let end = if toward > 0.0 { vertical.z1 } else { vertical.z2 };
+            assert!(
+                (end - (line_z + toward * half)).abs() < MERGE_EPS,
+                "corner ({col}, {row}): vertical wall ends at {end}, expected {}",
+                line_z + toward * half
+            );
+        }
+    }
+
     #[test]
     fn horizontal_walls_merge_when_only_hidden_caps_differ() {
         // Two adjacent horizontal wall edges. Long faces and top/bottom match;

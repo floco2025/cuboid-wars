@@ -113,7 +113,7 @@ fn beam_attack(context: &BehaviorContext<'_>) -> ActorBeamAttackConfig {
 fn try_engage_attackable_player(info: &mut ActorInfo, context: &BehaviorContext<'_>) -> bool {
     let current_target = match info.mode {
         ActorMode::Engage { target, .. } => Some(target),
-        ActorMode::Roam | ActorMode::Evade | ActorMode::ReturnHome => None,
+        ActorMode::Roam | ActorMode::Evade { .. } | ActorMode::ReturnHome => None,
     };
     let mut candidates = info.awareness.clone();
     candidates.sort_by_key(|aware| Some(aware.id) != current_target);
@@ -140,10 +140,12 @@ fn try_engage_attackable_player(info: &mut ActorInfo, context: &BehaviorContext<
     false
 }
 
+// Nothing to fear from a player who cannot shoot: on a map without
+// projectiles or missiles, an unreachable player is simply ignored.
 fn enter_passive_or_evade(info: &mut ActorInfo, context: &BehaviorContext<'_>, rng: &mut impl Rng) {
-    if info.awareness.is_empty() {
+    if info.awareness.is_empty() || !context.players_armed {
         enter_roam_or_return(info, context, rng);
     } else {
-        enter_evade(info, context);
+        enter_evade(info, context, rng);
     }
 }

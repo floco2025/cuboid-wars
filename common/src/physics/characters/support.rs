@@ -4,11 +4,11 @@ use rapier3d::{
     prelude::{ColliderHandle, Vector},
 };
 
-use super::geometry::{character_pose, character_support_probe_pose, character_support_probe_shape};
+use super::geometry::{character_pose, character_shape, character_support_probe_pose, character_support_probe_shape};
 use crate::{
     config::CharacterPhysicsConfig,
     constants::{
-        CARRIER_RIDE_TOLERANCE, CARRIER_SURFACE_TIE_EPSILON, CHARACTER_GROUND_SNAP_DISTANCE,
+        CARRIER_RIDE_TOLERANCE, CARRIER_SURFACE_TIE_EPSILON, CHARACTER_CONTACT_OFFSET, CHARACTER_GROUND_SNAP_DISTANCE,
         CHARACTER_PERCH_SLIDE_SPEED, CHARACTER_STEP_HEIGHT, PHYSICS_EPSILON,
     },
     map::Carriers,
@@ -79,8 +79,29 @@ pub(super) fn supporting_carrier(
     (!world_above).then_some(carried.carrier)
 }
 
-pub(super) fn snap_position_to_ground(pos: &mut Position, ground: ShapeCastHit, physics: CharacterPhysicsConfig) {
-    pos.y -= ground.t - physics.collider.bottom_y_offset();
+pub(super) fn snap_position_to_ground(
+    collision_world: &CollisionWorld,
+    pos: &mut Position,
+    ground: ShapeCastHit,
+    physics: CharacterPhysicsConfig,
+    passable_kinds: &[BarrierKindId],
+    excluded_colliders: &[ColliderHandle],
+) {
+    let mut distance = ground.t - physics.collider.bottom_y_offset();
+    // The narrow probe can see a landing below a ledge the full body just stepped onto.
+    if distance > PHYSICS_EPSILON
+        && let Some(hit) = collision_world.ground_hit(
+            &character_shape(physics),
+            &character_pose(pos, physics),
+            distance,
+            CHARACTER_CONTACT_OFFSET,
+            passable_kinds,
+            excluded_colliders,
+        )
+    {
+        distance = distance.min(hit.t);
+    }
+    pos.y -= distance;
 }
 
 pub(super) fn perch_slide_displacement(

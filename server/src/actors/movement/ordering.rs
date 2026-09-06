@@ -24,7 +24,7 @@ pub(super) fn sorted_actor_plan_order(
 ) -> Vec<ActorPlanOrder> {
     let mut order: Vec<ActorPlanOrder> = query
         .iter()
-        .map(|(entity, id, _, pos, _, _, _, _)| {
+        .map(|(entity, id, _, pos, _, _, _, _, _)| {
             let info = actors.get(id);
             let local_pos = info.map_or(*pos, |info| {
                 carriers.previous_pose(info.carrier).inverse_transform_position(pos)

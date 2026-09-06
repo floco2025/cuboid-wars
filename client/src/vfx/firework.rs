@@ -4,6 +4,7 @@ use std::f32::consts::TAU;
 use bevy::{audio::SpatialScale, ecs::system::SystemParam, light::NotShadowCaster, prelude::*};
 use rand::{RngExt, SeedableRng, rngs::StdRng};
 
+use crate::carriers::CarrierEntities;
 use crate::{
     audio::{play_explosion_sound, play_spatial_sound},
     config::{AssetSet, ClientSettings},
@@ -13,6 +14,7 @@ use crate::{
     projectiles::{ProjectileAssets, spawn_ember_projectile},
     vfx::{BlastRadii, ExplosionAssets, ExplosionSpawnCtx, ExplosionVfxBudget, spawn_missile_explosion},
 };
+use common::map::Carriers;
 use common::{
     config::{GameplayConfig, MapGeometryConfig},
     physics::CollisionWorld,
@@ -310,6 +312,8 @@ pub struct FireworkVfx<'w> {
     gameplay_config: Res<'w, GameplayConfig>,
     collision_world: Res<'w, CollisionWorld>,
     map_layout: Res<'w, MapLayout>,
+    carriers: Res<'w, Carriers>,
+    carrier_entities: Res<'w, CarrierEntities>,
 }
 
 #[derive(SystemParam)]
@@ -425,6 +429,8 @@ fn pop(commands: &mut Commands, vfx: &mut FireworkVfx, assets: &FireworkAssets, 
         gameplay_config: &vfx.gameplay_config,
         collision_world: Some(&vfx.collision_world),
         map_layout: Some(&vfx.map_layout),
+        carriers: &vfx.carriers,
+        carrier_entities: &vfx.carrier_entities,
         blast_radii: &vfx.blast_radii,
     };
     spawn_missile_explosion(commands, &mut ctx, Position::from(pos));

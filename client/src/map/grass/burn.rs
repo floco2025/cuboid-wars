@@ -2,11 +2,13 @@ use super::mesh::{BLADE_MAX_OVERHANG, grass_cell_mesh};
 use super::spawn::GrassCellVisual;
 use crate::{config::ClientSettings, constants::EXPLOSION_GRASS_BURN_VERTICAL_TOLERANCE, vfx::ScorchOutline};
 use bevy::prelude::*;
-use common::protocol::{GrassCell, MapSettings};
+use common::protocol::{CarrierId, GrassCell, MapSettings};
 use std::collections::HashMap;
 
+// `center` is in the carrier's frame, like the grass it burns.
 #[derive(Component, Debug, Clone, Copy, PartialEq)]
 pub struct GrassBurn {
+    pub(crate) carrier: CarrierId,
     pub(super) center: Vec3,
     pub(super) radius: f32,
     pub(super) rotation: f32,
@@ -15,8 +17,9 @@ pub struct GrassBurn {
 }
 
 impl GrassBurn {
-    pub(crate) fn new(center: Vec3, radius: f32, rotation: f32, mesh_index: usize) -> Self {
+    pub(crate) fn new(carrier: CarrierId, center: Vec3, radius: f32, rotation: f32, mesh_index: usize) -> Self {
         Self {
+            carrier,
             center,
             radius,
             rotation,
@@ -30,7 +33,7 @@ impl GrassBurn {
     }
 
     fn intersects_cell(self, cell: GrassCell, cell_size: f32) -> bool {
-        if (self.center.y - cell.y).abs() > EXPLOSION_GRASS_BURN_VERTICAL_TOLERANCE {
+        if cell.carrier != self.carrier || (self.center.y - cell.y).abs() > EXPLOSION_GRASS_BURN_VERTICAL_TOLERANCE {
             return false;
         }
         let half_extent = cell_size * 0.5 + BLADE_MAX_OVERHANG;

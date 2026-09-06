@@ -12,6 +12,7 @@ pub enum DeathCause {
     PlayerBlast { by: String },
     ActorBlast { kind: String },
     Fall,
+    Crushed,
     Admin,
 }
 
@@ -201,6 +202,7 @@ fn render_death(name: String, cause: DeathCause) -> Vec<FeedSpan> {
         DeathCause::ActorBlast { kind } => one(format!("{name} was blown up by a {kind}"), FeedStyle::Default),
         DeathCause::PlayerBlast { by } => one(format!("{name} was caught in {by}'s explosion"), FeedStyle::Default),
         DeathCause::Fall => one(format!("{name} fell"), FeedStyle::Dim),
+        DeathCause::Crushed => one(format!("{name} was crushed"), FeedStyle::Dim),
         DeathCause::Admin => one(format!("{name} was killed by an admin"), FeedStyle::Default),
     }
 }
@@ -396,6 +398,7 @@ mod tests {
                 FeedStyle::Default,
             ),
             (DeathCause::Fall, "Marc fell", FeedStyle::Dim),
+            (DeathCause::Crushed, "Marc was crushed", FeedStyle::Dim),
             (DeathCause::Admin, "Marc was killed by an admin", FeedStyle::Default),
         ];
         for (cause, expected, style) in cases {

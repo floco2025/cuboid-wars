@@ -11,7 +11,8 @@ pub(crate) use movement::{ActorMovementQuery, apply_actor_moves, plan_actor_move
 pub use plugin::actors_plugin;
 pub use removal::actors_removal_system;
 pub use resources::{
-    ActorInfo, ActorMap, ActorRespawnTimers, ActorSpawner, ActorStateQuery, PendingActorSpawn, PendingActorSpawns,
+    ActorCrushed, ActorInfo, ActorMap, ActorRespawnTimers, ActorSpawner, ActorStateQuery, PendingActorSpawn,
+    PendingActorSpawns,
 };
 pub(crate) use resources::{ActorMode, ActorRoute, BeamState};
 pub(crate) use spawning::expedite_actor_respawns;

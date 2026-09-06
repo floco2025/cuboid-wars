@@ -3,7 +3,7 @@ use bevy_math::{Quat, Vec3};
 use rapier3d::{
     control::{CharacterCollision, EffectiveCharacterMovement, KinematicCharacterController},
     parry::{
-        query::ShapeCastOptions,
+        query::{ShapeCastOptions, intersection_test},
         shape::{Ball, Cuboid},
     },
     prelude::{
@@ -14,7 +14,7 @@ use rapier3d::{
 
 use crate::{
     config::{CharacterPhysicsConfig, PortalShotSettings},
-    constants::PORTAL_BACKING_FLUSH_EPSILON,
+    constants::{CHARACTER_CONTACT_OFFSET, PHYSICS_EPSILON, PORTAL_BACKING_FLUSH_EPSILON},
     map::{CarrierPose, Carriers},
     physics::characters::{character_center, character_shape},
     protocol::{BarrierKindId, BarrierKindTable, BridgeKindId, CarrierId, MapLayout, Position},
@@ -213,6 +213,21 @@ impl CollisionWorld {
         self.ladder_volumes.iter().find(|volume| volume.contains(pos))
     }
 
+    pub(crate) fn carried_ladder_at_previous_pose(
+        &self,
+        pos: &Position,
+        carriers: &Carriers,
+    ) -> Option<(CarrierId, LadderVolume)> {
+        self.ladder_locals.iter().find_map(|(carrier, local)| {
+            if carrier.is_world() {
+                return None;
+            }
+            // The body has not received this tick's carry yet.
+            let previous = local.posed(&carriers.previous_pose(*carrier));
+            previous.contains(pos).then_some((*carrier, previous))
+        })
+    }
+
     #[must_use]
     pub fn ladder_band_at(&self, x: f32, z: f32, y: f32) -> Option<&LadderVolume> {
         self.ladder_volumes.iter().find(|volume| volume.band_contains(x, z, y))
@@ -276,6 +291,21 @@ impl CollisionWorld {
     #[must_use]
     pub fn cast_moving_ball(&self, position: Vec3, translation: Vec3, radius: f32) -> Option<ShapeCastHit> {
         self.cast_moving_ball_with_filter(position, translation, radius, surface_collision_groups())
+    }
+
+    #[must_use]
+    pub fn projectile_path_clear(
+        &self,
+        position: Vec3,
+        translation: Vec3,
+        radius: f32,
+        open_kinds: &[BarrierKindId],
+    ) -> bool {
+        let groups = character_collision_groups(open_kinds, self.all_barrier_groups);
+        !self.ball_overlaps_groups(position, radius, groups)
+            && self
+                .cast_moving_ball_with_filter(position, translation, radius, groups)
+                .is_none()
     }
 
     // Cast a moving ball against barrier colliders only. Used by projectiles
@@ -648,6 +678,75 @@ impl CollisionWorld {
         query_pipeline.intersect_shape(pose, &shape).next().is_some()
     }
 
+    // Leg-only contact permits boarding raised slabs. A carried collider must
+    // penetrate the movement box before or after resolution to count; checking
+    // the full height afterwards prevents escaping through a descending slab.
+    // Vertical carry also checks static geometry, such as a lift's ceiling.
+    pub(crate) fn character_crushed(
+        &self,
+        start: &Position,
+        pos: &Position,
+        physics: CharacterPhysicsConfig,
+        passable_kinds: &[BarrierKindId],
+        excluded_colliders: &[ColliderHandle],
+        lifted: bool,
+    ) -> bool {
+        let collision_box = character_shape(physics);
+        let center = character_center(*pos, physics);
+        let start_center = character_center(*start, physics);
+        let movement_box = inset_contact_shape(&collision_box);
+        let movement_poses = [
+            Pose::translation(start_center.x, start_center.y, start_center.z),
+            Pose::translation(center.x, center.y, center.z),
+        ];
+        let head = center.y + collision_box.half_extents.y;
+        let feet = pos.y.min(center.y - collision_box.half_extents.y);
+        let body = Cuboid::new(Vector::new(
+            collision_box.half_extents.x,
+            (head - feet) / 2.0,
+            collision_box.half_extents.z,
+        ));
+        let body_center = Vec3::new(center.x, (head + feet) / 2.0, center.z);
+        let carried = |_: ColliderHandle, collider: &Collider| {
+            !ColliderKind::carrier_from_user_data(collider.user_data).is_world()
+                && movement_poses.iter().any(|pose| {
+                    intersection_test(pose, &movement_box, collider.position(), collider.shape())
+                        .is_ok_and(|overlaps| overlaps)
+                })
+        };
+        let any = |_: ColliderHandle, _: &Collider| true;
+        self.crushing_overlap(body_center, &body, passable_kinds, excluded_colliders, &carried)
+            || (lifted && self.crushing_overlap(center, &collision_box, passable_kinds, excluded_colliders, &any))
+    }
+
+    fn crushing_overlap(
+        &self,
+        center: Vec3,
+        shape: &Cuboid,
+        passable_kinds: &[BarrierKindId],
+        excluded_colliders: &[ColliderHandle],
+        counts: &dyn Fn(ColliderHandle, &Collider) -> bool,
+    ) -> bool {
+        let allow = |handle: ColliderHandle, collider: &Collider| {
+            !excluded_colliders.contains(&handle)
+                && ColliderKind::from_user_data(collider.user_data) != Some(ColliderKind::Ramp)
+                && counts(handle, collider)
+        };
+        let mut filter = query_filter(character_collision_groups(passable_kinds, self.all_barrier_groups));
+        filter.predicate = Some(&allow);
+        let query_pipeline = self.broad_phase.as_query_pipeline(
+            self.narrow_phase.query_dispatcher(),
+            &self.bodies,
+            &self.colliders,
+            filter,
+        );
+        let pose = Pose::translation(center.x, center.y, center.z);
+        query_pipeline
+            .intersect_shape(pose, &inset_contact_shape(shape))
+            .next()
+            .is_some()
+    }
+
     fn cuboid_overlaps_groups(&self, center: Vec3, half_extents: Vec3, groups: Group) -> bool {
         let query_pipeline = self.broad_phase.as_query_pipeline(
             self.narrow_phase.query_dispatcher(),
@@ -660,6 +759,16 @@ impl CollisionWorld {
 
         query_pipeline.intersect_shape(pose, &shape).next().is_some()
     }
+}
+
+// Contact margins tolerate resting touches; only penetration counts as crushing.
+fn inset_contact_shape(shape: &Cuboid) -> Cuboid {
+    let inset = CHARACTER_CONTACT_OFFSET * 2.0;
+    Cuboid::new(Vector::new(
+        (shape.half_extents.x - inset).max(PHYSICS_EPSILON),
+        (shape.half_extents.y - inset).max(PHYSICS_EPSILON),
+        (shape.half_extents.z - inset).max(PHYSICS_EPSILON),
+    ))
 }
 
 fn rapier_pose(pose: &CarrierPose) -> Pose {

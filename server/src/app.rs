@@ -62,7 +62,7 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
     let collision_world = CollisionWorld::from_map_layout(&map_layout, &barrier_kind_table);
     let carriers = Carriers::from_layout(&map_layout);
     let nav_graphs = NavGraphs::new(&map_config);
-    let air_graph = AirGraph::new(map_config.clone());
+    let air_graph = AirGraph::new(&map_config);
     validate_map_actor_kinds(&server_gameplay_config, &map_config)?;
     validate_map_quests(
         &map_server_config.quests,

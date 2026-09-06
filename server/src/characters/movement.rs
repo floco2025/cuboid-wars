@@ -54,7 +54,7 @@ pub fn characters_movement_system(
     let mut planned_moves = Vec::new();
     let actor_starts: Vec<(Entity, Position, CharacterPhysicsConfig)> = actor_query
         .iter()
-        .filter_map(|(entity, id, _, pos, _, _, _, _)| {
+        .filter_map(|(entity, id, _, pos, _, _, _, _, _)| {
             let info = actors.get(id)?;
             Some((entity, *pos, gameplay_config.expect_actor(&info.spawn_kind).physics()))
         })
@@ -139,7 +139,7 @@ fn plan_player_moves(
             carriers,
         });
         if let Some(info) = players.get_mut(player_id) {
-            info.life.fall_state.set_support(step.support);
+            info.life.fall_state.set_support(step.support, step.crushed);
         }
 
         planned_moves.push(CharacterMovePlan::from_movement_result(

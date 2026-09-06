@@ -34,7 +34,7 @@ pub(crate) fn plan_actor_moves(
     let actor_order = sorted_actor_plan_order(query, actors, carriers);
 
     for actor_order in actor_order {
-        let Ok((entity, id, actor_movement, pos, motion, mut move_intent, mut face_yaw, knockback)) =
+        let Ok((entity, id, actor_movement, pos, motion, mut move_intent, mut face_yaw, knockback, _)) =
             query.get_mut(actor_order.entity)
         else {
             continue;

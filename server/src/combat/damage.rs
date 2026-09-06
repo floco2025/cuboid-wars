@@ -26,11 +26,13 @@ pub enum DeathSource {
     Fall,
     // Fell out of the world.
     Void,
+    // Caught inside a carrier's geometry.
+    Crushed,
     Admin,
 }
 
 // Credit goes to a shooter other than the victim who is still connected;
-// beams, death blasts, falls, and admin kills credit nobody.
+// beams, death blasts, falls, crushes, and admin kills credit nobody.
 #[must_use]
 pub fn kill_credit(source: &DeathSource, victim: PlayerId, players: &PlayerMap) -> Option<PlayerId> {
     match source {
@@ -40,6 +42,7 @@ pub fn kill_credit(source: &DeathSource, victim: PlayerId, players: &PlayerMap) 
         | DeathSource::ActorBlast { .. }
         | DeathSource::Fall
         | DeathSource::Void
+        | DeathSource::Crushed
         | DeathSource::Admin => None,
     }
 }
@@ -60,6 +63,7 @@ fn death_cause(source: &DeathSource, victim: PlayerId, players: &PlayerMap) -> D
         },
         DeathSource::ActorBlast { kind } => DeathCause::ActorBlast { kind: kind.clone() },
         DeathSource::Fall | DeathSource::Void => DeathCause::Fall,
+        DeathSource::Crushed => DeathCause::Crushed,
         DeathSource::Admin => DeathCause::Admin,
     }
 }

@@ -11,6 +11,11 @@ use common::{
 use super::navigation::{NavNode, PlannedRoute};
 use crate::watchdog::ProgressWatchdog;
 
+// Whether this tick's movement left the actor inside a carrier's geometry;
+// written by `apply_actor_moves`, read by `actors_removal_system`.
+#[derive(Component, Default)]
+pub struct ActorCrushed(pub bool);
+
 pub type ActorStateQuery<'w, 's> = Query<
     'w,
     's,
@@ -31,7 +36,10 @@ pub(crate) enum ActorMode {
         target: PlayerId,
         target_pos: Position,
     },
-    Evade,
+    // `fleeing`: the route is a flight leg to a random cell, not cover.
+    Evade {
+        fleeing: bool,
+    },
     ReturnHome,
 }
 

@@ -311,6 +311,12 @@ pub struct MapWeaponSettings {
 }
 
 impl MapWeaponSettings {
+    // Whether players can hurt actors here at all; portals are not a weapon.
+    #[must_use]
+    pub const fn arms_players(self) -> bool {
+        self.projectiles || self.missiles
+    }
+
     // A pickup for a disabled weapon never spawns or is granted: its ammo
     // could not be fired here.
     #[must_use]

@@ -72,7 +72,7 @@ impl LadderInteraction<'_> {
 
 #[must_use]
 pub(super) fn evaluate_ladder_interaction<'a>(
-    collision_world: &'a CollisionWorld,
+    ladder: Option<&'a LadderVolume>,
     start: &Position,
     start_vertical_velocity: f32,
     control_velocity: Vec3,
@@ -80,9 +80,8 @@ pub(super) fn evaluate_ladder_interaction<'a>(
     has_ground_support: bool,
     climb_speed_ratio: f32,
 ) -> LadderInteraction<'a> {
-    // No persistent climb state: the current front-side volume, support, and
+    // No persistent climb state: the front-side volume, support, and
     // control velocity fully determine the interaction on both simulations.
-    let ladder = collision_world.ladder_volume_at(start);
     let ride_velocity = ladder.and_then(|ladder| {
         if has_ground_support && start.y >= ladder.top_landing_y() - PHYSICS_EPSILON {
             return None;

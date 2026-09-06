@@ -2,6 +2,7 @@ use bevy::prelude::Vec3;
 use common::map::CarrierPose;
 use common::physics::CollisionWorld;
 use common::protocol::{BarrierKindTable, MapLayout, Position, Wall};
+use rand::{SeedableRng, rngs::StdRng};
 
 use super::{NavGraph, NavGraphs, routing::COVER_SEARCH_MAX_STEPS};
 use crate::map::{ActorSpawnZone, CarrierGrid, CellGrid, EdgeGrid, GeneratedMap, LevelGrid, MapConfig};
@@ -125,7 +126,7 @@ fn cover_route_chooses_nearest_adequate_cover() {
 }
 
 #[test]
-fn actor_at_safest_reachable_point_does_not_leave_without_cover() {
+fn no_cover_in_reach_finds_no_cover_route() {
     let nav = full_floor_nav(5, 1);
     let threat = cell_center(5, 1, 0, 0);
     let start = cell_center(5, 1, 4, 0);
@@ -136,18 +137,45 @@ fn actor_at_safest_reachable_point_does_not_leave_without_cover() {
 }
 
 #[test]
-fn cover_search_stays_within_its_local_route_budget() {
+fn cover_beyond_the_search_budget_is_not_found() {
     let nav = full_floor_nav(30, 1);
     let threat = cell_center(30, 1, 0, 0);
     let start = cell_center(30, 1, 1, 0);
     let remote_cover = cell_center(30, 1, 20, 0);
 
-    let route = nav
-        .safe_cover_route(&start, &[threat], |candidate| *candidate == remote_cover)
-        .expect("the local safest-point fallback should produce a route");
+    let route = nav.safe_cover_route(&start, &[threat], |candidate| *candidate == remote_cover);
 
-    assert!(route.waypoints.len() <= COVER_SEARCH_MAX_STEPS);
-    assert_ne!(route.waypoints.back(), Some(&remote_cover));
+    assert!(route.is_none());
+}
+
+#[test]
+fn flee_route_runs_away_from_the_threat_within_the_budget() {
+    let nav = full_floor_nav(30, 1);
+    let threat = cell_center(30, 1, 0, 0);
+    let start = cell_center(30, 1, 5, 0);
+    let mut rng = StdRng::seed_from_u64(1);
+
+    for _ in 0..8 {
+        let route = nav
+            .flee_route(&start, &[threat], &mut rng)
+            .expect("nowhere to run on an open strip");
+        let destination = route.waypoints.back().expect("a flight has a destination");
+        assert!(destination.horizontal_distance_sq(&threat) > start.horizontal_distance_sq(&threat));
+        assert!(route.waypoints.len() <= COVER_SEARCH_MAX_STEPS);
+    }
+}
+
+#[test]
+fn a_cornered_actor_still_flees_somewhere() {
+    let nav = full_floor_nav(5, 1);
+    let threat = cell_center(5, 1, 0, 0);
+    let start = cell_center(5, 1, 4, 0);
+
+    let route = nav
+        .flee_route(&start, &[threat], &mut StdRng::seed_from_u64(1))
+        .expect("nowhere to run from the corner");
+
+    assert_ne!(route.waypoints.back(), Some(&start));
 }
 
 #[test]

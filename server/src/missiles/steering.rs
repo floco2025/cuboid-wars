@@ -28,10 +28,7 @@ pub(super) fn sweep_clear(
     translation: Vec3,
     radius: f32,
 ) -> bool {
-    collision_world.cast_moving_ball(origin, translation, radius).is_none()
-        && collision_world
-            .cast_moving_ball_against_barriers(origin, translation, radius, open_kinds)
-            .is_none()
+    collision_world.projectile_path_clear(origin, translation, radius, open_kinds)
 }
 
 // Clear direction from the pitch × yaw fan closest to `desired`.
@@ -47,8 +44,14 @@ pub(super) fn pick_clear_direction(
     lookahead: f32,
     radius: f32,
 ) -> Option<Vec3> {
+    direction_candidates(desired)
+        .into_iter()
+        .find(|candidate| sweep_clear(collision_world, open_kinds, origin, *candidate * lookahead, radius))
+}
+
+fn direction_candidates(desired: Vec3) -> Vec<Vec3> {
     if desired == Vec3::ZERO {
-        return None;
+        return Vec::new();
     }
     // Aiming near-vertical leaves no unique "toward up" plane; any
     // perpendicular works.
@@ -71,10 +74,79 @@ pub(super) fn pick_clear_direction(
         }
     }
     candidates.sort_by(|a, b| a.0.total_cmp(&b.0));
-    candidates
-        .into_iter()
-        .find(|(_, candidate)| sweep_clear(collision_world, open_kinds, origin, *candidate * lookahead, radius))
-        .map(|(_, candidate)| candidate)
+    candidates.into_iter().map(|(_, candidate)| candidate).collect()
+}
+
+pub(super) fn steer_clear(
+    world: &CollisionWorld,
+    open_kinds: &[BarrierKindId],
+    origin: Vec3,
+    velocity: Vec3,
+    objective: Vec3,
+    turn_radius: f32,
+    delta: f32,
+    lookahead: f32,
+    radius: f32,
+) -> Vec3 {
+    let desired = objective.normalize_or_zero();
+    if delta <= 0.0 || desired == Vec3::ZERO || velocity.length_squared() <= f32::EPSILON {
+        return velocity;
+    }
+    let lookahead = lookahead.max(delta);
+    let clear_time = |direction| {
+        turn_clear_time(
+            world,
+            open_kinds,
+            origin,
+            velocity,
+            direction,
+            turn_radius,
+            delta,
+            lookahead,
+            radius,
+        )
+    };
+    if clear_time(desired) >= lookahead {
+        return steer(velocity, desired, turn_radius, delta);
+    }
+    let mut best = desired;
+    let mut best_time = -1.0;
+    for candidate in std::iter::once(velocity.normalize()).chain(direction_candidates(desired)) {
+        let time = clear_time(candidate);
+        if time > best_time {
+            best = candidate;
+            best_time = time;
+        }
+        if time >= lookahead {
+            break;
+        }
+    }
+    steer(velocity, best, turn_radius, delta)
+}
+
+fn turn_clear_time(
+    world: &CollisionWorld,
+    open_kinds: &[BarrierKindId],
+    mut origin: Vec3,
+    mut velocity: Vec3,
+    desired: Vec3,
+    turn_radius: f32,
+    delta: f32,
+    lookahead: f32,
+    radius: f32,
+) -> f32 {
+    let mut elapsed = 0.0;
+    while elapsed < lookahead {
+        let step = delta.min(lookahead - elapsed);
+        velocity = steer(velocity, desired, turn_radius, step);
+        let translation = velocity * step;
+        if !sweep_clear(world, open_kinds, origin, translation, radius) {
+            break;
+        }
+        origin += translation;
+        elapsed += step;
+    }
+    elapsed
 }
 
 // Bend the homing direction with a decaying corkscrew wobble — cosmetic

@@ -4,7 +4,7 @@ use super::query::ActorMovementQuery;
 
 pub(crate) fn apply_actor_moves(query: &mut ActorMovementQuery, planned_moves: &[CharacterMovePlan]) {
     for planned_move in planned_moves {
-        let Ok((_, _, _, mut pos, mut motion, _, _, _)) = query.get_mut(planned_move.entity) else {
+        let Ok((_, _, _, mut pos, mut motion, _, _, _, mut crushed)) = query.get_mut(planned_move.entity) else {
             continue;
         };
 
@@ -15,5 +15,6 @@ pub(crate) fn apply_actor_moves(query: &mut ActorMovementQuery, planned_moves: &
             *pos = planned_move.target;
         }
         motion.0 = planned_move.target_vertical_velocity;
+        crushed.0 = planned_move.crushed;
     }
 }

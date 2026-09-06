@@ -79,6 +79,10 @@ pub struct CharacterMovementResult {
     // otherwise. Its vertical part is already in `vertical_velocity` when the
     // body ends airborne; the horizontal part becomes `AirborneMomentum`.
     pub floor_velocity: Vec3,
+    // The body ended the step inside a carrier's geometry: a carrier moved
+    // into it and the collision could not push it clear. The server kills
+    // a crushed body; nothing tunnels through a carrier.
+    pub crushed: bool,
 }
 
 // Derived independently each step and never read back by the movement motor.
@@ -99,6 +103,7 @@ pub struct CharacterMovePlan {
     pub target_vertical_velocity: f32,
     pub physics: CharacterPhysicsConfig,
     pub blocked: bool,
+    pub crushed: bool,
 }
 
 impl CharacterMovePlan {
@@ -116,6 +121,7 @@ impl CharacterMovePlan {
             target_vertical_velocity: step.vertical_velocity,
             physics,
             blocked: step.blocked,
+            crushed: step.crushed,
         }
     }
 
@@ -135,6 +141,7 @@ impl CharacterMovePlan {
             target_vertical_velocity,
             physics,
             blocked,
+            crushed: false,
         }
     }
 

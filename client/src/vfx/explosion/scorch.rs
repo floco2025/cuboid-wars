@@ -11,12 +11,17 @@ use crate::constants::{
     EXPLOSION_SCORCH_RING_ALPHA, EXPLOSION_SCORCH_RING_RADII, EXPLOSION_SCORCH_SURFACE_OFFSET,
     EXPLOSION_SCORCH_WALL_SEAM_OVERSCAN_FACTOR,
 };
-use common::{physics::WorldSurfaceHit, protocol::MapLayout};
+use common::{
+    map::Carriers,
+    physics::WorldSurfaceHit,
+    protocol::{CarrierId, MapLayout},
+};
 
 use bevy::light::NotShadowCaster;
 
 use super::assets::ExplosionAssets;
 use super::particles::ExplosionVfxBudget;
+use crate::carriers::CarrierEntities;
 use crate::config::ClientSettings;
 use crate::constants::*;
 use crate::map::GrassBurn;
@@ -67,23 +72,28 @@ impl ScorchStyle {
     }
 }
 
+// A mark on a surface, in the frame of the surface's carrier like the map
+// record it marks, so it rides a tile with the tile.
 #[derive(Clone, Copy)]
 pub(super) struct ScorchPlacement {
     pub(super) transform: Transform,
     normal: Vec3,
+    pub(super) carrier: CarrierId,
 }
 
 impl ScorchPlacement {
-    pub(super) fn on_surface(surface: WorldSurfaceHit, diameter: f32, style: ScorchStyle) -> Self {
+    pub(super) fn on_surface(surface: WorldSurfaceHit, carriers: &Carriers, diameter: f32, style: ScorchStyle) -> Self {
+        let point = carriers.pose(surface.carrier).inverse_transform_point(surface.point);
         let alignment = Quat::from_rotation_arc(Vec3::Y, surface.normal);
         let random_rotation = Quat::from_axis_angle(surface.normal, style.rotation);
         Self {
             transform: Transform {
-                translation: surface.point + surface.normal * EXPLOSION_SCORCH_SURFACE_OFFSET,
+                translation: point + surface.normal * EXPLOSION_SCORCH_SURFACE_OFFSET,
                 rotation: random_rotation * alignment,
                 scale: Vec3::splat(diameter),
             },
             normal: surface.normal,
+            carrier: surface.carrier,
         }
     }
 
@@ -94,14 +104,15 @@ impl ScorchPlacement {
 
 pub(super) fn wall_scorch_placements(
     map_layout: &MapLayout,
-    center: Vec3,
+    carriers: &Carriers,
+    world_center: Vec3,
     scorch_radius: f32,
     reach_factor: f32,
     style: ScorchStyle,
 ) -> Vec<ScorchPlacement> {
     let mut placements = Vec::<ScorchPlacement>::new();
-    // A carried wall is in its carrier's frame and moves on; it takes no scorch.
-    for wall in map_layout.walls.iter().filter(|wall| wall.carrier.is_world()) {
+    for wall in &map_layout.walls {
+        let center = carriers.pose(wall.carrier).inverse_transform_point(world_center);
         let start = Vec3::new(wall.x1, 0.0, wall.z1);
         let end = Vec3::new(wall.x2, 0.0, wall.z2);
         let segment = end - start;
@@ -167,6 +178,7 @@ pub(super) fn wall_scorch_placements(
                     scale: Vec3::new(max_t - min_t, 1.0, max_y - min_y),
                 },
                 normal: *normal,
+                carrier: wall.carrier,
             };
             insert_largest_distinct(&mut placements, placement);
         }
@@ -190,7 +202,8 @@ pub(super) fn surface_cross_section_diameter(radius: f32, surface_distance: f32)
 
 fn insert_largest_distinct(placements: &mut Vec<ScorchPlacement>, candidate: ScorchPlacement) {
     if let Some(existing) = placements.iter_mut().find(|existing| {
-        existing.normal.dot(candidate.normal) > 0.99
+        existing.carrier == candidate.carrier
+            && existing.normal.dot(candidate.normal) > 0.99
             && existing
                 .transform
                 .translation
@@ -316,6 +329,7 @@ pub(super) fn spawn_scorch_mark(
     materials: &mut Assets<StandardMaterial>,
     budget: &mut ExplosionVfxBudget,
     explosion_assets: &ExplosionAssets,
+    carrier_entities: &CarrierEntities,
     placement: ScorchPlacement,
     style: ScorchStyle,
     max_active_marks: usize,
@@ -324,6 +338,7 @@ pub(super) fn spawn_scorch_mark(
     let scorch_mesh = explosion_assets.scorch_meshes[style.mesh_index].clone();
     let grass_burn = (placement.normal().dot(Vec3::Y) > 0.999).then(|| {
         GrassBurn::new(
+            placement.carrier,
             placement.transform.translation - placement.normal() * EXPLOSION_SCORCH_SURFACE_OFFSET,
             placement.transform.scale.x * 0.5,
             style.rotation(),
@@ -336,6 +351,7 @@ pub(super) fn spawn_scorch_mark(
             MeshMaterial3d(material.clone()),
             NotShadowCaster,
             placement.transform,
+            ChildOf(carrier_entities.get(placement.carrier)),
             ScorchMark { elapsed: 0.0, material },
         ));
         if let Some(grass_burn) = grass_burn {

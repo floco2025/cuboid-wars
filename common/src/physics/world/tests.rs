@@ -51,6 +51,17 @@ fn test_map_layout() -> MapLayout {
 }
 
 #[test]
+fn projectile_paths_reject_embedded_starts_even_when_stationary_or_heading_out() {
+    let world = CollisionWorld::from_map_layout(&test_map_layout(), &BarrierKindTable::default());
+    let inside_wall = Vec3::new(2.0, LEVEL_HEIGHT + 1.0, 0.0);
+    assert!(!world.projectile_path_clear(inside_wall, Vec3::ZERO, 0.3, &[]));
+    assert!(!world.projectile_path_clear(inside_wall, Vec3::Z * 2.0, 0.3, &[]));
+    let clear = inside_wall + Vec3::Z;
+    assert!(world.projectile_path_clear(clear, Vec3::ZERO, 0.3, &[]));
+    assert!(!world.projectile_path_clear(clear, Vec3::NEG_Z, 0.3, &[]));
+}
+
+#[test]
 fn portal_shots_only_pass_blocking_barriers_when_the_kind_is_globally_open() {
     let mut layout = test_map_layout();
     layout.floors.clear();

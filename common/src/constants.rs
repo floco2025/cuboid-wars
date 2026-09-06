@@ -117,6 +117,10 @@ pub const CHARACTER_TERMINAL_VELOCITY: f32 = 25.0; // m/s
 // valid ground while walking over seams, ramps, and small frame-step gaps.
 pub const CHARACTER_GROUND_SNAP_DISTANCE: f32 = 0.5;
 
+// Gap the Rapier character controller keeps between a character and the
+// geometry it touches; a body closer than this to a carrier is inside it.
+pub const CHARACTER_CONTACT_OFFSET: f32 = 0.01;
+
 // Inside this fraction of the blast radius the blast is at full strength;
 // past it, strength falls off quadratically to zero at the rim (closer to
 // real overpressure decay than a straight lerp — point blank is decisively

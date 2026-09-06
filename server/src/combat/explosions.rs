@@ -439,7 +439,7 @@ fn source_description(source: &BlastSource, players: &PlayerMap) -> String {
 mod tests {
     use super::*;
     use crate::{
-        actors::ActorInfo, actors::actors_removal_system, actors::navigation::NavGraphs,
+        actors::ActorCrushed, actors::ActorInfo, actors::actors_removal_system, actors::navigation::NavGraphs,
         characters::characters_health_regeneration_system, map::MapConfig, players::PlayerInfo,
         test_geometry::geometry,
     };
@@ -486,6 +486,7 @@ mod tests {
                 pos,
                 Health(health),
                 CharacterVerticalVelocity::default(),
+                ActorCrushed::default(),
             ))
             .id();
         app.world_mut()
