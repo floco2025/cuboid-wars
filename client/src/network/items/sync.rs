@@ -18,12 +18,16 @@ pub(in crate::network) fn sync_items(
         if context.items.contains_key(item_id) {
             continue;
         }
+        let level = context
+            .carrier_storeys
+            .tag(item.carrier, context.map_settings.geometry.level_for_y(item.pos.y), 0);
         let entity = spawn_item(
             commands,
             &context.item_assets,
             &context.barrier_assets,
             &context.missile_assets,
-            context.map_settings.geometry,
+            context.carrier_entities.get(item.carrier),
+            level,
             *item_id,
             item.item_type,
             &item.pos,

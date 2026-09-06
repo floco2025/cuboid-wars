@@ -27,6 +27,7 @@ pub use light_cycle::{LightState, light_cycle_is_running, light_cycle_system, li
 pub use plugin::map_plugin;
 pub use pressure_plates::pressure_plates_system;
 pub use resources::{
-    ActorSpawnZone, Cell, CellGrid, EdgeGrid, LevelGrid, MapConfig, PlacedItem, PlayerSpawnZone, PressurePlateRuntime,
+    ActorSpawnZone, CarrierGrid, Cell, CellGrid, EdgeGrid, LevelGrid, MapConfig, PlacedItem, PlayerSpawnZone,
+    PressurePlateRuntime,
 };
 pub use weather::{WeatherState, weather_needs_tick, weather_system};

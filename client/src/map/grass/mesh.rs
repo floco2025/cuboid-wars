@@ -185,7 +185,7 @@ pub(super) fn cell_tuft_count(config: &GrassConfig, cell_size: f32) -> usize {
 }
 
 fn cell_seed(cell: GrassCell, cell_size: f32) -> u64 {
-    let (quantized_x, quantized_z, level) = quantized_key(cell, cell_size);
+    let (_, quantized_x, quantized_z, level) = quantized_key(cell, cell_size);
     (quantized_x as u64)
         .wrapping_mul(0x9E37_79B9_7F4A_7C15)
         .wrapping_add((quantized_z as u64).wrapping_mul(0xC2B2_AE3D_27D4_EB4F))

@@ -28,7 +28,7 @@ use crate::{
     schedule::ClientSet,
 };
 use common::{
-    map::MovingFloors,
+    map::Carriers,
     physics::PortalFrame,
     protocol::{Portal, PortalEnd, PortalPairId},
 };
@@ -116,7 +116,7 @@ fn rebuild_portal_views_system(
     >,
     scene_target: Res<SceneRenderTarget>,
     portals: Res<PortalMap>,
-    floors: Res<MovingFloors>,
+    carriers: Res<Carriers>,
     fixed_time: Res<Time<Fixed>>,
     portal_assets: Res<PortalAssets>,
     client_settings: Res<ClientSettings>,
@@ -161,7 +161,7 @@ fn rebuild_portal_views_system(
                 largest_visible_roots(
                     &portals,
                     &complete_portals,
-                    &floors,
+                    &carriers,
                     alpha,
                     transform,
                     projection,
@@ -222,7 +222,7 @@ fn rebuild_portal_views_system(
                 over_budget = true;
                 break;
             }
-            let replica = spawn_portal_visual(&mut commands, &portal_assets, portal, &floors, REARVIEW_RENDER_LAYER);
+            let replica = spawn_portal_visual(&mut commands, &portal_assets, portal, &carriers, REARVIEW_RENDER_LAYER);
             state.spawned.push(replica);
             rearview_surfaces.insert((portal.pair, portal.end), replica);
             replica_count += 1;
@@ -303,7 +303,7 @@ fn rebuild_portal_views_system(
                 over_budget = true;
                 break;
             }
-            let replica = spawn_portal_visual(&mut commands, &portal_assets, portal, &floors, child_layer);
+            let replica = spawn_portal_visual(&mut commands, &portal_assets, portal, &carriers, child_layer);
             state.spawned.push(replica);
             replica_count += 1;
 
@@ -342,7 +342,7 @@ fn presenter_size(camera: &Camera, scene_size: UVec2) -> UVec2 {
 fn largest_visible_roots(
     portals: &PortalMap,
     complete_portals: &[Portal],
-    floors: &MovingFloors,
+    carriers: &Carriers,
     alpha: f32,
     transform: &Transform,
     projection: &Projection,
@@ -353,7 +353,8 @@ fn largest_visible_roots(
         .iter()
         .filter_map(|portal| {
             let key = (portal.pair, portal.end);
-            let (_, _, footprint, _) = view_through_chain(portals, &[key], floors, alpha, transform, projection, size)?;
+            let (_, _, footprint, _) =
+                view_through_chain(portals, &[key], carriers, alpha, transform, projection, size)?;
             Some((key, footprint.x * footprint.y))
         })
         .collect();
@@ -399,7 +400,7 @@ fn update_portal_view_cameras_system(
     >,
     scene_target: Res<SceneRenderTarget>,
     portals: Res<PortalMap>,
-    floors: Res<MovingFloors>,
+    carriers: Res<Carriers>,
     fixed_time: Res<Time<Fixed>>,
     portal_assets: Res<PortalAssets>,
     client_settings: Res<ClientSettings>,
@@ -428,7 +429,7 @@ fn update_portal_view_cameras_system(
             let (transform, projection, footprint, rect) = view_through_chain(
                 &portals,
                 &view.chain,
-                &floors,
+                &carriers,
                 alpha,
                 presenter_transform,
                 presenter_projection,
@@ -539,7 +540,7 @@ fn admit_views(views: &[MappedView], budget: usize) -> Vec<usize> {
 fn view_through_chain(
     portals: &PortalMap,
     chain: &[PortalKey],
-    floors: &MovingFloors,
+    carriers: &Carriers,
     alpha: f32,
     presenter_transform: &Transform,
     presenter_projection: &Projection,
@@ -552,8 +553,8 @@ fn view_through_chain(
     for key in chain {
         let entry = &portals.get(key)?.portal;
         let exit = paired_portal(portals, entry)?;
-        let entry_frame = PortalFrame::from_portal_between(entry, floors, alpha);
-        let exit_frame = PortalFrame::from_portal_between(exit, floors, alpha);
+        let entry_frame = PortalFrame::from_portal_between(entry, carriers, alpha);
+        let exit_frame = PortalFrame::from_portal_between(exit, carriers, alpha);
         let visible = visible_aperture(&entry_frame, &view_transform, &view_projection, footprint)?;
         footprint = visible.footprint;
         rect = visible.rect;
@@ -713,6 +714,7 @@ fn paired_portal<'a>(portals: &'a PortalMap, portal: &Portal) -> Option<&'a Port
 
 #[cfg(test)]
 mod tests {
+    use common::protocol::CarrierId;
     use std::f32::consts::FRAC_PI_2;
 
     use super::*;
@@ -737,7 +739,7 @@ mod tests {
             ny: normal.y,
             nz: normal.z,
             yaw: 0.0,
-            anchor: None,
+            carrier: CarrierId::WORLD,
         }
     }
 
@@ -866,12 +868,12 @@ mod tests {
         let looking_at_a = Transform::from_xyz(0.0, 1.0, 0.0);
         let looking_aside = Transform::from_xyz(-2.0, 1.0, 0.0).looking_to(Vec3::X, Vec3::Y);
 
-        let floors = MovingFloors::default();
+        let carriers = Carriers::default();
         assert!(
             view_through_chain(
                 &portals,
                 &[key_a],
-                &floors,
+                &carriers,
                 0.0,
                 &looking_at_a,
                 &projection,
@@ -883,7 +885,7 @@ mod tests {
             view_through_chain(
                 &portals,
                 &[key_a],
-                &floors,
+                &carriers,
                 0.0,
                 &looking_aside,
                 &projection,
@@ -899,11 +901,11 @@ mod tests {
         let projection = perspective();
         let camera = Transform::from_xyz(0.0, 1.0, 0.0);
 
-        let floors = MovingFloors::default();
+        let carriers = Carriers::default();
         let (mapped, _, _, _) = view_through_chain(
             &portals,
             &[key_a, key_a],
-            &floors,
+            &carriers,
             0.0,
             &camera,
             &projection,
@@ -918,7 +920,7 @@ mod tests {
             view_through_chain(
                 &portals,
                 &[key_a, key_b],
-                &floors,
+                &carriers,
                 0.0,
                 &camera,
                 &projection,
@@ -1013,7 +1015,7 @@ mod tests {
             largest_visible_roots(
                 &map,
                 &portals,
-                &MovingFloors::default(),
+                &Carriers::default(),
                 0.0,
                 &Transform::IDENTITY,
                 &perspective(),

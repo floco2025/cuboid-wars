@@ -9,17 +9,17 @@ use crate::{
     quests::{QuestBoard, QuestCatalog, QuestEvent, record_event},
 };
 use common::{
-    map::MapGeometry,
+    map::{Carriers, MapGeometry},
     protocol::{
         BarrierKindTable, BridgeKindTable, HeldPurpose, PlatePurpose, PlateState, PlayerId, PlayerMarker, Position,
         SPressurePlate, ServerMessage,
     },
 };
 
-// World-space test: is `pos` inside this plate's inner 25%-by-area square AND
-// on the plate's level? Y matches within half a storey of the plate's floor,
-// which keeps a player on the floor above from triggering a plate one level
-// down.
+// Is `pos`, in the plate's carrier frame, inside this plate's inner
+// 25%-by-area square AND on the plate's level? Y matches within half a
+// storey of the plate's floor, which keeps a player on the floor above from
+// triggering a plate one level down.
 #[must_use]
 pub fn player_on_plate(plate: &PressurePlateRuntime, pos: &Position, geometry: &MapGeometry) -> bool {
     if (pos.y - geometry.level_y(plate.level)).abs() >= geometry.level_height() / 2.0 {
@@ -59,7 +59,7 @@ pub fn player_on_plate(plate: &PressurePlateRuntime, pos: &Position, geometry: &
 // square of its cell (see `player_on_plate`).
 pub fn pressure_plates_system(
     map_config: Res<MapConfig>,
-    map_geometry: Res<MapGeometry>,
+    carriers: Res<Carriers>,
     mut players: ResMut<PlayerMap>,
     server_gameplay_config: Res<ServerGameplayConfig>,
     mut quest_board: ResMut<QuestBoard>,
@@ -120,12 +120,17 @@ pub fn pressure_plates_system(
         if !plate_active(plate, &locked) {
             continue;
         }
+        let geometry = &map_config.grid(plate.carrier).geometry;
+        let pose = carriers.pose(plate.carrier);
         let holder = players.iter().find(|(_, info)| {
             info.connection.logged_in
                 && info
                     .entity()
                     .and_then(|entity| positions.get(entity).ok())
-                    .is_some_and(|pos| player_on_plate(plate, pos, &map_geometry))
+                    .is_some_and(|pos| {
+                        let local = Position::from(pose.inverse_transform_point(Vec3::from(*pos)));
+                        player_on_plate(plate, &local, geometry)
+                    })
         });
         if let Some((id, _)) = holder {
             holders.insert(idx, *id);
@@ -298,9 +303,11 @@ mod player_on_plate_tests {
     use super::*;
     use crate::test_geometry::{CELL, LEVEL_HEIGHT, geometry};
     use common::protocol::BarrierKindId;
+    use common::protocol::CarrierId;
 
     fn make_plate(level: u8, col: i32, row: i32) -> PressurePlateRuntime {
         PressurePlateRuntime {
+            carrier: CarrierId::WORLD,
             level,
             col,
             row,
@@ -401,23 +408,27 @@ mod player_on_plate_tests {
 mod presser_tests {
     use super::*;
     use common::protocol::BarrierKindId;
+    use common::protocol::CarrierId;
 
     #[test]
     fn presser_prefers_a_fresh_press_over_a_standing_holder() {
         let plates = vec![
             PressurePlateRuntime {
+                carrier: CarrierId::WORLD,
                 level: 0,
                 col: 0,
                 row: 0,
                 purpose: PlatePurpose::Barrier(BarrierKindId(0)),
             },
             PressurePlateRuntime {
+                carrier: CarrierId::WORLD,
                 level: 0,
                 col: 1,
                 row: 0,
                 purpose: PlatePurpose::Barrier(BarrierKindId(0)),
             },
             PressurePlateRuntime {
+                carrier: CarrierId::WORLD,
                 level: 0,
                 col: 2,
                 row: 0,
@@ -473,6 +484,7 @@ mod firework_tests {
 #[cfg(test)]
 mod system_tests {
     use bevy::prelude::*;
+    use common::{map::Carriers, protocol::CarrierId};
     use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
 
     use super::*;
@@ -494,6 +506,7 @@ mod system_tests {
 
     fn firework_plate() -> PressurePlateRuntime {
         PressurePlateRuntime {
+            carrier: CarrierId::WORLD,
             level: 0,
             col: 0,
             row: 0,
@@ -521,17 +534,18 @@ mod system_tests {
         let mut app = App::new();
         app.add_plugins(MinimalPlugins)
             .insert_resource(MapConfig {
-                levels: vec![LevelGrid {
-                    cells: CellGrid::new(2, 2),
-                    edges: EdgeGrid::new(2, 2),
-                    barrier_edges: EdgeGrid::new(2, 2),
-                }],
-                actor_spawn_zones: Vec::new(),
-                player_spawn_zones: Vec::new(),
-                placed_items: Vec::new(),
                 pressure_plates: plates,
+                ..MapConfig::for_grid(
+                    vec![LevelGrid {
+                        cells: CellGrid::new(2, 2),
+                        edges: EdgeGrid::new(2, 2),
+                        barrier_edges: EdgeGrid::new(2, 2),
+                    }],
+                    geometry(2, 2),
+                )
             })
             .insert_resource(geometry(2, 2))
+            .insert_resource(Carriers::default())
             .insert_resource(PlayerMap::default())
             .insert_resource(config)
             .insert_resource(quest_catalog)

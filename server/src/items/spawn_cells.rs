@@ -1,6 +1,6 @@
 use rand::{RngExt, rngs::ThreadRng};
 
-use crate::{map::MapConfig, map::grid_coords_from_position};
+use crate::map::{CarrierGrid, grid_coords_from_position};
 use common::{
     map::MapGeometry,
     protocol::{ItemType, Position},
@@ -41,9 +41,9 @@ pub(super) fn item_spawn_cell_from_position(geometry: &MapGeometry, pos: &Positi
     }
 }
 
-pub(super) fn eligible_item_spawn_cells(map_config: &MapConfig) -> Vec<ItemSpawnCell> {
+pub(super) fn eligible_item_spawn_cells(grid: &CarrierGrid) -> Vec<ItemSpawnCell> {
     let mut cells = Vec::new();
-    for (level_idx, level_grid) in map_config.levels.iter().enumerate() {
+    for (level_idx, level_grid) in grid.levels.iter().enumerate() {
         let level = u8::try_from(level_idx).unwrap_or(u8::MAX);
         for (row, grid_row) in level_grid.cells.rows.iter().enumerate() {
             for (col, cell) in grid_row.iter().enumerate() {

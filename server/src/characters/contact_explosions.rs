@@ -86,6 +86,7 @@ fn horizontal_collider_radius(physics: CharacterPhysicsConfig) -> f32 {
 mod tests {
     use super::*;
     use crate::test_geometry::{WALL_HEIGHT, WALL_THICKNESS};
+    use common::protocol::CarrierId;
     use common::protocol::{BarrierKindTable, MapLayout, Position, Wall};
 
     fn plans() -> (CharacterMovePlan, CharacterMovePlan, f32) {
@@ -131,6 +132,7 @@ mod tests {
                 level: 0,
                 y: 0.0,
                 height: WALL_HEIGHT,
+                carrier: CarrierId::WORLD,
             }],
             ..default()
         };

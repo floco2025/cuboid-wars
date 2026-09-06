@@ -195,6 +195,7 @@ pub fn collect_items(items: &ItemMap, item_positions: &Query<&Position, With<Ite
                 *id,
                 Item {
                     item_type: info.item_type,
+                    carrier: info.carrier,
                     pos: *pos_component,
                 },
             )
@@ -295,6 +296,7 @@ mod tests {
                 entity: visible_entity,
                 item_type: ItemType::Cookie,
                 placement: ItemPlacement::Placed { respawn_countdown: 0.0 },
+                carrier: CarrierId::WORLD,
             },
         );
         items.insert(
@@ -303,6 +305,7 @@ mod tests {
                 entity: hidden_entity,
                 item_type: ItemType::Cookie,
                 placement: ItemPlacement::Placed { respawn_countdown: 5.0 },
+                carrier: CarrierId::WORLD,
             },
         );
 

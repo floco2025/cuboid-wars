@@ -1,5 +1,6 @@
 use super::*;
 use crate::constants::CHARACTER_TERMINAL_VELOCITY;
+use crate::protocol::CarrierId;
 
 #[test]
 fn player_hits_wall_collider_from_collision_world() {
@@ -22,7 +23,7 @@ fn player_hits_wall_collider_from_collision_world() {
             ladder_climb_ratio: test_ladders(),
             physics: player_physics(),
             portals: None,
-            moving_floors: &MovingFloors::default(),
+            carriers: &Carriers::default(),
         },
     );
 
@@ -51,7 +52,7 @@ fn repeated_wall_pressure_does_not_leak_through_wall() {
             ladder_climb_ratio: test_ladders(),
             physics: player_physics(),
             portals: None,
-            moving_floors: &MovingFloors::default(),
+            carriers: &Carriers::default(),
         },
     );
     let second = step_character_movement(
@@ -63,7 +64,7 @@ fn repeated_wall_pressure_does_not_leak_through_wall() {
             ladder_climb_ratio: test_ladders(),
             physics: player_physics(),
             portals: None,
-            moving_floors: &MovingFloors::default(),
+            carriers: &Carriers::default(),
         },
     );
 
@@ -93,7 +94,7 @@ fn player_slides_along_wall_under_pressure() {
             ladder_climb_ratio: test_ladders(),
             physics: player_physics(),
             portals: None,
-            moving_floors: &MovingFloors::default(),
+            carriers: &Carriers::default(),
         },
     );
     let second = step_character_movement(
@@ -105,7 +106,7 @@ fn player_slides_along_wall_under_pressure() {
             ladder_climb_ratio: test_ladders(),
             physics: player_physics(),
             portals: None,
-            moving_floors: &MovingFloors::default(),
+            carriers: &Carriers::default(),
         },
     );
 
@@ -135,7 +136,7 @@ fn falling_player_pushing_into_wall_keeps_falling() {
             ladder_climb_ratio: test_ladders(),
             physics: player_physics(),
             portals: None,
-            moving_floors: &MovingFloors::default(),
+            carriers: &Carriers::default(),
         },
     );
 
@@ -166,7 +167,7 @@ fn diagonal_wall_hit_slides_in_same_step() {
             ladder_climb_ratio: test_ladders(),
             physics: player_physics(),
             portals: None,
-            moving_floors: &MovingFloors::default(),
+            carriers: &Carriers::default(),
         },
     );
 
@@ -186,6 +187,7 @@ fn repeated_diagonal_wall_pressure_keeps_sliding() {
         level: 0,
         y: 0.0,
         height: WALL_HEIGHT,
+        carrier: CarrierId::WORLD,
     };
     let floor = lower_floor();
     let collision_world = collision_world_with(&[wall], &[floor], &[]);
@@ -214,7 +216,7 @@ fn repeated_diagonal_wall_pressure_keeps_sliding() {
                 ladder_climb_ratio: test_ladders(),
                 physics: player_physics(),
                 portals: None,
-                moving_floors: &MovingFloors::default(),
+                carriers: &Carriers::default(),
             },
         );
         pos = step.position;
@@ -244,7 +246,7 @@ fn diagonal_wall_end_hit_slides_along_wall() {
             ladder_climb_ratio: test_ladders(),
             physics: player_physics(),
             portals: None,
-            moving_floors: &MovingFloors::default(),
+            carriers: &Carriers::default(),
         },
     );
 
@@ -263,7 +265,7 @@ fn jumping_while_pushing_into_a_wall_still_rises() {
         ladder_climb_ratio: test_ladders(),
         physics: player_physics(),
         portals: None,
-        moving_floors: &MovingFloors::default(),
+        carriers: &Carriers::default(),
     };
     let delta = 1.0 / 30.0;
     let mut pos = Position {
@@ -313,7 +315,7 @@ fn jumping_while_sliding_diagonally_along_a_wall_keeps_rising() {
         ladder_climb_ratio: test_ladders(),
         physics: player_physics(),
         portals: None,
-        moving_floors: &MovingFloors::default(),
+        carriers: &Carriers::default(),
     };
     let delta = 1.0 / 30.0;
     let step = |pos: Position, vertical_velocity: f32| {

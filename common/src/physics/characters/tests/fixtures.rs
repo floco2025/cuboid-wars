@@ -1,8 +1,9 @@
 pub(super) use super::super::*;
+use crate::protocol::CarrierId;
 pub(super) use crate::test_geometry::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS};
 pub(super) use crate::{
     config::CharacterPhysicsConfig,
-    map::{MovingFloors, ramp_surface_at},
+    map::{Carriers, ramp_surface_at},
     physics::{CollisionWorld, character_overlaps_item},
     protocol::{Floor, Ladder, MapLayout, Position, Ramp, Wall},
 };
@@ -20,6 +21,7 @@ pub(crate) fn test_ramp() -> Ramp {
         x2: 4.0,
         y2: LEVEL_HEIGHT,
         z2: 8.0,
+        carrier: CarrierId::WORLD,
     }
 }
 
@@ -32,6 +34,7 @@ pub(crate) fn upper_floor_west_of_ramp() -> Floor {
         y: LEVEL_HEIGHT,
         thickness: FLOOR_THICKNESS,
         level: 1,
+        carrier: CarrierId::WORLD,
     }
 }
 
@@ -44,6 +47,7 @@ pub(crate) fn lower_floor() -> Floor {
         y: 0.0,
         thickness: FLOOR_THICKNESS,
         level: 0,
+        carrier: CarrierId::WORLD,
     }
 }
 
@@ -56,6 +60,7 @@ pub(crate) fn upper_floor() -> Floor {
         y: LEVEL_HEIGHT,
         thickness: FLOOR_THICKNESS,
         level: 1,
+        carrier: CarrierId::WORLD,
     }
 }
 
@@ -69,6 +74,7 @@ pub(crate) fn low_overhead_floor() -> Floor {
         y: player_physics.collider.top_y_offset() - 0.05,
         thickness: FLOOR_THICKNESS,
         level: 1,
+        carrier: CarrierId::WORLD,
     }
 }
 
@@ -86,6 +92,7 @@ pub(crate) fn test_ladder() -> Ladder {
         levels: 1,
         y: 0.0,
         height: LEVEL_HEIGHT,
+        carrier: CarrierId::WORLD,
     }
 }
 
@@ -99,6 +106,7 @@ pub(crate) fn ladder_front_base_floor() -> Floor {
         y: 0.0,
         thickness: FLOOR_THICKNESS,
         level: 0,
+        carrier: CarrierId::WORLD,
     }
 }
 
@@ -123,6 +131,7 @@ pub(crate) fn ladder_back_base_floor() -> Floor {
         y: 0.0,
         thickness: FLOOR_THICKNESS,
         level: 0,
+        carrier: CarrierId::WORLD,
     }
 }
 
@@ -136,6 +145,7 @@ pub(crate) fn ladder_back_landing_floor() -> Floor {
         y: LEVEL_HEIGHT,
         thickness: FLOOR_THICKNESS,
         level: 1,
+        carrier: CarrierId::WORLD,
     }
 }
 
@@ -153,6 +163,7 @@ pub(crate) fn test_ladder_facing_x() -> Ladder {
         levels: 1,
         y: 0.0,
         height: LEVEL_HEIGHT,
+        carrier: CarrierId::WORLD,
     }
 }
 
@@ -166,6 +177,7 @@ pub(crate) fn ladder_back_landing_floor_x() -> Floor {
         y: LEVEL_HEIGHT,
         thickness: FLOOR_THICKNESS,
         level: 1,
+        carrier: CarrierId::WORLD,
     }
 }
 
@@ -190,6 +202,7 @@ pub(crate) fn test_wall() -> Wall {
         level: 0,
         y: 0.0,
         height: WALL_HEIGHT,
+        carrier: CarrierId::WORLD,
     }
 }
 
@@ -203,6 +216,7 @@ pub(crate) fn horizontal_wall() -> Wall {
         level: 0,
         y: 0.0,
         height: WALL_HEIGHT,
+        carrier: CarrierId::WORLD,
     }
 }
 
@@ -216,6 +230,7 @@ pub(crate) fn upper_horizontal_wall() -> Wall {
         level: 2,
         y: 2.0 * LEVEL_HEIGHT,
         height: WALL_HEIGHT,
+        carrier: CarrierId::WORLD,
     }
 }
 

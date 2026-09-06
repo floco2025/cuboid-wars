@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import re
 import signal
 import sys
 
@@ -11,11 +10,9 @@ from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QBrush, QColor, QIcon, QPainter, QPen, QPixmap, QPolygonF
 from PySide6.QtWidgets import QApplication
 
-from .constants import MAPS_DIR
+from .constants import MAP_NAME_RE, MAPS_DIR
 from .window import EditorWindow
 
-# Same rule the server enforces on map names in gameplay.json.
-MAP_NAME_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
 def _build_window_icon() -> QIcon:

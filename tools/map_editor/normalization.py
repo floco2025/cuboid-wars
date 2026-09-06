@@ -13,6 +13,7 @@ from .constants import (
     ITEM_KEY_TYPE,
     LADDER_SIDES,
     LIGHT_SIDES,
+    MAP_NAME_RE,
 )
 from .display import expand_face_materials
 from .geometry import normalized_wall, ramp_cells, wall_endpoints_for_cell_side
@@ -54,7 +55,7 @@ def normalize_map(map_data: dict) -> dict:
 
     ramps = [normalize_ramp(r) for r in map_data.get("ramps", [])]
     ladders = [normalize_ladder(l) for l in map_data.get("ladders", [])]
-    moving_floors = [normalize_moving_floor(f) for f in map_data.get("moving_floors", [])]
+    nested_maps = [normalize_nested_map(n) for n in map_data.get("nested_maps", [])]
     return {
         "grid_cols": cols,
         "grid_rows": rows,
@@ -65,7 +66,7 @@ def normalize_map(map_data: dict) -> dict:
         "levels": levels,
         "ramps": ramps,
         "ladders": ladders,
-        "moving_floors": moving_floors,
+        "nested_maps": nested_maps,
     }
 
 
@@ -143,26 +144,29 @@ def ladder_spans_level(ladder: dict, level_idx: int) -> bool:
     return ladder["lower_level"] <= level_idx <= ladder["lower_level"] + ladder["levels"]
 
 
-def normalize_moving_floor(floor: dict) -> dict:
-    level = int(floor.get("level", 0))
+def normalize_nested_map(entry: dict) -> dict:
+    level = int(entry.get("level", 0))
     return {
+        "map": str(entry.get("map", "")),
         "level": level,
-        "from": [int(floor["from"][0]), int(floor["from"][1])],
-        "to": [int(floor["to"][0]), int(floor["to"][1])],
-        "to_level": int(floor.get("to_level", level)),
-        "speed": float(floor.get("speed", 1.0)),
-        "pause_secs": float(floor.get("pause_secs", 0.0)),
-        "phase_secs": float(floor.get("phase_secs", 0.0)),
-        **expand_face_materials(floor),
+        "from": [int(entry["from"][0]), int(entry["from"][1])],
+        "to": [int(entry["to"][0]), int(entry["to"][1])],
+        "to_level": int(entry.get("to_level", level)),
+        "speed": float(entry.get("speed", 1.0)),
+        "pause_secs": float(entry.get("pause_secs", 0.0)),
+        "phase_secs": float(entry.get("phase_secs", 0.0)),
     }
 
 
-def moving_floor_key(floor: dict) -> tuple:
-    return (floor["level"], tuple(floor["from"]), floor["to_level"], tuple(floor["to"]))
+def nested_map_key(entry: dict) -> tuple:
+    return (entry["level"], tuple(entry["from"]), entry["to_level"], tuple(entry["to"]), entry["map"])
 
 
-def moving_floor_spans_level(floor: dict, level_idx: int) -> bool:
-    return min(floor["level"], floor["to_level"]) <= level_idx <= max(floor["level"], floor["to_level"])
+def nested_map_spans_level(entry: dict, level_idx: int, level_count: int) -> bool:
+    # The nested map's own storeys sit on top of the storey each end rests on.
+    lowest = min(entry["level"], entry["to_level"])
+    highest = max(entry["level"], entry["to_level"]) + max(1, level_count) - 1
+    return lowest <= level_idx <= highest
 
 
 def normalize_light(light: dict) -> dict:
@@ -380,18 +384,17 @@ def canonicalize_map(map_data: dict) -> dict:
             kept_ladders.append(ladder)
     b["ladders"] = kept_ladders
 
-    # Moving floors: drop ones outside the grid or the level range, or that
-    # never travel (all hard errors in the Rust loader); one tile per
-    # starting cell and level, the later entry winning like floors.
+    # Nested maps: drop ones outside the grid or the level range, or with
+    # an unsafe name (all hard errors in the Rust loader); one per starting
+    # cell and level, the later entry winning like floors.
     level_count = len(b["levels"])
     by_start: dict[tuple, dict] = {}
-    for floor in b["moving_floors"]:
-        cells_ok = all(0 <= c < cols and 0 <= r < rows for c, r in (floor["from"], floor["to"]))
-        levels_ok = 0 <= floor["level"] < level_count and 0 <= floor["to_level"] < level_count
-        travels = floor["from"] != floor["to"] or floor["level"] != floor["to_level"]
-        if cells_ok and levels_ok and travels:
-            by_start[(floor["level"], tuple(floor["from"]))] = floor
-    b["moving_floors"] = sorted(by_start.values(), key=moving_floor_key)
+    for entry in b["nested_maps"]:
+        cells_ok = all(0 <= c < cols and 0 <= r < rows for c, r in (entry["from"], entry["to"]))
+        levels_ok = 0 <= entry["level"] < level_count and 0 <= entry["to_level"] < level_count
+        if cells_ok and levels_ok and MAP_NAME_RE.match(entry["map"]):
+            by_start[(entry["level"], tuple(entry["from"]))] = entry
+    b["nested_maps"] = sorted(by_start.values(), key=nested_map_key)
     return b
 
 
@@ -537,13 +540,13 @@ def resize_map_data(
         l for l in (clip_cell_entry(l) for l in out.get("ladders", [])) if l is not None
     ]
 
-    kept_floors = []
-    for floor in out.get("moving_floors", []):
-        moved = [[c + dc, r + dr] for c, r in (floor["from"], floor["to"])]
+    kept_nested = []
+    for entry in out.get("nested_maps", []):
+        moved = [[c + dc, r + dr] for c, r in (entry["from"], entry["to"])]
         if all(cell_in_bounds(c, r) for c, r in moved):
-            floor["from"], floor["to"] = moved
-            kept_floors.append(floor)
-    out["moving_floors"] = kept_floors
+            entry["from"], entry["to"] = moved
+            kept_nested.append(entry)
+    out["nested_maps"] = kept_nested
 
     return out
 

@@ -24,8 +24,10 @@ pub struct NavGraph {
 }
 
 impl NavGraph {
+    // Walks the root map's grid; actors do not ride nested maps yet.
     #[must_use]
-    pub fn new(map_config: MapConfig, geometry: MapGeometry) -> Self {
+    pub fn new(map_config: MapConfig) -> Self {
+        let geometry = map_config.root_grid().geometry;
         let mut graph = Self {
             map_config,
             geometry,
@@ -227,6 +229,7 @@ impl NavGraph {
 
     fn all_traversable_nodes(&self) -> impl Iterator<Item = NavNode> + '_ {
         self.map_config
+            .root_grid()
             .levels
             .iter()
             .enumerate()
@@ -366,7 +369,7 @@ impl NavGraph {
     // grid holds only barriers actors can never pass (no pressure plate);
     // pressure-plate barriers are omitted upstream so nav routes through them.
     fn has_blocking_edge_on_side(&self, node: NavNode, side: CellSide) -> bool {
-        let Some(level) = self.map_config.levels.get(usize::from(node.level)) else {
+        let Some(level) = self.map_config.root_grid().levels.get(usize::from(node.level)) else {
             return true;
         };
         has_edge_on_cell_side(&level.edges, node.row, node.col, side)
@@ -384,7 +387,7 @@ impl NavGraph {
     }
 
     fn cell(&self, node: NavNode) -> Option<&Cell> {
-        let level = self.map_config.levels.get(usize::from(node.level))?;
+        let level = self.map_config.root_grid().levels.get(usize::from(node.level))?;
         if node.row < 0 || node.col < 0 {
             return None;
         }

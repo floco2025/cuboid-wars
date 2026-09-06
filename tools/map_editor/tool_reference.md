@@ -41,10 +41,10 @@ Every element group ends with its own **Erase** tool that removes only that elem
 - **Ramp (Down)** — Drag from this level toward the lower level.
 - **Erase Ramps** — Drag a rectangle to remove every ramp it touches that leaves from or arrives at the current level.
 
-## Moving Floors
+## Nested Maps
 
-- **Moving Floor** — Drag from the cell where the tile starts to the cell it travels to (any direction, diagonals included); a dialog asks the level of the far end (the same level for a slider, another for a lift), the speed, the pause at each end, and a phase offset so neighbouring tiles need not move in step. The tile is a little smaller than a cell and rides players standing on it; its path must be clear of floors, ramps, light bridges, and walls. A new tile starting on the same cell replaces the old one. On the canvas a tile is a square at each end of its travel, numbered 1 (where it rests at phase zero, from which its cycle is timed) and 2, with a band over the cells it sweeps between them; a hollow square is an end on another storey. Dragging from an end that is already on the current level moves that end — the way to place a lift's far end from the storey it lands on — and clicking an end opens the tile's properties (level of the far end, speed, pause, phase); right-clicking an end offers the same in any tool, beside Erase.
-- **Erase Moving Floors** — Drag a rectangle to remove every moving floor whose start or end cell on the current level is inside it.
+- **Nested Map** — Click a cell to place another map file with its cell (0, 0) on it, standing still; drag to a second cell to make it slide there and back. A moving tile is a nested one-cell map (`tile`), and a lift is one whose far end is on another level. A dialog asks which map (any other file in `config/server/maps`), the level of the far end, the speed, the pause at each end, and a phase offset. Everything in the nested map rides along: floors, walls, ladders, plates, items, and its own nested maps. On the canvas the ends are numbered squares 1 and 2 with a band between them, and the nested map's footprint is outlined and named at each end, solid where it starts and dashed where it arrives; a red `name?` is a map file that is missing. Nothing checks for overlap with the map around it. Dragging from an end moves that end, clicking an end opens the entry's properties, and right-clicking an end offers the same in any tool, beside Erase.
+- **Erase Nested Maps** — Drag a rectangle to remove every nested map whose start or end cell on the current level is inside it.
 
 ## Ladders
 
@@ -77,7 +77,7 @@ Every element group ends with its own **Erase** tool that removes only that elem
 ## Erase
 
 - **Erase** — Click an element to remove it, or drag a rectangle to clear every element inside it. Right-click for the context menu.
-- **Erase (Keep Floors)** — The same, but floor, blocked floor, light bridge, and moving floor cells stay, along with the items and plates standing on them.
+- **Erase (Keep Floors)** — The same, but floor, blocked floor, light bridge, and nested map anchor cells stay, along with the items and plates standing on them.
 
 ## Keyboard Shortcuts
 

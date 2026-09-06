@@ -1,20 +1,19 @@
 use bevy::prelude::*;
 
 use super::BarrierAssets;
+use crate::carriers::{CarrierEntities, CarrierStoreys};
 use crate::constants::BARRIER_OVERLAP_EPS;
-use crate::map::{FocusedMapLevel, MapLevel};
+use crate::map::{FocusedMapLevel, MapLevel, map_level_visibility};
 use common::protocol::{Barrier, BarrierKindId, MapLayout, PlateState};
 
 #[derive(Component)]
 pub struct BarrierMarker;
 
 // What the visibility rule needs beside `MapLevel`: the kind, hidden while
-// pressure plates hold it open, and the storeys spanned, so a stacked barrier
-// stays visible while any level it reaches is focused.
+// pressure plates hold it open.
 #[derive(Component)]
 pub struct BarrierSpan {
     kind: BarrierKindId,
-    levels: u8,
 }
 
 // Spawn one entity per `Barrier` in the current `MapLayout`. Re-runs whenever
@@ -25,6 +24,8 @@ pub fn barriers_spawn_system(
     barrier_assets: Res<BarrierAssets>,
     plates: Res<PlateState>,
     focused: Res<FocusedMapLevel>,
+    carrier_entities: Res<CarrierEntities>,
+    storeys: Res<CarrierStoreys>,
     existing: Query<Entity, With<BarrierMarker>>,
 ) {
     let layout = map_layout;
@@ -37,22 +38,28 @@ pub fn barriers_spawn_system(
     }
 
     for barrier in &layout.barriers {
+        // `levels` counts the storeys spanned; the tag's span is how many
+        // more than the first.
+        let level = storeys.tag(barrier.carrier, barrier.level, barrier.levels.saturating_sub(1));
         spawn_barrier(
             &mut commands,
             &barrier_assets,
+            carrier_entities.get(barrier.carrier),
+            level,
             barrier,
-            barrier_visibility(
-                &plates.open_barrier_kinds,
-                *focused,
-                barrier.kind,
-                barrier.level,
-                barrier.levels,
-            ),
+            barrier_visibility(&plates.open_barrier_kinds, *focused, barrier.kind, level),
         );
     }
 }
 
-fn spawn_barrier(commands: &mut Commands, assets: &BarrierAssets, barrier: &Barrier, visibility: Visibility) {
+fn spawn_barrier(
+    commands: &mut Commands,
+    assets: &BarrierAssets,
+    carrier: Entity,
+    level: MapLevel,
+    barrier: &Barrier,
+    visibility: Visibility,
+) {
     let center_x = f32::midpoint(barrier.x1, barrier.x2);
     let center_z = f32::midpoint(barrier.z1, barrier.z2);
     let dx = barrier.x2 - barrier.x1;
@@ -73,11 +80,9 @@ fn spawn_barrier(commands: &mut Commands, assets: &BarrierAssets, barrier: &Barr
 
     commands.spawn((
         BarrierMarker,
-        BarrierSpan {
-            kind: barrier.kind,
-            levels: barrier.levels,
-        },
-        MapLevel(barrier.level),
+        BarrierSpan { kind: barrier.kind },
+        level,
+        ChildOf(carrier),
         Mesh3d(assets.mesh.clone()),
         MeshMaterial3d(assets.material_for(barrier.kind).clone()),
         Transform {
@@ -103,8 +108,7 @@ pub fn barriers_visibility_system(
             &plates.open_barrier_kinds,
             *focused,
             span.kind,
-            level.0,
-            span.levels,
+            *level,
         ));
     }
 }
@@ -113,16 +117,12 @@ fn barrier_visibility(
     open: &[BarrierKindId],
     focused: FocusedMapLevel,
     kind: BarrierKindId,
-    level: u8,
-    levels: u8,
+    level: MapLevel,
 ) -> Visibility {
-    let reaches_focused = focused
-        .0
-        .is_none_or(|focused| (level..level.saturating_add(levels)).contains(&focused));
-    if open.contains(&kind) || !reaches_focused {
+    if open.contains(&kind) {
         Visibility::Hidden
     } else {
-        Visibility::Visible
+        map_level_visibility(focused, level)
     }
 }
 
@@ -130,20 +130,24 @@ fn barrier_visibility(
 mod tests {
     use super::*;
 
+    const fn level(level: u8, span: u8) -> MapLevel {
+        MapLevel { level, span }
+    }
+
     #[test]
     fn visibility_combines_open_kind_and_level_focus() {
         let kind = BarrierKindId(2);
 
         assert_eq!(
-            barrier_visibility(&[kind], FocusedMapLevel(Some(1)), kind, 1, 1),
+            barrier_visibility(&[kind], FocusedMapLevel(Some(1)), kind, level(1, 0)),
             Visibility::Hidden
         );
         assert_eq!(
-            barrier_visibility(&[], FocusedMapLevel(Some(2)), kind, 1, 1),
+            barrier_visibility(&[], FocusedMapLevel(Some(2)), kind, level(1, 0)),
             Visibility::Hidden
         );
         assert_eq!(
-            barrier_visibility(&[], FocusedMapLevel(Some(1)), kind, 1, 1),
+            barrier_visibility(&[], FocusedMapLevel(Some(1)), kind, level(1, 0)),
             Visibility::Visible
         );
     }
@@ -153,15 +157,15 @@ mod tests {
         let kind = BarrierKindId(0);
 
         assert_eq!(
-            barrier_visibility(&[], FocusedMapLevel(Some(2)), kind, 1, 2),
+            barrier_visibility(&[], FocusedMapLevel(Some(2)), kind, level(1, 1)),
             Visibility::Visible
         );
         assert_eq!(
-            barrier_visibility(&[], FocusedMapLevel(Some(3)), kind, 1, 2),
+            barrier_visibility(&[], FocusedMapLevel(Some(3)), kind, level(1, 1)),
             Visibility::Hidden
         );
         assert_eq!(
-            barrier_visibility(&[], FocusedMapLevel(Some(0)), kind, 1, 2),
+            barrier_visibility(&[], FocusedMapLevel(Some(0)), kind, level(1, 1)),
             Visibility::Hidden
         );
     }

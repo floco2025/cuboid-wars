@@ -7,7 +7,6 @@ use crate::{
         pressure_plates_visibility_system,
     },
     bridges::{bridges_fade_system, bridges_spawn_system},
-    moving_floors::moving_floors_spawn_system,
     schedule::ClientSet,
     vfx::{rain_audio_system, rain_particles_system, rain_smoothing_system},
 };
@@ -44,7 +43,6 @@ pub fn map_plugin(app: &mut App) {
             pressure_plates_visibility_system,
             bridges_spawn_system.after(update_focused_map_level_system),
             bridges_fade_system,
-            moving_floors_spawn_system.after(update_focused_map_level_system),
         )
             .in_set(ClientSet::MapMaintenance),
     );

@@ -1,5 +1,6 @@
 use super::edges::{has_horizontal_edge, has_vertical_edge};
 use crate::map::EdgeGrid;
+use common::protocol::CarrierId;
 use common::{map::MapGeometry, protocol::Floor};
 
 // Epsilon for merging adjacent segments.
@@ -30,6 +31,7 @@ impl HorizontalSegment {
             y,
             thickness,
             level,
+            carrier: CarrierId::WORLD,
         }
     }
 }
@@ -59,6 +61,7 @@ impl VerticalSegment {
             y,
             thickness,
             level,
+            carrier: CarrierId::WORLD,
         }
     }
 }

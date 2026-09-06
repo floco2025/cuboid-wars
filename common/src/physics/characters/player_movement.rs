@@ -2,7 +2,7 @@ use bevy_math::Vec3;
 
 use crate::{
     config::GameplayConfig,
-    map::MovingFloors,
+    map::Carriers,
     physics::{CollisionWorld, PortalSet, passable_barrier_kinds},
     protocol::{BarrierKindId, MapSettings, Position},
 };
@@ -28,7 +28,7 @@ pub struct PlayerMovementStep<'a> {
     pub map_settings: &'a MapSettings,
     pub gameplay_config: &'a GameplayConfig,
     pub portal_set: &'a PortalSet,
-    pub moving_floors: &'a MovingFloors,
+    pub carriers: &'a Carriers,
 }
 
 #[must_use]
@@ -51,7 +51,7 @@ pub fn step_player_movement(mut step: PlayerMovementStep<'_>) -> CharacterMoveme
             physics: step.gameplay_config.player.physics(),
             ladder_climb_ratio: step.map_settings.movement.ladder_climb_ratio,
             portals: Some(step.portal_set),
-            moving_floors: step.moving_floors,
+            carriers: step.carriers,
         },
     );
     if let Some(momentum) = step.airborne_momentum.as_mut() {

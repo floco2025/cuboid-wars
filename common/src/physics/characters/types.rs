@@ -37,7 +37,7 @@ impl KnockbackVelocity {
 }
 
 // Horizontal velocity a body keeps while airborne: a portal exit's launch,
-// or the velocity of a moving floor it jumped or walked off. Constant in the
+// or the velocity of a carrier it jumped or walked off. Constant in the
 // air; movement planning clears it on landing or collision.
 #[derive(Component, Debug, Default, Clone, Copy)]
 pub struct AirborneMomentum(pub Vec3);
@@ -75,7 +75,7 @@ pub struct CharacterMovementResult {
     // True when static-world collision materially blocked requested movement.
     // Side contacts that Rapier resolves by auto-stepping are not treated as blocked.
     pub blocked: bool,
-    // Velocity of the moving floor that carried the body this step, zero
+    // Velocity of the carrier that carried the body this step, zero
     // otherwise. Its vertical part is already in `vertical_velocity` when the
     // body ends airborne; the horizontal part becomes `AirborneMomentum`.
     pub floor_velocity: Vec3,

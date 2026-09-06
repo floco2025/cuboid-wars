@@ -17,15 +17,27 @@ pub struct MissileId(pub u32);
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Encode, Decode)]
 pub struct PortalPairId(pub u32);
 
-// Index into the selected map's `MapLayout.moving_floors`; a portal
-// anchored to a tile names it.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Encode, Decode)]
-pub struct MovingFloorId(pub u16);
+// Which rigid group of map records a thing belongs to. `WORLD` is the map
+// itself, which never moves; `CarrierId(n)` for n >= 1 names
+// `MapLayout.carriers[n - 1]`.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Encode, Decode)]
+pub struct CarrierId(pub u16);
 
-impl MovingFloorId {
+impl CarrierId {
+    pub const WORLD: Self = Self(0);
+
     #[must_use]
-    pub const fn index(self) -> usize {
-        self.0 as usize
+    pub const fn is_world(self) -> bool {
+        self.0 == 0
+    }
+
+    // Index into `MapLayout.carriers`; `None` for the world.
+    #[must_use]
+    pub const fn carried_index(self) -> Option<usize> {
+        match self.0 {
+            0 => None,
+            n => Some(n as usize - 1),
+        }
     }
 }
 

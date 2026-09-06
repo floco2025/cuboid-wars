@@ -34,9 +34,12 @@ pub struct AirGraph {
 }
 
 impl AirGraph {
+    // Flies the root map's airspace; a missile inside a nested map goes by
+    // sight and the stall watchdog.
     #[must_use]
-    pub fn new(map_config: MapConfig, geometry: MapGeometry) -> Self {
-        let layers = i32::try_from(map_config.levels.len()).unwrap_or(0) + 1;
+    pub fn new(map_config: MapConfig) -> Self {
+        let geometry = map_config.root_grid().geometry;
+        let layers = i32::try_from(map_config.root_grid().levels.len()).unwrap_or(0) + 1;
         Self {
             map_config,
             geometry,
@@ -92,7 +95,11 @@ impl AirGraph {
 
     // `None` above the top map level (open sky) or off-grid.
     fn cell(&self, node: AirNode) -> Option<&Cell> {
-        let level = self.map_config.levels.get(usize::try_from(node.layer).ok()?)?;
+        let level = self
+            .map_config
+            .root_grid()
+            .levels
+            .get(usize::try_from(node.layer).ok()?)?;
         level
             .cells
             .rows
@@ -154,7 +161,7 @@ impl AirGraph {
         // keyed-barrier edges (plate barriers are omitted upstream, so a
         // path may cross a closed plate and detonate there — accepted).
         if let Ok(layer) = usize::try_from(node.layer)
-            && let Some(level) = self.map_config.levels.get(layer)
+            && let Some(level) = self.map_config.root_grid().levels.get(layer)
             && (has_edge_on_cell_side(&level.edges, node.row, node.col, side)
                 || has_edge_on_cell_side(&level.barrier_edges, node.row, node.col, side))
         {
@@ -198,16 +205,6 @@ mod tests {
         }
     }
 
-    fn config(levels: Vec<LevelGrid>) -> MapConfig {
-        MapConfig {
-            levels,
-            actor_spawn_zones: Vec::new(),
-            player_spawn_zones: Vec::new(),
-            placed_items: Vec::new(),
-            pressure_plates: Vec::new(),
-        }
-    }
-
     fn floored_cell() -> Cell {
         Cell {
             has_floor: true,
@@ -227,13 +224,10 @@ mod tests {
         let mut upper = CellGrid::new(2, 1);
         upper.rows[0][0] = floored_cell();
 
-        let graph = AirGraph::new(
-            config(vec![
-                level(lower, EdgeGrid::new(2, 1)),
-                level(upper, EdgeGrid::new(2, 1)),
-            ]),
+        let graph = AirGraph::new(MapConfig::for_grid(
+            vec![level(lower, EdgeGrid::new(2, 1)), level(upper, EdgeGrid::new(2, 1))],
             geometry(2, 1),
-        );
+        ));
         let from = graph.node_center(AirNode {
             layer: 1,
             row: 0,
@@ -265,7 +259,7 @@ mod tests {
         let mut edges = EdgeGrid::new(2, 1);
         edges.vertical[0][1] = true;
 
-        let graph = AirGraph::new(config(vec![level(cells, edges)]), geometry(2, 1));
+        let graph = AirGraph::new(MapConfig::for_grid(vec![level(cells, edges)], geometry(2, 1)));
         let from = graph.node_center(AirNode {
             layer: 0,
             row: 0,
@@ -297,10 +291,10 @@ mod tests {
         roof.rows[0][0].has_floor_slab = true;
         roof.rows[0][1].has_floor_slab = true;
 
-        let graph = AirGraph::new(
-            config(vec![level(cells, edges), level(roof, EdgeGrid::new(2, 1))]),
+        let graph = AirGraph::new(MapConfig::for_grid(
+            vec![level(cells, edges), level(roof, EdgeGrid::new(2, 1))],
             geometry(2, 1),
-        );
+        ));
         let from = graph.node_center(AirNode {
             layer: 0,
             row: 0,

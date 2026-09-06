@@ -4,7 +4,7 @@ use super::{
     geometry_batch::{MapGeometryBatch, MapGeometryKind},
     ramp_mesh::build_ramp_meshes,
 };
-use crate::config::AssetSet;
+use crate::{carriers::CarrierStoreys, config::AssetSet};
 use common::{config::MapGeometryConfig, protocol::*};
 
 // Spawn a ramp entity based on shared `Ramp` config.
@@ -18,6 +18,7 @@ pub fn batch_ramp(
     batcher: &mut MapGeometryBatch,
     asset_set: &AssetSet,
     geometry: MapGeometryConfig,
+    storeys: &CarrierStoreys,
     ramp: &Ramp,
     material_ids: &FaceMaterials,
 ) {
@@ -39,20 +40,23 @@ pub fn batch_ramp(
         side_material_def.tile_size(),
     );
 
-    // Lower of the two levels this ramp connects (derived from the lower y).
+    // Lower of the two levels this ramp connects (derived from the lower y
+    // in the carrier's frame); the ramp reaches one storey further.
     let y_low = ramp.y1.min(ramp.y2);
-    let lower_level = geometry.nearest_level_to_y(y_low);
+    let level = storeys.tag(ramp.carrier, geometry.nearest_level_to_y(y_low), 1);
 
     batcher.add_mesh(
         MapGeometryKind::Ramp,
-        lower_level,
+        ramp.carrier,
+        level,
         top_material_id,
         &mesh_top,
         Transform::default(),
     );
     batcher.add_mesh(
         MapGeometryKind::Ramp,
-        lower_level,
+        ramp.carrier,
+        level,
         side_material_id,
         &mesh_side,
         Transform::default(),

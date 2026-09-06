@@ -6,7 +6,7 @@ use crate::config::ServerGameplayConfig;
 use crate::map::MapConfig;
 use common::{
     config::GameplayConfig,
-    map::MapGeometry,
+    map::Carriers,
     physics::{AirborneMomentum, CharacterVerticalVelocity, CollisionWorld},
     protocol::{FaceYaw, Health, PlayerId, PlayerMarker, PlayerMoveIntent, Position},
 };
@@ -22,7 +22,7 @@ pub fn players_respawn_system(
     time: Res<Time>,
     mut players: ResMut<PlayerMap>,
     map_config: Res<MapConfig>,
-    map_geometry: Res<MapGeometry>,
+    carriers: Res<Carriers>,
     collision_world: Res<CollisionWorld>,
     gameplay_config: Res<GameplayConfig>,
     server_gameplay_config: Res<ServerGameplayConfig>,
@@ -50,7 +50,7 @@ pub fn players_respawn_system(
     for id in to_respawn {
         let pos = generate_player_spawn_position(
             &map_config,
-            &map_geometry,
+            &carriers,
             &collision_world,
             &occupied_positions,
             gameplay_config.player.physics(),

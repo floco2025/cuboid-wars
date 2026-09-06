@@ -1,7 +1,7 @@
 use bevy::prelude::{Entity, Vec3};
 use common::{
     config::CharacterPhysicsConfig,
-    map::MovingFloors,
+    map::Carriers,
     physics::{
         CharacterEnvironment, CharacterMovePlan, CharacterMovementResult, CharacterStep, CharacterSupport,
         CollisionWorld, character_move_plan_is_blocked, step_character_movement,
@@ -35,7 +35,7 @@ pub(super) struct ActorMoveContext<'a> {
     pub(super) gravity: f32,
     pub(super) ladder_climb_ratio: f32,
     pub(super) knockback_step: Vec3,
-    pub(super) moving_floors: &'a MovingFloors,
+    pub(super) carriers: &'a Carriers,
 }
 
 impl ActorMoveContext<'_> {
@@ -92,7 +92,7 @@ impl ActorMoveContext<'_> {
                 physics: self.actor_physics,
                 ladder_climb_ratio: self.ladder_climb_ratio,
                 portals: None,
-                moving_floors: self.moving_floors,
+                carriers: self.carriers,
             },
         )
     }

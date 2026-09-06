@@ -1,15 +1,14 @@
 use super::{
     compile_map,
+    load::LoadedMaps,
     schema::{
         ActorSpawnZoneDef, BarrierDef, CellDef, FloorDef, ItemDef, LadderDef, LevelDef, LightBridgeDef, MapDef,
-        MovingFloorDef, PlayerSpawnZoneDef, PressurePlateDef, PressurePlatePurposeDef, RampDef, WallDef, WallSide,
+        MotionDef, NestedMapDef, PlayerSpawnZoneDef, PressurePlateDef, PressurePlatePurposeDef, RampDef, WallDef,
+        WallSide,
     },
     validation::validate_map,
 };
-use crate::{
-    map::material_rules::MaterialRules,
-    test_geometry::{LEVEL_HEIGHT, WALL_HEIGHT, sizes},
-};
+use crate::test_geometry::{LEVEL_HEIGHT, WALL_HEIGHT, sizes};
 use common::protocol::{BarrierKindTable, BridgeKindTable, FaceMaterials};
 
 fn empty_kind_table() -> BarrierKindTable {
@@ -126,12 +125,12 @@ fn map_with_zones(
         levels,
         ramps,
         ladders: Vec::new(),
-        moving_floors: Vec::new(),
+        nested_maps: Vec::new(),
     }
 }
 
-fn moving_floor(level: u32, from: [i32; 2], to: [i32; 2], to_level: u32) -> MovingFloorDef {
-    MovingFloorDef {
+fn motion(level: u32, from: [i32; 2], to: [i32; 2], to_level: u32) -> MotionDef {
+    MotionDef {
         level,
         from,
         to,
@@ -139,21 +138,18 @@ fn moving_floor(level: u32, from: [i32; 2], to: [i32; 2], to_level: u32) -> Movi
         speed: 2.0,
         pause_secs: 0.5,
         phase_secs: 0.0,
-        materials: FaceMaterials::uniform("test"),
     }
 }
 
-// A floor at (0, 0) on two storeys, on a 6x6 grid, plus the moving floors.
-fn map_with_moving_floors(floors: Vec<MovingFloorDef>) -> MapDef {
-    let mut map_def = map_with_zones(
-        6,
-        vec![level(vec![[0, 0]]), level(vec![[0, 0]])],
-        Vec::new(),
-        vec![player_zone(0, 0, 0)],
-        Vec::new(),
-    );
-    map_def.moving_floors = floors;
-    map_def
+fn nested(map: &str, level: u32, from: [i32; 2], to: [i32; 2], to_level: u32) -> NestedMapDef {
+    NestedMapDef {
+        map: map.into(),
+        motion: motion(level, from, to, to_level),
+    }
+}
+
+fn no_nested() -> LoadedMaps {
+    LoadedMaps::default()
 }
 
 fn ladder(lower_level: u32, col: i32, row: i32, side: WallSide, levels: u32) -> LadderDef {
@@ -164,14 +160,6 @@ fn ladder(lower_level: u32, col: i32, row: i32, side: WallSide, levels: u32) -> 
         side,
         levels,
     }
-}
-
-fn assets() -> MaterialRules {
-    let config =
-        crate::config::ServerGameplayConfig::load_default().expect("default server gameplay config should load");
-    let map_def =
-        super::load_map(&crate::map::generation::map_path(&config.default_map)).expect("default map should load");
-    MaterialRules::from_def(&map_def, sizes())
 }
 
 #[test]
@@ -241,9 +229,10 @@ fn inaccessible_floor_emits_physical_slab_but_not_regular_floor() {
         Vec::new(),
     );
 
-    let (layout, config, geometry) =
-        compile_map(&map_def, sizes(), &assets(), &empty_kind_table(), &no_bridges()).expect("compile");
-    let inaccessible_cell = config.levels[0].cells.rows[0][2];
+    let (layout, config, _) =
+        compile_map(&map_def, sizes(), &no_nested(), &empty_kind_table(), &no_bridges()).expect("compile");
+    let geometry = config.root_grid().geometry;
+    let inaccessible_cell = config.root_grid().levels[0].cells.rows[0][2];
     assert!(!inaccessible_cell.has_floor);
     assert!(inaccessible_cell.has_floor_slab);
 
@@ -325,20 +314,6 @@ fn validation_accepts_unknown_kind_strings() {
 }
 
 #[test]
-fn validation_rejects_missing_player_spawn_zones() {
-    let map_def = map_with_zones(
-        4,
-        vec![level(vec![[0, 0]])],
-        vec![actor_zone(0, 0, 0)],
-        Vec::new(),
-        Vec::new(),
-    );
-
-    let err = validate_map(&map_def).expect_err("must require at least one player zone");
-    assert!(err.to_string().contains("player_spawn_zones"));
-}
-
-#[test]
 fn validation_accepts_empty_actor_spawn_zones() {
     // A map with no enemies is valid.
     let map_def = map_with_zones(
@@ -416,7 +391,7 @@ fn compile_resolves_known_barrier_kind() {
         kind: "red".into(),
     });
     let (layout, _, _) =
-        compile_map(&map_def, sizes(), &assets(), &red_only_kind_table(), &no_bridges()).expect("compile");
+        compile_map(&map_def, sizes(), &no_nested(), &red_only_kind_table(), &no_bridges()).expect("compile");
     assert_eq!(layout.barriers.len(), 1);
     assert_eq!(layout.barriers[0].kind, common::protocol::BarrierKindId(0));
 }
@@ -440,7 +415,7 @@ fn stacked_barriers_compile_into_one_record_when_no_floor_splits_them() {
         });
     }
     let (layout, _, _) =
-        compile_map(&map_def, sizes(), &assets(), &red_only_kind_table(), &no_bridges()).expect("compile");
+        compile_map(&map_def, sizes(), &no_nested(), &red_only_kind_table(), &no_bridges()).expect("compile");
     assert_eq!(layout.barriers.len(), 1);
     assert_eq!(layout.barriers[0].level, 0);
     assert_eq!(layout.barriers[0].levels, 2);
@@ -466,7 +441,7 @@ fn a_floor_beside_the_upper_barrier_keeps_the_storeys_apart() {
         });
     }
     let (layout, _, _) =
-        compile_map(&map_def, sizes(), &assets(), &red_only_kind_table(), &no_bridges()).expect("compile");
+        compile_map(&map_def, sizes(), &no_nested(), &red_only_kind_table(), &no_bridges()).expect("compile");
     assert_eq!(layout.barriers.len(), 2);
     assert!(layout.barriers.iter().all(|barrier| barrier.levels == 1));
 }
@@ -504,8 +479,8 @@ fn pressure_plate_barrier_is_open_for_pathfinding() {
     });
 
     let (_, config, _) =
-        compile_map(&map_def, sizes(), &assets(), &three_kind_table(), &no_bridges()).expect("compile");
-    let barrier_edges = &config.levels[0].barrier_edges;
+        compile_map(&map_def, sizes(), &no_nested(), &three_kind_table(), &no_bridges()).expect("compile");
+    let barrier_edges = &config.root_grid().levels[0].barrier_edges;
     assert!(
         !barrier_edges.vertical[0][1],
         "pressure-plate (red) barrier must be treated as open for nav"
@@ -537,9 +512,9 @@ fn firework_plate_does_not_open_any_barrier_kind() {
     });
 
     let (layout, config, _) =
-        compile_map(&map_def, sizes(), &assets(), &three_kind_table(), &no_bridges()).expect("compile");
+        compile_map(&map_def, sizes(), &no_nested(), &three_kind_table(), &no_bridges()).expect("compile");
     assert!(
-        config.levels[0].barrier_edges.vertical[0][1],
+        config.root_grid().levels[0].barrier_edges.vertical[0][1],
         "a firework plate opens no barrier kind for nav"
     );
     assert_eq!(
@@ -573,14 +548,15 @@ fn plate_defs_parse_every_purpose() {
 fn compile_merges_light_bridge_cells_into_one_rectangle() {
     let map_def = map_with_bridges(&[[1, 0], [2, 0], [1, 1], [2, 1]]);
 
-    let (layout, _, geometry) = compile_map(
+    let (layout, config, _) = compile_map(
         &map_def,
         sizes(),
-        &assets(),
+        &no_nested(),
         &empty_kind_table(),
         &skyway_bridge_table(),
     )
     .expect("compile");
+    let geometry = config.root_grid().geometry;
 
     assert_eq!(layout.light_bridges.len(), 1, "a 2x2 block is one collider");
     let bridge = layout.light_bridges[0];
@@ -602,12 +578,11 @@ fn compile_rejects_unknown_bridge_kind() {
     let err = compile_map(
         &map_def,
         sizes(),
-        &assets(),
+        &no_nested(),
         &empty_kind_table(),
         &skyway_bridge_table(),
     )
-    .err()
-    .expect("unknown bridge kind must fail");
+    .expect_err("unknown bridge kind must fail");
     let chain: String = err.chain().map(|e| e.to_string()).collect::<Vec<_>>().join(" | ");
     assert!(chain.contains("unknown bridge kind"), "got: {chain}");
     assert!(chain.contains("light_bridges[0]"), "got: {chain}");
@@ -674,9 +649,8 @@ fn compile_rejects_unknown_barrier_kind() {
         r1: 0,
         kind: "magenta".into(),
     });
-    let err = compile_map(&map_def, sizes(), &assets(), &red_only_kind_table(), &no_bridges())
-        .err()
-        .expect("unknown kind must fail");
+    let err = compile_map(&map_def, sizes(), &no_nested(), &red_only_kind_table(), &no_bridges())
+        .expect_err("unknown kind must fail");
     let chain: String = err.chain().map(|e| e.to_string()).collect::<Vec<_>>().join(" | ");
     assert!(
         chain.to_lowercase().contains("magenta") || chain.to_lowercase().contains("unknown barrier kind"),
@@ -715,7 +689,7 @@ fn compile_resolves_three_distinct_kinds() {
         kind: "green".into(),
     });
     let (layout, _, _) =
-        compile_map(&map_def, sizes(), &assets(), &three_kind_table(), &no_bridges()).expect("compile");
+        compile_map(&map_def, sizes(), &no_nested(), &three_kind_table(), &no_bridges()).expect("compile");
     assert_eq!(layout.barriers.len(), 3);
     let kinds: Vec<u16> = layout.barriers.iter().map(|b| b.kind.0).collect();
     // The merger sorts by (level, kind, axis-coords), so kind ascending.
@@ -734,7 +708,7 @@ fn compile_drops_grass_without_floor() {
     map_def.levels[0].grass.push(cell_def(0, 0));
     map_def.levels[0].grass.push(cell_def(2, 2));
     let (layout, _, _) =
-        compile_map(&map_def, sizes(), &assets(), &empty_kind_table(), &no_bridges()).expect("compile");
+        compile_map(&map_def, sizes(), &no_nested(), &empty_kind_table(), &no_bridges()).expect("compile");
     assert_eq!(layout.grass.len(), 1);
     assert_eq!(layout.grass[0].level, 0);
 }
@@ -749,8 +723,9 @@ fn grass_compiles_to_cell_center_and_floor_top() {
         Vec::new(),
     );
     map_def.levels[1].grass.push(cell_def(1, 2));
-    let (layout, _, geometry) =
-        compile_map(&map_def, sizes(), &assets(), &empty_kind_table(), &no_bridges()).expect("compile");
+    let (layout, config, _) =
+        compile_map(&map_def, sizes(), &no_nested(), &empty_kind_table(), &no_bridges()).expect("compile");
+    let geometry = config.root_grid().geometry;
     assert_eq!(layout.grass.len(), 1);
     let cell = layout.grass[0];
     assert_eq!(cell.level, 1);
@@ -773,7 +748,7 @@ fn grass_allowed_on_inaccessible_floor() {
     map_def.levels[0].grass.push(cell_def(1, 0));
     validate_map(&map_def).expect("grass on an inaccessible floor should load");
     let (layout, _, _) =
-        compile_map(&map_def, sizes(), &assets(), &empty_kind_table(), &no_bridges()).expect("compile");
+        compile_map(&map_def, sizes(), &no_nested(), &empty_kind_table(), &no_bridges()).expect("compile");
     assert_eq!(layout.grass.len(), 1);
 }
 
@@ -882,9 +857,8 @@ fn compile_rejects_item_on_floorless_cell() {
         Vec::new(),
     );
     map_def.items.push(item_def(0, 2, 2, "cookie", None));
-    let err = compile_map(&map_def, sizes(), &assets(), &empty_kind_table(), &no_bridges())
-        .err()
-        .expect("item on a floorless cell must fail");
+    let err = compile_map(&map_def, sizes(), &no_nested(), &empty_kind_table(), &no_bridges())
+        .expect_err("item on a floorless cell must fail");
     assert!(err.to_string().contains("floor"));
 }
 
@@ -898,9 +872,8 @@ fn compile_rejects_item_on_ramp_cell() {
         vec![ramp([0, 0], [1, 2], 1)],
     );
     map_def.items.push(item_def(1, 0, 0, "cookie", None));
-    let err = compile_map(&map_def, sizes(), &assets(), &empty_kind_table(), &no_bridges())
-        .err()
-        .expect("item on a ramp cell must fail");
+    let err = compile_map(&map_def, sizes(), &no_nested(), &empty_kind_table(), &no_bridges())
+        .expect_err("item on a ramp cell must fail");
     assert!(err.to_string().contains("ramp"));
 }
 
@@ -915,7 +888,7 @@ fn compile_resolves_key_item_barrier_kind() {
     );
     map_def.items.push(item_def(0, 0, 0, "key", Some("red")));
     let (_, config, _) =
-        compile_map(&map_def, sizes(), &assets(), &red_only_kind_table(), &no_bridges()).expect("compile");
+        compile_map(&map_def, sizes(), &no_nested(), &red_only_kind_table(), &no_bridges()).expect("compile");
     assert_eq!(config.placed_items.len(), 1);
     assert_eq!(
         config.placed_items[0].item_type,
@@ -962,7 +935,7 @@ fn ladder_compiles_to_world_segment_and_normal() {
     map_def.ladders.push(ladder(0, 1, 1, WallSide::North, 1));
 
     let (layout, _, _) =
-        compile_map(&map_def, sizes(), &assets(), &empty_kind_table(), &no_bridges()).expect("compile");
+        compile_map(&map_def, sizes(), &no_nested(), &empty_kind_table(), &no_bridges()).expect("compile");
 
     assert_eq!(layout.ladders.len(), 1);
     let out = layout.ladders[0];
@@ -1091,7 +1064,7 @@ fn validation_rejects_out_of_bounds_ladder() {
 fn every_shipped_ladder_ascends_at_least_one_storey() {
     use bevy::math::Vec3;
     use common::constants::TICK_SECS;
-    use common::map::MovingFloors;
+    use common::map::Carriers;
     use common::physics::{CharacterEnvironment, CharacterStep, CollisionWorld, step_character_movement};
     use common::protocol::Position;
 
@@ -1109,29 +1082,38 @@ fn every_shipped_ladder_ascends_at_least_one_storey() {
             .file_stem()
             .and_then(|name| name.to_str())
             .expect("map file name is not UTF-8");
-        let map_settings = &server_gameplay
-            .maps
-            .get(map_name)
-            .expect("shipped map missing from server gameplay config")
-            .settings;
-        let map_def = super::load_map(&path).expect("map file should load");
+        // A file without a registry entry is a nested-only map, played
+        // through its host and generated with it.
+        let Some(map_server_config) = server_gameplay.maps.get(map_name) else {
+            continue;
+        };
+        let map_settings = &map_server_config.settings;
         let (kind_table, bridge_table) = map_settings.kind_tables().expect("shipped kind tables rejected");
         let map_sizes = map_settings.geometry;
-        let assets = MaterialRules::from_def(&map_def, map_sizes);
-        let (layout, _, _) =
-            compile_map(&map_def, map_sizes, &assets, &kind_table, &bridge_table).expect("map failed to compile");
+        let layout = crate::map::generate_map(
+            map_name,
+            map_sizes,
+            &|nested| server_gameplay.maps.get(nested).map(|map| map.settings.geometry),
+            &kind_table,
+            &bridge_table,
+        )
+        .expect("map failed to generate")
+        .layout;
         let world = CollisionWorld::from_map_layout(&layout, &kind_table);
+        let carriers = Carriers::from_layout(&layout);
 
         for ladder in &layout.ladders {
+            // A carried ladder's record is in its carrier's frame.
+            let pose = carriers.pose(ladder.carrier);
             let mid_x = f32::midpoint(ladder.x1, ladder.x2);
             let mid_z = f32::midpoint(ladder.z1, ladder.z2);
-            let mut pos = Position {
-                x: ladder.nx.mul_add(0.6, mid_x),
-                y: ladder.y,
-                z: ladder.nz.mul_add(0.6, mid_z),
-            };
+            let mut pos = Position::from(pose.transform_point(Vec3::new(
+                ladder.nx.mul_add(0.6, mid_x),
+                ladder.y,
+                ladder.nz.mul_add(0.6, mid_z),
+            )));
             let mut vertical_velocity = 0.0;
-            let one_storey_up = ladder.y + map_sizes.level_height - 0.05;
+            let one_storey_up = pose.translation.y + ladder.y + map_sizes.level_height - 0.05;
             let speed = map_settings.movement.player.walk_speed;
             let mut reached = false;
             for _ in 0..600 {
@@ -1150,7 +1132,7 @@ fn every_shipped_ladder_ascends_at_least_one_storey() {
                         physics,
                         ladder_climb_ratio: map_settings.movement.ladder_climb_ratio,
                         portals: None,
-                        moving_floors: &MovingFloors::default(),
+                        carriers: &carriers,
                     },
                 );
                 pos = step.position;
@@ -1175,93 +1157,16 @@ fn every_shipped_ladder_ascends_at_least_one_storey() {
     }
 }
 
+// Every shipped carrier carries a standing player through a whole cycle:
+// the feet stay on the surface at its origin at every tick. A tile's
+// origin is its one cell, a room's the cell its grid is centered on.
 #[test]
-fn moving_floor_over_a_floor_slab_is_rejected() {
-    let map_def = map_with_moving_floors(vec![moving_floor(0, [0, 2], [0, 0], 0)]);
-    let err = validate_map(&map_def).expect_err("a path over a floor was accepted");
-    assert!(format!("{err:#}").contains("ends on a floor"), "{err:#}");
-
-    let mut map_def = map_with_moving_floors(vec![moving_floor(0, [0, 3], [0, 1], 0)]);
-    map_def.levels[0].floors.push(floor_def(0, 2));
-    let err = validate_map(&map_def).expect_err("a path over a floor was accepted");
-    assert!(format!("{err:#}").contains("passes over a floor"), "{err:#}");
-}
-
-#[test]
-fn moving_floor_sweeps_only_the_cells_under_its_straight_path() {
-    // A diagonal from (1, 4) to (4, 1) never touches the box corners (1, 1)
-    // and (4, 4), nor a cell it slides past.
-    let mut map_def = map_with_moving_floors(vec![moving_floor(0, [1, 4], [4, 1], 0)]);
-    map_def.levels[0].floors.push(floor_def(1, 1));
-    map_def.levels[0].floors.push(floor_def(4, 4));
-    map_def.levels[0].floors.push(floor_def(5, 2));
-    validate_map(&map_def).expect("cells beside the diagonal were rejected");
-
-    map_def.levels[0].floors.push(floor_def(2, 3));
-    let err = validate_map(&map_def).expect_err("a cell on the diagonal was accepted");
-    assert!(format!("{err:#}").contains("passes over a floor"), "{err:#}");
-}
-
-#[test]
-fn moving_floor_with_equal_ends_is_rejected() {
-    let map_def = map_with_moving_floors(vec![moving_floor(0, [2, 2], [2, 2], 0)]);
-    let err = validate_map(&map_def).expect_err("a stationary moving floor was accepted");
-    assert!(format!("{err:#}").contains("must travel"), "{err:#}");
-}
-
-#[test]
-fn moving_floor_through_a_wall_is_rejected() {
-    let mut map_def = map_with_moving_floors(vec![moving_floor(0, [2, 2], [4, 2], 0)]);
-    map_def.levels[0].walls.push(WallDef {
-        c0: 3,
-        r0: 2,
-        c1: 3,
-        r1: 3,
-        materials: FaceMaterials::uniform("test"),
-    });
-    let err = validate_map(&map_def).expect_err("a path through a wall was accepted");
-    assert!(format!("{err:#}").contains("crosses a wall"), "{err:#}");
-
-    // The same wall on the path's boundary lines it and is fine.
-    map_def.levels[0].walls[0] = WallDef {
-        c0: 2,
-        r0: 2,
-        c1: 5,
-        r1: 2,
-        materials: FaceMaterials::uniform("test"),
-    };
-    map_def.levels[0].walls[0].c1 = 3;
-    validate_map(&map_def).expect("a wall along the path was rejected");
-}
-
-#[test]
-fn lift_compiles_with_the_storeys_it_spans() {
-    let map_def = map_with_moving_floors(vec![moving_floor(1, [3, 3], [3, 3], 0)]);
-    validate_map(&map_def).expect("lift rejected");
-    let (layout, _, _) =
-        compile_map(&map_def, sizes(), &assets(), &empty_kind_table(), &no_bridges()).expect("lift failed to compile");
-
-    assert_eq!(layout.moving_floors.len(), 1);
-    assert_eq!(layout.moving_floor_materials.len(), 1);
-    let lift = layout.moving_floors[0];
-    assert_eq!((lift.level, lift.levels), (0, 1));
-    assert_eq!(lift.y1, LEVEL_HEIGHT);
-    assert_eq!(lift.y2, 0.0);
-    assert_eq!((lift.x1, lift.z1), (lift.x2, lift.z2));
-    assert_eq!(lift.travel_ticks, (LEVEL_HEIGHT / 2.0 * 30.0).round() as u32);
-    assert_eq!(lift.pause_ticks, 15);
-    assert!(lift.half_x < sizes().grid_cell_size / 2.0);
-}
-
-// Every shipped moving floor carries a standing player through a whole
-// cycle: the feet stay on the tile's surface at every tick.
-#[test]
-fn every_shipped_moving_floor_carries_a_standing_player_through_its_cycle() {
+fn every_shipped_carrier_carries_a_standing_player_through_its_cycle() {
     use bevy::math::Vec3;
-    use common::constants::{MOVING_FLOOR_RIDE_TOLERANCE, TICK_SECS};
-    use common::map::{MovingFloors, surface_center_at};
+    use common::constants::{CARRIER_RIDE_TOLERANCE, TICK_SECS};
+    use common::map::Carriers;
     use common::physics::{CharacterEnvironment, CharacterStep, CollisionWorld, step_character_movement};
-    use common::protocol::Position;
+    use common::protocol::{CarrierId, Position};
 
     let server_gameplay =
         crate::config::ServerGameplayConfig::load_default().expect("default server gameplay config should load");
@@ -1278,34 +1183,36 @@ fn every_shipped_moving_floor_carries_a_standing_player_through_its_cycle() {
             .file_stem()
             .and_then(|name| name.to_str())
             .expect("map file name is not UTF-8");
-        let map_settings = &server_gameplay
-            .maps
-            .get(map_name)
-            .expect("shipped map missing from server gameplay config")
-            .settings;
-        let map_def = super::load_map(&path).expect("map file should load");
+        // A file without a registry entry is a nested-only map, played
+        // through its host and generated with it.
+        let Some(map_server_config) = server_gameplay.maps.get(map_name) else {
+            continue;
+        };
+        let map_settings = &map_server_config.settings;
         let (kind_table, bridge_table) = map_settings.kind_tables().expect("shipped kind tables rejected");
         let map_sizes = map_settings.geometry;
-        let assets = MaterialRules::from_def(&map_def, map_sizes);
-        let (layout, _, _) =
-            compile_map(&map_def, map_sizes, &assets, &kind_table, &bridge_table).expect("map failed to compile");
+        let layout = crate::map::generate_map(
+            map_name,
+            map_sizes,
+            &|nested| server_gameplay.maps.get(nested).map(|map| map.settings.geometry),
+            &kind_table,
+            &bridge_table,
+        )
+        .expect("map failed to generate")
+        .layout;
         let mut world = CollisionWorld::from_map_layout(&layout, &kind_table);
-        let mut floors = MovingFloors::from_layout(&layout);
+        let mut carriers = Carriers::from_layout(&layout);
 
-        for (index, floor) in layout.moving_floors.iter().enumerate() {
-            floors.advance(0);
-            world.set_moving_floor_centers(&floors.collider_centers());
-            let start = surface_center_at(floor, 0);
-            let mut pos = Position {
-                x: start.x,
-                y: start.y,
-                z: start.z,
-            };
+        for (index, carrier) in layout.carriers.iter().enumerate() {
+            let id = CarrierId(index as u16 + 1);
+            carriers.advance(0);
+            world.set_carrier_poses(&carriers);
+            let mut pos = Position::from(carriers.pose(id).translation);
             let mut vertical_velocity = 0.0;
-            let cycle = 2 * (floor.travel_ticks + floor.pause_ticks);
+            let cycle = 2 * (carrier.travel_ticks + carrier.pause_ticks);
             for tick in 1..=cycle {
-                floors.advance(tick);
-                world.set_moving_floor_centers(&floors.collider_centers());
+                carriers.advance(tick);
+                world.set_carrier_poses(&carriers);
                 let step = step_character_movement(
                     CharacterStep {
                         start: pos,
@@ -1321,21 +1228,249 @@ fn every_shipped_moving_floor_carries_a_standing_player_through_its_cycle() {
                         physics,
                         ladder_climb_ratio: map_settings.movement.ladder_climb_ratio,
                         portals: None,
-                        moving_floors: &floors,
+                        carriers: &carriers,
                     },
                 );
                 pos = step.position;
                 vertical_velocity = step.vertical_velocity;
-                let surface = surface_center_at(floor, tick);
-                let gap = Vec3::new(pos.x - surface.x, pos.y - surface.y, pos.z - surface.z);
+                let surface = carriers.pose(id).translation;
+                let gap = Vec3::from(pos) - surface;
                 assert!(
-                    gap.length() <= MOVING_FLOOR_RIDE_TOLERANCE,
-                    "{}: moving floor {index} lost its rider at tick {tick}: feet {pos:?}, surface {surface}",
+                    gap.length() <= CARRIER_RIDE_TOLERANCE,
+                    "{}: carrier {index} lost its rider at tick {tick}: feet {pos:?}, surface {surface}",
                     path.display()
                 );
             }
             checked += 1;
         }
     }
-    assert!(checked > 0, "no shipped map carries a moving floor to check");
+    assert!(checked > 0, "no shipped map has a carrier to check");
+}
+
+// === Nested maps ===
+
+// A 3x2 room with a floor on every cell, a wall along its north edge, one
+// cookie, one firework plate, a player zone on its first cell, and an actor
+// zone, on two storeys.
+fn room() -> MapDef {
+    let mut map_def = map_with_zones(
+        3,
+        vec![
+            level(vec![[0, 0], [1, 0], [2, 0], [0, 1], [1, 1], [2, 1]]),
+            level(vec![[0, 0]]),
+        ],
+        vec![actor_zone(0, 1, 1)],
+        vec![player_zone(0, 0, 0)],
+        Vec::new(),
+    );
+    map_def.grid_rows = 2;
+    map_def.levels[0].walls.push(WallDef {
+        c0: 0,
+        r0: 0,
+        c1: 1,
+        r1: 0,
+        materials: FaceMaterials::uniform("test"),
+    });
+    map_def.items.push(ItemDef {
+        level: 0,
+        col: 2,
+        row: 1,
+        item_type: "cookie".into(),
+        kind: None,
+    });
+    map_def.pressure_plates.push(PressurePlateDef {
+        level: 0,
+        col: 1,
+        row: 1,
+        purpose: PressurePlatePurposeDef::Firework,
+    });
+    map_def
+}
+
+// A 6x6 host with one floor, nesting `entries`.
+fn host(entries: Vec<NestedMapDef>) -> MapDef {
+    let mut map_def = map_with_zones(
+        6,
+        vec![level(vec![[0, 0]]), level(vec![[0, 0]]), level(vec![[0, 0]])],
+        Vec::new(),
+        vec![player_zone(0, 0, 0)],
+        Vec::new(),
+    );
+    map_def.nested_maps = entries;
+    map_def
+}
+
+fn tree(maps: Vec<(&str, MapDef)>) -> LoadedMaps {
+    maps.into_iter().map(|(name, def)| (name.to_owned(), def)).collect()
+}
+
+fn compile_host(
+    host: &MapDef,
+    nested: &LoadedMaps,
+) -> (common::protocol::MapLayout, crate::map::MapConfig, Vec<String>) {
+    compile_map(host, sizes(), nested, &empty_kind_table(), &no_bridges()).expect("host failed to compile")
+}
+
+#[test]
+fn validation_rejects_nested_map_with_path_unsafe_name() {
+    let map_def = host(vec![nested("../secret", 0, [2, 2], [2, 2], 0)]);
+    let error = validate_map(&map_def).expect_err("path-unsafe nested name accepted");
+    assert!(error.to_string().contains("nested_maps[0]"), "{error}");
+}
+
+#[test]
+fn validation_rejects_nested_map_anchor_outside_the_grid() {
+    let map_def = host(vec![nested("room", 0, [6, 2], [2, 2], 0)]);
+    assert!(validate_map(&map_def).is_err());
+}
+
+#[test]
+fn validation_rejects_nested_map_level_out_of_range() {
+    let map_def = host(vec![nested("room", 3, [2, 2], [2, 2], 3)]);
+    assert!(validate_map(&map_def).is_err());
+}
+
+#[test]
+fn validation_rejects_non_positive_nested_map_speed() {
+    let mut map_def = host(vec![nested("room", 0, [2, 2], [4, 2], 0)]);
+    map_def.nested_maps[0].motion.speed = 0.0;
+    assert!(validate_map(&map_def).is_err());
+}
+
+#[test]
+fn validation_accepts_a_stationary_nested_map() {
+    let map_def = host(vec![nested("room", 0, [2, 2], [2, 2], 0)]);
+    validate_map(&map_def).expect("a room placed once was rejected");
+}
+
+#[test]
+fn validation_accepts_a_file_without_player_spawn_zones() {
+    let mut map_def = room();
+    map_def.player_spawn_zones.clear();
+    validate_map(&map_def).expect("a nested-only file was rejected");
+}
+
+#[test]
+fn validation_rejects_two_nested_maps_starting_on_one_cell() {
+    let map_def = host(vec![
+        nested("room", 0, [2, 2], [4, 2], 0),
+        nested("room", 0, [2, 2], [2, 4], 0),
+    ]);
+    let error = validate_map(&map_def).expect_err("duplicate start cell accepted");
+    assert!(error.to_string().contains("duplicates"), "{error}");
+}
+
+#[test]
+fn nested_cell_zero_lands_on_the_parent_anchor_cell() {
+    use common::map::MapGeometry;
+    use common::protocol::CarrierId;
+
+    let host_def = host(vec![nested("room", 1, [2, 3], [4, 3], 1)]);
+    let (layout, _, _) = compile_host(&host_def, &tree(vec![("room", room())]));
+    let carrier = layout.carriers[0];
+    let parent = MapGeometry::new(6, 6, sizes());
+    let child = MapGeometry::new(3, 2, sizes());
+
+    assert_eq!(carrier.parent, CarrierId::WORLD);
+    assert!((carrier.from.x + child.cell_center_x(0) - parent.cell_center_x(2)).abs() < 1e-5);
+    assert!((carrier.from.z + child.cell_center_z(0) - parent.cell_center_z(3)).abs() < 1e-5);
+    assert!((carrier.from.y - parent.level_y(1)).abs() < 1e-5);
+    assert!((carrier.to.x + child.cell_center_x(0) - parent.cell_center_x(4)).abs() < 1e-5);
+    assert_eq!((carrier.level, carrier.levels), (1, 0));
+}
+
+#[test]
+fn nested_records_stay_in_their_own_frame_and_carry_their_id() {
+    use common::map::MapGeometry;
+    use common::protocol::CarrierId;
+
+    let host_def = host(vec![nested("room", 0, [2, 2], [2, 2], 0)]);
+    let (layout, _, _) = compile_host(&host_def, &tree(vec![("room", room())]));
+    let child = MapGeometry::new(3, 2, sizes());
+    let room_walls: Vec<_> = layout
+        .walls
+        .iter()
+        .filter(|wall| wall.carrier == CarrierId(1))
+        .collect();
+    assert_eq!(room_walls.len(), 1);
+    // The room's north wall runs along its own grid line z = row 0, not the host's.
+    assert!(
+        (room_walls[0].z1 - child.cell_to_world_z(0)).abs() < 1e-5,
+        "wall at {:?}",
+        room_walls[0]
+    );
+    assert!(layout.floors.iter().any(|floor| floor.carrier == CarrierId(1)));
+    assert!(layout.floors.iter().any(|floor| floor.carrier.is_world()));
+    assert_eq!(layout.pressure_plates.len(), 1);
+    assert_eq!(layout.pressure_plates[0].carrier, CarrierId(1));
+    assert!((layout.pressure_plates[0].center_x - child.cell_center_x(1)).abs() < 1e-5);
+}
+
+#[test]
+fn nested_kinds_resolve_against_the_root_tables_and_an_unknown_kind_names_the_nested_map() {
+    let mut keyed_room = room();
+    keyed_room.levels[0].barriers.push(BarrierDef {
+        c0: 1,
+        r0: 0,
+        c1: 1,
+        r1: 1,
+        kind: "red".into(),
+    });
+    let host_def = host(vec![nested("room", 0, [2, 2], [2, 2], 0)]);
+    let nested_maps = tree(vec![("room", keyed_room)]);
+
+    let (layout, _, _) = compile_map(&host_def, sizes(), &nested_maps, &red_only_kind_table(), &no_bridges())
+        .expect("a nested barrier of a root kind failed to compile");
+    assert_eq!(layout.barriers.len(), 1);
+
+    let error = compile_map(&host_def, sizes(), &nested_maps, &empty_kind_table(), &no_bridges())
+        .expect_err("an unknown nested kind compiled");
+    assert!(format!("{error:#}").contains("nested map \"room\""), "{error:#}");
+}
+
+#[test]
+fn a_doubly_nested_carrier_is_parented_to_its_nesting_carrier_and_ids_come_parent_first() {
+    use common::protocol::CarrierId;
+
+    let mut middle = room();
+    middle.nested_maps.push(nested("inner", 0, [1, 0], [1, 0], 0));
+    let host_def = host(vec![
+        nested("middle", 0, [2, 2], [2, 2], 0),
+        nested("inner", 0, [0, 4], [0, 4], 0),
+    ]);
+    let (layout, config, _) = compile_host(&host_def, &tree(vec![("middle", middle), ("inner", room())]));
+
+    // middle = 1, its inner = 2, the host's own inner = 3.
+    assert_eq!(layout.carriers.len(), 3);
+    assert_eq!(layout.carriers[0].parent, CarrierId::WORLD);
+    assert_eq!(layout.carriers[1].parent, CarrierId(1));
+    assert_eq!(layout.carriers[2].parent, CarrierId::WORLD);
+    assert_eq!(config.grids.len(), 4);
+    for (index, grid) in config.grids.iter().enumerate() {
+        assert_eq!(grid.carrier, CarrierId(index as u16));
+    }
+    assert_eq!(config.grid(CarrierId(2)).geometry.grid_cols, 3);
+}
+
+#[test]
+fn nested_actor_spawn_zones_are_ignored_with_a_warning() {
+    let host_def = host(vec![nested("room", 0, [2, 2], [2, 2], 0)]);
+    let (_, config, warnings) = compile_host(&host_def, &tree(vec![("room", room())]));
+    assert!(config.actor_spawn_zones.is_empty());
+    assert_eq!(warnings.len(), 1);
+    assert!(warnings[0].contains("\"room\""), "{}", warnings[0]);
+}
+
+#[test]
+fn nested_player_spawn_zones_items_and_plates_carry_their_carrier() {
+    use common::protocol::CarrierId;
+
+    let host_def = host(vec![nested("room", 0, [2, 2], [2, 2], 0)]);
+    let (_, config, _) = compile_host(&host_def, &tree(vec![("room", room())]));
+    assert_eq!(config.player_spawn_zones.len(), 2);
+    assert_eq!(config.player_spawn_zones[1].carrier, CarrierId(1));
+    assert_eq!(config.placed_items.len(), 1);
+    assert_eq!(config.placed_items[0].carrier, CarrierId(1));
+    assert_eq!(config.pressure_plates.len(), 1);
+    assert_eq!(config.pressure_plates[0].carrier, CarrierId(1));
 }

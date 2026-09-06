@@ -5,6 +5,7 @@ use super::{
     material_rules::MaterialRules,
     segments::{MERGE_EPS, grid_x, grid_z},
 };
+use common::protocol::CarrierId;
 use common::{map::MapGeometry, protocol::FaceMaterials, protocol::Floor};
 
 // One floor cell's 8 neighbours within the level's slab mask.
@@ -116,6 +117,7 @@ pub fn emit_floor_tier(
                 y,
                 thickness,
                 level,
+                carrier: CarrierId::WORLD,
             });
 
             // Corner fillers. Use the *unextended* grid line
@@ -140,6 +142,7 @@ pub fn emit_floor_tier(
                         y,
                         thickness,
                         level,
+                        carrier: CarrierId::WORLD,
                     });
                 }
             }
@@ -155,6 +158,7 @@ pub fn emit_floor_tier(
                         y,
                         thickness,
                         level,
+                        carrier: CarrierId::WORLD,
                     });
                 }
             }
@@ -310,6 +314,7 @@ mod tests {
             y: 0.0,
             thickness: FLOOR_THICKNESS,
             level: 0,
+            carrier: CarrierId::WORLD,
         }
     }
 

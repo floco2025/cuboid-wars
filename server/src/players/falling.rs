@@ -10,7 +10,7 @@ use common::constants::CHARACTER_FALL_DEATH_Y;
 use common::{
     config::GameplayConfig,
     health::apply_damage,
-    map::MapGeometry,
+    map::Carriers,
     physics::{CharacterSupport, CharacterVerticalVelocity, CollisionWorld},
     protocol::{FaceYaw, Health, MapSettings, PlayerId, PlayerMarker, Position, SPlayerFallDamage, ServerMessage},
 };
@@ -72,7 +72,7 @@ pub fn players_fall_death_system(
     server_gameplay_config: Res<ServerGameplayConfig>,
     invincibility: Res<Invincibility>,
     map_config: Res<MapConfig>,
-    map_geometry: Res<MapGeometry>,
+    carriers: Res<Carriers>,
     collision_world: Res<CollisionWorld>,
     player_query: Query<(Entity, &PlayerId, &Position), With<PlayerMarker>>,
 ) {
@@ -97,7 +97,7 @@ pub fn players_fall_death_system(
                 .collect();
             let spawn_pos = generate_player_spawn_position(
                 &map_config,
-                &map_geometry,
+                &carriers,
                 &collision_world,
                 &occupied_positions,
                 gameplay_config.player.physics(),

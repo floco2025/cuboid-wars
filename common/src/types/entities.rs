@@ -2,7 +2,7 @@ use bevy_ecs::prelude::*;
 use bincode::{Decode, Encode};
 
 use super::{
-    ActorMoveIntent, ActorMovementState, BarrierKindId, Health, ItemType, MissileMovementState, PlayerId,
+    ActorMoveIntent, ActorMovementState, BarrierKindId, CarrierId, Health, ItemType, MissileMovementState, PlayerId,
     PlayerMoveIntent, PlayerMovementState, PortalAccess, Position, PowerUpKind,
 };
 
@@ -104,9 +104,12 @@ impl Player {
     }
 }
 
+// `pos` is in the carrier's frame (world space on the world carrier), so a
+// placed item rides its carrier without per-tick traffic.
 #[derive(Debug, Clone, Encode, Decode, Copy)]
 pub struct Item {
     pub item_type: ItemType,
+    pub carrier: CarrierId,
     pub pos: Position,
 }
 

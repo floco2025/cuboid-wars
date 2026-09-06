@@ -29,7 +29,7 @@ pub struct TickSync {
 impl TickSync {
     // Whether the clock still needs its rough seed: until the first own echo
     // measures it, the first state message puts the clock near the server's
-    // tick, so a joining client does not see the moving floors at tick zero
+    // tick, so a joining client does not see the carriers at tick zero
     // for a round trip. True once, before any echo.
     pub fn takes_rough_seed(&mut self) -> bool {
         if self.seeded || self.roughly_seeded {

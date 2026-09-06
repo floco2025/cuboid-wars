@@ -59,10 +59,6 @@ def load_map_barrier_kinds(map_name: str) -> dict[str, str]:
 def load_map_bridge_kinds(map_name: str) -> dict[str, str]:
     return load_map_kinds(map_name, "bridge_kinds")
 
-# A moving floor is this fraction of a cell smaller on every side; mirrors
-# `MOVING_FLOOR_INSET_FRACTION` in common/src/constants.rs, so the validator
-# sweeps the same body the game does.
-MOVING_FLOOR_INSET_FRACTION = 0.075
 
 # Editor-only: the game renders every plate alike, so this colour exists just
 # to tell firework plates from barrier plates on the canvas.
@@ -102,8 +98,8 @@ MODE_ERASE_LIGHT_BRIDGES = "Erase Light Bridges"
 MODE_RAMP_UP = "Ramp (Up)"
 MODE_RAMP_DOWN = "Ramp (Down)"
 MODE_ERASE_RAMPS = "Erase Ramps"
-MODE_MOVING_FLOOR = "Moving Floor"
-MODE_ERASE_MOVING_FLOORS = "Erase Moving Floors"
+MODE_NESTED_MAP = "Nested Map"
+MODE_ERASE_NESTED_MAPS = "Erase Nested Maps"
 MODE_ERASE = "Erase"
 MODE_ERASE_KEEP_FLOORS = "Erase (Keep Floors)"
 MODE_FLOOR_MATERIAL = "Floor Material"
@@ -121,7 +117,7 @@ RAMP_MODES = (MODE_RAMP_UP, MODE_RAMP_DOWN)
 ERASE_MODES = (MODE_ERASE, MODE_ERASE_KEEP_FLOORS)
 SPAWN_PAINT_MODES = (MODE_ACTOR_SPAWN_PAINT, MODE_PLAYER_SPAWN_PAINT)
 MATERIAL_MODES = (MODE_FLOOR_MATERIAL, MODE_WALL_MATERIAL, MODE_RAMP_MATERIAL)
-FLOOR_HIT_KINDS = (MODE_FLOOR, MODE_INACCESSIBLE_FLOOR, MODE_LIGHT_BRIDGE, MODE_MOVING_FLOOR)
+FLOOR_HIT_KINDS = (MODE_FLOOR, MODE_INACCESSIBLE_FLOOR, MODE_LIGHT_BRIDGE, MODE_NESTED_MAP)
 LIGHT_SIDES = ("N", "S", "E", "W")
 LADDER_SIDES = LIGHT_SIDES
 
@@ -163,7 +159,7 @@ MODE_CATEGORIES: list[tuple[str, list[str]]] = [
     ("Barriers", [MODE_BARRIER, MODE_ERASE_BARRIERS]),
     ("Light Bridges", [MODE_LIGHT_BRIDGE, MODE_ERASE_LIGHT_BRIDGES]),
     ("Ramps", [MODE_RAMP_UP, MODE_RAMP_DOWN, MODE_ERASE_RAMPS]),
-    ("Moving Floors", [MODE_MOVING_FLOOR, MODE_ERASE_MOVING_FLOORS]),
+    ("Nested Maps", [MODE_NESTED_MAP, MODE_ERASE_NESTED_MAPS]),
     ("Ladders", [MODE_LADDER, MODE_ERASE_LADDERS]),
     ("Materials", [MODE_FLOOR_MATERIAL, MODE_WALL_MATERIAL, MODE_RAMP_MATERIAL]),
     ("Lights", [MODE_LIGHT, MODE_ERASE_LIGHTS]),
@@ -181,7 +177,22 @@ ACTOR_ZONE_LIST = "actor_spawn_zones"
 PLAYER_ZONE_LIST = "player_spawn_zones"
 SPAWN_ZONE_LISTS = (ACTOR_ZONE_LIST, PLAYER_ZONE_LIST)
 ITEMS_LIST = "items"
-MOVING_FLOORS_LIST = "moving_floors"
+NESTED_MAPS_LIST = "nested_maps"
+
+# Same rule the server enforces on map names: they become file names.
+MAP_NAME_RE = re.compile(r"^[A-Za-z0-9_-]+$")
+
+
+def list_map_names(exclude: str | None = None) -> list[str]:
+    """The map files a map may nest: every `config/server/maps/*.json` but
+    autosaves and `exclude`, the map being edited."""
+    names = []
+    for path in MAPS_DIR.glob("*.json"):
+        name = path.stem
+        if name.endswith(".autosave") or name == exclude or not MAP_NAME_RE.match(name):
+            continue
+        names.append(name)
+    return sorted(names)
 
 DEFAULT_ACTOR_COUNT = 1
 SPAWN_ZONE_HANDLE_PIXELS = 8.0

@@ -289,44 +289,6 @@ def ladder_marker_lines(ladder: dict, cell: float) -> list[tuple[float, float, f
     return lines
 
 
-def segment_reaches_rect(p0: tuple[float, float], p1: tuple[float, float], rect: tuple[float, float, float, float]) -> bool:
-    """Whether the segment p0-p1 touches the rectangle (min_x, min_y, max_x,
-    max_y), by Liang-Barsky clipping."""
-    (x0, y0), (x1, y1) = p0, p1
-    min_x, min_y, max_x, max_y = rect
-    dx, dy = x1 - x0, y1 - y0
-    t0, t1 = 0.0, 1.0
-    for p, q in ((-dx, x0 - min_x), (dx, max_x - x0), (-dy, y0 - min_y), (dy, max_y - y0)):
-        if p == 0:
-            if q < 0:
-                return False
-        elif p < 0:
-            t0 = max(t0, q / p)
-        else:
-            t1 = min(t1, q / p)
-    return t0 <= t1
-
-
-def moving_floor_path_reaches_cell(floor: dict, cell: tuple[int, int], half: float) -> bool:
-    """Whether the tile's body sweeps over `cell` on its way from end to
-    end; `half` is the tile's half size in cells, so a cell beside the
-    straight path (a diagonal's box corner) is untouched."""
-    col, row = cell
-    return _moving_floor_path_reaches_rect(floor, (col, row, col + 1, row + 1), half)
-
-
-def moving_floor_path_reaches_edge(floor: dict, edge: list[int], half: float) -> bool:
-    c0, r0, c1, r1 = edge
-    return _moving_floor_path_reaches_rect(floor, (min(c0, c1), min(r0, r1), max(c0, c1), max(r0, r1)), half)
-
-
-def _moving_floor_path_reaches_rect(floor: dict, rect: tuple[float, float, float, float], half: float) -> bool:
-    min_x, min_y, max_x, max_y = rect
-    p0 = (floor["from"][0] + 0.5, floor["from"][1] + 0.5)
-    p1 = (floor["to"][0] + 0.5, floor["to"][1] + 0.5)
-    return segment_reaches_rect(p0, p1, (min_x - half, min_y - half, max_x + half, max_y + half))
-
-
 def point_near_wall(px: float, py: float, wall: list[int], tolerance: float = 0.16) -> bool:
     c0, r0, c1, r1 = wall
     if r0 == r1:

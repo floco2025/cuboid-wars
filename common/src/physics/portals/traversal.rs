@@ -10,12 +10,12 @@ use crate::{
         PORTAL_FUNNEL_RELEASE_SPEED, PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH, PORTAL_KNOCKBACK_CARRY_FACTOR,
         PORTAL_PROJECTILE_EXIT_STANDOFF, PORTAL_STANDABLE_NORMAL_Y, PORTAL_UP_DEGENERACY_LIMIT,
     },
-    map::MovingFloors,
+    map::Carriers,
     math::direction_from_yaw_pitch,
     physics::{
         AirborneMomentum, CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity, player_control_velocity,
     },
-    protocol::{FaceYaw, MovingFloorId, PlayerMoveIntent, Portal, PortalEnd, Position},
+    protocol::{CarrierId, FaceYaw, PlayerMoveIntent, Portal, PortalEnd, Position},
 };
 
 // Map a vector through a pair: decompose in the entry frame, re-emit in the
@@ -155,15 +155,15 @@ pub struct ProjectileHop {
 }
 
 // One linked portal end: its wire value, its aperture frame at this tick,
-// and the world colliders that back it. While a character's body overlaps
-// the aperture, the backing is excluded from its collision and support
-// queries — that is what makes the surface passable.
+// and the colliders that back it. While a character's body overlaps the
+// aperture, the backing is excluded from its collision and support queries
+// — that is what makes the surface passable.
 #[derive(Debug, Clone)]
 struct PortalGate {
     portal: Portal,
     frame: PortalFrame,
     backing: Vec<ColliderHandle>,
-    // How far the gate's tile moved this tick, zero for a static gate. A
+    // How far the gate's carrier moved this tick, zero on the world. A
     // crossing is motion relative to the plane, so a body's previous
     // position is shifted by this before the test; without it a rising
     // plane misses crossings and a body a descending plane sweeps through
@@ -203,9 +203,10 @@ impl PortalSet {
 
     // Pairs each pair id's A and B ends; a half-placed pair is inert. The
     // collision world supplies each aperture's backing colliders — both
-    // sides derive them from the same static world, so the sets agree.
+    // sides derive them from the same world at the same tick, so the sets
+    // agree.
     #[must_use]
-    pub fn rebuild(portals: &[Portal], collision_world: &CollisionWorld, floors: &MovingFloors) -> Self {
+    pub fn rebuild(portals: &[Portal], collision_world: &CollisionWorld, carriers: &Carriers) -> Self {
         let mut portals = portals.to_vec();
         portals.sort_by_key(|portal| (portal.pair.0, portal.end == PortalEnd::B));
         let mut pairs = Vec::new();
@@ -217,30 +218,30 @@ impl PortalSet {
                 continue;
             };
             pairs.push(PortalPairGates {
-                a: gate_from_portal(a, collision_world, floors),
-                b: gate_from_portal(b, collision_world, floors),
+                a: gate_from_portal(a, collision_world, carriers),
+                b: gate_from_portal(b, collision_world, carriers),
             });
         }
         Self { pairs }
     }
 
-    // Puts every tile-anchored gate at its tile's pose for this tick.
-    pub fn refresh(&mut self, floors: &MovingFloors) {
+    // Puts every carried gate at its carrier's pose for this tick.
+    pub fn refresh(&mut self, carriers: &Carriers) {
         for pair in &mut self.pairs {
             for gate in [&mut pair.a, &mut pair.b] {
-                if gate.portal.anchor.is_some() {
-                    gate.frame = PortalFrame::from_portal(&gate.portal, floors);
-                    gate.carry = floors.anchor_displacement(gate.portal.anchor);
+                if !gate.portal.carrier.is_world() {
+                    gate.frame = PortalFrame::from_portal(&gate.portal, carriers);
+                    gate.carry = carriers.displacement(gate.portal.carrier);
                 }
             }
         }
     }
 
     #[must_use]
-    pub fn has_anchored(&self) -> bool {
+    pub fn has_carried(&self) -> bool {
         self.pairs
             .iter()
-            .any(|pair| pair.a.portal.anchor.is_some() || pair.b.portal.anchor.is_some())
+            .any(|pair| !pair.a.portal.carrier.is_world() || !pair.b.portal.carrier.is_world())
     }
 
     #[must_use]
@@ -306,20 +307,28 @@ impl PortalSet {
         excluded
     }
 
-    // The tile whose aperture a body is passing through: the body's center
-    // is inside a tile-anchored gate's rectangle and within the transit
-    // margin of its plane. Bounded in front, unlike `collision_exclusions`,
-    // so a jumper above the tile is not taken along.
+    // The carrier whose aperture a body is passing through, with the gate's
+    // backing: the body's center is inside a carried gate's rectangle and
+    // within the transit margin of its plane. Bounded in front, unlike
+    // `collision_exclusions`, so a jumper above the carrier is not taken
+    // along.
     #[must_use]
-    pub fn transit_anchor(&self, origin: Vec3, physics: CharacterPhysicsConfig) -> Option<MovingFloorId> {
+    pub fn transit_carrier(
+        &self,
+        origin: Vec3,
+        physics: CharacterPhysicsConfig,
+    ) -> Option<(CarrierId, &[ColliderHandle])> {
         let half_extents = body_half_extents(physics);
         let center = origin + Vec3::Y * half_extents.y;
         self.gates().find_map(|(gate, _)| {
-            let anchor = gate.portal.anchor?;
+            if gate.portal.carrier.is_world() {
+                return None;
+            }
             let offset = center - gate.frame.center;
             let reach = body_support(half_extents, gate.frame.normal) + TRANSIT_MARGIN;
             let distance = offset.dot(gate.frame.normal);
-            (distance > -reach && distance <= reach && in_character_aperture(offset, &gate.frame)).then_some(anchor)
+            (distance > -reach && distance <= reach && in_character_aperture(offset, &gate.frame))
+                .then_some((gate.portal.carrier, gate.backing.as_slice()))
         })
     }
 
@@ -527,26 +536,22 @@ impl PortalSet {
     }
 }
 
-fn gate_from_portal(portal: &Portal, collision_world: &CollisionWorld, floors: &MovingFloors) -> PortalGate {
-    let frame = PortalFrame::from_portal(portal, floors);
-    // A tile-anchored aperture is backed by its tile alone; the tile moves,
-    // so the intersection the static gates take would go stale.
-    let backing = match portal.anchor {
-        Some(id) => vec![collision_world.moving_floor_collider(id)],
-        None => {
-            let rotation = Quat::from_mat3(&Mat3::from_cols(frame.right, frame.up, frame.normal));
-            collision_world.portal_backing_colliders(
-                frame.center,
-                frame.normal,
-                Vec3::new(PORTAL_HALF_WIDTH, PORTAL_HALF_HEIGHT, BACKING_DEPTH / 2.0),
-                rotation,
-            )
-        }
-    };
+fn gate_from_portal(portal: &Portal, collision_world: &CollisionWorld, carriers: &Carriers) -> PortalGate {
+    let frame = PortalFrame::from_portal(portal, carriers);
+    // The backing is taken once, at this tick's pose: a rigid carrier keeps
+    // the same colliders flush behind its aperture wherever it goes.
+    let rotation = Quat::from_mat3(&Mat3::from_cols(frame.right, frame.up, frame.normal));
+    let backing = collision_world.portal_backing_colliders(
+        frame.center,
+        frame.normal,
+        Vec3::new(PORTAL_HALF_WIDTH, PORTAL_HALF_HEIGHT, BACKING_DEPTH / 2.0),
+        rotation,
+        portal.carrier,
+    );
     PortalGate {
         portal: *portal,
         frame,
         backing,
-        carry: floors.anchor_displacement(portal.anchor),
+        carry: carriers.displacement(portal.carrier),
     }
 }

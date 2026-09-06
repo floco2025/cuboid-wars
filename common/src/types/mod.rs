@@ -25,12 +25,12 @@ pub use entities::{
 };
 pub use face_materials::FaceMaterials;
 pub use feed::{FeedSpan, FeedStyle};
-pub use ids::{ActorId, HomingTarget, ItemId, MissileId, MovingFloorId, PlayerId, PortalPairId, QuestId};
+pub use ids::{ActorId, CarrierId, HomingTarget, ItemId, MissileId, PlayerId, PortalPairId, QuestId};
 pub use items::{ItemType, PowerUpKind};
 pub use kind_table::{KindDef, KindId, KindTable};
 pub use map_layout::{
-    Barrier, Floor, GrassCell, Ladder, LightBridge, MapLayout, MapSettings, MapWeaponSettings, MovingFloor,
-    PlatePurpose, PortalMode, PressurePlate, Ramp, Wall, WallLight,
+    Barrier, Carrier, Floor, GrassCell, Ladder, LightBridge, MapLayout, MapSettings, MapWeaponSettings, PlatePurpose,
+    PortalMode, PressurePlate, Ramp, Wall, WallLight,
 };
 pub use movement::{
     ActorMoveIntent, ActorMovementState, FaceYaw, MissileMovementState, PlayerMoveIntent, PlayerMovementState,

@@ -4,6 +4,7 @@ use bevy::prelude::*;
 
 use crate::{
     bridges::LightBridgeMarker,
+    carriers::{CarrierEntities, CarrierStoreys},
     config::{AssetSet, ClientSettings},
     map::{
         DebugColorMode, DebugColors, FocusedMapLevel, GrassMarker, GroundMarker, LadderMarker, LevelFocusEnabled,
@@ -11,7 +12,6 @@ use crate::{
         batch_wall, spawn_ladder_from_layout, spawn_wall_light_from_layout,
     },
     materials::MaterialHandleCache,
-    moving_floors::MovingFloorMarker,
     players::LocalPlayerMarker,
 };
 use common::protocol::{ItemMarker, MapLayout, MapSettings};
@@ -70,6 +70,8 @@ pub fn map_spawn_geometry_system(
     asset_set: Res<AssetSet>,
     client_settings: Res<ClientSettings>,
     debug_colors: Res<DebugColors>,
+    carrier_entities: Res<CarrierEntities>,
+    storeys: Res<CarrierStoreys>,
     map_entities: Query<
         Entity,
         Or<(
@@ -99,11 +101,19 @@ pub fn map_spawn_geometry_system(
     let mut geometry = MapGeometryBatch::new(debug_colors.0);
 
     for (wall, materials) in map_layout.walls.iter().zip(map_layout.wall_materials.iter()) {
-        batch_wall(&mut geometry, &asset_set, wall, materials);
+        batch_wall(&mut geometry, &asset_set, &storeys, wall, materials);
     }
 
     for light in &map_layout.wall_lights {
-        spawn_wall_light_from_layout(&mut commands, &asset_server, &asset_set, map_settings.geometry, light);
+        spawn_wall_light_from_layout(
+            &mut commands,
+            &asset_server,
+            &asset_set,
+            map_settings.geometry,
+            &storeys,
+            carrier_entities.get(light.carrier),
+            light,
+        );
     }
 
     if !map_layout.ladders.is_empty() {
@@ -123,17 +133,26 @@ pub fn map_spawn_geometry_system(
                 &mut meshes,
                 ladder_material.clone(),
                 ladder_tile_size,
+                &storeys,
+                carrier_entities.get(ladder.carrier),
                 ladder,
             );
         }
     }
 
     for (floor, materials) in map_layout.floors.iter().zip(map_layout.floor_materials.iter()) {
-        batch_floor(&mut geometry, &asset_set, floor, materials);
+        batch_floor(&mut geometry, &asset_set, &storeys, floor, materials);
     }
 
     for (ramp, materials) in map_layout.ramps.iter().zip(map_layout.ramp_materials.iter()) {
-        batch_ramp(&mut geometry, &asset_set, map_settings.geometry, ramp, materials);
+        batch_ramp(
+            &mut geometry,
+            &asset_set,
+            map_settings.geometry,
+            &storeys,
+            ramp,
+            materials,
+        );
     }
 
     info!(
@@ -150,6 +169,7 @@ pub fn map_spawn_geometry_system(
         &asset_server,
         &asset_set,
         &client_settings,
+        &carrier_entities,
     );
 
     *last_spawn = Some(debug_colors.0);
@@ -178,114 +198,46 @@ pub fn update_focused_map_level_system(
     focused.set_if_neq(FocusedMapLevel(focused_level));
 }
 
+// Every map entity that follows level focus; barriers and pressure plates
+// have their own owners, which combine the focus with plate state.
+type MapLevelFilter = Or<(
+    With<WallMarker>,
+    With<RoofMarker>,
+    With<GroundMarker>,
+    With<WallLightMarker>,
+    With<ItemMarker>,
+    With<GrassMarker>,
+    With<LightBridgeMarker>,
+    With<RampMarker>,
+    With<LadderMarker>,
+)>;
+
 pub fn map_level_focus_visibility_system(
     focused: Res<FocusedMapLevel>,
-    mut level_entities: Query<
-        (&MapLevel, &mut Visibility),
-        (
-            Or<(
-                With<WallMarker>,
-                With<RoofMarker>,
-                With<GroundMarker>,
-                With<WallLightMarker>,
-                With<ItemMarker>,
-                With<GrassMarker>,
-                With<LightBridgeMarker>,
-            )>,
-            Without<RampMarker>,
-            Without<LadderMarker>,
-            Without<MovingFloorMarker>,
-        ),
-    >,
-    mut ramps: Query<
-        (&MapLevel, &mut Visibility),
-        (With<RampMarker>, Without<LadderMarker>, Without<MovingFloorMarker>),
-    >,
-    mut ladders: Query<(&MapLevel, &LadderMarker, &mut Visibility), Without<MovingFloorMarker>>,
-    mut moving_floors: Query<(&MapLevel, &MovingFloorMarker, &mut Visibility)>,
+    mut level_entities: Query<(&MapLevel, &mut Visibility), MapLevelFilter>,
 ) {
     // Equal writes would retrigger visibility propagation for hundreds of map entities.
     for (level, mut vis) in &mut level_entities {
-        vis.set_if_neq(level_visibility(*focused, level.0));
-    }
-    for (level, mut vis) in &mut ramps {
-        vis.set_if_neq(ramp_visibility(*focused, level.0));
-    }
-    for (level, ladder, mut vis) in &mut ladders {
-        vis.set_if_neq(ladder_visibility(*focused, level.0, ladder.levels));
-    }
-    for (level, tile, mut vis) in &mut moving_floors {
-        vis.set_if_neq(ladder_visibility(*focused, level.0, tile.levels));
+        vis.set_if_neq(map_level_visibility(*focused, *level));
     }
 }
 
 // Map entities can spawn without a level transition, so they still need the current visibility.
 pub fn added_map_level_visibility_system(
     focused: Res<FocusedMapLevel>,
-    mut level_entities: Query<
-        (&MapLevel, &mut Visibility),
-        (
-            Added<MapLevel>,
-            Or<(
-                With<WallMarker>,
-                With<RoofMarker>,
-                With<GroundMarker>,
-                With<WallLightMarker>,
-                With<ItemMarker>,
-                With<GrassMarker>,
-                With<LightBridgeMarker>,
-            )>,
-            Without<RampMarker>,
-            Without<LadderMarker>,
-            Without<MovingFloorMarker>,
-        ),
-    >,
-    mut ramps: Query<
-        (&MapLevel, &mut Visibility),
-        (
-            Added<MapLevel>,
-            With<RampMarker>,
-            Without<LadderMarker>,
-            Without<MovingFloorMarker>,
-        ),
-    >,
-    mut ladders: Query<
-        (&MapLevel, &LadderMarker, &mut Visibility),
-        (Added<MapLevel>, With<LadderMarker>, Without<MovingFloorMarker>),
-    >,
-    mut moving_floors: Query<(&MapLevel, &MovingFloorMarker, &mut Visibility), Added<MapLevel>>,
+    mut level_entities: Query<(&MapLevel, &mut Visibility), (Added<MapLevel>, MapLevelFilter)>,
 ) {
     for (level, mut visibility) in &mut level_entities {
-        *visibility = level_visibility(*focused, level.0);
-    }
-    for (level, mut visibility) in &mut ramps {
-        *visibility = ramp_visibility(*focused, level.0);
-    }
-    for (level, ladder, mut visibility) in &mut ladders {
-        *visibility = ladder_visibility(*focused, level.0, ladder.levels);
-    }
-    for (level, tile, mut visibility) in &mut moving_floors {
-        *visibility = ladder_visibility(*focused, level.0, tile.levels);
+        *visibility = map_level_visibility(*focused, *level);
     }
 }
 
-fn level_visibility(focused: FocusedMapLevel, level: u8) -> Visibility {
+// The one level-focus rule: an entity shows while the focused storey is one
+// of those it belongs to.
+#[must_use]
+pub(crate) fn map_level_visibility(focused: FocusedMapLevel, level: MapLevel) -> Visibility {
     match focused.0 {
-        Some(focused_level) if level != focused_level => Visibility::Hidden,
-        _ => Visibility::Visible,
-    }
-}
-
-fn ramp_visibility(focused: FocusedMapLevel, level: u8) -> Visibility {
-    match focused.0 {
-        Some(focused_level) if level != focused_level && level.saturating_add(1) != focused_level => Visibility::Hidden,
-        _ => Visibility::Visible,
-    }
-}
-
-fn ladder_visibility(focused: FocusedMapLevel, level: u8, levels: u8) -> Visibility {
-    match focused.0 {
-        Some(focused_level) if !(level..=level.saturating_add(levels)).contains(&focused_level) => Visibility::Hidden,
+        Some(focused_level) if !level.contains(focused_level) => Visibility::Hidden,
         _ => Visibility::Visible,
     }
 }
@@ -350,17 +302,32 @@ pub fn map_wall_light_emissive_system(
 mod tests {
     use super::*;
 
+    const fn level(level: u8, span: u8) -> MapLevel {
+        MapLevel { level, span }
+    }
+
     #[test]
-    fn focused_level_visibility_includes_connecting_ramps_and_ladders() {
+    fn one_span_rule_covers_floors_ramps_ladders_and_stacked_barriers() {
         let focused = FocusedMapLevel(Some(2));
 
-        assert_eq!(level_visibility(FocusedMapLevel(None), 1), Visibility::Visible);
-        assert_eq!(level_visibility(focused, 2), Visibility::Visible);
-        assert_eq!(level_visibility(focused, 1), Visibility::Hidden);
-        assert_eq!(ramp_visibility(focused, 1), Visibility::Visible);
-        assert_eq!(ramp_visibility(focused, 0), Visibility::Hidden);
-        assert_eq!(ladder_visibility(focused, 0, 2), Visibility::Visible);
-        assert_eq!(ladder_visibility(focused, 0, 1), Visibility::Hidden);
+        assert_eq!(
+            map_level_visibility(FocusedMapLevel(None), level(1, 0)),
+            Visibility::Visible
+        );
+        // A floor on its storey only.
+        assert_eq!(map_level_visibility(focused, level(2, 0)), Visibility::Visible);
+        assert_eq!(map_level_visibility(focused, level(1, 0)), Visibility::Hidden);
+        // A ramp from storey 1 reaches storey 2.
+        assert_eq!(map_level_visibility(focused, level(1, 1)), Visibility::Visible);
+        assert_eq!(map_level_visibility(focused, level(0, 1)), Visibility::Hidden);
+        // A ladder climbing two storeys from the ground, and a barrier
+        // stacked over two storeys from 1.
+        assert_eq!(map_level_visibility(focused, level(0, 2)), Visibility::Visible);
+        assert_eq!(map_level_visibility(focused, level(0, 1)), Visibility::Hidden);
+        assert_eq!(
+            map_level_visibility(FocusedMapLevel(Some(3)), level(1, 1)),
+            Visibility::Hidden
+        );
     }
 
     #[test]
@@ -374,7 +341,7 @@ mod tests {
             );
         let bridge = app
             .world_mut()
-            .spawn((LightBridgeMarker, MapLevel(2), Visibility::Visible))
+            .spawn((LightBridgeMarker, level(2, 0), Visibility::Visible))
             .id();
         let visibility = |app: &App| {
             *app.world()
@@ -391,7 +358,7 @@ mod tests {
     }
 
     #[test]
-    fn a_moving_floor_follows_level_focus_like_a_ladder() {
+    fn a_record_on_a_moving_carrier_shows_on_every_storey_it_may_reach() {
         let mut app = App::new();
         app.add_plugins(MinimalPlugins)
             .insert_resource(FocusedMapLevel(Some(1)))
@@ -399,15 +366,12 @@ mod tests {
                 Update,
                 (map_level_focus_visibility_system, added_map_level_visibility_system).chain(),
             );
-        let lift = app
+        // A lift's slab: its own storey 2, one more through the motion.
+        let slab = app
             .world_mut()
-            .spawn((
-                MovingFloorMarker { index: 0, levels: 1 },
-                MapLevel(2),
-                Visibility::Visible,
-            ))
+            .spawn((GroundMarker, level(2, 1), Visibility::Visible))
             .id();
-        let visibility = |app: &App| *app.world().get::<Visibility>(lift).expect("lift lost its visibility");
+        let visibility = |app: &App| *app.world().get::<Visibility>(slab).expect("slab lost its visibility");
 
         app.update();
         assert_eq!(visibility(&app), Visibility::Hidden);

@@ -15,7 +15,7 @@ from map_editor.constants import (
 from map_editor.erase import EraseMixin
 from map_editor.geometry import ramp_axis, ramp_cells, wall_segments_between
 from map_editor.io import empty_map, read_map, write_map
-from map_editor.moving_floors import MovingFloorsMixin
+from map_editor.nested_maps import NestedMapShape, NestedMapsMixin, nested_map_cycle
 from map_editor.normalization import canonicalize_map, resize_map_data
 from map_editor.placement import PlacementMixin
 from map_editor.structure import insert_level_data, remove_level_data
@@ -46,7 +46,16 @@ def upper_level(*floors: dict) -> dict:
     }
 
 
-class EditorHost(PlacementMixin, MovingFloorsMixin, EraseMixin):
+# Stand-in map files for nested-map tests: `cabin` is a 3x2 room on two
+# storeys, `loop_a` and `loop_b` nest each other.
+NESTED_SHAPES = {
+    "cabin": NestedMapShape(grid_cols=3, grid_rows=2, level_count=2, nested_names=()),
+    "loop_a": NestedMapShape(grid_cols=1, grid_rows=1, level_count=1, nested_names=("loop_b",)),
+    "loop_b": NestedMapShape(grid_cols=1, grid_rows=1, level_count=1, nested_names=("loop_a",)),
+}
+
+
+class EditorHost(PlacementMixin, NestedMapsMixin, EraseMixin):
     def __init__(self, map_data: dict, bridge_kinds: list[str]) -> None:
         self.map_data = map_data
         self.current_level = 0
@@ -54,6 +63,11 @@ class EditorHost(PlacementMixin, MovingFloorsMixin, EraseMixin):
         self.current_material = DEFAULT_ALIAS
         self.selected_spawn_zone_ref = None
         self.statuses: list[str] = []
+        self.path = None
+        self.recent_nested_map = None
+
+    def nested_map_shape(self, name: str) -> NestedMapShape | None:
+        return NESTED_SHAPES.get(name)
 
     def apply_change(self, label: str, after: dict) -> None:
         self.map_data = after
@@ -442,8 +456,9 @@ class ValidationTests(unittest.TestCase):
         self.assertTrue(any("but the map has 1 level(s)" in error for error in errors))
 
 
-def moving_floor(level: int, start: list[int], end: list[int], to_level: int | None = None) -> dict:
+def nested(map_name: str, level: int, start: list[int], end: list[int], to_level: int | None = None) -> dict:
     return {
+        "map": map_name,
         "level": level,
         "from": start,
         "to": end,
@@ -451,198 +466,153 @@ def moving_floor(level: int, start: list[int], end: list[int], to_level: int | N
         "speed": 2.0,
         "pause_secs": 1.0,
         "phase_secs": 0.0,
-        **faces(),
     }
 
 
-class MovingFloorTests(unittest.TestCase):
-    def test_placing_a_moving_floor_stores_both_cells_and_timing(self) -> None:
-        host = EditorHost(empty_map(6, 6), [])
-        host.place_moving_floor((1, 1), (4, 3), 0, 2.5, 0.5, 1.0)
+class NestedMapTests(unittest.TestCase):
+    def test_a_click_places_a_still_nested_map_and_a_drag_a_sliding_one(self) -> None:
+        host = EditorHost(empty_map(8, 8), [])
+        host.place_nested_map((1, 1), (1, 1), "cabin", 0, 2.0, 1.0, 0.0)
+        host.place_nested_map((4, 1), (6, 3), "cabin", 0, 3.0, 0.5, 2.0)
 
         self.assertEqual(
-            host.map_data["moving_floors"],
-            [{**moving_floor(0, [1, 1], [4, 3]), "speed": 2.5, "pause_secs": 0.5, "phase_secs": 1.0}],
+            host.map_data["nested_maps"],
+            [
+                nested("cabin", 0, [1, 1], [1, 1]),
+                {**nested("cabin", 0, [4, 1], [6, 3]), "speed": 3.0, "pause_secs": 0.5, "phase_secs": 2.0},
+            ],
         )
-        host.place_moving_floor((1, 1), (1, 1), 0, 2.0, 0.0, 0.0)
-        self.assertEqual(len(host.map_data["moving_floors"]), 1)
-        self.assertTrue(host.statuses[-1].startswith("Moving floor not placed"))
+        host.place_nested_map((2, 2), (2, 2), "", 0, 2.0, 0.0, 0.0)
+        self.assertEqual(len(host.map_data["nested_maps"]), 2)
+        self.assertTrue(host.statuses[-1].startswith("Nested map not placed"))
 
-    def test_dragging_an_end_moves_only_that_end(self) -> None:
-        data = empty_map(6, 6)
-        data["levels"].append(upper_level(floor(0, 0)))
-        data["moving_floors"] = [moving_floor(0, [1, 1], [1, 1], 1), moving_floor(0, [3, 3], [5, 3])]
+    def test_dragging_a_nested_map_end_moves_only_that_end(self) -> None:
+        data = empty_map(8, 8)
+        data["nested_maps"] = [nested("cabin", 0, [1, 1], [5, 1]), nested("cabin", 0, [2, 5], [2, 5])]
         host = EditorHost(data, [])
 
-        host.current_level = 1
-        host.drag_moving_floor((1, 1), (4, 2))
-        self.assertEqual((host.map_data["moving_floors"][0]["from"], host.map_data["moving_floors"][0]["to"]), ([1, 1], [4, 2]))
-        self.assertEqual(host.map_data["moving_floors"][0]["to_level"], 1)
+        host.drag_nested_map((5, 1), (5, 4))
+        self.assertEqual((host.map_data["nested_maps"][0]["from"], host.map_data["nested_maps"][0]["to"]), ([1, 1], [5, 4]))
+        host.drag_nested_map((1, 1), (2, 5))
+        self.assertTrue(host.statuses[-1].startswith("Nested map end not moved"))
+        self.assertEqual(host.map_data["nested_maps"][0]["from"], [1, 1])
 
-        host.current_level = 0
-        host.drag_moving_floor((5, 3), (5, 5))
-        self.assertEqual(host.map_data["moving_floors"][1]["to"], [5, 5])
-        host.drag_moving_floor((3, 3), (0, 3))
-        self.assertEqual(host.map_data["moving_floors"][1]["from"], [0, 3])
-
-        host.drag_moving_floor((0, 3), (5, 5))
-        self.assertTrue(host.statuses[-1].startswith("Moving floor end not moved"))
-        self.assertEqual(host.map_data["moving_floors"][1]["from"], [0, 3])
-
-    def test_editing_properties_keeps_both_ends(self) -> None:
-        data = empty_map(6, 6)
+    def test_editing_nested_map_properties_can_swap_the_map(self) -> None:
+        data = empty_map(8, 8)
         data["levels"].append(upper_level(floor(0, 0)))
-        data["moving_floors"] = [moving_floor(0, [1, 1], [4, 1])]
+        data["nested_maps"] = [nested("cabin", 0, [1, 1], [4, 1])]
         host = EditorHost(data, [])
-        key = (0, (1, 1), 0, (4, 1))
+        key = (0, (1, 1), 0, (4, 1), "cabin")
 
-        host.set_moving_floor_properties(key, 1, 3.5, 0.25, 2.0)
+        host.set_nested_map_properties(key, "loop_a", 1, 3.5, 0.25, 2.0)
 
-        tile = host.map_data["moving_floors"][0]
-        self.assertEqual((tile["from"], tile["to"]), ([1, 1], [4, 1]))
-        self.assertEqual((tile["to_level"], tile["speed"], tile["pause_secs"], tile["phase_secs"]), (1, 3.5, 0.25, 2.0))
+        entry = host.map_data["nested_maps"][0]
+        self.assertEqual((entry["from"], entry["to"]), ([1, 1], [4, 1]))
+        self.assertEqual(
+            (entry["map"], entry["to_level"], entry["speed"], entry["pause_secs"], entry["phase_secs"]),
+            ("loop_a", 1, 3.5, 0.25, 2.0),
+        )
 
-        lift = moving_floor(0, [2, 2], [2, 2], 1)
-        host.map_data["moving_floors"].append(lift)
-        host.set_moving_floor_properties((0, (2, 2), 1, (2, 2)), 0, 2.0, 0.0, 0.0)
-        self.assertTrue(host.statuses[-1].startswith("Moving floor not changed"))
-        self.assertEqual(host.map_data["moving_floors"][1]["to_level"], 1)
+    def test_placing_on_the_same_start_cell_replaces_the_old_nested_map(self) -> None:
+        host = EditorHost(empty_map(8, 8), [])
+        host.place_nested_map((1, 1), (4, 1), "cabin", 0, 2.0, 0.0, 0.0)
+        host.place_nested_map((1, 1), (1, 4), "loop_a", 0, 2.0, 0.0, 0.0)
 
-    def test_placing_on_the_same_start_cell_replaces_the_old_tile(self) -> None:
-        host = EditorHost(empty_map(6, 6), [])
-        host.place_moving_floor((1, 1), (4, 1), 0, 2.0, 0.0, 0.0)
-        host.place_moving_floor((1, 1), (1, 4), 0, 2.0, 0.0, 0.0)
+        self.assertEqual([(e["map"], e["to"]) for e in host.map_data["nested_maps"]], [("loop_a", [1, 4])])
 
-        self.assertEqual([f["to"] for f in host.map_data["moving_floors"]], [[1, 4]])
-
-    def test_canonicalization_sorts_and_dedupes_moving_floors(self) -> None:
+    def test_canonicalization_sorts_and_drops_out_of_range_nested_maps(self) -> None:
         data = empty_map(6, 6)
-        data["levels"].append(upper_level(floor(0, 0)))
-        data["moving_floors"] = [
-            moving_floor(0, [3, 3], [5, 3]),
-            moving_floor(0, [1, 1], [1, 4]),
-            moving_floor(0, [1, 1], [4, 1]),
-            moving_floor(0, [2, 2], [2, 2]),
-            moving_floor(0, [2, 2], [9, 9]),
-            moving_floor(0, [4, 4], [4, 4], 3),
+        data["nested_maps"] = [
+            nested("cabin", 0, [3, 3], [3, 3]),
+            nested("cabin", 0, [1, 1], [1, 1]),
+            nested("cabin", 0, [6, 1], [1, 1]),
+            nested("cabin", 2, [1, 1], [1, 1]),
+            nested("bad/name", 0, [2, 2], [2, 2]),
         ]
+        self.assertEqual([e["from"] for e in canonicalize_map(data)["nested_maps"]], [[1, 1], [3, 3]])
 
-        result = canonicalize_map(data)
-
-        self.assertEqual(
-            [(f["from"], f["to"]) for f in result["moving_floors"]],
-            [([1, 1], [4, 1]), ([3, 3], [5, 3])],
-        )
-
-    def test_moving_floors_round_trip_through_the_file_format(self) -> None:
+    def test_nested_maps_round_trip_and_are_the_last_key(self) -> None:
         data = empty_map(6, 6)
-        data["levels"][0]["floors"] = [floor(0, 0)]
-        data["levels"].append(upper_level(floor(0, 0)))
-        data["moving_floors"] = [moving_floor(0, [2, 2], [4, 4]), moving_floor(0, [1, 1], [1, 1], 1)]
-
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "map.json"
+        data["nested_maps"] = [nested("cabin", 0, [2, 2], [4, 2])]
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "nested.json"
             write_map(path, data)
             text = path.read_text(encoding="utf-8")
-            self.assertIn('"moving_floors": [', text)
-            self.assertIn('"to_level": 1', text)
-            self.assertEqual(read_map(path), canonicalize_map(data))
+            self.assertGreater(text.index('"nested_maps"'), text.index('"ramps"'))
+            self.assertEqual(read_map(path)["nested_maps"], data["nested_maps"])
 
-    def test_resize_drops_a_moving_floor_with_an_endpoint_outside(self) -> None:
-        data = empty_map(4, 4)
-        data["moving_floors"] = [moving_floor(0, [1, 1], [3, 1]), moving_floor(0, [0, 0], [0, 3])]
-
-        result = resize_map_data(data, 6, 6, 1, 1)
-        self.assertEqual([(f["from"], f["to"]) for f in result["moving_floors"]], [([2, 2], [4, 2]), ([1, 1], [1, 4])])
-
-        result = resize_map_data(data, 3, 3, 0, 0)
-        self.assertEqual(result["moving_floors"], [])
-
-    def test_remove_level_drops_spanning_moving_floors_and_renumbers_the_rest(self) -> None:
+    def test_resize_drops_a_nested_map_with_an_anchor_outside(self) -> None:
         data = empty_map(6, 6)
-        data["levels"].extend([upper_level(floor(0, 0)), upper_level(floor(0, 0))])
-        data["moving_floors"] = [
-            moving_floor(0, [1, 1], [1, 1], 1),
-            moving_floor(2, [3, 3], [5, 3]),
-            moving_floor(0, [4, 4], [4, 4], 2),
-        ]
+        data["nested_maps"] = [nested("cabin", 0, [0, 0], [5, 0]), nested("cabin", 0, [2, 2], [2, 2])]
+        resized = resize_map_data(data, 5, 6, 0, 0)
+        self.assertEqual([e["from"] for e in resized["nested_maps"]], [[2, 2]])
 
+    def test_remove_level_drops_spanning_nested_maps_and_renumbers_the_rest(self) -> None:
+        data = empty_map(6, 6)
+        data["levels"].append(upper_level(floor(0, 0)))
+        data["levels"].append(upper_level(floor(0, 0)))
+        data["nested_maps"] = [nested("cabin", 0, [1, 1], [1, 1], 1), nested("cabin", 2, [3, 3], [3, 3])]
         after = remove_level_data(data, 1)
+        self.assertEqual([(e["level"], e["to_level"]) for e in after["nested_maps"]], [(1, 1)])
 
-        self.assertEqual(
-            [(f["level"], f["to_level"], f["from"]) for f in after["moving_floors"]],
-            [(1, 1, [3, 3])],
-        )
-
-    def test_insert_level_stretches_a_lift_it_lands_inside(self) -> None:
+    def test_insert_level_keeps_each_nested_end_on_its_storey(self) -> None:
         data = empty_map(6, 6)
         data["levels"].append(upper_level(floor(0, 0)))
-        data["moving_floors"] = [moving_floor(0, [1, 1], [1, 1], 1), moving_floor(1, [3, 3], [5, 3])]
-
+        data["nested_maps"] = [nested("cabin", 0, [1, 1], [1, 1], 1)]
         after = insert_level_data(data, 1)
+        self.assertEqual((after["nested_maps"][0]["level"], after["nested_maps"][0]["to_level"]), (0, 2))
 
-        self.assertEqual(len(after["levels"]), 3)
-        self.assertEqual(
-            [(f["level"], f["to_level"]) for f in after["moving_floors"]],
-            [(0, 2), (2, 2)],
-        )
-
-    def test_erase_moving_floors_clears_only_tiles_touching_the_rectangle(self) -> None:
+    def test_erase_nested_maps_clears_only_anchors_touching_the_rectangle(self) -> None:
         data = empty_map(6, 6)
-        data["levels"].append(upper_level(floor(0, 0)))
-        data["moving_floors"] = [
-            moving_floor(0, [1, 1], [4, 1]),
-            moving_floor(0, [0, 5], [0, 5], 1),
-            moving_floor(0, [5, 5], [3, 5]),
-        ]
+        data["nested_maps"] = [nested("cabin", 0, [1, 1], [4, 1]), nested("cabin", 0, [0, 5], [0, 5])]
         host = EditorHost(data, [])
 
-        host.erase_moving_floors_rect((4, 0), (5, 1))
-        self.assertEqual([f["from"] for f in host.map_data["moving_floors"]], [[0, 5], [5, 5]])
+        host.erase_nested_maps_rect((4, 0), (5, 1))
+        self.assertEqual([e["from"] for e in host.map_data["nested_maps"]], [[0, 5]])
+        host.erase_nested_maps_rect((3, 3), (3, 3))
+        self.assertEqual(host.statuses[-1], "Erase Nested Maps: no nested maps in selection.")
 
-        host.current_level = 1
-        host.erase_moving_floors_rect((0, 5), (0, 5))
-        self.assertEqual([f["from"] for f in host.map_data["moving_floors"]], [[5, 5]])
-
-        host.erase_moving_floors_rect((0, 0), (0, 0))
-        self.assertEqual(host.statuses[-1], "Erase Moving Floors: no moving floors in selection.")
-
-    def test_moving_floor_over_a_floor_ramp_or_wall_is_reported(self) -> None:
+    def test_erase_keep_floors_leaves_nested_maps_in_place(self) -> None:
         data = empty_map(6, 6)
-        data["levels"][0]["floors"] = [floor(0, 0), floor(3, 1)]
-        data["levels"][0]["walls"] = [{"c0": 2, "r0": 4, "c1": 2, "r1": 5, **faces()}]
-        data["levels"].append(upper_level(floor(0, 0)))
-        data["ramps"] = [{"lower_level": 0, "low": [4, 3], "high": [6, 4], **faces()}]
-        data["moving_floors"] = [
-            moving_floor(0, [1, 1], [4, 1]),
-            moving_floor(0, [1, 4], [3, 4]),
-            moving_floor(0, [4, 3], [4, 3], 1),
-            moving_floor(0, [2, 2], [2, 2]),
-            moving_floor(0, [5, 5], [5, 5], 1),
+        data["levels"][0]["floors"] = [floor(1, 1)]
+        data["nested_maps"] = [nested("cabin", 0, [1, 1], [1, 1])]
+        host = EditorHost(data, [])
+        host.erase_cell_rect((0, 0), (5, 5), preserve_floors=True)
+        self.assertEqual(len(host.map_data["nested_maps"]), 1)
+        host.erase_cell_rect((0, 0), (5, 5), preserve_floors=False)
+        self.assertEqual(host.map_data["nested_maps"], [])
+
+    def test_nested_map_validation_flags_missing_files_cycles_self_nesting_bounds_and_timing(self) -> None:
+        data = empty_map(6, 6)
+        data["nested_maps"] = [
+            nested("ghost", 0, [1, 1], [1, 1]),
+            nested("loop_a", 0, [2, 2], [2, 2]),
+            nested("home", 0, [3, 3], [3, 3]),
+            {**nested("cabin", 0, [4, 4], [7, 4]), "speed": 0.0, "phase_secs": -1.0},
+            nested("cabin", 0, [4, 4], [4, 4], 3),
         ]
+        errors = validate_map(data, [], [], map_name="home", nested_lookup=NESTED_SHAPES.get)
+        self.assertTrue(any("ghost" in error and "missing" in error for error in errors))
+        self.assertTrue(any("nested maps loop" in error and "loop_a -> loop_b -> loop_a" in error for error in errors))
+        self.assertTrue(any("nests the edited map itself" in error for error in errors))
+        self.assertTrue(any("is outside the grid" in error for error in errors))
+        self.assertTrue(any("positive speed" in error for error in errors))
+        self.assertTrue(any("negative pause or phase" in error for error in errors))
+        self.assertTrue(any("but the map has 1 level(s)" in error for error in errors))
+        self.assertTrue(any("duplicates a nested map" in error for error in errors))
 
-        errors = validate_map(data, [], [])
+    def test_a_nested_map_spans_its_own_storeys_plus_its_motion(self) -> None:
+        from map_editor.normalization import nested_map_spans_level
 
-        self.assertTrue(any("passes over a floor" in error for error in errors), errors)
-        self.assertTrue(any("crosses a wall" in error for error in errors), errors)
-        self.assertTrue(any("starts on a ramp" in error for error in errors), errors)
-        self.assertTrue(any("must travel" in error for error in errors), errors)
-        self.assertFalse(any("moving_floors[4]" in error for error in errors), errors)
+        lift = nested("cabin", 1, [1, 1], [1, 1], 2)
+        self.assertFalse(nested_map_spans_level(lift, 0, 2))
+        self.assertTrue(nested_map_spans_level(lift, 1, 2))
+        self.assertTrue(nested_map_spans_level(lift, 3, 2))
+        self.assertFalse(nested_map_spans_level(lift, 4, 2))
 
-    def test_moving_floor_sweeps_only_the_cells_under_its_straight_path(self) -> None:
-        data = empty_map(6, 6)
-        data["levels"][0]["floors"] = [floor(1, 1), floor(4, 4), floor(5, 2)]
-        data["moving_floors"] = [moving_floor(0, [1, 4], [4, 1])]
-        self.assertEqual([e for e in validate_map(data, [], []) if "moving_floors" in e], [])
-
-        data["levels"][0]["floors"].append(floor(2, 3))
-        errors = validate_map(data, [], [])
-        self.assertTrue(any("moving_floors[0] passes over a floor" in error for error in errors), errors)
-
-        data["levels"][0]["floors"] = [floor(1, 4)]
-        errors = validate_map(data, [], [])
-        self.assertTrue(any("starts on a floor" in error for error in errors), errors)
-
-
-if __name__ == "__main__":
-    unittest.main()
+    def test_nested_map_cycle_names_the_loop(self) -> None:
+        self.assertEqual(
+            nested_map_cycle("home", [nested("loop_a", 0, [0, 0], [0, 0])], NESTED_SHAPES.get),
+            ["loop_a", "loop_b", "loop_a"],
+        )
+        self.assertIsNone(nested_map_cycle("home", [nested("cabin", 0, [0, 0], [0, 0])], NESTED_SHAPES.get))

@@ -14,6 +14,7 @@ use crate::constants::{
     EXPLOSION_GRASS_BURN_VERTICAL_TOLERANCE,
 };
 use crate::test_geometry::{CELL, map_settings};
+use common::protocol::CarrierId;
 use common::protocol::GrassCell;
 
 fn test_cell() -> GrassCell {
@@ -22,6 +23,7 @@ fn test_cell() -> GrassCell {
         y: 0.0,
         z: -CELL * 1.5,
         level: 0,
+        carrier: CarrierId::WORLD,
     }
 }
 

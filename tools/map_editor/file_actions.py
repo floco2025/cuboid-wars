@@ -34,6 +34,7 @@ class FileActionsMixin:
         self.doc.replace_with_new(empty_map(new_cols, new_rows))
         self.barrier_kind_colors = {}
         self.bridge_kind_colors = {}
+        self.forget_nested_map_shapes()
         self.current_level = 0
         self.refresh_ui()
 
@@ -68,6 +69,7 @@ class FileActionsMixin:
         self.doc.load(path)
         self.barrier_kind_colors = barrier_kinds
         self.bridge_kind_colors = bridge_kinds
+        self.forget_nested_map_shapes()
         self.current_level = 0
         self._record_recent_path(path)
         self.refresh_ui()
@@ -103,6 +105,7 @@ class FileActionsMixin:
             QMessageBox.critical(self, "Save Failed", str(exc))
             return
         self._record_recent_path(self.path)
+        self.forget_nested_map_shapes()
         self.refresh_ui()
 
     def save_as(self) -> None:
@@ -119,6 +122,7 @@ class FileActionsMixin:
         self.path = new_path
         self.barrier_kind_colors = barrier_kinds
         self.bridge_kind_colors = bridge_kinds
+        self.forget_nested_map_shapes()
         # No baseline mtime for the new destination — we never read it, so any
         # existing file at this path is something the user chose to overwrite.
         self.path_mtime = None

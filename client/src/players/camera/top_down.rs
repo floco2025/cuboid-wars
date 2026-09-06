@@ -98,7 +98,13 @@ fn floor_bounds_for_level(map_layout: &MapLayout, level: u8) -> FloorBounds {
         max_z: f32::NEG_INFINITY,
     };
 
-    for floor in map_layout.floors.iter().filter(|floor| floor.level == level) {
+    // Carried floors are in their carrier's frame and move; the view frames
+    // the map itself.
+    for floor in map_layout
+        .floors
+        .iter()
+        .filter(|floor| floor.carrier.is_world() && floor.level == level)
+    {
         bounds.include_floor(floor);
     }
 
@@ -169,6 +175,7 @@ fn topdown_view_direction(yaw: f32) -> Vec3 {
 mod tests {
     use super::*;
     use crate::test_geometry::{LEVEL_HEIGHT, sizes};
+    use common::protocol::CarrierId;
     use std::f32::consts::FRAC_PI_2;
 
     fn wide_layout() -> MapLayout {
@@ -181,6 +188,7 @@ mod tests {
                 y: 0.0,
                 thickness: 1.0,
                 level: 0,
+                carrier: CarrierId::WORLD,
             }],
             ..Default::default()
         }
@@ -244,6 +252,7 @@ mod tests {
                 y: 0.0,
                 thickness: 1.0,
                 level: 0,
+                carrier: CarrierId::WORLD,
             }],
             ..Default::default()
         };
@@ -266,6 +275,7 @@ mod tests {
                 y: LEVEL_HEIGHT,
                 thickness: 1.0,
                 level: 1,
+                carrier: CarrierId::WORLD,
             }],
             ..Default::default()
         };

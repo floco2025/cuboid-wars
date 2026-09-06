@@ -12,62 +12,49 @@ use crate::{
         PORTAL_FIXTURE_PLANE_DEPTH, PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH, PORTAL_LIGHT_CLEARANCE,
         PORTAL_PLATE_CLEARANCE, PORTAL_RIM_SCALE, PORTAL_STANDABLE_NORMAL_Y, PORTAL_UP_DEGENERACY_LIMIT,
     },
-    map::MovingFloors,
+    map::Carriers,
     math::direction_from_yaw_pitch,
     physics::CollisionWorld,
-    protocol::{MapLayout, MovingFloorId, Portal, PortalEnd, PortalPairId, WallLight},
+    protocol::{CarrierId, MapLayout, Portal, PortalEnd, PortalPairId, WallLight},
 };
 
 // Where a validated portal shot lands: the aperture center (world space),
 // outward surface normal, the frame yaw (the shooter's, quarter-turn-snapped
-// on vertical-normal surfaces), and the moving floor it sits on, if any.
+// on vertical-normal surfaces), and the carrier whose surface it is.
 #[derive(Debug, Clone, Copy)]
 pub struct PortalPlacement {
     pub pos: Vec3,
     pub normal: Vec3,
     pub yaw: f32,
-    pub anchor: Option<MovingFloorId>,
+    pub carrier: CarrierId,
 }
 
 impl PortalPlacement {
-    // The wire portal: `pos` becomes relative to the tile's surface center
-    // when anchored, so it stays put while the tile moves.
+    // The wire portal: `pos` and the normal in the carrier's frame, so they
+    // stay put while the carrier moves.
     #[must_use]
-    pub fn portal(&self, pair: PortalPairId, end: PortalEnd, floors: &MovingFloors) -> Portal {
-        let pos = self.pos - floors.anchor_center(self.anchor);
+    pub fn portal(&self, pair: PortalPairId, end: PortalEnd, carriers: &Carriers) -> Portal {
+        let pose = carriers.pose(self.carrier);
+        let pos = pose.inverse_transform_point(self.pos);
+        let normal = pose.inverse_transform_vector(self.normal);
         Portal {
             pair,
             end,
             pos: pos.into(),
-            nx: self.normal.x,
-            ny: self.normal.y,
-            nz: self.normal.z,
+            nx: normal.x,
+            ny: normal.y,
+            nz: normal.z,
             yaw: self.yaw,
-            anchor: self.anchor,
-        }
-    }
-}
-
-// What backs a fitting aperture: the static world, or one moving floor.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum PortalBacking {
-    Static,
-    MovingFloor(MovingFloorId),
-}
-
-impl PortalBacking {
-    const fn anchor(self) -> Option<MovingFloorId> {
-        match self {
-            Self::Static => None,
-            Self::MovingFloor(id) => Some(id),
+            carrier: self.carrier,
         }
     }
 }
 
 // The one placement path, shared verbatim: the client runs it to decide fire
 // vs dry-fire before sending, the server to authoritatively place. Same
-// inputs (map geometry, fixtures, each side's own tile poses), so both reach
-// the same answer except within a tick of tile motion at a tile's edge.
+// inputs (map geometry, fixtures, each side's own carrier poses), so both
+// reach the same answer except within a tick of carrier motion at a
+// carrier's edge.
 #[must_use]
 pub fn compute_portal_placement(
     origin: Vec3,
@@ -76,42 +63,22 @@ pub fn compute_portal_placement(
     range: f32,
     collision_world: &CollisionWorld,
     map_layout: &MapLayout,
-    floors: &MovingFloors,
+    carriers: &Carriers,
 ) -> Option<PortalPlacement> {
-    let (hit, hit_tile) = collision_world.portal_surface_along_ray(origin, direction, range)?;
+    let hit = collision_world.world_surface_along_ray(origin, direction, range)?;
     let yaw = portal_placement_yaw(hit.normal, yaw);
     let frame = PortalFrame::from_surface(hit.point, hit.normal, yaw);
-    let (pos, backing) = if let Some(backing) = portal_fits(&frame, collision_world, map_layout) {
-        (hit.point, backing)
-    } else if let Some(centered) =
-        hit_tile.and_then(|id| tile_centered(&frame, id, collision_world, map_layout, floors))
-    {
-        centered
+    let (pos, carrier) = if let Some(carrier) = portal_fits(&frame, collision_world, map_layout, carriers) {
+        (hit.point, carrier)
     } else {
-        nudged_center(&frame, collision_world, map_layout)?
+        nudged_center(&frame, collision_world, map_layout, carriers)?
     };
     Some(PortalPlacement {
         pos,
         normal: hit.normal,
         yaw,
-        anchor: backing.anchor(),
+        carrier,
     })
-}
-
-// A tile is a small surface: a shot on one that does not fit where it lands
-// goes to the tile's middle first, which is where a lift's portal belongs,
-// and only then bumps around the plane.
-fn tile_centered(
-    frame: &PortalFrame,
-    id: MovingFloorId,
-    collision_world: &CollisionWorld,
-    map_layout: &MapLayout,
-    floors: &MovingFloors,
-) -> Option<(Vec3, PortalBacking)> {
-    let tile_center = floors.anchor_center(Some(id));
-    let center = tile_center + frame.normal * (frame.center - tile_center).dot(frame.normal);
-    let candidate = PortalFrame { center, ..*frame };
-    portal_fits(&candidate, collision_world, map_layout).map(|backing| (center, backing))
 }
 
 // Vertical portals take their in-plane up from the shooter's yaw; snapping
@@ -138,7 +105,8 @@ fn nudged_center(
     frame: &PortalFrame,
     collision_world: &CollisionWorld,
     map_layout: &MapLayout,
-) -> Option<(Vec3, PortalBacking)> {
+    carriers: &Carriers,
+) -> Option<(Vec3, CarrierId)> {
     let steps = (NUDGE_MAX_DISTANCE / NUDGE_STEP) as usize;
     for step in 1..=steps {
         let radius = step as f32 * NUDGE_STEP;
@@ -147,8 +115,8 @@ fn nudged_center(
                 std::f32::consts::FRAC_PI_2 + direction as f32 / NUDGE_DIRECTIONS as f32 * std::f32::consts::TAU;
             let center = frame.center + frame.right * (radius * angle.cos()) + frame.up * (radius * angle.sin());
             let candidate = PortalFrame { center, ..*frame };
-            if let Some(backing) = portal_fits(&candidate, collision_world, map_layout) {
-                return Some((center, backing));
+            if let Some(carrier) = portal_fits(&candidate, collision_world, map_layout, carriers) {
+                return Some((center, carrier));
             }
         }
     }
@@ -169,8 +137,13 @@ const FIT_FRONT_RIM_SEGMENTS: usize = 64;
 // clear space IN FRONT of it (no floor slab, powered light bridge, or
 // abutting wall cutting through the oval). On top of the geometry, the
 // aperture must not cover surface fixtures: wall lights, and pressure plates
-// for standable portals. Returns what backs the fitting aperture.
-fn portal_fits(frame: &PortalFrame, collision_world: &CollisionWorld, map_layout: &MapLayout) -> Option<PortalBacking> {
+// for standable portals. Returns the carrier that backs the fitting aperture.
+fn portal_fits(
+    frame: &PortalFrame,
+    collision_world: &CollisionWorld,
+    map_layout: &MapLayout,
+    carriers: &Carriers,
+) -> Option<CarrierId> {
     // Sweep the oval itself so geometry outside the visible rim cannot make
     // a portal float above a ramp, while geometry crossing the opening still
     // rejects between the backing probes.
@@ -180,33 +153,33 @@ fn portal_fits(frame: &PortalFrame, collision_world: &CollisionWorld, map_layout
         return None;
     }
     // Each sample must meet a surface parallel to the shot face, and every
-    // sample the same kind of backing. Otherwise a ramp lip and its upper
-    // floor can jointly masquerade as one backing, and an aperture
-    // straddling a tile's edge would be anchored to a tile that carries
-    // only part of it.
+    // sample the same carrier. Otherwise a ramp lip and its upper floor can
+    // jointly masquerade as one backing, and an aperture straddling a
+    // carrier's edge would ride a carrier that carries only part of it.
     let mut backing = None;
     for sample in aperture_samples(frame) {
         let probe_start = sample + frame.normal * FIT_SAMPLE_OFFSET;
-        let (hit, tile) =
-            collision_world.portal_surface_along_ray(probe_start, -frame.normal, 2.0 * FIT_SAMPLE_OFFSET)?;
+        let hit = collision_world.world_surface_along_ray(probe_start, -frame.normal, 2.0 * FIT_SAMPLE_OFFSET)?;
         if hit.normal.dot(frame.normal) < FIT_BACKING_NORMAL_DOT {
             return None;
         }
-        let sample_backing = tile.map_or(PortalBacking::Static, PortalBacking::MovingFloor);
         match backing {
-            None => backing = Some(sample_backing),
-            Some(first) if first != sample_backing => return None,
+            None => backing = Some(hit.carrier),
+            Some(first) if first != hit.carrier => return None,
             Some(_) => {}
         }
     }
     for light in &map_layout.wall_lights {
-        if wall_light_blocks(frame, light) {
+        if wall_light_blocks(frame, light, carriers) {
             return None;
         }
     }
     if frame.normal.y > PORTAL_STANDABLE_NORMAL_Y {
         for plate in &map_layout.pressure_plates {
-            let center = Vec3::new(plate.center_x, plate.center_y, plate.center_z);
+            let center =
+                carriers
+                    .pose(plate.carrier)
+                    .transform_point(Vec3::new(plate.center_x, plate.center_y, plate.center_z));
             if fixture_blocks(frame, center, PORTAL_PLATE_CLEARANCE) {
                 return None;
             }
@@ -244,10 +217,15 @@ fn aperture_samples(frame: &PortalFrame) -> impl Iterator<Item = Vec3> {
     }))
 }
 
-fn wall_light_blocks(frame: &PortalFrame, light: &WallLight) -> bool {
-    let light_normal = direction_from_yaw_pitch(light.yaw, 0.0);
+fn wall_light_blocks(frame: &PortalFrame, light: &WallLight, carriers: &Carriers) -> bool {
+    let pose = carriers.pose(light.carrier);
+    let light_normal = pose.transform_vector(direction_from_yaw_pitch(light.yaw, 0.0));
     light_normal.dot(frame.normal) >= FIT_BACKING_NORMAL_DOT
-        && fixture_blocks(frame, Vec3::from(light.pos), PORTAL_LIGHT_CLEARANCE)
+        && fixture_blocks(
+            frame,
+            pose.transform_point(Vec3::from(light.pos)),
+            PORTAL_LIGHT_CLEARANCE,
+        )
 }
 
 // A fixture blocks the aperture when it sits near the portal plane inside
@@ -265,19 +243,19 @@ fn fixture_blocks(frame: &PortalFrame, fixture: Vec3, clearance: f32) -> bool {
 const PORTAL_OVERLAP_HALF_DEPTH: f32 = 0.05;
 
 // Whether the candidate crosses another end where the ends are right now;
-// an end that later rides its tile into a static one is not foreseen.
+// an end that later rides its carrier into a static one is not foreseen.
 #[must_use]
 pub fn portal_placement_overlaps(
     placement: &PortalPlacement,
     pair: PortalPairId,
     end: PortalEnd,
     existing: &[Portal],
-    floors: &MovingFloors,
+    carriers: &Carriers,
 ) -> bool {
     let candidate = PortalFrame::from_surface(placement.pos, placement.normal, placement.yaw);
     existing.iter().any(|portal| {
         (portal.pair, portal.end) != (pair, end)
-            && portal_frames_overlap(&candidate, &PortalFrame::from_portal(portal, floors))
+            && portal_frames_overlap(&candidate, &PortalFrame::from_portal(portal, carriers))
     })
 }
 

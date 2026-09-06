@@ -1,4 +1,5 @@
 use crate::map::CellGrid;
+use common::protocol::CarrierId;
 use common::{map::MapGeometry, protocol::Ramp};
 
 // Internal representation of a placed ramp. Downstream code converts it to
@@ -59,6 +60,7 @@ impl RampSpec {
             x2: geometry.cell_to_world_x(self.high[0]),
             y2: y_high,
             z2: geometry.cell_to_world_z(self.high[1]),
+            carrier: CarrierId::WORLD,
         }
     }
 }

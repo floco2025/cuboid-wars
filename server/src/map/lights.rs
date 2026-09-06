@@ -1,6 +1,7 @@
 use super::definition::{WallLightDef, WallSide};
 use super::edges::{CellSide, has_edge_on_cell_side};
 use crate::map::LevelGrid;
+use common::protocol::CarrierId;
 use common::{
     map::MapGeometry,
     protocol::{Position, WallLight},
@@ -66,6 +67,7 @@ fn wall_light_for(geometry: &MapGeometry, light_y: f32, row: i32, col: i32, side
                 z: cell_center_z - half + model_inset,
             },
             yaw: 0.0,
+            carrier: CarrierId::WORLD,
         },
         CellSide::South => WallLight {
             pos: Position {
@@ -74,6 +76,7 @@ fn wall_light_for(geometry: &MapGeometry, light_y: f32, row: i32, col: i32, side
                 z: cell_center_z + half - model_inset,
             },
             yaw: PI,
+            carrier: CarrierId::WORLD,
         },
         CellSide::West => WallLight {
             pos: Position {
@@ -82,6 +85,7 @@ fn wall_light_for(geometry: &MapGeometry, light_y: f32, row: i32, col: i32, side
                 z: cell_center_z,
             },
             yaw: FRAC_PI_2,
+            carrier: CarrierId::WORLD,
         },
         CellSide::East => WallLight {
             pos: Position {
@@ -90,6 +94,7 @@ fn wall_light_for(geometry: &MapGeometry, light_y: f32, row: i32, col: i32, side
                 z: cell_center_z,
             },
             yaw: -FRAC_PI_2,
+            carrier: CarrierId::WORLD,
         },
     }
 }

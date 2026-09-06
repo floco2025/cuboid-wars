@@ -2,10 +2,14 @@ use anyhow::Context;
 use bevy::math::Vec3;
 use std::collections::HashSet;
 
-use super::schema::{LadderDef, MapDef, MovingFloorDef, PressurePlatePurposeDef, RampDef, WallSide};
+use super::{
+    load::LoadedMaps,
+    schema::{LadderDef, MapDef, MotionDef, PressurePlatePurposeDef, RampDef, WallSide},
+};
 use crate::{
     map::{
-        ActorSpawnZone, CellGrid, EdgeGrid, LevelGrid, MapConfig, PlacedItem, PlayerSpawnZone, PressurePlateRuntime,
+        ActorSpawnZone, CarrierGrid, CellGrid, EdgeGrid, LevelGrid, MapConfig, PlacedItem, PlayerSpawnZone,
+        PressurePlateRuntime,
     },
     map::{
         barriers::{BarrierEdge, merge_barriers, stack_barriers},
@@ -19,25 +23,86 @@ use crate::{
 };
 use common::{
     config::MapGeometryConfig,
-    constants::{LADDER_WIDTH, MOVING_FLOOR_INSET_FRACTION, TICK_HZ},
+    constants::{LADDER_WIDTH, TICK_HZ},
     map::MapGeometry,
     protocol::FaceMaterials,
     protocol::{
-        BarrierKindId, BarrierKindTable, BridgeKindTable, Floor, GrassCell, ItemType, Ladder, LightBridge, MapLayout,
-        MovingFloor, PlatePurpose, Wall,
+        BarrierKindId, BarrierKindTable, BridgeKindTable, Carrier, CarrierId, Floor, GrassCell, ItemType, Ladder,
+        LightBridge, MapLayout, PlatePurpose, PressurePlate, Wall,
     },
 };
 
+// What compile skipped rather than rejected; the caller logs them, since
+// compile runs before the log plugin is installed.
+pub(crate) type CompileWarnings = Vec<String>;
+
+// The map being played and every map it nests, into one layout and one
+// config: the root's records on the world carrier, each nested map's on its
+// own carrier in its own frame. `nested` holds the nested maps by name
+// (`load_map_tree`).
 pub(crate) fn compile_map(
-    map_def: &MapDef,
+    root: &MapDef,
     sizes: MapGeometryConfig,
-    assets: &MaterialRules,
+    nested: &LoadedMaps,
     kind_table: &BarrierKindTable,
     bridge_table: &BridgeKindTable,
-) -> anyhow::Result<(MapLayout, MapConfig, MapGeometry)> {
+) -> anyhow::Result<(MapLayout, MapConfig, CompileWarnings)> {
+    let mut out = CompileOutput {
+        layout: MapLayout::default(),
+        config: MapConfig {
+            grids: Vec::new(),
+            actor_spawn_zones: Vec::new(),
+            player_spawn_zones: Vec::new(),
+            placed_items: Vec::new(),
+            pressure_plates: Vec::new(),
+        },
+        warnings: Vec::new(),
+    };
+    let scope = CompileScope {
+        sizes,
+        nested,
+        kind_table,
+        bridge_table,
+    };
+    compile_carrier(None, root, &scope, CarrierId::WORLD, &mut out)?;
+    // The renderer indexes the material vectors by segment position, so any
+    // length divergence is a bug here, not in the client.
+    assert_eq!(out.layout.walls.len(), out.layout.wall_materials.len());
+    assert_eq!(out.layout.floors.len(), out.layout.floor_materials.len());
+    assert_eq!(out.layout.ramps.len(), out.layout.ramp_materials.len());
+    Ok((out.layout, out.config, out.warnings))
+}
+
+struct CompileScope<'a> {
+    sizes: MapGeometryConfig,
+    nested: &'a LoadedMaps,
+    kind_table: &'a BarrierKindTable,
+    bridge_table: &'a BridgeKindTable,
+}
+
+struct CompileOutput {
+    layout: MapLayout,
+    config: MapConfig,
+    warnings: CompileWarnings,
+}
+
+// One map's records onto `carrier`, then its nested maps as child
+// carriers, each taking the next id right before it is compiled, so parents
+// precede their descendants in the carrier list.
+fn compile_carrier(
+    name: Option<&str>,
+    map_def: &MapDef,
+    scope: &CompileScope,
+    carrier: CarrierId,
+    out: &mut CompileOutput,
+) -> anyhow::Result<()> {
     let cols = map_def.grid_cols;
     let rows = map_def.grid_rows;
-    let geometry = MapGeometry::new(cols, rows, sizes);
+    let geometry = MapGeometry::new(cols, rows, scope.sizes);
+    let kind_table = scope.kind_table;
+    let bridge_table = scope.bridge_table;
+    // Face materials are authored per file, against its own grid.
+    let assets = MaterialRules::from_def(map_def, scope.sizes);
 
     let ramp_specs: Vec<ramps::RampSpec> = map_def.ramps.iter().map(ramp_spec_from_def).collect();
 
@@ -69,7 +134,7 @@ pub(crate) fn compile_map(
     // alternative route, so assuming open lets a returning actor head home and
     // physics holds it at the barrier until someone opens it. Every other
     // barrier (key-only / static) stays closed for actors.
-    let pressure_plates = pressure_plates(map_def, kind_table, bridge_table)?;
+    let pressure_plates = pressure_plates(map_def, kind_table, bridge_table, carrier)?;
     let pressure_plate_kinds: HashSet<BarrierKindId> = pressure_plates
         .iter()
         .filter_map(|plate| match plate.purpose {
@@ -133,7 +198,7 @@ pub(crate) fn compile_map(
     for (level_idx, level_grid) in level_grids.iter().enumerate() {
         let level_u8 = u8::try_from(level_idx).unwrap_or(u8::MAX);
         let tier = walls::generate_walls(&level_grid.edges, &geometry, level_u8);
-        let (merged_walls, merged_materials) = walls::merge_walls(tier, assets);
+        let (merged_walls, merged_materials) = walls::merge_walls(tier, &assets);
         all_walls.extend(merged_walls);
         all_wall_materials.extend(merged_materials);
     }
@@ -152,9 +217,9 @@ pub(crate) fn compile_map(
         }
         barrier_edges.push(edges);
     }
-    let all_barriers = merge_barriers(stack_barriers(&barrier_edges, &slab_masks, &geometry));
+    let mut all_barriers = merge_barriers(stack_barriers(&barrier_edges, &slab_masks, &geometry));
 
-    let all_light_bridges = light_bridges(map_def, &geometry, bridge_table)?;
+    let mut all_light_bridges = light_bridges(map_def, &geometry, bridge_table)?;
 
     let mut all_floors: Vec<Floor> = Vec::new();
     let mut all_floor_materials: Vec<FaceMaterials> = Vec::new();
@@ -181,7 +246,7 @@ pub(crate) fn compile_map(
                 y,
             ));
         }
-        let (merged_floors, merged_materials) = floors::merge_floors(tier, assets);
+        let (merged_floors, merged_materials) = floors::merge_floors(tier, &assets);
         all_floors.extend(merged_floors);
         all_floor_materials.extend(merged_materials);
     }
@@ -202,69 +267,109 @@ pub(crate) fn compile_map(
                 y,
                 z: geometry.cell_center_z(cell.row),
                 level: level_u8,
+                carrier,
             });
         }
     }
 
-    let ramps_out = ramps::specs_to_ramps(&geometry, &ramp_specs);
+    let mut ramps_out = ramps::specs_to_ramps(&geometry, &ramp_specs);
     let ramp_materials: Vec<FaceMaterials> = ramps_out.iter().map(|r| assets.materials_for_ramp_top(r)).collect();
 
-    let ladders = map_def
+    let mut ladders: Vec<Ladder> = map_def
         .ladders
         .iter()
         .map(|def| ladder_from_def(def, &geometry))
         .collect();
-    let (moving_floors, moving_floor_materials) = map_def
-        .moving_floors
-        .iter()
-        .map(|def| (moving_floor_from_def(def, &geometry), def.materials.clone()))
-        .unzip();
 
-    let map_layout = MapLayout {
-        walls: all_walls,
-        wall_materials: all_wall_materials,
-        ramps: ramps_out,
-        ramp_materials,
-        wall_lights,
-        floors: all_floors,
-        floor_materials: all_floor_materials,
-        barriers: all_barriers,
-        light_bridges: all_light_bridges,
-        moving_floors,
-        moving_floor_materials,
-        pressure_plates: pressure_plates
-            .iter()
-            .map(|p| common::protocol::PressurePlate {
-                level: p.level,
-                center_x: geometry.cell_center_x(p.col),
-                center_y: geometry.level_y(p.level),
-                center_z: geometry.cell_center_z(p.row),
-                purpose: p.purpose,
-            })
-            .collect(),
-        ladders,
-        grass,
-    };
-    // The renderer indexes the material vectors by segment position, so any
-    // length divergence is a bug here, not in the client.
-    assert_eq!(map_layout.walls.len(), map_layout.wall_materials.len());
-    assert_eq!(map_layout.floors.len(), map_layout.floor_materials.len());
-    assert_eq!(map_layout.ramps.len(), map_layout.ramp_materials.len());
-    assert_eq!(map_layout.moving_floors.len(), map_layout.moving_floor_materials.len());
+    // Every record of this map is on its carrier, in this map's own frame.
+    for wall in &mut all_walls {
+        wall.carrier = carrier;
+    }
+    for floor in &mut all_floors {
+        floor.carrier = carrier;
+    }
+    for ramp in &mut ramps_out {
+        ramp.carrier = carrier;
+    }
+    for barrier in &mut all_barriers {
+        barrier.carrier = carrier;
+    }
+    for bridge in &mut all_light_bridges {
+        bridge.carrier = carrier;
+    }
+    for light in &mut wall_lights {
+        light.carrier = carrier;
+    }
+    for ladder in &mut ladders {
+        ladder.carrier = carrier;
+    }
 
-    let placed_items = placed_items(map_def, kind_table, &level_grids)?;
+    let placed_items = placed_items(map_def, kind_table, &level_grids, carrier)?;
 
-    Ok((
-        map_layout,
-        MapConfig {
-            levels: level_grids,
-            actor_spawn_zones: actor_spawn_zones(map_def),
-            player_spawn_zones: player_spawn_zones(map_def),
-            placed_items,
-            pressure_plates,
-        },
-        geometry,
-    ))
+    let layout = &mut out.layout;
+    layout.walls.extend(all_walls);
+    layout.wall_materials.extend(all_wall_materials);
+    layout.ramps.extend(ramps_out);
+    layout.ramp_materials.extend(ramp_materials);
+    layout.wall_lights.extend(wall_lights);
+    layout.floors.extend(all_floors);
+    layout.floor_materials.extend(all_floor_materials);
+    layout.barriers.extend(all_barriers);
+    layout.light_bridges.extend(all_light_bridges);
+    layout
+        .pressure_plates
+        .extend(pressure_plates.iter().map(|p| PressurePlate {
+            level: p.level,
+            center_x: geometry.cell_center_x(p.col),
+            center_y: geometry.level_y(p.level),
+            center_z: geometry.cell_center_z(p.row),
+            purpose: p.purpose,
+            carrier,
+        }));
+    layout.ladders.extend(ladders);
+    layout.grass.extend(grass);
+
+    let config = &mut out.config;
+    config.grids.push(CarrierGrid::new(carrier, geometry, level_grids));
+    if carrier.is_world() {
+        config.actor_spawn_zones.extend(actor_spawn_zones(map_def));
+    } else if !map_def.actor_spawn_zones.is_empty() {
+        out.warnings.push(format!(
+            "map {:?} is nested; its {} actor spawn zone(s) are ignored until actors ride carriers",
+            name.unwrap_or_default(),
+            map_def.actor_spawn_zones.len()
+        ));
+    }
+    config.player_spawn_zones.extend(player_spawn_zones(map_def, carrier));
+    config.placed_items.extend(placed_items);
+    config.pressure_plates.extend(pressure_plates);
+
+    for entry in &map_def.nested_maps {
+        let child_def = scope
+            .nested
+            .get(&entry.map)
+            .expect("nested map missing from the loaded tree");
+        let child_geometry = MapGeometry::new(child_def.grid_cols, child_def.grid_rows, scope.sizes);
+        let id = next_carrier(out);
+        out.layout
+            .carriers
+            .push(nested_carrier(&geometry, &child_geometry, &entry.motion, carrier));
+        let reach = usize::from(out.layout.carrier_base_level(id))
+            + child_def.levels.len()
+            + usize::from(out.layout.carrier_motion_levels(id));
+        assert!(
+            reach <= usize::from(u8::MAX) + 1,
+            "nested map {:?} reaches past the last storey a level tag can name",
+            entry.map
+        );
+        compile_carrier(Some(&entry.map), child_def, scope, id, out)
+            .with_context(|| format!("nested map {:?}", entry.map))?;
+    }
+    Ok(())
+}
+
+fn next_carrier(out: &CompileOutput) -> CarrierId {
+    CarrierId(u16::try_from(out.layout.carriers.len() + 1).expect("more carriers than CarrierId can name"))
 }
 
 pub(super) fn ramp_spec_from_def(r: &RampDef) -> ramps::RampSpec {
@@ -293,11 +398,12 @@ fn actor_spawn_zones(map_def: &MapDef) -> Vec<ActorSpawnZone> {
         .collect()
 }
 
-fn player_spawn_zones(map_def: &MapDef) -> Vec<PlayerSpawnZone> {
+fn player_spawn_zones(map_def: &MapDef, carrier: CarrierId) -> Vec<PlayerSpawnZone> {
     map_def
         .player_spawn_zones
         .iter()
         .map(|zone| PlayerSpawnZone {
+            carrier,
             level: u8::try_from(zone.level).unwrap_or(u8::MAX),
             cols: zone.cols,
             rows: zone.rows,
@@ -311,6 +417,7 @@ fn placed_items(
     map_def: &MapDef,
     kind_table: &BarrierKindTable,
     level_grids: &[LevelGrid],
+    carrier: CarrierId,
 ) -> anyhow::Result<Vec<PlacedItem>> {
     map_def
         .items
@@ -334,6 +441,7 @@ fn placed_items(
                 item.row
             );
             Ok(PlacedItem {
+                carrier,
                 level: u8::try_from(item.level).unwrap_or(u8::MAX),
                 col: item.col,
                 row: item.row,
@@ -373,6 +481,7 @@ fn light_bridges(
             thickness: geometry.bridge_thickness(),
             level: level_u8,
             kind: rect.kind,
+            carrier: CarrierId::WORLD,
         }));
     }
     Ok(out)
@@ -382,6 +491,7 @@ fn pressure_plates(
     map_def: &MapDef,
     kind_table: &BarrierKindTable,
     bridge_table: &BridgeKindTable,
+    carrier: CarrierId,
 ) -> anyhow::Result<Vec<PressurePlateRuntime>> {
     map_def
         .pressure_plates
@@ -402,6 +512,7 @@ fn pressure_plates(
                 PressurePlatePurposeDef::Firework => PlatePurpose::Firework,
             };
             Ok(PressurePlateRuntime {
+                carrier,
                 level: u8::try_from(p.level).unwrap_or(u8::MAX),
                 col: p.col,
                 row: p.row,
@@ -420,45 +531,49 @@ fn set_edge(edges: &mut EdgeGrid, edge: [i32; 4]) {
     }
 }
 
-// A moving floor sets no `Cell` flags, like a light bridge: navigation,
-// item cells, spawn cells, and the air graph never see it. Its timing is
-// whole ticks so both sides place it exactly from the shared tick.
-fn moving_floor_from_def(def: &MovingFloorDef, geometry: &MapGeometry) -> MovingFloor {
-    let level = u8::try_from(def.level).unwrap_or(u8::MAX);
-    let to_level = u8::try_from(def.to_level()).unwrap_or(u8::MAX);
-    let end1 = Vec3::new(
-        geometry.cell_center_x(def.from[0]),
-        geometry.level_y(level),
-        geometry.cell_center_z(def.from[1]),
-    );
-    let end2 = Vec3::new(
-        geometry.cell_center_x(def.to[0]),
-        geometry.level_y(to_level),
-        geometry.cell_center_z(def.to[1]),
-    );
-    let half = geometry.cell_size() / 2.0 - geometry.cell_size() * MOVING_FLOOR_INSET_FRACTION;
+// A carrier's motion between two points of its parent's frame; the timing
+// is whole ticks so both sides place it exactly from the shared tick, and a
+// stationary motion is a single tick that never leaves `from`. A tile is a
+// nested one-cell map, so nothing here is special about it.
+fn carrier_from_motion(end1: Vec3, end2: Vec3, motion: &MotionDef, parent: CarrierId) -> Carrier {
+    let level = u8::try_from(motion.level).unwrap_or(u8::MAX);
+    let to_level = u8::try_from(motion.to_level()).unwrap_or(u8::MAX);
     let ticks = |secs: f32| (secs * TICK_HZ as f32).round() as u32;
-    MovingFloor {
-        x1: end1.x,
-        y1: end1.y,
-        z1: end1.z,
-        x2: end2.x,
-        y2: end2.y,
-        z2: end2.z,
-        half_x: half,
-        half_z: half,
-        thickness: geometry.floor_thickness(),
-        travel_ticks: ticks(end1.distance(end2) / def.speed).max(1),
-        pause_ticks: ticks(def.pause_secs),
-        phase_ticks: ticks(def.phase_secs),
+    Carrier {
+        parent,
         level: level.min(to_level),
         levels: level.abs_diff(to_level),
+        from: end1.into(),
+        to: end2.into(),
+        travel_ticks: ticks(end1.distance(end2) / motion.speed).max(1),
+        pause_ticks: ticks(motion.pause_secs),
+        phase_ticks: ticks(motion.phase_secs),
     }
 }
 
-// Convert an editor-authored `(cell, side)` ladder into a world-space
-// `Ladder`: the anchor edge's span shrunk to `LADDER_WIDTH` centered on the
-// edge midpoint, with the normal pointing across the edge away from the
+// A nested map's carrier: its origin's offset in the parent's frame puts
+// the nested cell (0, 0) on the parent's `from` cell at storey `level`, and
+// likewise `to` at `to_level`. Both grids are centered on their own origin,
+// which is why the nested corner is subtracted.
+fn nested_carrier(parent: &MapGeometry, nested: &MapGeometry, motion: &MotionDef, parent_id: CarrierId) -> Carrier {
+    let level = u8::try_from(motion.level).unwrap_or(u8::MAX);
+    let to_level = u8::try_from(motion.to_level()).unwrap_or(u8::MAX);
+    let end1 = nested_origin_offset(parent, nested, motion.from, level);
+    let end2 = nested_origin_offset(parent, nested, motion.to, to_level);
+    carrier_from_motion(end1, end2, motion, parent_id)
+}
+
+fn nested_origin_offset(parent: &MapGeometry, nested: &MapGeometry, cell: [i32; 2], level: u8) -> Vec3 {
+    Vec3::new(
+        parent.cell_to_world_x(cell[0]) - nested.cell_to_world_x(0),
+        parent.level_y(level),
+        parent.cell_to_world_z(cell[1]) - nested.cell_to_world_z(0),
+    )
+}
+
+// Convert an editor-authored `(cell, side)` ladder into a `Ladder` in the
+// map's frame: the anchor edge's span shrunk to `LADDER_WIDTH` centered on
+// the edge midpoint, with the normal pointing across the edge away from the
 // anchor cell (into the climb volume). Side conventions match `lights.rs`:
 // North = -Z, South = +Z, West = -X, East = +X.
 fn ladder_from_def(def: &LadderDef, geometry: &MapGeometry) -> Ladder {
@@ -492,5 +607,6 @@ fn ladder_from_def(def: &LadderDef, geometry: &MapGeometry) -> Ladder {
         height: f32::from(levels) * geometry.level_height(),
         level,
         levels,
+        carrier: CarrierId::WORLD,
     }
 }

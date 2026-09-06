@@ -15,15 +15,15 @@ use rapier3d::{
 use crate::{
     config::CharacterPhysicsConfig,
     constants::PORTAL_BACKING_FLUSH_EPSILON,
+    map::{CarrierPose, Carriers},
     physics::characters::{character_center, character_shape},
-    protocol::{BarrierKindId, BarrierKindTable, BridgeKindId, MapLayout, MovingFloorId, Position},
+    protocol::{BarrierKindId, BarrierKindTable, BridgeKindId, CarrierId, MapLayout, Position},
 };
 
 use super::colliders::{
-    BRIDGE_COLLISION_GROUP, ColliderKind, FLOOR_COLLISION_GROUP, MOVING_FLOOR_COLLISION_GROUP, WALL_COLLISION_GROUP,
-    barrier_collision_group, character_collision_groups, collider_interaction_groups, ground_collision_groups,
-    insert_barrier_collider, insert_bridge_collider, insert_floor_collider, insert_moving_floor_collider,
-    insert_ramp_collider, insert_wall_collider, portal_surface_collision_groups, query_filter,
+    BRIDGE_COLLISION_GROUP, ColliderKind, FLOOR_COLLISION_GROUP, WALL_COLLISION_GROUP, barrier_collision_group,
+    character_collision_groups, collider_interaction_groups, ground_collision_groups, insert_barrier_collider,
+    insert_bridge_collider, insert_floor_collider, insert_ramp_collider, insert_wall_collider, query_filter,
     surface_collision_groups, world_collision_groups,
 };
 
@@ -35,6 +35,8 @@ use super::shape_cast::upward_surface_hit;
 pub struct WorldSurfaceHit {
     pub point: Vec3,
     pub normal: Vec3,
+    // Whose surface it is: what a portal placed here rides.
+    pub carrier: CarrierId,
 }
 
 #[derive(Resource)]
@@ -50,8 +52,13 @@ pub struct CollisionWorld {
     all_barrier_groups: Group,
     // Every light bridge collider with its kind, for `set_powered_bridges`.
     bridge_colliders: Vec<(BridgeKindId, ColliderHandle)>,
-    // Every moving floor collider in layout order, for `set_moving_floor_centers`.
-    moving_floor_colliders: Vec<ColliderHandle>,
+    // Each carrier's colliders with their carrier-local poses, in layout
+    // order, and the same handles flat, for `set_carrier_poses`.
+    carrier_colliders: Vec<Vec<(ColliderHandle, Pose)>>,
+    carried_handles: Vec<ColliderHandle>,
+    // Ladder volumes as built from the local records, and the same posed
+    // into world space by `set_carrier_poses`, which is what queries read.
+    ladder_locals: Vec<(CarrierId, LadderVolume)>,
     ladder_volumes: Vec<LadderVolume>,
 }
 
@@ -61,39 +68,50 @@ impl CollisionWorld {
         let bodies = RigidBodySet::new();
         let mut colliders = ColliderSet::new();
         let mut collider_handles = Vec::new();
+        let mut carrier_colliders: Vec<Vec<(ColliderHandle, Pose)>> = vec![Vec::new(); map_layout.carriers.len()];
+        // Every collider is inserted at its carrier-local pose; the carried
+        // ones are placed by `set_carrier_poses` below and every tick after.
+        let mut carried = |colliders: &ColliderSet, handle: ColliderHandle, carrier: CarrierId| {
+            if let Some(index) = carrier.carried_index() {
+                carrier_colliders
+                    .get_mut(index)
+                    .expect("layout record names a carrier the layout does not have")
+                    .push((handle, *colliders[handle].position()));
+            }
+            handle
+        };
 
         for wall in &map_layout.walls {
-            collider_handles.push(insert_wall_collider(&mut colliders, wall));
+            let handle = insert_wall_collider(&mut colliders, wall);
+            collider_handles.push(carried(&colliders, handle, wall.carrier));
         }
 
         for floor in &map_layout.floors {
-            collider_handles.push(insert_floor_collider(&mut colliders, floor));
+            let handle = insert_floor_collider(&mut colliders, floor);
+            collider_handles.push(carried(&colliders, handle, floor.carrier));
         }
 
         for ramp in &map_layout.ramps {
             if let Some(handle) = insert_ramp_collider(&mut colliders, ramp) {
-                collider_handles.push(handle);
+                collider_handles.push(carried(&colliders, handle, ramp.carrier));
             }
         }
 
         for barrier in &map_layout.barriers {
-            collider_handles.push(insert_barrier_collider(&mut colliders, barrier));
+            let handle = insert_barrier_collider(&mut colliders, barrier);
+            collider_handles.push(carried(&colliders, handle, barrier.carrier));
         }
 
         let mut bridge_colliders = Vec::with_capacity(map_layout.light_bridges.len());
         for bridge in &map_layout.light_bridges {
             let handle = insert_bridge_collider(&mut colliders, bridge);
-            collider_handles.push(handle);
+            collider_handles.push(carried(&colliders, handle, bridge.carrier));
             bridge_colliders.push((bridge.kind, handle));
         }
-
-        let mut moving_floor_colliders = Vec::with_capacity(map_layout.moving_floors.len());
-        for (index, floor) in map_layout.moving_floors.iter().enumerate() {
-            let id = MovingFloorId(u16::try_from(index).expect("more moving floors than MovingFloorId can index"));
-            let handle = insert_moving_floor_collider(&mut colliders, floor, id);
-            collider_handles.push(handle);
-            moving_floor_colliders.push(handle);
-        }
+        let carried_handles = carrier_colliders
+            .iter()
+            .flat_map(|handles| handles.iter().map(|(handle, _)| *handle))
+            .collect();
 
         let mut broad_phase = BroadPhaseBvh::new();
         let narrow_phase = NarrowPhase::new();
@@ -112,58 +130,66 @@ impl CollisionWorld {
             all_barrier_groups |= barrier_collision_group(BarrierKindId(idx as u16));
         }
 
-        let ladder_volumes = map_layout.ladders.iter().map(LadderVolume::from_ladder).collect();
+        let ladder_locals: Vec<_> = map_layout
+            .ladders
+            .iter()
+            .map(|ladder| (ladder.carrier, LadderVolume::from_ladder(ladder)))
+            .collect();
+        let ladder_volumes = ladder_locals.iter().map(|(_, volume)| *volume).collect();
 
-        Self {
+        let mut world = Self {
             bodies,
             colliders,
             broad_phase,
             narrow_phase,
             all_barrier_groups,
             bridge_colliders,
-            moving_floor_colliders,
+            carrier_colliders,
+            carried_handles,
+            ladder_locals,
             ladder_volumes,
-        }
+        };
+        world.set_carrier_poses(&Carriers::from_layout(map_layout));
+        world
     }
 
-    // Moving floors are the one geometry that moves. Each tick both sides put
-    // every tile's collider at its current pose (`moving_floors_advance_system`)
-    // and refresh the broad phase for exactly those handles, so every query
-    // that follows sees the tiles where they are; nothing else here ever
-    // moves, so the rest of the tree stays as built.
-    pub fn set_moving_floor_centers(&mut self, centers: &[Vec3]) {
+    // Carriers are the one geometry that moves. Each tick both sides put
+    // every carried collider at its carrier's current pose
+    // (`carriers_advance_system`) and refresh the broad phase for exactly
+    // those handles, so every query that follows sees them where they are;
+    // nothing else here ever moves, so the rest of the tree stays as built.
+    pub fn set_carrier_poses(&mut self, carriers: &Carriers) {
         assert_eq!(
-            centers.len(),
-            self.moving_floor_colliders.len(),
-            "moving floor count differs between the runtime state and the collision world"
+            carriers.carried_count(),
+            self.carrier_colliders.len(),
+            "carrier count differs between the runtime state and the collision world"
         );
-        for (handle, center) in self.moving_floor_colliders.iter().zip(centers) {
-            self.colliders[*handle].set_position(Pose::translation(center.x, center.y, center.z));
+        if self.carrier_colliders.is_empty() {
+            return;
+        }
+        for (index, handles) in self.carrier_colliders.iter().enumerate() {
+            let pose = rapier_pose(&carriers.pose(CarrierId(index as u16 + 1)));
+            for (handle, local) in handles {
+                self.colliders[*handle].set_position(pose * *local);
+            }
         }
         let mut events = Vec::new();
         self.broad_phase.update(
             &IntegrationParameters::default(),
             &self.colliders,
             &self.bodies,
-            &self.moving_floor_colliders,
+            &self.carried_handles,
             &[],
             &mut events,
         );
+        for (index, (carrier, local)) in self.ladder_locals.iter().enumerate() {
+            self.ladder_volumes[index] = local.posed(&carriers.pose(*carrier));
+        }
     }
 
     #[must_use]
-    pub(crate) fn moving_floor_collider(&self, id: MovingFloorId) -> ColliderHandle {
-        self.moving_floor_colliders
-            .get(id.index())
-            .copied()
-            .expect("portal anchored to a moving floor the map does not have")
-    }
-
-    fn moving_floor_id(&self, handle: ColliderHandle) -> Option<MovingFloorId> {
-        self.moving_floor_colliders
-            .iter()
-            .position(|candidate| *candidate == handle)
-            .map(|index| MovingFloorId(index as u16))
+    pub(crate) fn carrier_of(&self, handle: ColliderHandle) -> CarrierId {
+        ColliderKind::carrier_from_user_data(self.colliders[handle].user_data)
     }
 
     // Bridge power is world state, not per-query state: the powered kinds'
@@ -312,6 +338,7 @@ impl CollisionWorld {
                     contact: Vec3::new(hit.witness1.x, hit.witness1.y, hit.witness1.z),
                     t: hit.time_of_impact,
                     barrier_kind: ColliderKind::barrier_kind_from_user_data(self.colliders[handle].user_data),
+                    carrier: self.carrier_of(handle),
                 }
             })
     }
@@ -341,28 +368,13 @@ impl CollisionWorld {
         (hit.normal.y.abs() < 0.1).then_some(hit)
     }
 
-    // First static-world surface (wall/floor/ramp) along the ray — the same
-    // filter as `line_of_sight_clear`, so a beam clipped at this point stops
-    // exactly where sight does. Light bridges and moving floors are
-    // excluded; a portal shot uses `portal_surface_along_ray`.
+    // First world surface (wall/floor/ramp, on any carrier) along the ray —
+    // the same filter as `line_of_sight_clear`, so a beam clipped at this
+    // point stops exactly where sight does. Light bridges are excluded, so a
+    // portal never lands on one.
     #[must_use]
     pub fn world_surface_along_ray(&self, origin: Vec3, direction: Vec3, max_distance: f32) -> Option<WorldSurfaceHit> {
         self.surface_along_ray(origin, direction, max_distance, world_collision_groups())
-    }
-
-    // First surface a portal may land on along the ray: the static world or
-    // a moving floor, which the hit names so the portal can be anchored to
-    // it. Light bridges are excluded, so a portal never lands on one.
-    #[must_use]
-    pub(crate) fn portal_surface_along_ray(
-        &self,
-        origin: Vec3,
-        direction: Vec3,
-        max_distance: f32,
-    ) -> Option<(WorldSurfaceHit, Option<MovingFloorId>)> {
-        let (handle, hit) =
-            self.surface_with_handle_along_ray(origin, direction, max_distance, portal_surface_collision_groups())?;
-        Some((hit, self.moving_floor_id(handle)))
     }
 
     fn surface_along_ray(
@@ -372,17 +384,6 @@ impl CollisionWorld {
         max_distance: f32,
         groups: Group,
     ) -> Option<WorldSurfaceHit> {
-        self.surface_with_handle_along_ray(origin, direction, max_distance, groups)
-            .map(|(_, hit)| hit)
-    }
-
-    fn surface_with_handle_along_ray(
-        &self,
-        origin: Vec3,
-        direction: Vec3,
-        max_distance: f32,
-        groups: Group,
-    ) -> Option<(ColliderHandle, WorldSurfaceHit)> {
         if !origin.is_finite() || !direction.is_finite() || !max_distance.is_finite() || max_distance <= 0.0 {
             return None;
         }
@@ -400,13 +401,11 @@ impl CollisionWorld {
         let (handle, hit) = query_pipeline.cast_ray_and_get_normal(&ray, max_distance, false)?;
         let normal = Vec3::new(hit.normal.x, hit.normal.y, hit.normal.z).try_normalize()?;
 
-        Some((
-            handle,
-            WorldSurfaceHit {
-                point: origin + direction * hit.time_of_impact,
-                normal,
-            },
-        ))
+        Some(WorldSurfaceHit {
+            point: origin + direction * hit.time_of_impact,
+            normal,
+            carrier: self.carrier_of(handle),
+        })
     }
 
     #[must_use]
@@ -439,7 +438,7 @@ impl CollisionWorld {
 
         query_pipeline
             .cast_shape(character_pos, Vector::NEG_Y, character_shape, options)
-            .and_then(|(_, hit)| upward_surface_hit(hit))
+            .and_then(|(handle, hit)| upward_surface_hit(hit, self.carrier_of(handle)))
     }
 
     #[must_use]
@@ -449,15 +448,12 @@ impl CollisionWorld {
         radius: f32,
         open_kinds: &[BarrierKindId],
     ) -> bool {
-        // Walls, floors, powered bridges, and moving floors are always
-        // blockers. Barriers block the muzzle unless the kind is currently
-        // open (pressure-plate held) — those barriers are gone visually and
-        // shots pass through them, so the muzzle clipping them is fine.
-        let mut groups = WALL_COLLISION_GROUP
-            | FLOOR_COLLISION_GROUP
-            | BRIDGE_COLLISION_GROUP
-            | MOVING_FLOOR_COLLISION_GROUP
-            | self.all_barrier_groups;
+        // Walls, floors, and powered bridges are always blockers. Barriers
+        // block the muzzle unless the kind is currently open (pressure-plate
+        // held) — those barriers are gone visually and shots pass through
+        // them, so the muzzle clipping them is fine.
+        let mut groups =
+            WALL_COLLISION_GROUP | FLOOR_COLLISION_GROUP | BRIDGE_COLLISION_GROUP | self.all_barrier_groups;
         for kind in open_kinds {
             groups.remove(barrier_collision_group(*kind));
         }
@@ -465,10 +461,13 @@ impl CollisionWorld {
     }
 
     // Portal backing colliders: what the aperture's backing volume touches
-    // that lies entirely behind the surface plane. An adjoining ramp, or the
-    // floor a wall portal stands on, reaches in front of the plane and must
-    // remain solid while the surface itself opens for transit; a stacked
-    // wall's trim strip is flush with the wall faces and opens with them.
+    // that lies entirely behind the surface plane and belongs to the
+    // portal's own carrier. An adjoining ramp, or the floor a wall portal
+    // stands on, reaches in front of the plane and must remain solid while
+    // the surface itself opens for transit; a stacked wall's trim strip is
+    // flush with the wall faces and opens with them. Another carrier's
+    // collider passing behind the plane is not backing: it moves on, and
+    // the set is computed once.
     #[must_use]
     pub(crate) fn portal_backing_colliders(
         &self,
@@ -476,6 +475,7 @@ impl CollisionWorld {
         surface_normal: Vec3,
         half_extents: Vec3,
         rotation: Quat,
+        carrier: CarrierId,
     ) -> Vec<ColliderHandle> {
         let Some(surface_normal) = surface_normal.try_normalize() else {
             return Vec::new();
@@ -498,6 +498,9 @@ impl CollisionWorld {
         query_pipeline
             .intersect_shape(pose, &shape)
             .filter_map(|(handle, collider)| {
+                if ColliderKind::carrier_from_user_data(collider.user_data) != carrier {
+                    return None;
+                }
                 let front = collider
                     .shape()
                     .as_support_map()?
@@ -588,4 +591,8 @@ impl CollisionWorld {
 
         query_pipeline.intersect_shape(pose, &shape).next().is_some()
     }
+}
+
+fn rapier_pose(pose: &CarrierPose) -> Pose {
+    Pose::translation(pose.translation.x, pose.translation.y, pose.translation.z)
 }

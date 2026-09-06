@@ -32,8 +32,8 @@ from .constants import (
     MODE_ITEM,
     MODE_LADDER,
     MODE_LIGHT_BRIDGE,
-    MODE_MOVING_FLOOR,
-    MODE_ERASE_MOVING_FLOORS,
+    MODE_NESTED_MAP,
+    MODE_ERASE_NESTED_MAPS,
     MODE_PLAYER_SPAWN_PAINT,
     MODE_PRESSURE_PLATE,
     MODE_RAMP_MATERIAL,
@@ -64,9 +64,9 @@ BARRIER_PEN_WIDTH = 4
 # uses the rect-preview UI but isn't listed here (e.g. actor spawn paint).
 DRAG_PREVIEW_FALLBACK = QColor(34, 197, 94, 120)
 
-# A moving floor's tile on the canvas: solid at its starting cell, outlined
-# at the cell it travels to.
-MOVING_FLOOR_COLOR = QColor(45, 212, 191)
+# A nested map on the canvas: its anchors, the band between them, and its
+# footprint outlined and named.
+NESTED_MAP_COLOR = QColor(167, 139, 250)
 
 
 def _translucent(hex_color: str, alpha: int) -> QColor:
@@ -89,8 +89,8 @@ DRAG_PREVIEW_COLORS: dict[str, QColor] = {
     MODE_ERASE_LADDERS: QColor(251, 146, 60, 120),
     # Kind is picked after the drag, so the preview uses the generic bridge cyan.
     MODE_LIGHT_BRIDGE: QColor(48, 216, 255, 120),
-    MODE_MOVING_FLOOR: QColor(45, 212, 191, 120),  # teal — matches the placed tile
-    MODE_ERASE_MOVING_FLOORS: QColor(245, 158, 11, 120),  # amber family, like Erase Items
+    MODE_NESTED_MAP: QColor(167, 139, 250, 120),  # violet — matches the placed footprint
+    MODE_ERASE_NESTED_MAPS: QColor(245, 158, 11, 120),  # amber family, like Erase Items
     MODE_ERASE_LIGHT_BRIDGES: QColor(245, 158, 11, 120),  # amber family, like Erase Items
     MODE_FLOOR_MATERIAL: QColor(236, 72, 153, 120),
     MODE_RAMP_MATERIAL: QColor(168, 85, 247, 120),  # purple to distinguish from floor mode pink

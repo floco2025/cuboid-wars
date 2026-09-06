@@ -16,7 +16,7 @@ use crate::{
 };
 use common::{
     config::GameplayConfig,
-    map::MovingFloors,
+    map::Carriers,
     math::direction_from_yaw_pitch,
     physics::{CollisionWorld, compute_portal_placement, portal_placement_overlaps},
     protocol::*,
@@ -26,7 +26,7 @@ use common::{
 pub struct PortalInputWorld<'w> {
     time: Res<'w, Time>,
     collision_world: Res<'w, CollisionWorld>,
-    moving_floors: Res<'w, MovingFloors>,
+    carriers: Res<'w, Carriers>,
     map_layout: Res<'w, MapLayout>,
     portals: Res<'w, PortalMap>,
     gameplay_config: Res<'w, GameplayConfig>,
@@ -96,12 +96,10 @@ pub fn input_portal_system(
         world.gameplay_config.portals.range,
         &world.collision_world,
         &world.map_layout,
-        &world.moving_floors,
+        &world.carriers,
     );
     let existing = world.portals.wire_portals();
-    if placement
-        .is_none_or(|placement| portal_placement_overlaps(&placement, pair, end, &existing, &world.moving_floors))
-    {
+    if placement.is_none_or(|placement| portal_placement_overlaps(&placement, pair, end, &existing, &world.carriers)) {
         play_sound(&mut commands, &asset_server, asset_set.player_sound("dry_fire"));
         return;
     }

@@ -5,15 +5,15 @@ use crate::{
     characters::{characters_movement_system, knockback_decay_system},
     schedule::ServerSet,
 };
-use common::physics::{anchored_portals_refresh_system, moving_floors_advance_system};
+use common::physics::{carried_portals_refresh_system, carriers_advance_system};
 
 pub fn portals_plugin(app: &mut App) {
     app.add_systems(
         Update,
         (
-            anchored_portals_refresh_system
+            carried_portals_refresh_system
                 .in_set(ServerSet::Movement)
-                .after(moving_floors_advance_system)
+                .after(carriers_advance_system)
                 .before(characters_movement_system),
             players_portal_traversal_system
                 .in_set(ServerSet::Movement)

@@ -10,7 +10,6 @@ use crate::{
 };
 use common::{
     config::{ActorMovementConfig, GameplayConfig},
-    map::MapGeometry,
     physics::{CharacterVerticalVelocity, CollisionWorld},
     protocol::{ActorMarker, ActorMoveIntent, FaceYaw, Health, MapSettings, PlayerMarker, Position},
 };
@@ -46,7 +45,6 @@ pub fn actors_initial_spawn_system(
     mut pending: ResMut<PendingActorSpawns>,
     mut spawner: ResMut<ActorSpawner>,
     map_config: Res<MapConfig>,
-    map_geometry: Res<MapGeometry>,
     collision_world: Res<CollisionWorld>,
     gameplay_config: Res<GameplayConfig>,
     server_gameplay_config: Res<ServerGameplayConfig>,
@@ -69,7 +67,6 @@ pub fn actors_initial_spawn_system(
                 &mut occupied_positions,
                 &mut rng,
                 &map_config,
-                &map_geometry,
                 &collision_world,
                 server_gameplay_config.actors.settings.spawn_warning_secs,
                 actor_physics,
@@ -87,7 +84,6 @@ pub fn actors_respawn_system(
     mut actors: ResMut<ActorMap>,
     time: Res<Time>,
     map_config: Res<MapConfig>,
-    map_geometry: Res<MapGeometry>,
     collision_world: Res<CollisionWorld>,
     gameplay_config: Res<GameplayConfig>,
     server_gameplay_config: Res<ServerGameplayConfig>,
@@ -142,7 +138,6 @@ pub fn actors_respawn_system(
                 &mut occupied_positions,
                 &mut rng,
                 &map_config,
-                &map_geometry,
                 &collision_world,
                 server_gameplay_config.actors.settings.spawn_warning_secs,
                 actor_physics,
@@ -238,21 +233,14 @@ fn queue_actor_spawn_in_zone(
     occupied_positions: &mut Vec<Position>,
     rng: &mut ThreadRng,
     map_config: &MapConfig,
-    map_geometry: &MapGeometry,
     collision_world: &CollisionWorld,
     warning_secs: f32,
     actor_physics: common::config::CharacterPhysicsConfig,
     zone_idx: usize,
     spawn_kind: &str,
 ) {
-    let pos = generate_actor_spawn_position_in_zone(
-        map_config,
-        map_geometry,
-        zone_idx,
-        collision_world,
-        occupied_positions,
-        actor_physics,
-    );
+    let pos =
+        generate_actor_spawn_position_in_zone(map_config, zone_idx, collision_world, occupied_positions, actor_physics);
     occupied_positions.push(pos);
 
     pending.0.push(PendingActorSpawn {
@@ -330,11 +318,6 @@ mod tests {
     #[test]
     fn expiring_selected_cooldowns_advances_pending_and_missing_slots() {
         let map_config = MapConfig {
-            levels: vec![LevelGrid {
-                cells: CellGrid::new(1, 1),
-                edges: EdgeGrid::new(1, 1),
-                barrier_edges: EdgeGrid::new(1, 1),
-            }],
             actor_spawn_zones: vec![
                 ActorSpawnZone {
                     level: 0,
@@ -351,9 +334,14 @@ mod tests {
                     count: 1,
                 },
             ],
-            player_spawn_zones: Vec::new(),
-            placed_items: Vec::new(),
-            pressure_plates: Vec::new(),
+            ..MapConfig::for_grid(
+                vec![LevelGrid {
+                    cells: CellGrid::new(1, 1),
+                    edges: EdgeGrid::new(1, 1),
+                    barrier_edges: EdgeGrid::new(1, 1),
+                }],
+                crate::test_geometry::geometry(1, 1),
+            )
         };
         let config = ServerGameplayConfig::load_default().expect("default server gameplay config should load");
         let mut mine = pending_spawn(1, 2.0);

@@ -1,9 +1,10 @@
+use common::protocol::CarrierId;
 use std::sync::LazyLock;
 
 pub(super) use bevy::prelude::Entity;
 pub(super) use common::{
     config::CharacterPhysicsConfig,
-    map::MovingFloors,
+    map::Carriers,
     physics::{CharacterMovePlan, CollisionWorld},
     protocol::{ActorId, ActorMoveIntent, Floor, MapLayout, Position, Wall},
 };
@@ -22,7 +23,7 @@ pub(super) use super::super::{
 
 pub(crate) const TEST_KIND: &str = "zapper";
 pub(crate) const TEST_DELTA: f32 = 0.1;
-static NO_MOVING_FLOORS: LazyLock<MovingFloors> = LazyLock::new(MovingFloors::default);
+static NO_CARRIERS: LazyLock<Carriers> = LazyLock::new(Carriers::default);
 
 pub(crate) fn order(entity_bits: u64, route_distance: f32, id: u32) -> ActorPlanOrder {
     ActorPlanOrder {
@@ -79,6 +80,7 @@ pub(crate) fn floor() -> Floor {
         y: 0.0,
         thickness: FLOOR_THICKNESS,
         level: 0,
+        carrier: CarrierId::WORLD,
     }
 }
 
@@ -92,6 +94,7 @@ pub(crate) fn wall() -> Wall {
         level: 0,
         y: 0.0,
         height: WALL_HEIGHT,
+        carrier: CarrierId::WORLD,
     }
 }
 
@@ -126,7 +129,7 @@ pub(crate) fn context<'a>(
         gravity: 25.0,
         ladder_climb_ratio: test_ladders(),
         knockback_step: bevy::prelude::Vec3::ZERO,
-        moving_floors: &NO_MOVING_FLOORS,
+        carriers: &NO_CARRIERS,
     }
 }
 

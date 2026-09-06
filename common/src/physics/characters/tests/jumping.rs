@@ -43,7 +43,7 @@ fn upward_jump_velocity_moves_player_above_support() {
             ladder_climb_ratio: test_ladders(),
             physics: player_physics(),
             portals: None,
-            moving_floors: &MovingFloors::default(),
+            carriers: &Carriers::default(),
         },
     );
 
@@ -67,7 +67,7 @@ fn landing_reports_ground_support() {
             ladder_climb_ratio: test_ladders(),
             physics: player_physics(),
             portals: None,
-            moving_floors: &MovingFloors::default(),
+            carriers: &Carriers::default(),
         },
     );
 
@@ -91,7 +91,7 @@ fn upward_motion_hits_floor_underside() {
             ladder_climb_ratio: test_ladders(),
             physics: player_physics(),
             portals: None,
-            moving_floors: &MovingFloors::default(),
+            carriers: &Carriers::default(),
         },
     );
 
@@ -116,7 +116,7 @@ fn initial_ceiling_contact_does_not_cancel_horizontal_movement() {
             ladder_climb_ratio: test_ladders(),
             physics: player_physics(),
             portals: None,
-            moving_floors: &MovingFloors::default(),
+            carriers: &Carriers::default(),
         },
     );
 
@@ -142,7 +142,7 @@ fn upward_motion_ignores_floor_underside_outside_footprint() {
             ladder_climb_ratio: test_ladders(),
             physics: player_physics(),
             portals: None,
-            moving_floors: &MovingFloors::default(),
+            carriers: &Carriers::default(),
         },
     );
 
@@ -170,7 +170,7 @@ fn upward_motion_under_floor_edge_hits_floor_side() {
             ladder_climb_ratio: test_ladders(),
             physics: player_physics(),
             portals: None,
-            moving_floors: &MovingFloors::default(),
+            carriers: &Carriers::default(),
         },
     );
 
@@ -198,7 +198,7 @@ fn player_on_floor_top_can_move_over_adjacent_floor_slab_edge() {
             ladder_climb_ratio: test_ladders(),
             physics: player_physics(),
             portals: None,
-            moving_floors: &MovingFloors::default(),
+            carriers: &Carriers::default(),
         },
     );
 

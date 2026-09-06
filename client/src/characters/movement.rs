@@ -8,7 +8,7 @@ use crate::{
 };
 use common::{
     config::GameplayConfig,
-    map::MovingFloors,
+    map::Carriers,
     physics::{CollisionWorld, PortalSet},
     protocol::{ActorMarker, MapSettings, PlateState, PlayerMarker, Position},
 };
@@ -39,7 +39,7 @@ pub fn characters_movement_system(
     actors: Res<ActorMap>,
     plates: Res<PlateState>,
     portal_set: Res<PortalSet>,
-    moving_floors: Res<MovingFloors>,
+    carriers: Res<Carriers>,
     mut players_query: PlayerMovementQuery,
     mut actors_query: ActorMovementQuery,
 ) {
@@ -57,7 +57,7 @@ pub fn characters_movement_system(
         &mut local_player_info,
         &plates,
         &portal_set,
-        &moving_floors,
+        &carriers,
         &mut players_query,
         &mut planned_moves,
     );
@@ -69,7 +69,7 @@ pub fn characters_movement_system(
         &gameplay_config,
         &actors,
         &plates,
-        &moving_floors,
+        &carriers,
         &actor_starts,
         &mut actors_query,
         &mut planned_moves,

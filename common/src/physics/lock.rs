@@ -53,6 +53,7 @@ pub fn acquire_lock(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::protocol::CarrierId;
     use crate::{
         config::{
             CharacterColliderAnchor, CharacterColliderConfig, CharacterPhysicsConfig, CharacterSupportProbeConfig,
@@ -137,6 +138,7 @@ mod tests {
                 level: 0,
                 y: 0.0,
                 height: WALL_HEIGHT,
+                carrier: CarrierId::WORLD,
             }],
             ..Default::default()
         };

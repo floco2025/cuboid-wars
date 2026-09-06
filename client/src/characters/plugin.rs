@@ -2,15 +2,15 @@ use super::*;
 use bevy::prelude::*;
 
 use common::{
-    physics::{anchored_portals_refresh_system, moving_floors_advance_system},
+    physics::{carried_portals_refresh_system, carriers_advance_system},
     protocol::server_tick_advance_system,
 };
 
 use crate::{
     actors::actors_transform_sync_system,
+    carriers::carriers_transform_sync_system,
     input::{commit_player_input_system, record_committed_position_system},
     missiles::missiles_movement_system,
-    moving_floors::moving_floors_transform_sync_system,
     players::players_transform_sync_system,
     projectiles::projectiles_movement_system,
     schedule::ClientSet,
@@ -33,8 +33,8 @@ pub fn prediction_plugin(app: &mut App) {
             server_tick_advance_system,
             commit_player_input_system,
             capture_previous_tick_position_system,
-            moving_floors_advance_system,
-            anchored_portals_refresh_system,
+            carriers_advance_system,
+            carried_portals_refresh_system,
             characters_movement_system,
             knockback_decay_system,
             record_committed_position_system,
@@ -56,7 +56,7 @@ pub fn character_sync_plugin(app: &mut App) {
         (
             players_transform_sync_system,
             actors_transform_sync_system,
-            moving_floors_transform_sync_system,
+            carriers_transform_sync_system,
             characters_visual_turn_system
                 .after(players_transform_sync_system)
                 .after(actors_transform_sync_system),

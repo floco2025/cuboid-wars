@@ -750,6 +750,7 @@ impl ServerMessage {
 mod tests {
     use super::*;
     use crate::network::encode_message;
+    use crate::protocol::CarrierId;
 
     // Comfortably under quinn's ~1150-byte datagram limit at the initial MTU.
     const DATAGRAM_BUDGET: usize = 1100;
@@ -786,7 +787,7 @@ mod tests {
                     ny: 1.0,
                     nz: 0.0,
                     yaw: 0.5,
-                    anchor: None,
+                    carrier: CarrierId::WORLD,
                 },
             }),
             ServerMessage::PlayerBlast(SPlayerBlast {
@@ -909,6 +910,7 @@ mod tests {
                 ItemId(i),
                 Item {
                     item_type: ItemType::Cookie,
+                    carrier: CarrierId::WORLD,
                     pos: position(),
                 },
             )

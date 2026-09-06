@@ -11,14 +11,14 @@ use super::{
     ladder::evaluate_ladder_interaction,
     support::{
         character_ground_hit, perch_slide_displacement, position_has_floor_support, project_move_onto_support,
-        snap_position_to_ground,
+        snap_position_to_ground, supporting_carrier,
     },
     types::{CharacterMovementResult, CharacterSupport},
 };
 use crate::{
     config::CharacterPhysicsConfig,
     constants::{CHARACTER_STEP_HEIGHT, CHARACTER_STEP_MIN_WIDTH, CHARACTER_TERMINAL_VELOCITY, TICK_SECS},
-    map::MovingFloors,
+    map::Carriers,
     physics::world::CollisionWorld,
     protocol::{BarrierKindId, Position},
 };
@@ -71,9 +71,9 @@ pub struct CharacterEnvironment<'a> {
     // backing colliders are excluded from this step's collision and support
     // queries. `None` for characters that cannot use portals (actors).
     pub portals: Option<&'a super::super::portals::PortalSet>,
-    // The moving floors at this tick's pose, already applied to
+    // The carriers at this tick's pose, already applied to
     // `collision_world`; a body standing on one rides with it.
-    pub moving_floors: &'a MovingFloors,
+    pub carriers: &'a Carriers,
 }
 
 #[must_use]
@@ -81,48 +81,59 @@ pub fn step_character_movement(step: CharacterStep, env: &CharacterEnvironment) 
     let character_shape = character_shape(env.physics);
     let support_shape = character_support_probe_shape(env.physics);
     let feet = Vec3::new(step.start.x, step.start.y, step.start.z);
-    // The rider's carry. A body standing on a tile follows it by the ride
-    // rule. A body passing through an aperture mounted on a tile follows
-    // the tile instead, until it crosses: the ride rule lets go the tick
-    // the feet leave the surface, and a fast tile would pull the aperture
-    // out from under a sinking body. In transit the tile's velocity is not
-    // reported, so a rising tile does not pump the fall and the slide is
-    // not gathered as momentum; the body exits the pair with tile-relative
-    // velocity. A body in the corridor that something else supports
-    // (standing under a lift's ceiling portal) stays put, and the plane
-    // reaching it is what the relative crossing test catches.
+    // The rider's carry. A body standing on a carrier follows it by the
+    // ride rule (`supporting_carrier`). A body passing through an aperture
+    // mounted on a carrier follows that carrier instead, until it crosses:
+    // the ride rule lets go the tick the feet leave the surface, and a fast
+    // carrier would pull the aperture out from under a sinking body. In
+    // transit the carrier's velocity is not reported, so a rising floor
+    // does not pump the fall and the slide is not gathered as momentum; the
+    // body exits the pair with carrier-relative velocity. A body in the
+    // corridor that another carrier supports (standing under a lift's
+    // ceiling portal) stays put, and the plane reaching it is what the
+    // relative crossing test catches; the portal's own carrier supporting
+    // it (its floor in front of its wall portal) is still the ride.
     let transit = env
         .portals
-        .and_then(|portals| portals.transit_anchor(feet, env.physics));
+        .and_then(|portals| portals.transit_carrier(feet, env.physics));
     let carry = match transit {
-        Some(anchor) => {
-            let tile = [env.collision_world.moving_floor_collider(anchor)];
+        Some((carrier, backing)) => {
             let supported_elsewhere = character_ground_hit(
                 env.collision_world,
                 &support_shape,
                 &step.start,
                 env.passable_kinds,
-                &tile,
+                backing,
                 env.physics,
             )
-            .is_some();
+            .is_some_and(|hit| hit.carrier != carrier);
             if supported_elsewhere {
                 Vec3::ZERO
             } else {
-                env.moving_floors.anchor_displacement(Some(anchor))
+                env.carriers.displacement(carrier)
             }
         }
-        None => env.moving_floors.carry_at(feet, env.physics),
+        None if env.carriers.is_static() => Vec3::ZERO,
+        None => supporting_carrier(
+            env.collision_world,
+            &support_shape,
+            &step.start,
+            env.passable_kinds,
+            env.physics,
+            env.carriers,
+        )
+        .map_or(Vec3::ZERO, |carrier| env.carriers.displacement(carrier)),
     };
     let floor_velocity = if transit.is_some() {
         Vec3::ZERO
     } else {
         carry / TICK_SECS
     };
-    // The tile's collider already sits at this tick's pose, and a probe that
-    // starts inside a collider finds no ground, so the body follows the
-    // tile's rise or drop before anything probes. The horizontal part rides
-    // the move instead, so a wall still blocks a body the tile pushes into it.
+    // The carrier's colliders already sit at this tick's pose, and a probe
+    // that starts inside a collider finds no ground, so the body follows the
+    // carrier's rise or drop before anything probes. The horizontal part
+    // rides the move instead, so a wall still blocks a body the carrier
+    // pushes into it.
     let mut step = step;
     step.start.y += carry.y;
     let carry_xz = carry.with_y(0.0);

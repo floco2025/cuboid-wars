@@ -6,7 +6,7 @@ import copy
 
 from PySide6.QtWidgets import QInputDialog, QMessageBox
 
-from .constants import ITEMS_LIST, MOVING_FLOORS_LIST, SPAWN_ZONE_LISTS
+from .constants import ITEMS_LIST, NESTED_MAPS_LIST, SPAWN_ZONE_LISTS
 from .dialogs import ResizeMapDialog, ToolReferenceDialog
 from .display import level_label
 from .normalization import resize_map_data
@@ -49,12 +49,13 @@ def insert_level_data(map_data: dict, insert_at: int) -> dict:
             # The insertion lands inside the span: stretch so both
             # endpoints keep their storeys.
             ladder["levels"] += 1
-    # Each end keeps its storey, so a lift the insertion lands inside
-    # stretches by itself.
-    for floor in after.get(MOVING_FLOORS_LIST, []):
+    # A nested map's own storeys live in its file; only its ends move, each
+    # keeping its storey, so a lift the insertion lands inside stretches by
+    # itself.
+    for entry in after.get(NESTED_MAPS_LIST, []):
         for key in ("level", "to_level"):
-            if floor[key] >= insert_at:
-                floor[key] += 1
+            if entry[key] >= insert_at:
+                entry[key] += 1
     return after
 
 
@@ -91,15 +92,15 @@ def remove_level_data(map_data: dict, removed: int) -> dict:
             ladder["lower_level"] = lower - 1
         adjusted_ladders.append(ladder)
     after["ladders"] = adjusted_ladders
-    adjusted_floors = []
-    for floor in after.get(MOVING_FLOORS_LIST, []):
-        if min(floor["level"], floor["to_level"]) <= removed <= max(floor["level"], floor["to_level"]):
+    adjusted_nested = []
+    for entry in after.get(NESTED_MAPS_LIST, []):
+        if min(entry["level"], entry["to_level"]) <= removed <= max(entry["level"], entry["to_level"]):
             continue
         for key in ("level", "to_level"):
-            if floor[key] > removed:
-                floor[key] -= 1
-        adjusted_floors.append(floor)
-    after[MOVING_FLOORS_LIST] = adjusted_floors
+            if entry[key] > removed:
+                entry[key] -= 1
+        adjusted_nested.append(entry)
+    after[NESTED_MAPS_LIST] = adjusted_nested
     return after
 
 
@@ -122,21 +123,29 @@ class StructureMixin:
         before_walls = sum(len(l["walls"]) for l in self.map_data["levels"])
         before_zones = len(self.map_data["actor_spawn_zones"]) + len(self.map_data["player_spawn_zones"])
         before_ramps = len(self.map_data["ramps"])
-        before_moving = len(self.map_data.get(MOVING_FLOORS_LIST, []))
+        before_nested = len(self.map_data.get(NESTED_MAPS_LIST, []))
         after_floors = sum(len(l["floors"]) for l in after["levels"])
         after_inacc = sum(len(l["inaccessible_floors"]) for l in after["levels"])
         after_walls = sum(len(l["walls"]) for l in after["levels"])
         after_zones = len(after["actor_spawn_zones"]) + len(after["player_spawn_zones"])
         after_ramps = len(after["ramps"])
-        after_moving = len(after.get(MOVING_FLOORS_LIST, []))
+        after_nested = len(after.get(NESTED_MAPS_LIST, []))
         dropped_floors = before_floors - after_floors
         dropped_inacc = before_inacc - after_inacc
         dropped_walls = before_walls - after_walls
         dropped_zones = before_zones - after_zones
         dropped_ramps = before_ramps - after_ramps
-        dropped_moving = before_moving - after_moving
+        dropped_nested = before_nested - after_nested
         if any(
-            n > 0 for n in (dropped_floors, dropped_inacc, dropped_walls, dropped_zones, dropped_ramps, dropped_moving)
+            n > 0
+            for n in (
+                dropped_floors,
+                dropped_inacc,
+                dropped_walls,
+                dropped_zones,
+                dropped_ramps,
+                dropped_nested,
+            )
         ):
             parts = []
             if dropped_floors:
@@ -149,8 +158,8 @@ class StructureMixin:
                 parts.append(f"{dropped_zones} spawn zone(s)")
             if dropped_ramps:
                 parts.append(f"{dropped_ramps} ramp(s)")
-            if dropped_moving:
-                parts.append(f"{dropped_moving} moving floor(s)")
+            if dropped_nested:
+                parts.append(f"{dropped_nested} nested map(s)")
             response = QMessageBox.question(
                 self,
                 "Resize Map",
@@ -201,10 +210,10 @@ class StructureMixin:
             for ladder in self.map_data.get("ladders", [])
             if ladder["lower_level"] <= removed <= ladder["lower_level"] + ladder["levels"]
         )
-        dropped_moving = sum(
+        dropped_nested = sum(
             1
-            for floor in self.map_data.get(MOVING_FLOORS_LIST, [])
-            if min(floor["level"], floor["to_level"]) <= removed <= max(floor["level"], floor["to_level"])
+            for entry in self.map_data.get(NESTED_MAPS_LIST, [])
+            if min(entry["level"], entry["to_level"]) <= removed <= max(entry["level"], entry["to_level"])
         )
         level = self.map_data["levels"][removed]
         floor_count = len(level["floors"]) + len(level["inaccessible_floors"])
@@ -234,8 +243,8 @@ class StructureMixin:
             parts.append(f"{dropped_ramps} ramp(s) that span this level")
         if dropped_ladders:
             parts.append(f"{dropped_ladders} ladder(s) that span this level")
-        if dropped_moving:
-            parts.append(f"{dropped_moving} moving floor(s) that touch this level")
+        if dropped_nested:
+            parts.append(f"{dropped_nested} nested map(s) whose ends touch this level")
         body = f"Remove {level_label(level, removed)}?\n\nThis will drop:"
         body += "\n  - " + "\n  - ".join(parts)
         if details:

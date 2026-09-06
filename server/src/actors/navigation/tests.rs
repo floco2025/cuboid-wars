@@ -5,6 +5,7 @@ use common::protocol::{BarrierKindTable, MapLayout, Position, Wall};
 use super::{NavGraph, routing::COVER_SEARCH_MAX_STEPS};
 use crate::map::{ActorSpawnZone, CellGrid, EdgeGrid, GeneratedMap, LevelGrid, MapConfig};
 use crate::test_geometry::{CELL, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS, geometry};
+use common::protocol::CarrierId;
 
 fn level(cells: CellGrid, edges: EdgeGrid) -> LevelGrid {
     let rows = i32::try_from(cells.rows.len()).unwrap_or(0);
@@ -33,16 +34,10 @@ fn full_floor_nav(cols: i32, rows: i32) -> NavGraph {
             cell.has_floor = true;
         }
     }
-    NavGraph::new(
-        MapConfig {
-            levels: vec![level(cells, EdgeGrid::new(cols, rows))],
-            actor_spawn_zones: Vec::new(),
-            player_spawn_zones: Vec::new(),
-            placed_items: Vec::new(),
-            pressure_plates: Vec::new(),
-        },
+    NavGraph::new(MapConfig::for_grid(
+        vec![level(cells, EdgeGrid::new(cols, rows))],
         geometry(cols, rows),
-    )
+    ))
 }
 
 fn cell_center(cols: i32, rows: i32, col: i32, row: i32) -> Position {
@@ -78,16 +73,7 @@ fn engagement_route_keeps_a_turn_around_a_wall() {
     }
     let mut edges = EdgeGrid::new(3, 2);
     edges.vertical[0][1] = true;
-    let nav = NavGraph::new(
-        MapConfig {
-            levels: vec![level(cells, edges)],
-            actor_spawn_zones: Vec::new(),
-            player_spawn_zones: Vec::new(),
-            placed_items: Vec::new(),
-            pressure_plates: Vec::new(),
-        },
-        geometry(3, 2),
-    );
+    let nav = NavGraph::new(MapConfig::for_grid(vec![level(cells, edges)], geometry(3, 2)));
     let start = cell_center(3, 2, 0, 0);
     let target = cell_center(3, 2, 2, 0);
 
@@ -108,16 +94,7 @@ fn engagement_retarget_rejects_blocked_flat_final_leg() {
     }
     let mut edges = EdgeGrid::new(2, 1);
     edges.vertical[0][1] = true;
-    let nav = NavGraph::new(
-        MapConfig {
-            levels: vec![level(cells, edges)],
-            actor_spawn_zones: Vec::new(),
-            player_spawn_zones: Vec::new(),
-            placed_items: Vec::new(),
-            pressure_plates: Vec::new(),
-        },
-        geometry(2, 1),
-    );
+    let nav = NavGraph::new(MapConfig::for_grid(vec![level(cells, edges)], geometry(2, 1)));
     let start = cell_center(2, 1, 0, 0);
     let target = cell_center(2, 1, 1, 0);
 
@@ -195,16 +172,7 @@ fn cover_route_uses_world_occlusion() {
     }
     let mut edges = EdgeGrid::new(2, 2);
     edges.vertical[0][1] = true;
-    let nav = NavGraph::new(
-        MapConfig {
-            levels: vec![level(cells, edges)],
-            actor_spawn_zones: Vec::new(),
-            player_spawn_zones: Vec::new(),
-            placed_items: Vec::new(),
-            pressure_plates: Vec::new(),
-        },
-        geometry(2, 2),
-    );
+    let nav = NavGraph::new(MapConfig::for_grid(vec![level(cells, edges)], geometry(2, 2)));
     let world = CollisionWorld::from_map_layout(
         &MapLayout {
             walls: vec![Wall {
@@ -216,6 +184,7 @@ fn cover_route_uses_world_occlusion() {
                 level: 0,
                 y: 0.0,
                 height: WALL_HEIGHT,
+                carrier: CarrierId::WORLD,
             }],
             ..MapLayout::default()
         },
@@ -248,16 +217,7 @@ fn path_avoids_walls() {
     }
     let mut edges = EdgeGrid::new(2, 2);
     edges.vertical[0][1] = true;
-    let nav = NavGraph::new(
-        MapConfig {
-            levels: vec![level(cells, edges)],
-            actor_spawn_zones: Vec::new(),
-            player_spawn_zones: Vec::new(),
-            placed_items: Vec::new(),
-            pressure_plates: Vec::new(),
-        },
-        geometry(2, 2),
-    );
+    let nav = NavGraph::new(MapConfig::for_grid(vec![level(cells, edges)], geometry(2, 2)));
 
     let path = nav
         .path_to_spawn_zone(
@@ -285,20 +245,14 @@ fn path_routes_around_closed_barrier() {
     // rather than a wall — actors must still route around it.
     let mut barrier_edges = EdgeGrid::new(2, 2);
     barrier_edges.vertical[0][1] = true;
-    let nav = NavGraph::new(
-        MapConfig {
-            levels: vec![LevelGrid {
-                cells,
-                edges: EdgeGrid::new(2, 2),
-                barrier_edges,
-            }],
-            actor_spawn_zones: Vec::new(),
-            player_spawn_zones: Vec::new(),
-            placed_items: Vec::new(),
-            pressure_plates: Vec::new(),
-        },
+    let nav = NavGraph::new(MapConfig::for_grid(
+        vec![LevelGrid {
+            cells,
+            edges: EdgeGrid::new(2, 2),
+            barrier_edges,
+        }],
         geometry(2, 2),
-    );
+    ));
 
     let path = nav
         .path_to_spawn_zone(
@@ -327,13 +281,7 @@ fn ramp_map() -> MapConfig {
     center.has_ramp = true;
     center.ramp_base_south = true;
     center.ramp_top_north = true;
-    MapConfig {
-        levels: vec![level(cells, EdgeGrid::new(3, 3))],
-        actor_spawn_zones: Vec::new(),
-        player_spawn_zones: Vec::new(),
-        placed_items: Vec::new(),
-        pressure_plates: Vec::new(),
-    }
+    MapConfig::for_grid(vec![level(cells, EdgeGrid::new(3, 3))], geometry(3, 3))
 }
 
 fn ramp_cell_center(nav_cols: i32) -> Position {
@@ -347,7 +295,7 @@ fn ramp_cell_center(nav_cols: i32) -> Position {
 
 #[test]
 fn side_entry_onto_ramp_is_routed_around() {
-    let nav = NavGraph::new(ramp_map(), geometry(3, 3));
+    let nav = NavGraph::new(ramp_map());
     // Start west of the wedge, zone east of it: the lateral crossing is
     // blocked, so the path must detour through row 0 or row 2.
     let start = Position {
@@ -369,7 +317,7 @@ fn side_entry_onto_ramp_is_routed_around() {
 
 #[test]
 fn high_edge_entry_at_lower_level_is_blocked() {
-    let nav = NavGraph::new(ramp_map(), geometry(3, 3));
+    let nav = NavGraph::new(ramp_map());
     // Start north of the wedge (its high edge), zone = the ramp cell:
     // entry must detour around to the base on the south side.
     let start = Position {
@@ -388,7 +336,7 @@ fn high_edge_entry_at_lower_level_is_blocked() {
 
 #[test]
 fn base_entry_onto_ramp_is_allowed() {
-    let nav = NavGraph::new(ramp_map(), geometry(3, 3));
+    let nav = NavGraph::new(ramp_map());
     // Start south of the wedge, right at its base edge: direct entry.
     let start = Position { x: 0.0, y: 0.0, z: 4.0 };
     let path = nav
@@ -399,7 +347,7 @@ fn base_entry_onto_ramp_is_allowed() {
 
 #[test]
 fn ramp_node_is_not_a_cover_destination() {
-    let nav = NavGraph::new(ramp_map(), geometry(3, 3));
+    let nav = NavGraph::new(ramp_map());
     let ramp = ramp_cell_center(3);
     let ramp_node = nav.node_for_position(&ramp).expect("ramp nav node");
 
@@ -421,14 +369,17 @@ fn shipping_map_zones_are_mutually_reachable() {
         .expect("default map settings missing")
         .settings;
     let (barrier_kinds, bridge_kinds) = settings.kind_tables().expect("default map kind tables rejected");
-    let GeneratedMap {
-        config: map_config,
-        geometry,
-        ..
-    } = crate::map::generate_map(map_name, settings.geometry, &barrier_kinds, &bridge_kinds)
-        .expect("default map failed to generate");
+    let GeneratedMap { config: map_config, .. } = crate::map::generate_map(
+        map_name,
+        settings.geometry,
+        &|nested| server_gameplay_config.maps.get(nested).map(|map| map.settings.geometry),
+        &barrier_kinds,
+        &bridge_kinds,
+    )
+    .expect("default map failed to generate");
+    let geometry = map_config.root_grid().geometry;
     let zones = map_config.actor_spawn_zones.clone();
-    let nav = NavGraph::new(map_config, geometry);
+    let nav = NavGraph::new(map_config);
 
     for (from_idx, from) in zones.iter().enumerate() {
         let (col, row) = from.cells().next().expect("zone rect is empty");
@@ -462,19 +413,13 @@ fn floorless_arrival_strip_is_reachable() {
     let mut upper_cells = CellGrid::new(1, 2);
     upper_cells.rows[1][0].has_ramp_from_below = true;
 
-    let nav = NavGraph::new(
-        MapConfig {
-            levels: vec![
-                level(lower_cells, EdgeGrid::new(1, 2)),
-                level(upper_cells, EdgeGrid::new(1, 2)),
-            ],
-            actor_spawn_zones: Vec::new(),
-            player_spawn_zones: Vec::new(),
-            placed_items: Vec::new(),
-            pressure_plates: Vec::new(),
-        },
+    let nav = NavGraph::new(MapConfig::for_grid(
+        vec![
+            level(lower_cells, EdgeGrid::new(1, 2)),
+            level(upper_cells, EdgeGrid::new(1, 2)),
+        ],
         geometry(1, 2),
-    );
+    ));
 
     let start = Position {
         x: 0.0,
@@ -499,19 +444,13 @@ fn hole_over_ramp_base_is_not_traversable() {
     upper_cells.rows[0][0].has_ramp_from_below = true;
     upper_cells.rows[1][0].has_ramp_from_below = true;
 
-    let nav = NavGraph::new(
-        MapConfig {
-            levels: vec![
-                level(lower_cells, EdgeGrid::new(1, 2)),
-                level(upper_cells, EdgeGrid::new(1, 2)),
-            ],
-            actor_spawn_zones: Vec::new(),
-            player_spawn_zones: Vec::new(),
-            placed_items: Vec::new(),
-            pressure_plates: Vec::new(),
-        },
+    let nav = NavGraph::new(MapConfig::for_grid(
+        vec![
+            level(lower_cells, EdgeGrid::new(1, 2)),
+            level(upper_cells, EdgeGrid::new(1, 2)),
+        ],
         geometry(1, 2),
-    );
+    ));
 
     let start = Position {
         x: 0.0,
@@ -547,19 +486,13 @@ fn arrival_strip_connects_only_through_the_top_side() {
     upper_cells.rows[0][0].has_floor = true;
     upper_cells.rows[1][0].has_floor = true;
 
-    let nav = NavGraph::new(
-        MapConfig {
-            levels: vec![
-                level(lower_cells, EdgeGrid::new(3, 3)),
-                level(upper_cells, EdgeGrid::new(3, 3)),
-            ],
-            actor_spawn_zones: Vec::new(),
-            player_spawn_zones: Vec::new(),
-            placed_items: Vec::new(),
-            pressure_plates: Vec::new(),
-        },
+    let nav = NavGraph::new(MapConfig::for_grid(
+        vec![
+            level(lower_cells, EdgeGrid::new(3, 3)),
+            level(upper_cells, EdgeGrid::new(3, 3)),
+        ],
         geometry(3, 3),
-    );
+    ));
 
     // Start on the ramp base cell (col 1, row 2).
     let start = Position { x: 0.0, y: 0.0, z: 4.0 };
@@ -593,19 +526,13 @@ fn path_uses_ramp_top_to_change_levels() {
     upper_cells.rows[1][0].has_floor = true;
     upper_cells.rows[1][0].has_ramp_from_below = true;
 
-    let nav = NavGraph::new(
-        MapConfig {
-            levels: vec![
-                level(lower_cells, EdgeGrid::new(1, 2)),
-                level(upper_cells, EdgeGrid::new(1, 2)),
-            ],
-            actor_spawn_zones: Vec::new(),
-            player_spawn_zones: Vec::new(),
-            placed_items: Vec::new(),
-            pressure_plates: Vec::new(),
-        },
+    let nav = NavGraph::new(MapConfig::for_grid(
+        vec![
+            level(lower_cells, EdgeGrid::new(1, 2)),
+            level(upper_cells, EdgeGrid::new(1, 2)),
+        ],
         geometry(1, 2),
-    );
+    ));
 
     let start = Position {
         x: 0.0,
@@ -640,16 +567,7 @@ fn wall_end_nav_and_world() -> (NavGraph, CollisionWorld) {
     }
     let mut edges = EdgeGrid::new(2, 2);
     edges.vertical[0][1] = true;
-    let nav = NavGraph::new(
-        MapConfig {
-            levels: vec![level(cells, edges)],
-            actor_spawn_zones: Vec::new(),
-            player_spawn_zones: Vec::new(),
-            placed_items: Vec::new(),
-            pressure_plates: Vec::new(),
-        },
-        geometry(2, 2),
-    );
+    let nav = NavGraph::new(MapConfig::for_grid(vec![level(cells, edges)], geometry(2, 2)));
     let world = CollisionWorld::from_map_layout(
         &MapLayout {
             walls: vec![Wall {
@@ -661,6 +579,7 @@ fn wall_end_nav_and_world() -> (NavGraph, CollisionWorld) {
                 level: 0,
                 y: 0.0,
                 height: WALL_HEIGHT,
+                carrier: CarrierId::WORLD,
             }],
             ..MapLayout::default()
         },
@@ -742,11 +661,12 @@ fn shipping_map_sentry_recentres_before_entering_the_basement_ramp_trench() {
     let GeneratedMap {
         layout,
         config: map_config,
-        geometry,
-    } = crate::map::generate_map("hotel", settings.geometry, &barrier_kinds, &bridge_kinds)
+        ..
+    } = crate::map::generate_map("hotel", settings.geometry, &|_| None, &barrier_kinds, &bridge_kinds)
         .expect("hotel map failed to generate");
     let world = CollisionWorld::from_map_layout(&layout, &barrier_kinds);
-    let nav = NavGraph::new(map_config, geometry);
+    let geometry = map_config.root_grid().geometry;
+    let nav = NavGraph::new(map_config);
     let sentry = gameplay_config.expect_actor("sentry").physics();
     let center = |level: u8, col: i32, row: i32| Position {
         x: geometry.cell_center_x(col),

@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use common::{
     config::GameplayConfig,
-    map::MovingFloors,
+    map::Carriers,
     physics::{
         AirborneMomentum, CharacterMovePlan, CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity,
         PlayerMovementStep, PortalSet, player_control_velocity, step_player_movement,
@@ -29,7 +29,7 @@ pub(crate) fn plan_player_moves(
     local_player_info: &mut LocalPlayerInfo,
     plates: &PlateState,
     portal_set: &PortalSet,
-    moving_floors: &MovingFloors,
+    carriers: &Carriers,
     query: &mut PlayerMovementQuery,
     planned_moves: &mut Vec<CharacterMovePlan>,
 ) {
@@ -125,7 +125,7 @@ pub(crate) fn plan_player_moves(
             map_settings,
             gameplay_config,
             portal_set,
-            moving_floors,
+            carriers,
         });
         planned_moves.push(CharacterMovePlan::from_movement_result(
             entity,

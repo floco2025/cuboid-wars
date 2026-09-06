@@ -10,6 +10,7 @@ use crate::{
 use common::{
     config::GameplayConfig,
     health::regenerate_health,
+    map::Carriers,
     physics::character_overlaps_item,
     protocol::{
         BarrierKindId, Health, ItemId, ItemMarker, ItemType, PlayerId, PlayerMarker, Position, SCookieCollected,
@@ -27,6 +28,7 @@ pub fn item_collection_system(
     character_positions: Query<&Position, With<PlayerMarker>>,
     mut player_health: Query<&mut Health, With<PlayerMarker>>,
     item_positions: Query<&Position, With<ItemMarker>>,
+    carriers: Res<Carriers>,
     placed_items_config: Res<PlacedItemsConfig>,
     server_gameplay_config: Res<ServerGameplayConfig>,
     gameplay_config: Res<GameplayConfig>,
@@ -43,6 +45,7 @@ pub fn item_collection_system(
             }
 
             let item_pos = item_positions.get(item_info.entity).ok()?;
+            let item_pos = &Position::from(carriers.pose(item_info.carrier).transform_point(Vec3::from(*item_pos)));
 
             for (player_id, player_info) in players.iter() {
                 // A killed player's entity despawn is deferred, so a same-tick

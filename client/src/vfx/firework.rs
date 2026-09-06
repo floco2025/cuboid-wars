@@ -124,7 +124,8 @@ fn show_field(map_layout: Option<&MapLayout>, geometry: MapGeometryConfig) -> Sh
             let mut min_z = f32::INFINITY;
             let mut max_z = f32::NEG_INFINITY;
             let mut max_level = 0u8;
-            for floor in &layout.floors {
+            // Carried floors are in their carrier's frame; the field is the map's.
+            for floor in layout.floors.iter().filter(|floor| floor.carrier.is_world()) {
                 let (x1, x2, z1, z2) = (floor.x1, floor.x2, floor.z1, floor.z2);
                 min_x = min_x.min(x1.min(x2));
                 max_x = max_x.max(x1.max(x2));
@@ -476,6 +477,7 @@ fn spawn_laser_beams(commands: &mut Commands, vfx: &mut FireworkVfx, assets: &Fi
 mod tests {
     use super::*;
     use crate::test_geometry::{LEVEL_HEIGHT, sizes};
+    use common::protocol::CarrierId;
     use common::protocol::Floor;
 
     fn layout() -> MapLayout {
@@ -489,6 +491,7 @@ mod tests {
                     y: 0.0,
                     thickness: 0.4,
                     level: 0,
+                    carrier: CarrierId::WORLD,
                 },
                 Floor {
                     x1: -5.0,
@@ -498,6 +501,7 @@ mod tests {
                     y: 3.0 * LEVEL_HEIGHT,
                     thickness: 0.4,
                     level: 3,
+                    carrier: CarrierId::WORLD,
                 },
             ],
             ..Default::default()

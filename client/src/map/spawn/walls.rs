@@ -4,7 +4,7 @@ use super::{
     cuboid_mesh::{tiled_cuboid, tiled_wall_surface_meshes},
     geometry_batch::{MapGeometryBatch, MapGeometryKind},
 };
-use crate::config::AssetSet;
+use crate::{carriers::CarrierStoreys, config::AssetSet};
 use common::protocol::{FaceMaterials, Wall};
 
 #[derive(Clone, Copy)]
@@ -36,8 +36,15 @@ impl CardinalDirection {
 }
 
 // Spawn a wall segment entity based on a shared `Wall` config.
-pub fn batch_wall(batcher: &mut MapGeometryBatch, asset_set: &AssetSet, wall: &Wall, material_ids: &FaceMaterials) {
+pub fn batch_wall(
+    batcher: &mut MapGeometryBatch,
+    asset_set: &AssetSet,
+    storeys: &CarrierStoreys,
+    wall: &Wall,
+    material_ids: &FaceMaterials,
+) {
     batcher.begin_segment();
+    let level = storeys.tag(wall.carrier, wall.level, 0);
     let center_x = f32::midpoint(wall.x1, wall.x2);
     let center_z = f32::midpoint(wall.z1, wall.z2);
 
@@ -65,7 +72,8 @@ pub fn batch_wall(batcher: &mut MapGeometryBatch, asset_set: &AssetSet, wall: &W
         );
         batcher.add_mesh(
             MapGeometryKind::Wall,
-            wall.level,
+            wall.carrier,
+            level,
             material_ids.primary(),
             &mesh,
             transform,
@@ -103,42 +111,48 @@ pub fn batch_wall(batcher: &mut MapGeometryBatch, asset_set: &AssetSet, wall: &W
 
     batcher.add_mesh(
         MapGeometryKind::Wall,
-        wall.level,
+        wall.carrier,
+        level,
         positive_x_material_id,
         &surface_meshes.local_positive_x,
         transform,
     );
     batcher.add_mesh(
         MapGeometryKind::Wall,
-        wall.level,
+        wall.carrier,
+        level,
         negative_x_material_id,
         &surface_meshes.local_negative_x,
         transform,
     );
     batcher.add_mesh(
         MapGeometryKind::Wall,
-        wall.level,
+        wall.carrier,
+        level,
         positive_z_material_id,
         &surface_meshes.local_positive_z,
         transform,
     );
     batcher.add_mesh(
         MapGeometryKind::Wall,
-        wall.level,
+        wall.carrier,
+        level,
         negative_z_material_id,
         &surface_meshes.local_negative_z,
         transform,
     );
     batcher.add_mesh(
         MapGeometryKind::Wall,
-        wall.level,
+        wall.carrier,
+        level,
         &material_ids.top,
         &surface_meshes.up,
         transform,
     );
     batcher.add_mesh(
         MapGeometryKind::Wall,
-        wall.level,
+        wall.carrier,
+        level,
         &material_ids.bottom,
         &surface_meshes.down,
         transform,

@@ -42,7 +42,7 @@ from .io import load_materials_catalog
 from .items import ItemsMixin
 from .ladders import LaddersMixin
 from .lights import LightsMixin
-from .moving_floors import MovingFloorsMixin
+from .nested_maps import NestedMapsMixin
 from .placement import PlacementMixin
 from .spawn_zones import SpawnZoneEditMixin
 from .structure import StructureMixin
@@ -56,7 +56,7 @@ class EditorWindow(
     ItemsMixin,
     LightsMixin,
     LaddersMixin,
-    MovingFloorsMixin,
+    NestedMapsMixin,
     EraseMixin,
     StructureMixin,
     SpawnZoneEditMixin,
@@ -96,8 +96,9 @@ class EditorWindow(
         # third.
         self.recent_auto_place_lights: tuple[int, int, int, int] = (0, 0, 0, 0)
         self.recent_ladder_levels: int = 1
-        # The last moving floor dialog answer: (to_level, speed, pause, phase).
-        self.recent_moving_floor: tuple[int, float, float, float] | None = None
+        # The last nested map dialog answer: (map, to_level, speed, pause, phase).
+        self.recent_nested_map: tuple[str, int, float, float, float] | None = None
+        self.nested_map_shapes: dict = {}
         # `(level_idx, [light, ...])` while an Auto-Place Lights confirmation
         # is pending; canvas paints these as ghosts. `None` outside the
         # preview window.
@@ -307,13 +308,18 @@ class EditorWindow(
         autosave = self.doc.autosave_path()
         from PySide6.QtWidgets import QMessageBox  # local import; avoids top-level cycle
 
-        response = QMessageBox.question(
-            self,
-            "Recover Autosave?",
-            f"An autosave exists at {autosave.name} that is newer than {self.doc.path.name}. Recover it?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.Yes,
-        )
+        box = QMessageBox(self)
+        box.setWindowTitle("Recover Autosave?")
+        box.setText(f"An autosave exists at {autosave.name} that is newer than {self.doc.path.name}. Recover it?")
+        box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        box.setDefaultButton(QMessageBox.StandardButton.Yes)
+        # The main window is not shown yet, so nothing has activated the app:
+        # left to itself the prompt opens behind whatever is in front.
+        box.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
+        box.show()
+        box.raise_()
+        box.activateWindow()
+        response = box.exec()
         if response != QMessageBox.StandardButton.Yes:
             # Declined: the autosave is rejected work; drop it so the next
             # launch doesn't offer it again.
@@ -434,7 +440,13 @@ class EditorWindow(
         self.resize(self.sizeHint())
 
     def update_status(self) -> None:
-        errors = validate_map(self.map_data, self.barrier_kinds, self.bridge_kinds)
+        errors = validate_map(
+            self.map_data,
+            self.barrier_kinds,
+            self.bridge_kinds,
+            map_name=self.edited_map_name(),
+            nested_lookup=self.nested_map_shape,
+        )
         if errors:
             self.status_label.setText(f"{len(errors)} structural issue(s)")
             self.status_label.setToolTip("\n".join(errors[:20]))

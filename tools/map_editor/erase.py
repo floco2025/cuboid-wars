@@ -11,8 +11,8 @@ from .constants import (
     MODE_GRASS,
     MODE_INACCESSIBLE_FLOOR,
     MODE_LIGHT_BRIDGE,
-    MODE_MOVING_FLOOR,
-    MOVING_FLOORS_LIST,
+    MODE_NESTED_MAP,
+    NESTED_MAPS_LIST,
     SPAWN_ZONE_LISTS,
 )
 from .geometry import (
@@ -26,7 +26,7 @@ from .geometry import (
     zone_contains_cell,
     zone_intersects_rect,
 )
-from .normalization import ladder_key, ladder_spans_level, moving_floor_key, moving_floor_spans_level
+from .normalization import ladder_key, ladder_spans_level, nested_map_key
 from .types import ZoneRef
 
 Rect = tuple[int, int, int, int]
@@ -71,17 +71,16 @@ def ladders_outside(ladders: list[dict], level_idx: int, rect: Rect) -> list[dic
     ]
 
 
-def moving_floors_outside(floors: list[dict], level_idx: int, rect: Rect) -> list[dict]:
+def nested_maps_outside(entries: list[dict], level_idx: int, rect: Rect) -> list[dict]:
     c0, r0, c1, r1 = rect
 
     def end_in_rect(cell: list[int], level: int) -> bool:
         return level == level_idx and c0 <= cell[0] < c1 and r0 <= cell[1] < r1
 
     return [
-        floor
-        for floor in floors
-        if not moving_floor_spans_level(floor, level_idx)
-        or not (end_in_rect(floor["from"], floor["level"]) or end_in_rect(floor["to"], floor["to_level"]))
+        entry
+        for entry in entries
+        if not (end_in_rect(entry["from"], entry["level"]) or end_in_rect(entry["to"], entry["to_level"]))
     ]
 
 
@@ -107,7 +106,7 @@ class EraseMixin:
             level["light_bridges"] = cells_outside(level.get("light_bridges", []), rect)
             after[ITEMS_LIST] = level_cells_outside(after.get(ITEMS_LIST, []), level_idx, rect)
             after["pressure_plates"] = level_cells_outside(after.get("pressure_plates", []), level_idx, rect)
-            after[MOVING_FLOORS_LIST] = moving_floors_outside(after.get(MOVING_FLOORS_LIST, []), level_idx, rect)
+            after[NESTED_MAPS_LIST] = nested_maps_outside(after.get(NESTED_MAPS_LIST, []), level_idx, rect)
         level["grass"] = cells_outside(level.get("grass", []), rect)
         level["walls"] = edges_outside(level["walls"], rect)
         level["barriers"] = edges_outside(level.get("barriers", []), rect)
@@ -207,11 +206,13 @@ class EraseMixin:
                 return ("Ramp", (lower, tuple(ramp["low"]), tuple(ramp["high"])))
         if any(b["col"] == col and b["row"] == row for b in level.get("light_bridges", [])):
             return (MODE_LIGHT_BRIDGE, (col, row))
-        for floor in self.map_data.get(MOVING_FLOORS_LIST, []):
-            at_start = floor["level"] == self.current_level and floor["from"] == [col, row]
-            at_end = floor["to_level"] == self.current_level and floor["to"] == [col, row]
+        # Only a nested map's anchor cells are hit targets: whatever lies
+        # under its footprint stays clickable.
+        for entry in self.map_data.get(NESTED_MAPS_LIST, []):
+            at_start = entry["level"] == self.current_level and entry["from"] == [col, row]
+            at_end = entry["to_level"] == self.current_level and entry["to"] == [col, row]
             if at_start or at_end:
-                return (MODE_MOVING_FLOOR, moving_floor_key(floor))
+                return (MODE_NESTED_MAP, nested_map_key(entry))
         # Grass sits on top of a floor, so a click peels the grass first; the
         # next click then hits the floor underneath.
         if any(g["col"] == col and g["row"] == row for g in level.get("grass", [])):
@@ -245,9 +246,9 @@ class EraseMixin:
             level["light_bridges"] = [
                 bridge for bridge in level.get("light_bridges", []) if (bridge["col"], bridge["row"]) != value
             ]
-        elif kind == MODE_MOVING_FLOOR:
-            after[MOVING_FLOORS_LIST] = [
-                floor for floor in after.get(MOVING_FLOORS_LIST, []) if moving_floor_key(floor) != value
+        elif kind == MODE_NESTED_MAP:
+            after[NESTED_MAPS_LIST] = [
+                entry for entry in after.get(NESTED_MAPS_LIST, []) if nested_map_key(entry) != value
             ]
         elif kind == "Spawn Zone":
             list_name, target_idx = value

@@ -1,7 +1,7 @@
 use bevy_math::Vec3;
 use rapier3d::parry::query::ShapeCastHit as RapierShapeCastHit;
 
-use crate::protocol::BarrierKindId;
+use crate::protocol::{BarrierKindId, CarrierId};
 
 #[derive(Debug, Clone, Copy)]
 pub struct ShapeCastHit {
@@ -12,9 +12,11 @@ pub struct ShapeCastHit {
     pub contact: Vec3,
     pub t: f32,
     pub barrier_kind: Option<BarrierKindId>,
+    // Whose collider was hit: what a body standing on it rides.
+    pub carrier: CarrierId,
 }
 
-pub(super) fn upward_surface_hit(hit: RapierShapeCastHit) -> Option<ShapeCastHit> {
+pub(super) fn upward_surface_hit(hit: RapierShapeCastHit, carrier: CarrierId) -> Option<ShapeCastHit> {
     [hit.normal1, hit.normal2, -hit.normal1, -hit.normal2]
         .into_iter()
         .map(|normal| Vec3::new(normal.x, normal.y, normal.z))
@@ -26,5 +28,6 @@ pub(super) fn upward_surface_hit(hit: RapierShapeCastHit) -> Option<ShapeCastHit
             contact: Vec3::new(hit.witness1.x, hit.witness1.y, hit.witness1.z),
             t: hit.time_of_impact,
             barrier_kind: None,
+            carrier,
         })
 }

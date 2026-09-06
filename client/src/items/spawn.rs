@@ -10,7 +10,7 @@ use crate::{
     map::MapLevel,
     missiles::{MissileAssets, spawn_missile_pickup_visual},
 };
-use common::{config::MapGeometryConfig, protocol::*};
+use common::protocol::*;
 
 // ============================================================================
 // Components
@@ -159,26 +159,29 @@ pub fn item_type_color(item_type: ItemType) -> Color {
     }
 }
 
-// Spawn an item cube
+// Spawn an item cube under its carrier's entity, at its carrier-local
+// position.
 pub fn spawn_item(
     commands: &mut Commands,
     item_assets: &ItemAssets,
     barrier_assets: &BarrierAssets,
     missile_assets: &MissileAssets,
-    geometry: MapGeometryConfig,
+    carrier: Entity,
+    level: MapLevel,
     item_id: ItemId,
     item_type: ItemType,
     position: &Position,
 ) -> Entity {
-    let level = MapLevel(geometry.level_for_y(position.y));
-    match item_type {
+    let entity = match item_type {
         ItemType::Cookie => spawn_cookie(commands, item_assets, item_id, position, level),
         ItemType::Key(kind) => spawn_key(commands, barrier_assets, item_id, position, level, kind),
         ItemType::MissilePack => spawn_missile_pack(commands, missile_assets, item_id, position, level),
         ItemType::SpeedPowerUp | ItemType::MultiShotPowerUp | ItemType::LowGravityPowerUp | ItemType::HealthPotion => {
             spawn_power_up(commands, item_assets, item_id, item_type, position, level)
         }
-    }
+    };
+    commands.entity(entity).insert(ChildOf(carrier));
+    entity
 }
 
 fn spawn_missile_pack(

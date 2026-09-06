@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use common::{
     config::{CharacterPhysicsConfig, GameplayConfig},
-    map::MovingFloors,
+    map::Carriers,
     physics::{
         AirborneMomentum, CharacterMovePlan, CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity,
         PlayerMovementStep, PortalSet, overlapping_character, player_control_velocity, step_player_movement,
@@ -44,7 +44,7 @@ pub fn characters_movement_system(
     mut players: ResMut<PlayerMap>,
     plates: Res<PlateState>,
     portal_set: Res<PortalSet>,
-    moving_floors: Res<MovingFloors>,
+    carriers: Res<Carriers>,
     actors: Res<ActorMap>,
     mut player_query: PlayerMovementQuery,
     mut actor_health: Query<&mut common::protocol::Health, With<ActorMarker>>,
@@ -68,7 +68,7 @@ pub fn characters_movement_system(
         &mut players,
         &plates,
         &portal_set,
-        &moving_floors,
+        &carriers,
         &mut player_query,
         &mut planned_moves,
     );
@@ -79,7 +79,7 @@ pub fn characters_movement_system(
         &map_settings,
         &players,
         &plates,
-        &moving_floors,
+        &carriers,
         &actors,
         &actor_starts,
         &mut actor_query,
@@ -104,7 +104,7 @@ fn plan_player_moves(
     players: &mut PlayerMap,
     plates: &PlateState,
     portal_set: &PortalSet,
-    moving_floors: &MovingFloors,
+    carriers: &Carriers,
     query: &mut PlayerMovementQuery,
     planned_moves: &mut Vec<CharacterMovePlan>,
 ) {
@@ -136,7 +136,7 @@ fn plan_player_moves(
             map_settings,
             gameplay_config,
             portal_set,
-            moving_floors,
+            carriers,
         });
         if let Some(info) = players.get_mut(player_id) {
             info.life.fall_state.set_support(step.support);

@@ -1,11 +1,11 @@
 use bevy::{gltf::GltfAssetLabel, prelude::*};
 
 use crate::{
+    carriers::CarrierStoreys,
     config::AssetSet,
     constants::{
         WALL_LIGHT_FLICKER_DEPTH, WALL_LIGHT_FLICKER_HZ_A, WALL_LIGHT_FLICKER_HZ_B, WALL_LIGHT_FLICKER_THRESHOLD,
     },
-    map::MapLevel,
 };
 use common::{config::MapGeometryConfig, protocol::WallLight};
 
@@ -21,18 +21,21 @@ pub struct WallLightFlicker {
     phase: f32,
 }
 
-// Spawn a wall light from precomputed layout data (world-space position and yaw).
+// Spawn a wall light from precomputed layout data (carrier-frame position
+// and yaw), under its carrier's entity.
 pub fn spawn_wall_light_from_layout(
     commands: &mut Commands,
     asset_server: &Res<AssetServer>,
     asset_set: &AssetSet,
     geometry: MapGeometryConfig,
+    storeys: &CarrierStoreys,
+    carrier: Entity,
     light: &WallLight,
 ) {
     let wall_light = asset_set.wall_light_model();
     let light_scene: Handle<WorldAsset> =
         asset_server.load(GltfAssetLabel::Scene(0).from_asset(wall_light.scene.clone()));
-    let level = MapLevel(geometry.level_for_y(light.pos.y));
+    let level = storeys.tag(light.carrier, geometry.level_for_y(light.pos.y), 0);
 
     let model_yaw = Quat::from_rotation_y(light.yaw);
     let (sin_yaw, cos_yaw) = light.yaw.sin_cos();
@@ -45,6 +48,7 @@ pub fn spawn_wall_light_from_layout(
     commands.spawn((
         WallLightMarker,
         level,
+        ChildOf(carrier),
         WorldAssetRoot(light_scene),
         Transform::from_xyz(light.pos.x, light.pos.y, light.pos.z)
             .with_scale(Vec3::splat(wall_light.scale))
@@ -58,6 +62,7 @@ pub fn spawn_wall_light_from_layout(
     commands.spawn((
         WallLightMarker,
         level,
+        ChildOf(carrier),
         PointLight {
             intensity: wall_light.brightness,
             range: wall_light.range,

@@ -1,0 +1,27 @@
+{
+  "map": {
+    "grid_cols": 1,
+    "grid_rows": 1,
+    "actor_spawn_zones": [],
+    "player_spawn_zones": [],
+    "pressure_plates": [],
+    "items": [],
+    "levels": [
+      {
+        "name": "Level 0",
+        "floors": [
+          {"col": 0, "row": 0, "all": "basement-floor"}
+        ],
+        "inaccessible_floors": [],
+        "grass": [],
+        "walls": [],
+        "barriers": [],
+        "light_bridges": [],
+        "lights": []
+      }
+    ],
+    "ladders": [],
+    "ramps": [],
+    "nested_maps": []
+  }
+}

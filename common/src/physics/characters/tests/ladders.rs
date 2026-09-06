@@ -30,7 +30,7 @@ fn ladder_step(
             ladder_climb_ratio: test_ladders(),
             physics: player_physics(),
             portals: None,
-            moving_floors: &MovingFloors::default(),
+            carriers: &Carriers::default(),
         },
     )
 }
@@ -56,7 +56,7 @@ fn ladder_step_with_external_displacement(
             ladder_climb_ratio: test_ladders(),
             physics: player_physics(),
             portals: None,
-            moving_floors: &MovingFloors::default(),
+            carriers: &Carriers::default(),
         },
     )
 }

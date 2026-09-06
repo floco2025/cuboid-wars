@@ -5,6 +5,7 @@ use crate::{
         LADDER_BAND_DEPTH, LADDER_BASE_OVERSHOOT, LADDER_OVERSHOOT, LADDER_RAIL_INSET, LADDER_VOLUME_DEPTH,
         PHYSICS_EPSILON,
     },
+    map::CarrierPose,
     protocol::{Ladder, Position},
 };
 
@@ -81,6 +82,24 @@ impl LadderVolume {
             normal_z: ladder.nz,
             mid_x: f32::midpoint(ladder.x1, ladder.x2) + rail_x,
             mid_z: f32::midpoint(ladder.z1, ladder.z2) + rail_z,
+        }
+    }
+
+    // The volume built from a carrier-local ladder, placed by the carrier's
+    // pose. The boxes are axis-aligned, so a rotation later means rebuilding
+    // from the local record rather than posing this.
+    #[must_use]
+    pub fn posed(&self, pose: &CarrierPose) -> Self {
+        let mid = pose.transform_point(Vec3::new(self.mid_x, 0.0, self.mid_z));
+        Self {
+            min: pose.transform_point(self.min),
+            max: pose.transform_point(self.max),
+            band_min: pose.transform_point(self.band_min),
+            band_max: pose.transform_point(self.band_max),
+            normal_x: self.normal_x,
+            normal_z: self.normal_z,
+            mid_x: mid.x,
+            mid_z: mid.z,
         }
     }
 

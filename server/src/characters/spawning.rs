@@ -1,12 +1,12 @@
 use bevy::prelude::*;
 use rand::{RngExt, rng, rngs::ThreadRng, seq::IndexedRandom};
 
-use crate::map::{ActorSpawnZone, MapConfig, PlayerSpawnZone};
+use crate::map::{CarrierGrid, MapConfig};
 use common::{
     config::CharacterPhysicsConfig,
-    map::MapGeometry,
+    map::{Carriers, MapGeometry},
     physics::{CollisionWorld, character_center, character_paths_intersect, character_shape},
-    protocol::Position,
+    protocol::{CarrierId, Position},
 };
 
 const SPAWN_MAX_ATTEMPTS: usize = 100;
@@ -19,26 +19,32 @@ pub fn spawn_face_yaw(pos: &Position) -> f32 {
     (-pos.x).atan2(-pos.z)
 }
 
-// Pick a random clear position from any player spawn zone. All cells across
-// all player zones are pooled and one is picked uniformly at random; no per-
-// zone capacity tracking, no fallback. Used by login and player fall recovery.
+// Pick a random clear position from any player spawn zone, on the map or
+// on a nested map. All cells across all player zones are pooled and one is
+// picked uniformly at random; no per-zone capacity tracking, no fallback.
+// Used by login and player fall recovery.
 //
 // Returns the world origin if no player zone has any spawnable cells.
 #[must_use]
 pub fn generate_player_spawn_position(
     map_config: &MapConfig,
-    map_geometry: &MapGeometry,
+    carriers: &Carriers,
     collision_world: &CollisionWorld,
     occupied_positions: &[Position],
     character_physics: CharacterPhysicsConfig,
 ) -> Position {
     let mut valid_cells = Vec::new();
     for zone in &map_config.player_spawn_zones {
-        valid_cells.extend(valid_cells_in_player_zone(map_config, zone));
+        valid_cells.extend(collect_valid_cells(
+            map_config.grid(zone.carrier),
+            zone.level,
+            zone.cells(),
+        ));
     }
     pick_clear_position(
         &valid_cells,
-        map_geometry,
+        map_config,
+        carriers,
         collision_world,
         occupied_positions,
         character_physics,
@@ -52,7 +58,6 @@ pub fn generate_player_spawn_position(
 #[must_use]
 pub fn generate_actor_spawn_position_in_zone(
     map_config: &MapConfig,
-    map_geometry: &MapGeometry,
     zone_index: usize,
     collision_world: &CollisionWorld,
     occupied_positions: &[Position],
@@ -62,10 +67,12 @@ pub fn generate_actor_spawn_position_in_zone(
         warn!("actor spawn zone index {zone_index} out of range; spawning at center");
         return Position::default();
     };
-    let valid_cells = valid_cells_in_actor_zone(map_config, zone);
+    // Actor zones are the root map's, so no carrier pose is involved.
+    let valid_cells = collect_valid_cells(map_config.root_grid(), zone.level, zone.cells());
     pick_clear_position(
         &valid_cells,
-        map_geometry,
+        map_config,
+        &Carriers::default(),
         collision_world,
         occupied_positions,
         character_physics,
@@ -73,21 +80,14 @@ pub fn generate_actor_spawn_position_in_zone(
     )
 }
 
-fn valid_cells_in_actor_zone(map_config: &MapConfig, zone: &ActorSpawnZone) -> Vec<SpawnCell> {
-    collect_valid_cells(map_config, zone.level, zone.cells())
-}
+// (carrier, level, col, row) — the cell in its carrier's grid, same axis
+// order as the file format's `cols`/`rows` arrays and the editor's drag
+// tool. Internally the cell grid is indexed `[row][col]`, but that's local
+// to the bounds checks below.
+type SpawnCell = (CarrierId, u8, i32, i32);
 
-fn valid_cells_in_player_zone(map_config: &MapConfig, zone: &PlayerSpawnZone) -> Vec<SpawnCell> {
-    collect_valid_cells(map_config, zone.level, zone.cells())
-}
-
-// (level, col, row) — same axis order as the file format's `cols`/`rows`
-// arrays and the editor's drag tool. Internally the cell grid is indexed
-// `[row][col]`, but that's local to the bounds checks below.
-type SpawnCell = (u8, i32, i32);
-
-fn collect_valid_cells(map_config: &MapConfig, level: u8, cells: impl Iterator<Item = (i32, i32)>) -> Vec<SpawnCell> {
-    let Some(level_grid) = map_config.levels.get(level as usize) else {
+fn collect_valid_cells(grid: &CarrierGrid, level: u8, cells: impl Iterator<Item = (i32, i32)>) -> Vec<SpawnCell> {
+    let Some(level_grid) = grid.levels.get(level as usize) else {
         return Vec::new();
     };
     let mut out = Vec::new();
@@ -101,15 +101,18 @@ fn collect_valid_cells(map_config: &MapConfig, level: u8, cells: impl Iterator<I
         }
         let cell = &grid_cells[row as usize][col as usize];
         if cell.is_spawnable() {
-            out.push((level, col, row));
+            out.push((grid.carrier, level, col, row));
         }
     }
     out
 }
 
+// The cell's position is in its carrier's frame; the carrier's pose at this
+// tick puts it in the world, where the colliders are.
 fn pick_clear_position(
     valid_cells: &[SpawnCell],
-    map_geometry: &MapGeometry,
+    map_config: &MapConfig,
+    carriers: &Carriers,
     collision_world: &CollisionWorld,
     occupied_positions: &[Position],
     character_physics: CharacterPhysicsConfig,
@@ -122,8 +125,10 @@ fn pick_clear_position(
 
     let mut rng = rng();
     for _ in 0..SPAWN_MAX_ATTEMPTS {
-        let &(level, col, row) = valid_cells.choose(&mut rng).expect("valid_cells should not be empty");
-        let pos = random_position_in_spawn_cell(&mut rng, map_geometry, level, col, row, character_physics);
+        let &(carrier, level, col, row) = valid_cells.choose(&mut rng).expect("valid_cells should not be empty");
+        let geometry = &map_config.grid(carrier).geometry;
+        let local = random_position_in_spawn_cell(&mut rng, geometry, level, col, row, character_physics);
+        let pos = Position::from(carriers.pose(carrier).transform_point(Vec3::from(local)));
 
         if character_spawn_position_is_clear(&pos, collision_world, occupied_positions, character_physics) {
             return pos;
@@ -194,6 +199,7 @@ mod tests {
     use super::*;
     use crate::map::{CellGrid, EdgeGrid, LevelGrid, MapConfig, PlayerSpawnZone};
     use crate::test_geometry::{LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS, geometry};
+    use common::protocol::CarrierId;
     use common::protocol::{MapLayout, Wall};
 
     fn empty_layout() -> MapLayout {
@@ -222,15 +228,13 @@ mod tests {
             .collect::<Vec<_>>();
         levels[usize::from(level)].cells.rows[row as usize][col as usize].has_floor = true;
         MapConfig {
-            levels,
-            actor_spawn_zones: Vec::new(),
             player_spawn_zones: vec![PlayerSpawnZone {
+                carrier: CarrierId::WORLD,
                 level,
                 cols: [col, col + 1],
                 rows: [row, row + 1],
             }],
-            placed_items: Vec::new(),
-            pressure_plates: Vec::new(),
+            ..MapConfig::for_grid(levels, geometry(2, 2))
         }
     }
 
@@ -260,6 +264,7 @@ mod tests {
             level: 0,
             y: 0.0,
             height: WALL_HEIGHT,
+            carrier: CarrierId::WORLD,
         });
         let collision_world = collision_world(&layout);
 
@@ -283,6 +288,7 @@ mod tests {
             level: 1,
             y: LEVEL_HEIGHT,
             height: WALL_HEIGHT,
+            carrier: CarrierId::WORLD,
         });
         let collision_world = collision_world(&layout);
 
@@ -299,9 +305,14 @@ mod tests {
         let layout = empty_layout();
         let collision_world = collision_world(&layout);
         let map_config = map_config_with_player_spawn(1, 0, 0);
-        let geometry = geometry(1, 1);
 
-        let pos = generate_player_spawn_position(&map_config, &geometry, &collision_world, &[], character_physics());
+        let pos = generate_player_spawn_position(
+            &map_config,
+            &Carriers::default(),
+            &collision_world,
+            &[],
+            character_physics(),
+        );
 
         assert_eq!(pos.y, LEVEL_HEIGHT);
     }

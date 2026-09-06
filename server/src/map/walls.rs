@@ -9,6 +9,7 @@ use super::{
     segments::{MERGE_EPS, horizontal_wall_segment, vertical_wall_segment},
 };
 use crate::map::EdgeGrid;
+use common::protocol::CarrierId;
 use common::{map::MapGeometry, protocol::FaceMaterials, protocol::Wall};
 
 // Generate individual wall segments (no merging) with gap-filling extensions,
@@ -39,6 +40,7 @@ pub fn generate_walls(edge_grid: &EdgeGrid, geometry: &MapGeometry, level: u8) -
                 y,
                 height,
                 level,
+                carrier: CarrierId::WORLD,
             });
         }
     }
@@ -60,6 +62,7 @@ pub fn generate_walls(edge_grid: &EdgeGrid, geometry: &MapGeometry, level: u8) -
                 y,
                 height,
                 level,
+                carrier: CarrierId::WORLD,
             });
         }
     }
@@ -213,6 +216,7 @@ mod tests {
             level: 0,
             y: 0.0,
             height: WALL_HEIGHT,
+            carrier: CarrierId::WORLD,
         }
     }
 
@@ -226,6 +230,7 @@ mod tests {
             level: 0,
             y: 0.0,
             height: WALL_HEIGHT,
+            carrier: CarrierId::WORLD,
         }
     }
 

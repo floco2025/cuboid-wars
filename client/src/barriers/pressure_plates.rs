@@ -1,8 +1,9 @@
 use bevy::prelude::*;
 
 use crate::{
+    carriers::{CarrierEntities, CarrierStoreys},
     config::{AssetSet, ClientSettings, MaterialDef},
-    map::{MapLevel, tiled_cuboid},
+    map::tiled_cuboid,
 };
 use common::protocol::{MapLayout, MapSettings, PlatePurpose};
 
@@ -119,6 +120,8 @@ pub fn pressure_plates_spawn_system(
     mut materials: ResMut<Assets<StandardMaterial>>,
     existing: Query<Entity, With<PressurePlateMarker>>,
     locked: Res<LockedPlatePurposes>,
+    carrier_entities: Res<CarrierEntities>,
+    storeys: Res<CarrierStoreys>,
 ) {
     let layout = map_layout;
     if !layout.is_changed() {
@@ -147,7 +150,8 @@ pub fn pressure_plates_spawn_system(
             .spawn((
                 PressurePlateMarker,
                 PlatePurposeMarker(plate.purpose),
-                MapLevel(plate.level),
+                storeys.tag(plate.carrier, plate.level, 0),
+                ChildOf(carrier_entities.get(plate.carrier)),
                 Transform::from_translation(Vec3::new(plate.center_x, floor_y, plate.center_z)),
                 plate_visibility(plate.purpose, &locked.0),
             ))

@@ -1,5 +1,6 @@
 use super::*;
 use crate::constants::TICK_SECS;
+use crate::protocol::CarrierId;
 
 // Center past the floor edge: outside the support probe footprint but inside
 // the collider footprint — the band where the probe reads airborne while the
@@ -30,7 +31,7 @@ fn edge_overhang_slides_off_and_falls() {
                 ladder_climb_ratio: test_ladders(),
                 physics,
                 portals: None,
-                moving_floors: &MovingFloors::default(),
+                carriers: &Carriers::default(),
             },
         );
         pos = step.position;
@@ -80,7 +81,7 @@ fn probe_grounded_near_edge_does_not_slide() {
                 ladder_climb_ratio: test_ladders(),
                 physics,
                 portals: None,
-                moving_floors: &MovingFloors::default(),
+                carriers: &Carriers::default(),
             },
         );
         pos = step.position;
@@ -121,7 +122,7 @@ fn input_overrides_perch_slide() {
                 ladder_climb_ratio: test_ladders(),
                 physics,
                 portals: None,
-                moving_floors: &MovingFloors::default(),
+                carriers: &Carriers::default(),
             },
         );
         pos = step.position;
@@ -151,6 +152,7 @@ fn blocked_slide_keeps_velocity_zeroed() {
         level: 0,
         y: 0.0,
         height: WALL_HEIGHT,
+        carrier: CarrierId::WORLD,
     };
     let collision_world = collision_world_with(&[wall], &[floor], &[]);
     let physics = player_physics();
@@ -172,7 +174,7 @@ fn blocked_slide_keeps_velocity_zeroed() {
                 ladder_climb_ratio: test_ladders(),
                 physics,
                 portals: None,
-                moving_floors: &MovingFloors::default(),
+                carriers: &Carriers::default(),
             },
         );
         pos = step.position;

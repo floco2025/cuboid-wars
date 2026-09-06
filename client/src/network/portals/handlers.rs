@@ -16,7 +16,7 @@ pub(in crate::network) fn handle_portal_opened_message(
         *context.portal_set = PortalSet::rebuild(
             &context.portals.wire_portals(),
             &context.collision_world,
-            &context.moving_floors,
+            &context.carriers,
         );
     }
     if message.shooter == my_player_id {

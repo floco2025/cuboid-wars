@@ -17,7 +17,7 @@ from .constants import (
     MODE_BARRIER,
     MODE_LADDER,
     MODE_LIGHT,
-    MODE_MOVING_FLOOR,
+    MODE_NESTED_MAP,
     MODE_SPAWN_ZONE_EDIT,
     MODE_WALL,
     MODE_WALL_MATERIAL,
@@ -28,13 +28,13 @@ from .constants import (
     SPAWN_PAINT_MODES,
     SPAWN_ZONE_HANDLE_PIXELS,
 )
-from .normalization import ladder_spans_level, moving_floor_spans_level
+from .normalization import ladder_spans_level, nested_map_spans_level
 
 from .display import (
     BARRIER_PEN_WIDTH,
     DRAG_PREVIEW_COLORS,
     DRAG_PREVIEW_FALLBACK,
-    MOVING_FLOOR_COLOR,
+    NESTED_MAP_COLOR,
     WALL_HIGHLIGHT_WIDTH,
     WALL_PEN_WIDTH,
     face_color,
@@ -81,7 +81,6 @@ class CanvasPaintingMixin:
             self._paint_adjacent_level_ghosts(painter, cell, level_idx)
         self._paint_floors(painter, level, cell)
         self._paint_light_bridges(painter, level, cell)
-        self._paint_moving_floors(painter, cell, level_idx)
         self._paint_grass(painter, level, cell)
         self._paint_pressure_plates(painter, cell, level_idx)
         self._paint_items(painter, cell, level_idx)
@@ -97,6 +96,7 @@ class CanvasPaintingMixin:
         self._paint_walls(painter, level, cell)
         self._paint_barriers(painter, level, cell)
         self._paint_ladders(painter, cell, level_idx)
+        self._paint_nested_maps(painter, cell, level_idx)
         self._paint_wall_material_drag(painter, cell)
         # Lights sit on top of wall lines so the markers stay visible.
         self.paint_lights(painter, level, cell)
@@ -166,8 +166,8 @@ class CanvasPaintingMixin:
         col, row = self.hover_cell
         if not (0 <= col < self.window.map_data["grid_cols"] and 0 <= row < self.window.map_data["grid_rows"]):
             return
-        if mode == MODE_MOVING_FLOOR:
-            self._paint_moving_floor_tile(painter, (col, row), cell)
+        if mode == MODE_NESTED_MAP:
+            self._paint_nested_map_footprint(painter, (col, row), self.window.recent_nested_map_name(), cell, dim=True)
             painter.setPen(Qt.PenStyle.NoPen)
             return
         color = DRAG_PREVIEW_COLORS.get(mode, DRAG_PREVIEW_FALLBACK)
@@ -361,8 +361,8 @@ class CanvasPaintingMixin:
             return
         if self.window.mode not in DRAG_PREVIEW_COLORS and self.window.mode not in SPAWN_PAINT_MODES:
             return
-        # A moving floor drag is two ends and an arrow, not a rectangle.
-        if self.window.mode == MODE_MOVING_FLOOR:
+        # A nested map drag is two ends and a band, not a rectangle.
+        if self.window.mode == MODE_NESTED_MAP:
             return
         c0, r0, c1, r1 = rect_from_cells(self.drag_start_cell, self.drag_current_cell)
         color = DRAG_PREVIEW_COLORS.get(self.window.mode, DRAG_PREVIEW_FALLBACK)
@@ -384,8 +384,8 @@ class CanvasPaintingMixin:
             self.paint_wall_preview(painter, self.drag_start_point, end, cell, color=QColor(hex_color))
         elif self.drag_start_cell and self.drag_current_cell and self.window.mode in RAMP_MODES:
             self.paint_ramp_preview(painter, self.drag_start_cell, self.drag_current_cell, cell)
-        elif self.drag_start_cell and self.drag_current_cell and self.window.mode == MODE_MOVING_FLOOR:
-            self._paint_moving_floor_drag(painter, cell)
+        elif self.drag_start_cell and self.drag_current_cell and self.window.mode == MODE_NESTED_MAP:
+            self._paint_nested_map_drag(painter, cell)
 
     def _paint_grid_lines(self, painter: QPainter, cell: float, cols: int, rows: int) -> None:
         painter.setPen(QPen(QColor("#2e343b"), 1))
@@ -431,17 +431,7 @@ class CanvasPaintingMixin:
             for x0, y0, x1, y1 in ladder_marker_lines(ladder, cell):
                 painter.drawLine(round(x0), round(y0), round(x1), round(y1))
 
-    def _paint_moving_floors(self, painter: QPainter, cell: float, level_idx: int) -> None:
-        # A tile paints its whole span on every level it passes through, so
-        # a lift's far end is visible, and placeable, from the storey it
-        # lands on.
-        for floor in self.window.map_data.get("moving_floors", []):
-            if moving_floor_spans_level(floor, level_idx):
-                self.paint_moving_floor_span(
-                    painter, tuple(floor["from"]), tuple(floor["to"]), floor["level"], floor["to_level"], level_idx, cell
-                )
-
-    def paint_moving_floor_span(
+    def paint_motion_span(
         self,
         painter: QPainter,
         start: tuple[int, int],
@@ -450,21 +440,24 @@ class CanvasPaintingMixin:
         end_level: int,
         level_idx: int,
         cell: float,
+        storeys: int,
         dim: bool = False,
     ) -> None:
-        # One language: a square at each end of the tile's travel, numbered
-        # 1 (where it rests at phase zero) and 2, a band over the cells it
-        # sweeps between them (what must stay clear), and a hollow square for
-        # an end on another storey. The tile goes back and forth, so nothing
-        # points one way.
+        # One language: a square at each end of the nested map's travel,
+        # numbered 1 (where it rests at phase zero) and 2, a band over the
+        # cells its anchor sweeps between them, and a hollow square for an
+        # end on another storey. It goes back and forth, so nothing points
+        # one way. An end is "here" on any of the map's own `storeys` above
+        # the storey it rests on.
+        color = NESTED_MAP_COLOR
         inset = max(2.0, cell * 0.12)
         tile = cell - 2 * inset
         scale = 0.5 if dim else 1.0
-        line = QColor(MOVING_FLOOR_COLOR)
+        line = QColor(color)
         line.setAlpha(int(230 * scale))
-        fill = QColor(MOVING_FLOOR_COLOR)
+        fill = QColor(color)
         fill.setAlpha(int(160 * scale))
-        band = QColor(MOVING_FLOOR_COLOR)
+        band = QColor(color)
         band.setAlpha(int(70 * scale))
         center = lambda pos: ((pos[0] + 0.5) * cell, (pos[1] + 0.5) * cell)
         if end != start:
@@ -486,7 +479,7 @@ class CanvasPaintingMixin:
         else:
             ends = [(start, level_idx + 1, "")]
         for pos, level, number in ends:
-            here = level == level_idx
+            here = level <= level_idx < level + storeys
             cx, cy = center(pos)
             rect = QRectF(cx - tile / 2, cy - tile / 2, tile, tile)
             painter.setPen(QPen(line, 2))
@@ -497,31 +490,74 @@ class CanvasPaintingMixin:
                 painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, number)
         painter.setPen(Qt.PenStyle.NoPen)
 
-    def _paint_moving_floor_drag(self, painter: QPainter, cell: float) -> None:
+    def _paint_nested_maps(self, painter: QPainter, cell: float, level_idx: int) -> None:
+        # A nested map paints on every storey it reaches: the storeys its
+        # ends rest on plus its own, so the whole building is visible from
+        # each floor it passes.
+        for entry in self.window.map_data.get("nested_maps", []):
+            shape = self.window.nested_map_shape(entry["map"])
+            storeys = shape.level_count if shape else 1
+            if not nested_map_spans_level(entry, level_idx, storeys):
+                continue
+            start, end = tuple(entry["from"]), tuple(entry["to"])
+            self.paint_motion_span(painter, start, end, entry["level"], entry["to_level"], level_idx, cell, storeys)
+            self._paint_nested_map_footprint(painter, start, entry["map"], cell, dashed=False)
+            if end != start:
+                self._paint_nested_map_footprint(painter, end, entry["map"], cell, dashed=True)
+
+    def _paint_nested_map_footprint(
+        self,
+        painter: QPainter,
+        anchor: tuple[int, int],
+        name: str | None,
+        cell: float,
+        dashed: bool = False,
+        dim: bool = False,
+    ) -> None:
+        # The nested map's grid with its cell (0, 0) on the anchor, outlined
+        # solid where it starts and dashed where it arrives, named in the
+        # middle. An unknown map is a red single cell asking to be fixed.
+        shape = self.window.nested_map_shape(name) if name else None
+        if shape is None:
+            cols, rows, color, label = 1, 1, QColor(248, 113, 113), f"{name or '?'}?"
+        else:
+            cols, rows, color, label = shape.grid_cols, shape.grid_rows, QColor(NESTED_MAP_COLOR), name
+        color.setAlpha(120 if dim else 230)
+        rect = QRectF(anchor[0] * cell + 2, anchor[1] * cell + 2, cols * cell - 4, rows * cell - 4)
+        pen = QPen(color, 2)
+        if dashed:
+            pen.setStyle(Qt.PenStyle.DashLine)
+        painter.setPen(pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawRect(rect)
+        painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, label)
+        painter.setPen(Qt.PenStyle.NoPen)
+
+    def _paint_nested_map_drag(self, painter: QPainter, cell: float) -> None:
         # A drag from an existing end previews that end at the cursor with
-        # the other end where it is; any other drag previews a new tile.
+        # the other end where it is; any other drag previews a new entry.
         start, current = self.drag_start_cell, self.drag_current_cell
         level_idx = self.window.current_level
-        hit = self.window.moving_floor_end_at(start)
+        hit = self.window.nested_map_end_at(start)
         if hit is None:
-            self.paint_moving_floor_span(painter, start, current, level_idx, level_idx, level_idx, cell, dim=True)
+            name = self.window.recent_nested_map_name()
+            self.paint_motion_span(painter, start, current, level_idx, level_idx, level_idx, cell, 1, dim=True)
+            self._paint_nested_map_footprint(painter, current, name, cell, dashed=current != start, dim=True)
             return
-        floor, end = hit
-        moved = {**floor, end: [current[0], current[1]]}
-        self.paint_moving_floor_span(
-            painter, tuple(moved["from"]), tuple(moved["to"]), floor["level"], floor["to_level"], level_idx, cell, dim=True
+        entry, end = hit
+        moved = {**entry, end: [current[0], current[1]]}
+        self.paint_motion_span(
+            painter,
+            tuple(moved["from"]),
+            tuple(moved["to"]),
+            entry["level"],
+            entry["to_level"],
+            level_idx,
+            cell,
+            1,
+            dim=True,
         )
-
-    def _paint_moving_floor_tile(self, painter: QPainter, cell_pos: tuple[int, int], cell: float) -> None:
-        inset = max(2.0, cell * 0.12)
-        rect = QRectF(cell_pos[0] * cell + inset, cell_pos[1] * cell + inset, cell - 2 * inset, cell - 2 * inset)
-        line = QColor(MOVING_FLOOR_COLOR)
-        line.setAlpha(140)
-        fill = QColor(MOVING_FLOOR_COLOR)
-        fill.setAlpha(80)
-        painter.setBrush(fill)
-        painter.setPen(QPen(line, 2))
-        painter.drawRect(rect)
+        self._paint_nested_map_footprint(painter, current, entry["map"], cell, dashed=end == "to", dim=True)
 
     def _paint_wall_material_drag(self, painter: QPainter, cell: float) -> None:
         # Grid-point based: 2D rectangle when the drag spans both axes, or a
@@ -569,7 +605,7 @@ class CanvasPaintingMixin:
                 neighbor = levels[target]
                 self._paint_floors(painter, neighbor, cell)
                 self._paint_light_bridges(painter, neighbor, cell)
-                self._paint_moving_floors(painter, cell, target)
+                self._paint_nested_maps(painter, cell, target)
                 self._paint_ramps(painter, cell, target)
                 self._paint_walls(painter, neighbor, cell)
                 self._paint_barriers(painter, neighbor, cell)

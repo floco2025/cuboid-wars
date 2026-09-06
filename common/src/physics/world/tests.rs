@@ -2,7 +2,7 @@ use crate::config::{
     CharacterColliderAnchor, CharacterColliderConfig, CharacterPhysicsConfig, CharacterSupportProbeConfig,
 };
 use crate::constants::LADDER_OVERSHOOT;
-use crate::protocol::{Barrier, BarrierKindId, Floor, Ladder, MapLayout, Position, Ramp, Wall};
+use crate::protocol::{Barrier, BarrierKindId, CarrierId, Floor, Ladder, MapLayout, Position, Ramp, Wall};
 use crate::test_geometry::{
     BARRIER_THICKNESS, BRIDGE_THICKNESS, FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS,
 };
@@ -20,6 +20,7 @@ fn test_map_layout() -> MapLayout {
             level: 1,
             y: LEVEL_HEIGHT,
             height: WALL_HEIGHT,
+            carrier: CarrierId::WORLD,
         }],
         floors: vec![Floor {
             x1: 0.0,
@@ -29,6 +30,7 @@ fn test_map_layout() -> MapLayout {
             y: LEVEL_HEIGHT,
             thickness: FLOOR_THICKNESS,
             level: 1,
+            carrier: CarrierId::WORLD,
         }],
         ramps: vec![Ramp {
             x1: 0.0,
@@ -37,6 +39,7 @@ fn test_map_layout() -> MapLayout {
             x2: 4.0,
             y2: LEVEL_HEIGHT,
             z2: 8.0,
+            carrier: CarrierId::WORLD,
         }],
         ..Default::default()
     }
@@ -67,6 +70,7 @@ fn ladder_volume_covers_the_front_and_overshoot() {
             levels: 2,
             y: 0.0,
             height: 2.0 * LEVEL_HEIGHT,
+            carrier: CarrierId::WORLD,
         }],
         ..Default::default()
     };
@@ -97,6 +101,7 @@ fn ladder_volume_is_not_a_solid() {
             levels: 1,
             y: 0.0,
             height: LEVEL_HEIGHT,
+            carrier: CarrierId::WORLD,
         }],
         ..Default::default()
     };
@@ -226,6 +231,7 @@ fn wall_surface_along_ray_ignores_barrier() {
         y: LEVEL_HEIGHT,
         height: WALL_HEIGHT,
         width: BARRIER_THICKNESS,
+        carrier: CarrierId::WORLD,
     });
     let world = CollisionWorld::from_map_layout(&layout, &crate::protocol::BarrierKindTable::default());
 
@@ -254,6 +260,7 @@ fn wall_end_world() -> CollisionWorld {
                 level: 0,
                 y: 0.0,
                 height: WALL_HEIGHT,
+                carrier: CarrierId::WORLD,
             }],
             floors: vec![Floor {
                 x1: -8.0,
@@ -263,6 +270,7 @@ fn wall_end_world() -> CollisionWorld {
                 y: 0.0,
                 thickness: FLOOR_THICKNESS,
                 level: 0,
+                carrier: CarrierId::WORLD,
             }],
             ..Default::default()
         },
@@ -343,6 +351,7 @@ fn light_bridge_supports_a_character_only_while_powered() {
             level: 1,
             kind: BridgeKindId(0),
             thickness: BRIDGE_THICKNESS,
+            carrier: CarrierId::WORLD,
         }],
         ..Default::default()
     };
@@ -377,6 +386,7 @@ fn a_powered_light_bridge_stays_out_of_sight_and_ground_probes() {
             level: 1,
             kind: BridgeKindId(0),
             thickness: BRIDGE_THICKNESS,
+            carrier: CarrierId::WORLD,
         }],
         ..Default::default()
     };
@@ -402,10 +412,44 @@ fn a_powered_light_bridge_stays_out_of_sight_and_ground_probes() {
     );
 }
 
-#[test]
-fn portal_surface_ray_hits_a_tile_and_names_it() {
-    use crate::protocol::MovingFloorId;
+fn slider_layout() -> MapLayout {
+    use crate::protocol::Carrier;
 
+    MapLayout {
+        carriers: vec![Carrier {
+            parent: CarrierId::WORLD,
+            level: 1,
+            levels: 0,
+            from: Position {
+                x: 0.0,
+                y: LEVEL_HEIGHT,
+                z: 0.0,
+            },
+            to: Position {
+                x: 8.0,
+                y: LEVEL_HEIGHT,
+                z: 0.0,
+            },
+            travel_ticks: 60,
+            pause_ticks: 0,
+            phase_ticks: 0,
+        }],
+        floors: vec![Floor {
+            x1: -1.5,
+            z1: -1.5,
+            x2: 1.5,
+            z2: 1.5,
+            y: 0.0,
+            thickness: FLOOR_THICKNESS,
+            level: 0,
+            carrier: CarrierId(1),
+        }],
+        ..Default::default()
+    }
+}
+
+#[test]
+fn world_surface_ray_names_the_carrier_it_hits() {
     let mut layout = slider_layout();
     layout.floors.push(Floor {
         x1: -2.0,
@@ -415,54 +459,33 @@ fn portal_surface_ray_hits_a_tile_and_names_it() {
         y: LEVEL_HEIGHT - 2.0,
         thickness: FLOOR_THICKNESS,
         level: 0,
+        carrier: CarrierId::WORLD,
     });
     let world = CollisionWorld::from_map_layout(&layout, &crate::protocol::BarrierKindTable::default());
     let above = bevy_math::Vec3::new(0.0, LEVEL_HEIGHT + 1.0, 0.0);
 
-    let (hit, anchor) = world
-        .portal_surface_along_ray(above, bevy_math::Vec3::NEG_Y, 4.0)
-        .expect("the tile did not stop the portal ray");
+    let hit = world
+        .world_surface_along_ray(above, bevy_math::Vec3::NEG_Y, 4.0)
+        .expect("the tile did not stop the ray");
     assert!((hit.point.y - LEVEL_HEIGHT).abs() < 1e-3, "hit was {hit:?}");
-    assert_eq!(anchor, Some(MovingFloorId(0)));
+    assert_eq!(hit.carrier, CarrierId(1));
 
     let beside = bevy_math::Vec3::new(1.8, LEVEL_HEIGHT + 1.0, 0.0);
-    let (hit, anchor) = world
-        .portal_surface_along_ray(beside, bevy_math::Vec3::NEG_Y, 4.0)
+    let hit = world
+        .world_surface_along_ray(beside, bevy_math::Vec3::NEG_Y, 4.0)
         .expect("the floor under the tile's edge was missed");
     assert!((hit.point.y - (LEVEL_HEIGHT - 2.0)).abs() < 1e-3, "hit was {hit:?}");
-    assert_eq!(anchor, None);
-}
-
-fn slider_layout() -> MapLayout {
-    use crate::protocol::MovingFloor;
-
-    MapLayout {
-        moving_floors: vec![MovingFloor {
-            x1: 0.0,
-            y1: LEVEL_HEIGHT,
-            z1: 0.0,
-            x2: 8.0,
-            y2: LEVEL_HEIGHT,
-            z2: 0.0,
-            half_x: 1.5,
-            half_z: 1.5,
-            thickness: FLOOR_THICKNESS,
-            travel_ticks: 60,
-            pause_ticks: 0,
-            phase_ticks: 0,
-            level: 1,
-            levels: 0,
-        }],
-        ..Default::default()
-    }
+    assert_eq!(hit.carrier, CarrierId::WORLD);
 }
 
 #[test]
-fn moving_floor_collider_follows_its_current_center() {
+fn carrier_colliders_follow_the_carrier_pose() {
+    use crate::map::Carriers;
     use rapier3d::prelude::Pose;
 
-    let mut world = CollisionWorld::from_map_layout(&slider_layout(), &crate::protocol::BarrierKindTable::default());
-    assert_eq!(world.solid_kinds(), vec![ColliderKind::MovingFloor]);
+    let layout = slider_layout();
+    let mut world = CollisionWorld::from_map_layout(&layout, &crate::protocol::BarrierKindTable::default());
+    assert_eq!(world.solid_kinds(), vec![ColliderKind::Floor]);
     let physics = wide_body();
     let shape = crate::physics::characters::character_shape(physics);
     let probe = |world: &CollisionWorld, x: f32| {
@@ -471,30 +494,38 @@ fn moving_floor_collider_follows_its_current_center() {
     };
 
     assert!(probe(&world, 0.0).is_some(), "the tile starts at its first end");
-    world.set_moving_floor_centers(&[bevy_math::Vec3::new(8.0, LEVEL_HEIGHT - FLOOR_THICKNESS / 2.0, 0.0)]);
+    let mut carriers = Carriers::from_layout(&layout);
+    carriers.advance(60);
+    world.set_carrier_poses(&carriers);
     assert!(probe(&world, 0.0).is_none(), "the tile left its first end");
     assert!(probe(&world, 8.0).is_some(), "the tile arrived at its second end");
 }
 
 #[test]
-fn moving_floor_is_a_surface_but_not_world_geometry() {
-    let world = CollisionWorld::from_map_layout(&slider_layout(), &crate::protocol::BarrierKindTable::default());
-    let above = bevy_math::Vec3::new(0.0, LEVEL_HEIGHT + 1.0, 0.0);
-    let below = bevy_math::Vec3::new(0.0, LEVEL_HEIGHT - 1.0, 0.0);
+fn ground_hit_names_the_carrier_under_the_feet() {
+    use rapier3d::prelude::Pose;
 
-    assert!(
-        world.cast_moving_ball(above, below - above, 0.1).is_some(),
-        "a surface query sees it"
-    );
-    assert!(world.line_of_sight_clear(above, below), "sight reaches through it");
-    assert!(
-        world.ground_surface_below(above, 2.0).is_none(),
-        "rain and scorch probes ignore it"
-    );
-    assert!(
+    let mut layout = slider_layout();
+    layout.floors.push(Floor {
+        x1: 4.0,
+        z1: -2.0,
+        x2: 12.0,
+        z2: 2.0,
+        y: LEVEL_HEIGHT,
+        thickness: FLOOR_THICKNESS,
+        level: 1,
+        carrier: CarrierId::WORLD,
+    });
+    let world = CollisionWorld::from_map_layout(&layout, &crate::protocol::BarrierKindTable::default());
+    let physics = wide_body();
+    let shape = crate::physics::characters::character_shape(physics);
+    let probe = |x: f32| {
+        let pose = Pose::translation(x, LEVEL_HEIGHT + physics.collider.bottom_y_offset() + 0.05, 0.0);
         world
-            .world_surface_along_ray(above, bevy_math::Vec3::NEG_Y, 2.0)
-            .is_none(),
-        "a portal never lands on it"
-    );
+            .ground_hit(&shape, &pose, 1.0, 0.0, &[], &[])
+            .map(|hit| hit.carrier)
+    };
+
+    assert_eq!(probe(0.0), Some(CarrierId(1)));
+    assert_eq!(probe(8.0), Some(CarrierId::WORLD));
 }

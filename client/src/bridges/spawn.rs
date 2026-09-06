@@ -1,7 +1,11 @@
 use bevy::{light::NotShadowCaster, prelude::*};
 
 use super::BridgeAssets;
-use crate::{constants::BRIDGE_EDGE_GAP, map::MapLevel};
+use crate::{
+    carriers::{CarrierEntities, CarrierStoreys},
+    constants::BRIDGE_EDGE_GAP,
+    map::MapLevel,
+};
 use common::{
     constants::PHYSICS_EPSILON,
     protocol::{LightBridge, MapLayout, MapSettings},
@@ -18,6 +22,8 @@ pub fn bridges_spawn_system(
     map_layout: Res<MapLayout>,
     map_settings: Res<MapSettings>,
     bridge_assets: Res<BridgeAssets>,
+    carrier_entities: Res<CarrierEntities>,
+    storeys: Res<CarrierStoreys>,
     existing: Query<Entity, With<LightBridgeMarker>>,
 ) {
     if !map_layout.is_changed() {
@@ -32,15 +38,32 @@ pub fn bridges_spawn_system(
     // thickness) by the visible gap.
     let inset = map_settings.geometry.wall_half_thickness() + BRIDGE_EDGE_GAP;
     for bridge in &map_layout.light_bridges {
-        spawn_bridge(&mut commands, &bridge_assets, bridge, &map_layout.light_bridges, inset);
+        spawn_bridge(
+            &mut commands,
+            &bridge_assets,
+            carrier_entities.get(bridge.carrier),
+            storeys.tag(bridge.carrier, bridge.level, 0),
+            bridge,
+            &map_layout.light_bridges,
+            inset,
+        );
     }
 }
 
-fn spawn_bridge(commands: &mut Commands, assets: &BridgeAssets, bridge: &LightBridge, all: &[LightBridge], inset: f32) {
+fn spawn_bridge(
+    commands: &mut Commands,
+    assets: &BridgeAssets,
+    carrier: Entity,
+    level: MapLevel,
+    bridge: &LightBridge,
+    all: &[LightBridge],
+    inset: f32,
+) {
     let (min_x, max_x, min_z, max_z) = render_bounds(bridge, all, inset);
     commands.spawn((
         LightBridgeMarker,
-        MapLevel(bridge.level),
+        level,
+        ChildOf(carrier),
         Mesh3d(assets.mesh.clone()),
         MeshMaterial3d(assets.material_for(bridge.kind).clone()),
         // The ghost alpha is above the shadow pass's discard threshold, so
@@ -64,7 +87,9 @@ fn spawn_bridge(commands: &mut Commands, assets: &BridgeAssets, bridge: &LightBr
 // beside it shows a gap.
 fn render_bounds(bridge: &LightBridge, all: &[LightBridge], inset: f32) -> (f32, f32, f32, f32) {
     let (min_x, max_x, min_z, max_z) = bridge.bounds_xz();
-    let others = all.iter().filter(|other| other.level == bridge.level);
+    let others = all
+        .iter()
+        .filter(|other| other.level == bridge.level && other.carrier == bridge.carrier);
     let mut flush = [false; 4];
     for other in others {
         let (ox1, ox2, oz1, oz2) = other.bounds_xz();
@@ -94,6 +119,7 @@ mod tests {
     use super::*;
     use crate::test_geometry::BRIDGE_THICKNESS;
     use common::protocol::BridgeKindId;
+    use common::protocol::CarrierId;
 
     const BRIDGE_EDGE_INSET: f32 = 0.35;
 
@@ -107,6 +133,7 @@ mod tests {
             thickness: BRIDGE_THICKNESS,
             level,
             kind: BridgeKindId(0),
+            carrier: CarrierId::WORLD,
         }
     }
 

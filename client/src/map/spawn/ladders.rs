@@ -1,34 +1,33 @@
 use bevy::{asset::RenderAssetUsages, light::NotShadowCaster, prelude::*, render::render_resource::PrimitiveTopology};
 
+use crate::carriers::CarrierStoreys;
 use crate::constants::{LADDER_RAIL_HALF_THICKNESS, LADDER_RUNG_HALF_THICKNESS, LADDER_RUNG_SPACING};
-use crate::map::MapLevel;
 use common::{
     constants::{LADDER_OVERSHOOT, LADDER_RAIL_INSET, LADDER_WIDTH},
     protocol::Ladder,
 };
 
-// Marks the ladder entity; `levels` is the spanned storey count so level
-// focus can show the ladder from every level it passes through.
 #[derive(Component)]
-pub struct LadderMarker {
-    pub levels: u8,
-}
+pub struct LadderMarker;
 
 // Spawn one ladder entity from precomputed layout data. The mesh is built
-// directly in world space (identity transform), like ramp meshes — every
-// ladder has a distinct height anyway, so there is nothing to share. The
-// material is shared: one handle (`assets.json::ladder_material`) for all
-// ladders.
+// directly in its carrier's frame (identity transform under the carrier's
+// entity), like ramp meshes — every ladder has a distinct height anyway, so
+// there is nothing to share. The material is shared: one handle
+// (`assets.json::ladder_material`) for all ladders.
 pub fn spawn_ladder_from_layout(
     commands: &mut Commands,
     meshes: &mut Assets<Mesh>,
     material: Handle<StandardMaterial>,
     tile_size: f32,
+    storeys: &CarrierStoreys,
+    carrier: Entity,
     ladder: &Ladder,
 ) {
     commands.spawn((
-        LadderMarker { levels: ladder.levels },
-        MapLevel(ladder.level),
+        LadderMarker,
+        storeys.tag(ladder.carrier, ladder.level, ladder.levels),
+        ChildOf(carrier),
         Mesh3d(meshes.add(build_ladder_mesh(ladder, tile_size))),
         MeshMaterial3d(material),
         // Rails and rungs are thinner than a directional-shadow texel: as
@@ -99,8 +98,9 @@ impl BoxMeshData {
         let min = center - half;
         let max = center + half;
         let corner = |x: f32, y: f32, z: f32| [x, y, z];
-        // Same winding as `tiled_cuboid`. UVs are projected from WORLD
-        // position (the mesh is world-space), like every map mesh: a
+        // Same winding as `tiled_cuboid`. UVs are projected from the
+        // carrier-frame position (the mesh is built in it), like every map
+        // mesh: a
         // centimeters-thin face anchored at uv 0 would sample the same
         // sliver of the texture's edge on every rail and read as one flat
         // color; world anchoring spreads the members across the texture.
@@ -195,6 +195,7 @@ impl BoxMeshData {
 mod tests {
     use super::*;
     use crate::test_geometry::LEVEL_HEIGHT;
+    use common::protocol::CarrierId;
     use common::protocol::Ladder;
 
     #[test]
@@ -210,6 +211,7 @@ mod tests {
             levels: 1,
             y: 0.0,
             height: LEVEL_HEIGHT,
+            carrier: CarrierId::WORLD,
         };
         let mesh = build_ladder_mesh(&ladder, 0.6);
         let uvs = match mesh.attribute(Mesh::ATTRIBUTE_UV_0) {
@@ -247,6 +249,7 @@ mod tests {
             levels: 1,
             y: 0.0,
             height: LEVEL_HEIGHT,
+            carrier: CarrierId::WORLD,
         };
         let mesh = build_ladder_mesh(&ladder, 0.6);
         let tangents = match mesh.attribute(Mesh::ATTRIBUTE_TANGENT) {

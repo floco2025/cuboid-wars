@@ -30,7 +30,7 @@ death/respawn flow.
   instant-heal potions.
 - **Seeking missiles** — collect a pack, lock onto a target, and fire; the
   missile flies the map's airspace to it.
-- **Portal gun** — shoot portals onto any surface, moving floors included,
+- **Portal gun** — shoot portals onto any surface, nested maps included,
   and step through one to come out the other; a map hands you both ends or
   one end shared with a partner, and playing alone you always get both.
 - **Barriers & keys** — coloured barriers block everyone; the matching key
@@ -41,7 +41,7 @@ death/respawn flow.
 - **Actors** — mines, sentries, zappers, and reapers patrol and hunt; all
   explode when killed.
 - **Ladders** — climb between levels.
-- **Moving floors** — ride sliding and lifting tiles between platforms and storeys.
+- **Moving maps** — tiles, rooms, and whole buildings that slide or lift through a map, everything inside riding along.
 - **Fall damage** — short drops are safe; long falls scale up to lethal.
 - **Death & respawn** — dying drops your keys and ammo; you respawn after
   a short delay.

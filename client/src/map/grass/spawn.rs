@@ -1,12 +1,12 @@
 use super::mesh::{AABB_BASE_PAD, BLADE_HEIGHT_MAX, BLADE_MAX_OVERHANG, WIND_SWAY_FACTOR, grass_cell_mesh};
 use crate::constants::{GRASS_WIND_DIRECTION_DEGREES, GRASS_WIND_SPEED, GRASS_WIND_STRENGTH};
 use crate::{
+    carriers::{CarrierEntities, CarrierStoreys},
     config::{ClientSettings, GrassConfig},
-    map::MapLevel,
     materials::{GrassMaterial, GrassWindExtension},
 };
 use bevy::{camera::primitives::Aabb, light::NotShadowCaster, prelude::*};
-use common::protocol::{GrassCell, MapLayout, MapSettings};
+use common::protocol::{CarrierId, GrassCell, MapLayout, MapSettings};
 use std::collections::HashSet;
 
 #[derive(Component)]
@@ -18,8 +18,9 @@ pub struct GrassCellVisual {
     pub(super) open: OpenEdges,
 }
 
-// Which cell edges border another grass cell on the same level; scatter may
-// reach (and slightly overhang) the border only on those edges.
+// Which cell edges border another grass cell on the same level of the same
+// carrier; scatter may reach (and slightly overhang) the border only on
+// those edges.
 #[derive(Clone, Copy)]
 pub(super) struct OpenEdges {
     pub(super) pos_x: bool,
@@ -29,13 +30,13 @@ pub(super) struct OpenEdges {
 }
 
 impl OpenEdges {
-    fn for_cell(cell: GrassCell, cell_size: f32, painted: &HashSet<(i64, i64, u8)>) -> Self {
-        let (x, z, level) = quantized_key(cell, cell_size);
+    fn for_cell(cell: GrassCell, cell_size: f32, painted: &HashSet<GrassKey>) -> Self {
+        let (carrier, x, z, level) = quantized_key(cell, cell_size);
         Self {
-            pos_x: painted.contains(&(x + 2, z, level)),
-            neg_x: painted.contains(&(x - 2, z, level)),
-            pos_z: painted.contains(&(x, z + 2, level)),
-            neg_z: painted.contains(&(x, z - 2, level)),
+            pos_x: painted.contains(&(carrier, x + 2, z, level)),
+            neg_x: painted.contains(&(carrier, x - 2, z, level)),
+            pos_z: painted.contains(&(carrier, x, z + 2, level)),
+            neg_z: painted.contains(&(carrier, x, z - 2, level)),
         }
     }
 }
@@ -49,6 +50,8 @@ pub fn grass_spawn_system(
     client_settings: Res<ClientSettings>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<GrassMaterial>>,
+    carrier_entities: Res<CarrierEntities>,
+    storeys: Res<CarrierStoreys>,
     existing: Query<Entity, With<GrassMarker>>,
 ) {
     let layout = map_layout;
@@ -67,14 +70,15 @@ pub fn grass_spawn_system(
 
     let cell_size = map_settings.geometry.grid_cell_size;
     let material = materials.add(grass_material(grass));
-    let painted: HashSet<(i64, i64, u8)> = layout.grass.iter().map(|c| quantized_key(*c, cell_size)).collect();
+    let painted: HashSet<GrassKey> = layout.grass.iter().map(|c| quantized_key(*c, cell_size)).collect();
 
     for cell in layout.grass.iter().copied() {
         let open = OpenEdges::for_cell(cell, cell_size, &painted);
         commands.spawn((
             GrassMarker,
             GrassCellVisual { cell, open },
-            MapLevel(cell.level),
+            storeys.tag(cell.carrier, cell.level, 0),
+            ChildOf(carrier_entities.get(cell.carrier)),
             Mesh3d(meshes.add(grass_cell_mesh(cell, cell_size, grass, open, &[]))),
             MeshMaterial3d(material.clone()),
             Transform::default(),
@@ -109,14 +113,17 @@ fn grass_material(_config: &GrassConfig) -> GrassMaterial {
     }
 }
 
-// Cell centers sit at odd multiples of half a cell, so doubling before
-// rounding recovers a stable integer independent of float noise — all
-// clients render identical grass regardless of `Vec` ordering. Adjacent
+// A grass cell's identity: its carrier, its quantized cell center, and its
+// level. Cell centers sit at odd multiples of half a cell, so doubling
+// before rounding recovers a stable integer independent of float noise —
+// all clients render identical grass regardless of `Vec` ordering. Adjacent
 // cells differ by exactly 2 in the quantized coordinate.
-pub(super) fn quantized_key(cell: GrassCell, cell_size: f32) -> (i64, i64, u8) {
+pub(super) type GrassKey = (CarrierId, i64, i64, u8);
+
+pub(super) fn quantized_key(cell: GrassCell, cell_size: f32) -> GrassKey {
     let quantized_x = (cell.x * 2.0 / cell_size).round() as i64;
     let quantized_z = (cell.z * 2.0 / cell_size).round() as i64;
-    (quantized_x, quantized_z, cell.level)
+    (cell.carrier, quantized_x, quantized_z, cell.level)
 }
 
 // Pre-inserted so Bevy's `calculate_bounds` (which only fills absent Aabbs)

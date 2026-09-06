@@ -73,6 +73,14 @@ pub struct RandomItemsConfig {
     pub despawn_secs: f32,
 }
 
+// Map names become file names (`config/server/maps/<name>.json`), in the
+// registry and in a map's `nested_maps`, so nothing that could traverse
+// paths passes.
+#[must_use]
+pub(crate) fn is_valid_map_name(name: &str) -> bool {
+    !name.is_empty() && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+}
+
 pub(super) fn validate_maps<T>(
     maps: &HashMap<String, MapServerConfig>,
     default_map: &str,
@@ -87,7 +95,7 @@ pub(super) fn validate_maps<T>(
         if name.is_empty() {
             bail!("map name must not be empty");
         }
-        if !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-') {
+        if !is_valid_map_name(name) {
             bail!("map name `{name}` must contain only ASCII letters, digits, `_`, or `-`");
         }
         let path = format!("maps.{name}");

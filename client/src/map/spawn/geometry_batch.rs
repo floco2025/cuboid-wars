@@ -9,10 +9,12 @@ use bevy::{
 use rand::{RngExt, rng};
 
 use crate::{
+    carriers::CarrierEntities,
     config::{AssetSet, ClientSettings},
     map::{DebugColorMode, GroundMarker, MapLevel, RampMarker, RoofMarker, WallMarker},
     materials::MaterialHandleCache,
 };
+use common::protocol::CarrierId;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum MapGeometryKind {
@@ -33,10 +35,13 @@ enum BatchGroup {
     Segment(u32),
 }
 
+// A batch never spans carriers: its mesh is baked in one carrier's frame
+// and hangs under that carrier's entity.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 struct BatchKey {
+    carrier: CarrierId,
     kind: MapGeometryKind,
-    level: u8,
+    level: MapLevel,
     group: BatchGroup,
 }
 
@@ -92,7 +97,8 @@ impl MapGeometryBatch {
     pub(super) fn add_mesh(
         &mut self,
         kind: MapGeometryKind,
-        level: u8,
+        carrier: CarrierId,
+        level: MapLevel,
         material_id: impl Into<String>,
         mesh: &Mesh,
         transform: Transform,
@@ -102,7 +108,12 @@ impl MapGeometryBatch {
             DebugColorMode::Off | DebugColorMode::ByMaterial => BatchGroup::Material(material_id.clone()),
             DebugColorMode::BySegment => BatchGroup::Segment(self.current_segment_id),
         };
-        let key = BatchKey { kind, level, group };
+        let key = BatchKey {
+            carrier,
+            kind,
+            level,
+            group,
+        };
         let batch = self.batches.entry(key).or_default();
         // Remember any one of the contributing materials; in `Off`/`ByMaterial`
         // mode all contributors share the same one (it's part of the key), and
@@ -123,6 +134,7 @@ impl MapGeometryBatch {
         asset_server: &AssetServer,
         asset_set: &AssetSet,
         client_settings: &ClientSettings,
+        carrier_entities: &CarrierEntities,
     ) {
         let mode = self.mode;
         for (key, batch) in self.batches {
@@ -148,7 +160,14 @@ impl MapGeometryBatch {
             let mut mesh = batch.into_mesh();
             let _ = mesh.generate_tangents();
 
-            spawn_batch(commands, meshes.add(mesh), material, key.kind, key.level);
+            spawn_batch(
+                commands,
+                meshes.add(mesh),
+                material,
+                key.kind,
+                carrier_entities.get(key.carrier),
+                key.level,
+            );
         }
     }
 }
@@ -198,14 +217,16 @@ fn spawn_batch(
     mesh: Handle<Mesh>,
     material: Handle<StandardMaterial>,
     kind: MapGeometryKind,
-    level: u8,
+    carrier: Entity,
+    level: MapLevel,
 ) {
     let entity = (
         Mesh3d(mesh),
         MeshMaterial3d(material),
         Transform::default(),
         Visibility::Visible,
-        MapLevel(level),
+        level,
+        ChildOf(carrier),
     );
 
     match kind {

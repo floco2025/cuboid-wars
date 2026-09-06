@@ -6,13 +6,13 @@ use super::{traversal::traverse_yaw, *};
 use crate::{
     config::{CharacterPhysicsConfig, KnockbackConfig, MapMovementConfig, PlayerMovementConfig},
     constants::{PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH, PORTAL_LIGHT_CLEARANCE, PORTAL_RIM_SCALE},
-    map::MovingFloors,
+    map::{Carriers, carrier_offset_at},
     math::angle_delta_radians,
     physics::{
         AirborneMomentum, CharacterMovementResult, CharacterSupport, CharacterVerticalVelocity, CollisionWorld,
         KnockbackVelocity, momentum_displacement,
     },
-    protocol::{FaceYaw, MapLayout, MovingFloorId, PlayerMoveIntent, Portal, PortalEnd, PortalPairId, Position},
+    protocol::{Carrier, CarrierId, FaceYaw, MapLayout, PlayerMoveIntent, Portal, PortalEnd, PortalPairId, Position},
     test_geometry::{LEVEL_HEIGHT, WALL_HEIGHT},
 };
 
@@ -50,7 +50,7 @@ fn portal(end: PortalEnd, pos: Vec3, normal: Vec3, yaw: f32) -> Portal {
         ny: normal.y,
         nz: normal.z,
         yaw,
-        anchor: None,
+        carrier: CarrierId::WORLD,
     }
 }
 
@@ -65,7 +65,7 @@ fn pair(a_pos: Vec3, a_normal: Vec3, b_pos: Vec3, b_normal: Vec3) -> PortalSet {
             portal(PortalEnd::B, b_pos, b_normal, 0.0),
         ],
         &empty_world(),
-        &MovingFloors::default(),
+        &Carriers::default(),
     )
 }
 
@@ -100,7 +100,7 @@ fn frames_are_right_handed_orthonormal_for_any_normal() {
         Vec3::new(0.0, 0.6, 0.8),
         Vec3::new(-1.0, -1.0, 1.4),
     ] {
-        let frame = PortalFrame::from_portal(&portal(PortalEnd::A, Vec3::ZERO, normal, 1.2), &MovingFloors::default());
+        let frame = PortalFrame::from_portal(&portal(PortalEnd::A, Vec3::ZERO, normal, 1.2), &Carriers::default());
         assert_frame_valid(&frame);
     }
 }
@@ -109,7 +109,7 @@ fn frames_are_right_handed_orthonormal_for_any_normal() {
 fn ramp_frame_up_points_along_the_slope() {
     let frame = PortalFrame::from_portal(
         &portal(PortalEnd::A, Vec3::ZERO, Vec3::new(0.0, 0.6, 0.8), 0.0),
-        &MovingFloors::default(),
+        &Carriers::default(),
     );
     assert!((frame.up - Vec3::new(0.0, 0.8, -0.6)).length() < 1e-5);
     assert!((frame.right - Vec3::X).length() < 1e-5);
@@ -523,7 +523,7 @@ fn half_placed_pair_is_inert() {
     let set = PortalSet::rebuild(
         &[portal(PortalEnd::A, Vec3::new(0.0, 1.0, 0.0), Vec3::Z, 0.0)],
         &empty_world(),
-        &MovingFloors::default(),
+        &Carriers::default(),
     );
     assert!(set.is_empty());
     let hop = set.projectile_hop(Vec3::new(0.0, 1.0, 2.0), Vec3::new(0.0, 0.0, -30.0), 0.1, 0.08);
@@ -545,6 +545,7 @@ fn placement_layout() -> MapLayout {
             level: 0,
             y: 0.0,
             height: WALL_HEIGHT,
+            carrier: CarrierId::WORLD,
         }],
         floors: vec![Floor {
             x1: -6.0,
@@ -554,6 +555,7 @@ fn placement_layout() -> MapLayout {
             y: 0.0,
             thickness: FLOOR_THICKNESS,
             level: 0,
+            carrier: CarrierId::WORLD,
         }],
         ..Default::default()
     }
@@ -568,7 +570,7 @@ fn place(layout: &MapLayout, origin: Vec3, toward: Vec3, yaw: f32) -> Option<Por
         40.0,
         &world,
         layout,
-        &MovingFloors::default(),
+        &Carriers::default(),
     )
 }
 
@@ -586,7 +588,7 @@ fn placement_rejects_overlap_with_another_portal() {
         pos: Vec3::new(0.0, 1.6, 0.0),
         normal: Vec3::Z,
         yaw: 0.0,
-        anchor: None,
+        carrier: CarrierId::WORLD,
     };
     let existing = [portal(PortalEnd::A, Vec3::new(0.5, 1.6, 0.0), Vec3::Z, 0.0)];
     assert!(portal_placement_overlaps(
@@ -594,7 +596,7 @@ fn placement_rejects_overlap_with_another_portal() {
         PortalPairId(2),
         PortalEnd::B,
         &existing,
-        &MovingFloors::default()
+        &Carriers::default()
     ));
 }
 
@@ -604,7 +606,7 @@ fn placement_allows_clear_space_and_replacing_its_own_end() {
         pos: Vec3::new(0.0, 1.6, 0.0),
         normal: Vec3::Z,
         yaw: 0.0,
-        anchor: None,
+        carrier: CarrierId::WORLD,
     };
     let clear = [portal(PortalEnd::A, Vec3::new(2.0, 1.6, 0.0), Vec3::Z, 0.0)];
     assert!(!portal_placement_overlaps(
@@ -612,7 +614,7 @@ fn placement_allows_clear_space_and_replacing_its_own_end() {
         PortalPairId(2),
         PortalEnd::B,
         &clear,
-        &MovingFloors::default()
+        &Carriers::default()
     ));
 
     let replaced = [portal(PortalEnd::B, Vec3::new(0.0, 1.6, 0.0), Vec3::Z, 0.0)];
@@ -621,7 +623,7 @@ fn placement_allows_clear_space_and_replacing_its_own_end() {
         PortalPairId(1),
         PortalEnd::B,
         &replaced,
-        &MovingFloors::default()
+        &Carriers::default()
     ));
 }
 
@@ -637,7 +639,7 @@ fn swept_portal_gate_uses_the_plane_crossing_point() {
             portal(PortalEnd::B, Vec3::new(10.0, 1.6, 10.0), Vec3::X, 0.0),
         ],
         &world,
-        &MovingFloors::default(),
+        &Carriers::default(),
     );
     let physics = player_physics();
     let inside_from = Vec3::new(0.4, 0.7, placement.pos.z + 0.15);
@@ -723,6 +725,7 @@ fn ramp_side_portal_rim_can_meet_the_slope() {
             level: 0,
             y: 0.0,
             height: WALL_HEIGHT,
+            carrier: CarrierId::WORLD,
         }],
         ramps: vec![Ramp {
             x1: -2.0,
@@ -731,6 +734,7 @@ fn ramp_side_portal_rim_can_meet_the_slope() {
             x2: 2.0,
             y2: LEVEL_HEIGHT,
             z2: ramp_length,
+            carrier: CarrierId::WORLD,
         }],
         ..Default::default()
     };
@@ -760,6 +764,7 @@ fn wall_portal_near_ramp_excludes_only_wall_backing() {
             level: 0,
             y: 0.0,
             height: WALL_HEIGHT,
+            carrier: CarrierId::WORLD,
         }],
         ramps: vec![Ramp {
             x1: -2.0,
@@ -768,6 +773,7 @@ fn wall_portal_near_ramp_excludes_only_wall_backing() {
             x2: 2.0,
             y2: LEVEL_HEIGHT,
             z2: ramp_length,
+            carrier: CarrierId::WORLD,
         }],
         ..Default::default()
     };
@@ -778,7 +784,7 @@ fn wall_portal_near_ramp_excludes_only_wall_backing() {
             portal(PortalEnd::B, Vec3::new(10.0, 1.6, 10.0), Vec3::Z, 0.0),
         ],
         &world,
-        &MovingFloors::default(),
+        &Carriers::default(),
     );
     let physics = player_physics();
     let origin = Vec3::new(-1.5, center_y - physics.collider.top_y_offset() / 2.0, z);
@@ -797,6 +803,7 @@ fn wall_portal_across_a_stacked_wall_opens_its_trim_strip() {
         level,
         y,
         height: WALL_HEIGHT,
+        carrier: CarrierId::WORLD,
     };
     let layout = MapLayout {
         walls: vec![wall(0, 0.0), wall(1, LEVEL_HEIGHT)],
@@ -808,6 +815,7 @@ fn wall_portal_across_a_stacked_wall_opens_its_trim_strip() {
             y: LEVEL_HEIGHT,
             thickness: FLOOR_THICKNESS,
             level: 1,
+            carrier: CarrierId::WORLD,
         }],
         ..Default::default()
     };
@@ -823,7 +831,7 @@ fn wall_portal_across_a_stacked_wall_opens_its_trim_strip() {
             portal(PortalEnd::B, Vec3::new(10.0, 1.6, 10.0), Vec3::Z, 0.0),
         ],
         &world,
-        &MovingFloors::default(),
+        &Carriers::default(),
     );
     let physics = player_physics();
     let origin = Vec3::new(0.0, LEVEL_HEIGHT - physics.collider.top_y_offset() / 2.0, -0.5);
@@ -843,6 +851,7 @@ fn wall_portal_keeps_the_floor_it_stands_on_solid() {
             level: 0,
             y: 0.0,
             height: WALL_HEIGHT,
+            carrier: CarrierId::WORLD,
         }],
         floors: vec![Floor {
             x1: -4.0,
@@ -852,6 +861,7 @@ fn wall_portal_keeps_the_floor_it_stands_on_solid() {
             y: 0.0,
             thickness: FLOOR_THICKNESS,
             level: 0,
+            carrier: CarrierId::WORLD,
         }],
         ..Default::default()
     };
@@ -862,7 +872,7 @@ fn wall_portal_keeps_the_floor_it_stands_on_solid() {
             portal(PortalEnd::B, Vec3::new(10.0, 1.6, 10.0), Vec3::Z, 0.0),
         ],
         &world,
-        &MovingFloors::default(),
+        &Carriers::default(),
     );
     let physics = player_physics();
     let origin = Vec3::new(0.0, 1.0 - physics.collider.top_y_offset() / 2.0, -0.5);
@@ -889,6 +899,7 @@ fn ramp_lip_shot_nudges_the_whole_aperture_onto_the_slope() {
             x2: 2.0,
             y2: LEVEL_HEIGHT,
             z2: ramp_length,
+            carrier: CarrierId::WORLD,
         }],
         floors: vec![Floor {
             x1: -4.0,
@@ -898,6 +909,7 @@ fn ramp_lip_shot_nudges_the_whole_aperture_onto_the_slope() {
             y: LEVEL_HEIGHT,
             thickness: FLOOR_THICKNESS,
             level: 1,
+            carrier: CarrierId::WORLD,
         }],
         ..Default::default()
     };
@@ -924,6 +936,7 @@ fn floor_shot_under_a_crossing_wall_nudges_clear_of_it() {
         level: 0,
         y: 0.0,
         height: WALL_HEIGHT,
+        carrier: CarrierId::WORLD,
     });
     let placement = place(&layout, Vec3::new(2.0, 1.6, 2.5), Vec3::new(2.0, 0.0, 2.5), 0.0)
         .expect("wall-cut floor shot did not nudge clear");
@@ -947,6 +960,7 @@ fn shot_at_a_wall_light_nudges_clear_of_it() {
     layout.wall_lights.push(WallLight {
         pos: Position { x: 0.0, y: 1.6, z: 0.2 },
         yaw: 0.0,
+        carrier: CarrierId::WORLD,
     });
     let placement = place(&layout, Vec3::new(0.0, 1.6, 3.0), Vec3::new(0.0, 1.6, 0.0), PI)
         .expect("shot at the light did not nudge clear");
@@ -969,6 +983,7 @@ fn wall_light_on_the_other_face_does_not_block_placement() {
             z: -0.17,
         },
         yaw: PI,
+        carrier: CarrierId::WORLD,
     });
     let placement = place(&layout, Vec3::new(0.0, 1.6, 3.0), Vec3::new(0.0, 1.6, 0.0), PI)
         .expect("opposite-face light rejected placement");
@@ -995,6 +1010,7 @@ fn placement_front_clearance_rejects_a_powered_light_bridge() {
         level: 1,
         y: LEVEL_HEIGHT,
         height: WALL_HEIGHT,
+        carrier: CarrierId::WORLD,
     });
     layout.light_bridges.push(LightBridge {
         x1: -6.0,
@@ -1005,6 +1021,7 @@ fn placement_front_clearance_rejects_a_powered_light_bridge() {
         level: 1,
         kind: BridgeKindId(0),
         thickness: BRIDGE_THICKNESS,
+        carrier: CarrierId::WORLD,
     });
     let mut world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
     let origin = Vec3::new(0.0, 3.7, 3.0);
@@ -1017,7 +1034,7 @@ fn placement_front_clearance_rejects_a_powered_light_bridge() {
             40.0,
             world,
             &layout,
-            &MovingFloors::default(),
+            &Carriers::default(),
         )
     };
 
@@ -1045,6 +1062,7 @@ fn placement_rejects_a_floor_portal_covering_a_pressure_plate() {
         center_z: 3.0,
         purpose: PlatePurpose::Firework,
         center_y: 0.0,
+        carrier: CarrierId::WORLD,
     });
     assert!(place(&layout, Vec3::new(3.0, 1.6, 3.0), Vec3::new(3.0, 0.0, 3.0), 0.0).is_none());
     // The same shot well away from the plate lands.
@@ -1071,6 +1089,7 @@ fn perpetual_floor_fall_keeps_its_speed_across_hops() {
                 y: 0.0,
                 thickness: FLOOR_THICKNESS,
                 level: 0,
+                carrier: CarrierId::WORLD,
             },
             Floor {
                 x1: 40.0,
@@ -1080,6 +1099,7 @@ fn perpetual_floor_fall_keeps_its_speed_across_hops() {
                 y: 0.0,
                 thickness: FLOOR_THICKNESS,
                 level: 0,
+                carrier: CarrierId::WORLD,
             },
         ],
         ..Default::default()
@@ -1091,7 +1111,7 @@ fn perpetual_floor_fall_keeps_its_speed_across_hops() {
             portal(PortalEnd::B, Vec3::new(50.0, 0.0, 50.0), Vec3::Y, 0.0),
         ],
         &world,
-        &MovingFloors::default(),
+        &Carriers::default(),
     );
     let env = CharacterEnvironment {
         collision_world: &world,
@@ -1100,7 +1120,7 @@ fn perpetual_floor_fall_keeps_its_speed_across_hops() {
         physics,
         ladder_climb_ratio: LADDER_CLIMB_RATIO,
         portals: Some(&set),
-        moving_floors: &MovingFloors::default(),
+        carriers: &Carriers::default(),
     };
 
     let mut pos = crate::protocol::Position { x: 0.0, y: 8.0, z: 0.0 };
@@ -1171,6 +1191,7 @@ fn floor_to_ceiling_fall_accelerates_toward_terminal_velocity() {
             y: 0.0,
             thickness: FLOOR_THICKNESS,
             level: 0,
+            carrier: CarrierId::WORLD,
         }],
         ..Default::default()
     };
@@ -1181,7 +1202,7 @@ fn floor_to_ceiling_fall_accelerates_toward_terminal_velocity() {
             portal(PortalEnd::B, Vec3::new(0.0, 4.0, 0.0), Vec3::NEG_Y, 0.0),
         ],
         &world,
-        &MovingFloors::default(),
+        &Carriers::default(),
     );
     let env = CharacterEnvironment {
         collision_world: &world,
@@ -1190,7 +1211,7 @@ fn floor_to_ceiling_fall_accelerates_toward_terminal_velocity() {
         physics,
         ladder_climb_ratio: LADDER_CLIMB_RATIO,
         portals: Some(&set),
-        moving_floors: &MovingFloors::default(),
+        carriers: &Carriers::default(),
     };
 
     let mut pos = crate::protocol::Position { x: 0.0, y: 3.0, z: 0.0 };
@@ -1321,6 +1342,7 @@ fn steering_sideways_escapes_a_portal_fall_chain() {
             y: 0.0,
             thickness: FLOOR_THICKNESS,
             level: 0,
+            carrier: CarrierId::WORLD,
         }],
         ..Default::default()
     };
@@ -1331,7 +1353,7 @@ fn steering_sideways_escapes_a_portal_fall_chain() {
             portal(PortalEnd::B, Vec3::new(0.0, 4.0, 0.0), Vec3::NEG_Y, 0.0),
         ],
         &world,
-        &MovingFloors::default(),
+        &Carriers::default(),
     );
     let env = CharacterEnvironment {
         collision_world: &world,
@@ -1340,7 +1362,7 @@ fn steering_sideways_escapes_a_portal_fall_chain() {
         physics,
         ladder_climb_ratio: LADDER_CLIMB_RATIO,
         portals: Some(&set),
-        moving_floors: &MovingFloors::default(),
+        carriers: &Carriers::default(),
     };
 
     let mut pos = crate::protocol::Position { x: 0.0, y: 3.0, z: 0.0 };
@@ -1446,6 +1468,7 @@ fn floor_portal_funnel_is_symmetric_through_character_movement() {
             y: 0.0,
             thickness: FLOOR_THICKNESS,
             level: 0,
+            carrier: CarrierId::WORLD,
         }],
         ..Default::default()
     };
@@ -1456,7 +1479,7 @@ fn floor_portal_funnel_is_symmetric_through_character_movement() {
             portal(PortalEnd::B, Vec3::new(8.0, 4.0, 8.0), Vec3::NEG_Y, 0.0),
         ],
         &world,
-        &MovingFloors::default(),
+        &Carriers::default(),
     );
     let env = CharacterEnvironment {
         collision_world: &world,
@@ -1465,7 +1488,7 @@ fn floor_portal_funnel_is_symmetric_through_character_movement() {
         physics,
         ladder_climb_ratio: LADDER_CLIMB_RATIO,
         portals: Some(&set),
-        moving_floors: &MovingFloors::default(),
+        carriers: &Carriers::default(),
     };
 
     let step_from = |x| {
@@ -1546,6 +1569,7 @@ fn misaligned_fall_loop_is_sustained_by_funneling() {
             y: 0.0,
             thickness: FLOOR_THICKNESS,
             level: 0,
+            carrier: CarrierId::WORLD,
         }],
         ..Default::default()
     };
@@ -1556,7 +1580,7 @@ fn misaligned_fall_loop_is_sustained_by_funneling() {
             portal(PortalEnd::B, Vec3::new(0.4, 4.0, 0.3), Vec3::NEG_Y, 0.0),
         ],
         &world,
-        &MovingFloors::default(),
+        &Carriers::default(),
     );
     let env = CharacterEnvironment {
         collision_world: &world,
@@ -1565,7 +1589,7 @@ fn misaligned_fall_loop_is_sustained_by_funneling() {
         physics,
         ladder_climb_ratio: LADDER_CLIMB_RATIO,
         portals: Some(&set),
-        moving_floors: &MovingFloors::default(),
+        carriers: &Carriers::default(),
     };
 
     let mut pos = crate::protocol::Position { x: 0.0, y: 3.0, z: 0.0 };
@@ -1606,15 +1630,14 @@ fn misaligned_fall_loop_is_sustained_by_funneling() {
     assert!(hops >= 15, "misaligned loop died after {hops} hops at {pos:?}");
 }
 
-// === Portals on moving floors ===
+// === Portals on carriers ===
 
-const TILE: MovingFloorId = MovingFloorId(0);
+const TILE: CarrierId = CarrierId(1);
 
 // A slider tile at the origin travelling +X at 2 m/s, and a wall with a
 // floor in front of it for the other end. `beside_floor` adds a static
 // floor a hand's width past the tile's +X edge at rest.
 fn tile_wall_layout(beside_floor: bool) -> MapLayout {
-    use crate::protocol::{Floor, MovingFloor, Wall};
     use crate::test_geometry::{FLOOR_THICKNESS, WALL_THICKNESS};
 
     let mut layout = MapLayout {
@@ -1627,31 +1650,39 @@ fn tile_wall_layout(beside_floor: bool) -> MapLayout {
             level: 0,
             y: 0.0,
             height: WALL_HEIGHT,
+            carrier: CarrierId::WORLD,
         }],
-        floors: vec![Floor {
-            x1: -6.0,
-            z1: -10.0,
-            x2: 6.0,
-            z2: -4.0,
-            y: 0.0,
-            thickness: FLOOR_THICKNESS,
+        floors: vec![
+            Floor {
+                x1: -6.0,
+                z1: -10.0,
+                x2: 6.0,
+                z2: -4.0,
+                y: 0.0,
+                thickness: FLOOR_THICKNESS,
+                level: 0,
+                carrier: CarrierId::WORLD,
+            },
+            Floor {
+                x1: -1.5,
+                z1: -1.5,
+                x2: 1.5,
+                z2: 1.5,
+                y: 0.0,
+                thickness: FLOOR_THICKNESS,
+                level: 0,
+                carrier: TILE,
+            },
+        ],
+        carriers: vec![Carrier {
+            parent: CarrierId::WORLD,
             level: 0,
-        }],
-        moving_floors: vec![MovingFloor {
-            x1: 0.0,
-            y1: 0.0,
-            z1: 0.0,
-            x2: 4.0,
-            y2: 0.0,
-            z2: 0.0,
-            half_x: 1.5,
-            half_z: 1.5,
-            thickness: FLOOR_THICKNESS,
+            levels: 0,
+            from: Position::default(),
+            to: Position { x: 4.0, y: 0.0, z: 0.0 },
             travel_ticks: 60,
             pause_ticks: 0,
             phase_ticks: 0,
-            level: 0,
-            levels: 0,
         }],
         ..Default::default()
     };
@@ -1664,32 +1695,37 @@ fn tile_wall_layout(beside_floor: bool) -> MapLayout {
             y: 0.0,
             thickness: FLOOR_THICKNESS,
             level: 0,
+            carrier: CarrierId::WORLD,
         });
     }
     layout
 }
 
 // The world with the tile at `tick`, its collider placed there.
-fn tile_world(layout: &MapLayout, tick: u32) -> (CollisionWorld, MovingFloors) {
+fn tile_world(layout: &MapLayout, tick: u32) -> (CollisionWorld, Carriers) {
     let mut world = CollisionWorld::from_map_layout(layout, &BarrierKindTable::default());
-    let mut floors = MovingFloors::from_layout(layout);
-    floors.advance(tick.wrapping_sub(1));
-    floors.advance(tick);
-    world.set_moving_floor_centers(&floors.collider_centers());
-    (world, floors)
+    let mut carriers = Carriers::from_layout(layout);
+    carriers.advance(tick.wrapping_sub(1));
+    carriers.advance(tick);
+    world.set_carrier_poses(&carriers);
+    (world, carriers)
 }
 
-fn advance_tile(world: &mut CollisionWorld, floors: &mut MovingFloors, set: &mut PortalSet, tick: u32) {
-    floors.advance(tick);
-    world.set_moving_floor_centers(&floors.collider_centers());
-    set.refresh(floors);
+fn advance_tile(world: &mut CollisionWorld, carriers: &mut Carriers, set: &mut PortalSet, tick: u32) {
+    carriers.advance(tick);
+    world.set_carrier_poses(carriers);
+    set.refresh(carriers);
 }
 
-// A floor portal on the tile, tile-local at its center; yaw 0 lays its long
+fn tile_center(carriers: &Carriers) -> Vec3 {
+    carriers.pose(TILE).translation
+}
+
+// A floor portal on the tile, at the carrier's origin; yaw 0 lays its long
 // axis across the slide (along Z), a quarter turn along it.
-fn anchored_portal(yaw: f32) -> Portal {
+fn carried_portal(yaw: f32) -> Portal {
     Portal {
-        anchor: Some(TILE),
+        carrier: TILE,
         ..portal(PortalEnd::A, Vec3::ZERO, Vec3::Y, yaw)
     }
 }
@@ -1702,7 +1738,7 @@ fn wall_portal() -> Portal {
 // and the gates refreshing before each, and stops at the first hop.
 fn run_ticks(
     world: &mut CollisionWorld,
-    floors: &mut MovingFloors,
+    carriers: &mut Carriers,
     set: &mut PortalSet,
     physics: CharacterPhysicsConfig,
     mut pos: Position,
@@ -1715,7 +1751,7 @@ fn run_ticks(
     let mut vertical_velocity = 0.0;
     let mut support = CharacterSupport::Airborne;
     for tick in first_tick..first_tick + ticks {
-        advance_tile(world, floors, set, tick);
+        advance_tile(world, carriers, set, tick);
         let env = CharacterEnvironment {
             collision_world: world,
             gravity: 25.0,
@@ -1723,7 +1759,7 @@ fn run_ticks(
             physics,
             ladder_climb_ratio: LADDER_CLIMB_RATIO,
             portals: Some(set),
-            moving_floors: floors,
+            carriers,
         };
         let from = pos;
         let result = step_character_movement(
@@ -1757,9 +1793,9 @@ fn run_ticks(
 }
 
 #[test]
-fn a_shot_at_a_tile_anchors_the_portal_to_it() {
+fn a_shot_at_a_carrier_floor_places_the_portal_on_the_carrier() {
     let layout = tile_wall_layout(false);
-    let (world, floors) = tile_world(&layout, 1);
+    let (world, carriers) = tile_world(&layout, 1);
 
     let placement = compute_portal_placement(
         Vec3::new(0.3, 3.0, 0.0),
@@ -1768,30 +1804,30 @@ fn a_shot_at_a_tile_anchors_the_portal_to_it() {
         40.0,
         &world,
         &layout,
-        &floors,
+        &carriers,
     )
     .expect("a shot at the tile fizzled");
 
-    assert_eq!(placement.anchor, Some(TILE));
+    assert_eq!(placement.carrier, TILE);
     assert!(
         (placement.pos - Vec3::new(0.3, 0.0, 0.0)).length() < 1e-3,
         "landed at {}",
         placement.pos
     );
-    let portal = placement.portal(PortalPairId(1), PortalEnd::A, &floors);
+    let portal = placement.portal(PortalPairId(1), PortalEnd::A, &carriers);
     let local = Vec3::from(portal.pos);
     assert!(
         (local - Vec3::new(0.3 - 4.0 / 60.0, 0.0, 0.0)).length() < 1e-3,
-        "tile-local pos was {local}"
+        "carrier-local pos was {local}"
     );
-    let frame = PortalFrame::from_portal(&portal, &floors);
+    let frame = PortalFrame::from_portal(&portal, &carriers);
     assert!((frame.center - placement.pos).length() < 1e-4);
 }
 
 #[test]
-fn a_shot_that_does_not_fit_where_it_hits_centers_on_the_tile() {
+fn a_shot_that_does_not_fit_where_it_hits_nudges_onto_the_carrier() {
     let layout = tile_wall_layout(false);
-    let (world, floors) = tile_world(&layout, 1);
+    let (world, carriers) = tile_world(&layout, 1);
 
     let placement = compute_portal_placement(
         Vec3::new(0.3, 3.0, 0.5),
@@ -1800,14 +1836,16 @@ fn a_shot_that_does_not_fit_where_it_hits_centers_on_the_tile() {
         40.0,
         &world,
         &layout,
-        &floors,
+        &carriers,
     )
     .expect("a shot near the tile's edge fizzled");
 
-    assert_eq!(placement.anchor, Some(TILE));
+    assert_eq!(placement.carrier, TILE);
+    let offset = placement.pos - tile_center(&carriers);
     assert!(
-        (placement.pos - floors.anchor_center(Some(TILE))).length() < 1e-3,
-        "landed at {}",
+        offset.x.abs() + PORTAL_HALF_WIDTH * PORTAL_RIM_SCALE <= 1.5 + 1e-3
+            && offset.z.abs() + PORTAL_HALF_HEIGHT * PORTAL_RIM_SCALE <= 1.5 + 1e-3,
+        "aperture hangs past the tile at {}",
         placement.pos
     );
 }
@@ -1815,8 +1853,8 @@ fn a_shot_that_does_not_fit_where_it_hits_centers_on_the_tile() {
 #[test]
 fn a_shot_over_the_tile_edge_lands_fully_on_one_surface() {
     let layout = tile_wall_layout(true);
-    let (world, floors) = tile_world(&layout, 1);
-    let tile_edge = floors.anchor_center(Some(TILE)).x + 1.5;
+    let (world, carriers) = tile_world(&layout, 1);
+    let tile_edge = tile_center(&carriers).x + 1.5;
 
     let over_edge = compute_portal_placement(
         Vec3::new(1.3, 3.0, 0.0),
@@ -1825,10 +1863,10 @@ fn a_shot_over_the_tile_edge_lands_fully_on_one_surface() {
         40.0,
         &world,
         &layout,
-        &floors,
+        &carriers,
     )
     .expect("a shot over the tile's edge fizzled");
-    assert_eq!(over_edge.anchor, Some(TILE));
+    assert_eq!(over_edge.carrier, TILE);
     assert!(
         over_edge.pos.x + PORTAL_HALF_WIDTH * PORTAL_RIM_SCALE <= tile_edge + 1e-3,
         "aperture hangs past the tile's edge at {}",
@@ -1842,75 +1880,75 @@ fn a_shot_over_the_tile_edge_lands_fully_on_one_surface() {
         40.0,
         &world,
         &layout,
-        &floors,
+        &carriers,
     )
     .expect("a shot at the floor beside the tile fizzled");
-    assert_eq!(on_floor.anchor, None);
+    assert_eq!(on_floor.carrier, CarrierId::WORLD);
 }
 
 #[test]
-fn placement_portal_is_tile_local_when_anchored() {
+fn placement_portal_is_carrier_local() {
     let layout = tile_wall_layout(false);
-    let (_, floors) = tile_world(&layout, 1);
+    let (_, carriers) = tile_world(&layout, 1);
     let placement = PortalPlacement {
         pos: Vec3::new(1.0, 2.0, 3.0),
         normal: Vec3::NEG_X,
         yaw: 1.25,
-        anchor: Some(TILE),
+        carrier: TILE,
     };
 
-    let portal = placement.portal(PortalPairId(7), PortalEnd::B, &floors);
-    assert_eq!(Vec3::from(portal.pos), placement.pos - floors.anchor_center(Some(TILE)));
+    let portal = placement.portal(PortalPairId(7), PortalEnd::B, &carriers);
+    assert_eq!(Vec3::from(portal.pos), placement.pos - tile_center(&carriers));
     assert_eq!(Vec3::new(portal.nx, portal.ny, portal.nz), placement.normal);
     assert_eq!(
-        (portal.pair, portal.end, portal.yaw, portal.anchor),
-        (PortalPairId(7), PortalEnd::B, 1.25, Some(TILE))
+        (portal.pair, portal.end, portal.yaw, portal.carrier),
+        (PortalPairId(7), PortalEnd::B, 1.25, TILE)
     );
 
     let free = PortalPlacement {
-        anchor: None,
+        carrier: CarrierId::WORLD,
         ..placement
     }
-    .portal(PortalPairId(7), PortalEnd::B, &floors);
+    .portal(PortalPairId(7), PortalEnd::B, &carriers);
     assert_eq!(Vec3::from(free.pos), placement.pos);
 }
 
 #[test]
-fn an_anchored_portal_follows_its_tile_after_a_refresh() {
+fn a_carried_portal_follows_its_carrier_after_a_refresh() {
     let layout = tile_wall_layout(false);
-    let (mut world, mut floors) = tile_world(&layout, 1);
-    let mut set = PortalSet::rebuild(&[anchored_portal(0.0), wall_portal()], &world, &floors);
-    assert!(set.has_anchored());
+    let (mut world, mut carriers) = tile_world(&layout, 1);
+    let mut set = PortalSet::rebuild(&[carried_portal(0.0), wall_portal()], &world, &carriers);
+    assert!(set.has_carried());
     let before = frames(&set).0.center;
-    assert!((before - floors.anchor_center(Some(TILE))).length() < 1e-5);
+    assert!((before - tile_center(&carriers)).length() < 1e-5);
 
-    advance_tile(&mut world, &mut floors, &mut set, 2);
+    advance_tile(&mut world, &mut carriers, &mut set, 2);
 
     let after = frames(&set).0.center;
     assert!(
         (after - before - Vec3::new(4.0 / 60.0, 0.0, 0.0)).length() < 1e-5,
         "frame moved from {before} to {after}"
     );
-    assert!(!pair(Vec3::ZERO, Vec3::Y, Vec3::new(9.0, 0.0, 0.0), Vec3::Y).has_anchored());
+    assert!(!pair(Vec3::ZERO, Vec3::Y, Vec3::new(9.0, 0.0, 0.0), Vec3::Y).has_carried());
 }
 
 #[test]
 fn a_body_dropped_into_a_sliding_aperture_exits_the_wall_portal() {
     let layout = tile_wall_layout(false);
-    let (mut world, mut floors) = tile_world(&layout, 1);
-    let mut set = PortalSet::rebuild(&[anchored_portal(0.0), wall_portal()], &world, &floors);
+    let (mut world, mut carriers) = tile_world(&layout, 1);
+    let mut set = PortalSet::rebuild(&[carried_portal(0.0), wall_portal()], &world, &carriers);
     let physics = player_physics();
     let start = Position {
-        x: floors.anchor_center(Some(TILE)).x,
+        x: tile_center(&carriers).x,
         y: 0.2,
         z: 0.0,
     };
 
-    let (hop, _, _) = run_ticks(&mut world, &mut floors, &mut set, physics, start, 2, 30);
+    let (hop, _, _) = run_ticks(&mut world, &mut carriers, &mut set, physics, start, 2, 30);
 
     let (tick, hop) = hop.expect("the body never crossed the sliding aperture");
     // Carried along until it crossed: the entry is where the tile was then.
-    let tile_at_crossing = crate::map::surface_center_at(&layout.moving_floors[0], tick);
+    let tile_at_crossing = carrier_offset_at(&layout.carriers[0], tick);
     assert!(
         (hop.entry.center - tile_at_crossing).length() < 1e-3,
         "entry {} vs tile {}",
@@ -1927,12 +1965,12 @@ fn a_body_dropped_into_a_sliding_aperture_exits_the_wall_portal() {
 #[test]
 fn a_body_dropped_where_the_aperture_was_lands_on_the_tile() {
     let layout = tile_wall_layout(false);
-    let (mut world, mut floors) = tile_world(&layout, 15);
-    let mut set = PortalSet::rebuild(&[anchored_portal(0.0), wall_portal()], &world, &floors);
+    let (mut world, mut carriers) = tile_world(&layout, 15);
+    let mut set = PortalSet::rebuild(&[carried_portal(0.0), wall_portal()], &world, &carriers);
     let physics = player_physics();
     let start = Position { x: 0.0, y: 0.2, z: 0.0 };
 
-    let (hop, pos, support) = run_ticks(&mut world, &mut floors, &mut set, physics, start, 16, 30);
+    let (hop, pos, support) = run_ticks(&mut world, &mut carriers, &mut set, physics, start, 16, 30);
 
     assert!(hop.is_none(), "hopped at tick {:?}", hop.map(|(tick, _)| tick));
     assert_eq!(support, CharacterSupport::Ground);
@@ -1943,50 +1981,53 @@ fn a_body_dropped_where_the_aperture_was_lands_on_the_tile() {
 #[test]
 fn a_rider_beside_the_aperture_rides_a_full_cycle_without_a_hop() {
     let layout = tile_wall_layout(false);
-    let (mut world, mut floors) = tile_world(&layout, 1);
+    let (mut world, mut carriers) = tile_world(&layout, 1);
     let mut set = PortalSet::rebuild(
-        &[anchored_portal(std::f32::consts::FRAC_PI_2), wall_portal()],
+        &[carried_portal(std::f32::consts::FRAC_PI_2), wall_portal()],
         &world,
-        &floors,
+        &carriers,
     );
     let physics = player_physics();
     let start = Position {
-        x: floors.anchor_center(Some(TILE)).x,
+        x: tile_center(&carriers).x,
         y: 0.0,
         z: 1.1,
     };
 
-    let (hop, pos, support) = run_ticks(&mut world, &mut floors, &mut set, physics, start, 2, 120);
+    let (hop, pos, support) = run_ticks(&mut world, &mut carriers, &mut set, physics, start, 2, 120);
 
     assert!(hop.is_none(), "hopped at tick {:?}", hop.map(|(tick, _)| tick));
     assert_eq!(support, CharacterSupport::Ground);
     assert!((pos.z - 1.1).abs() < 0.05, "drifted across the tile: {pos:?}");
     assert!(
-        (pos.x - floors.anchor_center(Some(TILE)).x).abs() < 0.05,
+        (pos.x - tile_center(&carriers).x).abs() < 0.05,
         "lost the tile: {pos:?} vs {}",
-        floors.anchor_center(Some(TILE))
+        tile_center(&carriers)
     );
 }
 
 #[test]
 fn a_rising_plane_catches_a_crossing_the_stale_test_would_miss() {
     let mut layout = tile_wall_layout(false);
-    layout.moving_floors[0].x2 = 0.0;
-    layout.moving_floors[0].y2 = LEVEL_HEIGHT;
-    layout.moving_floors[0].levels = 1;
-    let (world, floors) = tile_world(&layout, 1);
+    layout.carriers[0].to = Position {
+        x: 0.0,
+        y: LEVEL_HEIGHT,
+        z: 0.0,
+    };
+    layout.carriers[0].levels = 1;
+    let (world, carriers) = tile_world(&layout, 1);
     let rise = LEVEL_HEIGHT / 60.0;
-    let anchored = PortalSet::rebuild(&[anchored_portal(0.0), wall_portal()], &world, &floors);
+    let carried = PortalSet::rebuild(&[carried_portal(0.0), wall_portal()], &world, &carriers);
     let physics = player_physics();
     let half_y = physics.collider.top_y_offset() / 2.0;
     // The body's center sat 0.05 above the plane last tick and moved down
     // 0.1 while the plane rose `rise`.
-    let previous_top = floors.anchor_center(Some(TILE)).y - rise;
+    let previous_top = tile_center(&carriers).y - rise;
     let from = Vec3::new(0.0, previous_top + 0.05 - half_y, 0.0);
     let to = from - Vec3::Y * 0.1;
 
     assert!(
-        anchored
+        carried
             .character_hop(from, to, physics, Vec3::ZERO, Vec3::ZERO, Vec3::ZERO, -3.0, 0.0, CAP)
             .is_some(),
         "the rising plane's crossing was missed"
@@ -1995,14 +2036,56 @@ fn a_rising_plane_catches_a_crossing_the_stale_test_would_miss() {
     // Judged only against where the plane is now, the same motion looks
     // like it started behind it.
     let stale_portal = Portal {
-        anchor: None,
-        pos: floors.anchor_center(Some(TILE)).into(),
-        ..anchored_portal(0.0)
+        carrier: CarrierId::WORLD,
+        pos: tile_center(&carriers).into(),
+        ..carried_portal(0.0)
     };
-    let stale = PortalSet::rebuild(&[stale_portal, wall_portal()], &world, &floors);
+    let stale = PortalSet::rebuild(&[stale_portal, wall_portal()], &world, &carriers);
     assert!(
         stale
             .character_hop(from, to, physics, Vec3::ZERO, Vec3::ZERO, Vec3::ZERO, -3.0, 0.0, CAP)
             .is_none()
+    );
+}
+
+#[test]
+fn a_static_portal_ignores_a_carrier_floor_passing_behind_it() {
+    use crate::test_geometry::FLOOR_THICKNESS;
+
+    // A static floor portal at the origin, and a tile sitting just under
+    // the plane, inside the aperture's backing volume, as the set is built.
+    let mut layout = tile_wall_layout(false);
+    layout.floors.push(Floor {
+        x1: -3.0,
+        z1: -3.0,
+        x2: 3.0,
+        z2: 3.0,
+        y: 0.0,
+        thickness: FLOOR_THICKNESS,
+        level: 0,
+        carrier: CarrierId::WORLD,
+    });
+    layout.carriers[0].from = Position {
+        x: 0.0,
+        y: -0.1,
+        z: 0.0,
+    };
+    layout.carriers[0].to = Position {
+        x: 6.0,
+        y: -0.1,
+        z: 0.0,
+    };
+    let (world, carriers) = tile_world(&layout, 0);
+    let set = PortalSet::rebuild(
+        &[portal(PortalEnd::A, Vec3::ZERO, Vec3::Y, 0.0), wall_portal()],
+        &world,
+        &carriers,
+    );
+
+    let excluded = set.collision_exclusions(Vec3::ZERO, player_physics());
+    assert!(!excluded.is_empty(), "the static floor does not back its own portal");
+    assert!(
+        excluded.iter().all(|handle| world.carrier_of(*handle).is_world()),
+        "the passing tile was taken as backing"
     );
 }

@@ -15,6 +15,7 @@ use crate::{
     map::{ActorSpawnZone, CellGrid, EdgeGrid, LevelGrid, MapConfig},
     test_geometry::{CELL, LEVEL_HEIGHT, WALL_HEIGHT, geometry},
 };
+use common::protocol::CarrierId;
 use common::{
     config::GameplayConfig,
     map::MapGeometry,
@@ -69,8 +70,8 @@ impl Fixture {
                 }
             })
             .collect();
+        let geometry = geometry(cols, rows);
         let map = MapConfig {
-            levels,
             actor_spawn_zones: vec![ActorSpawnZone {
                 level: 0,
                 cols: [1, 2],
@@ -78,12 +79,9 @@ impl Fixture {
                 kind: kind.to_owned(),
                 count: 1,
             }],
-            player_spawn_zones: Vec::new(),
-            placed_items: Vec::new(),
-            pressure_plates: Vec::new(),
+            ..MapConfig::for_grid(levels, geometry)
         };
-        let geometry = geometry(cols, rows);
-        let graph = NavGraph::new(map.clone(), geometry);
+        let graph = NavGraph::new(map.clone());
         let server = ServerGameplayConfig::load_default().expect("default server gameplay config should load");
         let territories = ActorTerritories::new(&graph, &map, &server).expect("test territory should build");
         let gameplay = server.gameplay_config();
@@ -573,6 +571,7 @@ fn occluded_player_keeps_last_seen_state_without_refresh() {
                 level: 0,
                 y: 0.0,
                 height: WALL_HEIGHT,
+                carrier: CarrierId::WORLD,
             }],
             ..MapLayout::default()
         },
@@ -618,6 +617,7 @@ fn actor_already_in_stable_cover_holds_position() {
                 level: 0,
                 y: 0.0,
                 height: WALL_HEIGHT,
+                carrier: CarrierId::WORLD,
             }],
             ..MapLayout::default()
         },
@@ -655,6 +655,7 @@ fn evade_route_is_replaced_when_same_cell_threat_exposes_destination() {
                 level: 0,
                 y: 0.0,
                 height: WALL_HEIGHT,
+                carrier: CarrierId::WORLD,
             }],
             ..MapLayout::default()
         },

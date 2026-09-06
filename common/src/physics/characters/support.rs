@@ -7,9 +7,13 @@ use rapier3d::{
 use super::geometry::{character_pose, character_support_probe_pose, character_support_probe_shape};
 use crate::{
     config::CharacterPhysicsConfig,
-    constants::{CHARACTER_GROUND_SNAP_DISTANCE, CHARACTER_PERCH_SLIDE_SPEED, CHARACTER_STEP_HEIGHT, PHYSICS_EPSILON},
+    constants::{
+        CARRIER_RIDE_TOLERANCE, CHARACTER_GROUND_SNAP_DISTANCE, CHARACTER_PERCH_SLIDE_SPEED, CHARACTER_STEP_HEIGHT,
+        PHYSICS_EPSILON,
+    },
+    map::Carriers,
     physics::world::{CollisionWorld, ShapeCastHit},
-    protocol::{BarrierKindId, Position},
+    protocol::{BarrierKindId, CarrierId, Position},
 };
 
 #[must_use]
@@ -39,6 +43,40 @@ pub(super) fn character_ground_hit(
         passable_kinds,
         excluded_colliders,
     )
+}
+
+// The carrier a body rides: whatever its feet rest on, within the ride
+// tolerance of the surface, found by the support probe so what carries a
+// body is exactly what the ground probe finds under it. The carriers already
+// sit at this tick's pose, so the probe starts above the largest rise any
+// made (a cast that starts inside a floor that rose through the feet would
+// snap wrongly) and reaches below the largest drop. No vertical-velocity
+// condition: the tick a jump leaves a carrier the feet are still on it, and
+// that tick's carry is what hands the jumper the carrier's velocity.
+pub(super) fn supporting_carrier(
+    collision_world: &CollisionWorld,
+    shape: &Cuboid,
+    pos: &Position,
+    passable_kinds: &[BarrierKindId],
+    physics: CharacterPhysicsConfig,
+    carriers: &Carriers,
+) -> Option<CarrierId> {
+    let rise = carriers.max_rise();
+    let lifted = Position {
+        y: pos.y + rise,
+        ..*pos
+    };
+    let pose = character_support_probe_pose(&lifted, physics);
+    collision_world
+        .ground_hit(
+            shape,
+            &pose,
+            physics.collider.bottom_y_offset() + rise + carriers.max_drop() + CARRIER_RIDE_TOLERANCE,
+            0.0,
+            passable_kinds,
+            &[],
+        )
+        .map(|hit| hit.carrier)
 }
 
 pub(super) fn snap_position_to_ground(pos: &mut Position, ground: ShapeCastHit, physics: CharacterPhysicsConfig) {

@@ -1,7 +1,7 @@
 use bevy::{ecs::system::SystemParam, prelude::*};
 use common::{
     config::GameplayConfig,
-    map::MovingFloors,
+    map::Carriers,
     physics::{CollisionWorld, PortalSet},
     protocol::*,
 };
@@ -10,6 +10,7 @@ use crate::{
     actors::{ActorGhostMap, ActorMap, ActorSpawnWarningSecs},
     barriers::{BarrierAssets, LockedPlatePurposes},
     cameras::MainCameraMarker,
+    carriers::{CarrierEntities, CarrierStoreys},
     characters::MaxHealth,
     config::{AssetSet, ClientSettings},
     items::{ItemAssets, ItemMap},
@@ -34,7 +35,9 @@ pub(super) struct ServerMessageContext<'w, 's> {
     pub(super) client_settings: Res<'w, ClientSettings>,
     pub(super) gameplay_config: Res<'w, GameplayConfig>,
     pub(super) collision_world: Res<'w, CollisionWorld>,
-    pub(super) moving_floors: Res<'w, MovingFloors>,
+    pub(super) carriers: Res<'w, Carriers>,
+    pub(super) carrier_entities: Res<'w, CarrierEntities>,
+    pub(super) carrier_storeys: Res<'w, CarrierStoreys>,
     pub(super) map_layout: Res<'w, MapLayout>,
     pub(super) map_settings: Res<'w, MapSettings>,
     pub(super) meshes: ResMut<'w, Assets<Mesh>>,

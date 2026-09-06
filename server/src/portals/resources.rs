@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use bevy::prelude::*;
 
 use common::{
-    map::MovingFloors,
+    map::Carriers,
     physics::{CollisionWorld, PortalSet},
     protocol::{PlayerId, Portal, PortalAccess, PortalEnd, PortalMode, PortalPairId},
 };
@@ -67,8 +67,8 @@ impl PortalMap {
     }
 
     #[must_use]
-    pub fn rebuild_set(&self, collision_world: &CollisionWorld, moving_floors: &MovingFloors) -> PortalSet {
-        PortalSet::rebuild(&self.snapshot_portals(), collision_world, moving_floors)
+    pub fn rebuild_set(&self, collision_world: &CollisionWorld, carriers: &Carriers) -> PortalSet {
+        PortalSet::rebuild(&self.snapshot_portals(), collision_world, carriers)
     }
 }
 
@@ -156,6 +156,7 @@ impl PortalAssignments {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use common::protocol::CarrierId;
 
     fn portal(pair: u32, end: PortalEnd, x: f32) -> Portal {
         Portal {
@@ -166,7 +167,7 @@ mod tests {
             ny: 0.0,
             nz: 1.0,
             yaw: 0.0,
-            anchor: None,
+            carrier: CarrierId::WORLD,
         }
     }
 
@@ -230,11 +231,11 @@ mod tests {
         let world = CollisionWorld::from_map_layout(&MapLayout::default(), &BarrierKindTable::default());
         let mut map = PortalMap::default();
         map.set(portal(1, PortalEnd::A, 1.0));
-        let floors = MovingFloors::default();
-        assert!(map.rebuild_set(&world, &floors).is_empty());
+        let carriers = Carriers::default();
+        assert!(map.rebuild_set(&world, &carriers).is_empty());
 
         map.set(portal(1, PortalEnd::B, 2.0));
-        assert!(!map.rebuild_set(&world, &floors).is_empty());
+        assert!(!map.rebuild_set(&world, &carriers).is_empty());
     }
 
     const fn single(pair: u32, end: PortalEnd) -> PortalAccess {

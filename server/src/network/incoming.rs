@@ -41,7 +41,7 @@ pub(super) fn network_receive_system(
                 if context.portals.remove_access(portal_access) {
                     *context.portal_set = context
                         .portals
-                        .rebuild_set(&context.world.collision_world, &context.world.moving_floors);
+                        .rebuild_set(&context.world.collision_world, &context.world.carriers);
                 }
                 if let Some(entity) = entity {
                     commands.entity(entity).despawn();

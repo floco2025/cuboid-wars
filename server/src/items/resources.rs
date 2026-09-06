@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use bevy::prelude::*;
 
-use common::protocol::{ItemId, ItemType, MapWeaponSettings};
+use common::protocol::{CarrierId, ItemId, ItemType, MapWeaponSettings};
 
 pub enum ItemPlacement {
     // World-spawned by the random spawner; despawns outright on pickup or
@@ -12,10 +12,13 @@ pub enum ItemPlacement {
     Placed { respawn_countdown: f32 },
 }
 
+// The entity's `Position` is in the carrier's frame (world space on the
+// world carrier), so a placed item rides its carrier.
 pub struct ItemInfo {
     pub entity: Entity,
     pub item_type: ItemType,
     pub placement: ItemPlacement,
+    pub carrier: CarrierId,
 }
 
 impl ItemInfo {

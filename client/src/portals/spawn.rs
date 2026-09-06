@@ -7,7 +7,7 @@ use crate::constants::{
 };
 use common::{
     constants::{PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH, PORTAL_RIM_SCALE},
-    map::MovingFloors,
+    map::Carriers,
     physics::PortalFrame,
     protocol::{Portal, PortalEnd, PortalPairId},
 };
@@ -63,18 +63,18 @@ fn portal_material(color: Color) -> StandardMaterial {
     }
 }
 
-pub fn spawn_portal(commands: &mut Commands, assets: &PortalAssets, portal: &Portal, floors: &MovingFloors) -> Entity {
-    spawn_portal_visual(commands, assets, portal, floors, MAIN_VIEW_RENDER_LAYER)
+pub fn spawn_portal(commands: &mut Commands, assets: &PortalAssets, portal: &Portal, carriers: &Carriers) -> Entity {
+    spawn_portal_visual(commands, assets, portal, carriers, MAIN_VIEW_RENDER_LAYER)
 }
 
 pub(super) fn spawn_portal_visual(
     commands: &mut Commands,
     assets: &PortalAssets,
     portal: &Portal,
-    floors: &MovingFloors,
+    carriers: &Carriers,
     render_layer: usize,
 ) -> Entity {
-    let frame = PortalFrame::from_portal(portal, floors);
+    let frame = PortalFrame::from_portal(portal, carriers);
     let material = assets.material(portal.end);
     let render_layer = RenderLayers::layer(render_layer);
     commands

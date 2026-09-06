@@ -10,6 +10,7 @@
 use std::collections::HashMap;
 
 use super::{mask::Mask, segments::MERGE_EPS};
+use common::protocol::CarrierId;
 use common::{
     map::MapGeometry,
     protocol::{Barrier, BarrierKindId},
@@ -122,6 +123,7 @@ fn barrier_from_edge(barrier: &BarrierEdge, geometry: &MapGeometry, level: u8) -
         level,
         levels: 1,
         kind: barrier.kind,
+        carrier: CarrierId::WORLD,
     }
 }
 
@@ -250,6 +252,7 @@ mod tests {
             y: 0.0,
             height: WALL_HEIGHT,
             width: BARRIER_THICKNESS,
+            carrier: CarrierId::WORLD,
         }
     }
 
@@ -265,6 +268,7 @@ mod tests {
             y: 0.0,
             height: WALL_HEIGHT,
             width: BARRIER_THICKNESS,
+            carrier: CarrierId::WORLD,
         }
     }
 

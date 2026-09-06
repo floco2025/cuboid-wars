@@ -9,6 +9,7 @@ use crate::test_geometry::{BARRIER_THICKNESS, FLOOR_THICKNESS, LEVEL_HEIGHT, WAL
 const TEST_PROJECTILE_LIFETIME: f32 = 8.0;
 const TEST_PROJECTILE_RADIUS: f32 = 0.11;
 use crate::physics::CollisionWorld;
+use crate::protocol::CarrierId;
 use crate::protocol::{Barrier, BarrierKindId, BarrierKindTable, Floor, MapLayout, Position, Ramp, Wall};
 
 fn test_projectile_motion(velocity: Vec3) -> ProjectileMotion {
@@ -32,6 +33,7 @@ fn test_wall(level: u8) -> Wall {
         level,
         y: f32::from(level) * LEVEL_HEIGHT,
         height: WALL_HEIGHT,
+        carrier: CarrierId::WORLD,
     }
 }
 
@@ -44,6 +46,7 @@ fn test_floor(level: u8) -> Floor {
         y: f32::from(level) * LEVEL_HEIGHT,
         thickness: FLOOR_THICKNESS,
         level,
+        carrier: CarrierId::WORLD,
     }
 }
 
@@ -126,6 +129,7 @@ fn barrier_impact_reports_kind_and_surface_normal() {
                 y: 0.0,
                 height: WALL_HEIGHT,
                 width: BARRIER_THICKNESS,
+                carrier: CarrierId::WORLD,
             }],
             ..Default::default()
         },
@@ -162,6 +166,7 @@ fn projectile_hits_level_zero_floor_underside() {
 mod spawning {
     use super::super::spawning::projectile_spawn_is_blocked;
     use crate::physics::CollisionWorld;
+    use crate::protocol::CarrierId;
     use crate::protocol::{Floor, MapLayout, Position, Ramp, Wall};
     use crate::test_geometry::{FLOOR_THICKNESS, WALL_THICKNESS};
     use crate::test_geometry::{LEVEL_HEIGHT, WALL_HEIGHT};
@@ -176,6 +181,7 @@ mod spawning {
             level,
             y: f32::from(level) * LEVEL_HEIGHT,
             height: WALL_HEIGHT,
+            carrier: CarrierId::WORLD,
         }
     }
 
@@ -189,6 +195,7 @@ mod spawning {
             y,
             thickness: FLOOR_THICKNESS,
             level,
+            carrier: CarrierId::WORLD,
         }
     }
 
@@ -200,6 +207,7 @@ mod spawning {
             x2: 4.0,
             y2: LEVEL_HEIGHT,
             z2: 8.0,
+            carrier: CarrierId::WORLD,
         }
     }
 

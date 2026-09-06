@@ -132,9 +132,7 @@ def format_map_file(wrapper: dict) -> str:
     lines.append("    ],")
     lines.extend(with_trailing_comma(format_object_array("ladders", map_data.get("ladders", []), _ladder_body, 4)))
     lines.extend(with_trailing_comma(format_object_array("ramps", map_data["ramps"], _ramp_body, 4)))
-    lines.extend(
-        format_object_array("moving_floors", map_data.get("moving_floors", []), _moving_floor_body, 4)
-    )
+    lines.extend(format_object_array("nested_maps", map_data.get("nested_maps", []), _nested_map_body, 4))
     lines.append("  }")
     lines.append("}")
     return "\n".join(lines)
@@ -197,16 +195,16 @@ def _ladder_body(ladder: dict) -> str:
     return _inline_object_body(body)
 
 
-def _moving_floor_body(floor: dict) -> str:
+def _nested_map_body(entry: dict) -> str:
     body = {
-        "level": floor["level"],
-        "from": floor["from"],
-        "to": floor["to"],
-        "to_level": floor["to_level"],
-        "speed": floor["speed"],
-        "pause_secs": floor["pause_secs"],
-        "phase_secs": floor["phase_secs"],
-        **compact_face_materials(floor),
+        "map": entry["map"],
+        "level": entry["level"],
+        "from": entry["from"],
+        "to": entry["to"],
+        "to_level": entry["to_level"],
+        "speed": entry["speed"],
+        "pause_secs": entry["pause_secs"],
+        "phase_secs": entry["phase_secs"],
     }
     return _inline_object_body(body)
 

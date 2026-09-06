@@ -1,18 +1,20 @@
 use anyhow::Result;
 use bevy_ecs::prelude::Resource;
-use bevy_math::Vec3;
 use bincode::{Decode, Encode};
 use serde::Deserialize;
 
 use crate::config::{MapGeometryConfig, MapMovementConfig};
 
 use super::face_materials::FaceMaterials;
-use super::{BarrierKindId, BarrierKindTable, BridgeKindId, BridgeKindTable, ItemType, KindDef, Position};
+use super::{BarrierKindId, BarrierKindTable, BridgeKindId, BridgeKindTable, CarrierId, ItemType, KindDef, Position};
 
-// Layout records are world space: `y` is the base surface and `height` the
+// Layout records are in their carrier's frame: world space for
+// `CarrierId::WORLD`, the map itself, and a carrier's local frame otherwise,
+// placed by the carrier's pose. `y` is the base surface and `height` the
 // rise, both filled by the server from the map's geometry, so neither the
 // physics nor the client needs the map's sizes to place them. `level` is the
-// storey tag the client's level focus filters on.
+// storey tag the client's level focus filters on, counted from the carrier's
+// own level 0.
 #[derive(Debug, Clone, Encode, Decode, Copy)]
 pub struct Wall {
     pub x1: f32,
@@ -23,6 +25,7 @@ pub struct Wall {
     pub y: f32,
     pub height: f32,
     pub level: u8,
+    pub carrier: CarrierId,
 }
 
 #[derive(Debug, Clone, Encode, Decode, Copy)]
@@ -34,6 +37,7 @@ pub struct Floor {
     pub y: f32,
     pub thickness: f32,
     pub level: u8,
+    pub carrier: CarrierId,
 }
 
 impl Floor {
@@ -56,6 +60,7 @@ pub struct Ramp {
     pub x2: f32,
     pub y2: f32,
     pub z2: f32,
+    pub carrier: CarrierId,
 }
 
 impl Ramp {
@@ -79,6 +84,7 @@ impl Ramp {
 pub struct WallLight {
     pub pos: Position,
     pub yaw: f32,
+    pub carrier: CarrierId,
 }
 
 // `levels` counts the storeys spanned: stacked same-kind barriers with no
@@ -96,6 +102,7 @@ pub struct Barrier {
     pub level: u8,
     pub levels: u8,
     pub kind: BarrierKindId,
+    pub carrier: CarrierId,
 }
 
 // A plate-powered walkway: one merged rectangle of same-kind cells, a thin
@@ -112,6 +119,7 @@ pub struct LightBridge {
     pub thickness: f32,
     pub level: u8,
     pub kind: BridgeKindId,
+    pub carrier: CarrierId,
 }
 
 impl LightBridge {
@@ -126,39 +134,23 @@ impl LightBridge {
     }
 }
 
-// A tile that slides between two poses, `(x1, y1, z1)` and `(x2, y2, z2)`
-// being its surface center at each end; where it is at a tick is
-// `map::surface_center_at`, a pure function of the shared tick. Smaller than
-// a cell (`half_x`/`half_z`), `thickness` deep below the surface, and
-// spanning `levels` storeys above `level` like a ladder.
+// A rigid group of map records that slides between two poses. Every record
+// naming this carrier is in its local frame; the carrier's origin sits at
+// `from` in its parent's frame at end 1 and at `to` at end 2, out, held,
+// back, held (`map::carrier_offset_at`, a pure function of the shared tick).
+// `level` is the parent storey its local level 0 sits on and `levels` the
+// storeys the motion spans, for level focus. Parents precede their children
+// in `MapLayout.carriers`. A moving tile is a nested one-cell map.
 #[derive(Debug, Clone, Encode, Decode, Copy)]
-pub struct MovingFloor {
-    pub x1: f32,
-    pub y1: f32,
-    pub z1: f32,
-    pub x2: f32,
-    pub y2: f32,
-    pub z2: f32,
-    pub half_x: f32,
-    pub half_z: f32,
-    pub thickness: f32,
+pub struct Carrier {
+    pub parent: CarrierId,
+    pub level: u8,
+    pub levels: u8,
+    pub from: Position,
+    pub to: Position,
     pub travel_ticks: u32,
     pub pause_ticks: u32,
     pub phase_ticks: u32,
-    pub level: u8,
-    pub levels: u8,
-}
-
-impl MovingFloor {
-    #[must_use]
-    pub const fn end1(&self) -> Vec3 {
-        Vec3::new(self.x1, self.y1, self.z1)
-    }
-
-    #[must_use]
-    pub const fn end2(&self) -> Vec3 {
-        Vec3::new(self.x2, self.y2, self.z2)
-    }
 }
 
 // Freestanding climbable element anchored on a grid edge. The segment is the
@@ -179,6 +171,7 @@ pub struct Ladder {
     pub height: f32,
     pub level: u8,
     pub levels: u8,
+    pub carrier: CarrierId,
 }
 
 // Visual materials for each segment in the layout. The vectors run parallel
@@ -199,10 +192,10 @@ pub enum PlatePurpose {
     Firework,
 }
 
-// Coop puzzle primitive: a floor-cell-mounted plate. World-space center is
-// shipped here (not col/row) so the client never needs `MapGeometry` to
-// position the visual marker. The server keeps the original (col, row) on
-// its own runtime mirror for plate-occupancy tests.
+// Coop puzzle primitive: a floor-cell-mounted plate. The center is shipped
+// here (not col/row) so the client never needs `MapGeometry` to position
+// the visual marker. The server keeps the original (col, row) on its own
+// runtime mirror for plate-occupancy tests.
 #[derive(Debug, Clone, Copy, Encode, Decode)]
 pub struct PressurePlate {
     pub level: u8,
@@ -210,17 +203,19 @@ pub struct PressurePlate {
     pub center_y: f32,
     pub center_z: f32,
     pub purpose: PlatePurpose,
+    pub carrier: CarrierId,
 }
 
-// Client-display-only decoration; physics and gameplay ignore it. World-space
-// cell center + floor-top y are shipped (not col/row) so the client never
-// needs `MapGeometry` to scatter tufts.
+// Client-display-only decoration; physics and gameplay ignore it. The cell
+// center + floor-top y are shipped (not col/row) so the client never needs
+// `MapGeometry` to scatter tufts.
 #[derive(Debug, Clone, Copy, Encode, Decode)]
 pub struct GrassCell {
     pub x: f32,
     pub y: f32,
     pub z: f32,
     pub level: u8,
+    pub carrier: CarrierId,
 }
 
 #[derive(Debug, Clone, Encode, Decode, Resource, Default)]
@@ -234,8 +229,7 @@ pub struct MapLayout {
     pub wall_lights: Vec<WallLight>,
     pub barriers: Vec<Barrier>,
     pub light_bridges: Vec<LightBridge>,
-    pub moving_floors: Vec<MovingFloor>,
-    pub moving_floor_materials: Vec<FaceMaterials>,
+    pub carriers: Vec<Carrier>,
     pub ladders: Vec<Ladder>,
     pub pressure_plates: Vec<PressurePlate>,
     pub grass: Vec<GrassCell>,
@@ -247,17 +241,48 @@ impl MapLayout {
     #[must_use]
     pub fn summary(&self) -> String {
         format!(
-            "{} walls, {} floors, {} ramps, {} ladders, {} barriers, {} light bridges, {} moving floors, {} wall lights, {} pressure plates",
+            "{} walls, {} floors, {} ramps, {} ladders, {} barriers, {} light bridges, {} carriers, {} wall lights, {} pressure plates",
             self.walls.len(),
             self.floors.len(),
             self.ramps.len(),
             self.ladders.len(),
             self.barriers.len(),
             self.light_bridges.len(),
-            self.moving_floors.len(),
+            self.carriers.len(),
             self.wall_lights.len(),
             self.pressure_plates.len(),
         )
+    }
+
+    #[must_use]
+    pub fn carrier(&self, id: CarrierId) -> Option<&Carrier> {
+        self.carriers.get(id.carried_index()?)
+    }
+
+    // The world storey a carrier's local level 0 sits on: its own placement
+    // plus every ancestor's.
+    #[must_use]
+    pub fn carrier_base_level(&self, id: CarrierId) -> u8 {
+        let mut base = 0u8;
+        let mut current = self.carrier(id);
+        while let Some(carrier) = current {
+            base = base.saturating_add(carrier.level);
+            current = self.carrier(carrier.parent);
+        }
+        base
+    }
+
+    // How many storeys above its base a carrier's records may reach through
+    // its own motion and every ancestor's.
+    #[must_use]
+    pub fn carrier_motion_levels(&self, id: CarrierId) -> u8 {
+        let mut span = 0u8;
+        let mut current = self.carrier(id);
+        while let Some(carrier) = current {
+            span = span.saturating_add(carrier.levels);
+            current = self.carrier(carrier.parent);
+        }
+        span
     }
 }
 
@@ -321,5 +346,45 @@ impl MapSettings {
         } else {
             self.movement.gravity
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn carrier(parent: CarrierId, level: u8, levels: u8) -> Carrier {
+        Carrier {
+            parent,
+            level,
+            levels,
+            from: Position::default(),
+            to: Position::default(),
+            travel_ticks: 1,
+            pause_ticks: 0,
+            phase_ticks: 0,
+        }
+    }
+
+    #[test]
+    fn carrier_base_level_sums_the_parent_chain() {
+        let layout = MapLayout {
+            carriers: vec![carrier(CarrierId::WORLD, 2, 0), carrier(CarrierId(1), 1, 0)],
+            ..Default::default()
+        };
+        assert_eq!(layout.carrier_base_level(CarrierId::WORLD), 0);
+        assert_eq!(layout.carrier_base_level(CarrierId(1)), 2);
+        assert_eq!(layout.carrier_base_level(CarrierId(2)), 3);
+    }
+
+    #[test]
+    fn carrier_motion_levels_sum_the_parent_chain() {
+        let layout = MapLayout {
+            carriers: vec![carrier(CarrierId::WORLD, 0, 1), carrier(CarrierId(1), 0, 2)],
+            ..Default::default()
+        };
+        assert_eq!(layout.carrier_motion_levels(CarrierId::WORLD), 0);
+        assert_eq!(layout.carrier_motion_levels(CarrierId(1)), 1);
+        assert_eq!(layout.carrier_motion_levels(CarrierId(2)), 3);
     }
 }

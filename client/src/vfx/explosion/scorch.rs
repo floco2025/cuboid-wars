@@ -100,7 +100,8 @@ pub(super) fn wall_scorch_placements(
     style: ScorchStyle,
 ) -> Vec<ScorchPlacement> {
     let mut placements = Vec::<ScorchPlacement>::new();
-    for wall in &map_layout.walls {
+    // A carried wall is in its carrier's frame and moves on; it takes no scorch.
+    for wall in map_layout.walls.iter().filter(|wall| wall.carrier.is_world()) {
         let start = Vec3::new(wall.x1, 0.0, wall.z1);
         let end = Vec3::new(wall.x2, 0.0, wall.z2);
         let segment = end - start;

@@ -1,6 +1,9 @@
 use bevy::prelude::*;
 
-use common::protocol::{BarrierKindId, ItemMarker, ItemType, MapSettings, MapWeaponSettings, PortalMode};
+use common::{
+    map::MapGeometry,
+    protocol::{BarrierKindId, CarrierId, ItemMarker, ItemType, MapSettings, MapWeaponSettings, PortalMode},
+};
 
 use crate::map::{CellGrid, EdgeGrid, LevelGrid, MapConfig, PlacedItem};
 use crate::{
@@ -14,14 +17,8 @@ use super::{
     spawning::placed_item_spawn_system,
 };
 
-fn map_config(levels: Vec<LevelGrid>) -> MapConfig {
-    MapConfig {
-        levels,
-        actor_spawn_zones: Vec::new(),
-        player_spawn_zones: Vec::new(),
-        placed_items: Vec::new(),
-        pressure_plates: Vec::new(),
-    }
+fn map_config(levels: Vec<LevelGrid>, geometry: MapGeometry) -> MapConfig {
+    MapConfig::for_grid(levels, geometry)
 }
 
 fn level_grid(cells: CellGrid) -> LevelGrid {
@@ -56,9 +53,9 @@ fn item_spawn_cells_include_all_floor_levels_and_skip_ramps() {
     let mut upper = CellGrid::new(1, 1);
     upper.rows[0][0].has_floor = true;
     upper.rows[0][0].has_ramp = true;
-    let config = map_config(vec![level_grid(lower), level_grid(upper)]);
+    let config = map_config(vec![level_grid(lower), level_grid(upper)], geometry(1, 1));
 
-    let cells = eligible_item_spawn_cells(&config);
+    let cells = eligible_item_spawn_cells(config.root_grid());
 
     assert_eq!(
         cells,
@@ -87,15 +84,17 @@ fn placed_item_spawn_system_spawns_every_placed_item_visible() {
     let mut cells = CellGrid::new(2, 1);
     cells.rows[0][0].has_floor = true;
     cells.rows[0][1].has_floor = true;
-    let mut config = map_config(vec![level_grid(cells)]);
+    let mut config = map_config(vec![level_grid(cells)], geometry(2, 1));
     config.placed_items = vec![
         PlacedItem {
+            carrier: CarrierId::WORLD,
             level: 0,
             col: 0,
             row: 0,
             item_type: ItemType::Cookie,
         },
         PlacedItem {
+            carrier: CarrierId::WORLD,
             level: 0,
             col: 1,
             row: 0,
@@ -129,21 +128,24 @@ fn placed_item_spawn_system_skips_disabled_weapon_pickups() {
     for cell in &mut cells.rows[0] {
         cell.has_floor = true;
     }
-    let mut config = map_config(vec![level_grid(cells)]);
+    let mut config = map_config(vec![level_grid(cells)], geometry(3, 1));
     config.placed_items = vec![
         PlacedItem {
+            carrier: CarrierId::WORLD,
             level: 0,
             col: 0,
             row: 0,
             item_type: ItemType::MultiShotPowerUp,
         },
         PlacedItem {
+            carrier: CarrierId::WORLD,
             level: 0,
             col: 1,
             row: 0,
             item_type: ItemType::MissilePack,
         },
         PlacedItem {
+            carrier: CarrierId::WORLD,
             level: 0,
             col: 2,
             row: 0,
@@ -195,6 +197,7 @@ fn random_item_pool_omits_disabled_weapon_pickups() {
 #[cfg(test)]
 mod collection_eligibility_tests {
     use bevy::prelude::*;
+    use common::{map::Carriers, protocol::CarrierId};
     use tokio::sync::mpsc::unbounded_channel;
 
     use crate::{
@@ -231,6 +234,7 @@ mod collection_eligibility_tests {
             .insert_resource(placed_items)
             .insert_resource(PlayerMap::default())
             .insert_resource(ItemMap::default())
+            .insert_resource(Carriers::default())
             .add_systems(Update, item_collection_system);
         app
     }
@@ -256,6 +260,7 @@ mod collection_eligibility_tests {
                 entity,
                 item_type,
                 placement,
+                carrier: CarrierId::WORLD,
             },
         );
         ItemId(id)

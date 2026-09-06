@@ -37,6 +37,7 @@ pub fn ramp_surface_at(ramp: &Ramp, x: f32, z: f32) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::protocol::CarrierId;
     use crate::test_geometry::LEVEL_HEIGHT;
 
     #[test]
@@ -48,6 +49,7 @@ mod tests {
             x2: 4.0,
             y2: LEVEL_HEIGHT,
             z2: 2.0,
+            carrier: CarrierId::WORLD,
         };
 
         assert_eq!(ramp_axis(&ramp), RampAxis::X);
@@ -63,6 +65,7 @@ mod tests {
             x2: 2.0,
             y2: LEVEL_HEIGHT,
             z2: 4.0,
+            carrier: CarrierId::WORLD,
         };
 
         assert_eq!(ramp_axis(&ramp), RampAxis::Z);

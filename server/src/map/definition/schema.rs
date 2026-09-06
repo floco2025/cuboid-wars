@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-use common::{constants::MOVING_FLOOR_INSET_FRACTION, protocol::FaceMaterials};
+use common::protocol::FaceMaterials;
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct MapFile {
@@ -25,16 +25,15 @@ pub(crate) struct MapDef {
     #[serde(default)]
     pub(crate) ladders: Vec<LadderDef>,
     #[serde(default)]
-    pub(crate) moving_floors: Vec<MovingFloorDef>,
+    pub(crate) nested_maps: Vec<NestedMapDef>,
 }
 
-// Editor-authored moving floor: a tile that slides between the centers of
-// two cells, `from` on `level` and `to` on `to_level`, at `speed` meters per
-// second, resting `pause_secs` at each end; `phase_secs` offsets its cycle
-// so neighbouring tiles need not move in step. Top-level like ramps and
-// ladders because it may cross storeys.
+// How a nested map moves: between two cells, `from` on `level` and `to` on
+// `to_level`, at `speed` meters per second, resting `pause_secs` at each
+// end; `phase_secs` offsets its cycle so neighbours need not move in step.
+// Top-level like ramps and ladders because it may cross storeys.
 #[derive(Debug, Clone, Deserialize)]
-pub(crate) struct MovingFloorDef {
+pub(crate) struct MotionDef {
     pub(crate) level: u32,
     pub(crate) from: [i32; 2],
     pub(crate) to: [i32; 2],
@@ -45,64 +44,22 @@ pub(crate) struct MovingFloorDef {
     pub(crate) pause_secs: f32,
     #[serde(default)]
     pub(crate) phase_secs: f32,
-    #[serde(flatten)]
-    pub(crate) materials: FaceMaterials,
 }
 
-impl MovingFloorDef {
+impl MotionDef {
     pub(crate) fn to_level(&self) -> u32 {
         self.to_level.unwrap_or(self.level)
     }
+}
 
-    // The storeys the tile passes through.
-    pub(crate) fn swept_levels(&self) -> std::ops::RangeInclusive<u32> {
-        self.level.min(self.to_level())..=self.level.max(self.to_level())
-    }
-
-    // Whether the tile's body sweeps over `cell` on its way from end to end:
-    // the tile is `MOVING_FLOOR_INSET_FRACTION` smaller than a cell on every
-    // side, so a cell beside its straight path (the corner of a diagonal's
-    // box, or a neighbour it slides past) is untouched.
-    pub(crate) fn path_reaches_cell(&self, cell: [i32; 2]) -> bool {
-        let [col, row] = cell;
-        self.path_reaches_rect([col as f32, row as f32, col as f32 + 1.0, row as f32 + 1.0])
-    }
-
-    pub(crate) fn path_reaches_edge(&self, edge: [i32; 4]) -> bool {
-        let [c0, r0, c1, r1] = edge;
-        self.path_reaches_rect([
-            c0.min(c1) as f32,
-            r0.min(r1) as f32,
-            c0.max(c1) as f32,
-            r0.max(r1) as f32,
-        ])
-    }
-
-    // Grid units: the center path between the two cell centers against the
-    // rectangle grown by the tile's half size (Liang–Barsky clipping).
-    fn path_reaches_rect(&self, rect: [f32; 4]) -> bool {
-        let half = 0.5 - MOVING_FLOOR_INSET_FRACTION;
-        let [min_x, min_y, max_x, max_y] = [rect[0] - half, rect[1] - half, rect[2] + half, rect[3] + half];
-        let (x0, y0) = (self.from[0] as f32 + 0.5, self.from[1] as f32 + 0.5);
-        let (dx, dy) = (
-            self.to[0] as f32 - self.from[0] as f32,
-            self.to[1] as f32 - self.from[1] as f32,
-        );
-        let mut t0 = 0.0_f32;
-        let mut t1 = 1.0_f32;
-        for (p, q) in [(-dx, x0 - min_x), (dx, max_x - x0), (-dy, y0 - min_y), (dy, max_y - y0)] {
-            if p == 0.0 {
-                if q < 0.0 {
-                    return false;
-                }
-            } else if p < 0.0 {
-                t0 = t0.max(q / p);
-            } else {
-                t1 = t1.min(q / p);
-            }
-        }
-        t0 <= t1
-    }
+// Editor-authored nested map: another map file placed with its cell (0, 0)
+// on the motion's `from` cell, sliding to `to`; a stationary one is a room
+// placed once. Its records compile in their own frame under a carrier.
+#[derive(Debug, Clone, Deserialize)]
+pub(crate) struct NestedMapDef {
+    pub(crate) map: String,
+    #[serde(flatten)]
+    pub(crate) motion: MotionDef,
 }
 
 // Editor-authored ladder: a `(cell, side)` edge anchor plus how many storeys

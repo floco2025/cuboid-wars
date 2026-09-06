@@ -7,7 +7,7 @@ use crate::items::{ItemInfo, ItemMap, ItemPlacement, ItemSpawner, RandomItems};
 use crate::map::MapConfig;
 use common::{
     map::MapGeometry,
-    protocol::{ItemId, ItemMarker, MapSettings, Position},
+    protocol::{CarrierId, ItemId, ItemMarker, MapSettings, Position},
 };
 
 use super::spawn_cells::{
@@ -17,12 +17,12 @@ use super::spawn_cells::{
 
 // One entity per map-authored item, spawned once at startup. The entity
 // stays at its cell forever — pickup hides it and the countdown re-shows it.
+// The position is in the item's carrier frame.
 pub fn placed_item_spawn_system(
     mut commands: Commands,
     mut spawner: ResMut<ItemSpawner>,
     mut items: ResMut<ItemMap>,
     map_config: Res<MapConfig>,
-    map_geometry: Res<MapGeometry>,
     map_settings: Res<MapSettings>,
 ) {
     for placed in &map_config.placed_items {
@@ -36,7 +36,7 @@ pub fn placed_item_spawn_system(
             col: placed.col,
             row: placed.row,
         }
-        .position(&map_geometry);
+        .position(&map_config.grid(placed.carrier).geometry);
 
         let entity = commands.spawn((ItemMarker, item_id, position)).id();
 
@@ -46,6 +46,7 @@ pub fn placed_item_spawn_system(
                 entity,
                 item_type: placed.item_type,
                 placement: ItemPlacement::Placed { respawn_countdown: 0.0 },
+                carrier: placed.carrier,
             },
         );
     }
@@ -68,7 +69,8 @@ pub fn random_item_spawn_system(
     let delta = time.delta_secs();
     spawner.timer += delta;
 
-    let eligible_cells = eligible_item_spawn_cells(&map_config);
+    // Random items land on the map itself, never on a nested map.
+    let eligible_cells = eligible_item_spawn_cells(map_config.root_grid());
     let target_active = target_active_random_items(eligible_cells.len(), random_items.max_number);
     let Some(spawn_interval) = random_item_spawn_interval(random_items.despawn_secs, target_active) else {
         return;
@@ -85,10 +87,12 @@ pub fn random_item_spawn_system(
             return;
         }
 
-        // All items claim their cell — including hidden placed ones, so a
-        // random item can't land on a cookie cell mid-respawn.
+        // All items on the map claim their cell — including hidden placed
+        // ones, so a random item can't land on a cookie cell mid-respawn. A
+        // carried item's position is in another grid and claims nothing here.
         let occupied_cells: HashSet<ItemSpawnCell> = items
             .values()
+            .filter(|info| info.carrier.is_world())
             .filter_map(|info| {
                 positions
                     .get(info.entity)
@@ -120,6 +124,7 @@ pub fn random_item_spawn_system(
                     placement: ItemPlacement::Random {
                         spawned_at: time.elapsed_secs(),
                     },
+                    carrier: CarrierId::WORLD,
                 },
             );
         }

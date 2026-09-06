@@ -31,7 +31,7 @@ pub(in crate::network) fn sync_portals(
     });
 
     if changed {
-        *context.portal_set = PortalSet::rebuild(server_portals, &context.collision_world, &context.moving_floors);
+        *context.portal_set = PortalSet::rebuild(server_portals, &context.collision_world, &context.carriers);
     }
 }
 
@@ -50,7 +50,7 @@ pub(in crate::network) fn upsert_portal(
         }
         commands.entity(info.entity).despawn();
     }
-    let entity = spawn_portal(commands, &context.portal_assets, portal, &context.moving_floors);
+    let entity = spawn_portal(commands, &context.portal_assets, portal, &context.carriers);
     context.portals.insert(
         key,
         PortalInfo {

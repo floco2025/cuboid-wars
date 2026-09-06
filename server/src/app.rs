@@ -20,7 +20,7 @@ use crate::{
     schedule::{ServerSet, configure_server_schedule},
 };
 use common::{
-    map::MovingFloors,
+    map::Carriers,
     physics::{CollisionWorld, PortalSet},
     protocol::{MapBootstrap, ServerTick, WorldBootstrap, server_tick_advance_system},
 };
@@ -49,12 +49,19 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
     let GeneratedMap {
         layout: map_layout,
         config: map_config,
-        geometry: map_geometry,
-    } = generate_map(map_name, map_settings.geometry, &barrier_kind_table, &bridge_kind_table)?;
+        warnings: map_warnings,
+    } = generate_map(
+        map_name,
+        map_settings.geometry,
+        &|nested| server_gameplay_config.maps.get(nested).map(|map| map.settings.geometry),
+        &barrier_kind_table,
+        &bridge_kind_table,
+    )?;
+    let map_geometry = map_config.root_grid().geometry;
     let collision_world = CollisionWorld::from_map_layout(&map_layout, &barrier_kind_table);
-    let moving_floors = MovingFloors::from_layout(&map_layout);
-    let nav_graph = NavGraph::new(map_config.clone(), map_geometry);
-    let air_graph = AirGraph::new(map_config.clone(), map_geometry);
+    let carriers = Carriers::from_layout(&map_layout);
+    let nav_graph = NavGraph::new(map_config.clone());
+    let air_graph = AirGraph::new(map_config.clone());
     validate_map_actor_kinds(&server_gameplay_config, &map_config)?;
     validate_map_quests(
         &map_server_config.quests,
@@ -81,6 +88,9 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
     });
 
     info!("generated map {map_name:?}: {}", map_layout.summary());
+    for warning in &map_warnings {
+        warn!("{warning}");
+    }
 
     app.insert_resource(map_layout)
         .insert_resource(map_settings)
@@ -90,7 +100,7 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
         .insert_resource(Invincibility(false))
         .insert_resource(UnlimitedMissiles(false))
         .insert_resource(collision_world)
-        .insert_resource(moving_floors)
+        .insert_resource(carriers)
         .insert_resource(map_config)
         .insert_resource(map_geometry)
         .insert_resource(nav_graph)

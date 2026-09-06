@@ -326,6 +326,7 @@ mod tests {
     use super::*;
     use crate::map::GrassBurn;
     use crate::test_geometry::WALL_HEIGHT;
+    use common::protocol::CarrierId;
     use common::protocol::{BarrierKindTable, Floor, MapLayout, Wall};
 
     #[test]
@@ -381,6 +382,7 @@ mod tests {
                 y: 0.0,
                 thickness: 1.0,
                 level: 0,
+                carrier: CarrierId::WORLD,
             }],
             ..default()
         };
@@ -436,6 +438,7 @@ mod tests {
                 level: 0,
                 y: 0.0,
                 height: WALL_HEIGHT,
+                carrier: CarrierId::WORLD,
             }],
             floors: vec![Floor {
                 x1: -10.0,
@@ -445,6 +448,7 @@ mod tests {
                 y: 0.0,
                 thickness: 1.0,
                 level: 0,
+                carrier: CarrierId::WORLD,
             }],
             ..default()
         };

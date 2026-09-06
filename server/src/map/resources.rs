@@ -2,7 +2,7 @@ use bevy::prelude::Resource;
 
 use common::{
     map::MapGeometry,
-    protocol::{BarrierKindId, ItemType},
+    protocol::{BarrierKindId, CarrierId, ItemType},
 };
 
 // Cell flags. Light bridges deliberately set none of them: actors never
@@ -121,6 +121,7 @@ impl ActorSpawnZone {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PlayerSpawnZone {
+    pub carrier: CarrierId,
     pub level: u8,
     pub cols: [i32; 2],
     pub rows: [i32; 2],
@@ -135,9 +136,11 @@ impl PlayerSpawnZone {
 }
 
 // Map-authored item placement, compiled from the map's `items` list with
-// key kinds already resolved against the `BarrierKindTable`.
+// key kinds already resolved against the `BarrierKindTable`. The cell is in
+// its carrier's grid.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PlacedItem {
+    pub carrier: CarrierId,
     pub level: u8,
     pub col: i32,
     pub row: i32,
@@ -151,15 +154,39 @@ pub struct PlacedItem {
 // space. Distinct names so grep / jump-to-def isn't ambiguous.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PressurePlateRuntime {
+    pub carrier: CarrierId,
     pub level: u8,
     pub col: i32,
     pub row: i32,
     pub purpose: common::protocol::PlatePurpose,
 }
 
-#[derive(Resource, Clone)]
-pub struct MapConfig {
+// One map's grid: its geometry (the grid size is its own; the sizes are
+// the root's) and its cells and edges per level, in that map's own frame.
+#[derive(Clone, Debug)]
+pub struct CarrierGrid {
+    pub carrier: CarrierId,
+    pub geometry: MapGeometry,
     pub levels: Vec<LevelGrid>,
+}
+
+impl CarrierGrid {
+    #[must_use]
+    pub fn new(carrier: CarrierId, geometry: MapGeometry, levels: Vec<LevelGrid>) -> Self {
+        Self {
+            carrier,
+            geometry,
+            levels,
+        }
+    }
+}
+
+// The grid data of the map being played and every map nested in it, plus
+// the flat lists that name their carrier. Actor spawn zones are the root's
+// only: actors do not ride nested maps yet.
+#[derive(Resource, Clone, Debug)]
+pub struct MapConfig {
+    pub grids: Vec<CarrierGrid>,
     pub actor_spawn_zones: Vec<ActorSpawnZone>,
     pub player_spawn_zones: Vec<PlayerSpawnZone>,
     pub placed_items: Vec<PlacedItem>,
@@ -167,6 +194,34 @@ pub struct MapConfig {
 }
 
 impl MapConfig {
+    // The root grid alone, with nothing placed.
+    #[cfg(test)]
+    #[must_use]
+    pub fn for_grid(levels: Vec<LevelGrid>, geometry: MapGeometry) -> Self {
+        Self {
+            grids: vec![CarrierGrid::new(CarrierId::WORLD, geometry, levels)],
+            actor_spawn_zones: Vec::new(),
+            player_spawn_zones: Vec::new(),
+            placed_items: Vec::new(),
+            pressure_plates: Vec::new(),
+        }
+    }
+
+    #[must_use]
+    pub fn root_grid(&self) -> &CarrierGrid {
+        let root = self.grids.first().expect("map config has no root grid");
+        assert!(root.carrier.is_world(), "map config's first grid is not the world's");
+        root
+    }
+
+    #[must_use]
+    pub fn grid(&self, carrier: CarrierId) -> &CarrierGrid {
+        self.grids
+            .iter()
+            .find(|grid| grid.carrier == carrier)
+            .expect("carrier named by a zone, item, or plate has no grid")
+    }
+
     // Sorted for deterministic encoding.
     #[must_use]
     pub fn key_kinds(&self) -> Vec<BarrierKindId> {
@@ -190,6 +245,7 @@ mod tests {
 
     fn key(kind: u16) -> PlacedItem {
         PlacedItem {
+            carrier: CarrierId::WORLD,
             level: 0,
             col: 0,
             row: 0,
@@ -200,9 +256,6 @@ mod tests {
     #[test]
     fn key_kinds_are_sorted_and_deduplicated() {
         let config = MapConfig {
-            levels: Vec::new(),
-            actor_spawn_zones: Vec::new(),
-            player_spawn_zones: Vec::new(),
             placed_items: vec![
                 key(2),
                 PlacedItem {
@@ -212,7 +265,7 @@ mod tests {
                 key(0),
                 key(2),
             ],
-            pressure_plates: Vec::new(),
+            ..MapConfig::for_grid(Vec::new(), crate::test_geometry::geometry(1, 1))
         };
 
         assert_eq!(config.key_kinds(), [BarrierKindId(0), BarrierKindId(2)]);

@@ -7,7 +7,7 @@ use crate::{
 };
 use common::{
     config::GameplayConfig,
-    map::MovingFloors,
+    map::Carriers,
     math::direction_from_yaw_pitch,
     physics::{CollisionWorld, PortalSet, compute_portal_placement, portal_placement_overlaps},
     protocol::*,
@@ -21,7 +21,7 @@ pub fn handle_portal_shot_message(
     time: &Time,
     player_data: &PlayerStateQuery,
     collision_world: &CollisionWorld,
-    moving_floors: &MovingFloors,
+    carriers: &Carriers,
     map_layout: &MapLayout,
     gameplay_config: &GameplayConfig,
     portal_assignments: &PortalAssignments,
@@ -59,18 +59,18 @@ pub fn handle_portal_shot_message(
         gameplay_config.portals.range,
         collision_world,
         map_layout,
-        moving_floors,
+        carriers,
     ) else {
         return;
     };
-    if portal_placement_overlaps(&placement, pair, msg.end, &portals.snapshot_portals(), moving_floors) {
+    if portal_placement_overlaps(&placement, pair, msg.end, &portals.snapshot_portals(), carriers) {
         return;
     }
-    let portal = placement.portal(pair, msg.end, moving_floors);
+    let portal = placement.portal(pair, msg.end, carriers);
     if !portals.set(portal) {
         return;
     }
-    *portal_set = portals.rebuild_set(collision_world, moving_floors);
+    *portal_set = portals.rebuild_set(collision_world, carriers);
     broadcast_to_all(
         players,
         ServerMessage::PortalOpened(SPortalOpened { shooter: id, portal }),
