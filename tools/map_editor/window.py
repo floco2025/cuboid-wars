@@ -25,7 +25,7 @@ from .constants import (
     MODE_ITEM,
     MODE_LADDER,
     MODE_LIGHT,
-    MODE_NONE,
+    MODE_SELECT,
     MODE_PRESSURE_PLATE,
     MODE_RAMP_DOWN,
     MODE_RAMP_UP,
@@ -74,7 +74,7 @@ class EditorWindow(
         self.bridge_kind_colors = load_map_bridge_kinds(path.stem)
         self.wall_width_cells = load_map_wall_width_cells(path.stem)
         self.current_level = 0
-        self.mode = MODE_NONE
+        self.mode = MODE_SELECT
         self.shortcuts = []
         # No default kind: the dialog opens with Kind blank on the first paint
         # of a session and remembers the last value across subsequent paints.
@@ -106,6 +106,9 @@ class EditorWindow(
         self.pending_auto_lights: tuple[int, list[dict]] | None = None
         self.selected_spawn_zone_ref: ZoneRef | None = None
         self.spawn_zone_drag: SpawnZoneDrag | None = None
+        self.tile_selection: tuple[int, int, int, int] | None = None
+        self.tile_clipboard: dict | None = None
+        self.select_drag_kind: str | None = None
         self.show_material_overlay = False
         # Show prev/next level geometry as ghosted overlays — helps when
         # placing ramps that span two levels.
@@ -205,7 +208,7 @@ class EditorWindow(
         # modes. Tool descriptions live in Help → Tool Reference.
         combo = QComboBox()
         model = QStandardItemModel(combo)
-        model.appendRow(QStandardItem(MODE_NONE))
+        model.appendRow(QStandardItem(MODE_SELECT))
         header_font = QFont()
         header_font.setBold(True)
         for label, modes in MODE_CATEGORIES:
@@ -223,7 +226,7 @@ class EditorWindow(
     # Map each mode to the cursor it should display so a peripheral glance
     # tells the user which tool is active without reading the toolbar.
     def _cursor_for_mode(self, mode: str) -> Qt.CursorShape:
-        if mode == MODE_NONE:
+        if mode == MODE_SELECT:
             return Qt.CursorShape.ArrowCursor
         if mode in (MODE_LIGHT, MODE_LADDER, MODE_PRESSURE_PLATE, MODE_BRIDGE_PLATE, MODE_FIREWORK_PLATE, MODE_ITEM):
             return Qt.CursorShape.PointingHandCursor
@@ -252,6 +255,8 @@ class EditorWindow(
         redo_action = self.undo_stack.createRedoAction(self, "&Redo")
         redo_action.setShortcuts(QKeySequence.StandardKey.Redo)
         edit_menu.addAction(redo_action)
+        edit_menu.addSeparator()
+        self.build_selection_actions(edit_menu)
         edit_menu.addSeparator()
         self.add_menu_action(edit_menu, "Resi&ze Map...", None, self.resize_map)
         edit_menu.addSeparator()
@@ -283,8 +288,8 @@ class EditorWindow(
         self.add_shortcut(Qt.Key.Key_Right, self.next_tool)
 
     def add_shortcut(self, key, callback) -> None:
-        shortcut = QShortcut(QKeySequence(key), self)
-        shortcut.setContext(Qt.ShortcutContext.WindowShortcut)
+        shortcut = QShortcut(QKeySequence(key), self.canvas)
+        shortcut.setContext(Qt.ShortcutContext.WidgetShortcut)
         shortcut.activated.connect(callback)
         self.shortcuts.append(shortcut)
 
@@ -387,6 +392,7 @@ class EditorWindow(
         toolbar.addSeparator()
         toolbar.addWidget(QLabel("Tool "))
         toolbar.addWidget(self.mode_combo)
+        self.mode_combo.setToolTip("Select Tiles: click or drag tiles. Alt/Option edits spawn zones and nested-map ends.")
         # Persistent "Building UP/DOWN" hint that disambiguates the two ramp
         # modes mid-drag. Hidden outside ramp modes so it doesn't clutter the
         # toolbar.
@@ -398,12 +404,18 @@ class EditorWindow(
     # === State updates & UI refresh ===
 
     def set_map(self, map_data: dict, mark_dirty: bool) -> None:
+        self.cancel_interaction()
         prior_selection: tuple[str, dict] | None = None
         if self.selected_spawn_zone_ref is not None:
             ref = self.selected_spawn_zone_ref
             if 0 <= ref.index < len(self.map_data[ref.list_name]):
                 prior_selection = (ref.list_name, copy.deepcopy(self.map_data[ref.list_name][ref.index]))
         self.doc.set_data(map_data, mark_dirty)
+        if self.tile_selection is not None:
+            c0, r0, c1, r1 = self.tile_selection
+            c1 = min(c1, self.map_data["grid_cols"])
+            r1 = min(r1, self.map_data["grid_rows"])
+            self.tile_selection = (c0, r0, c1, r1) if c0 < c1 and r0 < r1 else None
         self.current_level = max(0, min(self.current_level, len(self.map_data["levels"]) - 1))
         if prior_selection is not None:
             list_name, snapshot = prior_selection
@@ -414,7 +426,8 @@ class EditorWindow(
 
     def apply_change(self, label: str, after: dict) -> None:
         before = self.map_data
-        if canonicalize_map(before) == canonicalize_map(after):
+        after = canonicalize_map(after)
+        if before == after:
             return
         self.undo_stack.push(SetMapCommand(self, label, before, after))
         self._set_last_action(label)
@@ -427,6 +440,7 @@ class EditorWindow(
         self.level_combo.setCurrentIndex(self.current_level)
         self.level_combo.blockSignals(False)
         self.canvas.update()
+        self.update_selection_actions()
         self.update_status()
         suffix = "*" if self.dirty else ""
         file_name = str(self.path) if self.path else "Untitled"
@@ -436,23 +450,22 @@ class EditorWindow(
         self.canvas.updateGeometry()
         self.resize(self.sizeHint())
 
-    def update_status(self) -> None:
-        errors = validate_map(
-            self.map_data,
-            self.barrier_kinds,
-            self.bridge_kinds,
-            map_name=self.edited_map_name(),
-            nested_lookup=self.nested_map_shape,
-        )
-        if errors:
-            self.status_label.setText(f"{len(errors)} structural issue(s)")
-            self.status_label.setToolTip("\n".join(errors[:20]))
-            self.status_label.setStyleSheet("color: #f87171;")
-            self.status_label.setVisible(True)
-        else:
-            # Hide the validity badge when the map is fine — the green-light
-            # "Structurally valid" text just added noise.
-            self.status_label.setVisible(False)
+    def update_status(self, *, validate: bool = True) -> None:
+        if validate:
+            errors = validate_map(
+                self.map_data,
+                self.barrier_kinds,
+                self.bridge_kinds,
+                map_name=self.edited_map_name(),
+                nested_lookup=self.nested_map_shape,
+            )
+            if errors:
+                self.status_label.setText(f"{len(errors)} structural issue(s)")
+                self.status_label.setToolTip("\n".join(errors[:20]))
+                self.status_label.setStyleSheet("color: #f87171;")
+                self.status_label.setVisible(True)
+            else:
+                self.status_label.setVisible(False)
         # Ramp-direction hint: only visible in MODE_RAMP_UP / MODE_RAMP_DOWN,
         # otherwise the label is empty (it still occupies the toolbar slot but
         # doesn't show text).
@@ -498,17 +511,20 @@ class EditorWindow(
 
     def select_level(self, index: int) -> None:
         if 0 <= index < len(self.map_data["levels"]):
+            self.cancel_interaction()
             self.current_level = index
             self.canvas.update()
             # Keep the status bar + ramp-direction label in sync with the
             # new level; otherwise "Building UP to Level N" lags one click.
-            self.update_status()
+            self.update_status(validate=False)
 
     def set_mode(self, mode: str) -> None:
+        self.cancel_interaction()
         self.mode = mode
         self.canvas.setCursor(self._cursor_for_mode(mode))
         self.canvas.update()
-        self.update_status()
+        self.update_selection_actions()
+        self.update_status(validate=False)
 
     def set_material_overlay(self, enabled: bool) -> None:
         self.show_material_overlay = enabled
@@ -528,8 +544,7 @@ class EditorWindow(
         clamped = max(0, min(index, len(self.map_data["levels"]) - 1))
         if clamped == self.current_level:
             return
-        self.current_level = clamped
-        self.refresh_ui()
+        self.level_combo.setCurrentIndex(clamped)
 
     def previous_tool(self) -> None:
         self._step_tool(-1)
@@ -557,6 +572,7 @@ class EditorWindow(
 
     def closeEvent(self, event) -> None:
         if self.confirm_discard_changes():
+            self._clear_autosave()
             # The stack clears itself as it is destroyed and reports that
             # as an index change; the window is going with it.
             self.undo_stack.indexChanged.disconnect(self._on_undo_index_changed)

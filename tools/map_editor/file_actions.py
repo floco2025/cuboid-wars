@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QFileDialog, QMessageBox
 
 from .constants import (
@@ -34,6 +35,7 @@ class FileActionsMixin:
             return
         new_cols, new_rows, _, _ = result
         self.doc.replace_with_new(empty_map(new_cols, new_rows))
+        self.clear_selection()
         self.barrier_kind_colors = {}
         self.bridge_kind_colors = {}
         self.wall_width_cells = DEFAULT_WALL_WIDTH_CELLS
@@ -51,6 +53,7 @@ class FileActionsMixin:
 
     def load_path(self, path: Path) -> None:
         try:
+            loaded_mtime = path.stat().st_mtime
             loaded = read_map(path)
             barrier_kinds = load_map_barrier_kinds(path.stem)
             bridge_kinds = load_map_bridge_kinds(path.stem)
@@ -61,7 +64,11 @@ class FileActionsMixin:
         # Surface structural issues at load time instead of waiting for the
         # user to discover them on save. We still let them load (so they
         # can edit and fix), but the modal makes the problems visible.
-        errors = validate_map(loaded, list(barrier_kinds), list(bridge_kinds))
+        self.forget_nested_map_shapes()
+        errors = validate_map(
+            loaded, list(barrier_kinds), list(bridge_kinds),
+            map_name=path.stem, nested_lookup=self.nested_map_shape,
+        )
         if errors:
             QMessageBox.warning(
                 self,
@@ -70,7 +77,12 @@ class FileActionsMixin:
                 + "\n".join(errors[:12])
                 + ("\n…" if len(errors) > 12 else ""),
             )
-        self.doc.load(path)
+        try:
+            self.doc.load(path, loaded, loaded_mtime)
+        except OSError as exc:
+            QMessageBox.critical(self, "Open Failed", str(exc))
+            return
+        self.clear_selection()
         self.barrier_kind_colors = barrier_kinds
         self.bridge_kind_colors = bridge_kinds
         self.wall_width_cells = wall_width_cells
@@ -78,22 +90,29 @@ class FileActionsMixin:
         self.current_level = 0
         self._record_recent_path(path)
         self.refresh_ui()
+        QTimer.singleShot(0, self.maybe_recover_autosave)
 
-    def save(self) -> None:
+    def save(self) -> bool:
         if self.path is None:
-            self.save_as()
-            return
-        errors = validate_map(self.map_data, self.barrier_kinds, self.bridge_kinds)
+            return self.save_as()
+        return self._save_to(self.path, self.barrier_kind_colors, self.bridge_kind_colors, self.wall_width_cells)
+
+    def _save_to(self, path: Path, barrier_kinds: dict, bridge_kinds: dict, wall_width_cells: float) -> bool:
+        self.forget_nested_map_shapes()
+        errors = validate_map(
+            self.map_data, list(barrier_kinds), list(bridge_kinds),
+            map_name=path.stem, nested_lookup=self.nested_map_shape,
+        )
         if errors:
             QMessageBox.warning(
                 self,
                 "Cannot Save",
                 "Fix structural issues before saving:\n\n" + "\n".join(errors[:12]),
             )
-            return
+            return False
         # External-modification check: if the file's mtime changed under us,
         # ask before clobbering.
-        if self.doc.externally_modified():
+        if path == self.path and self.doc.externally_modified():
             result = QMessageBox.question(
                 self,
                 "File Changed Externally",
@@ -103,20 +122,24 @@ class FileActionsMixin:
                 QMessageBox.StandardButton.Cancel,
             )
             if result != QMessageBox.StandardButton.Yes:
-                return
+                return False
         try:
-            self.doc.write()
+            self.doc.write(path)
         except Exception as exc:
             QMessageBox.critical(self, "Save Failed", str(exc))
-            return
+            return False
+        self.barrier_kind_colors = barrier_kinds
+        self.bridge_kind_colors = bridge_kinds
+        self.wall_width_cells = wall_width_cells
         self._record_recent_path(self.path)
         self.forget_nested_map_shapes()
         self.refresh_ui()
+        return True
 
-    def save_as(self) -> None:
+    def save_as(self) -> bool:
         path, _ = QFileDialog.getSaveFileName(self, "Save Map As", str(self.path or MAPS_DIR), "JSON files (*.json)")
         if not path:
-            return
+            return False
         new_path = Path(path)
         try:
             barrier_kinds = load_map_barrier_kinds(new_path.stem)
@@ -124,16 +147,8 @@ class FileActionsMixin:
             wall_width_cells = load_map_wall_width_cells(new_path.stem)
         except Exception as exc:
             QMessageBox.critical(self, "Save Failed", str(exc))
-            return
-        self.path = new_path
-        self.barrier_kind_colors = barrier_kinds
-        self.bridge_kind_colors = bridge_kinds
-        self.wall_width_cells = wall_width_cells
-        self.forget_nested_map_shapes()
-        # No baseline mtime for the new destination — we never read it, so any
-        # existing file at this path is something the user chose to overwrite.
-        self.path_mtime = None
-        self.save()
+            return False
+        return self._save_to(new_path, barrier_kinds, bridge_kinds, wall_width_cells)
 
     def confirm_discard_changes(self) -> bool:
         if not self.dirty:
@@ -141,14 +156,10 @@ class FileActionsMixin:
         result = QMessageBox.question(
             self,
             "Unsaved Changes",
-            "Discard unsaved changes?",
-            QMessageBox.StandardButton.Discard | QMessageBox.StandardButton.Cancel,
-            QMessageBox.StandardButton.Cancel,
+            "Save changes before continuing?",
+            QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Discard | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Save,
         )
-        if result == QMessageBox.StandardButton.Discard:
-            # User chose to discard — the autosave is a persisted copy of the
-            # changes they just rejected, so it must go too. Otherwise next
-            # launch would offer to "recover" the discarded work.
-            self._clear_autosave()
-            return True
-        return False
+        if result == QMessageBox.StandardButton.Save:
+            return self.save()
+        return result == QMessageBox.StandardButton.Discard

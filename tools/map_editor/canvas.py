@@ -36,7 +36,7 @@ from .constants import (
     MODE_ITEM,
     MODE_LADDER,
     MODE_LIGHT,
-    MODE_NONE,
+    MODE_SELECT,
     MODE_LIGHT_BRIDGE,
     MODE_NESTED_MAP,
     MODE_PLAYER_SPAWN_ZONE,
@@ -216,6 +216,7 @@ class Canvas(CanvasPaintingMixin, QWidget):
         )
         self._hover_label.hide()
         self.setMouseTracking(True)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.DefaultContextMenu)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
@@ -272,7 +273,12 @@ class Canvas(CanvasPaintingMixin, QWidget):
     def mousePressEvent(self, event) -> None:
         if event.button() != Qt.MouseButton.LeftButton:
             return
-        if self.window.mode == MODE_NONE and not self.window.begin_select_press(event.position(), self.cell_size()):
+        self.setFocus(Qt.FocusReason.MouseFocusReason)
+        self.clear_drag()
+        if self.window.mode == MODE_SELECT and not self.window.begin_select_press(
+            event.position(), self.cell_size(),
+            edit_objects=bool(event.modifiers() & Qt.KeyboardModifier.AltModifier),
+        ):
             self.update()
             return
         self.drag_start_cell = self.point_to_cell(event.position())
@@ -291,7 +297,7 @@ class Canvas(CanvasPaintingMixin, QWidget):
                 # `_paint_hover_ghost` can show a per-mode preview.
                 self._update_cell_hover(event.position())
             return
-        if self.window.mode == MODE_NONE:
+        if self.window.mode == MODE_SELECT:
             self.window.update_select_drag(event.position(), self.cell_size())
         self.drag_current_cell = self.point_to_cell(event.position()) or self.drag_current_cell
         self.drag_current_point = self.point_to_grid_point(event.position())
@@ -398,7 +404,13 @@ class Canvas(CanvasPaintingMixin, QWidget):
     def mouseReleaseEvent(self, event) -> None:
         if event.button() != Qt.MouseButton.LeftButton:
             return
-        if self.window.mode == MODE_NONE:
+        if self.drag_start_cell is None and self.drag_start_point is None and self.window.select_drag_kind is None:
+            return
+        if self.drag_start_cell is not None:
+            self.drag_current_cell = self.point_to_cell(event.position()) or self.drag_current_cell
+        if self.drag_start_point is not None:
+            self.drag_current_point = self.point_to_grid_point(event.position())
+        if self.window.mode == MODE_SELECT:
             self.window.end_select_drag(self.drag_start_cell, self.drag_current_cell)
         else:
             tool = RELEASE_TOOLS.get(self.window.mode)
@@ -411,6 +423,10 @@ class Canvas(CanvasPaintingMixin, QWidget):
         # One menu in every tool: whatever is under the cursor can be edited
         # when it has properties, and erased.
         menu = QMenu(self)
+        if self.window.mode == MODE_SELECT:
+            for action in (self.window.cut_action, self.window.copy_action, self.window.paste_action, self.window.delete_action):
+                menu.addAction(action)
+            menu.addSeparator()
         hit = self.window.hit_at(event.pos(), self.cell_size())
         preserve_floors = self.window.mode == MODE_ERASE_KEEP_FLOORS
         if hit is None:

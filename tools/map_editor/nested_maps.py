@@ -46,10 +46,13 @@ def nested_map_cycle(edited: str | None, entries: list[dict], lookup) -> list[st
     """The chain of names along which a map nests itself, starting from the
     edited map's entries, or None. `lookup(name)` gives a map's shape (None
     for an unknown file, which ends that branch)."""
+    checked: set[str] = set()
 
     def visit(name: str, chain: list[str]) -> list[str] | None:
         if name in chain:
             return chain[chain.index(name) :] + [name]
+        if name in checked:
+            return None
         shape = lookup(name)
         if shape is None:
             return None
@@ -57,6 +60,7 @@ def nested_map_cycle(edited: str | None, entries: list[dict], lookup) -> list[st
             found = visit(child, chain + [name])
             if found:
                 return found
+        checked.add(name)
         return None
 
     root = edited or "(this map)"

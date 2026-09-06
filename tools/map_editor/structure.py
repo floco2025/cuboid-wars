@@ -9,7 +9,15 @@ from PySide6.QtWidgets import QInputDialog, QMessageBox
 from .constants import ITEMS_LIST, NESTED_MAPS_LIST, SPAWN_ZONE_LISTS
 from .dialogs import ResizeMapDialog, ToolReferenceDialog
 from .display import level_label
-from .normalization import resize_map_data
+from .normalization import canonicalize_map, resize_map_data
+from .regions import GLOBAL_LISTS, LEVEL_LISTS
+
+
+def element_counts(data: dict) -> dict[str, int]:
+    return {
+        **{name: sum(len(level.get(name, [])) for level in data["levels"]) for name in LEVEL_LISTS},
+        **{name: len(data.get(name, [])) for name in GLOBAL_LISTS},
+    }
 
 
 def insert_level_data(map_data: dict, insert_at: int) -> dict:
@@ -116,50 +124,13 @@ class StructureMixin:
         new_cols, new_rows, anchor_x, anchor_y = result
         if new_cols == self.map_data["grid_cols"] and new_rows == self.map_data["grid_rows"]:
             return
-        after = resize_map_data(self.map_data, new_cols, new_rows, anchor_x, anchor_y)
-
-        before_floors = sum(len(l["floors"]) for l in self.map_data["levels"])
-        before_inacc = sum(len(l["inaccessible_floors"]) for l in self.map_data["levels"])
-        before_walls = sum(len(l["walls"]) for l in self.map_data["levels"])
-        before_zones = len(self.map_data["actor_spawn_zones"]) + len(self.map_data["player_spawn_zones"])
-        before_ramps = len(self.map_data["ramps"])
-        before_nested = len(self.map_data.get(NESTED_MAPS_LIST, []))
-        after_floors = sum(len(l["floors"]) for l in after["levels"])
-        after_inacc = sum(len(l["inaccessible_floors"]) for l in after["levels"])
-        after_walls = sum(len(l["walls"]) for l in after["levels"])
-        after_zones = len(after["actor_spawn_zones"]) + len(after["player_spawn_zones"])
-        after_ramps = len(after["ramps"])
-        after_nested = len(after.get(NESTED_MAPS_LIST, []))
-        dropped_floors = before_floors - after_floors
-        dropped_inacc = before_inacc - after_inacc
-        dropped_walls = before_walls - after_walls
-        dropped_zones = before_zones - after_zones
-        dropped_ramps = before_ramps - after_ramps
-        dropped_nested = before_nested - after_nested
-        if any(
-            n > 0
-            for n in (
-                dropped_floors,
-                dropped_inacc,
-                dropped_walls,
-                dropped_zones,
-                dropped_ramps,
-                dropped_nested,
-            )
-        ):
-            parts = []
-            if dropped_floors:
-                parts.append(f"{dropped_floors} floor cell(s)")
-            if dropped_inacc:
-                parts.append(f"{dropped_inacc} inaccessible-floor cell(s)")
-            if dropped_walls:
-                parts.append(f"{dropped_walls} wall(s)")
-            if dropped_zones:
-                parts.append(f"{dropped_zones} spawn zone(s)")
-            if dropped_ramps:
-                parts.append(f"{dropped_ramps} ramp(s)")
-            if dropped_nested:
-                parts.append(f"{dropped_nested} nested map(s)")
+        after = canonicalize_map(resize_map_data(self.map_data, new_cols, new_rows, anchor_x, anchor_y))
+        before_counts, after_counts = element_counts(self.map_data), element_counts(after)
+        parts = [
+            f"{count - after_counts[name]} {name.replace('_', ' ')}"
+            for name, count in before_counts.items() if count > after_counts[name]
+        ]
+        if parts:
             response = QMessageBox.question(
                 self,
                 "Resize Map",
@@ -170,6 +141,7 @@ class StructureMixin:
             if response != QMessageBox.StandardButton.Yes:
                 return
 
+        self.clear_selection()
         self.apply_change("Resize Map", after)
         self.resize_to_map()
 

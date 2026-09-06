@@ -1,0 +1,178 @@
+"""Tile volumes and clipboard operations, independent of widgets."""
+
+from __future__ import annotations
+
+import copy
+from dataclasses import dataclass
+
+from .constants import SPAWN_ZONE_LISTS
+from .geometry import ramp_rect, rects_overlap, wall_endpoints_for_cell_side, wall_overlaps_rect, zone_rect
+from .io import empty_map
+
+
+CELL_LISTS = ("floors", "inaccessible_floors", "grass", "light_bridges", "lights")
+EDGE_LISTS = ("walls", "barriers")
+LEVEL_LISTS = (*CELL_LISTS, *EDGE_LISTS)
+GLOBAL_LISTS = (*SPAWN_ZONE_LISTS, "items", "pressure_plates", "ramps", "ladders", "nested_maps")
+
+
+@dataclass(frozen=True)
+class TileRegion:
+    rect: tuple[int, int, int, int]
+    level: int
+    levels: int = 1
+
+    @property
+    def top(self) -> int:
+        return self.level + self.levels
+
+    def contains_cell(self, col: int, row: int) -> bool:
+        c0, r0, c1, r1 = self.rect
+        return c0 <= col < c1 and r0 <= row < r1
+
+    def contains_rect(self, rect: tuple[int, int, int, int]) -> bool:
+        c0, r0, c1, r1 = self.rect
+        return c0 <= rect[0] and r0 <= rect[1] and rect[2] <= c1 and rect[3] <= r1
+
+    def contains_level(self, level: int) -> bool:
+        return self.level <= level < self.top
+
+    def check_bounds(self, data: dict) -> None:
+        c0, r0, c1, r1 = self.rect
+        if not (0 <= c0 < c1 <= data["grid_cols"] and 0 <= r0 < r1 <= data["grid_rows"]):
+            raise ValueError("The block does not fit inside the map. Choose another tile or resize the map.")
+        if self.level < 0 or self.levels < 1 or self.top > len(data["levels"]):
+            raise ValueError("The selected levels are outside the map.")
+
+
+def _edge(entry: dict) -> list[int]:
+    return [entry[key] for key in ("c0", "r0", "c1", "r1")]
+
+
+def _whole_object(region: TileRegion, rect: tuple[int, int, int, int], lower: int, upper: int, name: str) -> bool:
+    touches = lower < region.top and region.level <= upper and rects_overlap(region.rect, rect)
+    if touches and not (region.contains_rect(rect) and region.level <= lower and upper < region.top):
+        raise ValueError(f"The selection crosses a {name}. Include its whole footprint and all its levels.")
+    return touches
+
+
+def _global_selected(name: str, entry: dict, region: TileRegion) -> bool:
+    if name in SPAWN_ZONE_LISTS:
+        return _whole_object(region, zone_rect(entry), entry["level"], entry["level"], "spawn zone")
+    if name == "ramps":
+        return _whole_object(region, ramp_rect(entry), entry["lower_level"], entry["lower_level"] + 1, "ramp")
+    if name == "ladders":
+        col, row = entry["col"], entry["row"]
+        return _whole_object(
+            region, (col, row, col + 1, row + 1),
+            entry["lower_level"], entry["lower_level"] + entry["levels"], "ladder",
+        )
+    if name == "nested_maps":
+        start = region.contains_level(entry["level"]) and region.contains_cell(*entry["from"])
+        end = region.contains_level(entry["to_level"]) and region.contains_cell(*entry["to"])
+        if start != end:
+            raise ValueError("The selection crosses a nested map's motion. Include both end tiles and their levels.")
+        return start
+    return region.contains_level(entry["level"]) and region.contains_cell(entry["col"], entry["row"])
+
+
+def _partition(data: dict, region: TileRegion) -> tuple[dict, dict]:
+    region.check_bounds(data)
+    chosen = empty_map(data["grid_cols"], data["grid_rows"])
+    chosen["levels"] = []
+    remaining = copy.deepcopy(data)
+    for index in range(region.level, region.top):
+        source = data["levels"][index]
+        selected = {"name": source["name"]}
+        for name in LEVEL_LISTS:
+            selected[name] = []
+            remaining["levels"][index][name] = []
+            for entry in source.get(name, []):
+                inside = (
+                    wall_overlaps_rect(_edge(entry), region.rect) if name in EDGE_LISTS
+                    else region.contains_cell(entry["col"], entry["row"])
+                )
+                target = selected[name] if inside else remaining["levels"][index][name]
+                target.append(copy.deepcopy(entry))
+        chosen["levels"].append(selected)
+    for name in GLOBAL_LISTS:
+        chosen[name] = []
+        remaining[name] = []
+        for entry in data.get(name, []):
+            target = chosen[name] if _global_selected(name, entry, region) else remaining[name]
+            target.append(copy.deepcopy(entry))
+    return chosen, remaining
+
+
+def _translate(data: dict, dc: int, dr: int, dl: int) -> dict:
+    moved = copy.deepcopy(data)
+    for level in moved["levels"]:
+        for name in CELL_LISTS:
+            for entry in level[name]:
+                entry["col"] += dc
+                entry["row"] += dr
+        for name in EDGE_LISTS:
+            for entry in level[name]:
+                for key in ("c0", "c1"):
+                    entry[key] += dc
+                for key in ("r0", "r1"):
+                    entry[key] += dr
+    for name in GLOBAL_LISTS:
+        for entry in moved[name]:
+            if name in SPAWN_ZONE_LISTS:
+                entry["cols"] = [col + dc for col in entry["cols"]]
+                entry["rows"] = [row + dr for row in entry["rows"]]
+            elif name in ("ramps", "nested_maps"):
+                for key in (("low", "high") if name == "ramps" else ("from", "to")):
+                    entry[key] = [entry[key][0] + dc, entry[key][1] + dr]
+            else:
+                entry["col"] += dc
+                entry["row"] += dr
+            for key in ("level", "lower_level", "to_level"):
+                if key in entry:
+                    entry[key] += dl
+    return moved
+
+
+def copy_region(data: dict, region: TileRegion) -> dict:
+    chosen, _ = _partition(data, region)
+    c0, r0, c1, r1 = region.rect
+    chosen = _translate(chosen, -c0, -r0, -region.level)
+    chosen["grid_cols"], chosen["grid_rows"] = c1 - c0, r1 - r0
+    return chosen
+
+
+def delete_region(data: dict, region: TileRegion) -> dict:
+    _, remaining = _partition(data, region)
+    _check_boundary_lights(data, remaining, region)
+    return remaining
+
+
+def _check_boundary_lights(before: dict, after: dict, region: TileRegion) -> None:
+    for index in range(region.level, region.top):
+        walls = {tuple(_edge(wall)) for wall in after["levels"][index]["walls"]}
+        for light in before["levels"][index].get("lights", []):
+            if not region.contains_cell(light["col"], light["row"]):
+                edge = wall_endpoints_for_cell_side(light["col"], light["row"], light["side"])
+                if edge not in walls:
+                    raise ValueError("A boundary wall holds a light outside the selection. Include the tile on that side too.")
+
+
+def paste_region(data: dict, block: dict, cell: tuple[int, int], level: int) -> dict:
+    col, row = cell
+    destination = TileRegion((col, row, col + block["grid_cols"], row + block["grid_rows"]), level, len(block["levels"]))
+    expanded = copy.deepcopy(data)
+    while len(expanded["levels"]) < destination.top:
+        blank = empty_map()["levels"][0]
+        blank["name"] = f"Level {len(expanded['levels'])}"
+        expanded["levels"].append(blank)
+    destination.check_bounds(expanded)
+    _, remaining = _partition(expanded, destination)
+    moved = _translate(block, col, row, level)
+    for offset, source in enumerate(moved["levels"]):
+        for name in LEVEL_LISTS:
+            remaining["levels"][level + offset][name].extend(source[name])
+    for name in GLOBAL_LISTS:
+        remaining[name].extend(moved[name])
+    _check_boundary_lights(expanded, remaining, destination)
+    return remaining

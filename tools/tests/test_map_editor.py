@@ -9,7 +9,7 @@ from map_editor.constants import (
     DEFAULT_ALIAS,
     FACES,
     MODE_LIGHT_BRIDGE,
-    MODE_NONE,
+    MODE_SELECT,
     MODES,
     load_map_barrier_kinds,
     load_map_bridge_kinds,
@@ -86,6 +86,8 @@ class EditorHost(PlacementMixin, ItemsMixin, LightsMixin, NestedMapsMixin, Erase
         self.spawn_zone_drag = None
         self.current_material = DEFAULT_ALIAS
         self.selected_spawn_zone_ref = None
+        self.tile_selection = None
+        self.select_drag_kind = None
         self.statuses: list[str] = []
         self.path = None
         self.recent_nested_map = None
@@ -98,6 +100,9 @@ class EditorHost(PlacementMixin, ItemsMixin, LightsMixin, NestedMapsMixin, Erase
 
     def _flash_status(self, message: str) -> None:
         self.statuses.append(message)
+
+    def update_selection_actions(self) -> None:
+        pass
 
 
 class GeometryTests(unittest.TestCase):
@@ -245,7 +250,7 @@ class BarrierKindTests(unittest.TestCase):
             load_map_barrier_kinds("hotel"),
             {"treasure": "#ff3333", "basement": "#f0c020", "gravity": "#5090ff", "lobby": "#22cc33"},
         )
-        self.assertEqual(load_map_barrier_kinds("obby"), {})
+        self.assertEqual(load_map_barrier_kinds("obby"), {"barrier_1": "#f0c020"})
         self.assertEqual(load_map_barrier_kinds("not_configured"), {})
 
 
@@ -481,11 +486,11 @@ class ValidationTests(unittest.TestCase):
 
 
 class ModeTests(unittest.TestCase):
-    def test_no_tool_comes_first_and_does_nothing_on_release(self) -> None:
+    def test_selection_comes_first_and_has_its_own_drag_handler(self) -> None:
         from map_editor.canvas import RELEASE_TOOLS
 
-        self.assertEqual(MODES[0], MODE_NONE)
-        self.assertNotIn(MODE_NONE, RELEASE_TOOLS)
+        self.assertEqual(MODES[0], MODE_SELECT)
+        self.assertNotIn(MODE_SELECT, RELEASE_TOOLS)
 
 
 class RightClickAndSelectTests(unittest.TestCase):
@@ -542,33 +547,33 @@ class RightClickAndSelectTests(unittest.TestCase):
         cell = self.CELL
         inside = QPointF(2.5 * cell, 2.5 * cell)
 
-        self.assertFalse(host.begin_select_press(inside, cell))
+        self.assertFalse(host.begin_select_press(inside, cell, edit_objects=True))
         self.assertEqual(host.selected_spawn_zone_ref, ZoneRef("actor_spawn_zones", 0))
         self.assertIsNone(host.spawn_zone_drag)
 
-        self.assertFalse(host.begin_select_press(inside, cell))
+        self.assertFalse(host.begin_select_press(inside, cell, edit_objects=True))
         self.assertEqual(host.spawn_zone_drag.handle, "move")
         host.update_select_drag(QPointF(4.5 * cell, 2.5 * cell), cell)
         host.end_select_drag(None, None)
         zone = host.map_data["actor_spawn_zones"][0]
         self.assertEqual((zone["cols"], zone["rows"]), ([3, 5], [1, 3]))
 
-        self.assertFalse(host.begin_select_press(QPointF(6.5 * cell, 6.5 * cell), cell))
+        self.assertTrue(host.begin_select_press(QPointF(6.5 * cell, 6.5 * cell), cell))
         self.assertIsNone(host.selected_spawn_zone_ref)
 
-    def test_dragging_a_nested_map_end_in_no_tool_moves_only_that_end(self) -> None:
+    def test_object_drag_moves_only_the_chosen_nested_map_end(self) -> None:
         data = empty_map(8, 8)
         data["nested_maps"] = [nested("cabin", 0, [1, 1], [5, 1])]
         host = EditorHost(data, [])
         cell = self.CELL
 
-        self.assertTrue(host.begin_select_press(QPointF(5.5 * cell, 1.5 * cell), cell))
+        self.assertTrue(host.begin_select_press(QPointF(5.5 * cell, 1.5 * cell), cell, edit_objects=True))
         host.end_select_drag((5, 1), (5, 4))
         entry = host.map_data["nested_maps"][0]
         self.assertEqual((entry["from"], entry["to"]), ([1, 1], [5, 4]))
         host.end_select_drag((5, 4), (5, 4))
         self.assertEqual(host.map_data["nested_maps"][0]["to"], [5, 4])
-        self.assertFalse(host.begin_select_press(QPointF(3.5 * cell, 3.5 * cell), cell))
+        self.assertTrue(host.begin_select_press(QPointF(3.5 * cell, 3.5 * cell), cell))
 
 
 def nested(map_name: str, level: int, start: list[int], end: list[int], to_level: int | None = None) -> dict:

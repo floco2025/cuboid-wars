@@ -22,7 +22,7 @@ def empty_map(grid_cols: int = DEFAULT_GRID_COLS, grid_rows: int = DEFAULT_GRID_
         "grid_rows": grid_rows,
         "actor_spawn_zones": [],
         "player_spawn_zones": [
-            {"level": 0, "cols": [0, 2], "rows": [0, 2]},
+            {"level": 0, "cols": [0, min(2, grid_cols)], "rows": [0, min(2, grid_rows)]},
         ],
         "items": [],
         "pressure_plates": [],

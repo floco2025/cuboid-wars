@@ -16,7 +16,7 @@ from .types import SpawnZoneDrag, ZoneRef
 
 
 class SpawnZoneEditMixin:
-    # === Spawn-zone selection and drags, driven by No Tool ===
+    # === Spawn-zone selection and drags ===
 
     def selected_spawn_zone(self) -> dict | None:
         ref = self.selected_spawn_zone_ref

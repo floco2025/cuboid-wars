@@ -2,9 +2,11 @@
 
 Every element group ends with its own **Erase** tool that removes only that element inside a dragged rectangle on the current level. The **Erase** group at the bottom holds the two tools that clear every element at once.
 
-## No Tool
+## Select Tiles
 
-- **No Tool** — Where the editor starts. Click a spawn zone to select it, then drag its body to move it or a corner/edge handle to resize it; drag a nested map's end square to move that end. A press anywhere else does nothing, so a stray click draws nothing. In every tool, right-click an element to edit its properties or erase it.
+- **Select Tiles** — Where the editor starts. Click one tile or drag a rectangle to select tiles and their contents; empty tiles are selectable too. The blue outline marks the selection. Alt/Option-click a spawn zone to select it, then Alt/Option-drag its body or handles to move or resize it; Alt/Option-drag a nested map's end square to move that end. In every tool, right-click an element to edit its properties or erase it.
+- **Copy / Cut / Delete** — Available in Edit and the selection's right-click menu. Each asks how many levels to include, starting at the current level and going upward; the default is always 1. Copy and Cut put the entire block on the clipboard. Cut and Delete remove it. Walls and barriers on the rectangle's border are included. Include whole spawn zones, ramp footprints, ladder anchors and spans, and both ends of nested-map motion; a partial object prompts you to enlarge the selection. Removing a boundary wall with a light on its other side also needs that tile selected.
+- **Paste** — Select the destination tile (or a rectangle whose top-left tile is the destination), then paste. The dashed outline previews the footprint to replace; its label shows the tile dimensions and level count. Paste replaces all contents, including empty cells in the copied block, starting on the current level. Missing levels are added at the top. A block outside the grid is refused, and incompatible map kinds are reported. The clipboard works across open maps and editor windows. Cut, Delete, and Paste each undo in one step; Delete leaves the clipboard unchanged.
 
 ## Floors
 
@@ -92,6 +94,13 @@ Every element group ends with its own **Erase** tool that removes only that elem
 | `Shift+M` | Toggle Show Adjacent Levels |
 | `Ctrl/Cmd+Z` | Undo |
 | `Ctrl/Cmd+Shift+Z` | Redo |
+| `Ctrl/Cmd+C` | Copy selected tiles; ask level count |
+| `Ctrl/Cmd+X` | Cut selected tiles; ask level count |
+| `Ctrl/Cmd+V` | Replace destination with copied block |
+| `Delete` / `Backspace` | Delete selected tiles; ask level count |
+| `Ctrl/Cmd+A` | Select all tiles |
+| `Esc` | Clear selection / cancel the current drag |
+| `Alt/Option` + click/drag | Select, move, or resize a spawn zone; move a nested-map end |
 | `Ctrl/Cmd+N` | New map |
 | `Ctrl/Cmd+O` | Open |
 | `Ctrl/Cmd+S` | Save |

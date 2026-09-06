@@ -178,8 +178,11 @@ The canvas IS the UI. Do not add coordinate readouts, row/col numbers, or
 status-bar grid info — if something needs explaining, it should be drawn on
 the canvas itself. PySide6 with mouse-driven click/drag interactions per
 mode (floors, grass, walls, ramps, nested maps, ladders, barriers, light
-bridges, spawn zones, items, materials, lights, pressure plates). No Tool, the default, only selects, moves, and resizes
-what is already there; right-click edits or erases the element under the
+bridges, spawn zones, items, materials, lights, pressure plates). Select Tiles,
+the default, selects a tile rectangle for copy/cut/delete over a prompted
+level count and paste that replaces the destination; `regions.py` owns the
+volume operations and their boundary rules. Alt/Option selects, moves, and
+resizes spawn zones or moves nested-map ends; right-click edits or erases the element under the
 cursor in every tool. Every element group in
 `MODE_CATEGORIES` is one map list and ends with its own `Erase <group>` mode
 that clears only that element in a dragged rectangle; the Erase group holds

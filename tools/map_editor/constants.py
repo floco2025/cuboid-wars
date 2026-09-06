@@ -94,9 +94,7 @@ PLATE_TYPES = (PLATE_TYPE_BARRIER, PLATE_TYPE_BRIDGE, PLATE_TYPE_FIREWORK)
 # (validator skips the check in that case, so an empty value is harmless).
 DEFAULT_ALIAS: str = next(iter(sorted(MATERIAL_ALIASES)), "")
 
-# The tool the editor starts with: the canvas only selects, moves, and
-# resizes what is already there, and right-click edits or erases.
-MODE_NONE = "No Tool"
+MODE_SELECT = "Select Tiles"
 MODE_FLOOR = "Floor"
 MODE_INACCESSIBLE_FLOOR = "Blocked Floor"
 MODE_ERASE_FLOORS = "Erase Floors"
@@ -181,10 +179,10 @@ MODE_CATEGORIES: list[tuple[str, list[str]]] = [
     ("Erase", [MODE_ERASE, MODE_ERASE_KEEP_FLOORS]),
 ]
 
-# Flat list of every mode in display order: no tool first, then the
+# Flat list of every mode in display order: selection first, then the
 # categories, so the two never drift apart; if you add a mode, add it to
 # its category.
-MODES: list[str] = [MODE_NONE, *(mode for _, group in MODE_CATEGORIES for mode in group)]
+MODES: list[str] = [MODE_SELECT, *(mode for _, group in MODE_CATEGORIES for mode in group)]
 
 # Named lists in map_data so the editor can refer to them generically.
 ACTOR_ZONE_LIST = "actor_spawn_zones"

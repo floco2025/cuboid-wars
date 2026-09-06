@@ -8,6 +8,7 @@ without Qt widgets.
 
 from __future__ import annotations
 
+import copy
 from pathlib import Path
 
 from PySide6.QtGui import QUndoStack
@@ -34,18 +35,21 @@ class MapDocument:
         else:
             self.map_data = empty_map()
             self.path_mtime = None
-        self.dirty = False
+        self._saved_data = copy.deepcopy(self.map_data) if self.path_mtime is not None else None
+        self.dirty = self._saved_data is None
         self.undo_stack = QUndoStack()
         self.undo_stack.setUndoLimit(self.UNDO_LIMIT)
 
     def set_data(self, map_data: dict, mark_dirty: bool) -> None:
-        self.map_data = canonicalize_map(map_data)
+        self.map_data = copy.deepcopy(map_data)
         if mark_dirty:
-            self.dirty = True
+            self.dirty = self.map_data != self._saved_data
 
     def replace_with_new(self, map_data: dict) -> None:
         """Adopt a fresh map with no backing file (File → New)."""
-        self.map_data = map_data
+        self.clear_autosave()
+        self.map_data = canonicalize_map(map_data)
+        self._saved_data = None
         self.path = None
         self.path_mtime = None
         # Fresh map = unsaved by definition; dropping the asterisk would be
@@ -55,27 +59,37 @@ class MapDocument:
 
     # === Persistence ===
 
-    def load(self, path: Path) -> None:
+    def load(self, path: Path, loaded: dict | None = None, path_mtime: float | None = None) -> None:
         """Adopt `path` as the new backing file. Raises on read failure."""
-        self.map_data = read_map(path)
+        mtime = path.stat().st_mtime if path_mtime is None else path_mtime
+        data = read_map(path) if loaded is None else loaded
+        self.clear_autosave()
+        self.map_data = data
         self.path = path
-        self.path_mtime = path.stat().st_mtime
+        self.path_mtime = mtime
+        self._saved_data = copy.deepcopy(data)
         self.dirty = False
         self.undo_stack.clear()
 
     def externally_modified(self) -> bool:
         # No recorded baseline (fresh map / Save As to a new path) means any
         # existing file at this path is something the user chose to overwrite.
-        if self.path is None or self.path_mtime is None or not self.path.exists():
+        if self.path is None or self.path_mtime is None:
             return False
-        return self.path.stat().st_mtime > self.path_mtime + 1e-3
+        return not self.path.exists() or self.path.stat().st_mtime != self.path_mtime
 
-    def write(self) -> None:
+    def write(self, path: Path | None = None) -> None:
         """Write to the backing file. Raises on write failure."""
-        assert self.path is not None, "write called with no backing file"
-        write_map(self.path, self.map_data)
-        self.path_mtime = self.path.stat().st_mtime
+        destination = path if path is not None else self.path
+        assert destination is not None, "write called with no backing file"
+        write_map(destination, self.map_data)
+        mtime = destination.stat().st_mtime
+        self.clear_autosave()
+        self.path = destination
+        self.path_mtime = mtime
+        self._saved_data = copy.deepcopy(self.map_data)
         self.dirty = False
+        self.undo_stack.setClean()
         self.clear_autosave()
 
     # === Autosave / crash recovery ===
@@ -129,5 +143,6 @@ class MapDocument:
             return False
         self.map_data = recovered
         # Unsaved by definition until the user writes the real file.
-        self.dirty = True
+        self.dirty = recovered != self._saved_data
+        self.undo_stack.clear()
         return True

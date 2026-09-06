@@ -17,7 +17,7 @@ from .constants import (
     MODE_BARRIER,
     MODE_LADDER,
     MODE_LIGHT,
-    MODE_NONE,
+    MODE_SELECT,
     MODE_NESTED_MAP,
     MODE_WALL,
     MODE_WALL_MATERIAL,
@@ -87,10 +87,10 @@ class CanvasPaintingMixin:
         self._paint_items(painter, cell, level_idx)
         self._paint_ramps(painter, cell, level_idx)
         self.paint_spawn_zones(painter, cell, level_idx)
-        if self.window.mode == MODE_NONE:
+        if self.window.mode == MODE_SELECT:
             self.paint_spawn_zone_selection(painter, cell, level_idx)
         self._paint_drag_preview_rect(painter, cell)
-        if self.window.mode == MODE_NONE and self.window.spawn_zone_drag is not None:
+        if self.window.mode == MODE_SELECT and self.window.spawn_zone_drag is not None:
             self.paint_spawn_zone_drag_preview(painter, cell)
         self._paint_wall_and_ramp_drag_previews(painter, cell)
         self._paint_grid_lines(painter, cell, cols, rows)
@@ -107,6 +107,40 @@ class CanvasPaintingMixin:
         # overlap.
         self.paint_hover_highlight(painter, cell, level_idx)
         self._paint_hover_ghost(painter, cell)
+        self._paint_tile_selection(painter, cell)
+
+    def _paint_tile_selection(self, painter: QPainter, cell: float) -> None:
+        window = self.window
+        if window.mode != MODE_SELECT:
+            return
+        rect = window.tile_selection
+        if window.select_drag_kind == "tiles" and self.drag_start_cell is not None and self.drag_current_cell is not None:
+            rect = rect_from_cells(self.drag_start_cell, self.drag_current_cell)
+        if rect is None:
+            return
+        c0, r0, c1, r1 = rect
+        painter.setPen(QPen(QColor("#38bdf8"), 2))
+        painter.setBrush(QColor(56, 189, 248, 55))
+        painter.drawRect(QRectF(c0 * cell + 1, r0 * cell + 1, (c1 - c0) * cell - 2, (r1 - r0) * cell - 2))
+        block = window.tile_clipboard
+        if block is None or window.select_drag_kind is not None:
+            return
+        width, height, levels = block["grid_cols"], block["grid_rows"], len(block["levels"])
+        fits = c0 + width <= window.map_data["grid_cols"] and r0 + height <= window.map_data["grid_rows"]
+        color = QColor("#86efac" if fits else "#f87171")
+        painter.setPen(QPen(color, 2, Qt.PenStyle.DashLine))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawRect(QRectF(c0 * cell + 3, r0 * cell + 3, width * cell - 6, height * cell - 6))
+        text = f"Paste replaces {width} × {height} tiles · {levels} level(s)"
+        if not fits:
+            text += " · outside map"
+        label_width = painter.fontMetrics().horizontalAdvance(text) + 16
+        label_height = painter.fontMetrics().height() + 8
+        x = max(0, min(c0 * cell, self.width() - label_width))
+        y = r0 * cell - label_height if r0 * cell >= label_height else r0 * cell + 4
+        label = QRectF(x, y, label_width, label_height)
+        painter.fillRect(label, QColor("#111418"))
+        painter.drawText(label, Qt.AlignmentFlag.AlignCenter, text)
 
     def _paint_hover_ghost(self, painter: QPainter, cell: float) -> None:
         # Show a ghost of what the click/drag would affect at the cursor. The
@@ -117,7 +151,7 @@ class CanvasPaintingMixin:
         if self.drag_start_cell is not None or self.drag_start_point is not None:
             return
         mode = self.window.mode
-        if mode == MODE_NONE or mode in MATERIAL_MODES:
+        if mode == MODE_SELECT or mode in MATERIAL_MODES:
             return
         # Edge-based modes (Wall, Barrier): no ghost yet — the drag preview
         # is the discoverability path; a single-point ghost would only show
@@ -385,7 +419,9 @@ class CanvasPaintingMixin:
             self.paint_wall_preview(painter, self.drag_start_point, end, cell, color=QColor(hex_color))
         elif self.drag_start_cell and self.drag_current_cell and self.window.mode in RAMP_MODES:
             self.paint_ramp_preview(painter, self.drag_start_cell, self.drag_current_cell, cell)
-        elif self.drag_start_cell and self.drag_current_cell and self.window.mode in (MODE_NESTED_MAP, MODE_NONE):
+        elif self.drag_start_cell and self.drag_current_cell and (
+            self.window.mode == MODE_NESTED_MAP or self.window.select_drag_kind == "nested"
+        ):
             self._paint_nested_map_drag(painter, cell)
 
     def _paint_grid_lines(self, painter: QPainter, cell: float, cols: int, rows: int) -> None:
@@ -799,4 +835,3 @@ class CanvasPaintingMixin:
         p3 = QPoint(round(end[0] - ux * size - px * size * 0.45), round(end[1] - uy * size - py * size * 0.45))
         painter.setBrush(color)
         painter.drawPolygon([p1, p2, p3])
-
