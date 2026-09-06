@@ -3,10 +3,12 @@ use std::f32::consts::FRAC_PI_2;
 
 use crate::{
     characters::PreviousTickPosition,
+    config::ClientSettings,
     constants::{
         ITEM_MISSILE_COLOR, MISSILE_BODY_LENGTH, MISSILE_BODY_RADIUS, MISSILE_FIN_LENGTH, MISSILE_FIN_SPAN,
         MISSILE_NOSE_LENGTH, PROJECTILE_BODY_EMISSIVE,
     },
+    items::pickup_emissive,
     missiles::MissileVelocity,
 };
 use common::protocol::{MissileId, MissileMarker, MissileMovementState};
@@ -24,11 +26,14 @@ pub struct MissileAssets {
     fins_mesh: Handle<Mesh>,
     body_material: Handle<StandardMaterial>,
     accent_material: Handle<StandardMaterial>,
+    pickup_body_material: Handle<StandardMaterial>,
+    pickup_accent_material: Handle<StandardMaterial>,
 }
 
 impl FromWorld for MissileAssets {
     fn from_world(world: &mut World) -> Self {
         let brightness = PROJECTILE_BODY_EMISSIVE;
+        let pickup_glow = world.resource::<ClientSettings>().vfx.pickup_emissive_brightness;
         let mut meshes = world.resource_mut::<Assets<Mesh>>();
         let body_mesh = meshes.add(Cylinder::new(MISSILE_BODY_RADIUS, MISSILE_BODY_LENGTH));
         let nose_mesh = meshes.add(Cone {
@@ -49,6 +54,18 @@ impl FromWorld for MissileAssets {
             emissive: LinearRgba::rgb(brightness * 0.95, brightness * 0.4, brightness * 0.1),
             ..default()
         });
+        let mut pickup_body = materials
+            .get(&body_material)
+            .expect("missile body material missing")
+            .clone();
+        pickup_body.emissive = pickup_emissive(pickup_body.base_color, pickup_glow);
+        let mut pickup_accent = materials
+            .get(&accent_material)
+            .expect("missile accent material missing")
+            .clone();
+        pickup_accent.emissive = pickup_emissive(pickup_accent.base_color, pickup_glow);
+        let pickup_body_material = materials.add(pickup_body);
+        let pickup_accent_material = materials.add(pickup_accent);
 
         Self {
             body_mesh,
@@ -56,6 +73,8 @@ impl FromWorld for MissileAssets {
             fins_mesh,
             body_material,
             accent_material,
+            pickup_body_material,
+            pickup_accent_material,
         }
     }
 }
@@ -129,23 +148,37 @@ pub fn spawn_missile(
 // The same body/nose/fins hierarchy at world scale, for the `missile_pack`
 // pickup item — spawned as children of the item root.
 pub fn spawn_missile_pickup_visual(parent: &mut ChildSpawnerCommands, assets: &MissileAssets) {
-    spawn_missile_meshes(parent, assets);
+    spawn_meshes(
+        parent,
+        assets,
+        &assets.pickup_body_material,
+        &assets.pickup_accent_material,
+    );
 }
 
 pub fn spawn_missile_meshes(parent: &mut ChildSpawnerCommands, assets: &MissileAssets) {
+    spawn_meshes(parent, assets, &assets.body_material, &assets.accent_material);
+}
+
+fn spawn_meshes(
+    parent: &mut ChildSpawnerCommands,
+    assets: &MissileAssets,
+    body_material: &Handle<StandardMaterial>,
+    accent_material: &Handle<StandardMaterial>,
+) {
     parent.spawn((
         Mesh3d(assets.body_mesh.clone()),
-        MeshMaterial3d(assets.body_material.clone()),
+        MeshMaterial3d(body_material.clone()),
         Transform::IDENTITY,
     ));
     parent.spawn((
         Mesh3d(assets.nose_mesh.clone()),
-        MeshMaterial3d(assets.accent_material.clone()),
+        MeshMaterial3d(accent_material.clone()),
         Transform::from_xyz(0.0, (MISSILE_BODY_LENGTH + MISSILE_NOSE_LENGTH) / 2.0, 0.0),
     ));
     parent.spawn((
         Mesh3d(assets.fins_mesh.clone()),
-        MeshMaterial3d(assets.accent_material.clone()),
+        MeshMaterial3d(accent_material.clone()),
         Transform::IDENTITY,
     ));
 }

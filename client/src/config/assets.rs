@@ -6,7 +6,6 @@ use std::{
 
 use anyhow::{Context, Result, bail};
 use bevy::prelude::Resource;
-use common::protocol::ItemType;
 use serde::Deserialize;
 
 const REQUIRED_PLAYER_SOUNDS: &[&str] = &[
@@ -41,7 +40,6 @@ pub struct AssetSet {
     pressure_plate: PressurePlateAssets,
     #[serde(default)]
     aliases: HashMap<String, String>,
-    item_materials: HashMap<String, String>,
     player: PlayerAssets,
     actors: HashMap<String, ActorAssets>,
     models: GenericModels,
@@ -67,10 +65,6 @@ impl AssetSet {
 
     fn validate(&self) -> Result<()> {
         anyhow::ensure!(
-            self.item_materials.contains_key("default"),
-            "asset config must define `item_materials.default`"
-        );
-        anyhow::ensure!(
             !self.skyboxes.is_empty(),
             "asset config must define at least one entry in `skyboxes`"
         );
@@ -91,12 +85,6 @@ impl AssetSet {
                 self.materials.contains_key(&binding.material),
                 "`{path}.material` points to unknown material `{}`",
                 binding.material
-            );
-        }
-        for (name, id) in &self.item_materials {
-            anyhow::ensure!(
-                self.materials.contains_key(id),
-                "`item_materials.{name}` points to unknown material `{id}`"
             );
         }
         validate_model("player.model", &self.player.model)?;
@@ -147,29 +135,7 @@ impl AssetSet {
         self.exact_material(&self.pressure_plate.frame.material)
     }
 
-    pub fn material_for_item(&self, item_type: ItemType) -> &MaterialDef {
-        let name = match item_type {
-            ItemType::SpeedPowerUp => "SpeedPowerUp",
-            ItemType::MultiShotPowerUp => "MultiShotPowerUp",
-            ItemType::LowGravityPowerUp => "LowGravityPowerUp",
-            ItemType::PortalGunPowerUp => "PortalGunPowerUp",
-            ItemType::HealthPotion => "HealthPotion",
-            ItemType::Cookie => "Cookie",
-            ItemType::MissilePack => "MissilePack",
-            // Keys reuse the per-color barrier materials directly; no entry
-            // in the `item_materials` table is expected.
-            ItemType::Key(_) => unreachable!("keys do not use AssetSet::material_for_item"),
-        };
-        let id = self
-            .item_materials
-            .get(name)
-            .or_else(|| self.item_materials.get("default"))
-            .expect("`default` missing from item_materials");
-        self.exact_material(id)
-    }
-
-    // Direct lookup for references INSIDE assets.json (item materials, the
-    // ladder). Aliases are the map-authoring vocabulary — indirection only
+    // Direct lookup for references INSIDE assets.json (ladders and plates). Aliases are the map-authoring vocabulary — indirection only
     // earns its keep for references living outside this file, so internal
     // bindings name concrete materials.
     fn exact_material(&self, id: &str) -> &MaterialDef {
@@ -306,12 +272,6 @@ pub struct MaterialDef {
     pub(crate) repeat: bool,
     #[serde(default)]
     pub(crate) linear_data_textures: bool,
-    #[serde(default)]
-    pub(crate) base_color: Option<String>,
-    #[serde(default)]
-    pub(crate) emissive: Option<String>,
-    #[serde(default)]
-    pub(crate) emissive_strength: Option<f32>,
 }
 
 impl MaterialDef {

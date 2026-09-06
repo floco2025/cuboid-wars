@@ -4,9 +4,9 @@ use std::f32::consts::{FRAC_PI_2, FRAC_PI_4, TAU};
 
 use crate::{
     barriers::BarrierAssets,
-    config::{AssetSet, ClientSettings},
+    config::ClientSettings,
     constants::*,
-    items::{YSpinBase, YSpinTimer},
+    items::{CoinAssets, YSpinBase, YSpinTimer, item_symbol_mesh, pickup_material, spawn_coin_visual},
     map::MapLevel,
     missiles::{MissileAssets, spawn_missile_pickup_visual},
 };
@@ -23,34 +23,14 @@ use common::{
 pub struct ItemAnimTimer(pub f32);
 
 // ============================================================================
-// Bundles
-// ============================================================================
-
-#[derive(Bundle)]
-struct ItemBundle {
-    item_id: ItemId,
-    item_marker: ItemMarker,
-    position: Position,
-    mesh: Mesh3d,
-    material: MeshMaterial3d<StandardMaterial>,
-    transform: Transform,
-    visibility: Visibility,
-}
-
-// ============================================================================
 // Shared item assets
 // ============================================================================
 
-// One mesh + one material per item kind, built at startup and cloned cheaply
-// into every spawned item. Sharing handles lets Bevy's automatic batching
-// collapse N item draws into a handful of instanced calls — without this,
-// hundreds of cookies each force their own draw call.
-// Cookies + power-ups. Keys live entirely on `BarrierAssets` because they
-// share materials + a thematic family with barriers.
+// Shared mesh and material handles let Bevy batch repeated pickups.
+// Keys live on `BarrierAssets` because their colors come from barrier kinds.
 #[derive(Resource)]
 pub struct ItemAssets {
-    cookie_mesh: Handle<Mesh>,
-    cookie_material: Handle<StandardMaterial>,
+    coin: CoinAssets,
     power_ups: Vec<PowerUpVisual>,
 }
 
@@ -77,30 +57,13 @@ pub fn setup_item_assets(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    asset_server: Res<AssetServer>,
-    asset_set: Res<AssetSet>,
     client_settings: Res<ClientSettings>,
 ) {
-    let cookie_def = asset_set.material_for_item(ItemType::Cookie);
-    let cookie_material = materials.add(cookie_def.standard_material(
-        &asset_server,
-        client_settings.rendering.texture_anisotropy,
-        client_settings.rendering.mipmaps,
-    ));
-
+    let glow = client_settings.vfx.pickup_emissive_brightness;
+    let coin = CoinAssets::new(&mut meshes, &mut materials, glow);
     let mut build_power_up = |item_type: ItemType| -> Handle<StandardMaterial> {
-        let def = asset_set.material_for_item(item_type);
-        materials.add(def.standard_item_material(
-            &asset_server,
-            item_type_color(item_type),
-            client_settings.rendering.texture_anisotropy,
-            client_settings.rendering.mipmaps,
-        ))
+        materials.add(pickup_material(item_type_color(item_type), glow))
     };
-    let cuboid_mesh = meshes.add(Cuboid::new(ITEM_SIZE, ITEM_SIZE, ITEM_SIZE));
-
-    // The map editor mirrors these silhouettes as 2D glyphs
-    // (tools/map_editor/canvas.py `_paint_items`) — keep the two in sync.
     let power_ups = vec![
         PowerUpVisual {
             item_type: ItemType::PortalGunPowerUp,
@@ -116,53 +79,56 @@ pub fn setup_item_assets(
             material: build_power_up(ItemType::PortalGunPowerUp),
             base_orientation: Quat::from_rotation_x(FRAC_PI_2),
         },
-        // Speed: tetrahedron — angular silhouette reads as "fast". Default
-        // Bevy `Tetrahedron` has two vertices at +y and two at -y (an edge
-        // up); rotate so the vertex at (1,1,1) is the apex.
         PowerUpVisual {
             item_type: ItemType::SpeedPowerUp,
-            mesh: meshes.add(Tetrahedron::default().mesh().build().scaled_by(Vec3::splat(ITEM_SIZE))),
+            mesh: meshes.add(item_symbol_mesh(
+                ItemType::SpeedPowerUp,
+                ITEM_SIZE * 1.5,
+                ITEM_SIZE * 0.24,
+            )),
             material: build_power_up(ItemType::SpeedPowerUp),
-            base_orientation: Quat::from_rotation_arc(Vec3::new(1.0, 1.0, 1.0).normalize(), Vec3::Y),
+            base_orientation: Quat::IDENTITY,
         },
-        // MultiShot keeps the original cube.
         PowerUpVisual {
             item_type: ItemType::MultiShotPowerUp,
-            mesh: cuboid_mesh,
+            mesh: meshes.add(item_symbol_mesh(
+                ItemType::MultiShotPowerUp,
+                ITEM_SIZE * 1.5,
+                ITEM_SIZE * 0.24,
+            )),
             material: build_power_up(ItemType::MultiShotPowerUp),
             base_orientation: Quat::IDENTITY,
         },
-        // LowGravity: sphere — floats like an orb.
         PowerUpVisual {
             item_type: ItemType::LowGravityPowerUp,
-            mesh: meshes.add(Sphere::new(ITEM_SIZE * 0.5)),
+            mesh: meshes.add(item_symbol_mesh(
+                ItemType::LowGravityPowerUp,
+                ITEM_SIZE * 1.5,
+                ITEM_SIZE * 0.24,
+            )),
             material: build_power_up(ItemType::LowGravityPowerUp),
             base_orientation: Quat::IDENTITY,
         },
-        // HealthPotion: vertical capsule tilted 45° around Z — vial / potion
-        // silhouette leaning like a held bottle.
         PowerUpVisual {
             item_type: ItemType::HealthPotion,
-            mesh: meshes.add(Capsule3d::new(ITEM_SIZE * 0.3, ITEM_SIZE)),
+            mesh: meshes.add(item_symbol_mesh(
+                ItemType::HealthPotion,
+                ITEM_SIZE * 1.5,
+                ITEM_SIZE * 0.24,
+            )),
             material: build_power_up(ItemType::HealthPotion),
-            base_orientation: Quat::from_rotation_z(FRAC_PI_4),
+            base_orientation: Quat::IDENTITY,
         },
     ];
 
-    commands.insert_resource(ItemAssets {
-        cookie_mesh: meshes.add(Sphere::new(COOKIE_SIZE)),
-        cookie_material,
-        power_ups,
-    });
+    commands.insert_resource(ItemAssets { coin, power_ups });
 }
 
 // ============================================================================
 // Item Spawning
 // ============================================================================
 
-// Get the color for an item type. Only meaningful for power-ups; cookies are
-// white and keys are looked up from the config-driven `BarrierAssets` directly,
-// so they aren't asked for here. Panics if a `Key` slips through.
+// Keys use their barrier kind’s color instead of a fixed item color.
 #[must_use]
 pub fn item_type_color(item_type: ItemType) -> Color {
     match item_type {
@@ -171,14 +137,13 @@ pub fn item_type_color(item_type: ItemType) -> Color {
         ItemType::LowGravityPowerUp => ITEM_LOW_GRAVITY_COLOR,
         ItemType::PortalGunPowerUp => PORTAL_A_COLOR,
         ItemType::HealthPotion => ITEM_HEALTH_COLOR,
-        ItemType::Cookie => Color::WHITE,
+        ItemType::Cookie => ITEM_COIN_COLOR,
         ItemType::MissilePack => ITEM_MISSILE_COLOR,
         ItemType::Key(_) => unreachable!("keys look up colors via BarrierAssets / AssetSet, not item_type_color"),
     }
 }
 
-// Spawn an item cube under its carrier's entity, at its carrier-local
-// position.
+// Spawn the item in its carrier’s frame.
 pub fn spawn_item(
     commands: &mut Commands,
     item_assets: &ItemAssets,
@@ -190,145 +155,49 @@ pub fn spawn_item(
     item_type: ItemType,
     position: &Position,
 ) -> Entity {
-    let entity = match item_type {
-        ItemType::Cookie => spawn_cookie(commands, item_assets, item_id, position, level),
-        ItemType::Key(kind) => spawn_key(commands, barrier_assets, item_id, position, level, kind),
-        ItemType::MissilePack => spawn_missile_pack(commands, missile_assets, item_id, position, level),
+    let spin_phase = random::<f32>() * TAU;
+    let mut entity = commands.spawn((
+        item_id,
+        ItemMarker,
+        *position,
+        Visibility::Visible,
+        level,
+        ChildOf(carrier),
+        ItemAnimTimer(random::<f32>() * TAU),
+        YSpinTimer(spin_phase),
+    ));
+    let base = match item_type {
+        ItemType::Cookie => {
+            entity.with_children(|parent| spawn_coin_visual(parent, &item_assets.coin));
+            Quat::IDENTITY
+        }
+        ItemType::Key(kind) => {
+            entity.insert((
+                Mesh3d(barrier_assets.key_mesh().clone()),
+                MeshMaterial3d(barrier_assets.key_material_for(kind).clone()),
+            ));
+            Quat::IDENTITY
+        }
+        ItemType::MissilePack => {
+            entity.with_children(|parent| {
+                spawn_missile_pickup_visual(parent, missile_assets);
+            });
+            Quat::from_rotation_z(FRAC_PI_4)
+        }
         ItemType::SpeedPowerUp
         | ItemType::MultiShotPowerUp
         | ItemType::LowGravityPowerUp
         | ItemType::HealthPotion
-        | ItemType::PortalGunPowerUp => spawn_power_up(commands, item_assets, item_id, item_type, position, level),
+        | ItemType::PortalGunPowerUp => {
+            let visual = item_assets.power_up(item_type);
+            entity.insert((Mesh3d(visual.mesh.clone()), MeshMaterial3d(visual.material.clone())));
+            visual.base_orientation
+        }
     };
-    commands.entity(entity).insert(ChildOf(carrier));
     entity
-}
-
-fn spawn_missile_pack(
-    commands: &mut Commands,
-    missile_assets: &MissileAssets,
-    item_id: ItemId,
-    position: &Position,
-    level: MapLevel,
-) -> Entity {
-    // The pickup IS a small missile: the flight meshes as children of a
-    // bobbing, spinning item root, tilted like the potion so the silhouette
-    // reads at a glance.
-    let bob_phase = random::<f32>() * TAU;
-    let spin_phase = random::<f32>() * TAU;
-    let base = Quat::from_rotation_z(FRAC_PI_4);
-    commands
-        .spawn((
-            item_id,
-            ItemMarker,
-            *position,
-            Transform::from_xyz(
-                position.x,
-                position.y + ITEM_HEIGHT_ABOVE_FLOOR + ITEM_SIZE / 2.0,
-                position.z,
-            )
-            .with_rotation(base),
-            Visibility::Visible,
-            level,
-            ItemAnimTimer(bob_phase),
-            YSpinTimer(spin_phase),
-            YSpinBase(base),
-        ))
-        .with_children(|parent| {
-            spawn_missile_pickup_visual(parent, missile_assets);
-        })
-        .id()
-}
-
-fn spawn_cookie(
-    commands: &mut Commands,
-    item_assets: &ItemAssets,
-    item_id: ItemId,
-    position: &Position,
-    level: MapLevel,
-) -> Entity {
-    // Cookies are small textured spheres on the floor; no animation.
-    commands
-        .spawn((
-            ItemBundle {
-                item_id,
-                item_marker: ItemMarker,
-                position: *position,
-                mesh: Mesh3d(item_assets.cookie_mesh.clone()),
-                material: MeshMaterial3d(item_assets.cookie_material.clone()),
-                transform: Transform::from_xyz(position.x, position.y + COOKIE_HEIGHT, position.z),
-                visibility: Visibility::Visible,
-            },
-            level,
-        ))
-        .id()
-}
-
-fn spawn_key(
-    commands: &mut Commands,
-    barrier_assets: &BarrierAssets,
-    item_id: ItemId,
-    position: &Position,
-    level: MapLevel,
-    kind: common::protocol::BarrierKindId,
-) -> Entity {
-    // Keys are a small rotating cuboid that reuses the matching barrier
-    // material, so the pulse stays in sync. Per-instance random phase keeps
-    // multiple nearby keys from rotating in lockstep.
-    let random_phase = random::<f32>() * TAU;
-    commands
-        .spawn((
-            ItemBundle {
-                item_id,
-                item_marker: ItemMarker,
-                position: *position,
-                mesh: Mesh3d(barrier_assets.key_mesh().clone()),
-                material: MeshMaterial3d(barrier_assets.material_for(kind).clone()),
-                transform: Transform::from_xyz(position.x, position.y + KEY_HEIGHT_ABOVE_FLOOR, position.z),
-                visibility: Visibility::Visible,
-            },
-            level,
-            YSpinTimer(random_phase),
-        ))
-        .id()
-}
-
-fn spawn_power_up(
-    commands: &mut Commands,
-    item_assets: &ItemAssets,
-    item_id: ItemId,
-    item_type: ItemType,
-    position: &Position,
-    level: MapLevel,
-) -> Entity {
-    // Power-ups bob up and down (translation) and spin around Y (rotation),
-    // each driven by independent per-instance random phases so a cluster
-    // doesn't move in lockstep. The base orientation per shape is baked into
-    // the spin's start rotation; the rotation system composes
-    // `Quat::from_rotation_y(spin) * base`.
-    let bob_phase = random::<f32>() * TAU;
-    let spin_phase = random::<f32>() * TAU;
-    let visual = item_assets.power_up(item_type);
-    let base = visual.base_orientation;
-    commands
-        .spawn((
-            ItemBundle {
-                item_id,
-                item_marker: ItemMarker,
-                position: *position,
-                mesh: Mesh3d(visual.mesh.clone()),
-                material: MeshMaterial3d(visual.material.clone()),
-                transform: Transform::from_xyz(
-                    position.x,
-                    position.y + ITEM_HEIGHT_ABOVE_FLOOR + ITEM_SIZE / 2.0,
-                    position.z,
-                )
-                .with_rotation(base),
-                visibility: Visibility::Visible,
-            },
-            level,
-            ItemAnimTimer(bob_phase),
-            YSpinTimer(spin_phase),
+        .insert((
+            Transform::from_xyz(position.x, position.y + ITEM_HEIGHT_ABOVE_FLOOR, position.z)
+                .with_rotation(Quat::from_rotation_y(spin_phase) * base),
             YSpinBase(base),
         ))
         .id()

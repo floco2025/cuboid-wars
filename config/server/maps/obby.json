@@ -16,14 +16,17 @@
     ],
     "items": [
       {"level": 0, "col": 4, "row": 1, "type": "speed"},
-      {"level": 0, "col": 4, "row": 2, "type": "low_gravity"},
-      {"level": 0, "col": 5, "row": 5, "type": "portal_gun"},
+      {"level": 0, "col": 4, "row": 2, "type": "multi_shot"},
+      {"level": 0, "col": 4, "row": 3, "type": "low_gravity"},
+      {"level": 0, "col": 4, "row": 4, "type": "portal_gun"},
+      {"level": 0, "col": 4, "row": 5, "type": "health_potion"},
+      {"level": 0, "col": 4, "row": 6, "type": "cookie"},
+      {"level": 0, "col": 4, "row": 7, "type": "missile_pack"},
       {"level": 0, "col": 14, "row": 7, "type": "speed"},
       {"level": 0, "col": 37, "row": 7, "type": "speed"},
-      {"level": 0, "col": 4, "row": 8, "type": "speed"},
+      {"level": 0, "col": 4, "row": 8, "type": "key", "kind": "barrier_1"},
       {"level": 0, "col": 14, "row": 8, "type": "low_gravity"},
-      {"level": 0, "col": 37, "row": 8, "type": "low_gravity"},
-      {"level": 0, "col": 4, "row": 9, "type": "low_gravity"}
+      {"level": 0, "col": 37, "row": 8, "type": "low_gravity"}
     ],
     "levels": [
       {

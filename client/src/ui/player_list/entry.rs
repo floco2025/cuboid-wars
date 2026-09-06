@@ -10,7 +10,7 @@ use crate::{
     barriers::BarrierAssets,
     constants::{
         HUD_ICON_CATEGORY_GAP_PX, HUD_ICON_GAP_PX, HUD_SLOT_EMPTY_COLOR, ITEM_MISSILE_COLOR, KEY_HUD_ICON_SIZE_PX,
-        MISSILE_HUD_ICON_HEIGHT_PX, MISSILE_HUD_ICON_WIDTH_PX,
+        MISSILE_HUD_ICON_HEIGHT_PX, POWER_UP_HUD_ICON_SIZE_PX,
     },
     items::item_type_color,
     players::PlayerInfo,
@@ -89,40 +89,41 @@ pub(super) fn spawn_player_entry(
                     ));
                 });
 
-            // Icon strip on its own line so the entry stays narrow. Every
-            // slot always renders (dim when unfilled), so pickups never
-            // resize the panel, and the groups spread across the entry so
-            // the strip spans it at any key count.
+            // Empty inventory slots stay visible so pickups never resize the panel.
             entry
                 .spawn(Node {
                     width: Val::Percent(100.0),
                     flex_direction: FlexDirection::Row,
                     align_items: AlignItems::Center,
-                    justify_content: JustifyContent::SpaceBetween,
+                    justify_content: JustifyContent::FlexStart,
                     column_gap: Val::Px(HUD_ICON_CATEGORY_GAP_PX),
                     ..default()
                 })
                 .with_children(|strip| {
-                    spawn_icon_group(strip, |row| {
-                        for &kind in &style.power_up_kinds {
-                            spawn_power_up_icon(row, player_info.power_up(kind), kind, shapes);
-                        }
-                    });
-                    if style.show_missiles {
+                    if !style.power_up_kinds.is_empty() {
                         spawn_icon_group(strip, |row| {
-                            for slot in 0..style.max_missiles {
-                                spawn_missile_icon(row, slot < player_info.missiles);
+                            for &kind in &style.power_up_kinds {
+                                spawn_power_up_icon(row, player_info.power_up(kind), kind, shapes);
                             }
                         });
                     }
-                    spawn_icon_group(strip, |row| {
-                        for &kind in key_kinds {
-                            let color = barrier_assets
-                                .filter(|_| player_info.held_keys.contains(&kind))
-                                .map_or(HUD_SLOT_EMPTY_COLOR, |assets| assets.base_color(kind));
-                            spawn_key_icon(row, color);
-                        }
-                    });
+                    if style.show_missiles && style.max_missiles > 0 {
+                        spawn_icon_group(strip, |row| {
+                            for slot in 0..style.max_missiles {
+                                spawn_missile_icon(row, slot < player_info.missiles, shapes);
+                            }
+                        });
+                    }
+                    if !key_kinds.is_empty() {
+                        spawn_icon_group(strip, |row| {
+                            for &kind in key_kinds {
+                                let color = barrier_assets
+                                    .filter(|_| player_info.held_keys.contains(&kind))
+                                    .map_or(HUD_SLOT_EMPTY_COLOR, |assets| assets.base_color(kind));
+                                spawn_key_icon(row, color, shapes);
+                            }
+                        });
+                    }
                 });
 
             spawn_health_bar(
@@ -143,9 +144,6 @@ pub(super) fn player_health(player_info: &PlayerInfo, health_query: &Query<&Heal
     health.0
 }
 
-// Per-kind silhouettes matching the in-game meshes and the editor glyphs:
-// speed = triangle (tetrahedron), multi-shot = square (cube), low-gravity =
-// circle (sphere).
 fn spawn_power_up_icon(row: &mut ChildSpawnerCommands, active: bool, kind: PowerUpKind, shapes: &HudShapeAssets) {
     let color = if active {
         item_type_color(kind.to_item_type())
@@ -153,38 +151,36 @@ fn spawn_power_up_icon(row: &mut ChildSpawnerCommands, active: bool, kind: Power
         HUD_SLOT_EMPTY_COLOR
     };
     let node = Node {
-        width: Val::Px(12.0),
-        height: Val::Px(12.0),
+        width: Val::Px(POWER_UP_HUD_ICON_SIZE_PX),
+        height: Val::Px(POWER_UP_HUD_ICON_SIZE_PX),
         align_self: AlignSelf::Center,
         ..default()
     };
-    match kind {
-        PowerUpKind::Speed => {
-            row.spawn((
-                node,
-                ImageNode {
-                    color,
-                    ..ImageNode::new(shapes.triangle.clone())
-                },
-            ));
-        }
-        PowerUpKind::LowGravity => {
-            let mut node = node;
-            node.border_radius = BorderRadius::all(Val::Percent(50.0));
-            row.spawn((node, BackgroundColor(color)));
-        }
+    let image = match kind {
+        PowerUpKind::Speed => &shapes.speed,
+        PowerUpKind::MultiShot => &shapes.multi_shot,
+        PowerUpKind::LowGravity => &shapes.low_gravity,
         PowerUpKind::PortalGun => {
-            let mut node = node;
-            node.width = Val::Px(8.0);
-            node.height = Val::Px(15.0);
-            node.border = UiRect::all(Val::Px(2.0));
-            node.border_radius = BorderRadius::all(Val::Percent(50.0));
-            row.spawn((node, BorderColor::all(color)));
+            row.spawn((
+                Node {
+                    width: Val::Px(8.0),
+                    height: Val::Px(15.0),
+                    border: UiRect::all(Val::Px(2.0)),
+                    border_radius: BorderRadius::all(Val::Percent(50.0)),
+                    ..node
+                },
+                BorderColor::all(color),
+            ));
+            return;
         }
-        PowerUpKind::MultiShot => {
-            row.spawn((node, BackgroundColor(color)));
-        }
-    }
+    };
+    row.spawn((
+        node,
+        ImageNode {
+            color,
+            ..ImageNode::new(image.clone())
+        },
+    ));
 }
 
 fn spawn_icon_group(strip: &mut ChildSpawnerCommands, icons: impl FnOnce(&mut ChildSpawnerCommands)) {
@@ -198,20 +194,21 @@ fn spawn_icon_group(strip: &mut ChildSpawnerCommands, icons: impl FnOnce(&mut Ch
         .with_children(icons);
 }
 
-fn spawn_key_icon(row: &mut ChildSpawnerCommands, color: Color) {
+fn spawn_key_icon(row: &mut ChildSpawnerCommands, color: Color, shapes: &HudShapeAssets) {
     row.spawn((
         Node {
-            width: Val::Px(KEY_HUD_ICON_SIZE_PX),
             height: Val::Px(KEY_HUD_ICON_SIZE_PX),
             align_self: AlignSelf::Center,
             ..default()
         },
-        BackgroundColor(color),
+        ImageNode {
+            color,
+            ..ImageNode::new(shapes.key.clone())
+        },
     ));
 }
 
-// Missile bay: a thin vertical line per rocket.
-fn spawn_missile_icon(row: &mut ChildSpawnerCommands, filled: bool) {
+fn spawn_missile_icon(row: &mut ChildSpawnerCommands, filled: bool, shapes: &HudShapeAssets) {
     let color = if filled {
         ITEM_MISSILE_COLOR
     } else {
@@ -219,12 +216,14 @@ fn spawn_missile_icon(row: &mut ChildSpawnerCommands, filled: bool) {
     };
     row.spawn((
         Node {
-            width: Val::Px(MISSILE_HUD_ICON_WIDTH_PX),
             height: Val::Px(MISSILE_HUD_ICON_HEIGHT_PX),
             align_self: AlignSelf::Center,
             ..default()
         },
-        BackgroundColor(color),
+        ImageNode {
+            color,
+            ..ImageNode::new(shapes.missile.clone())
+        },
     ));
 }
 

@@ -11,8 +11,8 @@ use crate::{config::ClientSettings, vfx::color_with_alpha};
 // adjacent colors out of lockstep.
 //
 // Because each material handle is shared across every barrier of that kind
-// (plus every same-kind key), one write here updates every visible instance
-// — O(num_kinds) work per frame regardless of map size.
+// one write here updates every visible instance — O(num_kinds) work per
+// frame regardless of map size.
 pub fn barriers_pulsate_system(
     time: Res<Time>,
     _client_settings: Res<ClientSettings>,

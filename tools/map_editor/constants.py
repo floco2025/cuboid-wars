@@ -152,15 +152,14 @@ ITEM_KEY_TYPE = "key"
 ITEM_TYPES = ("speed", "multi_shot", "low_gravity", "portal_gun", "health_potion", "cookie", "missile_pack", ITEM_KEY_TYPE)
 # Canvas glyph colors for non-key items; keys use BARRIER_KIND_COLORS[kind].
 # Mirror the in-game `ITEM_*_COLOR` constants in client/src/constants.rs
-# (cookie renders from its gold texture in-game, so it keeps the gold the
-# old cookie-zone overlay used).
+
 ITEM_TYPE_COLORS = {
     "speed": "#ffd926",
-    "multi_shot": "#ff4040",
-    "low_gravity": "#4dd9ff",
+    "multi_shot": "#ffffff",
+    "low_gravity": "#ffffff",
     "portal_gun": "#338cff",
     "health_potion": "#33f24d",
-    "cookie": "#facc15",
+    "cookie": "#ffb81f",
     "missile_pack": "#f27319",
 }
 # Modes grouped by category for the mode picker. Each tuple is

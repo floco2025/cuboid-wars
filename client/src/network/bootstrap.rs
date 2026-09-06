@@ -5,7 +5,7 @@ use crate::{
     bridges::build_bridge_assets,
     carriers::{CarrierStoreys, spawn_carrier_entities},
     characters::MaxHealth,
-    config::AssetSet,
+    config::{AssetSet, ClientSettings},
     players::MyPlayerId,
     projectiles::ProjectileAssets,
     ui::{HudBanner, QuestLog},
@@ -18,12 +18,13 @@ pub(crate) fn install_bootstrap(app: &mut App, message: SInit, asset_set: &Asset
     let map_settings = &message.world.map.settings;
     let (barrier_kind_table, _) = map_settings.kind_tables()?;
     asset_set.validate_gameplay_bindings(gameplay_config.actors.keys().map(String::as_str))?;
+    let pickup_glow = app.world().resource::<ClientSettings>().vfx.pickup_emissive_brightness;
 
     let (barrier_assets, bridge_assets, projectile_assets) =
         app.world_mut().resource_scope(|world, mut meshes: Mut<Assets<Mesh>>| {
             let mut materials = world.resource_mut::<Assets<StandardMaterial>>();
             (
-                build_barrier_assets(&mut meshes, &mut materials, &map_settings.barrier_kinds),
+                build_barrier_assets(&mut meshes, &mut materials, &map_settings.barrier_kinds, pickup_glow),
                 build_bridge_assets(&mut meshes, &mut materials, &map_settings.bridge_kinds),
                 ProjectileAssets::new(&mut meshes, &mut materials, gameplay_config.projectiles.radius),
             )

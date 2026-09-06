@@ -17,6 +17,7 @@
     }
   },
   "vfx": {
+    "pickup_emissive_brightness": 1.0,
     "missile_exhaust": {
       "particles_per_sec": 600.0,
       "particle_size": 0.02,

@@ -25,8 +25,8 @@ death/respawn flow.
 ## Gameplay
 
 - **Quests** — objectives assigned at login, worth points when completed.
-- **Cookies** — scattered pickups worth score and quest progress.
-- **Power-ups** — speed, multi-shot, low-gravity, and instant-heal potions.
+- **Cookies** — collect gold coins for score and quest progress.
+- **Power-ups** — speed, multi-shot, low-gravity, and instant-heal pickups.
 - **Seeking missiles** — collect a pack, lock onto a target, and fire; the
   missile flies the map's airspace to it.
 - **Portal guns** — collect a gun to place linked portals and travel between them.

@@ -1,7 +1,9 @@
-use crate::constants::PROJECTILE_BODY_EMISSIVE;
 use bevy::prelude::*;
 
-use crate::characters::PreviousTickPosition;
+use crate::{
+    characters::PreviousTickPosition,
+    constants::{PROJECTILE_BODY_EMISSIVE, PROJECTILE_COLOR},
+};
 use common::{
     config::GameplayConfig,
     physics::{CollisionWorld, ProjectileMotion, ProjectileSpawnInfo, calculate_projectile_spawns},
@@ -30,8 +32,8 @@ impl ProjectileAssets {
 
 fn projectile_material(brightness: f32) -> StandardMaterial {
     StandardMaterial {
-        base_color: Color::srgb(brightness, brightness, 0.0),
-        emissive: LinearRgba::rgb(brightness, brightness, 0.0),
+        base_color: PROJECTILE_COLOR,
+        emissive: (LinearRgba::from(PROJECTILE_COLOR) * brightness).with_alpha(1.0),
         ..default()
     }
 }

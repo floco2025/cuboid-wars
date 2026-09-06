@@ -18,7 +18,7 @@ pub fn items_animation_system(
     for (position, mut transform, mut timer) in &mut query {
         timer.0 += delta * ITEM_ANIMATION_SPEED;
         let offset = (timer.0 * TAU).sin() * ITEM_ANIMATION_HEIGHT;
-        transform.translation.y = position.y + ITEM_HEIGHT_ABOVE_FLOOR + ITEM_SIZE / 2.0 + offset;
+        transform.translation.y = position.y + ITEM_HEIGHT_ABOVE_FLOOR + offset;
     }
 }
 
@@ -28,12 +28,12 @@ pub fn items_animation_system(
 pub struct YSpinTimer(pub f32);
 
 // Optional fixed orientation that the spin composes on top of. Use it when
-// the mesh needs a specific "up" (e.g. apex-up tetrahedron, tilted capsule);
+// the mesh needs a specific "up" (e.g. an upright portal ring or tilted missile);
 // omit it when the mesh is rotationally symmetric and the raw spin works.
 #[derive(Component)]
 pub struct YSpinBase(pub Quat);
 
-// Slow Y-axis spin shared by keys and power-ups. When `YSpinBase` is present
+// Slow Y-axis spin shared by all pickups. When `YSpinBase` is present
 // the final rotation is `Quat::from_rotation_y(timer) * base`, so the chosen
 // up direction stays constant while the mesh sweeps around Y.
 pub fn y_spin_system(time: Res<Time>, mut query: Query<(&mut Transform, &mut YSpinTimer, Option<&YSpinBase>)>) {

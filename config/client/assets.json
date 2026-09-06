@@ -182,33 +182,6 @@
         "metallic_roughness": "textures/fiberous-plaster1-ue/fiberous_plaster_metallic-roughness.png"
       }
     },
-    "hammered-gold": {
-      "metallic": 1.0,
-      "roughness": 1.0,
-      "repeat": false,
-      "linear_data_textures": false,
-      "textures": {
-        "base_color": "textures/hammered-gold-ue/hammered-gold_albedo.png",
-        "normal": "textures/hammered-gold-ue/hammered-gold_normal-dx.png",
-        "occlusion": "textures/hammered-gold-ue/hammered-gold_ao.png",
-        "metallic_roughness": "textures/hammered-gold-ue/hammered-gold_metallic-roughness.png"
-      }
-    },
-    "space-cruiser-panels2": {
-      "base_color": "item_type_color",
-      "emissive": "item_type_color",
-      "emissive_strength": 0.1,
-      "metallic": 1.0,
-      "roughness": 1.0,
-      "repeat": false,
-      "linear_data_textures": false,
-      "textures": {
-        "base_color": "textures/space-cruiser-panels2-ue/space-cruiser-panels2_albedo.png",
-        "normal": "textures/space-cruiser-panels2-ue/space-cruiser-panels2_normal-dx.png",
-        "occlusion": "textures/space-cruiser-panels2-ue/space-cruiser-panels2_ao.png",
-        "metallic_roughness": "textures/space-cruiser-panels2-ue/space-cruiser-panels2_metallic-roughness.png"
-      }
-    },
     "mud-with-vegetation": {
       "tile_size": 6.0,
       "metallic": 0.5,
@@ -251,10 +224,6 @@
     "upper-interior-walls": "forest-wallpaper",
     "rooftop-wall": "stucco1",
     "perimeter-wall": "patched-brickwork"
-  },
-  "item_materials": {
-    "Cookie": "hammered-gold",
-    "default": "space-cruiser-panels2"
   },
   "ladder": {
     "material": "used-stainless-steel"

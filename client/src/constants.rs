@@ -183,19 +183,20 @@ pub const FEED_CHAT_TEXT_COLOR: Color = Color::srgba(1.0, 1.0, 1.0, 1.0);
 pub const CONSOLE_TEXT_COLOR: Color = Color::srgba(1.0, 0.85, 0.4, 1.0);
 
 // ============================================================================
-// Power-Up Items
+// Pickup Items
 // ============================================================================
 
 pub const ITEM_SIZE: f32 = 0.3;
-pub const ITEM_HEIGHT_ABOVE_FLOOR: f32 = 1.1;
+pub const ITEM_HEIGHT_ABOVE_FLOOR: f32 = 1.25;
 pub const ITEM_ANIMATION_HEIGHT: f32 = 0.2; // bob amplitude (m); peak-to-peak swing is 2×
 pub const ITEM_ANIMATION_SPEED: f32 = 0.8;
-pub const ITEM_SPIN_HZ: f32 = 0.4; // slow coin-spin around Y for keys + power-ups
+pub const ITEM_SPIN_HZ: f32 = 0.4;
 // The map editor mirrors these colors (tools/map_editor/constants.py
 // `ITEM_TYPE_COLORS`) — keep the two in sync.
-pub const ITEM_SPEED_COLOR: Color = Color::srgb(1.00, 0.85, 0.15); // Yellow (lightning)
-pub const ITEM_MULTISHOT_COLOR: Color = Color::srgb(1.00, 0.25, 0.25); // Red
-pub const ITEM_LOW_GRAVITY_COLOR: Color = Color::srgb(0.30, 0.85, 1.00); // Cyan
+pub const ITEM_SPEED_COLOR: Color = Color::srgb(1.00, 0.85, 0.15); // Yellow
+pub const ITEM_MULTISHOT_COLOR: Color = PROJECTILE_COLOR;
+pub const ITEM_LOW_GRAVITY_COLOR: Color = Color::WHITE;
+pub const ITEM_COIN_COLOR: Color = Color::srgb(1.0, 0.72, 0.12);
 pub const ITEM_HEALTH_COLOR: Color = Color::srgb(0.20, 0.95, 0.30); // Green (heal / potion)
 pub const ITEM_MISSILE_COLOR: Color = Color::srgb(0.95, 0.45, 0.10); // Orange (missile pack)
 
@@ -240,30 +241,20 @@ pub const PORTAL_VIEW_BLEND_SECS: f32 = 0.25;
 // Cookies
 // ============================================================================
 
-pub const COOKIE_SIZE: f32 = 0.15; // sphere radius
-pub const COOKIE_HEIGHT: f32 = 0.16; // above floor
+pub const COOKIE_SIZE: f32 = 0.15; // coin radius
 
 // ============================================================================
 // Keys
 // ============================================================================
 
-// Visual: a small rotating cuboid that reuses the matching barrier material
-// (translucent, pulsating). Width = height = ~face plate; depth = thin slab.
-pub const KEY_WIDTH: f32 = 0.8;
-pub const KEY_HEIGHT: f32 = 0.8;
+pub const KEY_SIZE: f32 = 0.8;
 pub const KEY_DEPTH: f32 = 0.1;
-pub const KEY_HEIGHT_ABOVE_FLOOR: f32 = 0.6;
 
-// HUD: thin vertical bars next to the player name, after the power-up icons.
-// Shape (narrow vertical) is intentionally different from the 12×12 power-up
-// squares so the two categories read as different.
-pub const KEY_HUD_ICON_SIZE_PX: f32 = 10.0;
-// Icon strip spacing: tight within a category; the power-up / missile / key
-// groups spread across the entry, and this is the least they get when packed.
+pub const POWER_UP_HUD_ICON_SIZE_PX: f32 = 18.0;
+pub const KEY_HUD_ICON_SIZE_PX: f32 = 18.0;
 pub const HUD_ICON_GAP_PX: f32 = 3.0;
-pub const HUD_ICON_CATEGORY_GAP_PX: f32 = 6.0;
-pub const MISSILE_HUD_ICON_WIDTH_PX: f32 = 3.0;
-pub const MISSILE_HUD_ICON_HEIGHT_PX: f32 = 12.0;
+pub const HUD_ICON_CATEGORY_GAP_PX: f32 = 8.0;
+pub const MISSILE_HUD_ICON_HEIGHT_PX: f32 = 18.0;
 // Unfilled slot in the player-list strips (power-up not active, key not
 // held, missile bay empty). Every slot always renders so the row width
 // never changes on pickup.
@@ -275,6 +266,7 @@ pub const HUD_SLOT_EMPTY_COLOR: Color = Color::srgba(1.0, 1.0, 1.0, 0.12);
 
 // Configured spark count and speed are calibrated at this impact speed.
 // Glow of the projectile body itself.
+pub const PROJECTILE_COLOR: Color = Color::WHITE;
 pub const PROJECTILE_BODY_EMISSIVE: f32 = 5.0;
 // Impact sparks: base burst size (scaled by impact speed), particle size,
 // launch speed, lifetime, and brightness.

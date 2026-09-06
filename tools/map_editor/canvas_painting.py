@@ -30,6 +30,7 @@ from .constants import (
     SPAWN_ZONE_MODES,
     SPAWN_ZONE_HANDLE_PIXELS,
 )
+from .symbols import ITEM_SYMBOLS, paint_item_symbol
 from .nested_maps import nested_map_label, nested_map_rest_points
 from .normalization import ladder_spans_level, nested_map_spans_level
 
@@ -341,10 +342,6 @@ class CanvasPaintingMixin:
 
     def _paint_items(self, painter: QPainter, cell: float, level_idx: int) -> None:
         # Glyphs mirror the in-game meshes (client/src/items/spawn.rs):
-        # cookie = small sphere, speed = tetrahedron, multi_shot =
-        # cube, low_gravity = sphere, health potion = capsule. Keys: diamond
-        # in the barrier-kind color — shape-distinct from the plates' inset
-        # squares so a key on a plate cell still reads.
         items = self.window.map_data.get(ITEMS_LIST, [])
         if not items:
             return
@@ -355,17 +352,12 @@ class CanvasPaintingMixin:
             cx = (item["col"] + 0.5) * cell
             cy = (item["row"] + 0.5) * cell
             item_type = item["type"]
-            if item_type == ITEM_KEY_TYPE:
-                painter.setBrush(QColor(self.window.barrier_kind_colors.get(item.get("kind", ""), "#cccccc")))
-                half = cell * 0.28
-                painter.drawPolygon(
-                    [
-                        QPoint(round(cx), round(cy - half)),
-                        QPoint(round(cx + half), round(cy)),
-                        QPoint(round(cx), round(cy + half)),
-                        QPoint(round(cx - half), round(cy)),
-                    ]
+            if item_type in ITEM_SYMBOLS:
+                color = (
+                    self.window.barrier_kind_colors.get(item.get("kind", ""), "#cccccc")
+                    if item_type == ITEM_KEY_TYPE else ITEM_TYPE_COLORS[item_type]
                 )
+                paint_item_symbol(painter, item_type, cx, cy, cell * 0.65, QColor(color))
                 continue
             painter.setBrush(QColor(ITEM_TYPE_COLORS.get(item_type, "#f8fafc")))
             if item_type == "portal_gun":
@@ -375,40 +367,15 @@ class CanvasPaintingMixin:
                 painter.drawEllipse(QRectF(cx - cell * 0.16, cy - cell * 0.30, cell * 0.32, cell * 0.60))
                 painter.restore()
             elif item_type == "cookie":
-                # Half the power-up size, like COOKIE_SIZE vs ITEM_SIZE.
+                # Coins keep their smaller footprint beside the equipment pickups.
                 radius = cell * 0.13
                 painter.drawEllipse(QRectF(cx - radius, cy - radius, radius * 2, radius * 2))
-            elif item_type == "speed":
-                half = cell * 0.26
-                painter.drawPolygon(
-                    [
-                        QPoint(round(cx), round(cy - half)),
-                        QPoint(round(cx + half), round(cy + half)),
-                        QPoint(round(cx - half), round(cy + half)),
-                    ]
-                )
-            elif item_type == "multi_shot":
-                half = cell * 0.22
-                painter.drawRect(QRectF(cx - half, cy - half, half * 2, half * 2))
-            elif item_type == "health_potion":
-                half_w = cell * 0.16
-                half_h = cell * 0.30
-                painter.drawRoundedRect(QRectF(cx - half_w, cy - half_h, half_w * 2, half_h * 2), half_w, half_w)
-            elif item_type == "missile_pack":
-                # Rocket silhouette: slim body rect + nose triangle.
-                half_w = cell * 0.10
-                half_h = cell * 0.24
-                painter.drawRect(QRectF(cx - half_w, cy - half_h * 0.4, half_w * 2, half_h * 1.4))
-                painter.drawPolygon(
-                    [
-                        QPoint(round(cx), round(cy - half_h)),
-                        QPoint(round(cx + half_w), round(cy - half_h * 0.4)),
-                        QPoint(round(cx - half_w), round(cy - half_h * 0.4)),
-                    ]
-                )
-            else:  # low_gravity — sphere
-                radius = cell * 0.24
-                painter.drawEllipse(QRectF(cx - radius, cy - radius, radius * 2, radius * 2))
+                painter.save()
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                painter.setPen(QPen(QColor("#fff1b8"), max(1.0, cell * 0.02)))
+                inset = radius * 0.64
+                painter.drawEllipse(QRectF(cx - inset, cy - inset, inset * 2, inset * 2))
+                painter.restore()
         painter.setPen(Qt.PenStyle.NoPen)
 
     def _paint_ramps(self, painter: QPainter, cell: float, level_idx: int) -> None:

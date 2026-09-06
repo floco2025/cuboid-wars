@@ -5,13 +5,23 @@ use super::settings::{validate_non_negative_finite, validate_positive_finite};
 
 #[derive(Debug, Clone, Copy, Deserialize)]
 #[serde(default)]
-#[derive(Default)]
 pub struct VfxConfig {
+    pub pickup_emissive_brightness: f32,
     pub missile_exhaust: MissileExhaustVfxConfig,
+}
+
+impl Default for VfxConfig {
+    fn default() -> Self {
+        Self {
+            pickup_emissive_brightness: 3.0,
+            missile_exhaust: MissileExhaustVfxConfig::default(),
+        }
+    }
 }
 
 impl VfxConfig {
     pub(super) fn validate(&self) -> Result<()> {
+        validate_non_negative_finite(self.pickup_emissive_brightness, "vfx.pickup_emissive_brightness")?;
         self.missile_exhaust.validate()
     }
 }

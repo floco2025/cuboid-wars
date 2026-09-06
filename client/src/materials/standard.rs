@@ -51,24 +51,6 @@ impl MaterialDef {
             ..default()
         }
     }
-
-    #[must_use]
-    pub fn standard_item_material(
-        &self,
-        asset_server: &AssetServer,
-        item_color: Color,
-        anisotropy: u16,
-        mipmaps_enabled: bool,
-    ) -> StandardMaterial {
-        let mut material = self.standard_material(asset_server, anisotropy, mipmaps_enabled);
-        if self.base_color.as_deref() == Some("item_type_color") {
-            material.base_color = item_color;
-        }
-        if self.emissive.as_deref() == Some("item_type_color") {
-            material.emissive = LinearRgba::from(item_color) * self.emissive_strength.unwrap_or(1.0);
-        }
-        material
-    }
 }
 
 fn load_texture(
