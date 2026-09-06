@@ -4,7 +4,9 @@ use super::super::context::ServerMessageContext;
 use crate::{
     audio::{play_explosion_sound, play_sound, play_spatial_sound},
     characters::PreviousTickPosition,
-    network::{ServerReconciliation, extrapolated_correction, recorded_correction, resources::accept_newer_tick},
+    network::{
+        ServerReconciliation, TickSync, extrapolated_correction, recorded_correction, resources::accept_newer_tick,
+    },
     players::{CameraShake, CrossingVerdict, CuboidShake, LocalPlayerInfo, PlayerMap},
     projectiles::spawn_projectiles,
     ui::{BannerMessage, HudBanner},
@@ -37,8 +39,18 @@ pub(in crate::network) fn handle_player_moves_message(
     if context.tick_sync.takes_rough_seed() {
         context.server_tick.0 = tick.wrapping_add(1);
     }
+    // Measure the clock before rejecting disputed portal crossings, or a startup misprediction can block its own recovery.
+    if let Some(own_move) = message.moves.iter().find(|movement| movement.id == my_player_id) {
+        sync_player_clock(
+            tick,
+            own_move.move_seq,
+            &context.local_player_info,
+            &mut context.tick_sync,
+            &mut context.server_tick,
+            &mut context.players,
+        );
+    }
     let clock_seeded = context.tick_sync.is_seeded();
-    let mut clock_shift = None;
     for PlayerMove {
         id,
         movement,
@@ -109,22 +121,11 @@ pub(in crate::network) fn handle_player_moves_message(
             );
             let correction_delta = if id == my_player_id {
                 // Own state names the `CMove` it reflects: measure against
-                // where our simulation stood after that `CMove`, and our
-                // clock against the tick we simulated it at. One the ring
+                // where our simulation stood after that `CMove`. One the ring
                 // does not hold (before the first commit, after a snap, or
                 // after a one-way stall longer than the ring) is measured
                 // against where we stand now, the plain gap to the server.
                 let recorded = context.local_player_info.committed_positions.get(move_seq, hops);
-                if let Some(recorded) = recorded {
-                    let error = tick.wrapping_sub(recorded.tick) as i32;
-                    trace!("clock error {error} ticks at the echo of seq {move_seq}");
-                    let committed_seq = context.local_player_info.move_seq;
-                    if let Some(shift) = context.tick_sync.observe(error, move_seq, committed_seq) {
-                        context.server_tick.0 = context.server_tick.0.wrapping_add_signed(shift);
-                        clock_shift = Some(shift);
-                        info!("clock shifted by {shift} ticks to {}", context.server_tick.0);
-                    }
-                }
                 let recorded_pos = recorded.map_or(*client_pos, |recorded| recorded.pos);
                 recorded_correction(recorded_pos, movement.pos)
             } else {
@@ -138,12 +139,27 @@ pub(in crate::network) fn handle_player_moves_message(
             ));
         }
     }
-    // A crossing tick recorded under the old clock keeps its meaning under
-    // the shifted one.
-    if let Some(shift) = clock_shift {
-        for player in context.players.values_mut() {
+}
+
+fn sync_player_clock(
+    tick: u32,
+    move_seq: u32,
+    local_player_info: &LocalPlayerInfo,
+    tick_sync: &mut TickSync,
+    server_tick: &mut ServerTick,
+    players: &mut PlayerMap,
+) {
+    let Some(recorded_tick) = local_player_info.committed_positions.tick_for_seq(move_seq) else {
+        return;
+    };
+    let error = tick.wrapping_sub(recorded_tick) as i32;
+    trace!("clock error {error} ticks at the echo of seq {move_seq}");
+    if let Some(shift) = tick_sync.observe(error, move_seq, local_player_info.move_seq) {
+        server_tick.0 = server_tick.0.wrapping_add_signed(shift);
+        for player in players.values_mut() {
             player.hop_tick = player.hop_tick.wrapping_add_signed(shift);
         }
+        info!("clock shifted by {shift} ticks to {}", server_tick.0);
     }
 }
 
@@ -456,7 +472,7 @@ fn apply_player_death(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::players::PlayerInfo;
+    use crate::{constants::HOP_DISPUTE_SLACK_TICKS, players::PlayerInfo};
     use common::config::{KnockbackConfig, PlayerMovementConfig};
     use std::collections::HashMap;
 
@@ -496,6 +512,46 @@ mod tests {
             hop_tick: 0,
             disputed_since: None,
         }
+    }
+
+    #[test]
+    fn first_echo_measures_clock_during_a_crossing_dispute() {
+        let id = PlayerId(7);
+        let mut player = player_info(Entity::PLACEHOLDER, "Alice");
+        player.hops = 1;
+        player.hop_tick = 10;
+        let mut players = PlayerMap::default();
+        players.insert(id, player);
+        let mut local = LocalPlayerInfo {
+            move_seq: 1,
+            ..default()
+        };
+        local.committed_positions.record(1, 1, 10, Position::default());
+        let mut clock = TickSync::default();
+        assert!(clock.takes_rough_seed());
+        let mut tick = ServerTick(11);
+
+        sync_player_clock(20, 1, &local, &mut clock, &mut tick, &mut players);
+
+        assert!(clock.is_seeded());
+        assert_eq!(tick.0, 21);
+        assert!(local.committed_positions.get(1, 0).is_none());
+        let player = players.get_mut(&id).expect("local player missing from the map");
+        assert_eq!(player.hop_tick, 20);
+        assert_eq!(
+            player.judge_crossing(19, 0, clock.is_seeded()),
+            CrossingVerdict::Skipped
+        );
+        assert_eq!(player.disputed_since, None);
+        assert_eq!(
+            player.judge_crossing(20, 0, clock.is_seeded()),
+            CrossingVerdict::Skipped
+        );
+        assert_eq!(
+            player.judge_crossing(20 + HOP_DISPUTE_SLACK_TICKS, 0, clock.is_seeded()),
+            CrossingVerdict::Settled
+        );
+        assert_eq!(player.hops, 0);
     }
 
     #[test]

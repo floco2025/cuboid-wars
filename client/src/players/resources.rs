@@ -196,6 +196,11 @@ impl CommittedPositionRing {
         self.0[Self::slot(seq)].filter(|c| c.seq == seq && c.hops == hops)
     }
 
+    #[must_use]
+    pub fn tick_for_seq(&self, seq: u32) -> Option<u32> {
+        self.0[Self::slot(seq)].filter(|c| c.seq == seq).map(|c| c.tick)
+    }
+
     pub fn clear(&mut self) {
         *self = Self::default();
     }
@@ -386,8 +391,10 @@ mod tests {
     fn committed_position_misses_an_unrecorded_seq() {
         let mut positions = CommittedPositionRing::default();
         assert!(positions.get(0, 0).is_none());
+        assert!(positions.tick_for_seq(0).is_none());
         positions.record(7, 0, 0, Position::default());
         assert!(positions.get(7 + COMMITTED_POSITION_RING_LEN as u32, 0).is_none());
+        assert!(positions.tick_for_seq(7 + COMMITTED_POSITION_RING_LEN as u32).is_none());
     }
 
     #[test]
@@ -396,14 +403,16 @@ mod tests {
         positions.record(7, 0, 0, Position::default());
         positions.record(7 + COMMITTED_POSITION_RING_LEN as u32, 0, 0, Position::default());
         assert!(positions.get(7, 0).is_none());
+        assert!(positions.tick_for_seq(7).is_none());
     }
 
     #[test]
     fn committed_position_misses_from_the_other_side_of_a_crossing() {
         let mut positions = CommittedPositionRing::default();
-        positions.record(7, 1, 0, Position::default());
+        positions.record(7, 1, 100, Position::default());
         assert!(positions.get(7, 0).is_none());
         assert!(positions.get(7, 1).is_some());
+        assert_eq!(positions.tick_for_seq(7), Some(100));
     }
 
     #[test]
@@ -412,5 +421,6 @@ mod tests {
         positions.record(7, 0, 0, Position::default());
         positions.clear();
         assert!(positions.get(7, 0).is_none());
+        assert!(positions.tick_for_seq(7).is_none());
     }
 }
