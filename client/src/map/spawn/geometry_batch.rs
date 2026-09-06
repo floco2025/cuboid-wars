@@ -181,10 +181,10 @@ impl MeshBatch {
         assert_eq!(positions.len(), uvs.len(), "map mesh positions/uvs must match");
 
         for ((position, normal), uv) in positions.iter().zip(normals).zip(uvs) {
-            let world_position = transform.transform_point(Vec3::from_array(*position));
-            let world_normal = transform.rotation * Vec3::from_array(*normal);
-            self.positions.push(world_position.to_array());
-            self.normals.push(world_normal.normalize_or_zero().to_array());
+            let carrier_position = transform.transform_point(Vec3::from_array(*position));
+            let carrier_normal = transform.rotation * Vec3::from_array(*normal);
+            self.positions.push(carrier_position.to_array());
+            self.normals.push(carrier_normal.normalize_or_zero().to_array());
             self.uvs.push(*uv);
         }
     }

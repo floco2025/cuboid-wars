@@ -1,4 +1,5 @@
 mod bridge_power;
+mod carrier_contacts;
 mod carrier_sync;
 mod colliders;
 mod collision_world;

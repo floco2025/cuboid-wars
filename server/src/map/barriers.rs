@@ -1,4 +1,4 @@
-// Barrier compilation: authored one-edge barriers become world-space
+// Barrier compilation: authored one-edge barriers become carrier-local
 // `Barrier` records in two passes. `stack_barriers` converts each edge and
 // continues a barrier straight up into the same-kind barrier above it when
 // no floor slab beside the edge splits them, so a floorless storey gap stays
@@ -63,7 +63,7 @@ fn has_floor_beside(slab_mask: &Mask, edge: GridEdge) -> bool {
     })
 }
 
-// Convert every level's authored edges into world-space records, one per
+// Convert every level's authored edges into carrier-local records, one per
 // run of stacked same-kind barriers. `slab_masks[level]` marks the floor
 // slabs at that level's y, the ones that would split the storey below from
 // it.
@@ -106,9 +106,7 @@ pub(crate) fn stack_barriers(levels: &[Vec<BarrierEdge>], slab_masks: &[Mask], g
     barriers
 }
 
-// One-storey world-space segment. Mirrors the wall world-space math
-// (cell-corner → world-corner via `MapGeometry`) so a barrier visually
-// occupies the same edge as a wall would.
+// Use the wall's grid-to-carrier conversion so barriers occupy the same edges.
 fn barrier_from_edge(barrier: &BarrierEdge, geometry: &MapGeometry, level: u8) -> Barrier {
     let [c0, r0, c1, r1] = barrier.edge;
     Barrier {

@@ -1,7 +1,7 @@
-// Wall generation: turn canonical grid-line wall flags into world-space `Wall`
+// Wall generation: turn canonical grid-line wall flags into carrier-local `Wall`
 // segments, with corner-correct insets and extensions for T-junctions and
 // L-corners. The map compiler sets the cell flags from explicit wall
-// edges; this module emits the world-space segments.
+// edges; this module emits the carrier-local segments.
 
 use super::{
     edges::{has_horizontal_edge, has_vertical_edge},

@@ -28,8 +28,8 @@ pub fn batch_floor(
     let center_y = floor.y - floor.thickness / 2.0;
     let size_x = (floor.x2 - floor.x1).abs();
     let size_z = (floor.z2 - floor.z1).abs();
-    let world_center = Vec3::new(center_x, center_y, center_z);
-    let transform = Transform::from_translation(world_center);
+    let carrier_center = Vec3::new(center_x, center_y, center_z);
+    let transform = Transform::from_translation(carrier_center);
     let kind = if level.level == 0 {
         MapGeometryKind::Ground
     } else {
@@ -43,7 +43,7 @@ pub fn batch_floor(
             floor.thickness,
             size_z,
             material_def.tile_size(),
-            world_center,
+            carrier_center,
             Quat::IDENTITY,
         );
         batcher.add_mesh(kind, floor.carrier, level, material_ids.primary(), &mesh, transform);
@@ -60,7 +60,7 @@ pub fn batch_floor(
         size_x,
         floor.thickness,
         size_z,
-        world_center,
+        carrier_center,
         north_material_def.tile_size(),
         south_material_def.tile_size(),
         east_material_def.tile_size(),

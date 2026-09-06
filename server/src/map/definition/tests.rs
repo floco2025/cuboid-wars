@@ -16,7 +16,8 @@ use crate::{
 use bevy::math::Vec3;
 use common::{
     config::PortalShotSettings,
-    physics::CollisionWorld,
+    map::Carriers,
+    physics::{CollisionWorld, compute_portal_placement},
     protocol::{BarrierKindTable, BridgeKindId, BridgeKindTable, CarrierId, FaceMaterials, Position},
 };
 
@@ -497,6 +498,48 @@ fn pressure_plate_barrier_is_open_for_pathfinding() {
         "pressure-plate (red) barrier must be treated as open for nav"
     );
     assert!(barrier_edges.vertical[0][2], "non-plate (blue) barrier must block nav");
+}
+
+#[test]
+fn compiled_wall_trim_blocks_portal_shots_through_the_storey_seam() {
+    let mut map = map_with_zones(
+        3,
+        vec![level(vec![[0, 0]]), level(Vec::new())],
+        Vec::new(),
+        vec![player_zone(0, 0, 0)],
+        Vec::new(),
+    );
+    for level in &mut map.levels {
+        for col in [1, 3] {
+            level.walls.push(WallDef {
+                c0: col,
+                r0: 0,
+                c1: col,
+                r1: 1,
+                materials: FaceMaterials::uniform("test"),
+            });
+        }
+    }
+    let (layout, config) = compile_map(&map, sizes(), &no_nested(), &empty_kind_table(), &no_bridges())
+        .expect("stacked wall map failed to compile");
+    let world = CollisionWorld::from_map_layout(&layout, &empty_kind_table());
+    let geometry = config.root_grid().geometry;
+    let seam_y = geometry.level_y(1) - geometry.floor_thickness() / 2.0;
+    let placement = compute_portal_placement(
+        Vec3::new(geometry.cell_center_x(0), seam_y, geometry.cell_center_z(0)),
+        Vec3::X,
+        0.0,
+        geometry.width(),
+        &world,
+        &layout,
+        &Carriers::default(),
+        PortalShotSettings::default(),
+        &[],
+    )
+    .expect("stacked wall seam has no fitting portal surface");
+    let front_face = geometry.cell_to_world_x(1) - geometry.wall_half_thickness();
+    assert!((placement.pos.x - front_face).abs() < 1e-4);
+    assert!(placement.normal.abs_diff_eq(Vec3::NEG_X, 1e-4));
 }
 
 fn barrier_corridor() -> MapDef {

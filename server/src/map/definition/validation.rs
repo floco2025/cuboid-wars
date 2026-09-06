@@ -5,7 +5,7 @@ use anyhow::{Context, Result, anyhow};
 use common::protocol::ItemType;
 
 use super::{
-    compile::ramp_spec_from_def,
+    geometry::ramp_spec_from_def,
     schema::{ActorSpawnZoneDef, LadderDef, LevelDef, MapDef, MotionDef, PlayerSpawnZoneDef, RampDef, WallSide},
 };
 use crate::config::is_valid_map_name;

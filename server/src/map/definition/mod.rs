@@ -1,4 +1,5 @@
 mod compile;
+mod geometry;
 mod load;
 mod schema;
 mod validation;

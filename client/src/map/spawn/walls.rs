@@ -57,8 +57,8 @@ pub fn batch_wall(
     let mesh_size_z = wall.width;
     let rotation = Quat::from_rotation_y(dz.atan2(dx));
 
-    let world_center = Vec3::new(center_x, wall.y + wall.height / 2.0, center_z);
-    let transform = Transform::from_translation(world_center).with_rotation(rotation);
+    let carrier_center = Vec3::new(center_x, wall.y + wall.height / 2.0, center_z);
+    let transform = Transform::from_translation(carrier_center).with_rotation(rotation);
 
     if material_ids.is_uniform() {
         let material_def = asset_set.material_by_id(material_ids.primary());
@@ -67,7 +67,7 @@ pub fn batch_wall(
             wall.height,
             mesh_size_z,
             material_def.tile_size(),
-            world_center,
+            carrier_center,
             rotation,
         );
         batcher.add_mesh(
@@ -99,7 +99,7 @@ pub fn batch_wall(
         mesh_size_x,
         wall.height,
         mesh_size_z,
-        world_center,
+        carrier_center,
         rotation,
         positive_x_material_def.tile_size(),
         negative_x_material_def.tile_size(),

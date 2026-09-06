@@ -59,10 +59,8 @@ pub(super) const BLADE_MAX_OVERHANG: f32 = TUFT_RADIUS + BLADE_TIP_LEAN_MAX;
 pub(super) const WIND_SWAY_FACTOR: f32 = 1.4;
 pub(super) const AABB_BASE_PAD: f32 = 0.01;
 
-// Positions are world-space (entity at `Transform::default()`, matching the
-// `MapGeometryBatch` convention). UV0 = (sway weight: 0 root / 1 tip,
-// per-blade phase) — a deliberate exception to the world-position-UV
-// convention, which exists for texture tiling; this material is untextured.
+// Positions are carrier-local. This untextured material uses UV0 for
+// sway weight (0 root / 1 tip) and per-blade phase instead of texture tiling.
 pub(super) fn grass_cell_mesh(
     cell: GrassCell,
     cell_size: f32,

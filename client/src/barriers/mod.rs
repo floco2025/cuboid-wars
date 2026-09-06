@@ -12,4 +12,4 @@ pub use pressure_plates::{
     pressure_plates_visibility_system,
 };
 pub use pulsate::barriers_pulsate_system;
-pub use spawn::{BarrierMarker, BarrierSpan, barriers_spawn_system, barriers_visibility_system};
+pub use spawn::{BarrierKind, BarrierMarker, barriers_spawn_system, barriers_visibility_system};

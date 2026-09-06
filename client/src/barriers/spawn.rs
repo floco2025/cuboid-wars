@@ -10,12 +10,8 @@ use common::protocol::{Barrier, BarrierKindId, MapLayout, PlateState};
 #[derive(Component)]
 pub struct BarrierMarker;
 
-// What the visibility rule needs beside `MapLevel`: the kind, hidden while
-// pressure plates hold it open.
 #[derive(Component)]
-pub struct BarrierSpan {
-    kind: BarrierKindId,
-}
+pub struct BarrierKind(BarrierKindId);
 
 // Spawn one entity per `Barrier` in the current `MapLayout`. Re-runs whenever
 // `MapLayout` is inserted or replaced (e.g., reconnect / map change).
@@ -63,7 +59,7 @@ fn spawn_barrier(
 ) {
     commands.spawn((
         BarrierMarker,
-        BarrierSpan { kind: barrier.kind },
+        BarrierKind(barrier.kind),
         level,
         ChildOf(carrier),
         Mesh3d(assets.mesh.clone()),
@@ -90,19 +86,14 @@ fn barrier_transform(barrier: &Barrier) -> Transform {
 pub fn barriers_visibility_system(
     plates: Res<PlateState>,
     focused: Res<FocusedMapLevel>,
-    mut barriers: Query<(&BarrierSpan, &MapLevel, &mut Visibility), With<BarrierMarker>>,
+    mut barriers: Query<(&BarrierKind, &MapLevel, &mut Visibility), With<BarrierMarker>>,
 ) {
     if !plates.is_changed() && !focused.is_changed() {
         return;
     }
     // An input change affects only some barriers; equal writes would retrigger propagation on the rest.
-    for (span, level, mut visibility) in &mut barriers {
-        visibility.set_if_neq(barrier_visibility(
-            &plates.open_barrier_kinds,
-            *focused,
-            span.kind,
-            *level,
-        ));
+    for (kind, level, mut visibility) in &mut barriers {
+        visibility.set_if_neq(barrier_visibility(&plates.open_barrier_kinds, *focused, kind.0, *level));
     }
 }
 

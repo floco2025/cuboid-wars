@@ -4,7 +4,7 @@ use bevy_math::Vec3;
 
 use super::{traversal::traverse_yaw, *};
 use crate::{
-    config::{CharacterPhysicsConfig, KnockbackConfig, MapMovementConfig, PlayerMovementConfig},
+    config::{CharacterPhysicsConfig, KnockbackConfig, MapMovementConfig, PlayerMovementConfig, PortalShotSettings},
     constants::{
         PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH, PORTAL_LIGHT_CLEARANCE, PORTAL_PROJECTILE_EXIT_STANDOFF,
         PORTAL_RIM_SCALE, TICK_SECS,
@@ -15,8 +15,12 @@ use crate::{
         AirborneMomentum, CharacterMovementResult, CharacterSupport, CharacterVerticalVelocity, CollisionWorld,
         KnockbackVelocity, ProjectileEvent, ProjectileMotion, earliest_projectile_event, momentum_displacement,
     },
-    protocol::{Carrier, CarrierId, FaceYaw, MapLayout, PlayerMoveIntent, Portal, PortalEnd, PortalPairId, Position},
-    test_geometry::{LEVEL_HEIGHT, WALL_HEIGHT},
+    protocol::{
+        Barrier, BarrierKindId, BarrierKindTable, BridgeKindId, Carrier, CarrierId, FaceYaw, Floor, LightBridge,
+        MapLayout, PlatePurpose, PlayerMoveIntent, Portal, PortalEnd, PortalPairId, Position, PressurePlate, Ramp,
+        Wall, WallLight,
+    },
+    test_geometry::{BARRIER_THICKNESS, BRIDGE_THICKNESS, FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS},
 };
 
 const CAP: f32 = 22.5;
@@ -753,11 +757,6 @@ fn half_placed_pair_is_inert() {
     assert!(hop.is_none());
 }
 
-use crate::{
-    protocol::{BarrierKindTable, Floor, PlatePurpose, PressurePlate, Ramp, Wall, WallLight},
-    test_geometry::{FLOOR_THICKNESS, WALL_THICKNESS},
-};
-
 // One 12 m wall along X at z = 0 (level 0) with the room floor on +Z.
 fn placement_layout() -> MapLayout {
     MapLayout {
@@ -807,6 +806,112 @@ fn placement_accepts_a_clear_wall_center() {
     let placement =
         place(&layout, Vec3::new(0.0, 1.6, 3.0), Vec3::new(0.0, 1.6, 0.0), PI).expect("clear wall center rejected");
     assert!((placement.normal - Vec3::Z).length() < 1e-4);
+}
+
+#[test]
+fn opening_a_barrier_exposes_a_fitting_portal_surface_behind_it() {
+    let mut layout = placement_layout();
+    layout.barriers.push(Barrier {
+        x1: -6.0,
+        z1: 2.0,
+        x2: 6.0,
+        z2: 2.0,
+        width: BARRIER_THICKNESS,
+        y: 0.0,
+        height: WALL_HEIGHT,
+        level: 0,
+        levels: 1,
+        kind: BarrierKindId(0),
+        carrier: CarrierId::WORLD,
+    });
+    let kinds = BarrierKindTable::from_ids(vec!["gate".into(), "other".into()]).expect("barrier catalog rejected");
+    let world = CollisionWorld::from_map_layout(&layout, &kinds);
+    for open in [vec![], vec![BarrierKindId(1)], vec![BarrierKindId(0)], vec![]] {
+        let placement = compute_portal_placement(
+            Vec3::new(0.0, 1.6, 4.0),
+            Vec3::NEG_Z,
+            0.0,
+            10.0,
+            &world,
+            &layout,
+            &Carriers::default(),
+            PortalShotSettings {
+                barriers_block: true,
+                light_bridges_block: true,
+            },
+            &open,
+        );
+        assert_eq!(placement.is_some(), open.contains(&BarrierKindId(0)));
+        if let Some(placement) = placement {
+            assert!((placement.pos.z - WALL_THICKNESS / 2.0).abs() < 1e-4);
+            assert!(placement.normal.abs_diff_eq(Vec3::Z, 1e-4));
+        }
+    }
+}
+
+#[test]
+fn bridge_power_controls_portal_placement_on_the_floor_and_ceiling_beyond_it() {
+    let floor = Floor {
+        x1: -3.0,
+        z1: -3.0,
+        x2: 3.0,
+        z2: 3.0,
+        y: 0.0,
+        thickness: FLOOR_THICKNESS,
+        level: 0,
+        carrier: CarrierId::WORLD,
+    };
+    let ceiling_y = 2.0 * LEVEL_HEIGHT;
+    let layout = MapLayout {
+        floors: vec![
+            floor,
+            Floor {
+                y: ceiling_y,
+                level: 2,
+                ..floor
+            },
+        ],
+        light_bridges: vec![LightBridge {
+            x1: -3.0,
+            z1: -3.0,
+            x2: 3.0,
+            z2: 3.0,
+            y: LEVEL_HEIGHT,
+            thickness: BRIDGE_THICKNESS,
+            level: 1,
+            kind: BridgeKindId(0),
+            carrier: CarrierId::WORLD,
+        }],
+        ..Default::default()
+    };
+    let mut world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
+    for powered in [false, true, false] {
+        world.set_powered_bridges(if powered { &[BridgeKindId(0)] } else { &[] });
+        for (origin_y, direction, surface_y) in [
+            (LEVEL_HEIGHT + 1.5, Vec3::NEG_Y, 0.0),
+            (LEVEL_HEIGHT - 1.5, Vec3::Y, ceiling_y - FLOOR_THICKNESS),
+        ] {
+            let placement = compute_portal_placement(
+                Vec3::Y * origin_y,
+                direction,
+                0.0,
+                20.0,
+                &world,
+                &layout,
+                &Carriers::default(),
+                PortalShotSettings {
+                    barriers_block: true,
+                    light_bridges_block: true,
+                },
+                &[],
+            );
+            assert_eq!(placement.is_some(), !powered);
+            if let Some(placement) = placement {
+                assert!((placement.pos.y - surface_y).abs() < 1e-4);
+                assert!(placement.normal.abs_diff_eq(-direction, 1e-4));
+            }
+        }
+    }
 }
 
 #[test]

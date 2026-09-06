@@ -89,7 +89,7 @@ pub struct LevelGrid {
     // carry keys). Pressure-plate barriers are omitted (treated as open): they
     // seal a room with no alternate route, so assuming open lets a returning
     // actor path home and physics holds it at the barrier until someone opens
-    // it. No geometry here; barriers render from their own world-space list.
+    // it. No geometry here; barriers render from their own carrier-local records.
     pub barrier_edges: EdgeGrid,
 }
 

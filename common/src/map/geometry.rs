@@ -2,8 +2,7 @@ use bevy_ecs::prelude::Resource;
 
 use crate::config::MapGeometryConfig;
 
-// Grid ↔ world conversion for one map: the grid is centered on the world
-// origin, and `sizes` carries the map's cell size and storey height.
+// Grid coordinates resolve in the carrier's frame, centered on its origin (world space on the world carrier).
 #[derive(Debug, Clone, Copy, Resource)]
 pub struct MapGeometry {
     pub grid_cols: i32,

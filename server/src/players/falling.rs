@@ -48,7 +48,7 @@ impl PlayerFallState {
         self.crushed
     }
 
-    pub(crate) fn set_support(&mut self, support: CharacterSupport, crushed: bool) {
+    pub(crate) fn record_movement(&mut self, support: CharacterSupport, crushed: bool) {
         self.support = support;
         self.crushed = crushed;
     }
@@ -369,10 +369,10 @@ mod tests {
     fn a_crush_is_reported_for_the_step_that_found_it() {
         let mut state = PlayerFallState::default();
 
-        state.set_support(CharacterSupport::Ground, true);
+        state.record_movement(CharacterSupport::Ground, true);
         assert!(state.is_crushed());
 
-        state.set_support(CharacterSupport::Ground, false);
+        state.record_movement(CharacterSupport::Ground, false);
         assert!(!state.is_crushed());
     }
 
@@ -408,7 +408,7 @@ mod tests {
         let (sender, mut receiver) = unbounded_channel();
         let mut info = PlayerInfo::new(entity, sender);
         info.connection.logged_in = true;
-        info.life.fall_state.set_support(CharacterSupport::Ground, true);
+        info.life.fall_state.record_movement(CharacterSupport::Ground, true);
         app.world_mut().resource_mut::<PlayerMap>().insert(id, info);
 
         app.update();
