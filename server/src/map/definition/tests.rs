@@ -8,12 +8,16 @@ use super::{
     },
     validation::validate_map,
 };
-use crate::test_geometry::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS, sizes};
+use crate::{
+    actors::navigation::NavGraph,
+    map::MapConfig,
+    test_geometry::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS, sizes},
+};
 use bevy::math::Vec3;
 use common::{
     config::PortalShotSettings,
     physics::CollisionWorld,
-    protocol::{BarrierKindTable, BridgeKindId, BridgeKindTable, FaceMaterials},
+    protocol::{BarrierKindTable, BridgeKindId, BridgeKindTable, CarrierId, FaceMaterials, Position},
 };
 
 fn empty_kind_table() -> BarrierKindTable {
@@ -493,6 +497,112 @@ fn pressure_plate_barrier_is_open_for_pathfinding() {
         "pressure-plate (red) barrier must be treated as open for nav"
     );
     assert!(barrier_edges.vertical[0][2], "non-plate (blue) barrier must block nav");
+}
+
+fn barrier_corridor() -> MapDef {
+    let mut map = map_with_zones(
+        3,
+        vec![level(vec![[0, 0], [1, 0], [2, 0]])],
+        Vec::new(),
+        vec![player_zone(0, 0, 0)],
+        Vec::new(),
+    );
+    for (col, kind) in [(1, "red"), (2, "blue")] {
+        map.levels[0].barriers.push(BarrierDef {
+            c0: col,
+            r0: 0,
+            c1: col,
+            r1: 1,
+            kind: kind.into(),
+        });
+    }
+    map
+}
+
+fn red_barrier_plate() -> PressurePlateDef {
+    PressurePlateDef {
+        level: 0,
+        col: 0,
+        row: 0,
+        purpose: PressurePlatePurposeDef::Barrier { kind: "red".into() },
+    }
+}
+
+fn assert_only_plate_barrier_allows_a_route(config: &MapConfig, carrier: CarrierId) {
+    let grid = config.grid(carrier);
+    let nav = NavGraph::new(grid);
+    let position = |col| Position {
+        x: grid.geometry.cell_center_x(col),
+        y: grid.geometry.level_y(0),
+        z: grid.geometry.cell_center_z(0),
+    };
+    assert!(
+        nav.engagement_route(&position(0), &position(1), 0.2, 0.2).is_some(),
+        "the red barrier's controlling plate must allow an actor route"
+    );
+    assert!(
+        nav.engagement_route(&position(1), &position(2), 0.2, 0.2).is_none(),
+        "the blue barrier has no controlling plate and must block actor routes"
+    );
+}
+
+#[test]
+fn a_nested_plate_allows_actor_routes_through_parent_barriers() {
+    let mut root = barrier_corridor();
+    root.nested_maps.push(nested("switch", 0, [0, 1], [1, 1], 0));
+    let mut switch = host(Vec::new());
+    switch.pressure_plates.push(red_barrier_plate());
+    let (_, config) = compile_map(
+        &root,
+        sizes(),
+        &tree(vec![("switch", switch)]),
+        &three_kind_table(),
+        &no_bridges(),
+    )
+    .expect("nested plate map failed to compile");
+
+    assert_only_plate_barrier_allows_a_route(&config, CarrierId::WORLD);
+}
+
+#[test]
+fn a_parent_plate_allows_actor_routes_through_nested_barriers() {
+    let mut root = host(vec![nested("corridor", 0, [0, 1], [1, 1], 0)]);
+    root.pressure_plates.push(red_barrier_plate());
+    let (_, config) = compile_map(
+        &root,
+        sizes(),
+        &tree(vec![("corridor", barrier_corridor())]),
+        &three_kind_table(),
+        &no_bridges(),
+    )
+    .expect("nested barrier map failed to compile");
+
+    assert_only_plate_barrier_allows_a_route(&config, CarrierId(1));
+}
+
+#[test]
+fn a_deeply_nested_plate_allows_actor_routes_through_a_siblings_barriers() {
+    let root = host(vec![
+        nested("corridor", 0, [0, 1], [1, 1], 0),
+        nested("middle", 0, [0, 3], [1, 3], 0),
+    ]);
+    let middle = host(vec![nested("switch", 0, [0, 1], [1, 1], 0)]);
+    let mut switch = host(Vec::new());
+    switch.pressure_plates.push(red_barrier_plate());
+    let (_, config) = compile_map(
+        &root,
+        sizes(),
+        &tree(vec![
+            ("corridor", barrier_corridor()),
+            ("middle", middle),
+            ("switch", switch),
+        ]),
+        &three_kind_table(),
+        &no_bridges(),
+    )
+    .expect("deeply nested plate map failed to compile");
+
+    assert_only_plate_barrier_allows_a_route(&config, CarrierId(1));
 }
 
 #[test]

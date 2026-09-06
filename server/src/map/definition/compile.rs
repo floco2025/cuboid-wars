@@ -1,6 +1,6 @@
 use anyhow::Context;
 use bevy::math::Vec3;
-use std::collections::HashSet;
+use std::{collections::HashSet, iter::once};
 
 use super::{
     load::LoadedMaps,
@@ -23,8 +23,8 @@ use common::{
     constants::LADDER_WIDTH,
     map::MapGeometry,
     protocol::{
-        BarrierKindId, BarrierKindTable, BridgeKindTable, Carrier, CarrierId, FaceMaterials, Floor, GrassCell,
-        ItemType, Ladder, LightBridge, MapLayout, PlatePurpose, PressurePlate, Wall, ticks_from_secs,
+        BarrierKindTable, BridgeKindTable, Carrier, CarrierId, FaceMaterials, Floor, GrassCell, ItemType, Ladder,
+        LightBridge, MapLayout, PlatePurpose, PressurePlate, Wall, ticks_from_secs,
     },
 };
 
@@ -54,6 +54,14 @@ pub(crate) fn compile_map(
         nested,
         kind_table,
         bridge_table,
+        plate_barrier_kinds: once(root)
+            .chain(nested.values())
+            .flat_map(|map| &map.pressure_plates)
+            .filter_map(|plate| match &plate.purpose {
+                PressurePlatePurposeDef::Barrier { kind } => Some(kind.as_str()),
+                PressurePlatePurposeDef::Bridge { .. } | PressurePlatePurposeDef::Firework => None,
+            })
+            .collect(),
     };
     compile_carrier(root, &scope, CarrierId::WORLD, &mut out)?;
     // The renderer indexes the material vectors by segment position, so any
@@ -69,6 +77,8 @@ struct CompileScope<'a> {
     nested: &'a LoadedMaps,
     kind_table: &'a BarrierKindTable,
     bridge_table: &'a BridgeKindTable,
+    // Plate effects span the whole tree; actors may plan through these barriers and wait for physics to let them pass.
+    plate_barrier_kinds: HashSet<&'a str>,
 }
 
 struct CompileOutput {
@@ -118,19 +128,7 @@ fn compile_carrier(
         })
         .collect();
 
-    // Barriers controlled by a pressure plate are treated as always open for
-    // actor pathfinding: actors can't open them, but they seal a room with no
-    // alternative route, so assuming open lets a returning actor head home and
-    // physics holds it at the barrier until someone opens it. Every other
-    // barrier (key-only / static) stays closed for actors.
     let pressure_plates = pressure_plates(map_def, kind_table, bridge_table, carrier)?;
-    let pressure_plate_kinds: HashSet<BarrierKindId> = pressure_plates
-        .iter()
-        .filter_map(|plate| match plate.purpose {
-            PlatePurpose::Barrier(kind) => Some(kind),
-            PlatePurpose::Bridge(_) | PlatePurpose::Firework => None,
-        })
-        .collect();
 
     let mut level_grids: Vec<LevelGrid> = map_def
         .levels
@@ -145,14 +143,8 @@ fn compile_carrier(
             for wall in &level.walls {
                 set_edge(&mut edge_grid, [wall.c0, wall.r0, wall.c1, wall.r1]);
             }
-            // Barriers sit on grid edges just like walls; mark the ones actors
-            // can never pass so pathfinding routes around them. Pressure-plate
-            // barriers are skipped (treated as open — see `pressure_plate_kinds`).
             for barrier in &level.barriers {
-                let opened_by_plate = kind_table
-                    .resolve(&barrier.kind)
-                    .is_ok_and(|kind| pressure_plate_kinds.contains(&kind));
-                if !opened_by_plate {
+                if !scope.plate_barrier_kinds.contains(barrier.kind.as_str()) {
                     set_edge(&mut barrier_edge_grid, [barrier.c0, barrier.r0, barrier.c1, barrier.r1]);
                 }
             }
