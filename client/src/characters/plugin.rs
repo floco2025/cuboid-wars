@@ -1,7 +1,10 @@
 use super::*;
 use bevy::prelude::*;
 
-use common::{physics::moving_floors_advance_system, protocol::server_tick_advance_system};
+use common::{
+    physics::{anchored_portals_refresh_system, moving_floors_advance_system},
+    protocol::server_tick_advance_system,
+};
 
 use crate::{
     actors::actors_transform_sync_system,
@@ -31,6 +34,7 @@ pub fn prediction_plugin(app: &mut App) {
             commit_player_input_system,
             capture_previous_tick_position_system,
             moving_floors_advance_system,
+            anchored_portals_refresh_system,
             characters_movement_system,
             knockback_decay_system,
             record_committed_position_system,

@@ -7,9 +7,19 @@ use crate::constants::{
 };
 use common::{
     constants::{PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH, PORTAL_RIM_SCALE},
+    map::MovingFloors,
     physics::PortalFrame,
-    protocol::{Portal, PortalEnd},
+    protocol::{Portal, PortalEnd, PortalPairId},
 };
+
+// Every rendered disc of one portal end: the main surface and each replica
+// on a portal camera's layer. Names the end so an anchored portal's discs
+// can follow its tile.
+#[derive(Component)]
+pub(super) struct PortalSurface {
+    pub(super) pair: PortalPairId,
+    pub(super) end: PortalEnd,
+}
 
 // One shared unit-disc mesh with per-end emissive fallback/rim materials.
 #[derive(Resource)]
@@ -53,17 +63,18 @@ fn portal_material(color: Color) -> StandardMaterial {
     }
 }
 
-pub fn spawn_portal(commands: &mut Commands, assets: &PortalAssets, portal: &Portal) -> Entity {
-    spawn_portal_visual(commands, assets, portal, MAIN_VIEW_RENDER_LAYER)
+pub fn spawn_portal(commands: &mut Commands, assets: &PortalAssets, portal: &Portal, floors: &MovingFloors) -> Entity {
+    spawn_portal_visual(commands, assets, portal, floors, MAIN_VIEW_RENDER_LAYER)
 }
 
 pub(super) fn spawn_portal_visual(
     commands: &mut Commands,
     assets: &PortalAssets,
     portal: &Portal,
+    floors: &MovingFloors,
     render_layer: usize,
 ) -> Entity {
-    let frame = PortalFrame::from_portal(portal);
+    let frame = PortalFrame::from_portal(portal, floors);
     let material = assets.material(portal.end);
     let render_layer = RenderLayers::layer(render_layer);
     commands
@@ -77,6 +88,10 @@ pub(super) fn spawn_portal_visual(
             },
             NotShadowCaster,
             render_layer.clone(),
+            PortalSurface {
+                pair: portal.pair,
+                end: portal.end,
+            },
         ))
         .with_children(|children| {
             children.spawn((

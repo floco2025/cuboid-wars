@@ -2,7 +2,7 @@ use bincode::{Decode, Encode};
 
 use bevy_ecs::prelude::Resource;
 
-use super::{PortalPairId, Position};
+use super::{MovingFloorId, PortalPairId, Position};
 
 // Which end of a portal pair. Ends are peers — travel works in both
 // directions — the split only gives re-shooting a stable target and the
@@ -39,11 +39,14 @@ impl PortalAccess {
     }
 }
 
-// One placed portal end: pure surface geometry. `pos` is the aperture center
-// on the hit surface and `(nx, ny, nz)` its outward unit normal — nothing
-// records what kind of surface was hit. `yaw` is the shooter's facing at
-// placement; it orients the aperture frame only where world-up is degenerate
-// (near-vertical normals).
+// One placed portal end: surface geometry plus, for a portal on a moving
+// floor, the tile it rides. `pos` is the aperture center — relative to the
+// tile's surface center when `anchor` names a tile, world space otherwise —
+// so the wire value stays the same while the tile moves and both sides
+// place the aperture from their own tile poses. `(nx, ny, nz)` is the
+// outward unit normal (tiles only translate, so it never changes). `yaw` is
+// the shooter's facing at placement; it orients the aperture frame only
+// where world-up is degenerate (near-vertical normals).
 #[derive(Debug, Copy, Clone, PartialEq, Encode, Decode)]
 pub struct Portal {
     pub pair: PortalPairId,
@@ -53,4 +56,5 @@ pub struct Portal {
     pub ny: f32,
     pub nz: f32,
     pub yaw: f32,
+    pub anchor: Option<MovingFloorId>,
 }

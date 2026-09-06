@@ -11,7 +11,7 @@ use crate::{
 use common::{
     config::GameplayConfig,
     constants::CHAT_MAX_CHARS,
-    map::MapGeometry,
+    map::{MapGeometry, MovingFloors},
     physics::{CharacterVerticalVelocity, CollisionWorld, player_jump_velocity},
     protocol::*,
 };
@@ -22,6 +22,7 @@ pub(super) struct SharedWorld<'w> {
     pub(super) map_settings: Res<'w, MapSettings>,
     pub(super) map_geometry: Res<'w, MapGeometry>,
     pub(super) collision_world: Res<'w, CollisionWorld>,
+    pub(super) moving_floors: Res<'w, MovingFloors>,
     pub(super) gameplay_config: Res<'w, GameplayConfig>,
     pub(super) map_config: Res<'w, MapConfig>,
     pub(super) server_gameplay_config: Res<'w, ServerGameplayConfig>,

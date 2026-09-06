@@ -16,6 +16,7 @@ use crate::{
 };
 use common::{
     config::GameplayConfig,
+    map::MovingFloors,
     math::direction_from_yaw_pitch,
     physics::{CollisionWorld, compute_portal_placement, portal_placement_overlaps},
     protocol::*,
@@ -25,6 +26,7 @@ use common::{
 pub struct PortalInputWorld<'w> {
     time: Res<'w, Time>,
     collision_world: Res<'w, CollisionWorld>,
+    moving_floors: Res<'w, MovingFloors>,
     map_layout: Res<'w, MapLayout>,
     portals: Res<'w, PortalMap>,
     gameplay_config: Res<'w, GameplayConfig>,
@@ -32,7 +34,7 @@ pub struct PortalInputWorld<'w> {
 
 // Portal-gun fire: both-access uses left=A and right=B; single-access uses
 // left for its assigned end. Placement is predicted with the same shared check the server
-// runs on the same static map data: a valid aperture sends the shot and its
+// runs on the same map data and tile poses: a valid aperture sends the shot and its
 // opening sound arrives with `SPortalOpened`; an invalid one (miss, doesn't
 // fit, covers a fixture) dry-fires immediately and sends nothing.
 pub fn input_portal_system(
@@ -94,9 +96,12 @@ pub fn input_portal_system(
         world.gameplay_config.portals.range,
         &world.collision_world,
         &world.map_layout,
+        &world.moving_floors,
     );
     let existing = world.portals.wire_portals();
-    if placement.is_none_or(|placement| portal_placement_overlaps(&placement, pair, end, &existing)) {
+    if placement
+        .is_none_or(|placement| portal_placement_overlaps(&placement, pair, end, &existing, &world.moving_floors))
+    {
         play_sound(&mut commands, &asset_server, asset_set.player_sound("dry_fire"));
         return;
     }

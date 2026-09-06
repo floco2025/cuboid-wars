@@ -786,6 +786,7 @@ mod tests {
                     ny: 1.0,
                     nz: 0.0,
                     yaw: 0.5,
+                    anchor: None,
                 },
             }),
             ServerMessage::PlayerBlast(SPlayerBlast {

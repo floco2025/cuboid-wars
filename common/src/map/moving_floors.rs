@@ -4,7 +4,7 @@ use bevy_math::Vec3;
 use crate::{
     config::CharacterPhysicsConfig,
     constants::MOVING_FLOOR_RIDE_TOLERANCE,
-    protocol::{MapLayout, MovingFloor},
+    protocol::{MapLayout, MovingFloor, MovingFloorId},
 };
 
 // Where a tile's standing surface is centered at `tick`: out along the path,
@@ -87,6 +87,37 @@ impl MovingFloors {
     pub fn interpolated_surface_center(&self, index: usize, alpha: f32) -> Option<Vec3> {
         let runtime = self.floors.get(index)?;
         Some(runtime.previous.lerp(runtime.current, alpha))
+    }
+
+    fn anchored(&self, id: MovingFloorId) -> &MovingFloorRuntime {
+        self.floors
+            .get(id.index())
+            .expect("portal anchored to a moving floor the map does not have")
+    }
+
+    // The surface center a tile-anchored portal's `pos` is relative to,
+    // at this tick; zero without an anchor, so a world position passes
+    // through unchanged.
+    #[must_use]
+    pub fn anchor_center(&self, anchor: Option<MovingFloorId>) -> Vec3 {
+        anchor.map_or(Vec3::ZERO, |id| self.anchored(id).current)
+    }
+
+    #[must_use]
+    pub fn anchor_center_between(&self, anchor: Option<MovingFloorId>, alpha: f32) -> Vec3 {
+        anchor.map_or(Vec3::ZERO, |id| {
+            let runtime = self.anchored(id);
+            runtime.previous.lerp(runtime.current, alpha)
+        })
+    }
+
+    // How far the anchor's tile moved this tick; zero without an anchor.
+    #[must_use]
+    pub fn anchor_displacement(&self, anchor: Option<MovingFloorId>) -> Vec3 {
+        anchor.map_or(Vec3::ZERO, |id| {
+            let runtime = self.anchored(id);
+            runtime.current - runtime.previous
+        })
     }
 
     // How far the tile under a body moved this tick. A body rides the tile
@@ -211,6 +242,24 @@ mod tests {
         let floors = floors_at(slider(), 1);
         assert_eq!(floors.carry_at(Vec3::new(1.7, 0.0, 0.0), physics()), Vec3::ZERO);
         assert_eq!(floors.carry_at(Vec3::new(0.0, 0.0, -1.7), physics()), Vec3::ZERO);
+    }
+
+    #[test]
+    fn anchor_center_is_zero_without_an_anchor() {
+        let floors = floors_at(slider(), 1);
+        assert_eq!(floors.anchor_center(None), Vec3::ZERO);
+        assert_eq!(floors.anchor_displacement(None), Vec3::ZERO);
+        assert_eq!(floors.anchor_center_between(None, 0.5), Vec3::ZERO);
+    }
+
+    #[test]
+    fn anchor_displacement_is_the_tiles_tick_travel() {
+        let floors = floors_at(slider(), 1);
+        let anchor = Some(MovingFloorId(0));
+        assert!((floors.anchor_displacement(anchor) - Vec3::new(4.0 / 60.0, 0.0, 0.0)).length() < 1e-5);
+        assert_eq!(floors.anchor_center(anchor), surface_center_at(&slider(), 1));
+        let halfway = floors.anchor_center_between(anchor, 0.5);
+        assert!((halfway.x - 2.0 / 60.0).abs() < 1e-5, "halfway was {halfway}");
     }
 
     #[test]

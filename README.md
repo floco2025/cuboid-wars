@@ -30,9 +30,9 @@ death/respawn flow.
   instant-heal potions.
 - **Seeking missiles** — collect a pack, lock onto a target, and fire; the
   missile flies the map's airspace to it.
-- **Portal gun** — shoot portals onto any surface and step through one to
-  come out the other; a map hands you both ends or one end shared with a
-  partner, and playing alone you always get both.
+- **Portal gun** — shoot portals onto any surface, moving floors included,
+  and step through one to come out the other; a map hands you both ends or
+  one end shared with a partner, and playing alone you always get both.
 - **Barriers & keys** — coloured barriers block everyone; the matching key
   lets you through until you die.
 - **Light bridges** — ghostly walkways that turn solid while their plates are held.

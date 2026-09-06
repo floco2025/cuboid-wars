@@ -59,7 +59,7 @@ pub(super) fn handle_login_message(
     // A fresh assignment starts with no placed ends. Only a lone `single`
     // player's second end can be here: this player now controls it.
     if portals.remove_access(portal_access) {
-        *portal_set = portals.rebuild_set(&world.collision_world);
+        *portal_set = portals.rebuild_set(&world.collision_world, &world.moving_floors);
     }
     let init_message = ServerMessage::Init(SInit {
         player: PlayerBootstrap { id, portal_access },

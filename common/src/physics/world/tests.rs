@@ -398,8 +398,39 @@ fn a_powered_light_bridge_stays_out_of_sight_and_ground_probes() {
         world
             .world_surface_along_ray(above, bevy_math::Vec3::NEG_Y, 2.0)
             .is_none(),
-        "a portal never lands on it"
+        "the world ray ignores it"
     );
+}
+
+#[test]
+fn portal_surface_ray_hits_a_tile_and_names_it() {
+    use crate::protocol::MovingFloorId;
+
+    let mut layout = slider_layout();
+    layout.floors.push(Floor {
+        x1: -2.0,
+        z1: -2.0,
+        x2: 2.0,
+        z2: 2.0,
+        y: LEVEL_HEIGHT - 2.0,
+        thickness: FLOOR_THICKNESS,
+        level: 0,
+    });
+    let world = CollisionWorld::from_map_layout(&layout, &crate::protocol::BarrierKindTable::default());
+    let above = bevy_math::Vec3::new(0.0, LEVEL_HEIGHT + 1.0, 0.0);
+
+    let (hit, anchor) = world
+        .portal_surface_along_ray(above, bevy_math::Vec3::NEG_Y, 4.0)
+        .expect("the tile did not stop the portal ray");
+    assert!((hit.point.y - LEVEL_HEIGHT).abs() < 1e-3, "hit was {hit:?}");
+    assert_eq!(anchor, Some(MovingFloorId(0)));
+
+    let beside = bevy_math::Vec3::new(1.8, LEVEL_HEIGHT + 1.0, 0.0);
+    let (hit, anchor) = world
+        .portal_surface_along_ray(beside, bevy_math::Vec3::NEG_Y, 4.0)
+        .expect("the floor under the tile's edge was missed");
+    assert!((hit.point.y - (LEVEL_HEIGHT - 2.0)).abs() < 1e-3, "hit was {hit:?}");
+    assert_eq!(anchor, None);
 }
 
 fn slider_layout() -> MapLayout {

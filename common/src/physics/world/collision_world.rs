@@ -16,14 +16,15 @@ use crate::{
     config::CharacterPhysicsConfig,
     constants::PORTAL_BACKING_FLUSH_EPSILON,
     physics::characters::{character_center, character_shape},
-    protocol::{BarrierKindId, BarrierKindTable, BridgeKindId, MapLayout, Position},
+    protocol::{BarrierKindId, BarrierKindTable, BridgeKindId, MapLayout, MovingFloorId, Position},
 };
 
 use super::colliders::{
     BRIDGE_COLLISION_GROUP, ColliderKind, FLOOR_COLLISION_GROUP, MOVING_FLOOR_COLLISION_GROUP, WALL_COLLISION_GROUP,
     barrier_collision_group, character_collision_groups, collider_interaction_groups, ground_collision_groups,
     insert_barrier_collider, insert_bridge_collider, insert_floor_collider, insert_moving_floor_collider,
-    insert_ramp_collider, insert_wall_collider, query_filter, surface_collision_groups, world_collision_groups,
+    insert_ramp_collider, insert_wall_collider, portal_surface_collision_groups, query_filter,
+    surface_collision_groups, world_collision_groups,
 };
 
 use super::ladders::LadderVolume;
@@ -88,7 +89,8 @@ impl CollisionWorld {
 
         let mut moving_floor_colliders = Vec::with_capacity(map_layout.moving_floors.len());
         for (index, floor) in map_layout.moving_floors.iter().enumerate() {
-            let handle = insert_moving_floor_collider(&mut colliders, floor, index);
+            let id = MovingFloorId(u16::try_from(index).expect("more moving floors than MovingFloorId can index"));
+            let handle = insert_moving_floor_collider(&mut colliders, floor, id);
             collider_handles.push(handle);
             moving_floor_colliders.push(handle);
         }
@@ -147,6 +149,21 @@ impl CollisionWorld {
             &[],
             &mut events,
         );
+    }
+
+    #[must_use]
+    pub(crate) fn moving_floor_collider(&self, id: MovingFloorId) -> ColliderHandle {
+        self.moving_floor_colliders
+            .get(id.index())
+            .copied()
+            .expect("portal anchored to a moving floor the map does not have")
+    }
+
+    fn moving_floor_id(&self, handle: ColliderHandle) -> Option<MovingFloorId> {
+        self.moving_floor_colliders
+            .iter()
+            .position(|candidate| *candidate == handle)
+            .map(|index| MovingFloorId(index as u16))
     }
 
     // Bridge power is world state, not per-query state: the powered kinds'
@@ -326,11 +343,26 @@ impl CollisionWorld {
 
     // First static-world surface (wall/floor/ramp) along the ray — the same
     // filter as `line_of_sight_clear`, so a beam clipped at this point stops
-    // exactly where sight does. Light bridges are excluded, so a portal
-    // never lands on one.
+    // exactly where sight does. Light bridges and moving floors are
+    // excluded; a portal shot uses `portal_surface_along_ray`.
     #[must_use]
     pub fn world_surface_along_ray(&self, origin: Vec3, direction: Vec3, max_distance: f32) -> Option<WorldSurfaceHit> {
         self.surface_along_ray(origin, direction, max_distance, world_collision_groups())
+    }
+
+    // First surface a portal may land on along the ray: the static world or
+    // a moving floor, which the hit names so the portal can be anchored to
+    // it. Light bridges are excluded, so a portal never lands on one.
+    #[must_use]
+    pub(crate) fn portal_surface_along_ray(
+        &self,
+        origin: Vec3,
+        direction: Vec3,
+        max_distance: f32,
+    ) -> Option<(WorldSurfaceHit, Option<MovingFloorId>)> {
+        let (handle, hit) =
+            self.surface_with_handle_along_ray(origin, direction, max_distance, portal_surface_collision_groups())?;
+        Some((hit, self.moving_floor_id(handle)))
     }
 
     fn surface_along_ray(

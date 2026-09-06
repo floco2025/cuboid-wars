@@ -165,6 +165,7 @@ pub(super) fn route_client_message(
                 &context.time,
                 &context.queries.player_data,
                 &context.world.collision_world,
+                &context.world.moving_floors,
                 &context.world.map_layout,
                 &context.world.gameplay_config,
                 &context.portal_assignments,

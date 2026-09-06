@@ -7,8 +7,9 @@ use crate::{
 };
 use common::{
     config::GameplayConfig,
+    map::MovingFloors,
     math::direction_from_yaw_pitch,
-    physics::{CollisionWorld, PortalPlacement, PortalSet, compute_portal_placement, portal_placement_overlaps},
+    physics::{CollisionWorld, PortalSet, compute_portal_placement, portal_placement_overlaps},
     protocol::*,
 };
 
@@ -20,6 +21,7 @@ pub fn handle_portal_shot_message(
     time: &Time,
     player_data: &PlayerStateQuery,
     collision_world: &CollisionWorld,
+    moving_floors: &MovingFloors,
     map_layout: &MapLayout,
     gameplay_config: &GameplayConfig,
     portal_assignments: &PortalAssignments,
@@ -57,54 +59,20 @@ pub fn handle_portal_shot_message(
         gameplay_config.portals.range,
         collision_world,
         map_layout,
+        moving_floors,
     ) else {
         return;
     };
-    if portal_placement_overlaps(&placement, pair, msg.end, &portals.snapshot_portals()) {
+    if portal_placement_overlaps(&placement, pair, msg.end, &portals.snapshot_portals(), moving_floors) {
         return;
     }
-    let portal = portal_from_placement(&placement, pair, msg.end);
+    let portal = placement.portal(pair, msg.end, moving_floors);
     if !portals.set(portal) {
         return;
     }
-    *portal_set = portals.rebuild_set(collision_world);
+    *portal_set = portals.rebuild_set(collision_world, moving_floors);
     broadcast_to_all(
         players,
         ServerMessage::PortalOpened(SPortalOpened { shooter: id, portal }),
     );
-}
-
-// Pure geometry: the aperture sits at the placed point with the surface's
-// outward normal; the placement yaw (the shooter's, quarter-turn-snapped on
-// vertical surfaces) orients the frame where world-up degenerates.
-fn portal_from_placement(placement: &PortalPlacement, pair: PortalPairId, end: PortalEnd) -> Portal {
-    Portal {
-        pair,
-        end,
-        pos: placement.pos.into(),
-        nx: placement.normal.x,
-        ny: placement.normal.y,
-        nz: placement.normal.z,
-        yaw: placement.yaw,
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn portal_carries_the_placement_geometry_and_shooter_yaw() {
-        let placement = PortalPlacement {
-            pos: Vec3::new(1.0, 2.0, 3.0),
-            normal: Vec3::NEG_X,
-            yaw: 1.25,
-        };
-        let portal = portal_from_placement(&placement, PortalPairId(7), PortalEnd::B);
-        assert_eq!(Vec3::from(portal.pos), placement.pos);
-        assert_eq!(Vec3::new(portal.nx, portal.ny, portal.nz), placement.normal);
-        assert_eq!(portal.pair, PortalPairId(7));
-        assert_eq!(portal.end, PortalEnd::B);
-        assert_eq!(portal.yaw, 1.25);
-    }
 }

@@ -12,7 +12,7 @@ use crate::{
         AirborneMomentum, CharacterMovementResult, CharacterSupport, CharacterVerticalVelocity, CollisionWorld,
         KnockbackVelocity, momentum_displacement,
     },
-    protocol::{FaceYaw, MapLayout, PlayerMoveIntent, Portal, PortalEnd, PortalPairId, Position},
+    protocol::{FaceYaw, MapLayout, MovingFloorId, PlayerMoveIntent, Portal, PortalEnd, PortalPairId, Position},
     test_geometry::{LEVEL_HEIGHT, WALL_HEIGHT},
 };
 
@@ -50,6 +50,7 @@ fn portal(end: PortalEnd, pos: Vec3, normal: Vec3, yaw: f32) -> Portal {
         ny: normal.y,
         nz: normal.z,
         yaw,
+        anchor: None,
     }
 }
 
@@ -64,6 +65,7 @@ fn pair(a_pos: Vec3, a_normal: Vec3, b_pos: Vec3, b_normal: Vec3) -> PortalSet {
             portal(PortalEnd::B, b_pos, b_normal, 0.0),
         ],
         &empty_world(),
+        &MovingFloors::default(),
     )
 }
 
@@ -98,14 +100,17 @@ fn frames_are_right_handed_orthonormal_for_any_normal() {
         Vec3::new(0.0, 0.6, 0.8),
         Vec3::new(-1.0, -1.0, 1.4),
     ] {
-        let frame = PortalFrame::from_portal(&portal(PortalEnd::A, Vec3::ZERO, normal, 1.2));
+        let frame = PortalFrame::from_portal(&portal(PortalEnd::A, Vec3::ZERO, normal, 1.2), &MovingFloors::default());
         assert_frame_valid(&frame);
     }
 }
 
 #[test]
 fn ramp_frame_up_points_along_the_slope() {
-    let frame = PortalFrame::from_portal(&portal(PortalEnd::A, Vec3::ZERO, Vec3::new(0.0, 0.6, 0.8), 0.0));
+    let frame = PortalFrame::from_portal(
+        &portal(PortalEnd::A, Vec3::ZERO, Vec3::new(0.0, 0.6, 0.8), 0.0),
+        &MovingFloors::default(),
+    );
     assert!((frame.up - Vec3::new(0.0, 0.8, -0.6)).length() < 1e-5);
     assert!((frame.right - Vec3::X).length() < 1e-5);
 }
@@ -518,6 +523,7 @@ fn half_placed_pair_is_inert() {
     let set = PortalSet::rebuild(
         &[portal(PortalEnd::A, Vec3::new(0.0, 1.0, 0.0), Vec3::Z, 0.0)],
         &empty_world(),
+        &MovingFloors::default(),
     );
     assert!(set.is_empty());
     let hop = set.projectile_hop(Vec3::new(0.0, 1.0, 2.0), Vec3::new(0.0, 0.0, -30.0), 0.1, 0.08);
@@ -555,7 +561,15 @@ fn placement_layout() -> MapLayout {
 
 fn place(layout: &MapLayout, origin: Vec3, toward: Vec3, yaw: f32) -> Option<PortalPlacement> {
     let world = CollisionWorld::from_map_layout(layout, &BarrierKindTable::default());
-    compute_portal_placement(origin, (toward - origin).normalize(), yaw, 40.0, &world, layout)
+    compute_portal_placement(
+        origin,
+        (toward - origin).normalize(),
+        yaw,
+        40.0,
+        &world,
+        layout,
+        &MovingFloors::default(),
+    )
 }
 
 #[test]
@@ -572,13 +586,15 @@ fn placement_rejects_overlap_with_another_portal() {
         pos: Vec3::new(0.0, 1.6, 0.0),
         normal: Vec3::Z,
         yaw: 0.0,
+        anchor: None,
     };
     let existing = [portal(PortalEnd::A, Vec3::new(0.5, 1.6, 0.0), Vec3::Z, 0.0)];
     assert!(portal_placement_overlaps(
         &placement,
         PortalPairId(2),
         PortalEnd::B,
-        &existing
+        &existing,
+        &MovingFloors::default()
     ));
 }
 
@@ -588,13 +604,15 @@ fn placement_allows_clear_space_and_replacing_its_own_end() {
         pos: Vec3::new(0.0, 1.6, 0.0),
         normal: Vec3::Z,
         yaw: 0.0,
+        anchor: None,
     };
     let clear = [portal(PortalEnd::A, Vec3::new(2.0, 1.6, 0.0), Vec3::Z, 0.0)];
     assert!(!portal_placement_overlaps(
         &placement,
         PortalPairId(2),
         PortalEnd::B,
-        &clear
+        &clear,
+        &MovingFloors::default()
     ));
 
     let replaced = [portal(PortalEnd::B, Vec3::new(0.0, 1.6, 0.0), Vec3::Z, 0.0)];
@@ -602,7 +620,8 @@ fn placement_allows_clear_space_and_replacing_its_own_end() {
         &placement,
         PortalPairId(1),
         PortalEnd::B,
-        &replaced
+        &replaced,
+        &MovingFloors::default()
     ));
 }
 
@@ -618,6 +637,7 @@ fn swept_portal_gate_uses_the_plane_crossing_point() {
             portal(PortalEnd::B, Vec3::new(10.0, 1.6, 10.0), Vec3::X, 0.0),
         ],
         &world,
+        &MovingFloors::default(),
     );
     let physics = player_physics();
     let inside_from = Vec3::new(0.4, 0.7, placement.pos.z + 0.15);
@@ -758,6 +778,7 @@ fn wall_portal_near_ramp_excludes_only_wall_backing() {
             portal(PortalEnd::B, Vec3::new(10.0, 1.6, 10.0), Vec3::Z, 0.0),
         ],
         &world,
+        &MovingFloors::default(),
     );
     let physics = player_physics();
     let origin = Vec3::new(-1.5, center_y - physics.collider.top_y_offset() / 2.0, z);
@@ -802,6 +823,7 @@ fn wall_portal_across_a_stacked_wall_opens_its_trim_strip() {
             portal(PortalEnd::B, Vec3::new(10.0, 1.6, 10.0), Vec3::Z, 0.0),
         ],
         &world,
+        &MovingFloors::default(),
     );
     let physics = player_physics();
     let origin = Vec3::new(0.0, LEVEL_HEIGHT - physics.collider.top_y_offset() / 2.0, -0.5);
@@ -840,6 +862,7 @@ fn wall_portal_keeps_the_floor_it_stands_on_solid() {
             portal(PortalEnd::B, Vec3::new(10.0, 1.6, 10.0), Vec3::Z, 0.0),
         ],
         &world,
+        &MovingFloors::default(),
     );
     let physics = player_physics();
     let origin = Vec3::new(0.0, 1.0 - physics.collider.top_y_offset() / 2.0, -0.5);
@@ -986,8 +1009,17 @@ fn placement_front_clearance_rejects_a_powered_light_bridge() {
     let mut world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
     let origin = Vec3::new(0.0, 3.7, 3.0);
     let aim = Vec3::new(0.0, 3.7, 0.0);
-    let shoot =
-        |world: &CollisionWorld| compute_portal_placement(origin, (aim - origin).normalize(), PI, 40.0, world, &layout);
+    let shoot = |world: &CollisionWorld| {
+        compute_portal_placement(
+            origin,
+            (aim - origin).normalize(),
+            PI,
+            40.0,
+            world,
+            &layout,
+            &MovingFloors::default(),
+        )
+    };
 
     let ghost = shoot(&world).expect("an unpowered bridge blocked the shot");
     assert!(
@@ -1059,6 +1091,7 @@ fn perpetual_floor_fall_keeps_its_speed_across_hops() {
             portal(PortalEnd::B, Vec3::new(50.0, 0.0, 50.0), Vec3::Y, 0.0),
         ],
         &world,
+        &MovingFloors::default(),
     );
     let env = CharacterEnvironment {
         collision_world: &world,
@@ -1148,6 +1181,7 @@ fn floor_to_ceiling_fall_accelerates_toward_terminal_velocity() {
             portal(PortalEnd::B, Vec3::new(0.0, 4.0, 0.0), Vec3::NEG_Y, 0.0),
         ],
         &world,
+        &MovingFloors::default(),
     );
     let env = CharacterEnvironment {
         collision_world: &world,
@@ -1297,6 +1331,7 @@ fn steering_sideways_escapes_a_portal_fall_chain() {
             portal(PortalEnd::B, Vec3::new(0.0, 4.0, 0.0), Vec3::NEG_Y, 0.0),
         ],
         &world,
+        &MovingFloors::default(),
     );
     let env = CharacterEnvironment {
         collision_world: &world,
@@ -1421,6 +1456,7 @@ fn floor_portal_funnel_is_symmetric_through_character_movement() {
             portal(PortalEnd::B, Vec3::new(8.0, 4.0, 8.0), Vec3::NEG_Y, 0.0),
         ],
         &world,
+        &MovingFloors::default(),
     );
     let env = CharacterEnvironment {
         collision_world: &world,
@@ -1520,6 +1556,7 @@ fn misaligned_fall_loop_is_sustained_by_funneling() {
             portal(PortalEnd::B, Vec3::new(0.4, 4.0, 0.3), Vec3::NEG_Y, 0.0),
         ],
         &world,
+        &MovingFloors::default(),
     );
     let env = CharacterEnvironment {
         collision_world: &world,
@@ -1567,4 +1604,405 @@ fn misaligned_fall_loop_is_sustained_by_funneling() {
     }
 
     assert!(hops >= 15, "misaligned loop died after {hops} hops at {pos:?}");
+}
+
+// === Portals on moving floors ===
+
+const TILE: MovingFloorId = MovingFloorId(0);
+
+// A slider tile at the origin travelling +X at 2 m/s, and a wall with a
+// floor in front of it for the other end. `beside_floor` adds a static
+// floor a hand's width past the tile's +X edge at rest.
+fn tile_wall_layout(beside_floor: bool) -> MapLayout {
+    use crate::protocol::{Floor, MovingFloor, Wall};
+    use crate::test_geometry::{FLOOR_THICKNESS, WALL_THICKNESS};
+
+    let mut layout = MapLayout {
+        walls: vec![Wall {
+            x1: -6.0,
+            z1: -10.0,
+            x2: 6.0,
+            z2: -10.0,
+            width: WALL_THICKNESS,
+            level: 0,
+            y: 0.0,
+            height: WALL_HEIGHT,
+        }],
+        floors: vec![Floor {
+            x1: -6.0,
+            z1: -10.0,
+            x2: 6.0,
+            z2: -4.0,
+            y: 0.0,
+            thickness: FLOOR_THICKNESS,
+            level: 0,
+        }],
+        moving_floors: vec![MovingFloor {
+            x1: 0.0,
+            y1: 0.0,
+            z1: 0.0,
+            x2: 4.0,
+            y2: 0.0,
+            z2: 0.0,
+            half_x: 1.5,
+            half_z: 1.5,
+            thickness: FLOOR_THICKNESS,
+            travel_ticks: 60,
+            pause_ticks: 0,
+            phase_ticks: 0,
+            level: 0,
+            levels: 0,
+        }],
+        ..Default::default()
+    };
+    if beside_floor {
+        layout.floors.push(Floor {
+            x1: 1.6,
+            z1: -3.0,
+            x2: 8.0,
+            z2: 3.0,
+            y: 0.0,
+            thickness: FLOOR_THICKNESS,
+            level: 0,
+        });
+    }
+    layout
+}
+
+// The world with the tile at `tick`, its collider placed there.
+fn tile_world(layout: &MapLayout, tick: u32) -> (CollisionWorld, MovingFloors) {
+    let mut world = CollisionWorld::from_map_layout(layout, &BarrierKindTable::default());
+    let mut floors = MovingFloors::from_layout(layout);
+    floors.advance(tick.wrapping_sub(1));
+    floors.advance(tick);
+    world.set_moving_floor_centers(&floors.collider_centers());
+    (world, floors)
+}
+
+fn advance_tile(world: &mut CollisionWorld, floors: &mut MovingFloors, set: &mut PortalSet, tick: u32) {
+    floors.advance(tick);
+    world.set_moving_floor_centers(&floors.collider_centers());
+    set.refresh(floors);
+}
+
+// A floor portal on the tile, tile-local at its center; yaw 0 lays its long
+// axis across the slide (along Z), a quarter turn along it.
+fn anchored_portal(yaw: f32) -> Portal {
+    Portal {
+        anchor: Some(TILE),
+        ..portal(PortalEnd::A, Vec3::ZERO, Vec3::Y, yaw)
+    }
+}
+
+fn wall_portal() -> Portal {
+    portal(PortalEnd::B, Vec3::new(0.0, 1.6, -9.85), Vec3::Z, 0.0)
+}
+
+// Runs the shared step from `first_tick` for `ticks`, the tile advancing
+// and the gates refreshing before each, and stops at the first hop.
+fn run_ticks(
+    world: &mut CollisionWorld,
+    floors: &mut MovingFloors,
+    set: &mut PortalSet,
+    physics: CharacterPhysicsConfig,
+    mut pos: Position,
+    first_tick: u32,
+    ticks: u32,
+) -> (Option<(u32, CharacterPortalHop)>, Position, CharacterSupport) {
+    use crate::constants::TICK_SECS;
+    use crate::physics::{CharacterEnvironment, CharacterStep, step_character_movement};
+
+    let mut vertical_velocity = 0.0;
+    let mut support = CharacterSupport::Airborne;
+    for tick in first_tick..first_tick + ticks {
+        advance_tile(world, floors, set, tick);
+        let env = CharacterEnvironment {
+            collision_world: world,
+            gravity: 25.0,
+            passable_kinds: &[],
+            physics,
+            ladder_climb_ratio: LADDER_CLIMB_RATIO,
+            portals: Some(set),
+            moving_floors: floors,
+        };
+        let from = pos;
+        let result = step_character_movement(
+            CharacterStep {
+                start: pos,
+                vertical_velocity,
+                control_velocity: Vec3::ZERO,
+                external_displacement: Vec3::ZERO,
+                delta: TICK_SECS,
+            },
+            &env,
+        );
+        pos = result.position;
+        vertical_velocity = result.vertical_velocity;
+        support = result.support;
+        if let Some(hop) = set.character_hop(
+            Vec3::from(from),
+            Vec3::from(pos),
+            physics,
+            Vec3::ZERO,
+            Vec3::ZERO,
+            Vec3::ZERO,
+            vertical_velocity,
+            0.0,
+            CAP,
+        ) {
+            return (Some((tick, hop)), pos, support);
+        }
+    }
+    (None, pos, support)
+}
+
+#[test]
+fn a_shot_at_a_tile_anchors_the_portal_to_it() {
+    let layout = tile_wall_layout(false);
+    let (world, floors) = tile_world(&layout, 1);
+
+    let placement = compute_portal_placement(
+        Vec3::new(0.3, 3.0, 0.0),
+        Vec3::NEG_Y,
+        0.0,
+        40.0,
+        &world,
+        &layout,
+        &floors,
+    )
+    .expect("a shot at the tile fizzled");
+
+    assert_eq!(placement.anchor, Some(TILE));
+    assert!(
+        (placement.pos - Vec3::new(0.3, 0.0, 0.0)).length() < 1e-3,
+        "landed at {}",
+        placement.pos
+    );
+    let portal = placement.portal(PortalPairId(1), PortalEnd::A, &floors);
+    let local = Vec3::from(portal.pos);
+    assert!(
+        (local - Vec3::new(0.3 - 4.0 / 60.0, 0.0, 0.0)).length() < 1e-3,
+        "tile-local pos was {local}"
+    );
+    let frame = PortalFrame::from_portal(&portal, &floors);
+    assert!((frame.center - placement.pos).length() < 1e-4);
+}
+
+#[test]
+fn a_shot_that_does_not_fit_where_it_hits_centers_on_the_tile() {
+    let layout = tile_wall_layout(false);
+    let (world, floors) = tile_world(&layout, 1);
+
+    let placement = compute_portal_placement(
+        Vec3::new(0.3, 3.0, 0.5),
+        Vec3::NEG_Y,
+        0.0,
+        40.0,
+        &world,
+        &layout,
+        &floors,
+    )
+    .expect("a shot near the tile's edge fizzled");
+
+    assert_eq!(placement.anchor, Some(TILE));
+    assert!(
+        (placement.pos - floors.anchor_center(Some(TILE))).length() < 1e-3,
+        "landed at {}",
+        placement.pos
+    );
+}
+
+#[test]
+fn a_shot_over_the_tile_edge_lands_fully_on_one_surface() {
+    let layout = tile_wall_layout(true);
+    let (world, floors) = tile_world(&layout, 1);
+    let tile_edge = floors.anchor_center(Some(TILE)).x + 1.5;
+
+    let over_edge = compute_portal_placement(
+        Vec3::new(1.3, 3.0, 0.0),
+        Vec3::NEG_Y,
+        0.0,
+        40.0,
+        &world,
+        &layout,
+        &floors,
+    )
+    .expect("a shot over the tile's edge fizzled");
+    assert_eq!(over_edge.anchor, Some(TILE));
+    assert!(
+        over_edge.pos.x + PORTAL_HALF_WIDTH * PORTAL_RIM_SCALE <= tile_edge + 1e-3,
+        "aperture hangs past the tile's edge at {}",
+        over_edge.pos
+    );
+
+    let on_floor = compute_portal_placement(
+        Vec3::new(3.0, 3.0, 0.0),
+        Vec3::NEG_Y,
+        0.0,
+        40.0,
+        &world,
+        &layout,
+        &floors,
+    )
+    .expect("a shot at the floor beside the tile fizzled");
+    assert_eq!(on_floor.anchor, None);
+}
+
+#[test]
+fn placement_portal_is_tile_local_when_anchored() {
+    let layout = tile_wall_layout(false);
+    let (_, floors) = tile_world(&layout, 1);
+    let placement = PortalPlacement {
+        pos: Vec3::new(1.0, 2.0, 3.0),
+        normal: Vec3::NEG_X,
+        yaw: 1.25,
+        anchor: Some(TILE),
+    };
+
+    let portal = placement.portal(PortalPairId(7), PortalEnd::B, &floors);
+    assert_eq!(Vec3::from(portal.pos), placement.pos - floors.anchor_center(Some(TILE)));
+    assert_eq!(Vec3::new(portal.nx, portal.ny, portal.nz), placement.normal);
+    assert_eq!(
+        (portal.pair, portal.end, portal.yaw, portal.anchor),
+        (PortalPairId(7), PortalEnd::B, 1.25, Some(TILE))
+    );
+
+    let free = PortalPlacement {
+        anchor: None,
+        ..placement
+    }
+    .portal(PortalPairId(7), PortalEnd::B, &floors);
+    assert_eq!(Vec3::from(free.pos), placement.pos);
+}
+
+#[test]
+fn an_anchored_portal_follows_its_tile_after_a_refresh() {
+    let layout = tile_wall_layout(false);
+    let (mut world, mut floors) = tile_world(&layout, 1);
+    let mut set = PortalSet::rebuild(&[anchored_portal(0.0), wall_portal()], &world, &floors);
+    assert!(set.has_anchored());
+    let before = frames(&set).0.center;
+    assert!((before - floors.anchor_center(Some(TILE))).length() < 1e-5);
+
+    advance_tile(&mut world, &mut floors, &mut set, 2);
+
+    let after = frames(&set).0.center;
+    assert!(
+        (after - before - Vec3::new(4.0 / 60.0, 0.0, 0.0)).length() < 1e-5,
+        "frame moved from {before} to {after}"
+    );
+    assert!(!pair(Vec3::ZERO, Vec3::Y, Vec3::new(9.0, 0.0, 0.0), Vec3::Y).has_anchored());
+}
+
+#[test]
+fn a_body_dropped_into_a_sliding_aperture_exits_the_wall_portal() {
+    let layout = tile_wall_layout(false);
+    let (mut world, mut floors) = tile_world(&layout, 1);
+    let mut set = PortalSet::rebuild(&[anchored_portal(0.0), wall_portal()], &world, &floors);
+    let physics = player_physics();
+    let start = Position {
+        x: floors.anchor_center(Some(TILE)).x,
+        y: 0.2,
+        z: 0.0,
+    };
+
+    let (hop, _, _) = run_ticks(&mut world, &mut floors, &mut set, physics, start, 2, 30);
+
+    let (tick, hop) = hop.expect("the body never crossed the sliding aperture");
+    // Carried along until it crossed: the entry is where the tile was then.
+    let tile_at_crossing = crate::map::surface_center_at(&layout.moving_floors[0], tick);
+    assert!(
+        (hop.entry.center - tile_at_crossing).length() < 1e-3,
+        "entry {} vs tile {}",
+        hop.entry.center,
+        tile_at_crossing
+    );
+    assert!(
+        hop.origin.z > -10.0 && hop.origin.z < -8.5 && hop.origin.x.abs() < 1.5,
+        "did not exit at the wall portal: {}",
+        hop.origin
+    );
+}
+
+#[test]
+fn a_body_dropped_where_the_aperture_was_lands_on_the_tile() {
+    let layout = tile_wall_layout(false);
+    let (mut world, mut floors) = tile_world(&layout, 15);
+    let mut set = PortalSet::rebuild(&[anchored_portal(0.0), wall_portal()], &world, &floors);
+    let physics = player_physics();
+    let start = Position { x: 0.0, y: 0.2, z: 0.0 };
+
+    let (hop, pos, support) = run_ticks(&mut world, &mut floors, &mut set, physics, start, 16, 30);
+
+    assert!(hop.is_none(), "hopped at tick {:?}", hop.map(|(tick, _)| tick));
+    assert_eq!(support, CharacterSupport::Ground);
+    assert!(pos.y.abs() < 0.05, "did not land on the tile: {pos:?}");
+    assert!(pos.x > 1.0, "did not ride the tile after landing: {pos:?}");
+}
+
+#[test]
+fn a_rider_beside_the_aperture_rides_a_full_cycle_without_a_hop() {
+    let layout = tile_wall_layout(false);
+    let (mut world, mut floors) = tile_world(&layout, 1);
+    let mut set = PortalSet::rebuild(
+        &[anchored_portal(std::f32::consts::FRAC_PI_2), wall_portal()],
+        &world,
+        &floors,
+    );
+    let physics = player_physics();
+    let start = Position {
+        x: floors.anchor_center(Some(TILE)).x,
+        y: 0.0,
+        z: 1.1,
+    };
+
+    let (hop, pos, support) = run_ticks(&mut world, &mut floors, &mut set, physics, start, 2, 120);
+
+    assert!(hop.is_none(), "hopped at tick {:?}", hop.map(|(tick, _)| tick));
+    assert_eq!(support, CharacterSupport::Ground);
+    assert!((pos.z - 1.1).abs() < 0.05, "drifted across the tile: {pos:?}");
+    assert!(
+        (pos.x - floors.anchor_center(Some(TILE)).x).abs() < 0.05,
+        "lost the tile: {pos:?} vs {}",
+        floors.anchor_center(Some(TILE))
+    );
+}
+
+#[test]
+fn a_rising_plane_catches_a_crossing_the_stale_test_would_miss() {
+    let mut layout = tile_wall_layout(false);
+    layout.moving_floors[0].x2 = 0.0;
+    layout.moving_floors[0].y2 = LEVEL_HEIGHT;
+    layout.moving_floors[0].levels = 1;
+    let (world, floors) = tile_world(&layout, 1);
+    let rise = LEVEL_HEIGHT / 60.0;
+    let anchored = PortalSet::rebuild(&[anchored_portal(0.0), wall_portal()], &world, &floors);
+    let physics = player_physics();
+    let half_y = physics.collider.top_y_offset() / 2.0;
+    // The body's center sat 0.05 above the plane last tick and moved down
+    // 0.1 while the plane rose `rise`.
+    let previous_top = floors.anchor_center(Some(TILE)).y - rise;
+    let from = Vec3::new(0.0, previous_top + 0.05 - half_y, 0.0);
+    let to = from - Vec3::Y * 0.1;
+
+    assert!(
+        anchored
+            .character_hop(from, to, physics, Vec3::ZERO, Vec3::ZERO, Vec3::ZERO, -3.0, 0.0, CAP)
+            .is_some(),
+        "the rising plane's crossing was missed"
+    );
+
+    // Judged only against where the plane is now, the same motion looks
+    // like it started behind it.
+    let stale_portal = Portal {
+        anchor: None,
+        pos: floors.anchor_center(Some(TILE)).into(),
+        ..anchored_portal(0.0)
+    };
+    let stale = PortalSet::rebuild(&[stale_portal, wall_portal()], &world, &floors);
+    assert!(
+        stale
+            .character_hop(from, to, physics, Vec3::ZERO, Vec3::ZERO, Vec3::ZERO, -3.0, 0.0, CAP)
+            .is_none()
+    );
 }

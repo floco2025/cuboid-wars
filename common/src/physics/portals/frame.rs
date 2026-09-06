@@ -1,6 +1,8 @@
 use bevy_math::Vec3;
 
-use crate::{constants::PORTAL_UP_DEGENERACY_LIMIT, math::direction_from_yaw_pitch, protocol::Portal};
+use crate::{
+    constants::PORTAL_UP_DEGENERACY_LIMIT, map::MovingFloors, math::direction_from_yaw_pitch, protocol::Portal,
+};
 
 // Orthonormal aperture frame of one portal end: `normal` points out of the
 // surface into the room, `up`/`right` span the plane with (right, up, normal)
@@ -15,10 +17,23 @@ pub struct PortalFrame {
 }
 
 impl PortalFrame {
+    // The world frame of a placed end at this tick; an anchored end rides
+    // its tile, so the tile's surface center is added to its tile-local
+    // `pos`.
     #[must_use]
-    pub fn from_portal(portal: &Portal) -> Self {
+    pub fn from_portal(portal: &Portal, floors: &MovingFloors) -> Self {
         Self::from_surface(
-            portal.pos.into(),
+            Vec3::from(portal.pos) + floors.anchor_center(portal.anchor),
+            Vec3::new(portal.nx, portal.ny, portal.nz),
+            portal.yaw,
+        )
+    }
+
+    // The same between the last two ticks, for render-rate interpolation.
+    #[must_use]
+    pub fn from_portal_between(portal: &Portal, floors: &MovingFloors, alpha: f32) -> Self {
+        Self::from_surface(
+            Vec3::from(portal.pos) + floors.anchor_center_between(portal.anchor, alpha),
             Vec3::new(portal.nx, portal.ny, portal.nz),
             portal.yaw,
         )

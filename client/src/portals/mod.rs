@@ -3,6 +3,7 @@ mod projection;
 mod render;
 mod resources;
 mod spawn;
+mod transform_sync;
 mod view;
 
 pub use prediction::portal_transit_system;

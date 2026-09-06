@@ -1,6 +1,7 @@
 use bevy::{ecs::system::SystemParam, prelude::*};
 use common::{
     config::GameplayConfig,
+    map::MovingFloors,
     physics::{CollisionWorld, PortalSet},
     protocol::*,
 };
@@ -33,6 +34,7 @@ pub(super) struct ServerMessageContext<'w, 's> {
     pub(super) client_settings: Res<'w, ClientSettings>,
     pub(super) gameplay_config: Res<'w, GameplayConfig>,
     pub(super) collision_world: Res<'w, CollisionWorld>,
+    pub(super) moving_floors: Res<'w, MovingFloors>,
     pub(super) map_layout: Res<'w, MapLayout>,
     pub(super) map_settings: Res<'w, MapSettings>,
     pub(super) meshes: ResMut<'w, Assets<Mesh>>,

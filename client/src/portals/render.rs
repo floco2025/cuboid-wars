@@ -16,6 +16,7 @@ use super::{
     PortalMap,
     projection::{PortalProjection, full_aperture, portal_camera_view},
     spawn::{PortalAssets, spawn_portal_visual},
+    transform_sync::portal_surfaces_transform_sync_system,
 };
 use crate::{
     cameras::{
@@ -27,6 +28,7 @@ use crate::{
     schedule::ClientSet,
 };
 use common::{
+    map::MovingFloors,
     physics::PortalFrame,
     protocol::{Portal, PortalEnd, PortalPairId},
 };
@@ -99,6 +101,10 @@ pub fn portal_render_plugin(app: &mut App) {
         )
             .in_set(ClientSet::Camera),
     );
+    app.add_systems(
+        Update,
+        portal_surfaces_transform_sync_system.in_set(ClientSet::CharacterSync),
+    );
 }
 
 fn rebuild_portal_views_system(
@@ -110,6 +116,8 @@ fn rebuild_portal_views_system(
     >,
     scene_target: Res<SceneRenderTarget>,
     portals: Res<PortalMap>,
+    floors: Res<MovingFloors>,
+    fixed_time: Res<Time<Fixed>>,
     portal_assets: Res<PortalAssets>,
     client_settings: Res<ClientSettings>,
     mut state: ResMut<PortalRenderState>,
@@ -121,6 +129,7 @@ fn rebuild_portal_views_system(
         return;
     };
     let wire_portals = portals.wire_portals();
+    let alpha = fixed_time.overstep_fraction();
     let budget = client_settings.rendering.portal_view_budget;
     let complete_portals: Vec<_> = wire_portals
         .iter()
@@ -152,6 +161,8 @@ fn rebuild_portal_views_system(
                 largest_visible_roots(
                     &portals,
                     &complete_portals,
+                    &floors,
+                    alpha,
                     transform,
                     projection,
                     presenter_size(camera, scene_target.size),
@@ -211,7 +222,7 @@ fn rebuild_portal_views_system(
                 over_budget = true;
                 break;
             }
-            let replica = spawn_portal_visual(&mut commands, &portal_assets, portal, REARVIEW_RENDER_LAYER);
+            let replica = spawn_portal_visual(&mut commands, &portal_assets, portal, &floors, REARVIEW_RENDER_LAYER);
             state.spawned.push(replica);
             rearview_surfaces.insert((portal.pair, portal.end), replica);
             replica_count += 1;
@@ -292,7 +303,7 @@ fn rebuild_portal_views_system(
                 over_budget = true;
                 break;
             }
-            let replica = spawn_portal_visual(&mut commands, &portal_assets, portal, child_layer);
+            let replica = spawn_portal_visual(&mut commands, &portal_assets, portal, &floors, child_layer);
             state.spawned.push(replica);
             replica_count += 1;
 
@@ -331,6 +342,8 @@ fn presenter_size(camera: &Camera, scene_size: UVec2) -> UVec2 {
 fn largest_visible_roots(
     portals: &PortalMap,
     complete_portals: &[Portal],
+    floors: &MovingFloors,
+    alpha: f32,
     transform: &Transform,
     projection: &Projection,
     size: UVec2,
@@ -340,7 +353,7 @@ fn largest_visible_roots(
         .iter()
         .filter_map(|portal| {
             let key = (portal.pair, portal.end);
-            let (_, _, footprint, _) = view_through_chain(portals, &[key], transform, projection, size)?;
+            let (_, _, footprint, _) = view_through_chain(portals, &[key], floors, alpha, transform, projection, size)?;
             Some((key, footprint.x * footprint.y))
         })
         .collect();
@@ -386,6 +399,8 @@ fn update_portal_view_cameras_system(
     >,
     scene_target: Res<SceneRenderTarget>,
     portals: Res<PortalMap>,
+    floors: Res<MovingFloors>,
+    fixed_time: Res<Time<Fixed>>,
     portal_assets: Res<PortalAssets>,
     client_settings: Res<ClientSettings>,
     mut images: ResMut<Assets<Image>>,
@@ -400,6 +415,7 @@ fn update_portal_view_cameras_system(
     )>,
     mut surface_materials: Query<&mut MeshMaterial3d<StandardMaterial>>,
 ) {
+    let alpha = fixed_time.overstep_fraction();
     let mut mapped: Vec<MappedView> = view_cameras
         .iter()
         .filter_map(|(entity, view, ..)| {
@@ -412,6 +428,8 @@ fn update_portal_view_cameras_system(
             let (transform, projection, footprint, rect) = view_through_chain(
                 &portals,
                 &view.chain,
+                &floors,
+                alpha,
                 presenter_transform,
                 presenter_projection,
                 presenter_size,
@@ -521,6 +539,8 @@ fn admit_views(views: &[MappedView], budget: usize) -> Vec<usize> {
 fn view_through_chain(
     portals: &PortalMap,
     chain: &[PortalKey],
+    floors: &MovingFloors,
+    alpha: f32,
     presenter_transform: &Transform,
     presenter_projection: &Projection,
     presenter_size: UVec2,
@@ -532,8 +552,8 @@ fn view_through_chain(
     for key in chain {
         let entry = &portals.get(key)?.portal;
         let exit = paired_portal(portals, entry)?;
-        let entry_frame = PortalFrame::from_portal(entry);
-        let exit_frame = PortalFrame::from_portal(exit);
+        let entry_frame = PortalFrame::from_portal_between(entry, floors, alpha);
+        let exit_frame = PortalFrame::from_portal_between(exit, floors, alpha);
         let visible = visible_aperture(&entry_frame, &view_transform, &view_projection, footprint)?;
         footprint = visible.footprint;
         rect = visible.rect;
@@ -717,6 +737,7 @@ mod tests {
             ny: normal.y,
             nz: normal.z,
             yaw: 0.0,
+            anchor: None,
         }
     }
 
@@ -845,8 +866,31 @@ mod tests {
         let looking_at_a = Transform::from_xyz(0.0, 1.0, 0.0);
         let looking_aside = Transform::from_xyz(-2.0, 1.0, 0.0).looking_to(Vec3::X, Vec3::Y);
 
-        assert!(view_through_chain(&portals, &[key_a], &looking_at_a, &projection, UVec2::splat(1000)).is_some());
-        assert!(view_through_chain(&portals, &[key_a], &looking_aside, &projection, UVec2::splat(1000)).is_none());
+        let floors = MovingFloors::default();
+        assert!(
+            view_through_chain(
+                &portals,
+                &[key_a],
+                &floors,
+                0.0,
+                &looking_at_a,
+                &projection,
+                UVec2::splat(1000)
+            )
+            .is_some()
+        );
+        assert!(
+            view_through_chain(
+                &portals,
+                &[key_a],
+                &floors,
+                0.0,
+                &looking_aside,
+                &projection,
+                UVec2::splat(1000)
+            )
+            .is_none()
+        );
     }
 
     #[test]
@@ -855,13 +899,33 @@ mod tests {
         let projection = perspective();
         let camera = Transform::from_xyz(0.0, 1.0, 0.0);
 
-        let (mapped, _, _, _) = view_through_chain(&portals, &[key_a, key_a], &camera, &projection, UVec2::splat(1000))
-            .expect("second look through A is in view");
+        let floors = MovingFloors::default();
+        let (mapped, _, _, _) = view_through_chain(
+            &portals,
+            &[key_a, key_a],
+            &floors,
+            0.0,
+            &camera,
+            &projection,
+            UVec2::splat(1000),
+        )
+        .expect("second look through A is in view");
         assert!(
             mapped.translation.distance(Vec3::new(0.0, 1.0, 16.0)) < 1e-4,
             "{mapped:?}"
         );
-        assert!(view_through_chain(&portals, &[key_a, key_b], &camera, &projection, UVec2::splat(1000)).is_none());
+        assert!(
+            view_through_chain(
+                &portals,
+                &[key_a, key_b],
+                &floors,
+                0.0,
+                &camera,
+                &projection,
+                UVec2::splat(1000)
+            )
+            .is_none()
+        );
     }
 
     #[test]
@@ -949,6 +1013,8 @@ mod tests {
             largest_visible_roots(
                 &map,
                 &portals,
+                &MovingFloors::default(),
+                0.0,
                 &Transform::IDENTITY,
                 &perspective(),
                 UVec2::splat(1000),

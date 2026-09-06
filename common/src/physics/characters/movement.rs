@@ -78,18 +78,54 @@ pub struct CharacterEnvironment<'a> {
 
 #[must_use]
 pub fn step_character_movement(step: CharacterStep, env: &CharacterEnvironment) -> CharacterMovementResult {
+    let character_shape = character_shape(env.physics);
+    let support_shape = character_support_probe_shape(env.physics);
+    let feet = Vec3::new(step.start.x, step.start.y, step.start.z);
+    // The rider's carry. A body standing on a tile follows it by the ride
+    // rule. A body passing through an aperture mounted on a tile follows
+    // the tile instead, until it crosses: the ride rule lets go the tick
+    // the feet leave the surface, and a fast tile would pull the aperture
+    // out from under a sinking body. In transit the tile's velocity is not
+    // reported, so a rising tile does not pump the fall and the slide is
+    // not gathered as momentum; the body exits the pair with tile-relative
+    // velocity. A body in the corridor that something else supports
+    // (standing under a lift's ceiling portal) stays put, and the plane
+    // reaching it is what the relative crossing test catches.
+    let transit = env
+        .portals
+        .and_then(|portals| portals.transit_anchor(feet, env.physics));
+    let carry = match transit {
+        Some(anchor) => {
+            let tile = [env.collision_world.moving_floor_collider(anchor)];
+            let supported_elsewhere = character_ground_hit(
+                env.collision_world,
+                &support_shape,
+                &step.start,
+                env.passable_kinds,
+                &tile,
+                env.physics,
+            )
+            .is_some();
+            if supported_elsewhere {
+                Vec3::ZERO
+            } else {
+                env.moving_floors.anchor_displacement(Some(anchor))
+            }
+        }
+        None => env.moving_floors.carry_at(feet, env.physics),
+    };
+    let floor_velocity = if transit.is_some() {
+        Vec3::ZERO
+    } else {
+        carry / TICK_SECS
+    };
     // The tile's collider already sits at this tick's pose, and a probe that
     // starts inside a collider finds no ground, so the body follows the
     // tile's rise or drop before anything probes. The horizontal part rides
     // the move instead, so a wall still blocks a body the tile pushes into it.
-    let carry = env
-        .moving_floors
-        .carry_at(Vec3::new(step.start.x, step.start.y, step.start.z), env.physics);
     let mut step = step;
     step.start.y += carry.y;
     let carry_xz = carry.with_y(0.0);
-    let character_shape = character_shape(env.physics);
-    let support_shape = character_support_probe_shape(env.physics);
     let support_excluded = env.portals.map_or_else(Vec::new, |portals| {
         portals.collision_exclusions(Vec3::new(step.start.x, step.start.y, step.start.z), env.physics)
     });
@@ -109,7 +145,7 @@ pub fn step_character_movement(step: CharacterStep, env: &CharacterEnvironment) 
         &support_shape,
         request,
         collision,
-        carry / TICK_SECS,
+        floor_velocity,
     )
 }
 

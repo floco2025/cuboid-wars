@@ -13,7 +13,11 @@ pub(in crate::network) fn handle_portal_opened_message(
     context: &mut ServerMessageContext,
 ) {
     if upsert_portal(commands, context, &message.portal) {
-        *context.portal_set = PortalSet::rebuild(&context.portals.wire_portals(), &context.collision_world);
+        *context.portal_set = PortalSet::rebuild(
+            &context.portals.wire_portals(),
+            &context.collision_world,
+            &context.moving_floors,
+        );
     }
     if message.shooter == my_player_id {
         play_sound(

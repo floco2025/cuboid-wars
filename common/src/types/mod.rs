@@ -25,7 +25,7 @@ pub use entities::{
 };
 pub use face_materials::FaceMaterials;
 pub use feed::{FeedSpan, FeedStyle};
-pub use ids::{ActorId, HomingTarget, ItemId, MissileId, PlayerId, PortalPairId, QuestId};
+pub use ids::{ActorId, HomingTarget, ItemId, MissileId, MovingFloorId, PlayerId, PortalPairId, QuestId};
 pub use items::{ItemType, PowerUpKind};
 pub use kind_table::{KindDef, KindId, KindTable};
 pub use map_layout::{

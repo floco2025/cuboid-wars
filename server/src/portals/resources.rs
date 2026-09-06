@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use bevy::prelude::*;
 
 use common::{
+    map::MovingFloors,
     physics::{CollisionWorld, PortalSet},
     protocol::{PlayerId, Portal, PortalAccess, PortalEnd, PortalMode, PortalPairId},
 };
@@ -66,8 +67,8 @@ impl PortalMap {
     }
 
     #[must_use]
-    pub fn rebuild_set(&self, collision_world: &CollisionWorld) -> PortalSet {
-        PortalSet::rebuild(&self.snapshot_portals(), collision_world)
+    pub fn rebuild_set(&self, collision_world: &CollisionWorld, moving_floors: &MovingFloors) -> PortalSet {
+        PortalSet::rebuild(&self.snapshot_portals(), collision_world, moving_floors)
     }
 }
 
@@ -165,6 +166,7 @@ mod tests {
             ny: 0.0,
             nz: 1.0,
             yaw: 0.0,
+            anchor: None,
         }
     }
 
@@ -228,10 +230,11 @@ mod tests {
         let world = CollisionWorld::from_map_layout(&MapLayout::default(), &BarrierKindTable::default());
         let mut map = PortalMap::default();
         map.set(portal(1, PortalEnd::A, 1.0));
-        assert!(map.rebuild_set(&world).is_empty());
+        let floors = MovingFloors::default();
+        assert!(map.rebuild_set(&world, &floors).is_empty());
 
         map.set(portal(1, PortalEnd::B, 2.0));
-        assert!(!map.rebuild_set(&world).is_empty());
+        assert!(!map.rebuild_set(&world, &floors).is_empty());
     }
 
     const fn single(pair: u32, end: PortalEnd) -> PortalAccess {

@@ -17,6 +17,18 @@ pub struct MissileId(pub u32);
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Encode, Decode)]
 pub struct PortalPairId(pub u32);
 
+// Index into the selected map's `MapLayout.moving_floors`; a portal
+// anchored to a tile names it.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Encode, Decode)]
+pub struct MovingFloorId(pub u16);
+
+impl MovingFloorId {
+    #[must_use]
+    pub const fn index(self) -> usize {
+        self.0 as usize
+    }
+}
+
 // What a missile homes on. Carried in `CMissileShot`; guidance is server-only,
 // so it never rides snapshots or intents.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Encode, Decode)]
