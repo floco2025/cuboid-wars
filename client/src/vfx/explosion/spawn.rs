@@ -1,14 +1,15 @@
-use super::animation::{ExplosionLight, ExplosionPulse};
-use super::assets::{BlastRadii, ExplosionAssets, shockwave_mesh};
-use super::particles::{ExplosionVfxBudget, SurfacePlane};
-use super::scorch::spawn_scorch_mark;
-use super::scorch::{
-    ScorchPlacement, ScorchStyle, surface_cross_section_diameter, wall_scorch_diameter, wall_scorch_placements,
+use super::{
+    animation::{ExplosionLight, ExplosionPulse},
+    assets::{BlastRadii, ExplosionAssets, shockwave_mesh},
+    particles::{ExplosionVfxBudget, SurfacePlane},
+    scorch::{
+        ScorchPlacement, ScorchStyle, spawn_scorch_mark, surface_cross_section_diameter, wall_scorch_diameter,
+        wall_scorch_placements,
+    },
+    shards::spawn_shard_cloud,
+    smoke::spawn_smoke_cloud,
 };
-use super::shards::spawn_shard_cloud;
-use super::smoke::spawn_smoke_cloud;
-use crate::carriers::CarrierEntities;
-use crate::constants::*;
+use crate::{carriers::CarrierEntities, constants::*};
 use bevy::{light::NotShadowCaster, prelude::*};
 use common::{
     config::GameplayConfig,
@@ -357,10 +358,8 @@ fn scaled_particle_count(reach_radius: f32, density: f32, default_density: f32, 
 
 #[cfg(test)]
 mod tests {
-    use super::super::scorch::ScorchMark;
-    use super::*;
-    use crate::map::GrassBurn;
-    use crate::test_geometry::WALL_HEIGHT;
+    use super::{super::scorch::ScorchMark, *};
+    use crate::{map::GrassBurn, test_geometry::WALL_HEIGHT};
     use common::protocol::{BarrierKindTable, Carrier, CarrierId, Floor, MapLayout, Wall};
 
     #[test]

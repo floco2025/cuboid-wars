@@ -749,8 +749,7 @@ impl ServerMessage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::network::encode_message;
-    use crate::protocol::CarrierId;
+    use crate::{network::encode_message, protocol::CarrierId};
 
     // Comfortably under quinn's ~1150-byte datagram limit at the initial MTU.
     const DATAGRAM_BUDGET: usize = 1100;

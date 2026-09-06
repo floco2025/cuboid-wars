@@ -1,7 +1,9 @@
 use bevy::{asset::RenderAssetUsages, light::NotShadowCaster, prelude::*, render::render_resource::PrimitiveTopology};
 
-use crate::carriers::CarrierStoreys;
-use crate::constants::{LADDER_RAIL_HALF_THICKNESS, LADDER_RUNG_HALF_THICKNESS, LADDER_RUNG_SPACING};
+use crate::{
+    carriers::CarrierStoreys,
+    constants::{LADDER_RAIL_HALF_THICKNESS, LADDER_RUNG_HALF_THICKNESS, LADDER_RUNG_SPACING},
+};
 use common::{
     constants::{LADDER_OVERSHOOT, LADDER_RAIL_INSET, LADDER_WIDTH},
     protocol::Ladder,
@@ -195,8 +197,7 @@ impl BoxMeshData {
 mod tests {
     use super::*;
     use crate::test_geometry::LEVEL_HEIGHT;
-    use common::protocol::CarrierId;
-    use common::protocol::Ladder;
+    use common::protocol::{CarrierId, Ladder};
 
     #[test]
     fn ladder_mesh_has_varied_uvs_and_tangents() {

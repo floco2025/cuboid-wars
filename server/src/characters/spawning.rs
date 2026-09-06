@@ -190,10 +190,11 @@ fn character_position_intersects_character(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::map::{CarrierGrid, CellGrid, EdgeGrid, LevelGrid, MapConfig, PlayerSpawnZone};
-    use crate::test_geometry::{LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS, geometry};
-    use common::protocol::CarrierId;
-    use common::protocol::{Carrier, MapLayout, Wall};
+    use crate::{
+        map::{CarrierGrid, CellGrid, EdgeGrid, LevelGrid, MapConfig, PlayerSpawnZone},
+        test_geometry::{LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS, geometry},
+    };
+    use common::protocol::{Carrier, CarrierId, MapLayout, Wall};
 
     fn empty_layout() -> MapLayout {
         MapLayout::default()

@@ -1,9 +1,11 @@
 use bevy::prelude::*;
 use common::protocol::{BarrierKindId, Health, PlayerId, PowerUpKind};
 
-use super::components::{LOCAL_PLAYER_BG_COLOR, PlayerEntryMarker};
-use super::health_bar::spawn_health_bar;
-use super::shapes::HudShapeAssets;
+use super::{
+    components::{LOCAL_PLAYER_BG_COLOR, PlayerEntryMarker},
+    health_bar::spawn_health_bar,
+    shapes::HudShapeAssets,
+};
 use crate::{
     barriers::BarrierAssets,
     constants::{

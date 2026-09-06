@@ -4,8 +4,10 @@ use anyhow::{Context, Result, anyhow};
 
 use common::protocol::ItemType;
 
-use super::compile::ramp_spec_from_def;
-use super::schema::{ActorSpawnZoneDef, LadderDef, LevelDef, MapDef, MotionDef, PlayerSpawnZoneDef, RampDef, WallSide};
+use super::{
+    compile::ramp_spec_from_def,
+    schema::{ActorSpawnZoneDef, LadderDef, LevelDef, MapDef, MotionDef, PlayerSpawnZoneDef, RampDef, WallSide},
+};
 use crate::config::is_valid_map_name;
 
 pub(super) fn validate_map(map_def: &MapDef) -> Result<()> {

@@ -1,6 +1,9 @@
 use bevy::prelude::*;
 
-use crate::{characters::PreviousTickPosition, missiles::MissileVelocity, missiles::spawn::missile_rotation};
+use crate::{
+    characters::PreviousTickPosition,
+    missiles::{MissileVelocity, spawn::missile_rotation},
+};
 use common::protocol::{MissileMarker, Position};
 
 // Render-rate interpolation between the last two fixed-tick positions, plus

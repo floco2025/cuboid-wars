@@ -1,12 +1,11 @@
-use std::collections::VecDeque;
-use std::f32::consts::TAU;
+use std::{collections::VecDeque, f32::consts::TAU};
 
 use bevy::{audio::SpatialScale, ecs::system::SystemParam, light::NotShadowCaster, prelude::*};
 use rand::{RngExt, SeedableRng, rngs::StdRng};
 
-use crate::carriers::CarrierEntities;
 use crate::{
     audio::{play_explosion_sound, play_spatial_sound},
+    carriers::CarrierEntities,
     config::{AssetSet, ClientSettings},
     constants::LASER_EMISSIVE,
     missiles::{MissileAssets, missile_rotation, spawn_missile_meshes},
@@ -14,9 +13,9 @@ use crate::{
     projectiles::{ProjectileAssets, spawn_ember_projectile},
     vfx::{BlastRadii, ExplosionAssets, ExplosionSpawnCtx, ExplosionVfxBudget, spawn_missile_explosion},
 };
-use common::map::Carriers;
 use common::{
     config::{GameplayConfig, MapGeometryConfig},
+    map::Carriers,
     physics::CollisionWorld,
     protocol::{MapLayout, Position},
 };
@@ -483,8 +482,7 @@ fn spawn_laser_beams(commands: &mut Commands, vfx: &mut FireworkVfx, assets: &Fi
 mod tests {
     use super::*;
     use crate::test_geometry::{LEVEL_HEIGHT, sizes};
-    use common::protocol::CarrierId;
-    use common::protocol::Floor;
+    use common::protocol::{CarrierId, Floor};
 
     fn layout() -> MapLayout {
         MapLayout {

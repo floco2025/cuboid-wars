@@ -1,11 +1,12 @@
-use std::collections::HashMap;
-use std::f32::consts::TAU;
+use std::{collections::HashMap, f32::consts::TAU};
 
 use bevy::{asset::AssetId, light::NotShadowCaster, prelude::*, world_serialization::WorldInstanceReady};
 use rand::{RngExt, rng};
 
-use super::cube::smoothstep;
-use super::particles::{ParticleCloud, ParticleClouds, ParticleSpawn};
+use super::{
+    cube::smoothstep,
+    particles::{ParticleCloud, ParticleClouds, ParticleSpawn},
+};
 use crate::{config::ClientSettings, constants::*};
 use common::protocol::{ServerTick, sequence_is_newer};
 

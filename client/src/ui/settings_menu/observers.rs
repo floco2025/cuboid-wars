@@ -1,15 +1,15 @@
-use bevy::audio::{GlobalVolume, Volume};
-use bevy::prelude::*;
-use bevy::ui::Checked;
-use bevy::ui_widgets::{Activate, SliderValue, ValueChange};
-use bevy::window::{Monitor, OnMonitor, PresentMode, PrimaryMonitor, PrimaryWindow, WindowMode};
+use bevy::{
+    audio::{GlobalVolume, Volume},
+    prelude::*,
+    ui::Checked,
+    ui_widgets::{Activate, SliderValue, ValueChange},
+    window::{Monitor, OnMonitor, PresentMode, PrimaryMonitor, PrimaryWindow, WindowMode},
+};
 
 use super::state::{CheckboxSetting, CyclerButton, CyclerSetting, SliderSetting};
 use bevy::render::renderer::RenderAdapter;
 
-use crate::cameras::supported_msaa_samples;
-use crate::config::ClientSettings;
-use crate::input::enter_borderless_fullscreen;
+use crate::{cameras::supported_msaa_samples, config::ClientSettings, input::enter_borderless_fullscreen};
 
 // Fullscreen render-resolution caps ("720p"): the scene renders at most
 // this high and upscales to the monitor (windowed always renders native).

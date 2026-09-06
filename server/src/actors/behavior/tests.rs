@@ -18,12 +18,11 @@ use crate::{
     map::{ActorSpawnZone, CarrierGrid, CellGrid, EdgeGrid, LevelGrid, MapConfig},
     test_geometry::{CELL, LEVEL_HEIGHT, WALL_HEIGHT, geometry},
 };
-use common::protocol::CarrierId;
 use common::{
     config::GameplayConfig,
     map::{CarrierPose, Carriers, MapGeometry},
     physics::{CharacterSupport, CollisionWorld},
-    protocol::{BarrierKindTable, Carrier, MapLayout, PlayerId, Position, Wall},
+    protocol::{BarrierKindTable, Carrier, CarrierId, MapLayout, PlayerId, Position, Wall},
 };
 
 // A 12x5 all-floor grid with one zone at (1, 2). With a carrier, the zone's

@@ -14,8 +14,10 @@ mod portals;
 mod position;
 mod quests;
 
-pub use crate::health::Health;
-pub use crate::tick::{ServerTick, server_tick_advance_system, ticks_from_secs};
+pub use crate::{
+    health::Health,
+    tick::{ServerTick, server_tick_advance_system, ticks_from_secs},
+};
 
 pub use barrier_kind::{BarrierKindId, BarrierKindTable};
 pub use bridge_kind::{BridgeKindId, BridgeKindTable};

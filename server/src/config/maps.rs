@@ -3,10 +3,10 @@ use std::collections::{HashMap, HashSet};
 use anyhow::{Context, Result, bail};
 use serde::Deserialize;
 
-use super::validation::{deserialize_required_option, validate_covers_actor_kinds, validate_positive_finite};
 use super::{
     items::PlacedItemsConfig,
     quests::{Quest, validate_quests},
+    validation::{deserialize_required_option, validate_covers_actor_kinds, validate_positive_finite},
 };
 use common::protocol::{BarrierKindTable, BridgeKindTable, ItemType, MapSettings, MapWeaponSettings};
 
@@ -160,10 +160,9 @@ impl RandomItemsConfig {
 mod tests {
     use super::*;
     use crate::test_geometry::sizes;
-    use common::protocol::{HexColor, KindDef};
     use common::{
         config::{ActorMovementConfig, KnockbackConfig, MapMovementConfig, PlayerMovementConfig},
-        protocol::{MapWeaponSettings, PortalMode},
+        protocol::{HexColor, KindDef, MapWeaponSettings, PortalMode},
     };
 
     fn actor_kinds() -> HashMap<String, ()> {

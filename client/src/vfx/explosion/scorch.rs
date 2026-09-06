@@ -19,12 +19,8 @@ use common::{
 
 use bevy::light::NotShadowCaster;
 
-use super::assets::ExplosionAssets;
-use super::particles::ExplosionVfxBudget;
-use crate::carriers::CarrierEntities;
-use crate::config::ClientSettings;
-use crate::constants::*;
-use crate::map::GrassBurn;
+use super::{assets::ExplosionAssets, particles::ExplosionVfxBudget};
+use crate::{carriers::CarrierEntities, config::ClientSettings, constants::*, map::GrassBurn};
 
 const SCORCH_RESOLUTION: usize = 128;
 const OUTLINE_CONTROL_POINTS: usize = 24;

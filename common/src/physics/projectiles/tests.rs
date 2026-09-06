@@ -2,15 +2,18 @@ use bevy_math::Vec3;
 use bevy_time::{Timer, TimerMode};
 
 use super::{ProjectileMotion, calculate_projectile_spawns};
-use crate::config::MultiShotConfig;
-use crate::test_geometry::{BARRIER_THICKNESS, FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS};
+use crate::{
+    config::MultiShotConfig,
+    test_geometry::{BARRIER_THICKNESS, FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS},
+};
 
 // Test copies of the default `projectiles` config values.
 const TEST_PROJECTILE_LIFETIME: f32 = 8.0;
 const TEST_PROJECTILE_RADIUS: f32 = 0.11;
-use crate::physics::CollisionWorld;
-use crate::protocol::CarrierId;
-use crate::protocol::{Barrier, BarrierKindId, BarrierKindTable, Floor, MapLayout, Position, Ramp, Wall};
+use crate::{
+    physics::CollisionWorld,
+    protocol::{Barrier, BarrierKindId, BarrierKindTable, CarrierId, Floor, MapLayout, Position, Ramp, Wall},
+};
 
 fn test_projectile_motion(velocity: Vec3) -> ProjectileMotion {
     ProjectileMotion {
@@ -165,11 +168,11 @@ fn projectile_hits_level_zero_floor_underside() {
 
 mod spawning {
     use super::super::spawning::projectile_spawn_is_blocked;
-    use crate::physics::CollisionWorld;
-    use crate::protocol::CarrierId;
-    use crate::protocol::{Floor, MapLayout, Position, Ramp, Wall};
-    use crate::test_geometry::{FLOOR_THICKNESS, WALL_THICKNESS};
-    use crate::test_geometry::{LEVEL_HEIGHT, WALL_HEIGHT};
+    use crate::{
+        physics::CollisionWorld,
+        protocol::{CarrierId, Floor, MapLayout, Position, Ramp, Wall},
+        test_geometry::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS},
+    };
 
     fn test_wall(level: u8) -> Wall {
         Wall {

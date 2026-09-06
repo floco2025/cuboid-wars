@@ -6,8 +6,7 @@
 // matters: the character controller reports a side contact at every
 // collider seam, so a per-cell bridge would stutter underfoot.
 
-use std::collections::BTreeMap;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use common::protocol::BridgeKindId;
 

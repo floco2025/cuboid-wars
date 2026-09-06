@@ -2,8 +2,7 @@ use std::collections::HashMap;
 
 use common::{
     map::MapGeometry,
-    protocol::FaceMaterials,
-    protocol::{Floor, Ramp, Wall},
+    protocol::{FaceMaterials, Floor, Ramp, Wall},
 };
 
 use super::{

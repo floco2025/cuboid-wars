@@ -5,10 +5,10 @@ use common::{
     protocol::{BarrierKindId, CarrierId, ItemMarker, ItemType, MapSettings, MapWeaponSettings, PortalMode},
 };
 
-use crate::map::{CellGrid, EdgeGrid, LevelGrid, MapConfig, PlacedItem};
 use crate::{
     config::RandomItemsConfig,
     items::{ItemMap, ItemSpawner, RandomItems},
+    map::{CellGrid, EdgeGrid, LevelGrid, MapConfig, PlacedItem},
     test_geometry::geometry,
 };
 

@@ -10,10 +10,9 @@ use crate::{
     network::broadcast_to_all,
     players::{PlayerMap, PlayerStateQuery},
 };
-use common::constants::MISSILE_SPAWN_OFFSET;
 use common::{
     config::GameplayConfig,
-    constants::MISSILE_RADIUS,
+    constants::{MISSILE_RADIUS, MISSILE_SPAWN_OFFSET},
     physics::{CollisionWorld, acquire_lock},
     protocol::*,
 };

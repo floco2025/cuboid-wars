@@ -439,12 +439,16 @@ fn source_description(source: &BlastSource, players: &PlayerMap) -> String {
 mod tests {
     use super::*;
     use crate::{
-        actors::ActorCrushed, actors::ActorInfo, actors::actors_removal_system, actors::navigation::NavGraphs,
-        characters::characters_health_regeneration_system, map::MapConfig, players::PlayerInfo,
+        actors::{ActorCrushed, ActorInfo, actors_removal_system, navigation::NavGraphs},
+        characters::characters_health_regeneration_system,
+        map::MapConfig,
+        players::PlayerInfo,
         test_geometry::geometry,
     };
-    use common::protocol::{BarrierKindTable, MapLayout, SPlayerDeath};
-    use common::{map::Carriers, protocol::CarrierId};
+    use common::{
+        map::Carriers,
+        protocol::{BarrierKindTable, CarrierId, MapLayout, SPlayerDeath},
+    };
     use tokio::sync::mpsc::unbounded_channel;
 
     fn test_app() -> App {

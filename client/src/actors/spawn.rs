@@ -1,8 +1,7 @@
 use bevy::{gltf::GltfAssetLabel, prelude::*};
 
 use crate::{
-    characters::{AnimationToPlay, character_animation_system},
-    characters::{MaxHealth, PreviousTickPosition, spawn_collider_box},
+    characters::{AnimationToPlay, MaxHealth, PreviousTickPosition, character_animation_system, spawn_collider_box},
     config::{AssetSet, ClientSettings},
     constants::{BEAM_IN_COLOR, BEAM_IN_LIGHT_RANGE, LABEL_ACTOR_MESH_WIDTH},
     ui::floating_labels::spawn_floating_health_bar,

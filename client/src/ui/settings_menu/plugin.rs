@@ -1,15 +1,15 @@
-use bevy::audio::GlobalVolume;
-use bevy::prelude::*;
+use bevy::{audio::GlobalVolume, prelude::*};
 
-use super::observers::{on_checkbox_value_change, on_cycler_activate, on_slider_value_change};
-use super::persist::save_local_settings_system;
-use super::spawn::settings_menu_lifecycle_system;
-use super::state::{SettingsMenuState, menu_open};
-use super::style::{settings_menu_slider_sync_system, settings_menu_style_system, settings_menu_window_sync_system};
-use super::toggle::settings_menu_toggle_system;
-use super::volume::apply_global_volume_system;
-use crate::schedule::ClientSet;
-use crate::ui::console::console_input_system;
+use super::{
+    observers::{on_checkbox_value_change, on_cycler_activate, on_slider_value_change},
+    persist::save_local_settings_system,
+    spawn::settings_menu_lifecycle_system,
+    state::{SettingsMenuState, menu_open},
+    style::{settings_menu_slider_sync_system, settings_menu_style_system, settings_menu_window_sync_system},
+    toggle::settings_menu_toggle_system,
+    volume::apply_global_volume_system,
+};
+use crate::{schedule::ClientSet, ui::console::console_input_system};
 
 pub fn settings_menu_plugin(app: &mut App) {
     app.init_resource::<SettingsMenuState>();

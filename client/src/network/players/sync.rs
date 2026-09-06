@@ -1,6 +1,5 @@
 use bevy::prelude::*;
-use std::collections::HashSet;
-use std::f32::consts::PI;
+use std::{collections::HashSet, f32::consts::PI};
 
 use super::super::context::ServerMessageContext;
 use crate::{

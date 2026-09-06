@@ -5,8 +5,10 @@ use super::{
     material_rules::MaterialRules,
     segments::{MERGE_EPS, grid_x, grid_z},
 };
-use common::protocol::CarrierId;
-use common::{map::MapGeometry, protocol::FaceMaterials, protocol::Floor};
+use common::{
+    map::MapGeometry,
+    protocol::{CarrierId, FaceMaterials, Floor},
+};
 
 // One floor cell's 8 neighbours within the level's slab mask.
 struct Neighbors {

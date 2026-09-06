@@ -10,9 +10,11 @@ use super::{
 };
 use crate::test_geometry::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS, sizes};
 use bevy::math::Vec3;
-use common::config::PortalShotSettings;
-use common::physics::CollisionWorld;
-use common::protocol::{BarrierKindTable, BridgeKindId, BridgeKindTable, FaceMaterials};
+use common::{
+    config::PortalShotSettings,
+    physics::CollisionWorld,
+    protocol::{BarrierKindTable, BridgeKindId, BridgeKindTable, FaceMaterials},
+};
 
 fn empty_kind_table() -> BarrierKindTable {
     BarrierKindTable::default()
@@ -1125,10 +1127,12 @@ fn validation_rejects_out_of_bounds_ladder() {
 #[test]
 fn every_shipped_ladder_ascends_at_least_one_storey() {
     use bevy::math::Vec3;
-    use common::constants::TICK_SECS;
-    use common::map::Carriers;
-    use common::physics::{CharacterEnvironment, CharacterStep, CollisionWorld, step_character_movement};
-    use common::protocol::Position;
+    use common::{
+        constants::TICK_SECS,
+        map::Carriers,
+        physics::{CharacterEnvironment, CharacterStep, CollisionWorld, step_character_movement},
+        protocol::Position,
+    };
 
     let server_gameplay =
         crate::config::ServerGameplayConfig::load_default().expect("default server gameplay config should load");
@@ -1225,10 +1229,12 @@ fn every_shipped_ladder_ascends_at_least_one_storey() {
 #[test]
 fn every_shipped_carrier_carries_a_standing_player_through_its_cycle() {
     use bevy::math::Vec3;
-    use common::constants::{CARRIER_RIDE_TOLERANCE, TICK_SECS};
-    use common::map::Carriers;
-    use common::physics::{CharacterEnvironment, CharacterStep, CollisionWorld, step_character_movement};
-    use common::protocol::{CarrierId, Position};
+    use common::{
+        constants::{CARRIER_RIDE_TOLERANCE, TICK_SECS},
+        map::Carriers,
+        physics::{CharacterEnvironment, CharacterStep, CollisionWorld, step_character_movement},
+        protocol::{CarrierId, Position},
+    };
 
     let server_gameplay =
         crate::config::ServerGameplayConfig::load_default().expect("default server gameplay config should load");
@@ -1480,8 +1486,7 @@ fn validation_rejects_two_nested_maps_starting_on_one_cell() {
 
 #[test]
 fn nested_cell_zero_lands_on_the_parent_anchor_cell() {
-    use common::map::MapGeometry;
-    use common::protocol::CarrierId;
+    use common::{map::MapGeometry, protocol::CarrierId};
 
     let host_def = host(vec![nested("room", 1, [2, 3], [4, 3], 1)]);
     let (layout, _) = compile_host(&host_def, &tree(vec![("room", room())]));
@@ -1499,8 +1504,7 @@ fn nested_cell_zero_lands_on_the_parent_anchor_cell() {
 
 #[test]
 fn nested_records_stay_in_their_own_frame_and_carry_their_id() {
-    use common::map::MapGeometry;
-    use common::protocol::CarrierId;
+    use common::{map::MapGeometry, protocol::CarrierId};
 
     let host_def = host(vec![nested("room", 0, [2, 2], [2, 2], 0)]);
     let (layout, _) = compile_host(&host_def, &tree(vec![("room", room())]));

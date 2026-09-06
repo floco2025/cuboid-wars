@@ -1,6 +1,5 @@
 use super::*;
-use crate::constants::CHARACTER_TERMINAL_VELOCITY;
-use crate::protocol::CarrierId;
+use crate::{constants::CHARACTER_TERMINAL_VELOCITY, protocol::CarrierId};
 
 #[test]
 fn player_hits_wall_collider_from_collision_world() {

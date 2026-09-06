@@ -5,7 +5,7 @@ use super::{
     geometry_batch::{MapGeometryBatch, MapGeometryKind},
 };
 use crate::{carriers::CarrierStoreys, config::AssetSet};
-use common::{protocol::FaceMaterials, protocol::*};
+use common::protocol::{FaceMaterials, *};
 
 // Spawn a visual cuboid slab for a `Floor`. Ground-storey floors get the
 // ground texture and a `GroundMarker`; higher storeys get the roof texture

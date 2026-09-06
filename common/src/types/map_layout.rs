@@ -5,8 +5,10 @@ use serde::Deserialize;
 
 use crate::config::{MapGeometryConfig, MapMovementConfig, PortalShotSettings};
 
-use super::face_materials::FaceMaterials;
-use super::{BarrierKindId, BarrierKindTable, BridgeKindId, BridgeKindTable, CarrierId, ItemType, KindDef, Position};
+use super::{
+    BarrierKindId, BarrierKindTable, BridgeKindId, BridgeKindTable, CarrierId, ItemType, KindDef, Position,
+    face_materials::FaceMaterials,
+};
 
 // Layout records are in their carrier's frame: world space for
 // `CarrierId::WORLD`, the map itself, and a carrier's local frame otherwise,

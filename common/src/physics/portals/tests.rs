@@ -753,8 +753,10 @@ fn half_placed_pair_is_inert() {
     assert!(hop.is_none());
 }
 
-use crate::protocol::{BarrierKindTable, Floor, PlatePurpose, PressurePlate, Ramp, Wall, WallLight};
-use crate::test_geometry::{FLOOR_THICKNESS, WALL_THICKNESS};
+use crate::{
+    protocol::{BarrierKindTable, Floor, PlatePurpose, PressurePlate, Ramp, Wall, WallLight},
+    test_geometry::{FLOOR_THICKNESS, WALL_THICKNESS},
+};
 
 // One 12 m wall along X at z = 0 (level 0) with the room floor on +Z.
 fn placement_layout() -> MapLayout {
@@ -1221,9 +1223,11 @@ fn wall_light_on_the_other_face_does_not_block_placement() {
 // traveller, so front clearance must see it; backing stays bridge-blind.
 #[test]
 fn placement_front_clearance_rejects_a_powered_light_bridge() {
-    use crate::constants::{PORTAL_HALF_HEIGHT, PORTAL_RIM_SCALE};
-    use crate::protocol::{BridgeKindId, LightBridge};
-    use crate::test_geometry::BRIDGE_THICKNESS;
+    use crate::{
+        constants::{PORTAL_HALF_HEIGHT, PORTAL_RIM_SCALE},
+        protocol::{BridgeKindId, LightBridge},
+        test_geometry::BRIDGE_THICKNESS,
+    };
 
     let mut layout = placement_layout();
     layout.walls.push(Wall {
@@ -1301,8 +1305,10 @@ fn placement_rejects_a_floor_portal_covering_a_pressure_plate() {
 // the previous and current positions.
 #[test]
 fn perpetual_floor_fall_keeps_its_speed_across_hops() {
-    use crate::constants::TICK_SECS;
-    use crate::physics::{CharacterEnvironment, CharacterStep, step_character_movement};
+    use crate::{
+        constants::TICK_SECS,
+        physics::{CharacterEnvironment, CharacterStep, step_character_movement},
+    };
 
     let gameplay = crate::config::gameplay::load_test_gameplay().expect("default gameplay config should load");
     let physics = gameplay.player.physics();
@@ -1404,8 +1410,10 @@ fn perpetual_floor_fall_keeps_its_speed_across_hops() {
 // terminal cap and stay there.
 #[test]
 fn floor_to_ceiling_fall_accelerates_toward_terminal_velocity() {
-    use crate::constants::TICK_SECS;
-    use crate::physics::{CharacterEnvironment, CharacterStep, step_character_movement};
+    use crate::{
+        constants::TICK_SECS,
+        physics::{CharacterEnvironment, CharacterStep, step_character_movement},
+    };
 
     let gameplay = crate::config::gameplay::load_test_gameplay().expect("default gameplay config should load");
     let physics = gameplay.player.physics();
@@ -1555,8 +1563,10 @@ fn carried_offset_is_clamped_to_the_exit_aperture() {
 // the body miss the hole and land beside it.
 #[test]
 fn steering_sideways_escapes_a_portal_fall_chain() {
-    use crate::constants::TICK_SECS;
-    use crate::physics::{CharacterEnvironment, CharacterStep, step_character_movement};
+    use crate::{
+        constants::TICK_SECS,
+        physics::{CharacterEnvironment, CharacterStep, step_character_movement},
+    };
 
     let gameplay = crate::config::gameplay::load_test_gameplay().expect("default gameplay config should load");
     let physics = gameplay.player.physics();
@@ -1681,8 +1691,10 @@ fn falling_toward_a_floor_portal_funnels_toward_its_axis() {
 
 #[test]
 fn floor_portal_funnel_is_symmetric_through_character_movement() {
-    use crate::constants::TICK_SECS;
-    use crate::physics::{CharacterEnvironment, CharacterStep, step_character_movement};
+    use crate::{
+        constants::TICK_SECS,
+        physics::{CharacterEnvironment, CharacterStep, step_character_movement},
+    };
 
     let gameplay = crate::config::gameplay::load_test_gameplay().expect("default gameplay config should load");
     let physics = gameplay.player.physics();
@@ -1782,8 +1794,10 @@ fn wall_portals_never_funnel() {
 // with realistic misalignment loops indefinitely hands-off.
 #[test]
 fn misaligned_fall_loop_is_sustained_by_funneling() {
-    use crate::constants::TICK_SECS;
-    use crate::physics::{CharacterEnvironment, CharacterStep, step_character_movement};
+    use crate::{
+        constants::TICK_SECS,
+        physics::{CharacterEnvironment, CharacterStep, step_character_movement},
+    };
 
     let gameplay = crate::config::gameplay::load_test_gameplay().expect("default gameplay config should load");
     let physics = gameplay.player.physics();
@@ -1972,8 +1986,10 @@ fn run_ticks(
     first_tick: u32,
     ticks: u32,
 ) -> (Option<(u32, CharacterPortalHop)>, Position, CharacterSupport) {
-    use crate::constants::TICK_SECS;
-    use crate::physics::{CharacterEnvironment, CharacterStep, step_character_movement};
+    use crate::{
+        constants::TICK_SECS,
+        physics::{CharacterEnvironment, CharacterStep, step_character_movement},
+    };
 
     let mut vertical_velocity = 0.0;
     let mut support = CharacterSupport::Airborne;

@@ -1,10 +1,11 @@
-use super::definition::{WallLightDef, WallSide};
-use super::edges::{CellSide, has_edge_on_cell_side};
+use super::{
+    definition::{WallLightDef, WallSide},
+    edges::{CellSide, has_edge_on_cell_side},
+};
 use crate::map::LevelGrid;
-use common::protocol::CarrierId;
 use common::{
     map::MapGeometry,
-    protocol::{Position, WallLight},
+    protocol::{CarrierId, Position, WallLight},
 };
 use std::f32::consts::{FRAC_PI_2, PI};
 

@@ -1,11 +1,9 @@
-use bevy::render::render_resource::TextureFormat;
-use bevy::render::renderer::RenderAdapter;
 use bevy::{
     camera::{ImageRenderTarget, RenderTarget, Viewport, visibility::RenderLayers},
     core_pipeline::prepass::{DeferredPrepass, DepthPrepass},
     post_process::bloom::{Bloom, BloomCompositeMode, BloomPrefilter},
     prelude::*,
-    render::view::ColorGrading,
+    render::{render_resource::TextureFormat, renderer::RenderAdapter, view::ColorGrading},
     window::PrimaryWindow,
 };
 

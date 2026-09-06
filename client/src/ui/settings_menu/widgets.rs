@@ -1,6 +1,8 @@
-use bevy::picking::hover::Hovered;
-use bevy::prelude::*;
-use bevy::ui_widgets::{Button, Checkbox, Slider, SliderPrecision, SliderRange, SliderThumb, SliderValue, TrackClick};
+use bevy::{
+    picking::hover::Hovered,
+    prelude::*,
+    ui_widgets::{Button, Checkbox, Slider, SliderPrecision, SliderRange, SliderThumb, SliderValue, TrackClick},
+};
 
 use super::state::{
     CheckboxSetting, CyclerButton, CyclerSetting, CyclerValueLabel, MenuCheckBoxMarker, MenuCheckMarkMarker,

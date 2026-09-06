@@ -27,9 +27,8 @@ use super::colliders::{
     surface_collision_groups, world_collision_groups,
 };
 
-use super::ladders::LadderVolume;
 pub use super::shape_cast::ShapeCastHit;
-use super::shape_cast::upward_surface_hit;
+use super::{ladders::LadderVolume, shape_cast::upward_surface_hit};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct WorldSurfaceHit {

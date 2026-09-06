@@ -1,6 +1,5 @@
 use super::*;
-use crate::constants::TICK_SECS;
-use crate::protocol::CarrierId;
+use crate::{constants::TICK_SECS, protocol::CarrierId};
 
 // Center past the floor edge: outside the support probe footprint but inside
 // the collider footprint — the band where the probe reads airborne while the

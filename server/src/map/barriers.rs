@@ -10,10 +10,9 @@
 use std::collections::HashMap;
 
 use super::{mask::Mask, segments::MERGE_EPS};
-use common::protocol::CarrierId;
 use common::{
     map::MapGeometry,
-    protocol::{Barrier, BarrierKindId},
+    protocol::{Barrier, BarrierKindId, CarrierId},
 };
 
 // One authored barrier: its grid edge as `[c0, r0, c1, r1]` and its resolved kind.

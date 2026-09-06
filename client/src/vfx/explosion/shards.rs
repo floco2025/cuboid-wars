@@ -1,6 +1,8 @@
 use super::particles::{ExplosionVfxBudget, SurfacePlane, random_direction};
-use crate::constants::*;
-use crate::vfx::cube::{CUBE_INDICES, CUBE_NORMALS, CUBE_VERTICES, repeated_indices};
+use crate::{
+    constants::*,
+    vfx::cube::{CUBE_INDICES, CUBE_NORMALS, CUBE_VERTICES, repeated_indices},
+};
 use bevy::{
     asset::RenderAssetUsages,
     light::NotShadowCaster,

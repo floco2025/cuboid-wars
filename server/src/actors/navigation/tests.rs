@@ -1,12 +1,16 @@
 use bevy::prelude::Vec3;
-use common::map::CarrierPose;
-use common::physics::CollisionWorld;
-use common::protocol::{BarrierKindTable, MapLayout, Position, Wall};
+use common::{
+    map::CarrierPose,
+    physics::CollisionWorld,
+    protocol::{BarrierKindTable, MapLayout, Position, Wall},
+};
 use rand::{SeedableRng, rngs::StdRng};
 
 use super::{NavGraph, NavGraphs, routing::COVER_SEARCH_MAX_STEPS};
-use crate::map::{ActorSpawnZone, CarrierGrid, CellGrid, EdgeGrid, GeneratedMap, LevelGrid, MapConfig};
-use crate::test_geometry::{CELL, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS, geometry};
+use crate::{
+    map::{ActorSpawnZone, CarrierGrid, CellGrid, EdgeGrid, GeneratedMap, LevelGrid, MapConfig},
+    test_geometry::{CELL, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS, geometry},
+};
 use common::protocol::CarrierId;
 
 fn nav_for(map: MapConfig) -> NavGraph {

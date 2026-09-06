@@ -1,6 +1,8 @@
-use bevy::asset::AssetPath;
-use bevy::light::{DirectionalLightShadowMap, cluster::GlobalClusterSettings};
-use bevy::prelude::*;
+use bevy::{
+    asset::AssetPath,
+    light::{DirectionalLightShadowMap, cluster::GlobalClusterSettings},
+    prelude::*,
+};
 
 use crate::{
     bridges::LightBridgeMarker,

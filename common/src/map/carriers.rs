@@ -196,8 +196,7 @@ impl Carriers {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::protocol::Position;
-    use crate::test_geometry::LEVEL_HEIGHT;
+    use crate::{protocol::Position, test_geometry::LEVEL_HEIGHT};
 
     fn slider() -> Carrier {
         Carrier {

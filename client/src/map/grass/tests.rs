@@ -2,20 +2,23 @@ use std::f32::consts::TAU;
 
 use bevy::{mesh::VertexAttributeValues, prelude::*};
 
-use super::burn::{GrassBurn, grass_burn_system};
-use super::mesh::{
-    BLADE_HEIGHT_MAX, BLADE_MAX_OVERHANG, BLADES_PER_TUFT, INDICES_PER_BLADE, MID_SWAY_WEIGHT, VERTICES_PER_BLADE,
-    WIND_SWAY_FACTOR, burn_strength_at, cell_tuft_count, grass_cell_mesh,
+use super::{
+    burn::{GrassBurn, grass_burn_system},
+    mesh::{
+        BLADE_HEIGHT_MAX, BLADE_MAX_OVERHANG, BLADES_PER_TUFT, INDICES_PER_BLADE, MID_SWAY_WEIGHT, VERTICES_PER_BLADE,
+        WIND_SWAY_FACTOR, burn_strength_at, cell_tuft_count, grass_cell_mesh,
+    },
+    spawn::{GrassCellVisual, OpenEdges, grass_cell_aabb},
 };
-use super::spawn::{GrassCellVisual, OpenEdges, grass_cell_aabb};
-use crate::config::{ClientSettings, GrassConfig};
-use crate::constants::{
-    EXPLOSION_GRASS_BURN_CENTER_HEIGHT_FACTOR, EXPLOSION_GRASS_BURN_CENTER_SWAY_FACTOR,
-    EXPLOSION_GRASS_BURN_VERTICAL_TOLERANCE,
+use crate::{
+    config::{ClientSettings, GrassConfig},
+    constants::{
+        EXPLOSION_GRASS_BURN_CENTER_HEIGHT_FACTOR, EXPLOSION_GRASS_BURN_CENTER_SWAY_FACTOR,
+        EXPLOSION_GRASS_BURN_VERTICAL_TOLERANCE,
+    },
+    test_geometry::{CELL, map_settings},
 };
-use crate::test_geometry::{CELL, map_settings};
-use common::protocol::CarrierId;
-use common::protocol::GrassCell;
+use common::protocol::{CarrierId, GrassCell};
 
 fn test_cell() -> GrassCell {
     GrassCell {

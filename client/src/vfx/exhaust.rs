@@ -1,8 +1,10 @@
 use bevy::prelude::*;
 use rand::{RngExt, rng};
 
-use super::firework::FireworkRocket;
-use super::particles::{ParticleClouds, ParticleSpawn};
+use super::{
+    firework::FireworkRocket,
+    particles::{ParticleClouds, ParticleSpawn},
+};
 use crate::{config::ClientSettings, constants::MISSILE_BODY_LENGTH};
 use common::protocol::MissileMarker;
 

@@ -18,8 +18,7 @@ use crate::{
     projectiles::handle_projectile_shot_message,
     quests::{QuestBoard, QuestCatalog},
 };
-use common::physics::PortalSet;
-use common::protocol::*;
+use common::{physics::PortalSet, protocol::*};
 
 #[derive(SystemParam)]
 pub(super) struct ClientMessageContext<'w, 's> {

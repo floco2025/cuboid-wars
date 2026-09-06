@@ -37,8 +37,7 @@ pub fn ramp_surface_at(ramp: &Ramp, x: f32, z: f32) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::protocol::CarrierId;
-    use crate::test_geometry::LEVEL_HEIGHT;
+    use crate::{protocol::CarrierId, test_geometry::LEVEL_HEIGHT};
 
     #[test]
     fn ramp_axis_and_surface_follow_longer_x_axis() {

@@ -1,6 +1,8 @@
-use bevy::audio::GlobalVolume;
-use bevy::prelude::*;
-use bevy::window::{PrimaryWindow, WindowMode};
+use bevy::{
+    audio::GlobalVolume,
+    prelude::*,
+    window::{PrimaryWindow, WindowMode},
+};
 
 use super::state::SettingsMenuState;
 use crate::config::{ClientSettings, LOCAL_SETTINGS_VERSION, LocalSettings};

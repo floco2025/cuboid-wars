@@ -7,7 +7,7 @@ use common::{
 };
 
 use super::audio::{
-    LastBounceSound, play_barrier_impact_sound, play_sound, play_spatial_sound, play_wall_bounce_sound,
+    LastBounceSound, play_barrier_impact_sound, play_sound_with, play_spatial_sound_with, play_wall_bounce_sound,
 };
 use crate::{
     actors::ActorMap,
@@ -83,7 +83,7 @@ pub(super) fn present_character_impact(
     let hit = target_hit.hit();
     let impact = Vec3::from(*proj_pos) + proj_motion.velocity * delta * hit.time_of_impact;
     if let ProjectileTargetHit::Player { is_local_player, .. } = target_hit {
-        play_spatial_sound(
+        play_spatial_sound_with(
             commands,
             asset_server,
             asset_set.player_sound("hit_player"),
@@ -92,7 +92,7 @@ pub(super) fn present_character_impact(
             impact,
         );
         if is_local_player {
-            play_sound(
+            play_sound_with(
                 commands,
                 asset_server,
                 asset_set.player_sound("take_hit"),

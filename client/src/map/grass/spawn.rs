@@ -1,8 +1,8 @@
 use super::mesh::{AABB_BASE_PAD, BLADE_HEIGHT_MAX, BLADE_MAX_OVERHANG, WIND_SWAY_FACTOR, grass_cell_mesh};
-use crate::constants::{GRASS_WIND_DIRECTION_DEGREES, GRASS_WIND_SPEED, GRASS_WIND_STRENGTH};
 use crate::{
     carriers::{CarrierEntities, CarrierStoreys},
     config::{ClientSettings, GrassConfig},
+    constants::{GRASS_WIND_DIRECTION_DEGREES, GRASS_WIND_SPEED, GRASS_WIND_STRENGTH},
     materials::{GrassMaterial, GrassWindExtension},
 };
 use bevy::{camera::primitives::Aabb, light::NotShadowCaster, prelude::*};

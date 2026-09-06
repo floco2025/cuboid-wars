@@ -6,30 +6,25 @@ use super::{
     load::LoadedMaps,
     schema::{LadderDef, MapDef, MotionDef, PressurePlatePurposeDef, RampDef, WallSide},
 };
-use crate::{
-    map::{
-        ActorSpawnZone, CarrierGrid, CellGrid, EdgeGrid, LevelGrid, MapConfig, PlacedItem, PlayerSpawnZone,
-        PressurePlateRuntime,
-    },
-    map::{
-        barriers::{BarrierEdge, merge_barriers, stack_barriers},
-        bridge_bounds::flush_light_bridges,
-        bridges::merge_light_bridges,
-        floors,
-        lights::generate_wall_lights,
-        mask::{Mask, mark_has_floor, mark_has_floor_above, mark_has_floor_slab},
-        material_rules::MaterialRules,
-        ramps, trim, walls,
-    },
+use crate::map::{
+    ActorSpawnZone, CarrierGrid, CellGrid, EdgeGrid, LevelGrid, MapConfig, PlacedItem, PlayerSpawnZone,
+    PressurePlateRuntime,
+    barriers::{BarrierEdge, merge_barriers, stack_barriers},
+    bridge_bounds::flush_light_bridges,
+    bridges::merge_light_bridges,
+    floors,
+    lights::generate_wall_lights,
+    mask::{Mask, mark_has_floor, mark_has_floor_above, mark_has_floor_slab},
+    material_rules::MaterialRules,
+    ramps, trim, walls,
 };
 use common::{
     config::MapGeometryConfig,
     constants::LADDER_WIDTH,
     map::MapGeometry,
-    protocol::FaceMaterials,
     protocol::{
-        BarrierKindId, BarrierKindTable, BridgeKindTable, Carrier, CarrierId, Floor, GrassCell, ItemType, Ladder,
-        LightBridge, MapLayout, PlatePurpose, PressurePlate, Wall, ticks_from_secs,
+        BarrierKindId, BarrierKindTable, BridgeKindTable, Carrier, CarrierId, FaceMaterials, Floor, GrassCell,
+        ItemType, Ladder, LightBridge, MapLayout, PlatePurpose, PressurePlate, Wall, ticks_from_secs,
     },
 };
 

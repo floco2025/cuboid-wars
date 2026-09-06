@@ -1,8 +1,10 @@
 use bevy::prelude::*;
 
 use super::BarrierAssets;
-use crate::carriers::{CarrierEntities, CarrierStoreys};
-use crate::map::{FocusedMapLevel, MapLevel, map_level_visibility};
+use crate::{
+    carriers::{CarrierEntities, CarrierStoreys},
+    map::{FocusedMapLevel, MapLevel, map_level_visibility},
+};
 use common::protocol::{Barrier, BarrierKindId, MapLayout, PlateState};
 
 #[derive(Component)]

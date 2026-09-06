@@ -302,8 +302,7 @@ fn presser_of_purpose(
 mod player_on_plate_tests {
     use super::*;
     use crate::test_geometry::{CELL, LEVEL_HEIGHT, geometry};
-    use common::protocol::BarrierKindId;
-    use common::protocol::CarrierId;
+    use common::protocol::{BarrierKindId, CarrierId};
 
     fn make_plate(level: u8, col: i32, row: i32) -> PressurePlateRuntime {
         PressurePlateRuntime {
@@ -407,8 +406,7 @@ mod player_on_plate_tests {
 #[cfg(test)]
 mod presser_tests {
     use super::*;
-    use common::protocol::BarrierKindId;
-    use common::protocol::CarrierId;
+    use common::protocol::{BarrierKindId, CarrierId};
 
     #[test]
     fn presser_prefers_a_fresh_press_over_a_standing_holder() {
@@ -488,7 +486,6 @@ mod system_tests {
     use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
 
     use super::*;
-    use crate::test_geometry::geometry;
     use crate::{
         config::{QuestKind, ServerGameplayConfig},
         map::{CellGrid, EdgeGrid, LevelGrid},
@@ -498,6 +495,7 @@ mod system_tests {
             QuestCatalog,
             test_support::{catalog, completed, drain, feed_lines, quest},
         },
+        test_geometry::geometry,
     };
     use common::protocol::{BarrierKindId, BridgeKindId, QuestId, QuestScope};
 

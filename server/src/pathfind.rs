@@ -1,5 +1,7 @@
-use std::collections::{HashMap, VecDeque};
-use std::hash::Hash;
+use std::{
+    collections::{HashMap, VecDeque},
+    hash::Hash,
+};
 
 // Unweighted BFS with backtracking, shared by the actors' floor `NavGraph`
 // and the missiles' 3D `AirGraph`. Only the traversal is shared — node

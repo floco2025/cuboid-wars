@@ -1,5 +1,7 @@
-use super::shards::{ExplosionShardCloud, bounce_on_surface, update_particle_mesh};
-use super::smoke::{ExplosionSmokeCloud, update_smoke_mesh};
+use super::{
+    shards::{ExplosionShardCloud, bounce_on_surface, update_particle_mesh},
+    smoke::{ExplosionSmokeCloud, update_smoke_mesh},
+};
 use crate::{cameras::MainCameraMarker, config::ClientSettings, constants::*};
 use bevy::prelude::*;
 use common::physics::WorldSurfaceHit;

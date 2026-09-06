@@ -1,7 +1,6 @@
 use anyhow::{Result, bail};
 use bevy::prelude::*;
 
-use crate::quests::{QuestBoard, QuestCatalog};
 use crate::{
     actors::{
         ActorMap, ActorRespawnTimers, ActorSpawner, PendingActorSpawns, actors_plugin,
@@ -17,6 +16,7 @@ use crate::{
     players::{Invincibility, PlayerMap, UnlimitedMissiles, players_plugin},
     portals::{PortalAssignments, PortalMap, portals_plugin},
     projectiles::projectiles_plugin,
+    quests::{QuestBoard, QuestCatalog},
     schedule::{ServerSet, configure_server_schedule},
 };
 use bevy::time::TimeUpdateStrategy;

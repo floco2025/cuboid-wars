@@ -1,5 +1,7 @@
-use bevy::prelude::*;
-use bevy::window::{CursorGrabMode, CursorOptions};
+use bevy::{
+    prelude::*,
+    window::{CursorGrabMode, CursorOptions},
+};
 
 use super::state::SettingsMenuState;
 use crate::ui::ConsoleState;

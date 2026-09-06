@@ -1,6 +1,5 @@
 use super::particles::ExplosionVfxBudget;
-use crate::constants::*;
-use crate::vfx::cube::smoothstep;
+use crate::{constants::*, vfx::cube::smoothstep};
 use bevy::{
     asset::RenderAssetUsages,
     light::NotShadowCaster,

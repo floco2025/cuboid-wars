@@ -1,6 +1,8 @@
 use crate::map::CellGrid;
-use common::protocol::CarrierId;
-use common::{map::MapGeometry, protocol::Ramp};
+use common::{
+    map::MapGeometry,
+    protocol::{CarrierId, Ramp},
+};
 
 // Internal representation of a placed ramp. Downstream code converts it to
 // `Ramp` for the wire protocol and applies its flags to the matching lower-level

@@ -1,14 +1,16 @@
 use bevy::prelude::*;
 
 use super::{Invincibility, PlayerMap};
-use crate::characters::{generate_player_spawn_position, spawn_face_yaw};
-use crate::combat::{DeathSource, PendingExplosions, kill_player};
-use crate::config::ServerGameplayConfig;
-use crate::map::MapConfig;
-use crate::network::ServerToClient;
-use common::constants::CHARACTER_FALL_DEATH_Y;
+use crate::{
+    characters::{generate_player_spawn_position, spawn_face_yaw},
+    combat::{DeathSource, PendingExplosions, kill_player},
+    config::ServerGameplayConfig,
+    map::MapConfig,
+    network::ServerToClient,
+};
 use common::{
     config::GameplayConfig,
+    constants::CHARACTER_FALL_DEATH_Y,
     health::apply_damage,
     map::Carriers,
     physics::{CharacterSupport, CharacterVerticalVelocity, CollisionWorld},

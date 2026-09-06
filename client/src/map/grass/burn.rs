@@ -1,5 +1,7 @@
-use super::mesh::{BLADE_MAX_OVERHANG, grass_cell_mesh};
-use super::spawn::GrassCellVisual;
+use super::{
+    mesh::{BLADE_MAX_OVERHANG, grass_cell_mesh},
+    spawn::GrassCellVisual,
+};
 use crate::{config::ClientSettings, constants::EXPLOSION_GRASS_BURN_VERTICAL_TOLERANCE, vfx::ScorchOutline};
 use bevy::prelude::*;
 use common::protocol::{CarrierId, GrassCell, MapSettings};

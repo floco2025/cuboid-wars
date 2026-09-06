@@ -1,5 +1,7 @@
-use super::console::{ConsoleSubmission, console_input_system, console_send_system};
-use super::*;
+use super::{
+    console::{ConsoleSubmission, console_input_system, console_send_system},
+    *,
+};
 use bevy::prelude::*;
 
 use crate::{

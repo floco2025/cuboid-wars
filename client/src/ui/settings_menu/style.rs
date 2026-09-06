@@ -1,15 +1,19 @@
-use bevy::picking::hover::Hovered;
-use bevy::prelude::*;
-use bevy::ui::{Checked, InteractionDisabled, Pressed};
-use bevy::ui_widgets::{SliderRange, SliderValue};
-use bevy::window::{Monitor, OnMonitor, PrimaryWindow, WindowMode};
+use bevy::{
+    picking::hover::Hovered,
+    prelude::*,
+    ui::{Checked, InteractionDisabled, Pressed},
+    ui_widgets::{SliderRange, SliderValue},
+    window::{Monitor, OnMonitor, PrimaryWindow, WindowMode},
+};
 
 use super::state::{
     CheckboxSetting, CyclerButton, CyclerSetting, CyclerValueLabel, MenuCheckBoxMarker, MenuCheckMarkMarker,
     MenuSliderThumbMarker, SliderSetting, SliderValueLabel,
 };
-use crate::config::ClientSettings;
-use crate::constants::{SETTINGS_ACCENT_COLOR, SETTINGS_OUTLINE_COLOR, SETTINGS_SLIDER_TRACK_COLOR};
+use crate::{
+    config::ClientSettings,
+    constants::{SETTINGS_ACCENT_COLOR, SETTINGS_OUTLINE_COLOR, SETTINGS_SLIDER_TRACK_COLOR},
+};
 
 // Nothing change-detects these colors, so the restyle writes unconditionally while the menu is open.
 pub(super) fn settings_menu_style_system(

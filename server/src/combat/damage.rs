@@ -305,13 +305,17 @@ mod tests {
     use std::collections::HashMap;
 
     use super::*;
-    use crate::config::{
-        ActorSettingsConfig, ActorsConfig, BlastConfig, CombatConfig, CyclesConfig, DamageConfig, FallDamageConfig,
-        HealthConfig, ItemsConfig, LightingCycleConfig, LightingMode, MapServerConfig, MissilesServerConfig,
-        PlacedItemRespawnSecs, PlacedItemsConfig, PlayerHealthConfig, PowerUpDurationSecs, PowerUpsConfig,
-        ScoringConfig, WeaponsConfig, WeatherCycleConfig, WeatherMode,
+    use crate::{
+        actors::ActorInfo,
+        config::{
+            ActorSettingsConfig, ActorsConfig, BlastConfig, CombatConfig, CyclesConfig, DamageConfig, FallDamageConfig,
+            HealthConfig, ItemsConfig, LightingCycleConfig, LightingMode, MapServerConfig, MissilesServerConfig,
+            PlacedItemRespawnSecs, PlacedItemsConfig, PlayerHealthConfig, PowerUpDurationSecs, PowerUpsConfig,
+            ScoringConfig, WeaponsConfig, WeatherCycleConfig, WeatherMode,
+        },
+        network::ServerToClient,
+        players::PlayerInfo,
     };
-    use crate::{actors::ActorInfo, network::ServerToClient, players::PlayerInfo};
     use common::protocol::CarrierId;
     use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
 

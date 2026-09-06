@@ -1,5 +1,7 @@
-use super::burn::GrassBurn;
-use super::spawn::{OpenEdges, quantized_key};
+use super::{
+    burn::GrassBurn,
+    spawn::{OpenEdges, quantized_key},
+};
 use crate::{
     config::GrassConfig,
     constants::{

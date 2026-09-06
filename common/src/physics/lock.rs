@@ -53,12 +53,11 @@ pub fn acquire_lock(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::protocol::CarrierId;
     use crate::{
         config::{
             CharacterColliderAnchor, CharacterColliderConfig, CharacterPhysicsConfig, CharacterSupportProbeConfig,
         },
-        protocol::{ActorId, BarrierKindTable, MapLayout, PlayerId, Wall},
+        protocol::{ActorId, BarrierKindTable, CarrierId, MapLayout, PlayerId, Wall},
         test_geometry::{WALL_HEIGHT, WALL_THICKNESS},
     };
 

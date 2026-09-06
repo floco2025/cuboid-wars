@@ -12,8 +12,7 @@ use common::{
 };
 
 use crate::{
-    actors::ActorMap,
-    actors::{ActorMovementQuery, apply_actor_moves, plan_actor_moves},
+    actors::{ActorMap, ActorMovementQuery, apply_actor_moves, plan_actor_moves},
     config::ServerGameplayConfig,
     players::{PlayerInfo, PlayerMap},
 };

@@ -6,9 +6,11 @@ use crate::{
     config::ServerGameplayConfig,
     players::PlayerMap,
 };
-use common::constants::CHARACTER_FALL_DEATH_Y;
-use common::map::Carriers;
-use common::protocol::{ActorId, ActorMarker, CarrierId, Health, PlayerId, Position};
+use common::{
+    constants::CHARACTER_FALL_DEATH_Y,
+    map::Carriers,
+    protocol::{ActorId, ActorMarker, CarrierId, Health, PlayerId, Position},
+};
 
 // Despawn actors that have fallen below the death threshold, left their
 // nested map, been crushed by a carrier, or had their health reduced to
@@ -132,8 +134,10 @@ struct ActorDeath {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::map::{CarrierGrid, CellGrid, EdgeGrid, LevelGrid, MapConfig};
-    use crate::test_geometry::{CELL, LEVEL_HEIGHT, geometry};
+    use crate::{
+        map::{CarrierGrid, CellGrid, EdgeGrid, LevelGrid, MapConfig},
+        test_geometry::{CELL, LEVEL_HEIGHT, geometry},
+    };
     use common::protocol::{Carrier, MapLayout};
 
     // A world grid and a 2x2 two-storey nested grid whose carrier rests at

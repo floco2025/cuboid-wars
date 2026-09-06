@@ -2,8 +2,7 @@ use bevy::{gltf::GltfAssetLabel, prelude::*};
 
 use super::{BumpFeedbackState, LocalPlayerLabelMarker};
 use crate::{
-    characters::{AnimationToPlay, character_animation_system},
-    characters::{PreviousTickPosition, spawn_collider_box},
+    characters::{AnimationToPlay, PreviousTickPosition, character_animation_system, spawn_collider_box},
     config::{AssetSet, ClientSettings},
     constants::{
         LABEL_PLAYER_BAR_WIDTH, LABEL_PLAYER_NAME_GAP, LABEL_PLAYER_TEXTURE_HEIGHT, LABEL_PLAYER_TEXTURE_WIDTH,

@@ -86,8 +86,7 @@ fn horizontal_collider_radius(physics: CharacterPhysicsConfig) -> f32 {
 mod tests {
     use super::*;
     use crate::test_geometry::{WALL_HEIGHT, WALL_THICKNESS};
-    use common::protocol::CarrierId;
-    use common::protocol::{BarrierKindTable, MapLayout, Position, Wall};
+    use common::protocol::{BarrierKindTable, CarrierId, MapLayout, Position, Wall};
 
     fn plans() -> (CharacterMovePlan, CharacterMovePlan, f32) {
         let server = ServerGameplayConfig::load_default().expect("default server gameplay config should load");

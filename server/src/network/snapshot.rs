@@ -17,8 +17,10 @@ use super::broadcast::{
     broadcast_to_all, collect_items, collect_player_moves, snapshot_active_players, snapshot_actors, snapshot_missiles,
     snapshot_spawning_actors,
 };
-use crate::missiles::{MissileMap, MissileVelocity};
-use crate::portals::{PortalAssignments, PortalMap};
+use crate::{
+    missiles::{MissileMap, MissileVelocity},
+    portals::{PortalAssignments, PortalMap},
+};
 
 // Bundled: Bevy systems take at most 16 parameters and this one is over.
 #[derive(SystemParam)]

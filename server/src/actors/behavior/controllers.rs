@@ -1,5 +1,4 @@
-use common::physics::CharacterSupport;
-use common::protocol::PlayerId;
+use common::{physics::CharacterSupport, protocol::PlayerId};
 use rand::Rng;
 
 use crate::{

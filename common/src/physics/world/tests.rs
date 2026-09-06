@@ -1,14 +1,14 @@
-use crate::config::{
-    CharacterColliderAnchor, CharacterColliderConfig, CharacterPhysicsConfig, CharacterSupportProbeConfig,
-    PortalShotSettings, gameplay::load_test_gameplay,
-};
-use crate::constants::LADDER_OVERSHOOT;
-use crate::protocol::{
-    Barrier, BarrierKindId, BarrierKindTable, BridgeKindId, CarrierId, Floor, Ladder, LightBridge, MapLayout, Position,
-    Ramp, Wall,
-};
-use crate::test_geometry::{
-    BARRIER_THICKNESS, BRIDGE_THICKNESS, FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS,
+use crate::{
+    config::{
+        CharacterColliderAnchor, CharacterColliderConfig, CharacterPhysicsConfig, CharacterSupportProbeConfig,
+        PortalShotSettings, gameplay::load_test_gameplay,
+    },
+    constants::LADDER_OVERSHOOT,
+    protocol::{
+        Barrier, BarrierKindId, BarrierKindTable, BridgeKindId, CarrierId, Floor, Ladder, LightBridge, MapLayout,
+        Position, Ramp, Wall,
+    },
+    test_geometry::{BARRIER_THICKNESS, BRIDGE_THICKNESS, FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS},
 };
 use bevy_math::Vec3;
 use rapier3d::{
@@ -551,8 +551,10 @@ fn character_sweep_ignores_floors_and_ramps() {
 
 #[test]
 fn light_bridge_supports_a_character_only_while_powered() {
-    use crate::config::CharacterPhysicsConfig;
-    use crate::protocol::{BridgeKindId, LightBridge};
+    use crate::{
+        config::CharacterPhysicsConfig,
+        protocol::{BridgeKindId, LightBridge},
+    };
     use rapier3d::prelude::Pose;
 
     let layout = MapLayout {

@@ -1,5 +1,7 @@
-use bevy::audio::{AudioSink, AudioSinkPlayback, GlobalVolume, SpatialAudioSink};
-use bevy::prelude::*;
+use bevy::{
+    audio::{AudioSink, AudioSinkPlayback, GlobalVolume, SpatialAudioSink},
+    prelude::*,
+};
 
 // bevy applies `GlobalVolume` only when a sink is created, so a master
 // volume change must be pushed onto everything already playing (the rain,

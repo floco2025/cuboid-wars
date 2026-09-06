@@ -3,9 +3,12 @@ use std::collections::HashMap;
 use anyhow::{Result, bail};
 use serde::Deserialize;
 
-use super::actors::ActorKindServerConfig;
-use super::validation::{
-    deserialize_required_option, validate_covers_actor_kinds, validate_non_negative_finite, validate_positive_finite,
+use super::{
+    actors::ActorKindServerConfig,
+    validation::{
+        deserialize_required_option, validate_covers_actor_kinds, validate_non_negative_finite,
+        validate_positive_finite,
+    },
 };
 
 // Every health and damage number in the game, consolidated for balancing:

@@ -28,7 +28,7 @@ fn loudness_at_listener(pos: Vec3, listener_pos: Vec3, spatial_distance_scale: f
 
 // The generic one-shot spawners live in `crate::audio`; this module keeps
 // only the projectile-specific rate limiting.
-pub(super) use crate::audio::{play_sound_with as play_sound, play_spatial_sound_with as play_spatial_sound};
+pub(super) use crate::audio::{play_sound_with, play_spatial_sound_with};
 
 pub(super) fn play_barrier_impact_sound(
     commands: &mut Commands,
@@ -37,7 +37,7 @@ pub(super) fn play_barrier_impact_sound(
     audio_config: &AudioConfig,
     pos: Vec3,
 ) {
-    play_spatial_sound(
+    play_spatial_sound_with(
         commands,
         asset_server,
         asset_set.player_sound("barrier_impact"),
@@ -69,7 +69,7 @@ pub(super) fn play_wall_bounce_sound(
         return;
     }
 
-    play_spatial_sound(
+    play_spatial_sound_with(
         commands,
         asset_server,
         asset_set.player_sound("hit_wall"),
