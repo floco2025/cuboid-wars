@@ -222,6 +222,7 @@ mod tests {
         MapServerConfig {
             settings: MapSettings {
                 skybox: "cloudy_day".to_owned(),
+                portal_shots: Default::default(),
                 geometry: sizes(),
                 movement: ok_movement(),
                 weapons: MapWeaponSettings {
@@ -285,6 +286,7 @@ mod tests {
     ) -> Result<MapServerConfig, serde_json::Error> {
         let mut value = serde_json::json!({
             "skybox": "cloudy_day",
+            "portal_shots": { "barriers_block": false, "light_bridges_block": false },
             "geometry": { "grid_cell_size": 3.4, "level_height": 4.4, "floor_thickness": 0.4, "wall_thickness": 0.3 },
             "movement": {
                 "player": { "walk_speed": 6.0, "run_speed": 9.0, "speed_power_up": 1.6, "jump_speed": 12.0 },
@@ -509,6 +511,27 @@ mod tests {
             .expect("map entry failed to deserialize");
         assert!(entry.settings.barrier_kinds.is_empty());
         assert!(entry.settings.bridge_kinds.is_empty());
+    }
+
+    #[test]
+    fn map_entry_requires_explicit_portal_shot_rules() {
+        let gameplay: serde_json::Value = serde_json::from_str(include_str!("../../../config/server/gameplay.json"))
+            .expect("server gameplay JSON is invalid");
+        for field in ["portal_shots", "barriers_block", "light_bridges_block"] {
+            let mut hotel = gameplay["maps"]["hotel"].clone();
+            let target = if field == "portal_shots" {
+                &mut hotel
+            } else {
+                &mut hotel["portal_shots"]
+            };
+            target
+                .as_object_mut()
+                .expect("map settings are not an object")
+                .remove(field);
+            let error = serde_json::from_value::<MapServerConfig>(hotel)
+                .expect_err("incomplete portal shot settings were accepted");
+            assert!(error.to_string().contains(field), "{error}");
+        }
     }
 
     #[test]

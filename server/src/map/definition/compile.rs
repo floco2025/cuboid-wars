@@ -13,6 +13,7 @@ use crate::{
     },
     map::{
         barriers::{BarrierEdge, merge_barriers, stack_barriers},
+        bridge_bounds::flush_light_bridges,
         bridges::merge_light_bridges,
         floors,
         lights::generate_wall_lights,
@@ -212,8 +213,6 @@ fn compile_carrier(
     }
     let mut all_barriers = merge_barriers(stack_barriers(&barrier_edges, &slab_masks, &geometry));
 
-    let mut all_light_bridges = light_bridges(map_def, &geometry, bridge_table)?;
-
     let mut all_floors: Vec<Floor> = Vec::new();
     let mut all_floor_materials: Vec<FaceMaterials> = Vec::new();
     for (level_idx, m) in slab_masks.iter().enumerate() {
@@ -243,6 +242,12 @@ fn compile_carrier(
         all_floors.extend(merged_floors);
         all_floor_materials.extend(merged_materials);
     }
+
+    let mut all_light_bridges = flush_light_bridges(
+        light_bridges(map_def, &geometry, bridge_table)?,
+        &all_floors,
+        geometry.wall_half_thickness(),
+    );
 
     // Grass on floorless cells is silently dropped (like out-of-place wall
     // lights): the editor already enforces floor presence, and a hard error

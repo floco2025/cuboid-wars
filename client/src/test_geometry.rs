@@ -4,7 +4,6 @@ use std::collections::HashMap;
 
 use common::{
     config::{KnockbackConfig, MapGeometryConfig, MapMovementConfig, PlayerMovementConfig},
-    constants::BRIDGE_THICKNESS_FRACTION,
     protocol::{MapSettings, MapWeaponSettings, PortalMode},
 };
 
@@ -13,7 +12,6 @@ pub(crate) const LEVEL_HEIGHT: f32 = 4.4;
 pub(crate) const FLOOR_THICKNESS: f32 = 0.4;
 pub(crate) const WALL_THICKNESS: f32 = 0.3;
 pub(crate) const WALL_HEIGHT: f32 = LEVEL_HEIGHT - FLOOR_THICKNESS;
-pub(crate) const BRIDGE_THICKNESS: f32 = FLOOR_THICKNESS * BRIDGE_THICKNESS_FRACTION;
 
 pub(crate) fn sizes() -> MapGeometryConfig {
     MapGeometryConfig {
@@ -28,6 +26,7 @@ pub(crate) fn sizes() -> MapGeometryConfig {
 pub(crate) fn map_settings() -> MapSettings {
     MapSettings {
         skybox: "test".to_owned(),
+        portal_shots: Default::default(),
         geometry: sizes(),
         movement: MapMovementConfig {
             player: PlayerMovementConfig {

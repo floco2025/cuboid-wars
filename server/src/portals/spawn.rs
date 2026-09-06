@@ -23,6 +23,8 @@ pub fn handle_portal_shot_message(
     collision_world: &CollisionWorld,
     carriers: &Carriers,
     map_layout: &MapLayout,
+    map_settings: &MapSettings,
+    plates: &PlateState,
     gameplay_config: &GameplayConfig,
     portal_assignments: &PortalAssignments,
     portals: &mut PortalMap,
@@ -60,6 +62,8 @@ pub fn handle_portal_shot_message(
         collision_world,
         map_layout,
         carriers,
+        map_settings.portal_shots,
+        &plates.open_barrier_kinds,
     ) else {
         return;
     };

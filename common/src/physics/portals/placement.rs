@@ -8,6 +8,7 @@ use rapier3d::{
 
 use super::PortalFrame;
 use crate::{
+    config::PortalShotSettings,
     constants::{
         PORTAL_FIXTURE_PLANE_DEPTH, PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH, PORTAL_LIGHT_CLEARANCE,
         PORTAL_PLATE_CLEARANCE, PORTAL_RIM_SCALE, PORTAL_STANDABLE_NORMAL_Y, PORTAL_UP_DEGENERACY_LIMIT,
@@ -15,7 +16,7 @@ use crate::{
     map::Carriers,
     math::direction_from_yaw_pitch,
     physics::CollisionWorld,
-    protocol::{CarrierId, MapLayout, Portal, PortalEnd, PortalPairId, WallLight},
+    protocol::{BarrierKindId, CarrierId, MapLayout, Portal, PortalEnd, PortalPairId, WallLight},
 };
 
 // Where a validated portal shot lands: the aperture center (world space),
@@ -50,11 +51,8 @@ impl PortalPlacement {
     }
 }
 
-// The one placement path, shared verbatim: the client runs it to decide fire
-// vs dry-fire before sending, the server to authoritatively place. Same
-// inputs (map geometry, fixtures, each side's own carrier poses), so both
-// reach the same answer except within a tick of carrier motion at a
-// carrier's edge.
+// Shared client/server placement; shots can disagree while replicated
+// plate state or carrier poses are catching up.
 #[must_use]
 pub fn compute_portal_placement(
     origin: Vec3,
@@ -64,8 +62,10 @@ pub fn compute_portal_placement(
     collision_world: &CollisionWorld,
     map_layout: &MapLayout,
     carriers: &Carriers,
+    shot_settings: PortalShotSettings,
+    open_barriers: &[BarrierKindId],
 ) -> Option<PortalPlacement> {
-    let hit = collision_world.world_surface_along_ray(origin, direction, range)?;
+    let hit = collision_world.portal_surface_along_ray(origin, direction, range, shot_settings, open_barriers)?;
     let yaw = portal_placement_yaw(hit.normal, yaw);
     let frame = PortalFrame::from_surface(hit.point, hit.normal, yaw);
     let (pos, carrier) = if let Some(carrier) = portal_fits(&frame, collision_world, map_layout, carriers) {

@@ -3,6 +3,7 @@
   "maps": {
     "hotel": {
       "skybox": "cloudy_day",
+      "portal_shots": { "barriers_block": true, "light_bridges_block": true },
       "geometry": { "grid_cell_size": 3.4, "level_height": 4.4, "floor_thickness": 0.4, "wall_thickness": 0.3 },
       "weather": "auto",
       "lighting": "auto",
@@ -119,6 +120,7 @@
     },
     "obby": {
       "skybox": "cloudy_day",
+      "portal_shots": { "barriers_block": false, "light_bridges_block": false },
       "geometry": { "grid_cell_size": 4.0, "level_height": 2.4, "floor_thickness": 0.4, "wall_thickness": 0.4 },
       "weather": "clear",
       "lighting": "bright",

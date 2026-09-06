@@ -426,11 +426,6 @@ pub const BRIDGE_ALPHA_ON: f32 = 0.80;
 pub const BRIDGE_EMISSIVE: f32 = 6.0;
 // Time constant of the alpha ease between the two levels.
 pub const BRIDGE_FADE_SECS: f32 = 0.25;
-// Visible gap between a slab's free side and a floor's edge (a floor slab
-// reaches half the wall thickness past its grid line, so the render inset is
-// that plus this); a side that meets another bridge stays flush. The
-// collider keeps the full rectangle.
-pub const BRIDGE_EDGE_GAP: f32 = 0.3;
 
 // ============================================================================
 // Rain
@@ -513,11 +508,6 @@ pub const LASER_AIM_HEIGHT_FRACTION: f32 = 0.6;
 // ============================================================================
 // Map Rendering
 // ============================================================================
-
-// Visual overlap into adjacent floors and walls to win the depth test where
-// surfaces would otherwise be coplanar. The barrier mesh grows by this amount
-// at each end (along the segment) and at top/bottom (in Y).
-pub const BARRIER_OVERLAP_EPS: f32 = 0.01;
 
 // Ladder rail and rung bar half-extents (full bar = 2x) and vertical rung
 // spacing. Cosmetic only — the physics climbs the shared volume and rail

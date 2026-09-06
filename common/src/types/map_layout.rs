@@ -3,7 +3,7 @@ use bevy_ecs::prelude::Resource;
 use bincode::{Decode, Encode};
 use serde::Deserialize;
 
-use crate::config::{MapGeometryConfig, MapMovementConfig};
+use crate::config::{MapGeometryConfig, MapMovementConfig, PortalShotSettings};
 
 use super::face_materials::FaceMaterials;
 use super::{BarrierKindId, BarrierKindTable, BridgeKindId, BridgeKindTable, CarrierId, ItemType, KindDef, Position};
@@ -294,6 +294,7 @@ pub struct MapSettings {
     pub geometry: MapGeometryConfig,
     pub movement: MapMovementConfig,
     pub weapons: MapWeaponSettings,
+    pub portal_shots: PortalShotSettings,
     // Ordered catalog assigning this map's stable `BarrierKindId` values;
     // empty when the map has no barriers, keys, or barrier plates.
     pub barrier_kinds: Vec<KindDef>,

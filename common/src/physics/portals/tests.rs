@@ -571,6 +571,8 @@ fn place(layout: &MapLayout, origin: Vec3, toward: Vec3, yaw: f32) -> Option<Por
         &world,
         layout,
         &Carriers::default(),
+        Default::default(),
+        &[],
     )
 }
 
@@ -1035,6 +1037,8 @@ fn placement_front_clearance_rejects_a_powered_light_bridge() {
             world,
             &layout,
             &Carriers::default(),
+            Default::default(),
+            &[],
         )
     };
 
@@ -1805,6 +1809,8 @@ fn a_shot_at_a_carrier_floor_places_the_portal_on_the_carrier() {
         &world,
         &layout,
         &carriers,
+        Default::default(),
+        &[],
     )
     .expect("a shot at the tile fizzled");
 
@@ -1837,6 +1843,8 @@ fn a_shot_that_does_not_fit_where_it_hits_nudges_onto_the_carrier() {
         &world,
         &layout,
         &carriers,
+        Default::default(),
+        &[],
     )
     .expect("a shot near the tile's edge fizzled");
 
@@ -1864,6 +1872,8 @@ fn a_shot_over_the_tile_edge_lands_fully_on_one_surface() {
         &world,
         &layout,
         &carriers,
+        Default::default(),
+        &[],
     )
     .expect("a shot over the tile's edge fizzled");
     assert_eq!(over_edge.carrier, TILE);
@@ -1881,6 +1891,8 @@ fn a_shot_over_the_tile_edge_lands_fully_on_one_surface() {
         &world,
         &layout,
         &carriers,
+        Default::default(),
+        &[],
     )
     .expect("a shot at the floor beside the tile fizzled");
     assert_eq!(on_floor.carrier, CarrierId::WORLD);

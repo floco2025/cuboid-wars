@@ -10,7 +10,9 @@ use super::{
 };
 use crate::test_geometry::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS, sizes};
 use bevy::math::Vec3;
-use common::protocol::{BarrierKindTable, BridgeKindTable, FaceMaterials};
+use common::config::PortalShotSettings;
+use common::physics::CollisionWorld;
+use common::protocol::{BarrierKindTable, BridgeKindId, BridgeKindTable, FaceMaterials};
 
 fn empty_kind_table() -> BarrierKindTable {
     BarrierKindTable::default()
@@ -549,7 +551,9 @@ fn plate_defs_parse_every_purpose() {
 
 #[test]
 fn compile_merges_light_bridge_cells_into_one_rectangle() {
-    let map_def = map_with_bridges(&[[1, 0], [2, 0], [1, 1], [2, 1]]);
+    let mut map_def = map_with_bridges(&[[1, 0], [2, 0], [1, 1], [2, 1]]);
+    map_def.levels[0].floors = vec![floor_def(0, 3)];
+    map_def.player_spawn_zones = vec![player_zone(0, 0, 3)];
 
     let (layout, config) = compile_map(
         &map_def,
@@ -567,10 +571,65 @@ fn compile_merges_light_bridge_cells_into_one_rectangle() {
     assert_eq!(bridge.level, 0);
     assert!((bridge.y - 0.0).abs() < 1e-4, "level 0 stands at y = 0");
     let (min_x, max_x, min_z, max_z) = bridge.bounds_xz();
-    assert!((min_x - geometry.cell_to_world_x(1)).abs() < 1e-4);
-    assert!((max_x - geometry.cell_to_world_x(3)).abs() < 1e-4);
-    assert!((min_z - geometry.cell_to_world_z(0)).abs() < 1e-4);
-    assert!((max_z - geometry.cell_to_world_z(2)).abs() < 1e-4);
+    let pad = geometry.wall_half_thickness();
+    assert!((min_x - (geometry.cell_to_world_x(1) - pad)).abs() < 1e-4);
+    assert!((max_x - (geometry.cell_to_world_x(3) + pad)).abs() < 1e-4);
+    assert!((min_z - (geometry.cell_to_world_z(0) - pad)).abs() < 1e-4);
+    assert!((max_z - (geometry.cell_to_world_z(2) + pad)).abs() < 1e-4);
+}
+
+#[test]
+fn portal_shots_cannot_leak_through_compiled_bridge_landing_seams_or_outer_edges() {
+    let mut map_def = map_with_bridges(&[[1, 0], [2, 0], [1, 1], [2, 1]]);
+    map_def.levels.insert(
+        0,
+        level((0..4).flat_map(|row| (0..4).map(move |col| [col, row])).collect()),
+    );
+    let (layout, config) = compile_map(
+        &map_def,
+        sizes(),
+        &no_nested(),
+        &empty_kind_table(),
+        &skyway_bridge_table(),
+    )
+    .expect("bridge landing map failed to compile");
+    let geometry = config.root_grid().geometry;
+    let mut world = CollisionWorld::from_map_layout(&layout, &empty_kind_table());
+    let settings = PortalShotSettings {
+        barriers_block: true,
+        light_bridges_block: true,
+    };
+    let pad = geometry.wall_half_thickness();
+    let floor_edge = geometry.cell_to_world_x(1) + pad;
+    let bridge_edge = geometry.cell_to_world_x(3) + pad;
+    let zs = [
+        geometry.cell_to_world_z(0) - pad + 1e-3,
+        geometry.cell_to_world_z(0) + 0.5,
+        geometry.cell_to_world_z(1) + pad - 1e-3,
+    ];
+    world.set_powered_bridges(&[BridgeKindId(0)]);
+    for z in zs {
+        for x in [floor_edge - 1e-3, floor_edge, floor_edge + 1e-3, bridge_edge - 1e-3] {
+            let origin = Vec3::new(x, LEVEL_HEIGHT + 2.0, z);
+            if let Some(hit) = world.portal_surface_along_ray(origin, Vec3::NEG_Y, 20.0, settings, &[]) {
+                assert!(
+                    (hit.point.y - LEVEL_HEIGHT).abs() < 1e-4,
+                    "shot leaked to the lower floor at ({x}, {z})"
+                );
+            }
+        }
+    }
+    world.set_powered_bridges(&[]);
+    let hit = world
+        .portal_surface_along_ray(
+            Vec3::new(bridge_edge - 1e-3, LEVEL_HEIGHT + 2.0, zs[0]),
+            Vec3::NEG_Y,
+            20.0,
+            settings,
+            &[],
+        )
+        .expect("unpowered bridge blocked the lower floor");
+    assert!(hit.point.y.abs() < 1e-4);
 }
 
 #[test]

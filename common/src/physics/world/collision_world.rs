@@ -13,7 +13,7 @@ use rapier3d::{
 };
 
 use crate::{
-    config::CharacterPhysicsConfig,
+    config::{CharacterPhysicsConfig, PortalShotSettings},
     constants::PORTAL_BACKING_FLUSH_EPSILON,
     map::{CarrierPose, Carriers},
     physics::characters::{character_center, character_shape},
@@ -370,11 +370,33 @@ impl CollisionWorld {
 
     // First world surface (wall/floor/ramp, on any carrier) along the ray —
     // the same filter as `line_of_sight_clear`, so a beam clipped at this
-    // point stops exactly where sight does. Light bridges are excluded, so a
-    // portal never lands on one.
+    // point stops exactly where sight does. Barriers and light bridges are excluded.
     #[must_use]
     pub fn world_surface_along_ray(&self, origin: Vec3, direction: Vec3, max_distance: f32) -> Option<WorldSurfaceHit> {
         self.surface_along_ray(origin, direction, max_distance, world_collision_groups())
+    }
+
+    // Only global plate state opens a shot path; held keys never enter this filter.
+    #[must_use]
+    pub fn portal_surface_along_ray(
+        &self,
+        origin: Vec3,
+        direction: Vec3,
+        max_distance: f32,
+        settings: PortalShotSettings,
+        open_barriers: &[BarrierKindId],
+    ) -> Option<WorldSurfaceHit> {
+        let mut groups = world_collision_groups();
+        if settings.barriers_block {
+            groups |= self.all_barrier_groups;
+            for kind in open_barriers {
+                groups.remove(barrier_collision_group(*kind));
+            }
+        }
+        if settings.light_bridges_block {
+            groups |= BRIDGE_COLLISION_GROUP;
+        }
+        self.surface_along_ray(origin, direction, max_distance, groups)
     }
 
     fn surface_along_ray(
@@ -399,6 +421,12 @@ impl CollisionWorld {
             Vector::new(direction.x, direction.y, direction.z),
         );
         let (handle, hit) = query_pipeline.cast_ray_and_get_normal(&ray, max_distance, false)?;
+        if matches!(
+            ColliderKind::from_user_data(self.colliders[handle].user_data),
+            Some(ColliderKind::Barrier | ColliderKind::Bridge)
+        ) {
+            return None;
+        }
         let normal = Vec3::new(hit.normal.x, hit.normal.y, hit.normal.z).try_normalize()?;
 
         Some(WorldSurfaceHit {

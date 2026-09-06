@@ -6,23 +6,7 @@ use crate::{
 };
 use common::protocol::{BarrierKindId, KindDef};
 
-// Mesh + materials for both barriers (full-size, scaled per-instance to
-// match the segment length) and keys (a small rotating cuboid that reuses
-// the matching barrier material, so the pulse is in sync).
-//
-// Keys share `key_mesh` across all kinds; their material comes from
-// `materials[kind]` — same as the matching barrier. One material handle per
-// kind = automatic batching for both barriers and keys of that kind.
-
-// Per-kind shared mesh + material handles. One mesh covers every barrier
-// regardless of kind (variable length is handled by per-instance
-// Transform.scale in `spawn.rs`). One material per kind, indexed by
-// `BarrierKindId.0`, so all barriers of the same kind share a single handle
-// and Bevy's automatic batching collapses N draws into one.
-//
-// All materials of the same kind also share the pulsation: the pulsate
-// system mutates each material once per frame, propagating to every
-// barrier (and matching-color key) of that kind.
+// Sharing each kind's material keeps barriers and matching keys in phase.
 #[derive(Resource)]
 pub struct BarrierAssets {
     pub(super) mesh: Handle<Mesh>,
@@ -57,15 +41,8 @@ pub fn build_barrier_assets(
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
     kinds: &[KindDef],
-    thickness: f32,
 ) -> BarrierAssets {
-    // Barrier mesh: unit X and Y so per-instance `Transform.scale` can
-    // encode the merged segment's length and barrier height. Thickness
-    // stays baked in the mesh — no instance ever wants a different thickness.
-    // Both meshes carry the white vertex colors `translucent_kind_material`
-    // needs to render.
-    let mesh = meshes.add(with_white_vertex_colors(Cuboid::new(1.0, 1.0, thickness).into()));
-    // Key mesh: a small fixed-size cuboid, no per-instance scaling.
+    let mesh = meshes.add(with_white_vertex_colors(Rectangle::new(1.0, 1.0).into()));
     let key_mesh = meshes.add(with_white_vertex_colors(
         Cuboid::new(KEY_WIDTH, KEY_HEIGHT, KEY_DEPTH).into(),
     ));
@@ -88,5 +65,54 @@ pub fn build_barrier_assets(
         mesh,
         materials: handles,
         base_colors,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bevy::mesh::Indices;
+    use common::protocol::HexColor;
+
+    #[test]
+    fn barriers_are_double_sided_quads_and_keys_keep_their_cuboid_mesh() {
+        let mut meshes = Assets::default();
+        let mut materials = Assets::default();
+        let kinds = [KindDef {
+            id: "red".into(),
+            color: HexColor([255, 0, 0]),
+        }];
+        let assets = build_barrier_assets(&mut meshes, &mut materials, &kinds);
+        let mesh = meshes.get(&assets.mesh).expect("barrier mesh missing");
+        let positions = mesh
+            .attribute(Mesh::ATTRIBUTE_POSITION)
+            .and_then(|a| a.as_float3())
+            .expect("barrier mesh positions missing");
+        assert_eq!(positions.len(), 4);
+        assert!(
+            positions
+                .iter()
+                .all(|p| p[0].abs() == 0.5 && p[1].abs() == 0.5 && p[2] == 0.0)
+        );
+        assert_eq!(mesh.indices().map(Indices::len), Some(6));
+        assert!(mesh.contains_attribute(Mesh::ATTRIBUTE_COLOR));
+
+        let key_mesh = meshes.get(assets.key_mesh()).expect("key mesh missing");
+        assert_eq!(key_mesh.indices().map(Indices::len), Some(36));
+        let positions = key_mesh
+            .attribute(Mesh::ATTRIBUTE_POSITION)
+            .and_then(|a| a.as_float3())
+            .expect("key mesh positions missing");
+        assert!(positions.iter().all(|p| {
+            p[0].abs() == KEY_WIDTH / 2.0 && p[1].abs() == KEY_HEIGHT / 2.0 && p[2].abs() == KEY_DEPTH / 2.0
+        }));
+
+        let material = materials
+            .get(assets.material_for(BarrierKindId(0)))
+            .expect("barrier material missing");
+        assert!(material.double_sided);
+        assert_eq!(material.cull_mode, None);
+        assert_eq!(material.alpha_mode, AlphaMode::Blend);
+        assert_eq!(material.base_color.alpha(), BARRIER_ALPHA_MAX);
     }
 }

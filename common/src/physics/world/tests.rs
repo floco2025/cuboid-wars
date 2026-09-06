@@ -1,11 +1,16 @@
 use crate::config::{
     CharacterColliderAnchor, CharacterColliderConfig, CharacterPhysicsConfig, CharacterSupportProbeConfig,
+    PortalShotSettings,
 };
 use crate::constants::LADDER_OVERSHOOT;
-use crate::protocol::{Barrier, BarrierKindId, CarrierId, Floor, Ladder, MapLayout, Position, Ramp, Wall};
+use crate::protocol::{
+    Barrier, BarrierKindId, BarrierKindTable, BridgeKindId, CarrierId, Floor, Ladder, LightBridge, MapLayout, Position,
+    Ramp, Wall,
+};
 use crate::test_geometry::{
     BARRIER_THICKNESS, BRIDGE_THICKNESS, FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS,
 };
+use bevy_math::Vec3;
 
 use super::{CollisionWorld, colliders::ColliderKind};
 
@@ -42,6 +47,80 @@ fn test_map_layout() -> MapLayout {
             carrier: CarrierId::WORLD,
         }],
         ..Default::default()
+    }
+}
+
+#[test]
+fn portal_shots_only_pass_blocking_barriers_when_the_kind_is_globally_open() {
+    let mut layout = test_map_layout();
+    layout.floors.clear();
+    layout.ramps.clear();
+    layout.barriers.push(Barrier {
+        x1: 0.0,
+        z1: 2.0,
+        x2: 4.0,
+        z2: 2.0,
+        width: BARRIER_THICKNESS,
+        y: LEVEL_HEIGHT,
+        height: WALL_HEIGHT,
+        level: 1,
+        levels: 1,
+        kind: BarrierKindId(0),
+        carrier: CarrierId::WORLD,
+    });
+    let table = BarrierKindTable::from_ids(vec!["red".into(), "blue".into()]).expect("barrier catalog rejected");
+    let world = CollisionWorld::from_map_layout(&layout, &table);
+    let origin = Vec3::new(2.0, LEVEL_HEIGHT + 1.5, 4.0);
+    for barriers_block in [false, true] {
+        for light_bridges_block in [false, true] {
+            let settings = PortalShotSettings {
+                barriers_block,
+                light_bridges_block,
+            };
+            for open in [vec![], vec![BarrierKindId(1)], vec![BarrierKindId(0)]] {
+                let hit = world.portal_surface_along_ray(origin, Vec3::NEG_Z, 10.0, settings, &open);
+                assert_eq!(hit.is_some(), !barriers_block || open.contains(&BarrierKindId(0)));
+                if let Some(hit) = hit {
+                    assert!(hit.point.z < 1.0, "portal landed on the barrier instead of the wall");
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn portal_shots_only_stop_at_powered_bridges_when_configured() {
+    let mut layout = test_map_layout();
+    layout.walls.clear();
+    layout.ramps.clear();
+    layout.light_bridges.push(LightBridge {
+        x1: 0.0,
+        z1: 0.0,
+        x2: 4.0,
+        z2: 4.0,
+        y: LEVEL_HEIGHT + 2.0,
+        thickness: BRIDGE_THICKNESS,
+        level: 2,
+        kind: BridgeKindId(0),
+        carrier: CarrierId::WORLD,
+    });
+    let mut world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
+    let origin = Vec3::new(2.0, LEVEL_HEIGHT + 4.0, 2.0);
+    for powered in [false, true, false] {
+        world.set_powered_bridges(if powered { &[BridgeKindId(0)] } else { &[] });
+        for barriers_block in [false, true] {
+            for light_bridges_block in [false, true] {
+                let settings = PortalShotSettings {
+                    barriers_block,
+                    light_bridges_block,
+                };
+                let hit = world.portal_surface_along_ray(origin, Vec3::NEG_Y, 10.0, settings, &[]);
+                assert_eq!(hit.is_some(), !powered || !light_bridges_block);
+                if let Some(hit) = hit {
+                    assert!((hit.point.y - LEVEL_HEIGHT).abs() < 1e-4, "portal landed on a bridge");
+                }
+            }
+        }
     }
 }
 

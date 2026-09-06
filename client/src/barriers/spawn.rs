@@ -2,7 +2,6 @@ use bevy::prelude::*;
 
 use super::BarrierAssets;
 use crate::carriers::{CarrierEntities, CarrierStoreys};
-use crate::constants::BARRIER_OVERLAP_EPS;
 use crate::map::{FocusedMapLevel, MapLevel, map_level_visibility};
 use common::protocol::{Barrier, BarrierKindId, MapLayout, PlateState};
 
@@ -60,24 +59,6 @@ fn spawn_barrier(
     barrier: &Barrier,
     visibility: Visibility,
 ) {
-    let center_x = f32::midpoint(barrier.x1, barrier.x2);
-    let center_z = f32::midpoint(barrier.z1, barrier.z2);
-    let dx = barrier.x2 - barrier.x1;
-    let dz = barrier.z2 - barrier.z1;
-    let length = dx.hypot(dz);
-    let rotation = Quat::from_rotation_y(dz.atan2(dx));
-    let center_y = barrier.y + barrier.height / 2.0;
-
-    // Grow the segment by `BARRIER_OVERLAP_EPS` on each side along the long
-    // axis (X local) and at the top/bottom (Y local), so coplanar contacts
-    // with abutting walls and floor slabs win the depth test instead of
-    // z-fighting. Thickness stays as baked in the mesh.
-    let scale = Vec3::new(
-        length + 2.0 * BARRIER_OVERLAP_EPS,
-        barrier.height + 2.0 * BARRIER_OVERLAP_EPS,
-        1.0,
-    );
-
     commands.spawn((
         BarrierMarker,
         BarrierSpan { kind: barrier.kind },
@@ -85,13 +66,23 @@ fn spawn_barrier(
         ChildOf(carrier),
         Mesh3d(assets.mesh.clone()),
         MeshMaterial3d(assets.material_for(barrier.kind).clone()),
-        Transform {
-            translation: Vec3::new(center_x, center_y, center_z),
-            rotation,
-            scale,
-        },
+        barrier_transform(barrier),
         visibility,
     ));
+}
+
+fn barrier_transform(barrier: &Barrier) -> Transform {
+    let dx = barrier.x2 - barrier.x1;
+    let dz = barrier.z2 - barrier.z1;
+    Transform {
+        translation: Vec3::new(
+            f32::midpoint(barrier.x1, barrier.x2),
+            barrier.y + barrier.height / 2.0,
+            f32::midpoint(barrier.z1, barrier.z2),
+        ),
+        rotation: Quat::from_rotation_y(-dz.atan2(dx)),
+        scale: Vec3::new(dx.hypot(dz), barrier.height, 1.0),
+    }
 }
 
 pub fn barriers_visibility_system(
@@ -129,6 +120,33 @@ fn barrier_visibility(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use common::protocol::CarrierId;
+
+    #[test]
+    fn rectangle_matches_segment_endpoints_and_full_height_without_overlap() {
+        for (dx, dz) in [(8.0, 0.0), (0.0, 8.0), (-8.0, 0.0), (0.0, -8.0)] {
+            let barrier = Barrier {
+                x1: 2.0,
+                z1: 3.0,
+                x2: 2.0 + dx,
+                z2: 3.0 + dz,
+                y: 4.0,
+                height: 12.0,
+                width: 0.1,
+                level: 1,
+                levels: 3,
+                kind: BarrierKindId(0),
+                carrier: CarrierId(1),
+            };
+            let transform = barrier_transform(&barrier);
+            for (local_y, y) in [(-0.5, barrier.y), (0.5, barrier.y + barrier.height)] {
+                let start = transform.transform_point(Vec3::new(-0.5, local_y, 0.0));
+                let end = transform.transform_point(Vec3::new(0.5, local_y, 0.0));
+                assert!(start.abs_diff_eq(Vec3::new(barrier.x1, y, barrier.z1), 1e-5));
+                assert!(end.abs_diff_eq(Vec3::new(barrier.x2, y, barrier.z2), 1e-5));
+            }
+        }
+    }
 
     const fn level(level: u8, span: u8) -> MapLevel {
         MapLevel { level, span }

@@ -56,3 +56,22 @@ pub fn configure_client_sets(app: &mut App) {
         ),
     );
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{input::input_plugin, network::network_plugin};
+
+    #[test]
+    fn input_and_network_ordering_has_no_cycles() {
+        let mut app = App::new();
+        configure_client_sets(&mut app);
+        input_plugin(&mut app);
+        network_plugin(&mut app);
+        app.world_mut().schedule_scope(Update, |world, schedule| {
+            schedule
+                .initialize(world)
+                .expect("input/network schedule contains conflicting ordering");
+        });
+    }
+}

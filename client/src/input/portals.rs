@@ -28,6 +28,8 @@ pub struct PortalInputWorld<'w> {
     collision_world: Res<'w, CollisionWorld>,
     carriers: Res<'w, Carriers>,
     map_layout: Res<'w, MapLayout>,
+    map_settings: Res<'w, MapSettings>,
+    plates: Res<'w, PlateState>,
     portals: Res<'w, PortalMap>,
     gameplay_config: Res<'w, GameplayConfig>,
 }
@@ -97,6 +99,8 @@ pub fn input_portal_system(
         &world.collision_world,
         &world.map_layout,
         &world.carriers,
+        world.map_settings.portal_shots,
+        &world.plates.open_barrier_kinds,
     );
     let existing = world.portals.wire_portals();
     if placement.is_none_or(|placement| portal_placement_overlaps(&placement, pair, end, &existing, &world.carriers)) {

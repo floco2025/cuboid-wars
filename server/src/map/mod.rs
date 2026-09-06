@@ -1,4 +1,5 @@
 mod barriers;
+mod bridge_bounds;
 mod bridges;
 mod definition;
 mod edges;
