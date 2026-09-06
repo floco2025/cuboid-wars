@@ -95,8 +95,6 @@ pub fn carrier_offset_at(carrier: &Carrier, tick: u32) -> Vec3 {
 #[derive(Resource, Default)]
 pub struct Carriers {
     carried: Vec<CarrierRuntime>,
-    max_rise: f32,
-    max_drop: f32,
 }
 
 struct CarrierRuntime {
@@ -110,8 +108,6 @@ impl Carriers {
     pub fn from_layout(layout: &MapLayout) -> Self {
         let mut carriers = Self {
             carried: Vec::with_capacity(layout.carriers.len()),
-            max_rise: 0.0,
-            max_drop: 0.0,
         };
         for (index, carrier) in layout.carriers.iter().enumerate() {
             assert!(
@@ -145,8 +141,6 @@ impl Carriers {
     // Parents precede children, so each world pose composes from a parent
     // already at this tick.
     pub fn advance(&mut self, tick: u32) {
-        self.max_rise = 0.0;
-        self.max_drop = 0.0;
         for index in 0..self.carried.len() {
             let carrier = self.carried[index].carrier;
             let pose = self
@@ -155,9 +149,6 @@ impl Carriers {
             let runtime = &mut self.carried[index];
             runtime.previous = runtime.current;
             runtime.current = pose;
-            let rise = pose.translation.y - runtime.previous.translation.y;
-            self.max_rise = self.max_rise.max(rise);
-            self.max_drop = self.max_drop.max(-rise);
         }
     }
 
@@ -199,18 +190,6 @@ impl Carriers {
         self.carried(id).map_or(Vec3::ZERO, |runtime| {
             runtime.current.translation - runtime.previous.translation
         })
-    }
-
-    // The largest rise and drop any carrier made this tick, which is how far
-    // a floor may have moved through or away from a rider's feet.
-    #[must_use]
-    pub fn max_rise(&self) -> f32 {
-        self.max_rise
-    }
-
-    #[must_use]
-    pub fn max_drop(&self) -> f32 {
-        self.max_drop
     }
 }
 
@@ -297,8 +276,6 @@ mod tests {
         assert_eq!(carriers.pose(SLIDER).translation, carrier_offset_at(&slider(), 1));
         let halfway = carriers.pose_between(SLIDER, 0.5).translation;
         assert!((halfway.x - 2.0 / 60.0).abs() < 1e-5, "halfway was {halfway}");
-        assert_eq!(carriers.max_rise(), 0.0);
-        assert_eq!(carriers.max_drop(), 0.0);
     }
 
     #[test]
@@ -315,8 +292,6 @@ mod tests {
             carriers.pose(CarrierId(2))
         );
         assert!((carriers.displacement(CarrierId(2)) - expected).length() < 1e-5);
-        assert!((carriers.max_rise() - LEVEL_HEIGHT / 60.0).abs() < 1e-5);
-        assert_eq!(carriers.max_drop(), 0.0);
     }
 
     #[test]
@@ -326,7 +301,6 @@ mod tests {
             ..lift()
         };
         let carriers = carriers_at(vec![sinking], 1);
-        assert_eq!(carriers.max_rise(), 0.0);
-        assert!((carriers.max_drop() - LEVEL_HEIGHT / 60.0).abs() < 1e-5);
+        assert!((carriers.displacement(SLIDER).y + LEVEL_HEIGHT / 60.0).abs() < 1e-5);
     }
 }

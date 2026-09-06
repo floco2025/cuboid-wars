@@ -73,8 +73,12 @@ fn carried_world(
         carriers: vec![carrier],
         ..Default::default()
     };
-    let mut world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
-    let mut carriers = Carriers::from_layout(&layout);
+    world_at(&layout, tick)
+}
+
+fn world_at(layout: &MapLayout, tick: u32) -> (CollisionWorld, Carriers) {
+    let mut world = CollisionWorld::from_map_layout(layout, &BarrierKindTable::default());
+    let mut carriers = Carriers::from_layout(layout);
     carriers.advance(tick.wrapping_sub(1));
     carriers.advance(tick);
     world.set_carrier_poses(&carriers);
@@ -344,6 +348,154 @@ fn a_body_above_the_tolerance_is_not_carried() {
     assert!(step.position.x.abs() < 1e-6, "was carried to {:?}", step.position);
     assert_eq!(step.floor_velocity, Vec3::ZERO);
     assert_eq!(step.support, CharacterSupport::Ground, "the snap still lands it");
+}
+
+#[test]
+fn a_distant_lift_does_not_attach_an_airborne_body_to_a_slider() {
+    let (slider, floor) = slider();
+    for lift_travel in [-18.6, 18.6] {
+        let layout = MapLayout {
+            carriers: vec![
+                slider,
+                Carrier {
+                    from: Position {
+                        x: 100.0,
+                        y: 0.0,
+                        z: 0.0,
+                    },
+                    to: Position {
+                        x: 100.0,
+                        y: lift_travel,
+                        z: 0.0,
+                    },
+                    ..slider
+                },
+            ],
+            floors: vec![
+                floor,
+                Floor {
+                    carrier: CarrierId(2),
+                    ..floor
+                },
+            ],
+            ..Default::default()
+        };
+        let (world, carriers) = world_at(&layout, 1);
+        let start = Position {
+            x: 0.0,
+            y: 0.25,
+            z: 0.0,
+        };
+        let step = ride(&world, &carriers, start, 8.0, Vec3::ZERO, TICK_SECS);
+
+        assert!(step.position.x.abs() < 1e-6, "lift travel {lift_travel}: {step:?}");
+        assert_eq!(step.floor_velocity, Vec3::ZERO);
+        assert_eq!(step.support, CharacterSupport::Airborne);
+    }
+}
+
+#[test]
+fn a_distant_lift_does_not_let_a_ceiling_hide_a_riders_platform() {
+    let (slider, floor) = slider();
+    let layout = MapLayout {
+        carriers: vec![
+            slider,
+            Carrier {
+                from: Position {
+                    x: 100.0,
+                    y: 0.0,
+                    z: 0.0,
+                },
+                to: Position {
+                    x: 100.0,
+                    y: 4.0,
+                    z: 0.0,
+                },
+                travel_ticks: 1,
+                ..slider
+            },
+        ],
+        floors: vec![
+            floor,
+            Floor { y: 3.0, ..ground() },
+            Floor {
+                carrier: CarrierId(2),
+                ..floor
+            },
+        ],
+        ..Default::default()
+    };
+    let (world, carriers) = world_at(&layout, 1);
+    let step = ride(&world, &carriers, Position::default(), 0.0, Vec3::ZERO, TICK_SECS);
+
+    assert!((step.position.x - SLIDE_PER_TICK).abs() < 1e-3, "{step:?}");
+    assert_eq!(step.support, CharacterSupport::Ground);
+    assert!(!step.crushed);
+}
+
+#[test]
+fn an_unsupported_carrier_does_not_hide_the_lift_a_body_rides() {
+    let (slider, floor) = slider();
+    let layout = MapLayout {
+        carriers: vec![
+            Carrier {
+                to: Position {
+                    x: 0.0,
+                    y: -12.0,
+                    z: 0.0,
+                },
+                ..slider
+            },
+            Carrier {
+                from: Position {
+                    x: 0.0,
+                    y: -0.15,
+                    z: 0.0,
+                },
+                to: Position {
+                    x: 4.0,
+                    y: -0.15,
+                    z: 0.0,
+                },
+                ..slider
+            },
+        ],
+        floors: vec![
+            floor,
+            Floor {
+                carrier: CarrierId(2),
+                ..floor
+            },
+        ],
+        ..Default::default()
+    };
+    let (world, carriers) = world_at(&layout, 1);
+    let step = ride(&world, &carriers, Position::default(), 0.0, Vec3::ZERO, TICK_SECS);
+
+    assert!(step.position.x.abs() < 1e-6, "{step:?}");
+    assert!(
+        (step.floor_velocity - Vec3::new(0.0, -6.0, 0.0)).length() < 1e-3,
+        "{step:?}"
+    );
+}
+
+#[test]
+fn a_static_floor_above_a_descending_lift_stops_the_ride() {
+    let (carrier, floor) = lift();
+    let sinking = Carrier {
+        to: Position {
+            x: 0.0,
+            y: -6.0,
+            z: 0.0,
+        },
+        ..carrier
+    };
+    let (world, carriers) = carried_world((sinking, floor), &[], &[ground()], 1);
+    let step = ride(&world, &carriers, Position::default(), 0.0, Vec3::ZERO, TICK_SECS);
+
+    assert!(step.position.y.abs() < 1e-3, "{step:?}");
+    assert_eq!(step.floor_velocity, Vec3::ZERO);
+    assert_eq!(step.support, CharacterSupport::Ground);
 }
 
 #[test]

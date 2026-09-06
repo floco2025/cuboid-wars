@@ -45,18 +45,8 @@ pub(super) fn character_ground_hit(
     )
 }
 
-// The carrier a body rides: whatever its feet rest on, within the ride
-// tolerance of the surface, found by the support probe so what carries a
-// body is exactly what the ground probe finds under it. The carriers already
-// sit at this tick's pose, so the probe starts above the largest rise any
-// made (a cast that starts inside a floor that rose through the feet would
-// snap wrongly) and reaches below the largest drop. No vertical-velocity
-// condition: the tick a jump leaves a carrier the feet are still on it, and
-// that tick's carry is what hands the jumper the carrier's velocity. Of two
-// coincident surfaces the carried one carries: a rider crossing a static
-// floor at the tile's own height keeps riding instead of being dropped by
-// the cast's tie order, and a body standing where a tile slides through at
-// floor height goes with it.
+// Each probe follows its carrier's vertical travel so support is judged at the previous surface height.
+// Takeoff still receives carry; a coincident static floor does not interrupt the ride.
 pub(super) fn supporting_carrier(
     collision_world: &CollisionWorld,
     shape: &Cuboid,
@@ -65,18 +55,37 @@ pub(super) fn supporting_carrier(
     physics: CharacterPhysicsConfig,
     carriers: &Carriers,
 ) -> Option<CarrierId> {
-    let rise = carriers.max_rise();
+    let bottom = physics.collider.bottom_y_offset();
+    let (carrier, current_distance) = (0..carriers.carried_count())
+        .filter_map(|index| {
+            let carrier = CarrierId(index as u16 + 1);
+            let travel = carriers.displacement(carrier).y;
+            let carried_pos = Position {
+                y: pos.y + travel,
+                ..*pos
+            };
+            let pose = character_support_probe_pose(&carried_pos, physics);
+            let hit = collision_world.ground_hit_on_carrier(
+                shape,
+                &pose,
+                bottom + CARRIER_RIDE_TOLERANCE,
+                passable_kinds,
+                carrier,
+            )?;
+            ((hit.t - bottom).abs() <= CARRIER_RIDE_TOLERANCE).then_some((carrier, hit.t - travel))
+        })
+        .min_by(|(_, a), (_, b)| a.total_cmp(b))?;
+    let rise = carriers.displacement(carrier).y.max(0.0);
     let lifted = Position {
         y: pos.y + rise,
         ..*pos
     };
     let pose = character_support_probe_pose(&lifted, physics);
-    let reach = physics.collider.bottom_y_offset() + rise + carriers.max_drop() + CARRIER_RIDE_TOLERANCE;
-    let carried = collision_world.carried_ground_hit(shape, &pose, reach, passable_kinds)?;
+    let carried_distance = current_distance + rise;
     let world_above = collision_world
-        .ground_hit(shape, &pose, reach, 0.0, passable_kinds, &[])
-        .is_some_and(|hit| hit.carrier.is_world() && hit.t + CARRIER_SURFACE_TIE_EPSILON < carried.t);
-    (!world_above).then_some(carried.carrier)
+        .ground_hit_on_carrier(shape, &pose, carried_distance, passable_kinds, CarrierId::WORLD)
+        .is_some_and(|hit| hit.t + CARRIER_SURFACE_TIE_EPSILON < carried_distance);
+    (!world_above).then_some(carrier)
 }
 
 pub(super) fn snap_position_to_ground(

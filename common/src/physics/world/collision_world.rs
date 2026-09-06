@@ -489,17 +489,17 @@ impl CollisionWorld {
         )
     }
 
-    // The nearest carried surface under the body, world surfaces ignored.
     #[must_use]
-    pub(crate) fn carried_ground_hit(
+    pub(crate) fn ground_hit_on_carrier(
         &self,
         character_shape: &dyn Shape,
         character_pos: &Pose,
         max_distance: f32,
         passable_kinds: &[BarrierKindId],
+        carrier: CarrierId,
     ) -> Option<ShapeCastHit> {
-        let carried = |_: ColliderHandle, collider: &Collider| {
-            !ColliderKind::carrier_from_user_data(collider.user_data).is_world()
+        let on_carrier = |_: ColliderHandle, collider: &Collider| {
+            ColliderKind::carrier_from_user_data(collider.user_data) == carrier
         };
         self.ground_hit_filtered(
             character_shape,
@@ -507,7 +507,7 @@ impl CollisionWorld {
             max_distance,
             0.0,
             passable_kinds,
-            Some(&carried),
+            Some(&on_carrier),
         )
     }
 
