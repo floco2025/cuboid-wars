@@ -17,21 +17,13 @@
     }
   },
   "vfx": {
-    "pickups": {
-      "emissive_brightness": 1.0
-    },
+    "pickups": { "emissive_brightness": 1.0 },
     "barriers": {
       "emissive_brightness": 2.0,
       "opacity": 0.45,
-      "pulse": {
-        "min_opacity": 0.35,
-        "frequency_hz": 0.5
-      }
+      "pulse": { "min_opacity": 0.35, "frequency_hz": 0.5 }
     },
-    "erasers": {
-      "emissive_brightness": 3.0,
-      "opacity": 0.2
-    },
+    "erasers": { "emissive_brightness": 3.0, "opacity": 0.2 },
     "light_bridges": {
       "emissive_brightness": 1.0,
       "opacity": 0.8,
@@ -98,11 +90,7 @@
         "vertical_ratio": 0.2,
         "duration_secs": 0.3
       },
-      "fall": {
-        "intensity": 0.2,
-        "vertical_ratio": 0.5,
-        "duration_secs": 0.3
-      }
+      "fall": { "intensity": 0.2, "vertical_ratio": 0.5, "duration_secs": 0.3 }
     }
   },
   "input": { "mouse_sensitivity": 0.002, "invert_y": false },

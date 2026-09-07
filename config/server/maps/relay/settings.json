@@ -1,44 +1,18 @@
 {
   "textures": {
-    "basement-floor": {
-      "portalable": true
-    },
-    "basement-perimeter-wall": {
-      "portalable": true
-    },
-    "basement-support-wall": {
-      "portalable": true
-    },
-    "exterior-walls": {
-      "portalable": true
-    },
-    "ground-floor": {
-      "portalable": true
-    },
-    "ground-interior-wall": {
-      "portalable": true
-    },
-    "rooftop-floor": {
-      "portalable": true
-    },
-    "rooftop-wall": {
-      "portalable": true
-    },
-    "skybridge": {
-      "portalable": true
-    },
-    "slab": {
-      "portalable": true
-    },
-    "upper-floors": {
-      "portalable": true
-    },
-    "upper-interior-walls": {
-      "portalable": true
-    },
-    "portal-resistant": {
-      "portalable": false
-    }
+    "basement-floor": { "portalable": true },
+    "basement-perimeter-wall": { "portalable": true },
+    "basement-support-wall": { "portalable": true },
+    "exterior-walls": { "portalable": true },
+    "ground-floor": { "portalable": true },
+    "ground-interior-wall": { "portalable": true },
+    "rooftop-floor": { "portalable": true },
+    "rooftop-wall": { "portalable": true },
+    "skybridge": { "portalable": true },
+    "slab": { "portalable": true },
+    "upper-floors": { "portalable": true },
+    "upper-interior-walls": { "portalable": true },
+    "portal-resistant": { "portalable": false }
   },
   "skybox": "cloudy_day",
   "geometry": {
@@ -59,38 +33,19 @@
       "jump_speed": 8.0
     },
     "actors": {
-      "mine": {
-        "roam_speed": 3.0,
-        "active_speed": 5.0
-      },
-      "reaper": {
-        "roam_speed": 5.0,
-        "active_speed": 8.0
-      },
-      "sentry": {
-        "roam_speed": 5.0,
-        "active_speed": 8.0
-      },
-      "zapper": {
-        "roam_speed": 2.0,
-        "active_speed": 4.0
-      }
+      "mine": { "roam_speed": 3.0, "active_speed": 5.0 },
+      "reaper": { "roam_speed": 5.0, "active_speed": 8.0 },
+      "sentry": { "roam_speed": 5.0, "active_speed": 8.0 },
+      "zapper": { "roam_speed": 2.0, "active_speed": 4.0 }
     },
     "projectile_speed": 90.0,
     "missile_speed": 16.0,
     "ladder_climb_ratio": 0.6,
-    "knockback": {
-      "max_speed": 15.0,
-      "up_speed": 7.0,
-      "deceleration": 35.0
-    }
+    "knockback": { "max_speed": 15.0, "up_speed": 7.0, "deceleration": 35.0 }
   },
   "respawn": {
     "players": "individual",
-    "actors": {
-      "on_player_death": "never",
-      "scope": "dead"
-    }
+    "actors": { "on_player_death": "never", "scope": "dead" }
   },
   "portals": "both",
   "barrier_kinds": [

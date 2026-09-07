@@ -117,20 +117,14 @@
           "y_offset": 1.45,
           "y_offset_anchor": "center"
         },
-        "support_probe": {
-          "width": 0.2,
-          "depth": 0.2
-        },
+        "support_probe": { "width": 0.2, "depth": 0.2 },
         "eye_height": 1.6,
         "respawn_secs": 180.0,
         "can_use_ladders": false,
         "immovable": true,
         "vision_range": 40.0,
         "roam_steps": 0,
-        "attack": {
-          "type": "continuous_beam",
-          "range": 25.0
-        }
+        "attack": { "type": "continuous_beam", "range": 25.0 }
       }
     }
   },
@@ -220,10 +214,7 @@
         },
         "turret": {
           "beam_dps": 500.0,
-          "death_blast": {
-            "radius": 6.0,
-            "max_damage": 75.0
-          }
+          "death_blast": { "radius": 6.0, "max_damage": 75.0 }
         }
       }
     }
@@ -232,8 +223,20 @@
     "player_kill": 0,
     "player_death": -1000,
     "gold": 100,
-    "actor_hit": { "mine": 5, "reaper": 20, "sentry": 10, "zapper": 50, "turret": 50 },
-    "actor_kill": { "mine": 50, "reaper": 500, "sentry": 200, "zapper": 150, "turret": 150 }
+    "actor_hit": {
+      "mine": 5,
+      "reaper": 20,
+      "sentry": 10,
+      "zapper": 50,
+      "turret": 50
+    },
+    "actor_kill": {
+      "mine": 50,
+      "reaper": 500,
+      "sentry": 200,
+      "zapper": 150,
+      "turret": 150
+    }
   },
   "cycles": {
     "weather": {
