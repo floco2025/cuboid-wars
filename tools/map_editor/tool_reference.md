@@ -4,7 +4,7 @@ Every element group ends with its own **Erase** tool that removes only that elem
 
 ## Navigation and Tool Settings
 
-- **Map** — Open a map registered in `gameplay.json`. The Map picker switches between the outer map and its named nested geometry; all views use the parent's kinds and texture catalog. Save, autosave, and undo cover the whole document. Undo switches to the affected map.
+- **Map** — Open a map registered by name in `gameplay.json`. Its folder contains the editor-owned `layout.json` and hand-edited `settings.json`. The Map picker switches between the outer map and its named nested geometry; all views use the parent's kinds and texture catalog. Save, autosave, and undo cover the whole document. Undo switches to the affected map.
 
 - **Zoom / Pan / Fit Map** — `Cmd+Plus` / `Cmd+Minus` on macOS, or `Ctrl+Plus` / `Ctrl+Minus` elsewhere, zoom in and out. Scroll with a wheel, Magic Mouse, or touchpad to pan; Shift-wheel pans horizontally. Scroll bars appear when the map extends outside the view, and panning stops at the map edges. Space-drag and middle-drag also pan. View → Fit Map (`F`) shows the whole map.
 - **Window** — Size, position, and maximized state are remembered across launches, shared by every map. Off-screen positions are brought back onto an available screen. New, Open, and Resize Map fit the canvas without changing the window size.
@@ -49,12 +49,12 @@ Every element group ends with its own **Erase** tool that removes only that elem
 
 ## Barriers
 
-- **Barrier** — Choose Kind in the toolbar and drag along grid lines to place a translucent pulsating force-field. Kinds and their colors come from that map's `barrier_kinds` in `config/server/gameplay.json`.
+- **Barrier** — Choose Kind in the toolbar and drag along grid lines to place a translucent pulsating force-field. Kinds and their colors come from that map's `barrier_kinds` in its `settings.json`.
 - **Erase Barriers** — Drag a rectangle to remove every barrier edge inside or on its border.
 
 ## Light Bridges
 
-- **Light Bridge** — Choose Kind in the toolbar and drag cells to place a translucent walkway that is solid while its kind’s pressure switch is active. Kinds and their colors come from that map's `bridge_kinds` in `config/server/gameplay.json`. The validator flags a bridge that shares a cell with a floor or a ramp.
+- **Light Bridge** — Choose Kind in the toolbar and drag cells to place a translucent walkway that is solid while its kind’s pressure switch is active. Kinds and their colors come from that map's `bridge_kinds` in its `settings.json`. The validator flags a bridge that shares a cell with a floor or a ramp.
 - **Erase Light Bridges** — Drag a rectangle to remove every light bridge inside it on the current level.
 
 ## Ramps
@@ -92,7 +92,7 @@ Faces with different materials across the selection start at **Mixed / leave unc
 
 ## Pressure Plates
 
-Different purposes may share a tile, including multiple barrier or bridge kinds. Right-click actions name each purpose and edit or erase only that plate. Configure each kind’s `pressure_switch` directly in `gameplay.json`: `activation` is `momentary`, `toggle`, or `auto`; `reset_on_player_death` is `never`, `solo`, `any`, or `all`. Auto toggles with one logged-in player and is momentary with multiple players. Momentary needs any matching plate occupied. The editor reads kind IDs and colors; it does not edit these policies.
+Different purposes may share a tile, including multiple barrier or bridge kinds. Right-click actions name each purpose and edit or erase only that plate. Configure each kind’s `pressure_switch` directly in the map’s `settings.json`: `activation` is `momentary`, `toggle`, or `auto`; `reset_on_player_death` is `never`, `solo`, `any`, or `all`. Auto toggles with one logged-in player and is momentary with multiple players. Momentary needs any matching plate occupied. The editor reads kind IDs and colors; it does not edit these policies.
 
 - **Barrier Plate** — Choose Kind in the toolbar and left-click a cell to place a plate (square in the barrier kind's color). The kind’s pressure switch opens every barrier of that kind globally. Right-click a plate to change its kind or erase it.
 - **Bridge Plate** — Choose Kind in the toolbar and left-click a cell to place a plate (diamond in the bridge kind's color). The kind’s pressure switch makes every light bridge of that kind solid. Right-click a plate to change its kind or erase it.
@@ -101,7 +101,7 @@ Different purposes may share a tile, including multiple barrier or bridge kinds.
 
 ## Items
 
-- **Item** — Choose the type in the toolbar (single shot, multi shot, missile pack, portal gun, health potion, speed, low gravity, gold, then key — keys also pick a barrier kind), then left-click a floor cell to place it. Right-click an item to change its type or erase it. Placed items hide on pickup in-game and reappear after the map's per-type `placed_items.respawn_secs` delay from `config/server/gameplay.json`. Item glyphs match their in-game silhouettes: one white ball, three white balls, a rocket, an oval portal ring, a green health cross, speed chevrons, a white feather, a gold coin, and colored keys.
+- **Item** — Choose the type in the toolbar (single shot, multi shot, missile pack, portal gun, health potion, speed, low gravity, gold, then key — keys also pick a barrier kind), then left-click a floor cell to place it. Right-click an item to change its type or erase it. Placed items hide on pickup in-game and reappear after the map's per-type `placed_items.respawn_secs` delay from its `settings.json`. Item glyphs match their in-game silhouettes: one white ball, three white balls, a rocket, an oval portal ring, a green health cross, speed chevrons, a white feather, a gold coin, and colored keys.
 - **Erase Items** — Drag a rectangle to remove every item inside it on the current level.
 
 ## Erase

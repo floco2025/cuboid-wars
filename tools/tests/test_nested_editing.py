@@ -79,16 +79,16 @@ class NestedDocumentTests(unittest.TestCase):
             capture_output=True, text=True,
         )
         self.assertEqual(result.returncode, 2)
-        self.assertIn("no settings in gameplay.json", result.stderr)
+        self.assertIn("not registered", result.stderr)
 
     def test_shipped_nested_geometry_is_embedded_in_registered_parents(self):
         self.assertEqual(
-            {path.stem for path in MAPS_DIR.glob("*.json") if MAP_NAME_RE.fullmatch(path.stem)},
+            {path.name for path in MAPS_DIR.iterdir() if path.is_dir() and MAP_NAME_RE.fullmatch(path.name)},
             set(list_map_names()),
         )
         registry = json.loads(GAMEPLAY_PATH.read_text())["maps"]
         for name in registry:
-            root = read_map(MAPS_DIR / f"{name}.json")
+            root = read_map(MAPS_DIR / name / "layout.json")
             definitions = root.get("nested_geometry", {})
             for geometry in [root, *definitions.values()]:
                 for entry in geometry["nested_maps"]:
@@ -214,9 +214,9 @@ class NestedWindowTests(WindowTestCase):
     def test_open_and_save_as_reject_missing_settings_without_changing_document(self):
         window = self.window
         before = copy.deepcopy(window.doc.root_data)
-        other = self.path.with_name("unregistered.json")
+        other = self.path.parent.parent / "unregistered" / "layout.json"
         write_map(other, empty_map())
-        with self.assertRaisesRegex(ValueError, "no settings in gameplay.json"):
+        with self.assertRaisesRegex(ValueError, "not registered"):
             EditorWindow(other)
         with patch("map_editor.file_actions.QMessageBox.critical"):
             window.load_path(other)

@@ -7,7 +7,7 @@ import re
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-# One map JSON per named map; the editor's CLI argument is the map name.
+# Each registered map has a folder with layout.json and settings.json.
 MAPS_DIR = REPO_ROOT / "config" / "server" / "maps"
 GAMEPLAY_PATH = REPO_ROOT / "config" / "server" / "gameplay.json"
 
@@ -27,19 +27,16 @@ HEX_COLOR = re.compile(r"#[0-9a-fA-F]{6}")
 
 # A map's kind catalog from its gameplay settings, in catalog order: id → "#rrggbb".
 def load_map_kinds(map_name: str, key: str) -> dict[str, str]:
-    with GAMEPLAY_PATH.open("r", encoding="utf-8") as handle:
-        gameplay = json.load(handle)
-    map_settings = gameplay.get("maps", {}).get(map_name)
-    if map_settings is None:
-        raise ValueError(f"Map {map_name!r} has no settings in gameplay.json (maps.{map_name}).")
+    map_settings = load_map_settings(map_name)
+    source = map_settings_path(map_name)
     if key not in map_settings:
-        raise ValueError(f"maps.{map_name}.{key} is required; use [] when the map has none")
+        raise ValueError(f"{source}: {key} is required; use [] when the map has none")
     value = map_settings[key]
     if not isinstance(value, list):
-        raise ValueError(f"maps.{map_name}.{key} must be an array of {{id, color}} objects")
+        raise ValueError(f"{source}: {key} must be an array of {{id, color}} objects")
     kinds: dict[str, str] = {}
     for idx, entry in enumerate(value):
-        path = f"maps.{map_name}.{key}[{idx}]"
+        path = f"{source}: {key}[{idx}]"
         if not isinstance(entry, dict) or not isinstance(entry.get("id"), str) or not isinstance(entry.get("color"), str):
             raise ValueError(f"{path} must be an object with string `id` and `color`")
         kind, color = entry["id"], entry["color"]
@@ -63,11 +60,7 @@ def load_map_bridge_kinds(map_name: str) -> dict[str, str]:
 
 def load_map_wall_width_cells(map_name: str) -> float:
     """One wall width in cells, the unit a nested map's nudge is drawn in."""
-    with GAMEPLAY_PATH.open("r", encoding="utf-8") as handle:
-        gameplay = json.load(handle)
-    map_settings = gameplay.get("maps", {}).get(map_name)
-    if map_settings is None:
-        raise ValueError(f"Map {map_name!r} has no settings in gameplay.json (maps.{map_name}).")
+    map_settings = load_map_settings(map_name)
     geometry = map_settings["geometry"]
     return float(geometry["wall_thickness"]) / float(geometry["grid_cell_size"])
 
@@ -188,14 +181,60 @@ NESTED_MAPS_LIST = "nested_maps"
 MAP_NAME_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
+def read_settings_json(path: Path) -> dict:
+    try:
+        with path.open(encoding="utf-8") as handle:
+            value = json.load(handle)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Invalid JSON in {path}: {exc}") from exc
+    if not isinstance(value, dict):
+        raise ValueError(f"{path} must contain a JSON object")
+    return value
+
+
 def list_map_names() -> list[str]:
-    with GAMEPLAY_PATH.open(encoding="utf-8") as handle:
-        return sorted(json.load(handle)["maps"])
+    gameplay = read_settings_json(GAMEPLAY_PATH)
+    names = gameplay.get("maps")
+    if not isinstance(names, list) or not names:
+        raise ValueError(f"{GAMEPLAY_PATH}: maps must be a nonempty array of map names")
+    seen = set()
+    for name in names:
+        if not isinstance(name, str) or not MAP_NAME_RE.fullmatch(name):
+            raise ValueError(f"{GAMEPLAY_PATH}: invalid map name {name!r}")
+        if name in seen:
+            raise ValueError(f"{GAMEPLAY_PATH}: duplicate map name {name!r}")
+        seen.add(name)
+    default_map = gameplay.get("default_map")
+    if not isinstance(default_map, str) or default_map not in seen:
+        raise ValueError(f"{GAMEPLAY_PATH}: default_map must name a registered map")
+    return sorted(names)
+
+
+def map_settings_path(name: str) -> Path:
+    if not MAP_NAME_RE.fullmatch(name):
+        raise ValueError(f"Invalid map name {name!r}")
+    return MAPS_DIR / name / "settings.json"
+
+
+def map_layout_path(name: str) -> Path:
+    return map_settings_path(name).with_name("layout.json")
+
+
+def map_name_from_path(path: Path) -> str:
+    name = path.parent.name
+    if path.name != "layout.json" or not MAP_NAME_RE.fullmatch(name):
+        raise ValueError(f"Map layout path must end in <map name>/layout.json: {path}")
+    return name
+
+
+def load_map_settings(name: str) -> dict:
+    if name not in list_map_names():
+        raise ValueError(f"Map {name!r} is not registered in {GAMEPLAY_PATH}.")
+    return read_settings_json(map_settings_path(name))
 
 
 def require_map_settings(name: str) -> None:
-    if name not in list_map_names():
-        raise ValueError(f"Map {name!r} has no settings in gameplay.json (maps.{name}).")
+    load_map_settings(name)
 
 
 DEFAULT_ACTOR_COUNT = 1

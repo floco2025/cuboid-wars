@@ -62,7 +62,8 @@ pub(crate) fn map_path(map_name: &str) -> PathBuf {
     // directory.
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../config/server/maps")
-        .join(format!("{map_name}.json"))
+        .join(map_name)
+        .join("layout.json")
 }
 
 #[cfg(test)]
@@ -89,7 +90,12 @@ mod tests {
         .expect("missing map must fail");
 
         assert!(error.to_string().contains("failed to load map at"));
-        assert!(error.to_string().contains("definitely-not-a-real-map.json"));
+        let missing = PathBuf::from("definitely-not-a-real-map").join("layout.json");
+        assert!(
+            error
+                .to_string()
+                .contains(missing.to_str().expect("test path is not UTF-8"))
+        );
     }
 
     #[test]

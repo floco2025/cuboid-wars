@@ -21,6 +21,7 @@ from .constants import (
     MODE_SELECT,
     MODE_RAMP_DOWN,
     MODE_RAMP_UP,
+    map_name_from_path,
     load_map_barrier_kinds,
     load_map_bridge_kinds,
     load_map_wall_width_cells,
@@ -67,16 +68,17 @@ class EditorWindow(
 ):
     def __init__(self, path: Path, *, preferences: QSettings | None = None):
         super().__init__()
-        require_map_settings(path.stem)
-        self.catalog_map = path.stem
+        map_name = map_name_from_path(path)
+        require_map_settings(map_name)
+        self.catalog_map = map_name
         self.displayed_map = None
         self.preferences = preferences if preferences is not None else QSettings()
         # The document is the map being edited (data, file identity, dirty
         # state, undo history); the window holds view/tool state and widgets.
         self.doc = MapDocument(path)
-        self.barrier_kind_colors = load_map_barrier_kinds(path.stem)
-        self.bridge_kind_colors = load_map_bridge_kinds(path.stem)
-        self.wall_width_cells = load_map_wall_width_cells(path.stem)
+        self.barrier_kind_colors = load_map_barrier_kinds(map_name)
+        self.bridge_kind_colors = load_map_bridge_kinds(map_name)
+        self.wall_width_cells = load_map_wall_width_cells(map_name)
         self.actor_kinds = load_actor_kinds()
         self.immovable_actor_kinds = load_immovable_actor_kinds()
         self.current_level = 0
@@ -440,7 +442,7 @@ class EditorWindow(
         suffix = "*" if self.dirty else ""
         file_name = str(self.path) if self.path else "Untitled"
         self.setWindowTitle(f"Cuboid Wars Editor - {file_name}{suffix}")
-        self.dependencies.watch()
+        self.dependencies.watch(self.catalog_map)
         self.tool_settings.refresh()
 
     def refresh_issues(self, *, validate: bool = True) -> None:

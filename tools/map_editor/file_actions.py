@@ -13,10 +13,12 @@ from .constants import (
     DEFAULT_GRID_COLS,
     DEFAULT_GRID_ROWS,
     MAPS_DIR,
+    map_layout_path,
     list_map_names,
     require_map_settings,
     load_actor_kinds,
     load_immovable_actor_kinds,
+    map_name_from_path,
     load_map_barrier_kinds,
     load_map_bridge_kinds,
     load_map_wall_width_cells,
@@ -44,13 +46,13 @@ class FileActionsMixin:
         self.doc.replace_with_new(empty_map(new_cols, new_rows))
         self.doc.path = path
         self.doc.path_mtime = path.stat().st_mtime if path.exists() else None
-        self.adopt_map(path.stem)
+        self.adopt_map(map_name_from_path(path))
 
     def choose_map_path(self, title: str) -> Path | None:
         names = list_map_names()
         current = names.index(self.catalog_map) if self.catalog_map in names else 0
         name, accepted = QInputDialog.getItem(self, title, "Map:", names, current, False)
-        return MAPS_DIR / f"{name}.json" if accepted and name else None
+        return map_layout_path(name) if accepted and name else None
 
     def open_file(self) -> None:
         if not self.confirm_discard_changes():
@@ -61,10 +63,11 @@ class FileActionsMixin:
 
     def load_path(self, path: Path) -> None:
         try:
-            require_map_settings(path.stem)
+            map_name = map_name_from_path(path)
+            require_map_settings(map_name)
             loaded_mtime = path.stat().st_mtime
             loaded = read_map(path)
-            errors = self.validate_document(loaded, map_name=path.stem)
+            errors = self.validate_document(loaded, map_name=map_name)
         except Exception as exc:
             QMessageBox.critical(self, "Open Failed", str(exc))
             return
@@ -84,7 +87,7 @@ class FileActionsMixin:
         except OSError as exc:
             QMessageBox.critical(self, "Open Failed", str(exc))
             return
-        self.adopt_map(path.stem)
+        self.adopt_map(map_name)
         self._record_recent_path(path)
         QTimer.singleShot(0, self.maybe_recover_autosave)
 
@@ -95,8 +98,9 @@ class FileActionsMixin:
 
     def _save_to(self, path: Path) -> bool:
         try:
-            require_map_settings(path.stem)
-            errors = self.validate_document(self.doc.root_data, map_name=path.stem)
+            map_name = map_name_from_path(path)
+            require_map_settings(map_name)
+            errors = self.validate_document(self.doc.root_data, map_name=map_name)
         except Exception as exc:
             QMessageBox.critical(self, "Save Failed", str(exc))
             return False
@@ -127,11 +131,11 @@ class FileActionsMixin:
             return False
         # Save As changes the map's name, and with it its catalogs; the view
         # stays where it is.
-        self.catalog_map = path.stem
+        self.catalog_map = map_name
         self.reload_texture_catalog()
-        self.barrier_kind_colors = load_map_barrier_kinds(path.stem)
-        self.bridge_kind_colors = load_map_bridge_kinds(path.stem)
-        self.wall_width_cells = load_map_wall_width_cells(path.stem)
+        self.barrier_kind_colors = load_map_barrier_kinds(map_name)
+        self.bridge_kind_colors = load_map_bridge_kinds(map_name)
+        self.wall_width_cells = load_map_wall_width_cells(map_name)
         self._record_recent_path(self.path)
         self.refresh_ui()
         return True
@@ -142,7 +146,7 @@ class FileActionsMixin:
             return False
         if path != self.path and path.exists():
             answer = QMessageBox.question(
-                self, "Replace Map?", f"Replace {path.name} with this map?",
+                self, "Replace Map?", f"Replace the layout for {map_name_from_path(path)} with this map?",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
                 QMessageBox.StandardButton.Cancel,
             )
@@ -179,7 +183,7 @@ class FileActionsMixin:
         autosave = self.doc.autosave_path()
         box = QMessageBox(self)
         box.setWindowTitle("Recover Autosave?")
-        box.setText(f"An autosave exists at {autosave.name} that is newer than {self.doc.path.name}. Recover it?")
+        box.setText(f"An autosave exists at {autosave.name} that is newer than the layout for {self.catalog_map}. Recover it?")
         box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         box.setDefaultButton(QMessageBox.StandardButton.Yes)
         if box.exec() != QMessageBox.StandardButton.Yes:
@@ -241,8 +245,19 @@ class FileActionsMixin:
         raw = self.preferences.value(self.RECENT_FILES_KEY) or []
         # QSettings on some platforms unwraps single-element lists to scalars.
         if isinstance(raw, str):
-            return [raw]
-        return [str(p) for p in raw]
+            raw = [raw]
+        paths = []
+        registered = set(list_map_names())
+        for entry in raw:
+            path = Path(str(entry))
+            if path.parent.resolve() == MAPS_DIR.resolve() and path.suffix == ".json" and path.stem in registered:
+                path = map_layout_path(path.stem)
+            value = str(path)
+            if value not in paths:
+                paths.append(value)
+        if paths != list(raw):
+            self.preferences.setValue(self.RECENT_FILES_KEY, paths)
+        return paths
 
     def _record_recent_path(self, path: Path) -> None:
         canonical = str(Path(path).resolve())

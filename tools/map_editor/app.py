@@ -10,7 +10,7 @@ from PySide6.QtCore import QPointF, QTimer, Qt
 from PySide6.QtGui import QBrush, QColor, QIcon, QPainter, QPen, QPixmap, QPolygonF
 from PySide6.QtWidgets import QApplication
 
-from .constants import MAP_NAME_RE, MAPS_DIR, require_map_settings
+from .constants import MAP_NAME_RE, map_layout_path, require_map_settings
 from .window import EditorWindow
 
 
@@ -37,7 +37,7 @@ def _build_window_icon() -> QIcon:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Cuboid Wars map editor.")
-    parser.add_argument("map", help="Map name to edit (opens config/server/maps/<name>.json).")
+    parser.add_argument("map", help="Map name to edit (opens config/server/maps/<name>/layout.json).")
     args = parser.parse_args()
     if not MAP_NAME_RE.match(args.map):
         parser.error(f"invalid map name {args.map!r}: use only ASCII letters, digits, '_', or '-'")
@@ -45,7 +45,7 @@ def main() -> int:
         require_map_settings(args.map)
     except (OSError, ValueError, KeyError) as exc:
         parser.error(str(exc))
-    map_path = MAPS_DIR / f"{args.map}.json"
+    map_path = map_layout_path(args.map)
     if not map_path.exists():
         print(f"map '{args.map}' has no file yet; Save will create {map_path}", file=sys.stderr)
 

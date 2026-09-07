@@ -1,0 +1,170 @@
+{
+  "textures": {
+    "basement-floor": {
+      "portalable": true
+    },
+    "basement-perimeter-wall": {
+      "portalable": true
+    },
+    "basement-support-wall": {
+      "portalable": true
+    },
+    "exterior-walls": {
+      "portalable": true
+    },
+    "ground-floor": {
+      "portalable": true
+    },
+    "ground-interior-wall": {
+      "portalable": true
+    },
+    "rooftop-floor": {
+      "portalable": true
+    },
+    "rooftop-wall": {
+      "portalable": true
+    },
+    "skybridge": {
+      "portalable": true
+    },
+    "slab": {
+      "portalable": true
+    },
+    "upper-floors": {
+      "portalable": true
+    },
+    "portal-resistant": {
+      "portalable": false
+    }
+  },
+  "skybox": "cloudy_day",
+  "geometry": {
+    "grid_cell_size": 4.0,
+    "level_height": 4.0,
+    "floor_thickness": 0.4,
+    "wall_thickness": 0.4
+  },
+  "weather": "clear",
+  "lighting": "bright",
+  "movement": {
+    "gravity": 24.0,
+    "low_gravity": 13.2,
+    "player": {
+      "walk_speed": 4.5,
+      "run_speed": 6.0,
+      "speed_power_up": 1.5,
+      "jump_speed": 8.0
+    },
+    "actors": {
+      "mine": {
+        "roam_speed": 3.0,
+        "active_speed": 5.0
+      },
+      "reaper": {
+        "roam_speed": 5.0,
+        "active_speed": 8.0
+      },
+      "sentry": {
+        "roam_speed": 5.0,
+        "active_speed": 8.0
+      },
+      "zapper": {
+        "roam_speed": 2.0,
+        "active_speed": 4.0
+      }
+    },
+    "projectile_speed": 90.0,
+    "missile_speed": 16.0,
+    "ladder_climb_ratio": 0.6,
+    "knockback": {
+      "max_speed": 15.0,
+      "up_speed": 7.0,
+      "deceleration": 35.0
+    }
+  },
+  "respawn": {
+    "players": "individual",
+    "actors": {
+      "on_player_death": "never",
+      "scope": "dead"
+    }
+  },
+  "portals": "both",
+  "barrier_kinds": [
+    {
+      "id": "customs",
+      "color": "#f0c020",
+      "pressure_switch": {
+        "activation": "auto",
+        "reset_on_player_death": "never"
+      }
+    },
+    {
+      "id": "dispatch",
+      "color": "#5090ff",
+      "pressure_switch": {
+        "activation": "auto",
+        "reset_on_player_death": "never"
+      }
+    }
+  ],
+  "bridge_kinds": [
+    {
+      "id": "freight",
+      "color": "#30d8ff",
+      "pressure_switch": {
+        "activation": "auto",
+        "reset_on_player_death": "never"
+      }
+    }
+  ],
+  "random_items": null,
+  "power_ups": {
+    "duration_secs": {
+      "single_shot": 0.0,
+      "multi_shot": 0.0,
+      "portal_gun": 0.0,
+      "speed": 0.0,
+      "low_gravity": 0.0
+    }
+  },
+  "placed_items": {
+    "respawn_secs": {
+      "single_shot": 5.0,
+      "multi_shot": 5.0,
+      "missile_pack": 5.0,
+      "portal_gun": 3.0,
+      "health_potion": 5.0,
+      "speed": 5.0,
+      "low_gravity": 5.0,
+      "gold": 86400.0,
+      "key": 3.0
+    }
+  },
+  "quests": [
+    {
+      "id": "freight_seals",
+      "kind": "gold",
+      "scope": "shared",
+      "requires": null,
+      "actor_kind": null,
+      "threshold": 3,
+      "points": 1500,
+      "title": "Three Freight Seals",
+      "description": "Recover three gold seals. Bring the portal gun back around customs to reach the high seal; the violet field spares your key. The bridge switch travels with its platform.",
+      "completed_text": "All freight sealed. The signal balcony is ready!"
+    },
+    {
+      "id": "dispatch_signal",
+      "kind": "fireworks",
+      "scope": "shared",
+      "requires": "freight_seals",
+      "actor_kind": null,
+      "threshold": 1,
+      "points": 2000,
+      "title": "Clear for Departure",
+      "description": "Ride the shuttle roof to the signal balcony and launch the departure fireworks.",
+      "completed_text": "Switchyard cleared for departure!"
+    }
+  ]
+}

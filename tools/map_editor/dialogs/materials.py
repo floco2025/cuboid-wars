@@ -19,7 +19,7 @@ class MaterialAssignmentDialog(QDialog):
     """Modal dialog with one dropdown per face (top/bottom/N/S/E/W).
 
     `catalog` is the list of material names to choose from, sourced from
-    the host map’s `gameplay.json` texture catalog. `initial` provides the starting selection per face;
+    the host map’s `settings.json` texture catalog. `initial` provides the starting selection per face;
     uniform faces start with their value, and mixed faces stay unchanged.
 
     `Apply to all` copies the Top dropdown's value into the other five.
@@ -117,7 +117,7 @@ class MaterialAssignmentDialog(QDialog):
         portalability: dict[str, bool] | None = None,
     ) -> dict[str, str] | None:
         if not catalog:
-            QMessageBox.warning(parent, title, "The selected host has no textures in gameplay.json.")
+            QMessageBox.warning(parent, title, "The selected host has no textures in its settings.json.")
             return None
         dialog = cls(parent, title, scope_summary, catalog, initial, source=source, portalability=portalability)
         if dialog.exec() != QDialog.DialogCode.Accepted:

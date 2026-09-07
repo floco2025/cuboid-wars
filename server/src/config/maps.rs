@@ -1,4 +1,7 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    path::Path,
+};
 
 use anyhow::{Context, Result, bail};
 use serde::Deserialize;
@@ -87,35 +90,26 @@ pub(super) fn validate_maps(
     maps: &HashMap<String, MapServerConfig>,
     default_map: &str,
     actors: &HashMap<String, ActorKindServerConfig>,
+    directory: &Path,
 ) -> Result<()> {
-    if maps.is_empty() {
-        bail!("maps must define at least one map");
-    }
+    validate_map_registry(maps.keys().map(String::as_str), default_map)?;
     let movable_actors: HashMap<_, _> = actors
         .iter()
         .filter(|(_, actor)| !actor.character.immovable)
         .map(|(kind, actor)| (kind.clone(), actor))
         .collect();
     for (name, entry) in maps {
-        // Map names become file names (`config/server/maps/<name>.json`), so
-        // reject anything that could traverse paths.
-        if name.is_empty() {
-            bail!("map name must not be empty");
-        }
-        if !is_valid_map_name(name) {
-            bail!("map name `{name}` must contain only ASCII letters, digits, `_`, or `-`");
-        }
-        let path = format!("maps.{name}");
+        let path = format!("{}:", directory.join(name).join("settings.json").display());
         if entry.settings.skybox.is_empty() {
-            bail!("{path}.skybox must not be empty");
+            bail!("{path} skybox must not be empty");
         }
         BarrierKindTable::from_defs(&entry.settings.barrier_kinds)
-            .with_context(|| format!("invalid {path}.barrier_kinds"))?;
+            .with_context(|| format!("invalid {path} barrier_kinds"))?;
         BridgeKindTable::from_defs(&entry.settings.bridge_kinds)
-            .with_context(|| format!("invalid {path}.bridge_kinds"))?;
-        validate_texture_catalog(&entry.settings.textures, &format!("{path}.textures"))?;
-        entry.settings.geometry.validate(&format!("{path}.geometry"))?;
-        let movement_path = format!("{path}.movement");
+            .with_context(|| format!("invalid {path} bridge_kinds"))?;
+        validate_texture_catalog(&entry.settings.textures, &format!("{path} textures"))?;
+        entry.settings.geometry.validate(&format!("{path} geometry"))?;
+        let movement_path = format!("{path} movement");
         let movement = &entry.settings.movement;
         for kind in movement.actors.keys() {
             if actors.get(kind).is_some_and(|actor| actor.character.immovable) {
@@ -129,14 +123,33 @@ pub(super) fn validate_maps(
         )?;
         movement.validate(&movement_path)?;
         if let Some(random_items) = &entry.random_items {
-            random_items.validate(&format!("{path}.random_items"))?;
+            random_items.validate(&format!("{path} random_items"))?;
         }
-        entry.power_ups.validate(&format!("{path}.power_ups"))?;
-        entry.placed_items.validate(&format!("{path}.placed_items"))?;
-        validate_quests(&entry.quests, actors, &format!("{path}.quests"))?;
+        entry.power_ups.validate(&format!("{path} power_ups"))?;
+        entry.placed_items.validate(&format!("{path} placed_items"))?;
+        validate_quests(&entry.quests, actors, &format!("{path} quests"))?;
     }
-    if !maps.contains_key(default_map) {
-        let mut known: Vec<&str> = maps.keys().map(String::as_str).collect();
+    Ok(())
+}
+
+pub(super) fn validate_map_registry<'a>(names: impl IntoIterator<Item = &'a str>, default_map: &str) -> Result<()> {
+    let mut seen = HashSet::new();
+    for name in names {
+        if name.is_empty() {
+            bail!("map name must not be empty");
+        }
+        if !is_valid_map_name(name) {
+            bail!("map name `{name}` must contain only ASCII letters, digits, `_`, or `-`");
+        }
+        if !seen.insert(name) {
+            bail!("maps contains duplicate map name {name:?}");
+        }
+    }
+    if seen.is_empty() {
+        bail!("maps must define at least one map");
+    }
+    if !seen.contains(default_map) {
+        let mut known: Vec<&str> = seen.into_iter().collect();
         known.sort_unstable();
         bail!("default_map `{default_map}` is not a defined map (defined: {known:?})");
     }
@@ -272,9 +285,10 @@ mod tests {
 
     #[test]
     fn map_respawn_policy_requires_every_field_and_rejects_unknown_modes() {
-        let gameplay: serde_json::Value = serde_json::from_str(include_str!("../../../config/server/gameplay.json"))
-            .expect("gameplay JSON is invalid");
-        let mut entry = gameplay["maps"]["hotel"].clone();
+        let source: serde_json::Value =
+            serde_json::from_str(include_str!("../../../config/server/maps/hotel/settings.json"))
+                .expect("map settings JSON is invalid");
+        let mut entry = source.clone();
         entry
             .as_object_mut()
             .expect("map entry is not an object")
@@ -376,7 +390,7 @@ mod tests {
     }
 
     fn validate_test_maps(maps: &HashMap<String, MapServerConfig>, default_map: &str) -> Result<()> {
-        validate_maps(maps, default_map, &actor_kinds())
+        validate_maps(maps, default_map, &actor_kinds(), Path::new("maps"))
     }
 
     fn parse_map_entry(
@@ -478,7 +492,7 @@ mod tests {
             .geometry
             .grid_cell_size = 0.0;
         let err = validate_test_maps(&maps, "hotel").expect_err("zero cell size must be rejected");
-        assert!(err.to_string().contains("maps.hotel.geometry.grid_cell_size"));
+        assert!(err.to_string().contains("settings.json: geometry.grid_cell_size"));
     }
 
     #[test]
@@ -562,9 +576,10 @@ mod tests {
 
     #[test]
     fn textures_require_an_explicit_catalog_and_boolean_permissions() {
-        let gameplay: serde_json::Value = serde_json::from_str(include_str!("../../../config/server/gameplay.json"))
-            .expect("gameplay JSON is invalid");
-        let mut hotel = gameplay["maps"]["hotel"].clone();
+        let source: serde_json::Value =
+            serde_json::from_str(include_str!("../../../config/server/maps/hotel/settings.json"))
+                .expect("map settings JSON is invalid");
+        let mut hotel = source.clone();
         hotel
             .as_object_mut()
             .expect("hotel settings is not an object")
@@ -576,7 +591,7 @@ mod tests {
                 .contains("textures")
         );
         for permission in [serde_json::json!({}), serde_json::json!({"portalable": "false"})] {
-            let mut hotel = gameplay["maps"]["hotel"].clone();
+            let mut hotel = source.clone();
             hotel["textures"] = serde_json::json!({"stone": permission});
             assert!(serde_json::from_value::<MapServerConfig>(hotel).is_err());
         }
@@ -584,9 +599,10 @@ mod tests {
 
     #[test]
     fn map_entry_requires_explicit_barrier_kinds() {
-        let gameplay: serde_json::Value = serde_json::from_str(include_str!("../../../config/server/gameplay.json"))
-            .expect("server gameplay JSON is invalid");
-        let mut hotel = gameplay["maps"]["hotel"].clone();
+        let source: serde_json::Value =
+            serde_json::from_str(include_str!("../../../config/server/maps/hotel/settings.json"))
+                .expect("map settings JSON is invalid");
+        let mut hotel = source.clone();
         hotel
             .as_object_mut()
             .expect("hotel map settings are not an object")
@@ -599,9 +615,10 @@ mod tests {
 
     #[test]
     fn map_entry_requires_placed_items() {
-        let gameplay: serde_json::Value = serde_json::from_str(include_str!("../../../config/server/gameplay.json"))
-            .expect("server gameplay JSON is invalid");
-        let mut hotel = gameplay["maps"]["hotel"].clone();
+        let source: serde_json::Value =
+            serde_json::from_str(include_str!("../../../config/server/maps/hotel/settings.json"))
+                .expect("map settings JSON is invalid");
+        let mut hotel = source.clone();
         hotel
             .as_object_mut()
             .expect("hotel map settings are not an object")
@@ -622,7 +639,11 @@ mod tests {
             .gold = -1.0;
 
         let error = validate_test_maps(&maps, "hotel").expect_err("negative respawn time must be rejected");
-        assert!(error.to_string().contains("maps.hotel.placed_items.respawn_secs.gold"));
+        assert!(
+            error
+                .to_string()
+                .contains("settings.json: placed_items.respawn_secs.gold")
+        );
     }
 
     #[test]
@@ -635,10 +656,10 @@ mod tests {
     #[test]
     fn map_entry_rejects_null_kind_catalogs() {
         for key in ["barrier_kinds", "bridge_kinds"] {
-            let gameplay: serde_json::Value =
-                serde_json::from_str(include_str!("../../../config/server/gameplay.json"))
-                    .expect("server gameplay JSON is invalid");
-            let mut hotel = gameplay["maps"]["hotel"].clone();
+            let source: serde_json::Value =
+                serde_json::from_str(include_str!("../../../config/server/maps/hotel/settings.json"))
+                    .expect("map settings JSON is invalid");
+            let mut hotel = source.clone();
             hotel[key] = serde_json::Value::Null;
 
             let error = serde_json::from_value::<MapServerConfig>(hotel)
@@ -656,14 +677,15 @@ mod tests {
             .barrier_kinds = vec![kind("lobby"), kind("lobby")];
 
         let error = validate_test_maps(&maps, "hotel").expect_err("duplicate barrier kinds must be rejected");
-        assert!(error.to_string().contains("maps.hotel.barrier_kinds"));
+        assert!(error.to_string().contains("settings.json: barrier_kinds"));
     }
 
     #[test]
     fn map_entry_requires_explicit_bridge_kinds() {
-        let gameplay: serde_json::Value = serde_json::from_str(include_str!("../../../config/server/gameplay.json"))
-            .expect("server gameplay JSON is invalid");
-        let mut hotel = gameplay["maps"]["hotel"].clone();
+        let source: serde_json::Value =
+            serde_json::from_str(include_str!("../../../config/server/maps/hotel/settings.json"))
+                .expect("map settings JSON is invalid");
+        let mut hotel = source.clone();
         hotel
             .as_object_mut()
             .expect("hotel map settings are not an object")
@@ -683,7 +705,7 @@ mod tests {
             .bridge_kinds = vec![kind("skyway"), kind("skyway")];
 
         let error = validate_test_maps(&maps, "hotel").expect_err("duplicate bridge kinds must be rejected");
-        assert!(error.to_string().contains("maps.hotel.bridge_kinds"));
+        assert!(error.to_string().contains("settings.json: bridge_kinds"));
     }
 
     #[test]

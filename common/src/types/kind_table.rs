@@ -22,7 +22,7 @@ pub struct KindDef {
 // in `physics/world/colliders.rs`); `None` when the kinds share one group.
 pub trait KindId: Copy + Debug + Eq + Hash + Ord + Send + Sync + 'static {
     const MAX: Option<usize>;
-    // The `gameplay.json` key and the singular noun, for error messages.
+    // The `settings.json` key and the singular noun, for error messages.
     const CONFIG_KEY: &'static str;
     const NOUN: &'static str;
     fn from_index(index: u16) -> Self;

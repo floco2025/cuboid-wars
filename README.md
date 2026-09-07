@@ -109,10 +109,10 @@ them for anything beyond localhost** — they are not production-safe.
 ## Map editor
 
 ```bash
-python3 tools/editor.py hotel      # edits config/server/maps/hotel.json in place
+python3 tools/editor.py hotel      # edits config/server/maps/hotel/layout.json in place
 ```
 
-Maps are registered in `config/server/gameplay.json` (`maps` + `default_map`).
+Maps are listed by name in `config/server/gameplay.json` (`maps` + `default_map`). Each map has a folder containing `layout.json` and a hand-edited `settings.json` for movement, kind catalogs, respawn policies, quests, and other tuning. To add a map, register its name and create its settings file; the editor can then create its layout.
 The editor (PySide6) covers everything in a map file: floors, grass, walls,
 ramps, ladders, barriers, equipment erasers, spawn zones, items, pressure plates, lights, and
 per-face materials.

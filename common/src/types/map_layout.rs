@@ -305,7 +305,7 @@ impl MapLayout {
     }
 }
 
-// Per-map tuning defined in `config/server/gameplay.json` under `maps` and
+// Per-map tuning defined in `config/server/maps/<name>/settings.json` and
 // shipped to clients in `SInit` so prediction uses the server's values.
 #[derive(Debug, Clone, Encode, Decode, Resource, Deserialize)]
 pub struct MapSettings {

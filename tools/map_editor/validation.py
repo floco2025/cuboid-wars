@@ -401,7 +401,7 @@ def _check_face_aliases(seg: dict, label: str, errors: list[str], aliases) -> No
             continue
         errors.append(
             f"{label}: face {face!r} value {value!r} is not an alias; "
-            f"add it to the host map’s textures in gameplay.json or choose an available alias"
+            f"add it to the host map’s textures in its settings.json or choose an available alias"
         )
 
 

@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 
-import json
-
-from .constants import GAMEPLAY_PATH
+from .constants import load_map_settings, map_settings_path
 
 
 def load_texture_catalog(host: str) -> dict[str, bool]:
-    with GAMEPLAY_PATH.open(encoding="utf-8") as handle:
-        settings = json.load(handle)["maps"][host]
-    path = f"maps.{host}.textures"
+    settings = load_map_settings(host)
+    path = f"{map_settings_path(host)}: textures"
     value = settings.get("textures")
     if not isinstance(value, dict):
         raise ValueError(f"{path} must be an object of aliases with a portalable boolean")

@@ -51,6 +51,6 @@ pub enum HomingTarget {
 
 // Stable per-quest identifier carried by `SQuestUpdates` and snapshots, and
 // keyed in per-player progress maps. Strings match the
-// human-readable `id` in one map's `gameplay.json` quest list.
+// human-readable `id` in one map's `settings.json` quest list.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Encode, Decode, Deserialize)]
 pub struct QuestId(pub String);

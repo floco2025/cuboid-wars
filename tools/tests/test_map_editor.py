@@ -262,7 +262,7 @@ class BarrierKindTests(unittest.TestCase):
             {"treasure": "#ff3333", "basement": "#f0c020", "gravity": "#5090ff", "lobby": "#22cc33"},
         )
         self.assertEqual(load_map_barrier_kinds("obby"), {"barrier_1": "#f0c020"})
-        with self.assertRaisesRegex(ValueError, "no settings in gameplay.json"):
+        with self.assertRaisesRegex(ValueError, "not registered"):
             load_map_barrier_kinds("not_configured")
 
 
@@ -382,7 +382,7 @@ class LightBridgeTests(unittest.TestCase):
             load_map_bridge_kinds("obby"),
             {"bridge_1": "#30d8ff", "bridge_2": "#30d8ff", "bridge_3": "#30d8ff"},
         )
-        with self.assertRaisesRegex(ValueError, "no settings in gameplay.json"):
+        with self.assertRaisesRegex(ValueError, "not registered"):
             load_map_bridge_kinds("not_configured")
 
 

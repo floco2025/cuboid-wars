@@ -292,7 +292,7 @@ class WindowTests(WindowTestCase):
             self.assertTrue(window.close())
         self.assertFalse(window.window_geometry.timer.isActive())
         self.assertEqual(window.preferences.value(window.window_geometry.KEY), window.saveGeometry())
-        other_path = self.path.with_name("obby.json")
+        other_path = self.path.parent.parent / "obby" / "layout.json"
         write_map(other_path, empty_map(12, 16))
         self.window = EditorWindow(other_path, preferences=window.preferences)
         window.deleteLater()
@@ -801,7 +801,7 @@ class WindowTests(WindowTestCase):
         settings = Path(self.temp.name) / "gameplay.json"
         settings.write_text("{}")
         with patch("map_editor.dependencies.GAMEPLAY_PATH", settings):
-            watcher.watch()
+            watcher.watch("hotel")
             changed = QSignalSpy(watcher.changed)
             settings.write_text('{"maps": {}}')
             for _ in range(30):
@@ -809,7 +809,7 @@ class WindowTests(WindowTestCase):
                     break
                 QTest.qWait(100)
             self.assertGreater(changed.count(), 0)
-            watcher.watch()
+            watcher.watch("hotel")
             self.assertIn(str(settings.resolve()), watcher.watcher.files())
 
     def test_large_map_fits_and_paints_with_invalid_nested_nudges(self):

@@ -7,7 +7,7 @@ use crate::constants::{BARRIER_THICKNESS_FRACTION, BRIDGE_THICKNESS_FRACTION, LE
 
 // The sizes every other map measure follows: the edge of one grid cell, the
 // storey pitch, and the slab and wall thicknesses. Per map in
-// `gameplay.json`, shipped to clients inside the map settings; the derived
+// `settings.json`, shipped to clients inside the map settings; the derived
 // sizes below are the only other way to obtain a world dimension.
 #[derive(Debug, Clone, Copy, PartialEq, Encode, Decode, Deserialize)]
 pub struct MapGeometryConfig {

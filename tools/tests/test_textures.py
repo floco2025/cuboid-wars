@@ -20,10 +20,14 @@ class TextureCatalogTests(unittest.TestCase):
     def test_missing_or_non_boolean_permission_is_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "gameplay.json"
+            path.write_text(json.dumps({"default_map": "host", "maps": ["host"]}))
+            maps = Path(directory) / "maps"
+            settings = maps / "host" / "settings.json"
+            settings.parent.mkdir(parents=True)
             for entry in ({}, {"portalable": 1}, {"portalable": "false"}):
-                path.write_text(json.dumps({"maps": {"host": {"textures": {"stone": entry}}}}))
-                with patch("map_editor.textures.GAMEPLAY_PATH", path):
-                    with self.assertRaisesRegex(ValueError, "maps.host.textures.stone"):
+                settings.write_text(json.dumps({"textures": {"stone": entry}}))
+                with patch("map_editor.constants.GAMEPLAY_PATH", path), patch("map_editor.constants.MAPS_DIR", maps):
+                    with self.assertRaisesRegex(ValueError, "settings.json: textures.stone"):
                         load_texture_catalog("host")
 
     def test_empty_catalog_rejects_authored_faces(self):

@@ -28,7 +28,7 @@ Prefer these as universal rules rather than per-map interaction exceptions. Geom
 
 ### Pressure controls and death resets
 
-Each entry in a map’s `barrier_kinds` or `bridge_kinds` catalog in `gameplay.json` requires a `pressure_switch` block. Plates name only their type and kind; all matching plates control that kind together. There are no map defaults or per-plate overrides.
+Each entry in a map’s `barrier_kinds` or `bridge_kinds` catalog in its `settings.json` requires a `pressure_switch` block. Plates name only their type and kind; all matching plates control that kind together. There are no map defaults or per-plate overrides.
 
 ```json
 "pressure_switch": {
@@ -84,7 +84,7 @@ The relevant behavior lives in [collision queries](common/src/physics/world/coll
 | Materials, lights, grass, weather, and lighting | Landmarks, clues, atmosphere, and visual distinction. They are mostly presentation tools rather than controllable puzzle mechanisms. |
 | Spawn zones and item placement | Control where players begin, where enemies appear, and which resources are available. Player spawn zones are not progression checkpoints. |
 
-The map authoring tools are described in the [editor reference](tools/map_editor/tool_reference.md). Tuning, item availability, and quest definitions live in [gameplay.json](config/server/gameplay.json).
+The map authoring tools are described in the [editor reference](tools/map_editor/tool_reference.md). Global tuning lives in [gameplay.json](config/server/gameplay.json); each map’s `settings.json` holds its tuning, item availability, and quests.
 
 ## Puzzle patterns
 
@@ -200,15 +200,15 @@ Each map has one gold token and a firework finish. Eight are designed for one pl
 
 | Map | Players | Concept | Goal |
 |---|---:|---|---|
-| [puzzle_stages](config/server/maps/puzzle_stages.json) | 1 | Progress across stages | Carry the balcony key through customs, restock, and clear the turret hall. |
-| [puzzle_access](config/server/maps/puzzle_access.json) | 1 | Access versus protection | Cross a protective barrier without exposing the starting hall. |
-| [puzzle_shield](config/server/maps/puzzle_shield.json) | 1 | Bridge as cover and walkway | Reach the far ladder under the powered roof, then return over it. |
-| [puzzle_cover](config/server/maps/puzzle_cover.json) | 1 | Moving cover | Board a sheltered shuttle and ride past a turret. |
-| [puzzle_sequence](config/server/maps/puzzle_sequence.json) | 1 | Portal setup and sequencing | Set a remote portal through a shutter, restore cover, then travel. |
-| [puzzle_momentum](config/server/maps/puzzle_momentum.json) | 1 | Momentum and access | Turn a fall into a launch toward a distant landing. |
-| [puzzle_coop](config/server/maps/puzzle_coop.json) | 2 | Cooperative positioning | Hold a crossing for a partner, then arrange the helper's escape. |
-| [puzzle_containment](config/server/maps/puzzle_containment.json) | 1 | Enemy containment | Lure a hunter into a pen and leave it behind a closed field. |
-| [puzzle_logic](config/server/maps/puzzle_logic.json) | 1 | Geometry as logic | Satisfy two gates using a switch that controls two outputs and a choice of routes. |
+| [puzzle_stages](config/server/maps/puzzle_stages/layout.json) | 1 | Progress across stages | Carry the balcony key through customs, restock, and clear the turret hall. |
+| [puzzle_access](config/server/maps/puzzle_access/layout.json) | 1 | Access versus protection | Cross a protective barrier without exposing the starting hall. |
+| [puzzle_shield](config/server/maps/puzzle_shield/layout.json) | 1 | Bridge as cover and walkway | Reach the far ladder under the powered roof, then return over it. |
+| [puzzle_cover](config/server/maps/puzzle_cover/layout.json) | 1 | Moving cover | Board a sheltered shuttle and ride past a turret. |
+| [puzzle_sequence](config/server/maps/puzzle_sequence/layout.json) | 1 | Portal setup and sequencing | Set a remote portal through a shutter, restore cover, then travel. |
+| [puzzle_momentum](config/server/maps/puzzle_momentum/layout.json) | 1 | Momentum and access | Turn a fall into a launch toward a distant landing. |
+| [puzzle_coop](config/server/maps/puzzle_coop/layout.json) | 2 | Cooperative positioning | Hold a crossing for a partner, then arrange the helper's escape. |
+| [puzzle_containment](config/server/maps/puzzle_containment/layout.json) | 1 | Enemy containment | Lure a hunter into a pen and leave it behind a closed field. |
+| [puzzle_logic](config/server/maps/puzzle_logic/layout.json) | 1 | Geometry as logic | Satisfy two gates using a switch that controls two outputs and a choice of routes. |
 
 Steel-panel `skybridge` surfaces accept portals; the other materials in these examples resist them. Supplies replenish after five seconds, equipment lasts until death or erasure, and no random pickups appear. The guard-removal example uses missiles and provides a sheltered health pickup beside the ammunition. Gold takes 24 hours to respawn. Restart the server for a completely fresh attempt. `puzzle_access` closes its cyan barrier when everyone is dead, and `puzzle_stages` restores actors on solo respawn; other example switches and quest progress persist through death.
 

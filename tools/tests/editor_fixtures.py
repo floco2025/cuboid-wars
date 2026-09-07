@@ -26,7 +26,7 @@ class WindowTestCase(unittest.TestCase):
 
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
-        self.path = Path(self.temp.name) / "hotel.json"
+        self.path = Path(self.temp.name) / "hotel" / "layout.json"
         data = empty_map(8, 8)
         data["player_spawn_zones"] = []
         data["levels"][0]["floors"] = [{"col": 1, "row": 1, "all": DEFAULT_ALIAS}]

@@ -1,0 +1,123 @@
+{
+  "textures": {
+    "basement-floor": {
+      "portalable": true
+    },
+    "portal-resistant": {
+      "portalable": false
+    }
+  },
+  "skybox": "cloudy_day",
+  "geometry": {
+    "grid_cell_size": 4.0,
+    "level_height": 2.4,
+    "floor_thickness": 0.4,
+    "wall_thickness": 0.4
+  },
+  "weather": "clear",
+  "lighting": "bright",
+  "movement": {
+    "gravity": 24.0,
+    "low_gravity": 13.2,
+    "player": {
+      "walk_speed": 5.0,
+      "run_speed": 5.0,
+      "speed_power_up": 1.818,
+      "jump_speed": 12.0
+    },
+    "actors": {
+      "mine": {
+        "roam_speed": 3.0,
+        "active_speed": 5.0
+      },
+      "reaper": {
+        "roam_speed": 5.0,
+        "active_speed": 8.0
+      },
+      "sentry": {
+        "roam_speed": 5.0,
+        "active_speed": 8.0
+      },
+      "zapper": {
+        "roam_speed": 2.0,
+        "active_speed": 4.0
+      }
+    },
+    "projectile_speed": 90.0,
+    "missile_speed": 16.0,
+    "ladder_climb_ratio": 0.4,
+    "knockback": {
+      "max_speed": 15.0,
+      "up_speed": 7.0,
+      "deceleration": 35.0
+    }
+  },
+  "respawn": {
+    "players": "individual",
+    "actors": {
+      "on_player_death": "never",
+      "scope": "dead"
+    }
+  },
+  "portals": "single",
+  "barrier_kinds": [
+    {
+      "id": "barrier_1",
+      "color": "#f0c020",
+      "pressure_switch": {
+        "activation": "auto",
+        "reset_on_player_death": "never"
+      }
+    }
+  ],
+  "bridge_kinds": [
+    {
+      "id": "bridge_1",
+      "color": "#30d8ff",
+      "pressure_switch": {
+        "activation": "auto",
+        "reset_on_player_death": "never"
+      }
+    },
+    {
+      "id": "bridge_2",
+      "color": "#30d8ff",
+      "pressure_switch": {
+        "activation": "auto",
+        "reset_on_player_death": "never"
+      }
+    },
+    {
+      "id": "bridge_3",
+      "color": "#30d8ff",
+      "pressure_switch": {
+        "activation": "auto",
+        "reset_on_player_death": "never"
+      }
+    }
+  ],
+  "random_items": null,
+  "power_ups": {
+    "duration_secs": {
+      "single_shot": 0.0,
+      "multi_shot": 0.0,
+      "portal_gun": 0.0,
+      "speed": 0.0,
+      "low_gravity": 0.0
+    }
+  },
+  "placed_items": {
+    "respawn_secs": {
+      "single_shot": 5.0,
+      "multi_shot": 5.0,
+      "missile_pack": 5.0,
+      "portal_gun": 5.0,
+      "health_potion": 5.0,
+      "speed": 5.0,
+      "low_gravity": 5.0,
+      "gold": 60.0,
+      "key": 5.0
+    }
+  },
+  "quests": []
+}

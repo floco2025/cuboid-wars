@@ -6,7 +6,7 @@
 
 ## Enhancements
 
-- **Map configuration:** Separate each map’s settings from the growing `gameplay.json`; discuss a folder per map containing `layout.json` and `settings.json`, with an explicit map-name registry in the global config.
+- **Logout resets:** Apply actor and pressure-switch reset policies to player departures as well as deaths, including pending actor resets surviving the triggering player’s disconnect. Clarify whether group player respawns also follow departures and when actors reset if nobody will respawn.
 
 - **Puzzle design:** See [PUZZLES.md](PUZZLES.md) for the element inventory, nine example maps, guard encounters, and [next decisions](PUZZLES.md#next-decisions).
 

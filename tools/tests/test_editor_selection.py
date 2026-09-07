@@ -269,7 +269,7 @@ class WindowTests(WindowTestCase):
         with patch("map_editor.select.QInputDialog.getInt", return_value=(1, True)):
             self.window.copy_selection()
         block = copy.deepcopy(self.window.tile_clipboard)
-        other = Path(self.temp.name) / "obby.json"
+        other = Path(self.temp.name) / "obby" / "layout.json"
         write_map(other, empty_map(8, 8))
         self.window.load_path(other)
         self.assertIsNone(self.window.tile_selection)
@@ -292,7 +292,7 @@ class WindowTests(WindowTestCase):
         window.add_floor_rect((2, 2), (2, 2))
         window.doc.write_autosave()
         with patch("map_editor.file_actions.QMessageBox.critical"):
-            window.load_path(Path(self.temp.name) / "missing.json")
+            window.load_path(Path(self.temp.name) / "missing" / "layout.json")
         self.assertEqual(window.path, self.path)
         self.assertTrue(window.doc.autosave_path().exists())
 

@@ -1,0 +1,231 @@
+{
+  "textures": {
+    "basement-floor": {
+      "portalable": true
+    },
+    "basement-perimeter-wall": {
+      "portalable": true
+    },
+    "basement-support-wall": {
+      "portalable": true
+    },
+    "exterior-walls": {
+      "portalable": true
+    },
+    "ground-floor": {
+      "portalable": true
+    },
+    "ground-interior-wall": {
+      "portalable": true
+    },
+    "natural-ground": {
+      "portalable": false
+    },
+    "perimeter-wall": {
+      "portalable": true
+    },
+    "rooftop-floor": {
+      "portalable": true
+    },
+    "rooftop-wall": {
+      "portalable": true
+    },
+    "skybridge": {
+      "portalable": false
+    },
+    "slab": {
+      "portalable": true
+    },
+    "upper-floors": {
+      "portalable": true
+    },
+    "upper-interior-walls": {
+      "portalable": true
+    }
+  },
+  "skybox": "cloudy_day",
+  "geometry": {
+    "grid_cell_size": 3.4,
+    "level_height": 4.4,
+    "floor_thickness": 0.4,
+    "wall_thickness": 0.3
+  },
+  "weather": "auto",
+  "lighting": "auto",
+  "movement": {
+    "gravity": 25.0,
+    "low_gravity": 5.0,
+    "player": {
+      "walk_speed": 6.0,
+      "run_speed": 9.0,
+      "speed_power_up": 1.5,
+      "jump_speed": 12.0
+    },
+    "actors": {
+      "mine": {
+        "roam_speed": 3.0,
+        "active_speed": 5.0
+      },
+      "reaper": {
+        "roam_speed": 5.0,
+        "active_speed": 8.0
+      },
+      "sentry": {
+        "roam_speed": 5.0,
+        "active_speed": 8.0
+      },
+      "zapper": {
+        "roam_speed": 2.0,
+        "active_speed": 4.0
+      }
+    },
+    "projectile_speed": 90.0,
+    "missile_speed": 16.0,
+    "ladder_climb_ratio": 0.4,
+    "knockback": {
+      "max_speed": 15.0,
+      "up_speed": 7.0,
+      "deceleration": 35.0
+    }
+  },
+  "respawn": {
+    "players": "individual",
+    "actors": {
+      "on_player_death": "never",
+      "scope": "dead"
+    }
+  },
+  "portals": "both",
+  "barrier_kinds": [
+    {
+      "id": "treasure",
+      "color": "#ff3333",
+      "pressure_switch": {
+        "activation": "auto",
+        "reset_on_player_death": "never"
+      }
+    },
+    {
+      "id": "basement",
+      "color": "#f0c020",
+      "pressure_switch": {
+        "activation": "auto",
+        "reset_on_player_death": "never"
+      }
+    },
+    {
+      "id": "gravity",
+      "color": "#5090ff",
+      "pressure_switch": {
+        "activation": "auto",
+        "reset_on_player_death": "never"
+      }
+    },
+    {
+      "id": "lobby",
+      "color": "#22cc33",
+      "pressure_switch": {
+        "activation": "auto",
+        "reset_on_player_death": "never"
+      }
+    }
+  ],
+  "bridge_kinds": [],
+  "random_items": {
+    "types": [
+      "single_shot",
+      "multi_shot",
+      "missile_pack",
+      "portal_gun",
+      "health_potion",
+      "speed",
+      "low_gravity"
+    ],
+    "max_number": 30,
+    "despawn_secs": 60.0
+  },
+  "power_ups": {
+    "duration_secs": {
+      "single_shot": 60.0,
+      "multi_shot": 25.0,
+      "portal_gun": 25.0,
+      "speed": 30.0,
+      "low_gravity": 20.0
+    }
+  },
+  "placed_items": {
+    "respawn_secs": {
+      "single_shot": 5.0,
+      "multi_shot": 60.0,
+      "missile_pack": 30.0,
+      "portal_gun": 1.0,
+      "health_potion": 60.0,
+      "speed": 60.0,
+      "low_gravity": 60.0,
+      "gold": 60.0,
+      "key": 30.0
+    }
+  },
+  "quests": [
+    {
+      "id": "destroy_zappers",
+      "kind": "actor_kills",
+      "scope": "individual",
+      "requires": null,
+      "actor_kind": "zapper",
+      "threshold": 6,
+      "points": 1000,
+      "title": "Zapper Hunt",
+      "description": "Destroy 6 zappers",
+      "completed_text": "Destroyed 6 zappers!"
+    },
+    {
+      "id": "destroy_mines",
+      "kind": "actor_kills",
+      "scope": "individual",
+      "requires": null,
+      "actor_kind": "mine",
+      "threshold": 6,
+      "points": 500,
+      "title": "Mine Hunt",
+      "description": "Destroy 6 mines",
+      "completed_text": "Destroyed 6 mines!"
+    },
+    {
+      "id": "destroy_sentries",
+      "kind": "actor_kills",
+      "scope": "individual",
+      "requires": null,
+      "actor_kind": "sentry",
+      "threshold": 4,
+      "points": 1000,
+      "title": "Sentry Hunt",
+      "description": "Destroy 4 sentries",
+      "completed_text": "Destroyed 4 sentries!"
+    },
+    {
+      "id": "collect_gold",
+      "kind": "gold",
+      "scope": "everyone",
+      "requires": null,
+      "actor_kind": null,
+      "threshold": 10,
+      "points": 2000,
+      "title": "Gold Rush",
+      "description": "Collect 10 gold pieces",
+      "completed_text": "Collected 10 gold!"
+    },
+    {
+      "id": "start_fireworks",
+      "kind": "fireworks",
+      "scope": "shared",
+      "requires": "collect_gold",
+      "actor_kind": null,
+      "threshold": 1,
+      "points": 1500,
+      "title": "The Gathering",
+      "description": "Your gold changed something. Find it, together.",
+      "completed_text": "The sky answers!"
+    }
+  ]
+}
