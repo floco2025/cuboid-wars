@@ -16,7 +16,7 @@ pub struct EraserContacts {
     occupied: HashSet<(PlayerId, usize)>,
 }
 
-pub fn erase_power_ups_system(
+pub fn erase_equipment_system(
     mut contacts: ResMut<EraserContacts>,
     mut players: ResMut<PlayerMap>,
     positions: Query<&Position, With<PlayerMarker>>,
@@ -54,7 +54,7 @@ pub fn erase_power_ups_system(
                 .channel
                 .send(ServerToClient::Send(ServerMessage::EraserEntered(SEraserEntered)));
         }
-        if touched && info.erase_power_ups() {
+        if touched && info.erase_equipment() {
             statuses.push(info.status(*id));
         }
     }
@@ -115,7 +115,7 @@ mod tests {
             )
             .insert_resource(CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default()))
             .init_resource::<EraserContacts>()
-            .add_systems(Update, erase_power_ups_system);
+            .add_systems(Update, erase_equipment_system);
         (app, entity, rx)
     }
 
@@ -148,8 +148,30 @@ mod tests {
                 .expect("player missing")
                 .life
                 .missiles,
-            2
+            0
         );
+    }
+
+    #[test]
+    fn missile_ammo_alone_is_erased_and_broadcast_once() {
+        let (mut app, entity, mut rx) = test_app();
+        app.world_mut().get_mut::<Position>(entity).expect("position missing").z = 0.0;
+        app.world_mut()
+            .resource_mut::<PlayerMap>()
+            .get_mut(&PlayerId(1))
+            .expect("player missing")
+            .add_missiles(2, 3);
+        app.update();
+        let statuses: Vec<_> = std::iter::from_fn(|| rx.try_recv().ok())
+            .filter_map(|message| match message {
+                ServerToClient::Send(ServerMessage::PlayerStatus(status)) => Some(status),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(statuses.len(), 1);
+        assert_eq!(statuses[0].missiles, 0);
+        app.update();
+        assert!(rx.try_recv().is_err());
     }
 
     #[test]
@@ -168,7 +190,7 @@ mod tests {
     }
 
     #[test]
-    fn standing_in_a_field_erases_fresh_power_ups_but_keeps_keys_and_ammo() {
+    fn standing_in_a_field_erases_fresh_power_ups_and_ammo_but_keeps_keys() {
         let (mut app, entity, mut rx) = test_app();
         app.world_mut().get_mut::<Position>(entity).expect("position missing").z = 0.0;
         for iteration in 0..2 {
@@ -184,7 +206,7 @@ mod tests {
             let info = players.get(&PlayerId(1)).expect("player missing");
             assert!(PowerUpKind::ALL.into_iter().all(|kind| !info.has(kind)));
             assert_eq!(info.life.held_keys, [BarrierKindId(0)]);
-            assert_eq!(info.life.missiles, 2);
+            assert_eq!(info.life.missiles, 0);
             assert_eq!(entry_cues(&mut rx), usize::from(iteration == 0));
         }
     }

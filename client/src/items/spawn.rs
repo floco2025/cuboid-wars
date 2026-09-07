@@ -66,6 +66,26 @@ pub fn setup_item_assets(
     };
     let power_ups = vec![
         PowerUpVisual {
+            item_type: ItemType::SingleShotPowerUp,
+            mesh: meshes.add(item_symbol_mesh(
+                ItemType::SingleShotPowerUp,
+                ITEM_SIZE * 1.5,
+                ITEM_SIZE * 0.24,
+            )),
+            material: build_power_up(ItemType::SingleShotPowerUp),
+            base_orientation: Quat::IDENTITY,
+        },
+        PowerUpVisual {
+            item_type: ItemType::MultiShotPowerUp,
+            mesh: meshes.add(item_symbol_mesh(
+                ItemType::MultiShotPowerUp,
+                ITEM_SIZE * 1.5,
+                ITEM_SIZE * 0.24,
+            )),
+            material: build_power_up(ItemType::MultiShotPowerUp),
+            base_orientation: Quat::IDENTITY,
+        },
+        PowerUpVisual {
             item_type: ItemType::PortalGunPowerUp,
             mesh: meshes.add(
                 Torus {
@@ -80,6 +100,16 @@ pub fn setup_item_assets(
             base_orientation: Quat::from_rotation_x(FRAC_PI_2),
         },
         PowerUpVisual {
+            item_type: ItemType::HealthPotion,
+            mesh: meshes.add(item_symbol_mesh(
+                ItemType::HealthPotion,
+                ITEM_SIZE * 1.5,
+                ITEM_SIZE * 0.24,
+            )),
+            material: build_power_up(ItemType::HealthPotion),
+            base_orientation: Quat::IDENTITY,
+        },
+        PowerUpVisual {
             item_type: ItemType::SpeedPowerUp,
             mesh: meshes.add(item_symbol_mesh(
                 ItemType::SpeedPowerUp,
@@ -90,16 +120,6 @@ pub fn setup_item_assets(
             base_orientation: Quat::IDENTITY,
         },
         PowerUpVisual {
-            item_type: ItemType::MultiShotPowerUp,
-            mesh: meshes.add(item_symbol_mesh(
-                ItemType::MultiShotPowerUp,
-                ITEM_SIZE * 1.5,
-                ITEM_SIZE * 0.24,
-            )),
-            material: build_power_up(ItemType::MultiShotPowerUp),
-            base_orientation: Quat::IDENTITY,
-        },
-        PowerUpVisual {
             item_type: ItemType::LowGravityPowerUp,
             mesh: meshes.add(item_symbol_mesh(
                 ItemType::LowGravityPowerUp,
@@ -107,16 +127,6 @@ pub fn setup_item_assets(
                 ITEM_SIZE * 0.24,
             )),
             material: build_power_up(ItemType::LowGravityPowerUp),
-            base_orientation: Quat::IDENTITY,
-        },
-        PowerUpVisual {
-            item_type: ItemType::HealthPotion,
-            mesh: meshes.add(item_symbol_mesh(
-                ItemType::HealthPotion,
-                ITEM_SIZE * 1.5,
-                ITEM_SIZE * 0.24,
-            )),
-            material: build_power_up(ItemType::HealthPotion),
             base_orientation: Quat::IDENTITY,
         },
     ];
@@ -132,13 +142,14 @@ pub fn setup_item_assets(
 #[must_use]
 pub fn item_type_color(item_type: ItemType) -> Color {
     match item_type {
-        ItemType::SpeedPowerUp => ITEM_SPEED_COLOR,
+        ItemType::SingleShotPowerUp => ITEM_SINGLESHOT_COLOR,
         ItemType::MultiShotPowerUp => ITEM_MULTISHOT_COLOR,
-        ItemType::LowGravityPowerUp => ITEM_LOW_GRAVITY_COLOR,
+        ItemType::MissilePack => ITEM_MISSILE_COLOR,
         ItemType::PortalGunPowerUp => PORTAL_A_COLOR,
         ItemType::HealthPotion => ITEM_HEALTH_COLOR,
-        ItemType::Cookie => ITEM_COIN_COLOR,
-        ItemType::MissilePack => ITEM_MISSILE_COLOR,
+        ItemType::SpeedPowerUp => ITEM_SPEED_COLOR,
+        ItemType::LowGravityPowerUp => ITEM_LOW_GRAVITY_COLOR,
+        ItemType::Gold => ITEM_COIN_COLOR,
         ItemType::Key(_) => unreachable!("keys look up colors via BarrierAssets / AssetSet, not item_type_color"),
     }
 }
@@ -167,7 +178,7 @@ pub fn spawn_item(
         YSpinTimer(spin_phase),
     ));
     let base = match item_type {
-        ItemType::Cookie => {
+        ItemType::Gold => {
             entity.with_children(|parent| spawn_coin_visual(parent, &item_assets.coin));
             Quat::IDENTITY
         }
@@ -185,6 +196,7 @@ pub fn spawn_item(
             Quat::from_rotation_z(FRAC_PI_4)
         }
         ItemType::SpeedPowerUp
+        | ItemType::SingleShotPowerUp
         | ItemType::MultiShotPowerUp
         | ItemType::LowGravityPowerUp
         | ItemType::HealthPotion

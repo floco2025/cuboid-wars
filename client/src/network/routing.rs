@@ -7,7 +7,7 @@ use super::{
     },
     context::ServerMessageContext,
     io::apply_pong,
-    items::{handle_cookie_collected_message, handle_health_potion_collected_message},
+    items::{handle_gold_collected_message, handle_health_potion_collected_message},
     missiles::{
         handle_missile_detonated_message, handle_missile_launch_message, handle_missile_move_message,
         handle_missiles_collected_message,
@@ -65,8 +65,8 @@ pub(super) fn route_server_message(
         ServerMessage::PlayerStatus(message) => {
             handle_player_status_message(message, commands, my_player_id, context);
         }
-        ServerMessage::CookieCollected(message) => {
-            handle_cookie_collected_message(message, commands, my_player_id, context);
+        ServerMessage::GoldCollected(message) => {
+            handle_gold_collected_message(message, commands, my_player_id, context);
         }
         ServerMessage::HealthPotionCollected(message) => {
             handle_health_potion_collected_message(message, commands, my_player_id, context);

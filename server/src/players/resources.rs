@@ -220,20 +220,16 @@ impl PlayerInfo {
         self.life.power_ups[kind.index()] == PowerUpState::Permanent
     }
 
-    pub fn erase_power_ups(&mut self) -> bool {
-        let changed = self.life.power_ups.iter().any(|state| state.is_active());
+    pub fn erase_equipment(&mut self) -> bool {
+        let changed = self.life.missiles > 0 || self.life.power_ups.iter().any(|state| state.is_active());
         self.life.power_ups.fill(PowerUpState::Inactive);
+        self.life.missiles = 0;
         changed
     }
 
     #[must_use]
     pub fn has_speed(&self) -> bool {
         self.has(PowerUpKind::Speed)
-    }
-
-    #[must_use]
-    pub fn has_multi_shot(&self) -> bool {
-        self.has(PowerUpKind::MultiShot)
     }
 
     #[must_use]
@@ -259,11 +255,13 @@ impl PlayerInfo {
         self.life.power_ups[kind.index()] = PowerUpState::from_duration(durations.duration_secs_for(kind));
     }
 
-    pub fn try_start_shot(&mut self, now: f32, cooldown_secs: f32) -> Option<bool> {
-        if !self.try_start_weapon_fire(now, cooldown_secs) {
-            return None;
-        }
-        Some(self.has_multi_shot())
+    pub fn try_start_shot(&mut self, now: f32, cooldown_secs: f32, multi_shot: bool) -> bool {
+        let kind = if multi_shot {
+            PowerUpKind::MultiShot
+        } else {
+            PowerUpKind::SingleShot
+        };
+        self.has(kind) && self.try_start_weapon_fire(now, cooldown_secs)
     }
 
     pub fn try_start_portal_shot(&mut self, now: f32, cooldown_secs: f32) -> bool {
@@ -419,6 +417,7 @@ mod tests {
         PowerUpsConfig {
             duration_secs: PowerUpDurationSecs {
                 speed: 1.0,
+                single_shot: 0.0,
                 multi_shot: 1.0,
                 low_gravity: 1.0,
                 portal_gun: 0.0,
@@ -472,26 +471,50 @@ mod tests {
     }
 
     #[test]
-    fn try_start_shot_tracks_cooldown_and_multi_shot_state() {
+    fn projectile_modes_require_their_own_pickups_and_share_a_cooldown() {
         let mut info = dummy_info();
-        let start = 10.0;
-
         const COOLDOWN: f32 = 0.1;
-        assert_eq!(info.try_start_shot(start, COOLDOWN), Some(false));
-        assert_eq!(info.try_start_shot(start + COOLDOWN * 0.5, COOLDOWN), None);
-
+        assert!(!info.try_start_shot(10.0, COOLDOWN, false));
+        assert!(!info.try_start_shot(10.0, COOLDOWN, true));
         info.grant_power_up(ItemType::MultiShotPowerUp, &test_power_ups_config());
-        assert_eq!(
-            info.try_start_shot(start + COOLDOWN + f32::EPSILON, COOLDOWN),
-            Some(true)
-        );
+        assert!(!info.try_start_shot(10.0, COOLDOWN, false));
+        assert!(info.try_start_shot(10.0, COOLDOWN, true));
+        info.grant_power_up(ItemType::SingleShotPowerUp, &test_power_ups_config());
+        assert!(!info.try_start_shot(10.05, COOLDOWN, false));
+        assert!(info.try_start_shot(10.11, COOLDOWN, false));
+        assert!(!info.try_start_shot(10.15, COOLDOWN, true));
+        assert!(info.try_start_shot(10.22, COOLDOWN, true));
+        info.tick_timers(1.0);
+        assert!(!info.try_start_shot(11.0, COOLDOWN, true));
+        assert!(info.try_start_shot(11.0, COOLDOWN, false));
+        info.erase_equipment();
+        assert!(!info.try_start_shot(12.0, COOLDOWN, false));
+        assert!(!info.try_start_shot(12.0, COOLDOWN, true));
+    }
+
+    #[test]
+    fn single_shot_can_expire_or_last_until_death() {
+        let mut info = dummy_info();
+        let mut config = test_power_ups_config();
+        config.duration_secs.single_shot = 2.0;
+        info.grant_power_up(ItemType::SingleShotPowerUp, &config);
+        assert!(info.try_start_shot(1.0, 0.1, false));
+        info.tick_timers(2.0);
+        assert!(!info.try_start_shot(3.0, 0.1, false));
+        info.grant_power_up(ItemType::SingleShotPowerUp, &test_power_ups_config());
+        info.tick_timers(1000.0);
+        assert!(info.try_start_shot(1003.0, 0.1, false));
+        info.begin_respawn(1.0);
+        info.finish_respawn(Entity::PLACEHOLDER);
+        assert!(!info.try_start_shot(1004.0, 0.1, false));
     }
 
     #[test]
     fn missing_or_expired_gun_rejects_portal_fire_without_spending_cooldown() {
         let mut info = dummy_info();
+        info.grant_power_up(ItemType::SingleShotPowerUp, &test_power_ups_config());
         assert!(!info.try_start_portal_shot(1.0, 0.1));
-        assert_eq!(info.try_start_shot(1.0, 0.1), Some(false));
+        assert!(info.try_start_shot(1.0, 0.1, false));
         let mut config = test_power_ups_config();
         config.duration_secs.portal_gun = 2.0;
         info.grant_power_up(ItemType::PortalGunPowerUp, &config);
@@ -502,11 +525,11 @@ mod tests {
         assert!(info.has(PowerUpKind::PortalGun));
         info.tick_timers(0.5);
         assert!(!info.try_start_portal_shot(3.0, 0.1));
-        assert_eq!(info.try_start_shot(3.0, 0.1), Some(false));
+        assert!(info.try_start_shot(3.0, 0.1, false));
     }
 
     #[test]
-    fn erasure_clears_only_power_ups() {
+    fn erasure_clears_power_ups_and_ammo_but_preserves_keys_and_progress() {
         let mut info = dummy_info();
         info.session.score = 42;
         info.session
@@ -518,11 +541,11 @@ mod tests {
         for kind in PowerUpKind::ALL {
             info.grant_power_up(kind.to_item_type(), &test_power_ups_config());
         }
-        assert!(info.erase_power_ups());
-        assert!(!info.erase_power_ups());
+        assert!(info.erase_equipment());
+        assert!(!info.erase_equipment());
         assert!(PowerUpKind::ALL.into_iter().all(|kind| !info.has(kind)));
         assert_eq!(info.life.held_keys, [BarrierKindId(1)]);
-        assert_eq!(info.life.missiles, 2);
+        assert_eq!(info.life.missiles, 0);
         assert_eq!(info.life.stun_timer, 2.0);
         assert_eq!(info.session.score, 42);
         assert_eq!(
@@ -534,12 +557,13 @@ mod tests {
     #[test]
     fn projectile_and_portal_shots_share_a_cooldown() {
         let mut info = dummy_info();
+        info.grant_power_up(ItemType::SingleShotPowerUp, &test_power_ups_config());
         info.grant_power_up(ItemType::PortalGunPowerUp, &test_power_ups_config());
         const COOLDOWN: f32 = 0.1;
 
         assert!(info.try_start_portal_shot(10.0, COOLDOWN));
-        assert_eq!(info.try_start_shot(10.05, COOLDOWN), None);
-        assert_eq!(info.try_start_shot(10.11, COOLDOWN), Some(false));
+        assert!(!info.try_start_shot(10.05, COOLDOWN, false));
+        assert!(info.try_start_shot(10.11, COOLDOWN, false));
         assert!(!info.try_start_portal_shot(10.15, COOLDOWN));
         assert!(info.try_start_portal_shot(10.22, COOLDOWN));
     }

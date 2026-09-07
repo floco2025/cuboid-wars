@@ -16,8 +16,8 @@ use common::{
     math::PHYSICS_EPSILON,
     physics::CollisionWorld,
     protocol::{
-        ActorId, ActorMarker, BarrierKindId, ItemType, MapItems, MapSettings, PlateState, PlayerId, PlayerMarker,
-        Position, SActorBeam, ServerMessage,
+        ActorId, ActorMarker, BarrierKindId, ItemType, MapItems, PlateState, PlayerId, PlayerMarker, Position,
+        SActorBeam, ServerMessage,
     },
 };
 
@@ -48,7 +48,6 @@ pub fn actors_behavior_system(
     nav_graphs: Res<NavGraphs>,
     territories: Res<ActorTerritories>,
     carriers: Res<Carriers>,
-    map_settings: Res<MapSettings>,
     map_items: Res<MapItems>,
     mut actors: ResMut<ActorMap>,
     player_query: Query<(&PlayerId, &Position), With<PlayerMarker>>,
@@ -113,7 +112,9 @@ pub fn actors_behavior_system(
             collision_world: &collision_world,
             open_barriers: &plates.open_barrier_kinds,
             kind_config,
-            players_armed: map_settings.weapons.projectiles || map_items.contains(ItemType::MissilePack),
+            players_armed: map_items.contains(ItemType::SingleShotPowerUp)
+                || map_items.contains(ItemType::MultiShotPowerUp)
+                || map_items.contains(ItemType::MissilePack),
         };
         if info.route.as_ref().is_some_and(ActorRoute::traversing_ladder) {
             continue;

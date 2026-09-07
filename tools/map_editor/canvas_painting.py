@@ -360,13 +360,7 @@ class CanvasPaintingMixin:
                 paint_item_symbol(painter, item_type, cx, cy, cell * 0.65, QColor(color))
                 continue
             painter.setBrush(QColor(ITEM_TYPE_COLORS.get(item_type, "#f8fafc")))
-            if item_type == "portal_gun":
-                painter.save()
-                painter.setBrush(Qt.BrushStyle.NoBrush)
-                painter.setPen(QPen(QColor(ITEM_TYPE_COLORS[item_type]), max(2, cell * 0.06)))
-                painter.drawEllipse(QRectF(cx - cell * 0.16, cy - cell * 0.30, cell * 0.32, cell * 0.60))
-                painter.restore()
-            elif item_type == "cookie":
+            if item_type == "gold":
                 # Coins keep their smaller footprint beside the equipment pickups.
                 radius = cell * 0.13
                 painter.drawEllipse(QRectF(cx - radius, cy - radius, radius * 2, radius * 2))

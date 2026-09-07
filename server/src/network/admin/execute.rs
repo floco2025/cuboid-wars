@@ -192,15 +192,10 @@ pub(super) fn run_admin_command(
             let Some(info) = players.get_mut(&sender) else {
                 return Private("sender not found".to_owned());
             };
-            let weapons = admin.map_settings.weapons;
-            let mut given = 0usize;
             for item_type in PowerUpKind::ALL.map(PowerUpKind::to_item_type) {
-                if weapons.allows_item(item_type) {
-                    info.grant_power_up(item_type, &admin.power_ups);
-                    given += 1;
-                }
+                info.grant_power_up(item_type, &admin.power_ups);
             }
-            Private(format!("gave {given} power-ups"))
+            Private(format!("gave {} power-ups", PowerUpKind::COUNT))
         }
         AdminCommand::GivePowerup(power_up) => {
             let power_up_ids = PowerUpKind::ALL.map(|kind| kind.to_item_type().config_id());
@@ -212,9 +207,6 @@ pub(super) fn run_admin_command(
                     power_up_ids.join(", ")
                 ));
             };
-            if !admin.map_settings.weapons.allows_item(item_type) {
-                return Private(format!("the {power_up} power-up is disabled on this map"));
-            }
             let Some(info) = players.get_mut(&sender) else {
                 return Private("sender not found".to_owned());
             };

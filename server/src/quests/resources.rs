@@ -273,10 +273,10 @@ mod tests {
     #[test]
     fn group_statuses_list_only_unlocked_group_quests() {
         let config = catalog(vec![
-            quest("solo", QuestKind::Cookies, QuestScope::Individual, 3, None),
+            quest("solo", QuestKind::Gold, QuestScope::Individual, 3, None),
             quest("pool", QuestKind::ActorKills, QuestScope::Shared, 4, None),
-            quest("gold", QuestKind::Cookies, QuestScope::Everyone, 2, None),
-            quest("later", QuestKind::Cookies, QuestScope::Shared, 1, Some("gold")),
+            quest("gold", QuestKind::Gold, QuestScope::Everyone, 2, None),
+            quest("later", QuestKind::Gold, QuestScope::Shared, 1, Some("gold")),
         ]);
         let quest_catalog = QuestCatalog::from_config(&config);
         let board = QuestBoard::from_catalog(&quest_catalog);
@@ -308,7 +308,7 @@ mod tests {
     #[test]
     fn locked_plate_purposes_follow_the_claiming_quests() {
         let config = catalog(vec![
-            quest("gold", QuestKind::Cookies, QuestScope::Everyone, 1, None),
+            quest("gold", QuestKind::Gold, QuestScope::Everyone, 1, None),
             quest("show", QuestKind::Fireworks, QuestScope::Shared, 1, Some("gold")),
         ]);
         let quest_catalog = QuestCatalog::from_config(&config);
@@ -317,7 +317,7 @@ mod tests {
         board.unlock(&QuestId("show".to_owned()));
         assert!(board.locked_plate_purposes().is_empty());
 
-        let unclaimed_config = catalog(vec![quest("gold", QuestKind::Cookies, QuestScope::Everyone, 1, None)]);
+        let unclaimed_config = catalog(vec![quest("gold", QuestKind::Gold, QuestScope::Everyone, 1, None)]);
         let unclaimed_catalog = QuestCatalog::from_config(&unclaimed_config);
         let unclaimed = QuestBoard::from_catalog(&unclaimed_catalog);
         assert!(unclaimed.locked_plate_purposes().is_empty());

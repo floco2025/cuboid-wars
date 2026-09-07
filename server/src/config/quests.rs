@@ -32,7 +32,7 @@ pub struct Quest {
 #[derive(Debug, Clone, Copy, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum QuestKind {
-    Cookies,
+    Gold,
     ActorKills,
     // Completed when the firework plates launch the show (`/firework` doesn't count).
     Fireworks,
@@ -45,7 +45,7 @@ impl QuestKind {
     pub fn plate_purpose(self) -> Option<PlatePurpose> {
         match self {
             Self::Fireworks => Some(PlatePurpose::Firework),
-            Self::Cookies | Self::ActorKills => None,
+            Self::Gold | Self::ActorKills => None,
         }
     }
 
@@ -128,7 +128,7 @@ mod tests {
     fn ok_quest(id: &str, threshold: u32) -> Quest {
         Quest {
             id: QuestId(id.to_owned()),
-            kind: QuestKind::Cookies,
+            kind: QuestKind::Gold,
             scope: QuestScope::Individual,
             requires: None,
             actor_kind: None,
@@ -295,7 +295,7 @@ mod tests {
     fn validate_quests_rejects_actor_kind_on_non_actor_kills_quest() {
         let mut quest = ok_quest("oops", 4);
         quest.actor_kind = Some("sentry".to_owned());
-        let err = validate(&[quest], &default_actors()).expect_err("actor_kind on cookies must be rejected");
+        let err = validate(&[quest], &default_actors()).expect_err("actor_kind on gold must be rejected");
         assert!(err.to_string().contains("actor_kind"));
     }
 }

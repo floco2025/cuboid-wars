@@ -9,7 +9,7 @@ use crate::{
 };
 use common::{
     map::MapGeometry,
-    protocol::{CarrierId, ItemId, ItemMarker, MapSettings, Position},
+    protocol::{CarrierId, ItemId, ItemMarker, Position},
 };
 
 use super::spawn_cells::{
@@ -25,12 +25,8 @@ pub fn placed_item_spawn_system(
     mut spawner: ResMut<ItemSpawner>,
     mut items: ResMut<ItemMap>,
     map_config: Res<MapConfig>,
-    map_settings: Res<MapSettings>,
 ) {
     for placed in &map_config.placed_items {
-        if !map_settings.weapons.allows_item(placed.item_type) {
-            continue;
-        }
         let item_id = ItemId(spawner.next_id);
         spawner.next_id += 1;
         let position = ItemSpawnCell {
@@ -90,7 +86,7 @@ pub fn random_item_spawn_system(
         }
 
         // All items on the map claim their cell — including hidden placed
-        // ones, so a random item can't land on a cookie cell mid-respawn. A
+        // ones, so a random item can't land on a gold cell mid-respawn. A
         // carried item's position is in another grid and claims nothing here.
         let occupied_cells: HashSet<ItemSpawnCell> = items
             .values()

@@ -32,7 +32,7 @@ def furnished_block() -> dict:
     })
     data["actor_spawn_zones"] = [{"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "beetle", "count": 2}]
     data["player_spawn_zones"] = [{"level": 1, "cols": [0, 1], "rows": [0, 1]}]
-    data["items"] = [{"level": 0, "col": 0, "row": 0, "type": "cookie"}]
+    data["items"] = [{"level": 0, "col": 0, "row": 0, "type": "gold"}]
     data["pressure_plates"] = [{"level": 0, "col": 0, "row": 0, "type": "firework"}]
     data["ramps"] = [{"lower_level": 0, "low": [0, 2], "high": [3, 3], "all": DEFAULT_ALIAS}]
     data["ladders"] = [{"lower_level": 0, "col": 3, "row": 3, "side": "N", "levels": 1}]
@@ -72,7 +72,7 @@ class RegionTests(unittest.TestCase):
         data = empty_map(8, 8)
         data["player_spawn_zones"] = []
         data["levels"][0]["floors"] = [{"col": c, "row": 3, "all": DEFAULT_ALIAS} for c in (2, 3, 4)]
-        data["items"] = [{"level": 0, "col": 3, "row": 3, "type": "cookie"}]
+        data["items"] = [{"level": 0, "col": 3, "row": 3, "type": "gold"}]
         block = empty_map(2, 1)
         block["player_spawn_zones"] = []
         result = canonicalize_map(paste_region(data, block, (2, 3), 0))

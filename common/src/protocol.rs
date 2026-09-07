@@ -62,7 +62,7 @@
 //        the impact frame, not 1–2 ticks later.
 //      * Edge-triggered, not level-triggered. "You just picked up a power-up"
 //        is a transition with an associated sound (`SPlayerStatus`,
-//        `SCookieCollected`). The snapshot also carries the flag, but a
+//        `SGoldCollected`). The snapshot also carries the flag, but a
 //        level-triggered handler would play the sound every tick it was set.
 //        The cue fires the sound exactly once at the transition; the snapshot
 //        keeps the HUD icon correct if the cue was dropped.
@@ -517,12 +517,12 @@ impl SPlayerStatus {
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SEraserEntered;
 
-// Player collected a cookie. Sent only to the collecting player; drives the
+// Player collected gold. Sent only to the collecting player; drives the
 // pickup sound AND carries the post-pickup score for snappier HUD reaction.
 // The snapshot remains the system of record — this is just an early-arriving
 // redundant copy; the next `SSnapshot` will agree.
 #[derive(Debug, Clone, Encode, Decode)]
-pub struct SCookieCollected {
+pub struct SGoldCollected {
     pub score: i32,
 }
 
@@ -686,7 +686,7 @@ pub enum ServerMessage {
     ActorBeam(SActorBeam),
     PlayerStatus(SPlayerStatus),
     EraserEntered(SEraserEntered),
-    CookieCollected(SCookieCollected),
+    GoldCollected(SGoldCollected),
     HealthPotionCollected(SHealthPotionCollected),
     MissilesCollected(SMissilesCollected),
     PressurePlate(SPressurePlate),
@@ -750,7 +750,7 @@ impl ServerMessage {
             | Self::ActorBeam(_)
             | Self::PlayerStatus(_)
             | Self::EraserEntered(_)
-            | Self::CookieCollected(_)
+            | Self::GoldCollected(_)
             | Self::HealthPotionCollected(_)
             | Self::MissilesCollected(_)
             | Self::PressurePlate(_)
@@ -926,7 +926,7 @@ mod tests {
             (
                 ItemId(i),
                 Item {
-                    item_type: ItemType::Cookie,
+                    item_type: ItemType::Gold,
                     carrier: CarrierId::WORLD,
                     pos: position(),
                 },

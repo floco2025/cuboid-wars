@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use bevy::prelude::*;
 
-use common::protocol::{CarrierId, ItemId, ItemType, MapWeaponSettings};
+use common::protocol::{CarrierId, ItemId, ItemType};
 
 pub enum ItemPlacement {
     // World-spawned by the random spawner; despawns outright on pickup or
@@ -41,7 +41,7 @@ pub struct RandomItems {
 
 impl RandomItems {
     #[must_use]
-    pub fn from_config(config: Option<&crate::config::RandomItemsConfig>, weapons: MapWeaponSettings) -> Self {
+    pub fn from_config(config: Option<&crate::config::RandomItemsConfig>) -> Self {
         config.map_or_else(Self::default, |random_items_config| Self {
             pool: random_items_config
                 .types
@@ -50,7 +50,6 @@ impl RandomItems {
                     ItemType::from_config_id(id)
                         .expect("random item type missing from ItemType config ids after config validation")
                 })
-                .filter(|item_type| weapons.allows_item(*item_type))
                 .collect(),
             max_number: random_items_config.max_number,
             despawn_secs: random_items_config.despawn_secs,

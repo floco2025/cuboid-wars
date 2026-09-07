@@ -6,7 +6,7 @@ mod resources;
 mod respawn;
 mod status;
 
-pub use equipment::{EraserContacts, erase_power_ups_system};
+pub use equipment::{EraserContacts, erase_equipment_system};
 pub use falling::{PlayerFallState, players_fall_damage_system, players_fall_death_system};
 pub use plugin::players_plugin;
 pub use power_ups::PowerUpState;

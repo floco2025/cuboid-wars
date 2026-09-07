@@ -53,12 +53,12 @@ pub(crate) fn validate_map_quests(
                 .actor_spawn_zones
                 .iter()
                 .any(|zone| quest.actor_kind.as_ref().is_none_or(|kind| zone.kind == *kind)),
-            QuestKind::Cookies => {
+            QuestKind::Gold => {
                 map_config
                     .placed_items
                     .iter()
-                    .any(|item| item.item_type == ItemType::Cookie)
-                    || random_items.is_some_and(|items| items.types.iter().any(|item| item == "cookie"))
+                    .any(|item| item.item_type == ItemType::Gold)
+                    || random_items.is_some_and(|items| items.types.iter().any(|item| item == "gold"))
             }
             QuestKind::Fireworks => map_config
                 .pressure_plates

@@ -153,26 +153,16 @@ fn spawn_power_up_icon(row: &mut ChildSpawnerCommands, active: bool, kind: Power
     let node = Node {
         width: Val::Px(HUD_POWER_UP_ICON_SIZE_PX),
         height: Val::Px(HUD_POWER_UP_ICON_SIZE_PX),
+        flex_shrink: 0.0,
         align_self: AlignSelf::Center,
         ..default()
     };
     let image = match kind {
-        PowerUpKind::Speed => &shapes.speed,
+        PowerUpKind::SingleShot => &shapes.single_shot,
         PowerUpKind::MultiShot => &shapes.multi_shot,
+        PowerUpKind::PortalGun => &shapes.portal_gun,
+        PowerUpKind::Speed => &shapes.speed,
         PowerUpKind::LowGravity => &shapes.low_gravity,
-        PowerUpKind::PortalGun => {
-            row.spawn((
-                Node {
-                    width: Val::Px(8.0),
-                    height: Val::Px(15.0),
-                    border: UiRect::all(Val::Px(2.0)),
-                    border_radius: BorderRadius::all(Val::Percent(50.0)),
-                    ..node
-                },
-                BorderColor::all(color),
-            ));
-            return;
-        }
     };
     row.spawn((
         node,

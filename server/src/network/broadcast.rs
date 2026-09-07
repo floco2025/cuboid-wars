@@ -296,7 +296,7 @@ mod tests {
             ItemId(1),
             ItemInfo {
                 entity: visible_entity,
-                item_type: ItemType::Cookie,
+                item_type: ItemType::Gold,
                 placement: ItemPlacement::Placed { respawn_countdown: 0.0 },
                 carrier: CarrierId::WORLD,
             },
@@ -305,7 +305,7 @@ mod tests {
             ItemId(2),
             ItemInfo {
                 entity: hidden_entity,
-                item_type: ItemType::Cookie,
+                item_type: ItemType::Gold,
                 placement: ItemPlacement::Placed { respawn_countdown: 5.0 },
                 carrier: CarrierId::WORLD,
             },

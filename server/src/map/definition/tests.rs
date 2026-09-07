@@ -1001,7 +1001,7 @@ fn validation_rejects_item_outside_grid() {
         vec![player_zone(0, 0, 0)],
         Vec::new(),
     );
-    map_def.items.push(item_def(0, 4, 0, "cookie", None));
+    map_def.items.push(item_def(0, 4, 0, "gold", None));
     let err = validate_map(&map_def).expect_err("out-of-bounds item must be rejected");
     assert!(err.to_string().contains("col"));
 }
@@ -1029,7 +1029,7 @@ fn validation_rejects_kind_on_non_key_item() {
         vec![player_zone(0, 0, 0)],
         Vec::new(),
     );
-    map_def.items.push(item_def(0, 0, 0, "cookie", Some("red")));
+    map_def.items.push(item_def(0, 0, 0, "gold", Some("red")));
     let err = validate_map(&map_def).expect_err("kind on non-key item must be rejected");
     assert!(err.to_string().contains("only key items"));
 }
@@ -1057,7 +1057,7 @@ fn validation_rejects_duplicate_item_cell() {
         vec![player_zone(0, 0, 0)],
         Vec::new(),
     );
-    map_def.items.push(item_def(0, 0, 0, "cookie", None));
+    map_def.items.push(item_def(0, 0, 0, "gold", None));
     map_def.items.push(item_def(0, 0, 0, "speed", None));
     let err = validate_map(&map_def).expect_err("two items on one cell must be rejected");
     assert!(err.to_string().contains("duplicates"));
@@ -1072,7 +1072,7 @@ fn compile_rejects_item_on_floorless_cell() {
         vec![player_zone(0, 0, 0)],
         Vec::new(),
     );
-    map_def.items.push(item_def(0, 2, 2, "cookie", None));
+    map_def.items.push(item_def(0, 2, 2, "gold", None));
     let err = compile_map(&map_def, sizes(), &no_nested(), &empty_kind_table(), &no_bridges())
         .expect_err("item on a floorless cell must fail");
     assert!(err.to_string().contains("floor"));
@@ -1087,7 +1087,7 @@ fn compile_rejects_item_on_ramp_cell() {
         vec![player_zone(0, 3, 3)],
         vec![ramp([0, 0], [1, 2], 1)],
     );
-    map_def.items.push(item_def(1, 0, 0, "cookie", None));
+    map_def.items.push(item_def(1, 0, 0, "gold", None));
     let err = compile_map(&map_def, sizes(), &no_nested(), &empty_kind_table(), &no_bridges())
         .expect_err("item on a ramp cell must fail");
     assert!(err.to_string().contains("ramp"));
@@ -1474,7 +1474,7 @@ fn every_shipped_carrier_carries_a_standing_player_through_its_cycle() {
 // === Nested maps ===
 
 // A 3x2 room with a floor on every cell, a wall along its north edge, one
-// cookie, one firework plate, a player zone on its first cell, and an actor
+// gold, one firework plate, a player zone on its first cell, and an actor
 // zone, on two storeys.
 fn room() -> MapDef {
     let mut map_def = map_with_zones(
@@ -1499,7 +1499,7 @@ fn room() -> MapDef {
         level: 0,
         col: 2,
         row: 1,
-        item_type: "cookie".into(),
+        item_type: "gold".into(),
         kind: None,
     });
     map_def.pressure_plates.push(PressurePlateDef {

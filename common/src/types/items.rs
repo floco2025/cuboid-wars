@@ -2,24 +2,25 @@ use bincode::{Decode, Encode};
 
 use super::BarrierKindId;
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Encode, Decode)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Encode, Decode)]
 pub enum ItemType {
-    SpeedPowerUp,
+    SingleShotPowerUp,
     MultiShotPowerUp,
-    LowGravityPowerUp,
+    // Missile ammo. Not collectable while the player is at max — the pack
+    // stays in the world, like an already-held key.
+    MissilePack,
     PortalGunPowerUp,
     // Instant heal on pickup; no durable state on `PlayerInfo` (unlike the
     // other power-ups, which persist). The heal amount comes from
     // `combat.health.player.potion_heal` in the server config.
     HealthPotion,
-    Cookie,
+    SpeedPowerUp,
+    LowGravityPowerUp,
+    Gold,
     // Key, parameterized by the barrier kind it eventually unlocks. Placed
     // in the map's `items` list; once collected, the kind enters the
     // player's permanent inventory.
     Key(BarrierKindId),
-    // Missile ammo. Not collectable while the player is at max — the pack
-    // stays in the world, like an already-held key.
-    MissilePack,
 }
 
 impl ItemType {
@@ -34,20 +35,25 @@ impl ItemType {
     pub const fn is_power_up(self) -> bool {
         matches!(
             self,
-            Self::SpeedPowerUp | Self::MultiShotPowerUp | Self::LowGravityPowerUp | Self::PortalGunPowerUp
+            Self::SingleShotPowerUp
+                | Self::MultiShotPowerUp
+                | Self::PortalGunPowerUp
+                | Self::SpeedPowerUp
+                | Self::LowGravityPowerUp
         )
     }
 
     #[must_use]
     pub fn from_config_id(id: &str) -> Option<Self> {
         match id {
-            "speed" => Some(Self::SpeedPowerUp),
+            "single_shot" => Some(Self::SingleShotPowerUp),
             "multi_shot" => Some(Self::MultiShotPowerUp),
-            "low_gravity" => Some(Self::LowGravityPowerUp),
+            "missile_pack" => Some(Self::MissilePack),
             "portal_gun" => Some(Self::PortalGunPowerUp),
             "health_potion" => Some(Self::HealthPotion),
-            "cookie" => Some(Self::Cookie),
-            "missile_pack" => Some(Self::MissilePack),
+            "speed" => Some(Self::SpeedPowerUp),
+            "low_gravity" => Some(Self::LowGravityPowerUp),
+            "gold" => Some(Self::Gold),
             _ => None,
         }
     }
@@ -55,14 +61,15 @@ impl ItemType {
     #[must_use]
     pub const fn config_id(self) -> &'static str {
         match self {
-            Self::SpeedPowerUp => "speed",
+            Self::SingleShotPowerUp => "single_shot",
             Self::MultiShotPowerUp => "multi_shot",
-            Self::LowGravityPowerUp => "low_gravity",
+            Self::MissilePack => "missile_pack",
             Self::PortalGunPowerUp => "portal_gun",
             Self::HealthPotion => "health_potion",
-            Self::Cookie => "cookie",
+            Self::SpeedPowerUp => "speed",
+            Self::LowGravityPowerUp => "low_gravity",
+            Self::Gold => "gold",
             Self::Key(_) => Self::KEY_CONFIG_ID,
-            Self::MissilePack => "missile_pack",
         }
     }
 }
@@ -73,15 +80,22 @@ impl ItemType {
 // `Health` directly and has no durable flag.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Encode, Decode)]
 pub enum PowerUpKind {
-    Speed,
+    SingleShot,
     MultiShot,
-    LowGravity,
     PortalGun,
+    Speed,
+    LowGravity,
 }
 
 impl PowerUpKind {
-    pub const COUNT: usize = 4;
-    pub const ALL: [PowerUpKind; Self::COUNT] = [Self::Speed, Self::MultiShot, Self::LowGravity, Self::PortalGun];
+    pub const COUNT: usize = 5;
+    pub const ALL: [PowerUpKind; Self::COUNT] = [
+        Self::SingleShot,
+        Self::MultiShot,
+        Self::PortalGun,
+        Self::Speed,
+        Self::LowGravity,
+    ];
 
     #[must_use]
     pub const fn index(self) -> usize {
@@ -91,21 +105,23 @@ impl PowerUpKind {
     #[must_use]
     pub const fn from_item_type(ty: ItemType) -> Option<Self> {
         match ty {
-            ItemType::SpeedPowerUp => Some(Self::Speed),
+            ItemType::SingleShotPowerUp => Some(Self::SingleShot),
             ItemType::MultiShotPowerUp => Some(Self::MultiShot),
-            ItemType::LowGravityPowerUp => Some(Self::LowGravity),
             ItemType::PortalGunPowerUp => Some(Self::PortalGun),
-            ItemType::HealthPotion | ItemType::Cookie | ItemType::Key(_) | ItemType::MissilePack => None,
+            ItemType::SpeedPowerUp => Some(Self::Speed),
+            ItemType::LowGravityPowerUp => Some(Self::LowGravity),
+            ItemType::HealthPotion | ItemType::Gold | ItemType::Key(_) | ItemType::MissilePack => None,
         }
     }
 
     #[must_use]
     pub const fn to_item_type(self) -> ItemType {
         match self {
-            Self::Speed => ItemType::SpeedPowerUp,
+            Self::SingleShot => ItemType::SingleShotPowerUp,
             Self::MultiShot => ItemType::MultiShotPowerUp,
-            Self::LowGravity => ItemType::LowGravityPowerUp,
             Self::PortalGun => ItemType::PortalGunPowerUp,
+            Self::Speed => ItemType::SpeedPowerUp,
+            Self::LowGravity => ItemType::LowGravityPowerUp,
         }
     }
 }
@@ -117,13 +133,14 @@ mod tests {
     #[test]
     fn item_type_config_ids_round_trip() {
         let non_key = [
-            ItemType::SpeedPowerUp,
+            ItemType::SingleShotPowerUp,
             ItemType::MultiShotPowerUp,
-            ItemType::LowGravityPowerUp,
+            ItemType::MissilePack,
             ItemType::PortalGunPowerUp,
             ItemType::HealthPotion,
-            ItemType::Cookie,
-            ItemType::MissilePack,
+            ItemType::SpeedPowerUp,
+            ItemType::LowGravityPowerUp,
+            ItemType::Gold,
         ];
         for item_type in non_key {
             assert_eq!(ItemType::from_config_id(item_type.config_id()), Some(item_type));

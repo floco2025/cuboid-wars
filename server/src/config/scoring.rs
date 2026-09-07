@@ -9,7 +9,7 @@ use super::validation::validate_covers_actor_kinds;
 pub struct ScoringConfig {
     pub player_kill: i32,
     pub player_death: i32,
-    pub cookie: i32,
+    pub gold: i32,
     pub actor_hit: HashMap<String, i32>,
     pub actor_kill: HashMap<String, i32>,
 }
@@ -31,7 +31,7 @@ mod tests {
         ScoringConfig {
             player_kill: 200,
             player_death: -200,
-            cookie: 1000,
+            gold: 1000,
             actor_hit: HashMap::from([("zapper".to_owned(), 5)]),
             actor_kill: HashMap::from([("zapper".to_owned(), 150)]),
         }

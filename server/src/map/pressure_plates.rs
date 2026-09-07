@@ -632,7 +632,7 @@ mod system_tests {
     #[test]
     fn a_locked_plate_neither_clicks_nor_fires() {
         let config = catalog(vec![
-            quest("gold", QuestKind::Cookies, QuestScope::Everyone, 1, None),
+            quest("gold", QuestKind::Gold, QuestScope::Everyone, 1, None),
             quest("show", QuestKind::Fireworks, QuestScope::Shared, 1, Some("gold")),
         ]);
         let mut app = app(config, vec![firework_plate()]);

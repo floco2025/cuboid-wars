@@ -4,10 +4,10 @@ use super::super::context::ServerMessageContext;
 use crate::audio::play_sound;
 use common::protocol::*;
 
-// Cookie pickup: play sound + apply the early score for HUD reaction. The
+// Gold pickup: play sound + apply the early score for HUD reaction. The
 // snapshot will confirm `score` next tick; this is just the latency cut.
-pub(in crate::network) fn handle_cookie_collected_message(
-    message: SCookieCollected,
+pub(in crate::network) fn handle_gold_collected_message(
+    message: SGoldCollected,
     commands: &mut Commands,
     my_player_id: PlayerId,
     context: &mut ServerMessageContext,
@@ -18,7 +18,7 @@ pub(in crate::network) fn handle_cookie_collected_message(
     play_sound(
         commands,
         &context.asset_server,
-        context.asset_set.player_sound("collect_cookie"),
+        context.asset_set.player_sound("collect_gold"),
     );
 }
 

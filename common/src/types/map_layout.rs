@@ -313,7 +313,7 @@ pub struct MapSettings {
     pub textures: BTreeMap<String, TextureSettings>,
     pub geometry: MapGeometryConfig,
     pub movement: MapMovementConfig,
-    pub weapons: MapWeaponSettings,
+    pub portals: PortalMode,
 
     // Ordered catalog assigning this map's stable `BarrierKindId` values;
     // empty when the map has no barriers, keys, or barrier plates.
@@ -321,22 +321,6 @@ pub struct MapSettings {
     // Same for `BridgeKindId`; empty when the map has no light bridges or
     // bridge plates.
     pub bridge_kinds: Vec<KindDef>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode, Deserialize)]
-pub struct MapWeaponSettings {
-    pub projectiles: bool,
-    pub portals: PortalMode,
-}
-
-impl MapWeaponSettings {
-    #[must_use]
-    pub const fn allows_item(self, item: ItemType) -> bool {
-        match item {
-            ItemType::MultiShotPowerUp => self.projectiles,
-            _ => true,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode, Deserialize)]

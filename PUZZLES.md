@@ -28,19 +28,19 @@ Prefer these as universal rules rather than per-map interaction exceptions. Geom
 
 ### Erasers
 
-Erasers remove power-ups on player contact: speed, multishot, low gravity, and the portal gun. Keys, missile ammo, health, score, and quest progress survive. Losing the portal gun still removes the portal ends controlled by that player.
+Erasers remove all weapons and power-ups on player contact: single-shot, multishot, missile ammo, the portal gun, speed, and low gravity. Keys, health, score, and quest progress survive. Losing the portal gun still removes the portal ends controlled by that player.
 
 Erasers block portal shots. Movement, perception, ordinary projectiles, missiles, beams, and explosions otherwise treat them as empty space.
 
 Blocking portal shots prevents the direct solution of shooting an exit portal through an eraser corridor. Portals established by another route or by a teammate already across can still provide a bypass; portal-resistant surfaces let the designer restrict those solutions.
 
-Keys preserve earned access across stages, while missiles carry a useful resource forward. An eraser lets the next stage provide its own power-ups. For example, part 1 can award a key and a missile; after erasure, the key opens part 2 and the missile destroys its guard. The designer controls access to missiles through item placement and random-item availability.
+Keys can record "step X was solved": award a key for completing that step, then require it at a matching barrier beyond an eraser. The key preserves that progress while the eraser clears equipment. Fresh pickups behind the barrier can replace erased items or provide a different set for the next step. This uses the existing keys, barriers, and pickups.
 
-Key and ammo loss on death is a separate decision from erasure.
+Death clears keys as well as equipment.
 
 ## Implementation
 
-The settled field and eraser rules are implemented. Attack clearance and beam clipping account for active fields while enemy awareness remains transparent. Ordinary projectiles are absorbed by both field types, and portal-shot blocking is universal rather than configurable. Erasers preserve keys and missile ammo, including when collecting items while standing in a field.
+The settled field and eraser rules are implemented. Attack clearance and beam clipping account for active fields while enemy awareness remains transparent. Ordinary projectiles are absorbed by both field types, and portal-shot blocking is universal rather than configurable. Erasers preserve keys and clear power-ups and missile ammo, including when collecting items while standing in a field.
 
 Actor navigation still excludes light bridges even while they are solid. Actors collide with them and can be supported by them, but planned routes do not cross them. Bridge-aware navigation remains an extension for enemy-luring puzzles.
 
@@ -51,18 +51,18 @@ The relevant behavior lives in [collision queries](common/src/physics/world/coll
 | Element | Puzzle uses and constraints |
 |---|---|
 | Floors, walls, gaps, ramps, ladders, and multiple levels | Mazes, alternate routes, controlled drops, observation positions, and isolated enemy perches. |
-| Portals | Connect separated routes, establish temporary access, redirect falling momentum, and carry ordinary projectiles. Portals can ride moving geometry. Players and ordinary projectiles traverse them; actors do not. |
+| Portals | Availability comes from portal-gun pickups. Connect separated routes, establish temporary access, redirect falling momentum, and carry ordinary projectiles. Portals can ride moving geometry. Players and ordinary projectiles traverse them; actors do not. |
 | Portal-resistant materials | Restrict placement by surface and face, making the shooting position and sequence part of the solution. |
 | Barriers and keys | Personal passage through a closed field versus globally opening it with plates. Keys are reusable access permissions. |
 | Pressure plates | Open barrier groups, power bridge groups, or trigger fireworks. Solo holding plates toggle; multiplayer holding plates depend on occupancy. Different purposes can occupy one tile, so one position can already control several outputs. |
 | Light bridges | Switchable crossings and drops; protection above or below their surface. A powered bridge can also obstruct a portal shot. |
-| Erasers | Boundaries between sets of power-ups, while keys and ammo connect stages. |
+| Erasers | Boundaries between equipment sets, while retained keys unlock routes and restock areas across stages. |
 | Moving platforms and nested rooms | Lifts, shuttles, moving cover, moving ladders, moving switches, and carried actors. Motion repeats automatically between two positions with pauses and a phase offset; there is no switch control or rotation yet. |
 | Speed and low-gravity power-ups | Reachability puzzles, jumps, timed routes, and combinations with portal momentum. Duration can be timed or last until death or erasure. |
-| Ordinary projectiles and multishot | Ricochets off ordinary geometry, attacks through portals, and enemy removal. There are no general shootable puzzle switches. |
-| Missiles | A carried resource for removing guards or choosing between dangerous routes. Ordinary projectiles can be disabled independently of missile availability. |
+| Single-shot and multishot pickups | Independent weapons: players start without projectile fire, and each pickup grants its own selectable mode. Availability comes entirely from pickups. Both expire or erase like other power-ups. Ricochets, attacks through portals, and enemy removal support combat puzzles; there are no general shootable puzzle switches. |
+| Missiles | A carried resource for removing guards or choosing between dangerous routes. Omitting projectile pickups can reserve guard removal for missiles; an eraser requires a fresh missile pickup beyond it. |
 | Mines, sentries, zappers, and reapers | Luring, containment, guarded space, exposure windows, and resource use. The actor named sentry is a contact attacker; zappers provide the ranged guard behavior. |
-| Cookies, quests, and fireworks | Collection objectives, individual or group progress, and a finale. Quest conditions currently recognize cookies, actor kills, and fireworks. |
+| Gold, quests, and fireworks | Collection objectives, individual or group progress, and a finale. Quest conditions currently recognize gold, actor kills, and fireworks. |
 | Health pickups and regeneration | Recovery and control over how much danger a player can endure. They also affect whether a hazard can be bypassed by accepting damage. |
 | Materials, lights, grass, weather, and lighting | Landmarks, clues, atmosphere, and visual distinction. They are mostly presentation tools rather than controllable puzzle mechanisms. |
 | Spawn zones and item placement | Control where players begin, where enemies appear, and which resources are available. Player spawn zones are not progression checkpoints. |
@@ -73,7 +73,7 @@ The map authoring tools are described in the [editor reference](tools/map_editor
 
 ### Progress across stages
 
-Solve a portal or movement puzzle to earn a key and a missile. Cross an eraser, then use the key to enter a guarded section and the missile to remove a zapper. Several stages can award different keys, with successive barriers at the finale requiring all of them.
+Solve a portal or movement puzzle to earn a key. Cross an eraser, then use the key to pass a barrier into a restock area. Collect a missile to remove a zapper, or other power-ups needed for the next section. Several stages can award different keys, with successive barriers at the finale requiring all of them.
 
 ### Access versus protection
 
@@ -115,7 +115,7 @@ A perched zapper can still roam within its available area. Its cooldown behavior
 
 The current configuration gives a zapper a 25 m beam range, a two-second burst, an eight-second cooldown, and a three-minute respawn delay. It detects visible players in all directions, rather than scanning a directional cone. A burst commits to one target; baiting it and withdrawing behind cover can give another player an opening.
 
-Its current damage and durability make it a soft obstacle: a complete burst inflicts 80 damage against 500 player health, while one ordinary projectile deals 60 damage against the zapper's 50 health. A map must account for enduring the beam or simply shooting the guard. Disabling ordinary projectiles can reserve destruction for missiles, but does not prevent running through the damage.
+Its current damage and durability make it a soft obstacle: a complete burst inflicts 80 damage against 500 player health, while one ordinary projectile deals 60 damage against the zapper's 50 health. A map must account for enduring the beam or simply shooting the guard. Withholding single-shot and multishot pickups can reserve destruction for missiles, but does not prevent running through the damage.
 
 The encounter's role should determine the tuning: pressure during traversal, a dangerous boundary, or a guard intended to be destroyed. Placement-level movement, durability, attack timing, and respawn choices would help those roles coexist. Visible aiming, firing, and cooldown feedback would make experimentation easier to understand.
 
@@ -161,7 +161,7 @@ Hidden connections can be deliberate puzzles, but the basic mechanic should be t
 
 Keys already provide a simple dependency between stages. More explicit completion conditions would support reaching a destination, activating named mechanisms, or collecting particular objects, with completion unlocking another section or recording a checkpoint.
 
-Cookie quests count pickups, not unique token identities. Relay and Switchyard approximate once-collected tokens with a 24-hour respawn delay. Unique collectible identities would make that requirement explicit. Actor-kill quests can filter by kind, but do not identify a particular placed guard.
+Gold quests count pickups, not unique token identities. Relay and Switchyard approximate once-collected tokens with a 24-hour respawn delay. Unique collectible identities would make that requirement explicit. Actor-kill quests can filter by kind, but do not identify a particular placed guard.
 
 ### 7. Additional puzzle objects
 
@@ -177,8 +177,8 @@ Relay and Switchyard already explore portal setup, keys, bridges, moving geometr
 
 A compact prototype can test the settled rules with three connected sections:
 
-1. A portal or movement puzzle awards a key and a missile.
-2. An eraser ends the power-up section while preserving both rewards.
-3. The key grants access to a guarded crossing; a perched zapper, a protective field, and the saved missile provide the encounter's choices.
+1. A portal or movement puzzle awards a key.
+2. An eraser clears equipment; the retained key grants access to a restock area behind a barrier.
+3. The restock area supplies a missile for a guarded crossing; a perched zapper and a protective field provide the encounter's choices.
 
 Playtesting should establish whether the guard can simply be rushed, whether its firing path and the protective field are readable, whether the helper can escape in co-op, and whether a missed missile or death leaves a complete recovery path. A moving wall can then test the same encounter with changing cover. In-game testing remains with the user.

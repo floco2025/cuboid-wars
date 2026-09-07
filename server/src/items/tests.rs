@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use common::{
     map::MapGeometry,
-    protocol::{BarrierKindId, CarrierId, ItemMarker, ItemType, MapSettings, MapWeaponSettings, PortalMode},
+    protocol::{BarrierKindId, CarrierId, ItemMarker, ItemType},
 };
 
 use crate::{
@@ -27,22 +27,6 @@ fn level_grid(cells: CellGrid) -> LevelGrid {
         edges: EdgeGrid::new(1, 1),
         barrier_edges: EdgeGrid::new(1, 1),
     }
-}
-
-fn map_settings(projectiles: bool) -> MapSettings {
-    let mut settings = crate::config::ServerGameplayConfig::load_default()
-        .expect("default server gameplay config should load")
-        .maps
-        .get("hotel")
-        .expect("hotel map settings missing")
-        .settings
-        .clone();
-    settings.skybox = "test".to_owned();
-    settings.weapons = MapWeaponSettings {
-        projectiles,
-        portals: PortalMode::Both,
-    };
-    settings
 }
 
 #[test]
@@ -90,7 +74,7 @@ fn placed_item_spawn_system_spawns_every_placed_item_visible() {
             level: 0,
             col: 0,
             row: 0,
-            item_type: ItemType::Cookie,
+            item_type: ItemType::Gold,
         },
         PlacedItem {
             carrier: CarrierId::WORLD,
@@ -104,7 +88,6 @@ fn placed_item_spawn_system_spawns_every_placed_item_visible() {
     let mut world = World::new();
     world.insert_resource(config);
     world.insert_resource(geometry(2, 1));
-    world.insert_resource(map_settings(true));
     world.insert_resource(ItemMap::default());
     world.insert_resource(ItemSpawner::default());
     let mut schedule = Schedule::default();
@@ -115,14 +98,14 @@ fn placed_item_spawn_system_spawns_every_placed_item_visible() {
     assert_eq!(items.iter().count(), 2);
     assert!(items.values().all(|info| !info.is_hidden()));
     let spawned_types: Vec<ItemType> = items.values().map(|info| info.item_type).collect();
-    assert!(spawned_types.contains(&ItemType::Cookie));
+    assert!(spawned_types.contains(&ItemType::Gold));
     assert!(spawned_types.contains(&ItemType::Key(BarrierKindId(0))));
     let mut marker_query = world.query_filtered::<(), With<ItemMarker>>();
     assert_eq!(marker_query.iter(&world).count(), 2);
 }
 
 #[test]
-fn placed_item_spawn_system_skips_disabled_weapon_pickups() {
+fn placed_item_spawn_system_spawns_all_projectile_and_missile_pickups() {
     let mut cells = CellGrid::new(3, 1);
     for cell in &mut cells.rows[0] {
         cell.has_floor = true;
@@ -148,14 +131,13 @@ fn placed_item_spawn_system_skips_disabled_weapon_pickups() {
             level: 0,
             col: 2,
             row: 0,
-            item_type: ItemType::Cookie,
+            item_type: ItemType::SingleShotPowerUp,
         },
     ];
 
     let mut world = World::new();
     world.insert_resource(config);
     world.insert_resource(geometry(3, 1));
-    world.insert_resource(map_settings(false));
     world.insert_resource(ItemMap::default());
     world.insert_resource(ItemSpawner::default());
     let mut schedule = Schedule::default();
@@ -163,8 +145,9 @@ fn placed_item_spawn_system_skips_disabled_weapon_pickups() {
     schedule.run(&mut world);
 
     let items = world.resource::<ItemMap>();
-    assert_eq!(items.iter().count(), 2);
-    assert!(items.values().any(|info| info.item_type == ItemType::Cookie));
+    assert_eq!(items.iter().count(), 3);
+    assert!(items.values().any(|info| info.item_type == ItemType::SingleShotPowerUp));
+    assert!(items.values().any(|info| info.item_type == ItemType::MultiShotPowerUp));
     assert!(items.values().any(|info| info.item_type == ItemType::MissilePack));
 }
 
@@ -175,7 +158,7 @@ fn choose_item_type_returns_none_for_empty_pool() {
 
 #[test]
 fn choose_item_type_only_picks_pool_members() {
-    let pool = [ItemType::SpeedPowerUp, ItemType::Cookie];
+    let pool = [ItemType::SpeedPowerUp, ItemType::Gold];
     let mut rng = rand::rng();
     for _ in 0..50 {
         let picked = choose_item_type(&mut rng, &pool).expect("non-empty pool must yield an item type");
@@ -184,14 +167,27 @@ fn choose_item_type_only_picks_pool_members() {
 }
 
 #[test]
-fn random_item_pool_omits_disabled_weapon_pickups() {
+fn random_item_pool_includes_every_configured_pickup() {
     let config = RandomItemsConfig {
-        types: vec!["multi_shot".to_owned(), "missile_pack".to_owned(), "cookie".to_owned()],
+        types: vec![
+            "single_shot".to_owned(),
+            "multi_shot".to_owned(),
+            "missile_pack".to_owned(),
+            "gold".to_owned(),
+        ],
         max_number: 3,
         despawn_secs: 10.0,
     };
-    let random = RandomItems::from_config(Some(&config), map_settings(false).weapons);
-    assert_eq!(random.pool, vec![ItemType::MissilePack, ItemType::Cookie]);
+    let random = RandomItems::from_config(Some(&config));
+    assert_eq!(
+        random.pool,
+        vec![
+            ItemType::SingleShotPowerUp,
+            ItemType::MultiShotPowerUp,
+            ItemType::MissilePack,
+            ItemType::Gold
+        ]
+    );
 }
 
 #[cfg(test)]
@@ -274,19 +270,63 @@ mod collection_eligibility_tests {
     }
 
     #[test]
-    fn overlapping_cookie_is_collected_and_scores() {
+    fn permanent_single_shot_pickup_grants_fire_and_leaves_duplicates_for_other_players() {
+        let mut app = test_app();
+        app.world_mut()
+            .resource_mut::<PowerUpsConfig>()
+            .duration_secs
+            .single_shot = 0.0;
+        let id = PlayerId(1);
+        let (_, mut rx) = spawn_player(&mut app, id, Position::default());
+        assert!(
+            !app.world_mut()
+                .resource_mut::<PlayerMap>()
+                .get_mut(&id)
+                .expect("player missing")
+                .try_start_shot(10.0, 0.1, false)
+        );
+        let first = spawn_item(
+            &mut app,
+            1,
+            ItemType::SingleShotPowerUp,
+            Position::default(),
+            random(0.0),
+        );
+        app.update();
+        assert!(app.world().resource::<ItemMap>().get(&first).is_none());
+        assert!(std::iter::from_fn(|| rx.try_recv().ok()).any(|message| matches!(
+            message,
+            ServerToClient::Send(ServerMessage::PlayerStatus(status))
+                if status.collected == Some(ItemType::SingleShotPowerUp)
+                    && status.power_up(PowerUpKind::SingleShot)
+                    && !status.power_up(PowerUpKind::MultiShot)
+        )));
+        let mut players = app.world_mut().resource_mut::<PlayerMap>();
+        let info = players.get_mut(&id).expect("player missing");
+        assert!(info.try_start_shot(10.0, 0.1, false));
+        assert!(!info.try_start_shot(11.0, 0.1, true));
+        let second = spawn_item(
+            &mut app,
+            2,
+            ItemType::SingleShotPowerUp,
+            Position::default(),
+            random(0.0),
+        );
+        app.update();
+        assert!(app.world().resource::<ItemMap>().get(&second).is_some());
+    }
+
+    #[test]
+    fn overlapping_gold_is_collected_and_scores() {
         let mut app = test_app();
         let id = PlayerId(1);
         let (_, mut rx) = spawn_player(&mut app, id, Position::default());
-        let item = spawn_item(&mut app, 1, ItemType::Cookie, Position::default(), random(0.0));
+        let item = spawn_item(&mut app, 1, ItemType::Gold, Position::default(), random(0.0));
 
         app.update();
 
-        assert!(
-            app.world().resource::<ItemMap>().get(&item).is_none(),
-            "cookie consumed"
-        );
-        let expected = app.world().resource::<ServerGameplayConfig>().scoring.cookie;
+        assert!(app.world().resource::<ItemMap>().get(&item).is_none(), "gold consumed");
+        let expected = app.world().resource::<ServerGameplayConfig>().scoring.gold;
         assert_eq!(
             app.world()
                 .resource::<PlayerMap>()
@@ -296,9 +336,9 @@ mod collection_eligibility_tests {
                 .score,
             expected
         );
-        let cookie_cue = std::iter::from_fn(|| rx.try_recv().ok())
-            .any(|msg| matches!(msg, ServerToClient::Send(ServerMessage::CookieCollected(_))));
-        assert!(cookie_cue, "pickup cue must be unicast");
+        let gold_cue = std::iter::from_fn(|| rx.try_recv().ok())
+            .any(|msg| matches!(msg, ServerToClient::Send(ServerMessage::GoldCollected(_))));
+        assert!(gold_cue, "pickup cue must be unicast");
     }
 
     #[test]
@@ -311,7 +351,7 @@ mod collection_eligibility_tests {
             .get_mut(&id)
             .expect("player present")
             .begin_respawn(1.0);
-        let item = spawn_item(&mut app, 1, ItemType::Cookie, Position::default(), random(0.0));
+        let item = spawn_item(&mut app, 1, ItemType::Gold, Position::default(), random(0.0));
 
         app.update();
 
@@ -370,7 +410,7 @@ mod collection_eligibility_tests {
 
     #[test]
     fn eraser_wins_over_same_tick_pickup_and_does_not_repeat_status() {
-        use crate::players::{EraserContacts, erase_power_ups_system};
+        use crate::players::{EraserContacts, erase_equipment_system};
         use common::{
             physics::CollisionWorld,
             protocol::{BarrierKindTable, Eraser, MapLayout, PowerUpKind},
@@ -392,7 +432,7 @@ mod collection_eligibility_tests {
         };
         app.insert_resource(CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default()))
             .init_resource::<EraserContacts>()
-            .add_systems(Update, erase_power_ups_system.after(item_collection_system));
+            .add_systems(Update, erase_equipment_system.after(item_collection_system));
         let id = PlayerId(1);
         let (entity, mut rx) = spawn_player(&mut app, id, Position::default());
         spawn_item(
@@ -402,15 +442,36 @@ mod collection_eligibility_tests {
             Position::default(),
             random(0.0),
         );
-        app.world_mut()
-            .resource_mut::<PlayerMap>()
-            .get_mut(&id)
-            .expect("player missing")
-            .add_missiles(2, 3);
+        let missile_pack = spawn_item(&mut app, 4, ItemType::MissilePack, Position::default(), random(0.0));
+        spawn_item(
+            &mut app,
+            5,
+            ItemType::Key(BarrierKindId(0)),
+            Position::default(),
+            random(0.0),
+        );
+        spawn_item(
+            &mut app,
+            2,
+            ItemType::SingleShotPowerUp,
+            Position::default(),
+            random(0.0),
+        );
+        spawn_item(
+            &mut app,
+            3,
+            ItemType::MultiShotPowerUp,
+            Position::default(),
+            random(0.0),
+        );
         app.update();
         let info = app.world().resource::<PlayerMap>().get(&id).expect("player missing");
         assert!(!info.has(PowerUpKind::PortalGun));
-        assert_eq!(info.life.missiles, 2);
+        assert!(!info.has(PowerUpKind::SingleShot));
+        assert!(!info.has(PowerUpKind::MultiShot));
+        assert_eq!(info.life.missiles, 0);
+        assert_eq!(info.life.held_keys, [BarrierKindId(0)]);
+        assert!(app.world().resource::<ItemMap>().get(&missile_pack).is_none());
         assert_eq!(app.world().get::<Health>(entity), Some(&Health(50.0)));
         let mut last = None;
         let mut collected = false;
@@ -424,7 +485,10 @@ mod collection_eligibility_tests {
         assert!(collected);
         assert!(status.collected.is_none());
         assert!(!status.power_up(PowerUpKind::PortalGun));
-        assert_eq!(status.missiles, 2);
+        assert!(!status.power_up(PowerUpKind::SingleShot));
+        assert!(!status.power_up(PowerUpKind::MultiShot));
+        assert_eq!(status.missiles, 0);
+        assert_eq!(status.held_keys, [BarrierKindId(0)]);
         app.update();
         assert!(rx.try_recv().is_err());
     }
@@ -491,7 +555,7 @@ mod collection_eligibility_tests {
         let item = spawn_item(
             &mut app,
             1,
-            ItemType::Cookie,
+            ItemType::Gold,
             Position::default(),
             ItemPlacement::Placed { respawn_countdown: 5.0 },
         );
@@ -519,7 +583,7 @@ mod collection_eligibility_tests {
         let id = PlayerId(1);
         let (_, _rx) = spawn_player(&mut app, id, Position::default());
         let above = Position { x: 0.0, y: 0.2, z: 0.0 };
-        let item = spawn_item(&mut app, 1, ItemType::Cookie, above, random(0.0));
+        let item = spawn_item(&mut app, 1, ItemType::Gold, above, random(0.0));
 
         app.update();
 

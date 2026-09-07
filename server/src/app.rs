@@ -46,8 +46,8 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
         server_gameplay_config.cycles.lighting.clone(),
         map_server_config.lighting,
     );
-    let random_items = RandomItems::from_config(map_server_config.random_items.as_ref(), map_settings.weapons);
-    let portal_assignments = PortalAssignments::new(map_settings.weapons.portals);
+    let random_items = RandomItems::from_config(map_server_config.random_items.as_ref());
+    let portal_assignments = PortalAssignments::new(map_settings.portals);
     let (barrier_kind_table, bridge_kind_table) = map_settings.kind_tables()?;
     let GeneratedMap {
         layout: map_layout,
@@ -60,7 +60,7 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
         &bridge_kind_table,
     )?;
     let map_geometry = map_config.root_grid().geometry;
-    let map_items = map_config.available_items(&random_items.pool, map_settings.weapons);
+    let map_items = map_config.available_items(&random_items.pool);
     let collision_world = CollisionWorld::from_map_layout(&map_layout, &barrier_kind_table);
     let carriers = Carriers::from_layout(&map_layout);
     let mut nav_graphs = NavGraphs::new(&map_config);

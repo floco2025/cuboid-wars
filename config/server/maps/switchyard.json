@@ -14,8 +14,8 @@
     "items": [
       {"level": 1, "col": 9, "row": 5, "type": "portal_gun"},
       {"level": 1, "col": 10, "row": 5, "type": "key", "kind": "customs"},
-      {"level": 2, "col": 3, "row": 3, "type": "cookie"},
-      {"level": 2, "col": 13, "row": 7, "type": "cookie"},
+      {"level": 2, "col": 3, "row": 3, "type": "gold"},
+      {"level": 2, "col": 13, "row": 7, "type": "gold"},
       {"level": 2, "col": 14, "row": 7, "type": "key", "kind": "dispatch"},
       {"level": 0, "col": 1, "row": 8, "type": "health_potion"},
       {"level": 0, "col": 17, "row": 10, "type": "health_potion"}

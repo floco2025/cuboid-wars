@@ -14,7 +14,7 @@ use common::{
     physics::character_overlaps_item,
     protocol::{
         BarrierKindId, Health, ItemId, ItemMarker, ItemType, PlayerId, PlayerMarker, Position, PowerUpKind,
-        SCookieCollected, SHealthPotionCollected, SMissilesCollected, SPlayerStatus, ServerMessage,
+        SGoldCollected, SHealthPotionCollected, SMissilesCollected, SPlayerStatus, ServerMessage,
     },
 };
 
@@ -92,7 +92,7 @@ pub fn item_collection_system(
         }
         consume_item(&mut commands, &mut items, &placed_items_config, item_id, item_type);
         match item_type {
-            ItemType::Cookie => collect_cookie(
+            ItemType::Gold => collect_gold(
                 &mut players,
                 &mut quest_board,
                 &quest_catalog,
@@ -107,6 +107,7 @@ pub fn item_collection_system(
                 collect_missile_pack(&mut players, player_id, &server_gameplay_config, &gameplay_config);
             }
             ItemType::SpeedPowerUp
+            | ItemType::SingleShotPowerUp
             | ItemType::MultiShotPowerUp
             | ItemType::LowGravityPowerUp
             | ItemType::PortalGunPowerUp => {
@@ -148,7 +149,7 @@ fn pickup_has_effect(
         ItemType::HealthPotion => {
             health.is_none_or(|health| health.0 < server_gameplay_config.combat.health.player.max)
         }
-        ItemType::Cookie => true,
+        ItemType::Gold => true,
         item => PowerUpKind::from_item_type(item).is_some_and(|kind| !player_info.has_permanent(kind)),
     }
 }
@@ -174,7 +175,7 @@ fn consume_item(
     }
 }
 
-fn collect_cookie(
+fn collect_gold(
     players: &mut PlayerMap,
     quest_board: &mut QuestBoard,
     quest_catalog: &QuestCatalog,
@@ -184,13 +185,13 @@ fn collect_cookie(
     let Some(player_info) = players.get_mut(&player_id) else {
         return;
     };
-    player_info.session.score += server_gameplay_config.scoring.cookie;
+    player_info.session.score += server_gameplay_config.scoring.gold;
     record_event(
         players,
         quest_board,
         quest_catalog,
         &server_gameplay_config.feed,
-        QuestEvent::CookieCollected { player: player_id },
+        QuestEvent::GoldCollected { player: player_id },
     );
     // Sent after the quest step so the early score already includes any
     // completion bonus.
@@ -198,7 +199,7 @@ fn collect_cookie(
         let _ = player_info
             .connection
             .channel
-            .send(ServerToClient::Send(ServerMessage::CookieCollected(SCookieCollected {
+            .send(ServerToClient::Send(ServerMessage::GoldCollected(SGoldCollected {
                 score: player_info.session.score,
             })));
     }
@@ -377,7 +378,7 @@ mod tests {
             &server_config
         ));
         assert!(pickup_has_effect(
-            ItemType::Cookie,
+            ItemType::Gold,
             &player,
             None,
             &config,

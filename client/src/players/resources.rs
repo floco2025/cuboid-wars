@@ -258,7 +258,7 @@ mod tests {
             movement: PlayerMovementState::new(Position::default(), PlayerMoveIntent::default(), 0.0, 0.0),
             health: Health(100.0),
             score: 7,
-            power_ups: [true, true, false, false],
+            power_ups: [false, true, false, true, false],
             stunned: true,
             held_keys: vec![BarrierKindId(1), BarrierKindId(3)],
             missiles: 2,
@@ -367,7 +367,7 @@ mod tests {
         let status = SPlayerStatus {
             collected: None,
             id: PlayerId(12),
-            power_ups: [false, false, true, false],
+            power_ups: [false, false, false, false, true],
             stunned: false,
             held_keys: vec![BarrierKindId(2)],
             missiles: 0,

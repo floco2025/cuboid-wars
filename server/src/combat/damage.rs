@@ -316,7 +316,7 @@ mod tests {
         network::ServerToClient,
         players::{PlayerInfo, PowerUpState},
     };
-    use common::protocol::{CarrierId, PowerUpKind};
+    use common::protocol::{CarrierId, PortalMode, PowerUpKind};
     use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
 
     fn logged_in_player(players: &mut PlayerMap, id: PlayerId, name: &str) -> UnboundedReceiver<ServerToClient> {
@@ -390,10 +390,7 @@ mod tests {
 
                         geometry: crate::test_geometry::sizes(),
                         movement,
-                        weapons: common::protocol::MapWeaponSettings {
-                            projectiles: true,
-                            portals: common::protocol::PortalMode::Both,
-                        },
+                        portals: PortalMode::Both,
                         barrier_kinds: Vec::new(),
                         bridge_kinds: Vec::new(),
                     },
@@ -401,6 +398,7 @@ mod tests {
                     power_ups: PowerUpsConfig {
                         duration_secs: PowerUpDurationSecs {
                             speed: 1.0,
+                            single_shot: 0.0,
                             multi_shot: 1.0,
                             low_gravity: 1.0,
                             portal_gun: 0.0,
@@ -409,11 +407,12 @@ mod tests {
                     placed_items: PlacedItemsConfig {
                         respawn_secs: PlacedItemRespawnSecs {
                             speed: 60.0,
+                            single_shot: 0.0,
                             multi_shot: 60.0,
                             low_gravity: 60.0,
                             portal_gun: 0.0,
                             health_potion: 60.0,
-                            cookie: 60.0,
+                            gold: 60.0,
                             key: 30.0,
                             missile_pack: 30.0,
                         },
@@ -448,7 +447,7 @@ mod tests {
             scoring: ScoringConfig {
                 player_kill: 1,
                 player_death: -1,
-                cookie: 1,
+                gold: 1,
                 actor_hit: HashMap::from([("zapper".to_owned(), 1)]),
                 actor_kill: HashMap::from([("zapper".to_owned(), 10)]),
             },

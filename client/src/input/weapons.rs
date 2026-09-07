@@ -27,6 +27,8 @@ pub struct PendingWeaponSelection(Option<WeaponMode>);
 impl PendingWeaponSelection {
     pub fn collect(&mut self, item: ItemType) {
         match item {
+            ItemType::SingleShotPowerUp => self.0 = Some(WeaponMode::Projectile),
+            ItemType::MultiShotPowerUp => self.0 = Some(WeaponMode::MultiShot(0)),
             ItemType::MissilePack => self.0 = Some(WeaponMode::Missile),
             ItemType::PortalGunPowerUp => self.0 = Some(WeaponMode::Portal),
             _ => {}
@@ -37,9 +39,7 @@ impl PendingWeaponSelection {
 // The weapons the local player can cycle through right now, in Q order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct WeaponLoadout {
-    projectiles: bool,
-    // The multi-shot power-up replaces the plain projectile with one mode per
-    // allowed pattern; zero while it is inactive.
+    single_shot: bool,
     multi_shot_patterns: usize,
     missiles: bool,
     portals: bool,
@@ -47,14 +47,14 @@ struct WeaponLoadout {
 
 impl WeaponLoadout {
     const fn new(
-        projectiles: bool,
+        single_shot: bool,
         portal_access: PortalAccess,
         multi_shot_patterns: usize,
         missiles: u32,
         has_portal_gun: bool,
     ) -> Self {
         Self {
-            projectiles,
+            single_shot,
             multi_shot_patterns,
             missiles: missiles > 0,
             portals: has_portal_gun && !matches!(portal_access, PortalAccess::None),
@@ -62,11 +62,10 @@ impl WeaponLoadout {
     }
 
     fn modes(self) -> impl Iterator<Item = WeaponMode> {
-        let plain = (self.projectiles && self.multi_shot_patterns == 0).then_some(WeaponMode::Projectile);
-        let patterns = if self.projectiles { self.multi_shot_patterns } else { 0 };
+        let plain = self.single_shot.then_some(WeaponMode::Projectile);
         plain
             .into_iter()
-            .chain((0..patterns).map(WeaponMode::MultiShot))
+            .chain((0..self.multi_shot_patterns).map(WeaponMode::MultiShot))
             .chain(self.missiles.then_some(WeaponMode::Missile))
             .chain(self.portals.then_some(WeaponMode::Portal))
     }
@@ -75,20 +74,26 @@ impl WeaponLoadout {
         self.modes().any(|candidate| candidate == mode)
     }
 
-    // Keeps `current` while it is still offered, otherwise falls back to the
-    // first mode; `advance` steps to the next mode, wrapping.
-    fn select(self, current: WeaponMode, advance: bool) -> WeaponMode {
-        let selected = if advance {
-            self.modes()
-                .skip_while(|mode| *mode != current)
-                .nth(1)
-                .or_else(|| self.modes().next())
-        } else if self.contains(current) {
-            Some(current)
+    fn fallback(self) -> WeaponMode {
+        if self.multi_shot_patterns > 0 {
+            WeaponMode::MultiShot(0)
         } else {
-            self.modes().next()
-        };
-        selected.unwrap_or(WeaponMode::None)
+            self.modes().next().unwrap_or(WeaponMode::None)
+        }
+    }
+
+    fn select(self, current: WeaponMode, advance: bool) -> WeaponMode {
+        if !self.contains(current) {
+            return self.fallback();
+        }
+        if !advance {
+            return current;
+        }
+        self.modes()
+            .skip_while(|mode| *mode != current)
+            .nth(1)
+            .or_else(|| self.modes().next())
+            .unwrap_or(WeaponMode::None)
     }
 }
 
@@ -98,7 +103,6 @@ pub fn input_weapon_select_system(
     keyboard: Res<ButtonInput<KeyCode>>,
     console: Res<ConsoleState>,
     menu: Res<SettingsMenuState>,
-    map_settings: Res<MapSettings>,
     portal_access: Res<PortalAccess>,
     my_player_id: Res<MyPlayerId>,
     players: Res<PlayerMap>,
@@ -107,6 +111,7 @@ pub fn input_weapon_select_system(
     mut pending: ResMut<PendingWeaponSelection>,
 ) {
     let player = players.get(&my_player_id.0);
+    let has_single_shot = player.is_some_and(|info| info.power_up(PowerUpKind::SingleShot));
     let has_multi_shot = player.is_some_and(|info| info.power_up(PowerUpKind::MultiShot));
     let multi_shot_patterns = if has_multi_shot {
         gameplay_config.projectiles.multi_shot.allowed_patterns().len()
@@ -115,14 +120,18 @@ pub fn input_weapon_select_system(
     };
     let has_portal_gun = player.is_some_and(|info| info.power_up(PowerUpKind::PortalGun));
     let loadout = WeaponLoadout::new(
-        map_settings.weapons.projectiles,
+        has_single_shot,
         *portal_access,
         multi_shot_patterns,
         player.map_or(0, |info| info.missiles),
         has_portal_gun,
     );
     let advance = keyboard.just_pressed(KeyCode::KeyQ) && !console.open && !menu.open;
-    let requested = pending.0.take().filter(|requested| loadout.contains(*requested));
+    let keep_multishot = matches!(*mode, WeaponMode::MultiShot(_)) && loadout.contains(*mode);
+    let requested = pending
+        .0
+        .take()
+        .filter(|requested| loadout.contains(*requested) && !(*requested == WeaponMode::Projectile && keep_multishot));
     let selected = loadout.select(requested.unwrap_or(*mode), advance);
     *mode = selected;
 }
@@ -139,7 +148,7 @@ mod tests {
     }
 
     #[test]
-    fn loadout_follows_map_and_power_up_in_cycle_order() {
+    fn loadout_offers_each_collected_weapon_in_cycle_order() {
         assert_eq!(
             modes(WeaponLoadout::new(true, BOTH, 0, 1, true)),
             [WeaponMode::Projectile, WeaponMode::Missile, WeaponMode::Portal]
@@ -147,6 +156,7 @@ mod tests {
         assert_eq!(
             modes(WeaponLoadout::new(true, BOTH, 2, 1, true)),
             [
+                WeaponMode::Projectile,
                 WeaponMode::MultiShot(0),
                 WeaponMode::MultiShot(1),
                 WeaponMode::Missile,
@@ -155,7 +165,12 @@ mod tests {
         );
         assert_eq!(
             modes(WeaponLoadout::new(false, BOTH, 2, 1, true)),
-            [WeaponMode::Missile, WeaponMode::Portal]
+            [
+                WeaponMode::MultiShot(0),
+                WeaponMode::MultiShot(1),
+                WeaponMode::Missile,
+                WeaponMode::Portal
+            ]
         );
         assert!(modes(WeaponLoadout::new(false, PortalAccess::None, 0, 0, true)).is_empty());
     }
@@ -179,7 +194,8 @@ mod tests {
         assert_eq!(loadout.select(WeaponMode::MultiShot(0), true), WeaponMode::Projectile);
 
         let powered = WeaponLoadout::new(true, BOTH, 2, 1, true);
-        assert_eq!(powered.select(WeaponMode::Projectile, false), WeaponMode::MultiShot(0));
+        assert_eq!(powered.select(WeaponMode::Projectile, false), WeaponMode::Projectile);
+        assert_eq!(powered.select(WeaponMode::Projectile, true), WeaponMode::MultiShot(0));
         assert_eq!(powered.select(WeaponMode::MultiShot(1), true), WeaponMode::Missile);
 
         let empty = WeaponLoadout::new(false, PortalAccess::None, 0, 0, true);
@@ -236,8 +252,7 @@ mod tests {
             .init_resource::<ConsoleState>()
             .init_resource::<SettingsMenuState>()
             .init_resource::<PendingWeaponSelection>()
-            .insert_resource(WeaponMode::Projectile)
-            .insert_resource(crate::test_geometry::map_settings())
+            .init_resource::<WeaponMode>()
             .insert_resource(BOTH)
             .insert_resource(MyPlayerId(PlayerId(1)))
             .insert_resource(players)
@@ -251,8 +266,11 @@ mod tests {
         let player = players.get_mut(&PlayerId(1)).expect("local player missing");
         match item {
             ItemType::MissilePack => player.missiles += 1,
-            ItemType::PortalGunPowerUp => player.power_ups[PowerUpKind::PortalGun.index()] = true,
-            _ => {}
+            item => {
+                if let Some(kind) = PowerUpKind::from_item_type(item) {
+                    player.power_ups[kind.index()] = true;
+                }
+            }
         }
         app.world_mut().resource_mut::<PendingWeaponSelection>().collect(item);
     }
@@ -260,6 +278,14 @@ mod tests {
     #[test]
     fn pickups_select_the_collected_weapon_once_including_recollection() {
         let mut app = selection_app();
+        app.update();
+        assert_eq!(*app.world().resource::<WeaponMode>(), WeaponMode::None);
+        collect(&mut app, ItemType::SingleShotPowerUp);
+        app.update();
+        assert_eq!(*app.world().resource::<WeaponMode>(), WeaponMode::Projectile);
+        collect(&mut app, ItemType::MultiShotPowerUp);
+        app.update();
+        assert_eq!(*app.world().resource::<WeaponMode>(), WeaponMode::MultiShot(0));
         collect(&mut app, ItemType::MissilePack);
         app.update();
         assert_eq!(*app.world().resource::<WeaponMode>(), WeaponMode::Missile);
@@ -285,8 +311,95 @@ mod tests {
     }
 
     #[test]
+    fn multishot_works_without_single_shot_and_losing_it_does_not_grant_single_shot() {
+        let mut app = selection_app();
+        collect(&mut app, ItemType::MultiShotPowerUp);
+        app.update();
+        assert_eq!(*app.world().resource::<WeaponMode>(), WeaponMode::MultiShot(0));
+        app.world_mut()
+            .resource_mut::<PlayerMap>()
+            .get_mut(&PlayerId(1))
+            .expect("local player missing")
+            .power_ups[PowerUpKind::MultiShot.index()] = false;
+        app.world_mut().resource_mut::<SettingsMenuState>().open = true;
+        app.update();
+        assert_eq!(*app.world().resource::<WeaponMode>(), WeaponMode::None);
+    }
+
+    #[test]
+    fn single_shot_and_multishot_remain_separately_selectable() {
+        let mut app = selection_app();
+        collect(&mut app, ItemType::MultiShotPowerUp);
+        collect(&mut app, ItemType::SingleShotPowerUp);
+        app.update();
+        assert_eq!(*app.world().resource::<WeaponMode>(), WeaponMode::Projectile);
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::KeyQ);
+        app.update();
+        assert_eq!(*app.world().resource::<WeaponMode>(), WeaponMode::MultiShot(0));
+    }
+
+    #[test]
+    fn fallback_prefers_multishot_then_single_shot_then_missiles_then_portals() {
+        for (loadout, expected) in [
+            (WeaponLoadout::new(true, BOTH, 2, 1, true), WeaponMode::MultiShot(0)),
+            (WeaponLoadout::new(true, BOTH, 0, 1, true), WeaponMode::Projectile),
+            (WeaponLoadout::new(false, BOTH, 0, 1, true), WeaponMode::Missile),
+            (WeaponLoadout::new(false, BOTH, 0, 0, true), WeaponMode::Portal),
+            (WeaponLoadout::new(false, BOTH, 0, 0, false), WeaponMode::None),
+        ] {
+            assert_eq!(loadout.select(WeaponMode::None, false), expected);
+            assert_eq!(loadout.select(WeaponMode::None, true), expected);
+        }
+    }
+
+    #[test]
+    fn single_shot_pickups_preserve_the_current_multishot_pattern() {
+        let mut app = selection_app();
+        collect(&mut app, ItemType::MultiShotPowerUp);
+        app.update();
+        *app.world_mut().resource_mut::<WeaponMode>() = WeaponMode::MultiShot(1);
+        for _ in 0..2 {
+            collect(&mut app, ItemType::SingleShotPowerUp);
+            app.update();
+            assert_eq!(*app.world().resource::<WeaponMode>(), WeaponMode::MultiShot(1));
+            assert!(
+                app.world()
+                    .resource::<PlayerMap>()
+                    .get(&PlayerId(1))
+                    .expect("local player missing")
+                    .power_up(PowerUpKind::SingleShot)
+            );
+        }
+        app.world_mut()
+            .resource_mut::<PlayerMap>()
+            .get_mut(&PlayerId(1))
+            .expect("local player missing")
+            .power_ups[PowerUpKind::MultiShot.index()] = false;
+        app.update();
+        assert_eq!(*app.world().resource::<WeaponMode>(), WeaponMode::Projectile);
+    }
+
+    #[test]
+    fn single_shot_pickup_selects_single_shot_when_multishot_expired() {
+        let mut app = selection_app();
+        collect(&mut app, ItemType::MultiShotPowerUp);
+        app.update();
+        app.world_mut()
+            .resource_mut::<PlayerMap>()
+            .get_mut(&PlayerId(1))
+            .expect("local player missing")
+            .power_ups[PowerUpKind::MultiShot.index()] = false;
+        collect(&mut app, ItemType::SingleShotPowerUp);
+        app.update();
+        assert_eq!(*app.world().resource::<WeaponMode>(), WeaponMode::Projectile);
+    }
+
+    #[test]
     fn empty_ammo_falls_back_even_with_an_overlay_open() {
         let mut app = selection_app();
+        collect(&mut app, ItemType::SingleShotPowerUp);
         collect(&mut app, ItemType::MissilePack);
         app.update();
         app.world_mut()
@@ -306,10 +419,16 @@ mod tests {
     #[test]
     fn equipment_erased_after_a_pickup_cannot_be_selected() {
         let mut app = selection_app();
+        collect(&mut app, ItemType::SingleShotPowerUp);
+        collect(&mut app, ItemType::MultiShotPowerUp);
+        collect(&mut app, ItemType::PortalGunPowerUp);
         app.world_mut()
-            .resource_mut::<PendingWeaponSelection>()
-            .collect(ItemType::PortalGunPowerUp);
+            .resource_mut::<PlayerMap>()
+            .get_mut(&PlayerId(1))
+            .expect("local player missing")
+            .power_ups
+            .fill(false);
         app.update();
-        assert_eq!(*app.world().resource::<WeaponMode>(), WeaponMode::Projectile);
+        assert_eq!(*app.world().resource::<WeaponMode>(), WeaponMode::None);
     }
 }

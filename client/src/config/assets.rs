@@ -13,7 +13,7 @@ const REQUIRED_PLAYER_SOUNDS: &[&str] = &[
     "barrier_impact",
     "bump_player",
     "bump_wall",
-    "collect_cookie",
+    "collect_gold",
     "collect_power_up",
     "dry_fire",
     "eraser",

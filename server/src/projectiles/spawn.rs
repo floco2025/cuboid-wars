@@ -23,9 +23,6 @@ pub fn handle_projectile_shot_message(
     map_settings: &MapSettings,
     plates: &PlateState,
 ) {
-    if !map_settings.weapons.projectiles {
-        return;
-    }
     // Reject non-finite aim before it reaches projectile trig / authoritative
     // hit detection. Checked ahead of `try_start_shot` so a bad shot doesn't
     // burn the fire cooldown.
@@ -35,17 +32,13 @@ pub fn handle_projectile_shot_message(
 
     let now = time.elapsed_secs();
 
-    let Some(has_multi_shot) = players
+    if !players
         .get_mut(&id)
-        .and_then(|info| info.try_start_shot(now, gameplay_config.projectiles.cooldown_secs))
-    else {
+        .is_some_and(|info| info.try_start_shot(now, gameplay_config.projectiles.cooldown_secs, msg.pattern.is_some()))
+    {
         return;
-    };
-    let actual_pattern = resolved_pattern(
-        has_multi_shot,
-        msg.pattern.as_deref(),
-        &gameplay_config.projectiles.multi_shot,
-    );
+    }
+    let actual_pattern = resolved_pattern(msg.pattern.as_deref(), &gameplay_config.projectiles.multi_shot);
 
     commands.entity(entity).insert(FaceYaw(msg.face_yaw));
 
@@ -93,14 +86,11 @@ pub fn handle_projectile_shot_message(
     );
 }
 
-fn resolved_pattern<'a>(
-    has_multi_shot: bool,
-    requested: Option<&'a str>,
-    multi_shot: &'a MultiShotConfig,
-) -> Option<&'a str> {
-    has_multi_shot.then(|| {
-        requested
-            .and_then(|name| multi_shot.pattern(name).map(|_| name))
+fn resolved_pattern<'a>(requested: Option<&'a str>, multi_shot: &'a MultiShotConfig) -> Option<&'a str> {
+    requested.map(|name| {
+        multi_shot
+            .pattern(name)
+            .map(|_| name)
             .unwrap_or_else(|| multi_shot.first_allowed_pattern().0)
     })
 }
@@ -110,15 +100,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn authoritative_pattern_requires_power_and_falls_back_to_first_allowed() {
+    fn authoritative_pattern_preserves_single_shots_and_falls_back_for_unknown_patterns() {
         let multi_shot: MultiShotConfig = serde_json::from_str(
             r#"{"spread_degrees":2.0,"allowed_patterns":["first_2","second_2"],"patterns":{"first_2":{"stencil":["xo"],"column_scale":1.0,"row_scale":1.0},"second_2":{"stencil":["xo"],"column_scale":1.0,"row_scale":1.0},"dormant_2":{"stencil":["xo"],"column_scale":1.0,"row_scale":1.0}}}"#,
         )
         .expect("test multi-shot config failed to parse");
-        assert_eq!(resolved_pattern(false, Some("second_2"), &multi_shot), None);
-        assert_eq!(resolved_pattern(true, Some("second_2"), &multi_shot), Some("second_2"));
-        assert_eq!(resolved_pattern(true, Some("dormant_2"), &multi_shot), Some("first_2"));
-        assert_eq!(resolved_pattern(true, Some("unknown"), &multi_shot), Some("first_2"));
-        assert_eq!(resolved_pattern(true, None, &multi_shot), Some("first_2"));
+        assert_eq!(resolved_pattern(Some("second_2"), &multi_shot), Some("second_2"));
+        assert_eq!(resolved_pattern(Some("dormant_2"), &multi_shot), Some("first_2"));
+        assert_eq!(resolved_pattern(Some("unknown"), &multi_shot), Some("first_2"));
+        assert_eq!(resolved_pattern(None, &multi_shot), None);
     }
 }

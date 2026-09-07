@@ -128,21 +128,22 @@ FLOOR_HIT_KINDS = (MODE_FLOOR, MODE_INACCESSIBLE_FLOOR, MODE_LIGHT_BRIDGE, MODE_
 LIGHT_SIDES = ("N", "S", "E", "W")
 LADDER_SIDES = LIGHT_SIDES
 
-# Item type ids mirror `ItemType::from_config_id` in common/src/types/map.rs,
+# Item type ids mirror `ItemType::from_config_id` in common/src/types/items.rs,
 # plus "key" (which additionally carries a barrier kind).
 ITEM_KEY_TYPE = "key"
-ITEM_TYPES = ("speed", "multi_shot", "low_gravity", "portal_gun", "health_potion", "cookie", "missile_pack", ITEM_KEY_TYPE)
+ITEM_TYPES = ("single_shot", "multi_shot", "missile_pack", "portal_gun", "health_potion", "speed", "low_gravity", "gold", ITEM_KEY_TYPE)
 # Canvas glyph colors for non-key items; keys use BARRIER_KIND_COLORS[kind].
 # Mirror the in-game `ITEM_*_COLOR` constants in client/src/constants.rs
 
 ITEM_TYPE_COLORS = {
-    "speed": "#ffd926",
+    "single_shot": "#ffffff",
     "multi_shot": "#ffffff",
-    "low_gravity": "#ffffff",
+    "missile_pack": "#f27319",
     "portal_gun": "#338cff",
     "health_potion": "#33f24d",
-    "cookie": "#ffb81f",
-    "missile_pack": "#f27319",
+    "speed": "#ffd926",
+    "low_gravity": "#ffffff",
+    "gold": "#ffb81f",
 }
 # Modes grouped by category for the mode picker. Each tuple is
 # `(category label, ordered list of modes)`. The label is shown as a

@@ -11,7 +11,7 @@ use common::protocol::{
 use super::{QuestBoard, QuestCatalog, catalog::CatalogQuest, resources::everyone_count};
 
 pub enum QuestEvent<'a> {
-    CookieCollected { player: PlayerId },
+    GoldCollected { player: PlayerId },
     ActorKilled { player: PlayerId, kind: &'a str },
     FireworksStarted,
 }
@@ -19,7 +19,7 @@ pub enum QuestEvent<'a> {
 impl QuestEvent<'_> {
     fn kind(&self) -> QuestKind {
         match self {
-            Self::CookieCollected { .. } => QuestKind::Cookies,
+            Self::GoldCollected { .. } => QuestKind::Gold,
             Self::ActorKilled { .. } => QuestKind::ActorKills,
             Self::FireworksStarted => QuestKind::Fireworks,
         }
@@ -30,14 +30,14 @@ impl QuestEvent<'_> {
             return false;
         }
         match self {
-            Self::CookieCollected { .. } | Self::FireworksStarted => true,
+            Self::GoldCollected { .. } | Self::FireworksStarted => true,
             Self::ActorKilled { kind, .. } => quest.actor_kind.as_deref().is_none_or(|want| want == *kind),
         }
     }
 
     fn player(&self) -> Option<PlayerId> {
         match self {
-            Self::CookieCollected { player } | Self::ActorKilled { player, .. } => Some(*player),
+            Self::GoldCollected { player } | Self::ActorKilled { player, .. } => Some(*player),
             Self::FireworksStarted => None,
         }
     }
@@ -459,13 +459,13 @@ mod tests {
         progress_values, quest, score,
     };
 
-    fn cookie(players: &mut PlayerMap, board: &mut QuestBoard, catalog: &QuestCatalog, feed: &FeedConfig, id: u32) {
+    fn gold(players: &mut PlayerMap, board: &mut QuestBoard, catalog: &QuestCatalog, feed: &FeedConfig, id: u32) {
         record_event(
             players,
             board,
             catalog,
             feed,
-            QuestEvent::CookieCollected { player: PlayerId(id) },
+            QuestEvent::GoldCollected { player: PlayerId(id) },
         );
     }
 
@@ -503,22 +503,22 @@ mod tests {
 
     #[test]
     fn individual_progress_and_completion_stay_per_player() {
-        let config = catalog(vec![quest("gold", QuestKind::Cookies, QuestScope::Individual, 2, None)]);
+        let config = catalog(vec![quest("gold", QuestKind::Gold, QuestScope::Individual, 2, None)]);
         let quest_catalog = QuestCatalog::from_config(&config);
         let mut board = QuestBoard::from_catalog(&quest_catalog);
         let mut players = PlayerMap::default();
         let mut alice = join(&mut players, 1, &quest_catalog, &board);
         let mut bob = join(&mut players, 2, &quest_catalog, &board);
 
-        cookie(&mut players, &mut board, &quest_catalog, &config.feed, 1);
-        cookie(&mut players, &mut board, &quest_catalog, &config.feed, 1);
-        cookie(&mut players, &mut board, &quest_catalog, &config.feed, 1);
+        gold(&mut players, &mut board, &quest_catalog, &config.feed, 1);
+        gold(&mut players, &mut board, &quest_catalog, &config.feed, 1);
+        gold(&mut players, &mut board, &quest_catalog, &config.feed, 1);
 
         let alice_messages = drain(&mut alice);
         assert_eq!(
             progress_values(&alice_messages, "gold"),
             [1],
-            "the third cookie is past the threshold"
+            "the third gold pickup is past the threshold"
         );
         assert!(completed(&alice_messages, "gold"));
         assert_eq!(score(&players, 1), 100);
@@ -594,20 +594,20 @@ mod tests {
 
     #[test]
     fn everyone_quest_completes_when_the_last_player_reaches_the_threshold() {
-        let config = catalog(vec![quest("gold", QuestKind::Cookies, QuestScope::Everyone, 1, None)]);
+        let config = catalog(vec![quest("gold", QuestKind::Gold, QuestScope::Everyone, 1, None)]);
         let quest_catalog = QuestCatalog::from_config(&config);
         let mut board = QuestBoard::from_catalog(&quest_catalog);
         let mut players = PlayerMap::default();
         let mut alice = join(&mut players, 1, &quest_catalog, &board);
         let mut bob = join(&mut players, 2, &quest_catalog, &board);
 
-        cookie(&mut players, &mut board, &quest_catalog, &config.feed, 1);
+        gold(&mut players, &mut board, &quest_catalog, &config.feed, 1);
         let alice_messages = drain(&mut alice);
         assert_eq!(progress_values(&alice_messages, "gold"), [1]);
         assert!(!completed(&alice_messages, "gold"));
         assert_eq!(feed_lines(&drain(&mut bob)), ["P1 finished gold (1/2 players)"]);
 
-        cookie(&mut players, &mut board, &quest_catalog, &config.feed, 2);
+        gold(&mut players, &mut board, &quest_catalog, &config.feed, 2);
         for rx in [&mut alice, &mut bob] {
             let messages = drain(rx);
             assert!(completed(&messages, "gold"));
@@ -620,52 +620,52 @@ mod tests {
 
     #[test]
     fn everyone_quest_waits_for_a_dead_holdout() {
-        let config = catalog(vec![quest("gold", QuestKind::Cookies, QuestScope::Everyone, 1, None)]);
+        let config = catalog(vec![quest("gold", QuestKind::Gold, QuestScope::Everyone, 1, None)]);
         let quest_catalog = QuestCatalog::from_config(&config);
         let mut board = QuestBoard::from_catalog(&quest_catalog);
         let mut players = PlayerMap::default();
         let _alice = join(&mut players, 1, &quest_catalog, &board);
         let _ghost = join_with(&mut players, 2, &quest_catalog, &board, true);
 
-        cookie(&mut players, &mut board, &quest_catalog, &config.feed, 1);
+        gold(&mut players, &mut board, &quest_catalog, &config.feed, 1);
         assert!(
             !board.is_completed(&id("gold")),
             "a dead player still counts toward everyone"
         );
 
-        cookie(&mut players, &mut board, &quest_catalog, &config.feed, 2);
+        gold(&mut players, &mut board, &quest_catalog, &config.feed, 2);
         assert!(board.is_completed(&id("gold")));
     }
 
     #[test]
     fn late_joiner_raises_the_denominator() {
-        let config = catalog(vec![quest("gold", QuestKind::Cookies, QuestScope::Everyone, 1, None)]);
+        let config = catalog(vec![quest("gold", QuestKind::Gold, QuestScope::Everyone, 1, None)]);
         let quest_catalog = QuestCatalog::from_config(&config);
         let mut board = QuestBoard::from_catalog(&quest_catalog);
         let mut players = PlayerMap::default();
         let mut alice = join(&mut players, 1, &quest_catalog, &board);
         let _bob = join(&mut players, 2, &quest_catalog, &board);
-        cookie(&mut players, &mut board, &quest_catalog, &config.feed, 1);
+        gold(&mut players, &mut board, &quest_catalog, &config.feed, 1);
         drain(&mut alice);
 
         let _carol = join(&mut players, 3, &quest_catalog, &board);
-        cookie(&mut players, &mut board, &quest_catalog, &config.feed, 2);
+        gold(&mut players, &mut board, &quest_catalog, &config.feed, 2);
         assert!(!board.is_completed(&id("gold")));
         assert_eq!(feed_lines(&drain(&mut alice)), ["P2 finished gold (2/3 players)"]);
 
-        cookie(&mut players, &mut board, &quest_catalog, &config.feed, 3);
+        gold(&mut players, &mut board, &quest_catalog, &config.feed, 3);
         assert!(board.is_completed(&id("gold")));
     }
 
     #[test]
     fn recheck_completes_when_the_leaver_was_the_holdout() {
-        let config = catalog(vec![quest("gold", QuestKind::Cookies, QuestScope::Everyone, 1, None)]);
+        let config = catalog(vec![quest("gold", QuestKind::Gold, QuestScope::Everyone, 1, None)]);
         let quest_catalog = QuestCatalog::from_config(&config);
         let mut board = QuestBoard::from_catalog(&quest_catalog);
         let mut players = PlayerMap::default();
         let mut alice = join(&mut players, 1, &quest_catalog, &board);
         let _bob = join(&mut players, 2, &quest_catalog, &board);
-        cookie(&mut players, &mut board, &quest_catalog, &config.feed, 1);
+        gold(&mut players, &mut board, &quest_catalog, &config.feed, 1);
         drain(&mut alice);
 
         players.remove(&PlayerId(2));
@@ -678,13 +678,13 @@ mod tests {
 
     #[test]
     fn recheck_completes_nothing_when_the_only_finisher_left() {
-        let config = catalog(vec![quest("gold", QuestKind::Cookies, QuestScope::Everyone, 1, None)]);
+        let config = catalog(vec![quest("gold", QuestKind::Gold, QuestScope::Everyone, 1, None)]);
         let quest_catalog = QuestCatalog::from_config(&config);
         let mut board = QuestBoard::from_catalog(&quest_catalog);
         let mut players = PlayerMap::default();
         let _alice = join(&mut players, 1, &quest_catalog, &board);
         let _bob = join(&mut players, 2, &quest_catalog, &board);
-        cookie(&mut players, &mut board, &quest_catalog, &config.feed, 1);
+        gold(&mut players, &mut board, &quest_catalog, &config.feed, 1);
 
         players.remove(&PlayerId(1));
         recheck_everyone_quests(&mut players, &mut board, &quest_catalog, &config.feed);
@@ -694,7 +694,7 @@ mod tests {
 
     #[test]
     fn recheck_on_an_empty_server_completes_nothing() {
-        let config = catalog(vec![quest("gold", QuestKind::Cookies, QuestScope::Everyone, 1, None)]);
+        let config = catalog(vec![quest("gold", QuestKind::Gold, QuestScope::Everyone, 1, None)]);
         let quest_catalog = QuestCatalog::from_config(&config);
         let mut board = QuestBoard::from_catalog(&quest_catalog);
         let mut players = PlayerMap::default();
@@ -709,7 +709,7 @@ mod tests {
     #[test]
     fn group_completion_unlocks_dependents_and_assigns_them_to_everyone() {
         let config = catalog(vec![
-            quest("gold", QuestKind::Cookies, QuestScope::Everyone, 1, None),
+            quest("gold", QuestKind::Gold, QuestScope::Everyone, 1, None),
             quest("show", QuestKind::Fireworks, QuestScope::Shared, 1, Some("gold")),
         ]);
         let quest_catalog = QuestCatalog::from_config(&config);
@@ -726,8 +726,8 @@ mod tests {
                 .contains_key(&id("show"))
         );
 
-        cookie(&mut players, &mut board, &quest_catalog, &config.feed, 1);
-        cookie(&mut players, &mut board, &quest_catalog, &config.feed, 2);
+        gold(&mut players, &mut board, &quest_catalog, &config.feed, 1);
+        gold(&mut players, &mut board, &quest_catalog, &config.feed, 2);
 
         assert!(board.is_unlocked(&id("show")));
         for rx in [&mut alice, &mut bob] {
@@ -765,16 +765,16 @@ mod tests {
     #[test]
     fn requires_chain_unlocks_one_step_at_a_time() {
         let config = catalog(vec![
-            quest("gold", QuestKind::Cookies, QuestScope::Everyone, 1, None),
-            quest("bonus", QuestKind::Cookies, QuestScope::Shared, 1, Some("gold")),
-            quest("later", QuestKind::Cookies, QuestScope::Shared, 1, Some("bonus")),
+            quest("gold", QuestKind::Gold, QuestScope::Everyone, 1, None),
+            quest("bonus", QuestKind::Gold, QuestScope::Shared, 1, Some("gold")),
+            quest("later", QuestKind::Gold, QuestScope::Shared, 1, Some("bonus")),
         ]);
         let quest_catalog = QuestCatalog::from_config(&config);
         let mut board = QuestBoard::from_catalog(&quest_catalog);
         let mut players = PlayerMap::default();
         let _alice = join(&mut players, 1, &quest_catalog, &board);
 
-        cookie(&mut players, &mut board, &quest_catalog, &config.feed, 1);
+        gold(&mut players, &mut board, &quest_catalog, &config.feed, 1);
         assert!(board.is_completed(&id("gold")));
         assert!(board.is_unlocked(&id("bonus")) && !board.is_unlocked(&id("later")));
         assert_eq!(
@@ -783,11 +783,11 @@ mod tests {
             "the unlocking event doesn't feed what it unlocked"
         );
 
-        cookie(&mut players, &mut board, &quest_catalog, &config.feed, 1);
+        gold(&mut players, &mut board, &quest_catalog, &config.feed, 1);
         assert!(board.is_completed(&id("bonus")));
         assert!(board.is_unlocked(&id("later")) && !board.is_completed(&id("later")));
 
-        cookie(&mut players, &mut board, &quest_catalog, &config.feed, 1);
+        gold(&mut players, &mut board, &quest_catalog, &config.feed, 1);
         assert!(board.is_completed(&id("later")));
     }
 
@@ -795,7 +795,7 @@ mod tests {
     fn world_event_only_hits_its_kind() {
         let config = catalog(vec![
             quest("show", QuestKind::Fireworks, QuestScope::Shared, 1, None),
-            quest("gold", QuestKind::Cookies, QuestScope::Individual, 5, None),
+            quest("gold", QuestKind::Gold, QuestScope::Individual, 5, None),
         ]);
         let quest_catalog = QuestCatalog::from_config(&config);
         let mut board = QuestBoard::from_catalog(&quest_catalog);
@@ -840,9 +840,9 @@ mod tests {
     #[test]
     fn assign_quests_skips_locked_and_seeds_completed_group_quests() {
         let config = catalog(vec![
-            quest("gold", QuestKind::Cookies, QuestScope::Everyone, 3, None),
+            quest("gold", QuestKind::Gold, QuestScope::Everyone, 3, None),
             quest("show", QuestKind::Fireworks, QuestScope::Shared, 1, Some("gold")),
-            quest("later", QuestKind::Cookies, QuestScope::Shared, 1, Some("show")),
+            quest("later", QuestKind::Gold, QuestScope::Shared, 1, Some("show")),
         ]);
         let quest_catalog = QuestCatalog::from_config(&config);
         let mut board = QuestBoard::from_catalog(&quest_catalog);
@@ -863,13 +863,13 @@ mod tests {
 
     #[test]
     fn joining_against_a_live_pooled_counter_sees_the_pool() {
-        let config = catalog(vec![quest("pool", QuestKind::Cookies, QuestScope::Shared, 5, None)]);
+        let config = catalog(vec![quest("pool", QuestKind::Gold, QuestScope::Shared, 5, None)]);
         let quest_catalog = QuestCatalog::from_config(&config);
         let mut board = QuestBoard::from_catalog(&quest_catalog);
         let mut players = PlayerMap::default();
         let _alice = join(&mut players, 1, &quest_catalog, &board);
         for _ in 0..3 {
-            cookie(&mut players, &mut board, &quest_catalog, &config.feed, 1);
+            gold(&mut players, &mut board, &quest_catalog, &config.feed, 1);
         }
 
         let assigned = assignment_for(&quest_catalog, &board);
@@ -878,7 +878,7 @@ mod tests {
 
     #[test]
     fn admin_completion_finishes_individual_quests_for_the_targets_only() {
-        let config = catalog(vec![quest("gold", QuestKind::Cookies, QuestScope::Individual, 3, None)]);
+        let config = catalog(vec![quest("gold", QuestKind::Gold, QuestScope::Individual, 3, None)]);
         let quest_catalog = QuestCatalog::from_config(&config);
         let mut board = QuestBoard::from_catalog(&quest_catalog);
         let mut players = PlayerMap::default();
@@ -919,7 +919,7 @@ mod tests {
 
     #[test]
     fn admin_completion_of_an_everyone_quest_completes_the_group_once_every_part_is_done() {
-        let config = catalog(vec![quest("gold", QuestKind::Cookies, QuestScope::Everyone, 3, None)]);
+        let config = catalog(vec![quest("gold", QuestKind::Gold, QuestScope::Everyone, 3, None)]);
         let quest_catalog = QuestCatalog::from_config(&config);
         let mut board = QuestBoard::from_catalog(&quest_catalog);
         let mut players = PlayerMap::default();
@@ -962,7 +962,7 @@ mod tests {
     fn admin_unlock_and_shared_completion_bypass_the_prerequisite() {
         let config = catalog(vec![
             quest("hunt", QuestKind::ActorKills, QuestScope::Shared, 5, None),
-            quest("bonus", QuestKind::Cookies, QuestScope::Individual, 1, Some("hunt")),
+            quest("bonus", QuestKind::Gold, QuestScope::Individual, 1, Some("hunt")),
         ]);
         let quest_catalog = QuestCatalog::from_config(&config);
         let mut board = QuestBoard::from_catalog(&quest_catalog);

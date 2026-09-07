@@ -42,7 +42,7 @@ Every element group ends with its own **Erase** tool that removes only that elem
 
 ## Equipment Erasers
 
-- **Equipment Eraser** — Drag along grid lines to place a walk-through field that removes a player's power-ups and controlled portal ends, preserving keys and missile ammo.
+- **Equipment Eraser** — Drag along grid lines to place a walk-through field that removes a player's power-ups, missile ammo, and controlled portal ends, preserving keys.
 - **Erase Equipment Erasers** — Drag a rectangle to remove every eraser edge inside or on its border.
 
 ## Barriers
@@ -97,7 +97,7 @@ Different purposes may share a tile, including multiple barrier or bridge kinds.
 
 ## Items
 
-- **Item** — Choose the type in the toolbar (power-ups, health potion, cookie, or key — keys also pick a barrier kind), then left-click a floor cell to place it. Right-click an item to change its type or erase it. Placed items hide on pickup in-game and reappear after the map's per-type `placed_items.respawn_secs` delay from `config/server/gameplay.json`. Item glyphs match their in-game silhouettes: speed chevrons, three white multi-shot balls, a white low-gravity feather, an oval portal ring, colored keys, rockets, a green health cross, and gold coins for cookies.
+- **Item** — Choose the type in the toolbar (single shot, multi shot, missile pack, portal gun, health potion, speed, low gravity, gold, then key — keys also pick a barrier kind), then left-click a floor cell to place it. Right-click an item to change its type or erase it. Placed items hide on pickup in-game and reappear after the map's per-type `placed_items.respawn_secs` delay from `config/server/gameplay.json`. Item glyphs match their in-game silhouettes: one white ball, three white balls, a rocket, an oval portal ring, a green health cross, speed chevrons, a white feather, a gold coin, and colored keys.
 - **Erase Items** — Drag a rectangle to remove every item inside it on the current level.
 
 ## Erase

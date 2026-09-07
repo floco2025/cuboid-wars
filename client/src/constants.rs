@@ -179,6 +179,7 @@ pub const ITEM_SPIN_HZ: f32 = 0.4;
 // The map editor mirrors these colors (tools/map_editor/constants.py
 // `ITEM_TYPE_COLORS`) — keep the two in sync.
 pub const ITEM_SPEED_COLOR: Color = Color::srgb(1.00, 0.85, 0.15); // Yellow
+pub const ITEM_SINGLESHOT_COLOR: Color = PROJECTILE_COLOR;
 pub const ITEM_MULTISHOT_COLOR: Color = PROJECTILE_COLOR;
 pub const ITEM_LOW_GRAVITY_COLOR: Color = Color::WHITE;
 pub const ITEM_COIN_COLOR: Color = Color::srgb(1.0, 0.72, 0.12);

@@ -6,7 +6,7 @@
     "player_spawn_zones": [],
     "pressure_plates": [],
     "items": [
-      {"level": 1, "col": 2, "row": 1, "type": "cookie"}
+      {"level": 1, "col": 2, "row": 1, "type": "gold"}
     ],
     "levels": [
       {

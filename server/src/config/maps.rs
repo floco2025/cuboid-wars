@@ -8,9 +8,7 @@ use super::{
     quests::{Quest, validate_quests},
     validation::{deserialize_required_option, validate_covers_actor_kinds, validate_positive_finite},
 };
-use common::protocol::{
-    BarrierKindTable, BridgeKindTable, ItemType, MapSettings, MapWeaponSettings, validate_texture_catalog,
-};
+use common::protocol::{BarrierKindTable, BridgeKindTable, ItemType, MapSettings, validate_texture_catalog};
 
 // Server-side wrapper around the wire `MapSettings`: the flattened settings
 // ship to clients in `SInit`, while the rest stays server-only.
@@ -116,7 +114,7 @@ pub(super) fn validate_maps<T>(
         validate_covers_actor_kinds(movement.actors.keys(), actors, &format!("{movement_path}.actors"))?;
         movement.validate(&movement_path)?;
         if let Some(random_items) = &entry.random_items {
-            random_items.validate(&format!("{path}.random_items"), entry.settings.weapons)?;
+            random_items.validate(&format!("{path}.random_items"))?;
         }
         entry.power_ups.validate(&format!("{path}.power_ups"))?;
         entry.placed_items.validate(&format!("{path}.placed_items"))?;
@@ -131,28 +129,23 @@ pub(super) fn validate_maps<T>(
 }
 
 impl RandomItemsConfig {
-    fn validate(&self, path: &str, weapons: MapWeaponSettings) -> Result<()> {
+    fn validate(&self, path: &str) -> Result<()> {
         if self.types.is_empty() {
             bail!("{path}.types must not be empty");
         }
         let mut seen: HashSet<&str> = HashSet::with_capacity(self.types.len());
-        let mut spawnable = 0usize;
         for ty in &self.types {
             if ty == ItemType::KEY_CONFIG_ID {
                 bail!(
                     "{path}.types: keys are parameterized by barrier kind and cannot spawn randomly; place them in the map's `items` list"
                 );
             }
-            let Some(item_type) = ItemType::from_config_id(ty) else {
+            if ItemType::from_config_id(ty).is_none() {
                 bail!("{path}.types contains unknown item type {ty:?}");
-            };
+            }
             if !seen.insert(ty.as_str()) {
                 bail!("{path}.types contains duplicate {ty:?}");
             }
-            spawnable += usize::from(weapons.allows_item(item_type));
-        }
-        if spawnable == 0 {
-            bail!("{path}.types holds only pickups for weapons this map disables");
         }
         if self.max_number == 0 {
             bail!("{path}.max_number must be >= 1");
@@ -167,7 +160,7 @@ mod tests {
     use crate::test_geometry::sizes;
     use common::{
         config::{ActorMovementConfig, KnockbackConfig, MapMovementConfig, PlayerMovementConfig},
-        protocol::{HexColor, KindDef, MapWeaponSettings, PortalMode},
+        protocol::{HexColor, KindDef, PortalMode},
     };
 
     fn actor_kinds() -> HashMap<String, ()> {
@@ -230,10 +223,7 @@ mod tests {
 
                 geometry: sizes(),
                 movement: ok_movement(),
-                weapons: MapWeaponSettings {
-                    projectiles: true,
-                    portals: PortalMode::Both,
-                },
+                portals: PortalMode::Both,
                 barrier_kinds: Vec::new(),
                 bridge_kinds: Vec::new(),
             },
@@ -242,6 +232,7 @@ mod tests {
             power_ups: PowerUpsConfig {
                 duration_secs: crate::config::PowerUpDurationSecs {
                     speed: 30.0,
+                    single_shot: 0.0,
                     multi_shot: 25.0,
                     low_gravity: 20.0,
                     portal_gun: 0.0,
@@ -257,11 +248,12 @@ mod tests {
         PlacedItemsConfig {
             respawn_secs: crate::config::PlacedItemRespawnSecs {
                 speed: 60.0,
+                single_shot: 0.0,
                 multi_shot: 60.0,
                 low_gravity: 60.0,
                 portal_gun: 0.0,
                 health_potion: 60.0,
-                cookie: 60.0,
+                gold: 60.0,
                 key: 30.0,
                 missile_pack: 30.0,
             },
@@ -291,7 +283,6 @@ mod tests {
     }
 
     fn parse_map_entry(
-        projectiles: bool,
         portals: &str,
         weather: Option<&str>,
         lighting: Option<&str>,
@@ -315,19 +306,20 @@ mod tests {
                 "ladder_climb_ratio": 0.4,
                 "knockback": { "max_speed": 15.0, "up_speed": 7.0, "deceleration": 35.0 }
             },
-            "weapons": { "projectiles": projectiles, "portals": portals },
+            "portals": portals,
             "barrier_kinds": [],
             "bridge_kinds": [],
             "random_items": null,
-            "power_ups": { "duration_secs": { "speed": 30.0, "multi_shot": 25.0, "low_gravity": 20.0, "portal_gun": 0.0 } },
+            "power_ups": { "duration_secs": { "speed": 30.0, "single_shot": 0.0, "multi_shot": 25.0, "low_gravity": 20.0, "portal_gun": 0.0 } },
             "placed_items": {
                 "respawn_secs": {
                     "speed": 60.0,
+                    "single_shot": 5.0,
                     "multi_shot": 60.0,
                     "low_gravity": 60.0,
                     "portal_gun": 1.0,
                     "health_potion": 60.0,
-                    "cookie": 60.0,
+                    "gold": 60.0,
                     "key": 30.0,
                     "missile_pack": 30.0
                 }
@@ -463,12 +455,10 @@ mod tests {
 
     #[test]
     fn map_entry_requires_explicit_weather_and_lighting() {
-        let missing_both =
-            parse_map_entry(true, "both", None, None).expect_err("weather and lighting must be explicit");
+        let missing_both = parse_map_entry("both", None, None).expect_err("weather and lighting must be explicit");
         assert!(missing_both.to_string().contains("weather"));
 
-        let missing_lighting =
-            parse_map_entry(true, "both", Some("clear"), None).expect_err("lighting must be explicit");
+        let missing_lighting = parse_map_entry("both", Some("clear"), None).expect_err("lighting must be explicit");
         assert!(missing_lighting.to_string().contains("lighting"));
     }
 
@@ -531,20 +521,15 @@ mod tests {
             .expect("hotel entry missing")
             .placed_items
             .respawn_secs
-            .cookie = -1.0;
+            .gold = -1.0;
 
         let error = validate_test_maps(&maps, "hotel").expect_err("negative respawn time must be rejected");
-        assert!(
-            error
-                .to_string()
-                .contains("maps.hotel.placed_items.respawn_secs.cookie")
-        );
+        assert!(error.to_string().contains("maps.hotel.placed_items.respawn_secs.gold"));
     }
 
     #[test]
     fn map_entry_accepts_empty_kind_catalogs() {
-        let entry =
-            parse_map_entry(true, "both", Some("clear"), Some("bright")).expect("map entry failed to deserialize");
+        let entry = parse_map_entry("both", Some("clear"), Some("bright")).expect("map entry failed to deserialize");
         assert!(entry.settings.barrier_kinds.is_empty());
         assert!(entry.settings.bridge_kinds.is_empty());
     }
@@ -605,28 +590,25 @@ mod tests {
 
     #[test]
     fn map_entry_parses_snake_case_weather_and_lighting() {
-        let entry = parse_map_entry(true, "both", Some("rain"), Some("dark")).expect("map entry should deserialize");
+        let entry = parse_map_entry("both", Some("rain"), Some("dark")).expect("map entry should deserialize");
         assert_eq!(entry.weather, WeatherMode::Rain);
         assert_eq!(entry.lighting, LightingMode::Dark);
     }
 
     #[test]
     fn map_entry_parses_auto_modes() {
-        let entry = parse_map_entry(true, "both", Some("auto"), Some("auto")).expect("map entry should deserialize");
+        let entry = parse_map_entry("both", Some("auto"), Some("auto")).expect("map entry should deserialize");
         assert_eq!(entry.weather, WeatherMode::Auto);
         assert_eq!(entry.lighting, LightingMode::Auto);
     }
 
     #[test]
-    fn map_entry_accepts_no_projectiles_and_single_or_both_portal_ownership() {
-        let disabled =
-            parse_map_entry(false, "both", Some("clear"), Some("bright")).expect("map entry should deserialize");
-        assert!(!disabled.settings.weapons.projectiles);
-        assert_eq!(disabled.settings.weapons.portals, PortalMode::Both);
+    fn map_entry_accepts_single_or_both_portal_ownership() {
+        let both = parse_map_entry("both", Some("clear"), Some("bright")).expect("map entry JSON is invalid");
+        assert_eq!(both.settings.portals, PortalMode::Both);
 
-        let single =
-            parse_map_entry(true, "single", Some("clear"), Some("bright")).expect("map entry should deserialize");
-        assert_eq!(single.settings.weapons.portals, PortalMode::Single);
+        let single = parse_map_entry("single", Some("clear"), Some("bright")).expect("map entry JSON is invalid");
+        assert_eq!(single.settings.portals, PortalMode::Single);
     }
 
     #[test]
@@ -644,7 +626,7 @@ mod tests {
 
     #[test]
     fn validate_maps_accepts_valid_random_items() {
-        let maps = one_map_with_random_items("hotel", ok_random_items(&["speed", "cookie"]));
+        let maps = one_map_with_random_items("hotel", ok_random_items(&["speed", "gold"]));
         validate_test_maps(&maps, "hotel").expect("valid random_items should pass");
     }
 
@@ -677,21 +659,11 @@ mod tests {
     }
 
     #[test]
-    fn validate_maps_rejects_random_pool_of_only_disabled_weapon_pickups() {
-        let mut maps = one_map_with_random_items("hotel", ok_random_items(&["multi_shot"]));
-        let entry = maps.get_mut("hotel").expect("hotel entry missing");
-        entry.settings.weapons.projectiles = false;
-        let err = validate_test_maps(&maps, "hotel").expect_err("fully disabled pool must be rejected");
-        assert!(err.to_string().contains("disables"));
-
-        maps.get_mut("hotel")
-            .expect("hotel entry missing")
-            .random_items
-            .as_mut()
-            .expect("random_items missing")
-            .types
-            .push("cookie".to_owned());
-        validate_test_maps(&maps, "hotel").expect("a pool with one spawnable pickup should pass");
+    fn validate_maps_accepts_projectile_pickups_as_the_only_random_items() {
+        for item in ["single_shot", "multi_shot"] {
+            let maps = one_map_with_random_items("hotel", ok_random_items(&[item]));
+            validate_test_maps(&maps, "hotel").expect("projectile pickup pool is invalid");
+        }
     }
 
     #[test]

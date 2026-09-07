@@ -14,6 +14,19 @@ from editor_fixtures import WindowTestCase
 
 
 class EquipmentTests(unittest.TestCase):
+    def test_projectile_pickups_round_trip_through_the_map_editor(self):
+        data = empty_map(4, 4)
+        data["player_spawn_zones"] = []
+        data["levels"][0]["floors"] = [{"col": col, "row": 1, "all": DEFAULT_ALIAS} for col in (1, 2)]
+        data["items"] = [
+            {"level": 0, "col": col, "row": 1, "type": kind}
+            for col, kind in ((1, "single_shot"), (2, "multi_shot"))
+        ]
+        data = canonicalize_map(data)
+        encoded = format_map_file({"map": data})
+        self.assertEqual(normalize_map(json.loads(encoded)["map"]), data)
+        self.assertFalse(validate_map(data, [], []))
+
     def test_fields_and_gun_round_trip_and_resize(self):
         data = empty_map(4, 4)
         data["player_spawn_zones"] = []

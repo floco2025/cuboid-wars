@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use common::{
     config::{KnockbackConfig, MapGeometryConfig, MapMovementConfig, PlayerMovementConfig},
-    protocol::{MapSettings, MapWeaponSettings, PortalMode},
+    protocol::{MapSettings, PortalMode},
 };
 
 pub(crate) const CELL: f32 = 3.4;
@@ -48,10 +48,7 @@ pub(crate) fn map_settings() -> MapSettings {
                 deceleration: 12.0,
             },
         },
-        weapons: MapWeaponSettings {
-            projectiles: true,
-            portals: PortalMode::Both,
-        },
+        portals: PortalMode::Both,
         barrier_kinds: Vec::new(),
         bridge_kinds: Vec::new(),
     }

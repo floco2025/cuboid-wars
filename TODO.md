@@ -6,8 +6,9 @@
 
 ## Testing
 
+- **Projectile pickups:** Check single-shot (one ball) and multishot (three balls) pickups, pickup-only weapon availability, weapon cycling, multishot-first fallback, single-shot pickups preserving multishot selection, and eraser/death reset. Check equal-width HUD power-up slots in single-shot, multishot, portal, speed, low-gravity order, with gaps before missiles and keys. Single-shot is in Hotel’s random pool and Obby’s pickup row. The user handles in-game testing.
 - **Window settings:** Check mixed-DPI restoration on macOS and Windows/X11, size/fullscreen restoration with compositor-controlled placement on Wayland, and saving after a drag or an immediate window close. The user handles in-game testing.
-- **Energy fields and erasers:** Check zapper beam clipping, blast shielding, projectile absorption, and keeping keys/ammo through erasers. The user handles in-game testing.
+- **Energy fields and erasers:** Check zapper beam clipping, blast shielding, projectile absorption, and erasers clearing weapons and power-ups while keeping keys. The user handles in-game testing.
 
 - **Playtest Switchyard:** Check the customs portal route and raised seal balcony, moving bridge switch, and ladder shuttle solo and with teammates. The user handles in-game testing.
 - **Actor ladders:** Visually check intermediate landings, moving carriers, and mines approaching from opposite sides. The user handles in-game testing.

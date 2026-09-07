@@ -2,7 +2,7 @@ use bevy::prelude::Resource;
 
 use common::{
     map::MapGeometry,
-    protocol::{CarrierId, ItemType, MapItems, MapWeaponSettings},
+    protocol::{CarrierId, ItemType, MapItems},
 };
 
 // Cell flags. Light bridges deliberately set none of them: actors never
@@ -214,7 +214,7 @@ impl MapConfig {
     }
 
     #[must_use]
-    pub fn available_items(&self, random_pool: &[ItemType], weapons: MapWeaponSettings) -> MapItems {
+    pub fn available_items(&self, random_pool: &[ItemType]) -> MapItems {
         let mut items = Vec::new();
         for item in self
             .placed_items
@@ -222,10 +222,11 @@ impl MapConfig {
             .map(|item| item.item_type)
             .chain(random_pool.iter().copied())
         {
-            if weapons.allows_item(item) && !items.contains(&item) {
+            if !items.contains(&item) {
                 items.push(item);
             }
         }
+        items.sort_unstable();
         MapItems(items)
     }
 }
@@ -233,7 +234,7 @@ impl MapConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use common::protocol::{BarrierKindId, PortalMode};
+    use common::protocol::BarrierKindId;
 
     fn key(kind: u16) -> PlacedItem {
         PlacedItem {
@@ -251,7 +252,7 @@ mod tests {
             placed_items: vec![
                 key(2),
                 PlacedItem {
-                    item_type: ItemType::Cookie,
+                    item_type: ItemType::Gold,
                     ..key(0)
                 },
                 key(0),
@@ -260,18 +261,12 @@ mod tests {
             ..MapConfig::for_grid(Vec::new(), crate::test_geometry::geometry(1, 1))
         };
 
-        let items = config.available_items(
-            &[],
-            MapWeaponSettings {
-                projectiles: true,
-                portals: PortalMode::Both,
-            },
-        );
+        let items = config.available_items(&[]);
         assert_eq!(items.key_kinds(), [BarrierKindId(0), BarrierKindId(2)]);
     }
 
     #[test]
-    fn available_items_include_placed_and_random_pickups_and_filter_multi_shot() {
+    fn available_items_include_placed_and_random_pickups_without_duplicates() {
         let config = MapConfig {
             placed_items: vec![PlacedItem {
                 item_type: ItemType::PortalGunPowerUp,
@@ -279,17 +274,20 @@ mod tests {
             }],
             ..MapConfig::for_grid(Vec::new(), crate::test_geometry::geometry(1, 1))
         };
-        let items = config.available_items(
-            &[
+        let items = config.available_items(&[
+            ItemType::MissilePack,
+            ItemType::PortalGunPowerUp,
+            ItemType::SingleShotPowerUp,
+            ItemType::MultiShotPowerUp,
+        ]);
+        assert_eq!(
+            items.0,
+            [
+                ItemType::SingleShotPowerUp,
+                ItemType::MultiShotPowerUp,
                 ItemType::MissilePack,
                 ItemType::PortalGunPowerUp,
-                ItemType::MultiShotPowerUp,
-            ],
-            MapWeaponSettings {
-                projectiles: false,
-                portals: PortalMode::Both,
-            },
+            ]
         );
-        assert_eq!(items.0, [ItemType::PortalGunPowerUp, ItemType::MissilePack]);
     }
 }

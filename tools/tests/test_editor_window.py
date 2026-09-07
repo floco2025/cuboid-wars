@@ -105,7 +105,7 @@ class DocumentTests(unittest.TestCase):
         data = empty_map(8, 8)
         data["levels"][0]["lights"] = [{"col": 2, "row": 2, "side": "invalid"}]
         data["ladders"] = [{"col": 3, "row": 3, "lower_level": 0, "levels": 0, "side": "invalid"}]
-        data["items"] = [{"col": 7, "row": 7, "level": 0, "type": "cookie"}]
+        data["items"] = [{"col": 7, "row": 7, "level": 0, "type": "gold"}]
         data["actor_spawn_zones"] = [{"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "unknown", "count": -2}]
         write_map(self.path, data)
         self.doc.load(self.path)
@@ -422,7 +422,7 @@ class WindowTests(WindowTestCase):
 
     def test_item_kind_control_only_shows_for_keys_including_recalled_settings(self):
         window = self.window
-        window.recent_item_type = "cookie"
+        window.recent_item_type = "gold"
         window.mode_combo.setCurrentText(MODE_ITEM)
         self.app.processEvents()
         item, kind = window.tool_settings.body.findChildren(QComboBox)
@@ -430,7 +430,7 @@ class WindowTests(WindowTestCase):
         item.setCurrentText("key")
         self.app.processEvents()
         self.assertTrue(kind.isVisible())
-        window.recent_item_type = "cookie"
+        window.recent_item_type = "gold"
         window.tool_settings.refresh()
         self.app.processEvents()
         self.assertFalse(window.tool_settings.body.findChildren(QComboBox)[1].isVisible())

@@ -15,9 +15,9 @@
       {"level":1,"col":4,"row":7,"type":"portal_gun"},
       {"level":0,"col":1,"row":6,"type":"health_potion"},
       {"level":1,"col":11,"row":2,"type":"key","kind":"amber"},
-      {"level":1,"col":12,"row":2,"type":"cookie"},
+      {"level":1,"col":12,"row":2,"type":"gold"},
       {"level":1,"col":10,"row":8,"type":"key","kind":"blue"},
-      {"level":1,"col":10,"row":9,"type":"cookie"}
+      {"level":1,"col":10,"row":9,"type":"gold"}
     ],
     "levels": [
       {

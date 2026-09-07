@@ -173,7 +173,7 @@ class ResizeTests(unittest.TestCase):
         data["actor_spawn_zones"] = [
             {"level": 0, "cols": [1, 3], "rows": [1, 3], "kind": "mine", "count": 1}
         ]
-        data["items"] = [{"level": 0, "col": 1, "row": 1, "type": "cookie"}]
+        data["items"] = [{"level": 0, "col": 1, "row": 1, "type": "gold"}]
         data["pressure_plates"] = [{"level": 0, "col": 1, "row": 1, "type": "barrier", "kind": KIND}]
         data["ramps"] = [{"lower_level": 0, "low": [1, 1], "high": [3, 2], **faces()}]
         data["ladders"] = [{"lower_level": 0, "col": 1, "row": 1, "side": "N", "levels": 1}]
@@ -406,7 +406,7 @@ class LayerEraserTests(unittest.TestCase):
         ]
         data["actor_spawn_zones"] = [actor_zone(0, 0, 0, 2, 2), actor_zone(1, 0, 0, 2, 2)]
         data["player_spawn_zones"] = [{"level": 0, "cols": [3, 4], "rows": [3, 4]}]
-        data["items"] = [{"level": 0, "col": 0, "row": 0, "type": "cookie"}]
+        data["items"] = [{"level": 0, "col": 0, "row": 0, "type": "gold"}]
         data["pressure_plates"] = [{"level": 0, "col": 1, "row": 0, "type": "firework"}]
         return EditorHost(data, [BRIDGE_KIND])
 
@@ -486,7 +486,7 @@ class ValidationTests(unittest.TestCase):
         data = empty_map(2, 2)
         data["levels"][0]["floors"] = [floor(0, 0)]
         data["levels"][0]["walls"] = [{"c0": 0, "r0": 0, "c1": 2, "r1": 0, **faces()}]
-        data["items"] = [{"level": 0, "col": 1, "row": 1, "type": "cookie"}]
+        data["items"] = [{"level": 0, "col": 1, "row": 1, "type": "gold"}]
         data["ladders"] = [{"lower_level": 0, "col": 0, "row": 0, "side": "N", "levels": 1}]
 
         errors = validate_map(data, [], [])
@@ -514,7 +514,7 @@ class RightClickAndSelectTests(unittest.TestCase):
         level["walls"] = [{"c0": 1, "r0": 1, "c1": 2, "r1": 1, "all": DEFAULT_ALIAS}]
         level["lights"] = [{"col": 1, "row": 1, "side": "N"}]
         data["pressure_plates"] = [{"level": 0, "col": 1, "row": 1, "type": "barrier", "kind": "barrier_1"}]
-        data["items"] = [{"level": 0, "col": 1, "row": 1, "type": "cookie"}]
+        data["items"] = [{"level": 0, "col": 1, "row": 1, "type": "gold"}]
         data["player_spawn_zones"] = []
         return EditorHost(data, ["bridge_1"])
 
