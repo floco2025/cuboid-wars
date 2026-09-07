@@ -13,10 +13,10 @@ use crate::{
 };
 use common::{
     config::GameplayConfig,
-    constants::{PHYSICS_EPSILON, PROJECTILE_EVENT_LIMIT},
+    math::PHYSICS_EPSILON,
     physics::{
-        BallCharacterHit, CollisionWorld, PortalSet, ProjectileEvent, ProjectileMotion, earliest_projectile_event,
-        projectile_character_hit, projectile_overlaps_character,
+        BallCharacterHit, CollisionWorld, PROJECTILE_EVENT_LIMIT, PortalSet, ProjectileEvent, ProjectileMotion,
+        earliest_projectile_event, projectile_character_hit, projectile_overlaps_character,
     },
     protocol::*,
 };

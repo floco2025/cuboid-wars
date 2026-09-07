@@ -4,7 +4,7 @@ use super::{
     geometry::{character_paths_intersect, character_positions_intersect},
     types::CharacterMovePlan,
 };
-use crate::{config::CharacterPhysicsConfig, constants::PHYSICS_EPSILON, protocol::Position};
+use crate::{config::CharacterPhysicsConfig, math::PHYSICS_EPSILON, protocol::Position};
 
 // Find another character's planned position this move plan would overlap.
 #[must_use]

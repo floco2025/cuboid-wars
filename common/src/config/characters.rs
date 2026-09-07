@@ -3,7 +3,7 @@ use bincode::{Decode, Encode};
 use serde::Deserialize;
 
 use super::validation::{validate_non_negative_finite, validate_positive_finite};
-use crate::constants::PHYSICS_EPSILON;
+use crate::math::PHYSICS_EPSILON;
 
 #[derive(Debug, Clone, Encode, Decode, Deserialize)]
 pub struct CharacterGameplayConfig {

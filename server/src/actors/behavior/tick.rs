@@ -12,8 +12,8 @@ use crate::{
 };
 use common::{
     config::{CharacterPhysicsConfig, GameplayConfig},
-    constants::PHYSICS_EPSILON,
     map::{CarrierPose, Carriers},
+    math::PHYSICS_EPSILON,
     physics::CollisionWorld,
     protocol::{
         ActorId, ActorMarker, ItemType, MapItems, MapSettings, PlayerId, PlayerMarker, Position, SActorBeam,

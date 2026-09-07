@@ -1,6 +1,8 @@
 use bevy_math::Vec3;
 use std::f32::consts::{PI, TAU};
 
+pub const PHYSICS_EPSILON: f32 = 1e-6;
+
 pub fn angle_delta_radians(a: f32, b: f32) -> f32 {
     (a - b + PI).rem_euclid(TAU) - PI
 }

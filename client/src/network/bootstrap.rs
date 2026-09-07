@@ -18,14 +18,25 @@ pub(crate) fn install_bootstrap(app: &mut App, message: SInit, asset_set: &Asset
     let map_settings = &message.world.map.settings;
     let (barrier_kind_table, _) = map_settings.kind_tables()?;
     asset_set.validate_gameplay_bindings(gameplay_config.actors.keys().map(String::as_str))?;
-    let pickup_glow = app.world().resource::<ClientSettings>().vfx.pickup_emissive_brightness;
+    let vfx = app.world().resource::<ClientSettings>().vfx;
 
     let (barrier_assets, bridge_assets, projectile_assets) =
         app.world_mut().resource_scope(|world, mut meshes: Mut<Assets<Mesh>>| {
             let mut materials = world.resource_mut::<Assets<StandardMaterial>>();
             (
-                build_barrier_assets(&mut meshes, &mut materials, &map_settings.barrier_kinds, pickup_glow),
-                build_bridge_assets(&mut meshes, &mut materials, &map_settings.bridge_kinds),
+                build_barrier_assets(
+                    &mut meshes,
+                    &mut materials,
+                    &map_settings.barrier_kinds,
+                    vfx.barriers,
+                    vfx.pickups.emissive_brightness,
+                ),
+                build_bridge_assets(
+                    &mut meshes,
+                    &mut materials,
+                    &map_settings.bridge_kinds,
+                    vfx.light_bridges,
+                ),
                 ProjectileAssets::new(&mut meshes, &mut materials, gameplay_config.projectiles.radius),
             )
         });

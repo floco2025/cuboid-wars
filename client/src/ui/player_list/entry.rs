@@ -9,8 +9,8 @@ use super::{
 use crate::{
     barriers::BarrierAssets,
     constants::{
-        HUD_ICON_CATEGORY_GAP_PX, HUD_ICON_GAP_PX, HUD_SLOT_EMPTY_COLOR, ITEM_MISSILE_COLOR, KEY_HUD_ICON_SIZE_PX,
-        MISSILE_HUD_ICON_HEIGHT_PX, POWER_UP_HUD_ICON_SIZE_PX,
+        HUD_ICON_CATEGORY_GAP_PX, HUD_ICON_GAP_PX, HUD_KEY_ICON_SIZE_PX, HUD_MISSILE_ICON_HEIGHT_PX,
+        HUD_POWER_UP_ICON_SIZE_PX, HUD_SLOT_EMPTY_COLOR, ITEM_MISSILE_COLOR,
     },
     items::item_type_color,
     players::PlayerInfo,
@@ -151,8 +151,8 @@ fn spawn_power_up_icon(row: &mut ChildSpawnerCommands, active: bool, kind: Power
         HUD_SLOT_EMPTY_COLOR
     };
     let node = Node {
-        width: Val::Px(POWER_UP_HUD_ICON_SIZE_PX),
-        height: Val::Px(POWER_UP_HUD_ICON_SIZE_PX),
+        width: Val::Px(HUD_POWER_UP_ICON_SIZE_PX),
+        height: Val::Px(HUD_POWER_UP_ICON_SIZE_PX),
         align_self: AlignSelf::Center,
         ..default()
     };
@@ -197,7 +197,7 @@ fn spawn_icon_group(strip: &mut ChildSpawnerCommands, icons: impl FnOnce(&mut Ch
 fn spawn_key_icon(row: &mut ChildSpawnerCommands, color: Color, shapes: &HudShapeAssets) {
     row.spawn((
         Node {
-            height: Val::Px(KEY_HUD_ICON_SIZE_PX),
+            height: Val::Px(HUD_KEY_ICON_SIZE_PX),
             align_self: AlignSelf::Center,
             ..default()
         },
@@ -216,7 +216,7 @@ fn spawn_missile_icon(row: &mut ChildSpawnerCommands, filled: bool, shapes: &Hud
     };
     row.spawn((
         Node {
-            height: Val::Px(MISSILE_HUD_ICON_HEIGHT_PX),
+            height: Val::Px(HUD_MISSILE_ICON_HEIGHT_PX),
             align_self: AlignSelf::Center,
             ..default()
         },

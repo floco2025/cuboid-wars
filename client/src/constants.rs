@@ -1,16 +1,4 @@
-use bevy::color::Color;
-
-// ============================================================================
-// Input
-// ============================================================================
-
-// Player input is sampled at render rate (smooth camera) and committed once
-// per game tick (`common::constants::TICK_HZ`) in `commit_player_input_system`,
-// changed or not.
-
-// Slots in the local player's ring of committed positions, one per tick;
-// 64 is two seconds, more than any round trip worth playing over.
-pub const COMMITTED_POSITION_RING_LEN: usize = 64;
+use bevy::{color::Color, math::Vec3};
 
 // ============================================================================
 // RTT measurement
@@ -18,15 +6,6 @@ pub const COMMITTED_POSITION_RING_LEN: usize = 64;
 
 // Round-trip time — interval between ping requests sent to the server.
 pub const PING_INTERVAL: f32 = 1.0;
-
-// ============================================================================
-// Server tick
-// ============================================================================
-
-// Consecutive echoes that must all report a clock error in the same
-// direction before `TickSync` shifts the clock; half a second outlasts any
-// delivery jitter.
-pub const TICK_SYNC_WINDOW_TICKS: usize = 15;
 
 // ============================================================================
 // Server Reconciliation
@@ -67,7 +46,7 @@ pub const RECON_PLAYER_IDLE_CORRECTION_SECS: f32 = 8.0;
 // own crossing may land a tick or two late on the server after a lost
 // commit; a third of a second covers both. Latency shifts the evidence and
 // the copy together, so the slack does not have to cover it.
-pub const HOP_DISPUTE_SLACK_TICKS: u32 = 10;
+pub const RECON_PLAYER_HOP_DISPUTE_SLACK_TICKS: u32 = 10;
 
 // --- Actor only ---
 
@@ -109,10 +88,6 @@ pub const LABEL_PLAYER_NAME_GAP: f32 = 0.03;
 // visible bar 1:1 (no padding) — texture size is derived at the spawn
 // call site from the runtime health-bar dims, not stored here.
 pub const LABEL_ACTOR_MESH_WIDTH: f32 = 0.85;
-// Frames a label's render-target camera stays active after a health change.
-// A multi-frame window (not a single frame) so the render reliably lands —
-// a one-frame-only activation intermittently failed to redraw the bar.
-pub const LABEL_RENDER_FRAMES: u8 = 3;
 pub const LABEL_TEXT_COLOR: Color = Color::srgba(1.0, 1.0, 1.0, 1.0);
 pub const LABEL_BACKGROUND_COLOR: Color = Color::srgba(0.0, 0.0, 0.0, 0.2);
 // Padding inside the name label's translucent background, in texture px.
@@ -137,6 +112,16 @@ pub const HUD_LINE_FADE_SECS: f32 = 0.8;
 // tiny window can't collapse the UI toward zero.
 pub const HUD_MIN_SCALE: f32 = 0.5;
 
+pub const HUD_POWER_UP_ICON_SIZE_PX: f32 = 18.0;
+pub const HUD_KEY_ICON_SIZE_PX: f32 = 18.0;
+pub const HUD_ICON_GAP_PX: f32 = 3.0;
+pub const HUD_ICON_CATEGORY_GAP_PX: f32 = 8.0;
+pub const HUD_MISSILE_ICON_HEIGHT_PX: f32 = 18.0;
+// Unfilled slot in the player-list strips (power-up not active, key not
+// held, missile bay empty). Every slot always renders so the row width
+// never changes on pickup.
+pub const HUD_SLOT_EMPTY_COLOR: Color = Color::srgba(1.0, 1.0, 1.0, 0.12);
+
 // ============================================================================
 // Crosshair
 // ============================================================================
@@ -147,15 +132,12 @@ pub const CROSSHAIR_COLOR: Color = Color::srgba(1.0, 1.0, 1.0, 0.8);
 // Lock-on tint: lit crosshair = a missile fired now will track this target.
 pub const CROSSHAIR_LOCK_COLOR: Color = Color::srgba(1.0, 0.25, 0.2, 0.9);
 // ============================================================================
-// Health Bars (colors + fill layering; pixel dimensions live in
+// Health Bars (colors; pixel dimensions live in
 // `client.json::hud.health_bars`)
 // ============================================================================
 
 pub const HEALTH_BAR_TRACK_COLOR: Color = Color::srgba(0.0, 0.0, 0.0, 0.65);
 pub const HEALTH_BAR_FILL_COLOR: Color = Color::srgb(0.0, 0.85, 0.2);
-// Local +Z of a world-space bar's opaque fill quad over its translucent track,
-// so the fill always layers in front.
-pub const HEALTH_BAR_FILL_Z_OFFSET: f32 = 0.005;
 
 // ============================================================================
 // Quest Panel (colors only — dimensions live in `client.json::hud.quest_panel`)
@@ -187,6 +169,9 @@ pub const CONSOLE_TEXT_COLOR: Color = Color::srgba(1.0, 0.85, 0.4, 1.0);
 // ============================================================================
 
 pub const ITEM_SIZE: f32 = 0.3;
+pub const ITEM_COIN_RADIUS: f32 = 0.15;
+pub const ITEM_KEY_SIZE: f32 = 0.8;
+pub const ITEM_KEY_DEPTH: f32 = 0.1;
 pub const ITEM_HEIGHT_ABOVE_FLOOR: f32 = 1.25;
 pub const ITEM_ANIMATION_HEIGHT: f32 = 0.2; // bob amplitude (m); peak-to-peak swing is 2×
 pub const ITEM_ANIMATION_SPEED: f32 = 0.8;
@@ -200,12 +185,25 @@ pub const ITEM_COIN_COLOR: Color = Color::srgb(1.0, 0.72, 0.12);
 pub const ITEM_HEALTH_COLOR: Color = Color::srgb(0.20, 0.95, 0.30); // Green (heal / potion)
 pub const ITEM_MISSILE_COLOR: Color = Color::srgb(0.95, 0.45, 0.10); // Orange (missile pack)
 
-// Missile mesh dimensions (m): Y-up cylinder body, cone nose, 4 fins at the tail.
+// ============================================================================
+// Missiles
+// ============================================================================
+
+// Mesh dimensions (m): Y-up cylinder body, cone nose, 4 fins at the tail.
 pub const MISSILE_BODY_RADIUS: f32 = 0.08;
 pub const MISSILE_BODY_LENGTH: f32 = 0.5;
 pub const MISSILE_NOSE_LENGTH: f32 = 0.2;
 pub const MISSILE_FIN_SPAN: f32 = 0.14; // outward reach beyond the body surface
 pub const MISSILE_FIN_LENGTH: f32 = 0.18; // along the body axis
+
+pub const MISSILE_EXHAUST_PARTICLES_PER_SEC: f32 = 600.0;
+pub const MISSILE_EXHAUST_PARTICLE_SIZE: f32 = 0.02;
+pub const MISSILE_EXHAUST_PARTICLE_LIFETIME_SECS: f32 = 0.3;
+pub const MISSILE_EXHAUST_EMISSIVE_BRIGHTNESS: f32 = 25.0;
+pub const MISSILE_EXHAUST_BACK_SPEED: f32 = 2.5;
+pub const MISSILE_EXHAUST_RISE_ACCELERATION: f32 = 1.2;
+pub const MISSILE_EXHAUST_JITTER: f32 = 0.25;
+pub const MISSILE_EXHAUST_BASE_COLOR: Vec3 = Vec3::new(1.0, 0.4, 0.088);
 
 // ============================================================================
 // Portals
@@ -217,48 +215,10 @@ pub const MISSILE_FIN_LENGTH: f32 = 0.18; // along the body axis
 pub const PORTAL_A_COLOR: Color = Color::srgb(0.20, 0.55, 1.00); // blue — end A (left click)
 pub const PORTAL_B_COLOR: Color = Color::srgb(1.00, 0.55, 0.10); // orange — end B (right click)
 pub const PORTAL_EMISSIVE: f32 = 8.0;
-// Offset off the surface so the decal wins the depth test against its wall.
-pub const PORTAL_SURFACE_OFFSET: f32 = 0.01;
-pub const PORTAL_RIM_OFFSET: f32 = 0.002;
-// Near plane sits this far past the exit plane, clipping the exit's own surface.
-pub const PORTAL_VIEW_CLIP_OFFSET: f32 = 0.02;
-// A view stays valid until the eye is this close to the entry plane, so the
-// last frame before a crossing still sees through.
-pub const PORTAL_VIEW_MIN_EYE_DISTANCE: f32 = 0.001;
-// Rendered only by the main camera: the shared portal surfaces and its sky disc.
-pub const MAIN_VIEW_RENDER_LAYER: usize = 1;
-pub const LOCAL_PLAYER_RENDER_LAYER: usize = 2;
-// Rendered only by the rearview mirror: its portal replicas and sky disc.
-pub const REARVIEW_RENDER_LAYER: usize = 3;
-// Camera-facing labels only make sense from the main view that orients them.
-pub const CHARACTER_LABEL_RENDER_LAYER: usize = 4;
 // Portal-style exit reorientation: the camera is seeded with the fully
 // mapped (possibly tilted) view and blended back to the upright aim over
 // this window.
 pub const PORTAL_VIEW_BLEND_SECS: f32 = 0.25;
-
-// ============================================================================
-// Cookies
-// ============================================================================
-
-pub const COOKIE_SIZE: f32 = 0.15; // coin radius
-
-// ============================================================================
-// Keys
-// ============================================================================
-
-pub const KEY_SIZE: f32 = 0.8;
-pub const KEY_DEPTH: f32 = 0.1;
-
-pub const POWER_UP_HUD_ICON_SIZE_PX: f32 = 18.0;
-pub const KEY_HUD_ICON_SIZE_PX: f32 = 18.0;
-pub const HUD_ICON_GAP_PX: f32 = 3.0;
-pub const HUD_ICON_CATEGORY_GAP_PX: f32 = 8.0;
-pub const MISSILE_HUD_ICON_HEIGHT_PX: f32 = 18.0;
-// Unfilled slot in the player-list strips (power-up not active, key not
-// held, missile bay empty). Every slot always renders so the row width
-// never changes on pickup.
-pub const HUD_SLOT_EMPTY_COLOR: Color = Color::srgba(1.0, 1.0, 1.0, 0.12);
 
 // ============================================================================
 // Projectile VFX
@@ -327,13 +287,11 @@ pub const EXPLOSION_FALLBACK_FIREBALL_DIAMETER: f32 = 6.0;
 pub const EXPLOSION_FIREBALL_LIFETIME_FACTOR: f32 = 0.6;
 pub const EXPLOSION_FIREBALL_START_ALPHA: f32 = 0.9;
 
-pub const EXPLOSION_SHOCKWAVE_SURFACE_OFFSET: f32 = 0.05;
 pub const EXPLOSION_SHOCKWAVE_DIAMETER_FACTOR: f32 = 1.0;
 pub const EXPLOSION_SHOCKWAVE_LIFETIME_FACTOR: f32 = 0.7;
 pub const EXPLOSION_SHOCKWAVE_THICKNESS_RATIO: f32 = 0.16;
 pub const EXPLOSION_SHOCKWAVE_START_ALPHA: f32 = 0.7;
 
-pub const EXPLOSION_SCORCH_SURFACE_OFFSET: f32 = 0.015;
 pub const EXPLOSION_SCORCH_FADE_FRACTION: f32 = 1.0 / 3.0;
 pub const EXPLOSION_SCORCH_MAX_ACTIVE: usize = 128;
 pub const EXPLOSION_SCORCH_MESH_VARIANT_COUNT: usize = 12;
@@ -343,7 +301,6 @@ pub const EXPLOSION_SCORCH_RING_RADII: [f32; 3] = [0.22, 0.39, 0.5];
 pub const EXPLOSION_SCORCH_RING_ALPHA: [f32; 3] = [0.84, 0.60, 0.0];
 pub const EXPLOSION_SCORCH_WALL_SEAM_OVERSCAN_FACTOR: f32 = 0.35;
 
-pub const EXPLOSION_GRASS_BURN_VERTICAL_TOLERANCE: f32 = 0.1;
 pub const EXPLOSION_GRASS_BURN_CORE_RADIUS_FACTOR: f32 = 0.5;
 pub const EXPLOSION_GRASS_BURN_CENTER_HEIGHT_FACTOR: f32 = 0.6;
 pub const EXPLOSION_GRASS_BURN_CENTER_WIDTH_FACTOR: f32 = 0.55;
@@ -353,7 +310,6 @@ pub const EXPLOSION_GRASS_BURN_COLOR: Color = Color::srgb(0.18, 0.17, 0.16);
 pub const EXPLOSION_GRASS_BURN_ROOT_BRIGHTNESS_FACTOR: f32 = 0.7;
 pub const EXPLOSION_GRASS_BURN_MID_BRIGHTNESS_FACTOR: f32 = 1.0;
 pub const EXPLOSION_GRASS_BURN_TIP_BRIGHTNESS_FACTOR: f32 = 1.35;
-pub const EXPLOSION_GRASS_BURN_FADE_STEPS: u32 = 60;
 
 // Particle count limits scale around the densities shipped in client.json.
 pub const EXPLOSION_REFERENCE_SHARDS_PER_METER: f32 = 40.0;
@@ -392,34 +348,6 @@ pub const WALL_LIGHT_FLICKER_THRESHOLD: f32 = 0.9;
 pub const WALL_LIGHT_FLICKER_DEPTH: f32 = 0.65; // max fraction of brightness lost in a dip
 
 // ============================================================================
-// Barriers
-// ============================================================================
-
-// Pulse alpha swings between min and max at the pulse rate. Below ~0.1 the
-// barrier almost disappears (good off-phase look); above ~0.7 it reads as
-// solid.
-pub const BARRIER_ALPHA_MIN: f32 = 0.007;
-pub const BARRIER_ALPHA_MAX: f32 = 0.015;
-pub const BARRIER_PULSE_HZ: f32 = 0.5;
-// Constant emissive brightness multiplier on the kind color — set once on
-// the material, never pulsed. Translucency still attenuates what the surface
-// contributes, so useful values are well above the bloom threshold.
-pub const BARRIER_EMISSIVE: f32 = 2000.0;
-
-// ============================================================================
-// Light bridges
-// ============================================================================
-
-// Surface alpha of a kind's material: a ghost while unpowered, near-solid
-// while powered. Alpha also scales the emissive contribution, so the
-// emissive stays far below the barrier value.
-pub const BRIDGE_ALPHA_OFF: f32 = 0.15;
-pub const BRIDGE_ALPHA_ON: f32 = 0.80;
-pub const BRIDGE_EMISSIVE: f32 = 6.0;
-// Time constant of the alpha ease between the two levels.
-pub const BRIDGE_FADE_SECS: f32 = 0.25;
-
-// ============================================================================
 // Rain
 // ============================================================================
 // Presentation of the server-scheduled rain: how a given intensity looks.
@@ -441,15 +369,15 @@ pub const RAIN_SPLASH_RADIUS: f32 = 0.15;
 pub const RAIN_SPLASH_HEIGHT: f32 = 0.2;
 
 // ============================================================================
-// Sun / Moon Disc
+// Celestial Disc
 // ============================================================================
 // Emissive tint of the celestial disc: golden sunlight at bright, cool
 // blue moonlight below. Deliberately strong — the disc is bright (tonemap
 // pulls it toward white) and the level's `saturation` grading mutes color
 // further, so subtle tints read as plain white in game.
 
-pub const SUN_DISC_COLOR: Color = Color::linear_rgb(1.0, 0.85, 0.6);
-pub const MOON_DISC_COLOR: Color = Color::linear_rgb(0.5, 0.72, 1.0);
+pub const CELESTIAL_DISC_SUN_COLOR: Color = Color::linear_rgb(1.0, 0.85, 0.6);
+pub const CELESTIAL_DISC_MOON_COLOR: Color = Color::linear_rgb(0.5, 0.72, 1.0);
 
 // ============================================================================
 // Grass Wind
@@ -507,6 +435,10 @@ pub const LASER_AIM_HEIGHT_FRACTION: f32 = 0.6;
 pub const LADDER_RAIL_HALF_THICKNESS: f32 = 0.055;
 pub const LADDER_RUNG_HALF_THICKNESS: f32 = 0.04;
 pub const LADDER_RUNG_SPACING: f32 = 0.5;
+
+// ============================================================================
+// Settings Menu
+// ============================================================================
 
 // Settings-menu colors only — dimensions live in `client.json::hud.settings_menu`.
 pub const SETTINGS_BACKDROP_COLOR: Color = QUEST_ENTRY_BG_COLOR;

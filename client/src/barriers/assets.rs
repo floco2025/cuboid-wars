@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 
 use crate::{
+    config::BarrierVfxConfig,
     constants::*,
     items::{item_symbol_mesh, pickup_material},
     map::{FieldMaterials, FieldMeshes},
@@ -47,10 +48,15 @@ pub fn build_barrier_assets(
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
     kinds: &[KindDef],
+    config: BarrierVfxConfig,
     pickup_glow: f32,
 ) -> BarrierAssets {
     let field_meshes = FieldMeshes::new(meshes);
-    let key_mesh = meshes.add(item_symbol_mesh(ItemType::Key(BarrierKindId(0)), KEY_SIZE, KEY_DEPTH));
+    let key_mesh = meshes.add(item_symbol_mesh(
+        ItemType::Key(BarrierKindId(0)),
+        ITEM_KEY_SIZE,
+        ITEM_KEY_DEPTH,
+    ));
 
     let mut fields = Vec::with_capacity(kinds.len());
     let mut base_colors = Vec::with_capacity(kinds.len());
@@ -60,8 +66,8 @@ pub fn build_barrier_assets(
         fields.push(FieldMaterials::new(
             materials,
             color,
-            BARRIER_ALPHA_MAX,
-            BARRIER_EMISSIVE,
+            config.opacity,
+            config.emissive_brightness,
         ));
         key_materials.push(materials.add(pickup_material(color, pickup_glow)));
         base_colors.push(color);
@@ -95,7 +101,12 @@ mod tests {
             id: "red".into(),
             color: HexColor([255, 0, 0]),
         }];
-        let assets = build_barrier_assets(&mut meshes, &mut materials, &kinds, 3.0);
+        let config = BarrierVfxConfig {
+            emissive_brightness: 7.0,
+            opacity: 0.25,
+            ..default()
+        };
+        let assets = build_barrier_assets(&mut meshes, &mut materials, &kinds, config, 3.0);
         let mesh = meshes.get(&assets.meshes.panel).expect("barrier mesh missing");
         let positions = mesh
             .attribute(Mesh::ATTRIBUTE_POSITION)
@@ -116,7 +127,7 @@ mod tests {
             .and_then(|a| a.as_float3())
             .expect("key mesh positions missing");
         assert!(positions.iter().all(|p| {
-            p[0].abs() <= KEY_SIZE / 2.0 && p[1].abs() <= KEY_SIZE / 2.0 && p[2].abs() == KEY_DEPTH / 2.0
+            p[0].abs() <= ITEM_KEY_SIZE / 2.0 && p[1].abs() <= ITEM_KEY_SIZE / 2.0 && p[2].abs() == ITEM_KEY_DEPTH / 2.0
         }));
 
         let key_material = materials
@@ -131,6 +142,7 @@ mod tests {
         assert!(material.double_sided);
         assert_eq!(material.cull_mode, None);
         assert_eq!(material.alpha_mode, AlphaMode::Blend);
-        assert_eq!(material.base_color.alpha(), BARRIER_ALPHA_MAX);
+        assert_eq!(material.base_color.alpha(), config.opacity);
+        assert_eq!(material.emissive, LinearRgba::rgb(config.emissive_brightness, 0.0, 0.0));
     }
 }

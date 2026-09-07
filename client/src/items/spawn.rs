@@ -59,7 +59,7 @@ pub fn setup_item_assets(
     mut materials: ResMut<Assets<StandardMaterial>>,
     client_settings: Res<ClientSettings>,
 ) {
-    let glow = client_settings.vfx.pickup_emissive_brightness;
+    let glow = client_settings.vfx.pickups.emissive_brightness;
     let coin = CoinAssets::new(&mut meshes, &mut materials, glow);
     let mut build_power_up = |item_type: ItemType| -> Handle<StandardMaterial> {
         materials.add(pickup_material(item_type_color(item_type), glow))

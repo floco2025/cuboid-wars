@@ -1,4 +1,8 @@
-use crate::constants::PORTAL_SURFACE_TIE_EPSILON;
+// Exhausting this per-tick bounce/portal-hop budget leaves the projectile at its last validated position.
+pub const PROJECTILE_EVENT_LIMIT: usize = 8;
+
+// A portal crossing wins a near-simultaneous bounce against the portal's backing surface.
+const PORTAL_SURFACE_TIE_EPSILON: f32 = 0.01;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProjectileEvent {

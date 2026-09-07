@@ -1,6 +1,7 @@
 use super::*;
-use crate::constants::{
-    LADDER_BASE_OVERSHOOT, LADDER_FUNNEL_GAIN, LADDER_RAIL_INSET, LADDER_STANDOFF_CLEARANCE, PHYSICS_EPSILON,
+use crate::{
+    constants::{LADDER_BASE_OVERSHOOT, LADDER_FUNNEL_GAIN, LADDER_RAIL_INSET, LADDER_STANDOFF_CLEARANCE},
+    math::PHYSICS_EPSILON,
 };
 
 // Where the plane clamp holds the player against `test_ladder`, measured

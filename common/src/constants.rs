@@ -18,13 +18,6 @@ pub const BARRIER_THICKNESS_FRACTION: f32 = 1.0 / 6.0;
 // Slab thickness of a light bridge, as a fraction of the floor thickness.
 pub const BRIDGE_THICKNESS_FRACTION: f32 = 0.25;
 
-// Carriers. How far above a carrier's surface a body's feet may rest and
-// still ride it (`supporting_carrier`); the ground snap leaves them closer.
-pub const CARRIER_RIDE_TOLERANCE: f32 = 0.05;
-// Surfaces within this of each other under the feet are coincident; the
-// cast's depth noise is about a millionth of a meter.
-pub const CARRIER_SURFACE_TIE_EPSILON: f32 = 0.01;
-
 // Ladders. Freestanding climbable elements anchored on grid edges. One-sided:
 // the rail side (front) climbs and fences; the back is passed through. No
 // Rapier collider — the character step queries the derived volumes directly.
@@ -49,10 +42,6 @@ pub const LADDER_RAIL_INSET: f32 = 0.22;
 // the ladder. Face-based (half extent along the plane normal + this), not
 // center-based: the collider is wider than it is deep.
 pub const LADDER_STANDOFF_CLEARANCE: f32 = 0.05;
-// How far the blocking band reaches from the plane, on both sides.
-// Generous enough to cover any character's hold distance, so the fence
-// clamp can't oscillate at the band's outer boundary.
-pub const LADDER_BAND_DEPTH: f32 = 1.0;
 // A move must point mostly INTO the ladder face to start a climb: its
 // into-face component must be at least this fraction of the whole horizontal
 // move (0.5 ≈ within 60° of straight-in). Keeps a grazing walk past a ladder
@@ -95,13 +84,6 @@ pub const TICK_SECS: f32 = 1.0 / TICK_HZ as f32;
 pub const TICK_DURATION: Duration = Duration::from_nanos(1_000_000_000 / TICK_HZ as u64);
 
 // ============================================================================
-// Physics
-// ============================================================================
-
-// Small value for floating-point comparisons (near-zero checks, division guards).
-pub const PHYSICS_EPSILON: f32 = 1e-6;
-
-// ============================================================================
 // Characters
 // ============================================================================
 
@@ -121,12 +103,6 @@ pub const CHARACTER_GROUND_SNAP_DISTANCE: f32 = 0.5;
 // geometry it touches; a body closer than this to a carrier is inside it.
 pub const CHARACTER_CONTACT_OFFSET: f32 = 0.01;
 
-// Inside this fraction of the blast radius the blast is at full strength;
-// past it, strength falls off quadratically to zero at the rim (closer to
-// real overpressure decay than a straight lerp — point blank is decisively
-// worse than a rim graze).
-pub const EXPLOSION_BLAST_CORE_FRACTION: f32 = 0.25;
-
 // Maximum low ledge height the Rapier character controller may auto-step over.
 pub const CHARACTER_STEP_HEIGHT: f32 = 0.2;
 
@@ -139,6 +115,16 @@ pub const CHARACTER_STEP_MIN_WIDTH: f32 = 0.2;
 // still resting on an edge sliver) is pushed off its support. Below walk
 // speed so player input can always override it and walk back on.
 pub const CHARACTER_PERCH_SLIDE_SPEED: f32 = 3.0; // m/s
+
+// ============================================================================
+// Explosions
+// ============================================================================
+
+// Inside this fraction of the blast radius the blast is at full strength;
+// past it, strength falls off quadratically to zero at the rim (closer to
+// real overpressure decay than a straight lerp — point blank is decisively
+// worse than a rim graze).
+pub const EXPLOSION_BLAST_CORE_FRACTION: f32 = 0.25;
 
 // ============================================================================
 // Missiles
@@ -189,20 +175,6 @@ pub const PORTAL_LIGHT_CLEARANCE: f32 = 0.4;
 pub const PORTAL_PLATE_CLEARANCE: f32 = 1.2;
 // A fixture farther than this from the aperture plane cannot overlap it.
 pub const PORTAL_FIXTURE_PLANE_DEPTH: f32 = 0.5;
-pub const PORTAL_PROJECTILE_EXIT_STANDOFF: f32 = 0.02;
-// Above this |normal.y| world-up has no usable in-plane projection and the
-// placement yaw orients the aperture frame instead.
-pub const PORTAL_UP_DEGENERACY_LIMIT: f32 = 0.99;
-// How far a collider may poke past a portal's surface plane and still count
-// as flush backing; coplanar grid faces differ by float noise only.
-pub const PORTAL_BACKING_FLUSH_EPSILON: f32 = 0.02;
-// A projectile's portal crossing and its bounce off the portal's own surface
-// register at nearly the same time of impact; within this fraction-of-tick
-// tie the portal wins.
-pub const PORTAL_SURFACE_TIE_EPSILON: f32 = 0.01;
-// Bounds chained bounces and portal hops inside one projectile tick. When the
-// budget is exhausted, the projectile stays at its last validated position.
-pub const PROJECTILE_EVENT_LIMIT: usize = 8;
 // Blast knockback rotated through a portal keeps the explosion speed cap.
 pub const PORTAL_KNOCKBACK_CARRY_FACTOR: f32 = 1.5;
 
@@ -213,5 +185,5 @@ pub const PORTAL_KNOCKBACK_CARRY_FACTOR: f32 = 1.5;
 // Character caps on a console line, applied by the client while typing and
 // by the server on receipt. Commands get more room than chat: `/light`
 // alone takes three arguments.
-pub const CHAT_MAX_CHARS: usize = 128;
-pub const COMMAND_MAX_CHARS: usize = 256;
+pub const CONSOLE_CHAT_MAX_CHARS: usize = 128;
+pub const CONSOLE_COMMAND_MAX_CHARS: usize = 256;

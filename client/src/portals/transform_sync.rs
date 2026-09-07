@@ -1,7 +1,9 @@
 use bevy::prelude::*;
 
-use super::{PortalMap, spawn::PortalSurface};
-use crate::constants::PORTAL_SURFACE_OFFSET;
+use super::{
+    PortalMap,
+    spawn::{PORTAL_SURFACE_OFFSET, PortalSurface},
+};
 use common::{map::Carriers, physics::PortalFrame};
 
 // Every render frame, place each disc of an anchored portal where its tile

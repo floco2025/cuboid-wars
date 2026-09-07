@@ -1,5 +1,13 @@
 use bevy::prelude::*;
 
+// Layer 0 contains the shared world geometry visible from every scene camera.
+pub(crate) const RENDER_LAYER_MAIN_VIEW: usize = 1;
+pub(crate) const RENDER_LAYER_LOCAL_PLAYER: usize = 2;
+pub(crate) const RENDER_LAYER_REARVIEW: usize = 3;
+// Billboards face the main camera, so other views must hide them.
+pub(crate) const RENDER_LAYER_CHARACTER_LABEL: usize = 4;
+pub(crate) const RENDER_LAYER_PORTAL_VIEW_START: usize = 5;
+
 // Marker for the primary 3D camera (first-person / top-down view of the game world).
 #[derive(Component)]
 pub struct MainCameraMarker;

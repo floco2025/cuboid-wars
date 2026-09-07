@@ -3,7 +3,9 @@ use std::collections::HashMap;
 
 use common::protocol::{BarrierKindId, Player, PlayerId, Position, PowerUpKind, SPlayerStatus, sequence_is_newer};
 
-use crate::constants::{COMMITTED_POSITION_RING_LEN, HOP_DISPUTE_SLACK_TICKS};
+use crate::constants::RECON_PLAYER_HOP_DISPUTE_SLACK_TICKS;
+
+const COMMITTED_POSITION_RING_LEN: usize = 64;
 
 // My player ID assigned by the server.
 #[derive(Resource)]
@@ -74,7 +76,7 @@ impl PlayerInfo {
     // before our own crossing is from the other side by right and is only
     // skipped; one from at or after it without the crossing, or one carrying
     // a crossing we never made, is evidence of a misprediction, and evidence
-    // outlasting `HOP_DISPUTE_SLACK_TICKS` settles for the server, whose
+    // outlasting `RECON_PLAYER_HOP_DISPUTE_SLACK_TICKS` settles for the server, whose
     // count and tick we adopt. Nothing settles until `TickSync` has
     // measured the clock: under the rough seed `hop_tick` sits a round trip
     // early.
@@ -88,7 +90,7 @@ impl PlayerInfo {
             return CrossingVerdict::Skipped;
         }
         let since = *self.disputed_since.get_or_insert(tick);
-        if tick.wrapping_sub(since) < HOP_DISPUTE_SLACK_TICKS {
+        if tick.wrapping_sub(since) < RECON_PLAYER_HOP_DISPUTE_SLACK_TICKS {
             return CrossingVerdict::Skipped;
         }
         self.hops = hops;
@@ -309,7 +311,7 @@ mod tests {
     #[test]
     fn a_missing_crossing_settles_after_the_slack() {
         let mut info = crossing_info(3, 100);
-        for tick in 100..100 + HOP_DISPUTE_SLACK_TICKS {
+        for tick in 100..100 + RECON_PLAYER_HOP_DISPUTE_SLACK_TICKS {
             assert_eq!(
                 info.judge_crossing(tick, 2, true),
                 CrossingVerdict::Skipped,
@@ -318,7 +320,7 @@ mod tests {
         }
         assert_eq!(info.disputed_since, Some(100));
 
-        let settled = 100 + HOP_DISPUTE_SLACK_TICKS;
+        let settled = 100 + RECON_PLAYER_HOP_DISPUTE_SLACK_TICKS;
         assert_eq!(info.judge_crossing(settled, 2, true), CrossingVerdict::Settled);
         assert_eq!(info.hops, 2);
         assert_eq!(info.hop_tick, settled);
@@ -332,7 +334,7 @@ mod tests {
         assert_eq!(info.judge_crossing(200, 4, true), CrossingVerdict::Skipped);
         assert_eq!(info.disputed_since, Some(200));
         assert_eq!(
-            info.judge_crossing(200 + HOP_DISPUTE_SLACK_TICKS, 4, true),
+            info.judge_crossing(200 + RECON_PLAYER_HOP_DISPUTE_SLACK_TICKS, 4, true),
             CrossingVerdict::Settled
         );
         assert_eq!(info.hops, 4);

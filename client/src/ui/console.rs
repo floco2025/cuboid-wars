@@ -15,7 +15,7 @@ use crate::{
     network::{ClientToServer, ClientToServerChannel},
 };
 use common::{
-    constants::{CHAT_MAX_CHARS, COMMAND_MAX_CHARS},
+    constants::{CONSOLE_CHAT_MAX_CHARS, CONSOLE_COMMAND_MAX_CHARS},
     protocol::{CAdmin, CChat, ClientMessage},
 };
 
@@ -99,9 +99,9 @@ impl ConsoleState {
     // A command gets the server's command budget, chat the chat one.
     fn max_chars(&self) -> usize {
         if self.buffer.starts_with('/') {
-            COMMAND_MAX_CHARS
+            CONSOLE_COMMAND_MAX_CHARS
         } else {
-            CHAT_MAX_CHARS
+            CONSOLE_CHAT_MAX_CHARS
         }
     }
 
@@ -335,12 +335,12 @@ mod tests {
     #[test]
     fn typing_caps_chat_and_commands_by_their_own_budgets() {
         let mut console = ConsoleState::default();
-        console.type_text(&"x".repeat(COMMAND_MAX_CHARS));
-        assert_eq!(console.buffer.chars().count(), CHAT_MAX_CHARS);
+        console.type_text(&"x".repeat(CONSOLE_COMMAND_MAX_CHARS));
+        assert_eq!(console.buffer.chars().count(), CONSOLE_CHAT_MAX_CHARS);
 
         let mut console = ConsoleState::default();
-        console.type_text(&format!("/{}", "x".repeat(COMMAND_MAX_CHARS)));
-        assert_eq!(console.buffer.chars().count(), COMMAND_MAX_CHARS);
+        console.type_text(&format!("/{}", "x".repeat(CONSOLE_COMMAND_MAX_CHARS)));
+        assert_eq!(console.buffer.chars().count(), CONSOLE_COMMAND_MAX_CHARS);
     }
 
     #[test]

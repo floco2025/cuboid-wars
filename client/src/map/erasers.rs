@@ -3,7 +3,7 @@ use common::protocol::{MapLayout, MapSettings};
 
 use crate::{
     carriers::{CarrierEntities, CarrierStoreys},
-    constants::{BARRIER_ALPHA_MAX, BARRIER_EMISSIVE},
+    config::ClientSettings,
 };
 
 use super::{FieldMaterials, FieldMeshes, VisualField, merge_fields, spawn_field_visual};
@@ -15,6 +15,7 @@ pub fn erasers_spawn_system(
     mut commands: Commands,
     layout: Res<MapLayout>,
     settings: Res<MapSettings>,
+    client_settings: Res<ClientSettings>,
     carriers: Res<CarrierEntities>,
     storeys: Res<CarrierStoreys>,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -31,11 +32,12 @@ pub fn erasers_spawn_system(
         return;
     }
     let meshes = FieldMeshes::new(&mut meshes);
+    let config = client_settings.vfx.erasers;
     let materials = FieldMaterials::new(
         &mut materials,
         Color::srgb(0.7, 0.4, 1.0),
-        BARRIER_ALPHA_MAX,
-        BARRIER_EMISSIVE,
+        config.opacity,
+        config.emissive_brightness,
     );
     let floor_thickness = settings.geometry.floor_thickness;
     let fields = merge_fields(

@@ -1,10 +1,10 @@
 use bevy::{ecs::system::SystemParam, prelude::*};
 use common::{
     config::GameplayConfig,
-    constants::{PHYSICS_EPSILON, PROJECTILE_EVENT_LIMIT},
+    math::PHYSICS_EPSILON,
     physics::{
-        CollisionWorld, PortalSet, ProjectileEvent, ProjectileMotion, earliest_projectile_event,
-        projectile_overlaps_character,
+        CollisionWorld, PROJECTILE_EVENT_LIMIT, PortalSet, ProjectileEvent, ProjectileMotion,
+        earliest_projectile_event, projectile_overlaps_character,
     },
     protocol::{
         ActorId, ActorMarker, FaceYaw, MapSettings, PlateState, PlayerId, PlayerMarker, Position, ProjectileMarker,

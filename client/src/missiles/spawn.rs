@@ -33,7 +33,7 @@ pub struct MissileAssets {
 impl FromWorld for MissileAssets {
     fn from_world(world: &mut World) -> Self {
         let brightness = PROJECTILE_BODY_EMISSIVE;
-        let pickup_glow = world.resource::<ClientSettings>().vfx.pickup_emissive_brightness;
+        let pickup_glow = world.resource::<ClientSettings>().vfx.pickups.emissive_brightness;
         let mut meshes = world.resource_mut::<Assets<Mesh>>();
         let body_mesh = meshes.add(Cylinder::new(MISSILE_BODY_RADIUS, MISSILE_BODY_LENGTH));
         let nose_mesh = meshes.add(Cone {

@@ -1,6 +1,9 @@
 use bevy_math::Vec3;
 
-use crate::{constants::PORTAL_UP_DEGENERACY_LIMIT, map::Carriers, math::direction_from_yaw_pitch, protocol::Portal};
+use crate::{map::Carriers, math::direction_from_yaw_pitch, protocol::Portal};
+
+// Near-vertical normals need placement yaw because world-up has no usable in-plane projection.
+pub(super) const PORTAL_UP_DEGENERACY_LIMIT: f32 = 0.99;
 
 // Orthonormal aperture frame of one portal end: `normal` points out of the
 // surface into the room, `up`/`right` span the plane with (right, up, normal)

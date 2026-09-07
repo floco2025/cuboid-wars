@@ -1,5 +1,5 @@
 use crate::map::light_preset_from_str;
-use common::constants::COMMAND_MAX_CHARS;
+use common::constants::CONSOLE_COMMAND_MAX_CHARS;
 
 pub(super) const HELP_TEXT: &str = "/help\n/weather [rain|clear|auto]\n/light [bright|dim|dark|auto]\n/light <0..1>|<from> <to> <0..1>\n/god [on|off]\n/kill <name>|@a\n/killall [kind]\n/respawn [kind]\n/heal [name|@a]\n/give keys|key <color>\n/give powerups|powerup <type>\n/give missiles\n/firework\n/quest\n/quest <id> [name|@a]\n/kick <name>";
 
@@ -51,7 +51,7 @@ fn parse_unit_fraction(value: &str) -> Option<f32> {
 }
 
 pub(super) fn parse_admin_command(input: &str) -> AdminCommand {
-    let input: String = input.chars().take(COMMAND_MAX_CHARS).collect();
+    let input: String = input.chars().take(CONSOLE_COMMAND_MAX_CHARS).collect();
     let input = input.trim();
     let Some(command) = input.strip_prefix('/') else {
         return AdminCommand::NotACommand;

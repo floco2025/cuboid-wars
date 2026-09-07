@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use crate::{
-    constants::{BRIDGE_ALPHA_OFF, BRIDGE_EMISSIVE},
+    config::LightBridgeVfxConfig,
     map::{FieldMaterials, FieldMeshes},
     vfx::srgb_color,
 };
@@ -35,6 +35,7 @@ pub fn build_bridge_assets(
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
     kinds: &[KindDef],
+    config: LightBridgeVfxConfig,
 ) -> BridgeAssets {
     let meshes = FieldMeshes::new(meshes);
 
@@ -42,7 +43,12 @@ pub fn build_bridge_assets(
     let mut base_colors = Vec::with_capacity(kinds.len());
     for kind in kinds {
         let color = srgb_color(kind.color);
-        handles.push(FieldMaterials::new(materials, color, BRIDGE_ALPHA_OFF, BRIDGE_EMISSIVE));
+        handles.push(FieldMaterials::new(
+            materials,
+            color,
+            config.unpowered_opacity,
+            config.emissive_brightness,
+        ));
         base_colors.push(color);
     }
     assert_eq!(handles.len(), base_colors.len());
@@ -68,7 +74,12 @@ mod tests {
             id: "blue".into(),
             color: HexColor([0, 0, 255]),
         }];
-        let assets = build_bridge_assets(&mut meshes, &mut materials, &kinds);
+        let config = LightBridgeVfxConfig {
+            emissive_brightness: 4.0,
+            unpowered_opacity: 0.3,
+            ..default()
+        };
+        let assets = build_bridge_assets(&mut meshes, &mut materials, &kinds, config);
         let mesh = meshes.get(&assets.meshes.panel).expect("bridge mesh missing");
         let positions = mesh
             .attribute(Mesh::ATTRIBUTE_POSITION)
@@ -89,7 +100,8 @@ mod tests {
         assert!(material.double_sided);
         assert_eq!(material.cull_mode, None);
         assert_eq!(material.alpha_mode, AlphaMode::Blend);
-        assert_eq!(material.base_color.alpha(), BRIDGE_ALPHA_OFF);
+        assert_eq!(material.base_color.alpha(), config.unpowered_opacity);
+        assert_eq!(material.emissive, LinearRgba::rgb(0.0, 0.0, config.emissive_brightness));
         let frame = materials
             .get(&assets.fields[0].frame)
             .expect("bridge frame material missing");

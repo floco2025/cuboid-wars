@@ -1388,9 +1388,11 @@ fn every_shipped_ladder_ascends_at_least_one_storey() {
 fn every_shipped_carrier_carries_a_standing_player_through_its_cycle() {
     use bevy::math::Vec3;
     use common::{
-        constants::{CARRIER_RIDE_TOLERANCE, TICK_SECS},
+        constants::TICK_SECS,
         map::Carriers,
-        physics::{CharacterEnvironment, CharacterStep, CollisionWorld, step_character_movement},
+        physics::{
+            CARRIER_RIDE_TOLERANCE, CharacterEnvironment, CharacterStep, CollisionWorld, step_character_movement,
+        },
         protocol::{CarrierId, Position},
     };
 

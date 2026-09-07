@@ -10,7 +10,7 @@ use crate::{
 };
 use common::{
     config::GameplayConfig,
-    constants::CHAT_MAX_CHARS,
+    constants::CONSOLE_CHAT_MAX_CHARS,
     map::Carriers,
     physics::{CharacterVerticalVelocity, CollisionWorld, player_jump_velocity},
     protocol::*,
@@ -139,7 +139,11 @@ pub(super) fn handle_chat_message(id: PlayerId, message: &CChat, players: &Playe
 
 // Chat is broadcast-amplified, so keep malformed input bounded and single-line.
 fn sanitize_chat_text(raw: &str) -> Option<String> {
-    let sanitized: String = raw.chars().filter(|c| !c.is_control()).take(CHAT_MAX_CHARS).collect();
+    let sanitized: String = raw
+        .chars()
+        .filter(|c| !c.is_control())
+        .take(CONSOLE_CHAT_MAX_CHARS)
+        .collect();
     let trimmed = sanitized.trim();
     if trimmed.is_empty() {
         None
@@ -163,7 +167,7 @@ mod tests {
             sanitize_chat_text(&long)
                 .expect("long chat missing after truncation")
                 .len(),
-            CHAT_MAX_CHARS
+            CONSOLE_CHAT_MAX_CHARS
         );
     }
 }

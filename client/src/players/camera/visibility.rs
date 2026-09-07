@@ -1,8 +1,10 @@
 use bevy::{camera::visibility::RenderLayers, prelude::*};
 
 use crate::{
-    cameras::{CameraViewMode, MainCameraMarker},
-    constants::{CHARACTER_LABEL_RENDER_LAYER, LOCAL_PLAYER_RENDER_LAYER, MAIN_VIEW_RENDER_LAYER},
+    cameras::{
+        CameraViewMode, MainCameraMarker, RENDER_LAYER_CHARACTER_LABEL, RENDER_LAYER_LOCAL_PLAYER,
+        RENDER_LAYER_MAIN_VIEW,
+    },
     players::LocalPlayerMarker,
     ui::floating_labels::CharacterLabelRenderLayerMarker,
 };
@@ -30,10 +32,10 @@ pub fn local_player_view_mode_system(
     }
 
     let mut camera_layers = RenderLayers::layer(0)
-        .with(MAIN_VIEW_RENDER_LAYER)
-        .with(CHARACTER_LABEL_RENDER_LAYER);
+        .with(RENDER_LAYER_MAIN_VIEW)
+        .with(RENDER_LAYER_CHARACTER_LABEL);
     if view_mode.is_top_down() {
-        camera_layers = camera_layers.with(LOCAL_PLAYER_RENDER_LAYER);
+        camera_layers = camera_layers.with(RENDER_LAYER_LOCAL_PLAYER);
     }
     for (marker, mut layers) in &mut main_cameras {
         if mode_changed || marker.is_added() {
@@ -66,7 +68,7 @@ pub(crate) fn local_player_render_layer_system(
             ancestor = parent.parent();
             if local_players.contains(ancestor) {
                 commands.entity(mesh).insert((
-                    RenderLayers::layer(LOCAL_PLAYER_RENDER_LAYER),
+                    RenderLayers::layer(RENDER_LAYER_LOCAL_PLAYER),
                     LocalPlayerRenderLayerMarker,
                 ));
                 break;
@@ -89,7 +91,7 @@ pub(crate) fn local_player_light_layer_system(
     >,
 ) {
     for (entity, layers) in &lights {
-        let layers = layers.cloned().unwrap_or_default().with(LOCAL_PLAYER_RENDER_LAYER);
+        let layers = layers.cloned().unwrap_or_default().with(RENDER_LAYER_LOCAL_PLAYER);
         commands.entity(entity).insert((layers, LocalPlayerLightLayerMarker));
     }
 }
@@ -117,9 +119,9 @@ mod tests {
             .entity(camera)
             .get::<RenderLayers>()
             .expect("main camera render layers missing");
-        assert!(layers.intersects(&RenderLayers::layer(MAIN_VIEW_RENDER_LAYER)));
-        assert!(layers.intersects(&RenderLayers::layer(CHARACTER_LABEL_RENDER_LAYER)));
-        assert!(!layers.intersects(&RenderLayers::layer(LOCAL_PLAYER_RENDER_LAYER)));
+        assert!(layers.intersects(&RenderLayers::layer(RENDER_LAYER_MAIN_VIEW)));
+        assert!(layers.intersects(&RenderLayers::layer(RENDER_LAYER_CHARACTER_LABEL)));
+        assert!(!layers.intersects(&RenderLayers::layer(RENDER_LAYER_LOCAL_PLAYER)));
     }
 
     #[test]
@@ -137,7 +139,7 @@ mod tests {
             .entity(camera)
             .get::<RenderLayers>()
             .expect("main camera render layers missing");
-        assert!(layers.intersects(&RenderLayers::layer(LOCAL_PLAYER_RENDER_LAYER)));
+        assert!(layers.intersects(&RenderLayers::layer(RENDER_LAYER_LOCAL_PLAYER)));
         assert_eq!(
             app.world().entity(label).get::<Visibility>(),
             Some(&Visibility::Inherited)
@@ -163,14 +165,14 @@ mod tests {
             .entity(mesh)
             .get::<RenderLayers>()
             .expect("local mesh render layers missing");
-        assert_eq!(mesh_layers, &RenderLayers::layer(LOCAL_PLAYER_RENDER_LAYER));
+        assert_eq!(mesh_layers, &RenderLayers::layer(RENDER_LAYER_LOCAL_PLAYER));
         let light_layers = app
             .world()
             .entity(light)
             .get::<RenderLayers>()
             .expect("light render layers missing");
         assert!(light_layers.intersects(&RenderLayers::layer(0)));
-        assert!(light_layers.intersects(&RenderLayers::layer(LOCAL_PLAYER_RENDER_LAYER)));
+        assert!(light_layers.intersects(&RenderLayers::layer(RENDER_LAYER_LOCAL_PLAYER)));
     }
 
     #[test]

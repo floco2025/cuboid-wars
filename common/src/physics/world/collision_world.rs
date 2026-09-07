@@ -14,7 +14,6 @@ use rapier3d::{
 
 use crate::{
     config::{CharacterPhysicsConfig, PortalShotSettings},
-    constants::PORTAL_BACKING_FLUSH_EPSILON,
     map::{CarrierPose, Carriers},
     physics::characters::{character_center, character_shape},
     protocol::{BarrierKindId, BarrierKindTable, BridgeKindId, CarrierId, MapLayout, Position},
@@ -31,6 +30,9 @@ use super::{
     ladders::LadderVolume,
     shape_cast::{ShapeCastHit, upward_surface_hit},
 };
+
+// Coplanar grid faces can protrude slightly past the portal plane through floating-point noise.
+const PORTAL_BACKING_FLUSH_EPSILON: f32 = 0.02;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct WorldSurfaceHit {

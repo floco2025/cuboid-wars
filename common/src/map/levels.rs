@@ -1,4 +1,4 @@
-use crate::{constants::PHYSICS_EPSILON, protocol::Ramp};
+use crate::{math::PHYSICS_EPSILON, protocol::Ramp};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RampAxis {

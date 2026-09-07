@@ -2,10 +2,8 @@ use bevy_math::Vec3;
 
 use crate::{
     config::CharacterPhysicsConfig,
-    constants::{
-        LADDER_CLIMB_FACING_FRACTION, LADDER_CLIMB_MIN_SPEED, LADDER_FUNNEL_GAIN, LADDER_STANDOFF_CLEARANCE,
-        PHYSICS_EPSILON,
-    },
+    constants::{LADDER_CLIMB_FACING_FRACTION, LADDER_CLIMB_MIN_SPEED, LADDER_FUNNEL_GAIN, LADDER_STANDOFF_CLEARANCE},
+    math::PHYSICS_EPSILON,
     physics::world::{CollisionWorld, LadderVolume},
     protocol::{ActorMoveIntent, Position},
 };

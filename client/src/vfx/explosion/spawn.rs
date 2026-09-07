@@ -3,8 +3,8 @@ use super::{
     assets::{BlastRadii, ExplosionAssets, shockwave_mesh},
     particles::{ExplosionVfxBudget, SurfacePlane},
     scorch::{
-        ScorchPlacement, ScorchStyle, spawn_scorch_mark, surface_cross_section_diameter, wall_scorch_diameter,
-        wall_scorch_placements,
+        EXPLOSION_SCORCH_SURFACE_OFFSET, ScorchPlacement, ScorchStyle, spawn_scorch_mark,
+        surface_cross_section_diameter, wall_scorch_diameter, wall_scorch_placements,
     },
     shards::spawn_shard_cloud,
     smoke::spawn_smoke_cloud,
@@ -18,6 +18,8 @@ use common::{
     protocol::{MapLayout, Position},
 };
 use rand::rng;
+
+const EXPLOSION_SHOCKWAVE_SURFACE_OFFSET: f32 = 0.05;
 
 #[derive(Clone, Copy)]
 struct ExplosionSpec {

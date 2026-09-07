@@ -2,10 +2,12 @@ use super::{
     mesh::{BLADE_MAX_OVERHANG, grass_cell_mesh},
     spawn::GrassCellVisual,
 };
-use crate::{config::ClientSettings, constants::EXPLOSION_GRASS_BURN_VERTICAL_TOLERANCE, vfx::ScorchOutline};
+use crate::{config::ClientSettings, vfx::ScorchOutline};
 use bevy::prelude::*;
 use common::protocol::{CarrierId, GrassCell, MapSettings};
 use std::collections::HashMap;
+
+pub(super) const EXPLOSION_GRASS_BURN_VERTICAL_TOLERANCE: f32 = 0.1;
 
 // `center` is in the carrier's frame, like the grass it burns.
 #[derive(Component, Debug, Clone, Copy, PartialEq)]

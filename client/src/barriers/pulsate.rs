@@ -1,9 +1,12 @@
-use crate::constants::{BARRIER_ALPHA_MAX, BARRIER_ALPHA_MIN, BARRIER_PULSE_HZ};
-use bevy::prelude::*;
 use std::f32::consts::TAU;
 
+use bevy::prelude::*;
+
 use super::BarrierAssets;
-use crate::{config::ClientSettings, vfx::color_with_alpha};
+use crate::{
+    config::{BarrierVfxConfig, ClientSettings},
+    vfx::color_with_alpha,
+};
 
 // Drive each kind's shared material by a sine wave on `base_color.alpha`;
 // the emissive is set once on the material and never pulsed, so the pulse
@@ -15,22 +18,48 @@ use crate::{config::ClientSettings, vfx::color_with_alpha};
 // frame regardless of map size.
 pub fn barriers_pulsate_system(
     time: Res<Time>,
-    _client_settings: Res<ClientSettings>,
+    client_settings: Res<ClientSettings>,
     barrier_assets: Res<BarrierAssets>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     let assets = barrier_assets;
-    let pulse_hz = BARRIER_PULSE_HZ;
-    let alpha_min = BARRIER_ALPHA_MIN;
-    let alpha_max = BARRIER_ALPHA_MAX;
+    let config = client_settings.vfx.barriers;
     let t = time.elapsed_secs();
     for (idx, handle) in assets.material_handles().enumerate() {
         let Some(mut mat) = materials.get_mut(handle) else {
             continue;
         };
         let phase = idx as f32 * 0.5;
-        let s = (t * pulse_hz * TAU + phase).sin() * 0.5 + 0.5;
-        let alpha = alpha_min + (alpha_max - alpha_min) * s;
+        let alpha = pulse_opacity(config, t, phase);
         mat.base_color = color_with_alpha(assets.base_colors[idx], alpha);
+    }
+}
+
+fn pulse_opacity(config: BarrierVfxConfig, time: f32, phase: f32) -> f32 {
+    let pulse = config.pulse;
+    if pulse.frequency_hz == 0.0 {
+        return config.opacity;
+    }
+    let s = (time * pulse.frequency_hz * TAU + phase).sin() * 0.5 + 0.5;
+    pulse.min_opacity + (config.opacity - pulse.min_opacity) * s
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pulse_uses_configured_range_and_frequency_and_can_be_disabled() {
+        let mut config = BarrierVfxConfig {
+            opacity: 0.6,
+            ..default()
+        };
+        config.pulse.min_opacity = 0.2;
+        config.pulse.frequency_hz = 2.0;
+        assert!((pulse_opacity(config, 0.125, 0.0) - 0.6).abs() < 1e-6);
+        assert!((pulse_opacity(config, 0.375, 0.0) - 0.2).abs() < 1e-6);
+
+        config.pulse.frequency_hz = 0.0;
+        assert_eq!(pulse_opacity(config, 0.375, 0.0), config.opacity);
     }
 }

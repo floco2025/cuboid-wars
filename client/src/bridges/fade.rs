@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use super::BridgeAssets;
 use crate::{
-    constants::{BRIDGE_ALPHA_OFF, BRIDGE_ALPHA_ON, BRIDGE_FADE_SECS},
+    config::{ClientSettings, LightBridgeVfxConfig},
     vfx::{color_with_alpha, ease_blend},
 };
 use common::protocol::{BridgeKindId, PlateState};
@@ -14,16 +14,23 @@ const BRIDGE_FADE_SNAP: f32 = 0.002;
 // `base_color.alpha` is the fade state.
 pub fn bridges_fade_system(
     time: Res<Time>,
+    client_settings: Res<ClientSettings>,
     plates: Res<PlateState>,
     bridge_assets: Res<BridgeAssets>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
+    let config = client_settings.vfx.light_bridges;
     for (idx, handle) in bridge_assets.material_handles().enumerate() {
         let kind = BridgeKindId(u16::try_from(idx).expect("bridge kind index exceeds u16"));
         let Some(alpha) = materials.get(handle).map(|material| material.base_color.alpha()) else {
             continue;
         };
-        let Some(next) = fade_step(alpha, fade_target(&plates, kind), time.delta_secs()) else {
+        let Some(next) = fade_step(
+            alpha,
+            fade_target(&plates, kind, config),
+            time.delta_secs(),
+            config.fade_secs,
+        ) else {
             continue;
         };
         // `get_mut` marks the asset modified and re-extracts it to the GPU,
@@ -34,20 +41,20 @@ pub fn bridges_fade_system(
     }
 }
 
-fn fade_target(plates: &PlateState, kind: BridgeKindId) -> f32 {
+fn fade_target(plates: &PlateState, kind: BridgeKindId, config: LightBridgeVfxConfig) -> f32 {
     if plates.powered_bridge_kinds.contains(&kind) {
-        BRIDGE_ALPHA_ON
+        config.opacity
     } else {
-        BRIDGE_ALPHA_OFF
+        config.unpowered_opacity
     }
 }
 
 // Frame-rate independent easing; `None` once settled on the target.
-fn fade_step(alpha: f32, target: f32, delta_secs: f32) -> Option<f32> {
+fn fade_step(alpha: f32, target: f32, delta_secs: f32, fade_secs: f32) -> Option<f32> {
     if (alpha - target).abs() <= f32::EPSILON {
         return None;
     }
-    let next = alpha + (target - alpha) * ease_blend(delta_secs, BRIDGE_FADE_SECS);
+    let next = alpha + (target - alpha) * ease_blend(delta_secs, fade_secs);
     Some(if (next - target).abs() < BRIDGE_FADE_SNAP {
         target
     } else {
@@ -65,30 +72,45 @@ mod tests {
             open_barrier_kinds: Vec::new(),
             powered_bridge_kinds: vec![BridgeKindId(1)],
         };
-        assert_eq!(fade_target(&plates, BridgeKindId(1)), BRIDGE_ALPHA_ON);
-        assert_eq!(fade_target(&plates, BridgeKindId(0)), BRIDGE_ALPHA_OFF);
+        let config = LightBridgeVfxConfig {
+            opacity: 0.6,
+            unpowered_opacity: 0.1,
+            ..default()
+        };
+        assert_eq!(fade_target(&plates, BridgeKindId(1), config), config.opacity);
+        assert_eq!(fade_target(&plates, BridgeKindId(0), config), config.unpowered_opacity);
     }
 
     #[test]
     fn fade_step_approaches_and_settles_then_stops_writing() {
-        let mut alpha = BRIDGE_ALPHA_OFF;
-        let first = fade_step(alpha, BRIDGE_ALPHA_ON, 0.05).expect("first step reports settled");
-        assert!(first > alpha && first < BRIDGE_ALPHA_ON);
+        let config = LightBridgeVfxConfig::default();
+        let mut alpha = config.unpowered_opacity;
+        let first = fade_step(alpha, config.opacity, 0.05, config.fade_secs).expect("first step reports settled");
+        assert!(first > alpha && first < config.opacity);
         alpha = first;
         for _ in 0..200 {
-            match fade_step(alpha, BRIDGE_ALPHA_ON, 0.05) {
+            match fade_step(alpha, config.opacity, 0.05, config.fade_secs) {
                 Some(next) => alpha = next,
                 None => break,
             }
         }
-        assert_eq!(alpha, BRIDGE_ALPHA_ON);
-        assert_eq!(fade_step(alpha, BRIDGE_ALPHA_ON, 0.05), None);
+        assert_eq!(alpha, config.opacity);
+        assert_eq!(fade_step(alpha, config.opacity, 0.05, config.fade_secs), None);
     }
 
     #[test]
     fn material_alpha_round_trips_through_color_with_alpha() {
-        let stored = color_with_alpha(Color::srgb(0.2, 0.6, 0.9), BRIDGE_ALPHA_ON);
-        assert_eq!(stored.alpha(), BRIDGE_ALPHA_ON);
-        assert_eq!(fade_step(stored.alpha(), BRIDGE_ALPHA_ON, 0.05), None);
+        let config = LightBridgeVfxConfig::default();
+        let stored = color_with_alpha(Color::srgb(0.2, 0.6, 0.9), config.opacity);
+        assert_eq!(stored.alpha(), config.opacity);
+        assert_eq!(fade_step(stored.alpha(), config.opacity, 0.05, config.fade_secs), None);
+    }
+
+    #[test]
+    fn fade_duration_controls_how_quickly_opacity_changes() {
+        let fast = fade_step(0.1, 0.9, 0.1, 0.1).expect("fast fade reports settled");
+        let slow = fade_step(0.1, 0.9, 0.1, 1.0).expect("slow fade reports settled");
+        assert!(fast > slow);
+        assert!((fast - (0.1 + 0.8 * (1.0 - (-1.0_f32).exp()))).abs() < 1e-6);
     }
 }

@@ -1,7 +1,7 @@
 use bevy_ecs::prelude::*;
 use bevy_math::Vec3;
 
-use crate::{config::CharacterPhysicsConfig, constants::PHYSICS_EPSILON, protocol::Position};
+use crate::{config::CharacterPhysicsConfig, math::PHYSICS_EPSILON, protocol::Position};
 
 // Component attached to character entities tracking persistent gravity-axis
 // velocity. X/Z velocity is derived from intent each tick. Running on a ramp can

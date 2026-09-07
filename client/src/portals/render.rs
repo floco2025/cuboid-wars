@@ -20,10 +20,10 @@ use super::{
 };
 use crate::{
     cameras::{
-        MainCameraMarker, RearviewCameraMarker, SceneRenderTarget, SkyDiscRenderLayer, scene_render_target_system,
+        MainCameraMarker, RENDER_LAYER_LOCAL_PLAYER, RENDER_LAYER_PORTAL_VIEW_START, RENDER_LAYER_REARVIEW,
+        RearviewCameraMarker, SceneRenderTarget, SkyDiscRenderLayer, scene_render_target_system,
     },
     config::ClientSettings,
-    constants::{LOCAL_PLAYER_RENDER_LAYER, REARVIEW_RENDER_LAYER},
     players::{local_player_camera_sync_system, local_player_rearview_viewport_system},
     schedule::ClientSet,
 };
@@ -33,8 +33,7 @@ use common::{
     protocol::{Portal, PortalEnd, PortalPairId},
 };
 
-const FIRST_RECURSIVE_RENDER_LAYER: usize = 5;
-const MAX_PORTAL_VIEW_CAMERAS: usize = 64 - FIRST_RECURSIVE_RENDER_LAYER;
+const MAX_PORTAL_VIEW_CAMERAS: usize = 64 - RENDER_LAYER_PORTAL_VIEW_START;
 const MAX_PORTAL_REPLICAS: usize = 512;
 // Texture sizes per axis; a view only ever needs the presenter's pixels.
 const PORTAL_VIEW_AXIS_SIZES: [u32; 6] = [64, 128, 256, 512, 1024, 2048];
@@ -222,7 +221,7 @@ fn rebuild_portal_views_system(
                 over_budget = true;
                 break;
             }
-            let replica = spawn_portal_visual(&mut commands, &portal_assets, portal, &carriers, REARVIEW_RENDER_LAYER);
+            let replica = spawn_portal_visual(&mut commands, &portal_assets, portal, &carriers, RENDER_LAYER_REARVIEW);
             state.spawned.push(replica);
             rearview_surfaces.insert((portal.pair, portal.end), replica);
             replica_count += 1;
@@ -258,7 +257,7 @@ fn rebuild_portal_views_system(
     let mut camera_count = 0;
     while let Some(view) = pending.pop_front() {
         let hops = view.chain.len() - 1;
-        let child_layer = FIRST_RECURSIVE_RENDER_LAYER + camera_count;
+        let child_layer = RENDER_LAYER_PORTAL_VIEW_START + camera_count;
         // Bucket images stay immutable because each is both a camera target and a sampled portal texture.
         let target = create_portal_view_target(&mut images, &mut materials, UVec2::splat(PORTAL_VIEW_AXIS_SIZES[0]));
         let initial_image = target.image.clone();
@@ -282,7 +281,7 @@ fn rebuild_portal_views_system(
             Tonemapping::None,
             RenderTarget::Image(initial_image.into()),
             Projection::custom(PortalProjection::default()),
-            RenderLayers::layer(0).with(LOCAL_PLAYER_RENDER_LAYER).with(child_layer),
+            RenderLayers::layer(0).with(RENDER_LAYER_LOCAL_PLAYER).with(child_layer),
             msaa,
             Transform::default(),
         ));
@@ -1028,6 +1027,6 @@ mod tests {
 
     #[test]
     fn recursive_camera_layers_stay_within_render_layer_capacity() {
-        assert_eq!(FIRST_RECURSIVE_RENDER_LAYER + MAX_PORTAL_VIEW_CAMERAS - 1, 63);
+        assert_eq!(RENDER_LAYER_PORTAL_VIEW_START + MAX_PORTAL_VIEW_CAMERAS - 1, 63);
     }
 }

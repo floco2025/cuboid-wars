@@ -6,9 +6,10 @@ use crate::{
     config::{AssetSet, ClientSettings},
     constants::{
         LABEL_PLAYER_BAR_WIDTH, LABEL_PLAYER_NAME_GAP, LABEL_PLAYER_TEXTURE_HEIGHT, LABEL_PLAYER_TEXTURE_WIDTH,
-        LABEL_RENDER_FRAMES,
     },
-    ui::floating_labels::{LabelCamera, setup_label_texture, spawn_floating_health_bar, spawn_floating_player_label},
+    ui::floating_labels::{
+        LABEL_RENDER_FRAMES, LabelCamera, setup_label_texture, spawn_floating_health_bar, spawn_floating_player_label,
+    },
 };
 use common::{
     config::GameplayConfig,

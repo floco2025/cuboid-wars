@@ -14,8 +14,9 @@ use super::{
 };
 use crate::{
     config::CharacterPhysicsConfig,
-    constants::{CHARACTER_CONTACT_OFFSET, PHYSICS_EPSILON},
+    constants::CHARACTER_CONTACT_OFFSET,
     map::Carriers,
+    math::PHYSICS_EPSILON,
     physics::characters::{character_center, character_shape},
     protocol::{BarrierKindId, Position},
 };

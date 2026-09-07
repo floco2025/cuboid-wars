@@ -12,7 +12,7 @@ use crate::{
 };
 use common::{
     config::GameplayConfig,
-    constants::PHYSICS_EPSILON,
+    math::PHYSICS_EPSILON,
     physics::{CollisionWorld, character_center},
     protocol::{ActorId, ActorMarker, Health, HitKind, PlayerMarker, Position, SPlayerHit, ServerMessage},
 };

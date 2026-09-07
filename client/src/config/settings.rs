@@ -38,7 +38,7 @@ pub struct LightingConfig {
 }
 
 // Bright is daylight: the disc is the sun, always full. All raw values;
-// disc tints are `SUN_DISC_COLOR`/`MOON_DISC_COLOR` in `constants.rs`.
+// disc tints are `CELESTIAL_DISC_SUN_COLOR`/`CELESTIAL_DISC_MOON_COLOR` in `constants.rs`.
 #[derive(Debug, Clone, Copy, Deserialize)]
 pub struct SunLighting {
     // `Skybox::brightness` (same scale as the per-skybox `brightness` in

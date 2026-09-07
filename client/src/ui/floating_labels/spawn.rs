@@ -5,10 +5,16 @@ use bevy::{
 };
 use common::{health::health_ratio, protocol::Health};
 
-use crate::constants::{
-    CHARACTER_LABEL_RENDER_LAYER, HEALTH_BAR_FILL_COLOR, HEALTH_BAR_FILL_Z_OFFSET, HEALTH_BAR_TRACK_COLOR,
-    LABEL_BACKGROUND_COLOR, LABEL_PLAYER_MESH_WIDTH, LABEL_TEXT_COLOR, LABEL_TEXT_PADDING_X, LABEL_TEXT_PADDING_Y,
+use crate::{
+    cameras::RENDER_LAYER_CHARACTER_LABEL,
+    constants::{
+        HEALTH_BAR_FILL_COLOR, HEALTH_BAR_TRACK_COLOR, LABEL_BACKGROUND_COLOR, LABEL_PLAYER_MESH_WIDTH,
+        LABEL_TEXT_COLOR, LABEL_TEXT_PADDING_X, LABEL_TEXT_PADDING_Y,
+    },
 };
+
+// Keep the opaque fill in front of its translucent track.
+const HEALTH_BAR_FILL_Z_OFFSET: f32 = 0.005;
 
 // Marker for a billboarded label quad in world space — a player name's textured
 // rectangle or a health bar's track quad. Queried by
@@ -115,7 +121,7 @@ pub fn spawn_floating_player_label(
         .spawn((
             CharacterLabelMeshMarker,
             CharacterLabelRenderLayerMarker,
-            RenderLayers::layer(CHARACTER_LABEL_RENDER_LAYER),
+            RenderLayers::layer(RENDER_LAYER_CHARACTER_LABEL),
             Mesh3d(meshes.add(Rectangle::new(LABEL_PLAYER_MESH_WIDTH, LABEL_HEIGHT))),
             MeshMaterial3d(materials.add(StandardMaterial {
                 base_color_texture: Some(image_handle),
@@ -177,7 +183,7 @@ pub fn spawn_floating_health_bar(
                 full_width: world_width,
             },
             CharacterLabelRenderLayerMarker,
-            RenderLayers::layer(CHARACTER_LABEL_RENDER_LAYER),
+            RenderLayers::layer(RENDER_LAYER_CHARACTER_LABEL),
             Mesh3d(bar_mesh.clone()),
             // Opaque, not blended: the fill must layer over the translucent
             // track deterministically. As a character loses health the fill's
@@ -193,7 +199,7 @@ pub fn spawn_floating_health_bar(
         .spawn((
             CharacterLabelMeshMarker,
             CharacterLabelRenderLayerMarker,
-            RenderLayers::layer(CHARACTER_LABEL_RENDER_LAYER),
+            RenderLayers::layer(RENDER_LAYER_CHARACTER_LABEL),
             Mesh3d(bar_mesh),
             // Blended: the track is intentionally translucent so the scene
             // shows through the empty part of the bar.

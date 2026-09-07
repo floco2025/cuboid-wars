@@ -1,13 +1,14 @@
 use bevy_math::Vec3;
 
 use crate::{
-    constants::{
-        LADDER_BAND_DEPTH, LADDER_BASE_OVERSHOOT, LADDER_OVERSHOOT, LADDER_RAIL_INSET, LADDER_VOLUME_DEPTH,
-        PHYSICS_EPSILON,
-    },
+    constants::{LADDER_BASE_OVERSHOOT, LADDER_OVERSHOOT, LADDER_RAIL_INSET, LADDER_VOLUME_DEPTH},
     map::CarrierPose,
+    math::PHYSICS_EPSILON,
     protocol::{Ladder, Position},
 };
+
+// Cover the full hold distance on either side so the fence clamp cannot oscillate at the band edge.
+const LADDER_BAND_DEPTH: f32 = 1.0;
 
 // Climb volume and blocking band derived from a `Ladder`. Deliberately not a
 // Rapier collider: the character step queries these boxes directly, so

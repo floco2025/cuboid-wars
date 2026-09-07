@@ -4,11 +4,14 @@ use bevy::{
     prelude::*,
 };
 
-use crate::constants::{PORTAL_VIEW_CLIP_OFFSET, PORTAL_VIEW_MIN_EYE_DISTANCE};
 use common::{
     constants::{PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH},
     physics::{PortalFrame, traverse_vector},
 };
+
+// Clip the exit's backing surface just beyond the exit plane.
+const PORTAL_VIEW_CLIP_OFFSET: f32 = 0.02;
+const PORTAL_VIEW_MIN_EYE_DISTANCE: f32 = 0.001;
 
 #[derive(Clone, Debug)]
 pub(super) struct PortalProjection {

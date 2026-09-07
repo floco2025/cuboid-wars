@@ -2,13 +2,13 @@ use bevy_ecs::prelude::*;
 use bevy_math::{Mat3, Quat, Vec3};
 use rapier3d::prelude::ColliderHandle;
 
-use super::PortalFrame;
+use super::{PortalFrame, frame::PORTAL_UP_DEGENERACY_LIMIT};
 use crate::{
     config::{CharacterPhysicsConfig, GameplayConfig},
     constants::{
         PORTAL_FUNNEL_CAPTURE_MARGIN, PORTAL_FUNNEL_GAIN, PORTAL_FUNNEL_MAX_SPEED, PORTAL_FUNNEL_MIN_APPROACH,
         PORTAL_FUNNEL_RELEASE_SPEED, PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH, PORTAL_KNOCKBACK_CARRY_FACTOR,
-        PORTAL_PROJECTILE_EXIT_STANDOFF, PORTAL_STANDABLE_NORMAL_Y, PORTAL_UP_DEGENERACY_LIMIT, TICK_SECS,
+        PORTAL_STANDABLE_NORMAL_Y, TICK_SECS,
     },
     map::Carriers,
     math::direction_from_yaw_pitch,
@@ -17,6 +17,8 @@ use crate::{
     },
     protocol::{CarrierId, FaceYaw, PlayerMoveIntent, Portal, PortalEnd, Position},
 };
+
+pub(super) const PORTAL_PROJECTILE_EXIT_STANDOFF: f32 = 0.02;
 
 // Map a vector through a pair: decompose in the entry frame, re-emit in the
 // exit frame with right and normal negated — a 180° turn about `up` in frame

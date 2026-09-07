@@ -1,5 +1,5 @@
 use super::{
-    burn::GrassBurn,
+    burn::{EXPLOSION_GRASS_BURN_VERTICAL_TOLERANCE, GrassBurn},
     spawn::{OpenEdges, quantized_key},
 };
 use crate::{
@@ -9,7 +9,6 @@ use crate::{
         EXPLOSION_GRASS_BURN_CENTER_WIDTH_FACTOR, EXPLOSION_GRASS_BURN_COLOR, EXPLOSION_GRASS_BURN_CORE_RADIUS_FACTOR,
         EXPLOSION_GRASS_BURN_MAX_COLOR_BLEND, EXPLOSION_GRASS_BURN_MID_BRIGHTNESS_FACTOR,
         EXPLOSION_GRASS_BURN_ROOT_BRIGHTNESS_FACTOR, EXPLOSION_GRASS_BURN_TIP_BRIGHTNESS_FACTOR,
-        EXPLOSION_GRASS_BURN_VERTICAL_TOLERANCE,
     },
 };
 use bevy::{asset::RenderAssetUsages, mesh::Indices, prelude::*, render::render_resource::PrimitiveTopology};

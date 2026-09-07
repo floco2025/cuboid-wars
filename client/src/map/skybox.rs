@@ -8,7 +8,7 @@ use bevy::{
 use crate::{
     cameras::{MainCameraMarker, RearviewCameraMarker, SkyDiscRenderLayer},
     config::{AssetSet, ClientSettings, LightingConfig, MoonLighting, SkyboxDef, SunLighting},
-    constants::{MOON_DISC_COLOR, SUN_DISC_COLOR},
+    constants::{CELESTIAL_DISC_MOON_COLOR, CELESTIAL_DISC_SUN_COLOR},
     vfx::ease_blend,
 };
 use common::protocol::{LightingBlend, MapSettings};
@@ -312,7 +312,7 @@ fn linear_intensity(log_value: f32) -> f32 {
 
 impl LevelTargets {
     fn sun(sun: &SunLighting) -> Self {
-        let color = SUN_DISC_COLOR.to_linear();
+        let color = CELESTIAL_DISC_SUN_COLOR.to_linear();
         Self {
             sky: log_intensity(sun.sky_brightness),
             illuminance: log_intensity(sun.sun_illuminance),
@@ -325,7 +325,7 @@ impl LevelTargets {
     }
 
     fn moon(moon: &MoonLighting) -> Self {
-        let color = MOON_DISC_COLOR.to_linear();
+        let color = CELESTIAL_DISC_MOON_COLOR.to_linear();
         Self {
             sky: log_intensity(moon.sky_brightness),
             illuminance: log_intensity(moon.moon_illuminance),

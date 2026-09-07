@@ -5,7 +5,7 @@ use std::{
 
 use bevy::{asset::RenderAssetUsages, prelude::*, render::render_resource::PrimitiveTopology};
 
-use crate::constants::{COOKIE_SIZE, ITEM_COIN_COLOR};
+use crate::constants::{ITEM_COIN_COLOR, ITEM_COIN_RADIUS};
 
 use super::pickup_material;
 
@@ -31,11 +31,11 @@ impl CoinAssets {
                 .expect("coin relief mesh attributes are incompatible");
         }
 
-        let mut faces = Circle::new(FACE_RADIUS * COOKIE_SIZE)
+        let mut faces = Circle::new(FACE_RADIUS * ITEM_COIN_RADIUS)
             .mesh()
             .resolution(SEGMENTS)
             .build()
-            .translated_by(Vec3::Z * FACE_DEPTH * COOKIE_SIZE);
+            .translated_by(Vec3::Z * FACE_DEPTH * ITEM_COIN_RADIUS);
         let back_face = faces.clone().rotated_by(Quat::from_rotation_y(PI));
         faces
             .merge(&back_face)
@@ -93,7 +93,7 @@ fn rim_mesh() -> Mesh {
             let end = (segment + 1) as f32 / SEGMENTS as f32;
             for (point, turn) in [(a, start), (a, end), (b, end), (a, start), (b, end), (b, start)] {
                 let (sin, cos) = (turn * TAU).sin_cos();
-                positions.push((Vec3::new(point.x * cos, point.x * sin, point.y) * COOKIE_SIZE).to_array());
+                positions.push((Vec3::new(point.x * cos, point.x * sin, point.y) * ITEM_COIN_RADIUS).to_array());
                 normals.push([normal.x * cos, normal.x * sin, normal.y]);
                 uvs.push([turn, point.y]);
             }
@@ -122,7 +122,7 @@ fn star_mesh() -> Mesh {
             [lower_a, upper_b, upper_a],
             [Vec3::Z * 0.27, upper_a, upper_b],
         ] {
-            positions.extend(triangle.map(|point| (point * COOKIE_SIZE).to_array()));
+            positions.extend(triangle.map(|point| (point * ITEM_COIN_RADIUS).to_array()));
         }
     }
     let uvs: Vec<[f32; 2]> = positions.iter().map(|point| [point[0], point[1]]).collect();

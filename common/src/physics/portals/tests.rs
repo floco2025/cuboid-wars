@@ -2,13 +2,13 @@ use std::{collections::HashMap, f32::consts::PI};
 
 use bevy_math::Vec3;
 
-use super::{traversal::traverse_yaw, *};
+use super::{
+    traversal::{PORTAL_PROJECTILE_EXIT_STANDOFF, traverse_yaw},
+    *,
+};
 use crate::{
     config::{CharacterPhysicsConfig, KnockbackConfig, MapMovementConfig, PlayerMovementConfig, PortalShotSettings},
-    constants::{
-        PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH, PORTAL_LIGHT_CLEARANCE, PORTAL_PROJECTILE_EXIT_STANDOFF,
-        PORTAL_RIM_SCALE, TICK_SECS,
-    },
+    constants::{PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH, PORTAL_LIGHT_CLEARANCE, PORTAL_RIM_SCALE, TICK_SECS},
     map::{Carriers, carrier_offset_at},
     math::angle_delta_radians,
     physics::{

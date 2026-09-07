@@ -2,12 +2,15 @@ use bevy::{prelude::*, ui::UiScale};
 
 use crate::{
     config::ClientSettings,
-    constants::{LABEL_RENDER_FRAMES, LABEL_TEXT_PADDING_X, LABEL_TEXT_PADDING_Y},
+    constants::{LABEL_TEXT_PADDING_X, LABEL_TEXT_PADDING_Y},
     ui::floating_labels::{
         LabelCamera,
         spawn::{FloatingLabelPaddingMarker, FloatingLabelTextMarker},
     },
 };
+
+// Keep the camera active across multiple frames so a label redraw lands reliably.
+pub(crate) const LABEL_RENDER_FRAMES: u8 = 3;
 
 // Render each player's name label texture for the few frames after spawn
 // (`render_ttl` primed at spawn), then idle forever. The name never changes,

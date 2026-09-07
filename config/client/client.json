@@ -17,15 +17,26 @@
     }
   },
   "vfx": {
-    "pickup_emissive_brightness": 1.0,
-    "missile_exhaust": {
-      "particles_per_sec": 600.0,
-      "particle_size": 0.02,
-      "particle_lifetime_secs": 0.3,
-      "emissive_brightness": 25.0,
-      "back_speed": 2.5,
-      "rise_acceleration": 1.2,
-      "jitter": 0.25
+    "pickups": {
+      "emissive_brightness": 1.0
+    },
+    "barriers": {
+      "emissive_brightness": 2.0,
+      "opacity": 0.45,
+      "pulse": {
+        "min_opacity": 0.35,
+        "frequency_hz": 0.5
+      }
+    },
+    "erasers": {
+      "emissive_brightness": 3.0,
+      "opacity": 0.2
+    },
+    "light_bridges": {
+      "emissive_brightness": 1.0,
+      "opacity": 0.8,
+      "unpowered_opacity": 0.2,
+      "fade_secs": 0.25
     }
   },
   "audio": {

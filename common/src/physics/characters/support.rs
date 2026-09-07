@@ -8,13 +8,18 @@ use super::geometry::{character_pose, character_shape, character_support_probe_p
 use crate::{
     config::CharacterPhysicsConfig,
     constants::{
-        CARRIER_RIDE_TOLERANCE, CARRIER_SURFACE_TIE_EPSILON, CHARACTER_CONTACT_OFFSET, CHARACTER_GROUND_SNAP_DISTANCE,
-        CHARACTER_PERCH_SLIDE_SPEED, CHARACTER_STEP_HEIGHT, PHYSICS_EPSILON,
+        CHARACTER_CONTACT_OFFSET, CHARACTER_GROUND_SNAP_DISTANCE, CHARACTER_PERCH_SLIDE_SPEED, CHARACTER_STEP_HEIGHT,
     },
     map::Carriers,
+    math::PHYSICS_EPSILON,
     physics::world::{CollisionWorld, ShapeCastHit},
     protocol::{BarrierKindId, CarrierId, Position},
 };
+
+// Ground snap leaves the feet slightly above the surface they ride.
+pub const CARRIER_RIDE_TOLERANCE: f32 = 0.05;
+// Coincident static and carried surfaces must tolerate shape-cast depth noise.
+const CARRIER_SURFACE_TIE_EPSILON: f32 = 0.01;
 
 #[must_use]
 pub fn position_has_floor_support(

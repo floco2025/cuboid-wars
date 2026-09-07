@@ -5,7 +5,7 @@ use rapier3d::prelude::ColliderHandle;
 
 use crate::{
     config::ProjectilesConfig,
-    constants::PHYSICS_EPSILON,
+    math::PHYSICS_EPSILON,
     physics::CollisionWorld,
     protocol::{BarrierKindId, Position},
 };

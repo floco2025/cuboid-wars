@@ -8,8 +8,7 @@ use bevy::{
 use rand::{Rng, RngExt, SeedableRng, rngs::SmallRng};
 
 use crate::constants::{
-    EXPLOSION_SCORCH_RING_ALPHA, EXPLOSION_SCORCH_RING_RADII, EXPLOSION_SCORCH_SURFACE_OFFSET,
-    EXPLOSION_SCORCH_WALL_SEAM_OVERSCAN_FACTOR,
+    EXPLOSION_SCORCH_RING_ALPHA, EXPLOSION_SCORCH_RING_RADII, EXPLOSION_SCORCH_WALL_SEAM_OVERSCAN_FACTOR,
 };
 use common::{
     map::Carriers,
@@ -25,6 +24,8 @@ use crate::{carriers::CarrierEntities, config::ClientSettings, constants::*, map
 const SCORCH_RESOLUTION: usize = 128;
 const OUTLINE_CONTROL_POINTS: usize = 24;
 const DETAIL_CONTROL_POINTS: usize = 17;
+pub(super) const EXPLOSION_SCORCH_SURFACE_OFFSET: f32 = 0.015;
+const EXPLOSION_GRASS_BURN_FADE_STEPS: u32 = 60;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct ScorchOutline {

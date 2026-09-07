@@ -2,8 +2,9 @@ use bevy::{light::NotShadowCaster, prelude::*};
 
 use bevy::camera::visibility::RenderLayers;
 
-use crate::constants::{
-    MAIN_VIEW_RENDER_LAYER, PORTAL_A_COLOR, PORTAL_B_COLOR, PORTAL_EMISSIVE, PORTAL_RIM_OFFSET, PORTAL_SURFACE_OFFSET,
+use crate::{
+    cameras::RENDER_LAYER_MAIN_VIEW,
+    constants::{PORTAL_A_COLOR, PORTAL_B_COLOR, PORTAL_EMISSIVE},
 };
 use common::{
     constants::{PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH, PORTAL_RIM_SCALE},
@@ -11,6 +12,10 @@ use common::{
     physics::PortalFrame,
     protocol::{Portal, PortalEnd, PortalPairId},
 };
+
+// Keep the portal surface clear of its backing wall's depth.
+pub(super) const PORTAL_SURFACE_OFFSET: f32 = 0.01;
+const PORTAL_RIM_OFFSET: f32 = 0.002;
 
 // Every rendered disc of one portal end: the main surface and each replica
 // on a portal camera's layer. Names the end so an anchored portal's discs
@@ -64,7 +69,7 @@ fn portal_material(color: Color) -> StandardMaterial {
 }
 
 pub fn spawn_portal(commands: &mut Commands, assets: &PortalAssets, portal: &Portal, carriers: &Carriers) -> Entity {
-    spawn_portal_visual(commands, assets, portal, carriers, MAIN_VIEW_RENDER_LAYER)
+    spawn_portal_visual(commands, assets, portal, carriers, RENDER_LAYER_MAIN_VIEW)
 }
 
 pub(super) fn spawn_portal_visual(

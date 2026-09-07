@@ -470,7 +470,7 @@ fn apply_player_death(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{constants::HOP_DISPUTE_SLACK_TICKS, players::PlayerInfo};
+    use crate::{constants::RECON_PLAYER_HOP_DISPUTE_SLACK_TICKS, players::PlayerInfo};
     use common::config::{KnockbackConfig, PlayerMovementConfig};
     use std::collections::HashMap;
 
@@ -546,7 +546,7 @@ mod tests {
             CrossingVerdict::Skipped
         );
         assert_eq!(
-            player.judge_crossing(20 + HOP_DISPUTE_SLACK_TICKS, 0, clock.is_seeded()),
+            player.judge_crossing(20 + RECON_PLAYER_HOP_DISPUTE_SLACK_TICKS, 0, clock.is_seeded()),
             CrossingVerdict::Settled
         );
         assert_eq!(player.hops, 0);

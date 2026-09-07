@@ -6,12 +6,12 @@ use rapier3d::{
     prelude::{Pose, SharedShape, Vector},
 };
 
-use super::PortalFrame;
+use super::{PortalFrame, frame::PORTAL_UP_DEGENERACY_LIMIT};
 use crate::{
     config::PortalShotSettings,
     constants::{
         PORTAL_FIXTURE_PLANE_DEPTH, PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH, PORTAL_LIGHT_CLEARANCE,
-        PORTAL_PLATE_CLEARANCE, PORTAL_RIM_SCALE, PORTAL_STANDABLE_NORMAL_Y, PORTAL_UP_DEGENERACY_LIMIT,
+        PORTAL_PLATE_CLEARANCE, PORTAL_RIM_SCALE, PORTAL_STANDABLE_NORMAL_Y,
     },
     map::Carriers,
     math::direction_from_yaw_pitch,

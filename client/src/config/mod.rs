@@ -12,4 +12,4 @@ pub use audio::{AudioConfig, BumpAudioConfig};
 pub use local::{LOCAL_SETTINGS_VERSION, LocalSettings};
 pub use rendering::OpaqueRenderer;
 pub use settings::{ClientSettings, GrassConfig, LightingConfig, MoonLighting, SunLighting, WeatherConfig};
-pub use vfx::{MissileExhaustVfxConfig, VfxConfig};
+pub use vfx::{BarrierVfxConfig, LightBridgeVfxConfig, VfxConfig};
