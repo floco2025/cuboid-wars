@@ -57,20 +57,11 @@ for i in $(seq 0 $((NUM_CLIENTS - 1))); do
     # Position windows from right side of screen, side by side
     # Calculate in logical coordinates with consistent gap
     X_LOGICAL=$((SCREEN_WIDTH - (COL + 1) * WINDOW_WIDTH - GAP - COL * GAP))
-    # Y position: The Y coordinate is for window content, but we want gap above the title bar
-    # So we need: menu bar + gap + title bar for the first row
-    if [ $ROW -eq 0 ]; then
-        Y_LOGICAL=$((MENUBAR_HEIGHT + GAP + TITLEBAR_HEIGHT))
-    else
-        Y_LOGICAL=$((MENUBAR_HEIGHT + GAP + TITLEBAR_HEIGHT + ROW * (WINDOW_HEIGHT + TITLEBAR_HEIGHT + GAP)))
-    fi
+    # Y position: the top of the window frame, title bar included
+    Y_LOGICAL=$((MENUBAR_HEIGHT + GAP + ROW * (WINDOW_HEIGHT + TITLEBAR_HEIGHT + GAP)))
     
-    # Convert to physical coordinates for window positioning
-    X=$(echo "$X_LOGICAL * $SCALE_FACTOR" | bc | awk '{print int($1)}')
-    Y=$(echo "$Y_LOGICAL * $SCALE_FACTOR" | bc | awk '{print int($1)}')
-    
-    echo "Client $i: COL=$COL, ROW=$ROW, Logical=($X_LOGICAL, $Y_LOGICAL), Physical=($X, $Y)"
-    cargo run --bin client --release -- --window-x $X --window-y $Y --window-width $WINDOW_WIDTH --window-height $WINDOW_HEIGHT \
+    echo "Client $i: COL=$COL, ROW=$ROW, Logical=($X_LOGICAL, $Y_LOGICAL)"
+    cargo run --bin client --release -- --window-x $X_LOGICAL --window-y $Y_LOGICAL --window-width $WINDOW_WIDTH --window-height $WINDOW_HEIGHT \
     --name "" --lag-ms $LAG_MS --drop $DROP &
 done
 

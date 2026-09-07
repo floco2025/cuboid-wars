@@ -25,17 +25,19 @@ struct Args {
     #[arg(long, default_value = "0")]
     drop: f32,
 
+    // Windowed position in logical points; defaults to the saved position.
     #[arg(long)]
     window_x: Option<i32>,
 
     #[arg(long)]
     window_y: Option<i32>,
 
-    #[arg(long, default_value = "1200")]
-    window_width: u32,
+    // Windowed size in logical pixels; each axis defaults to the saved size.
+    #[arg(long)]
+    window_width: Option<u32>,
 
-    #[arg(long, default_value = "800")]
-    window_height: u32,
+    #[arg(long)]
+    window_height: Option<u32>,
 
     #[arg(long)]
     volume: Option<f32>,

@@ -9,7 +9,11 @@ use bevy::{
 use super::state::{CheckboxSetting, CyclerButton, CyclerSetting, SliderSetting};
 use bevy::render::renderer::RenderAdapter;
 
-use crate::{cameras::supported_msaa_samples, config::ClientSettings, input::enter_borderless_fullscreen};
+use crate::{
+    cameras::supported_msaa_samples,
+    config::ClientSettings,
+    input::{WindowedFrame, enter_borderless_fullscreen, enter_windowed},
+};
 
 // Fullscreen render-resolution caps ("720p"): the scene renders at most
 // this high and upscales to the monitor (windowed always renders native).
@@ -72,6 +76,7 @@ pub(super) fn on_cycler_activate(
     event: On<Activate>,
     buttons: Query<&CyclerButton>,
     mut settings: ResMut<ClientSettings>,
+    mut frame: ResMut<WindowedFrame>,
     mut windows: Query<(&mut Window, Option<&OnMonitor>), With<PrimaryWindow>>,
     monitors: Query<(Entity, Has<PrimaryMonitor>), With<Monitor>>,
     monitor_data: Query<&Monitor>,
@@ -140,7 +145,7 @@ pub(super) fn on_cycler_activate(
             if matches!(window.mode, WindowMode::Windowed) {
                 enter_borderless_fullscreen(&mut window, on_monitor, &monitors);
             } else {
-                window.mode = WindowMode::Windowed;
+                enter_windowed(&mut window, &mut frame);
             }
         }
     }

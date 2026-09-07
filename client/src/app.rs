@@ -2,7 +2,7 @@ use anyhow::Result;
 use bevy::{
     pbr::DefaultOpaqueRendererMethod,
     prelude::*,
-    window::{CursorGrabMode, CursorOptions, MonitorSelection, PresentMode, WindowMode, WindowPlugin, WindowPosition},
+    window::{CursorGrabMode, CursorOptions, MonitorSelection, PresentMode, WindowMode, WindowPlugin},
 };
 
 use crate::{
@@ -11,7 +11,7 @@ use crate::{
     cameras::{CameraViewMode, TopDownCameraYaw, clamp_msaa_to_device_system, setup_cameras_system},
     characters::{character_sync_plugin, prediction_plugin},
     config::{AssetSet, ClientSettings, LocalSettings, OpaqueRenderer},
-    input::{WeaponMode, input_plugin},
+    input::{WeaponMode, WindowedFrame, input_plugin},
     items::{ItemMap, setup_item_assets},
     map::{DebugColors, LevelFocusEnabled, map_plugin, setup_scene_lighting_system, sky_weather_plugin},
     materials::{GrassMaterialPlugin, generate_material_mipmaps_system},
@@ -33,11 +33,13 @@ use common::{
     protocol::{SInit, ServerTick},
 };
 
+const DEFAULT_WINDOW_SIZE: UVec2 = UVec2::new(1200, 800);
+
 pub struct ClientAppOptions {
     pub window_x: Option<i32>,
     pub window_y: Option<i32>,
-    pub window_width: u32,
-    pub window_height: u32,
+    pub window_width: Option<u32>,
+    pub window_height: Option<u32>,
     pub volume: Option<f32>,
 }
 
@@ -59,10 +61,46 @@ pub fn build_client_app(
         }
     }
     let start_fullscreen = local_settings.as_ref().is_some_and(|local| local.fullscreen);
+    // Windowed placement: CLI flags, then the saved values, then the default
+    // size at an automatic position. The window is created at that size, and
+    // the position (logical points) is applied on the first windowed frame
+    // (`windowed_frame_system`) rather than at creation: on macOS creation
+    // places the content and runtime placement the frame, and the saved
+    // position comes from the latter.
+    let saved_position = local_settings
+        .as_ref()
+        .and_then(|local| local.window_x.zip(local.window_y));
+    let position = options
+        .window_x
+        .zip(options.window_y)
+        .or(saved_position)
+        .map(|(x, y)| IVec2::new(x, y));
+    let saved_size = local_settings
+        .as_ref()
+        .map(|local| UVec2::new(local.window_width, local.window_height));
+    let windowed_frame = WindowedFrame {
+        position,
+        size: UVec2::new(
+            options
+                .window_width
+                .or(saved_size.map(|size| size.x))
+                .unwrap_or(DEFAULT_WINDOW_SIZE.x),
+            options
+                .window_height
+                .or(saved_size.map(|size| size.y))
+                .unwrap_or(DEFAULT_WINDOW_SIZE.y),
+        ),
+        position_pending: position.is_some(),
+    };
+    // A windowed start that restores a position is created hidden, since the
+    // position lands a frame later (`windowed_frame_system`); a fullscreen
+    // start covers the screen and shows at once.
+    let start_visible = start_fullscreen || !windowed_frame.position_pending;
     let mipmaps = client_settings.rendering.mipmaps;
     let mut app = App::new();
     app.add_plugins(DefaultPlugins.set(asset_plugin()).set(window_plugin(
-        &options,
+        windowed_frame.size,
+        start_visible,
         client_settings.rendering.vsync,
         start_fullscreen,
     )));
@@ -112,6 +150,7 @@ pub fn build_client_app(
         .insert_resource(PortalMap::default())
         .insert_resource(PortalSet::default())
         .insert_resource(WeaponMode::default())
+        .insert_resource(windowed_frame)
         .init_resource::<PortalAssets>()
         .init_resource::<MissileAssets>()
         .init_resource::<HudShapeAssets>()
@@ -169,16 +208,12 @@ fn asset_plugin() -> AssetPlugin {
     }
 }
 
-fn window_plugin(options: &ClientAppOptions, vsync: bool, fullscreen: bool) -> WindowPlugin {
-    let position = match (options.window_x, options.window_y) {
-        (Some(x), Some(y)) => WindowPosition::At(IVec2::new(x, y)),
-        _ => WindowPosition::Automatic,
-    };
+fn window_plugin(size: UVec2, visible: bool, vsync: bool, fullscreen: bool) -> WindowPlugin {
     WindowPlugin {
         primary_window: Some(Window {
             title: "Cuboid Wars".to_string(),
-            resolution: (options.window_width, options.window_height).into(),
-            position,
+            resolution: size.into(),
+            visible,
             mode: if fullscreen {
                 WindowMode::BorderlessFullscreen(MonitorSelection::Primary)
             } else {
@@ -204,34 +239,17 @@ fn window_plugin(options: &ClientAppOptions, vsync: bool, fullscreen: bool) -> W
 mod tests {
     use super::*;
 
-    fn options(window_x: Option<i32>, window_y: Option<i32>) -> ClientAppOptions {
-        ClientAppOptions {
-            window_x,
-            window_y,
-            window_width: 1200,
-            window_height: 800,
-            volume: None,
-        }
-    }
-
-    #[test]
-    fn window_position_requires_both_coordinates() {
-        let plugin = window_plugin(&options(Some(10), None), true, false);
-        let window = plugin.primary_window.expect("primary window should be configured");
-        assert_eq!(window.position, WindowPosition::Automatic);
-    }
-
-    #[test]
-    fn window_position_uses_both_coordinates() {
-        let plugin = window_plugin(&options(Some(10), Some(20)), true, false);
-        let window = plugin.primary_window.expect("primary window should be configured");
-        assert_eq!(window.position, WindowPosition::At(IVec2::new(10, 20)));
-    }
-
     #[test]
     fn initial_fullscreen_selects_primary_monitor() {
-        let plugin = window_plugin(&options(None, None), true, true);
+        let plugin = window_plugin(DEFAULT_WINDOW_SIZE, true, true, true);
         let window = plugin.primary_window.expect("primary window should be configured");
         assert_eq!(window.mode, WindowMode::BorderlessFullscreen(MonitorSelection::Primary));
+    }
+
+    #[test]
+    fn hidden_start_is_carried_into_the_window() {
+        let plugin = window_plugin(DEFAULT_WINDOW_SIZE, false, true, false);
+        let window = plugin.primary_window.expect("primary window should be configured");
+        assert!(!window.visible);
     }
 }

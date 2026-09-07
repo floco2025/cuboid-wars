@@ -3,7 +3,7 @@ use bevy::prelude::*;
 
 use crate::{
     schedule::ClientSet,
-    ui::{ConsoleState, SettingsMenuState},
+    ui::{ConsoleState, SettingsMenuState, console_closed},
 };
 
 // Gameplay input stands down while a text or menu overlay is open; movement
@@ -15,6 +15,7 @@ fn gameplay_input_active(console: Res<ConsoleState>, menu: Res<SettingsMenuState
 
 pub fn input_plugin(app: &mut App) {
     app.init_resource::<PendingWeaponSelection>();
+    app.add_systems(PreUpdate, windowed_frame_system);
     app.add_systems(
         Update,
         (
@@ -22,6 +23,9 @@ pub fn input_plugin(app: &mut App) {
             input_weapon_select_system
                 .after(input_movement_system)
                 .after(ClientSet::Network),
+            // The fullscreen shortcut works with the settings menu open, only
+            // the console (which the F key types into) stands it down.
+            input_fullscreen_toggle_system.run_if(console_closed),
             (
                 input_shooting_system.after(input_weapon_select_system),
                 input_missile_system.after(input_weapon_select_system),
@@ -35,7 +39,6 @@ pub fn input_plugin(app: &mut App) {
                     .after(input_portal_system),
                 input_camera_view_toggle_system,
                 input_level_focus_toggle_system,
-                input_fullscreen_toggle_system,
                 input_debug_colors_cycle_system,
             )
                 .run_if(gameplay_input_active),

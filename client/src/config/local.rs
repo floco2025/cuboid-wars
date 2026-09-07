@@ -9,16 +9,20 @@ use serde::{Deserialize, Serialize};
 
 use super::ClientSettings;
 
-pub const LOCAL_SETTINGS_VERSION: u32 = 6;
+pub const LOCAL_SETTINGS_VERSION: u32 = 9;
 
-// Local settings are saved after panel edits and fullscreen shortcuts, then
-// overlaid onto `client.json` at startup. The file is not in git, so a format
+// Local settings are saved after panel edits, fullscreen shortcuts, and
+// window moves and resizes, then overlaid onto `client.json` at startup. The file is not in git, so a format
 // change cannot reach it through `git pull`: a `version` mismatch discards the
 // file (no migration), and the next save rewrites it.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LocalSettings {
     pub version: u32,
     pub fullscreen: bool,
+    pub window_x: Option<i32>,
+    pub window_y: Option<i32>,
+    pub window_width: u32,
+    pub window_height: u32,
     pub fullscreen_resolution: u32,
     pub vsync: bool,
     pub msaa_samples: u32,
@@ -111,6 +115,10 @@ mod tests {
         LocalSettings {
             version: LOCAL_SETTINGS_VERSION,
             fullscreen: true,
+            window_x: Some(120),
+            window_y: Some(80),
+            window_width: 1600,
+            window_height: 900,
             fullscreen_resolution: 1080,
             vsync: true,
             msaa_samples: 2,
