@@ -21,7 +21,7 @@ class ZoneRef:
 
 @dataclass
 class SpawnZoneDrag:
-    """In-flight spawn-zone resize/move state, driven by Alt/Option selection."""
+    """In-flight spawn-zone resize/move state."""
 
     list_name: str
     index: int

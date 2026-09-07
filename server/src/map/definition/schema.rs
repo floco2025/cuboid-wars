@@ -1,10 +1,20 @@
+use std::collections::HashMap;
+
 use serde::Deserialize;
 
 use common::protocol::FaceMaterials;
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct MapFile {
-    pub(crate) map: MapDef,
+    pub(crate) map: MapSource,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct MapSource {
+    #[serde(flatten)]
+    pub(crate) geometry: MapDef,
+    #[serde(default)]
+    pub(crate) nested_geometry: HashMap<String, MapDef>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -61,7 +71,7 @@ impl MotionDef {
     }
 }
 
-// Editor-authored nested map: another map file placed with its cell (0, 0)
+// Editor-authored nested map: named geometry placed with its cell (0, 0)
 // on the motion's `from` cell, sliding to `to`; a stationary one is a room
 // placed once. Its records compile in their own frame under a carrier.
 #[derive(Debug, Clone, Deserialize)]

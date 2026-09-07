@@ -74,7 +74,7 @@ class SelectMixin:
     # `pos` is in grid units.
     def begin_select_press(self, pos, *, edit_objects: bool = False) -> bool:
         self.select_drag_kind = None
-        if edit_objects:
+        if edit_objects or self.selected_spawn_zone_handle(pos) is not None:
             self.tile_selection = None
             if self.begin_spawn_zone_drag(pos):
                 self.select_drag_kind = DRAG_SPAWN_ZONE
@@ -151,7 +151,6 @@ class SelectMixin:
             return
         col, row = self.tile_selection[:2]
         try:
-            self.forget_nested_map_shapes()
             after = paste_region(self.map_data, self.tile_clipboard, (col, row), self.current_level)
             errors = self.validate(self.tile_clipboard)
             if errors:

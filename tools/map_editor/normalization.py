@@ -70,6 +70,8 @@ def normalize_map(map_data: dict) -> dict:
         "ramps": ramps,
         "ladders": ladders,
         "nested_maps": nested_maps,
+        **({"nested_geometry": {name: normalize_map(data) for name, data in map_data["nested_geometry"].items()}}
+           if "nested_geometry" in map_data else {}),
     }
 
 

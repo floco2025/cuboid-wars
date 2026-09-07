@@ -428,9 +428,6 @@ fn validate_ladders(map_def: &MapDef) -> Result<()> {
     Ok(())
 }
 
-// A nested map's file is checked when it is loaded; here only the entry:
-// a safe name (it becomes a file name), a valid motion — standing still is
-// allowed, a room placed once — and one entry per start cell.
 fn validate_nested_maps(map_def: &MapDef) -> Result<()> {
     let mut seen = BTreeSet::new();
     for (idx, entry) in map_def.nested_maps.iter().enumerate() {

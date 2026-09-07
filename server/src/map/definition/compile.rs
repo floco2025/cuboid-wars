@@ -18,7 +18,7 @@ use common::{
 // The map being played and every map it nests, into one layout and one
 // config: the root's records on the world carrier, each nested map's on its
 // own carrier in its own frame. `nested` holds the nested maps by name
-// (`load_map_tree`).
+// from the parent source.
 pub(crate) fn compile_map(
     root: &MapDef,
     sizes: MapGeometryConfig,

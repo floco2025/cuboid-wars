@@ -197,7 +197,6 @@
       },
       "portals": "single",
       "barrier_kinds": [{ "id": "barrier_1", "color": "#f0c020" }],
-
       "bridge_kinds": [
         { "id": "bridge_1", "color": "#30d8ff" },
         { "id": "bridge_2", "color": "#30d8ff" },

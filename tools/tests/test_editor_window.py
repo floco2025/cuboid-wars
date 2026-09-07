@@ -292,7 +292,7 @@ class WindowTests(WindowTestCase):
             self.assertTrue(window.close())
         self.assertFalse(window.window_geometry.timer.isActive())
         self.assertEqual(window.preferences.value(window.window_geometry.KEY), window.saveGeometry())
-        other_path = self.path.with_name("other.json")
+        other_path = self.path.with_name("obby.json")
         write_map(other_path, empty_map(12, 16))
         self.window = EditorWindow(other_path, preferences=window.preferences)
         window.deleteLater()
@@ -316,6 +316,7 @@ class WindowTests(WindowTestCase):
                     patch("map_editor.structure.ResizeMapDialog.prompt", return_value=(12, 12, 0, 0)),
                     patch.object(window, "confirm_discard_changes", return_value=True),
                     patch("map_editor.file_actions.QMessageBox.warning"),
+                    patch.object(window, "choose_map_path", return_value=self.path),
                 ):
                     for action in (window.resize_map, window.new_file, lambda: window.load_path(self.path)):
                         window.canvas.zoom_by(2)
@@ -488,10 +489,12 @@ class WindowTests(WindowTestCase):
         point = QPointF(3.5, 4.5)
         self.assertEqual(viewport.to_grid(viewport.from_grid(point)), point)
 
-    def test_wheel_zoom_and_panned_selection_use_the_same_transform(self):
+    def test_wheel_pan_and_selection_use_the_same_transform(self):
         canvas = self.window.canvas
+        canvas.zoom_by(2)
         anchor = QPointF(100, 100)
-        grid = canvas.viewport.to_grid(anchor)
+        origin = QPointF(canvas.viewport.offset)
+        cell = canvas.cell_size()
         event = QWheelEvent(
             anchor,
             anchor,
@@ -503,7 +506,8 @@ class WindowTests(WindowTestCase):
             False,
         )
         self.app.sendEvent(canvas, event)
-        self.assertAlmostEqual(canvas.viewport.to_grid(anchor).x(), grid.x())
+        self.assertEqual(canvas.viewport.offset, origin + QPointF(0, 40))
+        self.assertEqual(canvas.cell_size(), cell)
         canvas.viewport.pan(QPointF(80, 60))
         position = canvas.viewport.from_grid(QPointF(1.5, 1.5)).toPoint()
         self.assertEqual(canvas.point_to_cell(position), (1, 1))
@@ -514,6 +518,7 @@ class WindowTests(WindowTestCase):
         window = self.window
         window.mode_combo.setCurrentText(MODE_ERASE)
         canvas = window.canvas
+        canvas.zoom_by(3)
         canvas.setFocus()
         before = copy.deepcopy(window.map_data)
         start, end = QPoint(100, 100), QPoint(160, 150)
@@ -703,6 +708,7 @@ class WindowTests(WindowTestCase):
 
     def test_nested_map_placement_reuses_configured_motion(self):
         window = self.window
+        window.doc.root_data["nested_geometry"] = {"tile": empty_map(1, 1)}
         window.recent_nested_map = ("tile", 0, 3.0, 1.0, 0.0, (0, 0, 0), (0, 0, 0))
         with patch("map_editor.nested_maps.MotionDialog.prompt_nested") as prompt:
             window.add_nested_map((3, 3), (4, 3))
@@ -770,7 +776,9 @@ class WindowTests(WindowTestCase):
         self.assertEqual(window.current_level, 1)
         self.assertEqual(window.canvas.issue_rects, [(6, 5, 7, 6)])
         center = window.canvas.viewport.from_grid(QPointF(6.5, 5.5))
-        self.assertAlmostEqual(center.x(), window.canvas.width() / 2)
+        self.assertTrue(window.canvas.rect().contains(center.toPoint()))
+        self.assertLessEqual(window.canvas.viewport.offset.x(), 0)
+        self.assertLessEqual(window.canvas.viewport.offset.y(), 0)
 
     def test_ramp_insertion_cancel_leaves_document_and_history_untouched(self):
         window = self.window
@@ -785,22 +793,24 @@ class WindowTests(WindowTestCase):
         self.assertEqual(window.undo_stack.count(), count)
         self.assertEqual(window.canvas.issue_rects, [])
 
-    def test_file_notifications_invalidate_cached_nested_shapes(self):
-        window = self.window
-        window.nested_map_shapes = {"missing": None}
-        window.dependencies.changed.emit()
-        self.assertNotIn("missing", window.nested_map_shapes)
-        watcher = MapDependencies(window)
-        maps = Path(self.temp.name)
-        nested = maps / "nested.json"
-        with patch("map_editor.dependencies.MAPS_DIR", maps):
-            watcher.watch(["nested"])
+    def test_file_notifications_reload_parent_catalogs(self):
+        with patch.object(self.window, "reload_texture_catalog") as reload:
+            self.window.dependencies.changed.emit()
+        reload.assert_called_once()
+        watcher = MapDependencies(self.window)
+        settings = Path(self.temp.name) / "gameplay.json"
+        settings.write_text("{}")
+        with patch("map_editor.dependencies.GAMEPLAY_PATH", settings):
+            watcher.watch()
             changed = QSignalSpy(watcher.changed)
-            self.assertIn(str(maps.resolve()), watcher.watcher.directories())
-            QTimer.singleShot(100, lambda: write_map(nested, empty_map()))
-            self.assertTrue(changed.wait(3000))
-            watcher.watch(["nested"])
-            self.assertIn(str(nested.resolve()), watcher.watcher.files())
+            settings.write_text('{"maps": {}}')
+            for _ in range(30):
+                if changed.count():
+                    break
+                QTest.qWait(100)
+            self.assertGreater(changed.count(), 0)
+            watcher.watch()
+            self.assertIn(str(settings.resolve()), watcher.watcher.files())
 
     def test_large_map_fits_and_paints_with_invalid_nested_nudges(self):
         window = self.window

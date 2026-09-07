@@ -214,7 +214,7 @@ class WindowTests(WindowTestCase):
         with patch("map_editor.file_actions.QMessageBox.warning") as warning, patch.object(self.window.doc, "write") as write:
             self.assertFalse(self.window.save())
         write.assert_not_called()
-        self.assertIn("nests the edited map itself", warning.call_args.args[2])
+        self.assertIn("named geometry is missing", warning.call_args.args[2])
 
     def test_standard_shortcuts_copy_paste_delete_and_deselect(self):
         self.window.activateWindow()
@@ -269,7 +269,7 @@ class WindowTests(WindowTestCase):
         with patch("map_editor.select.QInputDialog.getInt", return_value=(1, True)):
             self.window.copy_selection()
         block = copy.deepcopy(self.window.tile_clipboard)
-        other = Path(self.temp.name) / "other.json"
+        other = Path(self.temp.name) / "obby.json"
         write_map(other, empty_map(8, 8))
         self.window.load_path(other)
         self.assertIsNone(self.window.tile_selection)

@@ -419,14 +419,9 @@ fn shipping_map_zones_are_mutually_reachable() {
         .expect("default map settings missing")
         .settings;
     let (barrier_kinds, bridge_kinds) = settings.kind_tables().expect("default map kind tables rejected");
-    let GeneratedMap { config: map_config, .. } = crate::map::generate_map(
-        map_name,
-        settings,
-        &|nested| server_gameplay_config.maps.get(nested).map(|map| map.settings.geometry),
-        &barrier_kinds,
-        &bridge_kinds,
-    )
-    .expect("default map failed to generate");
+    let GeneratedMap { config: map_config, .. } =
+        crate::map::generate_map(map_name, settings, &barrier_kinds, &bridge_kinds)
+            .expect("default map failed to generate");
     let graphs = NavGraphs::new(&map_config);
 
     // Zones on different carriers are on different grids; each carrier's
@@ -784,7 +779,7 @@ fn shipping_map_sentry_recentres_before_entering_the_basement_ramp_trench() {
         layout,
         config: map_config,
         ..
-    } = crate::map::generate_map("hotel", settings, &|_| None, &barrier_kinds, &bridge_kinds)
+    } = crate::map::generate_map("hotel", settings, &barrier_kinds, &bridge_kinds)
         .expect("hotel map failed to generate");
     let world = CollisionWorld::from_map_layout(&layout, &barrier_kinds);
     let geometry = map_config.root_grid().geometry;

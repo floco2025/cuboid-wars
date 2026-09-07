@@ -1290,33 +1290,13 @@ fn every_shipped_ladder_ascends_at_least_one_storey() {
         crate::config::ServerGameplayConfig::load_default().expect("default server gameplay config should load");
     let gameplay = server_gameplay.gameplay_config();
     let physics = gameplay.player.physics();
-    let maps_dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../config/server/maps");
-    for entry in std::fs::read_dir(maps_dir).expect("maps dir readable") {
-        let path = entry.expect("maps dir entry readable").path();
-        if path.extension().and_then(|e| e.to_str()) != Some("json") {
-            continue;
-        }
-        let map_name = path
-            .file_stem()
-            .and_then(|name| name.to_str())
-            .expect("map file name is not UTF-8");
-        // A file without a registry entry is a nested-only map, played
-        // through its host and generated with it.
-        let Some(map_server_config) = server_gameplay.maps.get(map_name) else {
-            continue;
-        };
+    for (map_name, map_server_config) in &server_gameplay.maps {
         let map_settings = &map_server_config.settings;
         let (kind_table, bridge_table) = map_settings.kind_tables().expect("shipped kind tables rejected");
         let map_sizes = map_settings.geometry;
-        let layout = crate::map::generate_map(
-            map_name,
-            map_settings,
-            &|nested| server_gameplay.maps.get(nested).map(|map| map.settings.geometry),
-            &kind_table,
-            &bridge_table,
-        )
-        .expect("map failed to generate")
-        .layout;
+        let layout = crate::map::generate_map(map_name, map_settings, &kind_table, &bridge_table)
+            .expect("map failed to generate")
+            .layout;
         let world = CollisionWorld::from_map_layout(&layout, &kind_table);
         let carriers = Carriers::from_layout(&layout);
 
@@ -1365,12 +1345,7 @@ fn every_shipped_ladder_ascends_at_least_one_storey() {
                 reached,
                 "{}: ladder at ({:.1}, {:.1}) level {} stalled at y={:.2} (needed {:.2}) — \
                  likely facing the wrong way (landing over the climb side)",
-                path.display(),
-                mid_x,
-                mid_z,
-                ladder.level,
-                pos.y,
-                one_storey_up
+                map_name, mid_x, mid_z, ladder.level, pos.y, one_storey_up
             );
         }
     }
@@ -1395,33 +1370,13 @@ fn every_shipped_carrier_carries_a_standing_player_through_its_cycle() {
         crate::config::ServerGameplayConfig::load_default().expect("default server gameplay config should load");
     let gameplay = server_gameplay.gameplay_config();
     let physics = gameplay.player.physics();
-    let maps_dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../config/server/maps");
     let mut checked = 0;
-    for entry in std::fs::read_dir(maps_dir).expect("maps dir readable") {
-        let path = entry.expect("maps dir entry readable").path();
-        if path.extension().and_then(|e| e.to_str()) != Some("json") {
-            continue;
-        }
-        let map_name = path
-            .file_stem()
-            .and_then(|name| name.to_str())
-            .expect("map file name is not UTF-8");
-        // A file without a registry entry is a nested-only map, played
-        // through its host and generated with it.
-        let Some(map_server_config) = server_gameplay.maps.get(map_name) else {
-            continue;
-        };
+    for (map_name, map_server_config) in &server_gameplay.maps {
         let map_settings = &map_server_config.settings;
         let (kind_table, bridge_table) = map_settings.kind_tables().expect("shipped kind tables rejected");
-        let layout = crate::map::generate_map(
-            map_name,
-            map_settings,
-            &|nested| server_gameplay.maps.get(nested).map(|map| map.settings.geometry),
-            &kind_table,
-            &bridge_table,
-        )
-        .expect("map failed to generate")
-        .layout;
+        let layout = crate::map::generate_map(map_name, map_settings, &kind_table, &bridge_table)
+            .expect("map failed to generate")
+            .layout;
         let mut world = CollisionWorld::from_map_layout(&layout, &kind_table);
         let mut carriers = Carriers::from_layout(&layout);
 
@@ -1461,7 +1416,7 @@ fn every_shipped_carrier_carries_a_standing_player_through_its_cycle() {
                 assert!(
                     gap.length() <= CARRIER_RIDE_TOLERANCE,
                     "{}: carrier {} lost its rider at tick {tick}: feet {pos:?}, surface {surface}",
-                    path.display(),
+                    map_name,
                     id.0
                 );
             }
@@ -1626,7 +1581,7 @@ fn validation_accepts_a_stationary_nested_map() {
 fn validation_accepts_a_file_without_player_spawn_zones() {
     let mut map_def = room();
     map_def.player_spawn_zones.clear();
-    validate_map(&map_def).expect("a nested-only file was rejected");
+    validate_map(&map_def).expect("nested geometry without spawn zones was rejected");
 }
 
 #[test]

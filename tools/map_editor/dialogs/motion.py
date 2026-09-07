@@ -121,7 +121,7 @@ class MotionDialog(QDialog):
         title: str = "Place Nested Map",
     ) -> NestedMotion | None:
         if not map_names:
-            QMessageBox.warning(parent, title, "No other maps in config/server/maps to nest.")
+            QMessageBox.warning(parent, title, "Create nested geometry with Edit → New Nested Map first.")
             return None
         dialog = cls(parent, level_count, current_level, recent, title, map_names)
         if dialog.exec() != QDialog.DialogCode.Accepted:

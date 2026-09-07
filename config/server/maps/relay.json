@@ -770,6 +770,34 @@
     "ramps": [],
     "nested_maps": [
       {"map":"tile","level":1,"from":[1,10],"to":[1,10],"to_level":2,"travel_secs":4,"pause_secs":4,"phase_secs":0,"from_nudge":[-1.05,0,0],"to_nudge":[-1.05,0,0]}
-    ]
+    ],
+    "nested_geometry": {
+      "tile": {
+        "grid_cols": 1,
+        "grid_rows": 1,
+        "actor_spawn_zones": [],
+        "player_spawn_zones": [],
+        "pressure_plates": [],
+        "items": [],
+        "levels": [
+          {
+            "name": "Level 0",
+            "floors": [
+              {"col": 0, "row": 0, "all": "basement-floor"}
+            ],
+            "inaccessible_floors": [],
+            "grass": [],
+            "walls": [],
+            "barriers": [],
+            "erasers": [],
+            "light_bridges": [],
+            "lights": []
+          }
+        ],
+        "ladders": [],
+        "ramps": [],
+        "nested_maps": []
+      }
+    }
   }
 }

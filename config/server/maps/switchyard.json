@@ -924,6 +924,129 @@
       {"map": "tile", "level": 1, "from": [6, 10], "to": [7, 10], "to_level": 2, "travel_secs": 4.0, "pause_secs": 5.0, "phase_secs": 0.0, "from_nudge": [1.05, 0.0, 0.0], "to_nudge": [-1.05, 0.0, 0.0]},
       {"map": "switchyard_switch", "level": 2, "from": [11, 11], "to": [16, 11], "to_level": 2, "travel_secs": 10.0, "pause_secs": 6.0, "phase_secs": 0.0, "from_nudge": [1.05, 0.0, 1.05], "to_nudge": [-1.05, 0.0, 1.05]},
       {"map": "switchyard_shuttle", "level": 2, "from": [17, 3], "to": [20, 3], "to_level": 2, "travel_secs": 8.0, "pause_secs": 6.0, "phase_secs": 0.0, "from_nudge": [0.0, 0.0, -1.05], "to_nudge": [0.0, 0.0, -1.05]}
-    ]
+    ],
+    "nested_geometry": {
+      "switchyard_shuttle": {
+        "grid_cols": 3,
+        "grid_rows": 3,
+        "actor_spawn_zones": [],
+        "player_spawn_zones": [],
+        "pressure_plates": [],
+        "items": [
+          {"level": 1, "col": 2, "row": 1, "type": "gold"}
+        ],
+        "levels": [
+          {
+            "name": "Freight deck",
+            "floors": [
+              {"col": 0, "row": 0, "all": "skybridge"},
+              {"col": 1, "row": 0, "all": "skybridge"},
+              {"col": 2, "row": 0, "all": "skybridge"},
+              {"col": 0, "row": 1, "all": "skybridge"},
+              {"col": 1, "row": 1, "all": "skybridge"},
+              {"col": 2, "row": 1, "all": "skybridge"},
+              {"col": 0, "row": 2, "all": "skybridge"},
+              {"col": 1, "row": 2, "all": "skybridge"},
+              {"col": 2, "row": 2, "all": "skybridge"}
+            ],
+            "inaccessible_floors": [],
+            "grass": [],
+            "walls": [
+              {"c0": 0, "r0": 0, "c1": 1, "r1": 0, "all": "rooftop-wall"},
+              {"c0": 0, "r0": 0, "c1": 0, "r1": 1, "all": "rooftop-wall"},
+              {"c0": 1, "r0": 0, "c1": 2, "r1": 0, "all": "rooftop-wall"},
+              {"c0": 2, "r0": 0, "c1": 3, "r1": 0, "all": "rooftop-wall"},
+              {"c0": 0, "r0": 1, "c1": 0, "r1": 2, "all": "rooftop-wall"},
+              {"c0": 0, "r0": 2, "c1": 0, "r1": 3, "all": "rooftop-wall"}
+            ],
+            "barriers": [],
+            "erasers": [],
+            "light_bridges": [],
+            "lights": []
+          },
+          {
+            "name": "Ladder roof",
+            "floors": [
+              {"col": 1, "row": 1, "all": "rooftop-floor"},
+              {"col": 2, "row": 1, "all": "rooftop-floor"},
+              {"col": 1, "row": 2, "all": "rooftop-floor"},
+              {"col": 2, "row": 2, "all": "rooftop-floor"}
+            ],
+            "inaccessible_floors": [],
+            "grass": [],
+            "walls": [
+              {"c0": 1, "r0": 1, "c1": 2, "r1": 1, "all": "rooftop-wall"},
+              {"c0": 2, "r0": 1, "c1": 3, "r1": 1, "all": "rooftop-wall"},
+              {"c0": 3, "r0": 1, "c1": 3, "r1": 2, "all": "rooftop-wall"},
+              {"c0": 3, "r0": 2, "c1": 3, "r1": 3, "all": "rooftop-wall"}
+            ],
+            "barriers": [],
+            "erasers": [],
+            "light_bridges": [],
+            "lights": []
+          }
+        ],
+        "ladders": [
+          {"lower_level": 0, "col": 1, "row": 1, "side": "W", "levels": 1}
+        ],
+        "ramps": [],
+        "nested_maps": []
+      },
+      "switchyard_switch": {
+        "grid_cols": 1,
+        "grid_rows": 2,
+        "actor_spawn_zones": [],
+        "player_spawn_zones": [],
+        "pressure_plates": [
+          {"level": 0, "col": 0, "row": 0, "type": "bridge", "kind": "freight"}
+        ],
+        "items": [],
+        "levels": [
+          {
+            "name": "Bridge tender",
+            "floors": [
+              {"col": 0, "row": 0, "all": "skybridge"},
+              {"col": 0, "row": 1, "all": "skybridge"}
+            ],
+            "inaccessible_floors": [],
+            "grass": [],
+            "walls": [],
+            "barriers": [],
+            "erasers": [],
+            "light_bridges": [],
+            "lights": []
+          }
+        ],
+        "ladders": [],
+        "ramps": [],
+        "nested_maps": []
+      },
+      "tile": {
+        "grid_cols": 1,
+        "grid_rows": 1,
+        "actor_spawn_zones": [],
+        "player_spawn_zones": [],
+        "pressure_plates": [],
+        "items": [],
+        "levels": [
+          {
+            "name": "Level 0",
+            "floors": [
+              {"col": 0, "row": 0, "all": "basement-floor"}
+            ],
+            "inaccessible_floors": [],
+            "grass": [],
+            "walls": [],
+            "barriers": [],
+            "erasers": [],
+            "light_bridges": [],
+            "lights": []
+          }
+        ],
+        "ladders": [],
+        "ramps": [],
+        "nested_maps": []
+      }
+    }
   }
 }

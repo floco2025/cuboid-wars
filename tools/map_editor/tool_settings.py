@@ -18,7 +18,6 @@ from .constants import (
     MODE_PRESSURE_PLATE,
     MODE_WALL,
     RAMP_MODES,
-    list_map_names,
 )
 from .dialogs import MotionDialog
 from .textures import portal_label
@@ -187,7 +186,7 @@ class ToolSettings(QWidget):
             len(window.map_data["levels"]),
             window.current_level,
             window.recent_nested_map,
-            list_map_names(exclude=window.edited_map_name()),
+            window.nested_map_names(),
             title="Nested Map Defaults",
         )
         if result is not None:

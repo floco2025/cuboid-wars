@@ -8,6 +8,6 @@ mod validation;
 mod tests;
 
 pub(super) use compile::compile_map;
-pub(super) use load::{load_map, load_map_tree};
+pub(super) use load::load_map;
 pub(crate) use schema::MapDef;
 pub(super) use schema::{WallLightDef, WallSide};

@@ -134,6 +134,16 @@ def format_map_file(wrapper: dict) -> str:
     lines.extend(with_trailing_comma(format_object_array("ladders", map_data.get("ladders", []), _ladder_body, 4)))
     lines.extend(with_trailing_comma(format_object_array("ramps", map_data["ramps"], _ramp_body, 4)))
     lines.extend(format_object_array("nested_maps", map_data.get("nested_maps", []), _nested_map_body, 4))
+    if "nested_geometry" in map_data:
+        lines[-1] += ","
+        lines.append('    "nested_geometry": {')
+        definitions = list(map_data["nested_geometry"].items())
+        for index, (name, geometry) in enumerate(definitions):
+            body = format_map_file({"map": geometry}).splitlines()[2:-2]
+            lines.append(f"      {json_scalar(name)}: {{")
+            lines.extend("    " + line for line in body)
+            lines.append("      }" + ("," if index + 1 < len(definitions) else ""))
+        lines.append("    }")
     lines.append("  }")
     lines.append("}")
     return "\n".join(lines)

@@ -1,73 +1,76 @@
-use std::{collections::HashMap, fs, path::Path};
+use std::{
+    collections::{HashMap, HashSet},
+    fs,
+    path::Path,
+};
 
 use anyhow::{Context, Result, bail, ensure};
 
 use super::{
-    schema::{MapDef, MapFile},
+    schema::{MapDef, MapFile, MapSource},
     validation::{canonicalize, validate_map},
 };
-use common::config::MapGeometryConfig;
+use crate::config::is_valid_map_name;
 
-pub(crate) fn load_map(path: &Path) -> Result<MapDef> {
-    let text = fs::read_to_string(path).with_context(|| format!("reading map at {}", path.display()))?;
-    let mut file: MapFile =
-        serde_json::from_str(&text).with_context(|| format!("parsing map JSON at {}", path.display()))?;
-    validate_map(&file.map).with_context(|| format!("validating map at {}", path.display()))?;
-    canonicalize(&mut file.map);
-    Ok(file.map)
-}
-
-// Every map the root nests, transitively, by name; each loaded once.
 pub(crate) type LoadedMaps = HashMap<String, MapDef>;
 
-// Loads the root's nested maps depth first. A nested map takes every setting
-// from the root; `geometry_of` is the registry lookup for the maps that are
-// also playable on their own, whose geometry block must then equal the
-// root's, so its grid aligns with the parent's cells and storeys. A name on
-// the current chain is a cycle; a name already loaded is the same map nested
-// twice, which is fine.
-pub(crate) fn load_map_tree(
-    root_name: &str,
-    root: &MapDef,
-    sizes: MapGeometryConfig,
-    geometry_of: &dyn Fn(&str) -> Option<MapGeometryConfig>,
-    load: &mut dyn FnMut(&str) -> Result<MapDef>,
-) -> Result<LoadedMaps> {
-    let mut loaded = LoadedMaps::new();
-    let mut chain = vec![root_name.to_owned()];
-    load_nested(root, sizes, geometry_of, load, &mut chain, &mut loaded)?;
-    Ok(loaded)
+pub(crate) fn load_map(path: &Path) -> Result<MapSource> {
+    let text = fs::read_to_string(path).with_context(|| format!("reading map at {}", path.display()))?;
+    let file: MapFile =
+        serde_json::from_str(&text).with_context(|| format!("parsing map JSON at {}", path.display()))?;
+    prepare_source(file.map).with_context(|| format!("validating map at {}", path.display()))
 }
 
-fn load_nested(
-    def: &MapDef,
-    sizes: MapGeometryConfig,
-    geometry_of: &dyn Fn(&str) -> Option<MapGeometryConfig>,
-    load: &mut dyn FnMut(&str) -> Result<MapDef>,
+fn prepare_source(mut source: MapSource) -> Result<MapSource> {
+    validate_map(&source.geometry)?;
+    canonicalize(&mut source.geometry);
+    for (name, geometry) in &mut source.nested_geometry {
+        ensure!(is_valid_map_name(name), "invalid nested_geometry name {name:?}");
+        validate_map(geometry).with_context(|| format!("nested geometry {name:?}"))?;
+        canonicalize(geometry);
+    }
+    let mut checked = HashSet::new();
+    visit(&source.geometry, &source.nested_geometry, &mut Vec::new(), &mut checked)?;
+    let used = checked.clone();
+    for name in source.nested_geometry.keys() {
+        visit_named(name, &source.nested_geometry, &mut Vec::new(), &mut checked)?;
+    }
+    // Unplaced definitions must not contribute pressure-plate purposes to compilation.
+    source.nested_geometry.retain(|name, _| used.contains(name));
+    Ok(source)
+}
+
+fn visit_named(
+    name: &str,
+    definitions: &LoadedMaps,
     chain: &mut Vec<String>,
-    loaded: &mut LoadedMaps,
+    checked: &mut HashSet<String>,
 ) -> Result<()> {
-    let parent = chain.last().cloned().expect("nesting chain lost its root");
-    for entry in &def.nested_maps {
-        let name = &entry.map;
-        if chain.iter().any(|link| link == name) {
-            let cycle: Vec<&str> = chain.iter().map(String::as_str).chain([name.as_str()]).collect();
-            bail!("map {name:?} nests itself: {}", cycle.join(" -> "));
-        }
-        if loaded.contains_key(name) {
-            continue;
-        }
-        if let Some(geometry) = geometry_of(name) {
-            ensure!(
-                geometry == sizes,
-                "map {name:?} nested in {parent:?} has a different geometry block; a nested map shares the root's"
-            );
-        }
-        let nested = load(name).with_context(|| format!("loading map {name:?} nested in {parent:?}"))?;
-        chain.push(name.clone());
-        load_nested(&nested, sizes, geometry_of, load, chain, loaded)?;
-        chain.pop();
-        loaded.insert(name.clone(), nested);
+    if chain.iter().any(|link| link == name) {
+        let cycle: Vec<&str> = chain.iter().map(String::as_str).chain([name]).collect();
+        bail!("nested maps loop: {}", cycle.join(" -> "));
+    }
+    if checked.contains(name) {
+        return Ok(());
+    }
+    let geometry = definitions
+        .get(name)
+        .with_context(|| format!("nested map {name:?} has no named geometry in this parent's nested_geometry"))?;
+    chain.push(name.to_owned());
+    visit(geometry, definitions, chain, checked)?;
+    chain.pop();
+    checked.insert(name.to_owned());
+    Ok(())
+}
+
+fn visit(
+    geometry: &MapDef,
+    definitions: &LoadedMaps,
+    chain: &mut Vec<String>,
+    checked: &mut HashSet<String>,
+) -> Result<()> {
+    for entry in &geometry.nested_maps {
+        visit_named(&entry.map, definitions, chain, checked)?;
     }
     Ok(())
 }
@@ -75,69 +78,62 @@ fn load_nested(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_geometry::sizes;
+    use serde_json::{Value, json};
 
-    fn map_nesting(names: &[&str]) -> MapDef {
-        let text = format!(
-            r#"{{"grid_cols": 2, "grid_rows": 2, "levels": [{{}}], "nested_maps": [{}]}}"#,
-            names
-                .iter()
-                .map(|name| format!(
-                    r#"{{"map": "{name}", "level": 0, "from": [0, 0], "to": [0, 0], "travel_secs": 1.0}}"#
-                ))
-                .collect::<Vec<_>>()
-                .join(", ")
-        );
-        serde_json::from_str(&text).expect("test map JSON is malformed")
+    fn geometry(names: &[&str]) -> Value {
+        json!({
+            "grid_cols": 4, "grid_rows": 4, "levels": [{}],
+            "nested_maps": names.iter().enumerate().map(|(index, name)| json!({
+                "map": name, "level": 0, "from": [index, 0], "to": [index, 0], "travel_secs": 1.0,
+            })).collect::<Vec<_>>()
+        })
     }
 
-    fn tree(
-        root: &MapDef,
-        files: &[(&str, &[&str])],
-        geometry_of: &dyn Fn(&str) -> Option<MapGeometryConfig>,
-    ) -> Result<LoadedMaps> {
-        let mut load = |name: &str| {
-            files
-                .iter()
-                .find(|(file, _)| *file == name)
-                .map(|(_, nested)| map_nesting(nested))
-                .ok_or_else(|| anyhow::anyhow!("no file for {name:?}"))
-        };
-        load_map_tree("root", root, sizes(), geometry_of, &mut load)
+    fn source(root: &[&str], definitions: &[(&str, &[&str])]) -> Result<MapSource> {
+        let mut value = geometry(root);
+        value["nested_geometry"] = definitions
+            .iter()
+            .map(|(name, children)| (name.to_string(), geometry(children)))
+            .collect();
+        prepare_source(serde_json::from_value(value).expect("test map source is invalid"))
     }
 
     #[test]
     fn nested_cycle_is_rejected_naming_the_chain() {
-        let root = map_nesting(&["a"]);
-        let error = tree(&root, &[("a", &["b"]), ("b", &["a"])], &|_| Some(sizes())).expect_err("cycle accepted");
-        assert!(error.to_string().contains("root -> a -> b -> a"), "{error}");
+        let error = source(&["a"], &[("a", &["b"]), ("b", &["a"])]).expect_err("cycle accepted");
+        assert!(error.to_string().contains("a -> b -> a"), "{error}");
     }
 
     #[test]
-    fn a_nested_map_without_a_registry_entry_inherits_the_roots_geometry() {
-        let root = map_nesting(&["a"]);
-        let loaded = tree(&root, &[("a", &[])], &|_| None).expect("unregistered nested map rejected");
-        assert!(loaded.contains_key("a"));
+    fn references_resolve_only_to_the_parents_named_geometry() {
+        let error = source(&["hotel"], &[]).expect_err("missing embedded geometry accepted");
+        assert!(error.to_string().contains("hotel"), "{error}");
+        assert!(error.to_string().contains("nested_geometry"), "{error}");
     }
 
     #[test]
-    fn nested_geometry_mismatch_is_rejected() {
-        let root = map_nesting(&["a"]);
-        let other = MapGeometryConfig {
-            grid_cell_size: sizes().grid_cell_size + 1.0,
-            ..sizes()
-        };
-        let error = tree(&root, &[("a", &[])], &|_| Some(other)).expect_err("mismatch accepted");
-        assert!(error.to_string().contains("different geometry block"), "{error}");
-    }
-
-    #[test]
-    fn a_map_nested_twice_loads_once() {
-        let root = map_nesting(&["a", "b"]);
+    fn repeated_placements_share_one_definition() {
         let loaded =
-            tree(&root, &[("a", &["c"]), ("b", &["c"]), ("c", &[])], &|_| Some(sizes())).expect("diamond rejected");
-        let mut names: Vec<&String> = loaded.keys().collect();
-        names.sort();
-        assert_eq!(names, ["a", "b", "c"]);
+            source(&["a", "b"], &[("a", &["c"]), ("b", &["c"]), ("c", &[])]).expect("shared definition rejected");
+        assert_eq!(loaded.nested_geometry.len(), 3);
+    }
+
+    #[test]
+    fn unused_definitions_are_checked_but_do_not_compile() {
+        let loaded = source(&["used"], &[("used", &[]), ("unused", &[])]).expect("unused geometry rejected");
+        assert_eq!(loaded.nested_geometry.len(), 1);
+        assert!(loaded.nested_geometry.contains_key("used"));
+        assert!(source(&[], &[("unused", &["missing"])]).is_err());
+        assert!(source(&[], &[("a", &["b"]), ("b", &["a"])]).is_err());
+    }
+
+    #[test]
+    fn invalid_named_geometry_is_rejected() {
+        let mut value = geometry(&["room"]);
+        value["nested_geometry"] = json!({"room": geometry(&[])});
+        value["nested_geometry"]["room"]["grid_cols"] = json!(0);
+        let error = prepare_source(serde_json::from_value(value).expect("test source is invalid"))
+            .expect_err("invalid nested geometry accepted");
+        assert!(format!("{error:#}").contains("room"));
     }
 }

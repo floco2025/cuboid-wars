@@ -1,8 +1,8 @@
-"""File notifications for nested geometry and editor catalogs."""
+"""File notifications for editor catalogs."""
 
 from PySide6.QtCore import QFileSystemWatcher, QObject, QTimer, Signal
 
-from .constants import GAMEPLAY_PATH, MAPS_DIR
+from .constants import GAMEPLAY_PATH
 
 
 class MapDependencies(QObject):
@@ -18,10 +18,9 @@ class MapDependencies(QObject):
         self.watcher.fileChanged.connect(lambda _: self.timer.start())
         self.watcher.directoryChanged.connect(lambda _: self.timer.start())
 
-    def watch(self, names) -> None:
+    def watch(self) -> None:
         files = {GAMEPLAY_PATH}
-        files.update(MAPS_DIR / f"{name}.json" for name in names)
-        directories = {MAPS_DIR, *(path.parent for path in files)}
+        directories = {path.parent for path in files}
         desired = {str(path.resolve()) for path in files | directories if path.exists()}
         current = set(self.watcher.files()) | set(self.watcher.directories())
         if current - desired:

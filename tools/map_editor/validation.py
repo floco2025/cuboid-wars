@@ -37,11 +37,12 @@ class ValidationIssue:
     message: str
     level: int | None = None
     rect: tuple[int, int, int, int] | None = None
+    map_name: str | None = None
 
     # The issue without its list index, which shifts whenever an earlier
     # record comes or goes: what an edit added is judged by this.
     def identity(self) -> tuple:
-        return (self.level, self.rect, _INDEX_RE.sub("[]", self.message))
+        return (self.map_name, self.level, self.rect, _INDEX_RE.sub("[]", self.message))
 
 
 class ValidationErrors(list):
@@ -55,9 +56,9 @@ class ValidationErrors(list):
         self.level = record_levels(entry, level)[0] if entry is not None else level
         self.rect = record_rect(name, entry) if entry is not None else None
 
-    def append(self, message: str) -> None:
+    def append(self, message: str, *, map_name: str | None = None) -> None:
         super().append(message)
-        self.issues.append(ValidationIssue(message, self.level, self.rect))
+        self.issues.append(ValidationIssue(message, self.level, self.rect, map_name))
 
 
 def validate_map(
@@ -70,9 +71,7 @@ def validate_map(
     actor_kinds: list[str] | None = None,
     material_aliases: list[str] | None = None,
 ) -> ValidationErrors:
-    """`map_name` is the edited file's name and `nested_lookup(name)` a
-    nested map's shape (see `nested_maps.py`); without them the nested-map
-    checks that need other files are skipped."""
+    """Validate one geometry using its parent's catalogs and named shapes."""
     errors = ValidationErrors()
     cols = map_data["grid_cols"]
     rows = map_data["grid_rows"]
@@ -263,7 +262,7 @@ def _validate_nested_maps(map_data: dict, errors: list[str], map_name: str | Non
         elif map_name is not None and name == map_name:
             errors.append(f"{label} nests the edited map itself")
         elif nested_lookup is not None and nested_lookup(name) is None:
-            errors.append(f"{label} names {name!r}, but config/server/maps/{name}.json is missing or unreadable")
+            errors.append(f"{label} names {name!r}, but its named geometry is missing from this parent map")
         level, to_level = entry["level"], entry["to_level"]
         start, end = entry["from"], entry["to"]
         if not (0 <= level < level_count and 0 <= to_level < level_count):

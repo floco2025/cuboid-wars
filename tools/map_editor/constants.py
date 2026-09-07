@@ -26,7 +26,7 @@ def load_map_kinds(map_name: str, key: str) -> dict[str, str]:
         gameplay = json.load(handle)
     map_settings = gameplay.get("maps", {}).get(map_name)
     if map_settings is None:
-        return {}
+        raise ValueError(f"Map {map_name!r} has no settings in gameplay.json (maps.{map_name}).")
     if key not in map_settings:
         raise ValueError(f"maps.{map_name}.{key} is required; use [] when the map has none")
     value = map_settings[key]
@@ -56,18 +56,13 @@ def load_map_bridge_kinds(map_name: str) -> dict[str, str]:
     return load_map_kinds(map_name, "bridge_kinds")
 
 
-# A nested-only map has no registry entry; its nudges are drawn at obby's
-# ratio until it is played through a host.
-DEFAULT_WALL_WIDTH_CELLS = 0.1
-
-
 def load_map_wall_width_cells(map_name: str) -> float:
     """One wall width in cells, the unit a nested map's nudge is drawn in."""
     with GAMEPLAY_PATH.open("r", encoding="utf-8") as handle:
         gameplay = json.load(handle)
     map_settings = gameplay.get("maps", {}).get(map_name)
     if map_settings is None:
-        return DEFAULT_WALL_WIDTH_CELLS
+        raise ValueError(f"Map {map_name!r} has no settings in gameplay.json (maps.{map_name}).")
     geometry = map_settings["geometry"]
     return float(geometry["wall_thickness"]) / float(geometry["grid_cell_size"])
 
@@ -188,16 +183,15 @@ NESTED_MAPS_LIST = "nested_maps"
 MAP_NAME_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
-def list_map_names(exclude: str | None = None) -> list[str]:
-    """The map files a map may nest: every `config/server/maps/*.json` but
-    autosaves and `exclude`, the map being edited."""
-    names = []
-    for path in MAPS_DIR.glob("*.json"):
-        name = path.stem
-        if name.endswith(".autosave") or name == exclude or not MAP_NAME_RE.match(name):
-            continue
-        names.append(name)
-    return sorted(names)
+def list_map_names() -> list[str]:
+    with GAMEPLAY_PATH.open(encoding="utf-8") as handle:
+        return sorted(json.load(handle)["maps"])
+
+
+def require_map_settings(name: str) -> None:
+    if name not in list_map_names():
+        raise ValueError(f"Map {name!r} has no settings in gameplay.json (maps.{name}).")
+
 
 DEFAULT_ACTOR_COUNT = 1
 SPAWN_ZONE_HANDLE_PIXELS = 8.0

@@ -35,36 +35,64 @@ class MapDocument(QObject):
         self.session_path = self.recovery_dir / f"untitled-{uuid4().hex}.autosave.json"
         self.recovery_lock: QLockFile | None = None
         self.path: Path | None = path
+        self.active_map: str | None = None
         if path is not None and path.exists():
-            self.map_data: dict = read_map(path)
+            self.root_data: dict = read_map(path)
             # mtime snapshot for external-modification detection. Compared on
             # save so the editor warns before overwriting a file that changed
             # under it (e.g. someone edited `map.json` in another tool, or git
             # pulled).
             self.path_mtime: float | None = path.stat().st_mtime
         else:
-            self.map_data = empty_map()
+            self.root_data = empty_map()
             self.path_mtime = None
-        self._saved_data = copy.deepcopy(self.map_data) if self.path_mtime is not None else None
+        self._saved_data = copy.deepcopy(self.root_data) if self.path_mtime is not None else None
         self.dirty = self._saved_data is None
         self.undo_stack = QUndoStack(self)
         self.undo_stack.setUndoLimit(self.UNDO_LIMIT)
 
-    def set_data(self, map_data: dict, mark_dirty: bool) -> None:
+    @property
+    def map_data(self) -> dict:
+        if self.active_map is None:
+            return self.root_data
+        return self.root_data["nested_geometry"][self.active_map]
+
+    @property
+    def nested_geometry(self) -> dict:
+        return self.root_data.get("nested_geometry", {})
+
+    def select_map(self, name: str | None) -> None:
+        if name is not None and name not in self.nested_geometry:
+            raise ValueError(f"No nested geometry named {name!r}")
+        if name == self.active_map:
+            return
         before = self.map_data
-        self.map_data = copy.deepcopy(map_data)
-        if mark_dirty:
-            self.dirty = self.map_data != self._saved_data
+        self.active_map = name
         self.changed.emit(before)
+
+    def set_data(self, map_data: dict, mark_dirty: bool, active_map: str | None = None) -> None:
+        before = self.map_data
+        self.root_data = copy.deepcopy(map_data)
+        self.active_map = active_map if active_map in self.nested_geometry else None
+        if mark_dirty:
+            self.dirty = self.root_data != self._saved_data
+        self.changed.emit(before)
+
+    def apply_root_change(self, label: str, after: dict, active_map: str | None) -> bool:
+        if after == self.root_data:
+            return False
+        self.undo_stack.push(SetMapCommand(self, label, self.root_data, after, active_map))
+        return True
 
     def apply_change(self, label: str, after: dict, *, repair: bool = False) -> bool:
         after = canonicalize_map(after) if repair else maintain_edit(self.map_data, after)
-        # A file may be in any record order; an edit that only reorders is
-        # not an edit.
         if after == maintain_edit(self.map_data, self.map_data):
             return False
-        self.undo_stack.push(SetMapCommand(self, label, self.map_data, after))
-        return True
+        root = after
+        if self.active_map is not None:
+            root = copy.deepcopy(self.root_data)
+            root["nested_geometry"][self.active_map] = after
+        return self.apply_root_change(label, root, self.active_map)
 
     def proposed_repairs(self) -> tuple[dict, list[str]]:
         repaired = canonicalize_map(self.map_data)
@@ -73,8 +101,9 @@ class MapDocument(QObject):
     def replace_with_new(self, map_data: dict) -> None:
         """Adopt a fresh map with no backing file (File → New)."""
         before = self.map_data
+        self.active_map = None
         self.clear_autosave()
-        self.map_data = normalize_map(map_data)
+        self.root_data = normalize_map(map_data)
         self._saved_data = None
         self.path = None
         self.path_mtime = None
@@ -91,8 +120,9 @@ class MapDocument(QObject):
         mtime = path.stat().st_mtime if path_mtime is None else path_mtime
         data = read_map(path) if loaded is None else loaded
         before = self.map_data
+        self.active_map = None
         self.clear_autosave()
-        self.map_data = data
+        self.root_data = data
         self.path = path
         self.path_mtime = mtime
         self._saved_data = copy.deepcopy(data)
@@ -111,12 +141,12 @@ class MapDocument(QObject):
         """Write to the backing file. Raises on write failure."""
         destination = path if path is not None else self.path
         assert destination is not None, "write called with no backing file"
-        write_map(destination, self.map_data)
+        write_map(destination, self.root_data)
         mtime = destination.stat().st_mtime
         self.clear_autosave()
         self.path = destination
         self.path_mtime = mtime
-        self._saved_data = copy.deepcopy(self.map_data)
+        self._saved_data = copy.deepcopy(self.root_data)
         self.dirty = False
         self.undo_stack.setClean()
         self.saved.emit()
@@ -141,7 +171,7 @@ class MapDocument(QObject):
                 if not lock.tryLock(0):
                     return
                 self.recovery_lock = lock
-            write_map(autosave, self.map_data)
+            write_map(autosave, self.root_data)
         except Exception:
             # Autosave is best-effort; never interrupt the user with a modal.
             pass
@@ -180,7 +210,8 @@ class MapDocument(QObject):
         except Exception:
             return False
         before = self.map_data
-        self.map_data = recovered
+        self.active_map = None
+        self.root_data = recovered
         # Unsaved by definition until the user writes the real file.
         self.dirty = recovered != self._saved_data
         self.undo_stack.clear()

@@ -4,16 +4,17 @@ from __future__ import annotations
 
 import copy
 from pathlib import Path
+from dataclasses import replace
 
 from PySide6.QtCore import QSettings, Qt, QTimer
 from PySide6.QtGui import QAction, QFont, QKeySequence, QShortcut, QStandardItem, QStandardItemModel, QUndoStack
 from PySide6.QtWidgets import QComboBox, QLabel, QMainWindow, QMenu, QToolBar
 
 from .canvas import CLICK_TOOLS, Canvas
+from .canvas_scroll import CanvasScrollArea
 from .dialogs import NestedMotion
 from .constants import (
     DEFAULT_ACTOR_COUNT,
-    DEFAULT_WALL_WIDTH_CELLS,
     ERASE_MODES,
     ITEM_TYPES,
     MODE_CATEGORIES,
@@ -24,16 +25,19 @@ from .constants import (
     load_map_bridge_kinds,
     load_map_wall_width_cells,
     load_actor_kinds,
+    MAP_NAME_RE,
+    require_map_settings,
 )
 from .document import MapDocument
 from .erase import EraseMixin
 from .file_actions import FileActionsMixin
 from .display import level_label
-from .textures import load_texture_catalog, texture_hosts
+from .textures import load_texture_catalog
 from .items import ItemsMixin
 from .ladders import LaddersMixin
 from .lights import LightsMixin
-from .nested_maps import NestedMapsMixin
+from .nested_maps import NestedMapsMixin, nested_map_shape
+from .nested_editing import NestedEditingMixin
 from .placement import PlacementMixin
 from .select import SelectMixin
 from .spawn_zones import SpawnZoneEditMixin
@@ -48,6 +52,7 @@ from .window_geometry import WindowGeometry
 
 class EditorWindow(
     FileActionsMixin,
+    NestedEditingMixin,
     PlacementMixin,
     ItemsMixin,
     LightsMixin,
@@ -61,6 +66,9 @@ class EditorWindow(
 ):
     def __init__(self, path: Path, *, preferences: QSettings | None = None):
         super().__init__()
+        require_map_settings(path.stem)
+        self.catalog_map = path.stem
+        self.displayed_map = None
         self.preferences = preferences if preferences is not None else QSettings()
         # The document is the map being edited (data, file identity, dirty
         # state, undo history); the window holds view/tool state and widgets.
@@ -93,7 +101,6 @@ class EditorWindow(
         # The last nested map dialog answer:
         # (map, to_level, travel_secs, pause, phase, from_nudge, to_nudge).
         self.recent_nested_map: NestedMotion | None = None
-        self.nested_map_shapes: dict = {}
         # `(level_idx, [light, ...])` while an Auto-Place Lights confirmation
         # is pending; canvas paints these as ghosts. `None` outside the
         # preview window.
@@ -109,24 +116,19 @@ class EditorWindow(
         self.show_adjacent_levels = False
         # Material for newly painted floors, walls, and ramps; an alias, since
         # face values are validated against the catalog on save.
-        self.texture_host, hosts = texture_hosts(path.stem)
-        self.texture_catalog = load_texture_catalog(self.texture_host)
+        self.texture_catalog = load_texture_catalog(self.catalog_map)
         self.materials_catalog = list(self.texture_catalog)
         self.current_material = next(iter(self.materials_catalog), "")
-        self.texture_host_combo = QComboBox()
-        self.texture_host_combo.setAccessibleName("Texture host")
-        self.texture_host_combo.setToolTip("Use this host map's texture aliases and portal permissions")
-        self.texture_host_combo.addItems(hosts)
-        self.texture_host_combo.setCurrentText(self.texture_host)
-        self.texture_host_combo.currentTextChanged.connect(self.select_texture_host)
-        self.statusBar().addPermanentWidget(QLabel("Texture host "))
-        self.statusBar().addPermanentWidget(self.texture_host_combo)
 
         self.canvas = Canvas(self)
         self.canvas.setCursor(self.cursor_for_mode(self.mode))
-        self.setCentralWidget(self.canvas)
+        self.canvas_scroll = CanvasScrollArea(self.canvas)
+        self.setCentralWidget(self.canvas_scroll)
         self.setWindowTitle("Cuboid Wars Editor")
 
+        self.map_combo = QComboBox()
+        self.map_combo.setAccessibleName("Map geometry")
+        self.map_combo.currentIndexChanged.connect(self.select_map)
         self.level_combo = QComboBox()
         self.level_combo.currentIndexChanged.connect(self.select_level)
         self.mode_combo = self._build_mode_combo()
@@ -184,66 +186,57 @@ class EditorWindow(
     def undo_stack(self) -> QUndoStack:
         return self.doc.undo_stack
 
-    # The edited map's validation: the same rules on every path (save, open,
-    # paste, the Issues panel), including the nested-map checks that need the
-    # neighbouring files.
-    def validate(self, data: dict, *, map_name: str | None = None) -> ValidationErrors:
+    def validate(self, data: dict) -> ValidationErrors:
         return validate_map(
             data,
-            self.barrier_kinds if map_name is None else list(load_map_barrier_kinds(map_name)),
-            self.bridge_kinds if map_name is None else list(load_map_bridge_kinds(map_name)),
-            map_name=self.edited_map_name() if map_name is None else map_name,
+            self.barrier_kinds,
+            self.bridge_kinds,
+            map_name=self.doc.active_map,
             nested_lookup=self.nested_map_shape,
             actor_kinds=self.actor_kinds,
-            material_aliases=(self.materials_catalog if map_name is None or map_name == self.edited_map_name()
-                              else list(load_texture_catalog(texture_hosts(map_name)[0]))),
+            material_aliases=self.materials_catalog,
         )
 
-    # After the document adopts another map (new, open, save as, recovery):
-    # its catalogs, and every view state that named the old one.
-    def adopt_map(self, map_name: str | None) -> None:
+    def validate_document(self, data: dict, map_name: str | None = None) -> ValidationErrors:
+        barriers = self.barrier_kinds if map_name is None else list(load_map_barrier_kinds(map_name))
+        bridges = self.bridge_kinds if map_name is None else list(load_map_bridge_kinds(map_name))
+        aliases = self.materials_catalog if map_name is None else list(load_texture_catalog(map_name))
+        definitions = data.get("nested_geometry", {})
+        errors = ValidationErrors()
+        for name, geometry in [(None, data), *definitions.items()]:
+            label = f"Nested {name}" if name is not None else "Outer map"
+            if name is not None and not MAP_NAME_RE.fullmatch(name):
+                errors.append(f"{label}: use only ASCII letters, digits, '_' or '-' in the name", map_name=name)
+            if name is not None and "nested_geometry" in geometry:
+                errors.append(f"{label}: named geometry belongs in the outer map's nested_geometry", map_name=name)
+            found = validate_map(
+                geometry, barriers, bridges, map_name=name,
+                nested_lookup=lambda key: nested_map_shape(definitions.get(key)),
+                actor_kinds=self.actor_kinds, material_aliases=aliases,
+            )
+            for issue in found.issues:
+                message = f"{label}: {issue.message}" if name is not None else issue.message
+                list.append(errors, message)
+                errors.issues.append(replace(issue, message=message, map_name=name))
+        return errors
+
+    def adopt_map(self, map_name: str) -> None:
+        self.catalog_map = map_name
         self.clear_selection()
-        if map_name is None:
-            self.barrier_kind_colors = {}
-            self.bridge_kind_colors = {}
-            self.wall_width_cells = DEFAULT_WALL_WIDTH_CELLS
-        else:
-            self.barrier_kind_colors = load_map_barrier_kinds(map_name)
-            self.bridge_kind_colors = load_map_bridge_kinds(map_name)
-            self.wall_width_cells = load_map_wall_width_cells(map_name)
-        self.reload_texture_catalog(map_name, reset_host=True)
-        self.forget_nested_map_shapes()
+        self.barrier_kind_colors = load_map_barrier_kinds(map_name)
+        self.bridge_kind_colors = load_map_bridge_kinds(map_name)
+        self.wall_width_cells = load_map_wall_width_cells(map_name)
+        self.reload_texture_catalog()
         self.current_level = 0
         self.refresh_ui()
         self.canvas.fit_map()
 
-    def reload_texture_catalog(self, map_name=None, *, reset_host=False) -> None:
-        preferred, hosts = texture_hosts(map_name or self.edited_map_name())
-        host = preferred if reset_host or self.texture_host not in hosts else self.texture_host
-        catalog = load_texture_catalog(host)
-        self.texture_host = host
+    def reload_texture_catalog(self) -> None:
+        catalog = load_texture_catalog(self.catalog_map)
         self.texture_catalog = catalog
         self.materials_catalog = list(catalog)
         if self.current_material not in catalog:
             self.current_material = next(iter(catalog), "")
-        self.texture_host_combo.blockSignals(True)
-        self.texture_host_combo.clear()
-        self.texture_host_combo.addItems(hosts)
-        self.texture_host_combo.setCurrentText(host)
-        self.texture_host_combo.blockSignals(False)
-
-    def select_texture_host(self, host: str) -> None:
-        previous = self.texture_host
-        self.texture_host = host
-        try:
-            self.reload_texture_catalog()
-        except (OSError, ValueError, KeyError) as exc:
-            self.texture_host = previous
-            self.texture_host_combo.blockSignals(True)
-            self.texture_host_combo.setCurrentText(previous)
-            self.texture_host_combo.blockSignals(False)
-            self.notify(f"Texture catalog failed: {exc}")
-        self.refresh_ui()
 
     # === Menus & toolbar ===
 
@@ -304,6 +297,10 @@ class EditorWindow(
         self.build_selection_actions(edit_menu)
         self.add_menu_action(edit_menu, "Review &Repairs...", None, self.review_repairs)
         edit_menu.addSeparator()
+        self.add_menu_action(edit_menu, "New Nested Map...", None, self.new_nested_map)
+        self.rename_nested_action = self.add_menu_action(edit_menu, "Rename Nested Map...", None, self.rename_nested_map)
+        self.delete_nested_action = self.add_menu_action(edit_menu, "Delete Nested Map", None, self.delete_nested_map)
+        edit_menu.addSeparator()
         self.add_menu_action(edit_menu, "Resi&ze Map...", None, self.resize_map)
         edit_menu.addSeparator()
         self.add_menu_action(edit_menu, "&Add Level", None, self.add_level)
@@ -314,8 +311,10 @@ class EditorWindow(
         self.add_menu_action(edit_menu, "&Clear Lights On Level", None, self.clear_lights_on_current_level)
 
         view_menu = self.menuBar().addMenu("&View")
-        self.add_menu_action(view_menu, "Zoom &In", QKeySequence.StandardKey.ZoomIn, lambda: self.canvas.zoom_by(1.25))
-        self.add_menu_action(view_menu, "Zoom &Out", QKeySequence.StandardKey.ZoomOut, lambda: self.canvas.zoom_by(0.8))
+        zoom_in = self.add_menu_action(view_menu, "Zoom &In", None, lambda: self.canvas.zoom_by(1.25))
+        zoom_in.setShortcuts(QKeySequence.StandardKey.ZoomIn)
+        zoom_out = self.add_menu_action(view_menu, "Zoom &Out", None, lambda: self.canvas.zoom_by(0.8))
+        zoom_out.setShortcuts(QKeySequence.StandardKey.ZoomOut)
         fit_action = self.add_menu_action(view_menu, "&Fit Map", QKeySequence("F"), self.canvas.fit_map)
         self.canvas_shortcut(fit_action)
         view_menu.addSeparator()
@@ -362,6 +361,9 @@ class EditorWindow(
     def build_toolbar(self) -> None:
         toolbar = QToolBar("Tools", self)
         toolbar.setMovable(False)
+        toolbar.addWidget(QLabel("Map "))
+        toolbar.addWidget(self.map_combo)
+        toolbar.addSeparator()
         toolbar.addWidget(QLabel("Level "))
         toolbar.addWidget(self.level_combo)
         toolbar.addSeparator()
@@ -382,6 +384,11 @@ class EditorWindow(
     # === State updates & UI refresh ===
 
     def _on_document_changed(self, before: dict) -> None:
+        switched = self.displayed_map != self.doc.active_map
+        if switched:
+            self.clear_selection()
+            self.current_level = 0
+        self.displayed_map = self.doc.active_map
         self.cancel_interaction()
         self.canvas.issue_rects = []
         prior_selection: tuple[str, dict] | None = None
@@ -401,29 +408,40 @@ class EditorWindow(
         else:
             self.selected_spawn_zone_ref = None
         self.refresh_ui()
+        if switched:
+            self.canvas.fit_map()
 
     def apply_change(self, label: str, after: dict) -> None:
         self.doc.apply_change(label, after)
 
     def refresh_ui(self) -> None:
+        self.map_combo.blockSignals(True)
+        self.map_combo.clear()
+        self.map_combo.addItem("Outer map", None)
+        for name in sorted(self.doc.nested_geometry):
+            self.map_combo.addItem(name, name)
+        self.map_combo.setCurrentIndex(max(0, self.map_combo.findData(self.doc.active_map)))
+        self.map_combo.blockSignals(False)
+        self.rename_nested_action.setEnabled(self.doc.active_map is not None)
+        self.delete_nested_action.setEnabled(self.doc.active_map is not None)
         self.level_combo.blockSignals(True)
         self.level_combo.clear()
         for idx, level in enumerate(self.map_data["levels"]):
             self.level_combo.addItem(level_label(level, idx))
         self.level_combo.setCurrentIndex(self.current_level)
         self.level_combo.blockSignals(False)
-        self.canvas.update()
+        self.canvas.refresh_view()
         self.update_selection_actions()
         self.refresh_issues()
         suffix = "*" if self.dirty else ""
         file_name = str(self.path) if self.path else "Untitled"
         self.setWindowTitle(f"Cuboid Wars Editor - {file_name}{suffix}")
-        self.dependencies.watch(self.nested_map_shapes)
+        self.dependencies.watch()
         self.tool_settings.refresh()
 
     def refresh_issues(self, *, validate: bool = True) -> None:
         if validate:
-            errors = self.validate(self.map_data)
+            errors = self.validate_document(self.doc.root_data)
             self.issues_panel.set_issues(errors.issues)
             self.issues_action.setText(f"Issues ({len(errors)})")
             self.issues_action.setToolTip("\n".join(errors[:20]))
@@ -441,12 +459,13 @@ class EditorWindow(
         self.canvas.notice.show_message(message)
 
     def focus_issue(self, issue) -> None:
+        self.doc.select_map(issue.map_name)
         if issue.level is not None:
             self.set_level_index(issue.level)
         self.canvas.issue_rects = [issue.rect] if issue.rect is not None else []
         if issue.rect is not None:
             self.canvas.viewport.focus(issue.rect, self.canvas.width(), self.canvas.height())
-        self.canvas.update()
+        self.canvas.refresh_view()
 
     # === Navigation (level / tool selection) ===
 

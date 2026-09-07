@@ -67,7 +67,7 @@ def upper_level(*floors: dict) -> dict:
     }
 
 
-# Stand-in map files for nested-map tests: `cabin` is a 3x2 room on two
+# Stand-in geometry for nested-map tests: `cabin` is a 3x2 room on two
 # storeys, `loop_a` and `loop_b` nest each other.
 NESTED_SHAPES = {
     "cabin": NestedMapShape(grid_cols=3, grid_rows=2, level_count=2, nested_names=()),
@@ -99,6 +99,9 @@ class EditorHost(PlacementMixin, ItemsMixin, LightsMixin, NestedMapsMixin, Erase
         self.statuses: list[str] = []
         self.path = None
         self.recent_nested_map = None
+
+    def edited_map_name(self):
+        return self.path.stem if self.path else None
 
     def nested_map_shape(self, name: str) -> NestedMapShape | None:
         return NESTED_SHAPES.get(name)
@@ -259,7 +262,8 @@ class BarrierKindTests(unittest.TestCase):
             {"treasure": "#ff3333", "basement": "#f0c020", "gravity": "#5090ff", "lobby": "#22cc33"},
         )
         self.assertEqual(load_map_barrier_kinds("obby"), {"barrier_1": "#f0c020"})
-        self.assertEqual(load_map_barrier_kinds("not_configured"), {})
+        with self.assertRaisesRegex(ValueError, "no settings in gameplay.json"):
+            load_map_barrier_kinds("not_configured")
 
 
 class LightBridgeTests(unittest.TestCase):
@@ -378,7 +382,8 @@ class LightBridgeTests(unittest.TestCase):
             load_map_bridge_kinds("obby"),
             {"bridge_1": "#30d8ff", "bridge_2": "#30d8ff", "bridge_3": "#30d8ff"},
         )
-        self.assertEqual(load_map_bridge_kinds("not_configured"), {})
+        with self.assertRaisesRegex(ValueError, "no settings in gameplay.json"):
+            load_map_bridge_kinds("not_configured")
 
 
 def wall(c0: int, r0: int, c1: int, r1: int) -> dict:

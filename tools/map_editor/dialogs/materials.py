@@ -53,7 +53,7 @@ class MaterialAssignmentDialog(QDialog):
         form = QFormLayout()
         form.addRow("Selection:", QLabel(scope_summary))
         if portalability is not None:
-            form.addRow("Portals:", QLabel("Permissions come from the selected texture host."))
+            form.addRow("Portals:", QLabel("Permissions come from the parent map."))
         for face, label in self.FACE_LABELS:
             combo = QComboBox()
             combo.addItem("Mixed / leave unchanged", None)

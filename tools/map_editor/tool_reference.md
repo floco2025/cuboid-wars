@@ -4,17 +4,19 @@ Every element group ends with its own **Erase** tool that removes only that elem
 
 ## Navigation and Tool Settings
 
-- **Zoom / Pan / Fit Map** — Wheel to zoom around the pointer; hold Space and drag, or middle-drag, to pan. View → Fit Map (`F`) shows the whole map. Zooming in reveals small details; only visible geometry is painted.
+- **Map** — Open a map registered in `gameplay.json`. The Map picker switches between the outer map and its named nested geometry; all views use the parent's kinds and texture catalog. Save, autosave, and undo cover the whole document. Undo switches to the affected map.
+
+- **Zoom / Pan / Fit Map** — `Cmd+Plus` / `Cmd+Minus` on macOS, or `Ctrl+Plus` / `Ctrl+Minus` elsewhere, zoom in and out. Scroll with a wheel, Magic Mouse, or touchpad to pan; Shift-wheel pans horizontally. Scroll bars appear when the map extends outside the view, and panning stops at the map edges. Space-drag and middle-drag also pan. View → Fit Map (`F`) shows the whole map.
 - **Window** — Size, position, and maximized state are remembered across launches, shared by every map. Off-screen positions are brought back onto an available screen. New, Open, and Resize Map fit the canvas without changing the window size.
 - **Tool Settings** — Properties appear beside the Tool picker in the top toolbar, only for tools that need them. Placement always uses the previous values; a dialog is needed only when no usable choice has been made yet. Change values in the toolbar, or open nested-map motion through **Settings…**. Right-click property editing still opens a dialog.
 - **Single-tile tools** — Ladders, lights, plates, and items preview one tile or edge, never a range. Holding the mouse button lets you adjust the target; releasing places once. Escape or releasing off-grid cancels.
 - **Feedback** — Placement warnings and copy confirmations appear briefly over the canvas without taking focus or blocking clicks. Undo and Redo menus name the available actions.
-- **Map Issues / Review Repairs** — The toolbar's **Issues** button appears only when problems exist; it and View → Map Issues open the issues list. Click a result to focus its level and highlight the object. Loading preserves invalid records; Edit → Review Repairs lists automatic changes for approval. Accepted repairs undo in one step. While repairs are pending, edits preserve records for manual correction; saving remains blocked by validation errors.
-- **Recovery / Dependencies** — Unsaved maps receive recovery copies every 15 seconds, including untitled maps. Use File → Recover Unsaved Map to restore an untitled session after a crash; active sessions cannot be recovered by a second editor. Named maps offer newer autosaves when opened. Changes to nested-map files and gameplay/material catalogs refresh the editor automatically.
+- **Map Issues / Review Repairs** — The toolbar's **Issues** button appears only when problems exist; it and View → Map Issues open the issues list. Click a result to select its map and level and highlight the object. Loading preserves invalid records; Edit → Review Repairs lists automatic changes for approval. Accepted repairs undo in one step. While repairs are pending, edits preserve records for manual correction; saving remains blocked by validation errors.
+- **Recovery / Dependencies** — Unsaved maps receive recovery copies every 15 seconds, including untitled maps. Use File → Recover Unsaved Map to restore an untitled session after a crash; active sessions cannot be recovered by a second editor. Named maps offer newer autosaves when opened. Changes to the parent's gameplay catalogs refresh the editor automatically.
 
 ## Select Tiles
 
-- **Select Tiles** — Where the editor starts. Click one tile or drag a rectangle to select tiles and their contents; empty tiles are selectable too. The blue outline marks the selection. Alt/Option-click a spawn zone to select it, then Alt/Option-drag its body or handles to move or resize it; Alt/Option-drag a nested map's end square to move that end. In every tool, right-click an element to edit its properties or erase it.
+- **Select Tiles** — Where the editor starts. Click one tile or drag a rectangle to select tiles and their contents; empty tiles are selectable too. The blue outline marks the selection. Alt/Option-click a spawn zone to select it, then drag its handles normally to resize it or Alt/Option-drag its body to move it. Right-clicking a spawn zone also selects it. Alt/Option-drag a nested map's end square to move that end. In every tool, right-click an element to edit its properties or erase it.
 - **Copy / Cut / Delete** — Available in Edit and the selection's right-click menu. Each asks how many levels to include, starting at the current level and going upward; the default is always 1. Copy and Cut put the entire block on the clipboard. Cut and Delete remove it. Walls, barriers, and equipment erasers on the rectangle's border are included. Include whole spawn zones, ramp footprints, ladder anchors and spans, and both ends of nested-map motion; a partial object prompts you to enlarge the selection. Removing a boundary wall with a light on its other side also needs that tile selected.
 - **Paste** — Select the destination tile (or a rectangle whose top-left tile is the destination), then paste. The dashed outline previews the footprint to replace; its label shows the tile dimensions and level count. Paste replaces all contents, including empty cells in the copied block, starting on the current level. Missing levels are added at the top. A block outside the grid is refused, and incompatible map kinds are reported. The clipboard works across open maps and editor windows. Cut, Delete, and Paste each undo in one step; Delete leaves the clipboard unchanged.
 
@@ -64,7 +66,9 @@ Every element group ends with its own **Erase** tool that removes only that elem
 
 ## Nested Maps
 
-- **Nested Map** — Click a cell to place another map file with its cell (0, 0) on it, standing still; drag to a second cell to make it slide there and back. A moving tile is a nested one-cell map (`tile`), and a lift is one whose far end is on another level. Placement reuses the motion configured under the toolbar's **Settings…** (the first placement opens it): which map (any other file in `config/server/maps`), the level of the far end, how long one leg takes, the pause at each end, a phase offset, and a nudge for each end, its (x, y, z) displacement from the anchor, x and z in wall widths (across columns and rows) and y in floor widths (up), zero by default; two floors meeting at a grid line overlap by one wall width, so a nudge of 1.01 back along the travel leaves them just clear. Everything in the nested map rides along: floors, walls, ladders, plates, items, and its own nested maps. On the canvas the ends are numbered squares 1 and 2 with a band between them, and the nested map's footprint is outlined and named where it rests at each end, its nudge applied, solid where it starts and dashed where it arrives (a y nudge cannot be drawn on the plan, so it is written after the name); a red `name?` is a map file that is missing. Nothing checks for overlap with the map around it. Dragging from an end moves that end, clicking an end opens the entry's properties, and right-clicking an end offers the same in any tool, beside Erase.
+- **Create / Rename / Delete** — Edit → New Nested Map creates named geometry in the parent file and selects it for editing. Rename Nested Map updates every placement of that name. Delete Nested Map removes an unused definition; erase its placements first if it is in use. All three actions can be undone.
+
+- **Nested Map** — Click a cell to place named nested geometry with its cell (0, 0) on it, standing still; drag to a second cell to make it slide there and back. A moving tile is a nested one-cell map (`tile`), and a lift is one whose far end is on another level. Placement reuses the motion configured under the toolbar's **Settings…** (the first placement opens it): which map (any other file in `config/server/maps`), the level of the far end, how long one leg takes, the pause at each end, a phase offset, and a nudge for each end, its (x, y, z) displacement from the anchor, x and z in wall widths (across columns and rows) and y in floor widths (up), zero by default; two floors meeting at a grid line overlap by one wall width, so a nudge of 1.01 back along the travel leaves them just clear. Everything in the nested map rides along: floors, walls, ladders, plates, items, and its own nested maps. On the canvas the ends are numbered squares 1 and 2 with a band between them, and the nested map's footprint is outlined and named where it rests at each end, its nudge applied, solid where it starts and dashed where it arrives (a y nudge cannot be drawn on the plan, so it is written after the name); a red `name?` is a missing geometry definition. Nothing checks for overlap with the map around it. Dragging from an end moves that end, clicking an end opens the entry's properties, and right-clicking an end offers the same in any tool, beside Erase.
 - **Erase Nested Maps** — Drag a rectangle to remove every nested map whose start or end cell on the current level is inside it.
 
 ## Ladders
@@ -113,8 +117,9 @@ Different purposes may share a tile, including multiple barrier or bridge kinds.
 | `←` / `→` | Previous / next tool |
 | `M` | Toggle Show Material Overlay |
 | `L` | Toggle Show Adjacent Levels |
-| Wheel / `Ctrl/Cmd+Plus` / `Ctrl/Cmd+Minus` | Zoom |
-| Space-drag / middle-drag | Pan |
+| `Ctrl/Cmd+Plus` / `Ctrl/Cmd+Minus` | Zoom |
+| Wheel / touch surface / Space-drag / middle-drag | Pan |
+| Shift-wheel | Pan horizontally |
 | `F` | Fit the whole map |
 | `Ctrl/Cmd+Z` | Undo |
 | `Ctrl/Cmd+Shift+Z` | Redo |
@@ -124,7 +129,8 @@ Different purposes may share a tile, including multiple barrier or bridge kinds.
 | `Delete` / `Backspace` | Delete selected tiles; ask level count |
 | `Ctrl/Cmd+A` | Select all tiles |
 | `Esc` | Clear selection / cancel the current drag |
-| `Alt/Option` + click/drag | Select, move, or resize a spawn zone; move a nested-map end |
+| `Alt/Option` + click/drag | Select or move a spawn zone; move a nested-map end |
+| Drag a selected spawn zone's handle | Resize the zone |
 | `Ctrl/Cmd+N` | New map |
 | `Ctrl/Cmd+O` | Open |
 | `Ctrl/Cmd+S` | Save |

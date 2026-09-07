@@ -7,12 +7,14 @@ from pathlib import Path
 
 from PySide6.QtCore import QTimer
 from PySide6.QtGui import QAction
-from PySide6.QtWidgets import QFileDialog, QMessageBox
+from PySide6.QtWidgets import QFileDialog, QInputDialog, QMessageBox
 
 from .constants import (
     DEFAULT_GRID_COLS,
     DEFAULT_GRID_ROWS,
     MAPS_DIR,
+    list_map_names,
+    require_map_settings,
     load_actor_kinds,
     load_map_barrier_kinds,
     load_map_bridge_kinds,
@@ -35,23 +37,33 @@ class FileActionsMixin:
         if result is None:
             return
         new_cols, new_rows, _, _ = result
+        path = self.choose_map_path("New Map")
+        if path is None:
+            return
         self.doc.replace_with_new(empty_map(new_cols, new_rows))
-        self.adopt_map(None)
+        self.doc.path = path
+        self.doc.path_mtime = path.stat().st_mtime if path.exists() else None
+        self.adopt_map(path.stem)
+
+    def choose_map_path(self, title: str) -> Path | None:
+        names = list_map_names()
+        current = names.index(self.catalog_map) if self.catalog_map in names else 0
+        name, accepted = QInputDialog.getItem(self, title, "Map:", names, current, False)
+        return MAPS_DIR / f"{name}.json" if accepted and name else None
 
     def open_file(self) -> None:
         if not self.confirm_discard_changes():
             return
-        path, _ = QFileDialog.getOpenFileName(self, "Open Map", str(self.path or MAPS_DIR), "JSON files (*.json)")
-        if not path:
-            return
-        self.load_path(Path(path))
+        path = self.choose_map_path("Open Map")
+        if path is not None:
+            self.load_path(path)
 
     def load_path(self, path: Path) -> None:
         try:
+            require_map_settings(path.stem)
             loaded_mtime = path.stat().st_mtime
             loaded = read_map(path)
-            self.forget_nested_map_shapes()
-            errors = self.validate(loaded, map_name=path.stem)
+            errors = self.validate_document(loaded, map_name=path.stem)
         except Exception as exc:
             QMessageBox.critical(self, "Open Failed", str(exc))
             return
@@ -81,10 +93,9 @@ class FileActionsMixin:
         return self._save_to(self.path)
 
     def _save_to(self, path: Path) -> bool:
-        previous_map_name = self.edited_map_name()
-        self.forget_nested_map_shapes()
         try:
-            errors = self.validate(self.map_data, map_name=path.stem)
+            require_map_settings(path.stem)
+            errors = self.validate_document(self.doc.root_data, map_name=path.stem)
         except Exception as exc:
             QMessageBox.critical(self, "Save Failed", str(exc))
             return False
@@ -115,20 +126,28 @@ class FileActionsMixin:
             return False
         # Save As changes the map's name, and with it its catalogs; the view
         # stays where it is.
-        self.reload_texture_catalog(path.stem, reset_host=path.stem != previous_map_name)
+        self.catalog_map = path.stem
+        self.reload_texture_catalog()
         self.barrier_kind_colors = load_map_barrier_kinds(path.stem)
         self.bridge_kind_colors = load_map_bridge_kinds(path.stem)
         self.wall_width_cells = load_map_wall_width_cells(path.stem)
         self._record_recent_path(self.path)
-        self.forget_nested_map_shapes()
         self.refresh_ui()
         return True
 
     def save_as(self) -> bool:
-        path, _ = QFileDialog.getSaveFileName(self, "Save Map As", str(self.path or MAPS_DIR), "JSON files (*.json)")
-        if not path:
+        path = self.choose_map_path("Save Map As")
+        if path is None:
             return False
-        return self._save_to(Path(path))
+        if path != self.path and path.exists():
+            answer = QMessageBox.question(
+                self, "Replace Map?", f"Replace {path.name} with this map?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+                QMessageBox.StandardButton.Cancel,
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                return False
+        return self._save_to(path)
 
     def confirm_discard_changes(self) -> bool:
         if not self.dirty:
@@ -203,7 +222,7 @@ class FileActionsMixin:
         if not recovered:
             QMessageBox.information(self, "Map In Use", "That recovery file belongs to an editor that is still running.")
             return
-        self.adopt_map(None)
+        self.adopt_map(self.catalog_map)
         self.review_repairs(quiet=True)
 
     def _tick_autosave(self) -> None:
@@ -261,13 +280,12 @@ class FileActionsMixin:
         self.load_path(candidate)
 
     def reload_dependencies(self) -> None:
-        self.forget_nested_map_shapes()
         try:
             self.actor_kinds = load_actor_kinds()
             self.reload_texture_catalog()
-            self.barrier_kind_colors = load_map_barrier_kinds(self.edited_map_name())
-            self.bridge_kind_colors = load_map_bridge_kinds(self.edited_map_name())
-            self.wall_width_cells = load_map_wall_width_cells(self.edited_map_name())
+            self.barrier_kind_colors = load_map_barrier_kinds(self.catalog_map)
+            self.bridge_kind_colors = load_map_bridge_kinds(self.catalog_map)
+            self.wall_width_cells = load_map_wall_width_cells(self.catalog_map)
         except (OSError, ValueError, KeyError) as exc:
             self.notify(f"Catalog reload failed: {exc}")
         self.refresh_ui()

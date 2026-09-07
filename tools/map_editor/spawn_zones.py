@@ -60,25 +60,28 @@ class SpawnZoneEditMixin:
                     return ZoneRef(list_name, idx)
         return None
 
+    def selected_spawn_zone_handle(self, pos) -> str | None:
+        zone = self.selected_spawn_zone()
+        if zone is None or zone["level"] != self.current_level:
+            return None
+        return self._handle_at_pos(zone, pos)
+
     def begin_spawn_zone_drag(self, pos) -> bool:
         """A press on a spawn zone, `pos` in grid units. A handle of the
         selected zone starts a resize and its body a move; any other zone is
         only selected, so a stray drag moves nothing. Returns whether a zone
         took the press."""
-        zone = self.selected_spawn_zone()
-        if zone is not None and zone["level"] == self.current_level:
-            handle = self._handle_at_pos(zone, pos)
-            if handle is not None:
-                assert self.selected_spawn_zone_ref is not None
-                ref = self.selected_spawn_zone_ref
-                self.spawn_zone_drag = SpawnZoneDrag(
-                    list_name=ref.list_name,
-                    index=ref.index,
-                    handle=handle,
-                    origin=(pos.x(), pos.y()),
-                    original_zone=copy.deepcopy(zone),
-                )
-                return True
+        handle = self.selected_spawn_zone_handle(pos)
+        if handle is not None:
+            ref = self.selected_spawn_zone_ref
+            self.spawn_zone_drag = SpawnZoneDrag(
+                list_name=ref.list_name,
+                index=ref.index,
+                handle=handle,
+                origin=(pos.x(), pos.y()),
+                original_zone=copy.deepcopy(self.selected_spawn_zone()),
+            )
+            return True
         ref = self.spawn_zone_at(pos)
         self.spawn_zone_drag = None
         if ref is None:

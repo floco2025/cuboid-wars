@@ -34,6 +34,12 @@ class Viewport:
         self.offset += delta
         self.fitted = False
 
+    def constrain(self, width: float, height: float, cols: int, rows: int) -> None:
+        self.offset = QPointF(
+            max(min(0, width - cols * self.cell), min(0, self.offset.x())),
+            max(min(0, height - rows * self.cell), min(0, self.offset.y())),
+        )
+
     def visible_rect(self, width: float, height: float) -> QRectF:
         return QRectF(self.to_grid(QPointF()), self.to_grid(QPointF(width, height)))
 

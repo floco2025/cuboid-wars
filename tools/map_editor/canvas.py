@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QPointF, QRectF, QSize, Qt
+from PySide6.QtCore import QPointF, QRectF, QSize, Qt, Signal
 from PySide6.QtWidgets import QLabel, QMenu, QSizePolicy, QWidget
 
 from .constants import (
@@ -176,6 +176,8 @@ RELEASE_TOOLS = {
 
 
 class Canvas(CanvasPaintingMixin, QWidget):
+    view_changed = Signal()
+
     def __init__(self, window: "EditorWindow"):
         super().__init__()
         self.window = window
@@ -215,7 +217,7 @@ class Canvas(CanvasPaintingMixin, QWidget):
         )
         self._hover_label.hide()
         self.notice = CanvasNotice(self)
-        self.setToolTip("Wheel: zoom · Space-drag or middle-drag: pan · F: fit map")
+        self.setToolTip("Wheel or touch surface: pan · Ctrl/Cmd +/−: zoom · Space-drag or middle-drag: pan · F: fit map")
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.DefaultContextMenu)
@@ -239,22 +241,45 @@ class Canvas(CanvasPaintingMixin, QWidget):
     def resizeEvent(self, event) -> None:
         if self.viewport.fitted:
             self.fit_map()
+        else:
+            self.refresh_view()
         self.notice.reposition()
         super().resizeEvent(event)
 
     def fit_map(self) -> None:
         self.viewport.fit(self.width(), self.height(), self.window.map_data["grid_cols"], self.window.map_data["grid_rows"])
-        self._clear_hover()
-        self.update()
+        self.refresh_view()
 
     def zoom_by(self, factor: float, anchor: QPointF | None = None) -> None:
         self.viewport.zoom(factor, anchor if anchor is not None else QPointF(self.width() / 2, self.height() / 2))
+        self.refresh_view()
+
+    def pan_by(self, delta: QPointF) -> None:
+        if delta.isNull():
+            return
+        origin = QPointF(self.viewport.offset)
+        self.viewport.offset += delta
+        self.constrain_view()
+        if self.viewport.offset != origin:
+            self.viewport.fitted = False
+            self.refresh_view()
+
+    def constrain_view(self) -> None:
+        self.viewport.constrain(self.width(), self.height(), self.window.map_data["grid_cols"], self.window.map_data["grid_rows"])
+
+    def refresh_view(self) -> None:
+        self.constrain_view()
         self._clear_hover()
+        self.view_changed.emit()
         self.update()
 
     def wheelEvent(self, event) -> None:
-        delta = event.angleDelta().y() or event.pixelDelta().y()
-        self.zoom_by(1.2 ** (delta / 120), event.position())
+        delta = QPointF(event.pixelDelta()) if not event.pixelDelta().isNull() else QPointF(event.angleDelta()) / 3
+        if event.modifiers() & Qt.KeyboardModifier.ShiftModifier and delta.x() == 0:
+            delta = QPointF(delta.y(), 0)
+        if not delta.isNull():
+            self.setFocus(Qt.FocusReason.MouseFocusReason)
+        self.pan_by(delta)
         event.accept()
 
     def keyPressEvent(self, event) -> None:
@@ -309,6 +334,7 @@ class Canvas(CanvasPaintingMixin, QWidget):
 
     def mousePressEvent(self, event) -> None:
         if event.button() == Qt.MouseButton.MiddleButton or (self.pan_key and event.button() == Qt.MouseButton.LeftButton):
+            self.setFocus(Qt.FocusReason.MouseFocusReason)
             self.window.cancel_interaction()
             self.pan_origin = event.position()
             self.setCursor(Qt.CursorShape.ClosedHandCursor)
@@ -335,11 +361,19 @@ class Canvas(CanvasPaintingMixin, QWidget):
 
     def mouseMoveEvent(self, event) -> None:
         if self.pan_origin is not None:
-            self.viewport.pan(event.position() - self.pan_origin)
+            self.pan_by(event.position() - self.pan_origin)
             self.pan_origin = event.position()
-            self.update()
             return
         if self.window.mode in CLICK_TOOLS or not (event.buttons() & Qt.MouseButton.LeftButton):
+            if self.window.mode == MODE_SELECT and not self.pan_key:
+                handle = self.window.selected_spawn_zone_handle(self.grid_position(event.position()))
+                cursor = {
+                    "nw": Qt.CursorShape.SizeFDiagCursor, "se": Qt.CursorShape.SizeFDiagCursor,
+                    "ne": Qt.CursorShape.SizeBDiagCursor, "sw": Qt.CursorShape.SizeBDiagCursor,
+                    "n": Qt.CursorShape.SizeVerCursor, "s": Qt.CursorShape.SizeVerCursor,
+                    "e": Qt.CursorShape.SizeHorCursor, "w": Qt.CursorShape.SizeHorCursor,
+                }.get(handle, self.window.cursor_for_mode(self.window.mode))
+                self.setCursor(cursor)
             if self.window.mode in MATERIAL_MODES:
                 self._update_material_hover(event.position())
             else:
@@ -477,6 +511,7 @@ class Canvas(CanvasPaintingMixin, QWidget):
         if self.drag_start_point is not None:
             self.drag_current_point = self.point_to_grid_point(event.position())
         if self.window.mode == MODE_SELECT:
+            self.window.update_select_drag(self.grid_position(event.position()))
             self.window.end_select_drag(self.drag_start_cell, self.drag_current_cell)
         else:
             tool = RELEASE_TOOLS.get(self.window.mode)

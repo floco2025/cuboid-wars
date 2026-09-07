@@ -5,16 +5,14 @@ from __future__ import annotations
 import copy
 from dataclasses import dataclass
 
-from .constants import MAPS_DIR, NESTED_MAPS_LIST, list_map_names
+from .constants import NESTED_MAPS_LIST
 from .dialogs import MotionDialog, Nudge
-from .io import read_map
 from .normalization import nested_map_key
 
 
 @dataclass(frozen=True)
 class NestedMapShape:
-    """What the canvas and the validator need to know about a nested map's
-    file: its footprint, its storey count, and the maps it nests itself."""
+    """The footprint, storeys, and references of named nested geometry."""
 
     grid_cols: int
     grid_rows: int
@@ -22,15 +20,8 @@ class NestedMapShape:
     nested_names: tuple[str, ...]
 
 
-def load_nested_map_shape(name: str) -> NestedMapShape | None:
-    """The shape of `config/server/maps/<name>.json`, or None when the file
-    is missing or unreadable."""
-    path = MAPS_DIR / f"{name}.json"
-    if not path.is_file():
-        return None
-    try:
-        data = read_map(path)
-    except Exception:
+def nested_map_shape(data: dict | None) -> NestedMapShape | None:
+    if data is None:
         return None
     return NestedMapShape(
         grid_cols=data["grid_cols"],
@@ -43,7 +34,7 @@ def load_nested_map_shape(name: str) -> NestedMapShape | None:
 def nested_map_cycle(edited: str | None, entries: list[dict], lookup) -> list[str] | None:
     """The chain of names along which a map nests itself, starting from the
     edited map's entries, or None. `lookup(name)` gives a map's shape (None
-    for an unknown file, which ends that branch)."""
+    for unknown geometry, which ends that branch)."""
     checked: set[str] = set()
 
     def visit(name: str, chain: list[str]) -> list[str] | None:
@@ -100,23 +91,17 @@ class NestedMapsMixin:
     # === Nested maps ===
 
     def nested_map_shape(self, name: str) -> NestedMapShape | None:
-        """Memoised per name: hotel.json is large, and the validator asks on
-        every change."""
-        shapes = self.__dict__.setdefault("nested_map_shapes", {})
-        if name not in shapes:
-            shapes[name] = load_nested_map_shape(name)
-        return shapes[name]
+        return nested_map_shape(self.doc.nested_geometry.get(name))
 
-    def forget_nested_map_shapes(self) -> None:
-        self.nested_map_shapes = {}
+    def nested_map_names(self) -> list[str]:
+        return sorted(name for name in self.doc.nested_geometry if name != self.doc.active_map)
 
     def recent_nested_map_name(self) -> str | None:
         recent = getattr(self, "recent_nested_map", None)
         return recent[0] if recent else None
 
     def edited_map_name(self) -> str | None:
-        path = getattr(self, "path", None)
-        return path.stem if path is not None else None
+        return self.doc.active_map
 
     def nested_map_end_at(self, cell: tuple[int, int]) -> tuple[dict, str] | None:
         """The nested map end anchored on `cell` on the current level, as
@@ -160,7 +145,7 @@ class NestedMapsMixin:
             len(self.map_data["levels"]),
             entry["level"],
             current,
-            list_map_names(exclude=self.edited_map_name()),
+            self.nested_map_names(),
             title="Edit Nested Map",
         )
         if result is None:
@@ -218,7 +203,7 @@ class NestedMapsMixin:
     def add_nested_map(self, start_cell: tuple[int, int], end_cell: tuple[int, int]) -> None:
         if (self.recent_nested_map is not None
                 and 0 <= self.recent_nested_map[1] < len(self.map_data["levels"])
-                and self.recent_nested_map[0] in list_map_names(exclude=self.edited_map_name())):
+                and self.recent_nested_map[0] in self.nested_map_names()):
             self.place_nested_map(start_cell, end_cell, *self.recent_nested_map)
             return
         result = MotionDialog.prompt_nested(
@@ -226,7 +211,7 @@ class NestedMapsMixin:
             len(self.map_data["levels"]),
             self.current_level,
             self.recent_nested_map,
-            list_map_names(exclude=self.edited_map_name()),
+            self.nested_map_names(),
         )
         if result is None:
             return

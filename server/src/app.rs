@@ -52,13 +52,7 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
     let GeneratedMap {
         layout: map_layout,
         config: map_config,
-    } = generate_map(
-        map_name,
-        &map_settings,
-        &|nested| server_gameplay_config.maps.get(nested).map(|map| map.settings.geometry),
-        &barrier_kind_table,
-        &bridge_kind_table,
-    )?;
+    } = generate_map(map_name, &map_settings, &barrier_kind_table, &bridge_kind_table)?;
     let map_geometry = map_config.root_grid().geometry;
     let map_items = map_config.available_items(&random_items.pool);
     let collision_world = CollisionWorld::from_map_layout(&map_layout, &barrier_kind_table);
