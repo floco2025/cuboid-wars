@@ -13,7 +13,8 @@
     ],
     "items": [
       {"level": 1, "col": 10, "row": 4, "type": "portal_gun"},
-      {"level": 1, "col": 10, "row": 2, "type": "gold"}
+      {"level": 1, "col": 10, "row": 2, "type": "gold"},
+      {"level": 1, "col": 10, "row": 5, "type": "gold"}
     ],
     "levels": [
       {

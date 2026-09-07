@@ -71,7 +71,7 @@
       "health_potion": 5.0,
       "speed": 5.0,
       "low_gravity": 5.0,
-      "gold": 86400.0,
+      "gold": 5.0,
       "key": 5.0
     }
   },
@@ -79,14 +79,14 @@
     {
       "id": "token",
       "kind": "gold",
-      "scope": "shared",
+      "scope": "everyone",
       "requires": null,
       "actor_kind": null,
       "threshold": 1,
       "points": 500,
       "title": "Leave nobody behind",
-      "description": "Two players. Hold the bridge for your partner; use the equipment across it to bring the helper to the finish.",
-      "completed_text": "Token recovered. Reach the firework plate."
+      "description": "Hold the bridge for your partner, then bring the helper across. Each player must collect a gold coin to reveal the finish plates.",
+      "completed_text": "Everyone collected a coin. Occupy both firework plates together."
     },
     {
       "id": "finish",
