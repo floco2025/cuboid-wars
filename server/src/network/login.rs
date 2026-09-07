@@ -180,10 +180,12 @@ mod tests {
                             KindDef {
                                 id: "lobby".to_owned(),
                                 color: HexColor([0x22, 0xcc, 0x33]),
+                                pressure_switch: Default::default(),
                             },
                             KindDef {
                                 id: "basement".to_owned(),
                                 color: HexColor([0xf0, 0xc0, 0x20]),
+                                pressure_switch: Default::default(),
                             },
                         ],
                         ..map_settings

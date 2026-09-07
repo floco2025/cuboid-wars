@@ -54,7 +54,7 @@ Every element group ends with its own **Erase** tool that removes only that elem
 
 ## Light Bridges
 
-- **Light Bridge** — Choose Kind in the toolbar and drag cells to place a translucent walkway that is solid only while a bridge plate of its kind is held. Kinds and their colors come from that map's `bridge_kinds` in `config/server/gameplay.json`. The validator flags a bridge that shares a cell with a floor or a ramp.
+- **Light Bridge** — Choose Kind in the toolbar and drag cells to place a translucent walkway that is solid while its kind’s pressure switch is active. Kinds and their colors come from that map's `bridge_kinds` in `config/server/gameplay.json`. The validator flags a bridge that shares a cell with a floor or a ramp.
 - **Erase Light Bridges** — Drag a rectangle to remove every light bridge inside it on the current level.
 
 ## Ramps
@@ -92,10 +92,10 @@ Faces with different materials across the selection start at **Mixed / leave unc
 
 ## Pressure Plates
 
-Different purposes may share a tile, including multiple barrier or bridge kinds. Right-click actions name each purpose and edit or erase only that plate.
+Different purposes may share a tile, including multiple barrier or bridge kinds. Right-click actions name each purpose and edit or erase only that plate. Configure each kind’s `pressure_switch` directly in `gameplay.json`: `activation` is `momentary`, `toggle`, or `auto`; `reset_on_player_death` is `never`, `solo`, `any`, or `all`. Auto toggles with one logged-in player and is momentary with multiple players. Momentary needs any matching plate occupied. The editor reads kind IDs and colors; it does not edit these policies.
 
-- **Barrier Plate** — Choose Kind in the toolbar and left-click a cell to place a plate (square in the barrier kind's color). While enough plates of a kind are pressed — one fewer than the players alive, capped by the plate count — every barrier of that kind opens globally. Right-click a plate to change its kind or erase it.
-- **Bridge Plate** — Choose Kind in the toolbar and left-click a cell to place a plate (diamond in the bridge kind's color). While enough plates of a kind are pressed — the same count as for barrier plates — every light bridge of that kind turns solid. Right-click a plate to change its kind or erase it.
+- **Barrier Plate** — Choose Kind in the toolbar and left-click a cell to place a plate (square in the barrier kind's color). The kind’s pressure switch opens every barrier of that kind globally. Right-click a plate to change its kind or erase it.
+- **Bridge Plate** — Choose Kind in the toolbar and left-click a cell to place a plate (diamond in the bridge kind's color). The kind’s pressure switch makes every light bridge of that kind solid. Right-click a plate to change its kind or erase it.
 - **Firework Plate** — Left-click a cell to place a firework plate (circle). When every player alive stands on a firework plate — or every plate is held when players outnumber the plates — the firework show starts. Right-click a plate to erase it.
 - **Erase Pressure Plates** — Drag a rectangle to remove every plate inside it on the current level.
 

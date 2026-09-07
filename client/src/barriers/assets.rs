@@ -100,6 +100,7 @@ mod tests {
         let kinds = [KindDef {
             id: "red".into(),
             color: HexColor([255, 0, 0]),
+            pressure_switch: Default::default(),
         }];
         let config = BarrierVfxConfig {
             emissive_brightness: 7.0,

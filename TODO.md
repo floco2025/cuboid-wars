@@ -6,11 +6,13 @@
 
 ## Enhancements
 
+- **Map configuration:** Separate each map’s settings from the growing `gameplay.json`; discuss a folder per map containing `layout.json` and `settings.json`, with an explicit map-name registry in the global config.
+
 - **Puzzle design:** See [PUZZLES.md](PUZZLES.md) for the element inventory, nine example maps, guard encounters, and [next decisions](PUZZLES.md#next-decisions).
 
 ## Testing
 
-- **Puzzle examples:** Play the eight solo `puzzle_*` maps and `puzzle_coop` with two players. Check intended solutions, guard exposure and missile retries, `puzzle_stages` actor restoration after a posthumous turret kill, configurable group countdowns and actor reset scopes, shuttle boarding, momentum aim, hunter containment, and shortcuts. See [map list and solutions](PUZZLES.md#small-example-maps). The user handles in-game testing.
+- **Puzzle examples:** Play the eight solo `puzzle_*` maps and `puzzle_coop` with two players. Check intended solutions, guard exposure and missile retries, `puzzle_stages` actor restoration after a posthumous turret kill, configurable group countdowns and actor reset scopes, `puzzle_access` closing its barrier after everyone dies, bridge toggle/death resets, Hotel’s solo toggles and multiplayer momentary controls, shuttle boarding, momentum aim, hunter containment, and shortcuts. See [map list and solutions](PUZZLES.md#small-example-maps). The user handles in-game testing.
 
 - **Projectile pickups:** Check single-shot (one ball) and multishot (three balls) pickups, pickup-only weapon availability, weapon cycling, multishot-first fallback, single-shot pickups preserving multishot selection, and eraser/death reset. Check equal-width HUD power-up slots in single-shot, multishot, portal, speed, low-gravity order, with gaps before missiles and keys. Single-shot is in Hotel’s random pool and Obby’s pickup row. The user handles in-game testing.
 - **Window settings:** Check mixed-DPI restoration on macOS and Windows/X11, size/fullscreen restoration with compositor-controlled placement on Wayland, and saving after a drag or an immediate window close. The user handles in-game testing.

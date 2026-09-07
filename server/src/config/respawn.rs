@@ -1,3 +1,4 @@
+use common::config::DeathTrigger;
 use serde::Deserialize;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
@@ -16,27 +17,8 @@ pub enum PlayerRespawnMode {
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
 pub struct ActorRespawnConfig {
-    pub on_player_death: ActorRespawnTrigger,
+    pub on_player_death: DeathTrigger,
     pub scope: ActorRespawnScope,
-}
-
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum ActorRespawnTrigger {
-    #[default]
-    Never,
-    Solo,
-    Always,
-}
-
-impl ActorRespawnTrigger {
-    pub fn applies(self, player_count: usize) -> bool {
-        match self {
-            Self::Never => false,
-            Self::Solo => player_count == 1,
-            Self::Always => true,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]

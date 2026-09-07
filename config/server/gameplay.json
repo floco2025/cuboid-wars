@@ -60,10 +60,10 @@
       },
       "portals": "both",
       "barrier_kinds": [
-        { "id": "treasure", "color": "#ff3333" },
-        { "id": "basement", "color": "#f0c020" },
-        { "id": "gravity", "color": "#5090ff" },
-        { "id": "lobby", "color": "#22cc33" }
+        { "id": "treasure", "color": "#ff3333", "pressure_switch": {"activation": "auto", "reset_on_player_death": "never"} },
+        { "id": "basement", "color": "#f0c020", "pressure_switch": {"activation": "auto", "reset_on_player_death": "never"} },
+        { "id": "gravity", "color": "#5090ff", "pressure_switch": {"activation": "auto", "reset_on_player_death": "never"} },
+        { "id": "lobby", "color": "#22cc33", "pressure_switch": {"activation": "auto", "reset_on_player_death": "never"} }
       ],
       "bridge_kinds": [],
       "random_items": {
@@ -210,11 +210,11 @@
         }
       },
       "portals": "single",
-      "barrier_kinds": [{ "id": "barrier_1", "color": "#f0c020" }],
+      "barrier_kinds": [{ "id": "barrier_1", "color": "#f0c020", "pressure_switch": {"activation": "auto", "reset_on_player_death": "never"} }],
       "bridge_kinds": [
-        { "id": "bridge_1", "color": "#30d8ff" },
-        { "id": "bridge_2", "color": "#30d8ff" },
-        { "id": "bridge_3", "color": "#30d8ff" }
+        { "id": "bridge_1", "color": "#30d8ff", "pressure_switch": {"activation": "auto", "reset_on_player_death": "never"} },
+        { "id": "bridge_2", "color": "#30d8ff", "pressure_switch": {"activation": "auto", "reset_on_player_death": "never"} },
+        { "id": "bridge_3", "color": "#30d8ff", "pressure_switch": {"activation": "auto", "reset_on_player_death": "never"} }
       ],
       "random_items": null,
       "power_ups": {
@@ -299,11 +299,11 @@
       },
       "portals": "both",
       "barrier_kinds": [
-        { "id": "sightline", "color": "#30d8ff" },
-        { "id": "amber", "color": "#f0c020" },
-        { "id": "blue", "color": "#5090ff" }
+        { "id": "sightline", "color": "#30d8ff", "pressure_switch": {"activation": "auto", "reset_on_player_death": "never"} },
+        { "id": "amber", "color": "#f0c020", "pressure_switch": {"activation": "auto", "reset_on_player_death": "never"} },
+        { "id": "blue", "color": "#5090ff", "pressure_switch": {"activation": "auto", "reset_on_player_death": "never"} }
       ],
-      "bridge_kinds": [{ "id": "power", "color": "#22cc33" }],
+      "bridge_kinds": [{ "id": "power", "color": "#22cc33", "pressure_switch": {"activation": "auto", "reset_on_player_death": "never"} }],
       "random_items": null,
       "power_ups": {
         "duration_secs": {
@@ -411,10 +411,10 @@
       },
       "portals": "both",
       "barrier_kinds": [
-        { "id": "customs", "color": "#f0c020" },
-        { "id": "dispatch", "color": "#5090ff" }
+        { "id": "customs", "color": "#f0c020", "pressure_switch": {"activation": "auto", "reset_on_player_death": "never"} },
+        { "id": "dispatch", "color": "#5090ff", "pressure_switch": {"activation": "auto", "reset_on_player_death": "never"} }
       ],
-      "bridge_kinds": [{ "id": "freight", "color": "#30d8ff" }],
+      "bridge_kinds": [{ "id": "freight", "color": "#30d8ff", "pressure_switch": {"activation": "auto", "reset_on_player_death": "never"} }],
       "random_items": null,
       "power_ups": {
         "duration_secs": {
@@ -542,7 +542,11 @@
       "barrier_kinds": [
         {
           "id": "amber",
-          "color": "#f0c020"
+          "color": "#f0c020",
+          "pressure_switch": {
+            "activation": "auto",
+            "reset_on_player_death": "never"
+          }
         }
       ],
       "bridge_kinds": [],
@@ -673,7 +677,11 @@
       "barrier_kinds": [
         {
           "id": "cyan",
-          "color": "#30d8ff"
+          "color": "#30d8ff",
+          "pressure_switch": {
+            "activation": "toggle",
+            "reset_on_player_death": "all"
+          }
         }
       ],
       "bridge_kinds": [],
@@ -805,7 +813,11 @@
       "bridge_kinds": [
         {
           "id": "roof",
-          "color": "#22cc99"
+          "color": "#22cc99",
+          "pressure_switch": {
+            "activation": "auto",
+            "reset_on_player_death": "never"
+          }
         }
       ],
       "random_items": null,
@@ -1061,7 +1073,11 @@
       "barrier_kinds": [
         {
           "id": "cyan",
-          "color": "#30d8ff"
+          "color": "#30d8ff",
+          "pressure_switch": {
+            "activation": "auto",
+            "reset_on_player_death": "never"
+          }
         }
       ],
       "bridge_kinds": [],
@@ -1319,7 +1335,11 @@
       "bridge_kinds": [
         {
           "id": "relay",
-          "color": "#22cc99"
+          "color": "#22cc99",
+          "pressure_switch": {
+            "activation": "auto",
+            "reset_on_player_death": "never"
+          }
         }
       ],
       "random_items": null,
@@ -1449,11 +1469,19 @@
       "barrier_kinds": [
         {
           "id": "pen",
-          "color": "#30d8ff"
+          "color": "#30d8ff",
+          "pressure_switch": {
+            "activation": "auto",
+            "reset_on_player_death": "never"
+          }
         },
         {
           "id": "exit",
-          "color": "#f0c020"
+          "color": "#f0c020",
+          "pressure_switch": {
+            "activation": "auto",
+            "reset_on_player_death": "never"
+          }
         }
       ],
       "bridge_kinds": [],
@@ -1584,17 +1612,29 @@
       "barrier_kinds": [
         {
           "id": "amber",
-          "color": "#f0c020"
+          "color": "#f0c020",
+          "pressure_switch": {
+            "activation": "auto",
+            "reset_on_player_death": "never"
+          }
         },
         {
           "id": "blue",
-          "color": "#5090ff"
+          "color": "#5090ff",
+          "pressure_switch": {
+            "activation": "auto",
+            "reset_on_player_death": "never"
+          }
         }
       ],
       "bridge_kinds": [
         {
           "id": "link",
-          "color": "#22cc99"
+          "color": "#22cc99",
+          "pressure_switch": {
+            "activation": "auto",
+            "reset_on_player_death": "never"
+          }
         }
       ],
       "random_items": null,

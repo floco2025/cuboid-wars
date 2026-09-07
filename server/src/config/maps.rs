@@ -173,11 +173,15 @@ impl RandomItemsConfig {
 mod tests {
     use super::*;
     use crate::{
-        config::{ActorRespawnConfig, ActorRespawnScope, ActorRespawnTrigger, PlayerRespawnMode},
+        config::{ActorRespawnConfig, ActorRespawnScope, PlayerRespawnMode, ServerGameplayConfig},
         test_geometry::sizes,
     };
+    use common::config::DeathTrigger;
     use common::{
-        config::{ActorMovementConfig, KnockbackConfig, MapMovementConfig, PlayerMovementConfig},
+        config::{
+            ActorMovementConfig, KnockbackConfig, MapMovementConfig, PlayerMovementConfig, PressureSwitchActivation,
+            PressureSwitchConfig,
+        },
         protocol::{HexColor, KindDef, PortalMode},
     };
 
@@ -232,6 +236,7 @@ mod tests {
         KindDef {
             id: id.to_owned(),
             color: HexColor([0; 3]),
+            pressure_switch: Default::default(),
         }
     }
 
@@ -280,10 +285,11 @@ mod tests {
             serde_json::json!({"players": "individual"}),
             serde_json::json!({"actors": {"on_player_death": "never", "scope": "dead"}}),
             serde_json::json!({"players": "group", "actors": {"scope": "all"}}),
-            serde_json::json!({"players": "group", "actors": {"on_player_death": "always"}}),
-            serde_json::json!({"players": "group_on_respawn", "actors": {"on_player_death": "always", "scope": "all"}}),
+            serde_json::json!({"players": "group", "actors": {"on_player_death": "any"}}),
+            serde_json::json!({"players": "group_on_respawn", "actors": {"on_player_death": "any", "scope": "all"}}),
             serde_json::json!({"players": "group", "actors": {"on_player_death": "sometimes", "scope": "all"}}),
-            serde_json::json!({"players": "group", "actors": {"on_player_death": "always", "scope": "some"}}),
+            serde_json::json!({"players": "group", "actors": {"on_player_death": "any", "scope": "some"}}),
+            serde_json::json!({"players": "group", "actors": {"on_player_death": "always", "scope": "all"}}),
         ] {
             entry["respawn"] = invalid;
             assert!(serde_json::from_value::<MapServerConfig>(entry.clone()).is_err());
@@ -298,7 +304,7 @@ mod tests {
                 RespawnConfig {
                     players: PlayerRespawnMode::Individual,
                     actors: ActorRespawnConfig {
-                        on_player_death: ActorRespawnTrigger::Solo,
+                        on_player_death: DeathTrigger::Solo,
                         scope: ActorRespawnScope::All,
                     },
                 }
@@ -306,6 +312,32 @@ mod tests {
                 RespawnConfig::default()
             };
             assert_eq!(entry.respawn, expected, "{name}");
+        }
+    }
+
+    #[test]
+    fn shipped_switch_policies_keep_auto_except_for_the_access_barrier() {
+        let config = ServerGameplayConfig::load_default().expect("gameplay config rejected");
+        for (name, entry) in config.maps {
+            for kind in &entry.settings.barrier_kinds {
+                let expected = if name == "puzzle_access" && kind.id == "cyan" {
+                    PressureSwitchConfig {
+                        activation: PressureSwitchActivation::Toggle,
+                        reset_on_player_death: DeathTrigger::All,
+                    }
+                } else {
+                    PressureSwitchConfig::default()
+                };
+                assert_eq!(kind.pressure_switch, expected, "{name}: {}", kind.id);
+            }
+            for kind in &entry.settings.bridge_kinds {
+                assert_eq!(
+                    kind.pressure_switch,
+                    PressureSwitchConfig::default(),
+                    "{name}: {}",
+                    kind.id
+                );
+            }
         }
     }
 

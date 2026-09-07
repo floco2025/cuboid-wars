@@ -342,6 +342,12 @@ pub struct PlayerMap {
     entries: HashMap<PlayerId, PlayerInfo>,
     respawn: RespawnConfig,
     group_respawn: Option<GroupRespawn>,
+    deaths: Vec<PlayerDeathCounts>,
+}
+
+pub(crate) struct PlayerDeathCounts {
+    pub logged_in: usize,
+    pub alive: usize,
 }
 
 struct GroupRespawn {
@@ -357,7 +363,15 @@ impl PlayerMap {
     pub(crate) fn begin_respawn(&mut self, id: PlayerId, respawn_secs: f32) -> bool {
         // Eligibility belongs to the death, even if membership changes during the countdown.
         let player_count = self.values().filter(|info| info.connection.logged_in).count();
-        let reset_actors = self.respawn.actors.on_player_death.applies(player_count);
+        let alive = match self.respawn.players {
+            PlayerRespawnMode::Individual => self
+                .values()
+                .filter(|info| info.connection.logged_in && !info.is_dead())
+                .count()
+                .saturating_sub(1),
+            PlayerRespawnMode::Group => 0,
+        };
+        let reset_actors = self.respawn.actors.on_player_death.applies(player_count, alive);
         let Some(info) = self.entries.get_mut(&id).filter(|info| !info.is_dead()) else {
             return false;
         };
@@ -373,7 +387,17 @@ impl PlayerMap {
                 });
             }
         }
+        if info.connection.logged_in {
+            self.deaths.push(PlayerDeathCounts {
+                logged_in: player_count,
+                alive,
+            });
+        }
         true
+    }
+
+    pub(crate) fn take_deaths(&mut self) -> Vec<PlayerDeathCounts> {
+        std::mem::take(&mut self.deaths)
     }
 
     pub(crate) fn group_respawn_active(&self) -> bool {
@@ -469,8 +493,9 @@ impl PlayerMap {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{ActorRespawnConfig, ActorRespawnTrigger, PowerUpDurationSecs};
+    use crate::config::{ActorRespawnConfig, PowerUpDurationSecs};
     use bincode::config::standard;
+    use common::config::DeathTrigger;
     use common::protocol::PortalPairId;
     use tokio::sync::mpsc::unbounded_channel;
 
@@ -502,9 +527,10 @@ mod tests {
     fn actor_respawn_policies_use_logged_in_counts_and_preserve_the_requested_scope() {
         for mode in [PlayerRespawnMode::Individual, PlayerRespawnMode::Group] {
             for (trigger, expected) in [
-                (ActorRespawnTrigger::Never, [false, false]),
-                (ActorRespawnTrigger::Solo, [true, false]),
-                (ActorRespawnTrigger::Always, [true, true]),
+                (DeathTrigger::Never, [false, false]),
+                (DeathTrigger::Solo, [true, false]),
+                (DeathTrigger::Any, [true, true]),
+                (DeathTrigger::All, [true, mode == PlayerRespawnMode::Group]),
             ] {
                 for scope in [ActorRespawnScope::Dead, ActorRespawnScope::All] {
                     for count in 1..=2 {
@@ -536,7 +562,7 @@ mod tests {
         let config = RespawnConfig {
             players: PlayerRespawnMode::Individual,
             actors: ActorRespawnConfig {
-                on_player_death: ActorRespawnTrigger::Solo,
+                on_player_death: DeathTrigger::Solo,
                 scope: ActorRespawnScope::All,
             },
         };
@@ -553,6 +579,48 @@ mod tests {
         multiplayer.begin_respawn(PlayerId(1), 2.0);
         multiplayer.remove(&PlayerId(2));
         assert_eq!(multiplayer.tick_respawns(2.0), (vec![PlayerId(1)], None));
+    }
+
+    #[test]
+    fn all_actor_reset_waits_for_the_last_death_and_keeps_its_eligibility() {
+        let mut players = PlayerMap::new(RespawnConfig {
+            actors: ActorRespawnConfig {
+                on_player_death: DeathTrigger::All,
+                scope: ActorRespawnScope::All,
+            },
+            ..default()
+        });
+        players.insert(PlayerId(1), active_info());
+        players.insert(PlayerId(2), active_info());
+        players.begin_respawn(PlayerId(1), 2.0);
+        assert_eq!(players.tick_respawns(1.0), (vec![], None));
+        players.begin_respawn(PlayerId(2), 2.0);
+        assert_eq!(players.tick_respawns(1.0), (vec![PlayerId(1)], None));
+        players
+            .get_mut(&PlayerId(1))
+            .expect("first player missing")
+            .finish_respawn(Entity::PLACEHOLDER);
+        players.insert(PlayerId(3), active_info());
+        assert_eq!(
+            players.tick_respawns(1.0),
+            (vec![PlayerId(2)], Some(ActorRespawnScope::All))
+        );
+    }
+
+    #[test]
+    fn disconnecting_the_last_survivor_does_not_arm_an_all_actor_reset() {
+        let mut players = PlayerMap::new(RespawnConfig {
+            actors: ActorRespawnConfig {
+                on_player_death: DeathTrigger::All,
+                scope: ActorRespawnScope::All,
+            },
+            ..default()
+        });
+        players.insert(PlayerId(1), active_info());
+        players.insert(PlayerId(2), active_info());
+        players.begin_respawn(PlayerId(1), 2.0);
+        players.remove(&PlayerId(2));
+        assert_eq!(players.tick_respawns(2.0), (vec![PlayerId(1)], None));
     }
 
     #[test]

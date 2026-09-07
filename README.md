@@ -33,9 +33,9 @@ death/respawn flow.
 - **Equipment erasers** — walk-through energy fields that strip your weapons and power-ups.
 - **Barriers & keys** — coloured barriers block everyone; the matching key
   lets you through until you die.
-- **Light bridges** — ghostly walkways that turn solid while their plates are held.
-- **Pressure plates** — some barrier colours open for everyone while
-  enough players stand on their plates; alone, each plate is a switch.
+- **Light bridges** — ghostly walkways powered by pressure plates.
+- **Pressure plates** — open barriers or power bridges, with configurable
+  hold, toggle, and automatic solo/multiplayer behavior.
 - **Actors** — mines, sentries, zappers, and reapers patrol and hunt; all
   explode when killed.
 - **Turrets** — stationary guards with deadly continuous beams.

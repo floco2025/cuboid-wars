@@ -6,14 +6,13 @@ use bincode::{Decode, Encode};
 use serde::Deserialize;
 
 use super::color::HexColor;
+use crate::config::PressureSwitchConfig;
 
-// One entry of a map's kind catalog (`barrier_kinds`, `bridge_kinds` in
-// `gameplay.json`): the stable id and the colour the client and the map
-// editor draw that kind in.
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, Deserialize)]
 pub struct KindDef {
     pub id: String,
     pub color: HexColor,
+    pub pressure_switch: PressureSwitchConfig,
 }
 
 // A kind id: a stable on-wire index into one of the selected map's ordered
@@ -117,6 +116,39 @@ impl<K: KindId> KindTable<K> {
 mod tests {
     use super::*;
     use crate::protocol::{BarrierKindId, BarrierKindTable, BridgeKindId, BridgeKindTable};
+
+    #[test]
+    fn pressure_switch_configuration_is_required_and_round_trips_on_the_wire() {
+        for activation in ["auto", "momentary", "toggle"] {
+            for trigger in ["never", "solo", "any", "all"] {
+                let value = serde_json::json!({
+                    "id": "cyan", "color": "#30d8ff",
+                    "pressure_switch": {"activation": activation, "reset_on_player_death": trigger}
+                });
+                let kind: KindDef = serde_json::from_value(value).expect("valid pressure switch config rejected");
+                let bytes = bincode::encode_to_vec(&kind, bincode::config::standard()).expect("kind encoding failed");
+                let (decoded, _): (KindDef, _) =
+                    bincode::decode_from_slice(&bytes, bincode::config::standard()).expect("kind decoding failed");
+                assert_eq!(decoded, kind);
+            }
+        }
+        assert!(serde_json::from_value::<KindDef>(serde_json::json!({"id": "cyan", "color": "#30d8ff"})).is_err());
+        for config in [
+            serde_json::json!({}),
+            serde_json::json!({"activation": "auto"}),
+            serde_json::json!({"reset_on_player_death": "all"}),
+            serde_json::json!({"activation": "hold", "reset_on_player_death": "all"}),
+            serde_json::json!({"activation": "auto", "reset_on_player_death": "always"}),
+            serde_json::json!({"activation": "auto", "reset_on_player_death": "single"}),
+        ] {
+            assert!(
+                serde_json::from_value::<KindDef>(serde_json::json!({
+                    "id": "cyan", "color": "#30d8ff", "pressure_switch": config
+                }))
+                .is_err()
+            );
+        }
+    }
 
     #[test]
     fn rejects_duplicate_ids() {

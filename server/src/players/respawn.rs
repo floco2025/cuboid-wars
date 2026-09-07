@@ -86,6 +86,7 @@ pub fn players_respawn_system(
 
 #[cfg(test)]
 mod tests {
+    use common::config::DeathTrigger;
     use std::time::Duration;
 
     use bevy::ecs::world::CommandQueue;
@@ -98,7 +99,7 @@ mod tests {
             actors_pending_spawn_system, actors_respawn_system,
         },
         combat::{DeathSource, PendingExplosions, kill_actor, kill_player},
-        config::{ActorRespawnConfig, ActorRespawnScope, ActorRespawnTrigger, PlayerRespawnMode, RespawnConfig},
+        config::{ActorRespawnConfig, ActorRespawnScope, PlayerRespawnMode, RespawnConfig},
         map::{ActorSpawnZone, CellGrid, EdgeGrid, LevelGrid, PlayerSpawnZone},
         missiles::{MissileInfo, MissileMap},
         network::ServerToClient,
@@ -165,7 +166,7 @@ mod tests {
             .insert_resource(PlayerMap::new(RespawnConfig {
                 players: mode,
                 actors: ActorRespawnConfig {
-                    on_player_death: ActorRespawnTrigger::Always,
+                    on_player_death: DeathTrigger::Any,
                     scope,
                 },
             }))

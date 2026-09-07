@@ -12,6 +12,7 @@ mod mask;
 pub(crate) mod material_rules;
 mod plugin;
 mod pressure_plates;
+mod pressure_switches;
 #[cfg(test)]
 mod puzzle_tests;
 mod ramps;
@@ -28,7 +29,6 @@ pub use generation::{GeneratedMap, generate_map};
 pub use grid::grid_coords_from_position;
 pub use light_cycle::{LightState, light_cycle_is_running, light_cycle_system, light_preset_from_str};
 pub use plugin::map_plugin;
-pub use pressure_plates::pressure_plates_system;
 pub use resources::{
     ActorSpawnZone, CarrierGrid, Cell, CellGrid, EdgeGrid, LevelGrid, MapConfig, PlacedItem, PlayerSpawnZone,
     PressurePlateRuntime,

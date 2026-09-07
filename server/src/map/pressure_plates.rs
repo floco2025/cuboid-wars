@@ -1,6 +1,8 @@
 use bevy::prelude::*;
 use std::collections::{HashMap, HashSet};
 
+use super::pressure_switches::PressureSwitches;
+
 use crate::{
     config::ServerGameplayConfig,
     map::{MapConfig, PressurePlateRuntime},
@@ -35,29 +37,12 @@ pub fn player_on_plate(plate: &PressurePlateRuntime, pos: &Position, geometry: &
     pos.x >= min_x && pos.x <= max_x && pos.z >= min_z && pos.z <= max_z
 }
 
-// Per-tick plate occupancy, then the two plate rules.
-//
-// Holding plates — barrier plates open every barrier of their kind, bridge
-// plates make every light bridge of their kind solid and lit. Both follow one
-// rule; for each purpose that has at least one plate on the map:
-//   required = min(plates_for_purpose, max(0, active_alive_count - 1))
-// and the purpose is held while the number of distinct held plates of that
-// purpose is `>= required`.
-//
-// Solo play (exactly one logged-in player, dead or alive) replaces that rule
-// with switches: a fresh press flips its purpose on or off, and stepping off
-// changes nothing. The switches start from the plates held when solo play
-// begins — a purpose the remaining player was holding stays held — and are
-// dropped once a second player logs in.
-//
-// Firework plates — required = min(firework_plates, active_alive_count);
-// the show launches on the tick the held count reaches it (edge-triggered,
-// so standing there doesn't restart it every tick). Fireworks are momentary
-// (`PlatePurpose::held`), so they never enter `PlateState`.
-//
-// A plate is "held" when ≥ 1 alive player is inside the inner 25%-by-area
-// square of its cell (see `player_on_plate`).
-pub fn pressure_plates_system(
+// Barrier and bridge kinds use their configured activation: any occupied plate
+// for momentary, each fresh plate press for toggle, and toggle with exactly one
+// logged-in player for auto. Entering auto toggle seeds from current occupancy.
+// Fireworks require min(plate count, alive player count), with at least one alive
+// player, and fire only on the threshold's rising edge.
+pub(super) fn pressure_plates_system(
     map_config: Res<MapConfig>,
     carriers: Res<Carriers>,
     mut players: ResMut<PlayerMap>,
@@ -67,39 +52,9 @@ pub fn pressure_plates_system(
     barrier_kinds: Res<BarrierKindTable>,
     bridge_kinds: Res<BridgeKindTable>,
     positions: Query<&Position, With<PlayerMarker>>,
-    mut plates_state: ResMut<PlateState>,
-    // Plate indices held last tick. Fires `SPressurePlate` only on the
-    // unpressed→pressed edge (step-on cue), not every tick a player keeps
-    // standing, and tells a fresh press from a standing one for feed lines.
-    mut prev_held: Local<HashSet<usize>>,
-    // Holding-plate count per purpose. Derived from the immutable map, so it
-    // is built once on first run rather than rebuilt every tick.
-    mut plates_per_purpose: Local<HashMap<HeldPurpose, usize>>,
-    // Whether the firework threshold held last tick; the show launches on
-    // the false→true edge.
-    mut fireworks_ready: Local<bool>,
-    // Solo switch positions: the purposes a lone player has flipped on.
-    // `None` outside solo play.
-    mut switches: Local<Option<HashSet<HeldPurpose>>>,
+    plates_state: Res<PlateState>,
+    mut switches: ResMut<PressureSwitches>,
 ) {
-    if map_config.pressure_plates.is_empty() {
-        plates_state.set_if_neq(PlateState::default());
-        prev_held.clear();
-        *fireworks_ready = false;
-        *switches = None;
-        return;
-    }
-
-    if plates_per_purpose.is_empty() {
-        for purpose in map_config
-            .pressure_plates
-            .iter()
-            .filter_map(|plate| plate.purpose.held())
-        {
-            *plates_per_purpose.entry(purpose).or_insert(0) += 1;
-        }
-    }
-
     let mut logged_in: usize = 0;
     let mut alive: usize = 0;
     for (_, info) in players.iter() {
@@ -111,33 +66,17 @@ pub fn pressure_plates_system(
         }
     }
 
-    // Per-tick: who holds each plate (the first alive player found on it).
-    // Inactive plates are skipped outright, so they neither click nor count.
-    let locked = quest_board.locked_plate_purposes().to_vec();
     let plates = &map_config.pressure_plates;
-    let mut holders: HashMap<usize, PlayerId> = HashMap::new();
-    for (idx, plate) in plates.iter().enumerate() {
-        if !plate_active(plate, &locked) {
-            continue;
-        }
-        let geometry = &map_config.grid(plate.carrier).geometry;
-        let pose = carriers.pose(plate.carrier);
-        let holder = players.iter().find(|(_, info)| {
-            info.connection.logged_in
-                && info
-                    .entity()
-                    .and_then(|entity| positions.get(entity).ok())
-                    .is_some_and(|pos| {
-                        let local = pose.inverse_transform_position(pos);
-                        player_on_plate(plate, &local, geometry)
-                    })
-        });
-        if let Some((id, _)) = holder {
-            holders.insert(idx, *id);
-        }
-    }
+    let holders = plate_holders(
+        &map_config,
+        &carriers,
+        &players,
+        &positions,
+        quest_board.locked_plate_purposes(),
+    );
     let held_indices: HashSet<usize> = holders.keys().copied().collect();
     let held_per_purpose = held_count_per_purpose(&held_indices, plates);
+    let prev_held = switches.prev_held.clone();
     let prev_held_per_purpose = held_count_per_purpose(&prev_held, plates);
 
     // Edge-triggered cues: at most one press and one release cue per tick,
@@ -154,44 +93,10 @@ pub fn pressure_plates_system(
         );
     }
 
-    // Purposes a solo press flipped this tick.
-    let mut flipped = Vec::new();
-    let mut next: Vec<HeldPurpose> = if logged_in == 1 {
-        let seeded = switches.is_none();
-        let switches = switches.get_or_insert_with(|| held_per_purpose.keys().copied().collect());
-        if !seeded {
-            for purpose in held_indices
-                .difference(&prev_held)
-                .filter_map(|idx| plates[*idx].purpose.held())
-            {
-                if !switches.remove(&purpose) {
-                    switches.insert(purpose);
-                }
-                flipped.push(purpose);
-            }
-        }
-        switches.iter().copied().collect()
-    } else {
-        *switches = None;
-        let mut next = Vec::new();
-        for (purpose, plates_for_purpose) in plates_per_purpose.iter() {
-            let required = (*plates_for_purpose).min(alive.saturating_sub(1));
-            let held = held_per_purpose.get(purpose).copied().unwrap_or(0);
-            if held >= required {
-                next.push(*purpose);
-            }
-        }
-        next
-    };
-    // `PlateState` keeps sorted lists, so the equality check at the end only
-    // holds if this is sorted too; without it the HashMap order would rewrite
-    // the resource every tick.
-    next.sort();
+    let flipped = switches.update(logged_in, &held_indices, plates);
+    let next_state = switches.state();
+    let next: Vec<_> = next_state.held().collect();
 
-    // Feed lines follow plate presses only. The alive-count term and the
-    // switch-over into or out of solo play also flip purposes (joins,
-    // leaves, deaths); those stay silent — the barriers and bridges
-    // themselves already show it.
     let kind_name = |purpose: HeldPurpose| match purpose {
         HeldPurpose::Barrier(kind) => barrier_kinds
             .id(kind)
@@ -237,7 +142,7 @@ pub fn pressure_plates_system(
         .filter(|idx| plates[**idx].purpose == PlatePurpose::Firework)
         .count();
     let ready = firework_plates_ready(firework_plates, held_fireworks, alive);
-    if ready && !*fireworks_ready {
+    if ready && !switches.fireworks_ready {
         broadcast_firework_show(&players);
         // `/firework` bypasses this on purpose: only the plates count.
         record_event(
@@ -248,13 +153,90 @@ pub fn pressure_plates_system(
             QuestEvent::FireworksStarted,
         );
     }
-    *fireworks_ready = ready;
+    switches.fireworks_ready = ready;
 
-    *prev_held = held_indices;
-    // The bridge collider sync (`powered_bridges_sync_system`) and the
-    // client's barrier visibility react to a change, so an equal state must
-    // not count as one.
-    plates_state.set_if_neq(PlateState::from_held(next));
+    switches.prev_held = held_indices;
+}
+
+pub(super) fn pressure_switch_death_reset_system(
+    map_config: Res<MapConfig>,
+    carriers: Res<Carriers>,
+    mut players: ResMut<PlayerMap>,
+    positions: Query<&Position, With<PlayerMarker>>,
+    quest_board: Res<QuestBoard>,
+    mut switches: ResMut<PressureSwitches>,
+) {
+    let deaths = players.take_deaths();
+    if deaths.is_empty() {
+        return;
+    }
+    let logged_in = players.values().filter(|info| info.connection.logged_in).count();
+    let plates = &map_config.pressure_plates;
+    let holders = plate_holders(
+        &map_config,
+        &carriers,
+        &players,
+        &positions,
+        quest_board.locked_plate_purposes(),
+    );
+    let held: HashSet<_> = holders.keys().copied().collect();
+    let mut reset = HashSet::new();
+    for (purpose, switch) in &mut switches.kinds {
+        let occupied = held.iter().any(|idx| plates[*idx].purpose.held() == Some(*purpose));
+        switch.update_mode(logged_in, occupied);
+        if switch.toggle
+            && deaths.iter().any(|death| {
+                switch
+                    .config
+                    .reset_on_player_death
+                    .applies(death.logged_in, death.alive)
+            })
+        {
+            switch.active = false;
+            reset.insert(*purpose);
+        }
+    }
+    // Consume presses on the death tick so reset wins even for a surviving holder.
+    switches.prev_held.retain(|idx| {
+        !plates[*idx]
+            .purpose
+            .held()
+            .is_some_and(|purpose| reset.contains(&purpose))
+    });
+    switches.prev_held.extend(held.into_iter().filter(|idx| {
+        plates[*idx]
+            .purpose
+            .held()
+            .is_some_and(|purpose| reset.contains(&purpose))
+    }));
+}
+
+fn plate_holders(
+    map_config: &MapConfig,
+    carriers: &Carriers,
+    players: &PlayerMap,
+    positions: &Query<&Position, With<PlayerMarker>>,
+    locked: &[PlatePurpose],
+) -> HashMap<usize, PlayerId> {
+    let mut holders = HashMap::new();
+    for (idx, plate) in map_config.pressure_plates.iter().enumerate() {
+        if !plate_active(plate, locked) {
+            continue;
+        }
+        let geometry = &map_config.grid(plate.carrier).geometry;
+        let pose = carriers.pose(plate.carrier);
+        let holder = players.iter().find(|(_, info)| {
+            info.connection.logged_in
+                && info
+                    .entity()
+                    .and_then(|entity| positions.get(entity).ok())
+                    .is_some_and(|pos| player_on_plate(plate, &pose.inverse_transform_position(pos), geometry))
+        });
+        if let Some((id, _)) = holder {
+            holders.insert(idx, *id);
+        }
+    }
+    holders
 }
 
 // Everyone alive is on a firework plate — or every plate is held when the
@@ -278,7 +260,7 @@ fn held_count_per_purpose(held: &HashSet<usize>, plates: &[PressurePlateRuntime]
 
 // Who gets credit for flipping a purpose on: the holder of one of its
 // plates that was not held last tick, else any current holder. `None` when
-// nobody is on a plate of that purpose — the alive-count term flipped it.
+// nobody is on a plate of that purpose.
 fn presser_of_purpose(
     purpose: HeldPurpose,
     holders: &HashMap<usize, PlayerId>,
@@ -481,23 +463,32 @@ mod firework_tests {
 
 #[cfg(test)]
 mod system_tests {
-    use bevy::prelude::*;
-    use common::{map::Carriers, protocol::CarrierId};
+    use bevy::{ecs::system::RunSystemOnce, prelude::*};
     use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
 
     use super::*;
     use crate::{
-        config::{QuestKind, ServerGameplayConfig},
-        map::{CellGrid, EdgeGrid, LevelGrid},
+        actors::{ActorMap, ActorRespawnTimers, PendingActorSpawns},
+        combat::{DeathSource, PendingExplosions, kill_player},
+        config::{LightingMode, PlayerRespawnMode, QuestKind, RespawnConfig, ServerGameplayConfig, WeatherMode},
+        map::{CellGrid, EdgeGrid, LevelGrid, LightState, WeatherState, generate_map, map_plugin},
         network::ServerToClient,
-        players::PlayerInfo,
+        players::{PlayerInfo, players_group_respawn_system, players_respawn_system},
         quests::{
             QuestCatalog,
             test_support::{catalog, completed, drain, feed_lines, quest},
         },
+        schedule::{ServerSet, configure_server_schedule},
         test_geometry::geometry,
     };
-    use common::protocol::{BarrierKindId, BridgeKindId, QuestId, QuestScope};
+    use common::{
+        config::{DeathTrigger, PressureSwitchActivation, PressureSwitchConfig},
+        map::Carriers,
+        physics::CollisionWorld,
+        protocol::{
+            BarrierKindId, BridgeKindId, CarrierId, HexColor, KindDef, LightBridge, MapLayout, QuestId, QuestScope,
+        },
+    };
 
     const LOBBY: BarrierKindId = BarrierKindId(0);
     const SKYWAY: BridgeKindId = BridgeKindId(0);
@@ -529,7 +520,17 @@ mod system_tests {
     fn app(config: ServerGameplayConfig, plates: Vec<PressurePlateRuntime>) -> App {
         let quest_catalog = QuestCatalog::from_config(&config);
         let board = QuestBoard::from_catalog(&quest_catalog);
+        let mut settings = config.maps[&config.default_map].settings.clone();
+        settings.barrier_kinds = vec![kind("lobby")];
+        settings.bridge_kinds = vec![kind("skyway")];
         let mut app = App::new();
+        app.insert_resource(WeatherState::new(config.cycles.weather.clone(), WeatherMode::Clear))
+            .insert_resource(LightState::new(config.cycles.lighting.clone(), LightingMode::Bright))
+            .insert_resource(settings)
+            .insert_resource(CollisionWorld::from_map_layout(
+                &MapLayout::default(),
+                &Default::default(),
+            ));
         app.add_plugins(MinimalPlugins)
             .insert_resource(MapConfig {
                 pressure_plates: plates,
@@ -551,8 +552,18 @@ mod system_tests {
             .insert_resource(BarrierKindTable::from_ids(vec!["lobby".to_owned()]).expect("one barrier kind"))
             .insert_resource(BridgeKindTable::from_ids(vec!["skyway".to_owned()]).expect("one bridge kind"))
             .insert_resource(PlateState::default())
-            .add_systems(Update, pressure_plates_system);
+            .add_plugins(map_plugin);
+        configure_server_schedule(&mut app);
+        app.add_systems(Update, players_group_respawn_system.in_set(ServerSet::Lifecycle));
         app
+    }
+
+    fn kind(id: &str) -> KindDef {
+        KindDef {
+            id: id.to_owned(),
+            color: HexColor([0; 3]),
+            pressure_switch: Default::default(),
+        }
     }
 
     // A logged-in player standing in the middle of cell (0, 0).
@@ -711,7 +722,7 @@ mod system_tests {
     fn a_first_login_prints_no_closed_lines() {
         let mut app = app(catalog(Vec::new()), vec![lobby_plate()]);
         app.update();
-        assert_eq!(open_kinds(&app), [LOBBY], "an empty server holds every plate kind open");
+        assert!(open_kinds(&app).is_empty(), "empty plates stay off on an empty server");
 
         let (entity, mut rx) = standing_player(&mut app, 1);
         step_off(&mut app, entity);
@@ -820,5 +831,418 @@ mod system_tests {
         app.update();
         assert_eq!(open_kinds(&app), [LOBBY], "the held plate seeds the switch");
         assert!(barrier_lines(&drain(&mut rx)).is_empty());
+    }
+
+    fn configure_switches(app: &mut App, activation: PressureSwitchActivation, trigger: DeathTrigger) {
+        let mut barrier = kind("lobby");
+        let mut bridge = kind("skyway");
+        barrier.pressure_switch = PressureSwitchConfig {
+            activation,
+            reset_on_player_death: trigger,
+        };
+        bridge.pressure_switch = barrier.pressure_switch;
+        app.insert_resource(PressureSwitches::new(&[barrier], &[bridge]));
+    }
+
+    fn assert_switches(app: &App, active: bool) {
+        assert_eq!(!open_kinds(app).is_empty(), active, "barrier state");
+        assert_eq!(!powered_kinds(app).is_empty(), active, "bridge state");
+    }
+
+    fn die(app: &mut App, id: u32) {
+        assert!(
+            app.world_mut()
+                .resource_mut::<PlayerMap>()
+                .begin_respawn(PlayerId(id), 2.0)
+        );
+    }
+
+    #[test]
+    fn momentary_needs_any_matching_plate_and_never_opens_for_missing_holders() {
+        for activation in [PressureSwitchActivation::Momentary, PressureSwitchActivation::Auto] {
+            for count in [1, 2, 4] {
+                if activation == PressureSwitchActivation::Auto && count == 1 {
+                    continue;
+                }
+                let mut app = app(
+                    catalog(vec![]),
+                    vec![
+                        lobby_plate(),
+                        skyway_plate(),
+                        PressurePlateRuntime {
+                            col: 1,
+                            ..lobby_plate()
+                        },
+                        PressurePlateRuntime {
+                            col: 1,
+                            ..skyway_plate()
+                        },
+                    ],
+                );
+                configure_switches(&mut app, activation, DeathTrigger::Never);
+                app.update();
+                assert_switches(&app, false);
+                let (holder, _) = standing_player(&mut app, 1);
+                for id in 2..=count {
+                    let (entity, _) = standing_player(&mut app, id);
+                    step_off(&mut app, entity);
+                }
+                app.update();
+                assert_switches(&app, true);
+                step_off(&mut app, holder);
+                app.update();
+                assert_switches(&app, false);
+                step_on(&mut app, holder);
+                app.update();
+                assert_switches(&app, true);
+                die(&mut app, 1);
+                app.update();
+                assert_switches(&app, false);
+                for id in 2..=count {
+                    die(&mut app, id);
+                    app.update();
+                    assert_switches(&app, false);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn explicit_toggles_persist_through_joins_disconnects_and_an_empty_server() {
+        let mut app = app(catalog(vec![]), vec![lobby_plate(), skyway_plate()]);
+        configure_switches(&mut app, PressureSwitchActivation::Toggle, DeathTrigger::All);
+        let (first, _) = standing_player(&mut app, 1);
+        app.update();
+        step_off(&mut app, first);
+        let (second, _) = standing_player(&mut app, 2);
+        step_off(&mut app, second);
+        app.update();
+        assert_switches(&app, true);
+        leave(&mut app, 1, first);
+        app.update();
+        assert_switches(&app, true);
+        leave(&mut app, 2, second);
+        app.update();
+        assert_switches(&app, true);
+        let (third, _) = standing_player(&mut app, 3);
+        step_off(&mut app, third);
+        app.update();
+        assert_switches(&app, true);
+        step_on(&mut app, third);
+        app.update();
+        assert_switches(&app, false);
+    }
+
+    #[test]
+    fn two_players_on_one_plate_produce_one_toggle_until_everyone_releases_it() {
+        let mut app = app(catalog(vec![]), vec![lobby_plate(), skyway_plate()]);
+        configure_switches(&mut app, PressureSwitchActivation::Toggle, DeathTrigger::Never);
+        let (first, _) = standing_player(&mut app, 1);
+        app.update();
+        let (second, _) = standing_player(&mut app, 2);
+        app.update();
+        assert_switches(&app, true);
+        step_off(&mut app, first);
+        app.update();
+        assert_switches(&app, true);
+        step_off(&mut app, second);
+        app.update();
+        assert_switches(&app, true);
+        step_on(&mut app, second);
+        app.update();
+        assert_switches(&app, false);
+    }
+
+    #[test]
+    fn toggle_death_policies_distinguish_solo_any_and_all_across_ticks() {
+        for trigger in [
+            DeathTrigger::Never,
+            DeathTrigger::Solo,
+            DeathTrigger::Any,
+            DeathTrigger::All,
+        ] {
+            for count in [1, 2] {
+                let mut app = app(catalog(vec![]), vec![lobby_plate(), skyway_plate()]);
+                configure_switches(&mut app, PressureSwitchActivation::Toggle, trigger);
+                for id in 1..=count {
+                    standing_player(&mut app, id);
+                }
+                app.update();
+                assert_switches(&app, true);
+                die(&mut app, 1);
+                app.update();
+                let reset = trigger == DeathTrigger::Any || (count == 1 && trigger != DeathTrigger::Never);
+                assert_switches(&app, !reset);
+                if count == 2 {
+                    app.update();
+                    assert_switches(&app, !reset);
+                    die(&mut app, 2);
+                    app.update();
+                    assert_switches(&app, matches!(trigger, DeathTrigger::Never | DeathTrigger::Solo));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn group_death_resets_all_switches_and_momentary_holders_before_snapshot() {
+        for activation in [PressureSwitchActivation::Toggle, PressureSwitchActivation::Momentary] {
+            let mut app = app(catalog(vec![]), vec![lobby_plate(), skyway_plate()]);
+            configure_switches(&mut app, activation, DeathTrigger::All);
+            app.insert_resource(PlayerMap::new(RespawnConfig {
+                players: PlayerRespawnMode::Group,
+                ..default()
+            }));
+            standing_player(&mut app, 1);
+            standing_player(&mut app, 2);
+            app.update();
+            assert_switches(&app, true);
+            app.add_systems(
+                Update,
+                (|mut players: ResMut<PlayerMap>| {
+                    players.begin_respawn(PlayerId(1), 2.0);
+                })
+                .in_set(ServerSet::CombatDamage),
+            );
+            app.update();
+            assert_switches(&app, false);
+            assert!(app.world().resource::<PlayerMap>().values().all(PlayerInfo::is_dead));
+        }
+    }
+
+    #[test]
+    fn death_reset_beats_a_press_after_movement_and_requires_a_fresh_press() {
+        let mut app = app(catalog(vec![]), vec![lobby_plate(), skyway_plate()]);
+        configure_switches(&mut app, PressureSwitchActivation::Toggle, DeathTrigger::Any);
+        let (first, _) = standing_player(&mut app, 1);
+        let (survivor, _) = standing_player(&mut app, 2);
+        step_off(&mut app, survivor);
+        app.update();
+        step_off(&mut app, first);
+        app.update();
+        assert_switches(&app, true);
+        app.add_systems(
+            Update,
+            (move |mut positions: Query<&mut Position>, mut once: Local<bool>, mut players: ResMut<PlayerMap>| {
+                if !*once {
+                    positions.get_mut(survivor).expect("survivor position missing").x -= 100.0;
+                    players.begin_respawn(PlayerId(1), 2.0);
+                    *once = true;
+                }
+            })
+            .in_set(ServerSet::CombatDamage),
+        );
+        app.update();
+        assert_switches(&app, false);
+        app.update();
+        assert_switches(&app, false);
+        step_off(&mut app, survivor);
+        app.update();
+        step_on(&mut app, survivor);
+        app.update();
+        assert_switches(&app, true);
+    }
+
+    #[test]
+    fn auto_toggles_reset_on_solo_death_but_explicit_momentary_ignores_reset_policy() {
+        let mut app = app(catalog(vec![]), vec![lobby_plate(), skyway_plate()]);
+        configure_switches(&mut app, PressureSwitchActivation::Auto, DeathTrigger::Solo);
+        let (entity, _) = standing_player(&mut app, 1);
+        app.update();
+        step_off(&mut app, entity);
+        app.update();
+        assert_switches(&app, true);
+        die(&mut app, 1);
+        app.update();
+        assert_switches(&app, false);
+
+        let mut app = self::app(catalog(vec![]), vec![lobby_plate(), skyway_plate()]);
+        configure_switches(&mut app, PressureSwitchActivation::Momentary, DeathTrigger::Any);
+        standing_player(&mut app, 1);
+        standing_player(&mut app, 2);
+        app.update();
+        die(&mut app, 1);
+        app.update();
+        assert_switches(&app, true);
+    }
+
+    #[test]
+    fn all_reset_does_not_follow_a_disconnect_and_solo_uses_counts_at_death() {
+        for trigger in [DeathTrigger::All, DeathTrigger::Solo] {
+            let mut app = app(catalog(vec![]), vec![lobby_plate(), skyway_plate()]);
+            configure_switches(&mut app, PressureSwitchActivation::Toggle, trigger);
+            standing_player(&mut app, 1);
+            let (partner, _) = standing_player(&mut app, 2);
+            app.update();
+            die(&mut app, 1);
+            leave(&mut app, 2, partner);
+            app.update();
+            assert_switches(&app, true);
+        }
+        let mut app = app(catalog(vec![]), vec![lobby_plate(), skyway_plate()]);
+        configure_switches(&mut app, PressureSwitchActivation::Toggle, DeathTrigger::Solo);
+        standing_player(&mut app, 1);
+        app.update();
+        die(&mut app, 1);
+        standing_player(&mut app, 2);
+        app.update();
+        assert_switches(&app, false);
+    }
+
+    #[test]
+    fn bridge_collision_loses_power_on_the_death_tick() {
+        let mut app = app(catalog(vec![]), vec![lobby_plate(), skyway_plate()]);
+        configure_switches(&mut app, PressureSwitchActivation::Toggle, DeathTrigger::All);
+        app.insert_resource(CollisionWorld::from_map_layout(
+            &MapLayout {
+                light_bridges: vec![LightBridge {
+                    x1: -1.0,
+                    x2: 1.0,
+                    z1: -1.0,
+                    z2: 1.0,
+                    y: 0.0,
+                    thickness: 0.1,
+                    level: 0,
+                    kind: SKYWAY,
+                    carrier: CarrierId::WORLD,
+                }],
+                ..default()
+            },
+            &Default::default(),
+        ));
+        standing_player(&mut app, 1);
+        let clear = |app: &App| {
+            app.world()
+                .resource::<CollisionWorld>()
+                .attack_path_clear(Vec3::Y, Vec3::NEG_Y, &[])
+        };
+        app.update();
+        assert!(!clear(&app));
+        app.add_systems(
+            Update,
+            (|mut players: ResMut<PlayerMap>| {
+                players.begin_respawn(PlayerId(1), 2.0);
+            })
+            .in_set(ServerSet::CombatDamage),
+        );
+        app.update();
+        assert_switches(&app, false);
+        assert!(clear(&app));
+    }
+
+    #[test]
+    fn kinds_choose_independent_activation_and_death_policies() {
+        let mut app = app(catalog(vec![]), vec![lobby_plate(), skyway_plate()]);
+        let mut barrier = kind("lobby");
+        barrier.pressure_switch = PressureSwitchConfig {
+            activation: PressureSwitchActivation::Toggle,
+            reset_on_player_death: DeathTrigger::Any,
+        };
+        let mut bridge = kind("skyway");
+        bridge.pressure_switch.activation = PressureSwitchActivation::Momentary;
+        app.insert_resource(PressureSwitches::new(&[barrier], &[bridge]));
+        let (first, _) = standing_player(&mut app, 1);
+        standing_player(&mut app, 2);
+        app.update();
+        assert_switches(&app, true);
+        step_off(&mut app, first);
+        die(&mut app, 1);
+        app.update();
+        assert!(open_kinds(&app).is_empty());
+        assert_eq!(powered_kinds(&app), [SKYWAY]);
+    }
+
+    #[test]
+    fn a_different_matching_plate_can_toggle_a_kind_while_the_first_stays_held() {
+        let mut app = app(
+            catalog(vec![]),
+            vec![
+                lobby_plate(),
+                skyway_plate(),
+                PressurePlateRuntime {
+                    col: 1,
+                    ..lobby_plate()
+                },
+                PressurePlateRuntime {
+                    col: 1,
+                    ..skyway_plate()
+                },
+            ],
+        );
+        configure_switches(&mut app, PressureSwitchActivation::Toggle, DeathTrigger::Never);
+        standing_player(&mut app, 1);
+        app.update();
+        assert_switches(&app, true);
+        let (second, _) = standing_player(&mut app, 2);
+        let cell = app.world().resource::<MapGeometry>().cell_size();
+        app.world_mut()
+            .get_mut::<Position>(second)
+            .expect("second player position missing")
+            .x += cell;
+        app.update();
+        assert_switches(&app, false);
+    }
+
+    #[test]
+    fn puzzle_access_closes_its_barrier_before_the_dead_player_respawns() {
+        let config = ServerGameplayConfig::load_default().expect("gameplay config rejected");
+        let settings = config.maps["puzzle_access"].settings.clone();
+        let (barriers, bridges) = settings.kind_tables().expect("access kind catalogs rejected");
+        let generated = generate_map("puzzle_access", &settings, &barriers, &bridges).expect("access map rejected");
+        let geometry = generated.config.root_grid().geometry;
+        let mut app = app(config.clone(), vec![]);
+        app.insert_resource(PressureSwitches::new(&settings.barrier_kinds, &settings.bridge_kinds))
+            .insert_resource(CollisionWorld::from_map_layout(&generated.layout, &barriers))
+            .insert_resource(generated.config)
+            .insert_resource(geometry)
+            .insert_resource(barriers)
+            .insert_resource(bridges)
+            .insert_resource(config.gameplay_config())
+            .init_resource::<ActorMap>()
+            .init_resource::<ActorRespawnTimers>()
+            .init_resource::<PendingActorSpawns>()
+            .add_systems(Update, players_respawn_system.in_set(ServerSet::Lifecycle));
+        let (entity, _) = standing_player(&mut app, 1);
+        let switch_pos = Position {
+            x: geometry.cell_center_x(2),
+            y: 0.0,
+            z: geometry.cell_center_z(2),
+        };
+        *app.world_mut()
+            .get_mut::<Position>(entity)
+            .expect("player position missing") = switch_pos;
+        app.update();
+        assert_eq!(open_kinds(&app), [LOBBY]);
+        app.world_mut()
+            .run_system_once(move |mut commands: Commands, mut players: ResMut<PlayerMap>| {
+                kill_player(
+                    &mut commands,
+                    &mut players,
+                    PlayerId(1),
+                    entity,
+                    switch_pos,
+                    0.0,
+                    DeathSource::Beam { kind: "turret".into() },
+                    &config.feed,
+                    &mut PendingExplosions::default(),
+                );
+            })
+            .expect("death system failed");
+        app.update();
+        assert!(open_kinds(&app).is_empty());
+        assert!(
+            !app.world()
+                .resource::<PlayerMap>()
+                .get(&PlayerId(1))
+                .expect("respawned player missing")
+                .is_dead()
+        );
+        let from = Vec3::new(geometry.cell_center_x(8), 1.15, geometry.cell_center_z(2));
+        let to = Vec3::new(switch_pos.x, 1.15, switch_pos.z);
+        assert!(
+            !app.world()
+                .resource::<CollisionWorld>()
+                .attack_path_clear(from, to, &open_kinds(&app))
+        );
     }
 }

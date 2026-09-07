@@ -1,6 +1,6 @@
 # Puzzle map design
 
-The kit supports spatial puzzles, portal puzzles, cooperative route planning, and sequences where an earlier achievement matters later. The most useful next decisions are how players retry a failed section and how switches behave across different player counts.
+The kit supports spatial puzzles, portal puzzles, cooperative route planning, and sequences where an earlier achievement matters later. The most useful next decisions are how players retain progress and retry a failed section.
 
 This document separates settled design rules from the current implementation and open decisions. The [small example maps](#small-example-maps) implement the nine patterns below and await in-game playtesting. Follow-up tracking remains in [TODO.md](TODO.md).
 
@@ -25,6 +25,23 @@ Open barriers and unpowered bridge ghosts have no blocking effect. A matching ke
 Visibility and attack clearance are separate. A zapper can notice a player behind a field, but needs a clear firing path to start attacking. A field activated during a burst immediately blocks damage and clips the beam. Contact enemies likewise need an unobstructed attack path before triggering a proximity attack.
 
 Prefer these as universal rules rather than per-map interaction exceptions. Geometry, placement, activation timing, and available equipment supply the map's variation.
+
+### Pressure controls and death resets
+
+Each entry in a map’s `barrier_kinds` or `bridge_kinds` catalog in `gameplay.json` requires a `pressure_switch` block. Plates name only their type and kind; all matching plates control that kind together. There are no map defaults or per-plate overrides.
+
+```json
+"pressure_switch": {
+  "activation": "toggle",
+  "reset_on_player_death": "all"
+}
+```
+
+`activation` is `momentary` (any matching plate is held), `toggle` (each fresh plate press flips the state), or `auto` (toggle with exactly one logged-in player, momentary otherwise). Dead players still count as logged in. Auto seeds its toggle from occupied plates when the player count becomes one and discards that latch when returning to momentary. Explicit toggles survive joins and disconnects. Hotel uses `auto` so a lone player can solve the lobby and teammates must cooperate.
+
+Switches and `respawn.actors.on_player_death` share four death triggers: `never`, `solo` (the sole logged-in player dies), `any` (any player dies), and `all` (everyone logged in is dead). All includes a solo death and a group respawn. Disconnecting alone never triggers a reset; eligibility uses the counts at death. Actor `scope` remains `dead` or `all`, and `respawn.players` remains `individual` or `group`.
+
+Switch resets clear saved toggle state before players respawn; an already-held plate needs a release and fresh press. Momentary controls follow occupancy, and fireworks retain their separate threshold. Actor resets wait until player respawn and use the normal beam-in warning. Shots remain in flight. The cyan barrier in `puzzle_access` uses `toggle`/`all`; all other shipped kinds use `auto`/`never`.
 
 ### Erasers
 
@@ -54,7 +71,7 @@ The relevant behavior lives in [collision queries](common/src/physics/world/coll
 | Portals | Availability comes from portal-gun pickups. Connect separated routes, establish temporary access, redirect falling momentum, and carry ordinary projectiles. Portals can ride moving geometry. Players and ordinary projectiles traverse them; actors do not. |
 | Portal-resistant materials | Restrict placement by surface and face, making the shooting position and sequence part of the solution. |
 | Barriers and keys | Personal passage through a closed field versus globally opening it with plates. Keys are reusable access permissions. |
-| Pressure plates | Open barrier groups, power bridge groups, or trigger fireworks. Solo holding plates toggle; multiplayer holding plates depend on occupancy. Different purposes can occupy one tile, so one position can already control several outputs. |
+| Pressure plates | Open barrier groups, power bridge groups, or trigger fireworks. Each barrier or bridge kind selects momentary, toggle, or automatic solo/multiplayer activation and a death-reset rule. Different purposes can occupy one tile, so one position can already control several outputs. |
 | Light bridges | Switchable crossings and drops; protection above or below their surface. A powered bridge can also obstruct a portal shot. |
 | Erasers | Boundaries between equipment sets, while retained keys unlock routes and restock areas across stages. |
 | Moving platforms and nested rooms | Lifts, shuttles, moving cover, moving ladders, moving switches, and carried actors. Motion repeats automatically between two positions with pauses and a phase offset; there is no switch control or rotation yet. |
@@ -97,7 +114,7 @@ Drop into a floor portal and emerge from a wall or sloped portal toward a distan
 
 ### Cooperative positioning
 
-One player holds a bridge plate while another crosses to reach a control or establish portal access. Then they arrange an exit for the helper. Add a zapper to make protected positions matter. Each supported player count needs a complete solution; the current automatic switch to solo toggles changes the puzzle substantially.
+One player holds a bridge plate while another crosses to reach a control or establish portal access. Then they arrange an exit for the helper. Add a zapper to make protected positions matter. Each supported player count needs a complete solution; the automatic switch to solo toggles changes the puzzle substantially when a kind uses `auto`.
 
 ### Enemy containment
 
@@ -119,7 +136,7 @@ Its current damage and durability make it a soft obstacle: a complete burst infl
 
 The encounter's role should determine the tuning: pressure during traversal, a dangerous boundary, or a guard intended to be destroyed. Placement-level movement, durability, attack timing, and respawn choices would help those roles coexist. Visible aiming, firing, and cooldown feedback would make experimentation easier to understand.
 
-Current barrier plates open their barrier. A release can therefore restore a shield in multiplayer, and another press can restore it in solo play. A direct "press to raise the shield" control needs inversion. The zapper remains alive and dangerous when the shield opens; shielding does not switch off the actor itself.
+Current barrier plates open their barrier. A release can therefore restore a shield in momentary mode, and another press can restore it in toggle mode. A direct "press to raise the shield" control needs inversion. The zapper remains alive and dangerous when the shield opens; shielding does not switch off the actor itself.
 
 ## Turrets as guards
 
@@ -141,9 +158,9 @@ A required missile that can be wasted needs a recovery route, another solution, 
 
 Decide whether every map must work solo and with arbitrary teams, or whether some maps can require a particular player count. Keys are personal today; teammates need their own keys or someone to open a route for them.
 
-The current [plate rules](server/src/map/pressure_plates.rs) use toggles in solo play and occupancy thresholds in multiplayer. Those thresholds depend on living players. With two players connected, one dying can automatically open controlled barriers and power controlled bridges. When barriers provide cover, this can expose the survivor to an attack.
+The [plate rules](server/src/map/pressure_plates.rs) support authored momentary, toggle, and automatic controls per barrier or bridge kind. Momentary always requires an occupied plate, so a death cannot satisfy an empty control.
 
-Authored holding plates and toggle switches, explicit thresholds, and inverted outputs are the first useful control extensions. Timed switches and controls for carriers or zappers can follow concrete puzzle needs. Joins, disconnects, and deaths need predictable behavior rather than accidentally satisfying a mechanism.
+Inverted outputs, timed switches, and controls for carriers or zappers can follow concrete puzzle needs. Explicit multi-plate thresholds may help puzzles that require several distinct positions at once.
 
 ### 3. Guard behavior
 
@@ -161,7 +178,7 @@ Current placed-item respawn times are per item type within a map; actor respawn 
 
 Plates currently look alike in-game. Optional matching symbols, connection indicators, state lights, and map-authored signs would help players identify what a control affects and whether it worked. A shield control could visibly match the field protecting a crossing.
 
-Hidden connections can be deliberate puzzles, but the basic mechanic should be taught where its effect is observable. Distinguishing holding, toggle, and timed controls visually becomes important if those modes are added.
+Hidden connections can be deliberate puzzles, but the basic mechanic should be taught where its effect is observable. Distinguishing momentary and toggle controls visually would help; timed controls would also need their own feedback.
 
 ### 6. Completion conditions
 
@@ -193,9 +210,9 @@ Each map has one gold token and a firework finish. Eight are designed for one pl
 | [puzzle_containment](config/server/maps/puzzle_containment.json) | 1 | Enemy containment | Lure a hunter into a pen and leave it behind a closed field. |
 | [puzzle_logic](config/server/maps/puzzle_logic.json) | 1 | Geometry as logic | Satisfy two gates using a switch that controls two outputs and a choice of routes. |
 
-Steel-panel `skybridge` surfaces accept portals; the other materials in these examples resist them. Supplies replenish after five seconds, equipment lasts until death or erasure, and no random pickups appear. The guard-removal example uses missiles and provides a sheltered health pickup beside the ammunition. Gold takes 24 hours to respawn. Restart the server for a completely fresh attempt; death does not reset switches, quests, or the whole encounter.
+Steel-panel `skybridge` surfaces accept portals; the other materials in these examples resist them. Supplies replenish after five seconds, equipment lasts until death or erasure, and no random pickups appear. The guard-removal example uses missiles and provides a sheltered health pickup beside the ammunition. Gold takes 24 hours to respawn. Restart the server for a completely fresh attempt. `puzzle_access` closes its cyan barrier when everyone is dead, and `puzzle_stages` restores actors on solo respawn; other example switches and quest progress persist through death.
 
-The player counts describe intended play, not enforced admission limits. Solo plates toggle on each fresh press. In the two-player example, one player holds the bridge while the other crosses; its two finish plates ask both players to arrive. Existing plate thresholds still change when someone dies or disconnects. Enemy containment is an intended solution rather than a recognized quest condition: the game cannot distinguish trapping a hunter from surviving or destroying it.
+The player counts describe intended play, not enforced admission limits. With one logged-in player, the examples’ barrier and bridge plates toggle on each fresh press. In the two-player example, one player holds the bridge while the other crosses; its two finish plates ask both players to arrive. Firework thresholds follow the living player count; automatic barrier and bridge modes follow the logged-in count. Enemy containment is an intended solution rather than a recognized quest condition: the game cannot distinguish trapping a hunter from surviving or destroying it.
 
 ### Intended solutions
 

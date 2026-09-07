@@ -73,6 +73,7 @@ mod tests {
         let kinds = [KindDef {
             id: "blue".into(),
             color: HexColor([0, 0, 255]),
+            pressure_switch: Default::default(),
         }];
         let config = LightBridgeVfxConfig {
             emissive_brightness: 4.0,
