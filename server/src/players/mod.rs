@@ -13,7 +13,7 @@ pub use power_ups::PowerUpState;
 
 pub use resources::{
     Invincibility, PlayerConnection, PlayerInfo, PlayerLife, PlayerMap, PlayerQuestState, PlayerSession,
-    PlayerStateQuery, UnlimitedMissiles,
+    PlayerStateQuery,
 };
 pub use respawn::players_respawn_system;
 pub use status::players_status_timers_system;

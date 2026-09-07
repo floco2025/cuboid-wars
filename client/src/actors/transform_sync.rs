@@ -3,6 +3,7 @@ use bevy::prelude::*;
 use crate::{actors::ActorMap, characters::PreviousTickPosition};
 use common::{
     config::GameplayConfig,
+    map::Carriers,
     protocol::{ActorId, ActorMarker, Position},
 };
 
@@ -12,6 +13,7 @@ use common::{
 pub fn actors_transform_sync_system(
     gameplay_config: Res<GameplayConfig>,
     actors: Res<ActorMap>,
+    carriers: Res<Carriers>,
     fixed_time: Res<Time<Fixed>>,
     mut query: Query<(&ActorId, &Position, &PreviousTickPosition, &mut Transform), With<ActorMarker>>,
 ) {
@@ -24,7 +26,14 @@ pub fn actors_transform_sync_system(
             .actor(&info.kind)
             .expect("actor kind sent by server is missing from gameplay config")
             .physics();
-        let interp = prev.lerp_to(*pos, alpha);
+        let interp = info.anchor.map_or_else(
+            || prev.lerp_to(*pos, alpha),
+            |anchor| {
+                carriers
+                    .pose_between(anchor.carrier, alpha)
+                    .transform_point(Vec3::from(anchor.pos))
+            },
+        );
         transform.translation.x = interp.x;
         transform.translation.y = actor_physics.collider_center_y(interp.y);
         transform.translation.z = interp.z;

@@ -69,6 +69,7 @@ def validate_map(
     map_name: str | None = None,
     nested_lookup=None,
     actor_kinds: list[str] | None = None,
+    immovable_actor_kinds: set[str] | None = None,
     material_aliases: list[str] | None = None,
 ) -> ValidationErrors:
     """Validate one geometry using its parent's catalogs and named shapes."""
@@ -90,6 +91,8 @@ def validate_map(
             errors.append(f"actor_spawn_zones[{idx}] has unknown actor kind {zone['kind']!r}")
         if zone["count"] < 0:
             errors.append(f"actor_spawn_zones[{idx}] has negative count")
+        if immovable_actor_kinds and zone["kind"] in immovable_actor_kinds:
+            _validate_immovable_capacity(zone, idx, map_data, errors)
 
     for idx, zone in enumerate(map_data["player_spawn_zones"]):
         errors.locate("player_spawn_zones", zone)
@@ -399,6 +402,26 @@ def _check_face_aliases(seg: dict, label: str, errors: list[str], aliases) -> No
         errors.append(
             f"{label}: face {face!r} value {value!r} is not an alias; "
             f"add it to the host map’s textures in gameplay.json or choose an available alias"
+        )
+
+
+def _validate_immovable_capacity(zone: dict, index: int, map_data: dict, errors: list[str]) -> None:
+    level_index = zone["level"]
+    if not 0 <= level_index < len(map_data["levels"]):
+        return
+    level = map_data["levels"][level_index]
+    floors = {(floor["col"], floor["row"]) for floor in level["floors"]}
+    cells = floors - ramp_cells_on_level(map_data["ramps"], level_index)
+    c0, c1 = zone["cols"]
+    r0, r1 = zone["rows"]
+    capacity = sum(
+        c0 <= col < c1 and r0 <= row < r1 and 0 <= col < map_data["grid_cols"] and 0 <= row < map_data["grid_rows"]
+        for col, row in cells
+    )
+    if zone["count"] > capacity:
+        errors.append(
+            f"actor_spawn_zones[{index}] requests {zone['count']} immovable {zone['kind']!r} actors "
+            f"but has only {capacity} usable floor cells"
         )
 
 

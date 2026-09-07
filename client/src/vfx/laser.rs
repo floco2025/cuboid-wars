@@ -1,10 +1,15 @@
-use bevy::{light::NotShadowCaster, prelude::*};
+use bevy::{audio::SpatialScale, light::NotShadowCaster, prelude::*};
 
-use crate::{actors::ActorMap, constants::*, players::PlayerMap};
+use crate::{
+    actors::ActorMap,
+    config::{AssetSet, ClientSettings},
+    constants::*,
+    players::PlayerMap,
+};
 use common::{
     config::GameplayConfig,
     physics::CollisionWorld,
-    protocol::{ActorId, PlateState, PlayerId, SActorBeam},
+    protocol::{ActorId, PlateState, PlayerId, Position},
 };
 
 // Angular speeds (rad/s) of the endpoint wander's per-axis sines —
@@ -14,14 +19,12 @@ const WANDER_SPEEDS: Vec3 = Vec3::new(7.3, 9.4, 5.1);
 // Golden angle: spreads per-beam phases so simultaneous beams desync.
 const WANDER_PHASE_STEP: f32 = 2.399;
 
-// A live laser burst, anchored each frame to the interpolated actor and
-// target entities — the server's beam tracks its target, so the wire carries
-// only the start cue and the client derives both endpoints locally.
+// Endpoints follow interpolated characters; continuous beams have no expiry.
 #[derive(Component)]
 pub struct LaserBeam {
     pub actor: ActorId,
     pub target: PlayerId,
-    pub remaining_secs: f32,
+    pub remaining_secs: Option<f32>,
     pub wander_width_fraction: f32,
     pub wander_height_fraction: f32,
     pub aim_height_fraction: f32,
@@ -31,7 +34,9 @@ pub fn spawn_laser_beam(
     commands: &mut Commands,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
-    msg: &SActorBeam,
+    actor: ActorId,
+    target: PlayerId,
+    remaining_secs: Option<f32>,
 ) -> Entity {
     let brightness = LASER_EMISSIVE;
     // Opaque hot-red emissive core, like the projectile body — this app's
@@ -51,9 +56,9 @@ pub fn spawn_laser_beam(
     commands
         .spawn((
             LaserBeam {
-                actor: msg.id,
-                target: msg.target,
-                remaining_secs: msg.duration_secs,
+                actor,
+                target,
+                remaining_secs,
                 wander_width_fraction: LASER_ENDPOINT_WANDER_WIDTH_FRACTION,
                 wander_height_fraction: LASER_ENDPOINT_WANDER_HEIGHT_FRACTION,
                 aim_height_fraction: LASER_AIM_HEIGHT_FRACTION,
@@ -94,14 +99,18 @@ pub fn laser_beam_update_system(
         target_collider.depth / 2.0,
     );
     for (entity, mut beam, mut transform, mut visibility) in &mut beams {
-        beam.remaining_secs -= delta;
+        if let Some(remaining) = &mut beam.remaining_secs {
+            *remaining -= delta;
+        }
         let anchors = actors
             .get(&beam.actor)
             .zip(players.get(&beam.target))
             .and_then(|(actor, target)| endpoints.get(actor.entity).ok().zip(endpoints.get(target.entity).ok()));
         // Expired, or either endpoint entity is gone (death, logoff, snapshot
         // removal) — every early end is covered without an end cue.
-        let Some((actor_transform, target_transform)) = anchors.filter(|_| beam.remaining_secs > 0.0) else {
+        let Some((actor_transform, target_transform)) =
+            anchors.filter(|_| beam.remaining_secs.is_none_or(|remaining| remaining > 0.0))
+        else {
             commands.entity(entity).despawn();
             continue;
         };
@@ -144,5 +153,26 @@ pub fn laser_beam_update_system(
         transform.rotation = Quat::from_rotation_arc(Vec3::Y, direction);
         transform.scale = Vec3::new(1.0, length, 1.0);
         *visibility = Visibility::Visible;
+    }
+}
+
+pub fn attach_laser_audio(
+    commands: &mut Commands,
+    beam: Entity,
+    kind: &str,
+    asset_server: &AssetServer,
+    asset_set: &AssetSet,
+    settings: &ClientSettings,
+    pos: Option<Position>,
+) {
+    let mut entity = commands.entity(beam);
+    entity.insert((
+        AudioPlayer::new(asset_server.load(asset_set.actor_sound(kind, "fire").to_owned())),
+        PlaybackSettings::LOOP
+            .with_spatial(true)
+            .with_spatial_scale(SpatialScale::new(settings.audio.spatial_distance_scale)),
+    ));
+    if let Some(pos) = pos {
+        entity.insert(Transform::from_translation(Vec3::from(pos)));
     }
 }

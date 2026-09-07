@@ -1,9 +1,13 @@
 use bevy::prelude::*;
-use rand::{RngExt, rng, rngs::ThreadRng, seq::IndexedRandom};
+use rand::{
+    RngExt, rng,
+    rngs::ThreadRng,
+    seq::{IndexedRandom, SliceRandom},
+};
 
 use crate::map::{ActorSpawnZone, CarrierGrid, MapConfig};
 use common::{
-    config::CharacterPhysicsConfig,
+    config::{ActorGameplayConfig, CharacterPhysicsConfig},
     map::{Carriers, MapGeometry},
     physics::{CollisionWorld, character_center, character_paths_intersect, character_shape},
     protocol::{CarrierId, Position},
@@ -58,7 +62,7 @@ pub fn generate_player_spawn_position(
     })
 }
 
-// Pick a random clear position from a single actor spawn zone, on the zone's
+// Pick a clear position from a single actor spawn zone, on the zone's
 // carrier. Used by the actor quota spawner — when topping a specific zone
 // up, we never want to spill into other zones. `None` when the zone has no
 // clear spot right now; the caller leaves the slot empty rather than spawn
@@ -70,8 +74,24 @@ pub fn generate_actor_spawn_position_in_zone(
     zone: &ActorSpawnZone,
     collision_world: &CollisionWorld,
     occupied_positions: &[Position],
-    character_physics: CharacterPhysicsConfig,
+    actor_config: &ActorGameplayConfig,
 ) -> Option<Position> {
+    let character_physics = actor_config.physics();
+    if actor_config.immovable {
+        let grid = map_config.grid(zone.carrier);
+        let mut cells: Vec<_> = zone.immovable_cells(grid).collect();
+        cells.shuffle(&mut rng());
+        return cells.into_iter().find_map(|(col, row)| {
+            let local = Position {
+                x: grid.geometry.cell_center_x(col),
+                y: grid.geometry.level_y(zone.level),
+                z: grid.geometry.cell_center_z(row),
+            };
+            let pos = carriers.pose(zone.carrier).transform_position(&local);
+            character_spawn_position_is_clear(&pos, collision_world, occupied_positions, character_physics)
+                .then_some(pos)
+        });
+    }
     let valid_cells = collect_valid_cells(map_config.grid(zone.carrier), zone.level, zone.cells());
     pick_clear_position(
         &valid_cells,
@@ -210,6 +230,14 @@ mod tests {
             .gameplay_config()
             .player
             .physics()
+    }
+
+    fn actor_config(kind: &str) -> ActorGameplayConfig {
+        crate::config::ServerGameplayConfig::load_default()
+            .expect("gameplay config rejected")
+            .expect_actor(kind)
+            .character
+            .clone()
     }
 
     fn map_config_with_player_spawn(level: u8, col: i32, row: i32) -> MapConfig {
@@ -357,9 +385,9 @@ mod tests {
             &zone,
             &collision_world,
             &[],
-            character_physics(),
+            &actor_config("mine"),
         )
-        .expect("the floored cell is spawnable");
+        .expect("floored cell rejected");
 
         let local = carriers.pose(CarrierId(1)).inverse_transform_position(&pos);
         let geometry = geometry(2, 2);
@@ -381,7 +409,107 @@ mod tests {
                 &zone,
                 &collision_world,
                 &[],
-                character_physics(),
+                &actor_config("mine"),
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn immovable_spawn_uses_the_cell_center_in_its_carriers_frame() {
+        let world = collision_world(&empty_layout());
+        let (map, carriers, zone) = nested_zone_fixture(
+            Position {
+                x: 30.0,
+                y: 4.0,
+                z: -10.0,
+            },
+            true,
+        );
+        let geometry = map.grid(zone.carrier).geometry;
+        let center = Position {
+            x: geometry.cell_center_x(1),
+            y: 0.0,
+            z: geometry.cell_center_z(1),
+        };
+        let expected = carriers.pose(zone.carrier).transform_position(&center);
+        let turret = actor_config("turret");
+        for _ in 0..10 {
+            assert_eq!(
+                generate_actor_spawn_position_in_zone(&map, &carriers, &zone, &world, &[], &turret),
+                Some(expected)
+            );
+        }
+        assert!(generate_actor_spawn_position_in_zone(&map, &carriers, &zone, &world, &[expected], &turret).is_none());
+    }
+
+    #[test]
+    fn immovable_spawn_checks_every_cell_before_reporting_a_full_zone() {
+        let world = collision_world(&empty_layout());
+        let map = MapConfig::for_grid(
+            vec![floor_level(120, 1, &(0..120).map(|c| (c, 0)).collect::<Vec<_>>())],
+            geometry(120, 1),
+        );
+        let zone = ActorSpawnZone {
+            carrier: CarrierId::WORLD,
+            level: 0,
+            cols: [0, 120],
+            rows: [0, 1],
+            kind: "turret".into(),
+            count: 120,
+        };
+        let geometry = map.root_grid().geometry;
+        let centers: Vec<_> = (0..120)
+            .map(|col| Position {
+                x: geometry.cell_center_x(col),
+                y: 0.0,
+                z: geometry.cell_center_z(0),
+            })
+            .collect();
+        let turret = actor_config("turret");
+        let carriers = Carriers::default();
+        assert_eq!(
+            generate_actor_spawn_position_in_zone(&map, &carriers, &zone, &world, &centers[..119], &turret),
+            Some(centers[119])
+        );
+        assert!(generate_actor_spawn_position_in_zone(&map, &carriers, &zone, &world, &centers, &turret).is_none());
+    }
+
+    #[test]
+    fn immovable_spawn_waits_instead_of_shifting_away_from_an_obstructed_center() {
+        let geometry = geometry(2, 2);
+        let layout = MapLayout {
+            walls: vec![Wall {
+                x1: geometry.cell_to_world_x(1),
+                z1: geometry.cell_center_z(1),
+                x2: geometry.cell_to_world_x(2),
+                z2: geometry.cell_center_z(1),
+                width: WALL_THICKNESS,
+                level: 0,
+                y: 0.0,
+                height: WALL_HEIGHT,
+                carrier: CarrierId::WORLD,
+            }],
+            ..Default::default()
+        };
+        let world = collision_world(&layout);
+        let map = MapConfig::for_grid(vec![floor_level(2, 2, &[(1, 1)])], geometry);
+        let zone = ActorSpawnZone {
+            carrier: CarrierId::WORLD,
+            level: 0,
+            cols: [1, 2],
+            rows: [1, 2],
+            kind: "turret".into(),
+            count: 1,
+        };
+        assert!(
+            generate_actor_spawn_position_in_zone(
+                &map,
+                &Carriers::default(),
+                &zone,
+                &world,
+                &[],
+                &actor_config("turret")
             )
             .is_none()
         );

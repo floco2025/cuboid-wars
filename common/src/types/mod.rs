@@ -24,7 +24,8 @@ pub use barrier_kind::{BarrierKindId, BarrierKindTable};
 pub use bridge_kind::{BridgeKindId, BridgeKindTable};
 pub use color::HexColor;
 pub use entities::{
-    Actor, ActorMarker, Item, ItemMarker, Missile, MissileMarker, Player, PlayerMarker, ProjectileMarker, SpawningActor,
+    Actor, ActorAnchor, ActorMarker, Item, ItemMarker, Missile, MissileMarker, Player, PlayerMarker, ProjectileMarker,
+    SpawningActor,
 };
 pub use face_materials::FaceMaterials;
 pub use feed::{FeedSpan, FeedStyle};

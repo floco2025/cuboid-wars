@@ -13,7 +13,7 @@ use crate::{
     map::{GeneratedMap, LightState, PlateState, WeatherState, generate_map, map_plugin},
     missiles::{AirGraph, MissileMap, missiles_plugin},
     network::{FromClientsChannel, network_plugin},
-    players::{Invincibility, PlayerMap, UnlimitedMissiles, players_plugin},
+    players::{Invincibility, PlayerMap, players_plugin},
     portals::{PortalAssignments, PortalMap, portals_plugin},
     projectiles::projectiles_plugin,
     quests::{QuestBoard, QuestCatalog},
@@ -100,7 +100,6 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
         .insert_resource(weather_state)
         .insert_resource(light_state)
         .insert_resource(Invincibility(false))
-        .insert_resource(UnlimitedMissiles(false))
         .insert_resource(collision_world)
         .insert_resource(carriers)
         .insert_resource(map_config)

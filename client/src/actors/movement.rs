@@ -66,6 +66,17 @@ pub(crate) fn plan_actor_moves(
             .actor(&info.kind)
             .expect("actor kind sent by server is missing from gameplay config")
             .physics();
+        if let Some(anchor) = info.anchor {
+            planned_moves.push(CharacterMovePlan::from_target(
+                entity,
+                *pos,
+                anchor.world_position(carriers),
+                0.0,
+                actor_physics,
+                false,
+            ));
+            continue;
+        }
         let control_velocity = move_intent.to_horizontal_velocity();
         let correction_displacement = match recon_option.as_mut() {
             Some(recon) => match reconcile_actor(
@@ -121,13 +132,19 @@ pub(crate) fn plan_actor_moves(
     }
 }
 
-pub(crate) fn apply_actor_moves(query: &mut ActorMovementQuery, planned_moves: &[CharacterMovePlan]) {
+pub(crate) fn apply_actor_moves(
+    query: &mut ActorMovementQuery,
+    actors: &ActorMap,
+    planned_moves: &[CharacterMovePlan],
+) {
     for planned_move in planned_moves {
-        let Ok((_, _, mut pos, _, mut motion, _)) = query.get_mut(planned_move.entity) else {
+        let Ok((_, id, mut pos, _, mut motion, _)) = query.get_mut(planned_move.entity) else {
             continue;
         };
 
-        if blocking_character_move_plan(planned_move, planned_moves).is_some() {
+        if blocking_character_move_plan(planned_move, planned_moves).is_some()
+            && actors.get(id).is_none_or(|actor| actor.anchor.is_none())
+        {
             pos.y = planned_move.target.y;
         } else {
             *pos = planned_move.target;

@@ -72,7 +72,6 @@ pub(super) fn route_client_message(
                 &mut context.portal_assignments,
                 &mut context.portals,
                 &mut context.portal_set,
-                &context.admin.unlimited_missiles,
             );
         }
         ClientMessage::Login(_) => {
@@ -148,7 +147,6 @@ pub(super) fn route_client_message(
                 &context.world.server_gameplay_config,
                 &context.world.map_settings,
                 &context.plates,
-                context.admin.unlimited_missiles.0,
             );
         }
         ClientMessage::PortalShot(message) => {

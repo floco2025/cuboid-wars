@@ -1,9 +1,9 @@
-use bevy::{audio::SpatialScale, prelude::*};
+use bevy::prelude::*;
 
 use super::{super::context::ServerMessageContext, sync::apply_actor_movement_state};
 use crate::{
     audio::{play_explosion_sound, play_spatial_sound},
-    vfx::{spawn_actor_explosion, spawn_laser_beam},
+    vfx::{attach_laser_audio, spawn_actor_explosion, spawn_laser_beam},
 };
 use common::protocol::*;
 
@@ -97,21 +97,30 @@ pub(in crate::network) fn handle_actor_beam_message(
     let Some(info) = context.actors.get(&message.id) else {
         return;
     };
-    let beam = spawn_laser_beam(commands, &mut context.meshes, &mut context.materials, &message);
-    let mut beam_entity = commands.entity(beam);
-    beam_entity.insert((
-        AudioPlayer::new(
-            context
-                .asset_server
-                .load(context.asset_set.actor_sound(&info.kind, "fire").to_owned()),
-        ),
-        PlaybackSettings::LOOP
-            .with_spatial(true)
-            .with_spatial_scale(SpatialScale::new(context.client_settings.audio.spatial_distance_scale)),
-    ));
-    // Seed the transform at the actor so the loop's first frames are heard
-    // from the right spot; the update system re-anchors it every frame.
-    if let Ok((pos, _, _)) = context.actor_data.get(info.entity) {
-        beam_entity.insert(Transform::from_translation(Vec3::from(*pos)));
+    let beam = spawn_laser_beam(
+        commands,
+        &mut context.meshes,
+        &mut context.materials,
+        message.id,
+        message.target,
+        Some(message.duration_secs),
+    );
+    attach_laser_audio(
+        commands,
+        beam,
+        &info.kind,
+        &context.asset_server,
+        &context.asset_set,
+        &context.client_settings,
+        context.actor_data.get(info.entity).ok().map(|(pos, _, _)| *pos),
+    );
+}
+
+pub(in crate::network) fn handle_actor_beam_target_message(
+    message: SActorBeamTarget,
+    context: &mut ServerMessageContext,
+) {
+    if let Some(actor) = context.actors.get_mut(&message.id) {
+        actor.beam.apply(message.tick, message.target);
     }
 }

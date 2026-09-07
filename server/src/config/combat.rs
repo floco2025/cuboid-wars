@@ -117,7 +117,7 @@ impl DamageConfig {
             let damage = self.expect_actor(kind);
             let path = format!("combat.damage.actors.{kind}");
             damage.death_blast.validate(&format!("{path}.death_blast"))?;
-            match (damage.beam_dps, actor.attack.beam()) {
+            match (damage.beam_dps, actor.attack.beam_range()) {
                 (Some(dps), Some(_)) => {
                     validate_positive_finite(dps, &format!("{path}.beam_dps"))?;
                 }

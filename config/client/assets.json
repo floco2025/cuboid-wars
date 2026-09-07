@@ -317,6 +317,17 @@
         "explodes": "sounds/Retro Explosion Short 15.wav",
         "fire": "sounds/freesound_community-laser-beam-76426.wav"
       }
+    },
+    "turret": {
+      "model": {
+        "scene": "models/SciFiDrone.glb#Scene0",
+        "scale": 0.3,
+        "y_offset": -0.03
+      },
+      "sounds": {
+        "explodes": "sounds/Retro Explosion Short 15.wav",
+        "fire": "sounds/freesound_community-laser-beam-76426.wav"
+      }
     }
   },
   "models": {

@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Result, bail};
 use bincode::{Decode, Encode};
 use serde::Deserialize;
 
@@ -9,6 +9,7 @@ pub struct ActorGameplayConfig {
     #[serde(flatten)]
     pub character: CharacterGameplayConfig,
     pub can_use_ladders: bool,
+    pub immovable: bool,
 }
 
 impl ActorGameplayConfig {
@@ -21,6 +22,10 @@ impl ActorGameplayConfig {
     }
 
     pub fn validate(&self, path: &str) -> Result<()> {
-        self.character.validate(path)
+        self.character.validate(path)?;
+        if self.immovable && self.can_use_ladders {
+            bail!("{path}.can_use_ladders must be false for immovable actors");
+        }
+        Ok(())
     }
 }

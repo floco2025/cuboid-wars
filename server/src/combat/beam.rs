@@ -4,7 +4,7 @@ use bevy::prelude::*;
 
 use super::{DeathSource, apply_player_beam_damage, kill_player};
 use crate::{
-    actors::{ActorMap, BeamState},
+    actors::ActorMap,
     combat::PendingExplosions,
     config::ServerGameplayConfig,
     network::broadcast_to_all,
@@ -22,7 +22,7 @@ use common::{
 // one long judder and flood the wire.
 const BEAM_HIT_CUE_INTERVAL_SECS: f32 = 0.25;
 
-// Burn the locked target of every mid-burst laser actor. The beam hits when
+// Burn the locked target of every firing laser actor. The beam hits when
 // the target is within `fire.range` and the actor-center → target-center
 // attack path is clear of world geometry and active fields (the beam origin is the collider
 // center — deliberately not the perception eye height, matching contact
@@ -53,7 +53,7 @@ pub fn actors_beam_damage_system(
     next_cue_at.retain(|id, _| actors.get(id).is_some());
 
     for (actor_id, info) in actors.iter() {
-        let BeamState::Firing { target: target_id, .. } = info.beam else {
+        let Some(target_id) = info.beam.target() else {
             continue;
         };
         let Ok(actor_pos) = actor_positions.get(info.entity) else {
@@ -70,11 +70,11 @@ pub fn actors_beam_damage_system(
             continue;
         };
         let kind_config = server_gameplay_config.expect_actor(&info.spawn_kind);
-        let Some(fire) = kind_config.attack.beam() else {
+        let Some(range) = kind_config.attack.beam_range() else {
             continue;
         };
 
-        if actor_pos.distance_sq(target_pos) > fire.range * fire.range {
+        if actor_pos.distance_sq(target_pos) > range * range {
             continue;
         }
         let actor_physics = gameplay_config.expect_actor(&info.spawn_kind).physics();

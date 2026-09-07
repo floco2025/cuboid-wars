@@ -71,7 +71,8 @@
 //        `SPlayerDeath` trigger immediate death-side work (VFX, overlay,
 //        entity teardown) one tick before the snapshot would catch up.
 //        `SActorBeam` ships the burst's start moment and duration, which the
-//        4 Hz snapshot can't carry.
+//        4 Hz snapshot can't carry. `SActorBeamTarget` accelerates continuous
+//        beam changes; the snapshot also carries their current target.
 //    Inbound, `CMove` is both cue and state: sent every tick, changed or
 //    not, so a lost one heals at the next. `CPing` / `SPong` measure RTT on
 //    the same terms.
@@ -488,6 +489,14 @@ pub struct SActorBeam {
     pub duration_secs: f32,
 }
 
+// Continuous beam target changed; snapshots heal missed cues.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SActorBeamTarget {
+    pub id: ActorId,
+    pub tick: u32,
+    pub target: Option<PlayerId>,
+}
+
 // Player status changed (power-ups, stun, keys, or ammo). The same
 // state is also in `SSnapshot`, but this event is the edge trigger that fires
 // the associated sounds exactly once at the transition.
@@ -684,6 +693,7 @@ pub enum ServerMessage {
     PlayerBlast(SPlayerBlast),
     ActorHit(SActorHit),
     ActorBeam(SActorBeam),
+    ActorBeamTarget(SActorBeamTarget),
     PlayerStatus(SPlayerStatus),
     EraserEntered(SEraserEntered),
     GoldCollected(SGoldCollected),
@@ -748,6 +758,7 @@ impl ServerMessage {
             | Self::PlayerBlast(_)
             | Self::ActorHit(_)
             | Self::ActorBeam(_)
+            | Self::ActorBeamTarget(_)
             | Self::PlayerStatus(_)
             | Self::EraserEntered(_)
             | Self::GoldCollected(_)
@@ -831,6 +842,16 @@ mod tests {
                 face_pitch: 0.1,
                 pattern: Some("line_5".to_owned()),
             }),
+            ServerMessage::ActorBeamTarget(SActorBeamTarget {
+                id: ActorId(3),
+                tick: u32::MAX,
+                target: Some(PlayerId(1)),
+            }),
+            ServerMessage::ActorBeamTarget(SActorBeamTarget {
+                id: ActorId(3),
+                tick: 0,
+                target: None,
+            }),
             ServerMessage::ActorBeam(SActorBeam {
                 id: ActorId(3),
                 target: PlayerId(1),
@@ -911,6 +932,8 @@ mod tests {
             (
                 ActorId(i),
                 Actor {
+                    anchor: None,
+                    beam_target: None,
                     kind: "sentry".to_owned(),
                     movement: ActorMovementState {
                         pos: position(),

@@ -16,6 +16,7 @@ use common::{map::Carriers, physics::CollisionWorld, protocol::*};
 pub(crate) fn install_bootstrap(app: &mut App, message: SInit, asset_set: &AssetSet) -> anyhow::Result<()> {
     let gameplay_config = message.world.gameplay.gameplay_config()?;
     let map_settings = &message.world.map.settings;
+    map_settings.movement.validate("map.settings.movement")?;
     let (barrier_kind_table, _) = map_settings.kind_tables()?;
     asset_set.validate_map_bindings(map_settings, &message.world.map.layout)?;
     asset_set.validate_gameplay_bindings(gameplay_config.actors.keys().map(String::as_str))?;

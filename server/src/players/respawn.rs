@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use super::{PlayerMap, UnlimitedMissiles};
+use super::PlayerMap;
 use crate::{
     characters::{generate_player_spawn_position, spawn_face_yaw},
     config::ServerGameplayConfig,
@@ -28,7 +28,6 @@ pub fn players_respawn_system(
     collision_world: Res<CollisionWorld>,
     gameplay_config: Res<GameplayConfig>,
     server_gameplay_config: Res<ServerGameplayConfig>,
-    unlimited_missiles: Res<UnlimitedMissiles>,
     player_query: Query<&Position, With<PlayerMarker>>,
 ) {
     let delta = time.delta_secs();
@@ -74,9 +73,6 @@ pub fn players_respawn_system(
 
         if let Some(info) = players.get_mut(&id) {
             info.finish_respawn(entity);
-            if unlimited_missiles.0 {
-                info.life.missiles = gameplay_config.missiles.max_missiles;
-            }
         }
 
         occupied_positions.push(pos);

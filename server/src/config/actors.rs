@@ -63,10 +63,10 @@ impl ActorKindServerConfig {
         if let Some(delay_secs) = self.respawn_secs {
             validate_non_negative_finite(delay_secs, &format!("{path}.respawn_secs"))?;
         }
-        validate_positive_finite(self.vision_range, &format!("{path}.vision_range"))?;
-        if self.roam_steps == 0 {
-            bail!("{path}.roam_steps must be at least 1");
+        if !self.character.immovable && self.roam_steps == 0 {
+            bail!("{path}.roam_steps must be at least 1 for mobile actors");
         }
+        validate_positive_finite(self.vision_range, &format!("{path}.vision_range"))?;
         self.attack.validate(&format!("{path}.attack"))
     }
 }
@@ -76,6 +76,7 @@ impl ActorKindServerConfig {
 pub enum ActorAttackConfig {
     Contact(ContactAttackConfig),
     Beam(ActorBeamAttackConfig),
+    ContinuousBeam(ContinuousBeamAttackConfig),
     ContactBeam(ContactBeamAttackConfig),
 }
 
@@ -86,15 +87,25 @@ impl ActorAttackConfig {
             Self::Contact(contact) | Self::ContactBeam(ContactBeamAttackConfig { contact, .. }) => {
                 Some(contact.trigger_gap)
             }
-            Self::Beam(_) => None,
+            Self::Beam(_) | Self::ContinuousBeam(_) => None,
         }
     }
 
     #[must_use]
     pub const fn beam(self) -> Option<ActorBeamAttackConfig> {
         match self {
-            Self::Contact(_) => None,
+            Self::Contact(_) | Self::ContinuousBeam(_) => None,
             Self::Beam(beam) | Self::ContactBeam(ContactBeamAttackConfig { beam, .. }) => Some(beam),
+        }
+    }
+
+    pub const fn beam_range(self) -> Option<f32> {
+        match self {
+            Self::ContinuousBeam(beam) => Some(beam.range),
+            _ => match self.beam() {
+                Some(beam) => Some(beam.range),
+                None => None,
+            },
         }
     }
 
@@ -102,6 +113,7 @@ impl ActorAttackConfig {
         match self {
             Self::Contact(contact) => contact.validate(path),
             Self::Beam(beam) => beam.validate(path),
+            Self::ContinuousBeam(beam) => validate_positive_finite(beam.range, &format!("{path}.range")),
             Self::ContactBeam(ContactBeamAttackConfig { contact, beam }) => {
                 contact.validate(path)?;
                 beam.validate(path)
@@ -119,6 +131,11 @@ impl ContactAttackConfig {
     fn validate(self, path: &str) -> Result<()> {
         validate_non_negative_finite(self.trigger_gap, &format!("{path}.trigger_gap"))
     }
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+pub struct ContinuousBeamAttackConfig {
+    pub range: f32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
@@ -172,12 +189,16 @@ mod tests {
     }
 
     #[test]
-    fn actor_kind_rejects_zero_roam_steps() {
-        let mut config = ServerGameplayConfig::load_default().expect("default server gameplay config should load");
-        let actor = config.actors.kinds.get_mut("mine").expect("mine config");
-        actor.roam_steps = 0;
-        let err = actor.validate("actors.mine").expect_err("zero roam steps must fail");
-        assert!(err.to_string().contains("roam_steps"));
+    fn turret_is_immovable_without_speed_settings() {
+        let config = ServerGameplayConfig::load_default().expect("gameplay config rejected");
+        let turret = config.expect_actor("turret");
+        assert!(turret.character.immovable);
+        assert!(matches!(turret.attack, ActorAttackConfig::ContinuousBeam(_)));
+        assert_eq!(turret.attack.beam_range(), Some(25.0));
+        assert_eq!(config.combat.damage.expect_actor("turret").beam_dps, Some(500.0));
+        for map in config.maps.values() {
+            assert!(!map.settings.movement.actors.contains_key("turret"));
+        }
     }
 
     #[test]
@@ -205,6 +226,7 @@ mod tests {
             "support_probe": { "width": 0.2, "depth": 0.2 },
             "eye_height": 1.0,
             "can_use_ladders": false,
+            "immovable": false,
             "vision_range": 10.0,
             "roam_steps": 2,
             "attack": { "type": "contact", "trigger_gap": 0.1 }

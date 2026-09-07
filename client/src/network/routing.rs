@@ -3,7 +3,8 @@ use common::protocol::*;
 
 use super::{
     actors::{
-        handle_actor_beam_message, handle_actor_death_message, handle_actor_hit_message, handle_actor_move_message,
+        handle_actor_beam_message, handle_actor_beam_target_message, handle_actor_death_message,
+        handle_actor_hit_message, handle_actor_move_message,
     },
     context::ServerMessageContext,
     io::apply_pong,
@@ -61,6 +62,7 @@ pub(super) fn route_server_message(
         }
         ServerMessage::ActorHit(message) => handle_actor_hit_message(message, commands, context),
         ServerMessage::ActorBeam(message) => handle_actor_beam_message(message, commands, context),
+        ServerMessage::ActorBeamTarget(message) => handle_actor_beam_target_message(message, context),
         ServerMessage::EraserEntered(_) => handle_eraser_entered_message(commands, context),
         ServerMessage::PlayerStatus(message) => {
             handle_player_status_message(message, commands, my_player_id, context);

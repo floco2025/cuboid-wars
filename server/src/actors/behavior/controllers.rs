@@ -19,6 +19,41 @@ pub(super) struct BeamStarted {
     pub(super) duration_secs: f32,
 }
 
+pub(super) fn decide_continuous_beam_actor(info: &mut ActorInfo, context: &BehaviorContext<'_>) {
+    let current = info.beam.continuous_target();
+    let target = info
+        .awareness
+        .iter()
+        .filter(|aware| beam_target_attackable(aware, context))
+        .min_by_key(|aware| Some(aware.id) != current)
+        .copied();
+    info.beam = match target {
+        Some(aware) => {
+            info.set_route(None);
+            info.mode = ActorMode::Engage {
+                target: aware.id,
+                target_pos: aware.pos,
+            };
+            BeamState::Continuous { target: aware.id }
+        }
+        None => {
+            info.mode = ActorMode::Roam;
+            BeamState::Ready
+        }
+    };
+}
+
+pub(super) fn decide_stationary_actor(info: &mut ActorInfo, context: &BehaviorContext<'_>) -> Option<BeamStarted> {
+    context.kind_config.attack.beam()?;
+    find_beam_target(info, context).map(|target| {
+        info.mode = ActorMode::Engage {
+            target: target.id,
+            target_pos: target.pos,
+        };
+        start_beam(info, context, target)
+    })
+}
+
 pub(super) fn decide_contact_actor(info: &mut ActorInfo, context: &BehaviorContext<'_>, rng: &mut impl Rng) {
     if try_engage_attackable_player(info, context) {
         return;
@@ -31,7 +66,7 @@ pub(super) fn decide_beam_actor(
     context: &BehaviorContext<'_>,
     rng: &mut impl Rng,
 ) -> Option<BeamStarted> {
-    if matches!(info.beam, BeamState::Firing { .. }) {
+    if matches!(info.beam, BeamState::Firing { .. } | BeamState::Continuous { .. }) {
         return None;
     }
     if let Some(target) = find_beam_target(info, context) {
@@ -63,7 +98,7 @@ pub(super) fn decide_contact_beam_actor(
     context: &BehaviorContext<'_>,
     rng: &mut impl Rng,
 ) -> Option<BeamStarted> {
-    if let BeamState::Firing { target, .. } = info.beam {
+    if let BeamState::Firing { target, .. } | BeamState::Continuous { target } = info.beam {
         if try_engage_attackable_player(info, context) {
             return None;
         }
@@ -87,19 +122,25 @@ fn find_beam_target(info: &ActorInfo, context: &BehaviorContext<'_>) -> Option<A
     if !matches!(info.beam, BeamState::Ready) {
         return None;
     }
-    let fire = beam_attack(context);
     info.awareness
         .iter()
-        .find(|aware| {
-            aware.visible
-                && context.world_pos.distance_sq(&aware.pos) <= fire.range * fire.range
-                && context.collision_world.attack_path_clear(
-                    character_center(context.world_pos, context.actor_physics),
-                    character_center(aware.pos, context.player_physics),
-                    context.open_barriers,
-                )
-        })
+        .find(|aware| beam_target_attackable(aware, context))
         .copied()
+}
+
+fn beam_target_attackable(aware: &AwarePlayer, context: &BehaviorContext<'_>) -> bool {
+    let range = context
+        .kind_config
+        .attack
+        .beam_range()
+        .expect("beam range missing from beam actor");
+    aware.visible
+        && context.world_pos.distance_sq(&aware.pos) <= range * range
+        && context.collision_world.attack_path_clear(
+            character_center(context.world_pos, context.actor_physics),
+            character_center(aware.pos, context.player_physics),
+            context.open_barriers,
+        )
 }
 
 fn start_beam(info: &mut ActorInfo, context: &BehaviorContext<'_>, target: AwarePlayer) -> BeamStarted {

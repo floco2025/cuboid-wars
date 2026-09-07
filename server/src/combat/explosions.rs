@@ -335,6 +335,9 @@ fn apply_blast(
             continue;
         }
 
+        if info.anchor.is_some() {
+            continue;
+        }
         vertical_velocity.0 += movement.knockback.up_speed * falloff;
         accumulate_impulse(
             actor_impulses,
@@ -467,7 +470,9 @@ mod tests {
     };
     use common::{
         map::Carriers,
-        protocol::{Barrier, BarrierKindTable, BridgeKindId, CarrierId, LightBridge, MapLayout, SPlayerDeath},
+        protocol::{
+            ActorAnchor, Barrier, BarrierKindTable, BridgeKindId, CarrierId, LightBridge, MapLayout, SPlayerDeath,
+        },
     };
     use tokio::sync::mpsc::unbounded_channel;
 
@@ -649,6 +654,75 @@ mod tests {
             actor
                 .get::<CharacterVerticalVelocity>()
                 .is_some_and(|velocity| velocity.0 > 0.0)
+        );
+    }
+
+    #[test]
+    fn missile_destroys_turret_with_normal_death_cue_and_kill_credit() {
+        let mut app = test_app();
+        app.add_systems(Update, explosions_system);
+        let shooter = PlayerId(1);
+        let (_, mut receiver) = spawn_logged_in_player(&mut app, shooter, 100.0, 500.0);
+        let id = ActorId(1);
+        let entity = spawn_actor(&mut app, id, 1.0, 50.0);
+        let pos = *app.world().get::<Position>(entity).expect("turret position missing");
+        {
+            let mut actors = app.world_mut().resource_mut::<ActorMap>();
+            let info = actors.get_mut(&id).expect("turret missing");
+            info.spawn_kind = "turret".into();
+            info.anchor = Some(ActorAnchor {
+                carrier: CarrierId::WORLD,
+                pos,
+            });
+        }
+        app.world_mut()
+            .resource_mut::<PendingExplosions>()
+            .push_missile(shooter, pos);
+        app.update();
+        assert!(app.world().get_entity(entity).is_err());
+        assert!(app.world().resource::<ActorMap>().get(&id).is_none());
+        let mut deaths = Vec::new();
+        while let Ok(ServerToClient::Send(message)) = receiver.try_recv() {
+            if let ServerMessage::ActorDeath(death) = message {
+                deaths.push(death);
+            }
+        }
+        assert_eq!(deaths.len(), 1);
+        assert_eq!(deaths[0].id, id);
+        assert_eq!(deaths[0].killer, Some(shooter));
+        assert_eq!(deaths[0].killer_score, Some(150));
+    }
+
+    #[test]
+    fn turret_takes_blast_damage_without_knockback() {
+        let mut app = test_app();
+        app.add_systems(Update, explosions_system);
+        let id = ActorId(1);
+        let entity = spawn_actor(&mut app, id, 1.0, 1000.0);
+        let pos = *app.world().get::<Position>(entity).expect("actor position missing");
+        let mut actors = app.world_mut().resource_mut::<ActorMap>();
+        let info = actors.get_mut(&id).expect("turret missing");
+        info.spawn_kind = "turret".into();
+        info.anchor = Some(ActorAnchor {
+            carrier: CarrierId::WORLD,
+            pos,
+        });
+        app.world_mut()
+            .resource_mut::<PendingExplosions>()
+            .push_player(PlayerId(9), Position::default());
+        app.update();
+        assert!(
+            app.world()
+                .get::<Health>(entity)
+                .is_some_and(|health| (0.0..1000.0).contains(&health.0))
+        );
+        assert!(app.world().get::<KnockbackVelocity>(entity).is_none());
+        assert_eq!(
+            app.world()
+                .get::<CharacterVerticalVelocity>(entity)
+                .expect("actor velocity missing")
+                .0,
+            0.0
         );
     }
 

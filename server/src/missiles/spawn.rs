@@ -42,7 +42,6 @@ pub fn handle_missile_shot_message(
     server_gameplay_config: &ServerGameplayConfig,
     map_settings: &MapSettings,
     plates: &PlateState,
-    unlimited_missiles: bool,
 ) {
     // Untrusted boundary: drop non-finite aim before it becomes a NaN
     // velocity. Checked before the ammo/cooldown gate so a bad message
@@ -104,10 +103,7 @@ pub fn handle_missile_shot_message(
         return;
     }
 
-    if !players
-        .get_mut(&id)
-        .is_some_and(|player| player.try_start_missile(unlimited_missiles))
-    {
+    if !players.get_mut(&id).is_some_and(|player| player.try_start_missile()) {
         return;
     }
 

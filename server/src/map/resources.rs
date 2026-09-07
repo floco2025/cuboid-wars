@@ -109,6 +109,16 @@ impl ActorSpawnZone {
         let rows = self.rows[0]..self.rows[1];
         rows.flat_map(move |r| cols.clone().map(move |c| (c, r)))
     }
+
+    pub fn immovable_cells<'a>(&'a self, grid: &'a CarrierGrid) -> impl Iterator<Item = (i32, i32)> + 'a {
+        self.cells().filter(|&(col, row)| {
+            grid.levels
+                .get(self.level as usize)
+                .and_then(|level| level.cells.rows.get(row as usize))
+                .and_then(|row| row.get(col as usize))
+                .is_some_and(|cell| cell.has_floor && cell.is_spawnable())
+        })
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

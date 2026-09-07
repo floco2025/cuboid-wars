@@ -17,6 +17,7 @@ use common::{
 pub(in crate::network) fn sync_actors(
     commands: &mut Commands,
     context: &mut ServerMessageContext,
+    tick: u32,
     server_actors: &[(ActorId, Actor)],
 ) {
     let update_ids: HashSet<ActorId> = server_actors.iter().map(|(id, _)| *id).collect();
@@ -26,6 +27,10 @@ pub(in crate::network) fn sync_actors(
             continue;
         }
 
+        let mut actor = actor.clone();
+        if let Some(anchor) = actor.anchor {
+            actor.movement.pos = anchor.world_position(&context.carriers);
+        }
         let entity = spawn_actor(
             commands,
             &context.asset_server,
@@ -37,13 +42,15 @@ pub(in crate::network) fn sync_actors(
             &context.gameplay_config,
             &context.max_health,
             *id,
-            actor,
+            &actor,
         );
         context.actors.insert(
             *id,
             ActorInfo {
                 entity,
                 kind: actor.kind.clone(),
+                anchor: actor.anchor,
+                beam: Default::default(),
             },
         );
     }
@@ -58,7 +65,8 @@ pub(in crate::network) fn sync_actors(
     });
 
     for (id, server_actor) in server_actors {
-        if let Some(client_actor) = context.actors.get(id) {
+        if let Some(client_actor) = context.actors.get_mut(id) {
+            client_actor.beam.apply(tick, server_actor.beam_target);
             commands.entity(client_actor.entity).insert(server_actor.health);
         }
         apply_actor_movement_state(
@@ -125,6 +133,12 @@ pub(super) fn apply_actor_movement_state(
         return;
     };
 
+    if client_actor.anchor.is_some() {
+        if let Some(yaw) = face_yaw {
+            commands.entity(client_actor.entity).insert(FaceYaw(yaw));
+        }
+        return;
+    }
     let server_velocity = actor_movement_velocity(movement);
     commands.entity(client_actor.entity).insert((
         movement.move_intent,

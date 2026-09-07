@@ -13,7 +13,7 @@ pub(crate) type ActorMovementQuery<'w, 's> = Query<
     (
         Entity,
         &'static ActorId,
-        &'static ActorMovementConfig,
+        Option<&'static ActorMovementConfig>,
         &'static mut Position,
         &'static mut CharacterVerticalVelocity,
         &'static mut ActorMoveIntent,

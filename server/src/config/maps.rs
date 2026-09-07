@@ -4,6 +4,7 @@ use anyhow::{Context, Result, bail};
 use serde::Deserialize;
 
 use super::{
+    actors::ActorKindServerConfig,
     items::{PlacedItemsConfig, PowerUpsConfig},
     quests::{Quest, validate_quests},
     validation::{deserialize_required_option, validate_covers_actor_kinds, validate_positive_finite},
@@ -80,14 +81,19 @@ pub(crate) fn is_valid_map_name(name: &str) -> bool {
     !name.is_empty() && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
 }
 
-pub(super) fn validate_maps<T>(
+pub(super) fn validate_maps(
     maps: &HashMap<String, MapServerConfig>,
     default_map: &str,
-    actors: &HashMap<String, T>,
+    actors: &HashMap<String, ActorKindServerConfig>,
 ) -> Result<()> {
     if maps.is_empty() {
         bail!("maps must define at least one map");
     }
+    let movable_actors: HashMap<_, _> = actors
+        .iter()
+        .filter(|(_, actor)| !actor.character.immovable)
+        .map(|(kind, actor)| (kind.clone(), actor))
+        .collect();
     for (name, entry) in maps {
         // Map names become file names (`config/server/maps/<name>.json`), so
         // reject anything that could traverse paths.
@@ -109,7 +115,16 @@ pub(super) fn validate_maps<T>(
         entry.settings.geometry.validate(&format!("{path}.geometry"))?;
         let movement_path = format!("{path}.movement");
         let movement = &entry.settings.movement;
-        validate_covers_actor_kinds(movement.actors.keys(), actors, &format!("{movement_path}.actors"))?;
+        for kind in movement.actors.keys() {
+            if actors.get(kind).is_some_and(|actor| actor.character.immovable) {
+                bail!("{movement_path}.actors.{kind} must be omitted for an immovable actor");
+            }
+        }
+        validate_covers_actor_kinds(
+            movement.actors.keys(),
+            &movable_actors,
+            &format!("{movement_path}.actors"),
+        )?;
         movement.validate(&movement_path)?;
         if let Some(random_items) = &entry.random_items {
             random_items.validate(&format!("{path}.random_items"))?;
@@ -161,11 +176,13 @@ mod tests {
         protocol::{HexColor, KindDef, PortalMode},
     };
 
-    fn actor_kinds() -> HashMap<String, ()> {
-        ["mine", "sentry", "reaper", "zapper"]
-            .into_iter()
-            .map(|kind| (kind.to_owned(), ()))
-            .collect()
+    fn actor_kinds() -> HashMap<String, ActorKindServerConfig> {
+        let mut actors = crate::config::ServerGameplayConfig::load_default()
+            .expect("gameplay config rejected")
+            .actors
+            .kinds;
+        actors.remove("turret");
+        actors
     }
 
     fn ok_movement() -> MapMovementConfig {

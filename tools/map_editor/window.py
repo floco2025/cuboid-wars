@@ -25,6 +25,7 @@ from .constants import (
     load_map_bridge_kinds,
     load_map_wall_width_cells,
     load_actor_kinds,
+    load_immovable_actor_kinds,
     MAP_NAME_RE,
     require_map_settings,
 )
@@ -77,6 +78,7 @@ class EditorWindow(
         self.bridge_kind_colors = load_map_bridge_kinds(path.stem)
         self.wall_width_cells = load_map_wall_width_cells(path.stem)
         self.actor_kinds = load_actor_kinds()
+        self.immovable_actor_kinds = load_immovable_actor_kinds()
         self.current_level = 0
         self.mode = MODE_SELECT
         self.shortcuts = []
@@ -194,6 +196,7 @@ class EditorWindow(
             map_name=self.doc.active_map,
             nested_lookup=self.nested_map_shape,
             actor_kinds=self.actor_kinds,
+            immovable_actor_kinds=self.immovable_actor_kinds,
             material_aliases=self.materials_catalog,
         )
 
@@ -213,6 +216,7 @@ class EditorWindow(
                 geometry, barriers, bridges, map_name=name,
                 nested_lookup=lambda key: nested_map_shape(definitions.get(key)),
                 actor_kinds=self.actor_kinds, material_aliases=aliases,
+                immovable_actor_kinds=self.immovable_actor_kinds,
             )
             for issue in found.issues:
                 message = f"{label}: {issue.message}" if name is not None else issue.message

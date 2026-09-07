@@ -23,16 +23,8 @@ pub type PlayerStateQuery<'w, 's> = Query<
     With<PlayerMarker>,
 >;
 
-// Global debug invincibility. Seeded at startup from the config /
-// `--invincible` flag; the `/god` admin command owns it at runtime — which
-// is why it's a resource and not a config read.
 #[derive(Resource)]
 pub struct Invincibility(pub bool);
-
-// Global unlimited missile ammo. A separate flag from `Invincibility` so the
-// two effects stay independently wireable, but `/god` toggles them together.
-#[derive(Resource)]
-pub struct UnlimitedMissiles(pub bool);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PlayerQuestState {
@@ -276,11 +268,7 @@ impl PlayerInfo {
         true
     }
 
-    // Consumes one missile on success unless unlimited ammo is active.
-    pub fn try_start_missile(&mut self, unlimited: bool) -> bool {
-        if unlimited {
-            return true;
-        }
+    pub fn try_start_missile(&mut self) -> bool {
         if self.life.missiles == 0 {
             return false;
         }
@@ -579,14 +567,14 @@ mod tests {
     #[test]
     fn try_start_missile_requires_ammo() {
         let mut info = dummy_info();
-        assert!(!info.try_start_missile(false), "no ammo");
+        assert!(!info.try_start_missile(), "no ammo");
 
         info.add_missiles(2, 3);
-        assert!(info.try_start_missile(false));
-        assert!(info.try_start_missile(false));
+        assert!(info.try_start_missile());
+        assert_eq!(info.life.missiles, 1);
+        assert!(info.try_start_missile());
         assert_eq!(info.life.missiles, 0);
-        assert!(!info.try_start_missile(false), "magazine empty");
-        assert!(info.try_start_missile(true), "unlimited fire ignores the magazine");
+        assert!(!info.try_start_missile(), "magazine empty");
     }
 
     #[test]

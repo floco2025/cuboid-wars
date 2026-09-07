@@ -1,3 +1,4 @@
+mod anchored;
 mod avoidance;
 mod fixtures;
 mod ladder_traffic;

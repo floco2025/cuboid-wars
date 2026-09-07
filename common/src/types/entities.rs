@@ -1,3 +1,4 @@
+use crate::map::Carriers;
 use bevy_ecs::prelude::*;
 use bincode::{Decode, Encode};
 
@@ -25,9 +26,23 @@ pub struct ProjectileMarker;
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct Actor {
     pub kind: String,
+    pub anchor: Option<ActorAnchor>,
+    pub beam_target: Option<PlayerId>,
     pub movement: ActorMovementState,
     pub face_yaw: f32,
     pub health: Health,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Encode, Decode)]
+pub struct ActorAnchor {
+    pub carrier: CarrierId,
+    pub pos: Position,
+}
+
+impl ActorAnchor {
+    pub fn world_position(self, carriers: &Carriers) -> Position {
+        carriers.pose(self.carrier).transform_position(&self.pos)
+    }
 }
 
 // A reserved actor spawn during its warning window. The actor doesn't exist
@@ -51,6 +66,8 @@ impl Actor {
     pub const fn new(kind: String, pos: Position, move_intent: ActorMoveIntent, face_yaw: f32, health: Health) -> Self {
         Self {
             kind,
+            anchor: None,
+            beam_target: None,
             movement: ActorMovementState::new(pos, move_intent, 0.0),
             face_yaw,
             health,

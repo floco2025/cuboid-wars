@@ -130,6 +130,8 @@ pub fn snapshot_actors(
                 *actor_id,
                 Actor {
                     kind: info.spawn_kind.clone(),
+                    anchor: info.anchor,
+                    beam_target: info.beam.continuous_target(),
                     movement: ActorMovementState::new(*pos, *move_intent, vertical_velocity),
                     face_yaw: face_yaw.0,
                     health: *health,

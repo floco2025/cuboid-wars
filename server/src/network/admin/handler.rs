@@ -7,7 +7,7 @@ use crate::{
     config::{PowerUpsConfig, ServerGameplayConfig},
     map::{LightState, MapConfig, WeatherState},
     network::{FeedAudience, FeedEvent, emit_feed},
-    players::{Invincibility, PlayerInfo, PlayerMap, PlayerStateQuery, UnlimitedMissiles},
+    players::{Invincibility, PlayerInfo, PlayerMap, PlayerStateQuery},
     quests::{QuestBoard, QuestCatalog},
 };
 use common::{
@@ -26,7 +26,6 @@ pub struct AdminContext<'w> {
     pub light: ResMut<'w, LightState>,
     pub pending_explosions: ResMut<'w, PendingExplosions>,
     pub invincibility: ResMut<'w, Invincibility>,
-    pub unlimited_missiles: ResMut<'w, UnlimitedMissiles>,
     pub actor_respawn_timers: ResMut<'w, ActorRespawnTimers>,
     pub server_gameplay_config: Res<'w, ServerGameplayConfig>,
     pub power_ups: Res<'w, PowerUpsConfig>,

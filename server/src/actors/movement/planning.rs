@@ -2,7 +2,12 @@ use std::f32::consts::FRAC_PI_2;
 
 use bevy::prelude::Vec3;
 
-use crate::{actors::ActorMap, map::PlateState, network::broadcast_to_all, players::PlayerMap};
+use crate::{
+    actors::{ActorMap, ActorMode},
+    map::PlateState,
+    network::broadcast_to_all,
+    players::PlayerMap,
+};
 use common::{
     config::{CharacterPhysicsConfig, GameplayConfig},
     map::Carriers,
@@ -14,7 +19,7 @@ use super::{
     context::{ActorMoveContext, CandidateStep, SelectedActorMove},
     ordering::sorted_actor_plan_order,
     query::ActorMovementQuery,
-    steering::{ActorDesire, desired_move},
+    steering::{ActorDesire, desired_move, direction_toward},
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -44,6 +49,22 @@ pub(crate) fn plan_actor_moves(
         };
         let actor_physics = gameplay_config.expect_actor(&info.spawn_kind).physics();
         let current_pos = *pos;
+        if let Some(anchor) = info.anchor {
+            *move_intent = ActorMoveIntent::Idle;
+            if let ActorMode::Engage { target_pos, .. } = info.mode {
+                face_yaw.0 = direction_toward(&current_pos, &target_pos);
+            }
+            planned_moves.push(CharacterMovePlan::from_target(
+                entity,
+                current_pos,
+                anchor.world_position(carriers),
+                0.0,
+                actor_physics,
+                false,
+            ));
+            continue;
+        }
+        let actor_movement = actor_movement.expect("movable actor lacks movement settings");
         // The carriers already advanced to this tick while the actor still
         // stands where the previous pose left it, so that pose maps it into
         // its carrier's frame exactly; the current one would lead it by a

@@ -436,6 +436,1125 @@
           "completed_text": "Switchyard cleared for departure!"
         }
       ]
+    },
+    "puzzle_stages": {
+      "textures": {
+        "basement-floor": {
+          "portalable": false
+        },
+        "ground-floor": {
+          "portalable": false
+        },
+        "upper-floors": {
+          "portalable": false
+        },
+        "slab": {
+          "portalable": false
+        },
+        "portal-resistant": {
+          "portalable": false
+        },
+        "skybridge": {
+          "portalable": true
+        }
+      },
+      "skybox": "cloudy_day",
+      "geometry": {
+        "grid_cell_size": 4.0,
+        "level_height": 4.0,
+        "floor_thickness": 0.4,
+        "wall_thickness": 0.4
+      },
+      "weather": "clear",
+      "lighting": "bright",
+      "movement": {
+        "gravity": 24.0,
+        "low_gravity": 13.2,
+        "player": {
+          "walk_speed": 4.5,
+          "run_speed": 6.0,
+          "speed_power_up": 1.5,
+          "jump_speed": 8.0
+        },
+        "actors": {
+          "mine": {
+            "roam_speed": 3.0,
+            "active_speed": 5.0
+          },
+          "reaper": {
+            "roam_speed": 5.0,
+            "active_speed": 8.0
+          },
+          "sentry": {
+            "roam_speed": 5.0,
+            "active_speed": 8.0
+          },
+          "zapper": {
+            "roam_speed": 2.0,
+            "active_speed": 4.0
+          }
+        },
+        "projectile_speed": 90.0,
+        "missile_speed": 16.0,
+        "ladder_climb_ratio": 0.6,
+        "knockback": {
+          "max_speed": 15.0,
+          "up_speed": 7.0,
+          "deceleration": 35.0
+        }
+      },
+      "portals": "both",
+      "barrier_kinds": [
+        {
+          "id": "amber",
+          "color": "#f0c020"
+        }
+      ],
+      "bridge_kinds": [],
+      "random_items": null,
+      "power_ups": {
+        "duration_secs": {
+          "single_shot": 0.0,
+          "multi_shot": 0.0,
+          "portal_gun": 0.0,
+          "speed": 0.0,
+          "low_gravity": 0.0
+        }
+      },
+      "placed_items": {
+        "respawn_secs": {
+          "single_shot": 5.0,
+          "multi_shot": 5.0,
+          "missile_pack": 5.0,
+          "portal_gun": 5.0,
+          "health_potion": 5.0,
+          "speed": 5.0,
+          "low_gravity": 5.0,
+          "gold": 86400.0,
+          "key": 5.0
+        }
+      },
+      "quests": [
+        {
+          "id": "token",
+          "kind": "gold",
+          "scope": "shared",
+          "requires": null,
+          "actor_kind": null,
+          "threshold": 1,
+          "points": 500,
+          "title": "Carry your progress",
+          "description": "Solo. Find the balcony key, pass customs, then clear the guarded hall. Supplies replenish behind cover.",
+          "completed_text": "Token recovered. Reach the firework plate."
+        },
+        {
+          "id": "finish",
+          "kind": "fireworks",
+          "scope": "shared",
+          "requires": "token",
+          "actor_kind": null,
+          "threshold": 1,
+          "points": 500,
+          "title": "Launch the signal",
+          "description": "Stand on the finish plate to complete the puzzle.",
+          "completed_text": "Carry your progress complete!"
+        }
+      ]
+    },
+    "puzzle_access": {
+      "textures": {
+        "basement-floor": {
+          "portalable": false
+        },
+        "ground-floor": {
+          "portalable": false
+        },
+        "upper-floors": {
+          "portalable": false
+        },
+        "slab": {
+          "portalable": false
+        },
+        "portal-resistant": {
+          "portalable": false
+        },
+        "skybridge": {
+          "portalable": true
+        }
+      },
+      "skybox": "cloudy_day",
+      "geometry": {
+        "grid_cell_size": 4.0,
+        "level_height": 4.0,
+        "floor_thickness": 0.4,
+        "wall_thickness": 0.4
+      },
+      "weather": "clear",
+      "lighting": "bright",
+      "movement": {
+        "gravity": 24.0,
+        "low_gravity": 13.2,
+        "player": {
+          "walk_speed": 4.5,
+          "run_speed": 6.0,
+          "speed_power_up": 1.5,
+          "jump_speed": 8.0
+        },
+        "actors": {
+          "mine": {
+            "roam_speed": 3.0,
+            "active_speed": 5.0
+          },
+          "reaper": {
+            "roam_speed": 5.0,
+            "active_speed": 8.0
+          },
+          "sentry": {
+            "roam_speed": 5.0,
+            "active_speed": 8.0
+          },
+          "zapper": {
+            "roam_speed": 2.0,
+            "active_speed": 4.0
+          }
+        },
+        "projectile_speed": 90.0,
+        "missile_speed": 16.0,
+        "ladder_climb_ratio": 0.6,
+        "knockback": {
+          "max_speed": 15.0,
+          "up_speed": 7.0,
+          "deceleration": 35.0
+        }
+      },
+      "portals": "both",
+      "barrier_kinds": [
+        {
+          "id": "cyan",
+          "color": "#30d8ff"
+        }
+      ],
+      "bridge_kinds": [],
+      "random_items": null,
+      "power_ups": {
+        "duration_secs": {
+          "single_shot": 0.0,
+          "multi_shot": 0.0,
+          "portal_gun": 0.0,
+          "speed": 0.0,
+          "low_gravity": 0.0
+        }
+      },
+      "placed_items": {
+        "respawn_secs": {
+          "single_shot": 5.0,
+          "multi_shot": 5.0,
+          "missile_pack": 5.0,
+          "portal_gun": 5.0,
+          "health_potion": 5.0,
+          "speed": 5.0,
+          "low_gravity": 5.0,
+          "gold": 86400.0,
+          "key": 5.0
+        }
+      },
+      "quests": [
+        {
+          "id": "token",
+          "kind": "gold",
+          "scope": "shared",
+          "requires": null,
+          "actor_kind": null,
+          "threshold": 1,
+          "points": 500,
+          "title": "Permission is protection",
+          "description": "Solo. The cyan field shields the hall. Find a way through without leaving it open.",
+          "completed_text": "Token recovered. Reach the firework plate."
+        },
+        {
+          "id": "finish",
+          "kind": "fireworks",
+          "scope": "shared",
+          "requires": "token",
+          "actor_kind": null,
+          "threshold": 1,
+          "points": 500,
+          "title": "Launch the signal",
+          "description": "Stand on the finish plate to complete the puzzle.",
+          "completed_text": "Permission is protection complete!"
+        }
+      ]
+    },
+    "puzzle_shield": {
+      "textures": {
+        "basement-floor": {
+          "portalable": false
+        },
+        "ground-floor": {
+          "portalable": false
+        },
+        "upper-floors": {
+          "portalable": false
+        },
+        "slab": {
+          "portalable": false
+        },
+        "portal-resistant": {
+          "portalable": false
+        },
+        "skybridge": {
+          "portalable": true
+        }
+      },
+      "skybox": "cloudy_day",
+      "geometry": {
+        "grid_cell_size": 4.0,
+        "level_height": 4.0,
+        "floor_thickness": 0.4,
+        "wall_thickness": 0.4
+      },
+      "weather": "clear",
+      "lighting": "bright",
+      "movement": {
+        "gravity": 24.0,
+        "low_gravity": 13.2,
+        "player": {
+          "walk_speed": 4.5,
+          "run_speed": 6.0,
+          "speed_power_up": 1.5,
+          "jump_speed": 8.0
+        },
+        "actors": {
+          "mine": {
+            "roam_speed": 3.0,
+            "active_speed": 5.0
+          },
+          "reaper": {
+            "roam_speed": 5.0,
+            "active_speed": 8.0
+          },
+          "sentry": {
+            "roam_speed": 5.0,
+            "active_speed": 8.0
+          },
+          "zapper": {
+            "roam_speed": 2.0,
+            "active_speed": 4.0
+          }
+        },
+        "projectile_speed": 90.0,
+        "missile_speed": 16.0,
+        "ladder_climb_ratio": 0.6,
+        "knockback": {
+          "max_speed": 15.0,
+          "up_speed": 7.0,
+          "deceleration": 35.0
+        }
+      },
+      "portals": "both",
+      "barrier_kinds": [],
+      "bridge_kinds": [
+        {
+          "id": "roof",
+          "color": "#22cc99"
+        }
+      ],
+      "random_items": null,
+      "power_ups": {
+        "duration_secs": {
+          "single_shot": 0.0,
+          "multi_shot": 0.0,
+          "portal_gun": 0.0,
+          "speed": 0.0,
+          "low_gravity": 0.0
+        }
+      },
+      "placed_items": {
+        "respawn_secs": {
+          "single_shot": 5.0,
+          "multi_shot": 5.0,
+          "missile_pack": 5.0,
+          "portal_gun": 5.0,
+          "health_potion": 5.0,
+          "speed": 5.0,
+          "low_gravity": 5.0,
+          "gold": 86400.0,
+          "key": 5.0
+        }
+      },
+      "quests": [
+        {
+          "id": "token",
+          "kind": "gold",
+          "scope": "shared",
+          "requires": null,
+          "actor_kind": null,
+          "threshold": 1,
+          "points": 500,
+          "title": "Under, then over",
+          "description": "Solo. Power the roof to reach the far ladder, then use the same surface to return above the guard.",
+          "completed_text": "Token recovered. Reach the firework plate."
+        },
+        {
+          "id": "finish",
+          "kind": "fireworks",
+          "scope": "shared",
+          "requires": "token",
+          "actor_kind": null,
+          "threshold": 1,
+          "points": 500,
+          "title": "Launch the signal",
+          "description": "Stand on the finish plate to complete the puzzle.",
+          "completed_text": "Under, then over complete!"
+        }
+      ]
+    },
+    "puzzle_cover": {
+      "textures": {
+        "basement-floor": {
+          "portalable": false
+        },
+        "ground-floor": {
+          "portalable": false
+        },
+        "upper-floors": {
+          "portalable": false
+        },
+        "slab": {
+          "portalable": false
+        },
+        "portal-resistant": {
+          "portalable": false
+        },
+        "skybridge": {
+          "portalable": true
+        }
+      },
+      "skybox": "cloudy_day",
+      "geometry": {
+        "grid_cell_size": 4.0,
+        "level_height": 4.0,
+        "floor_thickness": 0.4,
+        "wall_thickness": 0.4
+      },
+      "weather": "clear",
+      "lighting": "bright",
+      "movement": {
+        "gravity": 24.0,
+        "low_gravity": 13.2,
+        "player": {
+          "walk_speed": 4.5,
+          "run_speed": 6.0,
+          "speed_power_up": 1.5,
+          "jump_speed": 8.0
+        },
+        "actors": {
+          "mine": {
+            "roam_speed": 3.0,
+            "active_speed": 5.0
+          },
+          "reaper": {
+            "roam_speed": 5.0,
+            "active_speed": 8.0
+          },
+          "sentry": {
+            "roam_speed": 5.0,
+            "active_speed": 8.0
+          },
+          "zapper": {
+            "roam_speed": 2.0,
+            "active_speed": 4.0
+          }
+        },
+        "projectile_speed": 90.0,
+        "missile_speed": 16.0,
+        "ladder_climb_ratio": 0.6,
+        "knockback": {
+          "max_speed": 15.0,
+          "up_speed": 7.0,
+          "deceleration": 35.0
+        }
+      },
+      "portals": "both",
+      "barrier_kinds": [],
+      "bridge_kinds": [],
+      "random_items": null,
+      "power_ups": {
+        "duration_secs": {
+          "single_shot": 0.0,
+          "multi_shot": 0.0,
+          "portal_gun": 0.0,
+          "speed": 0.0,
+          "low_gravity": 0.0
+        }
+      },
+      "placed_items": {
+        "respawn_secs": {
+          "single_shot": 5.0,
+          "multi_shot": 5.0,
+          "missile_pack": 5.0,
+          "portal_gun": 5.0,
+          "health_potion": 5.0,
+          "speed": 5.0,
+          "low_gravity": 5.0,
+          "gold": 86400.0,
+          "key": 5.0
+        }
+      },
+      "quests": [
+        {
+          "id": "token",
+          "kind": "gold",
+          "scope": "shared",
+          "requires": null,
+          "actor_kind": null,
+          "threshold": 1,
+          "points": 500,
+          "title": "Ride the shelter",
+          "description": "Solo. Watch the shuttle, board its sheltered half, and ride to the far token. The lower ladder returns to the dock.",
+          "completed_text": "Token recovered. Reach the firework plate."
+        },
+        {
+          "id": "finish",
+          "kind": "fireworks",
+          "scope": "shared",
+          "requires": "token",
+          "actor_kind": null,
+          "threshold": 1,
+          "points": 500,
+          "title": "Launch the signal",
+          "description": "Stand on the finish plate to complete the puzzle.",
+          "completed_text": "Ride the shelter complete!"
+        }
+      ]
+    },
+    "puzzle_sequence": {
+      "textures": {
+        "basement-floor": {
+          "portalable": false
+        },
+        "ground-floor": {
+          "portalable": false
+        },
+        "upper-floors": {
+          "portalable": false
+        },
+        "slab": {
+          "portalable": false
+        },
+        "portal-resistant": {
+          "portalable": false
+        },
+        "skybridge": {
+          "portalable": true
+        }
+      },
+      "skybox": "cloudy_day",
+      "geometry": {
+        "grid_cell_size": 4.0,
+        "level_height": 4.0,
+        "floor_thickness": 0.4,
+        "wall_thickness": 0.4
+      },
+      "weather": "clear",
+      "lighting": "bright",
+      "movement": {
+        "gravity": 24.0,
+        "low_gravity": 13.2,
+        "player": {
+          "walk_speed": 4.5,
+          "run_speed": 6.0,
+          "speed_power_up": 1.5,
+          "jump_speed": 8.0
+        },
+        "actors": {
+          "mine": {
+            "roam_speed": 3.0,
+            "active_speed": 5.0
+          },
+          "reaper": {
+            "roam_speed": 5.0,
+            "active_speed": 8.0
+          },
+          "sentry": {
+            "roam_speed": 5.0,
+            "active_speed": 8.0
+          },
+          "zapper": {
+            "roam_speed": 2.0,
+            "active_speed": 4.0
+          }
+        },
+        "projectile_speed": 90.0,
+        "missile_speed": 16.0,
+        "ladder_climb_ratio": 0.6,
+        "knockback": {
+          "max_speed": 15.0,
+          "up_speed": 7.0,
+          "deceleration": 35.0
+        }
+      },
+      "portals": "both",
+      "barrier_kinds": [
+        {
+          "id": "cyan",
+          "color": "#30d8ff"
+        }
+      ],
+      "bridge_kinds": [],
+      "random_items": null,
+      "power_ups": {
+        "duration_secs": {
+          "single_shot": 0.0,
+          "multi_shot": 0.0,
+          "portal_gun": 0.0,
+          "speed": 0.0,
+          "low_gravity": 0.0
+        }
+      },
+      "placed_items": {
+        "respawn_secs": {
+          "single_shot": 5.0,
+          "multi_shot": 5.0,
+          "missile_pack": 5.0,
+          "portal_gun": 5.0,
+          "health_potion": 5.0,
+          "speed": 5.0,
+          "low_gravity": 5.0,
+          "gold": 86400.0,
+          "key": 5.0
+        }
+      },
+      "quests": [
+        {
+          "id": "token",
+          "kind": "gold",
+          "scope": "shared",
+          "requires": null,
+          "actor_kind": null,
+          "threshold": 1,
+          "points": 500,
+          "title": "Prepare, restore, travel",
+          "description": "Solo. Set up a portal beyond the cyan shutter, restore your cover, then enter the exposed departure portal.",
+          "completed_text": "Token recovered. Reach the firework plate."
+        },
+        {
+          "id": "finish",
+          "kind": "fireworks",
+          "scope": "shared",
+          "requires": "token",
+          "actor_kind": null,
+          "threshold": 1,
+          "points": 500,
+          "title": "Launch the signal",
+          "description": "Stand on the finish plate to complete the puzzle.",
+          "completed_text": "Prepare, restore, travel complete!"
+        }
+      ]
+    },
+    "puzzle_momentum": {
+      "textures": {
+        "basement-floor": {
+          "portalable": false
+        },
+        "ground-floor": {
+          "portalable": false
+        },
+        "upper-floors": {
+          "portalable": false
+        },
+        "slab": {
+          "portalable": false
+        },
+        "portal-resistant": {
+          "portalable": false
+        },
+        "skybridge": {
+          "portalable": true
+        }
+      },
+      "skybox": "cloudy_day",
+      "geometry": {
+        "grid_cell_size": 4.0,
+        "level_height": 4.0,
+        "floor_thickness": 0.4,
+        "wall_thickness": 0.4
+      },
+      "weather": "clear",
+      "lighting": "bright",
+      "movement": {
+        "gravity": 24.0,
+        "low_gravity": 13.2,
+        "player": {
+          "walk_speed": 4.5,
+          "run_speed": 6.0,
+          "speed_power_up": 1.5,
+          "jump_speed": 8.0
+        },
+        "actors": {
+          "mine": {
+            "roam_speed": 3.0,
+            "active_speed": 5.0
+          },
+          "reaper": {
+            "roam_speed": 5.0,
+            "active_speed": 8.0
+          },
+          "sentry": {
+            "roam_speed": 5.0,
+            "active_speed": 8.0
+          },
+          "zapper": {
+            "roam_speed": 2.0,
+            "active_speed": 4.0
+          }
+        },
+        "projectile_speed": 90.0,
+        "missile_speed": 16.0,
+        "ladder_climb_ratio": 0.6,
+        "knockback": {
+          "max_speed": 15.0,
+          "up_speed": 7.0,
+          "deceleration": 35.0
+        }
+      },
+      "portals": "both",
+      "barrier_kinds": [],
+      "bridge_kinds": [],
+      "random_items": null,
+      "power_ups": {
+        "duration_secs": {
+          "single_shot": 0.0,
+          "multi_shot": 0.0,
+          "portal_gun": 0.0,
+          "speed": 0.0,
+          "low_gravity": 0.0
+        }
+      },
+      "placed_items": {
+        "respawn_secs": {
+          "single_shot": 5.0,
+          "multi_shot": 5.0,
+          "missile_pack": 5.0,
+          "portal_gun": 5.0,
+          "health_potion": 5.0,
+          "speed": 5.0,
+          "low_gravity": 5.0,
+          "gold": 86400.0,
+          "key": 5.0
+        }
+      },
+      "quests": [
+        {
+          "id": "token",
+          "kind": "gold",
+          "scope": "shared",
+          "requires": null,
+          "actor_kind": null,
+          "threshold": 1,
+          "points": 500,
+          "title": "Borrow the fall",
+          "description": "Solo. Link the steel floor panel to the high wall, climb the drop deck, and use the fall to reach the far landing.",
+          "completed_text": "Token recovered. Reach the firework plate."
+        },
+        {
+          "id": "finish",
+          "kind": "fireworks",
+          "scope": "shared",
+          "requires": "token",
+          "actor_kind": null,
+          "threshold": 1,
+          "points": 500,
+          "title": "Launch the signal",
+          "description": "Stand on the finish plate to complete the puzzle.",
+          "completed_text": "Borrow the fall complete!"
+        }
+      ]
+    },
+    "puzzle_coop": {
+      "textures": {
+        "basement-floor": {
+          "portalable": false
+        },
+        "ground-floor": {
+          "portalable": false
+        },
+        "upper-floors": {
+          "portalable": false
+        },
+        "slab": {
+          "portalable": false
+        },
+        "portal-resistant": {
+          "portalable": false
+        },
+        "skybridge": {
+          "portalable": true
+        }
+      },
+      "skybox": "cloudy_day",
+      "geometry": {
+        "grid_cell_size": 4.0,
+        "level_height": 4.0,
+        "floor_thickness": 0.4,
+        "wall_thickness": 0.4
+      },
+      "weather": "clear",
+      "lighting": "bright",
+      "movement": {
+        "gravity": 24.0,
+        "low_gravity": 13.2,
+        "player": {
+          "walk_speed": 4.5,
+          "run_speed": 6.0,
+          "speed_power_up": 1.5,
+          "jump_speed": 8.0
+        },
+        "actors": {
+          "mine": {
+            "roam_speed": 3.0,
+            "active_speed": 5.0
+          },
+          "reaper": {
+            "roam_speed": 5.0,
+            "active_speed": 8.0
+          },
+          "sentry": {
+            "roam_speed": 5.0,
+            "active_speed": 8.0
+          },
+          "zapper": {
+            "roam_speed": 2.0,
+            "active_speed": 4.0
+          }
+        },
+        "projectile_speed": 90.0,
+        "missile_speed": 16.0,
+        "ladder_climb_ratio": 0.6,
+        "knockback": {
+          "max_speed": 15.0,
+          "up_speed": 7.0,
+          "deceleration": 35.0
+        }
+      },
+      "portals": "both",
+      "barrier_kinds": [],
+      "bridge_kinds": [
+        {
+          "id": "relay",
+          "color": "#22cc99"
+        }
+      ],
+      "random_items": null,
+      "power_ups": {
+        "duration_secs": {
+          "single_shot": 0.0,
+          "multi_shot": 0.0,
+          "portal_gun": 0.0,
+          "speed": 0.0,
+          "low_gravity": 0.0
+        }
+      },
+      "placed_items": {
+        "respawn_secs": {
+          "single_shot": 5.0,
+          "multi_shot": 5.0,
+          "missile_pack": 5.0,
+          "portal_gun": 5.0,
+          "health_potion": 5.0,
+          "speed": 5.0,
+          "low_gravity": 5.0,
+          "gold": 86400.0,
+          "key": 5.0
+        }
+      },
+      "quests": [
+        {
+          "id": "token",
+          "kind": "gold",
+          "scope": "shared",
+          "requires": null,
+          "actor_kind": null,
+          "threshold": 1,
+          "points": 500,
+          "title": "Leave nobody behind",
+          "description": "Two players. Hold the bridge for your partner; use the equipment across it to bring the helper to the finish.",
+          "completed_text": "Token recovered. Reach the firework plate."
+        },
+        {
+          "id": "finish",
+          "kind": "fireworks",
+          "scope": "shared",
+          "requires": "token",
+          "actor_kind": null,
+          "threshold": 1,
+          "points": 500,
+          "title": "Launch the signal",
+          "description": "Both players must stand on the two finish plates together.",
+          "completed_text": "Leave nobody behind complete!"
+        }
+      ]
+    },
+    "puzzle_containment": {
+      "textures": {
+        "basement-floor": {
+          "portalable": false
+        },
+        "ground-floor": {
+          "portalable": false
+        },
+        "upper-floors": {
+          "portalable": false
+        },
+        "slab": {
+          "portalable": false
+        },
+        "portal-resistant": {
+          "portalable": false
+        },
+        "skybridge": {
+          "portalable": true
+        }
+      },
+      "skybox": "cloudy_day",
+      "geometry": {
+        "grid_cell_size": 4.0,
+        "level_height": 4.0,
+        "floor_thickness": 0.4,
+        "wall_thickness": 0.4
+      },
+      "weather": "clear",
+      "lighting": "bright",
+      "movement": {
+        "gravity": 24.0,
+        "low_gravity": 13.2,
+        "player": {
+          "walk_speed": 4.5,
+          "run_speed": 6.0,
+          "speed_power_up": 1.5,
+          "jump_speed": 8.0
+        },
+        "actors": {
+          "mine": {
+            "roam_speed": 3.0,
+            "active_speed": 5.0
+          },
+          "reaper": {
+            "roam_speed": 5.0,
+            "active_speed": 8.0
+          },
+          "sentry": {
+            "roam_speed": 1.0,
+            "active_speed": 4.0
+          },
+          "zapper": {
+            "roam_speed": 2.0,
+            "active_speed": 4.0
+          }
+        },
+        "projectile_speed": 90.0,
+        "missile_speed": 16.0,
+        "ladder_climb_ratio": 0.6,
+        "knockback": {
+          "max_speed": 15.0,
+          "up_speed": 7.0,
+          "deceleration": 35.0
+        }
+      },
+      "portals": "both",
+      "barrier_kinds": [
+        {
+          "id": "pen",
+          "color": "#30d8ff"
+        },
+        {
+          "id": "exit",
+          "color": "#f0c020"
+        }
+      ],
+      "bridge_kinds": [],
+      "random_items": null,
+      "power_ups": {
+        "duration_secs": {
+          "single_shot": 0.0,
+          "multi_shot": 0.0,
+          "portal_gun": 0.0,
+          "speed": 0.0,
+          "low_gravity": 0.0
+        }
+      },
+      "placed_items": {
+        "respawn_secs": {
+          "single_shot": 5.0,
+          "multi_shot": 5.0,
+          "missile_pack": 5.0,
+          "portal_gun": 5.0,
+          "health_potion": 5.0,
+          "speed": 5.0,
+          "low_gravity": 5.0,
+          "gold": 86400.0,
+          "key": 5.0
+        }
+      },
+      "quests": [
+        {
+          "id": "token",
+          "kind": "gold",
+          "scope": "shared",
+          "requires": null,
+          "actor_kind": null,
+          "threshold": 1,
+          "points": 500,
+          "title": "Put the hunter away",
+          "description": "Solo. Open the pen, lead the hunter inside, collect the exit key, and use the ladder to reach the outside switch.",
+          "completed_text": "Token recovered. Reach the firework plate."
+        },
+        {
+          "id": "finish",
+          "kind": "fireworks",
+          "scope": "shared",
+          "requires": "token",
+          "actor_kind": null,
+          "threshold": 1,
+          "points": 500,
+          "title": "Launch the signal",
+          "description": "Stand on the finish plate to complete the puzzle.",
+          "completed_text": "Put the hunter away complete!"
+        }
+      ]
+    },
+    "puzzle_logic": {
+      "textures": {
+        "basement-floor": {
+          "portalable": false
+        },
+        "ground-floor": {
+          "portalable": false
+        },
+        "upper-floors": {
+          "portalable": false
+        },
+        "slab": {
+          "portalable": false
+        },
+        "portal-resistant": {
+          "portalable": false
+        },
+        "skybridge": {
+          "portalable": true
+        }
+      },
+      "skybox": "cloudy_day",
+      "geometry": {
+        "grid_cell_size": 4.0,
+        "level_height": 4.0,
+        "floor_thickness": 0.4,
+        "wall_thickness": 0.4
+      },
+      "weather": "clear",
+      "lighting": "bright",
+      "movement": {
+        "gravity": 24.0,
+        "low_gravity": 13.2,
+        "player": {
+          "walk_speed": 4.5,
+          "run_speed": 6.0,
+          "speed_power_up": 1.5,
+          "jump_speed": 8.0
+        },
+        "actors": {
+          "mine": {
+            "roam_speed": 3.0,
+            "active_speed": 5.0
+          },
+          "reaper": {
+            "roam_speed": 5.0,
+            "active_speed": 8.0
+          },
+          "sentry": {
+            "roam_speed": 5.0,
+            "active_speed": 8.0
+          },
+          "zapper": {
+            "roam_speed": 2.0,
+            "active_speed": 4.0
+          }
+        },
+        "projectile_speed": 90.0,
+        "missile_speed": 16.0,
+        "ladder_climb_ratio": 0.6,
+        "knockback": {
+          "max_speed": 15.0,
+          "up_speed": 7.0,
+          "deceleration": 35.0
+        }
+      },
+      "portals": "both",
+      "barrier_kinds": [
+        {
+          "id": "amber",
+          "color": "#f0c020"
+        },
+        {
+          "id": "blue",
+          "color": "#5090ff"
+        }
+      ],
+      "bridge_kinds": [
+        {
+          "id": "link",
+          "color": "#22cc99"
+        }
+      ],
+      "random_items": null,
+      "power_ups": {
+        "duration_secs": {
+          "single_shot": 0.0,
+          "multi_shot": 0.0,
+          "portal_gun": 0.0,
+          "speed": 0.0,
+          "low_gravity": 0.0
+        }
+      },
+      "placed_items": {
+        "respawn_secs": {
+          "single_shot": 5.0,
+          "multi_shot": 5.0,
+          "missile_pack": 5.0,
+          "portal_gun": 5.0,
+          "health_potion": 5.0,
+          "speed": 5.0,
+          "low_gravity": 5.0,
+          "gold": 86400.0,
+          "key": 5.0
+        }
+      },
+      "quests": [
+        {
+          "id": "token",
+          "kind": "gold",
+          "scope": "shared",
+          "requires": null,
+          "actor_kind": null,
+          "threshold": 1,
+          "points": 500,
+          "title": "Two conditions, two routes",
+          "description": "Solo. The first switch controls a gate and a bridge. Reach the second switch by either route, then open both final gates.",
+          "completed_text": "Token recovered. Reach the firework plate."
+        },
+        {
+          "id": "finish",
+          "kind": "fireworks",
+          "scope": "shared",
+          "requires": "token",
+          "actor_kind": null,
+          "threshold": 1,
+          "points": 500,
+          "title": "Launch the signal",
+          "description": "Stand on the finish plate to complete the puzzle.",
+          "completed_text": "Two conditions, two routes complete!"
+        }
+      ]
     }
   },
   "player": {
@@ -465,6 +1584,7 @@
         "eye_height": 1.6,
         "respawn_secs": 90.0,
         "can_use_ladders": false,
+        "immovable": false,
         "vision_range": 60.0,
         "roam_steps": 3,
         "attack": { "type": "contact", "trigger_gap": 0.4 }
@@ -481,6 +1601,7 @@
         "eye_height": 1.92,
         "respawn_secs": 90.0,
         "can_use_ladders": false,
+        "immovable": false,
         "vision_range": 60.0,
         "roam_steps": 7,
         "attack": {
@@ -503,6 +1624,7 @@
         "eye_height": 1.6,
         "respawn_secs": 90.0,
         "can_use_ladders": false,
+        "immovable": false,
         "vision_range": 60.0,
         "roam_steps": 7,
         "attack": { "type": "contact", "trigger_gap": 0.8 }
@@ -519,6 +1641,7 @@
         "eye_height": 1.6,
         "respawn_secs": 180.0,
         "can_use_ladders": false,
+        "immovable": false,
         "vision_range": 40.0,
         "roam_steps": 2,
         "attack": {
@@ -526,6 +1649,29 @@
           "range": 25.0,
           "duration_secs": 2.0,
           "cooldown_secs": 8.0
+        }
+      },
+      "turret": {
+        "collider": {
+          "width": 0.3,
+          "height": 0.3,
+          "depth": 0.3,
+          "y_offset": 1.45,
+          "y_offset_anchor": "center"
+        },
+        "support_probe": {
+          "width": 0.2,
+          "depth": 0.2
+        },
+        "eye_height": 1.6,
+        "respawn_secs": 180.0,
+        "can_use_ladders": false,
+        "immovable": true,
+        "vision_range": 40.0,
+        "roam_steps": 0,
+        "attack": {
+          "type": "continuous_beam",
+          "range": 25.0
         }
       }
     }
@@ -588,7 +1734,8 @@
         "mine": { "max": 150.0, "regen_rate": 0.01 },
         "reaper": { "max": 1500.0, "regen_rate": 0.01 },
         "sentry": { "max": 1000.0, "regen_rate": 0.01 },
-        "zapper": { "max": 50.0, "regen_rate": 0.01 }
+        "zapper": { "max": 50.0, "regen_rate": 0.01 },
+        "turret": { "max": 50.0, "regen_rate": 0.01 }
       }
     },
     "damage": {
@@ -612,6 +1759,13 @@
         "zapper": {
           "beam_dps": 40.0,
           "death_blast": { "radius": 6.0, "max_damage": 75.0 }
+        },
+        "turret": {
+          "beam_dps": 500.0,
+          "death_blast": {
+            "radius": 6.0,
+            "max_damage": 75.0
+          }
         }
       }
     }
@@ -620,8 +1774,8 @@
     "player_kill": 0,
     "player_death": -1000,
     "gold": 100,
-    "actor_hit": { "mine": 5, "reaper": 20, "sentry": 10, "zapper": 50 },
-    "actor_kill": { "mine": 50, "reaper": 500, "sentry": 200, "zapper": 150 }
+    "actor_hit": { "mine": 5, "reaper": 20, "sentry": 10, "zapper": 50, "turret": 50 },
+    "actor_kill": { "mine": 50, "reaper": 500, "sentry": 200, "zapper": 150, "turret": 150 }
   },
   "cycles": {
     "weather": {
@@ -649,7 +1803,8 @@
       "mine": false,
       "reaper": false,
       "sentry": false,
-      "zapper": false
+      "zapper": false,
+      "turret": false
     },
     "key_found": true,
     "quest_completed": true,

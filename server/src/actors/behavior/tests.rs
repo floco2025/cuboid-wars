@@ -1,8 +1,12 @@
-use bevy::prelude::Entity;
+use bevy::prelude::*;
 use rand::{SeedableRng, rngs::StdRng};
+use std::time::Duration;
+use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
 
 use super::{
-    controllers::{BeamStarted, decide_beam_actor, decide_contact_actor, decide_contact_beam_actor},
+    controllers::{
+        BeamStarted, decide_beam_actor, decide_contact_actor, decide_contact_beam_actor, decide_continuous_beam_actor,
+    },
     perception::{PlayerState, update_awareness},
     tick::{
         BehaviorContext, EVADE_REPLAN_INTERVAL_SECS, enter_evade, keep_or_install_engagement_route, shake_loose,
@@ -10,19 +14,27 @@ use super::{
     },
 };
 use crate::{
+    actors::ActorMap,
     actors::{
         ActorInfo, ActorMode, ActorRoute, BeamState,
         navigation::{ActorTerritories, NavGraph, NavGraphs, NavWaypoint, WaypointKind},
     },
+    characters::characters_health_regeneration_system,
+    combat::{PendingExplosions, actors_beam_damage_system},
     config::ServerGameplayConfig,
     map::{ActorSpawnZone, CarrierGrid, CellGrid, EdgeGrid, LevelGrid, MapConfig},
+    network::ServerToClient,
+    players::{Invincibility, PlayerInfo, PlayerMap},
     test_geometry::{CELL, LEVEL_HEIGHT, WALL_HEIGHT, geometry},
 };
 use common::{
     config::GameplayConfig,
     map::{CarrierPose, Carriers, MapGeometry},
     physics::{CharacterSupport, CollisionWorld},
-    protocol::{Barrier, BarrierKindId, BarrierKindTable, Carrier, CarrierId, MapLayout, PlayerId, Position, Wall},
+    protocol::{
+        ActorId, ActorMarker, Barrier, BarrierKindId, BarrierKindTable, Carrier, CarrierId, Health, MapItems,
+        MapLayout, PlateState, PlayerId, PlayerMarker, Position, ServerMessage, ServerTick, Wall,
+    },
 };
 
 // A 12x5 all-floor grid with one zone at (1, 2). With a carrier, the zone's
@@ -1220,4 +1232,202 @@ fn zapper_sees_a_player_through_a_barrier_but_waits_for_a_clear_attack() {
     let opened = [kind];
     context.open_barriers = &opened;
     assert!(decide_beam_actor(&mut info, &context, &mut rng).is_some());
+}
+
+#[test]
+fn turret_keeps_exposed_target_and_retargets_without_cooldown() {
+    let fixture = Fixture::with_levels("turret", 2);
+    let actor_pos = fixture.pos(1, 2);
+    let mut state = info("turret");
+    let mut above = fixture.pos(3, 2);
+    above.y = LEVEL_HEIGHT;
+    state.awareness = vec![
+        aware(7, above, CharacterSupport::Ground, true),
+        aware(8, fixture.pos(2, 2), CharacterSupport::Ground, true),
+    ];
+    state.beam = BeamState::Continuous { target: PlayerId(7) };
+    let context = fixture.context("turret", actor_pos);
+    for _ in 0..120 {
+        tick_runtime_state(&mut state, actor_pos, 1.0 / 30.0, context.kind_config, &[]);
+        decide_continuous_beam_actor(&mut state, &context);
+        assert_eq!(state.beam.continuous_target(), Some(PlayerId(7)));
+        assert!(state.route.is_none());
+    }
+    state.awareness[0].visible = false;
+    decide_continuous_beam_actor(&mut state, &context);
+    assert_eq!(state.beam.continuous_target(), Some(PlayerId(8)));
+    state.awareness[1].pos.x += 100.0;
+    decide_continuous_beam_actor(&mut state, &context);
+    assert_eq!(state.beam, BeamState::Ready);
+    state.awareness.clear();
+    decide_continuous_beam_actor(&mut state, &context);
+    assert!(state.route.is_none());
+}
+
+#[test]
+fn closing_a_barrier_immediately_stops_a_turret() {
+    let mut fixture = Fixture::new("turret");
+    let origin = fixture.pos(1, 2);
+    let target = fixture.pos(3, 2);
+    let kind = BarrierKindId(0);
+    let x = (origin.x + target.x) / 2.0;
+    let kinds = BarrierKindTable::from_ids(vec!["shield".into()]).expect("barrier catalog rejected");
+    fixture.collision_world = CollisionWorld::from_map_layout(
+        &MapLayout {
+            barriers: vec![Barrier {
+                x1: x,
+                x2: x,
+                z1: origin.z - 4.0,
+                z2: origin.z + 4.0,
+                y: 0.0,
+                height: WALL_HEIGHT,
+                width: 0.1,
+                level: 0,
+                levels: 1,
+                kind,
+                carrier: CarrierId::WORLD,
+            }],
+            ..Default::default()
+        },
+        &kinds,
+    );
+    let mut state = info("turret");
+    state.awareness.push(aware(7, target, CharacterSupport::Ground, true));
+    let mut context = fixture.context("turret", origin);
+    let opened = [kind];
+    context.open_barriers = &opened;
+    decide_continuous_beam_actor(&mut state, &context);
+    assert_eq!(state.beam.continuous_target(), Some(PlayerId(7)));
+    context.open_barriers = &[];
+    decide_continuous_beam_actor(&mut state, &context);
+    assert_eq!(state.beam, BeamState::Ready);
+    context.open_barriers = &opened;
+    decide_continuous_beam_actor(&mut state, &context);
+    assert_eq!(state.beam.continuous_target(), Some(PlayerId(7)));
+}
+
+fn turret_app(health: f32) -> (App, Entity, UnboundedReceiver<ServerToClient>) {
+    let fixture = Fixture::new("turret");
+    let origin = fixture.pos(1, 2);
+    let target = fixture.pos(3, 2);
+    let mut app = App::new();
+    app.insert_resource(fixture.graphs)
+        .insert_resource(fixture.territories)
+        .insert_resource(fixture.carriers)
+        .insert_resource(fixture.collision_world)
+        .insert_resource(fixture.gameplay)
+        .insert_resource(fixture.server)
+        .init_resource::<ActorMap>()
+        .init_resource::<PlayerMap>()
+        .init_resource::<MapItems>()
+        .init_resource::<PlateState>()
+        .init_resource::<ServerTick>()
+        .init_resource::<Time>()
+        .init_resource::<PendingExplosions>()
+        .insert_resource(Invincibility(false))
+        .add_systems(
+            Update,
+            (super::tick::actors_behavior_system, actors_beam_damage_system).chain(),
+        );
+    let actor = app.world_mut().spawn((ActorId(1), ActorMarker, origin)).id();
+    app.world_mut()
+        .resource_mut::<ActorMap>()
+        .insert(ActorId(1), ActorInfo::new(actor, 0, "turret".into(), CarrierId::WORLD));
+    let player = app
+        .world_mut()
+        .spawn((PlayerMarker, PlayerId(7), target, Health(health)))
+        .id();
+    let (sender, receiver) = unbounded_channel();
+    let mut player_info = PlayerInfo::new(player, sender);
+    player_info.connection.logged_in = true;
+    app.world_mut()
+        .resource_mut::<PlayerMap>()
+        .insert(PlayerId(7), player_info);
+    (app, player, receiver)
+}
+
+fn turret_step(app: &mut App) {
+    app.world_mut()
+        .resource_mut::<Time>()
+        .advance_by(Duration::from_secs_f32(1.0 / 30.0));
+    app.world_mut().resource_mut::<ServerTick>().0 += 1;
+    app.update();
+}
+
+#[test]
+fn turret_fires_past_burst_duration_and_stops_when_player_disconnects() {
+    let (mut app, player, mut receiver) = turret_app(5000.0);
+    for _ in 0..120 {
+        turret_step(&mut app);
+    }
+    let health = app.world().get::<Health>(player).expect("player health missing").0;
+    assert!((health - 3000.0).abs() < 0.1);
+    let actor = app
+        .world()
+        .resource::<ActorMap>()
+        .get(&ActorId(1))
+        .expect("turret missing");
+    assert!(actor.route.is_none());
+    assert_eq!(actor.beam.continuous_target(), Some(PlayerId(7)));
+    let mut targets = Vec::new();
+    while let Ok(ServerToClient::Send(message)) = receiver.try_recv() {
+        if let ServerMessage::ActorBeamTarget(cue) = message {
+            targets.push(cue.target);
+        }
+    }
+    assert_eq!(targets, vec![Some(PlayerId(7))]);
+    app.world_mut().resource_mut::<PlayerMap>().remove(&PlayerId(7));
+    turret_step(&mut app);
+    assert_eq!(
+        app.world()
+            .resource::<ActorMap>()
+            .get(&ActorId(1))
+            .expect("turret missing")
+            .beam,
+        BeamState::Ready
+    );
+    assert_eq!(
+        app.world().get::<Health>(player).expect("player health missing").0,
+        health
+    );
+}
+
+#[test]
+fn turret_kills_full_health_player_in_about_one_second_with_regeneration() {
+    let (mut app, player, mut receiver) = turret_app(500.0);
+    app.add_systems(
+        Update,
+        characters_health_regeneration_system.after(actors_beam_damage_system),
+    );
+    for _ in 0..29 {
+        turret_step(&mut app);
+    }
+    assert!(app.world().get::<Health>(player).is_some_and(|health| health.0 > 0.0));
+    for _ in 0..2 {
+        turret_step(&mut app);
+    }
+    assert!(app.world().get_entity(player).is_err());
+    assert!(
+        app.world()
+            .resource::<PlayerMap>()
+            .get(&PlayerId(7))
+            .expect("player missing")
+            .is_dead()
+    );
+    let mut deaths = 0;
+    while let Ok(ServerToClient::Send(message)) = receiver.try_recv() {
+        if matches!(message, ServerMessage::PlayerDeath(_)) {
+            deaths += 1;
+        }
+    }
+    assert_eq!(deaths, 1);
+    turret_step(&mut app);
+    assert_eq!(
+        app.world()
+            .resource::<ActorMap>()
+            .get(&ActorId(1))
+            .expect("turret missing")
+            .beam,
+        BeamState::Ready
+    );
 }

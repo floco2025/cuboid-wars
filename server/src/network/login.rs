@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use crate::{
     characters::{generate_player_spawn_position, spawn_face_yaw},
     network::{FeedAudience, FeedEvent, ServerToClient, emit_feed},
-    players::{PlayerMap, UnlimitedMissiles},
+    players::PlayerMap,
     portals::{PortalAssignments, PortalMap},
     quests::{QuestBoard, QuestCatalog, assign_quests},
 };
@@ -41,7 +41,6 @@ pub(super) fn handle_login_message(
     portal_assignments: &mut PortalAssignments,
     portals: &mut PortalMap,
     portal_set: &mut PortalSet,
-    unlimited_missiles: &UnlimitedMissiles,
 ) {
     let Some(player_info) = players.get_mut(&id) else {
         error!("registered player#{} missing during login", id.0);
@@ -49,9 +48,6 @@ pub(super) fn handle_login_message(
     };
     player_info.connection.logged_in = true;
     player_info.connection.name = sanitize_player_name(&message.name, id);
-    if unlimited_missiles.0 {
-        player_info.life.missiles = world.gameplay_config.missiles.max_missiles;
-    }
     let channel = player_info.connection.channel.clone();
     debug!("{} authenticated", players.describe(&id));
 

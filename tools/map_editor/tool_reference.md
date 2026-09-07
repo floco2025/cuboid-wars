@@ -33,7 +33,7 @@ Every element group ends with its own **Erase** tool that removes only that elem
 
 ## Spawn Zones
 
-- **Actor Spawn Zone** — Choose Actor and Count in the toolbar, then drag a rectangle. If no actor is selected yet, the first placement asks for one.
+- **Actor Spawn Zone** — Choose Actor and Count in the toolbar, then drag a rectangle. If no actor is selected yet, the first placement asks for one. Immovable actors spawn at cell centers; Count cannot exceed the zone's usable floor cells.
 - **Player Spawn Zone** — Drag a rectangle. No prompt — players spawn anywhere in any player zone.
 - **Erase Spawn Zones** — Drag a rectangle to remove every actor and player spawn zone it touches on the current level.
 

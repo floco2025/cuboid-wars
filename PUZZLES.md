@@ -2,7 +2,7 @@
 
 The kit supports spatial puzzles, portal puzzles, cooperative route planning, and sequences where an earlier achievement matters later. The most useful next decisions are how players retry a failed section and how switches behave across different player counts.
 
-This document separates settled design rules from the current implementation and open decisions. The puzzle examples are design sketches, not playtested maps. Follow-up tracking and in-game testing remain in [TODO.md](TODO.md).
+This document separates settled design rules from the current implementation and open decisions. The [small example maps](#small-example-maps) implement the nine patterns below and await in-game playtesting. Follow-up tracking remains in [TODO.md](TODO.md).
 
 ## Settled rules
 
@@ -61,7 +61,7 @@ The relevant behavior lives in [collision queries](common/src/physics/world/coll
 | Speed and low-gravity power-ups | Reachability puzzles, jumps, timed routes, and combinations with portal momentum. Duration can be timed or last until death or erasure. |
 | Single-shot and multishot pickups | Independent weapons: players start without projectile fire, and each pickup grants its own selectable mode. Availability comes entirely from pickups. Both expire or erase like other power-ups. Ricochets, attacks through portals, and enemy removal support combat puzzles; there are no general shootable puzzle switches. |
 | Missiles | A carried resource for removing guards or choosing between dangerous routes. Omitting projectile pickups can reserve guard removal for missiles; an eraser requires a fresh missile pickup beyond it. |
-| Mines, sentries, zappers, and reapers | Luring, containment, guarded space, exposure windows, and resource use. The actor named sentry is a contact attacker; zappers provide the ranged guard behavior. |
+| Mines, sentries, zappers, reapers, and turrets | Luring, containment, guarded space, exposure windows, and resource use. The actor named sentry is a contact attacker; zappers provide mobile ranged guards and turrets provide stationary continuous-fire guards. |
 | Gold, quests, and fireworks | Collection objectives, individual or group progress, and a finale. Quest conditions currently recognize gold, actor kills, and fireworks. |
 | Health pickups and regeneration | Recovery and control over how much danger a player can endure. They also affect whether a hazard can be bypassed by accepting damage. |
 | Materials, lights, grass, weather, and lighting | Landmarks, clues, atmosphere, and visual distinction. They are mostly presentation tools rather than controllable puzzle mechanisms. |
@@ -111,7 +111,7 @@ Successive gates provide an AND condition; alternative routes provide OR. Keys, 
 
 An isolated ledge is enough to explore the guard role with existing actors. Zappers can acquire and shoot players on another level without a walking route to them; this is covered by the [behavior tests](server/src/actors/behavior/tests.rs). The perch needs both a clear firing angle and no navigable route to the player. The ledge's own floor can obstruct a downward shot.
 
-A perched zapper can still roam within its available area. Its cooldown behavior can also move it. A stationary option would make precise firing positions reliable and would allow stationary and roaming zappers in one map. Current movement validation rejects zero speed, so setting its speed to zero is not an existing authoring option.
+A perched zapper can still roam within its available area. Its cooldown behavior can also move it. Use a turret when the encounter needs a fixed guard; zero speed is not a valid movement setting.
 
 The current configuration gives a zapper a 25 m beam range, a two-second burst, an eight-second cooldown, and a three-minute respawn delay. It detects visible players in all directions, rather than scanning a directional cone. A burst commits to one target; baiting it and withdrawing behind cover can give another player an opening.
 
@@ -120,6 +120,12 @@ Its current damage and durability make it a soft obstacle: a complete burst infl
 The encounter's role should determine the tuning: pressure during traversal, a dangerous boundary, or a guard intended to be destroyed. Placement-level movement, durability, attack timing, and respawn choices would help those roles coexist. Visible aiming, firing, and cooldown feedback would make experimentation easier to understand.
 
 Current barrier plates open their barrier. A release can therefore restore a shield in multiplayer, and another press can restore it in solo play. A direct "press to raise the shield" control needs inversion. The zapper remains alive and dangerous when the shield opens; shielding does not switch off the actor itself.
+
+## Turrets as guards
+
+Turrets spawn at usable floor-cell centers and stay there in their carrier's frame and share the zapper's model, range, health, death blast, and respawn delay. The actor kind sets `immovable: true` and has no per-map speed settings; the `continuous_beam` attack has a range without burst or cooldown settings. It follows one exposed player and immediately selects another when that target hides, dies, disconnects, or leaves range. Walls, closed barriers, and powered bridges provide the same protection as against zappers.
+
+At 500 damage per second, a turret kills a full-health player in about one second. This leaves a short window to launch a missile and retreat; guarded crossings must require longer exposure to discourage rushing. A protected health and missile supply supports another attempt after a miss. Missiles are the first puzzle demonstration weapon; single-shot and multishot can add aiming skill in later variants.
 
 ## Next decisions
 
@@ -141,7 +147,7 @@ Authored holding plates and toggle switches, explicit thresholds, and inverted o
 
 ### 3. Guard behavior
 
-Start with a perched zapper encounter and observe whether confinement is enough. Add a stationary placement option when reliable positioning requires it. Choose whether the encounter rewards avoidance, shielding, destruction, or several solutions; then tune damage, timing, and durability accordingly.
+Playtest the turret examples for avoidance, shielding, and destruction. Check whether the one-second exposure window allows shooting and hiding while preventing a direct rush, then tune the encounters accordingly.
 
 Directional sight and a firing warning would add options for stealth and reaction puzzles, but they are separate capabilities from remaining stationary.
 
@@ -171,14 +177,40 @@ Beam receivers, reflectors, and beam traversal through portals would add optical
 
 These additions can follow tests of the existing combinations. Progression, retries, and controls affect more of the current kit.
 
-## Existing maps and a first prototype
+## Small example maps
+
+Each map has one gold token and a firework finish. Eight are designed for one player; `puzzle_coop` is designed for two. Start a server with `cargo run --release --bin server -- --map puzzle_stages`, substituting any name below. Open the same name with `python3 tools/editor.py puzzle_stages` to inspect or edit it.
+
+| Map | Players | Concept | Goal |
+|---|---:|---|---|
+| [puzzle_stages](config/server/maps/puzzle_stages.json) | 1 | Progress across stages | Carry the balcony key through customs, restock, and clear the turret hall. |
+| [puzzle_access](config/server/maps/puzzle_access.json) | 1 | Access versus protection | Cross a protective barrier without exposing the starting hall. |
+| [puzzle_shield](config/server/maps/puzzle_shield.json) | 1 | Bridge as cover and walkway | Reach the far ladder under the powered roof, then return over it. |
+| [puzzle_cover](config/server/maps/puzzle_cover.json) | 1 | Moving cover | Board a sheltered shuttle and ride past a turret. |
+| [puzzle_sequence](config/server/maps/puzzle_sequence.json) | 1 | Portal setup and sequencing | Set a remote portal through a shutter, restore cover, then travel. |
+| [puzzle_momentum](config/server/maps/puzzle_momentum.json) | 1 | Momentum and access | Turn a fall into a launch toward a distant landing. |
+| [puzzle_coop](config/server/maps/puzzle_coop.json) | 2 | Cooperative positioning | Hold a crossing for a partner, then arrange the helper's escape. |
+| [puzzle_containment](config/server/maps/puzzle_containment.json) | 1 | Enemy containment | Lure a hunter into a pen and leave it behind a closed field. |
+| [puzzle_logic](config/server/maps/puzzle_logic.json) | 1 | Geometry as logic | Satisfy two gates using a switch that controls two outputs and a choice of routes. |
+
+Steel-panel `skybridge` surfaces accept portals; the other materials in these examples resist them. Supplies replenish after five seconds, equipment lasts until death or erasure, and no random pickups appear. The guard-removal example uses missiles and provides a sheltered health pickup beside the ammunition. Gold takes 24 hours to respawn. Restart the server for a completely fresh attempt; death does not reset switches, quests, or the whole encounter.
+
+The player counts describe intended play, not enforced admission limits. Solo plates toggle on each fresh press. In the two-player example, one player holds the bridge while the other crosses; its two finish plates ask both players to arrive. Existing plate thresholds still change when someone dies or disconnects. Enemy containment is an intended solution rather than a recognized quest condition: the game cannot distinguish trapping a hunter from surviving or destroying it.
+
+### Intended solutions
+
+1. **Stages:** Climb the starting room's ladder and collect the amber key and speed pickup. Return through the eraser and amber gate; the key survives, the speed does not. Take a missile from the corner shelter, peek into the long hall, launch at the turret, and retreat. Restock and heal after a miss, then collect the far token and finish.
+2. **Access:** Investigate the key alcove around the short partition. The cyan switch opens a direct firing line to its position. Keep the field closed and use the key to cross its southern end, where the permanent wall shields the exit room.
+3. **Shield:** Activate the green roof from the starting corner, cross underneath it, and climb the far ladder. Return west along the same bridge to the raised token. The upper wall shields this return route from the turret.
+4. **Cover:** Wait for the shuttle at the starting dock, board through the open rear half, and remain behind its front wall during the trip. Step onto the far dock for the token. A fall lands on the recovery floor; only the starting dock has a return ladder.
+5. **Sequence:** Collect the portal gun and place a departure portal on the steel floor panel in front of the shutter. Open the shutter from the sheltered switch. Peek around the partition and place the other portal on the steel floor panel beyond the guard's side wall. Retreat, close the shutter, and enter the departure portal to emerge in the finish shelter.
+6. **Momentum:** From the recovery floor, place one portal on the steel floor panel beneath the drop deck and the other high on the east-facing steel wall panel, aimed toward the landing. Climb the tall ladder, step off toward the floor portal, and let the fall launch you across. The lower floor, health pickup, and ladder support another attempt.
+7. **Co-op:** One player holds the bridge plate. The other crosses, takes the portal gun, and links the far steel floor panel to the steel wall panel on the starting platform. The helper leaves the plate and enters the wall portal. Collect the token and occupy both finish plates together.
+8. **Containment:** Open the cyan pen from the corridor switch and lead the slower sentry inside. Collect the amber exit key, climb the pen's escape ladder, drop outside, and close the pen using the second cyan switch. Return around the pen to the corridor and use the key at the exit gate. The closed field also contains the hunter's blast.
+9. **Logic:** The starting switch opens amber and powers the bridge together. Reach the blue switch across the bridge or via the lower detour and its ladder. With both gates open, enter the final corridor from the second platform and pass amber, then blue. The two routes are OR; the successive gates are AND; solo toggles retain the chosen state.
+
+Collision tests check turret cover across sampled spawn positions, the moving cabin throughout its cycle, portal placement through the shutter, the helper's portal route, and a complete momentum launch using the player motor. They do not replace playtesting for readability, peek timing, boarding, luring, and unintended shortcuts.
+
+## Existing larger maps
 
 Relay and Switchyard already explore portal setup, keys, bridges, moving geometry, and quest finales. Both still need user playtesting. Switchyard's customs section puts the portal gun and key across an eraser, with its first seal on a raised balcony back in the starting room. A portal route around the eraser preserves the gun needed to reach that seal. The key survives either route, and the departure eraser ends the power-up section before the moving-bridge puzzle.
-
-A compact prototype can test the settled rules with three connected sections:
-
-1. A portal or movement puzzle awards a key.
-2. An eraser clears equipment; the retained key grants access to a restock area behind a barrier.
-3. The restock area supplies a missile for a guarded crossing; a perched zapper and a protective field provide the encounter's choices.
-
-Playtesting should establish whether the guard can simply be rushed, whether its firing path and the protective field are readable, whether the helper can escape in co-op, and whether a missed missile or death leaves a complete recovery path. A moving wall can then test the same encounter with changing cover. In-game testing remains with the user.

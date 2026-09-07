@@ -17,12 +17,15 @@ use common::{
     physics::CollisionWorld,
     protocol::{
         ActorId, ActorMarker, BarrierKindId, ItemType, MapItems, PlateState, PlayerId, PlayerMarker, Position,
-        SActorBeam, ServerMessage,
+        SActorBeam, SActorBeamTarget, ServerMessage, ServerTick,
     },
 };
 
 use super::{
-    controllers::{BeamStarted, decide_beam_actor, decide_contact_actor, decide_contact_beam_actor},
+    controllers::{
+        BeamStarted, decide_beam_actor, decide_contact_actor, decide_contact_beam_actor, decide_continuous_beam_actor,
+        decide_stationary_actor,
+    },
     perception::{PlayerState, update_awareness},
 };
 
@@ -40,6 +43,7 @@ const COVER_MIN_THREAT_DISTANCE_CELLS: f32 = 0.75;
 
 pub fn actors_behavior_system(
     time: Res<Time>,
+    tick: Res<ServerTick>,
     players: Res<PlayerMap>,
     collision_world: Res<CollisionWorld>,
     plates: Res<PlateState>,
@@ -79,14 +83,22 @@ pub fn actors_behavior_system(
         // one the actor's position was last resolved at.
         let pose = carriers.pose(info.carrier);
         let local_pos = pose.inverse_transform_position(pos);
-        let stalled = tick_runtime_state(info, local_pos, delta, kind_config, &player_states);
+        let continuous = matches!(kind_config.attack, ActorAttackConfig::ContinuousBeam(_));
+        let stalled = if actor_config.immovable {
+            tick_beam_state(info, delta, kind_config, &player_states);
+            false
+        } else {
+            tick_runtime_state(info, local_pos, delta, kind_config, &player_states)
+        };
         if stalled {
             info.decision_timer = 0.0;
         }
-        if info.decision_timer > 0.0 {
+        if !continuous && !actor_config.immovable && info.decision_timer > 0.0 {
             continue;
         }
-        info.decision_timer += AI_DECISION_INTERVAL_SECS;
+        if !continuous && !actor_config.immovable {
+            info.decision_timer += AI_DECISION_INTERVAL_SECS;
+        }
 
         let territory = territories.get(info.spawn_zone_index);
         update_awareness(
@@ -116,6 +128,25 @@ pub fn actors_behavior_system(
                 || map_items.contains(ItemType::MultiShotPowerUp)
                 || map_items.contains(ItemType::MissilePack),
         };
+        if continuous {
+            let previous = info.beam.continuous_target();
+            decide_continuous_beam_actor(info, &context);
+            if !actor_config.immovable {
+                let _ = decide_beam_actor(info, &context, &mut rng);
+            }
+            let target = info.beam.continuous_target();
+            if target != previous {
+                broadcast_to_all(
+                    &players,
+                    ServerMessage::ActorBeamTarget(SActorBeamTarget {
+                        id: *id,
+                        tick: tick.0,
+                        target,
+                    }),
+                );
+            }
+            continue;
+        }
         if info.route.as_ref().is_some_and(ActorRoute::traversing_ladder) {
             continue;
         }
@@ -123,13 +154,18 @@ pub fn actors_behavior_system(
             shake_loose(info, &context, &mut rng);
             continue;
         }
-        let beam_started = match kind_config.attack {
-            ActorAttackConfig::Contact(_) => {
-                decide_contact_actor(info, &context, &mut rng);
-                None
+        let beam_started = if actor_config.immovable {
+            decide_stationary_actor(info, &context)
+        } else {
+            match kind_config.attack {
+                ActorAttackConfig::Contact(_) => {
+                    decide_contact_actor(info, &context, &mut rng);
+                    None
+                }
+                ActorAttackConfig::Beam(_) => decide_beam_actor(info, &context, &mut rng),
+                ActorAttackConfig::ContactBeam(_) => decide_contact_beam_actor(info, &context, &mut rng),
+                ActorAttackConfig::ContinuousBeam(_) => unreachable!("continuous beam actor passed its controller"),
             }
-            ActorAttackConfig::Beam(_) => decide_beam_actor(info, &context, &mut rng),
-            ActorAttackConfig::ContactBeam(_) => decide_contact_beam_actor(info, &context, &mut rng),
         };
         if let Some(BeamStarted { target, duration_secs }) = beam_started {
             broadcast_to_all(
@@ -251,7 +287,7 @@ pub(super) fn shake_loose(info: &mut ActorInfo, context: &BehaviorContext<'_>, r
 fn tick_beam_state(info: &mut ActorInfo, delta: f32, kind_config: &ActorKindServerConfig, players: &[PlayerState]) {
     let mut ended = false;
     match &mut info.beam {
-        BeamState::Ready => {}
+        BeamState::Ready | BeamState::Continuous { .. } => {}
         BeamState::Cooldown { remaining_secs } => {
             *remaining_secs = (*remaining_secs - delta).max(0.0);
             if *remaining_secs <= 0.0 {

@@ -1,15 +1,20 @@
 use common::physics::{CharacterMovePlan, blocking_character_move_plan};
 
 use super::query::ActorMovementQuery;
+use crate::actors::ActorMap;
 
-pub(crate) fn apply_actor_moves(query: &mut ActorMovementQuery, planned_moves: &[CharacterMovePlan]) {
+pub(crate) fn apply_actor_moves(
+    query: &mut ActorMovementQuery,
+    actors: &ActorMap,
+    planned_moves: &[CharacterMovePlan],
+) {
     for planned_move in planned_moves {
-        let Ok((_, _, _, mut pos, mut motion, _, _, _, mut crushed)) = query.get_mut(planned_move.entity) else {
+        let Ok((_, id, _, mut pos, mut motion, _, _, _, mut crushed)) = query.get_mut(planned_move.entity) else {
             continue;
         };
 
         let overlapping_move = blocking_character_move_plan(planned_move, planned_moves);
-        if overlapping_move.is_some() {
+        if overlapping_move.is_some() && actors.get(id).is_none_or(|actor| actor.anchor.is_none()) {
             pos.y = planned_move.target.y;
         } else {
             *pos = planned_move.target;

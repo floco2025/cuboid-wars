@@ -4,18 +4,19 @@ use std::f32::consts::TAU;
 
 use crate::{
     actors::{
-        ActorCrushed, ActorInfo, ActorMap, ActorRespawnTimers, ActorSpawner, PendingActorSpawn, PendingActorSpawns,
+        ActorCrushed, ActorInfo, ActorMap, ActorRespawnState, ActorRespawnTimers, ActorSpawner, PendingActorSpawn,
+        PendingActorSpawns,
     },
     characters::generate_actor_spawn_position_in_zone,
     config::ServerGameplayConfig,
     map::{ActorSpawnZone, MapConfig},
 };
 use common::{
-    config::{ActorMovementConfig, GameplayConfig},
+    config::{ActorGameplayConfig, ActorMovementConfig},
     map::Carriers,
     physics::{CharacterVerticalVelocity, CollisionWorld},
     protocol::{
-        ActorMarker, ActorMoveIntent, FaceYaw, Health, MapSettings, PlayerMarker, Position, ServerTick,
+        ActorAnchor, ActorMarker, ActorMoveIntent, FaceYaw, Health, MapSettings, PlayerMarker, Position, ServerTick,
         sequence_is_newer,
     },
 };
@@ -29,17 +30,23 @@ pub fn pending_actor_spawns_active(pending: Res<PendingActorSpawns>) -> bool {
 }
 
 fn arm_actor_respawn(timers: &mut ActorRespawnTimers, zone_idx: usize, respawn_secs: f32) {
-    timers.0.entry(zone_idx).or_insert(respawn_secs);
+    timers
+        .0
+        .entry(zone_idx)
+        .or_insert(ActorRespawnState::Cooldown(respawn_secs));
 }
 
 fn tick_actor_respawns(timers: &mut ActorRespawnTimers, delta: f32) -> Vec<usize> {
-    for remaining_secs in timers.0.values_mut() {
-        *remaining_secs -= delta;
-    }
     timers
         .0
-        .iter()
-        .filter_map(|(zone_idx, remaining_secs)| (*remaining_secs <= 0.0).then_some(*zone_idx))
+        .iter_mut()
+        .filter_map(|(zone_idx, state)| match state {
+            ActorRespawnState::Cooldown(remaining_secs) => {
+                *remaining_secs -= delta;
+                (*remaining_secs <= 0.0).then_some(*zone_idx)
+            }
+            ActorRespawnState::WaitingForSpace => Some(*zone_idx),
+        })
         .collect()
 }
 
@@ -54,7 +61,6 @@ pub fn actors_initial_spawn_system(
     map_config: Res<MapConfig>,
     carriers: Res<Carriers>,
     collision_world: Res<CollisionWorld>,
-    gameplay_config: Res<GameplayConfig>,
     server_gameplay_config: Res<ServerGameplayConfig>,
     tick: Res<ServerTick>,
     players: Query<&Position, With<PlayerMarker>>,
@@ -65,10 +71,6 @@ pub fn actors_initial_spawn_system(
     let mut rng = rng();
 
     for (zone_idx, zone) in map_config.actor_spawn_zones.iter().enumerate() {
-        // Configs are cross-validated against the map at startup, so any
-        // zone kind here is guaranteed to resolve in both configs.
-        let actor_config = gameplay_config.expect_actor(&zone.kind);
-        let actor_physics = actor_config.physics();
         queue_zone_slots(
             &mut pending,
             &mut spawner,
@@ -80,7 +82,6 @@ pub fn actors_initial_spawn_system(
             &collision_world,
             &server_gameplay_config,
             tick.0,
-            actor_physics,
             zone_idx,
             zone,
             zone.count,
@@ -97,7 +98,6 @@ pub fn actors_respawn_system(
     map_config: Res<MapConfig>,
     carriers: Res<Carriers>,
     collision_world: Res<CollisionWorld>,
-    gameplay_config: Res<GameplayConfig>,
     server_gameplay_config: Res<ServerGameplayConfig>,
     tick: Res<ServerTick>,
     players: Query<&Position, With<PlayerMarker>>,
@@ -137,12 +137,10 @@ pub fn actors_respawn_system(
     let mut rng = rng();
 
     for zone_idx in due_zones {
-        timers.0.remove(&zone_idx);
         let Some(zone) = map_config.actor_spawn_zones.get(zone_idx) else {
+            timers.0.remove(&zone_idx);
             continue;
         };
-        let actor_config = gameplay_config.expect_actor(&zone.kind);
-        let actor_physics = actor_config.physics();
         let missing = zone.count.saturating_sub(live_by_zone[zone_idx]);
         queue_zone_slots(
             &mut pending,
@@ -155,7 +153,6 @@ pub fn actors_respawn_system(
             &collision_world,
             &server_gameplay_config,
             tick.0,
-            actor_physics,
             zone_idx,
             zone,
             missing,
@@ -163,9 +160,6 @@ pub fn actors_respawn_system(
     }
 }
 
-// Queues `missing` spawns for one zone. A zone with no clear spot left
-// keeps its remaining slots empty and retries after its kind's respawn
-// time, since the actor belongs in the zone and nowhere else.
 #[allow(clippy::too_many_arguments)]
 fn queue_zone_slots(
     pending: &mut PendingActorSpawns,
@@ -178,7 +172,6 @@ fn queue_zone_slots(
     collision_world: &CollisionWorld,
     server_gameplay_config: &ServerGameplayConfig,
     tick: u32,
-    actor_physics: common::config::CharacterPhysicsConfig,
     zone_idx: usize,
     zone: &ActorSpawnZone,
     missing: u32,
@@ -195,21 +188,33 @@ fn queue_zone_slots(
             collision_world,
             tick,
             server_gameplay_config.actors.settings.spawn_warning_ticks(),
-            actor_physics,
+            &kind_config.character,
             zone_idx,
             zone,
         );
         if !queued {
+            if kind_config.character.immovable {
+                let previous = timers.0.insert(zone_idx, ActorRespawnState::WaitingForSpace);
+                if previous != Some(ActorRespawnState::WaitingForSpace) {
+                    warn!(
+                        "actor spawn zone {zone_idx} on carrier {} has no free cell center for an immovable {:?}; waiting for space",
+                        zone.carrier.0, zone.kind
+                    );
+                }
+                return;
+            }
             warn!(
                 "actor spawn zone {zone_idx} on carrier {} has no clear spot for a {:?}; retrying after its respawn time",
                 zone.carrier.0, zone.kind
             );
+            timers.0.remove(&zone_idx);
             if let Some(respawn_secs) = kind_config.respawn_secs {
                 arm_actor_respawn(timers, zone_idx, respawn_secs);
             }
             return;
         }
     }
+    timers.0.remove(&zone_idx);
 }
 
 pub(crate) fn expedite_actor_respawns(
@@ -246,7 +251,10 @@ pub(crate) fn expedite_actor_respawns(
         if kind_server_config.respawn_secs.is_some() {
             let missing = zone.count.saturating_sub(occupied_by_zone[zone_idx]);
             if missing > 0 {
-                timers.0.insert(zone_idx, 0.0);
+                let state = timers.0.entry(zone_idx).or_insert(ActorRespawnState::Cooldown(0.0));
+                if let ActorRespawnState::Cooldown(remaining_secs) = state {
+                    *remaining_secs = 0.0;
+                }
                 respawning += missing as usize;
             }
         }
@@ -274,7 +282,8 @@ pub fn actors_pending_spawn_system(
     }
     for spawn in due {
         let max_health = server_gameplay_config.combat.health.expect_actor(&spawn.kind).max;
-        let movement = *map_settings.movement.expect_actor(&spawn.kind);
+        let kind = server_gameplay_config.expect_actor(&spawn.kind);
+        let movement = (!kind.character.immovable).then(|| *map_settings.movement.expect_actor(&spawn.kind));
         materialize_actor(&mut commands, &mut actors, &carriers, max_health, movement, spawn);
     }
 }
@@ -303,7 +312,7 @@ fn queue_actor_spawn_in_zone(
     collision_world: &CollisionWorld,
     tick: u32,
     warning_ticks: u32,
-    actor_physics: common::config::CharacterPhysicsConfig,
+    actor_config: &ActorGameplayConfig,
     zone_idx: usize,
     zone: &ActorSpawnZone,
 ) -> bool {
@@ -313,7 +322,7 @@ fn queue_actor_spawn_in_zone(
         zone,
         collision_world,
         occupied_positions,
-        actor_physics,
+        actor_config,
     ) else {
         return false;
     };
@@ -337,7 +346,7 @@ fn materialize_actor(
     actors: &mut ActorMap,
     carriers: &Carriers,
     max_health: f32,
-    movement: ActorMovementConfig,
+    movement: Option<ActorMovementConfig>,
     spawn: PendingActorSpawn,
 ) {
     let move_intent = ActorMoveIntent::Idle;
@@ -345,7 +354,6 @@ fn materialize_actor(
         .spawn((
             ActorMarker,
             spawn.actor_id,
-            movement,
             spawn.world_position(carriers),
             move_intent,
             FaceYaw(spawn.face_yaw),
@@ -355,10 +363,15 @@ fn materialize_actor(
         ))
         .id();
 
-    actors.insert(
-        spawn.actor_id,
-        ActorInfo::new(entity, spawn.zone_idx, spawn.kind, spawn.carrier),
-    );
+    if let Some(movement) = movement {
+        commands.entity(entity).insert(movement);
+    }
+    let mut info = ActorInfo::new(entity, spawn.zone_idx, spawn.kind, spawn.carrier);
+    info.anchor = movement.is_none().then_some(ActorAnchor {
+        carrier: spawn.carrier,
+        pos: spawn.pos,
+    });
+    actors.insert(spawn.actor_id, info);
 }
 
 #[cfg(test)]
@@ -366,6 +379,117 @@ mod tests {
     use super::*;
     use crate::map::{CellGrid, EdgeGrid, LevelGrid};
     use common::protocol::{ActorId, Carrier, CarrierId, MapLayout};
+
+    fn spawn_app(cols: i32, counts: &[u32], respawn_secs: Option<f32>) -> App {
+        let mut config = ServerGameplayConfig::load_default().expect("gameplay config rejected");
+        config
+            .actors
+            .kinds
+            .get_mut("turret")
+            .expect("turret kind missing")
+            .respawn_secs = respawn_secs;
+        let settings = config.maps["hotel"].settings.clone();
+        let mut cells = CellGrid::new(cols, 1);
+        for cell in &mut cells.rows[0] {
+            cell.has_floor = true;
+        }
+        let mut map = MapConfig::for_grid(
+            vec![LevelGrid {
+                cells,
+                edges: EdgeGrid::new(cols, 1),
+                barrier_edges: EdgeGrid::new(cols, 1),
+            }],
+            crate::test_geometry::geometry(cols, 1),
+        );
+        map.actor_spawn_zones = counts
+            .iter()
+            .map(|&count| ActorSpawnZone {
+                carrier: CarrierId::WORLD,
+                level: 0,
+                cols: [0, cols],
+                rows: [0, 1],
+                kind: "turret".into(),
+                count,
+            })
+            .collect();
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .insert_resource(config)
+            .insert_resource(settings)
+            .insert_resource(map)
+            .insert_resource(CollisionWorld::from_map_layout(
+                &MapLayout::default(),
+                &Default::default(),
+            ))
+            .init_resource::<Carriers>()
+            .init_resource::<ActorMap>()
+            .init_resource::<ActorRespawnTimers>()
+            .init_resource::<ActorSpawner>()
+            .init_resource::<PendingActorSpawns>()
+            .init_resource::<ServerTick>()
+            .add_systems(Startup, actors_initial_spawn_system)
+            .add_systems(Update, (actors_pending_spawn_system, actors_respawn_system).chain());
+        app
+    }
+
+    #[test]
+    fn overlapping_zones_reserve_pending_and_live_centers_then_fill_a_vacancy() {
+        let mut app = spawn_app(2, &[2, 1], Some(180.0));
+        app.update();
+        let pending = &app.world().resource::<PendingActorSpawns>().0;
+        assert_eq!(pending.len(), 2);
+        assert_ne!(pending[0].pos, pending[1].pos);
+        let first_id = pending[0].actor_id;
+        let freed_pos = pending[0].pos;
+        let due_tick = pending[0].due_tick;
+        assert_eq!(
+            app.world().resource::<ActorRespawnTimers>().0[&1],
+            ActorRespawnState::WaitingForSpace
+        );
+        for _ in 0..10 {
+            app.update();
+        }
+        assert_eq!(app.world().resource::<PendingActorSpawns>().0.len(), 2);
+        assert_eq!(app.world().resource::<ActorSpawner>().next_id, 2);
+        app.world_mut().resource_mut::<ServerTick>().0 = due_tick;
+        app.update();
+        assert_eq!(app.world().resource::<ActorMap>().values().count(), 2);
+        assert!(app.world().resource::<PendingActorSpawns>().0.is_empty());
+        assert_eq!(
+            app.world().resource::<ActorRespawnTimers>().0[&1],
+            ActorRespawnState::WaitingForSpace
+        );
+        let removed = app
+            .world_mut()
+            .resource_mut::<ActorMap>()
+            .remove(&first_id)
+            .expect("live turret missing");
+        app.world_mut().despawn(removed.entity);
+        app.update();
+        let pending = &app.world().resource::<PendingActorSpawns>().0;
+        assert_eq!(pending.len(), 1);
+        assert_eq!(pending[0].zone_idx, 1);
+        assert_eq!(pending[0].pos, freed_pos);
+        assert!(!app.world().resource::<ActorRespawnTimers>().0.contains_key(&1));
+    }
+
+    #[test]
+    fn blocked_initial_immovable_spawn_retries_even_when_respawns_are_disabled() {
+        let mut app = spawn_app(1, &[1], None);
+        let player = app.world_mut().spawn((PlayerMarker, Position::default())).id();
+        app.update();
+        assert!(app.world().resource::<PendingActorSpawns>().0.is_empty());
+        assert_eq!(
+            app.world().resource::<ActorRespawnTimers>().0[&0],
+            ActorRespawnState::WaitingForSpace
+        );
+        app.world_mut().despawn(player);
+        app.update();
+        let pending = &app.world().resource::<PendingActorSpawns>().0;
+        assert_eq!(pending.len(), 1);
+        assert_eq!(pending[0].pos, Position::default());
+        assert!(app.world().resource::<ActorRespawnTimers>().0.is_empty());
+    }
 
     #[test]
     fn respawn_timer_starts_at_the_configured_delay() {
@@ -384,7 +508,7 @@ mod tests {
 
         arm_actor_respawn(&mut timers, 3, 2.0);
 
-        assert_eq!(timers.0[&3], 1.0);
+        assert_eq!(timers.0[&3], ActorRespawnState::Cooldown(1.0));
         assert_eq!(tick_actor_respawns(&mut timers, 1.0), vec![3]);
     }
 
@@ -468,8 +592,8 @@ mod tests {
         zapper.zone_idx = 1;
         let mut pending = PendingActorSpawns(vec![mine, zapper]);
         let mut timers = ActorRespawnTimers::default();
-        timers.0.insert(0, 60.0);
-        timers.0.insert(1, 120.0);
+        timers.0.insert(0, ActorRespawnState::Cooldown(60.0));
+        timers.0.insert(1, ActorRespawnState::Cooldown(120.0));
 
         let count = expedite_actor_respawns(
             &ActorMap::default(),
@@ -484,8 +608,8 @@ mod tests {
         assert_eq!(count, 2);
         assert_eq!(pending.0[0].due_tick, 100);
         assert_eq!(pending.0[1].due_tick, 60);
-        assert_eq!(timers.0[&0], 0.0);
-        assert_eq!(timers.0[&1], 120.0);
+        assert_eq!(timers.0[&0], ActorRespawnState::Cooldown(0.0));
+        assert_eq!(timers.0[&1], ActorRespawnState::Cooldown(120.0));
     }
 
     #[test]

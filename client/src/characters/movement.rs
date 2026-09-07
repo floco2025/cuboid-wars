@@ -83,5 +83,5 @@ pub fn characters_movement_system(
         &mut players_query,
         &planned_moves,
     );
-    apply_actor_moves(&mut actors_query, &planned_moves);
+    apply_actor_moves(&mut actors_query, &actors, &planned_moves);
 }

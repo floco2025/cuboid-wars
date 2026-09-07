@@ -21,6 +21,7 @@ pub(crate) use bootstrap::install_bootstrap;
 pub use components::{ServerReconciliation, extrapolated_correction, recorded_correction, worst_axis_divergence};
 pub use impairment::Impairment;
 pub use plugin::network_plugin;
+pub(crate) use resources::accept_newer_tick;
 pub use resources::{
     ClientToServerChannel, LastPlayerMovesTick, LastSnapshotTick, RoundTripTime, ServerToClientChannel,
 };

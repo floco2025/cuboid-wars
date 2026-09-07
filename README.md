@@ -38,6 +38,7 @@ death/respawn flow.
   enough players stand on their plates; alone, each plate is a switch.
 - **Actors** — mines, sentries, zappers, and reapers patrol and hunt; all
   explode when killed.
+- **Turrets** — stationary guards with deadly continuous beams.
 - **Ladders** — climb between levels.
 - **Moving maps** — tiles, rooms, and whole buildings that slide or lift through a map, everything inside riding along, monsters included.
 - **Fall damage** — short drops are safe; long falls scale up to lethal.
@@ -91,6 +92,9 @@ cargo run --release --bin server -- --map hotel        # load a specific map
 cargo run --release --bin client                       # connect to 127.0.0.1:8080
 cargo run --release --bin client -- --name "Alice"     # custom name
 ```
+
+For a small puzzle, run `cargo run --release --bin server -- --map puzzle_stages`.
+The [nine puzzle examples](PUZZLES.md#small-example-maps) include eight solo maps and one for two players.
 
 For local multiplayer testing on macOS:
 

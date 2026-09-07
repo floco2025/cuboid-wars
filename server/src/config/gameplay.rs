@@ -147,3 +147,44 @@ impl PlayerServerConfig {
         validate_positive_finite(self.respawn_secs, &format!("{path}.respawn_secs"))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mobile_actor_requires_positive_roam_steps() {
+        let mut config = ServerGameplayConfig::load_default().expect("gameplay config rejected");
+        config
+            .actors
+            .kinds
+            .get_mut("mine")
+            .expect("mine config missing")
+            .roam_steps = 0;
+        let error = config.validate().expect_err("mobile actor accepted zero roam steps");
+        assert!(error.to_string().contains("actors.kinds.mine.roam_steps"));
+    }
+    #[test]
+    fn immovable_actor_rejects_unused_speed_settings() {
+        let mut config = ServerGameplayConfig::load_default().expect("gameplay config rejected");
+        let map = config.maps.get_mut("obby").expect("Obby settings missing");
+        let speeds = *map.settings.movement.expect_actor("zapper");
+        map.settings.movement.actors.insert("turret".into(), speeds);
+        let error = config.validate().expect_err("immovable actor accepted speed settings");
+        assert!(
+            error
+                .to_string()
+                .contains("maps.obby.movement.actors.turret must be omitted")
+        );
+    }
+
+    #[test]
+    fn movable_actor_requires_speed_settings() {
+        let mut config = ServerGameplayConfig::load_default().expect("gameplay config rejected");
+        let actor = config.actors.kinds.get_mut("turret").expect("turret config missing");
+        actor.character.immovable = false;
+        actor.roam_steps = 1;
+        let error = config.validate().expect_err("movable actor accepted missing speeds");
+        assert!(error.to_string().contains("missing actor kind \"turret\""));
+    }
+}

@@ -16,6 +16,7 @@ from .constants import (
     list_map_names,
     require_map_settings,
     load_actor_kinds,
+    load_immovable_actor_kinds,
     load_map_barrier_kinds,
     load_map_bridge_kinds,
     load_map_wall_width_cells,
@@ -282,6 +283,7 @@ class FileActionsMixin:
     def reload_dependencies(self) -> None:
         try:
             self.actor_kinds = load_actor_kinds()
+            self.immovable_actor_kinds = load_immovable_actor_kinds()
             self.reload_texture_catalog()
             self.barrier_kind_colors = load_map_barrier_kinds(self.catalog_map)
             self.bridge_kind_colors = load_map_bridge_kinds(self.catalog_map)

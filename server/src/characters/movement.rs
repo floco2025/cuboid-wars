@@ -101,7 +101,7 @@ pub fn characters_movement_system(
         &collision_world,
         &plates.open_barrier_kinds,
     );
-    apply_actor_moves(&mut actor_query, &planned_moves);
+    apply_actor_moves(&mut actor_query, &actors, &planned_moves);
 }
 
 fn plan_player_moves(

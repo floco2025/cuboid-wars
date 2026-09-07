@@ -12,6 +12,8 @@ mod mask;
 pub(crate) mod material_rules;
 mod plugin;
 mod pressure_plates;
+#[cfg(test)]
+mod puzzle_tests;
 mod ramps;
 mod resources;
 mod segments;

@@ -5,7 +5,7 @@ use bevy::prelude::*;
 use common::{
     map::Carriers,
     physics::CharacterSupport,
-    protocol::{ActorId, ActorMarker, ActorMoveIntent, CarrierId, FaceYaw, Health, PlayerId, Position},
+    protocol::{ActorAnchor, ActorId, ActorMarker, ActorMoveIntent, CarrierId, FaceYaw, Health, PlayerId, Position},
 };
 
 use super::navigation::{NavNode, NavWaypoint, PlannedRoute, WaypointKind};
@@ -46,8 +46,25 @@ pub(crate) enum ActorMode {
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum BeamState {
     Ready,
+    Continuous { target: PlayerId },
     Firing { target: PlayerId, remaining_secs: f32 },
     Cooldown { remaining_secs: f32 },
+}
+
+impl BeamState {
+    pub(crate) fn target(&self) -> Option<PlayerId> {
+        match *self {
+            Self::Firing { target, .. } | Self::Continuous { target } => Some(target),
+            Self::Ready | Self::Cooldown { .. } => None,
+        }
+    }
+
+    pub(crate) fn continuous_target(&self) -> Option<PlayerId> {
+        match *self {
+            Self::Continuous { target } => Some(target),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -108,6 +125,7 @@ pub struct ActorInfo {
     pub spawn_zone_index: usize,
     pub spawn_kind: String,
     pub carrier: CarrierId,
+    pub anchor: Option<ActorAnchor>,
     pub(crate) mode: ActorMode,
     pub(crate) route: Option<ActorRoute>,
     pub(crate) beam: BeamState,
@@ -130,6 +148,7 @@ impl ActorInfo {
             spawn_zone_index,
             spawn_kind,
             carrier,
+            anchor: None,
             mode: ActorMode::Roam,
             route: None,
             beam: BeamState::Ready,
@@ -207,7 +226,13 @@ pub struct ActorSpawner {
 }
 
 #[derive(Resource, Default)]
-pub struct ActorRespawnTimers(pub HashMap<usize, f32>);
+pub struct ActorRespawnTimers(pub(crate) HashMap<usize, ActorRespawnState>);
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) enum ActorRespawnState {
+    Cooldown(f32),
+    WaitingForSpace,
+}
 
 // A spawn that has been decided (id, spot, and heading reserved) but whose
 // beam-in warning window hasn't elapsed. The actor entity doesn't exist yet —

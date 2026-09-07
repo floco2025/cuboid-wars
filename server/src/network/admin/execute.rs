@@ -83,12 +83,6 @@ pub(super) fn run_admin_command(
         AdminCommand::God(explicit) => {
             let enabled = explicit.unwrap_or(!admin.invincibility.0);
             admin.invincibility.0 = enabled;
-            admin.unlimited_missiles.0 = enabled;
-            if enabled {
-                for (_, info) in players.iter_mut() {
-                    info.life.missiles = gameplay_config.missiles.max_missiles;
-                }
-            }
             Public(format!("god mode {}", if enabled { "on" } else { "off" }))
         }
         AdminCommand::KillAllPlayers => {
