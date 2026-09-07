@@ -15,8 +15,9 @@ use common::{
 };
 
 // Individual timers and the shared group timer expire here, after combat.
-// Actor resets wait until player respawn so kills during the countdown are included;
-// replacements use the normal beam-in warning. Shots remain in flight.
+// Actor resets wait through the respawn delay so kills during the countdown are included;
+// logout keeps any remaining countdown or starts the same delay, even on an empty server.
+// Replacements use the normal beam-in warning. Shots remain in flight.
 // Players get fresh bodies with full health; death already cleared per-life state.
 //
 // The new entity moves the player's lifecycle back to alive; the next
@@ -288,6 +289,60 @@ mod tests {
         });
     }
 
+    fn disconnect(app: &mut App, id: PlayerId) {
+        let delay = app.world().resource::<ServerGameplayConfig>().player.respawn_secs;
+        let info = app
+            .world_mut()
+            .resource_mut::<PlayerMap>()
+            .disconnect(&id, delay)
+            .expect("departing player missing");
+        if let Some(entity) = info.entity() {
+            app.world_mut().despawn(entity);
+        }
+    }
+
+    #[test]
+    fn logout_restores_actors_on_an_empty_server_after_the_remaining_delay_and_beam_in() {
+        for died_first in [false, true] {
+            let mut app = respawn_app(PlayerRespawnMode::Individual, ActorRespawnScope::All);
+            materialize_actors(&mut app);
+            let player = PlayerId(1);
+            let (entity, _rx) = add_player(&mut app, player);
+            let projectile = app.world_mut().spawn((ProjectileMarker, player)).id();
+            if died_first {
+                kill(&mut app, player);
+                advance(&mut app, 1.0);
+            }
+            disconnect(&mut app, player);
+            assert!(app.world().get_entity(entity).is_err());
+            assert!(!app.world().resource::<PlayerMap>().has_active_players());
+            let actor = *app
+                .world()
+                .resource::<ActorMap>()
+                .iter()
+                .next()
+                .expect("actor missing")
+                .0;
+            advance(&mut app, 0.5);
+            destroy_actor(&mut app, actor);
+            let blasts = app.world().resource::<PendingExplosions>().0.len();
+            assert_eq!(blasts, if died_first { 2 } else { 1 });
+            advance(&mut app, if died_first { 0.5 } else { 1.5 });
+            assert_eq!(app.world().resource::<ActorMap>().values().count(), 0);
+            let pending = &app.world().resource::<PendingActorSpawns>().0;
+            assert_eq!(pending.len(), 3);
+            assert!(pending.iter().all(|spawn| spawn.due_tick - spawn.reserved_tick == 90));
+            materialize_actors(&mut app);
+            assert_eq!(app.world().resource::<ActorMap>().values().count(), 3);
+            advance(&mut app, 2.0);
+            assert!(app.world().resource::<PendingActorSpawns>().0.is_empty());
+            assert_eq!(app.world().resource::<ActorSpawner>().next_id, 6);
+            assert_eq!(app.world().resource::<PendingExplosions>().0.len(), blasts);
+            assert!(!app.world().resource::<PlayerMap>().has_active_players());
+            assert!(app.world().get_entity(projectile).is_ok());
+        }
+    }
+
     #[test]
     fn an_actor_killed_during_the_player_countdown_returns_after_beam_in_without_clearing_shots() {
         let mut app = respawn_app(PlayerRespawnMode::Individual, ActorRespawnScope::All);
@@ -494,7 +549,9 @@ mod tests {
         let (_, _rx) = add_player(&mut app, PlayerId(2));
         kill(&mut app, PlayerId(1));
         advance(&mut app, 1.0);
-        app.world_mut().resource_mut::<PlayerMap>().remove(&PlayerId(1));
+        app.world_mut()
+            .resource_mut::<PlayerMap>()
+            .disconnect(&PlayerId(1), 2.0);
         let (entity, _rx) = add_player(&mut app, PlayerId(3));
         app.world_mut().resource_scope(|world, mut players: Mut<PlayerMap>| {
             let mut queue = CommandQueue::default();

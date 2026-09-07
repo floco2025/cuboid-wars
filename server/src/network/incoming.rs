@@ -36,7 +36,9 @@ pub(super) fn network_receive_system(
                 let name = context.players.display_name(&id);
                 let was_active = player.connection.logged_in;
                 let entity = player.entity();
-                context.players.remove(&id);
+                context
+                    .players
+                    .disconnect(&id, context.world.server_gameplay_config.player.respawn_secs);
                 let portal_access = context.portal_assignments.release(&id);
                 if context.portals.remove_access(portal_access) {
                     *context.portal_set = context

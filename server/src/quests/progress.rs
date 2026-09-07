@@ -581,7 +581,7 @@ mod tests {
         let mut players = PlayerMap::default();
         let _alice = join(&mut players, 1, &quest_catalog, &board);
         let _bob = join(&mut players, 2, &quest_catalog, &board);
-        players.remove(&PlayerId(1));
+        players.disconnect(&PlayerId(1), 2.0);
 
         kill(&mut players, &mut board, &quest_catalog, &config.feed, 1, "sentry");
 
@@ -668,7 +668,7 @@ mod tests {
         gold(&mut players, &mut board, &quest_catalog, &config.feed, 1);
         drain(&mut alice);
 
-        players.remove(&PlayerId(2));
+        players.disconnect(&PlayerId(2), 2.0);
         recheck_everyone_quests(&mut players, &mut board, &quest_catalog, &config.feed);
 
         assert!(board.is_completed(&id("gold")));
@@ -686,7 +686,7 @@ mod tests {
         let _bob = join(&mut players, 2, &quest_catalog, &board);
         gold(&mut players, &mut board, &quest_catalog, &config.feed, 1);
 
-        players.remove(&PlayerId(1));
+        players.disconnect(&PlayerId(1), 2.0);
         recheck_everyone_quests(&mut players, &mut board, &quest_catalog, &config.feed);
 
         assert!(!board.is_completed(&id("gold")));
@@ -699,7 +699,7 @@ mod tests {
         let mut board = QuestBoard::from_catalog(&quest_catalog);
         let mut players = PlayerMap::default();
         let _alice = join(&mut players, 1, &quest_catalog, &board);
-        players.remove(&PlayerId(1));
+        players.disconnect(&PlayerId(1), 2.0);
 
         recheck_everyone_quests(&mut players, &mut board, &quest_catalog, &config.feed);
 

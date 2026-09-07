@@ -84,10 +84,7 @@ pub struct PlayerSession {
 
 enum PlayerLifecycle {
     Alive(Entity),
-    Dead {
-        respawn_remaining_secs: f32,
-        reset_actors: bool,
-    },
+    Dead { respawn_remaining_secs: f32 },
     GroupRespawn,
 }
 
@@ -123,10 +120,9 @@ impl PlayerLife {
         }
     }
 
-    fn begin_respawn(&mut self, respawn_secs: f32, reset_actors: bool) {
+    fn begin_respawn(&mut self, respawn_secs: f32) {
         *self = Self::with_lifecycle(PlayerLifecycle::Dead {
             respawn_remaining_secs: respawn_secs,
-            reset_actors,
         });
     }
 }
@@ -165,7 +161,7 @@ impl PlayerInfo {
     }
 
     pub fn begin_respawn(&mut self, respawn_secs: f32) {
-        self.life.begin_respawn(respawn_secs, false);
+        self.life.begin_respawn(respawn_secs);
     }
 
     pub(crate) fn begin_group_respawn(&mut self) {
@@ -341,18 +337,14 @@ fn tick_timer(timer: &mut f32, delta: f32) {
 pub struct PlayerMap {
     entries: HashMap<PlayerId, PlayerInfo>,
     respawn: RespawnConfig,
-    group_respawn: Option<GroupRespawn>,
-    deaths: Vec<PlayerDeathCounts>,
+    group_respawn: Option<f32>,
+    actor_reset_timers: Vec<f32>,
+    resets: Vec<PlayerResetCounts>,
 }
 
-pub(crate) struct PlayerDeathCounts {
+pub(crate) struct PlayerResetCounts {
     pub logged_in: usize,
     pub alive: usize,
-}
-
-struct GroupRespawn {
-    remaining_secs: f32,
-    reset_actors: bool,
 }
 
 impl PlayerMap {
@@ -361,7 +353,6 @@ impl PlayerMap {
     }
 
     pub(crate) fn begin_respawn(&mut self, id: PlayerId, respawn_secs: f32) -> bool {
-        // Eligibility belongs to the death, even if membership changes during the countdown.
         let player_count = self.values().filter(|info| info.connection.logged_in).count();
         let alive = match self.respawn.players {
             PlayerRespawnMode::Individual => self
@@ -371,33 +362,47 @@ impl PlayerMap {
                 .saturating_sub(1),
             PlayerRespawnMode::Group => 0,
         };
-        let reset_actors = self.respawn.actors.on_player_death.applies(player_count, alive);
         let Some(info) = self.entries.get_mut(&id).filter(|info| !info.is_dead()) else {
             return false;
         };
-        match self.respawn.players {
+        let reset_delay = match self.respawn.players {
             PlayerRespawnMode::Individual => {
-                info.life.begin_respawn(respawn_secs, reset_actors);
+                info.life.begin_respawn(respawn_secs);
+                respawn_secs
             }
             PlayerRespawnMode::Group => {
                 info.begin_group_respawn();
-                self.group_respawn.get_or_insert(GroupRespawn {
-                    remaining_secs: respawn_secs,
-                    reset_actors,
-                });
+                *self.group_respawn.get_or_insert(respawn_secs)
             }
-        }
+        };
         if info.connection.logged_in {
-            self.deaths.push(PlayerDeathCounts {
-                logged_in: player_count,
-                alive,
-            });
+            self.record_reset(
+                PlayerResetCounts {
+                    logged_in: player_count,
+                    alive,
+                },
+                reset_delay,
+            );
         }
         true
     }
 
-    pub(crate) fn take_deaths(&mut self) -> Vec<PlayerDeathCounts> {
-        std::mem::take(&mut self.deaths)
+    fn record_reset(&mut self, counts: PlayerResetCounts, delay: f32) {
+        // Capture eligibility now; the countdown must survive departures and later logins.
+        if self
+            .respawn
+            .actors
+            .on_player_death
+            .applies(counts.logged_in, counts.alive)
+            && !self.actor_reset_timers.contains(&delay)
+        {
+            self.actor_reset_timers.push(delay);
+        }
+        self.resets.push(counts);
+    }
+
+    pub(crate) fn take_resets(&mut self) -> Vec<PlayerResetCounts> {
+        std::mem::take(&mut self.resets)
     }
 
     pub(crate) fn group_respawn_active(&self) -> bool {
@@ -407,10 +412,18 @@ impl PlayerMap {
     pub(crate) fn tick_respawns(&mut self, delta: f32) -> (Vec<PlayerId>, Option<ActorRespawnScope>) {
         let mut to_respawn = Vec::new();
         let mut reset_actors = false;
+        self.actor_reset_timers.retain_mut(|remaining| {
+            *remaining -= delta;
+            if *remaining <= 0.0 {
+                reset_actors = true;
+                false
+            } else {
+                true
+            }
+        });
         if let Some(group) = &mut self.group_respawn {
-            group.remaining_secs -= delta;
-            if group.remaining_secs <= 0.0 {
-                reset_actors = group.reset_actors;
+            *group -= delta;
+            if *group <= 0.0 {
                 self.group_respawn = None;
                 to_respawn.extend(
                     self.iter()
@@ -420,17 +433,12 @@ impl PlayerMap {
             }
         } else {
             for (id, info) in self.iter_mut() {
-                let PlayerLifecycle::Dead {
-                    respawn_remaining_secs,
-                    reset_actors: reset,
-                } = &mut info.life.lifecycle
-                else {
+                let PlayerLifecycle::Dead { respawn_remaining_secs } = &mut info.life.lifecycle else {
                     continue;
                 };
                 *respawn_remaining_secs -= delta;
                 if *respawn_remaining_secs <= 0.0 {
                     to_respawn.push(*id);
-                    reset_actors |= *reset;
                 }
             }
         }
@@ -441,8 +449,24 @@ impl PlayerMap {
         self.entries.insert(id, info)
     }
 
-    pub fn remove(&mut self, id: &PlayerId) -> Option<PlayerInfo> {
-        self.entries.remove(id)
+    pub fn disconnect(&mut self, id: &PlayerId, respawn_secs: f32) -> Option<PlayerInfo> {
+        let logged_in = self.values().filter(|info| info.connection.logged_in).count();
+        let info = self.entries.remove(id)?;
+        if info.connection.logged_in {
+            let alive = if self.group_respawn_active() {
+                0
+            } else {
+                self.values()
+                    .filter(|info| info.connection.logged_in && !info.is_dead())
+                    .count()
+            };
+            let delay = self
+                .group_respawn
+                .or(info.respawn_remaining_secs())
+                .unwrap_or(respawn_secs);
+            self.record_reset(PlayerResetCounts { logged_in, alive }, delay);
+        }
+        Some(info)
     }
 
     // "Marc#7" for logs; "player#7" before a name is known.
@@ -577,7 +601,7 @@ mod tests {
         multiplayer.insert(PlayerId(2), active_info());
         multiplayer.begin_respawn(PlayerId(2), 2.0);
         multiplayer.begin_respawn(PlayerId(1), 2.0);
-        multiplayer.remove(&PlayerId(2));
+        multiplayer.disconnect(&PlayerId(2), 2.0);
         assert_eq!(multiplayer.tick_respawns(2.0), (vec![PlayerId(1)], None));
     }
 
@@ -608,7 +632,7 @@ mod tests {
     }
 
     #[test]
-    fn disconnecting_the_last_survivor_does_not_arm_an_all_actor_reset() {
+    fn disconnecting_the_last_survivor_arms_an_all_actor_reset() {
         let mut players = PlayerMap::new(RespawnConfig {
             actors: ActorRespawnConfig {
                 on_player_death: DeathTrigger::All,
@@ -619,8 +643,106 @@ mod tests {
         players.insert(PlayerId(1), active_info());
         players.insert(PlayerId(2), active_info());
         players.begin_respawn(PlayerId(1), 2.0);
-        players.remove(&PlayerId(2));
-        assert_eq!(players.tick_respawns(2.0), (vec![PlayerId(1)], None));
+        players.disconnect(&PlayerId(2), 2.0);
+        assert_eq!(
+            players.tick_respawns(2.0),
+            (vec![PlayerId(1)], Some(ActorRespawnScope::All))
+        );
+    }
+
+    #[test]
+    fn logout_actor_policies_use_membership_before_departure_and_do_not_respawn_survivors() {
+        for mode in [PlayerRespawnMode::Individual, PlayerRespawnMode::Group] {
+            for (trigger, expected) in [
+                (DeathTrigger::Never, [false, false]),
+                (DeathTrigger::Solo, [true, false]),
+                (DeathTrigger::Any, [true, true]),
+                (DeathTrigger::All, [true, false]),
+            ] {
+                for scope in [ActorRespawnScope::Dead, ActorRespawnScope::All] {
+                    for count in 1..=2 {
+                        let mut players = PlayerMap::new(RespawnConfig {
+                            players: mode,
+                            actors: ActorRespawnConfig {
+                                on_player_death: trigger,
+                                scope,
+                            },
+                        });
+                        players.insert(PlayerId(0), dummy_info());
+                        for id in 1..=count {
+                            players.insert(PlayerId(id), active_info());
+                        }
+                        players.disconnect(&PlayerId(1), 2.0);
+                        assert!(players.disconnect(&PlayerId(1), 2.0).is_none());
+                        assert!(!players.group_respawn_active());
+                        assert!(players.values().all(|info| !info.is_dead()));
+                        assert_eq!(players.tick_respawns(1.0), (vec![], None));
+                        assert_eq!(
+                            players.tick_respawns(1.0),
+                            (vec![], expected[count as usize - 1].then_some(scope)),
+                            "{mode:?}, {trigger:?}, {scope:?}, {count} players"
+                        );
+                        assert_eq!(players.tick_respawns(2.0), (vec![], None));
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn logout_during_respawn_keeps_the_remaining_actor_countdown_when_the_server_empties() {
+        for mode in [PlayerRespawnMode::Individual, PlayerRespawnMode::Group] {
+            let mut players = PlayerMap::new(RespawnConfig {
+                players: mode,
+                actors: ActorRespawnConfig {
+                    on_player_death: DeathTrigger::Solo,
+                    scope: ActorRespawnScope::All,
+                },
+            });
+            players.insert(PlayerId(1), active_info());
+            players.begin_respawn(PlayerId(1), 2.0);
+            assert_eq!(players.tick_respawns(1.0), (vec![], None));
+            players.disconnect(&PlayerId(1), 2.0);
+            assert!(!players.has_active_players());
+            assert_eq!(players.tick_respawns(0.5), (vec![], None));
+            assert_eq!(players.tick_respawns(0.5), (vec![], Some(ActorRespawnScope::All)));
+            assert_eq!(players.tick_respawns(2.0), (vec![], None));
+        }
+    }
+
+    #[test]
+    fn pending_actor_reset_survives_a_logout_that_no_longer_qualifies() {
+        let mut players = PlayerMap::new(RespawnConfig {
+            actors: ActorRespawnConfig {
+                on_player_death: DeathTrigger::Solo,
+                scope: ActorRespawnScope::All,
+            },
+            ..default()
+        });
+        players.insert(PlayerId(1), active_info());
+        players.begin_respawn(PlayerId(1), 2.0);
+        players.tick_respawns(1.0);
+        players.insert(PlayerId(2), active_info());
+        players.disconnect(&PlayerId(1), 2.0);
+        assert_eq!(players.tick_respawns(1.0), (vec![], Some(ActorRespawnScope::All)));
+        assert_eq!(players.tick_respawns(2.0), (vec![], None));
+    }
+
+    #[test]
+    fn unlogged_and_unknown_disconnects_do_not_trigger_world_resets() {
+        let mut players = PlayerMap::new(RespawnConfig {
+            actors: ActorRespawnConfig {
+                on_player_death: DeathTrigger::Any,
+                scope: ActorRespawnScope::All,
+            },
+            ..default()
+        });
+        players.insert(PlayerId(1), active_info());
+        players.insert(PlayerId(0), dummy_info());
+        players.disconnect(&PlayerId(0), 2.0);
+        assert!(players.disconnect(&PlayerId(99), 2.0).is_none());
+        assert!(players.take_resets().is_empty());
+        assert_eq!(players.tick_respawns(2.0), (vec![], None));
     }
 
     #[test]

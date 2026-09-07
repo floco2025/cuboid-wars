@@ -158,7 +158,7 @@ pub(super) fn pressure_plates_system(
     switches.prev_held = held_indices;
 }
 
-pub(super) fn pressure_switch_death_reset_system(
+pub(super) fn pressure_switch_reset_system(
     map_config: Res<MapConfig>,
     carriers: Res<Carriers>,
     mut players: ResMut<PlayerMap>,
@@ -166,8 +166,8 @@ pub(super) fn pressure_switch_death_reset_system(
     quest_board: Res<QuestBoard>,
     mut switches: ResMut<PressureSwitches>,
 ) {
-    let deaths = players.take_deaths();
-    if deaths.is_empty() {
+    let resets = players.take_resets();
+    if resets.is_empty() {
         return;
     }
     let logged_in = players.values().filter(|info| info.connection.logged_in).count();
@@ -185,18 +185,18 @@ pub(super) fn pressure_switch_death_reset_system(
         let occupied = held.iter().any(|idx| plates[*idx].purpose.held() == Some(*purpose));
         switch.update_mode(logged_in, occupied);
         if switch.toggle
-            && deaths.iter().any(|death| {
+            && resets.iter().any(|counts| {
                 switch
                     .config
                     .reset_on_player_death
-                    .applies(death.logged_in, death.alive)
+                    .applies(counts.logged_in, counts.alive)
             })
         {
             switch.active = false;
             reset.insert(*purpose);
         }
     }
-    // Consume presses on the death tick so reset wins even for a surviving holder.
+    // Consume presses on the reset tick so reset wins even for a surviving holder.
     switches.prev_held.retain(|idx| {
         !plates[*idx]
             .purpose
@@ -584,7 +584,9 @@ mod system_tests {
     }
 
     fn leave(app: &mut App, id: u32, entity: Entity) {
-        app.world_mut().resource_mut::<PlayerMap>().remove(&PlayerId(id));
+        app.world_mut()
+            .resource_mut::<PlayerMap>()
+            .disconnect(&PlayerId(id), 2.0);
         app.world_mut().despawn(entity);
     }
 
@@ -910,7 +912,7 @@ mod system_tests {
     #[test]
     fn explicit_toggles_persist_through_joins_disconnects_and_an_empty_server() {
         let mut app = app(catalog(vec![]), vec![lobby_plate(), skyway_plate()]);
-        configure_switches(&mut app, PressureSwitchActivation::Toggle, DeathTrigger::All);
+        configure_switches(&mut app, PressureSwitchActivation::Toggle, DeathTrigger::Never);
         let (first, _) = standing_player(&mut app, 1);
         app.update();
         step_off(&mut app, first);
@@ -1067,7 +1069,7 @@ mod system_tests {
     }
 
     #[test]
-    fn all_reset_does_not_follow_a_disconnect_and_solo_uses_counts_at_death() {
+    fn all_reset_follows_the_last_survivor_departure_and_solo_uses_counts_at_the_event() {
         for trigger in [DeathTrigger::All, DeathTrigger::Solo] {
             let mut app = app(catalog(vec![]), vec![lobby_plate(), skyway_plate()]);
             configure_switches(&mut app, PressureSwitchActivation::Toggle, trigger);
@@ -1077,7 +1079,7 @@ mod system_tests {
             die(&mut app, 1);
             leave(&mut app, 2, partner);
             app.update();
-            assert_switches(&app, true);
+            assert_switches(&app, trigger == DeathTrigger::Solo);
         }
         let mut app = app(catalog(vec![]), vec![lobby_plate(), skyway_plate()]);
         configure_switches(&mut app, PressureSwitchActivation::Toggle, DeathTrigger::Solo);
@@ -1090,44 +1092,117 @@ mod system_tests {
     }
 
     #[test]
-    fn bridge_collision_loses_power_on_the_death_tick() {
-        let mut app = app(catalog(vec![]), vec![lobby_plate(), skyway_plate()]);
-        configure_switches(&mut app, PressureSwitchActivation::Toggle, DeathTrigger::All);
-        app.insert_resource(CollisionWorld::from_map_layout(
-            &MapLayout {
-                light_bridges: vec![LightBridge {
-                    x1: -1.0,
-                    x2: 1.0,
-                    z1: -1.0,
-                    z2: 1.0,
-                    y: 0.0,
-                    thickness: 0.1,
-                    level: 0,
-                    kind: SKYWAY,
-                    carrier: CarrierId::WORLD,
-                }],
-                ..default()
-            },
-            &Default::default(),
-        ));
-        standing_player(&mut app, 1);
-        let clear = |app: &App| {
-            app.world()
-                .resource::<CollisionWorld>()
-                .attack_path_clear(Vec3::Y, Vec3::NEG_Y, &[])
-        };
-        app.update();
-        assert!(!clear(&app));
-        app.add_systems(
-            Update,
-            (|mut players: ResMut<PlayerMap>| {
-                players.begin_respawn(PlayerId(1), 2.0);
-            })
-            .in_set(ServerSet::CombatDamage),
-        );
-        app.update();
-        assert_switches(&app, false);
-        assert!(clear(&app));
+    fn toggle_logout_policies_distinguish_solo_any_and_all() {
+        for trigger in [
+            DeathTrigger::Never,
+            DeathTrigger::Solo,
+            DeathTrigger::Any,
+            DeathTrigger::All,
+        ] {
+            for count in [1, 2] {
+                let mut app = app(catalog(vec![]), vec![lobby_plate(), skyway_plate()]);
+                configure_switches(&mut app, PressureSwitchActivation::Toggle, trigger);
+                let (first, _) = standing_player(&mut app, 1);
+                let second = (count == 2).then(|| standing_player(&mut app, 2).0);
+                app.update();
+                assert_switches(&app, true);
+                leave(&mut app, 1, first);
+                app.update();
+                let reset = trigger == DeathTrigger::Any || (count == 1 && trigger != DeathTrigger::Never);
+                assert_switches(&app, !reset);
+                app.update();
+                assert_switches(&app, !reset);
+                if let Some(second) = second {
+                    leave(&mut app, 2, second);
+                    app.update();
+                    assert_switches(&app, trigger == DeathTrigger::Never);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn logout_reset_wins_over_a_held_plate_until_a_fresh_press() {
+        for activation in [PressureSwitchActivation::Toggle, PressureSwitchActivation::Auto] {
+            let mut app = app(catalog(vec![]), vec![lobby_plate(), skyway_plate()]);
+            configure_switches(&mut app, activation, DeathTrigger::Any);
+            let (first, _) = standing_player(&mut app, 1);
+            let (survivor, _) = standing_player(&mut app, 2);
+            app.update();
+            assert_switches(&app, true);
+            app.add_systems(
+                Update,
+                (move |mut players: ResMut<PlayerMap>, mut commands: Commands| {
+                    if players.disconnect(&PlayerId(1), 2.0).is_some() {
+                        commands.entity(first).despawn();
+                    }
+                })
+                .in_set(ServerSet::Ingress),
+            );
+            app.update();
+            assert_switches(&app, false);
+            app.update();
+            assert_switches(&app, false);
+            step_off(&mut app, survivor);
+            app.update();
+            step_on(&mut app, survivor);
+            app.update();
+            assert_switches(&app, true);
+        }
+    }
+
+    #[test]
+    fn bridge_collision_loses_power_on_the_death_or_logout_tick() {
+        for logout in [false, true] {
+            let mut app = app(catalog(vec![]), vec![lobby_plate(), skyway_plate()]);
+            configure_switches(&mut app, PressureSwitchActivation::Toggle, DeathTrigger::All);
+            app.insert_resource(CollisionWorld::from_map_layout(
+                &MapLayout {
+                    light_bridges: vec![LightBridge {
+                        x1: -1.0,
+                        x2: 1.0,
+                        z1: -1.0,
+                        z2: 1.0,
+                        y: 0.0,
+                        thickness: 0.1,
+                        level: 0,
+                        kind: SKYWAY,
+                        carrier: CarrierId::WORLD,
+                    }],
+                    ..default()
+                },
+                &Default::default(),
+            ));
+            standing_player(&mut app, 1);
+            let clear = |app: &App| {
+                app.world()
+                    .resource::<CollisionWorld>()
+                    .attack_path_clear(Vec3::Y, Vec3::NEG_Y, &[])
+            };
+            app.update();
+            assert!(!clear(&app));
+            app.add_systems(
+                Update,
+                (move |mut players: ResMut<PlayerMap>, mut commands: Commands| {
+                    if logout {
+                        let info = players.disconnect(&PlayerId(1), 2.0).expect("departing player missing");
+                        commands
+                            .entity(info.entity().expect("departing player entity missing"))
+                            .despawn();
+                    } else {
+                        players.begin_respawn(PlayerId(1), 2.0);
+                    }
+                })
+                .in_set(if logout {
+                    ServerSet::Ingress
+                } else {
+                    ServerSet::CombatDamage
+                }),
+            );
+            app.update();
+            assert_switches(&app, false);
+            assert!(clear(&app));
+        }
     }
 
     #[test]

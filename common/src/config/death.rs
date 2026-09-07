@@ -12,13 +12,13 @@ pub enum DeathTrigger {
 }
 
 impl DeathTrigger {
-    pub fn applies(self, logged_in: usize, alive_after_death: usize) -> bool {
+    pub fn applies(self, logged_in: usize, alive_remaining: usize) -> bool {
         logged_in > 0
             && match self {
                 Self::Never => false,
                 Self::Solo => logged_in == 1,
                 Self::Any => true,
-                Self::All => alive_after_death == 0,
+                Self::All => alive_remaining == 0,
             }
     }
 }

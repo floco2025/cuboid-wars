@@ -1376,7 +1376,9 @@ fn turret_fires_past_burst_duration_and_stops_when_player_disconnects() {
         }
     }
     assert_eq!(targets, vec![Some(PlayerId(7))]);
-    app.world_mut().resource_mut::<PlayerMap>().remove(&PlayerId(7));
+    app.world_mut()
+        .resource_mut::<PlayerMap>()
+        .disconnect(&PlayerId(7), 2.0);
     turret_step(&mut app);
     assert_eq!(
         app.world()
