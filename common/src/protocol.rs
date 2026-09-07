@@ -388,9 +388,14 @@ pub struct SPlayerDeath {
     // The killer's post-kill score (kill bonus already applied), if there
     // is one. `None` for non-player causes.
     pub killer_score: Option<i32>,
-    // Whether the death detonates. A fall out of the world does not: the
-    // blast would reach nothing that deep, and there is nothing to show.
-    pub explodes: bool,
+    pub effect: PlayerDeathEffect,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode)]
+pub enum PlayerDeathEffect {
+    Explosion,
+    VoidFall,
+    GroupRespawn,
 }
 
 // Actor died at this position. Triggers the explosion VFX + sound and the
@@ -834,7 +839,7 @@ mod tests {
                 killer: Some(PlayerId(2)),
                 victim_score: -1000,
                 killer_score: Some(200),
-                explodes: true,
+                effect: PlayerDeathEffect::Explosion,
             }),
             ServerMessage::ProjectileShot(SProjectileShot {
                 id: PlayerId(1),

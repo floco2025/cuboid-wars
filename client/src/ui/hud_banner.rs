@@ -9,6 +9,7 @@ use crate::{
 };
 
 const DEATH_TEXT: &str = "You died!";
+const GROUP_RESPAWN_TEXT: &str = "Group respawning";
 
 #[derive(Component)]
 pub struct HudBannerMarker;
@@ -18,6 +19,7 @@ pub enum BannerMessage {
     QuestAnnouncement(String),
     QuestCompleted(String),
     Death,
+    GroupRespawn,
 }
 
 impl BannerMessage {
@@ -26,6 +28,7 @@ impl BannerMessage {
         match self {
             Self::QuestAnnouncement(text) | Self::QuestCompleted(text) => text,
             Self::Death => DEATH_TEXT,
+            Self::GroupRespawn => GROUP_RESPAWN_TEXT,
         }
     }
 
@@ -34,6 +37,7 @@ impl BannerMessage {
             Self::QuestAnnouncement(text) => (text, client_settings.hud.banner.quest_announcement_secs),
             Self::QuestCompleted(text) => (text, client_settings.hud.banner.quest_completed_secs),
             Self::Death => (DEATH_TEXT.to_owned(), client_settings.hud.banner.death_secs),
+            Self::GroupRespawn => (GROUP_RESPAWN_TEXT.to_owned(), client_settings.hud.banner.death_secs),
         }
     }
 }

@@ -42,8 +42,7 @@ death/respawn flow.
 - **Ladders** — climb between levels.
 - **Moving maps** — tiles, rooms, and whole buildings that slide or lift through a map, everything inside riding along, monsters included.
 - **Fall damage** — short drops are safe; long falls scale up to lethal.
-- **Death & respawn** — dying drops your keys and ammo; you respawn after
-  a short delay.
+- **Death & respawn** — return after a short delay, individually or with your group; some maps also restore enemies.
 - **Scoring** — kills, gold, actor kills, and quest completions award
   points.
 - **Weather & lighting** — rain and a bright/dim/dark light cycle, set per

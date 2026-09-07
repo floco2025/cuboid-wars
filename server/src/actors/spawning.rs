@@ -8,7 +8,7 @@ use crate::{
         PendingActorSpawns,
     },
     characters::generate_actor_spawn_position_in_zone,
-    config::ServerGameplayConfig,
+    config::{ActorRespawnScope, ServerGameplayConfig},
     map::{ActorSpawnZone, MapConfig},
 };
 use common::{
@@ -27,6 +27,27 @@ pub fn actor_respawns_active(actors: Res<ActorMap>, timers: Res<ActorRespawnTime
 
 pub fn pending_actor_spawns_active(pending: Res<PendingActorSpawns>) -> bool {
     !pending.0.is_empty()
+}
+
+pub(crate) fn reset_actors(
+    commands: &mut Commands,
+    actors: &mut ActorMap,
+    pending: &mut PendingActorSpawns,
+    timers: &mut ActorRespawnTimers,
+    map_config: &MapConfig,
+    scope: ActorRespawnScope,
+) {
+    if scope == ActorRespawnScope::All {
+        for info in actors.values() {
+            commands.entity(info.entity).despawn();
+        }
+        *actors = ActorMap::default();
+        pending.0.clear();
+    }
+    timers.0.clear();
+    timers
+        .0
+        .extend((0..map_config.actor_spawn_zones.len()).map(|zone_idx| (zone_idx, ActorRespawnState::WaitingForSpace)));
 }
 
 fn arm_actor_respawn(timers: &mut ActorRespawnTimers, zone_idx: usize, respawn_secs: f32) {
@@ -51,7 +72,7 @@ fn tick_actor_respawns(timers: &mut ActorRespawnTimers, delta: f32) -> Vec<usize
 }
 
 // Startup-only: fill every spawn zone to its `count`. Runs once when the
-// world boots, irrespective of `respawns` — initial fill is universal.
+// world boots, irrespective of `respawn_secs` — initial fill is universal.
 // Spawns are queued, not spawned: each waits out its beam-in warning window
 // in `PendingActorSpawns` before `actors_pending_spawn_system` materializes it.
 pub fn actors_initial_spawn_system(
@@ -193,11 +214,11 @@ fn queue_zone_slots(
             zone,
         );
         if !queued {
-            if kind_config.character.immovable {
+            if kind_config.character.immovable || timers.0.get(&zone_idx) == Some(&ActorRespawnState::WaitingForSpace) {
                 let previous = timers.0.insert(zone_idx, ActorRespawnState::WaitingForSpace);
                 if previous != Some(ActorRespawnState::WaitingForSpace) {
                     warn!(
-                        "actor spawn zone {zone_idx} on carrier {} has no free cell center for an immovable {:?}; waiting for space",
+                        "actor spawn zone {zone_idx} on carrier {} has no clear spot for {:?}; waiting for space",
                         zone.carrier.0, zone.kind
                     );
                 }

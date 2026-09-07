@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use common::protocol::server_tick_advance_system;
 
 use super::*;
-use crate::schedule::ServerSet;
+use crate::{players::players_respawn_system, schedule::ServerSet};
 
 pub fn actors_plugin(app: &mut App) {
     app.add_systems(Startup, actors_initial_spawn_system).add_systems(
@@ -17,7 +17,8 @@ pub fn actors_plugin(app: &mut App) {
             actors_removal_system.in_set(ServerSet::CombatRemoval),
             actors_respawn_system
                 .run_if(actor_respawns_active)
-                .in_set(ServerSet::Lifecycle),
+                .in_set(ServerSet::Lifecycle)
+                .after(players_respawn_system),
         ),
     );
 }

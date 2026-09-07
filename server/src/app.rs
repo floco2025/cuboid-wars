@@ -113,7 +113,7 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
         .insert_resource(server_gameplay_config)
         .insert_resource(quest_catalog)
         .insert_resource(quest_board)
-        .insert_resource(PlayerMap::default())
+        .insert_resource(PlayerMap::new(map_server_config.respawn))
         .insert_resource(ActorMap::default())
         .insert_resource(ItemMap::default())
         .insert_resource(ItemSpawner::default())

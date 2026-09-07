@@ -11,7 +11,9 @@ pub fn players_plugin(app: &mut App) {
             (players_fall_damage_system, players_fall_death_system)
                 .chain_ignore_deferred()
                 .in_set(ServerSet::CombatDamage),
-            players_respawn_system.in_set(ServerSet::Lifecycle),
+            (players_group_respawn_system, players_respawn_system)
+                .chain()
+                .in_set(ServerSet::Lifecycle),
             erase_equipment_system
                 .in_set(ServerSet::Maintenance)
                 .after(item_collection_system),

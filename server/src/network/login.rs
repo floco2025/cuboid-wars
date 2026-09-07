@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use crate::{
     characters::{generate_player_spawn_position, spawn_face_yaw},
     network::{FeedAudience, FeedEvent, ServerToClient, emit_feed},
-    players::PlayerMap,
+    players::{PlayerMap, enter_group_respawn},
     portals::{PortalAssignments, PortalMap},
     quests::{QuestBoard, QuestCatalog, assign_quests},
 };
@@ -90,6 +90,9 @@ pub(super) fn handle_login_message(
         &occupied_positions,
         world.gameplay_config.player.physics(),
     );
+    if enter_group_respawn(commands, players, id, pos) {
+        return;
+    }
     commands.entity(entity).insert((
         pos,
         PlayerMoveIntent::Idle,

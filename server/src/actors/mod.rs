@@ -15,8 +15,8 @@ pub use resources::{
     PendingActorSpawns,
 };
 pub(crate) use resources::{ActorMode, ActorRespawnState, ActorRoute, BeamState};
-pub(crate) use spawning::expedite_actor_respawns;
 pub use spawning::{
     actor_respawns_active, actors_initial_spawn_system, actors_pending_spawn_system, actors_respawn_system,
     pending_actor_spawns_active,
 };
+pub(crate) use spawning::{expedite_actor_respawns, reset_actors};

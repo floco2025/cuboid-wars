@@ -7,6 +7,7 @@ use super::{
     actors::ActorKindServerConfig,
     items::{PlacedItemsConfig, PowerUpsConfig},
     quests::{Quest, validate_quests},
+    respawn::RespawnConfig,
     validation::{deserialize_required_option, validate_covers_actor_kinds, validate_positive_finite},
 };
 use common::protocol::{BarrierKindTable, BridgeKindTable, ItemType, MapSettings, validate_texture_catalog};
@@ -22,6 +23,7 @@ pub struct MapServerConfig {
     pub random_items: Option<RandomItemsConfig>,
     pub placed_items: PlacedItemsConfig,
     pub power_ups: PowerUpsConfig,
+    pub respawn: RespawnConfig,
     // A concrete state holds until an admin command; `auto` runs the
     // global `cycles.weather`. Mirrors `/weather rain|clear|auto`.
     pub weather: WeatherMode,
@@ -170,7 +172,10 @@ impl RandomItemsConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_geometry::sizes;
+    use crate::{
+        config::{ActorRespawnConfig, ActorRespawnScope, ActorRespawnTrigger, PlayerRespawnMode},
+        test_geometry::sizes,
+    };
     use common::{
         config::{ActorMovementConfig, KnockbackConfig, MapMovementConfig, PlayerMovementConfig},
         protocol::{HexColor, KindDef, PortalMode},
@@ -243,6 +248,7 @@ mod tests {
                 bridge_kinds: Vec::new(),
             },
             random_items: None,
+            respawn: RespawnConfig::default(),
             placed_items: ok_placed_items(),
             power_ups: PowerUpsConfig {
                 duration_secs: crate::config::PowerUpDurationSecs {
@@ -256,6 +262,50 @@ mod tests {
             weather: WeatherMode::Clear,
             lighting: LightingMode::Bright,
             quests: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn map_respawn_policy_requires_every_field_and_rejects_unknown_modes() {
+        let gameplay: serde_json::Value = serde_json::from_str(include_str!("../../../config/server/gameplay.json"))
+            .expect("gameplay JSON is invalid");
+        let mut entry = gameplay["maps"]["hotel"].clone();
+        entry
+            .as_object_mut()
+            .expect("map entry is not an object")
+            .remove("respawn");
+        assert!(serde_json::from_value::<MapServerConfig>(entry.clone()).is_err());
+        for invalid in [
+            serde_json::json!({}),
+            serde_json::json!({"players": "individual"}),
+            serde_json::json!({"actors": {"on_player_death": "never", "scope": "dead"}}),
+            serde_json::json!({"players": "group", "actors": {"scope": "all"}}),
+            serde_json::json!({"players": "group", "actors": {"on_player_death": "always"}}),
+            serde_json::json!({"players": "group_on_respawn", "actors": {"on_player_death": "always", "scope": "all"}}),
+            serde_json::json!({"players": "group", "actors": {"on_player_death": "sometimes", "scope": "all"}}),
+            serde_json::json!({"players": "group", "actors": {"on_player_death": "always", "scope": "some"}}),
+        ] {
+            entry["respawn"] = invalid;
+            assert!(serde_json::from_value::<MapServerConfig>(entry.clone()).is_err());
+        }
+    }
+
+    #[test]
+    fn shipped_respawn_policies_enable_solo_actor_resets_only_for_puzzle_stages() {
+        let config = crate::config::ServerGameplayConfig::load_default().expect("gameplay config rejected");
+        for (name, entry) in config.maps {
+            let expected = if name == "puzzle_stages" {
+                RespawnConfig {
+                    players: PlayerRespawnMode::Individual,
+                    actors: ActorRespawnConfig {
+                        on_player_death: ActorRespawnTrigger::Solo,
+                        scope: ActorRespawnScope::All,
+                    },
+                }
+            } else {
+                RespawnConfig::default()
+            };
+            assert_eq!(entry.respawn, expected, "{name}");
         }
     }
 
@@ -325,6 +375,7 @@ mod tests {
             "barrier_kinds": [],
             "bridge_kinds": [],
             "random_items": null,
+            "respawn": { "players": "individual", "actors": { "on_player_death": "never", "scope": "dead" } },
             "power_ups": { "duration_secs": { "speed": 30.0, "single_shot": 0.0, "multi_shot": 25.0, "low_gravity": 20.0, "portal_gun": 0.0 } },
             "placed_items": {
                 "respawn_secs": {

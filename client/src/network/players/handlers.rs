@@ -212,7 +212,7 @@ pub(in crate::network) fn handle_player_death_message(
     context: &mut ServerMessageContext,
 ) {
     // Keep audio outside the state handler so its unit test does not need an asset server.
-    if message.explodes {
+    if message.effect == PlayerDeathEffect::Explosion {
         play_explosion_sound(
             commands,
             &context.asset_server,
@@ -226,13 +226,13 @@ pub(in crate::network) fn handle_player_death_message(
         // first-person camera inside the sphere sees shards/ring/light rather
         // than an orange screen wash.
         spawn_player_explosion(commands, &mut context.explosion_ctx(), message.pos);
-    } else if message.id == my_player_id {
+    } else if message.effect == PlayerDeathEffect::VoidFall && message.id == my_player_id {
         play_sound(
             commands,
             &context.asset_server,
             context.asset_set.player_sound("void_fall"),
         );
-    } else {
+    } else if message.effect == PlayerDeathEffect::VoidFall {
         play_spatial_sound(
             commands,
             &context.asset_server,
@@ -458,10 +458,11 @@ fn apply_player_death(
                 .remove::<ServerReconciliation>();
         }
         local_player_info.is_dead = true;
-        // Centered "You died!" banner. The red full-screen
-        // `DeathOverlayMarker` tint and the feed line are independent
-        // layers; the banner is the headline.
-        banner.push(BannerMessage::Death);
+        banner.push(if event.effect == PlayerDeathEffect::GroupRespawn {
+            BannerMessage::GroupRespawn
+        } else {
+            BannerMessage::Death
+        });
     } else if let Some(info) = players.remove(&event.id) {
         commands.entity(info.entity).despawn();
     }
@@ -569,40 +570,54 @@ mod tests {
     }
 
     #[test]
-    fn local_player_death_sets_health_to_zero() {
-        let my_id = PlayerId(7);
-        let mut app = App::new();
-        app.add_plugins(MinimalPlugins);
-        let entity = app.world_mut().spawn((Health(42.0), Visibility::Visible)).id();
-        let world = app.world_mut();
-        let mut players = PlayerMap::default();
-        players.insert(my_id, player_info(entity, "Alice"));
-        let mut local_player_info = LocalPlayerInfo::default();
-        let mut banner = HudBanner::default();
-        let mut commands_queue = bevy::ecs::world::CommandQueue::default();
+    fn death_and_group_respawn_hide_the_player_with_the_matching_banner() {
+        for effect in [
+            PlayerDeathEffect::Explosion,
+            PlayerDeathEffect::VoidFall,
+            PlayerDeathEffect::GroupRespawn,
+        ] {
+            let my_id = PlayerId(7);
+            let mut app = App::new();
+            app.add_plugins(MinimalPlugins);
+            let entity = app.world_mut().spawn((Health(42.0), Visibility::Visible)).id();
+            let world = app.world_mut();
+            let mut players = PlayerMap::default();
+            players.insert(my_id, player_info(entity, "Alice"));
+            let mut local_player_info = LocalPlayerInfo::default();
+            let mut banner = HudBanner::default();
+            let mut commands_queue = bevy::ecs::world::CommandQueue::default();
 
-        {
-            let mut commands = bevy::ecs::system::Commands::new(&mut commands_queue, world);
-            apply_player_death(
-                &mut commands,
-                &mut players,
-                &mut local_player_info,
-                &mut banner,
-                my_id,
-                SPlayerDeath {
-                    id: my_id,
-                    pos: Position::default(),
-                    killer: None,
-                    victim_score: 0,
-                    killer_score: None,
-                    explodes: true,
-                },
+            {
+                let mut commands = bevy::ecs::system::Commands::new(&mut commands_queue, world);
+                apply_player_death(
+                    &mut commands,
+                    &mut players,
+                    &mut local_player_info,
+                    &mut banner,
+                    my_id,
+                    SPlayerDeath {
+                        id: my_id,
+                        pos: Position::default(),
+                        killer: None,
+                        victim_score: 0,
+                        killer_score: None,
+                        effect,
+                    },
+                );
+            }
+            commands_queue.apply(world);
+
+            assert_eq!(world.entity(entity).get::<Health>(), Some(&Health(0.0)));
+            assert_eq!(world.entity(entity).get::<Visibility>(), Some(&Visibility::Hidden));
+            assert!(local_player_info.is_dead);
+            assert_eq!(
+                banner.pending_texts(),
+                [if effect == PlayerDeathEffect::GroupRespawn {
+                    "Group respawning"
+                } else {
+                    "You died!"
+                }]
             );
         }
-        commands_queue.apply(world);
-
-        assert_eq!(world.entity(entity).get::<Health>(), Some(&Health(0.0)));
-        assert_eq!(world.entity(entity).get::<Visibility>(), Some(&Visibility::Hidden));
-        assert!(local_player_info.is_dead);
     }
 }

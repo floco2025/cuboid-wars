@@ -2,6 +2,7 @@ use bevy::prelude::*;
 
 use super::PlayerMap;
 use crate::{
+    actors::{ActorMap, ActorRespawnTimers, PendingActorSpawns, reset_actors},
     characters::{generate_player_spawn_position, spawn_face_yaw},
     config::ServerGameplayConfig,
     map::MapConfig,
@@ -10,12 +11,13 @@ use common::{
     config::GameplayConfig,
     map::Carriers,
     physics::{AirborneMomentum, CharacterVerticalVelocity, CollisionWorld},
-    protocol::{FaceYaw, Health, PlayerId, PlayerMarker, PlayerMoveIntent, Position},
+    protocol::{FaceYaw, Health, PlayerMarker, PlayerMoveIntent, Position},
 };
 
-// Tick each dead player's respawn timer. When it elapses, spawn a fresh entity
-// at a new spawn-zone cell with full health. Per-life state (power-ups, keys,
-// stun) was already cleared at death; score is preserved.
+// Individual timers and the shared group timer expire here, after combat.
+// Actor resets wait until player respawn so kills during the countdown are included;
+// replacements use the normal beam-in warning. Shots remain in flight.
+// Players get fresh bodies with full health; death already cleared per-life state.
 //
 // The new entity moves the player's lifecycle back to alive; the next
 // `SSnapshot` carries the new position and resurrects the client visual.
@@ -29,18 +31,20 @@ pub fn players_respawn_system(
     gameplay_config: Res<GameplayConfig>,
     server_gameplay_config: Res<ServerGameplayConfig>,
     player_query: Query<&Position, With<PlayerMarker>>,
+    mut actors: ResMut<ActorMap>,
+    mut actor_timers: ResMut<ActorRespawnTimers>,
+    mut pending_actors: ResMut<PendingActorSpawns>,
 ) {
-    let delta = time.delta_secs();
-    let mut to_respawn: Vec<PlayerId> = Vec::new();
-
-    for (id, info) in players.iter_mut() {
-        let Some(timer) = info.respawn_remaining_secs_mut() else {
-            continue;
-        };
-        *timer -= delta;
-        if *timer <= 0.0 {
-            to_respawn.push(*id);
-        }
+    let (to_respawn, actor_scope) = players.tick_respawns(time.delta_secs());
+    if let Some(scope) = actor_scope {
+        reset_actors(
+            &mut commands,
+            &mut actors,
+            &mut pending_actors,
+            &mut actor_timers,
+            &map_config,
+            scope,
+        );
     }
 
     if to_respawn.is_empty() {
@@ -77,5 +81,478 @@ pub fn players_respawn_system(
 
         occupied_positions.push(pos);
         info!("{} respawned at {:?}", players.describe(&id), pos);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use bevy::ecs::world::CommandQueue;
+    use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
+
+    use super::*;
+    use crate::{
+        actors::{
+            ActorRespawnState, ActorSpawner, actor_respawns_active, actors_initial_spawn_system,
+            actors_pending_spawn_system, actors_respawn_system,
+        },
+        combat::{DeathSource, PendingExplosions, kill_actor, kill_player},
+        config::{ActorRespawnConfig, ActorRespawnScope, ActorRespawnTrigger, PlayerRespawnMode, RespawnConfig},
+        map::{ActorSpawnZone, CellGrid, EdgeGrid, LevelGrid, PlayerSpawnZone},
+        missiles::{MissileInfo, MissileMap},
+        network::ServerToClient,
+        players::{PlayerInfo, PlayerQuestState, enter_group_respawn, players_group_respawn_system},
+        schedule::{ServerSet, configure_server_schedule},
+    };
+    use common::{
+        constants::TICK_DURATION,
+        protocol::{
+            ActorId, CarrierId, HomingTarget, MapLayout, MissileMarker, PlayerDeathEffect, PlayerId, ProjectileMarker,
+            QuestId, ServerMessage, ServerTick, server_tick_advance_system,
+        },
+    };
+
+    fn respawn_app(mode: PlayerRespawnMode, scope: ActorRespawnScope) -> App {
+        let mut config = ServerGameplayConfig::load_default().expect("gameplay config rejected");
+        config.player.respawn_secs = 2.0;
+        config.actors.settings.spawn_warning_secs = 3.0;
+        config
+            .actors
+            .kinds
+            .get_mut("turret")
+            .expect("turret config missing")
+            .respawn_secs = None;
+        let settings = config.maps["puzzle_stages"].settings.clone();
+        let mut cells = CellGrid::new(6, 1);
+        for cell in &mut cells.rows[0] {
+            cell.has_floor = true;
+        }
+        let mut map = MapConfig::for_grid(
+            vec![LevelGrid {
+                cells,
+                edges: EdgeGrid::new(6, 1),
+                barrier_edges: EdgeGrid::new(6, 1),
+            }],
+            crate::test_geometry::geometry(6, 1),
+        );
+        map.player_spawn_zones.push(PlayerSpawnZone {
+            carrier: CarrierId::WORLD,
+            level: 0,
+            cols: [0, 3],
+            rows: [0, 1],
+        });
+        map.actor_spawn_zones = (3..6)
+            .map(|col| ActorSpawnZone {
+                carrier: CarrierId::WORLD,
+                level: 0,
+                cols: [col, col + 1],
+                rows: [0, 1],
+                kind: "turret".into(),
+                count: 1,
+            })
+            .collect();
+        let mut app = App::new();
+        app.insert_resource(Time::<()>::default())
+            .insert_resource(config.gameplay_config())
+            .insert_resource(config)
+            .insert_resource(settings)
+            .insert_resource(map)
+            .insert_resource(CollisionWorld::from_map_layout(
+                &MapLayout::default(),
+                &Default::default(),
+            ))
+            .insert_resource(PlayerMap::new(RespawnConfig {
+                players: mode,
+                actors: ActorRespawnConfig {
+                    on_player_death: ActorRespawnTrigger::Always,
+                    scope,
+                },
+            }))
+            .init_resource::<Carriers>()
+            .init_resource::<ActorMap>()
+            .init_resource::<ActorRespawnTimers>()
+            .init_resource::<ActorSpawner>()
+            .init_resource::<PendingActorSpawns>()
+            .init_resource::<PendingExplosions>()
+            .init_resource::<MissileMap>()
+            .init_resource::<ServerTick>();
+        configure_server_schedule(&mut app);
+        app.add_systems(Startup, actors_initial_spawn_system).add_systems(
+            Update,
+            (
+                server_tick_advance_system.in_set(ServerSet::Prepare),
+                actors_pending_spawn_system
+                    .in_set(ServerSet::Prepare)
+                    .after(server_tick_advance_system),
+                (players_group_respawn_system, players_respawn_system)
+                    .chain()
+                    .in_set(ServerSet::Lifecycle),
+                actors_respawn_system
+                    .run_if(actor_respawns_active)
+                    .in_set(ServerSet::Lifecycle)
+                    .after(players_respawn_system),
+            ),
+        );
+        advance(&mut app, 0.0);
+        app
+    }
+
+    fn advance(app: &mut App, secs: f32) {
+        app.world_mut()
+            .resource_mut::<Time>()
+            .advance_by(Duration::from_secs_f32(secs));
+        app.update();
+    }
+
+    fn materialize_actors(app: &mut App) {
+        let tick = app
+            .world()
+            .resource::<PendingActorSpawns>()
+            .0
+            .iter()
+            .map(|spawn| spawn.due_tick)
+            .min()
+            .expect("pending actors missing");
+        app.world_mut().resource_mut::<ServerTick>().0 = tick - 1;
+        advance(app, TICK_DURATION.as_secs_f32());
+    }
+
+    fn add_player(app: &mut App, id: PlayerId) -> (Entity, UnboundedReceiver<ServerToClient>) {
+        let pos = Position {
+            x: -8.0 + id.0 as f32,
+            y: 0.0,
+            z: 0.0,
+        };
+        let entity = app.world_mut().spawn((PlayerMarker, id, pos, Health(30.0))).id();
+        let (tx, rx) = unbounded_channel();
+        let mut info = PlayerInfo::new(entity, tx);
+        info.connection.logged_in = true;
+        info.connection.name = format!("Player {}", id.0);
+        info.session.score = 42;
+        info.session
+            .quest_states
+            .insert(QuestId("progress".into()), PlayerQuestState::Individual { progress: 3 });
+        info.add_missiles(2, 3);
+        app.world_mut().resource_mut::<PlayerMap>().insert(id, info);
+        (entity, rx)
+    }
+
+    fn kill(app: &mut App, id: PlayerId) {
+        let config = app.world().resource::<ServerGameplayConfig>().clone();
+        app.world_mut().resource_scope(|world, mut players: Mut<PlayerMap>| {
+            let entity = players
+                .get(&id)
+                .and_then(PlayerInfo::entity)
+                .expect("live player missing");
+            let pos = *world.get::<Position>(entity).expect("player position missing");
+            world.resource_scope(|world, mut explosions: Mut<PendingExplosions>| {
+                let mut queue = CommandQueue::default();
+                kill_player(
+                    &mut Commands::new(&mut queue, world),
+                    &mut players,
+                    id,
+                    entity,
+                    pos,
+                    config.player.respawn_secs,
+                    DeathSource::Beam { kind: "turret".into() },
+                    &config.feed,
+                    &mut explosions,
+                );
+                queue.apply(world);
+            });
+        });
+    }
+
+    fn destroy_actor(app: &mut App, id: ActorId) {
+        let feed = app.world().resource::<ServerGameplayConfig>().feed.clone();
+        app.world_mut().resource_scope(|world, mut actors: Mut<ActorMap>| {
+            let entity = actors.get(&id).expect("actor missing").entity;
+            let pos = *world.get::<Position>(entity).expect("actor position missing");
+            world.resource_scope(|world, mut explosions: Mut<PendingExplosions>| {
+                let mut queue = CommandQueue::default();
+                assert!(kill_actor(
+                    &mut Commands::new(&mut queue, world),
+                    &mut actors,
+                    world.resource::<PlayerMap>(),
+                    &mut explosions,
+                    &feed,
+                    id,
+                    entity,
+                    pos,
+                    None
+                ));
+                queue.apply(world);
+            });
+        });
+    }
+
+    #[test]
+    fn an_actor_killed_during_the_player_countdown_returns_after_beam_in_without_clearing_shots() {
+        let mut app = respawn_app(PlayerRespawnMode::Individual, ActorRespawnScope::All);
+        materialize_actors(&mut app);
+        let victim = PlayerId(1);
+        let (_, _rx) = add_player(&mut app, victim);
+        let actor_id = *app
+            .world()
+            .resource::<ActorMap>()
+            .iter()
+            .next()
+            .expect("actor missing")
+            .0;
+        let projectile = app.world_mut().spawn((ProjectileMarker, victim)).id();
+        let missile_entity = app.world_mut().spawn(MissileMarker).id();
+        let mut missiles = app.world_mut().resource_mut::<MissileMap>();
+        let missile_id = missiles.allocate();
+        missiles.insert(
+            missile_id,
+            MissileInfo::new(
+                missile_entity,
+                victim,
+                Some(HomingTarget::Actor(actor_id)),
+                Vec3::X,
+                0.0,
+                10.0,
+            ),
+        );
+
+        kill(&mut app, victim);
+        advance(&mut app, 1.0);
+        destroy_actor(&mut app, actor_id);
+        advance(&mut app, 0.5);
+        assert_eq!(app.world().resource::<ActorMap>().values().count(), 2);
+        assert!(app.world().resource::<PendingActorSpawns>().0.is_empty());
+        advance(&mut app, 0.5);
+
+        assert!(
+            !app.world()
+                .resource::<PlayerMap>()
+                .get(&victim)
+                .expect("player missing")
+                .is_dead()
+        );
+        assert_eq!(app.world().resource::<ActorMap>().values().count(), 0);
+        let pending = &app.world().resource::<PendingActorSpawns>().0;
+        assert_eq!(pending.len(), 3);
+        assert!(
+            pending
+                .iter()
+                .all(|spawn| spawn.actor_id != actor_id && spawn.due_tick - spawn.reserved_tick == 90)
+        );
+        advance(&mut app, 0.0);
+        assert_eq!(app.world().resource::<ActorMap>().values().count(), 0);
+        materialize_actors(&mut app);
+        let actors = app.world().resource::<ActorMap>();
+        assert_eq!(actors.values().count(), 3);
+        let max_health = app
+            .world()
+            .resource::<ServerGameplayConfig>()
+            .combat
+            .health
+            .expect_actor("turret")
+            .max;
+        for actor in actors.values() {
+            assert_eq!(app.world().get::<Health>(actor.entity), Some(&Health(max_health)));
+            assert_eq!(
+                *app.world()
+                    .get::<Position>(actor.entity)
+                    .expect("actor position missing"),
+                actor.anchor.expect("turret anchor missing").pos
+            );
+        }
+        assert!(app.world().get_entity(projectile).is_ok());
+        assert!(app.world().get_entity(missile_entity).is_ok());
+        assert!(app.world().resource::<MissileMap>().get(&missile_id).is_some());
+        assert_eq!(app.world().resource::<PendingExplosions>().0.len(), 2);
+    }
+
+    #[test]
+    fn actor_reset_scopes_preserve_or_replace_survivors_and_pending_spawns() {
+        for scope in [ActorRespawnScope::Dead, ActorRespawnScope::All] {
+            let mut app = respawn_app(PlayerRespawnMode::Individual, scope);
+            app.world_mut()
+                .resource_mut::<ServerGameplayConfig>()
+                .actors
+                .kinds
+                .get_mut("turret")
+                .expect("turret config missing")
+                .respawn_secs = Some(180.0);
+            let pending_id = {
+                let mut pending = app.world_mut().resource_mut::<PendingActorSpawns>();
+                pending.0[2].due_tick += 300;
+                pending.0[2].actor_id
+            };
+            materialize_actors(&mut app);
+            let (_, _rx) = add_player(&mut app, PlayerId(1));
+            let mut actors: Vec<_> = app
+                .world()
+                .resource::<ActorMap>()
+                .iter()
+                .map(|(id, info)| (*id, info.entity))
+                .collect();
+            actors.sort_by_key(|(id, _)| id.0);
+            let (survivor, survivor_entity) = actors[1];
+            let displaced = Position {
+                x: 50.0,
+                y: 0.0,
+                z: 0.0,
+            };
+            app.world_mut()
+                .entity_mut(survivor_entity)
+                .insert((Health(1.0), displaced));
+            destroy_actor(&mut app, actors[0].0);
+            kill(&mut app, PlayerId(1));
+            advance(&mut app, 2.0);
+            let pending = &app.world().resource::<PendingActorSpawns>().0;
+            if scope == ActorRespawnScope::Dead {
+                assert_eq!(app.world().resource::<ActorMap>().values().count(), 1);
+                assert_eq!(app.world().get::<Health>(survivor_entity), Some(&Health(1.0)));
+                assert_eq!(app.world().get::<Position>(survivor_entity), Some(&displaced));
+                assert_eq!(pending.len(), 2);
+                assert!(pending.iter().any(|spawn| spawn.actor_id == pending_id));
+            } else {
+                assert!(app.world().resource::<ActorMap>().get(&survivor).is_none());
+                assert!(app.world().get_entity(survivor_entity).is_err());
+                assert_eq!(pending.len(), 3);
+                assert!(pending.iter().all(|spawn| spawn.actor_id != pending_id));
+            }
+            assert_eq!(
+                app.world().resource::<ActorSpawner>().next_id,
+                if scope == ActorRespawnScope::Dead { 4 } else { 6 }
+            );
+            assert_eq!(app.world().resource::<PendingExplosions>().0.len(), 2);
+        }
+    }
+
+    #[test]
+    fn a_group_death_resets_teammates_once_and_respawns_everyone_together() {
+        let mut app = respawn_app(PlayerRespawnMode::Group, ActorRespawnScope::All);
+        materialize_actors(&mut app);
+        let (first, mut rx) = add_player(&mut app, PlayerId(1));
+        let (second, _rx) = add_player(&mut app, PlayerId(2));
+        kill(&mut app, PlayerId(1));
+        advance(&mut app, 1.0);
+        assert!(app.world().resource::<PlayerMap>().values().all(PlayerInfo::is_dead));
+        assert!(app.world().get_entity(first).is_err());
+        assert!(app.world().get_entity(second).is_err());
+        assert_eq!(app.world().resource::<PendingExplosions>().0.len(), 1);
+        let mut effects = Vec::new();
+        let mut feed_count = 0;
+        while let Ok(ServerToClient::Send(message)) = rx.try_recv() {
+            match message {
+                ServerMessage::PlayerDeath(death) => {
+                    assert_eq!(death.killer, None);
+                    assert_eq!(death.victim_score, 42);
+                    effects.push((death.id, death.effect));
+                }
+                ServerMessage::Feed(_) => feed_count += 1,
+                _ => {}
+            }
+        }
+        assert_eq!(
+            effects,
+            [
+                (PlayerId(1), PlayerDeathEffect::Explosion),
+                (PlayerId(2), PlayerDeathEffect::GroupRespawn)
+            ]
+        );
+        assert_eq!(feed_count, 1);
+        assert!(
+            !app.world_mut()
+                .resource_mut::<PlayerMap>()
+                .begin_respawn(PlayerId(2), 20.0)
+        );
+        advance(&mut app, 1.0);
+        let players = app.world().resource::<PlayerMap>();
+        let max_health = app.world().resource::<ServerGameplayConfig>().combat.health.player.max;
+        assert!(!players.group_respawn_active());
+        for info in players.values() {
+            assert!(!info.is_dead());
+            assert_eq!(info.session.score, 42);
+            assert_eq!(
+                info.session.quest_states[&QuestId("progress".into())].own_progress(),
+                Some(3)
+            );
+            assert_eq!(info.life.missiles, 0);
+            assert_eq!(
+                app.world()
+                    .get::<Health>(info.entity().expect("respawned entity missing")),
+                Some(&Health(max_health))
+            );
+        }
+        assert_eq!(app.world().resource::<PendingActorSpawns>().0.len(), 3);
+        assert_eq!(app.world().resource::<ActorSpawner>().next_id, 6);
+        advance(&mut app, 0.5);
+        assert_eq!(app.world().resource::<ActorSpawner>().next_id, 6);
+    }
+
+    #[test]
+    fn group_joiners_share_the_remaining_countdown_after_the_triggering_player_disconnects() {
+        let mut app = respawn_app(PlayerRespawnMode::Group, ActorRespawnScope::All);
+        let (_, _rx) = add_player(&mut app, PlayerId(1));
+        let (_, _rx) = add_player(&mut app, PlayerId(2));
+        kill(&mut app, PlayerId(1));
+        advance(&mut app, 1.0);
+        app.world_mut().resource_mut::<PlayerMap>().remove(&PlayerId(1));
+        let (entity, _rx) = add_player(&mut app, PlayerId(3));
+        app.world_mut().resource_scope(|world, mut players: Mut<PlayerMap>| {
+            let mut queue = CommandQueue::default();
+            let pos = *world.get::<Position>(entity).expect("joining player position missing");
+            assert!(enter_group_respawn(
+                &mut Commands::new(&mut queue, world),
+                &mut players,
+                PlayerId(3),
+                pos
+            ));
+            queue.apply(world);
+        });
+        assert!(
+            app.world()
+                .resource::<PlayerMap>()
+                .get(&PlayerId(3))
+                .expect("joiner missing")
+                .is_dead()
+        );
+        advance(&mut app, 1.0);
+        assert_eq!(app.world().resource::<PlayerMap>().values().count(), 2);
+        assert!(app.world().resource::<PlayerMap>().values().all(|info| !info.is_dead()));
+        assert_eq!(app.world().resource::<PendingActorSpawns>().0.len(), 3);
+    }
+
+    #[test]
+    fn reset_refills_wait_for_space_even_for_movable_actors_without_automatic_respawning() {
+        for kind in ["turret", "sentry"] {
+            let mut app = respawn_app(PlayerRespawnMode::Individual, ActorRespawnScope::Dead);
+            app.world_mut().resource_mut::<PendingActorSpawns>().0.clear();
+            app.world_mut().resource_mut::<ActorRespawnTimers>().0.clear();
+            app.world_mut()
+                .resource_mut::<ServerGameplayConfig>()
+                .actors
+                .kinds
+                .get_mut(kind)
+                .expect("actor kind missing")
+                .respawn_secs = None;
+            let mut map = app.world_mut().resource_mut::<MapConfig>();
+            map.actor_spawn_zones.truncate(1);
+            map.actor_spawn_zones[0].kind = kind.into();
+            map.grids[0].levels[0].cells.rows[0][3].has_ramp = true;
+            let (_, _rx) = add_player(&mut app, PlayerId(1));
+            kill(&mut app, PlayerId(1));
+            advance(&mut app, 2.0);
+            assert!(app.world().resource::<PendingActorSpawns>().0.is_empty());
+            assert_eq!(
+                app.world().resource::<ActorRespawnTimers>().0[&0],
+                ActorRespawnState::WaitingForSpace
+            );
+            advance(&mut app, 1.0);
+            assert!(app.world().resource::<PendingActorSpawns>().0.is_empty());
+            app.world_mut().resource_mut::<MapConfig>().grids[0].levels[0]
+                .cells
+                .rows[0][3]
+                .has_ramp = false;
+            advance(&mut app, 0.0);
+            assert_eq!(app.world().resource::<PendingActorSpawns>().0.len(), 1);
+            assert!(app.world().resource::<ActorRespawnTimers>().0.is_empty());
+        }
     }
 }

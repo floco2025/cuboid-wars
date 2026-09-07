@@ -10,7 +10,7 @@ use crate::{
 };
 use common::{
     health::apply_damage,
-    protocol::{ActorId, Health, PlayerId, Position, SActorDeath, SPlayerDeath, ServerMessage},
+    protocol::{ActorId, Health, PlayerDeathEffect, PlayerId, Position, SActorDeath, SPlayerDeath, ServerMessage},
 };
 
 // What killed a player, by id. `kill_player` derives both the kill credit
@@ -72,6 +72,7 @@ fn death_cause(source: &DeathSource, victim: PlayerId, players: &PlayerMap) -> D
 // lifecycle, queue the death explosion (not for a void fall), despawn the
 // entity, broadcast `SPlayerDeath` so clients run death-side effects on the
 // impact tick instead of waiting a snapshot, and announce the feed line.
+// `PlayerMap` captures actor-reset eligibility and arms the shared timer in group mode.
 // Called from every code path that takes a player to zero health
 // (projectile hits, beams, explosions, falls, `/kill`).
 #[expect(
@@ -90,13 +91,9 @@ pub fn kill_player(
     pending_explosions: &mut PendingExplosions,
 ) {
     let killer = kill_credit(&source, id, players);
-    let Some(info) = players.get_mut(&id) else {
-        return;
-    };
-    if info.is_dead() {
+    if !players.begin_respawn(id, respawn_secs) {
         return;
     }
-    info.begin_respawn(respawn_secs);
     // Every death but a void fall detonates — `explosions_system` drains
     // the queue this tick and applies the blast. That deep a blast would
     // reach nothing, and the cue tells clients to show nothing.
@@ -117,7 +114,11 @@ pub fn kill_player(
             killer,
             victim_score,
             killer_score,
-            explodes,
+            effect: if explodes {
+                PlayerDeathEffect::Explosion
+            } else {
+                PlayerDeathEffect::VoidFall
+            },
         }),
     );
     emit_feed(
@@ -395,6 +396,7 @@ mod tests {
                         bridge_kinds: Vec::new(),
                     },
                     random_items: None,
+                    respawn: Default::default(),
                     power_ups: PowerUpsConfig {
                         duration_secs: PowerUpDurationSecs {
                             speed: 1.0,
