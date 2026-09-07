@@ -3,15 +3,16 @@ use bevy::prelude::*;
 use crate::{
     constants::*,
     items::{item_symbol_mesh, pickup_material},
-    vfx::{srgb_color, translucent_kind_material, with_white_vertex_colors},
+    map::{FieldMaterials, FieldMeshes},
+    vfx::srgb_color,
 };
 use common::protocol::{BarrierKindId, ItemType, KindDef};
 
 #[derive(Resource)]
 pub struct BarrierAssets {
-    pub(super) mesh: Handle<Mesh>,
+    pub(super) meshes: FieldMeshes,
+    pub(super) fields: Vec<FieldMaterials>,
     pub(super) key_mesh: Handle<Mesh>,
-    pub(super) materials: Vec<Handle<StandardMaterial>>,
     key_materials: Vec<Handle<StandardMaterial>>,
     // Mirror of the table at construction time, so the pulsate system can
     // re-derive the base color without re-reading the config every frame.
@@ -20,11 +21,11 @@ pub struct BarrierAssets {
 
 impl BarrierAssets {
     pub fn material_for(&self, kind: BarrierKindId) -> &Handle<StandardMaterial> {
-        &self.materials[kind.0 as usize]
+        &self.fields[kind.0 as usize].surface
     }
 
-    pub fn material_handles(&self) -> &[Handle<StandardMaterial>] {
-        &self.materials
+    pub fn material_handles(&self) -> impl Iterator<Item = &Handle<StandardMaterial>> {
+        self.fields.iter().map(|field| &field.surface)
     }
 
     // sRGB base color for the kind, useful for HUD icons that aren't 3D
@@ -48,15 +49,20 @@ pub fn build_barrier_assets(
     kinds: &[KindDef],
     pickup_glow: f32,
 ) -> BarrierAssets {
-    let mesh = meshes.add(with_white_vertex_colors(Rectangle::new(1.0, 1.0).into()));
+    let field_meshes = FieldMeshes::new(meshes);
     let key_mesh = meshes.add(item_symbol_mesh(ItemType::Key(BarrierKindId(0)), KEY_SIZE, KEY_DEPTH));
 
-    let mut handles = Vec::with_capacity(kinds.len());
+    let mut fields = Vec::with_capacity(kinds.len());
     let mut base_colors = Vec::with_capacity(kinds.len());
     let mut key_materials = Vec::with_capacity(kinds.len());
     for kind in kinds {
         let color = srgb_color(kind.color);
-        handles.push(materials.add(translucent_kind_material(color, BARRIER_ALPHA_MAX, BARRIER_EMISSIVE)));
+        fields.push(FieldMaterials::new(
+            materials,
+            color,
+            BARRIER_ALPHA_MAX,
+            BARRIER_EMISSIVE,
+        ));
         key_materials.push(materials.add(pickup_material(color, pickup_glow)));
         base_colors.push(color);
     }
@@ -64,12 +70,12 @@ pub fn build_barrier_assets(
     // Both vectors are indexed by `BarrierKindId.0` — a length divergence
     // would mean a future contributor split the loops apart. Catch that here
     // instead of as an out-of-bounds panic at first lookup.
-    assert_eq!(handles.len(), base_colors.len());
+    assert_eq!(fields.len(), base_colors.len());
 
     BarrierAssets {
         key_mesh,
-        mesh,
-        materials: handles,
+        meshes: field_meshes,
+        fields,
         key_materials,
         base_colors,
     }
@@ -90,7 +96,7 @@ mod tests {
             color: HexColor([255, 0, 0]),
         }];
         let assets = build_barrier_assets(&mut meshes, &mut materials, &kinds, 3.0);
-        let mesh = meshes.get(&assets.mesh).expect("barrier mesh missing");
+        let mesh = meshes.get(&assets.meshes.panel).expect("barrier mesh missing");
         let positions = mesh
             .attribute(Mesh::ATTRIBUTE_POSITION)
             .and_then(|a| a.as_float3())

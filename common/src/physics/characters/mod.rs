@@ -15,6 +15,7 @@ pub use geometry::{
     character_vertical_ranges_overlap,
 };
 pub use knockback::knockback_decay_system;
+pub use ladder::LadderMode;
 pub use movement::{CharacterEnvironment, CharacterStep, player_jump_velocity, step_character_movement};
 pub use movement_plan::{blocking_character_move_plan, character_move_plan_is_blocked, overlapping_character};
 pub use player_control::player_control_velocity;

@@ -130,6 +130,8 @@ fn character_move_plans_separate(candidate: &CharacterMovePlan, other: &Characte
 
 #[cfg(test)]
 mod tests {
+    use std::slice::from_ref;
+
     use super::*;
     use crate::config::{
         CharacterColliderAnchor, CharacterColliderConfig, CharacterPhysicsConfig, CharacterSupportProbeConfig,
@@ -172,5 +174,42 @@ mod tests {
             &[],
             &[(blocker, pos(1.3), small)]
         ));
+    }
+
+    #[test]
+    fn actor_nearly_touching_a_waiting_climber_can_move_away_but_not_through_it() {
+        let physics = physics(1.0, 1.0);
+        let start = Position {
+            x: 0.0,
+            y: 4.400_002,
+            z: 0.230_000_1,
+        };
+        let waiting = CharacterMovePlan::stationary(
+            Entity::from_bits(2),
+            Position {
+                x: 0.000_007_159,
+                y: 4.066_666,
+                z: -0.77,
+            },
+            0.0,
+            physics,
+        );
+        for (distance, blocked) in [(0.16, false), (-0.16, true)] {
+            let candidate = CharacterMovePlan::from_target(
+                Entity::from_bits(1),
+                start,
+                Position {
+                    z: start.z + distance,
+                    ..start
+                },
+                0.0,
+                physics,
+                false,
+            );
+            assert_eq!(
+                blocking_character_move_plan(&candidate, from_ref(&waiting)).is_some(),
+                blocked
+            );
+        }
     }
 }

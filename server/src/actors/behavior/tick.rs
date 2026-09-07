@@ -4,7 +4,7 @@ use rand::{Rng, rng};
 use crate::{
     actors::{
         ActorInfo, ActorMap, ActorMode, ActorRoute, BeamState,
-        navigation::{ActorTerritories, NavGraph, NavGraphs, PlannedRoute},
+        navigation::{ActorTerritories, NavGraph, NavGraphs, NavWaypoint, PlannedRoute, WaypointKind},
     },
     config::{ActorAttackConfig, ActorKindServerConfig, ServerGameplayConfig},
     network::broadcast_to_all,
@@ -113,6 +113,9 @@ pub fn actors_behavior_system(
             kind_config,
             players_armed: map_settings.weapons.projectiles || map_items.contains(ItemType::MissilePack),
         };
+        if info.route.as_ref().is_some_and(ActorRoute::traversing_ladder) {
+            continue;
+        }
         if stalled {
             shake_loose(info, &context, &mut rng);
             continue;
@@ -159,10 +162,12 @@ pub(super) fn tick_runtime_state(
 }
 
 fn advance_route(info: &mut ActorInfo, pos: Position, reached_distance: f32) {
-    let reached_sq = reached_distance * reached_distance;
     if let Some(route) = &mut info.route {
         while let Some(next) = route.waypoints.front() {
-            let reached = pos.horizontal_distance_sq(next) <= reached_sq;
+            let reached = next.reached(&pos, reached_distance);
+            if route.waypoints.len() == 1 && matches!(next.kind, WaypointKind::Climb { .. }) {
+                break;
+            }
             let passed = route
                 .waypoints
                 .get(1)
@@ -183,7 +188,12 @@ fn advance_route(info: &mut ActorInfo, pos: Position, reached_distance: f32) {
 // for it: with another actor behind it in a one-cell trench that is a
 // permanent jam. Count the waypoint as passed when the actor is beyond it
 // along the following leg and within reach of that leg's line.
-fn waypoint_passed(pos: &Position, waypoint: &Position, after: &Position, reached_distance: f32) -> bool {
+fn waypoint_passed(pos: &Position, waypoint: &NavWaypoint, after: &NavWaypoint, reached_distance: f32) -> bool {
+    if !waypoint.is_walk() || !after.is_walk() {
+        return false;
+    }
+    let waypoint = &waypoint.position;
+    let after = &after.position;
     let leg = Vec2::new(after.x - waypoint.x, after.z - waypoint.z);
     let leg_length = leg.length();
     if leg_length <= PHYSICS_EPSILON {
@@ -205,6 +215,18 @@ fn tick_route_stall(info: &mut ActorInfo, pos: Position, delta: f32) -> bool {
         info.watchdog.reset();
         return false;
     }
+    if let Some(route) = &info.route
+        && let Some(next) = route.next()
+        && !next.is_walk()
+    {
+        if route.waypoints.len() == 1 && next.reached(&pos, 0.15) {
+            info.watchdog.reset();
+            return false;
+        }
+        return info
+            .watchdog
+            .tick_3d(&pos, delta, ROUTE_STALL_PROGRESS_DISTANCE, ROUTE_STALL_TIMEOUT_SECS);
+    }
     info.watchdog
         .tick_horizontal(&pos, delta, ROUTE_STALL_PROGRESS_DISTANCE, ROUTE_STALL_TIMEOUT_SECS)
 }
@@ -215,7 +237,10 @@ fn tick_route_stall(info: &mut ActorInfo, pos: Position, delta: f32) -> bool {
 // jam loops (two evaders re-planning the same routes into each other
 // forever). A failed hop just trips the watchdog again and re-rolls.
 pub(super) fn shake_loose(info: &mut ActorInfo, context: &BehaviorContext<'_>, rng: &mut impl Rng) {
-    let planned = context.nav_graph.random_neighbor_route(&context.pos, rng);
+    let planned =
+        context
+            .nav_graph
+            .random_neighbor_route(context.nav_graph.ladder_links(&info.spawn_kind), &context.pos, rng);
     context.install_route(info, planned);
     info.decision_timer = SHAKE_SECS;
 }
@@ -289,8 +314,13 @@ impl BehaviorContext<'_> {
     }
 
     fn install_route(&self, info: &mut ActorInfo, planned: Option<PlannedRoute>) {
+        let planned = planned.or_else(|| {
+            self.nav_graph
+                .ladder_exit_route(&self.pos, self.nav_graph.ladder_links(&info.spawn_kind))
+        });
         let route = planned.and_then(|mut planned| {
             self.nav_graph.anchor_route_start(
+                self.nav_graph.ladder_links(&info.spawn_kind),
                 &self.pos,
                 &mut planned,
                 self.collision_world,
@@ -365,7 +395,7 @@ pub(super) fn enter_evade(info: &mut ActorInfo, context: &BehaviorContext<'_>, r
 
     if context.stable_cover(&context.pos, &threats) {
         info.mode = ActorMode::Evade { fleeing: false };
-        info.set_route(None);
+        context.install_route(info, None);
         info.evade_replan_remaining_secs = EVADE_REPLAN_INTERVAL_SECS;
         return;
     }
@@ -374,13 +404,21 @@ pub(super) fn enter_evade(info: &mut ActorInfo, context: &BehaviorContext<'_>, r
     }
     // The searches measure cell distances in the graph's frame.
     let local_threats: Vec<_> = threats.iter().map(|threat| context.to_local(threat)).collect();
-    let cover = context
-        .nav_graph
-        .safe_cover_route(&context.pos, &local_threats, |candidate| {
-            context.stable_cover(candidate, &threats)
-        });
+    let cover = context.nav_graph.safe_cover_route(
+        context.nav_graph.ladder_links(&info.spawn_kind),
+        &context.pos,
+        &local_threats,
+        |candidate| context.stable_cover(candidate, &threats),
+    );
     let fleeing = cover.is_none();
-    let planned = cover.or_else(|| context.nav_graph.flee_route(&context.pos, &local_threats, rng));
+    let planned = cover.or_else(|| {
+        context.nav_graph.flee_route(
+            context.nav_graph.ladder_links(&info.spawn_kind),
+            &context.pos,
+            &local_threats,
+            rng,
+        )
+    });
     info.mode = ActorMode::Evade { fleeing };
     context.install_route(info, planned);
     info.evade_replan_remaining_secs = EVADE_REPLAN_INTERVAL_SECS;
@@ -397,7 +435,12 @@ pub(super) fn enter_roam_or_return(info: &mut ActorInfo, context: &BehaviorConte
         if continuing_roam {
             return;
         }
-        let route = context.nav_graph.roam_route(&context.pos, context.territory, rng);
+        let route = context.nav_graph.roam_route(
+            context.nav_graph.ladder_links(&info.spawn_kind),
+            &context.pos,
+            context.territory,
+            rng,
+        );
         context.install_route(info, route);
     } else {
         let continuing_return = matches!(info.mode, ActorMode::ReturnHome) && info.route.is_some();
@@ -406,7 +449,11 @@ pub(super) fn enter_roam_or_return(info: &mut ActorInfo, context: &BehaviorConte
         if continuing_return {
             return;
         }
-        let route = context.nav_graph.return_route(&context.pos, context.territory);
+        let route = context.nav_graph.return_route(
+            context.nav_graph.ladder_links(&info.spawn_kind),
+            &context.pos,
+            context.territory,
+        );
         context.install_route(info, route);
     }
 }
@@ -429,8 +476,15 @@ pub(super) fn keep_or_install_engagement_route(
     if matches!(info.mode, ActorMode::Engage { target: route_target, .. } if route_target == target)
         && let Some(route) = &mut info.route
         && route.destination_node == target_node
+        && route.waypoints.back().is_some_and(|point| point.is_walk())
     {
-        let final_leg_start = route.waypoints.iter().rev().nth(1).copied().unwrap_or(context.pos);
+        let final_leg_start = route
+            .waypoints
+            .iter()
+            .rev()
+            .nth(1)
+            .map(|point| point.position)
+            .unwrap_or(context.pos);
         if context.nav_graph.engagement_retarget_is_valid(
             &final_leg_start,
             &anchor,
@@ -444,10 +498,35 @@ pub(super) fn keep_or_install_engagement_route(
         }
     }
     let Some(planned) = context.nav_graph.engagement_route(
+        context.nav_graph.ladder_links(&info.spawn_kind),
         &context.pos,
         &anchor,
         context.actor_physics.collider.width / 2.0,
         context.actor_physics.collider.depth / 2.0,
+    ) else {
+        return false;
+    };
+    info.mode = ActorMode::Engage { target, target_pos };
+    info.evade_replan_remaining_secs = 0.0;
+    context.install_route(info, Some(planned));
+    true
+}
+
+pub(super) fn install_ladder_engagement(
+    info: &mut ActorInfo,
+    context: &BehaviorContext<'_>,
+    target: PlayerId,
+    target_pos: Position,
+) -> bool {
+    if !context.kind_config.character.can_use_ladders {
+        return false;
+    }
+    let local_target = context.to_local(&target_pos);
+    let Some(planned) = context.nav_graph.ladder_target_route(
+        &context.pos,
+        &local_target,
+        context.nav_graph.ladder_links(&info.spawn_kind),
+        context.actor_physics,
     ) else {
         return false;
     };

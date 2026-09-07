@@ -85,6 +85,10 @@ impl Climber {
     }
 
     fn step(&mut self, control_velocity: Vec3) -> CharacterMovementResult {
+        self.step_with_mode(control_velocity, LadderMode::Automatic)
+    }
+
+    fn step_with_mode(&mut self, control_velocity: Vec3, ladder_mode: LadderMode) -> CharacterMovementResult {
         self.tick += 1;
         self.carriers.advance(self.tick);
         self.world.set_carrier_poses(&self.carriers);
@@ -97,6 +101,7 @@ impl Climber {
                 delta: TICK_SECS,
             },
             &CharacterEnvironment {
+                ladder_mode,
                 collision_world: &self.world,
                 gravity: TEST_GRAVITY,
                 passable_kinds: &[],
@@ -206,5 +211,16 @@ fn body_behind_a_moving_ladder_is_not_carried_by_it() {
     let result = climber.step(Vec3::ZERO);
     assert_eq!(result.support, CharacterSupport::Airborne);
     assert!((result.position.x - start.x).abs() < 0.01);
+    assert_eq!(result.floor_velocity, Vec3::ZERO);
+}
+
+#[test]
+fn disabled_actor_does_not_ride_a_moving_ladder() {
+    let mut climber = Climber::new(Vec3::new(27.0, 6.0, 0.0), 30, 1.0);
+    let start = climber.position;
+    let result = climber.step_with_mode(Vec3::ZERO, LadderMode::Disabled);
+    assert_eq!(result.support, CharacterSupport::Airborne);
+    assert!((result.position.x - start.x).abs() < 0.01);
+    assert!(result.position.y < start.y);
     assert_eq!(result.floor_velocity, Vec3::ZERO);
 }

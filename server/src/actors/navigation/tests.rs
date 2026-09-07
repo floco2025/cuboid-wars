@@ -67,11 +67,11 @@ fn engagement_route_is_direct_across_open_floor() {
     let target = cell_center(10, 5, 8, 3);
 
     let route = nav
-        .engagement_route(&start, &target, 0.9, 0.9)
+        .engagement_route(&[], &start, &target, 0.9, 0.9)
         .expect("open-floor target should be reachable");
 
     assert_eq!(route.waypoints.len(), 1);
-    assert_eq!(route.waypoints.front(), Some(&target));
+    assert_eq!(route.waypoints.front().map(|point| &point.position), Some(&target));
 }
 
 #[test]
@@ -89,12 +89,12 @@ fn engagement_route_keeps_a_turn_around_a_wall() {
     let target = cell_center(3, 2, 2, 0);
 
     let route = nav
-        .engagement_route(&start, &target, 0.5, 0.5)
+        .engagement_route(&[], &start, &target, 0.5, 0.5)
         .expect("target should be reachable around the wall");
 
     assert!(route.waypoints.len() > 1);
-    assert_ne!(route.waypoints.front(), Some(&target));
-    assert_eq!(route.waypoints.back(), Some(&target));
+    assert_ne!(route.waypoints.front().map(|point| &point.position), Some(&target));
+    assert_eq!(route.waypoints.back().map(|point| &point.position), Some(&target));
 }
 
 #[test]
@@ -121,12 +121,12 @@ fn cover_route_chooses_nearest_adequate_cover() {
     let far_cover = cell_center(6, 1, 5, 0);
 
     let route = nav
-        .safe_cover_route(&start, &[threat], |candidate| {
+        .safe_cover_route(&[], &start, &[threat], |candidate| {
             *candidate == near_cover || *candidate == far_cover
         })
         .expect("both cover nodes should be reachable");
 
-    assert_eq!(route.waypoints.back(), Some(&near_cover));
+    assert_eq!(route.waypoints.back().map(|point| &point.position), Some(&near_cover));
 }
 
 #[test]
@@ -135,7 +135,7 @@ fn no_cover_in_reach_finds_no_cover_route() {
     let threat = cell_center(5, 1, 0, 0);
     let start = cell_center(5, 1, 4, 0);
 
-    let route = nav.safe_cover_route(&start, &[threat], |_| false);
+    let route = nav.safe_cover_route(&[], &start, &[threat], |_| false);
 
     assert!(route.is_none());
 }
@@ -147,7 +147,7 @@ fn cover_beyond_the_search_budget_is_not_found() {
     let start = cell_center(30, 1, 1, 0);
     let remote_cover = cell_center(30, 1, 20, 0);
 
-    let route = nav.safe_cover_route(&start, &[threat], |candidate| *candidate == remote_cover);
+    let route = nav.safe_cover_route(&[], &start, &[threat], |candidate| *candidate == remote_cover);
 
     assert!(route.is_none());
 }
@@ -161,9 +161,13 @@ fn flee_route_runs_away_from_the_threat_within_the_budget() {
 
     for _ in 0..8 {
         let route = nav
-            .flee_route(&start, &[threat], &mut rng)
+            .flee_route(&[], &start, &[threat], &mut rng)
             .expect("nowhere to run on an open strip");
-        let destination = route.waypoints.back().expect("a flight has a destination");
+        let destination = route
+            .waypoints
+            .back()
+            .map(|point| &point.position)
+            .expect("a flight has a destination");
         assert!(destination.horizontal_distance_sq(&threat) > start.horizontal_distance_sq(&threat));
         assert!(route.waypoints.len() <= COVER_SEARCH_MAX_STEPS);
     }
@@ -176,10 +180,10 @@ fn a_cornered_actor_still_flees_somewhere() {
     let start = cell_center(5, 1, 4, 0);
 
     let route = nav
-        .flee_route(&start, &[threat], &mut StdRng::seed_from_u64(1))
+        .flee_route(&[], &start, &[threat], &mut StdRng::seed_from_u64(1))
         .expect("nowhere to run from the corner");
 
-    assert_ne!(route.waypoints.back(), Some(&start));
+    assert_ne!(route.waypoints.back().map(|point| &point.position), Some(&start));
 }
 
 #[test]
@@ -191,13 +195,13 @@ fn cover_route_does_not_cross_the_threat_for_an_equivalent_destination() {
     let safe_side = cell_center(5, 3, 4, 0);
 
     let route = nav
-        .safe_cover_route(&start, &[threat], |candidate| {
+        .safe_cover_route(&[], &start, &[threat], |candidate| {
             *candidate == across_threat || *candidate == safe_side
         })
         .expect("a threat-avoiding cover route should exist");
 
-    assert_eq!(route.waypoints.back(), Some(&safe_side));
-    assert!(!route.waypoints.contains(&threat));
+    assert_eq!(route.waypoints.back().map(|point| &point.position), Some(&safe_side));
+    assert!(!route.waypoints.iter().any(|point| point.position == threat));
 }
 
 #[test]
@@ -234,15 +238,23 @@ fn cover_route_uses_world_occlusion() {
     let player_center = Vec3::new(threat.x, threat.y + 0.8, threat.z);
 
     let route = nav
-        .safe_cover_route(&start, &[threat], |candidate| {
+        .safe_cover_route(&[], &start, &[threat], |candidate| {
             !world.line_of_sight_clear(actor_eye(candidate), player_center)
         })
         .expect("cover behind the wall is reachable around its end");
 
-    assert!(!world.line_of_sight_clear(
-        actor_eye(route.waypoints.back().expect("cover route has a destination")),
-        player_center,
-    ));
+    assert!(
+        !world.line_of_sight_clear(
+            actor_eye(
+                route
+                    .waypoints
+                    .back()
+                    .map(|point| &point.position)
+                    .expect("cover route has a destination")
+            ),
+            player_center,
+        )
+    );
 }
 
 #[test]
@@ -652,10 +664,15 @@ fn path_uses_ramp_top_to_change_levels() {
         ..cell_center(1, 2, 0, 1)
     };
     let engagement = nav
-        .engagement_route(&start, &target, 0.5, 0.5)
+        .engagement_route(&[], &start, &target, 0.5, 0.5)
         .expect("engagement route should preserve the ramp transition");
     assert!(engagement.waypoints.len() > 1);
-    assert!(engagement.waypoints.iter().any(|waypoint| waypoint.y < LEVEL_HEIGHT));
+    assert!(
+        engagement
+            .waypoints
+            .iter()
+            .any(|waypoint| waypoint.position.y < LEVEL_HEIGHT)
+    );
 }
 
 // Two cells side by side per row; a wall on the shared grid line covers
@@ -716,14 +733,17 @@ fn route_start_detours_via_the_cell_centre_when_the_first_leg_clips_a_wall_end()
     };
     let target = cell_center(2, 2, 0, 0);
     let mut route = nav
-        .engagement_route(&start, &target, 0.9, 0.7)
+        .engagement_route(&[], &start, &target, 0.9, 0.7)
         .expect("the cell north of the start is adjacent");
 
-    nav.anchor_route_start(&start, &mut route, &world, body(1.8, 1.4), CarrierPose::IDENTITY);
+    nav.anchor_route_start(&[], &start, &mut route, &world, body(1.8, 1.4), CarrierPose::IDENTITY);
 
     assert_eq!(route.waypoints.len(), 2);
-    assert_eq!(route.waypoints.front(), Some(&cell_center(2, 2, 0, 1)));
-    assert_eq!(route.waypoints.back(), Some(&target));
+    assert_eq!(
+        route.waypoints.front().map(|point| &point.position),
+        Some(&cell_center(2, 2, 0, 1))
+    );
+    assert_eq!(route.waypoints.back().map(|point| &point.position), Some(&target));
 }
 
 #[test]
@@ -736,13 +756,13 @@ fn route_start_stays_direct_when_the_body_fits_past_the_wall_end() {
     };
     let target = cell_center(2, 2, 0, 0);
     let mut route = nav
-        .engagement_route(&start, &target, 0.15, 0.15)
+        .engagement_route(&[], &start, &target, 0.15, 0.15)
         .expect("the cell north of the start is adjacent");
 
-    nav.anchor_route_start(&start, &mut route, &world, body(0.3, 0.3), CarrierPose::IDENTITY);
+    nav.anchor_route_start(&[], &start, &mut route, &world, body(0.3, 0.3), CarrierPose::IDENTITY);
 
     assert_eq!(route.waypoints.len(), 1);
-    assert_eq!(route.waypoints.front(), Some(&target));
+    assert_eq!(route.waypoints.front().map(|point| &point.position), Some(&target));
 }
 
 // Regression for sentries parking at the mouth of the hotel's basement
@@ -784,18 +804,24 @@ fn shipping_map_sentry_recentres_before_entering_the_basement_ramp_trench() {
     let target = center(1, 0, 12);
     let mut route = nav
         .engagement_route(
+            &[],
             &start,
             &target,
             sentry.collider.width / 2.0,
             sentry.collider.depth / 2.0,
         )
         .expect("the lobby is reachable up the basement ramp");
-    let trench_entry = route.waypoints.front().copied().expect("route has a first leg");
+    let trench_entry = route
+        .waypoints
+        .front()
+        .map(|point| &point.position)
+        .copied()
+        .expect("route has a first leg");
     assert!(world.character_sweep_hits_wall(&start, &trench_entry, sentry));
 
-    nav.anchor_route_start(&start, &mut route, &world, sentry, CarrierPose::IDENTITY);
+    nav.anchor_route_start(&[], &start, &mut route, &world, sentry, CarrierPose::IDENTITY);
 
-    assert_eq!(route.waypoints.front(), Some(&base));
+    assert_eq!(route.waypoints.front().map(|point| &point.position), Some(&base));
     assert!(!world.character_sweep_hits_wall(&start, &base, sentry));
     assert!(!world.character_sweep_hits_wall(&base, &trench_entry, sentry));
 }

@@ -5,7 +5,7 @@ use common::{
     config::{CharacterPhysicsConfig, GameplayConfig},
     map::Carriers,
     physics::{
-        CharacterEnvironment, CharacterMovePlan, CharacterStep, CharacterVerticalVelocity, CollisionWorld,
+        CharacterEnvironment, CharacterMovePlan, CharacterStep, CharacterVerticalVelocity, CollisionWorld, LadderMode,
         blocking_character_move_plan, character_move_plan_is_blocked, step_character_movement,
     },
     protocol::{ActorId, ActorMarker, ActorMoveIntent, MapSettings, PlateState, PlayerMarker, Position},
@@ -100,6 +100,10 @@ pub(crate) fn plan_actor_moves(
                 delta,
             },
             &CharacterEnvironment {
+                ladder_mode: LadderMode::for_actor(
+                    gameplay_config.expect_actor(&info.kind).can_use_ladders,
+                    *move_intent,
+                ),
                 collision_world,
                 gravity: map_settings.movement.gravity,
                 passable_kinds: &plates.open_barrier_kinds,

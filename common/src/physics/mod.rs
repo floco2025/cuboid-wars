@@ -8,8 +8,8 @@ mod world;
 pub use barriers::passable_barrier_kinds;
 pub use characters::{
     AirborneMomentum, BallCharacterHit, CharacterEnvironment, CharacterMovePlan, CharacterMovementResult,
-    CharacterStep, CharacterSupport, CharacterVerticalVelocity, HitDirection, KnockbackVelocity, PlayerMovementStep,
-    ball_character_hit, ball_overlaps_character, blocking_character_move_plan, character_center,
+    CharacterStep, CharacterSupport, CharacterVerticalVelocity, HitDirection, KnockbackVelocity, LadderMode,
+    PlayerMovementStep, ball_character_hit, ball_overlaps_character, blocking_character_move_plan, character_center,
     character_move_plan_is_blocked, character_overlaps_item, character_paths_intersect, character_shape,
     character_vertical_ranges_overlap, knockback_decay_system, momentum_displacement, overlapping_character,
     player_control_velocity, player_jump_velocity, position_has_floor_support, step_character_movement,
@@ -24,4 +24,6 @@ pub use projectiles::{
     BarrierImpact, ProjectileEvent, ProjectileMotion, ProjectileSpawnInfo, SurfaceBounce, calculate_projectile_spawns,
     earliest_projectile_event, projectile_character_hit, projectile_overlaps_character,
 };
-pub use world::{CollisionWorld, ShapeCastHit, WorldSurfaceHit, carriers_advance_system, powered_bridges_sync_system};
+pub use world::{
+    CollisionWorld, LadderVolume, ShapeCastHit, WorldSurfaceHit, carriers_advance_system, powered_bridges_sync_system,
+};

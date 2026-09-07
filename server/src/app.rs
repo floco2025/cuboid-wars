@@ -63,7 +63,8 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
     let map_items = map_config.available_items(&random_items.pool, map_settings.weapons);
     let collision_world = CollisionWorld::from_map_layout(&map_layout, &barrier_kind_table);
     let carriers = Carriers::from_layout(&map_layout);
-    let nav_graphs = NavGraphs::new(&map_config);
+    let mut nav_graphs = NavGraphs::new(&map_config);
+    nav_graphs.add_ladder_routes(&map_layout, &map_settings, &server_gameplay_config);
     let air_graph = AirGraph::new(&map_config);
     validate_map_actor_kinds(&server_gameplay_config, &map_config)?;
     validate_map_quests(

@@ -50,7 +50,7 @@
     },
     "dim": {
       "sky_brightness": 48.0,
-      "ambient_brightness": 30.0,      
+      "ambient_brightness": 30.0,
       "moon_illuminance": 150.0,
       "moon_disc_luminance": 7.0,
       "moon_phase_percent": 100.0,
@@ -94,10 +94,7 @@
       }
     }
   },
-  "input": {
-    "mouse_sensitivity": 0.002,
-    "invert_y": false
-  },
+  "input": { "mouse_sensitivity": 0.002, "invert_y": false },
   "hud": {
     "reference_width": 1920.0,
     "show_diagnostics": true,
@@ -117,29 +114,16 @@
       "death_secs": 3.0,
       "max_entries": 5
     },
-    "message_feed": {
-      "entry_duration_secs": 10.0,
-      "max_entries": 10
-    },
-    "floating_labels": {
-      "height_above": 0.5
-    },
+    "message_feed": { "entry_duration_secs": 10.0, "max_entries": 10 },
+    "floating_labels": { "height_above": 0.5 },
     "health_bars": {
       "player_aspect": 0.056,
       "actor_aspect": 0.129,
       "player_list_width": 140.0,
       "player_list_height": 8.0
     },
-    "quest_panel": {
-      "card_width": 240.0,
-      "bar_height": 8.0
-    }
+    "quest_panel": { "card_width": 240.0, "bar_height": 8.0 }
   },
-  "grass": {
-    "enabled": true,
-    "tufts_per_m2": 16.0
-  },
-  "debug": {
-    "collider_boxes": false
-  }
+  "grass": { "enabled": true, "tufts_per_m2": 16.0 },
+  "debug": { "collider_boxes": false }
 }

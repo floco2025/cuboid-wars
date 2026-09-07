@@ -43,7 +43,9 @@ fn multi_waypoint_queue_plans_front_actor_before_rear_actor() {
     };
     let mut rear = ActorInfo::new(Entity::from_bits(1), 0, TEST_KIND.into(), CarrierId::WORLD);
     rear.route = Some(ActorRoute {
-        waypoints: [Position { x: 1.0, y: 0.0, z: 0.0 }, target].into(),
+        waypoints: [Position { x: 1.0, y: 0.0, z: 0.0 }, target]
+            .map(NavWaypoint::walk)
+            .into(),
         destination: target,
         destination_node: NavNode {
             level: 0,
@@ -53,7 +55,9 @@ fn multi_waypoint_queue_plans_front_actor_before_rear_actor() {
     });
     let mut front = ActorInfo::new(Entity::from_bits(2), 0, TEST_KIND.into(), CarrierId::WORLD);
     front.route = Some(ActorRoute {
-        waypoints: [Position { x: 9.0, y: 0.0, z: 0.0 }, target].into(),
+        waypoints: [Position { x: 9.0, y: 0.0, z: 0.0 }, target]
+            .map(NavWaypoint::walk)
+            .into(),
         destination: target,
         destination_node: NavNode {
             level: 0,

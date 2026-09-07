@@ -24,7 +24,7 @@ pub fn barriers_pulsate_system(
     let alpha_min = BARRIER_ALPHA_MIN;
     let alpha_max = BARRIER_ALPHA_MAX;
     let t = time.elapsed_secs();
-    for (idx, handle) in assets.material_handles().iter().enumerate() {
+    for (idx, handle) in assets.material_handles().enumerate() {
         let Some(mut mat) = materials.get_mut(handle) else {
             continue;
         };

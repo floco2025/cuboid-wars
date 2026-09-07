@@ -16,6 +16,7 @@ fn player_hits_wall_collider_from_collision_world() {
     let step = step_character_movement(
         character_step_toward(pos, motion, 1.0, pos.z, 0.1),
         &CharacterEnvironment {
+            ladder_mode: LadderMode::Automatic,
             collision_world: &collision_world,
             gravity: TEST_GRAVITY,
             passable_kinds: &[],
@@ -45,6 +46,7 @@ fn repeated_wall_pressure_does_not_leak_through_wall() {
     let first = step_character_movement(
         character_step_toward(pos, motion, 1.0, pos.z, 0.1),
         &CharacterEnvironment {
+            ladder_mode: LadderMode::Automatic,
             collision_world: &collision_world,
             gravity: TEST_GRAVITY,
             passable_kinds: &[],
@@ -57,6 +59,7 @@ fn repeated_wall_pressure_does_not_leak_through_wall() {
     let second = step_character_movement(
         character_step_toward(first.position, motion, 1.0, first.position.z, 0.1),
         &CharacterEnvironment {
+            ladder_mode: LadderMode::Automatic,
             collision_world: &collision_world,
             gravity: TEST_GRAVITY,
             passable_kinds: &[],
@@ -87,6 +90,7 @@ fn player_slides_along_wall_under_pressure() {
     let first = step_character_movement(
         character_step_toward(pos, motion, 1.0, pos.z, 0.1),
         &CharacterEnvironment {
+            ladder_mode: LadderMode::Automatic,
             collision_world: &collision_world,
             gravity: TEST_GRAVITY,
             passable_kinds: &[],
@@ -99,6 +103,7 @@ fn player_slides_along_wall_under_pressure() {
     let second = step_character_movement(
         character_step_toward(first.position, motion, 1.0, first.position.z + 1.0, 0.1),
         &CharacterEnvironment {
+            ladder_mode: LadderMode::Automatic,
             collision_world: &collision_world,
             gravity: TEST_GRAVITY,
             passable_kinds: &[],
@@ -129,6 +134,7 @@ fn falling_player_pushing_into_wall_keeps_falling() {
     let step = step_character_movement(
         character_step_toward(pos, motion, 30.394, 31.699, delta),
         &CharacterEnvironment {
+            ladder_mode: LadderMode::Automatic,
             collision_world: &collision_world,
             gravity: TEST_GRAVITY,
             passable_kinds: &[],
@@ -160,6 +166,7 @@ fn diagonal_wall_hit_slides_in_same_step() {
     let step = step_character_movement(
         character_step_toward(pos, motion, 1.0, 1.0, 0.1),
         &CharacterEnvironment {
+            ladder_mode: LadderMode::Automatic,
             collision_world: &collision_world,
             gravity: TEST_GRAVITY,
             passable_kinds: &[],
@@ -209,6 +216,7 @@ fn repeated_diagonal_wall_pressure_keeps_sliding() {
                 delta,
             },
             &CharacterEnvironment {
+                ladder_mode: LadderMode::Automatic,
                 collision_world: &collision_world,
                 gravity: TEST_GRAVITY,
                 passable_kinds: &[],
@@ -239,6 +247,7 @@ fn diagonal_wall_end_hit_slides_along_wall() {
     let step = step_character_movement(
         character_step_toward(pos, motion, 1.0, 1.0, 0.1),
         &CharacterEnvironment {
+            ladder_mode: LadderMode::Automatic,
             collision_world: &collision_world,
             gravity: TEST_GRAVITY,
             passable_kinds: &[],
@@ -258,6 +267,7 @@ fn diagonal_wall_end_hit_slides_along_wall() {
 fn jumping_while_pushing_into_a_wall_still_rises() {
     let collision_world = collision_world_with(&[test_wall()], &[lower_floor()], &[]);
     let env = CharacterEnvironment {
+        ladder_mode: LadderMode::Automatic,
         collision_world: &collision_world,
         gravity: TEST_GRAVITY,
         passable_kinds: &[],
@@ -308,6 +318,7 @@ fn jumping_while_pushing_into_a_wall_still_rises() {
 fn jumping_while_sliding_diagonally_along_a_wall_keeps_rising() {
     let collision_world = collision_world_with(&[test_wall()], &[lower_floor()], &[]);
     let env = CharacterEnvironment {
+        ladder_mode: LadderMode::Automatic,
         collision_world: &collision_world,
         gravity: TEST_GRAVITY,
         passable_kinds: &[],

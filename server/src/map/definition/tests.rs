@@ -17,7 +17,7 @@ use bevy::math::Vec3;
 use common::{
     config::PortalShotSettings,
     map::Carriers,
-    physics::{CollisionWorld, compute_portal_placement},
+    physics::{CollisionWorld, LadderMode, compute_portal_placement},
     protocol::{BarrierKindTable, BridgeKindId, BridgeKindTable, CarrierId, FaceMaterials, Position},
 };
 
@@ -581,11 +581,13 @@ fn assert_only_plate_barrier_allows_a_route(config: &MapConfig, carrier: Carrier
         z: grid.geometry.cell_center_z(0),
     };
     assert!(
-        nav.engagement_route(&position(0), &position(1), 0.2, 0.2).is_some(),
+        nav.engagement_route(&[], &position(0), &position(1), 0.2, 0.2)
+            .is_some(),
         "the red barrier's controlling plate must allow an actor route"
     );
     assert!(
-        nav.engagement_route(&position(1), &position(2), 0.2, 0.2).is_none(),
+        nav.engagement_route(&[], &position(1), &position(2), 0.2, 0.2)
+            .is_none(),
         "the blue barrier has no controlling plate and must block actor routes"
     );
 }
@@ -1347,6 +1349,7 @@ fn every_shipped_ladder_ascends_at_least_one_storey() {
                         delta: TICK_SECS,
                     },
                     &CharacterEnvironment {
+                        ladder_mode: LadderMode::Automatic,
                         collision_world: &world,
                         gravity: map_settings.movement.gravity,
                         passable_kinds: &[],
@@ -1445,6 +1448,7 @@ fn every_shipped_carrier_carries_a_standing_player_through_its_cycle() {
                         delta: TICK_SECS,
                     },
                     &CharacterEnvironment {
+                        ladder_mode: LadderMode::Automatic,
                         collision_world: &world,
                         gravity: map_settings.movement.gravity,
                         passable_kinds: &[],

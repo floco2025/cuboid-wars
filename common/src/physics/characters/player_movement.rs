@@ -8,6 +8,7 @@ use crate::{
 };
 
 use super::{
+    ladder::LadderMode,
     movement::{CharacterEnvironment, CharacterStep, step_character_movement},
     types::{AirborneMomentum, CharacterMovementResult, KnockbackVelocity, momentum_displacement},
 };
@@ -45,6 +46,7 @@ pub fn step_player_movement(mut step: PlayerMovementStep<'_>) -> CharacterMoveme
             delta: step.delta,
         },
         &CharacterEnvironment {
+            ladder_mode: LadderMode::Automatic,
             collision_world: step.collision_world,
             gravity: step.map_settings.gravity_for(step.has_low_gravity),
             passable_kinds: &passable_kinds,

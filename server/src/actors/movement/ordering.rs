@@ -58,8 +58,12 @@ pub(super) fn actor_route_distance(pos: &Position, info: Option<&ActorInfo>) -> 
     let mut distance = 0.0;
     let mut previous = *pos;
     for waypoint in &route.waypoints {
-        distance += previous.horizontal_distance_sq(waypoint).sqrt();
-        previous = *waypoint;
+        distance += if waypoint.is_walk() {
+            previous.horizontal_distance_sq(&waypoint.position).sqrt()
+        } else {
+            previous.distance_sq(&waypoint.position).sqrt()
+        };
+        previous = waypoint.position;
     }
     distance
 }

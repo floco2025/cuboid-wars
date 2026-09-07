@@ -75,6 +75,8 @@ pub fn character_paths_intersect(
 
     let options = ShapeCastOptions {
         max_time_of_impact: 1.0,
+        // Near-touching bodies can report a zero-time hit even while separating.
+        stop_at_penetration: false,
         ..ShapeCastOptions::default()
     };
 

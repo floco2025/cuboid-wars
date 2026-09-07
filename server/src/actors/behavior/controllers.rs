@@ -6,7 +6,9 @@ use crate::{
     config::ActorBeamAttackConfig,
 };
 
-use super::tick::{BehaviorContext, enter_evade, enter_roam_or_return, keep_or_install_engagement_route};
+use super::tick::{
+    BehaviorContext, enter_evade, enter_roam_or_return, install_ladder_engagement, keep_or_install_engagement_route,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(super) struct BeamStarted {
@@ -118,6 +120,9 @@ fn try_engage_attackable_player(info: &mut ActorInfo, context: &BehaviorContext<
     candidates.sort_by_key(|aware| Some(aware.id) != current_target);
 
     for aware in candidates {
+        if aware.support == CharacterSupport::Ladder && install_ladder_engagement(info, context, aware.id, aware.pos) {
+            return true;
+        }
         let attack_anchor = match aware.support {
             CharacterSupport::Ground => Some(aware.pos),
             CharacterSupport::Airborne if current_target == Some(aware.id) => aware.attack_anchor,

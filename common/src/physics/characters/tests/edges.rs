@@ -24,6 +24,7 @@ fn edge_overhang_slides_off_and_falls() {
         let step = step_character_movement(
             character_step_toward(pos, vertical_velocity, pos.x, pos.z, TICK_SECS),
             &CharacterEnvironment {
+                ladder_mode: LadderMode::Automatic,
                 collision_world: &collision_world,
                 gravity: TEST_GRAVITY,
                 passable_kinds: &[],
@@ -74,6 +75,7 @@ fn probe_grounded_near_edge_does_not_slide() {
         let step = step_character_movement(
             character_step_toward(pos, vertical_velocity, pos.x, pos.z, TICK_SECS),
             &CharacterEnvironment {
+                ladder_mode: LadderMode::Automatic,
                 collision_world: &collision_world,
                 gravity: TEST_GRAVITY,
                 passable_kinds: &[],
@@ -113,6 +115,7 @@ fn ground_snap_does_not_undo_a_step_onto_a_raised_edge() {
     let step = step_character_movement(
         character_step_toward(start, 0.0, start.x - 0.15, start.z, TICK_SECS),
         &CharacterEnvironment {
+            ladder_mode: LadderMode::Automatic,
             collision_world: &world,
             gravity: TEST_GRAVITY,
             passable_kinds: &[],
@@ -152,6 +155,7 @@ fn input_overrides_perch_slide() {
                 TICK_SECS,
             ),
             &CharacterEnvironment {
+                ladder_mode: LadderMode::Automatic,
                 collision_world: &collision_world,
                 gravity: TEST_GRAVITY,
                 passable_kinds: &[],
@@ -204,6 +208,7 @@ fn blocked_slide_keeps_velocity_zeroed() {
         let step = step_character_movement(
             character_step_toward(pos, vertical_velocity, pos.x, pos.z, TICK_SECS),
             &CharacterEnvironment {
+                ladder_mode: LadderMode::Automatic,
                 collision_world: &collision_world,
                 gravity: TEST_GRAVITY,
                 passable_kinds: &[],

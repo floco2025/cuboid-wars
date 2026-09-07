@@ -24,6 +24,7 @@ fn ladder_step(
     step_character_movement(
         character_step_toward(start, vertical_velocity, target_x, target_z, 0.1),
         &CharacterEnvironment {
+            ladder_mode: LadderMode::Automatic,
             collision_world: world,
             gravity: TEST_GRAVITY,
             passable_kinds: &[],
@@ -50,6 +51,7 @@ fn ladder_step_with_external_displacement(
             delta: 0.1,
         },
         &CharacterEnvironment {
+            ladder_mode: LadderMode::Automatic,
             collision_world: world,
             gravity: TEST_GRAVITY,
             passable_kinds: &[],

@@ -27,11 +27,8 @@ pub(super) fn desired_move(
             active_speed
         };
         return ActorDesire::Move {
-            intent: ActorMoveIntent::Moving {
-                direction: direction_toward(pos, &target),
-                speed,
-            },
-            target,
+            intent: target.movement_intent(pos, speed),
+            target: target.position,
         };
     }
     if let ActorMode::Engage { target_pos, .. } = info.mode {

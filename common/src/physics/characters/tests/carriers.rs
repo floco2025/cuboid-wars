@@ -102,6 +102,7 @@ fn ride(
             delta,
         },
         &CharacterEnvironment {
+            ladder_mode: LadderMode::Automatic,
             collision_world: world,
             gravity: TEST_GRAVITY,
             passable_kinds: &[],
@@ -908,6 +909,7 @@ fn a_sliding_wall_pushes_actor_bodies_too() {
                     delta: TICK_SECS,
                 },
                 &CharacterEnvironment {
+                    ladder_mode: LadderMode::Automatic,
                     collision_world: &world,
                     gravity: TEST_GRAVITY,
                     passable_kinds: &[],

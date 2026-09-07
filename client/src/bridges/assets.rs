@@ -2,15 +2,16 @@ use bevy::prelude::*;
 
 use crate::{
     constants::{BRIDGE_ALPHA_OFF, BRIDGE_EMISSIVE},
-    vfx::{srgb_color, translucent_kind_material, with_white_vertex_colors},
+    map::{FieldMaterials, FieldMeshes},
+    vfx::srgb_color,
 };
 use common::protocol::{BridgeKindId, KindDef};
 
 // Sharing each kind's material keeps every bridge of that kind fading together.
 #[derive(Resource)]
 pub struct BridgeAssets {
-    pub(super) mesh: Handle<Mesh>,
-    pub(super) materials: Vec<Handle<StandardMaterial>>,
+    pub(super) meshes: FieldMeshes,
+    pub(super) fields: Vec<FieldMaterials>,
     // sRGB colors as configured; the fade system rebuilds `base_color` from
     // these with the current alpha.
     pub(super) base_colors: Vec<Color>,
@@ -18,11 +19,11 @@ pub struct BridgeAssets {
 
 impl BridgeAssets {
     pub fn material_for(&self, kind: BridgeKindId) -> &Handle<StandardMaterial> {
-        &self.materials[usize::from(kind.0)]
+        &self.fields[usize::from(kind.0)].surface
     }
 
-    pub fn material_handles(&self) -> &[Handle<StandardMaterial>] {
-        &self.materials
+    pub fn material_handles(&self) -> impl Iterator<Item = &Handle<StandardMaterial>> {
+        self.fields.iter().map(|field| &field.surface)
     }
 
     pub fn base_color(&self, kind: BridgeKindId) -> Color {
@@ -35,22 +36,20 @@ pub fn build_bridge_assets(
     materials: &mut Assets<StandardMaterial>,
     kinds: &[KindDef],
 ) -> BridgeAssets {
-    let mesh = meshes.add(with_white_vertex_colors(
-        Plane3d::default().mesh().size(1.0, 1.0).build(),
-    ));
+    let meshes = FieldMeshes::new(meshes);
 
     let mut handles = Vec::with_capacity(kinds.len());
     let mut base_colors = Vec::with_capacity(kinds.len());
     for kind in kinds {
         let color = srgb_color(kind.color);
-        handles.push(materials.add(translucent_kind_material(color, BRIDGE_ALPHA_OFF, BRIDGE_EMISSIVE)));
+        handles.push(FieldMaterials::new(materials, color, BRIDGE_ALPHA_OFF, BRIDGE_EMISSIVE));
         base_colors.push(color);
     }
     assert_eq!(handles.len(), base_colors.len());
 
     BridgeAssets {
-        mesh,
-        materials: handles,
+        meshes,
+        fields: handles,
         base_colors,
     }
 }
@@ -62,7 +61,7 @@ mod tests {
     use common::protocol::HexColor;
 
     #[test]
-    fn bridges_are_horizontal_double_sided_quads() {
+    fn bridges_use_double_sided_quads_and_solid_frames() {
         let mut meshes = Assets::default();
         let mut materials = Assets::default();
         let kinds = [KindDef {
@@ -70,7 +69,7 @@ mod tests {
             color: HexColor([0, 0, 255]),
         }];
         let assets = build_bridge_assets(&mut meshes, &mut materials, &kinds);
-        let mesh = meshes.get(&assets.mesh).expect("bridge mesh missing");
+        let mesh = meshes.get(&assets.meshes.panel).expect("bridge mesh missing");
         let positions = mesh
             .attribute(Mesh::ATTRIBUTE_POSITION)
             .and_then(|a| a.as_float3())
@@ -79,7 +78,7 @@ mod tests {
         assert!(
             positions
                 .iter()
-                .all(|p| p[0].abs() == 0.5 && p[1] == 0.0 && p[2].abs() == 0.5)
+                .all(|p| p[0].abs() == 0.5 && p[1].abs() == 0.5 && p[2] == 0.0)
         );
         assert_eq!(mesh.indices().map(Indices::len), Some(6));
         assert!(mesh.contains_attribute(Mesh::ATTRIBUTE_COLOR));
@@ -91,5 +90,11 @@ mod tests {
         assert_eq!(material.cull_mode, None);
         assert_eq!(material.alpha_mode, AlphaMode::Blend);
         assert_eq!(material.base_color.alpha(), BRIDGE_ALPHA_OFF);
+        let frame = materials
+            .get(&assets.fields[0].frame)
+            .expect("bridge frame material missing");
+        assert_eq!(frame.alpha_mode, AlphaMode::Opaque);
+        assert!(frame.unlit);
+        assert_eq!(frame.base_color, assets.base_color(BridgeKindId(0)));
     }
 }

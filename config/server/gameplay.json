@@ -3,8 +3,17 @@
   "maps": {
     "hotel": {
       "skybox": "cloudy_day",
-      "portal_shots": { "barriers_block": true, "light_bridges_block": true, "erasers_block": true },
-      "geometry": { "grid_cell_size": 3.4, "level_height": 4.4, "floor_thickness": 0.4, "wall_thickness": 0.3 },
+      "portal_shots": {
+        "barriers_block": true,
+        "light_bridges_block": true,
+        "erasers_block": true
+      },
+      "geometry": {
+        "grid_cell_size": 3.4,
+        "level_height": 4.4,
+        "floor_thickness": 0.4,
+        "wall_thickness": 0.3
+      },
       "weather": "auto",
       "lighting": "auto",
       "movement": {
@@ -25,25 +34,40 @@
         "projectile_speed": 90.0,
         "missile_speed": 16.0,
         "ladder_climb_ratio": 0.4,
-        "knockback": { "max_speed": 15.0, "up_speed": 7.0, "deceleration": 35.0 }
+        "knockback": {
+          "max_speed": 15.0,
+          "up_speed": 7.0,
+          "deceleration": 35.0
+        }
       },
-      "weapons": {
-        "projectiles": true,
-        "portals": "both"
-      },
+      "weapons": { "projectiles": true, "portals": "both" },
       "barrier_kinds": [
         { "id": "treasure", "color": "#ff3333" },
         { "id": "basement", "color": "#f0c020" },
         { "id": "gravity", "color": "#5090ff" },
         { "id": "lobby", "color": "#22cc33" }
       ],
-      "bridge_kinds": [ ],
+      "bridge_kinds": [],
       "random_items": {
-        "types": [ "speed", "multi_shot", "low_gravity", "portal_gun", "health_potion", "missile_pack" ],
+        "types": [
+          "speed",
+          "multi_shot",
+          "low_gravity",
+          "portal_gun",
+          "health_potion",
+          "missile_pack"
+        ],
         "max_number": 30,
         "despawn_secs": 60.0
       },
-      "power_ups": { "duration_secs": { "speed": 30.0, "multi_shot": 25.0, "low_gravity": 20.0, "portal_gun": 25.0 } },
+      "power_ups": {
+        "duration_secs": {
+          "speed": 30.0,
+          "multi_shot": 25.0,
+          "low_gravity": 20.0,
+          "portal_gun": 25.0
+        }
+      },
       "placed_items": {
         "respawn_secs": {
           "speed": 60.0,
@@ -121,8 +145,17 @@
     },
     "obby": {
       "skybox": "cloudy_day",
-      "portal_shots": { "barriers_block": true, "light_bridges_block": true, "erasers_block": true },
-      "geometry": { "grid_cell_size": 4.0, "level_height": 2.4, "floor_thickness": 0.4, "wall_thickness": 0.4 },
+      "portal_shots": {
+        "barriers_block": true,
+        "light_bridges_block": true,
+        "erasers_block": true
+      },
+      "geometry": {
+        "grid_cell_size": 4.0,
+        "level_height": 2.4,
+        "floor_thickness": 0.4,
+        "wall_thickness": 0.4
+      },
       "weather": "clear",
       "lighting": "bright",
       "movement": {
@@ -143,15 +176,14 @@
         "projectile_speed": 90.0,
         "missile_speed": 16.0,
         "ladder_climb_ratio": 0.4,
-        "knockback": { "max_speed": 15.0, "up_speed": 7.0, "deceleration": 35.0 }
+        "knockback": {
+          "max_speed": 15.0,
+          "up_speed": 7.0,
+          "deceleration": 35.0
+        }
       },
-      "weapons": {
-        "projectiles": true,
-        "portals": "single"
-      },
-      "barrier_kinds": [
-        { "id": "barrier_1", "color": "#f0c020" }
-      ],
+      "weapons": { "projectiles": true, "portals": "single" },
+      "barrier_kinds": [{ "id": "barrier_1", "color": "#f0c020" }],
 
       "bridge_kinds": [
         { "id": "bridge_1", "color": "#30d8ff" },
@@ -159,7 +191,14 @@
         { "id": "bridge_3", "color": "#30d8ff" }
       ],
       "random_items": null,
-      "power_ups": { "duration_secs": { "speed": 0.0, "multi_shot": 0.0, "low_gravity": 0.0, "portal_gun": 0.0 } },
+      "power_ups": {
+        "duration_secs": {
+          "speed": 0.0,
+          "multi_shot": 0.0,
+          "low_gravity": 0.0,
+          "portal_gun": 0.0
+        }
+      },
       "placed_items": {
         "respawn_secs": {
           "speed": 5.0,
@@ -172,12 +211,21 @@
           "portal_gun": 5.0
         }
       },
-      "quests": [ ]
+      "quests": []
     },
     "relay": {
       "skybox": "cloudy_day",
-      "portal_shots": { "barriers_block": true, "light_bridges_block": true, "erasers_block": true },
-      "geometry": { "grid_cell_size": 4.0, "level_height": 4.0, "floor_thickness": 0.4, "wall_thickness": 0.4 },
+      "portal_shots": {
+        "barriers_block": true,
+        "light_bridges_block": true,
+        "erasers_block": true
+      },
+      "geometry": {
+        "grid_cell_size": 4.0,
+        "level_height": 4.0,
+        "floor_thickness": 0.4,
+        "wall_thickness": 0.4
+      },
       "weather": "clear",
       "lighting": "bright",
       "movement": {
@@ -198,22 +246,28 @@
         "projectile_speed": 90.0,
         "missile_speed": 16.0,
         "ladder_climb_ratio": 0.6,
-        "knockback": { "max_speed": 15.0, "up_speed": 7.0, "deceleration": 35.0 }
+        "knockback": {
+          "max_speed": 15.0,
+          "up_speed": 7.0,
+          "deceleration": 35.0
+        }
       },
-      "weapons": {
-        "projectiles": false,
-        "portals": "both"
-      },
+      "weapons": { "projectiles": false, "portals": "both" },
       "barrier_kinds": [
         { "id": "sightline", "color": "#30d8ff" },
         { "id": "amber", "color": "#f0c020" },
         { "id": "blue", "color": "#5090ff" }
       ],
-      "bridge_kinds": [
-        { "id": "power", "color": "#22cc33" }
-      ],
+      "bridge_kinds": [{ "id": "power", "color": "#22cc33" }],
       "random_items": null,
-      "power_ups": { "duration_secs": { "speed": 0.0, "multi_shot": 0.0, "low_gravity": 0.0, "portal_gun": 0.0 } },
+      "power_ups": {
+        "duration_secs": {
+          "speed": 0.0,
+          "multi_shot": 0.0,
+          "low_gravity": 0.0,
+          "portal_gun": 0.0
+        }
+      },
       "placed_items": {
         "respawn_secs": {
           "speed": 5.0,
@@ -252,34 +306,144 @@
           "completed_text": "Relay online!"
         }
       ]
+    },
+    "switchyard": {
+      "skybox": "cloudy_day",
+      "portal_shots": {
+        "barriers_block": true,
+        "light_bridges_block": true,
+        "erasers_block": true
+      },
+      "geometry": {
+        "grid_cell_size": 4.0,
+        "level_height": 4.0,
+        "floor_thickness": 0.4,
+        "wall_thickness": 0.4
+      },
+      "weather": "clear",
+      "lighting": "bright",
+      "movement": {
+        "gravity": 24.0,
+        "low_gravity": 13.2,
+        "player": {
+          "walk_speed": 4.5,
+          "run_speed": 6.0,
+          "speed_power_up": 1.5,
+          "jump_speed": 8.0
+        },
+        "actors": {
+          "mine": { "roam_speed": 3.0, "active_speed": 5.0 },
+          "reaper": { "roam_speed": 5.0, "active_speed": 8.0 },
+          "sentry": { "roam_speed": 5.0, "active_speed": 8.0 },
+          "zapper": { "roam_speed": 2.0, "active_speed": 4.0 }
+        },
+        "projectile_speed": 90.0,
+        "missile_speed": 16.0,
+        "ladder_climb_ratio": 0.6,
+        "knockback": {
+          "max_speed": 15.0,
+          "up_speed": 7.0,
+          "deceleration": 35.0
+        }
+      },
+      "weapons": { "projectiles": false, "portals": "both" },
+      "barrier_kinds": [
+        { "id": "customs", "color": "#f0c020" },
+        { "id": "dispatch", "color": "#5090ff" }
+      ],
+      "bridge_kinds": [{ "id": "freight", "color": "#30d8ff" }],
+      "random_items": null,
+      "power_ups": {
+        "duration_secs": {
+          "speed": 0.0,
+          "multi_shot": 0.0,
+          "low_gravity": 0.0,
+          "portal_gun": 0.0
+        }
+      },
+      "placed_items": {
+        "respawn_secs": {
+          "speed": 5.0,
+          "multi_shot": 5.0,
+          "low_gravity": 5.0,
+          "health_potion": 5.0,
+          "cookie": 86400.0,
+          "key": 3.0,
+          "missile_pack": 5.0,
+          "portal_gun": 3.0
+        }
+      },
+      "quests": [
+        {
+          "id": "freight_seals",
+          "kind": "cookies",
+          "scope": "shared",
+          "requires": null,
+          "actor_kind": null,
+          "threshold": 3,
+          "points": 1500,
+          "title": "Three Freight Seals",
+          "description": "Recover three gold seals. Keep the customs key out of the violet field. The bridge switch travels with its platform.",
+          "completed_text": "All freight sealed. The signal balcony is ready!"
+        },
+        {
+          "id": "dispatch_signal",
+          "kind": "fireworks",
+          "scope": "shared",
+          "requires": "freight_seals",
+          "actor_kind": null,
+          "threshold": 1,
+          "points": 2000,
+          "title": "Clear for Departure",
+          "description": "Ride the shuttle roof to the signal balcony and launch the departure fireworks.",
+          "completed_text": "Switchyard cleared for departure!"
+        }
+      ]
     }
   },
   "player": {
-    "collider": { "width": 1.0, "height": 1.3, "depth": 0.6, "y_offset": 0.5, "y_offset_anchor": "bottom" },
+    "collider": {
+      "width": 1.0,
+      "height": 1.3,
+      "depth": 0.6,
+      "y_offset": 0.5,
+      "y_offset_anchor": "bottom"
+    },
     "support_probe": { "width": 0.2, "depth": 0.2 },
     "eye_height": 1.62,
     "respawn_secs": 2.0
   },
   "actors": {
-    "settings": {
-      "spawn_warning_secs": 3.0,
-      "threat_memory_secs": 1.0
-    },
+    "settings": { "spawn_warning_secs": 3.0, "threat_memory_secs": 1.0 },
     "kinds": {
       "mine": {
-        "collider": { "width": 1.0, "height": 1.0, "depth": 1.0, "y_offset": 1.1, "y_offset_anchor": "center" },
+        "collider": {
+          "width": 1.0,
+          "height": 1.0,
+          "depth": 1.0,
+          "y_offset": 1.1,
+          "y_offset_anchor": "center"
+        },
         "support_probe": { "width": 0.2, "depth": 0.2 },
         "eye_height": 1.6,
         "respawn_secs": 90.0,
+        "can_use_ladders": false,
         "vision_range": 60.0,
         "roam_steps": 3,
         "attack": { "type": "contact", "trigger_gap": 0.4 }
       },
       "reaper": {
-        "collider": { "width": 2.142, "height": 1.2, "depth": 1.7136, "y_offset": 0.54, "y_offset_anchor": "bottom" },
+        "collider": {
+          "width": 2.142,
+          "height": 1.2,
+          "depth": 1.7136,
+          "y_offset": 0.54,
+          "y_offset_anchor": "bottom"
+        },
         "support_probe": { "width": 0.2, "depth": 0.2 },
         "eye_height": 1.92,
         "respawn_secs": 90.0,
+        "can_use_ladders": false,
         "vision_range": 60.0,
         "roam_steps": 7,
         "attack": {
@@ -291,19 +455,33 @@
         }
       },
       "sentry": {
-        "collider": { "width": 1.785, "height": 1.0, "depth": 1.428, "y_offset": 0.45, "y_offset_anchor": "bottom" },
+        "collider": {
+          "width": 1.785,
+          "height": 1.0,
+          "depth": 1.428,
+          "y_offset": 0.45,
+          "y_offset_anchor": "bottom"
+        },
         "support_probe": { "width": 0.2, "depth": 0.2 },
         "eye_height": 1.6,
         "respawn_secs": 90.0,
+        "can_use_ladders": false,
         "vision_range": 60.0,
         "roam_steps": 7,
         "attack": { "type": "contact", "trigger_gap": 0.8 }
       },
       "zapper": {
-        "collider": { "width": 0.3, "height": 0.3, "depth": 0.3, "y_offset": 1.45, "y_offset_anchor": "center" },
+        "collider": {
+          "width": 0.3,
+          "height": 0.3,
+          "depth": 0.3,
+          "y_offset": 1.45,
+          "y_offset_anchor": "center"
+        },
         "support_probe": { "width": 0.2, "depth": 0.2 },
         "eye_height": 1.6,
         "respawn_secs": 180.0,
+        "can_use_ladders": false,
         "vision_range": 40.0,
         "roam_steps": 2,
         "attack": {
@@ -326,27 +504,27 @@
       "bounce_retention": 0.85,
       "multi_shot": {
         "spread_degrees": 1.2,
-        "allowed_patterns": [ "star_4", "line_5" ],
+        "allowed_patterns": ["star_4", "line_5"],
         "patterns": {
           "dice_5": {
             "column_scale": 1.0,
             "row_scale": 1.0,
-            "stencil": [ "x.x", ".o.", "x.x" ]
+            "stencil": ["x.x", ".o.", "x.x"]
           },
           "line_5": {
             "column_scale": 1.0,
             "row_scale": 1.0,
-            "stencil": [ "xxoxx" ]
+            "stencil": ["xxoxx"]
           },
           "star_4": {
             "column_scale": 1.0,
             "row_scale": 0.577,
-            "stencil": [ ".x.", "...", ".o.", "x.x" ]
+            "stencil": [".x.", "...", ".o.", "x.x"]
           },
           "triangle_3": {
             "column_scale": 1.0,
             "row_scale": 1.732,
-            "stencil": [ ".o.", "x.x" ]
+            "stencil": [".o.", "x.x"]
           }
         }
       }
@@ -364,9 +542,7 @@
       "stall_secs": 2.0,
       "missiles_per_pack": 1
     },
-    "portals": {
-      "range": 100.0
-    }
+    "portals": { "range": 100.0 }
   },
   "combat": {
     "health": {
@@ -384,10 +560,22 @@
       "missile_blast": { "radius": 6.0, "max_damage": 600.0 },
       "player_blast": { "radius": 10.0, "max_damage": 250.0 },
       "actors": {
-        "mine": { "beam_dps": null, "death_blast": { "radius": 10.0, "max_damage": 150.0 } },
-        "reaper": { "beam_dps": 40.0, "death_blast": { "radius": 15.0, "max_damage": 550.0 } },
-        "sentry": { "beam_dps": null, "death_blast": { "radius": 15.0, "max_damage": 300.0 } },
-        "zapper": { "beam_dps": 40.0, "death_blast": { "radius": 6.0, "max_damage": 75.0 } }
+        "mine": {
+          "beam_dps": null,
+          "death_blast": { "radius": 10.0, "max_damage": 150.0 }
+        },
+        "reaper": {
+          "beam_dps": 40.0,
+          "death_blast": { "radius": 15.0, "max_damage": 550.0 }
+        },
+        "sentry": {
+          "beam_dps": null,
+          "death_blast": { "radius": 15.0, "max_damage": 300.0 }
+        },
+        "zapper": {
+          "beam_dps": 40.0,
+          "death_blast": { "radius": 6.0, "max_damage": 75.0 }
+        }
       }
     }
   },
@@ -395,18 +583,8 @@
     "player_kill": 0,
     "player_death": -1000,
     "cookie": 100,
-    "actor_hit": {
-      "mine": 5,
-      "reaper": 20,
-      "sentry": 10,
-      "zapper": 50
-    },
-    "actor_kill": {
-      "mine": 50,
-      "reaper": 500,
-      "sentry": 200,
-      "zapper": 150
-    }
+    "actor_hit": { "mine": 5, "reaper": 20, "sentry": 10, "zapper": 50 },
+    "actor_kill": { "mine": 50, "reaper": 500, "sentry": 200, "zapper": 150 }
   },
   "cycles": {
     "weather": {
@@ -430,7 +608,12 @@
     "player_joined": true,
     "player_left": true,
     "player_died": true,
-    "actor_destroyed": { "mine": false, "reaper": false, "sentry": false, "zapper": false },
+    "actor_destroyed": {
+      "mine": false,
+      "reaper": false,
+      "sentry": false,
+      "zapper": false
+    },
     "key_found": true,
     "quest_completed": true,
     "quest_part_done": true,

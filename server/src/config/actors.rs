@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use anyhow::{Result, bail};
-use common::{config::CharacterGameplayConfig, protocol::ticks_from_secs};
+use common::{config::ActorGameplayConfig, protocol::ticks_from_secs};
 use serde::Deserialize;
 
 use super::validation::{deserialize_required_option, validate_non_negative_finite, validate_positive_finite};
@@ -49,7 +49,7 @@ impl ActorSettingsConfig {
 #[derive(Debug, Clone, Deserialize)]
 pub struct ActorKindServerConfig {
     #[serde(flatten)]
-    pub character: CharacterGameplayConfig,
+    pub character: ActorGameplayConfig,
     #[serde(deserialize_with = "deserialize_required_option")]
     pub respawn_secs: Option<f32>,
     pub vision_range: f32,
@@ -204,6 +204,7 @@ mod tests {
             },
             "support_probe": { "width": 0.2, "depth": 0.2 },
             "eye_height": 1.0,
+            "can_use_ladders": false,
             "vision_range": 10.0,
             "roam_steps": 2,
             "attack": { "type": "contact", "trigger_gap": 0.1 }

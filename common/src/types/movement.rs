@@ -76,14 +76,36 @@ pub enum ActorMoveIntent {
         direction: f32,
         speed: f32,
     },
+    Climbing {
+        direction: f32,
+        speed: f32,
+    },
+    ExitingLadder {
+        direction: f32,
+        speed: f32,
+    },
 }
 
 impl ActorMoveIntent {
+    pub const fn uses_ladders(self) -> bool {
+        matches!(self, Self::Climbing { .. } | Self::ExitingLadder { .. })
+    }
+
+    pub const fn holding_ladder(self) -> Self {
+        match self {
+            Self::ExitingLadder { direction, .. } => Self::ExitingLadder { direction, speed: 0.0 },
+            Self::Climbing { direction, .. } => Self::Climbing { direction, speed: 0.0 },
+            _ => Self::Idle,
+        }
+    }
+
     #[must_use]
     pub const fn direction(&self) -> Option<f32> {
         match self {
             Self::Idle => None,
-            Self::Moving { direction, .. } => Some(*direction),
+            Self::ExitingLadder { direction, .. }
+            | Self::Moving { direction, .. }
+            | Self::Climbing { direction, .. } => Some(*direction),
         }
     }
 
@@ -91,7 +113,9 @@ impl ActorMoveIntent {
     pub const fn speed(&self) -> Option<f32> {
         match self {
             Self::Idle => None,
-            Self::Moving { speed, .. } => Some(*speed),
+            Self::ExitingLadder { speed, .. } | Self::Moving { speed, .. } | Self::Climbing { speed, .. } => {
+                Some(*speed)
+            }
         }
     }
 
@@ -99,7 +123,9 @@ impl ActorMoveIntent {
     pub fn to_horizontal_velocity(&self) -> Vec3 {
         match self {
             Self::Idle => Vec3::ZERO,
-            Self::Moving { direction, speed } => Vec3::new(direction.sin() * speed, 0.0, direction.cos() * speed),
+            Self::ExitingLadder { direction, speed }
+            | Self::Moving { direction, speed }
+            | Self::Climbing { direction, speed } => Vec3::new(direction.sin() * speed, 0.0, direction.cos() * speed),
         }
     }
 }

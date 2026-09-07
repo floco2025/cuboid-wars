@@ -4,7 +4,7 @@ use crate::{config::ServerGameplayConfig, map::MapConfig};
 use anyhow::{Result, bail};
 use bevy::prelude::Resource;
 
-use super::{NavGraph, NavGraphs, NavNode};
+use super::{LadderLink, NavGraph, NavGraphs, NavNode};
 
 // A zone's roam region, in the frame of the zone's carrier.
 #[derive(Clone)]
@@ -29,7 +29,7 @@ impl ActorTerritories {
                 );
             }
             let kind = config.expect_actor(&zone.kind);
-            let roam = expand_region(graph, &seeds, kind.roam_steps);
+            let roam = expand_region(graph, graph.ladder_links(&zone.kind), &seeds, kind.roam_steps);
             let mut roam_nodes: Vec<_> = roam.iter().copied().collect();
             roam_nodes.sort_unstable();
             territories.push(ActorTerritory { roam, roam_nodes });
@@ -45,7 +45,7 @@ impl ActorTerritories {
     }
 }
 
-fn expand_region(graph: &NavGraph, seeds: &[NavNode], max_steps: usize) -> HashSet<NavNode> {
+fn expand_region(graph: &NavGraph, ladders: &[LadderLink], seeds: &[NavNode], max_steps: usize) -> HashSet<NavNode> {
     let mut depths: HashMap<NavNode, usize> = seeds.iter().copied().map(|node| (node, 0)).collect();
     let mut queue: VecDeque<_> = seeds.iter().copied().collect();
     while let Some(node) = queue.pop_front() {
@@ -53,7 +53,7 @@ fn expand_region(graph: &NavGraph, seeds: &[NavNode], max_steps: usize) -> HashS
         if depth >= max_steps {
             continue;
         }
-        for &next in graph.neighbors(node) {
+        for next in graph.route_neighbors(node, ladders) {
             if let std::collections::hash_map::Entry::Vacant(entry) = depths.entry(next) {
                 entry.insert(depth + 1);
                 queue.push_back(next);

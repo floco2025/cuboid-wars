@@ -8,7 +8,7 @@ use common::{
     protocol::{ActorId, ActorMarker, ActorMoveIntent, CarrierId, FaceYaw, Health, PlayerId, Position},
 };
 
-use super::navigation::{NavNode, PlannedRoute};
+use super::navigation::{NavNode, NavWaypoint, PlannedRoute, WaypointKind};
 use crate::watchdog::ProgressWatchdog;
 
 // Whether this tick's movement left the actor inside a carrier's geometry;
@@ -52,7 +52,7 @@ pub(crate) enum BeamState {
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct ActorRoute {
-    pub waypoints: VecDeque<Position>,
+    pub waypoints: VecDeque<NavWaypoint>,
     pub destination: Position,
     pub destination_node: NavNode,
 }
@@ -60,7 +60,7 @@ pub(crate) struct ActorRoute {
 impl ActorRoute {
     #[must_use]
     pub(crate) fn new(planned: PlannedRoute) -> Option<Self> {
-        let destination = *planned.waypoints.back()?;
+        let destination = planned.waypoints.back()?.position;
         Some(Self {
             waypoints: planned.waypoints,
             destination,
@@ -69,13 +69,21 @@ impl ActorRoute {
     }
 
     #[must_use]
-    pub fn next(&self) -> Option<Position> {
+    pub fn next(&self) -> Option<NavWaypoint> {
         self.waypoints.front().copied()
+    }
+
+    pub(crate) fn traversing_ladder(&self) -> bool {
+        self.next().is_some_and(|next| match next.kind {
+            WaypointKind::Walk => false,
+            WaypointKind::Climb { .. } => self.waypoints.len() > 1,
+            WaypointKind::Mount | WaypointKind::Exit => true,
+        })
     }
 
     pub(crate) fn retarget(&mut self, target: Position) {
         if let Some(last) = self.waypoints.back_mut() {
-            *last = target;
+            last.position = target;
             self.destination = target;
         }
     }

@@ -8,7 +8,7 @@ use std::f32::consts::FRAC_PI_3;
 
 use super::{
     geometry::{character_pose, character_shape, character_support_probe_shape},
-    ladder::evaluate_ladder_interaction,
+    ladder::{LadderMode, evaluate_ladder_interaction},
     support::{
         character_ground_hit, perch_slide_displacement, position_has_floor_support, project_move_onto_support,
         snap_position_to_ground, supporting_carrier,
@@ -69,6 +69,7 @@ pub struct CharacterEnvironment<'a> {
     pub passable_kinds: &'a [BarrierKindId],
     pub physics: CharacterPhysicsConfig,
     pub ladder_climb_ratio: f32,
+    pub ladder_mode: LadderMode,
     // Portal pass-through: while the body overlaps a linked aperture, its
     // backing colliders are excluded from this step's collision and support
     // queries. `None` for characters that cannot use portals (actors).
@@ -119,6 +120,7 @@ pub fn step_character_movement(step: CharacterStep, env: &CharacterEnvironment) 
         None => env
             .collision_world
             .carried_ladder_at_previous_pose(&step.start, env.carriers)
+            .filter(|_| env.ladder_mode != LadderMode::Disabled)
             .and_then(|(carrier, ladder)| {
                 let grounded = step.vertical_velocity <= 0.0
                     && character_ground_hit(
@@ -132,6 +134,7 @@ pub fn step_character_movement(step: CharacterStep, env: &CharacterEnvironment) 
                     .is_some();
                 evaluate_ladder_interaction(
                     Some(&ladder),
+                    env.ladder_mode,
                     &step.start,
                     step.vertical_velocity,
                     step.control_velocity,
@@ -234,7 +237,10 @@ fn prepare_movement_request(
         ..*start_pos
     };
     let ladder = evaluate_ladder_interaction(
-        collision_world.ladder_volume_at(&ladder_pos),
+        collision_world
+            .ladder_volume_at(&ladder_pos)
+            .filter(|_| env.ladder_mode != LadderMode::Disabled),
+        env.ladder_mode,
         &ladder_pos,
         step.vertical_velocity,
         step.control_velocity,
@@ -245,7 +251,9 @@ fn prepare_movement_request(
     let ascending_ladder = ladder.is_ascending();
     // Climbing suppresses ground following: without this, the ground snap
     // below would glue the first climb tick back onto the base floor.
-    let can_follow_ground = step.vertical_velocity <= 0.0 && !ascending_ladder;
+    let can_follow_ground = step.vertical_velocity <= 0.0
+        && !ascending_ladder
+        && !(matches!(env.ladder_mode, LadderMode::Climb | LadderMode::Exit) && ladder.is_supported());
     let current_ground = if can_follow_ground { ground_probe } else { None };
     let next_vertical_velocity = if let Some(vertical_velocity) = ladder.vertical_velocity() {
         vertical_velocity
@@ -255,7 +263,7 @@ fn prepare_movement_request(
         (step.vertical_velocity - env.gravity * step.delta).max(-CHARACTER_TERMINAL_VELOCITY)
     };
 
-    let perch_slide_move = if can_follow_ground && current_ground.is_none() {
+    let perch_slide_move = if can_follow_ground && current_ground.is_none() && env.ladder_mode != LadderMode::Exit {
         perch_slide_displacement(
             collision_world,
             character_shape,
@@ -278,7 +286,12 @@ fn prepare_movement_request(
             step.delta,
         )
     });
-    let ladder_funnel = ladder.funnel_displacement(&ladder_pos, step.delta);
+    // Actor mount waypoints align them; pulling adjacent climbers together can stop both moves.
+    let ladder_funnel = if env.ladder_mode == LadderMode::Automatic {
+        ladder.funnel_displacement(&ladder_pos, step.delta)
+    } else {
+        Vec3::ZERO
+    };
     let target_x = step.control_velocity.x.mul_add(step.delta, start_pos.x)
         + step.external_displacement.x
         + carry_xz.x
@@ -289,7 +302,11 @@ fn prepare_movement_request(
         + carry_xz.z
         + portal_funnel.z
         + ladder_funnel.z;
-    let (target_x, target_z) = ladder.constrain_target(&ladder_pos, target_x, target_z, collision_world, physics);
+    let (target_x, target_z) = if matches!(env.ladder_mode, LadderMode::Automatic | LadderMode::Climb) {
+        ladder.constrain_target(&ladder_pos, target_x, target_z, collision_world, physics)
+    } else {
+        (target_x, target_z)
+    };
     let requested_target = Position {
         x: target_x,
         y: next_vertical_velocity.mul_add(step.delta, start_pos.y),

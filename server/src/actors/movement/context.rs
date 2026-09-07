@@ -4,7 +4,7 @@ use common::{
     map::Carriers,
     physics::{
         CharacterEnvironment, CharacterMovePlan, CharacterMovementResult, CharacterStep, CharacterSupport,
-        CollisionWorld, character_move_plan_is_blocked, step_character_movement,
+        CollisionWorld, LadderMode, character_move_plan_is_blocked, step_character_movement,
     },
     protocol::{ActorMoveIntent, BarrierKindId, Position},
 };
@@ -34,6 +34,7 @@ pub(super) struct ActorMoveContext<'a> {
     pub(super) open_barrier_kinds: &'a [BarrierKindId],
     pub(super) gravity: f32,
     pub(super) ladder_climb_ratio: f32,
+    pub(super) can_use_ladders: bool,
     pub(super) knockback_step: Vec3,
     // The actor's own carrier's travel this tick, zero for the world.
     pub(super) carrier_step: Vec3,
@@ -42,7 +43,11 @@ pub(super) struct ActorMoveContext<'a> {
 
 impl ActorMoveContext<'_> {
     pub(super) fn idle_move(&self) -> SelectedActorMove {
-        let intent = ActorMoveIntent::Idle;
+        self.hold_move(ActorMoveIntent::Idle)
+    }
+
+    pub(super) fn hold_move(&self, intent: ActorMoveIntent) -> SelectedActorMove {
+        let intent = intent.holding_ladder();
         SelectedActorMove {
             intent,
             step: self.step_actor_move(intent),
@@ -87,6 +92,7 @@ impl ActorMoveContext<'_> {
                 delta: self.delta,
             },
             &CharacterEnvironment {
+                ladder_mode: LadderMode::for_actor(self.can_use_ladders, move_intent),
                 collision_world: self.collision_world,
                 gravity: self.gravity,
                 passable_kinds: self.open_barrier_kinds,

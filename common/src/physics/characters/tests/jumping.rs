@@ -37,6 +37,7 @@ fn upward_jump_velocity_moves_player_above_support() {
     let step = step_character_movement(
         character_step_toward(pos, motion, pos.x, pos.z, 0.1),
         &CharacterEnvironment {
+            ladder_mode: LadderMode::Automatic,
             collision_world: &collision_world,
             gravity: TEST_GRAVITY,
             passable_kinds: &[],
@@ -61,6 +62,7 @@ fn landing_reports_ground_support() {
     let step = step_character_movement(
         character_step_toward(pos, -10.0, pos.x, pos.z, 0.1),
         &CharacterEnvironment {
+            ladder_mode: LadderMode::Automatic,
             collision_world: &collision_world,
             gravity: TEST_GRAVITY,
             passable_kinds: &[],
@@ -85,6 +87,7 @@ fn upward_motion_hits_floor_underside() {
     let step = step_character_movement(
         character_step_toward(pos, motion, pos.x, pos.z, 0.1),
         &CharacterEnvironment {
+            ladder_mode: LadderMode::Automatic,
             collision_world: &collision_world,
             gravity: TEST_GRAVITY,
             passable_kinds: &[],
@@ -110,6 +113,7 @@ fn initial_ceiling_contact_does_not_cancel_horizontal_movement() {
     let step = step_character_movement(
         character_step_toward(pos, motion, 0.5, pos.z, 0.1),
         &CharacterEnvironment {
+            ladder_mode: LadderMode::Automatic,
             collision_world: &collision_world,
             gravity: TEST_GRAVITY,
             passable_kinds: &[],
@@ -136,6 +140,7 @@ fn upward_motion_ignores_floor_underside_outside_footprint() {
     let step = step_character_movement(
         character_step_toward(pos, motion, pos.x, pos.z, 0.1),
         &CharacterEnvironment {
+            ladder_mode: LadderMode::Automatic,
             collision_world: &collision_world,
             gravity: TEST_GRAVITY,
             passable_kinds: &[],
@@ -164,6 +169,7 @@ fn upward_motion_under_floor_edge_hits_floor_side() {
     let step = step_character_movement(
         character_step_toward(pos, motion, -4.25, pos.z, 0.1),
         &CharacterEnvironment {
+            ladder_mode: LadderMode::Automatic,
             collision_world: &collision_world,
             gravity: TEST_GRAVITY,
             passable_kinds: &[],
@@ -192,6 +198,7 @@ fn player_on_floor_top_can_move_over_adjacent_floor_slab_edge() {
     let step = step_character_movement(
         character_step_toward(pos, motion, -3.75, pos.z, 0.1),
         &CharacterEnvironment {
+            ladder_mode: LadderMode::Automatic,
             collision_world: &collision_world,
             gravity: TEST_GRAVITY,
             passable_kinds: &[],

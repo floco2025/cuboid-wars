@@ -13,7 +13,8 @@ use crate::{
     math::angle_delta_radians,
     physics::{
         AirborneMomentum, CharacterMovementResult, CharacterSupport, CharacterVerticalVelocity, CollisionWorld,
-        KnockbackVelocity, ProjectileEvent, ProjectileMotion, earliest_projectile_event, momentum_displacement,
+        KnockbackVelocity, LadderMode, ProjectileEvent, ProjectileMotion, earliest_projectile_event,
+        momentum_displacement,
     },
     protocol::{
         Barrier, BarrierKindId, BarrierKindTable, BridgeKindId, Carrier, CarrierId, FaceYaw, Floor, LightBridge,
@@ -1454,6 +1455,7 @@ fn perpetual_floor_fall_keeps_its_speed_across_hops() {
         &Carriers::default(),
     );
     let env = CharacterEnvironment {
+        ladder_mode: LadderMode::Automatic,
         collision_world: &world,
         gravity: 25.0,
         passable_kinds: &[],
@@ -1547,6 +1549,7 @@ fn floor_to_ceiling_fall_accelerates_toward_terminal_velocity() {
         &Carriers::default(),
     );
     let env = CharacterEnvironment {
+        ladder_mode: LadderMode::Automatic,
         collision_world: &world,
         gravity: 25.0,
         passable_kinds: &[],
@@ -1700,6 +1703,7 @@ fn steering_sideways_escapes_a_portal_fall_chain() {
         &Carriers::default(),
     );
     let env = CharacterEnvironment {
+        ladder_mode: LadderMode::Automatic,
         collision_world: &world,
         gravity: 25.0,
         passable_kinds: &[],
@@ -1828,6 +1832,7 @@ fn floor_portal_funnel_is_symmetric_through_character_movement() {
         &Carriers::default(),
     );
     let env = CharacterEnvironment {
+        ladder_mode: LadderMode::Automatic,
         collision_world: &world,
         gravity: 25.0,
         passable_kinds: &[],
@@ -1931,6 +1936,7 @@ fn misaligned_fall_loop_is_sustained_by_funneling() {
         &Carriers::default(),
     );
     let env = CharacterEnvironment {
+        ladder_mode: LadderMode::Automatic,
         collision_world: &world,
         gravity: 25.0,
         passable_kinds: &[],
@@ -2103,6 +2109,7 @@ fn run_ticks(
     for tick in first_tick..first_tick + ticks {
         advance_tile(world, carriers, set, tick);
         let env = CharacterEnvironment {
+            ladder_mode: LadderMode::Automatic,
             collision_world: world,
             gravity: 25.0,
             passable_kinds: &[],

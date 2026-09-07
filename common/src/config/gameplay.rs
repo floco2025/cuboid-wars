@@ -6,7 +6,8 @@ use bincode::{Decode, Encode};
 use serde::Deserialize;
 
 use super::{
-    CharacterGameplayConfig, MissilesConfig, PortalsConfig, ProjectilesConfig, validation::validate_positive_finite,
+    ActorGameplayConfig, CharacterGameplayConfig, MissilesConfig, PortalsConfig, ProjectilesConfig,
+    validation::validate_positive_finite,
 };
 
 #[derive(Resource, Debug, Clone, Deserialize)]
@@ -15,7 +16,7 @@ pub struct GameplayConfig {
     pub projectiles: ProjectilesConfig,
     pub missiles: MissilesConfig,
     pub portals: PortalsConfig,
-    pub actors: HashMap<String, CharacterGameplayConfig>,
+    pub actors: HashMap<String, ActorGameplayConfig>,
 }
 
 impl GameplayConfig {
@@ -37,12 +38,12 @@ impl GameplayConfig {
     }
 
     #[must_use]
-    pub fn actor(&self, kind: &str) -> Option<&CharacterGameplayConfig> {
+    pub fn actor(&self, kind: &str) -> Option<&ActorGameplayConfig> {
         self.actors.get(kind)
     }
 
     #[must_use]
-    pub fn expect_actor(&self, kind: &str) -> &CharacterGameplayConfig {
+    pub fn expect_actor(&self, kind: &str) -> &ActorGameplayConfig {
         self.actor(kind).expect("actor kind missing from gameplay config")
     }
 }
@@ -62,7 +63,7 @@ pub(crate) fn load_test_gameplay() -> Result<GameplayConfig> {
 
     #[derive(Deserialize)]
     struct TestActorsSource {
-        kinds: HashMap<String, CharacterGameplayConfig>,
+        kinds: HashMap<String, ActorGameplayConfig>,
     }
 
     #[derive(Deserialize)]
@@ -105,7 +106,7 @@ pub struct PlayerGameplayBootstrap {
 
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct ActorGameplayBootstrap {
-    pub gameplay: CharacterGameplayConfig,
+    pub gameplay: ActorGameplayConfig,
     pub max_health: f32,
     pub death_blast_radius: f32,
 }
@@ -189,6 +190,22 @@ mod tests {
         let gameplay = bootstrap.gameplay_config().expect("bootstrap should validate");
         assert_eq!(gameplay.actors.len(), bootstrap.actors.len());
         assert!(gameplay.actor("zapper").is_some());
+    }
+
+    #[test]
+    fn actor_ladder_permission_survives_bootstrap_encoding() {
+        let mut bootstrap = gameplay_bootstrap();
+        for (_, actor) in &mut bootstrap.actors {
+            actor.gameplay.can_use_ladders = false;
+        }
+        bootstrap.actors[0].1.gameplay.can_use_ladders = true;
+        let bytes = bincode::encode_to_vec(&bootstrap, bincode::config::standard())
+            .expect("gameplay bootstrap encoding failed");
+        let (decoded, _): (GameplayBootstrap, _) = bincode::decode_from_slice(&bytes, bincode::config::standard())
+            .expect("gameplay bootstrap decoding failed");
+        let config = decoded.gameplay_config().expect("decoded gameplay invalid");
+        assert!(config.expect_actor(&bootstrap.actors[0].0).can_use_ladders);
+        assert!(!config.expect_actor(&bootstrap.actors[1].0).can_use_ladders);
     }
 
     #[test]

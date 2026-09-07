@@ -1,3 +1,4 @@
+mod actors;
 mod characters;
 pub mod gameplay;
 mod geometry;
@@ -8,6 +9,7 @@ mod portals;
 mod projectiles;
 mod validation;
 
+pub use actors::ActorGameplayConfig;
 pub use characters::{
     CharacterColliderAnchor, CharacterColliderConfig, CharacterGameplayConfig, CharacterPhysicsConfig,
     CharacterSupportProbeConfig,

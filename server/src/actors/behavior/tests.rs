@@ -12,7 +12,7 @@ use super::{
 use crate::{
     actors::{
         ActorInfo, ActorMode, ActorRoute, BeamState,
-        navigation::{ActorTerritories, NavGraph, NavGraphs},
+        navigation::{ActorTerritories, NavGraph, NavGraphs, NavWaypoint, WaypointKind},
     },
     config::ServerGameplayConfig,
     map::{ActorSpawnZone, CarrierGrid, CellGrid, EdgeGrid, LevelGrid, MapConfig},
@@ -235,7 +235,7 @@ fn contact_actor_pursues_reachable_player_outside_home_region() {
     let route = info.route.as_ref().expect("engagement should install a route");
     assert_eq!(route.destination, target);
     assert_eq!(route.waypoints.len(), 1);
-    assert_eq!(route.next(), Some(target));
+    assert_eq!(route.next().map(|point| point.position), Some(target));
 }
 
 #[test]
@@ -349,6 +349,7 @@ fn zapper_acquires_visible_cross_level_player_in_beam_range() {
         fixture
             .graph()
             .engagement_route(
+                &[],
                 &actor_pos,
                 &target,
                 zapper.physics().collider.width / 2.0,
@@ -731,7 +732,7 @@ fn evade_route_is_replaced_when_same_cell_threat_exposes_destination() {
     let mut info = info("mine");
     info.mode = ActorMode::Evade { fleeing: false };
     info.route = Some(ActorRoute {
-        waypoints: [destination].into(),
+        waypoints: [destination].map(NavWaypoint::walk).into(),
         destination,
         destination_node: fixture
             .graph()
@@ -859,7 +860,7 @@ fn unarmed_players_are_not_evaded() {
 fn route_through(waypoints: &[Position], fixture: &Fixture) -> ActorRoute {
     let destination = *waypoints.last().expect("route has a destination");
     ActorRoute {
-        waypoints: waypoints.iter().copied().collect(),
+        waypoints: waypoints.iter().copied().map(NavWaypoint::walk).collect(),
         destination,
         destination_node: fixture
             .graph()
@@ -890,7 +891,9 @@ fn overshot_waypoint_on_the_next_leg_is_skipped() {
     tick_route(&mut info, overshot, &fixture);
 
     assert_eq!(
-        info.route.as_ref().map(|route| route.waypoints.front().copied()),
+        info.route
+            .as_ref()
+            .map(|route| route.waypoints.front().map(|point| point.position)),
         Some(Some(second))
     );
 }
@@ -910,7 +913,9 @@ fn waypoint_ahead_on_the_next_leg_is_kept() {
     tick_route(&mut info, approaching, &fixture);
 
     assert_eq!(
-        info.route.as_ref().map(|route| route.waypoints.front().copied()),
+        info.route
+            .as_ref()
+            .map(|route| route.waypoints.front().map(|point| point.position)),
         Some(Some(first))
     );
 }
@@ -933,7 +938,9 @@ fn corner_waypoint_is_not_skipped_from_the_side() {
     tick_route(&mut info, beside, &fixture);
 
     assert_eq!(
-        info.route.as_ref().map(|route| route.waypoints.front().copied()),
+        info.route
+            .as_ref()
+            .map(|route| route.waypoints.front().map(|point| point.position)),
         Some(Some(corner))
     );
 }
@@ -1005,10 +1012,10 @@ fn carried_actor_roams_in_its_carriers_frame() {
     let route = info.route.expect("a roam route");
     for waypoint in &route.waypoints {
         assert!(
-            fixture.graph().contains(waypoint),
+            fixture.graph().contains(&waypoint.position),
             "{waypoint:?} is off the carrier's grid"
         );
-        assert_eq!(waypoint.y, 0.0);
+        assert_eq!(waypoint.position.y, 0.0);
     }
 }
 
@@ -1066,7 +1073,7 @@ fn player_aboard_the_carrier_is_engaged_along_a_carrier_local_route() {
         route
             .waypoints
             .iter()
-            .all(|waypoint| fixture.graph().contains(waypoint))
+            .all(|waypoint| fixture.graph().contains(&waypoint.position))
     );
     assert_eq!(
         info.mode,
@@ -1092,4 +1099,74 @@ fn cover_is_judged_at_the_candidates_world_position() {
 
     assert!(!context.stable_cover(&candidate, &[threat_on_it]));
     assert!(!context.stable_cover(&candidate, &[threat_far]));
+}
+
+#[test]
+fn climbing_progress_uses_height_and_does_not_skip_to_the_exit() {
+    let fixture = Fixture::new("mine");
+    let mut info = info("mine");
+    let bottom = fixture.pos(2, 2);
+    let top = Position {
+        y: LEVEL_HEIGHT,
+        ..bottom
+    };
+    let exit = Position { x: top.x + CELL, ..top };
+    let mut route = route_through(&[top, exit], &fixture);
+    route.waypoints[0].kind = WaypointKind::Climb {
+        normal_x: 0.0,
+        normal_z: -1.0,
+        ascending: true,
+    };
+    route.waypoints[1].kind = WaypointKind::Exit;
+    info.set_route(Some(route));
+    for tick in 0..30 {
+        let pos = Position {
+            y: tick as f32 * 0.1,
+            ..bottom
+        };
+        assert!(!tick_runtime_state(
+            &mut info,
+            pos,
+            0.1,
+            fixture.server.expect_actor("mine"),
+            &[]
+        ));
+        assert_eq!(info.route.as_ref().expect("ladder route missing").waypoints.len(), 2);
+    }
+    tick_route(&mut info, top, &fixture);
+    assert_eq!(info.route.as_ref().expect("ladder route missing").waypoints.len(), 1);
+    tick_route(&mut info, Position { y: 0.0, ..exit }, &fixture);
+    assert!(
+        info.route.is_some(),
+        "horizontal proximity cannot finish a ladder exit at another height"
+    );
+    tick_route(&mut info, exit, &fixture);
+    assert!(info.route.is_none());
+}
+
+#[test]
+fn reached_ladder_target_remains_a_hold_instead_of_becoming_idle() {
+    let fixture = Fixture::new("mine");
+    let mut info = info("mine");
+    let target = Position {
+        y: 2.0,
+        ..fixture.pos(2, 2)
+    };
+    let mut route = route_through(&[target], &fixture);
+    route.waypoints[0].kind = WaypointKind::Climb {
+        normal_x: 0.0,
+        normal_z: -1.0,
+        ascending: true,
+    };
+    info.set_route(Some(route));
+    for _ in 0..30 {
+        assert!(!tick_runtime_state(
+            &mut info,
+            target,
+            0.1,
+            fixture.server.expect_actor("mine"),
+            &[]
+        ));
+    }
+    assert!(info.route.is_some());
 }

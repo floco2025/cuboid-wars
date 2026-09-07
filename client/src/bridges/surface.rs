@@ -1,63 +1,78 @@
-use bevy::prelude::*;
-use common::protocol::{LightBridge, Wall};
+use std::mem;
 
-pub(super) fn bridge_surface_rects(bridge: &LightBridge, walls: &[Wall]) -> Vec<Rect> {
-    let (x1, x2, z1, z2) = bridge.bounds_xz();
-    let mut surfaces = vec![Rect::new(x1, z1, x2, z2)];
-    // Only trim visuals: the slab below a wall must still block portal shots from underneath.
-    for wall in walls
-        .iter()
-        .filter(|wall| wall.carrier == bridge.carrier && wall.y <= bridge.y && bridge.y <= wall.y + wall.height)
-    {
-        let start = Vec2::new(wall.x1, wall.z1);
-        let end = Vec2::new(wall.x2, wall.z2);
-        let along = (end - start).normalize_or_zero().abs();
-        let padding = Vec2::new(along.y, along.x) * (wall.width / 2.0);
-        let footprint = Rect {
-            min: start.min(end) - padding,
-            max: start.max(end) + padding,
-        };
-        surfaces = surfaces
-            .into_iter()
-            .flat_map(|surface| subtract_rect(surface, footprint))
-            .collect();
-    }
-    surfaces
+use bevy::prelude::*;
+use common::protocol::{LightBridge, MapLayout};
+
+use crate::map::{clip_surface_rects, surface_frame_rects};
+
+pub(super) struct BridgeVisual {
+    pub bridge: LightBridge,
+    pub surfaces: Vec<Rect>,
+    pub frames: Vec<Rect>,
 }
 
-fn subtract_rect(surface: Rect, cut: Rect) -> Vec<Rect> {
-    let min = surface.min.max(cut.min);
-    let max = surface.max.min(cut.max);
-    if min.x >= max.x || min.y >= max.y {
-        return vec![surface];
+pub(super) fn bridge_visuals(layout: &MapLayout) -> Vec<BridgeVisual> {
+    let mut groups: Vec<BridgeVisual> = Vec::new();
+    for bridge in &layout.light_bridges {
+        let (x1, x2, z1, z2) = bridge.bounds_xz();
+        let surface = Rect::new(x1, z1, x2, z2);
+        if let Some(group) = groups.iter_mut().find(|group| {
+            let other = &group.bridge;
+            other.kind == bridge.kind
+                && other.carrier == bridge.carrier
+                && other.level == bridge.level
+                && other.y == bridge.y
+                && other.thickness == bridge.thickness
+        }) {
+            group.surfaces.push(surface);
+        } else {
+            groups.push(BridgeVisual {
+                bridge: *bridge,
+                surfaces: vec![surface],
+                frames: Vec::new(),
+            });
+        }
     }
-    [
-        Rect {
-            min: surface.min,
-            max: Vec2::new(surface.max.x, min.y),
-        },
-        Rect {
-            min: Vec2::new(surface.min.x, max.y),
-            max: surface.max,
-        },
-        Rect {
-            min: Vec2::new(surface.min.x, min.y),
-            max: Vec2::new(min.x, max.y),
-        },
-        Rect {
-            min: Vec2::new(max.x, min.y),
-            max: Vec2::new(surface.max.x, max.y),
-        },
-    ]
-    .into_iter()
-    .filter(|rect| rect.width() > 0.0 && rect.height() > 0.0)
-    .collect()
+    for group in &mut groups {
+        let bridge = &group.bridge;
+        // Keep bridge rims inside their footprint so different kinds meet without overlapping frames.
+        let frames = surface_frame_rects(&group.surfaces, 2.0 * bridge.thickness)
+            .into_iter()
+            .flat_map(|frame| {
+                group.surfaces.iter().map(move |surface| Rect {
+                    min: frame.min.max(surface.min),
+                    max: frame.max.min(surface.max),
+                })
+            })
+            .filter(|rect| rect.min.x < rect.max.x && rect.min.y < rect.max.y)
+            .collect();
+        group.frames = clip_surface_rects(frames, layout, bridge.carrier, [0, 2], bridge.y, bridge.thickness / 2.0);
+        group.surfaces = clip_surface_rects(
+            mem::take(&mut group.surfaces),
+            layout,
+            bridge.carrier,
+            [0, 2],
+            bridge.y,
+            0.0,
+        );
+    }
+    groups
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use common::protocol::{BridgeKindId, CarrierId};
+    use common::protocol::{BridgeKindId, CarrierId, Floor, Wall};
+
+    fn bridge_surface_rects(bridge: &LightBridge, walls: &[Wall]) -> Vec<Rect> {
+        bridge_visuals(&MapLayout {
+            light_bridges: vec![*bridge],
+            walls: walls.to_vec(),
+            ..Default::default()
+        })
+        .remove(0)
+        .surfaces
+    }
 
     fn bridge() -> LightBridge {
         LightBridge {
@@ -164,5 +179,117 @@ mod tests {
             ..wall(-0.25, 2.0, 4.25, 2.0)
         };
         assert!(bridge_surface_rects(&bridge(), &[wall]).is_empty());
+    }
+
+    #[test]
+    fn connected_bridge_frames_cover_only_the_outline_once_including_concave_corners() {
+        let cuts = [
+            0.0, 0.125, 0.25, 0.5, 3.5, 3.75, 3.875, 4.0, 4.125, 4.25, 4.5, 7.5, 7.75, 7.875, 8.0,
+        ];
+        for mask in 1..16 {
+            let bridges: Vec<_> = (0..4)
+                .filter(|cell| mask & (1 << cell) != 0)
+                .map(|cell| {
+                    let x = (cell % 2) as f32 * 4.0;
+                    let z = (cell / 2) as f32 * 4.0;
+                    LightBridge {
+                        x1: x,
+                        x2: x + 4.0,
+                        z1: z,
+                        z2: z + 4.0,
+                        thickness: 0.25,
+                        ..bridge()
+                    }
+                })
+                .collect();
+            let layout = MapLayout {
+                light_bridges: bridges,
+                ..Default::default()
+            };
+            let visual = bridge_visuals(&layout).remove(0);
+            let inside = |point: Vec2| visual.surfaces.iter().any(|rect| rect.contains(point));
+            for xs in cuts.windows(2) {
+                for zs in cuts.windows(2) {
+                    let point = Vec2::new(f32::midpoint(xs[0], xs[1]), f32::midpoint(zs[0], zs[1]));
+                    let on_edge = inside(point)
+                        && [-0.25, 0.0, 0.25]
+                            .into_iter()
+                            .any(|x| [-0.25, 0.0, 0.25].into_iter().any(|z| !inside(point + Vec2::new(x, z))));
+                    let count = visual.frames.iter().filter(|rect| rect.contains(point)).count();
+                    assert_eq!(count, usize::from(on_edge), "mask {mask}, point {point}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn frames_are_clipped_by_solids_but_not_by_another_carrier() {
+        let bridge = bridge();
+        let floor = Floor {
+            x1: bridge.x1,
+            x2: bridge.x2,
+            z1: bridge.z1,
+            z2: 0.25,
+            y: bridge.y,
+            thickness: 0.5,
+            carrier: bridge.carrier,
+            level: bridge.level,
+        };
+        let wall = wall(-0.25, 4.0, 4.25, 4.0);
+        let layout = MapLayout {
+            light_bridges: vec![bridge],
+            walls: vec![wall],
+            floors: vec![floor],
+            ..Default::default()
+        };
+        let visual = bridge_visuals(&layout).remove(0);
+        for rect in visual.frames.iter().chain(&visual.surfaces) {
+            assert!(rect.min.y >= 0.25 && rect.max.y <= 3.75);
+        }
+        assert!(!visual.frames.is_empty());
+        let layout = MapLayout {
+            walls: vec![Wall {
+                carrier: CarrierId::WORLD,
+                ..wall
+            }],
+            floors: vec![Floor {
+                carrier: CarrierId::WORLD,
+                ..floor
+            }],
+            ..layout
+        };
+        let visual = bridge_visuals(&layout).remove(0);
+        assert!(visual.frames.iter().any(|rect| rect.contains(Vec2::new(2.0, -0.2))));
+    }
+
+    #[test]
+    fn adjacent_kinds_have_their_own_frames_without_coplanar_overlap() {
+        let a = LightBridge {
+            x1: 0.0,
+            x2: 4.0,
+            z1: 0.0,
+            z2: 4.0,
+            ..bridge()
+        };
+        let b = LightBridge {
+            x1: 4.0,
+            x2: 8.0,
+            kind: BridgeKindId(1),
+            ..a
+        };
+        let layout = MapLayout {
+            light_bridges: vec![a, b],
+            ..Default::default()
+        };
+        let visuals = bridge_visuals(&layout);
+        assert_eq!(visuals.len(), 2);
+        assert!(visuals[0].frames.iter().any(|rect| rect.contains(Vec2::new(3.95, 2.0))));
+        assert!(visuals[1].frames.iter().any(|rect| rect.contains(Vec2::new(4.05, 2.0))));
+        for a in &visuals[0].frames {
+            for b in &visuals[1].frames {
+                let overlap = a.max.min(b.max) - a.min.max(b.min);
+                assert!(overlap.x <= 0.0 || overlap.y <= 0.0);
+            }
+        }
     }
 }

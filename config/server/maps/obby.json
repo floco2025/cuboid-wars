@@ -204,6 +204,11 @@
         "inaccessible_floors": [],
         "grass": [],
         "walls": [
+          {"c0": 4, "r0": 11, "c1": 4, "r1": 12, "all": "basement-floor"},
+          {"c0": 4, "r0": 12, "c1": 4, "r1": 13, "all": "basement-floor"},
+          {"c0": 4, "r0": 13, "c1": 4, "r1": 14, "all": "basement-floor"},
+          {"c0": 4, "r0": 14, "c1": 5, "r1": 14, "all": "basement-floor"},
+          {"c0": 6, "r0": 14, "c1": 7, "r1": 14, "all": "basement-floor"},
           {"c0": 16, "r0": 5, "c1": 16, "r1": 6, "all": "basement-floor"},
           {"c0": 16, "r0": 6, "c1": 16, "r1": 7, "all": "basement-floor"},
           {"c0": 16, "r0": 7, "c1": 16, "r1": 8, "all": "basement-floor"},
@@ -229,6 +234,10 @@
           {"c0": 39, "r0": 8, "c1": 39, "r1": 9, "all": "basement-floor"}
         ],
         "barriers": [
+          {"c0": 6, "r0": 9, "c1": 7, "r1": 9, "kind": "barrier_1"},
+          {"c0": 7, "r0": 9, "c1": 7, "r1": 10, "kind": "barrier_1"},
+          {"c0": 7, "r0": 11, "c1": 7, "r1": 12, "kind": "barrier_1"},
+          {"c0": 7, "r0": 12, "c1": 7, "r1": 13, "kind": "barrier_1"},
           {"c0": 25, "r0": 3, "c1": 26, "r1": 3, "kind": "barrier_1"},
           {"c0": 26, "r0": 3, "c1": 27, "r1": 3, "kind": "barrier_1"}
         ],
@@ -324,6 +333,8 @@
         "inaccessible_floors": [],
         "grass": [],
         "walls": [
+          {"c0": 4, "r0": 14, "c1": 5, "r1": 14, "all": "basement-floor"},
+          {"c0": 6, "r0": 14, "c1": 7, "r1": 14, "all": "basement-floor"},
           {"c0": 16, "r0": 6, "c1": 16, "r1": 7, "all": "basement-floor"},
           {"c0": 16, "r0": 6, "c1": 17, "r1": 6, "all": "basement-floor"},
           {"c0": 16, "r0": 7, "c1": 16, "r1": 8, "all": "basement-floor"},
@@ -348,10 +359,16 @@
           {"c0": 39, "r0": 8, "c1": 39, "r1": 9, "all": "basement-floor"}
         ],
         "barriers": [
+          {"c0": 6, "r0": 9, "c1": 7, "r1": 9, "kind": "barrier_1"},
+          {"c0": 7, "r0": 9, "c1": 7, "r1": 10, "kind": "barrier_1"},
+          {"c0": 7, "r0": 11, "c1": 7, "r1": 12, "kind": "barrier_1"},
           {"c0": 25, "r0": 3, "c1": 26, "r1": 3, "kind": "barrier_1"},
           {"c0": 26, "r0": 3, "c1": 27, "r1": 3, "kind": "barrier_1"}
         ],
-        "erasers": [],
+        "erasers": [
+          {"c0": 5, "r0": 14, "c1": 6, "r1": 14},
+          {"c0": 6, "r0": 2, "c1": 6, "r1": 3}
+        ],
         "light_bridges": [],
         "lights": []
       },

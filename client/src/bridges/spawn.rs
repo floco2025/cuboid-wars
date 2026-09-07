@@ -1,16 +1,17 @@
-use bevy::{light::NotShadowCaster, prelude::*};
+use std::f32::consts::FRAC_PI_2;
 
-use super::{BridgeAssets, surface::bridge_surface_rects};
+use bevy::prelude::*;
+
+use super::{BridgeAssets, surface::bridge_visuals};
 use crate::{
     carriers::{CarrierEntities, CarrierStoreys},
-    map::MapLevel,
+    map::spawn_framed_surface,
 };
-use common::protocol::{LightBridge, MapLayout};
+use common::protocol::MapLayout;
 
 #[derive(Component)]
 pub struct LightBridgeMarker;
 
-// Power only changes the kind material's alpha; the ghost surface stays visible.
 pub fn bridges_spawn_system(
     mut commands: Commands,
     map_layout: Res<MapLayout>,
@@ -27,75 +28,49 @@ pub fn bridges_spawn_system(
         commands.entity(entity).despawn();
     }
 
-    for bridge in &map_layout.light_bridges {
-        for surface in bridge_surface_rects(bridge, &map_layout.walls) {
-            spawn_bridge(
-                &mut commands,
-                &bridge_assets,
-                carrier_entities.get(bridge.carrier),
+    for visual in bridge_visuals(&map_layout) {
+        let bridge = &visual.bridge;
+        let (x1, x2, z1, z2) = bridge.bounds_xz();
+        let center = Rect::new(x1, z1, x2, z2).center();
+        commands
+            .spawn((
+                LightBridgeMarker,
                 storeys.tag(bridge.carrier, bridge.level, 0),
-                bridge,
-                surface,
-            );
-        }
+                ChildOf(carrier_entities.get(bridge.carrier)),
+                bridge_transform(center, bridge.y),
+                Visibility::Inherited,
+            ))
+            .with_children(|parent| {
+                spawn_framed_surface(
+                    parent,
+                    &bridge_assets.meshes,
+                    &bridge_assets.fields[usize::from(bridge.kind.0)],
+                    visual.surfaces,
+                    visual.frames,
+                    center,
+                    bridge.thickness,
+                );
+            });
     }
 }
 
-fn spawn_bridge(
-    commands: &mut Commands,
-    assets: &BridgeAssets,
-    carrier: Entity,
-    level: MapLevel,
-    bridge: &LightBridge,
-    surface: Rect,
-) {
-    commands.spawn((
-        LightBridgeMarker,
-        level,
-        ChildOf(carrier),
-        Mesh3d(assets.mesh.clone()),
-        MeshMaterial3d(assets.material_for(bridge.kind).clone()),
-        // Ghosts must not cast the opaque shadow used by the shadow pass.
-        NotShadowCaster,
-        bridge_transform(surface, bridge.y),
-        Visibility::Visible,
-    ));
-}
-
-fn bridge_transform(surface: Rect, y: f32) -> Transform {
-    let center = surface.center();
-    Transform {
-        translation: Vec3::new(center.x, y, center.y),
-        rotation: Quat::IDENTITY,
-        scale: Vec3::new(surface.width(), 1.0, surface.height()),
-    }
+fn bridge_transform(center: Vec2, y: f32) -> Transform {
+    Transform::from_xyz(center.x, y, center.y).with_rotation(Quat::from_rotation_x(FRAC_PI_2))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use common::protocol::{BridgeKindId, CarrierId};
 
     #[test]
     fn rectangle_matches_collision_footprint_at_the_walking_surface() {
-        let bridge = LightBridge {
-            x1: 4.2,
-            z1: 2.2,
-            x2: -0.2,
-            z2: -0.2,
-            y: 5.0,
-            thickness: 0.3,
-            level: 1,
-            kind: BridgeKindId(0),
-            carrier: CarrierId(1),
-        };
-        let surfaces = bridge_surface_rects(&bridge, &[]);
-        assert_eq!(surfaces.len(), 1);
-        let transform = bridge_transform(surfaces[0], bridge.y);
+        let surface = Rect::new(-0.2, -0.2, 4.2, 2.2);
+        let transform =
+            bridge_transform(surface.center(), 5.0).with_scale(Vec3::new(surface.width(), surface.height(), 1.0));
         for (local_x, x) in [(-0.5, -0.2), (0.5, 4.2)] {
-            for (local_z, z) in [(-0.5, -0.2), (0.5, 2.2)] {
-                let point = transform.transform_point(Vec3::new(local_x, 0.0, local_z));
-                assert!(point.abs_diff_eq(Vec3::new(x, bridge.y, z), 1e-5));
+            for (local_y, z) in [(-0.5, -0.2), (0.5, 2.2)] {
+                let point = transform.transform_point(Vec3::new(local_x, local_y, 0.0));
+                assert!(point.abs_diff_eq(Vec3::new(x, 5.0, z), 1e-5));
             }
         }
     }

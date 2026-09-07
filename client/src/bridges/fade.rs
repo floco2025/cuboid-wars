@@ -18,7 +18,7 @@ pub fn bridges_fade_system(
     bridge_assets: Res<BridgeAssets>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    for (idx, handle) in bridge_assets.material_handles().iter().enumerate() {
+    for (idx, handle) in bridge_assets.material_handles().enumerate() {
         let kind = BridgeKindId(u16::try_from(idx).expect("bridge kind index exceeds u16"));
         let Some(alpha) = materials.get(handle).map(|material| material.base_color.alpha()) else {
             continue;

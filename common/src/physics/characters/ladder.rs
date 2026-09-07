@@ -7,8 +7,30 @@ use crate::{
         PHYSICS_EPSILON,
     },
     physics::world::{CollisionWorld, LadderVolume},
-    protocol::Position,
+    protocol::{ActorMoveIntent, Position},
 };
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LadderMode {
+    Disabled,
+    Automatic,
+    Climb,
+    Exit,
+}
+
+impl LadderMode {
+    #[must_use]
+    pub const fn for_actor(can_use_ladders: bool, intent: ActorMoveIntent) -> Self {
+        if !can_use_ladders {
+            return Self::Disabled;
+        }
+        match intent {
+            ActorMoveIntent::Climbing { .. } => Self::Climb,
+            ActorMoveIntent::ExitingLadder { .. } => Self::Exit,
+            _ => Self::Disabled,
+        }
+    }
+}
 
 pub(super) enum LadderInteraction<'a> {
     None,
@@ -73,6 +95,7 @@ impl LadderInteraction<'_> {
 #[must_use]
 pub(super) fn evaluate_ladder_interaction<'a>(
     ladder: Option<&'a LadderVolume>,
+    mode: LadderMode,
     start: &Position,
     start_vertical_velocity: f32,
     control_velocity: Vec3,
@@ -80,6 +103,20 @@ pub(super) fn evaluate_ladder_interaction<'a>(
     has_ground_support: bool,
     climb_speed_ratio: f32,
 ) -> LadderInteraction<'a> {
+    if mode == LadderMode::Disabled {
+        return LadderInteraction::None;
+    }
+    let control_velocity = if mode == LadderMode::Exit {
+        Vec3::ZERO
+    } else {
+        control_velocity
+    };
+    // Actors can stop or reverse on a rung immediately; players retain their jump momentum.
+    let start_vertical_velocity = if mode == LadderMode::Automatic {
+        start_vertical_velocity
+    } else {
+        0.0
+    };
     // No persistent climb state: the front-side volume, support, and
     // control velocity fully determine the interaction on both simulations.
     let ride_velocity = ladder.and_then(|ladder| {

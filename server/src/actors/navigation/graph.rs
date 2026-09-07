@@ -4,6 +4,8 @@ use std::collections::{HashSet, VecDeque};
 
 use common::{constants::LEVEL_CLASSIFICATION_TOLERANCE, map::MapGeometry, protocol::Position};
 
+use super::LadderLink;
+
 use crate::map::{ActorSpawnZone, CarrierGrid, Cell, CellSide, LevelGrid, has_edge_on_cell_side};
 #[cfg(test)]
 use crate::pathfind::bfs_path;
@@ -19,9 +21,10 @@ pub(crate) struct NavNode {
 // and out are carrier-local, and the caller converts at the world boundary.
 #[derive(Clone)]
 pub struct NavGraph {
-    levels: Vec<LevelGrid>,
-    geometry: MapGeometry,
+    pub(super) levels: Vec<LevelGrid>,
+    pub(super) geometry: MapGeometry,
     adjacency: HashMap<NavNode, Vec<NavNode>>,
+    pub(super) ladder_routes: HashMap<String, Vec<LadderLink>>,
 }
 
 impl NavGraph {
@@ -31,6 +34,7 @@ impl NavGraph {
             levels: grid.levels.clone(),
             geometry: grid.geometry,
             adjacency: HashMap::new(),
+            ladder_routes: HashMap::new(),
         };
         graph.adjacency = graph
             .all_traversable_nodes()
@@ -384,7 +388,7 @@ impl NavGraph {
             || has_edge_on_cell_side(&level.barrier_edges, node.row, node.col, side)
     }
 
-    fn is_traversable(&self, node: NavNode) -> bool {
+    pub(super) fn is_traversable(&self, node: NavNode) -> bool {
         let Some(cell) = self.cell(node) else {
             return false;
         };
@@ -394,7 +398,7 @@ impl NavGraph {
         cell.has_floor || cell.has_ramp || self.opening_walk_side(node).is_some()
     }
 
-    fn cell(&self, node: NavNode) -> Option<&Cell> {
+    pub(super) fn cell(&self, node: NavNode) -> Option<&Cell> {
         let level = self.levels.get(usize::from(node.level))?;
         if node.row < 0 || node.col < 0 {
             return None;

@@ -6,7 +6,7 @@ use crate::{actors::ActorMap, map::PlateState, network::broadcast_to_all, player
 use common::{
     config::{CharacterPhysicsConfig, GameplayConfig},
     map::Carriers,
-    physics::{CharacterMovePlan, CollisionWorld},
+    physics::{CharacterMovePlan, CharacterSupport, CollisionWorld},
     protocol::{ActorId, ActorMoveIntent, ActorMovementState, MapSettings, Position, SActorMove, ServerMessage},
 };
 
@@ -61,6 +61,7 @@ pub(crate) fn plan_actor_moves(
             actor_starts,
             open_barrier_kinds: &plates.open_barrier_kinds,
             gravity: map_settings.movement.gravity,
+            can_use_ladders: gameplay_config.expect_actor(&info.spawn_kind).can_use_ladders,
             ladder_climb_ratio: map_settings.movement.ladder_climb_ratio,
             knockback_step: knockback.map_or(Vec3::ZERO, |velocity| velocity.step(delta)),
             carrier_step: carriers.displacement(info.carrier),
@@ -109,10 +110,25 @@ pub(super) fn select_route_move(
 ) -> SelectedActorMove {
     match context.evaluate(desired, target, false) {
         CandidateStep::Clear(selected) | CandidateStep::Graze(selected) => selected,
-        CandidateStep::Blocked => context.idle_move(),
+        CandidateStep::Blocked => context.hold_move(desired),
         CandidateStep::CharacterBlocked => {
-            let direction = desired.direction().expect("route movement has a direction");
-            let speed = desired.speed().expect("route movement has a speed");
+            let held = context.hold_move(desired);
+            // Grounded ladder approaches must be able to give each other room.
+            if desired.uses_ladders() && held.step.support != CharacterSupport::Ground {
+                return held;
+            }
+            let mut direction = desired.direction().expect("direction missing from route movement");
+            if desired.uses_ladders()
+                && let Some(ladder) = context
+                    .collision_world
+                    .ladder_volume_at(&Position::from(Vec3::from(*target) + context.carrier_step))
+            {
+                // Keep opposing approaches moving along the ladder face instead of circling their shared mount.
+                let velocity = desired.to_horizontal_velocity();
+                let sign = (velocity.x * ladder.normal_x + velocity.z * ladder.normal_z).signum();
+                direction = (ladder.normal_x * sign).atan2(ladder.normal_z * sign);
+            }
+            let speed = desired.speed().expect("speed missing from route movement");
             for sidestep_direction in [direction + FRAC_PI_2, direction - FRAC_PI_2] {
                 let sidestep = ActorMoveIntent::Moving {
                     direction: sidestep_direction,
@@ -122,7 +138,7 @@ pub(super) fn select_route_move(
                     return selected;
                 }
             }
-            context.idle_move()
+            held
         }
     }
 }

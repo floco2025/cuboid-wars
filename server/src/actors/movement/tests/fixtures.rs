@@ -10,7 +10,10 @@ pub(super) use common::{
 };
 
 pub(super) use crate::{
-    actors::{ActorInfo, ActorMode, ActorRoute, BeamState, navigation::NavNode},
+    actors::{
+        ActorInfo, ActorMode, ActorRoute, BeamState,
+        navigation::{NavNode, NavWaypoint},
+    },
     test_geometry::{FLOOR_THICKNESS, WALL_HEIGHT, WALL_THICKNESS},
 };
 
@@ -39,7 +42,7 @@ pub(crate) fn actor_info() -> ActorInfo {
 
 pub(crate) fn route(target: Position) -> ActorRoute {
     ActorRoute {
-        waypoints: [target].into(),
+        waypoints: [target].map(NavWaypoint::walk).into(),
         destination: target,
         destination_node: NavNode {
             level: 0,
@@ -117,6 +120,7 @@ pub(crate) fn context<'a>(
     actor_starts: &'a [(Entity, Position, CharacterPhysicsConfig)],
 ) -> ActorMoveContext<'a> {
     ActorMoveContext {
+        can_use_ladders: false,
         entity,
         pos,
         vertical_velocity: 0.0,
