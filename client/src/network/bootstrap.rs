@@ -17,6 +17,7 @@ pub(crate) fn install_bootstrap(app: &mut App, message: SInit, asset_set: &Asset
     let gameplay_config = message.world.gameplay.gameplay_config()?;
     let map_settings = &message.world.map.settings;
     let (barrier_kind_table, _) = map_settings.kind_tables()?;
+    asset_set.validate_map_bindings(map_settings, &message.world.map.layout)?;
     asset_set.validate_gameplay_bindings(gameplay_config.actors.keys().map(String::as_str))?;
     let vfx = app.world().resource::<ClientSettings>().vfx;
 

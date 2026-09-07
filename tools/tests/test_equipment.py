@@ -1,7 +1,8 @@
 import json
 import unittest
 
-from map_editor.constants import DEFAULT_ALIAS, MODE_EQUIPMENT_ERASER, MODE_ERASE_EQUIPMENT_ERASERS
+from editor_fixtures import DEFAULT_ALIAS
+from map_editor.constants import MODE_EQUIPMENT_ERASER, MODE_ERASE_EQUIPMENT_ERASERS
 from map_editor.editing import paint_erasers
 from map_editor.erasing import erase_group_rect, erase_hit, hit_at
 from map_editor.formatting import format_map_file

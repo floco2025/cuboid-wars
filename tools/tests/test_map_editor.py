@@ -1,13 +1,13 @@
 import json
 import tempfile
 import unittest
+from editor_fixtures import DEFAULT_ALIAS
 from unittest.mock import Mock
 from pathlib import Path
 
 from PySide6.QtCore import QPointF
 
 from map_editor.constants import (
-    DEFAULT_ALIAS,
     FACES,
     MODES,
     MODE_ERASE_BARRIERS,

@@ -1,4 +1,4 @@
-use std::sync::OnceLock;
+use std::{collections::BTreeMap, sync::OnceLock};
 
 use bevy_math::{Mat3, Quat, Vec3};
 use rapier3d::{
@@ -16,7 +16,7 @@ use crate::{
     map::Carriers,
     math::direction_from_yaw_pitch,
     physics::CollisionWorld,
-    protocol::{BarrierKindId, CarrierId, MapLayout, Portal, PortalEnd, PortalPairId, WallLight},
+    protocol::{BarrierKindId, CarrierId, MapLayout, Portal, PortalEnd, PortalPairId, TextureSettings, WallLight},
 };
 
 // Where a validated portal shot lands: the aperture center (world space),
@@ -28,6 +28,12 @@ pub struct PortalPlacement {
     pub normal: Vec3,
     pub yaw: f32,
     pub carrier: CarrierId,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum PortalPlacementFailure {
+    InvalidPlacement,
+    IncompatibleMaterial(PortalPlacement),
 }
 
 impl PortalPlacement {
@@ -53,7 +59,6 @@ impl PortalPlacement {
 
 // Shared client/server placement; shots can disagree while replicated
 // plate state or carrier poses are catching up.
-#[must_use]
 pub fn compute_portal_placement(
     origin: Vec3,
     direction: Vec3,
@@ -64,21 +69,35 @@ pub fn compute_portal_placement(
     carriers: &Carriers,
     shot_settings: PortalShotSettings,
     open_barriers: &[BarrierKindId],
-) -> Option<PortalPlacement> {
-    let hit = collision_world.portal_surface_along_ray(origin, direction, range, shot_settings, open_barriers)?;
+    textures: &BTreeMap<String, TextureSettings>,
+) -> Result<PortalPlacement, PortalPlacementFailure> {
+    let hit = collision_world
+        .portal_surface_along_ray(origin, direction, range, shot_settings, open_barriers)
+        .ok_or(PortalPlacementFailure::InvalidPlacement)?;
     let yaw = portal_placement_yaw(hit.normal, yaw);
-    let frame = PortalFrame::from_surface(hit.point, hit.normal, yaw);
-    let (pos, carrier) = if let Some(carrier) = portal_fits(&frame, collision_world, map_layout, carriers) {
-        (hit.point, carrier)
-    } else {
-        nudged_center(&frame, collision_world, map_layout, carriers)?
-    };
-    Some(PortalPlacement {
-        pos,
+    let impact = PortalPlacement {
+        pos: hit.point,
         normal: hit.normal,
         yaw,
-        carrier,
-    })
+        carrier: hit.carrier,
+    };
+    let frame = PortalFrame::from_surface(hit.point, hit.normal, yaw);
+    let (pos, carrier) = portal_fits(&frame, collision_world, map_layout, carriers)
+        .map(|carrier| (hit.point, carrier))
+        .or_else(|| nudged_center(&frame, collision_world, map_layout, carriers, |_| true))
+        .ok_or(PortalPlacementFailure::InvalidPlacement)?;
+    // Space wins over material feedback, including shots that need a placement nudge.
+    if !collision_world.portal_surface_allows(&hit, map_layout, textures) {
+        return Err(PortalPlacementFailure::IncompatibleMaterial(impact));
+    }
+    let materials_allow =
+        |candidate: &PortalFrame| collision_world.portal_materials_allow(candidate, map_layout, textures);
+    if materials_allow(&PortalFrame { center: pos, ..frame }) {
+        return Ok(PortalPlacement { pos, carrier, ..impact });
+    }
+    let (pos, carrier) = nudged_center(&frame, collision_world, map_layout, carriers, materials_allow)
+        .ok_or(PortalPlacementFailure::IncompatibleMaterial(impact))?;
+    Ok(PortalPlacement { pos, carrier, ..impact })
 }
 
 // Vertical portals take their in-plane up from the shooter's yaw; snapping
@@ -96,7 +115,7 @@ fn portal_placement_yaw(normal: Vec3, face_yaw: f32) -> f32 {
 // Portal-2-style placement bump: an aperture that doesn't fit where the
 // shot lands slides along the surface plane to the nearest nearby spot that
 // does (nearest ring first, straight up tried first within each ring); only
-// when nothing within reach fits does the shot fizzle.
+// when nothing within reach fits does the shot dry-click.
 const NUDGE_STEP: f32 = 0.125;
 const NUDGE_MAX_DISTANCE: f32 = 1.5;
 const NUDGE_DIRECTIONS: usize = 16;
@@ -106,6 +125,7 @@ fn nudged_center(
     collision_world: &CollisionWorld,
     map_layout: &MapLayout,
     carriers: &Carriers,
+    accepts: impl Fn(&PortalFrame) -> bool,
 ) -> Option<(Vec3, CarrierId)> {
     let steps = (NUDGE_MAX_DISTANCE / NUDGE_STEP) as usize;
     for step in 1..=steps {
@@ -115,7 +135,9 @@ fn nudged_center(
                 std::f32::consts::FRAC_PI_2 + direction as f32 / NUDGE_DIRECTIONS as f32 * std::f32::consts::TAU;
             let center = frame.center + frame.right * (radius * angle.cos()) + frame.up * (radius * angle.sin());
             let candidate = PortalFrame { center, ..*frame };
-            if let Some(carrier) = portal_fits(&candidate, collision_world, map_layout, carriers) {
+            if let Some(carrier) = portal_fits(&candidate, collision_world, map_layout, carriers)
+                && accepts(&candidate)
+            {
                 return Some((center, carrier));
             }
         }

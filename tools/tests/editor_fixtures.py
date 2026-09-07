@@ -9,9 +9,11 @@ from PySide6.QtCore import QEvent, QPoint, QSettings, Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
-from map_editor.constants import DEFAULT_ALIAS
 from map_editor.io import empty_map, write_map
 from map_editor.window import EditorWindow
+
+
+DEFAULT_ALIAS = "basement-floor"
 
 
 class WindowTestCase(unittest.TestCase):

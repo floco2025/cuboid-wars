@@ -247,6 +247,7 @@ class PlacementMixin:
             f"{len(affected_floors)} floor cell(s) in selection",
             self.materials_catalog,
             material_values(affected_floors),
+            portalability=self.texture_catalog,
             source=top_left_materials(affected_floors, "floors"),
         )
         if result is None:
@@ -283,6 +284,7 @@ class PlacementMixin:
             f"{len(affected_walls)} wall edge(s) in selection",
             self.materials_catalog,
             material_values(affected_walls),
+            portalability=self.texture_catalog,
             source=top_left_materials(affected_walls, "walls"),
         )
         if result is None:
@@ -311,6 +313,7 @@ class PlacementMixin:
             f"{len(affected_ramps)} ramp(s) in selection",
             self.materials_catalog,
             material_values(affected_ramps),
+            portalability=self.texture_catalog,
             source=top_left_materials(affected_ramps, "ramps"),
         )
         if result is None:

@@ -8,7 +8,9 @@ use super::{
     quests::{Quest, validate_quests},
     validation::{deserialize_required_option, validate_covers_actor_kinds, validate_positive_finite},
 };
-use common::protocol::{BarrierKindTable, BridgeKindTable, ItemType, MapSettings, MapWeaponSettings};
+use common::protocol::{
+    BarrierKindTable, BridgeKindTable, ItemType, MapSettings, MapWeaponSettings, validate_texture_catalog,
+};
 
 // Server-side wrapper around the wire `MapSettings`: the flattened settings
 // ship to clients in `SInit`, while the rest stays server-only.
@@ -107,6 +109,7 @@ pub(super) fn validate_maps<T>(
             .with_context(|| format!("invalid {path}.barrier_kinds"))?;
         BridgeKindTable::from_defs(&entry.settings.bridge_kinds)
             .with_context(|| format!("invalid {path}.bridge_kinds"))?;
+        validate_texture_catalog(&entry.settings.textures, &format!("{path}.textures"))?;
         entry.settings.geometry.validate(&format!("{path}.geometry"))?;
         let movement_path = format!("{path}.movement");
         let movement = &entry.settings.movement;
@@ -223,6 +226,7 @@ mod tests {
         MapServerConfig {
             settings: MapSettings {
                 skybox: "cloudy_day".to_owned(),
+                textures: Default::default(),
                 portal_shots: Default::default(),
                 geometry: sizes(),
                 movement: ok_movement(),
@@ -294,6 +298,7 @@ mod tests {
     ) -> Result<MapServerConfig, serde_json::Error> {
         let mut value = serde_json::json!({
             "skybox": "cloudy_day",
+            "textures": {},
             "portal_shots": { "barriers_block": false, "light_bridges_block": false, "erasers_block": true },
             "geometry": { "grid_cell_size": 3.4, "level_height": 4.4, "floor_thickness": 0.4, "wall_thickness": 0.3 },
             "movement": {
@@ -466,6 +471,28 @@ mod tests {
         let missing_lighting =
             parse_map_entry(true, "both", Some("clear"), None).expect_err("lighting must be explicit");
         assert!(missing_lighting.to_string().contains("lighting"));
+    }
+
+    #[test]
+    fn textures_require_an_explicit_catalog_and_boolean_permissions() {
+        let gameplay: serde_json::Value = serde_json::from_str(include_str!("../../../config/server/gameplay.json"))
+            .expect("gameplay JSON is invalid");
+        let mut hotel = gameplay["maps"]["hotel"].clone();
+        hotel
+            .as_object_mut()
+            .expect("hotel settings is not an object")
+            .remove("textures");
+        assert!(
+            serde_json::from_value::<MapServerConfig>(hotel)
+                .expect_err("missing textures was accepted")
+                .to_string()
+                .contains("textures")
+        );
+        for permission in [serde_json::json!({}), serde_json::json!({"portalable": "false"})] {
+            let mut hotel = gameplay["maps"]["hotel"].clone();
+            hotel["textures"] = serde_json::json!({"stone": permission});
+            assert!(serde_json::from_value::<MapServerConfig>(hotel).is_err());
+        }
     }
 
     #[test]

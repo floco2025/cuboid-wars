@@ -10,22 +10,12 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 # One map JSON per named map; the editor's CLI argument is the map name.
 MAPS_DIR = REPO_ROOT / "config" / "server" / "maps"
 GAMEPLAY_PATH = REPO_ROOT / "config" / "server" / "gameplay.json"
-ASSETS_PATH = REPO_ROOT / "config" / "client" / "assets.json"
 
 
 def load_actor_kinds() -> list[str]:
     with GAMEPLAY_PATH.open(encoding="utf-8") as handle:
         return sorted(json.load(handle)["actors"]["kinds"])
 
-
-def _load_material_aliases() -> set[str]:
-    assets_path = ASSETS_PATH
-    with assets_path.open("r", encoding="utf-8") as handle:
-        assets = json.load(handle)
-    return set(assets.get("aliases", {}).keys())
-
-
-MATERIAL_ALIASES = _load_material_aliases()
 
 HEX_COLOR = re.compile(r"#[0-9a-fA-F]{6}")
 
@@ -91,14 +81,6 @@ PLATE_TYPE_BARRIER = "barrier"
 PLATE_TYPE_BRIDGE = "bridge"
 PLATE_TYPE_FIREWORK = "firework"
 PLATE_TYPES = (PLATE_TYPE_BARRIER, PLATE_TYPE_BRIDGE, PLATE_TYPE_FIREWORK)
-
-# Stable fallback alias used when a segment has no material data, when a new
-# segment is created without an explicit choice, or when we need *some* legal
-# value to satisfy the alias validator. Derived from the loaded catalog so it
-# can't drift to a non-existent alias if `assets.json` changes — sorted-first
-# for determinism. Empty string when the catalog defines no aliases at all
-# (validator skips the check in that case, so an empty value is harmless).
-DEFAULT_ALIAS: str = next(iter(sorted(MATERIAL_ALIASES)), "")
 
 MODE_SELECT = "Select Tiles"
 MODE_FLOOR = "Floor"

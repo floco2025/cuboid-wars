@@ -1,3 +1,5 @@
+use common::protocol::TextureSettings;
+
 use super::{
     compile_map,
     load::LoadedMaps,
@@ -536,6 +538,7 @@ fn compiled_wall_trim_blocks_portal_shots_through_the_storey_seam() {
         &Carriers::default(),
         PortalShotSettings::default(),
         &[],
+        &[("test".to_owned(), TextureSettings { portalable: true })].into(),
     )
     .expect("stacked wall seam has no fitting portal surface");
     let front_face = geometry.cell_to_world_x(1) - geometry.wall_half_thickness();
@@ -1315,7 +1318,7 @@ fn every_shipped_ladder_ascends_at_least_one_storey() {
         let map_sizes = map_settings.geometry;
         let layout = crate::map::generate_map(
             map_name,
-            map_sizes,
+            map_settings,
             &|nested| server_gameplay.maps.get(nested).map(|map| map.settings.geometry),
             &kind_table,
             &bridge_table,
@@ -1418,10 +1421,9 @@ fn every_shipped_carrier_carries_a_standing_player_through_its_cycle() {
         };
         let map_settings = &map_server_config.settings;
         let (kind_table, bridge_table) = map_settings.kind_tables().expect("shipped kind tables rejected");
-        let map_sizes = map_settings.geometry;
         let layout = crate::map::generate_map(
             map_name,
-            map_sizes,
+            map_settings,
             &|nested| server_gameplay.maps.get(nested).map(|map| map.settings.geometry),
             &kind_table,
             &bridge_table,

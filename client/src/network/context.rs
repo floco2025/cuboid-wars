@@ -22,7 +22,10 @@ use crate::{
     portals::{PortalAssets, PortalMap as PortalVisuals},
     projectiles::ProjectileAssets,
     ui::{HudBanner, MessageFeed, QuestLog},
-    vfx::{BlastRadii, ExplosionAssets, ExplosionSpawnCtx, ExplosionVfxBudget, FireworkShow, RainIntensity},
+    vfx::{
+        BlastRadii, ExplosionAssets, ExplosionSpawnCtx, ExplosionVfxBudget, FireworkShow, PortalFizzleAssets,
+        RainIntensity,
+    },
 };
 
 // Each resource appears once and the queries are read-only, so this needs no `ParamSet`.
@@ -52,6 +55,7 @@ pub(super) struct ServerMessageContext<'w, 's> {
     pub(super) item_assets: Res<'w, ItemAssets>,
     pub(super) barrier_assets: Res<'w, BarrierAssets>,
     pub(super) missile_assets: Res<'w, MissileAssets>,
+    pub(super) portal_fizzle_assets: Res<'w, PortalFizzleAssets>,
     pub(super) portal_assets: Res<'w, PortalAssets>,
     pub(super) projectile_assets: Res<'w, ProjectileAssets>,
     pub(super) players: ResMut<'w, PlayerMap>,

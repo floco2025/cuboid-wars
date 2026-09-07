@@ -2,6 +2,22 @@
   "default_map": "hotel",
   "maps": {
     "hotel": {
+      "textures": {
+        "basement-floor": { "portalable": true },
+        "basement-perimeter-wall": { "portalable": true },
+        "basement-support-wall": { "portalable": true },
+        "exterior-walls": { "portalable": true },
+        "ground-floor": { "portalable": true },
+        "ground-interior-wall": { "portalable": true },
+        "natural-ground": { "portalable": false },
+        "perimeter-wall": { "portalable": true },
+        "rooftop-floor": { "portalable": true },
+        "rooftop-wall": { "portalable": true },
+        "skybridge": { "portalable": false },
+        "slab": { "portalable": true },
+        "upper-floors": { "portalable": true },
+        "upper-interior-walls": { "portalable": true }
+      },
       "skybox": "cloudy_day",
       "portal_shots": {
         "barriers_block": true,
@@ -144,6 +160,10 @@
       ]
     },
     "obby": {
+      "textures": {
+        "basement-floor": { "portalable": true },
+        "portal-resistant": { "portalable": false }
+      },
       "skybox": "cloudy_day",
       "portal_shots": {
         "barriers_block": true,
@@ -214,6 +234,21 @@
       "quests": []
     },
     "relay": {
+      "textures": {
+        "basement-floor": { "portalable": true },
+        "basement-perimeter-wall": { "portalable": true },
+        "basement-support-wall": { "portalable": true },
+        "exterior-walls": { "portalable": true },
+        "ground-floor": { "portalable": true },
+        "ground-interior-wall": { "portalable": true },
+        "rooftop-floor": { "portalable": true },
+        "rooftop-wall": { "portalable": true },
+        "skybridge": { "portalable": true },
+        "slab": { "portalable": true },
+        "upper-floors": { "portalable": true },
+        "upper-interior-walls": { "portalable": true },
+        "portal-resistant": { "portalable": false }
+      },
       "skybox": "cloudy_day",
       "portal_shots": {
         "barriers_block": true,
@@ -308,6 +343,20 @@
       ]
     },
     "switchyard": {
+      "textures": {
+        "basement-floor": { "portalable": true },
+        "basement-perimeter-wall": { "portalable": true },
+        "basement-support-wall": { "portalable": true },
+        "exterior-walls": { "portalable": true },
+        "ground-floor": { "portalable": true },
+        "ground-interior-wall": { "portalable": true },
+        "rooftop-floor": { "portalable": true },
+        "rooftop-wall": { "portalable": true },
+        "skybridge": { "portalable": true },
+        "slab": { "portalable": true },
+        "upper-floors": { "portalable": true },
+        "portal-resistant": { "portalable": false }
+      },
       "skybox": "cloudy_day",
       "portal_shots": {
         "barriers_block": true,

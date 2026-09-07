@@ -13,6 +13,7 @@ mod plates;
 mod portals;
 mod position;
 mod quests;
+mod textures;
 
 pub use crate::{
     health::Health,
@@ -41,3 +42,4 @@ pub use plates::{HeldPurpose, PlateState};
 pub use portals::{Portal, PortalAccess, PortalEnd};
 pub use position::Position;
 pub use quests::{QuestGroupProgress, QuestGroupStatus, QuestScope, QuestStateProgress, QuestStatus};
+pub use textures::{TextureSettings, validate_texture_catalog, validate_texture_materials};

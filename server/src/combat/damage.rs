@@ -386,6 +386,7 @@ mod tests {
                 MapServerConfig {
                     settings: common::protocol::MapSettings {
                         skybox: "cloudy_day".to_owned(),
+                        textures: Default::default(),
                         portal_shots: Default::default(),
                         geometry: crate::test_geometry::sizes(),
                         movement,

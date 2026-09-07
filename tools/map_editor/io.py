@@ -7,7 +7,7 @@ import os
 import tempfile
 from pathlib import Path
 
-from .constants import ASSETS_PATH, DEFAULT_GRID_COLS, DEFAULT_GRID_ROWS
+from .constants import DEFAULT_GRID_COLS, DEFAULT_GRID_ROWS
 from .formatting import format_map_file
 from .normalization import empty_level, normalize_map
 
@@ -37,27 +37,6 @@ def read_map(path: Path) -> dict:
     with path.open("r", encoding="utf-8") as handle:
         data = json.load(handle)
     return normalize_map(data["map"])
-
-
-def load_materials_catalog() -> list[str]:
-    """Return the sorted list of material *role* names from `assets.json`'s
-    `aliases` block. Roles are what map files reference and what the user
-    picks in the editor; the underlying texture material IDs are an
-    implementation detail of the renderer. Falls back to the raw `materials`
-    keys if no aliases are defined. Returns an empty list if the file can't
-    be located — callers handle that gracefully."""
-    if ASSETS_PATH.exists():
-        try:
-            with ASSETS_PATH.open("r", encoding="utf-8") as handle:
-                assets = json.load(handle)
-            aliases = assets.get("aliases") or {}
-            if aliases:
-                return sorted(aliases.keys())
-            materials = assets.get("materials") or {}
-            return sorted(materials.keys())
-        except (OSError, json.JSONDecodeError):
-            pass
-    return []
 
 
 def write_map(path: Path, map_data: dict) -> None:

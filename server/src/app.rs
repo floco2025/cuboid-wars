@@ -54,7 +54,7 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
         config: map_config,
     } = generate_map(
         map_name,
-        map_settings.geometry,
+        &map_settings,
         &|nested| server_gameplay_config.maps.get(nested).map(|map| map.settings.geometry),
         &barrier_kind_table,
         &bridge_kind_table,

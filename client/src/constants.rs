@@ -215,6 +215,8 @@ pub const MISSILE_EXHAUST_BASE_COLOR: Vec3 = Vec3::new(1.0, 0.4, 0.088);
 pub const PORTAL_A_COLOR: Color = Color::srgb(0.20, 0.55, 1.00); // blue — end A (left click)
 pub const PORTAL_B_COLOR: Color = Color::srgb(1.00, 0.55, 0.10); // orange — end B (right click)
 pub const PORTAL_EMISSIVE: f32 = 8.0;
+pub const PORTAL_FIZZLE_LIFETIME: f32 = 0.55;
+pub const PORTAL_FIZZLE_SPARK_SIZE: f32 = 0.018;
 // Portal-style exit reorientation: the camera is seeded with the fully
 // mapped (possibly tilted) view and blended back to the upright aim over
 // this window.

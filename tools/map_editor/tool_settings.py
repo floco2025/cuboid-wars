@@ -21,6 +21,7 @@ from .constants import (
     list_map_names,
 )
 from .dialogs import MotionDialog
+from .textures import portal_label
 
 
 class ToolSettings(QWidget):
@@ -33,6 +34,7 @@ class ToolSettings(QWidget):
         self.bindings = []
         self.body = None
         self.key_controls = None
+        self.material_permission = None
         self.row = QHBoxLayout(self)
         self.row.setContentsMargins(8, 0, 0, 0)
         self.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
@@ -44,9 +46,13 @@ class ToolSettings(QWidget):
             if isinstance(widget, QComboBox):
                 widget.setCurrentText(value or "")
                 widget.setToolTip(widget.currentText())
+                if attribute == "current_material":
+                    widget.setToolTip(portal_label(self.window.texture_catalog.get(value, False)))
             else:
                 widget.setValue(value)
             widget.blockSignals(False)
+        if self.material_permission is not None:
+            self.material_permission.setText(portal_label(self.window.texture_catalog.get(self.window.current_material, False)))
         if self.key_controls is not None:
             for widget in self.key_controls:
                 widget.setVisible(self.window.recent_item_type == ITEM_KEY_TYPE)
@@ -59,6 +65,7 @@ class ToolSettings(QWidget):
             tuple(window.barrier_kinds),
             tuple(window.bridge_kinds),
             tuple(window.materials_catalog),
+            tuple(window.texture_catalog.items()),
             len(window.map_data["levels"]),
             window.recent_item_type if window.mode == MODE_ITEM else None,
         )
@@ -68,6 +75,7 @@ class ToolSettings(QWidget):
         self.signature = signature
         self.bindings = []
         self.key_controls = None
+        self.material_permission = None
         body = QWidget()
         form = QHBoxLayout(body)
         form.setContentsMargins(0, 0, 0, 0)
@@ -87,6 +95,9 @@ class ToolSettings(QWidget):
             if not required:
                 box.addItem("")
             box.addItems(values)
+            if attribute == "current_material":
+                for index, alias in enumerate(values):
+                    box.setItemData(index, portal_label(window.texture_catalog[alias]), Qt.ItemDataRole.ToolTipRole)
             box.setEditable(editable)
             box.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
             box.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
@@ -98,7 +109,10 @@ class ToolSettings(QWidget):
                 box.completer().setFilterMode(Qt.MatchFlag.MatchContains)
                 box.completer().setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
             box.currentTextChanged.connect(lambda text: setattr(window, attribute, text))
-            box.currentTextChanged.connect(box.setToolTip)
+            if attribute == "current_material":
+                box.currentTextChanged.connect(lambda alias: box.setToolTip(portal_label(window.texture_catalog.get(alias, False))))
+            else:
+                box.currentTextChanged.connect(box.setToolTip)
             self.bindings.append((box, attribute))
             return box, field(label, box)
 
@@ -123,6 +137,13 @@ class ToolSettings(QWidget):
             item.currentTextChanged.connect(show_key_kind)
             show_key_kind(window.recent_item_type)
 
+        def material_controls():
+            box, _ = combo("Material", "current_material", window.materials_catalog, required=True)
+            permission = QLabel(portal_label(window.texture_catalog.get(window.current_material, False)))
+            self.material_permission = permission
+            box.currentTextChanged.connect(lambda alias: permission.setText(portal_label(window.texture_catalog.get(alias, False))))
+            form.addWidget(permission)
+
         def motion_button():
             button = QPushButton("Settings…")
             button.setToolTip("Choose the nested map and its motion")
@@ -133,7 +154,7 @@ class ToolSettings(QWidget):
         builders = {
             **dict.fromkeys(
                 (MODE_FLOOR, MODE_INACCESSIBLE_FLOOR, MODE_WALL, *RAMP_MODES),
-                lambda: combo("Material", "current_material", window.materials_catalog, required=True),
+                material_controls,
             ),
             MODE_ACTOR_SPAWN_ZONE: lambda: (
                 combo("Actor", "recent_actor_spawn_kind", window.actor_kinds, editable=True),

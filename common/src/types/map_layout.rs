@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use anyhow::Result;
 use bevy_ecs::prelude::Resource;
 use bincode::{Decode, Encode};
@@ -7,7 +9,7 @@ use crate::config::{MapGeometryConfig, MapMovementConfig, PortalShotSettings};
 
 use super::{
     BarrierKindId, BarrierKindTable, BridgeKindId, BridgeKindTable, CarrierId, ItemType, KindDef, Position,
-    face_materials::FaceMaterials,
+    face_materials::FaceMaterials, textures::TextureSettings,
 };
 
 // Layout records are in their carrier's frame: world space for
@@ -192,7 +194,7 @@ pub struct Ladder {
 // Visual materials for each segment in the layout. The vectors run parallel
 // to `walls` / `ramps` / `floors`: the segment at index `i` renders with the
 // `FaceMaterials` at index `i` of the corresponding `*_materials` vector.
-// Physics ignores the material vectors.
+// Portal placement resolves these aliases against the map texture catalog.
 // What holding a plate does. Barrier plates open every barrier of their kind
 // (fully passable + invisible, globally) while enough of them are held —
 // distinct from keys (per-player filter). Bridge plates power every light
@@ -308,6 +310,7 @@ impl MapLayout {
 #[derive(Debug, Clone, Encode, Decode, Resource, Deserialize)]
 pub struct MapSettings {
     pub skybox: String,
+    pub textures: BTreeMap<String, TextureSettings>,
     pub geometry: MapGeometryConfig,
     pub movement: MapMovementConfig,
     pub weapons: MapWeaponSettings,

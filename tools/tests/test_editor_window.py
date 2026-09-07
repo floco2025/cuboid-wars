@@ -1,6 +1,7 @@
 import copy
 import tempfile
 import unittest
+from editor_fixtures import DEFAULT_ALIAS
 from pathlib import Path
 from unittest.mock import patch
 
@@ -17,7 +18,6 @@ from PySide6.QtWidgets import (
 )
 
 from map_editor.constants import (
-    DEFAULT_ALIAS,
     FACES,
     MODE_ACTOR_SPAWN_ZONE,
     MODE_BRIDGE_PLATE,

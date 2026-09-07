@@ -13,7 +13,6 @@ from .canvas import CLICK_TOOLS, Canvas
 from .dialogs import NestedMotion
 from .constants import (
     DEFAULT_ACTOR_COUNT,
-    DEFAULT_ALIAS,
     DEFAULT_WALL_WIDTH_CELLS,
     ERASE_MODES,
     ITEM_TYPES,
@@ -30,7 +29,7 @@ from .document import MapDocument
 from .erase import EraseMixin
 from .file_actions import FileActionsMixin
 from .display import level_label
-from .io import load_materials_catalog
+from .textures import load_texture_catalog, texture_hosts
 from .items import ItemsMixin
 from .ladders import LaddersMixin
 from .lights import LightsMixin
@@ -110,8 +109,18 @@ class EditorWindow(
         self.show_adjacent_levels = False
         # Material for newly painted floors, walls, and ramps; an alias, since
         # face values are validated against the catalog on save.
-        self.current_material: str = DEFAULT_ALIAS
-        self.materials_catalog: list[str] = load_materials_catalog()
+        self.texture_host, hosts = texture_hosts(path.stem)
+        self.texture_catalog = load_texture_catalog(self.texture_host)
+        self.materials_catalog = list(self.texture_catalog)
+        self.current_material = next(iter(self.materials_catalog), "")
+        self.texture_host_combo = QComboBox()
+        self.texture_host_combo.setAccessibleName("Texture host")
+        self.texture_host_combo.setToolTip("Use this host map's texture aliases and portal permissions")
+        self.texture_host_combo.addItems(hosts)
+        self.texture_host_combo.setCurrentText(self.texture_host)
+        self.texture_host_combo.currentTextChanged.connect(self.select_texture_host)
+        self.statusBar().addPermanentWidget(QLabel("Texture host "))
+        self.statusBar().addPermanentWidget(self.texture_host_combo)
 
         self.canvas = Canvas(self)
         self.canvas.setCursor(self.cursor_for_mode(self.mode))
@@ -186,7 +195,8 @@ class EditorWindow(
             map_name=self.edited_map_name() if map_name is None else map_name,
             nested_lookup=self.nested_map_shape,
             actor_kinds=self.actor_kinds,
-            material_aliases=self.materials_catalog,
+            material_aliases=(self.materials_catalog if map_name is None or map_name == self.edited_map_name()
+                              else list(load_texture_catalog(texture_hosts(map_name)[0]))),
         )
 
     # After the document adopts another map (new, open, save as, recovery):
@@ -201,10 +211,39 @@ class EditorWindow(
             self.barrier_kind_colors = load_map_barrier_kinds(map_name)
             self.bridge_kind_colors = load_map_bridge_kinds(map_name)
             self.wall_width_cells = load_map_wall_width_cells(map_name)
+        self.reload_texture_catalog(map_name, reset_host=True)
         self.forget_nested_map_shapes()
         self.current_level = 0
         self.refresh_ui()
         self.canvas.fit_map()
+
+    def reload_texture_catalog(self, map_name=None, *, reset_host=False) -> None:
+        preferred, hosts = texture_hosts(map_name or self.edited_map_name())
+        host = preferred if reset_host or self.texture_host not in hosts else self.texture_host
+        catalog = load_texture_catalog(host)
+        self.texture_host = host
+        self.texture_catalog = catalog
+        self.materials_catalog = list(catalog)
+        if self.current_material not in catalog:
+            self.current_material = next(iter(catalog), "")
+        self.texture_host_combo.blockSignals(True)
+        self.texture_host_combo.clear()
+        self.texture_host_combo.addItems(hosts)
+        self.texture_host_combo.setCurrentText(host)
+        self.texture_host_combo.blockSignals(False)
+
+    def select_texture_host(self, host: str) -> None:
+        previous = self.texture_host
+        self.texture_host = host
+        try:
+            self.reload_texture_catalog()
+        except (OSError, ValueError, KeyError) as exc:
+            self.texture_host = previous
+            self.texture_host_combo.blockSignals(True)
+            self.texture_host_combo.setCurrentText(previous)
+            self.texture_host_combo.blockSignals(False)
+            self.notify(f"Texture catalog failed: {exc}")
+        self.refresh_ui()
 
     # === Menus & toolbar ===
 

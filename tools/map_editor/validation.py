@@ -13,7 +13,6 @@ from .constants import (
     LADDER_SIDES,
     LIGHT_SIDES,
     MAP_NAME_RE,
-    MATERIAL_ALIASES,
     PLATE_TYPE_BARRIER,
     PLATE_TYPE_BRIDGE,
     PLATE_TYPES,
@@ -199,11 +198,7 @@ def validate_map(
     _validate_ladders(map_data, errors)
     _validate_nested_maps(map_data, errors, map_name, nested_lookup)
 
-    # Face values on walls, floors, ramps must be aliases (assets.json::aliases).
-    # Raw material ids are rejected — the alias system is the canonical way to
-    # name a material role; raw ids in map.json would let the catalog drift
-    # silently. The renderer enforces the same rule.
-    _validate_face_aliases(map_data, errors, MATERIAL_ALIASES if material_aliases is None else material_aliases)
+    _validate_face_aliases(map_data, errors, material_aliases)
 
     return errors
 
@@ -377,8 +372,8 @@ def _validate_items(map_data: dict, kinds: list[str], errors: list[str]) -> None
 
 
 def _validate_face_aliases(map_data: dict, errors: ValidationErrors, aliases) -> None:
-    if not aliases:
-        return  # no catalog loaded — skip rather than block all maps
+    if aliases is None:
+        return
     for level_idx, level in enumerate(map_data["levels"]):
         prefix = level_label(level, level_idx)
         for floor in level["floors"]:
@@ -404,7 +399,7 @@ def _check_face_aliases(seg: dict, label: str, errors: list[str], aliases) -> No
             continue
         errors.append(
             f"{label}: face {face!r} value {value!r} is not an alias; "
-            f"add an alias for it in assets.json or use one of the existing aliases"
+            f"add it to the host map’s textures in gameplay.json or choose an available alias"
         )
 
 

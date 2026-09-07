@@ -5,6 +5,7 @@ mod colliders;
 mod collision_world;
 mod erasers;
 mod ladders;
+mod portal_materials;
 mod shape_cast;
 
 pub use bridge_power::powered_bridges_sync_system;

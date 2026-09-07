@@ -26,6 +26,7 @@ pub(crate) fn sizes() -> MapGeometryConfig {
 pub(crate) fn map_settings() -> MapSettings {
     MapSettings {
         skybox: "test".to_owned(),
+        textures: Default::default(),
         portal_shots: Default::default(),
         geometry: sizes(),
         movement: MapMovementConfig {

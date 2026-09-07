@@ -210,6 +210,7 @@
     }
   },
   "aliases": {
+    "portal-resistant": "used-stainless-steel",
     "natural-ground": "mud-with-vegetation",
     "slab": "fiberous-plaster1-ue",
     "basement-floor": "smooth-temple-blocks",
@@ -257,6 +258,7 @@
       "barrier_impact": "sounds/impactPlank_medium_001.ogg",
       "plate_press": "sounds/doorOpen_1.ogg",
       "plate_release": "sounds/doorClose_2.ogg",
+      "portal_fizzle": "sounds/portal-fizzle.wav",
       "portal_fire": "sounds/Retro Charge StereoUP 12.wav",
       "quest_completed": "sounds/Retro Event Acute 08.wav",
       "rain": "sounds/rain-on-umbrella-loop.wav"

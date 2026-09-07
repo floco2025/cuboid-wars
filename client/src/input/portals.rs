@@ -18,7 +18,7 @@ use common::{
     config::GameplayConfig,
     map::Carriers,
     math::direction_from_yaw_pitch,
-    physics::{CollisionWorld, compute_portal_placement, portal_placement_overlaps},
+    physics::{CollisionWorld, PortalPlacementFailure, compute_portal_placement, portal_placement_overlaps},
     protocol::*,
 };
 
@@ -34,11 +34,6 @@ pub struct PortalInputWorld<'w> {
     gameplay_config: Res<'w, GameplayConfig>,
 }
 
-// Portal-gun fire: both-access uses left=A and right=B; single-access uses
-// left for its assigned end. Placement is predicted with the same shared check the server
-// runs on the same map data and tile poses: a valid aperture sends the shot and its
-// opening sound arrives with `SPortalOpened`; an invalid one (miss, doesn't
-// fit, covers a fixture) dry-fires immediately and sends nothing.
 pub fn input_portal_system(
     mut commands: Commands,
     mode: Res<WeaponMode>,
@@ -101,9 +96,15 @@ pub fn input_portal_system(
         &world.carriers,
         world.map_settings.portal_shots,
         &world.plates.open_barrier_kinds,
+        &world.map_settings.textures,
     );
     let existing = world.portals.wire_portals();
-    if placement.is_none_or(|placement| portal_placement_overlaps(&placement, pair, end, &existing, &world.carriers)) {
+    let dry_fire = match placement {
+        Ok(placement) => portal_placement_overlaps(&placement, pair, end, &existing, &world.carriers),
+        Err(PortalPlacementFailure::IncompatibleMaterial(_)) => false,
+        Err(PortalPlacementFailure::InvalidPlacement) => true,
+    };
+    if dry_fire {
         play_sound(&mut commands, &asset_server, asset_set.player_sound("dry_fire"));
         return;
     }

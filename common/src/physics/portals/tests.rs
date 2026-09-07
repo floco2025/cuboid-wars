@@ -1,4 +1,7 @@
-use std::{collections::HashMap, f32::consts::PI};
+use std::{
+    collections::{BTreeMap, HashMap},
+    f32::consts::PI,
+};
 
 use bevy_math::Vec3;
 
@@ -17,9 +20,9 @@ use crate::{
         momentum_displacement,
     },
     protocol::{
-        Barrier, BarrierKindId, BarrierKindTable, BridgeKindId, Carrier, CarrierId, FaceYaw, Floor, LightBridge,
-        MapLayout, PlatePurpose, PlayerMoveIntent, Portal, PortalEnd, PortalPairId, Position, PressurePlate, Ramp,
-        Wall, WallLight,
+        Barrier, BarrierKindId, BarrierKindTable, BridgeKindId, Carrier, CarrierId, FaceMaterials, FaceYaw, Floor,
+        LightBridge, MapLayout, PlatePurpose, PlayerMoveIntent, Portal, PortalEnd, PortalPairId, Position,
+        PressurePlate, Ramp, TextureSettings, Wall, WallLight,
     },
     test_geometry::{BARRIER_THICKNESS, BRIDGE_THICKNESS, FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS},
 };
@@ -786,9 +789,51 @@ fn placement_layout() -> MapLayout {
     }
 }
 
+fn textured_layout(layout: &MapLayout) -> MapLayout {
+    MapLayout {
+        wall_materials: vec![FaceMaterials::uniform("test"); layout.walls.len()],
+        floor_materials: vec![FaceMaterials::uniform("test"); layout.floors.len()],
+        ramp_materials: vec![FaceMaterials::uniform("test"); layout.ramps.len()],
+        ..layout.clone()
+    }
+}
+
+fn test_textures() -> BTreeMap<String, TextureSettings> {
+    BTreeMap::from([
+        ("test".to_owned(), TextureSettings { portalable: true }),
+        ("blocked".to_owned(), TextureSettings { portalable: false }),
+    ])
+}
+
+fn place_on_geometry(
+    origin: Vec3,
+    direction: Vec3,
+    yaw: f32,
+    range: f32,
+    world: &CollisionWorld,
+    layout: &MapLayout,
+    carriers: &Carriers,
+    settings: PortalShotSettings,
+    open: &[BarrierKindId],
+) -> Option<PortalPlacement> {
+    super::compute_portal_placement(
+        origin,
+        direction,
+        yaw,
+        range,
+        world,
+        &textured_layout(layout),
+        carriers,
+        settings,
+        open,
+        &test_textures(),
+    )
+    .ok()
+}
+
 fn place(layout: &MapLayout, origin: Vec3, toward: Vec3, yaw: f32) -> Option<PortalPlacement> {
     let world = CollisionWorld::from_map_layout(layout, &BarrierKindTable::default());
-    compute_portal_placement(
+    place_on_geometry(
         origin,
         (toward - origin).normalize(),
         yaw,
@@ -828,7 +873,7 @@ fn opening_a_barrier_exposes_a_fitting_portal_surface_behind_it() {
     let kinds = BarrierKindTable::from_ids(vec!["gate".into(), "other".into()]).expect("barrier catalog rejected");
     let world = CollisionWorld::from_map_layout(&layout, &kinds);
     for open in [vec![], vec![BarrierKindId(1)], vec![BarrierKindId(0)], vec![]] {
-        let placement = compute_portal_placement(
+        let placement = place_on_geometry(
             Vec3::new(0.0, 1.6, 4.0),
             Vec3::NEG_Z,
             0.0,
@@ -893,7 +938,7 @@ fn bridge_power_controls_portal_placement_on_the_floor_and_ceiling_beyond_it() {
             (LEVEL_HEIGHT + 1.5, Vec3::NEG_Y, 0.0),
             (LEVEL_HEIGHT - 1.5, Vec3::Y, ceiling_y - FLOOR_THICKNESS),
         ] {
-            let placement = compute_portal_placement(
+            let placement = place_on_geometry(
                 Vec3::Y * origin_y,
                 direction,
                 0.0,
@@ -1364,7 +1409,7 @@ fn placement_front_clearance_rejects_a_powered_light_bridge() {
     let origin = Vec3::new(0.0, 3.7, 3.0);
     let aim = Vec3::new(0.0, 3.7, 0.0);
     let shoot = |world: &CollisionWorld| {
-        compute_portal_placement(
+        place_on_geometry(
             origin,
             (aim - origin).normalize(),
             PI,
@@ -2154,7 +2199,7 @@ fn a_shot_at_a_carrier_floor_places_the_portal_on_the_carrier() {
     let layout = tile_wall_layout(false);
     let (world, carriers) = tile_world(&layout, 1);
 
-    let placement = compute_portal_placement(
+    let placement = place_on_geometry(
         Vec3::new(0.3, 3.0, 0.0),
         Vec3::NEG_Y,
         0.0,
@@ -2188,7 +2233,7 @@ fn a_shot_that_does_not_fit_where_it_hits_nudges_onto_the_carrier() {
     let layout = tile_wall_layout(false);
     let (world, carriers) = tile_world(&layout, 1);
 
-    let placement = compute_portal_placement(
+    let placement = place_on_geometry(
         Vec3::new(0.3, 3.0, 0.5),
         Vec3::NEG_Y,
         0.0,
@@ -2217,7 +2262,7 @@ fn a_shot_over_the_tile_edge_lands_fully_on_one_surface() {
     let (world, carriers) = tile_world(&layout, 1);
     let tile_edge = tile_center(&carriers).x + 1.5;
 
-    let over_edge = compute_portal_placement(
+    let over_edge = place_on_geometry(
         Vec3::new(1.3, 3.0, 0.0),
         Vec3::NEG_Y,
         0.0,
@@ -2236,7 +2281,7 @@ fn a_shot_over_the_tile_edge_lands_fully_on_one_surface() {
         over_edge.pos
     );
 
-    let on_floor = compute_portal_placement(
+    let on_floor = place_on_geometry(
         Vec3::new(3.0, 3.0, 0.0),
         Vec3::NEG_Y,
         0.0,
@@ -2453,4 +2498,190 @@ fn a_static_portal_ignores_a_carrier_floor_passing_behind_it() {
         excluded.iter().all(|handle| world.carrier_of(*handle).is_world()),
         "the passing tile was taken as backing"
     );
+}
+
+fn material_shot(layout: &MapLayout, origin: Vec3, direction: Vec3) -> Result<PortalPlacement, PortalPlacementFailure> {
+    let world = CollisionWorld::from_map_layout(layout, &BarrierKindTable::default());
+    super::compute_portal_placement(
+        origin,
+        direction,
+        0.0,
+        40.0,
+        &world,
+        layout,
+        &Carriers::from_layout(layout),
+        PortalShotSettings::default(),
+        &[],
+        &test_textures(),
+    )
+}
+
+#[test]
+fn insufficient_portal_space_dry_clicks_regardless_of_material() {
+    for alias in ["test", "blocked"] {
+        for (width, height) in [(0.2, 4.0), (4.0, 0.2)] {
+            let mut layout = textured_layout(&placement_layout());
+            layout.walls[0].x1 = -width / 2.0;
+            layout.walls[0].x2 = width / 2.0;
+            layout.walls[0].height = height;
+            layout.wall_materials[0] = FaceMaterials::uniform(alias);
+            let result = material_shot(&layout, Vec3::new(0.0, height / 2.0, 3.0), Vec3::NEG_Z);
+            assert!(
+                matches!(result, Err(PortalPlacementFailure::InvalidPlacement)),
+                "{width} by {height} wall with {alias:?} material did not dry-click: {result:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn incompatible_material_fizzles_when_a_geometric_nudge_finds_space() {
+    let mut layout = textured_layout(&placement_layout());
+    layout.wall_materials[0] = FaceMaterials::uniform("blocked");
+    let origin = Vec3::new(0.0, 0.1, 3.0);
+    let geometric_fit = place_on_geometry(
+        origin,
+        Vec3::NEG_Z,
+        0.0,
+        40.0,
+        &CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default()),
+        &layout,
+        &Carriers::default(),
+        PortalShotSettings::default(),
+        &[],
+    )
+    .expect("wall has no geometric fit after nudging");
+    assert!(geometric_fit.pos.y > origin.y + 0.5);
+    assert!(matches!(
+        material_shot(&layout, origin, Vec3::NEG_Z),
+        Err(PortalPlacementFailure::IncompatibleMaterial(_))
+    ));
+}
+
+#[test]
+fn portal_permissions_follow_the_hit_face_and_never_shoot_through_it() {
+    let mut layout = textured_layout(&placement_layout());
+    layout.wall_materials[0].south = "blocked".to_owned();
+    let mut behind = layout.walls[0];
+    behind.z1 = -2.0;
+    behind.z2 = -2.0;
+    layout.walls.push(behind);
+    layout.wall_materials.push(FaceMaterials::uniform("test"));
+    let result = material_shot(&layout, Vec3::new(0.0, 1.6, 3.0), Vec3::NEG_Z);
+    let Err(PortalPlacementFailure::IncompatibleMaterial(impact)) = result else {
+        panic!("blocked front face did not fizzle: {result:?}");
+    };
+    assert!((impact.pos.z - WALL_THICKNESS / 2.0).abs() < 1e-4);
+    assert!(material_shot(&layout, Vec3::new(0.0, 1.6, -1.0), Vec3::Z).is_ok());
+}
+
+#[test]
+fn portal_floor_and_ceiling_have_independent_permissions() {
+    let mut layout = textured_layout(&placement_layout());
+    layout.floor_materials[0].top = "blocked".to_owned();
+    assert!(matches!(
+        material_shot(&layout, Vec3::new(0.0, 3.0, 3.0), Vec3::NEG_Y),
+        Err(PortalPlacementFailure::IncompatibleMaterial(_))
+    ));
+    assert!(material_shot(&layout, Vec3::new(0.0, -3.0, 3.0), Vec3::Y).is_ok());
+}
+
+#[test]
+fn portal_ramp_slope_uses_the_top_material_even_on_a_steep_ramp() {
+    let layout = MapLayout {
+        ramps: vec![Ramp {
+            x1: -3.0,
+            x2: 3.0,
+            y1: 0.0,
+            y2: 10.0,
+            z1: 0.0,
+            z2: 5.0,
+            carrier: CarrierId::WORLD,
+        }],
+        ramp_materials: vec![FaceMaterials {
+            top: "blocked".to_owned(),
+            ..FaceMaterials::uniform("test")
+        }],
+        ..Default::default()
+    };
+    let normal = Vec3::new(0.0, 1.0, -2.0).normalize();
+    let target = Vec3::new(0.0, 5.0, 2.5);
+    assert!(matches!(
+        material_shot(&layout, target + normal * 3.0, -normal),
+        Err(PortalPlacementFailure::IncompatibleMaterial(_))
+    ));
+}
+
+#[test]
+fn portal_fit_detects_a_narrow_forbidden_patch_between_backing_probes() {
+    let mut layout = textured_layout(&placement_layout());
+    let patch = Wall {
+        x1: 0.1,
+        x2: 0.12,
+        y: 1.7,
+        height: 0.02,
+        ..layout.walls[0]
+    };
+    layout.walls.push(patch);
+    layout.wall_materials.push(FaceMaterials::uniform("blocked"));
+    let world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
+    let frame = PortalFrame::from_surface(Vec3::new(0.0, 1.6, WALL_THICKNESS / 2.0), Vec3::Z, 0.0);
+    assert!(!world.portal_materials_allow(&frame, &layout, &test_textures()));
+    let placement = material_shot(&layout, Vec3::new(0.0, 1.6, 3.0), Vec3::NEG_Z)
+        .expect("shot did not nudge clear of the forbidden patch");
+    assert!(placement.pos.distance(frame.center) > 0.1);
+    assert!(world.portal_materials_allow(
+        &PortalFrame::from_surface(placement.pos, placement.normal, placement.yaw),
+        &layout,
+        &test_textures()
+    ));
+}
+
+#[test]
+fn portal_cannot_nudge_off_a_direct_hit_on_incompatible_material() {
+    let mut layout = textured_layout(&placement_layout());
+    layout.walls[0].x2 = 0.0;
+    layout.wall_materials[0] = FaceMaterials::uniform("blocked");
+    let right = Wall {
+        x1: 0.0,
+        x2: 6.0,
+        ..layout.walls[0]
+    };
+    layout.walls.push(right);
+    layout.wall_materials.push(FaceMaterials::uniform("test"));
+    assert!(matches!(
+        material_shot(&layout, Vec3::new(-0.05, 1.6, 3.0), Vec3::NEG_Z),
+        Err(PortalPlacementFailure::IncompatibleMaterial(_))
+    ));
+    let placement = material_shot(&layout, Vec3::new(0.05, 1.6, 3.0), Vec3::NEG_Z)
+        .expect("permitted side did not nudge clear of the material boundary");
+    assert!(placement.pos.x >= PORTAL_HALF_WIDTH * PORTAL_RIM_SCALE);
+}
+
+#[test]
+fn incompatible_material_impact_keeps_its_carrier_local_position() {
+    let mut layout = textured_layout(&placement_layout());
+    layout.walls[0].carrier = CarrierId(1);
+    layout.wall_materials[0] = FaceMaterials::uniform("blocked");
+    layout.carriers.push(Carrier {
+        parent: CarrierId::WORLD,
+        level: 0,
+        levels: 0,
+        from: Vec3::new(8.0, 2.0, 4.0).into(),
+        to: Vec3::new(10.0, 2.0, 4.0).into(),
+        travel_ticks: 30,
+        pause_ticks: 0,
+        phase_ticks: 15,
+    });
+    let carriers = Carriers::from_layout(&layout);
+    let origin = carriers.pose(CarrierId(1)).transform_point(Vec3::new(0.0, 1.6, 3.0));
+    let result = material_shot(&layout, origin, Vec3::NEG_Z);
+    let Err(PortalPlacementFailure::IncompatibleMaterial(impact)) = result else {
+        panic!("carried material did not reject: {result:?}");
+    };
+    assert_eq!(impact.carrier, CarrierId(1));
+    let wire = impact.portal(PortalPairId(1), PortalEnd::B, &carriers);
+    assert!((wire.pos.x).abs() < 1e-4);
+    assert!((wire.pos.y - 1.6).abs() < 1e-4);
+    assert!((wire.pos.z - WALL_THICKNESS / 2.0).abs() < 1e-4);
 }

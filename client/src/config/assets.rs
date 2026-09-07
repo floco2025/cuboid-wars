@@ -6,6 +6,7 @@ use std::{
 
 use anyhow::{Context, Result, bail};
 use bevy::prelude::Resource;
+use common::protocol::{MapLayout, MapSettings, validate_texture_catalog, validate_texture_materials};
 use serde::Deserialize;
 
 const REQUIRED_PLAYER_SOUNDS: &[&str] = &[
@@ -27,6 +28,7 @@ const REQUIRED_PLAYER_SOUNDS: &[&str] = &[
     "plate_press",
     "plate_release",
     "portal_fire",
+    "portal_fizzle",
     "quest_completed",
     "rain",
     "take_hit",
@@ -111,6 +113,26 @@ impl AssetSet {
             bail!(
                 "actor kinds disagree between server gameplay and client asset configs (only in gameplay: {only_gameplay:?}, only in assets: {only_assets:?})"
             );
+        }
+        Ok(())
+    }
+
+    pub fn validate_map_bindings(&self, settings: &MapSettings, layout: &MapLayout) -> Result<()> {
+        validate_texture_catalog(&settings.textures, "map.textures")?;
+        for alias in settings.textures.keys() {
+            anyhow::ensure!(
+                self.aliases.contains_key(alias),
+                "map texture alias {alias:?} has no binding in assets.json"
+            );
+        }
+        for (kind, materials) in [
+            ("walls", &layout.wall_materials),
+            ("floors", &layout.floor_materials),
+            ("ramps", &layout.ramp_materials),
+        ] {
+            for (index, faces) in materials.iter().enumerate() {
+                validate_texture_materials(faces, &settings.textures, &format!("map.{kind}[{index}]"))?;
+            }
         }
         Ok(())
     }
@@ -425,6 +447,7 @@ impl AssetSet {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use common::protocol::TextureSettings;
     use std::collections::HashSet;
 
     // The server's actor kinds, straight from the shipped JSON.
@@ -437,6 +460,19 @@ mod tests {
             .keys()
             .cloned()
             .collect()
+    }
+
+    #[test]
+    fn missing_map_texture_binding_fails_before_rendering() {
+        let assets = AssetSet::load_default().expect("shipped assets are invalid");
+        let mut settings = crate::test_geometry::map_settings();
+        settings
+            .textures
+            .insert("missing-binding".to_owned(), TextureSettings { portalable: false });
+        let error = assets
+            .validate_map_bindings(&settings, &MapLayout::default())
+            .expect_err("missing binding was accepted");
+        assert!(error.to_string().contains("missing-binding"));
     }
 
     #[test]

@@ -24,7 +24,8 @@ const BARRIER_GROUP_BIT_OFFSET: u32 = 4;
 const _: () = assert!(matches!(BarrierKindId::MAX, Some(max) if BARRIER_GROUP_BIT_OFFSET as usize + max == 32));
 
 // Collider `user_data`: the kind tag in the low byte, the kind's payload
-// (barrier or bridge kind id) from bit 8, and the carrier from bit 24.
+// (barrier or bridge kind id) from bit 8, the carrier from bit 24, and
+// the wall/floor/ramp material index from bit 40.
 const COLLIDER_KIND_MASK: u128 = 0xff;
 const KIND_SHIFT: u32 = 8;
 const ID_MASK: u128 = 0xffff;

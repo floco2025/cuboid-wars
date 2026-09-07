@@ -6,7 +6,6 @@ import copy
 
 from .constants import (
     ACTOR_ZONE_LIST,
-    DEFAULT_ALIAS,
     DEFAULT_GRID_COLS,
     DEFAULT_GRID_ROWS,
     FACES,
@@ -443,11 +442,7 @@ def enforce_ramp_floor_rules(map_data: dict) -> None:
         # lower level (auto-painted with placeholder materials when missing),
         # and are removed from the upper level. Inaccessible-floor entries
         # at those cells are also dropped.
-        # Placeholder is an alias (face values must be aliases — see
-        # `validate_map`); the user can re-paint with the right material
-        # later. Source from the loaded catalog rather than hard-coding so
-        # the value can't drift to a removed alias.
-        ramp_faces = {face: ramp.get(face, DEFAULT_ALIAS) for face in FACES}
+        ramp_faces = {face: ramp.get(face, "") for face in FACES}
         lower_existing = {(f["col"], f["row"]): f for f in map_data["levels"][lower]["floors"]}
         for col, row in cells:
             if (col, row) not in lower_existing:

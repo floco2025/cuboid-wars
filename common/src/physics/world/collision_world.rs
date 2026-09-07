@@ -28,6 +28,7 @@ use super::{
     },
     erasers::EraserVolume,
     ladders::LadderVolume,
+    portal_materials::MATERIAL_INDEX_SHIFT,
     shape_cast::{ShapeCastHit, upward_surface_hit},
 };
 
@@ -40,6 +41,7 @@ pub struct WorldSurfaceHit {
     pub normal: Vec3,
     // Whose surface it is: what a portal placed here rides.
     pub carrier: CarrierId,
+    pub(crate) collider: ColliderHandle,
 }
 
 #[derive(Resource)]
@@ -86,18 +88,21 @@ impl CollisionWorld {
             handle
         };
 
-        for wall in &map_layout.walls {
+        for (index, wall) in map_layout.walls.iter().enumerate() {
             let handle = insert_wall_collider(&mut colliders, wall);
+            colliders[handle].user_data |= (index as u128) << MATERIAL_INDEX_SHIFT;
             collider_handles.push(carried(&colliders, handle, wall.carrier));
         }
 
-        for floor in &map_layout.floors {
+        for (index, floor) in map_layout.floors.iter().enumerate() {
             let handle = insert_floor_collider(&mut colliders, floor);
+            colliders[handle].user_data |= (index as u128) << MATERIAL_INDEX_SHIFT;
             collider_handles.push(carried(&colliders, handle, floor.carrier));
         }
 
-        for ramp in &map_layout.ramps {
+        for (index, ramp) in map_layout.ramps.iter().enumerate() {
             if let Some(handle) = insert_ramp_collider(&mut colliders, ramp) {
+                colliders[handle].user_data |= (index as u128) << MATERIAL_INDEX_SHIFT;
                 collider_handles.push(carried(&colliders, handle, ramp.carrier));
             }
         }
@@ -502,6 +507,7 @@ impl CollisionWorld {
             point: origin + direction * hit.time_of_impact,
             normal,
             carrier: self.carrier_of(handle),
+            collider: handle,
         })
     }
 

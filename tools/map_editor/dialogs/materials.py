@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from PySide6.QtCore import Qt
+from ..textures import portal_label
+
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -16,7 +19,7 @@ class MaterialAssignmentDialog(QDialog):
     """Modal dialog with one dropdown per face (top/bottom/N/S/E/W).
 
     `catalog` is the list of material names to choose from, sourced from
-    `assets.json`. `initial` provides the starting selection per face;
+    the host map’s `gameplay.json` texture catalog. `initial` provides the starting selection per face;
     uniform faces start with their value, and mixed faces stay unchanged.
 
     `Apply to all` copies the Top dropdown's value into the other five.
@@ -40,6 +43,7 @@ class MaterialAssignmentDialog(QDialog):
         initial: dict[str, str | None],
         *,
         source: dict[str, str | None] | None = None,
+        portalability: dict[str, bool] | None = None,
     ):
         super().__init__(parent)
         self.setWindowTitle(title)
@@ -48,14 +52,18 @@ class MaterialAssignmentDialog(QDialog):
         self._dropdowns: dict[str, QComboBox] = {}
         form = QFormLayout()
         form.addRow("Selection:", QLabel(scope_summary))
+        if portalability is not None:
+            form.addRow("Portals:", QLabel("Permissions come from the selected texture host."))
         for face, label in self.FACE_LABELS:
             combo = QComboBox()
             combo.addItem("Mixed / leave unchanged", None)
             for alias in catalog:
-                combo.addItem(alias, alias)
+                status = portal_label(portalability[alias]) if portalability and alias in portalability else ""
+                combo.addItem(f"{alias} — {status}" if status else alias, alias)
+                combo.setItemData(combo.count() - 1, status, Qt.ItemDataRole.ToolTipRole)
             current = initial.get(face)
             if current is not None and current in catalog:
-                combo.setCurrentText(current)
+                combo.setCurrentIndex(combo.findData(current))
             self._dropdowns[face] = combo
             form.addRow(label + ":", combo)
 
@@ -106,11 +114,12 @@ class MaterialAssignmentDialog(QDialog):
         initial: dict[str, str | None],
         *,
         source: dict[str, str | None] | None = None,
+        portalability: dict[str, bool] | None = None,
     ) -> dict[str, str] | None:
         if not catalog:
-            QMessageBox.warning(parent, title, "No materials catalog loaded (assets.json missing or empty).")
+            QMessageBox.warning(parent, title, "The selected host has no textures in gameplay.json.")
             return None
-        dialog = cls(parent, title, scope_summary, catalog, initial, source=source)
+        dialog = cls(parent, title, scope_summary, catalog, initial, source=source, portalability=portalability)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return None
         return dialog.values()

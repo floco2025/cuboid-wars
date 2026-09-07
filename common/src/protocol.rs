@@ -170,8 +170,8 @@ pub struct CMissileShot {
 
 // Client to Server: place one end allowed by the shooter's portal assignment. The server
 // re-derives the eye ray from yaw/pitch, casts it at world geometry, and
-// answers with `SPortalOpened` — or silently fizzles on a miss; the client
-// spawns nothing locally.
+// answers with `SPortalOpened` or a material-rejection `SPortalFizzled` cue.
+// Other placement failures are silent; the client predicts their dry-fire.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct CPortalShot {
     pub end: PortalEnd,
@@ -564,6 +564,13 @@ pub struct SPortalOpened {
     pub portal: Portal,
 }
 
+// Cosmetic impact only; a lost cue costs the fizzle, never portal state.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SPortalFizzled {
+    pub shooter: PlayerId,
+    pub impact: Portal,
+}
+
 // Pong response — server echoes the `CPing` timestamp back unchanged so the
 // client can compute RTT from the round trip.
 #[derive(Debug, Clone, Encode, Decode)]
@@ -684,6 +691,7 @@ pub enum ServerMessage {
     MissilesCollected(SMissilesCollected),
     PressurePlate(SPressurePlate),
     PortalOpened(SPortalOpened),
+    PortalFizzled(SPortalFizzled),
     Pong(SPong),
     // Events
     Feed(SFeed),
@@ -747,6 +755,7 @@ impl ServerMessage {
             | Self::MissilesCollected(_)
             | Self::PressurePlate(_)
             | Self::PortalOpened(_)
+            | Self::PortalFizzled(_)
             | Self::Pong(_) => Lane::Unreliable,
         }
     }

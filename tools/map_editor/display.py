@@ -7,7 +7,6 @@ import hashlib
 from PySide6.QtGui import QColor
 
 from .constants import (
-    DEFAULT_ALIAS,
     FACES,
     FIREWORK_PLATE_COLOR,
     MODE_BRIDGE_PLATE,
@@ -134,10 +133,7 @@ def expand_face_materials(obj: dict) -> dict[str, str]:
     if fallback is None:
         fallback = next((obj[face] for face in FACES if face in obj), None)
     if fallback is None:
-        # Segment loaded without any material data — fall back to a *legal*
-        # value pulled from the loaded alias catalog (face values are
-        # validated against aliases on save).
-        fallback = DEFAULT_ALIAS
+        fallback = ""
     return {face: obj.get(face, fallback) for face in FACES}
 
 

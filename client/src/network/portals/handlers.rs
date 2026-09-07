@@ -1,7 +1,10 @@
 use bevy::prelude::*;
 
 use super::{super::context::ServerMessageContext, sync::upsert_portal};
-use crate::audio::{play_sound, play_spatial_sound};
+use crate::{
+    audio::{play_sound, play_spatial_sound},
+    vfx::spawn_portal_fizzle,
+};
 use common::{physics::PortalSet, protocol::*};
 
 // A portal end was placed or moved. The visual is idempotent against a racing
@@ -39,5 +42,58 @@ pub(in crate::network) fn handle_portal_opened_message(
                 position.z,
             ),
         );
+    }
+}
+
+pub(in crate::network) fn handle_portal_fizzled_message(
+    message: SPortalFizzled,
+    commands: &mut Commands,
+    my_player_id: PlayerId,
+    context: &mut ServerMessageContext,
+) {
+    spawn_portal_fizzle(
+        commands,
+        &context.portal_fizzle_assets,
+        &message.impact,
+        &context.carrier_entities,
+    );
+    if message.shooter == my_player_id {
+        play_sound(
+            commands,
+            &context.asset_server,
+            context.asset_set.player_sound("portal_fire"),
+        );
+        play_sound(
+            commands,
+            &context.asset_server,
+            context.asset_set.player_sound("portal_fizzle"),
+        );
+    } else {
+        let impact = context
+            .carriers
+            .pose(message.impact.carrier)
+            .transform_point(message.impact.pos.into());
+        play_spatial_sound(
+            commands,
+            &context.asset_server,
+            context.asset_set.player_sound("portal_fizzle"),
+            &context.client_settings.audio,
+            impact,
+        );
+        if let Some(shooter) = context.players.get(&message.shooter)
+            && let Ok((position, _, _)) = context.player_data.get(shooter.entity)
+        {
+            play_spatial_sound(
+                commands,
+                &context.asset_server,
+                context.asset_set.player_sound("portal_fire"),
+                &context.client_settings.audio,
+                Vec3::new(
+                    position.x,
+                    position.y + context.gameplay_config.player.eye_height(),
+                    position.z,
+                ),
+            );
+        }
     }
 }

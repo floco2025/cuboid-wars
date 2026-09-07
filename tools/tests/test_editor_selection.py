@@ -1,5 +1,6 @@
 import copy
 import unittest
+from editor_fixtures import DEFAULT_ALIAS
 from pathlib import Path
 from unittest.mock import patch
 
@@ -8,7 +9,7 @@ from PySide6.QtGui import QKeySequence
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QMessageBox
 
-from map_editor.constants import DEFAULT_ALIAS, MODE_ERASE, MODE_FLOOR, MODE_SELECT
+from map_editor.constants import MODE_ERASE, MODE_FLOOR, MODE_SELECT
 from map_editor.io import empty_map, write_map
 from map_editor.normalization import canonicalize_map
 from map_editor.regions import GLOBAL_LISTS, LEVEL_LISTS, TileRegion, copy_region, delete_region, paste_region

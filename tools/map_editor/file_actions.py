@@ -19,7 +19,7 @@ from .constants import (
     load_map_wall_width_cells,
 )
 from .dialogs import ResizeMapDialog
-from .io import empty_map, load_materials_catalog, read_map
+from .io import empty_map, read_map
 
 
 class FileActionsMixin:
@@ -81,6 +81,7 @@ class FileActionsMixin:
         return self._save_to(self.path)
 
     def _save_to(self, path: Path) -> bool:
+        previous_map_name = self.edited_map_name()
         self.forget_nested_map_shapes()
         try:
             errors = self.validate(self.map_data, map_name=path.stem)
@@ -114,6 +115,7 @@ class FileActionsMixin:
             return False
         # Save As changes the map's name, and with it its catalogs; the view
         # stays where it is.
+        self.reload_texture_catalog(path.stem, reset_host=path.stem != previous_map_name)
         self.barrier_kind_colors = load_map_barrier_kinds(path.stem)
         self.bridge_kind_colors = load_map_bridge_kinds(path.stem)
         self.wall_width_cells = load_map_wall_width_cells(path.stem)
@@ -262,9 +264,7 @@ class FileActionsMixin:
         self.forget_nested_map_shapes()
         try:
             self.actor_kinds = load_actor_kinds()
-            self.materials_catalog = load_materials_catalog()
-            if self.current_material not in self.materials_catalog:
-                self.current_material = next(iter(self.materials_catalog), "")
+            self.reload_texture_catalog()
             self.barrier_kind_colors = load_map_barrier_kinds(self.edited_map_name())
             self.bridge_kind_colors = load_map_bridge_kinds(self.edited_map_name())
             self.wall_width_cells = load_map_wall_width_cells(self.edited_map_name())
