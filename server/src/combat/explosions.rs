@@ -575,6 +575,55 @@ mod tests {
     }
 
     #[test]
+    fn crushed_actor_death_broadcasts_once_and_detonates_without_kill_credit() {
+        let mut app = test_app();
+        app.add_systems(Update, (actors_removal_system, explosions_system).chain());
+        let observer_id = PlayerId(1);
+        let (_, mut receiver) = spawn_logged_in_player(&mut app, observer_id, 100.0, 100.0);
+        let crushed_id = ActorId(1);
+        let crushed = spawn_actor(&mut app, crushed_id, 0.0, 100.0);
+        let nearby = spawn_actor(&mut app, ActorId(2), 5.0, 1.0);
+        app.world_mut().entity_mut(crushed).insert(ActorCrushed(true));
+        app.world_mut()
+            .resource_mut::<ActorMap>()
+            .get_mut(&crushed_id)
+            .expect("crushed actor missing")
+            .last_damager = Some(observer_id);
+
+        app.update();
+
+        for id in [crushed_id, ActorId(2)] {
+            let ServerToClient::Send(ServerMessage::ActorDeath(death)) =
+                receiver.try_recv().expect("actor death cue missing")
+            else {
+                panic!("unexpected message instead of actor death cue");
+            };
+            assert_eq!(death.id, id);
+            assert_eq!(death.killer, None);
+            assert_eq!(death.killer_score, None);
+        }
+        assert!(app.world().get_entity(crushed).is_err());
+        assert!(app.world().get_entity(nearby).is_err());
+        assert!(app.world().resource::<ActorMap>().get(&crushed_id).is_none());
+        assert!(app.world().resource::<ActorMap>().get(&ActorId(2)).is_none());
+        assert!(app.world().resource::<PendingExplosions>().0.is_empty());
+        assert_eq!(
+            app.world()
+                .resource::<PlayerMap>()
+                .get(&observer_id)
+                .expect("observer missing")
+                .session
+                .score,
+            0
+        );
+
+        app.update();
+
+        assert!(receiver.try_recv().is_err());
+        assert!(app.world().resource::<PendingExplosions>().0.is_empty());
+    }
+
+    #[test]
     fn surviving_actor_receives_blast_knockback() {
         let mut app = test_app();
         app.add_systems(Update, explosions_system);

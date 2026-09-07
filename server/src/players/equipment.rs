@@ -48,13 +48,14 @@ pub fn erase_equipment_system(
             entered |= !contacts.occupied.contains(&(*id, field));
         }
         occupied.extend(touching.into_iter().map(|field| (*id, field)));
-        if entered && info.connection.logged_in {
+        let erased = touched && info.erase_equipment();
+        if entered && erased && info.connection.logged_in {
             let _ = info
                 .connection
                 .channel
                 .send(ServerToClient::Send(ServerMessage::EraserEntered(SEraserEntered)));
         }
-        if touched && info.erase_equipment() {
+        if erased {
             statuses.push(info.status(*id));
         }
     }
@@ -126,12 +127,17 @@ mod tests {
     }
 
     #[test]
-    fn empty_inventory_plays_on_entry_and_reentry_but_not_while_standing() {
+    fn entering_and_reentering_without_erasable_equipment_stays_silent() {
         let (mut app, entity, mut rx) = test_app();
-        for (z, expected) in [(-3.0, 0), (0.0, 1), (0.0, 0), (4.0, 1), (4.0, 0), (8.0, 0), (4.0, 1)] {
+        app.world_mut()
+            .resource_mut::<PlayerMap>()
+            .get_mut(&PlayerId(1))
+            .expect("player missing")
+            .add_key(BarrierKindId(0));
+        for z in [-3.0, 0.0, 0.0, 4.0, 4.0, 8.0, 4.0] {
             app.world_mut().get_mut::<Position>(entity).expect("position missing").z = z;
             app.update();
-            assert_eq!(entry_cues(&mut rx), expected, "at z={z}");
+            assert!(rx.try_recv().is_err(), "unexpected eraser feedback at z={z}");
         }
         app.world_mut()
             .resource_mut::<PlayerMap>()
@@ -162,7 +168,16 @@ mod tests {
             .expect("player missing")
             .add_missiles(2, 3);
         app.update();
-        let statuses: Vec<_> = std::iter::from_fn(|| rx.try_recv().ok())
+        let messages: Vec<_> = std::iter::from_fn(|| rx.try_recv().ok()).collect();
+        assert_eq!(
+            messages
+                .iter()
+                .filter(|message| matches!(message, ServerToClient::Send(ServerMessage::EraserEntered(_))))
+                .count(),
+            1
+        );
+        let statuses: Vec<_> = messages
+            .into_iter()
             .filter_map(|message| match message {
                 ServerToClient::Send(ServerMessage::PlayerStatus(status)) => Some(status),
                 _ => None,
@@ -175,18 +190,28 @@ mod tests {
     }
 
     #[test]
-    fn fast_pass_plays_even_when_both_tick_endpoints_are_outside() {
-        let (mut app, entity, mut rx) = test_app();
-        app.update();
-        app.world_mut()
-            .resource_mut::<EraserContacts>()
-            .swept
-            .insert((PlayerId(1), 0));
-        app.world_mut().get_mut::<Position>(entity).expect("position missing").z = 2.0;
-        app.update();
-        assert_eq!(entry_cues(&mut rx), 1);
-        app.update();
-        assert_eq!(entry_cues(&mut rx), 0);
+    fn fast_pass_plays_only_when_equipment_is_erased() {
+        for equipped in [false, true] {
+            let (mut app, entity, mut rx) = test_app();
+            if equipped {
+                app.world_mut()
+                    .resource_mut::<PlayerMap>()
+                    .get_mut(&PlayerId(1))
+                    .expect("player missing")
+                    .life
+                    .power_ups[PowerUpKind::PortalGun.index()] = PowerUpState::Permanent;
+            }
+            app.update();
+            app.world_mut()
+                .resource_mut::<EraserContacts>()
+                .swept
+                .insert((PlayerId(1), 0));
+            app.world_mut().get_mut::<Position>(entity).expect("position missing").z = 2.0;
+            app.update();
+            assert_eq!(entry_cues(&mut rx), usize::from(equipped));
+            app.update();
+            assert_eq!(entry_cues(&mut rx), 0);
+        }
     }
 
     #[test]

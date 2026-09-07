@@ -14,10 +14,8 @@ use common::{
 
 // Despawn actors that have fallen below the death threshold, left their
 // nested map, been crushed by a carrier, or had their health reduced to
-// zero. Health-zero death broadcasts its cue and queues a blast for the
-// shared resolver. Falls, departures, and crushes are silent — falls were
-// teleports before, so the asymmetry is preserved, and an actor off its
-// carrier has no grid to navigate.
+// zero. Health-zero deaths and crushes broadcast their cue and queue a
+// blast for the shared resolver. Falls and departures are silent.
 //
 // Actor entities are despawned outright; the `actors_respawn_system` will
 // pick the missing slots up next tick and create replacements.
@@ -64,7 +62,14 @@ pub fn actors_removal_system(
 
     for death in deaths {
         match death.kind {
-            ActorDeathKind::Killed => {
+            ActorDeathKind::Killed | ActorDeathKind::Crushed => {
+                if matches!(death.kind, ActorDeathKind::Crushed) {
+                    info!(
+                        "{} was crushed by moving geometry at {:?}",
+                        actors.describe(&death.id),
+                        death.pos
+                    );
+                }
                 kill_actor(
                     &mut commands,
                     &mut actors,
@@ -79,15 +84,6 @@ pub fn actors_removal_system(
             }
             ActorDeathKind::Fall => {
                 info!("{} fell and despawned at {:?}", actors.describe(&death.id), death.pos);
-                commands.entity(death.entity).despawn();
-                actors.remove(&death.id);
-            }
-            ActorDeathKind::Crushed => {
-                info!(
-                    "{} was crushed by moving geometry at {:?}",
-                    actors.describe(&death.id),
-                    death.pos
-                );
                 commands.entity(death.entity).despawn();
                 actors.remove(&death.id);
             }

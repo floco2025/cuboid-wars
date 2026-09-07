@@ -513,7 +513,7 @@ impl SPlayerStatus {
     }
 }
 
-// An eraser entry plays a sound even with an empty inventory. Unicast to the entering player.
+// An eraser entry that removes equipment plays a sound. Unicast to the entering player.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SEraserEntered;
 
