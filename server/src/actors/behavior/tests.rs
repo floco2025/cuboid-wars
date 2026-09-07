@@ -22,7 +22,7 @@ use common::{
     config::GameplayConfig,
     map::{CarrierPose, Carriers, MapGeometry},
     physics::{CharacterSupport, CollisionWorld},
-    protocol::{BarrierKindTable, Carrier, CarrierId, MapLayout, PlayerId, Position, Wall},
+    protocol::{Barrier, BarrierKindId, BarrierKindTable, Carrier, CarrierId, MapLayout, PlayerId, Position, Wall},
 };
 
 // A 12x5 all-floor grid with one zone at (1, 2). With a carrier, the zone's
@@ -166,6 +166,7 @@ impl Fixture {
             nav_graph: self.graph(),
             territory: self.territories.get(0),
             collision_world: &self.collision_world,
+            open_barriers: &[],
             kind_config: self.server.expect_actor(kind),
             players_armed: true,
         }
@@ -1169,4 +1170,54 @@ fn reached_ladder_target_remains_a_hold_instead_of_becoming_idle() {
         ));
     }
     assert!(info.route.is_some());
+}
+
+#[test]
+fn zapper_sees_a_player_through_a_barrier_but_waits_for_a_clear_attack() {
+    let mut fixture = Fixture::new("zapper");
+    let actor_pos = fixture.pos(1, 2);
+    let target = fixture.pos(3, 2);
+    let kind = BarrierKindId(0);
+    let x = (actor_pos.x + target.x) / 2.0;
+    let layout = MapLayout {
+        barriers: vec![Barrier {
+            x1: x,
+            x2: x,
+            z1: actor_pos.z - 4.0,
+            z2: actor_pos.z + 4.0,
+            y: 0.0,
+            height: WALL_HEIGHT,
+            width: 0.1,
+            level: 0,
+            levels: 1,
+            kind,
+            carrier: CarrierId::WORLD,
+        }],
+        ..Default::default()
+    };
+    let kinds = BarrierKindTable::from_ids(vec!["shield".into()]).expect("barrier catalog rejected");
+    fixture.collision_world = CollisionWorld::from_map_layout(&layout, &kinds);
+    let mut info = info("zapper");
+    update_awareness(
+        &mut info,
+        actor_pos,
+        fixture.gameplay.expect_actor("zapper").eye_height(),
+        60.0,
+        1.0,
+        fixture.gameplay.player.physics(),
+        &[PlayerState {
+            id: PlayerId(7),
+            pos: target,
+            support: CharacterSupport::Ground,
+        }],
+        &fixture.collision_world,
+    );
+    assert!(info.awareness[0].visible);
+    let mut rng = StdRng::seed_from_u64(1);
+    let mut context = fixture.context("zapper", actor_pos);
+    assert!(decide_beam_actor(&mut info, &context, &mut rng).is_none());
+    assert!(matches!(info.beam, BeamState::Ready));
+    let opened = [kind];
+    context.open_barriers = &opened;
+    assert!(decide_beam_actor(&mut info, &context, &mut rng).is_some());
 }

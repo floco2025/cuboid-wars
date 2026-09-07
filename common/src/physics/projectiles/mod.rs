@@ -5,7 +5,7 @@ mod spawning;
 
 pub use events::{PROJECTILE_EVENT_LIMIT, ProjectileEvent, earliest_projectile_event};
 pub use hits::{projectile_character_hit, projectile_overlaps_character};
-pub use motion::{BarrierImpact, ProjectileMotion, SurfaceBounce};
+pub use motion::{FieldImpact, ProjectileMotion, SurfaceBounce};
 pub use spawning::{ProjectileSpawnInfo, calculate_projectile_spawns};
 
 #[cfg(test)]

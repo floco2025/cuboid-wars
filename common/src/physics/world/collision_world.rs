@@ -13,7 +13,7 @@ use rapier3d::{
 };
 
 use crate::{
-    config::{CharacterPhysicsConfig, PortalShotSettings},
+    config::CharacterPhysicsConfig,
     map::{CarrierPose, Carriers},
     physics::characters::{character_center, character_shape},
     protocol::{BarrierKindId, BarrierKindTable, BridgeKindId, CarrierId, MapLayout, Position},
@@ -301,17 +301,13 @@ impl CollisionWorld {
         )
     }
 
-    // Cast a moving ball against walls/floors/ramps and the powered light
-    // bridges (the "bouncy" world). Barriers terminate projectiles via
-    // `cast_moving_ball_against_barriers` instead, so they're filtered out
-    // here.
     #[must_use]
     pub fn cast_moving_ball(&self, position: Vec3, translation: Vec3, radius: f32) -> Option<ShapeCastHit> {
-        self.cast_moving_ball_excluding(position, translation, radius, &[])
+        self.cast_moving_ball_with_filter(position, translation, radius, surface_collision_groups(), &[])
     }
 
     #[must_use]
-    pub fn cast_moving_ball_excluding(
+    pub fn cast_bouncing_ball_excluding(
         &self,
         position: Vec3,
         translation: Vec3,
@@ -322,7 +318,7 @@ impl CollisionWorld {
             position,
             translation,
             radius,
-            surface_collision_groups(),
+            world_collision_groups(),
             excluded_colliders,
         )
     }
@@ -342,19 +338,15 @@ impl CollisionWorld {
                 .is_none()
     }
 
-    // Cast a moving ball against barrier colliders only. Used by projectiles
-    // to detect termination on a barrier. Kinds in `open_kinds` (currently
-    // held open by pressure plates) are dropped from the filter, so shots
-    // fly through the gap a plate creates.
     #[must_use]
-    pub fn cast_moving_ball_against_barriers(
+    pub fn cast_moving_ball_against_fields(
         &self,
         position: Vec3,
         translation: Vec3,
         radius: f32,
         open_kinds: &[BarrierKindId],
     ) -> Option<ShapeCastHit> {
-        let mut groups = self.all_barrier_groups;
+        let mut groups = self.all_barrier_groups | BRIDGE_COLLISION_GROUP;
         for kind in open_kinds {
             groups.remove(barrier_collision_group(*kind));
         }
@@ -407,17 +399,13 @@ impl CollisionWorld {
                     normal,
                     contact: Vec3::new(hit.witness1.x, hit.witness1.y, hit.witness1.z),
                     t: hit.time_of_impact,
-                    barrier_kind: ColliderKind::barrier_kind_from_user_data(self.colliders[handle].user_data),
+                    field_kind: ColliderKind::field_kind_from_user_data(self.colliders[handle].user_data),
                     carrier: self.carrier_of(handle),
                 }
             })
     }
 
-    // Line of sight is blocked by walls/floors/ramps only. Barriers don't
-    // block sight — actors see through and pursue; the kinematic controller
-    // stops them at the barrier surface, where normal wall-avoidance kicks in.
-    // Light bridges don't either, powered or not: sight, beams, and blasts
-    // reach through them, so nothing here has to follow the plate state.
+    // Transparent fields block attacks, but never awareness.
     #[must_use]
     pub fn line_of_sight_clear(&self, from: Vec3, to: Vec3) -> bool {
         const SIGHT_RADIUS: f32 = 0.08;
@@ -438,36 +426,47 @@ impl CollisionWorld {
         (hit.normal.y.abs() < 0.1).then_some(hit)
     }
 
-    // First world surface (wall/floor/ramp, on any carrier) along the ray —
-    // the same filter as `line_of_sight_clear`, so a beam clipped at this
-    // point stops exactly where sight does. Barriers and light bridges are excluded.
     #[must_use]
     pub fn world_surface_along_ray(&self, origin: Vec3, direction: Vec3, max_distance: f32) -> Option<WorldSurfaceHit> {
         self.surface_along_ray(origin, direction, max_distance, world_collision_groups())
     }
 
-    // Only global plate state opens a shot path; held keys never enter this filter.
+    #[must_use]
+    pub fn attack_path_clear(&self, from: Vec3, to: Vec3, open_barriers: &[BarrierKindId]) -> bool {
+        let displacement = to - from;
+        self.attack_surface_along_ray(from, displacement, displacement.length(), open_barriers)
+            .is_none()
+    }
+
+    #[must_use]
+    pub fn attack_surface_along_ray(
+        &self,
+        origin: Vec3,
+        direction: Vec3,
+        max_distance: f32,
+        open_barriers: &[BarrierKindId],
+    ) -> Option<WorldSurfaceHit> {
+        self.surface_along_ray(
+            origin,
+            direction,
+            max_distance,
+            character_collision_groups(open_barriers, self.all_barrier_groups),
+        )
+    }
+
+    // Keys grant personal passage; only plate state opens a shot path.
     #[must_use]
     pub fn portal_surface_along_ray(
         &self,
         origin: Vec3,
         direction: Vec3,
         max_distance: f32,
-        settings: PortalShotSettings,
         open_barriers: &[BarrierKindId],
     ) -> Option<WorldSurfaceHit> {
-        let mut groups = world_collision_groups();
-        if settings.barriers_block {
-            groups |= self.all_barrier_groups;
-            for kind in open_barriers {
-                groups.remove(barrier_collision_group(*kind));
-            }
-        }
-        if settings.light_bridges_block {
-            groups |= BRIDGE_COLLISION_GROUP;
-        }
-        let hit = self.surface_along_ray(origin, direction, max_distance, groups)?;
-        if settings.erasers_block && self.eraser_blocks_segment(origin, hit.point) {
+        let hit = self.attack_surface_along_ray(origin, direction, max_distance, open_barriers)?;
+        if ColliderKind::field_kind_from_user_data(self.colliders[hit.collider].user_data).is_some()
+            || self.eraser_blocks_segment(origin, hit.point)
+        {
             return None;
         }
         Some(hit)
@@ -495,12 +494,6 @@ impl CollisionWorld {
             Vector::new(direction.x, direction.y, direction.z),
         );
         let (handle, hit) = query_pipeline.cast_ray_and_get_normal(&ray, max_distance, false)?;
-        if matches!(
-            ColliderKind::from_user_data(self.colliders[handle].user_data),
-            Some(ColliderKind::Barrier | ColliderKind::Bridge)
-        ) {
-            return None;
-        }
         let normal = Vec3::new(hit.normal.x, hit.normal.y, hit.normal.z).try_normalize()?;
 
         Some(WorldSurfaceHit {

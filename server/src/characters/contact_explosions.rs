@@ -4,7 +4,7 @@ use bevy::prelude::*;
 use common::{
     config::CharacterPhysicsConfig,
     physics::{CharacterMovePlan, CollisionWorld, character_center, character_vertical_ranges_overlap},
-    protocol::{ActorMarker, Health},
+    protocol::{ActorMarker, BarrierKindId, Health},
 };
 
 use crate::{actors::ActorMap, config::ServerGameplayConfig};
@@ -15,6 +15,7 @@ pub(super) fn detonate_actors_touching_players(
     planned_moves: &[CharacterMovePlan],
     server_gameplay_config: &ServerGameplayConfig,
     collision_world: &CollisionWorld,
+    open_barriers: &[BarrierKindId],
 ) {
     // Actor entity → its contact-explosion distance, resolved once. Runs in the
     // 30 Hz movement tick over players + actors; without this the nested
@@ -44,7 +45,7 @@ pub(super) fn detonate_actors_touching_players(
                 let Some(&Some(trigger_gap)) = actor_contact_distance.get(&other.entity) else {
                     return false;
                 };
-                character_move_plans_touch(planned_move, other, trigger_gap, collision_world)
+                character_move_plans_touch(planned_move, other, trigger_gap, collision_world, open_barriers)
             })
             .map(|actor_move| actor_move.entity)
         {
@@ -60,6 +61,7 @@ fn character_move_plans_touch(
     b: &CharacterMovePlan,
     trigger_gap: f32,
     collision_world: &CollisionWorld,
+    open_barriers: &[BarrierKindId],
 ) -> bool {
     // Character movement blocks before colliders overlap, so contact uses a
     // configurable surface tolerance instead of requiring actual intersection.
@@ -68,9 +70,10 @@ fn character_move_plans_touch(
     {
         return false;
     }
-    collision_world.line_of_sight_clear(
+    collision_world.attack_path_clear(
         character_center(a.target, a.physics),
         character_center(b.target, b.physics),
+        open_barriers,
     )
 }
 
@@ -86,7 +89,7 @@ fn horizontal_collider_radius(physics: CharacterPhysicsConfig) -> f32 {
 mod tests {
     use super::*;
     use crate::test_geometry::{WALL_HEIGHT, WALL_THICKNESS};
-    use common::protocol::{BarrierKindTable, CarrierId, MapLayout, Position, Wall};
+    use common::protocol::{Barrier, BarrierKindTable, CarrierId, MapLayout, Position, Wall};
 
     fn plans() -> (CharacterMovePlan, CharacterMovePlan, f32) {
         let server = ServerGameplayConfig::load_default().expect("default server gameplay config should load");
@@ -115,7 +118,7 @@ mod tests {
         let (player, actor, distance) = plans();
         let world = CollisionWorld::from_map_layout(&MapLayout::default(), &BarrierKindTable::default());
 
-        assert!(character_move_plans_touch(&player, &actor, distance, &world));
+        assert!(character_move_plans_touch(&player, &actor, distance, &world, &[]));
     }
 
     #[test]
@@ -137,7 +140,7 @@ mod tests {
         };
         let world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
 
-        assert!(!character_move_plans_touch(&player, &actor, distance, &world));
+        assert!(!character_move_plans_touch(&player, &actor, distance, &world, &[]));
     }
 
     #[test]
@@ -146,6 +149,32 @@ mod tests {
         player.target.y = 3.0;
         let world = CollisionWorld::from_map_layout(&MapLayout::default(), &BarrierKindTable::default());
 
-        assert!(!character_move_plans_touch(&player, &actor, distance, &world));
+        assert!(!character_move_plans_touch(&player, &actor, distance, &world, &[]));
+    }
+
+    #[test]
+    fn closed_barrier_blocks_contact_detonation() {
+        let (player, actor, distance) = plans();
+        let kind = BarrierKindId(0);
+        let layout = MapLayout {
+            barriers: vec![Barrier {
+                x1: 0.0,
+                z1: -2.0,
+                x2: 0.0,
+                z2: 2.0,
+                y: 0.0,
+                height: WALL_HEIGHT,
+                width: 0.1,
+                level: 0,
+                levels: 1,
+                kind,
+                carrier: CarrierId::WORLD,
+            }],
+            ..default()
+        };
+        let kinds = BarrierKindTable::from_ids(vec!["shield".into()]).expect("barrier catalog rejected");
+        let world = CollisionWorld::from_map_layout(&layout, &kinds);
+        assert!(!character_move_plans_touch(&player, &actor, distance, &world, &[]));
+        assert!(character_move_plans_touch(&player, &actor, distance, &world, &[kind]));
     }
 }

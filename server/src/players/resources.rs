@@ -220,13 +220,9 @@ impl PlayerInfo {
         self.life.power_ups[kind.index()] == PowerUpState::Permanent
     }
 
-    pub fn erase_equipment(&mut self) -> bool {
-        let changed = self.life.power_ups.iter().any(|state| state.is_active())
-            || !self.life.held_keys.is_empty()
-            || self.life.missiles != 0;
+    pub fn erase_power_ups(&mut self) -> bool {
+        let changed = self.life.power_ups.iter().any(|state| state.is_active());
         self.life.power_ups.fill(PowerUpState::Inactive);
-        self.life.held_keys.clear();
-        self.life.missiles = 0;
         changed
     }
 
@@ -510,7 +506,7 @@ mod tests {
     }
 
     #[test]
-    fn erasure_clears_equipment_and_preserves_other_player_state() {
+    fn erasure_clears_only_power_ups() {
         let mut info = dummy_info();
         info.session.score = 42;
         info.session
@@ -522,11 +518,11 @@ mod tests {
         for kind in PowerUpKind::ALL {
             info.grant_power_up(kind.to_item_type(), &test_power_ups_config());
         }
-        assert!(info.erase_equipment());
-        assert!(!info.erase_equipment());
+        assert!(info.erase_power_ups());
+        assert!(!info.erase_power_ups());
         assert!(PowerUpKind::ALL.into_iter().all(|kind| !info.has(kind)));
-        assert!(info.life.held_keys.is_empty());
-        assert_eq!(info.life.missiles, 0);
+        assert_eq!(info.life.held_keys, [BarrierKindId(1)]);
+        assert_eq!(info.life.missiles, 2);
         assert_eq!(info.life.stun_timer, 2.0);
         assert_eq!(info.session.score, 42);
         assert_eq!(

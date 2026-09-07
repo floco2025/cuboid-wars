@@ -94,7 +94,6 @@ pub fn input_portal_system(
         &world.collision_world,
         &world.map_layout,
         &world.carriers,
-        world.map_settings.portal_shots,
         &world.plates.open_barrier_kinds,
         &world.map_settings.textures,
     );

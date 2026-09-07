@@ -17,7 +17,6 @@ use crate::{
 };
 use bevy::math::Vec3;
 use common::{
-    config::PortalShotSettings,
     map::Carriers,
     physics::{CollisionWorld, LadderMode, compute_portal_placement},
     protocol::{BarrierKindTable, BridgeKindId, BridgeKindTable, CarrierId, FaceMaterials, Position},
@@ -536,7 +535,6 @@ fn compiled_wall_trim_blocks_portal_shots_through_the_storey_seam() {
         &world,
         &layout,
         &Carriers::default(),
-        PortalShotSettings::default(),
         &[],
         &[("test".to_owned(), TextureSettings { portalable: true })].into(),
     )
@@ -756,11 +754,6 @@ fn portal_shots_cannot_leak_through_compiled_bridge_landing_seams_or_outer_edges
     .expect("bridge landing map failed to compile");
     let geometry = config.root_grid().geometry;
     let mut world = CollisionWorld::from_map_layout(&layout, &empty_kind_table());
-    let settings = PortalShotSettings {
-        barriers_block: true,
-        light_bridges_block: true,
-        erasers_block: true,
-    };
     let pad = geometry.wall_half_thickness();
     let floor_edge = geometry.cell_to_world_x(1) + pad;
     let bridge_edge = geometry.cell_to_world_x(3) + pad;
@@ -773,7 +766,7 @@ fn portal_shots_cannot_leak_through_compiled_bridge_landing_seams_or_outer_edges
     for z in zs {
         for x in [floor_edge - 1e-3, floor_edge, floor_edge + 1e-3, bridge_edge - 1e-3] {
             let origin = Vec3::new(x, LEVEL_HEIGHT + 2.0, z);
-            if let Some(hit) = world.portal_surface_along_ray(origin, Vec3::NEG_Y, 20.0, settings, &[]) {
+            if let Some(hit) = world.portal_surface_along_ray(origin, Vec3::NEG_Y, 20.0, &[]) {
                 assert!(
                     (hit.point.y - LEVEL_HEIGHT).abs() < 1e-4,
                     "shot leaked to the lower floor at ({x}, {z})"
@@ -787,7 +780,6 @@ fn portal_shots_cannot_leak_through_compiled_bridge_landing_seams_or_outer_edges
             Vec3::new(bridge_edge - 1e-3, LEVEL_HEIGHT + 2.0, zs[0]),
             Vec3::NEG_Y,
             20.0,
-            settings,
             &[],
         )
         .expect("unpowered bridge blocked the lower floor");

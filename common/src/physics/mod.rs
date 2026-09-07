@@ -22,9 +22,10 @@ pub use portals::{
     traverse_vector,
 };
 pub use projectiles::{
-    BarrierImpact, PROJECTILE_EVENT_LIMIT, ProjectileEvent, ProjectileMotion, ProjectileSpawnInfo, SurfaceBounce,
+    FieldImpact, PROJECTILE_EVENT_LIMIT, ProjectileEvent, ProjectileMotion, ProjectileSpawnInfo, SurfaceBounce,
     calculate_projectile_spawns, earliest_projectile_event, projectile_character_hit, projectile_overlaps_character,
 };
 pub use world::{
-    CollisionWorld, LadderVolume, ShapeCastHit, WorldSurfaceHit, carriers_advance_system, powered_bridges_sync_system,
+    CollisionWorld, FieldKind, LadderVolume, ShapeCastHit, WorldSurfaceHit, carriers_advance_system,
+    powered_bridges_sync_system,
 };

@@ -12,7 +12,7 @@ pub fn players_plugin(app: &mut App) {
                 .chain_ignore_deferred()
                 .in_set(ServerSet::CombatDamage),
             players_respawn_system.in_set(ServerSet::Lifecycle),
-            erase_equipment_system
+            erase_power_ups_system
                 .in_set(ServerSet::Maintenance)
                 .after(item_collection_system),
         ),

@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use super::ClientSettings;
 
-pub const LOCAL_SETTINGS_VERSION: u32 = 9;
+pub const LOCAL_SETTINGS_VERSION: u32 = 10;
 
 // Local settings are saved after panel edits, fullscreen shortcuts, and
 // window moves and resizes, then overlaid onto `client.json` at startup. The file is not in git, so a format

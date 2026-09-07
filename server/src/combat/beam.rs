@@ -14,7 +14,7 @@ use common::{
     config::GameplayConfig,
     math::PHYSICS_EPSILON,
     physics::{CollisionWorld, character_center},
-    protocol::{ActorId, ActorMarker, Health, HitKind, PlayerMarker, Position, SPlayerHit, ServerMessage},
+    protocol::{ActorId, ActorMarker, Health, HitKind, PlateState, PlayerMarker, Position, SPlayerHit, ServerMessage},
 };
 
 // Cadence for the beam victim's `SPlayerHit` cue (camera shake + HUD
@@ -24,7 +24,7 @@ const BEAM_HIT_CUE_INTERVAL_SECS: f32 = 0.25;
 
 // Burn the locked target of every mid-burst laser actor. The beam hits when
 // the target is within `fire.range` and the actor-center → target-center
-// line of sight is clear of static world (the beam origin is the collider
+// attack path is clear of world geometry and active fields (the beam origin is the collider
 // center — deliberately not the perception eye height, matching contact
 // explosions). Lethal ticks run the standard death sequence with no killer
 // credit, like falls and blasts. A throttled `SPlayerHit` cue gives the
@@ -39,6 +39,7 @@ pub fn actors_beam_damage_system(
     server_gameplay_config: Res<ServerGameplayConfig>,
     invincibility: Res<Invincibility>,
     collision_world: Res<CollisionWorld>,
+    plates: Res<PlateState>,
     actor_positions: Query<&Position, (With<ActorMarker>, Without<PlayerMarker>)>,
     mut player_query: Query<(&Position, &mut Health), With<PlayerMarker>>,
     // Per-actor time before which no further hit cue is sent — beam-cue
@@ -82,7 +83,11 @@ pub fn actors_beam_damage_system(
             player_physics.collider_center_y(target_pos.y),
             target_pos.z,
         );
-        if !collision_world.line_of_sight_clear(character_center(*actor_pos, actor_physics), target_center) {
+        if !collision_world.attack_path_clear(
+            character_center(*actor_pos, actor_physics),
+            target_center,
+            &plates.open_barrier_kinds,
+        ) {
             continue;
         }
 

@@ -2,7 +2,7 @@ use crate::constants::PROJECTILE_IMPACT_MIN_BOUNCE_SPEED;
 use bevy::prelude::*;
 use common::{
     config::GameplayConfig,
-    physics::{BallCharacterHit, CollisionWorld, ProjectileMotion, SurfaceBounce, projectile_character_hit},
+    physics::{BallCharacterHit, CollisionWorld, FieldKind, ProjectileMotion, SurfaceBounce, projectile_character_hit},
     protocol::{ActorId, ActorMarker, BarrierKindId, FaceYaw, PlayerId, PlayerMarker, Position},
 };
 
@@ -12,6 +12,7 @@ use super::audio::{
 use crate::{
     actors::ActorMap,
     barriers::BarrierAssets,
+    bridges::BridgeAssets,
     config::{AssetSet, ClientSettings},
     players::LocalPlayerMarker,
     vfx::{ImpactKind, ParticleCloud, spawn_impact_sparks},
@@ -113,16 +114,14 @@ pub(super) fn present_character_impact(
     commands.entity(proj_entity).despawn();
 }
 
-// Barriers terminate the projectile (no bounce). Returns `true` if the
-// projectile hit a barrier this frame — caller despawns and skips the rest of
-// the per-projectile pipeline.
-pub(super) fn handle_barrier_collisions(
+pub(super) fn handle_field_collisions(
     commands: &mut Commands,
     asset_server: &AssetServer,
     asset_set: &AssetSet,
     sparks: &mut ParticleCloud,
     settings: &ClientSettings,
     barrier_assets: &BarrierAssets,
+    bridge_assets: &BridgeAssets,
     proj_entity: Entity,
     proj_motion: &ProjectileMotion,
     proj_pos: &Position,
@@ -130,7 +129,7 @@ pub(super) fn handle_barrier_collisions(
     collision_world: &CollisionWorld,
     open_kinds: &[BarrierKindId],
 ) -> bool {
-    let Some(impact) = proj_motion.terminate_at_barrier(proj_pos, delta, collision_world, open_kinds) else {
+    let Some(impact) = proj_motion.terminate_at_field(proj_pos, delta, collision_world, open_kinds) else {
         return false;
     };
     play_barrier_impact_sound(commands, asset_server, asset_set, &settings.audio, impact.point);
@@ -140,7 +139,10 @@ pub(super) fn handle_barrier_collisions(
         impact.normal,
         impact.normal,
         proj_motion.velocity.length(),
-        ImpactKind::Barrier(barrier_assets.base_color(impact.kind)),
+        ImpactKind::Barrier(match impact.kind {
+            FieldKind::Barrier(kind) => barrier_assets.base_color(kind),
+            FieldKind::Bridge(kind) => bridge_assets.base_color(kind),
+        }),
     );
     commands.entity(proj_entity).despawn();
     true

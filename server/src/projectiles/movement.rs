@@ -187,7 +187,7 @@ pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut 
             }
 
             let character_t = closest_hit.map(|hit| hit.hit().time_of_impact);
-            let barrier_t = projectile.barrier_collision_t(
+            let field_t = projectile.field_collision_t(
                 &current_pos,
                 remaining_delta,
                 &params.collision_world,
@@ -207,8 +207,8 @@ pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut 
                 excluded_colliders,
             );
 
-            match earliest_projectile_event(character_t, barrier_t, surface_t, portal_hop.map(|hop| hop.t)) {
-                ProjectileEvent::Barrier => {
+            match earliest_projectile_event(character_t, field_t, surface_t, portal_hop.map(|hop| hop.t)) {
+                ProjectileEvent::Field => {
                     commands.entity(proj_entity).despawn();
                     terminated = true;
                     event_budget_exhausted = false;

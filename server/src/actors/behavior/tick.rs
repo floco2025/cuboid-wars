@@ -16,8 +16,8 @@ use common::{
     math::PHYSICS_EPSILON,
     physics::CollisionWorld,
     protocol::{
-        ActorId, ActorMarker, ItemType, MapItems, MapSettings, PlayerId, PlayerMarker, Position, SActorBeam,
-        ServerMessage,
+        ActorId, ActorMarker, BarrierKindId, ItemType, MapItems, MapSettings, PlateState, PlayerId, PlayerMarker,
+        Position, SActorBeam, ServerMessage,
     },
 };
 
@@ -42,6 +42,7 @@ pub fn actors_behavior_system(
     time: Res<Time>,
     players: Res<PlayerMap>,
     collision_world: Res<CollisionWorld>,
+    plates: Res<PlateState>,
     gameplay_config: Res<GameplayConfig>,
     server_gameplay_config: Res<ServerGameplayConfig>,
     nav_graphs: Res<NavGraphs>,
@@ -110,6 +111,7 @@ pub fn actors_behavior_system(
             nav_graph: nav_graphs.get(info.carrier),
             territory,
             collision_world: &collision_world,
+            open_barriers: &plates.open_barrier_kinds,
             kind_config,
             players_armed: map_settings.weapons.projectiles || map_items.contains(ItemType::MissilePack),
         };
@@ -299,6 +301,7 @@ pub(super) struct BehaviorContext<'a> {
     pub(super) nav_graph: &'a NavGraph,
     pub(super) territory: &'a crate::actors::navigation::ActorTerritory,
     pub(super) collision_world: &'a CollisionWorld,
+    pub(super) open_barriers: &'a [BarrierKindId],
     pub(super) kind_config: &'a ActorKindServerConfig,
     // Whether the map lets players hurt actors at all.
     pub(super) players_armed: bool,

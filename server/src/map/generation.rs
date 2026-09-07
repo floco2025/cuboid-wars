@@ -76,6 +76,11 @@ pub(crate) fn map_path(map_name: &str) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bevy::math::Vec3;
+    use common::{
+        map::Carriers,
+        physics::{CollisionWorld, compute_portal_placement},
+    };
 
     #[test]
     fn missing_map_returns_contextual_error() {
@@ -128,5 +133,57 @@ mod tests {
             )
             .unwrap_or_else(|error| panic!("shipped map {name:?} failed to generate: {error:#}"));
         }
+    }
+    #[test]
+    fn switchyard_customs_has_a_portal_route_back_with_the_gun_and_up_to_the_seal() {
+        let server = crate::config::ServerGameplayConfig::load_default().expect("gameplay config rejected");
+        let settings = &server.maps["switchyard"].settings;
+        let (barriers, bridges) = settings.kind_tables().expect("kind catalogs rejected");
+        let generated = generate_map(
+            "switchyard",
+            settings,
+            &|nested| server.maps.get(nested).map(|map| map.settings.geometry),
+            &barriers,
+            &bridges,
+        )
+        .expect("Switchyard failed to compile");
+        let geometry = generated.config.root_grid().geometry;
+        let layout = &generated.layout;
+        let carriers = Carriers::from_layout(layout);
+        let world = CollisionWorld::from_map_layout(layout, &barriers);
+        let floor_y = geometry.level_y(1);
+        let eye = floor_y + server.gameplay_config().player.eye_height();
+        let point = |col, row, y| Vec3::new(geometry.cell_center_x(col), y, geometry.cell_center_z(row));
+        let place = |origin: Vec3, target: Vec3| {
+            compute_portal_placement(
+                origin,
+                target - origin,
+                0.0,
+                100.0,
+                &world,
+                layout,
+                &carriers,
+                &[],
+                &settings.textures,
+            )
+            .expect("customs portal route blocked")
+        };
+        let across_gap = place(point(8, 2, eye), point(4, 2, floor_y));
+        assert!((across_gap.pos.y - floor_y).abs() < 0.01);
+        let entry = place(point(9, 5, eye), point(9, 5, floor_y));
+        assert!((entry.pos.y - floor_y).abs() < 0.01);
+        let balcony = Vec3::new(
+            geometry.cell_center_x(3),
+            geometry.level_y(2) + 1.6,
+            geometry.cell_to_world_z(3),
+        );
+        let exit = place(point(3, 6, eye), balcony);
+        assert!(exit.pos.y > geometry.level_y(2));
+        assert!(exit.normal.abs_diff_eq(Vec3::Z, 0.01));
+        assert!(
+            world
+                .portal_surface_along_ray(point(6, 4, eye), Vec3::X, 30.0, &[])
+                .is_none()
+        );
     }
 }

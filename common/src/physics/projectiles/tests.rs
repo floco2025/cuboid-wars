@@ -11,8 +11,11 @@ use crate::{
 const TEST_PROJECTILE_LIFETIME: f32 = 8.0;
 const TEST_PROJECTILE_RADIUS: f32 = 0.11;
 use crate::{
-    physics::CollisionWorld,
-    protocol::{Barrier, BarrierKindId, BarrierKindTable, CarrierId, Floor, MapLayout, Position, Ramp, Wall},
+    physics::{CollisionWorld, FieldKind},
+    protocol::{
+        Barrier, BarrierKindId, BarrierKindTable, BridgeKindId, CarrierId, Floor, LightBridge, MapLayout, Position,
+        Ramp, Wall,
+    },
 };
 
 fn test_projectile_motion(velocity: Vec3) -> ProjectileMotion {
@@ -141,10 +144,10 @@ fn barrier_impact_reports_kind_and_surface_normal() {
     let pos = Position { x: 0.0, y: 1.0, z: 0.0 };
     let motion = test_projectile_motion(Vec3::new(0.0, 0.0, 20.0));
     let impact = motion
-        .terminate_at_barrier(&pos, 0.1, &world, &[])
+        .terminate_at_field(&pos, 0.1, &world, &[])
         .expect("projectile should hit barrier");
 
-    assert_eq!(impact.kind, kind);
+    assert_eq!(impact.kind, FieldKind::Barrier(kind));
     assert!(impact.normal.dot(Vec3::NEG_Z) > 0.99);
     assert!(impact.point.z < 1.0);
 }
@@ -441,5 +444,42 @@ fn multi_shot_fires_the_configured_stencil() {
             close(*yaw_offset, want_yaw) && close(*pitch_offset, want_pitch),
             "{offsets:?}"
         );
+    }
+}
+
+#[test]
+fn powered_bridges_absorb_projectiles_from_both_sides_instead_of_bouncing() {
+    let kind = BridgeKindId(0);
+    let layout = MapLayout {
+        light_bridges: vec![LightBridge {
+            x1: -2.0,
+            z1: -2.0,
+            x2: 2.0,
+            z2: 2.0,
+            y: 2.0,
+            thickness: 0.1,
+            level: 1,
+            kind,
+            carrier: CarrierId::WORLD,
+        }],
+        ..Default::default()
+    };
+    let mut world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
+    for powered in [false, true, false] {
+        let powered_kinds = [kind];
+        world.set_powered_bridges(if powered { &powered_kinds } else { &[] });
+        for (y, velocity) in [(4.0, Vec3::NEG_Y * 40.0), (0.0, Vec3::Y * 40.0)] {
+            let pos = Position { x: 0.0, y, z: 0.0 };
+            let mut motion = test_projectile_motion(velocity);
+            assert!(motion.bounce_at_world_surface(&pos, 0.1, &world, &[]).is_none());
+            assert_eq!(motion.field_collision_t(&pos, 0.1, &world, &[]).is_some(), powered);
+            let impact = motion.terminate_at_field(&pos, 0.1, &world, &[]);
+            assert_eq!(impact.is_some(), powered);
+            if let Some(impact) = impact {
+                assert_eq!(impact.kind, FieldKind::Bridge(kind));
+                assert!(impact.normal.dot(velocity) < 0.0);
+            }
+            assert_eq!(motion.velocity, velocity);
+        }
     }
 }

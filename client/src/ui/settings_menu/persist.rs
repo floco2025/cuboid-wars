@@ -1,50 +1,73 @@
+use std::time::Duration;
+
 use bevy::{
     audio::GlobalVolume,
     prelude::*,
-    window::{PrimaryWindow, WindowMode},
+    window::{ClosingWindow, PrimaryWindow, WindowCloseRequested, WindowMode},
 };
+
+use super::state::SettingsMenuState;
 
 use crate::{
     config::{ClientSettings, LOCAL_SETTINGS_VERSION, LocalSettings},
     input::WindowedFrame,
 };
 
-// Panel edits, the fullscreen shortcuts, and window moves and resizes all
-// reach this the same way: the snapshot is saved the frame after it stops
-// changing, so a slider or window drag writes once when it settles and
-// quitting right after loses nothing. It saves with the menu open too, so an
-// edit made there is never stranded by a quit.
+const SAVE_DELAY: Duration = Duration::from_millis(500);
+
+#[derive(Default)]
+pub(super) struct SaveState {
+    observed: Option<LocalSettings>,
+    saved: Option<LocalSettings>,
+    changed_at: Duration,
+    menu_was_open: bool,
+}
+
+impl SaveState {
+    fn pending(&mut self, current: LocalSettings, now: Duration, flush: bool) -> Option<LocalSettings> {
+        if self.observed.as_ref() != Some(&current) {
+            self.changed_at = now;
+            self.observed = Some(current.clone());
+        }
+        (self.saved.as_ref() != Some(&current) && (flush || now.saturating_sub(self.changed_at) >= SAVE_DELAY))
+            .then_some(current)
+    }
+}
+
 pub(super) fn save_local_settings_system(
     settings: Res<ClientSettings>,
     global_volume: Res<GlobalVolume>,
     frame: Res<WindowedFrame>,
-    windows: Query<&Window, With<PrimaryWindow>>,
-    mut last_saved: Local<Option<LocalSettings>>,
-    mut last_seen: Local<Option<LocalSettings>>,
+    menu: Res<SettingsMenuState>,
+    time: Res<Time<Real>>,
+    windows: Query<(Entity, &Window, Has<ClosingWindow>), With<PrimaryWindow>>,
+    mut close_requests: MessageReader<WindowCloseRequested>,
+    mut exit: MessageReader<AppExit>,
+    mut state: Local<SaveState>,
 ) {
-    let fullscreen = windows
-        .single()
-        .is_ok_and(|window| !matches!(window.mode, WindowMode::Windowed));
-    let local = local_settings(&settings, &global_volume, fullscreen, *frame);
-    let stable = last_seen.as_ref() == Some(&local);
-    if !stable {
-        *last_seen = Some(local.clone());
-    }
-    let Some(previous) = last_saved.as_ref() else {
-        *last_saved = Some(local);
+    let exiting = exit.read().count() > 0;
+    let menu_closed = state.menu_was_open && !menu.open;
+    state.menu_was_open = menu.open;
+    let Ok((entity, window, closing)) = windows.single() else {
         return;
     };
-    if !should_save(stable, previous, &local) {
+    let close_requested = close_requests.read().any(|event| event.window == entity);
+    let fullscreen = !matches!(window.mode, WindowMode::Windowed);
+    let local = local_settings(&settings, &global_volume, fullscreen, *frame);
+    let Some(local) = state.pending(
+        local,
+        time.elapsed(),
+        exiting || closing || close_requested || menu_closed,
+    ) else {
         return;
+    };
+    match local.save() {
+        Ok(()) => state.saved = Some(local),
+        Err(error) => {
+            warn!("failed to save settings: {error:#}");
+            state.changed_at = time.elapsed();
+        }
     }
-    if let Err(error) = local.save() {
-        warn!("failed to save settings: {error:#}");
-    }
-    *last_saved = Some(local);
-}
-
-fn should_save(stable: bool, previous: &LocalSettings, current: &LocalSettings) -> bool {
-    stable && current != previous
 }
 
 fn local_settings(
@@ -85,7 +108,7 @@ mod tests {
     use super::*;
 
     fn snapshot(fullscreen: bool) -> LocalSettings {
-        let settings = ClientSettings::load_default().expect("shipped client config should load");
+        let settings = ClientSettings::load_default().expect("shipped client config rejected");
         let frame = WindowedFrame {
             position: Some(IVec2::new(100, 80)),
             size: UVec2::new(1200, 800),
@@ -95,18 +118,43 @@ mod tests {
     }
 
     #[test]
-    fn a_stable_change_saves() {
-        assert!(should_save(true, &snapshot(false), &snapshot(true)));
+    fn gaps_between_drag_events_do_not_write_until_the_drag_settles() {
+        let initial = snapshot(false);
+        let mut state = SaveState {
+            saved: Some(initial.clone()),
+            ..Default::default()
+        };
+        for frame in 0..120 {
+            let mut current = initial.clone();
+            current.window_x = Some(100 + frame / 2);
+            let now = Duration::from_secs_f64(f64::from(frame) / 120.0);
+            assert!(state.pending(current, now, false).is_none());
+        }
+        let mut final_settings = initial;
+        final_settings.window_x = Some(159);
+        let saved = state.pending(final_settings.clone(), Duration::from_millis(1500), false);
+        assert_eq!(saved, Some(final_settings.clone()));
+        state.saved = saved;
+        assert!(state.pending(final_settings, Duration::from_secs(2), false).is_none());
     }
 
     #[test]
-    fn a_change_still_settling_waits() {
-        assert!(!should_save(false, &snapshot(false), &snapshot(true)));
+    fn flush_saves_the_latest_change_without_waiting() {
+        let mut state = SaveState {
+            saved: Some(snapshot(false)),
+            ..Default::default()
+        };
+        let current = snapshot(true);
+        assert_eq!(state.pending(current.clone(), Duration::ZERO, true), Some(current));
     }
 
     #[test]
-    fn an_unchanged_snapshot_does_not_save() {
+    fn unchanged_settings_do_not_write_on_exit() {
         let current = snapshot(false);
-        assert!(!should_save(true, &current, &current));
+        let mut state = SaveState {
+            saved: Some(current.clone()),
+            ..Default::default()
+        };
+        assert!(state.pending(current, Duration::ZERO, true).is_none());
     }
 }

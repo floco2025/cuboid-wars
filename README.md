@@ -30,7 +30,7 @@ death/respawn flow.
 - **Seeking missiles** — collect a pack, lock onto a target, and fire; the
   missile flies the map's airspace to it.
 - **Portal guns** — collect a gun to place linked portals and travel between them.
-- **Equipment erasers** — walk-through energy fields that strip your equipment and portals.
+- **Equipment erasers** — walk-through energy fields that strip your power-ups and portals.
 - **Barriers & keys** — coloured barriers block everyone; the matching key
   lets you through until you die.
 - **Light bridges** — ghostly walkways that turn solid while their plates are held.

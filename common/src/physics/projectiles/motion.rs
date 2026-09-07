@@ -6,7 +6,7 @@ use rapier3d::prelude::ColliderHandle;
 use crate::{
     config::ProjectilesConfig,
     math::PHYSICS_EPSILON,
-    physics::CollisionWorld,
+    physics::{CollisionWorld, FieldKind},
     protocol::{BarrierKindId, Position},
 };
 
@@ -95,10 +95,10 @@ impl ProjectileMotion {
     }
 
     // Fraction of this tick's travel at which the straight path first meets a
-    // closed barrier, if any (`open_kinds` are skipped). Lets the caller order
-    // barrier termination against a character hit on the same tick.
+    // closed barrier or powered bridge, if any (`open_kinds` are skipped). Lets the caller order
+    // field absorption against a character hit on the same tick.
     #[must_use]
-    pub fn barrier_collision_t(
+    pub fn field_collision_t(
         &self,
         projectile_pos: &Position,
         delta: f32,
@@ -107,12 +107,12 @@ impl ProjectileMotion {
     ) -> Option<f32> {
         let translation = self.velocity * delta;
         collision_world
-            .cast_moving_ball_against_barriers(Vec3::from(*projectile_pos), translation, self.radius, open_kinds)
+            .cast_moving_ball_against_fields(Vec3::from(*projectile_pos), translation, self.radius, open_kinds)
             .map(|hit| hit.t)
     }
 
     // Fraction of this tick's travel at which the straight path first meets a
-    // bounce surface (wall/floor/ramp/powered bridge), if any, without
+    // bounce surface (wall/floor/ramp), if any, without
     // mutating velocity.
     #[must_use]
     pub fn surface_collision_t(
@@ -124,7 +124,7 @@ impl ProjectileMotion {
     ) -> Option<f32> {
         let translation = self.velocity * delta;
         collision_world
-            .cast_moving_ball_excluding(
+            .cast_bouncing_ball_excluding(
                 Vec3::from(*projectile_pos),
                 translation,
                 self.radius,
@@ -142,7 +142,7 @@ impl ProjectileMotion {
         excluded_colliders: &[ColliderHandle],
     ) -> Option<SurfaceBounce> {
         let translation = self.velocity * delta;
-        let collision = collision_world.cast_moving_ball_excluding(
+        let collision = collision_world.cast_bouncing_ball_excluding(
             Vec3::from(*projectile_pos),
             translation,
             self.radius,
@@ -158,33 +158,27 @@ impl ProjectileMotion {
         })
     }
 
-    // Barriers terminate projectiles (no bounce). Cast against barrier
-    // colliders only; if the projectile's straight-line trajectory hits one
-    // this frame, return the contact data so the caller can despawn and render
-    // a surface-aware impact cue.
-    // Kinds in `open_kinds` (pressure-plate-open) are skipped — those
-    // barriers are gone visually, so projectiles fly through them.
     #[must_use]
-    pub fn terminate_at_barrier(
+    pub fn terminate_at_field(
         &self,
         projectile_pos: &Position,
         delta: f32,
         collision_world: &CollisionWorld,
         open_kinds: &[BarrierKindId],
-    ) -> Option<BarrierImpact> {
+    ) -> Option<FieldImpact> {
         let translation = self.velocity * delta;
-        let hit = collision_world.cast_moving_ball_against_barriers(
+        let hit = collision_world.cast_moving_ball_against_fields(
             Vec3::from(*projectile_pos),
             translation,
             self.radius,
             open_kinds,
         )?;
-        Some(BarrierImpact {
+        Some(FieldImpact {
             point: hit.contact,
             normal: hit.normal,
             kind: hit
-                .barrier_kind
-                .expect("barrier-only shape cast returned a non-barrier collider"),
+                .field_kind
+                .expect("field-only shape cast returned a non-field collider"),
         })
     }
 }
@@ -198,8 +192,8 @@ pub struct SurfaceBounce {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct BarrierImpact {
+pub struct FieldImpact {
     pub point: Vec3,
     pub normal: Vec3,
-    pub kind: BarrierKindId,
+    pub kind: FieldKind,
 }

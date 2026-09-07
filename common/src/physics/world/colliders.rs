@@ -4,6 +4,8 @@ use rapier3d::prelude::{
     Vector,
 };
 
+use super::shape_cast::FieldKind;
+
 use crate::{
     map::{RampAxis, ramp_axis},
     protocol::{Barrier, BarrierKindId, BridgeKindId, CarrierId, Floor, KindId, LightBridge, Ramp, Wall},
@@ -43,8 +45,7 @@ pub(super) fn world_collision_groups() -> Group {
     WALL_COLLISION_GROUP | FLOOR_COLLISION_GROUP | RAMP_COLLISION_GROUP
 }
 
-// The world plus the powered light bridges: what characters stand on and
-// projectiles bounce off right now.
+// Standable surfaces include powered bridges.
 pub(super) fn surface_collision_groups() -> Group {
     world_collision_groups() | BRIDGE_COLLISION_GROUP
 }
@@ -103,9 +104,13 @@ impl ColliderKind {
         Self::Bridge.user_data(carrier) | (u128::from(kind.0) << KIND_SHIFT)
     }
 
-    pub(super) fn barrier_kind_from_user_data(user_data: u128) -> Option<BarrierKindId> {
-        (Self::from_user_data(user_data) == Some(Self::Barrier))
-            .then_some(BarrierKindId(((user_data >> KIND_SHIFT) & ID_MASK) as u16))
+    pub(super) fn field_kind_from_user_data(user_data: u128) -> Option<FieldKind> {
+        let id = ((user_data >> KIND_SHIFT) & ID_MASK) as u16;
+        match Self::from_user_data(user_data)? {
+            Self::Barrier => Some(FieldKind::Barrier(BarrierKindId(id))),
+            Self::Bridge => Some(FieldKind::Bridge(BridgeKindId(id))),
+            _ => None,
+        }
     }
 
     pub(super) fn carrier_from_user_data(user_data: u128) -> CarrierId {
@@ -296,14 +301,20 @@ mod tests {
         let kind = BarrierKindId(7);
         let user_data = ColliderKind::barrier_user_data(kind, CarrierId::WORLD);
         assert_eq!(ColliderKind::from_user_data(user_data), Some(ColliderKind::Barrier));
-        assert_eq!(ColliderKind::barrier_kind_from_user_data(user_data), Some(kind));
+        assert_eq!(
+            ColliderKind::field_kind_from_user_data(user_data),
+            Some(FieldKind::Barrier(kind))
+        );
     }
 
     #[test]
     fn bridge_user_data_is_not_a_barrier() {
         let user_data = ColliderKind::bridge_user_data(BridgeKindId(2), CarrierId::WORLD);
         assert_eq!(ColliderKind::from_user_data(user_data), Some(ColliderKind::Bridge));
-        assert_eq!(ColliderKind::barrier_kind_from_user_data(user_data), None);
+        assert_eq!(
+            ColliderKind::field_kind_from_user_data(user_data),
+            Some(FieldKind::Bridge(BridgeKindId(2)))
+        );
     }
 
     #[test]
@@ -314,8 +325,8 @@ mod tests {
         assert_eq!(ColliderKind::carrier_from_user_data(floor), carrier);
         let barrier = ColliderKind::barrier_user_data(BarrierKindId(27), carrier);
         assert_eq!(
-            ColliderKind::barrier_kind_from_user_data(barrier),
-            Some(BarrierKindId(27))
+            ColliderKind::field_kind_from_user_data(barrier),
+            Some(FieldKind::Barrier(BarrierKindId(27)))
         );
         assert_eq!(ColliderKind::carrier_from_user_data(barrier), carrier);
         assert_eq!(

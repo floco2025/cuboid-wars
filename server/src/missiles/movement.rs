@@ -120,7 +120,7 @@ pub fn missiles_movement_system(mut commands: Commands, time: Res<Time>, mut par
         {
             consider(hit.t);
         }
-        if let Some(hit) = params.collision_world.cast_moving_ball_against_barriers(
+        if let Some(hit) = params.collision_world.cast_moving_ball_against_fields(
             origin,
             translation,
             MISSILE_RADIUS,

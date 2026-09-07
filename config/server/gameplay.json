@@ -19,11 +19,6 @@
         "upper-interior-walls": { "portalable": true }
       },
       "skybox": "cloudy_day",
-      "portal_shots": {
-        "barriers_block": true,
-        "light_bridges_block": true,
-        "erasers_block": true
-      },
       "geometry": {
         "grid_cell_size": 3.4,
         "level_height": 4.4,
@@ -165,11 +160,6 @@
         "portal-resistant": { "portalable": false }
       },
       "skybox": "cloudy_day",
-      "portal_shots": {
-        "barriers_block": true,
-        "light_bridges_block": true,
-        "erasers_block": true
-      },
       "geometry": {
         "grid_cell_size": 4.0,
         "level_height": 2.4,
@@ -250,11 +240,6 @@
         "portal-resistant": { "portalable": false }
       },
       "skybox": "cloudy_day",
-      "portal_shots": {
-        "barriers_block": true,
-        "light_bridges_block": true,
-        "erasers_block": true
-      },
       "geometry": {
         "grid_cell_size": 4.0,
         "level_height": 4.0,
@@ -358,11 +343,6 @@
         "portal-resistant": { "portalable": false }
       },
       "skybox": "cloudy_day",
-      "portal_shots": {
-        "barriers_block": true,
-        "light_bridges_block": true,
-        "erasers_block": true
-      },
       "geometry": {
         "grid_cell_size": 4.0,
         "level_height": 4.0,
@@ -432,7 +412,7 @@
           "threshold": 3,
           "points": 1500,
           "title": "Three Freight Seals",
-          "description": "Recover three gold seals. Keep the customs key out of the violet field. The bridge switch travels with its platform.",
+          "description": "Recover three gold seals. Bring the portal gun back around customs to reach the high seal; the violet field spares your key. The bridge switch travels with its platform.",
           "completed_text": "All freight sealed. The signal balcony is ready!"
         },
         {

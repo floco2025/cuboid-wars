@@ -7,7 +7,7 @@ const PORTAL_SURFACE_TIE_EPSILON: f32 = 0.01;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProjectileEvent {
     Hit,
-    Barrier,
+    Field,
     Surface,
     Portal,
     Fly,
@@ -16,22 +16,22 @@ pub enum ProjectileEvent {
 #[must_use]
 pub fn earliest_projectile_event(
     character_t: Option<f32>,
-    barrier_t: Option<f32>,
+    field_t: Option<f32>,
     surface_t: Option<f32>,
     portal_t: Option<f32>,
 ) -> ProjectileEvent {
     if let Some(pt) = portal_t
         && character_t.is_none_or(|ct| pt < ct)
-        && barrier_t.is_none_or(|bt| pt < bt)
+        && field_t.is_none_or(|bt| pt < bt)
         && surface_t.is_none_or(|st| pt <= st + PORTAL_SURFACE_TIE_EPSILON)
     {
         return ProjectileEvent::Portal;
     }
-    if let Some(bt) = barrier_t
+    if let Some(bt) = field_t
         && character_t.is_none_or(|ct| bt <= ct)
         && surface_t.is_none_or(|st| bt <= st)
     {
-        return ProjectileEvent::Barrier;
+        return ProjectileEvent::Field;
     }
     if let Some(st) = surface_t
         && character_t.is_none_or(|ct| st <= ct)
@@ -57,7 +57,7 @@ mod tests {
         );
         assert_eq!(
             earliest_projectile_event(Some(0.5), Some(0.3), None, None),
-            ProjectileEvent::Barrier
+            ProjectileEvent::Field
         );
         assert_eq!(
             earliest_projectile_event(Some(0.5), None, Some(0.3), None),
@@ -65,7 +65,7 @@ mod tests {
         );
         assert_eq!(
             earliest_projectile_event(Some(0.4), Some(0.4), None, None),
-            ProjectileEvent::Barrier
+            ProjectileEvent::Field
         );
         assert_eq!(
             earliest_projectile_event(Some(0.4), None, Some(0.4), None),
@@ -94,7 +94,7 @@ mod tests {
         );
         assert_eq!(
             earliest_projectile_event(None, Some(0.3), Some(0.4), Some(0.4)),
-            ProjectileEvent::Barrier
+            ProjectileEvent::Field
         );
         assert_eq!(
             earliest_projectile_event(None, None, Some(0.2), Some(0.6)),

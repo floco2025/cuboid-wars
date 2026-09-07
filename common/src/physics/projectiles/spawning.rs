@@ -96,6 +96,6 @@ pub(super) fn projectile_spawn_is_blocked(
             .cast_moving_ball(start_vec, translation, radius)
             .is_some()
         || collision_world
-            .cast_moving_ball_against_barriers(start_vec, translation, radius, open_kinds)
+            .cast_moving_ball_against_fields(start_vec, translation, radius, open_kinds)
             .is_some()
 }

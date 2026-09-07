@@ -16,7 +16,7 @@ pub struct EraserContacts {
     occupied: HashSet<(PlayerId, usize)>,
 }
 
-pub fn erase_equipment_system(
+pub fn erase_power_ups_system(
     mut contacts: ResMut<EraserContacts>,
     mut players: ResMut<PlayerMap>,
     positions: Query<&Position, With<PlayerMarker>>,
@@ -54,7 +54,7 @@ pub fn erase_equipment_system(
                 .channel
                 .send(ServerToClient::Send(ServerMessage::EraserEntered(SEraserEntered)));
         }
-        if touched && info.erase_equipment() {
+        if touched && info.erase_power_ups() {
             statuses.push(info.status(*id));
         }
     }
@@ -68,8 +68,9 @@ pub fn erase_equipment_system(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::players::PowerUpState;
     use crate::{config::ServerGameplayConfig, players::PlayerInfo};
-    use common::protocol::{BarrierKindTable, CarrierId, Eraser, MapLayout};
+    use common::protocol::{BarrierKindId, BarrierKindTable, CarrierId, Eraser, MapLayout, PowerUpKind};
     use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
 
     fn test_app() -> (App, Entity, UnboundedReceiver<ServerToClient>) {
@@ -114,7 +115,7 @@ mod tests {
             )
             .insert_resource(CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default()))
             .init_resource::<EraserContacts>()
-            .add_systems(Update, erase_equipment_system);
+            .add_systems(Update, erase_power_ups_system);
         (app, entity, rx)
     }
 
@@ -147,7 +148,7 @@ mod tests {
                 .expect("player missing")
                 .life
                 .missiles,
-            0
+            2
         );
     }
 
@@ -164,5 +165,27 @@ mod tests {
         assert_eq!(entry_cues(&mut rx), 1);
         app.update();
         assert_eq!(entry_cues(&mut rx), 0);
+    }
+
+    #[test]
+    fn standing_in_a_field_erases_fresh_power_ups_but_keeps_keys_and_ammo() {
+        let (mut app, entity, mut rx) = test_app();
+        app.world_mut().get_mut::<Position>(entity).expect("position missing").z = 0.0;
+        for iteration in 0..2 {
+            {
+                let mut players = app.world_mut().resource_mut::<PlayerMap>();
+                let info = players.get_mut(&PlayerId(1)).expect("player missing");
+                info.add_key(BarrierKindId(0));
+                info.life.missiles = 2;
+                info.life.power_ups.fill(PowerUpState::Permanent);
+            }
+            app.update();
+            let players = app.world().resource::<PlayerMap>();
+            let info = players.get(&PlayerId(1)).expect("player missing");
+            assert!(PowerUpKind::ALL.into_iter().all(|kind| !info.has(kind)));
+            assert_eq!(info.life.held_keys, [BarrierKindId(0)]);
+            assert_eq!(info.life.missiles, 2);
+            assert_eq!(entry_cues(&mut rx), usize::from(iteration == 0));
+        }
     }
 }

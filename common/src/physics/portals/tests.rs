@@ -10,7 +10,7 @@ use super::{
     *,
 };
 use crate::{
-    config::{CharacterPhysicsConfig, KnockbackConfig, MapMovementConfig, PlayerMovementConfig, PortalShotSettings},
+    config::{CharacterPhysicsConfig, KnockbackConfig, MapMovementConfig, PlayerMovementConfig},
     constants::{PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH, PORTAL_LIGHT_CLEARANCE, PORTAL_RIM_SCALE, TICK_SECS},
     map::{Carriers, carrier_offset_at},
     math::angle_delta_radians,
@@ -663,7 +663,7 @@ fn an_approaching_portals_backing_wall_does_not_win_a_premature_bounce() {
     let hop = set
         .projectile_hop(start, velocity, TICK_SECS, 0.08)
         .expect("projectile missed the portal");
-    let surface = world.cast_moving_ball_excluding(start, velocity * TICK_SECS, 0.08, hop.entry_backing);
+    let surface = world.cast_bouncing_ball_excluding(start, velocity * TICK_SECS, 0.08, hop.entry_backing);
     assert_eq!(
         earliest_projectile_event(None, None, surface.map(|hit| hit.t), Some(hop.t)),
         ProjectileEvent::Portal
@@ -813,7 +813,6 @@ fn place_on_geometry(
     world: &CollisionWorld,
     layout: &MapLayout,
     carriers: &Carriers,
-    settings: PortalShotSettings,
     open: &[BarrierKindId],
 ) -> Option<PortalPlacement> {
     super::compute_portal_placement(
@@ -824,7 +823,6 @@ fn place_on_geometry(
         world,
         &textured_layout(layout),
         carriers,
-        settings,
         open,
         &test_textures(),
     )
@@ -841,7 +839,6 @@ fn place(layout: &MapLayout, origin: Vec3, toward: Vec3, yaw: f32) -> Option<Por
         &world,
         layout,
         &Carriers::default(),
-        Default::default(),
         &[],
     )
 }
@@ -881,11 +878,6 @@ fn opening_a_barrier_exposes_a_fitting_portal_surface_behind_it() {
             &world,
             &layout,
             &Carriers::default(),
-            PortalShotSettings {
-                barriers_block: true,
-                light_bridges_block: true,
-                erasers_block: true,
-            },
             &open,
         );
         assert_eq!(placement.is_some(), open.contains(&BarrierKindId(0)));
@@ -946,11 +938,6 @@ fn bridge_power_controls_portal_placement_on_the_floor_and_ceiling_beyond_it() {
                 &world,
                 &layout,
                 &Carriers::default(),
-                PortalShotSettings {
-                    barriers_block: true,
-                    light_bridges_block: true,
-                    erasers_block: true,
-                },
                 &[],
             );
             assert_eq!(placement.is_some(), !powered);
@@ -1417,7 +1404,6 @@ fn placement_front_clearance_rejects_a_powered_light_bridge() {
             world,
             &layout,
             &Carriers::default(),
-            Default::default(),
             &[],
         )
     };
@@ -2207,7 +2193,6 @@ fn a_shot_at_a_carrier_floor_places_the_portal_on_the_carrier() {
         &world,
         &layout,
         &carriers,
-        Default::default(),
         &[],
     )
     .expect("a shot at the tile fizzled");
@@ -2241,7 +2226,6 @@ fn a_shot_that_does_not_fit_where_it_hits_nudges_onto_the_carrier() {
         &world,
         &layout,
         &carriers,
-        Default::default(),
         &[],
     )
     .expect("a shot near the tile's edge fizzled");
@@ -2270,7 +2254,6 @@ fn a_shot_over_the_tile_edge_lands_fully_on_one_surface() {
         &world,
         &layout,
         &carriers,
-        Default::default(),
         &[],
     )
     .expect("a shot over the tile's edge fizzled");
@@ -2289,7 +2272,6 @@ fn a_shot_over_the_tile_edge_lands_fully_on_one_surface() {
         &world,
         &layout,
         &carriers,
-        Default::default(),
         &[],
     )
     .expect("a shot at the floor beside the tile fizzled");
@@ -2510,7 +2492,6 @@ fn material_shot(layout: &MapLayout, origin: Vec3, direction: Vec3) -> Result<Po
         &world,
         layout,
         &Carriers::from_layout(layout),
-        PortalShotSettings::default(),
         &[],
         &test_textures(),
     )
@@ -2547,7 +2528,6 @@ fn incompatible_material_fizzles_when_a_geometric_nudge_finds_space() {
         &CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default()),
         &layout,
         &Carriers::default(),
-        PortalShotSettings::default(),
         &[],
     )
     .expect("wall has no geometric fit after nudging");

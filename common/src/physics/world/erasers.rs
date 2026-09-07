@@ -119,7 +119,7 @@ fn segment_intersects_box(from: Vec3, to: Vec3, min: Vec3, max: Vec3) -> bool {
 mod tests {
     use super::*;
     use crate::{
-        config::{PortalShotSettings, gameplay::load_test_gameplay},
+        config::gameplay::load_test_gameplay,
         protocol::{BarrierKindTable, Carrier, MapLayout, Wall},
     };
 
@@ -203,7 +203,7 @@ mod tests {
     }
 
     #[test]
-    fn portal_shot_blocking_is_optional_and_only_checks_before_the_host() {
+    fn portal_shots_are_blocked_only_before_the_host() {
         let layout = MapLayout {
             erasers: vec![field()],
             walls: vec![Wall {
@@ -220,18 +220,34 @@ mod tests {
             ..Default::default()
         };
         let world = world(&layout);
-        for erasers_block in [false, true] {
-            let settings = PortalShotSettings {
-                erasers_block,
-                ..Default::default()
-            };
-            let hit = world.portal_surface_along_ray(Vec3::new(0.0, 1.0, 3.0), Vec3::NEG_Z, 10.0, settings, &[]);
-            assert_eq!(hit.is_some(), !erasers_block);
-            assert!(
-                world
-                    .portal_surface_along_ray(Vec3::new(0.0, 1.0, -6.0), Vec3::Z, 10.0, settings, &[])
-                    .is_some()
-            );
-        }
+        assert!(
+            world
+                .portal_surface_along_ray(Vec3::new(0.0, 1.0, 3.0), Vec3::NEG_Z, 10.0, &[])
+                .is_none()
+        );
+        assert!(
+            world
+                .portal_surface_along_ray(Vec3::new(0.0, 1.0, -6.0), Vec3::Z, 10.0, &[])
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn erasers_are_transparent_to_attacks_and_projectile_paths() {
+        let world = world(&MapLayout {
+            erasers: vec![field()],
+            ..Default::default()
+        });
+        let from = Vec3::new(0.0, 1.0, -3.0);
+        let to = Vec3::new(0.0, 1.0, 3.0);
+        assert!(world.line_of_sight_clear(from, to));
+        assert!(world.attack_path_clear(from, to, &[]));
+        assert!(world.projectile_path_clear(from, to - from, 0.3, &[]));
+        assert!(world.cast_moving_ball(from, to - from, 0.3).is_none());
+        assert!(
+            world
+                .cast_moving_ball_against_fields(from, to - from, 0.3, &[])
+                .is_none()
+        );
     }
 }

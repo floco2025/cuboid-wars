@@ -4,7 +4,7 @@ use crate::{actors::ActorMap, constants::*, players::PlayerMap};
 use common::{
     config::GameplayConfig,
     physics::CollisionWorld,
-    protocol::{ActorId, PlayerId, SActorBeam},
+    protocol::{ActorId, PlateState, PlayerId, SActorBeam},
 };
 
 // Angular speeds (rad/s) of the endpoint wander's per-axis sines —
@@ -79,6 +79,7 @@ pub fn laser_beam_update_system(
     players: Res<PlayerMap>,
     gameplay_config: Res<GameplayConfig>,
     collision_world: Res<CollisionWorld>,
+    plates: Res<PlateState>,
     endpoints: Query<&Transform, Without<LaserBeam>>,
     mut beams: Query<(Entity, &mut LaserBeam, &mut Transform, &mut Visibility)>,
 ) {
@@ -135,10 +136,9 @@ pub fn laser_beam_update_system(
             continue;
         }
         let direction = (target - origin) / full_length;
-        // Clip at the first static surface so the beam doesn't pierce cover —
-        // the server gates damage on the same line of sight.
+        // Damage and beam clipping share the active-field filter.
         let length = collision_world
-            .world_surface_along_ray(origin, direction, full_length)
+            .attack_surface_along_ray(origin, direction, full_length, &plates.open_barrier_kinds)
             .map_or(full_length, |hit| hit.point.distance(origin));
         transform.translation = origin + direction * (length / 2.0);
         transform.rotation = Quat::from_rotation_arc(Vec3::Y, direction);

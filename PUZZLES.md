@@ -38,16 +38,11 @@ Keys preserve earned access across stages, while missiles carry a useful resourc
 
 Key and ammo loss on death is a separate decision from erasure.
 
-## Implementation gaps
+## Implementation
 
-The settled field and eraser rules still require gameplay changes:
+The settled field and eraser rules are implemented. Attack clearance and beam clipping account for active fields while enemy awareness remains transparent. Ordinary projectiles are absorbed by both field types, and portal-shot blocking is universal rather than configurable. Erasers preserve keys and missile ammo, including when collecting items while standing in a field.
 
-- Beams and blasts currently share a visibility query that ignores barriers and light bridges. Attack clearance must account for active fields while enemy awareness remains transparent. Beam rendering must match damage.
-- Powered bridges currently bounce ordinary projectiles. They need absorption like barriers.
-- Erasers currently clear keys and missile ammo along with power-ups. Their contact effect must preserve those inventories.
-- All shipped maps already block portal shots at barriers, powered bridges, and erasers, but this remains configurable. Adopting universal rules allows removal of the three portal-shot blocking toggles.
-- Actor navigation currently excludes light bridges even while they are solid. Physical collision changes alone will not enable routes over them.
-- Switchyard's customs puzzle relies on key erasure and needs revisiting when that rule changes.
+Actor navigation still excludes light bridges even while they are solid. Actors collide with them and can be supported by them, but planned routes do not cross them. Bridge-aware navigation remains an extension for enemy-luring puzzles.
 
 The relevant behavior lives in [collision queries](common/src/physics/world/collision_world.rs), [projectile movement](common/src/physics/projectiles/motion.rs), [beam damage](server/src/combat/beam.rs), [beam rendering](client/src/vfx/laser.rs), [player inventory](server/src/players/resources.rs), and [portal cleanup](server/src/portals/equipment.rs).
 
@@ -60,7 +55,7 @@ The relevant behavior lives in [collision queries](common/src/physics/world/coll
 | Portal-resistant materials | Restrict placement by surface and face, making the shooting position and sequence part of the solution. |
 | Barriers and keys | Personal passage through a closed field versus globally opening it with plates. Keys are reusable access permissions. |
 | Pressure plates | Open barrier groups, power bridge groups, or trigger fireworks. Solo holding plates toggle; multiplayer holding plates depend on occupancy. Different purposes can occupy one tile, so one position can already control several outputs. |
-| Light bridges | Switchable crossings and drops; under the settled rules, protection above or below their surface. A powered bridge can also obstruct a portal shot. |
+| Light bridges | Switchable crossings and drops; protection above or below their surface. A powered bridge can also obstruct a portal shot. |
 | Erasers | Boundaries between sets of power-ups, while keys and ammo connect stages. |
 | Moving platforms and nested rooms | Lifts, shuttles, moving cover, moving ladders, moving switches, and carried actors. Motion repeats automatically between two positions with pauses and a phase offset; there is no switch control or rotation yet. |
 | Speed and low-gravity power-ups | Reachability puzzles, jumps, timed routes, and combinations with portal momentum. Duration can be timed or last until death or erasure. |
@@ -78,7 +73,7 @@ The map authoring tools are described in the [editor reference](tools/map_editor
 
 ### Progress across stages
 
-Solve a portal or movement puzzle to earn a key and a missile. Cross an eraser, then use the key to enter a guarded section and the missile to remove a zapper. Several stages can award different keys, with successive barriers at the finale requiring all of them. This pattern depends on the settled eraser inventory change.
+Solve a portal or movement puzzle to earn a key and a missile. Cross an eraser, then use the key to enter a guarded section and the missile to remove a zapper. Several stages can award different keys, with successive barriers at the finale requiring all of them.
 
 ### Access versus protection
 
@@ -90,7 +85,7 @@ A bridge above a lower passage blocks an elevated zapper's downward shot when po
 
 ### Moving cover and moving guards
 
-Travel alongside a sliding wall, ride inside a protected cabin, or wait for a moving room to interrupt a firing line. Alternatively, put a zapper on a carried platform so the dangerous area moves. Solid moving cover already works; the field changes add moving energy shields to the same family.
+Travel alongside a sliding wall, ride inside a protected cabin, or wait for a moving room to interrupt a firing line. Alternatively, put a zapper on a carried platform so the dangerous area moves. Moving walls and active fields can both shield the crossing.
 
 ### Portal setup and sequencing
 
@@ -106,7 +101,7 @@ One player holds a bridge plate while another crosses to reach a control or esta
 
 ### Enemy containment
 
-Lure a contact attacker into a side passage and restore a barrier behind it. Under the settled rules the barrier also shields against its blast. Containment can make another route safe, but explosions do not currently operate switches or destroy walls. Luring actors over powered bridges requires navigation support.
+Lure a contact attacker into a side passage and restore a barrier behind it. The barrier also shields against its blast. Containment can make another route safe, but explosions do not currently operate switches or destroy walls. Luring actors over powered bridges requires navigation support.
 
 ### Geometry as logic
 
@@ -178,7 +173,7 @@ These additions can follow tests of the existing combinations. Progression, retr
 
 ## Existing maps and a first prototype
 
-Relay and Switchyard already explore portal setup, keys, bridges, moving geometry, and quest finales. Both still need user playtesting. Switchyard's customs section must be redesigned around power-up erasure because a key will survive walking through it. Its replacement can require leaving a portal gun or movement power-up behind while preserving earned access.
+Relay and Switchyard already explore portal setup, keys, bridges, moving geometry, and quest finales. Both still need user playtesting. Switchyard's customs section puts the portal gun and key across an eraser, with its first seal on a raised balcony back in the starting room. A portal route around the eraser preserves the gun needed to reach that seal. The key survives either route, and the departure eraser ends the power-up section before the moving-bridge puzzle.
 
 A compact prototype can test the settled rules with three connected sections:
 

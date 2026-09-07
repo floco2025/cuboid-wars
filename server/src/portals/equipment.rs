@@ -81,7 +81,7 @@ mod tests {
                         }
                         "death" => info.begin_respawn(2.0),
                         _ => {
-                            info.erase_equipment();
+                            info.erase_power_ups();
                         }
                     }
                     app.insert_resource(players)

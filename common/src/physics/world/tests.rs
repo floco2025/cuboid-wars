@@ -1,7 +1,7 @@
 use crate::{
     config::{
         CharacterColliderAnchor, CharacterColliderConfig, CharacterPhysicsConfig, CharacterSupportProbeConfig,
-        PortalShotSettings, gameplay::load_test_gameplay,
+        gameplay::load_test_gameplay,
     },
     constants::LADDER_OVERSHOOT,
     protocol::{
@@ -206,26 +206,17 @@ fn portal_shots_only_pass_blocking_barriers_when_the_kind_is_globally_open() {
     let table = BarrierKindTable::from_ids(vec!["red".into(), "blue".into()]).expect("barrier catalog rejected");
     let world = CollisionWorld::from_map_layout(&layout, &table);
     let origin = Vec3::new(2.0, LEVEL_HEIGHT + 1.5, 4.0);
-    for barriers_block in [false, true] {
-        for light_bridges_block in [false, true] {
-            let settings = PortalShotSettings {
-                barriers_block,
-                light_bridges_block,
-                erasers_block: true,
-            };
-            for open in [vec![], vec![BarrierKindId(1)], vec![BarrierKindId(0)]] {
-                let hit = world.portal_surface_along_ray(origin, Vec3::NEG_Z, 10.0, settings, &open);
-                assert_eq!(hit.is_some(), !barriers_block || open.contains(&BarrierKindId(0)));
-                if let Some(hit) = hit {
-                    assert!(hit.point.z < 1.0, "portal landed on the barrier instead of the wall");
-                }
-            }
+    for open in [vec![], vec![BarrierKindId(1)], vec![BarrierKindId(0)]] {
+        let hit = world.portal_surface_along_ray(origin, Vec3::NEG_Z, 10.0, &open);
+        assert_eq!(hit.is_some(), open.contains(&BarrierKindId(0)));
+        if let Some(hit) = hit {
+            assert!(hit.point.z < 1.0, "portal landed on the barrier instead of the wall");
         }
     }
 }
 
 #[test]
-fn portal_shots_only_stop_at_powered_bridges_when_configured() {
+fn portal_shots_only_stop_at_powered_bridges() {
     let mut layout = test_map_layout();
     layout.walls.clear();
     layout.ramps.clear();
@@ -244,19 +235,10 @@ fn portal_shots_only_stop_at_powered_bridges_when_configured() {
     let origin = Vec3::new(2.0, LEVEL_HEIGHT + 4.0, 2.0);
     for powered in [false, true, false] {
         world.set_powered_bridges(if powered { &[BridgeKindId(0)] } else { &[] });
-        for barriers_block in [false, true] {
-            for light_bridges_block in [false, true] {
-                let settings = PortalShotSettings {
-                    barriers_block,
-                    light_bridges_block,
-                    erasers_block: true,
-                };
-                let hit = world.portal_surface_along_ray(origin, Vec3::NEG_Y, 10.0, settings, &[]);
-                assert_eq!(hit.is_some(), !powered || !light_bridges_block);
-                if let Some(hit) = hit {
-                    assert!((hit.point.y - LEVEL_HEIGHT).abs() < 1e-4, "portal landed on a bridge");
-                }
-            }
+        let hit = world.portal_surface_along_ray(origin, Vec3::NEG_Y, 10.0, &[]);
+        assert_eq!(hit.is_some(), !powered);
+        if let Some(hit) = hit {
+            assert!((hit.point.y - LEVEL_HEIGHT).abs() < 1e-4, "portal landed on a bridge");
         }
     }
 }
@@ -746,4 +728,76 @@ fn ground_hit_names_the_carrier_under_the_feet() {
 
     assert_eq!(probe(0.0), Some(CarrierId(1)));
     assert_eq!(probe(8.0), Some(CarrierId::WORLD));
+}
+
+#[test]
+fn barriers_are_transparent_cover_until_globally_opened() {
+    let kind = BarrierKindId(0);
+    let layout = MapLayout {
+        barriers: vec![Barrier {
+            x1: -3.0,
+            z1: 0.0,
+            x2: 3.0,
+            z2: 0.0,
+            y: 0.0,
+            height: 4.0,
+            width: BARRIER_THICKNESS,
+            level: 0,
+            levels: 1,
+            kind,
+            carrier: CarrierId::WORLD,
+        }],
+        ..Default::default()
+    };
+    let table = BarrierKindTable::from_ids(vec!["shield".into()]).expect("barrier catalog rejected");
+    let world = CollisionWorld::from_map_layout(&layout, &table);
+    for (from, to) in [
+        (Vec3::new(0.0, 1.0, -2.0), Vec3::new(0.0, 1.0, 2.0)),
+        (Vec3::new(0.0, 1.0, 2.0), Vec3::new(0.0, 1.0, -2.0)),
+    ] {
+        assert!(world.line_of_sight_clear(from, to));
+        for open in [&[][..], &[BarrierKindId(1)], &[kind], &[]] {
+            let blocked = !open.contains(&kind);
+            assert_eq!(!world.attack_path_clear(from, to, open), blocked);
+            assert_eq!(
+                world.attack_surface_along_ray(from, to - from, 4.0, open).is_some(),
+                blocked
+            );
+            assert_eq!(!world.projectile_path_clear(from, to - from, 0.1, open), blocked);
+        }
+    }
+}
+
+#[test]
+fn bridge_power_blocks_attacks_and_beams_without_blocking_awareness() {
+    let kind = BridgeKindId(0);
+    let layout = MapLayout {
+        light_bridges: vec![LightBridge {
+            x1: -3.0,
+            z1: -3.0,
+            x2: 3.0,
+            z2: 3.0,
+            y: 2.0,
+            thickness: BRIDGE_THICKNESS,
+            level: 1,
+            kind,
+            carrier: CarrierId::WORLD,
+        }],
+        ..Default::default()
+    };
+    let mut world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
+    for powered in [false, true, false] {
+        let powered_kinds = [kind];
+        world.set_powered_bridges(if powered { &powered_kinds } else { &[] });
+        for (from, to) in [(Vec3::Y * 4.0, Vec3::ZERO), (Vec3::ZERO, Vec3::Y * 4.0)] {
+            assert!(world.line_of_sight_clear(from, to));
+            assert_eq!(world.attack_path_clear(from, to, &[]), !powered);
+            let hit = world.attack_surface_along_ray(from, to - from, 4.0, &[]);
+            assert_eq!(hit.is_some(), powered);
+            if let Some(hit) = hit {
+                assert!(hit.point.y <= 2.0 && hit.point.y >= 2.0 - BRIDGE_THICKNESS - 1e-4);
+            }
+            assert_eq!(world.projectile_path_clear(from, to - from, 0.1, &[]), !powered);
+        }
+    }
 }

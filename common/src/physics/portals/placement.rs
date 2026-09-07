@@ -8,7 +8,6 @@ use rapier3d::{
 
 use super::{PortalFrame, frame::PORTAL_UP_DEGENERACY_LIMIT};
 use crate::{
-    config::PortalShotSettings,
     constants::{
         PORTAL_FIXTURE_PLANE_DEPTH, PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH, PORTAL_LIGHT_CLEARANCE,
         PORTAL_PLATE_CLEARANCE, PORTAL_RIM_SCALE, PORTAL_STANDABLE_NORMAL_Y,
@@ -67,12 +66,11 @@ pub fn compute_portal_placement(
     collision_world: &CollisionWorld,
     map_layout: &MapLayout,
     carriers: &Carriers,
-    shot_settings: PortalShotSettings,
     open_barriers: &[BarrierKindId],
     textures: &BTreeMap<String, TextureSettings>,
 ) -> Result<PortalPlacement, PortalPlacementFailure> {
     let hit = collision_world
-        .portal_surface_along_ray(origin, direction, range, shot_settings, open_barriers)
+        .portal_surface_along_ray(origin, direction, range, open_barriers)
         .ok_or(PortalPlacementFailure::InvalidPlacement)?;
     let yaw = portal_placement_yaw(hit.normal, yaw);
     let impact = PortalPlacement {

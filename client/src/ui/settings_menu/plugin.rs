@@ -1,4 +1,4 @@
-use bevy::{audio::GlobalVolume, prelude::*};
+use bevy::{audio::GlobalVolume, prelude::*, window::close_when_requested};
 
 use super::{
     observers::{on_checkbox_value_change, on_cycler_activate, on_slider_value_change},
@@ -13,6 +13,7 @@ use crate::{schedule::ClientSet, ui::console::console_input_system};
 
 pub fn settings_menu_plugin(app: &mut App) {
     app.init_resource::<SettingsMenuState>();
+    app.add_systems(Last, save_local_settings_system.before(close_when_requested));
     app.add_observer(on_slider_value_change);
     app.add_observer(on_checkbox_value_change);
     app.add_observer(on_cycler_activate);
@@ -27,7 +28,6 @@ pub fn settings_menu_plugin(app: &mut App) {
         Update,
         (
             settings_menu_lifecycle_system.run_if(resource_changed::<SettingsMenuState>),
-            save_local_settings_system.after(settings_menu_lifecycle_system),
             (
                 settings_menu_style_system,
                 settings_menu_slider_sync_system,

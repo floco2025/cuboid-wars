@@ -99,6 +99,7 @@ pub fn characters_movement_system(
         &planned_moves,
         &server_gameplay_config,
         &collision_world,
+        &plates.open_barrier_kinds,
     );
     apply_actor_moves(&mut actor_query, &planned_moves);
 }

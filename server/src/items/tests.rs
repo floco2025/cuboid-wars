@@ -370,7 +370,7 @@ mod collection_eligibility_tests {
 
     #[test]
     fn eraser_wins_over_same_tick_pickup_and_does_not_repeat_status() {
-        use crate::players::{EraserContacts, erase_equipment_system};
+        use crate::players::{EraserContacts, erase_power_ups_system};
         use common::{
             physics::CollisionWorld,
             protocol::{BarrierKindTable, Eraser, MapLayout, PowerUpKind},
@@ -392,7 +392,7 @@ mod collection_eligibility_tests {
         };
         app.insert_resource(CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default()))
             .init_resource::<EraserContacts>()
-            .add_systems(Update, erase_equipment_system.after(item_collection_system));
+            .add_systems(Update, erase_power_ups_system.after(item_collection_system));
         let id = PlayerId(1);
         let (entity, mut rx) = spawn_player(&mut app, id, Position::default());
         spawn_item(
@@ -410,7 +410,7 @@ mod collection_eligibility_tests {
         app.update();
         let info = app.world().resource::<PlayerMap>().get(&id).expect("player missing");
         assert!(!info.has(PowerUpKind::PortalGun));
-        assert_eq!(info.life.missiles, 0);
+        assert_eq!(info.life.missiles, 2);
         assert_eq!(app.world().get::<Health>(entity), Some(&Health(50.0)));
         let mut last = None;
         let mut collected = false;
@@ -424,7 +424,7 @@ mod collection_eligibility_tests {
         assert!(collected);
         assert!(status.collected.is_none());
         assert!(!status.power_up(PowerUpKind::PortalGun));
-        assert_eq!(status.missiles, 0);
+        assert_eq!(status.missiles, 2);
         app.update();
         assert!(rx.try_recv().is_err());
     }

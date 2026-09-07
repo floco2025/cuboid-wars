@@ -6,7 +6,8 @@ use common::{
     health::apply_damage,
     physics::{CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity, character_center},
     protocol::{
-        ActorId, ActorMarker, Health, MapSettings, PlayerId, PlayerMarker, Position, SPlayerBlast, ServerMessage,
+        ActorId, ActorMarker, BarrierKindId, Health, MapSettings, PlateState, PlayerId, PlayerMarker, Position,
+        SPlayerBlast, ServerMessage,
     },
 };
 
@@ -61,6 +62,7 @@ pub struct ExplosionContext<'w, 's> {
     quest_catalog: Res<'w, QuestCatalog>,
     invincibility: Res<'w, Invincibility>,
     collision_world: Res<'w, CollisionWorld>,
+    plates: Res<'w, PlateState>,
     player_query: PlayerBlastQuery<'w, 's>,
     actor_query: ActorBlastQuery<'w, 's>,
 }
@@ -133,6 +135,7 @@ pub fn explosions_system(mut context: ExplosionContext) {
             &context.map_settings.movement,
             context.invincibility.0,
             &context.collision_world,
+            &context.plates.open_barrier_kinds,
             &context.players,
             &context.actors,
             &mut context.player_query,
@@ -257,6 +260,7 @@ fn apply_blast(
     movement: &MapMovementConfig,
     invincible: bool,
     collision_world: &CollisionWorld,
+    open_barriers: &[BarrierKindId],
     players: &PlayerMap,
     actors: &ActorMap,
     player_query: &mut PlayerBlastQuery,
@@ -271,8 +275,13 @@ fn apply_blast(
             continue;
         }
         let victim_center = character_center(*pos, gameplay.player.physics());
-        let Some(falloff) = visible_blast_falloff(spec.center, victim_center, spec.damage.radius, collision_world)
-        else {
+        let Some(falloff) = visible_blast_falloff(
+            spec.center,
+            victim_center,
+            spec.damage.radius,
+            collision_world,
+            open_barriers,
+        ) else {
             continue;
         };
         if !invincible {
@@ -307,8 +316,13 @@ fn apply_blast(
         };
         let actor_physics = gameplay.expect_actor(&info.spawn_kind).physics();
         let victim_center = character_center(*pos, actor_physics);
-        let Some(falloff) = visible_blast_falloff(spec.center, victim_center, spec.damage.radius, collision_world)
-        else {
+        let Some(falloff) = visible_blast_falloff(
+            spec.center,
+            victim_center,
+            spec.damage.radius,
+            collision_world,
+            open_barriers,
+        ) else {
             continue;
         };
         apply_damage(&mut health, spec.damage.max_damage * falloff);
@@ -400,12 +414,18 @@ fn apply_actor_impulses(context: &mut ExplosionContext, impulses: HashMap<ActorI
     }
 }
 
-fn visible_blast_falloff(center: Vec3, target: Vec3, radius: f32, collision_world: &CollisionWorld) -> Option<f32> {
+fn visible_blast_falloff(
+    center: Vec3,
+    target: Vec3,
+    radius: f32,
+    collision_world: &CollisionWorld,
+    open_barriers: &[BarrierKindId],
+) -> Option<f32> {
     let distance_squared = center.distance_squared(target);
     if distance_squared >= radius * radius {
         return None;
     }
-    if !collision_world.line_of_sight_clear(center, target) {
+    if !collision_world.attack_path_clear(center, target, open_barriers) {
         return None;
     }
     Some(blast_falloff_at_distance(distance_squared.sqrt(), radius))
@@ -447,7 +467,7 @@ mod tests {
     };
     use common::{
         map::Carriers,
-        protocol::{BarrierKindTable, CarrierId, MapLayout, SPlayerDeath},
+        protocol::{Barrier, BarrierKindTable, BridgeKindId, CarrierId, LightBridge, MapLayout, SPlayerDeath},
     };
     use tokio::sync::mpsc::unbounded_channel;
 
@@ -470,6 +490,7 @@ mod tests {
             .insert_resource(server)
             .insert_resource(quest_catalog)
             .insert_resource(collision_world)
+            .init_resource::<PlateState>()
             .insert_resource(Carriers::default())
             .insert_resource(NavGraphs::new(&MapConfig::for_grid(Vec::new(), geometry(1, 1))))
             .insert_resource(PlayerMap::default())
@@ -810,5 +831,134 @@ mod tests {
         assert_eq!(death.id, ActorId(1));
         assert_eq!(death.killer, Some(shooter_id));
         assert_eq!(death.killer_score, Some(reward));
+    }
+    fn field_world(bridge: bool) -> CollisionWorld {
+        let layout = if bridge {
+            MapLayout {
+                light_bridges: vec![LightBridge {
+                    x1: -4.0,
+                    z1: -4.0,
+                    x2: 4.0,
+                    z2: 4.0,
+                    y: 3.0,
+                    thickness: 0.1,
+                    level: 1,
+                    kind: BridgeKindId(0),
+                    carrier: CarrierId::WORLD,
+                }],
+                ..default()
+            }
+        } else {
+            MapLayout {
+                barriers: vec![Barrier {
+                    x1: 1.0,
+                    z1: -4.0,
+                    x2: 1.0,
+                    z2: 4.0,
+                    y: 0.0,
+                    height: 4.0,
+                    width: 0.1,
+                    level: 0,
+                    levels: 1,
+                    kind: BarrierKindId(0),
+                    carrier: CarrierId::WORLD,
+                }],
+                ..default()
+            }
+        };
+        let kinds = BarrierKindTable::from_ids(vec!["shield".into()]).expect("barrier catalog rejected");
+        CollisionWorld::from_map_layout(&layout, &kinds)
+    }
+
+    fn power_field(app: &mut App, bridge: bool, active: bool) {
+        let mut plates = app.world_mut().resource_mut::<PlateState>();
+        plates.open_barrier_kinds = if active { vec![] } else { vec![BarrierKindId(0)] };
+        let powered = if bridge && active {
+            vec![BridgeKindId(0)]
+        } else {
+            vec![]
+        };
+        plates.powered_bridge_kinds = powered.clone();
+        app.world_mut()
+            .resource_mut::<CollisionWorld>()
+            .set_powered_bridges(&powered);
+    }
+
+    #[test]
+    fn fields_shield_players_and_actors_from_missile_damage_and_knockback() {
+        for bridge in [false, true] {
+            for active in [false, true] {
+                let mut app = test_app();
+                app.insert_resource(field_world(bridge))
+                    .add_systems(Update, explosions_system);
+                let (player, _) = spawn_logged_in_player(&mut app, PlayerId(1), 2.0, 10000.0);
+                app.world_mut()
+                    .resource_mut::<PlayerMap>()
+                    .get_mut(&PlayerId(1))
+                    .expect("player missing")
+                    .add_key(BarrierKindId(0));
+                let actor = spawn_actor(&mut app, ActorId(1), 2.0, 10000.0);
+                power_field(&mut app, bridge, active);
+                app.world_mut().resource_mut::<PendingExplosions>().push_missile(
+                    PlayerId(2),
+                    Position {
+                        x: 0.0,
+                        y: if bridge { 5.0 } else { 1.0 },
+                        z: 0.0,
+                    },
+                );
+                app.update();
+                for entity in [player, actor] {
+                    let health = app.world().get::<Health>(entity).expect("victim health missing").0;
+                    let vertical = app
+                        .world()
+                        .get::<CharacterVerticalVelocity>(entity)
+                        .expect("victim velocity missing")
+                        .0;
+                    assert_eq!(health < 10000.0, !active, "bridge={bridge}, active={active}");
+                    assert_eq!(vertical > 0.0, !active);
+                    assert_eq!(app.world().get::<KnockbackVelocity>(entity).is_some(), !active);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn activating_cover_stops_an_existing_beam_burst_and_reopening_restores_damage() {
+        use crate::{actors::BeamState, combat::actors_beam_damage_system};
+        use bevy::time::TimeUpdateStrategy;
+        use std::time::Duration;
+
+        for bridge in [false, true] {
+            let mut app = test_app();
+            app.insert_resource(field_world(bridge))
+                .insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(1.0 / 30.0)))
+                .add_systems(Update, actors_beam_damage_system);
+            let (player, _) = spawn_logged_in_player(&mut app, PlayerId(1), 2.0, 1000.0);
+            let actor = spawn_actor(&mut app, ActorId(1), 0.0, 1000.0);
+            if bridge {
+                app.world_mut()
+                    .get_mut::<Position>(actor)
+                    .expect("actor position missing")
+                    .y = 4.0;
+            }
+            app.world_mut()
+                .resource_mut::<ActorMap>()
+                .get_mut(&ActorId(1))
+                .expect("actor missing")
+                .beam = BeamState::Firing {
+                target: PlayerId(1),
+                remaining_secs: 2.0,
+            };
+            app.update();
+            let mut previous = app.world().get::<Health>(player).expect("player health missing").0;
+            for active in [false, true, true, false] {
+                power_field(&mut app, bridge, active);
+                app.update();
+                let current = app.world().get::<Health>(player).expect("player health missing").0;
+                assert_eq!(current < previous, !active, "bridge={bridge}, active={active}");
+                previous = current;
+            }
+        }
     }
 }

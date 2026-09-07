@@ -25,7 +25,7 @@ struct Args {
     #[arg(long, default_value = "0")]
     drop: f32,
 
-    // Windowed position in logical points; defaults to the saved position.
+    // Position uses macOS points or Windows/X11 pixels; Wayland chooses placement.
     #[arg(long)]
     window_x: Option<i32>,
 

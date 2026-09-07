@@ -1,65 +1,15 @@
 use bevy::{
     prelude::*,
-    window::{Monitor, MonitorSelection, OnMonitor, PrimaryMonitor, PrimaryWindow, WindowMode, WindowPosition},
+    window::{Monitor, MonitorSelection, OnMonitor, PrimaryMonitor, PrimaryWindow, WindowMode},
 };
+
+use super::WindowedFrame;
 
 use crate::{
     cameras::{CameraViewMode, TopDownCameraYaw},
     map::{DebugColors, LevelFocusEnabled},
     players::LocalPlayerInfo,
 };
-
-// The window's placement while windowed and, in fullscreen, the last one.
-// Saved with the local settings and seeded from them at startup; leaving
-// fullscreen requests it back, since a window created fullscreen has no
-// windowed frame for the OS to restore. The position is logical points, not
-// physical pixels: macOS positions in points, so a position saved at one
-// display scale restores correctly at another. `None` lets the OS place it.
-#[derive(Resource, Clone, Copy)]
-pub struct WindowedFrame {
-    pub position: Option<IVec2>,
-    pub size: UVec2,
-    // A restored position is applied one windowed frame late, not at window
-    // creation: on macOS creation places the content and runtime placement
-    // the frame, and only the latter round-trips a recorded position. At
-    // startup the window is created hidden until then, so the move is unseen.
-    pub position_pending: bool,
-}
-
-// Runs in `PreUpdate`, so a pending position always follows the previous
-// frame's size request; otherwise records the placement while windowed.
-// `Window.position` is physical, so it converts through the current scale.
-pub fn windowed_frame_system(mut windows: Query<&mut Window, With<PrimaryWindow>>, mut frame: ResMut<WindowedFrame>) {
-    let Ok(mut window) = windows.single_mut() else {
-        return;
-    };
-    if !matches!(window.mode, WindowMode::Windowed) {
-        return;
-    }
-    let scale = window.resolution.scale_factor();
-    if frame.position_pending {
-        frame.position_pending = false;
-        if let Some(logical) = frame.position {
-            let physical = (logical.as_vec2() * scale).round().as_ivec2();
-            window.position = WindowPosition::At(physical);
-        }
-        return;
-    }
-    // Reveal the frame after the position landed, so a hidden-start window
-    // never flashes at its creation spot.
-    if !window.visible {
-        window.visible = true;
-    }
-    let size = window.size().round().as_uvec2();
-    // A minimized window reports 0x0 on some platforms.
-    if !size.cmpgt(UVec2::ZERO).all() {
-        return;
-    }
-    frame.size = size;
-    if let WindowPosition::At(physical) = window.position {
-        frame.position = Some((physical.as_vec2() / scale).round().as_ivec2());
-    }
-}
 
 // ============================================================================
 // Input Toggle Systems

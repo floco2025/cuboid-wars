@@ -61,12 +61,6 @@ pub fn build_client_app(
         }
     }
     let start_fullscreen = local_settings.as_ref().is_some_and(|local| local.fullscreen);
-    // Windowed placement: CLI flags, then the saved values, then the default
-    // size at an automatic position. The window is created at that size, and
-    // the position (logical points) is applied on the first windowed frame
-    // (`windowed_frame_system`) rather than at creation: on macOS creation
-    // places the content and runtime placement the frame, and the saved
-    // position comes from the latter.
     let saved_position = local_settings
         .as_ref()
         .and_then(|local| local.window_x.zip(local.window_y));

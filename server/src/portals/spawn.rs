@@ -60,7 +60,6 @@ pub fn handle_portal_shot_message(
         collision_world,
         map_layout,
         carriers,
-        map_settings.portal_shots,
         &plates.open_barrier_kinds,
         &map_settings.textures,
     ) {

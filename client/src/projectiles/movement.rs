@@ -13,11 +13,12 @@ use common::{
 
 use super::{
     audio::LastBounceSound,
-    collision::{closest_character_hit, handle_barrier_collisions, present_character_impact, present_world_bounce},
+    collision::{closest_character_hit, handle_field_collisions, present_character_impact, present_world_bounce},
 };
 use crate::{
     actors::ActorMap,
     barriers::BarrierAssets,
+    bridges::BridgeAssets,
     cameras::MainCameraMarker,
     characters::PreviousTickPosition,
     config::{AssetSet, ClientSettings},
@@ -34,6 +35,7 @@ pub struct ProjectileWorld<'w> {
     gameplay_config: Res<'w, GameplayConfig>,
     plates: Res<'w, PlateState>,
     portal_set: Res<'w, PortalSet>,
+    bridge_assets: Res<'w, BridgeAssets>,
 }
 // Runs in `FixedUpdate` at the shared `TICK_HZ`. The semi-implicit Euler
 // integration in `ProjectileMotion` is step-size-dependent, so stepping at
@@ -128,7 +130,7 @@ pub fn projectiles_movement_system(
                 &actors,
                 &world.gameplay_config,
             );
-            let barrier_t = projectile.barrier_collision_t(
+            let field_t = projectile.field_collision_t(
                 &current_pos,
                 remaining_delta,
                 collision_world,
@@ -146,18 +148,19 @@ pub fn projectiles_movement_system(
 
             match earliest_projectile_event(
                 character_hit.map(|hit| hit.hit().time_of_impact),
-                barrier_t,
+                field_t,
                 surface_t,
                 portal_hop.map(|hop| hop.t),
             ) {
-                ProjectileEvent::Barrier => {
-                    let hit = handle_barrier_collisions(
+                ProjectileEvent::Field => {
+                    let hit = handle_field_collisions(
                         &mut commands,
                         asset_server.as_ref(),
                         &asset_set,
                         &mut particle_clouds.sparks,
                         &client_settings,
                         &barrier_assets,
+                        &world.bridge_assets,
                         projectile_entity,
                         &projectile,
                         &current_pos,
@@ -165,7 +168,7 @@ pub fn projectiles_movement_system(
                         collision_world,
                         &world.plates.open_barrier_kinds,
                     );
-                    assert!(hit, "barrier event missing its collision");
+                    assert!(hit, "field event missing its collision");
                     terminated = true;
                     break;
                 }

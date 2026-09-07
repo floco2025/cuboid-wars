@@ -42,7 +42,7 @@ Every element group ends with its own **Erase** tool that removes only that elem
 
 ## Equipment Erasers
 
-- **Equipment Eraser** — Drag along grid lines to place a walk-through field that removes a player's power-ups, keys, missile ammo, and controlled portal ends.
+- **Equipment Eraser** — Drag along grid lines to place a walk-through field that removes a player's power-ups and controlled portal ends, preserving keys and missile ammo.
 - **Erase Equipment Erasers** — Drag a rectangle to remove every eraser edge inside or on its border.
 
 ## Barriers
