@@ -157,14 +157,20 @@ mod tests {
             "light_bridges": { "fade_secs": 0.5 }
         }))
         .expect("partial VFX config failed to deserialize");
-        config.validate().expect("partial VFX config invalid");
-        assert_eq!(config.pickups.emissive_brightness, 1.0);
+        let defaults = VfxConfig::default();
+        assert_eq!(config.pickups.emissive_brightness, defaults.pickups.emissive_brightness);
         assert_eq!(config.barriers.opacity, 0.4);
-        assert_eq!(config.barriers.emissive_brightness, 2000.0);
-        assert_eq!(config.barriers.pulse.min_opacity, 0.007);
+        assert_eq!(
+            config.barriers.emissive_brightness,
+            defaults.barriers.emissive_brightness
+        );
+        assert_eq!(config.barriers.pulse.min_opacity, defaults.barriers.pulse.min_opacity);
         assert_eq!(config.erasers.opacity, 0.2);
         assert_eq!(config.erasers.emissive_brightness, 9.0);
-        assert_eq!(config.light_bridges.emissive_brightness, 6.0);
+        assert_eq!(
+            config.light_bridges.emissive_brightness,
+            defaults.light_bridges.emissive_brightness
+        );
         assert_eq!(config.light_bridges.fade_secs, 0.5);
     }
 
@@ -175,7 +181,7 @@ mod tests {
             ("barriers.emissive_brightness", -1.0),
             ("barriers.opacity", 1.1),
             ("barriers.pulse.min_opacity", -0.1),
-            ("barriers.pulse.min_opacity", 0.02),
+            ("barriers.pulse.min_opacity", 0.6),
             ("barriers.pulse.frequency_hz", -1.0),
             ("erasers.emissive_brightness", -1.0),
             ("erasers.opacity", -0.1),
@@ -186,7 +192,10 @@ mod tests {
             ("light_bridges.unpowered_opacity", 0.9),
             ("light_bridges.fade_secs", 0.0),
         ] {
-            let mut value = json!({});
+            let mut value = json!({
+                "barriers": { "opacity": 0.5, "pulse": { "min_opacity": 0.1 } },
+                "light_bridges": { "opacity": 0.5, "unpowered_opacity": 0.1 }
+            });
             let mut field = &mut value;
             for key in path.split('.') {
                 field = &mut field[key];

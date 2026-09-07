@@ -185,16 +185,9 @@ impl RandomItemsConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        config::{ActorRespawnConfig, ActorRespawnScope, PlayerRespawnMode, ServerGameplayConfig},
-        test_geometry::sizes,
-    };
-    use common::config::DeathTrigger;
+    use crate::test_geometry::sizes;
     use common::{
-        config::{
-            ActorMovementConfig, KnockbackConfig, MapMovementConfig, PlayerMovementConfig, PressureSwitchActivation,
-            PressureSwitchConfig,
-        },
+        config::{ActorMovementConfig, KnockbackConfig, MapMovementConfig, PlayerMovementConfig},
         protocol::{HexColor, KindDef, PortalMode},
     };
 
@@ -307,51 +300,6 @@ mod tests {
         ] {
             entry["respawn"] = invalid;
             assert!(serde_json::from_value::<MapServerConfig>(entry.clone()).is_err());
-        }
-    }
-
-    #[test]
-    fn shipped_respawn_policies_enable_solo_actor_resets_only_for_puzzle_stages() {
-        let config = crate::config::ServerGameplayConfig::load_default().expect("gameplay config rejected");
-        for (name, entry) in config.maps {
-            let expected = if name == "puzzle_stages" {
-                RespawnConfig {
-                    players: PlayerRespawnMode::Individual,
-                    actors: ActorRespawnConfig {
-                        on_player_death: DeathTrigger::Solo,
-                        scope: ActorRespawnScope::All,
-                    },
-                }
-            } else {
-                RespawnConfig::default()
-            };
-            assert_eq!(entry.respawn, expected, "{name}");
-        }
-    }
-
-    #[test]
-    fn shipped_switch_policies_keep_auto_except_for_the_access_barrier() {
-        let config = ServerGameplayConfig::load_default().expect("gameplay config rejected");
-        for (name, entry) in config.maps {
-            for kind in &entry.settings.barrier_kinds {
-                let expected = if name == "puzzle_access" && kind.id == "cyan" {
-                    PressureSwitchConfig {
-                        activation: PressureSwitchActivation::Toggle,
-                        reset_on_player_death: DeathTrigger::All,
-                    }
-                } else {
-                    PressureSwitchConfig::default()
-                };
-                assert_eq!(kind.pressure_switch, expected, "{name}: {}", kind.id);
-            }
-            for kind in &entry.settings.bridge_kinds {
-                assert_eq!(
-                    kind.pressure_switch,
-                    PressureSwitchConfig::default(),
-                    "{name}: {}",
-                    kind.id
-                );
-            }
         }
     }
 
@@ -729,14 +677,6 @@ mod tests {
 
         let single = parse_map_entry("single", Some("clear"), Some("bright")).expect("map entry JSON is invalid");
         assert_eq!(single.settings.portals, PortalMode::Single);
-    }
-
-    #[test]
-    fn lighting_mode_presets_match_names() {
-        assert_eq!(LightingMode::Bright.preset(), Some("bright"));
-        assert_eq!(LightingMode::Dim.preset(), Some("dim"));
-        assert_eq!(LightingMode::Dark.preset(), Some("dark"));
-        assert_eq!(LightingMode::Auto.preset(), None);
     }
 
     #[test]

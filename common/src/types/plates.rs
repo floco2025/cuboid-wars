@@ -70,19 +70,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn only_barrier_and_bridge_plates_hold() {
-        assert_eq!(
-            PlatePurpose::Barrier(BarrierKindId(2)).held(),
-            Some(HeldPurpose::Barrier(BarrierKindId(2)))
-        );
-        assert_eq!(
-            PlatePurpose::Bridge(BridgeKindId(1)).held(),
-            Some(HeldPurpose::Bridge(BridgeKindId(1)))
-        );
-        assert_eq!(PlatePurpose::Firework.held(), None);
-    }
-
-    #[test]
     fn held_purposes_round_trip_sorted() {
         let state = PlateState::from_held([
             HeldPurpose::Bridge(BridgeKindId(1)),

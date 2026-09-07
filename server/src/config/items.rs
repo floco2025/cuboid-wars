@@ -129,32 +129,4 @@ mod tests {
             );
         }
     }
-
-    #[test]
-    fn placed_item_respawn_secs_matches_item_type() {
-        let config = PlacedItemsConfig {
-            respawn_secs: PlacedItemRespawnSecs {
-                single_shot: 3.0,
-                multi_shot: 2.0,
-                missile_pack: 8.0,
-                portal_gun: 0.0,
-                health_potion: 5.0,
-                speed: 1.0,
-                low_gravity: 4.0,
-                gold: 6.0,
-                key: 7.0,
-            },
-        };
-        assert_eq!(config.respawn_secs_for(ItemType::SpeedPowerUp), 1.0);
-        assert_eq!(config.respawn_secs_for(ItemType::SingleShotPowerUp), 3.0);
-        assert_eq!(config.respawn_secs_for(ItemType::MultiShotPowerUp), 2.0);
-        assert_eq!(config.respawn_secs_for(ItemType::LowGravityPowerUp), 4.0);
-        assert_eq!(config.respawn_secs_for(ItemType::HealthPotion), 5.0);
-        assert_eq!(config.respawn_secs_for(ItemType::Gold), 6.0);
-        assert_eq!(
-            config.respawn_secs_for(ItemType::Key(common::protocol::BarrierKindId(0))),
-            7.0
-        );
-        assert_eq!(config.respawn_secs_for(ItemType::MissilePack), 8.0);
-    }
 }

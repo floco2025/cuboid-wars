@@ -264,7 +264,7 @@ pub(super) fn everyone_count(players: &PlayerMap, quest: &Quest) -> EveryoneCoun
 mod tests {
     use super::*;
     use crate::{
-        config::{QuestKind, ServerGameplayConfig},
+        config::QuestKind,
         players::PlayerQuestState,
         quests::test_support::{catalog, join, quest},
     };
@@ -321,16 +321,5 @@ mod tests {
         let unclaimed_catalog = QuestCatalog::from_config(&unclaimed_config);
         let unclaimed = QuestBoard::from_catalog(&unclaimed_catalog);
         assert!(unclaimed.locked_plate_purposes().is_empty());
-    }
-
-    #[test]
-    fn shipped_catalog_locks_firework_plates_until_the_fireworks_quest_unlocks() {
-        let mut config = ServerGameplayConfig::load_default().expect("default server gameplay config should load");
-        config.default_map = "hotel".to_owned();
-        let quest_catalog = QuestCatalog::from_config(&config);
-        let mut board = QuestBoard::from_catalog(&quest_catalog);
-        assert_eq!(board.locked_plate_purposes(), [PlatePurpose::Firework]);
-        board.unlock(&QuestId("start_fireworks".to_owned()));
-        assert!(board.locked_plate_purposes().is_empty());
     }
 }

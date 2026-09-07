@@ -12,11 +12,6 @@ from map_editor.validation import validate_map
 
 
 class TextureCatalogTests(unittest.TestCase):
-    def test_catalogs_are_per_host_and_permissions_are_explicit(self):
-        self.assertIn("upper-floors", load_texture_catalog("hotel"))
-        self.assertNotIn("upper-floors", load_texture_catalog("obby"))
-        self.assertFalse(load_texture_catalog("obby")["portal-resistant"])
-
     def test_missing_or_non_boolean_permission_is_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "gameplay.json"

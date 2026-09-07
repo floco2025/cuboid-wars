@@ -251,27 +251,18 @@ mod tests {
     }
 
     #[test]
-    fn validate_quests_rejects_empty_title() {
-        let mut quest = ok_quest("a", 1);
-        quest.title = String::new();
-        let err = validate(&[quest], &no_actors()).expect_err("empty title must be rejected");
-        assert!(err.to_string().contains("title"));
-    }
-
-    #[test]
-    fn validate_quests_rejects_empty_description() {
-        let mut quest = ok_quest("a", 1);
-        quest.description = String::new();
-        let err = validate(&[quest], &no_actors()).expect_err("empty description must be rejected");
-        assert!(err.to_string().contains("description"));
-    }
-
-    #[test]
-    fn validate_quests_rejects_empty_completed_text() {
-        let mut quest = ok_quest("a", 1);
-        quest.completed_text = String::new();
-        let err = validate(&[quest], &no_actors()).expect_err("empty completed_text must be rejected");
-        assert!(err.to_string().contains("completed_text"));
+    fn validate_quests_rejects_empty_text_fields() {
+        for field in ["title", "description", "completed_text"] {
+            let mut quest = ok_quest("a", 1);
+            match field {
+                "title" => quest.title.clear(),
+                "description" => quest.description.clear(),
+                "completed_text" => quest.completed_text.clear(),
+                _ => unreachable!(),
+            }
+            let err = validate(&[quest], &no_actors()).expect_err("empty quest text accepted");
+            assert!(err.to_string().contains(field), "{field}: {err}");
+        }
     }
 
     #[test]

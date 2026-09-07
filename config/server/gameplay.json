@@ -206,7 +206,7 @@
         },
         "sentry": {
           "beam_dps": null,
-          "death_blast": { "radius": 15.0, "max_damage": 300.0 }
+          "death_blast": { "radius": 15.0, "max_damage": 550.0 }
         },
         "zapper": {
           "beam_dps": 40.0,

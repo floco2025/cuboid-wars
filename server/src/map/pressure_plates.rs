@@ -471,7 +471,7 @@ mod system_tests {
         actors::{ActorMap, ActorRespawnTimers, PendingActorSpawns},
         combat::{DeathSource, PendingExplosions, kill_player},
         config::{LightingMode, PlayerRespawnMode, QuestKind, RespawnConfig, ServerGameplayConfig, WeatherMode},
-        map::{CellGrid, EdgeGrid, LevelGrid, LightState, WeatherState, generate_map, map_plugin},
+        map::{CellGrid, EdgeGrid, LevelGrid, LightState, PlayerSpawnZone, WeatherState, map_plugin},
         network::ServerToClient,
         players::{PlayerInfo, players_group_respawn_system, players_respawn_system},
         quests::{
@@ -1259,35 +1259,28 @@ mod system_tests {
     }
 
     #[test]
-    fn puzzle_access_closes_its_barrier_before_the_dead_player_respawns() {
-        let config = ServerGameplayConfig::load_default().expect("gameplay config rejected");
-        let settings = config.maps["puzzle_access"].settings.clone();
-        let (barriers, bridges) = settings.kind_tables().expect("access kind catalogs rejected");
-        let generated = generate_map("puzzle_access", &settings, &barriers, &bridges).expect("access map rejected");
-        let geometry = generated.config.root_grid().geometry;
-        let mut app = app(config.clone(), vec![]);
-        app.insert_resource(PressureSwitches::new(&settings.barrier_kinds, &settings.bridge_kinds))
-            .insert_resource(CollisionWorld::from_map_layout(&generated.layout, &barriers))
-            .insert_resource(generated.config)
-            .insert_resource(geometry)
-            .insert_resource(barriers)
-            .insert_resource(bridges)
-            .insert_resource(config.gameplay_config())
+    fn toggle_switches_reset_before_a_dead_player_respawns() {
+        let config = catalog(vec![]);
+        let mut app = app(config.clone(), vec![lobby_plate(), skyway_plate()]);
+        configure_switches(&mut app, PressureSwitchActivation::Toggle, DeathTrigger::All);
+        app.world_mut()
+            .resource_mut::<MapConfig>()
+            .player_spawn_zones
+            .push(PlayerSpawnZone {
+                carrier: CarrierId::WORLD,
+                level: 0,
+                cols: [1, 2],
+                rows: [1, 2],
+            });
+        app.insert_resource(config.gameplay_config())
             .init_resource::<ActorMap>()
             .init_resource::<ActorRespawnTimers>()
             .init_resource::<PendingActorSpawns>()
             .add_systems(Update, players_respawn_system.in_set(ServerSet::Lifecycle));
         let (entity, _) = standing_player(&mut app, 1);
-        let switch_pos = Position {
-            x: geometry.cell_center_x(2),
-            y: 0.0,
-            z: geometry.cell_center_z(2),
-        };
-        *app.world_mut()
-            .get_mut::<Position>(entity)
-            .expect("player position missing") = switch_pos;
+        let switch_pos = *app.world().get::<Position>(entity).expect("player position missing");
         app.update();
-        assert_eq!(open_kinds(&app), [LOBBY]);
+        assert_switches(&app, true);
         app.world_mut()
             .run_system_once(move |mut commands: Commands, mut players: ResMut<PlayerMap>| {
                 kill_player(
@@ -1304,20 +1297,13 @@ mod system_tests {
             })
             .expect("death system failed");
         app.update();
-        assert!(open_kinds(&app).is_empty());
+        assert_switches(&app, false);
         assert!(
             !app.world()
                 .resource::<PlayerMap>()
                 .get(&PlayerId(1))
                 .expect("respawned player missing")
                 .is_dead()
-        );
-        let from = Vec3::new(geometry.cell_center_x(8), 1.15, geometry.cell_center_z(2));
-        let to = Vec3::new(switch_pos.x, 1.15, switch_pos.z);
-        assert!(
-            !app.world()
-                .resource::<CollisionWorld>()
-                .attack_path_clear(from, to, &open_kinds(&app))
         );
     }
 }

@@ -51,16 +51,4 @@ mod passable_barrier_kinds_tests {
             assert!(merged.contains(&k), "missing {k:?} in {merged:?}");
         }
     }
-
-    #[test]
-    fn held_kinds_precede_added_open_kinds() {
-        // Order isn't a contract for the collision filter (which iterates),
-        // but documenting current behavior makes regressions visible.
-        let held = [BarrierKindId(5)];
-        let open = [BarrierKindId(2)];
-        assert_eq!(
-            passable_barrier_kinds(&held, &open),
-            [BarrierKindId(5), BarrierKindId(2)]
-        );
-    }
 }

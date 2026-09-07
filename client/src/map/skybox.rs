@@ -580,13 +580,6 @@ mod tests {
     }
 
     #[test]
-    fn default_lighting_state_targets_bright() {
-        let state = LightingState::default();
-        assert_eq!(state.target, wire("bright", "bright", 0.0));
-        assert!(!state.synced);
-    }
-
-    #[test]
     fn sky_disc_child_transform_preserves_world_direction_for_each_camera() {
         let camera = Transform::from_xyz(4.0, 2.0, -3.0).with_rotation(Quat::from_euler(EulerRot::YXZ, 1.2, -0.4, 0.2));
         let away = Vec3::new(0.3, 0.8, -0.5).normalize();

@@ -241,6 +241,8 @@ Texture sets are freepbr.com UE packs. To add one:
 
 ## Testing
 
+Test algorithms, state transitions, interactions, and regressions. Do not add tests that merely repeat configured values or trivial getters. Use small, explicit fixtures for behavior tests; configuration-only edits rely on existing load and validation checks.
+
 `cargo test --release --workspace` is the canonical command. Unit tests live
 next to the module they cover under `#[cfg(test)] mod tests`. There are no
 `tests/` integration-test directories in this repo. Name tests after what

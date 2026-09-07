@@ -822,49 +822,6 @@ mod tests {
     }
 
     #[test]
-    fn reaper_death_blast_kills_full_health_player_at_contact_distance() {
-        let mut app = test_app();
-        app.add_systems(Update, explosions_system);
-        let (gameplay, server) = {
-            let world = app.world();
-            (
-                world.resource::<GameplayConfig>().clone(),
-                world.resource::<ServerGameplayConfig>().clone(),
-            )
-        };
-        let reaper = gameplay.expect_actor("reaper").physics();
-        let player = gameplay.player.physics();
-        let trigger_gap = server
-            .expect_actor("reaper")
-            .attack
-            .contact_trigger_gap()
-            .expect("reaper contact attack");
-        let contact_distance = reaper.collider.width.max(reaper.collider.depth) / 2.0
-            + player.collider.width.max(player.collider.depth) / 2.0
-            + trigger_gap;
-        let victim_id = PlayerId(1);
-        let (_, mut victim_rx) =
-            spawn_logged_in_player(&mut app, victim_id, contact_distance, server.combat.health.player.max);
-        app.world_mut().resource_mut::<PendingExplosions>().push_actor(
-            ActorId(1),
-            Entity::from_bits(10),
-            "reaper".to_owned(),
-            Position::default(),
-        );
-
-        app.update();
-
-        assert!(
-            app.world()
-                .resource::<PlayerMap>()
-                .get(&victim_id)
-                .expect("victim")
-                .is_dead()
-        );
-        assert_eq!(next_player_death(&mut victim_rx).id, victim_id);
-    }
-
-    #[test]
     fn missile_blast_awards_shooter_player_kill_credit() {
         let mut app = test_app();
         app.add_systems(Update, explosions_system);

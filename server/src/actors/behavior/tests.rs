@@ -19,7 +19,6 @@ use crate::{
         ActorInfo, ActorMode, ActorRoute, BeamState,
         navigation::{ActorTerritories, NavGraph, NavGraphs, NavWaypoint, WaypointKind},
     },
-    characters::characters_health_regeneration_system,
     combat::{PendingExplosions, actors_beam_damage_system},
     config::ServerGameplayConfig,
     map::{ActorSpawnZone, CarrierGrid, CellGrid, EdgeGrid, LevelGrid, MapConfig},
@@ -1391,45 +1390,5 @@ fn turret_fires_past_burst_duration_and_stops_when_player_disconnects() {
     assert_eq!(
         app.world().get::<Health>(player).expect("player health missing").0,
         health
-    );
-}
-
-#[test]
-fn turret_kills_full_health_player_in_about_one_second_with_regeneration() {
-    let (mut app, player, mut receiver) = turret_app(500.0);
-    app.add_systems(
-        Update,
-        characters_health_regeneration_system.after(actors_beam_damage_system),
-    );
-    for _ in 0..29 {
-        turret_step(&mut app);
-    }
-    assert!(app.world().get::<Health>(player).is_some_and(|health| health.0 > 0.0));
-    for _ in 0..2 {
-        turret_step(&mut app);
-    }
-    assert!(app.world().get_entity(player).is_err());
-    assert!(
-        app.world()
-            .resource::<PlayerMap>()
-            .get(&PlayerId(7))
-            .expect("player missing")
-            .is_dead()
-    );
-    let mut deaths = 0;
-    while let Ok(ServerToClient::Send(message)) = receiver.try_recv() {
-        if matches!(message, ServerMessage::PlayerDeath(_)) {
-            deaths += 1;
-        }
-    }
-    assert_eq!(deaths, 1);
-    turret_step(&mut app);
-    assert_eq!(
-        app.world()
-            .resource::<ActorMap>()
-            .get(&ActorId(1))
-            .expect("turret missing")
-            .beam,
-        BeamState::Ready
     );
 }

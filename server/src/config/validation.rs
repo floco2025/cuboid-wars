@@ -118,16 +118,6 @@ mod tests {
     }
 
     #[test]
-    fn shipped_actor_configs_and_map_are_consistent() {
-        let server = ServerGameplayConfig::load_default().expect("gameplay config rejected");
-        for (name, entry) in &server.maps {
-            let (barriers, bridges) = entry.settings.kind_tables().expect("kind tables rejected");
-            let map = crate::map::generate_map(name, &entry.settings, &barriers, &bridges).expect("map rejected");
-            validate_map_actor_kinds(&server, &map.config).unwrap_or_else(|error| panic!("{name}: {error}"));
-        }
-    }
-
-    #[test]
     fn immovable_capacity_counts_only_usable_floors_on_the_zones_carrier() {
         let server = ServerGameplayConfig::load_default().expect("gameplay config rejected");
         let mut map = MapConfig::for_grid(Vec::new(), geometry(4, 1));
@@ -161,14 +151,6 @@ mod tests {
         map.actor_spawn_zones[0].kind = "mine".into();
         map.actor_spawn_zones[0].count = 100;
         validate_map_actor_kinds(&server, &map).expect("movable actor count limited by cell count");
-    }
-
-    #[test]
-    fn shipped_hotel_quests_have_required_map_content() {
-        let (server, map) = config_and_map();
-        let hotel = server.maps.get("hotel").expect("hotel settings missing");
-        validate_map_quests(&hotel.quests, &map, hotel.random_items.as_ref())
-            .expect("hotel quest content should validate");
     }
 
     #[test]

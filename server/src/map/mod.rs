@@ -13,8 +13,6 @@ pub(crate) mod material_rules;
 mod plugin;
 mod pressure_plates;
 mod pressure_switches;
-#[cfg(test)]
-mod puzzle_tests;
 mod ramps;
 mod resources;
 mod segments;

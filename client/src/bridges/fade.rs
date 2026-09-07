@@ -99,14 +99,6 @@ mod tests {
     }
 
     #[test]
-    fn material_alpha_round_trips_through_color_with_alpha() {
-        let config = LightBridgeVfxConfig::default();
-        let stored = color_with_alpha(Color::srgb(0.2, 0.6, 0.9), config.opacity);
-        assert_eq!(stored.alpha(), config.opacity);
-        assert_eq!(fade_step(stored.alpha(), config.opacity, 0.05, config.fade_secs), None);
-    }
-
-    #[test]
     fn fade_duration_controls_how_quickly_opacity_changes() {
         let fast = fade_step(0.1, 0.9, 0.1, 0.1).expect("fast fade reports settled");
         let slow = fade_step(0.1, 0.9, 0.1, 1.0).expect("slow fade reports settled");

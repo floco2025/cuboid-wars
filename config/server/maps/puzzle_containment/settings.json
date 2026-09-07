@@ -9,7 +9,7 @@
   },
   "skybox": "cloudy_day",
   "geometry": {
-    "grid_cell_size": 4.0,
+    "grid_cell_size": 6.0,
     "level_height": 4.0,
     "floor_thickness": 0.4,
     "wall_thickness": 0.4
@@ -38,16 +38,24 @@
   },
   "respawn": {
     "players": "individual",
-    "actors": { "on_player_death": "never", "scope": "dead" }
+    "actors": { "on_player_death": "solo", "scope": "all" }
   },
   "portals": "both",
   "barrier_kinds": [
+    {
+      "id": "start",
+      "color": "#23d80f",
+      "pressure_switch": {
+        "activation": "auto",
+        "reset_on_player_death": "solo"
+      }
+    },
     {
       "id": "pen",
       "color": "#30d8ff",
       "pressure_switch": {
         "activation": "auto",
-        "reset_on_player_death": "never"
+        "reset_on_player_death": "solo"
       }
     },
     {
@@ -55,7 +63,7 @@
       "color": "#f0c020",
       "pressure_switch": {
         "activation": "auto",
-        "reset_on_player_death": "never"
+        "reset_on_player_death": "solo"
       }
     }
   ],

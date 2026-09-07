@@ -18,8 +18,6 @@ from map_editor.constants import (
     MODE_ERASE_WALLS,
     MODE_LIGHT_BRIDGE,
     MODE_SELECT,
-    load_map_barrier_kinds,
-    load_map_bridge_kinds,
 )
 from map_editor.erase import EraseMixin
 from map_editor.items import ItemsMixin
@@ -256,15 +254,6 @@ class BarrierKindTests(unittest.TestCase):
         errors = validate_map(data, [], [])
         self.assertTrue(any("known: [(none listed)]" in e for e in errors))
 
-    def test_shipped_kinds_are_loaded_from_gameplay_settings(self) -> None:
-        self.assertEqual(
-            load_map_barrier_kinds("hotel"),
-            {"treasure": "#ff3333", "basement": "#f0c020", "gravity": "#5090ff", "lobby": "#22cc33"},
-        )
-        self.assertEqual(load_map_barrier_kinds("obby"), {"barrier_1": "#f0c020"})
-        with self.assertRaisesRegex(ValueError, "not registered"):
-            load_map_barrier_kinds("not_configured")
-
 
 class LightBridgeTests(unittest.TestCase):
     def test_canonicalization_keeps_the_last_bridge_per_cell_sorted_by_row_then_col(self) -> None:
@@ -375,15 +364,6 @@ class LightBridgeTests(unittest.TestCase):
         self.assertTrue(any("light_bridge[4] [2, 2] duplicates another light bridge" in e for e in errors))
         self.assertTrue(any("pressure_plates[0] [2, 2] sits on a light bridge" in e for e in errors))
         self.assertTrue(any("unknown bridge kind 'nope'; known: [skyway]" in e for e in errors))
-
-    def test_shipped_bridge_kinds_are_loaded_from_gameplay_settings(self) -> None:
-        self.assertEqual(load_map_bridge_kinds("hotel"), {})
-        self.assertEqual(
-            load_map_bridge_kinds("obby"),
-            {"bridge_1": "#30d8ff", "bridge_2": "#30d8ff", "bridge_3": "#30d8ff"},
-        )
-        with self.assertRaisesRegex(ValueError, "not registered"):
-            load_map_bridge_kinds("not_configured")
 
 
 def wall(c0: int, r0: int, c1: int, r1: int) -> dict:

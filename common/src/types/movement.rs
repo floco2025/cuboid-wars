@@ -213,14 +213,22 @@ mod tests {
     use super::*;
 
     #[test]
-    fn idle_intent_is_finite() {
+    fn move_intents_reject_only_non_finite_directions() {
         assert!(PlayerMoveIntent::Idle.is_finite());
-    }
-
-    #[test]
-    fn finite_directions_are_accepted() {
-        assert!(PlayerMoveIntent::Walking { direction: 0.0 }.is_finite());
-        assert!(PlayerMoveIntent::Running { direction: -2.5 }.is_finite());
+        for (direction, finite) in [
+            (0.0, true),
+            (-2.5, true),
+            (f32::NAN, false),
+            (f32::INFINITY, false),
+            (f32::NEG_INFINITY, false),
+        ] {
+            for intent in [
+                PlayerMoveIntent::Walking { direction },
+                PlayerMoveIntent::Running { direction },
+            ] {
+                assert_eq!(intent.is_finite(), finite, "{intent:?}");
+            }
+        }
     }
 
     #[test]
@@ -239,35 +247,5 @@ mod tests {
         let state = MissileMovementState::from_velocity(pos, Vec3::ZERO);
         assert_eq!(state.speed, 0.0);
         assert_eq!(state.velocity(), Vec3::ZERO);
-    }
-
-    #[test]
-    fn non_finite_directions_are_rejected() {
-        assert!(!PlayerMoveIntent::Walking { direction: f32::NAN }.is_finite());
-        assert!(
-            !PlayerMoveIntent::Running {
-                direction: f32::INFINITY
-            }
-            .is_finite()
-        );
-        assert!(
-            !PlayerMoveIntent::Walking {
-                direction: f32::NEG_INFINITY
-            }
-            .is_finite()
-        );
-    }
-
-    #[test]
-    fn move_intent_finite_check_rejects_nan_and_inf_directions() {
-        assert!(PlayerMoveIntent::Idle.is_finite());
-        assert!(PlayerMoveIntent::Walking { direction: 1.2 }.is_finite());
-        assert!(!PlayerMoveIntent::Walking { direction: f32::NAN }.is_finite());
-        assert!(
-            !PlayerMoveIntent::Running {
-                direction: f32::INFINITY
-            }
-            .is_finite()
-        );
     }
 }

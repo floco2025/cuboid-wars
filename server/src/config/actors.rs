@@ -165,41 +165,7 @@ pub struct ContactBeamAttackConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::ServerGameplayConfig;
     use serde_json::json;
-
-    #[test]
-    fn default_config_loads_explicit_actor_attacks() {
-        let config = ServerGameplayConfig::load_default().expect("default server gameplay config should load");
-        let zapper = config
-            .expect_actor("zapper")
-            .attack
-            .beam()
-            .expect("zapper should have beam attack");
-        assert_eq!(zapper.duration_secs, 2.0);
-        assert_eq!(zapper.cooldown_secs, 8.0);
-        assert_eq!(config.expect_actor("mine").attack.contact_trigger_gap(), Some(0.4));
-        assert_eq!(config.expect_actor("sentry").attack.contact_trigger_gap(), Some(0.8));
-        let reaper = config.expect_actor("reaper").attack;
-        assert_eq!(reaper.contact_trigger_gap(), Some(0.8));
-        let reaper_beam = reaper.beam().expect("reaper should have beam attack");
-        assert_eq!(reaper_beam.range, 25.0);
-        assert_eq!(reaper_beam.duration_secs, 2.0);
-        assert_eq!(reaper_beam.cooldown_secs, 5.0);
-    }
-
-    #[test]
-    fn turret_is_immovable_without_speed_settings() {
-        let config = ServerGameplayConfig::load_default().expect("gameplay config rejected");
-        let turret = config.expect_actor("turret");
-        assert!(turret.character.immovable);
-        assert!(matches!(turret.attack, ActorAttackConfig::ContinuousBeam(_)));
-        assert_eq!(turret.attack.beam_range(), Some(25.0));
-        assert_eq!(config.combat.damage.expect_actor("turret").beam_dps, Some(500.0));
-        for map in config.maps.values() {
-            assert!(!map.settings.movement.actors.contains_key("turret"));
-        }
-    }
 
     #[test]
     fn beam_attack_rejects_non_positive_duration() {
