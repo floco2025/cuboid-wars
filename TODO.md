@@ -2,11 +2,14 @@
 
 ## Fixes
 
+- **Energy-field interactions:** Implement the settled [barrier and light-bridge rules](PUZZLES.md#barriers-and-light-bridges).
+- **Eraser inventory:** Implement [power-up-only erasure](PUZZLES.md#erasers) and revisit Switchyard customs.
+
 ## Enhancements
 
-## Testing
+- **Puzzle design:** See [PUZZLES.md](PUZZLES.md) for the element inventory, puzzle patterns, zapper guards, and [next decisions](PUZZLES.md#next-decisions).
 
-- **Portal materials:** Paint a face with `portal-resistant`; check the blue/orange impact flash, collapsing ring, sparks, and fizzle sound, including on moving carriers and from another client. Confirm an existing portal stays intact and a surface with insufficient room still dry-clicks, even with incompatible material. The user handles in-game testing.
+## Testing
 
 - **Playtest Switchyard:** Check the customs portal puzzle, moving bridge switch, and ladder shuttle solo and with teammates. The user handles in-game testing.
 - **Actor ladders:** Visually check intermediate landings, moving carriers, and mines approaching from opposite sides. The user handles in-game testing.
