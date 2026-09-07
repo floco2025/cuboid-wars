@@ -94,10 +94,10 @@ def place_ramp(data: dict, ramp: dict) -> dict:
 
 
 def place_plate(data: dict, plate: dict, *, replacing: tuple | None = None) -> dict:
-    key = pressure_plate_key(plate)
+    cell = (plate["level"], plate["col"], plate["row"])
     existing = [p for p in data["pressure_plates"] if pressure_plate_key(p) != replacing]
-    if any(pressure_plate_key(p) == key for p in existing):
-        raise ValueError("That plate purpose is already on this tile.")
+    if any((p["level"], p["col"], p["row"]) == cell for p in existing):
+        raise ValueError("There is already a pressure plate on this tile.")
     return replace_records(data, "pressure_plates", [*existing, plate])
 
 

@@ -327,9 +327,7 @@ def _validate_pressure_plates(map_data: dict, kinds: list[str], bridge_kinds: li
         level = map_data["levels"][level_idx]
         if any(b["col"] == col and b["row"] == row for b in level.get("light_bridges", [])):
             errors.append(f"{label} [{col}, {row}] sits on a light bridge")
-        # The Rust loader dedupes per purpose: plates of different purposes
-        # may share a cell, two identical plates may not.
-        key = (level_idx, col, row, plate_type, plate.get("kind"))
+        key = (level_idx, col, row)
         if key in seen:
             errors.append(f"{label} duplicates a plate at level {level_idx} [{col}, {row}]")
         seen.add(key)

@@ -828,7 +828,7 @@ fn validate_rejects_a_light_bridge_on_a_ramp() {
 }
 
 #[test]
-fn validate_rejects_a_plate_on_a_light_bridge() {
+fn validate_rejects_plate_conflicts_with_bridges_and_other_plates() {
     let mut map_def = map_with_bridges(&[[1, 0]]);
     map_def.pressure_plates.push(PressurePlateDef {
         level: 0,
@@ -839,6 +839,28 @@ fn validate_rejects_a_plate_on_a_light_bridge() {
 
     let err = validate_map(&map_def).expect_err("a plate on a bridge must fail");
     assert!(err.to_string().contains("sits on a light bridge"), "got: {err}");
+
+    map_def.levels[0].light_bridges.clear();
+    map_def.levels.push(level(vec![[1, 0]]));
+    for purpose in [
+        PressurePlatePurposeDef::Barrier { kind: "red".into() },
+        PressurePlatePurposeDef::Barrier { kind: "blue".into() },
+        PressurePlatePurposeDef::Bridge { kind: "skyway".into() },
+        PressurePlatePurposeDef::Firework,
+    ] {
+        map_def.pressure_plates[0].purpose = PressurePlatePurposeDef::Barrier { kind: "red".into() };
+        map_def.pressure_plates.push(PressurePlateDef {
+            level: 0,
+            col: 1,
+            row: 0,
+            purpose,
+        });
+        let err = validate_map(&map_def).expect_err("overlapping pressure plates accepted");
+        assert!(err.to_string().contains("duplicates a plate"), "{err}");
+        map_def.pressure_plates[1].level = 1;
+        validate_map(&map_def).expect("plates on separate levels rejected");
+        map_def.pressure_plates.pop();
+    }
 }
 
 #[test]

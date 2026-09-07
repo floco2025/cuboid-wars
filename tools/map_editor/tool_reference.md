@@ -92,7 +92,7 @@ Faces with different materials across the selection start at **Mixed / leave unc
 
 ## Pressure Plates
 
-Different purposes may share a tile, including multiple barrier or bridge kinds. Right-click actions name each purpose and edit or erase only that plate. Configure each kind’s `pressure_switch` directly in the map’s `settings.json`: `activation` is `momentary`, `toggle`, or `auto`; `reset_on_player_death` is `never`, `solo`, `any`, or `all`. Auto toggles with one logged-in player and is momentary with multiple players. Momentary needs any matching plate occupied. The editor reads kind IDs and colors; it does not edit these policies.
+Each tile can hold one pressure plate on each level, regardless of type or kind. Right-click actions name each purpose and edit or erase only that plate. Configure each kind’s `pressure_switch` directly in the map’s `settings.json`: `activation` is `momentary`, `toggle`, or `auto`; `reset_on_player_death` is `never`, `solo`, `any`, or `all`. Auto toggles with one logged-in player and is momentary with multiple players. Momentary needs any matching plate occupied. The editor reads kind IDs and colors; it does not edit these policies.
 
 - **Barrier Plate** — Choose Kind in the toolbar and left-click a cell to place a plate (square in the barrier kind's color). The kind’s pressure switch opens every barrier of that kind globally. Right-click a plate to change its kind or erase it.
 - **Bridge Plate** — Choose Kind in the toolbar and left-click a cell to place a plate (diamond in the bridge kind's color). The kind’s pressure switch makes every light bridge of that kind solid. Right-click a plate to change its kind or erase it.

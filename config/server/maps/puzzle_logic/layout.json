@@ -7,7 +7,7 @@
       {"level": 1, "cols": [2, 3], "rows": [4, 5]}
     ],
     "pressure_plates": [
-      {"level": 1, "col": 2, "row": 3, "type": "barrier", "kind": "amber"},
+      {"level": 1, "col": 2, "row": 2, "type": "barrier", "kind": "amber"},
       {"level": 1, "col": 2, "row": 3, "type": "bridge", "kind": "link"},
       {"level": 1, "col": 7, "row": 3, "type": "barrier", "kind": "blue"},
       {"level": 1, "col": 13, "row": 5, "type": "firework"}

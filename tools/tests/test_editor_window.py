@@ -556,27 +556,44 @@ class WindowTests(WindowTestCase):
         entries = [{"col": 1, "row": 1}, {"col": 12, "row": 12}]
         self.assertEqual(list(canvas.visible_entries("floors", entries)), entries[1:])
 
-    def test_same_type_plates_can_be_edited_and_erased_independently(self):
+    def test_occupied_plate_tiles_reject_every_purpose_but_allow_edit_and_undo(self):
         window = self.window
         window.barrier_kind_colors = {"a": "#ff0000", "b": "#00ff00", "c": "#0000ff"}
+        window.bridge_kind_colors = {"bridge": "#ffffff"}
         window.add_pressure_plate(1, 1, "a")
-        window.add_pressure_plate(1, 1, "b")
-        a, b = window.plates_at(1, 1)
+        a = window.plates_at(1, 1)[0]
+        before = copy.deepcopy(window.map_data)
+        undo_count = window.undo_stack.count()
+        for place in (
+            lambda: window.add_pressure_plate(1, 1, "a"),
+            lambda: window.add_pressure_plate(1, 1, "b"),
+            lambda: window.add_bridge_plate(1, 1, "bridge"),
+            lambda: window.add_firework_plate(1, 1),
+        ):
+            with patch.object(window, "notify") as notify:
+                place()
+                self.assertIn("already a pressure plate", notify.call_args.args[0])
+            self.assertEqual(window.map_data, before)
+            self.assertEqual(window.undo_stack.count(), undo_count)
         with patch("map_editor.placement.KindDialog.prompt", return_value="c"):
             window.edit_pressure_plate_at(pressure_plate_key(a))
-        self.assertEqual({p["kind"] for p in window.plates_at(1, 1)}, {"b", "c"})
-        window.erase_pressure_plate(pressure_plate_key(b))
         self.assertEqual([p["kind"] for p in window.plates_at(1, 1)], ["c"])
         window.undo_stack.undo()
-        self.assertEqual({p["kind"] for p in window.plates_at(1, 1)}, {"b", "c"})
-        with self.assertRaises(ValueError):
-            place_plate(window.map_data, b)
+        self.assertEqual(window.map_data, before)
+        upper = {**a, "level": 1, "type": "firework"}
+        upper.pop("kind")
+        upper_data = insert_level_data(window.map_data, 1)
+        self.assertEqual(len(place_plate(upper_data, upper)["pressure_plates"]), 2)
 
-    def test_plate_context_actions_retain_their_purpose_keys(self):
+    def test_conflicting_loaded_plates_can_be_erased_independently(self):
         window = self.window
         window.barrier_kind_colors = {"a": "#ff0000", "b": "#00ff00"}
-        window.add_pressure_plate(1, 1, "a")
-        window.add_pressure_plate(1, 1, "b")
+        data = copy.deepcopy(window.map_data)
+        data["pressure_plates"] = [
+            {"level": 0, "col": 1, "row": 1, "type": "barrier", "kind": kind}
+            for kind in ("a", "b")
+        ]
+        window.doc.replace_with_new(data)
         canvas = window.canvas
         position = canvas.viewport.from_grid(QPointF(1.5, 1.5)).toPoint()
 
@@ -699,7 +716,7 @@ class WindowTests(WindowTestCase):
             window.prompt_and_add_barrier_line((1, 1), (2, 1))
             window.prompt_and_add_pressure_plate(1, 1)
             window.prompt_and_add_light_bridge_rect((4, 4), (4, 4))
-            window.prompt_and_add_bridge_plate(1, 1)
+            window.prompt_and_add_bridge_plate(2, 1)
             window.prompt_and_add_item(1, 1)
             kind.assert_not_called()
             item.assert_not_called()

@@ -71,7 +71,7 @@ The relevant behavior lives in [collision queries](common/src/physics/world/coll
 | Portals | Availability comes from portal-gun pickups. Connect separated routes, establish temporary access, redirect falling momentum, and carry ordinary projectiles. Portals can ride moving geometry. Players and ordinary projectiles traverse them; actors do not. |
 | Portal-resistant materials | Restrict placement by surface and face, making the shooting position and sequence part of the solution. |
 | Barriers and keys | Personal passage through a closed field versus globally opening it with plates. Keys are reusable access permissions. |
-| Pressure plates | Open barrier groups, power bridge groups, or trigger fireworks. Each barrier or bridge kind selects momentary, toggle, or automatic solo/multiplayer activation and a death-reset rule. Different purposes can occupy one tile, so one position can already control several outputs. |
+| Pressure plates | Open barrier groups, power bridge groups, or trigger fireworks. Each barrier or bridge kind selects momentary, toggle, or automatic solo/multiplayer activation and a death-reset rule. Each tile permits one plate per level, with one purpose. |
 | Light bridges | Switchable crossings and drops; protection above or below their surface. A powered bridge can also obstruct a portal shot. |
 | Erasers | Boundaries between equipment sets, while retained keys unlock routes and restock areas across stages. |
 | Moving platforms and nested rooms | Lifts, shuttles, moving cover, moving ladders, moving switches, and carried actors. Motion repeats automatically between two positions with pauses and a phase offset; there is no switch control or rotation yet. |
@@ -122,7 +122,7 @@ Lure a contact attacker into a side passage and restore a barrier behind it. The
 
 ### Geometry as logic
 
-Successive gates provide an AND condition; alternative routes provide OR. Keys, placed portals, solo switches, and quest progress provide different forms of memory. Shared plate positions can combine outputs. These spatial constructions already support useful logic, although inversion and explicit switch modes would make authoring more direct.
+Successive gates provide an AND condition; alternative routes provide OR. Keys, placed portals, solo switches, and quest progress provide different forms of memory. These spatial constructions require layouts that make the conditions necessary; inversion and multiple outputs per switch would make authoring more direct.
 
 ## Zappers as guards
 
@@ -208,7 +208,7 @@ Each map has a gold collection objective and a firework finish. Eight are design
 | [puzzle_momentum](config/server/maps/puzzle_momentum/layout.json) | 1 | Momentum and access | Turn a fall into a launch toward a distant landing. |
 | [puzzle_coop](config/server/maps/puzzle_coop/layout.json) | 2 | Cooperative positioning | Hold a crossing for a partner, then arrange the helper's escape. |
 | [puzzle_containment](config/server/maps/puzzle_containment/layout.json) | 1 | Enemy containment | Lure a hunter into a pen and leave it behind a closed field. |
-| [puzzle_logic](config/server/maps/puzzle_logic/layout.json) | 1 | Geometry as logic | Satisfy two gates using a switch that controls two outputs and a choice of routes. |
+| [puzzle_logic](config/server/maps/puzzle_logic/layout.json) | 1 | Geometry as logic | Explore a bridge and lower route to reach the gate switches; the intended two-gate condition is bypassable. |
 
 Steel-panel `skybridge` surfaces accept portals; the other materials in these examples resist them. Supplies replenish after five seconds, equipment lasts until death or erasure, and no random pickups appear. The guard-removal example uses missiles and provides a sheltered health pickup beside the ammunition. Gold takes 24 hours to respawn, except in `puzzle_coop`, where it returns after five seconds so one player collecting both coins cannot block the other. Restart the server for a completely fresh attempt. `puzzle_access` closes its cyan barrier when nobody alive remains after a death or logout. `puzzle_stages` and `puzzle_containment` restore all actors at their starting positions after a solo death or logout. Containment also resets its barrier switches; other example switches and quest progress persist through death.
 
@@ -223,8 +223,8 @@ The player counts describe intended play, not enforced admission limits. With on
 5. **Sequence:** Collect the portal gun and place a departure portal on the steel floor panel in front of the shutter. Open the shutter from the sheltered switch. Peek around the partition and place the other portal on the steel floor panel beyond the guard's side wall. Retreat, close the shutter, and enter the departure portal to emerge in the finish shelter.
 6. **Momentum:** From the recovery floor, place one portal on the steel floor panel beneath the drop deck and the other high on the east-facing steel wall panel, aimed toward the landing. Climb the tall ladder, step off toward the floor portal, and let the fall launch you across. The lower floor, health pickup, and ladder support another attempt.
 7. **Co-op:** One player holds the bridge plate. The other crosses, takes the portal gun, and links the far steel floor panel to the steel wall panel on the starting platform. The helper leaves the plate and enters the wall portal. Each player collects a gold coin to reveal the two finish plates, then they occupy both plates together.
-8. **Containment:** Open the cyan pen from the corridor switch and lead the slower sentry inside. Collect the amber exit key, climb the pen's escape ladder, drop outside, and close the pen using the second cyan switch. Return around the pen to the corridor and use the key at the exit gate. Contact with the hunter is lethal at full health; the closed field shields against its blast.
-9. **Logic:** The starting switch opens amber and powers the bridge together. Reach the blue switch across the bridge or via the lower detour and its ladder. With both gates open, enter the final corridor from the second platform and pass amber, then blue. The two routes are OR; the successive gates are AND; solo toggles retain the chosen state.
+8. **Containment:** Open the green start barriers to release both the player and sentry. Open the cyan pen from the corridor switch and lead the sentry inside. Collect the amber exit key, climb the pen's escape ladder, drop outside, and close the pen using the second cyan switch. Return through the sentry's area and use the key at the exit gate. Contact with the hunter is lethal at full health; the closed field shields against its blast. The player can currently outrun the sentry and finish without trapping it.
+9. **Logic:** Separate starting plates control amber and the bridge. Reach the blue switch across the bridge or via the lower route and its ladders. The lower route can bypass amber, leaving only blue to open before collecting gold. The layout does not enforce its intended two-gate condition and needs redesign.
 
 Shared tests cover collision, portal traversal, and player movement; every registered map is checked for valid configuration and layout. Readability, peek timing, boarding, luring, and unintended shortcuts need playtesting.
 

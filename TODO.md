@@ -2,11 +2,13 @@
 
 ## Fixes
 
-- **Containment puzzle:** Verify that the revised corridor barriers and hunter spawn provide a safe arrival. Collecting gold still allows completion without trapping the hunter; make the finale require it alive inside the pen with its barrier closed.
+- **Containment puzzle:** The start barriers safely hold the player and sentry until the player opens them. The route to the finish returns through the sentry's area, but the player can outrun it and finish without trapping it. Make containment necessary while keeping the lure and escape practical.
 
 - **Missiles near walls:** Missiles repeatedly miss actors positioned close to walls. Check whether requiring missile clearance to the target centre prevents a valid approach within proximity-fuse range.
 
 ## Enhancements
+
+- **Logic map:** The lower route and ladders bypass amber, leaving only blue to open before collecting gold. Redesign the switch and route dependencies to create a meaningful decision and prevent bypassing the intended conditions.
 
 - **Puzzle design:** See [PUZZLES.md](PUZZLES.md) for the element inventory, nine example maps, guard encounters, and [next decisions](PUZZLES.md#next-decisions).
 

@@ -173,13 +173,9 @@ fn validate_pressure_plates(map_def: &MapDef) -> Result<()> {
                 plate.row
             ));
         }
-        // Per-purpose uniqueness on (level, col, row). Different purposes
-        // may stack on the same cell — design choice; drop the purpose from
-        // the tuple to disallow that too.
-        if !seen.insert((plate.level, plate.col, plate.row, plate.purpose.clone())) {
+        if !seen.insert((plate.level, plate.col, plate.row)) {
             return Err(anyhow!(
-                "{label} duplicates {:?} at level {} col {} row {}",
-                plate.purpose,
+                "{label} duplicates a plate at level {} col {} row {}",
                 plate.level,
                 plate.col,
                 plate.row

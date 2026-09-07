@@ -194,7 +194,7 @@ class ResizeTests(unittest.TestCase):
 
 
 class PressurePlateTests(unittest.TestCase):
-    def test_canonicalization_keeps_one_plate_per_type_on_a_cell(self) -> None:
+    def test_canonicalization_preserves_conflicting_plate_purposes_for_validation(self) -> None:
         data = empty_map(2, 2)
         data["levels"][0]["floors"] = [floor(0, 0)]
         barrier = {"level": 0, "col": 0, "row": 0, "type": "barrier", "kind": KIND}
@@ -204,6 +204,8 @@ class PressurePlateTests(unittest.TestCase):
         result = canonicalize_map(data)
 
         self.assertEqual(result["pressure_plates"], [barrier, firework])
+        errors = validate_map(result, [KIND], [])
+        self.assertTrue(any("duplicates a plate at level 0 [0, 0]" in error for error in errors))
 
     def test_plates_round_trip_through_the_file_format(self) -> None:
         data = empty_map(2, 2)

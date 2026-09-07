@@ -102,7 +102,7 @@
       "threshold": 1,
       "points": 500,
       "title": "Two conditions, two routes",
-      "description": "Solo. The first switch controls a gate and a bridge. Reach the second switch by either route, then open both final gates.",
+      "description": "Solo. Use the barrier and bridge switches, or explore the lower route to reach the token.",
       "completed_text": "Token recovered. Reach the firework plate."
     },
     {
