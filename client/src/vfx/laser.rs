@@ -112,9 +112,19 @@ pub fn laser_beam_update_system(
             commands.entity(entity).despawn();
             continue;
         };
-        let origin = aim_rig.map_or_else(
+        let frame = aim_rig.and_then(|rig| {
+            rig.frame(actor_transform, |entity| {
+                endpoints.get(entity).ok().map(|(transform, _)| *transform)
+            })
+        });
+        if aim_rig.is_some() && frame.is_none() {
+            *visibility = Visibility::Hidden;
+            continue;
+        }
+        let articulated = aim_rig.zip(frame.as_ref());
+        let origin = articulated.map_or_else(
             || actor_transform.translation + Vec3::Y * actor_config.beam_origin_height(),
-            |rig| rig.pivot(actor_transform),
+            |(rig, frame)| rig.pivot(frame),
         );
         // Drift the hit point smoothly around the target's box center so the
         // beam reads as searching rather than pinned. Sized per axis from the
@@ -145,15 +155,15 @@ pub fn laser_beam_update_system(
             continue;
         }
         let direction = (target - origin) / full_length;
-        if let Some(rig) = aim_rig {
-            rig.aim(actor_transform, direction, &mut joints);
+        if let Some((rig, frame)) = articulated {
+            rig.aim(frame, direction, &mut joints);
         }
         // Damage and beam clipping share the active-field filter.
         let length = collision_world
             .attack_surface_along_ray(origin, direction, full_length, &plates.open_barrier_kinds)
             .map_or(full_length, |hit| hit.point.distance(origin));
         // Clip from the pivot so a muzzle extending through cover cannot bypass it.
-        let muzzle_distance = aim_rig.map_or(0.0, |rig| rig.muzzle_distance(actor_transform));
+        let muzzle_distance = articulated.map_or(0.0, |(rig, frame)| rig.muzzle_distance(frame));
         if length <= muzzle_distance {
             *visibility = Visibility::Hidden;
             continue;

@@ -1,7 +1,7 @@
-"""Render a motion study: blender --background --python client/assets/models/player_robot_preview.py.
+"""Render a motion study: blender --background --python client/assets/models/player_preview.py.
 
-Frames are written to /tmp/player-robot-mocap-preview for encoding with ffmpeg.
-Add -- --hands for a textured hand close-up at /tmp/player-robot-hand.png.
+Frames are written to /tmp/player-mocap-preview for encoding with ffmpeg.
+Add -- --hands for a textured hand close-up at /tmp/player-hand.png.
 Add -- --jump for the takeoff, descent and landing clips.
 """
 
@@ -11,11 +11,11 @@ from pathlib import Path
 import bpy
 from mathutils import Vector
 
-MODEL = Path(__file__).resolve().with_name("player_robot.glb")
+MODEL = Path(__file__).resolve().with_name("player.glb")
 HANDS = "--hands" in sys.argv
 JUMP = "--jump" in sys.argv
 OUTPUT = Path(
-    "/tmp/player-robot-jump-preview" if JUMP else "/tmp/player-robot-mocap-preview"
+    "/tmp/player-jump-preview" if JUMP else "/tmp/player-mocap-preview"
 )
 OUTPUT.mkdir(exist_ok=True)
 bpy.ops.object.select_all(action="SELECT")
@@ -93,7 +93,7 @@ if HANDS:
         light.rotation_euler = (
             (target - light.location).to_track_quat("-Z", "Y").to_euler()
         )
-    scene.render.filepath = "/tmp/player-robot-hand.png"
+    scene.render.filepath = "/tmp/player-hand.png"
     bpy.ops.render.render(write_still=True)
 else:
     bpy.ops.render.render(animation=True)

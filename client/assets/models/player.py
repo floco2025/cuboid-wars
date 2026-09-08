@@ -1,4 +1,4 @@
-"""Build the player GLB: blender --background --python client/assets/models/player_robot.py.
+"""Build the player GLB: blender --background --python client/assets/models/player.py.
 
 Add -- --preview to render the exported model and its animation poses in /tmp.
 """
@@ -15,7 +15,7 @@ from mathutils import Euler, Vector
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from model_materials import catalog_material, project_uv
-from player_robot_mocap import RobotMocap
+from player_mocap import RobotMocap
 
 MODEL = Path(__file__).resolve().with_suffix(".glb")
 MATERIAL_SETTINGS = json.loads(MODEL.with_suffix(".materials.json").read_text())
@@ -839,7 +839,7 @@ if "--preview" in sys.argv or "--rear-preview" in sys.argv:
         track = tracks[clip]
         track.mute = False
         scene.frame_set(round(durations[clip] * FPS * (0.45 if clip == "Jump" else 0.15)))
-        scene.render.filepath = f"/tmp/player-robot-{clip.lower()}.png"
+        scene.render.filepath = f"/tmp/player-{clip.lower()}.png"
         bpy.ops.render.render(write_still=True)
         track.mute = True
 
@@ -849,12 +849,12 @@ if "--preview" in sys.argv or "--rear-preview" in sys.argv:
     scene.camera.rotation_euler = (Vector((0, 0, 1.44)) - scene.camera.location).to_track_quat("-Z", "Y").to_euler()
     scene.camera.data.ortho_scale = 0.95
     scene.render.resolution_x = scene.render.resolution_y = 1100
-    scene.render.filepath = "/tmp/player-robot-detail.png"
+    scene.render.filepath = "/tmp/player-detail.png"
     bpy.ops.render.render(write_still=True)
 
     if "--rear-preview" in sys.argv:
         scene.camera.location = (0.75, 2.6, 1.85)
         scene.camera.rotation_euler = (Vector((0, 0, 1.65)) - scene.camera.location).to_track_quat("-Z", "Y").to_euler()
         scene.camera.data.ortho_scale = 0.52
-        scene.render.filepath = "/tmp/player-robot-rear-head.png"
+        scene.render.filepath = "/tmp/player-rear-head.png"
         bpy.ops.render.render(write_still=True)

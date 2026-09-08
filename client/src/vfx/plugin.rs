@@ -1,5 +1,5 @@
 use super::*;
-use bevy::prelude::*;
+use bevy::{app::AnimationSystems, prelude::*, transform::TransformSystems};
 
 use crate::{
     items::{items_animation_system, y_spin_system},
@@ -9,10 +9,14 @@ use crate::{
 };
 
 // Client-side presentation systems that animate non-character entities.
-// Laser beams anchor to both endpoints' interpolated transforms — the
-// `Presentation` set runs after `CharacterSync` so they read this frame's
-// synced values.
 pub fn presentation_plugin(app: &mut App) {
+    // Aim after animation and before propagation so the beam and moving muzzle share one pose.
+    app.add_systems(
+        PostUpdate,
+        laser_beam_update_system
+            .after(AnimationSystems)
+            .before(TransformSystems::Propagate),
+    );
     app.init_resource::<FireworkShow>();
     app.init_resource::<PortalFizzleAssets>();
     app.add_observer(beam_ghost_removed_system);
@@ -31,7 +35,7 @@ pub fn presentation_plugin(app: &mut App) {
             beam_ghost_fade_system,
             beam_ghost_sparkle_system.after(beam_ghost_fade_system),
             particle_clouds_system.after(beam_ghost_sparkle_system),
-            (super::laser_sync::laser_beams_sync_system, laser_beam_update_system).chain(),
+            super::laser_sync::laser_beams_sync_system,
             firework_system,
             portal_fizzle_system,
             items_animation_system,

@@ -48,7 +48,7 @@ impl PlayerAnimationMotion {
     }
 }
 
-// Indices match the named clip order exported by player_robot.py.
+// Indices match the named clip order exported by player.py.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum PlayerClip {
     Idle,
@@ -653,11 +653,11 @@ mod tests {
             ))
             .id();
         let model: ModelDef = serde_json::from_value(serde_json::json!({
-            "scene": "models/player_robot.glb#Scene0", "scale": 1.0
+            "scene": "models/player.glb#Scene0", "scale": 1.0
         }))
         .expect("player model definition is invalid");
         let server = app.world().resource::<AssetServer>().clone();
-        let gltf_handle: Handle<Gltf> = server.load("models/player_robot.glb");
+        let gltf_handle: Handle<Gltf> = server.load("models/player.glb");
         let source = PlayerAnimationSource::load(
             owner,
             &model,
@@ -777,7 +777,7 @@ mod tests {
 
     #[test]
     fn exported_robot_contains_every_motion_clip_and_a_skin() {
-        let raw = include_bytes!("../../assets/models/player_robot.glb");
+        let raw = include_bytes!("../../assets/models/player.glb");
         let length = u32::from_le_bytes(raw[12..16].try_into().expect("GLB JSON length missing")) as usize;
         let document: serde_json::Value = serde_json::from_slice(&raw[20..20 + length]).expect("GLB JSON is invalid");
         let animations = document["animations"]

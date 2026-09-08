@@ -289,7 +289,7 @@
   },
   "player": {
     "model": {
-      "scene": "models/player_robot.glb#Scene0",
+      "scene": "models/player.glb#Scene0",
       "scale": 1.0,
       "y_offset": 0.0
     },
@@ -375,9 +375,16 @@
     },
     "zapper": {
       "model": {
-        "scene": "models/SciFiDrone.glb#Scene0",
-        "scale": 0.3,
-        "y_offset": 1.27
+        "scene": "models/zapper.glb#Scene0",
+        "scale": 1.0,
+        "y_offset": 0.0,
+        "animation_index": 0,
+        "animation_speed": 1.0,
+        "aim_rig": {
+          "yaw_node": "ZapperYaw",
+          "pitch_node": "ZapperPitch",
+          "muzzle_node": "ZapperMuzzle"
+        }
       },
       "sounds": {
         "explodes": "sounds/Retro Explosion Short 15.wav",

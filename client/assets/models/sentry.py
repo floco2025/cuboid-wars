@@ -17,7 +17,7 @@ FPS = 30
 WHEEL_RADIUS = 0.27
 bpy.ops.object.select_all(action="SELECT")
 bpy.ops.object.delete(use_global=False)
-bpy.ops.import_scene.gltf(filepath=str(MODEL.with_name("player_robot.glb")))
+bpy.ops.import_scene.gltf(filepath=str(MODEL.with_name("player.glb")))
 palette = {
     name: next(m for m in bpy.data.materials if m.name.startswith(name))
     for name in (

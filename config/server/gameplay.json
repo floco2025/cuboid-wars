@@ -64,9 +64,10 @@
         "attack": { "type": "contact", "trigger_gap": 0.8 }
       },
       "zapper": {
-        "movement_collider": { "diameter": 0.3, "height": 1.6 },
-        "hitbox": { "width": 0.3, "height": 0.3, "depth": 0.3, "bottom_offset": 1.3 },
-        "eye_height": 1.6,
+        "movement_collider": { "diameter": 0.88, "height": 1.75 },
+        "hitbox": { "width": 0.94, "height": 0.50, "depth": 0.76, "bottom_offset": 1.23 },
+        "beam_origin_height": 1.35,
+        "eye_height": 1.59,
         "respawn_secs": 180.0,
         "can_use_ladders": false,
         "immovable": false,
