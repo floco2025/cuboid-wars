@@ -13,7 +13,10 @@ use common::{
 };
 
 use super::BoundsMode;
-use crate::{cameras::MainCameraMarker, players::PlayerMap};
+use crate::{
+    cameras::MainCameraMarker,
+    players::{CuboidShake, PlayerMap},
+};
 
 #[derive(Component)]
 pub struct CharacterBounds {
@@ -40,7 +43,7 @@ pub fn spawn_character_bounds(
         physics.hitbox.depth,
     ));
     for (mode, mesh, color) in [
-        (BoundsMode::Movement, capsule, Color::srgba(0.1, 0.8, 1.0, 0.18)),
+        (BoundsMode::Grounding, capsule, Color::srgba(0.1, 0.8, 1.0, 0.18)),
         (BoundsMode::Hitbox, hitbox, Color::srgba(1.0, 0.2, 0.2, 0.18)),
     ] {
         commands.spawn((
@@ -65,15 +68,11 @@ pub fn spawn_character_bounds(
 pub fn character_bounds_sync_system(
     mode: Res<BoundsMode>,
     roots: Query<(&ChildOf, &CharacterBounds)>,
-    actors: Query<(&Position, &FaceYaw, &Transform), Without<BoundsShapeMarker>>,
+    actors: Query<(&FaceYaw, &Transform, Option<&CuboidShake>), Without<BoundsShapeMarker>>,
     mut shapes: Query<(&ChildOf, &BoundsShapeMarker, &mut Transform, &mut Visibility)>,
 ) {
     for (parent, marker, mut transform, mut visibility) in &mut shapes {
-        let active = match *mode {
-            BoundsMode::Off => false,
-            BoundsMode::Grounding => marker.0 == BoundsMode::Movement,
-            _ => marker.0 == *mode,
-        };
+        let active = *mode != BoundsMode::Off && marker.0 == *mode;
         visibility.set_if_neq(if active {
             Visibility::Inherited
         } else {
@@ -85,24 +84,24 @@ pub fn character_bounds_sync_system(
         let Ok((actor, bounds)) = roots.get(parent.parent()) else {
             continue;
         };
-        let Ok((pos, yaw, actor_transform)) = actors.get(actor.parent()) else {
+        let Ok((yaw, actor_transform, shake)) = actors.get(actor.parent()) else {
             continue;
         };
         let physics = bounds.physics;
-        let (origin, height, rotation) = match *mode {
-            BoundsMode::Hitbox => (
-                Vec3::from(*pos),
-                physics.hitbox.center_y_offset(),
-                Quat::from_rotation_y(yaw.0),
-            ),
+        let origin = rendered_feet(actor_transform, shake);
+        let (height, rotation) = match *mode {
+            BoundsMode::Hitbox => (physics.hitbox.center_y_offset(), Quat::from_rotation_y(yaw.0)),
             _ => (
-                Vec3::from(*pos),
                 physics.movement_collider.height / 2.0 + CHARACTER_CONTACT_OFFSET,
                 Quat::IDENTITY,
             ),
         };
         *transform = bounds_transform(actor_transform, origin + Vec3::Y * height, rotation);
     }
+}
+
+fn rendered_feet(transform: &Transform, shake: Option<&CuboidShake>) -> Vec3 {
+    transform.translation - shake.map_or(Vec3::ZERO, |shake| Vec3::new(shake.offset_x, 0.0, shake.offset_z))
 }
 
 fn bounds_transform(parent: &Transform, center: Vec3, rotation: Quat) -> Transform {
@@ -165,7 +164,13 @@ pub fn refresh_grounding_debug_system(
 pub fn grounding_debug_system(
     mode: Res<BoundsMode>,
     roots: Query<(&ChildOf, &CharacterBounds)>,
-    query: Query<(&Position, &GroundingDiagnostics, Option<&CharacterSupport>)>,
+    query: Query<(
+        &Position,
+        &Transform,
+        Option<&CuboidShake>,
+        &GroundingDiagnostics,
+        Option<&CharacterSupport>,
+    )>,
     cameras: Query<&GlobalTransform, With<MainCameraMarker>>,
     mut gizmos: Gizmos,
 ) {
@@ -174,9 +179,12 @@ pub fn grounding_debug_system(
     }
     let camera_rotation = cameras.single().ok().map(GlobalTransform::rotation);
     for (parent, bounds) in &roots {
-        let Ok((pos, ground, support)) = query.get(parent.parent()) else {
+        let Ok((pos, transform, shake, ground, support)) = query.get(parent.parent()) else {
             continue;
         };
+        let origin = rendered_feet(transform, shake);
+        // Diagnostics are sampled at physics ticks; draw them in the interpolated body's frame.
+        let render_offset = origin - Vec3::from(*pos);
         let support = support.copied().unwrap_or(if ground.supported {
             CharacterSupport::Ground
         } else {
@@ -189,7 +197,7 @@ pub fn grounding_debug_system(
         };
         if let Some(rotation) = camera_rotation {
             let body = bounds.physics.movement_collider;
-            let center = Vec3::from(*pos) + Vec3::Y * (body.height / 2.0) + rotation * Vec3::X * (body.radius + 0.15);
+            let center = origin + Vec3::Y * (body.height / 2.0) + rotation * Vec3::X * (body.radius + 0.15);
             gizmos.text(
                 Isometry3d::new(center, rotation),
                 label,
@@ -198,10 +206,12 @@ pub fn grounding_debug_system(
                 color,
             );
         }
-        gizmos.line(ground.origin, ground.origin - Vec3::Y * ground.distance, color);
+        let probe_origin = ground.origin + render_offset;
+        gizmos.line(probe_origin, probe_origin - Vec3::Y * ground.distance, color);
         if let Some(hit) = ground.hit {
-            gizmos.sphere(Isometry3d::from_translation(hit.contact), 0.035, color);
-            gizmos.arrow(hit.contact, hit.contact + hit.normal * 0.35, color);
+            let contact = hit.contact + render_offset;
+            gizmos.sphere(Isometry3d::from_translation(contact), 0.035, color);
+            gizmos.arrow(contact, contact + hit.normal * 0.35, color);
         }
     }
 }
@@ -212,14 +222,17 @@ mod tests {
     use crate::input::input_bounds_cycle_system;
 
     #[test]
-    fn bounds_follow_physics_instead_of_render_interpolation_and_turning() {
-        let parent = Transform::from_xyz(3.0, 1.0, 2.0).with_rotation(Quat::from_rotation_y(0.8));
+    fn bounds_keep_world_dimensions_and_physics_facing() {
+        let parent = Transform::from_xyz(3.0, 1.0, 2.0)
+            .with_rotation(Quat::from_rotation_y(0.8))
+            .with_scale(Vec3::splat(1.5));
         let center = Vec3::new(3.1, 1.9, 2.2);
         for rotation in [Quat::IDENTITY, Quat::from_rotation_y(-1.3)] {
             let child = bounds_transform(&parent, center, rotation);
             let world = parent.mul_transform(child);
             assert!(world.translation.abs_diff_eq(center, 1e-5));
             assert!(world.rotation.abs_diff_eq(rotation, 1e-5));
+            assert!(world.scale.abs_diff_eq(Vec3::ONE, 1e-5));
         }
     }
 
@@ -237,18 +250,13 @@ mod tests {
             .world_mut()
             .spawn((
                 ChildOf(root),
-                BoundsShapeMarker(BoundsMode::Movement),
+                BoundsShapeMarker(BoundsMode::Grounding),
                 Transform::default(),
                 Visibility::Hidden,
             ))
             .id();
         assert_eq!(*app.world().resource::<BoundsMode>(), BoundsMode::Off);
-        for expected in [
-            BoundsMode::Movement,
-            BoundsMode::Hitbox,
-            BoundsMode::Grounding,
-            BoundsMode::Off,
-        ] {
+        for expected in [BoundsMode::Grounding, BoundsMode::Hitbox, BoundsMode::Off] {
             app.world_mut()
                 .resource_mut::<ButtonInput<KeyCode>>()
                 .press(KeyCode::KeyB);
@@ -256,7 +264,7 @@ mod tests {
             assert_eq!(*app.world().resource::<BoundsMode>(), expected);
             assert_eq!(
                 *app.world().get::<Visibility>(first).expect("bounds visibility missing"),
-                if matches!(expected, BoundsMode::Movement | BoundsMode::Grounding) {
+                if expected == BoundsMode::Grounding {
                     Visibility::Inherited
                 } else {
                     Visibility::Hidden
@@ -267,11 +275,7 @@ mod tests {
                 .world_mut()
                 .spawn((
                     ChildOf(root),
-                    BoundsShapeMarker(if expected == BoundsMode::Grounding {
-                        BoundsMode::Movement
-                    } else {
-                        expected
-                    }),
+                    BoundsShapeMarker(expected),
                     Transform::default(),
                     Visibility::Hidden,
                 ))
@@ -285,6 +289,98 @@ mod tests {
                     Visibility::Inherited
                 }
             );
+        }
+    }
+    #[test]
+    fn bounds_interpolate_between_ticks_without_animation_or_hit_shake() {
+        use crate::{characters::PreviousTickPosition, players::players_transform_sync_system};
+        use common::{
+            config::{HitboxConfig, MovementColliderConfig},
+            protocol::PlayerMarker,
+        };
+        use std::time::Duration;
+
+        let physics = CharacterPhysicsConfig {
+            movement_collider: MovementColliderConfig {
+                radius: 0.3,
+                height: 1.8,
+            },
+            hitbox: HitboxConfig {
+                width: 0.7,
+                height: 1.6,
+                depth: 0.5,
+                bottom_offset: 0.1,
+            },
+        };
+        for mode in [BoundsMode::Grounding, BoundsMode::Hitbox] {
+            let mut app = App::new();
+            app.insert_resource(mode).add_systems(
+                Update,
+                (players_transform_sync_system, character_bounds_sync_system).chain(),
+            );
+            let player = app
+                .world_mut()
+                .spawn((
+                    PlayerMarker,
+                    Position { x: 4.0, y: 0.0, z: 0.0 },
+                    PreviousTickPosition(Position { x: 3.0, y: 0.0, z: 0.0 }),
+                    FaceYaw(-1.3),
+                    Transform::default()
+                        .with_rotation(Quat::from_rotation_y(0.8))
+                        .with_scale(Vec3::splat(1.5)),
+                    CuboidShake {
+                        timer: Timer::from_seconds(1.0, TimerMode::Once),
+                        intensity: 1.0,
+                        dir_x: 1.0,
+                        dir_z: 1.0,
+                        offset_x: 0.0,
+                        offset_z: 0.0,
+                    },
+                ))
+                .id();
+            let model = app.world_mut().spawn((ChildOf(player), Transform::default())).id();
+            let root = app
+                .world_mut()
+                .spawn((ChildOf(player), CharacterBounds { physics }, Transform::default()))
+                .id();
+            let shape = app
+                .world_mut()
+                .spawn((
+                    ChildOf(root),
+                    BoundsShapeMarker(mode),
+                    Transform::default(),
+                    Visibility::Hidden,
+                ))
+                .id();
+            for alpha in [0.25, 0.5, 0.75] {
+                let mut fixed = Time::<Fixed>::from_hz(1.0);
+                fixed.accumulate_overstep(Duration::from_secs_f32(alpha));
+                app.insert_resource(fixed);
+                app.world_mut()
+                    .get_mut::<CuboidShake>(player)
+                    .expect("player shake missing")
+                    .offset_x = alpha * 0.2;
+                app.world_mut()
+                    .get_mut::<Transform>(model)
+                    .expect("model transform missing")
+                    .translation
+                    .y = alpha.sin();
+                app.update();
+                let parent = app.world().get::<Transform>(player).expect("player transform missing");
+                let child = app.world().get::<Transform>(shape).expect("bounds transform missing");
+                let world = parent.mul_transform(*child);
+                let (height, rotation) = if mode == BoundsMode::Hitbox {
+                    (physics.hitbox.center_y_offset(), Quat::from_rotation_y(-1.3))
+                } else {
+                    (
+                        physics.movement_collider.height / 2.0 + CHARACTER_CONTACT_OFFSET,
+                        Quat::IDENTITY,
+                    )
+                };
+                assert!(world.translation.abs_diff_eq(Vec3::new(3.0 + alpha, height, 0.0), 1e-5));
+                assert!(world.rotation.abs_diff_eq(rotation, 1e-5));
+                assert!(world.scale.abs_diff_eq(Vec3::ONE, 1e-5));
+            }
         }
     }
 }

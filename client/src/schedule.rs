@@ -63,7 +63,9 @@ pub fn configure_client_sets(app: &mut App) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{input::input_plugin, network::network_plugin, players::camera_plugin};
+    use crate::{
+        characters::character_sync_plugin, input::input_plugin, network::network_plugin, players::camera_plugin,
+    };
 
     #[test]
     fn input_network_camera_and_weapon_ordering_has_no_cycles() {
@@ -72,6 +74,7 @@ mod tests {
         input_plugin(&mut app);
         network_plugin(&mut app);
         camera_plugin(&mut app);
+        character_sync_plugin(&mut app);
         app.world_mut().schedule_scope(Update, |world, schedule| {
             schedule
                 .initialize(world)

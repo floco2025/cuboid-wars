@@ -11,7 +11,7 @@ use crate::{
     carriers::carriers_transform_sync_system,
     input::{commit_player_input_system, record_committed_position_system},
     missiles::missiles_movement_system,
-    players::{player_animation_update_system, players_transform_sync_system},
+    players::{local_player_cuboid_shake_system, player_animation_update_system, players_transform_sync_system},
     projectiles::projectiles_movement_system,
     schedule::ClientSet,
     ui::floating_labels::{
@@ -55,7 +55,7 @@ pub fn character_sync_plugin(app: &mut App) {
     app.add_systems(
         Update,
         (
-            players_transform_sync_system,
+            players_transform_sync_system.after(local_player_cuboid_shake_system),
             actors_transform_sync_system,
             carriers_transform_sync_system,
             characters_visual_turn_system
@@ -65,7 +65,7 @@ pub fn character_sync_plugin(app: &mut App) {
             character_bounds_sync_system
                 .after(characters_visual_turn_system)
                 .after(refresh_grounding_debug_system),
-            grounding_debug_system.after(refresh_grounding_debug_system),
+            grounding_debug_system.after(character_bounds_sync_system),
             player_animation_update_system.after(characters_visual_turn_system),
             floating_labels_billboard_system,
             player_name_label_render_system,

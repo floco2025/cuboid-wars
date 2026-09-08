@@ -70,7 +70,7 @@ death/respawn flow.
 | Zoom between first and third person | mouse wheel |
 | Release cursor and pause movement | Shift-Escape |
 | Toggle level-focus (hide floors/walls on other levels) | R |
-| Toggle translucent player / actor body bounds | B |
+| Cycle bounds: off → collider + support → hitbox | B |
 | Toggle fullscreen | F11 / Ctrl-F / Cmd-F |
 
 Scrolling fully in enters first person and enables facing lock; zooming back

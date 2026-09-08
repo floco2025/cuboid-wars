@@ -6,18 +6,16 @@ use bevy::prelude::*;
 pub enum BoundsMode {
     #[default]
     Off,
-    Movement,
-    Hitbox,
     Grounding,
+    Hitbox,
 }
 
 impl BoundsMode {
     pub fn next(self) -> Self {
         match self {
-            Self::Off => Self::Movement,
-            Self::Movement => Self::Hitbox,
-            Self::Hitbox => Self::Grounding,
-            Self::Grounding => Self::Off,
+            Self::Off => Self::Grounding,
+            Self::Grounding => Self::Hitbox,
+            Self::Hitbox => Self::Off,
         }
     }
 }
