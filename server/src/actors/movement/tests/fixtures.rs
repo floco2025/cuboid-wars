@@ -67,7 +67,7 @@ pub(crate) fn actor_speed() -> f32 {
 
 pub(crate) fn actor_blocker_distance() -> f32 {
     let physics = actor_physics();
-    (physics.movement_collider.radius * 2.0) + actor_speed() * TEST_DELTA * 0.75
+    (physics.movement_collider.diameter) + actor_speed() * TEST_DELTA * 0.75
 }
 
 pub(crate) fn test_entity(index: u64) -> Entity {

@@ -99,7 +99,7 @@ mod tests {
         let world = CollisionWorld::from_map_layout(&MapLayout::default(), &BarrierKindTable::default());
         let physics = CharacterPhysicsConfig {
             movement_collider: MovementColliderConfig {
-                radius: 0.3,
+                diameter: 0.6,
                 height: 1.8,
             },
             hitbox: HitboxConfig {

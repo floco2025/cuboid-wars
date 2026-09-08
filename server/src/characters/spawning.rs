@@ -165,7 +165,7 @@ fn random_position_in_spawn_cell(
     row: i32,
     character_physics: CharacterPhysicsConfig,
 ) -> Option<Position> {
-    if character_physics.movement_collider.radius * 2.0 > geometry.cell_size() {
+    if character_physics.movement_collider.diameter > geometry.cell_size() {
         return None;
     }
     let cell_min_x = geometry.cell_to_world_x(col);
@@ -175,13 +175,13 @@ fn random_position_in_spawn_cell(
 
     Some(Position {
         x: rng.random_range(
-            (cell_min_x + character_physics.movement_collider.radius)
-                ..=(cell_max_x - character_physics.movement_collider.radius),
+            (cell_min_x + character_physics.movement_collider.radius())
+                ..=(cell_max_x - character_physics.movement_collider.radius()),
         ),
         y: geometry.level_y(level),
         z: rng.random_range(
-            (cell_min_z + character_physics.movement_collider.radius)
-                ..=(cell_max_z - character_physics.movement_collider.radius),
+            (cell_min_z + character_physics.movement_collider.radius())
+                ..=(cell_max_z - character_physics.movement_collider.radius()),
         ),
     })
 }

@@ -95,7 +95,7 @@ fn blocked_climber_holds_its_rung_and_resumes_when_clear() {
     let pos = Position {
         x: 0.0,
         y: 1.0,
-        z: -(LADDER_RAIL_INSET + physics.movement_collider.radius + LADDER_STANDOFF_CLEARANCE),
+        z: -(LADDER_RAIL_INSET + physics.movement_collider.radius() + LADDER_STANDOFF_CLEARANCE),
     };
     let world = CollisionWorld::from_map_layout(
         &MapLayout {

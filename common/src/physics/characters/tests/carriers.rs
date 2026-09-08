@@ -301,7 +301,7 @@ fn rider_pushed_into_a_wall_is_blocked_and_left_behind() {
     };
     let (world, carriers) = carried_world(slider(), &[wall], &[], 1);
     let start = Position {
-        x: 0.9 - player_physics().movement_collider.radius - 0.05,
+        x: 0.9 - player_physics().movement_collider.radius() - 0.05,
         y: 0.0,
         z: 0.0,
     };
@@ -650,7 +650,7 @@ fn a_rider_beside_a_carriers_wall_is_carried_with_it() {
     };
     let (world, carriers) = carried_world((carrier, floor), &[wall], &[], 1);
     let start = Position {
-        x: 1.4 - player_physics().movement_collider.radius - 0.02,
+        x: 1.4 - player_physics().movement_collider.radius() - 0.02,
         y: 0.0,
         z: 0.0,
     };
@@ -696,7 +696,7 @@ fn push_ground() -> Floor {
 fn a_sliding_wall_pushes_a_body_on_static_ground_even_against_its_input() {
     for axis in [Vec3::X, Vec3::NEG_X, Vec3::Z, Vec3::NEG_Z] {
         let body = player_physics().movement_collider;
-        let half_extents = Vec3::new(body.radius, body.height / 2.0, body.radius);
+        let half_extents = Vec3::new(body.radius(), body.height / 2.0, body.radius());
         let half_width = half_extents.x * axis.x.abs() + half_extents.z * axis.z.abs();
         let (carrier, floor) = slider();
         let carrier = Carrier {
@@ -745,7 +745,7 @@ fn a_sliding_raised_slab_pushes_a_body_beside_it() {
     let (carrier, floor) = slider();
     let floor = Floor { y: 1.5, ..floor };
     let mut pos = Position {
-        x: floor.x2 + player_physics().movement_collider.radius + 0.01,
+        x: floor.x2 + player_physics().movement_collider.radius() + 0.01,
         y: 0.0,
         z: 0.0,
     };
@@ -765,7 +765,7 @@ fn a_body_can_board_a_low_slab_while_it_slides_towards_them() {
     for height in [0.1, 0.2] {
         let floor = Floor { y: height, ..floor };
         let mut pos = Position {
-            x: floor.x2 + player_physics().movement_collider.radius + 0.01,
+            x: floor.x2 + player_physics().movement_collider.radius() + 0.01,
             y: 0.0,
             z: 0.0,
         };
@@ -896,7 +896,7 @@ fn a_sliding_wall_pushes_actor_bodies_too() {
     for (kind, actor) in &gameplay.actors {
         let physics = actor.physics();
         let mut pos = Position {
-            x: 0.11 + physics.movement_collider.radius,
+            x: 0.11 + physics.movement_collider.radius(),
             y: 0.0,
             z: 0.0,
         };

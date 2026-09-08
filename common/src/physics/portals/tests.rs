@@ -1693,7 +1693,7 @@ fn carried_offset_is_clamped_to_the_exit_aperture() {
             CAP,
         )
         .expect("edge crossing did not trigger");
-    let limit = PORTAL_HALF_WIDTH - physics.movement_collider.radius;
+    let limit = PORTAL_HALF_WIDTH - physics.movement_collider.radius();
     assert!((hop.origin.x - 10.0).abs() <= limit + 1e-4);
     assert!(hop.origin.x > 10.0);
 }

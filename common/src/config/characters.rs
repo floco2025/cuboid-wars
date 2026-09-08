@@ -35,23 +35,28 @@ impl CharacterGameplayConfig {
 #[derive(Debug, Clone, Copy, Encode, Decode, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct MovementColliderConfig {
-    pub radius: f32,
+    pub diameter: f32,
     pub height: f32,
 }
 
 impl MovementColliderConfig {
     pub fn validate(self, path: &str) -> Result<()> {
-        validate_positive_finite(self.radius, &format!("{path}.radius"))?;
+        validate_positive_finite(self.diameter, &format!("{path}.diameter"))?;
         validate_positive_finite(self.height, &format!("{path}.height"))?;
-        if self.height < 2.0 * self.radius {
-            bail!("{path}.height must be at least twice radius");
+        if self.height < self.diameter {
+            bail!("{path}.height must be at least diameter");
         }
         Ok(())
     }
 
     #[must_use]
+    pub const fn radius(self) -> f32 {
+        self.diameter / 2.0
+    }
+
+    #[must_use]
     pub fn segment_half_height(self) -> f32 {
-        self.height / 2.0 - self.radius
+        (self.height - self.diameter) / 2.0
     }
 }
 
@@ -102,22 +107,22 @@ mod tests {
 
     #[test]
     fn capsule_dimensions_reject_invalid_values_and_allow_a_sphere() {
-        for (radius, height) in [
+        for (diameter, height) in [
             (0.0, 1.0),
             (-0.1, 1.0),
             (f32::NAN, 1.0),
-            (0.5, f32::INFINITY),
-            (0.5, 0.9),
+            (1.0, f32::INFINITY),
+            (1.0, 0.9),
         ] {
             assert!(
-                MovementColliderConfig { radius, height }
+                MovementColliderConfig { diameter, height }
                     .validate("player.movement_collider")
                     .is_err()
             );
         }
         assert!(
             MovementColliderConfig {
-                radius: 0.5,
+                diameter: 1.0,
                 height: 1.0
             }
             .validate("player.movement_collider")

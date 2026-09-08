@@ -156,7 +156,7 @@ pub(super) fn evaluate_ladder_interaction<'a>(
 }
 
 fn ladder_hold_standoff(physics: CharacterPhysicsConfig) -> f32 {
-    physics.movement_collider.radius + LADDER_STANDOFF_CLEARANCE
+    physics.movement_collider.radius() + LADDER_STANDOFF_CLEARANCE
 }
 
 fn clamp_move_at_ladder_plane(

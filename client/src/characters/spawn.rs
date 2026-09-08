@@ -36,7 +36,7 @@ pub fn spawn_character_bounds(
         .spawn((CharacterBounds { physics }, Transform::default(), Visibility::Inherited))
         .id();
     let body = physics.movement_collider;
-    let capsule = meshes.add(Capsule3d::new(body.radius, body.height - body.radius * 2.0));
+    let capsule = meshes.add(Capsule3d::new(body.radius(), body.height - body.diameter));
     let hitbox = meshes.add(Cuboid::new(
         physics.hitbox.width,
         physics.hitbox.height,
@@ -197,7 +197,7 @@ pub fn grounding_debug_system(
         };
         if let Some(rotation) = camera_rotation {
             let body = bounds.physics.movement_collider;
-            let center = origin + Vec3::Y * (body.height / 2.0) + rotation * Vec3::X * (body.radius + 0.15);
+            let center = origin + Vec3::Y * (body.height / 2.0) + rotation * Vec3::X * (body.radius() + 0.15);
             gizmos.text(
                 Isometry3d::new(center, rotation),
                 label,
@@ -302,7 +302,7 @@ mod tests {
 
         let physics = CharacterPhysicsConfig {
             movement_collider: MovementColliderConfig {
-                radius: 0.3,
+                diameter: 0.6,
                 height: 1.8,
             },
             hitbox: HitboxConfig {

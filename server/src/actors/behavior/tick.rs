@@ -382,7 +382,7 @@ impl BehaviorContext<'_> {
         {
             return false;
         }
-        let margin = self.actor_physics.movement_collider.radius + WAYPOINT_REACHED_DISTANCE;
+        let margin = self.actor_physics.movement_collider.radius() + WAYPOINT_REACHED_DISTANCE;
         let samples = [
             *pos,
             Position {
@@ -527,8 +527,8 @@ pub(super) fn keep_or_install_engagement_route(
         if context.nav_graph.engagement_retarget_is_valid(
             &final_leg_start,
             &anchor,
-            context.actor_physics.movement_collider.radius + DIRECT_ROUTE_CLEARANCE_MARGIN,
-            context.actor_physics.movement_collider.radius + DIRECT_ROUTE_CLEARANCE_MARGIN,
+            context.actor_physics.movement_collider.radius() + DIRECT_ROUTE_CLEARANCE_MARGIN,
+            context.actor_physics.movement_collider.radius() + DIRECT_ROUTE_CLEARANCE_MARGIN,
         ) {
             route.retarget(anchor);
             info.mode = ActorMode::Engage { target, target_pos };
@@ -540,8 +540,8 @@ pub(super) fn keep_or_install_engagement_route(
         context.nav_graph.ladder_links(&info.spawn_kind),
         &context.pos,
         &anchor,
-        context.actor_physics.movement_collider.radius,
-        context.actor_physics.movement_collider.radius,
+        context.actor_physics.movement_collider.radius(),
+        context.actor_physics.movement_collider.radius(),
     ) else {
         return false;
     };

@@ -364,8 +364,8 @@ fn zapper_acquires_visible_cross_level_player_in_beam_range() {
                 &[],
                 &actor_pos,
                 &target,
-                zapper.physics().movement_collider.radius,
-                zapper.physics().movement_collider.radius,
+                zapper.physics().movement_collider.radius(),
+                zapper.physics().movement_collider.radius(),
             )
             .is_none()
     );
@@ -1364,6 +1364,12 @@ fn turret_fires_over_cover_below_its_gun_despite_its_lower_body_center() {
         .entity;
     let actor_pos = *app.world().get::<Position>(actor).expect("turret position missing");
     let player_pos = *app.world().get::<Position>(player).expect("player position missing");
+    let gameplay = app.world().resource::<GameplayConfig>();
+    let turret = gameplay.expect_actor("turret");
+    let target_y = gameplay.player.physics().hitbox_center_y(player_pos.y);
+    let body_ray_y = (turret.physics().hitbox_center_y(actor_pos.y) + target_y) / 2.0;
+    let gun_ray_y = (actor_pos.y + turret.beam_origin_height() + target_y) / 2.0;
+    let cover_height = (body_ray_y + gun_ray_y) / 2.0 - actor_pos.y;
     let wall_x = (actor_pos.x + player_pos.x) / 2.0;
     let layout = MapLayout {
         walls: vec![Wall {
@@ -1373,7 +1379,7 @@ fn turret_fires_over_cover_below_its_gun_despite_its_lower_body_center() {
             z2: actor_pos.z + 2.0,
             width: 0.1,
             y: actor_pos.y,
-            height: 1.2,
+            height: cover_height,
             level: 0,
             carrier: CarrierId::WORLD,
         }],

@@ -8,7 +8,7 @@ use crate::{
 // from the RAIL plane (a Z-facing ladder, so the collider's depth is the
 // leading extent). The rails sit at z = -LADDER_RAIL_INSET.
 fn player_hold_distance() -> f32 {
-    player_physics().movement_collider.radius + LADDER_STANDOFF_CLEARANCE
+    player_physics().movement_collider.radius() + LADDER_STANDOFF_CLEARANCE
 }
 
 fn rail_plane_z() -> f32 {

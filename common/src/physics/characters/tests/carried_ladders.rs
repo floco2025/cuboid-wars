@@ -65,7 +65,7 @@ impl Climber {
         let local = Vec3::new(
             0.0,
             height,
-            -(LADDER_RAIL_INSET + physics.movement_collider.radius + LADDER_STANDOFF_CLEARANCE),
+            -(LADDER_RAIL_INSET + physics.movement_collider.radius() + LADDER_STANDOFF_CLEARANCE),
         );
         Self {
             world: CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default()),

@@ -105,7 +105,7 @@ fn carrier_pushes_respect_barrier_passability_bridge_power_and_portal_exclusions
         Position {
             x: 0.0,
             y: 0.0,
-            z: 0.2 + physics.movement_collider.radius + 0.01,
+            z: 0.2 + physics.movement_collider.radius() + 0.01,
         },
         physics,
     );
@@ -482,7 +482,7 @@ fn wide_body() -> CharacterPhysicsConfig {
             bottom_offset: 0.45,
         },
         movement_collider: MovementColliderConfig {
-            radius: 0.9,
+            diameter: 1.8,
             height: 1.8,
         },
     }

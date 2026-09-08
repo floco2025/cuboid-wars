@@ -144,7 +144,7 @@ mod tests {
                 bottom_offset: 0.0,
             },
             movement_collider: MovementColliderConfig {
-                radius: width.min(depth) / 2.0,
+                diameter: width.min(depth),
                 height: 1.8_f32.max(width.min(depth)),
             },
         }

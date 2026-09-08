@@ -28,7 +28,7 @@ fn stable_capsule_overhang_remains_supported_without_forced_slide() {
     let floor = lower_floor();
     let world = collision_world(&[floor], &[]);
     let mut pos = Position {
-        x: floor.x2 + player_physics().movement_collider.radius * 0.4,
+        x: floor.x2 + player_physics().movement_collider.radius() * 0.4,
         y: floor.y,
         z: 0.0,
     };
@@ -50,7 +50,7 @@ fn steep_capsule_edge_contact_slides_off_and_falls() {
     let floor = lower_floor();
     let world = collision_world(&[floor], &[]);
     let mut pos = Position {
-        x: floor.x2 + player_physics().movement_collider.radius * 0.95,
+        x: floor.x2 + player_physics().movement_collider.radius() * 0.95,
         y: floor.y,
         z: 0.0,
     };
@@ -61,7 +61,7 @@ fn steep_capsule_edge_contact_slides_off_and_falls() {
         velocity = step.vertical_velocity;
     }
     assert!(
-        pos.x > floor.x2 + player_physics().movement_collider.radius,
+        pos.x > floor.x2 + player_physics().movement_collider.radius(),
         "still on edge: {pos:?}"
     );
     assert!(pos.y < floor.y - 1.0);

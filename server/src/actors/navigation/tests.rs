@@ -712,7 +712,7 @@ fn body(width: f32, depth: f32) -> common::config::CharacterPhysicsConfig {
             bottom_offset: 0.45,
         },
         movement_collider: MovementColliderConfig {
-            radius: width.max(depth) / 2.0,
+            diameter: width.max(depth),
             height: 1.8_f32.max(width.max(depth)),
         },
     }
@@ -802,8 +802,8 @@ fn shipping_map_sentry_capsule_fits_the_direct_basement_trench_approach() {
             &[],
             &start,
             &target,
-            sentry.movement_collider.radius,
-            sentry.movement_collider.radius,
+            sentry.movement_collider.radius(),
+            sentry.movement_collider.radius(),
         )
         .expect("the lobby is reachable up the basement ramp");
     let trench_entry = route

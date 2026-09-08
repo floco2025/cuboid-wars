@@ -111,7 +111,7 @@ mod tests {
                 bottom_offset: 0.0,
             },
             movement_collider: MovementColliderConfig {
-                radius: 0.3,
+                diameter: 0.6,
                 height: 1.8,
             },
         }

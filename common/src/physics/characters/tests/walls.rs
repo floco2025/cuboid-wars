@@ -261,7 +261,7 @@ fn diagonal_wall_end_hit_slides_along_wall() {
     assert!(step.blocked, "{step:?}");
     assert!(step.position.x > pos.x);
     assert!(
-        step.position.z < 0.0 || step.position.x < wall.x1 - player_physics().movement_collider.radius,
+        step.position.z < 0.0 || step.position.x < wall.x1 - player_physics().movement_collider.radius(),
         "{step:?}"
     );
 }

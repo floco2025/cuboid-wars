@@ -12,7 +12,7 @@ use crate::{config::CharacterPhysicsConfig, constants::CHARACTER_CONTACT_OFFSET,
 #[must_use]
 pub fn character_movement_shape(physics: CharacterPhysicsConfig) -> Capsule {
     let body = physics.movement_collider;
-    Capsule::new_y(body.segment_half_height(), body.radius)
+    Capsule::new_y(body.segment_half_height(), body.radius())
 }
 
 #[must_use]
@@ -45,10 +45,10 @@ pub fn character_surface_distance(
 ) -> f32 {
     let ac = a_physics.movement_collider;
     let bc = b_physics.movement_collider;
-    let vertical_gap = ((a.y + ac.radius) - (b.y + bc.height - bc.radius))
-        .max((b.y + bc.radius) - (a.y + ac.height - ac.radius))
+    let vertical_gap = ((a.y + ac.radius()) - (b.y + bc.height - bc.radius()))
+        .max((b.y + bc.radius()) - (a.y + ac.height - ac.radius()))
         .max(0.0);
-    (a.horizontal_distance_sq(&b) + vertical_gap * vertical_gap).sqrt() - ac.radius - bc.radius
+    (a.horizontal_distance_sq(&b) + vertical_gap * vertical_gap).sqrt() - ac.radius() - bc.radius()
 }
 
 pub fn character_movement_pose(pos: &Position, physics: CharacterPhysicsConfig) -> Pose {
@@ -140,7 +140,7 @@ mod tests {
         assert_eq!(after.segment.a, movement.segment.a);
         assert_eq!(after.segment.b, movement.segment.b);
         let hitbox = character_hitbox_shape(physics);
-        physics.movement_collider.radius = 0.4;
+        physics.movement_collider.diameter = 0.8;
         assert_eq!(character_hitbox_shape(physics), hitbox);
     }
 
@@ -151,7 +151,7 @@ mod tests {
             .player
             .physics();
         let at = Position::default();
-        let radius = physics.movement_collider.radius;
+        let radius = physics.movement_collider.radius();
         for direction in [Vec3::X, Vec3::Z, Vec3::new(1.0, 0.0, 1.0).normalize()] {
             let other = Position::from(direction * (radius * 2.0 + 0.1));
             assert!((character_surface_distance(at, physics, other, physics) - 0.1).abs() < 1e-5);

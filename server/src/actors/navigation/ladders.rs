@@ -133,8 +133,8 @@ impl NavGraph {
                         ladders,
                         start,
                         &self.node_center(link.from),
-                        physics.movement_collider.radius,
-                        physics.movement_collider.radius,
+                        physics.movement_collider.radius(),
+                        physics.movement_collider.radius(),
                     )?;
                     approach.waypoints.push_back(link.waypoints[0]);
                     if let WaypointKind::Climb { ascending, .. } = &mut climb.kind {
@@ -162,7 +162,7 @@ impl NavGraph {
             0.0,
             f32::midpoint(ladder.z1, ladder.z2),
         );
-        let standoff = env.physics.movement_collider.radius + LADDER_STANDOFF_CLEARANCE;
+        let standoff = env.physics.movement_collider.radius() + LADDER_STANDOFF_CLEARANCE;
         let rail = midpoint + normal * (LADDER_RAIL_INSET + standoff);
         for level in ladder.level..=ladder.level.saturating_add(ladder.levels) {
             for side in [-1.0, 1.0] {
