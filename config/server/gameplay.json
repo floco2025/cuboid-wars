@@ -89,7 +89,7 @@
         "immovable": true,
         "vision_range": 40.0,
         "roam_steps": 0,
-        "attack": { "type": "continuous_beam", "range": 25.0 }
+        "attack": { "type": "beam", "range": 25.0, "duration_secs": 14.784, "cooldown_secs": 0.5 }
       }
     }
   },

@@ -27,10 +27,18 @@ pub struct ProjectileMarker;
 pub struct Actor {
     pub kind: String,
     pub anchor: Option<ActorAnchor>,
-    pub beam_target: Option<PlayerId>,
+    pub beam: Option<ActorBeam>,
     pub movement: ActorMovementState,
     pub face_yaw: f32,
     pub health: Health,
+}
+
+// The start tick identifies the burst across retargets; remaining time is measured at the enclosing message tick.
+#[derive(Debug, Clone, Copy, PartialEq, Encode, Decode)]
+pub struct ActorBeam {
+    pub target: PlayerId,
+    pub started_tick: u32,
+    pub remaining_secs: f32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Encode, Decode)]
@@ -67,7 +75,7 @@ impl Actor {
         Self {
             kind,
             anchor: None,
-            beam_target: None,
+            beam: None,
             movement: ActorMovementState::new(pos, move_intent, 0.0),
             face_yaw,
             health,

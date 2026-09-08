@@ -59,7 +59,8 @@
 //        `SMissileMove`, `SMissileLaunch`) must
 //        arrive faster than snapshot cadence so clients can dead-reckon
 //        between snapshots; camera shake from `SPlayerHit` needs to land on
-//        the impact frame, not 1–2 ticks later.
+//        the impact frame, not 1–2 ticks later. `SActorBeam` accelerates
+//        burst starts, retargeting, and stops; snapshots carry the same state.
 //      * Edge-triggered, not level-triggered. "You just picked up a power-up"
 //        is a transition with an associated sound (`SPlayerStatus`,
 //        `SGoldCollected`). The snapshot also carries the flag, but a
@@ -70,9 +71,6 @@
 //        ships hit direction for directional camera shake; `SActorDeath` /
 //        `SPlayerDeath` trigger immediate death-side work (VFX, overlay,
 //        entity teardown) one tick before the snapshot would catch up.
-//        `SActorBeam` ships the burst's start moment and duration, which the
-//        4 Hz snapshot can't carry. `SActorBeamTarget` accelerates continuous
-//        beam changes; the snapshot also carries their current target.
 //    Inbound, `CMove` is both cue and state: sent every tick, changed or
 //    not, so a lost one heals at the next. `CPing` / `SPong` measure RTT on
 //    the same terms.
@@ -481,26 +479,12 @@ pub struct SActorHit {
     pub health: Health,
 }
 
-// Actor locked a laser burst onto a player. The beam must appear on its
-// start frame (sub-tick latency) and the start is edge-triggered — the
-// client renders it for `duration_secs`, anchored each frame to its own
-// interpolated actor and target entities, so the tracking beam needs no
-// follow-up updates and no end cue (it despawns on expiry or when either
-// endpoint entity disappears). Durable damage state still rides
-// `SPlayerHit` and the snapshot; a missed cue costs only the visual.
+// Beam start, retarget, or stop; snapshots carry the same burst state.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SActorBeam {
     pub id: ActorId,
-    pub target: PlayerId,
-    pub duration_secs: f32,
-}
-
-// Continuous beam target changed; snapshots heal missed cues.
-#[derive(Debug, Clone, Encode, Decode)]
-pub struct SActorBeamTarget {
-    pub id: ActorId,
     pub tick: u32,
-    pub target: Option<PlayerId>,
+    pub beam: Option<ActorBeam>,
 }
 
 // Player status changed (power-ups, stun, keys, or ammo). The same
@@ -699,7 +683,6 @@ pub enum ServerMessage {
     PlayerBlast(SPlayerBlast),
     ActorHit(SActorHit),
     ActorBeam(SActorBeam),
-    ActorBeamTarget(SActorBeamTarget),
     PlayerStatus(SPlayerStatus),
     EraserEntered(SEraserEntered),
     GoldCollected(SGoldCollected),
@@ -764,7 +747,6 @@ impl ServerMessage {
             | Self::PlayerBlast(_)
             | Self::ActorHit(_)
             | Self::ActorBeam(_)
-            | Self::ActorBeamTarget(_)
             | Self::PlayerStatus(_)
             | Self::EraserEntered(_)
             | Self::GoldCollected(_)
@@ -848,20 +830,19 @@ mod tests {
                 face_pitch: 0.1,
                 pattern: Some("line_5".to_owned()),
             }),
-            ServerMessage::ActorBeamTarget(SActorBeamTarget {
+            ServerMessage::ActorBeam(SActorBeam {
                 id: ActorId(3),
                 tick: u32::MAX,
-                target: Some(PlayerId(1)),
-            }),
-            ServerMessage::ActorBeamTarget(SActorBeamTarget {
-                id: ActorId(3),
-                tick: 0,
-                target: None,
+                beam: Some(ActorBeam {
+                    target: PlayerId(1),
+                    started_tick: u32::MAX,
+                    remaining_secs: 2.0,
+                }),
             }),
             ServerMessage::ActorBeam(SActorBeam {
                 id: ActorId(3),
-                target: PlayerId(1),
-                duration_secs: 2.0,
+                tick: 0,
+                beam: None,
             }),
         ];
         for message in &messages {
@@ -939,7 +920,7 @@ mod tests {
                 ActorId(i),
                 Actor {
                     anchor: None,
-                    beam_target: None,
+                    beam: None,
                     kind: "sentry".to_owned(),
                     movement: ActorMovementState {
                         pos: position(),

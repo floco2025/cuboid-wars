@@ -5,7 +5,7 @@ use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
 
 use super::{
     controllers::{
-        BeamStarted, decide_beam_actor, decide_contact_actor, decide_contact_beam_actor, decide_continuous_beam_actor,
+        decide_beam_actor, decide_contact_actor, decide_contact_beam_actor, decide_stationary_actor, retarget_beam,
     },
     perception::{PlayerState, update_awareness},
     tick::{
@@ -28,11 +28,12 @@ use crate::{
 };
 use common::{
     config::GameplayConfig,
+    constants::TICK_SECS,
     map::{CarrierPose, Carriers, MapGeometry},
     physics::{CharacterSupport, CollisionWorld},
     protocol::{
-        ActorId, ActorMarker, Barrier, BarrierKindId, BarrierKindTable, Carrier, CarrierId, Health, MapItems,
-        MapLayout, PlateState, PlayerId, PlayerMarker, Position, ServerMessage, ServerTick, Wall,
+        ActorBeam, ActorId, ActorMarker, Barrier, BarrierKindId, BarrierKindTable, Carrier, CarrierId, Health,
+        MapItems, MapLayout, PlateState, PlayerId, PlayerMarker, Position, ServerMessage, ServerTick, Wall,
     },
 };
 
@@ -168,6 +169,7 @@ impl Fixture {
         let actor = self.gameplay.expect_actor(kind);
         let pose = self.pose();
         BehaviorContext {
+            tick: 0,
             pos,
             world_pos: pose.transform_position(&pos),
             pose,
@@ -334,9 +336,10 @@ fn ready_zapper_fires_at_visible_player_in_range() {
     assert!(matches!(info.beam, BeamState::Firing { .. }));
     assert_eq!(
         outcome,
-        Some(BeamStarted {
+        Some(ActorBeam {
             target: PlayerId(7),
-            duration_secs: fixture
+            started_tick: 0,
+            remaining_secs: fixture
                 .server
                 .expect_actor("zapper")
                 .attack
@@ -392,7 +395,7 @@ fn zapper_acquires_visible_cross_level_player_in_beam_range() {
     assert!(matches!(info.beam, BeamState::Firing { .. }));
     assert!(matches!(
         outcome,
-        Some(BeamStarted {
+        Some(ActorBeam {
             target: PlayerId(7),
             ..
         })
@@ -426,6 +429,7 @@ fn completed_beam_enters_cooldown_and_evade() {
     };
     info.beam = BeamState::Firing {
         target: PlayerId(7),
+        started_tick: 0,
         remaining_secs: 0.05,
     };
     info.awareness.push(aware(7, target, CharacterSupport::Ground, true));
@@ -522,6 +526,7 @@ fn firing_reaper_without_reachable_target_holds_facing_beam_target() {
     let mut info = info("reaper");
     info.beam = BeamState::Firing {
         target: PlayerId(7),
+        started_tick: 0,
         remaining_secs: 1.0,
     };
     info.awareness.push(aware(7, target, CharacterSupport::Ladder, true));
@@ -547,6 +552,7 @@ fn reaper_burst_end_enters_cooldown_without_evading() {
     let mut info = info("reaper");
     info.beam = BeamState::Firing {
         target: PlayerId(7),
+        started_tick: 0,
         remaining_secs: 0.05,
     };
     info.awareness.push(aware(7, target, CharacterSupport::Ground, true));
@@ -1244,22 +1250,30 @@ fn turret_keeps_exposed_target_and_retargets_without_cooldown() {
         aware(7, above, CharacterSupport::Ground, true),
         aware(8, fixture.pos(2, 2), CharacterSupport::Ground, true),
     ];
-    state.beam = BeamState::Continuous { target: PlayerId(7) };
+    state.beam = BeamState::Firing {
+        target: PlayerId(7),
+        started_tick: 0,
+        remaining_secs: 14.0,
+    };
     let context = fixture.context("turret", actor_pos);
     for _ in 0..120 {
         tick_runtime_state(&mut state, actor_pos, 1.0 / 30.0, context.kind_config, &[]);
-        decide_continuous_beam_actor(&mut state, &context);
-        assert_eq!(state.beam.continuous_target(), Some(PlayerId(7)));
+        retarget_beam(&mut state, &context);
+        assert_eq!(state.beam.target(), Some(PlayerId(7)));
         assert!(state.route.is_none());
     }
+    let before = state.beam.snapshot().expect("burst missing");
     state.awareness[0].visible = false;
-    decide_continuous_beam_actor(&mut state, &context);
-    assert_eq!(state.beam.continuous_target(), Some(PlayerId(8)));
+    retarget_beam(&mut state, &context);
+    let after = state.beam.snapshot().expect("burst ended during retarget");
+    assert_eq!(after.target, PlayerId(8));
+    assert_eq!(after.started_tick, before.started_tick);
+    assert_eq!(after.remaining_secs, before.remaining_secs);
     state.awareness[1].pos.x += 100.0;
-    decide_continuous_beam_actor(&mut state, &context);
-    assert_eq!(state.beam, BeamState::Ready);
+    retarget_beam(&mut state, &context);
+    assert!(matches!(state.beam, BeamState::Cooldown { .. }));
     state.awareness.clear();
-    decide_continuous_beam_actor(&mut state, &context);
+    retarget_beam(&mut state, &context);
     assert!(state.route.is_none());
 }
 
@@ -1295,14 +1309,16 @@ fn closing_a_barrier_immediately_stops_a_turret() {
     let mut context = fixture.context("turret", origin);
     let opened = [kind];
     context.open_barriers = &opened;
-    decide_continuous_beam_actor(&mut state, &context);
-    assert_eq!(state.beam.continuous_target(), Some(PlayerId(7)));
+    decide_stationary_actor(&mut state, &context);
+    assert_eq!(state.beam.target(), Some(PlayerId(7)));
     context.open_barriers = &[];
-    decide_continuous_beam_actor(&mut state, &context);
-    assert_eq!(state.beam, BeamState::Ready);
+    retarget_beam(&mut state, &context);
+    assert!(matches!(state.beam, BeamState::Cooldown { .. }));
     context.open_barriers = &opened;
-    decide_continuous_beam_actor(&mut state, &context);
-    assert_eq!(state.beam.continuous_target(), Some(PlayerId(7)));
+    assert!(decide_stationary_actor(&mut state, &context).is_none());
+    tick_runtime_state(&mut state, origin, 0.2, context.kind_config, &[]);
+    decide_stationary_actor(&mut state, &context);
+    assert_eq!(state.beam.target(), Some(PlayerId(7)));
 }
 
 fn actor_app(kind: &str, health: f32) -> (App, Entity, UnboundedReceiver<ServerToClient>) {
@@ -1430,7 +1446,7 @@ fn peace_stops_attacks_and_targeting_until_disabled_for_every_actor_kind() {
 }
 
 #[test]
-fn turret_fires_past_burst_duration_and_stops_when_player_disconnects() {
+fn turret_holds_long_burst_and_stops_when_player_disconnects() {
     let (mut app, player, mut receiver) = actor_app("turret", 5000.0);
     for _ in 0..120 {
         turret_step(&mut app);
@@ -1443,11 +1459,11 @@ fn turret_fires_past_burst_duration_and_stops_when_player_disconnects() {
         .get(&ActorId(1))
         .expect("turret missing");
     assert!(actor.route.is_none());
-    assert_eq!(actor.beam.continuous_target(), Some(PlayerId(7)));
+    assert_eq!(actor.beam.target(), Some(PlayerId(7)));
     let mut targets = Vec::new();
     while let Ok(ServerToClient::Send(message)) = receiver.try_recv() {
-        if let ServerMessage::ActorBeamTarget(cue) = message {
-            targets.push(cue.target);
+        if let ServerMessage::ActorBeam(cue) = message {
+            targets.push(cue.beam.map(|beam| beam.target));
         }
     }
     assert_eq!(targets, vec![Some(PlayerId(7))]);
@@ -1461,10 +1477,102 @@ fn turret_fires_past_burst_duration_and_stops_when_player_disconnects() {
             .get(&ActorId(1))
             .expect("turret missing")
             .beam,
-        BeamState::Ready
+        BeamState::Cooldown { remaining_secs: 0.1 }
     );
     assert_eq!(
         app.world().get::<Health>(player).expect("player health missing").0,
         health
     );
+}
+
+#[test]
+fn turret_repeats_bursts_with_a_damage_free_cooldown_and_transition_cues() {
+    let (mut app, player, mut receiver) = actor_app("turret", 50000.0);
+    let attack = app
+        .world()
+        .resource::<ServerGameplayConfig>()
+        .expect_actor("turret")
+        .attack
+        .beam()
+        .expect("turret beam config missing");
+    let total_ticks = ((attack.duration_secs + attack.cooldown_secs) / TICK_SECS).ceil() as u32 + 5;
+    let mut previous_health = 50000.0;
+    let mut cooldown_ticks = 0;
+    for _ in 0..total_ticks {
+        turret_step(&mut app);
+        let health = app.world().get::<Health>(player).expect("player health missing").0;
+        let actor = app
+            .world()
+            .resource::<ActorMap>()
+            .get(&ActorId(1))
+            .expect("turret missing");
+        if actor.beam.target().is_none() {
+            cooldown_ticks += 1;
+            assert_eq!(health, previous_health);
+        } else {
+            assert!(health < previous_health);
+        }
+        previous_health = health;
+    }
+    let expected_cooldown_ticks = (attack.cooldown_secs / TICK_SECS).ceil() as u32;
+    assert!((expected_cooldown_ticks..=expected_cooldown_ticks + 1).contains(&cooldown_ticks));
+    let mut cues = Vec::new();
+    while let Ok(ServerToClient::Send(message)) = receiver.try_recv() {
+        if let ServerMessage::ActorBeam(cue) = message {
+            cues.push(cue);
+        }
+    }
+    assert_eq!(cues.len(), 3);
+    let first = cues[0].beam.expect("first burst missing");
+    assert!(cues[1].beam.is_none());
+    let second = cues[2].beam.expect("second burst missing");
+    assert_eq!(first.target, second.target);
+    assert_ne!(first.started_tick, second.started_tick);
+    let actual_duration = (cues[1].tick - cues[0].tick) as f32 * TICK_SECS;
+    assert!((actual_duration - attack.duration_secs).abs() <= TICK_SECS);
+}
+
+#[test]
+fn active_beams_retarget_disconnected_players_before_the_next_navigation_decision() {
+    for kind in ["turret", "zapper", "reaper"] {
+        let (mut app, player, _) = actor_app(kind, 5000.0);
+        turret_step(&mut app);
+        let first = app
+            .world()
+            .resource::<ActorMap>()
+            .get(&ActorId(1))
+            .expect("actor missing")
+            .beam
+            .snapshot()
+            .expect("first burst missing");
+        let pos = *app.world().get::<Position>(player).expect("player position missing");
+        let next = app
+            .world_mut()
+            .spawn((PlayerMarker, PlayerId(8), pos, Health(5000.0)))
+            .id();
+        let (sender, _receiver) = unbounded_channel();
+        let mut info = PlayerInfo::new(next, sender);
+        info.connection.logged_in = true;
+        app.world_mut().resource_mut::<PlayerMap>().insert(PlayerId(8), info);
+        app.world_mut()
+            .resource_mut::<PlayerMap>()
+            .disconnect(&PlayerId(7), 2.0);
+        app.world_mut()
+            .resource_mut::<ActorMap>()
+            .get_mut(&ActorId(1))
+            .expect("actor missing")
+            .decision_timer = 1.0;
+        turret_step(&mut app);
+        let after = app
+            .world()
+            .resource::<ActorMap>()
+            .get(&ActorId(1))
+            .expect("actor missing")
+            .beam
+            .snapshot()
+            .expect("burst ended during retarget");
+        assert_eq!(after.target, PlayerId(8), "{kind}");
+        assert_eq!(after.started_tick, first.started_tick, "{kind}");
+        assert!(after.remaining_secs < first.remaining_secs, "{kind}");
+    }
 }

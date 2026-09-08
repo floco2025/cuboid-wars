@@ -76,7 +76,6 @@ impl ActorKindServerConfig {
 pub enum ActorAttackConfig {
     Contact(ContactAttackConfig),
     Beam(ActorBeamAttackConfig),
-    ContinuousBeam(ContinuousBeamAttackConfig),
     ContactBeam(ContactBeamAttackConfig),
 }
 
@@ -87,25 +86,22 @@ impl ActorAttackConfig {
             Self::Contact(contact) | Self::ContactBeam(ContactBeamAttackConfig { contact, .. }) => {
                 Some(contact.trigger_gap)
             }
-            Self::Beam(_) | Self::ContinuousBeam(_) => None,
+            Self::Beam(_) => None,
         }
     }
 
     #[must_use]
     pub const fn beam(self) -> Option<ActorBeamAttackConfig> {
         match self {
-            Self::Contact(_) | Self::ContinuousBeam(_) => None,
+            Self::Contact(_) => None,
             Self::Beam(beam) | Self::ContactBeam(ContactBeamAttackConfig { beam, .. }) => Some(beam),
         }
     }
 
     pub const fn beam_range(self) -> Option<f32> {
-        match self {
-            Self::ContinuousBeam(beam) => Some(beam.range),
-            _ => match self.beam() {
-                Some(beam) => Some(beam.range),
-                None => None,
-            },
+        match self.beam() {
+            Some(beam) => Some(beam.range),
+            None => None,
         }
     }
 
@@ -113,7 +109,6 @@ impl ActorAttackConfig {
         match self {
             Self::Contact(contact) => contact.validate(path),
             Self::Beam(beam) => beam.validate(path),
-            Self::ContinuousBeam(beam) => validate_positive_finite(beam.range, &format!("{path}.range")),
             Self::ContactBeam(ContactBeamAttackConfig { contact, beam }) => {
                 contact.validate(path)?;
                 beam.validate(path)
@@ -131,11 +126,6 @@ impl ContactAttackConfig {
     fn validate(self, path: &str) -> Result<()> {
         validate_non_negative_finite(self.trigger_gap, &format!("{path}.trigger_gap"))
     }
-}
-
-#[derive(Debug, Clone, Copy, Deserialize)]
-pub struct ContinuousBeamAttackConfig {
-    pub range: f32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Deserialize)]

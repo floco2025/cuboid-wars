@@ -39,7 +39,7 @@ death/respawn flow.
   hold, toggle, and automatic solo/multiplayer behavior.
 - **Actors** — mines, sentries, zappers, and reapers patrol and hunt; all
   explode when killed.
-- **Turrets** — stationary guards with deadly continuous beams.
+- **Turrets** — stationary guards with deadly sustained laser bursts.
 - **Ladders** — climb between levels.
 - **Moving maps** — tiles, rooms, and whole buildings that slide or lift through a map, everything inside riding along, monsters included.
 - **Fall damage** — short drops are safe; long falls scale up to lethal.

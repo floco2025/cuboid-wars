@@ -66,7 +66,7 @@ pub(in crate::network) fn sync_actors(
 
     for (id, server_actor) in server_actors {
         if let Some(client_actor) = context.actors.get_mut(id) {
-            client_actor.beam.apply(tick, server_actor.beam_target);
+            client_actor.beam.apply(tick, server_actor.beam);
             commands.entity(client_actor.entity).insert(server_actor.health);
         }
         apply_actor_movement_state(

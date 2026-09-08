@@ -140,7 +140,7 @@ Current barrier plates open their barrier. A release can therefore restore a shi
 
 ## Turrets as guards
 
-Turrets spawn at usable floor-cell centers and stay there in their carrier's frame and share the zapper's model, range, health, death blast, and respawn delay. The actor kind sets `immovable: true` and has no per-map speed settings; the `continuous_beam` attack has a range without burst or cooldown settings. It follows one exposed player and immediately selects another when that target hides, dies, disconnects, or leaves range. Walls, closed barriers, and powered bridges provide the same protection as against zappers.
+Turrets spawn at usable floor-cell centers and stay there in their carrier's frame. The actor kind sets `immovable: true` and has no per-map speed settings; its `beam` attack uses a long duration and a short cooldown. Each burst follows one exposed player and immediately selects another when that target hides, dies, disconnects, or leaves range. Walls, closed barriers, and powered bridges provide the same protection as against zappers.
 
 At 500 damage per second, a turret kills a full-health player in about one second. This leaves a short window to launch a missile and retreat; guarded crossings must require longer exposure to discourage rushing. A protected health and missile supply supports another attempt after a miss. Missiles are the first puzzle demonstration weapon; single-shot and multishot can add aiming skill in later variants.
 

@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use super::{super::context::ServerMessageContext, sync::apply_actor_movement_state};
 use crate::{
     audio::{play_explosion_sound, play_spatial_sound},
-    vfx::{attach_laser_audio, spawn_actor_explosion, spawn_laser_beam},
+    vfx::spawn_actor_explosion,
 };
 use common::protocol::*;
 
@@ -83,44 +83,8 @@ pub(in crate::network) fn handle_actor_hit_message(
     }
 }
 
-// Spawn the beam visual for a burst, with the firing sound looping on the
-// beam entity itself — the sound follows the beam and stops the moment the
-// beam despawns (burst end, or either endpoint gone), so the continuous
-// loop lasts exactly as long as the beam. An unknown actor id (cue raced
-// its own snapshot teardown) spawns nothing — the beam would despawn on its
-// first frame anyway.
-pub(in crate::network) fn handle_actor_beam_message(
-    message: SActorBeam,
-    commands: &mut Commands,
-    context: &mut ServerMessageContext,
-) {
-    let Some(info) = context.actors.get(&message.id) else {
-        return;
-    };
-    let beam = spawn_laser_beam(
-        commands,
-        &mut context.meshes,
-        &mut context.materials,
-        message.id,
-        message.target,
-        Some(message.duration_secs),
-    );
-    attach_laser_audio(
-        commands,
-        beam,
-        &info.kind,
-        &context.asset_server,
-        &context.asset_set,
-        &context.client_settings,
-        context.actor_data.get(info.entity).ok().map(|(pos, _, _)| *pos),
-    );
-}
-
-pub(in crate::network) fn handle_actor_beam_target_message(
-    message: SActorBeamTarget,
-    context: &mut ServerMessageContext,
-) {
+pub(in crate::network) fn handle_actor_beam_message(message: SActorBeam, context: &mut ServerMessageContext) {
     if let Some(actor) = context.actors.get_mut(&message.id) {
-        actor.beam.apply(message.tick, message.target);
+        actor.beam.apply(message.tick, message.beam);
     }
 }

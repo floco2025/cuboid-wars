@@ -1028,6 +1028,7 @@ mod tests {
                 .expect("actor missing")
                 .beam = BeamState::Firing {
                 target: PlayerId(1),
+                started_tick: 0,
                 remaining_secs: 2.0,
             };
             app.update();

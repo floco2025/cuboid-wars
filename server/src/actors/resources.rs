@@ -5,7 +5,9 @@ use bevy::prelude::*;
 use common::{
     map::Carriers,
     physics::CharacterSupport,
-    protocol::{ActorAnchor, ActorId, ActorMarker, ActorMoveIntent, CarrierId, FaceYaw, Health, PlayerId, Position},
+    protocol::{
+        ActorAnchor, ActorBeam, ActorId, ActorMarker, ActorMoveIntent, CarrierId, FaceYaw, Health, PlayerId, Position,
+    },
 };
 
 use super::navigation::{NavNode, NavWaypoint, PlannedRoute, WaypointKind};
@@ -46,23 +48,36 @@ pub(crate) enum ActorMode {
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum BeamState {
     Ready,
-    Continuous { target: PlayerId },
-    Firing { target: PlayerId, remaining_secs: f32 },
-    Cooldown { remaining_secs: f32 },
+    Firing {
+        target: PlayerId,
+        started_tick: u32,
+        remaining_secs: f32,
+    },
+    Cooldown {
+        remaining_secs: f32,
+    },
 }
 
 impl BeamState {
     pub(crate) fn target(&self) -> Option<PlayerId> {
         match *self {
-            Self::Firing { target, .. } | Self::Continuous { target } => Some(target),
+            Self::Firing { target, .. } => Some(target),
             Self::Ready | Self::Cooldown { .. } => None,
         }
     }
 
-    pub(crate) fn continuous_target(&self) -> Option<PlayerId> {
+    pub(crate) fn snapshot(&self) -> Option<ActorBeam> {
         match *self {
-            Self::Continuous { target } => Some(target),
-            _ => None,
+            Self::Firing {
+                target,
+                started_tick,
+                remaining_secs,
+            } => Some(ActorBeam {
+                target,
+                started_tick,
+                remaining_secs,
+            }),
+            Self::Ready | Self::Cooldown { .. } => None,
         }
     }
 }

@@ -213,7 +213,7 @@ mod tests {
                 LaserBeam {
                     actor: ActorId(1),
                     target: PlayerId(1),
-                    remaining_secs: None,
+                    started_tick: 0,
                     wander_width_fraction: 0.0,
                     wander_height_fraction: 0.0,
                     aim_height_fraction: 0.5,

@@ -1,7 +1,7 @@
 use bevy::prelude::Vec3;
 use common::{
     physics::{CharacterSupport, character_hitbox_center},
-    protocol::PlayerId,
+    protocol::ActorBeam,
 };
 use rand::Rng;
 
@@ -14,38 +14,39 @@ use super::tick::{
     BehaviorContext, enter_evade, enter_roam_or_return, install_ladder_engagement, keep_or_install_engagement_route,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(super) struct BeamStarted {
-    pub(super) target: PlayerId,
-    pub(super) duration_secs: f32,
-}
-
-pub(super) fn decide_continuous_beam_actor(info: &mut ActorInfo, context: &BehaviorContext<'_>) {
-    let current = info.beam.continuous_target();
+pub(super) fn retarget_beam(info: &mut ActorInfo, context: &BehaviorContext<'_>) {
+    let BeamState::Firing { target: current, .. } = info.beam else {
+        return;
+    };
     let target = info
         .awareness
         .iter()
         .filter(|aware| beam_target_attackable(aware, context))
-        .min_by_key(|aware| Some(aware.id) != current)
+        .min_by_key(|aware| aware.id != current)
         .copied();
-    info.beam = match target {
-        Some(aware) => {
-            info.set_route(None);
+    if let Some(aware) = target {
+        if let BeamState::Firing { target, .. } = &mut info.beam {
+            *target = aware.id;
+        }
+        if matches!(info.mode, ActorMode::Engage { target, .. } if target == current) {
             info.mode = ActorMode::Engage {
                 target: aware.id,
                 target_pos: aware.pos,
             };
-            BeamState::Continuous { target: aware.id }
         }
-        None => {
-            info.mode = ActorMode::Roam;
-            BeamState::Ready
-        }
-    };
+    } else {
+        info.beam = BeamState::Cooldown {
+            remaining_secs: beam_attack(context).cooldown_secs,
+        };
+        info.decision_timer = 0.0;
+    }
 }
 
-pub(super) fn decide_stationary_actor(info: &mut ActorInfo, context: &BehaviorContext<'_>) -> Option<BeamStarted> {
+pub(super) fn decide_stationary_actor(info: &mut ActorInfo, context: &BehaviorContext<'_>) -> Option<ActorBeam> {
     context.kind_config.attack.beam()?;
+    if info.beam.target().is_none() {
+        info.mode = ActorMode::Roam;
+    }
     find_beam_target(info, context).map(|target| {
         info.mode = ActorMode::Engage {
             target: target.id,
@@ -66,8 +67,8 @@ pub(super) fn decide_beam_actor(
     info: &mut ActorInfo,
     context: &BehaviorContext<'_>,
     rng: &mut impl Rng,
-) -> Option<BeamStarted> {
-    if matches!(info.beam, BeamState::Firing { .. } | BeamState::Continuous { .. }) {
+) -> Option<ActorBeam> {
+    if matches!(info.beam, BeamState::Firing { .. }) {
         return None;
     }
     if let Some(target) = find_beam_target(info, context) {
@@ -98,8 +99,8 @@ pub(super) fn decide_contact_beam_actor(
     info: &mut ActorInfo,
     context: &BehaviorContext<'_>,
     rng: &mut impl Rng,
-) -> Option<BeamStarted> {
-    if let BeamState::Firing { target, .. } | BeamState::Continuous { target } = info.beam {
+) -> Option<ActorBeam> {
+    if let BeamState::Firing { target, .. } = info.beam {
         if try_engage_attackable_player(info, context) {
             return None;
         }
@@ -144,15 +145,17 @@ fn beam_target_attackable(aware: &AwarePlayer, context: &BehaviorContext<'_>) ->
         )
 }
 
-fn start_beam(info: &mut ActorInfo, context: &BehaviorContext<'_>, target: AwarePlayer) -> BeamStarted {
+fn start_beam(info: &mut ActorInfo, context: &BehaviorContext<'_>, target: AwarePlayer) -> ActorBeam {
     let fire = beam_attack(context);
     info.beam = BeamState::Firing {
         target: target.id,
+        started_tick: context.tick,
         remaining_secs: fire.duration_secs,
     };
-    BeamStarted {
+    ActorBeam {
         target: target.id,
-        duration_secs: fire.duration_secs,
+        started_tick: context.tick,
+        remaining_secs: fire.duration_secs,
     }
 }
 
@@ -161,7 +164,7 @@ fn beam_attack(context: &BehaviorContext<'_>) -> ActorBeamAttackConfig {
         .kind_config
         .attack
         .beam()
-        .expect("beam controller requires beam attack config")
+        .expect("beam attack config missing from beam controller")
 }
 
 fn try_engage_attackable_player(info: &mut ActorInfo, context: &BehaviorContext<'_>) -> bool {

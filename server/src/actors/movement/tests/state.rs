@@ -49,6 +49,7 @@ fn firing_actor_holds_and_faces_live_target() {
     };
     info.beam = BeamState::Firing {
         target: PlayerId(7),
+        started_tick: 0,
         remaining_secs: 1.0,
     };
     info.mode = ActorMode::Engage {
@@ -73,6 +74,7 @@ fn firing_actor_with_route_moves_at_active_speed() {
     };
     info.beam = BeamState::Firing {
         target: PlayerId(7),
+        started_tick: 0,
         remaining_secs: 1.0,
     };
     info.mode = ActorMode::Engage {
