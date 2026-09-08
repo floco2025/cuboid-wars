@@ -1,6 +1,6 @@
 # Asset provenance
 
-Inventory checked September 8, 2026 against the repository, model generators, embedded GLB images, and Marc's local collection at `~/projects/assets/`. Paths below are relative to this directory unless stated otherwise. Local collection paths are source evidence, not runtime dependencies.
+Inventory checked September 8, 2026 against the repository, model generators, embedded GLB images, and the local asset collection at `~/projects/assets/`. Paths below are relative to this directory unless stated otherwise. Local collection paths are source evidence, not runtime dependencies.
 
 **Created here** means authored for Cuboid Wars. **Third-party** means supplied externally. **Modified third-party** includes conversions, packed texture channels, and retargeted animation. These describe provenance, not a transfer of ownership or a license grant. Project-created content follows the [asset notice](README.md); external content retains its own terms, including when embedded in a model.
 
@@ -28,7 +28,7 @@ Actor animation and articulation are authored here. Player locomotion is modifie
 
 Author/source: **Brian, FreePBR.com**, matched to `~/projects/assets/freepbr.com/`. All 19 current texture folders are covered below. Each entry includes every PNG in that folder, including the project's packed metallic/roughness derivatives.
 
-License: FreePBR's own terms, not CC0. The [publisher's terms](https://freepbr.com/about-free-pbr/), checked September 8, 2026, allow free noncommercial use, require paid access for commercial use, and restrict redistribution of the texture sets. Marc's acquired license/access is **awaiting confirmation**; no purchase or download-time license record was found in the local collection. Current website terms do not establish which terms accompanied a past download.
+License: FreePBR's own terms, not CC0. The [publisher's terms](https://freepbr.com/about-free-pbr/), checked September 8, 2026, allow free noncommercial use, require paid access for commercial use, and restrict redistribution of the texture sets. The acquired license/access is **awaiting confirmation**; no purchase or download-time license record was found in the local collection. Current website terms do not establish which terms accompanied a past download.
 
 | Folder under `textures/` | Source set | Additional use in models |
 | --- | --- | --- |

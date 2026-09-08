@@ -1,5 +1,9 @@
 # Repository Guidelines
 
+## User privacy
+
+Do not use the user's personal name in responses or add it to documentation, examples, test fixtures, comments, generated assets, or attribution. Use neutral wording and fictional sample names. Avoid recording identifying usernames or absolute home-directory paths in project files.
+
 ## Follow-ups
 
 Read [TODO.md](TODO.md) at the start of a task and keep it updated when discussing or completing follow-ups. Organize outstanding work into Fixes, Enhancements, and Testing, without deferred/proposed categories or repeated approval labels; listing an item does not authorize implementation. A Fix is behaviour that is wrong; style and cleanup work is an Enhancement. Remove completed items.

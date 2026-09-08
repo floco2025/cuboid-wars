@@ -126,7 +126,7 @@ impl PlayerInfo {
 pub struct PlayerMap(HashMap<PlayerId, PlayerInfo>);
 
 impl PlayerMap {
-    // "Marc#7" for logs; "player#7" before a name is known.
+    // "Alex#7" for logs; "player#7" before a name is known.
     #[must_use]
     pub fn describe(&self, id: &PlayerId) -> String {
         match self.get(id) {

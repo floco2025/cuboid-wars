@@ -135,7 +135,7 @@ mod tests {
 
     #[test]
     fn ordinary_name_is_preserved() {
-        assert_eq!(sanitize_player_name("Marc", PlayerId(1)), "Marc");
+        assert_eq!(sanitize_player_name("Alex", PlayerId(1)), "Alex");
     }
 
     #[test]

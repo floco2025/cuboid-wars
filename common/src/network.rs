@@ -211,7 +211,7 @@ mod tests {
 
     fn login() -> ClientMessage {
         ClientMessage::Login(CLogin {
-            name: "Marc".to_owned(),
+            name: "Alex".to_owned(),
         })
     }
 
@@ -226,7 +226,7 @@ mod tests {
         else {
             panic!("decoded a different variant");
         };
-        assert_eq!(login.name, "Marc");
+        assert_eq!(login.name, "Alex");
     }
 
     #[test]

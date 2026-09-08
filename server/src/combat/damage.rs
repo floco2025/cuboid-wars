@@ -698,30 +698,30 @@ mod tests {
     fn kill_player_announces_death_with_cause() {
         let mut players = PlayerMap::default();
         let mut shooter_rx = logged_in_player(&mut players, PlayerId(1), "Bob");
-        logged_in_player(&mut players, PlayerId(2), "Marc");
+        logged_in_player(&mut players, PlayerId(2), "Alex");
 
         kill_with(&mut players, PlayerId(2), DeathSource::Shot(PlayerId(1)));
 
         assert_eq!(next_player_death(&mut shooter_rx).killer, Some(PlayerId(1)));
-        assert_eq!(feed_lines(&mut shooter_rx), ["Bob shot Marc"]);
+        assert_eq!(feed_lines(&mut shooter_rx), ["Bob shot Alex"]);
     }
 
     #[test]
     fn self_shot_yields_no_credit_but_self_cause() {
         let mut players = PlayerMap::default();
-        let mut rx = logged_in_player(&mut players, PlayerId(2), "Marc");
+        let mut rx = logged_in_player(&mut players, PlayerId(2), "Alex");
 
         kill_with(&mut players, PlayerId(2), DeathSource::Shot(PlayerId(2)));
 
         assert_eq!(next_player_death(&mut rx).killer, None);
-        assert_eq!(feed_lines(&mut rx), ["Marc shot themselves"]);
+        assert_eq!(feed_lines(&mut rx), ["Alex shot themselves"]);
     }
 
     #[test]
     fn kill_credit_ignores_departed_shooter() {
         let mut players = PlayerMap::default();
         logged_in_player(&mut players, PlayerId(1), "Bob");
-        logged_in_player(&mut players, PlayerId(2), "Marc");
+        logged_in_player(&mut players, PlayerId(2), "Alex");
 
         assert_eq!(
             kill_credit(&DeathSource::Shot(PlayerId(9)), PlayerId(2), &players),
