@@ -152,7 +152,7 @@ at your option.
 
 ### Assets
 
-**The assets in `client/assets/` (3D models, textures, sounds, etc.) are NOT
-open source.** They are licensed separately for use in this game only. If you
-fork this repo you must replace all assets with your own or properly licensed
-alternatives.
+**Assets in `client/assets/` are licensed separately from the source code.**
+Project-created assets are provided for this game only; third-party assets retain
+their own terms. See the [asset notice](client/assets/README.md) and
+[provenance register](client/assets/ASSETS.md) for sources, licenses, and embedded dependencies.

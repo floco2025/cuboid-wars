@@ -1,14 +1,14 @@
 # Assets License Notice
 
-**The assets in this directory are NOT open source.**
+**Assets are licensed separately from the game's source code.**
 
-These assets (3D models, textures, sounds, images, etc.) are licensed separately from the game's source code and are provided for use in this game only.
+Project-created assets (3D models, textures, sounds, images, etc.) are provided for use in this game only. Third-party assets retain their own licenses, including permissive licenses where explicitly documented.
 
-If you are forking or using this codebase, you **must replace all assets** with your own or properly licensed alternatives. You may not redistribute or use these assets in other projects.
+If you are forking or using this codebase, replace project-restricted assets with your own or properly licensed alternatives. Use and redistribution of third-party assets must follow their individual terms.
 
 The game's source code is licensed under MIT OR Apache-2.0, but this license does NOT apply to the contents of this directory.
 
-Third-party motion captures in `models/mocap/cmu/` retain CMU's own usage terms; see their [source and license notice](models/mocap/cmu/README.md).
+See [ASSETS.md](ASSETS.md) for the provenance register: authors, sources, licenses, generators, embedded dependencies, and unresolved origins. Supplied license notices are linked from their entries.
 
 ## Asset Set
 
