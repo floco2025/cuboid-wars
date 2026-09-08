@@ -115,6 +115,7 @@ pub(crate) fn wheel_animation_update_system(
 mod tests {
     use super::*;
     use bevy::{
+        animation::AnimationTargetId,
         gltf::{Gltf, GltfPlugin},
         image::{CompressedImageFormatSupport, CompressedImageFormats, ImagePlugin},
         mesh::MeshPlugin,
@@ -124,7 +125,18 @@ mod tests {
     use std::time::{Duration, Instant};
 
     #[test]
-    fn bevy_loads_the_mine_and_starts_and_stops_its_wheels() {
+    fn bevy_loads_configured_wheeled_models_and_starts_and_stops_their_wheels() {
+        let assets: serde_json::Value = serde_json::from_str(include_str!("../../../config/client/assets.json"))
+            .expect("client assets JSON is invalid");
+        for actor in assets["actors"].as_object().expect("actor assets missing").values() {
+            let model: ModelDef = serde_json::from_value(actor["model"].clone()).expect("actor model is invalid");
+            if let Some(wheels) = model.wheels {
+                check_wheel_playback(model, wheels);
+            }
+        }
+    }
+
+    fn check_wheel_playback(model: ModelDef, wheels: WheelModelDef) {
         let mut app = App::new();
         app.add_plugins((
             MinimalPlugins,
@@ -153,18 +165,15 @@ mod tests {
                 CharacterSupport::Ground,
             ))
             .id();
-        let model: ModelDef = serde_json::from_value(serde_json::json!({"scene":"models/mine.glb#Scene0","scale":1.0}))
-            .expect("mine model definition is invalid");
-        let wheels = WheelModelDef {
-            radius: 0.215,
-            track: 0.87,
-            wheelbase: 0.58,
-            idle_animation: 0,
-            drive_animation: 1,
-            drive_cycle_secs: 1.0,
-        };
         let server = app.world().resource::<AssetServer>().clone();
-        let handle: Handle<Gltf> = server.load("models/mine.glb");
+        let handle: Handle<Gltf> = server.load(
+            model
+                .scene
+                .split('#')
+                .next()
+                .expect("model asset path missing")
+                .to_owned(),
+        );
         let source = WheelAnimationSource::load(
             owner,
             &model,
@@ -173,7 +182,7 @@ mod tests {
             &mut app.world_mut().resource_mut::<Assets<AnimationGraph>>(),
         );
         app.world_mut()
-            .spawn((WorldAssetRoot(server.load(model.scene)), source))
+            .spawn((WorldAssetRoot(server.load(model.scene.clone())), source))
             .observe(wheel_animation_setup_system);
         let deadline = Instant::now() + Duration::from_secs(15);
         loop {
@@ -188,19 +197,19 @@ mod tests {
             {
                 break;
             }
-            assert!(Instant::now() < deadline, "mine scene or animation rig failed to load");
+            assert!(
+                Instant::now() < deadline,
+                "scene or animation rig failed to load: {}",
+                model.scene
+            );
             std::thread::sleep(Duration::from_millis(5));
         }
-        let wheel_rotation = |world: &mut World| {
-            world
-                .query::<(&Name, &Transform)>()
-                .iter(world)
-                .find(|(name, _)| name.as_str() == "WheelLFront")
-                .expect("mine wheel joint missing")
-                .1
-                .rotation
-        };
-        let start = wheel_rotation(app.world_mut());
+        let start: Vec<_> = app
+            .world_mut()
+            .query::<(&AnimationTargetId, &Transform)>()
+            .iter(app.world())
+            .map(|(id, transform)| (*id, transform.rotation))
+            .collect();
         let delta = app.world().resource::<Time<Fixed>>().timestep().as_secs_f32();
         app.world_mut().entity_mut(owner).insert((
             Position {
@@ -216,10 +225,32 @@ mod tests {
         for _ in 0..8 {
             app.update();
         }
+        let (wheel, angle) = app
+            .world_mut()
+            .query::<(&AnimationTargetId, &Transform)>()
+            .iter(app.world())
+            .filter_map(|(id, transform)| {
+                start
+                    .iter()
+                    .find(|(before, _)| before == id)
+                    .map(|(_, rotation)| (*id, rotation.angle_between(transform.rotation)))
+            })
+            .max_by(|a, b| a.1.total_cmp(&b.1))
+            .expect("animated wheel targets missing");
         assert!(
-            (start.angle_between(wheel_rotation(app.world_mut())) - 8.0 / 30.0 * 2.0 / wheels.radius).abs() < 0.03,
-            "wheel rotation did not match the travelled distance"
+            (angle - 8.0 / 30.0 * 2.0 / (wheels.radius * model.scale)).abs() < 0.03,
+            "wheel rotation did not match the travelled distance: {}",
+            model.scene
         );
+        let wheel_rotation = |world: &mut World| {
+            world
+                .query::<(&AnimationTargetId, &Transform)>()
+                .iter(world)
+                .find(|(id, _)| **id == wheel)
+                .expect("animated wheel target missing")
+                .1
+                .rotation
+        };
         app.world_mut().entity_mut(owner).insert(ActorMoveIntent::Idle);
         for _ in 0..8 {
             app.update();
@@ -230,7 +261,8 @@ mod tests {
         }
         assert!(
             stopped.angle_between(wheel_rotation(app.world_mut())) < 0.001,
-            "idle mine wheels kept turning"
+            "idle wheels kept turning: {}",
+            model.scene
         );
     }
 

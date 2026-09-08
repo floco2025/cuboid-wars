@@ -1,5 +1,18 @@
 {
   "materials": {
+    "scuffed-iron": {
+      "tile_size": 1.0,
+      "metallic": 1.0,
+      "roughness": 1.0,
+      "repeat": true,
+      "linear_data_textures": true,
+      "textures": {
+        "base_color": "textures/Iron-Scuffed_Unreal-Engine/Iron-Scuffed_basecolor.png",
+        "normal": "textures/Iron-Scuffed_Unreal-Engine/Iron-Scuffed_normal-gl.png",
+        "occlusion": "textures/Iron-Scuffed_Unreal-Engine/Iron-Scuffed_ao.png",
+        "metallic_roughness": "textures/Iron-Scuffed_Unreal-Engine/Iron-Scuffed_metallic-roughness.png"
+      }
+    },
     "brushed-metal": {
       "tile_size": 1.0,
       "metallic": 1.0,
@@ -249,6 +262,7 @@
     }
   },
   "aliases": {
+    "scuffed-iron": "scuffed-iron",
     "brushed-metal": "brushed-metal",
     "scuffed-plastic": "scuffed-plastic",
     "synth-rubber": "synth-rubber",
@@ -327,13 +341,17 @@
     },
     "sentry": {
       "model": {
-        "scene": "models/robot_5.glb#Scene0",
-        "scale": 0.00612,
+        "scene": "models/sentry.glb#Scene0",
+        "scale": 1.15,
         "y_offset": 0.0,
-        "z_offset": 0.051,
-        "x_rotation_degrees": 180.0,
-        "animation_index": 20,
-        "animation_speed": 1.0
+        "wheels": {
+          "radius": 0.277,
+          "track": 1.27,
+          "wheelbase": 1.12,
+          "idle_animation": 0,
+          "drive_animation": 1,
+          "drive_cycle_secs": 1.0
+        }
       },
       "sounds": {
         "explodes": "sounds/Retro Explosion Short 15.wav",

@@ -53,9 +53,9 @@
         }
       },
       "sentry": {
-        "movement_collider": { "diameter": 1.428, "height": 1.45 },
-        "hitbox": { "width": 1.785, "height": 1.0, "depth": 1.428, "bottom_offset": 0.45 },
-        "eye_height": 1.6,
+        "movement_collider": { "diameter": 1.6422, "height": 1.6675 },
+        "hitbox": { "width": 1.84, "height": 1.5295, "depth": 1.9895, "bottom_offset": 0.0 },
+        "eye_height": 1.38,
         "respawn_secs": 90.0,
         "can_use_ladders": false,
         "immovable": false,

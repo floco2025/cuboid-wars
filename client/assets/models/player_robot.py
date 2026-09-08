@@ -14,10 +14,11 @@ import numpy as np
 from mathutils import Euler, Vector
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from model_materials import catalog_material, project_uv
 from player_robot_mocap import RobotMocap
 
 MODEL = Path(__file__).resolve().with_suffix(".glb")
-TEXTURES = MODEL.parent.parent / "textures"
+MATERIAL_SETTINGS = json.loads(MODEL.with_suffix(".materials.json").read_text())
 CLIPS = ("Idle", "Walk", "Run", "Climb", "Jump", "Fall", "Land", "Stunned", "StrafeLeft", "StrafeRight")
 FPS = 30
 bpy.ops.object.select_all(action="SELECT")
@@ -39,89 +40,9 @@ def material(name, color, metallic=0.0, roughness=0.4, emission=0.0):
     return mat
 
 
-def pbr_material(name, folder, maps, tint, color_variation, roughness_range, normal_strength):
-    mat = material(name, (1, 1, 1))
-    nodes, links = mat.node_tree.nodes, mat.node_tree.links
-    shader = nodes.get("Principled BSDF")
-    for channel, filename in maps.items():
-        source = bpy.data.images.load(str(TEXTURES / folder / filename), check_existing=True)
-        image = source.copy()
-        image.name = name + " / " + channel
-        if channel != "Base Color":
-            image.colorspace_settings.name = "Non-Color"
-        image.scale(1024, 1024)
-        pixels = np.empty(1024 * 1024 * 4, dtype=np.float32)
-        image.pixels.foreach_get(pixels)
-        pixels = pixels.reshape(-1, 4)
-        if channel == "Base Color":
-            detail = pixels[:, :3].mean(axis=1)
-            detail = (detail - detail.mean()) / max(float(detail.std()), 0.001)
-            detail = np.clip(detail, -2, 2) * color_variation
-            pixels[:, :3] = np.array(tint) * (1 + detail[:, None])
-        elif channel == "Roughness":
-            low, high = roughness_range
-            pixels[:, :3] = low + (high - low) * pixels[:, :3]
-        elif channel == "Normal":
-            # UE normal maps use DirectX Y; Blender and glTF use OpenGL Y.
-            pixels[:, 1] = 1 - pixels[:, 1]
-            normal = pixels[:, :3] * 2 - 1
-            normal[:, :2] *= normal_strength
-            normal /= np.maximum(np.linalg.norm(normal, axis=1, keepdims=True), 0.001)
-            pixels[:, :3] = normal * 0.5 + 0.5
-        pixels[:, 3] = 1
-        image.pixels.foreach_set(pixels.ravel())
-        image.pack()
-        texture = nodes.new("ShaderNodeTexImage")
-        texture.image = image
-        output = texture.outputs["Color"]
-        if channel == "Normal":
-            normal = nodes.new("ShaderNodeNormalMap")
-            links.new(output, normal.inputs["Color"])
-            output = normal.outputs["Normal"]
-        links.new(output, shader.inputs[channel])
-    return mat
-
-
-ivory = pbr_material(
-    "Satin ceramic-white polymer",
-    "scuffed-plastic-1-Unreal-Engine",
-    {
-        "Base Color": "scuffed-plastic5-alb.png",
-        "Roughness": "scuffed-plastic-rough.png",
-        "Normal": "scuffed-plastic-normal.png",
-    },
-    tint=(0.86, 0.845, 0.81),
-    color_variation=0.003,
-    roughness_range=(0.34, 0.45),
-    normal_strength=0.07,
-)
-joint = pbr_material(
-    "Fine matte elastomer",
-    "synth-rubber-unreal-engine",
-    {
-        "Base Color": "synth-rubber-albedo.png",
-        "Roughness": "synth-rubber-roughness.png",
-        "Normal": "synth-rubber-normal.png",
-    },
-    tint=(0.11, 0.125, 0.14),
-    color_variation=0.012,
-    roughness_range=(0.68, 0.78),
-    normal_strength=0.09,
-)
-steel = pbr_material(
-    "Brushed titanium mechanisms",
-    "brushed-metal-ue",
-    {
-        "Base Color": "brushed-metal_albedo.png",
-        "Metallic": "brushed-metal_metallic.png",
-        "Roughness": "brushed-metal_roughness.png",
-        "Normal": "brushed-metal_normal-dx.png",
-    },
-    tint=(0.43, 0.47, 0.49),
-    color_variation=0.015,
-    roughness_range=(0.30, 0.40),
-    normal_strength=0.12,
-)
+ivory = catalog_material("scuffed-plastic", "Satin ceramic-white polymer", tuning=MATERIAL_SETTINGS["scuffed-plastic"])
+joint = catalog_material("synth-rubber", "Fine matte elastomer", tuning=MATERIAL_SETTINGS["synth-rubber"])
+steel = catalog_material("brushed-metal", "Brushed titanium mechanisms", tuning=MATERIAL_SETTINGS["brushed-metal"])
 chassis = material("Graphite structural composite", (0.028, 0.036, 0.042), 0.55, 0.32)
 accent = material("Muted ochre identification", (0.38, 0.19, 0.065), 0.15, 0.5)
 screen = material("Smoked optical visor", (0.007, 0.013, 0.017), 0.45, 0.19)
@@ -132,7 +53,7 @@ lettering = material("Graphite service stencil", (0.05, 0.07, 0.075), 0.0, 0.6)
 parts = []
 
 
-def finish(obj, name, mat, bone, bevel=0):
+def finish(obj, name, mat, bone, bevel=0, cylindrical=False):
     obj.name = name
     obj.data.materials.append(mat)
     bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
@@ -143,10 +64,7 @@ def finish(obj, name, mat, bone, bevel=0):
         bpy.ops.object.modifier_apply(modifier=modifier.name)
         modifier = obj.modifiers.new("Weighted corner normals", "WEIGHTED_NORMAL")
         bpy.ops.object.modifier_apply(modifier=modifier.name)
-    bpy.ops.object.mode_set(mode="EDIT")
-    bpy.ops.mesh.select_all(action="SELECT")
-    bpy.ops.uv.cube_project(cube_size=0.08 if mat == joint else 0.28)
-    bpy.ops.object.mode_set(mode="OBJECT")
+    project_uv(obj, mat, cylindrical)
     group = obj.vertex_groups.new(name=bone)
     group.add(list(range(len(obj.data.vertices))), 1.0, "REPLACE")
     parts.append(obj)
@@ -178,7 +96,7 @@ def cylinder(name, pos, radius, depth, mat, bone, axis="Z", vertices=16):
         obj.rotation_euler.y = math.pi / 2
     elif axis == "Y":
         obj.rotation_euler.x = math.pi / 2
-    return finish(obj, name, mat, bone, 0.004)
+    return finish(obj, name, mat, bone, 0.004, cylindrical=True)
 
 
 def rod(name, start, end, radius, mat, bone):
@@ -190,7 +108,7 @@ def rod(name, start, end, radius, mat, bone):
     for polygon in obj.data.polygons:
         polygon.use_smooth = len(polygon.vertices) == 4
     obj.rotation_euler = vector.to_track_quat("Z", "Y").to_euler()
-    return finish(obj, name, mat, bone, 0.003)
+    return finish(obj, name, mat, bone, 0.003, cylindrical=True)
 
 
 def shell(name, x, rings, mat, bone, arc=(0, math.tau), exponent=1.0):
@@ -457,7 +375,6 @@ for sign in (-1, 1):
     cylinder("Temporal hub", (sign * 0.114, 0.024, 1.647), 0.020, 0.009, steel, "Head", "X", 24)
     for z in (1.666, 1.684, 1.702):
         box("Auditory intake", (sign * 0.099, 0.065, z), (0.008, 0.029, 0.005), chassis, "Head", 0.002)
-box("Rear head status", (0, 0.113, 1.69), (0.034, 0.004, 0.007), eye, "Head", 0.002)
 shell(
     "Cervical cover",
     0,
@@ -466,7 +383,6 @@ shell(
     "Head",
     (0.10, math.pi - 0.10),
 )
-box("Flush telemetry insert", (0.05, 0.045, 1.789), (0.020, 0.043, 0.007), chassis, "Antenna", 0.003)
 
 for side, sign in (("L", -1), ("R", 1)):
     hip, knee, ankle = "Thigh." + side, "Shin." + side, "Foot." + side
@@ -882,7 +798,7 @@ MODEL.write_bytes(
 )
 print(f"Exported {MODEL.name}: {len(CLIPS)} clips, {len(armature.bones)} joints, {MODEL.stat().st_size:,} bytes")
 
-if "--preview" in sys.argv:
+if "--preview" in sys.argv or "--rear-preview" in sys.argv:
     bpy.ops.object.select_all(action="SELECT")
     bpy.ops.object.delete(use_global=False)
     for action in list(bpy.data.actions):
@@ -919,7 +835,7 @@ if "--preview" in sys.argv:
     scene.camera.data.ortho_scale = 2.35
     scene.render.resolution_x = scene.render.resolution_y = 800
     scene.render.resolution_percentage = 100
-    for clip in CLIPS:
+    for clip in (CLIPS if "--preview" in sys.argv else ()):
         track = tracks[clip]
         track.mute = False
         scene.frame_set(round(durations[clip] * FPS * (0.45 if clip == "Jump" else 0.15)))
@@ -935,3 +851,10 @@ if "--preview" in sys.argv:
     scene.render.resolution_x = scene.render.resolution_y = 1100
     scene.render.filepath = "/tmp/player-robot-detail.png"
     bpy.ops.render.render(write_still=True)
+
+    if "--rear-preview" in sys.argv:
+        scene.camera.location = (0.75, 2.6, 1.85)
+        scene.camera.rotation_euler = (Vector((0, 0, 1.65)) - scene.camera.location).to_track_quat("-Z", "Y").to_euler()
+        scene.camera.data.ortho_scale = 0.52
+        scene.render.filepath = "/tmp/player-robot-rear-head.png"
+        bpy.ops.render.render(write_still=True)

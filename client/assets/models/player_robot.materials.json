@@ -1,0 +1,23 @@
+{
+  "scuffed-plastic": {
+    "tile_size": 1.0,
+    "tint": [1.0, 1.0, 1.0],
+    "color_contrast": 1.0,
+    "normal_strength": 1.0,
+    "roughness_factor": 1.0
+  },
+  "brushed-metal": {
+    "tile_size": 1.0,
+    "tint": [1.0, 1.0, 1.0],
+    "color_contrast": 1.0,
+    "normal_strength": 1.0,
+    "roughness_factor": 1.0
+  },
+  "synth-rubber": {
+    "tile_size": 0.3,
+    "tint": [0.18, 0.2, 0.22],
+    "color_contrast": 0.15,
+    "normal_strength": 0.15,
+    "roughness_factor": 0.9
+  }
+}

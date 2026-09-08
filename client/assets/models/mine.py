@@ -9,6 +9,9 @@ from pathlib import Path
 import bpy
 from mathutils import Euler, Vector
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from model_materials import catalog_material, project_uv
+
 MODEL = Path(__file__).resolve().with_suffix(".glb")
 FPS = 30
 WHEEL_RADIUS = 0.21
@@ -31,17 +34,19 @@ palette = {
 }
 for image in bpy.data.images:
     if image.type == "IMAGE" and image.size[0]:
-        image.scale(512, 512)
         image.pack()
 bpy.ops.object.select_all(action="SELECT")
 bpy.ops.object.delete(use_global=False)
 for action in list(bpy.data.actions):
     bpy.data.actions.remove(action)
 ivory, rubber, steel, graphite, ochre, glass, blue, amber, ink = palette.values()
+ivory = catalog_material("scuffed-plastic")
+rubber = catalog_material("synth-rubber")
+steel = catalog_material("brushed-metal")
 parts = []
 
 
-def finish(obj, name, mat, bone, bevel=0):
+def finish(obj, name, mat, bone, bevel=0, cylindrical=False):
     obj.name = name
     obj.data.materials.clear()
     obj.data.materials.append(mat)
@@ -52,10 +57,7 @@ def finish(obj, name, mat, bone, bevel=0):
         bpy.ops.object.modifier_apply(modifier=mod.name)
         mod = obj.modifiers.new("Corner normals", "WEIGHTED_NORMAL")
         bpy.ops.object.modifier_apply(modifier=mod.name)
-    bpy.ops.object.mode_set(mode="EDIT")
-    bpy.ops.mesh.select_all(action="SELECT")
-    bpy.ops.uv.cube_project(cube_size=0.2)
-    bpy.ops.object.mode_set(mode="OBJECT")
+    project_uv(obj, mat, cylindrical)
     group = obj.vertex_groups.new(name=bone)
     group.add(list(range(len(obj.data.vertices))), 1, "REPLACE")
     parts.append(obj)
@@ -80,7 +82,7 @@ def cylinder(name, pos, radius, depth, mat, bone="Hull", axis="Z", vertices=32):
         obj.rotation_euler.x = math.pi / 2
     for face in obj.data.polygons:
         face.use_smooth = len(face.vertices) == 4
-    return finish(obj, name, mat, bone, 0.006)
+    return finish(obj, name, mat, bone, 0.006, cylindrical=True)
 
 
 def sphere(name, pos, size, mat, bone="Hull"):
