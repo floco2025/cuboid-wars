@@ -191,13 +191,13 @@ mod tests {
     #[test]
     fn health_rejects_missing_actor_kind() {
         let mut config = config();
-        config.combat.health.actors.remove("mine");
+        config.combat.health.actors.remove("scuttler");
         let err = config
             .combat
             .validate(&config.actors.kinds)
             .expect_err("missing kind must fail");
         assert!(err.to_string().contains("combat.health.actors"));
-        assert!(err.to_string().contains("mine"));
+        assert!(err.to_string().contains("scuttler"));
     }
 
     #[test]
@@ -220,8 +220,8 @@ mod tests {
             .combat
             .damage
             .actors
-            .get_mut("mine")
-            .expect("mine damage config")
+            .get_mut("scuttler")
+            .expect("scuttler damage config")
             .beam_dps = Some(1.0);
         let err = config
             .combat

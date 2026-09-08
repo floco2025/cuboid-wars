@@ -333,7 +333,7 @@ mod tests {
         level
     }
 
-    // A 2x2 nested grid resting at `rest`, holding one mine zone on its
+    // A 2x2 nested grid resting at `rest`, holding one scuttler zone on its
     // (1, 1) cell: a floor, or a ramp, which is never spawnable.
     fn nested_zone_fixture(rest: Position, floored: bool) -> (MapConfig, Carriers, ActorSpawnZone) {
         let mut map_config = MapConfig::for_grid(vec![floor_level(2, 2, &[])], geometry(2, 2));
@@ -362,7 +362,7 @@ mod tests {
             level: 0,
             cols: [1, 2],
             rows: [1, 2],
-            kind: "mine".to_owned(),
+            kind: "scuttler".to_owned(),
             count: 1,
         };
         (map_config, carriers, zone)
@@ -384,7 +384,7 @@ mod tests {
             &zone,
             &collision_world,
             &[],
-            &actor_config("mine"),
+            &actor_config("scuttler"),
         )
         .expect("floored cell rejected");
 
@@ -408,7 +408,7 @@ mod tests {
                 &zone,
                 &collision_world,
                 &[],
-                &actor_config("mine"),
+                &actor_config("scuttler"),
             )
             .is_none()
         );

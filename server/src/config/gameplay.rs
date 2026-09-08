@@ -334,13 +334,13 @@ mod tests {
         config
             .actors
             .kinds
-            .get_mut("mine")
-            .expect("mine config missing")
+            .get_mut("scuttler")
+            .expect("scuttler config missing")
             .roam_steps = 0;
         let error = config
             .validate(Path::new("."))
             .expect_err("mobile actor accepted zero roam steps");
-        assert!(error.to_string().contains("actors.kinds.mine.roam_steps"));
+        assert!(error.to_string().contains("actors.kinds.scuttler.roam_steps"));
     }
     #[test]
     fn immovable_actor_rejects_unused_speed_settings() {

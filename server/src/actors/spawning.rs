@@ -585,7 +585,7 @@ mod tests {
                     level: 0,
                     cols: [0, 1],
                     rows: [0, 1],
-                    kind: "mine".to_owned(),
+                    kind: "scuttler".to_owned(),
                     count: 2,
                 },
                 ActorSpawnZone {
@@ -607,11 +607,11 @@ mod tests {
             )
         };
         let config = ServerGameplayConfig::load_default().expect("default server gameplay config should load");
-        let mut mine = pending_spawn(1, 60);
-        mine.kind = "mine".to_owned();
+        let mut scuttler = pending_spawn(1, 60);
+        scuttler.kind = "scuttler".to_owned();
         let mut zapper = pending_spawn(2, 60);
         zapper.zone_idx = 1;
-        let mut pending = PendingActorSpawns(vec![mine, zapper]);
+        let mut pending = PendingActorSpawns(vec![scuttler, zapper]);
         let mut timers = ActorRespawnTimers::default();
         timers.0.insert(0, ActorRespawnState::Cooldown(60.0));
         timers.0.insert(1, ActorRespawnState::Cooldown(120.0));
@@ -623,7 +623,7 @@ mod tests {
             &map_config,
             &config,
             100,
-            Some("mine"),
+            Some("scuttler"),
         );
 
         assert_eq!(count, 2);

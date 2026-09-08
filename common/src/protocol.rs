@@ -921,7 +921,7 @@ mod tests {
                 Actor {
                     anchor: None,
                     beam: None,
-                    kind: "sentry".to_owned(),
+                    kind: "bruiser".to_owned(),
                     movement: ActorMovementState {
                         pos: position(),
                         move_intent: ActorMoveIntent::Idle,

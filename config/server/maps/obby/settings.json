@@ -22,9 +22,8 @@
       "jump_speed": 12.0
     },
     "actors": {
-      "mine": { "roam_speed": 3.0, "active_speed": 5.0 },
-      "reaper": { "roam_speed": 5.0, "active_speed": 8.0 },
-      "sentry": { "roam_speed": 5.0, "active_speed": 8.0 },
+      "scuttler": { "roam_speed": 3.0, "active_speed": 5.0 },
+      "bruiser": { "roam_speed": 5.0, "active_speed": 8.0 },
       "zapper": { "roam_speed": 2.0, "active_speed": 4.0 }
     },
     "projectile_speed": 90.0,

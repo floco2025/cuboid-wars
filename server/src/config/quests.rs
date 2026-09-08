@@ -227,7 +227,7 @@ mod tests {
         let mut quest = ok_quest("start_fireworks", 1);
         quest.kind = QuestKind::Fireworks;
         quest.scope = QuestScope::Shared;
-        quest.actor_kind = Some("mine".to_owned());
+        quest.actor_kind = Some("scuttler".to_owned());
         let err = validate(&[quest], &default_actors()).expect_err("actor_kind on a fireworks quest must fail");
         assert!(err.to_string().contains("only valid on an actor_kills quest"));
     }
@@ -269,7 +269,7 @@ mod tests {
     fn validate_quests_accepts_actor_kills_with_known_actor_kind() {
         let mut quest = ok_quest("hunt", 4);
         quest.kind = QuestKind::ActorKills;
-        quest.actor_kind = Some("sentry".to_owned());
+        quest.actor_kind = Some("bruiser".to_owned());
         validate(&[quest], &default_actors()).expect("known actor kind should pass");
     }
 
@@ -285,7 +285,7 @@ mod tests {
     #[test]
     fn validate_quests_rejects_actor_kind_on_non_actor_kills_quest() {
         let mut quest = ok_quest("oops", 4);
-        quest.actor_kind = Some("sentry".to_owned());
+        quest.actor_kind = Some("bruiser".to_owned());
         let err = validate(&[quest], &default_actors()).expect_err("actor_kind on gold must be rejected");
         assert!(err.to_string().contains("actor_kind"));
     }

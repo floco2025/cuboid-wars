@@ -171,7 +171,7 @@ mod tests {
         for angle in [0.0, 1.0, std::f32::consts::FRAC_PI_2, std::f32::consts::PI] {
             let yaw = Quat::from_rotation_y(angle);
             let (rotation, offset) = ground_pose(&world, position, position.into(), yaw, physics(), wheels(), 1.0)
-                .expect("ramp pose missing for a supported mine");
+                .expect("ramp pose missing for a supported scuttler");
             assert!((rotation * Vec3::Y).abs_diff_eq(normal, 1e-4));
             assert!(
                 (rotation * Vec3::Z)
@@ -192,7 +192,7 @@ mod tests {
     }
 
     #[test]
-    fn flat_floor_is_level_and_airborne_mines_are_not_pulled_down() {
+    fn flat_floor_is_level_and_airborne_scuttlers_are_not_pulled_down() {
         let world = ramp_world();
         let yaw = Quat::from_rotation_y(0.7);
         let position = Position {
@@ -237,7 +237,7 @@ mod tests {
             *app.world().get::<Transform>(owner).expect("actor transform missing"),
             parent
         );
-        let model = app.world().get::<Transform>(model).expect("mine transform missing");
+        let model = app.world().get::<Transform>(model).expect("scuttler transform missing");
         assert!((parent.rotation * model.rotation * Vec3::Y).abs_diff_eq(Vec3::new(0.0, 1.0, -0.5).normalize(), 1e-4));
     }
 

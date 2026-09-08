@@ -148,7 +148,7 @@ mod tests {
         let error = validate_map_actor_kinds(&server, &map).expect_err("overfilled immovable zone accepted");
         assert!(error.to_string().contains("only 1 usable floor cells"), "{error}");
         assert!(error.to_string().contains("carrier 1"), "{error}");
-        map.actor_spawn_zones[0].kind = "mine".into();
+        map.actor_spawn_zones[0].kind = "scuttler".into();
         map.actor_spawn_zones[0].count = 100;
         validate_map_actor_kinds(&server, &map).expect("movable actor count limited by cell count");
     }
@@ -156,7 +156,7 @@ mod tests {
     #[test]
     fn missing_server_actor_kind_is_rejected() {
         let (mut server, map) = config_and_map();
-        server.actors.kinds.remove("mine");
+        server.actors.kinds.remove("scuttler");
 
         let error = validate_map_actor_kinds(&server, &map).expect_err("missing server actor kind must fail");
 

@@ -531,18 +531,18 @@ mod tests {
 
     #[test]
     fn actor_kill_respects_kind_filter() {
-        let mut sentries = quest("sentries", QuestKind::ActorKills, QuestScope::Individual, 2, None);
-        sentries.actor_kind = Some("sentry".to_owned());
-        let config = catalog(vec![sentries]);
+        let mut bruisers = quest("bruisers", QuestKind::ActorKills, QuestScope::Individual, 2, None);
+        bruisers.actor_kind = Some("bruiser".to_owned());
+        let config = catalog(vec![bruisers]);
         let quest_catalog = QuestCatalog::from_config(&config);
         let mut board = QuestBoard::from_catalog(&quest_catalog);
         let mut players = PlayerMap::default();
         let _alice = join(&mut players, 1, &quest_catalog, &board);
 
         kill(&mut players, &mut board, &quest_catalog, &config.feed, 1, "zapper");
-        assert_eq!(own_progress(&players, 1, "sentries"), 0);
-        kill(&mut players, &mut board, &quest_catalog, &config.feed, 1, "sentry");
-        assert_eq!(own_progress(&players, 1, "sentries"), 1);
+        assert_eq!(own_progress(&players, 1, "bruisers"), 0);
+        kill(&mut players, &mut board, &quest_catalog, &config.feed, 1, "bruiser");
+        assert_eq!(own_progress(&players, 1, "bruisers"), 1);
     }
 
     #[test]
@@ -554,11 +554,11 @@ mod tests {
         let mut alice = join(&mut players, 1, &quest_catalog, &board);
         let mut bob = join(&mut players, 2, &quest_catalog, &board);
 
-        kill(&mut players, &mut board, &quest_catalog, &config.feed, 1, "sentry");
+        kill(&mut players, &mut board, &quest_catalog, &config.feed, 1, "bruiser");
         assert_eq!(board.shared_progress(&id("hunt")), 1);
         assert!(!board.is_completed(&id("hunt")));
 
-        kill(&mut players, &mut board, &quest_catalog, &config.feed, 2, "sentry");
+        kill(&mut players, &mut board, &quest_catalog, &config.feed, 2, "bruiser");
         assert!(board.is_completed(&id("hunt")));
         for rx in [&mut alice, &mut bob] {
             let messages = drain(rx);
@@ -568,7 +568,7 @@ mod tests {
         }
         assert_eq!((score(&players, 1), score(&players, 2)), (100, 100));
 
-        kill(&mut players, &mut board, &quest_catalog, &config.feed, 1, "sentry");
+        kill(&mut players, &mut board, &quest_catalog, &config.feed, 1, "bruiser");
         assert!(drain(&mut alice).is_empty(), "latched: nothing after completion");
         assert_eq!(score(&players, 1), 100);
     }
@@ -583,7 +583,7 @@ mod tests {
         let _bob = join(&mut players, 2, &quest_catalog, &board);
         players.disconnect(&PlayerId(1), 2.0);
 
-        kill(&mut players, &mut board, &quest_catalog, &config.feed, 1, "sentry");
+        kill(&mut players, &mut board, &quest_catalog, &config.feed, 1, "bruiser");
 
         assert_eq!(
             board.shared_progress(&id("hunt")),

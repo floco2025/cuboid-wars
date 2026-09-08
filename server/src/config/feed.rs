@@ -60,13 +60,13 @@ mod tests {
     #[test]
     fn feed_rejects_missing_actor_kind() {
         let mut config = ServerGameplayConfig::load_default().expect("default server gameplay config should load");
-        config.feed.actor_destroyed.remove("mine");
+        config.feed.actor_destroyed.remove("scuttler");
         let err = config
             .feed
             .validate(&config.actors.kinds)
             .expect_err("missing kind must fail");
         assert!(err.to_string().contains("feed.actor_destroyed"));
-        assert!(err.to_string().contains("mine"));
+        assert!(err.to_string().contains("scuttler"));
     }
 
     #[test]

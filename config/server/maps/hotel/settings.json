@@ -34,9 +34,8 @@
       "jump_speed": 12.0
     },
     "actors": {
-      "mine": { "roam_speed": 3.0, "active_speed": 5.0 },
-      "reaper": { "roam_speed": 5.0, "active_speed": 8.0 },
-      "sentry": { "roam_speed": 5.0, "active_speed": 8.0 },
+      "scuttler": { "roam_speed": 3.0, "active_speed": 5.0 },
+      "bruiser": { "roam_speed": 5.0, "active_speed": 8.0 },
       "zapper": { "roam_speed": 2.0, "active_speed": 4.0 }
     },
     "projectile_speed": 90.0,
@@ -133,28 +132,28 @@
       "completed_text": "Destroyed 6 zappers!"
     },
     {
-      "id": "destroy_mines",
+      "id": "destroy_scuttlers",
       "kind": "actor_kills",
       "scope": "individual",
       "requires": null,
-      "actor_kind": "mine",
+      "actor_kind": "scuttler",
       "threshold": 6,
       "points": 500,
-      "title": "Mine Hunt",
-      "description": "Destroy 6 mines",
-      "completed_text": "Destroyed 6 mines!"
+      "title": "Scuttler Hunt",
+      "description": "Destroy 6 scuttlers",
+      "completed_text": "Destroyed 6 scuttlers!"
     },
     {
-      "id": "destroy_sentries",
+      "id": "destroy_bruisers",
       "kind": "actor_kills",
       "scope": "individual",
       "requires": null,
-      "actor_kind": "sentry",
+      "actor_kind": "bruiser",
       "threshold": 4,
       "points": 1000,
-      "title": "Sentry Hunt",
-      "description": "Destroy 4 sentries",
-      "completed_text": "Destroyed 4 sentries!"
+      "title": "Bruiser Hunt",
+      "description": "Destroy 4 bruisers",
+      "completed_text": "Destroyed 4 bruisers!"
     },
     {
       "id": "collect_gold",

@@ -3,7 +3,7 @@
     "grid_cols": 14,
     "grid_rows": 11,
     "actor_spawn_zones": [
-      {"level": 0, "cols": [9, 10], "rows": [4, 5], "kind": "sentry", "count": 1}
+      {"level": 0, "cols": [9, 10], "rows": [4, 5], "kind": "bruiser", "count": 1}
     ],
     "player_spawn_zones": [
       {"level": 0, "cols": [2, 3], "rows": [4, 5]}

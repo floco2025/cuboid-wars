@@ -208,23 +208,18 @@ mod tests {
                 speed_power_up: 1.6,
                 jump_speed: 12.0,
             },
-            actors: [
-                ("mine", 3.0, 5.0),
-                ("sentry", 5.0, 8.0),
-                ("reaper", 5.0, 8.0),
-                ("zapper", 2.0, 4.0),
-            ]
-            .into_iter()
-            .map(|(kind, roam_speed, active_speed)| {
-                (
-                    kind.to_owned(),
-                    ActorMovementConfig {
-                        roam_speed,
-                        active_speed,
-                    },
-                )
-            })
-            .collect(),
+            actors: [("scuttler", 3.0, 5.0), ("bruiser", 5.0, 8.0), ("zapper", 2.0, 4.0)]
+                .into_iter()
+                .map(|(kind, roam_speed, active_speed)| {
+                    (
+                        kind.to_owned(),
+                        ActorMovementConfig {
+                            roam_speed,
+                            active_speed,
+                        },
+                    )
+                })
+                .collect(),
             missile_speed: 16.0,
             projectile_speed: 90.0,
             gravity: 25.0,
@@ -353,9 +348,8 @@ mod tests {
             "movement": {
                 "player": { "walk_speed": 6.0, "run_speed": 9.0, "speed_power_up": 1.6, "jump_speed": 12.0 },
                 "actors": {
-                    "mine": { "roam_speed": 3.0, "active_speed": 5.0 },
-                    "sentry": { "roam_speed": 5.0, "active_speed": 8.0 },
-                    "reaper": { "roam_speed": 5.0, "active_speed": 8.0 },
+                    "scuttler": { "roam_speed": 3.0, "active_speed": 5.0 },
+                    "bruiser": { "roam_speed": 5.0, "active_speed": 8.0 },
                     "zapper": { "roam_speed": 2.0, "active_speed": 4.0 }
                 },
                 "missile_speed": 16.0,
@@ -464,10 +458,10 @@ mod tests {
             .settings
             .movement
             .actors
-            .remove("mine");
+            .remove("scuttler");
         let err = validate_test_maps(&maps, "hotel").expect_err("missing actor movement must be rejected");
         assert!(err.to_string().contains("movement.actors"));
-        assert!(err.to_string().contains("mine"));
+        assert!(err.to_string().contains("scuttler"));
     }
 
     #[test]

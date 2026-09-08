@@ -96,7 +96,7 @@ mod tests {
         let mut actors = ActorMap::default();
         actors.insert(
             ActorId(1),
-            ActorInfo::new(actor.entity, 0, "mine".into(), CarrierId::WORLD),
+            ActorInfo::new(actor.entity, 0, "scuttler".into(), CarrierId::WORLD),
         );
         let entity = actor.entity;
         let moves = [player, actor];
@@ -122,7 +122,7 @@ mod tests {
         let server = ServerGameplayConfig::load_default().expect("default server gameplay config should load");
         let gameplay = server.gameplay_config();
         let player_physics = gameplay.player.physics();
-        let actor_physics = gameplay.expect_actor("mine").physics();
+        let actor_physics = gameplay.expect_actor("scuttler").physics();
         let player_pos = Position {
             x: -0.3,
             y: 0.0,
@@ -133,10 +133,10 @@ mod tests {
             CharacterMovePlan::from_target(Entity::from_bits(1), player_pos, player_pos, 0.0, player_physics, false),
             CharacterMovePlan::from_target(Entity::from_bits(2), actor_pos, actor_pos, 0.0, actor_physics, false),
             server
-                .expect_actor("mine")
+                .expect_actor("scuttler")
                 .attack
                 .contact_trigger_gap()
-                .expect("mine contact attack missing from server gameplay config"),
+                .expect("scuttler contact attack missing from server gameplay config"),
         )
     }
 

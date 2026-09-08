@@ -6,7 +6,6 @@ from pathlib import Path
 import bpy
 from mathutils import Vector
 
-
 MODEL = Path(__file__).resolve().with_suffix(".glb")
 ASSETS = MODEL.parent.parent
 STEEL = ASSETS / "textures/used-stainless-steel-ue"
@@ -105,8 +104,9 @@ def beam(name, start, end, width, mat, parent=None):
     return obj
 
 
-# Blender +Y exports as glTF -Z; the muzzle and both gimbals share that axis.
+# Gimbals aim along local glTF -Z; the base turn makes the resting muzzle face gameplay +Z.
 base = empty("TurretBase")
+base.rotation_euler.z = math.pi
 cylinder("Foundation", (0, 0, 0.07), 0.34, 0.14, dark, base, vertices=8)
 cylinder("Base armour", (0, 0, 0.155), 0.29, 0.065, armor, base, vertices=8)
 cylinder("Pedestal collar", (0, 0, 0.25), 0.15, 0.14, steel, base)
@@ -217,9 +217,9 @@ for name, location, power, color, size in [
     scene.collection.objects.link(obj)
     obj.location = location
     obj.rotation_euler = (Vector((0, 0, 0.9)) - obj.location).to_track_quat("-Z", "Y").to_euler()
-bpy.ops.object.camera_add(location=(2.3, 3.4, 2.35))
+bpy.ops.object.camera_add(location=(2.3, -3.4, 2.35))
 scene.camera = bpy.context.object
-scene.camera.rotation_euler = (Vector((0, 0.05, 0.86)) - scene.camera.location).to_track_quat("-Z", "Y").to_euler()
+scene.camera.rotation_euler = (Vector((0, -0.05, 0.86)) - scene.camera.location).to_track_quat("-Z", "Y").to_euler()
 scene.camera.data.type = "ORTHO"
 scene.camera.data.ortho_scale = 2.2
 scene.render.resolution_x = 1000

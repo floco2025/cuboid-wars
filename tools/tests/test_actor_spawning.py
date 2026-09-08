@@ -22,7 +22,7 @@ def spawn_map(count=2):
 
 class SpawnValidationTests(unittest.TestCase):
     def validate(self, data):
-        return validate_map(data, [], ["green"], actor_kinds=["turret", "mine"], immovable_actor_kinds={"turret"})
+        return validate_map(data, [], ["green"], actor_kinds=["turret", "scuttler"], immovable_actor_kinds={"turret"})
 
     def test_capacity_excludes_empty_cells_blocked_floors_and_bridges(self):
         data = spawn_map()
@@ -43,7 +43,7 @@ class SpawnValidationTests(unittest.TestCase):
 
     def test_movable_actor_count_is_not_limited_by_floor_count(self):
         data = spawn_map(100)
-        data["actor_spawn_zones"][0]["kind"] = "mine"
+        data["actor_spawn_zones"][0]["kind"] = "scuttler"
         self.assertFalse(self.validate(data))
 
     def test_invalid_level_is_reported_without_reading_a_missing_floor_list(self):

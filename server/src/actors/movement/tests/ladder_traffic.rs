@@ -10,14 +10,14 @@ use common::{
 };
 
 #[test]
-fn mines_approaching_opposite_ladder_sides_both_reach_the_landing() {
+fn scuttlers_approaching_opposite_ladder_sides_both_reach_the_landing() {
     for transpose in [false, true] {
         ladder_traffic(transpose, Traffic::OppositeApproaches);
     }
 }
 
 #[test]
-fn side_by_side_mines_descend_without_jamming() {
+fn side_by_side_scuttlers_descend_without_jamming() {
     for transpose in [false, true] {
         ladder_traffic(transpose, Traffic::SideBySideDescent);
     }
@@ -36,7 +36,7 @@ fn ladder_traffic(transpose: bool, traffic: Traffic) {
         }
         pos
     };
-    // Ladder traffic needs a fixed climbing body; shipped mines cannot climb.
+    // Ladder traffic needs a fixed climbing body; shipped scuttlers cannot climb.
     let physics = CharacterPhysicsConfig {
         movement_collider: MovementColliderConfig {
             diameter: 1.05,
@@ -200,7 +200,7 @@ fn ladder_traffic(transpose: bool, traffic: Traffic) {
         }
         assert!(
             routes.iter().all(VecDeque::is_empty),
-            "mines stalled in order {order:?}: {positions:?}; routes: {routes:?}"
+            "scuttlers stalled in order {order:?}: {positions:?}; routes: {routes:?}"
         );
         assert!(positions.iter().all(|pos| (pos.y - landing_y).abs() < 0.1));
     }

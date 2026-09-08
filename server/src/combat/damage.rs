@@ -740,19 +740,19 @@ mod tests {
 
     #[test]
     fn kill_actor_announces_only_flagged_kinds() {
-        let mut feed = FeedConfig::all(false, &["sentry", "zapper"]);
-        feed.actor_destroyed.insert("sentry".to_owned(), true);
+        let mut feed = FeedConfig::all(false, &["bruiser", "zapper"]);
+        feed.actor_destroyed.insert("bruiser".to_owned(), true);
         let mut players = PlayerMap::default();
         let mut rx = logged_in_player(&mut players, PlayerId(1), "Bob");
         let mut app = App::new();
         let world = app.world_mut();
-        let sentry = world.spawn_empty().id();
+        let bruiser = world.spawn_empty().id();
         let zapper = world.spawn_empty().id();
         let uncredited = world.spawn_empty().id();
         let mut actors = ActorMap::default();
         actors.insert(
             ActorId(1),
-            ActorInfo::new(sentry, 0, "sentry".to_owned(), CarrierId::WORLD),
+            ActorInfo::new(bruiser, 0, "bruiser".to_owned(), CarrierId::WORLD),
         );
         actors.insert(
             ActorId(2),
@@ -760,7 +760,7 @@ mod tests {
         );
         actors.insert(
             ActorId(3),
-            ActorInfo::new(uncredited, 0, "sentry".to_owned(), CarrierId::WORLD),
+            ActorInfo::new(uncredited, 0, "bruiser".to_owned(), CarrierId::WORLD),
         );
         let mut pending_explosions = PendingExplosions::default();
         let mut commands_queue = bevy::ecs::world::CommandQueue::default();
@@ -768,7 +768,7 @@ mod tests {
             let mut commands = bevy::ecs::system::Commands::new(&mut commands_queue, world);
             for (id, entity, killer) in [
                 (ActorId(2), zapper, Some(PlayerId(1))),
-                (ActorId(1), sentry, Some(PlayerId(1))),
+                (ActorId(1), bruiser, Some(PlayerId(1))),
                 (ActorId(3), uncredited, None),
             ] {
                 kill_actor(
@@ -786,7 +786,7 @@ mod tests {
         }
         commands_queue.apply(world);
 
-        assert_eq!(feed_lines(&mut rx), ["Bob destroyed a sentry"]);
+        assert_eq!(feed_lines(&mut rx), ["Bob destroyed a bruiser"]);
     }
 
     #[test]

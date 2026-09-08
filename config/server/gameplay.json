@@ -24,7 +24,7 @@
   "actors": {
     "settings": { "spawn_warning_secs": 3.0, "threat_memory_secs": 1.0 },
     "kinds": {
-      "mine": {
+      "scuttler": {
         "movement_collider": { "diameter": 1.05, "height": 1.1 },
         "hitbox": { "width": 1.1, "height": 0.88, "depth": 1.02, "bottom_offset": 0.0 },
         "eye_height": 0.79,
@@ -35,24 +35,7 @@
         "roam_steps": 3,
         "attack": { "type": "contact", "trigger_gap": 0.4 }
       },
-      "reaper": {
-        "movement_collider": { "diameter": 1.7136, "height": 1.74 },
-        "hitbox": { "width": 2.142, "height": 1.2, "depth": 1.7136, "bottom_offset": 0.54 },
-        "eye_height": 1.92,
-        "respawn_secs": 90.0,
-        "can_use_ladders": false,
-        "immovable": false,
-        "vision_range": 60.0,
-        "roam_steps": 7,
-        "attack": {
-          "type": "contact_beam",
-          "trigger_gap": 0.8,
-          "range": 25.0,
-          "duration_secs": 2.0,
-          "cooldown_secs": 5.0
-        }
-      },
-      "sentry": {
+      "bruiser": {
         "movement_collider": { "diameter": 1.6422, "height": 1.6675 },
         "hitbox": { "width": 1.84, "height": 1.5295, "depth": 1.9895, "bottom_offset": 0.0 },
         "eye_height": 1.38,
@@ -149,9 +132,8 @@
     "health": {
       "player": { "max": 500.0, "regen_rate": 0.01, "potion_heal": 0.5 },
       "actors": {
-        "mine": { "max": 150.0, "regen_rate": 0.01 },
-        "reaper": { "max": 1500.0, "regen_rate": 0.01 },
-        "sentry": { "max": 1000.0, "regen_rate": 0.01 },
+        "scuttler": { "max": 150.0, "regen_rate": 0.01 },
+        "bruiser": { "max": 1000.0, "regen_rate": 0.01 },
         "zapper": { "max": 50.0, "regen_rate": 0.01 },
         "turret": { "max": 50.0, "regen_rate": 0.01 }
       }
@@ -162,15 +144,11 @@
       "missile_blast": { "radius": 6.0, "max_damage": 600.0 },
       "player_blast": { "radius": 10.0, "max_damage": 250.0 },
       "actors": {
-        "mine": {
+        "scuttler": {
           "beam_dps": null,
           "death_blast": { "radius": 10.0, "max_damage": 150.0 }
         },
-        "reaper": {
-          "beam_dps": 40.0,
-          "death_blast": { "radius": 15.0, "max_damage": 550.0 }
-        },
-        "sentry": {
+        "bruiser": {
           "beam_dps": null,
           "death_blast": { "radius": 15.0, "max_damage": 550.0 }
         },
@@ -190,16 +168,14 @@
     "player_death": -1000,
     "gold": 100,
     "actor_hit": {
-      "mine": 5,
-      "reaper": 20,
-      "sentry": 10,
+      "scuttler": 5,
+      "bruiser": 10,
       "zapper": 50,
       "turret": 50
     },
     "actor_kill": {
-      "mine": 50,
-      "reaper": 500,
-      "sentry": 200,
+      "scuttler": 50,
+      "bruiser": 200,
       "zapper": 150,
       "turret": 150
     }
@@ -227,9 +203,8 @@
     "player_left": true,
     "player_died": true,
     "actor_destroyed": {
-      "mine": false,
-      "reaper": false,
-      "sentry": false,
+      "scuttler": false,
+      "bruiser": false,
       "zapper": false,
       "turret": false
     },

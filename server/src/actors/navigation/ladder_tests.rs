@@ -85,7 +85,7 @@ impl Fixture {
             physics: ServerGameplayConfig::load_default()
                 .expect("default gameplay missing")
                 .gameplay_config()
-                .expect_actor("mine")
+                .expect_actor("scuttler")
                 .physics(),
         }
     }
@@ -380,7 +380,7 @@ fn actors_complete_ladder_routes_on_moving_carriers() {
 fn permissions_control_graph_links_and_roam_territories_per_kind() {
     let fixture = Fixture::new(1, false, false);
     let mut map = MapConfig::for_grid(fixture.graph.levels.clone(), fixture.graph.geometry);
-    for kind in ["mine", "zapper"] {
+    for kind in ["scuttler", "zapper"] {
         map.actor_spawn_zones.push(ActorSpawnZone {
             carrier: CarrierId::WORLD,
             level: 0,
@@ -397,15 +397,15 @@ fn permissions_control_graph_links_and_roam_territories_per_kind() {
     config
         .actors
         .kinds
-        .get_mut("mine")
-        .expect("mine kind missing")
+        .get_mut("scuttler")
+        .expect("scuttler kind missing")
         .character
         .can_use_ladders = true;
     let settings = &config.maps[&config.default_map].settings;
     let mut graphs = NavGraphs::new(&map);
     graphs.add_ladder_routes(&fixture.layout, settings, &config);
     let graph = graphs.get(CarrierId::WORLD);
-    let ladders = graph.ladder_links("mine");
+    let ladders = graph.ladder_links("scuttler");
     assert_eq!(ladders.len(), 2);
     assert!(graph.ladder_links("zapper").is_empty());
     let territories = ActorTerritories::new(&graphs, &map, &config).expect("ladder territories invalid");
@@ -489,12 +489,12 @@ fn ladder_links_belong_to_their_carrier_grid() {
     config
         .actors
         .kinds
-        .get_mut("mine")
-        .expect("mine kind missing")
+        .get_mut("scuttler")
+        .expect("scuttler kind missing")
         .character
         .can_use_ladders = true;
     let mut graphs = NavGraphs::new(&map);
     graphs.add_ladder_routes(&fixture.layout, &config.maps[&config.default_map].settings, &config);
-    assert!(graphs.get(CarrierId::WORLD).ladder_links("mine").is_empty());
-    assert_eq!(graphs.get(CarrierId(1)).ladder_links("mine").len(), 2);
+    assert!(graphs.get(CarrierId::WORLD).ladder_links("scuttler").is_empty());
+    assert_eq!(graphs.get(CarrierId(1)).ladder_links("scuttler").len(), 2);
 }

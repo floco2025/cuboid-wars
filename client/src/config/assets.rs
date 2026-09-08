@@ -550,13 +550,13 @@ mod tests {
     fn actor_kind_set_mismatch_is_rejected() {
         let mut assets = AssetSet::load_default().expect("shipped assets.json fails to load");
         let kinds = server_actor_kinds();
-        assets.actors.remove("mine");
+        assets.actors.remove("scuttler");
 
         let error = assets
             .validate_gameplay_bindings(kinds.iter().map(String::as_str))
             .expect_err("missing actor assets must fail");
 
-        assert!(error.to_string().contains("only in gameplay: [\"mine\"]"));
+        assert!(error.to_string().contains("only in gameplay: [\"scuttler\"]"));
     }
 
     #[test]
@@ -615,14 +615,14 @@ mod tests {
         let mut assets = AssetSet::load_default().expect("shipped assets.json fails to load");
         assets
             .actors
-            .get_mut("mine")
-            .expect("mine actor missing from assets")
+            .get_mut("scuttler")
+            .expect("scuttler actor missing from assets")
             .sounds
             .remove("explodes");
 
         let error = assets.validate().expect_err("missing sound must fail");
 
-        assert!(error.to_string().contains("actors.mine.sounds.explodes"));
+        assert!(error.to_string().contains("actors.scuttler.sounds.explodes"));
     }
 
     #[test]
@@ -630,14 +630,14 @@ mod tests {
         let mut assets = AssetSet::load_default().expect("shipped assets.json fails to load");
         assets
             .actors
-            .get_mut("mine")
-            .expect("mine actor missing from assets")
+            .get_mut("scuttler")
+            .expect("scuttler actor missing from assets")
             .model
             .scale = 0.0;
 
         let error = assets.validate().expect_err("invalid model must fail");
 
-        assert!(error.to_string().contains("actors.mine.model.scale"));
+        assert!(error.to_string().contains("actors.scuttler.model.scale"));
     }
 
     // Bevy's `AssetServer.load` ends in `std::fs::File::open`, which is

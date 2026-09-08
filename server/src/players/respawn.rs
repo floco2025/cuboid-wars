@@ -579,7 +579,7 @@ mod tests {
 
     #[test]
     fn reset_refills_wait_for_space_even_for_movable_actors_without_automatic_respawning() {
-        for kind in ["turret", "sentry"] {
+        for kind in ["turret", "bruiser"] {
             let mut app = respawn_app(PlayerRespawnMode::Individual, ActorRespawnScope::Dead);
             app.world_mut().resource_mut::<PendingActorSpawns>().0.clear();
             app.world_mut().resource_mut::<ActorRespawnTimers>().0.clear();

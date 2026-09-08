@@ -172,7 +172,7 @@ class ResizeTests(unittest.TestCase):
         level["lights"] = [{"col": 1, "row": 1, "side": "N"}]
         level["light_bridges"] = [{"col": 1, "row": 3, "kind": BRIDGE_KIND}]
         data["actor_spawn_zones"] = [
-            {"level": 0, "cols": [1, 3], "rows": [1, 3], "kind": "mine", "count": 1}
+            {"level": 0, "cols": [1, 3], "rows": [1, 3], "kind": "scuttler", "count": 1}
         ]
         data["items"] = [{"level": 0, "col": 1, "row": 1, "type": "gold"}]
         data["pressure_plates"] = [{"level": 0, "col": 1, "row": 1, "type": "barrier", "kind": KIND}]
@@ -373,7 +373,7 @@ def wall(c0: int, r0: int, c1: int, r1: int) -> dict:
 
 
 def actor_zone(level: int, c0: int, r0: int, c1: int, r1: int) -> dict:
-    return {"level": level, "cols": [c0, c1], "rows": [r0, r1], "kind": "sentry", "count": 1}
+    return {"level": level, "cols": [c0, c1], "rows": [r0, r1], "kind": "bruiser", "count": 1}
 
 
 class LayerEraserTests(unittest.TestCase):

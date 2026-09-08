@@ -1,18 +1,5 @@
 {
   "materials": {
-    "scuffed-iron": {
-      "tile_size": 1.0,
-      "metallic": 1.0,
-      "roughness": 1.0,
-      "repeat": true,
-      "linear_data_textures": true,
-      "textures": {
-        "base_color": "textures/Iron-Scuffed_Unreal-Engine/Iron-Scuffed_basecolor.png",
-        "normal": "textures/Iron-Scuffed_Unreal-Engine/Iron-Scuffed_normal-gl.png",
-        "occlusion": "textures/Iron-Scuffed_Unreal-Engine/Iron-Scuffed_ao.png",
-        "metallic_roughness": "textures/Iron-Scuffed_Unreal-Engine/Iron-Scuffed_metallic-roughness.png"
-      }
-    },
     "brushed-metal": {
       "tile_size": 1.0,
       "metallic": 1.0,
@@ -262,7 +249,6 @@
     }
   },
   "aliases": {
-    "scuffed-iron": "scuffed-iron",
     "brushed-metal": "brushed-metal",
     "scuffed-plastic": "scuffed-plastic",
     "synth-rubber": "synth-rubber",
@@ -320,9 +306,9 @@
     }
   },
   "actors": {
-    "mine": {
+    "scuttler": {
       "model": {
-        "scene": "models/mine.glb#Scene0",
+        "scene": "models/scuttler.glb#Scene0",
         "scale": 1.0,
         "y_offset": 0.0,
         "wheels": {
@@ -339,9 +325,9 @@
         "fire": "sounds/freesound_community-laser-beam-76426.wav"
       }
     },
-    "sentry": {
+    "bruiser": {
       "model": {
-        "scene": "models/sentry.glb#Scene0",
+        "scene": "models/bruiser.glb#Scene0",
         "scale": 1.15,
         "y_offset": 0.0,
         "wheels": {
@@ -352,21 +338,6 @@
           "drive_animation": 1,
           "drive_cycle_secs": 1.0
         }
-      },
-      "sounds": {
-        "explodes": "sounds/Retro Explosion Short 15.wav",
-        "fire": "sounds/freesound_community-laser-beam-76426.wav"
-      }
-    },
-    "reaper": {
-      "model": {
-        "scene": "models/robot_5.glb#Scene0",
-        "scale": 0.007344,
-        "y_offset": 0.0,
-        "z_offset": 0.0612,
-        "x_rotation_degrees": 180.0,
-        "animation_index": 20,
-        "animation_speed": 1.0
       },
       "sounds": {
         "explodes": "sounds/Retro Explosion Short 15.wav",

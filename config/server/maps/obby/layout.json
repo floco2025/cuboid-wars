@@ -458,7 +458,7 @@
         "grid_cols": 3,
         "grid_rows": 3,
         "actor_spawn_zones": [
-          {"level": 0, "cols": [1, 2], "rows": [1, 2], "kind": "mine", "count": 1}
+          {"level": 0, "cols": [1, 2], "rows": [1, 2], "kind": "scuttler", "count": 1}
         ],
         "player_spawn_zones": [],
         "pressure_plates": [

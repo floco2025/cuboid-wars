@@ -8,7 +8,9 @@
 
 - **Turret cooldown tests:** `closing_a_barrier_immediately_stops_a_turret` and `turret_holds_long_burst_and_stops_when_player_disconnects` assume a 0.1-second cooldown, while the shipped turret configuration uses 0.5 seconds. Make the fixtures independent of tuning.
 
-- **Ladder descent overlap:** `side_by_side_mines_descend_without_jamming` fails its character-overlap assertion in `server/src/actors/movement/tests/ladder_traffic.rs`, including on the committed baseline. Check separation while two actors descend side by side.
+- **Ladder descent overlap:** `side_by_side_scuttlers_descend_without_jamming` fails its character-overlap assertion in `server/src/actors/movement/tests/ladder_traffic.rs`, including on the committed baseline. Check separation while two actors descend side by side.
+
+- **Editor file-watch tests:** Three offscreen tests fail on the committed baseline: parent catalog notifications, atomic settings reload, and removing the previous map's watch after Save As. Check Qt file watching and test-environment behavior in `test_editor_window.py` and `test_map_settings.py`.
 
 - **Missiles near walls:** Missiles repeatedly miss actors positioned close to walls. Check whether requiring missile clearance to the target centre prevents a valid approach within proximity-fuse range.
 

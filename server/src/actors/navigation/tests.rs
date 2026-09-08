@@ -760,12 +760,12 @@ fn route_start_stays_direct_when_the_body_fits_past_the_wall_end() {
     assert_eq!(route.waypoints.front().map(|point| &point.position), Some(&target));
 }
 
-// Regression for sentries parking at the mouth of the hotel's basement
+// Regression for bruisers parking at the mouth of the hotel's basement
 // ramp trench: off-centre at the base, the leg into the one-cell-wide
 // trench dragged the body through the trench wall's end, and every replan
 // produced the same leg.
 #[test]
-fn shipping_map_sentry_capsule_fits_the_direct_basement_trench_approach() {
+fn shipping_map_bruiser_capsule_fits_the_direct_basement_trench_approach() {
     let server_gameplay_config =
         crate::config::ServerGameplayConfig::load_default().expect("default server gameplay config should load");
     let gameplay_config = server_gameplay_config.gameplay_config();
@@ -784,7 +784,7 @@ fn shipping_map_sentry_capsule_fits_the_direct_basement_trench_approach() {
     let world = CollisionWorld::from_map_layout(&layout, &barrier_kinds);
     let geometry = map_config.root_grid().geometry;
     let nav = nav_for(map_config);
-    let sentry = gameplay_config.expect_actor("sentry").physics();
+    let bruiser = gameplay_config.expect_actor("bruiser").physics();
     let center = |level: u8, col: i32, row: i32| Position {
         x: geometry.cell_center_x(col),
         y: geometry.level_y(level),
@@ -802,8 +802,8 @@ fn shipping_map_sentry_capsule_fits_the_direct_basement_trench_approach() {
             &[],
             &start,
             &target,
-            sentry.movement_collider.radius(),
-            sentry.movement_collider.radius(),
+            bruiser.movement_collider.radius(),
+            bruiser.movement_collider.radius(),
         )
         .expect("the lobby is reachable up the basement ramp");
     let trench_entry = route
@@ -812,14 +812,14 @@ fn shipping_map_sentry_capsule_fits_the_direct_basement_trench_approach() {
         .map(|point| &point.position)
         .copied()
         .expect("route has a first leg");
-    assert!(!world.character_sweep_hits_wall(&start, &trench_entry, sentry));
+    assert!(!world.character_sweep_hits_wall(&start, &trench_entry, bruiser));
 
-    nav.anchor_route_start(&[], &start, &mut route, &world, sentry, CarrierPose::IDENTITY);
+    nav.anchor_route_start(&[], &start, &mut route, &world, bruiser, CarrierPose::IDENTITY);
 
     assert_eq!(
         route.waypoints.front().map(|point| &point.position),
         Some(&trench_entry)
     );
-    assert!(!world.character_sweep_hits_wall(&start, &base, sentry));
-    assert!(!world.character_sweep_hits_wall(&base, &trench_entry, sentry));
+    assert!(!world.character_sweep_hits_wall(&start, &base, bruiser));
+    assert!(!world.character_sweep_hits_wall(&base, &trench_entry, bruiser));
 }

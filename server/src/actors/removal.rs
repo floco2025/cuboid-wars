@@ -180,7 +180,7 @@ mod tests {
     }
 
     fn actor(carrier: CarrierId) -> ActorInfo {
-        ActorInfo::new(Entity::from_bits(1), 0, "mine".to_owned(), carrier)
+        ActorInfo::new(Entity::from_bits(1), 0, "scuttler".to_owned(), carrier)
     }
 
     #[test]

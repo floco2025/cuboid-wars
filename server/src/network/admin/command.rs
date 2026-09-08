@@ -163,8 +163,8 @@ mod tests {
         );
         assert_eq!(parse_admin_command("/respawn"), AdminCommand::RespawnActors(None));
         assert_eq!(
-            parse_admin_command("/respawn sentry"),
-            AdminCommand::RespawnActors(Some("sentry".to_owned()))
+            parse_admin_command("/respawn bruiser"),
+            AdminCommand::RespawnActors(Some("bruiser".to_owned()))
         );
         assert_eq!(parse_admin_command("/heal"), AdminCommand::Heal(PlayerTarget::Sender));
         assert_eq!(parse_admin_command("/heal @a"), AdminCommand::Heal(PlayerTarget::All));

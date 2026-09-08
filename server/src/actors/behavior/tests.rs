@@ -20,7 +20,9 @@ use crate::{
         navigation::{ActorTerritories, NavGraph, NavGraphs, NavWaypoint, WaypointKind},
     },
     combat::{PendingExplosions, actors_beam_damage_system},
-    config::ServerGameplayConfig,
+    config::{
+        ActorAttackConfig, ActorBeamAttackConfig, ContactAttackConfig, ContactBeamAttackConfig, ServerGameplayConfig,
+    },
     map::{ActorSpawnZone, CarrierGrid, CellGrid, EdgeGrid, LevelGrid, MapConfig},
     network::ServerToClient,
     players::{Invincibility, PlayerInfo, PlayerMap},
@@ -133,7 +135,21 @@ impl Fixture {
         }
         let carriers = Carriers::from_layout(&layout);
         let graphs = NavGraphs::new(&map);
-        let server = ServerGameplayConfig::load_default().expect("default server gameplay config should load");
+        let mut server = ServerGameplayConfig::load_default().expect("default server gameplay config invalid");
+        if kind == "hybrid" {
+            let mut actor = server.expect_actor("bruiser").clone();
+            actor.attack = ActorAttackConfig::ContactBeam(ContactBeamAttackConfig {
+                contact: ContactAttackConfig { trigger_gap: 0.8 },
+                beam: ActorBeamAttackConfig {
+                    range: 25.0,
+                    duration_secs: 2.0,
+                    cooldown_secs: 5.0,
+                },
+            });
+            server.actors.kinds.insert(kind.to_owned(), actor);
+            let damage = *server.combat.damage.expect_actor("zapper");
+            server.combat.damage.actors.insert(kind.to_owned(), damage);
+        }
         let territories = ActorTerritories::new(&graphs, &map, &server).expect("test territory should build");
         let gameplay = server.gameplay_config();
         Self {
@@ -203,14 +219,14 @@ fn aware(id: u32, pos: Position, support: CharacterSupport, visible: bool) -> cr
 
 #[test]
 fn contact_actor_engages_reachable_ground_player() {
-    let fixture = Fixture::new("mine");
+    let fixture = Fixture::new("scuttler");
     let actor_pos = fixture.pos(1, 2);
     let target = fixture.pos(4, 2);
-    let mut info = info("mine");
+    let mut info = info("scuttler");
     info.awareness.push(aware(7, target, CharacterSupport::Ground, true));
     let mut rng = StdRng::seed_from_u64(1);
 
-    decide_contact_actor(&mut info, &fixture.context("mine", actor_pos), &mut rng);
+    decide_contact_actor(&mut info, &fixture.context("scuttler", actor_pos), &mut rng);
 
     assert!(matches!(
         info.mode,
@@ -225,7 +241,7 @@ fn contact_actor_engages_reachable_ground_player() {
 
 #[test]
 fn contact_actor_pursues_reachable_player_outside_home_region() {
-    let fixture = Fixture::new("mine");
+    let fixture = Fixture::new("scuttler");
     let actor_pos = fixture.pos(1, 2);
     let target = fixture.pos(10, 2);
     assert!(
@@ -233,11 +249,11 @@ fn contact_actor_pursues_reachable_player_outside_home_region() {
             .graph()
             .position_in_roam_region(&target, fixture.territories.get(0))
     );
-    let mut info = info("mine");
+    let mut info = info("scuttler");
     info.awareness.push(aware(7, target, CharacterSupport::Ground, true));
     let mut rng = StdRng::seed_from_u64(1);
 
-    decide_contact_actor(&mut info, &fixture.context("mine", actor_pos), &mut rng);
+    decide_contact_actor(&mut info, &fixture.context("scuttler", actor_pos), &mut rng);
 
     assert!(matches!(
         info.mode,
@@ -254,10 +270,10 @@ fn contact_actor_pursues_reachable_player_outside_home_region() {
 
 #[test]
 fn jumping_target_keeps_its_last_ground_attack_anchor() {
-    let fixture = Fixture::new("mine");
+    let fixture = Fixture::new("scuttler");
     let actor_pos = fixture.pos(1, 2);
     let anchor = fixture.pos(4, 2);
-    let mut info = info("mine");
+    let mut info = info("scuttler");
     info.mode = ActorMode::Engage {
         target: PlayerId(7),
         target_pos: anchor,
@@ -267,16 +283,16 @@ fn jumping_target_keeps_its_last_ground_attack_anchor() {
     info.awareness.push(target);
     let mut rng = StdRng::seed_from_u64(1);
 
-    decide_contact_actor(&mut info, &fixture.context("mine", actor_pos), &mut rng);
+    decide_contact_actor(&mut info, &fixture.context("scuttler", actor_pos), &mut rng);
 
     assert!(matches!(info.mode, ActorMode::Engage { target: PlayerId(7), target_pos } if target_pos == anchor));
 }
 
 #[test]
 fn ladder_target_makes_contact_actor_evade() {
-    let fixture = Fixture::new("mine");
+    let fixture = Fixture::new("scuttler");
     let actor_pos = fixture.pos(1, 2);
-    let mut info = info("mine");
+    let mut info = info("scuttler");
     info.awareness.push(aware(
         7,
         Position {
@@ -288,16 +304,16 @@ fn ladder_target_makes_contact_actor_evade() {
     ));
     let mut rng = StdRng::seed_from_u64(1);
 
-    decide_contact_actor(&mut info, &fixture.context("mine", actor_pos), &mut rng);
+    decide_contact_actor(&mut info, &fixture.context("scuttler", actor_pos), &mut rng);
 
     assert!(matches!(info.mode, ActorMode::Evade { .. }));
 }
 
 #[test]
 fn reachable_player_has_priority_over_fleeing_from_another_player() {
-    let fixture = Fixture::new("mine");
+    let fixture = Fixture::new("scuttler");
     let actor_pos = fixture.pos(1, 2);
-    let mut info = info("mine");
+    let mut info = info("scuttler");
     info.awareness.push(aware(
         7,
         Position {
@@ -311,7 +327,7 @@ fn reachable_player_has_priority_over_fleeing_from_another_player() {
         .push(aware(8, fixture.pos(4, 2), CharacterSupport::Ground, true));
     let mut rng = StdRng::seed_from_u64(1);
 
-    decide_contact_actor(&mut info, &fixture.context("mine", actor_pos), &mut rng);
+    decide_contact_actor(&mut info, &fixture.context("scuttler", actor_pos), &mut rng);
 
     assert!(matches!(
         info.mode,
@@ -467,15 +483,15 @@ fn completed_beam_enters_cooldown_and_evade() {
 }
 
 #[test]
-fn ready_reaper_fires_and_keeps_its_engagement_route() {
-    let fixture = Fixture::new("reaper");
+fn ready_hybrid_fires_and_keeps_its_engagement_route() {
+    let fixture = Fixture::new("hybrid");
     let actor_pos = fixture.pos(1, 2);
     let target = fixture.pos(4, 2);
-    let mut info = info("reaper");
+    let mut info = info("hybrid");
     info.awareness.push(aware(7, target, CharacterSupport::Ground, true));
     let mut rng = StdRng::seed_from_u64(1);
 
-    let outcome = decide_contact_beam_actor(&mut info, &fixture.context("reaper", actor_pos), &mut rng);
+    let outcome = decide_contact_beam_actor(&mut info, &fixture.context("hybrid", actor_pos), &mut rng);
 
     assert!(matches!(
         info.beam,
@@ -496,16 +512,16 @@ fn ready_reaper_fires_and_keeps_its_engagement_route() {
 }
 
 #[test]
-fn cooling_reaper_keeps_engaging_instead_of_evading() {
-    let fixture = Fixture::new("reaper");
+fn cooling_hybrid_keeps_engaging_instead_of_evading() {
+    let fixture = Fixture::new("hybrid");
     let actor_pos = fixture.pos(1, 2);
-    let mut info = info("reaper");
+    let mut info = info("hybrid");
     info.beam = BeamState::Cooldown { remaining_secs: 4.0 };
     info.awareness
         .push(aware(7, fixture.pos(4, 2), CharacterSupport::Ground, true));
     let mut rng = StdRng::seed_from_u64(1);
 
-    let outcome = decide_contact_beam_actor(&mut info, &fixture.context("reaper", actor_pos), &mut rng);
+    let outcome = decide_contact_beam_actor(&mut info, &fixture.context("hybrid", actor_pos), &mut rng);
 
     assert!(matches!(
         info.mode,
@@ -519,11 +535,11 @@ fn cooling_reaper_keeps_engaging_instead_of_evading() {
 }
 
 #[test]
-fn firing_reaper_without_reachable_target_holds_facing_beam_target() {
-    let fixture = Fixture::new("reaper");
+fn firing_hybrid_without_reachable_target_holds_facing_beam_target() {
+    let fixture = Fixture::new("hybrid");
     let actor_pos = fixture.pos(1, 2);
     let target = fixture.pos(3, 2);
-    let mut info = info("reaper");
+    let mut info = info("hybrid");
     info.beam = BeamState::Firing {
         target: PlayerId(7),
         started_tick: 0,
@@ -532,7 +548,7 @@ fn firing_reaper_without_reachable_target_holds_facing_beam_target() {
     info.awareness.push(aware(7, target, CharacterSupport::Ladder, true));
     let mut rng = StdRng::seed_from_u64(1);
 
-    decide_contact_beam_actor(&mut info, &fixture.context("reaper", actor_pos), &mut rng);
+    decide_contact_beam_actor(&mut info, &fixture.context("hybrid", actor_pos), &mut rng);
 
     assert_eq!(
         info.mode,
@@ -545,11 +561,11 @@ fn firing_reaper_without_reachable_target_holds_facing_beam_target() {
 }
 
 #[test]
-fn reaper_burst_end_enters_cooldown_without_evading() {
-    let fixture = Fixture::new("reaper");
+fn hybrid_burst_end_enters_cooldown_without_evading() {
+    let fixture = Fixture::new("hybrid");
     let actor_pos = fixture.pos(1, 2);
     let target = fixture.pos(4, 2);
-    let mut info = info("reaper");
+    let mut info = info("hybrid");
     info.beam = BeamState::Firing {
         target: PlayerId(7),
         started_tick: 0,
@@ -562,14 +578,14 @@ fn reaper_burst_end_enters_cooldown_without_evading() {
         &mut info,
         actor_pos,
         0.1,
-        fixture.server.expect_actor("reaper"),
+        fixture.server.expect_actor("hybrid"),
         &[PlayerState {
             id: PlayerId(7),
             pos: target,
             support: CharacterSupport::Ground,
         }],
     );
-    decide_contact_beam_actor(&mut info, &fixture.context("reaper", actor_pos), &mut rng);
+    decide_contact_beam_actor(&mut info, &fixture.context("hybrid", actor_pos), &mut rng);
 
     assert!(matches!(info.beam, BeamState::Cooldown { .. }));
     assert!(matches!(
@@ -584,12 +600,12 @@ fn reaper_burst_end_enters_cooldown_without_evading() {
 
 #[test]
 fn actor_outside_roam_region_routes_home() {
-    let fixture = Fixture::new("mine");
+    let fixture = Fixture::new("scuttler");
     let actor_pos = fixture.pos(10, 2);
-    let mut info = info("mine");
+    let mut info = info("scuttler");
     let mut rng = StdRng::seed_from_u64(1);
 
-    decide_contact_actor(&mut info, &fixture.context("mine", actor_pos), &mut rng);
+    decide_contact_actor(&mut info, &fixture.context("scuttler", actor_pos), &mut rng);
 
     assert_eq!(info.mode, ActorMode::ReturnHome);
     assert!(info.route.is_some());
@@ -597,12 +613,12 @@ fn actor_outside_roam_region_routes_home() {
 
 #[test]
 fn actor_inside_roam_region_chooses_a_roam_route() {
-    let fixture = Fixture::new("mine");
+    let fixture = Fixture::new("scuttler");
     let actor_pos = fixture.pos(1, 2);
-    let mut info = info("mine");
+    let mut info = info("scuttler");
     let mut rng = StdRng::seed_from_u64(1);
 
-    decide_contact_actor(&mut info, &fixture.context("mine", actor_pos), &mut rng);
+    decide_contact_actor(&mut info, &fixture.context("scuttler", actor_pos), &mut rng);
 
     assert_eq!(info.mode, ActorMode::Roam);
     assert!(info.route.is_some());
@@ -610,15 +626,15 @@ fn actor_inside_roam_region_chooses_a_roam_route() {
 
 #[test]
 fn occluded_player_keeps_last_seen_state_without_refresh() {
-    let fixture = Fixture::new("mine");
+    let fixture = Fixture::new("scuttler");
     let actor_pos = fixture.pos(1, 2);
     let player = PlayerState {
         id: PlayerId(7),
         pos: fixture.pos(3, 2),
         support: CharacterSupport::Ground,
     };
-    let mut info = info("mine");
-    let actor = fixture.gameplay.expect_actor("mine");
+    let mut info = info("scuttler");
+    let actor = fixture.gameplay.expect_actor("scuttler");
     update_awareness(
         &mut info,
         actor_pos,
@@ -675,7 +691,7 @@ fn occluded_player_keeps_last_seen_state_without_refresh() {
 
 #[test]
 fn actor_already_in_stable_cover_holds_position() {
-    let open = Fixture::new("mine");
+    let open = Fixture::new("scuttler");
     let actor_pos = open.pos(4, 2);
     let threat = open.pos(1, 2);
     let wall_x = (open.pos(2, 2).x + open.pos(3, 2).x) / 2.0;
@@ -696,13 +712,13 @@ fn actor_already_in_stable_cover_holds_position() {
         },
         &BarrierKindTable::default(),
     );
-    let fixture = Fixture::with_world("mine", world);
-    let mut info = info("mine");
+    let fixture = Fixture::with_world("scuttler", world);
+    let mut info = info("scuttler");
     info.awareness.push(aware(7, threat, CharacterSupport::Ladder, false));
 
     enter_evade(
         &mut info,
-        &fixture.context("mine", actor_pos),
+        &fixture.context("scuttler", actor_pos),
         &mut StdRng::seed_from_u64(1),
     );
 
@@ -712,7 +728,7 @@ fn actor_already_in_stable_cover_holds_position() {
 
 #[test]
 fn evade_route_is_replaced_when_same_cell_threat_exposes_destination() {
-    let open = Fixture::new("mine");
+    let open = Fixture::new("scuttler");
     let actor_pos = open.pos(5, 2);
     let destination = open.pos(4, 2);
     let protected_threat = open.pos(1, 2);
@@ -738,8 +754,8 @@ fn evade_route_is_replaced_when_same_cell_threat_exposes_destination() {
         },
         &BarrierKindTable::default(),
     );
-    let fixture = Fixture::with_world("mine", world);
-    let context = fixture.context("mine", actor_pos);
+    let fixture = Fixture::with_world("scuttler", world);
+    let context = fixture.context("scuttler", actor_pos);
     assert!(context.stable_cover(&destination, &[protected_threat]));
     assert!(!context.stable_cover(&destination, &[exposed_threat]));
     assert_eq!(
@@ -747,7 +763,7 @@ fn evade_route_is_replaced_when_same_cell_threat_exposes_destination() {
         fixture.graph().node_for_position(&exposed_threat)
     );
 
-    let mut info = info("mine");
+    let mut info = info("scuttler");
     info.mode = ActorMode::Evade { fleeing: false };
     info.route = Some(ActorRoute {
         waypoints: [destination].map(NavWaypoint::walk).into(),
@@ -767,29 +783,29 @@ fn evade_route_is_replaced_when_same_cell_threat_exposes_destination() {
 
 #[test]
 fn failed_cover_search_waits_before_trying_again() {
-    let fixture = Fixture::new("mine");
+    let fixture = Fixture::new("scuttler");
     let actor_pos = fixture.pos(2, 2);
     let threat = fixture.pos(1, 2);
-    let mut waiting = info("mine");
+    let mut waiting = info("scuttler");
     waiting.mode = ActorMode::Evade { fleeing: false };
     waiting.evade_replan_remaining_secs = 0.4;
     waiting.awareness.push(aware(7, threat, CharacterSupport::Ladder, true));
 
     enter_evade(
         &mut waiting,
-        &fixture.context("mine", actor_pos),
+        &fixture.context("scuttler", actor_pos),
         &mut StdRng::seed_from_u64(1),
     );
 
     assert!(waiting.route.is_none());
 
-    let mut ready = info("mine");
+    let mut ready = info("scuttler");
     ready.mode = ActorMode::Evade { fleeing: false };
     ready.awareness.push(aware(7, threat, CharacterSupport::Ladder, true));
 
     enter_evade(
         &mut ready,
-        &fixture.context("mine", actor_pos),
+        &fixture.context("scuttler", actor_pos),
         &mut StdRng::seed_from_u64(1),
     );
 
@@ -798,15 +814,15 @@ fn failed_cover_search_waits_before_trying_again() {
 
 #[test]
 fn no_cover_in_reach_sends_the_actor_fleeing_from_the_threat() {
-    let fixture = Fixture::new("mine");
+    let fixture = Fixture::new("scuttler");
     let actor_pos = fixture.pos(4, 2);
     let threat = fixture.pos(1, 2);
-    let mut info = info("mine");
+    let mut info = info("scuttler");
     info.awareness.push(aware(7, threat, CharacterSupport::Ladder, true));
 
     enter_evade(
         &mut info,
-        &fixture.context("mine", actor_pos),
+        &fixture.context("scuttler", actor_pos),
         &mut StdRng::seed_from_u64(1),
     );
 
@@ -821,11 +837,11 @@ fn no_cover_in_reach_sends_the_actor_fleeing_from_the_threat() {
 
 #[test]
 fn a_flight_leg_is_kept_until_it_ends() {
-    let fixture = Fixture::new("mine");
+    let fixture = Fixture::new("scuttler");
     let actor_pos = fixture.pos(4, 2);
     let threat = fixture.pos(1, 2);
     let leg = route_through(&[fixture.pos(5, 2), fixture.pos(6, 2)], &fixture);
-    let mut info = info("mine");
+    let mut info = info("scuttler");
     info.mode = ActorMode::Evade { fleeing: true };
     info.route = Some(leg.clone());
     info.evade_replan_remaining_secs = 0.0;
@@ -833,7 +849,7 @@ fn a_flight_leg_is_kept_until_it_ends() {
 
     enter_evade(
         &mut info,
-        &fixture.context("mine", actor_pos),
+        &fixture.context("scuttler", actor_pos),
         &mut StdRng::seed_from_u64(1),
     );
 
@@ -844,7 +860,7 @@ fn a_flight_leg_is_kept_until_it_ends() {
 
     enter_evade(
         &mut info,
-        &fixture.context("mine", actor_pos),
+        &fixture.context("scuttler", actor_pos),
         &mut StdRng::seed_from_u64(1),
     );
 
@@ -853,9 +869,9 @@ fn a_flight_leg_is_kept_until_it_ends() {
 
 #[test]
 fn unarmed_players_are_not_evaded() {
-    let fixture = Fixture::new("mine");
+    let fixture = Fixture::new("scuttler");
     let actor_pos = fixture.pos(1, 2);
-    let mut info = info("mine");
+    let mut info = info("scuttler");
     info.awareness.push(aware(
         7,
         Position {
@@ -867,7 +883,7 @@ fn unarmed_players_are_not_evaded() {
     ));
     let context = BehaviorContext {
         players_armed: false,
-        ..fixture.context("mine", actor_pos)
+        ..fixture.context("scuttler", actor_pos)
     };
 
     decide_contact_actor(&mut info, &context, &mut StdRng::seed_from_u64(1));
@@ -888,18 +904,18 @@ fn route_through(waypoints: &[Position], fixture: &Fixture) -> ActorRoute {
 }
 
 fn tick_route(info: &mut ActorInfo, pos: Position, fixture: &Fixture) {
-    tick_runtime_state(info, pos, 0.1, fixture.server.expect_actor("mine"), &[]);
+    tick_runtime_state(info, pos, 0.1, fixture.server.expect_actor("scuttler"), &[]);
 }
 
-// The mine-in-the-trench jam: the actor overshot the first waypoint along
+// The scuttler-in-the-trench jam: the actor overshot the first waypoint along
 // the next leg (a ramp-top transition sits at the actor's own cell centre)
 // and must not be sent back for it.
 #[test]
 fn overshot_waypoint_on_the_next_leg_is_skipped() {
-    let fixture = Fixture::new("mine");
+    let fixture = Fixture::new("scuttler");
     let first = fixture.pos(2, 2);
     let second = fixture.pos(5, 2);
-    let mut info = info("mine");
+    let mut info = info("scuttler");
     info.route = Some(route_through(&[first, second], &fixture));
     let overshot = Position {
         x: first.x + 0.9,
@@ -918,10 +934,10 @@ fn overshot_waypoint_on_the_next_leg_is_skipped() {
 
 #[test]
 fn waypoint_ahead_on_the_next_leg_is_kept() {
-    let fixture = Fixture::new("mine");
+    let fixture = Fixture::new("scuttler");
     let first = fixture.pos(2, 2);
     let second = fixture.pos(5, 2);
-    let mut info = info("mine");
+    let mut info = info("scuttler");
     info.route = Some(route_through(&[first, second], &fixture));
     let approaching = Position {
         x: first.x - 0.9,
@@ -940,10 +956,10 @@ fn waypoint_ahead_on_the_next_leg_is_kept() {
 
 #[test]
 fn corner_waypoint_is_not_skipped_from_the_side() {
-    let fixture = Fixture::new("mine");
+    let fixture = Fixture::new("scuttler");
     let corner = fixture.pos(2, 2);
     let after = fixture.pos(5, 2);
-    let mut info = info("mine");
+    let mut info = info("scuttler");
     info.route = Some(route_through(&[corner, after], &fixture));
     // Approaching the corner along the row axis: beyond it along the next
     // leg by a hair, but a full cell off that leg's line.
@@ -965,9 +981,9 @@ fn corner_waypoint_is_not_skipped_from_the_side() {
 
 #[test]
 fn final_waypoint_is_only_dropped_when_reached() {
-    let fixture = Fixture::new("mine");
+    let fixture = Fixture::new("scuttler");
     let only = fixture.pos(2, 2);
-    let mut info = info("mine");
+    let mut info = info("scuttler");
     info.route = Some(route_through(&[only], &fixture));
     let past = Position {
         x: only.x + 0.9,
@@ -981,14 +997,14 @@ fn final_waypoint_is_only_dropped_when_reached() {
 
 #[test]
 fn stalled_actor_hops_to_a_random_neighbor_before_rethinking() {
-    let fixture = Fixture::new("mine");
-    let mut info = info("mine");
+    let fixture = Fixture::new("scuttler");
+    let mut info = info("scuttler");
     let pos = fixture.pos(5, 2);
     info.set_route(Some(route_through(&[fixture.pos(9, 2)], &fixture)));
 
     let mut stalled = false;
     for _ in 0..20 {
-        stalled = tick_runtime_state(&mut info, pos, 0.1, fixture.server.expect_actor("mine"), &[]);
+        stalled = tick_runtime_state(&mut info, pos, 0.1, fixture.server.expect_actor("scuttler"), &[]);
         if stalled {
             break;
         }
@@ -996,7 +1012,7 @@ fn stalled_actor_hops_to_a_random_neighbor_before_rethinking() {
     assert!(stalled, "pinned actor must trip the watchdog");
 
     let mut rng = StdRng::seed_from_u64(1);
-    shake_loose(&mut info, &fixture.context("mine", pos), &mut rng);
+    shake_loose(&mut info, &fixture.context("scuttler", pos), &mut rng);
 
     let route = info.route.as_ref().expect("shake installs a hop route");
     assert_eq!(route.waypoints.len(), 1, "one-leg hop");
@@ -1020,11 +1036,11 @@ fn carrier_rest() -> Position {
 
 #[test]
 fn carried_actor_roams_in_its_carriers_frame() {
-    let fixture = Fixture::with_carrier("mine", carrier_rest());
-    let mut info = info("mine");
+    let fixture = Fixture::with_carrier("scuttler", carrier_rest());
+    let mut info = info("scuttler");
     let mut rng = StdRng::seed_from_u64(1);
 
-    decide_contact_actor(&mut info, &fixture.context("mine", fixture.pos(1, 2)), &mut rng);
+    decide_contact_actor(&mut info, &fixture.context("scuttler", fixture.pos(1, 2)), &mut rng);
 
     assert_eq!(info.mode, ActorMode::Roam);
     let route = info.route.expect("a roam route");
@@ -1039,9 +1055,9 @@ fn carried_actor_roams_in_its_carriers_frame() {
 
 #[test]
 fn player_off_the_carrier_is_unreachable() {
-    let fixture = Fixture::with_carrier("mine", carrier_rest());
-    let mut info = info("mine");
-    let context = fixture.context("mine", fixture.pos(1, 2));
+    let fixture = Fixture::with_carrier("scuttler", carrier_rest());
+    let mut info = info("scuttler");
+    let context = fixture.context("scuttler", fixture.pos(1, 2));
     let beside = Position {
         x: carrier_rest().x + fixture.geometry.width() / 2.0 + CELL,
         ..carrier_rest()
@@ -1068,9 +1084,9 @@ fn player_off_the_carrier_is_unreachable() {
 
 #[test]
 fn player_aboard_the_carrier_is_engaged_along_a_carrier_local_route() {
-    let fixture = Fixture::with_carrier("mine", carrier_rest());
-    let mut info = info("mine");
-    let context = fixture.context("mine", fixture.pos(1, 2));
+    let fixture = Fixture::with_carrier("scuttler", carrier_rest());
+    let mut info = info("scuttler");
+    let context = fixture.context("scuttler", fixture.pos(1, 2));
     let target_local = fixture.pos(8, 2);
     let target_world = fixture.pose().transform_position(&target_local);
 
@@ -1104,8 +1120,8 @@ fn player_aboard_the_carrier_is_engaged_along_a_carrier_local_route() {
 
 #[test]
 fn cover_is_judged_at_the_candidates_world_position() {
-    let fixture = Fixture::with_carrier("mine", carrier_rest());
-    let context = fixture.context("mine", fixture.pos(1, 2));
+    let fixture = Fixture::with_carrier("scuttler", carrier_rest());
+    let context = fixture.context("scuttler", fixture.pos(1, 2));
     let candidate = fixture.pos(8, 2);
     // A threat standing on the candidate in the world; in an open world
     // nothing is ever cover, so only the too-close test can decide.
@@ -1121,8 +1137,8 @@ fn cover_is_judged_at_the_candidates_world_position() {
 
 #[test]
 fn climbing_progress_uses_height_and_does_not_skip_to_the_exit() {
-    let fixture = Fixture::new("mine");
-    let mut info = info("mine");
+    let fixture = Fixture::new("scuttler");
+    let mut info = info("scuttler");
     let bottom = fixture.pos(2, 2);
     let top = Position {
         y: LEVEL_HEIGHT,
@@ -1146,7 +1162,7 @@ fn climbing_progress_uses_height_and_does_not_skip_to_the_exit() {
             &mut info,
             pos,
             0.1,
-            fixture.server.expect_actor("mine"),
+            fixture.server.expect_actor("scuttler"),
             &[]
         ));
         assert_eq!(info.route.as_ref().expect("ladder route missing").waypoints.len(), 2);
@@ -1164,8 +1180,8 @@ fn climbing_progress_uses_height_and_does_not_skip_to_the_exit() {
 
 #[test]
 fn reached_ladder_target_remains_a_hold_instead_of_becoming_idle() {
-    let fixture = Fixture::new("mine");
-    let mut info = info("mine");
+    let fixture = Fixture::new("scuttler");
+    let mut info = info("scuttler");
     let target = Position {
         y: 2.0,
         ..fixture.pos(2, 2)
@@ -1182,7 +1198,7 @@ fn reached_ladder_target_remains_a_hold_instead_of_becoming_idle() {
             &mut info,
             target,
             0.1,
-            fixture.server.expect_actor("mine"),
+            fixture.server.expect_actor("scuttler"),
             &[]
         ));
     }
@@ -1408,7 +1424,7 @@ fn turret_fires_over_cover_below_its_gun_despite_its_lower_body_center() {
 
 #[test]
 fn peace_stops_attacks_and_targeting_until_disabled_for_every_actor_kind() {
-    for kind in ["turret", "zapper", "reaper", "sentry", "mine"] {
+    for kind in ["turret", "zapper", "hybrid", "bruiser", "scuttler"] {
         let (mut app, player, _) = actor_app(kind, 5000.0);
         turret_step(&mut app);
         let health = app.world().get::<Health>(player).expect("player health missing").0;
@@ -1439,7 +1455,7 @@ fn peace_stops_attacks_and_targeting_until_disabled_for_every_actor_kind() {
             !info.awareness.is_empty(),
             "{kind} failed to notice players after peace"
         );
-        if ["turret", "zapper", "reaper"].contains(&kind) {
+        if ["turret", "zapper", "hybrid"].contains(&kind) {
             assert!(info.beam.target().is_some(), "{kind} failed to resume firing");
         }
     }
@@ -1534,7 +1550,7 @@ fn turret_repeats_bursts_with_a_damage_free_cooldown_and_transition_cues() {
 
 #[test]
 fn active_beams_retarget_disconnected_players_before_the_next_navigation_decision() {
-    for kind in ["turret", "zapper", "reaper"] {
+    for kind in ["turret", "zapper", "hybrid"] {
         let (mut app, player, _) = actor_app(kind, 5000.0);
         turret_step(&mut app);
         let first = app

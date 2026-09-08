@@ -13,8 +13,8 @@ A fast-paced multiplayer arena game built with Rust, Bevy, Rapier, and QUIC.
 
 Cuboid Wars is a networked 3D arena game on compact, multi-level maps.
 Players run, jump, climb ladders, and shoot through corridors gated by
-color-coded barriers, fight the hostile mines, sentries, zappers, and
-reapers that patrol and hunt, launch seeking missiles that fly the map's
+color-coded barriers, fight hostile scuttlers, bruisers, and zappers
+that patrol and hunt, launch seeking missiles that fly the map's
 airspace to their target, and complete quests for score.
 
 The game runs an authoritative server with client-side prediction, so
@@ -37,7 +37,7 @@ death/respawn flow.
 - **Light bridges** — ghostly walkways powered by pressure plates.
 - **Pressure plates** — open barriers or power bridges, with configurable
   hold, toggle, and automatic solo/multiplayer behavior.
-- **Actors** — mines, sentries, zappers, and reapers patrol and hunt; all
+- **Actors** — scuttlers, bruisers, and zappers patrol and hunt; all
   explode when killed.
 - **Turrets** — stationary guards with deadly sustained laser bursts.
 - **Ladders** — climb between levels.

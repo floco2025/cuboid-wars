@@ -305,21 +305,21 @@ mod tests {
 
     #[test]
     fn actor_switch_is_selected_by_kind() {
-        let mut config = FeedConfig::all(false, &["mine", "sentry"]);
-        config.actor_destroyed.insert("sentry".to_owned(), true);
+        let mut config = FeedConfig::all(false, &["scuttler", "bruiser"]);
+        config.actor_destroyed.insert("bruiser".to_owned(), true);
 
         assert!(announces(
             &config,
             &FeedEvent::ActorDestroyed {
                 name: "Marc".to_owned(),
-                kind: "sentry".to_owned(),
+                kind: "bruiser".to_owned(),
             }
         ));
         assert!(!announces(
             &config,
             &FeedEvent::ActorDestroyed {
                 name: "Marc".to_owned(),
-                kind: "mine".to_owned(),
+                kind: "scuttler".to_owned(),
             }
         ));
     }
@@ -387,9 +387,9 @@ mod tests {
             ),
             (
                 DeathCause::ActorBlast {
-                    kind: "mine".to_owned(),
+                    kind: "scuttler".to_owned(),
                 },
-                "Marc was blown up by a mine",
+                "Marc was blown up by a scuttler",
                 FeedStyle::Default,
             ),
             (
