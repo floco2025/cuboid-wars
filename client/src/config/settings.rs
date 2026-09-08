@@ -24,7 +24,6 @@ pub struct ClientSettings {
     pub weather: WeatherConfig,
     #[serde(default)]
     pub lighting: LightingConfig,
-    pub debug: DebugConfig,
 }
 
 // One entry per server lighting level (`/light bright|dim|dark`).
@@ -198,11 +197,6 @@ impl Default for GrassConfig {
             tufts_per_m2: 12.0,
         }
     }
-}
-
-#[derive(Debug, Clone, Copy, Deserialize)]
-pub struct DebugConfig {
-    pub collider_boxes: bool,
 }
 
 impl ClientSettings {

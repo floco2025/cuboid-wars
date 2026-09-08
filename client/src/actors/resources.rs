@@ -30,7 +30,10 @@ impl ContinuousBeamState {
 
 // Map of all server-controlled actors.
 #[derive(Resource, Default)]
-pub struct ActorMap(HashMap<ActorId, ActorInfo>);
+pub struct ActorMap {
+    pub peaceful: bool,
+    entries: HashMap<ActorId, ActorInfo>,
+}
 
 impl ActorMap {
     // "zapper#22" for logs; "actor#22" for unknown ids.
@@ -41,33 +44,33 @@ impl ActorMap {
     }
 
     pub fn insert(&mut self, id: ActorId, info: ActorInfo) -> Option<ActorInfo> {
-        self.0.insert(id, info)
+        self.entries.insert(id, info)
     }
 
     pub fn remove(&mut self, id: &ActorId) -> Option<ActorInfo> {
-        self.0.remove(id)
+        self.entries.remove(id)
     }
 
     #[must_use]
     pub fn contains_key(&self, id: &ActorId) -> bool {
-        self.0.contains_key(id)
+        self.entries.contains_key(id)
     }
 
     #[must_use]
     pub fn get(&self, id: &ActorId) -> Option<&ActorInfo> {
-        self.0.get(id)
+        self.entries.get(id)
     }
 
     pub fn get_mut(&mut self, id: &ActorId) -> Option<&mut ActorInfo> {
-        self.0.get_mut(id)
+        self.entries.get_mut(id)
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (&ActorId, &ActorInfo)> {
-        self.0.iter()
+        self.entries.iter()
     }
 
     pub fn retain(&mut self, f: impl FnMut(&ActorId, &mut ActorInfo) -> bool) {
-        self.0.retain(f);
+        self.entries.retain(f);
     }
 }
 

@@ -1,7 +1,7 @@
 use crate::map::light_preset_from_str;
 use common::constants::CONSOLE_COMMAND_MAX_CHARS;
 
-pub(super) const HELP_TEXT: &str = "/help\n/weather [rain|clear|auto]\n/light [bright|dim|dark|auto]\n/light <0..1>|<from> <to> <0..1>\n/god [on|off]\n/kill <name>|@a\n/killall [kind]\n/respawn [kind]\n/heal [name|@a]\n/give keys|key <color>\n/give powerups|powerup <type>\n/give missiles\n/firework\n/quest\n/quest <id> [name|@a]\n/kick <name>";
+pub(super) const HELP_TEXT: &str = "/help\n/weather [rain|clear|auto]\n/light [bright|dim|dark|auto]\n/light <0..1>|<from> <to> <0..1>\n/god [on|off]\n/peace [on|off]\n/kill <name>|@a\n/killall [kind]\n/respawn [kind]\n/heal [name|@a]\n/give keys|key <color>\n/give powerups|powerup <type>\n/give missiles\n/firework\n/quest\n/quest <id> [name|@a]\n/kick <name>";
 
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum AdminCommand {
@@ -17,6 +17,7 @@ pub(super) enum AdminCommand {
     LightStatus,
     LightUsage,
     God(Option<bool>),
+    Peace(Option<bool>),
     KillAllPlayers,
     KillPlayer(String),
     KillActors(Option<String>),
@@ -85,6 +86,9 @@ pub(super) fn parse_admin_command(input: &str) -> AdminCommand {
         ["god"] => AdminCommand::God(None),
         ["god", "on"] => AdminCommand::God(Some(true)),
         ["god", "off"] => AdminCommand::God(Some(false)),
+        ["peace"] => AdminCommand::Peace(None),
+        ["peace", "on"] => AdminCommand::Peace(Some(true)),
+        ["peace", "off"] => AdminCommand::Peace(Some(false)),
         ["kill"] => AdminCommand::MissingTarget("kill"),
         ["kill", "@a"] => AdminCommand::KillAllPlayers,
         ["kill", name @ ..] => AdminCommand::KillPlayer(name.join(" ")),
@@ -143,6 +147,9 @@ mod tests {
         assert_eq!(parse_admin_command("/god"), AdminCommand::God(None));
         assert_eq!(parse_admin_command("/god on"), AdminCommand::God(Some(true)));
         assert_eq!(parse_admin_command("/god off"), AdminCommand::God(Some(false)));
+        assert_eq!(parse_admin_command("/peace"), AdminCommand::Peace(None));
+        assert_eq!(parse_admin_command("/peace on"), AdminCommand::Peace(Some(true)));
+        assert_eq!(parse_admin_command("/peace off"), AdminCommand::Peace(Some(false)));
         assert_eq!(parse_admin_command("/kill @a"), AdminCommand::KillAllPlayers);
         assert_eq!(
             parse_admin_command("/kill Bob the Great"),

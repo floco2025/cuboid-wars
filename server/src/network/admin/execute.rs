@@ -26,7 +26,7 @@ pub(super) enum AdminOutcome {
 pub(super) fn run_admin_command(
     commands: &mut Commands,
     players: &mut PlayerMap,
-    actors: &ActorMap,
+    actors: &mut ActorMap,
     sender: PlayerId,
     admin: &mut AdminContext,
     player_data: &PlayerStateQuery,
@@ -84,6 +84,15 @@ pub(super) fn run_admin_command(
             let enabled = explicit.unwrap_or(!admin.invincibility.0);
             admin.invincibility.0 = enabled;
             Public(format!("god mode {}", if enabled { "on" } else { "off" }))
+        }
+        AdminCommand::Peace(explicit) => {
+            let enabled = explicit.unwrap_or(!actors.peaceful);
+            actors.set_peaceful(enabled);
+            Public(if enabled {
+                "peace mode on: actors ignore players and cannot attack them".to_owned()
+            } else {
+                "peace mode off: actor attacks resumed".to_owned()
+            })
         }
         AdminCommand::KillAllPlayers => {
             let targets = alive_players(players, None);

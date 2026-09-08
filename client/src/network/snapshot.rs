@@ -36,6 +36,7 @@ pub(super) fn handle_snapshot_message(
     }
 
     sync_players(commands, context, my_player_id, message.tick, &message.players);
+    context.actors.peaceful = message.actors_peaceful;
     sync_actors(commands, context, message.tick, &message.actors);
     sync_spawning_actors(commands, context, &message.spawning_actors);
     sync_items(commands, context, &message.items);

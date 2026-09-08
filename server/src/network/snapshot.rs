@@ -91,6 +91,7 @@ pub(super) fn network_broadcast_snapshot_system(
         tick: tick.0,
         players: all_players,
         actors: all_actors,
+        actors_peaceful: actors.peaceful,
         spawning_actors: snapshot_spawning_actors(&pending_spawns),
         items: all_items,
         missiles: all_missiles,

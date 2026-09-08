@@ -1305,8 +1305,8 @@ fn closing_a_barrier_immediately_stops_a_turret() {
     assert_eq!(state.beam.continuous_target(), Some(PlayerId(7)));
 }
 
-fn turret_app(health: f32) -> (App, Entity, UnboundedReceiver<ServerToClient>) {
-    let fixture = Fixture::new("turret");
+fn actor_app(kind: &str, health: f32) -> (App, Entity, UnboundedReceiver<ServerToClient>) {
+    let fixture = Fixture::new(kind);
     let origin = fixture.pos(1, 2);
     let target = fixture.pos(3, 2);
     let mut app = App::new();
@@ -1331,7 +1331,7 @@ fn turret_app(health: f32) -> (App, Entity, UnboundedReceiver<ServerToClient>) {
     let actor = app.world_mut().spawn((ActorId(1), ActorMarker, origin)).id();
     app.world_mut()
         .resource_mut::<ActorMap>()
-        .insert(ActorId(1), ActorInfo::new(actor, 0, "turret".into(), CarrierId::WORLD));
+        .insert(ActorId(1), ActorInfo::new(actor, 0, kind.into(), CarrierId::WORLD));
     let player = app
         .world_mut()
         .spawn((PlayerMarker, PlayerId(7), target, Health(health)))
@@ -1354,8 +1354,78 @@ fn turret_step(app: &mut App) {
 }
 
 #[test]
+fn turret_fires_over_cover_below_its_gun_despite_its_lower_body_center() {
+    let (mut app, player, _) = actor_app("turret", 5000.0);
+    let actor = app
+        .world()
+        .resource::<ActorMap>()
+        .get(&ActorId(1))
+        .expect("turret missing")
+        .entity;
+    let actor_pos = *app.world().get::<Position>(actor).expect("turret position missing");
+    let player_pos = *app.world().get::<Position>(player).expect("player position missing");
+    let wall_x = (actor_pos.x + player_pos.x) / 2.0;
+    let layout = MapLayout {
+        walls: vec![Wall {
+            x1: wall_x,
+            z1: actor_pos.z - 2.0,
+            x2: wall_x,
+            z2: actor_pos.z + 2.0,
+            width: 0.1,
+            y: actor_pos.y,
+            height: 1.2,
+            level: 0,
+            carrier: CarrierId::WORLD,
+        }],
+        ..default()
+    };
+    app.insert_resource(CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default()));
+    turret_step(&mut app);
+    assert!(app.world().get::<Health>(player).expect("player health missing").0 < 5000.0);
+}
+
+#[test]
+fn peace_stops_attacks_and_targeting_until_disabled_for_every_actor_kind() {
+    for kind in ["turret", "zapper", "reaper", "sentry", "mine"] {
+        let (mut app, player, _) = actor_app(kind, 5000.0);
+        turret_step(&mut app);
+        let health = app.world().get::<Health>(player).expect("player health missing").0;
+        app.world_mut().resource_mut::<ActorMap>().set_peaceful(true);
+        for _ in 0..30 {
+            turret_step(&mut app);
+            let info = app
+                .world()
+                .resource::<ActorMap>()
+                .get(&ActorId(1))
+                .expect("actor missing");
+            assert!(info.awareness.is_empty(), "{kind} noticed a player during peace");
+            assert!(info.beam.target().is_none(), "{kind} fired during peace");
+            assert!(!matches!(info.mode, ActorMode::Engage { .. } | ActorMode::Evade { .. }));
+            assert_eq!(
+                app.world().get::<Health>(player).expect("player health missing").0,
+                health
+            );
+        }
+        app.world_mut().resource_mut::<ActorMap>().set_peaceful(false);
+        turret_step(&mut app);
+        let info = app
+            .world()
+            .resource::<ActorMap>()
+            .get(&ActorId(1))
+            .expect("actor missing");
+        assert!(
+            !info.awareness.is_empty(),
+            "{kind} failed to notice players after peace"
+        );
+        if ["turret", "zapper", "reaper"].contains(&kind) {
+            assert!(info.beam.target().is_some(), "{kind} failed to resume firing");
+        }
+    }
+}
+
+#[test]
 fn turret_fires_past_burst_duration_and_stops_when_player_disconnects() {
-    let (mut app, player, mut receiver) = turret_app(5000.0);
+    let (mut app, player, mut receiver) = actor_app("turret", 5000.0);
     for _ in 0..120 {
         turret_step(&mut app);
     }

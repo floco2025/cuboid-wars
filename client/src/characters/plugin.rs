@@ -51,6 +51,7 @@ pub fn prediction_plugin(app: &mut App) {
 // Transform sync runs every render frame and lerps between the last
 // two ticks' positions so motion looks smooth above 30 Hz.
 pub fn character_sync_plugin(app: &mut App) {
+    app.init_resource::<ColliderBoxesVisible>();
     app.add_systems(
         Update,
         (
@@ -60,6 +61,7 @@ pub fn character_sync_plugin(app: &mut App) {
             characters_visual_turn_system
                 .after(players_transform_sync_system)
                 .after(actors_transform_sync_system),
+            collider_box_sync_system.after(characters_visual_turn_system),
             floating_labels_billboard_system,
             player_name_label_render_system,
             floating_health_bar_fill_system,

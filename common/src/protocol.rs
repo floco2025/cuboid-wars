@@ -259,6 +259,7 @@ pub struct SSnapshot {
     pub tick: u32,
     pub players: Vec<(PlayerId, Player)>,
     pub actors: Vec<(ActorId, Actor)>,
+    pub actors_peaceful: bool,
     // Reserved spawns still in their warning window. An id moves from here
     // to `actors` in the snapshot where the actor materializes.
     pub spawning_actors: Vec<(ActorId, SpawningActor)>,
@@ -964,6 +965,7 @@ mod tests {
             tick: 1,
             players: (0..4).map(player).collect(),
             actors: (0..24).map(actor).collect(),
+            actors_peaceful: false,
             spawning_actors: Vec::new(),
             items: (0..74).map(item).collect(),
             missiles: Vec::new(),

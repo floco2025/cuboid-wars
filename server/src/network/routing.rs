@@ -26,7 +26,7 @@ pub(super) struct ClientMessageContext<'w, 's> {
     time: Res<'w, Time>,
     pub(super) world: SharedWorld<'w>,
     queries: CharacterQueries<'w, 's>,
-    actors: Res<'w, ActorMap>,
+    actors: ResMut<'w, ActorMap>,
     plates: Res<'w, PlateState>,
     missiles: ResMut<'w, MissileMap>,
     pending_actor_spawns: ResMut<'w, PendingActorSpawns>,
@@ -181,7 +181,7 @@ pub(super) fn route_client_message(
             handle_admin_message(
                 commands,
                 &mut context.players,
-                &context.actors,
+                &mut context.actors,
                 id,
                 &mut context.admin,
                 &context.queries.player_data,

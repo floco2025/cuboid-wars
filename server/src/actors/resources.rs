@@ -168,12 +168,32 @@ impl ActorInfo {
 
 #[derive(Resource, Default)]
 pub struct ActorMap {
+    pub peaceful: bool,
     entries: HashMap<ActorId, ActorInfo>,
     // Actor removal records the zone so its respawn timer starts at the lifecycle boundary.
     vacated_spawn_zones: HashSet<usize>,
 }
 
 impl ActorMap {
+    pub fn set_peaceful(&mut self, peaceful: bool) {
+        if self.peaceful == peaceful {
+            return;
+        }
+        self.peaceful = peaceful;
+        for info in self.entries.values_mut() {
+            info.decision_timer = 0.0;
+            if peaceful {
+                info.beam = BeamState::Ready;
+                info.awareness.clear();
+                info.mode = ActorMode::Roam;
+                // Finish a ladder traversal before choosing a passive route.
+                if !info.route.as_ref().is_some_and(ActorRoute::traversing_ladder) {
+                    info.set_route(None);
+                }
+            }
+        }
+    }
+
     pub fn insert(&mut self, id: ActorId, info: ActorInfo) -> Option<ActorInfo> {
         self.entries.insert(id, info)
     }

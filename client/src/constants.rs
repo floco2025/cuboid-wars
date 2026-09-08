@@ -426,7 +426,7 @@ pub const LASER_EMISSIVE: f32 = 40.0;
 // where on the target's height the beam aims.
 pub const LASER_ENDPOINT_WANDER_WIDTH_FRACTION: f32 = 0.4;
 pub const LASER_ENDPOINT_WANDER_HEIGHT_FRACTION: f32 = 0.2;
-pub const LASER_AIM_HEIGHT_FRACTION: f32 = 0.6;
+pub const LASER_AIM_HEIGHT_FRACTION: f32 = 0.8;
 
 // ============================================================================
 // Map Rendering

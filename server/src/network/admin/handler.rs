@@ -37,7 +37,7 @@ pub struct AdminContext<'w> {
 pub fn handle_admin_message(
     commands: &mut Commands,
     players: &mut PlayerMap,
-    actors: &ActorMap,
+    actors: &mut ActorMap,
     id: PlayerId,
     admin: &mut AdminContext,
     player_data: &PlayerStateQuery,

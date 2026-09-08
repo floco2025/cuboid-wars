@@ -1,3 +1,4 @@
+use bevy::prelude::Vec3;
 use common::{
     physics::{CharacterSupport, character_center},
     protocol::PlayerId,
@@ -137,7 +138,7 @@ fn beam_target_attackable(aware: &AwarePlayer, context: &BehaviorContext<'_>) ->
     aware.visible
         && context.world_pos.distance_sq(&aware.pos) <= range * range
         && context.collision_world.attack_path_clear(
-            character_center(context.world_pos, context.actor_physics),
+            Vec3::from(context.world_pos) + Vec3::Y * context.kind_config.character.beam_origin_height(),
             character_center(aware.pos, context.player_physics),
             context.open_barriers,
         )

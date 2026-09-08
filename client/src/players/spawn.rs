@@ -105,10 +105,7 @@ pub fn spawn_player(
 
     let mut children = vec![];
 
-    // Add transparent collider visualization if enabled.
-    if client_settings.debug.collider_boxes {
-        children.push(spawn_collider_box(commands, meshes, materials, player_physics));
-    }
+    children.push(spawn_collider_box(commands, meshes, materials, player_physics));
 
     let base_y = player_physics.model_y_offset_from_entity_center(player_model.y_offset);
     let model = commands

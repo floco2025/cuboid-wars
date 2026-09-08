@@ -1,5 +1,7 @@
 use bevy::{gltf::GltfAssetLabel, prelude::*};
 
+use super::turret::{TurretMarker, turret_rig_setup_system};
+
 use crate::{
     characters::{AnimationToPlay, MaxHealth, PreviousTickPosition, character_animation_system, spawn_collider_box},
     config::{AssetSet, ClientSettings},
@@ -52,9 +54,10 @@ pub fn spawn_actor(
         .id();
 
     let mut children = vec![];
-    if client_settings.debug.collider_boxes {
-        children.push(spawn_collider_box(commands, meshes, materials, actor_physics));
+    if actor.kind == "turret" {
+        commands.entity(entity).insert(TurretMarker);
     }
+    children.push(spawn_collider_box(commands, meshes, materials, actor_physics));
 
     let base_y = actor_physics.model_y_offset_from_entity_center(actor_model.y_offset);
     let mut model_commands = commands.spawn((
@@ -63,6 +66,10 @@ pub fn spawn_actor(
             .with_rotation(Quat::from_rotation_x(actor_model.x_rotation_degrees.to_radians()))
             .with_translation(Vec3::new(actor_model.x_offset, base_y, actor_model.z_offset)),
     ));
+
+    if actor.kind == "turret" {
+        model_commands.observe(turret_rig_setup_system);
+    }
 
     if let Some(animation_speed) = actor_model.animation_speed {
         let (graph, index) = AnimationGraph::from_clip(

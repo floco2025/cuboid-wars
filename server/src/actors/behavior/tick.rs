@@ -63,7 +63,7 @@ pub fn actors_behavior_system(
         .filter_map(|(id, pos)| {
             players
                 .get(id)
-                .filter(|info| info.connection.logged_in && !info.is_dead())
+                .filter(|info| !actors.peaceful && info.connection.logged_in && !info.is_dead())
                 .map(|info| PlayerState {
                     id: *id,
                     pos: *pos,

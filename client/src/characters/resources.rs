@@ -2,6 +2,9 @@ use std::collections::HashMap;
 
 use bevy::prelude::*;
 
+#[derive(Resource, Default)]
+pub struct ColliderBoxesVisible(pub bool);
+
 // Max health from `SInit` (the player, and per actor kind) — the denominator
 // for every health bar. Starts empty (initialized at app build) and is
 // replaced when `SInit` arrives; gameplay messages are buffered until the

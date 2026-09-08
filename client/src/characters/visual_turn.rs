@@ -4,7 +4,7 @@ use common::{
     protocol::{ActorMarker, FaceYaw, PlayerMarker},
 };
 
-use crate::constants::CHARACTER_VISUAL_TURN_MAX_SPEED;
+use crate::{actors::TurretMarker, constants::CHARACTER_VISUAL_TURN_MAX_SPEED};
 
 // Smoothly rotate the rendered character yaw toward the gameplay `FaceYaw`
 // at a capped angular speed. `FaceYaw` itself stays immediate (shooting
@@ -14,7 +14,14 @@ use crate::constants::CHARACTER_VISUAL_TURN_MAX_SPEED;
 // per second, so it never spins — facing smoothness is decoupled from the AI.
 pub fn characters_visual_turn_system(
     time: Res<Time>,
-    mut query: Query<(&FaceYaw, &mut Transform), (Or<(With<PlayerMarker>, With<ActorMarker>)>, Without<Camera3d>)>,
+    mut query: Query<
+        (&FaceYaw, &mut Transform),
+        (
+            Or<(With<PlayerMarker>, With<ActorMarker>)>,
+            Without<Camera3d>,
+            Without<TurretMarker>,
+        ),
+    >,
 ) {
     let max_step = CHARACTER_VISUAL_TURN_MAX_SPEED * time.delta_secs();
     for (face_yaw, mut transform) in &mut query {

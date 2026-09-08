@@ -1,7 +1,7 @@
 use bevy::{audio::SpatialScale, light::NotShadowCaster, prelude::*};
 
 use crate::{
-    actors::ActorMap,
+    actors::{ActorMap, TurretJointMarker, TurretRig},
     config::{AssetSet, ClientSettings},
     constants::*,
     players::PlayerMap,
@@ -85,8 +85,9 @@ pub fn laser_beam_update_system(
     gameplay_config: Res<GameplayConfig>,
     collision_world: Res<CollisionWorld>,
     plates: Res<PlateState>,
-    endpoints: Query<&Transform, Without<LaserBeam>>,
-    mut beams: Query<(Entity, &mut LaserBeam, &mut Transform, &mut Visibility)>,
+    endpoints: Query<(&Transform, Option<&TurretRig>), (Without<LaserBeam>, Without<TurretJointMarker>)>,
+    mut joints: Query<&mut Transform, With<TurretJointMarker>>,
+    mut beams: Query<(Entity, &mut LaserBeam, &mut Transform, &mut Visibility), Without<TurretJointMarker>>,
 ) {
     let delta = time.delta_secs();
     // The target's configured bounding box: the beam anchors at its center
@@ -105,16 +106,28 @@ pub fn laser_beam_update_system(
         let anchors = actors
             .get(&beam.actor)
             .zip(players.get(&beam.target))
-            .and_then(|(actor, target)| endpoints.get(actor.entity).ok().zip(endpoints.get(target.entity).ok()));
+            .and_then(|(actor, target)| {
+                Some((
+                    endpoints.get(actor.entity).ok()?,
+                    endpoints.get(target.entity).ok()?,
+                    gameplay_config.expect_actor(&actor.kind),
+                ))
+            });
         // Expired, or either endpoint entity is gone (death, logoff, snapshot
         // removal) — every early end is covered without an end cue.
-        let Some((actor_transform, target_transform)) =
+        let Some(((actor_transform, turret), (target_transform, _), actor_config)) =
             anchors.filter(|_| beam.remaining_secs.is_none_or(|remaining| remaining > 0.0))
         else {
             commands.entity(entity).despawn();
             continue;
         };
-        let origin = actor_transform.translation;
+        let origin = turret.map_or_else(
+            || {
+                actor_transform.translation
+                    + Vec3::Y * (actor_config.beam_origin_height() - actor_config.physics().collider.center_y_offset())
+            },
+            |rig| rig.pivot(actor_transform),
+        );
         // Drift the hit point smoothly around the target's box center so the
         // beam reads as searching rather than pinned. Sized per axis from the
         // configured collider box and rotated into the target's frame, so the
@@ -145,13 +158,22 @@ pub fn laser_beam_update_system(
             continue;
         }
         let direction = (target - origin) / full_length;
+        if let Some(rig) = turret {
+            rig.aim(actor_transform, direction, &mut joints);
+        }
         // Damage and beam clipping share the active-field filter.
         let length = collision_world
             .attack_surface_along_ray(origin, direction, full_length, &plates.open_barrier_kinds)
             .map_or(full_length, |hit| hit.point.distance(origin));
-        transform.translation = origin + direction * (length / 2.0);
+        // Clip from the pivot so a muzzle extending through cover cannot bypass it.
+        let muzzle_distance = turret.map_or(0.0, |rig| rig.muzzle_distance(actor_transform));
+        if length <= muzzle_distance {
+            *visibility = Visibility::Hidden;
+            continue;
+        }
+        transform.translation = origin + direction * ((length + muzzle_distance) / 2.0);
         transform.rotation = Quat::from_rotation_arc(Vec3::Y, direction);
-        transform.scale = Vec3::new(1.0, length, 1.0);
+        transform.scale = Vec3::new(1.0, length - muzzle_distance, 1.0);
         *visibility = Visibility::Visible;
     }
 }

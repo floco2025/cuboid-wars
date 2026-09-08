@@ -13,7 +13,7 @@ use crate::{
 use common::{
     config::GameplayConfig,
     math::PHYSICS_EPSILON,
-    physics::{CollisionWorld, character_center},
+    physics::CollisionWorld,
     protocol::{ActorId, ActorMarker, Health, HitKind, PlateState, PlayerMarker, Position, SPlayerHit, ServerMessage},
 };
 
@@ -23,10 +23,10 @@ use common::{
 const BEAM_HIT_CUE_INTERVAL_SECS: f32 = 0.25;
 
 // Burn the locked target of every firing laser actor. The beam hits when
-// the target is within `fire.range` and the actor-center → target-center
-// attack path is clear of world geometry and active fields (the beam origin is the collider
-// center — deliberately not the perception eye height, matching contact
-// explosions). Lethal ticks run the standard death sequence with no killer
+// the target is within `fire.range` and the emitter → target-center
+// attack path is clear of world geometry and active fields. The emitter
+// uses the actor's beam origin height, independently of its body dimensions.
+// Lethal ticks run the standard death sequence with no killer
 // credit, like falls and blasts. A throttled `SPlayerHit` cue gives the
 // victim the directional camera shake and an instant HUD health update.
 pub fn actors_beam_damage_system(
@@ -46,6 +46,9 @@ pub fn actors_beam_damage_system(
     // presentation state, so it lives here rather than on `ActorInfo`.
     mut next_cue_at: Local<HashMap<ActorId, f32>>,
 ) {
+    if actors.peaceful {
+        return;
+    }
     let delta = time.delta_secs();
     let now = time.elapsed_secs();
     let respawn_secs = server_gameplay_config.player.respawn_secs;
@@ -77,14 +80,14 @@ pub fn actors_beam_damage_system(
         if actor_pos.distance_sq(target_pos) > range * range {
             continue;
         }
-        let actor_physics = gameplay_config.expect_actor(&info.spawn_kind).physics();
+        let actor_config = gameplay_config.expect_actor(&info.spawn_kind);
         let target_center = Vec3::new(
             target_pos.x,
             player_physics.collider_center_y(target_pos.y),
             target_pos.z,
         );
         if !collision_world.attack_path_clear(
-            character_center(*actor_pos, actor_physics),
+            Vec3::from(*actor_pos) + Vec3::Y * actor_config.beam_origin_height(),
             target_center,
             &plates.open_barrier_kinds,
         ) {

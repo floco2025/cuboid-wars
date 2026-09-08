@@ -17,6 +17,9 @@ pub(super) fn detonate_actors_touching_players(
     collision_world: &CollisionWorld,
     open_barriers: &[BarrierKindId],
 ) {
+    if actors.peaceful {
+        return;
+    }
     // Actor entity → its contact-explosion distance, resolved once. Runs in the
     // 30 Hz movement tick over players + actors; without this the nested
     // `actors.values()` scans make it O((P+A)·A) per tick. Every actor stays
@@ -88,8 +91,43 @@ fn horizontal_collider_radius(physics: CharacterPhysicsConfig) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_geometry::{WALL_HEIGHT, WALL_THICKNESS};
-    use common::protocol::{Barrier, BarrierKindTable, CarrierId, MapLayout, Position, Wall};
+    use crate::{
+        actors::ActorInfo,
+        test_geometry::{WALL_HEIGHT, WALL_THICKNESS},
+    };
+    use common::protocol::{ActorId, Barrier, BarrierKindTable, CarrierId, MapLayout, Position, Wall};
+
+    #[test]
+    fn touching_an_actor_does_not_detonate_it_during_peace() {
+        let server = ServerGameplayConfig::load_default().expect("server gameplay config rejected");
+        let collision_world = CollisionWorld::from_map_layout(&MapLayout::default(), &BarrierKindTable::default());
+        let (player, mut actor, _) = plans();
+        let mut world = World::new();
+        actor.entity = world.spawn((ActorMarker, Health(100.0))).id();
+        let mut actors = ActorMap::default();
+        actors.insert(
+            ActorId(1),
+            ActorInfo::new(actor.entity, 0, "mine".into(), CarrierId::WORLD),
+        );
+        let entity = actor.entity;
+        let moves = [player, actor];
+        for (peaceful, expected_health) in [(true, 100.0), (false, 0.0)] {
+            actors.set_peaceful(peaceful);
+            let mut state = world.query_filtered::<&mut Health, With<ActorMarker>>();
+            detonate_actors_touching_players(
+                &mut state.query_mut(&mut world),
+                &actors,
+                &moves,
+                &server,
+                &collision_world,
+                &[],
+            );
+            assert_eq!(
+                world.get::<Health>(entity).expect("actor health missing").0,
+                expected_health
+            );
+        }
+    }
 
     fn plans() -> (CharacterMovePlan, CharacterMovePlan, f32) {
         let server = ServerGameplayConfig::load_default().expect("default server gameplay config should load");

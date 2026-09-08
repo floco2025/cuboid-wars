@@ -47,7 +47,7 @@ death/respawn flow.
   points.
 - **Weather & lighting** — rain and a bright/dim/dark light cycle, set per
   map.
-- **Chat & admin console** — Enter to chat, `/` for commands; `/help` lists them.
+- **Chat & admin console** — Enter to chat, `/` for commands; `/help` lists them and `/peace` toggles actor attacks.
 
 ## Controls
 
@@ -65,6 +65,7 @@ death/respawn flow.
 | Settings menu (also frees the cursor) | Escape |
 | Cycle camera view (first-person ↔ top-down) | V |
 | Toggle level-focus (hide floors/walls on other levels) | R |
+| Toggle translucent player / actor collider boxes | B |
 | Toggle fullscreen | F11 / Ctrl-F / Cmd-F |
 
 Weapon pickups automatically select that weapon, except single-shot pickups

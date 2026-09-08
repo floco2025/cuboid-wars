@@ -111,12 +111,13 @@
       },
       "turret": {
         "collider": {
-          "width": 0.3,
-          "height": 0.3,
-          "depth": 0.3,
-          "y_offset": 1.45,
-          "y_offset_anchor": "center"
+          "width": 0.5,
+          "height": 1.61,
+          "depth": 0.5,
+          "y_offset": 0.01,
+          "y_offset_anchor": "bottom"
         },
+        "beam_origin_height": 1.45,
         "support_probe": { "width": 0.2, "depth": 0.2 },
         "eye_height": 1.6,
         "respawn_secs": 180.0,

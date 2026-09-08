@@ -20,6 +20,12 @@ pub(super) fn continuous_beams_sync_system(
     positions: Query<&Position, With<ActorMarker>>,
     mut beams: Query<(Entity, &mut LaserBeam)>,
 ) {
+    if actors.peaceful {
+        for (entity, _) in &beams {
+            commands.entity(entity).despawn();
+        }
+        return;
+    }
     for (entity, mut beam) in &mut beams {
         if beam.remaining_secs.is_some() {
             continue;
@@ -145,5 +151,34 @@ mod tests {
         app.world_mut().resource_mut::<ActorMap>().remove(&id);
         app.update();
         assert_eq!(app.world_mut().query::<&LaserBeam>().iter(app.world()).count(), 0);
+    }
+
+    #[test]
+    fn peace_mode_removes_bursts_and_continuous_beams_including_late_cues() {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()))
+            .init_asset::<Mesh>()
+            .init_asset::<StandardMaterial>()
+            .init_asset::<AudioSource>()
+            .insert_resource(AssetSet::load_default().expect("asset set rejected"))
+            .insert_resource(ClientSettings::load_default().expect("client settings rejected"))
+            .init_resource::<ActorMap>()
+            .init_resource::<PlayerMap>()
+            .add_systems(Update, continuous_beams_sync_system);
+        app.world_mut().resource_mut::<ActorMap>().peaceful = true;
+        for _ in 0..2 {
+            for remaining_secs in [None, Some(3.0)] {
+                app.world_mut().spawn(LaserBeam {
+                    actor: ActorId(1),
+                    target: PlayerId(1),
+                    remaining_secs,
+                    wander_width_fraction: 0.4,
+                    wander_height_fraction: 0.2,
+                    aim_height_fraction: 0.8,
+                });
+            }
+            app.update();
+            assert_eq!(app.world_mut().query::<&LaserBeam>().iter(app.world()).count(), 0);
+        }
     }
 }
