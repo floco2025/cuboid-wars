@@ -8,7 +8,7 @@ pub(crate) const RENDER_LAYER_REARVIEW: usize = 3;
 pub(crate) const RENDER_LAYER_CHARACTER_LABEL: usize = 4;
 pub(crate) const RENDER_LAYER_PORTAL_VIEW_START: usize = 5;
 
-// Marker for the primary 3D camera (first-person / top-down view of the game world).
+// Marker for the primary 3D camera.
 #[derive(Component)]
 pub struct MainCameraMarker;
 

@@ -22,7 +22,7 @@ pub fn ui_diagnostics_visibility_system(
     if !client_settings.is_changed() {
         return;
     }
-    let target = if client_settings.hud.show_diagnostics {
+    let target = if client_settings.preferences.show_diagnostics {
         Visibility::Inherited
     } else {
         Visibility::Hidden

@@ -170,8 +170,6 @@ pub(in crate::network) fn handle_projectile_shot_message(
 ) {
     trace!("{:?} shot: {:?}", message.id, message);
     if let Some(player) = context.players.get(&message.id) {
-        commands.entity(player.entity).insert(FaceYaw(message.face_yaw));
-
         // `pattern` is already server-resolved against the shooter's power-up.
         if let Ok((position, _, _)) = context.player_data.get(player.entity)
             && spawn_projectiles(
@@ -271,7 +269,7 @@ pub(in crate::network) fn handle_player_hit_message(
         if let Ok(camera_entity) = context.cameras.single() {
             commands.entity(camera_entity).insert(CameraShake {
                 timer: Timer::from_seconds(source.duration_secs, TimerMode::Once),
-                intensity: source.intensity * shake.scale,
+                intensity: source.intensity * context.client_settings.preferences.shake_scale,
                 dir_x: message.hit_dir_x,
                 // Small vertical companion to the directional hit shake.
                 dir_y: source.vertical_ratio,
@@ -313,7 +311,7 @@ pub(in crate::network) fn handle_player_fall_damage_message(
         if let Ok(camera_entity) = context.cameras.single() {
             commands.entity(camera_entity).insert(CameraShake {
                 timer: Timer::from_seconds(source.duration_secs, TimerMode::Once),
-                intensity: source.intensity * shake.scale,
+                intensity: source.intensity * context.client_settings.preferences.shake_scale,
                 dir_x: 0.0,
                 dir_y: source.vertical_ratio,
                 dir_z: 0.0,

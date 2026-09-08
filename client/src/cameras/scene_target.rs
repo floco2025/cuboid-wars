@@ -46,7 +46,7 @@ pub fn scene_render_target_system(
     let desired = if matches!(window.mode, WindowMode::Windowed) {
         window_size
     } else {
-        scene_image_size(window_size, client_settings.rendering.fullscreen_resolution)
+        scene_image_size(window_size, client_settings.preferences.fullscreen_resolution)
     };
     if desired != scene_target.size
         && let Some(mut image) = images.get_mut(&scene_target.handle)

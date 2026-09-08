@@ -119,17 +119,27 @@ pub(super) fn settings_menu_lifecycle_system(
                         font,
                         dims.control_width,
                         SliderSetting::MouseSensitivity,
-                        0.0005,
-                        0.006,
-                        settings.input.mouse_sensitivity,
-                        4,
+                        0.125,
+                        4.0,
+                        settings.preferences.mouse_sensitivity,
+                        3,
                     ));
                     let mut invert_row = panel.spawn(checkbox_row("Invert Y", font, CheckboxSetting::InvertY));
-                    if settings.input.invert_y {
+                    if settings.preferences.invert_y {
                         invert_row.insert(Checked);
                     }
 
                     panel.spawn(section_header("Camera", font));
+                    panel.spawn(slider_row(
+                        "Zoom sensitivity",
+                        font,
+                        dims.control_width,
+                        SliderSetting::ZoomSensitivity,
+                        0.125,
+                        4.0,
+                        settings.preferences.zoom_sensitivity,
+                        3,
+                    ));
                     panel.spawn(slider_row(
                         "Field of view",
                         font,
@@ -137,7 +147,7 @@ pub(super) fn settings_menu_lifecycle_system(
                         SliderSetting::Fov,
                         60.0,
                         110.0,
-                        settings.camera.fov_degrees.first_person,
+                        settings.preferences.fov_degrees,
                         0,
                     ));
                     panel.spawn(slider_row(
@@ -147,7 +157,7 @@ pub(super) fn settings_menu_lifecycle_system(
                         SliderSetting::ShakeScale,
                         0.0,
                         2.0,
-                        settings.camera.shake.scale,
+                        settings.preferences.shake_scale,
                         1,
                     ));
 
@@ -166,7 +176,7 @@ pub(super) fn settings_menu_lifecycle_system(
                     panel.spawn(section_header("HUD", font));
                     let mut rearview_row =
                         panel.spawn(checkbox_row("Rearview mirror", font, CheckboxSetting::RearviewMirror));
-                    if settings.camera.rearview.enabled {
+                    if settings.preferences.rearview_mirror {
                         rearview_row.insert(Checked);
                     }
                     let mut diagnostics_row = panel.spawn(checkbox_row(
@@ -174,7 +184,7 @@ pub(super) fn settings_menu_lifecycle_system(
                         font,
                         CheckboxSetting::ShowDiagnostics,
                     ));
-                    if settings.hud.show_diagnostics {
+                    if settings.preferences.show_diagnostics {
                         diagnostics_row.insert(Checked);
                     }
 

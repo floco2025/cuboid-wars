@@ -34,11 +34,11 @@ pub fn local_player_view_mode_system(
     let mut camera_layers = RenderLayers::layer(0)
         .with(RENDER_LAYER_MAIN_VIEW)
         .with(RENDER_LAYER_CHARACTER_LABEL);
-    if view_mode.is_top_down() {
+    if !view_mode.is_first_person() {
         camera_layers = camera_layers.with(RENDER_LAYER_LOCAL_PLAYER);
     }
     for (marker, mut layers) in &mut main_cameras {
-        if mode_changed || marker.is_added() {
+        if (mode_changed || marker.is_added()) && *layers != camera_layers {
             *layers = camera_layers.clone();
         }
     }
@@ -190,5 +190,37 @@ mod tests {
         app.update();
 
         assert_eq!(app.world().entity(label).get::<Visibility>(), Some(&Visibility::Hidden));
+    }
+    #[test]
+    fn meshes_spawned_after_update_have_local_layers_before_visibility_checks() {
+        use crate::players::camera_plugin;
+        use bevy::{app::SpawnScene, camera::visibility::VisibilitySystems};
+
+        let mut app = App::new();
+        camera_plugin(&mut app);
+        app.world_mut().spawn(LocalPlayerMarker);
+        app.add_systems(
+            SpawnScene,
+            |mut commands: Commands, player: Single<Entity, With<LocalPlayerMarker>>| {
+                commands.entity(*player).with_children(|root| {
+                    root.spawn(Name::new("Head")).with_children(|head| {
+                        head.spawn((Name::new("Eye"), Mesh3d::default()));
+                    });
+                });
+            },
+        );
+        app.add_systems(
+            PostUpdate,
+            (|meshes: Query<&RenderLayers, With<Mesh3d>>| {
+                let layers = meshes
+                    .single()
+                    .expect("eye mesh layer missing before visibility checks");
+                assert_eq!(layers, &RenderLayers::layer(RENDER_LAYER_LOCAL_PLAYER));
+                assert!(!layers.intersects(&RenderLayers::layer(0)));
+            })
+            .in_set(VisibilitySystems::CheckVisibility),
+        );
+        app.world_mut().run_schedule(SpawnScene);
+        app.world_mut().run_schedule(PostUpdate);
     }
 }

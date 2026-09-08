@@ -129,7 +129,7 @@ fn rebuild_portal_views_system(
     };
     let wire_portals = portals.wire_portals();
     let alpha = fixed_time.overstep_fraction();
-    let budget = client_settings.rendering.portal_view_budget;
+    let budget = client_settings.preferences.portal_view_budget;
     let complete_portals: Vec<_> = wire_portals
         .iter()
         .copied()
@@ -252,7 +252,7 @@ fn rebuild_portal_views_system(
     let msaa = if deferred {
         Msaa::Off
     } else {
-        Msaa::from_samples(client_settings.rendering.msaa_samples)
+        Msaa::from_samples(client_settings.preferences.msaa_samples)
     };
     let mut camera_count = 0;
     while let Some(view) = pending.pop_front() {
@@ -448,7 +448,7 @@ fn update_portal_view_cameras_system(
     // Each presenting camera spends its own budget, so a deep forward corridor
     // never starves the mirror.
     mapped.sort_by_key(|view| view.presenter);
-    let budget = client_settings.rendering.portal_view_budget as usize;
+    let budget = client_settings.preferences.portal_view_budget as usize;
     let mut admitted: HashMap<Entity, usize> = HashMap::new();
     let mut start = 0;
     for group in mapped.chunk_by(|a, b| a.presenter == b.presenter) {

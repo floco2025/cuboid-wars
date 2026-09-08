@@ -9,10 +9,10 @@ use serde::{Deserialize, Serialize};
 
 use super::ClientSettings;
 
-pub const LOCAL_SETTINGS_VERSION: u32 = 10;
+pub const LOCAL_SETTINGS_VERSION: u32 = 13;
 
 // Local settings are saved after panel edits, fullscreen shortcuts, and
-// window moves and resizes, then overlaid onto `client.json` at startup. The file is not in git, so a format
+// window moves and resizes. The file is not in git, so a format
 // change cannot reach it through `git pull`: a `version` mismatch discards the
 // file (no migration), and the next save rewrites it.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -28,6 +28,7 @@ pub struct LocalSettings {
     pub msaa_samples: u32,
     pub portal_view_budget: u8,
     pub mouse_sensitivity: f32,
+    pub zoom_sensitivity: f32,
     pub invert_y: bool,
     pub fov_degrees: f32,
     pub shake_scale: f32,
@@ -91,19 +92,19 @@ impl LocalSettings {
         Ok(())
     }
 
-    // Overlay onto the shipped config; the caller re-validates afterwards so
-    // a hand-edited file cannot smuggle in values `client.json` couldn't.
+    // The caller validates preferences after applying saved overrides.
     pub fn apply_to(&self, settings: &mut ClientSettings) {
-        settings.rendering.fullscreen_resolution = self.fullscreen_resolution;
-        settings.rendering.vsync = self.vsync;
-        settings.rendering.msaa_samples = self.msaa_samples;
-        settings.rendering.portal_view_budget = self.portal_view_budget;
-        settings.input.mouse_sensitivity = self.mouse_sensitivity;
-        settings.input.invert_y = self.invert_y;
-        settings.camera.fov_degrees.first_person = self.fov_degrees;
-        settings.camera.shake.scale = self.shake_scale;
-        settings.hud.show_diagnostics = self.show_diagnostics;
-        settings.camera.rearview.enabled = self.rearview_mirror;
+        settings.preferences.fullscreen_resolution = self.fullscreen_resolution;
+        settings.preferences.vsync = self.vsync;
+        settings.preferences.msaa_samples = self.msaa_samples;
+        settings.preferences.portal_view_budget = self.portal_view_budget;
+        settings.preferences.mouse_sensitivity = self.mouse_sensitivity;
+        settings.preferences.zoom_sensitivity = self.zoom_sensitivity;
+        settings.preferences.invert_y = self.invert_y;
+        settings.preferences.fov_degrees = self.fov_degrees;
+        settings.preferences.shake_scale = self.shake_scale;
+        settings.preferences.show_diagnostics = self.show_diagnostics;
+        settings.preferences.rearview_mirror = self.rearview_mirror;
     }
 }
 
@@ -123,7 +124,8 @@ mod tests {
             vsync: true,
             msaa_samples: 2,
             portal_view_budget: 2,
-            mouse_sensitivity: 0.003,
+            mouse_sensitivity: 1.5,
+            zoom_sensitivity: 1.5,
             invert_y: true,
             fov_degrees: 100.0,
             shake_scale: 0.5,
@@ -140,6 +142,9 @@ mod tests {
         saved.save_to_path(&path).expect("local settings failed to save");
         let loaded = LocalSettings::load_from_path(&path).expect("saved local settings failed to load");
         assert_eq!(saved, loaded);
+        let mut settings = ClientSettings::load_default().expect("client settings are invalid");
+        loaded.apply_to(&mut settings);
+        assert_eq!(settings.preferences.zoom_sensitivity, saved.zoom_sensitivity);
         std::fs::remove_file(&path).ok();
     }
 
@@ -153,6 +158,9 @@ mod tests {
 
         let loaded = LocalSettings::load_from_path(&path).expect("replaced local settings failed to load");
         assert_eq!(saved, loaded);
+        let mut settings = ClientSettings::load_default().expect("client settings are invalid");
+        loaded.apply_to(&mut settings);
+        assert_eq!(settings.preferences.zoom_sensitivity, saved.zoom_sensitivity);
         std::fs::remove_file(&path).ok();
     }
 

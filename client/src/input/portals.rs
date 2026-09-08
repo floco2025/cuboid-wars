@@ -1,14 +1,9 @@
-use bevy::{
-    ecs::system::SystemParam,
-    input::mouse::MouseButton,
-    prelude::*,
-    window::{CursorGrabMode, CursorOptions},
-};
+use bevy::{ecs::system::SystemParam, input::mouse::MouseButton, prelude::*};
 
 use super::WeaponMode;
 use crate::{
     audio::play_sound,
-    cameras::{CameraViewMode, MainCameraMarker},
+    cameras::{CameraAim, CameraInputState},
     config::AssetSet,
     network::{ClientToServer, ClientToServerChannel},
     players::{LocalPlayerInfo, LocalPlayerMarker},
@@ -17,7 +12,6 @@ use crate::{
 use common::{
     config::GameplayConfig,
     map::Carriers,
-    math::direction_from_yaw_pitch,
     physics::{CollisionWorld, PortalPlacementFailure, compute_portal_placement, portal_placement_overlaps},
     protocol::*,
 };
@@ -38,13 +32,12 @@ pub fn input_portal_system(
     mut commands: Commands,
     mode: Res<WeaponMode>,
     mouse: Res<ButtonInput<MouseButton>>,
-    cursor_options: Single<&CursorOptions>,
-    camera_query: Query<&Transform, (With<Camera3d>, With<MainCameraMarker>)>,
-    local_player_query: Query<(&Position, &FaceYaw), With<LocalPlayerMarker>>,
+    input: Res<CameraInputState>,
+    aim: Res<CameraAim>,
+    local_player_query: Query<&Position, With<LocalPlayerMarker>>,
     to_server: Res<ClientToServerChannel>,
     asset_server: Res<AssetServer>,
     asset_set: Res<AssetSet>,
-    view_mode: Res<CameraViewMode>,
     mut local_player_info: ResMut<LocalPlayerInfo>,
     world: PortalInputWorld,
     portal_access: Res<PortalAccess>,
@@ -52,7 +45,7 @@ pub fn input_portal_system(
     if *mode != WeaponMode::Portal || local_player_info.is_dead {
         return;
     }
-    if cursor_options.grab_mode == CursorGrabMode::None {
+    if input.released || input.suppress_fire {
         return;
     }
     let access = *portal_access;
@@ -72,24 +65,16 @@ pub fn input_portal_system(
         play_sound(&mut commands, &asset_server, asset_set.player_sound("dry_fire"));
         return;
     }
-    let Some((pos, face_yaw)) = local_player_query.iter().next() else {
+    if local_player_query.is_empty() {
         return;
-    };
-    let pitch = if view_mode.is_first_person() {
-        camera_query
-            .iter()
-            .next()
-            .map_or(0.0, |transform| transform.rotation.to_euler(EulerRot::YXZ).1)
-    } else {
-        0.0
-    };
-
-    let origin = Vec3::new(pos.x, pos.y + world.gameplay_config.player.eye_height(), pos.z);
-    let direction = direction_from_yaw_pitch(face_yaw.0, pitch);
+    }
+    let pitch = aim.pitch;
+    let origin = aim.origin;
+    let direction = aim.direction;
     let placement = compute_portal_placement(
         origin,
         direction,
-        face_yaw.0,
+        aim.yaw,
         world.gameplay_config.portals.range,
         &world.collision_world,
         &world.map_layout,
@@ -111,7 +96,7 @@ pub fn input_portal_system(
     local_player_info.last_shot_time = now;
     let _ = to_server.send(ClientToServer::Send(ClientMessage::PortalShot(CPortalShot {
         end,
-        face_yaw: face_yaw.0,
+        face_yaw: aim.yaw,
         face_pitch: pitch,
     })));
 }

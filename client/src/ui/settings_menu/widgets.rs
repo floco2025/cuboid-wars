@@ -107,6 +107,10 @@ pub(super) fn slider_row(
 }
 
 fn slider(control_width: f32, setting: SliderSetting, min: f32, max: f32, value: f32, precision: i32) -> impl Bundle {
+    // Logarithmic sensitivity coordinates give each doubling the same track width.
+    let min = setting.slider_value(min);
+    let max = setting.slider_value(max);
+    let value = setting.slider_value(value);
     (
         Node {
             width: Val::Px(control_width),
@@ -249,4 +253,25 @@ fn cycler_button(setting: CyclerSetting, direction: i8, glyph: &str, font_size: 
         BackgroundColor(SETTINGS_SLIDER_TRACK_COLOR),
         children![label_text(glyph, font_size)],
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sensitivity_tracks_give_more_space_to_slower_speeds() {
+        let mut world = World::new();
+        for setting in [SliderSetting::MouseSensitivity, SliderSetting::ZoomSensitivity] {
+            let entity = world.spawn(slider(120.0, setting, 0.125, 4.0, 1.0, 3)).id();
+            let range = world.get::<SliderRange>(entity).expect("slider range missing");
+            let value = world.get::<SliderValue>(entity).expect("slider value missing");
+            assert!((range.thumb_position(value.0) - 0.6).abs() < 0.00001);
+            let positions =
+                [0.125, 0.25, 0.5, 1.0, 2.0, 4.0].map(|value| range.thumb_position(setting.slider_value(value)));
+            for pair in positions.windows(2) {
+                assert!((pair[1] - pair[0] - 0.2).abs() < 0.00001);
+            }
+        }
+    }
 }

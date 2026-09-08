@@ -301,6 +301,15 @@ impl CollisionWorld {
     }
 
     #[must_use]
+    pub fn camera_arm_distance(&self, pivot: Vec3, offset: Vec3, radius: f32) -> f32 {
+        if self.ball_overlaps_groups(pivot, radius, surface_collision_groups()) {
+            return 0.0;
+        }
+        self.cast_moving_ball(pivot, offset, radius)
+            .map_or(offset.length(), |hit| (offset.length() * hit.t - 0.01).max(0.0))
+    }
+
+    #[must_use]
     pub fn cast_moving_ball(&self, position: Vec3, translation: Vec3, radius: f32) -> Option<ShapeCastHit> {
         self.cast_moving_ball_with_filter(position, translation, radius, surface_collision_groups(), &[])
     }

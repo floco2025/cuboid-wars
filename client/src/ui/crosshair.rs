@@ -234,7 +234,7 @@ pub(crate) fn ui_crosshair_visibility_system(
     }
 
     for mut visibility in &mut query {
-        *visibility = if view_mode.is_first_person() && !menu.open {
+        *visibility = if !view_mode.is_top_down() && !menu.open {
             Visibility::Visible
         } else {
             Visibility::Hidden

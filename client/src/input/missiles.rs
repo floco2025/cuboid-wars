@@ -1,18 +1,19 @@
-use bevy::{
-    input::mouse::MouseButton,
-    prelude::*,
-    window::{CursorGrabMode, CursorOptions},
-};
+use bevy::{input::mouse::MouseButton, prelude::*};
 
 use crate::{
     audio::play_sound,
-    cameras::MainCameraMarker,
+    cameras::{CameraAim, CameraInputState},
     config::AssetSet,
     missiles::LockOnTarget,
     network::{ClientToServer, ClientToServerChannel},
     players::{LocalPlayerInfo, LocalPlayerMarker, MyPlayerId, PlayerMap},
 };
-use common::{config::GameplayConfig, protocol::*};
+use common::{
+    config::GameplayConfig,
+    constants::{MISSILE_RADIUS, MISSILE_SPAWN_OFFSET},
+    physics::CollisionWorld,
+    protocol::*,
+};
 
 use super::WeaponMode;
 
@@ -28,8 +29,8 @@ pub fn input_missile_system(
     mut commands: Commands,
     mode: Res<WeaponMode>,
     mouse: Res<ButtonInput<MouseButton>>,
-    cursor_options: Single<&CursorOptions>,
-    camera_query: Query<&Transform, (With<Camera3d>, With<MainCameraMarker>)>,
+    input: Res<CameraInputState>,
+    aim: Res<CameraAim>,
     local_player_query: Query<&FaceYaw, With<LocalPlayerMarker>>,
     to_server: Res<ClientToServerChannel>,
     asset_server: Res<AssetServer>,
@@ -39,30 +40,35 @@ pub fn input_missile_system(
     mut players: ResMut<PlayerMap>,
     local_player_info: Res<LocalPlayerInfo>,
     gameplay_config: Res<GameplayConfig>,
+    collision_world: Res<CollisionWorld>,
+    plates: Res<PlateState>,
 ) {
     if local_player_info.is_dead || *mode != WeaponMode::Missile {
         return;
     }
-    let cursor_locked = cursor_options.grab_mode != CursorGrabMode::None;
-    if !(cursor_locked && mouse.just_pressed(MouseButton::Left)) {
+    if input.released || input.suppress_fire || !mouse.just_pressed(MouseButton::Left) {
         return;
     }
-    let Some(face_yaw) = local_player_query.iter().next() else {
+    let Some(_) = local_player_query.iter().next() else {
         return;
     };
 
     let has_ammo = players.get(&my_player_id.0).is_some_and(|info| info.missiles > 0);
-    if !has_ammo || (gameplay_config.missiles.require_lock && lock.0.is_none()) {
+    if !has_ammo
+        || (gameplay_config.missiles.require_lock && lock.0.is_none())
+        || !collision_world.projectile_path_clear(
+            aim.origin,
+            aim.direction * MISSILE_SPAWN_OFFSET,
+            MISSILE_RADIUS,
+            &plates.open_barrier_kinds,
+        )
+    {
         play_sound(&mut commands, &asset_server, asset_set.player_sound("dry_fire"));
         return;
     }
     let target = lock.0;
 
-    // Lock exists only in first person, so the camera pitch is the aim pitch.
-    let pitch = camera_query
-        .iter()
-        .next()
-        .map_or(0.0, |transform| transform.rotation.to_euler(EulerRot::YXZ).1);
+    let pitch = aim.pitch;
 
     // Predicted decrement; the snapshot's `Player.missiles` self-heals it.
     if let Some(info) = players.get_mut(&my_player_id.0) {
@@ -71,7 +77,7 @@ pub fn input_missile_system(
 
     let _ = to_server.send(ClientToServer::Send(ClientMessage::MissileShot(CMissileShot {
         target,
-        face_yaw: face_yaw.0,
+        face_yaw: aim.yaw,
         face_pitch: pitch,
     })));
     // No launch sound here: the server may still reject the shot (target

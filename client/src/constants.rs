@@ -1,4 +1,47 @@
-use bevy::{color::Color, math::Vec3};
+use bevy::{
+    color::Color,
+    math::{UVec2, Vec3},
+};
+
+// ============================================================================
+// Window
+// ============================================================================
+
+pub const WINDOW_SIZE_DEFAULT: UVec2 = UVec2::new(1200, 800);
+pub const WINDOW_FULLSCREEN_DEFAULT: bool = false;
+
+// ============================================================================
+// Rendering
+// ============================================================================
+
+pub const RENDERING_FULLSCREEN_RESOLUTION_DEFAULT: u32 = 1440;
+pub const RENDERING_MSAA_SAMPLES_DEFAULT: u32 = 4;
+pub const RENDERING_PORTAL_VIEW_BUDGET_DEFAULT: u8 = 4;
+pub const RENDERING_VSYNC_DEFAULT: bool = true;
+
+// ============================================================================
+// Input
+// ============================================================================
+
+pub const INPUT_MOUSE_SENSITIVITY_BASE: f32 = 0.002;
+pub const INPUT_MOUSE_SENSITIVITY_DEFAULT: f32 = 1.0;
+pub const INPUT_ZOOM_SENSITIVITY_BASE: f32 = 0.1;
+pub const INPUT_ZOOM_SENSITIVITY_DEFAULT: f32 = 1.0;
+pub const INPUT_INVERT_Y_DEFAULT: bool = false;
+
+// ============================================================================
+// Camera
+// ============================================================================
+
+pub const CAMERA_FOV_DEGREES_DEFAULT: f32 = 90.0;
+pub const CAMERA_SHAKE_SCALE_DEFAULT: f32 = 1.0;
+pub const CAMERA_REARVIEW_MIRROR_DEFAULT: bool = true;
+
+// ============================================================================
+// Audio
+// ============================================================================
+
+pub const AUDIO_MASTER_VOLUME_DEFAULT: f32 = 1.0;
 
 // ============================================================================
 // RTT measurement
@@ -106,6 +149,9 @@ pub const LABEL_TEXT_PADDING_Y: f32 = 2.0;
 // ============================================================================
 // HUD
 // ============================================================================
+
+// For RTT, FPS, and other diagnostics
+pub const HUD_SHOW_DIAGNOSTICS_DEFAULT: bool = true;
 
 // Gap (logical px) between a corner-anchored HUD element and the window edge.
 // Shared by the player list, quest panel, and rear-view mirror so they all

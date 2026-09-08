@@ -64,10 +64,30 @@ death/respawn flow.
 | Place portal B (when both portals are available) | Right mouse button |
 | Chat / admin console | Enter or `/` (↑/↓ history) |
 | Settings menu (also frees the cursor) | Escape |
-| Cycle camera view (first-person ↔ top-down) | V |
+| Toggle top-down view (restores previous zoom) | V |
+| Lock / unlock third-person camera and facing | F |
+| Orbit third-person camera (locked or unlocked) | mouse |
+| Zoom between first and third person | mouse wheel |
+| Release cursor and pause movement | Shift-Escape |
 | Toggle level-focus (hide floors/walls on other levels) | R |
 | Toggle translucent player / actor body bounds | B |
 | Toggle fullscreen | F11 / Ctrl-F / Cmd-F |
+
+Scrolling fully in enters first person and enables facing lock; zooming back
+out keeps it locked. The mouse orbits in both states without holding a button. Movement follows the camera's horizontal direction. Unlocked, the
+robot faces its movement direction; locked, it faces the camera's aim and can
+strafe or backpedal. Weapons aim at the center crosshair in either state. The
+camera pulls in around solid geometry and extends smoothly when clear. Tether geometry and zoom limits live in
+`camera.follow` in `config/client/client.json`; `camera.top_down`, `camera.rearview`,
+and `camera.shake` hold their respective tuning. The camera starts fully zoomed in
+at distance zero. `camera.follow.first_person_distance` is the shared cutoff for
+snapping to eye position and hiding the local body, including near obstructions.
+First person, third person, and the rearview share the FOV slider.
+Mouse and zoom sensitivity are multipliers: 1 is the standard speed, with base
+speeds in `client/src/constants.rs`. Their logarithmic sliders range from 0.125 to
+4, giving most of the track to speeds below 1 and equal space to each doubling.
+Menu-controlled preferences use defaults in `client/src/constants.rs` and save to
+`config/client/client_local.json`; they are not configured in `client.json`.
 
 Weapon pickups automatically select that weapon, except single-shot pickups
 keep an active multi-shot selection. Q cycles through the weapons you hold,

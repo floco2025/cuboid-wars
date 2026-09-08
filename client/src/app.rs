@@ -11,6 +11,7 @@ use crate::{
     cameras::{CameraViewMode, TopDownCameraYaw, clamp_msaa_to_device_system, setup_cameras_system},
     characters::{character_sync_plugin, prediction_plugin},
     config::{AssetSet, ClientSettings, LocalSettings, OpaqueRenderer},
+    constants::{AUDIO_MASTER_VOLUME_DEFAULT, WINDOW_FULLSCREEN_DEFAULT, WINDOW_SIZE_DEFAULT},
     input::{WeaponMode, WindowedFrame, input_plugin},
     items::{ItemMap, setup_item_assets},
     map::{DebugColors, LevelFocusEnabled, map_plugin, setup_scene_lighting_system, sky_weather_plugin},
@@ -32,8 +33,6 @@ use common::{
     physics::PortalSet,
     protocol::{SInit, ServerTick},
 };
-
-const DEFAULT_WINDOW_SIZE: UVec2 = UVec2::new(1200, 800);
 
 pub struct ClientAppOptions {
     pub window_x: Option<i32>,
@@ -60,7 +59,9 @@ pub fn build_client_app(
             client_settings = ClientSettings::load_default()?;
         }
     }
-    let start_fullscreen = local_settings.as_ref().is_some_and(|local| local.fullscreen);
+    let start_fullscreen = local_settings
+        .as_ref()
+        .map_or(WINDOW_FULLSCREEN_DEFAULT, |local| local.fullscreen);
     let saved_position = local_settings
         .as_ref()
         .and_then(|local| local.window_x.zip(local.window_y));
@@ -78,11 +79,11 @@ pub fn build_client_app(
             options
                 .window_width
                 .or(saved_size.map(|size| size.x))
-                .unwrap_or(DEFAULT_WINDOW_SIZE.x),
+                .unwrap_or(WINDOW_SIZE_DEFAULT.x),
             options
                 .window_height
                 .or(saved_size.map(|size| size.y))
-                .unwrap_or(DEFAULT_WINDOW_SIZE.y),
+                .unwrap_or(WINDOW_SIZE_DEFAULT.y),
         ),
         position_pending: position.is_some(),
     };
@@ -95,7 +96,7 @@ pub fn build_client_app(
     app.add_plugins(DefaultPlugins.set(asset_plugin()).set(window_plugin(
         windowed_frame.size,
         start_visible,
-        client_settings.rendering.vsync,
+        client_settings.preferences.vsync,
         start_fullscreen,
     )));
     app.add_plugins(GrassMaterialPlugin);
@@ -106,11 +107,11 @@ pub fn build_client_app(
     });
 
     app.insert_resource(Time::<Fixed>::from_hz(f64::from(TICK_HZ)));
-    // Master volume precedence: CLI flag, then the saved settings, then 1.0.
+    // Master volume precedence: CLI flag, then the saved settings, then the default.
     let volume = options
         .volume
         .or(local_settings.as_ref().map(|local| local.master_volume))
-        .unwrap_or(1.0);
+        .unwrap_or(AUDIO_MASTER_VOLUME_DEFAULT);
     app.insert_resource(bevy::audio::GlobalVolume::new(bevy::audio::Volume::Linear(
         volume.max(0.0),
     )));
@@ -235,14 +236,14 @@ mod tests {
 
     #[test]
     fn initial_fullscreen_selects_primary_monitor() {
-        let plugin = window_plugin(DEFAULT_WINDOW_SIZE, true, true, true);
+        let plugin = window_plugin(WINDOW_SIZE_DEFAULT, true, true, true);
         let window = plugin.primary_window.expect("primary window should be configured");
         assert_eq!(window.mode, WindowMode::BorderlessFullscreen(MonitorSelection::Primary));
     }
 
     #[test]
     fn hidden_start_is_carried_into_the_window() {
-        let plugin = window_plugin(DEFAULT_WINDOW_SIZE, false, true, false);
+        let plugin = window_plugin(WINDOW_SIZE_DEFAULT, false, true, false);
         let window = plugin.primary_window.expect("primary window should be configured");
         assert!(!window.visible);
     }

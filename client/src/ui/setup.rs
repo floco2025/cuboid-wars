@@ -134,7 +134,7 @@ pub fn setup_ui_system(mut commands: Commands, client_settings: Res<ClientSettin
 // offset in step with the ratio-sized mirror across window sizes.
 fn quest_panel_top(client_settings: &ClientSettings) -> Val {
     let rearview = &client_settings.camera.rearview;
-    if rearview.enabled {
+    if client_settings.preferences.rearview_mirror {
         Val::Percent(rearview.height_ratio.mul_add(100.0, 4.0))
     } else {
         Val::Px(HUD_EDGE_MARGIN_PX)

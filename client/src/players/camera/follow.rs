@@ -1,14 +1,18 @@
 use bevy::prelude::*;
 
-use super::top_down::{topdown_camera_transform, window_aspect_ratio};
+use super::{
+    third_person::third_person_transform,
+    top_down::{topdown_camera_transform, window_aspect_ratio},
+};
 use crate::{
-    cameras::{CameraViewMode, MainCameraMarker, TopDownCameraYaw},
+    cameras::{CameraViewMode, FollowCamera, MainCameraMarker, TopDownCameraYaw},
     characters::PreviousTickPosition,
     config::ClientSettings,
-    players::{CameraShake, LocalPlayerMarker},
+    players::{CameraShake, LocalPlayerInfo, LocalPlayerMarker},
 };
 use common::{
     config::GameplayConfig,
+    physics::CollisionWorld,
     protocol::{MapLayout, MapSettings, Position},
 };
 
@@ -25,10 +29,14 @@ pub fn local_player_camera_sync_system(
         (&mut Transform, &mut Projection, Option<&CameraShake>),
         (With<Camera3d>, With<MainCameraMarker>),
     >,
-    view_mode: Res<CameraViewMode>,
+    mut view_mode: ResMut<CameraViewMode>,
     top_down_camera_yaw: Res<TopDownCameraYaw>,
     client_settings: Res<ClientSettings>,
     gameplay_config: Res<GameplayConfig>,
+    local_player_info: Res<LocalPlayerInfo>,
+    collision_world: Res<CollisionWorld>,
+    mut third: ResMut<FollowCamera>,
+    time: Res<Time>,
 ) {
     let Some((current_pos, prev_pos)) = local_player_query.iter().next() else {
         return;
@@ -49,29 +57,71 @@ pub fn local_player_camera_sync_system(
         return;
     };
 
-    match *view_mode {
-        CameraViewMode::FirstPerson => {
-            persp.fov = client_settings.camera.fov_degrees.first_person.to_radians();
-            sync_first_person_camera(
-                &mut camera_transform,
-                player_pos,
-                gameplay_config.player.eye_height(),
-                maybe_shake,
-            );
-        }
-        CameraViewMode::TopDown => {
-            persp.fov = client_settings.camera.fov_degrees.top_down.to_radians();
-            *camera_transform = topdown_camera_transform(
-                player_pos,
-                Some(&map_layout),
-                map_settings.geometry,
-                window_aspect_ratio(&windows),
-                persp.fov,
-                top_down_camera_yaw.0,
-                client_settings.camera.topdown_margin,
-                client_settings.camera.topdown_tilt_degrees,
-            );
-        }
+    persp.fov = if view_mode.is_top_down() {
+        client_settings.camera.top_down.fov_degrees
+    } else {
+        client_settings.preferences.fov_degrees
+    }
+    .to_radians();
+
+    if view_mode.is_top_down() {
+        *camera_transform = topdown_camera_transform(
+            player_pos,
+            Some(&map_layout),
+            map_settings.geometry,
+            window_aspect_ratio(&windows),
+            persp.fov,
+            top_down_camera_yaw.0,
+            client_settings.camera.top_down.margin,
+            client_settings.camera.top_down.tilt_degrees,
+        );
+        return;
+    }
+
+    let mut config = client_settings.camera.follow;
+    let eye_height = gameplay_config.player.eye_height();
+    let rotation = Quat::from_euler(
+        EulerRot::YXZ,
+        local_player_info.stored_yaw,
+        local_player_info.stored_pitch,
+        0.0,
+    );
+    if third.distance > config.first_person_distance {
+        let blend = third.distance.clamp(0.0, 1.0);
+        let blend = blend * blend * (3.0 - 2.0 * blend);
+        let height = eye_height + (config.pivot_height - eye_height) * blend;
+        config.shoulder_offset *= blend;
+        let pivot = Vec3::new(player_pos.x, player_pos.y + height, player_pos.z);
+        let near_half_height = persp.near * (persp.fov * 0.5).tan();
+        let radius = config.collision_radius.max(
+            Vec3::new(
+                near_half_height * window_aspect_ratio(&windows),
+                near_half_height,
+                persp.near,
+            )
+            .length(),
+        );
+        *camera_transform = third_person_transform(
+            &collision_world,
+            pivot,
+            rotation,
+            config,
+            radius,
+            time.delta_secs(),
+            &mut third,
+        );
+    } else {
+        third.arm_distance = 0.0;
+        third.previous_pivot = None;
+    }
+
+    if third.arm_distance > config.first_person_distance {
+        view_mode.set_if_neq(CameraViewMode::ThirdPerson);
+    } else {
+        view_mode.set_if_neq(CameraViewMode::FirstPerson);
+        third.locked = true;
+        camera_transform.rotation = rotation;
+        sync_first_person_camera(&mut camera_transform, player_pos, eye_height, maybe_shake);
     }
 }
 
@@ -89,5 +139,137 @@ fn sync_first_person_camera(
         camera_transform.translation.x += shake.offset_x;
         camera_transform.translation.y += shake.offset_y;
         camera_transform.translation.z += shake.offset_z;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        cameras::RENDER_LAYER_LOCAL_PLAYER, players::camera::visibility::local_player_view_mode_system, test_geometry,
+    };
+    use bevy::camera::visibility::RenderLayers;
+    use common::protocol::{BarrierKindTable, CarrierId, Wall};
+    use std::time::Duration;
+
+    fn world(wall: bool) -> CollisionWorld {
+        let layout = MapLayout {
+            walls: if wall {
+                vec![Wall {
+                    x1: -5.0,
+                    z1: 0.8,
+                    x2: 5.0,
+                    z2: 0.8,
+                    width: 0.2,
+                    y: 0.0,
+                    height: 4.0,
+                    level: 0,
+                    carrier: CarrierId::WORLD,
+                }]
+            } else {
+                vec![]
+            },
+            ..default()
+        };
+        CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default())
+    }
+
+    fn app() -> (App, Entity, f32) {
+        let source: serde_json::Value = serde_json::from_str(include_str!("../../../../config/server/gameplay.json"))
+            .expect("server gameplay JSON is invalid");
+        let gameplay: GameplayConfig = serde_json::from_value(serde_json::json!({
+            "player": source["player"], "actors": source["actors"]["kinds"],
+            "projectiles": source["weapons"]["projectiles"], "missiles": source["weapons"]["missiles"],
+            "portals": source["weapons"]["portals"],
+        }))
+        .expect("client gameplay config is invalid");
+        let eye_height = gameplay.player.eye_height();
+        let mut app = App::new();
+        app.insert_resource(gameplay)
+            .insert_resource(ClientSettings::load_default().expect("client settings are invalid"))
+            .insert_resource(test_geometry::map_settings())
+            .insert_resource(world(false))
+            .init_resource::<MapLayout>()
+            .init_resource::<Time>()
+            .init_resource::<Time<Fixed>>()
+            .init_resource::<CameraViewMode>()
+            .init_resource::<FollowCamera>()
+            .init_resource::<TopDownCameraYaw>()
+            .init_resource::<LocalPlayerInfo>()
+            .add_systems(
+                Update,
+                (local_player_camera_sync_system, local_player_view_mode_system).chain(),
+            );
+        app.world_mut()
+            .resource_mut::<Time>()
+            .advance_by(Duration::from_secs_f32(1.0 / 60.0));
+        app.world_mut().spawn((
+            LocalPlayerMarker,
+            Position::default(),
+            PreviousTickPosition(Position::default()),
+        ));
+        let camera = app
+            .world_mut()
+            .spawn((
+                MainCameraMarker,
+                Camera3d::default(),
+                Transform::default(),
+                Projection::default(),
+                RenderLayers::default(),
+            ))
+            .id();
+        (app, camera, eye_height)
+    }
+
+    fn assert_view(app: &App, camera: Entity, eye_height: f32, first_person: bool) {
+        assert_eq!(app.world().resource::<CameraViewMode>().is_first_person(), first_person);
+        let layers = app.world().get::<RenderLayers>(camera).expect("camera layers missing");
+        assert_eq!(
+            layers.intersects(&RenderLayers::layer(RENDER_LAYER_LOCAL_PLAYER)),
+            !first_person
+        );
+        let pose = app.world().get::<Transform>(camera).expect("camera transform missing");
+        if first_person {
+            assert_eq!(pose.translation, Vec3::Y * eye_height);
+        } else {
+            let threshold = app
+                .world()
+                .resource::<ClientSettings>()
+                .camera
+                .follow
+                .first_person_distance;
+            assert!(pose.translation.z > threshold);
+        }
+    }
+
+    #[test]
+    fn zoom_snap_and_body_visibility_change_on_the_same_frame() {
+        let (mut app, camera, eye_height) = app();
+        app.update();
+        assert_view(&app, camera, eye_height, true);
+        for distance in [1.2, 0.8, 0.701, 0.7, 0.0, 1.0] {
+            app.world_mut().resource_mut::<FollowCamera>().distance = distance;
+            app.update();
+            assert_view(&app, camera, eye_height, distance <= 0.7);
+        }
+    }
+
+    #[test]
+    fn obstruction_snaps_to_eye_and_preserves_zoom_for_recovery() {
+        let (mut app, camera, eye_height) = app();
+        app.world_mut().resource_mut::<FollowCamera>().distance = 3.0;
+        app.update();
+        assert_view(&app, camera, eye_height, false);
+        app.insert_resource(world(true));
+        app.update();
+        assert_view(&app, camera, eye_height, true);
+        assert_eq!(app.world().resource::<FollowCamera>().distance, 3.0);
+        app.insert_resource(world(false));
+        for _ in 0..30 {
+            app.update();
+            let first = app.world().resource::<CameraViewMode>().is_first_person();
+            assert_view(&app, camera, eye_height, first);
+        }
+        assert_view(&app, camera, eye_height, false);
     }
 }

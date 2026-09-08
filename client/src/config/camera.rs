@@ -1,15 +1,12 @@
-use anyhow::Result;
+use anyhow::{Result, ensure};
 use serde::Deserialize;
 
 use super::settings::{validate_fov, validate_non_negative_finite, validate_positive_finite, validate_unit_ratio};
 
 #[derive(Debug, Clone, Copy, Deserialize)]
 pub struct CameraConfig {
-    pub fov_degrees: FovDegreesConfig,
-    // Padding factor applied around the visible map when fitting the
-    // top-down camera. 1.0 = exact fit, >1.0 = room around edges.
-    pub topdown_margin: f32,
-    pub topdown_tilt_degrees: f32,
+    pub follow: FollowCameraConfig,
+    pub top_down: TopDownConfig,
     pub rearview: RearviewConfig,
     #[serde(default)]
     pub shake: CameraShakeConfig,
@@ -22,8 +19,6 @@ pub struct CameraConfig {
 #[derive(Debug, Clone, Copy, Deserialize)]
 #[serde(default)]
 pub struct CameraShakeConfig {
-    // One knob scaling every source's intensity (the settings menu slider).
-    pub scale: f32,
     pub projectile: ShakeSourceConfig,
     pub laser: ShakeSourceConfig,
     pub fall: ShakeSourceConfig,
@@ -53,7 +48,6 @@ impl Default for ShakeSourceConfig {
 impl Default for CameraShakeConfig {
     fn default() -> Self {
         Self {
-            scale: 1.0,
             projectile: ShakeSourceConfig::default(),
             laser: ShakeSourceConfig::default(),
             fall: ShakeSourceConfig {
@@ -66,8 +60,6 @@ impl Default for CameraShakeConfig {
 
 #[derive(Debug, Clone, Copy, Deserialize)]
 pub struct RearviewConfig {
-    pub enabled: bool,
-    pub fov_degrees: f32,
     // Width / height of the rearview viewport as a fraction of the window
     // dimensions. The inset from the window edge is a fixed `HUD_EDGE_MARGIN_PX`
     // shared with the HUD panels, not a ratio.
@@ -76,17 +68,22 @@ pub struct RearviewConfig {
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
-pub struct FovDegreesConfig {
-    pub first_person: f32,
-    pub top_down: f32,
+pub struct TopDownConfig {
+    pub fov_degrees: f32,
+    pub margin: f32,
+    pub tilt_degrees: f32,
 }
 
 impl CameraConfig {
     pub(super) fn validate(&self) -> Result<()> {
-        validate_fov(self.fov_degrees.first_person, "camera.fov_degrees.first_person")?;
-        validate_fov(self.fov_degrees.top_down, "camera.fov_degrees.top_down")?;
-        validate_positive_finite(self.topdown_margin, "camera.topdown_margin")?;
-        validate_positive_finite(self.topdown_tilt_degrees, "camera.topdown_tilt_degrees")?;
+        validate_fov(self.top_down.fov_degrees, "camera.top_down.fov_degrees")?;
+        validate_positive_finite(self.top_down.margin, "camera.top_down.margin")?;
+        validate_positive_finite(self.top_down.tilt_degrees, "camera.top_down.tilt_degrees")?;
+        ensure!(
+            self.top_down.tilt_degrees < 90.0,
+            "camera.top_down.tilt_degrees must be < 90"
+        );
+        self.follow.validate()?;
         self.rearview.validate()?;
         self.shake.validate()?;
         Ok(())
@@ -95,7 +92,6 @@ impl CameraConfig {
 
 impl CameraShakeConfig {
     fn validate(&self) -> Result<()> {
-        validate_non_negative_finite(self.scale, "camera.shake.scale")?;
         self.projectile.validate("camera.shake.projectile")?;
         self.laser.validate("camera.shake.laser")?;
         self.fall.validate("camera.shake.fall")
@@ -112,9 +108,38 @@ impl ShakeSourceConfig {
 
 impl RearviewConfig {
     pub(super) fn validate(&self) -> Result<()> {
-        validate_fov(self.fov_degrees, "camera.rearview.fov_degrees")?;
         validate_unit_ratio(self.width_ratio, "camera.rearview.width_ratio")?;
         validate_unit_ratio(self.height_ratio, "camera.rearview.height_ratio")?;
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+pub struct FollowCameraConfig {
+    pub max_distance: f32,
+    pub first_person_distance: f32,
+    pub pivot_height: f32,
+    pub shoulder_offset: f32,
+    pub collision_radius: f32,
+    pub obstruction_return_rate: f32,
+}
+
+impl FollowCameraConfig {
+    fn validate(&self) -> Result<()> {
+        for (name, value) in [
+            ("max_distance", self.max_distance),
+            ("first_person_distance", self.first_person_distance),
+            ("pivot_height", self.pivot_height),
+            ("collision_radius", self.collision_radius),
+            ("obstruction_return_rate", self.obstruction_return_rate),
+        ] {
+            validate_positive_finite(value, &format!("camera.follow.{name}"))?;
+        }
+        validate_non_negative_finite(self.shoulder_offset, "camera.follow.shoulder_offset")?;
+        ensure!(
+            self.first_person_distance < self.max_distance,
+            "camera.follow.first_person_distance must be < max_distance"
+        );
         Ok(())
     }
 }

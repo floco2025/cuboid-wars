@@ -103,11 +103,17 @@ pub fn handle_missile_shot_message(
         return;
     }
 
+    if !collision_world.projectile_path_clear(
+        eye,
+        aim * MISSILE_SPAWN_OFFSET,
+        MISSILE_RADIUS,
+        &plates.open_barrier_kinds,
+    ) {
+        return;
+    }
     if !players.get_mut(&id).is_some_and(|player| player.try_start_missile()) {
         return;
     }
-
-    commands.entity(entity).insert(FaceYaw(msg.face_yaw));
 
     let missile_config = server_gameplay_config.weapons.missiles;
     let missile_speed = map_settings.movement.missile_speed;

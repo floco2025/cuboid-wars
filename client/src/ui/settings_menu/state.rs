@@ -20,9 +20,26 @@ pub(super) fn menu_open(menu: Res<SettingsMenuState>) -> bool {
 #[derive(Component, Clone, Copy, PartialEq, Eq)]
 pub(super) enum SliderSetting {
     MouseSensitivity,
+    ZoomSensitivity,
     Fov,
     ShakeScale,
     MasterVolume,
+}
+
+impl SliderSetting {
+    pub fn slider_value(self, preference: f32) -> f32 {
+        match self {
+            Self::MouseSensitivity | Self::ZoomSensitivity => preference.log2(),
+            _ => preference,
+        }
+    }
+
+    pub fn preference_value(self, slider: f32) -> f32 {
+        match self {
+            Self::MouseSensitivity | Self::ZoomSensitivity => slider.exp2(),
+            _ => slider,
+        }
+    }
 }
 
 #[derive(Component, Clone, Copy, PartialEq, Eq)]

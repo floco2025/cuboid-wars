@@ -1,14 +1,10 @@
 {
   "rendering": {
     "opaque_renderer": "auto",
-    "fullscreen_resolution": 1440,
     "directional_shadows": true,
     "shadow_map_size": 2048,
     "mipmaps": true,
     "texture_anisotropy": 8,
-    "msaa_samples": 4,
-    "portal_view_budget": 4,
-    "vsync": false,
     "bloom": {
       "enabled": true,
       "intensity": 0.15,
@@ -69,17 +65,24 @@
     }
   },
   "camera": {
-    "fov_degrees": { "first_person": 90.0, "top_down": 45.0 },
-    "topdown_margin": 1.15,
-    "topdown_tilt_degrees": 35.0,
+    "follow": {
+      "max_distance": 6.0,
+      "first_person_distance": 0.7,
+      "pivot_height": 1.4,
+      "shoulder_offset": 0.0,
+      "collision_radius": 0.2,
+      "obstruction_return_rate": 8.0
+    },
+    "top_down": {
+      "fov_degrees": 45.0,
+      "margin": 1.15,
+      "tilt_degrees": 35.0
+    },
     "rearview": {
-      "enabled": true,
-      "fov_degrees": 90.0,
       "width_ratio": 0.2,
       "height_ratio": 0.2
     },
     "shake": {
-      "scale": 1.0,
       "projectile": {
         "intensity": 0.1,
         "vertical_ratio": 0.2,
@@ -93,10 +96,8 @@
       "fall": { "intensity": 0.2, "vertical_ratio": 0.5, "duration_secs": 0.3 }
     }
   },
-  "input": { "mouse_sensitivity": 0.002, "invert_y": false },
   "hud": {
     "reference_width": 1920.0,
-    "show_diagnostics": true,
     "settings_menu": { "panel_width": 420.0, "control_width": 180.0 },
     "font_sizes": {
       "player_list": 18.0,

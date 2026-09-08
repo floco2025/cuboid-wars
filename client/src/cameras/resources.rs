@@ -5,18 +5,11 @@ use bevy::prelude::*;
 pub enum CameraViewMode {
     #[default]
     FirstPerson,
+    ThirdPerson,
     TopDown,
 }
 
 impl CameraViewMode {
-    #[must_use]
-    pub const fn next(self) -> Self {
-        match self {
-            Self::FirstPerson => Self::TopDown,
-            Self::TopDown => Self::FirstPerson,
-        }
-    }
-
     #[must_use]
     pub const fn is_first_person(self) -> bool {
         matches!(self, Self::FirstPerson)
@@ -24,7 +17,7 @@ impl CameraViewMode {
 
     #[must_use]
     pub const fn is_top_down(self) -> bool {
-        !self.is_first_person()
+        matches!(self, Self::TopDown)
     }
 }
 
@@ -39,4 +32,37 @@ pub struct TopDownCameraYaw(pub f32);
 pub struct SceneRenderTarget {
     pub handle: Handle<Image>,
     pub size: UVec2,
+}
+
+#[derive(Resource, Debug)]
+pub struct FollowCamera {
+    pub locked: bool,
+    pub distance: f32,
+    pub arm_distance: f32,
+    pub previous_pivot: Option<Vec3>,
+}
+
+impl Default for FollowCamera {
+    fn default() -> Self {
+        Self {
+            locked: true,
+            distance: 0.0,
+            arm_distance: 0.0,
+            previous_pivot: None,
+        }
+    }
+}
+
+#[derive(Resource, Debug, Default)]
+pub struct CameraInputState {
+    pub released: bool,
+    pub suppress_fire: bool,
+}
+
+#[derive(Resource, Debug, Default)]
+pub struct CameraAim {
+    pub origin: Vec3,
+    pub direction: Vec3,
+    pub yaw: f32,
+    pub pitch: f32,
 }

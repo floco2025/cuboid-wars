@@ -1,11 +1,8 @@
-use bevy::{
-    prelude::*,
-    window::{CursorGrabMode, CursorOptions},
-};
+use bevy::prelude::*;
 
 use crate::{
     actors::ActorMap,
-    cameras::{CameraViewMode, MainCameraMarker},
+    cameras::{CameraAim, CameraInputState, CameraViewMode},
     input::WeaponMode,
     missiles::LockOnTarget,
     players::{LocalPlayerInfo, MyPlayerId, PlayerMap},
@@ -13,8 +10,9 @@ use crate::{
 };
 use common::{
     config::GameplayConfig,
+    constants::{MISSILE_RADIUS, MISSILE_SPAWN_OFFSET},
     physics::{CollisionWorld, acquire_lock},
-    protocol::{ActorMarker, FaceYaw, HomingTarget, MissileMarker, PlayerMarker, Position},
+    protocol::{ActorMarker, FaceYaw, HomingTarget, MissileMarker, PlateState, PlayerMarker, Position},
 };
 
 type LockCandidateQuery<'w, 's> = Query<
@@ -29,31 +27,33 @@ type LockCandidateQuery<'w, 's> = Query<
 pub fn lock_on_system(
     mut lock: ResMut<LockOnTarget>,
     view_mode: Res<CameraViewMode>,
-    cursor_options: Single<&CursorOptions>,
+    input: Res<CameraInputState>,
     local_player_info: Res<LocalPlayerInfo>,
     console: Res<ConsoleState>,
     my_player_id: Res<MyPlayerId>,
     players: Res<PlayerMap>,
     actors: Res<ActorMap>,
     character_data: LockCandidateQuery,
-    camera_query: Query<&Transform, (With<Camera3d>, With<MainCameraMarker>)>,
+    aim: Res<CameraAim>,
     collision_world: Res<CollisionWorld>,
     gameplay_config: Res<GameplayConfig>,
     weapon_mode: Res<WeaponMode>,
+    plates: Res<PlateState>,
 ) {
     let new_lock = compute_lock(
         &view_mode,
-        &cursor_options,
+        &input,
         &local_player_info,
         &console,
         &my_player_id,
         &players,
         &actors,
         &character_data,
-        &camera_query,
+        &aim,
         &collision_world,
         &gameplay_config,
         &weapon_mode,
+        &plates,
     );
     // Write only on change so `ui_crosshair_lock_system`'s `is_changed()` gate works.
     lock.set_if_neq(LockOnTarget(new_lock));
@@ -62,20 +62,21 @@ pub fn lock_on_system(
 #[expect(clippy::too_many_arguments, reason = "pure helper over the system's full guard set")]
 fn compute_lock(
     view_mode: &CameraViewMode,
-    cursor_options: &CursorOptions,
+    input: &CameraInputState,
     local_player_info: &LocalPlayerInfo,
     console: &ConsoleState,
     my_player_id: &MyPlayerId,
     players: &PlayerMap,
     actors: &ActorMap,
     character_data: &LockCandidateQuery,
-    camera_query: &Query<&Transform, (With<Camera3d>, With<MainCameraMarker>)>,
+    aim: &CameraAim,
     collision_world: &CollisionWorld,
     gameplay_config: &GameplayConfig,
     weapon_mode: &WeaponMode,
+    plates: &PlateState,
 ) -> Option<HomingTarget> {
-    if !view_mode.is_first_person()
-        || cursor_options.grab_mode == CursorGrabMode::None
+    if view_mode.is_top_down()
+        || input.released
         || local_player_info.is_dead
         || console.open
         || *weapon_mode != WeaponMode::Missile
@@ -86,7 +87,15 @@ fn compute_lock(
     if players.get(&my_player_id.0).is_none_or(|info| info.missiles == 0) {
         return None;
     }
-    let camera = camera_query.iter().next()?;
+
+    if !collision_world.projectile_path_clear(
+        aim.origin,
+        aim.direction * MISSILE_SPAWN_OFFSET,
+        MISSILE_RADIUS,
+        &plates.open_barrier_kinds,
+    ) {
+        return None;
+    }
 
     let candidates = players
         .iter()
@@ -113,8 +122,8 @@ fn compute_lock(
 
     acquire_lock(
         collision_world,
-        camera.translation,
-        *camera.forward(),
+        aim.origin,
+        aim.direction,
         gameplay_config.missiles.lock_range,
         gameplay_config.missiles.lock_assist_radius,
         candidates.into_iter(),

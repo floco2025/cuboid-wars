@@ -21,7 +21,7 @@ pub fn local_player_rearview_sync_system(
     client_settings: Res<ClientSettings>,
     gameplay_config: Res<GameplayConfig>,
 ) {
-    if !client_settings.camera.rearview.enabled || !view_mode.is_first_person() {
+    if !client_settings.preferences.rearview_mirror || !view_mode.is_first_person() {
         return;
     }
 
@@ -49,7 +49,7 @@ pub fn local_player_rearview_sync_system(
 // Update rearview camera viewport based on the scene image size.
 pub fn local_player_rearview_viewport_system(
     windows: Query<Ref<Window>>,
-    mut rearview_query: Query<&mut Camera, With<RearviewCameraMarker>>,
+    mut rearview_query: Query<(&mut Camera, &mut Projection), With<RearviewCameraMarker>>,
     view_mode: Res<CameraViewMode>,
     client_settings: Res<ClientSettings>,
     ui_scale: Res<UiScale>,
@@ -69,11 +69,15 @@ pub fn local_player_rearview_viewport_system(
         return;
     }
 
-    let Ok(mut camera) = rearview_query.single_mut() else {
+    let Ok((mut camera, mut projection)) = rearview_query.single_mut() else {
         return;
     };
 
-    let is_active = client_settings.camera.rearview.enabled && view_mode.is_first_person();
+    if let Projection::Perspective(perspective) = projection.as_mut() {
+        perspective.fov = client_settings.preferences.fov_degrees.to_radians();
+    }
+
+    let is_active = client_settings.preferences.rearview_mirror && view_mode.is_first_person();
     if camera.is_active != is_active {
         camera.is_active = is_active;
     }
@@ -111,5 +115,44 @@ pub fn local_player_rearview_viewport_system(
             physical_size,
             depth: 0.0..1.0,
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rearview_uses_live_follow_fov_independently_of_top_down() {
+        let mut app = App::new();
+        app.insert_resource(ClientSettings::load_default().expect("client settings are invalid"))
+            .init_resource::<CameraViewMode>()
+            .init_resource::<UiScale>()
+            .insert_resource(SceneRenderTarget {
+                handle: Handle::default(),
+                size: UVec2::new(1200, 800),
+            })
+            .add_systems(Update, local_player_rearview_viewport_system);
+        app.world_mut().spawn(Window::default());
+        let camera = app
+            .world_mut()
+            .spawn((RearviewCameraMarker, Camera::default(), Projection::default()))
+            .id();
+        for fov in [75.0_f32, 105.0] {
+            app.world_mut().resource_mut::<ClientSettings>().preferences.fov_degrees = fov;
+            app.update();
+            let Projection::Perspective(projection) = app
+                .world()
+                .get::<Projection>(camera)
+                .expect("rearview projection missing")
+            else {
+                panic!("rearview projection is not perspective");
+            };
+            assert_eq!(projection.fov, fov.to_radians());
+            assert_eq!(
+                app.world().resource::<ClientSettings>().camera.top_down.fov_degrees,
+                45.0
+            );
+        }
     }
 }

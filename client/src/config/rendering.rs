@@ -1,4 +1,3 @@
-use anyhow::{Result, bail};
 use serde::Deserialize;
 
 #[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
@@ -19,12 +18,6 @@ impl OpaqueRenderer {
 #[derive(Debug, Clone, Copy, Deserialize)]
 pub struct RenderingConfig {
     pub opaque_renderer: OpaqueRenderer,
-    // Initial fullscreen render height ("1440p", adjustable in the settings
-    // menu): in fullscreen the 3D scene renders at most this height (width
-    // follows the aspect) and is upscaled to the monitor. Windowed mode
-    // always renders at the window size.
-    #[serde(default = "default_fullscreen_resolution")]
-    pub fullscreen_resolution: u32,
     pub directional_shadows: bool,
     // Directional shadow map resolution per cascade (Bevy default 2048).
     // Higher halves shadow-edge texel size — matters once the sun moves.
@@ -32,30 +25,12 @@ pub struct RenderingConfig {
     pub shadow_map_size: u32,
     pub mipmaps: bool,
     pub texture_anisotropy: u16,
-    pub msaa_samples: u32,
-    // Portal views each presenting camera (main view, rearview mirror) renders
-    // per frame — the settings menu's "Portal views" — largest on screen first;
-    // the rest show their glow. 0 = no see-through.
-    pub portal_view_budget: u8,
-    // Off = present frames immediately (`AutoNoVsync`): a frame that misses
-    // the vblank budget shows at e.g. ~58 FPS instead of snapping to 30
-    // (Fifo quantization), at the cost of possible tearing.
-    #[serde(default = "default_vsync")]
-    pub vsync: bool,
     #[serde(default)]
     pub bloom: BloomConfig,
 }
 
-const fn default_fullscreen_resolution() -> u32 {
-    1440
-}
-
 const fn default_shadow_map_size() -> u32 {
     2048
-}
-
-const fn default_vsync() -> bool {
-    true
 }
 
 // Thresholded additive bloom on the main camera (enabling it switches the
@@ -81,47 +56,5 @@ impl Default for BloomConfig {
             threshold: 1.5,
             threshold_softness: 0.4,
         }
-    }
-}
-
-impl RenderingConfig {
-    pub(super) fn validate(&self) -> Result<()> {
-        if !matches!(self.msaa_samples, 1 | 2 | 4 | 8) {
-            bail!("rendering.msaa_samples must be one of 1, 2, 4, or 8");
-        }
-        if self.fullscreen_resolution == 0 {
-            bail!("rendering.fullscreen_resolution must be > 0");
-        }
-        if self.portal_view_budget > 8 {
-            bail!("rendering.portal_view_budget must be <= 8");
-        }
-        Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::config::ClientSettings;
-
-    #[test]
-    fn rendering_config_rejects_zero_fullscreen_resolution() {
-        let mut settings = ClientSettings::load_default().expect("shipped client config should load");
-        settings.rendering.fullscreen_resolution = 0;
-        let error = settings
-            .rendering
-            .validate()
-            .expect_err("zero render resolution should fail");
-        assert!(error.to_string().contains("fullscreen_resolution"));
-    }
-
-    #[test]
-    fn rendering_config_rejects_portal_budget_above_settings_maximum() {
-        let mut settings = ClientSettings::load_default().expect("shipped client config should load");
-        settings.rendering.portal_view_budget = 9;
-        let error = settings
-            .rendering
-            .validate()
-            .expect_err("oversized portal view budget should fail");
-        assert!(error.to_string().contains("portal_view_budget"));
     }
 }

@@ -41,7 +41,7 @@ pub fn supported_msaa_samples(adapter: &RenderAdapter) -> Vec<u32> {
 // Config and saved settings can carry a count this GPU rejects; clamp to
 // the highest supported one before the cameras bake `Msaa` from it.
 pub fn clamp_msaa_to_device_system(mut client_settings: ResMut<ClientSettings>, adapter: Res<RenderAdapter>) {
-    let configured = client_settings.rendering.msaa_samples;
+    let configured = client_settings.preferences.msaa_samples;
     let clamped = supported_msaa_samples(&adapter)
         .into_iter()
         .filter(|&samples| samples <= configured)
@@ -49,7 +49,7 @@ pub fn clamp_msaa_to_device_system(mut client_settings: ResMut<ClientSettings>, 
         .unwrap_or(1);
     if clamped != configured {
         warn!("MSAA {configured}x is not supported by this GPU; using {clamped}x");
-        client_settings.rendering.msaa_samples = clamped;
+        client_settings.preferences.msaa_samples = clamped;
     }
 }
 
@@ -63,7 +63,7 @@ pub fn setup_cameras_system(
     let msaa = if deferred_rendering_enabled {
         Msaa::Off
     } else {
-        Msaa::from_samples(client_settings.rendering.msaa_samples)
+        Msaa::from_samples(client_settings.preferences.msaa_samples)
     };
 
     // The 3D cameras render into this image; `scene_render_target_system`
@@ -97,7 +97,7 @@ pub fn setup_cameras_system(
             ..default()
         },
         Projection::from(PerspectiveProjection {
-            fov: client_settings.camera.fov_degrees.first_person.to_radians(),
+            fov: client_settings.preferences.fov_degrees.to_radians(),
             ..default()
         }),
         // Present so lighting can drive `post_saturation` (low light mutes
@@ -149,11 +149,11 @@ pub fn setup_cameras_system(
             }),
             // Don't clear the viewport - render on top
             clear_color: bevy::camera::ClearColorConfig::None,
-            is_active: client_settings.camera.rearview.enabled,
+            is_active: client_settings.preferences.rearview_mirror,
             ..default()
         },
         Projection::from(PerspectiveProjection {
-            fov: client_settings.camera.rearview.fov_degrees.to_radians(),
+            fov: client_settings.preferences.fov_degrees.to_radians(),
             ..default()
         }),
         ColorGrading::default(),

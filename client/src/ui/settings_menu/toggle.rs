@@ -1,10 +1,7 @@
-use bevy::{
-    prelude::*,
-    window::{CursorGrabMode, CursorOptions},
-};
+use bevy::prelude::*;
 
 use super::state::SettingsMenuState;
-use crate::ui::ConsoleState;
+use crate::{cameras::CameraInputState, ui::ConsoleState};
 
 // Shift+Esc releases the cursor without opening the overlay. Plain Esc toggles
 // the overlay and with it the cursor. The console has Esc priority: its input
@@ -14,7 +11,7 @@ pub(super) fn settings_menu_toggle_system(
     keyboard: Res<ButtonInput<KeyCode>>,
     console: Res<ConsoleState>,
     mut menu: ResMut<SettingsMenuState>,
-    mut cursor_options: Single<&mut CursorOptions>,
+    mut input_state: ResMut<CameraInputState>,
 ) {
     if !keyboard.just_pressed(KeyCode::Escape) {
         return;
@@ -24,29 +21,35 @@ pub(super) fn settings_menu_toggle_system(
     }
     let shift_pressed = keyboard.pressed(KeyCode::ShiftLeft) || keyboard.pressed(KeyCode::ShiftRight);
     if shift_pressed {
-        cursor_options.visible = true;
-        cursor_options.grab_mode = CursorGrabMode::None;
+        input_state.released = true;
         return;
     }
     menu.open = !menu.open;
-    cursor_options.visible = menu.open;
-    cursor_options.grab_mode = if menu.open {
-        CursorGrabMode::None
-    } else {
-        CursorGrabMode::Locked
-    };
+    input_state.released = false;
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{
+        cameras::{CameraViewMode, FollowCamera},
+        input::input_cursor_capture_system,
+    };
+    use bevy::window::{CursorGrabMode, CursorOptions};
 
     fn app() -> App {
         let mut app = App::new();
         app.insert_resource(ButtonInput::<KeyCode>::default())
             .insert_resource(ConsoleState::default())
             .insert_resource(SettingsMenuState::default())
-            .add_systems(Update, settings_menu_toggle_system);
+            .init_resource::<CameraInputState>()
+            .init_resource::<CameraViewMode>()
+            .init_resource::<FollowCamera>()
+            .init_resource::<ButtonInput<MouseButton>>()
+            .add_systems(
+                Update,
+                (settings_menu_toggle_system, input_cursor_capture_system).chain(),
+            );
         app.world_mut().spawn(CursorOptions {
             visible: false,
             grab_mode: CursorGrabMode::Locked,

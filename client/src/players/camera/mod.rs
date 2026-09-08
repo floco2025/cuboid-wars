@@ -1,5 +1,6 @@
 mod follow;
 mod rearview;
+mod third_person;
 mod top_down;
 mod visibility;
 

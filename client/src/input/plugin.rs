@@ -2,6 +2,8 @@ use super::*;
 use bevy::prelude::*;
 
 use crate::{
+    cameras::{CameraAim, CameraInputState, FollowCamera},
+    missiles::lock_on_system,
     schedule::ClientSet,
     ui::{ConsoleState, SettingsMenuState, console_closed},
 };
@@ -14,12 +16,16 @@ fn gameplay_input_active(console: Res<ConsoleState>, menu: Res<SettingsMenuState
 }
 
 pub fn input_plugin(app: &mut App) {
-    app.init_resource::<PendingWeaponSelection>();
+    app.init_resource::<PendingWeaponSelection>()
+        .init_resource::<FollowCamera>()
+        .init_resource::<CameraInputState>()
+        .init_resource::<CameraAim>();
     app.add_systems(PreUpdate, windowed_frame_system);
     app.add_systems(
         Update,
         (
-            input_movement_system.after(input_camera_view_toggle_system),
+            input_movement_system.after(input_cursor_capture_system),
+            input_cursor_capture_system.after(input_camera_view_toggle_system),
             input_weapon_select_system
                 .after(input_movement_system)
                 .after(ClientSet::Network),
@@ -27,16 +33,6 @@ pub fn input_plugin(app: &mut App) {
             // the console (which the F key types into) stands it down.
             input_fullscreen_toggle_system.run_if(console_closed),
             (
-                input_shooting_system.after(input_weapon_select_system),
-                input_missile_system.after(input_weapon_select_system),
-                // Aim needs matching plate state and bridge collider groups.
-                input_portal_system
-                    .after(input_weapon_select_system)
-                    .after(ClientSet::Network),
-                input_cursor_capture_system
-                    .after(input_shooting_system)
-                    .after(input_missile_system)
-                    .after(input_portal_system),
                 input_camera_view_toggle_system,
                 input_level_focus_toggle_system,
                 input_debug_colors_cycle_system,
@@ -45,5 +41,12 @@ pub fn input_plugin(app: &mut App) {
                 .run_if(gameplay_input_active),
         )
             .in_set(ClientSet::Input),
+    );
+    app.add_systems(
+        Update,
+        (input_shooting_system, input_missile_system, input_portal_system)
+            .in_set(ClientSet::Camera)
+            .after(lock_on_system)
+            .run_if(gameplay_input_active),
     );
 }

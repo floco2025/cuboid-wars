@@ -6,7 +6,7 @@ use bevy::{
 use super::WindowedFrame;
 
 use crate::{
-    cameras::{CameraViewMode, TopDownCameraYaw},
+    cameras::{CameraViewMode, FollowCamera, TopDownCameraYaw},
     characters::BoundsMode,
     map::{DebugColors, LevelFocusEnabled},
     players::LocalPlayerInfo,
@@ -29,18 +29,25 @@ pub fn input_camera_view_toggle_system(
     mut focus: ResMut<LevelFocusEnabled>,
     mut top_down_camera_yaw: ResMut<TopDownCameraYaw>,
     local_player_info: Res<LocalPlayerInfo>,
+    mut third: ResMut<FollowCamera>,
 ) {
     if keyboard.just_pressed(KeyCode::KeyV) {
-        let old_mode = *view_mode;
-        let new_mode = old_mode.next();
+        let new_mode = third.toggle_top_down(*view_mode);
         *view_mode = new_mode;
 
-        if old_mode.is_first_person() && new_mode.is_top_down() {
+        if new_mode.is_top_down() {
             top_down_camera_yaw.0 = local_player_info.stored_yaw;
-            focus.0 = true;
-        } else if old_mode.is_top_down() && new_mode.is_first_person() {
-            focus.0 = false;
         }
+        focus.0 = new_mode.is_top_down();
+    }
+    let fullscreen_modifier = keyboard.any_pressed([
+        KeyCode::ControlLeft,
+        KeyCode::ControlRight,
+        KeyCode::SuperLeft,
+        KeyCode::SuperRight,
+    ]);
+    if *view_mode == CameraViewMode::ThirdPerson && keyboard.just_pressed(KeyCode::KeyF) && !fullscreen_modifier {
+        third.locked = !third.locked;
     }
 }
 

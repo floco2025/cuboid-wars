@@ -4,15 +4,22 @@ use anyhow::{Result, bail};
 use bevy::prelude::Resource;
 use serde::Deserialize;
 
+use crate::constants::{
+    CAMERA_FOV_DEGREES_DEFAULT, CAMERA_REARVIEW_MIRROR_DEFAULT, CAMERA_SHAKE_SCALE_DEFAULT,
+    HUD_SHOW_DIAGNOSTICS_DEFAULT, INPUT_INVERT_Y_DEFAULT, INPUT_MOUSE_SENSITIVITY_DEFAULT,
+    INPUT_ZOOM_SENSITIVITY_DEFAULT, RENDERING_FULLSCREEN_RESOLUTION_DEFAULT, RENDERING_MSAA_SAMPLES_DEFAULT,
+    RENDERING_PORTAL_VIEW_BUDGET_DEFAULT, RENDERING_VSYNC_DEFAULT,
+};
+
 use super::{audio::AudioConfig, camera::CameraConfig, hud::HudConfig, rendering::RenderingConfig, vfx::VfxConfig};
 
-// Top-level client config. Loaded from `config/client/client.json` once at
-// startup; fields are immutable after that (no hot-reload).
+// JSON tuning and runtime preferences; local settings override only preferences.
 #[derive(Resource, Debug, Clone, Deserialize)]
 pub struct ClientSettings {
     pub rendering: RenderingConfig,
     pub camera: CameraConfig,
-    pub input: InputConfig,
+    #[serde(skip)]
+    pub preferences: UserPreferences,
     pub hud: HudConfig,
     #[serde(default)]
     pub grass: GrassConfig,
@@ -171,14 +178,37 @@ impl WeatherConfig {
     }
 }
 
-#[derive(Debug, Clone, Copy, Deserialize)]
-pub struct InputConfig {
-    // Mouse look sensitivity in radians per pixel. Larger = faster turn
-    // per inch of mouse movement.
+#[derive(Debug, Clone, Copy)]
+pub struct UserPreferences {
+    pub fullscreen_resolution: u32,
+    pub vsync: bool,
+    pub msaa_samples: u32,
+    pub portal_view_budget: u8,
     pub mouse_sensitivity: f32,
-    // Flip vertical mouse look (mouse forward = look down).
-    #[serde(default)]
+    pub zoom_sensitivity: f32,
     pub invert_y: bool,
+    pub fov_degrees: f32,
+    pub shake_scale: f32,
+    pub show_diagnostics: bool,
+    pub rearview_mirror: bool,
+}
+
+impl Default for UserPreferences {
+    fn default() -> Self {
+        Self {
+            fullscreen_resolution: RENDERING_FULLSCREEN_RESOLUTION_DEFAULT,
+            vsync: RENDERING_VSYNC_DEFAULT,
+            msaa_samples: RENDERING_MSAA_SAMPLES_DEFAULT,
+            portal_view_budget: RENDERING_PORTAL_VIEW_BUDGET_DEFAULT,
+            mouse_sensitivity: INPUT_MOUSE_SENSITIVITY_DEFAULT,
+            zoom_sensitivity: INPUT_ZOOM_SENSITIVITY_DEFAULT,
+            invert_y: INPUT_INVERT_Y_DEFAULT,
+            fov_degrees: CAMERA_FOV_DEGREES_DEFAULT,
+            shake_scale: CAMERA_SHAKE_SCALE_DEFAULT,
+            show_diagnostics: HUD_SHOW_DIAGNOSTICS_DEFAULT,
+            rearview_mirror: CAMERA_REARVIEW_MIRROR_DEFAULT,
+        }
+    }
 }
 
 // Performance/feel knobs for the decorative grass. Pure-appearance numbers
@@ -215,9 +245,8 @@ impl ClientSettings {
     }
 
     pub(crate) fn validate(&self) -> Result<()> {
-        self.rendering.validate()?;
         self.camera.validate()?;
-        self.input.validate()?;
+        self.preferences.validate()?;
         self.hud.validate()?;
         self.grass.validate()?;
         self.vfx.validate()?;
@@ -228,9 +257,22 @@ impl ClientSettings {
     }
 }
 
-impl InputConfig {
-    fn validate(&self) -> Result<()> {
-        validate_positive_finite(self.mouse_sensitivity, "input.mouse_sensitivity")
+impl UserPreferences {
+    pub(super) fn validate(&self) -> Result<()> {
+        validate_positive_finite(self.mouse_sensitivity, "mouse_sensitivity")?;
+        validate_positive_finite(self.zoom_sensitivity, "zoom_sensitivity")?;
+        validate_fov(self.fov_degrees, "fov_degrees")?;
+        validate_non_negative_finite(self.shake_scale, "shake_scale")?;
+        if !matches!(self.msaa_samples, 1 | 2 | 4 | 8) {
+            bail!("msaa_samples must be one of 1, 2, 4, or 8");
+        }
+        if self.fullscreen_resolution == 0 {
+            bail!("fullscreen_resolution must be > 0");
+        }
+        if self.portal_view_budget > 8 {
+            bail!("portal_view_budget must be <= 8");
+        }
+        Ok(())
     }
 }
 
@@ -276,5 +318,37 @@ mod tests {
     #[test]
     fn shipped_client_config_loads_and_validates() {
         ClientSettings::load_default().expect("shipped client config should load and validate");
+    }
+
+    #[test]
+    fn preferences_reject_zero_fullscreen_resolution() {
+        let mut settings = ClientSettings::load_default().expect("shipped client config should load");
+        settings.preferences.fullscreen_resolution = 0;
+        let error = settings
+            .preferences
+            .validate()
+            .expect_err("zero render resolution should fail");
+        assert!(error.to_string().contains("fullscreen_resolution"));
+    }
+
+    #[test]
+    fn preferences_reject_portal_budget_above_settings_maximum() {
+        let mut settings = ClientSettings::load_default().expect("shipped client config should load");
+        settings.preferences.portal_view_budget = 9;
+        let error = settings
+            .preferences
+            .validate()
+            .expect_err("oversized portal view budget should fail");
+        assert!(error.to_string().contains("portal_view_budget"));
+    }
+    #[test]
+    fn json_cannot_override_runtime_preference_defaults() {
+        let mut json: serde_json::Value =
+            serde_json::from_str(include_str!("../../../config/client/client.json")).expect("client JSON is invalid");
+        json["preferences"] = serde_json::json!({"fov_degrees": 10.0, "zoom_sensitivity": 100.0});
+        let settings: ClientSettings = serde_json::from_value(json).expect("client settings are invalid");
+        settings.validate().expect("default preferences are invalid");
+        assert_eq!(settings.preferences.fov_degrees, CAMERA_FOV_DEGREES_DEFAULT);
+        assert_eq!(settings.preferences.zoom_sensitivity, INPUT_ZOOM_SENSITIVITY_DEFAULT);
     }
 }

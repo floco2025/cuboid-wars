@@ -32,11 +32,13 @@ pub(super) fn on_slider_value_change(
     };
     // `SliderValue` is immutable; without this re-insert the thumb freezes.
     commands.entity(event.source).insert(SliderValue(event.value));
+    let value = setting.preference_value(event.value);
     match setting {
-        SliderSetting::MouseSensitivity => settings.input.mouse_sensitivity = event.value,
-        SliderSetting::Fov => settings.camera.fov_degrees.first_person = event.value,
-        SliderSetting::ShakeScale => settings.camera.shake.scale = event.value,
-        SliderSetting::MasterVolume => global_volume.volume = Volume::Linear(event.value),
+        SliderSetting::MouseSensitivity => settings.preferences.mouse_sensitivity = value,
+        SliderSetting::ZoomSensitivity => settings.preferences.zoom_sensitivity = value,
+        SliderSetting::Fov => settings.preferences.fov_degrees = value,
+        SliderSetting::ShakeScale => settings.preferences.shake_scale = value,
+        SliderSetting::MasterVolume => global_volume.volume = Volume::Linear(value),
     }
 }
 
@@ -57,7 +59,7 @@ pub(super) fn on_checkbox_value_change(
     }
     match setting {
         CheckboxSetting::VSync => {
-            settings.rendering.vsync = event.value;
+            settings.preferences.vsync = event.value;
             if let Ok(mut window) = windows.single_mut() {
                 window.present_mode = if event.value {
                     PresentMode::Fifo
@@ -66,9 +68,9 @@ pub(super) fn on_checkbox_value_change(
                 };
             }
         }
-        CheckboxSetting::InvertY => settings.input.invert_y = event.value,
-        CheckboxSetting::RearviewMirror => settings.camera.rearview.enabled = event.value,
-        CheckboxSetting::ShowDiagnostics => settings.hud.show_diagnostics = event.value,
+        CheckboxSetting::InvertY => settings.preferences.invert_y = event.value,
+        CheckboxSetting::RearviewMirror => settings.preferences.rearview_mirror = event.value,
+        CheckboxSetting::ShowDiagnostics => settings.preferences.show_diagnostics = event.value,
     }
 }
 
@@ -107,8 +109,8 @@ pub(super) fn on_cycler_activate(
             // Step from the preset NEAREST the effective height (the renderer
             // never exceeds the monitor), so an over-native config value
             // cannot make the first press wrap around the list.
-            let current = native.map_or(settings.rendering.fullscreen_resolution, |native| {
-                settings.rendering.fullscreen_resolution.min(native)
+            let current = native.map_or(settings.preferences.fullscreen_resolution, |native| {
+                settings.preferences.fullscreen_resolution.min(native)
             });
             let nearest = presets
                 .iter()
@@ -116,7 +118,7 @@ pub(super) fn on_cycler_activate(
                 .min_by_key(|(_, height)| height.abs_diff(current))
                 .map_or(0, |(index, _)| index);
             let step = if button.direction < 0 { presets.len() - 1 } else { 1 };
-            settings.rendering.fullscreen_resolution = presets[(nearest + step) % presets.len()];
+            settings.preferences.fullscreen_resolution = presets[(nearest + step) % presets.len()];
         }
         CyclerSetting::Msaa => {
             // Deferred rendering forces MSAA off (`setup_cameras_system`);
@@ -125,18 +127,18 @@ pub(super) fn on_cycler_activate(
                 return;
             }
             let supported = supported_msaa_samples(&adapter);
-            let current = settings.rendering.msaa_samples;
+            let current = settings.preferences.msaa_samples;
             let nearest = supported.iter().position(|&samples| samples == current).unwrap_or(0);
             let step = if button.direction < 0 { supported.len() - 1 } else { 1 };
             let samples = supported[(nearest + step) % supported.len()];
-            settings.rendering.msaa_samples = samples;
+            settings.preferences.msaa_samples = samples;
             for mut msaa in &mut msaa_cameras {
                 *msaa = Msaa::from_samples(samples);
             }
         }
         CyclerSetting::PortalViews => {
-            settings.rendering.portal_view_budget =
-                cycle_portal_views(settings.rendering.portal_view_budget, button.direction);
+            settings.preferences.portal_view_budget =
+                cycle_portal_views(settings.preferences.portal_view_budget, button.direction);
         }
         CyclerSetting::WindowMode => {
             let Ok((mut window, on_monitor)) = windows.single_mut() else {

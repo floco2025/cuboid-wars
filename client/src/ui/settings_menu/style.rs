@@ -100,14 +100,14 @@ pub(super) fn settings_menu_slider_sync_system(
         let Some((_, value, _, _)) = sliders.iter().find(|(_, _, _, setting)| **setting == label.0) else {
             continue;
         };
-        let rendered = slider_label(label.0, value.0);
+        let rendered = slider_label(label.0, label.0.preference_value(value.0));
         text.set_if_neq(Text(rendered));
     }
 }
 
 fn slider_label(setting: SliderSetting, value: f32) -> String {
     match setting {
-        SliderSetting::MouseSensitivity => format!("{:.1}", value * 1000.0),
+        SliderSetting::MouseSensitivity | SliderSetting::ZoomSensitivity => format!("{value:.2}x"),
         SliderSetting::Fov => format!("{value:.0}"),
         SliderSetting::ShakeScale => format!("{value:.1}x"),
         SliderSetting::MasterVolume => format!("{:.0}%", value * 100.0),
@@ -136,8 +136,8 @@ pub(super) fn settings_menu_window_sync_system(
         let (rendered, dimmed) = match label.0 {
             CyclerSetting::Resolution => {
                 // Effective height: the renderer never exceeds the monitor.
-                let height = monitor.map_or(settings.rendering.fullscreen_resolution, |monitor| {
-                    settings.rendering.fullscreen_resolution.min(monitor.physical_height)
+                let height = monitor.map_or(settings.preferences.fullscreen_resolution, |monitor| {
+                    settings.preferences.fullscreen_resolution.min(monitor.physical_height)
                 });
                 // Width follows the monitor aspect, matching `scene_image_size`.
                 let width = monitor.map_or(height * 16 / 9, |monitor| {
@@ -146,7 +146,7 @@ pub(super) fn settings_menu_window_sync_system(
                 (format!("{width}x{height}"), windowed)
             }
             CyclerSetting::Msaa => {
-                let samples = settings.rendering.msaa_samples;
+                let samples = settings.preferences.msaa_samples;
                 let label = if samples <= 1 {
                     "Off".to_owned()
                 } else {
@@ -155,7 +155,7 @@ pub(super) fn settings_menu_window_sync_system(
                 (label, deferred)
             }
             CyclerSetting::PortalViews => {
-                let budget = settings.rendering.portal_view_budget;
+                let budget = settings.preferences.portal_view_budget;
                 let label = if budget == 0 {
                     "Off".to_owned()
                 } else {

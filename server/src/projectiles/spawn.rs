@@ -40,8 +40,6 @@ pub fn handle_projectile_shot_message(
     }
     let actual_pattern = resolved_pattern(msg.pattern.as_deref(), &gameplay_config.projectiles.multi_shot);
 
-    commands.entity(entity).insert(FaceYaw(msg.face_yaw));
-
     // Spawn projectile(s) on server for hit detection
     if let Ok((pos, _, _, _)) = player_data.get(entity) {
         let spawns = calculate_projectile_spawns(

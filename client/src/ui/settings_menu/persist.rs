@@ -87,17 +87,18 @@ fn local_settings(
         window_y,
         window_width: frame.size.x,
         window_height: frame.size.y,
-        fullscreen_resolution: settings.rendering.fullscreen_resolution,
-        vsync: settings.rendering.vsync,
-        msaa_samples: settings.rendering.msaa_samples,
-        portal_view_budget: settings.rendering.portal_view_budget,
-        mouse_sensitivity: settings.input.mouse_sensitivity,
-        invert_y: settings.input.invert_y,
-        fov_degrees: settings.camera.fov_degrees.first_person,
-        shake_scale: settings.camera.shake.scale,
+        fullscreen_resolution: settings.preferences.fullscreen_resolution,
+        vsync: settings.preferences.vsync,
+        msaa_samples: settings.preferences.msaa_samples,
+        portal_view_budget: settings.preferences.portal_view_budget,
+        mouse_sensitivity: settings.preferences.mouse_sensitivity,
+        zoom_sensitivity: settings.preferences.zoom_sensitivity,
+        invert_y: settings.preferences.invert_y,
+        fov_degrees: settings.preferences.fov_degrees,
+        shake_scale: settings.preferences.shake_scale,
         master_volume: global_volume.volume.to_linear(),
-        show_diagnostics: settings.hud.show_diagnostics,
-        rearview_mirror: settings.camera.rearview.enabled,
+        show_diagnostics: settings.preferences.show_diagnostics,
+        rearview_mirror: settings.preferences.rearview_mirror,
     }
 }
 
@@ -156,5 +157,61 @@ mod tests {
             ..Default::default()
         };
         assert!(state.pending(current, Duration::ZERO, true).is_none());
+    }
+
+    #[test]
+    fn sensitivity_sliders_save_multipliers_and_restore_their_positions() {
+        use super::super::{observers::on_slider_value_change, state::SliderSetting};
+        use bevy::ui_widgets::{SliderValue, ValueChange};
+        let mut app = App::new();
+        let settings = ClientSettings::load_default().expect("client settings are invalid");
+        app.insert_resource(settings).init_resource::<GlobalVolume>();
+        app.add_observer(on_slider_value_change);
+        let sliders = [SliderSetting::MouseSensitivity, SliderSetting::ZoomSensitivity].map(|setting| {
+            app.world_mut()
+                .spawn((setting, SliderValue(setting.slider_value(1.0))))
+                .id()
+        });
+        app.update();
+        for coordinate in [-2.0_f32, -1.0, 0.0, 1.0] {
+            for slider in sliders {
+                app.world_mut().trigger(ValueChange::<f32> {
+                    source: slider,
+                    value: coordinate,
+                    is_final: true,
+                });
+            }
+            app.update();
+            let local = local_settings(
+                app.world().resource::<ClientSettings>(),
+                app.world().resource::<GlobalVolume>(),
+                false,
+                WindowedFrame {
+                    position: None,
+                    size: UVec2::new(1280, 720),
+                    position_pending: false,
+                },
+            );
+            assert_eq!(local.mouse_sensitivity, coordinate.exp2());
+            assert_eq!(local.zoom_sensitivity, coordinate.exp2());
+            let mut restored = ClientSettings::load_default().expect("client settings are invalid");
+            local.apply_to(&mut restored);
+            for (slider, setting, preference) in [
+                (
+                    sliders[0],
+                    SliderSetting::MouseSensitivity,
+                    restored.preferences.mouse_sensitivity,
+                ),
+                (
+                    sliders[1],
+                    SliderSetting::ZoomSensitivity,
+                    restored.preferences.zoom_sensitivity,
+                ),
+            ] {
+                let widget = app.world().get::<SliderValue>(slider).expect("slider value missing").0;
+                assert_eq!(widget, coordinate);
+                assert_eq!(setting.slider_value(preference), widget);
+            }
+        }
     }
 }

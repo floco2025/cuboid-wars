@@ -36,10 +36,13 @@ pub fn configure_client_sets(app: &mut App) {
             ClientSet::Input,
             // Cameras follow the local player after input/prediction has had
             // a chance to update the player state.
-            ClientSet::Camera.after(ClientSet::Input),
+            ClientSet::Camera.after(ClientSet::Input).after(ClientSet::Network),
             // HUD rendering observes this frame's keystrokes and the
             // feed/banner lines Network pushed.
-            ClientSet::Hud.after(ClientSet::Input).after(ClientSet::Network),
+            ClientSet::Hud
+                .after(ClientSet::Input)
+                .after(ClientSet::Network)
+                .after(ClientSet::Camera),
             // Laser beams and missile exhaust anchor to this frame's
             // interpolated character/missile transforms, so they must read
             // the freshly-synced values.
@@ -60,14 +63,15 @@ pub fn configure_client_sets(app: &mut App) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{input::input_plugin, network::network_plugin};
+    use crate::{input::input_plugin, network::network_plugin, players::camera_plugin};
 
     #[test]
-    fn input_and_network_ordering_has_no_cycles() {
+    fn input_network_camera_and_weapon_ordering_has_no_cycles() {
         let mut app = App::new();
         configure_client_sets(&mut app);
         input_plugin(&mut app);
         network_plugin(&mut app);
+        camera_plugin(&mut app);
         app.world_mut().schedule_scope(Update, |world, schedule| {
             schedule
                 .initialize(world)

@@ -15,15 +15,8 @@ pub struct HudConfig {
     pub floating_labels: FloatingLabelsConfig,
     pub health_bars: HealthBarsConfig,
     pub quest_panel: QuestPanelConfig,
-    // The RTT / FPS readout column (toggleable from the settings menu).
-    #[serde(default = "default_true")]
-    pub show_diagnostics: bool,
     #[serde(default)]
     pub settings_menu: SettingsMenuHudConfig,
-}
-
-const fn default_true() -> bool {
-    true
 }
 
 const fn default_hud_reference_width() -> f32 {
