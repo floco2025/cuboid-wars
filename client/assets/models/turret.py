@@ -1,4 +1,4 @@
-"""Build the turret GLB with Blender: blender --background --python tools/assets/turret.py."""
+"""Build the turret GLB with Blender: blender --background --python client/assets/models/turret.py."""
 
 import math
 from pathlib import Path
@@ -7,8 +7,8 @@ import bpy
 from mathutils import Vector
 
 
-ROOT = Path(__file__).resolve().parents[2]
-ASSETS = ROOT / "client/assets"
+MODEL = Path(__file__).resolve().with_suffix(".glb")
+ASSETS = MODEL.parent.parent
 STEEL = ASSETS / "textures/used-stainless-steel-ue"
 
 bpy.ops.object.select_all(action="SELECT")
@@ -186,7 +186,7 @@ for (parent, mat), objects in groups.items():
 
 bpy.ops.object.select_all(action="SELECT")
 bpy.ops.export_scene.gltf(
-    filepath=str(ASSETS / "models/turret.glb"),
+    filepath=str(MODEL),
     export_format="GLB",
     use_selection=True,
     export_apply=True,
@@ -197,7 +197,7 @@ bpy.ops.export_scene.gltf(
 
 bpy.ops.object.select_all(action="SELECT")
 bpy.ops.object.delete(use_global=False)
-bpy.ops.import_scene.gltf(filepath=str(ASSETS / "models/turret.glb"))
+bpy.ops.import_scene.gltf(filepath=str(MODEL))
 
 floor = material("Studio floor", (0.028, 0.038, 0.058), 0.2, 0.6)
 box("Studio", (0, 0, -0.07), (200, 200, 0.1), floor)
