@@ -122,6 +122,8 @@ pub const PLAYER_ANIMATION_APEX_SPEED: f32 = 0.15;
 pub const PLAYER_ANIMATION_LANDING_MIN_AIR_SECS: f32 = 0.1;
 pub const PLAYER_ANIMATION_STRAFE_RATIO: f32 = 1.2;
 
+pub const WHEEL_ANIMATION_STANDSTILL_SPEED: f32 = 0.05;
+
 // ============================================================================
 // Floating Labels (layout math; sizes live in `client.json::hud`)
 // ============================================================================

@@ -7,7 +7,7 @@ mod rendering;
 mod settings;
 mod vfx;
 
-pub use assets::{AssetSet, MaterialDef, ModelDef, SkyboxDef};
+pub use assets::{AimRigDef, AssetSet, MaterialDef, ModelDef, SkyboxDef, WheelModelDef};
 pub use audio::{AudioConfig, BumpAudioConfig};
 pub use camera::FollowCameraConfig;
 pub use local::{LOCAL_SETTINGS_VERSION, LocalSettings};

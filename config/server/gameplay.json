@@ -25,9 +25,9 @@
     "settings": { "spawn_warning_secs": 3.0, "threat_memory_secs": 1.0 },
     "kinds": {
       "mine": {
-        "movement_collider": { "diameter": 1.05, "height": 1.75 },
-        "hitbox": { "width": 1.0, "height": 1.0, "depth": 1.2, "bottom_offset": 0.6 },
-        "eye_height": 1.6,
+        "movement_collider": { "diameter": 1.05, "height": 1.1 },
+        "hitbox": { "width": 1.1, "height": 0.88, "depth": 1.02, "bottom_offset": 0.0 },
+        "eye_height": 0.79,
         "respawn_secs": 90.0,
         "can_use_ladders": false,
         "immovable": false,

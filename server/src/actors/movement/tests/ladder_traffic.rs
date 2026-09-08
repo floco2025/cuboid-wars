@@ -1,8 +1,9 @@
 use std::collections::VecDeque;
 
 use super::*;
-use crate::{actors::navigation::WaypointKind, config::ServerGameplayConfig};
+use crate::actors::navigation::WaypointKind;
 use common::{
+    config::{CharacterPhysicsConfig, HitboxConfig, MovementColliderConfig},
     constants::{LADDER_RAIL_INSET, LADDER_STANDOFF_CLEARANCE, TICK_SECS},
     physics::{blocking_character_move_plan, character_paths_intersect},
     protocol::{BarrierKindTable, Ladder},
@@ -35,11 +36,19 @@ fn ladder_traffic(transpose: bool, traffic: Traffic) {
         }
         pos
     };
-    let physics = ServerGameplayConfig::load_default()
-        .expect("default gameplay missing")
-        .gameplay_config()
-        .expect_actor("mine")
-        .physics();
+    // Ladder traffic needs a fixed climbing body; shipped mines cannot climb.
+    let physics = CharacterPhysicsConfig {
+        movement_collider: MovementColliderConfig {
+            diameter: 1.05,
+            height: 1.75,
+        },
+        hitbox: HitboxConfig {
+            width: 1.0,
+            height: 1.0,
+            depth: 1.2,
+            bottom_offset: 0.6,
+        },
+    };
     let mount = orient(Position {
         x: 0.0,
         y: 0.0,

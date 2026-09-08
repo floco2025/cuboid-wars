@@ -1,6 +1,10 @@
 use bevy::{gltf::GltfAssetLabel, prelude::*};
 
-use super::turret::{TurretMarker, turret_rig_setup_system};
+use super::{
+    aim_rig::{FixedFacingMarker, aim_rig_setup_system},
+    wheel_animation::{WheelAnimationSource, wheel_animation_setup_system},
+    wheel_grounding::WheelGrounding,
+};
 
 use crate::{
     characters::{
@@ -52,24 +56,41 @@ pub fn spawn_actor(
         .id();
 
     let mut children = vec![];
-    if actor.kind == "turret" {
-        commands.entity(entity).insert(TurretMarker);
+    if !actor_model.rotate_with_facing {
+        commands.entity(entity).insert(FixedFacingMarker);
     }
     children.push(spawn_character_bounds(commands, meshes, materials, actor_physics));
 
     let base_y = actor_model.y_offset;
+    let model_transform = Transform::from_scale(Vec3::splat(actor_model.scale))
+        .with_rotation(Quat::from_rotation_x(actor_model.x_rotation_degrees.to_radians()))
+        .with_translation(Vec3::new(actor_model.x_offset, base_y, actor_model.z_offset));
     let mut model_commands = commands.spawn((
         WorldAssetRoot(asset_server.load(actor_model.scene.clone())),
-        Transform::from_scale(Vec3::splat(actor_model.scale))
-            .with_rotation(Quat::from_rotation_x(actor_model.x_rotation_degrees.to_radians()))
-            .with_translation(Vec3::new(actor_model.x_offset, base_y, actor_model.z_offset)),
+        model_transform,
     ));
 
-    if actor.kind == "turret" {
-        model_commands.observe(turret_rig_setup_system);
+    if let Some(rig) = &actor_model.aim_rig {
+        model_commands.insert(rig.clone()).observe(aim_rig_setup_system);
     }
 
-    if let Some(animation_speed) = actor_model.animation_speed {
+    if let Some(wheels) = actor_model.wheels {
+        model_commands
+            .insert(WheelGrounding {
+                owner: entity,
+                physics: actor_physics,
+                wheels,
+                rest: model_transform,
+            })
+            .insert(WheelAnimationSource::load(
+                entity,
+                actor_model,
+                wheels,
+                asset_server,
+                graphs,
+            ))
+            .observe(wheel_animation_setup_system);
+    } else if let Some(animation_speed) = actor_model.animation_speed {
         let (graph, index) = AnimationGraph::from_clip(
             asset_server
                 .load(GltfAssetLabel::Animation(actor_model.animation_index).from_asset(actor_model.scene.clone())),

@@ -1,13 +1,15 @@
 use bevy::{prelude::*, world_serialization::WorldInstanceReady};
 
-#[derive(Component)]
-pub struct TurretMarker;
+use crate::config::AimRigDef;
 
 #[derive(Component)]
-pub struct TurretJointMarker;
+pub struct FixedFacingMarker;
 
 #[derive(Component)]
-pub struct TurretRig {
+pub struct AimJointMarker;
+
+#[derive(Component)]
+pub struct AimRig {
     yaw: Entity,
     pitch: Entity,
     model: Transform,
@@ -15,40 +17,51 @@ pub struct TurretRig {
     muzzle_distance: f32,
 }
 
-pub fn turret_rig_setup_system(
+pub fn aim_rig_setup_system(
     ready: On<WorldInstanceReady>,
     mut commands: Commands,
     children: Query<&Children>,
     parents: Query<&ChildOf>,
     names: Query<&Name>,
+    definitions: Query<&AimRigDef>,
     transforms: Query<&Transform>,
 ) {
-    let find = |name| {
+    let Ok(definition) = definitions.get(ready.entity) else {
+        return;
+    };
+    let find = |name: &str| {
         children
             .iter_descendants(ready.entity)
             .find(|entity| names.get(*entity).is_ok_and(|node| node.as_str() == name))
     };
-    let (Some(yaw), Some(pitch), Some(muzzle)) = (find("TurretYaw"), find("TurretPitch"), find("TurretMuzzle")) else {
-        error!("turret model is missing TurretYaw, TurretPitch, or TurretMuzzle");
+    let (Some(yaw), Some(pitch), Some(muzzle)) = (
+        find(&definition.yaw_node),
+        find(&definition.pitch_node),
+        find(&definition.muzzle_node),
+    ) else {
+        error!(?definition, "model is missing configured aim rig nodes");
         return;
     };
-    let actor = parents.get(ready.entity).expect("turret model parent missing").parent();
-    commands.entity(actor).insert(TurretRig {
+    let actor = parents
+        .get(ready.entity)
+        .expect("aim rig model parent missing")
+        .parent();
+    commands.entity(actor).insert(AimRig {
         yaw,
         pitch,
-        model: *transforms.get(ready.entity).expect("turret model transform missing"),
-        pivot: transforms.get(yaw).expect("turret yaw transform missing").translation,
+        model: *transforms.get(ready.entity).expect("aim rig model transform missing"),
+        pivot: transforms.get(yaw).expect("aim rig yaw transform missing").translation,
         muzzle_distance: transforms
             .get(muzzle)
-            .expect("turret muzzle transform missing")
+            .expect("aim rig muzzle transform missing")
             .translation
             .length(),
     });
-    commands.entity(yaw).insert(TurretJointMarker);
-    commands.entity(pitch).insert(TurretJointMarker);
+    commands.entity(yaw).insert(AimJointMarker);
+    commands.entity(pitch).insert(AimJointMarker);
 }
 
-impl TurretRig {
+impl AimRig {
     pub fn pivot(&self, actor: &Transform) -> Vec3 {
         actor.transform_point(self.model.transform_point(self.pivot))
     }
@@ -57,7 +70,7 @@ impl TurretRig {
         self.muzzle_distance * self.model.scale.z * actor.scale.z
     }
 
-    pub fn aim(&self, actor: &Transform, direction: Vec3, joints: &mut Query<&mut Transform, With<TurretJointMarker>>) {
+    pub fn aim(&self, actor: &Transform, direction: Vec3, joints: &mut Query<&mut Transform, With<AimJointMarker>>) {
         let local = (actor.rotation * self.model.rotation).inverse() * direction;
         let (yaw, pitch) = aim_rotations(local);
         if let Ok(mut transform) = joints.get_mut(self.yaw) {
@@ -116,10 +129,10 @@ mod tests {
     #[test]
     fn aiming_respects_rotated_bases_and_scaled_models() {
         let mut world = World::new();
-        let yaw = world.spawn((Transform::default(), TurretJointMarker)).id();
-        let pitch = world.spawn((Transform::default(), TurretJointMarker)).id();
+        let yaw = world.spawn((Transform::default(), AimJointMarker)).id();
+        let pitch = world.spawn((Transform::default(), AimJointMarker)).id();
         let actor = Transform::from_xyz(8.0, 2.0, -3.0).with_rotation(Quat::from_rotation_y(1.2));
-        let rig = TurretRig {
+        let rig = AimRig {
             yaw,
             pitch,
             model: Transform::from_xyz(0.0, -1.45, 0.0).with_scale(Vec3::splat(2.0)),
@@ -127,7 +140,7 @@ mod tests {
             muzzle_distance: 0.572,
         };
         let direction = Vec3::new(-2.0, 1.0, 3.0).normalize();
-        let mut state = world.query_filtered::<&mut Transform, With<TurretJointMarker>>();
+        let mut state = world.query_filtered::<&mut Transform, With<AimJointMarker>>();
         rig.aim(&actor, direction, &mut state.query_mut(&mut world));
         let yaw = world.get::<Transform>(yaw).expect("yaw transform missing");
         let pitch = world.get::<Transform>(pitch).expect("pitch transform missing");
@@ -167,17 +180,17 @@ mod tests {
                 Update,
                 (characters_visual_turn_system, laser_beam_update_system).chain(),
             );
-        let yaw = app.world_mut().spawn((Transform::default(), TurretJointMarker)).id();
-        let pitch = app.world_mut().spawn((Transform::default(), TurretJointMarker)).id();
+        let yaw = app.world_mut().spawn((Transform::default(), AimJointMarker)).id();
+        let pitch = app.world_mut().spawn((Transform::default(), AimJointMarker)).id();
         let base = Transform::from_xyz(0.0, 0.0, 0.0).with_rotation(Quat::from_rotation_y(1.2));
         let actor = app
             .world_mut()
             .spawn((
                 base,
                 ActorMarker,
-                TurretMarker,
+                FixedFacingMarker,
                 FaceYaw(0.0),
-                TurretRig {
+                AimRig {
                     yaw,
                     pitch,
                     model: model_transform,

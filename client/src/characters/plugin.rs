@@ -7,7 +7,7 @@ use common::{
 };
 
 use crate::{
-    actors::actors_transform_sync_system,
+    actors::{actors_transform_sync_system, wheel_animation_update_system, wheel_grounding_system},
     carriers::carriers_transform_sync_system,
     input::{commit_player_input_system, record_committed_position_system},
     missiles::missiles_movement_system,
@@ -67,6 +67,8 @@ pub fn character_sync_plugin(app: &mut App) {
                 .after(refresh_grounding_debug_system),
             grounding_debug_system.after(character_bounds_sync_system),
             player_animation_update_system.after(characters_visual_turn_system),
+            wheel_animation_update_system.after(characters_visual_turn_system),
+            wheel_grounding_system.after(characters_visual_turn_system),
             floating_labels_billboard_system,
             player_name_label_render_system,
             floating_health_bar_fill_system,

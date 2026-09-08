@@ -4,7 +4,7 @@ use common::{
     protocol::{ActorMarker, FaceYaw, PlayerMarker},
 };
 
-use crate::{actors::TurretMarker, constants::CHARACTER_VISUAL_TURN_MAX_SPEED};
+use crate::{actors::FixedFacingMarker, constants::CHARACTER_VISUAL_TURN_MAX_SPEED};
 
 // Smoothly rotate the rendered character yaw toward the gameplay `FaceYaw`
 // at a capped angular speed. `FaceYaw` itself stays immediate (shooting
@@ -19,7 +19,7 @@ pub fn characters_visual_turn_system(
         (
             Or<(With<PlayerMarker>, With<ActorMarker>)>,
             Without<Camera3d>,
-            Without<TurretMarker>,
+            Without<FixedFacingMarker>,
         ),
     >,
 ) {

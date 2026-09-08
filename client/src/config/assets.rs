@@ -5,7 +5,7 @@ use std::{
 };
 
 use anyhow::{Context, Result, bail};
-use bevy::prelude::Resource;
+use bevy::prelude::{Component, Resource};
 use common::protocol::{MapLayout, MapSettings, validate_texture_catalog, validate_texture_materials};
 use serde::Deserialize;
 
@@ -257,6 +257,40 @@ fn validate_model(path: &str, model: &ModelDef) -> Result<()> {
             "`{path}.animation_speed` must be positive and finite, got {speed}"
         );
     }
+    if let Some(wheels) = model.wheels {
+        anyhow::ensure!(
+            model.animation_speed.is_none(),
+            "`{path}` cannot combine wheels with animation_speed"
+        );
+        for (field, value) in [
+            ("radius", wheels.radius),
+            ("track", wheels.track),
+            ("wheelbase", wheels.wheelbase),
+            ("drive_cycle_secs", wheels.drive_cycle_secs),
+        ] {
+            anyhow::ensure!(
+                value.is_finite() && value > 0.0,
+                "`{path}.wheels.{field}` must be positive and finite"
+            );
+        }
+        anyhow::ensure!(
+            wheels.idle_animation != wheels.drive_animation,
+            "`{path}.wheels` needs distinct idle_animation and drive_animation clips"
+        );
+    }
+    if let Some(rig) = &model.aim_rig {
+        for (field, name) in [
+            ("yaw_node", &rig.yaw_node),
+            ("pitch_node", &rig.pitch_node),
+            ("muzzle_node", &rig.muzzle_node),
+        ] {
+            anyhow::ensure!(!name.trim().is_empty(), "`{path}.aim_rig.{field}` must not be empty");
+        }
+        anyhow::ensure!(
+            rig.yaw_node != rig.pitch_node && rig.yaw_node != rig.muzzle_node && rig.pitch_node != rig.muzzle_node,
+            "`{path}.aim_rig` needs distinct yaw, pitch, and muzzle nodes"
+        );
+    }
     Ok(())
 }
 
@@ -333,6 +367,35 @@ pub struct ModelDef {
     pub animation_index: usize,
     #[serde(default)]
     pub animation_speed: Option<f32>,
+    #[serde(default)]
+    pub wheels: Option<WheelModelDef>,
+    #[serde(default)]
+    pub aim_rig: Option<AimRigDef>,
+    #[serde(default = "default_true")]
+    pub rotate_with_facing: bool,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+#[derive(Debug, Clone, Deserialize, Component)]
+#[serde(deny_unknown_fields)]
+pub struct AimRigDef {
+    pub yaw_node: String,
+    pub pitch_node: String,
+    pub muzzle_node: String,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct WheelModelDef {
+    pub radius: f32,
+    pub track: f32,
+    pub wheelbase: f32,
+    pub idle_animation: usize,
+    pub drive_animation: usize,
+    pub drive_cycle_secs: f32,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -494,6 +557,57 @@ mod tests {
             .expect_err("missing actor assets must fail");
 
         assert!(error.to_string().contains("only in gameplay: [\"mine\"]"));
+    }
+
+    #[test]
+    fn actor_catalog_can_be_replaced_with_arbitrary_names() {
+        let mut assets = AssetSet::load_default().expect("shipped assets.json fails to load");
+        let definitions: Vec<_> = assets.actors.values().cloned().collect();
+        assets.actors.clear();
+        for (index, actor) in definitions.into_iter().enumerate() {
+            assets.actors.insert(format!("custom_actor_{index}"), actor);
+        }
+        assets.validate().expect("renamed actor assets rejected");
+        assets
+            .validate_gameplay_bindings(assets.actors.keys().map(String::as_str))
+            .expect("matching custom actor catalog rejected");
+        assets.actors.clear();
+        assets.validate().expect("empty actor catalog rejected");
+        assets
+            .validate_gameplay_bindings([])
+            .expect("matching empty actor catalog rejected");
+    }
+
+    #[test]
+    fn malformed_model_capabilities_are_rejected() {
+        let mut model: ModelDef = serde_json::from_value(serde_json::json!({
+            "scene": "models/custom.glb#Scene0", "scale": 1.0,
+            "wheels": { "radius": 0.3, "track": 0.8, "wheelbase": 0.7,
+                "idle_animation": 3, "drive_animation": 7, "drive_cycle_secs": 2.0 },
+            "aim_rig": { "yaw_node": "Pan", "pitch_node": "Elevation", "muzzle_node": "Emitter" }
+        }))
+        .expect("custom model config rejected");
+        validate_model("custom.model", &model).expect("valid model capabilities rejected");
+        model.wheels.as_mut().expect("wheel config missing").radius = 0.0;
+        assert!(
+            validate_model("custom.model", &model)
+                .expect_err("zero radius accepted")
+                .to_string()
+                .contains("wheels.radius")
+        );
+        model.wheels = None;
+        model
+            .aim_rig
+            .as_mut()
+            .expect("aim rig config missing")
+            .muzzle_node
+            .clear();
+        assert!(
+            validate_model("custom.model", &model)
+                .expect_err("empty node accepted")
+                .to_string()
+                .contains("aim_rig.muzzle_node")
+        );
     }
 
     #[test]

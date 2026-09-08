@@ -2,7 +2,9 @@
 
 ## Fixes
 
-- **Ladder descent overlap:** `side_by_side_mines_descend_without_jamming` fails its character-overlap assertion at `server/src/actors/movement/tests/ladder_traffic.rs:180`, including on the committed baseline. Check separation while two mines descend side by side.
+- **Turret cooldown tests:** `closing_a_barrier_immediately_stops_a_turret` and `turret_holds_long_burst_and_stops_when_player_disconnects` assume a 0.1-second cooldown, while the shipped turret configuration uses 0.5 seconds. Make the fixtures independent of tuning.
+
+- **Ladder descent overlap:** `side_by_side_mines_descend_without_jamming` fails its character-overlap assertion in `server/src/actors/movement/tests/ladder_traffic.rs`, including on the committed baseline. Check separation while two actors descend side by side.
 
 - **Missiles near walls:** Missiles repeatedly miss actors positioned close to walls. Check whether requiring missile clearance to the target centre prevents a valid approach within proximity-fuse range.
 
