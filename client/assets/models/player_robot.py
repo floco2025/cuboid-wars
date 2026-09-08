@@ -13,6 +13,9 @@ import bpy
 import numpy as np
 from mathutils import Euler, Vector
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from player_robot_mocap import RobotMocap
+
 MODEL = Path(__file__).resolve().with_suffix(".glb")
 TEXTURES = MODEL.parent.parent / "textures"
 CLIPS = ("Idle", "Walk", "Run", "Climb", "Jump", "Fall", "Land", "Stunned", "StrafeLeft", "StrafeRight")
@@ -691,9 +694,10 @@ for side, sign in (("L", -1), ("R", 1)):
         cylinder("Finger hinge", (fx, -0.006, 0.730 - length * 0.53), 0.0085, 0.017, chassis, tip, "X", 12)
         rod("Distal phalanx", (fx, -0.007, 0.727 - length * 0.53), (fx, -0.010, 0.73 - length), 0.0075, ivory, tip)
         sphere("Tactile fingertip", (fx, -0.010, 0.73 - length), (0.008, 0.009, 0.009), joint, tip)
-    rod("Thumb metacarpal", (wx + sign * 0.032, -0.003, 0.785), (wx + sign * 0.056, -0.01, 0.758), 0.011, steel, hand)
-    sphere("Thumb knuckle", (wx + sign * 0.056, -0.01, 0.758), (0.011, 0.011, 0.012), joint, hand)
+    rod("Thumb metacarpal", (wx + sign * 0.032, -0.003, 0.785), (wx + sign * 0.056, -0.01, 0.758), 0.011, ivory, hand)
+    cylinder("Thumb hinge", (wx + sign * 0.056, -0.01, 0.758), 0.011, 0.020, chassis, hand, "X", 12)
     rod("Thumb phalanx", (wx + sign * 0.056, -0.011, 0.758), (wx + sign * 0.056, -0.028, 0.732), 0.009, ivory, hand)
+    sphere("Tactile thumb tip", (wx + sign * 0.056, -0.030, 0.730), (0.0095, 0.010, 0.010), joint, hand)
 
 bpy.ops.object.select_all(action="DESELECT")
 for obj in parts:
@@ -765,96 +769,19 @@ def pose(clip, t):
         bone.scale = (1, 1, 1)
     phase = math.tau * t
     sine = math.sin(phase)
-    rotate("UpperArm.L", y=0.08)
-    rotate("UpperArm.R", y=-0.08)
-    rotate("Forearm.L", x=-0.10)
-    rotate("Forearm.R", x=-0.10)
-    if clip in ("Idle", "Stunned"):
-        stunned = clip == "Stunned"
-        translate("Root", z=-0.045 if stunned else 0.006 * sine)
-        rotate("Torso", x=0.12 if stunned else 0.012 * sine, y=0.055 * sine if stunned else 0.012 * sine)
-        rotate(
-            "Head",
-            x=0.14 if stunned else -0.035,
-            y=0.18 * sine if stunned else 0.025,
-            z=0.22 * math.sin(phase) if stunned else 0.16 * math.sin(phase),
-        )
+    clearance = 0.0
+    if clip == "Stunned":
+        translate("Root", z=-0.045)
+        rotate("Torso", x=0.12, y=0.055 * sine)
+        rotate("Head", x=0.14, y=0.18 * sine, z=0.22 * sine)
         for side, sign in (("L", -1), ("R", 1)):
-            rotate("Thigh." + side, x=-0.18 if stunned else 0)
-            rotate("Shin." + side, x=0.36 if stunned else 0)
-            rotate("Foot." + side, x=-0.18 if stunned else 0)
-            rotate("UpperArm." + side, x=0.06 * sine, y=-sign * (0.12 if stunned else 0.06))
-        rotate("Eye.L", z=0.08 * sine)
-        rotate("Eye.R", x=-0.05 * sine)
-    elif clip in ("Walk", "Run"):
-        running = clip == "Run"
-        stride = 0.72 if running else 0.48
-        # The stance foot is held at floor height; root motion stays in-place.
-        stance = -abs(stride * sine)
-        root_z = (0.38 + 0.405) * math.cos(stance) - 0.785
-        translate("Root", z=root_z + (0.038 * abs(sine) if running else 0))
-        rotate("Torso", x=0.16 if running else 0.035, z=0.085 * sine)
-        rotate("Head", x=-0.11 if running else -0.02, y=0.025 * sine, z=-0.055 * sine)
-        for side, sign in (("L", 1), ("R", -1)):
-            swing = sine * sign
-            lift = max(0, math.cos(phase) * sign)
-            hip = stride * swing
-            knee = (0.95 if running else 0.55) * lift
-            rotate("Thigh." + side, x=hip)
-            rotate("Shin." + side, x=knee)
-            rotate("Foot." + side, x=-hip - knee)
-            rotate("UpperArm." + side, x=-hip * (1.15 if running else 0.8), y=sign * 0.10)
-            rotate("Forearm." + side, x=-0.95 if running else -0.22)
-            rotate("Hand." + side, x=-0.10)
-    elif clip in ("StrafeLeft", "StrafeRight"):
-        sign = -1 if clip == "StrafeLeft" else 1
-        translate("Root", z=-0.025 * abs(sine))
-        rotate("Torso", y=-sign * 0.07)
-        rotate("Head", y=sign * 0.04, z=sign * 0.12)
-        for side, offset in (("L", 0), ("R", math.pi)):
-            swing = math.sin(phase + offset)
-            lift = max(0, math.cos(phase + offset))
-            rotate("Thigh." + side, x=-0.12 * lift, y=sign * 0.32 * swing)
-            rotate("Shin." + side, x=0.42 * lift)
-            rotate("Foot." + side, x=-0.30 * lift, y=-sign * 0.32 * swing)
-            rotate("UpperArm." + side, x=-0.22, y=(1 if side == "L" else -1) * (0.18 + 0.12 * swing))
-            rotate("Forearm." + side, x=-0.35)
-    elif clip == "Climb":
-        rotate("Torso", x=-0.045, z=0.06 * sine)
-        rotate("Head", x=-0.15)
-        for side, sign in (("L", 1), ("R", -1)):
-            rotate("UpperArm." + side, x=-2.25 + sign * 0.45 * sine, y=sign * 0.15)
-            rotate("Forearm." + side, x=-0.35 - 0.20 * sign * sine)
-            rotate("Hand." + side, x=0.4)
-            rotate("Thigh." + side, x=-0.60 - 0.35 * sign * sine)
-            rotate("Shin." + side, x=1.10 + 0.35 * sign * sine)
-            rotate("Foot." + side, x=-0.5)
-    elif clip in ("Jump", "Fall"):
-        jumping = clip == "Jump"
-        settle = min(1, t * 3) if jumping else 1
-        rotate("Torso", x=-0.06 if jumping else 0.08)
-        rotate("Head", x=-0.10 if jumping else 0.10)
-        for side, sign in (("L", -1), ("R", 1)):
-            rotate("Thigh." + side, x=(-0.55 if side == "L" else -0.32) * settle)
-            rotate("Shin." + side, x=(0.85 if jumping else 0.60) * settle)
-            rotate("Foot." + side, x=-0.22 * settle)
-            rotate(
-                "UpperArm." + side,
-                x=-0.3 * settle,
-                y=-sign * ((0.62 if jumping else 0.85) + (0 if jumping else 0.08 * sine)),
-            )
-            rotate("Forearm." + side, x=-0.55)
-    elif clip == "Land":
-        compression = math.sin(math.pi * t) * math.exp(-2.0 * t) * 1.5
-        translate("Root", z=-0.105 * compression)
-        rotate("Torso", x=0.20 * compression)
-        rotate("Head", x=-0.12 * compression)
-        for side, sign in (("L", -1), ("R", 1)):
-            rotate("Thigh." + side, x=-0.55 * compression)
-            rotate("Shin." + side, x=1.10 * compression)
-            rotate("Foot." + side, x=-0.55 * compression)
-            rotate("UpperArm." + side, x=-0.30 * compression, y=-sign * 0.17)
-            rotate("Forearm." + side, x=-0.35 * compression)
+            rotate("Thigh." + side, x=-0.18)
+            rotate("Shin." + side, x=0.36)
+            rotate("Foot." + side, x=-0.18)
+            rotate("UpperArm." + side, x=0.06 * sine, y=-sign * 0.12)
+            rotate("Forearm." + side, x=-0.10)
+    else:
+        clearance = mocap.apply(clip, t)
     for side, sign in (("L", -1), ("R", 1)):
         gripping = clip == "Climb"
         rotate("Hand." + side, x=0.15 if gripping else 0, z=0 if gripping else -sign * math.pi / 2)
@@ -862,20 +789,12 @@ def pose(clip, t):
         for index in range(4):
             rotate(f"FingerTip.{index}." + side, x=-0.85 if gripping else -0.10)
     rotate("Antenna", x=0.01 * sine)
+    return clearance
 
 
-durations = {
-    "Idle": 3.2,
-    "Walk": 0.9,
-    "Run": 0.6,
-    "Climb": 1.0,
-    "Jump": 0.4,
-    "Fall": 0.8,
-    "Land": 0.3,
-    "Stunned": 1.6,
-    "StrafeLeft": 0.8,
-    "StrafeRight": 0.8,
-}
+mocap = RobotMocap(rig)
+durations = {**mocap.durations, "Stunned": 1.6}
+
 checked_bones = ("Root", "Foot.L", "Foot.R", "Forearm.L", "Forearm.R", "Hand.L", "Hand.R", "Fingers.L", "Fingers.R")
 checked_bones += tuple(f"FingerTip.{index}.{side}" for side in ("L", "R") for index in range(4))
 rest_vertices = {}
@@ -892,18 +811,18 @@ def posed_vertices(name):
     return (rest_vertices[name] @ matrix.T)[:, :3]
 
 
-def finish_pose(clip, frame):
+def finish_pose(clip, frame, clearance):
     bpy.context.view_layer.update()
     if clip not in ("Jump", "Fall", "Climb"):
         lowest = min(posed_vertices(name)[:, 2].min() for name in ("Foot.L", "Foot.R"))
         root = rig.pose.bones["Root"]
-        root.location += rest_rotation["Root"].inverted() @ Vector((0, 0, -lowest))
+        root.location += rest_rotation["Root"].inverted() @ Vector((0, 0, clearance - lowest))
         bpy.context.view_layer.update()
     pelvis = posed_vertices("Root")
     for name in checked_bones[3:]:
         limb = posed_vertices(name)
         overlap = np.minimum(pelvis.max(axis=0), limb.max(axis=0)) - np.maximum(pelvis.min(axis=0), limb.min(axis=0))
-        assert not np.all(overlap > 0), f"{clip} frame {frame}: {name} intersects the pelvic armour"
+        assert not np.all(overlap > 0), f"{clip} frame {frame}: {name} intersects the pelvic armour by {overlap}"
 
 
 bpy.context.scene.render.fps = FPS
@@ -915,8 +834,14 @@ for clip in CLIPS:
     rig.animation_data.action = action
     frames = round(durations[clip] * FPS)
     for frame in range(frames + 1):
-        pose(clip, frame / frames)
-        finish_pose(clip, frame)
+        clearance = pose(clip, frame / frames)
+        finish_pose(clip, frame, clearance)
+        if frame == 0:
+            first_pose = {bone.name: np.array(bone.matrix) for bone in rig.pose.bones}
+        elif frame == frames and clip not in ("Jump", "Fall", "Land"):
+            for bone in rig.pose.bones:
+                error = np.abs(np.array(bone.matrix) - first_pose[bone.name]).max()
+                assert error < 0.0001, f"{clip}: {bone.name} has a discontinuous loop ({error})"
         for bone in rig.pose.bones:
             for channel in ("location", "rotation_quaternion", "scale"):
                 bone.keyframe_insert(data_path=channel, frame=frame)
@@ -970,7 +895,7 @@ if "--preview" in sys.argv:
     for track in tracks.values():
         track.mute = True
     floor = material("Studio floor", (0.075, 0.10, 0.115), 0.1, 0.65)
-    box("Studio", (0, 0, -0.075), (200, 200, 0.1), floor, "Root", 0)
+    box("Studio", (0, 0, -0.05), (200, 200, 0.1), floor, "Root", 0)
     scene = bpy.context.scene
     scene.render.engine = "CYCLES"
     scene.cycles.samples = 40

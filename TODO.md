@@ -22,11 +22,6 @@
 
 ## Testing
 
-
-- **Turret and inspection controls:** Check the textured pedestal and animated head, including targets above/below it, nearby cover, moving carriers, and spawn ghosts. Check its tight collider around the pedestal and main head with the barrel excluded, turret/zapper beams at chest height, long turret bursts with brief cooldowns and one fire sound per burst, target changes without restarting the sound, `/peace` stopping and restoring attacks, and `B` cycling collision inspection views (off on each client launch). The user handles in-game testing.
-
-- **Puzzle examples:** Play the eight solo `puzzle_*` maps and `puzzle_coop` with two players. Check intended solutions, guard exposure and missile retries, `puzzle_stages` actor restoration after a posthumous turret kill, `puzzle_containment` killing a full-health player on hunter contact and restoring the hunter after solo death or logout, configurable group countdowns and actor reset scopes, `puzzle_access` closing its barrier after everyone dies, bridge toggle/death resets, actor and switch logout policies (including logout during a countdown and an empty server), `puzzle_coop` revealing its finish plates only after each player collects a coin (including one player collecting both and the other waiting for respawn), Hotel’s solo toggles and multiplayer momentary controls, shuttle boarding, momentum aim, hunter containment, and shortcuts. See [map list and solutions](PUZZLES.md#small-example-maps). The user handles in-game testing.
-
 - **Playtest Switchyard:** Check the customs portal route and raised seal balcony, moving bridge switch, and ladder shuttle solo and with teammates. The user handles in-game testing.
 - **Sliding-carrier pushing:** Let the moving cabin's wall push you while standing still, walking against it, and stepping sideways out of its path. Confirm open space is safe, being pinned against another wall still crushes, and boarding moving platforms remains safe. Crushed actors should play their normal explosion animation and sound.
 - **Playtest and refine Relay:** The prototype is playable. The user handles in-game testing; refine the puzzles based on their feedback.

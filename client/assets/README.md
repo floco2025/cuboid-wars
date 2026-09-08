@@ -8,6 +8,8 @@ If you are forking or using this codebase, you **must replace all assets** with 
 
 The game's source code is licensed under MIT OR Apache-2.0, but this license does NOT apply to the contents of this directory.
 
+Third-party motion captures in `models/mocap/cmu/` retain CMU's own usage terms; see their [source and license notice](models/mocap/cmu/README.md).
+
 ## Asset Set
 
 `config/client/assets.json` is the client asset set. The client uses the full file for render/audio assets. The server reads the same file for `material_rules` and ignores client-only sections it does not need, such as `materials`, `models`, `sounds`, and texture file paths.

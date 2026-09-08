@@ -78,7 +78,7 @@ impl PlayerClip {
     ];
 
     fn looping(self) -> bool {
-        !matches!(self, Self::Jump | Self::Land)
+        !matches!(self, Self::Jump | Self::Fall | Self::Land)
     }
 }
 
@@ -87,6 +87,7 @@ pub(crate) struct PlayerAnimationSource {
     owner: Entity,
     graph: Handle<AnimationGraph>,
     clips: Vec<AnimationNodeIndex>,
+    climb_clip: Handle<AnimationClip>,
 }
 
 impl PlayerAnimationSource {
@@ -96,14 +97,15 @@ impl PlayerAnimationSource {
         asset_server: &AssetServer,
         graphs: &mut Assets<AnimationGraph>,
     ) -> Self {
-        let (graph, clips) =
-            AnimationGraph::from_clips(PlayerClip::ALL.map(|clip| {
-                asset_server.load(GltfAssetLabel::Animation(clip as usize).from_asset(model.scene.clone()))
-            }));
+        let handles = PlayerClip::ALL
+            .map(|clip| asset_server.load(GltfAssetLabel::Animation(clip as usize).from_asset(model.scene.clone())));
+        let climb_clip = handles[PlayerClip::Climb as usize].clone();
+        let (graph, clips) = AnimationGraph::from_clips(handles);
         Self {
             owner,
             graph: graphs.add(graph),
             clips,
+            climb_clip,
         }
     }
 }
@@ -150,10 +152,7 @@ impl AnimationState {
             0.0
         };
         if motion.support == CharacterSupport::Ladder {
-            return (
-                PlayerClip::Climb,
-                (motion.velocity.y / PLAYER_ANIMATION_CLIMB_SPEED).clamp(-2.5, 2.5),
-            );
+            return (PlayerClip::Climb, 1.0);
         }
         if motion.support == CharacterSupport::Airborne {
             let rising = motion.velocity.y > PLAYER_ANIMATION_APEX_SPEED
@@ -163,11 +162,11 @@ impl AnimationState {
         if stunned {
             return (PlayerClip::Stunned, 1.0);
         }
-        if landed || (self.clip == PlayerClip::Land && !finished) {
-            return (PlayerClip::Land, 1.0);
-        }
         let speed = local_velocity.x.hypot(local_velocity.z);
         if speed < PLAYER_ANIMATION_STANDSTILL_SPEED {
+            if landed || (self.clip == PlayerClip::Land && !finished) {
+                return (PlayerClip::Land, 1.0);
+            }
             return (PlayerClip::Idle, 1.0);
         }
         if local_velocity.x.abs() > local_velocity.z.abs() * PLAYER_ANIMATION_STRAFE_RATIO {
@@ -188,6 +187,10 @@ impl AnimationState {
         let rate = (speed / reference_speed).clamp(0.4, 2.5);
         (clip, if local_velocity.z < 0.0 { -rate } else { rate })
     }
+}
+
+fn climb_playback_rate(vertical_speed: f32, duration: f32) -> f32 {
+    vertical_speed * duration / (LADDER_RUNG_SPACING * PLAYER_ANIMATION_CLIMB_RUNGS_PER_CYCLE)
 }
 
 pub(crate) fn player_animation_setup_system(
@@ -222,6 +225,7 @@ pub(crate) fn player_animation_setup_system(
 pub(crate) fn player_animation_update_system(
     time: Res<Time>,
     players: Res<PlayerMap>,
+    clips: Res<Assets<AnimationClip>>,
     owners: Query<(&PlayerId, &PlayerAnimationMotion, &PlayerMoveIntent, &Transform)>,
     mut animations: Query<(
         &mut PlayerAnimationPlayback,
@@ -236,7 +240,7 @@ pub(crate) fn player_animation_update_system(
         let current = playback.source.clips[playback.state.clip as usize];
         let finished = player.animation(current).is_none_or(|active| active.is_finished());
         let local_velocity = transform.rotation.inverse() * motion.velocity;
-        let (clip, speed) = playback.state.select(
+        let (clip, mut speed) = playback.state.select(
             *motion,
             *intent,
             local_velocity,
@@ -244,9 +248,19 @@ pub(crate) fn player_animation_update_system(
             finished,
             time.delta_secs(),
         );
+        if clip == PlayerClip::Climb {
+            speed = clips
+                .get(&playback.source.climb_clip)
+                .map_or(0.0, |clip| climb_playback_rate(motion.velocity.y, clip.duration()));
+        }
         let index = playback.source.clips[clip as usize];
         if clip != playback.state.clip {
-            let active = transitions.play(&mut player, index, Duration::from_secs_f32(PLAYER_ANIMATION_BLEND_SECS));
+            let blend = if clip == PlayerClip::Jump {
+                PLAYER_ANIMATION_TAKEOFF_BLEND_SECS
+            } else {
+                PLAYER_ANIMATION_BLEND_SECS
+            };
+            let active = transitions.play(&mut player, index, Duration::from_secs_f32(blend));
             if clip.looping() {
                 active.repeat();
             }
@@ -267,6 +281,7 @@ mod tests {
     };
 
     use bevy::{
+        animation::RepeatAnimation,
         gltf::{Gltf, GltfMaterial, GltfPlugin},
         image::{CompressedImageFormatSupport, CompressedImageFormats, ImagePlugin},
         mesh::MeshPlugin,
@@ -344,7 +359,7 @@ mod tests {
     fn ladder_pose_holds_and_reverses_without_becoming_a_jump_or_fall() {
         let mut state = AnimationState::default();
         for speed in [2.0, 0.0, -2.0] {
-            let (clip, rate) = choose(
+            let (clip, _) = choose(
                 &mut state,
                 CharacterSupport::Ladder,
                 Vec3::Y * speed,
@@ -352,7 +367,6 @@ mod tests {
                 false,
             );
             assert_eq!(clip, PlayerClip::Climb);
-            assert_eq!(rate, speed / PLAYER_ANIMATION_CLIMB_SPEED);
         }
         assert_eq!(
             choose(
@@ -365,6 +379,63 @@ mod tests {
             .0,
             PlayerClip::Idle
         );
+    }
+
+    #[test]
+    fn climb_cadence_tracks_rungs_independently_of_clip_duration() {
+        for duration in [1.0, 2.4, 3.0] {
+            for speed in [-3.6_f32, -2.4, 0.0, 2.4, 3.6, 5.4] {
+                let rate = climb_playback_rate(speed, duration);
+                if speed == 0.0 {
+                    assert_eq!(rate, 0.0);
+                    continue;
+                }
+                let seconds_per_step = duration / (rate.abs() * PLAYER_ANIMATION_CLIMB_RUNGS_PER_CYCLE);
+                assert!((speed.abs() * seconds_per_step - LADDER_RUNG_SPACING).abs() < 0.0001);
+                assert_eq!(rate.is_sign_negative(), speed.is_sign_negative());
+            }
+        }
+    }
+
+    #[test]
+    fn moving_landings_and_movement_during_recovery_resume_locomotion() {
+        for (intent, velocity, expected) in [
+            (
+                PlayerMoveIntent::Walking { direction: 0.0 },
+                Vec3::Z * 3.0,
+                PlayerClip::Walk,
+            ),
+            (
+                PlayerMoveIntent::Running { direction: 0.0 },
+                Vec3::Z * 5.0,
+                PlayerClip::Run,
+            ),
+            (
+                PlayerMoveIntent::Walking { direction: FRAC_PI_2 },
+                Vec3::X * 3.0,
+                PlayerClip::StrafeLeft,
+            ),
+        ] {
+            for initial_clip in [PlayerClip::Jump, PlayerClip::Fall, PlayerClip::Land] {
+                let mut state = AnimationState {
+                    clip: initial_clip,
+                    support: if initial_clip == PlayerClip::Land {
+                        CharacterSupport::Ground
+                    } else {
+                        CharacterSupport::Airborne
+                    },
+                    airborne_secs: 0.5,
+                };
+                assert_eq!(
+                    choose(&mut state, CharacterSupport::Ground, velocity, intent, false).0,
+                    expected
+                );
+                assert_eq!(
+                    choose(&mut state, CharacterSupport::Ground, velocity, intent, false).0,
+                    expected
+                );
+            }
+        }
     }
 
     #[test]
@@ -452,6 +523,7 @@ mod tests {
         let mut app = App::new();
         app.insert_resource(Time::<()>::default());
         app.init_resource::<PlayerMap>();
+        app.init_resource::<Assets<AnimationClip>>();
         app.add_systems(Update, player_animation_update_system);
         let owner = app
             .world_mut()
@@ -477,6 +549,7 @@ mod tests {
                         owner,
                         graph: Handle::default(),
                         clips,
+                        climb_clip: Handle::default(),
                     },
                     state: AnimationState::default(),
                 },
@@ -516,6 +589,35 @@ mod tests {
                 .speed(),
             0.0
         );
+        for (vertical_speed, expected) in [(4.0, PlayerClip::Jump), (-2.0, PlayerClip::Fall)] {
+            app.world_mut().entity_mut(owner).insert(PlayerAnimationMotion {
+                support: CharacterSupport::Airborne,
+                velocity: Vec3::Y * vertical_speed,
+            });
+            app.update();
+            let playback = app
+                .world()
+                .get::<PlayerAnimationPlayback>(rig)
+                .expect("rig playback missing");
+            assert_eq!(playback.state.clip, expected);
+            let index = playback.source.clips[expected as usize];
+            let mut player = app
+                .world_mut()
+                .get_mut::<AnimationPlayer>(rig)
+                .expect("rig animation player missing");
+            let active = player.animation_mut(index).expect("airborne animation missing");
+            assert_eq!(active.repeat_mode(), RepeatAnimation::Never);
+            active.set_seek_time(0.2);
+            app.update();
+            let player = app
+                .world()
+                .get::<AnimationPlayer>(rig)
+                .expect("rig animation player missing");
+            assert_eq!(
+                player.animation(index).expect("airborne animation missing").seek_time(),
+                0.2
+            );
+        }
     }
 
     #[test]
@@ -648,6 +750,29 @@ mod tests {
             first.angle_between(second) > 0.05,
             "running clip did not move the exported skeleton"
         );
+        for speed in [2.4, 0.0, -3.6] {
+            app.world_mut().entity_mut(owner).insert(PlayerAnimationMotion {
+                support: CharacterSupport::Ladder,
+                velocity: Vec3::Y * speed,
+            });
+            app.update();
+            let (playback, player) = app
+                .world_mut()
+                .query::<(&PlayerAnimationPlayback, &AnimationPlayer)>()
+                .single(app.world())
+                .expect("player animation rig missing");
+            let duration = app
+                .world()
+                .resource::<Assets<AnimationClip>>()
+                .get(&playback.source.climb_clip)
+                .expect("loaded climb clip missing")
+                .duration();
+            let active = player
+                .animation(playback.source.clips[PlayerClip::Climb as usize])
+                .expect("active climb animation missing");
+            let rung_speed = active.speed() / duration * PLAYER_ANIMATION_CLIMB_RUNGS_PER_CYCLE;
+            assert!((rung_speed * LADDER_RUNG_SPACING - speed).abs() < 0.0001);
+        }
     }
 
     #[test]
