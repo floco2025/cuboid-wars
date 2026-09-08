@@ -15,14 +15,18 @@ from .constants import (
     ITEM_TYPE_COLORS,
     MATERIAL_MODES,
     MODE_BARRIER,
+    MODE_BRIDGE_PLATE,
     MODE_EQUIPMENT_ERASER,
     EQUIPMENT_ERASER_COLOR,
     MODE_LADDER,
     MODE_LIGHT,
+    MODE_FIREWORK_PLATE,
+    MODE_PRESSURE_PLATE,
     MODE_SELECT,
     MODE_NESTED_MAP,
     MODE_WALL,
     MODE_WALL_MATERIAL,
+    PLATE_TYPE_BARRIER,
     PLATE_TYPE_BRIDGE,
     PLATE_TYPE_FIREWORK,
     PLAYER_ZONE_LIST,
@@ -39,8 +43,10 @@ from .display import (
     DRAG_PREVIEW_COLORS,
     DRAG_PREVIEW_FALLBACK,
     NESTED_MAP_COLOR,
+    PLATE_LABELS,
     WALL_HIGHLIGHT_WIDTH,
     WALL_PEN_WIDTH,
+    contrasting_text_color,
     face_color,
     tag_color,
     zone_color,
@@ -218,6 +224,20 @@ class CanvasPaintingMixin:
             self._paint_nested_map_footprint(painter, (col, row), self.window.recent_nested_map_name(), cell, dim=True)
             painter.setPen(Qt.PenStyle.NoPen)
             return
+        plate_modes = {
+            MODE_PRESSURE_PLATE: (PLATE_TYPE_BARRIER, self.window.recent_pressure_plate_kind),
+            MODE_BRIDGE_PLATE: (PLATE_TYPE_BRIDGE, self.window.recent_bridge_plate_kind),
+            MODE_FIREWORK_PLATE: (PLATE_TYPE_FIREWORK, None),
+        }
+        if mode in plate_modes:
+            if self.window.plates_at(col, row):
+                return
+            purpose, kind = plate_modes[mode]
+            painter.save()
+            painter.setOpacity(0.5)
+            self._paint_pressure_plate(painter, cell, {"col": col, "row": row, "type": purpose, "kind": kind})
+            painter.restore()
+            return
         color = DRAG_PREVIEW_COLORS.get(mode, DRAG_PREVIEW_FALLBACK)
         # Slightly dimmer than the drag preview so a static hover doesn't
         # compete with the in-progress drag visual.
@@ -308,37 +328,34 @@ class CanvasPaintingMixin:
         painter.setPen(Qt.PenStyle.NoPen)
 
     def _paint_pressure_plates(self, painter: QPainter, cell: float, level_idx: int) -> None:
-        # Inner 50% of the cell (≈25% by area) — the in-game footprint. Barrier
-        # plates are squares in their kind's color, bridge plates diamonds in
-        # theirs, firework plates circles in the firework color — one shape per
-        # purpose so plates sharing a cell still read.
         plates = self.window.map_data.get("pressure_plates", [])
-        if not plates:
-            return
-        painter.setPen(Qt.PenStyle.NoPen)
         for plate in self.visible_entries("pressure_plates", plates):
-            if plate["level"] != level_idx:
-                continue
-            inset = cell * 0.25
-            rect = QRectF(plate["col"] * cell + inset, plate["row"] * cell + inset, cell * 0.5, cell * 0.5)
-            if plate.get("type") == PLATE_TYPE_FIREWORK:
-                painter.setBrush(QColor(FIREWORK_PLATE_COLOR))
-                painter.drawEllipse(rect)
-            elif plate.get("type") == PLATE_TYPE_BRIDGE:
-                painter.setBrush(QColor(self.window.bridge_kind_colors.get(plate.get("kind", ""), "#30d8ff")))
-                cx, cy = rect.center().x(), rect.center().y()
-                half = cell * 0.25
-                painter.drawPolygon(
-                    [
-                        QPoint(round(cx), round(cy - half)),
-                        QPoint(round(cx + half), round(cy)),
-                        QPoint(round(cx), round(cy + half)),
-                        QPoint(round(cx - half), round(cy)),
-                    ]
-                )
-            else:
-                painter.setBrush(QColor(self.window.barrier_kind_colors.get(plate.get("kind", ""), "#38bdf8")))
-                painter.drawRect(rect)
+            if plate["level"] == level_idx:
+                self._paint_pressure_plate(painter, cell, plate)
+
+    def _paint_pressure_plate(self, painter: QPainter, cell: float, plate: dict) -> None:
+        purpose = plate.get("type")
+        if purpose == PLATE_TYPE_FIREWORK:
+            color = QColor(FIREWORK_PLATE_COLOR)
+        elif purpose == PLATE_TYPE_BRIDGE:
+            color = QColor(self.window.bridge_kind_colors.get(plate.get("kind"), "#30d8ff"))
+        else:
+            color = QColor(self.window.barrier_kind_colors.get(plate.get("kind"), "#38bdf8"))
+        inset = cell * 0.25
+        rect = QRectF(plate["col"] * cell + inset, plate["row"] * cell + inset, cell * 0.5, cell * 0.5)
+        frame = rect.width() * 0.1
+        painter.fillRect(rect, QColor("#64748b"))
+        painter.fillRect(rect.adjusted(frame, frame, -frame, -frame), color)
+        if rect.width() >= 16:
+            painter.save()
+            font = painter.font()
+            font.setPixelSize(round(rect.height() * 0.6))
+            font.setBold(True)
+            painter.setFont(font)
+            painter.setPen(contrasting_text_color(color))
+            letter, _ = PLATE_LABELS.get(purpose, ("?", "Pressure plate"))
+            painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, letter)
+            painter.restore()
 
     def _paint_items(self, painter: QPainter, cell: float, level_idx: int) -> None:
         # Glyphs mirror the in-game meshes (client/src/items/spawn.rs):

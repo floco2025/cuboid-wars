@@ -35,9 +35,8 @@ from .constants import (
     MODE_WALL_MATERIAL,
     RAMP_MODES,
 )
-from .display import (
-    materials_summary,
-)
+from .display import materials_summary
+from .hover import element_hover_text
 from .types import ZoneRef
 from .normalization import pressure_plate_key
 from .geometry import (
@@ -208,6 +207,9 @@ class Canvas(CanvasPaintingMixin, QWidget):
         # sides as the cursor moves — without it there's nothing to aim at.
         self.hover_edge_side: str | None = None
         self._hover_label = QLabel(self)
+        self._hover_label.setTextFormat(Qt.TextFormat.PlainText)
+        self._hover_label.setWordWrap(True)
+        self._hover_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self._hover_label.setStyleSheet(
             "background-color: rgba(15, 23, 42, 230);"
             "color: #f1f5f9;"
@@ -217,7 +219,6 @@ class Canvas(CanvasPaintingMixin, QWidget):
         )
         self._hover_label.hide()
         self.notice = CanvasNotice(self)
-        self.setToolTip("Wheel or touch surface: pan · Ctrl/Cmd +/−: zoom · Space-drag or middle-drag: pan · F: fit map")
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.DefaultContextMenu)
@@ -347,6 +348,7 @@ class Canvas(CanvasPaintingMixin, QWidget):
             self.click_pending = self.point_to_cell(event.position()) is not None
             self._update_cell_hover(event.position())
             return
+        self._clear_hover()
         if self.window.mode == MODE_SELECT and not self.window.begin_select_press(
             self.grid_position(event.position()),
             edit_objects=bool(event.modifiers() & Qt.KeyboardModifier.AltModifier),
@@ -410,6 +412,7 @@ class Canvas(CanvasPaintingMixin, QWidget):
 
     def _update_cell_hover(self, pos) -> None:
         cell = self.point_to_cell(pos)
+        self._show_hover_label(self._element_hover_text(pos), pos)
         grid_point = self.point_to_grid_point(pos)
         edge_side = None
         if self.window.mode in (MODE_LADDER, MODE_LIGHT) and cell is not None:
@@ -421,6 +424,10 @@ class Canvas(CanvasPaintingMixin, QWidget):
         self.hover_grid_point = grid_point
         self.hover_edge_side = edge_side
         self.update()
+
+    def _element_hover_text(self, pos) -> str | None:
+        hit = self.window.hit_at(self.grid_position(pos))
+        return element_hover_text(self.window.map_data, self.window.current_level, hit)
 
     def _update_material_hover(self, pos) -> None:
         level_idx = self.window.current_level
@@ -465,13 +472,23 @@ class Canvas(CanvasPaintingMixin, QWidget):
         self.hover_target = target
         if changed:
             self.update()
+        self._show_hover_label(tooltip or self._element_hover_text(pos), pos)
+
+    def _show_hover_label(self, tooltip: str | None, pos) -> None:
         if tooltip is not None:
             self._hover_label.setText(tooltip)
+            metrics = self._hover_label.fontMetrics()
+            width = max(metrics.horizontalAdvance(line) for line in tooltip.split("\n")) + 32
+            self._hover_label.setFixedWidth(max(1, min(width, 420, self.width() - 8)))
             self._hover_label.adjustSize()
             # Offset slightly so the popup doesn't sit directly under the
             # cursor; clamp inside the canvas so it never gets clipped.
             x = int(pos.x()) + 16
             y = int(pos.y()) + 16
+            if x + self._hover_label.width() > self.width() - 4:
+                x = int(pos.x()) - self._hover_label.width() - 16
+            if y + self._hover_label.height() > self.height() - 4:
+                y = int(pos.y()) - self._hover_label.height() - 16
             x = max(0, min(x, self.width() - self._hover_label.width() - 4))
             y = max(0, min(y, self.height() - self._hover_label.height() - 4))
             self._hover_label.move(x, y)

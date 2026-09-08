@@ -8,8 +8,6 @@ from PySide6.QtGui import QColor
 
 from .constants import (
     FACES,
-    FIREWORK_PLATE_COLOR,
-    MODE_BRIDGE_PLATE,
     MODE_ERASE,
     MODE_ERASE_BARRIERS,
     MODE_ERASE_EQUIPMENT_ERASERS,
@@ -24,7 +22,6 @@ from .constants import (
     MODE_ERASE_RAMPS,
     MODE_ERASE_SPAWN_ZONES,
     MODE_ERASE_WALLS,
-    MODE_FIREWORK_PLATE,
     MODE_FLOOR,
     MODE_FLOOR_MATERIAL,
     MODE_GRASS,
@@ -35,9 +32,34 @@ from .constants import (
     MODE_NESTED_MAP,
     MODE_ERASE_NESTED_MAPS,
     MODE_PLAYER_SPAWN_ZONE,
-    MODE_PRESSURE_PLATE,
     MODE_RAMP_MATERIAL,
+    PLATE_TYPE_BARRIER,
+    PLATE_TYPE_BRIDGE,
+    PLATE_TYPE_FIREWORK,
 )
+
+PLATE_LABELS = {
+    PLATE_TYPE_BARRIER: ("B", "Barrier"),
+    PLATE_TYPE_BRIDGE: ("L", "Light bridge"),
+    PLATE_TYPE_FIREWORK: ("F", "Firework"),
+}
+
+
+def pressure_plate_label(plate: dict) -> str:
+    _, label = PLATE_LABELS.get(plate.get("type"), ("?", "Pressure plate"))
+    if plate.get("type") in PLATE_LABELS:
+        label += " pressure plate"
+    return f"{label}: {plate['kind']}" if "kind" in plate else label
+
+
+def contrasting_text_color(color: QColor) -> QColor:
+    channels = [
+        channel / 12.92 if channel <= 0.04045 else ((channel + 0.055) / 1.055) ** 2.4
+        for channel in (color.redF(), color.greenF(), color.blueF())
+    ]
+    luminance = sum(channel * weight for channel, weight in zip(channels, (0.2126, 0.7152, 0.0722)))
+    return QColor("#000000" if luminance > 0.179 else "#ffffff")
+
 
 def zone_color(kind: str) -> QColor:
     if not kind:
@@ -69,12 +91,6 @@ DRAG_PREVIEW_FALLBACK = QColor(34, 197, 94, 120)
 NESTED_MAP_COLOR = QColor(167, 139, 250)
 
 
-def _translucent(hex_color: str, alpha: int) -> QColor:
-    color = QColor(hex_color)
-    color.setAlpha(alpha)
-    return color
-
-
 DRAG_PREVIEW_COLORS: dict[str, QColor] = {
     MODE_FLOOR: QColor(111, 180, 255, 120),
     MODE_INACCESSIBLE_FLOOR: QColor(148, 163, 184, 120),
@@ -97,10 +113,6 @@ DRAG_PREVIEW_COLORS: dict[str, QColor] = {
     MODE_ERASE: QColor(248, 113, 113, 120),
     MODE_ERASE_KEEP_FLOORS: QColor(251, 146, 60, 120),
     MODE_ERASE_LIGHTS: QColor(250, 204, 21, 120),   # amber — distinct from red erase tools
-    # Kind is picked after the click (like items): neutral off-white ghost.
-    MODE_PRESSURE_PLATE: QColor(220, 220, 220, 110),
-    MODE_BRIDGE_PLATE: QColor(220, 220, 220, 110),
-    MODE_FIREWORK_PLATE: _translucent(FIREWORK_PLATE_COLOR, 120),
     MODE_ERASE_PRESSURE_PLATES: QColor(245, 158, 11, 120),  # amber family, like Erase Items
     MODE_ERASE_FLOORS: QColor(245, 158, 11, 120),
     MODE_ERASE_WALLS: QColor(245, 158, 11, 120),
@@ -168,5 +180,3 @@ def materials_summary(seg: dict) -> str:
 def level_label(level: dict, index: int) -> str:
     name = level.get("name")
     return f"Level {index}" if not name else f"Level {index} ({name})"
-
-
