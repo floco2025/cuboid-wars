@@ -4,7 +4,7 @@ use common::{
     map::Carriers,
     physics::{
         AirborneMomentum, CharacterMovePlan, CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity,
-        PlayerMovementStep, PortalSet, player_control_velocity, step_player_movement,
+        PlayerMovementStep, PortalSet, momentum_displacement, player_control_velocity, step_player_movement,
     },
     protocol::{
         ActorMarker, BarrierKindId, MapSettings, PlateState, PlayerId, PlayerMarker, PlayerMoveIntent, Position,
@@ -14,7 +14,7 @@ use common::{
 
 use crate::{
     network::ServerReconciliation,
-    players::{BumpFeedbackState, LocalPlayerInfo, LocalPlayerMarker, PlayerMap},
+    players::{BumpFeedbackState, LocalPlayerInfo, LocalPlayerMarker, PlayerAnimationMotion, PlayerMap},
 };
 
 use super::reconciliation::{PlayerReconciliationOutcome, decayed_snap_speed, reconcile_player};
@@ -45,6 +45,7 @@ pub(crate) fn plan_player_moves(
         mut recon_option,
         knockback,
         mut airborne_momentum,
+        mut animation_motion,
         is_local,
     ) in query
     {
@@ -105,11 +106,14 @@ pub(crate) fn plan_player_moves(
                         motion.0,
                         player_physics,
                     ));
+                    animation_motion.block_horizontal();
                     continue;
                 }
             },
             None => Vec3::ZERO,
         };
+        let external_displacement =
+            correction_displacement + momentum_displacement(knockback, airborne_momentum.as_deref(), delta);
         let step = step_player_movement(PlayerMovementStep {
             start: *client_pos,
             vertical_velocity: motion.0,
@@ -127,6 +131,7 @@ pub(crate) fn plan_player_moves(
             portal_set,
             carriers,
         });
+        animation_motion.record_step(*client_pos, &step, control_velocity, external_displacement, delta);
         planned_moves.push(CharacterMovePlan::from_movement_result(
             entity,
             *client_pos,
@@ -149,6 +154,7 @@ pub(crate) type PlayerMovementQuery<'w, 's> = Query<
         Option<&'static mut ServerReconciliation>,
         Option<&'static KnockbackVelocity>,
         Option<&'static mut AirborneMomentum>,
+        &'static mut PlayerAnimationMotion,
         Has<LocalPlayerMarker>,
     ),
     (With<PlayerMarker>, Without<ActorMarker>),

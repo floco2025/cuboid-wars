@@ -1,8 +1,9 @@
-use bevy::{gltf::GltfAssetLabel, prelude::*};
+use bevy::prelude::*;
 
+use super::animation::{PlayerAnimationMotion, PlayerAnimationSource, player_animation_setup_system};
 use super::{BumpFeedbackState, LocalPlayerLabelMarker};
 use crate::{
-    characters::{AnimationToPlay, PreviousTickPosition, character_animation_system, spawn_collider_box},
+    characters::{PreviousTickPosition, spawn_collider_box},
     config::{AssetSet, ClientSettings},
     constants::{
         LABEL_PLAYER_BAR_WIDTH, LABEL_PLAYER_NAME_GAP, LABEL_PLAYER_TEXTURE_HEIGHT, LABEL_PLAYER_TEXTURE_WIDTH,
@@ -66,17 +67,6 @@ pub fn spawn_player(
 ) -> Entity {
     let player_model = asset_set.player_model();
     let player_physics = gameplay_config.player.physics();
-    let (graph, index) = AnimationGraph::from_clip(
-        asset_server
-            .load(GltfAssetLabel::Animation(player_model.animation_index).from_asset(player_model.scene.clone())),
-    );
-    let graph_handle = graphs.add(graph);
-    let animation_to_play = AnimationToPlay {
-        graph_handle,
-        index,
-        speed: player_model.animation_speed.unwrap_or(1.0),
-    };
-
     let entity = commands
         .spawn((
             PlayerBundle {
@@ -93,7 +83,7 @@ pub fn spawn_player(
             },
             PreviousTickPosition(*position),
             AirborneMomentum::default(),
-            animation_to_play.clone(),
+            PlayerAnimationMotion::default(),
         ))
         .id();
 
@@ -114,9 +104,9 @@ pub fn spawn_player(
             Transform::from_scale(Vec3::splat(player_model.scale))
                 .with_rotation(Quat::from_rotation_x(player_model.x_rotation_degrees.to_radians()))
                 .with_translation(Vec3::new(player_model.x_offset, base_y, player_model.z_offset)),
-            animation_to_play,
+            PlayerAnimationSource::load(entity, player_model, asset_server, graphs),
         ))
-        .observe(character_animation_system)
+        .observe(player_animation_setup_system)
         .id();
     children.push(model);
 

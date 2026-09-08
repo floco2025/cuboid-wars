@@ -2,6 +2,8 @@
 
 ## Fixes
 
+- **Character collision orientation:** Movement boxes stay world-aligned while projectile hitboxes rotate with facing. Resolve how rectangular body width/depth should behave during movement, including turning beside walls.
+
 - **Containment puzzle:** The start barriers safely hold the player and sentry until the player opens them. The route to the finish returns through the sentry's area, but the player can outrun it and finish without trapping it. Make containment necessary while keeping the lure and escape practical.
 
 - **Missiles near walls:** Missiles repeatedly miss actors positioned close to walls. Check whether requiring missile clearance to the target centre prevents a valid approach within proximity-fuse range.
@@ -13,6 +15,8 @@
 - **Puzzle design:** See [PUZZLES.md](PUZZLES.md) for the element inventory, nine example maps, guard encounters, and [next decisions](PUZZLES.md#next-decisions).
 
 ## Testing
+
+- **Humanoid player:** Check appearance in-game and through portals, local/remote walking and running, strafing/backpedalling, ladder ascent/hold/descent, jumping/falling/landing, stun, moving platforms, and respawning. Check joint coverage and arm clearance during transitions, and B-toggled body boxes following player and actor rotation. The user handles in-game testing.
 
 - **Turret and inspection controls:** Check the textured pedestal and animated head, including targets above/below it, nearby cover, moving carriers, and spawn ghosts. Check its tight collider around the pedestal and main head with the barrel excluded, turret/zapper beams at chest height, `/peace` stopping and restoring attacks, and `B` toggling translucent collider boxes (off on each client launch). The user handles in-game testing.
 

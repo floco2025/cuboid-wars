@@ -39,10 +39,9 @@ pub fn spawn_collider_box(
 
 pub fn collider_box_sync_system(
     visible: Res<ColliderBoxesVisible>,
-    parents: Query<&Transform, Without<ColliderBoxMarker>>,
-    mut boxes: Query<(&ChildOf, &mut Transform, &mut Visibility), With<ColliderBoxMarker>>,
+    mut boxes: Query<&mut Visibility, With<ColliderBoxMarker>>,
 ) {
-    for (parent, mut transform, mut visibility) in &mut boxes {
+    for mut visibility in &mut boxes {
         let target = if visible.0 {
             Visibility::Inherited
         } else {
@@ -50,12 +49,6 @@ pub fn collider_box_sync_system(
         };
         // Equal visibility writes would wake Bevy's visibility propagation.
         visibility.set_if_neq(target);
-        if visible.0
-            && let Ok(parent) = parents.get(parent.parent())
-        {
-            // Character colliders stay axis-aligned while their models turn.
-            transform.rotation = parent.rotation.inverse();
-        }
     }
 }
 
@@ -65,9 +58,10 @@ mod tests {
     use crate::input::input_collider_boxes_toggle_system;
 
     #[test]
-    fn keyboard_toggle_updates_existing_and_later_boxes_without_rotating_the_collider() {
+    fn keyboard_toggle_updates_existing_and_later_boxes_that_follow_parent_rotation() {
         let mut app = App::new();
-        app.init_resource::<ColliderBoxesVisible>()
+        app.add_plugins(TransformPlugin)
+            .init_resource::<ColliderBoxesVisible>()
             .init_resource::<ButtonInput<KeyCode>>()
             .add_systems(
                 Update,
@@ -92,8 +86,11 @@ mod tests {
             *app.world().get::<Visibility>(first).expect("box visibility missing"),
             Visibility::Inherited
         );
-        let transform = app.world().get::<Transform>(first).expect("box transform missing");
-        assert!((rotation * transform.rotation).abs_diff_eq(Quat::IDENTITY, 1e-5));
+        let transform = app
+            .world()
+            .get::<GlobalTransform>(first)
+            .expect("box transform missing");
+        assert!(transform.rotation().abs_diff_eq(rotation, 1e-5));
         app.world_mut().resource_mut::<ButtonInput<KeyCode>>().reset_all();
         let later = app
             .world_mut()
@@ -109,6 +106,21 @@ mod tests {
             *app.world().get::<Visibility>(later).expect("box visibility missing"),
             Visibility::Inherited
         );
+        for yaw in [-1.2, 2.4] {
+            let rotation = Quat::from_rotation_y(yaw);
+            app.world_mut()
+                .get_mut::<Transform>(parent)
+                .expect("parent transform missing")
+                .rotation = rotation;
+            app.update();
+            for entity in [first, later] {
+                let transform = app
+                    .world()
+                    .get::<GlobalTransform>(entity)
+                    .expect("box transform missing");
+                assert!(transform.rotation().abs_diff_eq(rotation, 1e-5));
+            }
+        }
         app.world_mut()
             .resource_mut::<ButtonInput<KeyCode>>()
             .press(KeyCode::KeyB);

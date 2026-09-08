@@ -1,3 +1,4 @@
+mod animation;
 mod camera;
 mod components;
 mod death;
@@ -7,6 +8,8 @@ mod resources;
 mod spawn;
 mod transform_sync;
 
+pub use animation::PlayerAnimationMotion;
+pub(crate) use animation::player_animation_update_system;
 pub(crate) use camera::{LocalPlayerLabelMarker, local_player_light_layer_system, local_player_render_layer_system};
 pub use camera::{
     local_player_camera_sync_system, local_player_rearview_sync_system, local_player_rearview_viewport_system,

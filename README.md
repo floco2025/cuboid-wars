@@ -24,6 +24,7 @@ death/respawn flow.
 
 ## Gameplay
 
+- **Humanoid robots** — animated players that walk, run, climb, jump, and land.
 - **Quests** — objectives assigned at login, worth points when completed.
 - **Gold** — collect gold coins for score and quest progress.
 - **Power-ups** — single-shot, multi-shot, speed, low-gravity, and instant-heal pickups.
@@ -65,7 +66,7 @@ death/respawn flow.
 | Settings menu (also frees the cursor) | Escape |
 | Cycle camera view (first-person ↔ top-down) | V |
 | Toggle level-focus (hide floors/walls on other levels) | R |
-| Toggle translucent player / actor collider boxes | B |
+| Toggle translucent player / actor body bounds | B |
 | Toggle fullscreen | F11 / Ctrl-F / Cmd-F |
 
 Weapon pickups automatically select that weapon, except single-shot pickups

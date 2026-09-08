@@ -1,5 +1,44 @@
 {
   "materials": {
+    "brushed-metal": {
+      "tile_size": 1.0,
+      "metallic": 1.0,
+      "roughness": 1.0,
+      "repeat": true,
+      "linear_data_textures": true,
+      "textures": {
+        "base_color": "textures/brushed-metal-ue/brushed-metal_albedo.png",
+        "normal": "textures/brushed-metal-ue/brushed-metal_normal-dx.png",
+        "occlusion": "textures/brushed-metal-ue/brushed-metal_ao.png",
+        "metallic_roughness": "textures/brushed-metal-ue/brushed-metal_metallic-roughness.png"
+      }
+    },
+    "scuffed-plastic": {
+      "tile_size": 1.0,
+      "metallic": 0.0,
+      "roughness": 1.0,
+      "repeat": true,
+      "linear_data_textures": true,
+      "textures": {
+        "base_color": "textures/scuffed-plastic-1-Unreal-Engine/scuffed-plastic5-alb.png",
+        "normal": "textures/scuffed-plastic-1-Unreal-Engine/scuffed-plastic-normal.png",
+        "occlusion": "textures/scuffed-plastic-1-Unreal-Engine/scuffed-plastic-ao.png",
+        "metallic_roughness": "textures/scuffed-plastic-1-Unreal-Engine/scuffed-plastic-metallic-roughness.png"
+      }
+    },
+    "synth-rubber": {
+      "tile_size": 1.0,
+      "metallic": 0.0,
+      "roughness": 1.0,
+      "repeat": true,
+      "linear_data_textures": true,
+      "textures": {
+        "base_color": "textures/synth-rubber-unreal-engine/synth-rubber-albedo.png",
+        "normal": "textures/synth-rubber-unreal-engine/synth-rubber-normal.png",
+        "occlusion": "textures/synth-rubber-unreal-engine/synth-rubber-ao.png",
+        "metallic_roughness": "textures/synth-rubber-unreal-engine/synth-rubber-metallic-roughness.png"
+      }
+    },
     "used-stainless-steel": {
       "tile_size": 1.0,
       "metallic": 0.5,
@@ -210,6 +249,9 @@
     }
   },
   "aliases": {
+    "brushed-metal": "brushed-metal",
+    "scuffed-plastic": "scuffed-plastic",
+    "synth-rubber": "synth-rubber",
     "portal-resistant": "used-stainless-steel",
     "natural-ground": "mud-with-vegetation",
     "slab": "fiberous-plaster1-ue",
@@ -233,10 +275,9 @@
   },
   "player": {
     "model": {
-      "scene": "models/futuristic_flying_animated_robot_low_poly.glb#Scene0",
-      "scale": 0.53,
-      "y_offset": -0.5,
-      "animation_speed": 2.0
+      "scene": "models/player_robot.glb#Scene0",
+      "scale": 1.0,
+      "y_offset": -0.5
     },
     "sounds": {
       "laser_show": "sounds/freesound_community-laser-beam-76426.wav",

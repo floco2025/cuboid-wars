@@ -69,6 +69,15 @@ pub const RECON_MISSILE_SNAP_DISTANCE: f32 = 1.5;
 // per second and can never spin. ~12 rad/s ⇒ a 180° turn takes ~0.26 s.
 pub const CHARACTER_VISUAL_TURN_MAX_SPEED: f32 = 12.0;
 
+pub const PLAYER_ANIMATION_BLEND_SECS: f32 = 0.12;
+pub const PLAYER_ANIMATION_WALK_SPEED: f32 = 3.0;
+pub const PLAYER_ANIMATION_RUN_SPEED: f32 = 5.0;
+pub const PLAYER_ANIMATION_CLIMB_SPEED: f32 = 1.6;
+pub const PLAYER_ANIMATION_STANDSTILL_SPEED: f32 = 0.2;
+pub const PLAYER_ANIMATION_APEX_SPEED: f32 = 0.15;
+pub const PLAYER_ANIMATION_LANDING_MIN_AIR_SECS: f32 = 0.1;
+pub const PLAYER_ANIMATION_STRAFE_RATIO: f32 = 1.2;
+
 // ============================================================================
 // Floating Labels (layout math; sizes live in `client.json::hud`)
 // ============================================================================

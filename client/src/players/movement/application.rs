@@ -17,7 +17,7 @@ pub(crate) fn apply_player_moves(
     planned_moves: &[CharacterMovePlan],
 ) {
     for planned_move in planned_moves {
-        let Ok((_, _, mut client_pos, _, mut motion, mut feedback_state, _, _, _, is_local)) =
+        let Ok((_, _, mut client_pos, _, mut motion, mut feedback_state, _, _, _, mut animation_motion, is_local)) =
             query.get_mut(planned_move.entity)
         else {
             continue;
@@ -26,6 +26,7 @@ pub(crate) fn apply_player_moves(
         let hits_character = overlapping_character(planned_move, planned_moves).is_some();
 
         if hits_character {
+            animation_motion.block_horizontal();
             client_pos.y = planned_move.target.y;
             motion.0 = planned_move.target_vertical_velocity;
 

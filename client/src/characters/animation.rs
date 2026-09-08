@@ -24,8 +24,6 @@ pub fn character_animation_system(
     animations_to_play: Query<&AnimationToPlay>,
     mut players: Query<&mut AnimationPlayer>,
 ) {
-    // The entity we spawned in `spawn_player` is the trigger's target.
-    // Start by finding the AnimationToPlay component we added to that entity.
     if let Ok(animation_to_play) = animations_to_play.get(scene_ready.entity) {
         // The WorldAssetRoot component will have spawned the scene as a hierarchy
         // of entities parented to our entity. Since the asset contained a skinned
