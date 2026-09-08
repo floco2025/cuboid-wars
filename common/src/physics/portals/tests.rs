@@ -1326,6 +1326,7 @@ fn shot_with_no_fitting_spot_anywhere_fizzles() {
 fn shot_at_a_wall_light_nudges_clear_of_it() {
     let mut layout = placement_layout();
     layout.wall_lights.push(WallLight {
+        kind: "test-light".into(),
         pos: Position { x: 0.0, y: 1.6, z: 0.2 },
         yaw: 0.0,
         carrier: CarrierId::WORLD,
@@ -1345,6 +1346,7 @@ fn shot_at_a_wall_light_nudges_clear_of_it() {
 fn wall_light_on_the_other_face_does_not_block_placement() {
     let mut layout = placement_layout();
     layout.wall_lights.push(WallLight {
+        kind: "test-light".into(),
         pos: Position {
             x: 0.0,
             y: 1.6,

@@ -44,7 +44,7 @@ pub struct AssetSet {
     aliases: HashMap<String, String>,
     player: PlayerAssets,
     actors: HashMap<String, ActorAssets>,
-    models: GenericModels,
+    wall_lights: HashMap<String, WallLightModelDef>,
     // Named skyboxes; the map's `MapSettings.skybox` selects one. BTreeMap so
     // the unknown-name fallback (sorted-first entry) is deterministic.
     skyboxes: BTreeMap<String, SkyboxDef>,
@@ -93,6 +93,33 @@ impl AssetSet {
         for sound in REQUIRED_PLAYER_SOUNDS {
             validate_sound("player.sounds", &self.player.sounds, sound)?;
         }
+        for (kind, light) in &self.wall_lights {
+            anyhow::ensure!(
+                !kind.trim().is_empty() && !light.scene.trim().is_empty(),
+                "wall_lights keys and scene paths must not be empty"
+            );
+            for (field, value) in [("scale", light.scale), ("range", light.range)] {
+                anyhow::ensure!(
+                    value.is_finite() && value > 0.0,
+                    "wall_lights.{kind}.{field} must be positive"
+                );
+            }
+            for (field, value) in [
+                ("brightness", light.brightness),
+                ("radius", light.radius),
+                ("offset_from_wall", light.offset_from_wall),
+                ("emissive_luminance", light.emissive_luminance),
+            ] {
+                anyhow::ensure!(
+                    value.is_finite() && value >= 0.0,
+                    "wall_lights.{kind}.{field} must be nonnegative"
+                );
+            }
+            anyhow::ensure!(
+                light.color.iter().all(|v| v.is_finite() && (0.0..=1.0).contains(v)),
+                "wall_lights.{kind}.color must contain RGB values from 0 to 1"
+            );
+        }
         for (kind, actor) in &self.actors {
             validate_model(&format!("actors.{kind}.model"), &actor.model)?;
             for sound in REQUIRED_ACTOR_SOUNDS {
@@ -118,6 +145,13 @@ impl AssetSet {
     }
 
     pub fn validate_map_bindings(&self, settings: &MapSettings, layout: &MapLayout) -> Result<()> {
+        for light in &layout.wall_lights {
+            anyhow::ensure!(
+                self.wall_lights.contains_key(&light.kind),
+                "map wall light kind {:?} has no binding in assets.json",
+                light.kind
+            );
+        }
         validate_texture_catalog(&settings.textures, "map.textures")?;
         for alias in settings.textures.keys() {
             anyhow::ensure!(
@@ -178,8 +212,14 @@ impl AssetSet {
         &self.actor(kind).model
     }
 
-    pub fn wall_light_model(&self) -> &WallLightModelDef {
-        &self.models.wall_light
+    pub fn wall_light_model(&self, kind: &str) -> &WallLightModelDef {
+        self.wall_lights
+            .get(kind)
+            .expect("wall light kind missing from assets.json")
+    }
+
+    pub fn wall_light_models(&self) -> impl Iterator<Item = &WallLightModelDef> {
+        self.wall_lights.values()
     }
 
     pub fn skybox(&self, name: &str) -> Option<&SkyboxDef> {
@@ -400,6 +440,8 @@ pub struct WheelModelDef {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct WallLightModelDef {
+    pub color: [f32; 3],
+    pub flicker: bool,
     pub scene: String,
     pub scale: f32,
     pub offset_from_wall: f32,
@@ -462,11 +504,6 @@ struct ActorAssets {
     sounds: HashMap<String, String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
-struct GenericModels {
-    wall_light: WallLightModelDef,
-}
-
 impl AssetSet {
     // Every disk path (`.png`, `.glb`, `.ogg`, …) referenced from `assets.json`.
     // GLTF subscene specifiers (`foo.glb#Scene0`) are split so callers only get
@@ -490,7 +527,9 @@ impl AssetSet {
         for skybox in self.skyboxes.values() {
             push(&mut out, &skybox.image);
         }
-        push(&mut out, &self.models.wall_light.scene);
+        for light in self.wall_lights.values() {
+            push(&mut out, &light.scene);
+        }
         push(&mut out, &self.player.model.scene);
         for sound in self.player.sounds.values() {
             push(&mut out, sound);

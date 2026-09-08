@@ -1,11 +1,19 @@
 """Tool defaults for repeated placement."""
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QSpinBox, QWidget
+from PySide6.QtWidgets import (
+    QComboBox,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QSizePolicy,
+    QSpinBox,
+    QWidget,
+)
 
 from .constants import (
-    ITEM_TYPES,
     ITEM_KEY_TYPE,
+    ITEM_TYPES,
     MODE_ACTOR_SPAWN_ZONE,
     MODE_BARRIER,
     MODE_BRIDGE_PLATE,
@@ -13,6 +21,7 @@ from .constants import (
     MODE_INACCESSIBLE_FLOOR,
     MODE_ITEM,
     MODE_LADDER,
+    MODE_LIGHT,
     MODE_LIGHT_BRIDGE,
     MODE_NESTED_MAP,
     MODE_PRESSURE_PLATE,
@@ -61,6 +70,7 @@ class ToolSettings(QWidget):
         signature = (
             window.mode,
             tuple(window.actor_kinds),
+            tuple(window.wall_light_kinds),
             tuple(window.barrier_kinds),
             tuple(window.bridge_kinds),
             tuple(window.materials_catalog),
@@ -163,6 +173,7 @@ class ToolSettings(QWidget):
             MODE_PRESSURE_PLATE: lambda: combo("Kind", "recent_pressure_plate_kind", window.barrier_kinds),
             MODE_LIGHT_BRIDGE: lambda: combo("Kind", "recent_bridge_kind", window.bridge_kinds),
             MODE_BRIDGE_PLATE: lambda: combo("Kind", "recent_bridge_plate_kind", window.bridge_kinds),
+            MODE_LIGHT: lambda: combo("Style", "recent_light_kind", window.wall_light_kinds, required=True),
             MODE_ITEM: item_controls,
             MODE_LADDER: lambda: number("Storeys", "recent_ladder_levels", 1, max(1, len(window.map_data["levels"]) - 1)),
             MODE_NESTED_MAP: motion_button,

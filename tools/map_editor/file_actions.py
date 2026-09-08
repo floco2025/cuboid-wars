@@ -13,15 +13,16 @@ from .constants import (
     DEFAULT_GRID_COLS,
     DEFAULT_GRID_ROWS,
     MAPS_DIR,
-    map_layout_path,
     list_map_names,
-    require_map_settings,
     load_actor_kinds,
     load_immovable_actor_kinds,
-    map_name_from_path,
     load_map_barrier_kinds,
     load_map_bridge_kinds,
     load_map_wall_width_cells,
+    load_wall_light_kinds,
+    map_layout_path,
+    map_name_from_path,
+    require_map_settings,
 )
 from .dialogs import ResizeMapDialog
 from .io import empty_map, read_map
@@ -298,6 +299,9 @@ class FileActionsMixin:
     def reload_dependencies(self) -> None:
         try:
             self.actor_kinds = load_actor_kinds()
+            self.wall_light_kinds = load_wall_light_kinds()
+            if self.recent_light_kind not in self.wall_light_kinds:
+                self.recent_light_kind = next(iter(self.wall_light_kinds), "")
             self.immovable_actor_kinds = load_immovable_actor_kinds()
             self.reload_texture_catalog()
             self.barrier_kind_colors = load_map_barrier_kinds(self.catalog_map)

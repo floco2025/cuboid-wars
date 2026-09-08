@@ -18,7 +18,6 @@ from .constants import (
     PLATE_TYPES,
 )
 from .display import level_label
-from .normalization import edge_key
 from .geometry import (
     grid_point_in_bounds,
     normalized_wall,
@@ -27,6 +26,7 @@ from .geometry import (
     ramp_error,
     wall_endpoints_for_cell_side,
 )
+from .normalization import edge_key
 from .transforms import record_levels, record_rect
 
 _INDEX_RE = re.compile(r"\[\d+\]")
@@ -71,6 +71,7 @@ def validate_map(
     actor_kinds: list[str] | None = None,
     immovable_actor_kinds: set[str] | None = None,
     material_aliases: list[str] | None = None,
+    wall_light_kinds: list[str] | None = None,
 ) -> ValidationErrors:
     """Validate one geometry using its parent's catalogs and named shapes."""
     errors = ValidationErrors()
@@ -181,6 +182,9 @@ def validate_map(
 
         for light in level.get("lights", []):
             errors.locate("lights", light, level_idx)
+            kind = light.get("kind", "")
+            if wall_light_kinds is not None and kind not in wall_light_kinds:
+                errors.append(f"{prefix}: light has unknown kind {kind!r}; known: [{_known(wall_light_kinds)}]")
             c, r, side = light["col"], light["row"], light["side"]
             if not (0 <= c < cols and 0 <= r < rows):
                 errors.append(f"{prefix}: light [{c}, {r}, {side}] is outside the grid")

@@ -3,52 +3,61 @@
 from __future__ import annotations
 
 import copy
-from pathlib import Path
 from dataclasses import replace
+from pathlib import Path
 
 from PySide6.QtCore import QSettings, Qt, QTimer
-from PySide6.QtGui import QAction, QFont, QKeySequence, QShortcut, QStandardItem, QStandardItemModel, QUndoStack
+from PySide6.QtGui import (
+    QAction,
+    QFont,
+    QKeySequence,
+    QShortcut,
+    QStandardItem,
+    QStandardItemModel,
+    QUndoStack,
+)
 from PySide6.QtWidgets import QComboBox, QLabel, QMainWindow, QMenu, QToolBar
 
 from .canvas import CLICK_TOOLS, Canvas
 from .canvas_scroll import CanvasScrollArea
-from .dialogs import NestedMotion
 from .constants import (
     DEFAULT_ACTOR_COUNT,
     ERASE_MODES,
     ITEM_TYPES,
+    MAP_NAME_RE,
     MODE_CATEGORIES,
-    MODE_SELECT,
     MODE_RAMP_DOWN,
     MODE_RAMP_UP,
-    map_name_from_path,
+    MODE_SELECT,
+    load_actor_kinds,
+    load_immovable_actor_kinds,
     load_map_barrier_kinds,
     load_map_bridge_kinds,
     load_map_wall_width_cells,
-    load_actor_kinds,
-    load_immovable_actor_kinds,
-    MAP_NAME_RE,
+    load_wall_light_kinds,
+    map_name_from_path,
     require_map_settings,
 )
+from .dependencies import MapDependencies
+from .dialogs import NestedMotion
+from .display import level_label
 from .document import MapDocument
 from .erase import EraseMixin
 from .file_actions import FileActionsMixin
-from .display import level_label
-from .textures import load_texture_catalog
+from .issues import IssuesPanel
 from .items import ItemsMixin
 from .ladders import LaddersMixin
 from .lights import LightsMixin
-from .nested_maps import NestedMapsMixin, nested_map_shape
 from .nested_editing import NestedEditingMixin
+from .nested_maps import NestedMapsMixin, nested_map_shape
 from .placement import PlacementMixin
 from .select import SelectMixin
 from .spawn_zones import SpawnZoneEditMixin
 from .structure import StructureMixin
+from .textures import load_texture_catalog
+from .tool_settings import ToolSettings
 from .types import SpawnZoneDrag, ZoneRef
 from .validation import ValidationErrors, validate_map
-from .issues import IssuesPanel
-from .dependencies import MapDependencies
-from .tool_settings import ToolSettings
 from .window_geometry import WindowGeometry
 
 
@@ -80,6 +89,8 @@ class EditorWindow(
         self.bridge_kind_colors = load_map_bridge_kinds(map_name)
         self.wall_width_cells = load_map_wall_width_cells(map_name)
         self.actor_kinds = load_actor_kinds()
+        self.wall_light_kinds = load_wall_light_kinds()
+        self.recent_light_kind = next(iter(self.wall_light_kinds), "")
         self.immovable_actor_kinds = load_immovable_actor_kinds()
         self.current_level = 0
         self.mode = MODE_SELECT
@@ -199,6 +210,7 @@ class EditorWindow(
             nested_lookup=self.nested_map_shape,
             actor_kinds=self.actor_kinds,
             immovable_actor_kinds=self.immovable_actor_kinds,
+            wall_light_kinds=self.wall_light_kinds,
             material_aliases=self.materials_catalog,
         )
 
@@ -219,6 +231,7 @@ class EditorWindow(
                 nested_lookup=lambda key: nested_map_shape(definitions.get(key)),
                 actor_kinds=self.actor_kinds, material_aliases=aliases,
                 immovable_actor_kinds=self.immovable_actor_kinds,
+                wall_light_kinds=self.wall_light_kinds,
             )
             for issue in found.issues:
                 message = f"{label}: {issue.message}" if name is not None else issue.message

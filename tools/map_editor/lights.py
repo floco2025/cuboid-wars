@@ -46,7 +46,7 @@ class LightsMixin:
         if (col, row) in self._ramp_cells_for_level(level_idx):
             self.notify(f"Cannot place a light inside a ramp footprint ([{col}, {row}]).")
             return
-        new_light = {"col": col, "row": row, "side": side}
+        new_light = {"col": col, "row": row, "side": side, "kind": self.recent_light_kind}
         key = light_key(new_light)
         if any(light_key(light) == key for light in self.map_data["levels"][level_idx]["lights"]):
             self.notify(
@@ -87,11 +87,11 @@ class LightsMixin:
             if c in selected_cols:
                 for side in ("N", "S"):
                     if wall_endpoints_for_cell_side(c, r, side) in wall_set:
-                        candidates.append({"col": c, "row": r, "side": side})
+                        candidates.append({"col": c, "row": r, "side": side, "kind": self.recent_light_kind})
             if r in selected_rows:
                 for side in ("E", "W"):
                     if wall_endpoints_for_cell_side(c, r, side) in wall_set:
-                        candidates.append({"col": c, "row": r, "side": side})
+                        candidates.append({"col": c, "row": r, "side": side, "kind": self.recent_light_kind})
 
         if not candidates:
             self.notify("Auto-Place Lights: no walls matched the stride.")
@@ -116,7 +116,7 @@ class LightsMixin:
         response = QMessageBox.question(
             self,
             "Auto-Place Lights",
-            f"Add {len(new_lights)} light(s) to the highlighted positions?",
+            f"Add {len(new_lights)} {self.recent_light_kind} light(s) to the highlighted positions?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
             QMessageBox.StandardButton.Yes,
         )
@@ -136,10 +136,14 @@ class LightsMixin:
             self.map_data["grid_cols"],
             self.map_data["grid_rows"],
             initial=self.recent_auto_place_lights,
+            kinds=self.wall_light_kinds,
+            initial_kind=self.recent_light_kind,
         )
         if result is None:
             return
-        row_spacing, row_offset, col_spacing, col_offset = result
+        row_spacing, row_offset, col_spacing, col_offset, kind = result
+        self.recent_light_kind = kind
+        self.tool_settings.refresh()
         self.auto_place_lights_on_current_level(row_spacing, row_offset, col_spacing, col_offset)
 
     def clear_lights_on_current_level(self) -> None:

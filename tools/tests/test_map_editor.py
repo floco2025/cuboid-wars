@@ -97,6 +97,7 @@ class EditorHost(PlacementMixin, ItemsMixin, LightsMixin, NestedMapsMixin, Erase
         self.statuses: list[str] = []
         self.path = None
         self.recent_nested_map = None
+        self.recent_light_kind = "decorative"
 
     def edited_map_name(self):
         return self.path.stem if self.path else None

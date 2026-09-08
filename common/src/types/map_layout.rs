@@ -84,8 +84,9 @@ impl Ramp {
     }
 }
 
-#[derive(Debug, Clone, Encode, Decode, Copy)]
+#[derive(Debug, Clone, Encode, Decode)]
 pub struct WallLight {
+    pub kind: String,
     pub pos: Position,
     pub yaw: f32,
     pub carrier: CarrierId,

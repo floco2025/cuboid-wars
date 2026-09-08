@@ -1,15 +1,30 @@
 from __future__ import annotations
 
-from PySide6.QtWidgets import QDialog, QDialogButtonBox, QFormLayout, QLabel, QSpinBox, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QFormLayout,
+    QLabel,
+    QSpinBox,
+    QVBoxLayout,
+    QWidget,
+)
 
 
 class AutoPlaceLightsDialog(QDialog):
-    """Modal dialog for the Map → Auto-Place Lights action. Captures four
-    spinboxes (row stride/offset, column stride/offset) and returns them as a
-    tuple. Lights are placed by the caller; this class only collects input."""
+    """Modal dialog for the Map → Auto-Place Lights action. Captures the style and
+    row/column stride and offset. Lights are placed by the caller; this class only collects input."""
 
     def __init__(
-        self, parent: QWidget, grid_cols: int, grid_rows: int, initial: tuple[int, int, int, int] = (0, 0, 0, 0)
+        self,
+        parent: QWidget,
+        grid_cols: int,
+        grid_rows: int,
+        initial: tuple[int, int, int, int] = (0, 0, 0, 0),
+        *,
+        kinds: list[str],
+        initial_kind: str,
     ):
         super().__init__(parent)
         self.setWindowTitle("Auto-Place Lights")
@@ -28,13 +43,19 @@ class AutoPlaceLightsDialog(QDialog):
         self.col_offset.setRange(0, max(0, grid_cols))
         self.col_offset.setValue(max(0, min(init_col_offset, max(0, grid_cols))))
 
+        self.kind = QComboBox()
+        self.kind.addItems(kinds)
+        self.kind.setCurrentText(initial_kind)
         form = QFormLayout()
+        form.addRow("Light style", self.kind)
         form.addRow("Row spacing (cells skipped between lights)", self.row_spacing)
         form.addRow("Row offset (starting row)", self.row_offset)
         form.addRow("Column spacing (cells skipped between lights)", self.col_spacing)
         form.addRow("Column offset (starting column)", self.col_offset)
 
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
 
@@ -48,19 +69,34 @@ class AutoPlaceLightsDialog(QDialog):
         layout.addLayout(form)
         layout.addWidget(buttons)
 
-    def values(self) -> tuple[int, int, int, int]:
+    def values(self) -> tuple[int, int, int, int, str]:
         return (
             self.row_spacing.value(),
             self.row_offset.value(),
             self.col_spacing.value(),
             self.col_offset.value(),
+            self.kind.currentText(),
         )
 
     @classmethod
     def prompt(
-        cls, parent: QWidget, grid_cols: int, grid_rows: int, initial: tuple[int, int, int, int] = (0, 0, 0, 0)
-    ) -> tuple[int, int, int, int] | None:
-        dialog = cls(parent, grid_cols, grid_rows, initial)
+        cls,
+        parent: QWidget,
+        grid_cols: int,
+        grid_rows: int,
+        initial: tuple[int, int, int, int] = (0, 0, 0, 0),
+        *,
+        kinds: list[str],
+        initial_kind: str,
+    ) -> tuple[int, int, int, int, str] | None:
+        dialog = cls(
+            parent,
+            grid_cols,
+            grid_rows,
+            initial,
+            kinds=kinds,
+            initial_kind=initial_kind,
+        )
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return None
         return dialog.values()

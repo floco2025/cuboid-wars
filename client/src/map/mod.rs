@@ -2,6 +2,8 @@ pub mod cubemap;
 mod erasers;
 mod fields;
 mod grass;
+#[cfg(test)]
+mod light_tests;
 mod rendering;
 mod resources;
 pub mod skybox;

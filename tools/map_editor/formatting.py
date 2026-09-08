@@ -186,7 +186,7 @@ def _wall_body(wall: dict) -> str:
 
 
 def _light_body(light: dict) -> str:
-    body = {"col": light["col"], "row": light["row"], "side": light["side"]}
+    body = {"col": light["col"], "row": light["row"], "side": light["side"], "kind": light.get("kind", "")}
     return _inline_object_body(body)
 
 

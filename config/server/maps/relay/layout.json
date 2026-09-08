@@ -354,8 +354,8 @@
         "barriers": [],
         "light_bridges": [],
         "lights": [
-          {"col":0,"row":3,"side":"W"},
-          {"col":17,"row":8,"side":"E"}
+          {"col":0,"row":3,"side":"W", "kind": "utility"},
+          {"col":17,"row":8,"side":"E", "kind": "utility"}
         ]
       },
       {
@@ -501,9 +501,9 @@
         "erasers": [{"c0":3,"r0":7,"c1":3,"r1":8}],
         "light_bridges": [],
         "lights": [
-          {"col":2,"row":1,"side":"N"},
-          {"col":12,"row":1,"side":"N"},
-          {"col":11,"row":9,"side":"E"}
+          {"col":2,"row":1,"side":"N", "kind": "utility"},
+          {"col":12,"row":1,"side":"N", "kind": "utility"},
+          {"col":11,"row":9,"side":"E", "kind": "utility"}
         ]
       },
       {
@@ -684,8 +684,8 @@
           {"col":11,"row":9,"kind":"power"}
         ],
         "lights": [
-          {"col":3,"row":7,"side":"N"},
-          {"col":16,"row":10,"side":"E"}
+          {"col":3,"row":7,"side":"N", "kind": "utility"},
+          {"col":16,"row":10,"side":"E", "kind": "utility"}
         ]
       },
       {

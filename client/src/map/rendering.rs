@@ -257,15 +257,6 @@ pub fn map_wall_light_emissive_system(
     mut asset_events: MessageReader<AssetEvent<StandardMaterial>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    let wall_light = asset_set.wall_light_model();
-    let scene_path = AssetPath::parse(&wall_light.scene);
-    let emissive_luminance = wall_light.emissive_luminance;
-    let warm_tint = (1.0, 0.95, 0.85);
-    let desired_emissive = LinearRgba::rgb(
-        warm_tint.0 * emissive_luminance,
-        warm_tint.1 * emissive_luminance,
-        warm_tint.2 * emissive_luminance,
-    );
     // Material events avoid rescanning every loaded material while still catching late asset loads.
     for event in asset_events.read() {
         let Some(id) = (match event {
@@ -276,20 +267,24 @@ pub fn map_wall_light_emissive_system(
         }) else {
             continue;
         };
-        // Only the lamp glb's own sub-materials; every other translucent material has its own owner.
-        if asset_server
-            .get_path(id)
-            .is_none_or(|path| path.path() != scene_path.path())
-        {
+        let Some(path) = asset_server.get_path(id) else {
             continue;
-        }
+        };
+        let Some(light) = asset_set
+            .wall_light_models()
+            .find(|light| AssetPath::parse(&light.scene).path() == path.path())
+        else {
+            continue;
+        };
+        let [r, g, b] = light.color;
+        let desired_emissive = LinearRgba::rgb(r, g, b) * light.emissive_luminance;
         let Some(material) = materials.get(id) else {
             continue;
         };
-        if material.alpha_mode == AlphaMode::Opaque {
+        if material.emissive == LinearRgba::BLACK {
             continue;
         }
-        let desired_base_color = Color::srgba(warm_tint.0, warm_tint.1, warm_tint.2, material.base_color.alpha());
+        let desired_base_color = Color::srgba(r, g, b, material.base_color.alpha());
         // Avoid emitting another Modified event in response to this system's own write.
         if material.emissive == desired_emissive && material.base_color == desired_base_color {
             continue;

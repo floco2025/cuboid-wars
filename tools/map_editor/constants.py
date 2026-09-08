@@ -10,6 +10,12 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 # Each registered map has a folder with layout.json and settings.json.
 MAPS_DIR = REPO_ROOT / "config" / "server" / "maps"
 GAMEPLAY_PATH = REPO_ROOT / "config" / "server" / "gameplay.json"
+ASSETS_PATH = REPO_ROOT / "config" / "client" / "assets.json"
+
+
+def load_wall_light_kinds() -> list[str]:
+    with ASSETS_PATH.open(encoding="utf-8") as handle:
+        return sorted(json.load(handle)["wall_lights"])
 
 
 def load_actor_kinds() -> list[str]:

@@ -2,7 +2,7 @@
 
 ## Fixes
 
-- **Player animation test:** `bevy_loads_embedded_materials_and_animates_the_exported_skeleton` can lose its saved thigh entity between app updates (`thigh transform missing`). Check scene replacement during asynchronous asset loading; the exported GLB contains both thigh joints.
+- **Player animation test:** `bevy_loads_embedded_materials_and_animates_the_exported_skeleton` can lose its saved thigh entity or active climb animation between app updates (`thigh transform missing` / `active climb animation missing`). Check scene replacement during asynchronous asset loading; the exported GLB contains both thigh joints.
 
 - **Camera zoom after obstruction:** When an obstruction pushes the third-person camera inward, scrolling inward must start from its visible distance. Currently it first consumes the gap to the saved zoom distance without any visible change.
 

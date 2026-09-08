@@ -234,6 +234,11 @@ fn validate_levels(map_def: &MapDef) -> Result<()> {
                 return Err(anyhow!("{label}: duplicate eraser {:?}", key));
             }
         }
+        for (idx, light) in level.lights.iter().enumerate() {
+            if light.kind.trim().is_empty() {
+                return Err(anyhow!("{label}: lights[{idx}].kind must not be empty"));
+            }
+        }
         validate_light_bridges(level, &label, map_def, level_idx, &floors, &inaccessible)?;
     }
     Ok(())

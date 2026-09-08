@@ -527,8 +527,8 @@
         ],
         "light_bridges": [],
         "lights": [
-          {"col": 0, "row": 8, "side": "W"},
-          {"col": 23, "row": 10, "side": "E"}
+          {"col": 0, "row": 8, "side": "W", "kind": "utility"},
+          {"col": 23, "row": 10, "side": "E", "kind": "utility"}
         ]
       },
       {
@@ -688,9 +688,9 @@
         ],
         "light_bridges": [],
         "lights": [
-          {"col": 2, "row": 2, "side": "N"},
-          {"col": 11, "row": 5, "side": "E"},
-          {"col": 2, "row": 11, "side": "W"}
+          {"col": 2, "row": 2, "side": "N", "kind": "utility"},
+          {"col": 11, "row": 5, "side": "E", "kind": "utility"},
+          {"col": 2, "row": 11, "side": "W", "kind": "utility"}
         ]
       },
       {
@@ -879,8 +879,8 @@
           {"col": 16, "row": 10, "kind": "freight"}
         ],
         "lights": [
-          {"col": 9, "row": 8, "side": "N"},
-          {"col": 21, "row": 11, "side": "E"}
+          {"col": 9, "row": 8, "side": "N", "kind": "utility"},
+          {"col": 21, "row": 11, "side": "E", "kind": "utility"}
         ]
       },
       {

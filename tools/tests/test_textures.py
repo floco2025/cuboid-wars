@@ -57,6 +57,8 @@ class TextureHostWindowTests(WindowTestCase):
         self.window.refresh_ui()
         self.assertEqual(self.window.tool_settings.material_permission.text(), "Portals incompatible")
 
-    def test_editor_watches_no_client_asset_file_or_directory(self):
+    def test_editor_watches_wall_light_catalog_but_not_texture_images(self):
         watched = self.window.dependencies.watcher.files() + self.window.dependencies.watcher.directories()
-        self.assertFalse(any("config/client" in path for path in watched))
+        from map_editor.constants import ASSETS_PATH
+        self.assertIn(str(ASSETS_PATH.resolve()), watched)
+        self.assertFalse(any("client/assets/textures" in path for path in watched))

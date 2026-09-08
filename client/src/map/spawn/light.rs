@@ -32,7 +32,7 @@ pub fn spawn_wall_light_from_layout(
     carrier: Entity,
     light: &WallLight,
 ) {
-    let wall_light = asset_set.wall_light_model();
+    let wall_light = asset_set.wall_light_model(&light.kind);
     let light_scene: Handle<WorldAsset> =
         asset_server.load(GltfAssetLabel::Scene(0).from_asset(wall_light.scene.clone()));
     let level = storeys.tag(light.carrier, geometry.level_for_y(light.pos.y), 0);
@@ -59,7 +59,7 @@ pub fn spawn_wall_light_from_layout(
         ViewVisibility::default(),
     ));
 
-    commands.spawn((
+    let mut emitter = commands.spawn((
         WallLightMarker,
         level,
         ChildOf(carrier),
@@ -68,18 +68,20 @@ pub fn spawn_wall_light_from_layout(
             range: wall_light.range,
             radius: wall_light.radius,
             shadow_maps_enabled: false,
-            color: Color::srgb(1.0, 0.95, 0.85),
+            color: Color::srgb(wall_light.color[0], wall_light.color[1], wall_light.color[2]),
             ..default()
-        },
-        WallLightFlicker {
-            base_intensity: wall_light.brightness,
-            phase: light_pos.x.mul_add(12.9898, light_pos.z * 78.233).sin().abs() * 100.0,
         },
         Transform::from_xyz(light_pos.x, light_pos.y, light_pos.z),
         Visibility::Visible,
         InheritedVisibility::default(),
         ViewVisibility::default(),
     ));
+    if wall_light.flicker {
+        emitter.insert(WallLightFlicker {
+            base_intensity: wall_light.brightness,
+            phase: light_pos.x.mul_add(12.9898, light_pos.z * 78.233).sin().abs() * 100.0,
+        });
+    }
 }
 
 // Occasional subtle dips in wall-light intensity. Only the `PointLight`

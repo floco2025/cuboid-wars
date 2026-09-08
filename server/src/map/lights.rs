@@ -41,7 +41,7 @@ pub(crate) fn generate_wall_lights(
             if !has_edge_on_cell_side(&level.edges, def.row, def.col, side) {
                 return None;
             }
-            Some(wall_light_for(geometry, light_y, def.row, def.col, side))
+            Some(wall_light_for(geometry, light_y, def.row, def.col, side, &def.kind))
         })
         .collect()
 }
@@ -55,13 +55,14 @@ fn cell_side_from_wall_side(side: WallSide) -> CellSide {
     }
 }
 
-fn wall_light_for(geometry: &MapGeometry, light_y: f32, row: i32, col: i32, side: CellSide) -> WallLight {
+fn wall_light_for(geometry: &MapGeometry, light_y: f32, row: i32, col: i32, side: CellSide, kind: &str) -> WallLight {
     let cell_center_x = geometry.cell_center_x(col);
     let cell_center_z = geometry.cell_center_z(row);
     let half = geometry.cell_size() / 2.0;
     let model_inset = geometry.wall_half_thickness() + MODEL_INSET_PAST_WALL;
     match side {
         CellSide::North => WallLight {
+            kind: kind.to_owned(),
             pos: Position {
                 x: cell_center_x,
                 y: light_y,
@@ -71,6 +72,7 @@ fn wall_light_for(geometry: &MapGeometry, light_y: f32, row: i32, col: i32, side
             carrier: CarrierId::WORLD,
         },
         CellSide::South => WallLight {
+            kind: kind.to_owned(),
             pos: Position {
                 x: cell_center_x,
                 y: light_y,
@@ -80,6 +82,7 @@ fn wall_light_for(geometry: &MapGeometry, light_y: f32, row: i32, col: i32, side
             carrier: CarrierId::WORLD,
         },
         CellSide::West => WallLight {
+            kind: kind.to_owned(),
             pos: Position {
                 x: cell_center_x - half + model_inset,
                 y: light_y,
@@ -89,6 +92,7 @@ fn wall_light_for(geometry: &MapGeometry, light_y: f32, row: i32, col: i32, side
             carrier: CarrierId::WORLD,
         },
         CellSide::East => WallLight {
+            kind: kind.to_owned(),
             pos: Position {
                 x: cell_center_x + half - model_inset,
                 y: light_y,
@@ -142,21 +146,25 @@ mod tests {
         let level = level_with_walls(1, 1);
         let defs = vec![
             WallLightDef {
+                kind: "test-light".into(),
                 col: 0,
                 row: 0,
                 side: WallSide::North,
             },
             WallLightDef {
+                kind: "test-light".into(),
                 col: 0,
                 row: 0,
                 side: WallSide::South,
             },
             WallLightDef {
+                kind: "test-light".into(),
                 col: 0,
                 row: 0,
                 side: WallSide::East,
             },
             WallLightDef {
+                kind: "test-light".into(),
                 col: 0,
                 row: 0,
                 side: WallSide::West,
@@ -166,6 +174,7 @@ mod tests {
         let lights = generate_wall_lights(&geometry(1, 1), &level, 0, &defs);
 
         assert_eq!(lights.len(), 4);
+        assert!(lights.iter().all(|light| light.kind == "test-light"));
         let yaws: Vec<f32> = lights.iter().map(|l| l.yaw).collect();
         assert!(yaws.contains(&0.0));
         assert!(yaws.contains(&PI));
@@ -177,6 +186,7 @@ mod tests {
     fn light_y_uses_level_offset() {
         let level = level_with_walls(1, 1);
         let defs = vec![WallLightDef {
+            kind: "test-light".into(),
             col: 0,
             row: 0,
             side: WallSide::North,
@@ -194,11 +204,13 @@ mod tests {
         level.edges.horizontal[0][0] = false; // remove north wall
         let defs = vec![
             WallLightDef {
+                kind: "test-light".into(),
                 col: 0,
                 row: 0,
                 side: WallSide::North,
             },
             WallLightDef {
+                kind: "test-light".into(),
                 col: 0,
                 row: 0,
                 side: WallSide::South,
@@ -215,6 +227,7 @@ mod tests {
     fn drops_def_with_out_of_bounds_cell() {
         let level = level_with_walls(1, 1);
         let defs = vec![WallLightDef {
+            kind: "test-light".into(),
             col: 5,
             row: 5,
             side: WallSide::North,

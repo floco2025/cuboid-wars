@@ -14,7 +14,6 @@ from .constants import (
 from .display import materials_summary, pressure_plate_label
 from .normalization import edge_key, ladder_key, nested_map_key
 
-
 SIDE_LABELS = {"N": "North", "S": "South", "E": "East", "W": "West"}
 
 
@@ -43,7 +42,8 @@ def element_hover_text(data: dict, level_idx: int, hit) -> str | None:
         return f"Wall\n{materials_summary(entry)}"
 
     if kind == "Light":
-        return f"Light\n{SIDE_LABELS.get(value[2], value[2])} wall"
+        entry = next(light for light in level["lights"] if (light["col"], light["row"], light["side"]) == value)
+        return f"Light: {entry.get('kind', '(missing style)')}\n{SIDE_LABELS.get(value[2], value[2])} wall"
 
     if kind == "Ladder":
         ladder = next(e for e in data["ladders"] if ladder_key(e) == value)

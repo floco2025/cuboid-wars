@@ -17,6 +17,7 @@ from .constants import (
 from .display import expand_face_materials
 from .geometry import normalized_wall, ramp_cells, wall_endpoints_for_cell_side
 
+
 def empty_level(index: int) -> dict:
     return {
         "name": f"Level {index}",
@@ -184,6 +185,7 @@ def normalize_light(light: dict) -> dict:
         "col": int(light["col"]),
         "row": int(light["row"]),
         "side": side,
+        "kind": light.get("kind", ""),
     }
 
 

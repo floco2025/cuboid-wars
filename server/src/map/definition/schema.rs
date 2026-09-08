@@ -122,9 +122,10 @@ pub(crate) struct LevelDef {
 }
 
 // Editor-authored wall light. Identifies a `(cell, side)` pair on this level;
-// the runtime turns each one into a `WallLight { pos, yaw }`.
-#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+// the runtime resolves its position and facing on the wall.
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
 pub(crate) struct WallLightDef {
+    pub(crate) kind: String,
     pub(crate) col: i32,
     pub(crate) row: i32,
     pub(crate) side: WallSide,
