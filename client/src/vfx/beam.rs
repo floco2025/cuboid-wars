@@ -17,6 +17,7 @@ pub struct BeamInGhost {
     pub reserved_tick: u32,
     pub due_tick: u32,
     pub half_extents: Vec3,
+    pub center_height: f32,
 }
 
 impl BeamInGhost {
@@ -109,15 +110,18 @@ pub fn beam_ghost_fade_system(
     fixed_time: Res<Time<Fixed>>,
     _settings: Res<ClientSettings>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    mut ghosts: Query<(&BeamInGhost, &mut PointLight, &Children)>,
+    ghosts: Query<(&BeamInGhost, &Children)>,
+    mut lights: Query<&mut PointLight>,
     faders: Query<&GhostFadeMaterials>,
 ) {
     let overstep = fixed_time.overstep_fraction();
-    for (ghost, mut light, children) in &mut ghosts {
+    for (ghost, children) in &ghosts {
         let progress = smoothstep(ghost.fade_progress(tick.0, overstep));
         let full_intensity = (BEAM_IN_LIGHT_INTENSITY_LUMENS_PER_M3 * ghost.volume()).max(BEAM_IN_LIGHT_MIN_INTENSITY);
-        light.intensity = full_intensity * progress;
         for child in children {
+            if let Ok(mut light) = lights.get_mut(*child) {
+                light.intensity = full_intensity * progress;
+            }
             let Ok(fade) = faders.get(*child) else {
                 continue;
             };
@@ -147,7 +151,7 @@ pub fn beam_ghost_sparkle_system(
         for _ in 0..count {
             let local_offset = Vec3::new(
                 rng.random_range(-ghost.half_extents.x..ghost.half_extents.x),
-                rng.random_range(-ghost.half_extents.y..ghost.half_extents.y),
+                ghost.center_height + rng.random_range(-ghost.half_extents.y..ghost.half_extents.y),
                 rng.random_range(-ghost.half_extents.z..ghost.half_extents.z),
             );
             let local_drift =
@@ -193,7 +197,7 @@ pub fn beam_ghost_removed_system(
 fn spawn_materialization_ring(sparkles: &mut ParticleCloud, transform: &GlobalTransform, ghost: &BeamInGhost) {
     let count = BEAM_IN_MATERIALIZATION_PARTICLE_COUNT;
     let radius = ghost.half_extents.x.max(ghost.half_extents.z) * 0.8;
-    let base_y = -ghost.half_extents.y * 0.9;
+    let base_y = ghost.center_height - ghost.half_extents.y * 0.9;
     let phase = rand::random::<f32>() * TAU;
     let color = beam_color(BEAM_IN_SPARKLE_EMISSIVE * 1.35);
 
@@ -249,6 +253,7 @@ mod tests {
             reserved_tick: 100,
             due_tick: 190,
             half_extents: Vec3::ONE,
+            center_height: 0.0,
         };
         assert_eq!(ghost.fade_progress(100, 0.0), 0.0);
         assert_eq!(ghost.fade_progress(145, 0.0), 0.5);

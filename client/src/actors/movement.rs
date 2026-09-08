@@ -6,7 +6,7 @@ use common::{
     map::Carriers,
     physics::{
         CharacterEnvironment, CharacterMovePlan, CharacterStep, CharacterVerticalVelocity, CollisionWorld, LadderMode,
-        blocking_character_move_plan, character_move_plan_is_blocked, step_character_movement,
+        blocking_character_move_plan, character_move_plan_is_blocked, grounding_diagnostics, step_character_movement,
     },
     protocol::{ActorId, ActorMarker, ActorMoveIntent, MapSettings, PlateState, PlayerMarker, Position},
 };
@@ -67,6 +67,14 @@ pub(crate) fn plan_actor_moves(
             .expect("actor kind sent by server is missing from gameplay config")
             .physics();
         if let Some(anchor) = info.anchor {
+            let origin = anchor.world_position(carriers);
+            commands.entity(entity).insert(grounding_diagnostics(
+                collision_world,
+                &origin,
+                actor_physics,
+                &plates.open_barrier_kinds,
+                &[],
+            ));
             planned_moves.push(CharacterMovePlan::from_target(
                 entity,
                 *pos,
@@ -124,6 +132,7 @@ pub(crate) fn plan_actor_moves(
                 carriers,
             },
         );
+        commands.entity(entity).insert((step.grounding, step.support));
         push_actor_planned_move(
             planned_moves,
             actor_starts,

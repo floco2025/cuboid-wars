@@ -74,9 +74,7 @@ pub fn spawn_laser_beam(
         .id()
 }
 
-// Stretch every live beam between its actor's and target's interpolated
-// collider centers (the root entities' translations). Runs after both
-// transform-sync systems so it reads this frame's positions.
+// Beam anchors use this frame's interpolated character positions.
 pub fn laser_beam_update_system(
     mut commands: Commands,
     time: Res<Time>,
@@ -93,11 +91,11 @@ pub fn laser_beam_update_system(
     // The target's configured bounding box: the beam anchors at its center
     // (the player root transform) and the wander stays inside the
     // `wander_fraction`-scaled box.
-    let target_collider = gameplay_config.player.physics().collider;
+    let target_hitbox = gameplay_config.player.physics().hitbox;
     let target_half_extents = Vec3::new(
-        target_collider.width / 2.0,
-        target_collider.height / 2.0,
-        target_collider.depth / 2.0,
+        target_hitbox.width / 2.0,
+        target_hitbox.height / 2.0,
+        target_hitbox.depth / 2.0,
     );
     for (entity, mut beam, mut transform, mut visibility) in &mut beams {
         if let Some(remaining) = &mut beam.remaining_secs {
@@ -122,10 +120,7 @@ pub fn laser_beam_update_system(
             continue;
         };
         let origin = turret.map_or_else(
-            || {
-                actor_transform.translation
-                    + Vec3::Y * (actor_config.beam_origin_height() - actor_config.physics().collider.center_y_offset())
-            },
+            || actor_transform.translation + Vec3::Y * actor_config.beam_origin_height(),
             |rig| rig.pivot(actor_transform),
         );
         // Drift the hit point smoothly around the target's box center so the
@@ -147,9 +142,8 @@ pub fn laser_beam_update_system(
                 beam.wander_height_fraction,
                 beam.wander_width_fraction,
             );
-        // The anchor sits `aim_height_fraction` up the box (0.5 = center,
-        // which is what the root translation already is).
-        let anchor_y = (beam.aim_height_fraction - 0.5) * target_collider.height;
+        // The anchor sits `aim_height_fraction` up the hitbox (0.5 = center).
+        let anchor_y = target_hitbox.bottom_offset + beam.aim_height_fraction * target_hitbox.height;
         let aim_local = Vec3::new(0.0, anchor_y, 0.0) + wander_local;
         let target = target_transform.translation + target_transform.rotation * aim_local;
         let full_length = origin.distance(target);

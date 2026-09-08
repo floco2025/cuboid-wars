@@ -149,10 +149,10 @@ mod tests {
             "actors": source["actors"]["kinds"],
         }))
         .expect("client gameplay config is invalid");
-        let physics = gameplay.expect_actor("turret").physics();
+        let target_height = gameplay.player.physics().hitbox.center_y_offset();
         let assets = AssetSet::load_default().expect("client assets rejected");
         let model = assets.actor_model("turret");
-        let model_transform = Transform::from_xyz(0.0, physics.model_y_offset_from_entity_center(model.y_offset), 0.0);
+        let model_transform = Transform::from_xyz(0.0, model.y_offset, 0.0);
         let mut app = App::new();
         app.init_resource::<Time>()
             .init_resource::<ActorMap>()
@@ -169,8 +169,7 @@ mod tests {
             );
         let yaw = app.world_mut().spawn((Transform::default(), TurretJointMarker)).id();
         let pitch = app.world_mut().spawn((Transform::default(), TurretJointMarker)).id();
-        let base =
-            Transform::from_xyz(0.0, physics.collider_center_y(0.0), 0.0).with_rotation(Quat::from_rotation_y(1.2));
+        let base = Transform::from_xyz(0.0, 0.0, 0.0).with_rotation(Quat::from_rotation_y(1.2));
         let actor = app
             .world_mut()
             .spawn((
@@ -231,7 +230,7 @@ mod tests {
             app.world_mut()
                 .get_mut::<Transform>(target)
                 .expect("target transform missing")
-                .translation = aim;
+                .translation = aim - Vec3::Y * target_height;
             app.update();
             let world = app.world();
             let actual_base = world.get::<Transform>(actor).expect("base transform missing");

@@ -1,8 +1,5 @@
 use crate::{
-    config::{
-        CharacterColliderAnchor, CharacterColliderConfig, CharacterPhysicsConfig, CharacterSupportProbeConfig,
-        gameplay::load_test_gameplay,
-    },
+    config::{CharacterPhysicsConfig, HitboxConfig, MovementColliderConfig, gameplay::load_test_gameplay},
     constants::LADDER_OVERSHOOT,
     protocol::{
         Barrier, BarrierKindId, BarrierKindTable, BridgeKindId, CarrierId, Floor, Ladder, LightBridge, MapLayout,
@@ -20,7 +17,7 @@ use super::{CollisionWorld, colliders::ColliderKind};
 use crate::{
     constants::TICK_SECS,
     map::Carriers,
-    physics::characters::{character_center, character_shape},
+    physics::characters::{character_movement_center, character_movement_shape},
     protocol::Carrier,
 };
 
@@ -103,12 +100,12 @@ fn carrier_pushes_respect_barrier_passability_bridge_power_and_portal_exclusions
         .expect("test gameplay config invalid")
         .player
         .physics();
-    let shape = character_shape(physics);
-    let center = character_center(
+    let shape = character_movement_shape(physics);
+    let center = character_movement_center(
         Position {
             x: 0.0,
             y: 0.0,
-            z: 0.2 + physics.collider.depth / 2.0 + 0.01,
+            z: 0.2 + physics.movement_collider.radius + 0.01,
         },
         physics,
     );
@@ -478,14 +475,16 @@ fn wall_end_world() -> CollisionWorld {
 
 fn wide_body() -> CharacterPhysicsConfig {
     CharacterPhysicsConfig {
-        collider: CharacterColliderConfig {
+        hitbox: HitboxConfig {
             width: 1.8,
             height: 1.0,
             depth: 1.4,
-            y_offset: 0.45,
-            y_offset_anchor: CharacterColliderAnchor::Bottom,
+            bottom_offset: 0.45,
         },
-        support_probe: CharacterSupportProbeConfig { width: 0.2, depth: 0.2 },
+        movement_collider: MovementColliderConfig {
+            radius: 0.9,
+            height: 1.8,
+        },
     }
 }
 
@@ -559,8 +558,8 @@ fn light_bridge_supports_a_character_only_while_powered() {
     assert_eq!(world.solid_kinds(), vec![ColliderKind::Bridge]);
 
     let physics: CharacterPhysicsConfig = wide_body();
-    let shape = crate::physics::characters::character_shape(physics);
-    let pose = Pose::translation(2.0, LEVEL_HEIGHT + physics.collider.bottom_y_offset() + 0.05, 2.0);
+    let shape = crate::physics::characters::character_movement_shape(physics);
+    let pose = Pose::translation(2.0, LEVEL_HEIGHT + 0.0 + 0.05, 2.0);
     let probe = |world: &CollisionWorld| world.ground_hit(&shape, &pose, 1.0, 0.0, &[], &[]);
 
     assert!(probe(&world).is_none(), "an unpowered bridge is not ground");
@@ -687,9 +686,9 @@ fn carrier_colliders_follow_the_carrier_pose() {
     let mut world = CollisionWorld::from_map_layout(&layout, &crate::protocol::BarrierKindTable::default());
     assert_eq!(world.solid_kinds(), vec![ColliderKind::Floor]);
     let physics = wide_body();
-    let shape = crate::physics::characters::character_shape(physics);
+    let shape = crate::physics::characters::character_movement_shape(physics);
     let probe = |world: &CollisionWorld, x: f32| {
-        let pose = Pose::translation(x, LEVEL_HEIGHT + physics.collider.bottom_y_offset() + 0.05, 0.0);
+        let pose = Pose::translation(x, LEVEL_HEIGHT + 0.0 + 0.05, 0.0);
         world.ground_hit(&shape, &pose, 1.0, 0.0, &[], &[])
     };
 
@@ -718,9 +717,9 @@ fn ground_hit_names_the_carrier_under_the_feet() {
     });
     let world = CollisionWorld::from_map_layout(&layout, &crate::protocol::BarrierKindTable::default());
     let physics = wide_body();
-    let shape = crate::physics::characters::character_shape(physics);
+    let shape = crate::physics::characters::character_movement_shape(physics);
     let probe = |x: f32| {
-        let pose = Pose::translation(x, LEVEL_HEIGHT + physics.collider.bottom_y_offset() + 0.05, 0.0);
+        let pose = Pose::translation(x, LEVEL_HEIGHT + 0.0 + 0.05, 0.0);
         world
             .ground_hit(&shape, &pose, 1.0, 0.0, &[], &[])
             .map(|hit| hit.carrier)

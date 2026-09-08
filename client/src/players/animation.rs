@@ -422,6 +422,7 @@ mod tests {
         let start = Position::default();
         let mut motion = PlayerAnimationMotion::default();
         let step = CharacterMovementResult {
+            grounding: Default::default(),
             position: Position { x: 1.1, y: 0.2, z: 0.0 },
             vertical_velocity: 0.0,
             support: CharacterSupport::Ground,
@@ -613,13 +614,6 @@ mod tests {
         }
         assert!(textured >= 3, "shell, rubber and metal textures are missing");
 
-        let thigh = app
-            .world_mut()
-            .query::<(Entity, &Name)>()
-            .iter(app.world())
-            .find(|(_, name)| name.as_str() == "Thigh.L")
-            .map(|(entity, _)| entity)
-            .expect("thigh joint missing from player GLB");
         app.world_mut().entity_mut(owner).insert((
             PlayerAnimationMotion {
                 support: CharacterSupport::Ground,
@@ -630,6 +624,13 @@ mod tests {
         for _ in 0..6 {
             app.update();
         }
+        let thigh = app
+            .world_mut()
+            .query::<(Entity, &Name, &Transform)>()
+            .iter(app.world())
+            .find(|(_, name, _)| name.as_str() == "Thigh.L")
+            .map(|(entity, _, _)| entity)
+            .expect("thigh joint missing from player GLB");
         let first = app
             .world()
             .get::<Transform>(thigh)

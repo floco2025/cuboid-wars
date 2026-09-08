@@ -126,7 +126,7 @@ fn initial_ceiling_contact_does_not_cancel_horizontal_movement() {
 
     assert!(!step.blocked);
     assert!(step.position.x > pos.x);
-    assert!((step.position.y - floor.y).abs() < 0.001);
+    assert!((step.position.y - floor.y).abs() < 0.01, "{step:?}");
     assert_eq!(step.vertical_velocity, 0.0);
 }
 

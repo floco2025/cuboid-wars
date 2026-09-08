@@ -2,8 +2,7 @@ use std::collections::HashMap;
 
 use bevy::prelude::*;
 use common::{
-    config::CharacterPhysicsConfig,
-    physics::{CharacterMovePlan, CollisionWorld, character_center, character_vertical_ranges_overlap},
+    physics::{CharacterMovePlan, CollisionWorld, character_hitbox_center, character_surface_distance},
     protocol::{ActorMarker, BarrierKindId, Health},
 };
 
@@ -68,24 +67,14 @@ fn character_move_plans_touch(
 ) -> bool {
     // Character movement blocks before colliders overlap, so contact uses a
     // configurable surface tolerance instead of requiring actual intersection.
-    if !character_vertical_ranges_overlap(a.target, a.physics, b.target, b.physics)
-        || a.target.horizontal_distance_sq(&b.target) > contact_distance(a.physics, b.physics, trigger_gap).powi(2)
-    {
+    if character_surface_distance(a.target, a.physics, b.target, b.physics) > trigger_gap {
         return false;
     }
     collision_world.attack_path_clear(
-        character_center(a.target, a.physics),
-        character_center(b.target, b.physics),
+        character_hitbox_center(a.target, a.physics),
+        character_hitbox_center(b.target, b.physics),
         open_barriers,
     )
-}
-
-fn contact_distance(a: CharacterPhysicsConfig, b: CharacterPhysicsConfig, trigger_gap: f32) -> f32 {
-    horizontal_collider_radius(a) + horizontal_collider_radius(b) + trigger_gap
-}
-
-fn horizontal_collider_radius(physics: CharacterPhysicsConfig) -> f32 {
-    physics.collider.width.max(physics.collider.depth) / 2.0
 }
 
 #[cfg(test)]

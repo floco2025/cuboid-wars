@@ -1,6 +1,6 @@
 use bevy::prelude::Vec3;
 use common::{
-    physics::{CharacterSupport, character_center},
+    physics::{CharacterSupport, character_hitbox_center},
     protocol::PlayerId,
 };
 use rand::Rng;
@@ -139,7 +139,7 @@ fn beam_target_attackable(aware: &AwarePlayer, context: &BehaviorContext<'_>) ->
         && context.world_pos.distance_sq(&aware.pos) <= range * range
         && context.collision_world.attack_path_clear(
             Vec3::from(context.world_pos) + Vec3::Y * context.kind_config.character.beam_origin_height(),
-            character_center(aware.pos, context.player_physics),
+            character_hitbox_center(aware.pos, context.player_physics),
             context.open_barriers,
         )
 }

@@ -82,7 +82,7 @@ pub fn spawn_actor_explosion(commands: &mut Commands, ctx: &mut ExplosionSpawnCt
         ctx.budget,
         ctx.explosion_assets,
         ExplosionSpec {
-            center: Vec3::new(pos.x, actor_physics.collider_center_y(pos.y), pos.z),
+            center: Vec3::new(pos.x, actor_physics.hitbox_center_y(pos.y), pos.z),
             ground_y: pos.y,
             fireball_diameter,
             blast_radius,
@@ -102,7 +102,7 @@ pub fn spawn_player_explosion(commands: &mut Commands, ctx: &mut ExplosionSpawnC
         ctx.budget,
         ctx.explosion_assets,
         ExplosionSpec {
-            center: Vec3::new(pos.x, player_physics.collider_center_y(pos.y), pos.z),
+            center: Vec3::new(pos.x, player_physics.hitbox_center_y(pos.y), pos.z),
             ground_y: pos.y,
             fireball_diameter: blast_radius.map_or(EXPLOSION_FALLBACK_FIREBALL_DIAMETER, |radius| {
                 2.0 * radius * EXPLOSION_FIREBALL_BLAST_DIAMETER_FACTOR
@@ -138,7 +138,7 @@ pub fn spawn_missile_explosion(commands: &mut Commands, ctx: &mut ExplosionSpawn
 
 // Six layers: fireball flash, ground shockwave ring, scorch mark, debris
 // shard burst, smoke, and a fading point light. `center` is the blast origin
-// (collider center); `ground_y` anchors the ring at the victim's feet.
+// (hitbox center); `ground_y` anchors the ring at the victim's feet.
 fn spawn_explosion(
     commands: &mut Commands,
     meshes: &mut Assets<Mesh>,

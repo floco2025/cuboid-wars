@@ -1,6 +1,9 @@
 use bevy_ecs::prelude::*;
 use bevy_math::{Mat3, Quat, Vec3};
-use rapier3d::prelude::ColliderHandle;
+use rapier3d::{
+    parry::shape::SupportMap,
+    prelude::{ColliderHandle, Vector},
+};
 
 use super::{PortalFrame, frame::PORTAL_UP_DEGENERACY_LIMIT};
 use crate::{
@@ -13,7 +16,8 @@ use crate::{
     map::Carriers,
     math::direction_from_yaw_pitch,
     physics::{
-        AirborneMomentum, CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity, player_control_velocity,
+        AirborneMomentum, CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity, character_movement_center,
+        character_movement_shape, player_control_velocity,
     },
     protocol::{CarrierId, FaceYaw, PlayerMoveIntent, Portal, PortalEnd, Position},
 };
@@ -76,19 +80,9 @@ fn in_character_aperture(offset_from_center: Vec3, frame: &PortalFrame) -> bool 
         && offset_from_center.dot(frame.up).abs() <= PORTAL_HALF_HEIGHT
 }
 
-// The character's occupied box — feet to collider top — not the collider
-// itself: the collider floats `bottom_y_offset` above the feet, and the
-// trigger must read "standing on the aperture" as contact.
-fn body_half_extents(physics: CharacterPhysicsConfig) -> Vec3 {
-    Vec3::new(
-        physics.collider.width / 2.0,
-        physics.collider.top_y_offset() / 2.0,
-        physics.collider.depth / 2.0,
-    )
-}
-
-fn body_support(half_extents: Vec3, direction: Vec3) -> f32 {
-    direction.abs().dot(half_extents)
+fn body_support(shape: &impl SupportMap, direction: Vec3) -> f32 {
+    let direction = Vector::from_array(direction.to_array());
+    shape.local_support_point(direction).dot(direction)
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -298,12 +292,12 @@ impl PortalSet {
         if self.pairs.is_empty() {
             return Vec::new();
         }
-        let half_extents = body_half_extents(physics);
-        let center = origin + Vec3::Y * half_extents.y;
+        let shape = character_movement_shape(physics);
+        let center = character_movement_center(origin.into(), physics);
         let mut excluded = Vec::new();
         for (gate, _) in self.gates() {
             let offset = center - gate.frame.center;
-            let behind_reach = body_support(half_extents, gate.frame.normal) + TRANSIT_MARGIN;
+            let behind_reach = body_support(&shape, gate.frame.normal) + TRANSIT_MARGIN;
             if offset.dot(gate.frame.normal) > -behind_reach && in_character_aperture(offset, &gate.frame) {
                 excluded.extend_from_slice(&gate.backing);
             }
@@ -322,14 +316,14 @@ impl PortalSet {
         origin: Vec3,
         physics: CharacterPhysicsConfig,
     ) -> Option<(CarrierId, &[ColliderHandle])> {
-        let half_extents = body_half_extents(physics);
-        let center = origin + Vec3::Y * half_extents.y;
+        let shape = character_movement_shape(physics);
+        let center = character_movement_center(origin.into(), physics);
         self.gates().find_map(|(gate, _)| {
             if gate.portal.carrier.is_world() {
                 return None;
             }
             let offset = center - gate.frame.center;
-            let reach = body_support(half_extents, gate.frame.normal) + TRANSIT_MARGIN;
+            let reach = body_support(&shape, gate.frame.normal) + TRANSIT_MARGIN;
             let distance = offset.dot(gate.frame.normal);
             (distance > -reach && distance <= reach && in_character_aperture(offset, &gate.frame))
                 .then_some((gate.portal.carrier, gate.backing.as_slice()))
@@ -346,8 +340,8 @@ impl PortalSet {
         if self.pairs.is_empty() {
             return Vec::new();
         }
-        let half_extents = body_half_extents(physics);
-        let center = origin + Vec3::Y * half_extents.y;
+        let shape = character_movement_shape(physics);
+        let center = character_movement_center(origin.into(), physics);
         let target = center + translation;
         let mut excluded = Vec::new();
         for (gate, _) in self.gates() {
@@ -355,7 +349,7 @@ impl PortalSet {
             let target_offset = target - gate.frame.center;
             let start_distance = start_offset.dot(gate.frame.normal);
             let target_distance = target_offset.dot(gate.frame.normal);
-            let behind_reach = body_support(half_extents, gate.frame.normal) + TRANSIT_MARGIN;
+            let behind_reach = body_support(&shape, gate.frame.normal) + TRANSIT_MARGIN;
             if start_distance <= -behind_reach && target_distance <= -behind_reach {
                 continue;
             }
@@ -403,14 +397,15 @@ impl PortalSet {
         if from.distance_squared(to) > MAX_CROSSING_STEP * MAX_CROSSING_STEP {
             return None;
         }
-        let half_extents = body_half_extents(physics);
-        let center_to = to + Vec3::Y * half_extents.y;
+        let shape = character_movement_shape(physics);
+        let center_offset = character_movement_center(Position::default(), physics);
+        let center_to = to + center_offset;
         let portal_velocity = portal_momentum + Vec3::Y * vertical_velocity;
         let velocity = control_velocity + knockback + portal_velocity;
         for (entry_gate, exit_gate) in self.gates() {
             let entry = &entry_gate.frame;
             let exit = &exit_gate.frame;
-            let center_from = from + entry_gate.carry + Vec3::Y * half_extents.y;
+            let center_from = from + entry_gate.carry + center_offset;
             let from_distance = (center_from - entry.center).dot(entry.normal);
             let to_distance = (center_to - entry.center).dot(entry.normal);
             if !(from_distance > 0.0 && to_distance <= 0.0) {
@@ -422,8 +417,8 @@ impl PortalSet {
                 continue;
             }
             let offset = center_to - entry.center;
-            let across_limit = (PORTAL_HALF_WIDTH - body_support(half_extents, exit.right)).max(0.0);
-            let up_limit = (PORTAL_HALF_HEIGHT - body_support(half_extents, exit.up)).max(0.0);
+            let across_limit = (PORTAL_HALF_WIDTH - body_support(&shape, exit.right)).max(0.0);
+            let up_limit = (PORTAL_HALF_HEIGHT - body_support(&shape, exit.up)).max(0.0);
             let exit_center = exit.center
                 + exit.right * (-offset.dot(entry.right)).clamp(-across_limit, across_limit)
                 + exit.up * offset.dot(entry.up).clamp(-up_limit, up_limit)
@@ -432,7 +427,7 @@ impl PortalSet {
             let mapped_portal_velocity = traverse_vector(entry, exit, portal_velocity);
             let mapped_knockback = traverse_vector(entry, exit, knockback);
             return Some(CharacterPortalHop {
-                origin: exit_center - Vec3::Y * half_extents.y,
+                origin: exit_center - center_offset,
                 yaw: traverse_yaw(entry, exit, yaw),
                 vertical_velocity: mapped_velocity.y,
                 knockback: Vec3::new(mapped_knockback.x, 0.0, mapped_knockback.z).clamp_length_max(knockback_cap),
@@ -465,8 +460,7 @@ impl PortalSet {
         if steering {
             return Vec3::ZERO;
         }
-        let half_extents = body_half_extents(physics);
-        let center = origin + Vec3::Y * half_extents.y;
+        let center = character_movement_center(origin.into(), physics);
         for (gate, _) in self.gates() {
             let normal = gate.frame.normal;
             if normal.y.abs() <= PORTAL_STANDABLE_NORMAL_Y {

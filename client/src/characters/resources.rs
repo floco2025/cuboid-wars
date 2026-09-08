@@ -2,8 +2,25 @@ use std::collections::HashMap;
 
 use bevy::prelude::*;
 
-#[derive(Resource, Default)]
-pub struct ColliderBoxesVisible(pub bool);
+#[derive(Resource, Default, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BoundsMode {
+    #[default]
+    Off,
+    Movement,
+    Hitbox,
+    Grounding,
+}
+
+impl BoundsMode {
+    pub fn next(self) -> Self {
+        match self {
+            Self::Off => Self::Movement,
+            Self::Movement => Self::Hitbox,
+            Self::Hitbox => Self::Grounding,
+            Self::Grounding => Self::Off,
+        }
+    }
+}
 
 // Max health from `SInit` (the player, and per actor kind) — the denominator
 // for every health bar. Starts empty (initialized at app build) and is

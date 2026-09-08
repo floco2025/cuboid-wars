@@ -60,7 +60,7 @@ pub(super) fn reconcile_player(
     // distance, so a floor-level disagreement snaps once the player
     // settles. Smoothing Y instead is not an option — the physics step only
     // takes the target's X/Z, and a nudged Y would be pushed back onto the
-    // client-side floor by the support probe.
+    // client-side floor by ground snapping.
     let snap_threshold = player_snap_threshold(snap_speed, run_speed);
     let (worst_axis, worst_magnitude) = worst_axis_divergence(correction_delta);
     if worst_magnitude >= snap_threshold {

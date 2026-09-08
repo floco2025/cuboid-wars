@@ -7,17 +7,14 @@ use super::WindowedFrame;
 
 use crate::{
     cameras::{CameraViewMode, TopDownCameraYaw},
-    characters::ColliderBoxesVisible,
+    characters::BoundsMode,
     map::{DebugColors, LevelFocusEnabled},
     players::LocalPlayerInfo,
 };
 
-pub fn input_collider_boxes_toggle_system(
-    keyboard: Res<ButtonInput<KeyCode>>,
-    mut visible: ResMut<ColliderBoxesVisible>,
-) {
+pub fn input_bounds_cycle_system(keyboard: Res<ButtonInput<KeyCode>>, mut visible: ResMut<BoundsMode>) {
     if keyboard.just_pressed(KeyCode::KeyB) {
-        visible.0 = !visible.0;
+        *visible = visible.next();
     }
 }
 

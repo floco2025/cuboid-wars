@@ -1,25 +1,24 @@
 use bevy_math::Vec3;
 use rapier3d::{
     control::{CharacterAutostep, CharacterCollision, CharacterLength, KinematicCharacterController},
-    parry::shape::Cuboid,
+    parry::shape::Capsule,
     prelude::{ColliderHandle, Vector},
 };
-use std::f32::consts::FRAC_PI_3;
 
 use super::{
-    geometry::{character_pose, character_shape, character_support_probe_shape},
+    geometry::{character_movement_pose, character_movement_shape},
     ladder::{LadderMode, evaluate_ladder_interaction},
     support::{
-        character_ground_hit, perch_slide_displacement, position_has_floor_support, project_move_onto_support,
-        snap_position_to_ground, supporting_carrier,
+        character_ground_hit, grounding_diagnostics, position_has_floor_support, snap_character_to_ground,
+        supporting_carrier,
     },
     types::{CharacterMovementResult, CharacterSupport},
 };
 use crate::{
     config::CharacterPhysicsConfig,
     constants::{
-        CHARACTER_CONTACT_OFFSET, CHARACTER_STEP_HEIGHT, CHARACTER_STEP_MIN_WIDTH, CHARACTER_TERMINAL_VELOCITY,
-        TICK_SECS,
+        CHARACTER_CONTACT_OFFSET, CHARACTER_GROUND_SNAP_DISTANCE, CHARACTER_MAX_SLOPE, CHARACTER_STEP_HEIGHT,
+        CHARACTER_STEP_MIN_WIDTH, CHARACTER_TERMINAL_VELOCITY, TICK_SECS,
     },
     map::Carriers,
     physics::world::CollisionWorld,
@@ -27,7 +26,6 @@ use crate::{
 };
 
 const CHARACTER_BLOCKED_MOVEMENT_EPSILON: f32 = 0.01;
-const CHARACTER_AUTOSTEP_EPSILON: f32 = 0.01;
 
 #[must_use]
 pub fn player_jump_velocity(
@@ -81,8 +79,7 @@ pub struct CharacterEnvironment<'a> {
 
 #[must_use]
 pub fn step_character_movement(step: CharacterStep, env: &CharacterEnvironment) -> CharacterMovementResult {
-    let character_shape = character_shape(env.physics);
-    let support_shape = character_support_probe_shape(env.physics);
+    let shape = character_movement_shape(env.physics);
     let feet = Vec3::new(step.start.x, step.start.y, step.start.z);
     // The rider's carry. A body standing on a carrier follows it by the
     // ride rule (`supporting_carrier`). A body passing through an aperture
@@ -103,7 +100,7 @@ pub fn step_character_movement(step: CharacterStep, env: &CharacterEnvironment) 
         Some((carrier, backing)) => {
             let supported_elsewhere = character_ground_hit(
                 env.collision_world,
-                &support_shape,
+                &shape,
                 &step.start,
                 env.passable_kinds,
                 backing,
@@ -125,7 +122,7 @@ pub fn step_character_movement(step: CharacterStep, env: &CharacterEnvironment) 
                 let grounded = step.vertical_velocity <= 0.0
                     && character_ground_hit(
                         env.collision_world,
-                        &support_shape,
+                        &shape,
                         &step.start,
                         env.passable_kinds,
                         &[],
@@ -148,7 +145,7 @@ pub fn step_character_movement(step: CharacterStep, env: &CharacterEnvironment) 
             .or_else(|| {
                 supporting_carrier(
                     env.collision_world,
-                    &support_shape,
+                    &shape,
                     &step.start,
                     env.passable_kinds,
                     env.physics,
@@ -172,7 +169,7 @@ pub fn step_character_movement(step: CharacterStep, env: &CharacterEnvironment) 
     let support_excluded = env.portals.map_or_else(Vec::new, |portals| {
         portals.collision_exclusions(Vec3::new(step.start.x, step.start.y, step.start.z), env.physics)
     });
-    let request = prepare_movement_request(step, env, carry, &support_excluded, &character_shape, &support_shape);
+    let request = prepare_movement_request(step, env, carry, &support_excluded, &shape);
     let movement_excluded = env.portals.map_or_else(Vec::new, |portals| {
         portals.movement_collision_exclusions(
             Vec3::new(step.start.x, step.start.y, step.start.z),
@@ -180,16 +177,8 @@ pub fn step_character_movement(step: CharacterStep, env: &CharacterEnvironment) 
             env.physics,
         )
     });
-    let collision = resolve_character_collision(step, env, &movement_excluded, &character_shape, &request);
-    finish_character_movement(
-        step,
-        env,
-        &movement_excluded,
-        &support_shape,
-        request,
-        collision,
-        floor_velocity,
-    )
+    let collision = resolve_character_collision(step, env, &movement_excluded, &shape, &request);
+    finish_character_movement(step, env, &movement_excluded, request, collision, floor_velocity)
 }
 
 struct MovementRequest {
@@ -199,6 +188,7 @@ struct MovementRequest {
     requested_total: Vector,
     carried: Vector,
     can_follow_ground: bool,
+    started_grounded: bool,
     ascending_ladder: bool,
     ladder_supported: bool,
     // A carrier moved the body vertically before the request.
@@ -210,8 +200,7 @@ fn prepare_movement_request(
     env: &CharacterEnvironment,
     carry: Vec3,
     excluded_colliders: &[ColliderHandle],
-    character_shape: &Cuboid,
-    support_shape: &Cuboid,
+    shape: &Capsule,
 ) -> MovementRequest {
     let carry_xz = carry.with_y(0.0);
     let start_pos = &step.start;
@@ -222,7 +211,7 @@ fn prepare_movement_request(
     let ground_probe = if step.vertical_velocity <= 0.0 {
         character_ground_hit(
             collision_world,
-            support_shape,
+            shape,
             start_pos,
             passable_kinds,
             excluded_colliders,
@@ -254,27 +243,13 @@ fn prepare_movement_request(
     let can_follow_ground = step.vertical_velocity <= 0.0
         && !ascending_ladder
         && !(matches!(env.ladder_mode, LadderMode::Climb | LadderMode::Exit) && ladder.is_supported());
-    let current_ground = if can_follow_ground { ground_probe } else { None };
     let next_vertical_velocity = if let Some(vertical_velocity) = ladder.vertical_velocity() {
         vertical_velocity
-    } else if current_ground.is_some() {
+    } else if ground_probe.is_some() {
+        // Ground support balances gravity; repeatedly casting into it amplifies capsule contact noise.
         0.0
     } else {
         (step.vertical_velocity - env.gravity * step.delta).max(-CHARACTER_TERMINAL_VELOCITY)
-    };
-
-    let perch_slide_move = if can_follow_ground && current_ground.is_none() && env.ladder_mode != LadderMode::Exit {
-        perch_slide_displacement(
-            collision_world,
-            character_shape,
-            start_pos,
-            passable_kinds,
-            excluded_colliders,
-            physics,
-            step.delta,
-        )
-    } else {
-        Vector::ZERO
     };
 
     let portal_funnel = env.portals.map_or(Vec3::ZERO, |portals| {
@@ -315,16 +290,9 @@ fn prepare_movement_request(
     let requested_horizontal_move =
         Vector::new(requested_target.x - start_pos.x, 0.0, requested_target.z - start_pos.z);
     let requested_vertical_move = Vector::new(0.0, requested_target.y - start_pos.y, 0.0);
-    let supported_horizontal_move = current_ground.map_or(requested_horizontal_move, |ground| {
-        project_move_onto_support(requested_horizontal_move, ground.normal)
-    });
+    let supported_horizontal_move = requested_horizontal_move;
     let carried = Vector::new(carry_xz.x, 0.0, carry_xz.z);
-    let carried = current_ground.map_or(carried, |ground| project_move_onto_support(carried, ground.normal));
-    // The perch slide is a separate term (not folded into
-    // `supported_horizontal_move`) so the blocked/impact check below keeps
-    // comparing requested body movement against actual movement — an idle
-    // player perched against a wall has no impact.
-    let requested_move = supported_horizontal_move + perch_slide_move + requested_vertical_move;
+    let requested_move = supported_horizontal_move + requested_vertical_move;
 
     MovementRequest {
         next_vertical_velocity,
@@ -333,6 +301,7 @@ fn prepare_movement_request(
         requested_total: requested_move,
         carried,
         can_follow_ground,
+        started_grounded: ground_probe.is_some(),
         ascending_ladder,
         ladder_supported: ladder.is_supported(),
         lifted: carry.y != 0.0,
@@ -341,8 +310,6 @@ fn prepare_movement_request(
 
 struct CharacterCollisionResult {
     translation: Vector,
-    // Boarding after a side push is an ordinary step, not evidence of entrapment.
-    crush_start: Position,
     grounded: bool,
     saw_side_contact: bool,
     hit_ceiling: bool,
@@ -352,13 +319,16 @@ fn resolve_character_collision(
     step: CharacterStep,
     env: &CharacterEnvironment,
     excluded_colliders: &[ColliderHandle],
-    character_shape: &Cuboid,
+    shape: &Capsule,
     request: &MovementRequest,
 ) -> CharacterCollisionResult {
     let mut saw_side_contact = false;
     let mut hit_ceiling = false;
-    let controller = character_controller();
-    let pose = character_pose(&step.start, env.physics);
+    let mut controller = character_controller();
+    if !request.can_follow_ground {
+        controller.snap_to_ground = None;
+    }
+    let pose = character_movement_pose(&step.start, env.physics);
     let mut observe = |collision: CharacterCollision| {
         let normal = vec3(collision.hit.normal1);
         let is_side_contact = normal.y.abs() <= 0.5;
@@ -377,7 +347,7 @@ fn resolve_character_collision(
             .move_character(
                 step.delta,
                 &controller,
-                character_shape,
+                shape,
                 &pose,
                 request.carried,
                 env.passable_kinds,
@@ -392,7 +362,7 @@ fn resolve_character_collision(
         let push = env.collision_world.push_character_from_carriers(
             step.delta,
             &controller,
-            character_shape,
+            shape,
             &motion_start,
             env.carriers,
             env.passable_kinds,
@@ -406,7 +376,7 @@ fn resolve_character_collision(
     let movement = env.collision_world.move_character(
         step.delta,
         &controller,
-        character_shape,
+        shape,
         &motion_start,
         request.requested_total - request.carried,
         env.passable_kinds,
@@ -416,7 +386,6 @@ fn resolve_character_collision(
 
     CharacterCollisionResult {
         translation: carried + movement.translation,
-        crush_start: Position::from(Vec3::from(step.start) + vec3(carried)),
         grounded: movement.grounded,
         saw_side_contact,
         hit_ceiling,
@@ -427,7 +396,6 @@ fn finish_character_movement(
     step: CharacterStep,
     env: &CharacterEnvironment,
     excluded_colliders: &[ColliderHandle],
-    support_shape: &Cuboid,
     request: MovementRequest,
     collision: CharacterCollisionResult,
     floor_velocity: Vec3,
@@ -437,35 +405,27 @@ fn finish_character_movement(
         y: step.start.y + collision.translation.y,
         z: step.start.z + collision.translation.z,
     };
-    let resolved_ground = if request.can_follow_ground {
-        character_ground_hit(
-            env.collision_world,
-            support_shape,
-            &resolved,
-            env.passable_kinds,
-            excluded_colliders,
-            env.physics,
-        )
-    } else {
-        None
-    };
-    if let Some(ground) = resolved_ground {
-        snap_position_to_ground(
+    if request.can_follow_ground && request.started_grounded {
+        snap_character_to_ground(
             env.collision_world,
             &mut resolved,
-            ground,
             env.physics,
             env.passable_kinds,
             excluded_colliders,
         );
     }
+    let mut grounding = grounding_diagnostics(
+        env.collision_world,
+        &resolved,
+        env.physics,
+        env.passable_kinds,
+        excluded_colliders,
+    );
+    let resolved_ground = grounding
+        .hit
+        .filter(|_| request.can_follow_ground && grounding.supported);
     let mut vertical_velocity = request.next_vertical_velocity;
-    // Rapier reports a side contact while auto-stepping over slab/trim edges.
-    // That is normal movement, not a wall hit, so don't expose it as blocked.
-    let stepped_up =
-        collision.grounded && collision.translation.y > request.requested_total.y + CHARACTER_AUTOSTEP_EPSILON;
     let side_movement_blocked = collision.saw_side_contact
-        && !stepped_up
         && horizontal_shortfall(request.requested_horizontal, collision.translation)
             > CHARACTER_BLOCKED_MOVEMENT_EPSILON;
     // A climb whose rise was cut short hit something overhead (e.g. riding
@@ -478,11 +438,6 @@ fn finish_character_movement(
     let blocked = side_movement_blocked || climb_rise_blocked;
 
     let grounded = resolved_ground.is_some() || collision.grounded;
-    // `movement.grounded` covers support the center-line probe can't see
-    // (resting on an edge sliver). The perch slide makes that state
-    // transient, but a blocked slide (doorway lip, inside corner) can
-    // persist — without this, gravity would pump fall velocity for seconds
-    // while the body never moves.
     let landed_while_falling = grounded && vertical_velocity < 0.0;
     // Only a contact from above ends a rise. A shortfall in the achieved
     // rise cannot: sliding up a wall loses rise in proportion to the push
@@ -512,7 +467,6 @@ fn finish_character_movement(
     // otherwise let the body through next tick.
     let crushed = !env.carriers.is_static()
         && env.collision_world.character_crushed(
-            &collision.crush_start,
             &resolved,
             env.physics,
             env.passable_kinds,
@@ -520,7 +474,9 @@ fn finish_character_movement(
             request.lifted,
         );
 
+    grounding.supported = support == CharacterSupport::Ground;
     CharacterMovementResult {
+        grounding,
         position: resolved,
         vertical_velocity,
         support,
@@ -553,8 +509,9 @@ fn character_controller() -> KinematicCharacterController {
             min_width: CharacterLength::Absolute(CHARACTER_STEP_MIN_WIDTH),
             include_dynamic_bodies: false,
         }),
-        min_slope_slide_angle: FRAC_PI_3,
-        snap_to_ground: None,
+        max_slope_climb_angle: CHARACTER_MAX_SLOPE,
+        min_slope_slide_angle: CHARACTER_MAX_SLOPE,
+        snap_to_ground: Some(CharacterLength::Absolute(CHARACTER_GROUND_SNAP_DISTANCE)),
         ..KinematicCharacterController::default()
     }
 }

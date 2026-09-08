@@ -9,7 +9,7 @@ use crate::map::{ActorSpawnZone, CarrierGrid, MapConfig};
 use common::{
     config::{ActorGameplayConfig, CharacterPhysicsConfig},
     map::{Carriers, MapGeometry},
-    physics::{CollisionWorld, character_center, character_paths_intersect, character_shape},
+    physics::{CollisionWorld, character_paths_intersect},
     protocol::{CarrierId, Position},
 };
 
@@ -145,7 +145,9 @@ fn pick_clear_position(
     for _ in 0..SPAWN_MAX_ATTEMPTS {
         let &(carrier, level, col, row) = valid_cells.choose(&mut rng)?;
         let geometry = &map_config.grid(carrier).geometry;
-        let local = random_position_in_spawn_cell(&mut rng, geometry, level, col, row, character_physics);
+        let Some(local) = random_position_in_spawn_cell(&mut rng, geometry, level, col, row, character_physics) else {
+            continue;
+        };
         let pos = carriers.pose(carrier).transform_position(&local);
 
         if character_spawn_position_is_clear(&pos, collision_world, occupied_positions, character_physics) {
@@ -162,23 +164,26 @@ fn random_position_in_spawn_cell(
     col: i32,
     row: i32,
     character_physics: CharacterPhysicsConfig,
-) -> Position {
+) -> Option<Position> {
+    if character_physics.movement_collider.radius * 2.0 > geometry.cell_size() {
+        return None;
+    }
     let cell_min_x = geometry.cell_to_world_x(col);
     let cell_max_x = cell_min_x + geometry.cell_size();
     let cell_min_z = geometry.cell_to_world_z(row);
     let cell_max_z = cell_min_z + geometry.cell_size();
 
-    Position {
+    Some(Position {
         x: rng.random_range(
-            (cell_min_x + character_physics.collider.width / 2.0)
-                ..=(cell_max_x - character_physics.collider.width / 2.0),
+            (cell_min_x + character_physics.movement_collider.radius)
+                ..=(cell_max_x - character_physics.movement_collider.radius),
         ),
         y: geometry.level_y(level),
         z: rng.random_range(
-            (cell_min_z + character_physics.collider.depth / 2.0)
-                ..=(cell_max_z - character_physics.collider.depth / 2.0),
+            (cell_min_z + character_physics.movement_collider.radius)
+                ..=(cell_max_z - character_physics.movement_collider.radius),
         ),
-    }
+    })
 }
 
 fn character_spawn_position_is_clear(
@@ -187,16 +192,10 @@ fn character_spawn_position_is_clear(
     occupied_positions: &[Position],
     character_physics: CharacterPhysicsConfig,
 ) -> bool {
-    let character_center = character_center(*pos, character_physics);
-    // Same body box as movement/projectile-hit, via the shared `character_shape`
-    // (a parry cuboid; convert its nalgebra half-extents to a Bevy `Vec3`).
-    let half_extents = character_shape(character_physics).half_extents;
-    let character_half_extents = Vec3::new(half_extents.x, half_extents.y, half_extents.z);
-
     !occupied_positions
         .iter()
         .any(|other| character_position_intersects_character(pos, other, character_physics))
-        && !collision_world.cuboid_overlaps_wall(character_center, character_half_extents)
+        && !collision_world.character_overlaps_wall(pos, character_physics)
 }
 
 fn character_position_intersects_character(

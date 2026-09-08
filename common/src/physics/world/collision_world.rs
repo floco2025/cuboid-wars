@@ -15,11 +15,12 @@ use rapier3d::{
 use crate::{
     config::CharacterPhysicsConfig,
     map::{CarrierPose, Carriers},
-    physics::characters::{character_center, character_shape},
+    physics::characters::{character_movement_center, character_movement_shape},
     protocol::{BarrierKindId, BarrierKindTable, BridgeKindId, CarrierId, MapLayout, Position},
 };
 
 use super::{
+    character_queries::CharacterQueryDispatcher,
     colliders::{
         BRIDGE_COLLISION_GROUP, ColliderKind, FLOOR_COLLISION_GROUP, WALL_COLLISION_GROUP, barrier_collision_group,
         character_collision_groups, collider_interaction_groups, ground_collision_groups, insert_barrier_collider,
@@ -270,7 +271,7 @@ impl CollisionWorld {
         &self,
         dt: f32,
         controller: &KinematicCharacterController,
-        character_shape: &dyn Shape,
+        character_movement_shape: &dyn Shape,
         character_pos: &Pose,
         desired_translation: Vector,
         passable_kinds: &[BarrierKindId],
@@ -285,16 +286,14 @@ impl CollisionWorld {
         if !excluded_colliders.is_empty() {
             filter.predicate = Some(&allow);
         }
-        let query_pipeline = self.broad_phase.as_query_pipeline(
-            self.narrow_phase.query_dispatcher(),
-            &self.bodies,
-            &self.colliders,
-            filter,
-        );
+        let dispatcher = CharacterQueryDispatcher(self.narrow_phase.query_dispatcher());
+        let query_pipeline = self
+            .broad_phase
+            .as_query_pipeline(&dispatcher, &self.bodies, &self.colliders, filter);
         controller.move_shape(
             dt,
             &query_pipeline,
-            character_shape,
+            character_movement_shape,
             character_pos,
             desired_translation,
             events,
@@ -507,7 +506,7 @@ impl CollisionWorld {
     #[must_use]
     pub(crate) fn ground_hit(
         &self,
-        character_shape: &dyn Shape,
+        character_movement_shape: &dyn Shape,
         character_pos: &Pose,
         max_distance: f32,
         target_distance: f32,
@@ -518,7 +517,7 @@ impl CollisionWorld {
         let predicate =
             (!excluded_colliders.is_empty()).then_some(&allow as &dyn Fn(ColliderHandle, &Collider) -> bool);
         self.ground_hit_filtered(
-            character_shape,
+            character_movement_shape,
             character_pos,
             max_distance,
             target_distance,
@@ -530,7 +529,7 @@ impl CollisionWorld {
     #[must_use]
     pub(crate) fn ground_hit_on_carrier(
         &self,
-        character_shape: &dyn Shape,
+        character_movement_shape: &dyn Shape,
         character_pos: &Pose,
         max_distance: f32,
         passable_kinds: &[BarrierKindId],
@@ -540,7 +539,7 @@ impl CollisionWorld {
             ColliderKind::carrier_from_user_data(collider.user_data) == carrier
         };
         self.ground_hit_filtered(
-            character_shape,
+            character_movement_shape,
             character_pos,
             max_distance,
             0.0,
@@ -551,7 +550,7 @@ impl CollisionWorld {
 
     fn ground_hit_filtered(
         &self,
-        character_shape: &dyn Shape,
+        character_movement_shape: &dyn Shape,
         character_pos: &Pose,
         max_distance: f32,
         target_distance: f32,
@@ -574,7 +573,7 @@ impl CollisionWorld {
         };
 
         query_pipeline
-            .cast_shape(character_pos, Vector::NEG_Y, character_shape, options)
+            .cast_shape(character_pos, Vector::NEG_Y, character_movement_shape, options)
             .and_then(|(handle, hit)| upward_surface_hit(hit, self.carrier_of(handle)))
     }
 
@@ -670,7 +669,25 @@ impl CollisionWorld {
         self.cuboid_overlaps_groups(position, half_extents, WALL_COLLISION_GROUP)
     }
 
-    // Whether sliding a character's body box horizontally from `start` to
+    #[must_use]
+    pub fn character_overlaps_wall(&self, pos: &Position, physics: CharacterPhysicsConfig) -> bool {
+        let pipeline = self.broad_phase.as_query_pipeline(
+            self.narrow_phase.query_dispatcher(),
+            &self.bodies,
+            &self.colliders,
+            query_filter(WALL_COLLISION_GROUP),
+        );
+        let center = character_movement_center(*pos, physics);
+        pipeline
+            .intersect_shape(
+                Pose::translation(center.x, center.y, center.z),
+                &character_movement_shape(physics),
+            )
+            .next()
+            .is_some()
+    }
+
+    // Whether sliding a character's movement capsule horizontally from `start` to
     // `target` drags it through a wall. Floors and ramps are ignored so a
     // leg onto a slope counts as clear; a body already touching a wall but
     // moving away from it is clear too.
@@ -691,7 +708,7 @@ impl CollisionWorld {
             &self.colliders,
             query_filter(WALL_COLLISION_GROUP),
         );
-        let center = character_center(*start, physics);
+        let center = character_movement_center(*start, physics);
         let pose = Pose::translation(center.x, center.y, center.z);
         let options = ShapeCastOptions {
             max_time_of_impact: 1.0,
@@ -699,7 +716,7 @@ impl CollisionWorld {
             ..ShapeCastOptions::default()
         };
         query_pipeline
-            .cast_shape(&pose, translation, &character_shape(physics), options)
+            .cast_shape(&pose, translation, &character_movement_shape(physics), options)
             .is_some()
     }
 

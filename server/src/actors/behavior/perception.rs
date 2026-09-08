@@ -72,10 +72,6 @@ fn player_visible(
     player_physics: CharacterPhysicsConfig,
     collision_world: &CollisionWorld,
 ) -> bool {
-    let center = Vec3::new(
-        player.pos.x,
-        player_physics.collider_center_y(player.pos.y),
-        player.pos.z,
-    );
+    let center = Vec3::new(player.pos.x, player_physics.hitbox_center_y(player.pos.y), player.pos.z);
     actor_eye.distance_squared(center) <= range_sq && collision_world.line_of_sight_clear(actor_eye, center)
 }

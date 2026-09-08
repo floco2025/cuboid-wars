@@ -4,7 +4,7 @@ use bevy::{ecs::system::SystemParam, prelude::*};
 use common::{
     config::{GameplayConfig, MapMovementConfig},
     health::apply_damage,
-    physics::{CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity, character_center},
+    physics::{CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity, character_hitbox_center},
     protocol::{
         ActorId, ActorMarker, BarrierKindId, Health, MapSettings, PlateState, PlayerId, PlayerMarker, Position,
         SPlayerBlast, ServerMessage,
@@ -219,7 +219,7 @@ fn blast_spec(pending: PendingExplosion, gameplay: &GameplayConfig, server: &Ser
     match pending {
         PendingExplosion::Player { source_id, pos } => BlastSpec {
             source: BlastSource::Player(source_id),
-            center: character_center(pos, gameplay.player.physics()),
+            center: character_hitbox_center(pos, gameplay.player.physics()),
             excluded_actor: None,
             damage: server.combat.damage.player_blast,
             killer: None,
@@ -234,7 +234,7 @@ fn blast_spec(pending: PendingExplosion, gameplay: &GameplayConfig, server: &Ser
                 id: source_id,
                 kind: spawn_kind.clone(),
             },
-            center: character_center(pos, gameplay.expect_actor(&spawn_kind).physics()),
+            center: character_hitbox_center(pos, gameplay.expect_actor(&spawn_kind).physics()),
             excluded_actor: Some(source_entity),
             damage: server.combat.damage.expect_actor(&spawn_kind).death_blast,
             killer: None,
@@ -274,7 +274,7 @@ fn apply_blast(
         if players.get(id).is_some_and(|info| info.is_dead()) {
             continue;
         }
-        let victim_center = character_center(*pos, gameplay.player.physics());
+        let victim_center = character_hitbox_center(*pos, gameplay.player.physics());
         let Some(falloff) = visible_blast_falloff(
             spec.center,
             victim_center,
@@ -315,7 +315,7 @@ fn apply_blast(
             continue;
         };
         let actor_physics = gameplay.expect_actor(&info.spawn_kind).physics();
-        let victim_center = character_center(*pos, actor_physics);
+        let victim_center = character_hitbox_center(*pos, actor_physics);
         let Some(falloff) = visible_blast_falloff(
             spec.center,
             victim_center,

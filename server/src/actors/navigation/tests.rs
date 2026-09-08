@@ -703,18 +703,18 @@ fn wall_end_nav_and_world() -> (NavGraph, CollisionWorld) {
 }
 
 fn body(width: f32, depth: f32) -> common::config::CharacterPhysicsConfig {
-    use common::config::{
-        CharacterColliderAnchor, CharacterColliderConfig, CharacterPhysicsConfig, CharacterSupportProbeConfig,
-    };
+    use common::config::{CharacterPhysicsConfig, HitboxConfig, MovementColliderConfig};
     CharacterPhysicsConfig {
-        collider: CharacterColliderConfig {
+        hitbox: HitboxConfig {
             width,
             height: 1.0,
             depth,
-            y_offset: 0.45,
-            y_offset_anchor: CharacterColliderAnchor::Bottom,
+            bottom_offset: 0.45,
         },
-        support_probe: CharacterSupportProbeConfig { width: 0.2, depth: 0.2 },
+        movement_collider: MovementColliderConfig {
+            radius: width.max(depth) / 2.0,
+            height: 1.8_f32.max(width.max(depth)),
+        },
     }
 }
 
@@ -722,7 +722,7 @@ fn body(width: f32, depth: f32) -> common::config::CharacterPhysicsConfig {
 fn route_start_detours_via_the_cell_centre_when_the_first_leg_clips_a_wall_end() {
     let (nav, world) = wall_end_nav_and_world();
     let start = Position {
-        x: -0.8,
+        x: -0.4,
         y: 0.0,
         z: 1.0,
     };
@@ -765,7 +765,7 @@ fn route_start_stays_direct_when_the_body_fits_past_the_wall_end() {
 // trench dragged the body through the trench wall's end, and every replan
 // produced the same leg.
 #[test]
-fn shipping_map_sentry_recentres_before_entering_the_basement_ramp_trench() {
+fn shipping_map_sentry_capsule_fits_the_direct_basement_trench_approach() {
     let server_gameplay_config =
         crate::config::ServerGameplayConfig::load_default().expect("default server gameplay config should load");
     let gameplay_config = server_gameplay_config.gameplay_config();
@@ -802,8 +802,8 @@ fn shipping_map_sentry_recentres_before_entering_the_basement_ramp_trench() {
             &[],
             &start,
             &target,
-            sentry.collider.width / 2.0,
-            sentry.collider.depth / 2.0,
+            sentry.movement_collider.radius,
+            sentry.movement_collider.radius,
         )
         .expect("the lobby is reachable up the basement ramp");
     let trench_entry = route
@@ -812,11 +812,14 @@ fn shipping_map_sentry_recentres_before_entering_the_basement_ramp_trench() {
         .map(|point| &point.position)
         .copied()
         .expect("route has a first leg");
-    assert!(world.character_sweep_hits_wall(&start, &trench_entry, sentry));
+    assert!(!world.character_sweep_hits_wall(&start, &trench_entry, sentry));
 
     nav.anchor_route_start(&[], &start, &mut route, &world, sentry, CarrierPose::IDENTITY);
 
-    assert_eq!(route.waypoints.front().map(|point| &point.position), Some(&base));
+    assert_eq!(
+        route.waypoints.front().map(|point| &point.position),
+        Some(&trench_entry)
+    );
     assert!(!world.character_sweep_hits_wall(&start, &base, sentry));
     assert!(!world.character_sweep_hits_wall(&base, &trench_entry, sentry));
 }

@@ -43,7 +43,7 @@ fn ladder_traffic(transpose: bool, traffic: Traffic) {
     let mount = orient(Position {
         x: 0.0,
         y: 0.0,
-        z: -(LADDER_RAIL_INSET + physics.collider.depth / 2.0 + LADDER_STANDOFF_CLEARANCE),
+        z: -(LADDER_RAIL_INSET + physics.movement_collider.radius + LADDER_STANDOFF_CLEARANCE),
     });
     let world = CollisionWorld::from_map_layout(
         &MapLayout {
@@ -142,7 +142,7 @@ fn ladder_traffic(transpose: bool, traffic: Traffic) {
             for i in order {
                 while routes[i]
                     .front()
-                    .is_some_and(|waypoint| waypoint.reached(&positions[i], 0.15))
+                    .is_some_and(|waypoint| waypoint.reached(&positions[i], 0.5))
                 {
                     routes[i].pop_front();
                 }

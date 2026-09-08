@@ -364,8 +364,8 @@ fn zapper_acquires_visible_cross_level_player_in_beam_range() {
                 &[],
                 &actor_pos,
                 &target,
-                zapper.physics().collider.width / 2.0,
-                zapper.physics().collider.depth / 2.0,
+                zapper.physics().movement_collider.radius,
+                zapper.physics().movement_collider.radius,
             )
             .is_none()
     );

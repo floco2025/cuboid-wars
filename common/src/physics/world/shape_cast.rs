@@ -9,7 +9,7 @@ pub enum FieldKind {
     Bridge(BridgeKindId),
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ShapeCastHit {
     pub normal: Vec3,
     // World-space contact point on the world collider. Rapier's composite
@@ -23,10 +23,7 @@ pub struct ShapeCastHit {
 }
 
 pub(super) fn upward_surface_hit(hit: RapierShapeCastHit, carrier: CarrierId) -> Option<ShapeCastHit> {
-    [hit.normal1, hit.normal2, -hit.normal1, -hit.normal2]
-        .into_iter()
-        .map(|normal| Vec3::new(normal.x, normal.y, normal.z))
-        .max_by(|a, b| a.y.total_cmp(&b.y))
+    Some(Vec3::new(hit.normal1.x, hit.normal1.y, hit.normal1.z))
         .filter(|normal| normal.y > 0.1)
         .and_then(Vec3::try_normalize)
         .map(|normal| ShapeCastHit {

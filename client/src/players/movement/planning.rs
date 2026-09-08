@@ -131,6 +131,7 @@ pub(crate) fn plan_player_moves(
             portal_set,
             carriers,
         });
+        commands.entity(entity).insert((step.grounding, step.support));
         animation_motion.record_step(*client_pos, &step, control_velocity, external_displacement, delta);
         planned_moves.push(CharacterMovePlan::from_movement_result(
             entity,

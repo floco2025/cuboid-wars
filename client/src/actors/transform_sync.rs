@@ -2,7 +2,6 @@ use bevy::prelude::*;
 
 use crate::{actors::ActorMap, characters::PreviousTickPosition};
 use common::{
-    config::GameplayConfig,
     map::Carriers,
     protocol::{ActorId, ActorMarker, Position},
 };
@@ -11,7 +10,6 @@ use common::{
 // `Position` using the fixed-step overstep fraction. See the player
 // equivalent for context.
 pub fn actors_transform_sync_system(
-    gameplay_config: Res<GameplayConfig>,
     actors: Res<ActorMap>,
     carriers: Res<Carriers>,
     fixed_time: Res<Time<Fixed>>,
@@ -22,10 +20,6 @@ pub fn actors_transform_sync_system(
         let Some(info) = actors.get(id) else {
             continue;
         };
-        let actor_physics = gameplay_config
-            .actor(&info.kind)
-            .expect("actor kind sent by server is missing from gameplay config")
-            .physics();
         let interp = info.anchor.map_or_else(
             || prev.lerp_to(*pos, alpha),
             |anchor| {
@@ -35,7 +29,7 @@ pub fn actors_transform_sync_system(
             },
         );
         transform.translation.x = interp.x;
-        transform.translation.y = actor_physics.collider_center_y(interp.y);
+        transform.translation.y = interp.y;
         transform.translation.z = interp.z;
     }
 }

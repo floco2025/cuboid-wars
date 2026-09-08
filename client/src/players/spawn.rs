@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use super::animation::{PlayerAnimationMotion, PlayerAnimationSource, player_animation_setup_system};
 use super::{BumpFeedbackState, LocalPlayerLabelMarker};
 use crate::{
-    characters::{PreviousTickPosition, spawn_collider_box},
+    characters::{PreviousTickPosition, spawn_character_bounds},
     config::{AssetSet, ClientSettings},
     constants::{
         LABEL_PLAYER_BAR_WIDTH, LABEL_PLAYER_NAME_GAP, LABEL_PLAYER_TEXTURE_HEIGHT, LABEL_PLAYER_TEXTURE_WIDTH,
@@ -77,7 +77,7 @@ pub fn spawn_player(
                 motion: CharacterVerticalVelocity::default(),
                 health,
                 face_direction: FaceYaw(face_yaw),
-                transform: Transform::from_xyz(position.x, player_physics.collider_center_y(position.y), position.z)
+                transform: Transform::from_xyz(position.x, position.y, position.z)
                     .with_rotation(Quat::from_rotation_y(face_yaw)),
                 visibility: Visibility::Visible,
             },
@@ -95,9 +95,9 @@ pub fn spawn_player(
 
     let mut children = vec![];
 
-    children.push(spawn_collider_box(commands, meshes, materials, player_physics));
+    children.push(spawn_character_bounds(commands, meshes, materials, player_physics));
 
-    let base_y = player_physics.model_y_offset_from_entity_center(player_model.y_offset);
+    let base_y = player_model.y_offset;
     let model = commands
         .spawn((
             WorldAssetRoot(asset_server.load(player_model.scene.clone())),
@@ -118,7 +118,7 @@ pub fn spawn_player(
     // above the head.
     let bar_width = LABEL_PLAYER_BAR_WIDTH;
     let bar_height = bar_width * health_bars.player_aspect;
-    let bar_y = player_physics.collision_height() / 2.0 + height_above + bar_height / 2.0;
+    let bar_y = player_physics.hitbox.top_y_offset() + height_above + bar_height / 2.0;
     let bar_entity = spawn_floating_health_bar(
         commands, meshes, materials, entity, bar_width, bar_height, bar_y, max_health, health.0,
     );

@@ -182,14 +182,8 @@ mod tests {
     #[test]
     fn actor_kind_requires_explicit_respawn_setting() {
         let mut value = json!({
-            "collider": {
-                "width": 1.0,
-                "height": 1.0,
-                "depth": 1.0,
-                "y_offset": 0.1,
-                "y_offset_anchor": "bottom"
-            },
-            "support_probe": { "width": 0.2, "depth": 0.2 },
+            "movement_collider": { "radius": 0.3, "height": 1.8 },
+            "hitbox": { "width": 1.0, "height": 1.3, "depth": 0.6, "bottom_offset": 0.5 },
             "eye_height": 1.0,
             "can_use_ladders": false,
             "immovable": false,

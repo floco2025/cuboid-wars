@@ -12,10 +12,7 @@ mod projectiles;
 mod validation;
 
 pub use actors::ActorGameplayConfig;
-pub use characters::{
-    CharacterColliderAnchor, CharacterColliderConfig, CharacterGameplayConfig, CharacterPhysicsConfig,
-    CharacterSupportProbeConfig,
-};
+pub use characters::{CharacterGameplayConfig, CharacterPhysicsConfig, HitboxConfig, MovementColliderConfig};
 pub use death::DeathTrigger;
 pub use gameplay::{
     ActorGameplayBootstrap, GameplayBootstrap, GameplayConfig, MissilesGameplayBootstrap, PlayerGameplayBootstrap,

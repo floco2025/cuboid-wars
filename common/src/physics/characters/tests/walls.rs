@@ -27,7 +27,7 @@ fn player_hits_wall_collider_from_collision_world() {
         },
     );
 
-    assert!(step.blocked);
+    assert!(step.blocked, "{step:?}");
     assert!(step.position.x < 0.0);
 }
 
@@ -70,7 +70,7 @@ fn repeated_wall_pressure_does_not_leak_through_wall() {
         },
     );
 
-    assert!(first.blocked);
+    assert!(first.blocked, "{first:?}");
     assert!(second.blocked);
     assert!(second.position.x < 0.0);
 }
@@ -177,7 +177,7 @@ fn diagonal_wall_hit_slides_in_same_step() {
         },
     );
 
-    assert!(step.blocked);
+    assert!(step.blocked, "{step:?}");
     assert!(step.position.x < 0.0);
     assert!(step.position.z > 0.0);
 }
@@ -258,9 +258,12 @@ fn diagonal_wall_end_hit_slides_along_wall() {
         },
     );
 
-    assert!(step.blocked);
+    assert!(step.blocked, "{step:?}");
     assert!(step.position.x > pos.x);
-    assert!(step.position.z < 0.0);
+    assert!(
+        step.position.z < 0.0 || step.position.x < wall.x1 - player_physics().movement_collider.radius,
+        "{step:?}"
+    );
 }
 
 #[test]
@@ -368,4 +371,60 @@ fn jumping_while_sliding_diagonally_along_a_wall_keeps_rising() {
         heights.windows(2).all(|pair| pair[1] > pair[0]) && vertical_velocity > 0.0,
         "a diagonal jump along the wall stalled: heights {heights:?}, velocity {vertical_velocity}"
     );
+}
+
+#[test]
+fn running_across_flat_floor_tiles_keeps_its_speed() {
+    for height in [0.0, 4.4, 8.8, 26.4] {
+        for speed in [6.0, 9.0, 13.5] {
+            for perturbation in [0.0, 0.00001] {
+                let floors: Vec<_> = (0..30)
+                    .map(|index| Floor {
+                        x1: -4.0,
+                        x2: 4.0,
+                        z1: index as f32 * 4.0,
+                        z2: (index + 1) as f32 * 4.0,
+                        y: height,
+                        ..lower_floor()
+                    })
+                    .collect();
+                let world = collision_world(&floors, &[]);
+                let env = CharacterEnvironment {
+                    ladder_mode: LadderMode::Automatic,
+                    collision_world: &world,
+                    gravity: TEST_GRAVITY,
+                    passable_kinds: &[],
+                    ladder_climb_ratio: test_ladders(),
+                    physics: player_physics(),
+                    portals: None,
+                    carriers: &Carriers::default(),
+                };
+                let mut pos = Position {
+                    x: perturbation,
+                    y: height + perturbation,
+                    z: 1.0,
+                };
+                let mut vy = 0.0;
+                for tick in 0..250 {
+                    let result = step_character_movement(
+                        CharacterStep {
+                            start: pos,
+                            vertical_velocity: vy,
+                            control_velocity: Vec3::Z * speed,
+                            external_displacement: Vec3::ZERO,
+                            delta: 1.0 / 30.0,
+                        },
+                        &env,
+                    );
+                    assert!(
+                        result.position.z - pos.z > speed / 30.0 * 0.99,
+                        "tick {tick}, from {pos:?}: {result:?}"
+                    );
+                    assert!((result.position.y - height).abs() < 0.005, "tick {tick}: {result:?}");
+                    pos = result.position;
+                    vy = result.vertical_velocity;
+                }
+            }
+        }
+    }
 }

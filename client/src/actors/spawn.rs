@@ -3,7 +3,9 @@ use bevy::{gltf::GltfAssetLabel, prelude::*};
 use super::turret::{TurretMarker, turret_rig_setup_system};
 
 use crate::{
-    characters::{AnimationToPlay, MaxHealth, PreviousTickPosition, character_animation_system, spawn_collider_box},
+    characters::{
+        AnimationToPlay, MaxHealth, PreviousTickPosition, character_animation_system, spawn_character_bounds,
+    },
     config::{AssetSet, ClientSettings},
     constants::{BEAM_IN_COLOR, BEAM_IN_LIGHT_RANGE, LABEL_ACTOR_MESH_WIDTH},
     ui::floating_labels::spawn_floating_health_bar,
@@ -43,12 +45,8 @@ pub fn spawn_actor(
             actor.health,
             FaceYaw(actor.face_yaw),
             CharacterVerticalVelocity(actor.movement.vertical_velocity),
-            Transform::from_xyz(
-                actor.movement.pos.x,
-                actor_physics.collider_center_y(actor.movement.pos.y),
-                actor.movement.pos.z,
-            )
-            .with_rotation(Quat::from_rotation_y(actor.face_yaw)),
+            Transform::from_xyz(actor.movement.pos.x, actor.movement.pos.y, actor.movement.pos.z)
+                .with_rotation(Quat::from_rotation_y(actor.face_yaw)),
             Visibility::Visible,
         ))
         .id();
@@ -57,9 +55,9 @@ pub fn spawn_actor(
     if actor.kind == "turret" {
         commands.entity(entity).insert(TurretMarker);
     }
-    children.push(spawn_collider_box(commands, meshes, materials, actor_physics));
+    children.push(spawn_character_bounds(commands, meshes, materials, actor_physics));
 
-    let base_y = actor_physics.model_y_offset_from_entity_center(actor_model.y_offset);
+    let base_y = actor_model.y_offset;
     let mut model_commands = commands.spawn((
         WorldAssetRoot(asset_server.load(actor_model.scene.clone())),
         Transform::from_scale(Vec3::splat(actor_model.scale))
@@ -94,7 +92,7 @@ pub fn spawn_actor(
     let bar_width = LABEL_ACTOR_MESH_WIDTH;
     let bar_height = bar_width * health_bars.actor_aspect;
     let bar_y =
-        actor_physics.collision_height() / 2.0 + client_settings.hud.floating_labels.height_above + bar_height / 2.0;
+        actor_physics.hitbox.top_y_offset() + client_settings.hud.floating_labels.height_above + bar_height / 2.0;
     let bar_entity = spawn_floating_health_bar(
         commands,
         meshes,
@@ -121,11 +119,12 @@ pub fn beam_in_ghost_state(gameplay_config: &GameplayConfig, spawning: &Spawning
         .actor(&spawning.kind)
         .expect("actor kind sent by server is missing from gameplay config")
         .physics()
-        .collider;
+        .hitbox;
     BeamInGhost {
         reserved_tick: spawning.reserved_tick,
         due_tick: spawning.due_tick,
         half_extents: Vec3::new(collider.width, collider.height, collider.depth) / 2.0,
+        center_height: collider.center_y_offset(),
     }
 }
 
@@ -143,35 +142,40 @@ pub fn spawn_actor_ghost(
     spawning: &SpawningActor,
 ) -> Entity {
     let actor_model = asset_set.actor_model(&spawning.kind);
-    let actor_physics = gameplay_config
-        .actor(&spawning.kind)
-        .expect("actor kind sent by server is missing from gameplay config")
-        .physics();
 
     let entity = commands
         .spawn((
             ChildOf(carrier),
-            Transform::from_xyz(
-                spawning.pos.x,
-                actor_physics.collider_center_y(spawning.pos.y),
-                spawning.pos.z,
-            )
-            .with_rotation(Quat::from_rotation_y(spawning.face_yaw)),
+            Transform::from_xyz(spawning.pos.x, spawning.pos.y, spawning.pos.z)
+                .with_rotation(Quat::from_rotation_y(spawning.face_yaw)),
             Visibility::Visible,
             beam_in_ghost_state(gameplay_config, spawning),
             BeamEmitter::default(),
-            PointLight {
-                color: BEAM_IN_COLOR,
-                // Starts dark; the fade system ramps it with the window.
-                intensity: 0.0,
-                range: BEAM_IN_LIGHT_RANGE,
-                shadow_maps_enabled: false,
-                ..default()
-            },
         ))
         .id();
 
-    let base_y = actor_physics.model_y_offset_from_entity_center(actor_model.y_offset);
+    commands.spawn((
+        ChildOf(entity),
+        Transform::from_xyz(
+            0.0,
+            gameplay_config
+                .expect_actor(&spawning.kind)
+                .physics()
+                .hitbox
+                .center_y_offset(),
+            0.0,
+        ),
+        PointLight {
+            color: BEAM_IN_COLOR,
+            // Starts dark; the fade system ramps it with the window.
+            intensity: 0.0,
+            range: BEAM_IN_LIGHT_RANGE,
+            shadow_maps_enabled: false,
+            ..default()
+        },
+    ));
+
+    let base_y = actor_model.y_offset;
     let model = commands
         .spawn((
             WorldAssetRoot(asset_server.load(actor_model.scene.clone())),

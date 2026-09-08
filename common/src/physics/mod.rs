@@ -8,10 +8,11 @@ mod world;
 pub use barriers::passable_barrier_kinds;
 pub use characters::{
     AirborneMomentum, BallCharacterHit, CARRIER_RIDE_TOLERANCE, CharacterEnvironment, CharacterMovePlan,
-    CharacterMovementResult, CharacterStep, CharacterSupport, CharacterVerticalVelocity, HitDirection,
-    KnockbackVelocity, LadderMode, PlayerMovementStep, ball_character_hit, ball_overlaps_character,
-    blocking_character_move_plan, character_center, character_move_plan_is_blocked, character_overlaps_item,
-    character_paths_intersect, character_shape, character_vertical_ranges_overlap, knockback_decay_system,
+    CharacterMovementResult, CharacterStep, CharacterSupport, CharacterVerticalVelocity, GroundingDiagnostics,
+    HitDirection, KnockbackVelocity, LadderMode, PlayerMovementStep, ball_character_hit, ball_overlaps_character,
+    blocking_character_move_plan, character_hitbox_center, character_hitbox_shape, character_move_plan_is_blocked,
+    character_movement_center, character_movement_pose, character_movement_shape, character_overlaps_item,
+    character_paths_intersect, character_surface_distance, grounding_diagnostics, knockback_decay_system,
     momentum_displacement, overlapping_character, player_control_velocity, player_jump_velocity,
     position_has_floor_support, step_character_movement, step_player_movement,
 };

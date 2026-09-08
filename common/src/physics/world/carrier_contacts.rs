@@ -1,10 +1,6 @@
-use bevy_math::Vec3;
 use rapier3d::{
     control::{CharacterCollision, KinematicCharacterController},
-    parry::{
-        query::{contact, intersection_test},
-        shape::Cuboid,
-    },
+    parry::{query::contact, shape::Capsule},
     prelude::{Collider, ColliderHandle, Pose, Shape, Vector},
 };
 
@@ -17,7 +13,7 @@ use crate::{
     constants::CHARACTER_CONTACT_OFFSET,
     map::Carriers,
     math::PHYSICS_EPSILON,
-    physics::characters::{character_center, character_shape},
+    physics::characters::{character_movement_center, character_movement_shape},
     protocol::{BarrierKindId, Position},
 };
 
@@ -86,59 +82,24 @@ impl CollisionWorld {
         pose.translation - start.translation
     }
 
-    // Leg-only contact permits boarding raised slabs. A carried collider must
-    // penetrate the movement box before or after control movement to count; checking
-    // the full height afterwards prevents escaping through a descending slab.
-    // Vertical carry also checks static geometry, such as a lift's ceiling.
     pub(crate) fn character_crushed(
         &self,
-        start: &Position,
         pos: &Position,
         physics: CharacterPhysicsConfig,
         passable_kinds: &[BarrierKindId],
         excluded_colliders: &[ColliderHandle],
         lifted: bool,
     ) -> bool {
-        let collision_box = character_shape(physics);
-        let center = character_center(*pos, physics);
-        let start_center = character_center(*start, physics);
-        let movement_box = inset_contact_shape(&collision_box);
-        let movement_poses = [
-            Pose::translation(start_center.x, start_center.y, start_center.z),
-            Pose::translation(center.x, center.y, center.z),
-        ];
-        let head = center.y + collision_box.half_extents.y;
-        let feet = pos.y.min(center.y - collision_box.half_extents.y);
-        let body = Cuboid::new(Vector::new(
-            collision_box.half_extents.x,
-            (head - feet) / 2.0,
-            collision_box.half_extents.z,
-        ));
-        let body_center = Vec3::new(center.x, (head + feet) / 2.0, center.z);
-        let carried = |_: ColliderHandle, collider: &Collider| {
-            !ColliderKind::carrier_from_user_data(collider.user_data).is_world()
-                && movement_poses.iter().any(|pose| {
-                    intersection_test(pose, &movement_box, collider.position(), collider.shape())
-                        .is_ok_and(|overlaps| overlaps)
-                })
+        let shape = character_movement_shape(physics);
+        let center = character_movement_center(*pos, physics);
+        let inset = Capsule {
+            radius: (shape.radius - CHARACTER_CONTACT_OFFSET * 2.0).max(PHYSICS_EPSILON),
+            ..shape
         };
-        let any = |_: ColliderHandle, _: &Collider| true;
-        self.crushing_overlap(body_center, &body, passable_kinds, excluded_colliders, &carried)
-            || (lifted && self.crushing_overlap(center, &collision_box, passable_kinds, excluded_colliders, &any))
-    }
-
-    fn crushing_overlap(
-        &self,
-        center: Vec3,
-        shape: &Cuboid,
-        passable_kinds: &[BarrierKindId],
-        excluded_colliders: &[ColliderHandle],
-        counts: &dyn Fn(ColliderHandle, &Collider) -> bool,
-    ) -> bool {
         let allow = |handle: ColliderHandle, collider: &Collider| {
             !excluded_colliders.contains(&handle)
                 && ColliderKind::from_user_data(collider.user_data) != Some(ColliderKind::Ramp)
-                && counts(handle, collider)
+                && (lifted || !self.carrier_of(handle).is_world())
         };
         let mut filter = query_filter(character_collision_groups(passable_kinds, self.all_barrier_groups));
         filter.predicate = Some(&allow);
@@ -148,20 +109,9 @@ impl CollisionWorld {
             &self.colliders,
             filter,
         );
-        let pose = Pose::translation(center.x, center.y, center.z);
         query_pipeline
-            .intersect_shape(pose, &inset_contact_shape(shape))
+            .intersect_shape(Pose::translation(center.x, center.y, center.z), &inset)
             .next()
             .is_some()
     }
-}
-
-// Contact margins tolerate resting touches; only penetration counts as crushing.
-fn inset_contact_shape(shape: &Cuboid) -> Cuboid {
-    let inset = CHARACTER_CONTACT_OFFSET * 2.0;
-    Cuboid::new(Vector::new(
-        (shape.half_extents.x - inset).max(PHYSICS_EPSILON),
-        (shape.half_extents.y - inset).max(PHYSICS_EPSILON),
-        (shape.half_extents.z - inset).max(PHYSICS_EPSILON),
-    ))
 }

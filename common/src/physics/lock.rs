@@ -54,23 +54,23 @@ pub fn acquire_lock(
 mod tests {
     use super::*;
     use crate::{
-        config::{
-            CharacterColliderAnchor, CharacterColliderConfig, CharacterPhysicsConfig, CharacterSupportProbeConfig,
-        },
+        config::{CharacterPhysicsConfig, HitboxConfig, MovementColliderConfig},
         protocol::{ActorId, BarrierKindTable, CarrierId, MapLayout, PlayerId, Wall},
         test_geometry::{WALL_HEIGHT, WALL_THICKNESS},
     };
 
     fn physics() -> CharacterPhysicsConfig {
         CharacterPhysicsConfig {
-            collider: CharacterColliderConfig {
+            hitbox: HitboxConfig {
                 width: 1.0,
                 height: 1.3,
                 depth: 0.6,
-                y_offset: 0.5,
-                y_offset_anchor: CharacterColliderAnchor::Bottom,
+                bottom_offset: 0.5,
             },
-            support_probe: CharacterSupportProbeConfig { width: 0.2, depth: 0.2 },
+            movement_collider: MovementColliderConfig {
+                radius: 0.3,
+                height: 1.8,
+            },
         }
     }
 

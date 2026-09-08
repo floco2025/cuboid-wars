@@ -1,6 +1,7 @@
 mod bridge_power;
 mod carrier_contacts;
 mod carrier_sync;
+mod character_queries;
 mod colliders;
 mod collision_world;
 mod erasers;

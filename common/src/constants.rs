@@ -38,9 +38,7 @@ pub const LADDER_BASE_OVERSHOOT: f32 = 0.4;
 // looks like it is — so both the climb hold and the fence are measured from
 // here, and the client mesh places the rails here.
 pub const LADDER_RAIL_INSET: f32 = 0.22;
-// Gap between a character's leading face and the rail plane while held at
-// the ladder. Face-based (half extent along the plane normal + this), not
-// center-based: the collider is wider than it is deep.
+// Gap between the movement capsule and the ladder rail plane.
 pub const LADDER_STANDOFF_CLEARANCE: f32 = 0.05;
 // A move must point mostly INTO the ladder face to start a climb: its
 // into-face component must be at least this fraction of the whole horizontal
@@ -97,7 +95,7 @@ pub const CHARACTER_TERMINAL_VELOCITY: f32 = 25.0; // m/s
 
 // How far the Rapier character controller may snap downward to stay attached to
 // valid ground while walking over seams, ramps, and small frame-step gaps.
-pub const CHARACTER_GROUND_SNAP_DISTANCE: f32 = 0.5;
+pub const CHARACTER_GROUND_SNAP_DISTANCE: f32 = 0.2;
 
 // Gap the Rapier character controller keeps between a character and the
 // geometry it touches; a body closer than this to a carrier is inside it.
@@ -111,10 +109,7 @@ pub const CHARACTER_STEP_HEIGHT: f32 = 0.2;
 // the edge contact itself.
 pub const CHARACTER_STEP_MIN_WIDTH: f32 = 0.2;
 
-// Horizontal speed a perched character (support probe airborne, collider
-// still resting on an edge sliver) is pushed off its support. Below walk
-// speed so player input can always override it and walk back on.
-pub const CHARACTER_PERCH_SLIDE_SPEED: f32 = 3.0; // m/s
+pub const CHARACTER_MAX_SLOPE: f32 = std::f32::consts::FRAC_PI_4;
 
 // ============================================================================
 // Explosions

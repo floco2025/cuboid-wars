@@ -25,7 +25,7 @@ fn player_walking_off_ramp_side_is_not_blocked_by_ramp_side() {
         },
     );
 
-    assert!(!step.blocked);
+    assert!(!step.blocked, "{step:?}");
     assert!(step.position.x < pos.x);
 }
 
@@ -83,7 +83,7 @@ fn lower_floor_player_can_enter_wedge_low_end() {
         },
     );
 
-    assert!(!step.blocked);
+    assert!(!step.blocked, "{step:?}");
     assert!(step.position.z > pos.z);
 }
 
@@ -112,12 +112,12 @@ fn upper_floor_player_can_enter_wedge_high_end() {
         },
     );
 
-    assert!(!step.blocked);
+    assert!(!step.blocked, "{step:?}");
     assert!(step.position.z < pos.z);
 }
 
 #[test]
-fn collider_y_offset_allows_movement_off_ramp_side() {
+fn capsule_cannot_step_sideways_onto_a_floor_above_step_height() {
     let ramp = test_ramp();
     let floor = upper_floor_west_of_ramp();
     let collision_world = collision_world(&[floor], &[ramp]);
@@ -139,6 +139,7 @@ fn collider_y_offset_allows_movement_off_ramp_side() {
         },
     );
 
-    assert!(!step.blocked);
+    assert!(step.blocked, "{step:?}");
+    assert!(step.position.x > floor.x2, "climbed a high ledge: {step:?}");
     assert!(step.position.x < pos.x);
 }

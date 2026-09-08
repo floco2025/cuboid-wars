@@ -3,10 +3,7 @@ use crate::{
     config::gameplay::load_test_gameplay,
     constants::TICK_SECS,
     map::Carriers,
-    physics::{
-        AirborneMomentum,
-        characters::geometry::{character_center, character_shape},
-    },
+    physics::AirborneMomentum,
     protocol::{BarrierKindTable, Carrier, CarrierId, Floor},
 };
 
@@ -212,7 +209,7 @@ fn rider_sinks_with_a_lift() {
 // The top of the collision box above the feet.
 fn head_height() -> f32 {
     let physics = player_physics();
-    character_center(Position::default(), physics).y + character_shape(physics).half_extents.y
+    physics.movement_collider.height
 }
 
 fn ground() -> Floor {
@@ -304,7 +301,7 @@ fn rider_pushed_into_a_wall_is_blocked_and_left_behind() {
     };
     let (world, carriers) = carried_world(slider(), &[wall], &[], 1);
     let start = Position {
-        x: 0.9 - player_physics().collider.width / 2.0 - 0.05,
+        x: 0.9 - player_physics().movement_collider.radius - 0.05,
         y: 0.0,
         z: 0.0,
     };
@@ -348,7 +345,11 @@ fn a_body_above_the_tolerance_is_not_carried() {
 
     assert!(step.position.x.abs() < 1e-6, "was carried to {:?}", step.position);
     assert_eq!(step.floor_velocity, Vec3::ZERO);
-    assert_eq!(step.support, CharacterSupport::Ground, "the snap still lands it");
+    assert_eq!(
+        step.support,
+        CharacterSupport::Airborne,
+        "airborne bodies must land before snapping"
+    );
 }
 
 #[test]
@@ -649,7 +650,7 @@ fn a_rider_beside_a_carriers_wall_is_carried_with_it() {
     };
     let (world, carriers) = carried_world((carrier, floor), &[wall], &[], 1);
     let start = Position {
-        x: 1.4 - player_physics().collider.width / 2.0 - 0.02,
+        x: 1.4 - player_physics().movement_collider.radius - 0.02,
         y: 0.0,
         z: 0.0,
     };
@@ -694,7 +695,8 @@ fn push_ground() -> Floor {
 #[test]
 fn a_sliding_wall_pushes_a_body_on_static_ground_even_against_its_input() {
     for axis in [Vec3::X, Vec3::NEG_X, Vec3::Z, Vec3::NEG_Z] {
-        let half_extents = character_shape(player_physics()).half_extents;
+        let body = player_physics().movement_collider;
+        let half_extents = Vec3::new(body.radius, body.height / 2.0, body.radius);
         let half_width = half_extents.x * axis.x.abs() + half_extents.z * axis.z.abs();
         let (carrier, floor) = slider();
         let carrier = Carrier {
@@ -724,7 +726,7 @@ fn a_body_can_step_sideways_out_of_a_sliding_walls_path() {
     let (carrier, floor) = slider();
     let floor = Floor { y: -10.0, ..floor };
     let mut pos = Position {
-        x: 0.61,
+        x: 0.41,
         y: 0.0,
         z: 0.0,
     };
@@ -743,7 +745,7 @@ fn a_sliding_raised_slab_pushes_a_body_beside_it() {
     let (carrier, floor) = slider();
     let floor = Floor { y: 1.5, ..floor };
     let mut pos = Position {
-        x: floor.x2 + player_physics().collider.width / 2.0 + 0.01,
+        x: floor.x2 + player_physics().movement_collider.radius + 0.01,
         y: 0.0,
         z: 0.0,
     };
@@ -760,10 +762,10 @@ fn a_sliding_raised_slab_pushes_a_body_beside_it() {
 #[test]
 fn a_body_can_board_a_low_slab_while_it_slides_towards_them() {
     let (carrier, floor) = slider();
-    for height in [0.2, 0.4, 0.6] {
+    for height in [0.1, 0.2] {
         let floor = Floor { y: height, ..floor };
         let mut pos = Position {
-            x: floor.x2 + player_physics().collider.width / 2.0 + 0.01,
+            x: floor.x2 + player_physics().movement_collider.radius + 0.01,
             y: 0.0,
             z: 0.0,
         };
@@ -792,17 +794,17 @@ fn a_sliding_wall_crushes_only_when_the_body_is_pinned_against_another_wall() {
         ..wall
     };
     let mut pos = Position {
-        x: 0.61,
+        x: 0.41,
         y: 0.0,
         z: 0.0,
     };
     for tick in 1..=45 {
         let (world, carriers) = carried_world((carrier, floor), &[wall, blocker], &[push_ground()], tick);
         let step = ride(&world, &carriers, pos, 0.0, Vec3::ZERO, TICK_SECS);
-        assert!(step.position.x <= 1.41, "pushed through the static wall: {step:?}");
+        assert!(step.position.x <= 1.61, "pushed through the static wall: {step:?}");
         if step.crushed {
             assert!(
-                step.position.x >= 1.37,
+                step.position.x >= 1.57,
                 "crushed before reaching the static wall: {step:?}"
             );
             return;
@@ -822,7 +824,7 @@ fn a_wall_does_not_drag_bystanders_when_moving_parallel_away_or_not_at_all() {
             ..carrier
         };
         let start = Position {
-            x: 0.595,
+            x: 0.395,
             y: 0.0,
             z: 0.0,
         };
@@ -845,7 +847,7 @@ fn a_very_slow_wall_still_pushes_instead_of_accumulating_penetration() {
     };
     let floor = Floor { y: -10.0, ..floor };
     let mut pos = Position {
-        x: 0.61,
+        x: 0.41,
         y: 0.0,
         z: 0.0,
     };
@@ -855,7 +857,7 @@ fn a_very_slow_wall_still_pushes_instead_of_accumulating_penetration() {
         assert!(!step.crushed, "tick {tick}: {step:?}");
         pos = step.position;
     }
-    assert!(pos.x > 0.65, "not pushed: {pos:?}");
+    assert!(pos.x > 0.45, "not pushed: {pos:?}");
 }
 
 #[test]
@@ -871,7 +873,7 @@ fn a_diagonally_moving_wall_pushes_only_perpendicular_to_its_face() {
         &world,
         &carriers,
         Position {
-            x: 0.61,
+            x: 0.41,
             y: 0.0,
             z: 0.0,
         },
@@ -880,7 +882,7 @@ fn a_diagonally_moving_wall_pushes_only_perpendicular_to_its_face() {
         TICK_SECS,
     );
     assert!(!step.crushed, "{step:?}");
-    assert!(step.position.x > 0.66, "not pushed: {step:?}");
+    assert!(step.position.x > 0.46, "not pushed: {step:?}");
     assert!(step.position.z.abs() < 1e-3, "dragged along the wall: {step:?}");
     assert!(step.position.y.abs() < 1e-3, "lifted by the wall: {step:?}");
     assert_eq!(step.floor_velocity, Vec3::ZERO);
@@ -894,7 +896,7 @@ fn a_sliding_wall_pushes_actor_bodies_too() {
     for (kind, actor) in &gameplay.actors {
         let physics = actor.physics();
         let mut pos = Position {
-            x: 0.11 + physics.collider.width / 2.0,
+            x: 0.11 + physics.movement_collider.radius,
             y: 0.0,
             z: 0.0,
         };
@@ -924,4 +926,26 @@ fn a_sliding_wall_pushes_actor_bodies_too() {
             pos = step.position;
         }
     }
+}
+
+#[test]
+fn a_fast_slider_carries_a_rider_from_its_previous_edge() {
+    let (carrier, floor) = slider();
+    let carrier = Carrier {
+        travel_ticks: 4,
+        ..carrier
+    };
+    let (world, carriers) = carried_world((carrier, floor), &[], &[], 1);
+    let start = Position {
+        x: floor.x1 + 0.1,
+        y: 0.0,
+        z: 0.0,
+    };
+    let step = ride(&world, &carriers, start, 0.0, Vec3::ZERO, TICK_SECS);
+    assert!(
+        (step.position.x - start.x - 1.0).abs() < 0.01,
+        "lost the rider: {step:?}"
+    );
+    assert_eq!(step.support, CharacterSupport::Ground);
+    assert!(!step.crushed);
 }

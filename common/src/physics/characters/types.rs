@@ -69,6 +69,7 @@ pub fn momentum_displacement(
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CharacterMovementResult {
+    pub grounding: GroundingDiagnostics,
     pub position: Position,
     pub vertical_velocity: f32,
     pub support: CharacterSupport,
@@ -85,8 +86,16 @@ pub struct CharacterMovementResult {
     pub crushed: bool,
 }
 
+#[derive(Component, Debug, Default, Clone, Copy, PartialEq)]
+pub struct GroundingDiagnostics {
+    pub origin: Vec3,
+    pub distance: f32,
+    pub hit: Option<super::super::world::ShapeCastHit>,
+    pub supported: bool,
+}
+
 // Derived independently each step and never read back by the movement motor.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CharacterSupport {
     Airborne,
     Ground,

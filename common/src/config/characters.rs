@@ -3,12 +3,11 @@ use bincode::{Decode, Encode};
 use serde::Deserialize;
 
 use super::validation::{validate_non_negative_finite, validate_positive_finite};
-use crate::math::PHYSICS_EPSILON;
 
 #[derive(Debug, Clone, Encode, Decode, Deserialize)]
 pub struct CharacterGameplayConfig {
-    pub collider: CharacterColliderConfig,
-    pub support_probe: CharacterSupportProbeConfig,
+    pub movement_collider: MovementColliderConfig,
+    pub hitbox: HitboxConfig,
     pub eye_height: f32,
 }
 
@@ -16,8 +15,8 @@ impl CharacterGameplayConfig {
     #[must_use]
     pub const fn physics(&self) -> CharacterPhysicsConfig {
         CharacterPhysicsConfig {
-            collider: self.collider,
-            support_probe: self.support_probe,
+            movement_collider: self.movement_collider,
+            hitbox: self.hitbox,
         }
     }
 
@@ -27,98 +26,102 @@ impl CharacterGameplayConfig {
     }
 
     pub fn validate(&self, path: &str) -> Result<()> {
-        self.collider.validate(&format!("{path}.collider"))?;
-        self.support_probe.validate(&format!("{path}.support_probe"))?;
+        self.movement_collider.validate(&format!("{path}.movement_collider"))?;
+        self.hitbox.validate(&format!("{path}.hitbox"))?;
         validate_positive_finite(self.eye_height, &format!("{path}.eye_height"))
     }
 }
 
 #[derive(Debug, Clone, Copy, Encode, Decode, Deserialize)]
-pub struct CharacterColliderConfig {
-    pub width: f32,
+#[serde(deny_unknown_fields)]
+pub struct MovementColliderConfig {
+    pub radius: f32,
     pub height: f32,
-    pub depth: f32,
-    pub y_offset: f32,
-    pub y_offset_anchor: CharacterColliderAnchor,
 }
 
-impl CharacterColliderConfig {
-    fn validate(&self, path: &str) -> Result<()> {
-        validate_positive_finite(self.width, &format!("{path}.width"))?;
+impl MovementColliderConfig {
+    pub fn validate(self, path: &str) -> Result<()> {
+        validate_positive_finite(self.radius, &format!("{path}.radius"))?;
         validate_positive_finite(self.height, &format!("{path}.height"))?;
-        validate_positive_finite(self.depth, &format!("{path}.depth"))?;
-        validate_non_negative_finite(self.y_offset, &format!("{path}.y_offset"))?;
-        let bottom = self.bottom_y_offset();
-        if !(bottom.is_finite() && bottom >= PHYSICS_EPSILON) {
-            bail!(
-                "{path}.y_offset puts the collider bottom at {bottom} — must be at least {PHYSICS_EPSILON} above the entity origin so it doesn't intersect the floor (raise `y_offset`, or switch `y_offset_anchor` to `center` with a larger offset)"
-            );
+        if self.height < 2.0 * self.radius {
+            bail!("{path}.height must be at least twice radius");
         }
         Ok(())
     }
 
     #[must_use]
-    pub fn center_y_offset(self) -> f32 {
-        match self.y_offset_anchor {
-            CharacterColliderAnchor::Bottom => self.y_offset + self.height / 2.0,
-            CharacterColliderAnchor::Center => self.y_offset,
-        }
+    pub fn segment_half_height(self) -> f32 {
+        self.height / 2.0 - self.radius
+    }
+}
+
+#[derive(Debug, Clone, Copy, Encode, Decode, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct HitboxConfig {
+    pub width: f32,
+    pub height: f32,
+    pub depth: f32,
+    pub bottom_offset: f32,
+}
+
+impl HitboxConfig {
+    fn validate(self, path: &str) -> Result<()> {
+        validate_positive_finite(self.width, &format!("{path}.width"))?;
+        validate_positive_finite(self.height, &format!("{path}.height"))?;
+        validate_positive_finite(self.depth, &format!("{path}.depth"))?;
+        validate_non_negative_finite(self.bottom_offset, &format!("{path}.bottom_offset"))
     }
 
     #[must_use]
-    pub fn bottom_y_offset(self) -> f32 {
-        match self.y_offset_anchor {
-            CharacterColliderAnchor::Bottom => self.y_offset,
-            CharacterColliderAnchor::Center => self.y_offset - self.height / 2.0,
-        }
+    pub fn center_y_offset(self) -> f32 {
+        self.bottom_offset + self.height / 2.0
     }
 
     #[must_use]
     pub fn top_y_offset(self) -> f32 {
-        self.bottom_y_offset() + self.height
-    }
-}
-
-#[derive(Debug, Clone, Copy, Default, Encode, Decode, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum CharacterColliderAnchor {
-    #[default]
-    Bottom,
-    Center,
-}
-
-#[derive(Debug, Clone, Copy, Encode, Decode, Deserialize)]
-pub struct CharacterSupportProbeConfig {
-    pub width: f32,
-    pub depth: f32,
-}
-
-impl CharacterSupportProbeConfig {
-    fn validate(&self, path: &str) -> Result<()> {
-        validate_positive_finite(self.width, &format!("{path}.width"))?;
-        validate_positive_finite(self.depth, &format!("{path}.depth"))
+        self.bottom_offset + self.height
     }
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct CharacterPhysicsConfig {
-    pub collider: CharacterColliderConfig,
-    pub support_probe: CharacterSupportProbeConfig,
+    pub movement_collider: MovementColliderConfig,
+    pub hitbox: HitboxConfig,
 }
 
 impl CharacterPhysicsConfig {
     #[must_use]
-    pub fn collision_height(self) -> f32 {
-        self.collider.height
+    pub fn hitbox_center_y(self, pos_y: f32) -> f32 {
+        pos_y + self.hitbox.center_y_offset()
     }
+}
 
-    #[must_use]
-    pub fn collider_center_y(self, pos_y: f32) -> f32 {
-        pos_y + self.collider.center_y_offset()
-    }
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    #[must_use]
-    pub fn model_y_offset_from_entity_center(self, model_y_offset: f32) -> f32 {
-        model_y_offset - self.collider.height / 2.0
+    #[test]
+    fn capsule_dimensions_reject_invalid_values_and_allow_a_sphere() {
+        for (radius, height) in [
+            (0.0, 1.0),
+            (-0.1, 1.0),
+            (f32::NAN, 1.0),
+            (0.5, f32::INFINITY),
+            (0.5, 0.9),
+        ] {
+            assert!(
+                MovementColliderConfig { radius, height }
+                    .validate("player.movement_collider")
+                    .is_err()
+            );
+        }
+        assert!(
+            MovementColliderConfig {
+                radius: 0.5,
+                height: 1.0
+            }
+            .validate("player.movement_collider")
+            .is_ok()
+        );
     }
 }

@@ -26,7 +26,7 @@ impl ActorGameplayConfig {
 
     pub fn beam_origin_height(&self) -> f32 {
         self.beam_origin_height
-            .unwrap_or_else(|| self.physics().collider.center_y_offset())
+            .unwrap_or_else(|| self.physics().hitbox.center_y_offset())
     }
 
     pub fn validate(&self, path: &str) -> Result<()> {

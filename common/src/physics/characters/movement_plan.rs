@@ -133,20 +133,20 @@ mod tests {
     use std::slice::from_ref;
 
     use super::*;
-    use crate::config::{
-        CharacterColliderAnchor, CharacterColliderConfig, CharacterPhysicsConfig, CharacterSupportProbeConfig,
-    };
+    use crate::config::{CharacterPhysicsConfig, HitboxConfig, MovementColliderConfig};
 
     fn physics(width: f32, depth: f32) -> CharacterPhysicsConfig {
         CharacterPhysicsConfig {
-            collider: CharacterColliderConfig {
+            hitbox: HitboxConfig {
                 width,
                 height: 1.0,
                 depth,
-                y_offset: 0.0,
-                y_offset_anchor: CharacterColliderAnchor::Bottom,
+                bottom_offset: 0.0,
             },
-            support_probe: CharacterSupportProbeConfig { width: 0.2, depth: 0.2 },
+            movement_collider: MovementColliderConfig {
+                radius: width.min(depth) / 2.0,
+                height: 1.8_f32.max(width.min(depth)),
+            },
         }
     }
 

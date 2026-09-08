@@ -82,7 +82,7 @@ impl LadderInteraction<'_> {
     ) -> (f32, f32) {
         let (target_x, target_z) = match self {
             Self::Descending { ladder, .. } => {
-                ladder.with_plane_offset(target_x, target_z, ladder_hold_standoff(ladder, physics))
+                ladder.with_plane_offset(target_x, target_z, ladder_hold_standoff(physics))
             }
             Self::None | Self::Holding | Self::Ascending { .. } => (target_x, target_z),
         };
@@ -155,13 +155,8 @@ pub(super) fn evaluate_ladder_interaction<'a>(
     LadderInteraction::Holding
 }
 
-fn ladder_hold_standoff(ladder: &LadderVolume, physics: CharacterPhysicsConfig) -> f32 {
-    let half_extent_toward_plane = if ladder.normal_x != 0.0 {
-        physics.collider.width / 2.0
-    } else {
-        physics.collider.depth / 2.0
-    };
-    half_extent_toward_plane + LADDER_STANDOFF_CLEARANCE
+fn ladder_hold_standoff(physics: CharacterPhysicsConfig) -> f32 {
+    physics.movement_collider.radius + LADDER_STANDOFF_CLEARANCE
 }
 
 fn clamp_move_at_ladder_plane(
@@ -179,7 +174,7 @@ fn clamp_move_at_ladder_plane(
     if ladder.offset_from_plane(start.x, start.z) <= 0.0 {
         return (target_x, target_z);
     }
-    let standoff = ladder_hold_standoff(ladder, physics);
+    let standoff = ladder_hold_standoff(physics);
     if ladder.offset_from_plane(target_x, target_z) >= standoff {
         return (target_x, target_z);
     }

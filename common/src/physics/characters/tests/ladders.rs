@@ -8,7 +8,7 @@ use crate::{
 // from the RAIL plane (a Z-facing ladder, so the collider's depth is the
 // leading extent). The rails sit at z = -LADDER_RAIL_INSET.
 fn player_hold_distance() -> f32 {
-    player_physics().collider.depth / 2.0 + LADDER_STANDOFF_CLEARANCE
+    player_physics().movement_collider.radius + LADDER_STANDOFF_CLEARANCE
 }
 
 fn rail_plane_z() -> f32 {
@@ -329,7 +329,7 @@ fn idle_on_ladder_holds_position() {
     let step = ladder_step(&world, start, 0.0, start.x, start.z);
 
     assert_eq!(step.vertical_velocity, 0.0);
-    assert!((step.position.x - start.x).abs() < 1e-4);
+    assert!((step.position.x - start.x).abs() < 1e-4, "{step:?}");
     assert!((step.position.y - start.y).abs() < 1e-4);
     assert_eq!(step.support, CharacterSupport::Ladder);
 }
@@ -411,12 +411,12 @@ fn grounded_player_near_ladder_is_not_funneled() {
     let start = Position {
         x: 0.3,
         y: 0.0,
-        z: -0.5,
+        z: -0.8,
     };
 
     let step = ladder_step(&world, start, 0.0, start.x, start.z);
 
-    assert!((step.position.x - start.x).abs() < 1e-4);
+    assert!((step.position.x - start.x).abs() < 1e-4, "{step:?}");
     assert_eq!(step.support, CharacterSupport::Ground);
 }
 

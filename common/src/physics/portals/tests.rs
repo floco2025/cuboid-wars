@@ -299,7 +299,7 @@ fn walking_into_wall_portal_exits_floor_portal_upward() {
     assert!(hop.knockback.length() < 1e-4);
     assert!(hop.portal_momentum.length() < 1e-4);
     // Emerges half-in: the crossing penetration is carried through.
-    assert!((hop.origin.y - (0.1 - 0.9)).abs() < 1e-4);
+    assert!((hop.origin.y - (0.1 - 0.9 - crate::constants::CHARACTER_CONTACT_OFFSET)).abs() < 1e-4);
 }
 
 #[test]
@@ -357,6 +357,7 @@ fn shared_momentum_displacement_combines_blast_and_portal_velocity() {
 #[test]
 fn portal_momentum_ends_on_support_or_collision() {
     let airborne = CharacterMovementResult {
+        grounding: Default::default(),
         position: Default::default(),
         vertical_velocity: 1.0,
         support: CharacterSupport::Airborne,
@@ -1154,7 +1155,7 @@ fn wall_portal_near_ramp_excludes_only_wall_backing() {
         &Carriers::default(),
     );
     let physics = player_physics();
-    let origin = Vec3::new(-1.5, center_y - physics.collider.top_y_offset() / 2.0, z);
+    let origin = Vec3::new(-1.5, center_y - physics.movement_collider.height / 2.0, z);
 
     assert_eq!(set.collision_exclusions(origin, physics).len(), 1);
 }
@@ -1201,7 +1202,7 @@ fn wall_portal_across_a_stacked_wall_opens_its_trim_strip() {
         &Carriers::default(),
     );
     let physics = player_physics();
-    let origin = Vec3::new(0.0, LEVEL_HEIGHT - physics.collider.top_y_offset() / 2.0, -0.5);
+    let origin = Vec3::new(0.0, LEVEL_HEIGHT - physics.movement_collider.height / 2.0, -0.5);
 
     assert_eq!(set.collision_exclusions(origin, physics).len(), 3);
 }
@@ -1242,7 +1243,7 @@ fn wall_portal_keeps_the_floor_it_stands_on_solid() {
         &Carriers::default(),
     );
     let physics = player_physics();
-    let origin = Vec3::new(0.0, 1.0 - physics.collider.top_y_offset() / 2.0, -0.5);
+    let origin = Vec3::new(0.0, 1.0 - physics.movement_collider.height / 2.0, -0.5);
 
     assert_eq!(set.collision_exclusions(origin, physics).len(), 1);
 }
@@ -1692,7 +1693,7 @@ fn carried_offset_is_clamped_to_the_exit_aperture() {
             CAP,
         )
         .expect("edge crossing did not trigger");
-    let limit = PORTAL_HALF_WIDTH - physics.collider.width / 2.0;
+    let limit = PORTAL_HALF_WIDTH - physics.movement_collider.radius;
     assert!((hop.origin.x - 10.0).abs() <= limit + 1e-4);
     assert!(hop.origin.x > 10.0);
 }
@@ -2411,7 +2412,7 @@ fn a_rising_plane_catches_a_crossing_the_stale_test_would_miss() {
     let rise = LEVEL_HEIGHT / 60.0;
     let carried = PortalSet::rebuild(&[carried_portal(0.0), wall_portal()], &world, &carriers);
     let physics = player_physics();
-    let half_y = physics.collider.top_y_offset() / 2.0;
+    let half_y = physics.movement_collider.height / 2.0;
     // The body's center sat 0.05 above the plane last tick and moved down
     // 0.1 while the plane rose `rise`.
     let previous_top = tile_center(&carriers).y - rise;

@@ -1,10 +1,17 @@
 use bevy_math::Vec3;
+use rapier3d::{
+    parry::{
+        bounding_volume::Aabb,
+        query::{Ray, RayCast, ShapeCastOptions, cast_shapes, intersection_test},
+    },
+    prelude::{Cuboid, Pose, Vector},
+};
 
 use super::CollisionWorld;
 use crate::{
     config::CharacterPhysicsConfig,
     map::{CarrierPose, Carriers},
-    physics::characters::{character_center, character_shape},
+    physics::characters::{character_movement_pose, character_movement_shape},
     protocol::{CarrierId, Eraser, Position},
 };
 
@@ -69,50 +76,52 @@ impl CollisionWorld {
         physics: CharacterPhysicsConfig,
         carriers: Option<&'a Carriers>,
     ) -> impl Iterator<Item = usize> + 'a {
-        let shape = character_shape(physics);
-        let center = character_center(*start, physics);
-        let feet = start.y.min(center.y - shape.half_extents.y);
-        let head = center.y + shape.half_extents.y;
-        let half = Vec3::new(shape.half_extents.x, (head - feet) / 2.0, shape.half_extents.z);
-        let from = Vec3::new(center.x, (head + feet) / 2.0, center.z);
-        let to = from + Vec3::from(*end) - Vec3::from(*start);
+        let shape = character_movement_shape(physics);
+        let pose = character_movement_pose(start, physics);
+        let translation = Vec3::from(*end) - Vec3::from(*start);
         self.eraser_volumes
             .iter()
             .enumerate()
             .filter_map(move |(index, volume)| {
                 // The field is posed at tick end; relative travel catches a moving field sweeping a stationary player.
                 let carry = carriers.map_or(Vec3::ZERO, |carriers| carriers.displacement(volume.carrier));
-                segment_intersects_box(from + carry, to, volume.min - half, volume.max + half).then_some(index)
+                let field = Cuboid::new(Vector::from_array(((volume.max - volume.min) / 2.0).to_array()));
+                let field_pose =
+                    Pose::from_translation(Vector::from_array(((volume.min + volume.max) / 2.0).to_array()));
+                let mut from = pose;
+                from.translation += Vector::from_array(carry.to_array());
+                let overlaps = intersection_test(&from, &shape, &field_pose, &field).is_ok_and(|hit| hit);
+                (overlaps
+                    || cast_shapes(
+                        &from,
+                        Vector::from_array((translation - carry).to_array()),
+                        &shape,
+                        &field_pose,
+                        Vector::ZERO,
+                        &field,
+                        ShapeCastOptions {
+                            max_time_of_impact: 1.0,
+                            ..Default::default()
+                        },
+                    )
+                    .is_ok_and(|hit| hit.is_some()))
+                .then_some(index)
             })
     }
 
     pub(super) fn eraser_blocks_segment(&self, from: Vec3, to: Vec3) -> bool {
-        self.eraser_volumes
-            .iter()
-            .any(|volume| segment_intersects_box(from, to, volume.min, volume.max))
+        let ray = Ray::new(
+            Vector::from_array(from.to_array()),
+            Vector::from_array((to - from).to_array()),
+        );
+        self.eraser_volumes.iter().any(|volume| {
+            let bounds = Aabb::new(
+                Vector::from_array(volume.min.to_array()),
+                Vector::from_array(volume.max.to_array()),
+            );
+            bounds.cast_local_ray(&ray, 1.0, true).is_some()
+        })
     }
-}
-
-fn segment_intersects_box(from: Vec3, to: Vec3, min: Vec3, max: Vec3) -> bool {
-    let delta = to - from;
-    let mut enter = 0.0_f32;
-    let mut leave = 1.0_f32;
-    for axis in 0..3 {
-        if delta[axis] == 0.0 {
-            if from[axis] < min[axis] || from[axis] > max[axis] {
-                return false;
-            }
-        } else {
-            let a = (min[axis] - from[axis]) / delta[axis];
-            let b = (max[axis] - from[axis]) / delta[axis];
-            enter = enter.max(a.min(b));
-            leave = leave.min(a.max(b));
-            if enter > leave {
-                return false;
-            }
-        }
-    }
-    true
 }
 
 #[cfg(test)]
@@ -139,6 +148,30 @@ mod tests {
 
     fn world(layout: &MapLayout) -> CollisionWorld {
         CollisionWorld::from_map_layout(layout, &BarrierKindTable::default())
+    }
+
+    #[test]
+    fn portal_segments_include_contacts_but_stop_at_the_endpoint() {
+        let world = world(&MapLayout {
+            erasers: vec![field()],
+            ..Default::default()
+        });
+        let inside = Vec3::new(0.0, 1.0, 0.0);
+        let outside = Vec3::new(0.0, 1.0, -3.0);
+        let surface = Vec3::new(0.0, 1.0, -0.05);
+        for (from, to, blocked) in [
+            (outside, Vec3::new(0.0, 1.0, 3.0), true),
+            (outside, Vec3::new(0.0, 1.0, -0.06), false),
+            (outside, surface, true),
+            (inside, outside, true),
+            (inside, inside, true),
+            (surface, surface, true),
+            (outside, outside, false),
+            (surface, surface + Vec3::X, true),
+            (outside, outside + Vec3::X, false),
+        ] {
+            assert_eq!(world.eraser_blocks_segment(from, to), blocked, "{from:?} -> {to:?}");
+        }
     }
 
     #[test]

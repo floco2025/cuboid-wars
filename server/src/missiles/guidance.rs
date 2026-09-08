@@ -15,7 +15,7 @@ use common::{
     config::GameplayConfig,
     constants::MISSILE_RADIUS,
     map::Carriers,
-    physics::{CollisionWorld, character_center},
+    physics::{CollisionWorld, character_hitbox_center},
     protocol::{
         ActorMarker, BarrierKindId, FaceYaw, HomingTarget, MapSettings, MissileId, MissileMarker, PlateState,
         PlayerMarker, Position,
@@ -295,14 +295,14 @@ fn resolve_target(
                 return None;
             }
             let (pos, _) = target_data.get(info.entity()?).ok()?;
-            Some((*pos, character_center(*pos, gameplay_config.player.physics())))
+            Some((*pos, character_hitbox_center(*pos, gameplay_config.player.physics())))
         }
         HomingTarget::Actor(id) => {
             let info = actors.get(&id)?;
             let (pos, _) = target_data.get(info.entity).ok()?;
             Some((
                 *pos,
-                character_center(*pos, gameplay_config.expect_actor(&info.spawn_kind).physics()),
+                character_hitbox_center(*pos, gameplay_config.expect_actor(&info.spawn_kind).physics()),
             ))
         }
     }

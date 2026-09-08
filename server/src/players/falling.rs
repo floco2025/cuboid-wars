@@ -179,9 +179,7 @@ const FALL_DAMAGE_EMIT_THRESHOLD: f32 = 1.0;
 // `lethal_distance`, clamped past lethal. The charged distance is the
 // actual drop, scaled by the gravity it fell under relative to the map's
 // normal gravity:
-//   * a phantom fall (velocity with no displacement — the support probe can
-//     miss at a ledge lip while the collider holds the body) drops nothing,
-//     so it charges nothing;
+//   * downward velocity without displacement drops nothing, so it charges nothing;
 //   * a low-gravity fall lands as softly as a proportionally shorter
 //     normal fall;
 //   * and deliberately NOT the impact speed: the terminal-velocity clamp

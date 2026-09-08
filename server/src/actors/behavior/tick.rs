@@ -382,8 +382,7 @@ impl BehaviorContext<'_> {
         {
             return false;
         }
-        let margin =
-            self.actor_physics.collider.width.max(self.actor_physics.collider.depth) / 2.0 + WAYPOINT_REACHED_DISTANCE;
+        let margin = self.actor_physics.movement_collider.radius + WAYPOINT_REACHED_DISTANCE;
         let samples = [
             *pos,
             Position {
@@ -404,7 +403,7 @@ impl BehaviorContext<'_> {
             },
         ];
         threats.iter().all(|threat| {
-            let target = Vec3::new(threat.x, self.player_physics.collider_center_y(threat.y), threat.z);
+            let target = Vec3::new(threat.x, self.player_physics.hitbox_center_y(threat.y), threat.z);
             samples.iter().all(|sample| {
                 let eye = Vec3::new(sample.x, sample.y + self.actor_eye_height, sample.z);
                 !self.collision_world.line_of_sight_clear(eye, target)
@@ -528,8 +527,8 @@ pub(super) fn keep_or_install_engagement_route(
         if context.nav_graph.engagement_retarget_is_valid(
             &final_leg_start,
             &anchor,
-            context.actor_physics.collider.width / 2.0 + DIRECT_ROUTE_CLEARANCE_MARGIN,
-            context.actor_physics.collider.depth / 2.0 + DIRECT_ROUTE_CLEARANCE_MARGIN,
+            context.actor_physics.movement_collider.radius + DIRECT_ROUTE_CLEARANCE_MARGIN,
+            context.actor_physics.movement_collider.radius + DIRECT_ROUTE_CLEARANCE_MARGIN,
         ) {
             route.retarget(anchor);
             info.mode = ActorMode::Engage { target, target_pos };
@@ -541,8 +540,8 @@ pub(super) fn keep_or_install_engagement_route(
         context.nav_graph.ladder_links(&info.spawn_kind),
         &context.pos,
         &anchor,
-        context.actor_physics.collider.width / 2.0,
-        context.actor_physics.collider.depth / 2.0,
+        context.actor_physics.movement_collider.radius,
+        context.actor_physics.movement_collider.radius,
     ) else {
         return false;
     };

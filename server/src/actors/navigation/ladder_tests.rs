@@ -254,7 +254,8 @@ fn blocked_climbs_and_bodies_that_cannot_fit_have_no_route() {
     });
     assert!(fixture.links().is_empty());
     fixture.layout.walls.clear();
-    fixture.physics.collider.depth = 3.0;
+    fixture.physics.movement_collider.radius = 1.5;
+    fixture.physics.movement_collider.height = 3.0;
     assert!(fixture.links().is_empty());
 }
 

@@ -7,7 +7,7 @@ use rapier3d::{
     prelude::{Pose, Vector, glamx::Quat},
 };
 
-use super::character_shape;
+use super::character_hitbox_shape;
 use crate::{config::CharacterPhysicsConfig, protocol::Position};
 
 #[derive(Debug, Clone, Copy)]
@@ -33,7 +33,7 @@ pub fn ball_character_hit(
     character_physics: CharacterPhysicsConfig,
 ) -> Option<BallCharacterHit> {
     let ball_shape = Ball::new(ball_radius);
-    let character_collider = character_shape(character_physics);
+    let character_collider = character_hitbox_shape(character_physics);
     let ball_pose = Pose::translation(ball_pos.x, ball_pos.y, ball_pos.z);
     let ball_translation = Vector::new(
         ball_velocity.x * delta,
@@ -80,7 +80,7 @@ pub fn ball_overlaps_character(
     character_physics: CharacterPhysicsConfig,
 ) -> bool {
     let ball_shape = Ball::new(ball_radius);
-    let character_collider = character_shape(character_physics);
+    let character_collider = character_hitbox_shape(character_physics);
     let ball_pose = Pose::translation(ball_pos.x, ball_pos.y, ball_pos.z);
     let character_pose = oriented_character_pose(character_pos, character_face_yaw, character_physics);
 
@@ -89,7 +89,7 @@ pub fn ball_overlaps_character(
 
 fn oriented_character_pose(pos: &Position, face_yaw: f32, physics: CharacterPhysicsConfig) -> Pose {
     Pose::from_parts(
-        Vector::new(pos.x, physics.collider_center_y(pos.y), pos.z),
+        Vector::new(pos.x, physics.hitbox_center_y(pos.y), pos.z),
         Quat::from_rotation_y(face_yaw),
     )
 }
@@ -97,23 +97,23 @@ fn oriented_character_pose(pos: &Position, face_yaw: f32, physics: CharacterPhys
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{
-        CharacterColliderAnchor, CharacterColliderConfig, CharacterPhysicsConfig, CharacterSupportProbeConfig,
-    };
+    use crate::config::{CharacterPhysicsConfig, HitboxConfig, MovementColliderConfig};
     use std::f32::consts::FRAC_PI_2;
 
     const BALL_RADIUS: f32 = 0.1;
 
     fn physics() -> CharacterPhysicsConfig {
         CharacterPhysicsConfig {
-            collider: CharacterColliderConfig {
+            hitbox: HitboxConfig {
                 width: 1.0,
                 height: 1.3,
                 depth: 0.6,
-                y_offset: 0.0,
-                y_offset_anchor: CharacterColliderAnchor::Bottom,
+                bottom_offset: 0.0,
             },
-            support_probe: CharacterSupportProbeConfig { width: 0.2, depth: 0.2 },
+            movement_collider: MovementColliderConfig {
+                radius: 0.3,
+                height: 1.8,
+            },
         }
     }
 

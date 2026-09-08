@@ -71,7 +71,7 @@ pub(crate) fn low_overhead_floor() -> Floor {
         z1: -4.0,
         x2: 4.0,
         z2: 4.0,
-        y: player_physics.collider.top_y_offset() - 0.05,
+        y: player_physics.movement_collider.height + FLOOR_THICKNESS + 0.02,
         thickness: FLOOR_THICKNESS,
         level: 1,
         carrier: CarrierId::WORLD,

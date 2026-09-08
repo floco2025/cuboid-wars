@@ -95,7 +95,7 @@ fn blocked_climber_holds_its_rung_and_resumes_when_clear() {
     let pos = Position {
         x: 0.0,
         y: 1.0,
-        z: -(LADDER_RAIL_INSET + physics.collider.depth / 2.0 + LADDER_STANDOFF_CLEARANCE),
+        z: -(LADDER_RAIL_INSET + physics.movement_collider.radius + LADDER_STANDOFF_CLEARANCE),
     };
     let world = CollisionWorld::from_map_layout(
         &MapLayout {
@@ -119,7 +119,7 @@ fn blocked_climber_holds_its_rung_and_resumes_when_clear() {
     let blockers = [(
         test_entity(2),
         Position {
-            y: pos.y + physics.collision_height() + 0.04,
+            y: pos.y + physics.movement_collider.height + 0.04,
             ..pos
         },
         physics,
