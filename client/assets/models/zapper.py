@@ -1,27 +1,31 @@
 """Build the zapper GLB in Blender; add -- --preview [--motion] for previews in /tmp."""
 
-import json
 import math
-import struct
 import sys
 from pathlib import Path
 
 import bpy
-from mathutils import Vector
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from model_materials import ModelMaterials, plain_material, project_uv
-from model_wear import bake_articulated_armour, remember_panel_coordinates
+from modelkit import (
+    ModelMaterials,
+    bake_articulated_wear,
+    channel_target,
+    child_of,
+    empty,
+    plain_material,
+    preview,
+    primitives,
+    rewrite_glb_json,
+)
 
 MODEL = Path(__file__).resolve().with_suffix(".glb")
 FPS = 30
 DURATION = 4
+HULL_HEIGHT = 1.54
 PIVOT_HEIGHT = 1.35
 MUZZLE_DISTANCE = 0.285
-bpy.ops.object.select_all(action="SELECT")
-bpy.ops.object.delete(use_global=False)
-for action in list(bpy.data.actions):
-    bpy.data.actions.remove(action)
+preview.clear_scene()
 
 
 palette = ModelMaterials(MODEL.with_suffix(".json"))
@@ -34,59 +38,18 @@ cyan = palette["cyan"]
 red = palette["red"]
 
 
-def empty(name, location=(0, 0, 0), parent=None):
-    obj = bpy.data.objects.new(name, None)
-    bpy.context.collection.objects.link(obj)
-    obj.location = location
-    obj.parent = parent
-    return obj
-
-
-def finish(obj, name, mat, parent, bevel=0, cylindrical=False):
-    obj.name = name
-    obj.data.materials.append(mat)
-    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
-    if bevel:
-        mod = obj.modifiers.new("Casing edge radii", "BEVEL")
-        mod.width, mod.segments = bevel, 3
-        bpy.ops.object.modifier_apply(modifier=mod.name)
-        mod = obj.modifiers.new("Corner normals", "WEIGHTED_NORMAL")
-        bpy.ops.object.modifier_apply(modifier=mod.name)
-    project_uv(obj, mat, cylindrical)
-    if mat == shell:
-        remember_panel_coordinates(obj)
-    obj.parent = parent
-    return obj
-
-
 def box(name, pos, size, mat, parent, bevel=0.008):
-    bpy.ops.mesh.primitive_cube_add(size=1, location=pos)
-    obj = bpy.context.object
-    obj.dimensions = size
-    return finish(obj, name, mat, parent, bevel)
+    return primitives.box(name, pos, size, mat, child_of(parent), bevel, 3)
 
 
 def sphere(name, pos, size, mat, parent):
-    bpy.ops.mesh.primitive_uv_sphere_add(segments=32, ring_count=16, location=pos)
-    obj = bpy.context.object
-    obj.scale = size
-    for face in obj.data.polygons:
-        face.use_smooth = True
-    return finish(obj, name, mat, parent)
+    return primitives.sphere(name, pos, size, mat, child_of(parent), 32, 16)
 
 
 def cylinder(name, pos, radius, depth, mat, parent, axis="Z"):
-    bpy.ops.mesh.primitive_cylinder_add(
-        vertices=32, radius=radius, depth=depth, location=pos
+    return primitives.cylinder(
+        name, pos, radius, depth, mat, child_of(parent), axis, 32, 0.003, 3, "quads"
     )
-    obj = bpy.context.object
-    if axis == "X":
-        obj.rotation_euler.y = math.pi / 2
-    elif axis == "Y":
-        obj.rotation_euler.x = math.pi / 2
-    for face in obj.data.polygons:
-        face.use_smooth = len(face.vertices) == 4
-    return finish(obj, name, mat, parent, 0.003, True)
 
 
 def ring(name, pos, outer, inner, height, mat, parent, axis="Z"):
@@ -127,31 +90,24 @@ def ring(name, pos, outer, inner, height, mat, parent, axis="Z"):
     data.update()
     obj = bpy.data.objects.new(name, data)
     bpy.context.collection.objects.link(obj)
-    bpy.ops.object.select_all(action="DESELECT")
-    obj.select_set(True)
-    bpy.context.view_layer.objects.active = obj
     obj.location = pos
     if axis == "Y":
         obj.rotation_euler.x = math.pi / 2
     for i, face in enumerate(data.polygons):
         face.use_smooth = i % 4 < 2
-    return finish(obj, name, mat, parent, 0.002, True)
+    return primitives.finish(
+        obj, name, mat, child_of(parent), 0.002, 3, cylindrical=True
+    )
 
 
 def label(text, pos, size, parent, rotation=(math.pi / 2, 0, math.pi)):
-    bpy.ops.object.text_add(location=pos)
-    obj = bpy.context.object
-    obj.data.body = text
-    obj.data.size = size
-    obj.data.align_x = "CENTER"
-    obj.data.extrude = 0.00015
-    obj.rotation_euler = rotation
-    bpy.ops.object.convert(target="MESH")
-    return finish(bpy.context.object, text, graphite, parent)
+    return primitives.label(
+        text, pos, size, rotation, graphite, child_of(parent), 0.00015
+    )
 
 
 root = empty("ZapperRoot")
-hull = empty("HoverHull", (0, 0.105, 1.54), root)
+hull = empty("HoverHull", (0, 0.105, HULL_HEIGHT), root)
 box("Central magnesium chassis", (0, 0, 0), (0.31, 0.32, 0.15), metal, hull, 0.04)
 box("Upper white shell", (0, -0.008, 0.079), (0.335, 0.345, 0.095), shell, hull, 0.043)
 box("Lower graphite shell", (0, 0, -0.06), (0.29, 0.30, 0.08), graphite, hull, 0.035)
@@ -244,7 +200,7 @@ for sign, side in ((-1, "L"), (1, "R")):
 
 # Aim nodes stay unanimated so the shared beam system owns their complete rotation.
 cylinder("Gimbal suspension", (0, 0.105, -0.095), 0.044, 0.13, metal, hull)
-yaw = empty("ZapperYaw", (0, 0.105, PIVOT_HEIGHT - 1.54), hull)
+yaw = empty("ZapperYaw", (0, 0.105, PIVOT_HEIGHT - HULL_HEIGHT), hull)
 pitch = empty("ZapperPitch", parent=yaw)
 cylinder("Azimuth bearing", (0, 0, 0.05), 0.071, 0.05, metal, yaw)
 sphere("Gun cradle", (0, 0, 0), (0.098, 0.09, 0.082), graphite, yaw)
@@ -287,7 +243,7 @@ cylinder("Muzzle recess", (0, 0.275, 0), 0.047, 0.005, glass, pitch, "Y")
 cylinder("Beam lens", (0, 0.28, 0), 0.035, 0.007, red, pitch, "Y")
 empty("ZapperMuzzle", (0, MUZZLE_DISTANCE, 0), pitch)
 
-bake_articulated_armour(
+bake_articulated_wear(
     [
         obj
         for obj in bpy.context.scene.objects
@@ -319,7 +275,7 @@ scene.frame_start, scene.frame_end = 0, FPS * DURATION
 animated = [hull, *pods, *rotors, *vanes]
 for frame in range(scene.frame_end + 1):
     phase = math.tau * frame / scene.frame_end
-    hull.location.z = 1.54 + 0.012 * math.sin(phase)
+    hull.location.z = HULL_HEIGHT + 0.012 * math.sin(phase)
     hull.rotation_euler = (
         0.018 * math.sin(phase),
         0.025 * math.sin(phase * 2),
@@ -353,94 +309,47 @@ bpy.ops.export_scene.gltf(
     export_cameras=False,
     export_lights=False,
 )
-raw = MODEL.read_bytes()
-length = struct.unpack_from("<I", raw, 12)[0]
-doc = json.loads(raw[20 : 20 + length])
-assert len(doc["animations"]) == 1, "Hover loop missing or split across clips"
-doc["animations"][0]["name"] = "Hover"
 animated_names = {obj.name for obj in animated}
-doc["animations"][0]["channels"] = [
-    c
-    for c in doc["animations"][0]["channels"]
-    if doc["nodes"][c["target"]["node"]]["name"] in animated_names
-]
-assert all(
-    any(
-        doc["nodes"][c["target"]["node"]]["name"] == name
-        for c in doc["animations"][0]["channels"]
-    )
-    for name in animated_names
-)
-assert all("uri" not in image for image in doc.get("images", [])), (
-    "Textures must be embedded"
-)
-encoded = json.dumps(doc, separators=(",", ":")).encode()
-encoded += b" " * (-len(encoded) % 4)
-binary = raw[20 + length :]
-MODEL.write_bytes(
-    struct.pack(
-        "<4sIIII", b"glTF", 2, 20 + len(encoded) + len(binary), len(encoded), 0x4E4F534A
-    )
-    + encoded
-    + binary
-)
+
+
+def keep_hover(document):
+    assert len(document["animations"]) == 1, "Hover loop missing or split across clips"
+    hover = document["animations"][0]
+    hover["name"] = "Hover"
+    hover["channels"] = [
+        channel
+        for channel in hover["channels"]
+        if channel_target(document, channel) in animated_names
+    ]
+    assert animated_names == {channel_target(document, c) for c in hover["channels"]}
+    assert all(
+        "uri" not in image for image in document.get("images", [])
+    ), "Textures must be embedded"
+
+
+rewrite_glb_json(MODEL, keep_hover)
 print("Exported zapper:", MODEL.stat().st_size, "bytes; Hover + independent aim rig")
 
 if "--preview" in sys.argv:
-    bpy.ops.object.select_all(action="SELECT")
-    bpy.ops.object.delete(use_global=False)
-    for action in list(bpy.data.actions):
-        bpy.data.actions.remove(action)
+    preview.clear_scene()
     bpy.ops.import_scene.gltf(filepath=str(MODEL))
     yaw = bpy.data.objects["ZapperYaw"]
     pitch = bpy.data.objects["ZapperPitch"]
     yaw.rotation_mode = pitch.rotation_mode = "XYZ"
     scene.frame_set(12)
-    floor_mat = plain_material("Studio floor", (0.065, 0.082, 0.10), roughness=0.7)
-    bpy.ops.mesh.primitive_plane_add(size=200)
-    bpy.context.object.data.materials.append(floor_mat)
-    scene.render.engine = "CYCLES"
-    scene.cycles.samples = 48
-    scene.cycles.use_denoising = True
-    scene.world.color = (0.15, 0.15, 0.15)
-    for location, power, size in (
-        ((2, 3, 4), 420, 3),
-        ((-2, 1, 3), 300, 3),
-        ((0, -3, 4), 650, 3),
-    ):
-        bpy.ops.object.light_add(type="AREA", location=location)
-        light = bpy.context.object
-        light.data.energy, light.data.size = power, size
-        light.rotation_euler = (
-            (Vector((0, 0, 1.5)) - light.location).to_track_quat("-Z", "Y").to_euler()
-        )
-    bpy.ops.object.camera_add(location=(1.3, -2.4, 2.5))
-    scene.camera = bpy.context.object
-    scene.camera.rotation_euler = (
-        (Vector((0, 0.035, 1.48)) - scene.camera.location)
-        .to_track_quat("-Z", "Y")
-        .to_euler()
-    )
-    scene.camera.data.type = "ORTHO"
-    scene.camera.data.ortho_scale = 1.16
-    scene.render.resolution_x = scene.render.resolution_y = 1100
-    scene.render.resolution_percentage = 100
-    scene.render.filepath = "/tmp/zapper-preview.png"
-    bpy.ops.render.render(write_still=True)
-    camera_pose = scene.camera.matrix_world.copy()
-    scene.camera.location = (1.3, 2.4, 2.3)
-    scene.camera.rotation_euler = (
-        (Vector((0, 0.035, 1.48)) - scene.camera.location)
-        .to_track_quat("-Z", "Y")
-        .to_euler()
-    )
-    scene.render.filepath = "/tmp/zapper-rear.png"
-    bpy.ops.render.render(write_still=True)
-    scene.camera.matrix_world = camera_pose
+    look_at = (0, 0.035, 1.48)
+    low, high = preview.visible_bounds(scene)
+    preview.floor(plain_material("Studio floor", (0.065, 0.082, 0.10), roughness=0.7))
+    camera = preview.studio(scene, look_at, max(high - low))
+    camera.data.ortho_scale = 1.16
+    preview.aim(camera, (1.3, -2.4, 2.5), look_at)
+    preview.render(scene, "/tmp/zapper-preview.png")
+    preview.aim(camera, (1.3, 2.4, 2.3), look_at)
+    preview.render(scene, "/tmp/zapper-rear.png")
+    preview.aim(camera, (1.3, -2.4, 2.5), look_at)
     yaw.rotation_euler.z = -0.5
     pitch.rotation_euler.x = 0.30
-    scene.render.filepath = "/tmp/zapper-aim.png"
-    bpy.ops.render.render(write_still=True)
+    preview.render(scene, "/tmp/zapper-aim.png")
     if "--motion" in sys.argv:
         output = Path("/tmp/zapper-motion")
         output.mkdir(exist_ok=True)
@@ -455,5 +364,4 @@ if "--preview" in sys.argv:
             scene.frame_set(frame)
             yaw.rotation_euler.z = 0.55 * math.sin(frame / FPS * 1.2)
             pitch.rotation_euler.x = 0.25 * math.sin(frame / FPS * 1.6)
-            scene.render.filepath = str(output / f"frame-{frame:04d}.png")
-            bpy.ops.render.render(write_still=True)
+            preview.render(scene, output / f"frame-{frame:04d}.png")

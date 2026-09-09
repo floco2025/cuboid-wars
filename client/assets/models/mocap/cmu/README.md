@@ -15,7 +15,7 @@ CMU permits use of these captures, including incorporation in commercial product
 
 Matching skeletons: [16.asf](http://mocap.cs.cmu.edu/subjects/16/16.asf), [13.asf](http://mocap.cs.cmu.edu/subjects/13/13.asf), [143.asf](http://mocap.cs.cmu.edu/subjects/143/143.asf).
 
-`../../player_mocap.py` selects frame ranges, retargets the 120 Hz recordings to the robot's proportions, centres lateral posture while retaining sway, removes travel, and closes looping clips. Ladder hand heights follow the recording with arm IK to reach vertical rungs. Idle, jump and descent are retimed excerpts; descent reaches a landing-ready pose and holds during longer falls. Finger poses and the stun reaction are authored, not motion capture.
+`../../player_mocap.py` selects frame ranges, retargets the 120 Hz recordings to the player's proportions, centres lateral posture while retaining sway, removes travel, and closes looping clips. Ladder hand heights follow the recording with arm IK to reach vertical rungs. Idle, jump and descent are retimed excerpts; descent reaches a landing-ready pose and holds during longer falls. Finger poses and the stun reaction are authored, not motion capture.
 
 Rebuild from the repository root with:
 

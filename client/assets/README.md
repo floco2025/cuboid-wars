@@ -12,41 +12,13 @@ See [ASSETS.md](ASSETS.md) for the provenance register: authors, sources, licens
 
 ## Asset Set
 
-`config/client/assets.json` is the client asset set. The client uses the full file for render/audio assets. The server reads the same file for `material_rules` and ignores client-only sections it does not need, such as `materials`, `models`, `sounds`, and texture file paths.
+`config/client/assets.json` is the client asset set. Only the client reads it; the server takes map materials from each map's layout and `settings.json::textures`. Asset paths are relative to `client/assets`.
 
-Asset paths are relative to `client/assets`.
+- `materials` — texture sets: `textures` paths (`base_color`, `normal`, `occlusion`, `metallic_roughness`), `tile_size` in metres, `metallic`, `roughness`, `repeat`, and `linear_data_textures`. Normal maps carry their Y convention in the file name (`-normal-dx` or `-normal-gl`).
+- `aliases` — map texture alias → material. A map enables an alias in its `settings.json::textures` with a `portalable` flag, and its layout names aliases per face.
+- `ladder` and `pressure_plate.panel` / `pressure_plate.frame` — fixture materials.
+- `player` and `actors.<kind>` — `model` (`scene`, `scale`, `x_offset` / `y_offset` / `z_offset`, `x_rotation_degrees`, `animation_index`, `animation_speed`, optional `wheels` and `aim_rig`, `rotate_with_facing`) and `sounds`. Positions are feet-based, so `y_offset` is the model origin's offset from the character's feet.
+- `wall_lights.<kind>` — `scene`, `scale`, `offset_from_wall`, `brightness`, `range`, `radius`, `emissive_luminance`, `color`, and `flicker`.
+- `skyboxes.<name>` — `image`, `brightness`, `rotation_period_secs`, `sun_step_degrees`, and `sun_disc`.
 
-For character models, `visual_y_offset` is relative to the gameplay collider
-bottom. `0.0` means the model bottom sits on the collider bottom; negative
-values place the model below the collider bottom, and positive values place it
-above.
-
-The most specific matching material rule wins. For example, a floor rule with `level` + `cols` + `rows` beats a floor rule with only `level`, and an exact wall edge beats a level-wide wall rule. A rule without selector fields is the fallback for that rule list. Two matching rules with the same specificity but different materials are an error.
-
-Material assignment is part of map segmentation. The server must not merge floors or walls across different resolved material ids. The client should render each received floor/wall as one mesh with one material; if one segment spans multiple material rules, that is a map/merge error rather than a reason for the client to split the segment.
-
-Editor coordinate selectors:
-
-- Floors use cell coordinates: `"cols": [min, max]`, `"rows": [min, max]`, inclusive.
-- Walls use grid-line edges: `"from": [col, row]`, `"to": [col, row]`.
-- Ramps use their lower editor level.
-
-Examples:
-
-```json
-{
-  "material": "ground",
-  "level": 3,
-  "cols": [16, 19],
-  "rows": [0, 3]
-}
-```
-
-```json
-{
-  "material": "wall",
-  "level": 2,
-  "from": [4, 8],
-  "to": [5, 8]
-}
-```
+The generators and material JSON beside the GLBs in `models/` are described in [models/MATERIALS.md](models/MATERIALS.md).

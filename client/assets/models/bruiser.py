@@ -1,8 +1,6 @@
 """Build the bruiser GLB in Blender; add -- --preview [--motion] for previews in /tmp."""
 
-import json
 import math
-import struct
 import sys
 from pathlib import Path
 
@@ -10,11 +8,9 @@ import bpy
 from mathutils import Euler, Vector
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from model_materials import ModelMaterials, project_uv
-from model_wear import bake_armour, remember_panel_coordinates
+from modelkit import ModelMaterials, wheeled_actor
 
 MODEL = Path(__file__).resolve().with_suffix(".glb")
-FPS = 30
 WHEEL_RADIUS = 0.27
 bpy.ops.object.select_all(action="SELECT")
 bpy.ops.object.delete(use_global=False)
@@ -31,96 +27,36 @@ amber = palette["amber"]
 ink = palette["ink"]
 optic = palette["optic"]
 
-
-parts = []
-
-
-def finish(obj, name, mat, bone, bevel=0, cylindrical=False):
-    obj.name = name
-    obj.data.materials.clear()
-    obj.data.materials.append(mat)
-    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
-    if bevel:
-        mod = obj.modifiers.new("Rounded armour", "BEVEL")
-        mod.width, mod.segments = bevel, 3 if bevel >= 0.018 else 1
-        bpy.ops.object.modifier_apply(modifier=mod.name)
-        mod = obj.modifiers.new("Corner normals", "WEIGHTED_NORMAL")
-        bpy.ops.object.modifier_apply(modifier=mod.name)
-    project_uv(obj, mat, cylindrical)
-    if mat == armour:
-        remember_panel_coordinates(obj)
-    group = obj.vertex_groups.new(name=bone)
-    group.add(list(range(len(obj.data.vertices))), 1, "REPLACE")
-    parts.append(obj)
-    return obj
-
-
-def box(name, pos, size, mat, bone="Hull", bevel=0.018):
-    bpy.ops.mesh.primitive_cube_add(size=1, location=pos)
-    obj = bpy.context.object
-    obj.dimensions = size
-    return finish(obj, name, mat, bone, bevel)
-
-
-def cylinder(name, pos, radius, depth, mat, bone="Hull", axis="Z", vertices=32):
-    bpy.ops.mesh.primitive_cylinder_add(
-        vertices=vertices, radius=radius, depth=depth, location=pos
-    )
-    obj = bpy.context.object
-    if axis == "X":
-        obj.rotation_euler.y = math.pi / 2
-    elif axis == "Y":
-        obj.rotation_euler.x = math.pi / 2
-    for face in obj.data.polygons:
-        face.use_smooth = len(face.vertices) == 4
-    return finish(obj, name, mat, bone, 0.006, cylindrical=True)
-
-
-def sphere(name, pos, size, mat, bone="Hull"):
-    bpy.ops.mesh.primitive_uv_sphere_add(
-        segments=32, ring_count=16, radius=1, location=pos
-    )
-    obj = bpy.context.object
-    obj.scale = size
-    for face in obj.data.polygons:
-        face.use_smooth = True
-    return finish(obj, name, mat, bone)
-
-
-def label(text, pos, size, rotation, bone="Hull"):
-    bpy.ops.object.text_add(location=pos)
-    obj = bpy.context.object
-    obj.data.body = text
-    obj.data.size = size
-    obj.data.align_x = "CENTER"
-    obj.data.extrude = 0.0005
-    obj.rotation_euler = rotation
-    bpy.ops.object.convert(target="MESH")
-    return finish(bpy.context.object, text, ink, bone)
-
-
+# Fine edges stay crisp with a single bevel segment.
+parts = wheeled_actor.Parts(ink, lambda bevel: 3 if bevel >= 0.018 else 1)
 bones = [
     ("Root", (0, 0, 0), None),
     ("Hull", (0, 0, 0.67), "Root"),
     ("Sensor", (0, -0.17, 1.13), "Hull"),
 ]
-box("Armoured belly", (0, 0, 0.32), (1.05, 1.14, 0.24), graphite, "Root", 0.055)
-box(
+parts.box("Armoured belly", (0, 0, 0.32), (1.05, 1.14, 0.24), graphite, "Root", 0.055)
+parts.box(
     "Structural shoulder frame",
     (0, 0.015, 0.65),
     (0.99, 1.11, 0.39),
     graphite,
     bevel=0.075,
 )
-box("Gunmetal main glacis", (0, -0.03, 0.84), (0.99, 1.0, 0.38), armour, bevel=0.045)
-box("Upper service deck", (0, 0.13, 1.02), (0.79, 0.66, 0.09), armour, bevel=0.025)
+parts.box(
+    "Gunmetal main glacis", (0, -0.03, 0.84), (0.99, 1.0, 0.38), armour, bevel=0.045
+)
+parts.box(
+    "Upper service deck", (0, 0.13, 1.02), (0.79, 0.66, 0.09), armour, bevel=0.025
+)
 
 for sign in (-1, 1):
     for index, y in enumerate((-0.56, 0, 0.56)):
         bone = ("WheelL" if sign < 0 else "WheelR") + str(index)
         bones.append((bone, (sign * 0.635, y, WHEEL_RADIUS), "Root"))
-        cylinder("Drive axle", (sign * 0.50, y, 0.27), 0.085, 0.30, steel, "Root", "X")
-        cylinder(
+        parts.cylinder(
+            "Drive axle", (sign * 0.50, y, 0.27), 0.085, 0.30, steel, "Root", "X"
+        )
+        parts.cylinder(
             "Heavy elastomer tyre",
             (sign * 0.635, y, 0.27),
             WHEEL_RADIUS,
@@ -130,16 +66,18 @@ for sign in (-1, 1):
             "X",
             48,
         )
-        cylinder(
+        parts.cylinder(
             "Hub recess", (sign * 0.749, y, 0.27), 0.18, 0.017, graphite, bone, "X"
         )
-        cylinder(
+        parts.cylinder(
             "Armoured hub", (sign * 0.761, y, 0.27), 0.135, 0.022, armour, bone, "X"
         )
-        cylinder("Axle cap", (sign * 0.78, y, 0.27), 0.064, 0.024, steel, bone, "X", 12)
+        parts.cylinder(
+            "Axle cap", (sign * 0.78, y, 0.27), 0.064, 0.024, steel, bone, "X", 12
+        )
         for angle_index in range(8):
             a = math.tau * angle_index / 8
-            cylinder(
+            parts.cylinder(
                 "Hub fastener",
                 (sign * 0.78, y + math.sin(a) * 0.104, 0.27 + math.cos(a) * 0.104),
                 0.012,
@@ -152,7 +90,7 @@ for sign in (-1, 1):
         for tread in range(32):
             a = math.tau * tread / 32
             for lane in (-1, 1):
-                block = box(
+                block = parts.box(
                     "Chevron traction cleat",
                     (
                         sign * 0.635 + lane * 0.056,
@@ -172,7 +110,7 @@ for sign in (-1, 1):
                 outward = block.rotation_quaternion @ Vector((0, 0, 1))
                 assert outward.dot(Vector((0, math.sin(a), math.cos(a)))) > 0.9999
         for z in (0.43, 0.49):
-            box(
+            parts.box(
                 "Suspension sleeve",
                 (sign * 0.48, y, z),
                 (0.05, 0.14, 0.028),
@@ -180,7 +118,7 @@ for sign in (-1, 1):
                 "Root",
                 0.006,
             )
-    box(
+    parts.box(
         "Side armour underlay",
         (sign * 0.61, 0.015, 0.65),
         (0.32, 1.36, 0.16),
@@ -188,21 +126,21 @@ for sign in (-1, 1):
         bevel=0.045,
     )
     for panel_y in (-0.455, 0.0, 0.455):
-        box(
+        parts.box(
             "Steel track guard",
             (sign * 0.61, panel_y, 0.76),
             (0.35, 0.439, 0.19),
             armour,
             bevel=0.026,
         )
-    box(
+    parts.box(
         "Shoulder seam",
         (sign * 0.445, 0.02, 0.794),
         (0.012, 0.96, 0.008),
         graphite,
         bevel=0.002,
     )
-    box(
+    parts.box(
         "Ochre flanking plate",
         (sign * 0.793, -0.40, 0.74),
         (0.012, 0.26, 0.10),
@@ -210,35 +148,37 @@ for sign in (-1, 1):
         bevel=0.015,
     )
     for y in (0.13, 0.20, 0.27, 0.34):
-        box(
+        parts.box(
             "Cooling outlet",
             (sign * 0.793, y, 0.73),
             (0.013, 0.034, 0.065),
             graphite,
             bevel=0.006,
         )
-    label(
+    parts.label(
         "S-08", (sign * 0.786, -0.05, 0.73), 0.066, (math.pi / 2, 0, sign * math.pi / 2)
     )
-    cylinder("Impact piston", (sign * 0.40, -0.58, 0.49), 0.096, 0.25, steel, axis="Y")
-    cylinder(
+    parts.cylinder(
+        "Impact piston", (sign * 0.40, -0.58, 0.49), 0.096, 0.25, steel, axis="Y"
+    )
+    parts.cylinder(
         "Piston dust boot", (sign * 0.40, -0.60, 0.49), 0.12, 0.12, rubber, axis="Y"
     )
-    box(
+    parts.box(
         "Ram shoulder",
         (sign * 0.33, -0.71, 0.51),
         (0.32, 0.18, 0.34),
         graphite,
         bevel=0.04,
     )
-    box(
+    parts.box(
         "Steel impact plate",
         (sign * 0.33, -0.815, 0.54),
         (0.32, 0.045, 0.30),
         armour,
         bevel=0.024,
     )
-    box(
+    parts.box(
         "Replaceable bumper pad",
         (sign * 0.33, -0.846, 0.42),
         (0.31, 0.034, 0.073),
@@ -246,14 +186,14 @@ for sign in (-1, 1):
         bevel=0.012,
     )
     for x in (-0.075, 0.075):
-        box(
+        parts.box(
             "Impact hazard marker",
             (sign * 0.33 + x, -0.843, 0.58),
             (0.031, 0.011, 0.125),
             ochre,
             bevel=0.004,
         )
-    cylinder(
+    parts.cylinder(
         "Front status lamp housing",
         (sign * 0.57, -0.685, 0.74),
         0.041,
@@ -261,33 +201,39 @@ for sign in (-1, 1):
         graphite,
         axis="Y",
     )
-    cylinder(
+    parts.cylinder(
         "Front status lamp", (sign * 0.57, -0.707, 0.74), 0.025, 0.009, amber, axis="Y"
     )
 
-box("Central impact beam", (0, -0.735, 0.49), (0.61, 0.11, 0.21), graphite, bevel=0.025)
+parts.box(
+    "Central impact beam", (0, -0.735, 0.49), (0.61, 0.11, 0.21), graphite, bevel=0.025
+)
 for x in (-0.20, -0.10, 0, 0.10, 0.20):
-    box(
+    parts.box(
         "Impact grille bar", (x, -0.802, 0.51), (0.035, 0.031, 0.15), steel, bevel=0.008
     )
-box(
+parts.box(
     "Reactor breastplate recess",
     (0, -0.523, 0.86),
     (0.64, 0.05, 0.22),
     graphite,
     bevel=0.027,
 )
-box("Charge status glass", (0, -0.555, 0.87), (0.45, 0.015, 0.12), glass, bevel=0.018)
+parts.box(
+    "Charge status glass", (0, -0.555, 0.87), (0.45, 0.015, 0.12), glass, bevel=0.018
+)
 for x in (-0.17, -0.085, 0, 0.085, 0.17):
-    box(
+    parts.box(
         "Charge indicator", (x, -0.565, 0.87), (0.034, 0.012, 0.075), amber, bevel=0.008
     )
-label("STAND CLEAR", (0, -0.56, 0.77), 0.035, (math.pi / 2, 0, 0))
+parts.label("STAND CLEAR", (0, -0.56, 0.77), 0.035, (math.pi / 2, 0, 0))
 
-cylinder("Sensor turntable", (0, -0.12, 1.05), 0.24, 0.085, graphite)
-cylinder("Turntable bearing", (0, -0.12, 1.096), 0.20, 0.032, steel)
-box("Sensor helmet", (0, -0.17, 1.19), (0.64, 0.49, 0.25), armour, "Sensor", 0.035)
-box(
+parts.cylinder("Sensor turntable", (0, -0.12, 1.05), 0.24, 0.085, graphite)
+parts.cylinder("Turntable bearing", (0, -0.12, 1.096), 0.20, 0.032, steel)
+parts.box(
+    "Sensor helmet", (0, -0.17, 1.19), (0.64, 0.49, 0.25), armour, "Sensor", 0.035
+)
+parts.box(
     "Optical brow gasket",
     (0, -0.399, 1.20),
     (0.52, 0.055, 0.17),
@@ -295,11 +241,11 @@ box(
     "Sensor",
     0.033,
 )
-box(
+parts.box(
     "Smoked optical band", (0, -0.43, 1.19), (0.47, 0.023, 0.12), glass, "Sensor", 0.028
 )
 for x in (-0.115, 0.115):
-    box(
+    parts.box(
         "Optic housing",
         (x, -0.449, 1.19),
         (0.134, 0.025, 0.073),
@@ -307,7 +253,7 @@ for x in (-0.115, 0.115):
         "Sensor",
         0.024,
     )
-    box(
+    parts.box(
         "Amber range optic",
         (x, -0.465, 1.19),
         (0.10, 0.013, 0.025),
@@ -316,7 +262,7 @@ for x in (-0.115, 0.115):
         0.017,
     )
 for sign in (-1, 1):
-    brow = box(
+    brow = parts.box(
         "Angled armoured brow",
         (sign * 0.145, -0.467, 1.235),
         (0.29, 0.093, 0.055),
@@ -325,7 +271,7 @@ for sign in (-1, 1):
         0.009,
     )
     brow.rotation_euler.y = -sign * 0.14
-box(
+parts.box(
     "Asymmetric service tab",
     (0.267, -0.19, 1.297),
     (0.07, 0.21, 0.015),
@@ -334,7 +280,7 @@ box(
     0.005,
 )
 for sign in (-1, 1):
-    cylinder(
+    parts.cylinder(
         "Sensor trunnion",
         (sign * 0.327, -0.17, 1.19),
         0.065,
@@ -343,7 +289,7 @@ for sign in (-1, 1):
         "Sensor",
         "X",
     )
-    cylinder(
+    parts.cylinder(
         "Trunnion retainer",
         (sign * 0.348, -0.17, 1.19),
         0.035,
@@ -355,7 +301,7 @@ for sign in (-1, 1):
     )
 
 for sign in (-1, 1):
-    box(
+    parts.box(
         "Rear battery housing",
         (sign * 0.25, 0.41, 1.025),
         (0.23, 0.27, 0.14),
@@ -363,39 +309,39 @@ for sign in (-1, 1):
         bevel=0.027,
     )
     for y in (0.33, 0.38, 0.43, 0.48):
-        box(
+        parts.box(
             "Battery cooling fin",
             (sign * 0.25, y, 1.102),
             (0.20, 0.018, 0.018),
             steel,
             bevel=0.004,
         )
-    box(
+    parts.box(
         "Tail guard",
         (sign * 0.40, 0.68, 0.56),
         (0.20, 0.11, 0.24),
         graphite,
         bevel=0.025,
     )
-    box(
+    parts.box(
         "Rear warning lamp",
         (sign * 0.43, 0.744, 0.61),
         (0.105, 0.014, 0.038),
         amber,
         bevel=0.012,
     )
-label("08", (0, 0.471, 0.91), 0.115, (math.pi / 2, 0, math.pi))
+parts.label("08", (0, 0.471, 0.91), 0.115, (math.pi / 2, 0, math.pi))
 
 for sign in (-1, 1):
     for panel_y in (-0.455, 0.0, 0.455):
-        cylinder(
+        parts.cylinder(
             "Recessed guard socket",
             (sign * 0.65, panel_y, 0.856),
             0.025,
             0.003,
             graphite,
         )
-        cylinder(
+        parts.cylinder(
             "Socket hex head",
             (sign * 0.65, panel_y, 0.857),
             0.013,
@@ -403,20 +349,20 @@ for sign in (-1, 1):
             steel,
             vertices=6,
         )
-box(
+parts.box(
     "Service hatch gasket", (0, 0.17, 1.068), (0.29, 0.35, 0.009), graphite, bevel=0.018
 )
-box("Service hatch", (0, 0.17, 1.075), (0.264, 0.324, 0.012), armour, bevel=0.012)
+parts.box("Service hatch", (0, 0.17, 1.075), (0.264, 0.324, 0.012), armour, bevel=0.012)
 for x in (-0.10, 0.10):
     for y in (0.045, 0.295):
-        cylinder("Hatch socket", (x, y, 1.082), 0.016, 0.002, graphite)
-        cylinder("Hatch bolt", (x, y, 1.083), 0.009, 0.003, steel, vertices=6)
+        parts.cylinder("Hatch socket", (x, y, 1.082), 0.016, 0.002, graphite)
+        parts.cylinder("Hatch bolt", (x, y, 1.083), 0.009, 0.003, steel, vertices=6)
 
 for name, centre, size in (
     ("Gunmetal main glacis", (0.29, -0.542, 0.965), (0.043, 0.024, 0.025)),
     ("Sensor helmet", (-0.285, -0.405, 1.295), (0.028, 0.025, 0.018)),
 ):
-    panel = next(obj for obj in parts if obj.name == name)
+    panel = next(obj for obj in parts.objects if obj.name == name)
     bpy.ops.mesh.primitive_uv_sphere_add(segments=16, ring_count=8, location=centre)
     cutter = bpy.context.object
     cutter.scale = size
@@ -427,9 +373,6 @@ for name, centre, size in (
     modifier.object = cutter
     bpy.ops.object.modifier_apply(modifier=modifier.name)
     bpy.data.objects.remove(cutter, do_unlink=True)
-    for attr in ("PanelPosition", "PanelHalfSize"):
-        panel.data.attributes.remove(panel.data.attributes[attr])
-    remember_panel_coordinates(panel)
     group = panel.vertex_groups.get("Sensor" if name == "Sensor helmet" else "Hull")
     group.add(list(range(len(panel.data.vertices))), 1, "REPLACE")
 
@@ -445,7 +388,7 @@ clearance_parts = (
     "Tail guard",
     "Suspension sleeve",
 )
-for part in parts:
+for part in parts.objects:
     if not part.name.startswith(clearance_parts):
         continue
     points = [part.matrix_world @ vertex.co for vertex in part.data.vertices]
@@ -458,225 +401,26 @@ for part in parts:
                 - max(min(p[i] for p in points), centre[i] - half[i])
                 for i in range(3)
             ]
-            assert min(overlap) <= 0, (
-                f"{part.name} intersects a tyre envelope: {overlap}"
-            )
+            assert (
+                min(overlap) <= 0
+            ), f"{part.name} intersects a tyre envelope: {overlap}"
 
-armour_parts = [obj for obj in parts if obj.active_material == armour]
-parts = [obj for obj in parts if obj.active_material != armour]
-parts.append(bake_armour(armour_parts, armour, palette.wear, MODEL))
-
-bpy.ops.object.select_all(action="DESELECT")
-for obj in parts:
-    obj.select_set(True)
-bpy.context.view_layer.objects.active = parts[0]
-bpy.ops.object.join()
-mesh = bpy.context.object
-mesh.name = "S-08 / armoured interceptor"
-triangulate = mesh.modifiers.new("Export triangles", "TRIANGULATE")
-bpy.ops.object.modifier_apply(modifier=triangulate.name)
-bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
-low = Vector(tuple(min(v.co[i] for v in mesh.data.vertices) for i in range(3)))
-# Tyre blocks extend slightly beyond the circular tyre surface.
-for v in mesh.data.vertices:
-    v.co.z -= low.z
-for index, (name, pos, parent) in enumerate(bones):
-    if name != "Root":
-        bones[index] = (name, (pos[0], pos[1], pos[2] - low.z), parent)
-armature = bpy.data.armatures.new("Bruiser mechanism")
-rig = bpy.data.objects.new("BruiserRig", armature)
-bpy.context.collection.objects.link(rig)
-bpy.context.view_layer.objects.active = rig
-rig.select_set(True)
-bpy.ops.object.mode_set(mode="EDIT")
-for name, pos, parent in bones:
-    bone = armature.edit_bones.new(name)
-    bone.head = pos
-    bone.tail = Vector(pos) + Vector((0, 0, 0.05))
-    if parent:
-        bone.parent = armature.edit_bones[parent]
-bpy.ops.object.mode_set(mode="OBJECT")
-mesh.parent = rig
-mesh.modifiers.new("Rigid mechanisms", "ARMATURE").object = rig
-rest = {b.name: b.matrix_local.to_quaternion() for b in armature.bones}
-rig.animation_data_create()
-scene = bpy.context.scene
-scene.render.fps = FPS
-for clip in ("Idle", "Drive"):
-    action = bpy.data.actions.new(clip)
-    action.use_fake_user = True
-    rig.animation_data.action = action
-    frames = FPS * (4 if clip == "Idle" else 1)
-    for frame in range(frames + 1):
-        t = frame / frames
-        for bone in rig.pose.bones:
-            bone.location = (0, 0, 0)
-            rotation = Euler((0, 0, 0)).to_quaternion()
-            if bone.name.startswith("Wheel") and clip == "Drive":
-                rotation = Euler((math.tau * t, 0, 0)).to_quaternion()
-            if bone.name == "Sensor":
-                rotation = Euler(
-                    (
-                        0.025 * math.sin(math.tau * t),
-                        0,
-                        0.16 * math.sin(math.tau * t) if clip == "Idle" else 0,
-                    )
-                ).to_quaternion()
-            if bone.name == "Hull" and clip == "Drive":
-                bone.location = rest[bone.name].inverted() @ Vector(
-                    (0, 0, 0.003 * (1 - math.cos(2 * math.tau * t)))
-                )
-            bone.rotation_quaternion = (
-                rest[bone.name].inverted() @ rotation @ rest[bone.name]
-            )
-            for channel in ("location", "rotation_quaternion"):
-                bone.keyframe_insert(data_path=channel, frame=frame)
-rig.animation_data.action = bpy.data.actions["Idle"]
-scene.frame_set(0)
-bpy.ops.object.select_all(action="DESELECT")
-mesh.select_set(True)
-rig.select_set(True)
-bpy.context.view_layer.objects.active = rig
-bpy.ops.export_scene.gltf(
-    filepath=str(MODEL),
-    export_format="GLB",
-    use_selection=True,
-    export_animations=True,
-    export_animation_mode="ACTIONS",
-    export_anim_single_armature=True,
-    export_force_sampling=True,
-    export_frame_range=False,
-    export_tangents=True,
-    export_cameras=False,
-    export_lights=False,
+mesh = wheeled_actor.assemble(
+    parts.objects, armour, palette.wear, MODEL, "S-08 / armoured interceptor"
 )
-raw = MODEL.read_bytes()
-length = struct.unpack_from("<I", raw, 12)[0]
-document = json.loads(raw[20 : 20 + length])
-document["animations"].sort(key=lambda a: ("Idle", "Drive").index(a["name"]))
-for animation in document["animations"]:
-    animation["channels"] = [
-        channel
-        for channel in animation["channels"]
-        if (
-            document["nodes"][channel["target"]["node"]]["name"] == "Sensor"
-            if animation["name"] == "Idle"
-            else document["nodes"][channel["target"]["node"]]["name"].startswith(
-                ("Wheel", "Hull")
-            )
-        )
-    ]
-encoded = json.dumps(document, separators=(",", ":")).encode()
-encoded += b" " * (-len(encoded) % 4)
-binary = raw[20 + length :]
-MODEL.write_bytes(
-    struct.pack(
-        "<4sIIII", b"glTF", 2, 20 + len(encoded) + len(binary), len(encoded), 0x4E4F534A
-    )
-    + encoded
-    + binary
-)
-print("Exported bruiser:", MODEL.stat().st_size, "bytes")
-print(
-    "Bounds:",
-    tuple(
-        round(
-            max(v.co[i] for v in mesh.data.vertices)
-            - min(v.co[i] for v in mesh.data.vertices),
-            3,
-        )
-        for i in range(3)
-    ),
-)
+rig = wheeled_actor.build_rig(bones, mesh, "Bruiser")
+wheeled_actor.animate(rig, sensor_sway=(0.025, 0.16), hull_bob=0.003)
+wheeled_actor.export(MODEL, rig, mesh)
 
 if "--preview" in sys.argv:
-    bpy.ops.object.select_all(action="SELECT")
-    bpy.ops.object.delete(use_global=False)
-    for action in list(bpy.data.actions):
-        bpy.data.actions.remove(action)
-    group = bpy.data.node_groups.get("glTF Material Output")
-    if group is not None:
-        bpy.data.node_groups.remove(group, do_unlink=True)
-    bpy.ops.import_scene.gltf(filepath=str(MODEL))
-    rig = next(o for o in scene.objects if o.type == "ARMATURE")
-    rig.animation_data.action = None
-    for track in rig.animation_data.nla_tracks:
-        track.mute = track.name != "Idle"
-    scene.frame_set(0)
-    bpy.ops.mesh.primitive_plane_add(size=200)
-    floor = bpy.context.object
-    mat = bpy.data.materials.new("Studio floor")
-    mat.diffuse_color = (0.075, 0.09, 0.11, 1)
-    floor.data.materials.append(mat)
-    scene.render.engine = "CYCLES"
-    scene.cycles.samples = 48
-    scene.cycles.use_denoising = True
-    scene.world.color = (0.18, 0.18, 0.18)
-    for pos, power, size in (
-        ((-3, -4, 5), 550, 4),
-        ((3, -1, 3), 350, 3),
-        ((1, 3, 4), 700, 3),
-    ):
-        bpy.ops.object.light_add(type="AREA", location=pos)
-        light = bpy.context.object
-        light.data.energy, light.data.size = power, size
-        light.rotation_euler = (
-            (Vector((0, 0, 0.4)) - light.location).to_track_quat("-Z", "Y").to_euler()
-        )
-    bpy.ops.object.camera_add(location=(2.6, -3.4, 2.15))
-    scene.camera = bpy.context.object
-    scene.camera.rotation_euler = (
-        (Vector((0, -0.02, 0.66)) - scene.camera.location)
-        .to_track_quat("-Z", "Y")
-        .to_euler()
+    wheeled_actor.preview_actor(
+        MODEL,
+        camera=(2.6, -3.4, 2.15),
+        look_at=(0, -0.02, 0.66),
+        ortho_scale=2.45,
+        extra_views=(
+            ("rear", (2.6, 3.4, 2.15), (0, 0, 0.66), 2.45, 1100),
+            ("gameplay", (2.6, -3.4, 2.15), (0, -0.02, 0.66), 5.0, 512),
+        ),
+        motion="--motion" in sys.argv,
     )
-    scene.camera.data.type = "ORTHO"
-    scene.camera.data.ortho_scale = 2.45
-    scene.render.resolution_x = scene.render.resolution_y = 1100
-    scene.render.resolution_percentage = 100
-    scene.render.filepath = "/tmp/bruiser-preview.png"
-    bpy.ops.render.render(write_still=True)
-    camera_pose = scene.camera.matrix_world.copy()
-    scene.camera.location = (2.6, 3.4, 2.15)
-    scene.camera.rotation_euler = (
-        (Vector((0, 0, 0.66)) - scene.camera.location)
-        .to_track_quat("-Z", "Y")
-        .to_euler()
-    )
-    scene.render.filepath = "/tmp/bruiser-rear.png"
-    bpy.ops.render.render(write_still=True)
-    scene.camera.matrix_world = camera_pose
-    scene.camera.data.ortho_scale = 5.0
-    scene.render.resolution_x = scene.render.resolution_y = 512
-    scene.render.filepath = "/tmp/bruiser-gameplay.png"
-    bpy.ops.render.render(write_still=True)
-    scene.camera.data.ortho_scale = 2.45
-    if "--motion" in sys.argv:
-        output = Path("/tmp/bruiser-motion")
-        output.mkdir(exist_ok=True)
-        scene.render.engine = "BLENDER_WORKBENCH"
-        scene.display.shading.light = "STUDIO"
-        scene.display.shading.color_type = "MATERIAL"
-        scene.display.shading.show_cavity = True
-        for mat in bpy.data.materials:
-            if not mat.use_nodes:
-                continue
-            shader = mat.node_tree.nodes.get("Principled BSDF")
-            if shader and shader.inputs["Base Color"].is_linked:
-                image = getattr(
-                    shader.inputs["Base Color"].links[0].from_node, "image", None
-                )
-                if image:
-                    mat.diffuse_color = tuple(image.pixels[:4])
-        scene.render.resolution_x = scene.render.resolution_y = 720
-        for frame in range(96):
-            for track in rig.animation_data.nla_tracks:
-                track.mute = False
-                for strip in track.strips:
-                    strip.repeat = 10
-                    if track.name == "Drive":
-                        strip.use_animated_time = True
-                        strip.strip_time = min(max(frame - 32, 0), 40) % FPS
-            scene.frame_set(frame)
-            scene.render.filepath = str(output / f"frame-{frame:04d}.png")
-            bpy.ops.render.render(write_still=True)

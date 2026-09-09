@@ -14,9 +14,7 @@ from mathutils import Vector
 MODEL = Path(__file__).resolve().with_name("player.glb")
 HANDS = "--hands" in sys.argv
 JUMP = "--jump" in sys.argv
-OUTPUT = Path(
-    "/tmp/player-jump-preview" if JUMP else "/tmp/player-mocap-preview"
-)
+OUTPUT = Path("/tmp/player-jump-preview" if JUMP else "/tmp/player-mocap-preview")
 OUTPUT.mkdir(exist_ok=True)
 bpy.ops.object.select_all(action="SELECT")
 bpy.ops.object.delete(use_global=False)

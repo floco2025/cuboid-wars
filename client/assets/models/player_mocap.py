@@ -1,4 +1,4 @@
-"""Read CMU Acclaim captures and retarget their joint rotations to the field-unit rig."""
+"""Read CMU Acclaim captures and retarget their joint rotations to the player rig."""
 
 import math
 from pathlib import Path
@@ -115,7 +115,7 @@ TAKES = {
 }
 
 
-class RobotMocap:
+class PlayerMocap:
     def __init__(self, rig):
         self.rig = rig
         self.captures = {

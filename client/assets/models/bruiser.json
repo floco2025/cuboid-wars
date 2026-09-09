@@ -95,6 +95,7 @@
     }
   },
   "wear": {
+    "style": "painted",
     "edge_width": 0.018,
     "edge_chip_threshold": 0.63,
     "paint_variation_color": [

@@ -17,7 +17,7 @@
 
 | Asset | Source | License |
 | --- | --- | --- |
-| `models/bruiser_textures/*.png`, `models/scuttler_textures/*.png`, `models/zapper_textures/*.png`, `models/turret_textures/*.png`, `models/player_textures/*.png` | Project-created with [model_wear.py](models/model_wear.py) | Project-owned |
+| `models/bruiser_textures/*.png`, `models/scuttler_textures/*.png`, `models/zapper_textures/*.png`, `models/turret_textures/*.png`, `models/player_textures/*.png` | Project-created with [modelkit/wear.py](models/modelkit/wear.py) | Project-owned |
 | `textures/art-deco-scales-wallpaper-ue/*.png` | [FreePBR.com](https://freepbr.com/) — Art Deco scales wallpaper | [FreePBR terms](https://freepbr.com/about-free-pbr/) |
 | `textures/beige-carpet-worn1-ue/*.png` | [FreePBR.com](https://freepbr.com/) — Beige carpet worn 1 | [FreePBR terms](https://freepbr.com/about-free-pbr/) |
 | `textures/bricks-mortar-ue/*.png` | [FreePBR.com](https://freepbr.com/) — Bricks mortar | [FreePBR terms](https://freepbr.com/about-free-pbr/) |
@@ -30,7 +30,6 @@
 | `textures/mud-with-vegetation-ue/*.png` | [FreePBR.com](https://freepbr.com/) — Mud with vegetation | [FreePBR terms](https://freepbr.com/about-free-pbr/) |
 | `textures/patched-brickwork-ue/*.png` | [FreePBR.com](https://freepbr.com/) — Patched brickwork | [FreePBR terms](https://freepbr.com/about-free-pbr/) |
 | `textures/rectangle-polished-tile-ue/*.png` | [FreePBR.com](https://freepbr.com/) — Rectangle polished tile | [FreePBR terms](https://freepbr.com/about-free-pbr/) |
-| `textures/scuffed-plastic-1-Unreal-Engine/*.png` | [FreePBR.com](https://freepbr.com/) — Scuffed plastic 1 | [FreePBR terms](https://freepbr.com/about-free-pbr/) |
 | `textures/smooth-temple-blocks-ue/*.png` | [FreePBR.com](https://freepbr.com/) — Smooth temple blocks | [FreePBR terms](https://freepbr.com/about-free-pbr/) |
 | `textures/steelplate1-ue/*.png` | [FreePBR.com](https://freepbr.com/) — Steel plate 1 | [FreePBR terms](https://freepbr.com/about-free-pbr/) |
 | `textures/stucco1_ue/*.png` | [FreePBR.com](https://freepbr.com/) — Stucco 1 | [FreePBR terms](https://freepbr.com/about-free-pbr/) |

@@ -1,69 +1,33 @@
-"""Build both wall lights: blender --background --python client/assets/models/wall_lights.py."""
+"""Build both wall lights in Blender; add -- --preview for a comparison still in /tmp."""
 
 import math
 import sys
 from pathlib import Path
 
 import bpy
-from mathutils import Vector
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from model_materials import ModelMaterials, plain_material, project_uv
+from modelkit import ModelMaterials, plain_material, preview, primitives
 
 MODELS = Path(__file__).resolve().parent
 
 
+def loose(obj):
+    """Fixtures export as separate unparented meshes."""
+
+
 def finish(obj, name, mat, bevel):
-    obj.name = name
-    obj.data.name = name
-    obj.data.materials.append(mat)
-    smooth(obj)
-    if bevel:
-        modifier = obj.modifiers.new("Edge radii", "BEVEL")
-        modifier.width = bevel
-        modifier.segments = 3
-        obj.modifiers.new("Surface normals", "WEIGHTED_NORMAL")
-        apply_modifiers(obj)
-        smooth(obj)
-    project_uv(obj, mat)
-    return obj
-
-
-def smooth(obj):
-    for face in obj.data.polygons:
-        face.use_smooth = True
-
-
-# The glTF exporter writes the mesh as it is, so the bevel and the weighted
-# normals only reach the file once they are applied.
-def apply_modifiers(obj):
-    bpy.ops.object.select_all(action="DESELECT")
-    obj.select_set(True)
-    bpy.context.view_layer.objects.active = obj
-    for modifier in list(obj.modifiers):
-        bpy.ops.object.modifier_apply(modifier=modifier.name)
+    return primitives.finish(obj, name, mat, loose, bevel, 3, "all")
 
 
 def box(name, pos, size, mat, bevel=0.015):
-    bpy.ops.mesh.primitive_cube_add(size=1, location=pos)
-    obj = bpy.context.object
-    obj.dimensions = size
-    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
-    return finish(obj, name, mat, bevel)
+    return primitives.box(name, pos, size, mat, loose, bevel, 3, "all")
 
 
 def rod(name, start, end, radius, mat, vertices=24):
-    direction = Vector(end) - Vector(start)
-    bpy.ops.mesh.primitive_cylinder_add(
-        vertices=vertices,
-        radius=radius,
-        depth=direction.length,
-        location=(Vector(start) + Vector(end)) / 2,
+    return primitives.rod(
+        name, start, end, radius, mat, loose, vertices, 0.003, 3, "all"
     )
-    obj = bpy.context.object
-    obj.rotation_euler = direction.to_track_quat("Z", "Y").to_euler()
-    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
-    return finish(obj, name, mat, 0.003)
 
 
 def decorative():
@@ -209,46 +173,31 @@ def utility():
 
 
 for kind, build in [("decorative", decorative), ("utility", utility)]:
-    bpy.ops.object.select_all(action="SELECT")
-    bpy.ops.object.delete(use_global=False)
+    preview.clear_scene()
     build()
+    model = MODELS / f"wall_light_{kind}.glb"
     bpy.ops.export_scene.gltf(
-        filepath=str(MODELS / f"wall_light_{kind}.glb"),
+        filepath=str(model),
         export_format="GLB",
         export_animations=False,
         export_cameras=False,
         export_lights=False,
     )
+    print(f"Exported {model.name}:", model.stat().st_size, "bytes")
 
-bpy.ops.object.select_all(action="SELECT")
-bpy.ops.object.delete(use_global=False)
-for kind, x in [("decorative", -0.65), ("utility", 0.65)]:
-    bpy.ops.import_scene.gltf(filepath=str(MODELS / f"wall_light_{kind}.glb"))
-    for obj in bpy.context.selected_objects:
-        if obj.parent is None:
-            obj.location.x += x
-wall = plain_material("Preview wall", (0.12, 0.14, 0.16), roughness=0.9)
-box("Studio wall", (0, 0.075, 0), (200, 0.15, 200), wall, 0)
-scene = bpy.context.scene
-scene.render.engine = "CYCLES"
-scene.cycles.samples = 48
-scene.world.color = (0.20, 0.20, 0.20)
-for pos, power, size in [((-2, -3, 3), 350, 3), ((2, -2, 1), 180, 2)]:
-    bpy.ops.object.light_add(type="AREA", location=pos)
-    light = bpy.context.object
-    light.data.energy = power
-    light.data.shape = "DISK"
-    light.data.size = size
-    light.rotation_euler = (-light.location).to_track_quat("-Z", "Y").to_euler()
-bpy.ops.object.camera_add(location=(1.2, -4.5, 1.4))
-scene.camera = bpy.context.object
-scene.camera.rotation_euler = (
-    (-scene.camera.location).to_track_quat("-Z", "Y").to_euler()
-)
-scene.camera.data.type = "ORTHO"
-scene.camera.data.ortho_scale = 2.8
-scene.render.resolution_x = 1400
-scene.render.resolution_y = 750
-scene.render.resolution_percentage = 100
-scene.render.filepath = "/tmp/wall-lights-preview.png"
-bpy.ops.render.render(write_still=True)
+if "--preview" in sys.argv:
+    preview.clear_scene()
+    for kind, x in [("decorative", -0.65), ("utility", 0.65)]:
+        bpy.ops.import_scene.gltf(filepath=str(MODELS / f"wall_light_{kind}.glb"))
+        for obj in bpy.context.selected_objects:
+            if obj.parent is None:
+                obj.location.x += x
+    scene = bpy.context.scene
+    low, high = preview.visible_bounds(scene)
+    camera = preview.studio(scene, (0, 0, 0), max(high - low))
+    wall = plain_material("Preview wall", (0.12, 0.14, 0.16), roughness=0.9)
+    box("Studio wall", (0, 0.075, 0), (200, 0.15, 200), wall, 0)
+    preview.aim(camera, (1.2, -4.5, 1.4), (0, 0, 0))
+    camera.data.ortho_scale = 2.8
+    scene.render.resolution_x, scene.render.resolution_y = 1400, 750
+    preview.render(scene, "/tmp/wall-lights-preview.png")
