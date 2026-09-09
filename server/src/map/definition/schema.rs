@@ -24,7 +24,9 @@ pub(crate) struct MapDef {
     #[serde(default)]
     pub(crate) actor_spawn_zones: Vec<ActorSpawnZoneDef>,
     #[serde(default)]
-    pub(crate) player_spawn_zones: Vec<PlayerSpawnZoneDef>,
+    pub(crate) player_spawn_zones: Vec<ZoneDef>,
+    #[serde(default)]
+    pub(crate) checkpoints: Vec<ZoneDef>,
     #[serde(default)]
     pub(crate) items: Vec<ItemDef>,
     #[serde(default)]
@@ -207,7 +209,7 @@ pub(crate) struct ActorSpawnZoneDef {
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
-pub(crate) struct PlayerSpawnZoneDef {
+pub(crate) struct ZoneDef {
     pub(crate) level: u32,
     pub(crate) cols: [i32; 2],
     pub(crate) rows: [i32; 2],

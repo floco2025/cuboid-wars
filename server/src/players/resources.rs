@@ -12,7 +12,7 @@ use common::protocol::{
     PortalAccess, Position, PowerUpKind, QuestId, QuestScope, SPlayerStatus,
 };
 
-use super::{PlayerFallState, PowerUpState};
+use super::{PlayerCheckpoint, PlayerFallState, PowerUpState};
 
 pub type PlayerStateQuery<'w, 's> = Query<
     'w,
@@ -80,6 +80,7 @@ pub struct PlayerSession {
     pub hops: u32,
     pub score: i32,
     pub quest_states: HashMap<QuestId, PlayerQuestState>,
+    pub checkpoint: Option<PlayerCheckpoint>,
 }
 
 enum PlayerLifecycle {
@@ -426,9 +427,15 @@ impl PlayerMap {
             if *group <= 0.0 {
                 self.group_respawn = None;
                 to_respawn.extend(
-                    self.iter()
+                    self.iter_mut()
                         .filter(|(_, info)| info.connection.logged_in && info.is_dead())
-                        .map(|(id, _)| *id),
+                        .map(|(id, info)| {
+                            // A blocked checkpoint keeps retrying after the shared countdown has ended.
+                            info.life.lifecycle = PlayerLifecycle::Dead {
+                                respawn_remaining_secs: 0.0,
+                            };
+                            *id
+                        }),
                 );
             }
         } else {

@@ -232,6 +232,17 @@ pub struct GrassCell {
     pub carrier: CarrierId,
 }
 
+#[derive(Debug, Clone, Copy, Encode, Decode)]
+pub struct Checkpoint {
+    pub carrier: CarrierId,
+    pub level: u8,
+    pub min_x: f32,
+    pub max_x: f32,
+    pub min_z: f32,
+    pub max_z: f32,
+    pub y: f32,
+}
+
 #[derive(Debug, Clone, Encode, Decode, Resource, Default)]
 pub struct MapLayout {
     pub walls: Vec<Wall>,
@@ -252,6 +263,7 @@ pub struct MapLayout {
     pub ladders: Vec<Ladder>,
     pub pressure_plates: Vec<PressurePlate>,
     pub grass: Vec<GrassCell>,
+    pub checkpoints: Vec<Checkpoint>,
 }
 
 impl MapLayout {
@@ -260,7 +272,7 @@ impl MapLayout {
     #[must_use]
     pub fn summary(&self) -> String {
         format!(
-            "{} walls, {} floors, {} ramps, {} ladders, {} barriers, {} erasers, {} light bridges, {} carriers, {} wall lights, {} pressure plates",
+            "{} walls, {} floors, {} ramps, {} ladders, {} barriers, {} erasers, {} light bridges, {} carriers, {} wall lights, {} pressure plates, {} checkpoints",
             self.walls.len(),
             self.floors.len(),
             self.ramps.len(),
@@ -271,6 +283,7 @@ impl MapLayout {
             self.carriers.len(),
             self.wall_lights.len(),
             self.pressure_plates.len(),
+            self.checkpoints.len(),
         )
     }
 

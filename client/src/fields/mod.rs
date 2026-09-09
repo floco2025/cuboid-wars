@@ -1,10 +1,12 @@
 mod assets;
+mod checkpoints;
 mod erasers;
 mod geometry;
 mod spawn;
 mod surface;
 
 pub(crate) use assets::{FieldMeshes, KindVisual};
+pub(crate) use checkpoints::{CheckpointAssets, CheckpointMarker, checkpoints_spawn_system};
 pub use erasers::EraserMarker;
 pub(crate) use erasers::{EraserAssets, erasers_spawn_system};
 pub(crate) use geometry::{VisualField, merge_fields};

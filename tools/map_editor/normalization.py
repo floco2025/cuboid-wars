@@ -48,6 +48,7 @@ def empty_map(grid_cols: int = DEFAULT_GRID_COLS, grid_rows: int = DEFAULT_GRID_
         "player_spawn_zones": [
             {"level": 0, "cols": [0, min(2, grid_cols)], "rows": [0, min(2, grid_rows)]},
         ],
+        "checkpoints": [],
         "items": [],
         "pressure_plates": [],
         "levels": [empty_level(0)],
@@ -123,6 +124,7 @@ def normalize_map(map_data: dict) -> dict:
         "grid_rows": rows,
         "actor_spawn_zones": actor_spawn_zones,
         "player_spawn_zones": player_spawn_zones,
+        "checkpoints": [normalize_player_spawn_zone(z) for z in map_data.get("checkpoints", [])],
         "items": items,
         "pressure_plates": pressure_plates,
         "levels": levels,
@@ -404,6 +406,7 @@ def canonicalize_map(map_data: dict) -> dict:
     enforce_ramp_floor_rules(b)
     b["actor_spawn_zones"] = _dedupe_sorted(b["actor_spawn_zones"], actor_zone_key)
     b["player_spawn_zones"] = _dedupe_sorted(b["player_spawn_zones"], player_zone_key)
+    b["checkpoints"] = _dedupe_sorted(b["checkpoints"], player_zone_key)
     b["pressure_plates"] = _dedupe_sorted(b["pressure_plates"], pressure_plate_key)
     # Ramp footprints occupy cells on both the lower and upper level of each
     # ramp. Lights are not allowed inside any of those cells.

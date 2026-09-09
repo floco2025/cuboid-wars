@@ -28,7 +28,7 @@ use common::{
     },
 };
 
-fn respawn_app(mode: PlayerRespawnMode, scope: ActorRespawnScope) -> App {
+pub(super) fn respawn_app(mode: PlayerRespawnMode, scope: ActorRespawnScope) -> App {
     let mut config = ServerGameplayConfig::load_default().expect("gameplay config rejected");
     config.player.respawn_secs = 2.0;
     config.actors.settings.spawn_warning_secs = 3.0;
@@ -113,7 +113,7 @@ fn respawn_app(mode: PlayerRespawnMode, scope: ActorRespawnScope) -> App {
     app
 }
 
-fn advance(app: &mut App, secs: f32) {
+pub(super) fn advance(app: &mut App, secs: f32) {
     app.world_mut()
         .resource_mut::<Time>()
         .advance_by(Duration::from_secs_f32(secs));
@@ -133,7 +133,7 @@ fn materialize_actors(app: &mut App) {
     advance(app, TICK_DURATION.as_secs_f32());
 }
 
-fn add_player(app: &mut App, id: PlayerId) -> (Entity, UnboundedReceiver<ServerToClient>) {
+pub(super) fn add_player(app: &mut App, id: PlayerId) -> (Entity, UnboundedReceiver<ServerToClient>) {
     let pos = Position {
         x: -8.0 + id.0 as f32,
         y: 0.0,
@@ -153,7 +153,7 @@ fn add_player(app: &mut App, id: PlayerId) -> (Entity, UnboundedReceiver<ServerT
     (entity, rx)
 }
 
-fn kill(app: &mut App, id: PlayerId) {
+pub(super) fn kill(app: &mut App, id: PlayerId) {
     let config = app.world().resource::<ServerGameplayConfig>().clone();
     app.world_mut().resource_scope(|world, mut players: Mut<PlayerMap>| {
         let entity = players

@@ -288,6 +288,7 @@
       "portal_fizzle": "sounds/portal-fizzle.wav",
       "portal_fire": "sounds/Retro Charge StereoUP 12.wav",
       "quest_completed": "sounds/Retro Event Acute 08.wav",
+      "checkpoint_reached": "sounds/Retro Success Melody 01 - sawtooth lead 1.wav",
       "rain": "sounds/rain-on-umbrella-loop.wav"
     }
   },

@@ -31,6 +31,8 @@ MODE_GRASS = "Grass"
 MODE_ERASE_GRASS = "Erase Grass"
 MODE_ACTOR_SPAWN_ZONE = "Actor Spawn Zone"
 MODE_PLAYER_SPAWN_ZONE = "Player Spawn Zone"
+MODE_CHECKPOINT = "Checkpoint"
+MODE_ERASE_CHECKPOINTS = "Erase Checkpoints"
 MODE_ERASE_SPAWN_ZONES = "Erase Spawn Zones"
 MODE_ITEM = "Item"
 MODE_ERASE_ITEMS = "Erase Items"
@@ -63,7 +65,7 @@ MODE_FIREWORK_PLATE = "Firework Plate"
 MODE_ERASE_PRESSURE_PLATES = "Erase Pressure Plates"
 RAMP_MODES = (MODE_RAMP_UP, MODE_RAMP_DOWN)
 ERASE_MODES = (MODE_ERASE, MODE_ERASE_KEEP_FLOORS)
-SPAWN_ZONE_MODES = (MODE_ACTOR_SPAWN_ZONE, MODE_PLAYER_SPAWN_ZONE)
+ZONE_MODES = (MODE_ACTOR_SPAWN_ZONE, MODE_PLAYER_SPAWN_ZONE, MODE_CHECKPOINT)
 MATERIAL_MODES = (MODE_FLOOR_MATERIAL, MODE_WALL_MATERIAL, MODE_RAMP_MATERIAL)
 # What a pick under the cursor found; the kind doubles as the hover title
 # and the "Erase <kind>" label.
@@ -80,6 +82,7 @@ HIT_LADDER = "Ladder"
 HIT_ITEM = "Item"
 HIT_RAMP = "Ramp"
 HIT_SPAWN_ZONE = "Spawn Zone"
+HIT_CHECKPOINT = MODE_CHECKPOINT
 HIT_PRESSURE_PLATE = "Pressure Plate"
 # The picks Erase (Keep Floors) leaves in place.
 FLOOR_HIT_KINDS = (HIT_FLOOR, HIT_INACCESSIBLE_FLOOR, HIT_LIGHT_BRIDGE, HIT_NESTED_MAP)
@@ -115,6 +118,7 @@ MODE_CATEGORIES: list[tuple[str, list[str]]] = [
         "Spawn Zones",
         [MODE_ACTOR_SPAWN_ZONE, MODE_PLAYER_SPAWN_ZONE, MODE_ERASE_SPAWN_ZONES],
     ),
+    ("Checkpoints", [MODE_CHECKPOINT, MODE_ERASE_CHECKPOINTS]),
     ("Walls", [MODE_WALL, MODE_ERASE_WALLS]),
     ("Barriers", [MODE_BARRIER, MODE_ERASE_BARRIERS]),
     ("Equipment Erasers", [MODE_EQUIPMENT_ERASER, MODE_ERASE_EQUIPMENT_ERASERS]),
@@ -132,7 +136,9 @@ MODE_CATEGORIES: list[tuple[str, list[str]]] = [
 # Named lists in map_data so the editor can refer to them generically.
 ACTOR_ZONE_LIST = "actor_spawn_zones"
 PLAYER_ZONE_LIST = "player_spawn_zones"
+CHECKPOINT_LIST = "checkpoints"
 SPAWN_ZONE_LISTS = (ACTOR_ZONE_LIST, PLAYER_ZONE_LIST)
+ZONE_LISTS = (*SPAWN_ZONE_LISTS, CHECKPOINT_LIST)
 ITEMS_LIST = "items"
 NESTED_MAPS_LIST = "nested_maps"
 

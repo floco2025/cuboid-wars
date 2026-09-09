@@ -1,7 +1,7 @@
 use std::f32::consts::FRAC_PI_2;
 
 use bevy::prelude::*;
-use common::protocol::{Barrier, BarrierKindId, CarrierId, Eraser, Floor, MapLayout};
+use common::protocol::{Barrier, BarrierKindId, CarrierId, Checkpoint, Eraser, Floor, MapLayout};
 
 use super::surface::{clip_surface_rects, floor_bounds, surface_frame_rects};
 
@@ -20,6 +20,29 @@ pub(crate) struct VisualField {
 }
 
 impl VisualField {
+    pub fn checkpoint_perimeter(checkpoint: &Checkpoint, height: f32, thickness: f32) -> [Self; 4] {
+        let c = checkpoint;
+        [
+            (c.min_x, c.min_z, c.max_x, c.min_z),
+            (c.min_x, c.max_z, c.max_x, c.max_z),
+            (c.min_x, c.min_z, c.min_x, c.max_z),
+            (c.max_x, c.min_z, c.max_x, c.max_z),
+        ]
+        .map(|(x1, z1, x2, z2)| {
+            let (axis, plane, rect) = segment_rect(Vec3::new(x1, c.y, z1), Vec3::new(x2, c.y + height, z2));
+            Self {
+                kind: None,
+                carrier: c.carrier,
+                level: c.level,
+                levels: 1,
+                rect,
+                thickness,
+                axis,
+                plane,
+            }
+        })
+    }
+
     pub fn from_barrier(barrier: &Barrier) -> Self {
         let (axis, plane, rect) = segment_rect(
             Vec3::new(barrier.x1, barrier.y, barrier.z1),
@@ -183,6 +206,31 @@ fn near(a: f32, b: f32) -> bool {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn checkpoint_perimeter_has_four_vertical_sides_and_an_open_top() {
+        let checkpoint = Checkpoint {
+            carrier: CarrierId::WORLD,
+            level: 2,
+            min_x: 1.0,
+            max_x: 7.0,
+            min_z: 3.0,
+            max_z: 11.0,
+            y: 8.0,
+        };
+        let fields = VisualField::checkpoint_perimeter(&checkpoint, 0.9, 0.05);
+        for field in fields {
+            assert_eq!(field.carrier, checkpoint.carrier);
+            assert_eq!(field.level, 2);
+            assert_eq!(field.rect.min.y, 8.0);
+            assert!((field.rect.max.y - 8.9).abs() < 1e-5);
+            assert!(field.axis == 0 || field.axis == 2);
+        }
+        assert_eq!([fields[0].plane, fields[1].plane], [3.0, 11.0]);
+        assert_eq!([fields[2].plane, fields[3].plane], [1.0, 7.0]);
+        assert_eq!(fields[0].rect.width(), 6.0);
+        assert_eq!(fields[2].rect.width(), 8.0);
+    }
+
     use super::*;
     use common::protocol::Wall;
 

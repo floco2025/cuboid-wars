@@ -518,6 +518,10 @@ impl SPlayerStatus {
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SEraserEntered;
 
+// Private edge-triggered sound and banner; checkpoint progress stays on the server.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SCheckpointReached;
+
 // Player collected gold. Sent only to the collecting player; drives the
 // pickup sound AND carries the post-pickup score for snappier HUD reaction.
 // The snapshot remains the system of record — this is just an early-arriving
@@ -678,6 +682,7 @@ pub enum ServerMessage {
     ActorBeam(SActorBeam),
     PlayerStatus(SPlayerStatus),
     EraserEntered(SEraserEntered),
+    CheckpointReached(SCheckpointReached),
     GoldCollected(SGoldCollected),
     HealthPotionCollected(SHealthPotionCollected),
     PressurePlate(SPressurePlate),
@@ -741,6 +746,7 @@ impl ServerMessage {
             | Self::ActorBeam(_)
             | Self::PlayerStatus(_)
             | Self::EraserEntered(_)
+            | Self::CheckpointReached(_)
             | Self::GoldCollected(_)
             | Self::HealthPotionCollected(_)
             | Self::PressurePlate(_)
@@ -776,6 +782,7 @@ mod tests {
     fn unreliable_lane_messages_fit_one_datagram() {
         let messages = [
             ServerMessage::EraserEntered(SEraserEntered),
+            ServerMessage::CheckpointReached(SCheckpointReached),
             ServerMessage::PlayerStatus(SPlayerStatus {
                 collected: Some(ItemType::SpeedPowerUp),
                 id: PlayerId(1),

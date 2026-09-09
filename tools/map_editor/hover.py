@@ -14,6 +14,7 @@ from .constants import (
     HIT_NESTED_MAP,
     HIT_PRESSURE_PLATE,
     HIT_RAMP,
+    HIT_CHECKPOINT,
     HIT_SPAWN_ZONE,
     HIT_WALL,
     ITEMS_LIST,
@@ -74,12 +75,12 @@ def element_hover_text(data: dict, level_idx: int, hit) -> str | None:
         label = item["type"].replace("_", " ").capitalize()
         return f"{label}: {item['kind']}" if "kind" in item else label
 
-    if kind == HIT_SPAWN_ZONE:
+    if kind in (HIT_SPAWN_ZONE, HIT_CHECKPOINT):
         list_name, index = value
         zone = data[list_name][index]
         if list_name == ACTOR_ZONE_LIST:
             return f"Actor spawn zone: {zone['kind']}\nCount: {zone['count']}"
-        return "Player spawn zone"
+        return "Checkpoint" if kind == HIT_CHECKPOINT else "Player spawn zone"
 
     if kind == HIT_RAMP:
         lower = value[0]

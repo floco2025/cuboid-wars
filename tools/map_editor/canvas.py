@@ -15,6 +15,7 @@ from .constants import (
     HIT_ITEM,
     HIT_NESTED_MAP,
     HIT_PRESSURE_PLATE,
+    HIT_CHECKPOINT,
     HIT_SPAWN_ZONE,
     MATERIAL_MODES,
     MODE_ACTOR_SPAWN_ZONE,
@@ -35,6 +36,7 @@ from .constants import (
     MODE_LIGHT_BRIDGE,
     MODE_NESTED_MAP,
     MODE_PLAYER_SPAWN_ZONE,
+    MODE_CHECKPOINT,
     MODE_PRESSURE_PLATE,
     MODE_RAMP_MATERIAL,
     MODE_WALL,
@@ -167,6 +169,7 @@ RELEASE_TOOLS = {
     MODE_GRASS: _cell_rect_tool("add_grass_rect"),
     MODE_ACTOR_SPAWN_ZONE: _cell_rect_tool("add_actor_spawn_zone_rect"),
     MODE_PLAYER_SPAWN_ZONE: _cell_rect_tool("add_player_spawn_zone_rect"),
+    MODE_CHECKPOINT: _cell_rect_tool("add_checkpoint_rect"),
     MODE_WALL: _wall_line_tool("add_wall_line"),
     MODE_BARRIER: _wall_line_tool("prompt_and_add_barrier_line"),
     MODE_EQUIPMENT_ERASER: _wall_line_tool("add_equipment_eraser_line"),
@@ -562,7 +565,7 @@ class Canvas(CanvasPaintingMixin, QWidget):
             menu.exec(event.globalPos())
             return
         kind, value = hit
-        if kind == HIT_SPAWN_ZONE:
+        if kind in (HIT_SPAWN_ZONE, HIT_CHECKPOINT):
             list_name, index = value
             self.window.set_selected_spawn_zone(ZoneRef(list_name, index))
             if self.window.selected_spawn_zone_has_fields():

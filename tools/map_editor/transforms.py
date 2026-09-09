@@ -4,14 +4,14 @@ from __future__ import annotations
 
 import copy
 
-from .constants import SPAWN_ZONE_LISTS
+from .constants import ZONE_LISTS
 from .normalization import empty_level
 
 
 CELL_LISTS = ("floors", "inaccessible_floors", "grass", "light_bridges", "lights")
 EDGE_LISTS = ("walls", "barriers", "erasers")
 LEVEL_LISTS = (*CELL_LISTS, *EDGE_LISTS)
-GLOBAL_LISTS = (*SPAWN_ZONE_LISTS, "items", "pressure_plates", "ramps", "ladders", "nested_maps")
+GLOBAL_LISTS = (*ZONE_LISTS, "items", "pressure_plates", "ramps", "ladders", "nested_maps")
 
 
 def record_lists(data: dict):
@@ -23,7 +23,7 @@ def record_lists(data: dict):
 
 
 def record_rect(name: str, entry: dict) -> tuple[int, int, int, int]:
-    if name in SPAWN_ZONE_LISTS:
+    if name in ZONE_LISTS:
         return entry["cols"][0], entry["rows"][0], entry["cols"][1], entry["rows"][1]
     if name in EDGE_LISTS:
         return (
@@ -56,7 +56,7 @@ def record_levels(entry: dict, level: int | None = None) -> tuple[int, int]:
 
 def translate_entry(name: str, entry: dict, dc: int = 0, dr: int = 0, dl: int = 0) -> dict:
     moved = copy.deepcopy(entry)
-    if name in SPAWN_ZONE_LISTS:
+    if name in ZONE_LISTS:
         moved["cols"] = [c + dc for c in entry["cols"]]
         moved["rows"] = [r + dr for r in entry["rows"]]
     elif name in EDGE_LISTS:
@@ -92,7 +92,7 @@ def resize_map_data(data: dict, cols: int, rows: int, anchor_x: int, anchor_y: i
         kept = []
         for entry in entries:
             c0, r0, c1, r1 = record_rect(name, entry)
-            if name in SPAWN_ZONE_LISTS:
+            if name in ZONE_LISTS:
                 c0, r0, c1, r1 = max(0, c0), max(0, r0), min(cols, c1), min(rows, r1)
                 if c0 >= c1 or r0 >= r1:
                     continue

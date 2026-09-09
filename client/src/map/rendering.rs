@@ -4,7 +4,7 @@ use bevy::{
     prelude::*,
 };
 
-use crate::fields::EraserMarker;
+use crate::fields::{CheckpointMarker, EraserMarker};
 use crate::{
     bridges::LightBridgeMarker,
     carriers::{CarrierEntities, CarrierStoreys},
@@ -212,6 +212,7 @@ type MapLevelFilter = Or<(
     With<GrassMarker>,
     With<LightBridgeMarker>,
     With<EraserMarker>,
+    With<CheckpointMarker>,
     With<RampMarker>,
     With<LadderMarker>,
 )>;
@@ -330,7 +331,7 @@ mod tests {
     }
 
     #[test]
-    fn light_bridges_and_erasers_follow_level_focus_like_floors() {
+    fn light_bridges_erasers_and_checkpoints_follow_level_focus_like_floors() {
         let mut app = App::new();
         app.add_plugins(MinimalPlugins)
             .insert_resource(FocusedMapLevel(Some(1)))
@@ -346,8 +347,12 @@ mod tests {
             .world_mut()
             .spawn((EraserMarker, level(2, 0), Visibility::Visible))
             .id();
+        let checkpoint = app
+            .world_mut()
+            .spawn((CheckpointMarker, level(2, 0), Visibility::Visible))
+            .id();
         let visibility = |app: &App| {
-            [bridge, eraser].map(|entity| {
+            [bridge, eraser, checkpoint].map(|entity| {
                 *app.world()
                     .get::<Visibility>(entity)
                     .expect("map element lost its visibility")
@@ -355,11 +360,11 @@ mod tests {
         };
 
         app.update();
-        assert_eq!(visibility(&app), [Visibility::Hidden; 2]);
+        assert_eq!(visibility(&app), [Visibility::Hidden; 3]);
 
         app.insert_resource(FocusedMapLevel(Some(2)));
         app.update();
-        assert_eq!(visibility(&app), [Visibility::Visible; 2]);
+        assert_eq!(visibility(&app), [Visibility::Visible; 3]);
     }
 
     #[test]

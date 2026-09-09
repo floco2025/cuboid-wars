@@ -36,6 +36,7 @@ const REQUIRED_PLAYER_SOUNDS: &[&str] = &[
     "portal_fire",
     "portal_fizzle",
     "quest_completed",
+    "checkpoint_reached",
     "rain",
     "take_hit",
     "void_fall",

@@ -3,6 +3,7 @@ use std::iter::once;
 use bevy::prelude::*;
 
 use super::fade::fade_out_alpha;
+#[cfg(test)]
 use crate::constants::HUD_LINE_FADE_SECS;
 
 // A column of rows that each live for a while and fade out — the HUD banner
@@ -20,9 +21,10 @@ pub struct TimedLines {
 #[derive(Component)]
 pub struct TimedLine {
     pub remaining_secs: f32,
+    pub fade_out_secs: f32,
 }
 
-// Ages every row, fades it over its final `HUD_LINE_FADE_SECS`, despawns it
+// Ages every row, fades it over its own final fade interval, despawns it
 // once expired, and expires the oldest rows beyond the cap on the spot.
 pub fn ui_timed_lines_system(
     mut commands: Commands,
@@ -56,7 +58,7 @@ pub fn ui_timed_lines_system(
                 continue;
             }
             alive += 1;
-            let fade = fade_out_alpha(line.remaining_secs, HUD_LINE_FADE_SECS);
+            let fade = fade_out_alpha(line.remaining_secs, line.fade_out_secs);
             strongest = strongest.max(fade);
             // A row is either one text or a row of text runs.
             let texts = texts.into_iter().flat_map(|texts| texts.iter());
@@ -112,7 +114,10 @@ mod tests {
     fn row(app: &mut App, root: Entity, secs: f32) -> Entity {
         app.world_mut()
             .spawn((
-                TimedLine { remaining_secs: secs },
+                TimedLine {
+                    remaining_secs: secs,
+                    fade_out_secs: HUD_LINE_FADE_SECS,
+                },
                 ChildOf(root),
                 TextColor(Color::WHITE),
             ))
@@ -187,6 +192,31 @@ mod tests {
 
         advance(&mut app, 10.0);
         assert_eq!(band_alpha(&app, root), 0.0);
+    }
+
+    #[test]
+    fn mixed_banner_timings_fade_independently_and_zero_fade_holds_until_expiry() {
+        let mut app = app();
+        let root = root(&mut app, 5);
+        let checkpoint = row(&mut app, root, 1.2);
+        app.world_mut()
+            .get_mut::<TimedLine>(checkpoint)
+            .expect("checkpoint row missing")
+            .fade_out_secs = 0.3;
+        let quest = row(&mut app, root, 5.0);
+        let instant = row(&mut app, root, 1.2);
+        app.world_mut()
+            .get_mut::<TimedLine>(instant)
+            .expect("instant row missing")
+            .fade_out_secs = 0.0;
+        advance(&mut app, 0.9);
+        assert!((text_alpha(&app, checkpoint) - 1.0).abs() < 1e-5);
+        advance(&mut app, 0.15);
+        assert!((text_alpha(&app, checkpoint) - 0.5).abs() < 1e-5);
+        assert_eq!(text_alpha(&app, quest), 1.0);
+        assert_eq!(text_alpha(&app, instant), 1.0);
+        advance(&mut app, 0.16);
+        assert_eq!(rows_of(&app, root), [quest]);
     }
 
     #[test]

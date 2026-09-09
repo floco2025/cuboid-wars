@@ -32,6 +32,7 @@ pub(crate) fn compile_map(
             grids: Vec::new(),
             actor_spawn_zones: Vec::new(),
             player_spawn_zones: Vec::new(),
+            checkpoints: Vec::new(),
             placed_items: Vec::new(),
             pressure_plates: Vec::new(),
         },

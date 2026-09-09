@@ -2,7 +2,7 @@ use bevy::prelude::Resource;
 
 use common::{
     map::MapGeometry,
-    protocol::{CarrierId, ItemType, MapItems},
+    protocol::{CarrierId, Checkpoint, ItemType, MapItems},
 };
 
 // Cell flags. Light bridges deliberately set none of them: actors never
@@ -197,6 +197,7 @@ pub struct MapConfig {
     pub grids: Vec<CarrierGrid>,
     pub actor_spawn_zones: Vec<ActorSpawnZone>,
     pub player_spawn_zones: Vec<PlayerSpawnZone>,
+    pub checkpoints: Vec<Checkpoint>,
     pub placed_items: Vec<PlacedItem>,
     pub pressure_plates: Vec<PressurePlateRuntime>,
 }
@@ -210,6 +211,7 @@ impl MapConfig {
             grids: vec![CarrierGrid::new(CarrierId::WORLD, geometry, levels)],
             actor_spawn_zones: Vec::new(),
             player_spawn_zones: Vec::new(),
+            checkpoints: Vec::new(),
             placed_items: Vec::new(),
             pressure_plates: Vec::new(),
         }

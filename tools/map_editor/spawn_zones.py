@@ -6,9 +6,8 @@ import copy
 
 from .constants import (
     ACTOR_ZONE_LIST,
-    PLAYER_ZONE_LIST,
     SPAWN_ZONE_HANDLE_PIXELS,
-    SPAWN_ZONE_LISTS,
+    ZONE_LISTS,
 )
 from .geometry import zone_contains_cell, zone_handle_centers, zone_rect
 from .normalization import zone_key
@@ -29,7 +28,7 @@ class SpawnZoneEditMixin:
     def set_selected_spawn_zone(self, ref: ZoneRef | None) -> None:
         if ref is None:
             self.selected_spawn_zone_ref = None
-        elif ref.list_name in SPAWN_ZONE_LISTS and 0 <= ref.index < len(self.map_data[ref.list_name]):
+        elif ref.list_name in ZONE_LISTS and 0 <= ref.index < len(self.map_data[ref.list_name]):
             self.selected_spawn_zone_ref = ref
         else:
             self.selected_spawn_zone_ref = None
@@ -53,7 +52,7 @@ class SpawnZoneEditMixin:
         # zones carry per-zone configuration (kind / count), so the user is
         # more likely to want them. Within each list, iterate in reverse so
         # the most-recently-painted wins.
-        for list_name in (ACTOR_ZONE_LIST, PLAYER_ZONE_LIST):
+        for list_name in ZONE_LISTS:
             for idx in range(len(self.map_data[list_name]) - 1, -1, -1):
                 zone = self.map_data[list_name][idx]
                 if zone["level"] == self.current_level and zone_contains_cell(zone, col, row):
@@ -157,7 +156,7 @@ class SpawnZoneEditMixin:
         zone = after[drag.list_name][drag.index]
         zone["cols"] = [c0, c1]
         zone["rows"] = [r0, r1]
-        self.apply_change("Edit Spawn Zone", after)
+        self.apply_change("Edit Checkpoint" if drag.list_name == "checkpoints" else "Edit Spawn Zone", after)
         self.selected_spawn_zone_ref = self._zone_ref_after_change(drag.list_name, zone)
 
     def selected_spawn_zone_has_fields(self) -> bool:

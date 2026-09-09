@@ -20,6 +20,8 @@ from .constants import (
 from .catalogs import MapCatalogs
 from .geometry import (
     grid_point_in_bounds,
+    rects_overlap,
+    zone_rect,
     normalized_wall,
     ramp_cells_on_level,
     ramp_error,
@@ -107,6 +109,7 @@ def validate_map(
         errors.locate("player_spawn_zones", zone)
         _validate_zone_rect(zone, f"player_spawn_zones[{idx}]", map_data, errors)
 
+    _validate_checkpoints(map_data, errors)
     _validate_items(map_data, kinds, errors)
     _validate_pressure_plates(map_data, kinds, bridge_kinds, errors)
 
@@ -464,3 +467,22 @@ def _validate_zone_rect(zone: dict, label: str, map_data: dict, errors: list[str
         errors.append(f"{label} has an empty range cols={zone['cols']} rows={zone['rows']}")
     if not (0 <= c0 and c1 <= cols and 0 <= r0 and r1 <= rows):
         errors.append(f"{label} is outside the grid: cols={zone['cols']} rows={zone['rows']}")
+
+
+def _validate_checkpoints(data: dict, errors: ValidationErrors) -> None:
+    for index, zone in enumerate(data.get("checkpoints", [])):
+        label = f"checkpoints[{index}]"
+        errors.locate("checkpoints", zone)
+        _validate_zone_rect(zone, label, data, errors)
+        level = zone["level"]
+        if not 0 <= level < len(data["levels"]):
+            continue
+        floors = {(f["col"], f["row"]) for f in data["levels"][level]["floors"]}
+        ramps = ramp_cells_on_level(data["ramps"], level)
+        c0, r0, c1, r1 = zone_rect(zone)
+        if any((col, row) not in floors or (col, row) in ramps for col in range(c0, c1) for row in range(r0, r1)):
+            errors.append(f"{label} requires flat accessible floor throughout")
+        for other in data["checkpoints"][:index]:
+            if other["level"] == level and rects_overlap(zone_rect(zone), zone_rect(other)):
+                errors.append(f"{label} overlaps another checkpoint")
+                break

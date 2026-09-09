@@ -60,6 +60,20 @@ impl CollisionWorld {
         )
     }
 
+    #[must_use]
+    pub fn character_overlaps_solid(
+        &self,
+        pos: &Position,
+        physics: CharacterPhysicsConfig,
+        passable_kinds: &[BarrierKindId],
+    ) -> bool {
+        self.shape_overlaps(
+            character_movement_pose(pos, physics),
+            &character_movement_shape(physics),
+            query_filter(character_collision_groups(passable_kinds, self.all_barrier_groups)),
+        )
+    }
+
     // Whether sliding a character's movement capsule horizontally from `start` to
     // `target` drags it through a wall. Floors and ramps are ignored so a
     // leg onto a slope counts as clear; a body already touching a wall but

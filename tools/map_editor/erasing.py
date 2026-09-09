@@ -18,6 +18,7 @@ from .constants import (
     HIT_NESTED_MAP,
     HIT_PRESSURE_PLATE,
     HIT_RAMP,
+    HIT_CHECKPOINT,
     HIT_SPAWN_ZONE,
     HIT_WALL,
     ITEMS_LIST,
@@ -38,6 +39,9 @@ from .constants import (
     MODE_ERASE_WALLS,
     NESTED_MAPS_LIST,
     SPAWN_ZONE_LISTS,
+    ZONE_LISTS,
+    CHECKPOINT_LIST,
+    MODE_ERASE_CHECKPOINTS,
 )
 from .geometry import (
     cell_side_from_click,
@@ -184,6 +188,7 @@ ERASE_GROUPS = {
     MODE_ERASE_LIGHT_BRIDGES: ("light bridges", _keep_level_cells("light_bridges")),
     MODE_ERASE_LIGHTS: ("lights", _keep_level_cells("lights")),
     MODE_ERASE_SPAWN_ZONES: ("spawn zones", _keep_spawn_zones),
+    MODE_ERASE_CHECKPOINTS: ("checkpoints", lambda data, level_idx, rect: {(None, CHECKPOINT_LIST): zones_outside(data[CHECKPOINT_LIST], level_idx, rect)}),
     MODE_ERASE_ITEMS: ("items", _keep_cells_on_level(ITEMS_LIST)),
     MODE_ERASE_PRESSURE_PLATES: ("plates", _keep_cells_on_level("pressure_plates")),
     MODE_ERASE_RAMPS: ("ramps", lambda data, level_idx, rect: {(None, "ramps"): ramps_outside(data["ramps"], level_idx, rect)}),
@@ -232,7 +237,7 @@ def erase_cell_rect(
     level["grass"] = cells_outside(level.get("grass", []), rect)
     level["barriers"] = edges_outside(level.get("barriers", []), rect)
     level["erasers"] = edges_outside(level.get("erasers", []), rect)
-    for list_name in SPAWN_ZONE_LISTS:
+    for list_name in ZONE_LISTS:
         after[list_name] = zones_outside(after[list_name], level_idx, rect)
     after["ramps"] = ramps_outside(after["ramps"], level_idx, rect)
     after["ladders"] = ladders_outside(after.get("ladders", []), level_idx, rect)
@@ -280,11 +285,11 @@ def hit_at(data: dict, level_idx: int, px: float, py: float, tolerance: float):
     # Walk every zone list in reverse so the most-recently-painted entry
     # wins. SPAWN_ZONE_LISTS is ordered actor → player, so when both zone
     # types share a cell the actor zone is preferred.
-    for list_name in SPAWN_ZONE_LISTS:
+    for list_name in ZONE_LISTS:
         for idx in range(len(data[list_name]) - 1, -1, -1):
             zone = data[list_name][idx]
             if zone["level"] == level_idx and zone_contains_cell(zone, col, row):
-                return (HIT_SPAWN_ZONE, (list_name, idx))
+                return (HIT_CHECKPOINT if list_name == CHECKPOINT_LIST else HIT_SPAWN_ZONE, (list_name, idx))
     for ramp in data["ramps"]:
         lower = ramp["lower_level"]
         if level_idx not in (lower, lower + 1):
@@ -331,7 +336,7 @@ def erase_hit(data: dict, level_idx: int, hit, preserve_floors: bool = False) ->
         ]
     elif kind == HIT_NESTED_MAP:
         after[NESTED_MAPS_LIST] = [entry for entry in after.get(NESTED_MAPS_LIST, []) if nested_map_key(entry) != value]
-    elif kind == HIT_SPAWN_ZONE:
+    elif kind in (HIT_SPAWN_ZONE, HIT_CHECKPOINT):
         list_name, target_idx = value
         if 0 <= target_idx < len(after[list_name]):
             del after[list_name][target_idx]

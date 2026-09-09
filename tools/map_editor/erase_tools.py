@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from . import erasing
-from .constants import FLOOR_HIT_KINDS, HIT_SPAWN_ZONE, MODE_ERASE_SPAWN_ZONES
+from .constants import FLOOR_HIT_KINDS, HIT_SPAWN_ZONE, HIT_CHECKPOINT, MODE_ERASE_CHECKPOINTS, MODE_ERASE_SPAWN_ZONES
 from .geometry import rect_from_cells
 from .types import ZoneRef
 
@@ -26,7 +26,7 @@ class EraseMixin:
         if after is None:
             self.notify(f"{mode}: no {noun} in selection.")
             return
-        if mode == MODE_ERASE_SPAWN_ZONES:
+        if mode in (MODE_ERASE_SPAWN_ZONES, MODE_ERASE_CHECKPOINTS):
             self.selected_spawn_zone_ref = None
         self.apply_change(mode, after)
 
@@ -34,6 +34,6 @@ class EraseMixin:
         return erasing.hit_at(self.map_data, self.current_level, pos.x(), pos.y(), self.canvas.pick_tolerance())
 
     def erase_hit(self, hit, preserve_floors: bool = False) -> None:
-        if hit[0] == HIT_SPAWN_ZONE and self.selected_spawn_zone_ref == ZoneRef(*hit[1]):
+        if hit[0] in (HIT_SPAWN_ZONE, HIT_CHECKPOINT) and self.selected_spawn_zone_ref == ZoneRef(*hit[1]):
             self.selected_spawn_zone_ref = None
         self.apply_change(f"Erase {hit[0]}", erasing.erase_hit(self.map_data, self.current_level, hit, preserve_floors))

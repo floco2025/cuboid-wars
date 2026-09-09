@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import copy
 
-from .constants import FACES, SPAWN_ZONE_LISTS
+from .constants import FACES, ZONE_LISTS
 from .geometry import ramp_rect, rects_overlap, wall_segments_between, zone_intersects_rect
 from .normalization import edge_key, pressure_plate_key
 from .transforms import record_rect
@@ -36,7 +36,7 @@ def paint_floors(data: dict, level_idx: int, rect: tuple, material: str, *, bloc
     level[added] = list(existing.values())
     level[removed] = [f for f in level[removed] if (f["col"], f["row"]) not in cells]
     if blocked:
-        for name in SPAWN_ZONE_LISTS:
+        for name in ZONE_LISTS:
             after[name] = [z for z in after[name] if z["level"] != level_idx or not zone_intersects_rect(z, rect)]
     return after
 

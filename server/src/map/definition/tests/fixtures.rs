@@ -10,8 +10,8 @@ pub(super) use super::super::{
     load::LoadedMaps,
     schema::{
         ActorSpawnZoneDef, BarrierDef, CellDef, EraserDef, FloorDef, ItemDef, LadderDef, LevelDef, LightBridgeDef,
-        MapDef, MotionDef, NestedMapDef, PlayerSpawnZoneDef, PressurePlateDef, PressurePlatePurposeDef, RampDef,
-        WallDef, WallSide,
+        MapDef, MotionDef, NestedMapDef, PressurePlateDef, PressurePlatePurposeDef, RampDef, WallDef, WallSide,
+        ZoneDef,
     },
     validation::validate_map,
 };
@@ -102,8 +102,8 @@ pub(crate) fn actor_zone(level: u32, col: i32, row: i32) -> ActorSpawnZoneDef {
     }
 }
 
-pub(crate) fn player_zone(level: u32, col: i32, row: i32) -> PlayerSpawnZoneDef {
-    PlayerSpawnZoneDef {
+pub(crate) fn player_zone(level: u32, col: i32, row: i32) -> ZoneDef {
+    ZoneDef {
         level,
         cols: [col, col + 1],
         rows: [row, row + 1],
@@ -123,7 +123,7 @@ pub(crate) fn map_with_zones(
     grid: i32,
     levels: Vec<LevelDef>,
     actor_spawn_zones: Vec<ActorSpawnZoneDef>,
-    player_spawn_zones: Vec<PlayerSpawnZoneDef>,
+    player_spawn_zones: Vec<ZoneDef>,
     ramps: Vec<RampDef>,
 ) -> MapDef {
     MapDef {
@@ -131,6 +131,7 @@ pub(crate) fn map_with_zones(
         grid_rows: grid,
         actor_spawn_zones,
         player_spawn_zones,
+        checkpoints: Vec::new(),
         items: Vec::new(),
         pressure_plates: Vec::new(),
         levels,

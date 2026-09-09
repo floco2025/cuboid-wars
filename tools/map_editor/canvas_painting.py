@@ -30,8 +30,9 @@ from .constants import (
     PLATE_TYPE_BRIDGE,
     PLATE_TYPE_FIREWORK,
     PLAYER_ZONE_LIST,
+    CHECKPOINT_LIST,
     RAMP_MODES,
-    SPAWN_ZONE_MODES,
+    ZONE_MODES,
     SPAWN_ZONE_HANDLE_PIXELS,
 )
 from .symbols import ITEM_SYMBOLS, paint_item_symbol
@@ -473,7 +474,7 @@ class CanvasPaintingMixin:
     def _paint_drag_preview_rect(self, painter: QPainter, cell: float) -> None:
         if not (self.drag_start_cell and self.drag_current_cell):
             return
-        if self.window.mode not in DRAG_PREVIEW_COLORS and self.window.mode not in SPAWN_ZONE_MODES:
+        if self.window.mode not in DRAG_PREVIEW_COLORS and self.window.mode not in ZONE_MODES:
             return
         # A nested map drag is two ends and a band, not a rectangle.
         if self.window.mode == MODE_NESTED_MAP:
@@ -802,6 +803,19 @@ class CanvasPaintingMixin:
         for zone in self.visible_entries(ACTOR_ZONE_LIST, self.window.map_data[ACTOR_ZONE_LIST]):
             if zone["level"] == level_idx:
                 self.paint_actor_spawn_zone(painter, zone, cell)
+
+        for zone in self.visible_entries(CHECKPOINT_LIST, self.window.map_data[CHECKPOINT_LIST]):
+            if zone["level"] == level_idx:
+                self.paint_checkpoint(painter, zone, cell)
+
+    def paint_checkpoint(self, painter: QPainter, zone: dict, cell: float) -> None:
+        c0, r0, c1, r1 = zone_rect(zone)
+        rect = QRectF(c0 * cell, r0 * cell, (c1 - c0) * cell, (r1 - r0) * cell).adjusted(1, 1, -1, -1)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.setPen(QPen(QColor("#ffb31f"), 3))
+        painter.drawRect(rect)
+        if cell >= 8:
+            painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, "checkpoint")
 
     def paint_actor_spawn_zone(self, painter: QPainter, zone: dict, cell: float) -> None:
         c0, r0, c1, r1 = zone_rect(zone)

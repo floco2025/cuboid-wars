@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use common::protocol::{SFeed, SFirework, SPressurePlate};
 
 use super::context::ServerMessageContext;
-use crate::audio::play_sound;
+use crate::{audio::play_sound, ui::BannerMessage};
 
 pub(super) fn handle_pressure_plate_message(
     message: SPressurePlate,
@@ -29,4 +29,13 @@ pub(super) fn handle_firework_message(message: SFirework, context: &mut ServerMe
 
 pub(super) fn handle_feed_message(message: SFeed, context: &mut ServerMessageContext) {
     context.feed.push(message);
+}
+
+pub(super) fn handle_checkpoint_reached_message(commands: &mut Commands, context: &mut ServerMessageContext) {
+    play_sound(
+        commands,
+        &context.assets.asset_server,
+        context.assets.asset_set.player_sound("checkpoint_reached"),
+    );
+    context.banner.push(BannerMessage::CheckpointReached);
 }

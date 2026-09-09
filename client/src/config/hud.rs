@@ -47,9 +47,10 @@ pub struct MessageFeedConfig {
 
 #[derive(Debug, Clone, Copy, Deserialize)]
 pub struct BannerConfig {
-    pub quest_announcement_secs: f32,
-    pub quest_completed_secs: f32,
-    pub death_secs: f32,
+    pub quest_announcement: BannerTiming,
+    pub quest_completed: BannerTiming,
+    pub death: BannerTiming,
+    pub checkpoint_reached: BannerTiming,
     pub max_entries: usize,
 }
 
@@ -96,12 +97,14 @@ impl HudConfig {
         validate_positive_finite(self.font_sizes.floating_label, "hud.font_sizes.floating_label")?;
         validate_positive_finite(self.font_sizes.banner, "hud.font_sizes.banner")?;
         validate_positive_finite(self.font_sizes.quest_panel, "hud.font_sizes.quest_panel")?;
-        validate_positive_finite(
-            self.banner.quest_announcement_secs,
-            "hud.banner.quest_announcement_secs",
-        )?;
-        validate_positive_finite(self.banner.quest_completed_secs, "hud.banner.quest_completed_secs")?;
-        validate_positive_finite(self.banner.death_secs, "hud.banner.death_secs")?;
+        for (name, timing) in [
+            ("quest_announcement", self.banner.quest_announcement),
+            ("quest_completed", self.banner.quest_completed),
+            ("death", self.banner.death),
+            ("checkpoint_reached", self.banner.checkpoint_reached),
+        ] {
+            timing.validate(&format!("hud.banner.{name}"))?;
+        }
         if self.banner.max_entries == 0 {
             bail!("hud.banner.max_entries must be > 0");
         }
@@ -126,5 +129,57 @@ impl HudConfig {
         validate_positive_finite(self.quest_panel.card_width, "hud.quest_panel.card_width")?;
         validate_positive_finite(self.quest_panel.bar_height, "hud.quest_panel.bar_height")?;
         Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+pub struct BannerTiming {
+    pub duration_secs: f32,
+    pub fade_out_secs: f32,
+}
+
+impl BannerTiming {
+    fn validate(self, path: &str) -> Result<()> {
+        validate_positive_finite(self.duration_secs, &format!("{path}.duration_secs"))?;
+        if !self.fade_out_secs.is_finite() || self.fade_out_secs < 0.0 || self.fade_out_secs > self.duration_secs {
+            bail!("{path}.fade_out_secs must be between 0 and duration_secs");
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn banner_timing_accepts_inclusive_fades_and_rejects_invalid_intervals() {
+        for fade in [0.0, 0.3, 1.2] {
+            assert!(
+                BannerTiming {
+                    duration_secs: 1.2,
+                    fade_out_secs: fade
+                }
+                .validate("hud.banner.checkpoint_reached")
+                .is_ok()
+            );
+        }
+        for (duration, fade) in [
+            (0.0, 0.0),
+            (-1.0, 0.0),
+            (f32::NAN, 0.0),
+            (1.2, -0.1),
+            (1.2, 1.3),
+            (1.2, f32::INFINITY),
+        ] {
+            let error = BannerTiming {
+                duration_secs: duration,
+                fade_out_secs: fade,
+            }
+            .validate("hud.banner.checkpoint_reached")
+            .expect_err("invalid banner timing accepted")
+            .to_string();
+            assert!(error.contains("hud.banner.checkpoint_reached"));
+        }
     }
 }

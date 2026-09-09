@@ -1,3 +1,4 @@
+mod checkpoints;
 mod compile;
 mod fixtures;
 mod nested;

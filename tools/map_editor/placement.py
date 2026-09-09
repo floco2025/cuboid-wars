@@ -6,6 +6,7 @@ import copy
 
 from .constants import (
     ACTOR_ZONE_LIST,
+    CHECKPOINT_LIST,
     FACES,
     MODE_RAMP_UP,
     PLATE_TYPE_BARRIER,
@@ -77,6 +78,12 @@ class PlacementMixin:
         self.selected_spawn_zone_ref = self._zone_ref_after_change(ACTOR_ZONE_LIST, new_zone)
 
     def add_player_spawn_zone_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
+        self._add_zone_rect(PLAYER_ZONE_LIST, "Player Spawn Zone", start, end)
+
+    def add_checkpoint_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
+        self._add_zone_rect(CHECKPOINT_LIST, "Checkpoint", start, end)
+
+    def _add_zone_rect(self, list_name: str, label: str, start: tuple[int, int], end: tuple[int, int]) -> None:
         c0, r0, c1, r1 = rect_from_cells(start, end)
         after = copy.deepcopy(self.map_data)
         new_zone = {
@@ -84,9 +91,9 @@ class PlacementMixin:
             "cols": [c0, c1],
             "rows": [r0, r1],
         }
-        after[PLAYER_ZONE_LIST].append(new_zone)
-        self.apply_change("Paint Player Spawn Zone", after)
-        self.selected_spawn_zone_ref = self._zone_ref_after_change(PLAYER_ZONE_LIST, new_zone)
+        after[list_name].append(new_zone)
+        self.apply_change(f"Paint {label}", after)
+        self.selected_spawn_zone_ref = self._zone_ref_after_change(list_name, new_zone)
 
     def prompt_for_actor_spawn_fields(
         self,

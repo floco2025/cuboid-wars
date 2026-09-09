@@ -8,7 +8,10 @@ use crate::{
     barriers::BarrierAssets,
     bridges::BridgeAssets,
     config::ClientSettings,
-    constants::{CONSOLE_TEXT_COLOR, FEED_CHAT_TEXT_COLOR, FEED_DIM_TEXT_COLOR, FEED_TEXT_COLOR, HUD_ROW_GAP_PX},
+    constants::{
+        CONSOLE_TEXT_COLOR, FEED_CHAT_TEXT_COLOR, FEED_DIM_TEXT_COLOR, FEED_TEXT_COLOR, HUD_LINE_FADE_SECS,
+        HUD_ROW_GAP_PX,
+    },
 };
 
 #[derive(Resource, Default)]
@@ -59,6 +62,7 @@ pub fn ui_message_feed_system(
         commands
             .spawn((
                 TimedLine {
+                    fade_out_secs: HUD_LINE_FADE_SECS,
                     remaining_secs: duration,
                 },
                 ChildOf(*root),

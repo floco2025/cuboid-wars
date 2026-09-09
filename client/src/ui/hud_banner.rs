@@ -4,7 +4,7 @@ use bevy::prelude::*;
 
 use super::timed_lines::{TimedLine, TimedLines};
 use crate::{
-    config::ClientSettings,
+    config::{BannerTiming, ClientSettings},
     constants::{BANNER_BAND_ALPHA, BANNER_BAND_TOP_PERCENT, HUD_ROW_GAP_PX},
 };
 
@@ -20,6 +20,7 @@ pub enum BannerMessage {
     QuestCompleted(String),
     Death,
     GroupRespawn,
+    CheckpointReached,
 }
 
 impl BannerMessage {
@@ -29,15 +30,20 @@ impl BannerMessage {
             Self::QuestAnnouncement(text) | Self::QuestCompleted(text) => text,
             Self::Death => DEATH_TEXT,
             Self::GroupRespawn => GROUP_RESPAWN_TEXT,
+            Self::CheckpointReached => "Checkpoint reached",
         }
     }
 
-    fn into_timed_text(self, client_settings: &ClientSettings) -> (String, f32) {
+    fn into_timed_text(self, client_settings: &ClientSettings) -> (String, BannerTiming) {
         match self {
-            Self::QuestAnnouncement(text) => (text, client_settings.hud.banner.quest_announcement_secs),
-            Self::QuestCompleted(text) => (text, client_settings.hud.banner.quest_completed_secs),
-            Self::Death => (DEATH_TEXT.to_owned(), client_settings.hud.banner.death_secs),
-            Self::GroupRespawn => (GROUP_RESPAWN_TEXT.to_owned(), client_settings.hud.banner.death_secs),
+            Self::QuestAnnouncement(text) => (text, client_settings.hud.banner.quest_announcement),
+            Self::QuestCompleted(text) => (text, client_settings.hud.banner.quest_completed),
+            Self::Death => (DEATH_TEXT.to_owned(), client_settings.hud.banner.death),
+            Self::GroupRespawn => (GROUP_RESPAWN_TEXT.to_owned(), client_settings.hud.banner.death),
+            Self::CheckpointReached => (
+                "Checkpoint reached".to_owned(),
+                client_settings.hud.banner.checkpoint_reached,
+            ),
         }
     }
 }
@@ -92,10 +98,11 @@ pub fn ui_hud_banner_system(
     }
     let font_size = client_settings.hud.font_sizes.banner;
     for message in banner.pending.drain(..) {
-        let (text, duration_secs) = message.into_timed_text(&client_settings);
+        let (text, timing) = message.into_timed_text(&client_settings);
         commands.spawn((
             TimedLine {
-                remaining_secs: duration_secs,
+                remaining_secs: timing.duration_secs,
+                fade_out_secs: timing.fade_out_secs,
             },
             ChildOf(*root),
             Text::new(text),
@@ -105,5 +112,27 @@ pub fn ui_hud_banner_system(
             },
             TextColor(Color::WHITE),
         ));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn checkpoint_banner_uses_its_own_timing_and_text() {
+        let mut settings: ClientSettings = serde_json::from_str(include_str!("../../../config/client/client.json"))
+            .expect("client configuration rejected");
+        settings.hud.banner.checkpoint_reached = BannerTiming {
+            duration_secs: 0.75,
+            fade_out_secs: 0.1,
+        };
+        let (text, timing) = BannerMessage::CheckpointReached.into_timed_text(&settings);
+        assert_eq!(text, "Checkpoint reached");
+        assert_eq!(timing.duration_secs, 0.75);
+        assert_eq!(timing.fade_out_secs, 0.1);
+        let (_, timing) = BannerMessage::Death.into_timed_text(&settings);
+        assert_eq!(timing.duration_secs, settings.hud.banner.death.duration_secs);
+        assert_eq!(timing.fade_out_secs, settings.hud.banner.death.fade_out_secs);
     }
 }

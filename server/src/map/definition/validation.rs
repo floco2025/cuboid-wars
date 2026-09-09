@@ -6,7 +6,7 @@ use common::protocol::ItemType;
 
 use super::{
     geometry::ramp_spec_from_def,
-    schema::{ActorSpawnZoneDef, LadderDef, LevelDef, MapDef, MotionDef, PlayerSpawnZoneDef, RampDef, WallSide},
+    schema::{ActorSpawnZoneDef, LadderDef, LevelDef, MapDef, MotionDef, RampDef, WallSide, ZoneDef},
 };
 use crate::config::is_valid_map_name;
 
@@ -20,6 +20,7 @@ pub(super) fn validate_map(map_def: &MapDef) -> Result<()> {
 
     validate_actor_spawn_zones(map_def)?;
     validate_player_spawn_zones(map_def)?;
+    validate_checkpoints(map_def)?;
     validate_items(map_def)?;
     validate_pressure_plates(map_def)?;
     validate_levels(map_def)?;
@@ -50,7 +51,7 @@ impl ZoneRect for ActorSpawnZoneDef {
     }
 }
 
-impl ZoneRect for PlayerSpawnZoneDef {
+impl ZoneRect for ZoneDef {
     fn level(&self) -> u32 {
         self.level
     }
@@ -650,4 +651,36 @@ pub(super) fn canonicalize(map_def: &mut MapDef) {
 fn normalized_wall(wall: [i32; 4]) -> [i32; 4] {
     let [c0, r0, c1, r1] = wall;
     if (c1, r1) < (c0, r0) { [c1, r1, c0, r0] } else { wall }
+}
+
+fn validate_checkpoints(map_def: &MapDef) -> Result<()> {
+    for (index, zone) in map_def.checkpoints.iter().enumerate() {
+        let label = format!("checkpoints[{index}]");
+        validate_zone_placement(zone, &label, map_def)?;
+        let floors: BTreeSet<_> = map_def.levels[zone.level as usize]
+            .floors
+            .iter()
+            .map(|floor| [floor.col, floor.row])
+            .collect();
+        let ramps = ramp_cells_on_level(map_def, zone.level as usize);
+        for col in zone.cols[0]..zone.cols[1] {
+            for row in zone.rows[0]..zone.rows[1] {
+                if !floors.contains(&[col, row]) || ramps.contains(&[col, row]) {
+                    return Err(anyhow!("{label} requires flat accessible floor at ({col}, {row})"));
+                }
+            }
+        }
+
+        for other in &map_def.checkpoints[..index] {
+            if zone.level == other.level
+                && zone.cols[0] < other.cols[1]
+                && other.cols[0] < zone.cols[1]
+                && zone.rows[0] < other.rows[1]
+                && other.rows[0] < zone.rows[1]
+            {
+                return Err(anyhow!("{label} overlaps another checkpoint"));
+            }
+        }
+    }
+    Ok(())
 }

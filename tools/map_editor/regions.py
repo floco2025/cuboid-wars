@@ -5,7 +5,7 @@ from __future__ import annotations
 import copy
 from dataclasses import dataclass
 
-from .constants import LIGHT_SIDES, SPAWN_ZONE_LISTS
+from .constants import LIGHT_SIDES, ZONE_LISTS
 from .geometry import rects_overlap, wall_endpoints_for_cell_side, wall_overlaps_rect
 from .normalization import edge_key, empty_level, empty_map
 from .transforms import EDGE_LISTS, GLOBAL_LISTS, LEVEL_LISTS, record_levels, record_rect, translate_map
@@ -57,7 +57,7 @@ def _whole_object(
 
 # The whole-object rule for every record spanning cells or levels; a
 # nested map's two ends are judged separately.
-WHOLE_OBJECT_NOUNS = {**dict.fromkeys(SPAWN_ZONE_LISTS, "spawn zone"), "ramps": "ramp", "ladders": "ladder"}
+WHOLE_OBJECT_NOUNS = {**dict.fromkeys(ZONE_LISTS, "spawn zone"), "checkpoints": "checkpoint", "ramps": "ramp", "ladders": "ladder"}
 
 
 def _global_selected(name: str, entry: dict, region: TileRegion, subject: str, include: str) -> bool:
