@@ -1,14 +1,18 @@
-use bevy_math::Vec3;
+use bevy_math::{Quat, Vec3};
 use rapier3d::{
     parry::{
         query::{ShapeCastOptions, cast_shapes, intersection_test},
         shape::Ball,
     },
-    prelude::{Pose, Vector, glamx::Quat},
+    prelude::{Pose, Vector},
 };
 
-use super::character_hitbox_shape;
-use crate::{config::CharacterPhysicsConfig, protocol::Position};
+use super::geometry::{character_hitbox_center, character_hitbox_shape};
+use crate::{
+    config::CharacterPhysicsConfig,
+    math::{rapier_pose, to_rapier},
+    protocol::Position,
+};
 
 #[derive(Debug, Clone, Copy)]
 pub struct HitDirection {
@@ -34,12 +38,8 @@ pub fn ball_character_hit(
 ) -> Option<BallCharacterHit> {
     let ball_shape = Ball::new(ball_radius);
     let character_collider = character_hitbox_shape(character_physics);
-    let ball_pose = Pose::translation(ball_pos.x, ball_pos.y, ball_pos.z);
-    let ball_translation = Vector::new(
-        ball_velocity.x * delta,
-        ball_velocity.y * delta,
-        ball_velocity.z * delta,
-    );
+    let ball_pose = Pose::from_translation(to_rapier(Vec3::from(*ball_pos)));
+    let ball_translation = to_rapier(ball_velocity * delta);
     let character_pose = oriented_character_pose(character_pos, character_face_yaw, character_physics);
     let options = ShapeCastOptions {
         max_time_of_impact: 1.0,
@@ -81,17 +81,14 @@ pub fn ball_overlaps_character(
 ) -> bool {
     let ball_shape = Ball::new(ball_radius);
     let character_collider = character_hitbox_shape(character_physics);
-    let ball_pose = Pose::translation(ball_pos.x, ball_pos.y, ball_pos.z);
+    let ball_pose = Pose::from_translation(to_rapier(Vec3::from(*ball_pos)));
     let character_pose = oriented_character_pose(character_pos, character_face_yaw, character_physics);
 
     intersection_test(&ball_pose, &ball_shape, &character_pose, &character_collider).is_ok_and(|overlaps| overlaps)
 }
 
 fn oriented_character_pose(pos: &Position, face_yaw: f32, physics: CharacterPhysicsConfig) -> Pose {
-    Pose::from_parts(
-        Vector::new(pos.x, physics.hitbox_center_y(pos.y), pos.z),
-        Quat::from_rotation_y(face_yaw),
-    )
+    rapier_pose(character_hitbox_center(*pos, physics), Quat::from_rotation_y(face_yaw))
 }
 
 #[cfg(test)]

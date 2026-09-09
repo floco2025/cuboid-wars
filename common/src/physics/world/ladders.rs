@@ -1,10 +1,11 @@
 use bevy_math::Vec3;
 
+use super::CollisionWorld;
 use crate::{
     constants::{LADDER_BASE_OVERSHOOT, LADDER_OVERSHOOT, LADDER_RAIL_INSET, LADDER_VOLUME_DEPTH},
-    map::CarrierPose,
+    map::{CarrierPose, Carriers},
     math::PHYSICS_EPSILON,
-    protocol::{Ladder, Position},
+    protocol::{CarrierId, Ladder, Position},
 };
 
 // Cover the full hold distance on either side so the fence clamp cannot oscillate at the band edge.
@@ -44,6 +45,7 @@ pub struct LadderVolume {
     // A point on the rail plane (the segment midpoint).
     mid_x: f32,
     mid_z: f32,
+    carrier: CarrierId,
 }
 
 impl LadderVolume {
@@ -83,6 +85,7 @@ impl LadderVolume {
             normal_z: ladder.nz,
             mid_x: f32::midpoint(ladder.x1, ladder.x2) + rail_x,
             mid_z: f32::midpoint(ladder.z1, ladder.z2) + rail_z,
+            carrier: ladder.carrier,
         }
     }
 
@@ -97,11 +100,15 @@ impl LadderVolume {
             max: pose.transform_point(self.max),
             band_min: pose.transform_point(self.band_min),
             band_max: pose.transform_point(self.band_max),
-            normal_x: self.normal_x,
-            normal_z: self.normal_z,
             mid_x: mid.x,
             mid_z: mid.z,
+            ..*self
         }
+    }
+
+    #[must_use]
+    pub(super) const fn carrier(&self) -> CarrierId {
+        self.carrier
     }
 
     // The bottom is tolerant: a descent clamps to `min.y` but the resolved
@@ -163,5 +170,33 @@ impl LadderVolume {
     pub fn with_plane_offset(&self, x: f32, z: f32, offset: f32) -> (f32, f32) {
         let shift = offset - self.offset_from_plane(x, z);
         (self.normal_x.mul_add(shift, x), self.normal_z.mul_add(shift, z))
+    }
+}
+
+impl CollisionWorld {
+    #[must_use]
+    pub fn ladder_volume_at(&self, pos: &Position) -> Option<&LadderVolume> {
+        self.ladder_volumes.iter().find(|volume| volume.contains(pos))
+    }
+
+    pub(crate) fn carried_ladder_at_previous_pose(
+        &self,
+        pos: &Position,
+        carriers: &Carriers,
+    ) -> Option<(CarrierId, LadderVolume)> {
+        self.ladder_locals.iter().find_map(|local| {
+            let carrier = local.carrier();
+            if carrier.is_world() {
+                return None;
+            }
+            // The body has not received this tick's carry yet.
+            let previous = local.posed(&carriers.previous_pose(carrier));
+            previous.contains(pos).then_some((carrier, previous))
+        })
+    }
+
+    #[must_use]
+    pub(crate) fn ladder_band_at(&self, x: f32, z: f32, y: f32) -> Option<&LadderVolume> {
+        self.ladder_volumes.iter().find(|volume| volume.band_contains(x, z, y))
     }
 }

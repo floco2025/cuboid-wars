@@ -9,8 +9,8 @@ use super::{
     geometry::{character_movement_pose, character_movement_shape},
     ladder::{LadderMode, evaluate_ladder_interaction},
     support::{
-        character_ground_hit, grounding_diagnostics, position_has_floor_support, snap_character_to_ground,
-        supporting_carrier,
+        RiderCarry, character_ground_hit, grounding_diagnostics, position_has_floor_support, rider_carry,
+        snap_character_to_ground,
     },
     types::{CharacterMovementResult, CharacterSupport},
 };
@@ -18,10 +18,11 @@ use crate::{
     config::CharacterPhysicsConfig,
     constants::{
         CHARACTER_CONTACT_OFFSET, CHARACTER_GROUND_SNAP_DISTANCE, CHARACTER_MAX_SLOPE, CHARACTER_STEP_HEIGHT,
-        CHARACTER_STEP_MIN_WIDTH, CHARACTER_TERMINAL_VELOCITY, TICK_SECS,
+        CHARACTER_STEP_MIN_WIDTH, CHARACTER_TERMINAL_VELOCITY,
     },
     map::Carriers,
-    physics::world::CollisionWorld,
+    math::from_rapier,
+    physics::{PortalSet, world::CollisionWorld},
     protocol::{BarrierKindId, Position},
 };
 
@@ -71,7 +72,7 @@ pub struct CharacterEnvironment<'a> {
     // Portal pass-through: while the body overlaps a linked aperture, its
     // backing colliders are excluded from this step's collision and support
     // queries. `None` for characters that cannot use portals (actors).
-    pub portals: Option<&'a super::super::portals::PortalSet>,
+    pub portals: Option<&'a PortalSet>,
     // The carriers at this tick's pose, already applied to
     // `collision_world`; a body standing on one rides with it.
     pub carriers: &'a Carriers,
@@ -80,85 +81,10 @@ pub struct CharacterEnvironment<'a> {
 #[must_use]
 pub fn step_character_movement(step: CharacterStep, env: &CharacterEnvironment) -> CharacterMovementResult {
     let shape = character_movement_shape(env.physics);
-    let feet = Vec3::new(step.start.x, step.start.y, step.start.z);
-    // The rider's carry. A body standing on a carrier follows it by the
-    // ride rule (`supporting_carrier`). A body passing through an aperture
-    // mounted on a carrier follows that carrier instead, until it crosses:
-    // the ride rule lets go the tick the feet leave the surface, and a fast
-    // carrier would pull the aperture out from under a sinking body. In
-    // transit the carrier's velocity is not reported, so a rising floor
-    // does not pump the fall and the slide is not gathered as momentum; the
-    // body exits the pair with carrier-relative velocity. A body in the
-    // corridor that another carrier supports (standing under a lift's
-    // ceiling portal) stays put, and the plane reaching it is what the
-    // relative crossing test catches; the portal's own carrier supporting
-    // it (its floor in front of its wall portal) is still the ride.
-    let transit = env
-        .portals
-        .and_then(|portals| portals.transit_carrier(feet, env.physics));
-    let carry = match transit {
-        Some((carrier, backing)) => {
-            let supported_elsewhere = character_ground_hit(
-                env.collision_world,
-                &shape,
-                &step.start,
-                env.passable_kinds,
-                backing,
-                env.physics,
-            )
-            .is_some_and(|hit| hit.carrier != carrier);
-            if supported_elsewhere {
-                Vec3::ZERO
-            } else {
-                env.carriers.displacement(carrier)
-            }
-        }
-        None if env.carriers.is_static() => Vec3::ZERO,
-        None => env
-            .collision_world
-            .carried_ladder_at_previous_pose(&step.start, env.carriers)
-            .filter(|_| env.ladder_mode != LadderMode::Disabled)
-            .and_then(|(carrier, ladder)| {
-                let grounded = step.vertical_velocity <= 0.0
-                    && character_ground_hit(
-                        env.collision_world,
-                        &shape,
-                        &step.start,
-                        env.passable_kinds,
-                        &[],
-                        env.physics,
-                    )
-                    .is_some();
-                evaluate_ladder_interaction(
-                    Some(&ladder),
-                    env.ladder_mode,
-                    &step.start,
-                    step.vertical_velocity,
-                    step.control_velocity,
-                    step.delta,
-                    grounded,
-                    env.ladder_climb_ratio,
-                )
-                .is_supported()
-                .then_some(carrier)
-            })
-            .or_else(|| {
-                supporting_carrier(
-                    env.collision_world,
-                    &shape,
-                    &step.start,
-                    env.passable_kinds,
-                    env.physics,
-                    env.carriers,
-                )
-            })
-            .map_or(Vec3::ZERO, |carrier| env.carriers.displacement(carrier)),
-    };
-    let floor_velocity = if transit.is_some() {
-        Vec3::ZERO
-    } else {
-        carry / TICK_SECS
-    };
+    let RiderCarry {
+        displacement: carry,
+        floor_velocity,
+    } = rider_carry(&step, env, &shape);
     // The carrier's colliders already sit at this tick's pose, and a probe
     // that starts inside a collider finds no ground, so the body follows the
     // carrier's rise or drop before anything probes. The horizontal part
@@ -167,13 +93,13 @@ pub fn step_character_movement(step: CharacterStep, env: &CharacterEnvironment) 
     let mut step = step;
     step.start.y += carry.y;
     let support_excluded = env.portals.map_or_else(Vec::new, |portals| {
-        portals.collision_exclusions(Vec3::new(step.start.x, step.start.y, step.start.z), env.physics)
+        portals.collision_exclusions(Vec3::from(step.start), env.physics)
     });
     let request = prepare_movement_request(step, env, carry, &support_excluded, &shape);
     let movement_excluded = env.portals.map_or_else(Vec::new, |portals| {
         portals.movement_collision_exclusions(
-            Vec3::new(step.start.x, step.start.y, step.start.z),
-            vec3(request.requested_total),
+            Vec3::from(step.start),
+            from_rapier(request.requested_total),
             env.physics,
         )
     });
@@ -254,7 +180,7 @@ fn prepare_movement_request(
 
     let portal_funnel = env.portals.map_or(Vec3::ZERO, |portals| {
         portals.funnel_displacement(
-            Vec3::new(start_pos.x, start_pos.y, start_pos.z),
+            Vec3::from(*start_pos),
             physics,
             step.control_velocity,
             step.vertical_velocity,
@@ -290,15 +216,13 @@ fn prepare_movement_request(
     let requested_horizontal_move =
         Vector::new(requested_target.x - start_pos.x, 0.0, requested_target.z - start_pos.z);
     let requested_vertical_move = Vector::new(0.0, requested_target.y - start_pos.y, 0.0);
-    let supported_horizontal_move = requested_horizontal_move;
     let carried = Vector::new(carry_xz.x, 0.0, carry_xz.z);
-    let requested_move = supported_horizontal_move + requested_vertical_move;
 
     MovementRequest {
         next_vertical_velocity,
-        requested_horizontal: supported_horizontal_move,
+        requested_horizontal: requested_horizontal_move,
         requested_vertical: requested_vertical_move,
-        requested_total: requested_move,
+        requested_total: requested_horizontal_move + requested_vertical_move,
         carried,
         can_follow_ground,
         started_grounded: ground_probe.is_some(),
@@ -330,7 +254,7 @@ fn resolve_character_collision(
     }
     let pose = character_movement_pose(&step.start, env.physics);
     let mut observe = |collision: CharacterCollision| {
-        let normal = vec3(collision.hit.normal1);
+        let normal = from_rapier(collision.hit.normal1);
         let is_side_contact = normal.y.abs() <= 0.5;
         let is_ceiling = normal.y < -0.5 && request.requested_vertical.y > 0.0;
         if is_side_contact {
@@ -414,7 +338,7 @@ fn finish_character_movement(
             excluded_colliders,
         );
     }
-    let mut grounding = grounding_diagnostics(
+    let grounding = grounding_diagnostics(
         env.collision_world,
         &resolved,
         env.physics,
@@ -474,7 +398,6 @@ fn finish_character_movement(
             request.lifted,
         );
 
-    grounding.supported = support == CharacterSupport::Ground;
     CharacterMovementResult {
         grounding,
         position: resolved,
@@ -514,8 +437,4 @@ fn character_controller() -> KinematicCharacterController {
         snap_to_ground: Some(CharacterLength::Absolute(CHARACTER_GROUND_SNAP_DISTANCE)),
         ..KinematicCharacterController::default()
     }
-}
-
-fn vec3(v: Vector) -> Vec3 {
-    Vec3::new(v.x, v.y, v.z)
 }

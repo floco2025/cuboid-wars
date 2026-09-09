@@ -1,7 +1,7 @@
 use super::*;
 use crate::{
     constants::{LADDER_RAIL_INSET, LADDER_STANDOFF_CLEARANCE, TICK_SECS},
-    protocol::{BarrierKindTable, Carrier, CarrierId},
+    protocol::{Carrier, CarrierId},
 };
 
 const CARRIER: CarrierId = CarrierId(1);
@@ -61,14 +61,14 @@ impl Climber {
             ..MapLayout::default()
         };
         let physics = player_physics();
-        let carriers = Carriers::from_layout(&layout);
+        let (world, carriers) = world_at(&layout, 0);
         let local = Vec3::new(
             0.0,
             height,
             -(LADDER_RAIL_INSET + physics.movement_collider.radius() + LADDER_STANDOFF_CLEARANCE),
         );
         Self {
-            world: CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default()),
+            world,
             position: carriers.pose(CARRIER).transform_point(local).into(),
             carriers,
             physics,
@@ -100,16 +100,7 @@ impl Climber {
                 external_displacement: self.momentum.step(TICK_SECS),
                 delta: TICK_SECS,
             },
-            &CharacterEnvironment {
-                ladder_mode,
-                collision_world: &self.world,
-                gravity: TEST_GRAVITY,
-                passable_kinds: &[],
-                physics: self.physics,
-                ladder_climb_ratio: test_ladders(),
-                portals: None,
-                carriers: &self.carriers,
-            },
+            &test_environment(&self.world, &self.carriers, self.physics, ladder_mode),
         );
         self.position = result.position;
         self.vertical_velocity = result.vertical_velocity;
@@ -167,7 +158,7 @@ fn descending_climber_moves_relative_to_the_ladder() {
         for _ in 0..10 {
             let before = climber.local_position();
             let result = climber.step(Vec3::NEG_Z * CLIMB_SPEED);
-            let expected = before - Vec3::Y * CLIMB_SPEED * test_ladders() * TICK_SECS;
+            let expected = before - Vec3::Y * CLIMB_SPEED * TEST_LADDER_CLIMB_RATIO * TICK_SECS;
             assert_eq!(result.support, CharacterSupport::Ladder);
             assert!(!result.crushed);
             assert!(

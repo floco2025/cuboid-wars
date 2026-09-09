@@ -100,6 +100,13 @@ pub const CHARACTER_TERMINAL_VELOCITY: f32 = 25.0; // m/s
 // valid ground while walking over seams, ramps, and small frame-step gaps.
 pub const CHARACTER_GROUND_SNAP_DISTANCE: f32 = 0.2;
 
+// How far above a carrier's surface a body still rides it: ground snap
+// leaves the feet slightly above the surface they ride.
+pub const CHARACTER_CARRIER_RIDE_TOLERANCE: f32 = 0.05;
+
+// Coincident static and carried surfaces must tolerate shape-cast depth noise.
+pub const CHARACTER_CARRIER_TIE_EPSILON: f32 = 0.01;
+
 // Gap the Rapier character controller keeps between a character and the
 // geometry it touches; a body closer than this to a carrier is inside it.
 pub const CHARACTER_CONTACT_OFFSET: f32 = 0.01;

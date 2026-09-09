@@ -13,18 +13,10 @@ fn player_hits_wall_collider_from_collision_world() {
     };
     let motion = 0.0;
 
-    let step = step_character_movement(
+    let step = step_in(
+        &collision_world,
         character_step_toward(pos, motion, 1.0, pos.z, 0.1),
-        &CharacterEnvironment {
-            ladder_mode: LadderMode::Automatic,
-            collision_world: &collision_world,
-            gravity: TEST_GRAVITY,
-            passable_kinds: &[],
-            ladder_climb_ratio: test_ladders(),
-            physics: player_physics(),
-            portals: None,
-            carriers: &Carriers::default(),
-        },
+        LadderMode::Automatic,
     );
 
     assert!(step.blocked, "{step:?}");
@@ -43,31 +35,15 @@ fn repeated_wall_pressure_does_not_leak_through_wall() {
     };
     let motion = 0.0;
 
-    let first = step_character_movement(
+    let first = step_in(
+        &collision_world,
         character_step_toward(pos, motion, 1.0, pos.z, 0.1),
-        &CharacterEnvironment {
-            ladder_mode: LadderMode::Automatic,
-            collision_world: &collision_world,
-            gravity: TEST_GRAVITY,
-            passable_kinds: &[],
-            ladder_climb_ratio: test_ladders(),
-            physics: player_physics(),
-            portals: None,
-            carriers: &Carriers::default(),
-        },
+        LadderMode::Automatic,
     );
-    let second = step_character_movement(
+    let second = step_in(
+        &collision_world,
         character_step_toward(first.position, motion, 1.0, first.position.z, 0.1),
-        &CharacterEnvironment {
-            ladder_mode: LadderMode::Automatic,
-            collision_world: &collision_world,
-            gravity: TEST_GRAVITY,
-            passable_kinds: &[],
-            ladder_climb_ratio: test_ladders(),
-            physics: player_physics(),
-            portals: None,
-            carriers: &Carriers::default(),
-        },
+        LadderMode::Automatic,
     );
 
     assert!(first.blocked, "{first:?}");
@@ -87,31 +63,15 @@ fn player_slides_along_wall_under_pressure() {
     };
     let motion = 0.0;
 
-    let first = step_character_movement(
+    let first = step_in(
+        &collision_world,
         character_step_toward(pos, motion, 1.0, pos.z, 0.1),
-        &CharacterEnvironment {
-            ladder_mode: LadderMode::Automatic,
-            collision_world: &collision_world,
-            gravity: TEST_GRAVITY,
-            passable_kinds: &[],
-            ladder_climb_ratio: test_ladders(),
-            physics: player_physics(),
-            portals: None,
-            carriers: &Carriers::default(),
-        },
+        LadderMode::Automatic,
     );
-    let second = step_character_movement(
+    let second = step_in(
+        &collision_world,
         character_step_toward(first.position, motion, 1.0, first.position.z + 1.0, 0.1),
-        &CharacterEnvironment {
-            ladder_mode: LadderMode::Automatic,
-            collision_world: &collision_world,
-            gravity: TEST_GRAVITY,
-            passable_kinds: &[],
-            ladder_climb_ratio: test_ladders(),
-            physics: player_physics(),
-            portals: None,
-            carriers: &Carriers::default(),
-        },
+        LadderMode::Automatic,
     );
 
     assert!(second.blocked);
@@ -131,18 +91,10 @@ fn falling_player_pushing_into_wall_keeps_falling() {
     let motion = -CHARACTER_TERMINAL_VELOCITY;
     let delta = 0.0177;
 
-    let step = step_character_movement(
+    let step = step_in(
+        &collision_world,
         character_step_toward(pos, motion, 30.394, 31.699, delta),
-        &CharacterEnvironment {
-            ladder_mode: LadderMode::Automatic,
-            collision_world: &collision_world,
-            gravity: TEST_GRAVITY,
-            passable_kinds: &[],
-            ladder_climb_ratio: test_ladders(),
-            physics: player_physics(),
-            portals: None,
-            carriers: &Carriers::default(),
-        },
+        LadderMode::Automatic,
     );
 
     assert!(
@@ -163,18 +115,10 @@ fn diagonal_wall_hit_slides_in_same_step() {
     };
     let motion = 0.0;
 
-    let step = step_character_movement(
+    let step = step_in(
+        &collision_world,
         character_step_toward(pos, motion, 1.0, 1.0, 0.1),
-        &CharacterEnvironment {
-            ladder_mode: LadderMode::Automatic,
-            collision_world: &collision_world,
-            gravity: TEST_GRAVITY,
-            passable_kinds: &[],
-            ladder_climb_ratio: test_ladders(),
-            physics: player_physics(),
-            portals: None,
-            carriers: &Carriers::default(),
-        },
+        LadderMode::Automatic,
     );
 
     assert!(step.blocked, "{step:?}");
@@ -204,10 +148,11 @@ fn repeated_diagonal_wall_pressure_keeps_sliding() {
     };
     let motion = 0.0;
     let delta = 1.0 / 60.0;
-    let velocity = Vec3::new(1.0, 0.0, 0.25).normalize() * player_speed();
+    let velocity = Vec3::new(1.0, 0.0, 0.25).normalize() * TEST_PLAYER_SPEED;
 
     for _ in 0..120 {
-        let step = step_character_movement(
+        let step = step_in(
+            &collision_world,
             CharacterStep {
                 start: pos,
                 vertical_velocity: motion,
@@ -215,16 +160,7 @@ fn repeated_diagonal_wall_pressure_keeps_sliding() {
                 external_displacement: Vec3::ZERO,
                 delta,
             },
-            &CharacterEnvironment {
-                ladder_mode: LadderMode::Automatic,
-                collision_world: &collision_world,
-                gravity: TEST_GRAVITY,
-                passable_kinds: &[],
-                ladder_climb_ratio: test_ladders(),
-                physics: player_physics(),
-                portals: None,
-                carriers: &Carriers::default(),
-            },
+            LadderMode::Automatic,
         );
         pos = step.position;
     }
@@ -244,18 +180,10 @@ fn diagonal_wall_end_hit_slides_along_wall() {
     };
     let motion = 0.0;
 
-    let step = step_character_movement(
+    let step = step_in(
+        &collision_world,
         character_step_toward(pos, motion, 1.0, 1.0, 0.1),
-        &CharacterEnvironment {
-            ladder_mode: LadderMode::Automatic,
-            collision_world: &collision_world,
-            gravity: TEST_GRAVITY,
-            passable_kinds: &[],
-            ladder_climb_ratio: test_ladders(),
-            physics: player_physics(),
-            portals: None,
-            carriers: &Carriers::default(),
-        },
+        LadderMode::Automatic,
     );
 
     assert!(step.blocked, "{step:?}");
@@ -269,16 +197,6 @@ fn diagonal_wall_end_hit_slides_along_wall() {
 #[test]
 fn jumping_while_pushing_into_a_wall_still_rises() {
     let collision_world = collision_world_with(&[test_wall()], &[lower_floor()], &[]);
-    let env = CharacterEnvironment {
-        ladder_mode: LadderMode::Automatic,
-        collision_world: &collision_world,
-        gravity: TEST_GRAVITY,
-        passable_kinds: &[],
-        ladder_climb_ratio: test_ladders(),
-        physics: player_physics(),
-        portals: None,
-        carriers: &Carriers::default(),
-    };
     let delta = 1.0 / 30.0;
     let mut pos = Position {
         x: -1.0,
@@ -286,9 +204,18 @@ fn jumping_while_pushing_into_a_wall_still_rises() {
         z: 0.0,
     };
     for _ in 0..30 {
-        pos = step_character_movement(character_step_toward(pos, 0.0, pos.x + 0.2, pos.z, delta), &env).position;
+        pos = step_in(
+            &collision_world,
+            character_step_toward(pos, 0.0, pos.x + 0.2, pos.z, delta),
+            LadderMode::Automatic,
+        )
+        .position;
     }
-    let pressed = step_character_movement(character_step_toward(pos, 0.0, pos.x + 0.2, pos.z, delta), &env);
+    let pressed = step_in(
+        &collision_world,
+        character_step_toward(pos, 0.0, pos.x + 0.2, pos.z, delta),
+        LadderMode::Automatic,
+    );
     assert!(pressed.blocked, "the run-up never reached the wall");
 
     let launch = player_jump_velocity(0.0, &collision_world, player_physics(), 12.0, &pos);
@@ -301,9 +228,10 @@ fn jumping_while_pushing_into_a_wall_still_rises() {
     let mut vertical_velocity = 12.0;
     let mut heights = Vec::new();
     for _ in 0..6 {
-        let step = step_character_movement(
+        let step = step_in(
+            &collision_world,
             character_step_toward(pos, vertical_velocity, pos.x + 0.2, pos.z, delta),
-            &env,
+            LadderMode::Automatic,
         );
         pos = step.position;
         vertical_velocity = step.vertical_velocity;
@@ -320,19 +248,10 @@ fn jumping_while_pushing_into_a_wall_still_rises() {
 #[test]
 fn jumping_while_sliding_diagonally_along_a_wall_keeps_rising() {
     let collision_world = collision_world_with(&[test_wall()], &[lower_floor()], &[]);
-    let env = CharacterEnvironment {
-        ladder_mode: LadderMode::Automatic,
-        collision_world: &collision_world,
-        gravity: TEST_GRAVITY,
-        passable_kinds: &[],
-        ladder_climb_ratio: test_ladders(),
-        physics: player_physics(),
-        portals: None,
-        carriers: &Carriers::default(),
-    };
     let delta = 1.0 / 30.0;
     let step = |pos: Position, vertical_velocity: f32| {
-        step_character_movement(
+        step_in(
+            &collision_world,
             CharacterStep {
                 start: pos,
                 vertical_velocity,
@@ -340,7 +259,7 @@ fn jumping_while_sliding_diagonally_along_a_wall_keeps_rising() {
                 external_displacement: Vec3::ZERO,
                 delta,
             },
-            &env,
+            LadderMode::Automatic,
         )
     };
     let mut pos = Position {
@@ -389,16 +308,6 @@ fn running_across_flat_floor_tiles_keeps_its_speed() {
                     })
                     .collect();
                 let world = collision_world(&floors, &[]);
-                let env = CharacterEnvironment {
-                    ladder_mode: LadderMode::Automatic,
-                    collision_world: &world,
-                    gravity: TEST_GRAVITY,
-                    passable_kinds: &[],
-                    ladder_climb_ratio: test_ladders(),
-                    physics: player_physics(),
-                    portals: None,
-                    carriers: &Carriers::default(),
-                };
                 let mut pos = Position {
                     x: perturbation,
                     y: height + perturbation,
@@ -406,7 +315,8 @@ fn running_across_flat_floor_tiles_keeps_its_speed() {
                 };
                 let mut vy = 0.0;
                 for tick in 0..250 {
-                    let result = step_character_movement(
+                    let result = step_in(
+                        &world,
                         CharacterStep {
                             start: pos,
                             vertical_velocity: vy,
@@ -414,7 +324,7 @@ fn running_across_flat_floor_tiles_keeps_its_speed() {
                             external_displacement: Vec3::ZERO,
                             delta: 1.0 / 30.0,
                         },
-                        &env,
+                        LadderMode::Automatic,
                     );
                     assert!(
                         result.position.z - pos.z > speed / 30.0 * 0.99,

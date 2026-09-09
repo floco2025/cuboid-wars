@@ -1,5 +1,4 @@
 pub(super) use super::super::*;
-use crate::protocol::CarrierId;
 pub(super) use crate::{
     config::CharacterPhysicsConfig,
     map::{Carriers, ramp_surface_at},
@@ -7,11 +6,21 @@ pub(super) use crate::{
     protocol::{Floor, Ladder, MapLayout, Position, Ramp, Wall},
     test_geometry::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS},
 };
+use std::collections::HashMap;
+
+use crate::{
+    config::{KnockbackConfig, MapMovementConfig, PlayerMovementConfig, gameplay::load_test_gameplay},
+    protocol::{BarrierKindTable, Carrier, CarrierId, MapSettings, PortalMode},
+    test_geometry::sizes,
+};
 pub(super) use bevy_ecs::prelude::Entity;
 pub(super) use bevy_math::Vec3;
 
-// Gravity magnitude for movement tests (matches the shipping map's setting).
+// Movement tuning for movement tests (the shipping map's settings): gravity
+// magnitude, ladder climb ratio, and the player's run speed.
 pub(crate) const TEST_GRAVITY: f32 = 25.0;
+pub(crate) const TEST_LADDER_CLIMB_RATIO: f32 = 0.4;
+pub(crate) const TEST_PLAYER_SPEED: f32 = 9.0;
 
 pub(crate) fn test_ramp() -> Ramp {
     Ramp {
@@ -188,7 +197,7 @@ pub(crate) fn ladder_collision_world(floors: &[Floor], ladders: &[Ladder]) -> Co
             ladders: ladders.to_vec(),
             ..Default::default()
         },
-        &crate::protocol::BarrierKindTable::default(),
+        &BarrierKindTable::default(),
     )
 }
 
@@ -246,27 +255,157 @@ pub(crate) fn collision_world_with(walls: &[Wall], floors: &[Floor], ramps: &[Ra
             floors: floors.to_vec(),
             ..Default::default()
         },
-        &crate::protocol::BarrierKindTable::default(),
+        &BarrierKindTable::default(),
+    )
+}
+
+// The world `tick` ticks into its carriers' cycles: `previous` is the pose
+// one tick earlier, and the colliders already sit at `current`.
+pub(crate) fn world_at(layout: &MapLayout, tick: u32) -> (CollisionWorld, Carriers) {
+    let mut world = CollisionWorld::from_map_layout(layout, &BarrierKindTable::default());
+    let mut carriers = Carriers::from_layout(layout);
+    carriers.advance(tick.wrapping_sub(1));
+    carriers.advance(tick);
+    world.set_carrier_poses(&carriers);
+    (world, carriers)
+}
+
+// `world_at` for one carrier and the slab it carries, among static walls and floors.
+pub(crate) fn carried_world(
+    (carrier, floor): (Carrier, Floor),
+    walls: &[Wall],
+    floors: &[Floor],
+    tick: u32,
+) -> (CollisionWorld, Carriers) {
+    let layout = MapLayout {
+        walls: walls.to_vec(),
+        floors: floors.iter().copied().chain([floor]).collect(),
+        carriers: vec![carrier],
+        ..Default::default()
+    };
+    world_at(&layout, tick)
+}
+
+pub(crate) const TILE: CarrierId = CarrierId(1);
+
+// Slides from the origin four meters along +X in two seconds: 2 m/s, one
+// fifteenth of a meter per tick. The tile is a slab centered on the
+// carrier's origin.
+pub(crate) fn slider() -> (Carrier, Floor) {
+    (
+        Carrier {
+            parent: CarrierId::WORLD,
+            level: 0,
+            levels: 0,
+            from: Position::default(),
+            to: Position { x: 4.0, y: 0.0, z: 0.0 },
+            travel_ticks: 60,
+            pause_ticks: 0,
+            phase_ticks: 0,
+        },
+        Floor {
+            x1: -1.5,
+            z1: -1.5,
+            x2: 1.5,
+            z2: 1.5,
+            y: 0.0,
+            thickness: FLOOR_THICKNESS,
+            level: 0,
+            carrier: TILE,
+        },
+    )
+}
+
+// One player step among `world`'s carriers.
+pub(crate) fn ride(
+    world: &CollisionWorld,
+    carriers: &Carriers,
+    start: Position,
+    vertical_velocity: f32,
+    control_velocity: Vec3,
+    delta: f32,
+) -> CharacterMovementResult {
+    step_character_movement(
+        CharacterStep {
+            start,
+            vertical_velocity,
+            control_velocity,
+            external_displacement: Vec3::ZERO,
+            delta,
+        },
+        &test_environment(world, carriers, player_physics(), LadderMode::Automatic),
     )
 }
 
 pub(crate) fn test_entity(index: u32) -> Entity {
-    Entity::from_raw_u32(index).expect("test entity index should be valid")
+    Entity::from_raw_u32(index).expect("test entity index out of range")
+}
+
+// The map settings the actor policy reads: `test_environment`'s gravity and
+// climb ratio, so an actor step and a raw step agree.
+pub(crate) fn test_map_settings() -> MapSettings {
+    MapSettings {
+        skybox: "test".to_owned(),
+        textures: Default::default(),
+        geometry: sizes(),
+        movement: MapMovementConfig {
+            player: PlayerMovementConfig {
+                walk_speed: 6.0,
+                run_speed: TEST_PLAYER_SPEED,
+                speed_power_up: 1.6,
+                jump_speed: 12.0,
+            },
+            actors: HashMap::new(),
+            missile_speed: 20.0,
+            projectile_speed: 30.0,
+            gravity: TEST_GRAVITY,
+            low_gravity: 5.0,
+            ladder_climb_ratio: TEST_LADDER_CLIMB_RATIO,
+            knockback: KnockbackConfig {
+                max_speed: 10.0,
+                up_speed: 4.0,
+                deceleration: 12.0,
+            },
+        },
+        portals: PortalMode::Both,
+        barrier_kinds: Vec::new(),
+        bridge_kinds: Vec::new(),
+    }
 }
 
 pub(crate) fn player_physics() -> CharacterPhysicsConfig {
-    crate::config::gameplay::load_test_gameplay()
-        .expect("default gameplay config should load")
+    load_test_gameplay()
+        .expect("test gameplay config rejected")
         .player
         .physics()
 }
 
-pub(crate) fn test_ladders() -> f32 {
-    0.4
+// The environment every movement test steps in: no passable barrier kinds
+// and no portals, in the given world and carriers.
+pub(crate) fn test_environment<'a>(
+    world: &'a CollisionWorld,
+    carriers: &'a Carriers,
+    physics: CharacterPhysicsConfig,
+    ladder_mode: LadderMode,
+) -> CharacterEnvironment<'a> {
+    CharacterEnvironment {
+        collision_world: world,
+        gravity: TEST_GRAVITY,
+        passable_kinds: &[],
+        physics,
+        ladder_climb_ratio: TEST_LADDER_CLIMB_RATIO,
+        ladder_mode,
+        portals: None,
+        carriers,
+    }
 }
 
-pub(crate) fn player_speed() -> f32 {
-    9.0
+// One player step in a world without carriers.
+pub(crate) fn step_in(world: &CollisionWorld, step: CharacterStep, ladder_mode: LadderMode) -> CharacterMovementResult {
+    step_character_movement(
+        step,
+        &test_environment(world, &Carriers::default(), player_physics(), ladder_mode),
+    )
 }
 
 pub(crate) fn character_step_toward(

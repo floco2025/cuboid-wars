@@ -11,6 +11,7 @@ use super::CollisionWorld;
 use crate::{
     config::CharacterPhysicsConfig,
     map::{CarrierPose, Carriers},
+    math::to_rapier,
     physics::characters::{character_movement_pose, character_movement_shape},
     protocol::{CarrierId, Eraser, Position},
 };
@@ -36,38 +37,21 @@ impl EraserVolume {
         }
     }
 
-    pub(super) fn posed(self, pose: &CarrierPose) -> Self {
+    // The volume built from a carrier-local eraser, placed by the carrier's pose.
+    pub(super) fn posed(&self, pose: &CarrierPose) -> Self {
         Self {
-            min: self.min + pose.translation,
-            max: self.max + pose.translation,
-            ..self
+            min: pose.transform_point(self.min),
+            max: pose.transform_point(self.max),
+            ..*self
         }
     }
 
-    pub(super) const fn carrier(self) -> CarrierId {
+    pub(super) const fn carrier(&self) -> CarrierId {
         self.carrier
     }
 }
 
 impl CollisionWorld {
-    #[must_use]
-    pub fn character_touches_eraser(&self, pos: &Position, physics: CharacterPhysicsConfig) -> bool {
-        self.character_crosses_eraser(pos, pos, physics, None)
-    }
-
-    #[must_use]
-    pub fn character_crosses_eraser(
-        &self,
-        start: &Position,
-        end: &Position,
-        physics: CharacterPhysicsConfig,
-        carriers: Option<&Carriers>,
-    ) -> bool {
-        self.character_eraser_contacts(start, end, physics, carriers)
-            .next()
-            .is_some()
-    }
-
     // Indices name the erasers in the layout for this collision world's lifetime.
     pub fn character_eraser_contacts<'a>(
         &'a self,
@@ -85,16 +69,15 @@ impl CollisionWorld {
             .filter_map(move |(index, volume)| {
                 // The field is posed at tick end; relative travel catches a moving field sweeping a stationary player.
                 let carry = carriers.map_or(Vec3::ZERO, |carriers| carriers.displacement(volume.carrier));
-                let field = Cuboid::new(Vector::from_array(((volume.max - volume.min) / 2.0).to_array()));
-                let field_pose =
-                    Pose::from_translation(Vector::from_array(((volume.min + volume.max) / 2.0).to_array()));
+                let field = Cuboid::new(to_rapier((volume.max - volume.min) / 2.0));
+                let field_pose = Pose::from_translation(to_rapier((volume.min + volume.max) / 2.0));
                 let mut from = pose;
-                from.translation += Vector::from_array(carry.to_array());
+                from.translation += to_rapier(carry);
                 let overlaps = intersection_test(&from, &shape, &field_pose, &field).is_ok_and(|hit| hit);
                 (overlaps
                     || cast_shapes(
                         &from,
-                        Vector::from_array((translation - carry).to_array()),
+                        to_rapier(translation - carry),
                         &shape,
                         &field_pose,
                         Vector::ZERO,
@@ -110,16 +93,11 @@ impl CollisionWorld {
     }
 
     pub(super) fn eraser_blocks_segment(&self, from: Vec3, to: Vec3) -> bool {
-        let ray = Ray::new(
-            Vector::from_array(from.to_array()),
-            Vector::from_array((to - from).to_array()),
-        );
+        let ray = Ray::new(to_rapier(from), to_rapier(to - from));
         self.eraser_volumes.iter().any(|volume| {
-            let bounds = Aabb::new(
-                Vector::from_array(volume.min.to_array()),
-                Vector::from_array(volume.max.to_array()),
-            );
-            bounds.cast_local_ray(&ray, 1.0, true).is_some()
+            Aabb::new(to_rapier(volume.min), to_rapier(volume.max))
+                .cast_local_ray(&ray, 1.0, true)
+                .is_some()
         })
     }
 }
@@ -187,16 +165,22 @@ mod tests {
             .physics();
         let front = Position::from(Vec3::Z * 10.0);
         let back = Position::from(Vec3::NEG_Z * 10.0);
-        assert!(world.character_crosses_eraser(&front, &back, physics, None));
-        assert!(world.character_crosses_eraser(&back, &front, physics, None));
-        assert!(world.character_touches_eraser(&Position::default(), physics));
-        assert!(!world.character_touches_eraser(&Position::from(Vec3::Y * 5.0), physics));
-        assert!(!world.character_touches_eraser(&Position::from(Vec3::NEG_Y * 10.0), physics));
-        assert!(!world.character_crosses_eraser(
+        let contact = |start: &Position, end: &Position| {
+            world
+                .character_eraser_contacts(start, end, physics, None)
+                .next()
+                .is_some()
+        };
+        assert!(contact(&front, &back));
+        assert!(contact(&back, &front));
+        assert!(contact(&Position::default(), &Position::default()));
+        let high = Position::from(Vec3::Y * 5.0);
+        assert!(!contact(&high, &high));
+        let low = Position::from(Vec3::NEG_Y * 10.0);
+        assert!(!contact(&low, &low));
+        assert!(!contact(
             &Position::from(Vec3::new(5.0, 0.0, 10.0)),
             &Position::from(Vec3::new(5.0, 0.0, -10.0)),
-            physics,
-            None
         ));
         assert!(world.projectile_path_clear(Vec3::new(0.0, 1.0, 10.0), Vec3::NEG_Z * 20.0, 0.3, &[]));
         assert!(world.colliders.is_empty());
@@ -228,11 +212,17 @@ mod tests {
             .player
             .physics();
         let pos = Position::default();
-        assert!(!world.character_touches_eraser(&pos, physics));
+        let touches = |world: &CollisionWorld, carriers: Option<&Carriers>| {
+            world
+                .character_eraser_contacts(&pos, &pos, physics, carriers)
+                .next()
+                .is_some()
+        };
+        assert!(!touches(&world, None));
         carriers.advance(1);
         world.set_carrier_poses(&carriers);
-        assert!(!world.character_touches_eraser(&pos, physics));
-        assert!(world.character_crosses_eraser(&pos, &pos, physics, Some(&carriers)));
+        assert!(!touches(&world, None));
+        assert!(touches(&world, Some(&carriers)));
     }
 
     #[test]

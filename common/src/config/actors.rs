@@ -24,7 +24,7 @@ impl ActorGameplayConfig {
         self.character.eye_height()
     }
 
-    pub fn beam_origin_height(&self) -> f32 {
+    pub fn beam_origin_y_offset(&self) -> f32 {
         self.beam_origin_height
             .unwrap_or_else(|| self.physics().hitbox.center_y_offset())
     }

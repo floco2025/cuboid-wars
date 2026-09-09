@@ -3,8 +3,8 @@ use bevy_ecs::prelude::*;
 use bincode::{Decode, Encode};
 
 use super::{
-    ActorMoveIntent, ActorMovementState, BarrierKindId, CarrierId, Health, ItemType, MissileMovementState, PlayerId,
-    PlayerMoveIntent, PlayerMovementState, PortalAccess, Position, PowerUpKind,
+    ActorMovementState, BarrierKindId, CarrierId, Health, ItemType, MissileMovementState, PlayerId, PlayerMoveIntent,
+    PlayerMovementState, PortalAccess, Position, PowerUpKind,
 };
 
 // Marker components disambiguating entity archetypes across server and client.
@@ -67,20 +67,6 @@ pub struct SpawningActor {
     pub face_yaw: f32,
     pub reserved_tick: u32,
     pub due_tick: u32,
-}
-
-impl Actor {
-    #[must_use]
-    pub const fn new(kind: String, pos: Position, move_intent: ActorMoveIntent, face_yaw: f32, health: Health) -> Self {
-        Self {
-            kind,
-            anchor: None,
-            beam: None,
-            movement: ActorMovementState::new(pos, move_intent, 0.0),
-            face_yaw,
-            health,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Encode, Decode)]

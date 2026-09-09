@@ -11,18 +11,10 @@ fn player_walking_off_ramp_side_is_not_blocked_by_ramp_side() {
     };
     let motion = 0.0;
 
-    let step = step_character_movement(
+    let step = step_in(
+        &collision_world,
         character_step_toward(pos, motion, -1.0, pos.z, 0.1),
-        &CharacterEnvironment {
-            ladder_mode: LadderMode::Automatic,
-            collision_world: &collision_world,
-            gravity: TEST_GRAVITY,
-            passable_kinds: &[],
-            ladder_climb_ratio: test_ladders(),
-            physics: player_physics(),
-            portals: None,
-            carriers: &Carriers::default(),
-        },
+        LadderMode::Automatic,
     );
 
     assert!(!step.blocked, "{step:?}");
@@ -40,18 +32,10 @@ fn lower_floor_player_hits_wedge_side_from_collision_world() {
     };
     let motion = 0.0;
 
-    let step = step_character_movement(
+    let step = step_in(
+        &collision_world,
         character_step_toward(pos, motion, 1.0, pos.z, 0.1),
-        &CharacterEnvironment {
-            ladder_mode: LadderMode::Automatic,
-            collision_world: &collision_world,
-            gravity: TEST_GRAVITY,
-            passable_kinds: &[],
-            ladder_climb_ratio: test_ladders(),
-            physics: player_physics(),
-            portals: None,
-            carriers: &Carriers::default(),
-        },
+        LadderMode::Automatic,
     );
 
     assert!(step.blocked);
@@ -69,18 +53,10 @@ fn lower_floor_player_can_enter_wedge_low_end() {
     };
     let motion = 0.0;
 
-    let step = step_character_movement(
+    let step = step_in(
+        &collision_world,
         character_step_toward(pos, motion, pos.x, 0.25, 0.1),
-        &CharacterEnvironment {
-            ladder_mode: LadderMode::Automatic,
-            collision_world: &collision_world,
-            gravity: TEST_GRAVITY,
-            passable_kinds: &[],
-            ladder_climb_ratio: test_ladders(),
-            physics: player_physics(),
-            portals: None,
-            carriers: &Carriers::default(),
-        },
+        LadderMode::Automatic,
     );
 
     assert!(!step.blocked, "{step:?}");
@@ -98,18 +74,10 @@ fn upper_floor_player_can_enter_wedge_high_end() {
     };
     let motion = 0.0;
 
-    let step = step_character_movement(
+    let step = step_in(
+        &collision_world,
         character_step_toward(pos, motion, pos.x, 7.75, 0.1),
-        &CharacterEnvironment {
-            ladder_mode: LadderMode::Automatic,
-            collision_world: &collision_world,
-            gravity: TEST_GRAVITY,
-            passable_kinds: &[],
-            ladder_climb_ratio: test_ladders(),
-            physics: player_physics(),
-            portals: None,
-            carriers: &Carriers::default(),
-        },
+        LadderMode::Automatic,
     );
 
     assert!(!step.blocked, "{step:?}");
@@ -125,18 +93,10 @@ fn capsule_cannot_step_sideways_onto_a_floor_above_step_height() {
     let pos = Position { x: 2.0, y, z: 7.0 };
     let motion = 0.0;
 
-    let step = step_character_movement(
+    let step = step_in(
+        &collision_world,
         character_step_toward(pos, motion, -1.0, pos.z, 0.1),
-        &CharacterEnvironment {
-            ladder_mode: LadderMode::Automatic,
-            collision_world: &collision_world,
-            gravity: TEST_GRAVITY,
-            passable_kinds: &[],
-            ladder_climb_ratio: test_ladders(),
-            physics: player_physics(),
-            portals: None,
-            carriers: &Carriers::default(),
-        },
+        LadderMode::Automatic,
     );
 
     assert!(step.blocked, "{step:?}");

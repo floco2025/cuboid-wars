@@ -73,7 +73,7 @@ impl CarrierPose {
 // every carrier from the shared clock alone.
 #[must_use]
 pub fn carrier_offset_at(carrier: &Carrier, tick: u32) -> Vec3 {
-    let travel = carrier.travel_ticks.max(1);
+    let travel = carrier.travel_ticks;
     let cycle = 2 * (travel + carrier.pause_ticks);
     let phase = tick.wrapping_add(carrier.phase_ticks) % cycle;
     let progress = if phase < travel {
@@ -136,6 +136,11 @@ impl Carriers {
     #[must_use]
     pub fn carried_count(&self) -> usize {
         self.carried.len()
+    }
+
+    // Every carrier but the world, in layout order.
+    pub fn carried_ids(&self) -> impl Iterator<Item = CarrierId> {
+        (0..self.carried.len()).map(CarrierId::from_carried_index)
     }
 
     // Parents precede children, so each world pose composes from a parent

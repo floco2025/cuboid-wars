@@ -1,7 +1,25 @@
-use bevy_math::Vec3;
 use std::f32::consts::{PI, TAU};
 
+use bevy_math::{Quat, Vec3};
+use rapier3d::prelude::{Pose, Vector, glamx};
+
 pub const PHYSICS_EPSILON: f32 = 1e-6;
+
+// Rapier's glam is not Bevy's; every value crossing between the two converts here.
+#[must_use]
+pub fn to_rapier(v: Vec3) -> Vector {
+    Vector::from_array(v.to_array())
+}
+
+#[must_use]
+pub fn from_rapier(v: Vector) -> Vec3 {
+    Vec3::from_array(v.to_array())
+}
+
+#[must_use]
+pub fn rapier_pose(translation: Vec3, rotation: Quat) -> Pose {
+    Pose::from_parts(to_rapier(translation), glamx::Quat::from_array(rotation.to_array()))
+}
 
 pub fn angle_delta_radians(a: f32, b: f32) -> f32 {
     (a - b + PI).rem_euclid(TAU) - PI

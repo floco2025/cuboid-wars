@@ -22,18 +22,10 @@ fn ladder_step(
     target_x: f32,
     target_z: f32,
 ) -> CharacterMovementResult {
-    step_character_movement(
+    step_in(
+        world,
         character_step_toward(start, vertical_velocity, target_x, target_z, 0.1),
-        &CharacterEnvironment {
-            ladder_mode: LadderMode::Automatic,
-            collision_world: world,
-            gravity: TEST_GRAVITY,
-            passable_kinds: &[],
-            ladder_climb_ratio: test_ladders(),
-            physics: player_physics(),
-            portals: None,
-            carriers: &Carriers::default(),
-        },
+        LadderMode::Automatic,
     )
 }
 
@@ -43,7 +35,8 @@ fn ladder_step_with_external_displacement(
     control_velocity: Vec3,
     external_displacement: Vec3,
 ) -> CharacterMovementResult {
-    step_character_movement(
+    step_in(
+        world,
         CharacterStep {
             start,
             vertical_velocity: 0.0,
@@ -51,16 +44,7 @@ fn ladder_step_with_external_displacement(
             external_displacement,
             delta: 0.1,
         },
-        &CharacterEnvironment {
-            ladder_mode: LadderMode::Automatic,
-            collision_world: world,
-            gravity: TEST_GRAVITY,
-            passable_kinds: &[],
-            ladder_climb_ratio: test_ladders(),
-            physics: player_physics(),
-            portals: None,
-            carriers: &Carriers::default(),
-        },
+        LadderMode::Automatic,
     )
 }
 
@@ -76,7 +60,7 @@ fn pushing_toward_ladder_face_climbs_at_into_speed() {
     // 0.2 toward the face over delta 0.1 = 2 m/s into it.
     let step = ladder_step(&world, start, 0.0, start.x, -0.3);
 
-    let expected = 2.0 * test_ladders();
+    let expected = 2.0 * TEST_LADDER_CLIMB_RATIO;
     assert!((step.vertical_velocity - expected).abs() < 1e-4);
     assert!(step.position.y > start.y);
     assert_eq!(step.support, CharacterSupport::Ladder);
@@ -140,7 +124,7 @@ fn external_displacement_does_not_change_climb_speed() {
 
     let step = ladder_step_with_external_displacement(&world, start, Vec3::Z * 2.0, Vec3::NEG_Z * 0.1);
 
-    let expected = 2.0 * test_ladders();
+    let expected = 2.0 * TEST_LADDER_CLIMB_RATIO;
     assert!((step.vertical_velocity - expected).abs() < 1e-4);
 }
 
@@ -433,7 +417,7 @@ fn pressing_away_descends_at_input_speed() {
     // ascent rate and the horizontal motion is pinned to the hold line.
     let step = ladder_step(&world, start, 0.0, start.x, -0.7);
 
-    let expected = -2.0 * test_ladders();
+    let expected = -2.0 * TEST_LADDER_CLIMB_RATIO;
     assert!((step.vertical_velocity - expected).abs() < 1e-4);
     assert!(step.position.y < start.y);
     assert!((step.position.z - (rail_plane_z() - player_hold_distance())).abs() < 0.01);

@@ -7,7 +7,7 @@ use rapier3d::{
     prelude::{Pose, Vector},
 };
 
-use crate::{config::CharacterPhysicsConfig, constants::CHARACTER_CONTACT_OFFSET, protocol::Position};
+use crate::{config::CharacterPhysicsConfig, constants::CHARACTER_CONTACT_OFFSET, math::to_rapier, protocol::Position};
 
 #[must_use]
 pub fn character_movement_shape(physics: CharacterPhysicsConfig) -> Capsule {
@@ -16,13 +16,13 @@ pub fn character_movement_shape(physics: CharacterPhysicsConfig) -> Capsule {
 }
 
 #[must_use]
-pub fn character_hitbox_shape(physics: CharacterPhysicsConfig) -> Cuboid {
+pub(super) fn character_hitbox_shape(physics: CharacterPhysicsConfig) -> Cuboid {
     let hitbox = physics.hitbox;
     Cuboid::new(Vector::new(hitbox.width, hitbox.height, hitbox.depth) / 2.0)
 }
 
-#[must_use]
 // The skin lifts the shape while the shared position remains at the feet.
+#[must_use]
 pub fn character_movement_center(pos: Position, physics: CharacterPhysicsConfig) -> Vec3 {
     Vec3::new(
         pos.x,
@@ -52,8 +52,7 @@ pub fn character_surface_distance(
 }
 
 pub fn character_movement_pose(pos: &Position, physics: CharacterPhysicsConfig) -> Pose {
-    let center = character_movement_center(*pos, physics);
-    Pose::translation(center.x, center.y, center.z)
+    Pose::from_translation(to_rapier(character_movement_center(*pos, physics)))
 }
 
 #[must_use]
@@ -67,8 +66,8 @@ pub fn character_paths_intersect(
 ) -> bool {
     let shape1 = character_movement_shape(physics1);
     let shape2 = character_movement_shape(physics2);
-    let velocity1 = Vector::new(end1.x - start1.x, end1.y - start1.y, end1.z - start1.z);
-    let velocity2 = Vector::new(end2.x - start2.x, end2.y - start2.y, end2.z - start2.z);
+    let velocity1 = to_rapier(Vec3::from(*end1) - Vec3::from(*start1));
+    let velocity2 = to_rapier(Vec3::from(*end2) - Vec3::from(*start2));
     if character_positions_intersect(start1, physics1, start2, physics2) {
         return true;
     }

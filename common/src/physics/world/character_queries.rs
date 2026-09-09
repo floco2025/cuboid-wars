@@ -1,9 +1,95 @@
 use rapier3d::{
+    control::{CharacterCollision, EffectiveCharacterMovement, KinematicCharacterController},
     parry::query::{
         ClosestPoints, Contact, NonlinearRigidMotion, QueryDispatcher, ShapeCastHit, ShapeCastOptions, Unsupported,
     },
-    prelude::{Pose, Shape, Vector},
+    prelude::{Collider, ColliderHandle, Pose, Shape, Vector},
 };
+
+use super::{
+    CollisionWorld,
+    colliders::{WALL_COLLISION_GROUP, character_collision_groups, query_filter},
+};
+use crate::{
+    config::CharacterPhysicsConfig,
+    physics::characters::{character_movement_pose, character_movement_shape},
+    protocol::{BarrierKindId, Position},
+};
+
+impl CollisionWorld {
+    #[must_use]
+    pub(crate) fn move_character(
+        &self,
+        dt: f32,
+        controller: &KinematicCharacterController,
+        character_movement_shape: &dyn Shape,
+        character_pos: &Pose,
+        desired_translation: Vector,
+        passable_kinds: &[BarrierKindId],
+        excluded_colliders: &[ColliderHandle],
+        events: impl FnMut(CharacterCollision),
+    ) -> EffectiveCharacterMovement {
+        // Portal transit: the aperture's backing colliders stop existing for
+        // a body overlapping the aperture, which is what lets it pass
+        // through the surface.
+        let allow = |handle: ColliderHandle, _: &Collider| !excluded_colliders.contains(&handle);
+        let mut filter = query_filter(character_collision_groups(passable_kinds, self.all_barrier_groups));
+        if !excluded_colliders.is_empty() {
+            filter.predicate = Some(&allow);
+        }
+        let dispatcher = CharacterQueryDispatcher(self.narrow_phase.query_dispatcher());
+        let query_pipeline = self
+            .broad_phase
+            .as_query_pipeline(&dispatcher, &self.bodies, &self.colliders, filter);
+        controller.move_shape(
+            dt,
+            &query_pipeline,
+            character_movement_shape,
+            character_pos,
+            desired_translation,
+            events,
+        )
+    }
+
+    #[must_use]
+    pub fn character_overlaps_wall(&self, pos: &Position, physics: CharacterPhysicsConfig) -> bool {
+        self.shape_overlaps(
+            character_movement_pose(pos, physics),
+            &character_movement_shape(physics),
+            query_filter(WALL_COLLISION_GROUP),
+        )
+    }
+
+    // Whether sliding a character's movement capsule horizontally from `start` to
+    // `target` drags it through a wall. Floors and ramps are ignored so a
+    // leg onto a slope counts as clear; a body already touching a wall but
+    // moving away from it is clear too.
+    #[must_use]
+    pub fn character_sweep_hits_wall(
+        &self,
+        start: &Position,
+        target: &Position,
+        physics: CharacterPhysicsConfig,
+    ) -> bool {
+        let translation = Vector::new(target.x - start.x, 0.0, target.z - start.z);
+        if translation.length_squared() == 0.0 {
+            return false;
+        }
+        let options = ShapeCastOptions {
+            max_time_of_impact: 1.0,
+            stop_at_penetration: false,
+            ..ShapeCastOptions::default()
+        };
+        self.query_pipeline(query_filter(WALL_COLLISION_GROUP))
+            .cast_shape(
+                &character_movement_pose(start, physics),
+                translation,
+                &character_movement_shape(physics),
+                options,
+            )
+            .is_some()
+    }
+}
 
 pub(super) struct CharacterQueryDispatcher<'a>(pub &'a dyn QueryDispatcher);
 

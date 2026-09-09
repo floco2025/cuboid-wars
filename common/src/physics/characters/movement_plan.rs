@@ -81,14 +81,8 @@ fn character_move_plan_follows_front_move(candidate: &CharacterMovePlan, other: 
     let to_other_start_z = other.start.z - candidate.start.z;
     let other_starts_in_front = candidate_move_x.mul_add(to_other_start_x, candidate_move_z * to_other_start_z) > 0.0;
     let moving_same_way = candidate_move_x.mul_add(other_move_x, candidate_move_z * other_move_z) > 0.0;
-    let final_positions_overlap = character_paths_intersect(
-        &candidate.target,
-        &candidate.target,
-        candidate.physics,
-        &other.target,
-        &other.target,
-        other.physics,
-    );
+    let final_positions_overlap =
+        character_positions_intersect(&candidate.target, candidate.physics, &other.target, other.physics);
 
     other_starts_in_front && moving_same_way && !final_positions_overlap
 }

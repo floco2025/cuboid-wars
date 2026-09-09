@@ -8,6 +8,7 @@ use super::shape_cast::FieldKind;
 
 use crate::{
     map::{RampAxis, ramp_axis},
+    math::to_rapier,
     protocol::{Barrier, BarrierKindId, BridgeKindId, CarrierId, Floor, KindId, LightBridge, Ramp, Wall},
 };
 
@@ -40,7 +41,11 @@ pub(crate) fn barrier_collision_group(kind: BarrierKindId) -> Group {
 
 // World geometry that bounces projectiles (walls, floors, ramps), on any
 // carrier. Barriers terminate projectiles instead, so they're NOT in this
-// mask.
+// mask. Which queries see powered bridges: projectile bounces, sight,
+// rain/scorch/wheel ground probes, portal backing, and the world and wall
+// rays are bridge-blind (this mask); character movement, attacks, portal
+// shots, missile flight, and the camera arm see them
+// (`surface_collision_groups`, `character_collision_groups`).
 pub(super) fn world_collision_groups() -> Group {
     WALL_COLLISION_GROUP | FLOOR_COLLISION_GROUP | RAMP_COLLISION_GROUP
 }
@@ -130,21 +135,7 @@ impl ColliderKind {
 }
 
 pub(super) fn insert_wall_collider(colliders: &mut ColliderSet, wall: &Wall) -> ColliderHandle {
-    let dx = (wall.x2 - wall.x1).abs();
-    let dz = (wall.z2 - wall.z1).abs();
-    let wall_half_thickness = wall.width / 2.0;
-    let is_horizontal = dx > dz;
-    let half_extents = Vec3::new(
-        if is_horizontal { dx / 2.0 } else { wall_half_thickness },
-        wall.height / 2.0,
-        if is_horizontal { wall_half_thickness } else { dz / 2.0 },
-    );
-    let center = Vec3::new(
-        f32::midpoint(wall.x1, wall.x2),
-        wall.y + wall.height / 2.0,
-        f32::midpoint(wall.z1, wall.z2),
-    );
-
+    let (center, half_extents) = edge_cuboid(wall.x1, wall.z1, wall.x2, wall.z2, wall.width, wall.y, wall.height);
     insert_cuboid_collider(
         colliders,
         center,
@@ -155,14 +146,7 @@ pub(super) fn insert_wall_collider(colliders: &mut ColliderSet, wall: &Wall) -> 
 }
 
 pub(super) fn insert_floor_collider(colliders: &mut ColliderSet, floor: &Floor) -> ColliderHandle {
-    let (min_x, max_x, min_z, max_z) = floor.bounds_xz();
-    let center = Vec3::new(
-        f32::midpoint(min_x, max_x),
-        floor.y - floor.thickness / 2.0,
-        f32::midpoint(min_z, max_z),
-    );
-    let half_extents = Vec3::new((max_x - min_x) / 2.0, floor.thickness / 2.0, (max_z - min_z) / 2.0);
-
+    let (center, half_extents) = slab_cuboid(floor.bounds_xz(), floor.y, floor.thickness);
     insert_cuboid_collider(
         colliders,
         center,
@@ -176,19 +160,14 @@ pub(super) fn insert_floor_collider(colliders: &mut ColliderSet, floor: &Floor) 
 // but with per-kind collision groups so each player's filter can drop
 // the kinds they hold keys for.
 pub(super) fn insert_barrier_collider(colliders: &mut ColliderSet, barrier: &Barrier) -> ColliderHandle {
-    let dx = (barrier.x2 - barrier.x1).abs();
-    let dz = (barrier.z2 - barrier.z1).abs();
-    let half_thickness = barrier.width / 2.0;
-    let is_horizontal = dx > dz;
-    let half_extents = Vec3::new(
-        if is_horizontal { dx / 2.0 } else { half_thickness },
-        barrier.height / 2.0,
-        if is_horizontal { half_thickness } else { dz / 2.0 },
-    );
-    let center = Vec3::new(
-        f32::midpoint(barrier.x1, barrier.x2),
-        barrier.y + barrier.height / 2.0,
-        f32::midpoint(barrier.z1, barrier.z2),
+    let (center, half_extents) = edge_cuboid(
+        barrier.x1,
+        barrier.z1,
+        barrier.x2,
+        barrier.z2,
+        barrier.width,
+        barrier.y,
+        barrier.height,
     );
     insert_cuboid_collider(
         colliders,
@@ -203,13 +182,7 @@ pub(super) fn insert_barrier_collider(colliders: &mut ColliderSet, barrier: &Bar
 // so no query sees it until `set_powered_bridges` moves it into
 // `BRIDGE_COLLISION_GROUP`.
 pub(super) fn insert_bridge_collider(colliders: &mut ColliderSet, bridge: &LightBridge) -> ColliderHandle {
-    let (min_x, max_x, min_z, max_z) = bridge.bounds_xz();
-    let center = Vec3::new(
-        f32::midpoint(min_x, max_x),
-        bridge.y - bridge.thickness / 2.0,
-        f32::midpoint(min_z, max_z),
-    );
-    let half_extents = Vec3::new((max_x - min_x) / 2.0, bridge.thickness / 2.0, (max_z - min_z) / 2.0);
+    let (center, half_extents) = slab_cuboid(bridge.bounds_xz(), bridge.y, bridge.thickness);
     insert_cuboid_collider(
         colliders,
         center,
@@ -217,6 +190,34 @@ pub(super) fn insert_bridge_collider(colliders: &mut ColliderSet, bridge: &Light
         ColliderKind::bridge_user_data(bridge.kind, bridge.carrier),
         Group::empty(),
     )
+}
+
+// Center and half extents of a thin cuboid along a grid edge from
+// (x1, z1) to (x2, z2), `width` across it and `height` up from `y`.
+fn edge_cuboid(x1: f32, z1: f32, x2: f32, z2: f32, width: f32, y: f32, height: f32) -> (Vec3, Vec3) {
+    let dx = (x2 - x1).abs();
+    let dz = (z2 - z1).abs();
+    let half_thickness = width / 2.0;
+    let is_horizontal = dx > dz;
+    let half_extents = Vec3::new(
+        if is_horizontal { dx / 2.0 } else { half_thickness },
+        height / 2.0,
+        if is_horizontal { half_thickness } else { dz / 2.0 },
+    );
+    let center = Vec3::new(f32::midpoint(x1, x2), y + height / 2.0, f32::midpoint(z1, z2));
+    (center, half_extents)
+}
+
+// Center and half extents of a slab whose walking surface is at `y`,
+// `thickness` deep below it, over the (min_x, max_x, min_z, max_z) bounds.
+fn slab_cuboid((min_x, max_x, min_z, max_z): (f32, f32, f32, f32), y: f32, thickness: f32) -> (Vec3, Vec3) {
+    let center = Vec3::new(
+        f32::midpoint(min_x, max_x),
+        y - thickness / 2.0,
+        f32::midpoint(min_z, max_z),
+    );
+    let half_extents = Vec3::new((max_x - min_x) / 2.0, thickness / 2.0, (max_z - min_z) / 2.0);
+    (center, half_extents)
 }
 
 fn insert_cuboid_collider(
@@ -228,7 +229,7 @@ fn insert_cuboid_collider(
 ) -> ColliderHandle {
     colliders.insert(
         ColliderBuilder::cuboid(half_extents.x, half_extents.y, half_extents.z)
-            .position(Pose::translation(center.x, center.y, center.z))
+            .position(Pose::from_translation(to_rapier(center)))
             .collision_groups(collider_interaction_groups(group))
             .user_data(user_data)
             .build(),

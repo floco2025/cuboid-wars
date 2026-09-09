@@ -13,7 +13,7 @@ use crate::{
     constants::CHARACTER_CONTACT_OFFSET,
     map::Carriers,
     math::PHYSICS_EPSILON,
-    physics::characters::{character_movement_center, character_movement_shape},
+    physics::characters::{character_movement_pose, character_movement_shape},
     protocol::{BarrierKindId, Position},
 };
 
@@ -40,14 +40,9 @@ impl CollisionWorld {
         };
         let mut filter = query_filter(character_collision_groups(passable_kinds, self.all_barrier_groups));
         filter.predicate = Some(&allow);
-        let query_pipeline = self.broad_phase.as_query_pipeline(
-            self.narrow_phase.query_dispatcher(),
-            &self.bodies,
-            &self.colliders,
-            filter,
-        );
         let mut pose = *start;
-        let mut overlaps: Vec<_> = query_pipeline
+        let mut overlaps: Vec<_> = self
+            .query_pipeline(filter)
             .intersect_shape(pose, shape)
             .map(|(handle, _)| handle)
             .collect();
@@ -91,7 +86,6 @@ impl CollisionWorld {
         lifted: bool,
     ) -> bool {
         let shape = character_movement_shape(physics);
-        let center = character_movement_center(*pos, physics);
         let inset = Capsule {
             radius: (shape.radius - CHARACTER_CONTACT_OFFSET * 2.0).max(PHYSICS_EPSILON),
             ..shape
@@ -103,15 +97,6 @@ impl CollisionWorld {
         };
         let mut filter = query_filter(character_collision_groups(passable_kinds, self.all_barrier_groups));
         filter.predicate = Some(&allow);
-        let query_pipeline = self.broad_phase.as_query_pipeline(
-            self.narrow_phase.query_dispatcher(),
-            &self.bodies,
-            &self.colliders,
-            filter,
-        );
-        query_pipeline
-            .intersect_shape(Pose::translation(center.x, center.y, center.z), &inset)
-            .next()
-            .is_some()
+        self.shape_overlaps(character_movement_pose(pos, physics), &inset, filter)
     }
 }

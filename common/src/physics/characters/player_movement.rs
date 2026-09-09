@@ -9,8 +9,9 @@ use crate::{
 
 use super::{
     ladder::LadderMode,
+    momentum::{AirborneMomentum, KnockbackVelocity, momentum_displacement},
     movement::{CharacterEnvironment, CharacterStep, step_character_movement},
-    types::{AirborneMomentum, CharacterMovementResult, KnockbackVelocity, momentum_displacement},
+    types::CharacterMovementResult,
 };
 
 pub struct PlayerMovementStep<'a> {

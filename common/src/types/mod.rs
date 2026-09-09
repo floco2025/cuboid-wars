@@ -14,11 +14,9 @@ mod portals;
 mod position;
 mod quests;
 mod textures;
+mod tick;
 
-pub use crate::{
-    health::Health,
-    tick::{ServerTick, server_tick_advance_system, ticks_from_secs},
-};
+pub use crate::health::Health;
 
 pub use barrier_kind::{BarrierKindId, BarrierKindTable};
 pub use bridge_kind::{BridgeKindId, BridgeKindTable};
@@ -44,3 +42,4 @@ pub use portals::{Portal, PortalAccess, PortalEnd};
 pub use position::Position;
 pub use quests::{QuestGroupProgress, QuestGroupStatus, QuestScope, QuestStateProgress, QuestStatus};
 pub use textures::{TextureSettings, validate_texture_catalog, validate_texture_materials};
+pub use tick::{ServerTick, server_tick_advance_system, ticks_from_secs};

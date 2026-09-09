@@ -1,4 +1,9 @@
-use std::{collections::BTreeMap, sync::OnceLock};
+use std::{
+    collections::BTreeMap,
+    f32::consts::{FRAC_PI_2, TAU},
+    iter::once,
+    sync::OnceLock,
+};
 
 use bevy_math::{Mat3, Quat, Vec3};
 use rapier3d::{
@@ -6,14 +11,14 @@ use rapier3d::{
     prelude::{Pose, SharedShape, Vector},
 };
 
-use super::{PortalFrame, frame::PORTAL_UP_DEGENERACY_LIMIT};
+use super::PortalFrame;
 use crate::{
     constants::{
         PORTAL_FIXTURE_PLANE_DEPTH, PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH, PORTAL_LIGHT_CLEARANCE,
         PORTAL_PLATE_CLEARANCE, PORTAL_RIM_SCALE, PORTAL_STANDABLE_NORMAL_Y,
     },
     map::Carriers,
-    math::direction_from_yaw_pitch,
+    math::{direction_from_yaw_pitch, rapier_pose},
     physics::CollisionWorld,
     protocol::{BarrierKindId, CarrierId, MapLayout, Portal, PortalEnd, PortalPairId, TextureSettings, WallLight},
 };
@@ -103,10 +108,10 @@ pub fn compute_portal_placement(
 // precessing the mapped offset — and the traveler's view — a little on
 // every pass of a fall loop. Wall yaws pass through: their frames ignore it.
 fn portal_placement_yaw(normal: Vec3, face_yaw: f32) -> f32 {
-    if normal.normalize().y.abs() < PORTAL_UP_DEGENERACY_LIMIT {
-        face_yaw
+    if PortalFrame::up_is_degenerate(normal) {
+        (face_yaw / FRAC_PI_2).round() * FRAC_PI_2
     } else {
-        (face_yaw / std::f32::consts::FRAC_PI_2).round() * std::f32::consts::FRAC_PI_2
+        face_yaw
     }
 }
 
@@ -129,8 +134,7 @@ fn nudged_center(
     for step in 1..=steps {
         let radius = step as f32 * NUDGE_STEP;
         for direction in 0..NUDGE_DIRECTIONS {
-            let angle =
-                std::f32::consts::FRAC_PI_2 + direction as f32 / NUDGE_DIRECTIONS as f32 * std::f32::consts::TAU;
+            let angle = FRAC_PI_2 + direction as f32 / NUDGE_DIRECTIONS as f32 * TAU;
             let center = frame.center + frame.right * (radius * angle.cos()) + frame.up * (radius * angle.sin());
             let candidate = PortalFrame { center, ..*frame };
             if let Some(carrier) = portal_fits(&candidate, collision_world, map_layout, carriers)
@@ -214,7 +218,7 @@ fn front_clearance_shape() -> &'static SharedShape {
         let mut points = Vec::with_capacity(FIT_FRONT_RIM_SEGMENTS * 2);
         for depth in [-FIT_FRONT_DEPTH / 2.0, FIT_FRONT_DEPTH / 2.0] {
             for i in 0..FIT_FRONT_RIM_SEGMENTS {
-                let angle = i as f32 / FIT_FRONT_RIM_SEGMENTS as f32 * std::f32::consts::TAU;
+                let angle = i as f32 / FIT_FRONT_RIM_SEGMENTS as f32 * TAU;
                 points.push(Vector::new(
                     PORTAL_HALF_WIDTH * PORTAL_RIM_SCALE * angle.cos(),
                     PORTAL_HALF_HEIGHT * PORTAL_RIM_SCALE * angle.sin(),
@@ -229,8 +233,8 @@ fn front_clearance_shape() -> &'static SharedShape {
 fn aperture_samples(frame: &PortalFrame) -> impl Iterator<Item = Vec3> {
     let center = frame.center;
     let (right, up) = (frame.right, frame.up);
-    std::iter::once(center).chain((0..FIT_RIM_SAMPLES).map(move |i| {
-        let angle = i as f32 / FIT_RIM_SAMPLES as f32 * std::f32::consts::TAU;
+    once(center).chain((0..FIT_RIM_SAMPLES).map(move |i| {
+        let angle = i as f32 / FIT_RIM_SAMPLES as f32 * TAU;
         center
             + right * (PORTAL_HALF_WIDTH * PORTAL_RIM_SCALE * angle.cos())
             + up * (PORTAL_HALF_HEIGHT * PORTAL_RIM_SCALE * angle.sin())
@@ -289,10 +293,8 @@ fn portal_frames_overlap(a: &PortalFrame, b: &PortalFrame) -> bool {
 }
 
 fn portal_pose(frame: &PortalFrame) -> Pose {
-    let rotation = Quat::from_mat3(&Mat3::from_cols(frame.right, frame.up, frame.normal));
-    let axis_angle = rotation.to_scaled_axis();
-    Pose::new(
-        Vector::new(frame.center.x, frame.center.y, frame.center.z),
-        Vector::new(axis_angle.x, axis_angle.y, axis_angle.z),
+    rapier_pose(
+        frame.center,
+        Quat::from_mat3(&Mat3::from_cols(frame.right, frame.up, frame.normal)),
     )
 }

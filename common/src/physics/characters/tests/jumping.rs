@@ -34,18 +34,10 @@ fn upward_jump_velocity_moves_player_above_support() {
     let motion = player_jump_velocity(0.0, &collision_world, player_physics(), TEST_JUMP_SPEED, &pos)
         .expect("supported player should start a jump");
 
-    let step = step_character_movement(
+    let step = step_in(
+        &collision_world,
         character_step_toward(pos, motion, pos.x, pos.z, 0.1),
-        &CharacterEnvironment {
-            ladder_mode: LadderMode::Automatic,
-            collision_world: &collision_world,
-            gravity: TEST_GRAVITY,
-            passable_kinds: &[],
-            ladder_climb_ratio: test_ladders(),
-            physics: player_physics(),
-            portals: None,
-            carriers: &Carriers::default(),
-        },
+        LadderMode::Automatic,
     );
 
     assert!(step.position.y > pos.y);
@@ -59,18 +51,10 @@ fn landing_reports_ground_support() {
     let collision_world = collision_world(&[floor], &[]);
     let pos = Position { x: 0.0, y: 0.4, z: 0.0 };
 
-    let step = step_character_movement(
+    let step = step_in(
+        &collision_world,
         character_step_toward(pos, -10.0, pos.x, pos.z, 0.1),
-        &CharacterEnvironment {
-            ladder_mode: LadderMode::Automatic,
-            collision_world: &collision_world,
-            gravity: TEST_GRAVITY,
-            passable_kinds: &[],
-            ladder_climb_ratio: test_ladders(),
-            physics: player_physics(),
-            portals: None,
-            carriers: &Carriers::default(),
-        },
+        LadderMode::Automatic,
     );
 
     assert_eq!(step.vertical_velocity, 0.0);
@@ -84,18 +68,10 @@ fn upward_motion_hits_floor_underside() {
     let pos = Position { x: 0.0, y: 1.8, z: 0.0 };
     let motion = TEST_JUMP_SPEED;
 
-    let step = step_character_movement(
+    let step = step_in(
+        &collision_world,
         character_step_toward(pos, motion, pos.x, pos.z, 0.1),
-        &CharacterEnvironment {
-            ladder_mode: LadderMode::Automatic,
-            collision_world: &collision_world,
-            gravity: TEST_GRAVITY,
-            passable_kinds: &[],
-            ladder_climb_ratio: test_ladders(),
-            physics: player_physics(),
-            portals: None,
-            carriers: &Carriers::default(),
-        },
+        LadderMode::Automatic,
     );
 
     assert_eq!(step.vertical_velocity, 0.0);
@@ -110,18 +86,10 @@ fn initial_ceiling_contact_does_not_cancel_horizontal_movement() {
     let pos = Position { x: 0.0, y: 0.0, z: 0.0 };
     let motion = 0.0;
 
-    let step = step_character_movement(
+    let step = step_in(
+        &collision_world,
         character_step_toward(pos, motion, 0.5, pos.z, 0.1),
-        &CharacterEnvironment {
-            ladder_mode: LadderMode::Automatic,
-            collision_world: &collision_world,
-            gravity: TEST_GRAVITY,
-            passable_kinds: &[],
-            ladder_climb_ratio: test_ladders(),
-            physics: player_physics(),
-            portals: None,
-            carriers: &Carriers::default(),
-        },
+        LadderMode::Automatic,
     );
 
     assert!(!step.blocked);
@@ -137,18 +105,10 @@ fn upward_motion_ignores_floor_underside_outside_footprint() {
     let pos = Position { x: 5.0, y: 1.8, z: 0.0 };
     let motion = TEST_JUMP_SPEED;
 
-    let step = step_character_movement(
+    let step = step_in(
+        &collision_world,
         character_step_toward(pos, motion, pos.x, pos.z, 0.1),
-        &CharacterEnvironment {
-            ladder_mode: LadderMode::Automatic,
-            collision_world: &collision_world,
-            gravity: TEST_GRAVITY,
-            passable_kinds: &[],
-            ladder_climb_ratio: test_ladders(),
-            physics: player_physics(),
-            portals: None,
-            carriers: &Carriers::default(),
-        },
+        LadderMode::Automatic,
     );
 
     assert!(step.vertical_velocity > 0.0);
@@ -166,18 +126,10 @@ fn upward_motion_under_floor_edge_hits_floor_side() {
     };
     let motion = TEST_JUMP_SPEED;
 
-    let step = step_character_movement(
+    let step = step_in(
+        &collision_world,
         character_step_toward(pos, motion, -4.25, pos.z, 0.1),
-        &CharacterEnvironment {
-            ladder_mode: LadderMode::Automatic,
-            collision_world: &collision_world,
-            gravity: TEST_GRAVITY,
-            passable_kinds: &[],
-            ladder_climb_ratio: test_ladders(),
-            physics: player_physics(),
-            portals: None,
-            carriers: &Carriers::default(),
-        },
+        LadderMode::Automatic,
     );
 
     assert!(step.blocked);
@@ -195,18 +147,10 @@ fn player_on_floor_top_can_move_over_adjacent_floor_slab_edge() {
     };
     let motion = 0.0;
 
-    let step = step_character_movement(
+    let step = step_in(
+        &collision_world,
         character_step_toward(pos, motion, -3.75, pos.z, 0.1),
-        &CharacterEnvironment {
-            ladder_mode: LadderMode::Automatic,
-            collision_world: &collision_world,
-            gravity: TEST_GRAVITY,
-            passable_kinds: &[],
-            ladder_climb_ratio: test_ladders(),
-            physics: player_physics(),
-            portals: None,
-            carriers: &Carriers::default(),
-        },
+        LadderMode::Automatic,
     );
 
     assert!(!step.blocked);

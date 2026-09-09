@@ -2,7 +2,8 @@ use super::*;
 use crate::constants::{CHARACTER_CONTACT_OFFSET, TICK_SECS};
 
 fn step_at_edge(world: &CollisionWorld, pos: Position, velocity: f32, control: Vec3) -> CharacterMovementResult {
-    step_character_movement(
+    step_in(
+        world,
         CharacterStep {
             start: pos,
             vertical_velocity: velocity,
@@ -10,16 +11,7 @@ fn step_at_edge(world: &CollisionWorld, pos: Position, velocity: f32, control: V
             external_displacement: Vec3::ZERO,
             delta: TICK_SECS,
         },
-        &CharacterEnvironment {
-            ladder_mode: LadderMode::Disabled,
-            collision_world: world,
-            gravity: TEST_GRAVITY,
-            passable_kinds: &[],
-            ladder_climb_ratio: test_ladders(),
-            physics: player_physics(),
-            portals: None,
-            carriers: &Carriers::default(),
-        },
+        LadderMode::Disabled,
     )
 }
 

@@ -10,25 +10,19 @@ fn actor_step(
     start: Position,
 ) -> CharacterMovementResult {
     let world = ladder_collision_world(&[], &[test_ladder()]);
-    step_character_movement(
-        CharacterStep {
-            start,
-            vertical_velocity: velocity,
-            control_velocity: intent.to_horizontal_velocity(),
-            external_displacement: Vec3::ZERO,
-            delta: 0.1,
-        },
-        &CharacterEnvironment {
-            collision_world: &world,
-            gravity: TEST_GRAVITY,
-            passable_kinds: &[],
-            physics: player_physics(),
-            ladder_climb_ratio: test_ladders(),
-            ladder_mode: LadderMode::for_actor(can_use_ladders, intent),
-            portals: None,
-            carriers: &Carriers::default(),
-        },
-    )
+    step_actor_movement(ActorMovementStep {
+        start,
+        vertical_velocity: velocity,
+        intent,
+        external_displacement: Vec3::ZERO,
+        delta: 0.1,
+        can_use_ladders,
+        physics: player_physics(),
+        open_kinds: &[],
+        collision_world: &world,
+        map_settings: &test_map_settings(),
+        carriers: &Carriers::default(),
+    })
 }
 
 #[test]

@@ -493,7 +493,9 @@ pub struct SActorBeam {
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct SPlayerStatus {
     pub id: PlayerId,
-    // A snapshot may already carry the resulting inventory when this pickup cue arrives.
+    // The item just collected when this status change is a pickup; the
+    // collector plays the pickup sound and auto-selects the weapon once
+    // (`pending_weapon_selection`).
     pub collected: Option<ItemType>,
     // One bool per `PowerUpKind`, indexed by `PowerUpKind::index()`.
     pub power_ups: [bool; PowerUpKind::COUNT],
@@ -532,15 +534,6 @@ pub struct SGoldCollected {
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SHealthPotionCollected {
     pub health: Health,
-}
-
-// Player collected a missile pack (or was granted missiles). Unicast to the
-// collector: pickup sound + immediate HUD count. Modeled on
-// `SHealthPotionCollected`; the snapshot's `Player.missiles` is the system
-// of record.
-#[derive(Debug, Clone, Encode, Decode)]
-pub struct SMissilesCollected {
-    pub missiles: u32,
 }
 
 // A pressure plate transitioned this tick: `pressed` is true when some alive
@@ -687,7 +680,6 @@ pub enum ServerMessage {
     EraserEntered(SEraserEntered),
     GoldCollected(SGoldCollected),
     HealthPotionCollected(SHealthPotionCollected),
-    MissilesCollected(SMissilesCollected),
     PressurePlate(SPressurePlate),
     PortalOpened(SPortalOpened),
     PortalFizzled(SPortalFizzled),
@@ -751,7 +743,6 @@ impl ServerMessage {
             | Self::EraserEntered(_)
             | Self::GoldCollected(_)
             | Self::HealthPotionCollected(_)
-            | Self::MissilesCollected(_)
             | Self::PressurePlate(_)
             | Self::PortalOpened(_)
             | Self::PortalFizzled(_)

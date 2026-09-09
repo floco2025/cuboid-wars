@@ -3,7 +3,7 @@ use bevy_math::Vec3;
 use crate::{map::Carriers, math::direction_from_yaw_pitch, protocol::Portal};
 
 // Near-vertical normals need placement yaw because world-up has no usable in-plane projection.
-pub(super) const PORTAL_UP_DEGENERACY_LIMIT: f32 = 0.99;
+const PORTAL_UP_DEGENERACY_LIMIT: f32 = 0.99;
 
 // Orthonormal aperture frame of one portal end: `normal` points out of the
 // surface into the room, `up`/`right` span the plane with (right, up, normal)
@@ -47,10 +47,10 @@ impl PortalFrame {
         // World-up projected onto the plane orients the frame; only a
         // near-vertical normal is degenerate, and there the shooter's
         // placement yaw supplies the in-plane up instead.
-        let reference = if normal.y.abs() < PORTAL_UP_DEGENERACY_LIMIT {
-            Vec3::Y
-        } else {
+        let reference = if Self::up_is_degenerate(normal) {
             direction_from_yaw_pitch(yaw, 0.0)
+        } else {
+            Vec3::Y
         };
         let up = (reference - normal * reference.dot(normal)).normalize();
         Self {
@@ -59,5 +59,12 @@ impl PortalFrame {
             up,
             right: up.cross(normal),
         }
+    }
+
+    // Whether a unit surface normal is too vertical for world-up to have an
+    // in-plane projection, so the frame's up comes from a yaw instead.
+    #[must_use]
+    pub(super) fn up_is_degenerate(normal: Vec3) -> bool {
+        normal.y.abs() >= PORTAL_UP_DEGENERACY_LIMIT
     }
 }

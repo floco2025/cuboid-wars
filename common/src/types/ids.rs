@@ -39,6 +39,12 @@ impl CarrierId {
             n => Some(n as usize - 1),
         }
     }
+
+    // The id of `MapLayout.carriers[index]`.
+    #[must_use]
+    pub fn from_carried_index(index: usize) -> Self {
+        Self(u16::try_from(index + 1).expect("more carriers than CarrierId can name"))
+    }
 }
 
 // What a missile homes on. Carried in `CMissileShot`; guidance is server-only,

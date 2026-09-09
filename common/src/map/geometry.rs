@@ -7,7 +7,7 @@ use crate::config::MapGeometryConfig;
 pub struct MapGeometry {
     pub grid_cols: i32,
     pub grid_rows: i32,
-    pub sizes: MapGeometryConfig,
+    sizes: MapGeometryConfig,
 }
 
 impl MapGeometry {
@@ -73,6 +73,11 @@ impl MapGeometry {
     #[must_use]
     pub fn level_for_y(&self, y: f32) -> u8 {
         self.sizes.level_for_y(y)
+    }
+
+    #[must_use]
+    pub fn nearest_level_to_y(&self, y: f32) -> u8 {
+        self.sizes.nearest_level_to_y(y)
     }
 
     #[must_use]

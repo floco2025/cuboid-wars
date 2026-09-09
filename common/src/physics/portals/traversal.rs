@@ -1,20 +1,20 @@
 use bevy_ecs::prelude::*;
 use bevy_math::{Mat3, Quat, Vec3};
 use rapier3d::{
-    parry::shape::SupportMap,
-    prelude::{ColliderHandle, Vector},
+    parry::shape::{Capsule, SupportMap},
+    prelude::ColliderHandle,
 };
 
-use super::{PortalFrame, frame::PORTAL_UP_DEGENERACY_LIMIT};
+use super::PortalFrame;
 use crate::{
-    config::{CharacterPhysicsConfig, GameplayConfig},
+    config::{CharacterPhysicsConfig, GameplayConfig, MapMovementConfig},
     constants::{
         PORTAL_FUNNEL_CAPTURE_MARGIN, PORTAL_FUNNEL_GAIN, PORTAL_FUNNEL_MAX_SPEED, PORTAL_FUNNEL_MIN_APPROACH,
         PORTAL_FUNNEL_RELEASE_SPEED, PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH, PORTAL_KNOCKBACK_CARRY_FACTOR,
         PORTAL_STANDABLE_NORMAL_Y, TICK_SECS,
     },
     map::Carriers,
-    math::direction_from_yaw_pitch,
+    math::{direction_from_yaw_pitch, to_rapier},
     physics::{
         AirborneMomentum, CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity, character_movement_center,
         character_movement_shape, player_control_velocity,
@@ -58,10 +58,10 @@ pub(super) fn traverse_yaw(entry: &PortalFrame, exit: &PortalFrame, yaw: f32) ->
     let mapped = traverse_vector(entry, exit, direction_from_yaw_pitch(yaw, 0.0));
     if mapped.x * mapped.x + mapped.z * mapped.z > 0.01 {
         mapped.x.atan2(mapped.z)
-    } else if exit.normal.y.abs() < PORTAL_UP_DEGENERACY_LIMIT {
-        exit.normal.x.atan2(exit.normal.z)
-    } else {
+    } else if PortalFrame::up_is_degenerate(exit.normal) {
         exit.up.x.atan2(exit.up.z)
+    } else {
+        exit.normal.x.atan2(exit.normal.z)
     }
 }
 
@@ -81,8 +81,34 @@ fn in_character_aperture(offset_from_center: Vec3, frame: &PortalFrame) -> bool 
 }
 
 fn body_support(shape: &impl SupportMap, direction: Vec3) -> f32 {
-    let direction = Vector::from_array(direction.to_array());
+    let direction = to_rapier(direction);
     shape.local_support_point(direction).dot(direction)
+}
+
+// How far a body's transit corridor extends to either side of a gate's
+// plane: the body's own reach along the normal plus the margin that keeps
+// entry, crossing, and emergence collision-free.
+fn corridor_reach(shape: &Capsule, gate: &PortalGate) -> f32 {
+    body_support(shape, gate.frame.normal) + TRANSIT_MARGIN
+}
+
+pub struct PlayerHopBody<'a> {
+    pub move_intent: PlayerMoveIntent,
+    pub has_speed: bool,
+    pub stunned: bool,
+    pub knockback: Option<&'a KnockbackVelocity>,
+    pub airborne_momentum: Option<&'a AirborneMomentum>,
+    pub vertical_velocity: f32,
+    pub yaw: f32,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct CharacterHopBody {
+    pub control_velocity: Vec3,
+    pub knockback: Vec3,
+    pub portal_momentum: Vec3,
+    pub vertical_velocity: f32,
+    pub yaw: f32,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -253,25 +279,20 @@ impl PortalSet {
         from: Vec3,
         to: Vec3,
         gameplay_config: &GameplayConfig,
-        movement: &crate::config::MapMovementConfig,
-        move_intent: PlayerMoveIntent,
-        has_speed: bool,
-        stunned: bool,
-        knockback: Option<&KnockbackVelocity>,
-        portal_momentum: Option<&AirborneMomentum>,
-        vertical_velocity: f32,
-        yaw: f32,
+        movement: &MapMovementConfig,
+        body: PlayerHopBody<'_>,
     ) -> Option<CharacterPortalHop> {
-        let control_velocity = player_control_velocity(move_intent, movement, has_speed, stunned);
         self.character_hop(
             from,
             to,
             gameplay_config.player.physics(),
-            control_velocity,
-            knockback.map_or(Vec3::ZERO, |velocity| velocity.0),
-            portal_momentum.map_or(Vec3::ZERO, |momentum| momentum.0),
-            vertical_velocity,
-            yaw,
+            CharacterHopBody {
+                control_velocity: player_control_velocity(body.move_intent, movement, body.has_speed, body.stunned),
+                knockback: body.knockback.map_or(Vec3::ZERO, |velocity| velocity.0),
+                portal_momentum: body.airborne_momentum.map_or(Vec3::ZERO, |momentum| momentum.0),
+                vertical_velocity: body.vertical_velocity,
+                yaw: body.yaw,
+            },
             PORTAL_KNOCKBACK_CARRY_FACTOR * movement.knockback.max_speed,
         )
     }
@@ -297,8 +318,9 @@ impl PortalSet {
         let mut excluded = Vec::new();
         for (gate, _) in self.gates() {
             let offset = center - gate.frame.center;
-            let behind_reach = body_support(&shape, gate.frame.normal) + TRANSIT_MARGIN;
-            if offset.dot(gate.frame.normal) > -behind_reach && in_character_aperture(offset, &gate.frame) {
+            if offset.dot(gate.frame.normal) > -corridor_reach(&shape, gate)
+                && in_character_aperture(offset, &gate.frame)
+            {
                 excluded.extend_from_slice(&gate.backing);
             }
         }
@@ -323,7 +345,7 @@ impl PortalSet {
                 return None;
             }
             let offset = center - gate.frame.center;
-            let reach = body_support(&shape, gate.frame.normal) + TRANSIT_MARGIN;
+            let reach = corridor_reach(&shape, gate);
             let distance = offset.dot(gate.frame.normal);
             (distance > -reach && distance <= reach && in_character_aperture(offset, &gate.frame))
                 .then_some((gate.portal.carrier, gate.backing.as_slice()))
@@ -349,7 +371,7 @@ impl PortalSet {
             let target_offset = target - gate.frame.center;
             let start_distance = start_offset.dot(gate.frame.normal);
             let target_distance = target_offset.dot(gate.frame.normal);
-            let behind_reach = body_support(&shape, gate.frame.normal) + TRANSIT_MARGIN;
+            let behind_reach = corridor_reach(&shape, gate);
             if start_distance <= -behind_reach && target_distance <= -behind_reach {
                 continue;
             }
@@ -384,13 +406,16 @@ impl PortalSet {
         from: Vec3,
         to: Vec3,
         physics: CharacterPhysicsConfig,
-        control_velocity: Vec3,
-        knockback: Vec3,
-        portal_momentum: Vec3,
-        vertical_velocity: f32,
-        yaw: f32,
+        body: CharacterHopBody,
         knockback_cap: f32,
     ) -> Option<CharacterPortalHop> {
+        let CharacterHopBody {
+            control_velocity,
+            knockback,
+            portal_momentum,
+            vertical_velocity,
+            yaw,
+        } = body;
         // A crossing is continuous motion; a jump no single tick of movement
         // can produce is an external teleport (a respawn-style rescue) that
         // happens to sign-cross a plane, not a portal entry.

@@ -1,20 +1,22 @@
 use bevy_math::Vec3;
 use rapier3d::{parry::shape::Capsule, prelude::ColliderHandle};
 
-use super::GroundingDiagnostics;
-use super::geometry::{character_movement_pose, character_movement_shape};
+use super::{
+    GroundingDiagnostics,
+    geometry::{character_movement_pose, character_movement_shape},
+    ladder::{LadderMode, evaluate_ladder_interaction},
+    movement::{CharacterEnvironment, CharacterStep},
+};
 use crate::{
     config::CharacterPhysicsConfig,
-    constants::{CHARACTER_CONTACT_OFFSET, CHARACTER_GROUND_SNAP_DISTANCE, CHARACTER_MAX_SLOPE},
+    constants::{
+        CHARACTER_CARRIER_RIDE_TOLERANCE, CHARACTER_CARRIER_TIE_EPSILON, CHARACTER_CONTACT_OFFSET,
+        CHARACTER_GROUND_SNAP_DISTANCE, CHARACTER_MAX_SLOPE, TICK_SECS,
+    },
     map::Carriers,
     physics::world::{CollisionWorld, ShapeCastHit},
     protocol::{BarrierKindId, CarrierId, Position},
 };
-
-// Ground snap leaves the feet slightly above the surface they ride.
-pub const CARRIER_RIDE_TOLERANCE: f32 = 0.05;
-// Coincident static and carried surfaces must tolerate shape-cast depth noise.
-const CARRIER_SURFACE_TIE_EPSILON: f32 = 0.01;
 
 #[must_use]
 pub fn position_has_floor_support(
@@ -66,6 +68,7 @@ fn probe_character_ground(
         })
 }
 
+#[must_use]
 pub fn grounding_diagnostics(
     collision_world: &CollisionWorld,
     pos: &Position,
@@ -90,9 +93,107 @@ pub fn grounding_diagnostics(
     }
 }
 
-// Move the probe with its carrier to query support in the carrier's previous frame.
-// Takeoff still receives carry; a coincident static floor does not interrupt the ride.
-pub(super) fn supporting_carrier(
+// The rider's carry: how far the body follows a carrier this tick, and
+// the velocity the step reports for it.
+pub(super) struct RiderCarry {
+    pub displacement: Vec3,
+    pub floor_velocity: Vec3,
+}
+
+// A body standing on a carrier follows it by the ride rule
+// (`supporting_carrier`); a body on a carried ladder follows the ladder's
+// carrier. A body passing through an aperture mounted on a carrier follows
+// that carrier instead, until it crosses: the ride rule lets go the tick
+// the feet leave the surface, and a fast carrier would pull the aperture
+// out from under a sinking body. In transit the carrier's velocity is not
+// reported, so a rising floor does not pump the fall and the slide is not
+// gathered as momentum; the body exits the pair with carrier-relative
+// velocity. A body in the corridor that another carrier supports (standing
+// under a lift's ceiling portal) stays put, and the plane reaching it is
+// what the relative crossing test catches; the portal's own carrier
+// supporting it (its floor in front of its wall portal) is still the ride.
+pub(super) fn rider_carry(step: &CharacterStep, env: &CharacterEnvironment, shape: &Capsule) -> RiderCarry {
+    let transit = env
+        .portals
+        .and_then(|portals| portals.transit_carrier(Vec3::from(step.start), env.physics));
+    let displacement = match transit {
+        Some((carrier, backing)) => {
+            let supported_elsewhere = character_ground_hit(
+                env.collision_world,
+                shape,
+                &step.start,
+                env.passable_kinds,
+                backing,
+                env.physics,
+            )
+            .is_some_and(|hit| hit.carrier != carrier);
+            if supported_elsewhere {
+                Vec3::ZERO
+            } else {
+                env.carriers.displacement(carrier)
+            }
+        }
+        None if env.carriers.is_static() => Vec3::ZERO,
+        None => env
+            .collision_world
+            .carried_ladder_at_previous_pose(&step.start, env.carriers)
+            .filter(|_| env.ladder_mode != LadderMode::Disabled)
+            .and_then(|(carrier, ladder)| {
+                let grounded = step.vertical_velocity <= 0.0
+                    && character_ground_hit(
+                        env.collision_world,
+                        shape,
+                        &step.start,
+                        env.passable_kinds,
+                        &[],
+                        env.physics,
+                    )
+                    .is_some();
+                evaluate_ladder_interaction(
+                    Some(&ladder),
+                    env.ladder_mode,
+                    &step.start,
+                    step.vertical_velocity,
+                    step.control_velocity,
+                    step.delta,
+                    grounded,
+                    env.ladder_climb_ratio,
+                )
+                .is_supported()
+                .then_some(carrier)
+            })
+            .or_else(|| {
+                supporting_carrier(
+                    env.collision_world,
+                    shape,
+                    &step.start,
+                    env.passable_kinds,
+                    env.physics,
+                    env.carriers,
+                )
+            })
+            .map_or(Vec3::ZERO, |carrier| env.carriers.displacement(carrier)),
+    };
+    RiderCarry {
+        displacement,
+        floor_velocity: if transit.is_some() {
+            Vec3::ZERO
+        } else {
+            displacement / TICK_SECS
+        },
+    }
+}
+
+// The ride rule: the body rides the nearest carrier whose surface is within
+// `CHARACTER_CARRIER_RIDE_TOLERANCE` under its feet, probed in that carrier's previous
+// frame because the body has not received this tick's carry yet. Vertical
+// velocity is ignored so a takeoff tick still receives the carry; the
+// controller's grounded reach ends at the same height as the tolerance, so
+// a body still carried at a tick's start stood on the tile at the last
+// tick's end and takes its velocity once. A world surface above the lifted
+// probe is what the body stands on and ends the ride; a coincident static
+// floor (a tile sliding through it) does not interrupt it.
+fn supporting_carrier(
     collision_world: &CollisionWorld,
     shape: &Capsule,
     pos: &Position,
@@ -101,9 +202,9 @@ pub(super) fn supporting_carrier(
     carriers: &Carriers,
 ) -> Option<CarrierId> {
     let bottom = CHARACTER_CONTACT_OFFSET;
-    let (carrier, current_distance) = (0..carriers.carried_count())
-        .filter_map(|index| {
-            let carrier = CarrierId(index as u16 + 1);
+    let (carrier, current_distance) = carriers
+        .carried_ids()
+        .filter_map(|carrier| {
             let travel = carriers.displacement(carrier);
             let carried_pos = Position::from(Vec3::from(*pos) + travel);
             let mut pose = character_movement_pose(&carried_pos, physics);
@@ -111,12 +212,12 @@ pub(super) fn supporting_carrier(
             let mut hit = collision_world.ground_hit_on_carrier(
                 shape,
                 &pose,
-                bottom + CARRIER_RIDE_TOLERANCE + CHARACTER_CONTACT_OFFSET * 2.0,
+                bottom + CHARACTER_CARRIER_RIDE_TOLERANCE + CHARACTER_CONTACT_OFFSET * 2.0,
                 passable_kinds,
                 carrier,
             )?;
             hit.t -= CHARACTER_CONTACT_OFFSET * 2.0;
-            ((hit.t - bottom).abs() <= CARRIER_RIDE_TOLERANCE && hit.normal.y >= CHARACTER_MAX_SLOPE.cos())
+            ((hit.t - bottom).abs() <= CHARACTER_CARRIER_RIDE_TOLERANCE && hit.normal.y >= CHARACTER_MAX_SLOPE.cos())
                 .then_some((carrier, hit.t - travel.y))
         })
         .min_by(|(_, a), (_, b)| a.total_cmp(b))?;
@@ -129,7 +230,7 @@ pub(super) fn supporting_carrier(
     let carried_distance = current_distance + rise;
     let world_above = collision_world
         .ground_hit_on_carrier(shape, &pose, carried_distance, passable_kinds, CarrierId::WORLD)
-        .is_some_and(|hit| hit.t + CARRIER_SURFACE_TIE_EPSILON < carried_distance);
+        .is_some_and(|hit| hit.t + CHARACTER_CARRIER_TIE_EPSILON < carried_distance);
     (!world_above).then_some(carrier)
 }
 

@@ -192,10 +192,6 @@ pub struct Ladder {
     pub carrier: CarrierId,
 }
 
-// Visual materials for each segment in the layout. The vectors run parallel
-// to `walls` / `ramps` / `floors`: the segment at index `i` renders with the
-// `FaceMaterials` at index `i` of the corresponding `*_materials` vector.
-// Portal placement resolves these aliases against the map texture catalog.
 // What holding a plate does. Barrier plates open every barrier of their kind
 // (fully passable + invisible, globally) while enough of them are held —
 // distinct from keys (per-player filter). Bridge plates power every light
@@ -239,6 +235,10 @@ pub struct GrassCell {
 #[derive(Debug, Clone, Encode, Decode, Resource, Default)]
 pub struct MapLayout {
     pub walls: Vec<Wall>,
+    // Visual materials for each segment: the `*_materials` vectors run
+    // parallel to `walls` / `ramps` / `floors`, so the segment at index `i`
+    // renders with the `FaceMaterials` at index `i`. Portal placement
+    // resolves these aliases against the map texture catalog.
     pub wall_materials: Vec<FaceMaterials>,
     pub ramps: Vec<Ramp>,
     pub ramp_materials: Vec<FaceMaterials>,
