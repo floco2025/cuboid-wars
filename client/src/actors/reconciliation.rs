@@ -27,13 +27,9 @@ pub(super) fn reconcile_actor(
 ) -> ActorReconciliationOutcome {
     let window = actor_correction_window(recon.rtt);
 
-    // Each tick applies `delta / window` of the fixed delta, so the window
-    // elapsing coincides with exactly 100% of the correction applied —
-    // removing the component here is what stops over-correction, doubling as
-    // the dropped-snapshot fallback (normally the next snapshot replaces this
-    // component first).
-    recon.correction_progress += delta;
-    if recon.correction_progress >= window {
+    let fraction = (delta / window).min(1.0 - recon.applied_fraction);
+    recon.applied_fraction += fraction;
+    if recon.applied_fraction >= 1.0 {
         commands.entity(entity).remove::<ServerReconciliation>();
     }
 
@@ -54,9 +50,9 @@ pub(super) fn reconcile_actor(
     }
 
     ActorReconciliationOutcome::Displacement(Vec3::new(
-        correction_delta.x * delta / window,
+        correction_delta.x * fraction,
         0.0,
-        correction_delta.z * delta / window,
+        correction_delta.z * fraction,
     ))
 }
 

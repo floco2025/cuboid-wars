@@ -19,7 +19,7 @@ pub struct ServerReconciliation {
     pub correction_delta: Vec3,
     pub server_pos: Position,
     pub server_velocity: Vec3,
-    pub correction_progress: f32,
+    pub applied_fraction: f32,
     pub rtt: f32,
 }
 
@@ -31,7 +31,7 @@ impl ServerReconciliation {
             correction_delta,
             server_pos,
             server_velocity,
-            correction_progress: 0.0,
+            applied_fraction: 0.0,
             rtt: rtt.rtt.as_secs_f32(),
         }
     }

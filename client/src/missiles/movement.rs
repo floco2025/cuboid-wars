@@ -39,12 +39,10 @@ pub fn missiles_movement_system(
         prev.0 = *pos;
 
         let correction = if let Some(recon) = recon_option.as_mut() {
-            // Each tick applies `delta / window` of the correction delta, and
-            // the component goes once the window has elapsed so a paused
-            // stream never over-corrects.
             let window = missile_correction_window(recon.rtt);
-            recon.correction_progress += delta;
-            if recon.correction_progress >= window {
+            let fraction = (delta / window).min(1.0 - recon.applied_fraction);
+            recon.applied_fraction += fraction;
+            if recon.applied_fraction >= 1.0 {
                 commands.entity(entity).remove::<ServerReconciliation>();
             }
 
@@ -62,7 +60,7 @@ pub fn missiles_movement_system(
                 continue;
             }
 
-            correction_delta * delta / window
+            correction_delta * fraction
         } else {
             Vec3::ZERO
         };
