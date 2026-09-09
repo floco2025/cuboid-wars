@@ -10,7 +10,7 @@ import bpy
 from mathutils import Vector
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from model_materials import catalog_material, project_uv
+from model_materials import ModelMaterials, plain_material, project_uv
 
 MODEL = Path(__file__).resolve().with_suffix(".glb")
 FPS = 30
@@ -23,28 +23,14 @@ for action in list(bpy.data.actions):
     bpy.data.actions.remove(action)
 
 
-def material(name, color, metallic=0, roughness=0.4, emission=0):
-    mat = bpy.data.materials.new(name)
-    mat.use_nodes = True
-    mat.diffuse_color = (*color, 1)
-    shader = mat.node_tree.nodes.get("Principled BSDF")
-    shader.inputs["Base Color"].default_value = (*color, 1)
-    shader.inputs["Metallic"].default_value = metallic
-    shader.inputs["Roughness"].default_value = roughness
-    shader.inputs["Emission Color"].default_value = (*color, 1)
-    shader.inputs["Emission Strength"].default_value = emission
-    return mat
-
-
-shell = catalog_material("scuffed-plastic")
-metal = catalog_material("brushed-metal")
-graphite = material(
-    "Graphite chassis and fan blades", (0.025, 0.035, 0.042), 0.55, 0.36
-)
-glass = material("Smoked sensor glass", (0.006, 0.013, 0.02), 0.35, 0.18)
-accent = material("Ochre identification", (0.52, 0.265, 0.075), 0.15, 0.45)
-cyan = material("Cyan flight indicators", (0.025, 0.48, 0.62), 0.1, 0.3, 1.8)
-red = material("Red beam optics", (0.8, 0.025, 0.008), 0.1, 0.25, 3)
+palette = ModelMaterials(MODEL.with_suffix(".materials.json"))
+shell = palette["shell"]
+metal = palette["metal"]
+graphite = palette["graphite"]
+glass = palette["glass"]
+accent = palette["accent"]
+cyan = palette["cyan"]
+red = palette["red"]
 
 
 def empty(name, location=(0, 0, 0), parent=None):
@@ -236,10 +222,11 @@ for sign, side in ((-1, "L"), (1, "R")):
         )
         blade.rotation_euler = (0.16, 0, a + 0.20)
     for offset in (-0.045, 0.045):
+        # Clip tops clear the duct lip instead of sharing its top plane.
         box(
             "Fan warning stripe",
-            (sign * 0.126, offset, 0.025),
-            (0.009, 0.026, 0.044),
+            (sign * 0.126, offset, 0.028),
+            (0.009, 0.026, 0.050),
             accent,
             pod,
             0.002,
@@ -367,7 +354,7 @@ assert all(
     )
     for name in animated_names
 )
-assert all("uri" not in image for image in doc["images"]), "Textures must be embedded"
+assert all("uri" not in image for image in doc.get("images", [])), "Textures must be embedded"
 encoded = json.dumps(doc, separators=(",", ":")).encode()
 encoded += b" " * (-len(encoded) % 4)
 binary = raw[20 + length :]
@@ -390,7 +377,7 @@ if "--preview" in sys.argv:
     pitch = bpy.data.objects["ZapperPitch"]
     yaw.rotation_mode = pitch.rotation_mode = "XYZ"
     scene.frame_set(12)
-    floor_mat = material("Studio floor", (0.065, 0.082, 0.10), roughness=0.7)
+    floor_mat = plain_material("Studio floor", (0.065, 0.082, 0.10), roughness=0.7)
     bpy.ops.mesh.primitive_plane_add(size=200)
     bpy.context.object.data.materials.append(floor_mat)
     scene.render.engine = "CYCLES"

@@ -1,64 +1,35 @@
 """Build the turret GLB with Blender: blender --background --python client/assets/models/turret.py."""
 
 import math
+import sys
 from pathlib import Path
 
 import bpy
 from mathutils import Vector
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from model_materials import ModelMaterials, plain_material, project_uv
+
 MODEL = Path(__file__).resolve().with_suffix(".glb")
-ASSETS = MODEL.parent.parent
-STEEL = ASSETS / "textures/used-stainless-steel-ue"
 
 bpy.ops.object.select_all(action="SELECT")
 bpy.ops.object.delete(use_global=False)
 
 
-def material(name, color, metallic, roughness, textured=False, emission=None):
-    mat = bpy.data.materials.new(name)
-    mat.diffuse_color = (*color, 1)
-    mat.use_backface_culling = True
-    mat.use_nodes = True
-    shader = mat.node_tree.nodes.get("Principled BSDF")
-    shader.inputs["Base Color"].default_value = (*color, 1)
-    shader.inputs["Metallic"].default_value = metallic
-    shader.inputs["Roughness"].default_value = roughness
-    if textured:
-        texture = mat.node_tree.nodes.new("ShaderNodeTexImage")
-        texture.image = bpy.data.images.load(str(STEEL / "used-stainless-steel_albedo.png"), check_existing=True)
-        tint = mat.node_tree.nodes.new("ShaderNodeMix")
-        tint.data_type = "RGBA"
-        tint.blend_type = "MULTIPLY"
-        tint.inputs[0].default_value = 1
-        tint.inputs[7].default_value = (*color, 1)
-        mat.node_tree.links.new(texture.outputs["Color"], tint.inputs[6])
-        mat.node_tree.links.new(tint.outputs[2], shader.inputs["Base Color"])
-        wear = mat.node_tree.nodes.new("ShaderNodeTexImage")
-        wear.image = bpy.data.images.load(str(STEEL / "used-stainless-steel_roughness.png"), check_existing=True)
-        wear.image.colorspace_settings.name = "Non-Color"
-        factor = mat.node_tree.nodes.new("ShaderNodeMath")
-        factor.operation = "MULTIPLY"
-        factor.inputs[1].default_value = roughness
-        mat.node_tree.links.new(wear.outputs["Color"], factor.inputs[0])
-        mat.node_tree.links.new(factor.outputs[0], shader.inputs["Roughness"])
-    if emission:
-        shader.inputs["Emission Color"].default_value = (*emission, 1)
-        shader.inputs["Emission Strength"].default_value = 4
-    return mat
-
-
-armor = material("Ceramic silver / brushed wear", (0.74, 0.81, 0.85), 0.65, 0.48, True)
-dark = material("Graphite / machined steel", (0.085, 0.115, 0.15), 0.8, 0.4, True)
-steel = material("Exposed steel", (0.43, 0.51, 0.57), 0.9, 0.35, True)
-rubber = material("Recesses", (0.008, 0.013, 0.02), 0.1, 0.8)
-warning = material("Safety amber", (0.95, 0.38, 0.045), 0.35, 0.5)
-red = material("Laser emitter", (0.55, 0.015, 0.008), 0.2, 0.2, emission=(1, 0.025, 0.008))
-cyan = material("Status cyan", (0.015, 0.32, 0.4), 0.25, 0.25, emission=(0.01, 0.6, 0.8))
+palette = ModelMaterials(MODEL.with_suffix(".materials.json"))
+armor = palette["armor"]
+dark = palette["dark"]
+steel = palette["steel"]
+rubber = palette["rubber"]
+warning = palette["warning"]
+red = palette["red"]
+cyan = palette["cyan"]
 
 
 def finish(obj, name, mat, parent, bevel=0):
     obj.name = name
     obj.data.materials.append(mat)
+    project_uv(obj, mat)
     if bevel:
         modifier = obj.modifiers.new("Machined edges", "BEVEL")
         modifier.width = bevel
@@ -199,7 +170,7 @@ bpy.ops.object.select_all(action="SELECT")
 bpy.ops.object.delete(use_global=False)
 bpy.ops.import_scene.gltf(filepath=str(MODEL))
 
-floor = material("Studio floor", (0.028, 0.038, 0.058), 0.2, 0.6)
+floor = plain_material("Studio floor", (0.028, 0.038, 0.058), 0.2, 0.6)
 box("Studio", (0, 0, -0.07), (200, 200, 0.1), floor)
 scene = bpy.context.scene
 scene.render.engine = "CYCLES"

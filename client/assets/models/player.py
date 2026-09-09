@@ -14,11 +14,10 @@ import numpy as np
 from mathutils import Euler, Vector
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from model_materials import catalog_material, project_uv
+from model_materials import ModelMaterials, plain_material, project_uv
 from player_mocap import RobotMocap
 
 MODEL = Path(__file__).resolve().with_suffix(".glb")
-MATERIAL_SETTINGS = json.loads(MODEL.with_suffix(".materials.json").read_text())
 CLIPS = ("Idle", "Walk", "Run", "Climb", "Jump", "Fall", "Land", "Stunned", "StrafeLeft", "StrafeRight")
 FPS = 30
 bpy.ops.object.select_all(action="SELECT")
@@ -27,28 +26,17 @@ for action in list(bpy.data.actions):
     bpy.data.actions.remove(action)
 
 
-def material(name, color, metallic=0.0, roughness=0.4, emission=0.0):
-    mat = bpy.data.materials.new(name)
-    mat.diffuse_color = (*color, 1)
-    mat.use_nodes = True
-    shader = mat.node_tree.nodes.get("Principled BSDF")
-    shader.inputs["Base Color"].default_value = (*color, 1)
-    shader.inputs["Metallic"].default_value = metallic
-    shader.inputs["Roughness"].default_value = roughness
-    shader.inputs["Emission Color"].default_value = (*color, 1)
-    shader.inputs["Emission Strength"].default_value = emission
-    return mat
+palette = ModelMaterials(MODEL.with_suffix(".materials.json"))
+ivory = palette["ivory"]
+joint = palette["joint"]
+steel = palette["steel"]
+chassis = palette["chassis"]
+accent = palette["accent"]
+screen = palette["screen"]
+eye = palette["eye"]
+amber = palette["amber"]
+lettering = palette["lettering"]
 
-
-ivory = catalog_material("scuffed-plastic", "Satin ceramic-white polymer", tuning=MATERIAL_SETTINGS["scuffed-plastic"])
-joint = catalog_material("synth-rubber", "Fine matte elastomer", tuning=MATERIAL_SETTINGS["synth-rubber"])
-steel = catalog_material("brushed-metal", "Brushed titanium mechanisms", tuning=MATERIAL_SETTINGS["brushed-metal"])
-chassis = material("Graphite structural composite", (0.028, 0.036, 0.042), 0.55, 0.32)
-accent = material("Muted ochre identification", (0.38, 0.19, 0.065), 0.15, 0.5)
-screen = material("Smoked optical visor", (0.007, 0.013, 0.017), 0.45, 0.19)
-eye = material("Ice-blue sensor", (0.10, 0.52, 0.68), 0.1, 0.22, 2.0)
-amber = material("Status diode", (0.7, 0.25, 0.035), 0.15, 0.4, 0.8)
-lettering = material("Graphite service stencil", (0.05, 0.07, 0.075), 0.0, 0.6)
 
 parts = []
 
@@ -810,7 +798,7 @@ if "--preview" in sys.argv or "--rear-preview" in sys.argv:
     print("Imported preview tracks:", list(tracks))
     for track in tracks.values():
         track.mute = True
-    floor = material("Studio floor", (0.075, 0.10, 0.115), 0.1, 0.65)
+    floor = plain_material("Studio floor", (0.075, 0.10, 0.115), 0.1, 0.65)
     box("Studio", (0, 0, -0.05), (200, 200, 0.1), floor, "Root", 0)
     scene = bpy.context.scene
     scene.render.engine = "CYCLES"

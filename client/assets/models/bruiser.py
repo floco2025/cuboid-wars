@@ -10,56 +10,27 @@ import bpy
 from mathutils import Euler, Vector
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from model_materials import catalog_material, project_uv
+from bruiser_materials import bake_armour, remember_panel_coordinates
+from model_materials import ModelMaterials, project_uv
 
 MODEL = Path(__file__).resolve().with_suffix(".glb")
 FPS = 30
 WHEEL_RADIUS = 0.27
 bpy.ops.object.select_all(action="SELECT")
 bpy.ops.object.delete(use_global=False)
-bpy.ops.import_scene.gltf(filepath=str(MODEL.with_name("player.glb")))
-palette = {
-    name: next(m for m in bpy.data.materials if m.name.startswith(name))
-    for name in (
-        "Satin ceramic-white polymer",
-        "Fine matte elastomer",
-        "Brushed titanium mechanisms",
-        "Graphite structural composite",
-        "Muted ochre identification",
-        "Smoked optical visor",
-        "Ice-blue sensor",
-        "Status diode",
-        "Graphite service stencil",
-    )
-}
-for image in bpy.data.images:
-    if image.type == "IMAGE" and image.size[0]:
-        image.pack()
-bpy.ops.object.select_all(action="SELECT")
-bpy.ops.object.delete(use_global=False)
-for action in list(bpy.data.actions):
-    bpy.data.actions.remove(action)
-ivory, rubber, steel, graphite, ochre, glass, blue, amber, ink = palette.values()
-TEXTURES = MODEL.parent.parent / "textures"
 
 
-armour = catalog_material("brushed-metal")
-steel = armour
-edge = steel
-rubber = catalog_material("synth-rubber")
-ink.node_tree.nodes.get("Principled BSDF").inputs["Base Color"].default_value = (
-    0.59,
-    0.55,
-    0.42,
-    1,
-)
-optic = bpy.data.materials.new("Ember warning optics")
-optic.use_nodes = True
-shader = optic.node_tree.nodes.get("Principled BSDF")
-shader.inputs["Base Color"].default_value = (0.8, 0.055, 0.006, 1)
-shader.inputs["Emission Color"].default_value = (1.0, 0.085, 0.008, 1)
-shader.inputs["Emission Strength"].default_value = 3.0
-optic.diffuse_color = (0.8, 0.055, 0.006, 1)
+palette = ModelMaterials(MODEL.with_suffix(".materials.json"))
+armour = palette["armour"]
+steel = palette["steel"]
+rubber = palette["rubber"]
+graphite = palette["graphite"]
+ochre = palette["ochre"]
+glass = palette["glass"]
+amber = palette["amber"]
+ink = palette["ink"]
+optic = palette["optic"]
+
 
 parts = []
 
@@ -76,6 +47,8 @@ def finish(obj, name, mat, bone, bevel=0, cylindrical=False):
         mod = obj.modifiers.new("Corner normals", "WEIGHTED_NORMAL")
         bpy.ops.object.modifier_apply(modifier=mod.name)
     project_uv(obj, mat, cylindrical)
+    if mat == armour:
+        remember_panel_coordinates(obj)
     group = obj.vertex_groups.new(name=bone)
     group.add(list(range(len(obj.data.vertices))), 1, "REPLACE")
     parts.append(obj)
@@ -214,13 +187,14 @@ for sign in (-1, 1):
         armour,
         bevel=0.045,
     )
-    box(
-        "Steel track guard",
-        (sign * 0.61, 0.0, 0.76),
-        (0.35, 1.36, 0.19),
-        armour,
-        bevel=0.055,
-    )
+    for panel_y in (-0.455, 0.0, 0.455):
+        box(
+            "Steel track guard",
+            (sign * 0.61, panel_y, 0.76),
+            (0.35, 0.439, 0.19),
+            armour,
+            bevel=0.026,
+        )
     box(
         "Shoulder seam",
         (sign * 0.445, 0.02, 0.794),
@@ -246,15 +220,6 @@ for sign in (-1, 1):
     label(
         "S-08", (sign * 0.786, -0.05, 0.73), 0.066, (math.pi / 2, 0, sign * math.pi / 2)
     )
-    for y in (-0.49, 0.48):
-        cylinder(
-            "Shoulder captive bolt",
-            (sign * 0.63, y, 0.858),
-            0.023,
-            0.013,
-            steel,
-            vertices=12,
-        )
     cylinder("Impact piston", (sign * 0.40, -0.58, 0.49), 0.096, 0.25, steel, axis="Y")
     cylinder(
         "Piston dust boot", (sign * 0.40, -0.60, 0.49), 0.12, 0.12, rubber, axis="Y"
@@ -360,30 +325,6 @@ for sign in (-1, 1):
         0.009,
     )
     brow.rotation_euler.y = -sign * 0.14
-    box(
-        "Brow worn rim",
-        (sign * 0.145, -0.515, 1.243),
-        (0.27, 0.008, 0.013),
-        edge,
-        "Sensor",
-        0.002,
-    ).rotation_euler.y = -sign * 0.14
-    box(
-        "Impact plate worn edge",
-        (sign * 0.33, -0.848, 0.691),
-        (0.32, 0.01, 0.014),
-        edge,
-        bevel=0.003,
-    )
-    box(
-        "Track guard rubbed edge",
-        (sign * 0.787, 0.02, 0.833),
-        (0.009, 1.10, 0.012),
-        edge,
-        bevel=0.003,
-    )
-    for y in (-0.49, 0.48):
-        cylinder("Bolt seat", (sign * 0.63, y, 0.854), 0.037, 0.008, armour)
 box(
     "Asymmetric service tab",
     (0.267, -0.19, 1.297),
@@ -445,6 +386,53 @@ for sign in (-1, 1):
     )
 label("08", (0, 0.471, 0.91), 0.115, (math.pi / 2, 0, math.pi))
 
+for sign in (-1, 1):
+    for panel_y in (-0.455, 0.0, 0.455):
+        cylinder(
+            "Recessed guard socket",
+            (sign * 0.65, panel_y, 0.856),
+            0.025,
+            0.003,
+            graphite,
+        )
+        cylinder(
+            "Socket hex head",
+            (sign * 0.65, panel_y, 0.857),
+            0.013,
+            0.004,
+            steel,
+            vertices=6,
+        )
+box(
+    "Service hatch gasket", (0, 0.17, 1.068), (0.29, 0.35, 0.009), graphite, bevel=0.018
+)
+box("Service hatch", (0, 0.17, 1.075), (0.264, 0.324, 0.012), armour, bevel=0.012)
+for x in (-0.10, 0.10):
+    for y in (0.045, 0.295):
+        cylinder("Hatch socket", (x, y, 1.082), 0.016, 0.002, graphite)
+        cylinder("Hatch bolt", (x, y, 1.083), 0.009, 0.003, steel, vertices=6)
+
+for name, centre, size in (
+    ("Gunmetal main glacis", (0.29, -0.542, 0.965), (0.043, 0.024, 0.025)),
+    ("Sensor helmet", (-0.285, -0.405, 1.295), (0.028, 0.025, 0.018)),
+):
+    panel = next(obj for obj in parts if obj.name == name)
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=16, ring_count=8, location=centre)
+    cutter = bpy.context.object
+    cutter.scale = size
+    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+    bpy.context.view_layer.objects.active = panel
+    modifier = panel.modifiers.new("Shallow impact dent", "BOOLEAN")
+    modifier.operation = "DIFFERENCE"
+    modifier.object = cutter
+    bpy.ops.object.modifier_apply(modifier=modifier.name)
+    bpy.data.objects.remove(cutter, do_unlink=True)
+    for attr in ("PanelPosition", "PanelHalfSize"):
+        panel.data.attributes.remove(panel.data.attributes[attr])
+    remember_panel_coordinates(panel)
+    group = panel.vertex_groups.get("Sensor" if name == "Sensor helmet" else "Hull")
+    group.add(list(range(len(panel.data.vertices))), 1, "REPLACE")
+
 bpy.context.view_layer.update()
 clearance_parts = (
     "Armoured belly",
@@ -474,6 +462,10 @@ for part in parts:
                 f"{part.name} intersects a tyre envelope: {overlap}"
             )
 
+armour_parts = [obj for obj in parts if obj.active_material == armour]
+parts = [obj for obj in parts if obj.active_material != armour]
+parts.append(bake_armour(armour_parts, armour, palette.wear))
+
 bpy.ops.object.select_all(action="DESELECT")
 for obj in parts:
     obj.select_set(True)
@@ -481,6 +473,8 @@ bpy.context.view_layer.objects.active = parts[0]
 bpy.ops.object.join()
 mesh = bpy.context.object
 mesh.name = "S-08 / armoured interceptor"
+triangulate = mesh.modifiers.new("Export triangles", "TRIANGULATE")
+bpy.ops.object.modifier_apply(modifier=triangulate.name)
 bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
 low = Vector(tuple(min(v.co[i] for v in mesh.data.vertices) for i in range(3)))
 # Tyre blocks extend slightly beyond the circular tyre surface.
@@ -552,6 +546,7 @@ bpy.ops.export_scene.gltf(
     export_anim_single_armature=True,
     export_force_sampling=True,
     export_frame_range=False,
+    export_tangents=True,
     export_cameras=False,
     export_lights=False,
 )
@@ -651,6 +646,11 @@ if "--preview" in sys.argv:
     scene.render.filepath = "/tmp/bruiser-rear.png"
     bpy.ops.render.render(write_still=True)
     scene.camera.matrix_world = camera_pose
+    scene.camera.data.ortho_scale = 5.0
+    scene.render.resolution_x = scene.render.resolution_y = 512
+    scene.render.filepath = "/tmp/bruiser-gameplay.png"
+    bpy.ops.render.render(write_still=True)
+    scene.camera.data.ortho_scale = 2.45
     if "--motion" in sys.argv:
         output = Path("/tmp/bruiser-motion")
         output.mkdir(exist_ok=True)

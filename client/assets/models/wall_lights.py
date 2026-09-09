@@ -8,21 +8,9 @@ import bpy
 from mathutils import Vector
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from model_materials import catalog_material, project_uv
+from model_materials import ModelMaterials, plain_material, project_uv
 
 MODELS = Path(__file__).resolve().parent
-
-
-def material(name, color, metallic=0.0, roughness=0.4, emission=0.0):
-    mat = bpy.data.materials.new(name)
-    mat.use_nodes = True
-    shader = mat.node_tree.nodes.get("Principled BSDF")
-    shader.inputs["Base Color"].default_value = (*color, 1)
-    shader.inputs["Metallic"].default_value = metallic
-    shader.inputs["Roughness"].default_value = roughness
-    shader.inputs["Emission Color"].default_value = (*color, 1)
-    shader.inputs["Emission Strength"].default_value = emission
-    return mat
 
 
 def finish(obj, name, mat, bevel):
@@ -62,18 +50,11 @@ def rod(name, start, end, radius, mat, vertices=24):
 
 
 def decorative():
-    metal = catalog_material(
-        "brushed-metal",
-        "Champagne brushed alloy",
-        tuning={
-            "tint": [0.85, 0.64, 0.35],
-            "normal_strength": 0.25,
-            "color_contrast": 0.3,
-        },
-    )
-    dark = material("Graphite mounting plate", (0.025, 0.035, 0.045), 0.7)
-    porcelain = material("Ivory end caps", (0.77, 0.74, 0.65), 0.15, 0.27)
-    glow = material("Warm opal diffuser", (1.0, 0.86, 0.65), roughness=0.3, emission=8)
+    palette = ModelMaterials(MODELS / "wall_light_decorative.materials.json")
+    metal = palette["metal"]
+    dark = palette["dark"]
+    porcelain = palette["porcelain"]
+    glow = palette["glow"]
     box("Wall mounting plate", (0, -0.025, 0), (0.22, 0.05, 0.74), dark, 0.05)
     box("Champagne backplate", (0, -0.06, 0), (0.19, 0.035, 0.58), metal, 0.035)
     box("Opal lantern", (0, -0.155, 0), (0.21, 0.16, 0.48), glow, 0.065)
@@ -158,20 +139,11 @@ def guard(name, points, radius, mat, cyclic=False):
 
 
 def utility():
-    metal = catalog_material(
-        "brushed-metal",
-        "Cast alloy bulkhead",
-        tuning={
-            "tint": [0.40, 0.43, 0.44],
-            "normal_strength": 0.35,
-            "color_contrast": 0.5,
-        },
-    )
-    dark = material("Neoprene lens seal", (0.018, 0.023, 0.027), roughness=0.65)
-    guard_metal = material("Steel guard", (0.19, 0.22, 0.23), 0.8, 0.33)
-    glow = material(
-        "Opal bulkhead diffuser", (0.80, 0.91, 1.0), roughness=0.4, emission=8
-    )
+    palette = ModelMaterials(MODELS / "wall_light_utility.materials.json")
+    metal = palette["metal"]
+    dark = palette["dark"]
+    guard_metal = palette["guard_metal"]
+    glow = palette["glow"]
     capsule_body(
         "Oval cast housing", 0.44, 0.72, [(1, 0), (1, -0.095), (0.96, -0.125)], metal
     )
@@ -238,7 +210,7 @@ for kind, x in [("decorative", -0.65), ("utility", 0.65)]:
     for obj in bpy.context.selected_objects:
         if obj.parent is None:
             obj.location.x += x
-wall = material("Preview wall", (0.12, 0.14, 0.16), roughness=0.9)
+wall = plain_material("Preview wall", (0.12, 0.14, 0.16), roughness=0.9)
 box("Studio wall", (0, 0.075, 0), (200, 0.15, 200), wall, 0)
 scene = bpy.context.scene
 scene.render.engine = "CYCLES"

@@ -10,39 +10,23 @@ import bpy
 from mathutils import Euler, Vector
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from model_materials import catalog_material, project_uv
+from model_materials import ModelMaterials, project_uv
 
 MODEL = Path(__file__).resolve().with_suffix(".glb")
 FPS = 30
 WHEEL_RADIUS = 0.21
 bpy.ops.object.select_all(action="SELECT")
 bpy.ops.object.delete(use_global=False)
-bpy.ops.import_scene.gltf(filepath=str(MODEL.with_name("player.glb")))
-palette = {
-    name: next(m for m in bpy.data.materials if m.name.startswith(name))
-    for name in (
-        "Satin ceramic-white polymer",
-        "Fine matte elastomer",
-        "Brushed titanium mechanisms",
-        "Graphite structural composite",
-        "Muted ochre identification",
-        "Smoked optical visor",
-        "Ice-blue sensor",
-        "Status diode",
-        "Graphite service stencil",
-    )
-}
-for image in bpy.data.images:
-    if image.type == "IMAGE" and image.size[0]:
-        image.pack()
-bpy.ops.object.select_all(action="SELECT")
-bpy.ops.object.delete(use_global=False)
-for action in list(bpy.data.actions):
-    bpy.data.actions.remove(action)
-ivory, rubber, steel, graphite, ochre, glass, blue, amber, ink = palette.values()
-ivory = catalog_material("scuffed-plastic")
-rubber = catalog_material("synth-rubber")
-steel = catalog_material("brushed-metal")
+palette = ModelMaterials(MODEL.with_suffix(".materials.json"))
+ivory = palette["ivory"]
+rubber = palette["rubber"]
+steel = palette["steel"]
+graphite = palette["graphite"]
+ochre = palette["ochre"]
+glass = palette["glass"]
+blue = palette["blue"]
+amber = palette["amber"]
+ink = palette["ink"]
 parts = []
 
 

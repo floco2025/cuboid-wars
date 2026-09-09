@@ -1,4 +1,6 @@
 mod cache;
+#[cfg(test)]
+mod gltf_tests;
 mod grass;
 mod mipmaps;
 mod standard;

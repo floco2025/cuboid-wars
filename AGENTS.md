@@ -49,6 +49,8 @@ Other notable paths:
 
 - `tools/editor.py` — launcher for the PySide6 map editor (code lives in `tools/map_editor/`); takes a map name and edits `config/server/maps/<name>/layout.json`.
 - `client/assets/` — 3D models, textures, audio. Keep asset generation scripts beside the assets they generate.
+- Model textures should add visible coarse relief or be authored for the specific model. Use plain materials for subtle paint and metal. FreePBR synthetic rubber (`synth-rubber`) is an approved external texture for tires and finer player elastomer; discuss any other third-party texture use first. Preserve generators for authored textures and record provenance.
+- Keep `client/assets/ASSETS.md` as simple asset/source/license lookup tables. Use `TBD` for unknowns; omit local source paths, search reports, and explanatory narratives.
 - `client/assets/ASSETS.md` — asset provenance register. Update it when adding or replacing assets, including embedded textures and animation sources; retain supplied license notices and ask about unknown origins.
 - `config/client/assets.json` — hand-edited asset set (materials, alias bindings, models, sounds).
 - `config/client/client_local.json` — local values from the settings menu, the fullscreen shortcuts, and the last windowed placement. Gitignored, so `git pull` cannot update it: unlike every other JSON it carries a version, and any format change must bump `LOCAL_SETTINGS_VERSION` (`client/src/config/local.rs`) — a stale version is discarded and rewritten, never migrated.
@@ -236,7 +238,7 @@ placement reuses them; feedback is a temporary canvas notice.
 
 Texture sets are freepbr.com UE packs. Follow this workflow for every added pack, including model-generation sources. Catalog entries are metadata; load texture images only when a material is used.
 
-Use a distinct model texture only when it contributes visibly at normal gameplay distance; reuse an existing material for tiny details. Generated models share catalog PBR loading and metre-scaled UVs in `client/assets/models/model_materials.py`. Player material tuning lives beside the model in `player.materials.json`; rebuild the GLB after changing it (controls and command in `player.materials.md`).
+Use a distinct model texture only when it contributes visibly at normal gameplay distance; reuse an existing material for tiny details. Generated models share catalog PBR loading and metre-scaled UVs in `client/assets/models/model_materials.py`. Each model has a matching `.materials.json` beside its GLB for material tuning; rebuild the GLB after changing it (controls and commands in `client/assets/models/MATERIALS.md`).
 
 1. Prepare the pack outside `client/assets`; keep only used texture maps in `client/assets/textures/<name>-ue/`. Textures embedded in active models and inputs needed to regenerate them count as used; unused variants, height maps, and previews do not.
 2. Build the packed metallic-roughness map Bevy wants (needs ImageMagick): `client/assets/textures/combine_metallic_roughness.sh <dir>/<name>_roughness.png <dir>/<name>_metallic.png` writes `<name>_metallic-roughness.png` next to them. `multiply_intensity.sh <metallic-roughness.png> [roughness_add] [metallic_multiply]` retunes it afterwards (keeps a `.original.png`).

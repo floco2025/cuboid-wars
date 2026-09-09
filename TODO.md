@@ -16,8 +16,6 @@
 
 ## Enhancements
 
-- **Asset provenance:** Complete the details listed in [the asset register](client/assets/ASSETS.md#information-to-complete), including FreePBR access and the skybox license.
-
 - **Rapier upgrades:** Recheck the capsule floor-motion regression before removing the contact-normal adapter in `common/src/physics/world/character_queries.rs`. It works around imprecise cast normals feeding Rapier 0.32’s slope decomposition.
 
 - **Shape contact queries:** If movement shapes expand beyond upright capsules, use Parry contact/distance queries for contact attacks instead of the capsule-specific surface-distance formula. Preserve overlap thresholds and attack-cover rules.

@@ -13,6 +13,113 @@ ASSETS = ROOT / "client/assets"
 CATALOG = json.loads((ROOT / "config/client/assets.json").read_text())["materials"]
 
 
+def plain_material(name, color, metallic=0.0, roughness=0.4, emission=0.0):
+    mat = bpy.data.materials.new(name)
+    mat.diffuse_color = (*color, 1)
+    mat.use_nodes = True
+    shader = mat.node_tree.nodes.get("Principled BSDF")
+    shader.inputs["Base Color"].default_value = (*color, 1)
+    shader.inputs["Metallic"].default_value = metallic
+    shader.inputs["Roughness"].default_value = roughness
+    shader.inputs["Emission Color"].default_value = (*color, 1)
+    shader.inputs["Emission Strength"].default_value = emission
+    return mat
+
+
+class ModelMaterials:
+    def __init__(self, path):
+        self.path = Path(path)
+        settings = json.loads(self.path.read_text())
+        unknown = settings.keys() - {"materials", "wear"}
+        if unknown:
+            raise ValueError(f"{self.path.name}: unknown sections {sorted(unknown)}")
+        self.wear = settings.get("wear", {})
+        self.materials = {}
+        for key, definition in settings["materials"].items():
+            try:
+                self.materials[key] = self.create(key, definition)
+            except (ValueError, KeyError, TypeError) as error:
+                raise ValueError(
+                    f"{self.path.name}: materials.{key}: {error}"
+                ) from error
+
+    def __getitem__(self, key):
+        return self.materials[key]
+
+    @staticmethod
+    def create(key, definition):
+        tuning_fields = {
+            "tile_size",
+            "tint",
+            "color_contrast",
+            "normal_strength",
+            "roughness_factor",
+        }
+        allowed = {
+            "name",
+            "source",
+            "metallic",
+            "emission",
+            "emission_color",
+            "backface_culling",
+        }
+        allowed |= tuning_fields if "source" in definition else {"color", "roughness"}
+        unknown = definition.keys() - allowed
+        if unknown:
+            raise ValueError(f"unknown fields {sorted(unknown)}")
+        for field in ("metallic", "roughness", "emission"):
+            if field in definition:
+                value = definition[field]
+                limit = math.inf if field == "emission" else 1
+                if (
+                    isinstance(value, bool)
+                    or not isinstance(value, (int, float))
+                    or not math.isfinite(value)
+                    or not 0 <= value <= limit
+                ):
+                    raise ValueError(f"{field} is outside its valid range")
+        for field in ("color", "emission_color"):
+            if field in definition:
+                value = np.asarray(definition[field], dtype=float)
+                if value.shape != (3,) or not np.all(
+                    np.isfinite(value) & (value >= 0) & (value <= 1)
+                ):
+                    raise ValueError(f"{field} must contain three values from 0 to 1")
+        if "backface_culling" in definition and not isinstance(
+            definition["backface_culling"], bool
+        ):
+            raise ValueError("backface_culling must be a boolean")
+        name = definition.get("name", key)
+        if "source" in definition:
+            mat = catalog_material(
+                definition["source"],
+                name,
+                tuning={
+                    field: definition[field]
+                    for field in tuning_fields
+                    if field in definition
+                },
+            )
+        else:
+            mat = plain_material(
+                name, definition["color"], roughness=definition.get("roughness", 0.4)
+            )
+        shader = mat.node_tree.nodes.get("Principled BSDF")
+        if "metallic" in definition:
+            socket = shader.inputs["Metallic"]
+            for link in list(socket.links):
+                mat.node_tree.links.remove(link)
+            socket.default_value = definition["metallic"]
+        if "emission_color" in definition:
+            shader.inputs["Emission Color"].default_value = (
+                *definition["emission_color"],
+                1,
+            )
+        shader.inputs["Emission Strength"].default_value = definition.get("emission", 0)
+        mat.use_backface_culling = definition.get("backface_culling", False)
+        return mat
+
+
 def catalog_material(key, name=None, *, tuning=None):
     definition = CATALOG[key]
     tuning = tuning or {}
@@ -94,7 +201,13 @@ def catalog_material(key, name=None, *, tuning=None):
     group = get_settings_group()
     output = nodes.new("ShaderNodeGroup")
     output.node_tree = group
-    links.new(texture("occlusion"), output.inputs["Occlusion"])
+    if (
+        definition["textures"]["occlusion"]
+        == definition["textures"]["metallic_roughness"]
+    ):
+        links.new(separate.outputs["Red"], output.inputs["Occlusion"])
+    else:
+        links.new(texture("occlusion"), output.inputs["Occlusion"])
     if definition["metallic"] == 0.0:
         links.remove(shader.inputs["Metallic"].links[0])
         shader.inputs["Metallic"].default_value = 0.0
