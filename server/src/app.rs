@@ -10,7 +10,7 @@ use crate::{
     combat::{PendingExplosions, combat_plugin},
     config::{ServerGameplayConfig, validate_map_actor_kinds, validate_map_quests},
     items::{ItemMap, ItemSpawner, RandomItems, items_plugin},
-    map::{GeneratedMap, LightState, PlateState, WeatherState, generate_map, map_plugin},
+    map::{GeneratedMap, LightState, WeatherState, generate_map, map_plugin},
     missiles::{AirGraph, MissileMap, missiles_plugin},
     network::{FromClientsChannel, network_plugin},
     players::{Invincibility, PlayerMap, players_plugin},
@@ -24,7 +24,7 @@ use common::{
     constants::TICK_DURATION,
     map::Carriers,
     physics::{CollisionWorld, PortalSet},
-    protocol::{MapBootstrap, ServerTick, WorldBootstrap, server_tick_advance_system},
+    protocol::{MapBootstrap, PlateState, ServerTick, WorldBootstrap, server_tick_advance_system},
 };
 
 const LOG_FILTER: &str = "wgpu=error,naga=warn";

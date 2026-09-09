@@ -3,10 +3,10 @@ use common::{
     config::CharacterPhysicsConfig,
     map::Carriers,
     physics::{
-        CharacterEnvironment, CharacterMovePlan, CharacterMovementResult, CharacterStep, CharacterSupport,
-        CollisionWorld, LadderMode, character_move_plan_is_blocked, step_character_movement,
+        ActorMovementStep, CharacterMovePlan, CharacterMovementResult, CharacterSupport, CollisionWorld,
+        character_move_plan_is_blocked, step_actor_movement,
     },
-    protocol::{ActorMoveIntent, BarrierKindId, Position},
+    protocol::{ActorMoveIntent, BarrierKindId, MapSettings, Position},
 };
 
 #[derive(Copy, Clone)]
@@ -32,8 +32,7 @@ pub(super) struct ActorMoveContext<'a> {
     pub(super) planned_moves: &'a [CharacterMovePlan],
     pub(super) actor_starts: &'a [(Entity, Position, CharacterPhysicsConfig)],
     pub(super) open_barrier_kinds: &'a [BarrierKindId],
-    pub(super) gravity: f32,
-    pub(super) ladder_climb_ratio: f32,
+    pub(super) map_settings: &'a MapSettings,
     pub(super) can_use_ladders: bool,
     pub(super) knockback_step: Vec3,
     // The actor's own carrier's travel this tick, zero for the world.
@@ -82,26 +81,20 @@ impl ActorMoveContext<'_> {
         }
     }
 
-    fn step_actor_move(&self, move_intent: ActorMoveIntent) -> CharacterMovementResult {
-        step_character_movement(
-            CharacterStep {
-                start: *self.pos,
-                vertical_velocity: self.vertical_velocity,
-                control_velocity: move_intent.to_horizontal_velocity(),
-                external_displacement: self.knockback_step,
-                delta: self.delta,
-            },
-            &CharacterEnvironment {
-                ladder_mode: LadderMode::for_actor(self.can_use_ladders, move_intent),
-                collision_world: self.collision_world,
-                gravity: self.gravity,
-                passable_kinds: self.open_barrier_kinds,
-                physics: self.actor_physics,
-                ladder_climb_ratio: self.ladder_climb_ratio,
-                portals: None,
-                carriers: self.carriers,
-            },
-        )
+    fn step_actor_move(&self, intent: ActorMoveIntent) -> CharacterMovementResult {
+        step_actor_movement(ActorMovementStep {
+            start: *self.pos,
+            vertical_velocity: self.vertical_velocity,
+            intent,
+            external_displacement: self.knockback_step,
+            delta: self.delta,
+            can_use_ladders: self.can_use_ladders,
+            physics: self.actor_physics,
+            open_kinds: self.open_barrier_kinds,
+            collision_world: self.collision_world,
+            map_settings: self.map_settings,
+            carriers: self.carriers,
+        })
     }
 }
 

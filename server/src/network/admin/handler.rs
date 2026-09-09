@@ -5,15 +5,12 @@ use crate::{
     actors::{ActorMap, ActorRespawnTimers, PendingActorSpawns},
     combat::PendingExplosions,
     config::{PowerUpsConfig, ServerGameplayConfig},
-    map::{LightState, MapConfig, WeatherState},
-    network::{FeedAudience, FeedEvent, emit_feed},
+    map::{LightState, WeatherState},
+    network::{FeedAudience, FeedEvent, SharedWorld, emit_feed},
     players::{Invincibility, PlayerInfo, PlayerMap, PlayerStateQuery},
     quests::{QuestBoard, QuestCatalog},
 };
-use common::{
-    config::GameplayConfig,
-    protocol::{BarrierKindTable, CAdmin, PlayerId, ServerTick},
-};
+use common::protocol::{BarrierKindTable, CAdmin, PlayerId, ServerTick};
 
 fn admin_authorized(_info: &PlayerInfo) -> bool {
     true
@@ -41,8 +38,7 @@ pub fn handle_admin_message(
     id: PlayerId,
     admin: &mut AdminContext,
     player_data: &PlayerStateQuery,
-    gameplay_config: &GameplayConfig,
-    map_config: &MapConfig,
+    world: &SharedWorld,
     pending_actor_spawns: &mut PendingActorSpawns,
     quest_board: &mut QuestBoard,
     msg: &CAdmin,
@@ -58,8 +54,8 @@ pub fn handle_admin_message(
             id,
             admin,
             player_data,
-            gameplay_config,
-            map_config,
+            &world.gameplay_config,
+            &world.map_config,
             pending_actor_spawns,
             quest_board,
             &msg.command,

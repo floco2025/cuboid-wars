@@ -1,17 +1,19 @@
+use std::collections::{HashSet, VecDeque};
+
 use bevy::prelude::Vec3;
 use common::{
     map::CarrierPose,
     physics::CollisionWorld,
-    protocol::{BarrierKindTable, MapLayout, Position, Wall},
+    protocol::{BarrierKindTable, CarrierId, MapLayout, Position, Wall},
 };
 use rand::{SeedableRng, rngs::StdRng};
 
-use super::{NavGraph, NavGraphs, routing::COVER_SEARCH_MAX_STEPS};
+use super::{NavGraph, NavGraphs, NavNode, routing::COVER_SEARCH_MAX_STEPS};
 use crate::{
+    actors::test_kinds,
     map::{ActorSpawnZone, CarrierGrid, CellGrid, EdgeGrid, GeneratedMap, LevelGrid, MapConfig},
     test_geometry::{CELL, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS, geometry},
 };
-use common::protocol::CarrierId;
 
 fn nav_for(map: MapConfig) -> NavGraph {
     NavGraph::new(map.root_grid())
@@ -33,9 +35,31 @@ fn zone(level: u8, col: i32, row: i32) -> ActorSpawnZone {
         level,
         cols: [col, col + 1],
         rows: [row, row + 1],
-        kind: "zapper".into(),
+        kind: test_kinds::BEAM.into(),
         count: 1,
     }
+}
+
+// The graph's own route from `start` to the zone's nearest traversable cell,
+// as waypoint positions, for asserting the graph's links.
+fn path_to_spawn_zone(nav: &NavGraph, start: &Position, zone: &ActorSpawnZone) -> Option<VecDeque<Position>> {
+    let start_node = nav.route_start_node(start, &[])?;
+    let targets: HashSet<NavNode> = zone
+        .cells()
+        .filter_map(|(col, row)| {
+            let node = NavNode {
+                level: zone.level,
+                row,
+                col,
+            };
+            nav.is_traversable(node).then_some(node)
+        })
+        .collect();
+    if targets.is_empty() {
+        return None;
+    }
+    let route = nav.route_to_any(&[], start_node, |node| targets.contains(&node), |_| true)?;
+    Some(route.waypoints.into_iter().map(|point| point.position).collect())
 }
 
 fn full_floor_nav(cols: i32, rows: i32) -> NavGraph {
@@ -269,16 +293,16 @@ fn path_avoids_walls() {
     edges.vertical[0][1] = true;
     let nav = nav_for(MapConfig::for_grid(vec![level(cells, edges)], geometry(2, 2)));
 
-    let path = nav
-        .path_to_spawn_zone(
-            &Position {
-                x: -2.0,
-                y: 0.0,
-                z: -2.0,
-            },
-            &zone(0, 1, 0),
-        )
-        .expect("target should be reachable around the wall");
+    let path = path_to_spawn_zone(
+        &nav,
+        &Position {
+            x: -2.0,
+            y: 0.0,
+            z: -2.0,
+        },
+        &zone(0, 1, 0),
+    )
+    .expect("target should be reachable around the wall");
 
     assert!(path.len() > 1, "path should route around the blocked east edge");
 }
@@ -304,16 +328,16 @@ fn path_routes_around_closed_barrier() {
         geometry(2, 2),
     ));
 
-    let path = nav
-        .path_to_spawn_zone(
-            &Position {
-                x: -2.0,
-                y: 0.0,
-                z: -2.0,
-            },
-            &zone(0, 1, 0),
-        )
-        .expect("target should be reachable around the barrier");
+    let path = path_to_spawn_zone(
+        &nav,
+        &Position {
+            x: -2.0,
+            y: 0.0,
+            z: -2.0,
+        },
+        &zone(0, 1, 0),
+    )
+    .expect("target should be reachable around the barrier");
 
     assert!(path.len() > 1, "path should route around the closed barrier edge");
 }
@@ -353,9 +377,8 @@ fn side_entry_onto_ramp_is_routed_around() {
         y: 0.0,
         z: 0.0,
     };
-    let path = nav
-        .path_to_spawn_zone(&start, &zone(0, 2, 1))
-        .expect("east cell should be reachable around the wedge");
+    let path =
+        path_to_spawn_zone(&nav, &start, &zone(0, 2, 1)).expect("east cell should be reachable around the wedge");
     let ramp_center = ramp_cell_center(3);
     assert!(
         path.iter()
@@ -375,9 +398,7 @@ fn high_edge_entry_at_lower_level_is_blocked() {
         y: 0.0,
         z: -4.0,
     };
-    let path = nav
-        .path_to_spawn_zone(&start, &zone(0, 1, 1))
-        .expect("ramp cell should be reachable via its base");
+    let path = path_to_spawn_zone(&nav, &start, &zone(0, 1, 1)).expect("ramp cell should be reachable via its base");
     assert!(
         path.len() > 2,
         "high-edge entry must be rejected in favour of the base detour: {path:?}"
@@ -389,9 +410,7 @@ fn base_entry_onto_ramp_is_allowed() {
     let nav = nav_for(ramp_map());
     // Start south of the wedge, right at its base edge: direct entry.
     let start = Position { x: 0.0, y: 0.0, z: 4.0 };
-    let path = nav
-        .path_to_spawn_zone(&start, &zone(0, 1, 1))
-        .expect("base entry should path directly onto the ramp");
+    let path = path_to_spawn_zone(&nav, &start, &zone(0, 1, 1)).expect("base entry should path directly onto the ramp");
     assert_eq!(path.len(), 1, "base approach needs no detour: {path:?}");
 }
 
@@ -399,7 +418,7 @@ fn base_entry_onto_ramp_is_allowed() {
 fn ramp_node_is_not_a_cover_destination() {
     let nav = nav_for(ramp_map());
     let ramp = ramp_cell_center(3);
-    let ramp_node = nav.node_for_position(&ramp).expect("ramp nav node");
+    let ramp_node = nav.nearest_node_for_position(&ramp).expect("ramp nav node");
 
     assert!(!nav.is_cover_destination(ramp_node));
 }
@@ -440,7 +459,7 @@ fn shipping_map_zones_are_mutually_reachable() {
                 continue;
             }
             assert!(
-                nav.path_to_spawn_zone(&start, to).is_some(),
+                path_to_spawn_zone(nav, &start, to).is_some(),
                 "no nav path from zone {from_idx} (level {}) to zone {to_idx} (level {})",
                 from.level,
                 to.level
@@ -466,9 +485,14 @@ fn graphs_hold_one_graph_per_grid_in_carrier_order() {
     let graphs = NavGraphs::new(&map);
 
     let center = cell_center(2, 2, 1, 1);
-    assert!(graphs.get(CarrierId::WORLD).node_for_position(&center).is_some());
+    assert!(
+        graphs
+            .get(CarrierId::WORLD)
+            .nearest_node_for_position(&center)
+            .is_some()
+    );
     // The nested cell has no floor, so its graph is empty.
-    assert!(graphs.get(CarrierId(1)).node_for_position(&center).is_none());
+    assert!(graphs.get(CarrierId(1)).nearest_node_for_position(&center).is_none());
 }
 
 #[test]
@@ -536,7 +560,7 @@ fn floorless_arrival_strip_is_reachable() {
         z: -2.0,
     };
     assert!(
-        nav.path_to_spawn_zone(&start, &zone(1, 0, 1)).is_some(),
+        path_to_spawn_zone(&nav, &start, &zone(1, 0, 1)).is_some(),
         "the arrival strip above a ramp top must stay reachable without floor"
     );
 }
@@ -567,7 +591,7 @@ fn hole_over_ramp_base_is_not_traversable() {
         z: -2.0,
     };
     assert!(
-        nav.path_to_spawn_zone(&start, &zone(1, 0, 0)).is_none(),
+        path_to_spawn_zone(&nav, &start, &zone(1, 0, 0)).is_none(),
         "the opening above a ramp base is a hole, not a target"
     );
 }
@@ -605,8 +629,7 @@ fn arrival_strip_connects_only_through_the_top_side() {
 
     // Start on the ramp base cell (col 1, row 2).
     let start = Position { x: 0.0, y: 0.0, z: 4.0 };
-    let path = nav
-        .path_to_spawn_zone(&start, &zone(1, 0, 1))
+    let path = path_to_spawn_zone(&nav, &start, &zone(1, 0, 1))
         .expect("upper west cell should be reachable via the strip's top side");
     let geometry = geometry(3, 3);
     let via_top = Position {
@@ -648,9 +671,7 @@ fn path_uses_ramp_top_to_change_levels() {
         y: 0.0,
         z: -2.0,
     };
-    let path = nav
-        .path_to_spawn_zone(&start, &zone(1, 0, 1))
-        .expect("upper ramp top should be reachable");
+    let path = path_to_spawn_zone(&nav, &start, &zone(1, 0, 1)).expect("upper ramp top should be reachable");
 
     assert!(path.iter().any(|pos| (pos.y - LEVEL_HEIGHT).abs() < 0.001));
 

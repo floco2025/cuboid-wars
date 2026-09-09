@@ -15,9 +15,9 @@ use common::{
 };
 
 // Generate individual wall segments (no merging) with gap-filling extensions,
-// tagging each wall with `level`.
+// tagging each wall with `level` and `carrier`.
 #[must_use]
-pub fn generate_walls(edge_grid: &EdgeGrid, geometry: &MapGeometry, level: u8) -> Vec<Wall> {
+pub fn generate_walls(edge_grid: &EdgeGrid, geometry: &MapGeometry, level: u8, carrier: CarrierId) -> Vec<Wall> {
     let grid_cols = geometry.grid_cols;
     let grid_rows = geometry.grid_rows;
     let y = geometry.level_y(level);
@@ -42,7 +42,7 @@ pub fn generate_walls(edge_grid: &EdgeGrid, geometry: &MapGeometry, level: u8) -
                 y,
                 height,
                 level,
-                carrier: CarrierId::WORLD,
+                carrier,
             });
         }
     }
@@ -64,7 +64,7 @@ pub fn generate_walls(edge_grid: &EdgeGrid, geometry: &MapGeometry, level: u8) -
                 y,
                 height,
                 level,
-                carrier: CarrierId::WORLD,
+                carrier,
             });
         }
     }
@@ -255,7 +255,7 @@ mod tests {
             let mut edges = EdgeGrid::new(4, 4);
             edges.horizontal[h_row as usize][col as usize] = true;
             edges.vertical[row as usize][h_col as usize] = true;
-            let walls = generate_walls(&edges, &geometry, 0);
+            let walls = generate_walls(&edges, &geometry, 0, CarrierId::WORLD);
             let vertical = walls
                 .iter()
                 .find(|wall| (wall.x1 - wall.x2).abs() < MERGE_EPS)

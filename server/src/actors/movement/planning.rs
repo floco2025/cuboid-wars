@@ -4,15 +4,16 @@ use bevy::prelude::Vec3;
 
 use crate::{
     actors::{ActorMap, ActorMode},
-    map::PlateState,
     network::broadcast_to_all,
     players::PlayerMap,
 };
 use common::{
-    config::{CharacterPhysicsConfig, GameplayConfig},
+    config::CharacterPhysicsConfig,
     map::Carriers,
     physics::{CharacterMovePlan, CharacterSupport, CollisionWorld},
-    protocol::{ActorId, ActorMoveIntent, ActorMovementState, MapSettings, Position, SActorMove, ServerMessage},
+    protocol::{
+        ActorId, ActorMoveIntent, ActorMovementState, MapSettings, PlateState, Position, SActorMove, ServerMessage,
+    },
 };
 
 use super::{
@@ -26,7 +27,6 @@ use super::{
 pub(crate) fn plan_actor_moves(
     delta: f32,
     collision_world: &CollisionWorld,
-    gameplay_config: &GameplayConfig,
     map_settings: &MapSettings,
     players: &PlayerMap,
     plates: &PlateState,
@@ -39,7 +39,7 @@ pub(crate) fn plan_actor_moves(
     let actor_order = sorted_actor_plan_order(query, actors, carriers);
 
     for actor_order in actor_order {
-        let Ok((entity, id, actor_movement, pos, motion, mut move_intent, mut face_yaw, knockback, _)) =
+        let Ok((entity, id, actor_movement, pos, motion, mut move_intent, mut face_yaw, knockback, _, character)) =
             query.get_mut(actor_order.entity)
         else {
             continue;
@@ -47,7 +47,7 @@ pub(crate) fn plan_actor_moves(
         let Some(info) = actors.get(id) else {
             continue;
         };
-        let actor_physics = gameplay_config.expect_actor(&info.spawn_kind).physics();
+        let actor_physics = character.0.physics();
         let current_pos = *pos;
         if let Some(anchor) = info.anchor {
             *move_intent = ActorMoveIntent::Idle;
@@ -81,9 +81,8 @@ pub(crate) fn plan_actor_moves(
             planned_moves,
             actor_starts,
             open_barrier_kinds: &plates.open_barrier_kinds,
-            gravity: map_settings.movement.gravity,
-            can_use_ladders: gameplay_config.expect_actor(&info.spawn_kind).can_use_ladders,
-            ladder_climb_ratio: map_settings.movement.ladder_climb_ratio,
+            map_settings,
+            can_use_ladders: character.0.can_use_ladders,
             knockback_step: knockback.map_or(Vec3::ZERO, |velocity| velocity.step(delta)),
             carrier_step: carriers.displacement(info.carrier),
             carriers,

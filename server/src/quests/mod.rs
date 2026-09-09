@@ -1,6 +1,9 @@
 mod catalog;
 mod progress;
 mod resources;
+
+#[cfg(test)]
+mod progress_tests;
 #[cfg(test)]
 pub(crate) mod test_support;
 

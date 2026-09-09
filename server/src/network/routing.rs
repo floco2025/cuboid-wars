@@ -10,7 +10,6 @@ use super::{
 };
 use crate::{
     actors::{ActorMap, PendingActorSpawns},
-    map::PlateState,
     missiles::{MissileMap, handle_missile_shot_message},
     network::ServerToClient,
     players::PlayerMap,
@@ -97,16 +96,7 @@ pub(super) fn route_client_message(
                 return;
             };
             trace!("{:?} jump", id);
-            handle_jump_message(
-                commands,
-                entity,
-                id,
-                &context.players,
-                &context.queries,
-                &context.world.collision_world,
-                &context.world.gameplay_config,
-                &context.world.map_settings,
-            );
+            handle_jump_message(commands, entity, id, &context.players, &context.queries, &context.world);
         }
         ClientMessage::ProjectileShot(message) => {
             let Some(entity) = entity else {
@@ -121,9 +111,7 @@ pub(super) fn route_client_message(
                 &mut context.players,
                 &context.time,
                 &context.queries.player_data,
-                &context.world.collision_world,
-                &context.world.gameplay_config,
-                &context.world.map_settings,
+                &context.world,
                 &context.plates,
             );
         }
@@ -139,13 +127,9 @@ pub(super) fn route_client_message(
                 &message,
                 &mut context.players,
                 &mut context.missiles,
-                &context.queries.player_data,
                 &context.actors,
-                &context.queries.actor_data,
-                &context.world.collision_world,
-                &context.world.gameplay_config,
-                &context.world.server_gameplay_config,
-                &context.world.map_settings,
+                &context.queries,
+                &context.world,
                 &context.plates,
             );
         }
@@ -161,12 +145,8 @@ pub(super) fn route_client_message(
                 &mut context.players,
                 &context.time,
                 &context.queries.player_data,
-                &context.world.collision_world,
-                &context.world.carriers,
-                &context.world.map_layout,
-                &context.world.map_settings,
+                &context.world,
                 &context.plates,
-                &context.world.gameplay_config,
                 &context.portal_assignments,
                 &mut context.portals,
                 &mut context.portal_set,
@@ -185,8 +165,7 @@ pub(super) fn route_client_message(
                 id,
                 &mut context.admin,
                 &context.queries.player_data,
-                &context.world.gameplay_config,
-                &context.world.map_config,
+                &context.world,
                 &mut context.pending_actor_spawns,
                 &mut context.quest_board,
                 &message,

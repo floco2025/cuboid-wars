@@ -3,6 +3,7 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use bevy::prelude::*;
 
 use common::{
+    config::ActorGameplayConfig,
     map::Carriers,
     physics::CharacterSupport,
     protocol::{
@@ -17,6 +18,11 @@ use crate::watchdog::ProgressWatchdog;
 // written by `apply_actor_moves`, read by `actors_removal_system`.
 #[derive(Component, Default)]
 pub struct ActorCrushed(pub bool);
+
+// The kind's body and abilities, resolved once at materialization so
+// movement never looks the kind up by name per tick.
+#[derive(Component, Clone)]
+pub struct ActorCharacter(pub ActorGameplayConfig);
 
 pub type ActorStateQuery<'w, 's> = Query<
     'w,
@@ -315,13 +321,17 @@ impl ActorSpawner {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::actors::test_kinds;
 
     #[test]
     fn actor_map_records_vacated_zones() {
         let mut actors = ActorMap::default();
         let id = ActorId(4);
         let entity = Entity::from_bits(12);
-        actors.insert(id, ActorInfo::new(entity, 3, "zapper".to_owned(), CarrierId::WORLD));
+        actors.insert(
+            id,
+            ActorInfo::new(entity, 3, test_kinds::BEAM.to_owned(), CarrierId::WORLD),
+        );
 
         assert!(!actors.has_vacated_spawn_zones());
 

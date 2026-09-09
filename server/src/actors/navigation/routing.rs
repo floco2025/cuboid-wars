@@ -9,7 +9,9 @@ use super::{LadderLink, NavGraph, NavNode, NavWaypoint, WaypointKind, territory:
 const PRIMARY_THREAT_EXCLUSION_CELLS: f32 = 1.5;
 const FALLBACK_THREAT_EXCLUSION_CELLS: f32 = 0.75;
 const MINIMUM_THREAT_EXCLUSION_CELLS: f32 = 0.25;
-const DIRECT_ROUTE_CLEARANCE_MARGIN: f32 = 0.1;
+// Body clearance added to the footprint when a straight leg is judged
+// against the floor cells it crosses.
+pub(super) const DIRECT_ROUTE_CLEARANCE_MARGIN: f32 = 0.1;
 pub(super) const COVER_SEARCH_MAX_STEPS: usize = 12;
 
 #[derive(Debug, Clone)]
@@ -21,8 +23,8 @@ pub(crate) struct PlannedRoute {
 impl NavGraph {
     #[must_use]
     pub(crate) fn position_in_roam_region(&self, pos: &Position, territory: &ActorTerritory) -> bool {
-        self.node_for_position(pos)
-            .is_some_and(|node| territory.roam.contains(&node))
+        self.nearest_node_for_position(pos)
+            .is_some_and(|node| territory.contains(node))
     }
 
     pub(crate) fn roam_route(
@@ -34,7 +36,7 @@ impl NavGraph {
     ) -> Option<PlannedRoute> {
         let start_node = self.route_start_node(start, ladders)?;
         let candidates: Vec<_> = territory
-            .roam_nodes
+            .roam
             .iter()
             .copied()
             .filter(|node| *node != start_node)
@@ -44,8 +46,7 @@ impl NavGraph {
         }
         let offset = rng.random_range(0..candidates.len());
         for target in candidates.iter().cycle().skip(offset).take(candidates.len()) {
-            if let Some(route) =
-                self.route_between_nodes(ladders, start_node, *target, |node| territory.roam.contains(&node))
+            if let Some(route) = self.route_between_nodes(ladders, start_node, *target, |node| territory.contains(node))
             {
                 return Some(route);
             }
@@ -60,7 +61,7 @@ impl NavGraph {
         territory: &ActorTerritory,
     ) -> Option<PlannedRoute> {
         let start_node = self.route_start_node(start, ladders)?;
-        self.route_to_any(ladders, start_node, |node| territory.roam.contains(&node), |_| true)
+        self.route_to_any(ladders, start_node, |node| territory.contains(node), |_| true)
     }
 
     pub(crate) fn engagement_route(
@@ -72,7 +73,7 @@ impl NavGraph {
         actor_half_depth: f32,
     ) -> Option<PlannedRoute> {
         let start_node = self.route_start_node(start, ladders)?;
-        let target_node = self.node_for_position(target)?;
+        let target_node = self.nearest_node_for_position(target)?;
         let mut route = self.route_between_nodes(ladders, start_node, target_node, |_| true)?;
         if route
             .waypoints
@@ -216,7 +217,7 @@ impl NavGraph {
         rng: &mut impl Rng,
     ) -> Option<PlannedRoute> {
         let start_node = self.route_start_node(start, ladders)?;
-        let search = self.reachable(ladders, start_node, |_| true, COVER_SEARCH_MAX_STEPS);
+        let search = self.search(ladders, start_node, |_| true, COVER_SEARCH_MAX_STEPS, |_| false);
         let mut reachable: Vec<NavNode> = search
             .depths
             .keys()
@@ -277,7 +278,7 @@ impl NavGraph {
         self.route_to_any(ladders, start, |node| node == target, allowed)
     }
 
-    fn route_to_any(
+    pub(super) fn route_to_any(
         &self,
         ladders: &[LadderLink],
         start: NavNode,
@@ -291,44 +292,33 @@ impl NavGraph {
         &self,
         ladders: &[LadderLink],
         start: NavNode,
-        mut is_target: impl FnMut(NavNode) -> bool,
+        is_target: impl FnMut(NavNode) -> bool,
         allowed: impl Fn(NavNode) -> bool,
         max_depth: usize,
     ) -> Option<PlannedRoute> {
-        let mut queue = VecDeque::from([start]);
-        let mut came_from = HashMap::from([(start, None)]);
-        let mut depths = HashMap::from([(start, 0usize)]);
-        while let Some(node) = queue.pop_front() {
-            if is_target(node) {
-                return self.route_from_search(ladders, start, node, &came_from);
-            }
-            let depth = depths[&node];
-            if depth >= max_depth {
-                continue;
-            }
-            for next in self.route_neighbors(node, ladders) {
-                if came_from.contains_key(&next) || !allowed(next) {
-                    continue;
-                }
-                came_from.insert(next, Some(node));
-                depths.insert(next, depth + 1);
-                queue.push_back(next);
-            }
-        }
-        None
+        let search = self.search(ladders, start, allowed, max_depth, is_target);
+        self.route_from_search(ladders, start, search.stopped_at?, &search.came_from)
     }
 
-    fn reachable(
+    // Breadth-first from `start` through `allowed` nodes, at most `max_depth`
+    // steps out, until `stop` accepts a dequeued node or the reach is exhausted.
+    fn search(
         &self,
         ladders: &[LadderLink],
         start: NavNode,
         allowed: impl Fn(NavNode) -> bool,
         max_depth: usize,
-    ) -> ReachableSearch {
+        mut stop: impl FnMut(NavNode) -> bool,
+    ) -> RouteSearch {
         let mut queue = VecDeque::from([start]);
         let mut came_from = HashMap::from([(start, None)]);
         let mut depths = HashMap::from([(start, 0usize)]);
+        let mut stopped_at = None;
         while let Some(node) = queue.pop_front() {
+            if stop(node) {
+                stopped_at = Some(node);
+                break;
+            }
             let depth = depths[&node];
             if depth >= max_depth {
                 continue;
@@ -342,7 +332,11 @@ impl NavGraph {
                 queue.push_back(next);
             }
         }
-        ReachableSearch { came_from, depths }
+        RouteSearch {
+            came_from,
+            depths,
+            stopped_at,
+        }
     }
 
     fn route_from_search(
@@ -374,9 +368,10 @@ impl NavGraph {
     }
 }
 
-struct ReachableSearch {
+struct RouteSearch {
     came_from: HashMap<NavNode, Option<NavNode>>,
     depths: HashMap<NavNode, usize>,
+    stopped_at: Option<NavNode>,
 }
 
 fn minimum_threat_distance_sq(pos: Position, threats: &[Position]) -> f32 {

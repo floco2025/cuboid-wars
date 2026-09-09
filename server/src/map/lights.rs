@@ -24,6 +24,7 @@ pub(crate) fn generate_wall_lights(
     level: &LevelGrid,
     level_idx: usize,
     defs: &[WallLightDef],
+    carrier: CarrierId,
 ) -> Vec<WallLight> {
     let light_y = geometry.level_y(u8::try_from(level_idx).unwrap_or(u8::MAX)) + geometry.wall_light_height();
 
@@ -36,7 +37,13 @@ pub(crate) fn generate_wall_lights(
             if !has_edge_on_cell_side(&level.edges, def.row, def.col, side) {
                 return None;
             }
-            Some(wall_light_for(geometry, light_y, def.row, def.col, side, &def.kind))
+            let (pos, yaw) = wall_light_pose(geometry, light_y, def.row, def.col, side);
+            Some(WallLight {
+                kind: def.kind.clone(),
+                pos,
+                yaw,
+                carrier,
+            })
         })
         .collect()
 }
@@ -50,53 +57,19 @@ fn cell_side_from_wall_side(side: WallSide) -> CellSide {
     }
 }
 
-fn wall_light_for(geometry: &MapGeometry, light_y: f32, row: i32, col: i32, side: CellSide, kind: &str) -> WallLight {
+// Where a lamp on `side` of the cell hangs, and which way it faces.
+fn wall_light_pose(geometry: &MapGeometry, light_y: f32, row: i32, col: i32, side: CellSide) -> (Position, f32) {
     let cell_center_x = geometry.cell_center_x(col);
     let cell_center_z = geometry.cell_center_z(row);
     let half = geometry.cell_size() / 2.0;
     let model_inset = geometry.wall_half_thickness() + MODEL_INSET_PAST_WALL;
-    match side {
-        CellSide::North => WallLight {
-            kind: kind.to_owned(),
-            pos: Position {
-                x: cell_center_x,
-                y: light_y,
-                z: cell_center_z - half + model_inset,
-            },
-            yaw: 0.0,
-            carrier: CarrierId::WORLD,
-        },
-        CellSide::South => WallLight {
-            kind: kind.to_owned(),
-            pos: Position {
-                x: cell_center_x,
-                y: light_y,
-                z: cell_center_z + half - model_inset,
-            },
-            yaw: PI,
-            carrier: CarrierId::WORLD,
-        },
-        CellSide::West => WallLight {
-            kind: kind.to_owned(),
-            pos: Position {
-                x: cell_center_x - half + model_inset,
-                y: light_y,
-                z: cell_center_z,
-            },
-            yaw: FRAC_PI_2,
-            carrier: CarrierId::WORLD,
-        },
-        CellSide::East => WallLight {
-            kind: kind.to_owned(),
-            pos: Position {
-                x: cell_center_x + half - model_inset,
-                y: light_y,
-                z: cell_center_z,
-            },
-            yaw: -FRAC_PI_2,
-            carrier: CarrierId::WORLD,
-        },
-    }
+    let (x, z, yaw) = match side {
+        CellSide::North => (cell_center_x, cell_center_z - half + model_inset, 0.0),
+        CellSide::South => (cell_center_x, cell_center_z + half - model_inset, PI),
+        CellSide::West => (cell_center_x - half + model_inset, cell_center_z, FRAC_PI_2),
+        CellSide::East => (cell_center_x + half - model_inset, cell_center_z, -FRAC_PI_2),
+    };
+    (Position { x, y: light_y, z }, yaw)
 }
 
 fn cell_in_bounds(level: &LevelGrid, row: i32, col: i32) -> bool {
@@ -166,7 +139,7 @@ mod tests {
             },
         ];
 
-        let lights = generate_wall_lights(&geometry(1, 1), &level, 0, &defs);
+        let lights = generate_wall_lights(&geometry(1, 1), &level, 0, &defs, CarrierId::WORLD);
 
         assert_eq!(lights.len(), 4);
         assert!(lights.iter().all(|light| light.kind == "test-light"));
@@ -188,7 +161,7 @@ mod tests {
         }];
 
         let geometry = geometry(1, 1);
-        let lights = generate_wall_lights(&geometry, &level, 2, &defs);
+        let lights = generate_wall_lights(&geometry, &level, 2, &defs, CarrierId::WORLD);
 
         assert_eq!(lights.len(), 1);
         assert!((lights[0].pos.y - (2.0 * LEVEL_HEIGHT + geometry.wall_light_height())).abs() < 1e-5);
@@ -213,7 +186,7 @@ mod tests {
             },
         ];
 
-        let lights = generate_wall_lights(&geometry(1, 1), &level, 0, &defs);
+        let lights = generate_wall_lights(&geometry(1, 1), &level, 0, &defs, CarrierId::WORLD);
 
         assert_eq!(lights.len(), 1);
         assert_eq!(lights[0].yaw, PI);
@@ -229,7 +202,7 @@ mod tests {
             side: WallSide::North,
         }];
 
-        let lights = generate_wall_lights(&geometry(1, 1), &level, 0, &defs);
+        let lights = generate_wall_lights(&geometry(1, 1), &level, 0, &defs, CarrierId::WORLD);
 
         assert!(lights.is_empty());
     }

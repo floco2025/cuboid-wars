@@ -1,6 +1,7 @@
 mod controllers;
 mod perception;
 mod tick;
+mod transitions;
 
 #[cfg(test)]
 mod tests;

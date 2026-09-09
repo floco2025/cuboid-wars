@@ -5,7 +5,7 @@ use bevy::prelude::*;
 use crate::players::PlayerMap;
 use common::{
     config::GameplayConfig,
-    physics::{AirborneMomentum, CharacterVerticalVelocity, KnockbackVelocity, PortalSet},
+    physics::{AirborneMomentum, CharacterVerticalVelocity, KnockbackVelocity, PlayerHopBody, PortalSet},
     protocol::{FaceYaw, MapSettings, PlayerId, PlayerMarker, PlayerMoveIntent, Position},
 };
 
@@ -51,13 +51,15 @@ pub fn players_portal_traversal_system(
                 Vec3::from(*pos),
                 &gameplay_config,
                 &map_settings.movement,
-                *move_intent,
-                info.has_speed(),
-                info.is_stunned(),
-                knockback.as_deref(),
-                momentum.as_deref(),
-                vertical_velocity.0,
-                face_yaw.0,
+                PlayerHopBody {
+                    move_intent: *move_intent,
+                    has_speed: info.has_speed(),
+                    stunned: info.is_stunned(),
+                    knockback: knockback.as_deref(),
+                    airborne_momentum: momentum.as_deref(),
+                    vertical_velocity: vertical_velocity.0,
+                    yaw: face_yaw.0,
+                },
             )
         });
         if let Some(hop) = hop {

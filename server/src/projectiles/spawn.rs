@@ -1,16 +1,16 @@
 use bevy::prelude::*;
 
 use crate::{
-    network::broadcast_to_others,
+    network::{SharedWorld, broadcast_to_others},
     players::{PlayerMap, PlayerStateQuery},
 };
 use common::{
-    config::{GameplayConfig, MultiShotConfig},
-    physics::{CollisionWorld, ProjectileMotion, calculate_projectile_spawns},
+    config::MultiShotConfig,
+    physics::{ProjectileMotion, calculate_projectile_spawns},
     protocol::*,
 };
 
-pub fn handle_projectile_shot_message(
+pub(crate) fn handle_projectile_shot_message(
     commands: &mut Commands,
     entity: Entity,
     id: PlayerId,
@@ -18,11 +18,10 @@ pub fn handle_projectile_shot_message(
     players: &mut PlayerMap,
     time: &Res<Time>,
     player_data: &PlayerStateQuery,
-    collision_world: &CollisionWorld,
-    gameplay_config: &GameplayConfig,
-    map_settings: &MapSettings,
+    world: &SharedWorld,
     plates: &PlateState,
 ) {
+    let gameplay_config = &world.gameplay_config;
     // Reject non-finite aim before it reaches projectile trig / authoritative
     // hit detection. Checked ahead of `try_start_shot` so a bad shot doesn't
     // burn the fire cooldown.
@@ -49,7 +48,7 @@ pub fn handle_projectile_shot_message(
             actual_pattern,
             gameplay_config.player.eye_height(),
             gameplay_config,
-            collision_world,
+            &world.collision_world,
             &plates.open_barrier_kinds,
         );
 
@@ -58,7 +57,7 @@ pub fn handle_projectile_shot_message(
             let proj_motion = ProjectileMotion::new(
                 spawn_info.direction_yaw,
                 spawn_info.direction_pitch,
-                map_settings.movement.projectile_speed,
+                world.map_settings.movement.projectile_speed,
                 &gameplay_config.projectiles,
             );
 

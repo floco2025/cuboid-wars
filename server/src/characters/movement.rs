@@ -7,7 +7,7 @@ use common::{
         PlayerMovementStep, PortalSet, overlapping_character, player_control_velocity, step_player_movement,
     },
     protocol::{
-        ActorMarker, BarrierKindId, MapSettings, PlateState, PlayerId, PlayerMarker, PlayerMoveIntent, Position,
+        ActorMarker, BarrierKindId, Health, MapSettings, PlateState, PlayerId, PlayerMarker, PlayerMoveIntent, Position,
     },
 };
 
@@ -47,14 +47,14 @@ pub fn characters_movement_system(
     carriers: Res<Carriers>,
     actors: Res<ActorMap>,
     mut player_query: PlayerMovementQuery,
-    mut actor_health: Query<&mut common::protocol::Health, With<ActorMarker>>,
+    mut actor_health: Query<&mut Health, With<ActorMarker>>,
     mut actor_query: ActorMovementQuery,
 ) {
     let delta = time.delta_secs();
     let mut planned_moves = Vec::new();
     let actor_starts: Vec<(Entity, Position, CharacterPhysicsConfig)> = actor_query
         .iter()
-        .filter_map(|(entity, id, _, pos, _, _, _, _, _)| {
+        .filter_map(|(entity, id, _, pos, _, _, _, _, _, _)| {
             let info = actors.get(id)?;
             Some((entity, *pos, gameplay_config.expect_actor(&info.spawn_kind).physics()))
         })
@@ -75,7 +75,6 @@ pub fn characters_movement_system(
     plan_actor_moves(
         delta,
         &collision_world,
-        &gameplay_config,
         &map_settings,
         &players,
         &plates,

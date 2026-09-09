@@ -152,7 +152,7 @@ fn ladder_traffic(transpose: bool, traffic: Traffic) {
             for i in order {
                 while routes[i]
                     .front()
-                    .is_some_and(|waypoint| waypoint.reached(&positions[i], 0.5))
+                    .is_some_and(|waypoint| waypoint.reached(&positions[i]))
                 {
                     routes[i].pop_front();
                 }

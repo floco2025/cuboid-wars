@@ -160,14 +160,38 @@ fn validate_pressure_plates(map_def: &MapDef) -> Result<()> {
                 map_def.grid_rows
             ));
         }
-        // A plate needs a floor to sit on, and a light bridge is not one.
-        if map_def.levels[plate.level as usize]
+        // A plate needs a floor to sit on: a light bridge is not one, and a
+        // ramp cell's floor lies under the slope.
+        let level = &map_def.levels[plate.level as usize];
+        let cell = [plate.col, plate.row];
+        if level
             .light_bridges
             .iter()
-            .any(|bridge| bridge.col == plate.col && bridge.row == plate.row)
+            .any(|bridge| [bridge.col, bridge.row] == cell)
         {
             return Err(anyhow!(
                 "{label} sits on a light bridge at level {} col {} row {}",
+                plate.level,
+                plate.col,
+                plate.row
+            ));
+        }
+        if ramp_cells_on_level(map_def, plate.level as usize).contains(&cell) {
+            return Err(anyhow!(
+                "{label} sits on a ramp at level {} col {} row {}",
+                plate.level,
+                plate.col,
+                plate.row
+            ));
+        }
+        if !level
+            .floors
+            .iter()
+            .chain(&level.inaccessible_floors)
+            .any(|floor| [floor.col, floor.row] == cell)
+        {
+            return Err(anyhow!(
+                "{label} has no floor at level {} col {} row {}",
                 plate.level,
                 plate.col,
                 plate.row
@@ -621,9 +645,6 @@ pub(super) fn canonicalize(map_def: &mut MapDef) {
             &b.map,
         ))
     });
-    map_def
-        .nested_maps
-        .dedup_by(|a, b| a.map == b.map && a.motion.level == b.motion.level && a.motion.from == b.motion.from);
 }
 
 fn normalized_wall(wall: [i32; 4]) -> [i32; 4] {

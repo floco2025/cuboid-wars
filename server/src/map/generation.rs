@@ -69,7 +69,6 @@ pub(crate) fn map_path(map_name: &str) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{ServerGameplayConfig, validate_map_actor_kinds, validate_map_quests};
 
     #[test]
     fn missing_map_returns_contextual_error() {
@@ -108,18 +107,5 @@ mod tests {
         .err()
         .expect("undeclared map material was accepted");
         assert!(error.to_string().contains("basement-floor"), "{error}");
-    }
-
-    #[test]
-    fn every_registered_map_loads_and_validates() {
-        let server = ServerGameplayConfig::load_default().expect("server gameplay config rejected");
-        for (name, entry) in &server.maps {
-            let (barrier_kinds, bridge_kinds) = entry.settings.kind_tables().expect("shipped kind tables rejected");
-            let map = generate_map(name, &entry.settings, &barrier_kinds, &bridge_kinds)
-                .unwrap_or_else(|error| panic!("shipped map {name:?} failed to generate: {error:#}"));
-            validate_map_actor_kinds(&server, &map.config).unwrap_or_else(|error| panic!("{name}: {error}"));
-            validate_map_quests(&entry.quests, &map.config, entry.random_items.as_ref())
-                .unwrap_or_else(|error| panic!("{name}: {error}"));
-        }
     }
 }

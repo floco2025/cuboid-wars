@@ -16,23 +16,26 @@ use common::{
     protocol::*,
 };
 
+// The world view and the character queries every ingress handler reads from.
+// Handlers take the bundles rather than their fields, so a new resource does
+// not ripple through every signature.
 #[derive(SystemParam)]
-pub(super) struct SharedWorld<'w> {
-    pub(super) map_layout: Res<'w, MapLayout>,
-    pub(super) map_settings: Res<'w, MapSettings>,
-    pub(super) collision_world: Res<'w, CollisionWorld>,
-    pub(super) carriers: Res<'w, Carriers>,
-    pub(super) gameplay_config: Res<'w, GameplayConfig>,
-    pub(super) map_config: Res<'w, MapConfig>,
-    pub(super) server_gameplay_config: Res<'w, ServerGameplayConfig>,
-    pub(super) world_bootstrap: Res<'w, WorldBootstrap>,
+pub(crate) struct SharedWorld<'w> {
+    pub(crate) map_layout: Res<'w, MapLayout>,
+    pub(crate) map_settings: Res<'w, MapSettings>,
+    pub(crate) collision_world: Res<'w, CollisionWorld>,
+    pub(crate) carriers: Res<'w, Carriers>,
+    pub(crate) gameplay_config: Res<'w, GameplayConfig>,
+    pub(crate) map_config: Res<'w, MapConfig>,
+    pub(crate) server_gameplay_config: Res<'w, ServerGameplayConfig>,
+    pub(crate) world_bootstrap: Res<'w, WorldBootstrap>,
 }
 
 #[derive(SystemParam)]
-pub(super) struct CharacterQueries<'w, 's> {
-    pub(super) player_data: PlayerStateQuery<'w, 's>,
-    pub(super) player_motions: Query<'w, 's, &'static CharacterVerticalVelocity, With<PlayerMarker>>,
-    pub(super) actor_data: ActorStateQuery<'w, 's>,
+pub(crate) struct CharacterQueries<'w, 's> {
+    pub(crate) player_data: PlayerStateQuery<'w, 's>,
+    pub(crate) player_motions: Query<'w, 's, &'static CharacterVerticalVelocity, With<PlayerMarker>>,
+    pub(crate) actor_data: ActorStateQuery<'w, 's>,
 }
 
 pub(super) fn handle_move_message(
@@ -83,9 +86,7 @@ pub(super) fn handle_jump_message(
     id: PlayerId,
     players: &PlayerMap,
     queries: &CharacterQueries,
-    collision_world: &CollisionWorld,
-    gameplay_config: &GameplayConfig,
-    map_settings: &MapSettings,
+    world: &SharedWorld,
 ) {
     if players.get(&id).is_some_and(PlayerInfo::is_stunned) {
         return;
@@ -100,9 +101,9 @@ pub(super) fn handle_jump_message(
 
     let Some(next_vertical_velocity) = player_jump_velocity(
         motion.0,
-        collision_world,
-        gameplay_config.player.physics(),
-        map_settings.movement.player.jump_speed,
+        &world.collision_world,
+        world.gameplay_config.player.physics(),
+        world.map_settings.movement.player.jump_speed,
         pos,
     ) else {
         return;

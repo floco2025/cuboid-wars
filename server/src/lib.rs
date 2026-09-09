@@ -7,7 +7,6 @@ pub mod items;
 pub mod map;
 pub mod missiles;
 pub mod network;
-mod pathfind;
 pub mod players;
 pub mod portals;
 pub mod projectiles;

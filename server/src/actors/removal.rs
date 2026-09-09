@@ -131,6 +131,7 @@ struct ActorDeath {
 mod tests {
     use super::*;
     use crate::{
+        actors::test_kinds,
         map::{CarrierGrid, CellGrid, EdgeGrid, LevelGrid, MapConfig},
         test_geometry::{CELL, LEVEL_HEIGHT, geometry},
     };
@@ -180,7 +181,7 @@ mod tests {
     }
 
     fn actor(carrier: CarrierId) -> ActorInfo {
-        ActorInfo::new(Entity::from_bits(1), 0, "scuttler".to_owned(), carrier)
+        ActorInfo::new(Entity::from_bits(1), 0, test_kinds::CONTACT.to_owned(), carrier)
     }
 
     #[test]

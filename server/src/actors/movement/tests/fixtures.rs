@@ -1,4 +1,5 @@
 pub(super) use common::protocol::CarrierId;
+use common::protocol::MapSettings;
 use std::sync::LazyLock;
 
 pub(super) use bevy::prelude::Entity;
@@ -24,9 +25,10 @@ pub(super) use super::super::{
     steering::{ActorDesire, desired_move, direction_toward},
 };
 
-pub(crate) const TEST_KIND: &str = "zapper";
+pub(crate) const TEST_KIND: &str = crate::actors::test_kinds::BEAM;
 pub(crate) const TEST_DELTA: f32 = 0.1;
 static NO_CARRIERS: LazyLock<Carriers> = LazyLock::new(Carriers::default);
+static TEST_SETTINGS: LazyLock<MapSettings> = LazyLock::new(crate::test_geometry::map_settings);
 
 pub(crate) fn order(entity_bits: u64, route_distance: f32, id: u32) -> ActorPlanOrder {
     ActorPlanOrder {
@@ -53,12 +55,7 @@ pub(crate) fn route(target: Position) -> ActorRoute {
 }
 
 pub(crate) fn actor_physics() -> CharacterPhysicsConfig {
-    crate::config::ServerGameplayConfig::load_default()
-        .expect("default server gameplay config should load")
-        .gameplay_config()
-        .actor(TEST_KIND)
-        .expect("test kind missing from default gameplay config")
-        .physics()
+    crate::actors::test_kinds::physics(TEST_KIND)
 }
 
 pub(crate) fn actor_speed() -> f32 {
@@ -130,14 +127,9 @@ pub(crate) fn context<'a>(
         planned_moves,
         actor_starts,
         open_barrier_kinds: &[],
-        gravity: 25.0,
-        ladder_climb_ratio: test_ladders(),
+        map_settings: &TEST_SETTINGS,
         knockback_step: bevy::prelude::Vec3::ZERO,
         carrier_step: bevy::prelude::Vec3::ZERO,
         carriers: &NO_CARRIERS,
     }
-}
-
-pub(crate) fn test_ladders() -> f32 {
-    0.4
 }

@@ -3,8 +3,9 @@ use bevy::prelude::*;
 use crate::{
     actors::{ActorMap, ActorStateQuery, PendingActorSpawns},
     items::ItemMap,
+    missiles::{MissileMap, MissileVelocity},
     network::ServerToClient,
-    players::{PlayerMap, PlayerStateQuery},
+    players::{PlayerInfo, PlayerMap, PlayerStateQuery},
     portals::PortalAssignments,
 };
 use common::{physics::CharacterVerticalVelocity, protocol::*};
@@ -52,6 +53,40 @@ pub fn broadcast_firework_show(players: &PlayerMap) {
 // Data Collection Functions
 // ============================================================================
 
+// An active, alive player with the per-tick state both broadcasts read.
+struct ActivePlayer<'a> {
+    id: PlayerId,
+    info: &'a PlayerInfo,
+    movement: PlayerMovementState,
+    health: Health,
+}
+
+// The one player pass behind `SSnapshot.players` and `SPlayerMoves`.
+fn active_players<'a>(
+    players: &'a PlayerMap,
+    player_data: &'a PlayerStateQuery,
+    motions: &'a Query<&CharacterVerticalVelocity, With<PlayerMarker>>,
+) -> impl Iterator<Item = ActivePlayer<'a>> {
+    players.iter().filter_map(|(player_id, info)| {
+        // Death must surface as snapshot absence. A killed player's entity
+        // despawn is deferred, so on a same-tick snapshot the corpse would
+        // otherwise still resolve and ship here — after `SPlayerDeath`
+        // already went out.
+        if !info.connection.logged_in {
+            return None;
+        }
+        let entity = info.entity()?;
+        let (pos, move_intent, face_yaw, health) = player_data.get(entity).ok()?;
+        let vertical_velocity = motions.get(entity).map_or(0.0, |m| m.0);
+        Some(ActivePlayer {
+            id: *player_id,
+            info,
+            movement: PlayerMovementState::new(*pos, *move_intent, vertical_velocity, face_yaw.0),
+            health: *health,
+        })
+    })
+}
+
 // Collect all active, alive players for network updates.
 #[must_use]
 pub fn snapshot_active_players(
@@ -60,30 +95,14 @@ pub fn snapshot_active_players(
     motions: &Query<&CharacterVerticalVelocity, With<PlayerMarker>>,
     portal_assignments: &PortalAssignments,
 ) -> Vec<(PlayerId, Player)> {
-    players
-        .iter()
-        .filter_map(|(player_id, info)| {
-            // Death must surface as snapshot absence. A killed player's
-            // entity despawn is deferred, so on a same-tick snapshot the
-            // corpse would otherwise still resolve and ship here — after
-            // `SPlayerDeath` already went out.
-            if !info.connection.logged_in {
-                return None;
-            }
-            let entity = info.entity()?;
-            let (pos, move_intent, face_yaw, health) = player_data.get(entity).ok()?;
-            let vertical_velocity = motions.get(entity).map_or(0.0, |m| m.0);
-            Some((
-                *player_id,
-                info.snapshot_player(
-                    *pos,
-                    *move_intent,
-                    face_yaw.0,
-                    *health,
-                    vertical_velocity,
-                    portal_assignments.get(player_id),
-                ),
-            ))
+    active_players(players, player_data, motions)
+        .map(|player| {
+            (
+                player.id,
+                player
+                    .info
+                    .snapshot_player(player.movement, player.health, portal_assignments.get(&player.id)),
+            )
         })
         .collect()
 }
@@ -95,21 +114,12 @@ pub fn collect_player_moves(
     player_data: &PlayerStateQuery,
     motions: &Query<&CharacterVerticalVelocity, With<PlayerMarker>>,
 ) -> Vec<PlayerMove> {
-    players
-        .iter()
-        .filter_map(|(player_id, info)| {
-            if !info.connection.logged_in {
-                return None;
-            }
-            let entity = info.entity()?;
-            let (pos, move_intent, face_yaw, _) = player_data.get(entity).ok()?;
-            let vertical_velocity = motions.get(entity).map_or(0.0, |m| m.0);
-            Some(PlayerMove {
-                id: *player_id,
-                movement: PlayerMovementState::new(*pos, *move_intent, vertical_velocity, face_yaw.0),
-                move_seq: info.session.last_move_seq,
-                hops: info.session.hops,
-            })
+    active_players(players, player_data, motions)
+        .map(|player| PlayerMove {
+            id: player.id,
+            movement: player.movement,
+            move_seq: player.info.session.last_move_seq,
+            hops: player.info.session.hops,
         })
         .collect()
 }
@@ -167,8 +177,8 @@ pub fn snapshot_spawning_actors(pending: &PendingActorSpawns) -> Vec<(ActorId, S
 // Collect in-flight missiles for the snapshot.
 #[must_use]
 pub fn snapshot_missiles(
-    missiles: &crate::missiles::MissileMap,
-    missile_data: &Query<(&Position, &crate::missiles::MissileVelocity), With<MissileMarker>>,
+    missiles: &MissileMap,
+    missile_data: &Query<(&Position, &MissileVelocity), With<MissileMarker>>,
 ) -> Vec<(MissileId, Missile)> {
     missiles
         .iter()

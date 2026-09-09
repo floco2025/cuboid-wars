@@ -4,15 +4,44 @@ use bevy::prelude::Vec3;
 use common::{
     config::CharacterPhysicsConfig,
     constants::{LADDER_CLIMB_MIN_SPEED, LADDER_RAIL_INSET, LADDER_STANDOFF_CLEARANCE, TICK_SECS},
+    map::Carriers,
     physics::{
-        CharacterEnvironment, CharacterStep, CharacterSupport, LadderMode, LadderVolume, step_character_movement,
+        ActorMovementStep, CharacterMovementResult, CharacterSupport, CollisionWorld, LadderVolume, step_actor_movement,
     },
-    protocol::{Ladder, Position},
+    protocol::{ActorMoveIntent, BarrierKindId, Ladder, MapSettings, Position},
 };
 
 use super::{NavGraph, NavNode, NavWaypoint, PlannedRoute, WaypointKind};
 
 const LANDING_CLEARANCE: f32 = 0.05;
+
+// The climbing body the links are validated for, in the carrier-local world
+// the graph covers.
+pub(super) struct LadderClimber<'a> {
+    pub(super) collision_world: &'a CollisionWorld,
+    pub(super) map_settings: &'a MapSettings,
+    pub(super) physics: CharacterPhysicsConfig,
+    pub(super) passable_kinds: &'a [BarrierKindId],
+    pub(super) carriers: &'a Carriers,
+}
+
+impl LadderClimber<'_> {
+    fn step(&self, start: Position, vertical_velocity: f32, intent: ActorMoveIntent) -> CharacterMovementResult {
+        step_actor_movement(ActorMovementStep {
+            start,
+            vertical_velocity,
+            intent,
+            external_displacement: Vec3::ZERO,
+            delta: TICK_SECS,
+            can_use_ladders: true,
+            physics: self.physics,
+            open_kinds: self.passable_kinds,
+            collision_world: self.collision_world,
+            map_settings: self.map_settings,
+            carriers: self.carriers,
+        })
+    }
+}
 
 #[derive(Debug, Clone)]
 pub(crate) struct LadderLink {
@@ -69,7 +98,7 @@ impl NavGraph {
     pub(super) fn route_start_node(&self, start: &Position, ladders: &[LadderLink]) -> Option<NavNode> {
         self.ladder_exit(start, ladders)
             .map(|link| link.to)
-            .or_else(|| self.node_for_position(start))
+            .or_else(|| self.nearest_node_for_position(start))
     }
 
     pub(super) fn ladder_exit<'a>(&self, start: &Position, ladders: &'a [LadderLink]) -> Option<&'a LadderLink> {
@@ -152,7 +181,7 @@ impl NavGraph {
     pub(super) fn build_ladder_links(
         &self,
         ladder: &Ladder,
-        env: &CharacterEnvironment,
+        climber: &LadderClimber<'_>,
         speeds: [f32; 2],
     ) -> Vec<LadderLink> {
         let mut landings = Vec::new();
@@ -162,7 +191,7 @@ impl NavGraph {
             0.0,
             f32::midpoint(ladder.z1, ladder.z2),
         );
-        let standoff = env.physics.movement_collider.radius() + LADDER_STANDOFF_CLEARANCE;
+        let standoff = climber.physics.movement_collider.radius() + LADDER_STANDOFF_CLEARANCE;
         let rail = midpoint + normal * (LADDER_RAIL_INSET + standoff);
         for level in ladder.level..=ladder.level.saturating_add(ladder.levels) {
             for side in [-1.0, 1.0] {
@@ -176,16 +205,7 @@ impl NavGraph {
                     continue;
                 }
                 let pos = self.node_center(node);
-                let step = step_character_movement(
-                    CharacterStep {
-                        start: pos,
-                        vertical_velocity: 0.0,
-                        control_velocity: Vec3::ZERO,
-                        external_displacement: Vec3::ZERO,
-                        delta: TICK_SECS,
-                    },
-                    env,
-                );
+                let step = climber.step(pos, 0.0, ActorMoveIntent::Idle);
                 if step.support == CharacterSupport::Ground && (step.position.y - pos.y).abs() < 0.1 {
                     landings.push(node);
                 }
@@ -209,7 +229,7 @@ impl NavGraph {
                 let waypoints = landing_waypoints(start, exit, rail, ladder);
                 if speeds
                     .into_iter()
-                    .all(|speed| route_is_walkable(start, &waypoints, env, speed))
+                    .all(|speed| route_is_walkable(start, &waypoints, climber, speed))
                 {
                     links.push(LadderLink {
                         from,
@@ -255,7 +275,7 @@ impl NavGraph {
                 );
                 if speeds
                     .into_iter()
-                    .all(|speed| route_is_walkable(start, &waypoints, env, speed))
+                    .all(|speed| route_is_walkable(start, &waypoints, climber, speed))
                 {
                     links.push(LadderLink {
                         from: landing,
@@ -312,40 +332,29 @@ fn route_length(start: &Position, route: &PlannedRoute) -> f32 {
         .sum()
 }
 
-fn route_is_walkable(mut pos: Position, waypoints: &[NavWaypoint], env: &CharacterEnvironment, speed: f32) -> bool {
+fn route_is_walkable(mut pos: Position, waypoints: &[NavWaypoint], climber: &LadderClimber<'_>, speed: f32) -> bool {
+    let climb_ratio = climber.map_settings.movement.ladder_climb_ratio;
     let mut velocity = 0.0;
     for &waypoint in waypoints {
         let seconds = match waypoint.kind {
             WaypointKind::Climb { .. } => {
-                (pos.y - waypoint.position.y).abs() / (speed.max(LADDER_CLIMB_MIN_SPEED) * env.ladder_climb_ratio)
+                (pos.y - waypoint.position.y).abs() / (speed.max(LADDER_CLIMB_MIN_SPEED) * climb_ratio)
             }
             _ => pos.horizontal_distance_sq(&waypoint.position).sqrt() / speed,
         } + 3.0;
         let ticks = (seconds / TICK_SECS).ceil() as usize;
         let mut arrived = false;
         for _ in 0..ticks {
-            if waypoint.reached(&pos, if waypoint.is_walk() { 0.5 } else { 0.15 }) {
+            if waypoint.reached(&pos) {
                 arrived = true;
                 break;
             }
             let intent = waypoint.movement_intent(&pos, speed);
-            let step = step_character_movement(
-                CharacterStep {
-                    start: pos,
-                    vertical_velocity: velocity,
-                    control_velocity: intent.to_horizontal_velocity(),
-                    external_displacement: Vec3::ZERO,
-                    delta: TICK_SECS,
-                },
-                &CharacterEnvironment {
-                    ladder_mode: LadderMode::for_actor(true, intent),
-                    ..*env
-                },
-            );
+            let step = climber.step(pos, velocity, intent);
             if step.blocked
                 || step.crushed
                 || (matches!(waypoint.kind, WaypointKind::Climb { .. })
-                    && !waypoint.reached(&step.position, 0.15)
+                    && !waypoint.reached(&step.position)
                     && step.support != CharacterSupport::Ladder)
             {
                 return false;

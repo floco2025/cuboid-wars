@@ -8,8 +8,8 @@ use common::{
     protocol::{BarrierKindId, CarrierId},
 };
 
-use super::steering::sweep_clear;
-use crate::{map::MapConfig, pathfind::bfs_path};
+use super::{pathfind::bfs_path, steering::sweep_clear};
+use crate::map::MapConfig;
 
 const ADJACENT: [(i32, i32, i32); 6] = [(0, -1, 0), (0, 1, 0), (0, 0, -1), (0, 0, 1), (-1, 0, 0), (1, 0, 0)];
 

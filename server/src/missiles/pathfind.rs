@@ -3,12 +3,12 @@ use std::{
     hash::Hash,
 };
 
-// Unweighted BFS with backtracking, shared by the actors' floor `NavGraph`
-// and the missiles' 3D `AirGraph`. Only the traversal is shared — node
-// types, traversability, and neighbor semantics stay domain-owned. Returns
-// the node sequence from just after `start` to the first goal node
-// (exclusive of `start`), or `None` when no goal is reachable.
-pub(crate) fn bfs_path<N: Copy + Eq + Hash>(
+// Unweighted BFS with backtracking, the driver behind the missiles' 3D
+// `AirGraph`. Only the traversal lives here — node types, traversability, and
+// neighbor semantics stay domain-owned. Returns the node sequence from just
+// after `start` to the first goal node (exclusive of `start`), or `None` when
+// no goal is reachable.
+pub(super) fn bfs_path<N: Copy + Eq + Hash>(
     start: N,
     is_goal: impl Fn(&N) -> bool,
     mut neighbors: impl FnMut(N) -> Vec<N>,

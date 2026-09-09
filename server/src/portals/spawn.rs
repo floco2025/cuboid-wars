@@ -2,34 +2,30 @@ use bevy::prelude::*;
 
 use super::{PortalAssignments, PortalMap};
 use crate::{
-    network::broadcast_to_all,
+    network::{SharedWorld, broadcast_to_all},
     players::{PlayerMap, PlayerStateQuery},
 };
 use common::{
-    config::GameplayConfig,
-    map::Carriers,
     math::direction_from_yaw_pitch,
-    physics::{CollisionWorld, PortalPlacementFailure, PortalSet, compute_portal_placement, portal_placement_overlaps},
+    physics::{PortalPlacementFailure, PortalSet, compute_portal_placement, portal_placement_overlaps},
     protocol::*,
 };
 
-pub fn handle_portal_shot_message(
+pub(crate) fn handle_portal_shot_message(
     entity: Entity,
     id: PlayerId,
     msg: &CPortalShot,
     players: &mut PlayerMap,
     time: &Time,
     player_data: &PlayerStateQuery,
-    collision_world: &CollisionWorld,
-    carriers: &Carriers,
-    map_layout: &MapLayout,
-    map_settings: &MapSettings,
+    world: &SharedWorld,
     plates: &PlateState,
-    gameplay_config: &GameplayConfig,
     portal_assignments: &PortalAssignments,
     portals: &mut PortalMap,
     portal_set: &mut PortalSet,
 ) {
+    let carriers = &world.carriers;
+    let gameplay_config = &world.gameplay_config;
     let access = portal_assignments.get(&id);
     if !access.allows(msg.end) {
         return;
@@ -57,11 +53,11 @@ pub fn handle_portal_shot_message(
         direction,
         msg.face_yaw,
         gameplay_config.portals.range,
-        collision_world,
-        map_layout,
+        &world.collision_world,
+        &world.map_layout,
         carriers,
         &plates.open_barrier_kinds,
-        &map_settings.textures,
+        &world.map_settings.textures,
     ) {
         Ok(placement) => placement,
         Err(PortalPlacementFailure::IncompatibleMaterial(impact)) => {
@@ -83,7 +79,7 @@ pub fn handle_portal_shot_message(
     if !portals.set(portal) {
         return;
     }
-    *portal_set = portals.rebuild_set(collision_world, carriers);
+    *portal_set = portals.rebuild_set(&world.collision_world, carriers);
     broadcast_to_all(
         players,
         ServerMessage::PortalOpened(SPortalOpened { shooter: id, portal }),
@@ -95,13 +91,16 @@ mod tests {
     use std::time::Duration;
 
     use bevy::ecs::system::SystemState;
+    use common::{map::Carriers, physics::CollisionWorld};
     use tokio::sync::mpsc;
 
     use super::*;
     use crate::{
         config::ServerGameplayConfig,
+        map::MapConfig,
         network::ServerToClient,
         players::{PlayerInfo, PowerUpState},
+        test_geometry::geometry,
     };
 
     #[test]
@@ -126,7 +125,6 @@ mod tests {
             ..default()
         };
         let collision = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
-        let carriers = Carriers::default();
         let mut world = World::new();
         let entity = world
             .spawn((
@@ -137,8 +135,23 @@ mod tests {
                 PlayerMarker,
             ))
             .id();
-        let mut queries = SystemState::<PlayerStateQuery>::new(&mut world);
-        let query = queries.get(&world).expect("player query parameters are invalid");
+        world.insert_resource(collision);
+        world.insert_resource(Carriers::default());
+        world.insert_resource(layout.clone());
+        world.insert_resource(settings.clone());
+        world.insert_resource(gameplay);
+        world.insert_resource(MapConfig::for_grid(Vec::new(), geometry(1, 1)));
+        world.insert_resource(WorldBootstrap {
+            gameplay: config.gameplay_bootstrap(),
+            map: MapBootstrap {
+                layout,
+                settings,
+                items: MapItems(Vec::new()),
+            },
+        });
+        world.insert_resource(config);
+        let mut params = SystemState::<(SharedWorld, PlayerStateQuery)>::new(&mut world);
+        let (shared_world, query) = params.get(&world).expect("shot handler parameters are invalid");
         let id = PlayerId(1);
         let (tx, mut rx) = mpsc::unbounded_channel();
         let mut info = PlayerInfo::new(entity, tx);
@@ -180,12 +193,8 @@ mod tests {
                 &mut players,
                 &time,
                 &query,
-                &collision,
-                &carriers,
-                &layout,
-                &settings,
+                &shared_world,
                 &PlateState::default(),
-                &gameplay,
                 &assignments,
                 &mut portals,
                 &mut set,

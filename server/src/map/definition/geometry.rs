@@ -4,7 +4,7 @@ use anyhow::Context;
 
 use super::{
     compile::{CompileOutput, CompileScope},
-    schema::{LadderDef, MapDef, PressurePlatePurposeDef, RampDef, WallSide},
+    schema::{FloorDef, LadderDef, MapDef, PressurePlatePurposeDef, RampDef, WallSide},
 };
 use crate::map::{
     ActorSpawnZone, CarrierGrid, CellGrid, EdgeGrid, LevelGrid, PlacedItem, PlayerSpawnZone, PressurePlateRuntime,
@@ -21,11 +21,13 @@ use common::{
     constants::LADDER_WIDTH,
     map::MapGeometry,
     protocol::{
-        BarrierKindTable, BridgeKindTable, CarrierId, Eraser, FaceMaterials, Floor, GrassCell, ItemType, Ladder,
-        LightBridge, PlatePurpose, PressurePlate, Wall,
+        Barrier, BarrierKindTable, BridgeKindTable, CarrierId, Eraser, FaceMaterials, Floor, GrassCell, ItemType,
+        Ladder, LightBridge, PlatePurpose, PressurePlate, Ramp, Wall, WallLight,
     },
 };
 
+// One map's records, each born on `carrier` in this map's own frame, appended
+// to the tree's layout and config.
 pub(super) fn compile_geometry(
     map_def: &MapDef,
     geometry: MapGeometry,
@@ -33,40 +35,97 @@ pub(super) fn compile_geometry(
     carrier: CarrierId,
     out: &mut CompileOutput,
 ) -> anyhow::Result<()> {
-    let cols = map_def.grid_cols;
-    let rows = map_def.grid_rows;
-    let kind_table = scope.kind_table;
-    let bridge_table = scope.bridge_table;
     // Face materials are authored per file, against its own grid.
     let assets = MaterialRules::from_def(map_def, scope.sizes);
-
     let ramp_specs: Vec<ramps::RampSpec> = map_def.ramps.iter().map(ramp_spec_from_def).collect();
-
     let regular_floor_masks: Vec<Mask> = map_def
         .levels
         .iter()
-        .map(|level| {
-            let mut m = empty_mask(cols, rows);
-            for floor in &level.floors {
-                m[floor.row as usize][floor.col as usize] = true;
-            }
-            m
-        })
+        .map(|level| floor_mask(map_def, level.floors.iter()))
         .collect();
     let slab_masks: Vec<Mask> = map_def
         .levels
         .iter()
-        .map(|level| {
-            let mut m = empty_mask(cols, rows);
-            for floor in level.floors.iter().chain(level.inaccessible_floors.iter()) {
-                m[floor.row as usize][floor.col as usize] = true;
-            }
-            m
-        })
+        .map(|level| floor_mask(map_def, level.floors.iter().chain(&level.inaccessible_floors)))
         .collect();
 
-    let pressure_plates = pressure_plates(map_def, kind_table, bridge_table, carrier)?;
+    let pressure_plates = pressure_plates(map_def, scope.kind_table, scope.bridge_table, carrier)?;
+    let level_grids = compile_level_grids(map_def, scope, &regular_floor_masks, &slab_masks, &ramp_specs);
+    let (walls, wall_materials) = compile_walls(&level_grids, &geometry, &assets, carrier);
+    let barriers = compile_barriers(map_def, scope.kind_table, &slab_masks, &geometry, carrier)?;
+    let (floors, floor_materials) = compile_floors(&level_grids, &slab_masks, &ramp_specs, &geometry, &assets, carrier);
+    let light_bridges = flush_light_bridges(
+        compile_light_bridges(map_def, &geometry, scope.bridge_table, carrier)?,
+        &floors,
+        geometry.wall_half_thickness(),
+    );
+    let (ramps, ramp_materials) = compile_ramps(&ramp_specs, &geometry, &assets, carrier);
+    let placed_items = placed_items(map_def, scope.kind_table, &level_grids, carrier)?;
 
+    let layout = &mut out.layout;
+    layout.walls.extend(walls);
+    layout.wall_materials.extend(wall_materials);
+    layout.ramps.extend(ramps);
+    layout.ramp_materials.extend(ramp_materials);
+    layout
+        .wall_lights
+        .extend(compile_wall_lights(map_def, &level_grids, &geometry, carrier));
+    layout.floors.extend(floors);
+    layout.floor_materials.extend(floor_materials);
+    layout.barriers.extend(barriers);
+    layout.erasers.extend(compile_erasers(map_def, &geometry, carrier));
+    layout.light_bridges.extend(light_bridges);
+    layout
+        .pressure_plates
+        .extend(pressure_plates.iter().map(|p| PressurePlate {
+            level: p.level,
+            center_x: geometry.cell_center_x(p.col),
+            center_y: geometry.level_y(p.level),
+            center_z: geometry.cell_center_z(p.row),
+            purpose: p.purpose,
+            carrier,
+        }));
+    layout.ladders.extend(
+        map_def
+            .ladders
+            .iter()
+            .map(|def| ladder_from_def(def, &geometry, carrier)),
+    );
+    layout
+        .grass
+        .extend(compile_grass(map_def, &slab_masks, &geometry, carrier));
+
+    let config = &mut out.config;
+    config.grids.push(CarrierGrid::new(carrier, geometry, level_grids));
+    config.actor_spawn_zones.extend(actor_spawn_zones(map_def, carrier));
+    config.player_spawn_zones.extend(player_spawn_zones(map_def, carrier));
+    config.placed_items.extend(placed_items);
+    config.pressure_plates.extend(pressure_plates);
+
+    Ok(())
+}
+
+fn level_tag(level_idx: usize) -> u8 {
+    u8::try_from(level_idx).unwrap_or(u8::MAX)
+}
+
+fn floor_mask<'a>(map_def: &MapDef, floors: impl Iterator<Item = &'a FloorDef>) -> Mask {
+    let mut mask = empty_mask(map_def.grid_cols, map_def.grid_rows);
+    for floor in floors {
+        mask[floor.row as usize][floor.col as usize] = true;
+    }
+    mask
+}
+
+fn compile_level_grids(
+    map_def: &MapDef,
+    scope: &CompileScope,
+    regular_floor_masks: &[Mask],
+    slab_masks: &[Mask],
+    ramp_specs: &[ramps::RampSpec],
+) -> Vec<LevelGrid> {
+    let cols = map_def.grid_cols;
+    let rows = map_def.grid_rows;
     let mut level_grids: Vec<LevelGrid> = map_def
         .levels
         .iter()
@@ -95,32 +154,59 @@ pub(super) fn compile_geometry(
 
     for (level_idx, level_grid) in level_grids.iter_mut().enumerate() {
         let level_u32 = u32::try_from(level_idx).unwrap_or(u32::MAX);
-        ramps::apply_to_level_cells(&mut level_grid.cells, &ramp_specs, level_u32);
+        ramps::apply_to_level_cells(&mut level_grid.cells, ramp_specs, level_u32);
     }
     for level_idx in 0..level_grids.len().saturating_sub(1) {
         mark_has_floor_above(&mut level_grids[level_idx].cells, &slab_masks[level_idx + 1]);
     }
+    level_grids
+}
 
-    let mut wall_lights = Vec::new();
-    for (level_idx, level_grid) in level_grids.iter().enumerate() {
-        wall_lights.extend(generate_wall_lights(
-            &geometry,
-            level_grid,
-            level_idx,
-            &map_def.levels[level_idx].lights,
-        ));
-    }
+fn compile_wall_lights(
+    map_def: &MapDef,
+    level_grids: &[LevelGrid],
+    geometry: &MapGeometry,
+    carrier: CarrierId,
+) -> Vec<WallLight> {
+    level_grids
+        .iter()
+        .enumerate()
+        .flat_map(|(level_idx, level_grid)| {
+            generate_wall_lights(
+                geometry,
+                level_grid,
+                level_idx,
+                &map_def.levels[level_idx].lights,
+                carrier,
+            )
+        })
+        .collect()
+}
 
-    let mut all_walls: Vec<Wall> = Vec::new();
-    let mut all_wall_materials: Vec<FaceMaterials> = Vec::new();
+fn compile_walls(
+    level_grids: &[LevelGrid],
+    geometry: &MapGeometry,
+    assets: &MaterialRules,
+    carrier: CarrierId,
+) -> (Vec<Wall>, Vec<FaceMaterials>) {
+    let mut all_walls = Vec::new();
+    let mut all_materials = Vec::new();
     for (level_idx, level_grid) in level_grids.iter().enumerate() {
-        let level_u8 = u8::try_from(level_idx).unwrap_or(u8::MAX);
-        let tier = walls::generate_walls(&level_grid.edges, &geometry, level_u8);
-        let (merged_walls, merged_materials) = walls::merge_walls(tier, &assets);
+        let tier = walls::generate_walls(&level_grid.edges, geometry, level_tag(level_idx), carrier);
+        let (merged_walls, merged_materials) = walls::merge_walls(tier, assets);
         all_walls.extend(merged_walls);
-        all_wall_materials.extend(merged_materials);
+        all_materials.extend(merged_materials);
     }
+    (all_walls, all_materials)
+}
 
+fn compile_barriers(
+    map_def: &MapDef,
+    kind_table: &BarrierKindTable,
+    slab_masks: &[Mask],
+    geometry: &MapGeometry,
+    carrier: CarrierId,
+) -> anyhow::Result<Vec<Barrier>> {
     let mut barrier_edges: Vec<Vec<BarrierEdge>> = Vec::with_capacity(map_def.levels.len());
     for (level_idx, level) in map_def.levels.iter().enumerate() {
         let mut edges = Vec::with_capacity(level.barriers.len());
@@ -135,50 +221,73 @@ pub(super) fn compile_geometry(
         }
         barrier_edges.push(edges);
     }
-    let mut all_barriers = merge_barriers(stack_barriers(&barrier_edges, &slab_masks, &geometry));
+    Ok(merge_barriers(stack_barriers(
+        &barrier_edges,
+        slab_masks,
+        geometry,
+        carrier,
+    )))
+}
 
-    let mut all_floors: Vec<Floor> = Vec::new();
-    let mut all_floor_materials: Vec<FaceMaterials> = Vec::new();
+fn compile_floors(
+    level_grids: &[LevelGrid],
+    slab_masks: &[Mask],
+    ramp_specs: &[ramps::RampSpec],
+    geometry: &MapGeometry,
+    assets: &MaterialRules,
+    carrier: CarrierId,
+) -> (Vec<Floor>, Vec<FaceMaterials>) {
+    let mut all_floors = Vec::new();
+    let mut all_materials = Vec::new();
     for (level_idx, m) in slab_masks.iter().enumerate() {
-        let level_u8 = u8::try_from(level_idx).unwrap_or(u8::MAX);
-        let y = geometry.level_y(level_u8);
+        let level = level_tag(level_idx);
+        let y = geometry.level_y(level);
         // Tell floor emission to skip its corner-filler strip at the high
         // end of each z-axis ramp arriving at this level — a strip there
         // would hover above where the slope already meets the upper floor.
         let mut skip_corner_filler_edges: HashSet<(i32, i32)> = HashSet::new();
-        for ramp in &ramp_specs {
+        for ramp in ramp_specs {
             if ramp.lower_level + 1 == level_idx as u32 {
                 skip_corner_filler_edges.extend(ramp.high_end_horizontal_edges());
             }
         }
-        let mut tier = floors::emit_floor_tier(m, &skip_corner_filler_edges, &geometry, level_u8, y);
+        let mut tier = floors::emit_floor_tier(m, &skip_corner_filler_edges, geometry, level, y, carrier);
         if level_idx > 0 {
             tier.extend(trim::emit_stacked_wall_trim(
                 &level_grids[level_idx - 1].edges,
                 &level_grids[level_idx].edges,
                 m,
-                &geometry,
-                level_u8,
+                geometry,
+                level,
                 y,
+                carrier,
             ));
         }
-        let (merged_floors, merged_materials) = floors::merge_floors(tier, &assets);
+        let (merged_floors, merged_materials) = floors::merge_floors(tier, assets);
         all_floors.extend(merged_floors);
-        all_floor_materials.extend(merged_materials);
+        all_materials.extend(merged_materials);
     }
+    (all_floors, all_materials)
+}
 
-    let mut all_light_bridges = flush_light_bridges(
-        light_bridges(map_def, &geometry, bridge_table)?,
-        &all_floors,
-        geometry.wall_half_thickness(),
-    );
+fn compile_ramps(
+    ramp_specs: &[ramps::RampSpec],
+    geometry: &MapGeometry,
+    assets: &MaterialRules,
+    carrier: CarrierId,
+) -> (Vec<Ramp>, Vec<FaceMaterials>) {
+    let ramps = ramps::specs_to_ramps(geometry, ramp_specs, carrier);
+    let materials = ramps.iter().map(|r| assets.materials_for_ramp_top(r)).collect();
+    (ramps, materials)
+}
 
-    // Grass on floorless cells is silently dropped (like out-of-place wall
-    // lights): the editor already enforces floor presence, and a hard error
-    // would brick server startup over a cosmetic feature.
-    let mut grass: Vec<GrassCell> = Vec::new();
+// Grass on floorless cells is silently dropped (like out-of-place wall
+// lights): the editor already enforces floor presence, and a hard error
+// would brick server startup over a cosmetic feature.
+fn compile_grass(map_def: &MapDef, slab_masks: &[Mask], geometry: &MapGeometry, carrier: CarrierId) -> Vec<GrassCell> {
+    let mut grass = Vec::new();
     for (level_idx, level) in map_def.levels.iter().enumerate() {
-        let level_u8 = u8::try_from(level_idx).unwrap_or(u8::MAX);
+        let level_u8 = level_tag(level_idx);
         let y = geometry.level_y(level_u8);
         for cell in &level.grass {
             if !slab_masks[level_idx][cell.row as usize][cell.col as usize] {
@@ -193,86 +302,29 @@ pub(super) fn compile_geometry(
             });
         }
     }
+    grass
+}
 
-    let mut ramps_out = ramps::specs_to_ramps(&geometry, &ramp_specs);
-    let ramp_materials: Vec<FaceMaterials> = ramps_out.iter().map(|r| assets.materials_for_ramp_top(r)).collect();
-
-    let mut ladders: Vec<Ladder> = map_def
-        .ladders
+fn compile_erasers(map_def: &MapDef, geometry: &MapGeometry, carrier: CarrierId) -> Vec<Eraser> {
+    map_def
+        .levels
         .iter()
-        .map(|def| ladder_from_def(def, &geometry))
-        .collect();
-
-    // Every record of this map is on its carrier, in this map's own frame.
-    for wall in &mut all_walls {
-        wall.carrier = carrier;
-    }
-    for floor in &mut all_floors {
-        floor.carrier = carrier;
-    }
-    for ramp in &mut ramps_out {
-        ramp.carrier = carrier;
-    }
-    for barrier in &mut all_barriers {
-        barrier.carrier = carrier;
-    }
-    for bridge in &mut all_light_bridges {
-        bridge.carrier = carrier;
-    }
-    for light in &mut wall_lights {
-        light.carrier = carrier;
-    }
-    for ladder in &mut ladders {
-        ladder.carrier = carrier;
-    }
-
-    let placed_items = placed_items(map_def, kind_table, &level_grids, carrier)?;
-
-    let layout = &mut out.layout;
-    layout.walls.extend(all_walls);
-    layout.wall_materials.extend(all_wall_materials);
-    layout.ramps.extend(ramps_out);
-    layout.ramp_materials.extend(ramp_materials);
-    layout.wall_lights.extend(wall_lights);
-    layout.floors.extend(all_floors);
-    layout.floor_materials.extend(all_floor_materials);
-    layout.barriers.extend(all_barriers);
-    for (level, def) in map_def.levels.iter().enumerate() {
-        let level = u8::try_from(level).unwrap_or(u8::MAX);
-        layout.erasers.extend(def.erasers.iter().map(|edge| Eraser {
-            x1: geometry.cell_to_world_x(edge.c0),
-            z1: geometry.cell_to_world_z(edge.r0),
-            x2: geometry.cell_to_world_x(edge.c1),
-            z2: geometry.cell_to_world_z(edge.r1),
-            width: geometry.barrier_thickness(),
-            y: geometry.level_y(level),
-            height: geometry.level_height(),
-            level,
-            carrier,
-        }));
-    }
-    layout.light_bridges.extend(all_light_bridges);
-    layout
-        .pressure_plates
-        .extend(pressure_plates.iter().map(|p| PressurePlate {
-            level: p.level,
-            center_x: geometry.cell_center_x(p.col),
-            center_y: geometry.level_y(p.level),
-            center_z: geometry.cell_center_z(p.row),
-            purpose: p.purpose,
-            carrier,
-        }));
-    layout.ladders.extend(ladders);
-    layout.grass.extend(grass);
-
-    let config = &mut out.config;
-    config.grids.push(CarrierGrid::new(carrier, geometry, level_grids));
-    config.actor_spawn_zones.extend(actor_spawn_zones(map_def, carrier));
-    config.player_spawn_zones.extend(player_spawn_zones(map_def, carrier));
-    config.placed_items.extend(placed_items);
-    config.pressure_plates.extend(pressure_plates);
-
-    Ok(())
+        .enumerate()
+        .flat_map(|(level_idx, def)| {
+            let level = level_tag(level_idx);
+            def.erasers.iter().map(move |edge| Eraser {
+                x1: geometry.cell_to_world_x(edge.c0),
+                z1: geometry.cell_to_world_z(edge.r0),
+                x2: geometry.cell_to_world_x(edge.c1),
+                z2: geometry.cell_to_world_z(edge.r1),
+                width: geometry.barrier_thickness(),
+                y: geometry.level_y(level),
+                height: geometry.level_height(),
+                level,
+                carrier,
+            })
+        })
+        .collect()
 }
 
 pub(super) fn ramp_spec_from_def(r: &RampDef) -> ramps::RampSpec {
@@ -355,15 +407,15 @@ fn placed_items(
         .collect()
 }
 
-// Bridges set no `Cell` flags, so actor navigation and spawn/item cell selection ignore them.
-fn light_bridges(
+fn compile_light_bridges(
     map_def: &MapDef,
     geometry: &MapGeometry,
     bridge_table: &BridgeKindTable,
+    carrier: CarrierId,
 ) -> anyhow::Result<Vec<LightBridge>> {
     let mut out = Vec::new();
     for (level_idx, level) in map_def.levels.iter().enumerate() {
-        let level_u8 = u8::try_from(level_idx).unwrap_or(u8::MAX);
+        let level_u8 = level_tag(level_idx);
         let cells = level
             .light_bridges
             .iter()
@@ -384,7 +436,7 @@ fn light_bridges(
             thickness: geometry.bridge_thickness(),
             level: level_u8,
             kind: rect.kind,
-            carrier: CarrierId::WORLD,
+            carrier,
         }));
     }
     Ok(out)
@@ -416,7 +468,7 @@ fn pressure_plates(
             };
             Ok(PressurePlateRuntime {
                 carrier,
-                level: u8::try_from(p.level).unwrap_or(u8::MAX),
+                level: level_tag(p.level as usize),
                 col: p.col,
                 row: p.row,
                 purpose,
@@ -439,7 +491,7 @@ fn set_edge(edges: &mut EdgeGrid, edge: [i32; 4]) {
 // the edge midpoint, with the normal pointing across the edge away from the
 // anchor cell (into the climb volume). Side conventions match `lights.rs`:
 // North = -Z, South = +Z, West = -X, East = +X.
-fn ladder_from_def(def: &LadderDef, geometry: &MapGeometry) -> Ladder {
+fn ladder_from_def(def: &LadderDef, geometry: &MapGeometry, carrier: CarrierId) -> Ladder {
     let cell_x = geometry.cell_to_world_x(def.col);
     let cell_z = geometry.cell_to_world_z(def.row);
     let center_x = geometry.cell_center_x(def.col);
@@ -470,6 +522,6 @@ fn ladder_from_def(def: &LadderDef, geometry: &MapGeometry) -> Ladder {
         height: f32::from(levels) * geometry.level_height(),
         level,
         levels,
-        carrier: CarrierId::WORLD,
+        carrier,
     }
 }

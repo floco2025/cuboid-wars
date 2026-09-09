@@ -2,7 +2,7 @@
 // `MapLayout::*_materials` vectors. After compile, the client renders from
 // those vectors and never queries this module.
 //
-// Each floor / wall / ramp record in `map.json` carries six face materials
+// Each floor / wall / ramp record in the map's `layout.json` carries six face materials
 // (top, bottom, north, south, east, west). On disk those six can be packed
 // into an `"all"` shorthand plus per-face overrides; in memory `FaceMaterials`
 // always holds six explicit strings.

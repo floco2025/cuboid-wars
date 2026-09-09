@@ -5,16 +5,16 @@ use common::{
     config::CharacterPhysicsConfig,
     constants::TICK_SECS,
     map::Carriers,
-    physics::{CharacterEnvironment, CharacterStep, CollisionWorld, LadderMode, step_character_movement},
+    physics::{ActorMovementStep, CollisionWorld, step_actor_movement},
     protocol::{BarrierKindTable, Carrier, CarrierId, Floor, Ladder, MapLayout, Position, Wall},
 };
 use rand::{SeedableRng, rngs::StdRng};
 
-use super::{ActorTerritories, NavGraph, NavGraphs, NavNode, WaypointKind};
+use super::{ActorTerritories, NavGraph, NavGraphs, NavNode, WaypointKind, ladders::LadderClimber};
 use crate::{
-    config::ServerGameplayConfig,
+    actors::test_kinds::{self, BEAM, CONTACT},
     map::{ActorSpawnZone, CarrierGrid, CellGrid, EdgeGrid, LevelGrid, MapConfig},
-    test_geometry::{CELL, FLOOR_THICKNESS, LEVEL_HEIGHT, geometry},
+    test_geometry::{CELL, FLOOR_THICKNESS, LEVEL_HEIGHT, geometry, map_settings},
 };
 
 struct Fixture {
@@ -82,11 +82,7 @@ impl Fixture {
                 floors,
                 ..Default::default()
             },
-            physics: ServerGameplayConfig::load_default()
-                .expect("default gameplay missing")
-                .gameplay_config()
-                .expect_actor("scuttler")
-                .physics(),
+            physics: test_kinds::physics(CONTACT),
         }
     }
 
@@ -117,16 +113,14 @@ impl Fixture {
     fn links(&self) -> Vec<super::LadderLink> {
         let world = CollisionWorld::from_map_layout(&self.layout, &BarrierKindTable::default());
         let carriers = Carriers::default();
+        let settings = map_settings();
         self.graph.build_ladder_links(
             &self.layout.ladders[0],
-            &CharacterEnvironment {
-                ladder_mode: LadderMode::Disabled,
+            &LadderClimber {
                 collision_world: &world,
-                gravity: 25.0,
-                passable_kinds: &[],
+                map_settings: &settings,
                 physics: self.physics,
-                ladder_climb_ratio: 0.4,
-                portals: None,
+                passable_kinds: &[],
                 carriers: &carriers,
             },
             [3.0, 5.0],
@@ -303,6 +297,7 @@ fn pursuit_can_end_on_a_ladder_and_replan_to_a_landing() {
 
 #[test]
 fn actors_complete_ladder_routes_on_moving_carriers() {
+    let settings = map_settings();
     for travel in [Vec3::ZERO, Vec3::new(27.0, 6.0, -12.0), Vec3::new(-27.0, -6.0, 12.0)] {
         for phase_ticks in [30, 240] {
             for intermediate in [false, true] {
@@ -333,32 +328,26 @@ fn actors_complete_ladder_routes_on_moving_carriers() {
                         let mut remaining: VecDeque<_> = link.waypoints.iter().copied().collect();
                         for tick in 1..=600 {
                             let local = carriers.pose(CarrierId(1)).inverse_transform_position(&pos);
-                            while remaining.front().is_some_and(|waypoint| waypoint.reached(&local, 0.15)) {
+                            while remaining.front().is_some_and(|waypoint| waypoint.reached(&local)) {
                                 remaining.pop_front();
                             }
                             let Some(&waypoint) = remaining.front() else { break };
                             let intent = waypoint.movement_intent(&local, speed);
                             carriers.advance(tick);
                             world.set_carrier_poses(&carriers);
-                            let step = step_character_movement(
-                                CharacterStep {
-                                    start: pos,
-                                    vertical_velocity,
-                                    control_velocity: intent.to_horizontal_velocity(),
-                                    external_displacement: Vec3::ZERO,
-                                    delta: TICK_SECS,
-                                },
-                                &CharacterEnvironment {
-                                    collision_world: &world,
-                                    gravity: 25.0,
-                                    passable_kinds: &[],
-                                    physics: fixture.physics,
-                                    ladder_climb_ratio: 0.4,
-                                    ladder_mode: LadderMode::for_actor(true, intent),
-                                    portals: None,
-                                    carriers: &carriers,
-                                },
-                            );
+                            let step = step_actor_movement(ActorMovementStep {
+                                start: pos,
+                                vertical_velocity,
+                                intent,
+                                external_displacement: Vec3::ZERO,
+                                delta: TICK_SECS,
+                                can_use_ladders: true,
+                                physics: fixture.physics,
+                                open_kinds: &[],
+                                collision_world: &world,
+                                map_settings: &settings,
+                                carriers: &carriers,
+                            });
                             assert!(!step.crushed);
                             assert!(!step.blocked, "blocked on {waypoint:?} from {local:?}");
                             pos = step.position;
@@ -380,7 +369,7 @@ fn actors_complete_ladder_routes_on_moving_carriers() {
 fn permissions_control_graph_links_and_roam_territories_per_kind() {
     let fixture = Fixture::new(1, false, false);
     let mut map = MapConfig::for_grid(fixture.graph.levels.clone(), fixture.graph.geometry);
-    for kind in ["scuttler", "zapper"] {
+    for kind in [CONTACT, BEAM] {
         map.actor_spawn_zones.push(ActorSpawnZone {
             carrier: CarrierId::WORLD,
             level: 0,
@@ -390,24 +379,21 @@ fn permissions_control_graph_links_and_roam_territories_per_kind() {
             count: 1,
         });
     }
-    let mut config = ServerGameplayConfig::load_default().expect("default gameplay missing");
-    for actor in config.actors.kinds.values_mut() {
-        actor.character.can_use_ladders = false;
-    }
+    let mut config = test_kinds::server_config();
     config
         .actors
         .kinds
-        .get_mut("scuttler")
-        .expect("scuttler kind missing")
+        .get_mut(CONTACT)
+        .expect("contact kind missing")
         .character
         .can_use_ladders = true;
     let settings = &config.maps[&config.default_map].settings;
     let mut graphs = NavGraphs::new(&map);
     graphs.add_ladder_routes(&fixture.layout, settings, &config);
     let graph = graphs.get(CarrierId::WORLD);
-    let ladders = graph.ladder_links("scuttler");
+    let ladders = graph.ladder_links(CONTACT);
     assert_eq!(ladders.len(), 2);
-    assert!(graph.ladder_links("zapper").is_empty());
+    assert!(graph.ladder_links(BEAM).is_empty());
     let territories = ActorTerritories::new(&graphs, &map, &config).expect("ladder territories invalid");
     assert_eq!(territories.get(0).roam.len(), 2);
     assert_eq!(territories.get(1).roam.len(), 1);
@@ -424,8 +410,7 @@ fn permissions_control_graph_links_and_roam_territories_per_kind() {
     );
     assert!(graph.flee_route(ladders, &start, &[start], &mut rng).is_some());
     let mut home = territories.get(0).clone();
-    home.roam.remove(&link.to);
-    home.roam_nodes.retain(|node| *node != link.to);
+    home.roam.retain(|node| *node != link.to);
     assert!(
         graph
             .return_route(ladders, &graph.node_center(link.to), &home)
@@ -485,16 +470,16 @@ fn ladder_links_belong_to_their_carrier_grid() {
         floor.carrier = CarrierId(1);
     }
     fixture.layout.ladders[0].carrier = CarrierId(1);
-    let mut config = ServerGameplayConfig::load_default().expect("default gameplay missing");
+    let mut config = test_kinds::server_config();
     config
         .actors
         .kinds
-        .get_mut("scuttler")
-        .expect("scuttler kind missing")
+        .get_mut(CONTACT)
+        .expect("contact kind missing")
         .character
         .can_use_ladders = true;
     let mut graphs = NavGraphs::new(&map);
     graphs.add_ladder_routes(&fixture.layout, &config.maps[&config.default_map].settings, &config);
-    assert!(graphs.get(CarrierId::WORLD).ladder_links("scuttler").is_empty());
-    assert_eq!(graphs.get(CarrierId(1)).ladder_links("scuttler").len(), 2);
+    assert!(graphs.get(CarrierId::WORLD).ladder_links(CONTACT).is_empty());
+    assert_eq!(graphs.get(CarrierId(1)).ladder_links(CONTACT).len(), 2);
 }

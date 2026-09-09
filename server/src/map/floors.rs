@@ -51,6 +51,7 @@ pub fn emit_floor_tier(
     geometry: &MapGeometry,
     level: u8,
     y: f32,
+    carrier: CarrierId,
 ) -> Vec<Floor> {
     let grid_cols = geometry.grid_cols;
     let grid_rows = geometry.grid_rows;
@@ -119,7 +120,7 @@ pub fn emit_floor_tier(
                 y,
                 thickness,
                 level,
-                carrier: CarrierId::WORLD,
+                carrier,
             });
 
             // Corner fillers. Use the *unextended* grid line
@@ -144,7 +145,7 @@ pub fn emit_floor_tier(
                         y,
                         thickness,
                         level,
-                        carrier: CarrierId::WORLD,
+                        carrier,
                     });
                 }
             }
@@ -160,7 +161,7 @@ pub fn emit_floor_tier(
                         y,
                         thickness,
                         level,
-                        carrier: CarrierId::WORLD,
+                        carrier,
                     });
                 }
             }

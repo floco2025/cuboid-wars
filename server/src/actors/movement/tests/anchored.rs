@@ -1,12 +1,14 @@
 use super::super::{ActorMovementQuery, apply_actor_moves, plan_actor_moves};
 use crate::{
-    actors::{ActorMap, PendingActorSpawn, PendingActorSpawns, actors_pending_spawn_system},
-    config::ServerGameplayConfig,
+    actors::{
+        ActorMap, PendingActorSpawn, PendingActorSpawns, actors_pending_spawn_system,
+        test_kinds::{self, IMMOVABLE},
+    },
     players::PlayerMap,
 };
 use bevy::prelude::*;
 use common::{
-    config::{ActorMovementConfig, GameplayConfig},
+    config::ActorMovementConfig,
     map::Carriers,
     physics::{CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity},
     protocol::{
@@ -17,7 +19,6 @@ use common::{
 
 fn step(
     world: Res<CollisionWorld>,
-    gameplay: Res<GameplayConfig>,
     settings: Res<MapSettings>,
     players: Res<PlayerMap>,
     plates: Res<PlateState>,
@@ -27,16 +28,12 @@ fn step(
 ) {
     let starts = query
         .iter()
-        .map(|(entity, id, _, pos, _, _, _, _, _)| {
-            let kind = &actors.get(id).expect("actor missing").spawn_kind;
-            (entity, *pos, gameplay.expect_actor(kind).physics())
-        })
+        .map(|(entity, _, _, pos, _, _, _, _, _, character)| (entity, *pos, character.0.physics()))
         .collect::<Vec<_>>();
     let mut planned = Vec::new();
     plan_actor_moves(
         1.0 / 30.0,
         &world,
-        &gameplay,
         &settings,
         &players,
         &plates,
@@ -51,8 +48,8 @@ fn step(
 
 #[test]
 fn turret_stays_at_carrier_anchor_despite_gravity_and_knockback() {
-    let server = ServerGameplayConfig::load_default().expect("gameplay config rejected");
-    let settings = server.maps["obby"].settings.clone();
+    let server = test_kinds::server_config();
+    let settings = server.maps[&server.default_map].settings.clone();
     let layout = MapLayout {
         carriers: vec![Carrier {
             parent: CarrierId::WORLD,
@@ -75,8 +72,7 @@ fn turret_stays_at_carrier_anchor_despite_gravity_and_knockback() {
         pos: Position { x: 1.0, y: 9.0, z: 2.0 },
     };
     let mut app = App::new();
-    app.insert_resource(server.gameplay_config())
-        .insert_resource(settings)
+    app.insert_resource(settings)
         .insert_resource(server)
         .insert_resource(Carriers::from_layout(&layout))
         .insert_resource(CollisionWorld::from_map_layout(&layout, &Default::default()))
@@ -87,7 +83,7 @@ fn turret_stays_at_carrier_anchor_despite_gravity_and_knockback() {
         .insert_resource(PendingActorSpawns(vec![PendingActorSpawn {
             actor_id: ActorId(1),
             zone_idx: 0,
-            kind: "turret".into(),
+            kind: IMMOVABLE.into(),
             carrier: anchor.carrier,
             pos: anchor.pos,
             face_yaw: 0.0,

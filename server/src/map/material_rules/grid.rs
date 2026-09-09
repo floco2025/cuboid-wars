@@ -90,5 +90,5 @@ fn last_edge_midpoint_at_or_before(geometry: &MapGeometry, world: f32, map_size:
 }
 
 pub(super) fn ramp_lower_level(geometry: &MapGeometry, ramp: &Ramp) -> u8 {
-    geometry.sizes.nearest_level_to_y(ramp.y1.min(ramp.y2))
+    geometry.nearest_level_to_y(ramp.y1.min(ramp.y2))
 }

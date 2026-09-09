@@ -14,7 +14,7 @@ use common::{
     physics::character_overlaps_item,
     protocol::{
         BarrierKindId, Health, ItemId, ItemMarker, ItemType, PlayerId, PlayerMarker, Position, PowerUpKind,
-        SGoldCollected, SHealthPotionCollected, SMissilesCollected, SPlayerStatus, ServerMessage,
+        SGoldCollected, SHealthPotionCollected, SPlayerStatus, ServerMessage,
     },
 };
 
@@ -85,6 +85,9 @@ pub fn item_collection_system(
     let mut feed_events = Vec::new();
 
     for (player_id, item_id, item_type) in items_to_collect {
+        // Re-checked after the overlap pass: an earlier pickup in this same
+        // loop can have made the kind permanent, and the second one then stays
+        // in the world.
         if let Some(kind) = PowerUpKind::from_item_type(item_type)
             && players.get(&player_id).is_some_and(|info| info.has_permanent(kind))
         {
@@ -103,9 +106,13 @@ pub fn item_collection_system(
             ItemType::HealthPotion => {
                 collect_health_potion(&mut players, &mut player_health, player_id, &server_gameplay_config);
             }
-            ItemType::MissilePack => {
-                collect_missile_pack(&mut players, player_id, &server_gameplay_config, &gameplay_config);
-            }
+            ItemType::MissilePack => collect_missile_pack(
+                &mut players,
+                player_id,
+                &server_gameplay_config,
+                &gameplay_config,
+                &mut status_broadcasts,
+            ),
             ItemType::SpeedPowerUp
             | ItemType::SingleShotPowerUp
             | ItemType::MultiShotPowerUp
@@ -261,22 +268,19 @@ fn collect_missile_pack(
     player_id: PlayerId,
     server_gameplay_config: &ServerGameplayConfig,
     gameplay_config: &GameplayConfig,
+    status_broadcasts: &mut Vec<SPlayerStatus>,
 ) {
     let Some(player_info) = players.get_mut(&player_id) else {
         return;
     };
-    let missiles = player_info.add_missiles(
+    player_info.add_missiles(
         server_gameplay_config.weapons.missiles.missiles_per_pack,
         gameplay_config.missiles.max_missiles,
     );
-    // Unicast pickup cue — the snapshot's `Player.missiles` is the system
-    // of record.
-    let _ = player_info
-        .connection
-        .channel
-        .send(ServerToClient::Send(ServerMessage::MissilesCollected(
-            SMissilesCollected { missiles },
-        )));
+    status_broadcasts.push(SPlayerStatus {
+        collected: Some(ItemType::MissilePack),
+        ..player_info.status(player_id)
+    });
 }
 
 fn collect_power_up(

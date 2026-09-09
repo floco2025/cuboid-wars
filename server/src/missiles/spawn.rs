@@ -4,14 +4,12 @@ use bevy::prelude::*;
 use rand::RngExt;
 
 use crate::{
-    actors::{ActorMap, ActorStateQuery},
-    config::ServerGameplayConfig,
+    actors::ActorMap,
     missiles::{MissileInfo, MissileMap, MissileVelocity, steering::sweep_clear},
-    network::broadcast_to_all,
-    players::{PlayerMap, PlayerStateQuery},
+    network::{CharacterQueries, SharedWorld, broadcast_to_all},
+    players::PlayerMap,
 };
 use common::{
-    config::GameplayConfig,
     constants::{MISSILE_RADIUS, MISSILE_SPAWN_OFFSET},
     physics::{CollisionWorld, acquire_lock},
     protocol::*,
@@ -27,22 +25,20 @@ const LOCK_RANGE_GRACE: f32 = 2.0;
 const LAUNCH_CLEAR_SECS: f32 = 0.5;
 const LAUNCH_SAMPLES: usize = 8;
 
-pub fn handle_missile_shot_message(
+pub(crate) fn handle_missile_shot_message(
     commands: &mut Commands,
     entity: Entity,
     id: PlayerId,
     msg: &CMissileShot,
     players: &mut PlayerMap,
     missiles: &mut MissileMap,
-    player_data: &PlayerStateQuery,
     actors: &ActorMap,
-    actor_data: &ActorStateQuery,
-    collision_world: &CollisionWorld,
-    gameplay_config: &GameplayConfig,
-    server_gameplay_config: &ServerGameplayConfig,
-    map_settings: &MapSettings,
+    queries: &CharacterQueries,
+    world: &SharedWorld,
     plates: &PlateState,
 ) {
+    let gameplay_config = &world.gameplay_config;
+    let collision_world = &world.collision_world;
     // Untrusted boundary: drop non-finite aim before it becomes a NaN
     // velocity. Checked before the ammo/cooldown gate so a bad message
     // doesn't burn a missile.
@@ -50,7 +46,7 @@ pub fn handle_missile_shot_message(
         return;
     }
 
-    let Ok((shooter_pos, _, _, _)) = player_data.get(entity) else {
+    let Ok((shooter_pos, _, _, _)) = queries.player_data.get(entity) else {
         return;
     };
     let eye = Vec3::new(
@@ -72,7 +68,7 @@ pub fn handle_missile_shot_message(
             .iter()
             .filter(|(target_id, _)| **target_id != id)
             .filter_map(|(target_id, info)| {
-                let (pos, _, face_yaw, _) = player_data.get(info.entity()?).ok()?;
+                let (pos, _, face_yaw, _) = queries.player_data.get(info.entity()?).ok()?;
                 Some((
                     HomingTarget::Player(*target_id),
                     *pos,
@@ -81,7 +77,7 @@ pub fn handle_missile_shot_message(
                 ))
             })
             .chain(actors.iter().filter_map(|(target_id, info)| {
-                let (pos, _, face_yaw, _) = actor_data.get(info.entity).ok()?;
+                let (pos, _, face_yaw, _) = queries.actor_data.get(info.entity).ok()?;
                 Some((
                     HomingTarget::Actor(*target_id),
                     *pos,
@@ -115,8 +111,8 @@ pub fn handle_missile_shot_message(
         return;
     }
 
-    let missile_config = server_gameplay_config.weapons.missiles;
-    let missile_speed = map_settings.movement.missile_speed;
+    let missile_config = world.server_gameplay_config.weapons.missiles;
+    let missile_speed = world.map_settings.movement.missile_speed;
     let dir = aim;
     // An unguided shot flies exactly where aimed — random spread would just
     // make it useless.

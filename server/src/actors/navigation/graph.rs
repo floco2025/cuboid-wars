@@ -1,14 +1,10 @@
 use std::collections::HashMap;
-#[cfg(test)]
-use std::collections::{HashSet, VecDeque};
 
 use common::{constants::LEVEL_CLASSIFICATION_TOLERANCE, map::MapGeometry, protocol::Position};
 
-use super::LadderLink;
+use super::{LadderLink, routing::DIRECT_ROUTE_CLEARANCE_MARGIN};
 
 use crate::map::{ActorSpawnZone, CarrierGrid, Cell, CellSide, LevelGrid, has_edge_on_cell_side};
-#[cfg(test)]
-use crate::pathfind::bfs_path;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) struct NavNode {
@@ -57,43 +53,11 @@ impl NavGraph {
             && usize::from(self.geometry.level_for_y(pos.y)) < self.levels.len()
     }
 
-    #[cfg(test)]
-    #[must_use]
-    pub fn path_to_spawn_zone(&self, start: &Position, zone: &ActorSpawnZone) -> Option<VecDeque<Position>> {
-        let start_node = self.nearest_node_for_position(start)?;
-        let targets: HashSet<NavNode> = zone
-            .cells()
-            .filter_map(|(col, row)| {
-                let node = NavNode {
-                    level: zone.level,
-                    row,
-                    col,
-                };
-                self.is_traversable(node).then_some(node)
-            })
-            .collect();
-        if targets.is_empty() {
-            return None;
-        }
-
-        let nodes = bfs_path(
-            start_node,
-            |node| targets.contains(node),
-            |node| self.neighbors(node).to_vec(),
-        )?;
-        Some(nodes.into_iter().map(|node| self.node_center(node)).collect())
-    }
-
-    #[must_use]
-    pub(crate) fn node_for_position(&self, pos: &Position) -> Option<NavNode> {
-        self.nearest_node_for_position(pos)
-    }
-
     pub(super) fn zone_nodes(&self, zone: &ActorSpawnZone) -> Vec<NavNode> {
         let mut nodes: Vec<_> = zone
             .cells()
             .filter_map(|(col, row)| {
-                self.node_for_position(&Position {
+                self.nearest_node_for_position(&Position {
                     x: self.geometry.cell_center_x(col),
                     y: self.geometry.level_y(zone.level),
                     z: self.geometry.cell_center_z(row),
@@ -163,12 +127,15 @@ impl NavGraph {
         true
     }
 
+    // Whether a route's final leg can simply be re-aimed at a moved target:
+    // only a straight line across flat floor on one level can be judged, and
+    // it fails when the body does not fit it.
     pub(crate) fn engagement_retarget_is_valid(
         &self,
         start: &Position,
         target: &Position,
-        half_width: f32,
-        half_depth: f32,
+        actor_half_width: f32,
+        actor_half_depth: f32,
     ) -> bool {
         let level = self.geometry.level_for_y(start.y);
         if self.geometry.level_for_y(target.y) != level
@@ -177,12 +144,16 @@ impl NavGraph {
         {
             return true;
         }
-        self.flat_path_is_clear(start, target, half_width, half_depth)
+        self.flat_path_is_clear(
+            start,
+            target,
+            actor_half_width + DIRECT_ROUTE_CLEARANCE_MARGIN,
+            actor_half_depth + DIRECT_ROUTE_CLEARANCE_MARGIN,
+        )
     }
 
     pub(super) fn is_cover_destination(&self, node: NavNode) -> bool {
-        self.cell(node)
-            .is_some_and(|cell| cell.has_floor && !cell.has_ramp && !cell.has_ramp_from_below)
+        self.cell(node).is_some_and(Cell::is_flat_floor)
     }
 
     fn flat_floor_node_at(&self, x: f32, z: f32, level: u8) -> Option<NavNode> {
@@ -191,9 +162,7 @@ impl NavGraph {
             row: self.geometry.cell_row_containing_z(z),
             col: self.geometry.cell_col_containing_x(x),
         };
-        self.cell(node)
-            .is_some_and(|cell| cell.has_floor && !cell.has_ramp && !cell.has_ramp_from_below)
-            .then_some(node)
+        self.cell(node).is_some_and(Cell::is_flat_floor).then_some(node)
     }
 
     fn flat_nodes_connect_directly(&self, from: NavNode, to: NavNode) -> bool {
@@ -223,12 +192,12 @@ impl NavGraph {
     }
 
     fn flat_edge_is_clear(&self, from: NavNode, to: NavNode) -> bool {
-        self.cell(to)
-            .is_some_and(|cell| cell.has_floor && !cell.has_ramp && !cell.has_ramp_from_below)
-            && self.neighbors(from).contains(&to)
+        self.cell(to).is_some_and(Cell::is_flat_floor) && self.neighbors(from).contains(&to)
     }
 
-    fn nearest_node_for_position(&self, pos: &Position) -> Option<NavNode> {
+    // The node of the cell under `pos`, or the closest traversable one.
+    #[must_use]
+    pub(crate) fn nearest_node_for_position(&self, pos: &Position) -> Option<NavNode> {
         let level = self.geometry.level_for_y(pos.y);
         let row = self.geometry.cell_row_containing_z(pos.z);
         let col = self.geometry.cell_col_containing_x(pos.x);

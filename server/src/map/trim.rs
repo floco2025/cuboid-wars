@@ -14,7 +14,10 @@ use super::{
     segments::{horizontal_wall_segment, vertical_wall_segment},
 };
 use crate::map::EdgeGrid;
-use common::{map::MapGeometry, protocol::Floor};
+use common::{
+    map::MapGeometry,
+    protocol::{CarrierId, Floor},
+};
 
 // Emit the thin trim strips that fill the gap between a stacked wall's top
 // and the upper-level floor. A trim emits when both lower and upper levels
@@ -30,6 +33,7 @@ pub fn emit_stacked_wall_trim(
     geometry: &MapGeometry,
     level: u8,
     y: f32,
+    carrier: CarrierId,
 ) -> Vec<Floor> {
     let grid_cols = geometry.grid_cols;
     let grid_rows = geometry.grid_rows;
@@ -51,7 +55,13 @@ pub fn emit_stacked_wall_trim(
             let lower = horizontal_wall_segment(lower_edges, row, col, geometry);
             let upper = horizontal_wall_segment(upper_edges, row, col, geometry);
             if let Some(segment) = lower.overlap(upper) {
-                floors.push(segment.floor_strip(y, geometry.floor_thickness(), geometry.wall_half_thickness(), level));
+                floors.push(segment.floor_strip(
+                    y,
+                    geometry.floor_thickness(),
+                    geometry.wall_half_thickness(),
+                    level,
+                    carrier,
+                ));
             }
         }
     }
@@ -70,7 +80,13 @@ pub fn emit_stacked_wall_trim(
             let lower = vertical_wall_segment(lower_edges, row, col, geometry);
             let upper = vertical_wall_segment(upper_edges, row, col, geometry);
             if let Some(segment) = lower.overlap(upper) {
-                floors.push(segment.floor_strip(y, geometry.floor_thickness(), geometry.wall_half_thickness(), level));
+                floors.push(segment.floor_strip(
+                    y,
+                    geometry.floor_thickness(),
+                    geometry.wall_half_thickness(),
+                    level,
+                    carrier,
+                ));
             }
         }
     }
@@ -98,7 +114,15 @@ mod tests {
         upper_edges.horizontal[1][0] = true;
 
         let geometry = geometry(1, 1);
-        let floors = emit_stacked_wall_trim(&lower_edges, &upper_edges, &upper_mask, &geometry, 1, LEVEL_HEIGHT);
+        let floors = emit_stacked_wall_trim(
+            &lower_edges,
+            &upper_edges,
+            &upper_mask,
+            &geometry,
+            1,
+            LEVEL_HEIGHT,
+            CarrierId::WORLD,
+        );
 
         let half_w = geometry.width() / 2.0;
         let half_d = geometry.depth() / 2.0;
@@ -121,7 +145,15 @@ mod tests {
         upper_edges.vertical[0][1] = true;
 
         let geometry = geometry(1, 1);
-        let floors = emit_stacked_wall_trim(&lower_edges, &upper_edges, &upper_mask, &geometry, 1, LEVEL_HEIGHT);
+        let floors = emit_stacked_wall_trim(
+            &lower_edges,
+            &upper_edges,
+            &upper_mask,
+            &geometry,
+            1,
+            LEVEL_HEIGHT,
+            CarrierId::WORLD,
+        );
 
         let half_w = geometry.width() / 2.0;
         let half_d = geometry.depth() / 2.0;
@@ -143,7 +175,15 @@ mod tests {
         lower_edges.horizontal[1][0] = true;
 
         let geometry = geometry(1, 1);
-        let floors = emit_stacked_wall_trim(&lower_edges, &upper_edges, &upper_mask, &geometry, 1, LEVEL_HEIGHT);
+        let floors = emit_stacked_wall_trim(
+            &lower_edges,
+            &upper_edges,
+            &upper_mask,
+            &geometry,
+            1,
+            LEVEL_HEIGHT,
+            CarrierId::WORLD,
+        );
 
         assert!(floors.is_empty());
     }
@@ -159,7 +199,15 @@ mod tests {
         upper_edges.vertical[0][1] = true;
 
         let geometry = geometry(1, 1);
-        let floors = emit_stacked_wall_trim(&lower_edges, &upper_edges, &upper_mask, &geometry, 1, LEVEL_HEIGHT);
+        let floors = emit_stacked_wall_trim(
+            &lower_edges,
+            &upper_edges,
+            &upper_mask,
+            &geometry,
+            1,
+            LEVEL_HEIGHT,
+            CarrierId::WORLD,
+        );
 
         assert!(floors.is_empty());
     }
@@ -175,7 +223,15 @@ mod tests {
         upper_edges.vertical[1][0] = true;
 
         let geometry = geometry(1, 2);
-        let floors = emit_stacked_wall_trim(&lower_edges, &upper_edges, &upper_mask, &geometry, 1, LEVEL_HEIGHT);
+        let floors = emit_stacked_wall_trim(
+            &lower_edges,
+            &upper_edges,
+            &upper_mask,
+            &geometry,
+            1,
+            LEVEL_HEIGHT,
+            CarrierId::WORLD,
+        );
 
         let half_w = geometry.width() / 2.0;
         assert_eq!(floors.len(), 1);

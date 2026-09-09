@@ -6,11 +6,18 @@ use bevy::prelude::Resource;
 
 use super::{LadderLink, NavGraph, NavGraphs, NavNode};
 
-// A zone's roam region, in the frame of the zone's carrier.
+// A zone's roam region, in the frame of the zone's carrier; sorted, so
+// `contains` bisects and a roam route can pick a node by index.
 #[derive(Clone)]
 pub(crate) struct ActorTerritory {
-    pub(crate) roam: HashSet<NavNode>,
-    pub(crate) roam_nodes: Vec<NavNode>,
+    pub(crate) roam: Vec<NavNode>,
+}
+
+impl ActorTerritory {
+    #[must_use]
+    pub(crate) fn contains(&self, node: NavNode) -> bool {
+        self.roam.binary_search(&node).is_ok()
+    }
 }
 
 #[derive(Clone, Resource)]
@@ -29,10 +36,11 @@ impl ActorTerritories {
                 );
             }
             let kind = config.expect_actor(&zone.kind);
-            let roam = expand_region(graph, graph.ladder_links(&zone.kind), &seeds, kind.roam_steps);
-            let mut roam_nodes: Vec<_> = roam.iter().copied().collect();
-            roam_nodes.sort_unstable();
-            territories.push(ActorTerritory { roam, roam_nodes });
+            let mut roam: Vec<_> = expand_region(graph, graph.ladder_links(&zone.kind), &seeds, kind.roam_steps)
+                .into_iter()
+                .collect();
+            roam.sort_unstable();
+            territories.push(ActorTerritory { roam });
         }
         Ok(Self(territories))
     }

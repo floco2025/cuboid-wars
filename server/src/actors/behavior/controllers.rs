@@ -10,7 +10,7 @@ use crate::{
     config::ActorBeamAttackConfig,
 };
 
-use super::tick::{
+use super::transitions::{
     BehaviorContext, enter_evade, enter_roam_or_return, install_ladder_engagement, keep_or_install_engagement_route,
 };
 
@@ -104,16 +104,14 @@ pub(super) fn decide_contact_beam_actor(
         if try_engage_attackable_player(info, context) {
             return None;
         }
-        match info.awareness.iter().find(|aware| aware.id == target) {
-            Some(aware) => {
-                info.mode = ActorMode::Engage {
-                    target,
-                    target_pos: aware.pos,
-                };
-                info.set_route(None);
-            }
-            None => enter_passive_or_evade(info, context, rng),
-        }
+        let target_pos = info
+            .awareness
+            .iter()
+            .find(|aware| aware.id == target)
+            .expect("firing beam target missing from awareness")
+            .pos;
+        info.mode = ActorMode::Engage { target, target_pos };
+        info.set_route(None);
         return None;
     }
     decide_contact_actor(info, context, rng);
@@ -139,7 +137,7 @@ fn beam_target_attackable(aware: &AwarePlayer, context: &BehaviorContext<'_>) ->
     aware.visible
         && context.world_pos.distance_sq(&aware.pos) <= range * range
         && context.collision_world.attack_path_clear(
-            Vec3::from(context.world_pos) + Vec3::Y * context.kind_config.character.beam_origin_height(),
+            Vec3::from(context.world_pos) + Vec3::Y * context.kind_config.character.beam_origin_y_offset(),
             character_hitbox_center(aware.pos, context.player_physics),
             context.open_barriers,
         )

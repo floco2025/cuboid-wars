@@ -68,7 +68,12 @@ fn has_floor_beside(slab_mask: &Mask, edge: GridEdge) -> bool {
 // slabs at that level's y, the ones that would split the storey below from
 // it.
 #[must_use]
-pub(crate) fn stack_barriers(levels: &[Vec<BarrierEdge>], slab_masks: &[Mask], geometry: &MapGeometry) -> Vec<Barrier> {
+pub(crate) fn stack_barriers(
+    levels: &[Vec<BarrierEdge>],
+    slab_masks: &[Mask],
+    geometry: &MapGeometry,
+    carrier: CarrierId,
+) -> Vec<Barrier> {
     assert_eq!(
         levels.len(),
         slab_masks.len(),
@@ -95,7 +100,7 @@ pub(crate) fn stack_barriers(levels: &[Vec<BarrierEdge>], slab_masks: &[Mask], g
                     index
                 }
                 None => {
-                    barriers.push(barrier_from_edge(barrier, geometry, level));
+                    barriers.push(barrier_from_edge(barrier, geometry, level, carrier));
                     barriers.len() - 1
                 }
             };
@@ -107,7 +112,7 @@ pub(crate) fn stack_barriers(levels: &[Vec<BarrierEdge>], slab_masks: &[Mask], g
 }
 
 // Use the wall's grid-to-carrier conversion so barriers occupy the same edges.
-fn barrier_from_edge(barrier: &BarrierEdge, geometry: &MapGeometry, level: u8) -> Barrier {
+fn barrier_from_edge(barrier: &BarrierEdge, geometry: &MapGeometry, level: u8, carrier: CarrierId) -> Barrier {
     let [c0, r0, c1, r1] = barrier.edge;
     Barrier {
         x1: geometry.cell_to_world_x(c0),
@@ -120,7 +125,7 @@ fn barrier_from_edge(barrier: &BarrierEdge, geometry: &MapGeometry, level: u8) -
         level,
         levels: 1,
         kind: barrier.kind,
-        carrier: CarrierId::WORLD,
+        carrier,
     }
 }
 
@@ -291,7 +296,7 @@ mod tests {
         let levels = vec![vec![edge(0, 1, 1, 1, RED)], vec![edge(1, 1, 0, 1, RED)]];
         let masks = vec![empty_mask(), empty_mask()];
 
-        let barriers = stack_barriers(&levels, &masks, &geometry(2, 2));
+        let barriers = stack_barriers(&levels, &masks, &geometry(2, 2), CarrierId::WORLD);
 
         assert_eq!(barriers.len(), 1);
         assert_eq!(barriers[0].level, 0);
@@ -305,7 +310,7 @@ mod tests {
         let levels = vec![vec![edge(0, 1, 1, 1, RED)], vec![edge(0, 1, 1, 1, RED)]];
         let masks = vec![empty_mask(), mask_with_floor(0, 1)];
 
-        let barriers = stack_barriers(&levels, &masks, &geometry(2, 2));
+        let barriers = stack_barriers(&levels, &masks, &geometry(2, 2), CarrierId::WORLD);
 
         assert_eq!(barriers.len(), 2);
         assert!(barriers.iter().all(|b| b.levels == 1 && b.height == WALL_HEIGHT));
@@ -318,7 +323,7 @@ mod tests {
         let levels = vec![vec![edge(1, 0, 1, 1, RED)], vec![edge(1, 0, 1, 1, RED)]];
         let masks = vec![empty_mask(), mask_with_floor(0, 0)];
 
-        let barriers = stack_barriers(&levels, &masks, &geometry(2, 2));
+        let barriers = stack_barriers(&levels, &masks, &geometry(2, 2), CarrierId::WORLD);
 
         assert_eq!(barriers.len(), 2);
     }
@@ -328,7 +333,7 @@ mod tests {
         let levels = vec![vec![edge(0, 1, 1, 1, RED)], vec![edge(0, 1, 1, 1, BLUE)]];
         let masks = vec![empty_mask(), empty_mask()];
 
-        let barriers = stack_barriers(&levels, &masks, &geometry(2, 2));
+        let barriers = stack_barriers(&levels, &masks, &geometry(2, 2), CarrierId::WORLD);
 
         assert_eq!(barriers.len(), 2);
     }
@@ -343,7 +348,7 @@ mod tests {
         ];
         let masks = vec![empty_mask(), empty_mask(), empty_mask(), mask_with_floor(0, 0)];
 
-        let barriers = stack_barriers(&levels, &masks, &geometry(2, 2));
+        let barriers = stack_barriers(&levels, &masks, &geometry(2, 2), CarrierId::WORLD);
 
         assert_eq!(barriers.len(), 2);
         assert_eq!((barriers[0].level, barriers[0].levels), (0, 3));
@@ -356,7 +361,7 @@ mod tests {
         let levels = vec![vec![edge(0, 1, 1, 1, RED)], Vec::new(), vec![edge(0, 1, 1, 1, RED)]];
         let masks = vec![empty_mask(), empty_mask(), empty_mask()];
 
-        let barriers = stack_barriers(&levels, &masks, &geometry(2, 2));
+        let barriers = stack_barriers(&levels, &masks, &geometry(2, 2), CarrierId::WORLD);
 
         assert_eq!(barriers.len(), 2);
         assert!(barriers.iter().all(|b| b.levels == 1));

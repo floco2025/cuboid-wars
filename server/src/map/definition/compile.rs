@@ -111,9 +111,14 @@ fn next_carrier(out: &CompileOutput) -> CarrierId {
 // floor thicknesses (`nudge_scale` holds the three sizes). The
 // timing is whole ticks so both sides place it exactly from the shared
 // tick, and a stationary motion never leaves its start.
-fn carrier_from_motion(end1: Vec3, end2: Vec3, motion: &MotionDef, nudge_scale: Vec3, parent: CarrierId) -> Carrier {
-    let level = u8::try_from(motion.level).unwrap_or(u8::MAX);
-    let to_level = u8::try_from(motion.to_level()).unwrap_or(u8::MAX);
+fn carrier_from_motion(
+    end1: Vec3,
+    end2: Vec3,
+    motion: &MotionDef,
+    [level, to_level]: [u8; 2],
+    nudge_scale: Vec3,
+    parent: CarrierId,
+) -> Carrier {
     let from = end1 + Vec3::from(motion.from_nudge) * nudge_scale;
     let to = end2 + Vec3::from(motion.to_nudge) * nudge_scale;
     Carrier {
@@ -142,7 +147,7 @@ fn nested_carrier(parent: &MapGeometry, nested: &MapGeometry, motion: &MotionDef
         parent.floor_thickness(),
         parent.wall_thickness(),
     );
-    carrier_from_motion(end1, end2, motion, nudge_scale, parent_id)
+    carrier_from_motion(end1, end2, motion, [level, to_level], nudge_scale, parent_id)
 }
 
 fn nested_origin_offset(parent: &MapGeometry, nested: &MapGeometry, cell: [i32; 2], level: u8) -> Vec3 {

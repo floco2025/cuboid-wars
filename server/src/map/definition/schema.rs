@@ -244,7 +244,7 @@ pub(crate) struct PressurePlateDef {
 // `{"type": "barrier", "kind": "lobby"}` / `{"type": "bridge", "kind":
 // "skyway"}` / `{"type": "firework"}`; `kind` references `BarrierKindTable`
 // or `BridgeKindTable` by id, whichever the type names.
-#[derive(Debug, Clone, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub(crate) enum PressurePlatePurposeDef {
     Barrier { kind: String },

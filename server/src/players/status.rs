@@ -11,13 +11,14 @@ pub fn players_status_timers_system(time: Res<Time>, mut players: ResMut<PlayerM
     let mut status_messages = Vec::new();
 
     for (player_id, player_info) in players.iter_mut() {
-        let old_status = player_info.status(*player_id);
+        // Only the power-up and stun fields can move here, so comparing them
+        // avoids building (and cloning the held keys of) two full statuses.
+        let before = (player_info.active_power_ups(), player_info.is_stunned());
 
         player_info.tick_timers(delta);
-        let new_status = player_info.status(*player_id);
 
-        if old_status != new_status {
-            status_messages.push(new_status);
+        if (player_info.active_power_ups(), player_info.is_stunned()) != before {
+            status_messages.push(player_info.status(*player_id));
         }
     }
 

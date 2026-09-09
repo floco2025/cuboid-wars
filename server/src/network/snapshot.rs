@@ -3,7 +3,7 @@ use bevy::{ecs::system::SystemParam, prelude::*};
 use crate::{
     actors::{ActorMap, ActorStateQuery, PendingActorSpawns},
     items::ItemMap,
-    map::{LightState, PlateState, WeatherState},
+    map::{LightState, WeatherState},
     players::{PlayerMap, PlayerStateQuery},
     quests::{QuestBoard, QuestCatalog},
 };

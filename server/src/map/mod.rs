@@ -12,7 +12,6 @@ mod mask;
 pub(crate) mod material_rules;
 mod plugin;
 mod pressure_plates;
-mod pressure_switches;
 mod ramps;
 mod resources;
 mod segments;
@@ -20,9 +19,11 @@ mod trim;
 mod walls;
 mod weather;
 
+#[cfg(test)]
+mod shipped_tests;
+
 pub(crate) use edges::{CellSide, has_edge_on_cell_side};
 
-pub use common::protocol::PlateState;
 pub use generation::{GeneratedMap, generate_map};
 pub use grid::grid_coords_from_position;
 pub use light_cycle::{LightState, light_cycle_is_running, light_cycle_system, light_preset_from_str};

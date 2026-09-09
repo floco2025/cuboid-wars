@@ -3,6 +3,13 @@ use common::{
     protocol::{ActorMoveIntent, Position},
 };
 
+// How near a waypoint counts as arrived. Route following, stall detection,
+// and ladder link validation all read these, so a link that passes at build
+// time is followable at run time.
+pub(crate) const WALK_REACH_DISTANCE: f32 = 0.5;
+// A climber has to line up with the rail before it can climb.
+const MOUNT_REACH_DISTANCE: f32 = 0.12;
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) enum WaypointKind {
     Walk,
@@ -29,10 +36,15 @@ impl NavWaypoint {
         }
     }
 
-    pub fn reached(self, pos: &Position, distance: f32) -> bool {
+    // A climb is reached by height alone; every other kind by distance.
+    pub fn reached(self, pos: &Position) -> bool {
         match self.kind {
-            WaypointKind::Walk => pos.horizontal_distance_sq(&self.position) <= distance * distance,
-            WaypointKind::Mount => pos.horizontal_distance_sq(&self.position) <= 0.12 * 0.12,
+            WaypointKind::Walk => {
+                pos.horizontal_distance_sq(&self.position) <= WALK_REACH_DISTANCE * WALK_REACH_DISTANCE
+            }
+            WaypointKind::Mount => {
+                pos.horizontal_distance_sq(&self.position) <= MOUNT_REACH_DISTANCE * MOUNT_REACH_DISTANCE
+            }
             WaypointKind::Climb {
                 normal_x,
                 normal_z,
@@ -47,8 +59,8 @@ impl NavWaypoint {
                     }
             }
             WaypointKind::Exit => {
-                pos.horizontal_distance_sq(&self.position) <= distance * distance
-                    && (pos.y - self.position.y).abs() <= distance
+                pos.horizontal_distance_sq(&self.position) <= WALK_REACH_DISTANCE * WALK_REACH_DISTANCE
+                    && (pos.y - self.position.y).abs() <= WALK_REACH_DISTANCE
             }
         }
     }
@@ -82,7 +94,7 @@ impl NavWaypoint {
                 let sign = if ascending { -1.0 } else { 1.0 };
                 ActorMoveIntent::Climbing {
                     direction: (normal_x * sign).atan2(normal_z * sign),
-                    speed: if self.reached(pos, 0.0) {
+                    speed: if self.reached(pos) {
                         0.0
                     } else {
                         speed.max(LADDER_CLIMB_MIN_SPEED)

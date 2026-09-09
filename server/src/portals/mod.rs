@@ -6,5 +6,5 @@ mod traversal;
 
 pub use plugin::portals_plugin;
 pub use resources::{PortalAssignments, PortalMap};
-pub use spawn::handle_portal_shot_message;
+pub(crate) use spawn::handle_portal_shot_message;
 pub use traversal::players_portal_traversal_system;

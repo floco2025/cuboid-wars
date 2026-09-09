@@ -17,4 +17,4 @@ pub(crate) use ladders::LadderLink;
 pub(crate) use routing::PlannedRoute;
 pub use territory::ActorTerritories;
 pub(crate) use territory::ActorTerritory;
-pub(crate) use waypoint::{NavWaypoint, WaypointKind};
+pub(crate) use waypoint::{NavWaypoint, WALK_REACH_DISTANCE, WaypointKind};

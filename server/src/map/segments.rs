@@ -24,7 +24,7 @@ impl HorizontalSegment {
     }
 
     #[must_use]
-    pub fn floor_strip(self, y: f32, thickness: f32, half_width: f32, level: u8) -> Floor {
+    pub fn floor_strip(self, y: f32, thickness: f32, half_width: f32, level: u8, carrier: CarrierId) -> Floor {
         Floor {
             x1: self.x1,
             z1: self.z - half_width,
@@ -33,7 +33,7 @@ impl HorizontalSegment {
             y,
             thickness,
             level,
-            carrier: CarrierId::WORLD,
+            carrier,
         }
     }
 }
@@ -54,7 +54,7 @@ impl VerticalSegment {
     }
 
     #[must_use]
-    pub fn floor_strip(self, y: f32, thickness: f32, half_width: f32, level: u8) -> Floor {
+    pub fn floor_strip(self, y: f32, thickness: f32, half_width: f32, level: u8, carrier: CarrierId) -> Floor {
         Floor {
             x1: self.x - half_width,
             z1: self.z1,
@@ -63,7 +63,7 @@ impl VerticalSegment {
             y,
             thickness,
             level,
-            carrier: CarrierId::WORLD,
+            carrier,
         }
     }
 }

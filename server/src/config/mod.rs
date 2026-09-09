@@ -13,6 +13,9 @@ mod scoring;
 mod validation;
 mod weapons;
 
+#[cfg(test)]
+mod maps_tests;
+
 pub use actors::{
     ActorAttackConfig, ActorBeamAttackConfig, ActorKindServerConfig, ActorSettingsConfig, ActorsConfig,
     ContactAttackConfig, ContactBeamAttackConfig,

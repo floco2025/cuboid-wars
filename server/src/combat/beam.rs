@@ -83,7 +83,7 @@ pub fn actors_beam_damage_system(
         let actor_config = gameplay_config.expect_actor(&info.spawn_kind);
         let target_center = Vec3::new(target_pos.x, player_physics.hitbox_center_y(target_pos.y), target_pos.z);
         if !collision_world.attack_path_clear(
-            Vec3::from(*actor_pos) + Vec3::Y * actor_config.beam_origin_height(),
+            Vec3::from(*actor_pos) + Vec3::Y * actor_config.beam_origin_y_offset(),
             target_center,
             &plates.open_barrier_kinds,
         ) {

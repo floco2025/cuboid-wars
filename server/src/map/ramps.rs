@@ -51,7 +51,7 @@ impl RampSpec {
         ]
     }
 
-    fn to_ramp(&self, geometry: &MapGeometry) -> Ramp {
+    fn to_ramp(&self, geometry: &MapGeometry, carrier: CarrierId) -> Ramp {
         let y_low = geometry.level_y(u8::try_from(self.lower_level).unwrap_or(u8::MAX));
         let y_high = y_low + geometry.level_height();
 
@@ -62,7 +62,7 @@ impl RampSpec {
             x2: geometry.cell_to_world_x(self.high[0]),
             y2: y_high,
             z2: geometry.cell_to_world_z(self.high[1]),
-            carrier: CarrierId::WORLD,
+            carrier,
         }
     }
 }
@@ -108,6 +108,6 @@ pub fn apply_to_level_cells(cells: &mut CellGrid, ramps: &[RampSpec], level: u32
     }
 }
 
-pub fn specs_to_ramps(geometry: &MapGeometry, specs: &[RampSpec]) -> Vec<Ramp> {
-    specs.iter().map(|spec| spec.to_ramp(geometry)).collect()
+pub fn specs_to_ramps(geometry: &MapGeometry, specs: &[RampSpec], carrier: CarrierId) -> Vec<Ramp> {
+    specs.iter().map(|spec| spec.to_ramp(geometry, carrier)).collect()
 }

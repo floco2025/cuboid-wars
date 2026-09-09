@@ -38,6 +38,12 @@ impl Cell {
         }
         true
     }
+
+    // Standable floor with no slope in it or arriving into it.
+    #[must_use]
+    pub fn is_flat_floor(&self) -> bool {
+        self.has_floor && !self.has_ramp && !self.has_ramp_from_below
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -104,10 +110,8 @@ pub struct ActorSpawnZone {
 }
 
 impl ActorSpawnZone {
-    pub fn cells(&self) -> impl Iterator<Item = (i32, i32)> + '_ {
-        let cols = self.cols[0]..self.cols[1];
-        let rows = self.rows[0]..self.rows[1];
-        rows.flat_map(move |r| cols.clone().map(move |c| (c, r)))
+    pub fn cells(&self) -> impl Iterator<Item = (i32, i32)> {
+        zone_cells(self.cols, self.rows)
     }
 
     pub fn immovable_cells<'a>(&'a self, grid: &'a CarrierGrid) -> impl Iterator<Item = (i32, i32)> + 'a {
@@ -130,11 +134,14 @@ pub struct PlayerSpawnZone {
 }
 
 impl PlayerSpawnZone {
-    pub fn cells(&self) -> impl Iterator<Item = (i32, i32)> + '_ {
-        let cols = self.cols[0]..self.cols[1];
-        let rows = self.rows[0]..self.rows[1];
-        rows.flat_map(move |r| cols.clone().map(move |c| (c, r)))
+    pub fn cells(&self) -> impl Iterator<Item = (i32, i32)> {
+        zone_cells(self.cols, self.rows)
     }
+}
+
+// Every `(col, row)` of a zone rectangle, row by row.
+fn zone_cells(cols: [i32; 2], rows: [i32; 2]) -> impl Iterator<Item = (i32, i32)> {
+    (rows[0]..rows[1]).flat_map(move |row| (cols[0]..cols[1]).map(move |col| (col, row)))
 }
 
 // Map-authored item placement, compiled from the map's `items` list with
@@ -153,7 +160,7 @@ pub struct PlacedItem {
 // (col, row) grid coords so `player_on_plate` can compute the inner-25%
 // rect each tick. The wire variant (`common::protocol::PressurePlate`)
 // carries world coords for the client renderer; this one stays in grid
-// space. Distinct names so grep / jump-to-def isn't ambiguous.
+// space.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PressurePlateRuntime {
     pub carrier: CarrierId,

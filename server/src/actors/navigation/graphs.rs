@@ -1,13 +1,13 @@
 use bevy::prelude::Resource;
 use common::{
     map::Carriers,
-    physics::{CharacterEnvironment, CollisionWorld, LadderMode},
+    physics::CollisionWorld,
     protocol::{CarrierId, MapLayout, MapSettings, PlatePurpose},
 };
 
 use crate::{config::ServerGameplayConfig, map::MapConfig};
 
-use super::NavGraph;
+use super::{NavGraph, ladders::LadderClimber};
 
 // One navigation graph per grid, indexed by carrier id: an actor navigates
 // the grid of the carrier its zone is on, in that carrier's frame.
@@ -56,56 +56,11 @@ impl NavGraphs {
         for (index, graph) in self.0.iter_mut().enumerate() {
             let carrier = CarrierId(index as u16);
             let local = MapLayout {
-                walls: layout
-                    .walls
-                    .iter()
-                    .filter(|wall| wall.carrier == carrier)
-                    .map(|wall| {
-                        let mut wall = *wall;
-                        wall.carrier = CarrierId::WORLD;
-                        wall
-                    })
-                    .collect(),
-                floors: layout
-                    .floors
-                    .iter()
-                    .filter(|floor| floor.carrier == carrier)
-                    .map(|floor| {
-                        let mut floor = *floor;
-                        floor.carrier = CarrierId::WORLD;
-                        floor
-                    })
-                    .collect(),
-                ramps: layout
-                    .ramps
-                    .iter()
-                    .filter(|ramp| ramp.carrier == carrier)
-                    .map(|ramp| {
-                        let mut ramp = *ramp;
-                        ramp.carrier = CarrierId::WORLD;
-                        ramp
-                    })
-                    .collect(),
-                barriers: layout
-                    .barriers
-                    .iter()
-                    .filter(|barrier| barrier.carrier == carrier)
-                    .map(|barrier| {
-                        let mut barrier = *barrier;
-                        barrier.carrier = CarrierId::WORLD;
-                        barrier
-                    })
-                    .collect(),
-                ladders: layout
-                    .ladders
-                    .iter()
-                    .filter(|ladder| ladder.carrier == carrier)
-                    .map(|ladder| {
-                        let mut ladder = *ladder;
-                        ladder.carrier = CarrierId::WORLD;
-                        ladder
-                    })
-                    .collect(),
+                walls: on_carrier(&layout.walls, carrier, |wall| &mut wall.carrier),
+                floors: on_carrier(&layout.floors, carrier, |floor| &mut floor.carrier),
+                ramps: on_carrier(&layout.ramps, carrier, |ramp| &mut ramp.carrier),
+                barriers: on_carrier(&layout.barriers, carrier, |barrier| &mut barrier.carrier),
+                ladders: on_carrier(&layout.ladders, carrier, |ladder| &mut ladder.carrier),
                 ..Default::default()
             };
             if local.ladders.is_empty() {
@@ -118,21 +73,18 @@ impl NavGraphs {
                     continue;
                 }
                 let movement = settings.movement.expect_actor(kind);
-                let environment = CharacterEnvironment {
+                let climber = LadderClimber {
                     collision_world: &world,
-                    gravity: settings.movement.gravity,
+                    map_settings: settings,
                     physics: actor.character.physics(),
-                    ladder_mode: LadderMode::Disabled,
-                    ladder_climb_ratio: settings.movement.ladder_climb_ratio,
                     passable_kinds: &passable,
-                    portals: None,
                     carriers: &carriers,
                 };
                 let links = local
                     .ladders
                     .iter()
                     .flat_map(|ladder| {
-                        graph.build_ladder_links(ladder, &environment, [movement.roam_speed, movement.active_speed])
+                        graph.build_ladder_links(ladder, &climber, [movement.roam_speed, movement.active_speed])
                     })
                     .collect();
                 graph.ladder_routes.insert(kind.clone(), links);
@@ -146,4 +98,21 @@ impl NavGraphs {
             .get(usize::from(carrier.0))
             .expect("carrier named by an actor spawn zone has no navigation graph")
     }
+}
+
+// The records on `carrier`, retagged as world records so a collision world
+// built from them stands in that carrier's own frame.
+fn on_carrier<T: Copy>(records: &[T], carrier: CarrierId, carrier_of: impl Fn(&mut T) -> &mut CarrierId) -> Vec<T> {
+    records
+        .iter()
+        .copied()
+        .filter_map(|mut record| {
+            let tag = carrier_of(&mut record);
+            if *tag != carrier {
+                return None;
+            }
+            *tag = CarrierId::WORLD;
+            Some(record)
+        })
+        .collect()
 }

@@ -9,7 +9,6 @@ use crate::config::Quest;
 pub struct CatalogQuest {
     pub definition: Quest,
     pub order: u32,
-    pub points: i32,
 }
 
 impl Deref for CatalogQuest {
@@ -36,7 +35,6 @@ impl QuestCatalog {
             .map(|(order, quest)| CatalogQuest {
                 definition: quest.clone(),
                 order: u32::try_from(order).expect("quest catalog order exceeds u32"),
-                points: quest.points,
             })
             .collect();
         let by_id = quests
