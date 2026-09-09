@@ -27,7 +27,7 @@ death/respawn flow.
 - **Humanoid robots** — animated players that walk, run, climb, jump, and land.
 - **Quests** — objectives assigned at login, worth points when completed.
 - **Gold** — collect gold coins for score and quest progress.
-- **Power-ups** — single-shot, multi-shot, speed, low-gravity, and instant-heal pickups.
+- **Power-ups** — single-shot, multi-shot, speed, low-gravity, and portal-gun pickups, plus instant-heal potions.
 - **Seeking missiles** — collect a pack, lock onto a target, and fire; the
   missile flies the map's airspace to it.
 - **Portal guns** — collect a gun to place linked portals and travel between them.
@@ -41,7 +41,7 @@ death/respawn flow.
   explode when killed.
 - **Turrets** — stationary guards with deadly sustained laser bursts.
 - **Ladders** — climb between levels.
-- **Moving maps** — tiles, rooms, and whole buildings that slide or lift through a map, everything inside riding along, monsters included.
+- **Moving maps** — tiles, rooms, and whole buildings that slide or lift through a map, everything inside riding along, monsters included. Get pinned by one and it kills you.
 - **Fall damage** — short drops are safe; long falls scale up to lethal.
 - **Death & respawn** — return after a short delay, individually or with your group; some maps also restore enemies.
 - **Scoring** — kills, gold, actor kills, and quest completions award
@@ -74,20 +74,15 @@ death/respawn flow.
 | Toggle fullscreen | F11 / Ctrl-F / Cmd-F |
 
 Scrolling fully in enters first person and enables facing lock; zooming back
-out keeps it locked. The mouse orbits in both states without holding a button. Movement follows the camera's horizontal direction. Unlocked, the
-robot faces its movement direction; locked, it faces the camera's aim and can
-strafe or backpedal. Weapons aim at the center crosshair in either state. The
-camera pulls in around solid geometry and extends smoothly when clear. Tether geometry and zoom limits live in
-`camera.follow` in `config/client/client.json`; `camera.top_down`, `camera.rearview`,
-and `camera.shake` hold their respective tuning. The camera starts fully zoomed in
-at distance zero. `camera.follow.first_person_distance` is the shared cutoff for
-snapping to eye position and hiding the local body, including near obstructions.
-First person, third person, and the rearview share the FOV slider.
-Mouse and zoom sensitivity are multipliers: 1 is the standard speed, with base
-speeds in `client/src/constants.rs`. Their logarithmic sliders range from 0.125 to
-4, giving most of the track to speeds below 1 and equal space to each doubling.
-Menu-controlled preferences use defaults in `client/src/constants.rs` and save to
-`config/client/client_local.json`; they are not configured in `client.json`.
+out keeps it locked. The mouse orbits in both states without holding a button.
+Movement follows the camera's horizontal direction. Unlocked, the robot faces
+its movement direction; locked, it faces the camera's aim and can strafe or
+backpedal. In third person the crosshair sits a little above centre and shots
+converge on what it points at. The camera pulls in around solid geometry and
+extends smoothly when clear. First person, third person, and the rearview share
+the FOV slider. Mouse and zoom sensitivity are multipliers, with 1 the standard
+speed and most of each slider given to speeds below it. Menu settings are saved
+locally and restored on the next start.
 
 Weapon pickups automatically select that weapon, except single-shot pickups
 keep an active multi-shot selection. Q cycles through the weapons you hold,

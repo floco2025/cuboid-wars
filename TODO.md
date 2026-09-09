@@ -6,6 +6,14 @@
 
 ## Enhancements
 
+- **Shipped layouts re-save differently:** 8 of the 13 `layout.json` files do not round-trip byte-identically through the editor's formatter, so the first editor save reformats them. Re-save each once from the editor.
+
+- **Painted wear bake is not reproducible:** the bruiser's painted atlases differ in a few percent of pixels between identical rebuilds. Seed the noise textures in `modelkit/wear.py` so a rebuild is byte-identical.
+
+- **Grounding inspection after a blocked step:** the per-frame refresh now only fills characters that lack the diagnostics, so a body blocked by another character draws its probe from the motor's proposed position until the next tick.
+
+- **Artificial lag jitter:** Vary unreliable-message delays in both directions by a fraction of artificial lag, defaulting to `0.05`; `0` disables jitter, and zero lag disables its effect. A ratio of `0.5` at 100 ms gives a 50–150 ms range. Release messages by delivery deadline to test out-of-order delivery while preserving reliable-message order.
+
 - **Rapier upgrades:** Recheck the capsule floor-motion regression before removing the contact-normal adapter in `common/src/physics/world/character_queries.rs`. It works around imprecise cast normals feeding Rapier 0.32’s slope decomposition.
 
 - **Shape contact queries:** If movement shapes expand beyond upright capsules, use Parry contact/distance queries for contact attacks instead of the capsule-specific surface-distance formula. Preserve overlap thresholds and attack-cover rules.
