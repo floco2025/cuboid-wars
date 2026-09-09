@@ -31,6 +31,26 @@ pub(super) fn sweep_clear(
     collision_world.projectile_path_clear(origin, translation, radius, open_kinds)
 }
 
+pub(super) fn terminal_approach(
+    world: &CollisionWorld,
+    open_kinds: &[BarrierKindId],
+    origin: Vec3,
+    target: Vec3,
+    radius: f32,
+    fuse_distance: f32,
+) -> Option<Vec3> {
+    let displacement = target - origin;
+    if sweep_clear(world, open_kinds, origin, displacement, radius) {
+        return Some(target);
+    }
+    // Stay inside the fuse boundary so rounding cannot leave the route just outside it.
+    let travel = (displacement.length() - fuse_distance * 0.9).max(0.0);
+    let approach = origin + displacement.normalize_or_zero() * travel;
+    (world.attack_path_clear(approach, target, open_kinds)
+        && sweep_clear(world, open_kinds, origin, approach - origin, radius))
+    .then_some(approach)
+}
+
 // Clear direction from the pitch × yaw fan closest to `desired`.
 // `None` when every candidate is blocked (fully boxed in). `desired` itself
 // is candidate zero: a blocked sight line to the target doesn't imply the

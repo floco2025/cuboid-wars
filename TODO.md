@@ -1,9 +1,5 @@
 # Follow-ups
 
-## Fixes
-
-- **Missiles near walls:** Missiles repeatedly miss actors positioned close to walls. Unconfirmed: reproduce it first (a placed actor beside a wall, guidance decisions logged per tick) before changing anything, then check whether requiring missile clearance to the target centre prevents a valid approach within proximity-fuse range.
-
 ## Enhancements
 
 - **Shipped layouts re-save differently:** 8 of the 13 `layout.json` files do not round-trip byte-identically through the editor's formatter, so the first editor save reformats them. Re-save each once from the editor.

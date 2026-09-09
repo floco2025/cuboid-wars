@@ -3,7 +3,7 @@ use std::collections::VecDeque;
 
 use super::steering::{
     closest_point_on_segment, lead_point, pick_clear_direction, steer_clear, sweep_clear, target_velocity_estimate,
-    weave_direction,
+    terminal_approach, weave_direction,
 };
 use crate::{
     actors::ActorMap,
@@ -115,17 +115,14 @@ pub fn missiles_guidance_system(time: Res<Time>, mut params: MissileGuidancePara
             // sample — at 0.4 m per tick a point check can alias straight
             // past the closest approach. Detonating at the closest point
             // keeps the target inside the full-damage blast core.
-            let fuse = config.proximity_fuse_distance;
-            let closest = closest_point_on_segment(origin, velocity.0 * delta, target_center);
-            if closest.distance_squared(target_center) <= fuse * fuse
-                && sweep_clear(
-                    &params.collision_world,
-                    &params.plates.open_barrier_kinds,
-                    origin,
-                    closest - origin,
-                    MISSILE_RADIUS,
-                )
-            {
+            if let Some(closest) = proximity_detonation(
+                &params.collision_world,
+                &params.plates.open_barrier_kinds,
+                origin,
+                velocity.0 * delta,
+                target_center,
+                config.proximity_fuse_distance,
+            ) {
                 info.detonate_at = Some(closest.into());
                 continue;
             }
@@ -138,6 +135,21 @@ pub fn missiles_guidance_system(time: Res<Time>, mut params: MissileGuidancePara
             info.detonate_at = Some(*pos);
         }
     }
+}
+
+fn proximity_detonation(
+    world: &CollisionWorld,
+    open_kinds: &[BarrierKindId],
+    origin: Vec3,
+    travel: Vec3,
+    target: Vec3,
+    fuse_distance: f32,
+) -> Option<Vec3> {
+    let closest = closest_point_on_segment(origin, travel, target);
+    (closest.distance_squared(target) <= fuse_distance * fuse_distance
+        && world.attack_path_clear(closest, target, open_kinds)
+        && sweep_clear(world, open_kinds, origin, closest - origin, MISSILE_RADIUS))
+    .then_some(closest)
 }
 
 fn guided_velocity(
@@ -156,7 +168,16 @@ fn guided_velocity(
     let target_velocity = target_velocity_estimate(info.last_target_center, target, delta);
     info.last_target_center = Some(target);
     let aim = lead_point(origin, target, target_velocity, speed);
-    let objective = if sweep_clear(world, open_kinds, origin, target - origin, MISSILE_RADIUS) {
+    let objective = if terminal_approach(
+        world,
+        open_kinds,
+        origin,
+        target,
+        MISSILE_RADIUS,
+        config.proximity_fuse_distance,
+    )
+    .is_some()
+    {
         info.path.clear();
         info.path_target = None;
         info.path_retry_timer = 0.0;
@@ -180,6 +201,7 @@ fn guided_velocity(
         origin,
         target,
         MISSILE_RADIUS,
+        config.proximity_fuse_distance,
         delta,
     ) {
         direction
@@ -224,6 +246,7 @@ fn route_objective(
     origin: Vec3,
     target_center: Vec3,
     radius: f32,
+    fuse_distance: f32,
     delta: f32,
 ) -> Option<Vec3> {
     info.path_retry_timer -= delta;
@@ -233,9 +256,25 @@ fn route_objective(
         .is_some_and(|prev| prev.distance_squared(target_center) > moved_threshold * moved_threshold);
     if target_moved
         || info.path_retry_timer <= 0.0
-        || !route_clear(&info.path, origin, collision_world, open_kinds, radius)
+        || !route_clear(
+            &info.path,
+            origin,
+            target_center,
+            collision_world,
+            open_kinds,
+            radius,
+            fuse_distance,
+        )
     {
-        match air_graph.path(carriers, collision_world, open_kinds, origin, target_center, radius) {
+        match air_graph.path(
+            carriers,
+            collision_world,
+            open_kinds,
+            origin,
+            target_center,
+            radius,
+            fuse_distance,
+        ) {
             Some(path) => {
                 info.path = path;
                 info.path_target = Some(target_center);
@@ -311,16 +350,20 @@ fn resolve_target(
 fn route_clear(
     path: &VecDeque<Vec3>,
     origin: Vec3,
+    target: Vec3,
     world: &CollisionWorld,
     open_kinds: &[BarrierKindId],
     radius: f32,
+    fuse_distance: f32,
 ) -> bool {
     let mut previous = origin;
     path.iter().all(|point| {
         let clear = sweep_clear(world, open_kinds, previous, *point - previous, radius);
         previous = *point;
         clear
-    })
+    }) && path
+        .back()
+        .is_none_or(|end| terminal_approach(world, open_kinds, *end, target, radius, fuse_distance).is_some())
 }
 
 fn advance_waypoints(
@@ -353,6 +396,7 @@ mod tests {
         constants::TICK_SECS,
         protocol::{BarrierKindTable, Carrier, CarrierId, Floor, MapLayout, PlayerId, Wall},
     };
+    use std::f32::consts::FRAC_PI_4;
 
     fn info() -> MissileInfo {
         MissileInfo::new(Entity::PLACEHOLDER, PlayerId(0), None, Vec3::Z, 0.0, 10.0)
@@ -446,13 +490,21 @@ mod tests {
         let target = Vec3::new(3.0, 1.5, 0.0);
         let mut info = info();
         info.path = graph
-            .path(&carriers, &world, &[], origin, target, MISSILE_RADIUS)
+            .path(&carriers, &world, &[], origin, target, MISSILE_RADIUS, 1.0)
             .expect("initial route missing");
         info.path_target = Some(target);
         info.path_retry_timer = 0.4;
         carriers.advance(60);
         world.set_carrier_poses(&carriers);
-        assert!(!route_clear(&info.path, origin, &world, &[], MISSILE_RADIUS));
+        assert!(!route_clear(
+            &info.path,
+            origin,
+            target,
+            &world,
+            &[],
+            MISSILE_RADIUS,
+            1.0
+        ));
         assert!(
             route_objective(
                 &mut info,
@@ -463,11 +515,20 @@ mod tests {
                 origin,
                 target,
                 MISSILE_RADIUS,
+                1.0,
                 TICK_SECS
             )
             .is_some()
         );
-        assert!(route_clear(&info.path, origin, &world, &[], MISSILE_RADIUS));
+        assert!(route_clear(
+            &info.path,
+            origin,
+            target,
+            &world,
+            &[],
+            MISSILE_RADIUS,
+            1.0
+        ));
         assert_eq!(info.path_retry_timer, MISSILE_PATH_RETRY_SECS);
     }
 
@@ -489,6 +550,7 @@ mod tests {
                 Vec3::ZERO,
                 target,
                 MISSILE_RADIUS,
+                1.0,
                 TICK_SECS
             )
             .is_none()
@@ -526,6 +588,114 @@ mod tests {
             TICK_SECS,
         );
         assert!(velocity.abs_diff_eq(Vec3::Z * 16.0, 1e-4));
+    }
+
+    #[test]
+    fn a_cached_route_is_invalid_when_cover_blocks_its_terminal_approach() {
+        let origin = Vec3::new(3.0, 1.0, 0.0);
+        let target = Vec3::new(WALL_THICKNESS / 2.0 + 0.26, 1.0, 0.0);
+        let mut layout = MapLayout {
+            walls: vec![wall(0.0, -2.0, 0.0, 2.0)],
+            ..default()
+        };
+        let end = terminal_approach(&world(&layout), &[], origin, target, MISSILE_RADIUS, 1.0)
+            .expect("exposed terminal approach missing");
+        let path = VecDeque::from([end]);
+        assert!(route_clear(
+            &path,
+            origin,
+            target,
+            &world(&layout),
+            &[],
+            MISSILE_RADIUS,
+            1.0
+        ));
+        layout.walls.push(Wall {
+            width: 0.1,
+            ..wall(0.9, -2.0, 0.9, 2.0)
+        });
+        let world = world(&layout);
+        assert!(sweep_clear(&world, &[], origin, end - origin, MISSILE_RADIUS));
+        assert!(!route_clear(&path, origin, target, &world, &[], MISSILE_RADIUS, 1.0));
+    }
+
+    #[test]
+    fn proximity_fuse_requires_clear_flight_and_blast_paths() {
+        let world = world(&MapLayout {
+            walls: vec![wall(0.0, -4.0, 0.0, 4.0)],
+            ..default()
+        });
+        let target = Vec3::new(WALL_THICKNESS / 2.0 + 0.26, 1.0, 0.0);
+        assert_eq!(
+            proximity_detonation(&world, &[], Vec3::new(1.0, 1.0, -2.0), Vec3::Z * 4.0, target, 1.0),
+            Some(Vec3::new(1.0, 1.0, 0.0))
+        );
+        assert!(proximity_detonation(&world, &[], Vec3::new(-0.5, 1.0, 0.0), Vec3::Z * 0.3, target, 1.0).is_none());
+        assert!(proximity_detonation(&world, &[], Vec3::new(0.8, 1.0, 0.0), Vec3::NEG_X, target, 1.0).is_none());
+    }
+
+    #[test]
+    fn missiles_reach_an_exposed_target_too_close_to_a_wall_for_their_radius() {
+        let graph = AirGraph::new(&map(20, 20, 1));
+        let world = world(&MapLayout {
+            walls: vec![Wall {
+                width: 0.4,
+                height: 2.0,
+                ..wall(0.0, -34.0, 0.0, 34.0)
+            }],
+            floors: vec![Floor {
+                x1: -34.0,
+                z1: -34.0,
+                x2: 34.0,
+                z2: 34.0,
+                y: 0.0,
+                thickness: FLOOR_THICKNESS,
+                level: 0,
+                carrier: CarrierId::WORLD,
+            }],
+            ..default()
+        });
+        let config = config();
+        let target = Vec3::new(0.46, 0.815, 0.0);
+        let mut origin = Vec3::new(2.0129144, 1.62, -5.795555);
+        assert!(world.attack_path_clear(origin, target, &[]));
+        assert!(!sweep_clear(&world, &[], origin, target - origin, MISSILE_RADIUS));
+        let aim = (target - origin).normalize();
+        let axis = Quat::from_axis_angle(aim, FRAC_PI_4) * aim.any_orthonormal_vector();
+        let mut velocity = Quat::from_axis_angle(axis, 22.5_f32.to_radians()) * aim * 16.0;
+        let mut info = info();
+        info.weave_phase = 0.7;
+        for _ in 0..300 {
+            info.lifetime_timer -= TICK_SECS;
+            velocity = guided_velocity(
+                &mut info,
+                &config,
+                &graph,
+                &Carriers::default(),
+                &world,
+                &[],
+                origin,
+                target,
+                velocity,
+                16.0,
+                TICK_SECS,
+            );
+            if let Some(closest) = proximity_detonation(
+                &world,
+                &[],
+                origin,
+                velocity * TICK_SECS,
+                target,
+                config.proximity_fuse_distance,
+            ) {
+                assert!(sweep_clear(&world, &[], origin, closest - origin, MISSILE_RADIUS));
+                assert!(world.attack_path_clear(closest, target, &[]));
+                return;
+            }
+            assert!(sweep_clear(&world, &[], origin, velocity * TICK_SECS, MISSILE_RADIUS));
+            origin += velocity * TICK_SECS;
+        }
+        panic!("missile failed to reach exposed target, ended at {origin}");
     }
 
     #[test]
@@ -608,8 +778,14 @@ mod tests {
                         16.0,
                         TICK_SECS,
                     );
-                    let closest = closest_point_on_segment(origin, velocity * TICK_SECS, target);
-                    if closest.distance(target) <= config.proximity_fuse_distance {
+                    if let Some(closest) = proximity_detonation(
+                        &world,
+                        &[],
+                        origin,
+                        velocity * TICK_SECS,
+                        target,
+                        config.proximity_fuse_distance,
+                    ) {
                         assert!(sweep_clear(&world, &[], origin, closest - origin, MISSILE_RADIUS));
                         reached = true;
                         break;
