@@ -22,6 +22,7 @@
 
 ## Testing
 
+- **Playtest Jump Reach:** Compare the editor's expanded-floor estimates with jumps near the range boundary, with each power-up combination, and tune the 0.100 s takeoff margin for edge judgement and input timing. The user handles in-game testing.
 - **Playtest Switchyard:** Check the customs portal route and raised seal balcony, moving bridge switch, and ladder shuttle solo and with teammates. The user handles in-game testing.
 - **Sliding-carrier pushing:** Let the moving cabin's wall push you while standing still, walking against it, and stepping sideways out of its path. Confirm open space is safe, being pinned against another wall still crushes, and boarding moving platforms remains safe. Crushed actors should play their normal explosion animation and sound.
 - **Playtest and refine Relay:** The prototype is playable. The user handles in-game testing; refine the puzzles based on their feedback.

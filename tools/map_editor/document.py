@@ -23,6 +23,7 @@ from .repairs import repair_summary
 
 class MapDocument(QObject):
     changed = Signal(object)
+    replaced = Signal()
     saved = Signal()
     # Cap the undo history. Each command deep-clones the whole map, so on a
     # large map a long session would accumulate hundreds of MB. 200 steps
@@ -153,6 +154,7 @@ class MapDocument(QObject):
         # misleading until it is written.
         self.dirty = True
         self.undo_stack.clear()
+        self.replaced.emit()
         self.changed.emit(before)
 
     # === Persistence ===
@@ -170,6 +172,7 @@ class MapDocument(QObject):
         self._saved_data = copy.deepcopy(data)
         self.dirty = False
         self.undo_stack.clear()
+        self.replaced.emit()
         self.changed.emit(before)
 
     def externally_modified(self) -> bool:
@@ -256,6 +259,7 @@ class MapDocument(QObject):
         self.root_data = recovered
         self.dirty = recovered != self._saved_data
         self.undo_stack.clear()
+        self.replaced.emit()
         self.changed.emit(before)
         return True
 

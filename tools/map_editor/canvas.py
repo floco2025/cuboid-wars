@@ -28,6 +28,7 @@ from .constants import (
     MODE_GRASS,
     MODE_INACCESSIBLE_FLOOR,
     MODE_ITEM,
+    MODE_JUMP_REACH,
     MODE_LADDER,
     MODE_LIGHT,
     MODE_SELECT,
@@ -150,6 +151,7 @@ def _erase_cells_tool(canvas: "Canvas", event) -> None:
 
 
 CLICK_TOOLS = {
+    MODE_JUMP_REACH: lambda canvas, event: canvas.window.jump_reach.select(*canvas.point_to_cell(event.position())),
     MODE_LIGHT: _light_tool,
     MODE_LADDER: _ladder_tool,
     MODE_PRESSURE_PLATE: _click_place_tool("prompt_and_add_pressure_plate"),
@@ -473,6 +475,9 @@ class Canvas(CanvasPaintingMixin, QWidget):
         self._show_hover_label(tooltip or self._element_hover_text(pos), pos)
 
     def _show_hover_label(self, tooltip: str | None, pos) -> None:
+        cell = self.point_to_cell(pos)
+        reach = self.window.jump_reach.hover_text(*cell) if cell is not None else None
+        tooltip = "\n".join(part for part in (tooltip, reach) if part) or None
         if tooltip is not None:
             self._hover_label.setText(tooltip)
             metrics = self._hover_label.fontMetrics()

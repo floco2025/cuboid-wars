@@ -136,6 +136,7 @@ class FileActionsMixin:
         # Save As changes the map's name, and with it its catalogs; the view
         # stays where it is.
         self.adopt_catalogs(map_name, MapCatalogs.load(map_name))
+        self.jump_reach.reload_settings()
         self._record_recent_path(self.path)
         self.refresh_ui()
         return True
@@ -295,4 +296,5 @@ class FileActionsMixin:
             self.adopt_catalogs(self.catalog_map, MapCatalogs.load(self.catalog_map))
         except (OSError, ValueError, KeyError) as exc:
             self.notify(f"Catalog reload failed: {exc}")
+        self.jump_reach.reload_settings()
         self.refresh_ui()

@@ -5,10 +5,11 @@ from unittest.mock import patch
 from PySide6.QtCore import QPoint, QPointF, Qt
 from PySide6.QtGui import QContextMenuEvent, QKeySequence, QWheelEvent
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QComboBox, QMenu, QStatusBar
+from PySide6.QtWidgets import QApplication, QComboBox, QMenu, QSpinBox, QStatusBar
 
 from editor_fixtures import WindowTestCase
-from map_editor.constants import MODE_ACTOR_SPAWN_ZONE, MODE_ERASE
+from map_editor.constants import MODE_ACTOR_SPAWN_ZONE, MODE_ERASE, MODE_JUMP_REACH
+from map_editor.transforms import insert_level_data
 from map_editor.types import ZoneRef
 from map_editor.viewport import Viewport
 
@@ -28,6 +29,35 @@ class ViewportTests(unittest.TestCase):
 
 
 class EditorNavigationTests(WindowTestCase):
+    def test_page_keys_change_levels_from_canvas_and_number_controls(self):
+        window = self.window
+        window.doc.replace_with_new(insert_level_data(window.map_data, 1))
+        window.mode_combo.setCurrentText(MODE_ACTOR_SPAWN_ZONE)
+        count = window.tool_settings.findChild(QSpinBox)
+        count.setValue(5)
+        for control in (window.canvas, count, count.lineEdit()):
+            control.setFocus()
+            self.app.processEvents()
+            QTest.keyClick(control, Qt.Key.Key_PageUp)
+            self.assertEqual(window.current_level, 1)
+            QTest.keyClick(control, Qt.Key.Key_PageDown)
+            self.assertEqual(window.current_level, 0)
+            self.assertEqual(count.value(), 5)
+        window.mode_combo.setCurrentText(MODE_JUMP_REACH)
+        margin = window.jump_reach.margin
+        margin.setFocus()
+        self.app.processEvents()
+        QTest.keyClick(margin, Qt.Key.Key_PageUp)
+        self.assertEqual(window.current_level, 1)
+        self.assertAlmostEqual(margin.value(), 0.1)
+        QTest.keyClick(margin, Qt.Key.Key_Up)
+        self.assertAlmostEqual(margin.value(), 0.11)
+        self.assertEqual(window.current_level, 1)
+        QTest.keyClick(margin, Qt.Key.Key_PageDown)
+        self.assertEqual(window.current_level, 0)
+        self.assertAlmostEqual(margin.value(), 0.11)
+        self.assertTrue(margin.hasFocus())
+
     def zoom_for_panning(self):
         self.window.canvas.zoom_by(3)
         self.app.processEvents()

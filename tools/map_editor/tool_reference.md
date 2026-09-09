@@ -21,6 +21,12 @@ Every element group ends with its own **Erase** tool that removes only that elem
 - **Copy / Cut / Delete** — Available in Edit and the selection's right-click menu. Each asks how many levels to include, starting at the current level and going upward; the default is always 1. Copy and Cut put the entire block on the clipboard. Cut and Delete remove it. Walls, barriers, and equipment erasers on the rectangle's border are included. Include whole spawn zones, ramp footprints, ladder anchors and spans, and both ends of nested-map motion; a partial object prompts you to enlarge the selection. Removing a boundary wall with a light on its other side also needs that tile selected.
 - **Paste** — Select the destination tile (or a rectangle whose top-left tile is the destination), then paste. The dashed outline previews the footprint to replace; its label shows the tile dimensions and level count. Paste replaces all contents, including empty cells in the copied block, starting on the current level. Missing levels are added at the top. A block outside the grid is refused, and incompatible map kinds are reported. The clipboard works across open maps and editor windows. Cut, Delete, and Paste each undo in one step; Delete leaves the clipboard unchanged.
 
+## Jump Reach
+
+- **Jump Reach** — Click any cell, including an empty one, to set a jump origin. Four colored dots, left to right, show reach with Normal, Speed, Anti-gravity, and Both on whichever level you view. Hover lists the combinations. The origin has a white dashed outline; another click replaces it. Highlights and the Jump Reach toolbar stay visible while using other tools and editing floors. **Clear Jump Reach** in that toolbar or View removes them; Escape leaves them in place.
+- **Takeoff margin / Walk or Run** — Default to Run and a **0.100 s** margin for judging the edge and timing the jump. Adjust by **0.01 s** or type three decimal places; the adjacent distances show how much reach is reserved with and without speed. Settings last for this window's session. The guide uses the map's jump and movement settings, the shortest gap between expanded floor footprints, and descending landings in open space. Footprints include exposed-edge extensions and corner fillers, with the same ramp-join exceptions as the game. Empty cells are evaluated individually as potential flat floors using their current neighbors. Obstacles, ramp slopes, body size, and platform motion are ignored. The margin assumes supporting floor behind the takeoff edge. Zero gravity cannot produce a descending landing.
+- **Changes** — Movement settings reload automatically. Adding or removing floors and changing ramp joins refreshes reach while keeping the origin selected, including undo/redo. Switching outer/nested geometry, replacing a document, resizing, or inserting/removing levels clears the origin; structural undo/redo also clears it.
+
 ## Floors
 
 - **Floor** — Drag cells to add floor.
@@ -114,7 +120,7 @@ Each tile can hold one pressure plate on each level, regardless of type or kind.
 
 | Shortcut | Action |
 |----------|--------|
-| `↑` / `↓` | Next / previous level |
+| `Page Up` / `Page Down` | Next / previous level, including while editing number boxes |
 | `←` / `→` | Previous / next tool |
 | `M` | Toggle Show Material Overlay |
 | `L` | Toggle Show Adjacent Levels |

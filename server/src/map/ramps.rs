@@ -31,6 +31,7 @@ impl RampSpec {
     // for z-axis ramps — x-axis ramps' high end is a *vertical* edge, and
     // the corner-filler logic in `emit_floor_tier` only fires on N/S
     // suppressed extensions, so vertical edges are not relevant.
+    // Keep changes in sync with tools/map_editor/floor_footprints.py::corner_filler_skips.
     pub(super) fn high_end_horizontal_edges(&self) -> Vec<(i32, i32)> {
         let [col0, row0, col_end, row_end] = self.rect();
         let width = (self.high[0] - self.low[0]).abs();

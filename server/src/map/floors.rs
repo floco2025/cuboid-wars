@@ -44,6 +44,7 @@ struct Neighbors {
 // the high end of each z-axis ramp arriving at this level — a filler there
 // would hover redundantly above where the slope already meets the upper
 // floor. Only horizontal edges are tracked; no E/W counterpart is needed.
+// Keep expansion changes in sync with tools/map_editor/floor_footprints.py::FloorFootprints.rectangles.
 #[must_use]
 pub fn emit_floor_tier(
     mask: &Mask,

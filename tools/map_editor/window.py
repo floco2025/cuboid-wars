@@ -32,6 +32,7 @@ from .constants import (
     ERASE_MODES,
     ITEM_TYPES,
     MODE_CATEGORIES,
+    MODE_JUMP_REACH,
     MODE_RAMP_DOWN,
     MODE_RAMP_UP,
     MODE_SELECT,
@@ -42,6 +43,7 @@ from .erase_tools import EraseMixin
 from .file_actions import FileActionsMixin
 from .issues import IssuesPanel
 from .items import ItemsMixin
+from .jump_reach_overlay import JumpReachOverlay
 from .ladders import LaddersMixin
 from .lights import LightsMixin
 from .nested_definitions import NestedDefinitionsMixin
@@ -150,6 +152,7 @@ class EditorWindow(
         self.issues_action.triggered.connect(self.issues_panel.show)
         self.issues_action.setVisible(False)
 
+        self.jump_reach = JumpReachOverlay(self)
         self.build_menus()
         self.build_toolbar()
         self.doc.changed.connect(self._on_document_changed)
@@ -234,6 +237,7 @@ class EditorWindow(
 
     def adopt_map(self, map_name: str) -> None:
         self.adopt_catalogs(map_name, MapCatalogs.load(map_name))
+        self.jump_reach.reload_settings()
         self.clear_selection()
         self.current_level = 0
         self.refresh_ui()
@@ -247,6 +251,7 @@ class EditorWindow(
         combo = QComboBox()
         model = QStandardItemModel(combo)
         model.appendRow(QStandardItem(MODE_SELECT))
+        model.appendRow(QStandardItem(MODE_JUMP_REACH))
         header_font = QFont()
         header_font.setBold(True)
         for label, modes in MODE_CATEGORIES:
@@ -312,6 +317,9 @@ class EditorWindow(
         self.add_menu_action(edit_menu, "&Clear Lights On Level", None, self.clear_lights_on_current_level)
 
         view_menu = self.menuBar().addMenu("&View")
+        self.add_menu_action(view_menu, "Next Level", QKeySequence(Qt.Key.Key_PageUp), self.next_level)
+        self.add_menu_action(view_menu, "Previous Level", QKeySequence(Qt.Key.Key_PageDown), self.previous_level)
+        view_menu.addSeparator()
         zoom_in = self.add_menu_action(view_menu, "Zoom &In", None, lambda: self.canvas.zoom_by(1.25))
         zoom_in.setShortcuts(QKeySequence.StandardKey.ZoomIn)
         zoom_out = self.add_menu_action(view_menu, "Zoom &Out", None, lambda: self.canvas.zoom_by(0.8))
@@ -332,12 +340,11 @@ class EditorWindow(
         self.adjacent_levels_action.toggled.connect(self.set_adjacent_levels)
         view_menu.addAction(self.adjacent_levels_action)
         self.canvas_shortcut(self.adjacent_levels_action)
+        view_menu.addAction(self.jump_reach.clear_action)
 
         help_menu = self.menuBar().addMenu("&Help")
         self.add_menu_action(help_menu, "Tool &Reference", None, self.show_tool_reference)
 
-        self.add_shortcut(Qt.Key.Key_Up, self.next_level)
-        self.add_shortcut(Qt.Key.Key_Down, self.previous_level)
         self.add_shortcut(Qt.Key.Key_Left, self.previous_tool)
         self.add_shortcut(Qt.Key.Key_Right, self.next_tool)
 
@@ -381,6 +388,8 @@ class EditorWindow(
         toolbar.addWidget(self.ramp_direction_label)
         toolbar.addAction(self.issues_action)
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, toolbar)
+        self.addToolBarBreak(Qt.ToolBarArea.TopToolBarArea)
+        self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.jump_reach.toolbar)
 
     # === State updates & UI refresh ===
 
@@ -439,6 +448,7 @@ class EditorWindow(
         self.setWindowTitle(f"Cuboid Wars Editor - {file_name}{suffix}")
         self.dependencies.watch(self.catalog_map)
         self.tool_settings.refresh()
+        self.jump_reach.refresh()
 
     def refresh_issues(self, *, validate: bool = True) -> None:
         if validate:
@@ -485,6 +495,7 @@ class EditorWindow(
         self.update_selection_actions()
         self.refresh_issues(validate=False)
         self.tool_settings.refresh()
+        self.jump_reach.refresh()
 
     def set_material_overlay(self, enabled: bool) -> None:
         self.show_material_overlay = enabled
