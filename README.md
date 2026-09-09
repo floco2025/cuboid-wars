@@ -118,7 +118,11 @@ For local multiplayer testing on macOS:
 ./launch_clients.sh 4              # 4 tiled windowed clients
 ./launch_clients.sh 2 100          # 2 clients with 100ms simulated lag each way
 ./launch_clients.sh 2 100 0.1      # ... and 10% of unreliable messages dropped
+./launch_clients.sh 2 100 0 0.5    # 50–150ms delay for unreliable messages
 ```
+
+Simulated lag includes 5% jitter for unreliable messages by default. Set
+`--jitter 0` on the client, or the launcher's fourth argument to `0`, for fixed delay.
 
 The repo ships a self-signed `cert.pem` / `key.pem` for LAN testing. **Replace
 them for anything beyond localhost** — they are not production-safe.

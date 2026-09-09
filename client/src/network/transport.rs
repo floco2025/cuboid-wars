@@ -43,8 +43,16 @@ pub async fn network_io_task(
     from_client: UnboundedReceiver<ClientToServer>,
     impairment: Impairment,
 ) {
-    let to_client = impaired_sender(impairment.lag, to_client);
-    let mut from_client = impaired_receiver(impairment.lag, from_client);
+    let to_client = impaired_sender(
+        impairment,
+        to_client,
+        |event| matches!(event, ServerToClient::Message(message) if message.lane() == Lane::Unreliable),
+    );
+    let mut from_client = impaired_receiver(
+        impairment,
+        from_client,
+        |command| matches!(command, ClientToServer::Send(message) if message.lane() == Lane::Unreliable),
+    );
     match connection.open_bi().await {
         Ok((send, recv)) => drive_lanes(&connection, send, recv, &to_client, &mut from_client, impairment).await,
         Err(error) => error!("failed to open the reliable lane: {error}"),

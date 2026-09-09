@@ -1,8 +1,8 @@
 #!/bin/zsh
 
 # Launch multiple game clients tiled on the screen
-# Usage: ./launch_clients.sh [num_clients] [lag_ms] [drop]
-# Default: 2 clients, 0ms lag, no dropped messages (drop is a 0..1 fraction)
+# Usage: ./launch_clients.sh [num_clients] [lag_ms] [drop] [jitter]
+# Default: 2 clients, 0ms lag, no drops, 5% jitter (drop and jitter are 0..1 fractions)
 
 # Trap Ctrl-C and kill all child processes
 trap 'echo "Killing all clients..."; kill 0; exit' INT TERM
@@ -10,6 +10,7 @@ trap 'echo "Killing all clients..."; kill 0; exit' INT TERM
 NUM_CLIENTS=${1:-2}
 LAG_MS=${2:-0}
 DROP=${3:-0}
+JITTER=${4:-0.05}
 
 # Get screen dimensions
 # Note: system_profiler reports both physical pixels and logical points
@@ -37,7 +38,7 @@ SCALE_FACTOR=$(echo "scale=2; $SCREEN_WIDTH_PHYSICAL / $SCREEN_WIDTH" | bc)
 echo "Physical resolution: ${SCREEN_WIDTH_PHYSICAL}x${SCREEN_HEIGHT_PHYSICAL}"
 echo "Logical screen size: ${SCREEN_WIDTH}x${SCREEN_HEIGHT}"
 echo "Scaling factor: ${SCALE_FACTOR}x"
-echo "Launching $NUM_CLIENTS clients with ${LAG_MS}ms lag and drop ${DROP}..."
+echo "Launching $NUM_CLIENTS clients with ${LAG_MS}ms lag, drop ${DROP}, and jitter ${JITTER}..."
 
 # Window dimensions
 WINDOW_WIDTH=1000
@@ -62,7 +63,7 @@ for i in $(seq 0 $((NUM_CLIENTS - 1))); do
     
     echo "Client $i: COL=$COL, ROW=$ROW, Logical=($X_LOGICAL, $Y_LOGICAL)"
     cargo run --bin client --release -- --window-x $X_LOGICAL --window-y $Y_LOGICAL --window-width $WINDOW_WIDTH --window-height $WINDOW_HEIGHT \
-    --name "" --lag-ms $LAG_MS --drop $DROP &
+    --name "" --lag-ms $LAG_MS --drop $DROP --jitter $JITTER &
 done
 
 # Bring all client windows to the foreground

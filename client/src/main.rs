@@ -25,11 +25,16 @@ struct Args {
     #[arg(short, long)]
     name: Option<String>,
 
+    /// Simulated one-way delay in milliseconds, applied in both directions.
     #[arg(long, default_value = "0")]
     lag_ms: u64,
 
-    // Fraction of unreliable messages to discard, sent and received.
-    #[arg(long, default_value = "0")]
+    /// Unreliable delay variation as a fraction of lag; 0 disables it, 0.5 varies by ±50%.
+    #[arg(long, default_value = "0.05", value_parser = parse_fraction)]
+    jitter: f32,
+
+    /// Fraction of unreliable messages to discard, sent and received.
+    #[arg(long, default_value = "0", value_parser = parse_fraction)]
     drop: f32,
 
     // Position uses macOS points or Windows/X11 pixels; Wayland chooses placement.
@@ -50,6 +55,14 @@ struct Args {
     volume: Option<f32>,
 }
 
+fn parse_fraction(value: &str) -> Result<f32, String> {
+    let fraction = value.parse::<f32>().map_err(|error| error.to_string())?;
+    if !(0.0..=1.0).contains(&fraction) {
+        return Err("must be a finite fraction in 0..=1".to_owned());
+    }
+    Ok(fraction)
+}
+
 fn main() -> Result<()> {
     let args = Args::parse();
     let (to_client, from_server) = unbounded_channel();
@@ -60,11 +73,9 @@ fn main() -> Result<()> {
     });
     let runtime = Runtime::new()?;
     let connection = connect_to_server(&runtime, args.server.as_str())?;
-    if !(0.0..=1.0).contains(&args.drop) {
-        anyhow::bail!("--drop must be within 0..=1, got {}", args.drop);
-    }
     let impairment = Impairment {
         lag: Duration::from_millis(args.lag_ms),
+        jitter: args.jitter,
         drop_probability: args.drop,
     };
     runtime.spawn(network_io_task(connection, to_client, from_client, impairment));
@@ -125,4 +136,31 @@ fn wait_for_init(runtime: &Runtime, from_server: &mut UnboundedReceiver<ServerTo
             }
         }
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn impairment_flags_accept_fraction_bounds_and_default_to_five_percent_jitter() {
+        let args = Args::try_parse_from(["client"]).expect("default arguments rejected");
+        assert_eq!(args.jitter, 0.05);
+        for flag in ["--jitter", "--drop"] {
+            for value in ["0", "0.5", "1"] {
+                assert!(Args::try_parse_from(["client", flag, value]).is_ok());
+            }
+        }
+    }
+
+    #[test]
+    fn impairment_flags_reject_invalid_fractions_before_connecting() {
+        for flag in ["--jitter", "--drop"] {
+            for value in ["-0.1", "1.1", "NaN", "inf", "-inf"] {
+                let error = Args::try_parse_from(["client", &format!("{flag}={value}")])
+                    .expect_err("invalid fraction accepted");
+                assert_eq!(error.kind(), clap::error::ErrorKind::ValueValidation);
+            }
+        }
+    }
 }
