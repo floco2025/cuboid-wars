@@ -380,6 +380,7 @@ class EditorWindow(
         tool_settings_action = toolbar.addWidget(self.tool_settings)
         self.tool_settings.available_changed.connect(tool_settings_action.setVisible)
         tool_settings_action.setVisible(False)
+        toolbar.addAction(self.jump_reach.controls_action)
         # Persistent "Building UP/DOWN" hint that disambiguates the two ramp
         # modes mid-drag. Hidden outside ramp modes so it doesn't clutter the
         # toolbar.

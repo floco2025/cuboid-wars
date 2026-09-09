@@ -8,6 +8,7 @@ use serde::Deserialize;
 
 use super::{
     actors::ActorKindServerConfig,
+    falling::FallDamageConfig,
     items::{PlacedItemsConfig, PowerUpsConfig},
     quests::{Quest, validate_quests},
     respawn::RespawnConfig,
@@ -21,6 +22,7 @@ use common::protocol::{BarrierKindTable, BridgeKindTable, ItemType, MapSettings,
 pub struct MapServerConfig {
     #[serde(flatten)]
     pub settings: MapSettings,
+    pub player_fall: FallDamageConfig,
     // `None` = no random item spawning on this map.
     #[serde(deserialize_with = "deserialize_required_option")]
     pub random_items: Option<RandomItemsConfig>,
@@ -122,6 +124,7 @@ pub(super) fn validate_maps(
             &format!("{movement_path}.actors"),
         )?;
         movement.validate(&movement_path)?;
+        entry.player_fall.validate(&format!("{path} player_fall"))?;
         if let Some(random_items) = &entry.random_items {
             random_items.validate(&format!("{path} random_items"))?;
         }

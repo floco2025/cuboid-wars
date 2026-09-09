@@ -24,6 +24,7 @@
   },
   "weather": "auto",
   "lighting": "auto",
+  "player_fall": { "safe_distance": 8.0, "lethal_distance": 15.0 },
   "movement": {
     "gravity": 25.0,
     "low_gravity": 5.0,

@@ -4,6 +4,7 @@ use anyhow::Result;
 
 use super::{
     actors::ActorKindServerConfig,
+    falling::FallDamageConfig,
     items::{PlacedItemsConfig, PowerUpsConfig},
     maps::*,
     respawn::RespawnConfig,
@@ -77,6 +78,10 @@ fn ok_map_entry() -> MapServerConfig {
             bridge_kinds: Vec::new(),
         },
         random_items: None,
+        player_fall: FallDamageConfig {
+            safe_distance: 8.0,
+            lethal_distance: 15.0,
+        },
         respawn: RespawnConfig::default(),
         placed_items: ok_placed_items(),
         power_ups: PowerUpsConfig {
@@ -183,6 +188,7 @@ fn parse_map_entry(
             "knockback": { "max_speed": 15.0, "up_speed": 7.0, "deceleration": 35.0 }
         },
         "portals": portals,
+        "player_fall": { "safe_distance": 8.0, "lethal_distance": 15.0 },
         "barrier_kinds": [],
         "bridge_kinds": [],
         "random_items": null,
@@ -216,6 +222,54 @@ fn parse_map_entry(
 #[test]
 fn validate_maps_accepts_single_valid_entry() {
     validate_test_maps(&one_map("hotel"), "hotel").expect("valid map registry should pass");
+}
+
+#[test]
+fn map_fall_thresholds_are_required_and_validated_with_their_source() {
+    let source: serde_json::Value =
+        serde_json::from_str(include_str!("../../../config/server/maps/hotel/settings.json"))
+            .expect("map settings JSON is invalid");
+    let mut missing = source.clone();
+    missing
+        .as_object_mut()
+        .expect("map settings is not an object")
+        .remove("player_fall");
+    assert!(serde_json::from_value::<MapServerConfig>(missing).is_err());
+    for invalid in [
+        serde_json::json!({}),
+        serde_json::json!({"safe_distance": 4}),
+        serde_json::json!({"lethal_distance": 12}),
+        serde_json::json!({"safe_distance": true, "lethal_distance": 12}),
+        serde_json::json!({"safe_distance": 4, "lethal_distance": "12"}),
+    ] {
+        let mut entry = source.clone();
+        entry["player_fall"] = invalid;
+        assert!(serde_json::from_value::<MapServerConfig>(entry).is_err());
+    }
+    for (safe, lethal, field) in [
+        (-1.0, 12.0, "safe_distance"),
+        (4.0, -1.0, "lethal_distance"),
+        (0.0, 0.0, "safe_distance"),
+        (12.0, 12.0, "safe_distance"),
+        (13.0, 12.0, "safe_distance"),
+        (f32::NAN, 12.0, "safe_distance"),
+        (4.0, f32::INFINITY, "lethal_distance"),
+    ] {
+        let mut maps = one_map("example");
+        maps.get_mut("example").expect("map missing").player_fall = FallDamageConfig {
+            safe_distance: safe,
+            lethal_distance: lethal,
+        };
+        let error = validate_test_maps(&maps, "example").expect_err("invalid fall thresholds accepted");
+        assert!(
+            error
+                .to_string()
+                .contains(&format!("maps/example/settings.json: player_fall.{field}"))
+        );
+    }
+    let mut maps = one_map("example");
+    maps.get_mut("example").expect("map missing").player_fall.safe_distance = 0.0;
+    validate_test_maps(&maps, "example").expect("zero safe distance rejected");
 }
 
 #[test]

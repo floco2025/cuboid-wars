@@ -139,7 +139,6 @@
       }
     },
     "damage": {
-      "player_fall": { "safe_distance": 8.0, "lethal_distance": 15.0 },
       "projectile": 60.0,
       "missile_blast": { "radius": 6.0, "max_damage": 600.0 },
       "player_blast": { "radius": 10.0, "max_damage": 250.0 },

@@ -1,6 +1,7 @@
 mod actors;
 mod combat;
 mod cycles;
+mod falling;
 mod feed;
 mod gameplay;
 mod items;
@@ -21,10 +22,10 @@ pub use actors::{
     ContactAttackConfig, ContactBeamAttackConfig,
 };
 pub use combat::{
-    ActorDamageConfig, ActorHealthConfig, BlastConfig, CombatConfig, DamageConfig, FallDamageConfig, HealthConfig,
-    PlayerHealthConfig,
+    ActorDamageConfig, ActorHealthConfig, BlastConfig, CombatConfig, DamageConfig, HealthConfig, PlayerHealthConfig,
 };
 pub use cycles::{CyclesConfig, LightingCycleConfig, WeatherCycleConfig};
+pub use falling::FallDamageConfig;
 pub use feed::FeedConfig;
 pub use gameplay::{PlayerServerConfig, ServerGameplayConfig};
 pub use items::{PlacedItemRespawnSecs, PlacedItemsConfig, PowerUpDurationSecs, PowerUpsConfig};

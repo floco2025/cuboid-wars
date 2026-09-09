@@ -95,6 +95,10 @@ fn server_gameplay_config() -> ServerGameplayConfig {
                     bridge_kinds: Vec::new(),
                 },
                 random_items: None,
+                player_fall: FallDamageConfig {
+                    safe_distance: 4.0,
+                    lethal_distance: 12.0,
+                },
                 respawn: Default::default(),
                 power_ups: PowerUpsConfig {
                     duration_secs: PowerUpDurationSecs {
@@ -162,10 +166,6 @@ fn server_gameplay_config() -> ServerGameplayConfig {
                 actors: HashMap::new(),
             },
             damage: DamageConfig {
-                player_fall: FallDamageConfig {
-                    safe_distance: 4.0,
-                    lethal_distance: 12.0,
-                },
                 projectile: 25.0,
                 missile_blast: BlastConfig {
                     radius: 6.0,

@@ -3,7 +3,7 @@ import unittest
 
 from editor_fixtures import WindowTestCase, floor
 from map_editor.floor_footprints import FloorFootprints, corner_filler_skips
-from map_editor.jump_reach import ANTI_GRAVITY, BOTH, NORMAL, SPEED, JumpSettings, calculate_reach
+from map_editor.jump_reach import ANTI_GRAVITY, BOTH, NORMAL, SPEED, FallSettings, JumpSettings, calculate_reach
 from map_editor.normalization import empty_level, empty_map
 
 
@@ -76,32 +76,32 @@ class FloorFootprintTests(unittest.TestCase):
         data["levels"][0]["floors"] = [floor(c, r) for c, r in ((5, 4), (6, 4), (5, 5), (6, 5), (5, 6), (6, 6), (9, 7), (10, 7))]
         footprints = FloorFootprints(data, 4, 0.4)
         self.assertAlmostEqual(footprints.distance((0, 6, 5), (0, 9, 7)), 8.4970583145)
-        settings = JumpSettings(4, 2.4, 12, 5, 5, 1.818, 24, 13.2, 0.4)
+        settings = JumpSettings(4, 2.4, 12, 5, 5, 1.818, 24, 13.2, 0.4, FallSettings(8, 15, 100))
         reach = calculate_reach(settings, (0, 6, 5), data, running=True, margin=0.1)
-        self.assertEqual(reach[0, 9, 7], ANTI_GRAVITY | BOTH)
+        self.assertEqual(sum(reach[0, 9, 7]), ANTI_GRAVITY | BOTH)
         reach = calculate_reach(settings, (0, 6, 5), data, running=True, margin=0.05)
-        self.assertEqual(reach[0, 9, 7], SPEED | ANTI_GRAVITY | BOTH)
+        self.assertEqual(sum(reach[0, 9, 7]), SPEED | ANTI_GRAVITY | BOTH)
 
     def test_range_search_includes_expansion_past_the_grid_distance_bound(self):
-        settings = JumpSettings(1, 1, 1, 1, 1, 1, 2, 2, 0.4)
+        settings = JumpSettings(1, 1, 1, 1, 1, 1, 2, 2, 0.4, FallSettings(8, 15, 100))
         reach = calculate_reach(settings, (0, 0, 0), self.data(), running=True, margin=0.2)
-        self.assertTrue(reach[0, 2, 0] & NORMAL)
+        self.assertIn(NORMAL, reach[0, 2, 0])
 
 
 class FloorFootprintWindowTests(WindowTestCase):
     def test_floor_changes_recalculate_without_losing_origin_and_undo_restores_results(self):
         window = self.window
         overlay = window.jump_reach
-        overlay.settings = JumpSettings(4, 2.4, 12, 5, 5, 1.818, 24, 13.2, 0.4)
+        overlay.settings = JumpSettings(4, 2.4, 12, 5, 5, 1.818, 24, 13.2, 0.4, FallSettings(8, 15, 100))
         window.doc.replace_with_new(empty_map(8, 8))
         overlay.select(2, 2)
         overlay.margin.setValue(0.07)
         initial = dict(overlay.results)
-        self.assertTrue(initial[0, 5, 4] & SPEED)
+        self.assertIn(SPEED, initial[0, 5, 4])
         window.add_floor_rect((2, 3), (2, 3))
         self.assertEqual(overlay.origin, (0, 2, 2))
-        self.assertFalse(overlay.results.get((0, 5, 4), 0) & SPEED)
+        self.assertNotIn(SPEED, overlay.results.get((0, 5, 4), {}))
         window.undo_stack.undo()
         self.assertEqual(overlay.results, initial)
         window.undo_stack.redo()
-        self.assertFalse(overlay.results.get((0, 5, 4), 0) & SPEED)
+        self.assertNotIn(SPEED, overlay.results.get((0, 5, 4), {}))

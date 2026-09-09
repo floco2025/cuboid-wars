@@ -4,7 +4,7 @@ use super::{Invincibility, PlayerMap};
 use crate::{
     characters::{generate_player_spawn_position, spawn_face_yaw},
     combat::{DeathSource, PendingExplosions, kill_player},
-    config::ServerGameplayConfig,
+    config::{FallDamageConfig, ServerGameplayConfig},
     map::MapConfig,
     network::ServerToClient,
 };
@@ -171,6 +171,7 @@ pub fn players_fall_death_system(
 // near-zero damage just past `safe_distance` due to float / tick
 // noise; without this gate the client would get a wiggle for every tiny
 // step off a curb.
+// Keep this cutoff in sync with tools/map_editor/jump_reach.py.
 const FALL_DAMAGE_EMIT_THRESHOLD: f32 = 1.0;
 
 // Apply impact damage on landing from a fall. The highest Y of the current
@@ -198,10 +199,10 @@ pub fn players_fall_damage_system(
     server_gameplay_config: Res<ServerGameplayConfig>,
     invincibility: Res<Invincibility>,
     map_settings: Res<MapSettings>,
+    fall: Res<FallDamageConfig>,
     mut player_query: Query<(Entity, &PlayerId, &Position, &mut Health), With<PlayerMarker>>,
 ) {
     let invincible = invincibility.0;
-    let fall = server_gameplay_config.combat.damage.player_fall;
     let max_health = server_gameplay_config.combat.health.player.max;
     let respawn_secs = server_gameplay_config.player.respawn_secs;
 
@@ -278,12 +279,14 @@ struct FallImpact {
 // Fall distance that damage is charged for: the actual drop, scaled by the
 // gravity it fell under relative to the map's normal gravity. See the
 // `players_fall_damage_system` header for the why.
+// Keep gravity scaling in sync with tools/map_editor/jump_reach.py::FallSettings.damage_fraction.
 fn effective_fall_distance(drop: f32, fall_gravity: f32, normal_gravity: f32) -> f32 {
     drop * (fall_gravity / normal_gravity)
 }
 
 // Lerp damage between `safe_distance` (0 dmg) and `lethal_distance`
 // (full health), clamping the falloff beyond the lethal endpoint.
+// Keep this curve in sync with tools/map_editor/jump_reach.py::FallSettings.damage_fraction.
 fn fall_damage_for_distance(distance: f32, safe: f32, lethal: f32, max_health: f32) -> f32 {
     let t = ((distance - safe) / (lethal - safe)).clamp(0.0, 1.0);
     t * max_health
@@ -292,8 +295,11 @@ fn fall_damage_for_distance(distance: f32, safe: f32, lethal: f32, max_health: f
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{players::PlayerInfo, test_geometry::geometry};
-    use common::protocol::{BarrierKindTable, MapLayout};
+    use crate::{
+        players::{PlayerInfo, PowerUpState},
+        test_geometry::geometry,
+    };
+    use common::protocol::{BarrierKindTable, MapLayout, PowerUpKind};
     use tokio::sync::mpsc::unbounded_channel;
 
     // Matches the shipping map's normal-gravity setting.
@@ -433,6 +439,84 @@ mod tests {
     fn fall_damage_zero_at_safe_distance() {
         assert_eq!(fall_damage_for_distance(4.0, 4.0, 12.0, 100.0), 0.0);
         assert_eq!(fall_damage_for_distance(3.0, 4.0, 12.0, 100.0), 0.0);
+    }
+
+    #[test]
+    fn landing_damage_uses_the_selected_maps_thresholds_and_gravity() {
+        for (safe, lethal, drop, low_gravity, max_health, initial_health, expected_health) in [
+            (12.0, 16.0, 12.0, false, 100.0, 100.0, 100.0),
+            (8.0, 16.0, 12.0, false, 100.0, 100.0, 50.0),
+            (4.0, 12.0, 12.0, false, 100.0, 100.0, 0.0),
+            (4.0, 12.0, 20.0, false, 100.0, 100.0, 0.0),
+            (4.0, 12.0, 12.0, true, 100.0, 100.0, 75.0),
+            (4.0, 12.0, 8.0, true, 100.0, 100.0, 100.0),
+            (4.0, 12.0, 8.0, false, 100.0, 40.0, 0.0),
+            (4.0, 12.0, 4.0625, false, 100.0, 100.0, 100.0),
+            (4.0, 12.0, 4.0625, false, 1000.0, 1000.0, 992.1875),
+            (0.0, 8.0, 1.0, false, 8.0, 8.0, 7.0),
+            (0.0, 8.0, 100.0, false, 0.5, 0.5, 0.5),
+        ] {
+            let mut server = ServerGameplayConfig::load_default().expect("server gameplay config missing");
+            server.combat.health.player.max = max_health;
+            let mut settings = server.maps["hotel"].settings.clone();
+            settings.movement.gravity = 2.0;
+            settings.movement.low_gravity = 1.0;
+            let mut app = App::new();
+            app.add_plugins(MinimalPlugins)
+                .insert_resource(server)
+                .insert_resource(settings)
+                .insert_resource(FallDamageConfig {
+                    safe_distance: safe,
+                    lethal_distance: lethal,
+                })
+                .insert_resource(PlayerMap::default())
+                .insert_resource(Invincibility(false))
+                .insert_resource(PendingExplosions::default())
+                .add_systems(Update, players_fall_damage_system);
+            let id = PlayerId(1);
+            let entity = app
+                .world_mut()
+                .spawn((PlayerMarker, id, Position::default(), Health(initial_health)))
+                .id();
+            let (sender, mut receiver) = unbounded_channel();
+            let mut info = PlayerInfo::new(entity, sender);
+            info.connection.logged_in = true;
+            info.life.fall_state = PlayerFallState {
+                support: CharacterSupport::Ground,
+                peak_y: drop,
+                crushed: false,
+            };
+            if low_gravity {
+                info.life.power_ups[PowerUpKind::LowGravity.index()] = PowerUpState::Permanent;
+            }
+            app.world_mut().resource_mut::<PlayerMap>().insert(id, info);
+
+            app.update();
+
+            let dead = app
+                .world()
+                .resource::<PlayerMap>()
+                .get(&id)
+                .expect("player missing")
+                .is_dead();
+            assert_eq!(dead, expected_health == 0.0);
+            if !dead {
+                assert_eq!(
+                    app.world().get::<Health>(entity).expect("player health missing").0,
+                    expected_health
+                );
+            }
+            let mut impact_health = None;
+            while let Ok(message) = receiver.try_recv() {
+                if let ServerToClient::Send(ServerMessage::PlayerFallDamage(impact)) = message {
+                    impact_health = Some(impact.health.0);
+                }
+            }
+            assert_eq!(
+                impact_health,
+                (expected_health < initial_health).then_some(expected_health)
+            );
+        }
     }
 
     #[test]

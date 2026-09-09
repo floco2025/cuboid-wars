@@ -2,10 +2,6 @@
 
 ## Enhancements
 
-- **Shipped layouts re-save differently:** 8 of the 13 `layout.json` files do not round-trip byte-identically through the editor's formatter, so the first editor save reformats them. Re-save each once from the editor.
-
-- **Painted wear bake is not reproducible:** the bruiser's painted atlases differ in a few percent of pixels between identical rebuilds. Seed the noise textures in `modelkit/wear.py` so a rebuild is byte-identical.
-
 - **Grounding inspection after a blocked step:** the per-frame refresh now only fills characters that lack the diagnostics, so a body blocked by another character draws its probe from the motor's proposed position until the next tick.
 
 - **Rapier upgrades:** Recheck the capsule floor-motion regression before removing the contact-normal adapter in `common/src/physics/world/character_queries.rs`. It works around imprecise cast normals feeding Rapier 0.32’s slope decomposition.
@@ -22,7 +18,4 @@
 
 ## Testing
 
-- **Playtest Jump Reach:** Compare the editor's expanded-floor estimates with jumps near the range boundary, with each power-up combination, and tune the 0.100 s takeoff margin for edge judgement and input timing. The user handles in-game testing.
-- **Playtest Switchyard:** Check the customs portal route and raised seal balcony, moving bridge switch, and ladder shuttle solo and with teammates. The user handles in-game testing.
 - **Sliding-carrier pushing:** Let the moving cabin's wall push you while standing still, walking against it, and stepping sideways out of its path. Confirm open space is safe, being pinned against another wall still crushes, and boarding moving platforms remains safe. Crushed actors should play their normal explosion animation and sound.
-- **Playtest and refine Relay:** The prototype is playable. The user handles in-game testing; refine the puzzles based on their feedback.

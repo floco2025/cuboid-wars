@@ -10,6 +10,36 @@ ANTI_GRAVITY = 4
 BOTH = 8
 
 
+# Keep the cutoff and damage calculation in sync with server/src/players/falling.rs.
+FALL_DAMAGE_EMIT_THRESHOLD = 1.0
+
+
+@dataclass(frozen=True)
+class FallSettings:
+    safe_distance: float
+    lethal_distance: float
+    max_health: float
+
+    def damage_fraction(self, drop: float, gravity: float, normal_gravity: float) -> float:
+        distance = drop * (gravity / normal_gravity)
+        fraction = min(1.0, max(0.0, (distance - self.safe_distance) / (self.lethal_distance - self.safe_distance)))
+        return fraction if fraction * self.max_health >= FALL_DAMAGE_EMIT_THRESHOLD else 0.0
+
+
+def _number(settings: dict, source: str, path: str, *, allow_zero: bool = False) -> float:
+    value = settings
+    for key in path.split("."):
+        value = value.get(key) if isinstance(value, dict) else None
+    if (
+        type(value) not in (int, float)
+        or not isfinite(value)
+        or (value < 0 if allow_zero else value <= 0)
+    ):
+        requirement = "nonnegative" if allow_zero else "positive"
+        raise ValueError(f"{source}: {path} must be a finite {requirement} number")
+    return float(value)
+
+
 @dataclass(frozen=True)
 class JumpSettings:
     cell_size: float
@@ -21,22 +51,20 @@ class JumpSettings:
     gravity: float
     low_gravity: float
     wall_thickness: float
+    fall: FallSettings
 
     @classmethod
-    def from_settings(cls, settings: dict, source: str) -> "JumpSettings":
+    def from_settings(cls, settings: dict, source: str, *, gameplay: dict, gameplay_source: str) -> "JumpSettings":
         def number(path: str, *, allow_zero: bool = False) -> float:
-            value = settings
-            for key in path.split("."):
-                value = value.get(key) if isinstance(value, dict) else None
-            if (
-                type(value) not in (int, float)
-                or not isfinite(value)
-                or (value < 0 if allow_zero else value <= 0)
-            ):
-                requirement = "nonnegative" if allow_zero else "positive"
-                raise ValueError(f"{source}: {path} must be a finite {requirement} number")
-            return float(value)
+            return _number(settings, source, path, allow_zero=allow_zero)
 
+        fall = FallSettings(
+            number("player_fall.safe_distance", allow_zero=True),
+            number("player_fall.lethal_distance"),
+            _number(gameplay, gameplay_source, "combat.health.player.max"),
+        )
+        if fall.safe_distance >= fall.lethal_distance:
+            raise ValueError(f"{source}: player_fall.safe_distance must be < player_fall.lethal_distance")
         return cls(
             number("geometry.grid_cell_size"),
             number("geometry.level_height"),
@@ -47,6 +75,7 @@ class JumpSettings:
             number("movement.gravity"),
             number("movement.low_gravity", allow_zero=True),
             number("geometry.wall_thickness"),
+            fall,
         )
 
     def speed(self, running: bool) -> float:
@@ -69,7 +98,7 @@ def calculate_reach(
     *,
     running: bool,
     margin: float,
-) -> dict[tuple[int, int, int], int]:
+) -> dict[tuple[int, int, int], dict[int, float]]:
     if not isfinite(margin) or margin < 0:
         raise ValueError("Takeoff margin must be finite and nonnegative")
     source_level, source_col, source_row = origin
@@ -89,16 +118,18 @@ def calculate_reach(
         for bit, velocity, gravity in scenarios:
             time = landing_time(settings.jump_speed, gravity, height)
             if time is not None and time >= margin:
-                ranges.append((bit, velocity * (time - margin)))
+                drop = max(0.0, settings.jump_speed * settings.jump_speed / (2 * gravity) - height)
+                damage = settings.fall.damage_fraction(drop, gravity, settings.gravity)
+                ranges.append((bit, velocity * (time - margin), damage))
         if not ranges:
             continue
-        radius = ceil((max(distance for _, distance in ranges) + settings.wall_thickness) / settings.cell_size) + 1
+        radius = ceil((max(distance for _, distance, _ in ranges) + settings.wall_thickness) / settings.cell_size) + 1
         for row in range(max(0, source_row - radius), min(rows, source_row + radius + 1)):
             for col in range(max(0, source_col - radius), min(cols, source_col + radius + 1)):
                 if (level, col, row) == origin:
                     continue
                 gap = footprints.distance(origin, (level, col, row))
-                mask = sum(bit for bit, distance in ranges if gap <= distance + 1e-9)
-                if mask:
-                    result[level, col, row] = mask
+                landings = {bit: damage for bit, distance, damage in ranges if gap <= distance + 1e-9}
+                if landings:
+                    result[level, col, row] = landings
     return result

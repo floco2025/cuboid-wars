@@ -96,6 +96,7 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
     app.insert_resource(map_layout)
         .insert_resource(map_items)
         .insert_resource(map_settings)
+        .insert_resource(map_server_config.player_fall)
         .insert_resource(world_bootstrap)
         .insert_resource(weather_state)
         .insert_resource(light_state)

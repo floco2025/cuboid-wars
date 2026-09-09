@@ -10,18 +10,20 @@ from PySide6.QtTest import QTest
 from editor_fixtures import WindowTestCase
 from map_editor.catalogs import load_map_settings
 from map_editor.constants import MODE_FLOOR, MODE_FLOOR_MATERIAL, MODE_JUMP_REACH, MODE_SELECT
-from map_editor.jump_reach import ANTI_GRAVITY, BOTH, NORMAL, SPEED, JumpSettings, calculate_reach, landing_time
+from map_editor.jump_reach import ANTI_GRAVITY, BOTH, NORMAL, SPEED, FallSettings, JumpSettings, calculate_reach, landing_time
 from map_editor.normalization import empty_level, empty_map
 from map_editor.transforms import insert_level_data, resize_map_data
 
 
 class JumpReachTests(unittest.TestCase):
-    settings = JumpSettings(1, 1, 2, 0.5, 1, 2, 2, 1, 0)
+    settings = JumpSettings(1, 1, 2, 0.5, 1, 2, 2, 1, 0, FallSettings(8, 15, 100))
 
     def reach(self, *, margin=0, running=True, settings=None, origin=(1, 5, 5)):
         data = empty_map(20, 20)
         data["levels"] = [empty_level(i) for i in range(5)]
-        return calculate_reach(settings or self.settings, origin, data, running=running, margin=margin)
+        return {key: sum(landings) for key, landings in calculate_reach(
+            settings or self.settings, origin, data, running=running, margin=margin,
+        ).items()}
 
     def test_four_combinations_have_independent_ranges(self):
         reach = self.reach()
@@ -72,25 +74,32 @@ class JumpReachTests(unittest.TestCase):
         self.assertNotIn((0, 0, 0), reach)
         self.assertTrue(all(0 <= level < 5 and 0 <= col < 20 and 0 <= row < 20 for level, col, row in reach))
 
+    def parse_settings(self, settings):
+        return JumpSettings.from_settings(
+            settings, "settings.json", gameplay={"combat": {"health": {"player": {"max": 100}}}},
+            gameplay_source="gameplay.json",
+        )
+
     def test_invalid_fields_name_the_source_and_field(self):
         settings = {
+            "player_fall": {"safe_distance": 8, "lethal_distance": 15},
             "geometry": {"grid_cell_size": 1, "level_height": 1, "wall_thickness": 0.2},
             "movement": {"gravity": 2, "low_gravity": 1, "player": {
                 "jump_speed": 2, "walk_speed": 0.5, "run_speed": 1, "speed_power_up": 2,
             }},
         }
-        self.assertEqual(JumpSettings.from_settings(settings, "settings.json"), replace(self.settings, wall_thickness=0.2))
+        self.assertEqual(self.parse_settings(settings), replace(self.settings, wall_thickness=0.2))
         for value in (None, True, "1", 0, -1, float("nan"), float("inf")):
             with self.subTest(value=value):
                 invalid = copy.deepcopy(settings)
                 invalid["movement"]["player"]["run_speed"] = value
                 with self.assertRaisesRegex(ValueError, r"settings.json: movement.player.run_speed"):
-                    JumpSettings.from_settings(invalid, "settings.json")
+                    self.parse_settings(invalid)
         settings["movement"]["low_gravity"] = 0
-        self.assertEqual(JumpSettings.from_settings(settings, "settings.json").low_gravity, 0)
+        self.assertEqual(self.parse_settings(settings).low_gravity, 0)
         settings["movement"]["player"] = None
         with self.assertRaisesRegex(ValueError, "movement.player.jump_speed"):
-            JumpSettings.from_settings(settings, "settings.json")
+            self.parse_settings(settings)
 
     def test_invalid_margin_is_rejected(self):
         for margin in (-0.1, float("nan"), float("inf")):
@@ -137,6 +146,7 @@ class JumpReachWindowTests(WindowTestCase):
         self.assertEqual(overlay.origin, (0, 2, 2))
         self.assertIs(overlay.results, results)
         self.assertTrue(overlay.toolbar.isVisible())
+        self.assertFalse(overlay.controls.isVisible())
         self.assertTrue(overlay.clear_button.isVisible())
         self.assertTrue(any(level == 1 for level, _, _ in results))
         overlay.clear_action.trigger()
@@ -147,6 +157,8 @@ class JumpReachWindowTests(WindowTestCase):
     def test_margin_precision_distance_display_and_movement_recompute(self):
         self.select_origin()
         overlay = self.window.jump_reach
+        self.assertTrue(overlay.controls.isVisible())
+        self.assertIs(overlay.controls.parentWidget(), self.window.mode_combo.parentWidget())
         results = overlay.results
         overlay.margin.setValue(0.123)
         self.assertAlmostEqual(overlay.margin.value(), 0.123)
@@ -156,7 +168,11 @@ class JumpReachWindowTests(WindowTestCase):
         overlay.movement.setCurrentText("Walk")
         self.assertEqual(overlay.distance.text(), "0.80 m normal / 1.20 m speed")
         self.window.mode_combo.setCurrentText(MODE_SELECT)
+        self.app.processEvents()
+        self.assertFalse(overlay.controls.isVisible())
         self.window.mode_combo.setCurrentText(MODE_JUMP_REACH)
+        self.app.processEvents()
+        self.assertTrue(overlay.controls.isVisible())
         self.assertAlmostEqual(overlay.margin.value(), 0.133)
         self.assertEqual(overlay.movement.currentText(), "Walk")
 
@@ -200,7 +216,7 @@ class JumpReachWindowTests(WindowTestCase):
         settings["movement"]["player"]["run_speed"] = 0.1
         with patch("map_editor.jump_reach_overlay.load_map_settings", return_value=settings):
             self.window.reload_dependencies()
-        self.assertFalse(overlay.results.get((0, 5, 2), 0) & NORMAL)
+        self.assertNotIn(NORMAL, overlay.results.get((0, 5, 2), {}))
         settings["movement"]["player"]["run_speed"] = None
         with patch("map_editor.jump_reach_overlay.load_map_settings", return_value=settings):
             self.window.reload_dependencies()
@@ -214,7 +230,7 @@ class JumpReachWindowTests(WindowTestCase):
         self.select_origin()
         overlay = self.window.jump_reach
         self.assertEqual(overlay.hover_text(2, 2), "Jump Reach origin")
-        self.assertEqual(overlay.hover_text(3, 2), "Jump Reach: Normal, Speed, Anti-gravity, Both")
+        self.assertEqual(overlay.hover_text(3, 2), "Jump Reach:\n● Normal\n● Speed\n● Anti-gravity\n● Both")
         self.window.mode_combo.setCurrentText(MODE_FLOOR_MATERIAL)
         canvas = self.window.canvas
         canvas._update_material_hover(QPointF(1.5 * canvas.cell_size(), 1.5 * canvas.cell_size()))

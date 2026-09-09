@@ -11,8 +11,6 @@ use super::{
     },
 };
 
-// Every health and damage number in the game, consolidated for balancing:
-// how much everything can take, how hard everything hits.
 #[derive(Debug, Clone, Deserialize)]
 pub struct CombatConfig {
     pub health: HealthConfig,
@@ -88,8 +86,6 @@ impl ActorHealthConfig {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct DamageConfig {
-    // Players only — actors never take fall damage.
-    pub player_fall: FallDamageConfig,
     // One raw number per hit; players and actors take it alike.
     pub projectile: f32,
     pub missile_blast: BlastConfig,
@@ -108,7 +104,6 @@ impl DamageConfig {
     }
 
     fn validate(&self, actors: &HashMap<String, ActorKindServerConfig>) -> Result<()> {
-        self.player_fall.validate("combat.damage.player_fall")?;
         validate_non_negative_finite(self.projectile, "combat.damage.projectile")?;
         self.missile_blast.validate("combat.damage.missile_blast")?;
         self.player_blast.validate("combat.damage.player_blast")?;
@@ -140,31 +135,6 @@ pub struct ActorDamageConfig {
     #[serde(deserialize_with = "deserialize_required_option")]
     pub beam_dps: Option<f32>,
     pub death_blast: BlastConfig,
-}
-
-#[derive(Debug, Clone, Copy, Deserialize)]
-pub struct FallDamageConfig {
-    // Below this fall distance (meters), landing does no damage.
-    pub safe_distance: f32,
-    // At this fall distance, landing deals `max_health` damage (lethal).
-    // Damage lerps linearly between the two endpoints and clamps past
-    // `lethal_distance`.
-    pub lethal_distance: f32,
-}
-
-impl FallDamageConfig {
-    fn validate(&self, path: &str) -> Result<()> {
-        validate_non_negative_finite(self.safe_distance, &format!("{path}.safe_distance"))?;
-        validate_non_negative_finite(self.lethal_distance, &format!("{path}.lethal_distance"))?;
-        if self.safe_distance >= self.lethal_distance {
-            bail!(
-                "{path}.safe_distance ({}) must be < lethal_distance ({})",
-                self.safe_distance,
-                self.lethal_distance
-            );
-        }
-        Ok(())
-    }
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
