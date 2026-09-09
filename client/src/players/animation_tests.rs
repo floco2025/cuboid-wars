@@ -6,7 +6,7 @@ use bevy::{
 };
 use common::{
     physics::{CharacterMovementResult, CharacterSupport},
-    protocol::{PlayerId, PlayerMoveIntent, Position},
+    protocol::{MapSettings, PlayerId, PlayerMoveIntent, Position},
 };
 
 use super::{
@@ -19,8 +19,9 @@ use super::{
 use crate::{
     characters::load_character_model,
     config::ModelDef,
-    constants::{LADDER_RUNG_SPACING, PLAYER_ANIMATION_CLIMB_RUNGS_PER_CYCLE},
+    constants::{LADDER_RUNG_SPACING, PLAYER_ANIMATION_CLIMB_RUNGS_PER_CYCLE, PLAYER_ANIMATION_RUN_SPEED},
     test_assets::{headless_asset_app, settle},
+    test_fixtures::map_settings,
 };
 
 fn choose(
@@ -32,7 +33,7 @@ fn choose(
 ) -> (PlayerClip, f32) {
     let result = state.select(
         PlayerAnimationMotion { support, velocity },
-        intent,
+        intent.is_running(),
         velocity,
         false,
         finished,
@@ -211,7 +212,7 @@ fn walking_off_an_edge_falls_and_airborne_motion_takes_priority_over_stun() {
                 support,
                 velocity: Vec3::Y * velocity,
             },
-            PlayerMoveIntent::Idle,
+            true,
             Vec3::Y * velocity,
             true,
             false,
@@ -253,9 +254,10 @@ fn carrier_motion_and_reconciliation_do_not_drive_footsteps() {
 }
 
 #[test]
-fn playback_switches_clips_without_restarting_each_frame() {
+fn playback_follows_map_speeds_without_restarting_each_frame() {
     let mut app = App::new();
     app.insert_resource(Time::<()>::default());
+    app.insert_resource(map_settings());
     app.init_resource::<PlayerMap>();
     app.init_resource::<Assets<AnimationClip>>();
     app.add_systems(Update, player_animation_update_system);
@@ -302,6 +304,64 @@ fn playback_switches_clips_without_restarting_each_frame() {
         .get::<AnimationPlayer>(rig)
         .expect("rig animation player missing");
     assert_eq!(player.animation(walk).expect("walk animation missing").seek_time(), 0.3);
+    for (run_speed, intent, velocity, expected) in [
+        (
+            4.0,
+            PlayerMoveIntent::Walking { direction: 0.0 },
+            Vec3::Z * 3.0,
+            PlayerClip::Run,
+        ),
+        (
+            7.0,
+            PlayerMoveIntent::Walking { direction: 0.0 },
+            Vec3::Z * 3.0,
+            PlayerClip::Walk,
+        ),
+        (
+            7.0,
+            PlayerMoveIntent::Running { direction: 0.0 },
+            Vec3::Z * 3.0,
+            PlayerClip::Run,
+        ),
+        (
+            4.0,
+            PlayerMoveIntent::Walking { direction: PI },
+            -Vec3::Z * 3.0,
+            PlayerClip::Run,
+        ),
+        (
+            4.0,
+            PlayerMoveIntent::Walking { direction: FRAC_PI_2 },
+            Vec3::X * 3.0,
+            PlayerClip::StrafeLeft,
+        ),
+        (4.0, PlayerMoveIntent::Idle, Vec3::ZERO, PlayerClip::Idle),
+    ] {
+        app.world_mut().resource_mut::<MapSettings>().movement.player.run_speed = run_speed;
+        app.world_mut().entity_mut(owner).insert((
+            intent,
+            PlayerAnimationMotion {
+                support: CharacterSupport::Ground,
+                velocity,
+            },
+        ));
+        app.update();
+        let playback = app
+            .world()
+            .get::<PlayerAnimationPlayback>(rig)
+            .expect("rig playback missing");
+        assert_eq!(playback.state.clip, expected);
+        if expected == PlayerClip::Run {
+            let active = app
+                .world()
+                .get::<AnimationPlayer>(rig)
+                .expect("rig animation player missing")
+                .animation(playback.source.clips[PlayerClip::Run as usize])
+                .expect("run animation missing");
+            let rate = (3.0 / PLAYER_ANIMATION_RUN_SPEED).clamp(0.4, 2.5);
+            assert_eq!(active.speed(), if velocity.z < 0.0 { -rate } else { rate });
+        }
+    }
     app.world_mut()
         .get_mut::<PlayerAnimationMotion>(owner)
         .expect("player animation motion missing")
@@ -400,6 +460,7 @@ fn selected_clip_targets(app: &mut App) -> Vec<AnimationTargetId> {
 fn selected_clips_animate_the_exported_skeleton_and_climb_follows_ladder_speed() {
     let mut app = headless_asset_app(|app| {
         app.init_resource::<PlayerMap>();
+        app.insert_resource(map_settings());
         app.add_systems(Update, player_animation_update_system);
     });
 

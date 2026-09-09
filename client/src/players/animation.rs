@@ -3,7 +3,7 @@ use std::time::Duration;
 use bevy::{gltf::Gltf, prelude::*, world_serialization::WorldInstanceReady};
 use common::{
     physics::{CharacterMovementResult, CharacterSupport},
-    protocol::{PlayerId, PlayerMoveIntent, Position},
+    protocol::{MapSettings, PlayerId, PlayerMoveIntent, Position},
 };
 
 use super::PlayerMap;
@@ -148,7 +148,7 @@ impl AnimationState {
     pub(super) fn select(
         &mut self,
         motion: PlayerAnimationMotion,
-        intent: PlayerMoveIntent,
+        running: bool,
         local_velocity: Vec3,
         stunned: bool,
         finished: bool,
@@ -191,7 +191,7 @@ impl AnimationState {
                 (speed / PLAYER_ANIMATION_WALK_SPEED).clamp(0.4, 2.5),
             );
         }
-        let (clip, reference_speed) = if intent.is_running() {
+        let (clip, reference_speed) = if running {
             (PlayerClip::Run, PLAYER_ANIMATION_RUN_SPEED)
         } else {
             (PlayerClip::Walk, PLAYER_ANIMATION_WALK_SPEED)
@@ -246,6 +246,7 @@ pub(crate) fn player_animation_setup_system(
 pub(crate) fn player_animation_update_system(
     time: Res<Time>,
     players: Res<PlayerMap>,
+    settings: Res<MapSettings>,
     clips: Res<Assets<AnimationClip>>,
     owners: Query<(&PlayerId, &PlayerAnimationMotion, &PlayerMoveIntent, &Transform)>,
     mut animations: Query<(
@@ -254,6 +255,9 @@ pub(crate) fn player_animation_update_system(
         &mut AnimationTransitions,
     )>,
 ) {
+    let movement = &settings.movement.player;
+    // Equal configured speeds mean the map always uses running locomotion.
+    let always_running = movement.walk_speed == movement.run_speed;
     for (mut playback, mut player, mut transitions) in &mut animations {
         let Ok((id, motion, intent, transform)) = owners.get(playback.source.owner) else {
             continue;
@@ -263,7 +267,7 @@ pub(crate) fn player_animation_update_system(
         let local_velocity = transform.rotation.inverse() * motion.velocity;
         let (clip, mut speed) = playback.state.select(
             *motion,
-            *intent,
+            intent.is_running() || always_running,
             local_velocity,
             players.get(id).is_some_and(|info| info.stunned),
             finished,
