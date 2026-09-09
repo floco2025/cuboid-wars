@@ -4,8 +4,6 @@
 
 - **Player animation test:** `bevy_loads_embedded_materials_and_animates_the_exported_skeleton` can lose its saved thigh entity or active climb animation between app updates (`thigh transform missing` / `active climb animation missing`). Check scene replacement during asynchronous asset loading; the exported GLB contains both thigh joints.
 
-- **Camera zoom after obstruction:** When an obstruction pushes the third-person camera inward, scrolling inward must start from its visible distance. Currently it first consumes the gap to the saved zoom distance without any visible change.
-
 - **Turret cooldown tests:** `closing_a_barrier_immediately_stops_a_turret` and `turret_holds_long_burst_and_stops_when_player_disconnects` assume a 0.1-second cooldown, while the shipped turret configuration uses 0.5 seconds. Make the fixtures independent of tuning.
 
 - **Ladder descent overlap:** `side_by_side_scuttlers_descend_without_jamming` fails its character-overlap assertion in `server/src/actors/movement/tests/ladder_traffic.rs`, including on the committed baseline. Check separation while two actors descend side by side.

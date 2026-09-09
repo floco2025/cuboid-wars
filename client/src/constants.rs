@@ -187,8 +187,11 @@ pub const HUD_SLOT_EMPTY_COLOR: Color = Color::srgba(1.0, 1.0, 1.0, 0.12);
 pub const CROSSHAIR_SIZE_PX: f32 = 30.0;
 pub const CROSSHAIR_THICKNESS_PX: f32 = 2.0;
 pub const CROSSHAIR_COLOR: Color = Color::srgba(1.0, 1.0, 1.0, 0.8);
+// Fraction of viewport height above the centre.
+pub const CROSSHAIR_THIRD_PERSON_HEIGHT: f32 = 0.20;
 // Lock-on tint: lit crosshair = a missile fired now will track this target.
 pub const CROSSHAIR_LOCK_COLOR: Color = Color::srgba(1.0, 0.25, 0.2, 0.9);
+
 // ============================================================================
 // Health Bars (colors; pixel dimensions live in
 // `client.json::hud.health_bars`)

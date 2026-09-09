@@ -2,7 +2,7 @@ use bevy::{ecs::system::EntityCommands, math::Rot2, prelude::*};
 
 use super::settings_menu::SettingsMenuState;
 use crate::{
-    cameras::CameraViewMode,
+    cameras::{CameraAim, CameraViewMode},
     constants::{
         CROSSHAIR_COLOR, CROSSHAIR_LOCK_COLOR, CROSSHAIR_SIZE_PX, CROSSHAIR_THICKNESS_PX, PORTAL_A_COLOR,
         PORTAL_B_COLOR,
@@ -20,6 +20,16 @@ const MISSILE_RETICLE_SIZE_PX: f32 = 34.0;
 
 #[derive(Component)]
 pub(crate) struct CrosshairMarker;
+
+pub(crate) fn ui_crosshair_position_system(aim: Res<CameraAim>, mut roots: Query<&mut Node, With<CrosshairMarker>>) {
+    let top = Val::Percent((0.5 - aim.crosshair_height_offset) * 100.0);
+    for mut node in &mut roots {
+        // Avoid triggering UI layout when the reticle has not moved.
+        if node.top != top {
+            node.top = top;
+        }
+    }
+}
 
 // The missile reticle's bars; only their color follows the lock.
 #[derive(Component)]

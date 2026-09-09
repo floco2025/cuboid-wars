@@ -1,6 +1,7 @@
 use super::{CameraAim, CameraViewMode, MainCameraMarker};
 use crate::{
     actors::ActorMap,
+    constants::CROSSHAIR_THIRD_PERSON_HEIGHT,
     players::{LocalPlayerMarker, MyPlayerId, PlayerMap},
 };
 use bevy::prelude::*;
@@ -16,7 +17,7 @@ const AIM_DISTANCE: f32 = 1000.0;
 pub fn camera_aim_system(
     mut aim: ResMut<CameraAim>,
     view: Res<CameraViewMode>,
-    camera: Query<&Transform, With<MainCameraMarker>>,
+    camera: Query<(&Transform, &Projection), With<MainCameraMarker>>,
     local_player: Query<(&Position, &FaceYaw), With<LocalPlayerMarker>>,
     characters: Query<(&Position, &FaceYaw)>,
     players: Res<PlayerMap>,
@@ -29,10 +30,15 @@ pub fn camera_aim_system(
     let Ok((position, face)) = local_player.single() else {
         return;
     };
-    let Ok(camera) = camera.single() else {
+    let Ok((camera, Projection::Perspective(projection))) = camera.single() else {
         return;
     };
     let eye = Vec3::new(position.x, position.y + config.player.eye_height(), position.z);
+    let crosshair_height_offset = if *view == CameraViewMode::ThirdPerson {
+        CROSSHAIR_THIRD_PERSON_HEIGHT
+    } else {
+        0.0
+    };
     let direction = if view.is_top_down() {
         direction_from_yaw_pitch(face.0, 0.0)
     } else if view.is_first_person() {
@@ -52,7 +58,7 @@ pub fn camera_aim_system(
         third_person_aim(
             &world,
             camera.translation,
-            *camera.forward(),
+            crosshair_direction(camera, projection, crosshair_height_offset),
             eye,
             &plates.open_barrier_kinds,
             candidates,
@@ -63,7 +69,13 @@ pub fn camera_aim_system(
         direction,
         yaw: direction.x.atan2(direction.z),
         pitch: direction.y.clamp(-1.0, 1.0).asin(),
+        crosshair_height_offset,
     };
+}
+
+fn crosshair_direction(camera: &Transform, projection: &PerspectiveProjection, height_offset: f32) -> Vec3 {
+    let rise = 2.0 * height_offset * (projection.fov * 0.5).tan();
+    (*camera.forward() + *camera.up() * rise).normalize()
 }
 
 fn third_person_aim(
@@ -90,10 +102,64 @@ fn third_person_aim(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bevy::camera::CameraProjection;
     use common::{
         config::{HitboxConfig, MovementColliderConfig},
         protocol::{BarrierKindTable, CarrierId, MapLayout, Wall},
     };
+
+    #[test]
+    fn raised_crosshair_ray_matches_projection_across_fovs_and_camera_rotations() {
+        for fov in [60.0_f32, 90.0, 110.0] {
+            let projection = PerspectiveProjection {
+                fov: fov.to_radians(),
+                aspect_ratio: 16.0 / 9.0,
+                ..default()
+            };
+            let camera = Transform::from_rotation(Quat::from_euler(EulerRot::YXZ, 0.4, -0.3, 0.1));
+            for offset in [0.0, 0.28, 0.4] {
+                let ray = crosshair_direction(&camera, &projection, offset);
+                let local_target = camera.rotation.inverse() * ray * 20.0;
+                let ndc = projection.get_clip_from_view().project_point3(local_target);
+                assert!(ndc.x.abs() < 1e-5);
+                assert!((ndc.y - offset * 2.0).abs() < 1e-5);
+            }
+        }
+    }
+
+    #[test]
+    fn raised_crosshair_and_shot_reach_the_same_wall_point() {
+        let world = CollisionWorld::from_map_layout(
+            &MapLayout {
+                walls: vec![Wall {
+                    x1: -10.0,
+                    z1: -20.0,
+                    x2: 10.0,
+                    z2: -20.0,
+                    width: 0.2,
+                    y: 0.0,
+                    height: 30.0,
+                    level: 0,
+                    carrier: CarrierId::WORLD,
+                }],
+                ..default()
+            },
+            &BarrierKindTable::default(),
+        );
+        let eye = Vec3::new(0.0, 1.7, 0.0);
+        let camera = Transform::from_xyz(0.5, 1.4, 4.0);
+        let ray = crosshair_direction(&camera, &PerspectiveProjection::default(), 0.15);
+        let target = world
+            .attack_surface_along_ray(camera.translation, ray, 100.0, &[])
+            .expect("crosshair ray missed wall");
+        let direction = third_person_aim(&world, camera.translation, ray, eye, &[], std::iter::empty());
+        let shot = world
+            .attack_surface_along_ray(eye, direction, 100.0, &[])
+            .expect("shot missed wall");
+        assert!(shot.point.distance(target.point) < 1e-4);
+        assert!(shot.point.y > eye.y + 1.0);
+    }
+
     #[test]
     fn shoulder_camera_converges_on_near_character() {
         let world = CollisionWorld::from_map_layout(&MapLayout::default(), &BarrierKindTable::default());

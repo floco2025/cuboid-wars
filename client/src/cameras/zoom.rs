@@ -2,6 +2,15 @@ use super::{CameraViewMode, FollowCamera};
 use crate::{config::FollowCameraConfig, constants::INPUT_ZOOM_SENSITIVITY_BASE};
 
 impl FollowCamera {
+    pub fn visible_distance(&self, config: FollowCameraConfig) -> f32 {
+        if self.previous_pivot.is_none() || self.distance <= 0.0 {
+            return self.distance;
+        }
+        // The collision arm includes the shoulder offset; zoom measures only its rearward component.
+        let arm = self.distance.hypot(config.shoulder_offset * self.pivot_blend());
+        self.distance.min(self.arm_distance * self.distance / arm)
+    }
+
     pub fn toggle_top_down(&mut self, view: CameraViewMode) -> CameraViewMode {
         self.previous_pivot = None;
         match view {
@@ -26,7 +35,15 @@ impl FollowCamera {
         if view.is_top_down() || wheel == 0.0 {
             return view;
         }
-        let initial = self.distance;
+        let initial = if wheel > 0.0 && self.previous_pivot.is_some() && self.distance > 0.0 {
+            if view.is_first_person() {
+                0.0
+            } else {
+                self.visible_distance(config)
+            }
+        } else {
+            self.distance
+        };
         let distance = (initial - wheel * INPUT_ZOOM_SENSITIVITY_BASE * sensitivity).clamp(0.0, config.max_distance);
         self.distance = distance;
         if distance > config.first_person_distance {
@@ -48,12 +65,39 @@ impl FollowCamera {
 mod tests {
     use super::*;
     use crate::config::ClientSettings;
-    #[test]
-    fn zoom_into_first_person_locks_and_zooming_out_keeps_lock() {
-        let config = ClientSettings::load_default()
+    use bevy::prelude::Vec3;
+
+    fn config() -> FollowCameraConfig {
+        let mut config = ClientSettings::load_default()
             .expect("client settings are invalid")
             .camera
             .follow;
+        config.first_person_distance = 0.7;
+        config.max_distance = 6.0;
+        config
+    }
+
+    #[test]
+    fn obstruction_does_not_reduce_requested_distance_when_scrolling_out() {
+        let config = config();
+        let mut camera = FollowCamera {
+            distance: 4.0,
+            arm_distance: 1.5,
+            previous_pivot: Some(Vec3::ZERO),
+            ..Default::default()
+        };
+        camera.zoom(
+            CameraViewMode::ThirdPerson,
+            -1.0,
+            0.2 / INPUT_ZOOM_SENSITIVITY_BASE,
+            config,
+        );
+        assert!((camera.distance - 4.2).abs() < 1e-5);
+    }
+
+    #[test]
+    fn zoom_into_first_person_locks_and_zooming_out_keeps_lock() {
+        let config = config();
         let mut camera = FollowCamera {
             distance: 1.0,
             locked: false,
@@ -82,10 +126,7 @@ mod tests {
     }
     #[test]
     fn tiny_scroll_events_accumulate_without_flipping_modes() {
-        let config = ClientSettings::load_default()
-            .expect("client settings are invalid")
-            .camera
-            .follow;
+        let config = config();
         let mut camera = FollowCamera::default();
         for _ in 0..5 {
             assert_eq!(
@@ -119,10 +160,7 @@ mod tests {
     }
     #[test]
     fn top_down_restores_zoom_and_ignores_scroll() {
-        let config = ClientSettings::load_default()
-            .expect("client settings are invalid")
-            .camera
-            .follow;
+        let config = config();
         for (view, distance) in [(CameraViewMode::FirstPerson, 0.0), (CameraViewMode::ThirdPerson, 3.0)] {
             let mut camera = FollowCamera {
                 distance,
@@ -139,10 +177,7 @@ mod tests {
     }
     #[test]
     fn sensitivity_scales_zoom_and_distance_is_bounded() {
-        let config = ClientSettings::load_default()
-            .expect("client settings are invalid")
-            .camera
-            .follow;
+        let config = config();
         let mut camera = FollowCamera {
             distance: 3.0,
             ..Default::default()

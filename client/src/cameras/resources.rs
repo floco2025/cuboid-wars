@@ -42,6 +42,13 @@ pub struct FollowCamera {
     pub previous_pivot: Option<Vec3>,
 }
 
+impl FollowCamera {
+    pub fn pivot_blend(&self) -> f32 {
+        let blend = self.distance.clamp(0.0, 1.0);
+        blend * blend * (3.0 - 2.0 * blend)
+    }
+}
+
 impl Default for FollowCamera {
     fn default() -> Self {
         Self {
@@ -65,4 +72,5 @@ pub struct CameraAim {
     pub direction: Vec3,
     pub yaw: f32,
     pub pitch: f32,
+    pub crosshair_height_offset: f32,
 }

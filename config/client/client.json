@@ -66,8 +66,8 @@
   },
   "camera": {
     "follow": {
-      "max_distance": 6.0,
-      "first_person_distance": 0.7,
+      "max_distance": 3.5,
+      "first_person_distance": 1.1,
       "pivot_height": 1.4,
       "shoulder_offset": 0.0,
       "collision_radius": 0.2,

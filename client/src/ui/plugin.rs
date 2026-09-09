@@ -28,6 +28,7 @@ pub fn hud_plugin(app: &mut App) {
             // must observe this frame's scale, not last frame's.
             floating_label_scale_compensation_system.after(ui_hud_scale_system),
             ui_crosshair_visibility_system,
+            ui_crosshair_position_system,
             ui_player_list_rebuild_system,
             ui_health_bar_fill_system.after(ui_player_list_rebuild_system),
             ui_quest_panel_rebuild_system,

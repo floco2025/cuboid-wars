@@ -7,10 +7,11 @@ use bevy::{
 use common::{
     config::GameplayConfig,
     physics::{CharacterVerticalVelocity, CollisionWorld, player_jump_velocity},
-    protocol::{CJump, ClientMessage, FaceYaw, MapSettings, PlayerMoveIntent, Position},
+    protocol::{CJump, ClientMessage, FaceYaw, MapSettings, PlayerMoveIntent, PortalAccess, Position},
 };
 use std::f32::consts::{FRAC_PI_2, PI};
 
+use super::WeaponMode;
 use crate::{
     cameras::{CameraInputState, CameraViewMode, FollowCamera, TopDownCameraYaw},
     config::ClientSettings,
@@ -28,6 +29,28 @@ pub struct CameraMovementInput<'w, 's> {
     wheel: MessageReader<'w, 's, MouseWheel>,
     console: Res<'w, ConsoleState>,
     menu: Res<'w, SettingsMenuState>,
+    mouse: Res<'w, ButtonInput<MouseButton>>,
+    weapon: Res<'w, WeaponMode>,
+    portal_access: Res<'w, PortalAccess>,
+}
+
+impl CameraMovementInput<'_, '_> {
+    fn aiming_weapon(&self) -> bool {
+        if self.state.suppress_fire {
+            return false;
+        }
+        match *self.weapon {
+            WeaponMode::None => false,
+            WeaponMode::Portal => match *self.portal_access {
+                PortalAccess::None => false,
+                PortalAccess::Single { .. } => self.mouse.pressed(MouseButton::Left),
+                PortalAccess::Both { .. } => {
+                    self.mouse.pressed(MouseButton::Left) || self.mouse.pressed(MouseButton::Right)
+                }
+            },
+            _ => self.mouse.pressed(MouseButton::Left),
+        }
+    }
 }
 
 pub const MAX_PITCH: f32 = FRAC_PI_2 - 0.05;
@@ -118,7 +141,7 @@ pub fn input_movement_system(
 
     update_player_input_face_and_jump(
         move_intent,
-        (!orbit).then_some(face_yaw),
+        (!orbit || (!local_player_info.is_dead && camera_input.aiming_weapon())).then_some(face_yaw),
         jump_requested,
         &collision_world,
         &gameplay_config,
@@ -289,6 +312,8 @@ mod tests {
             .init_resource::<TopDownCameraYaw>()
             .init_resource::<FollowCamera>()
             .init_resource::<CameraInputState>()
+            .init_resource::<WeaponMode>()
+            .insert_resource(PortalAccess::None)
             .init_resource::<ButtonInput<KeyCode>>()
             .init_resource::<ButtonInput<MouseButton>>()
             .init_resource::<ConsoleState>()
@@ -441,14 +466,118 @@ mod tests {
     }
 
     #[test]
+    fn unlocked_firing_faces_view_without_changing_movement_or_lock_and_commits_facing() {
+        use crate::input::commit_player_input_system;
+        use common::protocol::PortalPairId;
+
+        for (weapon, button, access) in [
+            (WeaponMode::Projectile, MouseButton::Left, PortalAccess::None),
+            (WeaponMode::MultiShot(0), MouseButton::Left, PortalAccess::None),
+            (WeaponMode::Missile, MouseButton::Left, PortalAccess::None),
+            (
+                WeaponMode::Portal,
+                MouseButton::Left,
+                PortalAccess::Both { pair: PortalPairId(1) },
+            ),
+            (
+                WeaponMode::Portal,
+                MouseButton::Right,
+                PortalAccess::Both { pair: PortalPairId(1) },
+            ),
+        ] {
+            let (mut app, player, _) = input_app();
+            let (sender, mut receiver) = tokio::sync::mpsc::unbounded_channel();
+            app.insert_resource(ClientToServerChannel::new(sender))
+                .insert_resource(weapon)
+                .insert_resource(access)
+                .add_systems(Update, commit_player_input_system.after(input_movement_system));
+            app.world_mut().resource_mut::<FollowCamera>().locked = false;
+            app.world_mut()
+                .resource_mut::<ButtonInput<KeyCode>>()
+                .press(KeyCode::KeyD);
+            app.update();
+            let movement = *app
+                .world()
+                .get::<PlayerMoveIntent>(player)
+                .expect("player intent missing");
+            let walking_yaw = app.world().get::<FaceYaw>(player).expect("player facing missing").0;
+            app.world_mut().resource_mut::<ButtonInput<MouseButton>>().press(button);
+            for _ in 0..3 {
+                app.update();
+                let face = app.world().get::<FaceYaw>(player).expect("player facing missing").0;
+                assert!((face - PI).abs() < 1e-5);
+                assert_ne!(face, walking_yaw);
+                assert_eq!(
+                    *app.world()
+                        .get::<PlayerMoveIntent>(player)
+                        .expect("player intent missing"),
+                    movement
+                );
+                assert!(!app.world().resource::<FollowCamera>().locked);
+                assert_eq!(app.world().resource::<LocalPlayerInfo>().stored_yaw, 0.0);
+            }
+            let mut committed_yaw = None;
+            while let Ok(ClientToServer::Send(message)) = receiver.try_recv() {
+                if let ClientMessage::Move(message) = message {
+                    committed_yaw = Some(message.input.face_yaw);
+                }
+            }
+            assert_eq!(committed_yaw, Some(PI));
+            app.world_mut()
+                .resource_mut::<ButtonInput<MouseButton>>()
+                .release(button);
+            app.update();
+            assert_eq!(
+                app.world().get::<FaceYaw>(player).expect("player facing missing").0,
+                walking_yaw
+            );
+        }
+    }
+
+    #[test]
+    fn unlocked_idle_retains_shot_facing_but_empty_hands_and_menus_do_not_turn() {
+        let (mut app, player, _) = input_app();
+        app.world_mut().resource_mut::<FollowCamera>().locked = false;
+        app.world_mut()
+            .resource_mut::<ButtonInput<MouseButton>>()
+            .press(MouseButton::Left);
+        app.update();
+        assert_eq!(
+            app.world().get::<FaceYaw>(player).expect("player facing missing").0,
+            0.0
+        );
+        app.insert_resource(WeaponMode::Projectile);
+        app.world_mut().resource_mut::<SettingsMenuState>().open = true;
+        app.update();
+        assert_eq!(
+            app.world().get::<FaceYaw>(player).expect("player facing missing").0,
+            0.0
+        );
+        app.world_mut().resource_mut::<SettingsMenuState>().open = false;
+        app.update();
+        assert_eq!(app.world().get::<FaceYaw>(player).expect("player facing missing").0, PI);
+        app.world_mut()
+            .resource_mut::<ButtonInput<MouseButton>>()
+            .release(MouseButton::Left);
+        app.world_mut().write_message(MouseMotion {
+            delta: Vec2::new(100.0, 0.0),
+        });
+        app.update();
+        assert_eq!(app.world().get::<FaceYaw>(player).expect("player facing missing").0, PI);
+        assert!(app.world().resource::<LocalPlayerInfo>().stored_yaw.abs() > 0.0);
+    }
+
+    #[test]
     fn wheel_switches_follow_views_and_menu_scroll_does_not_zoom() {
         use crate::constants::INPUT_ZOOM_SENSITIVITY_BASE;
         let (mut app, _, window) = input_app();
+        let follow = app.world().resource::<ClientSettings>().camera.follow;
+        let zoom_step = (follow.first_person_distance + follow.max_distance) * 0.5;
         *app.world_mut().resource_mut::<CameraViewMode>() = CameraViewMode::FirstPerson;
         app.world_mut()
             .resource_mut::<ClientSettings>()
             .preferences
-            .zoom_sensitivity = 1.0 / INPUT_ZOOM_SENSITIVITY_BASE;
+            .zoom_sensitivity = zoom_step / INPUT_ZOOM_SENSITIVITY_BASE;
         app.world_mut().write_message(MouseWheel {
             phase: TouchPhase::Moved,
             unit: MouseScrollUnit::Line,
@@ -458,7 +587,7 @@ mod tests {
         });
         app.update();
         assert_eq!(*app.world().resource::<CameraViewMode>(), CameraViewMode::ThirdPerson);
-        assert_eq!(app.world().resource::<FollowCamera>().distance, 1.0);
+        assert_eq!(app.world().resource::<FollowCamera>().distance, zoom_step);
 
         app.world_mut().resource_mut::<FollowCamera>().locked = false;
         app.world_mut().write_message(MouseWheel {

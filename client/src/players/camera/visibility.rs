@@ -17,11 +17,11 @@ pub fn local_player_view_mode_system(
     mut labels: Query<(Ref<LocalPlayerLabelMarker>, &mut Visibility)>,
     mut main_cameras: Query<(Ref<MainCameraMarker>, &mut RenderLayers)>,
 ) {
-    let label_visibility = if view_mode.is_first_person() {
-        Visibility::Hidden
-    } else {
+    let label_visibility = if view_mode.is_top_down() {
         // A hidden player, such as a dead local player, must also hide its labels.
         Visibility::Inherited
+    } else {
+        Visibility::Hidden
     };
     let mode_changed = view_mode.is_changed();
     // Labels can spawn without a mode change, so newly spawned ones still need the current mode.
@@ -144,6 +144,21 @@ mod tests {
             app.world().entity(label).get::<Visibility>(),
             Some(&Visibility::Inherited)
         );
+
+        let remote_label = app.world_mut().spawn(Visibility::Inherited).id();
+        app.insert_resource(CameraViewMode::ThirdPerson);
+        app.update();
+        assert_eq!(app.world().get::<Visibility>(label), Some(&Visibility::Hidden));
+        assert_eq!(
+            app.world().get::<Visibility>(remote_label),
+            Some(&Visibility::Inherited)
+        );
+        assert!(
+            app.world()
+                .get::<RenderLayers>(camera)
+                .expect("main camera render layers missing")
+                .intersects(&RenderLayers::layer(RENDER_LAYER_LOCAL_PLAYER))
+        );
     }
 
     #[test]
@@ -177,19 +192,21 @@ mod tests {
 
     #[test]
     fn newly_added_local_label_uses_current_view_mode() {
-        let mut app = App::new();
-        app.insert_resource(CameraViewMode::FirstPerson)
-            .add_systems(Update, local_player_view_mode_system);
-        app.world_mut().spawn((MainCameraMarker, RenderLayers::default()));
-        app.update();
+        for view in [CameraViewMode::FirstPerson, CameraViewMode::ThirdPerson] {
+            let mut app = App::new();
+            app.insert_resource(view)
+                .add_systems(Update, local_player_view_mode_system);
+            app.world_mut().spawn((MainCameraMarker, RenderLayers::default()));
+            app.update();
 
-        let label = app
-            .world_mut()
-            .spawn((LocalPlayerLabelMarker, Visibility::Visible))
-            .id();
-        app.update();
+            let label = app
+                .world_mut()
+                .spawn((LocalPlayerLabelMarker, Visibility::Visible))
+                .id();
+            app.update();
 
-        assert_eq!(app.world().entity(label).get::<Visibility>(), Some(&Visibility::Hidden));
+            assert_eq!(app.world().entity(label).get::<Visibility>(), Some(&Visibility::Hidden));
+        }
     }
     #[test]
     fn meshes_spawned_after_update_have_local_layers_before_visibility_checks() {

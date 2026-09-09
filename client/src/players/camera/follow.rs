@@ -87,8 +87,7 @@ pub fn local_player_camera_sync_system(
         0.0,
     );
     if third.distance > config.first_person_distance {
-        let blend = third.distance.clamp(0.0, 1.0);
-        let blend = blend * blend * (3.0 - 2.0 * blend);
+        let blend = third.pivot_blend();
         let height = eye_height + (config.pivot_height - eye_height) * blend;
         config.shoulder_offset *= blend;
         let pivot = Vec3::new(player_pos.x, player_pos.y + height, player_pos.z);
@@ -146,10 +145,14 @@ fn sync_first_person_camera(
 mod tests {
     use super::*;
     use crate::{
-        cameras::RENDER_LAYER_LOCAL_PLAYER, players::camera::visibility::local_player_view_mode_system, test_geometry,
+        actors::ActorMap,
+        cameras::{CameraAim, RENDER_LAYER_LOCAL_PLAYER, camera_aim_system},
+        constants::CROSSHAIR_THIRD_PERSON_HEIGHT,
+        players::{MyPlayerId, PlayerMap, camera::visibility::local_player_view_mode_system},
+        test_geometry,
     };
     use bevy::camera::visibility::RenderLayers;
-    use common::protocol::{BarrierKindTable, CarrierId, Wall};
+    use common::protocol::{BarrierKindTable, CarrierId, FaceYaw, PlateState, PlayerId, Wall};
     use std::time::Duration;
 
     fn world(wall: bool) -> CollisionWorld {
@@ -184,9 +187,12 @@ mod tests {
         }))
         .expect("client gameplay config is invalid");
         let eye_height = gameplay.player.eye_height();
+        let mut settings = ClientSettings::load_default().expect("client settings are invalid");
+        settings.camera.follow.first_person_distance = 0.7;
+        settings.camera.follow.max_distance = 6.0;
         let mut app = App::new();
         app.insert_resource(gameplay)
-            .insert_resource(ClientSettings::load_default().expect("client settings are invalid"))
+            .insert_resource(settings)
             .insert_resource(test_geometry::map_settings())
             .insert_resource(world(false))
             .init_resource::<MapLayout>()
@@ -196,15 +202,26 @@ mod tests {
             .init_resource::<FollowCamera>()
             .init_resource::<TopDownCameraYaw>()
             .init_resource::<LocalPlayerInfo>()
+            .init_resource::<CameraAim>()
+            .init_resource::<PlayerMap>()
+            .init_resource::<ActorMap>()
+            .init_resource::<PlateState>()
+            .insert_resource(MyPlayerId(PlayerId(1)))
             .add_systems(
                 Update,
-                (local_player_camera_sync_system, local_player_view_mode_system).chain(),
+                (
+                    local_player_camera_sync_system,
+                    camera_aim_system,
+                    local_player_view_mode_system,
+                )
+                    .chain(),
             );
         app.world_mut()
             .resource_mut::<Time>()
             .advance_by(Duration::from_secs_f32(1.0 / 60.0));
         app.world_mut().spawn((
             LocalPlayerMarker,
+            FaceYaw(0.0),
             Position::default(),
             PreviousTickPosition(Position::default()),
         ));
@@ -271,5 +288,53 @@ mod tests {
             assert_view(&app, camera, eye_height, first);
         }
         assert_view(&app, camera, eye_height, false);
+    }
+
+    #[test]
+    fn inward_scroll_while_obstruction_forces_first_person_clears_saved_zoom() {
+        let (mut app, camera, eye_height) = app();
+        app.world_mut().resource_mut::<FollowCamera>().distance = 3.0;
+        app.insert_resource(world(true));
+        app.update();
+        assert_view(&app, camera, eye_height, true);
+        let config = app.world().resource::<ClientSettings>().camera.follow;
+        let view = *app.world().resource::<CameraViewMode>();
+        app.world_mut()
+            .resource_mut::<FollowCamera>()
+            .zoom(view, 0.1, 1.0, config);
+
+        app.insert_resource(world(false));
+        for _ in 0..30 {
+            app.update();
+            assert_view(&app, camera, eye_height, true);
+        }
+        assert_eq!(app.world().resource::<FollowCamera>().distance, 0.0);
+    }
+
+    #[test]
+    fn crosshair_height_is_fixed_in_third_person_and_recentres_when_obstructed() {
+        let (mut app, _, _) = app();
+        app.update();
+        assert_eq!(app.world().resource::<CameraAim>().crosshair_height_offset, 0.0);
+        for distance in [1.0, 3.0, 6.0] {
+            app.world_mut().resource_mut::<FollowCamera>().distance = distance;
+            app.update();
+            let offset = app.world().resource::<CameraAim>().crosshair_height_offset;
+            assert_eq!(offset, CROSSHAIR_THIRD_PERSON_HEIGHT);
+        }
+        app.insert_resource(world(true));
+        app.update();
+        assert_eq!(app.world().resource::<CameraAim>().crosshair_height_offset, 0.0);
+        app.insert_resource(world(false));
+        for _ in 0..30 {
+            app.update();
+        }
+        assert_eq!(
+            app.world().resource::<CameraAim>().crosshair_height_offset,
+            CROSSHAIR_THIRD_PERSON_HEIGHT
+        );
+        app.insert_resource(CameraViewMode::TopDown);
+        app.update();
+        assert_eq!(app.world().resource::<CameraAim>().crosshair_height_offset, 0.0);
     }
 }

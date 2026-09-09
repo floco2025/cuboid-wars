@@ -33,7 +33,7 @@ pub(super) fn third_person_transform(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::ClientSettings;
+    use crate::{cameras::CameraViewMode, config::ClientSettings, constants::INPUT_ZOOM_SENSITIVITY_BASE};
     use common::protocol::{BarrierKindTable, CarrierId, MapLayout, Wall};
     fn world(wall: bool) -> CollisionWorld {
         CollisionWorld::from_map_layout(
@@ -83,5 +83,41 @@ mod tests {
             world(true).camera_arm_distance(Vec3::new(0.0, 1.4, 2.0), Vec3::Z * 4.0, 0.2),
             0.0
         );
+    }
+
+    #[test]
+    fn inward_scroll_starts_at_obstructed_camera_and_keeps_the_new_distance() {
+        for shoulder_offset in [0.0, 0.65] {
+            let mut config = ClientSettings::load_default()
+                .expect("client settings are invalid")
+                .camera
+                .follow;
+            config.shoulder_offset = shoulder_offset;
+            let mut state = FollowCamera {
+                distance: 4.0,
+                ..Default::default()
+            };
+            let pivot = Vec3::Y * config.pivot_height;
+            let clear = world(false);
+            let blocked = world(true);
+            third_person_transform(&clear, pivot, Quat::IDENTITY, config, 0.2, 1.0 / 60.0, &mut state);
+            let close = third_person_transform(&blocked, pivot, Quat::IDENTITY, config, 0.2, 1.0 / 60.0, &mut state);
+            let expected_distance = close.translation.z - 0.2;
+
+            assert_eq!(
+                state.zoom(
+                    CameraViewMode::ThirdPerson,
+                    1.0,
+                    0.2 / INPUT_ZOOM_SENSITIVITY_BASE,
+                    config,
+                ),
+                CameraViewMode::ThirdPerson
+            );
+            let zoomed = third_person_transform(&blocked, pivot, Quat::IDENTITY, config, 0.2, 1.0 / 60.0, &mut state);
+            assert!((zoomed.translation.z - expected_distance).abs() < 1e-5);
+            let released = third_person_transform(&clear, pivot, Quat::IDENTITY, config, 0.2, 1.0 / 60.0, &mut state);
+            assert!((released.translation.z - expected_distance).abs() < 1e-5);
+            assert!((state.distance - expected_distance).abs() < 1e-5);
+        }
     }
 }
