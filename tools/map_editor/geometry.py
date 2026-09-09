@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QPoint
 
 def wall_endpoints_for_cell_side(col: int, row: int, side: str) -> tuple[int, int, int, int]:
     """Return the canonical (c0, r0, c1, r1) of the wall on a cell's side."""
@@ -176,30 +175,6 @@ def draw_direction(start: tuple[int, int], end: tuple[int, int]) -> str:
     return "south" if dy > 0 else "north"
 
 
-def orthogonal_arrow_points(
-    c0: int,
-    r0: int,
-    c1: int,
-    r1: int,
-    direction: str,
-    cell: float,
-) -> tuple[tuple[float, float], tuple[float, float]]:
-    pad = min(cell * 0.35, 14.0)
-    left = c0 * cell + pad
-    right = c1 * cell - pad
-    top = r0 * cell + pad
-    bottom = r1 * cell - pad
-    mid_x = (c0 + c1) * cell / 2.0
-    mid_y = (r0 + r1) * cell / 2.0
-    if direction == "east":
-        return (left, mid_y), (right, mid_y)
-    if direction == "west":
-        return (right, mid_y), (left, mid_y)
-    if direction == "south":
-        return (mid_x, top), (mid_x, bottom)
-    return (mid_x, bottom), (mid_x, top)
-
-
 def wall_segments_between(start: tuple[int, int], end: tuple[int, int]) -> list[list[int]]:
     if start == end:
         return []
@@ -217,29 +192,6 @@ def wall_segments_between(start: tuple[int, int], end: tuple[int, int]) -> list[
     return edges
 
 
-_LIGHT_MARKER_BASE = 0.08   # cells: distance from the wall to the marker's base
-_LIGHT_MARKER_TIP = 0.30    # cells: distance from the wall to the marker's tip
-_LIGHT_MARKER_HALF_W = 0.12 # cells: half-width of the marker's base
-
-
-def light_marker_polygon(light: dict, cell: float) -> list[QPoint]:
-    """Filled triangle marker, anchored at the wall midpoint, pointing into
-    the room from the cell side the light sits on."""
-    col, row, side = light["col"], light["row"], light["side"]
-    base = _LIGHT_MARKER_BASE
-    tip = _LIGHT_MARKER_TIP
-    half = _LIGHT_MARKER_HALF_W
-    if side == "N":
-        pts = [(0.5, tip), (0.5 - half, base), (0.5 + half, base)]
-    elif side == "S":
-        pts = [(0.5, 1 - tip), (0.5 - half, 1 - base), (0.5 + half, 1 - base)]
-    elif side == "W":
-        pts = [(tip, 0.5), (base, 0.5 - half), (base, 0.5 + half)]
-    else:  # "E"
-        pts = [(1 - tip, 0.5), (1 - base, 0.5 - half), (1 - base, 0.5 + half)]
-    return [QPoint(round((col + dx) * cell), round((row + dy) * cell)) for dx, dy in pts]
-
-
 _OPPOSITE_SIDE = {"N": "S", "S": "N", "W": "E", "E": "W"}
 _SIDE_NEIGHBOR = {"N": (0, -1), "S": (0, 1), "W": (-1, 0), "E": (1, 0)}
 
@@ -252,44 +204,7 @@ def ladder_anchor_from_click(col: int, row: int, side: str) -> tuple[int, int, s
     return col + dc, row + dr, _OPPOSITE_SIDE[side]
 
 
-# Ladder glyph proportions, in cell units. The glyph hugs the anchor edge
-# on the ladder's rail side: two rails parallel to the edge plus rungs
-# between them — a ladder seen face-on.
-_LADDER_SPAN = (0.15, 0.85)   # extent along the edge
-_LADDER_NEAR = 0.04           # rail offsets from the edge
-_LADDER_FAR = 0.26
-_LADDER_RUNG_COUNT = 4
-
-
-def ladder_marker_lines(ladder: dict, cell: float) -> list[tuple[float, float, float, float]]:
-    """Line segments (x0, y0, x1, y1) in pixels for a ladder's canvas glyph."""
-    col, row, side = ladder["col"], ladder["row"], ladder["side"]
-    if side == "N":
-        origin, edge, normal = (col, row), (1, 0), (0, -1)
-    elif side == "S":
-        origin, edge, normal = (col, row + 1), (1, 0), (0, 1)
-    elif side == "W":
-        origin, edge, normal = (col, row), (0, 1), (-1, 0)
-    else:  # "E"
-        origin, edge, normal = (col + 1, row), (0, 1), (1, 0)
-    ox, oy = origin
-    ex, ey = edge
-    nx, ny = normal
-    t0, t1 = _LADDER_SPAN
-
-    def point(t: float, off: float) -> tuple[float, float]:
-        return ((ox + ex * t + nx * off) * cell, (oy + ey * t + ny * off) * cell)
-
-    lines = []
-    for off in (_LADDER_NEAR, _LADDER_FAR):
-        lines.append((*point(t0, off), *point(t1, off)))
-    for idx in range(_LADDER_RUNG_COUNT):
-        t = t0 + (t1 - t0) * (idx + 0.5) / _LADDER_RUNG_COUNT
-        lines.append((*point(t, _LADDER_NEAR), *point(t, _LADDER_FAR)))
-    return lines
-
-
-def point_near_wall(px: float, py: float, wall: list[int], tolerance: float = 0.16) -> bool:
+def point_near_wall(px: float, py: float, wall: list[int], tolerance: float) -> bool:
     c0, r0, c1, r1 = wall
     if r0 == r1:
         return min(c0, c1) - tolerance <= px <= max(c0, c1) + tolerance and abs(py - r0) <= tolerance

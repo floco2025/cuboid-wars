@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
-from ..textures import portal_label
+from ..display import portal_label
 
 from PySide6.QtWidgets import (
     QComboBox,

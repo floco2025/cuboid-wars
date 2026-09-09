@@ -1,9 +1,9 @@
 from .catalogs import ActorSpawnFieldsDialog, ItemTypeDialog, KindDialog
 from .lighting import AutoPlaceLightsDialog
 from .materials import MaterialAssignmentDialog
-from .motion import MotionDialog, NestedMotion, Nudge
+from .motion import MotionDialog
 from .reference import ToolReferenceDialog
-from .structure import ResizeMapDialog
+from .resize import ResizeMapDialog
 
 __all__ = [
     "ActorSpawnFieldsDialog",
@@ -12,8 +12,6 @@ __all__ = [
     "AutoPlaceLightsDialog",
     "MaterialAssignmentDialog",
     "MotionDialog",
-    "NestedMotion",
-    "Nudge",
     "ToolReferenceDialog",
     "ResizeMapDialog",
 ]

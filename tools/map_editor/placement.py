@@ -14,8 +14,19 @@ from .constants import (
     PLAYER_ZONE_LIST,
 )
 from .dialogs import ActorSpawnFieldsDialog, KindDialog, MaterialAssignmentDialog
-from .editing import material_values, paint_bridges, paint_edges, paint_erasers, paint_floors, paint_grass, place_plate, place_ramp, top_left_materials, update_records
-from .normalization import pressure_plate_key
+from .editing import (
+    material_values,
+    paint_bridges,
+    paint_edges,
+    paint_erasers,
+    paint_floors,
+    paint_grass,
+    place_plate,
+    place_ramp,
+    top_left_materials,
+    update_records,
+)
+from .normalization import plate_cell_error, pressure_plate_key
 from .geometry import (
     ramp_error,
     ramp_points_from_cells,
@@ -177,6 +188,10 @@ class PlacementMixin:
         self.apply_change(title, after)
 
     def _add_plate(self, plate: dict, label: str) -> None:
+        error = plate_cell_error(self.map_data, plate["level"], plate["col"], plate["row"])
+        if error is not None:
+            self.notify(f"Plate not placed: cell {error}.")
+            return
         try:
             after = place_plate(self.map_data, plate)
         except ValueError as exc:

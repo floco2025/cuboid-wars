@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from .constants import FLOOR_HIT_KINDS, MODE_ERASE_SPAWN_ZONES
+from . import erasing
+from .constants import FLOOR_HIT_KINDS, HIT_SPAWN_ZONE, MODE_ERASE_SPAWN_ZONES
 from .geometry import rect_from_cells
 from .types import ZoneRef
-from .erasing import ERASE_GROUPS, erase_cell_rect, erase_group_rect, erase_hit, hit_at
 
 
 class EraseMixin:
@@ -16,13 +16,13 @@ class EraseMixin:
 
     def erase_cell_rect(self, start: tuple[int, int], end: tuple[int, int], preserve_floors: bool) -> None:
         label = "Erase Non-Floor Area" if preserve_floors else "Erase Area"
-        self.apply_change(label, erase_cell_rect(self.map_data, self.current_level, start, end, preserve_floors))
+        self.apply_change(label, erasing.erase_cell_rect(self.map_data, self.current_level, start, end, preserve_floors))
 
     # The `Erase <group>` tools: clear one record group inside the dragged
     # rectangle on the current level.
     def erase_group_rect(self, mode: str, start: tuple[int, int], end: tuple[int, int]) -> None:
-        noun, _ = ERASE_GROUPS[mode]
-        after = erase_group_rect(self.map_data, mode, self.current_level, rect_from_cells(start, end))
+        noun, _ = erasing.ERASE_GROUPS[mode]
+        after = erasing.erase_group_rect(self.map_data, mode, self.current_level, rect_from_cells(start, end))
         if after is None:
             self.notify(f"{mode}: no {noun} in selection.")
             return
@@ -31,9 +31,9 @@ class EraseMixin:
         self.apply_change(mode, after)
 
     def hit_at(self, pos):
-        return hit_at(self.map_data, self.current_level, pos.x(), pos.y())
+        return erasing.hit_at(self.map_data, self.current_level, pos.x(), pos.y(), self.canvas.pick_tolerance())
 
     def erase_hit(self, hit, preserve_floors: bool = False) -> None:
-        if hit[0] == "Spawn Zone" and self.selected_spawn_zone_ref == ZoneRef(*hit[1]):
+        if hit[0] == HIT_SPAWN_ZONE and self.selected_spawn_zone_ref == ZoneRef(*hit[1]):
             self.selected_spawn_zone_ref = None
-        self.apply_change(f"Erase {hit[0]}", erase_hit(self.map_data, self.current_level, hit, preserve_floors))
+        self.apply_change(f"Erase {hit[0]}", erasing.erase_hit(self.map_data, self.current_level, hit, preserve_floors))

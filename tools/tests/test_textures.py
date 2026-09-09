@@ -5,9 +5,9 @@ from pathlib import Path
 from unittest.mock import patch
 
 from editor_fixtures import WindowTestCase
-from map_editor.io import empty_map
-from map_editor.normalization import normalize_map
-from map_editor.textures import load_texture_catalog
+from map_editor.catalogs import load_texture_catalog
+from map_editor.constants import ASSETS_PATH, MODE_FLOOR
+from map_editor.normalization import empty_map, normalize_map
 from map_editor.validation import validate_map
 
 
@@ -21,7 +21,7 @@ class TextureCatalogTests(unittest.TestCase):
             settings.parent.mkdir(parents=True)
             for entry in ({}, {"portalable": 1}, {"portalable": "false"}):
                 settings.write_text(json.dumps({"textures": {"stone": entry}}))
-                with patch("map_editor.constants.GAMEPLAY_PATH", path), patch("map_editor.constants.MAPS_DIR", maps):
+                with patch("map_editor.catalogs.GAMEPLAY_PATH", path), patch("map_editor.catalogs.MAPS_DIR", maps):
                     with self.assertRaisesRegex(ValueError, "settings.json: textures.stone"):
                         load_texture_catalog("host")
 
@@ -51,7 +51,6 @@ class TextureHostWindowTests(WindowTestCase):
         self.assertIn(self.window.current_material, self.window.materials_catalog)
         self.assertTrue(self.window.validate(data))
         self.assertFalse(self.window.texture_catalog["portal-resistant"])
-        from map_editor.constants import MODE_FLOOR
         self.window.mode_combo.setCurrentText(MODE_FLOOR)
         self.window.current_material = "portal-resistant"
         self.window.refresh_ui()
@@ -59,6 +58,5 @@ class TextureHostWindowTests(WindowTestCase):
 
     def test_editor_watches_wall_light_catalog_but_not_texture_images(self):
         watched = self.window.dependencies.watcher.files() + self.window.dependencies.watcher.directories()
-        from map_editor.constants import ASSETS_PATH
         self.assertIn(str(ASSETS_PATH.resolve()), watched)
         self.assertFalse(any("client/assets/textures" in path for path in watched))

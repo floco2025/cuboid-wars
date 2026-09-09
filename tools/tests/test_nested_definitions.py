@@ -7,16 +7,14 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from PySide6.QtWidgets import QApplication
-
-from editor_fixtures import DEFAULT_ALIAS, WindowTestCase
-from map_editor.constants import GAMEPLAY_PATH, MAP_NAME_RE, MAPS_DIR, REPO_ROOT, list_map_names
+from editor_fixtures import DEFAULT_ALIAS, WindowTestCase, qt_app
+from map_editor.catalogs import list_map_names, load_texture_catalog
+from map_editor.constants import GAMEPLAY_PATH, MAP_NAME_RE, MAPS_DIR, REPO_ROOT
 from map_editor.document import MapDocument
 from map_editor.editing import paint_floors
-from map_editor.io import empty_map, read_map, write_map
-from map_editor.normalization import normalize_map, normalize_nested_map
+from map_editor.io import read_map, write_map
+from map_editor.normalization import empty_map, normalize_map, normalize_nested_map
 from map_editor.window import EditorWindow
-from map_editor.textures import load_texture_catalog
 
 
 def placement(name, col=0):
@@ -36,7 +34,7 @@ def parent_map():
 class NestedDocumentTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.app = QApplication.instance() or QApplication([])
+        qt_app()
 
     def test_edits_across_maps_share_undo_save_and_recovery(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -72,6 +70,21 @@ class NestedDocumentTests(unittest.TestCase):
             self.assertEqual(read_map(path), changed)
             self.assertFalse(doc.dirty)
             self.assertFalse(doc.autosave_path().exists())
+
+    def test_repairs_cover_every_nested_definition(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "hotel.json"
+            data = parent_map()
+            data["nested_geometry"]["room"]["ladders"] = [{"lower_level": 0, "col": 1, "row": 0, "side": "N", "levels": 3}]
+            write_map(path, data)
+            doc = MapDocument(path)
+            repaired, summary = doc.proposed_repairs()
+            self.assertEqual(summary, ["Nested room: ladders: remove/change 1, add/change 0"])
+            self.assertTrue(doc.apply_repairs(repaired))
+            self.assertEqual(doc.nested_geometry["room"]["ladders"], [])
+            self.assertEqual(doc.root_data["nested_maps"], data["nested_maps"])
+            doc.undo_stack.undo()
+            self.assertEqual(doc.root_data, data)
 
     def test_cli_requires_settings_before_opening_a_window(self):
         result = subprocess.run(
@@ -125,7 +138,7 @@ class NestedWindowTests(WindowTestCase):
 
     def test_catalog_reload_keeps_the_parent_while_editing_nested_geometry(self):
         self.select("room")
-        with patch("map_editor.window.load_texture_catalog", wraps=load_texture_catalog) as textures:
+        with patch("map_editor.catalogs.load_texture_catalog", wraps=load_texture_catalog) as textures:
             self.window.reload_dependencies()
         textures.assert_called_with("hotel")
         self.assertEqual(self.window.doc.active_map, "room")
@@ -133,7 +146,7 @@ class NestedWindowTests(WindowTestCase):
     def test_failed_catalog_reload_keeps_the_document_editable(self):
         self.select("room")
         before = copy.deepcopy(self.window.doc.root_data)
-        with patch("map_editor.window.load_texture_catalog", side_effect=ValueError("invalid catalog")):
+        with patch("map_editor.catalogs.load_texture_catalog", side_effect=ValueError("invalid catalog")):
             self.window.reload_dependencies()
         self.assertEqual(self.window.doc.root_data, before)
         self.assertEqual(self.window.doc.active_map, "room")
@@ -168,7 +181,7 @@ class NestedWindowTests(WindowTestCase):
         after["nested_maps"] = [placement("room")]
         window.apply_change("Nest room", after)
         self.select("room")
-        with patch("map_editor.nested_editing.QInputDialog.getText", return_value=("cabin", True)):
+        with patch("map_editor.nested_definitions.QInputDialog.getText", return_value=("cabin", True)):
             window.rename_nested_map()
         self.assertEqual(window.doc.active_map, "cabin")
         self.assertNotIn("room", window.doc.nested_geometry)
@@ -181,8 +194,8 @@ class NestedWindowTests(WindowTestCase):
     def test_create_delete_and_undo_keep_the_parent_document(self):
         window = self.window
         with (
-            patch("map_editor.nested_editing.QInputDialog.getText", return_value=("lift", True)),
-            patch("map_editor.nested_editing.ResizeMapDialog.prompt", return_value=(2, 1, 0, 0)),
+            patch("map_editor.nested_definitions.QInputDialog.getText", return_value=("lift", True)),
+            patch("map_editor.nested_definitions.ResizeMapDialog.prompt", return_value=(2, 1, 0, 0)),
         ):
             window.new_nested_map()
         self.assertEqual(window.doc.active_map, "lift")
@@ -195,7 +208,7 @@ class NestedWindowTests(WindowTestCase):
         window.undo_stack.undo()
         self.assertEqual(window.doc.active_map, "lift")
         self.select("room")
-        with patch("map_editor.nested_editing.QMessageBox.warning") as warning:
+        with patch("map_editor.nested_definitions.QMessageBox.warning") as warning:
             window.delete_nested_map()
         self.assertIn("Outer map", warning.call_args.args[2])
         self.assertIn("room", window.doc.nested_geometry)

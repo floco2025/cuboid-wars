@@ -13,11 +13,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-
-Nudge = tuple[float, float, float]
-
-
-NestedMotion = tuple[str, int, float, float, float, Nudge, Nudge]
+from ..nesting import NestedMotion, Nudge
 
 
 def _nudge_spin_box(axis: str, value: float) -> QDoubleSpinBox:
@@ -56,9 +52,11 @@ class MotionDialog(QDialog):
     ):
         super().__init__(parent)
         self.setWindowTitle(title)
-        recent_map = recent[0] if recent else ""
+        recent_map = recent.map_name if recent else ""
         to_level, travel_secs, pause_secs, phase_secs, from_nudge, to_nudge = (
-            recent[1:] if recent else (current_level, 2.0, 1.0, 0.0, (0.0, 0.0, 0.0), (0.0, 0.0, 0.0))
+            (recent.to_level, recent.travel_secs, recent.pause_secs, recent.phase_secs, recent.from_nudge, recent.to_nudge)
+            if recent
+            else (current_level, 2.0, 1.0, 0.0, (0.0, 0.0, 0.0), (0.0, 0.0, 0.0))
         )
         self._map = QComboBox()
         self._map.addItems(map_names)
@@ -126,4 +124,4 @@ class MotionDialog(QDialog):
         dialog = cls(parent, level_count, current_level, recent, title, map_names)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return None
-        return (dialog._map.currentText(), *dialog.motion())
+        return NestedMotion(dialog._map.currentText(), *dialog.motion())

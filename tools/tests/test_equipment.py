@@ -1,16 +1,17 @@
 import json
+import tempfile
 import unittest
+from pathlib import Path
 
-from editor_fixtures import DEFAULT_ALIAS
-from map_editor.constants import MODE_EQUIPMENT_ERASER, MODE_ERASE_EQUIPMENT_ERASERS
+from editor_fixtures import DEFAULT_ALIAS, EditorHost, qt_app
+from map_editor.constants import HIT_EQUIPMENT_ERASER, MODE_ERASE_EQUIPMENT_ERASERS
+from map_editor.document import MapDocument
 from map_editor.editing import paint_erasers
 from map_editor.erasing import erase_group_rect, erase_hit, hit_at
 from map_editor.formatting import format_map_file
-from map_editor.io import empty_map
-from map_editor.normalization import canonicalize_map, normalize_map
+from map_editor.normalization import canonicalize_map, empty_map, normalize_map
 from map_editor.transforms import resize_map_data
 from map_editor.validation import validate_map
-from editor_fixtures import WindowTestCase
 
 
 class EquipmentTests(unittest.TestCase):
@@ -42,8 +43,8 @@ class EquipmentTests(unittest.TestCase):
 
     def test_picking_and_group_erasure_preserve_other_elements(self):
         data = paint_erasers(empty_map(4, 4), 0, (1, 0), (1, 3))
-        hit = hit_at(data, 0, 1.0, 0.5)
-        self.assertEqual(hit, (MODE_EQUIPMENT_ERASER, (1, 0, 1, 1)))
+        hit = hit_at(data, 0, 1.0, 0.5, 0.2)
+        self.assertEqual(hit, (HIT_EQUIPMENT_ERASER, (1, 0, 1, 1)))
         self.assertEqual(len(erase_hit(data, 0, hit)["levels"][0]["erasers"]), 2)
         after = erase_group_rect(data, MODE_ERASE_EQUIPMENT_ERASERS, 0, (0, 0, 4, 4))
         self.assertEqual(after["levels"][0]["erasers"], [])
@@ -63,15 +64,17 @@ class EquipmentTests(unittest.TestCase):
         self.assertIn("not one grid edge", errors)
         self.assertIn("outside the grid-line bounds", errors)
 
-
-class EquipmentWindowTests(WindowTestCase):
-    def test_field_tool_undo_and_gun_symbol_render(self):
-        self.window.set_mode(MODE_EQUIPMENT_ERASER)
-        self.window.add_equipment_eraser_line((1, 1), (2, 1))
-        self.assertEqual(len(self.window.map_data["levels"][0]["erasers"]), 1)
-        self.window.doc.undo_stack.undo()
-        self.assertEqual(self.window.map_data["levels"][0]["erasers"], [])
-        self.window.doc.undo_stack.redo()
-        self.window.map_data["items"] = [{"level": 0, "col": 1, "row": 1, "type": "portal_gun"}]
-        self.app.processEvents()
-        self.assertFalse(self.window.canvas.grab().isNull())
+    def test_field_tool_edits_undo_and_redo_through_the_document(self):
+        qt_app()
+        with tempfile.TemporaryDirectory() as directory:
+            doc = MapDocument(None, recovery_dir=Path(directory))
+            data = empty_map(8, 8)
+            data["levels"][0]["floors"] = [{"col": 1, "row": 1, "all": DEFAULT_ALIAS}]
+            doc.replace_with_new(data)
+            host = EditorHost(None, [], doc=doc)
+            host.add_equipment_eraser_line((1, 1), (2, 1))
+            self.assertEqual(len(host.map_data["levels"][0]["erasers"]), 1)
+            doc.undo_stack.undo()
+            self.assertEqual(host.map_data["levels"][0]["erasers"], [])
+            doc.undo_stack.redo()
+            self.assertEqual(len(host.map_data["levels"][0]["erasers"]), 1)

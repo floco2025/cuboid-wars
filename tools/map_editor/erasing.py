@@ -6,11 +6,24 @@ import copy
 
 from .constants import (
     FLOOR_HIT_KINDS,
+    HIT_BARRIER,
+    HIT_EQUIPMENT_ERASER,
+    HIT_FLOOR,
+    HIT_GRASS,
+    HIT_INACCESSIBLE_FLOOR,
+    HIT_ITEM,
+    HIT_LADDER,
+    HIT_LIGHT,
+    HIT_LIGHT_BRIDGE,
+    HIT_NESTED_MAP,
+    HIT_PRESSURE_PLATE,
+    HIT_RAMP,
+    HIT_SPAWN_ZONE,
+    HIT_WALL,
     ITEMS_LIST,
     LADDER_SIDES,
     LIGHT_SIDES,
     MODE_ERASE_BARRIERS,
-    MODE_EQUIPMENT_ERASER,
     MODE_ERASE_EQUIPMENT_ERASERS,
     MODE_ERASE_FLOORS,
     MODE_ERASE_GRASS,
@@ -23,11 +36,6 @@ from .constants import (
     MODE_ERASE_RAMPS,
     MODE_ERASE_SPAWN_ZONES,
     MODE_ERASE_WALLS,
-    MODE_FLOOR,
-    MODE_GRASS,
-    MODE_INACCESSIBLE_FLOOR,
-    MODE_LIGHT_BRIDGE,
-    MODE_NESTED_MAP,
     NESTED_MAPS_LIST,
     SPAWN_ZONE_LISTS,
 )
@@ -231,7 +239,8 @@ def erase_cell_rect(
     return after
 
 
-def hit_at(data: dict, level_idx: int, px: float, py: float):
+# `tolerance` is how far, in cells, a point may sit from an edge to pick it.
+def hit_at(data: dict, level_idx: int, px: float, py: float, tolerance: float):
     col = int(px // 1)
     row = int(py // 1)
     level = data["levels"][level_idx]
@@ -240,34 +249,34 @@ def hit_at(data: dict, level_idx: int, px: float, py: float):
     # one, and peels before the wall it hangs on.
     side = cell_side_from_click(col, row, px, py)
     if any((l["col"], l["row"], l["side"]) == (col, row, side) for l in level.get("lights", [])):
-        return ("Light", (col, row, side))
+        return (HIT_LIGHT, (col, row, side))
     for wall in level["walls"]:
         wall_arr = [wall["c0"], wall["r0"], wall["c1"], wall["r1"]]
-        if point_near_wall(px, py, wall_arr):
-            return ("Wall", tuple(wall_arr))
+        if point_near_wall(px, py, wall_arr, tolerance):
+            return (HIT_WALL, tuple(wall_arr))
     for eraser in level.get("erasers", []):
         edge = list(edge_key(eraser))
-        if point_near_wall(px, py, edge):
-            return (MODE_EQUIPMENT_ERASER, tuple(edge))
+        if point_near_wall(px, py, edge, tolerance):
+            return (HIT_EQUIPMENT_ERASER, tuple(edge))
     for barrier in level.get("barriers", []):
         arr = [barrier["c0"], barrier["r0"], barrier["c1"], barrier["r1"]]
-        if point_near_wall(px, py, arr):
-            return ("Barrier", tuple(arr))
+        if point_near_wall(px, py, arr, tolerance):
+            return (HIT_BARRIER, tuple(arr))
     for ladder in data.get("ladders", []):
         if not ladder_spans_level(ladder, level_idx):
             continue
         if ladder["side"] not in LADDER_SIDES:
             if (col, row) == (ladder["col"], ladder["row"]):
-                return ("Ladder", ladder_key(ladder))
+                return (HIT_LADDER, ladder_key(ladder))
             continue
         edge = list(wall_endpoints_for_cell_side(ladder["col"], ladder["row"], ladder["side"]))
-        if point_near_wall(px, py, edge):
-            return ("Ladder", ladder_key(ladder))
+        if point_near_wall(px, py, edge, tolerance):
+            return (HIT_LADDER, ladder_key(ladder))
     on_level = level_idx
     if any(p["level"] == on_level and (p["col"], p["row"]) == (col, row) for p in data.get("pressure_plates", [])):
-        return ("Pressure Plate", (col, row))
+        return (HIT_PRESSURE_PLATE, (col, row))
     if any(i["level"] == on_level and (i["col"], i["row"]) == (col, row) for i in data.get(ITEMS_LIST, [])):
-        return ("Item", (col, row))
+        return (HIT_ITEM, (col, row))
     # Walk every zone list in reverse so the most-recently-painted entry
     # wins. SPAWN_ZONE_LISTS is ordered actor → player, so when both zone
     # types share a cell the actor zone is preferred.
@@ -275,89 +284,91 @@ def hit_at(data: dict, level_idx: int, px: float, py: float):
         for idx in range(len(data[list_name]) - 1, -1, -1):
             zone = data[list_name][idx]
             if zone["level"] == level_idx and zone_contains_cell(zone, col, row):
-                return ("Spawn Zone", (list_name, idx))
+                return (HIT_SPAWN_ZONE, (list_name, idx))
     for ramp in data["ramps"]:
         lower = ramp["lower_level"]
         if level_idx not in (lower, lower + 1):
             continue
         c0, r0, c1, r1 = ramp_rect(ramp)
         if c0 <= col < c1 and r0 <= row < r1:
-            return ("Ramp", (lower, tuple(ramp["low"]), tuple(ramp["high"])))
+            return (HIT_RAMP, (lower, tuple(ramp["low"]), tuple(ramp["high"])))
     if any(b["col"] == col and b["row"] == row for b in level.get("light_bridges", [])):
-        return (MODE_LIGHT_BRIDGE, (col, row))
+        return (HIT_LIGHT_BRIDGE, (col, row))
     # Only a nested map's anchor cells are hit targets: whatever lies
     # under its footprint stays clickable.
     for entry in data.get(NESTED_MAPS_LIST, []):
         at_start = entry["level"] == level_idx and entry["from"] == [col, row]
         at_end = entry["to_level"] == level_idx and entry["to"] == [col, row]
         if at_start or at_end:
-            return (MODE_NESTED_MAP, nested_map_key(entry))
+            return (HIT_NESTED_MAP, nested_map_key(entry))
     # Grass sits on top of a floor, so a click peels the grass first; the
     # next click then hits the floor underneath.
     if any(g["col"] == col and g["row"] == row for g in level.get("grass", [])):
-        return (MODE_GRASS, (col, row))
+        return (HIT_GRASS, (col, row))
     if any(f["col"] == col and f["row"] == row for f in level["floors"]):
-        return (MODE_FLOOR, (col, row))
+        return (HIT_FLOOR, (col, row))
     if any(f["col"] == col and f["row"] == row for f in level["inaccessible_floors"]):
-        return (MODE_INACCESSIBLE_FLOOR, (col, row))
+        return (HIT_INACCESSIBLE_FLOOR, (col, row))
     return None
 
 
+# The map with the picked element erased; the same map when Keep Floors
+# leaves it in place.
 def erase_hit(data: dict, level_idx: int, hit, preserve_floors: bool = False) -> dict:
     kind, value = hit
     if preserve_floors and kind in FLOOR_HIT_KINDS:
-        return copy.deepcopy(data)
-    after = copy.deepcopy(data)
-    level = after["levels"][level_idx]
-    if kind == MODE_GRASS:
-        level["grass"] = [grass for grass in level.get("grass", []) if (grass["col"], grass["row"]) != value]
-    elif kind in (MODE_FLOOR, MODE_INACCESSIBLE_FLOOR):
+        return data
+    if kind in (HIT_FLOOR, HIT_INACCESSIBLE_FLOOR):
         col, row = value
         return erase_floors(data, level_idx, (col, row, col + 1, row + 1))
-    elif kind == MODE_LIGHT_BRIDGE:
+    after = copy.deepcopy(data)
+    level = after["levels"][level_idx]
+    if kind == HIT_GRASS:
+        level["grass"] = [grass for grass in level.get("grass", []) if (grass["col"], grass["row"]) != value]
+    elif kind == HIT_LIGHT_BRIDGE:
         level["light_bridges"] = [
             bridge for bridge in level.get("light_bridges", []) if (bridge["col"], bridge["row"]) != value
         ]
-    elif kind == MODE_NESTED_MAP:
+    elif kind == HIT_NESTED_MAP:
         after[NESTED_MAPS_LIST] = [entry for entry in after.get(NESTED_MAPS_LIST, []) if nested_map_key(entry) != value]
-    elif kind == "Spawn Zone":
+    elif kind == HIT_SPAWN_ZONE:
         list_name, target_idx = value
         if 0 <= target_idx < len(after[list_name]):
             del after[list_name][target_idx]
-    elif kind == "Light":
+    elif kind == HIT_LIGHT:
         level["lights"] = [
             light for light in level.get("lights", []) if (light["col"], light["row"], light["side"]) != value
         ]
-    elif kind == "Pressure Plate":
+    elif kind == HIT_PRESSURE_PLATE:
         after["pressure_plates"] = [
             plate
             for plate in after.get("pressure_plates", [])
             if not (plate["level"] == level_idx and (plate["col"], plate["row"]) == value)
         ]
-    elif kind == "Item":
+    elif kind == HIT_ITEM:
         after[ITEMS_LIST] = [
             item
             for item in after.get(ITEMS_LIST, [])
             if not (item["level"] == level_idx and (item["col"], item["row"]) == value)
         ]
-    elif kind == "Wall":
+    elif kind == HIT_WALL:
         level["walls"] = [wall for wall in level["walls"] if edge_key(wall) != value]
         level["lights"] = lights_off_edges(level.get("lights", []), {value})
-    elif kind == MODE_EQUIPMENT_ERASER:
+    elif kind == HIT_EQUIPMENT_ERASER:
         level["erasers"] = [eraser for eraser in level.get("erasers", []) if edge_key(eraser) != value]
-    elif kind == "Barrier":
+    elif kind == HIT_BARRIER:
         level["barriers"] = [
             barrier
             for barrier in level.get("barriers", [])
             if edge_key(barrier) != value
         ]
-    elif kind == "Ramp":
+    elif kind == HIT_RAMP:
         lower, low, high = value
         after["ramps"] = [
             ramp
             for ramp in after["ramps"]
             if (ramp["lower_level"], tuple(ramp["low"]), tuple(ramp["high"])) != (lower, low, high)
         ]
-    elif kind == "Ladder":
+    elif kind == HIT_LADDER:
         after["ladders"] = [ladder for ladder in after.get("ladders", []) if ladder_key(ladder) != value]
     return after

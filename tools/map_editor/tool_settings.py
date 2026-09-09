@@ -29,7 +29,7 @@ from .constants import (
     RAMP_MODES,
 )
 from .dialogs import MotionDialog
-from .textures import portal_label
+from .display import portal_label
 
 
 class ToolSettings(QWidget):

@@ -35,8 +35,8 @@ from .constants import (
     SPAWN_ZONE_HANDLE_PIXELS,
 )
 from .symbols import ITEM_SYMBOLS, paint_item_symbol
-from .nested_maps import nested_map_label, nested_map_rest_points
-from .normalization import ladder_spans_level, nested_map_spans_level
+from .nesting import nested_map_label, nested_map_rest_points
+from .normalization import ladder_spans_level, light_placement_error, nested_map_spans_level, plate_cell_error
 
 from .display import (
     BARRIER_PEN_WIDTH,
@@ -55,20 +55,104 @@ from .types import DRAG_NESTED_END, DRAG_TILES
 from .geometry import (
     draw_direction,
     ladder_anchor_from_click,
-    ladder_marker_lines,
-    light_marker_polygon,
     opposite_direction,
-    orthogonal_arrow_points,
     ramp_axis,
     ramp_cells,
     ramp_points_from_cells,
     ramp_rect,
     rect_from_cells,
     snapped_wall_end,
-    wall_endpoints_for_cell_side,
     zone_handle_centers,
     zone_rect,
 )
+
+
+# ============================================================================
+# Glyphs: grid records to pixel shapes, `cell` being the cell size in pixels
+# ============================================================================
+
+_LIGHT_MARKER_BASE = 0.08   # cells: distance from the wall to the marker's base
+_LIGHT_MARKER_TIP = 0.30    # cells: distance from the wall to the marker's tip
+_LIGHT_MARKER_HALF_W = 0.12 # cells: half-width of the marker's base
+
+
+def light_marker_polygon(light: dict, cell: float) -> list[QPoint]:
+    """Filled triangle marker, anchored at the wall midpoint, pointing into
+    the room from the cell side the light sits on."""
+    col, row, side = light["col"], light["row"], light["side"]
+    base = _LIGHT_MARKER_BASE
+    tip = _LIGHT_MARKER_TIP
+    half = _LIGHT_MARKER_HALF_W
+    if side == "N":
+        pts = [(0.5, tip), (0.5 - half, base), (0.5 + half, base)]
+    elif side == "S":
+        pts = [(0.5, 1 - tip), (0.5 - half, 1 - base), (0.5 + half, 1 - base)]
+    elif side == "W":
+        pts = [(tip, 0.5), (base, 0.5 - half), (base, 0.5 + half)]
+    else:  # "E"
+        pts = [(1 - tip, 0.5), (1 - base, 0.5 - half), (1 - base, 0.5 + half)]
+    return [QPoint(round((col + dx) * cell), round((row + dy) * cell)) for dx, dy in pts]
+
+
+# Ladder glyph proportions, in cell units. The glyph hugs the anchor edge
+# on the ladder's rail side: two rails parallel to the edge plus rungs
+# between them — a ladder seen face-on.
+_LADDER_SPAN = (0.15, 0.85)   # extent along the edge
+_LADDER_NEAR = 0.04           # rail offsets from the edge
+_LADDER_FAR = 0.26
+_LADDER_RUNG_COUNT = 4
+
+
+def ladder_marker_lines(ladder: dict, cell: float) -> list[tuple[float, float, float, float]]:
+    """Line segments (x0, y0, x1, y1) in pixels for a ladder's canvas glyph."""
+    col, row, side = ladder["col"], ladder["row"], ladder["side"]
+    if side == "N":
+        origin, edge, normal = (col, row), (1, 0), (0, -1)
+    elif side == "S":
+        origin, edge, normal = (col, row + 1), (1, 0), (0, 1)
+    elif side == "W":
+        origin, edge, normal = (col, row), (0, 1), (-1, 0)
+    else:  # "E"
+        origin, edge, normal = (col + 1, row), (0, 1), (1, 0)
+    ox, oy = origin
+    ex, ey = edge
+    nx, ny = normal
+    t0, t1 = _LADDER_SPAN
+
+    def point(t: float, off: float) -> tuple[float, float]:
+        return ((ox + ex * t + nx * off) * cell, (oy + ey * t + ny * off) * cell)
+
+    lines = []
+    for off in (_LADDER_NEAR, _LADDER_FAR):
+        lines.append((*point(t0, off), *point(t1, off)))
+    for idx in range(_LADDER_RUNG_COUNT):
+        t = t0 + (t1 - t0) * (idx + 0.5) / _LADDER_RUNG_COUNT
+        lines.append((*point(t, _LADDER_NEAR), *point(t, _LADDER_FAR)))
+    return lines
+
+
+def orthogonal_arrow_points(
+    c0: int,
+    r0: int,
+    c1: int,
+    r1: int,
+    direction: str,
+    cell: float,
+) -> tuple[tuple[float, float], tuple[float, float]]:
+    pad = min(cell * 0.35, 14.0)
+    left = c0 * cell + pad
+    right = c1 * cell - pad
+    top = r0 * cell + pad
+    bottom = r1 * cell - pad
+    mid_x = (c0 + c1) * cell / 2.0
+    mid_y = (r0 + r1) * cell / 2.0
+    if direction == "east":
+        return (left, mid_y), (right, mid_y)
+    if direction == "west":
+        return (right, mid_y), (left, mid_y)
+    if direction == "south":
+        return (mid_x, top), (mid_x, bottom)
+    return (mid_x, bottom), (mid_x, top)
 
 
 class CanvasPaintingMixin:
@@ -172,9 +256,7 @@ class CanvasPaintingMixin:
         mode = self.window.mode
         if mode == MODE_SELECT or mode in MATERIAL_MODES:
             return
-        # Edge-based modes (Wall, Barrier): no ghost yet — the drag preview
-        # is the discoverability path; a single-point ghost would only show
-        # a 1px dot. Skip until we add a single-segment preview later.
+        # Edge tools preview their drag instead; a lone grid point has no ghost.
         if mode in (MODE_WALL, MODE_BARRIER, MODE_EQUIPMENT_ERASER):
             return
         if self.hover_cell is None:
@@ -199,19 +281,12 @@ class CanvasPaintingMixin:
                 painter.drawLine(round(x0), round(y0), round(x1), round(y1))
             return
         if mode == MODE_LIGHT:
-            # Side-aware ghost, shown only where the click would succeed —
-            # a wall on the hovered side and no ramp footprint — so valid
-            # spots read at a glance while sweeping the cursor.
+            # Side-aware ghost, shown only where the click would succeed, so
+            # valid spots read at a glance while sweeping the cursor.
             if self.hover_edge_side is None:
                 return
             col, row = self.hover_cell
-            window = self.window
-            level_idx = window.current_level
-            if wall_endpoints_for_cell_side(col, row, self.hover_edge_side) not in window._wall_endpoints_for_level(
-                level_idx
-            ):
-                return
-            if (col, row) in window._ramp_cells_for_level(level_idx):
+            if light_placement_error(self.window.map_data, self.window.current_level, col, row, self.hover_edge_side):
                 return
             painter.setBrush(QColor(250, 204, 21, 120))
             painter.setPen(QPen(QColor(202, 138, 4, 180), 1))
@@ -230,7 +305,7 @@ class CanvasPaintingMixin:
             MODE_FIREWORK_PLATE: (PLATE_TYPE_FIREWORK, None),
         }
         if mode in plate_modes:
-            if self.window.plates_at(col, row):
+            if self.window.plates_at(col, row) or plate_cell_error(self.window.map_data, self.window.current_level, col, row):
                 return
             purpose, kind = plate_modes[mode]
             painter.save()
@@ -358,7 +433,6 @@ class CanvasPaintingMixin:
             painter.restore()
 
     def _paint_items(self, painter: QPainter, cell: float, level_idx: int) -> None:
-        # Glyphs mirror the in-game meshes (client/src/items/spawn.rs):
         items = self.window.map_data.get(ITEMS_LIST, [])
         if not items:
             return

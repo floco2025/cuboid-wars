@@ -37,6 +37,7 @@ from .constants import (
     PLATE_TYPE_BRIDGE,
     PLATE_TYPE_FIREWORK,
 )
+from .normalization import compact_face_materials
 
 PLATE_LABELS = {
     PLATE_TYPE_BARRIER: ("B", "Barrier"),
@@ -137,39 +138,6 @@ def face_color(seg: dict) -> QColor:
     return color
 
 
-def expand_face_materials(obj: dict) -> dict[str, str]:
-    """Expand `all` shorthand into six explicit face materials. Faces not
-    explicitly set fall back to `all` (or to any other face value if `all` is
-    absent). Used when reading per-segment material data from JSON."""
-    fallback = obj.get("all")
-    if fallback is None:
-        fallback = next((obj[face] for face in FACES if face in obj), None)
-    if fallback is None:
-        fallback = ""
-    return {face: obj.get(face, fallback) for face in FACES}
-
-
-def compact_face_materials(faces: dict[str, str]) -> dict:
-    """Pack six face materials into the on-disk `all` + overrides shape.
-    Picks the most-common face value as `all`; ties broken alphabetically for
-    deterministic output."""
-    counts: dict[str, int] = {}
-    for face in FACES:
-        if face in faces:
-            counts[faces[face]] = counts.get(faces[face], 0) + 1
-    if not counts:
-        return {}
-    best_count = max(counts.values())
-    most_common = sorted(name for name, count in counts.items() if count == best_count)[0]
-    if best_count <= 1:
-        return {face: faces[face] for face in FACES if face in faces}
-    out = {"all": most_common}
-    for face in FACES:
-        if face in faces and faces[face] != most_common:
-            out[face] = faces[face]
-    return out
-
-
 def materials_summary(seg: dict) -> str:
     """One-line summary of a segment's six face materials, using the same
     `all`/overrides compaction as the on-disk shape."""
@@ -177,6 +145,5 @@ def materials_summary(seg: dict) -> str:
     return ", ".join(f"{k}={v}" for k, v in compact.items())
 
 
-def level_label(level: dict, index: int) -> str:
-    name = level.get("name")
-    return f"Level {index}" if not name else f"Level {index} ({name})"
+def portal_label(portalable: bool) -> str:
+    return "Portals allowed" if portalable else "Portals incompatible"

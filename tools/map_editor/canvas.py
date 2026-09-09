@@ -8,9 +8,14 @@ from PySide6.QtCore import QPointF, QRectF, QSize, Qt, Signal
 from PySide6.QtWidgets import QLabel, QMenu, QSizePolicy, QWidget
 
 from .constants import (
+    EDGE_PICK_PIXELS,
     EDITOR_CELL,
     ERASE_MODES,
     FLOOR_HIT_KINDS,
+    HIT_ITEM,
+    HIT_NESTED_MAP,
+    HIT_PRESSURE_PLATE,
+    HIT_SPAWN_ZONE,
     MATERIAL_MODES,
     MODE_ACTOR_SPAWN_ZONE,
     MODE_BARRIER,
@@ -201,7 +206,6 @@ class Canvas(CanvasPaintingMixin, QWidget):
         # the click would affect. Independent of `hover_target` (used by
         # material modes' hover-highlight pass).
         self.hover_cell: tuple[int, int] | None = None
-        self.hover_grid_point: tuple[int, int] | None = None
         # Edge-picking modes (Ladder, Light): the cell side the click would
         # target, tracked continuously so the hover ghost snaps between
         # sides as the cursor moves — without it there's nothing to aim at.
@@ -379,9 +383,6 @@ class Canvas(CanvasPaintingMixin, QWidget):
             if self.window.mode in MATERIAL_MODES:
                 self._update_material_hover(event.position())
             else:
-                # Hover ghost for non-material modes: track which cell (and
-                # grid point, for wall/barrier modes) the cursor is over so
-                # `_paint_hover_ghost` can show a per-mode preview.
                 self._update_cell_hover(event.position())
             return
         if self.window.mode == MODE_SELECT:
@@ -400,11 +401,10 @@ class Canvas(CanvasPaintingMixin, QWidget):
         self.pan_origin = None
 
     def _clear_hover(self) -> None:
-        changed = self.hover_target is not None or self.hover_cell is not None or self.hover_grid_point is not None
+        changed = self.hover_target is not None or self.hover_cell is not None
         self.hover_kind = None
         self.hover_target = None
         self.hover_cell = None
-        self.hover_grid_point = None
         self.hover_edge_side = None
         if changed:
             self.update()
@@ -413,15 +413,13 @@ class Canvas(CanvasPaintingMixin, QWidget):
     def _update_cell_hover(self, pos) -> None:
         cell = self.point_to_cell(pos)
         self._show_hover_label(self._element_hover_text(pos), pos)
-        grid_point = self.point_to_grid_point(pos)
         edge_side = None
         if self.window.mode in (MODE_LADDER, MODE_LIGHT) and cell is not None:
             point = self.grid_position(pos)
             edge_side = cell_side_from_click(cell[0], cell[1], point.x(), point.y())
-        if cell == self.hover_cell and grid_point == self.hover_grid_point and edge_side == self.hover_edge_side:
+        if cell == self.hover_cell and edge_side == self.hover_edge_side:
             return
         self.hover_cell = cell
-        self.hover_grid_point = grid_point
         self.hover_edge_side = edge_side
         self.update()
 
@@ -497,14 +495,20 @@ class Canvas(CanvasPaintingMixin, QWidget):
         else:
             self._hover_label.hide()
 
+    # How far from an edge a pick still hits it, in grid units, so edges
+    # stay clickable at any zoom.
+    def pick_tolerance(self) -> float:
+        return self.cells_per_pixel(EDGE_PICK_PIXELS)
+
     def _wall_near_position(self, pos) -> dict | None:
         pos = self.grid_position(pos)
         px = pos.x()
         py = pos.y()
+        tolerance = self.pick_tolerance()
         level = self.window.map_data["levels"][self.window.current_level]
         for wall in level["walls"]:
             wall_arr = [wall["c0"], wall["r0"], wall["c1"], wall["r1"]]
-            if point_near_wall(px, py, wall_arr, tolerance=0.2):
+            if point_near_wall(px, py, wall_arr, tolerance):
                 return wall
         return None
 
@@ -553,16 +557,16 @@ class Canvas(CanvasPaintingMixin, QWidget):
             menu.exec(event.globalPos())
             return
         kind, value = hit
-        if kind == "Spawn Zone":
+        if kind == HIT_SPAWN_ZONE:
             list_name, index = value
             self.window.set_selected_spawn_zone(ZoneRef(list_name, index))
             if self.window.selected_spawn_zone_has_fields():
                 menu.addAction("Edit Spawn Zone...", lambda: self.window.edit_selected_spawn_zone_fields())
-        elif kind == MODE_NESTED_MAP:
+        elif kind == HIT_NESTED_MAP:
             menu.addAction("Edit Nested Map...", lambda: self.window.edit_nested_map(value))
-        elif kind == "Item":
+        elif kind == HIT_ITEM:
             menu.addAction("Edit Item...", lambda: self.window.edit_item_at(*value))
-        elif kind == "Pressure Plate":
+        elif kind == HIT_PRESSURE_PLATE:
             for plate in self.window.plates_at(*value):
                 label = f"{plate['type'].capitalize()} Plate"
                 if "kind" in plate:
@@ -572,7 +576,7 @@ class Canvas(CanvasPaintingMixin, QWidget):
                         lambda _checked=False, key=pressure_plate_key(plate): self.window.edit_pressure_plate_at(key),
                     )
                 menu.addAction(f"Erase {label}", lambda _checked=False, key=pressure_plate_key(plate): self.window.erase_pressure_plate(key))
-        if kind != "Pressure Plate" and not (preserve_floors and kind in FLOOR_HIT_KINDS):
+        if kind != HIT_PRESSURE_PLATE and not (preserve_floors and kind in FLOOR_HIT_KINDS):
             menu.addAction(f"Erase {kind}", lambda: self.window.erase_hit(hit, preserve_floors))
         menu.exec(event.globalPos())
 

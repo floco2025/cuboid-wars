@@ -3,7 +3,8 @@ from PySide6.QtCore import Qt
 
 from PySide6.QtWidgets import QComboBox, QDialog, QDialogButtonBox, QFormLayout, QMessageBox, QSpinBox, QVBoxLayout
 
-from ..constants import ITEM_KEY_TYPE, ITEM_TYPES, load_actor_kinds
+from ..catalogs import load_actor_kinds
+from ..constants import ITEM_KEY_TYPE, ITEM_TYPES
 
 
 class ActorSpawnFieldsDialog(QDialog):

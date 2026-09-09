@@ -1,4 +1,5 @@
 import copy
+import unittest
 from unittest.mock import patch
 
 from PySide6.QtCore import QPoint, QPointF, Qt
@@ -9,6 +10,21 @@ from PySide6.QtWidgets import QApplication, QComboBox, QMenu, QStatusBar
 from editor_fixtures import WindowTestCase
 from map_editor.constants import MODE_ACTOR_SPAWN_ZONE, MODE_ERASE
 from map_editor.types import ZoneRef
+from map_editor.viewport import Viewport
+
+
+class ViewportTests(unittest.TestCase):
+    def test_zoom_keeps_the_grid_point_under_the_mouse_and_fit_reaches_large_maps(self):
+        viewport = Viewport()
+        viewport.fit(600, 400, 256, 256)
+        self.assertLessEqual(viewport.from_grid(QPointF(256, 256)).y(), 400)
+        anchor = QPointF(125, 78)
+        grid = viewport.to_grid(anchor)
+        viewport.zoom(2, anchor)
+        self.assertEqual(viewport.to_grid(anchor), grid)
+        viewport.pan(QPointF(-50, 20))
+        point = QPointF(3.5, 4.5)
+        self.assertEqual(viewport.to_grid(viewport.from_grid(point)), point)
 
 
 class EditorNavigationTests(WindowTestCase):

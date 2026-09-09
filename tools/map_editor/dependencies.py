@@ -2,7 +2,8 @@
 
 from PySide6.QtCore import QFileSystemWatcher, QObject, QTimer, Signal
 
-from .constants import ASSETS_PATH, GAMEPLAY_PATH, map_settings_path
+from .catalogs import map_settings_path
+from .constants import ASSETS_PATH, GAMEPLAY_PATH
 
 
 class MapDependencies(QObject):

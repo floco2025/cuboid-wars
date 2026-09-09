@@ -4,15 +4,11 @@ from __future__ import annotations
 
 import json
 
-from .display import compact_face_materials
+from .normalization import compact_face_materials
 
 
 def json_scalar(value) -> str:
     return json.dumps(value, separators=(",", ": "))
-
-
-def format_point(point: list[int]) -> str:
-    return "[" + ", ".join(str(v) for v in point) + "]"
 
 
 def with_trailing_comma(lines: list[str]) -> list[str]:
@@ -25,74 +21,24 @@ def with_trailing_comma(lines: list[str]) -> list[str]:
 
 
 def _ramp_body(ramp: dict) -> str:
-    materials = compact_face_materials(ramp)
-    materials_part = ""
-    if materials:
-        materials_part = ", " + ", ".join(
-            f'"{key}": {json.dumps(value)}' for key, value in materials.items()
-        )
-    return (
-        f'"lower_level": {ramp["lower_level"]}, '
-        f'"low": {format_point(ramp["low"])}, '
-        f'"high": {format_point(ramp["high"])}{materials_part}'
-    )
+    body = {"lower_level": ramp["lower_level"], "low": ramp["low"], "high": ramp["high"], **compact_face_materials(ramp)}
+    return _inline_object_body(body)
 
 
-def _zone_rect_fragment(zone: dict) -> str:
-    return (
-        f'"level": {zone["level"]}, '
-        f'"cols": [{zone["cols"][0]}, {zone["cols"][1]}], '
-        f'"rows": [{zone["rows"][0]}, {zone["rows"][1]}]'
-    )
+def _actor_spawn_zone_body(zone: dict) -> str:
+    body = {"level": zone["level"], "cols": zone["cols"], "rows": zone["rows"], "kind": zone["kind"], "count": zone["count"]}
+    return _inline_object_body(body)
 
 
-def format_actor_spawn_zones(zones: list[dict], indent: int) -> list[str]:
-    def render(zone: dict) -> str:
-        return (
-            f"{{{_zone_rect_fragment(zone)}, "
-            f'"kind": {json.dumps(zone["kind"])}, '
-            f'"count": {zone["count"]}}}'
-        )
-
-    return _format_zone_list("actor_spawn_zones", zones, indent, render)
+def _player_spawn_zone_body(zone: dict) -> str:
+    return _inline_object_body({"level": zone["level"], "cols": zone["cols"], "rows": zone["rows"]})
 
 
-def format_pressure_plates(plates: list[dict], indent: int) -> list[str]:
-    return _format_zone_list(
-        "pressure_plates",
-        plates,
-        indent,
-        lambda plate: (
-            f'{{"level": {plate["level"]}, '
-            f'"col": {plate["col"]}, '
-            f'"row": {plate["row"]}, '
-            f'"type": {json.dumps(plate["type"])}'
-            + (f', "kind": {json.dumps(plate["kind"])}' if "kind" in plate else "")
-            + "}"
-        ),
-    )
-
-
-def format_player_spawn_zones(zones: list[dict], indent: int) -> list[str]:
-    return _format_zone_list(
-        "player_spawn_zones",
-        zones,
-        indent,
-        lambda zone: f"{{{_zone_rect_fragment(zone)}}}",
-    )
-
-
-def _format_zone_list(name: str, zones: list[dict], indent: int, render_zone) -> list[str]:
-    pad = " " * indent
-    inner = " " * (indent + 2)
-    if not zones:
-        return [f'{pad}"{name}": []']
-    lines = [f'{pad}"{name}": [']
-    for idx, zone in enumerate(zones):
-        comma = "," if idx + 1 < len(zones) else ""
-        lines.append(f"{inner}{render_zone(zone)}{comma}")
-    lines.append(f"{pad}]")
-    return lines
+def _pressure_plate_body(plate: dict) -> str:
+    body = {"level": plate["level"], "col": plate["col"], "row": plate["row"], "type": plate["type"]}
+    if "kind" in plate:
+        body["kind"] = plate["kind"]
+    return _inline_object_body(body)
 
 
 def format_map_file(wrapper: dict) -> str:
@@ -102,9 +48,9 @@ def format_map_file(wrapper: dict) -> str:
         '  "map": {',
         f'    "grid_cols": {map_data["grid_cols"]},',
         f'    "grid_rows": {map_data["grid_rows"]},',
-        *with_trailing_comma(format_actor_spawn_zones(map_data["actor_spawn_zones"], 4)),
-        *with_trailing_comma(format_player_spawn_zones(map_data["player_spawn_zones"], 4)),
-        *with_trailing_comma(format_pressure_plates(map_data.get("pressure_plates", []), 4)),
+        *with_trailing_comma(format_object_array("actor_spawn_zones", map_data["actor_spawn_zones"], _actor_spawn_zone_body, 4)),
+        *with_trailing_comma(format_object_array("player_spawn_zones", map_data["player_spawn_zones"], _player_spawn_zone_body, 4)),
+        *with_trailing_comma(format_object_array("pressure_plates", map_data.get("pressure_plates", []), _pressure_plate_body, 4)),
         *with_trailing_comma(format_object_array("items", map_data.get("items", []), _item_body, 4)),
         '    "levels": [',
     ]

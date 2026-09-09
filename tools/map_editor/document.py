@@ -16,9 +16,9 @@ from PySide6.QtCore import QLockFile, QObject, QStandardPaths, Signal
 from PySide6.QtGui import QUndoStack
 
 from .commands import SetMapCommand
-from .io import empty_map, read_map, write_map
-from .normalization import canonicalize_map, normalize_map
-from .repairs import maintain_edit, repair_summary
+from .io import read_map, write_map
+from .normalization import canonicalize_map, empty_map, normalize_map
+from .repairs import repair_summary
 
 
 class MapDocument(QObject):
@@ -36,8 +36,10 @@ class MapDocument(QObject):
         self.recovery_lock: QLockFile | None = None
         self.path: Path | None = path
         self.active_map: str | None = None
+        self._canonical: dict[str | None, dict] = {}
+        self._repairs_pending: dict[str | None, bool] = {}
         if path is not None and path.exists():
-            self.root_data: dict = read_map(path)
+            self.root_data = read_map(path)
             # mtime snapshot for external-modification detection. Compared on
             # save so the editor warns before overwriting a file that changed
             # under it (e.g. someone edited `map.json` in another tool, or git
@@ -52,10 +54,39 @@ class MapDocument(QObject):
         self.undo_stack.setUndoLimit(self.UNDO_LIMIT)
 
     @property
+    def root_data(self) -> dict:
+        return self._root_data
+
+    # Replacing the document forgets the canonical forms memoized below.
+    @root_data.setter
+    def root_data(self, data: dict) -> None:
+        self._root_data = data
+        self._canonical.clear()
+        self._repairs_pending.clear()
+
+    @property
     def map_data(self) -> dict:
         if self.active_map is None:
             return self.root_data
         return self.root_data["nested_geometry"][self.active_map]
+
+    # The active map canonicalized, and whether that changes any record,
+    # memoized until `root_data` is replaced: every edit asks for both, and
+    # canonicalizing a large map per click would lag.
+    def canonical_map_data(self) -> dict:
+        if self.active_map not in self._canonical:
+            self._canonical[self.active_map] = canonicalize_map(self.map_data)
+        return self._canonical[self.active_map]
+
+    def repairs_pending(self) -> bool:
+        if self.active_map not in self._repairs_pending:
+            self._repairs_pending[self.active_map] = bool(repair_summary(self.map_data, self.canonical_map_data()))
+        return self._repairs_pending[self.active_map]
+
+    # Geometry transforms can move invalid records; only explicit repair may remove them.
+    def maintain(self, after: dict) -> dict:
+        normalized = normalize_map(after)
+        return normalized if self.repairs_pending() else canonicalize_map(normalized)
 
     @property
     def nested_geometry(self) -> dict:
@@ -84,9 +115,10 @@ class MapDocument(QObject):
         self.undo_stack.push(SetMapCommand(self, label, self.root_data, after, active_map))
         return True
 
-    def apply_change(self, label: str, after: dict, *, repair: bool = False) -> bool:
-        after = canonicalize_map(after) if repair else maintain_edit(self.map_data, after)
-        if after == maintain_edit(self.map_data, self.map_data):
+    def apply_change(self, label: str, after: dict) -> bool:
+        after = self.maintain(after)
+        current = normalize_map(self.map_data) if self.repairs_pending() else self.canonical_map_data()
+        if after == current:
             return False
         root = after
         if self.active_map is not None:
@@ -95,8 +127,17 @@ class MapDocument(QObject):
         return self.apply_root_change(label, root, self.active_map)
 
     def proposed_repairs(self) -> tuple[dict, list[str]]:
-        repaired = canonicalize_map(self.map_data)
-        return repaired, repair_summary(self.map_data, repaired)
+        """The whole document repaired, the outer map and every nested
+        definition, with the summary lines of each."""
+        repaired = canonicalize_map(self.root_data)
+        summary = repair_summary(self.root_data, repaired)
+        for name, geometry in self.nested_geometry.items():
+            repaired["nested_geometry"][name] = canonicalize_map(geometry)
+            summary.extend(f"Nested {name}: {line}" for line in repair_summary(geometry, repaired["nested_geometry"][name]))
+        return repaired, summary
+
+    def apply_repairs(self, repaired: dict) -> bool:
+        return self.apply_root_change("Repair Map", repaired, self.active_map)
 
     def replace_with_new(self, map_data: dict, path: Path | None = None) -> None:
         """Adopt an unsaved map at a chosen destination (None for a recovered session)."""
@@ -213,7 +254,6 @@ class MapDocument(QObject):
         before = self.map_data
         self.active_map = None
         self.root_data = recovered
-        # Unsaved by definition until the user writes the real file.
         self.dirty = recovered != self._saved_data
         self.undo_stack.clear()
         self.changed.emit(before)

@@ -9,23 +9,20 @@ from PySide6.QtCore import QTimer
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QFileDialog, QInputDialog, QMessageBox
 
-from .constants import (
-    DEFAULT_GRID_COLS,
-    DEFAULT_GRID_ROWS,
-    MAPS_DIR,
+from .catalogs import (
+    MapCatalogs,
     list_map_names,
     load_actor_kinds,
     load_immovable_actor_kinds,
-    load_map_barrier_kinds,
-    load_map_bridge_kinds,
-    load_map_wall_width_cells,
     load_wall_light_kinds,
     map_layout_path,
     map_name_from_path,
     require_map_settings,
 )
+from .constants import DEFAULT_GRID_COLS, DEFAULT_GRID_ROWS
 from .dialogs import ResizeMapDialog
-from .io import empty_map, read_map
+from .io import read_map
+from .normalization import empty_map
 
 
 class FileActionsMixin:
@@ -138,11 +135,7 @@ class FileActionsMixin:
             return False
         # Save As changes the map's name, and with it its catalogs; the view
         # stays where it is.
-        self.catalog_map = map_name
-        self.reload_texture_catalog()
-        self.barrier_kind_colors = load_map_barrier_kinds(map_name)
-        self.bridge_kind_colors = load_map_bridge_kinds(map_name)
-        self.wall_width_cells = load_map_wall_width_cells(map_name)
+        self.adopt_catalogs(map_name, MapCatalogs.load(map_name))
         self._record_recent_path(self.path)
         self.refresh_ui()
         return True
@@ -212,7 +205,7 @@ class FileActionsMixin:
         box.setStandardButtons(QMessageBox.StandardButton.Apply | QMessageBox.StandardButton.Cancel)
         box.setDefaultButton(QMessageBox.StandardButton.Cancel)
         if box.exec() == QMessageBox.StandardButton.Apply:
-            self.doc.apply_change("Repair Map", repaired, repair=True)
+            self.doc.apply_repairs(repaired)
 
     def recover_unsaved_map(self) -> None:
         if not self.confirm_discard_changes():
@@ -248,12 +241,8 @@ class FileActionsMixin:
         if isinstance(raw, str):
             raw = [raw]
         paths = []
-        registered = set(list_map_names())
         for entry in raw:
-            path = Path(str(entry))
-            if path.parent.resolve() == MAPS_DIR.resolve() and path.suffix == ".json" and path.stem in registered:
-                path = map_layout_path(path.stem)
-            value = str(path)
+            value = str(entry)
             if value not in paths:
                 paths.append(value)
         if paths != list(raw):
@@ -303,10 +292,7 @@ class FileActionsMixin:
             if self.recent_light_kind not in self.wall_light_kinds:
                 self.recent_light_kind = next(iter(self.wall_light_kinds), "")
             self.immovable_actor_kinds = load_immovable_actor_kinds()
-            self.reload_texture_catalog()
-            self.barrier_kind_colors = load_map_barrier_kinds(self.catalog_map)
-            self.bridge_kind_colors = load_map_bridge_kinds(self.catalog_map)
-            self.wall_width_cells = load_map_wall_width_cells(self.catalog_map)
+            self.adopt_catalogs(self.catalog_map, MapCatalogs.load(self.catalog_map))
         except (OSError, ValueError, KeyError) as exc:
             self.notify(f"Catalog reload failed: {exc}")
         self.refresh_ui()

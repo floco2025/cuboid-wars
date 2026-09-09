@@ -6,10 +6,10 @@ from PySide6.QtWidgets import QInputDialog, QMessageBox
 
 from .constants import DEFAULT_GRID_COLS, DEFAULT_GRID_ROWS, MAP_NAME_RE
 from .dialogs import ResizeMapDialog
-from .io import empty_map
+from .normalization import empty_map
 
 
-class NestedEditingMixin:
+class NestedDefinitionsMixin:
     def select_map(self, index: int) -> None:
         if index >= 0:
             self.doc.select_map(self.map_combo.itemData(index))

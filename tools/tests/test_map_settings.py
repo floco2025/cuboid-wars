@@ -9,8 +9,7 @@ from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QMessageBox
 
 from editor_fixtures import WindowTestCase
-from map_editor.constants import (
-    GAMEPLAY_PATH,
+from map_editor.catalogs import (
     list_map_names,
     load_map_barrier_kinds,
     load_map_settings,
@@ -18,7 +17,9 @@ from map_editor.constants import (
     map_name_from_path,
     map_settings_path,
 )
-from map_editor.io import empty_map, read_map, write_map
+from map_editor.constants import GAMEPLAY_PATH
+from map_editor.io import read_map, write_map
+from map_editor.normalization import empty_map
 
 
 class MapSettingsTests(unittest.TestCase):
@@ -29,8 +30,8 @@ class MapSettingsTests(unittest.TestCase):
         self.global_path = self.root / "gameplay.json"
         self.global_path.write_text(json.dumps({"default_map": "hotel", "maps": ["hotel"]}))
         for target, value in [
-            ("map_editor.constants.GAMEPLAY_PATH", self.global_path),
-            ("map_editor.constants.MAPS_DIR", self.root / "maps"),
+            ("map_editor.catalogs.GAMEPLAY_PATH", self.global_path),
+            ("map_editor.catalogs.MAPS_DIR", self.root / "maps"),
         ]:
             override = patch(target, value)
             override.start()
@@ -95,10 +96,9 @@ class MapSettingsWindowTests(WindowTestCase):
             directory.mkdir(exist_ok=True)
             (directory / "settings.json").write_bytes(data)
         for target, value in [
-            ("map_editor.constants.GAMEPLAY_PATH", self.global_path),
-            ("map_editor.constants.MAPS_DIR", self.root),
+            ("map_editor.catalogs.GAMEPLAY_PATH", self.global_path),
+            ("map_editor.catalogs.MAPS_DIR", self.root),
             ("map_editor.dependencies.GAMEPLAY_PATH", self.global_path),
-            ("map_editor.file_actions.MAPS_DIR", self.root),
         ]:
             override = patch(target, value)
             override.start()
@@ -191,11 +191,10 @@ class MapSettingsWindowTests(WindowTestCase):
         self.assertEqual(read_map(path)["grid_cols"], 8)
         self.assertFalse(self.window.dirty)
 
-    def test_recent_paths_follow_registered_maps_and_remove_duplicates(self):
-        previous = str(self.root / "hotel.json")
+    def test_recent_paths_remove_duplicates(self):
         current = str(map_layout_path("hotel"))
         unregistered = str(self.root / "unregistered.json")
-        self.window.preferences.setValue(self.window.RECENT_FILES_KEY, [previous, current, unregistered])
+        self.window.preferences.setValue(self.window.RECENT_FILES_KEY, [current, unregistered, current])
         self.assertEqual(self.window._load_recent_paths(), [current, unregistered])
         self.assertEqual(self.window.preferences.value(self.window.RECENT_FILES_KEY), [current, unregistered])
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from .constants import (
     FACES,
@@ -17,16 +17,16 @@ from .constants import (
     PLATE_TYPE_BRIDGE,
     PLATE_TYPES,
 )
-from .display import level_label
+from .catalogs import MapCatalogs
 from .geometry import (
     grid_point_in_bounds,
     normalized_wall,
-    ramp_cells,
     ramp_cells_on_level,
     ramp_error,
     wall_endpoints_for_cell_side,
 )
-from .normalization import edge_key
+from .nesting import nested_map_cycle, nested_map_shape
+from .normalization import edge_key, item_cell_error, ladders_overlap, level_label, plate_cell_error
 from .transforms import record_levels, record_rect
 
 _INDEX_RE = re.compile(r"\[\d+\]")
@@ -59,6 +59,14 @@ class ValidationErrors(list):
     def append(self, message: str, *, map_name: str | None = None) -> None:
         super().append(message)
         self.issues.append(ValidationIssue(message, self.level, self.rect, map_name))
+
+    # Another geometry's issues, each keeping its own place but labelled
+    # with the geometry it came from.
+    def merge(self, found: "ValidationErrors", prefix: str | None, map_name: str | None) -> None:
+        for issue in found.issues:
+            message = f"{prefix}: {issue.message}" if prefix is not None else issue.message
+            super().append(message)
+            self.issues.append(replace(issue, message=message, map_name=map_name))
 
 
 def validate_map(
@@ -209,6 +217,39 @@ def validate_map(
     return errors
 
 
+def validate_document(
+    root: dict,
+    catalogs: MapCatalogs,
+    *,
+    actor_kinds: list[str] | None = None,
+    immovable_actor_kinds: set[str] | None = None,
+    wall_light_kinds: list[str] | None = None,
+) -> ValidationErrors:
+    """Validate the outer map and every nested definition against the
+    parent's catalogs, each issue labelled with the geometry it is in."""
+    definitions = root.get("nested_geometry", {})
+    errors = ValidationErrors()
+    for name, geometry in [(None, root), *definitions.items()]:
+        label = f"Nested {name}" if name is not None else None
+        if name is not None and not MAP_NAME_RE.fullmatch(name):
+            errors.append(f"{label}: use only ASCII letters, digits, '_' or '-' in the name", map_name=name)
+        if name is not None and "nested_geometry" in geometry:
+            errors.append(f"{label}: named geometry belongs in the outer map's nested_geometry", map_name=name)
+        found = validate_map(
+            geometry,
+            list(catalogs.barrier_kind_colors),
+            list(catalogs.bridge_kind_colors),
+            map_name=name,
+            nested_lookup=lambda key: nested_map_shape(definitions.get(key)),
+            actor_kinds=actor_kinds,
+            immovable_actor_kinds=immovable_actor_kinds,
+            material_aliases=list(catalogs.texture_catalog),
+            wall_light_kinds=wall_light_kinds,
+        )
+        errors.merge(found, label, name)
+    return errors
+
+
 def _known(kinds: list[str]) -> str:
     return ", ".join(kinds) or "(none listed)"
 
@@ -235,18 +276,8 @@ def _validate_ladders(map_data: dict, errors: list[str]) -> None:
             errors.append(
                 f"{label} spans levels {lower}..{lower + levels} but the map has {level_count} level(s)"
             )
-        # Undirected edge: an edge holds at most one ladder — a mirrored
-        # pair would put two ladders' geometry on the same edge, so it
-        # counts as the same ladder twice even though only the front climbs.
-        edge = wall_endpoints_for_cell_side(col, row, side) if side in LADDER_SIDES else None
         for other_idx, other in enumerate(map_data["ladders"][:idx]):
-            if (
-                edge is not None
-                and other["side"] in LADDER_SIDES
-                and wall_endpoints_for_cell_side(other["col"], other["row"], other["side"]) == edge
-                and other["lower_level"] < lower + levels
-                and lower < other["lower_level"] + other["levels"]
-            ):
+            if ladders_overlap(ladder, other):
                 errors.append(f"{label} overlaps ladders[{other_idx}] on the same edge")
 
 
@@ -293,8 +324,6 @@ def _validate_nested_maps(map_data: dict, errors: list[str], map_name: str | Non
             errors.append(f"{label} duplicates a nested map starting at level {level} {start}")
         seen.add(key)
     if nested_lookup is not None and entries:
-        from .nested_maps import nested_map_cycle
-
         cycle = nested_map_cycle(map_name, entries, nested_lookup)
         if cycle:
             errors.append("nested maps loop: " + " -> ".join(cycle))
@@ -331,6 +360,9 @@ def _validate_pressure_plates(map_data: dict, kinds: list[str], bridge_kinds: li
         level = map_data["levels"][level_idx]
         if any(b["col"] == col and b["row"] == row for b in level.get("light_bridges", [])):
             errors.append(f"{label} [{col}, {row}] sits on a light bridge")
+        cell_error = plate_cell_error(map_data, level_idx, col, row)
+        if cell_error is not None:
+            errors.append(f"{label} {cell_error}")
         key = (level_idx, col, row)
         if key in seen:
             errors.append(f"{label} duplicates a plate at level {level_idx} [{col}, {row}]")
@@ -361,15 +393,9 @@ def _validate_items(map_data: dict, kinds: list[str], errors: list[str]) -> None
             errors.append(f"{label} has unknown type {item_type!r}; known: [{known}]")
         elif "kind" in item:
             errors.append(f"{label} ({item_type}) must not have `kind` — only key items take one")
-        level = map_data["levels"][level_idx]
-        if (col, row) not in {(f["col"], f["row"]) for f in level["floors"]}:
-            errors.append(f"{label} [{col}, {row}] has no regular floor")
-        # The Rust loader rejects items on ramp cells; `has_ramp` marks the
-        # lower level's footprint cells only.
-        for ramp in map_data["ramps"]:
-            if ramp["lower_level"] == level_idx and (col, row) in ramp_cells(ramp):
-                errors.append(f"{label} [{col}, {row}] is inside a ramp footprint")
-                break
+        cell_error = item_cell_error(map_data, level_idx, col, row)
+        if cell_error is not None:
+            errors.append(f"{label} {cell_error}")
         if (level_idx, col, row) in seen_cells:
             errors.append(f"{label} duplicates an item at level {level_idx} [{col}, {row}]")
         seen_cells.add((level_idx, col, row))

@@ -2,8 +2,9 @@ import unittest
 from unittest.mock import patch
 
 from editor_fixtures import DEFAULT_ALIAS, WindowTestCase
-from map_editor.io import empty_map
-from map_editor.validation import validate_map
+from map_editor.catalogs import MapCatalogs
+from map_editor.normalization import empty_map
+from map_editor.validation import validate_document, validate_map
 
 
 def spawn_map(count=2):
@@ -51,17 +52,22 @@ class SpawnValidationTests(unittest.TestCase):
         data["actor_spawn_zones"][0]["level"] = 5
         self.assertTrue(any("invalid level" in error for error in self.validate(data)))
 
-
-class SpawnCapacityWindowTests(WindowTestCase):
     def test_nested_geometry_uses_the_parent_actor_catalog_for_capacity(self):
         data = empty_map(8, 8)
         child = spawn_map(3)
         child["levels"][0]["light_bridges"] = []
         data["nested_geometry"] = {"turret_room": child}
-        errors = self.window.validate_document(data)
+        errors = validate_document(
+            data,
+            MapCatalogs({}, {}, 0.1, {DEFAULT_ALIAS: True}),
+            actor_kinds=["turret", "scuttler"],
+            immovable_actor_kinds={"turret"},
+        )
         issue = next(issue for issue in errors.issues if "usable floor cells" in issue.message)
         self.assertEqual(issue.map_name, "turret_room")
 
+
+class SpawnCapacityWindowTests(WindowTestCase):
     def test_catalog_reload_updates_immovable_capacity_validation(self):
         data = spawn_map(3)
         data["levels"][0]["light_bridges"] = []

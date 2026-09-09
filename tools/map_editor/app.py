@@ -10,7 +10,8 @@ from PySide6.QtCore import QPointF, QTimer, Qt
 from PySide6.QtGui import QBrush, QColor, QIcon, QPainter, QPen, QPixmap, QPolygonF
 from PySide6.QtWidgets import QApplication
 
-from .constants import MAP_NAME_RE, map_layout_path, require_map_settings
+from .catalogs import map_layout_path, require_map_settings
+from .constants import MAP_NAME_RE
 from .window import EditorWindow
 
 

@@ -4,15 +4,16 @@ from pathlib import Path
 
 from PySide6.QtCore import QByteArray, QEvent, QSettings, QSize
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QMainWindow
+from PySide6.QtWidgets import QMainWindow
 
+from editor_fixtures import qt_app
 from map_editor.window_geometry import WindowGeometry
 
 
 class WindowGeometryTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.app = QApplication.instance() or QApplication([])
+        cls.app = qt_app()
 
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()

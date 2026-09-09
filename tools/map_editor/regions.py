@@ -7,8 +7,7 @@ from dataclasses import dataclass
 
 from .constants import LIGHT_SIDES, SPAWN_ZONE_LISTS
 from .geometry import rects_overlap, wall_endpoints_for_cell_side, wall_overlaps_rect
-from .normalization import edge_key
-from .io import empty_level, empty_map
+from .normalization import edge_key, empty_level, empty_map
 from .transforms import EDGE_LISTS, GLOBAL_LISTS, LEVEL_LISTS, record_levels, record_rect, translate_map
 
 
@@ -45,10 +44,14 @@ def _edge(entry: dict) -> list[int]:
     return [entry[key] for key in ("c0", "r0", "c1", "r1")]
 
 
-def _whole_object(region: TileRegion, rect: tuple[int, int, int, int], lower: int, upper: int, name: str) -> bool:
+# `subject` and `include` word a refusal: what crosses an object, and how
+# the user widens it.
+def _whole_object(
+    region: TileRegion, rect: tuple[int, int, int, int], lower: int, upper: int, name: str, subject: str, include: str
+) -> bool:
     touches = lower < region.top and region.level <= upper and rects_overlap(region.rect, rect)
     if touches and not (region.contains_rect(rect) and region.level <= lower and upper < region.top):
-        raise ValueError(f"The selection crosses a {name}. Include its whole footprint and all its levels.")
+        raise ValueError(f"{subject} crosses a {name}. {include} its whole footprint and all its levels.")
     return touches
 
 
@@ -57,20 +60,22 @@ def _whole_object(region: TileRegion, rect: tuple[int, int, int, int], lower: in
 WHOLE_OBJECT_NOUNS = {**dict.fromkeys(SPAWN_ZONE_LISTS, "spawn zone"), "ramps": "ramp", "ladders": "ladder"}
 
 
-def _global_selected(name: str, entry: dict, region: TileRegion) -> bool:
+def _global_selected(name: str, entry: dict, region: TileRegion, subject: str, include: str) -> bool:
     if name in WHOLE_OBJECT_NOUNS:
         lower, upper = record_levels(entry)
-        return _whole_object(region, record_rect(name, entry), lower, upper, WHOLE_OBJECT_NOUNS[name])
+        return _whole_object(region, record_rect(name, entry), lower, upper, WHOLE_OBJECT_NOUNS[name], subject, include)
     if name == "nested_maps":
         start = region.contains_level(entry["level"]) and region.contains_cell(*entry["from"])
         end = region.contains_level(entry["to_level"]) and region.contains_cell(*entry["to"])
         if start != end:
-            raise ValueError("The selection crosses a nested map's motion. Include both end tiles and their levels.")
+            raise ValueError(f"{subject} crosses a nested map's motion. {include} both end tiles and their levels.")
         return start
     return region.contains_level(entry["level"]) and region.contains_cell(entry["col"], entry["row"])
 
 
-def _partition(data: dict, region: TileRegion) -> tuple[dict, dict]:
+def _partition(
+    data: dict, region: TileRegion, subject: str = "The selection", include: str = "Include"
+) -> tuple[dict, dict]:
     region.check_bounds(data)
     chosen = empty_map(data["grid_cols"], data["grid_rows"])
     chosen["levels"] = []
@@ -93,7 +98,7 @@ def _partition(data: dict, region: TileRegion) -> tuple[dict, dict]:
         chosen[name] = []
         remaining[name] = []
         for entry in data.get(name, []):
-            target = chosen[name] if _global_selected(name, entry, region) else remaining[name]
+            target = chosen[name] if _global_selected(name, entry, region, subject, include) else remaining[name]
             target.append(copy.deepcopy(entry))
     return chosen, remaining
 
@@ -135,11 +140,7 @@ def paste_region(data: dict, block: dict, cell: tuple[int, int], level: int) -> 
     while len(expanded["levels"]) < destination.top:
         expanded["levels"].append(empty_level(len(expanded["levels"])))
     destination.check_bounds(expanded)
-    try:
-        _, remaining = _partition(expanded, destination)
-    except ValueError as exc:
-        raise ValueError(str(exc).replace("The selection crosses", "The destination crosses").replace(
-            "Include", "Choose a tile whose block includes")) from exc
+    _, remaining = _partition(expanded, destination, "The destination", "Choose a tile whose block includes")
     moved = translate_map(block, col, row, level)
     for offset, source in enumerate(moved["levels"]):
         for name in LEVEL_LISTS:

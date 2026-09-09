@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import copy
-from dataclasses import replace
 from pathlib import Path
 
 from PySide6.QtCore import QSettings, Qt, QTimer
@@ -20,50 +19,48 @@ from PySide6.QtWidgets import QComboBox, QLabel, QMainWindow, QMenu, QToolBar
 
 from .canvas import CLICK_TOOLS, Canvas
 from .canvas_scroll import CanvasScrollArea
-from .constants import (
-    DEFAULT_ACTOR_COUNT,
-    ERASE_MODES,
-    ITEM_TYPES,
-    MAP_NAME_RE,
-    MODE_CATEGORIES,
-    MODE_RAMP_DOWN,
-    MODE_RAMP_UP,
-    MODE_SELECT,
+from .catalogs import (
+    MapCatalogs,
     load_actor_kinds,
     load_immovable_actor_kinds,
-    load_map_barrier_kinds,
-    load_map_bridge_kinds,
-    load_map_wall_width_cells,
     load_wall_light_kinds,
     map_name_from_path,
     require_map_settings,
 )
+from .constants import (
+    DEFAULT_ACTOR_COUNT,
+    ERASE_MODES,
+    ITEM_TYPES,
+    MODE_CATEGORIES,
+    MODE_RAMP_DOWN,
+    MODE_RAMP_UP,
+    MODE_SELECT,
+)
 from .dependencies import MapDependencies
-from .dialogs import NestedMotion
-from .display import level_label
 from .document import MapDocument
-from .erase import EraseMixin
+from .erase_tools import EraseMixin
 from .file_actions import FileActionsMixin
 from .issues import IssuesPanel
 from .items import ItemsMixin
 from .ladders import LaddersMixin
 from .lights import LightsMixin
-from .nested_editing import NestedEditingMixin
-from .nested_maps import NestedMapsMixin, nested_map_shape
+from .nested_definitions import NestedDefinitionsMixin
+from .nested_maps import NestedMapsMixin
+from .nesting import NestedMotion
+from .normalization import level_label
 from .placement import PlacementMixin
 from .select import SelectMixin
 from .spawn_zones import SpawnZoneEditMixin
 from .structure import StructureMixin
-from .textures import load_texture_catalog
 from .tool_settings import ToolSettings
 from .types import SpawnZoneDrag, ZoneRef
-from .validation import ValidationErrors, validate_map
+from .validation import ValidationErrors, validate_document, validate_map
 from .window_geometry import WindowGeometry
 
 
 class EditorWindow(
     FileActionsMixin,
-    NestedEditingMixin,
+    NestedDefinitionsMixin,
     PlacementMixin,
     ItemsMixin,
     LightsMixin,
@@ -79,15 +76,15 @@ class EditorWindow(
         super().__init__()
         map_name = map_name_from_path(path)
         require_map_settings(map_name)
-        self.catalog_map = map_name
         self.displayed_map = None
         self.preferences = preferences if preferences is not None else QSettings()
         # The document is the map being edited (data, file identity, dirty
         # state, undo history); the window holds view/tool state and widgets.
         self.doc = MapDocument(path)
-        self.barrier_kind_colors = load_map_barrier_kinds(map_name)
-        self.bridge_kind_colors = load_map_bridge_kinds(map_name)
-        self.wall_width_cells = load_map_wall_width_cells(map_name)
+        # Material for newly painted floors, walls, and ramps; an alias, since
+        # face values are validated against the catalog on save.
+        self.current_material = ""
+        self.adopt_catalogs(map_name, MapCatalogs.load(map_name))
         self.actor_kinds = load_actor_kinds()
         self.wall_light_kinds = load_wall_light_kinds()
         self.recent_light_kind = next(iter(self.wall_light_kinds), "")
@@ -129,11 +126,6 @@ class EditorWindow(
         # Show prev/next level geometry as ghosted overlays — helps when
         # placing ramps that span two levels.
         self.show_adjacent_levels = False
-        # Material for newly painted floors, walls, and ramps; an alias, since
-        # face values are validated against the catalog on save.
-        self.texture_catalog = load_texture_catalog(self.catalog_map)
-        self.materials_catalog = list(self.texture_catalog)
-        self.current_material = next(iter(self.materials_catalog), "")
 
         self.canvas = Canvas(self)
         self.canvas.setCursor(self.cursor_for_mode(self.mode))
@@ -214,48 +206,38 @@ class EditorWindow(
             material_aliases=self.materials_catalog,
         )
 
+    # The whole document against the catalogs of `map_name`, or the adopted ones.
     def validate_document(self, data: dict, map_name: str | None = None) -> ValidationErrors:
-        barriers = self.barrier_kinds if map_name is None else list(load_map_barrier_kinds(map_name))
-        bridges = self.bridge_kinds if map_name is None else list(load_map_bridge_kinds(map_name))
-        aliases = self.materials_catalog if map_name is None else list(load_texture_catalog(map_name))
-        definitions = data.get("nested_geometry", {})
-        errors = ValidationErrors()
-        for name, geometry in [(None, data), *definitions.items()]:
-            label = f"Nested {name}" if name is not None else "Outer map"
-            if name is not None and not MAP_NAME_RE.fullmatch(name):
-                errors.append(f"{label}: use only ASCII letters, digits, '_' or '-' in the name", map_name=name)
-            if name is not None and "nested_geometry" in geometry:
-                errors.append(f"{label}: named geometry belongs in the outer map's nested_geometry", map_name=name)
-            found = validate_map(
-                geometry, barriers, bridges, map_name=name,
-                nested_lookup=lambda key: nested_map_shape(definitions.get(key)),
-                actor_kinds=self.actor_kinds, material_aliases=aliases,
-                immovable_actor_kinds=self.immovable_actor_kinds,
-                wall_light_kinds=self.wall_light_kinds,
-            )
-            for issue in found.issues:
-                message = f"{label}: {issue.message}" if name is not None else issue.message
-                list.append(errors, message)
-                errors.issues.append(replace(issue, message=message, map_name=name))
-        return errors
+        catalogs = self.current_catalogs() if map_name is None else MapCatalogs.load(map_name)
+        return validate_document(
+            data,
+            catalogs,
+            actor_kinds=self.actor_kinds,
+            immovable_actor_kinds=self.immovable_actor_kinds,
+            wall_light_kinds=self.wall_light_kinds,
+        )
+
+    def current_catalogs(self) -> MapCatalogs:
+        return MapCatalogs(self.barrier_kind_colors, self.bridge_kind_colors, self.wall_width_cells, self.texture_catalog)
+
+    # Every view, dialog, and validation reads the catalogs of one map;
+    # opening, Save As, and a settings reload all switch them here.
+    def adopt_catalogs(self, map_name: str, catalogs: MapCatalogs) -> None:
+        self.catalog_map = map_name
+        self.barrier_kind_colors = catalogs.barrier_kind_colors
+        self.bridge_kind_colors = catalogs.bridge_kind_colors
+        self.wall_width_cells = catalogs.wall_width_cells
+        self.texture_catalog = catalogs.texture_catalog
+        self.materials_catalog = list(catalogs.texture_catalog)
+        if self.current_material not in catalogs.texture_catalog:
+            self.current_material = next(iter(catalogs.texture_catalog), "")
 
     def adopt_map(self, map_name: str) -> None:
-        self.catalog_map = map_name
+        self.adopt_catalogs(map_name, MapCatalogs.load(map_name))
         self.clear_selection()
-        self.barrier_kind_colors = load_map_barrier_kinds(map_name)
-        self.bridge_kind_colors = load_map_bridge_kinds(map_name)
-        self.wall_width_cells = load_map_wall_width_cells(map_name)
-        self.reload_texture_catalog()
         self.current_level = 0
         self.refresh_ui()
         self.canvas.fit_map()
-
-    def reload_texture_catalog(self) -> None:
-        catalog = load_texture_catalog(self.catalog_map)
-        self.texture_catalog = catalog
-        self.materials_catalog = list(catalog)
-        if self.current_material not in catalog:
-            self.current_material = next(iter(catalog), "")
 
     # === Menus & toolbar ===
 

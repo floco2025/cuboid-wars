@@ -6,10 +6,12 @@ from dataclasses import dataclass, field
 
 from PySide6.QtCore import QPointF, QRectF
 
+from .constants import EDITOR_CELL
+
 
 @dataclass
 class Viewport:
-    cell: float = 36.0
+    cell: float = EDITOR_CELL
     offset: QPointF = field(default_factory=QPointF)
     fitted: bool = True
 

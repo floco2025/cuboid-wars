@@ -1,20 +1,20 @@
 import copy
 import unittest
-from editor_fixtures import DEFAULT_ALIAS
 from pathlib import Path
 from unittest.mock import patch
 
-from PySide6.QtCore import QMimeData, QPoint, Qt
+from PySide6.QtCore import QMimeData, QPoint, QPointF, Qt
 from PySide6.QtGui import QKeySequence
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QMessageBox
 
+from editor_fixtures import DEFAULT_ALIAS, EditorHost, WindowTestCase, nested
 from map_editor.constants import MODE_ERASE, MODE_FLOOR, MODE_SELECT
-from map_editor.io import empty_map, write_map
-from map_editor.normalization import canonicalize_map
+from map_editor.io import write_map
+from map_editor.normalization import canonicalize_map, empty_map
 from map_editor.regions import GLOBAL_LISTS, LEVEL_LISTS, TileRegion, copy_region, delete_region, paste_region
 from map_editor.select import CLIPBOARD_MIME
-from editor_fixtures import WindowTestCase
+from map_editor.types import ZoneRef
 
 
 def furnished_block() -> dict:
@@ -149,7 +149,42 @@ class RegionTests(unittest.TestCase):
             copy_region(data, TileRegion((0, 0, 1, 1), 0))
 
 
-class WindowTests(WindowTestCase):
+class SelectHostTests(unittest.TestCase):
+    def test_a_press_selects_a_spawn_zone_before_a_drag_can_move_it(self) -> None:
+        data = empty_map(8, 8)
+        data["actor_spawn_zones"] = [{"level": 0, "cols": [1, 3], "rows": [1, 3], "kind": "beetle", "count": 2}]
+        host = EditorHost(data, [])
+        inside = QPointF(2.5, 2.5)
+
+        self.assertFalse(host.begin_select_press(inside, edit_objects=True))
+        self.assertEqual(host.selected_spawn_zone_ref, ZoneRef("actor_spawn_zones", 0))
+        self.assertIsNone(host.spawn_zone_drag)
+
+        self.assertFalse(host.begin_select_press(inside, edit_objects=True))
+        self.assertEqual(host.spawn_zone_drag.handle, "move")
+        host.update_select_drag(QPointF(4.5, 2.5))
+        host.end_select_drag(None, None)
+        zone = host.map_data["actor_spawn_zones"][0]
+        self.assertEqual((zone["cols"], zone["rows"]), ([3, 5], [1, 3]))
+
+        self.assertTrue(host.begin_select_press(QPointF(6.5, 6.5)))
+        self.assertIsNone(host.selected_spawn_zone_ref)
+
+    def test_object_drag_moves_only_the_chosen_nested_map_end(self) -> None:
+        data = empty_map(8, 8)
+        data["nested_maps"] = [nested("cabin", 0, [1, 1], [5, 1])]
+        host = EditorHost(data, [])
+
+        self.assertTrue(host.begin_select_press(QPointF(5.5, 1.5), edit_objects=True))
+        host.end_select_drag((5, 1), (5, 4))
+        entry = host.map_data["nested_maps"][0]
+        self.assertEqual((entry["from"], entry["to"]), ([1, 1], [5, 4]))
+        host.end_select_drag((5, 4), (5, 4))
+        self.assertEqual(host.map_data["nested_maps"][0]["to"], [5, 4])
+        self.assertTrue(host.begin_select_press(QPointF(3.5, 3.5)))
+
+
+class SelectionWindowTests(WindowTestCase):
     def test_click_and_reverse_drag_select_tiles_and_enable_menus(self):
         window = self.window
         self.assertEqual(window.mode, MODE_SELECT)

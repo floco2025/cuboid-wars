@@ -7,52 +7,9 @@ import copy
 from PySide6.QtWidgets import QInputDialog, QMessageBox
 
 from .dialogs import ResizeMapDialog, ToolReferenceDialog
-from .display import level_label
 from .geometry import ramp_rect
-from .normalization import empty_level
-from .repairs import maintain_edit
-from .transforms import GLOBAL_LISTS, LEVEL_LISTS, remap_levels, resize_map_data
-
-
-def element_counts(data: dict) -> dict[str, int]:
-    return {
-        **{name: sum(len(level.get(name, [])) for level in data["levels"]) for name in LEVEL_LISTS},
-        **{name: len(data.get(name, [])) for name in GLOBAL_LISTS},
-    }
-
-
-# What an edit drops, per record list, for the confirmation before it;
-# empty when nothing goes.
-def dropped_summary(before: dict, after: dict) -> str:
-    before_counts, after_counts = element_counts(before), element_counts(after)
-    parts = [
-        f"{count - after_counts[name]} {name.replace('_', ' ')}"
-        for name, count in before_counts.items()
-        if count > after_counts[name]
-    ]
-    return "This will drop:\n  - " + "\n  - ".join(parts) if parts else ""
-
-
-# The ramps a level inserted at `insert_at` would separate from their top.
-def crossing_ramps(map_data: dict, insert_at: int) -> list[dict]:
-    return [ramp for ramp in map_data["ramps"] if ramp["lower_level"] + 1 == insert_at]
-
-
-def insert_level_data(map_data: dict, insert_at: int, *, remove_crossing_ramps: bool = False) -> dict:
-    if crossing_ramps(map_data, insert_at) and not remove_crossing_ramps:
-        raise ValueError("The inserted level separates ramp endpoints.")
-    after = remap_levels(map_data, insert_at, remove=False)
-    after["ramps"] = [ramp for ramp in after["ramps"] if ramp["lower_level"] + 1 != insert_at]
-    after["levels"].insert(insert_at, empty_level(insert_at))
-    return after
-
-
-def remove_level_data(map_data: dict, removed: int) -> dict:
-    if len(map_data["levels"]) <= 1:
-        raise ValueError("A map needs at least one level.")
-    after = remap_levels(map_data, removed, remove=True)
-    after["levels"].pop(removed)
-    return after
+from .normalization import level_label
+from .transforms import crossing_ramps, dropped_summary, insert_level_data, remove_level_data, resize_map_data
 
 
 class StructureMixin:
@@ -67,7 +24,7 @@ class StructureMixin:
         new_cols, new_rows, anchor_x, anchor_y = result
         if new_cols == self.map_data["grid_cols"] and new_rows == self.map_data["grid_rows"]:
             return
-        after = maintain_edit(self.map_data, resize_map_data(self.map_data, new_cols, new_rows, anchor_x, anchor_y))
+        after = self.doc.maintain(resize_map_data(self.map_data, new_cols, new_rows, anchor_x, anchor_y))
         summary = dropped_summary(self.map_data, after)
         if summary:
             response = QMessageBox.question(

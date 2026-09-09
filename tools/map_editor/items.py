@@ -6,22 +6,11 @@ import copy
 
 from .constants import ITEM_KEY_TYPE, ITEMS_LIST, ITEM_TYPES
 from .dialogs import ItemTypeDialog
-from .geometry import ramp_cells
+from .normalization import item_cell_error
 
 
 class ItemsMixin:
     # === Items ===
-
-    def _item_cell_error(self, col: int, row: int) -> str | None:
-        level = self.map_data["levels"][self.current_level]
-        if (col, row) not in {(f["col"], f["row"]) for f in level["floors"]}:
-            return f"cell [{col}, {row}] has no regular floor."
-        # The server marks `has_ramp` only on the lower level's footprint
-        # cells, so the upper level of a ramp stays placeable.
-        for ramp in self.map_data["ramps"]:
-            if ramp["lower_level"] == self.current_level and (col, row) in ramp_cells(ramp):
-                return f"cell [{col}, {row}] is inside a ramp footprint."
-        return None
 
     def item_at(self, col: int, row: int) -> dict | None:
         return next(
@@ -63,9 +52,9 @@ class ItemsMixin:
         self.add_item(col, row, item_type, kind, label="Edit Item")
 
     def add_item(self, col: int, row: int, item_type: str, kind: str | None, label: str | None = None) -> None:
-        error = self._item_cell_error(col, row)
+        error = item_cell_error(self.map_data, self.current_level, col, row)
         if error is not None:
-            self.notify(f"Item not placed: {error}")
+            self.notify(f"Item not placed: cell {error}.")
             return
         if item_type == ITEM_KEY_TYPE and kind not in self.barrier_kinds:
             self.notify(f"Unknown key kind {kind!r}")

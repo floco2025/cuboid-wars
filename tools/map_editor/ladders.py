@@ -5,12 +5,8 @@ from __future__ import annotations
 import copy
 
 from .constants import LADDER_SIDES
-from .geometry import (
-    cell_side_from_click,
-    ladder_anchor_from_click,
-    wall_endpoints_for_cell_side,
-)
-from .normalization import ladder_key, ladder_spans_level
+from .geometry import cell_side_from_click, ladder_anchor_from_click, wall_endpoints_for_cell_side
+from .normalization import ladder_edge_key, ladder_key, ladder_spans_level, ladders_overlap
 
 
 class LaddersMixin:
@@ -38,8 +34,7 @@ class LaddersMixin:
         existing = next(
             (
                 l for l in self.map_data.get("ladders", [])
-                if l["side"] in LADDER_SIDES and wall_endpoints_for_cell_side(l["col"], l["row"], l["side"]) == edge
-                and ladder_spans_level(l, level_idx)
+                if l["side"] in LADDER_SIDES and ladder_edge_key(l) == edge and ladder_spans_level(l, level_idx)
             ),
             None,
         )
@@ -66,13 +61,7 @@ class LaddersMixin:
             "side": anchor_side,
             "levels": levels,
         }
-        overlapping = any(
-            l["side"] in LADDER_SIDES and wall_endpoints_for_cell_side(l["col"], l["row"], l["side"]) == edge
-            and l["lower_level"] < level_idx + levels
-            and level_idx < l["lower_level"] + l["levels"]
-            for l in self.map_data.get("ladders", [])
-        )
-        if overlapping:
+        if any(ladders_overlap(new_ladder, l) for l in self.map_data.get("ladders", [])):
             self.notify(f"A ladder already spans that edge ({side} side of [{col}, {row}]).")
             return
         after = copy.deepcopy(self.map_data)

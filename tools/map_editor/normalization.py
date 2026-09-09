@@ -14,8 +14,7 @@ from .constants import (
     LIGHT_SIDES,
     MAP_NAME_RE,
 )
-from .display import expand_face_materials
-from .geometry import normalized_wall, ramp_cells, wall_endpoints_for_cell_side
+from .geometry import normalized_wall, ramp_cells, ramp_cells_on_level, wall_endpoints_for_cell_side
 
 
 def empty_level(index: int) -> dict:
@@ -30,6 +29,65 @@ def empty_level(index: int) -> dict:
         "light_bridges": [],
         "lights": [],
     }
+
+
+def level_label(level: dict, index: int) -> str:
+    name = level.get("name")
+    return f"Level {index}" if not name else f"Level {index} ({name})"
+
+
+def empty_map(grid_cols: int = DEFAULT_GRID_COLS, grid_rows: int = DEFAULT_GRID_ROWS) -> dict:
+    # No seeded actor zone: there's no default kind to give it. Users paint
+    # actor zones explicitly and pick a kind in the dialog.
+    # The player-spawn-zone seed in the top-left guarantees the map is
+    # save-valid out of the box (at least one player spawn zone is required).
+    return {
+        "grid_cols": grid_cols,
+        "grid_rows": grid_rows,
+        "actor_spawn_zones": [],
+        "player_spawn_zones": [
+            {"level": 0, "cols": [0, min(2, grid_cols)], "rows": [0, min(2, grid_rows)]},
+        ],
+        "items": [],
+        "pressure_plates": [],
+        "levels": [empty_level(0)],
+        "ramps": [],
+        "ladders": [],
+        "nested_maps": [],
+    }
+
+
+def expand_face_materials(obj: dict) -> dict[str, str]:
+    """Expand `all` shorthand into six explicit face materials. Faces not
+    explicitly set fall back to `all` (or to any other face value if `all` is
+    absent). Used when reading per-segment material data from JSON."""
+    fallback = obj.get("all")
+    if fallback is None:
+        fallback = next((obj[face] for face in FACES if face in obj), None)
+    if fallback is None:
+        fallback = ""
+    return {face: obj.get(face, fallback) for face in FACES}
+
+
+def compact_face_materials(faces: dict[str, str]) -> dict:
+    """Pack six face materials into the on-disk `all` + overrides shape.
+    Picks the most-common face value as `all`; ties broken alphabetically for
+    deterministic output."""
+    counts: dict[str, int] = {}
+    for face in FACES:
+        if face in faces:
+            counts[faces[face]] = counts.get(faces[face], 0) + 1
+    if not counts:
+        return {}
+    best_count = max(counts.values())
+    most_common = sorted(name for name, count in counts.items() if count == best_count)[0]
+    if best_count <= 1:
+        return {face: faces[face] for face in FACES if face in faces}
+    out = {"all": most_common}
+    for face in FACES:
+        if face in faces and faces[face] != most_common:
+            out[face] = faces[face]
+    return out
 
 
 def normalize_map(map_data: dict) -> dict:
@@ -146,6 +204,53 @@ def ladder_edge_key(ladder: dict) -> tuple:
     # put two ladders' geometry on the same edge, so it counts as the same
     # ladder twice even though only the front side climbs.
     return wall_endpoints_for_cell_side(ladder["col"], ladder["row"], ladder["side"])
+
+
+def ladders_overlap(a: dict, b: dict) -> bool:
+    """Whether two ladders put geometry on the same edge on any storey."""
+    return (
+        a["side"] in LADDER_SIDES
+        and b["side"] in LADDER_SIDES
+        and ladder_edge_key(a) == ladder_edge_key(b)
+        and a["lower_level"] < b["lower_level"] + b["levels"]
+        and b["lower_level"] < a["lower_level"] + a["levels"]
+    )
+
+
+# Where a record may stand, as the server accepts it: each returns why a
+# cell is refused, or None.
+
+
+# `has_floor && !has_ramp`: a regular floor outside any lower-level ramp
+# footprint, so a ramp's upper storey stays placeable.
+def item_cell_error(data: dict, level_idx: int, col: int, row: int) -> str | None:
+    if (col, row) not in {(f["col"], f["row"]) for f in data["levels"][level_idx]["floors"]}:
+        return f"[{col}, {row}] has no regular floor"
+    if any(ramp["lower_level"] == level_idx and (col, row) in ramp_cells(ramp) for ramp in data["ramps"]):
+        return f"[{col}, {row}] is inside a ramp footprint"
+    return None
+
+
+# A slab (regular or blocked floor) outside every ramp footprint on the level.
+def plate_cell_error(data: dict, level_idx: int, col: int, row: int) -> str | None:
+    level = data["levels"][level_idx]
+    if (col, row) not in {(f["col"], f["row"]) for name in ("floors", "inaccessible_floors") for f in level[name]}:
+        return f"[{col}, {row}] has no floor"
+    if (col, row) in ramp_cells_on_level(data["ramps"], level_idx):
+        return f"[{col}, {row}] is inside a ramp footprint"
+    return None
+
+
+# A wall on that side of a cell outside every ramp footprint, holding no light yet.
+def light_placement_error(data: dict, level_idx: int, col: int, row: int, side: str) -> str | None:
+    level = data["levels"][level_idx]
+    if wall_endpoints_for_cell_side(col, row, side) not in {edge_key(w) for w in level["walls"]}:
+        return f"No wall on the {side} side of cell [{col}, {row}]."
+    if (col, row) in ramp_cells_on_level(data["ramps"], level_idx):
+        return f"Cannot place a light inside a ramp footprint ([{col}, {row}])."
+    if any((l["col"], l["row"], l["side"]) == (col, row, side) for l in level["lights"]):
+        return f"There is already a light on the {side} side of cell [{col}, {row}]; right-click it to erase."
+    return None
 
 
 def ladder_spans_level(ladder: dict, level_idx: int) -> bool:
@@ -349,22 +454,12 @@ def canonicalize_map(map_data: dict) -> dict:
         ]
         level["lights"] = _dedupe_lights(in_bounds_lights)
 
-    # Items only survive on regular-floor cells outside lower-level ramp
-    # footprints — the server's `has_floor && !has_ramp` rule — so erasing a
-    # floor (or laying a ramp) drops its item in the same canonicalize pass.
-    lower_ramp_cells_by_level: list[set[tuple[int, int]]] = [set() for _ in b["levels"]]
-    for ramp in b["ramps"]:
-        lower = ramp["lower_level"]
-        if 0 <= lower < len(lower_ramp_cells_by_level):
-            lower_ramp_cells_by_level[lower].update(ramp_cells(ramp))
-    floor_keys_by_level = [{(f["col"], f["row"]) for f in level["floors"]} for level in b["levels"]]
+    # Items only survive where the server accepts them, so erasing a floor
+    # (or laying a ramp) drops its item in the same canonicalize pass.
     items_by_cell: dict[tuple[int, int, int], dict] = {}
     for item in b["items"]:
         level_idx = item["level"]
-        if not (0 <= level_idx < len(b["levels"])):
-            continue
-        cell_key = (item["col"], item["row"])
-        if cell_key not in floor_keys_by_level[level_idx] or cell_key in lower_ramp_cells_by_level[level_idx]:
+        if not (0 <= level_idx < len(b["levels"])) or item_cell_error(b, level_idx, item["col"], item["row"]):
             continue
         # Later entries win when the same cell holds two items, so the
         # user's most recent placement stays.
@@ -384,13 +479,7 @@ def canonicalize_map(map_data: dict) -> dict:
     ]
     kept_ladders: list[dict] = []
     for ladder in sorted(in_bounds_ladders, key=ladder_key):
-        overlapping = any(
-            ladder_edge_key(other) == ladder_edge_key(ladder)
-            and other["lower_level"] < ladder["lower_level"] + ladder["levels"]
-            and ladder["lower_level"] < other["lower_level"] + other["levels"]
-            for other in kept_ladders
-        )
-        if not overlapping:
+        if not any(ladders_overlap(ladder, other) for other in kept_ladders):
             kept_ladders.append(ladder)
     b["ladders"] = kept_ladders
 

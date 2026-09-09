@@ -7,26 +7,12 @@ import copy
 from PySide6.QtWidgets import QMessageBox
 
 from .dialogs import AutoPlaceLightsDialog
-from .display import level_label
-from .geometry import (
-    cell_side_from_click,
-    ramp_cells_on_level,
-    wall_endpoints_for_cell_side,
-)
-from .normalization import edge_key, light_key
+from .geometry import cell_side_from_click, ramp_cells_on_level, wall_endpoints_for_cell_side
+from .normalization import edge_key, level_label, light_key, light_placement_error
 
 
 class LightsMixin:
     # === Lights ===
-
-    def _ramp_cells_for_level(self, level_idx: int) -> set[tuple[int, int]]:
-        return ramp_cells_on_level(self.map_data["ramps"], level_idx)
-
-    def _wall_endpoints_for_level(self, level_idx: int) -> set[tuple[int, int, int, int]]:
-        return {
-            edge_key(w)
-            for w in self.map_data["levels"][level_idx]["walls"]
-        }
 
     def add_light_at(self, pos) -> None:
         px = pos.x()
@@ -39,22 +25,12 @@ class LightsMixin:
             return
         side = cell_side_from_click(col, row, px, py)
         level_idx = self.current_level
-        endpoints = wall_endpoints_for_cell_side(col, row, side)
-        if endpoints not in self._wall_endpoints_for_level(level_idx):
-            self.notify(f"No wall on the {side} side of cell [{col}, {row}].")
-            return
-        if (col, row) in self._ramp_cells_for_level(level_idx):
-            self.notify(f"Cannot place a light inside a ramp footprint ([{col}, {row}]).")
-            return
-        new_light = {"col": col, "row": row, "side": side, "kind": self.recent_light_kind}
-        key = light_key(new_light)
-        if any(light_key(light) == key for light in self.map_data["levels"][level_idx]["lights"]):
-            self.notify(
-                f"There is already a light on the {side} side of cell [{col}, {row}]; right-click it to erase."
-            )
+        error = light_placement_error(self.map_data, level_idx, col, row, side)
+        if error is not None:
+            self.notify(error)
             return
         after = copy.deepcopy(self.map_data)
-        after["levels"][level_idx]["lights"].append(new_light)
+        after["levels"][level_idx]["lights"].append({"col": col, "row": row, "side": side, "kind": self.recent_light_kind})
         self.apply_change("Add Light", after)
 
     def auto_place_lights_on_current_level(
@@ -70,8 +46,8 @@ class LightsMixin:
         level_idx = self.current_level
         level = self.map_data["levels"][level_idx]
         floors_on_level = {(f["col"], f["row"]) for f in level["floors"]}
-        ramp_cells_on_level = self._ramp_cells_for_level(level_idx)
-        wall_set = self._wall_endpoints_for_level(level_idx)
+        ramp_cells = ramp_cells_on_level(self.map_data["ramps"], level_idx)
+        wall_set = {edge_key(w) for w in level["walls"]}
         # Column spacing controls placement *along* a horizontal wall (i.e.,
         # which X-positions get N/S lights). Row spacing controls placement
         # along a vertical wall (which Z-positions get E/W lights). The
@@ -82,7 +58,7 @@ class LightsMixin:
 
         candidates: list[dict] = []
         for (c, r) in floors_on_level:
-            if (c, r) in ramp_cells_on_level:
+            if (c, r) in ramp_cells:
                 continue
             if c in selected_cols:
                 for side in ("N", "S"):

@@ -1,24 +1,17 @@
 import copy
-import tempfile
-import unittest
-from editor_fixtures import DEFAULT_ALIAS
 from pathlib import Path
 from unittest.mock import patch
 
-from PySide6.QtCore import QEvent, QPoint, QPointF, QTimer, Qt
+from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
 from PySide6.QtGui import QContextMenuEvent, QMouseEvent, QWheelEvent
 from PySide6.QtTest import QSignalSpy, QTest
-from PySide6.QtWidgets import (
-    QApplication,
-    QComboBox,
-    QDialog,
-    QDockWidget,
-    QMenu,
-    QMessageBox,
-)
+from PySide6.QtWidgets import QComboBox, QDialog, QDockWidget, QMenu, QMessageBox
 
+from editor_fixtures import DEFAULT_ALIAS, WindowTestCase
 from map_editor.constants import (
     FACES,
+    HIT_LADDER,
+    HIT_LIGHT,
     MODE_ACTOR_SPAWN_ZONE,
     MODE_BRIDGE_PLATE,
     MODE_ERASE,
@@ -37,224 +30,15 @@ from map_editor.constants import (
 )
 from map_editor.dependencies import MapDependencies
 from map_editor.dialogs import ActorSpawnFieldsDialog, MaterialAssignmentDialog
-from map_editor.document import MapDocument
-from map_editor.editing import material_values, paint_floors, place_plate, top_left_materials, update_records
-from map_editor.erasing import erase_cell_rect
-from map_editor.io import empty_map, read_map, write_map
-from map_editor.normalization import canonicalize_map, normalize_map, pressure_plate_key
-from map_editor.structure import insert_level_data, remove_level_data
-from map_editor.transforms import record_lists, resize_map_data, translate_map
-from map_editor.validation import validate_map
-from map_editor.viewport import Viewport
-from editor_fixtures import WindowTestCase
+from map_editor.editing import material_values, paint_floors, update_records
+from map_editor.io import write_map
+from map_editor.nesting import NestedMotion
+from map_editor.normalization import empty_map
+from map_editor.transforms import insert_level_data
 from map_editor.window import EditorWindow
 
 
-class DocumentTests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.app = QApplication.instance() or QApplication([])
-
-    def test_unsaved_document_starts_dirty(self):
-        self.assertTrue(MapDocument(None).dirty)
-
-    def test_save_as_failure_keeps_autosave_and_original_identity(self):
-        with tempfile.TemporaryDirectory() as temp:
-            path = Path(temp) / "original.json"
-            write_map(path, empty_map())
-            doc = MapDocument(path)
-            doc.dirty = True
-            doc.write_autosave()
-            with patch("map_editor.document.write_map", side_effect=OSError("disk full")):
-                with self.assertRaises(OSError):
-                    doc.write(Path(temp) / "another.json")
-            self.assertEqual(doc.path, path)
-            self.assertTrue(doc.dirty)
-            self.assertTrue(doc.autosave_path().exists())
-
-
-    def setUp(self):
-        self.temp = tempfile.TemporaryDirectory()
-        self.directory = Path(self.temp.name)
-        self.path = self.directory / "map.json"
-        write_map(self.path, empty_map(8, 8))
-        self.doc = MapDocument(self.path, recovery_dir=self.directory / "recovery")
-
-    def tearDown(self):
-        self.doc.clear_autosave()
-        self.temp.cleanup()
-
-    def test_document_owns_transactions_and_signals_without_a_window(self):
-        before = copy.deepcopy(self.doc.map_data)
-        changed = QSignalSpy(self.doc.changed)
-        after = paint_floors(before, 0, (2, 2, 3, 3), DEFAULT_ALIAS)
-        self.assertEqual(self.doc.map_data, before)
-        self.assertTrue(self.doc.apply_change("Paint", after))
-        self.assertTrue(self.doc.dirty)
-        self.assertEqual(changed.count(), 1)
-        self.assertEqual(changed.at(0)[0], before)
-        self.doc.undo_stack.undo()
-        self.assertEqual(self.doc.map_data, before)
-        self.assertFalse(self.doc.dirty)
-        self.doc.undo_stack.redo()
-        self.assertTrue(self.doc.dirty)
-        self.assertFalse(self.doc.apply_change("No change", self.doc.map_data))
-        self.assertEqual(self.doc.undo_stack.count(), 1)
-
-    def load_damaged_map(self):
-        data = empty_map(8, 8)
-        data["levels"][0]["lights"] = [{"col": 2, "row": 2, "side": "invalid"}]
-        data["ladders"] = [{"col": 3, "row": 3, "lower_level": 0, "levels": 0, "side": "invalid"}]
-        data["items"] = [{"col": 7, "row": 7, "level": 0, "type": "gold"}]
-        data["actor_spawn_zones"] = [{"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "unknown", "count": -2}]
-        write_map(self.path, data)
-        self.doc.load(self.path)
-        return self.doc.map_data
-
-    def test_loading_preserves_invalid_records_and_reports_them(self):
-        data = self.load_damaged_map()
-        self.assertEqual(len(data["items"]), 1)
-        self.assertEqual(data["ladders"][0]["levels"], 0)
-        self.assertEqual(data["levels"][0]["lights"][0]["side"], "INVALID")
-        errors = validate_map(data, [], [], actor_kinds=["beetle"])
-        self.assertTrue(any("unknown actor kind" in error for error in errors))
-        self.assertTrue(any("negative count" in error for error in errors))
-        self.assertFalse(self.doc.dirty)
-
-    def test_explicit_repairs_are_one_undoable_edit(self):
-        before = copy.deepcopy(self.load_damaged_map())
-        repaired, summary = self.doc.proposed_repairs()
-        self.assertTrue(any("lights" in line for line in summary))
-        self.assertTrue(any("items" in line for line in summary))
-        self.doc.apply_change("Repair Map", repaired, repair=True)
-        self.assertEqual(self.doc.map_data["levels"][0]["lights"], [])
-        self.assertTrue(self.doc.dirty)
-        self.doc.undo_stack.undo()
-        self.assertEqual(self.doc.map_data, before)
-        self.assertFalse(self.doc.dirty)
-
-    def test_unrelated_edits_and_coordinate_transforms_do_not_repair_records(self):
-        self.load_damaged_map()
-        self.doc.apply_change("Paint", paint_floors(self.doc.map_data, 0, (4, 4, 5, 5), DEFAULT_ALIAS))
-        self.assertEqual(len(self.doc.map_data["items"]), 1)
-        moved = resize_map_data(self.doc.map_data, 10, 10, 2, 2)
-        self.doc.apply_change("Resize", moved)
-        self.assertEqual(self.doc.map_data["levels"][0]["lights"][0]["col"], 4)
-        self.doc.apply_change("Insert", insert_level_data(self.doc.map_data, 0))
-        self.assertEqual(self.doc.map_data["levels"][1]["lights"][0]["side"], "INVALID")
-        self.assertEqual(self.doc.map_data["items"][0]["level"], 1)
-
-    def test_erasing_a_wall_takes_its_light_even_while_repairs_are_pending(self):
-        self.load_damaged_map()
-        data = copy.deepcopy(self.doc.map_data)
-        data["levels"][0]["walls"] = [{"c0": 2, "r0": 2, "c1": 3, "r1": 2, "all": DEFAULT_ALIAS}]
-        data["levels"][0]["lights"].append({"col": 2, "row": 2, "side": "N"})
-        self.doc.replace_with_new(data)
-        self.doc.apply_change("Erase", erase_cell_rect(self.doc.map_data, 0, (2, 2), (2, 2), True))
-        sides = [light["side"] for light in self.doc.map_data["levels"][0]["lights"]]
-        self.assertEqual(sides, ["INVALID"])
-
-    def test_an_edit_that_only_reorders_a_file_ordered_map_is_not_an_edit(self):
-        data = empty_map(6, 6)
-        data["player_spawn_zones"] = []
-        data["levels"][0]["floors"] = [
-            {"col": 3, "row": 3, "all": DEFAULT_ALIAS},
-            {"col": 1, "row": 1, "all": DEFAULT_ALIAS},
-        ]
-        write_map(self.path, data)
-        doc = MapDocument(self.path, recovery_dir=self.directory / "recovery")
-        self.assertFalse(doc.apply_change("Paint", paint_floors(doc.map_data, 0, (1, 1, 2, 2), DEFAULT_ALIAS)))
-        self.assertFalse(doc.dirty)
-        self.assertEqual(doc.undo_stack.count(), 0)
-
-    def test_untitled_recovery_preserves_data_and_rejects_an_active_session(self):
-        self.doc.replace_with_new(empty_map())
-        self.doc.write_autosave()
-        recovery = self.doc.autosave_path()
-        self.assertTrue(recovery.exists())
-        other = MapDocument(None, recovery_dir=self.directory / "other")
-        self.assertFalse(other.recover_session(recovery))
-        self.doc.recovery_lock.unlock()
-        self.doc.recovery_lock = None
-        self.assertTrue(other.recover_session(recovery))
-        self.assertEqual(other.map_data, self.doc.map_data)
-        self.assertIsNone(other.path)
-        self.assertTrue(other.dirty)
-        destination = self.directory / "recovered.json"
-        other.write(destination)
-        self.assertFalse(recovery.exists())
-        self.assertEqual(read_map(destination), other.map_data)
-
-    def test_failed_recovery_leaves_current_document_untouched(self):
-        before = copy.deepcopy(self.doc.map_data)
-        with self.assertRaises(FileNotFoundError):
-            self.doc.recover_session(self.directory / "missing.json")
-        self.assertEqual(self.doc.map_data, before)
-        self.assertEqual(self.doc.path, self.path)
-
-    def test_inserting_through_ramps_requires_removal_and_undo_restores_everything(self):
-        data = empty_map()
-        data["levels"].append(copy.deepcopy(data["levels"][0]))
-        data["ramps"] = [{"lower_level": 0, "low": [2, 2], "high": [5, 3], "all": DEFAULT_ALIAS}]
-        data["ladders"] = [{"lower_level": 0, "levels": 1, "col": 6, "row": 6, "side": "N"}]
-        self.doc.replace_with_new(data)
-        before = copy.deepcopy(self.doc.map_data)
-        with self.assertRaises(ValueError):
-            insert_level_data(before, 1)
-        after = insert_level_data(before, 1, remove_crossing_ramps=True)
-        self.assertEqual(after["ramps"], [])
-        self.assertEqual(after["ladders"][0]["levels"], 2)
-        self.doc.apply_change("Insert", after)
-        self.assertEqual(len(self.doc.map_data["levels"]), 3)
-        self.doc.undo_stack.undo()
-        self.assertEqual(self.doc.map_data, before)
-
-    def test_transform_and_erase_helpers_leave_their_input_unchanged(self):
-        data = normalize_map(empty_map())
-        data = paint_floors(data, 0, (2, 2, 3, 3), DEFAULT_ALIAS)
-        before = copy.deepcopy(data)
-        moved = translate_map(data, 2, 3)
-        erased = erase_cell_rect(data, 0, (2, 2), (2, 2), False)
-        self.assertEqual(data, before)
-        self.assertEqual(moved["levels"][0]["floors"][0]["col"], 4)
-        self.assertEqual(erased["levels"][0]["floors"], [])
-        partial = {"levels": [{}]}
-        list(record_lists(partial))
-        self.assertEqual(partial, {"levels": [{}]})
-        with self.assertRaises(ValueError):
-            remove_level_data(data, 0)
-
-    def test_material_validation_uses_the_supplied_catalog(self):
-        data = paint_floors(empty_map(), 0, (3, 3, 4, 4), "fresh_alias")
-        self.assertFalse(validate_map(data, [], [], material_aliases=["fresh_alias"]))
-        self.assertTrue(validate_map(data, [], [], material_aliases=[DEFAULT_ALIAS]))
-
-    def test_material_source_uses_spatial_order_not_record_or_wall_endpoint_order(self):
-        pattern = dict(zip(FACES, ("a", "b", "c", "d", "e", "f")))
-        cases = {
-            "floors": ({"col": 2, "row": 1}, {"col": 1, "row": 2}),
-            "walls": ({"c0": 3, "r0": 1, "c1": 2, "r1": 1}, {"c0": 0, "r0": 2, "c1": 1, "r1": 2}),
-            "ramps": ({"low": [2, 1], "high": [5, 2]}, {"low": [0, 3], "high": [3, 4]}),
-        }
-        for name, (first, second) in cases.items():
-            with self.subTest(name=name):
-                entries = [{**second, **dict.fromkeys(FACES, "other")}, {**first, **pattern}]
-                before = copy.deepcopy(entries)
-                self.assertEqual(top_left_materials(entries, name), pattern)
-                self.assertEqual(entries, before)
-
-
 class WindowTests(WindowTestCase):
-    def test_canonicalization_of_stacked_ramps_is_a_fixed_point(self):
-        data = empty_map(6, 6)
-        data["levels"] = [copy.deepcopy(data["levels"][0]) for _ in range(3)]
-        data["ramps"] = [
-            {"lower_level": 1, "low": [1, 1], "high": [3, 1], "all": DEFAULT_ALIAS},
-            {"lower_level": 0, "low": [1, 1], "high": [3, 1], "all": DEFAULT_ALIAS},
-        ]
-        once = canonicalize_map(data)
-        self.assertEqual(canonicalize_map(once), once)
-
     def test_paste_beside_an_invalid_item_is_not_refused_for_its_shifted_index(self):
         window = self.window
         data = copy.deepcopy(window.map_data)
@@ -478,18 +262,6 @@ class WindowTests(WindowTestCase):
         window.undo_stack.undo()
         self.assertFalse(window.issues_action.isVisible())
 
-    def test_zoom_keeps_the_grid_point_under_the_mouse_and_fit_reaches_large_maps(self):
-        viewport = Viewport()
-        viewport.fit(600, 400, 256, 256)
-        self.assertLessEqual(viewport.from_grid(QPointF(256, 256)).y(), 400)
-        anchor = QPointF(125, 78)
-        grid = viewport.to_grid(anchor)
-        viewport.zoom(2, anchor)
-        self.assertEqual(viewport.to_grid(anchor), grid)
-        viewport.pan(QPointF(-50, 20))
-        point = QPointF(3.5, 4.5)
-        self.assertEqual(viewport.to_grid(viewport.from_grid(point)), point)
-
     def test_wheel_pan_and_selection_use_the_same_transform(self):
         canvas = self.window.canvas
         canvas.zoom_by(2)
@@ -546,7 +318,7 @@ class WindowTests(WindowTestCase):
         canvas.viewport.pan(QPointF(60, 40))
         position = canvas.viewport.from_grid(QPointF(1.5, 1.15))
         hit = window.hit_at(canvas.grid_position(position))
-        self.assertEqual(hit[0], "Light")
+        self.assertEqual(hit[0], HIT_LIGHT)
         wall = canvas._wall_near_position(canvas.viewport.from_grid(QPointF(1.5, 1)))
         self.assertIsNotNone(wall)
 
@@ -556,35 +328,6 @@ class WindowTests(WindowTestCase):
         canvas.viewport.offset = QPointF(-1000, -1000)
         entries = [{"col": 1, "row": 1}, {"col": 12, "row": 12}]
         self.assertEqual(list(canvas.visible_entries("floors", entries)), entries[1:])
-
-    def test_occupied_plate_tiles_reject_every_purpose_but_allow_edit_and_undo(self):
-        window = self.window
-        window.barrier_kind_colors = {"a": "#ff0000", "b": "#00ff00", "c": "#0000ff"}
-        window.bridge_kind_colors = {"bridge": "#ffffff"}
-        window.add_pressure_plate(1, 1, "a")
-        a = window.plates_at(1, 1)[0]
-        before = copy.deepcopy(window.map_data)
-        undo_count = window.undo_stack.count()
-        for place in (
-            lambda: window.add_pressure_plate(1, 1, "a"),
-            lambda: window.add_pressure_plate(1, 1, "b"),
-            lambda: window.add_bridge_plate(1, 1, "bridge"),
-            lambda: window.add_firework_plate(1, 1),
-        ):
-            with patch.object(window, "notify") as notify:
-                place()
-                self.assertIn("already a pressure plate", notify.call_args.args[0])
-            self.assertEqual(window.map_data, before)
-            self.assertEqual(window.undo_stack.count(), undo_count)
-        with patch("map_editor.placement.KindDialog.prompt", return_value="c"):
-            window.edit_pressure_plate_at(pressure_plate_key(a))
-        self.assertEqual([p["kind"] for p in window.plates_at(1, 1)], ["c"])
-        window.undo_stack.undo()
-        self.assertEqual(window.map_data, before)
-        upper = {**a, "level": 1, "type": "firework"}
-        upper.pop("kind")
-        upper_data = insert_level_data(window.map_data, 1)
-        self.assertEqual(len(place_plate(upper_data, upper)["pressure_plates"]), 2)
 
     def test_conflicting_loaded_plates_can_be_erased_independently(self):
         window = self.window
@@ -616,7 +359,7 @@ class WindowTests(WindowTestCase):
         data["ladders"] = [{"lower_level": 0, "col": 2, "row": 2, "levels": 0, "side": "bad"}]
         window.doc.replace_with_new(data)
         hit = window.hit_at(QPointF(2.5, 2.5))
-        self.assertEqual(hit[0], "Ladder")
+        self.assertEqual(hit[0], HIT_LADDER)
         window.erase_group_rect(MODE_ERASE_LADDERS, (5, 5), (5, 5))
         self.assertEqual(len(window.map_data["ladders"]), 1)
         window.erase_group_rect(MODE_ERASE_LADDERS, (2, 2), (2, 2))
@@ -705,6 +448,7 @@ class WindowTests(WindowTestCase):
 
     def test_item_and_kind_placement_uses_previous_values_without_dialogs(self):
         window = self.window
+        window.add_floor_rect((2, 1), (2, 1))
         window.barrier_kind_colors = {"gate": "#ff0000"}
         window.bridge_kind_colors = {"bridge": "#00ff00"}
         window.recent_barrier_kind = window.recent_pressure_plate_kind = "gate"
@@ -727,7 +471,7 @@ class WindowTests(WindowTestCase):
     def test_nested_map_placement_reuses_configured_motion(self):
         window = self.window
         window.doc.root_data["nested_geometry"] = {"tile": empty_map(1, 1)}
-        window.recent_nested_map = ("tile", 0, 3.0, 1.0, 0.0, (0, 0, 0), (0, 0, 0))
+        window.recent_nested_map = NestedMotion("tile", 0, 3.0, 1.0, 0.0, (0, 0, 0), (0, 0, 0))
         with patch("map_editor.nested_maps.MotionDialog.prompt_nested") as prompt:
             window.add_nested_map((3, 3), (4, 3))
             window.add_nested_map((3, 5), (4, 5))
@@ -812,9 +556,10 @@ class WindowTests(WindowTestCase):
         self.assertEqual(window.canvas.issue_rects, [])
 
     def test_file_notifications_reload_parent_catalogs(self):
-        with patch.object(self.window, "reload_texture_catalog") as reload:
+        with patch.object(self.window, "adopt_catalogs") as adopt:
             self.window.dependencies.changed.emit()
-        reload.assert_called_once()
+        adopt.assert_called_once()
+        self.assertEqual(adopt.call_args.args[0], "hotel")
         watcher = MapDependencies(self.window)
         settings = Path(self.temp.name) / "gameplay.json"
         settings.write_text("{}")
@@ -830,9 +575,10 @@ class WindowTests(WindowTestCase):
             watcher.watch("hotel")
             self.assertIn(str(settings.resolve()), watcher.watcher.files())
 
-    def test_large_map_fits_and_paints_with_invalid_nested_nudges(self):
+    def test_large_map_fits_and_paints_an_item_and_invalid_nested_nudges(self):
         window = self.window
         data = paint_floors(empty_map(256, 256), 0, (250, 250, 256, 256), DEFAULT_ALIAS)
+        data["items"] = [{"level": 0, "col": 250, "row": 250, "type": "portal_gun"}]
         data["nested_maps"] = [
             {"map": "missing", "level": 0, "from": [1, 1], "to": [2, 2], "from_nudge": [0], "to_nudge": [0]}
         ]
