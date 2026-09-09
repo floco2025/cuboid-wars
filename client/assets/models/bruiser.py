@@ -10,8 +10,8 @@ import bpy
 from mathutils import Euler, Vector
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from bruiser_materials import bake_armour, remember_panel_coordinates
 from model_materials import ModelMaterials, project_uv
+from model_wear import bake_armour, remember_panel_coordinates
 
 MODEL = Path(__file__).resolve().with_suffix(".glb")
 FPS = 30
@@ -20,7 +20,7 @@ bpy.ops.object.select_all(action="SELECT")
 bpy.ops.object.delete(use_global=False)
 
 
-palette = ModelMaterials(MODEL.with_suffix(".materials.json"))
+palette = ModelMaterials(MODEL.with_suffix(".json"))
 armour = palette["armour"]
 steel = palette["steel"]
 rubber = palette["rubber"]
@@ -464,7 +464,7 @@ for part in parts:
 
 armour_parts = [obj for obj in parts if obj.active_material == armour]
 parts = [obj for obj in parts if obj.active_material != armour]
-parts.append(bake_armour(armour_parts, armour, palette.wear))
+parts.append(bake_armour(armour_parts, armour, palette.wear, MODEL))
 
 bpy.ops.object.select_all(action="DESELECT")
 for obj in parts:

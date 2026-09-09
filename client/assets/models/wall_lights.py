@@ -50,7 +50,7 @@ def rod(name, start, end, radius, mat, vertices=24):
 
 
 def decorative():
-    palette = ModelMaterials(MODELS / "wall_light_decorative.materials.json")
+    palette = ModelMaterials(MODELS / "wall_light_decorative.json")
     metal = palette["metal"]
     dark = palette["dark"]
     porcelain = palette["porcelain"]
@@ -139,7 +139,7 @@ def guard(name, points, radius, mat, cyclic=False):
 
 
 def utility():
-    palette = ModelMaterials(MODELS / "wall_light_utility.materials.json")
+    palette = ModelMaterials(MODELS / "wall_light_utility.json")
     metal = palette["metal"]
     dark = palette["dark"]
     guard_metal = palette["guard_metal"]

@@ -11,13 +11,14 @@ from mathutils import Euler, Vector
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from model_materials import ModelMaterials, project_uv
+from model_wear import bake_armour, remember_panel_coordinates
 
 MODEL = Path(__file__).resolve().with_suffix(".glb")
 FPS = 30
 WHEEL_RADIUS = 0.21
 bpy.ops.object.select_all(action="SELECT")
 bpy.ops.object.delete(use_global=False)
-palette = ModelMaterials(MODEL.with_suffix(".materials.json"))
+palette = ModelMaterials(MODEL.with_suffix(".json"))
 ivory = palette["ivory"]
 rubber = palette["rubber"]
 steel = palette["steel"]
@@ -42,6 +43,8 @@ def finish(obj, name, mat, bone, bevel=0, cylindrical=False):
         mod = obj.modifiers.new("Corner normals", "WEIGHTED_NORMAL")
         bpy.ops.object.modifier_apply(modifier=mod.name)
     project_uv(obj, mat, cylindrical)
+    if mat == ivory:
+        remember_panel_coordinates(obj)
     group = obj.vertex_groups.new(name=bone)
     group.add(list(range(len(obj.data.vertices))), 1, "REPLACE")
     parts.append(obj)
@@ -260,6 +263,10 @@ for x in (-0.13, 0.13):
     )
 label("CAUTION", (0, 0.406, 0.55), 0.033, (math.pi / 2, 0, math.pi))
 
+armour_parts = [obj for obj in parts if obj.active_material == ivory]
+parts = [obj for obj in parts if obj.active_material != ivory]
+parts.append(bake_armour(armour_parts, ivory, palette.wear, MODEL))
+
 bpy.ops.object.select_all(action="DESELECT")
 for obj in parts:
     obj.select_set(True)
@@ -267,6 +274,9 @@ bpy.context.view_layer.objects.active = parts[0]
 bpy.ops.object.join()
 mesh = bpy.context.object
 mesh.name = "M-03 / demolition rover"
+triangulate = mesh.modifiers.new("Export triangles", "TRIANGULATE")
+triangulate.keep_custom_normals = True
+bpy.ops.object.modifier_apply(modifier=triangulate.name)
 bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
 low = Vector(tuple(min(v.co[i] for v in mesh.data.vertices) for i in range(3)))
 # Tyre blocks extend slightly beyond the circular tyre surface.
@@ -332,6 +342,7 @@ bpy.context.view_layer.objects.active = rig
 bpy.ops.export_scene.gltf(
     filepath=str(MODEL),
     export_format="GLB",
+    export_tangents=True,
     use_selection=True,
     export_animations=True,
     export_animation_mode="ACTIONS",

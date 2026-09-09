@@ -15,6 +15,7 @@ from mathutils import Euler, Vector
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from model_materials import ModelMaterials, plain_material, project_uv
+from model_wear import bake_armour, remember_panel_coordinates
 from player_mocap import RobotMocap
 
 MODEL = Path(__file__).resolve().with_suffix(".glb")
@@ -26,7 +27,7 @@ for action in list(bpy.data.actions):
     bpy.data.actions.remove(action)
 
 
-palette = ModelMaterials(MODEL.with_suffix(".materials.json"))
+palette = ModelMaterials(MODEL.with_suffix(".json"))
 ivory = palette["ivory"]
 joint = palette["joint"]
 steel = palette["steel"]
@@ -53,6 +54,8 @@ def finish(obj, name, mat, bone, bevel=0, cylindrical=False):
         modifier = obj.modifiers.new("Weighted corner normals", "WEIGHTED_NORMAL")
         bpy.ops.object.modifier_apply(modifier=modifier.name)
     project_uv(obj, mat, cylindrical)
+    if mat == ivory:
+        remember_panel_coordinates(obj)
     group = obj.vertex_groups.new(name=bone)
     group.add(list(range(len(obj.data.vertices))), 1.0, "REPLACE")
     parts.append(obj)
@@ -603,6 +606,10 @@ for side, sign in (("L", -1), ("R", 1)):
     rod("Thumb phalanx", (wx + sign * 0.056, -0.011, 0.758), (wx + sign * 0.056, -0.028, 0.732), 0.009, ivory, hand)
     sphere("Tactile thumb tip", (wx + sign * 0.056, -0.030, 0.730), (0.0095, 0.010, 0.010), joint, hand)
 
+armour_parts = [obj for obj in parts if obj.active_material == ivory]
+parts = [obj for obj in parts if obj.active_material != ivory]
+parts.append(bake_armour(armour_parts, ivory, palette.wear, MODEL))
+
 bpy.ops.object.select_all(action="DESELECT")
 for obj in parts:
     obj.select_set(True)
@@ -610,6 +617,9 @@ bpy.context.view_layer.objects.active = parts[0]
 bpy.ops.object.join()
 mesh = bpy.context.object
 mesh.name = "Field unit / rigid mechanical skin"
+triangulate = mesh.modifiers.new("Export triangles", "TRIANGULATE")
+triangulate.keep_custom_normals = True
+bpy.ops.object.modifier_apply(modifier=triangulate.name)
 bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
 
 armature = bpy.data.armatures.new("Field unit skeleton")
@@ -760,6 +770,7 @@ bpy.context.view_layer.objects.active = rig
 bpy.ops.export_scene.gltf(
     filepath=str(MODEL),
     export_format="GLB",
+    export_tangents=True,
     use_selection=True,
     export_animations=True,
     export_animation_mode="ACTIONS",

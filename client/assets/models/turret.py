@@ -9,6 +9,7 @@ from mathutils import Vector
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from model_materials import ModelMaterials, plain_material, project_uv
+from model_wear import bake_articulated_armour, remember_panel_coordinates
 
 MODEL = Path(__file__).resolve().with_suffix(".glb")
 
@@ -16,7 +17,7 @@ bpy.ops.object.select_all(action="SELECT")
 bpy.ops.object.delete(use_global=False)
 
 
-palette = ModelMaterials(MODEL.with_suffix(".materials.json"))
+palette = ModelMaterials(MODEL.with_suffix(".json"))
 armor = palette["armor"]
 dark = palette["dark"]
 steel = palette["steel"]
@@ -144,21 +145,32 @@ for obj in list(bpy.context.scene.objects):
         bpy.ops.object.mode_set(mode="OBJECT")
         for modifier in list(obj.modifiers):
             bpy.ops.object.modifier_apply(modifier=modifier.name)
+        if obj.active_material == armor:
+            remember_panel_coordinates(obj)
         obj.select_set(False)
         groups.setdefault((obj.parent, obj.active_material), []).append(obj)
 
+bake_articulated_armour(
+    [obj for obj in bpy.context.scene.objects if obj.type == "MESH" and obj.active_material == armor],
+    armor, palette.wear, MODEL,
+)
+bpy.ops.object.select_all(action="DESELECT")
 for (parent, mat), objects in groups.items():
     for obj in objects:
         obj.select_set(True)
     bpy.context.view_layer.objects.active = objects[0]
     bpy.ops.object.join()
     objects[0].name = f"{parent.name} / {mat.name}"
+    mod = objects[0].modifiers.new("Export triangles", "TRIANGULATE")
+    mod.keep_custom_normals = True
+    bpy.ops.object.modifier_apply(modifier=mod.name)
     objects[0].select_set(False)
 
 bpy.ops.object.select_all(action="SELECT")
 bpy.ops.export_scene.gltf(
     filepath=str(MODEL),
     export_format="GLB",
+    export_tangents=True,
     use_selection=True,
     export_apply=True,
     export_animations=False,

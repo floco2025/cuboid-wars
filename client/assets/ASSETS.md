@@ -4,11 +4,11 @@
 
 | Asset | Source | License |
 | --- | --- | --- |
-| `models/player.glb` | Project-created model; CMU motion capture; FreePBR synthetic rubber | Project-owned, [CMU terms](models/mocap/cmu/README.md), [FreePBR terms](https://freepbr.com/about-free-pbr/) |
-| `models/scuttler.glb` | Project-created model; FreePBR synthetic rubber | Project-owned, [FreePBR terms](https://freepbr.com/about-free-pbr/) |
-| `models/bruiser.glb` | Project-created model and armor textures; FreePBR synthetic rubber | Project-owned, [FreePBR terms](https://freepbr.com/about-free-pbr/) |
-| `models/zapper.glb` | Project-created | Project-owned |
-| `models/turret.glb` | Project-created | Project-owned |
+| `models/player.glb` | Project-created model and surface textures; CMU motion capture; FreePBR synthetic rubber | Project-owned, [CMU terms](models/mocap/cmu/README.md), [FreePBR terms](https://freepbr.com/about-free-pbr/) |
+| `models/scuttler.glb` | Project-created model and surface textures; FreePBR synthetic rubber | Project-owned, [FreePBR terms](https://freepbr.com/about-free-pbr/) |
+| `models/bruiser.glb` | Project-created model and surface textures; FreePBR synthetic rubber | Project-owned, [FreePBR terms](https://freepbr.com/about-free-pbr/) |
+| `models/zapper.glb` | Project-created model and surface textures | Project-owned |
+| `models/turret.glb` | Project-created model and surface textures | Project-owned |
 | `models/wall_light_decorative.glb` | Project-created | Project-owned |
 | `models/wall_light_utility.glb` | Project-created | Project-owned |
 | `models/mocap/cmu/*.amc`, `*.asf` | [Carnegie Mellon University Graphics Lab Motion Capture Database](http://mocap.cs.cmu.edu/) | [CMU terms and capture list](models/mocap/cmu/README.md) |
@@ -17,7 +17,7 @@
 
 | Asset | Source | License |
 | --- | --- | --- |
-| `models/bruiser_textures/*.png` | Project-created with [bruiser_materials.py](models/bruiser_materials.py) | Project-owned |
+| `models/bruiser_textures/*.png`, `models/scuttler_textures/*.png`, `models/zapper_textures/*.png`, `models/turret_textures/*.png`, `models/player_textures/*.png` | Project-created with [model_wear.py](models/model_wear.py) | Project-owned |
 | `textures/art-deco-scales-wallpaper-ue/*.png` | [FreePBR.com](https://freepbr.com/) — Art Deco scales wallpaper | [FreePBR terms](https://freepbr.com/about-free-pbr/) |
 | `textures/beige-carpet-worn1-ue/*.png` | [FreePBR.com](https://freepbr.com/) — Beige carpet worn 1 | [FreePBR terms](https://freepbr.com/about-free-pbr/) |
 | `textures/bricks-mortar-ue/*.png` | [FreePBR.com](https://freepbr.com/) — Bricks mortar | [FreePBR terms](https://freepbr.com/about-free-pbr/) |

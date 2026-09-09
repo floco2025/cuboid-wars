@@ -238,7 +238,7 @@ placement reuses them; feedback is a temporary canvas notice.
 
 Texture sets are freepbr.com UE packs. Follow this workflow for every added pack, including model-generation sources. Catalog entries are metadata; load texture images only when a material is used.
 
-Use a distinct model texture only when it contributes visibly at normal gameplay distance; reuse an existing material for tiny details. Generated models share catalog PBR loading and metre-scaled UVs in `client/assets/models/model_materials.py`. Each model has a matching `.materials.json` beside its GLB for material tuning; rebuild the GLB after changing it (controls and commands in `client/assets/models/MATERIALS.md`).
+Use a distinct model texture only when it contributes visibly at normal gameplay distance; reuse an existing material for tiny details. Generated models share catalog PBR loading and metre-scaled UVs in `client/assets/models/model_materials.py`. Each model has a matching `.json` beside its GLB for material tuning; rebuild the GLB after changing it (controls and commands in `client/assets/models/MATERIALS.md`).
 
 1. Prepare the pack outside `client/assets`; keep only used texture maps in `client/assets/textures/<name>-ue/`. Textures embedded in active models and inputs needed to regenerate them count as used; unused variants, height maps, and previews do not.
 2. Build the packed metallic-roughness map Bevy wants (needs ImageMagick): `client/assets/textures/combine_metallic_roughness.sh <dir>/<name>_roughness.png <dir>/<name>_metallic.png` writes `<name>_metallic-roughness.png` next to them. `multiply_intensity.sh <metallic-roughness.png> [roughness_add] [metallic_multiply]` retunes it afterwards (keeps a `.original.png`).

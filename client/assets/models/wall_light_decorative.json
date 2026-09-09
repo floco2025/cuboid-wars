@@ -1,0 +1,45 @@
+{
+  "materials": {
+    "metal": {
+      "name": "Champagne brushed alloy",
+      "color": [
+        0.2125,
+        0.1728,
+        0.1015
+      ],
+      "metallic": 1,
+      "roughness": 0.39
+    },
+    "dark": {
+      "name": "Graphite mounting plate",
+      "color": [
+        0.025,
+        0.035,
+        0.045
+      ],
+      "metallic": 0.7,
+      "roughness": 0.4
+    },
+    "porcelain": {
+      "name": "Ivory end caps",
+      "color": [
+        0.77,
+        0.74,
+        0.65
+      ],
+      "metallic": 0.15,
+      "roughness": 0.27
+    },
+    "glow": {
+      "name": "Warm opal diffuser",
+      "color": [
+        1,
+        0.86,
+        0.65
+      ],
+      "metallic": 0,
+      "roughness": 0.3,
+      "emission": 8
+    }
+  }
+}
