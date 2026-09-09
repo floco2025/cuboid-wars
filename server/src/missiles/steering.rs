@@ -3,6 +3,10 @@ use std::f32::consts::TAU;
 
 use common::{physics::CollisionWorld, protocol::BarrierKindId};
 
+// How far inside the fuse boundary a terminal approach stops, so rounding
+// cannot leave the route just outside it.
+const MISSILE_APPROACH_FUSE_FRACTION: f32 = 0.9;
+
 // Candidate fan around the blocked to-target direction, evaluated in order
 // of deviation from it. No up/down preference: the clear test rejects
 // directions into floors and walls, so a missile whose target is below
@@ -43,8 +47,7 @@ pub(super) fn terminal_approach(
     if sweep_clear(world, open_kinds, origin, displacement, radius) {
         return Some(target);
     }
-    // Stay inside the fuse boundary so rounding cannot leave the route just outside it.
-    let travel = (displacement.length() - fuse_distance * 0.9).max(0.0);
+    let travel = (displacement.length() - fuse_distance * MISSILE_APPROACH_FUSE_FRACTION).max(0.0);
     let approach = origin + displacement.normalize_or_zero() * travel;
     (world.attack_path_clear(approach, target, open_kinds)
         && sweep_clear(world, open_kinds, origin, approach - origin, radius))

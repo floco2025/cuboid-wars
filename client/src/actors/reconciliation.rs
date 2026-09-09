@@ -27,6 +27,9 @@ pub(super) fn reconcile_actor(
 ) -> ActorReconciliationOutcome {
     let window = actor_correction_window(recon.rtt);
 
+    // Snapshots replace this component, so in steady state this is an
+    // exponential pull toward a moving target; when the stream pauses the
+    // last correction finishes linearly, capped so it cannot overshoot.
     let fraction = (delta / window).min(1.0 - recon.applied_fraction);
     recon.applied_fraction += fraction;
     if recon.applied_fraction >= 1.0 {
