@@ -36,7 +36,6 @@ pub(in crate::network) fn sync_actors(
             &context.asset_server,
             &mut context.meshes,
             &mut context.materials,
-            &mut context.graphs,
             &context.asset_set,
             &context.client_settings,
             &context.gameplay_config,

@@ -73,9 +73,10 @@ mod tests {
             powered_bridge_kinds: vec![BridgeKindId(1)],
         };
         let config = LightBridgeVfxConfig {
+            emissive_brightness: 1.0,
             opacity: 0.6,
             unpowered_opacity: 0.1,
-            ..default()
+            fade_secs: 0.25,
         };
         assert_eq!(fade_target(&plates, BridgeKindId(1), config), config.opacity);
         assert_eq!(fade_target(&plates, BridgeKindId(0), config), config.unpowered_opacity);
@@ -83,7 +84,12 @@ mod tests {
 
     #[test]
     fn fade_step_approaches_and_settles_then_stops_writing() {
-        let config = LightBridgeVfxConfig::default();
+        let config = LightBridgeVfxConfig {
+            emissive_brightness: 1.0,
+            opacity: 0.8,
+            unpowered_opacity: 0.15,
+            fade_secs: 0.25,
+        };
         let mut alpha = config.unpowered_opacity;
         let first = fade_step(alpha, config.opacity, 0.05, config.fade_secs).expect("first step reports settled");
         assert!(first > alpha && first < config.opacity);

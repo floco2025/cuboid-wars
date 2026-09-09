@@ -1,49 +1,39 @@
-use bevy::{prelude::*, world_serialization::WorldInstanceReady};
+use bevy::{gltf::Gltf, prelude::*, world_serialization::WorldInstanceReady};
 
-// ============================================================================
-// Components
-// ============================================================================
+use super::CharacterModel;
 
-// Component that stores a reference to an animation we want to play
+// The one looping clip a model plays from the moment its scene is ready.
 #[derive(Component, Clone)]
 pub struct AnimationToPlay {
-    pub graph_handle: Handle<AnimationGraph>,
-    pub index: AnimationNodeIndex,
+    pub animation_index: usize,
     pub speed: f32,
 }
 
-// ============================================================================
-// Animation System
-// ============================================================================
-
-// System that plays animations when a character scene is loaded
 pub fn character_animation_system(
-    scene_ready: On<WorldInstanceReady>,
+    ready: On<WorldInstanceReady>,
     mut commands: Commands,
     children: Query<&Children>,
-    animations_to_play: Query<&AnimationToPlay>,
+    models: Query<(&CharacterModel, &AnimationToPlay)>,
+    gltfs: Res<Assets<Gltf>>,
+    mut graphs: ResMut<Assets<AnimationGraph>>,
     mut players: Query<&mut AnimationPlayer>,
 ) {
-    if let Ok(animation_to_play) = animations_to_play.get(scene_ready.entity) {
-        // The WorldAssetRoot component will have spawned the scene as a hierarchy
-        // of entities parented to our entity. Since the asset contained a skinned
-        // mesh and animations, it will also have spawned an animation player
-        // component. Search our entity's descendants to find the animation player.
-        for child in children.iter_descendants(scene_ready.entity) {
-            if let Ok(mut player) = players.get_mut(child) {
-                // Tell the animation player to start the animation and keep
-                // repeating it.
-                player
-                    .play(animation_to_play.index)
-                    .repeat()
-                    .set_speed(animation_to_play.speed);
-
-                // Add the animation graph. This only needs to be done once to
-                // connect the animation player to the mesh.
-                commands
-                    .entity(child)
-                    .insert(AnimationGraphHandle(animation_to_play.graph_handle.clone()));
-            }
+    let Ok((model, animation)) = models.get(ready.entity) else {
+        return;
+    };
+    let Some(clip) = model
+        .clips(&gltfs)
+        .and_then(|clips| clips.get(animation.animation_index))
+    else {
+        error!("{} has no clip {}", model.scene(), animation.animation_index);
+        return;
+    };
+    let (graph, index) = AnimationGraph::from_clip(clip.clone());
+    let graph = graphs.add(graph);
+    for child in children.iter_descendants(ready.entity) {
+        if let Ok(mut player) = players.get_mut(child) {
+            player.play(index).repeat().set_speed(animation.speed);
+            commands.entity(child).insert(AnimationGraphHandle(graph.clone()));
         }
     }
 }

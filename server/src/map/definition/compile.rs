@@ -1,6 +1,6 @@
 use std::{collections::HashSet, iter::once};
 
-use anyhow::Context;
+use anyhow::{Context, ensure};
 use bevy::math::Vec3;
 
 use super::{
@@ -92,7 +92,7 @@ fn compile_tree(
         let reach = usize::from(out.layout.carrier_base_level(id))
             + child_def.levels.len()
             + usize::from(out.layout.carrier_motion_levels(id));
-        assert!(
+        ensure!(
             reach <= usize::from(u8::MAX) + 1,
             "nested map {:?} reaches past the last storey a level tag can name",
             entry.map

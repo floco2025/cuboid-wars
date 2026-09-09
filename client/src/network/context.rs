@@ -47,7 +47,6 @@ pub(super) struct ServerMessageContext<'w, 's> {
     pub(super) meshes: ResMut<'w, Assets<Mesh>>,
     pub(super) materials: ResMut<'w, Assets<StandardMaterial>>,
     pub(super) images: ResMut<'w, Assets<Image>>,
-    pub(super) graphs: ResMut<'w, Assets<AnimationGraph>>,
     pub(super) explosion_vfx_budget: ResMut<'w, ExplosionVfxBudget>,
     pub(super) explosion_assets: Res<'w, ExplosionAssets>,
     pub(super) blast_radii: Res<'w, BlastRadii>,

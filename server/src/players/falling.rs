@@ -13,7 +13,7 @@ use common::{
     constants::CHARACTER_FALL_DEATH_Y,
     health::apply_damage,
     map::Carriers,
-    physics::{CharacterSupport, CharacterVerticalVelocity, CollisionWorld},
+    physics::{AirborneMomentum, CharacterSupport, CharacterVerticalVelocity, CollisionWorld},
     protocol::{FaceYaw, Health, MapSettings, PlayerId, PlayerMarker, Position, SPlayerFallDamage, ServerMessage},
 };
 
@@ -107,7 +107,7 @@ pub fn players_fall_death_system(
                 *pos,
                 server_gameplay_config.player.respawn_secs,
                 DeathSource::Crushed,
-                &server_gameplay_config.feed,
+                &server_gameplay_config,
                 &mut pending_explosions,
             );
             continue;
@@ -141,6 +141,7 @@ pub fn players_fall_death_system(
                 spawn_pos,
                 FaceYaw(spawn_face_yaw(&spawn_pos)),
                 CharacterVerticalVelocity::default(),
+                AirborneMomentum::default(),
             ));
             if let Some(info) = players.get_mut(id) {
                 info.life.fall_state.reset();
@@ -156,7 +157,7 @@ pub fn players_fall_death_system(
             *pos,
             server_gameplay_config.player.respawn_secs,
             DeathSource::Void,
-            &server_gameplay_config.feed,
+            &server_gameplay_config,
             &mut pending_explosions,
         );
     }
@@ -262,7 +263,7 @@ pub fn players_fall_damage_system(
                 *pos,
                 respawn_secs,
                 DeathSource::Fall,
-                &server_gameplay_config.feed,
+                &server_gameplay_config,
                 &mut pending_explosions,
             );
         }

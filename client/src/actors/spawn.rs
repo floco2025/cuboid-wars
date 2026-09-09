@@ -1,14 +1,15 @@
-use bevy::{gltf::GltfAssetLabel, prelude::*};
+use bevy::prelude::*;
 
 use super::{
     aim_rig::{FixedFacingMarker, aim_rig_setup_system},
-    wheel_animation::{WheelAnimationSource, wheel_animation_setup_system},
+    wheel_animation::{WheelModel, wheel_animation_setup_system},
     wheel_grounding::WheelGrounding,
 };
 
 use crate::{
     characters::{
-        AnimationToPlay, MaxHealth, PreviousTickPosition, character_animation_system, spawn_character_bounds,
+        AnimationToPlay, MaxHealth, PreviousTickPosition, character_animation_system, load_character_model,
+        model_transform, spawn_character_bounds,
     },
     config::{AssetSet, ClientSettings},
     constants::{BEAM_IN_COLOR, BEAM_IN_LIGHT_RANGE, LABEL_ACTOR_MESH_WIDTH},
@@ -26,7 +27,6 @@ pub fn spawn_actor(
     asset_server: &AssetServer,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
-    graphs: &mut Assets<AnimationGraph>,
     asset_set: &AssetSet,
     client_settings: &ClientSettings,
     gameplay_config: &GameplayConfig,
@@ -61,14 +61,8 @@ pub fn spawn_actor(
     }
     children.push(spawn_character_bounds(commands, meshes, materials, actor_physics));
 
-    let base_y = actor_model.y_offset;
-    let model_transform = Transform::from_scale(Vec3::splat(actor_model.scale))
-        .with_rotation(Quat::from_rotation_x(actor_model.x_rotation_degrees.to_radians()))
-        .with_translation(Vec3::new(actor_model.x_offset, base_y, actor_model.z_offset));
-    let mut model_commands = commands.spawn((
-        WorldAssetRoot(asset_server.load(actor_model.scene.clone())),
-        model_transform,
-    ));
+    let rest = model_transform(actor_model);
+    let mut model_commands = commands.spawn((load_character_model(actor_model, asset_server), rest));
 
     if let Some(rig) = &actor_model.aim_rig {
         model_commands.insert(rig.clone()).observe(aim_rig_setup_system);
@@ -80,25 +74,18 @@ pub fn spawn_actor(
                 owner: entity,
                 physics: actor_physics,
                 wheels,
-                rest: model_transform,
+                rest,
             })
-            .insert(WheelAnimationSource::load(
-                entity,
-                actor_model,
+            .insert(WheelModel {
+                owner: entity,
                 wheels,
-                asset_server,
-                graphs,
-            ))
+                scale: actor_model.scale,
+            })
             .observe(wheel_animation_setup_system);
     } else if let Some(animation_speed) = actor_model.animation_speed {
-        let (graph, index) = AnimationGraph::from_clip(
-            asset_server
-                .load(GltfAssetLabel::Animation(actor_model.animation_index).from_asset(actor_model.scene.clone())),
-        );
         model_commands
             .insert(AnimationToPlay {
-                graph_handle: graphs.add(graph),
-                index,
+                animation_index: actor_model.animation_index,
                 speed: animation_speed,
             })
             .observe(character_animation_system);
@@ -196,13 +183,10 @@ pub fn spawn_actor_ghost(
         },
     ));
 
-    let base_y = actor_model.y_offset;
     let model = commands
         .spawn((
-            WorldAssetRoot(asset_server.load(actor_model.scene.clone())),
-            Transform::from_scale(Vec3::splat(actor_model.scale))
-                .with_rotation(Quat::from_rotation_x(actor_model.x_rotation_degrees.to_radians()))
-                .with_translation(Vec3::new(actor_model.x_offset, base_y, actor_model.z_offset)),
+            load_character_model(actor_model, asset_server),
+            model_transform(actor_model),
         ))
         // Once the scene hierarchy exists, swap in per-ghost translucent
         // material clones the fade system can drive.

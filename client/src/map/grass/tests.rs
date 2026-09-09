@@ -17,6 +17,13 @@ use crate::{
 };
 use common::protocol::{CarrierId, GrassCell};
 
+fn grass_config() -> GrassConfig {
+    GrassConfig {
+        enabled: true,
+        tufts_per_m2: 12.0,
+    }
+}
+
 fn test_cell() -> GrassCell {
     GrassCell {
         x: CELL * 2.5,
@@ -74,7 +81,7 @@ fn max_y(values: &[[f32; 3]]) -> f32 {
 
 #[test]
 fn same_cell_produces_identical_mesh() {
-    let config = GrassConfig::default();
+    let config = grass_config();
     let first = grass_cell_mesh(test_cell(), CELL, &config, ALL_OPEN, &[]);
     let second = grass_cell_mesh(test_cell(), CELL, &config, ALL_OPEN, &[]);
     assert_eq!(positions(&first), positions(&second));
@@ -85,7 +92,7 @@ fn same_cell_produces_identical_mesh() {
 #[test]
 fn burned_grass_remains_visible_short_dark_and_still() {
     let cell = test_cell();
-    let config = GrassConfig::default();
+    let config = grass_config();
     let normal = grass_cell_mesh(cell, CELL, &config, ALL_OPEN, &[]);
     let burn = GrassBurn::new(CarrierId::WORLD, Vec3::new(cell.x, cell.y, cell.z), CELL * 4.0, 0.7, 3);
     let burned = grass_cell_mesh(cell, CELL, &config, ALL_OPEN, &[burn]);
@@ -109,7 +116,7 @@ fn burned_grass_remains_visible_short_dark_and_still() {
 #[test]
 fn recovering_grass_interpolates_between_burned_and_healthy() {
     let cell = test_cell();
-    let config = GrassConfig::default();
+    let config = grass_config();
     let normal = grass_cell_mesh(cell, CELL, &config, ALL_OPEN, &[]);
     let mut burn = GrassBurn::new(CarrierId::WORLD, Vec3::new(cell.x, cell.y, cell.z), CELL * 4.0, 0.7, 3);
     let burned = grass_cell_mesh(cell, CELL, &config, ALL_OPEN, &[burn]);
@@ -153,7 +160,7 @@ fn different_scorch_variants_produce_different_burn_outlines() {
 #[test]
 fn burn_on_another_level_does_not_change_grass() {
     let cell = test_cell();
-    let config = GrassConfig::default();
+    let config = grass_config();
     let normal = grass_cell_mesh(cell, CELL, &config, ALL_OPEN, &[]);
     let burn = GrassBurn::new(
         CarrierId::WORLD,
@@ -172,7 +179,7 @@ fn burn_on_another_level_does_not_change_grass() {
 #[test]
 fn weaker_overlapping_burn_does_not_override_stronger_burn() {
     let cell = test_cell();
-    let config = GrassConfig::default();
+    let config = grass_config();
     let center = Vec3::new(cell.x, cell.y, cell.z);
     let strong = GrassBurn::new(CarrierId::WORLD, center, CELL * 4.0, 0.0, 0);
     let weak = GrassBurn::new(CarrierId::WORLD, center, CELL, 1.0, 1);
@@ -249,11 +256,11 @@ fn removing_burn_restores_original_grass_mesh() {
 fn blade_count_scales_with_density() {
     let sparse = GrassConfig {
         tufts_per_m2: 2.0,
-        ..GrassConfig::default()
+        ..grass_config()
     };
     let dense = GrassConfig {
         tufts_per_m2: 4.0,
-        ..GrassConfig::default()
+        ..grass_config()
     };
     let sparse_mesh = grass_cell_mesh(test_cell(), CELL, &sparse, ALL_OPEN, &[]);
     let dense_mesh = grass_cell_mesh(test_cell(), CELL, &dense, ALL_OPEN, &[]);
@@ -275,7 +282,7 @@ fn blade_count_scales_with_density() {
 #[test]
 fn root_vertices_have_zero_sway_weight() {
     let cell = test_cell();
-    let mesh = grass_cell_mesh(cell, CELL, &GrassConfig::default(), ALL_OPEN, &[]);
+    let mesh = grass_cell_mesh(cell, CELL, &grass_config(), ALL_OPEN, &[]);
     for (position, uv) in positions(&mesh).iter().zip(uvs(&mesh)) {
         match uv[0] {
             0.0 => assert!((position[1] - cell.y).abs() < f32::EPSILON),
@@ -288,7 +295,7 @@ fn root_vertices_have_zero_sway_weight() {
 #[test]
 fn blades_stay_within_cell_plus_overhang() {
     let cell = test_cell();
-    let config = GrassConfig::default();
+    let config = grass_config();
     let mesh = grass_cell_mesh(cell, CELL, &config, ALL_OPEN, &[]);
     let aabb = grass_cell_aabb(cell, CELL, &config);
     let bound = CELL / 2.0 + BLADE_MAX_OVERHANG;
@@ -309,7 +316,7 @@ fn blades_stay_within_cell_plus_overhang() {
 #[test]
 fn closed_edges_keep_blades_inside_cell() {
     let cell = test_cell();
-    let mesh = grass_cell_mesh(cell, CELL, &GrassConfig::default(), ALL_CLOSED, &[]);
+    let mesh = grass_cell_mesh(cell, CELL, &grass_config(), ALL_CLOSED, &[]);
     let bound = CELL / 2.0;
     for position in positions(&mesh) {
         assert!((position[0] - cell.x).abs() <= bound);

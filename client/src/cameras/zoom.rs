@@ -3,12 +3,15 @@ use crate::{config::FollowCameraConfig, constants::INPUT_ZOOM_SENSITIVITY_BASE};
 
 impl FollowCamera {
     pub fn visible_distance(&self, config: FollowCameraConfig) -> f32 {
-        if self.previous_pivot.is_none() || self.distance <= 0.0 {
-            return self.distance;
+        // Clamped like the arm in `third_person_transform`, so body visibility
+        // and the camera agree when the stored distance exceeds the maximum.
+        let distance = self.distance.min(config.max_distance);
+        if self.previous_pivot.is_none() || distance <= 0.0 {
+            return distance;
         }
         // The collision arm includes the shoulder offset; zoom measures only its rearward component.
-        let arm = self.distance.hypot(config.shoulder_offset * self.pivot_blend());
-        self.distance.min(self.arm_distance * self.distance / arm)
+        let arm = distance.hypot(config.shoulder_offset * self.pivot_blend());
+        distance.min(self.arm_distance * distance / arm)
     }
 
     pub fn toggle_top_down(&mut self, view: CameraViewMode) -> CameraViewMode {

@@ -17,6 +17,8 @@ use bevy::{
 };
 use common::constants::TICK_SECS;
 
+use crate::characters::character_models_attach_system;
+
 const LOAD_DEADLINE: Duration = Duration::from_secs(30);
 const SETTLED_FRAMES: usize = 6;
 
@@ -49,6 +51,7 @@ pub(crate) fn headless_asset_app(configure: impl FnOnce(&mut App)) -> App {
     app.insert_resource(CompressedImageFormatSupport(CompressedImageFormats::NONE));
     app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(TICK_SECS)));
     app.init_resource::<InstanceReadyCounts>();
+    app.add_systems(Update, character_models_attach_system);
     app.add_observer(
         |ready: On<WorldInstanceReady>, mut counts: ResMut<InstanceReadyCounts>| {
             *counts.0.entry(ready.entity).or_default() += 1;
@@ -76,10 +79,6 @@ pub(crate) fn preload_gltfs(app: &mut App, paths: &[String]) -> Vec<Handle<Gltf>
     handles
 }
 
-pub(crate) fn preload_gltf(app: &mut App, path: &str) -> Handle<Gltf> {
-    preload_gltfs(app, &[path.to_owned()]).remove(0)
-}
-
 // Update until `ready` holds and the world has stopped gaining or losing
 // entities, then check that no scene root became ready more than once.
 pub(crate) fn settle(app: &mut App, mut ready: impl FnMut(&mut World) -> bool) {
@@ -103,13 +102,4 @@ pub(crate) fn settle(app: &mut App, mut ready: impl FnMut(&mut World) -> bool) {
     for (root, count) in &app.world().resource::<InstanceReadyCounts>().0 {
         assert_eq!(*count, 1, "scene root {root:?} was spawned {count} times");
     }
-}
-
-// The scene path of a `path#Scene0` model reference.
-pub(crate) fn gltf_path(scene: &str) -> String {
-    scene
-        .split('#')
-        .next()
-        .expect("model scene reference is empty")
-        .to_owned()
 }

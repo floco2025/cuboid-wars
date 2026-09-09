@@ -118,13 +118,16 @@ mod tests {
     use super::*;
     use crate::{
         actors::{ActorInfo, ActorMap},
-        characters::{AnimationToPlay, character_animation_system, characters_visual_turn_system},
+        characters::{
+            AnimationToPlay, character_animation_system, characters_visual_turn_system, load_character_model,
+            model_transform,
+        },
         config::{AssetSet, ModelDef},
         players::{PlayerInfo, PlayerMap},
-        test_assets::{gltf_path, headless_asset_app, preload_gltf, settle},
+        test_assets::{headless_asset_app, settle},
         vfx::{LaserBeam, laser_beam_update_system},
     };
-    use bevy::{app::AnimationSystems, gltf::GltfAssetLabel, transform::TransformSystems};
+    use bevy::{app::AnimationSystems, transform::TransformSystems};
     use common::{
         config::GameplayConfig,
         physics::CollisionWorld,
@@ -172,30 +175,21 @@ mod tests {
             let actor_transform = Transform::from_xyz(3.0, 2.0, -1.0).with_rotation(Quat::from_rotation_y(0.6));
             let owner = app.world_mut().spawn(actor_transform).id();
             let server = app.world().resource::<AssetServer>().clone();
-            let path = gltf_path(&model.scene);
-            preload_gltf(&mut app, &path);
             let entity = app
                 .world_mut()
                 .spawn((
-                    WorldAssetRoot(server.load(model.scene.clone())),
-                    Transform::from_xyz(model.x_offset, model.y_offset, model.z_offset)
-                        .with_scale(Vec3::splat(model.scale))
-                        .with_rotation(Quat::from_rotation_x(model.x_rotation_degrees.to_radians())),
+                    load_character_model(&model, &server),
+                    model_transform(&model),
                     definition.clone(),
                     ChildOf(owner),
                 ))
                 .observe(aim_rig_setup_system)
                 .id();
             if let Some(speed) = model.animation_speed {
-                let (graph, index) = AnimationGraph::from_clip(
-                    server.load(GltfAssetLabel::Animation(model.animation_index).from_asset(path)),
-                );
-                let graph_handle = app.world_mut().resource_mut::<Assets<AnimationGraph>>().add(graph);
                 app.world_mut()
                     .entity_mut(entity)
                     .insert(AnimationToPlay {
-                        graph_handle,
-                        index,
+                        animation_index: model.animation_index,
                         speed,
                     })
                     .observe(character_animation_system);

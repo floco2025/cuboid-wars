@@ -1,9 +1,9 @@
 use bevy::prelude::*;
 
-use super::animation::{PlayerAnimationMotion, PlayerAnimationSource, player_animation_setup_system};
+use super::animation::{PlayerAnimationMotion, PlayerModel, player_animation_setup_system};
 use super::{BumpFeedbackState, LocalPlayerLabelMarker};
 use crate::{
-    characters::{PreviousTickPosition, spawn_character_bounds},
+    characters::{PreviousTickPosition, load_character_model, model_transform, spawn_character_bounds},
     config::{AssetSet, ClientSettings},
     constants::{
         LABEL_PLAYER_BAR_WIDTH, LABEL_PLAYER_NAME_GAP, LABEL_PLAYER_TEXTURE_HEIGHT, LABEL_PLAYER_TEXTURE_WIDTH,
@@ -52,7 +52,6 @@ pub fn spawn_player(
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
     images: &mut Assets<Image>,
-    graphs: &mut Assets<AnimationGraph>,
     asset_set: &AssetSet,
     client_settings: &ClientSettings,
     gameplay_config: &GameplayConfig,
@@ -97,14 +96,11 @@ pub fn spawn_player(
 
     children.push(spawn_character_bounds(commands, meshes, materials, player_physics));
 
-    let base_y = player_model.y_offset;
     let model = commands
         .spawn((
-            WorldAssetRoot(asset_server.load(player_model.scene.clone())),
-            Transform::from_scale(Vec3::splat(player_model.scale))
-                .with_rotation(Quat::from_rotation_x(player_model.x_rotation_degrees.to_radians()))
-                .with_translation(Vec3::new(player_model.x_offset, base_y, player_model.z_offset)),
-            PlayerAnimationSource::load(entity, player_model, asset_server, graphs),
+            load_character_model(player_model, asset_server),
+            model_transform(player_model),
+            PlayerModel { owner: entity },
         ))
         .observe(player_animation_setup_system)
         .id();

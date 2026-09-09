@@ -97,7 +97,8 @@ fn ladder_traffic(transpose: bool, traffic: Traffic) {
         ]
         .map(orient);
         if descending {
-            positions = [-0.51, 0.51].map(|x| {
+            let clearance = physics.movement_collider.radius() + 0.01;
+            positions = [-clearance, clearance].map(|x| {
                 let offset = orient(Position { x, y: 2.0, z: 0.0 });
                 Position {
                     x: mount.x + offset.x,

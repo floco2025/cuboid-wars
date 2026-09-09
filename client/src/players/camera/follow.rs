@@ -120,24 +120,10 @@ pub fn local_player_camera_sync_system(
         view_mode.set_if_neq(CameraViewMode::FirstPerson);
         third.locked = true;
         camera_transform.rotation = rotation;
-        sync_first_person_camera(&mut camera_transform, player_pos, eye_height, maybe_shake);
+        camera_transform.translation = Vec3::new(player_pos.x, player_pos.y + eye_height, player_pos.z);
     }
-}
-
-fn sync_first_person_camera(
-    camera_transform: &mut Transform,
-    player_pos: &Position,
-    player_eye_height: f32,
-    maybe_shake: Option<&CameraShake>,
-) {
-    camera_transform.translation.x = player_pos.x;
-    camera_transform.translation.z = player_pos.z;
-    camera_transform.translation.y = player_pos.y + player_eye_height;
-
     if let Some(shake) = maybe_shake {
-        camera_transform.translation.x += shake.offset_x;
-        camera_transform.translation.y += shake.offset_y;
-        camera_transform.translation.z += shake.offset_z;
+        camera_transform.translation += Vec3::new(shake.offset_x, shake.offset_y, shake.offset_z);
     }
 }
 

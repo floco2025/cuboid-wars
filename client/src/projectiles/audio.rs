@@ -92,7 +92,7 @@ mod tests {
     #[test]
     fn loudness_is_full_inside_knee_and_falls_off_beyond() {
         let listener = Vec3::ZERO;
-        let scale = AudioConfig::default().spatial_distance_scale;
+        let scale: f32 = 0.1;
         let full_volume_radius = scale.recip();
         assert_eq!(loudness_at_listener(Vec3::ZERO, listener, scale), 1.0);
         assert_eq!(

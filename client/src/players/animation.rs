@@ -1,13 +1,13 @@
 use std::time::Duration;
 
-use bevy::{gltf::GltfAssetLabel, prelude::*, world_serialization::WorldInstanceReady};
+use bevy::{gltf::Gltf, prelude::*, world_serialization::WorldInstanceReady};
 use common::{
     physics::{CharacterMovementResult, CharacterSupport},
     protocol::{PlayerId, PlayerMoveIntent, Position},
 };
 
 use super::PlayerMap;
-use crate::{config::ModelDef, constants::*};
+use crate::{characters::CharacterModel, constants::*};
 
 #[derive(Component, Debug, Clone, Copy)]
 pub struct PlayerAnimationMotion {
@@ -82,7 +82,13 @@ impl PlayerClip {
     }
 }
 
-#[derive(Component, Clone)]
+// The player a model animates; the rig is built when its scene is ready.
+#[derive(Component)]
+pub(crate) struct PlayerModel {
+    pub owner: Entity,
+}
+
+#[derive(Clone)]
 pub(crate) struct PlayerAnimationSource {
     owner: Entity,
     graph: Handle<AnimationGraph>,
@@ -91,22 +97,20 @@ pub(crate) struct PlayerAnimationSource {
 }
 
 impl PlayerAnimationSource {
-    pub fn load(
-        owner: Entity,
-        model: &ModelDef,
-        asset_server: &AssetServer,
-        graphs: &mut Assets<AnimationGraph>,
-    ) -> Self {
-        let handles = PlayerClip::ALL
-            .map(|clip| asset_server.load(GltfAssetLabel::Animation(clip as usize).from_asset(model.scene.clone())));
+    // `None` when the GLB lacks the clips `PlayerClip::ALL` indexes.
+    fn from_clips(owner: Entity, clips: &[Handle<AnimationClip>], graphs: &mut Assets<AnimationGraph>) -> Option<Self> {
+        if clips.len() < PlayerClip::ALL.len() {
+            return None;
+        }
+        let handles = PlayerClip::ALL.map(|clip| clips[clip as usize].clone());
         let climb_clip = handles[PlayerClip::Climb as usize].clone();
         let (graph, clips) = AnimationGraph::from_clips(handles);
-        Self {
+        Some(Self {
             owner,
             graph: graphs.add(graph),
             clips,
             climb_clip,
-        }
+        })
     }
 }
 
@@ -197,10 +201,19 @@ pub(crate) fn player_animation_setup_system(
     ready: On<WorldInstanceReady>,
     mut commands: Commands,
     children: Query<&Children>,
-    sources: Query<&PlayerAnimationSource>,
+    models: Query<(&CharacterModel, &PlayerModel)>,
+    gltfs: Res<Assets<Gltf>>,
+    mut graphs: ResMut<Assets<AnimationGraph>>,
     mut players: Query<&mut AnimationPlayer>,
 ) {
-    let Ok(source) = sources.get(ready.entity) else {
+    let Ok((model, player_model)) = models.get(ready.entity) else {
+        return;
+    };
+    let Some(source) = model
+        .clips(&gltfs)
+        .and_then(|clips| PlayerAnimationSource::from_clips(player_model.owner, clips, &mut graphs))
+    else {
+        error!("{} lacks the {} player clips", model.scene(), PlayerClip::ALL.len());
         return;
     };
     for child in children.iter_descendants(ready.entity) {
@@ -279,7 +292,11 @@ mod tests {
 
     use bevy::animation::{AnimationTargetId, RepeatAnimation, graph::AnimationNodeType};
 
-    use crate::test_assets::{gltf_path, headless_asset_app, preload_gltf, settle};
+    use crate::{
+        characters::load_character_model,
+        config::ModelDef,
+        test_assets::{headless_asset_app, settle},
+    };
 
     fn choose(
         state: &mut AnimationState,
@@ -674,16 +691,9 @@ mod tests {
             "scene": "models/player.glb#Scene0", "scale": 1.0
         }))
         .expect("player model definition is invalid");
-        preload_gltf(&mut app, &gltf_path(&model.scene));
         let server = app.world().resource::<AssetServer>().clone();
-        let source = PlayerAnimationSource::load(
-            owner,
-            &model,
-            &server,
-            &mut app.world_mut().resource_mut::<Assets<AnimationGraph>>(),
-        );
         app.world_mut()
-            .spawn((WorldAssetRoot(server.load(model.scene)), source))
+            .spawn((load_character_model(&model, &server), PlayerModel { owner }))
             .observe(player_animation_setup_system);
         settle(&mut app, |world| {
             world.query::<&PlayerAnimationPlayback>().iter(world).next().is_some()

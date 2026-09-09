@@ -99,21 +99,15 @@ def nested_maps_outside(entries: list[dict], level_idx: int, rect: Rect) -> list
 
 
 # Lights hang on walls, and grass and items stand on floors: an erase that
-# takes the support takes them too, so the map never holds an orphan even
-# while canonicalization is withheld for pending repairs.
-def lights_on_walls(lights: list[dict], walls: list[dict]) -> list[dict]:
-    edges = {edge_key(w) for w in walls}
+# takes the support takes what stood on it, and only that. A record already
+# orphaned elsewhere on the level is kept for the repair dialog.
+def lights_off_edges(lights: list[dict], removed: set[tuple[int, int, int, int]]) -> list[dict]:
     return [
         light
         for light in lights
         if light["side"] not in LIGHT_SIDES
-        or wall_endpoints_for_cell_side(light["col"], light["row"], light["side"]) in edges
+        or wall_endpoints_for_cell_side(light["col"], light["row"], light["side"]) not in removed
     ]
-
-
-def standing_on_floors(entries: list[dict], floors: list[dict]) -> list[dict]:
-    slabs = {(f["col"], f["row"]) for f in floors}
-    return [entry for entry in entries if (entry["col"], entry["row"]) in slabs]
 
 
 def erase_floors(data: dict, level_idx: int, rect: Rect) -> dict:
@@ -121,21 +115,18 @@ def erase_floors(data: dict, level_idx: int, rect: Rect) -> dict:
     level = after["levels"][level_idx]
     level["floors"] = cells_outside(level["floors"], rect)
     level["inaccessible_floors"] = cells_outside(level["inaccessible_floors"], rect)
-    slabs = [*level["floors"], *level["inaccessible_floors"]]
-    level["grass"] = standing_on_floors(level.get("grass", []), slabs)
-    after[ITEMS_LIST] = [
-        item
-        for item in after.get(ITEMS_LIST, [])
-        if item["level"] != level_idx or (item["col"], item["row"]) in {(f["col"], f["row"]) for f in level["floors"]}
-    ]
+    level["grass"] = cells_outside(level.get("grass", []), rect)
+    after[ITEMS_LIST] = level_cells_outside(after.get(ITEMS_LIST, []), level_idx, rect)
     return after
 
 
 def erase_walls(data: dict, level_idx: int, rect: Rect) -> dict:
     after = copy.deepcopy(data)
     level = after["levels"][level_idx]
-    level["walls"] = edges_outside(level["walls"], rect)
-    level["lights"] = lights_on_walls(level.get("lights", []), level["walls"])
+    walls = edges_outside(level["walls"], rect)
+    removed = {edge_key(wall) for wall in level["walls"]} - {edge_key(wall) for wall in walls}
+    level["walls"] = walls
+    level["lights"] = lights_off_edges(level.get("lights", []), removed)
     return after
 
 
@@ -219,8 +210,9 @@ def erase_cell_rect(
 ) -> dict:
     rect = rect_from_cells(start, end)
     after = erase_walls(data, level_idx, rect)
-    # Keep Floors keeps the slabs and what stands on them; everything
-    # else in the rectangle goes in both modes.
+    # Keep Floors keeps the slabs, the light bridges, the nested map
+    # anchors, and the items and plates standing on them; the rest of the
+    # rectangle goes in both modes.
     if not preserve_floors:
         after = erase_floors(after, level_idx, rect)
         level = after["levels"][level_idx]
@@ -349,12 +341,8 @@ def erase_hit(data: dict, level_idx: int, hit, preserve_floors: bool = False) ->
             if not (item["level"] == level_idx and (item["col"], item["row"]) == value)
         ]
     elif kind == "Wall":
-        level["walls"] = [
-            wall
-            for wall in level["walls"]
-            if edge_key(wall) != value
-        ]
-        level["lights"] = lights_on_walls(level.get("lights", []), level["walls"])
+        level["walls"] = [wall for wall in level["walls"] if edge_key(wall) != value]
+        level["lights"] = lights_off_edges(level.get("lights", []), {value})
     elif kind == MODE_EQUIPMENT_ERASER:
         level["erasers"] = [eraser for eraser in level.get("erasers", []) if edge_key(eraser) != value]
     elif kind == "Barrier":

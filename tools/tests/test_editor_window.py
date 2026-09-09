@@ -316,6 +316,7 @@ class WindowTests(WindowTestCase):
                     patch("map_editor.structure.ResizeMapDialog.prompt", return_value=(12, 12, 0, 0)),
                     patch.object(window, "confirm_discard_changes", return_value=True),
                     patch("map_editor.file_actions.QMessageBox.warning"),
+                    patch("map_editor.file_actions.QMessageBox.question", return_value=QMessageBox.StandardButton.Yes),
                     patch.object(window, "choose_map_path", return_value=self.path),
                 ):
                     for action in (window.resize_map, window.new_file, lambda: window.load_path(self.path)):

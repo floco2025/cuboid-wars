@@ -4,7 +4,6 @@ use serde::Deserialize;
 use super::settings::{validate_non_negative_finite, validate_positive_finite};
 
 #[derive(Debug, Clone, Copy, Deserialize)]
-#[serde(default)]
 pub struct AudioConfig {
     pub spatial_distance_scale: f32,
     pub explosion_gain: f32,
@@ -19,30 +18,9 @@ pub struct AudioConfig {
 // tells a dash across the room from a hop at a wall from close by. Silent
 // below `min_run_up`, full volume from `full_run_up` up, linear between.
 #[derive(Debug, Clone, Copy, Deserialize)]
-#[serde(default)]
 pub struct BumpAudioConfig {
     pub min_run_up: f32,
     pub full_run_up: f32,
-}
-
-impl Default for AudioConfig {
-    fn default() -> Self {
-        Self {
-            spatial_distance_scale: 0.1,
-            explosion_gain: 2.0,
-            rain_volume: 1.0,
-            bump: BumpAudioConfig::default(),
-        }
-    }
-}
-
-impl Default for BumpAudioConfig {
-    fn default() -> Self {
-        Self {
-            min_run_up: 2.0,
-            full_run_up: 6.0,
-        }
-    }
 }
 
 impl AudioConfig {
@@ -81,11 +59,16 @@ impl BumpAudioConfig {
 mod tests {
     use super::*;
 
-    #[test]
-    fn default_audio_config_is_valid() {
-        AudioConfig::default()
-            .validate()
-            .expect("default audio config should validate");
+    fn audio() -> AudioConfig {
+        AudioConfig {
+            spatial_distance_scale: 0.1,
+            explosion_gain: 2.0,
+            rain_volume: 1.0,
+            bump: BumpAudioConfig {
+                min_run_up: 2.0,
+                full_run_up: 6.0,
+            },
+        }
     }
 
     #[test]
@@ -108,7 +91,7 @@ mod tests {
                 min_run_up: 3.0,
                 full_run_up: 3.0,
             },
-            ..AudioConfig::default()
+            ..audio()
         };
         let error = config.validate().expect_err("flat ramp accepted");
         assert!(error.to_string().contains("audio.bump.full_run_up"), "{error}");
@@ -118,7 +101,7 @@ mod tests {
     fn audio_config_rejects_zero_spatial_distance_scale() {
         let config = AudioConfig {
             spatial_distance_scale: 0.0,
-            ..AudioConfig::default()
+            ..audio()
         };
         let error = config.validate().expect_err("zero spatial distance scale should fail");
         assert!(error.to_string().contains("spatial_distance_scale"));

@@ -69,9 +69,12 @@ fn death_cause(source: &DeathSource, victim: PlayerId, players: &PlayerMap) -> D
 }
 
 // Run the death sequence for one player: replace its life with the dead
-// lifecycle, queue the death explosion (not for a void fall), despawn the
-// entity, broadcast `SPlayerDeath` so clients run death-side effects on the
-// impact tick instead of waiting a snapshot, and announce the feed line.
+// lifecycle, charge the victim `scoring.player_death` and credit the killer
+// `scoring.player_kill` (so every death path scores once and the cue carries
+// the post-death scores), queue the death explosion (not for a void fall),
+// despawn the entity, broadcast `SPlayerDeath` so clients run death-side
+// effects on the impact tick instead of waiting a snapshot, and announce the
+// feed line.
 // `PlayerMap` captures actor-reset eligibility and arms the shared timer in group mode.
 // Called from every code path that takes a player to zero health
 // (projectile hits, beams, explosions, falls, `/kill`).
@@ -87,12 +90,19 @@ pub fn kill_player(
     pos: Position,
     respawn_secs: f32,
     source: DeathSource,
-    feed: &FeedConfig,
+    server_gameplay_config: &ServerGameplayConfig,
     pending_explosions: &mut PendingExplosions,
 ) {
     let killer = kill_credit(&source, id, players);
     if !players.begin_respawn(id, respawn_secs) {
         return;
+    }
+    let scoring = &server_gameplay_config.scoring;
+    if let Some(victim) = players.get_mut(&id) {
+        victim.session.score += scoring.player_death;
+    }
+    if let Some(killer_info) = killer.and_then(|killer| players.get_mut(&killer)) {
+        killer_info.session.score += scoring.player_kill;
     }
     // Every death but a void fall detonates — `explosions_system` drains
     // the queue this tick and applies the blast. That deep a blast would
@@ -123,7 +133,7 @@ pub fn kill_player(
     );
     emit_feed(
         players,
-        feed,
+        &server_gameplay_config.feed,
         FeedAudience::Everyone,
         FeedEvent::PlayerDied {
             name: players.display_name(&id),
@@ -210,10 +220,9 @@ pub fn award_actor_kill(
 
 // Apply one projectile hit to a player. Returns `true` when this hit drops
 // the target's health to zero (and the target wasn't already dead) — the
-// caller is responsible for running `kill_player`.
+// caller is responsible for running `kill_player`, which does the scoring.
 pub fn apply_player_projectile_hit(
-    players: &mut PlayerMap,
-    shooter_id: &PlayerId,
+    players: &PlayerMap,
     target_id: PlayerId,
     target_health: &mut Health,
     server_gameplay_config: &ServerGameplayConfig,
@@ -233,26 +242,12 @@ pub fn apply_player_projectile_hit(
     }
 
     apply_damage(target_health, server_gameplay_config.combat.damage.projectile);
-
-    // Self-hits damage but don't score — the kill and death adjustments
-    // would land on the same player and cancel out.
-    if *shooter_id != target_id {
-        let scoring = &server_gameplay_config.scoring;
-        if let Some(shooter_info) = players.get_mut(shooter_id) {
-            shooter_info.session.score += scoring.player_kill;
-        }
-        if let Some(target_info) = players.get_mut(&target_id) {
-            target_info.session.score += scoring.player_death;
-        }
-    }
-
     target_health.0 <= 0.0
 }
 
 // Apply one tick of laser-beam contact to a player. `damage` is the per-tick
-// amount (`beam_dps * dt`). Returns `true` when this tick drops
-// the target to zero — the caller runs `kill_player(killer: None)`. No score
-// adjustments: actor-inflicted, like falls and blasts.
+// amount (`beam_dps * dt`). Returns `true` when this tick drops the target to
+// zero — the caller runs `kill_player`, which does the scoring.
 pub fn apply_player_beam_damage(
     players: &PlayerMap,
     target_id: PlayerId,
@@ -364,7 +359,7 @@ mod tests {
                 Position::default(),
                 2.0,
                 source,
-                &FeedConfig::all(true, &[]),
+                &server_gameplay_config(),
                 &mut pending_explosions,
             );
         }
@@ -514,61 +509,56 @@ mod tests {
     }
 
     #[test]
-    fn nonlethal_hit_returns_survived_and_adjusts_score() {
-        let mut players = make_player_map_with(PlayerId(1), PlayerId(2));
+    fn nonlethal_hit_returns_survived_and_leaves_score_alone() {
+        let players = make_player_map_with(PlayerId(1), PlayerId(2));
         let mut health = Health(100.0);
 
-        let was_lethal = apply_player_projectile_hit(
-            &mut players,
-            &PlayerId(1),
-            PlayerId(2),
-            &mut health,
-            &server_gameplay_config(),
-            false,
-        );
+        let was_lethal =
+            apply_player_projectile_hit(&players, PlayerId(2), &mut health, &server_gameplay_config(), false);
 
         assert!(!was_lethal);
         assert_eq!(health.0, 75.0);
-        assert_eq!(players.get(&PlayerId(1)).expect("shooter").session.score, 1);
-        assert_eq!(players.get(&PlayerId(2)).expect("target").session.score, -1);
+        assert_eq!(players.get(&PlayerId(1)).expect("shooter").session.score, 0);
+        assert_eq!(players.get(&PlayerId(2)).expect("target").session.score, 0);
+    }
+
+    #[test]
+    fn repeated_hits_then_a_kill_charge_the_death_once() {
+        let mut players = PlayerMap::default();
+        logged_in_player(&mut players, PlayerId(1), "Bob");
+        logged_in_player(&mut players, PlayerId(2), "Alex");
+        let config = server_gameplay_config();
+        let mut health = Health(100.0);
+        let mut lethal = false;
+        for _ in 0..4 {
+            lethal = apply_player_projectile_hit(&players, PlayerId(2), &mut health, &config, false);
+        }
+        assert!(lethal);
+        assert_eq!(players.get(&PlayerId(1)).expect("shooter").session.score, 0);
+        assert_eq!(players.get(&PlayerId(2)).expect("target").session.score, 0);
+
+        kill_with(&mut players, PlayerId(2), DeathSource::Shot(PlayerId(1)));
+
+        assert_eq!(
+            players.get(&PlayerId(1)).expect("shooter").session.score,
+            config.scoring.player_kill
+        );
+        assert_eq!(
+            players.get(&PlayerId(2)).expect("target").session.score,
+            config.scoring.player_death
+        );
     }
 
     #[test]
     fn lethal_hit_returns_true() {
-        let mut players = make_player_map_with(PlayerId(1), PlayerId(2));
+        let players = make_player_map_with(PlayerId(1), PlayerId(2));
         let mut health = Health(10.0);
 
-        let was_lethal = apply_player_projectile_hit(
-            &mut players,
-            &PlayerId(1),
-            PlayerId(2),
-            &mut health,
-            &server_gameplay_config(),
-            false,
-        );
+        let was_lethal =
+            apply_player_projectile_hit(&players, PlayerId(2), &mut health, &server_gameplay_config(), false);
 
         assert!(was_lethal);
         assert_eq!(health.0, 0.0);
-    }
-
-    #[test]
-    fn self_hit_damages_but_does_not_score() {
-        let mut players = PlayerMap::default();
-        players.insert(PlayerId(1), make_player_info());
-        let mut health = Health(100.0);
-
-        let was_lethal = apply_player_projectile_hit(
-            &mut players,
-            &PlayerId(1),
-            PlayerId(1),
-            &mut health,
-            &server_gameplay_config(),
-            false,
-        );
-
-        assert!(!was_lethal);
-        assert_eq!(health.0, 75.0);
-        assert_eq!(players.get(&PlayerId(1)).expect("player").session.score, 0);
     }
 
     #[test]
@@ -577,14 +567,8 @@ mod tests {
         players.get_mut(&PlayerId(2)).expect("target").begin_respawn(2.0);
         let mut health = Health(0.0);
 
-        let was_lethal = apply_player_projectile_hit(
-            &mut players,
-            &PlayerId(1),
-            PlayerId(2),
-            &mut health,
-            &server_gameplay_config(),
-            false,
-        );
+        let was_lethal =
+            apply_player_projectile_hit(&players, PlayerId(2), &mut health, &server_gameplay_config(), false);
 
         assert!(!was_lethal);
         // Score must not move on a no-op hit.
@@ -678,7 +662,7 @@ mod tests {
                 Position::default(),
                 2.0,
                 DeathSource::Shot(PlayerId(1)),
-                &FeedConfig::all(true, &[]),
+                &server_gameplay_config(),
                 &mut pending_explosions,
             );
         }
@@ -715,6 +699,10 @@ mod tests {
 
         assert_eq!(next_player_death(&mut rx).killer, None);
         assert_eq!(feed_lines(&mut rx), ["Alex shot themselves"]);
+        assert_eq!(
+            players.get(&PlayerId(2)).expect("victim").session.score,
+            server_gameplay_config().scoring.player_death
+        );
     }
 
     #[test]
@@ -813,7 +801,7 @@ mod tests {
                 Position::default(),
                 2.0,
                 DeathSource::Fall,
-                &FeedConfig::all(true, &[]),
+                &server_gameplay_config(),
                 &mut pending_explosions,
             );
         }
@@ -851,7 +839,7 @@ mod tests {
                 Position::default(),
                 2.0,
                 DeathSource::Void,
-                &FeedConfig::all(true, &[]),
+                &server_gameplay_config(),
                 &mut pending_explosions,
             );
         }

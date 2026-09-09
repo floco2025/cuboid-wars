@@ -7,7 +7,6 @@ use super::settings::validate_positive_finite;
 pub struct HudConfig {
     // Window width (logical px) the configured HUD sizes are designed for.
     // The whole screen-space HUD scales by window_width / reference_width.
-    #[serde(default = "default_hud_reference_width")]
     pub reference_width: f32,
     pub font_sizes: FontSizesConfig,
     pub banner: BannerConfig,
@@ -15,12 +14,7 @@ pub struct HudConfig {
     pub floating_labels: FloatingLabelsConfig,
     pub health_bars: HealthBarsConfig,
     pub quest_panel: QuestPanelConfig,
-    #[serde(default)]
     pub settings_menu: SettingsMenuHudConfig,
-}
-
-const fn default_hud_reference_width() -> f32 {
-    1920.0
 }
 
 // Per-purpose font sizes. Each surface has its own preferred size; the
@@ -42,12 +36,7 @@ pub struct FontSizesConfig {
     // Quest-panel cards (top-right): title + progress counter.
     pub quest_panel: f32,
     // Settings-menu rows and headers.
-    #[serde(default = "default_settings_menu_font_size")]
     pub settings_menu: f32,
-}
-
-const fn default_settings_menu_font_size() -> f32 {
-    18.0
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
@@ -92,20 +81,10 @@ pub struct QuestPanelConfig {
 
 // Settings-menu panel, in logical px (colors are consts in `constants.rs`).
 #[derive(Debug, Clone, Copy, Deserialize)]
-#[serde(default)]
 pub struct SettingsMenuHudConfig {
     pub panel_width: f32,
     // Width of each slider / cycler control.
     pub control_width: f32,
-}
-
-impl Default for SettingsMenuHudConfig {
-    fn default() -> Self {
-        Self {
-            panel_width: 380.0,
-            control_width: 160.0,
-        }
-    }
 }
 
 impl HudConfig {

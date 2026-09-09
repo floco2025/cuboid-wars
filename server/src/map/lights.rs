@@ -9,17 +9,12 @@ use common::{
 };
 use std::f32::consts::{FRAC_PI_2, PI};
 
-// Vertical position of every wall lamp, measured from the floor it sits on.
-// Lamps are placed manually in the editor (per-level `lights` arrays in
-// `map.json`); this constant sets their height above the level floor.
-const WALL_LIGHT_HEIGHT: f32 = 2.5;
-
 // Lamps hang this far in front of the wall face so the lamp body sits just
 // inside the room, not flush with the wall texture.
 const MODEL_INSET_PAST_WALL: f32 = 0.02;
 
-// Turn the per-level manual `lights: [{col, row, side}]` entries from
-// `map.json` into runtime `WallLight`s. Entries whose cell falls outside the
+// Turn the per-level manual `lights: [{col, row, side}]` entries from the
+// map's `layout.json` into runtime `WallLight`s. Entries whose cell falls outside the
 // grid or whose named side has no wall on this level are silently dropped —
 // the editor's `canonicalize_map` filters those on save, this is just
 // defense-in-depth for hand-edited JSON.
@@ -30,7 +25,7 @@ pub(crate) fn generate_wall_lights(
     level_idx: usize,
     defs: &[WallLightDef],
 ) -> Vec<WallLight> {
-    let light_y = geometry.level_y(u8::try_from(level_idx).unwrap_or(u8::MAX)) + WALL_LIGHT_HEIGHT;
+    let light_y = geometry.level_y(u8::try_from(level_idx).unwrap_or(u8::MAX)) + geometry.wall_light_height();
 
     defs.iter()
         .filter_map(|def| {
@@ -192,10 +187,11 @@ mod tests {
             side: WallSide::North,
         }];
 
-        let lights = generate_wall_lights(&geometry(1, 1), &level, 2, &defs);
+        let geometry = geometry(1, 1);
+        let lights = generate_wall_lights(&geometry, &level, 2, &defs);
 
         assert_eq!(lights.len(), 1);
-        assert!((lights[0].pos.y - (2.0 * LEVEL_HEIGHT + WALL_LIGHT_HEIGHT)).abs() < 1e-5);
+        assert!((lights[0].pos.y - (2.0 * LEVEL_HEIGHT + geometry.wall_light_height())).abs() < 1e-5);
     }
 
     #[test]

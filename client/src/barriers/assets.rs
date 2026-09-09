@@ -90,6 +90,7 @@ pub fn build_barrier_assets(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::BarrierPulseVfxConfig;
     use bevy::mesh::Indices;
     use common::protocol::HexColor;
 
@@ -105,7 +106,10 @@ mod tests {
         let config = BarrierVfxConfig {
             emissive_brightness: 7.0,
             opacity: 0.25,
-            ..default()
+            pulse: BarrierPulseVfxConfig {
+                min_opacity: 0.1,
+                frequency_hz: 0.5,
+            },
         };
         let assets = build_barrier_assets(&mut meshes, &mut materials, &kinds, config, 3.0);
         let mesh = meshes.get(&assets.meshes.panel).expect("barrier mesh missing");

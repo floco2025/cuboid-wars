@@ -77,8 +77,9 @@ mod tests {
         }];
         let config = LightBridgeVfxConfig {
             emissive_brightness: 4.0,
+            opacity: 0.8,
             unpowered_opacity: 0.3,
-            ..default()
+            fade_secs: 0.25,
         };
         let assets = build_bridge_assets(&mut meshes, &mut materials, &kinds, config);
         let mesh = meshes.get(&assets.meshes.panel).expect("bridge mesh missing");

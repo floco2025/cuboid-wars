@@ -41,13 +41,13 @@ pub(crate) fn reset_actors(
         for info in actors.values() {
             commands.entity(info.entity).despawn();
         }
-        *actors = ActorMap::default();
+        actors.clear();
         pending.0.clear();
     }
     timers.0.clear();
     timers
         .0
-        .extend((0..map_config.actor_spawn_zones.len()).map(|zone_idx| (zone_idx, ActorRespawnState::WaitingForSpace)));
+        .extend((0..map_config.actor_spawn_zones.len()).map(|zone_idx| (zone_idx, ActorRespawnState::Reset)));
 }
 
 fn arm_actor_respawn(timers: &mut ActorRespawnTimers, zone_idx: usize, respawn_secs: f32) {
@@ -66,7 +66,7 @@ fn tick_actor_respawns(timers: &mut ActorRespawnTimers, delta: f32) -> Vec<usize
                 *remaining_secs -= delta;
                 (*remaining_secs <= 0.0).then_some(*zone_idx)
             }
-            ActorRespawnState::WaitingForSpace => Some(*zone_idx),
+            ActorRespawnState::Reset | ActorRespawnState::WaitingForSpace => Some(*zone_idx),
         })
         .collect()
 }
@@ -214,23 +214,28 @@ fn queue_zone_slots(
             zone,
         );
         if !queued {
-            if kind_config.character.immovable || timers.0.get(&zone_idx) == Some(&ActorRespawnState::WaitingForSpace) {
-                let previous = timers.0.insert(zone_idx, ActorRespawnState::WaitingForSpace);
-                if previous != Some(ActorRespawnState::WaitingForSpace) {
+            let previous = timers.0.get(&zone_idx).copied();
+            let retry_immediately = matches!(
+                previous,
+                Some(ActorRespawnState::Reset | ActorRespawnState::WaitingForSpace)
+            );
+            match kind_config.respawn_secs {
+                Some(respawn_secs) if !kind_config.character.immovable && !retry_immediately => {
                     warn!(
-                        "actor spawn zone {zone_idx} on carrier {} has no clear spot for {:?}; waiting for space",
+                        "actor spawn zone {zone_idx} on carrier {} has no clear spot for a {:?}; retrying after its respawn time",
                         zone.carrier.0, zone.kind
                     );
+                    timers.0.insert(zone_idx, ActorRespawnState::Cooldown(respawn_secs));
                 }
-                return;
-            }
-            warn!(
-                "actor spawn zone {zone_idx} on carrier {} has no clear spot for a {:?}; retrying after its respawn time",
-                zone.carrier.0, zone.kind
-            );
-            timers.0.remove(&zone_idx);
-            if let Some(respawn_secs) = kind_config.respawn_secs {
-                arm_actor_respawn(timers, zone_idx, respawn_secs);
+                _ => {
+                    timers.0.insert(zone_idx, ActorRespawnState::WaitingForSpace);
+                    if previous != Some(ActorRespawnState::WaitingForSpace) {
+                        warn!(
+                            "actor spawn zone {zone_idx} on carrier {} has no clear spot for a {:?}; waiting for space",
+                            zone.carrier.0, zone.kind
+                        );
+                    }
+                }
             }
             return;
         }
@@ -399,15 +404,20 @@ fn materialize_actor(
 mod tests {
     use super::*;
     use crate::map::{CellGrid, EdgeGrid, LevelGrid};
+    use bevy::ecs::system::RunSystemOnce;
     use common::protocol::{ActorId, Carrier, CarrierId, MapLayout};
 
     fn spawn_app(cols: i32, counts: &[u32], respawn_secs: Option<f32>) -> App {
+        spawn_app_for("turret", cols, counts, respawn_secs)
+    }
+
+    fn spawn_app_for(kind: &str, cols: i32, counts: &[u32], respawn_secs: Option<f32>) -> App {
         let mut config = ServerGameplayConfig::load_default().expect("gameplay config rejected");
         config
             .actors
             .kinds
-            .get_mut("turret")
-            .expect("turret kind missing")
+            .get_mut(kind)
+            .expect("actor kind missing")
             .respawn_secs = respawn_secs;
         let settings = config.maps["hotel"].settings.clone();
         let mut cells = CellGrid::new(cols, 1);
@@ -429,7 +439,7 @@ mod tests {
                 level: 0,
                 cols: [0, cols],
                 rows: [0, 1],
-                kind: "turret".into(),
+                kind: kind.into(),
                 count,
             })
             .collect();
@@ -451,6 +461,27 @@ mod tests {
             .add_systems(Startup, actors_initial_spawn_system)
             .add_systems(Update, (actors_pending_spawn_system, actors_respawn_system).chain());
         app
+    }
+
+    fn reset(app: &mut App, scope: ActorRespawnScope) {
+        app.world_mut()
+            .run_system_once(
+                move |mut commands: Commands,
+                      mut actors: ResMut<ActorMap>,
+                      mut pending: ResMut<PendingActorSpawns>,
+                      mut timers: ResMut<ActorRespawnTimers>,
+                      map_config: Res<MapConfig>| {
+                    reset_actors(
+                        &mut commands,
+                        &mut actors,
+                        &mut pending,
+                        &mut timers,
+                        &map_config,
+                        scope,
+                    );
+                },
+            )
+            .expect("reset system failed");
     }
 
     #[test]
@@ -510,6 +541,100 @@ mod tests {
         assert_eq!(pending.len(), 1);
         assert_eq!(pending[0].pos, Position::default());
         assert!(app.world().resource::<ActorRespawnTimers>().0.is_empty());
+    }
+
+    #[test]
+    fn blocked_movable_spawn_waits_for_space_when_respawns_are_disabled() {
+        let mut app = spawn_app_for("scuttler", 1, &[1], None);
+        app.world_mut().resource_mut::<MapConfig>().grids[0].levels[0]
+            .cells
+            .rows[0][0]
+            .has_ramp = true;
+        app.update();
+        assert!(app.world().resource::<PendingActorSpawns>().0.is_empty());
+        assert_eq!(
+            app.world().resource::<ActorRespawnTimers>().0[&0],
+            ActorRespawnState::WaitingForSpace
+        );
+        app.world_mut().resource_mut::<MapConfig>().grids[0].levels[0]
+            .cells
+            .rows[0][0]
+            .has_ramp = false;
+        app.update();
+        assert_eq!(app.world().resource::<PendingActorSpawns>().0.len(), 1);
+        assert!(app.world().resource::<ActorRespawnTimers>().0.is_empty());
+    }
+
+    #[test]
+    fn resetting_every_actor_keeps_peace() {
+        let mut app = spawn_app(1, &[1], Some(1.0));
+        app.update();
+        app.world_mut().resource_mut::<ActorMap>().set_peaceful(true);
+        reset(&mut app, ActorRespawnScope::All);
+        let actors = app.world().resource::<ActorMap>();
+        assert!(actors.peaceful);
+        assert_eq!(actors.values().count(), 0);
+        assert!(app.world().resource::<PendingActorSpawns>().0.is_empty());
+    }
+
+    #[test]
+    fn blocked_reset_refills_retry_as_soon_as_space_clears() {
+        for scope in [ActorRespawnScope::Dead, ActorRespawnScope::All] {
+            let mut app = spawn_app_for("scuttler", 1, &[1], Some(90.0));
+            app.update();
+            let spawn = &app.world().resource::<PendingActorSpawns>().0[0];
+            let id = spawn.actor_id;
+            let due_tick = spawn.due_tick;
+            app.world_mut().resource_mut::<ServerTick>().0 = due_tick;
+            app.update();
+            if scope == ActorRespawnScope::Dead {
+                let removed = app
+                    .world_mut()
+                    .resource_mut::<ActorMap>()
+                    .remove(&id)
+                    .expect("live actor missing");
+                app.world_mut().despawn(removed.entity);
+            }
+            app.world_mut().resource_mut::<MapConfig>().grids[0].levels[0]
+                .cells
+                .rows[0][0]
+                .has_ramp = true;
+            reset(&mut app, scope);
+            for _ in 0..3 {
+                app.update();
+                assert!(app.world().resource::<PendingActorSpawns>().0.is_empty());
+            }
+
+            app.world_mut().resource_mut::<MapConfig>().grids[0].levels[0]
+                .cells
+                .rows[0][0]
+                .has_ramp = false;
+            app.update();
+
+            assert_eq!(
+                app.world().resource::<PendingActorSpawns>().0.len(),
+                1,
+                "scope {scope:?}"
+            );
+            assert!(app.world().resource::<ActorRespawnTimers>().0.is_empty());
+        }
+    }
+
+    #[test]
+    fn blocked_automatic_movable_spawn_keeps_its_retry_delay() {
+        let mut app = spawn_app_for("scuttler", 1, &[1], Some(90.0));
+        app.world_mut().resource_mut::<MapConfig>().grids[0].levels[0]
+            .cells
+            .rows[0][0]
+            .has_ramp = true;
+        app.update();
+        assert!(app.world().resource::<PendingActorSpawns>().0.is_empty());
+        app.world_mut().resource_mut::<MapConfig>().grids[0].levels[0]
+            .cells
+            .rows[0][0]
+            .has_ramp = false;
+        app.update();
+        assert!(app.world().resource::<PendingActorSpawns>().0.is_empty());
     }
 
     #[test]

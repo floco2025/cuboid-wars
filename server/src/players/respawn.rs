@@ -258,7 +258,7 @@ mod tests {
                     pos,
                     config.player.respawn_secs,
                     DeathSource::Beam { kind: "turret".into() },
-                    &config.feed,
+                    &config,
                     &mut explosions,
                 );
                 queue.apply(world);
@@ -492,13 +492,16 @@ mod tests {
         assert!(app.world().get_entity(first).is_err());
         assert!(app.world().get_entity(second).is_err());
         assert_eq!(app.world().resource::<PendingExplosions>().0.len(), 1);
+        let player_death = app.world().resource::<ServerGameplayConfig>().scoring.player_death;
         let mut effects = Vec::new();
         let mut feed_count = 0;
         while let Ok(ServerToClient::Send(message)) = rx.try_recv() {
             match message {
                 ServerMessage::PlayerDeath(death) => {
                     assert_eq!(death.killer, None);
-                    assert_eq!(death.victim_score, 42);
+                    // Only the player who died pays for it; a teammate pulled into the group respawn does not.
+                    let charged = if death.id == PlayerId(1) { player_death } else { 0 };
+                    assert_eq!(death.victim_score, 42 + charged);
                     effects.push((death.id, death.effect));
                 }
                 ServerMessage::Feed(_) => feed_count += 1,
@@ -522,9 +525,10 @@ mod tests {
         let players = app.world().resource::<PlayerMap>();
         let max_health = app.world().resource::<ServerGameplayConfig>().combat.health.player.max;
         assert!(!players.group_respawn_active());
-        for info in players.values() {
+        for (id, info) in players.iter() {
             assert!(!info.is_dead());
-            assert_eq!(info.session.score, 42);
+            let charged = if *id == PlayerId(1) { player_death } else { 0 };
+            assert_eq!(info.session.score, 42 + charged);
             assert_eq!(
                 info.session.quest_states[&QuestId("progress".into())].own_progress(),
                 Some(3)

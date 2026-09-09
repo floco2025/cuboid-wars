@@ -1,18 +1,26 @@
 use std::f32::consts::TAU;
 
-use bevy::{gltf::GltfAssetLabel, prelude::*, world_serialization::WorldInstanceReady};
+use bevy::{gltf::Gltf, prelude::*, world_serialization::WorldInstanceReady};
 use common::{
     physics::CharacterSupport,
     protocol::{ActorMoveIntent, Position},
 };
 
 use crate::{
-    characters::PreviousTickPosition,
-    config::{ModelDef, WheelModelDef},
+    characters::{CharacterModel, PreviousTickPosition},
+    config::WheelModelDef,
     constants::*,
 };
 
-#[derive(Component, Clone)]
+// The actor a wheeled model drives for; the rig is built when its scene is ready.
+#[derive(Component)]
+pub(crate) struct WheelModel {
+    pub owner: Entity,
+    pub wheels: WheelModelDef,
+    pub scale: f32,
+}
+
+#[derive(Clone)]
 pub(crate) struct WheelAnimationSource {
     owner: Entity,
     graph: Handle<AnimationGraph>,
@@ -23,25 +31,23 @@ pub(crate) struct WheelAnimationSource {
 }
 
 impl WheelAnimationSource {
-    pub fn load(
-        owner: Entity,
-        model: &ModelDef,
-        wheels: WheelModelDef,
-        server: &AssetServer,
+    // `None` when the GLB lacks a configured clip.
+    fn from_clips(
+        model: &WheelModel,
+        clips: &[Handle<AnimationClip>],
         graphs: &mut Assets<AnimationGraph>,
-    ) -> Self {
-        let (graph, clips) = AnimationGraph::from_clips(
-            [wheels.idle_animation, wheels.drive_animation]
-                .map(|index| server.load(GltfAssetLabel::Animation(index).from_asset(model.scene.clone()))),
-        );
-        Self {
-            owner,
+    ) -> Option<Self> {
+        let idle = clips.get(model.wheels.idle_animation)?.clone();
+        let drive = clips.get(model.wheels.drive_animation)?.clone();
+        let (graph, nodes) = AnimationGraph::from_clips([idle, drive]);
+        Some(Self {
+            owner: model.owner,
             graph: graphs.add(graph),
-            idle: clips[0],
-            drive: clips[1],
-            wheel_radius: wheels.radius * model.scale,
-            cycle_secs: wheels.drive_cycle_secs,
-        }
+            idle: nodes[0],
+            drive: nodes[1],
+            wheel_radius: model.wheels.radius * model.scale,
+            cycle_secs: model.wheels.drive_cycle_secs,
+        })
     }
 }
 
@@ -54,10 +60,24 @@ pub(crate) fn wheel_animation_setup_system(
     ready: On<WorldInstanceReady>,
     mut commands: Commands,
     children: Query<&Children>,
-    sources: Query<&WheelAnimationSource>,
+    models: Query<(&CharacterModel, &WheelModel)>,
+    gltfs: Res<Assets<Gltf>>,
+    mut graphs: ResMut<Assets<AnimationGraph>>,
     mut players: Query<&mut AnimationPlayer>,
 ) {
-    let Ok(source) = sources.get(ready.entity) else {
+    let Ok((model, wheel_model)) = models.get(ready.entity) else {
+        return;
+    };
+    let Some(source) = model
+        .clips(&gltfs)
+        .and_then(|clips| WheelAnimationSource::from_clips(wheel_model, clips, &mut graphs))
+    else {
+        error!(
+            "{} lacks wheel clips {} and {}",
+            model.scene(),
+            wheel_model.wheels.idle_animation,
+            wheel_model.wheels.drive_animation
+        );
         return;
     };
     for child in children.iter_descendants(ready.entity) {
@@ -114,7 +134,11 @@ pub(crate) fn wheel_animation_update_system(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_assets::{gltf_path, headless_asset_app, preload_gltf, settle};
+    use crate::{
+        characters::load_character_model,
+        config::ModelDef,
+        test_assets::{headless_asset_app, settle},
+    };
     use bevy::animation::AnimationTargetId;
 
     #[test]
@@ -142,17 +166,16 @@ mod tests {
                 CharacterSupport::Ground,
             ))
             .id();
-        preload_gltf(&mut app, &gltf_path(&model.scene));
         let server = app.world().resource::<AssetServer>().clone();
-        let source = WheelAnimationSource::load(
-            owner,
-            &model,
-            wheels,
-            &server,
-            &mut app.world_mut().resource_mut::<Assets<AnimationGraph>>(),
-        );
         app.world_mut()
-            .spawn((WorldAssetRoot(server.load(model.scene.clone())), source))
+            .spawn((
+                load_character_model(&model, &server),
+                WheelModel {
+                    owner,
+                    wheels,
+                    scale: model.scale,
+                },
+            ))
             .observe(wheel_animation_setup_system);
         settle(&mut app, |world| {
             world.query::<&WheelAnimationPlayback>().iter(world).next().is_some()

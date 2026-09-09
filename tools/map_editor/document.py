@@ -98,17 +98,18 @@ class MapDocument(QObject):
         repaired = canonicalize_map(self.map_data)
         return repaired, repair_summary(self.map_data, repaired)
 
-    def replace_with_new(self, map_data: dict) -> None:
-        """Adopt a fresh map with no backing file (File → New)."""
+    def replace_with_new(self, map_data: dict, path: Path | None = None) -> None:
+        """Adopt an unsaved map at a chosen destination (None for a recovered session)."""
+        path_mtime = path.stat().st_mtime if path is not None and path.exists() else None
         before = self.map_data
         self.active_map = None
         self.clear_autosave()
         self.root_data = normalize_map(map_data)
         self._saved_data = None
-        self.path = None
-        self.path_mtime = None
+        self.path = path
+        self.path_mtime = path_mtime
         # Fresh map = unsaved by definition; dropping the asterisk would be
-        # misleading until the user picks a destination.
+        # misleading until it is written.
         self.dirty = True
         self.undo_stack.clear()
         self.changed.emit(before)

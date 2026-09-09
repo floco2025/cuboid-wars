@@ -382,7 +382,7 @@ fn kill_targets(
             *pos,
             admin.server_gameplay_config.player.respawn_secs,
             DeathSource::Admin,
-            &admin.server_gameplay_config.feed,
+            &admin.server_gameplay_config,
             &mut admin.pending_explosions,
         );
         count += 1;

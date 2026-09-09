@@ -18,6 +18,9 @@ pub const BARRIER_THICKNESS_FRACTION: f32 = 1.0 / 6.0;
 // Slab thickness of a light bridge, as a fraction of the floor thickness.
 pub const BRIDGE_THICKNESS_FRACTION: f32 = 0.25;
 
+// Height of a wall light above its floor, as a fraction of the wall height.
+pub const WALL_LIGHT_HEIGHT_FRACTION: f32 = 0.625;
+
 // Ladders. Freestanding climbable elements anchored on grid edges. One-sided:
 // the rail side (front) climbs and fences; the back is passed through. No
 // Rapier collider — the character step queries the derived volumes directly.

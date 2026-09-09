@@ -256,8 +256,7 @@ pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut 
                 {
                     let death_pos = *target_pos;
                     let was_lethal = apply_player_projectile_hit(
-                        &mut params.players,
-                        shooter_id,
+                        &params.players,
                         player_id,
                         &mut health,
                         &params.server_gameplay_config,
@@ -285,7 +284,7 @@ pub fn projectiles_movement_system(mut commands: Commands, time: Res<Time>, mut 
                             death_pos,
                             params.server_gameplay_config.player.respawn_secs,
                             DeathSource::Shot(*shooter_id),
-                            &params.server_gameplay_config.feed,
+                            &params.server_gameplay_config,
                             &mut params.pending_explosions,
                         );
                     }

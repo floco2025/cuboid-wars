@@ -42,12 +42,18 @@ class FileActionsMixin:
             return
         new_cols, new_rows, _, _ = result
         path = self.choose_map_path("New Map")
-        if path is None:
+        if path is None or (path.exists() and not self.confirm_replace_map(path)):
             return
-        self.doc.replace_with_new(empty_map(new_cols, new_rows))
-        self.doc.path = path
-        self.doc.path_mtime = path.stat().st_mtime if path.exists() else None
+        self.doc.replace_with_new(empty_map(new_cols, new_rows), path)
         self.adopt_map(map_name_from_path(path))
+
+    def confirm_replace_map(self, path: Path) -> bool:
+        answer = QMessageBox.question(
+            self, "Replace Map?", f"Replace the layout for {map_name_from_path(path)} with this map?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Cancel,
+        )
+        return answer == QMessageBox.StandardButton.Yes
 
     def choose_map_path(self, title: str) -> Path | None:
         names = list_map_names()
@@ -145,14 +151,8 @@ class FileActionsMixin:
         path = self.choose_map_path("Save Map As")
         if path is None:
             return False
-        if path != self.path and path.exists():
-            answer = QMessageBox.question(
-                self, "Replace Map?", f"Replace the layout for {map_name_from_path(path)} with this map?",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
-                QMessageBox.StandardButton.Cancel,
-            )
-            if answer != QMessageBox.StandardButton.Yes:
-                return False
+        if path != self.path and path.exists() and not self.confirm_replace_map(path):
+            return False
         return self._save_to(path)
 
     def confirm_discard_changes(self) -> bool:

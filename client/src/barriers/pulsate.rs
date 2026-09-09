@@ -26,12 +26,16 @@ pub fn barriers_pulsate_system(
     let config = client_settings.vfx.barriers;
     let t = time.elapsed_secs();
     for (idx, handle) in assets.material_handles().enumerate() {
-        let Some(mut mat) = materials.get_mut(handle) else {
-            continue;
-        };
         let phase = idx as f32 * 0.5;
         let alpha = pulse_opacity(config, t, phase);
-        mat.base_color = color_with_alpha(assets.base_colors[idx], alpha);
+        // A `get_mut` marks the material modified and re-uploads it, so a
+        // disabled pulse must not touch it every frame.
+        if materials.get(handle).is_none_or(|mat| mat.base_color.alpha() == alpha) {
+            continue;
+        }
+        if let Some(mut mat) = materials.get_mut(handle) {
+            mat.base_color = color_with_alpha(assets.base_colors[idx], alpha);
+        }
     }
 }
 
@@ -47,15 +51,18 @@ fn pulse_opacity(config: BarrierVfxConfig, time: f32, phase: f32) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::BarrierPulseVfxConfig;
 
     #[test]
     fn pulse_uses_configured_range_and_frequency_and_can_be_disabled() {
         let mut config = BarrierVfxConfig {
+            emissive_brightness: 2.0,
             opacity: 0.6,
-            ..default()
+            pulse: BarrierPulseVfxConfig {
+                min_opacity: 0.2,
+                frequency_hz: 2.0,
+            },
         };
-        config.pulse.min_opacity = 0.2;
-        config.pulse.frequency_hz = 2.0;
         assert!((pulse_opacity(config, 0.125, 0.0) - 0.6).abs() < 1e-6);
         assert!((pulse_opacity(config, 0.375, 0.0) - 0.2).abs() < 1e-6);
 

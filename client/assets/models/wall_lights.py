@@ -15,16 +15,33 @@ MODELS = Path(__file__).resolve().parent
 
 def finish(obj, name, mat, bevel):
     obj.name = name
+    obj.data.name = name
     obj.data.materials.append(mat)
+    smooth(obj)
     if bevel:
         modifier = obj.modifiers.new("Edge radii", "BEVEL")
         modifier.width = bevel
         modifier.segments = 3
         obj.modifiers.new("Surface normals", "WEIGHTED_NORMAL")
+        apply_modifiers(obj)
+        smooth(obj)
     project_uv(obj, mat)
+    return obj
+
+
+def smooth(obj):
     for face in obj.data.polygons:
         face.use_smooth = True
-    return obj
+
+
+# The glTF exporter writes the mesh as it is, so the bevel and the weighted
+# normals only reach the file once they are applied.
+def apply_modifiers(obj):
+    bpy.ops.object.select_all(action="DESELECT")
+    obj.select_set(True)
+    bpy.context.view_layer.objects.active = obj
+    for modifier in list(obj.modifiers):
+        bpy.ops.object.modifier_apply(modifier=modifier.name)
 
 
 def box(name, pos, size, mat, bevel=0.015):

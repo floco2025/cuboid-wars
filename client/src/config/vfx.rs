@@ -3,8 +3,7 @@ use serde::Deserialize;
 
 use super::settings::{validate_non_negative_finite, validate_positive_finite, validate_unit_ratio};
 
-#[derive(Debug, Clone, Copy, Default, Deserialize)]
-#[serde(default)]
+#[derive(Debug, Clone, Copy, Deserialize)]
 pub struct VfxConfig {
     pub pickups: PickupVfxConfig,
     pub barriers: BarrierVfxConfig,
@@ -22,17 +21,8 @@ impl VfxConfig {
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
-#[serde(default)]
 pub struct PickupVfxConfig {
     pub emissive_brightness: f32,
-}
-
-impl Default for PickupVfxConfig {
-    fn default() -> Self {
-        Self {
-            emissive_brightness: 1.0,
-        }
-    }
 }
 
 impl PickupVfxConfig {
@@ -42,21 +32,10 @@ impl PickupVfxConfig {
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
-#[serde(default)]
 pub struct BarrierVfxConfig {
     pub emissive_brightness: f32,
     pub opacity: f32,
     pub pulse: BarrierPulseVfxConfig,
-}
-
-impl Default for BarrierVfxConfig {
-    fn default() -> Self {
-        Self {
-            emissive_brightness: 2000.0,
-            opacity: 0.015,
-            pulse: BarrierPulseVfxConfig::default(),
-        }
-    }
 }
 
 impl BarrierVfxConfig {
@@ -73,35 +52,15 @@ impl BarrierVfxConfig {
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
-#[serde(default)]
 pub struct BarrierPulseVfxConfig {
     pub min_opacity: f32,
     pub frequency_hz: f32,
 }
 
-impl Default for BarrierPulseVfxConfig {
-    fn default() -> Self {
-        Self {
-            min_opacity: 0.007,
-            frequency_hz: 0.5,
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy, Deserialize)]
-#[serde(default)]
 pub struct EraserVfxConfig {
     pub emissive_brightness: f32,
     pub opacity: f32,
-}
-
-impl Default for EraserVfxConfig {
-    fn default() -> Self {
-        Self {
-            emissive_brightness: 2000.0,
-            opacity: 0.015,
-        }
-    }
 }
 
 impl EraserVfxConfig {
@@ -112,23 +71,11 @@ impl EraserVfxConfig {
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
-#[serde(default)]
 pub struct LightBridgeVfxConfig {
     pub emissive_brightness: f32,
     pub opacity: f32,
     pub unpowered_opacity: f32,
     pub fade_secs: f32,
-}
-
-impl Default for LightBridgeVfxConfig {
-    fn default() -> Self {
-        Self {
-            emissive_brightness: 6.0,
-            opacity: 0.8,
-            unpowered_opacity: 0.15,
-            fade_secs: 0.25,
-        }
-    }
 }
 
 impl LightBridgeVfxConfig {
@@ -150,31 +97,6 @@ mod tests {
     use serde_json::json;
 
     #[test]
-    fn partial_settings_keep_defaults_for_other_visual_controls() {
-        let config: VfxConfig = serde_json::from_value(json!({
-            "barriers": { "opacity": 0.4 },
-            "erasers": { "opacity": 0.2, "emissive_brightness": 9.0 },
-            "light_bridges": { "fade_secs": 0.5 }
-        }))
-        .expect("partial VFX config failed to deserialize");
-        let defaults = VfxConfig::default();
-        assert_eq!(config.pickups.emissive_brightness, defaults.pickups.emissive_brightness);
-        assert_eq!(config.barriers.opacity, 0.4);
-        assert_eq!(
-            config.barriers.emissive_brightness,
-            defaults.barriers.emissive_brightness
-        );
-        assert_eq!(config.barriers.pulse.min_opacity, defaults.barriers.pulse.min_opacity);
-        assert_eq!(config.erasers.opacity, 0.2);
-        assert_eq!(config.erasers.emissive_brightness, 9.0);
-        assert_eq!(
-            config.light_bridges.emissive_brightness,
-            defaults.light_bridges.emissive_brightness
-        );
-        assert_eq!(config.light_bridges.fade_secs, 0.5);
-    }
-
-    #[test]
     fn invalid_visual_controls_report_their_config_paths() {
         for (path, invalid) in [
             ("pickups.emissive_brightness", -1.0),
@@ -193,8 +115,10 @@ mod tests {
             ("light_bridges.fade_secs", 0.0),
         ] {
             let mut value = json!({
-                "barriers": { "opacity": 0.5, "pulse": { "min_opacity": 0.1 } },
-                "light_bridges": { "opacity": 0.5, "unpowered_opacity": 0.1 }
+                "pickups": { "emissive_brightness": 1.0 },
+                "barriers": { "emissive_brightness": 2.0, "opacity": 0.5, "pulse": { "min_opacity": 0.1, "frequency_hz": 0.5 } },
+                "erasers": { "emissive_brightness": 3.0, "opacity": 0.2 },
+                "light_bridges": { "emissive_brightness": 1.0, "opacity": 0.5, "unpowered_opacity": 0.1, "fade_secs": 0.25 }
             });
             let mut field = &mut value;
             for key in path.split('.') {
@@ -221,7 +145,7 @@ mod tests {
                 "pulse": { "min_opacity": 0.0, "frequency_hz": 0.0 }
             },
             "erasers": { "emissive_brightness": 0.0, "opacity": 0.0 },
-            "light_bridges": { "emissive_brightness": 0.0, "opacity": 0.0, "unpowered_opacity": 0.0 }
+            "light_bridges": { "emissive_brightness": 0.0, "opacity": 0.0, "unpowered_opacity": 0.0, "fade_secs": 0.25 }
         }))
         .expect("zero-value VFX config failed to deserialize");
         config.validate().expect("zero emission or opacity rejected");

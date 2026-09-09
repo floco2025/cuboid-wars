@@ -213,6 +213,12 @@ impl ActorMap {
         self.entries.insert(id, info)
     }
 
+    // Forget every actor and vacated zone; `peaceful` is an admin setting, not actor state.
+    pub(crate) fn clear(&mut self) {
+        self.entries.clear();
+        self.vacated_spawn_zones.clear();
+    }
+
     pub fn remove(&mut self, id: &ActorId) -> Option<ActorInfo> {
         let info = self.entries.remove(id)?;
         self.vacated_spawn_zones.insert(info.spawn_zone_index);
@@ -266,6 +272,7 @@ pub struct ActorRespawnTimers(pub(crate) HashMap<usize, ActorRespawnState>);
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) enum ActorRespawnState {
     Cooldown(f32),
+    Reset,
     WaitingForSpace,
 }
 

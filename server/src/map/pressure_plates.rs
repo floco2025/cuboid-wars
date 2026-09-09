@@ -1291,7 +1291,7 @@ mod system_tests {
                     switch_pos,
                     0.0,
                     DeathSource::Beam { kind: "turret".into() },
-                    &config.feed,
+                    &config,
                     &mut PendingExplosions::default(),
                 );
             })

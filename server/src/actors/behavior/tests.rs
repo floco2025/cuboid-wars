@@ -1332,7 +1332,13 @@ fn closing_a_barrier_immediately_stops_a_turret() {
     assert!(matches!(state.beam, BeamState::Cooldown { .. }));
     context.open_barriers = &opened;
     assert!(decide_stationary_actor(&mut state, &context).is_none());
-    tick_runtime_state(&mut state, origin, 0.2, context.kind_config, &[]);
+    let cooldown = context
+        .kind_config
+        .attack
+        .beam()
+        .expect("turret fires no beam")
+        .cooldown_secs;
+    tick_runtime_state(&mut state, origin, cooldown + TICK_SECS, context.kind_config, &[]);
     decide_stationary_actor(&mut state, &context);
     assert_eq!(state.beam.target(), Some(PlayerId(7)));
 }
@@ -1483,6 +1489,14 @@ fn turret_holds_long_burst_and_stops_when_player_disconnects() {
         }
     }
     assert_eq!(targets, vec![Some(PlayerId(7))]);
+    let cooldown = app
+        .world()
+        .resource::<ServerGameplayConfig>()
+        .expect_actor("turret")
+        .attack
+        .beam()
+        .expect("turret fires no beam")
+        .cooldown_secs;
     app.world_mut()
         .resource_mut::<PlayerMap>()
         .disconnect(&PlayerId(7), 2.0);
@@ -1493,7 +1507,9 @@ fn turret_holds_long_burst_and_stops_when_player_disconnects() {
             .get(&ActorId(1))
             .expect("turret missing")
             .beam,
-        BeamState::Cooldown { remaining_secs: 0.1 }
+        BeamState::Cooldown {
+            remaining_secs: cooldown
+        }
     );
     assert_eq!(
         app.world().get::<Health>(player).expect("player health missing").0,

@@ -143,7 +143,7 @@ pub fn actors_beam_damage_system(
                 DeathSource::Beam {
                     kind: info.spawn_kind.clone(),
                 },
-                &server_gameplay_config.feed,
+                &server_gameplay_config,
                 &mut pending_explosions,
             );
         }

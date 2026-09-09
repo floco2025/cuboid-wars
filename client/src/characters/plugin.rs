@@ -55,6 +55,7 @@ pub fn character_sync_plugin(app: &mut App) {
     app.add_systems(
         Update,
         (
+            character_models_attach_system,
             players_transform_sync_system.after(local_player_cuboid_shake_system),
             actors_transform_sync_system,
             carriers_transform_sync_system,

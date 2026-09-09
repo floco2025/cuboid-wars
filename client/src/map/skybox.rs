@@ -478,7 +478,31 @@ mod tests {
     use super::*;
 
     fn config() -> LightingConfig {
-        LightingConfig::default()
+        LightingConfig {
+            bright: SunLighting {
+                sky_brightness: 1000.0,
+                sun_illuminance: 8000.0,
+                ambient_brightness: 70.0,
+                sun_disc_luminance: 100.0,
+                saturation: 1.0,
+            },
+            dim: MoonLighting {
+                sky_brightness: 64.0,
+                moon_illuminance: 200.0,
+                ambient_brightness: 30.0,
+                moon_disc_luminance: 5.0,
+                moon_phase_percent: 60.0,
+                saturation: 0.5,
+            },
+            dark: MoonLighting {
+                sky_brightness: 12.0,
+                moon_illuminance: 50.0,
+                ambient_brightness: 10.0,
+                moon_disc_luminance: 0.1,
+                moon_phase_percent: 35.0,
+                saturation: 0.3,
+            },
+        }
     }
 
     fn wire(from: &str, to: &str, blend: f32) -> LightingBlend {

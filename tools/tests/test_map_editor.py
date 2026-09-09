@@ -20,6 +20,7 @@ from map_editor.constants import (
     MODE_SELECT,
 )
 from map_editor.erase import EraseMixin
+from map_editor.erasing import erase_hit
 from map_editor.items import ItemsMixin
 from map_editor.lights import LightsMixin
 from map_editor.select import SelectMixin
@@ -442,6 +443,39 @@ class LayerEraserTests(unittest.TestCase):
         self.assertEqual(
             host.statuses,
             ["Erase Walls: no walls in selection.", "Erase Ramps: no ramps in selection."],
+        )
+
+    def test_erase_drops_only_what_stood_in_the_rectangle(self) -> None:
+        host = self.host()
+        level = host.map_data["levels"][0]
+        # Records kept invalid for manual repair, away from the erase: the
+        # cell (2, 2) has no floor and its north side no wall.
+        level["grass"] = [{"col": 0, "row": 0}, {"col": 2, "row": 2}]
+        level["lights"] = [
+            {"col": 0, "row": 0, "side": "N", "kind": "utility"},
+            {"col": 2, "row": 2, "side": "N", "kind": "utility"},
+        ]
+        host.map_data["items"].append({"level": 0, "col": 2, "row": 2, "type": "gold"})
+        host.erase_group_rect(MODE_ERASE_FLOORS, (0, 0), (1, 1))
+        level = host.map_data["levels"][0]
+        self.assertEqual(level["grass"], [{"col": 2, "row": 2}])
+        self.assertEqual(host.map_data["items"], [{"level": 0, "col": 2, "row": 2, "type": "gold"}])
+        self.assertEqual(len(level["lights"]), 2)
+        host.erase_group_rect(MODE_ERASE_WALLS, (0, 0), (1, 1))
+        level = host.map_data["levels"][0]
+        self.assertEqual(level["lights"], [{"col": 2, "row": 2, "side": "N", "kind": "utility"}])
+
+    def test_erasing_one_wall_takes_only_its_own_lights(self) -> None:
+        data = self.host().map_data
+        data["levels"][0]["lights"] = [
+            {"col": 0, "row": 0, "side": "N", "kind": "utility"},
+            {"col": 0, "row": 0, "side": "S", "kind": "utility"},
+            {"col": 3, "row": 3, "side": "N", "kind": "utility"},
+        ]
+        after = erase_hit(data, 0, ("Wall", (0, 0, 1, 0)))
+        self.assertEqual(
+            after["levels"][0]["lights"],
+            [{"col": 0, "row": 0, "side": "S", "kind": "utility"}, {"col": 3, "row": 3, "side": "N", "kind": "utility"}],
         )
 
     def test_erase_clears_every_element_and_keep_floors_keeps_what_stands_on_them(self) -> None:

@@ -11,7 +11,7 @@ use common::{
     },
 };
 
-use super::{DeathSource, PendingExplosion, PendingExplosions, award_actor_kill, kill_actor, kill_credit, kill_player};
+use super::{DeathSource, PendingExplosion, PendingExplosions, award_actor_kill, kill_actor, kill_player};
 use crate::{
     actors::ActorMap,
     config::{BlastConfig, ServerGameplayConfig},
@@ -151,17 +151,6 @@ pub fn explosions_system(mut context: ExplosionContext) {
                 source_description(&spec.source, &context.players)
             );
             player_impulses.remove(&death.id);
-            if let Some(victim) = context.players.get_mut(&death.id) {
-                victim.session.score += context.server_gameplay_config.scoring.player_death;
-            }
-            // Award the kill bonus before `kill_player` so the `SPlayerDeath`
-            // cue carries the post-kill killer score.
-            let source = DeathSource::from(&spec.source);
-            if let Some(killer_id) = kill_credit(&source, death.id, &context.players)
-                && let Some(shooter) = context.players.get_mut(&killer_id)
-            {
-                shooter.session.score += context.server_gameplay_config.scoring.player_kill;
-            }
             kill_player(
                 &mut context.commands,
                 &mut context.players,
@@ -169,8 +158,8 @@ pub fn explosions_system(mut context: ExplosionContext) {
                 death.entity,
                 death.pos,
                 respawn_secs,
-                source,
-                &context.server_gameplay_config.feed,
+                DeathSource::from(&spec.source),
+                &context.server_gameplay_config,
                 &mut context.pending,
             );
         }

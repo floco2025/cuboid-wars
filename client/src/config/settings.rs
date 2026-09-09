@@ -21,22 +21,16 @@ pub struct ClientSettings {
     #[serde(skip)]
     pub preferences: UserPreferences,
     pub hud: HudConfig,
-    #[serde(default)]
     pub grass: GrassConfig,
-    #[serde(default)]
     pub vfx: VfxConfig,
-    #[serde(default)]
     pub audio: AudioConfig,
-    #[serde(default)]
     pub weather: WeatherConfig,
-    #[serde(default)]
     pub lighting: LightingConfig,
 }
 
 // One entry per server lighting level (`/light bright|dim|dark`).
 // Decoupled from weather — rain does not dim the world.
 #[derive(Debug, Clone, Copy, Deserialize)]
-#[serde(default)]
 pub struct LightingConfig {
     pub bright: SunLighting,
     pub dim: MoonLighting,
@@ -73,36 +67,6 @@ pub struct MoonLighting {
     // Lit fraction in percent: 100 = full moon, 50 = half, 35 = crescent.
     pub moon_phase_percent: f32,
     pub saturation: f32,
-}
-
-impl Default for LightingConfig {
-    fn default() -> Self {
-        Self {
-            bright: SunLighting {
-                sky_brightness: 1000.0,
-                sun_illuminance: 8000.0,
-                ambient_brightness: 70.0,
-                sun_disc_luminance: 100.0,
-                saturation: 1.0,
-            },
-            dim: MoonLighting {
-                sky_brightness: 64.0,
-                moon_illuminance: 200.0,
-                ambient_brightness: 30.0,
-                moon_disc_luminance: 5.0,
-                moon_phase_percent: 60.0,
-                saturation: 0.5,
-            },
-            dark: MoonLighting {
-                sky_brightness: 12.0,
-                moon_illuminance: 50.0,
-                ambient_brightness: 10.0,
-                moon_disc_luminance: 0.1,
-                moon_phase_percent: 35.0,
-                saturation: 0.3,
-            },
-        }
-    }
 }
 
 impl LightingConfig {
@@ -143,7 +107,6 @@ impl MoonLighting {
 // speeds, splash shape) are constants; structural values live in
 // `vfx/rain.rs`.
 #[derive(Debug, Clone, Copy, Deserialize)]
-#[serde(default)]
 pub struct WeatherConfig {
     // Drop spawn rate at full intensity — the rain density knob.
     pub rain_drops_per_second: f32,
@@ -155,17 +118,6 @@ pub struct WeatherConfig {
     // fraction of the spawn radius — a third puts two thirds of the rain
     // ahead of a running player.
     pub spawn_lead_fraction: f32,
-}
-
-impl Default for WeatherConfig {
-    fn default() -> Self {
-        Self {
-            rain_drops_per_second: 1000.0,
-            rain_drop_size: 0.01,
-            rain_spawn_radius: 15.0,
-            spawn_lead_fraction: 0.35,
-        }
-    }
 }
 
 impl WeatherConfig {
@@ -214,19 +166,9 @@ impl Default for UserPreferences {
 // Performance/feel knobs for the decorative grass. Pure-appearance numbers
 // (blade shape, colors) are module constants in `map/spawn/grass.rs`.
 #[derive(Debug, Clone, Copy, Deserialize)]
-#[serde(default)]
 pub struct GrassConfig {
     pub enabled: bool,
     pub tufts_per_m2: f32,
-}
-
-impl Default for GrassConfig {
-    fn default() -> Self {
-        Self {
-            enabled: true,
-            tufts_per_m2: 12.0,
-        }
-    }
 }
 
 impl ClientSettings {

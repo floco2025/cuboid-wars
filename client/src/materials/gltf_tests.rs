@@ -4,7 +4,10 @@ use bevy::{
     prelude::*,
 };
 
-use crate::test_assets::{gltf_path, headless_asset_app, preload_gltfs};
+use crate::{
+    config::gltf_path,
+    test_assets::{headless_asset_app, preload_gltfs},
+};
 
 #[test]
 fn model_gltf_textures_reach_standard_materials_with_correct_colour_spaces() {

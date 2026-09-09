@@ -61,6 +61,11 @@ impl MapGeometry {
     }
 
     #[must_use]
+    pub fn wall_light_height(&self) -> f32 {
+        self.sizes.wall_light_height()
+    }
+
+    #[must_use]
     pub fn level_y(&self, level: u8) -> f32 {
         self.sizes.level_y(level)
     }

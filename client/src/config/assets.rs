@@ -32,6 +32,7 @@ const REQUIRED_PLAYER_SOUNDS: &[&str] = &[
     "quest_completed",
     "rain",
     "take_hit",
+    "void_fall",
 ];
 const REQUIRED_ACTOR_SOUNDS: &[&str] = &["explodes", "fire"];
 
@@ -279,6 +280,11 @@ impl AssetSet {
 fn validate_model(path: &str, model: &ModelDef) -> Result<()> {
     anyhow::ensure!(!model.scene.trim().is_empty(), "`{path}.scene` must not be empty");
     anyhow::ensure!(
+        model.scene_index().is_some(),
+        "`{path}.scene` must reference a `#Scene<n>` label, got {}",
+        model.scene
+    );
+    anyhow::ensure!(
         model.scale.is_finite() && model.scale > 0.0,
         "`{path}.scale` must be positive and finite, got {}",
         model.scale
@@ -419,6 +425,23 @@ fn default_true() -> bool {
     true
 }
 
+impl ModelDef {
+    // The index of the `#Scene<n>` label in the scene reference.
+    #[must_use]
+    pub fn scene_index(&self) -> Option<usize> {
+        self.scene
+            .split_once('#')
+            .and_then(|(_, label)| label.strip_prefix("Scene"))
+            .and_then(|index| index.parse().ok())
+    }
+}
+
+// The GLB path of a `path#Scene<n>` scene reference.
+#[must_use]
+pub fn gltf_path(scene: &str) -> String {
+    scene.split('#').next().unwrap_or_default().to_owned()
+}
+
 #[derive(Debug, Clone, Deserialize, Component)]
 #[serde(deny_unknown_fields)]
 pub struct AimRigDef {
@@ -464,14 +487,12 @@ pub struct SkyboxDef {
     // edges shimmer while the sun creeps).
     #[serde(default)]
     pub sun_step_degrees: f32,
-    #[serde(default)]
     pub sun_disc: SunDiscDef,
 }
 
 // The visible sun: a camera-following emissive sphere along the directional
 // light's incoming direction, so it always sits where the shadows say.
 #[derive(Debug, Clone, Copy, Deserialize)]
-#[serde(default)]
 pub struct SunDiscDef {
     // Far enough that map geometry reads in front of it, inside the 1000 m
     // far plane. `radius: 0` disables the disc.
@@ -480,16 +501,6 @@ pub struct SunDiscDef {
     // Emissive luminance (cd/m²) — must dwarf the skybox `brightness` so the
     // disc tonemaps to clipped white, and drives the bloom glare halo.
     pub luminance: f32,
-}
-
-impl Default for SunDiscDef {
-    fn default() -> Self {
-        Self {
-            distance: 400.0,
-            radius: 12.0,
-            luminance: 5_000_000.0,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Deserialize)]

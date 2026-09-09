@@ -1,10 +1,12 @@
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
 from PySide6.QtTest import QTest
+from PySide6.QtWidgets import QMessageBox
 
 from editor_fixtures import WindowTestCase
 from map_editor.constants import (
@@ -16,7 +18,7 @@ from map_editor.constants import (
     map_name_from_path,
     map_settings_path,
 )
-from map_editor.io import read_map
+from map_editor.io import empty_map, read_map, write_map
 
 
 class MapSettingsTests(unittest.TestCase):
@@ -136,6 +138,58 @@ class MapSettingsWindowTests(WindowTestCase):
         self.assertTrue(self.window.save())
         self.assertTrue(self.window.path.exists())
         self.assertEqual(settings.read_bytes(), source)
+
+    def test_new_over_an_existing_layout_replaces_it_only_after_asking(self):
+        obby = map_layout_path("obby")
+        existing = empty_map(5, 5)
+        write_map(obby, existing)
+        autosave = obby.with_name("layout.autosave.json")
+        autosave.write_text("{}")
+        original = self.window.doc.root_data.copy()
+        for answer in [QMessageBox.StandardButton.Cancel, QMessageBox.StandardButton.Yes]:
+            with (
+                patch("map_editor.file_actions.ResizeMapDialog.prompt", return_value=(8, 8, 0, 0)),
+                patch("map_editor.file_actions.QInputDialog.getItem", return_value=("obby", True)),
+                patch("map_editor.file_actions.QMessageBox.question", return_value=answer) as question,
+            ):
+                self.window.new_file()
+            question.assert_called_once()
+            self.assertEqual(read_map(obby), existing)
+            self.assertTrue(autosave.exists())
+            if answer == QMessageBox.StandardButton.Cancel:
+                self.assertEqual(self.window.path, self.path)
+                self.assertEqual(self.window.doc.root_data, original)
+        self.assertEqual(self.window.path, obby)
+        self.assertEqual(self.window.doc.path_mtime, obby.stat().st_mtime)
+        self.assertTrue(self.window.dirty)
+        self.assertTrue(self.window.save())
+        self.assertEqual(read_map(obby)["grid_cols"], 8)
+        self.assertFalse(autosave.exists())
+
+    def test_new_warns_before_overwriting_later_external_edits(self):
+        path = map_layout_path("obby")
+        write_map(path, empty_map(5, 5))
+        with (
+            patch("map_editor.file_actions.ResizeMapDialog.prompt", return_value=(8, 8, 0, 0)),
+            patch("map_editor.file_actions.QInputDialog.getItem", return_value=("obby", True)),
+            patch("map_editor.file_actions.QMessageBox.question", return_value=QMessageBox.StandardButton.Yes),
+        ):
+            self.window.new_file()
+
+        mtime = path.stat().st_mtime
+        external = empty_map(12, 12)
+        write_map(path, external)
+        os.utime(path, (mtime + 1, mtime + 1))
+        for answer in [QMessageBox.StandardButton.Cancel, QMessageBox.StandardButton.Yes]:
+            with patch("map_editor.file_actions.QMessageBox.question", return_value=answer) as question:
+                self.assertEqual(self.window.save(), answer == QMessageBox.StandardButton.Yes)
+            question.assert_called_once()
+            self.assertEqual(question.call_args.args[1], "File Changed Externally")
+            if answer == QMessageBox.StandardButton.Cancel:
+                self.assertEqual(read_map(path), external)
+                self.assertTrue(self.window.dirty)
+        self.assertEqual(read_map(path)["grid_cols"], 8)
+        self.assertFalse(self.window.dirty)
 
     def test_recent_paths_follow_registered_maps_and_remove_duplicates(self):
         previous = str(self.root / "hotel.json")
