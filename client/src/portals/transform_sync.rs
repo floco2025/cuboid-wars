@@ -9,7 +9,7 @@ use common::{map::Carriers, physics::PortalFrame};
 // Every render frame, place each disc of an anchored portal where its tile
 // is between the last two ticks, the same interpolation the tile mesh uses,
 // so the disc stays on it.
-pub fn portal_surfaces_transform_sync_system(
+pub(crate) fn portal_surfaces_transform_sync_system(
     fixed_time: Res<Time<Fixed>>,
     carriers: Res<Carriers>,
     portals: Res<PortalMap>,

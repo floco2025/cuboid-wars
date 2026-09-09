@@ -3,7 +3,7 @@ use std::f32::consts::FRAC_PI_2;
 use bevy::prelude::*;
 use common::protocol::{Barrier, BarrierKindId, CarrierId, Eraser, Floor, MapLayout};
 
-use crate::map::{clip_surface_rects, floor_bounds, surface_frame_rects};
+use super::surface::{clip_surface_rects, floor_bounds, surface_frame_rects};
 
 const MERGE_EPSILON: f32 = 1e-4;
 

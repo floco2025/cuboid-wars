@@ -49,11 +49,11 @@ pub(in crate::network) fn handle_actor_death_message(
     spawn_actor_explosion(commands, &mut context.explosion_ctx(), &info.kind, message.pos);
     play_explosion_sound(
         commands,
-        &context.asset_server,
-        context.asset_set.actor_sound(&info.kind, "explodes"),
+        &context.assets.asset_server,
+        context.assets.asset_set.actor_sound(&info.kind, "explodes"),
         &context.client_settings.audio,
         Vec3::from(message.pos),
-        context.blast_radii.actors.get(&info.kind).copied(),
+        context.assets.blast_radii.actors.get(&info.kind).copied(),
     );
     commands.entity(info.entity).despawn();
 }
@@ -71,11 +71,11 @@ pub(in crate::network) fn handle_actor_hit_message(
         // `SActorHit` is broadcast to every client, so the impact plays as
         // a world sound at the actor — distant fights plink faintly instead
         // of clicking at full volume map-wide.
-        if let Ok((pos, _, _)) = context.actor_data.get(info.entity) {
+        if let Ok(pos) = context.actor_data.get(info.entity) {
             play_spatial_sound(
                 commands,
-                &context.asset_server,
-                context.asset_set.player_sound("hit_actor"),
+                &context.assets.asset_server,
+                context.assets.asset_set.player_sound("hit_actor"),
                 &context.client_settings.audio,
                 Vec3::from(*pos),
             );

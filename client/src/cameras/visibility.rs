@@ -1,13 +1,9 @@
 use bevy::{camera::visibility::RenderLayers, prelude::*};
 
-use crate::{
-    cameras::{
-        CameraViewMode, MainCameraMarker, RENDER_LAYER_CHARACTER_LABEL, RENDER_LAYER_LOCAL_PLAYER,
-        RENDER_LAYER_MAIN_VIEW,
-    },
-    players::LocalPlayerMarker,
-    ui::floating_labels::CharacterLabelRenderLayerMarker,
+use super::{
+    CameraViewMode, MainCameraMarker, RENDER_LAYER_CHARACTER_LABEL, RENDER_LAYER_LOCAL_PLAYER, RENDER_LAYER_MAIN_VIEW,
 };
+use crate::{players::LocalPlayerMarker, ui::floating_labels::CharacterLabelRenderLayerMarker};
 
 #[derive(Component)]
 pub struct LocalPlayerLabelMarker;
@@ -210,7 +206,7 @@ mod tests {
     }
     #[test]
     fn meshes_spawned_after_update_have_local_layers_before_visibility_checks() {
-        use crate::players::camera_plugin;
+        use crate::cameras::camera_plugin;
         use bevy::{app::SpawnScene, camera::visibility::VisibilitySystems};
 
         let mut app = App::new();

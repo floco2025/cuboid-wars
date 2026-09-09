@@ -19,15 +19,15 @@ pub(super) fn handle_snapshot_message(
     my_player_id: PlayerId,
     context: &mut ServerMessageContext,
 ) {
-    if !accept_newer_tick(&mut context.last_snapshot_tick.0, message.tick) {
+    if !accept_newer_tick(&mut context.clocks.last_snapshot_tick.0, message.tick) {
         warn!(
             "ignoring an outdated snapshot (tick {}, last {:?})",
-            message.tick, context.last_snapshot_tick.0
+            message.tick, context.clocks.last_snapshot_tick.0
         );
         return;
     }
-    if context.tick_sync.takes_rough_seed() {
-        context.server_tick.0 = message.tick.wrapping_add(1);
+    if context.clocks.tick_sync.takes_rough_seed() {
+        context.clocks.server_tick.0 = message.tick.wrapping_add(1);
     }
 
     // Avoid marking an untouched quest log as changed on every snapshot.

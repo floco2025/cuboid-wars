@@ -4,7 +4,7 @@ use bevy::{
     prelude::*,
 };
 
-use super::erasers::EraserMarker;
+use crate::fields::EraserMarker;
 use crate::{
     bridges::LightBridgeMarker,
     carriers::{CarrierEntities, CarrierStoreys},

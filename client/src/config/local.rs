@@ -7,9 +7,9 @@ use std::{
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
-use super::ClientSettings;
+use super::{ClientSettings, settings::UserPreferences};
 
-pub const LOCAL_SETTINGS_VERSION: u32 = 13;
+pub const LOCAL_SETTINGS_VERSION: u32 = 14;
 
 // Local settings are saved after panel edits, fullscreen shortcuts, and
 // window moves and resizes. The file is not in git, so a format
@@ -23,18 +23,8 @@ pub struct LocalSettings {
     pub window_y: Option<i32>,
     pub window_width: u32,
     pub window_height: u32,
-    pub fullscreen_resolution: u32,
-    pub vsync: bool,
-    pub msaa_samples: u32,
-    pub portal_view_budget: u8,
-    pub mouse_sensitivity: f32,
-    pub zoom_sensitivity: f32,
-    pub invert_y: bool,
-    pub fov_degrees: f32,
-    pub shake_scale: f32,
     pub master_volume: f32,
-    pub show_diagnostics: bool,
-    pub rearview_mirror: bool,
+    pub preferences: UserPreferences,
 }
 
 fn default_path() -> PathBuf {
@@ -94,17 +84,7 @@ impl LocalSettings {
 
     // The caller validates preferences after applying saved overrides.
     pub fn apply_to(&self, settings: &mut ClientSettings) {
-        settings.preferences.fullscreen_resolution = self.fullscreen_resolution;
-        settings.preferences.vsync = self.vsync;
-        settings.preferences.msaa_samples = self.msaa_samples;
-        settings.preferences.portal_view_budget = self.portal_view_budget;
-        settings.preferences.mouse_sensitivity = self.mouse_sensitivity;
-        settings.preferences.zoom_sensitivity = self.zoom_sensitivity;
-        settings.preferences.invert_y = self.invert_y;
-        settings.preferences.fov_degrees = self.fov_degrees;
-        settings.preferences.shake_scale = self.shake_scale;
-        settings.preferences.show_diagnostics = self.show_diagnostics;
-        settings.preferences.rearview_mirror = self.rearview_mirror;
+        settings.preferences = self.preferences;
     }
 }
 
@@ -120,18 +100,20 @@ mod tests {
             window_y: Some(80),
             window_width: 1600,
             window_height: 900,
-            fullscreen_resolution: 1080,
-            vsync: true,
-            msaa_samples: 2,
-            portal_view_budget: 2,
-            mouse_sensitivity: 1.5,
-            zoom_sensitivity: 1.5,
-            invert_y: true,
-            fov_degrees: 100.0,
-            shake_scale: 0.5,
             master_volume: 0.8,
-            show_diagnostics: false,
-            rearview_mirror: true,
+            preferences: UserPreferences {
+                fullscreen_resolution: 1080,
+                vsync: true,
+                msaa_samples: 2,
+                portal_view_budget: 2,
+                mouse_sensitivity: 1.5,
+                zoom_sensitivity: 1.5,
+                invert_y: true,
+                fov_degrees: 100.0,
+                shake_scale: 0.5,
+                show_diagnostics: false,
+                rearview_mirror: true,
+            },
         }
     }
 
@@ -144,7 +126,7 @@ mod tests {
         assert_eq!(saved, loaded);
         let mut settings = ClientSettings::load_default().expect("client settings are invalid");
         loaded.apply_to(&mut settings);
-        assert_eq!(settings.preferences.zoom_sensitivity, saved.zoom_sensitivity);
+        assert_eq!(settings.preferences, saved.preferences);
         std::fs::remove_file(&path).ok();
     }
 
@@ -160,7 +142,7 @@ mod tests {
         assert_eq!(saved, loaded);
         let mut settings = ClientSettings::load_default().expect("client settings are invalid");
         loaded.apply_to(&mut settings);
-        assert_eq!(settings.preferences.zoom_sensitivity, saved.zoom_sensitivity);
+        assert_eq!(settings.preferences, saved.preferences);
         std::fs::remove_file(&path).ok();
     }
 

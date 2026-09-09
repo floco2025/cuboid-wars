@@ -3,7 +3,8 @@ use bevy::prelude::*;
 use super::BarrierAssets;
 use crate::{
     carriers::{CarrierEntities, CarrierStoreys},
-    map::{FocusedMapLevel, MapLevel, VisualField, map_level_visibility, merge_fields, spawn_field_visual},
+    fields::{FieldMeshes, VisualField, merge_fields, spawn_field_visual},
+    map::{FocusedMapLevel, MapLevel, map_level_visibility},
 };
 use common::protocol::{BarrierKindId, MapLayout, MapSettings, PlateState};
 
@@ -17,6 +18,7 @@ pub fn barriers_spawn_system(
     mut commands: Commands,
     map_layout: Res<MapLayout>,
     settings: Res<MapSettings>,
+    field_meshes: Res<FieldMeshes>,
     barrier_assets: Res<BarrierAssets>,
     plates: Res<PlateState>,
     focused: Res<FocusedMapLevel>,
@@ -53,8 +55,8 @@ pub fn barriers_spawn_system(
             .with_children(|parent| {
                 spawn_field_visual(
                     parent,
-                    &barrier_assets.meshes,
-                    &barrier_assets.fields[kind.0 as usize],
+                    &field_meshes,
+                    &barrier_assets.kinds[kind.0 as usize],
                     &field,
                     &layout,
                 );

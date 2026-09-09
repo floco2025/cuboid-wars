@@ -3,8 +3,8 @@ use super::{
     assets::{BlastRadii, ExplosionAssets, shockwave_mesh},
     particles::{ExplosionVfxBudget, SurfacePlane},
     scorch::{
-        EXPLOSION_SCORCH_SURFACE_OFFSET, ScorchPlacement, ScorchStyle, spawn_scorch_mark,
-        surface_cross_section_diameter, wall_scorch_diameter, wall_scorch_placements,
+        SCORCH_SURFACE_OFFSET, ScorchPlacement, ScorchStyle, spawn_scorch_mark, surface_cross_section_diameter,
+        wall_scorch_diameter, wall_scorch_placements,
     },
     shards::spawn_shard_cloud,
     smoke::spawn_smoke_cloud,
@@ -19,7 +19,7 @@ use common::{
 };
 use rand::rng;
 
-const EXPLOSION_SHOCKWAVE_SURFACE_OFFSET: f32 = 0.05;
+const SHOCKWAVE_SURFACE_OFFSET: f32 = 0.05;
 
 #[derive(Clone, Copy)]
 struct ExplosionSpec {
@@ -164,7 +164,7 @@ fn spawn_explosion(
     // shards and light size off the fireball, and no ring is spawned — a
     // ring always marks a real danger area.
     let reach_radius = blast_radius.unwrap_or(fireball_diameter * 0.5);
-    let standing_distance = (center.y - ground_y).max(0.0) + EXPLOSION_SCORCH_SURFACE_OFFSET;
+    let standing_distance = (center.y - ground_y).max(0.0) + SCORCH_SURFACE_OFFSET;
     let ground_surface =
         collision_world.and_then(|world| world.ground_surface_below(center, reach_radius.max(standing_distance)));
 
@@ -201,7 +201,7 @@ fn spawn_explosion(
             NotShadowCaster,
             ChildOf(carrier_entities.get(surface.carrier)),
             Transform {
-                translation: point + surface.normal * EXPLOSION_SHOCKWAVE_SURFACE_OFFSET,
+                translation: point + surface.normal * SHOCKWAVE_SURFACE_OFFSET,
                 rotation: Quat::from_rotation_arc(Vec3::Y, surface.normal),
                 scale: Vec3::splat(0.01),
             },
@@ -361,7 +361,7 @@ fn scaled_particle_count(reach_radius: f32, density: f32, default_density: f32, 
 #[cfg(test)]
 mod tests {
     use super::{super::scorch::ScorchMark, *};
-    use crate::{map::GrassBurn, test_geometry::WALL_HEIGHT};
+    use crate::{map::GrassBurn, test_fixtures::WALL_HEIGHT};
     use common::protocol::{BarrierKindTable, Carrier, CarrierId, Floor, MapLayout, Wall};
 
     #[test]
@@ -489,7 +489,7 @@ mod tests {
         let marks: Vec<_> = marks.iter(&world).collect();
         assert_eq!(marks.len(), 1);
         let transform = marks[0].1;
-        assert!((transform.translation.y - EXPLOSION_SCORCH_SURFACE_OFFSET).abs() < 0.001);
+        assert!((transform.translation.y - SCORCH_SURFACE_OFFSET).abs() < 0.001);
         let scorch_radius = 15.0 * EXPLOSION_SCORCH_BLAST_DIAMETER_FACTOR;
         let expected_diameter = 2.0 * scorch_radius.mul_add(scorch_radius, -1.0).sqrt();
         assert_eq!(transform.scale, Vec3::splat(expected_diameter));

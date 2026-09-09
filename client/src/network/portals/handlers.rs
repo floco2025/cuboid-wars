@@ -3,6 +3,7 @@ use bevy::prelude::*;
 use super::{super::context::ServerMessageContext, sync::upsert_portal};
 use crate::{
     audio::{play_sound, play_spatial_sound},
+    players::eye_position,
     vfx::spawn_portal_fizzle,
 };
 use common::{physics::PortalSet, protocol::*};
@@ -25,22 +26,18 @@ pub(in crate::network) fn handle_portal_opened_message(
     if message.shooter == my_player_id {
         play_sound(
             commands,
-            &context.asset_server,
-            context.asset_set.player_sound("portal_fire"),
+            &context.assets.asset_server,
+            context.assets.asset_set.player_sound("portal_fire"),
         );
     } else if let Some(shooter) = context.players.get(&message.shooter)
-        && let Ok((position, _, _)) = context.player_data.get(shooter.entity)
+        && let Ok(position) = context.player_data.get(shooter.entity)
     {
         play_spatial_sound(
             commands,
-            &context.asset_server,
-            context.asset_set.player_sound("portal_fire"),
+            &context.assets.asset_server,
+            context.assets.asset_set.player_sound("portal_fire"),
             &context.client_settings.audio,
-            Vec3::new(
-                position.x,
-                position.y + context.gameplay_config.player.eye_height(),
-                position.z,
-            ),
+            eye_position(*position, context.gameplay_config.player.eye_height()),
         );
     }
 }
@@ -53,20 +50,20 @@ pub(in crate::network) fn handle_portal_fizzled_message(
 ) {
     spawn_portal_fizzle(
         commands,
-        &context.portal_fizzle_assets,
+        &context.assets.portal_fizzle_assets,
         &message.impact,
         &context.carrier_entities,
     );
     if message.shooter == my_player_id {
         play_sound(
             commands,
-            &context.asset_server,
-            context.asset_set.player_sound("portal_fire"),
+            &context.assets.asset_server,
+            context.assets.asset_set.player_sound("portal_fire"),
         );
         play_sound(
             commands,
-            &context.asset_server,
-            context.asset_set.player_sound("portal_fizzle"),
+            &context.assets.asset_server,
+            context.assets.asset_set.player_sound("portal_fizzle"),
         );
     } else {
         let impact = context
@@ -75,24 +72,20 @@ pub(in crate::network) fn handle_portal_fizzled_message(
             .transform_point(message.impact.pos.into());
         play_spatial_sound(
             commands,
-            &context.asset_server,
-            context.asset_set.player_sound("portal_fizzle"),
+            &context.assets.asset_server,
+            context.assets.asset_set.player_sound("portal_fizzle"),
             &context.client_settings.audio,
             impact,
         );
         if let Some(shooter) = context.players.get(&message.shooter)
-            && let Ok((position, _, _)) = context.player_data.get(shooter.entity)
+            && let Ok(position) = context.player_data.get(shooter.entity)
         {
             play_spatial_sound(
                 commands,
-                &context.asset_server,
-                context.asset_set.player_sound("portal_fire"),
+                &context.assets.asset_server,
+                context.assets.asset_set.player_sound("portal_fire"),
                 &context.client_settings.audio,
-                Vec3::new(
-                    position.x,
-                    position.y + context.gameplay_config.player.eye_height(),
-                    position.z,
-                ),
+                eye_position(*position, context.gameplay_config.player.eye_height()),
             );
         }
     }

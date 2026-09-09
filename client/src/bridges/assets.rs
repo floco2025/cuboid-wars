@@ -1,74 +1,51 @@
 use bevy::prelude::*;
 
-use crate::{
-    config::LightBridgeVfxConfig,
-    map::{FieldMaterials, FieldMeshes},
-    vfx::srgb_color,
-};
+use crate::{config::LightBridgeVfxConfig, fields::KindVisual, vfx::srgb_color};
 use common::protocol::{BridgeKindId, KindDef};
 
-// Sharing each kind's material keeps every bridge of that kind fading together.
+// Sharing each kind's material keeps every bridge of that kind fading
+// together. Indexed by `BridgeKindId`, in the map's kind order.
 #[derive(Resource)]
 pub struct BridgeAssets {
-    pub(super) meshes: FieldMeshes,
-    pub(super) fields: Vec<FieldMaterials>,
-    // sRGB colors as configured; the fade system rebuilds `base_color` from
-    // these with the current alpha.
-    pub(super) base_colors: Vec<Color>,
+    pub(super) kinds: Vec<KindVisual>,
 }
 
 impl BridgeAssets {
     pub fn material_for(&self, kind: BridgeKindId) -> &Handle<StandardMaterial> {
-        &self.fields[usize::from(kind.0)].surface
-    }
-
-    pub fn material_handles(&self) -> impl Iterator<Item = &Handle<StandardMaterial>> {
-        self.fields.iter().map(|field| &field.surface)
+        &self.kinds[usize::from(kind.0)].surface
     }
 
     pub fn base_color(&self, kind: BridgeKindId) -> Color {
-        self.base_colors[usize::from(kind.0)]
+        self.kinds[usize::from(kind.0)].base_color
     }
 }
 
 pub fn build_bridge_assets(
-    meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
     kinds: &[KindDef],
     config: LightBridgeVfxConfig,
 ) -> BridgeAssets {
-    let meshes = FieldMeshes::new(meshes);
-
-    let mut handles = Vec::with_capacity(kinds.len());
-    let mut base_colors = Vec::with_capacity(kinds.len());
-    for kind in kinds {
-        let color = srgb_color(kind.color);
-        handles.push(FieldMaterials::new(
-            materials,
-            color,
-            config.unpowered_opacity,
-            config.emissive_brightness,
-        ));
-        base_colors.push(color);
-    }
-    assert_eq!(handles.len(), base_colors.len());
-
-    BridgeAssets {
-        meshes,
-        fields: handles,
-        base_colors,
-    }
+    let kinds = kinds
+        .iter()
+        .map(|kind| {
+            KindVisual::new(
+                materials,
+                srgb_color(kind.color),
+                config.unpowered_opacity,
+                config.emissive_brightness,
+            )
+        })
+        .collect();
+    BridgeAssets { kinds }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bevy::mesh::Indices;
     use common::protocol::HexColor;
 
     #[test]
-    fn bridges_use_double_sided_quads_and_solid_frames() {
-        let mut meshes = Assets::default();
+    fn bridges_use_translucent_panes_and_solid_frames() {
         let mut materials = Assets::default();
         let kinds = [KindDef {
             id: "blue".into(),
@@ -81,21 +58,7 @@ mod tests {
             unpowered_opacity: 0.3,
             fade_secs: 0.25,
         };
-        let assets = build_bridge_assets(&mut meshes, &mut materials, &kinds, config);
-        let mesh = meshes.get(&assets.meshes.panel).expect("bridge mesh missing");
-        let positions = mesh
-            .attribute(Mesh::ATTRIBUTE_POSITION)
-            .and_then(|a| a.as_float3())
-            .expect("bridge mesh positions missing");
-        assert_eq!(positions.len(), 4);
-        assert!(
-            positions
-                .iter()
-                .all(|p| p[0].abs() == 0.5 && p[1].abs() == 0.5 && p[2] == 0.0)
-        );
-        assert_eq!(mesh.indices().map(Indices::len), Some(6));
-        assert!(mesh.contains_attribute(Mesh::ATTRIBUTE_COLOR));
-
+        let assets = build_bridge_assets(&mut materials, &kinds, config);
         let material = materials
             .get(assets.material_for(BridgeKindId(0)))
             .expect("bridge material missing");
@@ -105,7 +68,7 @@ mod tests {
         assert_eq!(material.base_color.alpha(), config.unpowered_opacity);
         assert_eq!(material.emissive, LinearRgba::rgb(0.0, 0.0, config.emissive_brightness));
         let frame = materials
-            .get(&assets.fields[0].frame)
+            .get(&assets.kinds[0].frame)
             .expect("bridge frame material missing");
         assert_eq!(frame.alpha_mode, AlphaMode::Opaque);
         assert!(frame.unlit);

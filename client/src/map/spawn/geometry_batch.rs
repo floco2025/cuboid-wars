@@ -45,6 +45,15 @@ struct BatchKey {
     group: BatchGroup,
 }
 
+// Where one logical segment's meshes land: every batch key part but the
+// material.
+#[derive(Debug, Clone, Copy)]
+pub(super) struct SegmentTarget {
+    pub kind: MapGeometryKind,
+    pub carrier: CarrierId,
+    pub level: MapLevel,
+}
+
 #[derive(Default)]
 struct MeshBatch {
     material_id: String,
@@ -57,6 +66,7 @@ pub struct MapGeometryBatch {
     mode: DebugColorMode,
     next_segment_id: u32,
     current_segment_id: u32,
+    current_target: Option<SegmentTarget>,
     batches: BTreeMap<BatchKey, MeshBatch>,
 }
 
@@ -73,6 +83,7 @@ impl MapGeometryBatch {
             mode,
             next_segment_id: 0,
             current_segment_id: 0,
+            current_target: None,
             batches: BTreeMap::new(),
         }
     }
@@ -88,30 +99,27 @@ impl MapGeometryBatch {
     }
 
     // Open a fresh logical-segment scope. Subsequent `add_mesh` calls until
-    // the next `begin_segment` are grouped together when debug colors is on.
-    pub(super) fn begin_segment(&mut self) {
+    // the next `begin_segment` land on `target` and are grouped together
+    // when debug colors is on.
+    pub(super) fn begin_segment(&mut self, target: SegmentTarget) {
         self.next_segment_id += 1;
         self.current_segment_id = self.next_segment_id;
+        self.current_target = Some(target);
     }
 
-    pub(super) fn add_mesh(
-        &mut self,
-        kind: MapGeometryKind,
-        carrier: CarrierId,
-        level: MapLevel,
-        material_id: impl Into<String>,
-        mesh: &Mesh,
-        transform: Transform,
-    ) {
+    pub(super) fn add_mesh(&mut self, material_id: impl Into<String>, mesh: &Mesh, transform: Transform) {
+        let target = self
+            .current_target
+            .expect("segment target missing: add_mesh before begin_segment");
         let material_id = material_id.into();
         let group = match self.mode {
             DebugColorMode::Off | DebugColorMode::ByMaterial => BatchGroup::Material(material_id.clone()),
             DebugColorMode::BySegment => BatchGroup::Segment(self.current_segment_id),
         };
         let key = BatchKey {
-            carrier,
-            kind,
-            level,
+            carrier: target.carrier,
+            kind: target.kind,
+            level: target.level,
             group,
         };
         let batch = self.batches.entry(key).or_default();

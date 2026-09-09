@@ -3,36 +3,28 @@ use bevy::prelude::*;
 use crate::{
     config::BarrierVfxConfig,
     constants::*,
+    fields::KindVisual,
     items::{item_symbol_mesh, pickup_material},
-    map::{FieldMaterials, FieldMeshes},
     vfx::srgb_color,
 };
 use common::protocol::{BarrierKindId, ItemType, KindDef};
 
+// Indexed by `BarrierKindId`, in the map's kind order.
 #[derive(Resource)]
 pub struct BarrierAssets {
-    pub(super) meshes: FieldMeshes,
-    pub(super) fields: Vec<FieldMaterials>,
-    pub(super) key_mesh: Handle<Mesh>,
-    key_materials: Vec<Handle<StandardMaterial>>,
-    // Mirror of the table at construction time, so the pulsate system can
-    // re-derive the base color without re-reading the config every frame.
-    pub(super) base_colors: Vec<Color>,
+    pub(super) kinds: Vec<KindVisual>,
+    key_mesh: Handle<Mesh>,
 }
 
 impl BarrierAssets {
     pub fn material_for(&self, kind: BarrierKindId) -> &Handle<StandardMaterial> {
-        &self.fields[kind.0 as usize].surface
-    }
-
-    pub fn material_handles(&self) -> impl Iterator<Item = &Handle<StandardMaterial>> {
-        self.fields.iter().map(|field| &field.surface)
+        &self.kinds[kind.0 as usize].surface
     }
 
     // sRGB base color for the kind, useful for HUD icons that aren't 3D
     // materials.
     pub fn base_color(&self, kind: BarrierKindId) -> Color {
-        self.base_colors[kind.0 as usize]
+        self.kinds[kind.0 as usize].base_color
     }
 
     pub fn key_mesh(&self) -> &Handle<Mesh> {
@@ -40,7 +32,10 @@ impl BarrierAssets {
     }
 
     pub fn key_material_for(&self, kind: BarrierKindId) -> &Handle<StandardMaterial> {
-        &self.key_materials[kind.0 as usize]
+        self.kinds[kind.0 as usize]
+            .key_material
+            .as_ref()
+            .expect("barrier kind visual has no key material")
     }
 }
 
@@ -51,51 +46,33 @@ pub fn build_barrier_assets(
     config: BarrierVfxConfig,
     pickup_glow: f32,
 ) -> BarrierAssets {
-    let field_meshes = FieldMeshes::new(meshes);
     let key_mesh = meshes.add(item_symbol_mesh(
         ItemType::Key(BarrierKindId(0)),
         ITEM_KEY_SIZE,
         ITEM_KEY_DEPTH,
     ));
+    let kinds = kinds
+        .iter()
+        .map(|kind| {
+            let color = srgb_color(kind.color);
+            KindVisual {
+                key_material: Some(materials.add(pickup_material(color, pickup_glow))),
+                ..KindVisual::new(materials, color, config.opacity, config.emissive_brightness)
+            }
+        })
+        .collect();
 
-    let mut fields = Vec::with_capacity(kinds.len());
-    let mut base_colors = Vec::with_capacity(kinds.len());
-    let mut key_materials = Vec::with_capacity(kinds.len());
-    for kind in kinds {
-        let color = srgb_color(kind.color);
-        fields.push(FieldMaterials::new(
-            materials,
-            color,
-            config.opacity,
-            config.emissive_brightness,
-        ));
-        key_materials.push(materials.add(pickup_material(color, pickup_glow)));
-        base_colors.push(color);
-    }
-
-    // Both vectors are indexed by `BarrierKindId.0` — a length divergence
-    // would mean a future contributor split the loops apart. Catch that here
-    // instead of as an out-of-bounds panic at first lookup.
-    assert_eq!(fields.len(), base_colors.len());
-
-    BarrierAssets {
-        key_mesh,
-        meshes: field_meshes,
-        fields,
-        key_materials,
-        base_colors,
-    }
+    BarrierAssets { kinds, key_mesh }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::config::BarrierPulseVfxConfig;
-    use bevy::mesh::Indices;
     use common::protocol::HexColor;
 
     #[test]
-    fn barriers_are_double_sided_quads_and_keys_use_solid_glowing_symbols() {
+    fn barriers_are_translucent_and_keys_use_solid_glowing_symbols() {
         let mut meshes = Assets::default();
         let mut materials = Assets::default();
         let kinds = [KindDef {
@@ -112,20 +89,6 @@ mod tests {
             },
         };
         let assets = build_barrier_assets(&mut meshes, &mut materials, &kinds, config, 3.0);
-        let mesh = meshes.get(&assets.meshes.panel).expect("barrier mesh missing");
-        let positions = mesh
-            .attribute(Mesh::ATTRIBUTE_POSITION)
-            .and_then(|a| a.as_float3())
-            .expect("barrier mesh positions missing");
-        assert_eq!(positions.len(), 4);
-        assert!(
-            positions
-                .iter()
-                .all(|p| p[0].abs() == 0.5 && p[1].abs() == 0.5 && p[2] == 0.0)
-        );
-        assert_eq!(mesh.indices().map(Indices::len), Some(6));
-        assert!(mesh.contains_attribute(Mesh::ATTRIBUTE_COLOR));
-
         let key_mesh = meshes.get(assets.key_mesh()).expect("key mesh missing");
         let positions = key_mesh
             .attribute(Mesh::ATTRIBUTE_POSITION)

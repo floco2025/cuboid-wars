@@ -5,7 +5,7 @@ use bevy::prelude::*;
 use super::{BridgeAssets, surface::bridge_visuals};
 use crate::{
     carriers::{CarrierEntities, CarrierStoreys},
-    map::spawn_framed_surface,
+    fields::{FieldMeshes, spawn_framed_surface},
 };
 use common::protocol::MapLayout;
 
@@ -15,6 +15,7 @@ pub struct LightBridgeMarker;
 pub fn bridges_spawn_system(
     mut commands: Commands,
     map_layout: Res<MapLayout>,
+    field_meshes: Res<FieldMeshes>,
     bridge_assets: Res<BridgeAssets>,
     carrier_entities: Res<CarrierEntities>,
     storeys: Res<CarrierStoreys>,
@@ -43,8 +44,8 @@ pub fn bridges_spawn_system(
             .with_children(|parent| {
                 spawn_framed_surface(
                     parent,
-                    &bridge_assets.meshes,
-                    &bridge_assets.fields[usize::from(bridge.kind.0)],
+                    &field_meshes,
+                    &bridge_assets.kinds[usize::from(bridge.kind.0)],
                     visual.surfaces,
                     visual.frames,
                     center,

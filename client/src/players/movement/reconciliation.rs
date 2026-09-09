@@ -1,6 +1,5 @@
 use bevy::prelude::*;
 use common::{
-    constants::SNAPSHOT_SECS,
     physics::CharacterVerticalVelocity,
     protocol::{PlayerId, Position},
 };
@@ -8,8 +7,8 @@ use common::{
 use crate::{
     characters::PreviousTickPosition,
     constants::{
-        RECON_CORRECTION_TIME_RTT_MULTIPLIER, RECON_PLAYER_IDLE_CORRECTION_SECS, RECON_PLAYER_SNAP_DECAY_SECS,
-        RECON_PLAYER_SNAP_DISTANCE_IDLE, RECON_PLAYER_SNAP_DISTANCE_RUNNING,
+        RECON_CORRECTION_MIN_SECS, RECON_CORRECTION_TIME_RTT_MULTIPLIER, RECON_PLAYER_IDLE_CORRECTION_SECS,
+        RECON_PLAYER_SNAP_DECAY_SECS, RECON_PLAYER_SNAP_DISTANCE_IDLE, RECON_PLAYER_SNAP_DISTANCE_RUNNING,
     },
     network::{ServerReconciliation, worst_axis_divergence},
 };
@@ -35,17 +34,16 @@ pub(super) fn reconcile_player(
     // Vertical velocity counts toward motion — a jumping or falling player
     // with no horizontal input is still in motion.
     let motion_speed = control_velocity.x.hypot(control_velocity.z).hypot(vertical_velocity.0);
-    let correction_factor = player_correction_factor(recon.rtt, motion_speed, run_speed);
+    let window = player_correction_window(recon.rtt, motion_speed, run_speed);
 
-    // Each tick applies `delta / correction window` of the correction delta.
-    // The move stream replaces this component every tick, so in steady state
-    // this is an exponential pull toward a moving target; when the stream
-    // pauses (loss, the portal stand-down) the last one is finished linearly.
-    recon.correction_progress += delta * correction_factor;
-    // The accumulator reaching `SNAPSHOT_SECS` coincides with the whole
-    // correction delta applied, to within one tick's share; any longer would
+    // Each tick applies `delta / window` of the correction delta. The move
+    // stream replaces this component every tick, so in steady state this is
+    // an exponential pull toward a moving target; when the stream pauses
+    // (loss, the portal stand-down) the last one is finished linearly, and
+    // the component goes once the window has elapsed, since any longer would
     // over-correct.
-    if recon.correction_progress >= SNAPSHOT_SECS {
+    recon.correction_progress += delta;
+    if recon.correction_progress >= window {
         commands.entity(entity).remove::<ServerReconciliation>();
     }
 
@@ -78,23 +76,22 @@ pub(super) fn reconcile_player(
     }
 
     PlayerReconciliationOutcome::Displacement(Vec3::new(
-        correction_delta.x * delta * correction_factor / SNAPSHOT_SECS,
+        correction_delta.x * delta / window,
         0.0,
-        correction_delta.z * delta * correction_factor / SNAPSHOT_SECS,
+        correction_delta.z * delta / window,
     ))
 }
 
-// Fraction of the correction delta applied per `SNAPSHOT_SECS` of real time
-// — `SNAPSHOT_SECS / correction window`. The window lerps from the idle
-// constant (long and gentle: stationary players see corrections clearly) to
-// the RTT-scaled running window (short: motion hides the drift) by how fast
-// the player is moving right now. A near-zero RTT saturates to 1.0 via the
-// clamp.
-fn player_correction_factor(rtt: f32, motion_speed: f32, run_speed: f32) -> f32 {
+// The correction window lerps from the idle constant (long and gentle:
+// stationary players see corrections clearly) to the RTT-scaled running
+// window (short: motion hides the drift) by how fast the player is moving
+// right now, and never drops below `RECON_CORRECTION_MIN_SECS`.
+fn player_correction_window(rtt: f32, motion_speed: f32, run_speed: f32) -> f32 {
     let run_correction_time = rtt * RECON_CORRECTION_TIME_RTT_MULTIPLIER;
     let motion_speed_factor = (motion_speed / run_speed).clamp(0.0, 1.0);
-    let correction_duration = RECON_PLAYER_IDLE_CORRECTION_SECS.lerp(run_correction_time, motion_speed_factor);
-    (SNAPSHOT_SECS / correction_duration).clamp(0.0, 1.0)
+    RECON_PLAYER_IDLE_CORRECTION_SECS
+        .lerp(run_correction_time, motion_speed_factor)
+        .max(RECON_CORRECTION_MIN_SECS)
 }
 
 // Per-axis snap distance, lerped from the idle to the running threshold by
@@ -120,21 +117,26 @@ mod tests {
 
     #[test]
     fn idle_player_corrects_over_the_idle_window() {
-        let factor = player_correction_factor(0.05, 0.0, RUN_SPEED);
-        assert_eq!(factor, SNAPSHOT_SECS / RECON_PLAYER_IDLE_CORRECTION_SECS);
+        assert_eq!(
+            player_correction_window(0.05, 0.0, RUN_SPEED),
+            RECON_PLAYER_IDLE_CORRECTION_SECS
+        );
     }
 
     #[test]
     fn running_player_corrects_over_the_rtt_window() {
         let rtt = 0.2;
-        let factor = player_correction_factor(rtt, RUN_SPEED, RUN_SPEED);
-        let expected = SNAPSHOT_SECS / (rtt * RECON_CORRECTION_TIME_RTT_MULTIPLIER);
-        assert!((factor - expected).abs() < 1e-6);
+        let window = player_correction_window(rtt, RUN_SPEED, RUN_SPEED);
+        let expected = rtt * RECON_CORRECTION_TIME_RTT_MULTIPLIER;
+        assert!((window - expected).abs() < 1e-6);
     }
 
     #[test]
-    fn zero_rtt_saturates_the_correction_factor() {
-        assert_eq!(player_correction_factor(0.0, RUN_SPEED, RUN_SPEED), 1.0);
+    fn zero_rtt_keeps_the_minimum_window() {
+        assert_eq!(
+            player_correction_window(0.0, RUN_SPEED, RUN_SPEED),
+            RECON_CORRECTION_MIN_SECS
+        );
     }
 
     #[test]

@@ -50,7 +50,7 @@ pub(in crate::network) fn upsert_portal(
         }
         commands.entity(info.entity).despawn();
     }
-    let entity = spawn_portal(commands, &context.portal_assets, portal, &context.carriers);
+    let entity = spawn_portal(commands, &context.assets.portal_assets, portal, &context.carriers);
     context.portals.insert(
         key,
         PortalInfo {

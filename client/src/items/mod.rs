@@ -10,4 +10,4 @@ pub use coins::{CoinAssets, spawn_coin_visual};
 pub use materials::{pickup_emissive, pickup_material};
 pub use resources::{ItemInfo, ItemMap};
 pub use spawn::{ItemAnimTimer, ItemAssets, item_type_color, setup_item_assets, spawn_item};
-pub use symbols::{item_symbol_image, item_symbol_mesh};
+pub use symbols::{item_symbol_image, item_symbol_image_cropped, item_symbol_mesh};

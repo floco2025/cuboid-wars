@@ -26,7 +26,7 @@ pub(in crate::network) fn sync_missiles(
         if context.missiles.contains_key(id) {
             continue;
         }
-        let entity = spawn_missile(commands, &context.missile_assets, *id, &missile.movement);
+        let entity = spawn_missile(commands, &context.assets.missile_assets, *id, &missile.movement);
         context.missiles.insert(*id, entity);
     }
 

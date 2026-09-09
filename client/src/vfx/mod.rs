@@ -5,7 +5,6 @@ mod explosion;
 mod fade;
 mod firework;
 mod laser;
-mod laser_sync;
 mod particles;
 mod portal_fizzle;
 mod rain;
@@ -24,7 +23,9 @@ pub use explosion::{
 pub(crate) use explosion::{ScorchOutline, with_white_vertex_colors};
 pub(crate) use fade::{color_with_alpha, ease_blend, srgb_color, translucent_kind_material};
 pub use firework::{FireworkShow, firework_system};
-pub use laser::{LaserBeam, laser_beam_update_system};
+#[cfg(test)]
+pub(crate) use laser::beam_target_local;
+pub use laser::{LaserBeam, laser_beam_update_system, laser_beams_sync_system};
 pub use particles::{ParticleCloud, ParticleClouds, particle_clouds_system};
 pub use portal_fizzle::{PortalFizzleAssets, portal_fizzle_system, spawn_portal_fizzle};
 pub use rain::{RainIntensity, rain_audio_system, rain_particles_system, rain_smoothing_system};

@@ -8,7 +8,11 @@ use crate::{
     players::{LocalPlayerInfo, LocalPlayerMarker, MyPlayerId},
     projectiles::{ProjectileAssets, spawn_projectiles},
 };
-use common::{config::GameplayConfig, physics::CollisionWorld, protocol::*};
+use common::{
+    config::GameplayConfig,
+    physics::CollisionWorld,
+    protocol::{CProjectileShot, ClientMessage, MapSettings, PlateState, Position},
+};
 
 use super::WeaponMode;
 

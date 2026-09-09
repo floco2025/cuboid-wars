@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use super::{
     cuboid_mesh::{tiled_cuboid, tiled_wall_surface_meshes},
-    geometry_batch::{MapGeometryBatch, MapGeometryKind},
+    geometry_batch::{MapGeometryBatch, MapGeometryKind, SegmentTarget},
 };
 use crate::{carriers::CarrierStoreys, config::AssetSet};
 use common::protocol::{FaceMaterials, Wall};
@@ -43,8 +43,12 @@ pub fn batch_wall(
     wall: &Wall,
     material_ids: &FaceMaterials,
 ) {
-    batcher.begin_segment();
     let level = storeys.tag(wall.carrier, wall.level, 0);
+    batcher.begin_segment(SegmentTarget {
+        kind: MapGeometryKind::Wall,
+        carrier: wall.carrier,
+        level,
+    });
     let center_x = f32::midpoint(wall.x1, wall.x2);
     let center_z = f32::midpoint(wall.z1, wall.z2);
 
@@ -70,14 +74,7 @@ pub fn batch_wall(
             carrier_center,
             rotation,
         );
-        batcher.add_mesh(
-            MapGeometryKind::Wall,
-            wall.carrier,
-            level,
-            material_ids.primary(),
-            &mesh,
-            transform,
-        );
+        batcher.add_mesh(material_ids.primary(), &mesh, transform);
         return;
     }
 
@@ -109,54 +106,12 @@ pub fn batch_wall(
         bottom_material_def.tile_size(),
     );
 
-    batcher.add_mesh(
-        MapGeometryKind::Wall,
-        wall.carrier,
-        level,
-        positive_x_material_id,
-        &surface_meshes.local_positive_x,
-        transform,
-    );
-    batcher.add_mesh(
-        MapGeometryKind::Wall,
-        wall.carrier,
-        level,
-        negative_x_material_id,
-        &surface_meshes.local_negative_x,
-        transform,
-    );
-    batcher.add_mesh(
-        MapGeometryKind::Wall,
-        wall.carrier,
-        level,
-        positive_z_material_id,
-        &surface_meshes.local_positive_z,
-        transform,
-    );
-    batcher.add_mesh(
-        MapGeometryKind::Wall,
-        wall.carrier,
-        level,
-        negative_z_material_id,
-        &surface_meshes.local_negative_z,
-        transform,
-    );
-    batcher.add_mesh(
-        MapGeometryKind::Wall,
-        wall.carrier,
-        level,
-        &material_ids.top,
-        &surface_meshes.up,
-        transform,
-    );
-    batcher.add_mesh(
-        MapGeometryKind::Wall,
-        wall.carrier,
-        level,
-        &material_ids.bottom,
-        &surface_meshes.down,
-        transform,
-    );
+    batcher.add_mesh(positive_x_material_id, &surface_meshes.local_positive_x, transform);
+    batcher.add_mesh(negative_x_material_id, &surface_meshes.local_negative_x, transform);
+    batcher.add_mesh(positive_z_material_id, &surface_meshes.local_positive_z, transform);
+    batcher.add_mesh(negative_z_material_id, &surface_meshes.local_negative_z, transform);
+    batcher.add_mesh(&material_ids.top, &surface_meshes.up, transform);
+    batcher.add_mesh(&material_ids.bottom, &surface_meshes.down, transform);
 }
 
 fn cardinal_direction(direction: Vec3) -> CardinalDirection {

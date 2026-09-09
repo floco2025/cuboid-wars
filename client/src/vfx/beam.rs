@@ -7,7 +7,7 @@ use super::{
     cube::smoothstep,
     particles::{ParticleCloud, ParticleClouds, ParticleSpawn},
 };
-use crate::{config::ClientSettings, constants::*};
+use crate::constants::*;
 use common::protocol::{ServerTick, sequence_is_newer};
 
 // The warning window in server ticks; the fade is a pure function of the
@@ -108,7 +108,6 @@ pub fn ghost_fade_setup_system(
 pub fn beam_ghost_fade_system(
     tick: Res<ServerTick>,
     fixed_time: Res<Time<Fixed>>,
-    _settings: Res<ClientSettings>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     ghosts: Query<(&BeamInGhost, &Children)>,
     mut lights: Query<&mut PointLight>,
@@ -137,7 +136,6 @@ pub fn beam_ghost_fade_system(
 pub fn beam_ghost_sparkle_system(
     time: Res<Time>,
     tick: Res<ServerTick>,
-    _settings: Res<ClientSettings>,
     mut clouds: ResMut<ParticleClouds>,
     mut ghosts: Query<(&GlobalTransform, &BeamInGhost, &mut BeamEmitter)>,
 ) {
@@ -182,7 +180,6 @@ pub fn beam_ghost_sparkle_system(
 
 pub fn beam_ghost_removed_system(
     removed: On<Remove, BeamInGhost>,
-    _settings: Res<ClientSettings>,
     mut clouds: ResMut<ParticleClouds>,
     ghosts: Query<(&GlobalTransform, &BeamInGhost, &BeamEmitter)>,
 ) {

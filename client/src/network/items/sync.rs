@@ -23,9 +23,9 @@ pub(in crate::network) fn sync_items(
             .tag(item.carrier, context.map_settings.geometry.level_for_y(item.pos.y), 0);
         let entity = spawn_item(
             commands,
-            &context.item_assets,
-            &context.barrier_assets,
-            &context.missile_assets,
+            &context.assets.item_assets,
+            &context.assets.barrier_assets,
+            &context.assets.missile_assets,
             context.carrier_entities.get(item.carrier),
             level,
             *item_id,

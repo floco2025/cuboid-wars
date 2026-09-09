@@ -1,6 +1,4 @@
 pub mod cubemap;
-mod erasers;
-mod fields;
 mod grass;
 #[cfg(test)]
 mod light_tests;
@@ -8,11 +6,7 @@ mod rendering;
 mod resources;
 pub mod skybox;
 pub mod spawn;
-mod surface;
 
-pub(crate) use fields::{
-    FieldMaterials, FieldMeshes, VisualField, merge_fields, spawn_field_visual, spawn_framed_surface,
-};
 pub(crate) use grass::GrassBurn;
 pub use grass::{GrassMarker, grass_burn_system, grass_spawn_system};
 pub(crate) use rendering::map_level_visibility;
@@ -24,9 +18,8 @@ pub use resources::{DebugColorMode, DebugColors, FocusedMapLevel, LevelFocusEnab
 pub use spawn::{
     GroundMarker, LadderMarker, MapGeometryBatch, MapLevel, RampMarker, RoofMarker, WallLightMarker, WallMarker,
     batch_floor, batch_ramp, batch_wall, spawn_ladder_from_layout, spawn_wall_light_from_layout, tiled_cuboid,
-    tiled_floor_surface_meshes, wall_light_flicker_system,
+    wall_light_flicker_system,
 };
-pub(crate) use surface::{clip_surface_rects, floor_bounds, surface_frame_rects};
 
 mod plugin;
 

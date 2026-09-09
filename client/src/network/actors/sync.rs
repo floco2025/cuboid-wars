@@ -11,7 +11,7 @@ use crate::{
 };
 use common::{
     physics::CharacterVerticalVelocity,
-    protocol::{Actor, ActorId, ActorMarker, ActorMoveIntent, ActorMovementState, FaceYaw, Position, SpawningActor},
+    protocol::{Actor, ActorId, ActorMarker, ActorMovementState, FaceYaw, Position, SpawningActor},
 };
 
 pub(in crate::network) fn sync_actors(
@@ -33,13 +33,13 @@ pub(in crate::network) fn sync_actors(
         }
         let entity = spawn_actor(
             commands,
-            &context.asset_server,
+            &context.assets.asset_server,
             &mut context.meshes,
             &mut context.materials,
-            &context.asset_set,
+            &context.assets.asset_set,
             &context.client_settings,
             &context.gameplay_config,
-            &context.max_health,
+            &context.assets.max_health,
             *id,
             &actor,
         );
@@ -100,8 +100,8 @@ pub(in crate::network) fn sync_spawning_actors(
         }
         let entity = spawn_actor_ghost(
             commands,
-            &context.asset_server,
-            &context.asset_set,
+            &context.assets.asset_server,
+            &context.assets.asset_set,
             &context.gameplay_config,
             context.carrier_entities.get(spawning.carrier),
             spawning,
@@ -119,11 +119,14 @@ pub(in crate::network) fn sync_spawning_actors(
     });
 }
 
+// `face_yaw` is the facing the state carries: the snapshot's authored yaw,
+// or for an `SActorMove` cue the direction of its intent (`None` while idle,
+// so the last facing holds until the next snapshot restates it).
 pub(super) fn apply_actor_movement_state(
     commands: &mut Commands,
     actors: &ActorMap,
     rtt: &RoundTripTime,
-    actor_data: &Query<(&Position, &ActorMoveIntent, &FaceYaw), With<ActorMarker>>,
+    actor_data: &Query<&Position, With<ActorMarker>>,
     id: ActorId,
     movement: ActorMovementState,
     face_yaw: Option<f32>,
@@ -147,7 +150,7 @@ pub(super) fn apply_actor_movement_state(
         commands.entity(client_actor.entity).insert(FaceYaw(face_yaw));
     }
 
-    if let Ok((client_pos, _, _)) = actor_data.get(client_actor.entity) {
+    if let Ok(client_pos) = actor_data.get(client_actor.entity) {
         commands.entity(client_actor.entity).insert(ServerReconciliation::new(
             extrapolated_correction(*client_pos, movement.pos, server_velocity, rtt),
             movement.pos,

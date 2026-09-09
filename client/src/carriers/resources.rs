@@ -48,11 +48,16 @@ impl CarrierStoreys {
     #[must_use]
     pub fn tag(&self, carrier: CarrierId, level: u8, span: u8) -> MapLevel {
         let index = carrier.0 as usize;
-        let base = self.base.get(index).copied();
-        let motion = self.motion.get(index).copied();
-        let (Some(base), Some(motion)) = (base, motion) else {
-            panic!("map record names a carrier the layout does not have");
-        };
+        let base = self
+            .base
+            .get(index)
+            .copied()
+            .expect("map record names a carrier the layout does not have");
+        let motion = self
+            .motion
+            .get(index)
+            .copied()
+            .expect("map record names a carrier the layout does not have");
         MapLevel {
             level: base.saturating_add(level),
             span: span.saturating_add(motion),

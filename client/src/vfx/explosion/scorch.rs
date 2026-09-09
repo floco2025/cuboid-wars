@@ -24,8 +24,8 @@ use crate::{carriers::CarrierEntities, config::ClientSettings, constants::*, map
 const SCORCH_RESOLUTION: usize = 128;
 const OUTLINE_CONTROL_POINTS: usize = 24;
 const DETAIL_CONTROL_POINTS: usize = 17;
-pub(super) const EXPLOSION_SCORCH_SURFACE_OFFSET: f32 = 0.015;
-const EXPLOSION_GRASS_BURN_FADE_STEPS: u32 = 60;
+pub(super) const SCORCH_SURFACE_OFFSET: f32 = 0.015;
+const GRASS_BURN_FADE_STEPS: u32 = 60;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct ScorchOutline {
@@ -85,7 +85,7 @@ impl ScorchPlacement {
         let random_rotation = Quat::from_axis_angle(surface.normal, style.rotation);
         Self {
             transform: Transform {
-                translation: point + surface.normal * EXPLOSION_SCORCH_SURFACE_OFFSET,
+                translation: point + surface.normal * SCORCH_SURFACE_OFFSET,
                 rotation: random_rotation * alignment,
                 scale: Vec3::splat(diameter),
             },
@@ -161,7 +161,7 @@ pub(super) fn wall_scorch_placements(
             let translation = point
                 + tangent * f32::midpoint(min_t, max_t)
                 + Vec3::Y * f32::midpoint(min_y, max_y)
-                + *normal * EXPLOSION_SCORCH_SURFACE_OFFSET;
+                + *normal * SCORCH_SURFACE_OFFSET;
             let basis = Mat3::from_cols(tangent, *normal, Vec3::Y);
             let half_turn = if style.rotation >= PI {
                 Quat::from_axis_angle(*normal, PI)
@@ -336,7 +336,7 @@ pub(super) fn spawn_scorch_mark(
     let grass_burn = (placement.normal().dot(Vec3::Y) > 0.999).then(|| {
         GrassBurn::new(
             placement.carrier,
-            placement.transform.translation - placement.normal() * EXPLOSION_SCORCH_SURFACE_OFFSET,
+            placement.transform.translation - placement.normal() * SCORCH_SURFACE_OFFSET,
             placement.transform.scale.x * 0.5,
             style.rotation(),
             style.mesh_index,
@@ -369,7 +369,7 @@ fn scorch_alpha(elapsed: f32, full_opacity_duration: f32) -> f32 {
 }
 
 fn grass_burn_intensity(scorch_alpha: f32) -> f32 {
-    let steps = EXPLOSION_GRASS_BURN_FADE_STEPS as f32;
+    let steps = GRASS_BURN_FADE_STEPS as f32;
     (scorch_alpha.clamp(0.0, 1.0) * steps).floor() / steps
 }
 
@@ -442,7 +442,7 @@ mod tests {
 
     #[test]
     fn grass_burn_intensity_tracks_scorch_fade_in_bounded_steps() {
-        let step = 1.0 / EXPLOSION_GRASS_BURN_FADE_STEPS as f32;
+        let step = 1.0 / GRASS_BURN_FADE_STEPS as f32;
         assert_eq!(grass_burn_intensity(1.0), 1.0);
         assert_eq!(grass_burn_intensity(0.5), 0.5);
         assert_eq!(grass_burn_intensity(step * 0.9), 0.0);

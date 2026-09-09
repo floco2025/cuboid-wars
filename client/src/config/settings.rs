@@ -2,7 +2,7 @@ use std::{fs, path::Path};
 
 use anyhow::{Result, bail};
 use bevy::prelude::Resource;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::constants::{
     CAMERA_FOV_DEGREES_DEFAULT, CAMERA_REARVIEW_MIRROR_DEFAULT, CAMERA_SHAKE_SCALE_DEFAULT,
@@ -130,7 +130,7 @@ impl WeatherConfig {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct UserPreferences {
     pub fullscreen_resolution: u32,
     pub vsync: bool,
@@ -164,7 +164,7 @@ impl Default for UserPreferences {
 }
 
 // Performance/feel knobs for the decorative grass. Pure-appearance numbers
-// (blade shape, colors) are module constants in `map/spawn/grass.rs`.
+// (blade shape, colors) are module constants in `map/grass/mesh.rs`.
 #[derive(Debug, Clone, Copy, Deserialize)]
 pub struct GrassConfig {
     pub enabled: bool,
@@ -187,6 +187,7 @@ impl ClientSettings {
     }
 
     pub(crate) fn validate(&self) -> Result<()> {
+        self.rendering.validate()?;
         self.camera.validate()?;
         self.preferences.validate()?;
         self.hud.validate()?;

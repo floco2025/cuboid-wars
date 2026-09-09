@@ -13,19 +13,6 @@
         "metallic_roughness": "textures/brushed-metal-ue/brushed-metal_metallic-roughness.png"
       }
     },
-    "scuffed-plastic": {
-      "tile_size": 1.0,
-      "metallic": 0.0,
-      "roughness": 1.0,
-      "repeat": true,
-      "linear_data_textures": true,
-      "textures": {
-        "base_color": "textures/scuffed-plastic-1-Unreal-Engine/scuffed-plastic5-alb.png",
-        "normal": "textures/scuffed-plastic-1-Unreal-Engine/scuffed-plastic-normal.png",
-        "occlusion": "textures/scuffed-plastic-1-Unreal-Engine/scuffed-plastic-ao.png",
-        "metallic_roughness": "textures/scuffed-plastic-1-Unreal-Engine/scuffed-plastic-metallic-roughness.png"
-      }
-    },
     "synth-rubber": {
       "tile_size": 1.0,
       "metallic": 0.0,
@@ -34,7 +21,7 @@
       "linear_data_textures": true,
       "textures": {
         "base_color": "textures/synth-rubber-unreal-engine/synth-rubber-albedo.png",
-        "normal": "textures/synth-rubber-unreal-engine/synth-rubber-normal.png",
+        "normal": "textures/synth-rubber-unreal-engine/synth-rubber-normal-dx.png",
         "occlusion": "textures/synth-rubber-unreal-engine/synth-rubber-ao.png",
         "metallic_roughness": "textures/synth-rubber-unreal-engine/synth-rubber-metallic-roughness.png"
       }
@@ -250,7 +237,6 @@
   },
   "aliases": {
     "brushed-metal": "brushed-metal",
-    "scuffed-plastic": "scuffed-plastic",
     "synth-rubber": "synth-rubber",
     "portal-resistant": "used-stainless-steel",
     "natural-ground": "mud-with-vegetation",

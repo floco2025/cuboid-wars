@@ -1,6 +1,4 @@
-use bevy::{light::NotShadowCaster, prelude::*};
-
-use bevy::camera::visibility::RenderLayers;
+use bevy::{camera::visibility::RenderLayers, light::NotShadowCaster, prelude::*};
 
 use crate::{
     cameras::RENDER_LAYER_MAIN_VIEW,
@@ -21,7 +19,7 @@ const PORTAL_RIM_OFFSET: f32 = 0.002;
 // on a portal camera's layer. Names the end so an anchored portal's discs
 // can follow its tile.
 #[derive(Component)]
-pub(super) struct PortalSurface {
+pub(crate) struct PortalSurface {
     pub(super) pair: PortalPairId,
     pub(super) end: PortalEnd,
 }

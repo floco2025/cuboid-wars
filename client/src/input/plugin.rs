@@ -2,7 +2,6 @@ use super::*;
 use bevy::prelude::*;
 
 use crate::{
-    cameras::{CameraAim, CameraInputState, FollowCamera},
     missiles::lock_on_system,
     schedule::ClientSet,
     ui::{ConsoleState, SettingsMenuState, console_closed},
@@ -16,16 +15,19 @@ fn gameplay_input_active(console: Res<ConsoleState>, menu: Res<SettingsMenuState
 }
 
 pub fn input_plugin(app: &mut App) {
-    app.init_resource::<PendingWeaponSelection>()
-        .init_resource::<FollowCamera>()
-        .init_resource::<CameraInputState>()
-        .init_resource::<CameraAim>();
+    app.init_resource::<PendingWeaponSelection>();
     app.add_systems(PreUpdate, windowed_frame_system);
     app.add_systems(
         Update,
         (
-            input_movement_system.after(input_cursor_capture_system),
+            input_movement_system
+                .after(input_cursor_capture_system)
+                .after(input_camera_zoom_system),
             input_cursor_capture_system.after(input_camera_view_toggle_system),
+            // Zooming in locks the facing, which movement reads this frame.
+            input_camera_zoom_system
+                .after(input_facing_lock_toggle_system)
+                .after(input_cursor_capture_system),
             input_weapon_select_system
                 .after(input_movement_system)
                 .after(ClientSet::Network),
@@ -34,6 +36,7 @@ pub fn input_plugin(app: &mut App) {
             input_fullscreen_toggle_system.run_if(console_closed),
             (
                 input_camera_view_toggle_system,
+                input_facing_lock_toggle_system,
                 input_level_focus_toggle_system,
                 input_debug_colors_cycle_system,
                 input_bounds_cycle_system,

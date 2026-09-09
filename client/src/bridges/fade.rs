@@ -20,9 +20,12 @@ pub fn bridges_fade_system(
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     let config = client_settings.vfx.light_bridges;
-    for (idx, handle) in bridge_assets.material_handles().enumerate() {
+    for (idx, visual) in bridge_assets.kinds.iter().enumerate() {
         let kind = BridgeKindId(u16::try_from(idx).expect("bridge kind index exceeds u16"));
-        let Some(alpha) = materials.get(handle).map(|material| material.base_color.alpha()) else {
+        let Some(alpha) = materials
+            .get(&visual.surface)
+            .map(|material| material.base_color.alpha())
+        else {
             continue;
         };
         let Some(next) = fade_step(
@@ -35,8 +38,8 @@ pub fn bridges_fade_system(
         };
         // `get_mut` marks the asset modified and re-extracts it to the GPU,
         // so a settled kind is left untouched.
-        if let Some(mut material) = materials.get_mut(handle) {
-            material.base_color = color_with_alpha(bridge_assets.base_color(kind), next);
+        if let Some(mut material) = materials.get_mut(&visual.surface) {
+            material.base_color = color_with_alpha(visual.base_color, next);
         }
     }
 }

@@ -15,6 +15,9 @@ use common::{
 use super::BoundsMode;
 use crate::{
     cameras::MainCameraMarker,
+    constants::{
+        BOUNDS_AIRBORNE_COLOR, BOUNDS_CAPSULE_COLOR, BOUNDS_GROUNDED_COLOR, BOUNDS_HITBOX_COLOR, BOUNDS_LADDER_COLOR,
+    },
     players::{CuboidShake, PlayerMap},
 };
 
@@ -24,7 +27,7 @@ pub struct CharacterBounds {
 }
 
 #[derive(Component)]
-pub struct BoundsShapeMarker(BoundsMode);
+pub struct BoundsShape(BoundsMode);
 
 pub fn spawn_character_bounds(
     commands: &mut Commands,
@@ -43,11 +46,11 @@ pub fn spawn_character_bounds(
         physics.hitbox.depth,
     ));
     for (mode, mesh, color) in [
-        (BoundsMode::Grounding, capsule, Color::srgba(0.1, 0.8, 1.0, 0.18)),
-        (BoundsMode::Hitbox, hitbox, Color::srgba(1.0, 0.2, 0.2, 0.18)),
+        (BoundsMode::Grounding, capsule, BOUNDS_CAPSULE_COLOR),
+        (BoundsMode::Hitbox, hitbox, BOUNDS_HITBOX_COLOR),
     ] {
         commands.spawn((
-            BoundsShapeMarker(mode),
+            BoundsShape(mode),
             ChildOf(root),
             Mesh3d(mesh),
             MeshMaterial3d(materials.add(StandardMaterial {
@@ -68,8 +71,8 @@ pub fn spawn_character_bounds(
 pub fn character_bounds_sync_system(
     mode: Res<BoundsMode>,
     roots: Query<(&ChildOf, &CharacterBounds)>,
-    actors: Query<(&FaceYaw, &Transform, Option<&CuboidShake>), Without<BoundsShapeMarker>>,
-    mut shapes: Query<(&ChildOf, &BoundsShapeMarker, &mut Transform, &mut Visibility)>,
+    actors: Query<(&FaceYaw, &Transform, Option<&CuboidShake>), Without<BoundsShape>>,
+    mut shapes: Query<(&ChildOf, &BoundsShape, &mut Transform, &mut Visibility)>,
 ) {
     for (parent, marker, mut transform, mut visibility) in &mut shapes {
         let active = *mode != BoundsMode::Off && marker.0 == *mode;
@@ -110,6 +113,9 @@ fn bounds_transform(parent: &Transform, center: Vec3, rotation: Quat) -> Transfo
         .with_scale(parent.scale.recip())
 }
 
+// The tick planners own a character's diagnostics; this fills them in for a
+// character that has not stepped yet, so a fresh body draws its probe on
+// its first frame.
 pub fn refresh_grounding_debug_system(
     mut commands: Commands,
     mode: Res<BoundsMode>,
@@ -118,27 +124,16 @@ pub fn refresh_grounding_debug_system(
     plates: Res<PlateState>,
     players: Res<PlayerMap>,
     roots: Query<(&ChildOf, &CharacterBounds)>,
-    actors: Query<(
-        &Position,
-        Option<&PlayerId>,
-        &CharacterVerticalVelocity,
-        Option<&GroundingDiagnostics>,
-        Option<&CharacterSupport>,
-    )>,
+    actors: Query<(&Position, Option<&PlayerId>, &CharacterVerticalVelocity), Without<GroundingDiagnostics>>,
 ) {
     if *mode != BoundsMode::Grounding {
         return;
     }
     for (parent, bounds) in &roots {
         let entity = parent.parent();
-        let Ok((pos, player, motion, cached, support)) = actors.get(entity) else {
+        let Ok((pos, player, motion)) = actors.get(entity) else {
             continue;
         };
-        let origin = Vec3::from(*pos) + Vec3::Y * CHARACTER_CONTACT_OFFSET * 2.0;
-        if cached.is_some_and(|g| g.origin.abs_diff_eq(origin, 1e-5)) {
-            continue;
-        }
-        // Character blocking and portal hops can replace the motor's proposed position.
         let keys = player
             .and_then(|id| players.get(id))
             .map_or(&[][..], |p| p.held_keys.as_slice());
@@ -150,9 +145,7 @@ pub fn refresh_grounding_debug_system(
         };
         let mut ground = grounding_diagnostics(&world, pos, bounds.physics, &passable, &excluded);
         ground.supported &= motion.0 <= 0.0;
-        let support = if support == Some(&CharacterSupport::Ladder) && world.ladder_volume_at(pos).is_some() {
-            CharacterSupport::Ladder
-        } else if ground.supported {
+        let support = if ground.supported {
             CharacterSupport::Ground
         } else {
             CharacterSupport::Airborne
@@ -191,9 +184,9 @@ pub fn grounding_debug_system(
             CharacterSupport::Airborne
         });
         let (label, color) = match support {
-            CharacterSupport::Ground => ("Grounded", Color::srgb(0.1, 1.0, 0.3)),
-            CharacterSupport::Airborne => ("Airborne", Color::srgb(1.0, 0.6, 0.1)),
-            CharacterSupport::Ladder => ("Ladder", Color::srgb(0.1, 0.8, 1.0)),
+            CharacterSupport::Ground => ("Grounded", BOUNDS_GROUNDED_COLOR),
+            CharacterSupport::Airborne => ("Airborne", BOUNDS_AIRBORNE_COLOR),
+            CharacterSupport::Ladder => ("Ladder", BOUNDS_LADDER_COLOR),
         };
         if let Some(rotation) = camera_rotation {
             let body = bounds.physics.movement_collider;
@@ -250,7 +243,7 @@ mod tests {
             .world_mut()
             .spawn((
                 ChildOf(root),
-                BoundsShapeMarker(BoundsMode::Grounding),
+                BoundsShape(BoundsMode::Grounding),
                 Transform::default(),
                 Visibility::Hidden,
             ))
@@ -275,7 +268,7 @@ mod tests {
                 .world_mut()
                 .spawn((
                     ChildOf(root),
-                    BoundsShapeMarker(expected),
+                    BoundsShape(expected),
                     Transform::default(),
                     Visibility::Hidden,
                 ))
@@ -347,7 +340,7 @@ mod tests {
                 .world_mut()
                 .spawn((
                     ChildOf(root),
-                    BoundsShapeMarker(mode),
+                    BoundsShape(mode),
                     Transform::default(),
                     Visibility::Hidden,
                 ))

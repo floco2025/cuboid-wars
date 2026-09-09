@@ -48,6 +48,11 @@ impl MaterialDef {
             )),
             metallic: self.metallic,
             perceptual_roughness: self.perceptual_roughness,
+            // Bevy samples OpenGL-convention normals; the packs are DirectX and say so in the name.
+            flip_normal_map_y: self
+                .textures
+                .normal_is_directx()
+                .expect("normal map name carries no -dx or -gl convention"),
             ..default()
         }
     }

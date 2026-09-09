@@ -28,7 +28,9 @@ impl PortalMap {
         self.0.retain(f);
     }
 
-    // The stored wire values, for rebuilding the shared `PortalSet`.
+    // The stored wire values, for rebuilding the shared `PortalSet`. Sorted
+    // because the view graph (`portals/render.rs`) compares successive lists
+    // to decide whether to rebuild.
     #[must_use]
     pub fn wire_portals(&self) -> Vec<Portal> {
         let mut portals: Vec<_> = self.0.values().map(|info| info.portal).collect();

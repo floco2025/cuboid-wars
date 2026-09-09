@@ -12,7 +12,7 @@ use common::{
     config::GameplayConfig,
     constants::{MISSILE_RADIUS, MISSILE_SPAWN_OFFSET},
     physics::CollisionWorld,
-    protocol::*,
+    protocol::{CMissileShot, ClientMessage, PlateState},
 };
 
 use super::WeaponMode;
@@ -31,7 +31,7 @@ pub fn input_missile_system(
     mouse: Res<ButtonInput<MouseButton>>,
     input: Res<CameraInputState>,
     aim: Res<CameraAim>,
-    local_player_query: Query<&FaceYaw, With<LocalPlayerMarker>>,
+    local_players: Query<(), With<LocalPlayerMarker>>,
     to_server: Res<ClientToServerChannel>,
     asset_server: Res<AssetServer>,
     asset_set: Res<AssetSet>,
@@ -49,9 +49,9 @@ pub fn input_missile_system(
     if input.released || input.suppress_fire || !mouse.just_pressed(MouseButton::Left) {
         return;
     }
-    let Some(_) = local_player_query.iter().next() else {
+    if local_players.is_empty() {
         return;
-    };
+    }
 
     let has_ammo = players.get(&my_player_id.0).is_some_and(|info| info.missiles > 0);
     if !has_ammo

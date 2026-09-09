@@ -1,5 +1,5 @@
 use super::{
-    burn::{EXPLOSION_GRASS_BURN_VERTICAL_TOLERANCE, GrassBurn},
+    burn::{BURN_VERTICAL_TOLERANCE, GrassBurn},
     spawn::{OpenEdges, quantized_key},
 };
 use crate::{
@@ -198,7 +198,7 @@ fn ring_color(hue: f32, saturation: f32, lightness: f32, lightness_scale: f32) -
 }
 
 pub(super) fn burn_strength_at(root: Vec3, burn: GrassBurn) -> f32 {
-    if burn.radius <= 0.0 || (root.y - burn.center.y).abs() > EXPLOSION_GRASS_BURN_VERTICAL_TOLERANCE {
+    if burn.radius <= 0.0 || (root.y - burn.center.y).abs() > BURN_VERTICAL_TOLERANCE {
         return 0.0;
     }
 

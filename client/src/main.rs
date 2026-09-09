@@ -1,11 +1,18 @@
 use anyhow::{Context, Result};
 use clap::Parser;
 use quinn::Endpoint;
-use tokio::{runtime::Runtime, sync::mpsc::unbounded_channel, time::Duration};
+use tokio::{
+    runtime::Runtime,
+    sync::mpsc::{UnboundedReceiver, unbounded_channel},
+    time::Duration,
+};
 
 use client::{
     app::{ClientAppOptions, build_client_app},
-    network::{ClientToServerChannel, Impairment, ServerToClientChannel, configure_client, network_io_task},
+    network::{
+        ClientToServer, ClientToServerChannel, Impairment, ServerToClient, ServerToClientChannel, configure_client,
+        network_io_task,
+    },
 };
 use common::protocol::*;
 
@@ -62,9 +69,7 @@ fn main() -> Result<()> {
     };
     runtime.spawn(network_io_task(connection, to_client, from_client, impairment));
     to_server
-        .send(client::network::ClientToServer::Send(ClientMessage::Login(CLogin {
-            name: player_name,
-        })))
+        .send(ClientToServer::Send(ClientMessage::Login(CLogin { name: player_name })))
         .context("network task stopped before login")?;
     let mut from_server = from_server;
     let bootstrap = wait_for_init(&runtime, &mut from_server)?;
@@ -108,16 +113,13 @@ fn connect_to_server(runtime: &Runtime, server_addr: &str) -> Result<quinn::Conn
 // Anything that lands before `SInit` is a snapshot or an unreliable message,
 // which the protocol lets us drop; the reliable lane guarantees `SInit`
 // comes first on it.
-fn wait_for_init(
-    runtime: &Runtime,
-    from_server: &mut tokio::sync::mpsc::UnboundedReceiver<client::network::ServerToClient>,
-) -> Result<SInit> {
+fn wait_for_init(runtime: &Runtime, from_server: &mut UnboundedReceiver<ServerToClient>) -> Result<SInit> {
     runtime.block_on(async {
         loop {
             match from_server.recv().await {
-                Some(client::network::ServerToClient::Message(ServerMessage::Init(message))) => return Ok(message),
-                Some(client::network::ServerToClient::Message(_)) => {}
-                Some(client::network::ServerToClient::Disconnected) | None => {
+                Some(ServerToClient::Message(ServerMessage::Init(message))) => return Ok(message),
+                Some(ServerToClient::Message(_)) => {}
+                Some(ServerToClient::Disconnected) | None => {
                     anyhow::bail!("server disconnected before SInit")
                 }
             }

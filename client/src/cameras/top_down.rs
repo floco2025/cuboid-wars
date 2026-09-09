@@ -174,7 +174,7 @@ fn topdown_view_direction(yaw: f32) -> Vec3 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_geometry::{LEVEL_HEIGHT, sizes};
+    use crate::test_fixtures::{LEVEL_HEIGHT, sizes};
     use common::protocol::CarrierId;
     use std::f32::consts::FRAC_PI_2;
 

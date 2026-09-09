@@ -3,7 +3,7 @@ use std::collections::VecDeque;
 use bevy::prelude::*;
 use common::protocol::sequence_is_newer;
 
-const TICK_SYNC_WINDOW_TICKS: usize = 15;
+use crate::constants::TICK_SYNC_WINDOW_TICKS;
 
 // Corrects the client's `ServerTick` from the server's echoes of its own
 // commits: an echo names the server tick that applied a `CMove`, the

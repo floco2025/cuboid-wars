@@ -5,7 +5,10 @@ use std::{
 
 use bevy::{asset::RenderAssetUsages, prelude::*, render::render_resource::PrimitiveTopology};
 
-use crate::constants::{ITEM_COIN_COLOR, ITEM_COIN_RADIUS};
+use crate::constants::{
+    ITEM_COIN_COLOR, ITEM_COIN_FACE_COLOR, ITEM_COIN_FACE_METALLIC, ITEM_COIN_FACE_ROUGHNESS, ITEM_COIN_RADIUS,
+    ITEM_COIN_RELIEF_METALLIC, ITEM_COIN_RELIEF_ROUGHNESS,
+};
 
 use super::pickup_material;
 
@@ -42,11 +45,11 @@ impl CoinAssets {
             .expect("coin face mesh attributes are incompatible");
 
         let mut relief_material = pickup_material(ITEM_COIN_COLOR, glow);
-        relief_material.metallic = 0.8;
-        relief_material.perceptual_roughness = 0.28;
-        let mut face_material = pickup_material(Color::srgb(0.78, 0.48, 0.06), glow);
-        face_material.metallic = 0.7;
-        face_material.perceptual_roughness = 0.4;
+        relief_material.metallic = ITEM_COIN_RELIEF_METALLIC;
+        relief_material.perceptual_roughness = ITEM_COIN_RELIEF_ROUGHNESS;
+        let mut face_material = pickup_material(ITEM_COIN_FACE_COLOR, glow);
+        face_material.metallic = ITEM_COIN_FACE_METALLIC;
+        face_material.perceptual_roughness = ITEM_COIN_FACE_ROUGHNESS;
 
         Self {
             relief_mesh: meshes.add(relief),

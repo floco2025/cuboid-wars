@@ -1,13 +1,15 @@
 use bevy::{light::NotShadowCaster, prelude::*};
 
-use crate::{
-    carriers::CarrierEntities,
-    constants::{PORTAL_A_COLOR, PORTAL_B_COLOR, PORTAL_EMISSIVE, PORTAL_FIZZLE_LIFETIME, PORTAL_FIZZLE_SPARK_SIZE},
-};
+use crate::{carriers::CarrierEntities, constants::*};
 use common::{
+    constants::{PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH},
     physics::PortalFrame,
     protocol::{Portal, PortalEnd},
 };
+
+// Off the surface so the discs never z-fight with it, the flash a hair above the ring.
+const SURFACE_LIFT: f32 = 0.025;
+const FLASH_LIFT: f32 = 0.003;
 
 #[derive(Resource)]
 pub struct PortalFizzleAssets {
@@ -20,7 +22,7 @@ pub struct PortalFizzleAssets {
 impl FromWorld for PortalFizzleAssets {
     fn from_world(world: &mut World) -> Self {
         let mut meshes = world.resource_mut::<Assets<Mesh>>();
-        let ring = meshes.add(Annulus::new(0.84, 1.0));
+        let ring = meshes.add(Annulus::new(PORTAL_FIZZLE_RING_INNER_RADIUS, 1.0));
         let flash = meshes.add(Circle::new(1.0));
         let spark = meshes.add(Cuboid::from_length(1.0));
         let mut materials = world.resource_mut::<Assets<StandardMaterial>>();
@@ -62,7 +64,7 @@ pub fn spawn_portal_fizzle(
         impact.yaw,
     );
     let rotation = Quat::from_mat3(&Mat3::from_cols(frame.right, frame.up, frame.normal));
-    let center = frame.center + frame.normal * 0.025;
+    let center = frame.center + frame.normal * SURFACE_LIFT;
     let material = assets.materials[usize::from(impact.end == PortalEnd::B)].clone();
     let mut spawn = |mesh: Handle<Mesh>, position, scale, velocity, lifetime, ring| {
         commands.spawn((
@@ -85,32 +87,39 @@ pub fn spawn_portal_fizzle(
     spawn(
         assets.ring.clone(),
         center,
-        Vec3::new(0.32, 0.56, 1.0),
+        aperture_scale(PORTAL_FIZZLE_RING_APERTURE_FRACTION),
         Vec3::ZERO,
         PORTAL_FIZZLE_LIFETIME,
         true,
     );
     spawn(
         assets.flash.clone(),
-        center + frame.normal * 0.003,
-        Vec3::new(0.23, 0.4, 1.0),
+        center + frame.normal * FLASH_LIFT,
+        aperture_scale(PORTAL_FIZZLE_FLASH_APERTURE_FRACTION),
         Vec3::ZERO,
-        0.12,
+        PORTAL_FIZZLE_FLASH_LIFETIME,
         false,
     );
-    for index in 0..12 {
-        let angle = index as f32 * std::f32::consts::TAU / 12.0;
+    for index in 0..PORTAL_FIZZLE_SPARK_COUNT {
+        let angle = index as f32 * std::f32::consts::TAU / PORTAL_FIZZLE_SPARK_COUNT as f32;
         let radial = frame.right * angle.cos() + frame.up * angle.sin();
-        let velocity = radial * (0.7 + 0.1 * (index % 3) as f32) + frame.normal * 0.5;
+        let radial_speed =
+            PORTAL_FIZZLE_SPARK_RADIAL_SPEED + PORTAL_FIZZLE_SPARK_RADIAL_SPEED_STEP * (index % 3) as f32;
         spawn(
             assets.spark.clone(),
-            center + radial * 0.07,
+            center + radial * PORTAL_FIZZLE_SPARK_START_RADIUS,
             Vec3::splat(PORTAL_FIZZLE_SPARK_SIZE),
-            velocity,
-            PORTAL_FIZZLE_LIFETIME * (0.65 + 0.03 * index as f32),
+            radial * radial_speed + frame.normal * PORTAL_FIZZLE_SPARK_LIFT_SPEED,
+            PORTAL_FIZZLE_LIFETIME
+                * (PORTAL_FIZZLE_SPARK_LIFETIME_FRACTION + PORTAL_FIZZLE_SPARK_LIFETIME_STEP * index as f32),
             false,
         );
     }
+}
+
+// A disc's semi-axes at the given fraction of the aperture's.
+fn aperture_scale(fraction: f32) -> Vec3 {
+    Vec3::new(PORTAL_HALF_WIDTH * fraction, PORTAL_HALF_HEIGHT * fraction, 1.0)
 }
 
 pub fn portal_fizzle_system(
@@ -125,10 +134,11 @@ pub fn portal_fizzle_system(
             commands.entity(entity).despawn();
             continue;
         }
-        let size = if effect.ring && progress < 0.15 {
-            0.3 + progress / 0.15 * 0.7
+        let size = if effect.ring && progress < PORTAL_FIZZLE_RING_GROW_FRACTION {
+            PORTAL_FIZZLE_RING_START_SCALE
+                + progress / PORTAL_FIZZLE_RING_GROW_FRACTION * (1.0 - PORTAL_FIZZLE_RING_START_SCALE)
         } else if effect.ring {
-            ((1.0 - progress) / 0.85).powi(2)
+            ((1.0 - progress) / (1.0 - PORTAL_FIZZLE_RING_GROW_FRACTION)).powi(2)
         } else {
             1.0 - progress
         };

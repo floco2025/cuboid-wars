@@ -1,17 +1,21 @@
+mod camera;
 mod commit;
 mod cursor;
 mod missiles;
 mod movement;
+#[cfg(test)]
+mod movement_tests;
 mod portals;
 mod shooting;
 mod toggles;
 mod weapons;
 mod window_frame;
 
+pub use camera::{input_camera_zoom_system, input_facing_lock_toggle_system};
 pub use commit::{commit_player_input_system, record_committed_position_system};
 pub use cursor::input_cursor_capture_system;
 pub use missiles::input_missile_system;
-pub use movement::{MAX_PITCH, input_movement_system};
+pub use movement::input_movement_system;
 pub use portals::input_portal_system;
 pub use shooting::input_shooting_system;
 pub use toggles::{

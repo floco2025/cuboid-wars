@@ -15,8 +15,8 @@ pub(super) fn handle_quest_updates_message(
     if apply_quest_updates(&mut context.quest_log, &mut context.banner, message) {
         play_sound(
             commands,
-            &context.asset_server,
-            context.asset_set.player_sound("quest_completed"),
+            &context.assets.asset_server,
+            context.assets.asset_set.player_sound("quest_completed"),
         );
     }
 }

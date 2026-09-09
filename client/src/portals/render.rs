@@ -16,15 +16,14 @@ use super::{
     PortalMap,
     projection::{PortalProjection, full_aperture, portal_camera_view},
     spawn::{PortalAssets, spawn_portal_visual},
-    transform_sync::portal_surfaces_transform_sync_system,
 };
 use crate::{
     cameras::{
         MainCameraMarker, RENDER_LAYER_LOCAL_PLAYER, RENDER_LAYER_PORTAL_VIEW_START, RENDER_LAYER_REARVIEW,
-        RearviewCameraMarker, SceneRenderTarget, SkyDiscRenderLayer, scene_render_target_system,
+        RearviewCameraMarker, SceneRenderTarget, SkyDiscRenderLayer, local_player_camera_sync_system,
+        local_player_rearview_viewport_system, scene_render_target_system,
     },
     config::ClientSettings,
-    players::{local_player_camera_sync_system, local_player_rearview_viewport_system},
     schedule::ClientSet,
 };
 use common::{
@@ -99,10 +98,6 @@ pub fn portal_render_plugin(app: &mut App) {
             update_portal_view_cameras_system.after(rebuild_portal_views_system),
         )
             .in_set(ClientSet::Camera),
-    );
-    app.add_systems(
-        Update,
-        portal_surfaces_transform_sync_system.in_set(ClientSet::CharacterSync),
     );
 }
 

@@ -481,7 +481,7 @@ fn spawn_laser_beams(commands: &mut Commands, vfx: &mut FireworkVfx, assets: &Fi
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_geometry::{LEVEL_HEIGHT, sizes};
+    use crate::test_fixtures::{LEVEL_HEIGHT, sizes};
     use common::protocol::{CarrierId, Floor};
 
     fn layout() -> MapLayout {

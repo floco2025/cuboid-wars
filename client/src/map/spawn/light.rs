@@ -53,10 +53,7 @@ pub fn spawn_wall_light_from_layout(
         Transform::from_xyz(light.pos.x, light.pos.y, light.pos.z)
             .with_scale(Vec3::splat(wall_light.scale))
             .with_rotation(model_yaw),
-        GlobalTransform::default(),
         Visibility::Visible,
-        InheritedVisibility::default(),
-        ViewVisibility::default(),
     ));
 
     let mut emitter = commands.spawn((
@@ -73,8 +70,6 @@ pub fn spawn_wall_light_from_layout(
         },
         Transform::from_xyz(light_pos.x, light_pos.y, light_pos.z),
         Visibility::Visible,
-        InheritedVisibility::default(),
-        ViewVisibility::default(),
     ));
     if wall_light.flicker {
         emitter.insert(WallLightFlicker {

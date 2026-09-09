@@ -2,8 +2,7 @@ use bevy::prelude::*;
 use std::f32::consts::PI;
 
 use crate::{
-    constants::PORTAL_VIEW_BLEND_SECS,
-    input::MAX_PITCH,
+    constants::{CAMERA_MAX_PITCH, PORTAL_VIEW_BLEND_SECS},
     players::{LocalPlayerInfo, PortalTransitBlend},
 };
 use common::physics::{PortalFrame, traverse_vector};
@@ -64,7 +63,11 @@ fn portal_view_transition(
     let forward = traverse_vector(entry, exit, rotation * Vec3::NEG_Z);
     let up = traverse_vector(entry, exit, rotation * Vec3::Y);
     let seeded = Transform::default().looking_to(forward, up).rotation;
-    let target_pitch = forward.y.clamp(-1.0, 1.0).asin().clamp(-MAX_PITCH, MAX_PITCH);
+    let target_pitch = forward
+        .y
+        .clamp(-1.0, 1.0)
+        .asin()
+        .clamp(-CAMERA_MAX_PITCH, CAMERA_MAX_PITCH);
     let target_yaw = if forward.x * forward.x + forward.z * forward.z > 1e-4 {
         (-forward.x).atan2(-forward.z)
     } else {

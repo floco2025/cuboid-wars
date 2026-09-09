@@ -4,7 +4,10 @@ use crate::{
     players::{MyPlayerId, PlayerMap},
     ui::{ConsoleState, SettingsMenuState},
 };
-use common::{config::GameplayConfig, protocol::*};
+use common::{
+    config::GameplayConfig,
+    protocol::{ItemType, PortalAccess, PowerUpKind},
+};
 
 // Which weapon the mouse buttons drive. Client-only presentation state, like
 // `CameraViewMode`; the server just receives whichever shot message results.
@@ -139,7 +142,8 @@ pub fn input_weapon_select_system(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::players::PlayerInfo;
+    use crate::{players::PlayerInfo, test_fixtures};
+    use common::protocol::{Health, Player, PlayerId, PlayerMoveIntent, PlayerMovementState, PortalPairId, Position};
 
     const BOTH: PortalAccess = PortalAccess::Both { pair: PortalPairId(1) };
 
@@ -217,16 +221,7 @@ mod tests {
     }
 
     fn selection_app() -> App {
-        let source: serde_json::Value = serde_json::from_str(include_str!("../../../config/server/gameplay.json"))
-            .expect("server gameplay JSON is invalid");
-        let config: GameplayConfig = serde_json::from_value(serde_json::json!({
-            "player": source["player"],
-            "projectiles": source["weapons"]["projectiles"],
-            "missiles": source["weapons"]["missiles"],
-            "portals": source["weapons"]["portals"],
-            "actors": source["actors"]["kinds"],
-        }))
-        .expect("client gameplay config is invalid");
+        let config = test_fixtures::gameplay_config();
         let mut players = PlayerMap::default();
         players.insert(
             PlayerId(1),

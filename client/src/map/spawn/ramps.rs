@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use super::{
-    geometry_batch::{MapGeometryBatch, MapGeometryKind},
+    geometry_batch::{MapGeometryBatch, MapGeometryKind, SegmentTarget},
     ramp_mesh::build_ramp_meshes,
 };
 use crate::{carriers::CarrierStoreys, config::AssetSet};
@@ -22,7 +22,6 @@ pub fn batch_ramp(
     ramp: &Ramp,
     material_ids: &FaceMaterials,
 ) {
-    batcher.begin_segment();
     let top_material_id = material_ids.top.clone();
     let side_material_id = material_ids.north.clone();
     let top_material_def = asset_set.material_by_id(&top_material_id);
@@ -44,21 +43,12 @@ pub fn batch_ramp(
     // in the carrier's frame); the ramp reaches one storey further.
     let y_low = ramp.y1.min(ramp.y2);
     let level = storeys.tag(ramp.carrier, geometry.nearest_level_to_y(y_low), 1);
+    batcher.begin_segment(SegmentTarget {
+        kind: MapGeometryKind::Ramp,
+        carrier: ramp.carrier,
+        level,
+    });
 
-    batcher.add_mesh(
-        MapGeometryKind::Ramp,
-        ramp.carrier,
-        level,
-        top_material_id,
-        &mesh_top,
-        Transform::default(),
-    );
-    batcher.add_mesh(
-        MapGeometryKind::Ramp,
-        ramp.carrier,
-        level,
-        side_material_id,
-        &mesh_side,
-        Transform::default(),
-    );
+    batcher.add_mesh(top_material_id, &mesh_top, Transform::default());
+    batcher.add_mesh(side_material_id, &mesh_side, Transform::default());
 }

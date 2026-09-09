@@ -1,13 +1,12 @@
 use bevy::prelude::*;
 use common::{
-    constants::SNAPSHOT_SECS,
     physics::CharacterVerticalVelocity,
     protocol::{ActorId, Position},
 };
 
 use crate::{
     characters::PreviousTickPosition,
-    constants::{RECON_ACTOR_SNAP_DISTANCE, RECON_CORRECTION_TIME_RTT_MULTIPLIER},
+    constants::{RECON_ACTOR_SNAP_DISTANCE, RECON_CORRECTION_MIN_SECS, RECON_CORRECTION_TIME_RTT_MULTIPLIER},
     network::{ServerReconciliation, worst_axis_divergence},
 };
 
@@ -26,15 +25,15 @@ pub(super) fn reconcile_actor(
     recon: &mut ServerReconciliation,
     delta: f32,
 ) -> ActorReconciliationOutcome {
-    let correction_factor = actor_correction_factor(recon.rtt);
+    let window = actor_correction_window(recon.rtt);
 
-    // Each tick applies `delta / correction window` of the fixed delta, so
-    // the accumulator reaching `SNAPSHOT_SECS` coincides with exactly 100%
-    // of the correction applied — removing the component here is what stops
-    // over-correction, doubling as the dropped-snapshot fallback (normally
-    // the next snapshot replaces this component first).
-    recon.correction_progress += delta * correction_factor;
-    if recon.correction_progress >= SNAPSHOT_SECS {
+    // Each tick applies `delta / window` of the fixed delta, so the window
+    // elapsing coincides with exactly 100% of the correction applied —
+    // removing the component here is what stops over-correction, doubling as
+    // the dropped-snapshot fallback (normally the next snapshot replaces this
+    // component first).
+    recon.correction_progress += delta;
+    if recon.correction_progress >= window {
         commands.entity(entity).remove::<ServerReconciliation>();
     }
 
@@ -55,19 +54,17 @@ pub(super) fn reconcile_actor(
     }
 
     ActorReconciliationOutcome::Displacement(Vec3::new(
-        correction_delta.x * delta * correction_factor / SNAPSHOT_SECS,
+        correction_delta.x * delta / window,
         0.0,
-        correction_delta.z * delta * correction_factor / SNAPSHOT_SECS,
+        correction_delta.z * delta / window,
     ))
 }
 
-// Fraction of the correction delta applied per `SNAPSHOT_SECS` of real time
-// — `SNAPSHOT_SECS / correction window`, with the window scaled from the
-// RTT. A near-zero RTT saturates to 1.0 via the clamp. Unlike players,
-// actors get no motion-aware window: their speeds are simple enough that
-// one RTT-scaled window fits.
-fn actor_correction_factor(rtt: f32) -> f32 {
-    (SNAPSHOT_SECS / (rtt * RECON_CORRECTION_TIME_RTT_MULTIPLIER)).clamp(0.0, 1.0)
+// The correction window scales with the RTT and never drops below
+// `RECON_CORRECTION_MIN_SECS`. Unlike players, actors get no motion-aware
+// window: their speeds are simple enough that one RTT-scaled window fits.
+fn actor_correction_window(rtt: f32) -> f32 {
+    (rtt * RECON_CORRECTION_TIME_RTT_MULTIPLIER).max(RECON_CORRECTION_MIN_SECS)
 }
 
 #[cfg(test)]
@@ -75,14 +72,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn correction_factor_follows_the_rtt_window() {
+    fn correction_window_scales_with_the_rtt() {
         let rtt = 0.2;
-        let expected = SNAPSHOT_SECS / (rtt * RECON_CORRECTION_TIME_RTT_MULTIPLIER);
-        assert!((actor_correction_factor(rtt) - expected).abs() < 1e-6);
+        let expected = rtt * RECON_CORRECTION_TIME_RTT_MULTIPLIER;
+        assert!((actor_correction_window(rtt) - expected).abs() < 1e-6);
     }
 
     #[test]
-    fn zero_rtt_saturates_the_correction_factor() {
-        assert_eq!(actor_correction_factor(0.0), 1.0);
+    fn zero_rtt_keeps_the_minimum_window() {
+        assert_eq!(actor_correction_window(0.0), RECON_CORRECTION_MIN_SECS);
     }
 }

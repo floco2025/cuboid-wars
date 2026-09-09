@@ -1,4 +1,4 @@
-pub mod assets;
+mod assets;
 mod audio;
 mod camera;
 mod hud;

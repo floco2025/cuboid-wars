@@ -2,14 +2,17 @@ use super::*;
 use bevy::{camera::visibility::VisibilitySystems, prelude::*};
 
 use crate::{
-    cameras::{camera_aim_system, scene_render_target_system},
     missiles::lock_on_system,
+    players::{local_player_camera_shake_system, local_player_cuboid_shake_system, local_player_portal_blend_system},
     schedule::ClientSet,
 };
 
 // Cameras follow the local player; the `Camera` set runs after `Input` so
 // this frame's input-driven player state is what the camera reads.
 pub fn camera_plugin(app: &mut App) {
+    app.init_resource::<FollowCamera>()
+        .init_resource::<CameraInputState>()
+        .init_resource::<CameraAim>();
     // SpawnScene runs after Update; loaded meshes need their layers before visibility checks.
     app.add_systems(
         PostUpdate,

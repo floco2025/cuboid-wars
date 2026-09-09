@@ -3,7 +3,7 @@ use std::mem;
 use bevy::prelude::*;
 use common::protocol::{LightBridge, MapLayout};
 
-use crate::map::{clip_surface_rects, surface_frame_rects};
+use crate::fields::{clip_surface_rects, surface_frame_rects};
 
 pub(super) struct BridgeVisual {
     pub bridge: LightBridge,

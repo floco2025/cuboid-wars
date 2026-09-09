@@ -87,18 +87,8 @@ fn local_settings(
         window_y,
         window_width: frame.size.x,
         window_height: frame.size.y,
-        fullscreen_resolution: settings.preferences.fullscreen_resolution,
-        vsync: settings.preferences.vsync,
-        msaa_samples: settings.preferences.msaa_samples,
-        portal_view_budget: settings.preferences.portal_view_budget,
-        mouse_sensitivity: settings.preferences.mouse_sensitivity,
-        zoom_sensitivity: settings.preferences.zoom_sensitivity,
-        invert_y: settings.preferences.invert_y,
-        fov_degrees: settings.preferences.fov_degrees,
-        shake_scale: settings.preferences.shake_scale,
         master_volume: global_volume.volume.to_linear(),
-        show_diagnostics: settings.preferences.show_diagnostics,
-        rearview_mirror: settings.preferences.rearview_mirror,
+        preferences: settings.preferences,
     }
 }
 
@@ -192,8 +182,8 @@ mod tests {
                     position_pending: false,
                 },
             );
-            assert_eq!(local.mouse_sensitivity, coordinate.exp2());
-            assert_eq!(local.zoom_sensitivity, coordinate.exp2());
+            assert_eq!(local.preferences.mouse_sensitivity, coordinate.exp2());
+            assert_eq!(local.preferences.zoom_sensitivity, coordinate.exp2());
             let mut restored = ClientSettings::load_default().expect("client settings are invalid");
             local.apply_to(&mut restored);
             for (slider, setting, preference) in [

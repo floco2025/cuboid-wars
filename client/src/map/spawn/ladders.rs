@@ -102,10 +102,9 @@ impl BoxMeshData {
         let corner = |x: f32, y: f32, z: f32| [x, y, z];
         // Same winding as `tiled_cuboid`. UVs are projected from the
         // carrier-frame position (the mesh is built in it), like every map
-        // mesh: a
-        // centimeters-thin face anchored at uv 0 would sample the same
-        // sliver of the texture's edge on every rail and read as one flat
-        // color; world anchoring spreads the members across the texture.
+        // mesh: a centimeters-thin face anchored at uv 0 would sample the
+        // same sliver of the texture's edge on every rail and read as one
+        // flat color; world anchoring spreads the members across the texture.
         let faces: [([f32; 3], [[f32; 3]; 4]); 6] = [
             (
                 [1.0, 0.0, 0.0],
@@ -196,7 +195,7 @@ impl BoxMeshData {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_geometry::LEVEL_HEIGHT;
+    use crate::test_fixtures::LEVEL_HEIGHT;
     use common::protocol::{CarrierId, Ladder};
 
     #[test]

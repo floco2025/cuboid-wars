@@ -3,7 +3,7 @@ use std::f32::consts::TAU;
 use bevy::{mesh::VertexAttributeValues, prelude::*};
 
 use super::{
-    burn::{EXPLOSION_GRASS_BURN_VERTICAL_TOLERANCE, GrassBurn, grass_burn_system},
+    burn::{BURN_VERTICAL_TOLERANCE, GrassBurn, grass_burn_system},
     mesh::{
         BLADE_HEIGHT_MAX, BLADE_MAX_OVERHANG, BLADES_PER_TUFT, INDICES_PER_BLADE, MID_SWAY_WEIGHT, VERTICES_PER_BLADE,
         WIND_SWAY_FACTOR, burn_strength_at, cell_tuft_count, grass_cell_mesh,
@@ -13,7 +13,7 @@ use super::{
 use crate::{
     config::{ClientSettings, GrassConfig},
     constants::{EXPLOSION_GRASS_BURN_CENTER_HEIGHT_FACTOR, EXPLOSION_GRASS_BURN_CENTER_SWAY_FACTOR},
-    test_geometry::{CELL, map_settings},
+    test_fixtures::{CELL, map_settings},
 };
 use common::protocol::{CarrierId, GrassCell};
 
@@ -164,7 +164,7 @@ fn burn_on_another_level_does_not_change_grass() {
     let normal = grass_cell_mesh(cell, CELL, &config, ALL_OPEN, &[]);
     let burn = GrassBurn::new(
         CarrierId::WORLD,
-        Vec3::new(cell.x, cell.y + EXPLOSION_GRASS_BURN_VERTICAL_TOLERANCE * 2.0, cell.z),
+        Vec3::new(cell.x, cell.y + BURN_VERTICAL_TOLERANCE * 2.0, cell.z),
         CELL * 4.0,
         0.0,
         0,

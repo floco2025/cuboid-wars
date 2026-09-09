@@ -1,32 +1,26 @@
-use bevy::{
-    ecs::system::SystemParam,
-    input::mouse::{MouseMotion, MouseScrollUnit, MouseWheel},
-    math::Vec2,
-    prelude::*,
-};
+use bevy::{ecs::system::SystemParam, input::mouse::MouseMotion, math::Vec2, prelude::*};
 use common::{
     config::GameplayConfig,
     physics::{CharacterVerticalVelocity, CollisionWorld, player_jump_velocity},
-    protocol::{CJump, ClientMessage, FaceYaw, MapSettings, PlayerMoveIntent, PortalAccess, Position},
+    protocol::{CJump, ClientMessage, FaceYaw, MapSettings, PlayerId, PlayerMoveIntent, PortalAccess, Position},
 };
-use std::f32::consts::{FRAC_PI_2, PI};
+use std::f32::consts::PI;
 
-use super::WeaponMode;
+use super::{WeaponMode, portals::portal_end_for_button};
 use crate::{
     cameras::{CameraInputState, CameraViewMode, FollowCamera, TopDownCameraYaw},
     config::ClientSettings,
-    constants::INPUT_MOUSE_SENSITIVITY_BASE,
+    constants::{CAMERA_MAX_PITCH, INPUT_MOUSE_SENSITIVITY_BASE},
     network::{ClientToServer, ClientToServerChannel},
     players::{LocalPlayerInfo, LocalPlayerMarker, MyPlayerId, PlayerMap},
     ui::{ConsoleState, SettingsMenuState},
 };
 
 #[derive(SystemParam)]
-pub struct CameraMovementInput<'w, 's> {
-    view: ResMut<'w, CameraViewMode>,
-    third: ResMut<'w, FollowCamera>,
+pub struct CameraMovementInput<'w> {
+    view: Res<'w, CameraViewMode>,
+    follow: Res<'w, FollowCamera>,
     state: Res<'w, CameraInputState>,
-    wheel: MessageReader<'w, 's, MouseWheel>,
     console: Res<'w, ConsoleState>,
     menu: Res<'w, SettingsMenuState>,
     mouse: Res<'w, ButtonInput<MouseButton>>,
@@ -34,26 +28,20 @@ pub struct CameraMovementInput<'w, 's> {
     portal_access: Res<'w, PortalAccess>,
 }
 
-impl CameraMovementInput<'_, '_> {
+impl CameraMovementInput<'_> {
     fn aiming_weapon(&self) -> bool {
         if self.state.suppress_fire {
             return false;
         }
         match *self.weapon {
             WeaponMode::None => false,
-            WeaponMode::Portal => match *self.portal_access {
-                PortalAccess::None => false,
-                PortalAccess::Single { .. } => self.mouse.pressed(MouseButton::Left),
-                PortalAccess::Both { .. } => {
-                    self.mouse.pressed(MouseButton::Left) || self.mouse.pressed(MouseButton::Right)
-                }
-            },
+            WeaponMode::Portal => [MouseButton::Left, MouseButton::Right].into_iter().any(|button| {
+                self.mouse.pressed(button) && portal_end_for_button(*self.portal_access, button).is_some()
+            }),
             _ => self.mouse.pressed(MouseButton::Left),
         }
     }
 }
-
-pub const MAX_PITCH: f32 = FRAC_PI_2 - 0.05;
 
 type LocalPlayerInputQuery<'w, 's> = Query<
     'w,
@@ -76,7 +64,7 @@ type LocalPlayerInputQuery<'w, 's> = Query<
 pub fn input_movement_system(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut mouse_motion: MessageReader<MouseMotion>,
-    mut camera_input: CameraMovementInput,
+    camera_input: CameraMovementInput,
     to_server: Res<ClientToServerChannel>,
     my_player_id: Res<MyPlayerId>,
     players: Res<PlayerMap>,
@@ -98,14 +86,6 @@ pub fn input_movement_system(
         return;
     }
 
-    let zoom: f32 = camera_input
-        .wheel
-        .read()
-        .map(|event| match event.unit {
-            MouseScrollUnit::Line => event.y,
-            MouseScrollUnit::Pixel => event.y / 40.0,
-        })
-        .sum();
     if camera_input.state.released || camera_input.console.open || camera_input.menu.open {
         // Drain mouse events and force idle intent locally; the commit
         // system will pick it up at the next tick boundary.
@@ -116,18 +96,11 @@ pub fn input_movement_system(
         return;
     }
 
-    let current_view = *camera_input.view;
-    let view_mode = camera_input.third.zoom(
-        current_view,
-        zoom,
-        client_settings.preferences.zoom_sensitivity,
-        client_settings.camera.follow,
-    );
-    camera_input.view.set_if_neq(view_mode);
-    let orbit = view_mode == CameraViewMode::ThirdPerson && !camera_input.third.locked;
-    let (current_yaw, _) = calculate_current_orientation(
+    let view_mode = *camera_input.view;
+    let orbit = view_mode == CameraViewMode::ThirdPerson && !camera_input.follow.locked;
+    let current_yaw = calculate_current_orientation(
         &mut mouse_motion,
-        &view_mode,
+        view_mode,
         &mut local_player_info,
         &mut top_down_camera_yaw,
         mouse_sensitivity,
@@ -156,47 +129,38 @@ pub fn input_movement_system(
     }
 }
 
+// Applies this frame's mouse motion to the active view's yaw (and pitch for
+// mouse look) and returns the resulting view yaw.
 fn calculate_current_orientation(
     mouse_motion: &mut MessageReader<MouseMotion>,
-    view_mode: &CameraViewMode,
+    view_mode: CameraViewMode,
     local_player_info: &mut LocalPlayerInfo,
     top_down_camera_yaw: &mut TopDownCameraYaw,
     mouse_sensitivity: f32,
     invert_y: bool,
-) -> (f32, f32) {
-    // Portal presentation tilt must not feed back into mouse orientation or movement.
-    let (mut current_yaw, mut current_pitch) = if !view_mode.is_top_down() {
-        (local_player_info.stored_yaw, local_player_info.stored_pitch)
-    } else {
-        (top_down_camera_yaw.0, 0.0)
-    };
-
-    for motion in mouse_motion.read() {
-        if !view_mode.is_top_down() {
-            current_yaw = motion.delta.x.mul_add(-mouse_sensitivity, current_yaw);
-            let pitch_step = if invert_y {
-                mouse_sensitivity
-            } else {
-                -mouse_sensitivity
-            };
-            current_pitch = motion.delta.y.mul_add(pitch_step, current_pitch);
-        } else {
+) -> f32 {
+    if view_mode.is_top_down() {
+        for motion in mouse_motion.read() {
             top_down_camera_yaw.0 = motion.delta.x.mul_add(-mouse_sensitivity, top_down_camera_yaw.0);
-            current_yaw = top_down_camera_yaw.0;
         }
+        return top_down_camera_yaw.0;
     }
 
-    if !view_mode.is_top_down() {
-        current_pitch = current_pitch.clamp(-MAX_PITCH, MAX_PITCH);
+    // The stored aim is the input, not the camera: portal presentation tilt
+    // must not feed back into mouse orientation or movement.
+    let pitch_step = if invert_y {
+        mouse_sensitivity
     } else {
-        current_pitch = 0.0;
+        -mouse_sensitivity
+    };
+    for motion in mouse_motion.read() {
+        local_player_info.stored_yaw = motion.delta.x.mul_add(-mouse_sensitivity, local_player_info.stored_yaw);
+        local_player_info.stored_pitch = motion.delta.y.mul_add(pitch_step, local_player_info.stored_pitch);
     }
-
-    if !view_mode.is_top_down() {
-        local_player_info.stored_yaw = current_yaw;
-        local_player_info.stored_pitch = current_pitch;
-    }
-    (current_yaw, current_pitch)
+    local_player_info.stored_pitch = local_player_info
+        .stored_pitch
+        .clamp(-CAMERA_MAX_PITCH, CAMERA_MAX_PITCH);
+    local_player_info.stored_yaw
 }
 
 fn calculate_move_intent(keyboard: &Res<ButtonInput<KeyCode>>, face_yaw: f32, stunned: bool) -> PlayerMoveIntent {
@@ -232,7 +196,7 @@ fn calculate_move_intent(keyboard: &Res<ButtonInput<KeyCode>>, face_yaw: f32, st
     }
 }
 
-fn local_player_stunned(my_player_id: common::protocol::PlayerId, players: &Res<PlayerMap>) -> bool {
+fn local_player_stunned(my_player_id: PlayerId, players: &PlayerMap) -> bool {
     players
         .get(&my_player_id)
         .is_some_and(|player_info| player_info.stunned)
@@ -269,350 +233,4 @@ fn movement_facing(intent: PlayerMoveIntent, locked_yaw: Option<f32>, previous: 
         PlayerMoveIntent::Walking { direction } | PlayerMoveIntent::Running { direction } => direction,
         PlayerMoveIntent::Idle => previous,
     })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use bevy::{
-        input::touch::TouchPhase,
-        window::{CursorGrabMode, CursorOptions},
-    };
-
-    fn input_app() -> (App, Entity, Entity) {
-        use crate::{
-            input::{input_camera_view_toggle_system, input_cursor_capture_system},
-            map::LevelFocusEnabled,
-        };
-        use common::protocol::{BarrierKindTable, MapLayout, PlayerId};
-        let source: serde_json::Value = serde_json::from_str(include_str!("../../../config/server/gameplay.json"))
-            .expect("server gameplay JSON is invalid");
-        let config: GameplayConfig = serde_json::from_value(serde_json::json!({
-            "player": source["player"], "actors": source["actors"]["kinds"],
-            "projectiles": source["weapons"]["projectiles"], "missiles": source["weapons"]["missiles"],
-            "portals": source["weapons"]["portals"],
-        }))
-        .expect("client gameplay config is invalid");
-        let settings: ClientSettings = serde_json::from_str(include_str!("../../../config/client/client.json"))
-            .expect("client settings JSON is invalid");
-        let (sender, _receiver) = tokio::sync::mpsc::unbounded_channel();
-        let mut app = App::new();
-        app.insert_resource(CameraViewMode::ThirdPerson)
-            .insert_resource(config)
-            .insert_resource(settings)
-            .insert_resource(ClientToServerChannel::new(sender))
-            .insert_resource(MyPlayerId(PlayerId(1)))
-            .insert_resource(crate::test_geometry::map_settings())
-            .insert_resource(CollisionWorld::from_map_layout(
-                &MapLayout::default(),
-                &BarrierKindTable::default(),
-            ))
-            .init_resource::<PlayerMap>()
-            .init_resource::<LocalPlayerInfo>()
-            .init_resource::<TopDownCameraYaw>()
-            .init_resource::<FollowCamera>()
-            .init_resource::<CameraInputState>()
-            .init_resource::<WeaponMode>()
-            .insert_resource(PortalAccess::None)
-            .init_resource::<ButtonInput<KeyCode>>()
-            .init_resource::<ButtonInput<MouseButton>>()
-            .init_resource::<ConsoleState>()
-            .init_resource::<SettingsMenuState>()
-            .init_resource::<LevelFocusEnabled>()
-            .add_message::<MouseMotion>()
-            .add_message::<MouseWheel>()
-            .add_systems(
-                Update,
-                (
-                    input_camera_view_toggle_system,
-                    input_cursor_capture_system,
-                    input_movement_system,
-                )
-                    .chain(),
-            );
-        let cursor = app.world_mut().spawn(CursorOptions::default()).id();
-        let player = app
-            .world_mut()
-            .spawn((
-                LocalPlayerMarker,
-                Position::default(),
-                FaceYaw(0.0),
-                PlayerMoveIntent::Idle,
-                CharacterVerticalVelocity(0.0),
-            ))
-            .id();
-        (app, player, cursor)
-    }
-
-    #[test]
-    fn unlocked_movement_orbit_lock_and_menu_use_independent_controls() {
-        let (mut app, player, cursor) = input_app();
-        assert!(app.world().resource::<FollowCamera>().locked);
-        app.world_mut().write_message(MouseMotion {
-            delta: Vec2::new(100.0, 0.0),
-        });
-        app.update();
-        let locked_face = app
-            .world()
-            .get::<FaceYaw>(player)
-            .expect("facing missing from test player")
-            .0;
-        assert!((locked_face - (PI - 0.2)).abs() < 1e-5);
-
-        app.world_mut()
-            .resource_mut::<ButtonInput<KeyCode>>()
-            .press(KeyCode::KeyF);
-        app.world_mut().write_message(MouseMotion {
-            delta: Vec2::new(100.0, 0.0),
-        });
-        app.update();
-        assert!(!app.world().resource::<FollowCamera>().locked);
-        assert!((app.world().resource::<LocalPlayerInfo>().stored_yaw + 0.4).abs() < 1e-5);
-        assert_eq!(
-            app.world()
-                .get::<FaceYaw>(player)
-                .expect("facing missing from test player")
-                .0,
-            locked_face
-        );
-        assert_eq!(
-            app.world()
-                .get::<CursorOptions>(cursor)
-                .expect("cursor options missing from test window")
-                .grab_mode,
-            CursorGrabMode::Locked
-        );
-
-        app.world_mut().resource_mut::<ButtonInput<KeyCode>>().clear();
-        app.world_mut()
-            .resource_mut::<ButtonInput<KeyCode>>()
-            .press(KeyCode::KeyD);
-        app.update();
-        let direction = match *app
-            .world()
-            .get::<PlayerMoveIntent>(player)
-            .expect("movement intent missing from test player")
-        {
-            PlayerMoveIntent::Walking { direction } => direction,
-            _ => panic!("unlocked camera blocked walking"),
-        };
-        assert_eq!(
-            app.world()
-                .get::<FaceYaw>(player)
-                .expect("facing missing from test player")
-                .0,
-            direction
-        );
-
-        app.world_mut()
-            .resource_mut::<ButtonInput<KeyCode>>()
-            .release(KeyCode::KeyF);
-        app.world_mut()
-            .resource_mut::<ButtonInput<KeyCode>>()
-            .press(KeyCode::KeyF);
-        app.update();
-        assert!(app.world().resource::<FollowCamera>().locked);
-        assert!(
-            (app.world()
-                .get::<FaceYaw>(player)
-                .expect("facing missing from test player")
-                .0
-                - (PI - 0.4))
-                .abs()
-                < 1e-5
-        );
-
-        app.world_mut().resource_mut::<ButtonInput<KeyCode>>().clear();
-        for modifier in [
-            KeyCode::ControlLeft,
-            KeyCode::ControlRight,
-            KeyCode::SuperLeft,
-            KeyCode::SuperRight,
-        ] {
-            app.world_mut()
-                .resource_mut::<ButtonInput<KeyCode>>()
-                .release(KeyCode::KeyF);
-            app.world_mut().resource_mut::<ButtonInput<KeyCode>>().press(modifier);
-            app.world_mut()
-                .resource_mut::<ButtonInput<KeyCode>>()
-                .press(KeyCode::KeyF);
-            app.update();
-            assert!(
-                app.world().resource::<FollowCamera>().locked,
-                "fullscreen shortcut toggled camera lock"
-            );
-            app.world_mut().resource_mut::<ButtonInput<KeyCode>>().release(modifier);
-            app.world_mut().resource_mut::<ButtonInput<KeyCode>>().clear();
-        }
-        app.world_mut().resource_mut::<SettingsMenuState>().open = true;
-        app.world_mut().write_message(MouseMotion {
-            delta: Vec2::new(100.0, 0.0),
-        });
-        app.update();
-        assert!((app.world().resource::<LocalPlayerInfo>().stored_yaw + 0.4).abs() < 1e-5);
-        assert_eq!(
-            *app.world()
-                .get::<PlayerMoveIntent>(player)
-                .expect("movement intent missing from test player"),
-            PlayerMoveIntent::Idle
-        );
-        assert_eq!(
-            app.world()
-                .get::<CursorOptions>(cursor)
-                .expect("cursor options missing from test window")
-                .grab_mode,
-            CursorGrabMode::None
-        );
-    }
-
-    #[test]
-    fn unlocked_firing_faces_view_without_changing_movement_or_lock_and_commits_facing() {
-        use crate::input::commit_player_input_system;
-        use common::protocol::PortalPairId;
-
-        for (weapon, button, access) in [
-            (WeaponMode::Projectile, MouseButton::Left, PortalAccess::None),
-            (WeaponMode::MultiShot(0), MouseButton::Left, PortalAccess::None),
-            (WeaponMode::Missile, MouseButton::Left, PortalAccess::None),
-            (
-                WeaponMode::Portal,
-                MouseButton::Left,
-                PortalAccess::Both { pair: PortalPairId(1) },
-            ),
-            (
-                WeaponMode::Portal,
-                MouseButton::Right,
-                PortalAccess::Both { pair: PortalPairId(1) },
-            ),
-        ] {
-            let (mut app, player, _) = input_app();
-            let (sender, mut receiver) = tokio::sync::mpsc::unbounded_channel();
-            app.insert_resource(ClientToServerChannel::new(sender))
-                .insert_resource(weapon)
-                .insert_resource(access)
-                .add_systems(Update, commit_player_input_system.after(input_movement_system));
-            app.world_mut().resource_mut::<FollowCamera>().locked = false;
-            app.world_mut()
-                .resource_mut::<ButtonInput<KeyCode>>()
-                .press(KeyCode::KeyD);
-            app.update();
-            let movement = *app
-                .world()
-                .get::<PlayerMoveIntent>(player)
-                .expect("player intent missing");
-            let walking_yaw = app.world().get::<FaceYaw>(player).expect("player facing missing").0;
-            app.world_mut().resource_mut::<ButtonInput<MouseButton>>().press(button);
-            for _ in 0..3 {
-                app.update();
-                let face = app.world().get::<FaceYaw>(player).expect("player facing missing").0;
-                assert!((face - PI).abs() < 1e-5);
-                assert_ne!(face, walking_yaw);
-                assert_eq!(
-                    *app.world()
-                        .get::<PlayerMoveIntent>(player)
-                        .expect("player intent missing"),
-                    movement
-                );
-                assert!(!app.world().resource::<FollowCamera>().locked);
-                assert_eq!(app.world().resource::<LocalPlayerInfo>().stored_yaw, 0.0);
-            }
-            let mut committed_yaw = None;
-            while let Ok(ClientToServer::Send(message)) = receiver.try_recv() {
-                if let ClientMessage::Move(message) = message {
-                    committed_yaw = Some(message.input.face_yaw);
-                }
-            }
-            assert_eq!(committed_yaw, Some(PI));
-            app.world_mut()
-                .resource_mut::<ButtonInput<MouseButton>>()
-                .release(button);
-            app.update();
-            assert_eq!(
-                app.world().get::<FaceYaw>(player).expect("player facing missing").0,
-                walking_yaw
-            );
-        }
-    }
-
-    #[test]
-    fn unlocked_idle_retains_shot_facing_but_empty_hands_and_menus_do_not_turn() {
-        let (mut app, player, _) = input_app();
-        app.world_mut().resource_mut::<FollowCamera>().locked = false;
-        app.world_mut()
-            .resource_mut::<ButtonInput<MouseButton>>()
-            .press(MouseButton::Left);
-        app.update();
-        assert_eq!(
-            app.world().get::<FaceYaw>(player).expect("player facing missing").0,
-            0.0
-        );
-        app.insert_resource(WeaponMode::Projectile);
-        app.world_mut().resource_mut::<SettingsMenuState>().open = true;
-        app.update();
-        assert_eq!(
-            app.world().get::<FaceYaw>(player).expect("player facing missing").0,
-            0.0
-        );
-        app.world_mut().resource_mut::<SettingsMenuState>().open = false;
-        app.update();
-        assert_eq!(app.world().get::<FaceYaw>(player).expect("player facing missing").0, PI);
-        app.world_mut()
-            .resource_mut::<ButtonInput<MouseButton>>()
-            .release(MouseButton::Left);
-        app.world_mut().write_message(MouseMotion {
-            delta: Vec2::new(100.0, 0.0),
-        });
-        app.update();
-        assert_eq!(app.world().get::<FaceYaw>(player).expect("player facing missing").0, PI);
-        assert!(app.world().resource::<LocalPlayerInfo>().stored_yaw.abs() > 0.0);
-    }
-
-    #[test]
-    fn wheel_switches_follow_views_and_menu_scroll_does_not_zoom() {
-        use crate::constants::INPUT_ZOOM_SENSITIVITY_BASE;
-        let (mut app, _, window) = input_app();
-        let follow = app.world().resource::<ClientSettings>().camera.follow;
-        let zoom_step = (follow.first_person_distance + follow.max_distance) * 0.5;
-        *app.world_mut().resource_mut::<CameraViewMode>() = CameraViewMode::FirstPerson;
-        app.world_mut()
-            .resource_mut::<ClientSettings>()
-            .preferences
-            .zoom_sensitivity = zoom_step / INPUT_ZOOM_SENSITIVITY_BASE;
-        app.world_mut().write_message(MouseWheel {
-            phase: TouchPhase::Moved,
-            unit: MouseScrollUnit::Line,
-            x: 0.0,
-            y: -1.0,
-            window,
-        });
-        app.update();
-        assert_eq!(*app.world().resource::<CameraViewMode>(), CameraViewMode::ThirdPerson);
-        assert_eq!(app.world().resource::<FollowCamera>().distance, zoom_step);
-
-        app.world_mut().resource_mut::<FollowCamera>().locked = false;
-        app.world_mut().write_message(MouseWheel {
-            phase: TouchPhase::Moved,
-            unit: MouseScrollUnit::Pixel,
-            x: 0.0,
-            y: 40.0,
-            window,
-        });
-        app.update();
-        assert_eq!(*app.world().resource::<CameraViewMode>(), CameraViewMode::FirstPerson);
-        assert!(app.world().resource::<FollowCamera>().locked);
-
-        app.world_mut().resource_mut::<SettingsMenuState>().open = true;
-        app.world_mut().write_message(MouseWheel {
-            phase: TouchPhase::Moved,
-            unit: MouseScrollUnit::Line,
-            x: 0.0,
-            y: -4.0,
-            window,
-        });
-        app.update();
-        app.world_mut().resource_mut::<SettingsMenuState>().open = false;
-        app.update();
-        assert_eq!(*app.world().resource::<CameraViewMode>(), CameraViewMode::FirstPerson);
-        assert_eq!(app.world().resource::<FollowCamera>().distance, 0.0);
-    }
 }

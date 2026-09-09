@@ -1,8 +1,9 @@
 use bevy::prelude::*;
 
+use super::BumpFeedbackState;
 use super::animation::{PlayerAnimationMotion, PlayerModel, player_animation_setup_system};
-use super::{BumpFeedbackState, LocalPlayerLabelMarker};
 use crate::{
+    cameras::LocalPlayerLabelMarker,
     characters::{PreviousTickPosition, load_character_model, model_transform, spawn_character_bounds},
     config::{AssetSet, ClientSettings},
     constants::{
@@ -15,7 +16,7 @@ use crate::{
 use common::{
     config::GameplayConfig,
     physics::{AirborneMomentum, CharacterVerticalVelocity},
-    protocol::*,
+    protocol::{FaceYaw, Health, Player, PlayerId, PlayerMarker, PlayerMoveIntent, Position},
 };
 
 // Marks the local-player entity (the player you control). Spawned by
@@ -23,6 +24,24 @@ use common::{
 // and effect systems that should only act on the local player.
 #[derive(Component)]
 pub struct LocalPlayerMarker;
+
+// Where a player's eye sits above its feet-based position.
+#[must_use]
+pub fn eye_position(feet: Position, eye_height: f32) -> Vec3 {
+    Vec3::new(feet.x, feet.y + eye_height, feet.z)
+}
+
+// The asset stores and tuning a player spawn draws on.
+pub struct PlayerSpawnContext<'a> {
+    pub asset_server: &'a AssetServer,
+    pub meshes: &'a mut Assets<Mesh>,
+    pub materials: &'a mut Assets<StandardMaterial>,
+    pub images: &'a mut Assets<Image>,
+    pub asset_set: &'a AssetSet,
+    pub client_settings: &'a ClientSettings,
+    pub gameplay_config: &'a GameplayConfig,
+    pub max_health: f32,
+}
 
 // ============================================================================
 // Bundles
@@ -48,39 +67,40 @@ struct PlayerBundle {
 // Spawn a player model plus cosmetic children, returning the new entity id.
 pub fn spawn_player(
     commands: &mut Commands,
-    asset_server: &AssetServer,
-    meshes: &mut Assets<Mesh>,
-    materials: &mut Assets<StandardMaterial>,
-    images: &mut Assets<Image>,
-    asset_set: &AssetSet,
-    client_settings: &ClientSettings,
-    gameplay_config: &GameplayConfig,
-    max_health: f32,
-    player_id: u32,
-    player_name: &str,
-    position: &Position,
-    move_intent: PlayerMoveIntent,
-    health: Health,
-    face_yaw: f32,
+    context: PlayerSpawnContext,
+    id: PlayerId,
+    player: &Player,
     is_local: bool,
 ) -> Entity {
+    let PlayerSpawnContext {
+        asset_server,
+        meshes,
+        materials,
+        images,
+        asset_set,
+        client_settings,
+        gameplay_config,
+        max_health,
+    } = context;
+    let position = player.movement.pos;
+    let face_yaw = player.movement.face_yaw;
     let player_model = asset_set.player_model();
     let player_physics = gameplay_config.player.physics();
     let entity = commands
         .spawn((
             PlayerBundle {
-                player_id: PlayerId(player_id),
+                player_id: id,
                 player_marker: PlayerMarker,
-                position: *position,
-                move_intent,
-                motion: CharacterVerticalVelocity::default(),
-                health,
+                position,
+                move_intent: player.movement.move_intent,
+                motion: CharacterVerticalVelocity(player.movement.vertical_velocity),
+                health: player.health,
                 face_direction: FaceYaw(face_yaw),
                 transform: Transform::from_xyz(position.x, position.y, position.z)
                     .with_rotation(Quat::from_rotation_y(face_yaw)),
                 visibility: Visibility::Visible,
             },
-            PreviousTickPosition(*position),
+            PreviousTickPosition(position),
             AirborneMomentum::default(),
             PlayerAnimationMotion::default(),
         ))
@@ -116,7 +136,15 @@ pub fn spawn_player(
     let bar_height = bar_width * health_bars.player_aspect;
     let bar_y = player_physics.hitbox.top_y_offset() + height_above + bar_height / 2.0;
     let bar_entity = spawn_floating_health_bar(
-        commands, meshes, materials, entity, bar_width, bar_height, bar_y, max_health, health.0,
+        commands,
+        meshes,
+        materials,
+        entity,
+        bar_width,
+        bar_height,
+        bar_y,
+        max_health,
+        player.health.0,
     );
     if is_local {
         commands
@@ -138,7 +166,7 @@ pub fn spawn_player(
         commands,
         meshes,
         materials,
-        player_name,
+        &player.name,
         image_handle,
         text_camera,
         name_bottom_y,

@@ -3,12 +3,12 @@ use bevy::prelude::*;
 use crate::{
     cameras::MainCameraMarker,
     characters::PreviousTickPosition,
-    players::{LocalPlayerInfo, MyPlayerId, PlayerMap},
+    players::{LocalPlayerInfo, MyPlayerId, PlayerMap, eye_position},
     portals::apply_portal_view,
 };
 use common::{
     config::GameplayConfig,
-    physics::{AirborneMomentum, CharacterVerticalVelocity, KnockbackVelocity, PortalSet},
+    physics::{AirborneMomentum, CharacterVerticalVelocity, KnockbackVelocity, PlayerHopBody, PortalSet},
     protocol::{FaceYaw, MapSettings, PlayerId, PlayerMarker, PlayerMoveIntent, Position, PowerUpKind, ServerTick},
 };
 
@@ -58,13 +58,15 @@ pub fn portal_transit_system(
             Vec3::from(*pos),
             &gameplay_config,
             &map_settings.movement,
-            *move_intent,
-            has_speed,
-            stunned,
-            knockback.as_deref(),
-            momentum.as_deref(),
-            vertical_velocity.0,
-            face_yaw.0,
+            PlayerHopBody {
+                move_intent: *move_intent,
+                has_speed,
+                stunned,
+                knockback: knockback.as_deref(),
+                airborne_momentum: momentum.as_deref(),
+                vertical_velocity: vertical_velocity.0,
+                yaw: face_yaw.0,
+            },
         ) else {
             continue;
         };
@@ -83,7 +85,7 @@ pub fn portal_transit_system(
                 &mut commands,
                 cameras.single().ok(),
                 &mut local_player_info,
-                Vec3::new(pos.x, pos.y + gameplay_config.player.eye_height(), pos.z),
+                eye_position(*pos, gameplay_config.player.eye_height()),
                 &hop.entry,
                 &hop.exit,
                 hop.yaw,

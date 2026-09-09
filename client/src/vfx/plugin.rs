@@ -35,7 +35,7 @@ pub fn presentation_plugin(app: &mut App) {
             beam_ghost_fade_system,
             beam_ghost_sparkle_system.after(beam_ghost_fade_system),
             particle_clouds_system.after(beam_ghost_sparkle_system),
-            super::laser_sync::laser_beams_sync_system,
+            laser_beams_sync_system,
             firework_system,
             portal_fizzle_system,
             items_animation_system,

@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use super::{
     cuboid_mesh::{tiled_cuboid, tiled_floor_surface_meshes},
-    geometry_batch::{MapGeometryBatch, MapGeometryKind},
+    geometry_batch::{MapGeometryBatch, MapGeometryKind, SegmentTarget},
 };
 use crate::{carriers::CarrierStoreys, config::AssetSet};
 use common::protocol::{FaceMaterials, *};
@@ -21,7 +21,6 @@ pub fn batch_floor(
     floor: &Floor,
     material_ids: &FaceMaterials,
 ) {
-    batcher.begin_segment();
     let level = storeys.tag(floor.carrier, floor.level, 0);
     let center_x = f32::midpoint(floor.x1, floor.x2);
     let center_z = f32::midpoint(floor.z1, floor.z2);
@@ -35,6 +34,11 @@ pub fn batch_floor(
     } else {
         MapGeometryKind::Roof
     };
+    batcher.begin_segment(SegmentTarget {
+        kind,
+        carrier: floor.carrier,
+        level,
+    });
 
     if material_ids.is_uniform() {
         let material_def = asset_set.material_by_id(material_ids.primary());
@@ -46,7 +50,7 @@ pub fn batch_floor(
             carrier_center,
             Quat::IDENTITY,
         );
-        batcher.add_mesh(kind, floor.carrier, level, material_ids.primary(), &mesh, transform);
+        batcher.add_mesh(material_ids.primary(), &mesh, transform);
         return;
     }
 
@@ -69,52 +73,10 @@ pub fn batch_floor(
         bottom_material_def.tile_size(),
     );
 
-    batcher.add_mesh(
-        kind,
-        floor.carrier,
-        level,
-        &material_ids.north,
-        &surface_meshes.north,
-        transform,
-    );
-    batcher.add_mesh(
-        kind,
-        floor.carrier,
-        level,
-        &material_ids.south,
-        &surface_meshes.south,
-        transform,
-    );
-    batcher.add_mesh(
-        kind,
-        floor.carrier,
-        level,
-        &material_ids.east,
-        &surface_meshes.east,
-        transform,
-    );
-    batcher.add_mesh(
-        kind,
-        floor.carrier,
-        level,
-        &material_ids.west,
-        &surface_meshes.west,
-        transform,
-    );
-    batcher.add_mesh(
-        kind,
-        floor.carrier,
-        level,
-        &material_ids.top,
-        &surface_meshes.up,
-        transform,
-    );
-    batcher.add_mesh(
-        kind,
-        floor.carrier,
-        level,
-        &material_ids.bottom,
-        &surface_meshes.down,
-        transform,
-    );
+    batcher.add_mesh(&material_ids.north, &surface_meshes.north, transform);
+    batcher.add_mesh(&material_ids.south, &surface_meshes.south, transform);
+    batcher.add_mesh(&material_ids.east, &surface_meshes.east, transform);
+    batcher.add_mesh(&material_ids.west, &surface_meshes.west, transform);
+    batcher.add_mesh(&material_ids.top, &surface_meshes.up, transform);
+    batcher.add_mesh(&material_ids.bottom, &surface_meshes.down, transform);
 }

@@ -23,7 +23,7 @@ pub struct PlayerInfo {
     // Sorted ascending so HUD icon order is stable and the change-detection
     // diff is a single equality test.
     pub held_keys: Vec<BarrierKindId>,
-    // Missile ammo, mirrored from the snapshot (`SMissilesCollected` and the
+    // Missile ammo, mirrored from the snapshot (`SPlayerStatus` and the
     // local fire prediction update it early; the snapshot self-heals).
     pub missiles: u32,
     // Recon snap-threshold high-water-mark; updated each tick in

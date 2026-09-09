@@ -5,8 +5,8 @@ use common::{
     config::{CharacterPhysicsConfig, GameplayConfig},
     map::Carriers,
     physics::{
-        CharacterEnvironment, CharacterMovePlan, CharacterStep, CharacterVerticalVelocity, CollisionWorld, LadderMode,
-        blocking_character_move_plan, character_move_plan_is_blocked, grounding_diagnostics, step_character_movement,
+        ActorMovementStep, CharacterMovePlan, CharacterVerticalVelocity, CollisionWorld, blocking_character_move_plan,
+        character_move_plan_is_blocked, grounding_diagnostics, step_actor_movement,
     },
     protocol::{ActorId, ActorMarker, ActorMoveIntent, MapSettings, PlateState, PlayerMarker, Position},
 };
@@ -36,11 +36,7 @@ pub(crate) fn actor_start_positions(
         .iter()
         .filter_map(|(entity, actor_id, pos, _, _, _)| {
             let info = actors.get(actor_id)?;
-            let physics = gameplay_config
-                .actor(&info.kind)
-                .expect("actor kind sent by server is missing from gameplay config")
-                .physics();
-            Some((entity, *pos, physics))
+            Some((entity, *pos, gameplay_config.expect_actor(&info.kind).physics()))
         })
         .collect()
 }
@@ -62,10 +58,8 @@ pub(crate) fn plan_actor_moves(
         let Some(info) = actors.get(actor_id) else {
             continue;
         };
-        let actor_physics = gameplay_config
-            .actor(&info.kind)
-            .expect("actor kind sent by server is missing from gameplay config")
-            .physics();
+        let actor_config = gameplay_config.expect_actor(&info.kind);
+        let actor_physics = actor_config.physics();
         if let Some(anchor) = info.anchor {
             let origin = anchor.world_position(carriers);
             commands.entity(entity).insert(grounding_diagnostics(
@@ -78,14 +72,13 @@ pub(crate) fn plan_actor_moves(
             planned_moves.push(CharacterMovePlan::from_target(
                 entity,
                 *pos,
-                anchor.world_position(carriers),
+                origin,
                 0.0,
                 actor_physics,
                 false,
             ));
             continue;
         }
-        let control_velocity = move_intent.to_horizontal_velocity();
         let correction_displacement = match recon_option.as_mut() {
             Some(recon) => match reconcile_actor(
                 commands,
@@ -110,28 +103,19 @@ pub(crate) fn plan_actor_moves(
             None => Vec3::ZERO,
         };
 
-        let step = step_character_movement(
-            CharacterStep {
-                start: *pos,
-                vertical_velocity: motion.0,
-                control_velocity,
-                external_displacement: correction_displacement,
-                delta,
-            },
-            &CharacterEnvironment {
-                ladder_mode: LadderMode::for_actor(
-                    gameplay_config.expect_actor(&info.kind).can_use_ladders,
-                    *move_intent,
-                ),
-                collision_world,
-                gravity: map_settings.movement.gravity,
-                passable_kinds: &plates.open_barrier_kinds,
-                physics: actor_physics,
-                ladder_climb_ratio: map_settings.movement.ladder_climb_ratio,
-                portals: None,
-                carriers,
-            },
-        );
+        let step = step_actor_movement(ActorMovementStep {
+            start: *pos,
+            vertical_velocity: motion.0,
+            intent: *move_intent,
+            external_displacement: correction_displacement,
+            delta,
+            can_use_ladders: actor_config.can_use_ladders,
+            physics: actor_physics,
+            open_kinds: &plates.open_barrier_kinds,
+            collision_world,
+            map_settings,
+            carriers,
+        });
         commands.entity(entity).insert((step.grounding, step.support));
         push_actor_planned_move(
             planned_moves,

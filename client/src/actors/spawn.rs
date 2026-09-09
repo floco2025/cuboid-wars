@@ -35,10 +35,7 @@ pub fn spawn_actor(
     actor: &Actor,
 ) -> Entity {
     let actor_model = asset_set.actor_model(&actor.kind);
-    let actor_config = gameplay_config
-        .actor(&actor.kind)
-        .expect("actor kind sent by server is missing from gameplay config");
-    let actor_physics = actor_config.physics();
+    let actor_physics = gameplay_config.expect_actor(&actor.kind).physics();
     let entity = commands
         .spawn((
             actor_id,
@@ -93,9 +90,6 @@ pub fn spawn_actor(
 
     children.push(model_commands.id());
 
-    // Floating health bar: plain billboarded geometry parented to the actor
-    // (track + fill quads), not a render-target camera — see
-    // `spawn_floating_health_bar`. It despawns with the actor.
     let health_bars = client_settings.hud.health_bars;
     let bar_width = LABEL_ACTOR_MESH_WIDTH;
     let bar_height = bar_width * health_bars.actor_aspect;
@@ -123,11 +117,7 @@ pub fn spawn_actor(
 // an existing ghost on every snapshot, since `/spawn` moves the due tick.
 #[must_use]
 pub fn beam_in_ghost_state(gameplay_config: &GameplayConfig, spawning: &SpawningActor) -> BeamInGhost {
-    let collider = gameplay_config
-        .actor(&spawning.kind)
-        .expect("actor kind sent by server is missing from gameplay config")
-        .physics()
-        .hitbox;
+    let collider = gameplay_config.expect_actor(&spawning.kind).physics().hitbox;
     BeamInGhost {
         reserved_tick: spawning.reserved_tick,
         due_tick: spawning.due_tick,
@@ -150,6 +140,8 @@ pub fn spawn_actor_ghost(
     spawning: &SpawningActor,
 ) -> Entity {
     let actor_model = asset_set.actor_model(&spawning.kind);
+    let ghost = beam_in_ghost_state(gameplay_config, spawning);
+    let center_height = ghost.center_height;
 
     let entity = commands
         .spawn((
@@ -157,22 +149,14 @@ pub fn spawn_actor_ghost(
             Transform::from_xyz(spawning.pos.x, spawning.pos.y, spawning.pos.z)
                 .with_rotation(Quat::from_rotation_y(spawning.face_yaw)),
             Visibility::Visible,
-            beam_in_ghost_state(gameplay_config, spawning),
+            ghost,
             BeamEmitter::default(),
         ))
         .id();
 
     commands.spawn((
         ChildOf(entity),
-        Transform::from_xyz(
-            0.0,
-            gameplay_config
-                .expect_actor(&spawning.kind)
-                .physics()
-                .hitbox
-                .center_y_offset(),
-            0.0,
-        ),
+        Transform::from_xyz(0.0, center_height, 0.0),
         PointLight {
             color: BEAM_IN_COLOR,
             // Starts dark; the fade system ramps it with the window.

@@ -8,6 +8,7 @@ pub mod carriers;
 pub mod characters;
 pub mod config;
 pub mod constants;
+pub mod fields;
 pub mod input;
 pub mod items;
 pub mod map;
@@ -21,6 +22,6 @@ pub mod schedule;
 #[cfg(test)]
 pub(crate) mod test_assets;
 #[cfg(test)]
-pub(crate) mod test_geometry;
+pub(crate) mod test_fixtures;
 pub mod ui;
 pub mod vfx;

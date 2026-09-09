@@ -2,6 +2,7 @@ use bevy::{
     color::Color,
     math::{UVec2, Vec3},
 };
+use std::f32::consts::FRAC_PI_2;
 
 // ============================================================================
 // Window
@@ -27,6 +28,8 @@ pub const INPUT_MOUSE_SENSITIVITY_BASE: f32 = 0.002;
 pub const INPUT_MOUSE_SENSITIVITY_DEFAULT: f32 = 1.0;
 pub const INPUT_ZOOM_SENSITIVITY_BASE: f32 = 0.1;
 pub const INPUT_ZOOM_SENSITIVITY_DEFAULT: f32 = 1.0;
+// Pixel-unit wheel events (trackpads) count this many pixels as one line.
+pub const INPUT_ZOOM_PIXELS_PER_LINE: f32 = 40.0;
 pub const INPUT_INVERT_Y_DEFAULT: bool = false;
 
 // ============================================================================
@@ -36,6 +39,8 @@ pub const INPUT_INVERT_Y_DEFAULT: bool = false;
 pub const CAMERA_FOV_DEGREES_DEFAULT: f32 = 90.0;
 pub const CAMERA_SHAKE_SCALE_DEFAULT: f32 = 1.0;
 pub const CAMERA_REARVIEW_MIRROR_DEFAULT: bool = true;
+// Mouse-look pitch limit (rad), just short of straight up/down.
+pub const CAMERA_MAX_PITCH: f32 = FRAC_PI_2 - 0.05;
 
 // ============================================================================
 // Audio
@@ -65,6 +70,9 @@ pub const PING_INTERVAL: f32 = 1.0;
 // Correction-window length scales with RTT so smoothing stays proportional
 // to typical drift size.
 pub const RECON_CORRECTION_TIME_RTT_MULTIPLIER: f32 = 4.0;
+// Shortest correction window: a LAN round trip would otherwise close every
+// gap within a tick or two.
+pub const RECON_CORRECTION_MIN_SECS: f32 = 0.25;
 
 // --- Player only ---
 
@@ -90,6 +98,10 @@ pub const RECON_PLAYER_IDLE_CORRECTION_SECS: f32 = 8.0;
 // commit; a third of a second covers both. Latency shifts the evidence and
 // the copy together, so the slack does not have to cover it.
 pub const RECON_PLAYER_HOP_DISPUTE_SLACK_TICKS: u32 = 10;
+
+// Consecutive own echoes that must all report a same-sign clock error before
+// the client's tick shifts (`TickSync`), so delivery jitter never flaps it.
+pub const TICK_SYNC_WINDOW_TICKS: usize = 15;
 
 // --- Actor only ---
 
@@ -123,6 +135,17 @@ pub const PLAYER_ANIMATION_LANDING_MIN_AIR_SECS: f32 = 0.1;
 pub const PLAYER_ANIMATION_STRAFE_RATIO: f32 = 1.2;
 
 pub const WHEEL_ANIMATION_STANDSTILL_SPEED: f32 = 0.05;
+
+// ============================================================================
+// Character Inspection (the B-cycled bounds views)
+// ============================================================================
+
+pub const BOUNDS_CAPSULE_COLOR: Color = Color::srgba(0.1, 0.8, 1.0, 0.18);
+pub const BOUNDS_HITBOX_COLOR: Color = Color::srgba(1.0, 0.2, 0.2, 0.18);
+// Probe line, contact marker, and support label per `CharacterSupport`.
+pub const BOUNDS_GROUNDED_COLOR: Color = Color::srgb(0.1, 1.0, 0.3);
+pub const BOUNDS_AIRBORNE_COLOR: Color = Color::srgb(1.0, 0.6, 0.1);
+pub const BOUNDS_LADDER_COLOR: Color = Color::srgb(0.1, 0.8, 1.0);
 
 // ============================================================================
 // Floating Labels (layout math; sizes live in `client.json::hud`)
@@ -230,7 +253,16 @@ pub const CONSOLE_TEXT_COLOR: Color = Color::srgba(1.0, 0.85, 0.4, 1.0);
 // ============================================================================
 
 pub const ITEM_SIZE: f32 = 0.3;
+// Extruded silhouette pickups (shots, potion, speed, low gravity).
+pub const ITEM_SYMBOL_SIZE: f32 = ITEM_SIZE * 1.5;
+pub const ITEM_SYMBOL_DEPTH: f32 = ITEM_SIZE * 0.24;
 pub const ITEM_COIN_RADIUS: f32 = 0.15;
+// Gold coin surfaces: the rim and stars in relief, and the flat faces.
+pub const ITEM_COIN_RELIEF_METALLIC: f32 = 0.8;
+pub const ITEM_COIN_RELIEF_ROUGHNESS: f32 = 0.28;
+pub const ITEM_COIN_FACE_COLOR: Color = Color::srgb(0.78, 0.48, 0.06);
+pub const ITEM_COIN_FACE_METALLIC: f32 = 0.7;
+pub const ITEM_COIN_FACE_ROUGHNESS: f32 = 0.4;
 pub const ITEM_KEY_SIZE: f32 = 0.8;
 pub const ITEM_KEY_DEPTH: f32 = 0.1;
 pub const ITEM_HEIGHT_ABOVE_FLOOR: f32 = 1.25;
@@ -277,8 +309,27 @@ pub const MISSILE_EXHAUST_BASE_COLOR: Vec3 = Vec3::new(1.0, 0.4, 0.088);
 pub const PORTAL_A_COLOR: Color = Color::srgb(0.20, 0.55, 1.00); // blue — end A (left click)
 pub const PORTAL_B_COLOR: Color = Color::srgb(1.00, 0.55, 0.10); // orange — end B (right click)
 pub const PORTAL_EMISSIVE: f32 = 8.0;
+// Fizzle on a rejected shot: a collapsing ring, a brief flash, and sparks.
 pub const PORTAL_FIZZLE_LIFETIME: f32 = 0.55;
+// Ring and flash semi-axes as fractions of the aperture's.
+pub const PORTAL_FIZZLE_RING_APERTURE_FRACTION: f32 = 0.45;
+pub const PORTAL_FIZZLE_RING_INNER_RADIUS: f32 = 0.84;
+// The ring pops from this scale to full over the first fraction of its
+// life, then collapses.
+pub const PORTAL_FIZZLE_RING_START_SCALE: f32 = 0.3;
+pub const PORTAL_FIZZLE_RING_GROW_FRACTION: f32 = 0.15;
+pub const PORTAL_FIZZLE_FLASH_APERTURE_FRACTION: f32 = 0.32;
+pub const PORTAL_FIZZLE_FLASH_LIFETIME: f32 = 0.12;
+pub const PORTAL_FIZZLE_SPARK_COUNT: usize = 12;
 pub const PORTAL_FIZZLE_SPARK_SIZE: f32 = 0.018;
+pub const PORTAL_FIZZLE_SPARK_START_RADIUS: f32 = 0.07;
+// Radial speed steps up every third spark; every spark also lifts off the surface.
+pub const PORTAL_FIZZLE_SPARK_RADIAL_SPEED: f32 = 0.7;
+pub const PORTAL_FIZZLE_SPARK_RADIAL_SPEED_STEP: f32 = 0.1;
+pub const PORTAL_FIZZLE_SPARK_LIFT_SPEED: f32 = 0.5;
+// Spark lifetimes as fractions of the ring's: the base plus a step per spark.
+pub const PORTAL_FIZZLE_SPARK_LIFETIME_FRACTION: f32 = 0.65;
+pub const PORTAL_FIZZLE_SPARK_LIFETIME_STEP: f32 = 0.03;
 // Portal-style exit reorientation: the camera is seeded with the fully
 // mapped (possibly tilted) view and blended back to the upright aim over
 // this window.
@@ -483,11 +534,18 @@ pub const DEATH_OVERLAY_FADE_SECS: f32 = 0.8;
 
 pub const LASER_BEAM_RADIUS: f32 = 0.008;
 pub const LASER_EMISSIVE: f32 = 40.0;
-// Endpoint wander as fractions of the target collider's width/height, and
+// Endpoint wander as fractions of the target hitbox's width/height, and
 // where on the target's height the beam aims.
 pub const LASER_ENDPOINT_WANDER_WIDTH_FRACTION: f32 = 0.4;
 pub const LASER_ENDPOINT_WANDER_HEIGHT_FRACTION: f32 = 0.2;
 pub const LASER_AIM_HEIGHT_FRACTION: f32 = 0.8;
+
+// ============================================================================
+// Equipment Erasers
+// ============================================================================
+
+// Pane and frame colour; opacity and emission are `client.json::vfx.erasers`.
+pub const ERASER_COLOR: Color = Color::srgb(0.7, 0.4, 1.0);
 
 // ============================================================================
 // Map Rendering

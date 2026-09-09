@@ -1,14 +1,14 @@
 use bevy::prelude::*;
 
 use super::{
+    CameraViewMode, FollowCamera, MainCameraMarker, TopDownCameraYaw,
     third_person::third_person_transform,
     top_down::{topdown_camera_transform, window_aspect_ratio},
 };
 use crate::{
-    cameras::{CameraViewMode, FollowCamera, MainCameraMarker, TopDownCameraYaw},
     characters::PreviousTickPosition,
     config::ClientSettings,
-    players::{CameraShake, LocalPlayerInfo, LocalPlayerMarker},
+    players::{CameraShake, LocalPlayerInfo, LocalPlayerMarker, eye_position},
 };
 use common::{
     config::GameplayConfig,
@@ -78,7 +78,7 @@ pub fn local_player_camera_sync_system(
         return;
     }
 
-    let mut config = client_settings.camera.follow;
+    let config = client_settings.camera.follow;
     let eye_height = gameplay_config.player.eye_height();
     let rotation = Quat::from_euler(
         EulerRot::YXZ,
@@ -87,18 +87,12 @@ pub fn local_player_camera_sync_system(
         0.0,
     );
     if third.distance > config.first_person_distance {
-        let blend = third.pivot_blend();
-        let height = eye_height + (config.pivot_height - eye_height) * blend;
-        config.shoulder_offset *= blend;
-        let pivot = Vec3::new(player_pos.x, player_pos.y + height, player_pos.z);
-        let near_half_height = persp.near * (persp.fov * 0.5).tan();
-        let radius = config.collision_radius.max(
-            Vec3::new(
-                near_half_height * window_aspect_ratio(&windows),
-                near_half_height,
-                persp.near,
-            )
-            .length(),
+        let pivot = follow_pivot(player_pos, eye_height, config.pivot_height, third.pivot_blend());
+        let radius = near_plane_radius(
+            persp.near,
+            persp.fov,
+            window_aspect_ratio(&windows),
+            config.collision_radius,
         );
         *camera_transform = third_person_transform(
             &collision_world,
@@ -114,17 +108,36 @@ pub fn local_player_camera_sync_system(
         third.previous_pivot = None;
     }
 
+    // Only the explicit zoom-in (`FollowCamera::zoom`) locks the facing; an
+    // obstruction that collapses the arm is temporary and must not undo an
+    // orbit the player unlocked.
     if third.arm_distance > config.first_person_distance {
         view_mode.set_if_neq(CameraViewMode::ThirdPerson);
     } else {
         view_mode.set_if_neq(CameraViewMode::FirstPerson);
-        third.locked = true;
         camera_transform.rotation = rotation;
-        camera_transform.translation = Vec3::new(player_pos.x, player_pos.y + eye_height, player_pos.z);
+        camera_transform.translation = eye_position(*player_pos, eye_height);
     }
     if let Some(shake) = maybe_shake {
         camera_transform.translation += Vec3::new(shake.offset_x, shake.offset_y, shake.offset_z);
     }
+}
+
+// The follow pivot rises from the eye toward the configured pivot height as
+// the shoulder view eases in.
+fn follow_pivot(feet: &Position, eye_height: f32, pivot_height: f32, blend: f32) -> Vec3 {
+    Vec3::new(
+        feet.x,
+        feet.y + eye_height + (pivot_height - eye_height) * blend,
+        feet.z,
+    )
+}
+
+// The arm sweep must keep the whole near plane out of geometry, so its
+// radius is at least the near plane's corner distance.
+fn near_plane_radius(near: f32, fov: f32, aspect_ratio: f32, collision_radius: f32) -> f32 {
+    let near_half_height = near * (fov * 0.5).tan();
+    collision_radius.max(Vec3::new(near_half_height * aspect_ratio, near_half_height, near).length())
 }
 
 #[cfg(test)]
@@ -132,10 +145,10 @@ mod tests {
     use super::*;
     use crate::{
         actors::ActorMap,
-        cameras::{CameraAim, RENDER_LAYER_LOCAL_PLAYER, camera_aim_system},
+        cameras::{CameraAim, RENDER_LAYER_LOCAL_PLAYER, camera_aim_system, local_player_view_mode_system},
         constants::CROSSHAIR_THIRD_PERSON_HEIGHT,
-        players::{MyPlayerId, PlayerMap, camera::visibility::local_player_view_mode_system},
-        test_geometry,
+        players::{MyPlayerId, PlayerMap},
+        test_fixtures,
     };
     use bevy::camera::visibility::RenderLayers;
     use common::protocol::{BarrierKindTable, CarrierId, FaceYaw, PlateState, PlayerId, Wall};
@@ -164,21 +177,14 @@ mod tests {
     }
 
     fn app() -> (App, Entity, f32) {
-        let source: serde_json::Value = serde_json::from_str(include_str!("../../../../config/server/gameplay.json"))
-            .expect("server gameplay JSON is invalid");
-        let gameplay: GameplayConfig = serde_json::from_value(serde_json::json!({
-            "player": source["player"], "actors": source["actors"]["kinds"],
-            "projectiles": source["weapons"]["projectiles"], "missiles": source["weapons"]["missiles"],
-            "portals": source["weapons"]["portals"],
-        }))
-        .expect("client gameplay config is invalid");
+        let gameplay = test_fixtures::gameplay_config();
         let eye_height = gameplay.player.eye_height();
         let mut settings = ClientSettings::load_default().expect("client settings are invalid");
-        settings.camera.follow = test_geometry::follow_camera();
+        settings.camera.follow = test_fixtures::follow_camera();
         let mut app = App::new();
         app.insert_resource(gameplay)
             .insert_resource(settings)
-            .insert_resource(test_geometry::map_settings())
+            .insert_resource(test_fixtures::map_settings())
             .insert_resource(world(false))
             .init_resource::<MapLayout>()
             .init_resource::<Time>()
@@ -273,6 +279,38 @@ mod tests {
             assert_view(&app, camera, eye_height, first);
         }
         assert_view(&app, camera, eye_height, false);
+    }
+
+    #[test]
+    fn obstruction_does_not_relock_an_unlocked_orbit() {
+        let (mut app, camera, eye_height) = app();
+        {
+            let mut third = app.world_mut().resource_mut::<FollowCamera>();
+            third.distance = 3.0;
+            third.locked = false;
+        }
+        app.update();
+        assert_view(&app, camera, eye_height, false);
+        app.insert_resource(world(true));
+        app.update();
+        assert_view(&app, camera, eye_height, true);
+        assert!(!app.world().resource::<FollowCamera>().locked);
+    }
+
+    #[test]
+    fn follow_pivot_rises_from_the_eye_to_the_pivot_height() {
+        let feet = Position { x: 1.0, y: 2.0, z: 3.0 };
+        for (blend, height) in [(0.0, 3.6), (1.0, 3.4), (0.5, 3.5)] {
+            assert!(follow_pivot(&feet, 1.6, 1.4, blend).abs_diff_eq(Vec3::new(1.0, height, 3.0), 1e-6));
+        }
+    }
+
+    #[test]
+    fn near_plane_radius_never_drops_below_the_near_plane_corner() {
+        let corner = Vec3::new(0.2, 0.1, 0.1).length();
+        let radius = near_plane_radius(0.1, std::f32::consts::FRAC_PI_2, 2.0, 0.05);
+        assert!((radius - corner).abs() < 1e-6);
+        assert_eq!(near_plane_radius(0.1, std::f32::consts::FRAC_PI_2, 2.0, 0.5), 0.5);
     }
 
     #[test]

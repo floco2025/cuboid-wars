@@ -3,7 +3,7 @@ use bevy::{
     window::{Monitor, MonitorSelection, OnMonitor, PrimaryMonitor, PrimaryWindow, WindowMode},
 };
 
-use super::WindowedFrame;
+use super::{WindowedFrame, camera::fullscreen_shortcut_modifier};
 
 use crate::{
     cameras::{CameraViewMode, FollowCamera, TopDownCameraYaw},
@@ -40,15 +40,6 @@ pub fn input_camera_view_toggle_system(
         }
         focus.0 = new_mode.is_top_down();
     }
-    let fullscreen_modifier = keyboard.any_pressed([
-        KeyCode::ControlLeft,
-        KeyCode::ControlRight,
-        KeyCode::SuperLeft,
-        KeyCode::SuperRight,
-    ]);
-    if *view_mode == CameraViewMode::ThirdPerson && keyboard.just_pressed(KeyCode::KeyF) && !fullscreen_modifier {
-        third.locked = !third.locked;
-    }
 }
 
 // Toggle level-focus mode with R key. When enabled, the visibility system
@@ -77,12 +68,10 @@ pub fn input_fullscreen_toggle_system(
     mut windows: Query<(&mut Window, Option<&OnMonitor>), With<PrimaryWindow>>,
     monitors: Query<(Entity, Has<PrimaryMonitor>), With<Monitor>>,
 ) {
-    let cmd_held = keyboard.pressed(KeyCode::SuperLeft) || keyboard.pressed(KeyCode::SuperRight);
-    let ctrl_held = keyboard.pressed(KeyCode::ControlLeft) || keyboard.pressed(KeyCode::ControlRight);
     let f_pressed = keyboard.just_pressed(KeyCode::KeyF);
     let f11_pressed = keyboard.just_pressed(KeyCode::F11);
 
-    if !(((cmd_held || ctrl_held) && f_pressed) || f11_pressed) {
+    if !((fullscreen_shortcut_modifier(&keyboard) && f_pressed) || f11_pressed) {
         return;
     }
     let Ok((mut window, on_monitor)) = windows.single_mut() else {

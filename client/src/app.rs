@@ -6,9 +6,9 @@ use bevy::{
 };
 
 use crate::{
-    actors::{ActorGhostMap, ActorMap},
+    actors::{ActorGhostMap, ActorMap, actor_visuals_plugin},
     barriers::{LockedPlatePurposes, PlateState},
-    cameras::{CameraViewMode, TopDownCameraYaw, clamp_msaa_to_device_system, setup_cameras_system},
+    cameras::{CameraViewMode, TopDownCameraYaw, camera_plugin, clamp_msaa_to_device_system, setup_cameras_system},
     characters::{character_sync_plugin, prediction_plugin},
     config::{AssetSet, ClientSettings, LocalSettings, OpaqueRenderer},
     constants::{AUDIO_MASTER_VOLUME_DEFAULT, WINDOW_FULLSCREEN_DEFAULT, WINDOW_SIZE_DEFAULT},
@@ -21,7 +21,7 @@ use crate::{
         ClientToServerChannel, LastPlayerMovesTick, LastSnapshotTick, RoundTripTime, ServerToClientChannel, TickSync,
         install_bootstrap, network_plugin,
     },
-    players::{LocalPlayerInfo, PlayerMap, camera_plugin},
+    players::{LocalPlayerInfo, PlayerMap},
     portals::{PortalAssets, PortalMap, portal_render_plugin},
     projectiles::LastBounceSound,
     schedule::configure_client_sets,
@@ -164,19 +164,13 @@ pub fn build_client_app(
             ),
         );
 
-    app.add_systems(
-        FixedUpdate,
-        crate::portals::portal_transit_system
-            .after(crate::characters::characters_movement_system)
-            .before(crate::characters::knockback_decay_system),
-    );
-
     configure_client_sets(&mut app);
     app.add_plugins((
         input_plugin,
         network_plugin,
         prediction_plugin,
         character_sync_plugin,
+        actor_visuals_plugin,
         camera_plugin,
         portal_render_plugin,
         presentation_plugin,

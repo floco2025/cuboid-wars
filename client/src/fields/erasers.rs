@@ -4,22 +4,38 @@ use common::protocol::{MapLayout, MapSettings};
 use crate::{
     carriers::{CarrierEntities, CarrierStoreys},
     config::ClientSettings,
+    constants::ERASER_COLOR,
 };
 
-use super::{FieldMaterials, FieldMeshes, VisualField, merge_fields, spawn_field_visual};
+use super::{FieldMeshes, KindVisual, VisualField, merge_fields, spawn_field_visual};
 
 #[derive(Component)]
 pub struct EraserMarker;
 
-pub fn erasers_spawn_system(
+// Every eraser shares one look; the map has no eraser kinds.
+#[derive(Resource)]
+pub(crate) struct EraserAssets {
+    visual: KindVisual,
+}
+
+impl FromWorld for EraserAssets {
+    fn from_world(world: &mut World) -> Self {
+        let config = world.resource::<ClientSettings>().vfx.erasers;
+        let mut materials = world.resource_mut::<Assets<StandardMaterial>>();
+        Self {
+            visual: KindVisual::new(&mut materials, ERASER_COLOR, config.opacity, config.emissive_brightness),
+        }
+    }
+}
+
+pub(crate) fn erasers_spawn_system(
     mut commands: Commands,
     layout: Res<MapLayout>,
     settings: Res<MapSettings>,
-    client_settings: Res<ClientSettings>,
     carriers: Res<CarrierEntities>,
     storeys: Res<CarrierStoreys>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    meshes: Res<FieldMeshes>,
+    assets: Res<EraserAssets>,
     existing: Query<Entity, With<EraserMarker>>,
 ) {
     if !layout.is_changed() {
@@ -28,17 +44,6 @@ pub fn erasers_spawn_system(
     for entity in &existing {
         commands.entity(entity).despawn();
     }
-    if layout.erasers.is_empty() {
-        return;
-    }
-    let meshes = FieldMeshes::new(&mut meshes);
-    let config = client_settings.vfx.erasers;
-    let materials = FieldMaterials::new(
-        &mut materials,
-        Color::srgb(0.7, 0.4, 1.0),
-        config.opacity,
-        config.emissive_brightness,
-    );
     let floor_thickness = settings.geometry.floor_thickness;
     let fields = merge_fields(
         layout
@@ -57,6 +62,6 @@ pub fn erasers_spawn_system(
                 field.transform(),
                 Visibility::Inherited,
             ))
-            .with_children(|parent| spawn_field_visual(parent, &meshes, &materials, &field, &layout));
+            .with_children(|parent| spawn_field_visual(parent, &meshes, &assets.visual, &field, &layout));
     }
 }

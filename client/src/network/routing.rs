@@ -8,10 +8,7 @@ use super::{
     context::ServerMessageContext,
     io::apply_pong,
     items::{handle_gold_collected_message, handle_health_potion_collected_message},
-    missiles::{
-        handle_missile_detonated_message, handle_missile_launch_message, handle_missile_move_message,
-        handle_missiles_collected_message,
-    },
+    missiles::{handle_missile_detonated_message, handle_missile_launch_message, handle_missile_move_message},
     players::{
         handle_eraser_entered_message, handle_player_blast_message, handle_player_death_message,
         handle_player_fall_damage_message, handle_player_hit_message, handle_player_moves_message,
@@ -70,9 +67,6 @@ pub(super) fn route_server_message(
         }
         ServerMessage::HealthPotionCollected(message) => {
             handle_health_potion_collected_message(message, commands, my_player_id, context);
-        }
-        ServerMessage::MissilesCollected(message) => {
-            handle_missiles_collected_message(message, commands, my_player_id, context);
         }
         ServerMessage::PressurePlate(message) => handle_pressure_plate_message(message, commands, context),
         ServerMessage::Firework(message) => handle_firework_message(message, context),

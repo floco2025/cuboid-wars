@@ -13,8 +13,19 @@ use common::{
     config::GameplayConfig,
     map::Carriers,
     physics::{CollisionWorld, PortalPlacementFailure, compute_portal_placement, portal_placement_overlaps},
-    protocol::*,
+    protocol::{CPortalShot, ClientMessage, MapLayout, MapSettings, PlateState, PortalAccess, PortalEnd, Position},
 };
+
+// The mouse button that places each portal end: a `single` slot places its
+// assigned end with the left button, a `both` slot places A left and B right.
+pub(super) fn portal_end_for_button(access: PortalAccess, button: MouseButton) -> Option<PortalEnd> {
+    match (access, button) {
+        (PortalAccess::Single { end, .. }, MouseButton::Left) => Some(end),
+        (PortalAccess::Both { .. }, MouseButton::Left) => Some(PortalEnd::A),
+        (PortalAccess::Both { .. }, MouseButton::Right) => Some(PortalEnd::B),
+        _ => None,
+    }
+}
 
 #[derive(SystemParam)]
 pub struct PortalInputWorld<'w> {
@@ -49,13 +60,12 @@ pub fn input_portal_system(
         return;
     }
     let access = *portal_access;
-    let end = match access {
-        PortalAccess::None => return,
-        PortalAccess::Single { end, .. } if mouse.just_pressed(MouseButton::Left) => end,
-        PortalAccess::Single { .. } => return,
-        PortalAccess::Both { .. } if mouse.just_pressed(MouseButton::Left) => PortalEnd::A,
-        PortalAccess::Both { .. } if mouse.just_pressed(MouseButton::Right) => PortalEnd::B,
-        PortalAccess::Both { .. } => return,
+    let Some(end) = [MouseButton::Left, MouseButton::Right]
+        .into_iter()
+        .find(|button| mouse.just_pressed(*button))
+        .and_then(|button| portal_end_for_button(access, button))
+    else {
+        return;
     };
     let Some(pair) = access.pair() else {
         return;

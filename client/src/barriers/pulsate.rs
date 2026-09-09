@@ -22,19 +22,21 @@ pub fn barriers_pulsate_system(
     barrier_assets: Res<BarrierAssets>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    let assets = barrier_assets;
     let config = client_settings.vfx.barriers;
     let t = time.elapsed_secs();
-    for (idx, handle) in assets.material_handles().enumerate() {
+    for (idx, kind) in barrier_assets.kinds.iter().enumerate() {
         let phase = idx as f32 * 0.5;
         let alpha = pulse_opacity(config, t, phase);
         // A `get_mut` marks the material modified and re-uploads it, so a
         // disabled pulse must not touch it every frame.
-        if materials.get(handle).is_none_or(|mat| mat.base_color.alpha() == alpha) {
+        if materials
+            .get(&kind.surface)
+            .is_none_or(|mat| mat.base_color.alpha() == alpha)
+        {
             continue;
         }
-        if let Some(mut mat) = materials.get_mut(handle) {
-            mat.base_color = color_with_alpha(assets.base_colors[idx], alpha);
+        if let Some(mut mat) = materials.get_mut(&kind.surface) {
+            mat.base_color = color_with_alpha(kind.base_color, alpha);
         }
     }
 }

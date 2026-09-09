@@ -64,7 +64,8 @@ pub fn configure_client_sets(app: &mut App) {
 mod tests {
     use super::*;
     use crate::{
-        characters::character_sync_plugin, input::input_plugin, network::network_plugin, players::camera_plugin,
+        actors::actor_visuals_plugin, cameras::camera_plugin, characters::character_sync_plugin, input::input_plugin,
+        network::network_plugin,
     };
 
     #[test]
@@ -75,6 +76,7 @@ mod tests {
         network_plugin(&mut app);
         camera_plugin(&mut app);
         character_sync_plugin(&mut app);
+        actor_visuals_plugin(&mut app);
         app.world_mut().schedule_scope(Update, |world, schedule| {
             schedule
                 .initialize(world)

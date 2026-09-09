@@ -14,7 +14,11 @@ pub(super) fn handle_pressure_plate_message(
     } else {
         "plate_release"
     };
-    play_sound(commands, &context.asset_server, context.asset_set.player_sound(sound));
+    play_sound(
+        commands,
+        &context.assets.asset_server,
+        context.assets.asset_set.player_sound(sound),
+    );
 }
 
 pub(super) fn handle_firework_message(message: SFirework, context: &mut ServerMessageContext) {

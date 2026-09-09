@@ -1,5 +1,7 @@
-use crate::{cameras::FollowCamera, config::FollowCameraConfig};
 use bevy::prelude::*;
+
+use super::FollowCamera;
+use crate::config::FollowCameraConfig;
 use common::physics::CollisionWorld;
 
 pub(super) fn third_person_transform(
@@ -12,7 +14,7 @@ pub(super) fn third_person_transform(
     state: &mut FollowCamera,
 ) -> Transform {
     let distance = state.distance.clamp(0.0, config.max_distance);
-    let offset = rotation * Vec3::new(config.shoulder_offset, 0.0, distance);
+    let offset = rotation * Vec3::new(state.shoulder_offset(config), 0.0, distance);
     let allowed = world.camera_arm_distance(pivot, offset, radius);
     let reset = state
         .previous_pivot
@@ -33,7 +35,7 @@ pub(super) fn third_person_transform(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{cameras::CameraViewMode, constants::INPUT_ZOOM_SENSITIVITY_BASE, test_geometry::follow_camera};
+    use crate::{cameras::CameraViewMode, constants::INPUT_ZOOM_SENSITIVITY_BASE, test_fixtures::follow_camera};
     use common::protocol::{BarrierKindTable, CarrierId, MapLayout, Wall};
     fn world(wall: bool) -> CollisionWorld {
         CollisionWorld::from_map_layout(
@@ -98,15 +100,13 @@ mod tests {
             let close = third_person_transform(&blocked, pivot, Quat::IDENTITY, config, 0.2, 1.0 / 60.0, &mut state);
             let expected_distance = close.translation.z - 0.2;
 
-            assert_eq!(
-                state.zoom(
-                    CameraViewMode::ThirdPerson,
-                    1.0,
-                    0.2 / INPUT_ZOOM_SENSITIVITY_BASE,
-                    config,
-                ),
-                CameraViewMode::ThirdPerson
+            state.zoom(
+                CameraViewMode::ThirdPerson,
+                1.0,
+                0.2 / INPUT_ZOOM_SENSITIVITY_BASE,
+                config,
             );
+            assert!(state.distance > config.first_person_distance);
             let zoomed = third_person_transform(&blocked, pivot, Quat::IDENTITY, config, 0.2, 1.0 / 60.0, &mut state);
             assert!((zoomed.translation.z - expected_distance).abs() < 1e-5);
             let released = third_person_transform(&clear, pivot, Quat::IDENTITY, config, 0.2, 1.0 / 60.0, &mut state);

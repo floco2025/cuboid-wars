@@ -3,11 +3,26 @@
 use std::collections::HashMap;
 
 use common::{
-    config::{KnockbackConfig, MapGeometryConfig, MapMovementConfig, PlayerMovementConfig},
+    config::{GameplayConfig, KnockbackConfig, MapGeometryConfig, MapMovementConfig, PlayerMovementConfig},
     protocol::{MapSettings, PortalMode},
 };
 
 use crate::config::FollowCameraConfig;
+
+// The client projection of the shipped `gameplay.json`, for tests that need
+// the real player body and weapon tuning.
+pub(crate) fn gameplay_config() -> GameplayConfig {
+    let source: serde_json::Value = serde_json::from_str(include_str!("../../config/server/gameplay.json"))
+        .expect("server gameplay JSON is invalid");
+    serde_json::from_value(serde_json::json!({
+        "player": source["player"],
+        "actors": source["actors"]["kinds"],
+        "projectiles": source["weapons"]["projectiles"],
+        "missiles": source["weapons"]["missiles"],
+        "portals": source["weapons"]["portals"],
+    }))
+    .expect("client gameplay config is invalid")
+}
 
 pub(crate) const CELL: f32 = 3.4;
 pub(crate) const LEVEL_HEIGHT: f32 = 4.4;

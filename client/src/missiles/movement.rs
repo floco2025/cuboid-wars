@@ -2,19 +2,16 @@ use bevy::prelude::*;
 
 use crate::{
     characters::PreviousTickPosition,
-    constants::{RECON_CORRECTION_TIME_RTT_MULTIPLIER, RECON_MISSILE_SNAP_DISTANCE},
+    constants::{RECON_CORRECTION_MIN_SECS, RECON_CORRECTION_TIME_RTT_MULTIPLIER, RECON_MISSILE_SNAP_DISTANCE},
     missiles::MissileVelocity,
     network::{ServerReconciliation, worst_axis_divergence},
 };
-use common::{
-    constants::SNAPSHOT_SECS,
-    protocol::{MissileId, MissileMarker, Position},
-};
+use common::protocol::{MissileId, MissileMarker, Position};
 
 // Same RTT-scaled window as the actor pipeline, duplicated deliberately —
 // the player/actor/missile reconciliation copies are kept separate.
-fn missile_correction_factor(rtt: f32) -> f32 {
-    (SNAPSHOT_SECS / (rtt * RECON_CORRECTION_TIME_RTT_MULTIPLIER)).clamp(0.0, 1.0)
+fn missile_correction_window(rtt: f32) -> f32 {
+    (rtt * RECON_CORRECTION_TIME_RTT_MULTIPLIER).max(RECON_CORRECTION_MIN_SECS)
 }
 
 // Dead-reckon the last server velocity on all three axes (missiles fly; no
@@ -42,9 +39,12 @@ pub fn missiles_movement_system(
         prev.0 = *pos;
 
         let correction = if let Some(recon) = recon_option.as_mut() {
-            let correction_factor = missile_correction_factor(recon.rtt);
-            recon.correction_progress += delta * correction_factor;
-            if recon.correction_progress >= SNAPSHOT_SECS {
+            // Each tick applies `delta / window` of the correction delta, and
+            // the component goes once the window has elapsed so a paused
+            // stream never over-corrects.
+            let window = missile_correction_window(recon.rtt);
+            recon.correction_progress += delta;
+            if recon.correction_progress >= window {
                 commands.entity(entity).remove::<ServerReconciliation>();
             }
 
@@ -62,7 +62,7 @@ pub fn missiles_movement_system(
                 continue;
             }
 
-            correction_delta * delta * correction_factor / SNAPSHOT_SECS
+            correction_delta * delta / window
         } else {
             Vec3::ZERO
         };
@@ -76,14 +76,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn correction_factor_follows_the_rtt_window() {
+    fn correction_window_scales_with_the_rtt() {
         let rtt = 0.2;
-        let expected = SNAPSHOT_SECS / (rtt * RECON_CORRECTION_TIME_RTT_MULTIPLIER);
-        assert!((missile_correction_factor(rtt) - expected).abs() < 1e-6);
+        let expected = rtt * RECON_CORRECTION_TIME_RTT_MULTIPLIER;
+        assert!((missile_correction_window(rtt) - expected).abs() < 1e-6);
     }
 
     #[test]
-    fn zero_rtt_saturates_the_correction_factor() {
-        assert_eq!(missile_correction_factor(0.0), 1.0);
+    fn zero_rtt_keeps_the_minimum_window() {
+        assert_eq!(missile_correction_window(0.0), RECON_CORRECTION_MIN_SECS);
     }
 }

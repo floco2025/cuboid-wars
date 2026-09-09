@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use common::protocol::{BarrierKindId, ItemType};
 
-use crate::items::item_symbol_image;
+use crate::items::{item_symbol_image, item_symbol_image_cropped};
 
 #[derive(Resource)]
 pub struct HudShapeAssets {
@@ -23,8 +23,9 @@ impl FromWorld for HudShapeAssets {
             portal_gun: images.add(item_symbol_image(ItemType::PortalGunPowerUp)),
             speed: images.add(item_symbol_image(ItemType::SpeedPowerUp)),
             low_gravity: images.add(item_symbol_image(ItemType::LowGravityPowerUp)),
-            missile: images.add(item_symbol_image(ItemType::MissilePack)),
-            key: images.add(item_symbol_image(ItemType::Key(BarrierKindId(0)))),
+            // Upright silhouettes in height-sized slots.
+            missile: images.add(item_symbol_image_cropped(ItemType::MissilePack)),
+            key: images.add(item_symbol_image_cropped(ItemType::Key(BarrierKindId(0)))),
         }
     }
 }

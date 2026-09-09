@@ -17,8 +17,8 @@ pub(in crate::network) fn handle_gold_collected_message(
     }
     play_sound(
         commands,
-        &context.asset_server,
-        context.asset_set.player_sound("collect_gold"),
+        &context.assets.asset_server,
+        context.assets.asset_set.player_sound("collect_gold"),
     );
 }
 
@@ -35,7 +35,7 @@ pub(in crate::network) fn handle_health_potion_collected_message(
     }
     play_sound(
         commands,
-        &context.asset_server,
-        context.asset_set.player_sound("collect_power_up"),
+        &context.assets.asset_server,
+        context.assets.asset_set.player_sound("collect_power_up"),
     );
 }

@@ -82,7 +82,7 @@ pub(crate) fn clip_surface_rects(
     surfaces
 }
 
-pub(crate) fn floor_bounds(floor: &Floor) -> (Vec3, Vec3) {
+pub(super) fn floor_bounds(floor: &Floor) -> (Vec3, Vec3) {
     let (min_x, max_x, min_z, max_z) = floor.bounds_xz();
     (
         Vec3::new(min_x, floor.y - floor.thickness, min_z),

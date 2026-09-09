@@ -7,6 +7,7 @@ use crate::{
         pressure_plates_visibility_system,
     },
     bridges::{bridges_fade_system, bridges_spawn_system},
+    fields::{EraserAssets, FieldMeshes, erasers_spawn_system},
     schedule::ClientSet,
     vfx::{rain_audio_system, rain_particles_system, rain_smoothing_system},
 };
@@ -16,12 +17,14 @@ use crate::{
 // `Presentation` and `Network` so grass burn reacts to this frame's scorch
 // marks and server-delivered explosions.
 pub fn map_plugin(app: &mut App) {
-    app.init_resource::<FocusedMapLevel>();
+    app.init_resource::<FocusedMapLevel>()
+        .init_resource::<FieldMeshes>()
+        .init_resource::<EraserAssets>();
     app.add_systems(
         Update,
         (
             map_spawn_geometry_system,
-            erasers::erasers_spawn_system,
+            erasers_spawn_system,
             grass_spawn_system,
             grass_burn_system.after(grass_spawn_system),
             update_focused_map_level_system,
@@ -30,7 +33,7 @@ pub fn map_plugin(app: &mut App) {
                 .run_if(resource_changed::<FocusedMapLevel>),
             added_map_level_visibility_system
                 .after(map_spawn_geometry_system)
-                .after(erasers::erasers_spawn_system)
+                .after(erasers_spawn_system)
                 .after(grass_spawn_system)
                 .after(update_focused_map_level_system)
                 .after(map_level_focus_visibility_system),

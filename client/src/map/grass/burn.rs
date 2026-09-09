@@ -7,7 +7,7 @@ use bevy::prelude::*;
 use common::protocol::{CarrierId, GrassCell, MapSettings};
 use std::collections::HashMap;
 
-pub(super) const EXPLOSION_GRASS_BURN_VERTICAL_TOLERANCE: f32 = 0.1;
+pub(super) const BURN_VERTICAL_TOLERANCE: f32 = 0.1;
 
 // `center` is in the carrier's frame, like the grass it burns.
 #[derive(Component, Debug, Clone, Copy, PartialEq)]
@@ -37,7 +37,7 @@ impl GrassBurn {
     }
 
     fn intersects_cell(self, cell: GrassCell, cell_size: f32) -> bool {
-        if cell.carrier != self.carrier || (self.center.y - cell.y).abs() > EXPLOSION_GRASS_BURN_VERTICAL_TOLERANCE {
+        if cell.carrier != self.carrier || (self.center.y - cell.y).abs() > BURN_VERTICAL_TOLERANCE {
             return false;
         }
         let half_extent = cell_size * 0.5 + BLADE_MAX_OVERHANG;

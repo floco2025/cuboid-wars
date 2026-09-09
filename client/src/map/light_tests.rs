@@ -5,7 +5,7 @@ use super::map_wall_light_emissive_system;
 use crate::{
     config::AssetSet,
     test_assets::{headless_asset_app, preload_gltfs},
-    test_geometry::map_settings,
+    test_fixtures::map_settings,
 };
 
 #[test]

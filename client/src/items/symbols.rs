@@ -57,24 +57,47 @@ pub fn item_symbol_mesh(item: ItemType, size: f32, depth: f32) -> Mesh {
     mesh
 }
 
+const IMAGE_SIZE: u32 = 32;
+
+// The silhouette on a square image, for square HUD slots.
 pub fn item_symbol_image(item: ItemType) -> Image {
-    const SIZE: u32 = 32;
-    const SAMPLES: u32 = 4;
+    symbol_image(symbol(item), IMAGE_SIZE)
+}
+
+// The silhouette cropped to its outline's width, for HUD slots that take
+// their width from the image's aspect.
+pub fn item_symbol_image_cropped(item: ItemType) -> Image {
     let symbol = symbol(item);
-    // Crop transparent sides so HUD slots fit the upright silhouettes.
-    let width = match item {
-        ItemType::Key(_) => SIZE / 2,
-        ItemType::MissilePack => 20,
-        _ => SIZE,
-    };
-    let mut data = Vec::with_capacity((width * SIZE * 4) as usize);
-    for y in 0..SIZE {
-        for x in (SIZE - width) / 2..(SIZE + width) / 2 {
+    symbol_image(symbol, outline_width_px(symbol))
+}
+
+// Pixel width of the outline's reach either side of the centre, rounded outward.
+fn outline_width_px(symbol: &ItemSymbol) -> u32 {
+    let half_width = symbol
+        .polygons
+        .iter()
+        .flatten()
+        .map(|[x, _]| x.abs())
+        .chain(
+            symbol
+                .circles
+                .iter()
+                .map(|circle| circle.center[0].abs() + circle.radius),
+        )
+        .fold(0.0_f32, f32::max);
+    ((2.0 * half_width * IMAGE_SIZE as f32).ceil() as u32).min(IMAGE_SIZE)
+}
+
+fn symbol_image(symbol: &ItemSymbol, width: u32) -> Image {
+    const SAMPLES: u32 = 4;
+    let mut data = Vec::with_capacity((width * IMAGE_SIZE * 4) as usize);
+    for y in 0..IMAGE_SIZE {
+        for x in (IMAGE_SIZE - width) / 2..(IMAGE_SIZE + width) / 2 {
             let mut hits = 0;
             for sy in 0..SAMPLES {
                 for sx in 0..SAMPLES {
                     let point = Vec2::new((x * SAMPLES + sx) as f32 + 0.5, (y * SAMPLES + sy) as f32 + 0.5)
-                        / (SIZE * SAMPLES) as f32;
+                        / (IMAGE_SIZE * SAMPLES) as f32;
                     let point = Vec2::new(point.x - 0.5, 0.5 - point.y);
                     if symbol.polygons.iter().any(|polygon| contains(polygon, point))
                         || symbol.circles.iter().any(|circle| {
@@ -91,7 +114,7 @@ pub fn item_symbol_image(item: ItemType) -> Image {
     Image::new(
         Extent3d {
             width,
-            height: SIZE,
+            height: IMAGE_SIZE,
             depth_or_array_layers: 1,
         },
         TextureDimension::D2,
@@ -107,4 +130,26 @@ fn contains(polygon: &[[f32; 2]], point: Vec2) -> bool {
         let b = Vec2::from_array(b);
         (b - a).perp_dot(point - a) >= 0.0
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cropped_width_covers_the_widest_polygon_or_circle() {
+        let symbol = ItemSymbol {
+            polygons: vec![vec![[-0.1, 0.0], [0.2, 0.0], [0.0, 0.3]]],
+            circles: vec![SymbolCircle {
+                center: [0.1, 0.0],
+                radius: 0.15,
+            }],
+        };
+        assert_eq!(outline_width_px(&symbol), 16);
+        let wide = ItemSymbol {
+            polygons: vec![vec![[-0.5, 0.0], [0.5, 0.0], [0.0, 0.5]]],
+            circles: Vec::new(),
+        };
+        assert_eq!(outline_width_px(&wide), IMAGE_SIZE);
+    }
 }

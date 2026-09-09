@@ -64,72 +64,35 @@ pub fn setup_item_assets(
     let mut build_power_up = |item_type: ItemType| -> Handle<StandardMaterial> {
         materials.add(pickup_material(item_type_color(item_type), glow))
     };
-    let power_ups = vec![
-        PowerUpVisual {
-            item_type: ItemType::SingleShotPowerUp,
-            mesh: meshes.add(item_symbol_mesh(
-                ItemType::SingleShotPowerUp,
-                ITEM_SIZE * 1.5,
-                ITEM_SIZE * 0.24,
-            )),
-            material: build_power_up(ItemType::SingleShotPowerUp),
-            base_orientation: Quat::IDENTITY,
-        },
-        PowerUpVisual {
-            item_type: ItemType::MultiShotPowerUp,
-            mesh: meshes.add(item_symbol_mesh(
-                ItemType::MultiShotPowerUp,
-                ITEM_SIZE * 1.5,
-                ITEM_SIZE * 0.24,
-            )),
-            material: build_power_up(ItemType::MultiShotPowerUp),
-            base_orientation: Quat::IDENTITY,
-        },
-        PowerUpVisual {
-            item_type: ItemType::PortalGunPowerUp,
-            mesh: meshes.add(
-                Torus {
-                    minor_radius: ITEM_SIZE * 0.07,
-                    major_radius: ITEM_SIZE * 0.43,
-                }
-                .mesh()
-                .build()
-                .scaled_by(Vec3::new(1.0, 1.0, PORTAL_HALF_HEIGHT / PORTAL_HALF_WIDTH)),
-            ),
-            material: build_power_up(ItemType::PortalGunPowerUp),
-            base_orientation: Quat::from_rotation_x(FRAC_PI_2),
-        },
-        PowerUpVisual {
-            item_type: ItemType::HealthPotion,
-            mesh: meshes.add(item_symbol_mesh(
-                ItemType::HealthPotion,
-                ITEM_SIZE * 1.5,
-                ITEM_SIZE * 0.24,
-            )),
-            material: build_power_up(ItemType::HealthPotion),
-            base_orientation: Quat::IDENTITY,
-        },
-        PowerUpVisual {
-            item_type: ItemType::SpeedPowerUp,
-            mesh: meshes.add(item_symbol_mesh(
-                ItemType::SpeedPowerUp,
-                ITEM_SIZE * 1.5,
-                ITEM_SIZE * 0.24,
-            )),
-            material: build_power_up(ItemType::SpeedPowerUp),
-            base_orientation: Quat::IDENTITY,
-        },
-        PowerUpVisual {
-            item_type: ItemType::LowGravityPowerUp,
-            mesh: meshes.add(item_symbol_mesh(
-                ItemType::LowGravityPowerUp,
-                ITEM_SIZE * 1.5,
-                ITEM_SIZE * 0.24,
-            )),
-            material: build_power_up(ItemType::LowGravityPowerUp),
-            base_orientation: Quat::IDENTITY,
-        },
-    ];
+    let mut power_ups: Vec<PowerUpVisual> = [
+        ItemType::SingleShotPowerUp,
+        ItemType::MultiShotPowerUp,
+        ItemType::HealthPotion,
+        ItemType::SpeedPowerUp,
+        ItemType::LowGravityPowerUp,
+    ]
+    .into_iter()
+    .map(|item_type| PowerUpVisual {
+        item_type,
+        mesh: meshes.add(item_symbol_mesh(item_type, ITEM_SYMBOL_SIZE, ITEM_SYMBOL_DEPTH)),
+        material: build_power_up(item_type),
+        base_orientation: Quat::IDENTITY,
+    })
+    .collect();
+    power_ups.push(PowerUpVisual {
+        item_type: ItemType::PortalGunPowerUp,
+        mesh: meshes.add(
+            Torus {
+                minor_radius: ITEM_SIZE * 0.07,
+                major_radius: ITEM_SIZE * 0.43,
+            }
+            .mesh()
+            .build()
+            .scaled_by(Vec3::new(1.0, 1.0, PORTAL_HALF_HEIGHT / PORTAL_HALF_WIDTH)),
+        ),
+        material: build_power_up(ItemType::PortalGunPowerUp),
+        base_orientation: Quat::from_rotation_x(FRAC_PI_2),
+    });
 
     commands.insert_resource(ItemAssets { coin, power_ups });
 }

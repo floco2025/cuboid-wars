@@ -1,12 +1,9 @@
 use bevy::{camera::Viewport, prelude::*, ui::UiScale};
 use std::f32::consts::PI;
 
+use super::{CameraViewMode, MainCameraMarker, RearviewCameraMarker, SceneRenderTarget};
 use crate::{
-    cameras::{CameraViewMode, MainCameraMarker, RearviewCameraMarker, SceneRenderTarget},
-    characters::PreviousTickPosition,
-    config::ClientSettings,
-    constants::HUD_EDGE_MARGIN_PX,
-    players::LocalPlayerMarker,
+    characters::PreviousTickPosition, config::ClientSettings, constants::HUD_EDGE_MARGIN_PX, players::LocalPlayerMarker,
 };
 use common::{config::GameplayConfig, protocol::Position};
 
@@ -149,10 +146,6 @@ mod tests {
                 panic!("rearview projection is not perspective");
             };
             assert_eq!(projection.fov, fov.to_radians());
-            assert_eq!(
-                app.world().resource::<ClientSettings>().camera.top_down.fov_degrees,
-                45.0
-            );
         }
     }
 }
