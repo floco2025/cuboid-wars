@@ -121,17 +121,10 @@ mod tests {
         characters::{AnimationToPlay, character_animation_system, characters_visual_turn_system},
         config::{AssetSet, ModelDef},
         players::{PlayerInfo, PlayerMap},
+        test_assets::{gltf_path, headless_asset_app, preload_gltf, settle},
         vfx::{LaserBeam, laser_beam_update_system},
     };
-    use bevy::{
-        app::AnimationSystems,
-        gltf::{Gltf, GltfAssetLabel, GltfPlugin},
-        image::{CompressedImageFormatSupport, CompressedImageFormats, ImagePlugin},
-        mesh::MeshPlugin,
-        time::TimeUpdateStrategy,
-        transform::TransformSystems,
-        world_serialization::WorldSerializationPlugin,
-    };
+    use bevy::{app::AnimationSystems, gltf::GltfAssetLabel, transform::TransformSystems};
     use common::{
         config::GameplayConfig,
         physics::CollisionWorld,
@@ -140,7 +133,6 @@ mod tests {
             PlayerId, PlayerMoveIntent, Position, Wall,
         },
     };
-    use std::time::{Duration, Instant};
 
     #[derive(Resource)]
     struct TestAimDirection(Vec3);
@@ -168,36 +160,20 @@ mod tests {
             let Some(definition) = model.aim_rig.clone() else {
                 continue;
             };
-            let mut app = App::new();
-            app.add_plugins((
-                MinimalPlugins,
-                AssetPlugin {
-                    file_path: format!("{}/assets", env!("CARGO_MANIFEST_DIR")),
-                    ..default()
-                },
-                TransformPlugin,
-                WorldSerializationPlugin,
-                ImagePlugin::default(),
-                MeshPlugin,
-                AnimationPlugin,
-                GltfPlugin::default(),
-            ));
-            app.insert_resource(CompressedImageFormatSupport(CompressedImageFormats::NONE));
-            app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(1.0 / 30.0)));
-            app.insert_resource(TestAimDirection(Vec3::Z));
-            app.add_systems(
-                PostUpdate,
-                aim_loaded_models
-                    .after(AnimationSystems)
-                    .before(TransformSystems::Propagate),
-            );
-            app.finish();
-            app.cleanup();
+            let mut app = headless_asset_app(|app| {
+                app.insert_resource(TestAimDirection(Vec3::Z));
+                app.add_systems(
+                    PostUpdate,
+                    aim_loaded_models
+                        .after(AnimationSystems)
+                        .before(TransformSystems::Propagate),
+                );
+            });
             let actor_transform = Transform::from_xyz(3.0, 2.0, -1.0).with_rotation(Quat::from_rotation_y(0.6));
             let owner = app.world_mut().spawn(actor_transform).id();
             let server = app.world().resource::<AssetServer>().clone();
-            let path = model.scene.split('#').next().expect("model path missing").to_owned();
-            let gltf: Handle<Gltf> = server.load(path.clone());
+            let path = gltf_path(&model.scene);
+            preload_gltf(&mut app, &path);
             let entity = app
                 .world_mut()
                 .spawn((
@@ -224,12 +200,7 @@ mod tests {
                     })
                     .observe(character_animation_system);
             }
-            let deadline = Instant::now() + Duration::from_secs(15);
-            while !server.is_loaded_with_dependencies(&gltf) || app.world().get::<AimRig>(owner).is_none() {
-                assert!(Instant::now() < deadline, "aim model failed to load: {}", model.scene);
-                app.update();
-                std::thread::sleep(Duration::from_millis(5));
-            }
+            settle(&mut app, |world| world.get::<AimRig>(owner).is_some());
             for _ in 0..12 {
                 app.update();
             }

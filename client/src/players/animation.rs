@@ -275,19 +275,11 @@ pub(crate) fn player_animation_update_system(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{
-        f32::consts::{FRAC_PI_2, PI},
-        time::Instant,
-    };
+    use std::f32::consts::{FRAC_PI_2, PI};
 
-    use bevy::{
-        animation::RepeatAnimation,
-        gltf::{Gltf, GltfMaterial, GltfPlugin},
-        image::{CompressedImageFormatSupport, CompressedImageFormats, ImagePlugin},
-        mesh::MeshPlugin,
-        time::TimeUpdateStrategy,
-        world_serialization::WorldSerializationPlugin,
-    };
+    use bevy::animation::{AnimationTargetId, RepeatAnimation, graph::AnimationNodeType};
+
+    use crate::test_assets::{gltf_path, headless_asset_app, preload_gltf, settle};
 
     fn choose(
         state: &mut AnimationState,
@@ -620,28 +612,54 @@ mod tests {
         }
     }
 
+    // Rotation of every joint the selected clip animates, sorted by target
+    // so two samples pair up.
+    fn animated_joint_rotations(app: &mut App) -> Vec<(AnimationTargetId, Quat)> {
+        let targets = selected_clip_targets(app);
+        let mut joints: Vec<_> = app
+            .world_mut()
+            .query::<(&AnimationTargetId, &Transform)>()
+            .iter(app.world())
+            .filter(|(id, _)| targets.contains(id))
+            .map(|(id, transform)| (*id, transform.rotation))
+            .collect();
+        joints.sort_by_key(|(id, _)| *id);
+        joints
+    }
+
+    fn selected_clip_targets(app: &mut App) -> Vec<AnimationTargetId> {
+        let playback = app
+            .world_mut()
+            .query::<&PlayerAnimationPlayback>()
+            .single(app.world())
+            .expect("player animation rig missing");
+        let index = playback.source.clips[playback.state.clip as usize];
+        let graphs = app.world().resource::<Assets<AnimationGraph>>();
+        let AnimationNodeType::Clip(clip) = &graphs
+            .get(&playback.source.graph)
+            .expect("player animation graph missing")
+            .get(index)
+            .expect("selected clip node missing")
+            .node_type
+        else {
+            panic!("selected clip node is not a clip");
+        };
+        app.world()
+            .resource::<Assets<AnimationClip>>()
+            .get(clip)
+            .expect("selected clip missing")
+            .curves()
+            .keys()
+            .copied()
+            .collect()
+    }
+
     #[test]
-    fn bevy_loads_embedded_materials_and_animates_the_exported_skeleton() {
-        let mut app = App::new();
-        app.add_plugins((
-            MinimalPlugins,
-            AssetPlugin {
-                file_path: format!("{}/assets", env!("CARGO_MANIFEST_DIR")),
-                ..default()
-            },
-            TransformPlugin,
-            WorldSerializationPlugin,
-            ImagePlugin::default(),
-            MeshPlugin,
-            AnimationPlugin,
-            GltfPlugin::default(),
-        ));
-        app.insert_resource(CompressedImageFormatSupport(CompressedImageFormats::NONE));
-        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(1.0 / 30.0)));
-        app.init_resource::<PlayerMap>();
-        app.add_systems(Update, player_animation_update_system);
-        app.finish();
-        app.cleanup();
+    fn selected_clips_animate_the_exported_skeleton_and_climb_follows_ladder_speed() {
+        let mut app = headless_asset_app(|app| {
+            app.init_resource::<PlayerMap>();
+            app.add_systems(Update, player_animation_update_system);
+        });
 
         let owner = app
             .world_mut()
@@ -656,8 +674,8 @@ mod tests {
             "scene": "models/player.glb#Scene0", "scale": 1.0
         }))
         .expect("player model definition is invalid");
+        preload_gltf(&mut app, &gltf_path(&model.scene));
         let server = app.world().resource::<AssetServer>().clone();
-        let gltf_handle: Handle<Gltf> = server.load("models/player.glb");
         let source = PlayerAnimationSource::load(
             owner,
             &model,
@@ -667,54 +685,9 @@ mod tests {
         app.world_mut()
             .spawn((WorldAssetRoot(server.load(model.scene)), source))
             .observe(player_animation_setup_system);
-
-        let deadline = Instant::now() + Duration::from_secs(15);
-        loop {
-            app.update();
-            if app
-                .world_mut()
-                .query::<&PlayerAnimationPlayback>()
-                .iter(app.world())
-                .next()
-                .is_some()
-                && server.is_loaded_with_dependencies(&gltf_handle)
-            {
-                break;
-            }
-            assert!(
-                Instant::now() < deadline,
-                "player GLB or animation hierarchy failed to load"
-            );
-            std::thread::sleep(Duration::from_millis(5));
-        }
-
-        let gltfs = app.world().resource::<Assets<Gltf>>();
-        let gltf = gltfs.get(&gltf_handle).expect("loaded player GLB missing");
-        let materials = app.world().resource::<Assets<GltfMaterial>>();
-        let images = app.world().resource::<Assets<Image>>();
-        let mut textured = 0;
-        for handle in &gltf.materials {
-            let material = materials.get(handle).expect("GLB material missing");
-            if let Some(color) = &material.base_color_texture {
-                textured += 1;
-                assert!(
-                    images
-                        .get(color)
-                        .expect("base color image missing")
-                        .texture_descriptor
-                        .format
-                        .is_srgb()
-                );
-                for data in [&material.normal_map_texture, &material.metallic_roughness_texture] {
-                    let image = images
-                        .get(data.as_ref().expect("PBR data map missing"))
-                        .expect("PBR image missing");
-                    assert!(!image.texture_descriptor.format.is_srgb());
-                    assert!(image.data.as_ref().is_some_and(|bytes| !bytes.is_empty()));
-                }
-            }
-        }
-        assert!(textured >= 3, "shell, rubber and metal textures are missing");
+        settle(&mut app, |world| {
+            world.query::<&PlayerAnimationPlayback>().iter(world).next().is_some()
+        });
 
         app.world_mut().entity_mut(owner).insert((
             PlayerAnimationMotion {
@@ -726,29 +699,21 @@ mod tests {
         for _ in 0..6 {
             app.update();
         }
-        let thigh = app
-            .world_mut()
-            .query::<(Entity, &Name, &Transform)>()
-            .iter(app.world())
-            .find(|(_, name, _)| name.as_str() == "Thigh.L")
-            .map(|(entity, _, _)| entity)
-            .expect("thigh joint missing from player GLB");
-        let first = app
-            .world()
-            .get::<Transform>(thigh)
-            .expect("thigh transform missing")
-            .rotation;
+        let first = animated_joint_rotations(&mut app);
+        assert!(
+            !first.is_empty(),
+            "the selected clip targets no joint of the loaded skeleton"
+        );
         for _ in 0..4 {
             app.update();
         }
-        let second = app
-            .world()
-            .get::<Transform>(thigh)
-            .expect("thigh transform missing")
-            .rotation;
+        let second = animated_joint_rotations(&mut app);
         assert!(
-            first.angle_between(second) > 0.05,
-            "running clip did not move the exported skeleton"
+            first
+                .iter()
+                .zip(&second)
+                .any(|((_, a), (_, b))| a.angle_between(*b) > 0.05),
+            "the selected clip did not move the exported skeleton"
         );
         for speed in [2.4, 0.0, -3.6] {
             app.world_mut().entity_mut(owner).insert(PlayerAnimationMotion {
@@ -776,7 +741,7 @@ mod tests {
     }
 
     #[test]
-    fn exported_robot_contains_every_motion_clip_and_a_skin() {
+    fn exported_player_contains_every_motion_clip_and_a_skin() {
         let raw = include_bytes!("../../assets/models/player.glb");
         let length = u32::from_le_bytes(raw[12..16].try_into().expect("GLB JSON length missing")) as usize;
         let document: serde_json::Value = serde_json::from_slice(&raw[20..20 + length]).expect("GLB JSON is invalid");

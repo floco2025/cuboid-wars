@@ -64,18 +64,8 @@ impl FollowCamera {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::ClientSettings;
+    use crate::test_geometry::follow_camera as config;
     use bevy::prelude::Vec3;
-
-    fn config() -> FollowCameraConfig {
-        let mut config = ClientSettings::load_default()
-            .expect("client settings are invalid")
-            .camera
-            .follow;
-        config.first_person_distance = 0.7;
-        config.max_distance = 6.0;
-        config
-    }
 
     #[test]
     fn obstruction_does_not_reduce_requested_distance_when_scrolling_out() {

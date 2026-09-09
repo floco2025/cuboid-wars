@@ -188,8 +188,7 @@ mod tests {
         .expect("client gameplay config is invalid");
         let eye_height = gameplay.player.eye_height();
         let mut settings = ClientSettings::load_default().expect("client settings are invalid");
-        settings.camera.follow.first_person_distance = 0.7;
-        settings.camera.follow.max_distance = 6.0;
+        settings.camera.follow = test_geometry::follow_camera();
         let mut app = App::new();
         app.insert_resource(gameplay)
             .insert_resource(settings)

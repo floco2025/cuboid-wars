@@ -114,15 +114,8 @@ pub(crate) fn wheel_animation_update_system(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bevy::{
-        animation::AnimationTargetId,
-        gltf::{Gltf, GltfPlugin},
-        image::{CompressedImageFormatSupport, CompressedImageFormats, ImagePlugin},
-        mesh::MeshPlugin,
-        time::TimeUpdateStrategy,
-        world_serialization::WorldSerializationPlugin,
-    };
-    use std::time::{Duration, Instant};
+    use crate::test_assets::{gltf_path, headless_asset_app, preload_gltf, settle};
+    use bevy::animation::AnimationTargetId;
 
     #[test]
     fn bevy_loads_configured_wheeled_models_and_starts_and_stops_their_wheels() {
@@ -137,25 +130,9 @@ mod tests {
     }
 
     fn check_wheel_playback(model: ModelDef, wheels: WheelModelDef) {
-        let mut app = App::new();
-        app.add_plugins((
-            MinimalPlugins,
-            AssetPlugin {
-                file_path: format!("{}/assets", env!("CARGO_MANIFEST_DIR")),
-                ..default()
-            },
-            TransformPlugin,
-            WorldSerializationPlugin,
-            ImagePlugin::default(),
-            MeshPlugin,
-            AnimationPlugin,
-            GltfPlugin::default(),
-        ));
-        app.insert_resource(CompressedImageFormatSupport(CompressedImageFormats::NONE));
-        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(1.0 / 30.0)));
-        app.add_systems(Update, wheel_animation_update_system);
-        app.finish();
-        app.cleanup();
+        let mut app = headless_asset_app(|app| {
+            app.add_systems(Update, wheel_animation_update_system);
+        });
         let owner = app
             .world_mut()
             .spawn((
@@ -165,15 +142,8 @@ mod tests {
                 CharacterSupport::Ground,
             ))
             .id();
+        preload_gltf(&mut app, &gltf_path(&model.scene));
         let server = app.world().resource::<AssetServer>().clone();
-        let handle: Handle<Gltf> = server.load(
-            model
-                .scene
-                .split('#')
-                .next()
-                .expect("model asset path missing")
-                .to_owned(),
-        );
         let source = WheelAnimationSource::load(
             owner,
             &model,
@@ -184,26 +154,9 @@ mod tests {
         app.world_mut()
             .spawn((WorldAssetRoot(server.load(model.scene.clone())), source))
             .observe(wheel_animation_setup_system);
-        let deadline = Instant::now() + Duration::from_secs(15);
-        loop {
-            app.update();
-            if server.is_loaded_with_dependencies(&handle)
-                && app
-                    .world_mut()
-                    .query::<&WheelAnimationPlayback>()
-                    .iter(app.world())
-                    .next()
-                    .is_some()
-            {
-                break;
-            }
-            assert!(
-                Instant::now() < deadline,
-                "scene or animation rig failed to load: {}",
-                model.scene
-            );
-            std::thread::sleep(Duration::from_millis(5));
-        }
+        settle(&mut app, |world| {
+            world.query::<&WheelAnimationPlayback>().iter(world).next().is_some()
+        });
         let start: Vec<_> = app
             .world_mut()
             .query::<(&AnimationTargetId, &Transform)>()

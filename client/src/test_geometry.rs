@@ -7,6 +7,8 @@ use common::{
     protocol::{MapSettings, PortalMode},
 };
 
+use crate::config::FollowCameraConfig;
+
 pub(crate) const CELL: f32 = 3.4;
 pub(crate) const LEVEL_HEIGHT: f32 = 4.4;
 pub(crate) const FLOOR_THICKNESS: f32 = 0.4;
@@ -51,5 +53,18 @@ pub(crate) fn map_settings() -> MapSettings {
         portals: PortalMode::Both,
         barrier_kinds: Vec::new(),
         bridge_kinds: Vec::new(),
+    }
+}
+
+// A follow camera with room to zoom, so arm tests are not bound to the
+// shipped `max_distance`.
+pub(crate) fn follow_camera() -> FollowCameraConfig {
+    FollowCameraConfig {
+        max_distance: 6.0,
+        first_person_distance: 0.7,
+        pivot_height: 1.4,
+        shoulder_offset: 0.0,
+        collision_radius: 0.2,
+        obstruction_return_rate: 8.0,
     }
 }

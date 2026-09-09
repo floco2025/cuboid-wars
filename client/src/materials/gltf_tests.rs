@@ -1,14 +1,10 @@
-use std::time::{Duration, Instant};
-
 use bevy::{
-    gltf::{Gltf, GltfMaterial, GltfPlugin},
-    image::{CompressedImageFormatSupport, CompressedImageFormats, ImagePlugin, ImageSampler},
-    mesh::MeshPlugin,
-    pbr::PbrPlugin,
+    gltf::{Gltf, GltfMaterial},
+    image::ImageSampler,
     prelude::*,
-    shader::Shader,
-    world_serialization::WorldSerializationPlugin,
 };
+
+use crate::test_assets::{gltf_path, headless_asset_app, preload_gltfs};
 
 #[test]
 fn model_gltf_textures_reach_standard_materials_with_correct_colour_spaces() {
@@ -18,25 +14,13 @@ fn model_gltf_textures_reach_standard_materials_with_correct_colour_spaces() {
         .as_object()
         .expect("actor catalog missing")
         .values()
-        .map(|actor| {
-            actor["model"]["scene"]
-                .as_str()
-                .expect("actor scene missing")
-                .split('#')
-                .next()
-                .expect("actor scene path empty")
-                .to_owned()
-        })
+        .map(|actor| gltf_path(actor["model"]["scene"].as_str().expect("actor scene missing")))
         .collect();
-    paths.push(
+    paths.push(gltf_path(
         catalog["player"]["model"]["scene"]
             .as_str()
-            .expect("player scene missing")
-            .split('#')
-            .next()
-            .expect("player path empty")
-            .to_owned(),
-    );
+            .expect("player scene missing"),
+    ));
     paths.extend(
         catalog["wall_lights"]
             .as_object()
@@ -44,33 +28,9 @@ fn model_gltf_textures_reach_standard_materials_with_correct_colour_spaces() {
             .values()
             .map(|light| light["scene"].as_str().expect("wall light scene missing").to_owned()),
     );
-    let mut app = App::new();
-    app.add_plugins((
-        MinimalPlugins,
-        AssetPlugin {
-            file_path: format!("{}/assets", env!("CARGO_MANIFEST_DIR")),
-            ..default()
-        },
-        TransformPlugin,
-        WorldSerializationPlugin,
-        ImagePlugin::default(),
-        MeshPlugin,
-        AnimationPlugin,
-        GltfPlugin::default(),
-    ));
-    app.init_asset::<Shader>();
-    app.add_plugins(PbrPlugin::default());
-    app.insert_resource(CompressedImageFormatSupport(CompressedImageFormats::NONE));
-    app.finish();
-    app.cleanup();
+    let mut app = headless_asset_app(|_| {});
+    let handles = preload_gltfs(&mut app, &paths);
     let server = app.world().resource::<AssetServer>().clone();
-    let handles: Vec<Handle<Gltf>> = paths.iter().map(|path| server.load(path.clone())).collect();
-    let deadline = Instant::now() + Duration::from_secs(30);
-    while handles.iter().any(|handle| !server.is_loaded_with_dependencies(handle)) {
-        assert!(Instant::now() < deadline, "actor models failed to load");
-        app.update();
-        std::thread::sleep(Duration::from_millis(5));
-    }
     let gltfs = app.world().resource::<Assets<Gltf>>();
     let authored = app.world().resource::<Assets<GltfMaterial>>();
     let materials = app.world().resource::<Assets<StandardMaterial>>();

@@ -272,6 +272,14 @@ they assert (e.g. `lethal_hit_returns_true`, `barrier_collision_group_is_unique_
 The map editor's headless `unittest` suite lives in `tools/tests/` and covers
 its pure geometry, normalization, resizing, and validation helpers.
 
+A test that loads a shipped model asserts only what runtime code reads from
+it (configured node names, clip indices, the emissive/housing split, texture
+colour spaces), iterates the catalog in `config/client/assets.json` rather
+than naming a model, and never counts materials or textures or names a bone.
+`client/src/test_assets.rs` is the headless app every such test loads
+through: preload the root GLB before requesting any labelled sub-asset (the
+comment there says why), then settle before sampling.
+
 ## Documentation
 
 - `README.md` is for players: what the game has, how to run it, the controls. One plain line per gameplay feature — no rules, mechanics, config paths, or version numbers. It must not turn into a technical spec sheet.

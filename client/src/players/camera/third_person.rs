@@ -33,7 +33,7 @@ pub(super) fn third_person_transform(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{cameras::CameraViewMode, config::ClientSettings, constants::INPUT_ZOOM_SENSITIVITY_BASE};
+    use crate::{cameras::CameraViewMode, constants::INPUT_ZOOM_SENSITIVITY_BASE, test_geometry::follow_camera};
     use common::protocol::{BarrierKindTable, CarrierId, MapLayout, Wall};
     fn world(wall: bool) -> CollisionWorld {
         CollisionWorld::from_map_layout(
@@ -64,10 +64,7 @@ mod tests {
             distance: 4.0,
             ..Default::default()
         };
-        let config = ClientSettings::load_default()
-            .expect("client settings are invalid")
-            .camera
-            .follow;
+        let config = follow_camera();
         let pivot = Vec3::Y * config.pivot_height;
         let clear = world(false);
         let blocked = world(true);
@@ -88,10 +85,7 @@ mod tests {
     #[test]
     fn inward_scroll_starts_at_obstructed_camera_and_keeps_the_new_distance() {
         for shoulder_offset in [0.0, 0.65] {
-            let mut config = ClientSettings::load_default()
-                .expect("client settings are invalid")
-                .camera
-                .follow;
+            let mut config = follow_camera();
             config.shoulder_offset = shoulder_offset;
             let mut state = FollowCamera {
                 distance: 4.0,

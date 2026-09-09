@@ -19,6 +19,8 @@ pub mod portals;
 pub mod projectiles;
 pub mod schedule;
 #[cfg(test)]
+pub(crate) mod test_assets;
+#[cfg(test)]
 pub(crate) mod test_geometry;
 pub mod ui;
 pub mod vfx;
