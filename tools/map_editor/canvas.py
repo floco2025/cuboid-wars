@@ -569,7 +569,7 @@ class Canvas(CanvasPaintingMixin, QWidget):
             list_name, index = value
             self.window.set_selected_spawn_zone(ZoneRef(list_name, index))
             if self.window.selected_spawn_zone_has_fields():
-                menu.addAction("Edit Spawn Zone...", lambda: self.window.edit_selected_spawn_zone_fields())
+                menu.addAction("Edit Checkpoint..." if kind == HIT_CHECKPOINT else "Edit Spawn Zone...", lambda: self.window.edit_selected_spawn_zone_fields())
         elif kind == HIT_NESTED_MAP:
             menu.addAction("Edit Nested Map...", lambda: self.window.edit_nested_map(value))
         elif kind == HIT_ITEM:

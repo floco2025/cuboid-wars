@@ -15,6 +15,7 @@ from .constants import (
     HIT_PRESSURE_PLATE,
     HIT_RAMP,
     HIT_CHECKPOINT,
+    CHECKPOINT_TYPE_LABELS,
     HIT_SPAWN_ZONE,
     HIT_WALL,
     ITEMS_LIST,
@@ -80,7 +81,7 @@ def element_hover_text(data: dict, level_idx: int, hit) -> str | None:
         zone = data[list_name][index]
         if list_name == ACTOR_ZONE_LIST:
             return f"Actor spawn zone: {zone['kind']}\nCount: {zone['count']}"
-        return "Checkpoint" if kind == HIT_CHECKPOINT else "Player spawn zone"
+        return f"Checkpoint: {CHECKPOINT_TYPE_LABELS.get(zone['type'], zone['type'])}" if kind == HIT_CHECKPOINT else "Player spawn zone"
 
     if kind == HIT_RAMP:
         lower = value[0]

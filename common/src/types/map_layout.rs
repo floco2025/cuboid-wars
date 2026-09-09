@@ -232,8 +232,17 @@ pub struct GrassCell {
     pub carrier: CarrierId,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CheckpointKind {
+    Individual,
+    GroupAny,
+    GroupAll,
+}
+
 #[derive(Debug, Clone, Copy, Encode, Decode)]
 pub struct Checkpoint {
+    pub kind: CheckpointKind,
     pub carrier: CarrierId,
     pub level: u8,
     pub min_x: f32,

@@ -1,9 +1,8 @@
 use bevy::prelude::*;
 
-use super::{PlayerMap, checkpoint_spawn_position};
+use super::{PlayerMap, player_spawn_destination};
 use crate::{
     actors::{ActorMap, ActorRespawnTimers, PendingActorSpawns, reset_actors},
-    characters::{generate_player_spawn_position, spawn_face_yaw},
     config::ServerGameplayConfig,
     map::MapConfig,
 };
@@ -55,30 +54,18 @@ pub fn players_respawn_system(
     let mut occupied_positions: Vec<Position> = player_query.iter().copied().collect();
     for id in to_respawn {
         let saved = players.get(&id).and_then(|player| player.session.checkpoint);
-        let (pos, face_yaw) = if let Some(saved) = saved {
-            let checkpoint = &map_config.checkpoints[saved.id.0];
-            let pose = carriers.pose(checkpoint.carrier);
-            let Some(pos) = checkpoint_spawn_position(
-                checkpoint,
-                &pose,
-                &collision_world,
-                &occupied_positions,
-                gameplay_config.player.physics(),
-            ) else {
-                continue;
-            };
-            let facing = pose.transform_vector(saved.facing);
-            (pos, facing.x.atan2(facing.z))
-        } else {
-            let pos = generate_player_spawn_position(
-                &map_config,
-                &carriers,
-                &collision_world,
-                &occupied_positions,
-                gameplay_config.player.physics(),
-            );
-            (pos, spawn_face_yaw(&pos))
+        let Some(spawn) = player_spawn_destination(
+            &map_config,
+            &carriers,
+            &collision_world,
+            &occupied_positions,
+            gameplay_config.player.physics(),
+            saved,
+        ) else {
+            continue;
         };
+        let pos = spawn.pos;
+        let face_yaw = spawn.face_yaw;
         let move_intent = PlayerMoveIntent::Idle;
         let entity = commands
             .spawn((
@@ -95,6 +82,7 @@ pub fn players_respawn_system(
 
         if let Some(info) = players.get_mut(&id) {
             info.finish_respawn(entity);
+            info.life.checkpoint_contact = spawn.contact;
         }
 
         occupied_positions.push(pos);

@@ -137,6 +137,7 @@ MODE_CATEGORIES: list[tuple[str, list[str]]] = [
 ACTOR_ZONE_LIST = "actor_spawn_zones"
 PLAYER_ZONE_LIST = "player_spawn_zones"
 CHECKPOINT_LIST = "checkpoints"
+CHECKPOINT_TYPE_LABELS = {"individual": "Individual", "group_any": "Group — any", "group_all": "Group — all"}
 SPAWN_ZONE_LISTS = (ACTOR_ZONE_LIST, PLAYER_ZONE_LIST)
 ZONE_LISTS = (*SPAWN_ZONE_LISTS, CHECKPOINT_LIST)
 ITEMS_LIST = "items"

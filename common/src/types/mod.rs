@@ -31,8 +31,8 @@ pub use ids::{ActorId, CarrierId, HomingTarget, ItemId, MissileId, PlayerId, Por
 pub use items::{ItemType, PowerUpKind};
 pub use kind_table::{KindDef, KindId, KindTable};
 pub use map_layout::{
-    Barrier, Carrier, Checkpoint, Eraser, Floor, GrassCell, Ladder, LightBridge, MapItems, MapLayout, MapSettings,
-    PlatePurpose, PortalMode, PressurePlate, Ramp, Wall, WallLight,
+    Barrier, Carrier, Checkpoint, CheckpointKind, Eraser, Floor, GrassCell, Ladder, LightBridge, MapItems, MapLayout,
+    MapSettings, PlatePurpose, PortalMode, PressurePlate, Ramp, Wall, WallLight,
 };
 pub use movement::{
     ActorMoveIntent, ActorMovementState, FaceYaw, MissileMovementState, PlayerMoveIntent, PlayerMovementState,

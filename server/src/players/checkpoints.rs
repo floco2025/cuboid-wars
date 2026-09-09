@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use bevy::prelude::*;
 use rand::{RngExt, rng};
 
@@ -9,10 +11,13 @@ use common::{
     map::{CarrierPose, Carriers},
     math::direction_from_yaw_pitch,
     physics::{CharacterSupport, CollisionWorld, character_paths_intersect, grounding_diagnostics},
-    protocol::{Checkpoint, FaceYaw, PlayerMarker, Position, SCheckpointReached, ServerMessage},
+    protocol::{
+        BarrierKindId, Checkpoint, CheckpointKind, FaceYaw, PlayerId, PlayerMarker, Position, SCheckpointReached,
+        ServerMessage,
+    },
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CheckpointId(pub usize);
 
 #[derive(Debug, Clone, Copy)]
@@ -29,52 +34,142 @@ pub(crate) fn players_checkpoints_system(
     gameplay: Res<GameplayConfig>,
     positions: Query<(&Position, &FaceYaw), With<PlayerMarker>>,
 ) {
-    if map.checkpoints.is_empty() {
-        return;
-    }
-    for (_, player) in players.iter_mut() {
-        if !player.connection.logged_in || player.life.fall_state.support() != CharacterSupport::Ground {
-            continue;
-        }
-        let Some((pos, yaw)) = player.entity().and_then(|entity| positions.get(entity).ok()) else {
-            continue;
-        };
-        let ground = grounding_diagnostics(
-            &collision_world,
-            pos,
-            gameplay.player.physics(),
-            &player.life.held_keys,
-            &[],
-        );
-        let Some(hit) = ground.hit.filter(|_| ground.supported) else {
-            continue;
-        };
-        let local = carriers.pose(hit.carrier).inverse_transform_position(pos);
-        let Some((index, checkpoint)) = map
-            .checkpoints
-            .iter()
-            .enumerate()
-            .find(|(_, zone)| zone.carrier == hit.carrier && contains(zone, &local))
-        else {
-            continue;
-        };
-        let id = CheckpointId(index);
-        if player.session.checkpoint.is_some_and(|saved| saved.id == id) {
-            continue;
-        }
-        player.session.checkpoint = Some(PlayerCheckpoint {
-            id,
-            facing: carriers
-                .pose(checkpoint.carrier)
-                .inverse_transform_vector(direction_from_yaw_pitch(yaw.0, 0.0)),
+    let mut entered = Vec::new();
+    for (id, player) in players.iter_mut().filter(|(_, player)| player.connection.logged_in) {
+        let position = player.entity().and_then(|entity| positions.get(entity).ok());
+        let contact = position
+            .filter(|_| player.life.fall_state.support() == CharacterSupport::Ground)
+            .and_then(|(pos, _)| {
+                checkpoint_at_position(
+                    &map.checkpoints,
+                    &carriers,
+                    &collision_world,
+                    pos,
+                    gameplay.player.physics(),
+                    &player.life.held_keys,
+                )
+            });
+        // A fresh body has no movement support yet; keep its seeded contact until it leaves the zone.
+        let contact = contact.or_else(|| {
+            player.life.checkpoint_contact.filter(|id| {
+                let checkpoint = &map.checkpoints[id.0];
+                position.is_some_and(|(pos, _)| {
+                    contains(
+                        checkpoint,
+                        &carriers.pose(checkpoint.carrier).inverse_transform_position(pos),
+                    )
+                })
+            })
         });
-        let _ = player
-            .connection
-            .channel
-            .send(ServerToClient::Send(ServerMessage::CheckpointReached(
-                SCheckpointReached,
-            )));
+        let previous = std::mem::replace(&mut player.life.checkpoint_contact, contact);
+        if let Some(checkpoint) = contact.filter(|contact| Some(*contact) != previous) {
+            let (_, yaw) = position.expect("checkpoint contact missing player position");
+            entered.push((
+                *id,
+                PlayerCheckpoint {
+                    id: checkpoint,
+                    facing: carriers
+                        .pose(map.checkpoints[checkpoint.0].carrier)
+                        .inverse_transform_vector(direction_from_yaw_pitch(yaw.0, 0.0)),
+                },
+            ));
+        }
     }
+    apply_checkpoint_entries(&mut players, &map.checkpoints, entered);
+}
+
+pub(super) fn apply_checkpoint_entries(
+    players: &mut PlayerMap,
+    checkpoints: &[Checkpoint],
+    mut entered: Vec<(PlayerId, PlayerCheckpoint)>,
+) {
+    let previous: Vec<_> = players
+        .iter()
+        .filter(|(_, player)| player.connection.logged_in)
+        .map(|(id, player)| (*id, player.session.checkpoint.map(|checkpoint| checkpoint.id)))
+        .collect();
+    entered.sort_by_key(|(player, checkpoint)| (checkpoint.id, player.0));
+    let mut shared_entries = BTreeMap::new();
+    for (id, saved) in entered {
+        let Some(player) = players.get_mut(&id).filter(|player| player.connection.logged_in) else {
+            continue;
+        };
+        match checkpoints[saved.id.0].kind {
+            CheckpointKind::Individual => player.session.checkpoint = Some(saved),
+            CheckpointKind::GroupAny => {
+                shared_entries.entry(saved.id).or_insert(saved);
+            }
+            CheckpointKind::GroupAll => {
+                player.session.checkpoint_visits.insert(saved.id, saved.facing);
+                shared_entries.entry(saved.id).or_insert(saved);
+            }
+        }
+    }
+    for (index, checkpoint) in checkpoints.iter().enumerate() {
+        let id = CheckpointId(index);
+        let saved = match checkpoint.kind {
+            CheckpointKind::Individual => continue,
+            CheckpointKind::GroupAny => shared_entries.get(&id).copied(),
+            CheckpointKind::GroupAll => {
+                let visitors: Vec<_> = players
+                    .iter()
+                    .filter(|(_, player)| player.connection.logged_in)
+                    .collect();
+                if !visitors
+                    .iter()
+                    .all(|(_, player)| player.session.checkpoint_visits.contains_key(&id))
+                {
+                    continue;
+                }
+                visitors
+                    .into_iter()
+                    .min_by_key(|(player, _)| player.0)
+                    .map(|(_, player)| {
+                        shared_entries.get(&id).copied().unwrap_or(PlayerCheckpoint {
+                            id,
+                            facing: player.session.checkpoint_visits[&id],
+                        })
+                    })
+            }
+        };
+        let Some(saved) = saved else {
+            continue;
+        };
+        players.shared_checkpoint = Some(saved);
+        for (_, player) in players.iter_mut().filter(|(_, player)| player.connection.logged_in) {
+            player.session.checkpoint = Some(saved);
+            player.session.checkpoint_visits.clear();
+        }
+        break;
+    }
+    for (id, previous) in previous {
+        let player = players.get(&id).expect("checkpoint recipient missing");
+        if player.session.checkpoint.map(|checkpoint| checkpoint.id) != previous {
+            let _ = player
+                .connection
+                .channel
+                .send(ServerToClient::Send(ServerMessage::CheckpointReached(
+                    SCheckpointReached,
+                )));
+        }
+    }
+}
+
+pub(crate) fn checkpoint_at_position(
+    checkpoints: &[Checkpoint],
+    carriers: &Carriers,
+    collision_world: &CollisionWorld,
+    pos: &Position,
+    physics: CharacterPhysicsConfig,
+    passable: &[BarrierKindId],
+) -> Option<CheckpointId> {
+    let ground = grounding_diagnostics(collision_world, pos, physics, passable, &[]);
+    let hit = ground.hit.filter(|_| ground.supported)?;
+    let local = carriers.pose(hit.carrier).inverse_transform_position(pos);
+    checkpoints
+        .iter()
+        .position(|checkpoint| checkpoint.carrier == hit.carrier && contains(checkpoint, &local))
+        .map(CheckpointId)
 }
 
 fn contains(checkpoint: &Checkpoint, local: &Position) -> bool {

@@ -1,9 +1,8 @@
 use bevy::prelude::*;
 
 use crate::{
-    characters::{generate_player_spawn_position, spawn_face_yaw},
     network::{FeedAudience, FeedEvent, ServerToClient, emit_feed},
-    players::{PlayerMap, enter_group_respawn},
+    players::{PlayerMap, enter_group_respawn, player_spawn_destination},
     portals::{PortalAssignments, PortalMap},
     quests::{QuestBoard, QuestCatalog, assign_quests},
 };
@@ -27,7 +26,7 @@ fn sanitize_player_name(raw: &str, id: PlayerId) -> String {
 }
 
 // `SInit` goes out first on the reliable lane; everything after it in
-// this function follows in order, and the body exists from here on.
+// this function follows in order; blocked spawns wait without a body.
 pub(super) fn handle_login_message(
     commands: &mut Commands,
     entity: Entity,
@@ -42,11 +41,13 @@ pub(super) fn handle_login_message(
     portals: &mut PortalMap,
     portal_set: &mut PortalSet,
 ) {
+    let shared_checkpoint = players.shared_checkpoint;
     let Some(player_info) = players.get_mut(&id) else {
         error!("registered player#{} missing during login", id.0);
         return;
     };
     player_info.connection.logged_in = true;
+    player_info.session.checkpoint = shared_checkpoint;
     player_info.connection.name = sanitize_player_name(&message.name, id);
     let channel = player_info.connection.channel.clone();
     debug!("{} authenticated", players.describe(&id));
@@ -83,20 +84,33 @@ pub(super) fn handle_login_message(
         .filter_map(|player| player.entity().and_then(|entity| queries.player_data.get(entity).ok()))
         .map(|(pos, _, _, _)| *pos)
         .collect();
-    let pos = generate_player_spawn_position(
+    let spawn = player_spawn_destination(
         &world.map_config,
         &world.carriers,
         &world.collision_world,
         &occupied_positions,
         world.gameplay_config.player.physics(),
+        shared_checkpoint,
     );
-    if enter_group_respawn(commands, players, id, pos) {
+    if enter_group_respawn(
+        commands,
+        players,
+        id,
+        spawn.as_ref().map_or_else(Position::default, |spawn| spawn.pos),
+    ) {
         return;
     }
+    let info = players.get_mut(&id).expect("logged-in player missing");
+    let Some(spawn) = spawn else {
+        info.wait_for_spawn();
+        commands.entity(entity).despawn();
+        return;
+    };
+    info.life.checkpoint_contact = spawn.contact;
     commands.entity(entity).insert((
-        pos,
+        spawn.pos,
         PlayerMoveIntent::Idle,
-        FaceYaw(spawn_face_yaw(&pos)),
+        FaceYaw(spawn.face_yaw),
         CharacterVerticalVelocity::default(),
         AirborneMomentum::default(),
         Health(world.server_gameplay_config.combat.health.player.max),
@@ -210,5 +224,257 @@ mod tests {
         assert_eq!(kinds[1].color, HexColor([0xf0, 0xc0, 0x20]));
         assert_eq!(decoded.world.map.items.key_kinds(), [BarrierKindId(1)]);
         assert_eq!(decoded.world.gameplay.actors.len(), config.actors.kinds.len());
+    }
+}
+
+#[cfg(test)]
+mod checkpoint_tests {
+    use std::time::Duration;
+
+    use super::handle_login_message;
+    use crate::{
+        config::{ActorRespawnScope, PlayerRespawnMode, ServerGameplayConfig},
+        map::MapConfig,
+        network::{CharacterQueries, ServerToClient, SharedWorld},
+        players::{CheckpointId, PlayerCheckpoint, PlayerInfo, PlayerMap, respawn_tests::respawn_app},
+        portals::{PortalAssignments, PortalMap},
+        quests::{QuestBoard, QuestCatalog},
+    };
+    use bevy::{ecs::system::SystemState, prelude::*};
+    use common::{
+        map::Carriers,
+        physics::{CollisionWorld, PortalSet},
+        protocol::*,
+    };
+    use tokio::sync::mpsc::unbounded_channel;
+
+    #[test]
+    fn joining_inherits_shared_progress_and_respects_blocked_spawns_and_group_countdowns() {
+        for (blocked, group_countdown) in [(false, false), (true, false), (false, true), (true, true)] {
+            let mode = if group_countdown {
+                PlayerRespawnMode::Group
+            } else {
+                PlayerRespawnMode::Individual
+            };
+            let mut app = respawn_app(mode, ActorRespawnScope::Dead);
+            let checkpoint = Checkpoint {
+                kind: CheckpointKind::GroupAny,
+                carrier: CarrierId(1),
+                level: 0,
+                min_x: 0.0,
+                max_x: 4.0,
+                min_z: 0.0,
+                max_z: 4.0,
+                y: 0.0,
+            };
+            let mut layout = MapLayout {
+                carriers: vec![Carrier {
+                    parent: CarrierId::WORLD,
+                    level: 0,
+                    levels: 1,
+                    from: Position {
+                        x: 20.0,
+                        y: 5.0,
+                        z: 10.0,
+                    },
+                    to: Position {
+                        x: 40.0,
+                        y: 8.0,
+                        z: 10.0,
+                    },
+                    travel_ticks: 30,
+                    pause_ticks: 0,
+                    phase_ticks: 0,
+                }],
+                ..default()
+            };
+            let floor = Floor {
+                x1: 0.0,
+                x2: 4.0,
+                z1: 0.0,
+                z2: 4.0,
+                y: 0.0,
+                thickness: 0.2,
+                carrier: CarrierId(1),
+                level: 0,
+            };
+            if !blocked {
+                layout.floors.push(floor);
+            }
+            let mut carriers = Carriers::from_layout(&layout);
+            carriers.advance(15);
+            let mut collision = CollisionWorld::from_map_layout(&layout, &Default::default());
+            collision.set_carrier_poses(&carriers);
+            let settings = app.world().resource::<MapSettings>().clone();
+            let gameplay = app.world().resource::<ServerGameplayConfig>().gameplay_bootstrap();
+            app.insert_resource(WorldBootstrap {
+                gameplay,
+                map: MapBootstrap {
+                    layout: layout.clone(),
+                    settings: settings.clone(),
+                    items: MapItems(Vec::new()),
+                },
+            });
+            app.insert_resource(layout.clone())
+                .insert_resource(collision)
+                .insert_resource(carriers)
+                .insert_resource(PortalAssignments::new(settings.portals))
+                .init_resource::<PortalMap>()
+                .init_resource::<PortalSet>();
+            let catalog = QuestCatalog::from_quests(&[]);
+            app.insert_resource(QuestBoard::from_catalog(&catalog))
+                .insert_resource(catalog);
+            app.world_mut().resource_mut::<MapConfig>().checkpoints = vec![checkpoint];
+            app.world_mut().resource_mut::<PlayerMap>().shared_checkpoint = Some(PlayerCheckpoint {
+                id: CheckpointId(0),
+                facing: Vec3::X,
+            });
+            if group_countdown {
+                let entity = app.world_mut().spawn_empty().id();
+                let (channel, _) = unbounded_channel();
+                let mut existing = PlayerInfo::new(entity, channel);
+                existing.connection.logged_in = true;
+                let mut players = app.world_mut().resource_mut::<PlayerMap>();
+                players.insert(PlayerId(8), existing);
+                assert!(players.begin_respawn(PlayerId(8), 2.0));
+                players.take_resets();
+                app.world_mut().despawn(entity);
+            }
+            let entity = app
+                .world_mut()
+                .spawn((
+                    PlayerMarker,
+                    PlayerId(9),
+                    Position::default(),
+                    PlayerMoveIntent::Idle,
+                    FaceYaw(0.0),
+                    Health(30.0),
+                ))
+                .id();
+            let (tx, mut rx) = unbounded_channel();
+            app.world_mut()
+                .resource_mut::<PlayerMap>()
+                .insert(PlayerId(9), PlayerInfo::new(entity, tx));
+            let mut system: SystemState<(
+                Commands,
+                ResMut<PlayerMap>,
+                SharedWorld,
+                CharacterQueries,
+                Res<QuestCatalog>,
+                Res<QuestBoard>,
+                ResMut<PortalAssignments>,
+                ResMut<PortalMap>,
+                ResMut<PortalSet>,
+            )> = SystemState::new(app.world_mut());
+            {
+                let (
+                    mut commands,
+                    mut players,
+                    world,
+                    queries,
+                    catalog,
+                    board,
+                    mut assignments,
+                    mut portals,
+                    mut portal_set,
+                ) = system.get_mut(app.world_mut()).expect("login system resources missing");
+                handle_login_message(
+                    &mut commands,
+                    entity,
+                    PlayerId(9),
+                    CLogin { name: "Player".into() },
+                    &mut players,
+                    &world,
+                    &queries,
+                    &catalog,
+                    &board,
+                    &mut assignments,
+                    &mut portals,
+                    &mut portal_set,
+                );
+            }
+            system.apply(app.world_mut());
+            assert!(matches!(
+                rx.try_recv(),
+                Ok(ServerToClient::Send(ServerMessage::Init(_)))
+            ));
+            let mut group_cues = 0;
+            while let Ok(message) = rx.try_recv() {
+                match message {
+                    ServerToClient::Send(ServerMessage::PlayerDeath(death)) => {
+                        assert_eq!(death.effect, PlayerDeathEffect::GroupRespawn);
+                        group_cues += 1;
+                    }
+                    ServerToClient::Send(ServerMessage::CheckpointReached(_)) => {
+                        panic!("login notified checkpoint entry")
+                    }
+                    _ => {}
+                }
+            }
+            assert_eq!(group_cues, usize::from(group_countdown));
+            assert!(app.world_mut().resource_mut::<PlayerMap>().take_resets().is_empty());
+            let player = app
+                .world()
+                .resource::<PlayerMap>()
+                .get(&PlayerId(9))
+                .expect("joining player missing");
+            assert_eq!(
+                player.session.checkpoint.expect("shared checkpoint not inherited").id,
+                CheckpointId(0)
+            );
+            assert_eq!(player.is_dead(), blocked || group_countdown);
+            assert_eq!(player.session.score, 0);
+            if group_countdown {
+                app.world_mut()
+                    .resource_mut::<Time>()
+                    .advance_by(Duration::from_secs_f32(0.1));
+                app.update();
+                assert!(
+                    app.world()
+                        .resource::<PlayerMap>()
+                        .get(&PlayerId(9))
+                        .expect("joining player missing")
+                        .is_dead()
+                );
+                app.world_mut()
+                    .resource_mut::<Time>()
+                    .advance_by(Duration::from_secs_f32(2.0));
+                app.update();
+                assert_eq!(
+                    app.world()
+                        .resource::<PlayerMap>()
+                        .get(&PlayerId(9))
+                        .expect("joining player missing")
+                        .is_dead(),
+                    blocked
+                );
+            }
+            if blocked {
+                assert!(app.world().get_entity(entity).is_err());
+                layout.floors.push(floor);
+                let mut collision = CollisionWorld::from_map_layout(&layout, &Default::default());
+                collision.set_carrier_poses(app.world().resource::<Carriers>());
+                app.insert_resource(collision);
+                app.world_mut()
+                    .resource_mut::<Time>()
+                    .advance_by(Duration::from_secs_f32(0.1));
+                app.update();
+            }
+            let player = app
+                .world()
+                .resource::<PlayerMap>()
+                .get(&PlayerId(9))
+                .expect("joining player missing");
+            let body = player.entity().expect("joining player never spawned");
+            assert_eq!(
+                app.world().get::<Position>(body),
+                Some(&Position {
+                    x: 32.0,
+                    y: 6.5,
+                    z: 12.0
+                })
+            );
+            assert_eq!(player.life.checkpoint_contact, Some(CheckpointId(0)));
+        }
     }
 }

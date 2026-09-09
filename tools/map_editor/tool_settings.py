@@ -12,6 +12,8 @@ from PySide6.QtWidgets import (
 )
 
 from .constants import (
+    CHECKPOINT_TYPE_LABELS,
+    MODE_CHECKPOINT,
     ITEM_KEY_TYPE,
     ITEM_TYPES,
     MODE_ACTOR_SPAWN_ZONE,
@@ -52,7 +54,10 @@ class ToolSettings(QWidget):
             value = getattr(self.window, attribute)
             widget.blockSignals(True)
             if isinstance(widget, QComboBox):
-                widget.setCurrentText(value or "")
+                if attribute == "recent_checkpoint_type":
+                    widget.setCurrentIndex(widget.findData(value))
+                else:
+                    widget.setCurrentText(value or "")
                 widget.setToolTip(widget.currentText())
                 if attribute == "current_material":
                     widget.setToolTip(portal_label(self.window.texture_catalog.get(value, False)))
@@ -134,6 +139,15 @@ class ToolSettings(QWidget):
             self.bindings.append((box, attribute))
             field(label, box)
 
+        def checkpoint_controls():
+            box = QComboBox()
+            for kind, label in CHECKPOINT_TYPE_LABELS.items():
+                box.addItem(label, kind)
+            box.setCurrentIndex(box.findData(window.recent_checkpoint_type))
+            box.currentIndexChanged.connect(lambda _: setattr(window, "recent_checkpoint_type", box.currentData()))
+            self.bindings.append((box, "recent_checkpoint_type"))
+            field("Type", box)
+
         def item_controls():
             item, _ = combo("Item", "recent_item_type", list(ITEM_TYPES), required=True)
             key, label = combo("Kind", "recent_item_key_kind", window.barrier_kinds)
@@ -165,6 +179,7 @@ class ToolSettings(QWidget):
                 (MODE_FLOOR, MODE_INACCESSIBLE_FLOOR, MODE_WALL, *RAMP_MODES),
                 material_controls,
             ),
+            MODE_CHECKPOINT: checkpoint_controls,
             MODE_ACTOR_SPAWN_ZONE: lambda: (
                 combo("Actor", "recent_actor_spawn_kind", window.actor_kinds, editable=True),
                 number("Count", "recent_actor_spawn_count", 0, 9999),

@@ -96,6 +96,7 @@ class EditorWindow(
         self.shortcuts = []
         # The last values placed, shown in the toolbar and reused without a
         # prompt; the kinds start on the map's first listed kind.
+        self.recent_checkpoint_type: str = "individual"
         self.recent_actor_spawn_kind: str = ""
         self.recent_actor_spawn_count: int = DEFAULT_ACTOR_COUNT
         first_kind = self.barrier_kinds[0] if self.barrier_kinds else None

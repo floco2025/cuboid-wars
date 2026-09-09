@@ -6,7 +6,7 @@ use common::protocol::ItemType;
 
 use super::{
     geometry::ramp_spec_from_def,
-    schema::{ActorSpawnZoneDef, LadderDef, LevelDef, MapDef, MotionDef, RampDef, WallSide, ZoneDef},
+    schema::{ActorSpawnZoneDef, CheckpointDef, LadderDef, LevelDef, MapDef, MotionDef, RampDef, WallSide, ZoneDef},
 };
 use crate::config::is_valid_map_name;
 
@@ -52,6 +52,18 @@ impl ZoneRect for ActorSpawnZoneDef {
 }
 
 impl ZoneRect for ZoneDef {
+    fn level(&self) -> u32 {
+        self.level
+    }
+    fn cols(&self) -> [i32; 2] {
+        self.cols
+    }
+    fn rows(&self) -> [i32; 2] {
+        self.rows
+    }
+}
+
+impl ZoneRect for CheckpointDef {
     fn level(&self) -> u32 {
         self.level
     }

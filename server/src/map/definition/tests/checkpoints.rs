@@ -1,9 +1,20 @@
+use super::super::schema::CheckpointDef;
 use super::*;
+use common::protocol::{CheckpointKind, MapLayout};
+
+fn checkpoint_def(level: u32, col: i32, row: i32) -> CheckpointDef {
+    CheckpointDef {
+        level,
+        cols: [col, col + 1],
+        rows: [row, row + 1],
+        kind: CheckpointKind::Individual,
+    }
+}
 
 #[test]
 fn checkpoints_require_valid_nonoverlapping_flat_floor_rectangles() {
     let mut map = map_with_zones(4, vec![level(vec![[0, 0], [1, 0]])], Vec::new(), Vec::new(), Vec::new());
-    map.checkpoints.push(player_zone(0, 0, 0));
+    map.checkpoints.push(checkpoint_def(0, 0, 0));
     validate_map(&map).expect("checkpoint map rejected");
     let compile = |map: &MapDef| compile_map(map, sizes(), &no_nested(), &empty_kind_table(), &no_bridges());
     let (layout, config) = compile(&map).expect("checkpoint compilation failed");
@@ -12,7 +23,7 @@ fn checkpoints_require_valid_nonoverlapping_flat_floor_rectangles() {
     let checkpoint = layout.checkpoints[0];
     assert_eq!(checkpoint.min_x, config.root_grid().geometry.cell_to_world_x(0));
     assert_eq!(checkpoint.max_x, config.root_grid().geometry.cell_to_world_x(1));
-    map.checkpoints.push(player_zone(0, 0, 0));
+    map.checkpoints.push(checkpoint_def(0, 0, 0));
     assert!(
         validate_map(&map)
             .expect_err("overlapping checkpoints accepted")
@@ -44,7 +55,7 @@ fn checkpoints_require_valid_nonoverlapping_flat_floor_rectangles() {
 #[test]
 fn repeated_nested_checkpoints_have_separate_carriers_and_runtime_slots() {
     let mut nested = map_with_zones(2, vec![level(vec![[0, 0]])], Vec::new(), Vec::new(), Vec::new());
-    nested.checkpoints.push(player_zone(0, 0, 0));
+    nested.checkpoints.push(checkpoint_def(0, 0, 0));
     let mut root = map_with_zones(8, vec![level(Vec::new())], Vec::new(), Vec::new(), Vec::new());
     root.nested_maps = [0, 4]
         .map(|col| NestedMapDef {
@@ -73,4 +84,34 @@ fn repeated_nested_checkpoints_have_separate_carriers_and_runtime_slots() {
     assert_eq!(layout.checkpoints.len(), 2);
     assert_ne!(layout.checkpoints[0].carrier, layout.checkpoints[1].carrier);
     assert_eq!(config.checkpoints.len(), 2);
+}
+
+#[test]
+fn checkpoint_types_are_required_and_preserved_on_the_wire() {
+    for (name, kind) in [
+        ("individual", CheckpointKind::Individual),
+        ("group_any", CheckpointKind::GroupAny),
+        ("group_all", CheckpointKind::GroupAll),
+    ] {
+        let definition: CheckpointDef =
+            serde_json::from_value(serde_json::json!({"type": name, "level": 0, "cols": [0, 1], "rows": [0, 1]}))
+                .expect("checkpoint type rejected");
+        let mut map = map_with_zones(2, vec![level(vec![[0, 0]])], Vec::new(), Vec::new(), Vec::new());
+        map.checkpoints.push(definition);
+        let (layout, config) = compile_map(&map, sizes(), &no_nested(), &empty_kind_table(), &no_bridges())
+            .expect("typed checkpoint compilation failed");
+        assert_eq!(config.checkpoints[0].kind, kind);
+        let bytes = bincode::encode_to_vec(&layout, bincode::config::standard()).expect("checkpoint encoding failed");
+        let (decoded, _): (MapLayout, _) =
+            bincode::decode_from_slice(&bytes, bincode::config::standard()).expect("checkpoint decoding failed");
+        assert_eq!(decoded.checkpoints[0].kind, kind);
+    }
+    for extra in [serde_json::json!({}), serde_json::json!({"type": "unknown"})] {
+        let mut value = serde_json::json!({"level": 0, "cols": [0, 1], "rows": [0, 1]});
+        value
+            .as_object_mut()
+            .expect("checkpoint object missing")
+            .extend(extra.as_object().expect("extra fields missing").clone());
+        assert!(serde_json::from_value::<CheckpointDef>(value).is_err());
+    }
 }

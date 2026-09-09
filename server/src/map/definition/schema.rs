@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use serde::Deserialize;
 
-use common::protocol::FaceMaterials;
+use common::protocol::{CheckpointKind, FaceMaterials};
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct MapFile {
@@ -26,7 +26,7 @@ pub(crate) struct MapDef {
     #[serde(default)]
     pub(crate) player_spawn_zones: Vec<ZoneDef>,
     #[serde(default)]
-    pub(crate) checkpoints: Vec<ZoneDef>,
+    pub(crate) checkpoints: Vec<CheckpointDef>,
     #[serde(default)]
     pub(crate) items: Vec<ItemDef>,
     #[serde(default)]
@@ -260,4 +260,13 @@ pub(crate) struct EraserDef {
     pub(crate) r0: i32,
     pub(crate) c1: i32,
     pub(crate) r1: i32,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub(crate) struct CheckpointDef {
+    pub(crate) level: u32,
+    pub(crate) cols: [i32; 2],
+    pub(crate) rows: [i32; 2],
+    #[serde(rename = "type")]
+    pub(crate) kind: CheckpointKind,
 }

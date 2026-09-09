@@ -3,13 +3,15 @@ use common::{
     map::Carriers,
     physics::{CharacterSupport, CollisionWorld},
     protocol::{
-        Barrier, BarrierKindId, BarrierKindTable, Carrier, CarrierId, Checkpoint, FaceYaw, Floor, Health, MapLayout,
-        PlayerId, Position, ServerMessage,
+        Barrier, BarrierKindId, BarrierKindTable, Carrier, CarrierId, Checkpoint, CheckpointKind, FaceYaw, Floor,
+        Health, MapLayout, PlayerId, Position, ServerMessage,
     },
 };
 
 use super::{
-    CheckpointId, PlayerMap, PowerUpState, checkpoint_spawn_position, players_checkpoints_system,
+    CheckpointId, PlayerCheckpoint, PlayerMap, PowerUpState, checkpoint_spawn_position,
+    checkpoints::apply_checkpoint_entries,
+    players_checkpoints_system,
     respawn_tests::{add_player, advance, kill, respawn_app},
 };
 use crate::{
@@ -21,6 +23,7 @@ use crate::{
 
 fn checkpoint(min_x: f32) -> Checkpoint {
     Checkpoint {
+        kind: CheckpointKind::Individual,
         carrier: CarrierId::WORLD,
         level: 0,
         min_x,
@@ -289,4 +292,221 @@ fn checkpoint_spawns_follow_carriers_and_avoid_players_and_barriers() {
     let kinds = BarrierKindTable::from_ids(vec!["gate".into()]).expect("barrier catalog rejected");
     let world = CollisionWorld::from_map_layout(&layout, &kinds);
     assert!(checkpoint_spawn_position(&c, &pose, &world, &[], physics).is_none());
+}
+
+fn entries(app: &mut App, entries: &[(u32, usize)]) {
+    let checkpoints = app.world().resource::<MapConfig>().checkpoints.clone();
+    let entered = entries
+        .iter()
+        .map(|&(player, checkpoint)| {
+            (
+                PlayerId(player),
+                PlayerCheckpoint {
+                    id: CheckpointId(checkpoint),
+                    facing: Vec3::new(player as f32, 0.0, 1.0).normalize(),
+                },
+            )
+        })
+        .collect();
+    apply_checkpoint_entries(&mut app.world_mut().resource_mut::<PlayerMap>(), &checkpoints, entered);
+}
+
+fn disconnect(app: &mut App, id: u32) {
+    let info = app
+        .world_mut()
+        .resource_mut::<PlayerMap>()
+        .disconnect(&PlayerId(id), 2.0)
+        .expect("departing player missing");
+    if let Some(entity) = info.entity() {
+        app.world_mut().despawn(entity);
+    }
+}
+
+#[test]
+fn shared_checkpoints_work_with_both_respawn_policies() {
+    for mode in [PlayerRespawnMode::Individual, PlayerRespawnMode::Group] {
+        for kind in [CheckpointKind::GroupAny, CheckpointKind::GroupAll] {
+            let mut app = app(mode);
+            app.world_mut().resource_mut::<MapConfig>().checkpoints[1].kind = kind;
+            add_player(&mut app, PlayerId(1));
+            add_player(&mut app, PlayerId(2));
+            entries(&mut app, &[(1, 1), (2, 1)]);
+            for id in [PlayerId(1), PlayerId(2)] {
+                assert_eq!(saved(&app, id), Some(CheckpointId(1)));
+            }
+            kill(&mut app, PlayerId(1));
+            advance(&mut app, 2.1);
+            for id in [PlayerId(1), PlayerId(2)] {
+                assert_eq!(saved(&app, id), Some(CheckpointId(1)));
+                let player = app.world().resource::<PlayerMap>().get(&id).expect("player missing");
+                let pos = app
+                    .world()
+                    .get::<Position>(player.entity().expect("respawn missing"))
+                    .expect("position missing");
+                if id == PlayerId(1) || mode == PlayerRespawnMode::Group {
+                    assert!(pos.x >= 20.0 && pos.x < 24.0);
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn group_all_visits_survive_death_and_membership_changes() {
+    let mut app = app(PlayerRespawnMode::Individual);
+    app.world_mut().resource_mut::<MapConfig>().checkpoints[1].kind = CheckpointKind::GroupAll;
+    let (_, mut first) = add_player(&mut app, PlayerId(1));
+    let (_, mut second) = add_player(&mut app, PlayerId(2));
+    entries(&mut app, &[(1, 1)]);
+    assert!(saved(&app, PlayerId(1)).is_none());
+    assert!(first.try_recv().is_err());
+    kill(&mut app, PlayerId(1));
+    add_player(&mut app, PlayerId(3));
+    entries(&mut app, &[(2, 1)]);
+    assert!(saved(&app, PlayerId(2)).is_none());
+    disconnect(&mut app, 3);
+    entries(&mut app, &[]);
+    for id in [PlayerId(1), PlayerId(2)] {
+        assert_eq!(saved(&app, id), Some(CheckpointId(1)));
+        let player = app.world().resource::<PlayerMap>().get(&id).expect("player missing");
+        assert!(player.session.checkpoint_visits.is_empty());
+        assert_eq!(
+            player.session.checkpoint.expect("saved checkpoint missing").facing,
+            Vec3::new(1.0, 0.0, 1.0).normalize()
+        );
+    }
+    let mut cues = 0;
+    while let Ok(message) = second.try_recv() {
+        if matches!(message, ServerToClient::Send(ServerMessage::CheckpointReached(_))) {
+            cues += 1;
+        }
+    }
+    assert_eq!(cues, 1);
+    assert!(
+        app.world()
+            .resource::<PlayerMap>()
+            .get(&PlayerId(1))
+            .expect("player missing")
+            .is_dead()
+    );
+    advance(&mut app, 2.1);
+    let player = app
+        .world()
+        .resource::<PlayerMap>()
+        .get(&PlayerId(1))
+        .expect("player missing");
+    assert!(
+        app.world()
+            .get::<Position>(player.entity().expect("respawn missing"))
+            .expect("position missing")
+            .x
+            >= 20.0
+    );
+}
+
+#[test]
+fn a_shared_activation_clears_other_partial_visits_and_empty_sessions_reset() {
+    let mut app = app(PlayerRespawnMode::Individual);
+    app.world_mut().resource_mut::<MapConfig>().checkpoints[0].kind = CheckpointKind::GroupAll;
+    app.world_mut().resource_mut::<MapConfig>().checkpoints[1].kind = CheckpointKind::GroupAny;
+    add_player(&mut app, PlayerId(1));
+    add_player(&mut app, PlayerId(2));
+    entries(&mut app, &[(1, 0)]);
+    entries(&mut app, &[(2, 1)]);
+    entries(&mut app, &[(2, 0)]);
+    assert_eq!(saved(&app, PlayerId(1)), Some(CheckpointId(1)));
+    entries(&mut app, &[(1, 0)]);
+    assert_eq!(saved(&app, PlayerId(2)), Some(CheckpointId(0)));
+    disconnect(&mut app, 1);
+    assert!(app.world().resource::<PlayerMap>().shared_checkpoint.is_some());
+    disconnect(&mut app, 2);
+    assert!(app.world().resource::<PlayerMap>().shared_checkpoint.is_none());
+}
+
+#[test]
+fn shared_activations_win_simultaneous_individual_entries_once_in_map_order() {
+    let mut app = app(PlayerRespawnMode::Individual);
+    let mut third = checkpoint(30.0);
+    third.kind = CheckpointKind::GroupAny;
+    app.world_mut().resource_mut::<MapConfig>().checkpoints.push(third);
+    app.world_mut().resource_mut::<MapConfig>().checkpoints[0].kind = CheckpointKind::GroupAny;
+    let (_, mut rx) = add_player(&mut app, PlayerId(1));
+    add_player(&mut app, PlayerId(2));
+    entries(&mut app, &[(1, 1), (2, 2), (2, 0)]);
+    assert_eq!(saved(&app, PlayerId(1)), Some(CheckpointId(0)));
+    assert_eq!(saved(&app, PlayerId(2)), Some(CheckpointId(0)));
+    assert!(matches!(
+        rx.try_recv(),
+        Ok(ServerToClient::Send(ServerMessage::CheckpointReached(_)))
+    ));
+    assert!(rx.try_recv().is_err());
+}
+
+#[test]
+fn stationary_or_respawning_players_do_not_overwrite_teammates_individual_progress() {
+    let mut app = app(PlayerRespawnMode::Individual);
+    app.world_mut().resource_mut::<MapConfig>().checkpoints[1].kind = CheckpointKind::GroupAny;
+    add_player(&mut app, PlayerId(1));
+    add_player(&mut app, PlayerId(2));
+    stand(
+        &mut app,
+        PlayerId(1),
+        Position {
+            x: 22.0,
+            y: 0.0,
+            z: 0.0,
+        },
+        CharacterSupport::Ground,
+    );
+    advance(&mut app, 0.0);
+    stand(
+        &mut app,
+        PlayerId(2),
+        Position {
+            x: 12.0,
+            y: 0.0,
+            z: 0.0,
+        },
+        CharacterSupport::Ground,
+    );
+    advance(&mut app, 0.0);
+    advance(&mut app, 0.0);
+    assert_eq!(saved(&app, PlayerId(2)), Some(CheckpointId(0)));
+    kill(&mut app, PlayerId(1));
+    advance(&mut app, 2.1);
+    stand(
+        &mut app,
+        PlayerId(1),
+        Position {
+            x: 22.0,
+            y: 0.0,
+            z: 0.0,
+        },
+        CharacterSupport::Ground,
+    );
+    advance(&mut app, 0.0);
+    assert_eq!(saved(&app, PlayerId(2)), Some(CheckpointId(0)));
+    stand(
+        &mut app,
+        PlayerId(1),
+        Position {
+            x: 18.0,
+            y: 0.0,
+            z: 0.0,
+        },
+        CharacterSupport::Airborne,
+    );
+    advance(&mut app, 0.0);
+    stand(
+        &mut app,
+        PlayerId(1),
+        Position {
+            x: 22.0,
+            y: 0.0,
+            z: 0.0,
+        },
+        CharacterSupport::Ground,
+    );
+    advance(&mut app, 0.0);
+    assert_eq!(saved(&app, PlayerId(2)), Some(CheckpointId(1)));
 }

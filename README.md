@@ -43,7 +43,7 @@ death/respawn flow.
 - **Ladders** — climb between levels.
 - **Moving maps** — tiles, rooms, and whole buildings that slide or lift through a map, everything inside riding along, monsters included. Get pinned by one and it kills you.
 - **Fall damage** — short drops are safe; long falls scale up to lethal.
-- **Checkpoints** — return to the last checkpoint you reached.
+- **Checkpoints** — return to individual checkpoints or shared ones activated by any or all players.
 - **Death & respawn** — return after a short delay, individually or with your group; some maps also restore enemies.
 - **Scoring** — kills, gold, actor kills, and quest completions award
   points.

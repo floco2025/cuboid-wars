@@ -28,7 +28,7 @@ use common::{
     },
 };
 
-pub(super) fn respawn_app(mode: PlayerRespawnMode, scope: ActorRespawnScope) -> App {
+pub(crate) fn respawn_app(mode: PlayerRespawnMode, scope: ActorRespawnScope) -> App {
     let mut config = ServerGameplayConfig::load_default().expect("gameplay config rejected");
     config.player.respawn_secs = 2.0;
     config.actors.settings.spawn_warning_secs = 3.0;

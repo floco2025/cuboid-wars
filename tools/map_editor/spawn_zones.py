@@ -4,8 +4,12 @@ from __future__ import annotations
 
 import copy
 
+from PySide6.QtWidgets import QInputDialog
+
 from .constants import (
     ACTOR_ZONE_LIST,
+    CHECKPOINT_LIST,
+    CHECKPOINT_TYPE_LABELS,
     SPAWN_ZONE_HANDLE_PIXELS,
     ZONE_LISTS,
 )
@@ -160,15 +164,24 @@ class SpawnZoneEditMixin:
         self.selected_spawn_zone_ref = self._zone_ref_after_change(drag.list_name, zone)
 
     def selected_spawn_zone_has_fields(self) -> bool:
-        # Only actor zones carry editable per-zone configuration (kind/count).
-        # Player zones are plain rectangles.
         ref = self.selected_spawn_zone_ref
-        return ref is not None and ref.list_name == ACTOR_ZONE_LIST
+        return ref is not None and ref.list_name in (ACTOR_ZONE_LIST, CHECKPOINT_LIST)
 
     def edit_selected_spawn_zone_fields(self) -> None:
         zone = self.selected_spawn_zone()
         ref = self.selected_spawn_zone_ref
         if zone is None or ref is None:
+            return
+        if ref.list_name == CHECKPOINT_LIST:
+            labels = list(CHECKPOINT_TYPE_LABELS.values())
+            current = CHECKPOINT_TYPE_LABELS.get(zone["type"], labels[0])
+            label, accepted = QInputDialog.getItem(self, "Checkpoint", "Type", labels, labels.index(current), False)
+            if accepted:
+                after = copy.deepcopy(self.map_data)
+                kind = next(kind for kind, text in CHECKPOINT_TYPE_LABELS.items() if text == label)
+                after[CHECKPOINT_LIST][ref.index]["type"] = kind
+                self.recent_checkpoint_type = kind
+                self.apply_change("Edit Checkpoint Type", after)
             return
         if ref.list_name != ACTOR_ZONE_LIST:
             return

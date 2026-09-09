@@ -34,6 +34,10 @@ def _player_spawn_zone_body(zone: dict) -> str:
     return _inline_object_body({"level": zone["level"], "cols": zone["cols"], "rows": zone["rows"]})
 
 
+def _checkpoint_body(zone: dict) -> str:
+    return _inline_object_body({"level": zone["level"], "cols": zone["cols"], "rows": zone["rows"], "type": zone["type"]})
+
+
 def _pressure_plate_body(plate: dict) -> str:
     body = {"level": plate["level"], "col": plate["col"], "row": plate["row"], "type": plate["type"]}
     if "kind" in plate:
@@ -50,7 +54,7 @@ def format_map_file(wrapper: dict) -> str:
         f'    "grid_rows": {map_data["grid_rows"]},',
         *with_trailing_comma(format_object_array("actor_spawn_zones", map_data["actor_spawn_zones"], _actor_spawn_zone_body, 4)),
         *with_trailing_comma(format_object_array("player_spawn_zones", map_data["player_spawn_zones"], _player_spawn_zone_body, 4)),
-        *with_trailing_comma(format_object_array("checkpoints", map_data.get("checkpoints", []), _player_spawn_zone_body, 4)),
+        *with_trailing_comma(format_object_array("checkpoints", map_data.get("checkpoints", []), _checkpoint_body, 4)),
         *with_trailing_comma(format_object_array("pressure_plates", map_data.get("pressure_plates", []), _pressure_plate_body, 4)),
         *with_trailing_comma(format_object_array("items", map_data.get("items", []), _item_body, 4)),
         '    "levels": [',

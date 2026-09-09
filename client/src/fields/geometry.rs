@@ -206,9 +206,11 @@ fn near(a: f32, b: f32) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use common::protocol::CheckpointKind;
     #[test]
     fn checkpoint_perimeter_has_four_vertical_sides_and_an_open_top() {
         let checkpoint = Checkpoint {
+            kind: CheckpointKind::Individual,
             carrier: CarrierId::WORLD,
             level: 2,
             min_x: 1.0,

@@ -65,6 +65,7 @@ pub(super) fn compile_geometry(
     let mut checkpoints = Vec::new();
     for zone in &map_def.checkpoints {
         checkpoints.push(Checkpoint {
+            kind: zone.kind,
             carrier,
             level: level_tag(zone.level as usize),
             min_x: geometry.cell_to_world_x(zone.cols[0]),

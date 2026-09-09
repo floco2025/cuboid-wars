@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use bevy::prelude::*;
 use tokio::sync::mpsc::UnboundedSender;
@@ -12,7 +12,7 @@ use common::protocol::{
     PortalAccess, Position, PowerUpKind, QuestId, QuestScope, SPlayerStatus,
 };
 
-use super::{PlayerCheckpoint, PlayerFallState, PowerUpState};
+use super::{CheckpointId, PlayerCheckpoint, PlayerFallState, PowerUpState};
 
 pub type PlayerStateQuery<'w, 's> = Query<
     'w,
@@ -81,6 +81,7 @@ pub struct PlayerSession {
     pub score: i32,
     pub quest_states: HashMap<QuestId, PlayerQuestState>,
     pub checkpoint: Option<PlayerCheckpoint>,
+    pub checkpoint_visits: BTreeMap<CheckpointId, Vec3>,
 }
 
 enum PlayerLifecycle {
@@ -102,6 +103,7 @@ pub struct PlayerLife {
     // the client can change-detect via a single equality check.
     pub held_keys: Vec<BarrierKindId>,
     pub fall_state: PlayerFallState,
+    pub checkpoint_contact: Option<CheckpointId>,
 }
 
 impl PlayerLife {
@@ -118,6 +120,7 @@ impl PlayerLife {
             missiles: 0,
             held_keys: Vec::new(),
             fall_state: PlayerFallState::default(),
+            checkpoint_contact: None,
         }
     }
 
@@ -180,6 +183,13 @@ impl PlayerInfo {
                 respawn_remaining_secs, ..
             } => Some(respawn_remaining_secs),
         }
+    }
+
+    pub(crate) fn wait_for_spawn(&mut self) {
+        // Waiting for a clear initial spawn is not a death or a world-reset event.
+        self.life = PlayerLife::with_lifecycle(PlayerLifecycle::Dead {
+            respawn_remaining_secs: 0.0,
+        });
     }
 
     pub fn finish_respawn(&mut self, entity: Entity) {
@@ -341,6 +351,7 @@ pub struct PlayerMap {
     group_respawn: Option<f32>,
     actor_reset_timers: Vec<f32>,
     resets: Vec<PlayerResetCounts>,
+    pub(crate) shared_checkpoint: Option<PlayerCheckpoint>,
 }
 
 pub(crate) struct PlayerResetCounts {
@@ -472,6 +483,9 @@ impl PlayerMap {
                 .or(info.respawn_remaining_secs())
                 .unwrap_or(respawn_secs);
             self.record_reset(PlayerResetCounts { logged_in, alive }, delay);
+        }
+        if !self.values().any(|player| player.connection.logged_in) {
+            self.shared_checkpoint = None;
         }
         Some(info)
     }

@@ -8,6 +8,7 @@ from dataclasses import dataclass, replace
 
 from .constants import (
     FACES,
+    CHECKPOINT_TYPE_LABELS,
     ITEM_KEY_TYPE,
     ITEM_TYPES,
     LADDER_SIDES,
@@ -474,6 +475,8 @@ def _validate_checkpoints(data: dict, errors: ValidationErrors) -> None:
         label = f"checkpoints[{index}]"
         errors.locate("checkpoints", zone)
         _validate_zone_rect(zone, label, data, errors)
+        if zone.get("type") not in CHECKPOINT_TYPE_LABELS:
+            errors.append(f"{label} has an unknown checkpoint type {zone.get('type')!r}")
         level = zone["level"]
         if not 0 <= level < len(data["levels"]):
             continue

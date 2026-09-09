@@ -91,6 +91,8 @@ class PlacementMixin:
             "cols": [c0, c1],
             "rows": [r0, r1],
         }
+        if list_name == CHECKPOINT_LIST:
+            new_zone["type"] = self.recent_checkpoint_type
         after[list_name].append(new_zone)
         self.apply_change(f"Paint {label}", after)
         self.selected_spawn_zone_ref = self._zone_ref_after_change(list_name, new_zone)

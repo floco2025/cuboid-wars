@@ -18,6 +18,6 @@
 
 ## Testing
 
-- **Checkpoint playthrough:** Verify the amber half-height perimeter, checkpoint sound and short banner in-game, then die and respawn at a checkpoint on a moving floor.
+- **Shared checkpoints:** Play through Group — any and Group — all with multiple clients, including staggered visits, death, joining, and leaving. Check each player's next respawn and checkpoint notification.
 
 - **Sliding-carrier pushing:** Let the moving cabin's wall push you while standing still, walking against it, and stepping sideways out of its path. Confirm open space is safe, being pinned against another wall still crushes, and boarding moving platforms remains safe. Crushed actors should play their normal explosion animation and sound.
