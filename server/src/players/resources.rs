@@ -8,11 +8,11 @@ use crate::{
     network::ServerToClient,
 };
 use common::protocol::{
-    BarrierKindId, FaceYaw, Health, ItemType, Player, PlayerId, PlayerMarker, PlayerMoveIntent, PlayerMovementState,
-    PortalAccess, Position, PowerUpKind, QuestId, QuestScope, SPlayerStatus,
+    BarrierKindId, CMove, FaceYaw, Health, ItemType, Player, PlayerId, PlayerMarker, PlayerMoveIntent,
+    PlayerMovementState, PortalAccess, Position, PowerUpKind, QuestId, QuestScope, SPlayerStatus,
 };
 
-use super::{CheckpointId, PlayerCheckpoint, PlayerFallState, PowerUpState};
+use super::{CheckpointId, PlayerCheckpoint, PlayerFallState, PlayerMovementPath, PowerUpState};
 
 pub type PlayerStateQuery<'w, 's> = Query<
     'w,
@@ -70,13 +70,8 @@ pub struct PlayerConnection {
 
 #[derive(Default)]
 pub struct PlayerSession {
-    // Newest `CMove.seq` taken in, applied or held for a crossing; an older
-    // commit is ignored. Per session, so a respawn does not reset it under a
-    // counter that keeps climbing.
+    // Sequences survive respawn, like the client counter.
     pub last_move_seq: u32,
-    // Portal crossings this player has made, per session like the sequence.
-    // An input is expressed on the side the client's own simulation is on
-    // and applied only once this player has made the same crossings.
     pub hops: u32,
     pub score: i32,
     pub quest_states: HashMap<QuestId, PlayerQuestState>,
@@ -91,6 +86,9 @@ enum PlayerLifecycle {
 }
 
 pub struct PlayerLife {
+    pub pending_move: Option<CMove>,
+    pub processed_move_seq: Option<u32>,
+    pub(crate) movement_path: Option<PlayerMovementPath>,
     lifecycle: PlayerLifecycle,
     pub power_ups: [PowerUpState; PowerUpKind::COUNT],
     pub stun_timer: f32,
@@ -114,6 +112,9 @@ impl PlayerLife {
     fn with_lifecycle(lifecycle: PlayerLifecycle) -> Self {
         Self {
             lifecycle,
+            pending_move: None,
+            processed_move_seq: None,
+            movement_path: None,
             power_ups: [PowerUpState::Inactive; PowerUpKind::COUNT],
             stun_timer: 0.0,
             last_shot_time: f32::NEG_INFINITY,

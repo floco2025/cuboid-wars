@@ -3,6 +3,7 @@ mod components;
 mod inspection;
 mod model;
 mod movement;
+mod reconciliation;
 mod resources;
 mod visual_turn;
 
@@ -13,6 +14,7 @@ pub use inspection::{
 };
 pub use model::{CharacterModel, character_models_attach_system, load_character_model, model_transform};
 pub use movement::{capture_previous_tick_position_system, characters_movement_system};
+pub(crate) use reconciliation::{CharacterReconciliationOutcome, reconcile_character};
 pub use resources::{BoundsMode, MaxHealth};
 pub use visual_turn::characters_visual_turn_system;
 

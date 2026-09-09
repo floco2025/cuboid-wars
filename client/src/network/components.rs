@@ -1,19 +1,18 @@
 use bevy::prelude::*;
 use common::protocol::Position;
 
-use crate::network::resources::RoundTripTime;
+use crate::{
+    constants::{RECON_CORRECTION_MIN_SECS, RECON_CORRECTION_TIME_RTT_MULTIPLIER},
+    network::resources::RoundTripTime,
+};
 
 // ============================================================================
 // Components
 // ============================================================================
 
-// The gap between where the server has this entity and where the client
-// has it, to close over a correction window: `recorded_correction` for the
-// local player, `extrapolated_correction` for everything else. A gap too big
-// to ease snaps to `server_pos` instead. That target is absolute on purpose:
-// adding the gap to the current position re-adds it for every echo still in
-// flight, measured against pre-snap positions, and that delayed feedback
-// grows without bound.
+// Remote prediction closes an extrapolated gap over a correction window.
+// Large errors snap to the absolute server position to avoid feeding an
+// already-applied correction back through delayed updates.
 #[derive(Component)]
 pub struct ServerReconciliation {
     pub correction_delta: Vec3,
@@ -24,6 +23,13 @@ pub struct ServerReconciliation {
 }
 
 impl ServerReconciliation {
+    pub fn correction_fraction(&mut self, delta: f32) -> f32 {
+        let window = (self.rtt * RECON_CORRECTION_TIME_RTT_MULTIPLIER).max(RECON_CORRECTION_MIN_SECS);
+        let fraction = (delta / window).min(1.0 - self.applied_fraction);
+        self.applied_fraction += fraction;
+        fraction
+    }
+
     // RTT captured as seconds (centralizing the `Duration → f32` conversion).
     #[must_use]
     pub fn new(correction_delta: Vec3, server_pos: Position, server_velocity: Vec3, rtt: &RoundTripTime) -> Self {
@@ -35,14 +41,6 @@ impl ServerReconciliation {
             rtt: rtt.rtt.as_secs_f32(),
         }
     }
-}
-
-// Gap to close for the local player: the server position after a `CMove`
-// minus where our own simulation stood after that same `CMove`, so the
-// difference is the prediction error alone.
-#[must_use]
-pub fn recorded_correction(recorded_pos: Position, server_pos: Position) -> Vec3 {
-    Vec3::from(server_pos) - Vec3::from(recorded_pos)
 }
 
 // Gap to close for a sample with no `CMove` of ours behind it (remote
@@ -57,22 +55,6 @@ pub fn extrapolated_correction(
     rtt: &RoundTripTime,
 ) -> Vec3 {
     Vec3::from(server_pos) + server_velocity * rtt.rtt.as_secs_f32() / 2.0 - Vec3::from(client_pos)
-}
-
-// Pick the axis with the largest |value| from a 3-component delta. Used
-// for the per-axis snap decision and its warning log, so the reader sees
-// which axis tripped the threshold.
-pub fn worst_axis_divergence(delta: Vec3) -> (&'static str, f32) {
-    let xa = delta.x.abs();
-    let ya = delta.y.abs();
-    let za = delta.z.abs();
-    if xa >= ya && xa >= za {
-        ("x", xa)
-    } else if ya >= za {
-        ("y", ya)
-    } else {
-        ("z", za)
-    }
 }
 
 #[cfg(test)]
@@ -92,11 +74,25 @@ mod tests {
     }
 
     #[test]
-    fn recorded_correction_is_the_offset_between_the_two_positions() {
-        assert_eq!(
-            recorded_correction(pos(1.0, 0.0, 0.0), pos(3.0, 0.0, 0.0)),
-            Vec3::new(2.0, 0.0, 0.0)
-        );
+    fn smoothing_finishes_without_overshoot_when_updates_pause() {
+        for millis in [0, 200, 1000] {
+            let mut recon = ServerReconciliation::new(Vec3::X, pos(1.0, 0.0, 0.0), Vec3::ZERO, &rtt_ms(millis));
+            let mut applied = 0.0;
+            for _ in 0..300 {
+                applied += recon.correction_fraction(1.0 / 30.0);
+            }
+            assert!((applied - 1.0).abs() < 1e-6);
+            assert_eq!(recon.applied_fraction, 1.0);
+            assert_eq!(recon.correction_fraction(1.0 / 30.0), 0.0);
+        }
+    }
+
+    #[test]
+    fn smoothing_window_scales_with_rtt_and_keeps_a_minimum() {
+        for (millis, window) in [(0, 0.25), (200, 0.8)] {
+            let mut recon = ServerReconciliation::new(Vec3::X, pos(1.0, 0.0, 0.0), Vec3::ZERO, &rtt_ms(millis));
+            assert!((recon.correction_fraction(1.0 / 30.0) - (1.0 / 30.0) / window).abs() < 1e-6);
+        }
     }
 
     #[test]
@@ -114,18 +110,5 @@ mod tests {
             &rtt_ms(200),
         );
         assert_eq!(delta, Vec3::new(1.0, 0.0, 0.0));
-    }
-
-    #[test]
-    fn divergence_picks_the_dominant_axis() {
-        assert_eq!(worst_axis_divergence(Vec3::new(-3.0, 1.0, 2.0)), ("x", 3.0));
-        assert_eq!(worst_axis_divergence(Vec3::new(1.0, -3.0, 2.0)), ("y", 3.0));
-        assert_eq!(worst_axis_divergence(Vec3::new(1.0, 2.0, -3.0)), ("z", 3.0));
-    }
-
-    #[test]
-    fn divergence_ties_prefer_x_then_y() {
-        assert_eq!(worst_axis_divergence(Vec3::splat(2.0)), ("x", 2.0));
-        assert_eq!(worst_axis_divergence(Vec3::new(0.0, 2.0, 2.0)), ("y", 2.0));
     }
 }

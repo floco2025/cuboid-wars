@@ -1,28 +1,18 @@
-use std::collections::HashMap;
-
-use bevy::prelude::*;
-
 use crate::players::PlayerMap;
+use bevy::prelude::*;
 use common::{
     config::GameplayConfig,
     physics::{AirborneMomentum, CharacterVerticalVelocity, KnockbackVelocity, PlayerHopBody, PortalSet},
     protocol::{FaceYaw, MapSettings, PlayerId, PlayerMarker, PlayerMoveIntent, Position},
 };
 
-// Runs right after the movement step. The step already let the body sink
-// into any linked aperture (its backing colliders are excluded while the
-// body overlaps it); the tick the body's center crosses the plane, it
-// continues from the paired end. The direct `Position` write lands in this
-// tick's snapshot. `previous` holds each entity's post-step position from
-// the last tick — the "from" side of the crossing test.
 pub fn players_portal_traversal_system(
     mut commands: Commands,
     portal_set: Res<PortalSet>,
     mut players: ResMut<PlayerMap>,
-    gameplay_config: Res<GameplayConfig>,
-    map_settings: Res<MapSettings>,
-    mut previous: Local<HashMap<Entity, Position>>,
-    mut player_query: Query<
+    gameplay: Res<GameplayConfig>,
+    settings: Res<MapSettings>,
+    mut query: Query<
         (
             Entity,
             &PlayerId,
@@ -36,46 +26,38 @@ pub fn players_portal_traversal_system(
         With<PlayerMarker>,
     >,
 ) {
-    let mut seen: HashMap<Entity, Position> = HashMap::new();
-    for (entity, id, mut pos, mut face_yaw, mut vertical_velocity, mut move_intent, knockback, momentum) in
-        &mut player_query
-    {
-        let from = previous.get(&entity).copied();
-        let hop = from.and_then(|from| {
-            if portal_set.is_empty() {
-                return None;
-            }
-            let info = players.get(id)?;
-            portal_set.player_hop(
-                Vec3::from(from),
-                Vec3::from(*pos),
-                &gameplay_config,
-                &map_settings.movement,
-                PlayerHopBody {
-                    move_intent: *move_intent,
-                    has_speed: info.has_speed(),
-                    stunned: info.is_stunned(),
-                    knockback: knockback.as_deref(),
-                    airborne_momentum: momentum.as_deref(),
-                    vertical_velocity: vertical_velocity.0,
-                    yaw: face_yaw.0,
-                },
-            )
-        });
-        if let Some(hop) = hop {
-            hop.apply_player_state(&mut pos, &mut face_yaw, &mut vertical_velocity, &mut move_intent);
-            hop.apply_motion_components(&mut commands, entity, knockback, momentum);
-            if let Some(info) = players.get_mut(id) {
-                // No fall damage across a portal: the drop tracker restarts
-                // at the exit.
-                info.life.fall_state.reset();
-                info.session.hops = info.session.hops.wrapping_add(1);
-            }
-            // Not broadcast: every client simulates every player's crossings
-            // from the shared geometry; the snapshot corrects a wrong guess.
-            debug!("{} passed through a portal", players.describe(id));
-        }
-        seen.insert(entity, *pos);
+    if portal_set.is_empty() {
+        return;
     }
-    *previous = seen;
+    for (entity, id, mut pos, mut yaw, mut vertical, mut intent, knockback, airborne) in &mut query {
+        let Some(info) = players.get_mut(id) else {
+            continue;
+        };
+        let Some(path) = &info.life.movement_path else {
+            continue;
+        };
+        let Some(hop) = portal_set.player_hop(
+            Vec3::from(path.start),
+            Vec3::from(*pos),
+            &gameplay,
+            &settings.movement,
+            PlayerHopBody {
+                move_intent: *intent,
+                has_speed: info.has_speed(),
+                stunned: info.is_stunned(),
+                knockback: knockback.as_deref(),
+                airborne_momentum: airborne.as_deref(),
+                vertical_velocity: vertical.0,
+                yaw: yaw.0,
+            },
+        ) else {
+            continue;
+        };
+        if let Some(path) = &mut info.life.movement_path {
+            path.portal_entry = Some(*pos);
+        }
+        hop.apply_player_state(&mut pos, &mut yaw, &mut vertical, &mut intent);
+        hop.apply_motion_components(&mut commands, entity, knockback, airborne);
+        info.session.hops = info.session.hops.wrapping_add(1);
+    }
 }

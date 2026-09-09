@@ -38,46 +38,18 @@ pub(crate) struct CharacterQueries<'w, 's> {
     pub(crate) actor_data: ActorStateQuery<'w, 's>,
 }
 
-pub(super) fn handle_move_message(
-    commands: &mut Commands,
-    entity: Entity,
-    id: PlayerId,
-    message: CMove,
-    players: &mut PlayerMap,
-) {
-    // Reject non-finite input before it can corrupt authoritative movement.
-    if !message.input.is_finite() {
-        return;
-    }
+pub(super) fn handle_move_message(id: PlayerId, message: CMove, players: &mut PlayerMap) {
     let Some(info) = players.get_mut(&id) else {
         return;
     };
-    if !sequence_is_newer(message.seq, info.session.last_move_seq) {
-        debug!(
-            "ignoring an outdated move from {:?} (seq {}, last {})",
-            id, message.seq, info.session.last_move_seq
-        );
+    if !message.input.is_finite()
+        || !message.movement.is_finite()
+        || !sequence_is_newer(message.seq, info.session.last_move_seq)
+    {
         return;
     }
     info.session.last_move_seq = message.seq;
-    // The intent is expressed on the side of the crossings the client's own
-    // simulation has made; until this player has made the same ones, the
-    // persisted intent, mapped through each hop, is the right one. The sequence
-    // advances regardless: the echo names the newest commit received, and the
-    // client measuring its record after that commit against a position that did
-    // not apply it finds the real divergence an unapplied input created, which
-    // is what it must then close.
-    if message.hops != info.session.hops {
-        trace!(
-            "holding {:?}'s input: {} hops there, {} here",
-            id, message.hops, info.session.hops
-        );
-        return;
-    }
-    let input = message.input;
-    commands
-        .entity(entity)
-        .insert((input.move_intent, FaceYaw(input.face_yaw)));
+    info.life.pending_move = Some(message);
 }
 
 pub(super) fn handle_jump_message(

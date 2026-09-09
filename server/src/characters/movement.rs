@@ -7,17 +7,14 @@ use common::{
         PlayerMovementStep, PortalSet, overlapping_character, player_control_velocity, step_player_movement,
     },
     protocol::{
-        ActorMarker, BarrierKindId, Health, MapSettings, PlateState, PlayerId, PlayerMarker, PlayerMoveIntent, Position,
+        ActorMarker, BarrierKindId, MapSettings, PlateState, PlayerId, PlayerMarker, PlayerMoveIntent, Position,
     },
 };
 
 use crate::{
     actors::{ActorMap, ActorMovementQuery, apply_actor_moves, plan_actor_moves},
-    config::ServerGameplayConfig,
-    players::{EraserContacts, PlayerInfo, PlayerMap},
+    players::{PlayerInfo, PlayerMap, PlayerMovementPath},
 };
-
-use super::contact_explosions::detonate_actors_touching_players;
 
 type PlayerMovementQuery<'w, 's> = Query<
     'w,
@@ -38,16 +35,13 @@ pub fn characters_movement_system(
     time: Res<Time>,
     collision_world: Res<CollisionWorld>,
     gameplay_config: Res<GameplayConfig>,
-    server_gameplay_config: Res<ServerGameplayConfig>,
     map_settings: Res<MapSettings>,
     mut players: ResMut<PlayerMap>,
-    mut eraser_contacts: ResMut<EraserContacts>,
     plates: Res<PlateState>,
     portal_set: Res<PortalSet>,
     carriers: Res<Carriers>,
     actors: Res<ActorMap>,
     mut player_query: PlayerMovementQuery,
-    mut actor_health: Query<&mut Health, With<ActorMarker>>,
     mut actor_query: ActorMovementQuery,
 ) {
     let delta = time.delta_secs();
@@ -84,22 +78,7 @@ pub fn characters_movement_system(
         &mut actor_query,
         &mut planned_moves,
     );
-    apply_player_moves(&mut player_query, &planned_moves, |id, start, end| {
-        // Sweep before portal traversal; the arrival overlap is checked after item collection.
-        eraser_contacts.swept.extend(
-            collision_world
-                .character_eraser_contacts(start, end, gameplay_config.player.physics(), Some(&carriers))
-                .map(|field| (id, field)),
-        );
-    });
-    detonate_actors_touching_players(
-        &mut actor_health,
-        &actors,
-        &planned_moves,
-        &server_gameplay_config,
-        &collision_world,
-        &plates.open_barrier_kinds,
-    );
+    apply_player_moves(&mut player_query, &planned_moves);
     apply_actor_moves(&mut actor_query, &actors, &planned_moves);
 }
 
@@ -118,6 +97,13 @@ fn plan_player_moves(
     let player_config = &gameplay_config.player;
     let player_physics = player_config.physics();
     for (entity, pos, motion, move_intent, player_id, knockback, mut momentum) in query.iter_mut() {
+        if let Some(info) = players.get_mut(player_id) {
+            info.life.movement_path = Some(PlayerMovementPath {
+                start: *pos,
+                start_hops: info.session.hops,
+                portal_entry: None,
+            });
+        }
         let info = players.get(player_id);
         let control_velocity = player_control_velocity(
             *move_intent,
@@ -158,23 +144,17 @@ fn plan_player_moves(
     }
 }
 
-fn apply_player_moves(
-    query: &mut PlayerMovementQuery,
-    planned_moves: &[CharacterMovePlan],
-    mut record_move: impl FnMut(PlayerId, &Position, &Position),
-) {
+fn apply_player_moves(query: &mut PlayerMovementQuery, planned_moves: &[CharacterMovePlan]) {
     for planned_move in planned_moves {
-        let Ok((_, mut pos, mut motion, _, id, _, _)) = query.get_mut(planned_move.entity) else {
+        let Ok((_, mut pos, mut motion, _, _, _, _)) = query.get_mut(planned_move.entity) else {
             continue;
         };
 
-        let start = *pos;
         if overlapping_character(planned_move, planned_moves).is_some() {
             pos.y = planned_move.target.y;
         } else {
             *pos = planned_move.target;
         }
-        record_move(*id, &start, &pos);
         motion.0 = planned_move.target_vertical_velocity;
     }
 }

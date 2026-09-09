@@ -2,7 +2,6 @@ mod aim_rig;
 #[cfg(test)]
 mod aim_rig_tests;
 mod movement;
-mod reconciliation;
 mod resources;
 mod spawn;
 mod transform_sync;

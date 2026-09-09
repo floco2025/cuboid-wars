@@ -34,15 +34,14 @@
 //    from. Presence includes pre-presence: `spawning_actors` carries reserved
 //    actor spawns during their warning window, so clients render a beam-in
 //    ghost before the actor exists. `SPlayerMoves` is the per-tick companion:
-//    every active player's `PlayerMovementState` after each tick's movement,
-//    the receiver's own included. It exists because the local player needs
-//    an echo of each input to measure its prediction error against; since
-//    the server sends it every tick anyway, every player rides it, which is
-//    what retires a separate per-change player cue and the snapshot's
-//    reconciliation of players. Actors and missiles have no such message:
-//    nothing about them needs an echo, and a per-tick roster of the many
-//    actors on a map would crowd a datagram, so they keep the per-change
-//    cue plus the snapshot.
+//    every active player's live movement. The server accepts client movement
+//    within the shared per-axis trust distance; larger disagreements retain
+//    its simulation. `PlayerMove.move_seq` is present only when that tick
+//    processed a client report, pairing the position with the local client's
+//    recorded result for snap decisions and clock synchronization. Without
+//    a fresh report the server keeps simulating, but no sequence is echoed.
+//    Remote players smooth every update. Actors and missiles keep per-change
+//    cues plus snapshots; they need no client-report comparison.
 //
 //    Projectiles are the deliberate exception. They are short-lived, fast,
 //    and numerous, so they are replicated as shot cues (`SProjectileShot`)
@@ -128,19 +127,19 @@ impl PlayerInput {
     }
 }
 
-// Client to Server: the input, committed every tick whether it changed or
-// not, so a lost commit heals at the next one. It replaces state wholesale,
-// so it carries a sequence and the server ignores a commit older than the
-// last one it took in; the sequence names the commit, which is why it is
-// not the client's tick estimate. `hops` is how many portal crossings the
-// client's own simulation of its player has made: the intent is expressed on
-// that side of them, and the server applies it only once its player has made
-// the same ones.
+// Sent after every client movement step and portal transit, before knockback
+// decay. `input` and `hops` describe the start of that step; `movement` and
+// `result_hops` describe its result. Sequence ordering selects the newest
+// report per server tick; the server compares after its corresponding step,
+// then adopts the entire client result only within the shared trust limit.
+// A hop mismatch protects the input frame but never vetoes the result.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct CMove {
     pub seq: u32,
     pub input: PlayerInput,
     pub hops: u32,
+    pub movement: PlayerMovementState,
+    pub result_hops: u32,
 }
 
 // Client to Server: One-shot jump request.
@@ -296,13 +295,9 @@ pub struct SSnapshot {
     pub portals: Vec<Portal>,
 }
 
-// Every active player's movement state after this tick's movement, sent to
-// every player once per tick, the receiver's own included. Remote players
-// take their intent, facing, and vertical velocity from it; every player
-// reconciles against it. Presence is the snapshot's alone: a client ignores
-// entries for players it does not know. Like `SSnapshot`, it carries the
-// server tick it reflects and the client ignores an older one; paired with
-// each entry's `move_seq`, that tick is how the client corrects its clock.
+// Live state for remote prediction; presence remains snapshot-owned. `tick`
+// orders the stream and, with a present `move_seq`, pairs a client report
+// with the server step that processed it.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SPlayerMoves {
     pub tick: u32,
@@ -313,15 +308,10 @@ pub struct SPlayerMoves {
 pub struct PlayerMove {
     pub id: PlayerId,
     pub movement: PlayerMovementState,
-    // The newest `CMove.seq` the server had taken in before this state was
-    // computed; a commit held for a portal crossing counts, its input
-    // unapplied. Only the player it belongs to can use it: they compare
-    // `movement.pos` with the position they predicted after that same
-    // `CMove`, a measured error rather than an extrapolated one.
-    pub move_seq: u32,
-    // How many portal crossings the server's player has made. A client
-    // steers or reconciles a player only from a state whose count matches
-    // its own simulation of that player (`PlayerInfo::hops` on the client).
+    // Some(seq) only for a CMove processed this tick; None avoids comparing
+    // continued server movement against an earlier client position.
+    pub move_seq: Option<u32>,
+    // Remote prediction uses this to avoid correcting across a stale crossing.
     pub hops: u32,
 }
 
@@ -876,7 +866,14 @@ mod tests {
             face_yaw: 0.0,
         };
         assert_eq!(
-            ClientMessage::Move(CMove { seq: 1, input, hops: 0 }).lane(),
+            ClientMessage::Move(CMove {
+                seq: 1,
+                input,
+                hops: 0,
+                movement: PlayerMovementState::new(position(), input.move_intent, 0.0, input.face_yaw),
+                result_hops: 0
+            })
+            .lane(),
             Lane::Unreliable
         );
         assert_eq!(

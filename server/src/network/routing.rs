@@ -85,11 +85,11 @@ pub(super) fn route_client_message(
             warn!("{} sent gameplay traffic before login", context.players.describe(&id));
         }
         ClientMessage::Move(message) => {
-            let Some(entity) = entity else {
+            let Some(_) = entity else {
                 return;
             };
             trace!("{:?} input: {:?}", id, message);
-            handle_move_message(commands, entity, id, message, &mut context.players);
+            handle_move_message(id, message, &mut context.players);
         }
         ClientMessage::Jump(_) => {
             let Some(entity) = entity else {

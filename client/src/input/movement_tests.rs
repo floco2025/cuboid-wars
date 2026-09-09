@@ -17,8 +17,8 @@ use common::{
 };
 
 use super::{
-    WeaponMode, commit_player_input_system, input_camera_view_toggle_system, input_camera_zoom_system,
-    input_cursor_capture_system, input_facing_lock_toggle_system, input_movement_system,
+    WeaponMode, capture_player_input_system, commit_player_input_system, input_camera_view_toggle_system,
+    input_camera_zoom_system, input_cursor_capture_system, input_facing_lock_toggle_system, input_movement_system,
 };
 use crate::{
     cameras::{CameraInputState, CameraViewMode, FollowCamera, TopDownCameraYaw},
@@ -46,6 +46,7 @@ fn input_app() -> (App, Entity, Entity) {
             &MapLayout::default(),
             &BarrierKindTable::default(),
         ))
+        .init_resource::<common::protocol::ServerTick>()
         .init_resource::<PlayerMap>()
         .init_resource::<LocalPlayerInfo>()
         .init_resource::<TopDownCameraYaw>()
@@ -228,7 +229,12 @@ fn unlocked_firing_faces_view_without_changing_movement_or_lock_and_commits_faci
         app.insert_resource(ClientToServerChannel::new(sender))
             .insert_resource(weapon)
             .insert_resource(access)
-            .add_systems(Update, commit_player_input_system.after(input_movement_system));
+            .add_systems(
+                Update,
+                (capture_player_input_system, commit_player_input_system)
+                    .chain()
+                    .after(input_movement_system),
+            );
         app.world_mut().resource_mut::<FollowCamera>().locked = false;
         app.world_mut()
             .resource_mut::<ButtonInput<KeyCode>>()

@@ -157,6 +157,97 @@ mod tests {
     use common::constants::TICK_SECS;
 
     #[test]
+    fn full_server_schedule_accepts_and_broadcasts_two_clients_then_clears_echo_sequences() {
+        use crate::network::{ClientToServer, ServerToClient};
+        use common::protocol::{
+            CLogin, CMove, ClientMessage, PlayerId, PlayerInput, PlayerMoveIntent, PlayerMovementState, Position,
+            ServerMessage,
+        };
+        use tokio::sync::mpsc::unbounded_channel;
+
+        let (incoming, receiver) = unbounded_channel();
+        let mut app = build_server_app(Some("obby"), FromClientsChannel::new(receiver)).expect("server app failed");
+        app.update();
+        let mut receivers = Vec::new();
+        for id in [PlayerId(1), PlayerId(2)] {
+            let (sender, receiver) = unbounded_channel();
+            incoming
+                .send((id, ClientToServer::Registration { to_client: sender }))
+                .expect("registration failed");
+            incoming
+                .send((
+                    id,
+                    ClientToServer::Message(ClientMessage::Login(CLogin {
+                        name: format!("Player {}", id.0),
+                    })),
+                ))
+                .expect("login failed");
+            receivers.push((id, receiver));
+        }
+        app.update();
+        let targets: Vec<_> = receivers
+            .iter()
+            .map(|(id, _)| {
+                let entity = app
+                    .world()
+                    .resource::<PlayerMap>()
+                    .get(id)
+                    .and_then(|info| info.entity())
+                    .expect("player body missing");
+                let mut pos = *app.world().get::<Position>(entity).expect("player position missing");
+                pos.x += 0.2;
+                (*id, entity, pos)
+            })
+            .collect();
+        for (id, _, pos) in &targets {
+            incoming
+                .send((
+                    *id,
+                    ClientToServer::Message(ClientMessage::Move(CMove {
+                        seq: 1,
+                        input: PlayerInput {
+                            move_intent: PlayerMoveIntent::Idle,
+                            face_yaw: 0.0,
+                        },
+                        hops: 0,
+                        movement: PlayerMovementState::new(*pos, PlayerMoveIntent::Idle, 0.0, 0.0),
+                        result_hops: 0,
+                    })),
+                ))
+                .expect("movement delivery failed");
+        }
+        app.update();
+        for (_, entity, pos) in &targets {
+            assert_eq!(
+                app.world().get::<Position>(*entity).expect("player position missing"),
+                pos
+            );
+        }
+        for (_, receiver) in &mut receivers {
+            let latest = std::iter::from_fn(|| receiver.try_recv().ok())
+                .filter_map(|message| match message {
+                    ServerToClient::Send(ServerMessage::PlayerMoves(moves)) => Some(moves),
+                    _ => None,
+                })
+                .last()
+                .expect("movement broadcast missing");
+            assert_eq!(latest.moves.len(), 2);
+            assert!(latest.moves.iter().all(|entry| entry.move_seq == Some(1)));
+        }
+        app.update();
+        for (_, receiver) in &mut receivers {
+            let latest = std::iter::from_fn(|| receiver.try_recv().ok())
+                .filter_map(|message| match message {
+                    ServerToClient::Send(ServerMessage::PlayerMoves(moves)) => Some(moves),
+                    _ => None,
+                })
+                .last()
+                .expect("live movement missing");
+            assert!(latest.moves.iter().all(|entry| entry.move_seq.is_none()));
+        }
+    }
+
+    #[test]
     fn server_time_advances_exactly_one_tick_per_update() {
         let mut app = App::new();
         app.insert_resource(TimeUpdateStrategy::ManualDuration(TICK_DURATION));

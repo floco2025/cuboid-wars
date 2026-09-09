@@ -119,7 +119,7 @@ pub fn players_fall_death_system(
             // Debug invincibility turns the void fall into a silent teleport
             // home: no `SPlayerDeath` (no banner, no kill feed), no per-life
             // state loss — keys, power-ups, and score all survive. The client
-            // reconciliation snaps to the new position on the next snapshot.
+            // next movement echo makes the client snap to the relocation.
             let occupied_positions: Vec<Position> = player_query
                 .iter()
                 .filter(|(other, _, other_pos)| *other != entity && other_pos.y >= CHARACTER_FALL_DEATH_Y)

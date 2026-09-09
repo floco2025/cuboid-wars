@@ -85,6 +85,13 @@ pub const TICK_SECS: f32 = 1.0 / TICK_HZ as f32;
 pub const TICK_DURATION: Duration = Duration::from_nanos(1_000_000_000 / TICK_HZ as u64);
 
 // ============================================================================
+// Movement Reconciliation
+// ============================================================================
+
+// Shared boundary for server rejection and local-player snapping, per axis.
+pub const PLAYER_MOVEMENT_TRUST_DISTANCE: f32 = 5.0;
+
+// ============================================================================
 // Characters
 // ============================================================================
 

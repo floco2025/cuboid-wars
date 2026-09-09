@@ -157,7 +157,6 @@ mod tests {
             stunned: false,
             held_keys: Vec::new(),
             missiles: 0,
-            snap_speed: 0.0,
             hops: 0,
             hop_tick: 0,
             disputed_since: None,
@@ -220,11 +219,9 @@ mod tests {
         let base = map(vec![(1, player("alice", 3))]);
         let base_hash = player_list_content_hash(&base, Some(PlayerId(1)));
 
-        // `stunned` is painted by `ui_stunned_blink_system` and `snap_speed`
-        // is reconciliation-internal — neither may force a list rebuild.
+        // Stun blinking updates the existing row without rebuilding the list.
         let mut in_place = player("alice", 3);
         in_place.stunned = true;
-        in_place.snap_speed = 5.0;
         let updated = map(vec![(1, in_place)]);
 
         assert_eq!(player_list_content_hash(&updated, Some(PlayerId(1))), base_hash);

@@ -12,9 +12,9 @@ pub use characters::{
     HitDirection, KnockbackVelocity, LadderMode, PlayerMovementStep, ball_character_hit, ball_overlaps_character,
     blocking_character_move_plan, character_hitbox_center, character_move_plan_is_blocked, character_movement_center,
     character_movement_shape, character_overlaps_item, character_paths_intersect, character_surface_distance,
-    grounding_diagnostics, knockback_decay_system, momentum_displacement, overlapping_character,
-    player_control_velocity, player_jump_velocity, position_has_floor_support, step_actor_movement,
-    step_character_movement, step_player_movement,
+    grounding_diagnostics, inspect_character_support, knockback_decay_system, momentum_displacement,
+    overlapping_character, player_control_velocity, player_jump_velocity, position_has_floor_support,
+    step_actor_movement, step_character_movement, step_player_movement,
 };
 pub use lock::acquire_lock;
 pub use portals::{

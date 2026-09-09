@@ -1,6 +1,10 @@
 use bevy::prelude::*;
 
-use crate::{actors::ActorMap, network::ServerReconciliation};
+use crate::{
+    actors::ActorMap,
+    characters::{CharacterReconciliationOutcome, reconcile_character},
+    network::ServerReconciliation,
+};
 use common::{
     config::{CharacterPhysicsConfig, GameplayConfig},
     map::Carriers,
@@ -10,8 +14,6 @@ use common::{
     },
     protocol::{ActorId, ActorMarker, ActorMoveIntent, MapSettings, PlateState, PlayerMarker, Position},
 };
-
-use super::reconciliation::{ActorReconciliationOutcome, reconcile_actor};
 
 pub(crate) type ActorMovementQuery<'w, 's> = Query<
     'w,
@@ -80,18 +82,18 @@ pub(crate) fn plan_actor_moves(
             continue;
         }
         let correction_displacement = match recon_option.as_mut() {
-            Some(recon) => match reconcile_actor(
+            Some(recon) => match reconcile_character(
                 commands,
                 entity,
-                actor_id,
+                actor_id.0,
                 &info.kind,
                 &mut pos,
                 &mut motion,
                 recon,
                 delta,
             ) {
-                ActorReconciliationOutcome::Displacement(displacement) => displacement,
-                ActorReconciliationOutcome::Snapped => {
+                CharacterReconciliationOutcome::Displacement(displacement) => displacement,
+                CharacterReconciliationOutcome::Snapped => {
                     push_actor_planned_move(
                         planned_moves,
                         actor_starts,

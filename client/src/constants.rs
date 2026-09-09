@@ -56,16 +56,20 @@ pub const AUDIO_MASTER_VOLUME_DEFAULT: f32 = 1.0;
 pub const PING_INTERVAL: f32 = 1.0;
 
 // ============================================================================
+// Tick Synchronization
+// ============================================================================
+
+// Consecutive same-sign clock errors required before shifting the tick, to filter jitter.
+pub const TICK_SYNC_WINDOW_TICKS: usize = 15;
+
+// ============================================================================
 // Server Reconciliation
 // ============================================================================
-//
-// Server samples — snapshots, and for players the per-tick move stream —
-// blend into the client's predicted position over a correction window. If
-// the gap is too big to smooth, the client snaps to the server pos instead —
-// large divergence usually means a teleport or a desync that won't close
-// from gradual correction.
 
-// --- Shared (players + actors) ---
+// Remote characters and missiles smooth small errors and snap large ones.
+// Local-player snapping uses the shared movement trust distance.
+
+// --- Shared (characters + missiles) ---
 
 // Correction-window length scales with RTT so smoothing stays proportional
 // to typical drift size.
@@ -74,44 +78,20 @@ pub const RECON_CORRECTION_TIME_RTT_MULTIPLIER: f32 = 4.0;
 // gap within a tick or two.
 pub const RECON_CORRECTION_MIN_SECS: f32 = 0.25;
 
-// --- Player only ---
+// --- Remote characters ---
 
-// Per-axis snap distance, lerped by a high-water-mark "recently running"
-// speed that decays over `RECON_PLAYER_SNAP_DECAY_SECS` after a stop. The
-// decay keeps the threshold from tightening abruptly on stop and tripping
-// the snap branch on drift that's still being smoothed out.
-pub const RECON_PLAYER_SNAP_DISTANCE_IDLE: f32 = 1.0;
-pub const RECON_PLAYER_SNAP_DISTANCE_RUNNING: f32 = 5.0;
-pub const RECON_PLAYER_SNAP_DECAY_SECS: f32 = 1.0;
+pub const RECON_CHARACTER_SNAP_DISTANCE: f32 = 3.0;
 
-// Idle endpoint of the correction-window lerp (running endpoint is
-// `rtt * RECON_CORRECTION_TIME_RTT_MULTIPLIER`). Stationary players see
-// corrections more clearly than moving ones, so smooth them slowly.
-pub const RECON_PLAYER_IDLE_CORRECTION_SECS: f32 = 8.0;
+// --- Remote players ---
 
-// How long, in server ticks, a state disputing a player's portal crossing
-// count must keep doing so before the server's side stands
-// (`PlayerInfo::judge_crossing`). The client's copy of a remote player may
-// cross up to this long after the server's crossing state arrives (its
-// intent lands late and its correction is smoothed), and the local player's
-// own crossing may land a tick or two late on the server after a lost
-// commit; a third of a second covers both. Latency shifts the evidence and
-// the copy together, so the slack does not have to cover it.
+// Remote prediction may cross after the server update arrives; allow that
+// delay before settling a persistent crossing dispute for the server.
 pub const RECON_PLAYER_HOP_DISPUTE_SLACK_TICKS: u32 = 10;
 
-// Consecutive own echoes that must all report a same-sign clock error before
-// the client's tick shifts (`TickSync`), so delivery jitter never flaps it.
-pub const TICK_SYNC_WINDOW_TICKS: usize = 15;
-
-// --- Actor only ---
-
-// Per-axis snap distance. Fixed — actor speeds are simple enough that
-// lerping doesn't earn the complexity.
-pub const RECON_ACTOR_SNAP_DISTANCE: f32 = 3.0;
+// --- Missiles ---
 
 // Missile course changes are broadcast promptly, so clients barely drift.
-// Actors need the larger threshold because they can reverse direction instantly
-// between updates.
+// Characters can reverse direction instantly between updates and need more slack.
 pub const RECON_MISSILE_SNAP_DISTANCE: f32 = 1.5;
 
 // ============================================================================

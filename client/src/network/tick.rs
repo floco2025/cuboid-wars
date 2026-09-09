@@ -6,7 +6,7 @@ use common::protocol::sequence_is_newer;
 use crate::constants::TICK_SYNC_WINDOW_TICKS;
 
 // Corrects the client's `ServerTick` from the server's echoes of its own
-// commits: an echo names the server tick that applied a `CMove`, the
+// commits: an echo names the server tick that processed a `CMove`, the
 // committed-position ring holds the tick the client simulated it at, and the
 // difference is the clock error. The first echo seeds the clock outright.
 // After that a shift needs a full window of consecutive echoes all reporting

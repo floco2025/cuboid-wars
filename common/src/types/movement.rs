@@ -139,6 +139,8 @@ pub struct PlayerMovementState {
     pub move_intent: PlayerMoveIntent,
     pub vertical_velocity: f32,
     pub face_yaw: f32,
+    pub airborne_momentum: [f32; 3],
+    pub knockback: [f32; 3],
 }
 
 impl PlayerMovementState {
@@ -149,7 +151,26 @@ impl PlayerMovementState {
             move_intent,
             vertical_velocity,
             face_yaw,
+            airborne_momentum: [0.0; 3],
+            knockback: [0.0; 3],
         }
+    }
+
+    #[must_use]
+    pub fn with_momentum(mut self, airborne: Vec3, knockback: Vec3) -> Self {
+        self.airborne_momentum = airborne.to_array();
+        self.knockback = knockback.to_array();
+        self
+    }
+
+    #[must_use]
+    pub fn is_finite(&self) -> bool {
+        Vec3::from(self.pos).is_finite()
+            && self.move_intent.is_finite()
+            && self.vertical_velocity.is_finite()
+            && self.face_yaw.is_finite()
+            && self.airborne_momentum.iter().all(|v| v.is_finite())
+            && self.knockback.iter().all(|v| v.is_finite())
     }
 }
 

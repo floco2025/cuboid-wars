@@ -2,11 +2,45 @@ use std::collections::HashMap;
 
 use bevy::prelude::*;
 use common::{
+    config::GameplayConfig,
     physics::{CharacterMovePlan, CollisionWorld, character_hitbox_center, character_surface_distance},
-    protocol::{ActorMarker, BarrierKindId, Health},
+    protocol::{ActorId, ActorMarker, BarrierKindId, Health, PlateState, PlayerMarker, Position},
 };
 
 use crate::{actors::ActorMap, config::ServerGameplayConfig};
+
+pub(super) fn contact_explosions_system(
+    mut health: Query<&mut Health, With<ActorMarker>>,
+    actors: Res<ActorMap>,
+    gameplay: Res<GameplayConfig>,
+    config: Res<ServerGameplayConfig>,
+    collision: Res<CollisionWorld>,
+    plates: Res<PlateState>,
+    players: Query<(Entity, &Position), With<PlayerMarker>>,
+    actor_positions: Query<(Entity, &ActorId, &Position), With<ActorMarker>>,
+) {
+    let mut plans: Vec<_> = players
+        .iter()
+        .map(|(entity, pos)| CharacterMovePlan::stationary(entity, *pos, 0.0, gameplay.player.physics()))
+        .collect();
+    plans.extend(actor_positions.iter().filter_map(|(entity, id, pos)| {
+        let info = actors.get(id)?;
+        Some(CharacterMovePlan::stationary(
+            entity,
+            *pos,
+            0.0,
+            gameplay.expect_actor(&info.spawn_kind).physics(),
+        ))
+    }));
+    detonate_actors_touching_players(
+        &mut health,
+        &actors,
+        &plans,
+        &config,
+        &collision,
+        &plates.open_barrier_kinds,
+    );
+}
 
 pub(super) fn detonate_actors_touching_players(
     actor_health: &mut Query<&mut Health, With<ActorMarker>>,

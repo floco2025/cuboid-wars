@@ -9,7 +9,7 @@ use crate::{
 };
 use common::{
     constants::SNAPSHOT_SECS,
-    physics::CharacterVerticalVelocity,
+    physics::{AirborneMomentum, CharacterVerticalVelocity, KnockbackVelocity},
     protocol::{ActorMarker, ItemMarker, PlayerMarker, *},
 };
 
@@ -39,7 +39,14 @@ pub(super) fn network_broadcast_player_moves_system(
     tick: Res<ServerTick>,
     players: Res<PlayerMap>,
     player_data: PlayerStateQuery,
-    motions: Query<&CharacterVerticalVelocity, With<PlayerMarker>>,
+    motions: Query<
+        (
+            &CharacterVerticalVelocity,
+            Option<&AirborneMomentum>,
+            Option<&KnockbackVelocity>,
+        ),
+        With<PlayerMarker>,
+    >,
 ) {
     let moves = collect_player_moves(&players, &player_data, &motions);
     if moves.is_empty() {
@@ -62,7 +69,14 @@ pub(super) fn network_broadcast_snapshot_system(
     plates: Res<PlateState>,
     conditions: WorldConditions,
     player_data: PlayerStateQuery,
-    motions: Query<&CharacterVerticalVelocity, With<PlayerMarker>>,
+    motions: Query<
+        (
+            &CharacterVerticalVelocity,
+            Option<&AirborneMomentum>,
+            Option<&KnockbackVelocity>,
+        ),
+        With<PlayerMarker>,
+    >,
     actor_data: ActorStateQuery,
     actor_motions: Query<&CharacterVerticalVelocity, With<ActorMarker>>,
     item_positions: Query<&Position, With<ItemMarker>>,

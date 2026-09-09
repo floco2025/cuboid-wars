@@ -15,7 +15,7 @@ use crate::{
 };
 use common::{
     config::GameplayConfig,
-    physics::{AirborneMomentum, CharacterVerticalVelocity},
+    physics::{AirborneMomentum, CharacterVerticalVelocity, KnockbackVelocity},
     protocol::{FaceYaw, Health, Player, PlayerId, PlayerMarker, PlayerMoveIntent, Position},
 };
 
@@ -101,7 +101,8 @@ pub fn spawn_player(
                 visibility: Visibility::Visible,
             },
             PreviousTickPosition(position),
-            AirborneMomentum::default(),
+            AirborneMomentum(Vec3::from_array(player.movement.airborne_momentum)),
+            KnockbackVelocity(Vec3::from_array(player.movement.knockback)),
             PlayerAnimationMotion::default(),
         ))
         .id();

@@ -18,6 +18,8 @@
 
 ## Testing
 
+- **Client movement trust:** Play obstacle courses with multiple clients under latency, jitter, and packet loss. Check narrow landings, moving platforms, ladders, portal launches, knockback, and remote-player smoothing. Force a large disagreement and confirm clean local recovery with server rejection/client snap warnings.
+
 - **Shared checkpoints:** Play through Group — any and Group — all with multiple clients, including staggered visits, death, joining, and leaving. Check each player's next respawn and checkpoint notification.
 
 - **Sliding-carrier pushing:** Let the moving cabin's wall push you while standing still, walking against it, and stepping sideways out of its path. Confirm open space is safe, being pinned against another wall still crushes, and boarding moving platforms remains safe. Crushed actors should play their normal explosion animation and sound.

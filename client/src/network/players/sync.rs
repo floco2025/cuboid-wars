@@ -9,7 +9,7 @@ use crate::{
     ui::BannerMessage,
 };
 use common::{
-    physics::{AirborneMomentum, CharacterVerticalVelocity},
+    physics::{AirborneMomentum, CharacterVerticalVelocity, KnockbackVelocity},
     protocol::{FaceYaw, Player, PlayerId},
 };
 
@@ -80,7 +80,8 @@ pub(in crate::network) fn sync_players(
                 PreviousTickPosition(server_player.movement.pos),
                 FaceYaw(server_player.movement.face_yaw),
                 CharacterVerticalVelocity(server_player.movement.vertical_velocity),
-                AirborneMomentum::default(),
+                AirborneMomentum(Vec3::from_array(server_player.movement.airborne_momentum)),
+                KnockbackVelocity(Vec3::from_array(server_player.movement.knockback)),
                 Visibility::Visible,
             ))
             .remove::<ServerReconciliation>();
@@ -90,6 +91,8 @@ pub(in crate::network) fn sync_players(
         info.hop_tick = tick;
         info.disputed_since = None;
         context.local_player_info.committed_positions.clear();
+        context.local_player_info.last_comparison_seq = Some(context.local_player_info.move_seq);
+        context.local_player_info.pending_input = None;
         context.local_player_info.is_dead = false;
 
         if let Some(reminder) = context.quest_log.reminder() {

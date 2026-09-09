@@ -2,8 +2,10 @@ mod checkpoints;
 mod equipment;
 mod falling;
 mod group_respawn;
+mod movement;
 mod plugin;
 mod power_ups;
+mod reconciliation;
 mod resources;
 mod respawn;
 mod spawning;
@@ -21,6 +23,7 @@ pub(crate) use checkpoints::{checkpoint_at_position, checkpoint_spawn_position, 
 pub use equipment::{EraserContacts, erase_equipment_system};
 pub use falling::{PlayerFallState, players_fall_damage_system, players_fall_death_system};
 pub(crate) use group_respawn::{enter_group_respawn, players_group_respawn_system};
+pub(crate) use movement::{PlayerMovementPath, apply_pending_player_inputs_system, finish_player_movement_system};
 pub use plugin::players_plugin;
 pub use power_ups::PowerUpState;
 

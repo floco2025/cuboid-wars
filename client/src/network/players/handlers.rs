@@ -310,7 +310,6 @@ mod tests {
             name: name.to_owned(),
             power_ups: [false; PowerUpKind::COUNT],
             stunned: false,
-            snap_speed: 0.0,
             held_keys: Vec::new(),
             missiles: 0,
             hops: 0,

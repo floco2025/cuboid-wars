@@ -16,3 +16,6 @@ pub(crate) use handlers::{CharacterQueries, SharedWorld};
 pub use plugin::network_plugin;
 pub use resources::FromClientsChannel;
 pub use transport::{ClientToServer, ServerToClient, accept_connections_task};
+
+#[cfg(test)]
+mod movement_tests;

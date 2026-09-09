@@ -9,7 +9,7 @@ use common::{
 use crate::{
     actors::actors_transform_sync_system,
     carriers::carriers_transform_sync_system,
-    input::{commit_player_input_system, record_committed_position_system},
+    input::{capture_player_input_system, commit_player_input_system},
     missiles::missiles_movement_system,
     players::{local_player_cuboid_shake_system, player_animation_update_system, players_transform_sync_system},
     portals::{portal_surfaces_transform_sync_system, portal_transit_system},
@@ -20,26 +20,21 @@ use crate::{
     },
 };
 
-// Character prediction runs at the shared `TICK_HZ` tick. The tick
-// advances first, so everything the step simulates and records is
-// stamped with the tick it belongs to. The commit system sends the
-// player's input to the server before physics consumes it (so what
-// physics simulates is what was sent). The capture system stamps
-// `PreviousTickPosition` before movement so the render-rate transform
-// sync can interpolate.
+// Capture the input frame before physics and report its result after portal
+// transit, before knockback decay, matching the server comparison phase.
 pub fn prediction_plugin(app: &mut App) {
     app.add_systems(
         FixedUpdate,
         (
             server_tick_advance_system,
-            commit_player_input_system,
+            capture_player_input_system,
             capture_previous_tick_position_system,
             carriers_advance_system,
             carried_portals_refresh_system,
             characters_movement_system,
             portal_transit_system,
+            commit_player_input_system,
             knockback_decay_system,
-            record_committed_position_system,
             // Projectiles step at the same fixed tick as the server so
             // the step-size-dependent integration doesn't diverge from
             // the authoritative trajectories.

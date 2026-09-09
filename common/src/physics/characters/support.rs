@@ -2,7 +2,7 @@ use bevy_math::Vec3;
 use rapier3d::{parry::shape::Capsule, prelude::ColliderHandle};
 
 use super::{
-    GroundingDiagnostics,
+    CharacterSupport, GroundingDiagnostics,
     geometry::{character_movement_pose, character_movement_shape},
     ladder::{LadderMode, evaluate_ladder_interaction},
     movement::{CharacterEnvironment, CharacterStep},
@@ -254,4 +254,43 @@ pub(super) fn snap_character_to_ground(
     {
         pos.y -= hit.t;
     }
+}
+
+#[must_use]
+pub fn inspect_character_support(
+    pos: Position,
+    vertical_velocity: f32,
+    control_velocity: Vec3,
+    env: &CharacterEnvironment,
+    delta: f32,
+    lifted: bool,
+) -> (CharacterSupport, GroundingDiagnostics, bool) {
+    let excluded = env.portals.map_or_else(Vec::new, |portals| {
+        portals.collision_exclusions(Vec3::from(pos), env.physics)
+    });
+    let grounding = grounding_diagnostics(env.collision_world, &pos, env.physics, env.passable_kinds, &excluded);
+    let grounded = vertical_velocity <= 0.0 && grounding.supported;
+    let ladder = env.collision_world.ladder_volume_at(&pos);
+    let interaction = evaluate_ladder_interaction(
+        ladder,
+        env.ladder_mode,
+        &pos,
+        vertical_velocity,
+        control_velocity,
+        delta,
+        grounded,
+        env.ladder_climb_ratio,
+    );
+    let support = if interaction.is_supported() {
+        CharacterSupport::Ladder
+    } else if grounded {
+        CharacterSupport::Ground
+    } else {
+        CharacterSupport::Airborne
+    };
+    let crushed = !env.carriers.is_static()
+        && env
+            .collision_world
+            .character_crushed(&pos, env.physics, env.passable_kinds, &excluded, lifted);
+    (support, grounding, crushed)
 }

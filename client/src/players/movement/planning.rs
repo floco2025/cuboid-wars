@@ -13,11 +13,10 @@ use common::{
 };
 
 use crate::{
+    characters::{CharacterReconciliationOutcome, reconcile_character},
     network::ServerReconciliation,
-    players::{BumpFeedbackState, LocalPlayerInfo, LocalPlayerMarker, PlayerAnimationMotion, PlayerMap},
+    players::{BumpFeedbackState, LocalPlayerMarker, PlayerAnimationMotion, PlayerMap},
 };
-
-use super::reconciliation::{PlayerReconciliationOutcome, decayed_snap_speed, reconcile_player};
 
 pub(crate) fn plan_player_moves(
     commands: &mut Commands,
@@ -26,7 +25,6 @@ pub(crate) fn plan_player_moves(
     map_settings: &MapSettings,
     gameplay_config: &GameplayConfig,
     players: &mut PlayerMap,
-    local_player_info: &mut LocalPlayerInfo,
     plates: &PlateState,
     portal_set: &PortalSet,
     carriers: &Carriers,
@@ -34,7 +32,6 @@ pub(crate) fn plan_player_moves(
     planned_moves: &mut Vec<CharacterMovePlan>,
 ) {
     let player_physics = gameplay_config.player.physics();
-    let run_speed = map_settings.movement.player.run_speed;
     for (
         entity,
         player_id,
@@ -49,22 +46,6 @@ pub(crate) fn plan_player_moves(
         is_local,
     ) in query
     {
-        // Decay snap_speed each tick; a newer, faster server speed wins.
-        // Persisted on `PlayerInfo`. Deliberately fed by the SERVER velocity
-        // (authoritative recent speed for the snap threshold), while the
-        // correction window reads the predicted velocity — what the player
-        // perceives right now. Vertical speed counts, as it does for the
-        // window: a fall is motion.
-        let current_server_speed = recon_option.as_ref().map_or(0.0, |r| r.server_velocity.length());
-        let snap_speed = match players.get_mut(player_id) {
-            Some(info) => {
-                info.snap_speed = decayed_snap_speed(info.snap_speed, current_server_speed, run_speed, delta);
-                info.snap_speed
-            }
-            None => current_server_speed,
-        };
-
-        // Immutable lookup for the read-only fields; the mut borrow above ended with the `match`.
         let info = players.get(player_id);
         let has_speed_power_up = info.is_some_and(|i| i.power_up(PowerUpKind::Speed));
         let has_low_gravity = info.is_some_and(|i| i.power_up(PowerUpKind::LowGravity));
@@ -80,26 +61,18 @@ pub(crate) fn plan_player_moves(
         );
 
         let correction_displacement = match recon_option.as_mut() {
-            Some(recon) => match reconcile_player(
+            Some(recon) if !is_local => match reconcile_character(
                 commands,
                 entity,
-                player_id,
-                player_name,
+                player_id.0,
+                player_name.unwrap_or("player"),
                 &mut client_pos,
                 &mut motion,
                 recon,
-                control_velocity,
                 delta,
-                run_speed,
-                snap_speed,
             ) {
-                PlayerReconciliationOutcome::Displacement(displacement) => displacement,
-                PlayerReconciliationOutcome::Snapped => {
-                    // The snap voids every position recorded before it; echoes
-                    // still in flight are measured against the snapped body.
-                    if is_local {
-                        local_player_info.committed_positions.clear();
-                    }
+                CharacterReconciliationOutcome::Displacement(displacement) => displacement,
+                CharacterReconciliationOutcome::Snapped => {
                     planned_moves.push(CharacterMovePlan::stationary(
                         entity,
                         *client_pos,
@@ -110,7 +83,7 @@ pub(crate) fn plan_player_moves(
                     continue;
                 }
             },
-            None => Vec3::ZERO,
+            _ => Vec3::ZERO,
         };
         let external_displacement =
             correction_displacement + momentum_displacement(knockback, airborne_momentum.as_deref(), delta);
@@ -160,3 +133,97 @@ pub(crate) type PlayerMovementQuery<'w, 's> = Query<
     ),
     (With<PlayerMarker>, Without<ActorMarker>),
 >;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{characters::PreviousTickPosition, network::RoundTripTime, test_fixtures};
+    use bevy::ecs::system::SystemState;
+    use common::{
+        constants::TICK_SECS,
+        protocol::{BarrierKindTable, MapLayout},
+    };
+    use std::time::Duration;
+
+    #[test]
+    fn only_remote_players_smooth_or_snap_during_movement_planning() {
+        let gameplay = test_fixtures::gameplay_config();
+        let settings = test_fixtures::map_settings();
+        let collision = CollisionWorld::from_map_layout(&MapLayout::default(), &BarrierKindTable::default());
+        let rtt = RoundTripTime {
+            rtt: Duration::from_millis(200),
+            ..default()
+        };
+        for is_local in [true, false] {
+            for error in [1.0, 3.0] {
+                let mut world = World::new();
+                let server_pos = Position {
+                    x: error,
+                    y: 0.0,
+                    z: 0.0,
+                };
+                let entity = world
+                    .spawn((
+                        PlayerMarker,
+                        PlayerId(1),
+                        Position::default(),
+                        PreviousTickPosition(Position::default()),
+                        PlayerMoveIntent::Idle,
+                        CharacterVerticalVelocity(0.0),
+                        PlayerAnimationMotion::default(),
+                        ServerReconciliation::new(Vec3::X * error, server_pos, Vec3::NEG_Y * 2.0, &rtt),
+                    ))
+                    .id();
+                if is_local {
+                    world.entity_mut(entity).insert(LocalPlayerMarker);
+                }
+                let mut state = SystemState::<(Commands, PlayerMovementQuery)>::new(&mut world);
+                let mut plans = Vec::new();
+                let (mut commands, mut query) = state.get_mut(&mut world).expect("movement query invalid");
+                plan_player_moves(
+                    &mut commands,
+                    TICK_SECS,
+                    &collision,
+                    &settings,
+                    &gameplay,
+                    &mut PlayerMap::default(),
+                    &PlateState::default(),
+                    &PortalSet::default(),
+                    &Carriers::default(),
+                    &mut query,
+                    &mut plans,
+                );
+                state.apply(&mut world);
+                let plan = plans.first().expect("player movement plan missing");
+                let expected_x = if is_local {
+                    0.0
+                } else if error < 3.0 {
+                    error * TICK_SECS / 0.8
+                } else {
+                    error
+                };
+                assert!(
+                    (plan.target.x - expected_x).abs() < 1e-5,
+                    "local={is_local}, error={error}"
+                );
+                if !is_local && error == 3.0 {
+                    assert!(world.get::<ServerReconciliation>(entity).is_none());
+                    assert_eq!(
+                        world
+                            .get::<PreviousTickPosition>(entity)
+                            .expect("previous position missing")
+                            .0,
+                        server_pos
+                    );
+                    assert_eq!(plan.target_vertical_velocity, -2.0);
+                } else {
+                    assert!(world.get::<ServerReconciliation>(entity).is_some());
+                    assert_eq!(
+                        *world.get::<Position>(entity).expect("position missing"),
+                        Position::default()
+                    );
+                }
+            }
+        }
+    }
+}
