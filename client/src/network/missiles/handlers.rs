@@ -48,6 +48,7 @@ pub(in crate::network) fn handle_missile_launch_message(
                 entity,
                 shooter: message.shooter,
                 born_tick: message.tick,
+                impact_pending: false,
             },
         );
     }
@@ -95,11 +96,15 @@ pub(in crate::network) fn handle_missile_detonated_message(
     if !context.missiles.retire(message.id, message.tick) {
         return;
     }
-    let Some(info) = context.missiles.get(&message.id) else {
+    let Some((entity, shooter)) = context
+        .missiles
+        .get(&message.id)
+        .map(|info| (info.entity, info.shooter))
+    else {
         explode(commands, context, message.pos);
         return;
     };
-    if info.shooter == context.my_player_id.0 {
+    if shooter == context.my_player_id.0 {
         // A flight the server ended before this shooter did.
         if let Some(info) = context.missiles.take(&message.id) {
             commands.entity(info.entity).despawn();
@@ -107,9 +112,12 @@ pub(in crate::network) fn handle_missile_detonated_message(
         explode(commands, context, message.pos);
         return;
     }
+    if let Some(info) = context.missiles.get_mut(&message.id) {
+        info.impact_pending = true;
+    }
     let tick_secs = context.network.tick_secs();
     let pos = message.pos;
-    commands.entity(info.entity).queue(move |mut entity: EntityWorldMut| {
+    commands.entity(entity).queue(move |mut entity: EntityWorldMut| {
         if let Some(mut motion) = entity.get_mut::<RemoteMissileMotion>() {
             motion.detonate_at(pos, tick_secs);
         }

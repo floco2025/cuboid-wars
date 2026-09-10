@@ -2,6 +2,8 @@
 
 ## Fixes
 
+- **Map-aware `/give` commands:** use the same available pickup catalog as the HUD (placed items plus the random pickup pool). Refuse `/give missiles` when missile packs are unavailable, and make `/give powerups` grant only the map's available power-ups. On obby, that means speed and low gravity only, with no missiles; explain unavailable grants in the command reply.
+
 - **Rejected portal placement plays two sounds:** trying to place a portal on a non-portalable texture plays both the fizzle sound and the placement sound. Play only the fizzle sound when placement is rejected.
 
 - **Third-person body clipping during portal traversal:** jumping into a floor portal makes the player's legs disappear before the body emerges from the exit, leaving the model visibly cut in half. Keep the body presentation continuous across portal entry and exit.

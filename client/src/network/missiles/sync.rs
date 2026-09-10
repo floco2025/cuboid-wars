@@ -36,6 +36,7 @@ pub(in crate::network) fn sync_missiles(
                         entity,
                         shooter: missile.shooter,
                         born_tick: tick,
+                        impact_pending: false,
                     },
                 );
             }
@@ -48,7 +49,8 @@ pub(in crate::network) fn sync_missiles(
     }
 }
 
-// Observed missiles the snapshot no longer lists, except those launched after the tick it describes.
+// Observed missiles the snapshot no longer lists, except those launched after
+// the tick it describes and those still flying out to a reported impact.
 fn stale_missile_ids(
     missiles: &MissileMap,
     my_player_id: PlayerId,
@@ -58,7 +60,10 @@ fn stale_missile_ids(
     missiles
         .iter()
         .filter(|(id, info)| {
-            info.shooter != my_player_id && !listed.contains(id) && !sequence_is_newer(info.born_tick, tick)
+            info.shooter != my_player_id
+                && !info.impact_pending
+                && !listed.contains(id)
+                && !sequence_is_newer(info.born_tick, tick)
         })
         .map(|(id, _)| *id)
         .collect()
@@ -86,16 +91,20 @@ mod tests {
             entity: Entity::PLACEHOLDER,
             shooter: PlayerId(shooter),
             born_tick,
+            impact_pending: false,
         }
     }
 
     #[test]
-    fn a_snapshot_removes_only_others_missiles_launched_at_or_before_its_tick() {
+    fn a_snapshot_removes_only_others_finished_missiles_launched_at_or_before_its_tick() {
         let mut missiles = MissileMap::default();
         missiles.insert(MissileId(1), info(2, 10));
         missiles.insert(MissileId(2), info(2, 21));
         missiles.insert(MissileId(3), info(1, 10));
         missiles.insert(MissileId(4), info(2, 10));
+        let mut ending = info(2, 10);
+        ending.impact_pending = true;
+        missiles.insert(MissileId(5), ending);
         let stale = stale_missile_ids(&missiles, PlayerId(1), 20, &HashSet::from([MissileId(4)]));
         assert_eq!(stale, [MissileId(1)]);
         let mut later = stale_missile_ids(&missiles, PlayerId(1), 21, &HashSet::new());

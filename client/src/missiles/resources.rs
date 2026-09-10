@@ -6,6 +6,8 @@ pub(crate) struct MissileInfo {
     pub entity: Entity,
     pub shooter: PlayerId,
     pub born_tick: u32,
+    // A flight playing out to its reported impact outlives the snapshots that no longer list it.
+    pub impact_pending: bool,
 }
 
 #[derive(Resource, Default)]
@@ -35,6 +37,10 @@ impl MissileMap {
 
     pub(crate) fn get(&self, id: &MissileId) -> Option<&MissileInfo> {
         self.entries.get(id)
+    }
+
+    pub(crate) fn get_mut(&mut self, id: &MissileId) -> Option<&mut MissileInfo> {
+        self.entries.get_mut(id)
     }
 
     pub(crate) fn contains_key(&self, id: &MissileId) -> bool {

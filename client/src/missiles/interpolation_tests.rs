@@ -169,6 +169,7 @@ fn a_flight_ended_here_consumes_its_own_detonation_cue_once() {
             entity: Entity::PLACEHOLDER,
             shooter: PlayerId(1),
             born_tick: 3,
+            impact_pending: false,
         },
     );
     assert!(missiles.remove(&MissileId(4)).is_some());

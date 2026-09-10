@@ -95,6 +95,7 @@ fn missile(app: &mut App, id: MissileId, owned: bool, speed: f32, lifetime: f32)
             entity,
             shooter: PlayerId(if owned { 1 } else { 2 }),
             born_tick: 0,
+            impact_pending: false,
         },
     );
     entity
