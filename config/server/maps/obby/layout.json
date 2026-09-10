@@ -7,7 +7,7 @@
       {"level": 0, "cols": [0, 2], "rows": [7, 11]}
     ],
     "checkpoints": [
-      {"level": 6, "cols": [38, 40], "rows": [8, 10], "type": "individual"}
+      {"level": 5, "cols": [36, 38], "rows": [8, 10], "type": "individual"}
     ],
     "pressure_plates": [],
     "items": [
@@ -23,18 +23,14 @@
       {"level": 0, "col": 6, "row": 10, "type": "speed"},
       {"level": 0, "col": 10, "row": 10, "type": "low_gravity"},
       {"level": 0, "col": 14, "row": 10, "type": "speed"},
-      {"level": 1, "col": 27, "row": 7, "type": "speed"},
-      {"level": 1, "col": 27, "row": 8, "type": "speed"},
-      {"level": 1, "col": 27, "row": 9, "type": "speed"},
-      {"level": 1, "col": 27, "row": 10, "type": "speed"},
-      {"level": 2, "col": 30, "row": 7, "type": "low_gravity"},
-      {"level": 2, "col": 30, "row": 8, "type": "low_gravity"},
-      {"level": 2, "col": 30, "row": 9, "type": "low_gravity"},
-      {"level": 2, "col": 30, "row": 10, "type": "low_gravity"},
-      {"level": 4, "col": 33, "row": 7, "type": "speed"},
-      {"level": 4, "col": 33, "row": 8, "type": "speed"},
-      {"level": 4, "col": 33, "row": 9, "type": "speed"},
-      {"level": 4, "col": 33, "row": 10, "type": "speed"}
+      {"level": 1, "col": 28, "row": 7, "type": "low_gravity"},
+      {"level": 1, "col": 28, "row": 8, "type": "low_gravity"},
+      {"level": 1, "col": 28, "row": 9, "type": "low_gravity"},
+      {"level": 1, "col": 28, "row": 10, "type": "low_gravity"},
+      {"level": 3, "col": 31, "row": 7, "type": "speed"},
+      {"level": 3, "col": 31, "row": 8, "type": "speed"},
+      {"level": 3, "col": 31, "row": 9, "type": "speed"},
+      {"level": 3, "col": 31, "row": 10, "type": "speed"}
     ],
     "levels": [
       {
@@ -99,21 +95,18 @@
         ],
         "inaccessible_floors": [],
         "grass": [],
-        "walls": [],
+        "walls": [
+          {"c0": 9, "r0": 7, "c1": 10, "r1": 7, "all": "basement-floor"},
+          {"c0": 9, "r0": 11, "c1": 10, "r1": 11, "all": "basement-floor"},
+          {"c0": 10, "r0": 7, "c1": 11, "r1": 7, "all": "basement-floor"},
+          {"c0": 10, "r0": 11, "c1": 11, "r1": 11, "all": "basement-floor"}
+        ],
         "barriers": [],
         "erasers": [
-          {"c0": 10, "r0": 6, "c1": 10, "r1": 7},
           {"c0": 10, "r0": 7, "c1": 10, "r1": 8},
           {"c0": 10, "r0": 8, "c1": 10, "r1": 9},
           {"c0": 10, "r0": 9, "c1": 10, "r1": 10},
-          {"c0": 10, "r0": 10, "c1": 10, "r1": 11},
-          {"c0": 10, "r0": 11, "c1": 10, "r1": 12},
-          {"c0": 25, "r0": 6, "c1": 25, "r1": 7},
-          {"c0": 25, "r0": 7, "c1": 25, "r1": 8},
-          {"c0": 25, "r0": 8, "c1": 25, "r1": 9},
-          {"c0": 25, "r0": 9, "c1": 25, "r1": 10},
-          {"c0": 25, "r0": 10, "c1": 25, "r1": 11},
-          {"c0": 25, "r0": 11, "c1": 25, "r1": 12}
+          {"c0": 10, "r0": 10, "c1": 10, "r1": 11}
         ],
         "light_bridges": [],
         "lights": []
@@ -121,164 +114,160 @@
       {
         "name": "Level 1",
         "floors": [
-          {"col": 26, "row": 7, "all": "basement-floor"},
           {"col": 27, "row": 7, "all": "basement-floor"},
-          {"col": 26, "row": 8, "all": "basement-floor"},
+          {"col": 28, "row": 7, "all": "basement-floor"},
           {"col": 27, "row": 8, "all": "basement-floor"},
-          {"col": 26, "row": 9, "all": "basement-floor"},
+          {"col": 28, "row": 8, "all": "basement-floor"},
           {"col": 27, "row": 9, "all": "basement-floor"},
-          {"col": 26, "row": 10, "all": "basement-floor"},
-          {"col": 27, "row": 10, "all": "basement-floor"}
+          {"col": 28, "row": 9, "all": "basement-floor"},
+          {"col": 27, "row": 10, "all": "basement-floor"},
+          {"col": 28, "row": 10, "all": "basement-floor"}
         ],
         "inaccessible_floors": [],
         "grass": [],
-        "walls": [],
+        "walls": [
+          {"c0": 9, "r0": 7, "c1": 10, "r1": 7, "all": "basement-floor"},
+          {"c0": 9, "r0": 11, "c1": 10, "r1": 11, "all": "basement-floor"},
+          {"c0": 10, "r0": 7, "c1": 11, "r1": 7, "all": "basement-floor"},
+          {"c0": 10, "r0": 11, "c1": 11, "r1": 11, "all": "basement-floor"},
+          {"c0": 27, "r0": 7, "c1": 28, "r1": 7, "all": "basement-floor"},
+          {"c0": 27, "r0": 11, "c1": 28, "r1": 11, "all": "basement-floor"},
+          {"c0": 28, "r0": 7, "c1": 29, "r1": 7, "all": "basement-floor"},
+          {"c0": 28, "r0": 11, "c1": 29, "r1": 11, "all": "basement-floor"}
+        ],
         "barriers": [],
         "erasers": [
-          {"c0": 10, "r0": 6, "c1": 10, "r1": 7},
           {"c0": 10, "r0": 7, "c1": 10, "r1": 8},
           {"c0": 10, "r0": 8, "c1": 10, "r1": 9},
           {"c0": 10, "r0": 9, "c1": 10, "r1": 10},
           {"c0": 10, "r0": 10, "c1": 10, "r1": 11},
-          {"c0": 10, "r0": 11, "c1": 10, "r1": 12},
-          {"c0": 25, "r0": 7, "c1": 25, "r1": 8},
-          {"c0": 25, "r0": 8, "c1": 25, "r1": 9},
-          {"c0": 25, "r0": 9, "c1": 25, "r1": 10},
-          {"c0": 25, "r0": 10, "c1": 25, "r1": 11}
+          {"c0": 28, "r0": 7, "c1": 28, "r1": 8},
+          {"c0": 28, "r0": 8, "c1": 28, "r1": 9},
+          {"c0": 28, "r0": 9, "c1": 28, "r1": 10},
+          {"c0": 28, "r0": 10, "c1": 28, "r1": 11}
         ],
         "light_bridges": [],
         "lights": []
       },
       {
         "name": "Level 2",
-        "floors": [
-          {"col": 29, "row": 7, "all": "basement-floor"},
-          {"col": 30, "row": 7, "all": "basement-floor"},
-          {"col": 29, "row": 8, "all": "basement-floor"},
-          {"col": 30, "row": 8, "all": "basement-floor"},
-          {"col": 29, "row": 9, "all": "basement-floor"},
-          {"col": 30, "row": 9, "all": "basement-floor"},
-          {"col": 29, "row": 10, "all": "basement-floor"},
-          {"col": 30, "row": 10, "all": "basement-floor"}
-        ],
+        "floors": [],
         "inaccessible_floors": [],
         "grass": [],
-        "walls": [],
+        "walls": [
+          {"c0": 9, "r0": 7, "c1": 10, "r1": 7, "all": "basement-floor"},
+          {"c0": 9, "r0": 11, "c1": 10, "r1": 11, "all": "basement-floor"},
+          {"c0": 10, "r0": 7, "c1": 11, "r1": 7, "all": "basement-floor"},
+          {"c0": 10, "r0": 11, "c1": 11, "r1": 11, "all": "basement-floor"},
+          {"c0": 27, "r0": 7, "c1": 28, "r1": 7, "all": "basement-floor"},
+          {"c0": 27, "r0": 11, "c1": 28, "r1": 11, "all": "basement-floor"},
+          {"c0": 28, "r0": 7, "c1": 29, "r1": 7, "all": "basement-floor"},
+          {"c0": 28, "r0": 11, "c1": 29, "r1": 11, "all": "basement-floor"}
+        ],
         "barriers": [],
         "erasers": [
-          {"c0": 10, "r0": 6, "c1": 10, "r1": 7},
           {"c0": 10, "r0": 7, "c1": 10, "r1": 8},
           {"c0": 10, "r0": 8, "c1": 10, "r1": 9},
           {"c0": 10, "r0": 9, "c1": 10, "r1": 10},
           {"c0": 10, "r0": 10, "c1": 10, "r1": 11},
-          {"c0": 10, "r0": 11, "c1": 10, "r1": 12},
-          {"c0": 25, "r0": 6, "c1": 25, "r1": 7},
-          {"c0": 25, "r0": 7, "c1": 25, "r1": 8},
-          {"c0": 25, "r0": 8, "c1": 25, "r1": 9},
-          {"c0": 25, "r0": 9, "c1": 25, "r1": 10},
-          {"c0": 25, "r0": 10, "c1": 25, "r1": 11},
-          {"c0": 25, "r0": 11, "c1": 25, "r1": 12},
-          {"c0": 30, "r0": 6, "c1": 30, "r1": 7},
-          {"c0": 30, "r0": 7, "c1": 30, "r1": 8},
-          {"c0": 30, "r0": 8, "c1": 30, "r1": 9},
-          {"c0": 30, "r0": 9, "c1": 30, "r1": 10},
-          {"c0": 30, "r0": 10, "c1": 30, "r1": 11},
-          {"c0": 30, "r0": 11, "c1": 30, "r1": 12}
+          {"c0": 28, "r0": 7, "c1": 28, "r1": 8},
+          {"c0": 28, "r0": 8, "c1": 28, "r1": 9},
+          {"c0": 28, "r0": 9, "c1": 28, "r1": 10},
+          {"c0": 28, "r0": 10, "c1": 28, "r1": 11}
         ],
         "light_bridges": [],
         "lights": []
       },
       {
         "name": "Level 3",
-        "floors": [],
+        "floors": [
+          {"col": 30, "row": 7, "all": "basement-floor"},
+          {"col": 31, "row": 7, "all": "basement-floor"},
+          {"col": 30, "row": 8, "all": "basement-floor"},
+          {"col": 31, "row": 8, "all": "basement-floor"},
+          {"col": 30, "row": 9, "all": "basement-floor"},
+          {"col": 31, "row": 9, "all": "basement-floor"},
+          {"col": 30, "row": 10, "all": "basement-floor"},
+          {"col": 31, "row": 10, "all": "basement-floor"}
+        ],
         "inaccessible_floors": [],
         "grass": [],
-        "walls": [],
+        "walls": [
+          {"c0": 27, "r0": 7, "c1": 28, "r1": 7, "all": "basement-floor"},
+          {"c0": 27, "r0": 11, "c1": 28, "r1": 11, "all": "basement-floor"},
+          {"c0": 28, "r0": 7, "c1": 29, "r1": 7, "all": "basement-floor"},
+          {"c0": 28, "r0": 11, "c1": 29, "r1": 11, "all": "basement-floor"}
+        ],
         "barriers": [],
         "erasers": [
-          {"c0": 30, "r0": 6, "c1": 30, "r1": 7},
-          {"c0": 30, "r0": 7, "c1": 30, "r1": 8},
-          {"c0": 30, "r0": 8, "c1": 30, "r1": 9},
-          {"c0": 30, "r0": 9, "c1": 30, "r1": 10},
-          {"c0": 30, "r0": 10, "c1": 30, "r1": 11},
-          {"c0": 30, "r0": 11, "c1": 30, "r1": 12}
+          {"c0": 28, "r0": 7, "c1": 28, "r1": 8},
+          {"c0": 28, "r0": 8, "c1": 28, "r1": 9},
+          {"c0": 28, "r0": 9, "c1": 28, "r1": 10},
+          {"c0": 28, "r0": 10, "c1": 28, "r1": 11}
         ],
         "light_bridges": [],
         "lights": []
       },
       {
         "name": "Level 4",
-        "floors": [
-          {"col": 32, "row": 7, "all": "basement-floor"},
-          {"col": 33, "row": 7, "all": "basement-floor"},
-          {"col": 32, "row": 8, "all": "basement-floor"},
-          {"col": 33, "row": 8, "all": "basement-floor"},
-          {"col": 32, "row": 9, "all": "basement-floor"},
-          {"col": 33, "row": 9, "all": "basement-floor"},
-          {"col": 32, "row": 10, "all": "basement-floor"},
-          {"col": 33, "row": 10, "all": "basement-floor"}
-        ],
+        "floors": [],
         "inaccessible_floors": [],
         "grass": [],
-        "walls": [],
+        "walls": [
+          {"c0": 27, "r0": 7, "c1": 28, "r1": 7, "all": "basement-floor"},
+          {"c0": 27, "r0": 11, "c1": 28, "r1": 11, "all": "basement-floor"},
+          {"c0": 28, "r0": 7, "c1": 29, "r1": 7, "all": "basement-floor"},
+          {"c0": 28, "r0": 11, "c1": 29, "r1": 11, "all": "basement-floor"}
+        ],
         "barriers": [],
         "erasers": [
-          {"c0": 30, "r0": 6, "c1": 30, "r1": 7},
-          {"c0": 30, "r0": 7, "c1": 30, "r1": 8},
-          {"c0": 30, "r0": 8, "c1": 30, "r1": 9},
-          {"c0": 30, "r0": 9, "c1": 30, "r1": 10},
-          {"c0": 30, "r0": 10, "c1": 30, "r1": 11},
-          {"c0": 30, "r0": 11, "c1": 30, "r1": 12}
+          {"c0": 28, "r0": 7, "c1": 28, "r1": 8},
+          {"c0": 28, "r0": 8, "c1": 28, "r1": 9},
+          {"c0": 28, "r0": 9, "c1": 28, "r1": 10},
+          {"c0": 28, "r0": 10, "c1": 28, "r1": 11}
         ],
         "light_bridges": [],
         "lights": []
       },
       {
         "name": "Level 5",
-        "floors": [],
+        "floors": [
+          {"col": 34, "row": 7, "all": "basement-floor"},
+          {"col": 35, "row": 7, "all": "basement-floor"},
+          {"col": 36, "row": 7, "all": "basement-floor"},
+          {"col": 37, "row": 7, "all": "basement-floor"},
+          {"col": 38, "row": 7, "all": "basement-floor"},
+          {"col": 39, "row": 7, "all": "basement-floor"},
+          {"col": 34, "row": 8, "all": "basement-floor"},
+          {"col": 35, "row": 8, "all": "basement-floor"},
+          {"col": 36, "row": 8, "all": "basement-floor"},
+          {"col": 37, "row": 8, "all": "basement-floor"},
+          {"col": 38, "row": 8, "all": "basement-floor"},
+          {"col": 39, "row": 8, "all": "basement-floor"},
+          {"col": 34, "row": 9, "all": "basement-floor"},
+          {"col": 35, "row": 9, "all": "basement-floor"},
+          {"col": 36, "row": 9, "all": "basement-floor"},
+          {"col": 37, "row": 9, "all": "basement-floor"},
+          {"col": 38, "row": 9, "all": "basement-floor"},
+          {"col": 39, "row": 9, "all": "basement-floor"},
+          {"col": 34, "row": 10, "all": "basement-floor"},
+          {"col": 35, "row": 10, "all": "basement-floor"},
+          {"col": 36, "row": 10, "all": "basement-floor"},
+          {"col": 37, "row": 10, "all": "basement-floor"},
+          {"col": 38, "row": 10, "all": "basement-floor"},
+          {"col": 39, "row": 10, "all": "basement-floor"}
+        ],
         "inaccessible_floors": [],
         "grass": [],
         "walls": [],
         "barriers": [],
-        "erasers": [
-          {"c0": 30, "r0": 6, "c1": 30, "r1": 7},
-          {"c0": 30, "r0": 7, "c1": 30, "r1": 8},
-          {"c0": 30, "r0": 8, "c1": 30, "r1": 9},
-          {"c0": 30, "r0": 9, "c1": 30, "r1": 10},
-          {"c0": 30, "r0": 10, "c1": 30, "r1": 11},
-          {"c0": 30, "r0": 11, "c1": 30, "r1": 12}
-        ],
+        "erasers": [],
         "light_bridges": [],
         "lights": []
       },
       {
         "name": "Level 6",
-        "floors": [
-          {"col": 36, "row": 7, "all": "basement-floor"},
-          {"col": 37, "row": 7, "all": "basement-floor"},
-          {"col": 38, "row": 7, "all": "basement-floor"},
-          {"col": 39, "row": 7, "all": "basement-floor"},
-          {"col": 40, "row": 7, "all": "basement-floor"},
-          {"col": 41, "row": 7, "all": "basement-floor"},
-          {"col": 36, "row": 8, "all": "basement-floor"},
-          {"col": 37, "row": 8, "all": "basement-floor"},
-          {"col": 38, "row": 8, "all": "basement-floor"},
-          {"col": 39, "row": 8, "all": "basement-floor"},
-          {"col": 40, "row": 8, "all": "basement-floor"},
-          {"col": 41, "row": 8, "all": "basement-floor"},
-          {"col": 36, "row": 9, "all": "basement-floor"},
-          {"col": 37, "row": 9, "all": "basement-floor"},
-          {"col": 38, "row": 9, "all": "basement-floor"},
-          {"col": 39, "row": 9, "all": "basement-floor"},
-          {"col": 40, "row": 9, "all": "basement-floor"},
-          {"col": 41, "row": 9, "all": "basement-floor"},
-          {"col": 36, "row": 10, "all": "basement-floor"},
-          {"col": 37, "row": 10, "all": "basement-floor"},
-          {"col": 38, "row": 10, "all": "basement-floor"},
-          {"col": 39, "row": 10, "all": "basement-floor"},
-          {"col": 40, "row": 10, "all": "basement-floor"},
-          {"col": 41, "row": 10, "all": "basement-floor"}
-        ],
+        "floors": [],
         "inaccessible_floors": [],
         "grass": [],
         "walls": [],
@@ -312,6 +301,40 @@
     ],
     "ladders": [],
     "ramps": [],
-    "nested_maps": []
+    "nested_maps": [
+      {"map": "Shuttle", "level": 0, "from": [1, 11], "to": [36, 11], "to_level": 5, "travel_secs": 8.0, "pause_secs": 2.0, "phase_secs": 0.0, "from_nudge": [0.0, 0.0, 1.01], "to_nudge": [0.0, 0.0, 1.01]}
+    ],
+    "nested_geometry": {
+      "Shuttle": {
+        "grid_cols": 2,
+        "grid_rows": 2,
+        "actor_spawn_zones": [],
+        "player_spawn_zones": [],
+        "checkpoints": [],
+        "pressure_plates": [],
+        "items": [],
+        "levels": [
+          {
+            "name": "Level 0",
+            "floors": [
+              {"col": 0, "row": 0, "all": "basement-floor"},
+              {"col": 1, "row": 0, "all": "basement-floor"},
+              {"col": 0, "row": 1, "all": "basement-floor"},
+              {"col": 1, "row": 1, "all": "basement-floor"}
+            ],
+            "inaccessible_floors": [],
+            "grass": [],
+            "walls": [],
+            "barriers": [],
+            "erasers": [],
+            "light_bridges": [],
+            "lights": []
+          }
+        ],
+        "ladders": [],
+        "ramps": [],
+        "nested_maps": []
+      }
+    }
   }
 }
