@@ -143,7 +143,9 @@ pub fn input_weapon_select_system(
 mod tests {
     use super::*;
     use crate::{players::PlayerInfo, test_fixtures};
-    use common::protocol::{Health, Player, PlayerId, PlayerMoveIntent, PlayerMovementState, PortalPairId, Position};
+    use common::protocol::{
+        Health, Player, PlayerGeneration, PlayerId, PlayerMoveIntent, PlayerMovementState, PortalPairId, Position,
+    };
 
     const BOTH: PortalAccess = PortalAccess::Both { pair: PortalPairId(1) };
 
@@ -228,6 +230,7 @@ mod tests {
             PlayerInfo::from_snapshot(
                 Entity::PLACEHOLDER,
                 &Player {
+                    generation: PlayerGeneration(0),
                     name: "Alice".to_owned(),
                     movement: PlayerMovementState::new(Position::default(), PlayerMoveIntent::default(), 0.0, 0.0),
                     health: Health(100.0),

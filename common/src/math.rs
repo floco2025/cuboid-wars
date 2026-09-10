@@ -5,6 +5,13 @@ use rapier3d::prelude::{Pose, Vector, glamx};
 
 pub const PHYSICS_EPSILON: f32 = 1e-6;
 
+// Wire sequence numbers wrap; `seq` is newer than `last` when it is ahead by
+// less than half the range.
+#[must_use]
+pub const fn sequence_is_newer(seq: u32, last: u32) -> bool {
+    seq != last && seq.wrapping_sub(last) < (1 << 31)
+}
+
 // Rapier's glam is not Bevy's; every value crossing between the two converts here.
 #[must_use]
 pub fn to_rapier(v: Vec3) -> Vector {

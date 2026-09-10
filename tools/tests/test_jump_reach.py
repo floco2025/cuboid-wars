@@ -247,3 +247,11 @@ class JumpReachWindowTests(WindowTestCase):
         QTest.keyClick(canvas, Qt.Key.Key_Escape)
         QTest.mouseRelease(canvas, Qt.MouseButton.LeftButton)
         self.assertEqual(self.window.jump_reach.origin, (0, 2, 2))
+
+
+class FallImpactTests(unittest.TestCase):
+    def test_terminal_speed_limits_fall_damage(self):
+        fall = FallSettings(4, 20, 100)
+        self.assertAlmostEqual(fall.damage_fraction(100, 25, 25), (12.5 - 4) / (20 - 4))
+        self.assertEqual(fall.damage_fraction(2, 25, 25), 0)
+        self.assertEqual(fall.damage_fraction(20, 5, 25), 0)

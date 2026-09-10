@@ -2,6 +2,7 @@ mod assets;
 mod audio;
 mod camera;
 mod hud;
+mod interpolation;
 mod local;
 mod rendering;
 mod settings;

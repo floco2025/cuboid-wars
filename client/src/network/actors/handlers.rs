@@ -7,20 +7,14 @@ use crate::{
 };
 use common::protocol::*;
 
-pub(in crate::network) fn handle_actor_move_message(
-    message: SActorMove,
+pub(in crate::network) fn handle_actor_moves_message(
+    message: SActorMoves,
     commands: &mut Commands,
     context: &mut ServerMessageContext,
 ) {
-    apply_actor_movement_state(
-        commands,
-        &context.actors,
-        &context.rtt,
-        &context.actor_data,
-        message.id,
-        message.movement,
-        message.movement.move_intent.direction(),
-    );
+    for entry in message.moves {
+        apply_actor_movement_state(commands, &context.actors, message.tick, entry.id, entry.movement);
+    }
 }
 
 // Drives the immediate death of an actor on this client: explosion VFX +

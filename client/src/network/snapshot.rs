@@ -40,7 +40,7 @@ pub(super) fn handle_snapshot_message(
     sync_actors(commands, context, message.tick, &message.actors);
     sync_spawning_actors(commands, context, &message.spawning_actors);
     sync_items(commands, context, &message.items);
-    sync_missiles(commands, context, &message.missiles);
+    sync_missiles(commands, context, message.tick, &message.missiles);
     sync_portals(commands, context, &message.portals);
 
     // Stable equality keeps identical snapshots from waking the visibility systems.

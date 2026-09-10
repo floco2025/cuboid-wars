@@ -107,7 +107,7 @@ impl LadderVolume {
     }
 
     #[must_use]
-    pub(super) const fn carrier(&self) -> CarrierId {
+    pub const fn carrier(&self) -> CarrierId {
         self.carrier
     }
 

@@ -220,9 +220,7 @@ fn missile_destroys_turret_with_normal_death_cue_and_kill_credit() {
             pos,
         });
     }
-    app.world_mut()
-        .resource_mut::<PendingExplosions>()
-        .push_missile(shooter, pos);
+    queue_missile_blast(&mut app, shooter, pos);
     app.update();
     assert!(app.world().get_entity(entity).is_err());
     assert!(app.world().resource::<ActorMap>().get(&id).is_none());
@@ -283,9 +281,9 @@ fn simultaneous_blasts_send_one_combined_player_result() {
             id,
             Position::default(),
             Health(1_000.0),
-            CharacterVerticalVelocity::default(),
+            CharacterVerticalVelocity(-7.0),
             AirborneMomentum::default(),
-            KnockbackVelocity::default(),
+            KnockbackVelocity(Vec3::Z * 3.0),
         ))
         .id();
     let (sender, mut receiver) = unbounded_channel();
@@ -319,9 +317,23 @@ fn simultaneous_blasts_send_one_combined_player_result() {
     assert_eq!(message.id, id);
     assert_eq!(message.health, health);
     assert!(message.health.0 < 1_000.0);
-    assert!(message.velocity_x.abs() < 0.001);
-    assert!(message.velocity_z.abs() < 0.001);
-    assert!(message.vertical_velocity > 0.0);
+    assert!(message.impulse[0].abs() < 0.001);
+    assert!(message.impulse[2].abs() < 0.001);
+    assert!(message.impulse[1] > 0.0);
+    assert_eq!(
+        app.world()
+            .get::<CharacterVerticalVelocity>(entity)
+            .expect("velocity missing")
+            .0,
+        -7.0
+    );
+    assert_eq!(
+        app.world()
+            .get::<KnockbackVelocity>(entity)
+            .expect("knockback missing")
+            .0,
+        Vec3::Z * 3.0
+    );
     assert!(receiver.try_recv().is_err());
 }
 
@@ -379,9 +391,7 @@ fn missile_blast_awards_shooter_player_kill_credit() {
     // Shooter far outside the blast so only the victim dies.
     let (_, mut shooter_rx) = spawn_logged_in_player(&mut app, shooter_id, 100.0, 100.0);
     spawn_logged_in_player(&mut app, victim_id, 0.0, 1.0);
-    app.world_mut()
-        .resource_mut::<PendingExplosions>()
-        .push_missile(shooter_id, Position::default());
+    queue_missile_blast(&mut app, shooter_id, Position::default());
 
     app.update();
 
@@ -407,9 +417,7 @@ fn missile_self_blast_awards_no_credit() {
     app.add_systems(Update, explosions_system);
     let shooter_id = PlayerId(1);
     let (_, mut shooter_rx) = spawn_logged_in_player(&mut app, shooter_id, 0.0, 1.0);
-    app.world_mut()
-        .resource_mut::<PendingExplosions>()
-        .push_missile(shooter_id, Position::default());
+    queue_missile_blast(&mut app, shooter_id, Position::default());
 
     app.update();
 
@@ -434,9 +442,7 @@ fn missile_blast_kills_actor_with_shooter_credit() {
     let shooter_id = PlayerId(1);
     let (_, mut shooter_rx) = spawn_logged_in_player(&mut app, shooter_id, 100.0, 100.0);
     spawn_actor(&mut app, ActorId(1), 0.0, 1.0);
-    app.world_mut()
-        .resource_mut::<PendingExplosions>()
-        .push_missile(shooter_id, Position::default());
+    queue_missile_blast(&mut app, shooter_id, Position::default());
 
     app.update();
 
@@ -520,7 +526,7 @@ fn fields_shield_players_and_actors_from_missile_damage_and_knockback() {
             let mut app = test_app();
             app.insert_resource(field_world(bridge))
                 .add_systems(Update, explosions_system);
-            let (player, _) = spawn_logged_in_player(&mut app, PlayerId(1), 2.0, 10000.0);
+            let (player, mut receiver) = spawn_logged_in_player(&mut app, PlayerId(1), 2.0, 10000.0);
             app.world_mut()
                 .resource_mut::<PlayerMap>()
                 .get_mut(&PlayerId(1))
@@ -528,7 +534,8 @@ fn fields_shield_players_and_actors_from_missile_damage_and_knockback() {
                 .add_key(BarrierKindId(0));
             let actor = spawn_actor(&mut app, ActorId(1), 2.0, 10000.0);
             power_field(&mut app, bridge, active);
-            app.world_mut().resource_mut::<PendingExplosions>().push_missile(
+            queue_missile_blast(
+                &mut app,
                 PlayerId(2),
                 Position {
                     x: 0.0,
@@ -537,6 +544,14 @@ fn fields_shield_players_and_actors_from_missile_damage_and_knockback() {
                 },
             );
             app.update();
+            let impulse = std::iter::from_fn(|| receiver.try_recv().ok()).find_map(|message| match message {
+                ServerToClient::Send(ServerMessage::PlayerKnockback(message)) => Some(message.impulse),
+                _ => None,
+            });
+            assert_eq!(impulse.is_some(), !active);
+            if let Some(impulse) = impulse {
+                assert!(impulse[1] > 0.0);
+            }
             for entity in [player, actor] {
                 let health = app.world().get::<Health>(entity).expect("victim health missing").0;
                 let vertical = app
@@ -545,12 +560,12 @@ fn fields_shield_players_and_actors_from_missile_damage_and_knockback() {
                     .expect("victim velocity missing")
                     .0;
                 assert_eq!(health < 10000.0, !active, "bridge={bridge}, active={active}");
-                assert_eq!(vertical > 0.0, !active);
+                assert_eq!(vertical > 0.0, entity == actor && !active);
                 assert_eq!(
                     app.world()
                         .get::<KnockbackVelocity>(entity)
                         .is_some_and(|knockback| knockback.0 != Vec3::ZERO),
-                    !active
+                    entity == actor && !active
                 );
             }
         }
@@ -595,4 +610,124 @@ fn activating_cover_stops_an_existing_beam_burst_and_reopening_restores_damage()
             previous = current;
         }
     }
+}
+
+fn queue_missile_blast(app: &mut App, shooter: PlayerId, pos: Position) {
+    use common::{
+        config::GameplayConfig,
+        physics::{character_hitbox_center, planar_shove, visible_blast_falloff},
+        protocol::{HitTarget, MissileBlastHit},
+    };
+    let world = app.world();
+    let gameplay = world.resource::<GameplayConfig>();
+    let players = world.resource::<PlayerMap>();
+    let actors = world.resource::<ActorMap>();
+    let candidates = players
+        .iter()
+        .filter_map(|(id, info)| {
+            let pos = *world.get::<Position>(info.entity()?)?;
+            Some((
+                HitTarget::Player {
+                    id: *id,
+                    generation: info.session.generation,
+                },
+                pos,
+                gameplay.player.physics(),
+            ))
+        })
+        .chain(actors.iter().filter_map(|(id, info)| {
+            Some((
+                HitTarget::Actor(*id),
+                *world.get::<Position>(info.entity)?,
+                gameplay.expect_actor(&info.spawn_kind).physics(),
+            ))
+        }));
+    let center = Vec3::from(pos);
+    let radius = world
+        .resource::<ServerGameplayConfig>()
+        .combat
+        .damage
+        .missile_blast
+        .radius;
+    let hits = candidates
+        .filter_map(|(target, pos, physics)| {
+            let victim = character_hitbox_center(pos, physics);
+            let falloff = visible_blast_falloff(
+                center,
+                victim,
+                radius,
+                world.resource::<CollisionWorld>(),
+                &world.resource::<PlateState>().open_barrier_kinds,
+            )?;
+            let direction = planar_shove(center, victim, 1.0, 1.0);
+            Some(MissileBlastHit {
+                target,
+                falloff,
+                direction: [direction.x, direction.z],
+            })
+        })
+        .collect();
+    app.world_mut()
+        .resource_mut::<PendingExplosions>()
+        .push_missile(shooter, pos, hits);
+}
+
+#[test]
+fn reported_missile_hits_ignore_server_distance_but_not_victim_generation_or_duplicate_hits() {
+    use common::protocol::{HitTarget, MissileBlastHit, PlayerGeneration};
+    let mut app = test_app();
+    app.add_systems(Update, explosions_system);
+    let (entity, mut receiver) = spawn_logged_in_player(&mut app, PlayerId(1), 1000.0, 10000.0);
+    let generation = app
+        .world()
+        .resource::<PlayerMap>()
+        .get(&PlayerId(1))
+        .expect("victim missing")
+        .session
+        .generation;
+    let hit = |generation| MissileBlastHit {
+        target: HitTarget::Player {
+            id: PlayerId(1),
+            generation,
+        },
+        falloff: 0.5,
+        direction: [0.0, -1.0],
+    };
+    app.world_mut().resource_mut::<PendingExplosions>().push_missile(
+        PlayerId(2),
+        Position::default(),
+        vec![hit(PlayerGeneration(generation.0.wrapping_sub(1)))],
+    );
+    app.update();
+    assert_eq!(app.world().get::<Health>(entity).expect("health missing").0, 10000.0);
+    assert!(receiver.try_recv().is_err(), "retired body received an impulse");
+    app.world_mut().resource_mut::<PendingExplosions>().push_missile(
+        PlayerId(2),
+        Position::default(),
+        vec![hit(generation), hit(generation)],
+    );
+    app.update();
+    let damage = app
+        .world()
+        .resource::<ServerGameplayConfig>()
+        .combat
+        .damage
+        .missile_blast
+        .max_damage
+        * 0.5;
+    assert_eq!(
+        app.world().get::<Health>(entity).expect("health missing").0,
+        10000.0 - damage
+    );
+    let ServerToClient::Send(ServerMessage::PlayerKnockback(message)) = receiver.try_recv().expect("impulse missing")
+    else {
+        panic!("unexpected reply");
+    };
+    assert_eq!(message.impulse[0], 0.0);
+    assert!(message.impulse[1] > 0.0);
+    assert!(
+        message.impulse[2] < 0.0,
+        "impulse was recomputed from the delayed server position"
+    );
+    assert!(receiver.try_recv().is_err());
 }

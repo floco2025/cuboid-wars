@@ -56,42 +56,6 @@ pub const AUDIO_MASTER_VOLUME_DEFAULT: f32 = 1.0;
 pub const PING_INTERVAL: f32 = 1.0;
 
 // ============================================================================
-// Tick Synchronization
-// ============================================================================
-
-// Consecutive own echoes that must all report a same-sign clock error before
-// the tick shifts, so delivery jitter never flaps it.
-pub const TICK_SYNC_WINDOW_TICKS: usize = 15;
-
-// ============================================================================
-// Server Reconciliation
-// ============================================================================
-
-// Remote characters and missiles smooth small errors and snap large ones.
-// Local-player snapping uses the shared movement trust distance.
-
-// --- Shared (characters + missiles) ---
-
-// Correction-window length scales with RTT so smoothing stays proportional
-// to typical drift size.
-pub const RECON_CORRECTION_TIME_RTT_MULTIPLIER: f32 = 4.0;
-// Shortest correction window: a LAN round trip would otherwise close every
-// gap within a tick or two.
-pub const RECON_CORRECTION_MIN_SECS: f32 = 0.25;
-
-// --- Remote characters ---
-
-// Per-axis gap past which a remote character is placed outright. Characters
-// can reverse direction between updates, so they need more slack than
-// missiles; under trust a larger jump is an accepted cut, not drift.
-pub const RECON_CHARACTER_SNAP_DISTANCE: f32 = 3.0;
-
-// --- Missiles ---
-
-// Missile course changes are broadcast promptly, so clients barely drift.
-pub const RECON_MISSILE_SNAP_DISTANCE: f32 = 1.5;
-
-// ============================================================================
 // Character Visuals
 // ============================================================================
 

@@ -13,6 +13,7 @@ pub struct GeneratedMap {
 
 pub fn generate_map(
     map_name: &str,
+    server_hz: u32,
     settings: &MapSettings,
     barrier_kinds: &BarrierKindTable,
     bridge_kinds: &BridgeKindTable,
@@ -51,7 +52,7 @@ pub fn generate_map(
             )?;
         }
     }
-    let (layout, config) = definition::compile_map(&map_def, sizes, &nested, barrier_kinds, bridge_kinds)
+    let (layout, config) = definition::compile_map(&map_def, server_hz, sizes, &nested, barrier_kinds, bridge_kinds)
         .with_context(|| format!("failed to compile map at {}", path.display()))?;
     Ok(GeneratedMap { layout, config })
 }
@@ -74,6 +75,7 @@ mod tests {
     fn missing_map_returns_contextual_error() {
         let error = generate_map(
             "definitely-not-a-real-map",
+            30,
             &crate::config::ServerGameplayConfig::load_default()
                 .expect("gameplay config is invalid")
                 .maps["hotel"]
@@ -100,6 +102,7 @@ mod tests {
         settings.textures.remove("basement-floor");
         let error = generate_map(
             "obby",
+            30,
             &settings,
             &BarrierKindTable::default(),
             &BridgeKindTable::default(),

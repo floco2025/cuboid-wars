@@ -230,25 +230,35 @@ fn rider_pushed_into_a_wall_is_blocked_and_left_behind() {
 }
 
 #[test]
-fn walking_off_the_tile_keeps_its_velocity() {
-    let (world, carriers) = carried_world(slider(), &[], &[], 1);
-    let start = Position { x: 1.4, y: 0.0, z: 0.0 };
-    let step = ride(&world, &carriers, start, 0.0, Vec3::X * TEST_PLAYER_SPEED, 0.1);
-
-    assert_eq!(
-        step.support,
-        CharacterSupport::Airborne,
-        "still on it at {:?}",
-        step.position
-    );
-    assert!((step.floor_velocity.x - 2.0).abs() < 1e-3);
-    let mut momentum = AirborneMomentum::default();
-    momentum.finish_step(&step);
-    assert!(
-        (momentum.0 - Vec3::new(2.0, 0.0, 0.0)).length() < 1e-3,
-        "momentum {}",
-        momentum.0
-    );
+fn walking_off_the_tile_keeps_its_velocity_at_different_tick_rates() {
+    for hz in [30, 60] {
+        let (mut carrier, floor) = slider();
+        carrier.travel_ticks = 2 * hz;
+        let mut position = Position { x: 1.4, y: 0.0, z: 0.0 };
+        let step = (1..=hz)
+            .find_map(|tick| {
+                let (world, carriers) = carried_world((carrier, floor), &[], &[], tick);
+                let step = ride(
+                    &world,
+                    &carriers,
+                    position,
+                    0.0,
+                    Vec3::X * TEST_PLAYER_SPEED,
+                    1.0 / hz as f32,
+                );
+                position = step.position;
+                (step.support == CharacterSupport::Airborne).then_some(step)
+            })
+            .expect("player never left the moving tile");
+        assert!((step.floor_velocity.x - 2.0).abs() < 1e-3);
+        let mut momentum = AirborneMomentum::default();
+        momentum.finish_step(&step);
+        assert!(
+            (momentum.0 - Vec3::new(2.0, 0.0, 0.0)).length() < 1e-3,
+            "momentum {}",
+            momentum.0
+        );
+    }
 }
 
 #[test]

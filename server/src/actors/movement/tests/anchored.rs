@@ -18,9 +18,9 @@ use common::{
 };
 
 fn step(
+    mut commands: Commands,
     world: Res<CollisionWorld>,
     settings: Res<MapSettings>,
-    players: Res<PlayerMap>,
     plates: Res<PlateState>,
     carriers: Res<Carriers>,
     actors: Res<ActorMap>,
@@ -35,7 +35,7 @@ fn step(
         1.0 / 30.0,
         &world,
         &settings,
-        &players,
+        &mut commands,
         &plates,
         &carriers,
         &actors,

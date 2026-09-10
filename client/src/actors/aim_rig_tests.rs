@@ -236,7 +236,6 @@ fn beam_follows_the_muzzle_without_turning_the_base_or_bypassing_cover() {
         ActorInfo {
             entity: actor,
             kind: "turret".into(),
-            anchor: None,
             beam: Default::default(),
         },
     );

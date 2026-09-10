@@ -282,50 +282,28 @@ fn grant_power_up_sets_matching_status_flag() {
 }
 
 #[test]
-fn projectile_modes_require_their_own_pickups_and_share_a_cooldown() {
-    let mut info = dummy_info();
-    const COOLDOWN: f32 = 0.1;
-    assert!(!info.try_start_shot(10.0, COOLDOWN, false));
-    assert!(!info.try_start_shot(10.0, COOLDOWN, true));
-    info.grant_power_up(ItemType::MultiShotPowerUp, &test_power_ups_config());
-    assert!(!info.try_start_shot(10.0, COOLDOWN, false));
-    assert!(info.try_start_shot(10.0, COOLDOWN, true));
-    info.grant_power_up(ItemType::SingleShotPowerUp, &test_power_ups_config());
-    assert!(!info.try_start_shot(10.05, COOLDOWN, false));
-    assert!(info.try_start_shot(10.11, COOLDOWN, false));
-    assert!(!info.try_start_shot(10.15, COOLDOWN, true));
-    assert!(info.try_start_shot(10.22, COOLDOWN, true));
-    info.tick_timers(1.0);
-    assert!(!info.try_start_shot(11.0, COOLDOWN, true));
-    assert!(info.try_start_shot(11.0, COOLDOWN, false));
-    info.erase_equipment();
-    assert!(!info.try_start_shot(12.0, COOLDOWN, false));
-    assert!(!info.try_start_shot(12.0, COOLDOWN, true));
-}
-
-#[test]
 fn single_shot_can_expire_or_last_until_death() {
     let mut info = dummy_info();
     let mut config = test_power_ups_config();
     config.duration_secs.single_shot = 2.0;
     info.grant_power_up(ItemType::SingleShotPowerUp, &config);
-    assert!(info.try_start_shot(1.0, 0.1, false));
+    assert!(info.has(PowerUpKind::SingleShot));
     info.tick_timers(2.0);
-    assert!(!info.try_start_shot(3.0, 0.1, false));
+    assert!(!info.has(PowerUpKind::SingleShot));
     info.grant_power_up(ItemType::SingleShotPowerUp, &test_power_ups_config());
     info.tick_timers(1000.0);
-    assert!(info.try_start_shot(1003.0, 0.1, false));
+    assert!(info.has(PowerUpKind::SingleShot));
     info.begin_respawn(1.0);
     info.finish_respawn(Entity::PLACEHOLDER);
-    assert!(!info.try_start_shot(1004.0, 0.1, false));
+    assert!(!info.has(PowerUpKind::SingleShot));
 }
 
 #[test]
-fn missing_or_expired_gun_rejects_portal_fire_without_spending_cooldown() {
+fn missing_or_expired_gun_rejects_portal_fire() {
     let mut info = dummy_info();
     info.grant_power_up(ItemType::SingleShotPowerUp, &test_power_ups_config());
     assert!(!info.try_start_portal_shot(1.0, 0.1));
-    assert!(info.try_start_shot(1.0, 0.1, false));
+    assert!(info.has(PowerUpKind::SingleShot));
     let mut config = test_power_ups_config();
     config.duration_secs.portal_gun = 2.0;
     info.grant_power_up(ItemType::PortalGunPowerUp, &config);
@@ -336,7 +314,7 @@ fn missing_or_expired_gun_rejects_portal_fire_without_spending_cooldown() {
     assert!(info.has(PowerUpKind::PortalGun));
     info.tick_timers(0.5);
     assert!(!info.try_start_portal_shot(3.0, 0.1));
-    assert!(info.try_start_shot(3.0, 0.1, false));
+    assert!(info.has(PowerUpKind::SingleShot));
 }
 
 #[test]
@@ -363,20 +341,6 @@ fn erasure_clears_power_ups_and_ammo_but_preserves_keys_and_progress() {
         info.session.quest_states[&QuestId("quest".into())].own_progress(),
         Some(3)
     );
-}
-
-#[test]
-fn projectile_and_portal_shots_share_a_cooldown() {
-    let mut info = dummy_info();
-    info.grant_power_up(ItemType::SingleShotPowerUp, &test_power_ups_config());
-    info.grant_power_up(ItemType::PortalGunPowerUp, &test_power_ups_config());
-    const COOLDOWN: f32 = 0.1;
-
-    assert!(info.try_start_portal_shot(10.0, COOLDOWN));
-    assert!(!info.try_start_shot(10.05, COOLDOWN, false));
-    assert!(info.try_start_shot(10.11, COOLDOWN, false));
-    assert!(!info.try_start_portal_shot(10.15, COOLDOWN));
-    assert!(info.try_start_portal_shot(10.22, COOLDOWN));
 }
 
 #[test]

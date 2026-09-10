@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 
 use super::{
+    ActorAnimationVelocity,
     aim_rig::{FixedFacingMarker, aim_rig_setup_system},
     wheel_animation::{WheelModel, wheel_animation_setup_system},
     wheel_grounding::WheelGrounding,
@@ -8,8 +9,8 @@ use super::{
 
 use crate::{
     characters::{
-        AnimationToPlay, MaxHealth, PreviousTickPosition, character_animation_system, load_character_model,
-        model_transform, spawn_character_bounds,
+        AnimationToPlay, MaxHealth, character_animation_system, load_character_model, model_transform,
+        spawn_character_bounds,
     },
     config::{AssetSet, ClientSettings},
     constants::{BEAM_IN_COLOR, BEAM_IN_LIGHT_RANGE, LABEL_ACTOR_MESH_WIDTH},
@@ -41,13 +42,14 @@ pub fn spawn_actor(
             actor_id,
             ActorMarker,
             actor.movement.pos,
-            PreviousTickPosition(actor.movement.pos),
+            ActorAnimationVelocity::default(),
+            actor.movement.support,
             actor.movement.move_intent,
             actor.health,
-            FaceYaw(actor.face_yaw),
+            FaceYaw(actor.movement.face_yaw),
             CharacterVerticalVelocity(actor.movement.vertical_velocity),
             Transform::from_xyz(actor.movement.pos.x, actor.movement.pos.y, actor.movement.pos.z)
-                .with_rotation(Quat::from_rotation_y(actor.face_yaw)),
+                .with_rotation(Quat::from_rotation_y(actor.movement.face_yaw)),
             Visibility::Visible,
         ))
         .id();

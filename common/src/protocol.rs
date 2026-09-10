@@ -15,8 +15,7 @@
 // earlier reliable message. Ordering rules belong to the receiving code.
 //
 // Each message's role determines its default lane, assigned by `lane()` below.
-// Pending portal crossings temporarily put `CMove` on the reliable lane;
-// that exchange is described below. `common/src/network.rs` handles delivery
+// `common/src/network.rs` handles delivery
 // using the supplied lane and knows nothing about gameplay.
 //
 // Message roles
@@ -37,49 +36,74 @@
 //
 //    `SSnapshot` lists the players, actors, items, missiles, and shared world
 //    state, such as plates, quests, weather, and portals. It is sent at
-//    `SNAPSHOT_HZ`. The client uses the entity lists to create missing entities
+//    `network.snapshot_hz`. The client uses the entity lists to create missing entities
 //    and remove absent ones. `spawning_actors` lets it show an actor's arrival
 //    effect during the warning period before that actor exists.
 //
-//    `SPlayerMoves` sends every active player's movement each server tick.
-//    Both it and `SSnapshot` carry a `tick`: the server simulation step that
-//    produced the update. The client tracks the newest tick separately for
-//    each stream and ignores older updates. It also keeps its own estimate
-//    of the server's tick in `ServerTick`.
+//    `SPlayerMoves` and `SActorMoves` send player and actor movement at
+//    `network.update_hz`. These messages and `SSnapshot` carry the server
+//    `tick` that produced them. Player movement and snapshots have separate
+//    ordering guards; actor samples compare ticks across both sources.
+//    The client estimates the server's tick in `ServerTick`. `SInit` supplies
+//    `network.server_hz` for that clock and both fixed simulation loops.
 //
-//    The client sends its own movement in `CMove` every tick, even when idle:
+//    The client sends `CMove` at the same configured rate, even when idle:
 //    the whole `PlayerMovementState` its step produced, with a sequence
 //    number (`seq`) identifying that client update. A lost report is
-//    replaced by the next; nothing is retransmitted. The server applies the
-//    reported intent and facing, simulates the tick, and adopts the reported
-//    state whole (position, vertical velocity, momentum, knockback, support)
-//    when the positions agree within `PLAYER_MOVEMENT_TRUST_DISTANCE` on
-//    every axis (`MovementDivergence`). Otherwise it keeps its simulated
-//    position; intent and facing were applied either way.
+//    replaced by the next; nothing is retransmitted. The server adopts the
+//    reported state whole (position, intent, facing, vertical velocity,
+//    momentum, knockback, support), without simulating player movement.
+//    Fresh, finite reports for the current body are always accepted.
 //
-//    `PlayerMove.move_seq` identifies the report processed on that server
-//    tick. The owning client compares the reply with its saved position for
-//    that sequence: small differences do nothing; large differences snap.
-//    This pairing also helps synchronize the client's clock. Without a fresh
-//    report the server keeps simulating, but sends no `move_seq`, so the
-//    client cannot compare a later server position with an earlier report.
+//    A rider's position is relative to `movement.carrier`; everyone else uses
+//    the world carrier. The server retains these coordinates and places the
+//    body with the carrier's current pose. Observers interpolate the relative
+//    positions using the same rendered carrier pose as the platform itself.
+//    Changing carriers sends a report immediately, including boarding and takeoff.
 //
-//    Remote players smooth corrections between updates. Actors and missiles
-//    also use snapshots and movement cues to correct their local simulation;
-//    they have no client movement reports to match.
+//    `seq` advances every client simulation step, including unsent steps, so
+//    observers can time movement samples independently of packet arrival.
+//    The server repeats the latest report until another arrives. Observers
+//    ignore repeated sequences and interpolate between buffered samples;
+//    they hold the newest position when the buffer runs dry.
+//
+//    Portal crossings send a report immediately. `portal_crossing` counts
+//    crossings within this body and repeats in every subsequent report, so
+//    observers cut across a crossing even if its first report is lost.
+//
+//    Each player's `generation` advances on respawn or forced relocation.
+//    Reports and body-bound cues apply only to that generation. `SPlayerRelocated`
+//    reliably supplies a complete player at its spawn or relocation; snapshots
+//    can establish it first. Applying a generation twice never moves the owner
+//    again. Older generations cannot undo a relocation or resurrect a dead body.
+//
+//    Actors interpolate buffered server samples, including facing and support;
+//    their positions use the actor's carrier frame. Only snapshots establish
+//    actor presence. Clients hold the newest sample when the buffer runs dry
+//    and never simulate actor physics. `SActorMoves.tick` identifies every
+//    sample in its batch, so actors need no separate sequence number.
+//
+//    Only the shooter simulates a missile. `CMissileMoves` sends its state at
+//    `network.update_hz`; the server adopts fresh samples and relays them
+//    immediately in `SMissileMoves`. Each missile's `seq` counts owner flight
+//    steps, including unsent ones. Snapshots repeat that sequence and state.
+//    Observers interpolate those samples and hold when the buffer runs dry;
+//    neither the server nor observers simulate missile flight or collision.
 //
 //    Projectiles are short-lived and numerous, so snapshots omit them.
-//    `SProjectileShot` tells clients to simulate the visible shot; the server
-//    still decides hits and deaths. Missiles last longer and change course,
-//    so they remain in snapshots.
+//    `CProjectileShot` and its `SProjectileShot` relay are immediate unreliable
+//    cues: one eye origin, aim, and numeric pattern per volley.
+//    Every client simulates its visible bullets; only the shooter reports hits.
+//    Missing volleys cost cosmetics, never damage. Every received volley starts
+//    at its supplied origin with a full lifetime, regardless of arrival order.
+//    Missiles last longer and change course, so they remain in snapshots.
 //
 // 3. Cues (unreliable): prompt feedback before the next state update.
 //
 //    A lost cue can cost a sound, animation, or delay, but later state updates
 //    keep the game state correct. Cues serve three purposes:
-//    * Earlier updates: `SActorMove`, `SMissileMove`, and `SMissileLaunch` let
-//      clients predict motion before the next snapshot. `SActorBeam` reports
-//      beam changes; snapshots also carry the beam state.
+//    * Earlier updates: `SActorBeam` reports beam changes; snapshots also
+//      carry the beam state.
 //    * One-time feedback: `SPlayerStatus` can play a pickup sound when an item
 //      is collected. Repeated snapshots keep the inventory correct without
 //      playing the sound again. `SGoldCollected` does the same for gold.
@@ -87,7 +111,8 @@
 //      for camera shake. Death cues supply the death position and effects;
 //      the next snapshot still confirms that the entity is gone.
 //
-//    `CPing` and `SPong` use this lane to measure round-trip time (RTT).
+//    `CPing` and `SPong` measure round-trip time (RTT); the pong also carries
+//    the server tick for clock synchronization.
 //
 // 4. Events (reliable): information a later snapshot cannot replace.
 //
@@ -98,48 +123,51 @@
 //    * `SFeed`: a chat, announcement, or admin reply, with text and styling
 //      chosen by the server. It goes to everyone or selected recipients.
 //    * `SFirework`: the seed that makes clients play the same firework show.
+//    * `SPlayerRelocated`: establishes a body before reliable impulses for it;
+//      snapshots may supply it earlier but cannot guarantee that ordering.
 //
-//    Client actions also use this lane: shots (`CProjectileShot`,
-//    `CMissileShot`, `CPortalShot`) and console submissions (`CAdmin`,
-//    `CChat`). A later movement report cannot repeat a lost action. A jump is
+//    Client actions also use this lane: shots (`CMissileShot`, `CPortalShot`)
+//    and console submissions (`CAdmin`, `CChat`). A later movement report
+//    cannot repeat a lost action. A jump is
 //    not an action: the report after it carries the vertical velocity it
 //    produced.
 //
-//    An impulse the server applies to a player's own movement (`SPlayerKnockback`)
-//    is an event too: the next accepted report replaces the server's copy of
-//    it, so the victim's client is the only place the impulse survives.
+//    `CProjectileHit` reports one bullet's victim and impact direction, once.
+//    Reliable delivery needs no volley record or bullet ID on the server:
+//    hits work even if the cosmetic volley was lost or the shooter has died.
+//    The server applies damage, scoring, and death; player victims are bound
+//    to their body generation. Visible bullets finish their lifetime after a
+//    shooter disconnects, but that shooter can no longer report damage.
 //
-//    Portal crossings use a reliable exchange too. The owning client crosses
-//    immediately and sends `CPortalCross` instead of that tick's `CMove`, with
-//    the movement states before and after crossing. The server compares the
-//    entrance position after its corresponding movement step, using the same
-//    distance limit as ordinary movement. If accepted, it adopts the exit
-//    state. It never independently crosses a player.
+//    `CMissileShot` carries the firing client's launch geometry and lock.
+//    The server checks ammo and the body generation, allocates an ID, and
+//    reliably broadcasts `SMissileLaunch`; this starts the owner's flight.
+//    `CMissileDetonated` reliably reports the blast position and detected
+//    victims, falloff, and impulse directions. The server applies each missile
+//    once, using its damage/knockback tuning and current victim generations,
+//    without repeating collision or blast-visibility queries. Detonation
+//    reports survive lost movement packets and shooter death or respawn;
+//    disconnect removes the shooter's missiles. `SMissileDetonated` is reliable
+//    so snapshot removal cannot lose the explosion effect. Snapshot ordering
+//    cannot reposition an owner's flight or resurrect a detonated missile.
 //
-//    `SPortalCrossed` reports the decision. Acceptance goes to everyone: the
-//    owner keeps its current prediction, while observers move the remote
-//    player to the exit. The server's two lanes are as independent as the
-//    client's, so the event can arrive after the same tick's `SPlayerMoves`;
-//    observers apply it whenever it arrives within the body's current life,
-//    since a body that kept solid portal backing cannot be smoothed through
-//    the wall. Crossings covered by its spawn snapshot are ignored.
-//    Rejection goes only to the owner, with the server state to snap back
-//    to. A snapshot cannot tell the owner whether its crossing was accepted.
+//    `CPortalShot` carries the client's placement or material-fizzle impact
+//    in carrier coordinates, bound to its body generation. The server checks
+//    ownership, equipment, cooldown, and overlap with current portals, then
+//    broadcasts the accepted result. Geometry, aim, and material checks run
+//    only on the firing client; all clients install accepted portals from
+//    `SPortalOpened` or snapshots.
 //
-//    On rejection, both sides discard movement and further crossings that
-//    depended on the rejected crossing. The owner snaps back and answers
-//    every rejection with `CPortalRecovery` carrying its last sent sequence,
-//    whether or not it still holds the crossing: the server accepts no
-//    report until the recovery arrives, and only a death would otherwise
-//    clear that. The server then accepts fresh reports and discards anything
-//    from before the recovery.
+//    `CPlayerMovementEvent` reports landing impact speeds, crushing, falls out
+//    of the world, and equipment erasure. These events are ordered
+//    by the reliable lane, independently of movement sequence cutoffs; a later
+//    movement report cannot cancel an event or repeat it. Impact positions
+//    locate death explosions, never reposition a body. The server applies damage,
+//    equipment, and lifecycle rules, dropping events for other generations.
 //
-//    While a crossing awaits confirmation, subsequent `CMove`s use the same
-//    reliable lane so they cannot arrive ahead of it: a report that overtook
-//    the crossing would advance the sequence cutoff past it, and the server
-//    would drop the crossing without a reply. When reports queue up, the
-//    server keeps only the latest in each run of ordinary moves, but
-//    processes every crossing in order.
+//    `SPlayerKnockback` supplies an additive impulse to the surviving owner.
+//    The client adds it once to its current motion, clamping the planar sum;
+//    the server keeps its reported movement copy until the next report.
 //
 // Adding messages
 //
@@ -150,14 +178,12 @@
 // The server gets the sender's `PlayerId` from the connection. Client
 // messages omit that ID so a client cannot claim to be another player.
 
-use std::fmt;
-
 use bevy_ecs::prelude::Resource;
-use bevy_math::Vec3;
 use bincode::{Decode, Encode};
 
+use crate::config::{GameplayBootstrap, NetworkConfig};
+pub use crate::math::sequence_is_newer;
 pub use crate::types::*;
-use crate::{config::GameplayBootstrap, constants::PLAYER_MOVEMENT_TRUST_DISTANCE};
 
 // ============================================================================
 // Client Messages
@@ -169,57 +195,114 @@ pub struct CLogin {
     pub name: String,
 }
 
-// Sent after each movement step, before knockback decay; the server compares
-// against its corresponding step using the intent in the reported state.
+// Sent after movement and portal traversal, before knockback decay.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct CMove {
+    pub generation: PlayerGeneration,
     pub seq: u32,
+    pub portal_crossing: u32,
     pub movement: PlayerMovementState,
 }
 
-// Reliable crossing boundary: compare the entrance side, then adopt the exit.
+// Reliable events are independent of movement sequence cutoffs and never reposition a body.
 #[derive(Debug, Clone, Encode, Decode)]
-pub struct CPortalCross {
-    pub seq: u32,
-    pub entrance: PlayerMovementState,
-    pub movement: PlayerMovementState,
+pub struct CPlayerMovementEvent {
+    pub generation: PlayerGeneration,
+    pub event: PlayerMovementEvent,
 }
 
-// Sent after applying a rejected crossing; earlier movement is now obsolete.
 #[derive(Debug, Clone, Encode, Decode)]
-pub struct CPortalRecovery {
-    pub seq: u32,
+pub enum PlayerMovementEvent {
+    Landed {
+        // A lethal impact needs its explosion position even if movement reports arrive later.
+        pos: Position,
+        impact_speed: f32,
+    },
+    Crushed {
+        // The death explosion needs the contact position, which movement reports may not yet contain.
+        pos: Position,
+    },
+    FellOutOfWorld,
+    EraseEquipment,
 }
 
-// Client to Server: Projectile shot fired.
-#[derive(Debug, Clone, Encode, Decode)]
+#[derive(Debug, Clone, Copy, Encode, Decode)]
 pub struct CProjectileShot {
-    pub face_yaw: f32,   // radians - yaw direction player is facing when shooting
-    pub face_pitch: f32, // radians - pitch (up/down) when shooting
-    pub pattern: Option<String>,
+    pub origin: Position,
+    pub face_yaw: f32,
+    pub face_pitch: f32,
+    // 0 is single shot; 1 onwards index the ordered allowed_patterns list.
+    pub pattern: u8,
 }
 
-// Client to Server: fire a seeking missile at the locked target. Only sent
-// while the client has a lock; the server re-validates (target alive, in
-// range, sight clear) before spawning.
+#[derive(Debug, Clone, Copy, Encode, Decode)]
+pub struct CProjectileHit {
+    pub target: HitTarget,
+    pub direction: [f32; 2],
+}
+
+// The firing client resolves the launch geometry and lock; acceptance starts its flight.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct CMissileShot {
-    // `None` = unguided shot along the aim; only honored when
-    // `missiles.require_lock` is off.
+    pub generation: PlayerGeneration,
     pub target: Option<HomingTarget>,
-    pub face_yaw: f32,   // radians - yaw when firing
-    pub face_pitch: f32, // radians - pitch when firing
+    pub movement: MissileMovementState,
 }
 
-// Client to Server: place one end allowed by the shooter's portal assignment. The server
-// re-derives the eye ray from yaw/pitch, casts it at world geometry, and
-// answers with `SPortalOpened` or a material-rejection `SPortalFizzled` cue.
-// Other placement failures are silent; the client predicts their dry-fire.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct CMissileMoves {
+    pub moves: Vec<MissileMove>,
+}
+
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct MissileMove {
+    pub id: MissileId,
+    // Owner simulation steps, including steps that sent no update.
+    pub seq: u32,
+    pub movement: MissileMovementState,
+}
+
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct CMissileDetonated {
+    pub id: MissileId,
+    pub pos: Position,
+    pub hits: Vec<MissileBlastHit>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode)]
+pub enum HitTarget {
+    Player { id: PlayerId, generation: PlayerGeneration },
+    Actor(ActorId),
+}
+
+#[derive(Debug, Clone, Copy, Encode, Decode)]
+pub struct MissileBlastHit {
+    pub target: HitTarget,
+    pub falloff: f32,
+    // Planar impulse direction at the victim position seen by the shooter.
+    pub direction: [f32; 2],
+}
+
+// The client resolves the shot in the hit carrier's frame; the server arbitrates shared overlaps.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct CPortalShot {
-    pub end: PortalEnd,
-    pub face_yaw: f32,   // radians - yaw when firing
-    pub face_pitch: f32, // radians - pitch (up/down) when firing
+    pub generation: PlayerGeneration,
+    pub result: PortalShotResult,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Encode, Decode)]
+pub enum PortalShotResult {
+    Placed(Portal),
+    Fizzled(Portal),
+}
+
+impl PortalShotResult {
+    #[must_use]
+    pub const fn portal(self) -> Portal {
+        match self {
+            Self::Placed(portal) | Self::Fizzled(portal) => portal,
+        }
+    }
 }
 
 // Client to Server: Ping request with timestamp (Duration since app start, serialized as nanoseconds).
@@ -268,6 +351,7 @@ pub struct PlayerBootstrap {
 
 #[derive(Debug, Clone, Encode, Decode, Resource)]
 pub struct WorldBootstrap {
+    pub network: NetworkConfig,
     pub gameplay: GameplayBootstrap,
     pub map: MapBootstrap,
 }
@@ -277,6 +361,15 @@ pub struct MapBootstrap {
     pub layout: MapLayout,
     pub settings: MapSettings,
     pub items: MapItems,
+    pub missile_air_grids: Vec<MissileAirGrid>,
+}
+
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct MissileAirGrid {
+    pub carrier: CarrierId,
+    pub cols: i32,
+    pub rows: i32,
+    pub levels: u8,
 }
 
 // --- State ---
@@ -305,8 +398,7 @@ pub struct SSnapshot {
     // to `actors` in the snapshot where the actor materializes.
     pub spawning_actors: Vec<(ActorId, SpawningActor)>,
     pub items: Vec<(ItemId, Item)>,
-    // Missiles last long enough to need position updates. This list repairs
-    // missed launch and course-change cues.
+    // Seeds joining observers and repeats the latest owner samples.
     pub missiles: Vec<(MissileId, Missile)>,
     // What the pressure plates hold right now: open barrier kinds (the
     // client hides them; the server unions them with each player's
@@ -334,9 +426,8 @@ pub struct SSnapshot {
     pub portals: Vec<Portal>,
 }
 
-// Movement between snapshots. `tick` orders these updates; each `move_seq`
-// identifies the client report processed on that tick. Snapshots determine
-// which players exist.
+// Movement between snapshots. `tick` orders the envelopes; each `seq`
+// identifies the latest client sample. Snapshots determine which players exist.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SPlayerMoves {
     pub tick: u32,
@@ -346,48 +437,36 @@ pub struct SPlayerMoves {
 #[derive(Debug, Clone, Copy, Encode, Decode)]
 pub struct PlayerMove {
     pub id: PlayerId,
+    pub generation: PlayerGeneration,
+    pub seq: u32,
+    pub portal_crossing: u32,
     pub movement: PlayerMovementState,
-    // Some(seq) only for a report processed this tick; None avoids comparing
-    // continued server movement against an earlier client position.
-    pub move_seq: Option<u32>,
 }
 
-// --- Cues (ahead of the next snapshot, healed by it) ---
-
-// Player fired a shot. Projectile entities are intentionally not carried in
-// `SSnapshot`: clients spawn and simulate them for presentation, while the
-// server runs its own projectile simulation for authoritative hit logic.
 #[derive(Debug, Clone, Encode, Decode)]
-pub struct SProjectileShot {
-    pub id: PlayerId,
-    pub face_yaw: f32,
-    pub face_pitch: f32,
-    pub pattern: Option<String>,
+pub struct SActorMoves {
+    pub tick: u32,
+    pub moves: Vec<ActorMove>,
 }
 
-// Actor movement change.
-#[derive(Debug, Clone, Encode, Decode)]
-pub struct SActorMove {
+#[derive(Debug, Clone, Copy, Encode, Decode)]
+pub struct ActorMove {
     pub id: ActorId,
     pub movement: ActorMovementState,
 }
 
-// A missile launched. Broadcast to all (including the shooter — clients do
-// not predict missile spawns; the server owns the whole flight). The next
-// snapshot is the presence fallback.
 #[derive(Debug, Clone, Encode, Decode)]
-pub struct SMissileLaunch {
-    pub id: MissileId,
-    pub shooter: PlayerId,
-    pub movement: MissileMovementState,
+pub struct SMissileMoves {
+    pub moves: Vec<MissileMove>,
 }
 
-// Missile course change. Sent when the direction changes enough; clients
-// continue in a straight line between updates and correct toward this position.
+// --- Cues (ahead of the next snapshot, healed by it) ---
+
+// Cosmetic volley relayed to other clients; only the shooter reports hits.
 #[derive(Debug, Clone, Encode, Decode)]
-pub struct SMissileMove {
-    pub id: MissileId,
-    pub movement: MissileMovementState,
+pub struct SProjectileShot {
+    pub id: PlayerId,
+    pub shot: CProjectileShot,
 }
 
 // A player died. Drives the immediate client-side death-state transition
@@ -396,6 +475,7 @@ pub struct SMissileMove {
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SPlayerDeath {
     pub id: PlayerId,
+    pub generation: PlayerGeneration,
     // The next snapshot omits the victim, so this cue supplies the death
     // position. The client snaps here to show the corpse at the server's
     // death spot even when local prediction placed it elsewhere.
@@ -436,15 +516,6 @@ pub struct SActorDeath {
     pub killer_score: Option<i32>,
 }
 
-// Missile detonated at this position (impact, lifetime, or stall). Triggers
-// the explosion VFX + sound and the local teardown; disappearance from the
-// next snapshot is the fallback.
-#[derive(Debug, Clone, Encode, Decode)]
-pub struct SMissileDetonated {
-    pub id: MissileId,
-    pub pos: Position,
-}
-
 // What damaged the player in an `SPlayerHit` — clients tune the camera
 // shake per source.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode)]
@@ -460,6 +531,7 @@ pub enum HitKind {
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SPlayerHit {
     pub id: PlayerId,
+    pub generation: PlayerGeneration,
     pub kind: HitKind,
     pub hit_dir_x: f32,
     pub hit_dir_z: f32,
@@ -471,6 +543,7 @@ pub struct SPlayerHit {
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SPlayerFallDamage {
     pub id: PlayerId,
+    pub generation: PlayerGeneration,
     pub health: Health,
 }
 
@@ -499,9 +572,8 @@ pub struct SActorBeam {
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct SPlayerStatus {
     pub id: PlayerId,
-    // The item just collected when this status change is a pickup; the
-    // collector plays the pickup sound and auto-selects the weapon once
-    // (`pending_weapon_selection`).
+    pub generation: PlayerGeneration,
+    // Collected or granted items play the pickup sound and select the weapon once.
     pub collected: Option<ItemType>,
     // One bool per `PowerUpKind`, indexed by `PowerUpKind::index()`.
     pub power_ups: [bool; PowerUpKind::COUNT],
@@ -520,9 +592,9 @@ impl SPlayerStatus {
     }
 }
 
-// Sent only to the entering player to play a sound when an eraser removes equipment.
+// Sent to the affected player whenever an eraser removes equipment.
 #[derive(Debug, Clone, Encode, Decode)]
-pub struct SEraserEntered;
+pub struct SEquipmentErased;
 
 // Sent only to the player whose checkpoint changed, for the sound and banner.
 #[derive(Debug, Clone, Encode, Decode)]
@@ -543,6 +615,7 @@ pub struct SGoldCollected {
 // the snapshot's `Player.health` is still the system of record.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SHealthPotionCollected {
+    pub generation: PlayerGeneration,
     pub health: Health,
 }
 
@@ -571,36 +644,47 @@ pub struct SPortalFizzled {
 }
 
 // Pong response — server echoes the `CPing` timestamp back unchanged so the
-// client can compute RTT from the round trip.
+// client can compute RTT and estimate the current server tick.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SPong {
+    pub tick: u32,
     pub timestamp_nanos: u64,
 }
 
 // --- Events (delivered; nothing in the snapshot could stand in) ---
 
-// Accepted transitions reach everyone; rejections reach only the crossing player.
-// One type keeps this rare reply simple; the owner ignores movement on acceptance.
-#[derive(Debug, Clone, Copy, Encode, Decode)]
-pub struct SPortalCrossed {
-    pub id: PlayerId,
-    pub seq: u32,
+// Reliable launch delivery starts the shooter's simulation even if no snapshot arrives.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SMissileLaunch {
+    pub id: MissileId,
+    pub shooter: PlayerId,
     pub tick: u32,
-    pub accepted: bool,
-    pub movement: PlayerMovementState,
+    pub target: Option<HomingTarget>,
+    pub movement: MissileMovementState,
 }
 
-// Knockback result, sent only to the surviving victim. The absolute velocities
-// are the blast: the victim's next accepted report replaces the server's
-// copy, so the client must apply them itself, and a lost one would be lost
-// for good. Health updates the HUD on the damage tick.
+// Delivers the explosion effect even when a snapshot has already removed the missile.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SMissileDetonated {
+    pub id: MissileId,
+    pub tick: u32,
+    pub pos: Position,
+}
+
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SPlayerRelocated {
+    pub id: PlayerId,
+    pub tick: u32,
+    pub player: Player,
+}
+
+// Additive blast impulse for the surviving owner; applied once to its current local motion.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SPlayerKnockback {
     pub id: PlayerId,
+    pub generation: PlayerGeneration,
     pub health: Health,
-    pub vertical_velocity: f32,
-    pub velocity_x: f32,
-    pub velocity_z: f32,
+    pub impulse: [f32; 3],
 }
 
 // One server-rendered message-feed line. Spans carry semantic styles so the
@@ -666,14 +750,16 @@ pub enum ClientMessage {
     Login(CLogin),
     // State
     Move(CMove),
+    MissileMoves(CMissileMoves),
     // Cues
     Ping(CPing),
-    // Events
     ProjectileShot(CProjectileShot),
+    // Events
+    ProjectileHit(CProjectileHit),
     MissileShot(CMissileShot),
+    MissileDetonated(CMissileDetonated),
     PortalShot(CPortalShot),
-    PortalCross(CPortalCross),
-    PortalRecovery(CPortalRecovery),
+    PlayerMovementEvent(CPlayerMovementEvent),
     Admin(CAdmin),
     Chat(CChat),
 }
@@ -693,20 +779,18 @@ pub enum ServerMessage {
     // State
     Snapshot(SSnapshot),
     PlayerMoves(SPlayerMoves),
+    ActorMoves(SActorMoves),
+    MissileMoves(SMissileMoves),
     // Cues
     ProjectileShot(SProjectileShot),
-    ActorMove(SActorMove),
-    MissileLaunch(SMissileLaunch),
-    MissileMove(SMissileMove),
     PlayerDeath(SPlayerDeath),
     ActorDeath(SActorDeath),
-    MissileDetonated(SMissileDetonated),
     PlayerHit(SPlayerHit),
     PlayerFallDamage(SPlayerFallDamage),
     ActorHit(SActorHit),
     ActorBeam(SActorBeam),
     PlayerStatus(SPlayerStatus),
-    EraserEntered(SEraserEntered),
+    EquipmentErased(SEquipmentErased),
     CheckpointReached(SCheckpointReached),
     GoldCollected(SGoldCollected),
     HealthPotionCollected(SHealthPotionCollected),
@@ -715,72 +799,13 @@ pub enum ServerMessage {
     PortalFizzled(SPortalFizzled),
     Pong(SPong),
     // Events
-    PortalCrossed(SPortalCrossed),
+    MissileLaunch(SMissileLaunch),
+    MissileDetonated(SMissileDetonated),
+    PlayerRelocated(SPlayerRelocated),
     PlayerKnockback(SPlayerKnockback),
     Feed(SFeed),
     QuestUpdates(SQuestUpdates),
     Firework(SFirework),
-}
-
-// Wire sequence numbers wrap; `seq` is newer than `last` when it is ahead by
-// less than half the range.
-#[must_use]
-pub const fn sequence_is_newer(seq: u32, last: u32) -> bool {
-    seq != last && seq.wrapping_sub(last) < (1 << 31)
-}
-
-// How far two positions of one body disagree, judged per axis against a
-// limit. Displays as the line every rejection and snap logs.
-#[derive(Debug, Clone, Copy)]
-pub struct MovementDivergence {
-    pub delta: Vec3,
-    pub limit: f32,
-}
-
-impl MovementDivergence {
-    #[must_use]
-    pub fn between(from: Position, to: Position, limit: f32) -> Self {
-        Self {
-            delta: Vec3::from(to) - Vec3::from(from),
-            limit,
-        }
-    }
-
-    #[must_use]
-    pub fn within_limit(&self) -> bool {
-        self.delta.is_finite() && self.delta.abs().max_element() < self.limit
-    }
-}
-
-impl fmt::Display for MovementDivergence {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let magnitudes = self.delta.abs();
-        let axis = if magnitudes.x >= magnitudes.y && magnitudes.x >= magnitudes.z {
-            "x"
-        } else if magnitudes.y >= magnitudes.z {
-            "y"
-        } else {
-            "z"
-        };
-        write!(
-            f,
-            "worst axis {axis}: {:.2} m (limit {:.2}; Δ x={:.2}, y={:.2}, z={:.2})",
-            magnitudes.max_element(),
-            self.limit,
-            self.delta.x,
-            self.delta.y,
-            self.delta.z
-        )
-    }
-}
-
-impl PlayerMovementState {
-    // The trust rule: the server adopts a report, and the owning client keeps
-    // its prediction, only while the two positions agree this closely.
-    #[must_use]
-    pub fn divergence_from(&self, other: &Self) -> MovementDivergence {
-        MovementDivergence::between(other.pos, self.pos, PLAYER_MOVEMENT_TRUST_DISTANCE)
-    }
 }
 
 // The QUIC lane a message rides; see the top-of-file comment.
@@ -795,14 +820,14 @@ impl ClientMessage {
     pub const fn lane(&self) -> Lane {
         match self {
             Self::Login(_)
-            | Self::ProjectileShot(_)
+            | Self::ProjectileHit(_)
             | Self::MissileShot(_)
+            | Self::MissileDetonated(_)
             | Self::PortalShot(_)
-            | Self::PortalCross(_)
-            | Self::PortalRecovery(_)
+            | Self::PlayerMovementEvent(_)
             | Self::Admin(_)
             | Self::Chat(_) => Lane::Reliable,
-            Self::Move(_) | Self::Ping(_) => Lane::Unreliable,
+            Self::Move(_) | Self::MissileMoves(_) | Self::ProjectileShot(_) | Self::Ping(_) => Lane::Unreliable,
         }
     }
 }
@@ -812,7 +837,9 @@ impl ServerMessage {
     pub const fn lane(&self) -> Lane {
         match self {
             Self::Init(_)
-            | Self::PortalCrossed(_)
+            | Self::MissileLaunch(_)
+            | Self::MissileDetonated(_)
+            | Self::PlayerRelocated(_)
             | Self::PlayerKnockback(_)
             | Self::Feed(_)
             | Self::QuestUpdates(_)
@@ -820,18 +847,16 @@ impl ServerMessage {
             Self::Snapshot(_)
             | Self::PlayerMoves(_)
             | Self::ProjectileShot(_)
-            | Self::ActorMove(_)
-            | Self::MissileLaunch(_)
-            | Self::MissileMove(_)
+            | Self::ActorMoves(_)
+            | Self::MissileMoves(_)
             | Self::PlayerDeath(_)
             | Self::ActorDeath(_)
-            | Self::MissileDetonated(_)
             | Self::PlayerHit(_)
             | Self::PlayerFallDamage(_)
             | Self::ActorHit(_)
             | Self::ActorBeam(_)
             | Self::PlayerStatus(_)
-            | Self::EraserEntered(_)
+            | Self::EquipmentErased(_)
             | Self::CheckpointReached(_)
             | Self::GoldCollected(_)
             | Self::HealthPotionCollected(_)
@@ -846,7 +871,7 @@ impl ServerMessage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{network::encode_message, protocol::CarrierId};
+    use crate::{network::encode_message, physics::CharacterSupport, protocol::CarrierId};
 
     // Comfortably under quinn's ~1150-byte datagram limit at the initial MTU.
     const DATAGRAM_BUDGET: usize = 1100;
@@ -867,11 +892,12 @@ mod tests {
     #[test]
     fn unreliable_lane_messages_fit_one_datagram() {
         let messages = [
-            ServerMessage::EraserEntered(SEraserEntered),
+            ServerMessage::EquipmentErased(SEquipmentErased),
             ServerMessage::CheckpointReached(SCheckpointReached),
             ServerMessage::PlayerStatus(SPlayerStatus {
-                collected: Some(ItemType::SpeedPowerUp),
                 id: PlayerId(1),
+                generation: PlayerGeneration(0),
+                collected: Some(ItemType::SpeedPowerUp),
                 power_ups: [true; PowerUpKind::COUNT],
                 stunned: true,
                 held_keys: (0..barrier_kind_cap()).map(BarrierKindId).collect(),
@@ -892,6 +918,7 @@ mod tests {
             }),
             ServerMessage::PlayerDeath(SPlayerDeath {
                 id: PlayerId(1),
+                generation: PlayerGeneration(0),
                 pos: position(),
                 killer: Some(PlayerId(2)),
                 victim_score: -1000,
@@ -900,9 +927,12 @@ mod tests {
             }),
             ServerMessage::ProjectileShot(SProjectileShot {
                 id: PlayerId(1),
-                face_yaw: 1.0,
-                face_pitch: 0.1,
-                pattern: Some("line_5".to_owned()),
+                shot: CProjectileShot {
+                    origin: position(),
+                    face_yaw: 1.0,
+                    face_pitch: 0.1,
+                    pattern: 1,
+                },
             }),
             ServerMessage::ActorBeam(SActorBeam {
                 id: ActorId(3),
@@ -928,7 +958,6 @@ mod tests {
 
     #[test]
     fn reliable_lane_carries_bootstrap_events_and_text() {
-        let movement = PlayerMovementState::new(position(), PlayerMoveIntent::Idle, 0.0, 0.0);
         assert_eq!(ServerMessage::Feed(SFeed { spans: Vec::new() }).lane(), Lane::Reliable);
         assert_eq!(ServerMessage::Firework(SFirework { seed: 7 }).lane(), Lane::Reliable);
         assert_eq!(
@@ -936,23 +965,11 @@ mod tests {
             Lane::Reliable
         );
         assert_eq!(
-            ServerMessage::PortalCrossed(SPortalCrossed {
-                id: PlayerId(1),
-                seq: 1,
-                tick: 1,
-                accepted: true,
-                movement,
-            })
-            .lane(),
-            Lane::Reliable
-        );
-        assert_eq!(
             ServerMessage::PlayerKnockback(SPlayerKnockback {
                 id: PlayerId(1),
+                generation: PlayerGeneration(0),
                 health: Health(10.0),
-                vertical_velocity: 7.0,
-                velocity_x: 1.0,
-                velocity_z: -1.0,
+                impulse: [1.0, 7.0, -1.0],
             })
             .lane(),
             Lane::Reliable
@@ -968,51 +985,22 @@ mod tests {
     }
 
     #[test]
-    fn actions_and_crossings_are_reliable_and_movement_is_not() {
+    fn movement_is_unreliable() {
         let movement = PlayerMovementState::new(position(), PlayerMoveIntent::Idle, 0.0, 0.0);
         assert_eq!(
-            ClientMessage::PortalCross(CPortalCross {
+            ClientMessage::Move(CMove {
+                generation: PlayerGeneration(0),
                 seq: 1,
-                entrance: movement,
-                movement,
+                portal_crossing: 0,
+                movement
             })
             .lane(),
-            Lane::Reliable
+            Lane::Unreliable
         );
-        assert_eq!(
-            ClientMessage::PortalRecovery(CPortalRecovery { seq: 1 }).lane(),
-            Lane::Reliable
-        );
-        assert_eq!(ClientMessage::Move(CMove { seq: 1, movement }).lane(), Lane::Unreliable);
         assert_eq!(
             ClientMessage::Ping(CPing { timestamp_nanos: 0 }).lane(),
             Lane::Unreliable
         );
-    }
-
-    #[test]
-    fn movement_trust_is_finite_and_strictly_per_axis() {
-        let limit = PLAYER_MOVEMENT_TRUST_DISTANCE;
-        let divergence = |delta| MovementDivergence { delta, limit };
-        assert!(divergence(Vec3::splat(limit - 0.01)).within_limit());
-        for axis in [Vec3::X, Vec3::Y, Vec3::Z] {
-            for sign in [-1.0, 1.0] {
-                assert!(divergence(axis * sign * (limit - 0.01)).within_limit());
-                assert!(!divergence(axis * sign * limit).within_limit());
-                assert!(!divergence(axis * sign * (limit + 0.01)).within_limit());
-            }
-        }
-        assert!(!divergence(Vec3::splat(f32::NAN)).within_limit());
-        assert!(!divergence(Vec3::splat(f32::INFINITY)).within_limit());
-    }
-
-    #[test]
-    fn divergence_reports_the_dominant_axis() {
-        let describe = |delta| MovementDivergence { delta, limit: 5.0 }.to_string();
-        assert!(describe(Vec3::new(-3.0, 1.0, 2.0)).starts_with("worst axis x: 3.00 m (limit 5.00;"));
-        assert!(describe(Vec3::new(1.0, -3.0, 2.0)).starts_with("worst axis y: 3.00 m"));
-        assert!(describe(Vec3::new(1.0, 2.0, -3.0)).starts_with("worst axis z: 3.00 m"));
-        assert!(describe(Vec3::splat(2.0)).starts_with("worst axis x"));
     }
 
     #[test]
@@ -1030,6 +1018,7 @@ mod tests {
             (
                 PlayerId(i),
                 Player {
+                    generation: PlayerGeneration(0),
                     name: format!("Player {i}"),
                     movement: PlayerMovementState::new(position(), PlayerMoveIntent::Idle, 0.0, 0.0),
                     health: Health(500.0),
@@ -1046,15 +1035,16 @@ mod tests {
             (
                 ActorId(i),
                 Actor {
-                    anchor: None,
                     beam: None,
                     kind: "bruiser".to_owned(),
                     movement: ActorMovementState {
                         pos: position(),
+                        carrier: CarrierId::WORLD,
                         move_intent: ActorMoveIntent::Idle,
                         vertical_velocity: 0.0,
+                        face_yaw: 0.0,
+                        support: CharacterSupport::Ground,
                     },
-                    face_yaw: 0.0,
                     health: Health(1000.0),
                 },
             )
@@ -1092,3 +1082,7 @@ mod tests {
         assert!(len > DATAGRAM_BUDGET, "hotel-sized snapshot encodes to {len} bytes");
     }
 }
+
+#[cfg(test)]
+#[path = "protocol_projectile_tests.rs"]
+mod projectile_tests;

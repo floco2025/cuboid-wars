@@ -1,15 +1,16 @@
 use bevy::prelude::*;
 
 use crate::{
-    actors::{ActorMap, ActorStateQuery, PendingActorSpawns},
+    actors::{ActorInfo, ActorMap, ActorMotionQuery, ActorStateQuery, PendingActorSpawns},
     items::ItemMap,
-    missiles::{MissileMap, MissileVelocity},
+    missiles::MissileMap,
     network::ServerToClient,
     players::{PlayerInfo, PlayerMap, PlayerMotionQuery, PlayerStateQuery},
     portals::PortalAssignments,
 };
 use common::{
-    physics::{CharacterVerticalVelocity, player_movement_state},
+    map::Carriers,
+    physics::{CharacterSupport, player_movement_state},
     protocol::*,
 };
 
@@ -52,15 +53,23 @@ pub fn broadcast_firework_show(players: &PlayerMap) {
     );
 }
 
-// An accepted crossing places the player for everyone; a rejection only
-// tells the owner where to snap back to.
-pub fn broadcast_portal_crossing(players: &PlayerMap, result: SPortalCrossed) {
-    let message = ServerMessage::PortalCrossed(result);
-    if result.accepted {
-        broadcast_to_all(players, message);
-    } else if let Some(owner) = players.get(&result.id).filter(|info| info.connection.logged_in) {
-        let _ = owner.connection.channel.send(ServerToClient::Send(message));
-    }
+pub fn broadcast_player_relocation(
+    players: &PlayerMap,
+    id: PlayerId,
+    tick: u32,
+    movement: PlayerMovementState,
+    health: Health,
+    portal_access: PortalAccess,
+) {
+    let Some(info) = players.get(&id) else { return };
+    broadcast_to_all(
+        players,
+        ServerMessage::PlayerRelocated(SPlayerRelocated {
+            id,
+            tick,
+            player: info.snapshot_player(movement, health, portal_access),
+        }),
+    );
 }
 
 // ============================================================================
@@ -92,15 +101,19 @@ fn active_players<'a>(
         let entity = info.entity()?;
         let (pos, move_intent, face_yaw, health) = player_data.get(entity).ok()?;
         let (vertical_velocity, airborne_momentum, knockback) = motions.get(entity).ok()?;
-        let movement = player_movement_state(
+        let mut movement = player_movement_state(
             *pos,
             *move_intent,
             face_yaw,
             vertical_velocity,
             airborne_momentum,
             knockback,
-            info.life.fall_state.support(),
+            info.life.support,
         );
+        if let Some(report) = &info.life.movement_report {
+            movement.carrier = report.movement.carrier;
+            movement.pos = report.movement.pos;
+        }
         Some(ActivePlayer {
             id: *player_id,
             info,
@@ -140,8 +153,10 @@ pub fn collect_player_moves(
     active_players(players, player_data, motions)
         .map(|player| PlayerMove {
             id: player.id,
+            generation: player.info.session.generation,
             movement: player.movement,
-            move_seq: player.info.life.processed_move_seq,
+            seq: player.info.session.last_move_seq,
+            portal_crossing: player.info.life.portal_crossing,
         })
         .collect()
 }
@@ -151,26 +166,58 @@ pub fn collect_player_moves(
 pub fn snapshot_actors(
     actors: &ActorMap,
     actor_data: &ActorStateQuery,
-    motions: &Query<&CharacterVerticalVelocity, With<ActorMarker>>,
+    motions: &ActorMotionQuery,
+    carriers: &Carriers,
 ) -> Vec<(ActorId, Actor)> {
-    actors
-        .iter()
-        .filter_map(|(actor_id, info)| {
-            let (pos, move_intent, face_yaw, health) = actor_data.get(info.entity).ok()?;
-            let vertical_velocity = motions.get(info.entity).map_or(0.0, |m| m.0);
-            Some((
-                *actor_id,
+    active_actors(actors, actor_data, motions, carriers)
+        .map(|(id, info, movement, health)| {
+            (
+                id,
                 Actor {
                     kind: info.spawn_kind.clone(),
-                    anchor: info.anchor,
                     beam: info.beam.snapshot(),
-                    movement: ActorMovementState::new(*pos, *move_intent, vertical_velocity),
-                    face_yaw: face_yaw.0,
-                    health: *health,
+                    movement,
+                    health,
                 },
-            ))
+            )
         })
         .collect()
+}
+
+pub fn collect_actor_moves(
+    actors: &ActorMap,
+    actor_data: &ActorStateQuery,
+    motions: &ActorMotionQuery,
+    carriers: &Carriers,
+) -> Vec<ActorMove> {
+    active_actors(actors, actor_data, motions, carriers)
+        .map(|(id, _, movement, _)| ActorMove { id, movement })
+        .collect()
+}
+
+fn active_actors<'a>(
+    actors: &'a ActorMap,
+    actor_data: &'a ActorStateQuery,
+    motions: &'a ActorMotionQuery,
+    carriers: &'a Carriers,
+) -> impl Iterator<Item = (ActorId, &'a ActorInfo, ActorMovementState, Health)> {
+    actors.iter().filter_map(|(actor_id, info)| {
+        let (pos, move_intent, face_yaw, health) = actor_data.get(info.entity).ok()?;
+        let (vertical, support) = motions.get(info.entity).ok()?;
+        Some((
+            *actor_id,
+            info,
+            ActorMovementState {
+                pos: carriers.pose(info.carrier).inverse_transform_position(pos),
+                carrier: info.carrier,
+                move_intent: *move_intent,
+                vertical_velocity: vertical.0,
+                face_yaw: face_yaw.0,
+                support: support.copied().unwrap_or(CharacterSupport::Airborne),
+            },
+            *health,
+        ))
+    })
 }
 
 // Collect reserved spawns still in their beam-in warning window. No entity
@@ -198,23 +245,8 @@ pub fn snapshot_spawning_actors(pending: &PendingActorSpawns) -> Vec<(ActorId, S
 
 // Collect in-flight missiles for the snapshot.
 #[must_use]
-pub fn snapshot_missiles(
-    missiles: &MissileMap,
-    missile_data: &Query<(&Position, &MissileVelocity), With<MissileMarker>>,
-) -> Vec<(MissileId, Missile)> {
-    missiles
-        .iter()
-        .filter_map(|(missile_id, info)| {
-            let (pos, velocity) = missile_data.get(info.entity).ok()?;
-            Some((
-                *missile_id,
-                Missile {
-                    shooter: info.shooter,
-                    movement: MissileMovementState::from_velocity(*pos, velocity.0),
-                },
-            ))
-        })
-        .collect()
+pub fn snapshot_missiles(missiles: &MissileMap) -> Vec<(MissileId, Missile)> {
+    missiles.iter().map(|(id, missile)| (*id, *missile)).collect()
 }
 
 // Build the authoritative item list that gets replicated to clients.
@@ -244,7 +276,7 @@ mod tests {
     use super::*;
     use crate::players::PlayerInfo;
     use bevy::ecs::system::SystemState;
-    use common::physics::{AirborneMomentum, KnockbackVelocity};
+    use common::physics::{AirborneMomentum, CharacterVerticalVelocity, KnockbackVelocity};
     use tokio::sync::mpsc::unbounded_channel;
 
     fn spawn_player_entity(world: &mut World) -> Entity {

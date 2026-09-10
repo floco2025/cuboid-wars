@@ -12,6 +12,8 @@ BOTH = 8
 
 # Keep the cutoff and damage calculation in sync with server/src/players/falling.rs.
 FALL_DAMAGE_EMIT_THRESHOLD = 1.0
+# Match common/src/constants.rs::CHARACTER_TERMINAL_VELOCITY.
+CHARACTER_TERMINAL_VELOCITY = 25.0
 
 
 @dataclass(frozen=True)
@@ -21,7 +23,8 @@ class FallSettings:
     max_health: float
 
     def damage_fraction(self, drop: float, gravity: float, normal_gravity: float) -> float:
-        distance = drop * (gravity / normal_gravity)
+        speed_squared = min(2 * gravity * drop, CHARACTER_TERMINAL_VELOCITY**2)
+        distance = speed_squared / (2 * normal_gravity)
         fraction = min(1.0, max(0.0, (distance - self.safe_distance) / (self.lethal_distance - self.safe_distance)))
         return fraction if fraction * self.max_health >= FALL_DAMAGE_EMIT_THRESHOLD else 0.0
 

@@ -166,7 +166,7 @@ fn ladder_traffic(transpose: bool, traffic: Traffic) {
                     |waypoint| {
                         select_route_move(
                             &context,
-                            waypoint.movement_intent(&positions[i], 5.0),
+                            waypoint.movement_intent(&positions[i], 5.0, TICK_SECS),
                             &waypoint.position,
                         )
                     },

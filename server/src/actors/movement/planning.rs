@@ -1,19 +1,13 @@
 use std::f32::consts::FRAC_PI_2;
 
-use bevy::prelude::Vec3;
+use bevy::prelude::{Commands, Vec3};
 
-use crate::{
-    actors::{ActorMap, ActorMode},
-    network::broadcast_to_all,
-    players::PlayerMap,
-};
+use crate::actors::{ActorMap, ActorMode};
 use common::{
     config::CharacterPhysicsConfig,
     map::Carriers,
     physics::{CharacterMovePlan, CharacterSupport, CollisionWorld},
-    protocol::{
-        ActorId, ActorMoveIntent, ActorMovementState, MapSettings, PlateState, Position, SActorMove, ServerMessage,
-    },
+    protocol::{ActorMoveIntent, MapSettings, PlateState, Position},
 };
 
 use super::{
@@ -28,7 +22,7 @@ pub(crate) fn plan_actor_moves(
     delta: f32,
     collision_world: &CollisionWorld,
     map_settings: &MapSettings,
-    players: &PlayerMap,
+    commands: &mut Commands,
     plates: &PlateState,
     carriers: &Carriers,
     actors: &ActorMap,
@@ -51,6 +45,7 @@ pub(crate) fn plan_actor_moves(
         let current_pos = *pos;
         if let Some(anchor) = info.anchor {
             *move_intent = ActorMoveIntent::Idle;
+            commands.entity(entity).insert(CharacterSupport::Ground);
             if let ActorMode::Engage { target_pos, .. } = info.mode {
                 face_yaw.0 = direction_toward(&current_pos, &target_pos);
             }
@@ -95,6 +90,7 @@ pub(crate) fn plan_actor_moves(
             &current_pos,
             actor_movement.roam_speed,
             actor_movement.active_speed,
+            delta,
         ) {
             ActorDesire::Idle => move_context.idle_move(),
             ActorDesire::HoldFacing { direction } => {
@@ -106,14 +102,11 @@ pub(crate) fn plan_actor_moves(
             }
         };
 
-        let changed = *move_intent != selected.intent;
         *move_intent = selected.intent;
         if let Some(direction) = selected.intent.direction().or(hold_facing) {
             face_yaw.0 = direction;
         }
-        if changed {
-            broadcast_actor_move_intent(players, *id, current_pos, selected.intent, motion.0);
-        }
+        commands.entity(entity).insert(selected.step.support);
         planned_moves.push(CharacterMovePlan::from_movement_result(
             entity,
             current_pos,
@@ -161,20 +154,4 @@ pub(super) fn select_route_move(
             held
         }
     }
-}
-
-fn broadcast_actor_move_intent(
-    players: &PlayerMap,
-    id: ActorId,
-    pos: Position,
-    move_intent: ActorMoveIntent,
-    vertical_velocity: f32,
-) {
-    broadcast_to_all(
-        players,
-        ServerMessage::ActorMove(SActorMove {
-            id,
-            movement: ActorMovementState::new(pos, move_intent, vertical_velocity),
-        }),
-    );
 }

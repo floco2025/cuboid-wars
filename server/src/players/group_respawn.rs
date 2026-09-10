@@ -20,12 +20,14 @@ pub(crate) fn enter_group_respawn(
         return false;
     };
     let victim_score = info.session.score;
+    let generation = info.session.generation;
     info.begin_group_respawn();
     commands.entity(entity).despawn();
     broadcast_to_all(
         players,
         ServerMessage::PlayerDeath(SPlayerDeath {
             id,
+            generation,
             pos,
             killer: None,
             victim_score,

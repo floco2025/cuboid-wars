@@ -4,7 +4,7 @@ use common::protocol::{Position, ProjectileMarker};
 use crate::characters::PreviousTickPosition;
 
 // Update projectile `Transform` from `Position` for rendering. Physics ticks
-// at a fixed 30 Hz while rendering runs at the display rate; interpolate
+// at the configured fixed rate while rendering runs at the display rate; interpolate
 // between the last-tick and current-tick positions using the fixed-step
 // overstep fraction so motion stays smooth.
 pub fn projectiles_transform_sync_system(

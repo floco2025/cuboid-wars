@@ -1,18 +1,9 @@
 use bevy::prelude::*;
 use std::collections::HashSet;
 
-use super::super::{
-    components::{ServerReconciliation, extrapolated_correction},
-    context::ServerMessageContext,
-};
-use crate::{
-    actors::{ActorInfo, ActorMap, beam_in_ghost_state, spawn_actor, spawn_actor_ghost},
-    network::RoundTripTime,
-};
-use common::{
-    physics::CharacterVerticalVelocity,
-    protocol::{Actor, ActorId, ActorMarker, ActorMovementState, FaceYaw, Position, SpawningActor},
-};
+use super::super::context::ServerMessageContext;
+use crate::actors::{ActorInfo, ActorMap, RemoteActorMotion, beam_in_ghost_state, spawn_actor, spawn_actor_ghost};
+use common::protocol::{Actor, ActorId, ActorMovementState, CarrierId, SpawningActor};
 
 pub(in crate::network) fn sync_actors(
     commands: &mut Commands,
@@ -27,10 +18,17 @@ pub(in crate::network) fn sync_actors(
             continue;
         }
 
+        let buffer = RemoteActorMotion::new(
+            tick,
+            actor.movement,
+            context.client_settings.interpolation.delay_ticks(&context.network),
+        );
         let mut actor = actor.clone();
-        if let Some(anchor) = actor.anchor {
-            actor.movement.pos = anchor.world_position(&context.carriers);
-        }
+        actor.movement.pos = context
+            .carriers
+            .pose(actor.movement.carrier)
+            .transform_position(&actor.movement.pos);
+        actor.movement.carrier = CarrierId::WORLD;
         let entity = spawn_actor(
             commands,
             &context.assets.asset_server,
@@ -43,12 +41,12 @@ pub(in crate::network) fn sync_actors(
             *id,
             &actor,
         );
+        commands.entity(entity).insert(buffer);
         context.actors.insert(
             *id,
             ActorInfo {
                 entity,
                 kind: actor.kind.clone(),
-                anchor: actor.anchor,
                 beam: Default::default(),
             },
         );
@@ -68,15 +66,7 @@ pub(in crate::network) fn sync_actors(
             client_actor.beam.apply(tick, server_actor.beam);
             commands.entity(client_actor.entity).insert(server_actor.health);
         }
-        apply_actor_movement_state(
-            commands,
-            &context.actors,
-            &context.rtt,
-            &context.actor_data,
-            *id,
-            server_actor.movement,
-            Some(server_actor.face_yaw),
-        );
+        apply_actor_movement_state(commands, &context.actors, tick, *id, server_actor.movement);
     }
 }
 
@@ -119,49 +109,19 @@ pub(in crate::network) fn sync_spawning_actors(
     });
 }
 
-// `face_yaw` is the facing the state carries: the snapshot's authored yaw,
-// or for an `SActorMove` cue the direction of its intent (`None` while idle,
-// so the last facing holds until the next snapshot restates it).
 pub(super) fn apply_actor_movement_state(
     commands: &mut Commands,
     actors: &ActorMap,
-    rtt: &RoundTripTime,
-    actor_data: &Query<&Position, With<ActorMarker>>,
+    tick: u32,
     id: ActorId,
     movement: ActorMovementState,
-    face_yaw: Option<f32>,
 ) {
-    let Some(client_actor) = actors.get(&id) else {
+    let Some(actor) = actors.get(&id) else {
         return;
     };
-
-    if client_actor.anchor.is_some() {
-        if let Some(yaw) = face_yaw {
-            commands.entity(client_actor.entity).insert(FaceYaw(yaw));
+    commands.entity(actor.entity).queue(move |mut entity: EntityWorldMut| {
+        if let Some(mut buffer) = entity.get_mut::<RemoteActorMotion>() {
+            buffer.push(tick, movement);
         }
-        return;
-    }
-    let server_velocity = actor_movement_velocity(movement);
-    commands.entity(client_actor.entity).insert((
-        movement.move_intent,
-        CharacterVerticalVelocity(movement.vertical_velocity),
-    ));
-    if let Some(face_yaw) = face_yaw {
-        commands.entity(client_actor.entity).insert(FaceYaw(face_yaw));
-    }
-
-    if let Ok(client_pos) = actor_data.get(client_actor.entity) {
-        commands.entity(client_actor.entity).insert(ServerReconciliation::new(
-            extrapolated_correction(*client_pos, movement.pos, server_velocity, rtt),
-            movement.pos,
-            server_velocity,
-            rtt,
-        ));
-    }
-}
-
-fn actor_movement_velocity(movement: ActorMovementState) -> Vec3 {
-    let mut velocity = movement.move_intent.to_horizontal_velocity();
-    velocity.y = movement.vertical_velocity;
-    velocity
+    });
 }

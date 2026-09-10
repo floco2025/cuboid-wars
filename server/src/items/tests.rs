@@ -283,7 +283,7 @@ mod collection_eligibility_tests {
                 .resource_mut::<PlayerMap>()
                 .get_mut(&id)
                 .expect("player missing")
-                .try_start_shot(10.0, 0.1, false)
+                .has(PowerUpKind::SingleShot)
         );
         let first = spawn_item(
             &mut app,
@@ -303,8 +303,8 @@ mod collection_eligibility_tests {
         )));
         let mut players = app.world_mut().resource_mut::<PlayerMap>();
         let info = players.get_mut(&id).expect("player missing");
-        assert!(info.try_start_shot(10.0, 0.1, false));
-        assert!(!info.try_start_shot(11.0, 0.1, true));
+        assert!(info.has(PowerUpKind::SingleShot));
+        assert!(!info.has(PowerUpKind::MultiShot));
         let second = spawn_item(
             &mut app,
             2,
@@ -410,7 +410,8 @@ mod collection_eligibility_tests {
 
     #[test]
     fn eraser_wins_over_same_tick_pickup_and_does_not_repeat_status() {
-        use crate::players::{EraserContacts, erase_equipment_system};
+        use crate::players::{erase_equipment_system, handle_player_movement_event};
+        use common::protocol::{CPlayerMovementEvent, PlayerGeneration, PlayerMovementEvent};
         use common::{
             physics::CollisionWorld,
             protocol::{BarrierKindTable, Eraser, MapLayout, PowerUpKind},
@@ -431,10 +432,17 @@ mod collection_eligibility_tests {
             ..Default::default()
         };
         app.insert_resource(CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default()))
-            .init_resource::<EraserContacts>()
             .add_systems(Update, erase_equipment_system.after(item_collection_system));
         let id = PlayerId(1);
         let (entity, mut rx) = spawn_player(&mut app, id, Position::default());
+        handle_player_movement_event(
+            id,
+            CPlayerMovementEvent {
+                generation: PlayerGeneration(0),
+                event: PlayerMovementEvent::EraseEquipment,
+            },
+            &mut app.world_mut().resource_mut::<PlayerMap>(),
+        );
         spawn_item(
             &mut app,
             1,

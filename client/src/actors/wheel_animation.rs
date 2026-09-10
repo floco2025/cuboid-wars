@@ -1,16 +1,10 @@
 use std::f32::consts::TAU;
 
 use bevy::{gltf::Gltf, prelude::*, world_serialization::WorldInstanceReady};
-use common::{
-    physics::CharacterSupport,
-    protocol::{ActorMoveIntent, Position},
-};
+use common::{physics::CharacterSupport, protocol::ActorMoveIntent};
 
-use crate::{
-    characters::{CharacterModel, PreviousTickPosition},
-    config::WheelModelDef,
-    constants::*,
-};
+use super::ActorAnimationVelocity;
+use crate::{characters::CharacterModel, config::WheelModelDef, constants::*};
 
 // The actor a wheeled model drives for; the rig is built when its scene is ready.
 #[derive(Component)]
@@ -93,39 +87,23 @@ pub(crate) fn wheel_animation_setup_system(
     }
 }
 
-pub(super) fn drive_speed(
-    intent: ActorMoveIntent,
-    displacement: Vec3,
-    delta: f32,
-    support: Option<CharacterSupport>,
-) -> f32 {
+pub(super) fn drive_speed(intent: ActorMoveIntent, velocity: Vec3, support: Option<CharacterSupport>) -> f32 {
     if matches!(support, Some(CharacterSupport::Airborne | CharacterSupport::Ladder)) {
         return 0.0;
     }
     let control = intent.to_horizontal_velocity();
-    (displacement.dot(control.normalize_or_zero()) / delta).clamp(0.0, control.length())
+    velocity.dot(control.normalize_or_zero()).clamp(0.0, control.length())
 }
 
 pub(crate) fn wheel_animation_update_system(
-    fixed: Res<Time<Fixed>>,
-    owners: Query<(
-        &Position,
-        &PreviousTickPosition,
-        &ActorMoveIntent,
-        Option<&CharacterSupport>,
-    )>,
+    owners: Query<(&ActorAnimationVelocity, &ActorMoveIntent, Option<&CharacterSupport>)>,
     mut rigs: Query<(&WheelAnimationPlayback, &mut AnimationPlayer)>,
 ) {
     for (playback, mut player) in &mut rigs {
-        let Ok((position, previous, intent, support)) = owners.get(playback.source.owner) else {
+        let Ok((velocity, intent, support)) = owners.get(playback.source.owner) else {
             continue;
         };
-        let speed = drive_speed(
-            *intent,
-            Vec3::from(*position) - Vec3::from(previous.0),
-            fixed.timestep().as_secs_f32(),
-            support.copied(),
-        );
+        let speed = drive_speed(*intent, velocity.0, support.copied());
         if let Some(active) = player.animation_mut(playback.source.drive) {
             active.set_speed(if speed > WHEEL_ANIMATION_STANDSTILL_SPEED {
                 speed * playback.source.cycle_secs / (TAU * playback.source.wheel_radius)

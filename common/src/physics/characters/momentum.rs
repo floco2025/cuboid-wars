@@ -1,4 +1,7 @@
-use bevy_ecs::prelude::{Component, Query, Res};
+use bevy_ecs::{
+    prelude::{Component, Query, Res},
+    query::QueryFilter,
+};
 use bevy_math::Vec3;
 use bevy_time::Time;
 
@@ -69,10 +72,10 @@ pub fn momentum_displacement(
         + momentum.map_or(Vec3::ZERO, |momentum| momentum.step(delta))
 }
 
-pub fn knockback_decay_system(
+pub fn knockback_decay_system<F: QueryFilter>(
     time: Res<Time>,
     map_settings: Option<Res<MapSettings>>,
-    mut knockbacks: Query<&mut KnockbackVelocity>,
+    mut knockbacks: Query<&mut KnockbackVelocity, F>,
 ) {
     let Some(map_settings) = map_settings else {
         return;
@@ -109,6 +112,7 @@ mod tests {
     #[test]
     fn airborne_momentum_ends_on_support_or_collision() {
         let airborne = CharacterMovementResult {
+            impact_speed: 0.0,
             grounding: Default::default(),
             position: Default::default(),
             vertical_velocity: 1.0,

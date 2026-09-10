@@ -11,7 +11,7 @@ use crate::{
     config::{ServerGameplayConfig, validate_map_actor_kinds, validate_map_quests},
     items::{ItemMap, ItemSpawner, RandomItems, items_plugin},
     map::{GeneratedMap, LightState, WeatherState, generate_map, map_plugin},
-    missiles::{AirGraph, MissileMap, missiles_plugin},
+    missiles::MissileMap,
     network::{FromClientsChannel, network_plugin},
     players::{Invincibility, PlayerMap, players_plugin},
     portals::{PortalAssignments, PortalMap, portals_plugin},
@@ -21,16 +21,31 @@ use crate::{
 };
 use bevy::time::TimeUpdateStrategy;
 use common::{
-    constants::TICK_DURATION,
     map::Carriers,
     physics::{CollisionWorld, PortalSet},
-    protocol::{MapBootstrap, PlateState, ServerTick, WorldBootstrap, server_tick_advance_system},
+    protocol::{MapBootstrap, MissileAirGrid, PlateState, ServerTick, WorldBootstrap, server_tick_advance_system},
 };
 
 const LOG_FILTER: &str = "wgpu=error,naga=warn";
 
-pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsChannel) -> Result<App> {
-    let server_gameplay_config = ServerGameplayConfig::load_default()?;
+pub fn build_server_app(
+    map_override: Option<&str>,
+    server_hz: Option<u32>,
+    update_hz: Option<u32>,
+    snapshot_hz: Option<u32>,
+    from_clients: FromClientsChannel,
+) -> Result<App> {
+    let mut server_gameplay_config = ServerGameplayConfig::load_default()?;
+    if let Some(server_hz) = server_hz {
+        server_gameplay_config.network.server_hz = server_hz;
+    }
+    if let Some(update_hz) = update_hz {
+        server_gameplay_config.network.update_hz = update_hz;
+    }
+    if let Some(snapshot_hz) = snapshot_hz {
+        server_gameplay_config.network.snapshot_hz = snapshot_hz;
+    }
+    server_gameplay_config.network.validate()?;
     let gameplay_config = server_gameplay_config.gameplay_config();
     let map_name = map_override.unwrap_or(&server_gameplay_config.default_map);
     let Some(map_server_config) = server_gameplay_config.maps.get(map_name).cloned() else {
@@ -52,14 +67,19 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
     let GeneratedMap {
         layout: map_layout,
         config: map_config,
-    } = generate_map(map_name, &map_settings, &barrier_kind_table, &bridge_kind_table)?;
+    } = generate_map(
+        map_name,
+        server_gameplay_config.network.server_hz,
+        &map_settings,
+        &barrier_kind_table,
+        &bridge_kind_table,
+    )?;
     let map_geometry = map_config.root_grid().geometry;
     let map_items = map_config.available_items(&random_items.pool);
     let collision_world = CollisionWorld::from_map_layout(&map_layout, &barrier_kind_table);
     let carriers = Carriers::from_layout(&map_layout);
     let mut nav_graphs = NavGraphs::new(&map_config);
     nav_graphs.add_ladder_routes(&map_layout, &map_settings, &server_gameplay_config);
-    let air_graph = AirGraph::new(&map_config);
     validate_map_actor_kinds(&server_gameplay_config, &map_config)?;
     validate_map_quests(
         &map_server_config.quests,
@@ -70,11 +90,22 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
     let quest_board = QuestBoard::from_catalog(&quest_catalog);
     let actor_territories = ActorTerritories::new(&nav_graphs, &map_config, &server_gameplay_config)?;
     let world_bootstrap = WorldBootstrap {
+        network: server_gameplay_config.network,
         gameplay: server_gameplay_config.gameplay_bootstrap(),
         map: MapBootstrap {
             layout: map_layout.clone(),
             settings: map_settings.clone(),
             items: map_items.clone(),
+            missile_air_grids: map_config
+                .grids
+                .iter()
+                .map(|grid| MissileAirGrid {
+                    carrier: grid.carrier,
+                    cols: grid.geometry.grid_cols,
+                    rows: grid.geometry.grid_rows,
+                    levels: u8::try_from(grid.levels.len()).expect("map level count exceeds u8"),
+                })
+                .collect(),
         },
     };
 
@@ -84,7 +115,9 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
     // integration matches the client's fixed step. An overrun skips wall
     // time (`MissedTickBehavior::Skip` in main.rs) instead of stretching a
     // tick.
-    app.insert_resource(TimeUpdateStrategy::ManualDuration(TICK_DURATION));
+    app.insert_resource(TimeUpdateStrategy::ManualDuration(
+        server_gameplay_config.network.tick_duration(),
+    ));
     app.add_plugins(MinimalPlugins).add_plugins(bevy::log::LogPlugin {
         level: bevy::log::Level::INFO,
         filter: LOG_FILTER.to_string(),
@@ -93,7 +126,8 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
 
     info!("generated map {map_name:?}: {}", map_layout.summary());
 
-    app.insert_resource(map_layout)
+    app.insert_resource(server_gameplay_config.network)
+        .insert_resource(map_layout)
         .insert_resource(map_items)
         .insert_resource(map_settings)
         .insert_resource(map_server_config.player_fall)
@@ -107,7 +141,6 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
         .insert_resource(map_geometry)
         .insert_resource(nav_graphs)
         .insert_resource(actor_territories)
-        .insert_resource(air_graph)
         .insert_resource(barrier_kind_table)
         .insert_resource(bridge_kind_table)
         .insert_resource(gameplay_config)
@@ -141,7 +174,6 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
         combat_plugin,
         items_plugin,
         map_plugin,
-        missiles_plugin,
         network_plugin,
         players_plugin,
         portals_plugin,
@@ -156,18 +188,78 @@ mod tests {
     use super::*;
     use crate::network::{ClientToServer, ServerToClient};
     use common::{
-        constants::TICK_SECS,
+        config::{GameplayConfig, NetworkConfig},
+        constants::{TICK_DURATION, TICK_SECS},
         protocol::{
-            CLogin, CMove, ClientMessage, PlayerId, PlayerMoveIntent, PlayerMovementState, Position, ServerMessage,
+            CAdmin, CLogin, CMove, ClientMessage, ItemType, PlayerGeneration, PlayerId, PlayerMoveIntent,
+            PlayerMovementState, Position, ServerMessage,
         },
     };
     use tokio::sync::mpsc::unbounded_channel;
 
     #[test]
-    fn full_server_schedule_accepts_and_broadcasts_two_clients_then_clears_echo_sequences() {
+    fn give_missiles_sends_weapon_selection_cue_even_when_ammo_is_full() {
         let (incoming, receiver) = unbounded_channel();
-        let mut app =
-            build_server_app(Some("obby"), FromClientsChannel::new(receiver)).expect("obby server app did not build");
+        let mut app = build_server_app(Some("obby"), None, None, Some(1), FromClientsChannel::new(receiver))
+            .expect("server app failed to initialize");
+        let id = PlayerId(1);
+        let (sender, mut receiver) = unbounded_channel();
+        incoming
+            .send((id, ClientToServer::Registration { to_client: sender }))
+            .expect("registration failed");
+        incoming
+            .send((
+                id,
+                ClientToServer::Message(ClientMessage::Login(CLogin { name: "Player".into() })),
+            ))
+            .expect("login failed");
+        app.update();
+        while receiver.try_recv().is_ok() {}
+
+        let max = app.world().resource::<GameplayConfig>().missiles.max_missiles;
+        for ammo in [0, max / 2, max] {
+            app.world_mut()
+                .resource_mut::<PlayerMap>()
+                .get_mut(&id)
+                .expect("logged-in player missing")
+                .life
+                .missiles = ammo;
+            incoming
+                .send((
+                    id,
+                    ClientToServer::Message(ClientMessage::Admin(CAdmin {
+                        command: "/give missiles".into(),
+                    })),
+                ))
+                .expect("admin command delivery failed");
+            app.update();
+            let statuses: Vec<_> = std::iter::from_fn(|| receiver.try_recv().ok())
+                .filter_map(|message| match message {
+                    ServerToClient::Send(ServerMessage::PlayerStatus(status)) => Some(status),
+                    _ => None,
+                })
+                .collect();
+            assert_eq!(
+                statuses.len(),
+                1,
+                "grant must request weapon selection once at {ammo} ammo"
+            );
+            let status = &statuses[0];
+            let players = app.world().resource::<PlayerMap>();
+            let player = players.get(&id).expect("logged-in player missing");
+            assert_eq!(status.id, id);
+            assert_eq!(status.generation, player.session.generation);
+            assert_eq!(status.collected, Some(ItemType::MissilePack));
+            assert_eq!(status.missiles, max);
+            assert_eq!(player.life.missiles, max);
+        }
+    }
+
+    #[test]
+    fn full_server_schedule_broadcasts_the_latest_sample_to_both_clients() {
+        let (incoming, receiver) = unbounded_channel();
+        let mut app = build_server_app(Some("obby"), None, Some(30), None, FromClientsChannel::new(receiver))
+            .expect("obby server app did not build");
         app.update();
         let mut receivers = Vec::new();
         for id in [PlayerId(1), PlayerId(2)] {
@@ -205,7 +297,9 @@ mod tests {
                 .send((
                     *id,
                     ClientToServer::Message(ClientMessage::Move(CMove {
+                        generation: PlayerGeneration(0),
                         seq: 1,
+                        portal_crossing: 0,
                         movement: PlayerMovementState::new(*pos, PlayerMoveIntent::Idle, 0.0, 0.0),
                     })),
                 ))
@@ -227,7 +321,7 @@ mod tests {
                 .last()
                 .expect("movement broadcast missing");
             assert_eq!(latest.moves.len(), 2);
-            assert!(latest.moves.iter().all(|entry| entry.move_seq == Some(1)));
+            assert!(latest.moves.iter().all(|entry| entry.seq == 1));
         }
         app.update();
         for (_, receiver) in &mut receivers {
@@ -238,8 +332,52 @@ mod tests {
                 })
                 .last()
                 .expect("live movement missing");
-            assert!(latest.moves.iter().all(|entry| entry.move_seq.is_none()));
+            assert!(latest.moves.iter().all(|entry| entry.seq == 1));
         }
+    }
+
+    #[test]
+    fn independent_rate_overrides_reach_init_and_leave_simulation_unchanged() {
+        let (incoming, receiver) = unbounded_channel();
+        let mut app = build_server_app(Some("obby"), None, Some(2), Some(7), FromClientsChannel::new(receiver))
+            .expect("server app failed");
+        let (sender, mut receiver) = unbounded_channel();
+        incoming
+            .send((PlayerId(1), ClientToServer::Registration { to_client: sender }))
+            .expect("registration failed");
+        incoming
+            .send((
+                PlayerId(1),
+                ClientToServer::Message(ClientMessage::Login(CLogin { name: "Player".into() })),
+            ))
+            .expect("login failed");
+        app.update();
+        let init = std::iter::from_fn(|| receiver.try_recv().ok())
+            .filter_map(|message| match message {
+                ServerToClient::Send(ServerMessage::Init(init)) => Some(init),
+                _ => None,
+            })
+            .last()
+            .expect("init missing");
+        assert_eq!(init.world.network.update_hz, 2);
+        assert_eq!(init.world.network.snapshot_hz, 7);
+        assert_eq!(app.world().resource::<NetworkConfig>().update_hz, 2);
+        let before = app.world().resource::<ServerTick>().0;
+        for _ in 0..60 {
+            app.update();
+        }
+        assert_eq!(app.world().resource::<ServerTick>().0.wrapping_sub(before), 60);
+        let mut moves = 0;
+        let mut snapshots = 0;
+        for message in std::iter::from_fn(|| receiver.try_recv().ok()) {
+            match message {
+                ServerToClient::Send(ServerMessage::PlayerMoves(_)) => moves += 1,
+                ServerToClient::Send(ServerMessage::Snapshot(_)) => snapshots += 1,
+                _ => {}
+            }
+        }
+        assert_eq!(moves, 4);
+        assert_eq!(snapshots, 14);
     }
 
     #[test]
@@ -257,3 +395,7 @@ mod tests {
         assert!((time.elapsed_secs() - 2.0 * TICK_SECS).abs() < 1e-6);
     }
 }
+
+#[cfg(test)]
+#[path = "app_rate_tests.rs"]
+mod rate_tests;

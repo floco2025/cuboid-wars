@@ -30,6 +30,9 @@ pub(in crate::network) fn handle_health_potion_collected_message(
     my_player_id: PlayerId,
     context: &mut ServerMessageContext,
 ) {
+    if !context.players.accepts_body_cue(my_player_id, message.generation) {
+        return;
+    }
     if let Some(info) = context.players.get(&my_player_id) {
         commands.entity(info.entity).insert(message.health);
     }

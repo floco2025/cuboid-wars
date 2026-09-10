@@ -3,7 +3,7 @@ use std::collections::VecDeque;
 use bevy::prelude::Vec3;
 use common::{
     config::CharacterPhysicsConfig,
-    constants::{LADDER_CLIMB_MIN_SPEED, LADDER_RAIL_INSET, LADDER_STANDOFF_CLEARANCE, TICK_SECS},
+    constants::{LADDER_CLIMB_MIN_SPEED, LADDER_RAIL_INSET, LADDER_STANDOFF_CLEARANCE},
     map::Carriers,
     physics::{
         ActorMovementStep, CharacterMovementResult, CharacterSupport, CollisionWorld, LadderVolume, step_actor_movement,
@@ -18,6 +18,7 @@ const LANDING_CLEARANCE: f32 = 0.05;
 // The climbing body the links are validated for, in the carrier-local world
 // the graph covers.
 pub(super) struct LadderClimber<'a> {
+    pub(super) delta: f32,
     pub(super) collision_world: &'a CollisionWorld,
     pub(super) map_settings: &'a MapSettings,
     pub(super) physics: CharacterPhysicsConfig,
@@ -32,7 +33,7 @@ impl LadderClimber<'_> {
             vertical_velocity,
             intent,
             external_displacement: Vec3::ZERO,
-            delta: TICK_SECS,
+            delta: self.delta,
             can_use_ladders: true,
             physics: self.physics,
             open_kinds: self.passable_kinds,
@@ -342,14 +343,14 @@ fn route_is_walkable(mut pos: Position, waypoints: &[NavWaypoint], climber: &Lad
             }
             _ => pos.horizontal_distance_sq(&waypoint.position).sqrt() / speed,
         } + 3.0;
-        let ticks = (seconds / TICK_SECS).ceil() as usize;
+        let ticks = (seconds / climber.delta).ceil() as usize;
         let mut arrived = false;
         for _ in 0..ticks {
             if waypoint.reached(&pos) {
                 arrived = true;
                 break;
             }
-            let intent = waypoint.movement_intent(&pos, speed);
+            let intent = waypoint.movement_intent(&pos, speed, climber.delta);
             let step = climber.step(pos, velocity, intent);
             if step.blocked
                 || step.crushed

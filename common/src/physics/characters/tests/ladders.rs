@@ -299,6 +299,7 @@ fn fall_through_volume_latches() {
 
     assert_eq!(step.vertical_velocity, 0.0);
     assert_eq!(step.support, CharacterSupport::Ladder);
+    assert_eq!(step.impact_speed, 0.0);
 }
 
 #[test]

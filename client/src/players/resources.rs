@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use std::collections::HashMap;
 
-use common::protocol::{BarrierKindId, Player, PlayerId, PowerUpKind, SPlayerStatus};
+use common::protocol::{BarrierKindId, Player, PlayerGeneration, PlayerId, PowerUpKind, SPlayerStatus};
 
 use super::LocalMovementReports;
 
@@ -11,6 +11,7 @@ pub struct MyPlayerId(pub PlayerId);
 
 // Player information (client-side).
 pub struct PlayerInfo {
+    pub generation: PlayerGeneration,
     pub entity: Entity,
     pub score: i32,
     pub name: String,
@@ -33,6 +34,7 @@ impl PlayerInfo {
     #[must_use]
     pub fn from_snapshot(entity: Entity, player: &Player, tick: u32) -> Self {
         let mut info = Self {
+            generation: player.generation,
             entity,
             score: 0,
             name: String::new(),
@@ -71,7 +73,11 @@ impl PlayerInfo {
 
 // Map of all players (client-side source of truth).
 #[derive(Resource, Default)]
-pub struct PlayerMap(HashMap<PlayerId, PlayerInfo>);
+pub struct PlayerMap {
+    players: HashMap<PlayerId, PlayerInfo>,
+    // Death cues can overtake snapshots that still contain the retired body.
+    retired_bodies: HashMap<PlayerId, PlayerGeneration>,
+}
 
 impl PlayerMap {
     // "Alex#7" for logs; "player#7" before a name is known.
@@ -84,37 +90,58 @@ impl PlayerMap {
     }
 
     pub fn insert(&mut self, id: PlayerId, info: PlayerInfo) -> Option<PlayerInfo> {
-        self.0.insert(id, info)
+        self.players.insert(id, info)
     }
 
     pub fn remove(&mut self, id: &PlayerId) -> Option<PlayerInfo> {
-        self.0.remove(id)
+        self.players.remove(id)
     }
 
     #[must_use]
     pub fn contains_key(&self, id: &PlayerId) -> bool {
-        self.0.contains_key(id)
+        self.players.contains_key(id)
     }
 
     #[must_use]
     pub fn get(&self, id: &PlayerId) -> Option<&PlayerInfo> {
-        self.0.get(id)
+        self.players.get(id)
     }
 
     pub fn get_mut(&mut self, id: &PlayerId) -> Option<&mut PlayerInfo> {
-        self.0.get_mut(id)
+        self.players.get_mut(id)
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (&PlayerId, &PlayerInfo)> {
-        self.0.iter()
+        self.players.iter()
     }
 
     pub fn values_mut(&mut self) -> impl Iterator<Item = &mut PlayerInfo> {
-        self.0.values_mut()
+        self.players.values_mut()
     }
 
-    pub fn retain(&mut self, f: impl FnMut(&PlayerId, &mut PlayerInfo) -> bool) {
-        self.0.retain(f);
+    pub fn accepts_generation(&self, id: PlayerId, generation: PlayerGeneration) -> bool {
+        self.accepts_death(id, generation) && self.retired_bodies.get(&id) != Some(&generation)
+    }
+
+    pub fn accepts_death(&self, id: PlayerId, generation: PlayerGeneration) -> bool {
+        self.get(&id)
+            .is_none_or(|info| generation == info.generation || generation.is_newer_than(info.generation))
+            && self
+                .retired_bodies
+                .get(&id)
+                .is_none_or(|retired| generation == *retired || generation.is_newer_than(*retired))
+    }
+
+    pub fn accepts_body_cue(&self, id: PlayerId, generation: PlayerGeneration) -> bool {
+        self.accepts_generation(id, generation) && self.get(&id).is_some_and(|info| info.generation == generation)
+    }
+
+    pub fn retire_body(&mut self, id: PlayerId, generation: PlayerGeneration) -> bool {
+        if !self.accepts_death(id, generation) {
+            return false;
+        }
+        self.retired_bodies.insert(id, generation);
+        true
     }
 }
 
@@ -150,6 +177,7 @@ mod tests {
 
     fn snapshot_player() -> Player {
         Player {
+            generation: PlayerGeneration(0),
             name: "Alice".to_owned(),
             movement: PlayerMovementState::new(Position::default(), PlayerMoveIntent::default(), 0.0, 0.0),
             health: Health(100.0),
@@ -179,12 +207,37 @@ mod tests {
     }
 
     #[test]
+    fn death_blocks_delayed_snapshots_and_cues_but_allows_the_next_body() {
+        for generation in [PlayerGeneration(0), PlayerGeneration(u32::MAX)] {
+            let id = PlayerId(1);
+            let mut player = snapshot_player();
+            player.generation = generation;
+            let mut players = PlayerMap::default();
+            players.insert(id, PlayerInfo::from_snapshot(Entity::PLACEHOLDER, &player, 10));
+            assert!(players.retire_body(id, generation));
+            assert!(!players.accepts_generation(id, generation));
+            assert!(players.accepts_death(id, generation));
+            assert!(!players.accepts_body_cue(id, generation));
+            players.remove(&id);
+            assert!(!players.accepts_generation(id, generation));
+            assert!(players.accepts_death(id, generation));
+            player.generation = generation.next();
+            assert!(players.accepts_generation(id, player.generation));
+            players.insert(id, PlayerInfo::from_snapshot(Entity::PLACEHOLDER, &player, 12));
+            assert!(players.accepts_body_cue(id, player.generation));
+            assert!(!players.retire_body(id, generation));
+            assert!(!players.accepts_body_cue(id, generation));
+        }
+    }
+
+    #[test]
     fn apply_status_updates_status_fields_only() {
         let player = snapshot_player();
         let mut info = PlayerInfo::from_snapshot(Entity::PLACEHOLDER, &player, 0);
         let status = SPlayerStatus {
-            collected: None,
             id: PlayerId(12),
+            generation: PlayerGeneration(0),
+            collected: None,
             power_ups: [false, false, false, false, true],
             stunned: false,
             held_keys: vec![BarrierKindId(2)],

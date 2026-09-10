@@ -1,14 +1,12 @@
 use bevy::{animation::AnimationTargetId, prelude::*};
-use common::{
-    physics::CharacterSupport,
-    protocol::{ActorMoveIntent, Position},
-};
+use common::{physics::CharacterSupport, protocol::ActorMoveIntent};
 
+use super::ActorAnimationVelocity;
 use super::wheel_animation::{
     WheelAnimationPlayback, WheelModel, drive_speed, wheel_animation_setup_system, wheel_animation_update_system,
 };
 use crate::{
-    characters::{PreviousTickPosition, load_character_model},
+    characters::load_character_model,
     config::{ModelDef, WheelModelDef},
     test_assets::{headless_asset_app, settle},
 };
@@ -32,8 +30,7 @@ fn check_wheel_playback(model: ModelDef, wheels: WheelModelDef) {
     let owner = app
         .world_mut()
         .spawn((
-            Position::default(),
-            PreviousTickPosition(Position::default()),
+            ActorAnimationVelocity::default(),
             ActorMoveIntent::Idle,
             CharacterSupport::Ground,
         ))
@@ -58,13 +55,8 @@ fn check_wheel_playback(model: ModelDef, wheels: WheelModelDef) {
         .iter(app.world())
         .map(|(id, transform)| (*id, transform.rotation))
         .collect();
-    let delta = app.world().resource::<Time<Fixed>>().timestep().as_secs_f32();
     app.world_mut().entity_mut(owner).insert((
-        Position {
-            x: 0.0,
-            y: 0.0,
-            z: delta * 2.0,
-        },
+        ActorAnimationVelocity(Vec3::Z * 2.0),
         ActorMoveIntent::Moving {
             direction: 0.0,
             speed: 2.0,
@@ -122,28 +114,17 @@ fn wheels_follow_actual_controlled_travel_and_stop_when_blocked_or_airborne() {
     };
     let direction = moving.to_horizontal_velocity().normalize();
     assert_eq!(
-        drive_speed(moving, direction * 0.2, 0.1, Some(CharacterSupport::Ground)),
+        drive_speed(moving, direction * 2.0, Some(CharacterSupport::Ground)),
         2.0
     );
     assert_eq!(
-        drive_speed(moving, direction * 10.0, 0.1, Some(CharacterSupport::Ground)),
+        drive_speed(moving, direction * 100.0, Some(CharacterSupport::Ground)),
         4.0
     );
+    assert_eq!(drive_speed(moving, Vec3::ZERO, Some(CharacterSupport::Ground)), 0.0);
     assert_eq!(
-        drive_speed(moving, Vec3::ZERO, 0.1, Some(CharacterSupport::Ground)),
+        drive_speed(ActorMoveIntent::Idle, direction * 10.0, Some(CharacterSupport::Ground)),
         0.0
     );
-    assert_eq!(
-        drive_speed(
-            ActorMoveIntent::Idle,
-            direction * 10.0,
-            0.1,
-            Some(CharacterSupport::Ground)
-        ),
-        0.0
-    );
-    assert_eq!(
-        drive_speed(moving, direction, 0.1, Some(CharacterSupport::Airborne)),
-        0.0
-    );
+    assert_eq!(drive_speed(moving, direction, Some(CharacterSupport::Airborne)), 0.0);
 }

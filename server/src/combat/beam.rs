@@ -118,6 +118,11 @@ pub fn actors_beam_damage_system(
                 &players,
                 ServerMessage::PlayerHit(SPlayerHit {
                     id: target_id,
+                    generation: players
+                        .get(&target_id)
+                        .expect("beam target player missing")
+                        .session
+                        .generation,
                     kind: HitKind::Beam,
                     hit_dir_x,
                     hit_dir_z,

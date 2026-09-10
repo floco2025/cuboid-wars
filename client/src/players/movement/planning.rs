@@ -12,11 +12,7 @@ use common::{
     },
 };
 
-use crate::{
-    characters::{CharacterReconciliationOutcome, reconcile_character},
-    network::ServerReconciliation,
-    players::{BumpFeedbackState, LocalPlayerMarker, PlayerAnimationMotion, PlayerMap},
-};
+use crate::players::{BumpFeedbackState, LocalPlayerMarker, PlayerAnimationMotion, PlayerMap};
 
 pub(crate) fn plan_player_moves(
     commands: &mut Commands,
@@ -35,23 +31,30 @@ pub(crate) fn plan_player_moves(
     for (
         entity,
         player_id,
-        mut client_pos,
+        client_pos,
         move_intent,
-        mut motion,
+        motion,
         _,
-        mut recon_option,
         knockback,
         mut airborne_momentum,
         mut animation_motion,
         is_local,
     ) in query
     {
+        if !is_local {
+            planned_moves.push(CharacterMovePlan::stationary(
+                entity,
+                *client_pos,
+                motion.0,
+                player_physics,
+            ));
+            continue;
+        }
         let info = players.get(player_id);
         let has_speed_power_up = info.is_some_and(|i| i.power_up(PowerUpKind::Speed));
         let has_low_gravity = info.is_some_and(|i| i.power_up(PowerUpKind::LowGravity));
         let movement_disabled = info.is_some_and(|i| i.stunned);
         let held_keys: &[BarrierKindId] = info.map_or(&[], |i| i.held_keys.as_slice());
-        let player_name = info.map(|i| i.name.as_str());
 
         let control_velocity = player_control_velocity(
             *move_intent,
@@ -60,38 +63,11 @@ pub(crate) fn plan_player_moves(
             movement_disabled,
         );
 
-        let correction_displacement = match recon_option.as_mut() {
-            Some(recon) if !is_local => match reconcile_character(
-                commands,
-                entity,
-                player_id.0,
-                player_name.unwrap_or("player"),
-                &mut client_pos,
-                &mut motion,
-                recon,
-                delta,
-            ) {
-                CharacterReconciliationOutcome::Displacement(displacement) => displacement,
-                CharacterReconciliationOutcome::Snapped => {
-                    planned_moves.push(CharacterMovePlan::stationary(
-                        entity,
-                        *client_pos,
-                        motion.0,
-                        player_physics,
-                    ));
-                    animation_motion.block_horizontal();
-                    continue;
-                }
-            },
-            _ => Vec3::ZERO,
-        };
-        let external_displacement =
-            correction_displacement + momentum_displacement(Some(knockback), Some(&*airborne_momentum), delta);
+        let external_displacement = momentum_displacement(Some(knockback), Some(&*airborne_momentum), delta);
         let step = step_player_movement(PlayerMovementStep {
             start: *client_pos,
             vertical_velocity: motion.0,
             control_velocity,
-            additional_displacement: correction_displacement,
             delta,
             has_low_gravity,
             held_keys,
@@ -101,7 +77,7 @@ pub(crate) fn plan_player_moves(
             collision_world,
             map_settings,
             gameplay_config,
-            portal_set: is_local.then_some(portal_set),
+            portal_set,
             carriers,
         });
         commands.entity(entity).insert((step.grounding, step.support));
@@ -125,7 +101,6 @@ pub(crate) type PlayerMovementQuery<'w, 's> = Query<
         &'static PlayerMoveIntent,
         &'static mut CharacterVerticalVelocity,
         Option<&'static mut BumpFeedbackState>,
-        Option<&'static mut ServerReconciliation>,
         &'static KnockbackVelocity,
         &'static mut AirborneMomentum,
         &'static mut PlayerAnimationMotion,
@@ -137,94 +112,72 @@ pub(crate) type PlayerMovementQuery<'w, 's> = Query<
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{characters::PreviousTickPosition, network::RoundTripTime, test_fixtures};
+    use crate::test_fixtures;
     use bevy::ecs::system::SystemState;
     use common::{
         constants::TICK_SECS,
         protocol::{BarrierKindTable, MapLayout},
     };
-    use std::time::Duration;
+    use std::f32::consts::FRAC_PI_2;
 
     #[test]
-    fn only_remote_players_smooth_or_snap_during_movement_planning() {
+    fn remote_bodies_stay_at_reported_positions_while_the_owner_simulates() {
         let gameplay = test_fixtures::gameplay_config();
         let settings = test_fixtures::map_settings();
         let collision = CollisionWorld::from_map_layout(&MapLayout::default(), &BarrierKindTable::default());
-        let rtt = RoundTripTime {
-            rtt: Duration::from_millis(200),
-            ..default()
-        };
-        for is_local in [true, false] {
-            for error in [1.0, 3.0] {
-                let mut world = World::new();
-                let server_pos = Position {
-                    x: error,
-                    y: 0.0,
-                    z: 0.0,
-                };
-                let entity = world
-                    .spawn((
-                        PlayerMarker,
-                        PlayerId(1),
-                        Position::default(),
-                        PreviousTickPosition(Position::default()),
-                        PlayerMoveIntent::Idle,
-                        CharacterVerticalVelocity(0.0),
-                        AirborneMomentum::default(),
-                        KnockbackVelocity::default(),
-                        PlayerAnimationMotion::default(),
-                        ServerReconciliation::new(Vec3::X * error, server_pos, Vec3::NEG_Y * 2.0, &rtt),
-                    ))
-                    .id();
-                if is_local {
-                    world.entity_mut(entity).insert(LocalPlayerMarker);
-                }
-                let mut state = SystemState::<(Commands, PlayerMovementQuery)>::new(&mut world);
-                let mut plans = Vec::new();
-                let (mut commands, mut query) = state.get_mut(&mut world).expect("movement query invalid");
-                plan_player_moves(
-                    &mut commands,
-                    TICK_SECS,
-                    &collision,
-                    &settings,
-                    &gameplay,
-                    &PlayerMap::default(),
-                    &PlateState::default(),
-                    &PortalSet::default(),
-                    &Carriers::default(),
-                    &mut query,
-                    &mut plans,
+        for is_local in [false, true] {
+            let mut world = World::new();
+            let position = Position {
+                x: 0.0,
+                y: 10.0,
+                z: 0.0,
+            };
+            let entity = world
+                .spawn((
+                    PlayerMarker,
+                    PlayerId(1),
+                    position,
+                    PlayerMoveIntent::Walking { direction: FRAC_PI_2 },
+                    CharacterVerticalVelocity(-3.0),
+                    AirborneMomentum(Vec3::X),
+                    KnockbackVelocity(Vec3::X),
+                    PlayerAnimationMotion::default(),
+                ))
+                .id();
+            if is_local {
+                world.entity_mut(entity).insert(LocalPlayerMarker);
+            }
+            let mut state = SystemState::<(Commands, PlayerMovementQuery)>::new(&mut world);
+            let (mut commands, mut query) = state.get_mut(&mut world).expect("movement query invalid");
+            let mut plans = Vec::new();
+            plan_player_moves(
+                &mut commands,
+                TICK_SECS,
+                &collision,
+                &settings,
+                &gameplay,
+                &PlayerMap::default(),
+                &PlateState::default(),
+                &PortalSet::default(),
+                &Carriers::default(),
+                &mut query,
+                &mut plans,
+            );
+            state.apply(&mut world);
+            let plan = plans.first().expect("movement plan missing");
+            if is_local {
+                assert!(plan.target.x > position.x);
+                assert!(plan.target.y < position.y);
+            } else {
+                assert_eq!(plan.target, position);
+                assert_eq!(plan.target_vertical_velocity, -3.0);
+                assert_eq!(
+                    world
+                        .get::<PlayerAnimationMotion>(entity)
+                        .expect("animation missing")
+                        .velocity,
+                    Vec3::ZERO
                 );
-                state.apply(&mut world);
-                let plan = plans.first().expect("player movement plan missing");
-                let expected_x = if is_local {
-                    0.0
-                } else if error < 3.0 {
-                    error * TICK_SECS / 0.8
-                } else {
-                    error
-                };
-                assert!(
-                    (plan.target.x - expected_x).abs() < 1e-5,
-                    "local={is_local}, error={error}"
-                );
-                if !is_local && error == 3.0 {
-                    assert!(world.get::<ServerReconciliation>(entity).is_none());
-                    assert_eq!(
-                        world
-                            .get::<PreviousTickPosition>(entity)
-                            .expect("previous position missing")
-                            .0,
-                        server_pos
-                    );
-                    assert_eq!(plan.target_vertical_velocity, -2.0);
-                } else {
-                    assert!(world.get::<ServerReconciliation>(entity).is_some());
-                    assert_eq!(
-                        *world.get::<Position>(entity).expect("position missing"),
-                        Position::default()
-                    );
-                }
             }
         }
     }

@@ -9,6 +9,7 @@ pub struct CharacterMovementResult {
     pub grounding: GroundingDiagnostics,
     pub position: Position,
     pub vertical_velocity: f32,
+    pub impact_speed: f32,
     pub support: CharacterSupport,
     // True when static-world collision materially blocked requested movement.
     // Side contacts that Rapier resolves by auto-stepping are not treated as blocked.
@@ -51,6 +52,7 @@ pub struct CharacterMovePlan {
     pub start: Position,
     pub target: Position,
     pub target_vertical_velocity: f32,
+    pub impact_speed: f32,
     pub physics: CharacterPhysicsConfig,
     pub blocked: bool,
     pub crushed: bool,
@@ -69,6 +71,7 @@ impl CharacterMovePlan {
             start,
             target: step.position,
             target_vertical_velocity: step.vertical_velocity,
+            impact_speed: step.impact_speed,
             physics,
             blocked: step.blocked,
             crushed: step.crushed,
@@ -89,6 +92,7 @@ impl CharacterMovePlan {
             start,
             target,
             target_vertical_velocity,
+            impact_speed: 0.0,
             physics,
             blocked,
             crushed: false,

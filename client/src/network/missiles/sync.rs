@@ -1,75 +1,54 @@
+use super::super::context::ServerMessageContext;
+use crate::missiles::{MissileInfo, RemoteMissileMotion, spawn_missile};
 use bevy::prelude::*;
+use common::protocol::*;
 use std::collections::HashSet;
 
-use super::super::{
-    components::{ServerReconciliation, extrapolated_correction},
-    context::ServerMessageContext,
-};
-use crate::{
-    missiles::{MissileMap, MissileVelocity, spawn_missile},
-    network::RoundTripTime,
-};
-use common::protocol::{Missile, MissileId, MissileMarker, MissileMovementState, Position};
-
-// Snapshot diff for missiles, the same idiom as `sync_actors`: spawn ids the
-// snapshot has and we don't, silently despawn ids it dropped (the
-// `SMissileDetonated` cue owns the detonation VFX), then apply the carried
-// movement as a reconciliation target.
 pub(in crate::network) fn sync_missiles(
     commands: &mut Commands,
     context: &mut ServerMessageContext,
+    tick: u32,
     server_missiles: &[(MissileId, Missile)],
 ) {
-    let update_ids: HashSet<MissileId> = server_missiles.iter().map(|(id, _)| *id).collect();
-
+    context.missiles.discard_retired_before(tick);
+    let ids: HashSet<_> = server_missiles.iter().map(|(id, _)| *id).collect();
     for (id, missile) in server_missiles {
-        if context.missiles.contains_key(id) {
+        // Only the reliable launch starts the owner; snapshots never restart or reposition its flight.
+        if missile.shooter == context.my_player_id.0 || context.missiles.is_retired(id) {
             continue;
         }
-        let entity = spawn_missile(commands, &context.assets.missile_assets, *id, &missile.movement);
-        context.missiles.insert(*id, entity);
-    }
-
-    context.missiles.retain(|id, entity| {
-        if update_ids.contains(id) {
-            true
+        if !context.missiles.contains_key(id) {
+            let entity = spawn_missile(commands, &context.assets.missile_assets, *id, &missile.movement);
+            let delay = context.client_settings.interpolation.delay_ticks(&context.network);
+            context.missiles.entries.insert(
+                *id,
+                MissileInfo {
+                    entity,
+                    shooter: missile.shooter,
+                    born_tick: tick,
+                    remote: Some(RemoteMissileMotion::new(missile.seq, missile.movement, delay)),
+                },
+            );
         } else {
-            commands.entity(*entity).despawn();
-            false
+            apply_missile_movement_state(context, *id, missile.seq, missile.movement);
         }
-    });
-
-    for (id, missile) in server_missiles {
-        apply_missile_movement_state(
-            commands,
-            &context.missiles,
-            &context.rtt,
-            &context.missile_data,
-            *id,
-            missile.movement,
-        );
     }
+    context.missiles.entries.retain(|id, info| {
+        if info.shooter == context.my_player_id.0 || ids.contains(id) || !sequence_is_newer(tick, info.born_tick) {
+            return true;
+        }
+        commands.entity(info.entity).despawn();
+        false
+    });
 }
 
 pub(super) fn apply_missile_movement_state(
-    commands: &mut Commands,
-    missiles: &MissileMap,
-    rtt: &RoundTripTime,
-    missile_data: &Query<&Position, With<MissileMarker>>,
+    context: &mut ServerMessageContext,
     id: MissileId,
+    seq: u32,
     movement: MissileMovementState,
 ) {
-    let Some(entity) = missiles.get(&id) else {
-        return;
-    };
-    let velocity = movement.velocity();
-    commands.entity(entity).insert(MissileVelocity(velocity));
-    if let Ok(client_pos) = missile_data.get(entity) {
-        commands.entity(entity).insert(ServerReconciliation::new(
-            extrapolated_correction(*client_pos, movement.pos, velocity, rtt),
-            movement.pos,
-            velocity,
-            rtt,
-        ));
+    if let Some(motion) = context.missiles.get_mut(&id).and_then(|info| info.remote.as_mut()) {
+        motion.push(seq, movement);
     }
 }

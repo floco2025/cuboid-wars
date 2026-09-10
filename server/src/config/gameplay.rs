@@ -16,11 +16,12 @@ use super::{
 };
 use common::config::{
     ActorGameplayBootstrap, CharacterGameplayConfig, GameplayBootstrap, GameplayConfig, MissilesGameplayBootstrap,
-    PlayerGameplayBootstrap,
+    NetworkConfig, PlayerGameplayBootstrap,
 };
 
 #[derive(Resource, Debug, Clone)]
 pub struct ServerGameplayConfig {
+    pub network: NetworkConfig,
     pub default_map: String,
     pub maps: HashMap<String, MapServerConfig>,
     pub player: PlayerServerConfig,
@@ -34,6 +35,8 @@ pub struct ServerGameplayConfig {
 
 #[derive(Deserialize)]
 struct GameplayFile {
+    #[serde(default)]
+    network: NetworkConfig,
     default_map: String,
     maps: Vec<String>,
     player: PlayerServerConfig,
@@ -70,6 +73,7 @@ impl ServerGameplayConfig {
             maps.insert(name, settings);
         }
         let config = Self {
+            network: source.network,
             default_map: source.default_map,
             maps,
             player: source.player,
@@ -87,6 +91,7 @@ impl ServerGameplayConfig {
     }
 
     fn validate(&self, directory: &Path) -> Result<()> {
+        self.network.validate()?;
         self.player.validate("player")?;
         self.actors.validate("actors")?;
         self.weapons.validate("weapons")?;

@@ -5,7 +5,7 @@ use super::{
     momentum::{AirborneMomentum, CharacterVerticalVelocity, KnockbackVelocity},
     types::CharacterSupport,
 };
-use crate::protocol::{FaceYaw, PlayerMoveIntent, PlayerMovementState, Position};
+use crate::protocol::{CarrierId, FaceYaw, PlayerMoveIntent, PlayerMovementState, Position};
 
 #[must_use]
 pub fn player_movement_state(
@@ -18,6 +18,7 @@ pub fn player_movement_state(
     support: CharacterSupport,
 ) -> PlayerMovementState {
     PlayerMovementState {
+        carrier: CarrierId::WORLD,
         pos,
         move_intent,
         vertical_velocity: vertical_velocity.0,
@@ -59,6 +60,7 @@ mod tests {
     #[test]
     fn movement_state_round_trips_through_its_components() {
         let state = PlayerMovementState {
+            carrier: CarrierId::WORLD,
             pos: Position { x: 1.0, y: 2.0, z: 3.0 },
             move_intent: PlayerMoveIntent::Running { direction: 0.5 },
             vertical_velocity: -4.0,

@@ -29,6 +29,7 @@ impl ProjectilesConfig {
         if !(self.bounce_retention.is_finite() && (0.0..=1.0).contains(&self.bounce_retention)) {
             bail!("{path}.bounce_retention must be within 0.0..=1.0");
         }
+        self.multi_shot.validate_pattern_count()?;
         Ok(())
     }
 }
@@ -104,14 +105,33 @@ impl TryFrom<MultiShotSource> for MultiShotConfig {
             }
             patterns.insert(name.clone(), config);
         }
-        Ok(Self {
+        let config = Self {
             allowed_patterns: source.allowed_patterns,
             patterns,
-        })
+        };
+        config.validate_pattern_count()?;
+        Ok(config)
     }
 }
 
 impl MultiShotConfig {
+    fn validate_pattern_count(&self) -> Result<()> {
+        if self.allowed_patterns.len() > usize::from(u8::MAX) {
+            bail!("multi_shot.allowed_patterns cannot contain more than 255 patterns");
+        }
+        Ok(())
+    }
+
+    #[must_use]
+    pub fn shot_offsets(&self, pattern: u8) -> Option<&[(f32, f32)]> {
+        if pattern == 0 {
+            Some(&[(0.0, 0.0)])
+        } else {
+            self.allowed_pattern(usize::from(pattern - 1))
+                .map(|(_, pattern)| pattern.shots())
+        }
+    }
+
     #[must_use]
     pub fn allowed_patterns(&self) -> &[String] {
         &self.allowed_patterns

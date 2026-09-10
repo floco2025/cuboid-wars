@@ -4,9 +4,9 @@ use super::CarrierMarker;
 use common::map::Carriers;
 
 // Every render frame, place each carrier's root between its last two tick
-// poses by the fixed-step overstep fraction, the same interpolation the
-// characters use, so a rider and the floor under it stay attached between
-// ticks. Everything on the carrier is a child and follows.
+// poses by the fixed-step overstep fraction. Remote riders resolve their
+// buffered carrier-local positions against this same pose. Everything
+// parented to the carrier follows its root.
 pub fn carriers_transform_sync_system(
     fixed_time: Res<Time<Fixed>>,
     carriers: Res<Carriers>,

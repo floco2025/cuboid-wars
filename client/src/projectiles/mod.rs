@@ -8,3 +8,6 @@ pub use audio::LastBounceSound;
 pub use movement::projectiles_movement_system;
 pub use spawn::{ProjectileAssets, spawn_ember_projectile, spawn_projectiles};
 pub use transform_sync::projectiles_transform_sync_system;
+
+#[cfg(test)]
+mod movement_tests;

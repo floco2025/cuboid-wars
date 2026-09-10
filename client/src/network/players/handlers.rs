@@ -4,9 +4,7 @@ use super::super::context::ServerMessageContext;
 use crate::{
     audio::{play_explosion_sound, play_sound, play_spatial_sound},
     characters::PreviousTickPosition,
-    network::ServerReconciliation,
-    players::{CameraShake, CuboidShake, LocalPlayerInfo, PlayerMap, eye_position},
-    projectiles::spawn_projectiles,
+    players::{CameraShake, CuboidShake, LocalPlayerInfo, PlayerMap},
     ui::{BannerMessage, HudBanner},
     vfx::spawn_player_explosion,
 };
@@ -15,48 +13,15 @@ use common::{
     protocol::*,
 };
 
-pub(in crate::network) fn handle_projectile_shot_message(
-    message: SProjectileShot,
-    commands: &mut Commands,
-    context: &mut ServerMessageContext,
-) {
-    trace!("{:?} shot: {:?}", message.id, message);
-    if let Some(player) = context.players.get(&message.id) {
-        // `pattern` is already server-resolved against the shooter's power-up.
-        if let Ok(position) = context.player_data.get(player.entity)
-            && spawn_projectiles(
-                commands,
-                &context.assets.projectile_assets,
-                position,
-                message.face_yaw,
-                message.face_pitch,
-                message.pattern.as_deref(),
-                context.gameplay_config.player.eye_height(),
-                &context.gameplay_config,
-                context.map_settings.movement.projectile_speed,
-                &context.collision_world,
-                &context.plates.open_barrier_kinds,
-                message.id,
-            ) > 0
-        {
-            // The excluded shooter already heard flat feedback; observers hear the muzzle instead.
-            play_spatial_sound(
-                commands,
-                &context.assets.asset_server,
-                context.assets.asset_set.player_sound("fire"),
-                &context.client_settings.audio,
-                eye_position(*position, context.gameplay_config.player.eye_height()),
-            );
-        }
-    }
-}
-
 pub(in crate::network) fn handle_player_death_message(
     message: SPlayerDeath,
     commands: &mut Commands,
     my_player_id: PlayerId,
     context: &mut ServerMessageContext,
 ) {
+    if !context.players.accepts_death(message.id, message.generation) {
+        return;
+    }
     // Keep audio outside the state handler so its unit test does not need an asset server.
     if message.effect == PlayerDeathEffect::Explosion {
         play_explosion_sound(
@@ -104,6 +69,9 @@ pub(in crate::network) fn handle_player_hit_message(
     my_player_id: PlayerId,
     context: &mut ServerMessageContext,
 ) {
+    if !context.players.accepts_body_cue(message.id, message.generation) {
+        return;
+    }
     debug!("{} was hit", context.players.describe(&message.id));
     if let Some(player) = context.players.get(&message.id) {
         commands.entity(player.entity).insert(message.health);
@@ -150,6 +118,9 @@ pub(in crate::network) fn handle_player_fall_damage_message(
     my_player_id: PlayerId,
     context: &mut ServerMessageContext,
 ) {
+    if !context.players.accepts_body_cue(message.id, message.generation) {
+        return;
+    }
     if let Some(player) = context.players.get(&message.id) {
         commands.entity(player.entity).insert(message.health);
     }
@@ -188,6 +159,9 @@ pub(in crate::network) fn handle_player_knockback_message(
     my_player_id: PlayerId,
     context: &mut ServerMessageContext,
 ) {
+    if !context.players.accepts_body_cue(message.id, message.generation) {
+        return;
+    }
     // Unicast to the victim, but stay defensive about routing.
     if message.id != my_player_id {
         return;
@@ -195,14 +169,24 @@ pub(in crate::network) fn handle_player_knockback_message(
     let Some(info) = context.players.get(&message.id) else {
         return;
     };
-    commands.entity(info.entity).insert((
-        message.health,
-        CharacterVerticalVelocity(message.vertical_velocity),
-        KnockbackVelocity(Vec3::new(message.velocity_x, 0.0, message.velocity_z)),
-    ));
+    let max_speed = context.map_settings.movement.knockback.max_speed * 1.5;
+    commands.entity(info.entity).queue(move |entity: EntityWorldMut| {
+        apply_player_impulse(entity, message, max_speed);
+    });
 }
 
-pub(in crate::network) fn handle_eraser_entered_message(commands: &mut Commands, context: &ServerMessageContext) {
+fn apply_player_impulse(mut entity: EntityWorldMut, message: SPlayerKnockback, max_speed: f32) {
+    let impulse = Vec3::from_array(message.impulse);
+    if let Some(mut vertical) = entity.get_mut::<CharacterVerticalVelocity>() {
+        vertical.0 += impulse.y;
+    }
+    if let Some(mut knockback) = entity.get_mut::<KnockbackVelocity>() {
+        knockback.0 = (knockback.0 + Vec3::new(impulse.x, 0.0, impulse.z)).clamp_length_max(max_speed);
+    }
+    entity.insert(message.health);
+}
+
+pub(in crate::network) fn handle_equipment_erased_message(commands: &mut Commands, context: &ServerMessageContext) {
     play_sound(
         commands,
         &context.assets.asset_server,
@@ -216,6 +200,9 @@ pub(in crate::network) fn handle_player_status_message(
     my_player_id: PlayerId,
     context: &mut ServerMessageContext,
 ) {
+    if !context.players.accepts_body_cue(message.id, message.generation) {
+        return;
+    }
     if let Some(player_info) = context.players.get_mut(&message.id) {
         if message.id == my_player_id
             && let Some(item) = message.collected
@@ -238,8 +225,7 @@ pub(in crate::network) fn handle_player_status_message(
 // diff in `sync_players` is the idempotent fallback if this event was lost.
 // The feed line arrives separately as an `SFeed`.
 //
-// Respawn is *not* handled here — `sync_players` clears `is_dead` and
-// teleports the local entity when the player reappears in the next snapshot.
+// Spawns and relocations establish each body generation in `players/sync.rs`.
 fn apply_player_death(
     commands: &mut Commands,
     players: &mut PlayerMap,
@@ -248,6 +234,9 @@ fn apply_player_death(
     my_player_id: PlayerId,
     event: SPlayerDeath,
 ) {
+    if !players.retire_body(event.id, event.generation) {
+        return;
+    }
     // Early-apply the victim's post-death score so the HUD bumps on the
     // death tick instead of waiting for the next snapshot. Same idea for
     // the killer's bonus (when there is one). Snapshot remains the system
@@ -270,22 +259,13 @@ fn apply_player_death(
 
     if event.id == my_player_id {
         if let Some(info) = players.get(&event.id) {
-            // Snap the kept (hidden) entity onto the server-authoritative death
-            // position. Local prediction may have drifted from the server when
-            // reconciliation hadn't converged, and the corpse stays visible in
-            // the top-down death view, so park it on the true spot. Reset
-            // `PreviousTickPosition` so render interpolation doesn't smear the
-            // snap, and drop any in-flight `ServerReconciliation` so a stale
-            // lerp can't pull the corpse back off the death position.
-            commands
-                .entity(info.entity)
-                .insert((
-                    Visibility::Hidden,
-                    event.pos,
-                    PreviousTickPosition(event.pos),
-                    AirborneMomentum::default(),
-                ))
-                .remove::<ServerReconciliation>();
+            // Keep the death view anchored to the server's death position.
+            commands.entity(info.entity).insert((
+                Visibility::Hidden,
+                event.pos,
+                PreviousTickPosition(event.pos),
+                AirborneMomentum::default(),
+            ));
         }
         local_player_info.is_dead = true;
         local_player_info.reports.clear_crossings();
@@ -303,9 +283,75 @@ fn apply_player_death(
 mod tests {
     use super::*;
     use crate::players::PlayerInfo;
+    use bevy::ecs::world::CommandQueue;
+
+    #[test]
+    fn queued_impulses_add_to_current_motion_and_clamp_the_planar_sum() {
+        let mut world = World::new();
+        let entity = world
+            .spawn((
+                CharacterVerticalVelocity(-6.0),
+                KnockbackVelocity(Vec3::X * 2.0),
+                Health(100.0),
+            ))
+            .id();
+        let mut queue = CommandQueue::default();
+        {
+            let mut commands = Commands::new(&mut queue, &world);
+            for health in [90.0, 80.0] {
+                commands.entity(entity).queue(move |entity: EntityWorldMut| {
+                    apply_player_impulse(
+                        entity,
+                        SPlayerKnockback {
+                            id: PlayerId(1),
+                            generation: PlayerGeneration(0),
+                            health: Health(health),
+                            impulse: [3.0, 4.0, 0.0],
+                        },
+                        10.0,
+                    );
+                });
+            }
+        }
+        queue.apply(&mut world);
+        assert_eq!(
+            world
+                .get::<CharacterVerticalVelocity>(entity)
+                .expect("vertical velocity missing")
+                .0,
+            2.0
+        );
+        assert_eq!(
+            world.get::<KnockbackVelocity>(entity).expect("knockback missing").0,
+            Vec3::X * 8.0
+        );
+        assert_eq!(world.get::<Health>(entity).expect("health missing").0, 80.0);
+        apply_player_impulse(
+            world.entity_mut(entity),
+            SPlayerKnockback {
+                id: PlayerId(1),
+                generation: PlayerGeneration(0),
+                health: Health(70.0),
+                impulse: [100.0, 30.0, 0.0],
+            },
+            10.0,
+        );
+        assert_eq!(
+            world
+                .get::<CharacterVerticalVelocity>(entity)
+                .expect("vertical velocity missing")
+                .0,
+            32.0
+        );
+        assert_eq!(
+            world.get::<KnockbackVelocity>(entity).expect("knockback missing").0,
+            Vec3::X * 10.0
+        );
+    }
 
     fn player_info(entity: Entity, name: &str) -> PlayerInfo {
         PlayerInfo {
+            generation: PlayerGeneration(0),
             entity,
             score: 0,
             name: name.to_owned(),
@@ -320,53 +366,61 @@ mod tests {
 
     #[test]
     fn death_and_group_respawn_hide_the_player_with_the_matching_banner() {
-        for effect in [
-            PlayerDeathEffect::Explosion,
-            PlayerDeathEffect::VoidFall,
-            PlayerDeathEffect::GroupRespawn,
-        ] {
-            let my_id = PlayerId(7);
-            let mut app = App::new();
-            app.add_plugins(MinimalPlugins);
-            let entity = app.world_mut().spawn((Health(42.0), Visibility::Visible)).id();
-            let world = app.world_mut();
-            let mut players = PlayerMap::default();
-            players.insert(my_id, player_info(entity, "Alice"));
-            let mut local_player_info = LocalPlayerInfo::default();
-            let mut banner = HudBanner::default();
-            let mut commands_queue = bevy::ecs::world::CommandQueue::default();
+        for snapshot_first in [false, true] {
+            for effect in [
+                PlayerDeathEffect::Explosion,
+                PlayerDeathEffect::VoidFall,
+                PlayerDeathEffect::GroupRespawn,
+            ] {
+                let my_id = PlayerId(7);
+                let mut app = App::new();
+                app.add_plugins(MinimalPlugins);
+                let entity = app.world_mut().spawn((Health(42.0), Visibility::Visible)).id();
+                let world = app.world_mut();
+                let mut players = PlayerMap::default();
+                players.insert(my_id, player_info(entity, "Alice"));
+                let mut local_player_info = LocalPlayerInfo::default();
+                if snapshot_first {
+                    players.retire_body(my_id, PlayerGeneration(0));
+                    local_player_info.is_dead = true;
+                    world.entity_mut(entity).insert(Visibility::Hidden);
+                }
+                let mut banner = HudBanner::default();
+                let mut commands_queue = bevy::ecs::world::CommandQueue::default();
 
-            {
-                let mut commands = bevy::ecs::system::Commands::new(&mut commands_queue, world);
-                apply_player_death(
-                    &mut commands,
-                    &mut players,
-                    &mut local_player_info,
-                    &mut banner,
-                    my_id,
-                    SPlayerDeath {
-                        id: my_id,
-                        pos: Position::default(),
-                        killer: None,
-                        victim_score: 0,
-                        killer_score: None,
-                        effect,
-                    },
+                {
+                    let mut commands = bevy::ecs::system::Commands::new(&mut commands_queue, world);
+                    apply_player_death(
+                        &mut commands,
+                        &mut players,
+                        &mut local_player_info,
+                        &mut banner,
+                        my_id,
+                        SPlayerDeath {
+                            id: my_id,
+                            generation: PlayerGeneration(0),
+                            pos: Position::default(),
+                            killer: None,
+                            victim_score: 0,
+                            killer_score: None,
+                            effect,
+                        },
+                    );
+                }
+                commands_queue.apply(world);
+
+                assert_eq!(world.entity(entity).get::<Health>(), Some(&Health(0.0)));
+                assert_eq!(world.entity(entity).get::<Visibility>(), Some(&Visibility::Hidden));
+                assert!(local_player_info.is_dead);
+                assert_eq!(
+                    banner.pending_texts(),
+                    [if effect == PlayerDeathEffect::GroupRespawn {
+                        "Group respawning"
+                    } else {
+                        "You died!"
+                    }]
                 );
             }
-            commands_queue.apply(world);
-
-            assert_eq!(world.entity(entity).get::<Health>(), Some(&Health(0.0)));
-            assert_eq!(world.entity(entity).get::<Visibility>(), Some(&Visibility::Hidden));
-            assert!(local_player_info.is_dead);
-            assert_eq!(
-                banner.pending_texts(),
-                [if effect == PlayerDeathEffect::GroupRespawn {
-                    "Group respawning"
-                } else {
-                    "You died!"
-                }]
-            );
         }
     }
 }

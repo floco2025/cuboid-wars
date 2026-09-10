@@ -1,6 +1,6 @@
 use bevy::{ecs::system::SystemParam, prelude::*};
 use common::{
-    config::GameplayConfig,
+    config::{GameplayConfig, NetworkConfig},
     map::Carriers,
     physics::{CollisionWorld, PortalSet},
     protocol::*,
@@ -17,7 +17,7 @@ use crate::{
     items::{ItemAssets, ItemMap},
     map::skybox::LightingState,
     missiles::{MissileAssets, MissileMap},
-    network::{ClientToServerChannel, LastPlayerMovesTick, LastSnapshotTick, RoundTripTime, TickSync},
+    network::{LastPlayerMovesTick, LastSnapshotTick, RoundTripTime, TickSync},
     players::{LocalPlayerInfo, MyPlayerId, PlayerMap},
     portals::{PortalAssets, PortalMap},
     projectiles::ProjectileAssets,
@@ -45,8 +45,7 @@ pub(super) struct PresentationAssets<'w> {
     pub(super) max_health: Res<'w, MaxHealth>,
 }
 
-// The ordering guards of the two state streams and the shared tick they seed
-// and correct.
+// Snapshot/player-movement ordering and the shared clock; actor samples order themselves in their buffers.
 #[derive(SystemParam)]
 pub(super) struct StreamClocks<'w> {
     pub(super) last_snapshot_tick: ResMut<'w, LastSnapshotTick>,
@@ -58,9 +57,9 @@ pub(super) struct StreamClocks<'w> {
 // Each resource appears once and the queries are read-only, so this needs no `ParamSet`.
 #[derive(SystemParam)]
 pub(super) struct ServerMessageContext<'w, 's> {
-    pub(super) to_server: Res<'w, ClientToServerChannel>,
     pub(super) my_player_id: Res<'w, MyPlayerId>,
     pub(super) time: Res<'w, Time>,
+    pub(super) network: Res<'w, NetworkConfig>,
     pub(super) rtt: ResMut<'w, RoundTripTime>,
     pub(super) assets: PresentationAssets<'w>,
     pub(super) clocks: StreamClocks<'w>,
@@ -97,7 +96,6 @@ pub(super) struct ServerMessageContext<'w, 's> {
     pub(super) lighting: ResMut<'w, LightingState>,
     pub(super) player_data: Query<'w, 's, &'static Position, With<PlayerMarker>>,
     pub(super) actor_data: Query<'w, 's, &'static Position, With<ActorMarker>>,
-    pub(super) missile_data: Query<'w, 's, &'static Position, With<MissileMarker>>,
     pub(super) cameras: Query<'w, 's, Entity, (With<Camera3d>, With<MainCameraMarker>)>,
 }
 

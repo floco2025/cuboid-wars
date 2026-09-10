@@ -36,8 +36,8 @@ pub struct ActorSettingsConfig {
 
 impl ActorSettingsConfig {
     #[must_use]
-    pub fn spawn_warning_ticks(&self) -> u32 {
-        ticks_from_secs(self.spawn_warning_secs)
+    pub fn spawn_warning_ticks(&self, server_hz: u32) -> u32 {
+        ticks_from_secs(self.spawn_warning_secs, server_hz)
     }
 
     fn validate(&self, path: &str) -> Result<()> {

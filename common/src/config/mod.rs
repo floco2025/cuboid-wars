@@ -9,6 +9,7 @@ pub mod network;
 mod portals;
 mod pressure_switch;
 mod projectiles;
+mod replication;
 mod validation;
 
 pub use actors::ActorGameplayConfig;
@@ -25,3 +26,5 @@ pub use portals::PortalsConfig;
 pub use pressure_switch::{PressureSwitchActivation, PressureSwitchConfig};
 pub use projectiles::{MultiShotConfig, MultiShotPatternConfig, ProjectilesConfig};
 pub use validation::{validate_non_negative_finite, validate_positive_finite};
+
+pub use replication::NetworkConfig;

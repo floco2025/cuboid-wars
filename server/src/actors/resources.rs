@@ -5,7 +5,7 @@ use bevy::prelude::*;
 use common::{
     config::ActorGameplayConfig,
     map::Carriers,
-    physics::CharacterSupport,
+    physics::{CharacterSupport, CharacterVerticalVelocity},
     protocol::{
         ActorAnchor, ActorBeam, ActorId, ActorMarker, ActorMoveIntent, CarrierId, FaceYaw, Health, PlayerId, Position,
     },
@@ -35,6 +35,9 @@ pub type ActorStateQuery<'w, 's> = Query<
     ),
     With<ActorMarker>,
 >;
+
+pub type ActorMotionQuery<'w, 's> =
+    Query<'w, 's, (&'static CharacterVerticalVelocity, Option<&'static CharacterSupport>), With<ActorMarker>>;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub(crate) enum ActorMode {

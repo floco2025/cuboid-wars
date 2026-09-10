@@ -62,7 +62,7 @@ pub fn actors_behavior_system(
                 .map(|info| PlayerState {
                     id: *id,
                     pos: *pos,
-                    support: info.life.fall_state.support(),
+                    support: info.life.support,
                 })
         })
         .collect();

@@ -11,7 +11,7 @@ use crate::{
     constants::{
         PORTAL_FUNNEL_CAPTURE_MARGIN, PORTAL_FUNNEL_GAIN, PORTAL_FUNNEL_MAX_SPEED, PORTAL_FUNNEL_MIN_APPROACH,
         PORTAL_FUNNEL_RELEASE_SPEED, PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH, PORTAL_KNOCKBACK_CARRY_FACTOR,
-        PORTAL_STANDABLE_NORMAL_Y, TICK_SECS,
+        PORTAL_STANDABLE_NORMAL_Y,
     },
     map::Carriers,
     math::{direction_from_yaw_pitch, to_rapier},
@@ -504,9 +504,16 @@ impl PortalSet {
 
     // `delta` is the time left in the fixed tick: prior bounces have already consumed part of the portal's travel.
     #[must_use]
-    pub fn projectile_hop(&self, pos: Vec3, velocity: Vec3, delta: f32, radius: f32) -> Option<ProjectileHop<'_>> {
+    pub fn projectile_hop(
+        &self,
+        pos: Vec3,
+        velocity: Vec3,
+        delta: f32,
+        radius: f32,
+        tick_delta: f32,
+    ) -> Option<ProjectileHop<'_>> {
         let translation = velocity * delta;
-        let remaining_tick = delta / TICK_SECS;
+        let remaining_tick = delta / tick_delta;
         let mut best: Option<ProjectileHop<'_>> = None;
         for (entry_gate, exit_gate) in self.gates() {
             let entry = &entry_gate.frame;

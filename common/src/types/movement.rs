@@ -2,7 +2,7 @@ use bevy_ecs::prelude::*;
 use bevy_math::Vec3;
 use bincode::{Decode, Encode};
 
-use super::Position;
+use super::{CarrierId, Position};
 use crate::physics::CharacterSupport;
 
 #[derive(Debug, Clone, Encode, Decode, Copy, Component, Default, PartialEq)]
@@ -139,6 +139,8 @@ pub struct FaceYaw(pub f32);
 // `PlayerMotionBundle` turns it back into them.
 #[derive(Debug, Clone, Copy, Encode, Decode)]
 pub struct PlayerMovementState {
+    // Only position is carrier-local; intent, facing, and velocities stay in world space.
+    pub carrier: CarrierId,
     pub pos: Position,
     pub move_intent: PlayerMoveIntent,
     pub vertical_velocity: f32,
@@ -152,6 +154,7 @@ impl PlayerMovementState {
     #[must_use]
     pub const fn new(pos: Position, move_intent: PlayerMoveIntent, vertical_velocity: f32, face_yaw: f32) -> Self {
         Self {
+            carrier: CarrierId::WORLD,
             pos,
             move_intent,
             vertical_velocity,
@@ -180,28 +183,21 @@ impl PlayerMovementState {
     }
 }
 
-#[derive(Debug, Clone, Copy, Encode, Decode)]
+// Carrier-relative positions keep buffered actor motion aligned with moving geometry.
+#[derive(Debug, Clone, Copy, PartialEq, Encode, Decode)]
 pub struct ActorMovementState {
     pub pos: Position,
+    pub carrier: CarrierId,
     pub move_intent: ActorMoveIntent,
     pub vertical_velocity: f32,
-}
-
-impl ActorMovementState {
-    #[must_use]
-    pub const fn new(pos: Position, move_intent: ActorMoveIntent, vertical_velocity: f32) -> Self {
-        Self {
-            pos,
-            move_intent,
-            vertical_velocity,
-        }
-    }
+    pub face_yaw: f32,
+    pub support: CharacterSupport,
 }
 
 // Missile flight state on the wire. Unlike `ActorMovementState`, missiles fly:
 // the direction needs pitch, which `ActorMoveIntent` structurally cannot carry
 // (its velocity is horizontal-only). Decomposed into scalars per wire style.
-#[derive(Debug, Clone, Copy, Encode, Decode)]
+#[derive(Debug, Clone, Copy, PartialEq, Encode, Decode)]
 pub struct MissileMovementState {
     pub pos: Position,
     pub yaw: f32,
@@ -210,6 +206,15 @@ pub struct MissileMovementState {
 }
 
 impl MissileMovementState {
+    #[must_use]
+    pub fn is_finite(&self) -> bool {
+        Vec3::from(self.pos).is_finite()
+            && self.yaw.is_finite()
+            && self.pitch.is_finite()
+            && self.speed.is_finite()
+            && self.speed >= 0.0
+    }
+
     #[must_use]
     pub fn velocity(&self) -> Vec3 {
         crate::math::direction_from_yaw_pitch(self.yaw, self.pitch) * self.speed

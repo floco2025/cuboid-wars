@@ -50,22 +50,22 @@ pub fn input_shooting_system(
         return;
     }
     let pattern = match *mode {
-        WeaponMode::Projectile => None,
-        WeaponMode::MultiShot(index) => match gameplay_config.projectiles.multi_shot.allowed_pattern(index) {
-            Some((name, _)) => Some(name),
-            None => return,
-        },
+        WeaponMode::Projectile => 0,
+        WeaponMode::MultiShot(index) => {
+            if gameplay_config.projectiles.multi_shot.allowed_pattern(index).is_none() {
+                return;
+            }
+            u8::try_from(index + 1).expect("allowed projectile pattern exceeds wire ID range")
+        }
         _ => return,
     };
     if !input.released
         && !input.suppress_fire
         && mouse.just_pressed(MouseButton::Left)
-        && let Some(pos) = local_player_query.iter().next()
+        && !local_player_query.is_empty()
     {
         let now = time.elapsed_secs();
-        let pitch = aim.pitch;
 
-        // Client-side cooldown guard (server still authoritative)
         if now - local_player_info.last_shot_time < gameplay_config.projectiles.cooldown_secs {
             play_sound(&mut commands, &asset_server, asset_set.player_sound("dry_fire"));
             return;
@@ -73,21 +73,17 @@ pub fn input_shooting_system(
 
         local_player_info.last_shot_time = now;
 
-        let shot_msg = ClientMessage::ProjectileShot(CProjectileShot {
+        let shot = CProjectileShot {
+            origin: aim.origin.into(),
             face_yaw: aim.yaw,
-            face_pitch: pitch,
-            pattern: pattern.map(str::to_owned),
-        });
-        to_server.send(ClientToServer::Send(shot_msg));
+            face_pitch: aim.pitch,
+            pattern,
+        };
 
         if spawn_projectiles(
             &mut commands,
             &projectile_assets,
-            pos,
-            aim.yaw,
-            pitch,
-            pattern,
-            gameplay_config.player.eye_height(),
+            &shot,
             &gameplay_config,
             shooter.map_settings.movement.projectile_speed,
             &collision_world,
@@ -95,6 +91,7 @@ pub fn input_shooting_system(
             shooter.my_player_id.0,
         ) > 0
         {
+            to_server.send(ClientToServer::Send(ClientMessage::ProjectileShot(shot)));
             play_sound(&mut commands, &asset_server, asset_set.player_sound("fire"));
         } else {
             play_sound(&mut commands, &asset_server, asset_set.player_sound("dry_fire"));

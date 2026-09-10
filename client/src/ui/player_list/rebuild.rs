@@ -146,10 +146,11 @@ fn player_list_content_hash(players: &PlayerMap, local_player_id: Option<PlayerI
 mod tests {
     use super::*;
     use crate::players::PlayerInfo;
-    use common::protocol::{BarrierKindId, PowerUpKind};
+    use common::protocol::{BarrierKindId, PlayerGeneration, PowerUpKind};
 
     fn player(name: &str, score: i32) -> PlayerInfo {
         PlayerInfo {
+            generation: PlayerGeneration(0),
             entity: Entity::PLACEHOLDER,
             score,
             name: name.to_owned(),

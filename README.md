@@ -17,10 +17,11 @@ color-coded barriers, fight hostile scuttlers, bruisers, and zappers
 that patrol and hunt, launch seeking missiles that fly the map's
 airspace to their target, and complete quests for score.
 
-The game runs an authoritative server with client-side prediction, so
-movement stays responsive while the server remains the source of truth
-for collisions, items, projectiles, actor behaviour, scoring, and the
-death/respawn flow.
+Each client owns its player's movement; other clients interpolate its reports.
+The server simulates actors; clients interpolate their movement samples.
+The shooter decides bullet hits and simulates missiles; other clients simulate
+cosmetic bullets and interpolate missiles. The server applies damage and manages
+items, scoring, and the death/respawn flow.
 
 ## Gameplay
 
@@ -109,6 +110,24 @@ cargo run --release --bin server -- --map hotel        # load a specific map
 cargo run --release --bin client                       # connect to 127.0.0.1:8080
 cargo run --release --bin client -- --name "Alice"     # custom name
 ```
+
+`config/server/gameplay.json::network` sets `server_hz` (30 by default),
+`update_hz` (currently 30), and `snapshot_hz` (currently 4).
+Movement and snapshot rates are independent; both must be positive and no
+higher than `server_hz`. Override them with server `--server-hz`, `--update-hz`,
+and `--snapshot-hz`. For example:
+
+```bash
+cargo run --release --bin server -- --server-hz 60 --update-hz 30 --snapshot-hz 4
+```
+
+The server sends the effective rates to clients. Client fixed simulation uses
+`server_hz` too, keeping the shared clock and moving geometry in sync.
+Player, actor, and missile interpolation use
+`config/client/client.json::interpolation.buffer_intervals`
+(2 by default: 200 ms at 10 Hz, about 67 ms at 30 Hz).
+Bullet volleys relay immediately, independently of these update cadences;
+each carries the eye origin, aim, and numeric pattern, with no flight updates.
 
 For a small puzzle, run `cargo run --release --bin server -- --map puzzle_stages`.
 The [nine puzzle examples](PUZZLES.md#small-example-maps) include eight solo maps and one for two players.

@@ -8,14 +8,14 @@ use crate::{
     network::ServerToClient,
 };
 use common::{
-    physics::{AirborneMomentum, CharacterVerticalVelocity, KnockbackVelocity},
+    physics::{AirborneMomentum, CharacterSupport, CharacterVerticalVelocity, KnockbackVelocity},
     protocol::{
-        BarrierKindId, FaceYaw, Health, ItemType, Player, PlayerId, PlayerMarker, PlayerMoveIntent,
-        PlayerMovementState, PortalAccess, Position, PowerUpKind, QuestId, QuestScope, SPlayerStatus,
+        BarrierKindId, CMove, FaceYaw, Health, ItemType, Player, PlayerGeneration, PlayerId, PlayerMarker,
+        PlayerMoveIntent, PlayerMovementState, PortalAccess, Position, PowerUpKind, QuestId, QuestScope, SPlayerStatus,
     },
 };
 
-use super::{CheckpointId, PlayerCheckpoint, PlayerFallState, PlayerMovementReports, PowerUpState};
+use super::{CheckpointId, PlayerCheckpoint, PlayerMovementEvents, PowerUpState};
 
 pub type PlayerStateQuery<'w, 's> = Query<
     'w,
@@ -85,6 +85,7 @@ pub struct PlayerConnection {
 
 #[derive(Default)]
 pub struct PlayerSession {
+    pub generation: PlayerGeneration,
     // Newest report sequence admitted. Per session, so a respawn does not
     // reset it under a client counter that keeps climbing.
     pub last_move_seq: u32,
@@ -102,15 +103,11 @@ enum PlayerLifecycle {
 
 pub struct PlayerLife {
     lifecycle: PlayerLifecycle,
-    pub(crate) pending_moves: PlayerMovementReports,
-    // A rejected crossing holds every report until `CPortalRecovery`; the
-    // respawn that replaces this struct is the only other release.
-    pub(crate) portal_recovery_pending: bool,
-    // The report this tick processed, echoed as `PlayerMove.move_seq`.
-    pub(crate) processed_move_seq: Option<u32>,
+    pub(crate) movement_report: Option<CMove>,
+    pub(crate) portal_crossing: u32,
     pub power_ups: [PowerUpState; PowerUpKind::COUNT],
     pub stun_timer: f32,
-    pub last_shot_time: f32,
+    pub last_portal_shot_time: f32,
     // Missile ammo, collected from `missile_pack` items up to the configured
     // max. Per-life like `held_keys`. No fire cooldown — ammo is the limit.
     pub missiles: u32,
@@ -118,7 +115,8 @@ pub struct PlayerLife {
     // ascending so the encoded `SPlayerStatus` bytes are deterministic and
     // the client can change-detect via a single equality check.
     pub held_keys: Vec<BarrierKindId>,
-    pub fall_state: PlayerFallState,
+    pub support: CharacterSupport,
+    pub(crate) outcomes: PlayerMovementEvents,
     pub checkpoint_contact: Option<CheckpointId>,
 }
 
@@ -130,15 +128,15 @@ impl PlayerLife {
     fn with_lifecycle(lifecycle: PlayerLifecycle) -> Self {
         Self {
             lifecycle,
-            pending_moves: PlayerMovementReports::default(),
-            portal_recovery_pending: false,
-            processed_move_seq: None,
+            movement_report: None,
+            portal_crossing: 0,
             power_ups: [PowerUpState::Inactive; PowerUpKind::COUNT],
             stun_timer: 0.0,
-            last_shot_time: f32::NEG_INFINITY,
+            last_portal_shot_time: f32::NEG_INFINITY,
             missiles: 0,
             held_keys: Vec::new(),
-            fall_state: PlayerFallState::default(),
+            support: CharacterSupport::Airborne,
+            outcomes: PlayerMovementEvents::default(),
             checkpoint_contact: None,
         }
     }
@@ -213,6 +211,15 @@ impl PlayerInfo {
 
     pub fn finish_respawn(&mut self, entity: Entity) {
         self.life.lifecycle = PlayerLifecycle::Alive(entity);
+        self.advance_body();
+    }
+
+    pub(crate) fn advance_body(&mut self) {
+        self.session.generation = self.session.generation.next();
+        self.life.movement_report = None;
+        self.life.portal_crossing = 0;
+        self.life.support = CharacterSupport::Airborne;
+        self.life.outcomes = PlayerMovementEvents::default();
     }
 
     #[must_use]
@@ -283,24 +290,11 @@ impl PlayerInfo {
         self.life.power_ups[kind.index()] = PowerUpState::from_duration(durations.duration_secs_for(kind));
     }
 
-    pub fn try_start_shot(&mut self, now: f32, cooldown_secs: f32, multi_shot: bool) -> bool {
-        let kind = if multi_shot {
-            PowerUpKind::MultiShot
-        } else {
-            PowerUpKind::SingleShot
-        };
-        self.has(kind) && self.try_start_weapon_fire(now, cooldown_secs)
-    }
-
     pub fn try_start_portal_shot(&mut self, now: f32, cooldown_secs: f32) -> bool {
-        self.has(PowerUpKind::PortalGun) && self.try_start_weapon_fire(now, cooldown_secs)
-    }
-
-    fn try_start_weapon_fire(&mut self, now: f32, cooldown_secs: f32) -> bool {
-        if now - self.life.last_shot_time < cooldown_secs {
+        if !self.has(PowerUpKind::PortalGun) || now - self.life.last_portal_shot_time < cooldown_secs {
             return false;
         }
-        self.life.last_shot_time = now;
+        self.life.last_portal_shot_time = now;
         true
     }
 
@@ -322,6 +316,7 @@ impl PlayerInfo {
     pub fn status(&self, id: PlayerId) -> SPlayerStatus {
         SPlayerStatus {
             id,
+            generation: self.session.generation,
             collected: None,
             power_ups: self.active_power_ups(),
             stunned: self.is_stunned(),
@@ -338,6 +333,7 @@ impl PlayerInfo {
         portal_access: PortalAccess,
     ) -> Player {
         Player {
+            generation: self.session.generation,
             name: self.connection.name.clone(),
             movement,
             health,

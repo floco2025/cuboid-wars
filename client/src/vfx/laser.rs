@@ -9,8 +9,8 @@ use crate::{
     players::PlayerMap,
 };
 use common::{
+    config::NetworkConfig,
     config::{GameplayConfig, HitboxConfig},
-    constants::TICK_SECS,
     physics::CollisionWorld,
     protocol::{ActorId, ActorMarker, PlateState, PlayerId, Position, ServerTick},
 };
@@ -79,6 +79,7 @@ pub fn laser_beams_sync_system(
     mut commands: Commands,
     actors: Res<ActorMap>,
     tick: Res<ServerTick>,
+    network: Res<NetworkConfig>,
     players: Res<PlayerMap>,
     asset_server: Res<AssetServer>,
     asset_set: Res<AssetSet>,
@@ -97,7 +98,7 @@ pub fn laser_beams_sync_system(
     for (entity, mut beam) in &mut beams {
         let active = actors
             .get(&beam.actor)
-            .and_then(|actor| actor.beam.active(tick.0))
+            .and_then(|actor| actor.beam.active(tick.0, &network))
             .filter(|active| active.started_tick == beam.started_tick && players.get(&active.target).is_some());
         if let Some(active) = active {
             beam.target = active.target;
@@ -108,7 +109,7 @@ pub fn laser_beams_sync_system(
     for (id, actor) in actors.iter() {
         let Some(active) = actor
             .beam
-            .active(tick.0)
+            .active(tick.0, &network)
             .filter(|beam| players.get(&beam.target).is_some())
         else {
             continue;
@@ -134,7 +135,7 @@ pub fn laser_beams_sync_system(
             },
             &actor.kind,
             positions.get(actor.entity).map_or(Vec3::ZERO, |pos| Vec3::from(*pos)),
-            elapsed_ticks as f32 * TICK_SECS,
+            elapsed_ticks as f32 * network.tick_secs(),
         );
     }
 }
@@ -300,6 +301,7 @@ mod tests {
             .insert_resource(AssetSet::load_default().expect("asset set rejected"))
             .insert_resource(ClientSettings::load_default().expect("client settings rejected"))
             .init_resource::<ServerTick>()
+            .init_resource::<NetworkConfig>()
             .init_resource::<ActorMap>()
             .init_resource::<PlayerMap>()
             .add_systems(Update, laser_beams_sync_system);
@@ -328,7 +330,6 @@ mod tests {
         let mut actor = ActorInfo {
             entity,
             kind: "turret".into(),
-            anchor: None,
             beam: Default::default(),
         };
         actor.beam.apply(

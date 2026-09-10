@@ -6,88 +6,25 @@ use crate::{
     combat::{DeathSource, PendingExplosions, kill_player},
     config::{FallDamageConfig, ServerGameplayConfig},
     map::MapConfig,
-    network::ServerToClient,
+    network::{ServerToClient, broadcast_player_relocation},
+    portals::PortalAssignments,
 };
 use common::{
     config::GameplayConfig,
     constants::CHARACTER_FALL_DEATH_Y,
     health::apply_damage,
     map::Carriers,
-    physics::{AirborneMomentum, CharacterSupport, CharacterVerticalVelocity, CollisionWorld},
-    protocol::{FaceYaw, Health, MapSettings, PlayerId, PlayerMarker, Position, SPlayerFallDamage, ServerMessage},
+    physics::{CollisionWorld, PlayerMotionBundle},
+    protocol::{
+        Health, MapSettings, PlayerId, PlayerMarker, PlayerMoveIntent, PlayerMovementState, Position,
+        SPlayerFallDamage, ServerMessage, ServerTick,
+    },
 };
 
-// What this tick's movement step found under and around the player: the
-// support, for fall tracking, and whether a carrier left the body inside
-// its geometry, which is a death.
-#[derive(Debug, Clone, Copy)]
-pub struct PlayerFallState {
-    support: CharacterSupport,
-    peak_y: f32,
-    crushed: bool,
-    lifted: bool,
-}
-
-impl Default for PlayerFallState {
-    fn default() -> Self {
-        Self {
-            support: CharacterSupport::Airborne,
-            peak_y: f32::NEG_INFINITY,
-            crushed: false,
-            lifted: false,
-        }
-    }
-}
-
-impl PlayerFallState {
-    #[must_use]
-    pub(crate) const fn support(&self) -> CharacterSupport {
-        self.support
-    }
-
-    #[must_use]
-    pub(crate) const fn is_crushed(&self) -> bool {
-        self.crushed
-    }
-
-    #[must_use]
-    pub(crate) const fn was_lifted(&self) -> bool {
-        self.lifted
-    }
-
-    pub(crate) fn record_movement(&mut self, support: CharacterSupport, crushed: bool, lifted: bool) {
-        self.support = support;
-        self.crushed = crushed;
-        self.lifted = lifted;
-    }
-
-    pub(crate) fn reset(&mut self) {
-        *self = Self::default();
-    }
-
-    fn update(&mut self, y: f32) -> Option<FallImpact> {
-        if self.support == CharacterSupport::Airborne {
-            self.peak_y = self.peak_y.max(y);
-            return None;
-        }
-
-        let impact = (self.peak_y > y).then_some(FallImpact { drop: self.peak_y - y });
-        self.peak_y = f32::NEG_INFINITY;
-        impact
-    }
-}
-
-// ============================================================================
-// Players Fall Death System
-// ============================================================================
-
-// Detect players that have fallen below the death threshold, or that a
-// carrier crushed this tick, and kill them using the same flow as any other
-// death (clear per-life state, arm respawn timer, despawn entity). The
-// respawn system brings them back at a fresh spawn-zone cell after
-// `respawn_secs`.
 pub fn players_fall_death_system(
     mut commands: Commands,
+    tick: Res<ServerTick>,
+    portal_assignments: Res<PortalAssignments>,
     mut players: ResMut<PlayerMap>,
     mut pending_explosions: ResMut<PendingExplosions>,
     gameplay_config: Res<GameplayConfig>,
@@ -96,23 +33,22 @@ pub fn players_fall_death_system(
     map_config: Res<MapConfig>,
     carriers: Res<Carriers>,
     collision_world: Res<CollisionWorld>,
-    player_query: Query<(Entity, &PlayerId, &Position), With<PlayerMarker>>,
+    player_query: Query<(Entity, &PlayerId, &Position, &Health), With<PlayerMarker>>,
 ) {
-    for (entity, id, pos) in player_query.iter() {
-        // Skip players already dead this tick (e.g. killed by a projectile
-        // before falling out of the world).
-        if players.get(id).is_some_and(|info| info.is_dead()) {
+    for (entity, id, pos, health) in player_query.iter() {
+        let Some(info) = players.get_mut(id).filter(|info| !info.is_dead()) else {
             continue;
-        }
-        let crushed = players.get(id).is_some_and(|info| info.life.fall_state.is_crushed());
-        if crushed && !invincibility.0 {
+        };
+        let crushed = info.life.outcomes.crushed.take();
+        let fell_out_of_world = std::mem::take(&mut info.life.outcomes.fell_out_of_world);
+        if let Some(pos) = crushed.filter(|_| !invincibility.0) {
             info!("{} was crushed by moving geometry at {:?}", players.describe(id), pos);
             kill_player(
                 &mut commands,
                 &mut players,
                 *id,
                 entity,
-                *pos,
+                pos,
                 server_gameplay_config.player.respawn_secs,
                 DeathSource::Crushed,
                 &server_gameplay_config,
@@ -120,18 +56,15 @@ pub fn players_fall_death_system(
             );
             continue;
         }
-        if pos.y >= CHARACTER_FALL_DEATH_Y {
+        if !fell_out_of_world {
             continue;
         }
         if invincibility.0 {
-            // Debug invincibility turns the void fall into a silent teleport
-            // home: no `SPlayerDeath` (no banner, no kill feed), no per-life
-            // state loss — keys, power-ups, and score all survive. The next
-            // movement echo makes the client snap to the relocation.
+            // Void rescue preserves equipment and score.
             let occupied_positions: Vec<Position> = player_query
                 .iter()
-                .filter(|(other, _, other_pos)| *other != entity && other_pos.y >= CHARACTER_FALL_DEATH_Y)
-                .map(|(_, _, other_pos)| *other_pos)
+                .filter(|(other, _, other_pos, _)| *other != entity && other_pos.y >= CHARACTER_FALL_DEATH_Y)
+                .map(|(_, _, other_pos, _)| *other_pos)
                 .collect();
             let spawn_pos = generate_player_spawn_position(
                 &map_config,
@@ -145,18 +78,17 @@ pub fn players_fall_death_system(
                 players.describe(id),
                 spawn_pos
             );
-            commands.entity(entity).insert((
-                spawn_pos,
-                FaceYaw(spawn_face_yaw(&spawn_pos)),
-                CharacterVerticalVelocity::default(),
-                AirborneMomentum::default(),
-            ));
+            let movement = PlayerMovementState::new(spawn_pos, PlayerMoveIntent::Idle, 0.0, spawn_face_yaw(&spawn_pos));
+            commands
+                .entity(entity)
+                .insert((spawn_pos, PlayerMotionBundle::from(&movement)));
             if let Some(info) = players.get_mut(id) {
-                info.life.fall_state.reset();
+                info.advance_body();
             }
+            broadcast_player_relocation(&players, *id, tick.0, movement, *health, portal_assignments.get(id));
             continue;
         }
-        info!("{} fell and died at {:?}", players.describe(id), pos);
+        info!("{} fell out of the world", players.describe(id));
         kill_player(
             &mut commands,
             &mut players,
@@ -182,24 +114,6 @@ pub fn players_fall_death_system(
 // Keep this cutoff in sync with tools/map_editor/jump_reach.py.
 const FALL_DAMAGE_EMIT_THRESHOLD: f32 = 1.0;
 
-// Apply impact damage on landing from a fall. The highest Y of the current
-// airborne window is tracked by `PlayerFallState`; when the player
-// reaches support (ground or ladder), damage lerps from 0 at
-// `safe_distance` to `max_health` at
-// `lethal_distance`, clamped past lethal. The charged distance is the
-// actual drop, scaled by the gravity it fell under relative to the map's
-// normal gravity:
-//   * downward velocity without displacement drops nothing, so it charges nothing;
-//   * a low-gravity fall lands as softly as a proportionally shorter
-//     normal fall;
-//   * and deliberately NOT the impact speed: the terminal-velocity clamp
-//     caps that, which would make every fall survivable once the clamp is
-//     low enough — height must stay lethal.
-//
-// Runs after `characters_movement_system` so it observes the support derived
-// by that tick's shared movement step. Under debug invincibility the impact cue
-// (`SPlayerFallDamage` → camera wiggle + sound) still fires; only the
-// health loss — and therefore the lethal branch — is skipped.
 pub fn players_fall_damage_system(
     mut commands: Commands,
     mut players: ResMut<PlayerMap>,
@@ -214,82 +128,77 @@ pub fn players_fall_damage_system(
     let max_health = server_gameplay_config.combat.health.player.max;
     let respawn_secs = server_gameplay_config.player.respawn_secs;
 
-    for (entity, id, pos, mut health) in player_query.iter_mut() {
+    for (entity, id, _, mut health) in player_query.iter_mut() {
         let Some(info) = players.get_mut(id) else { continue };
         if info.is_dead() {
             continue;
         }
 
-        let fall_gravity = map_settings.gravity_for(info.has_low_gravity());
-        let Some(impact) = info.life.fall_state.update(pos.y) else {
-            continue;
-        };
+        let landings = std::mem::take(&mut info.life.outcomes.landings);
+        for impact in landings {
+            if players.get(id).is_none_or(|info| info.is_dead()) {
+                break;
+            }
+            let pos = &impact.pos;
+            let fall_distance = fall_distance_for_speed(impact.impact_speed, map_settings.movement.gravity);
+            if fall_distance <= fall.safe_distance {
+                continue;
+            }
 
-        let fall_distance = effective_fall_distance(impact.drop, fall_gravity, map_settings.movement.gravity);
-        if fall_distance <= fall.safe_distance {
-            continue;
-        }
-
-        let damage = fall_damage_for_distance(fall_distance, fall.safe_distance, fall.lethal_distance, max_health);
-        // Skip the entire emission path for negligible damage —
-        // the safe-threshold lerp produces near-zero damage just
-        // past `safe_distance` from floating-point slack and
-        // discrete-tick noise. No HUD update or camera wiggle for
-        // a fall the player barely registers.
-        if damage < FALL_DAMAGE_EMIT_THRESHOLD {
-            continue;
-        }
-        if !invincible {
-            apply_damage(&mut health, damage);
-        }
-        // Unicast `SPlayerFallDamage` to the victim so the HUD health bar
-        // and vertical camera wiggle land on the impact frame
-        // instead of waiting for the next snapshot. The fatal-fall
-        // case additionally surfaces `SPlayerDeath` via
-        // `kill_player` below.
-        if let Some(info) = players.get(id) {
-            let _ = info
-                .connection
-                .channel
-                .send(ServerToClient::Send(ServerMessage::PlayerFallDamage(
-                    SPlayerFallDamage {
-                        id: *id,
-                        health: *health,
-                    },
-                )));
-        }
-        if health.0 <= 0.0 {
-            info!(
-                "{} died from fall (distance {:.1}m)",
-                players.describe(id),
-                fall_distance
-            );
-            kill_player(
-                &mut commands,
-                &mut players,
-                *id,
-                entity,
-                *pos,
-                respawn_secs,
-                DeathSource::Fall,
-                &server_gameplay_config,
-                &mut pending_explosions,
-            );
+            let damage = fall_damage_for_distance(fall_distance, fall.safe_distance, fall.lethal_distance, max_health);
+            // Skip the entire emission path for negligible damage —
+            // the safe-threshold lerp produces near-zero damage just
+            // past `safe_distance` from floating-point slack and
+            // discrete-tick noise. No HUD update or camera wiggle for
+            // a fall the player barely registers.
+            if damage < FALL_DAMAGE_EMIT_THRESHOLD {
+                continue;
+            }
+            if !invincible {
+                apply_damage(&mut health, damage);
+            }
+            // Unicast `SPlayerFallDamage` to the victim so the HUD health bar
+            // and vertical camera wiggle land on the impact frame
+            // instead of waiting for the next snapshot. The fatal-fall
+            // case additionally surfaces `SPlayerDeath` via
+            // `kill_player` below.
+            if let Some(info) = players.get(id) {
+                let _ = info
+                    .connection
+                    .channel
+                    .send(ServerToClient::Send(ServerMessage::PlayerFallDamage(
+                        SPlayerFallDamage {
+                            id: *id,
+                            generation: info.session.generation,
+                            health: *health,
+                        },
+                    )));
+            }
+            if health.0 <= 0.0 {
+                info!(
+                    "{} died from fall (distance {:.1}m)",
+                    players.describe(id),
+                    fall_distance
+                );
+                kill_player(
+                    &mut commands,
+                    &mut players,
+                    *id,
+                    entity,
+                    *pos,
+                    respawn_secs,
+                    DeathSource::Fall,
+                    &server_gameplay_config,
+                    &mut pending_explosions,
+                );
+            }
         }
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-struct FallImpact {
-    drop: f32,
-}
-
-// Fall distance that damage is charged for: the actual drop, scaled by the
-// gravity it fell under relative to the map's normal gravity. See the
-// `players_fall_damage_system` header for the why.
-// Keep gravity scaling in sync with tools/map_editor/jump_reach.py::FallSettings.damage_fraction.
-fn effective_fall_distance(drop: f32, fall_gravity: f32, normal_gravity: f32) -> f32 {
-    drop * (fall_gravity / normal_gravity)
+// Express impact energy as a normal-gravity drop so map distance thresholds retain their meaning.
+fn fall_distance_for_speed(impact_speed: f32, normal_gravity: f32) -> f32 {
+    impact_speed * impact_speed / (2.0 * normal_gravity)
 }
 
 // Lerp damage between `safe_distance` (0 dmg) and `lethal_distance`
@@ -304,93 +213,20 @@ fn fall_damage_for_distance(distance: f32, safe: f32, lethal: f32, max_health: f
 mod tests {
     use super::*;
     use crate::{
-        players::{PlayerInfo, PowerUpState},
+        players::{PlayerInfo, PowerUpState, outcomes::Landing},
         test_geometry::geometry,
     };
-    use common::protocol::{BarrierKindTable, MapLayout, PowerUpKind};
+    use common::{
+        physics::CharacterVerticalVelocity,
+        protocol::{BarrierKindId, BarrierKindTable, Lane, MapLayout, PlayerGeneration, PortalMode, PowerUpKind},
+    };
     use tokio::sync::mpsc::unbounded_channel;
 
     // Matches the shipping map's normal-gravity setting.
     const TEST_GRAVITY: f32 = 25.0;
 
     #[test]
-    fn airborne_tracking_records_the_apex() {
-        let mut state = PlayerFallState::default();
-
-        assert_eq!(state.update(8.0), None);
-        assert_eq!(state.update(7.0), None);
-
-        assert_eq!(state.peak_y, 8.0);
-    }
-
-    #[test]
-    fn upward_airborne_motion_does_not_finish_the_tracked_fall() {
-        let mut state = PlayerFallState {
-            peak_y: 8.0,
-            ..default()
-        };
-
-        let impact = state.update(7.0);
-
-        assert_eq!(impact, None);
-        assert_eq!(state.peak_y, 8.0);
-    }
-
-    #[test]
-    fn ground_support_finishes_the_tracked_fall() {
-        let mut state = PlayerFallState {
-            support: CharacterSupport::Ground,
-            peak_y: 10.0,
-            ..default()
-        };
-
-        let impact = state.update(4.0);
-
-        assert_eq!(impact, Some(FallImpact { drop: 6.0 }));
-        assert_eq!(state.peak_y, f32::NEG_INFINITY);
-    }
-
-    #[test]
-    fn ladder_support_finishes_the_tracked_fall() {
-        let mut state = PlayerFallState {
-            support: CharacterSupport::Ladder,
-            peak_y: 10.0,
-            ..default()
-        };
-
-        let impact = state.update(4.0);
-
-        assert_eq!(impact, Some(FallImpact { drop: 6.0 }));
-        assert_eq!(state.peak_y, f32::NEG_INFINITY);
-    }
-
-    #[test]
-    fn support_at_the_apex_height_clears_without_an_impact() {
-        let mut state = PlayerFallState {
-            support: CharacterSupport::Ground,
-            peak_y: 4.0,
-            ..default()
-        };
-
-        let impact = state.update(4.0);
-
-        assert_eq!(impact, None);
-        assert_eq!(state.peak_y, f32::NEG_INFINITY);
-    }
-
-    #[test]
-    fn a_crush_is_reported_for_the_step_that_found_it() {
-        let mut state = PlayerFallState::default();
-
-        state.record_movement(CharacterSupport::Ground, true, false);
-        assert!(state.is_crushed());
-
-        state.record_movement(CharacterSupport::Ground, false, false);
-        assert!(!state.is_crushed());
-    }
-
-    #[test]
-    fn a_crushed_player_dies_where_it_stands() {
+    fn a_crushed_player_dies_at_the_reported_contact() {
         let server = ServerGameplayConfig::load_default().expect("default server gameplay config missing");
         let gameplay = server.gameplay_config();
         let mut app = App::new();
@@ -405,6 +241,8 @@ mod tests {
             ))
             .insert_resource(PlayerMap::default())
             .insert_resource(Invincibility(false))
+            .init_resource::<ServerTick>()
+            .insert_resource(PortalAssignments::new(PortalMode::Both))
             .insert_resource(PendingExplosions::default())
             .add_systems(Update, players_fall_death_system);
         let id = PlayerId(1);
@@ -421,9 +259,8 @@ mod tests {
         let (sender, mut receiver) = unbounded_channel();
         let mut info = PlayerInfo::new(entity, sender);
         info.connection.logged_in = true;
-        info.life
-            .fall_state
-            .record_movement(CharacterSupport::Ground, true, false);
+        let contact = Position { x: 20.0, ..default() };
+        info.life.outcomes.crushed = Some(contact);
         app.world_mut().resource_mut::<PlayerMap>().insert(id, info);
 
         app.update();
@@ -443,6 +280,7 @@ mod tests {
         };
         assert_eq!(death.id, id);
         assert_eq!(death.killer, None);
+        assert_eq!(death.pos, contact);
     }
 
     #[test]
@@ -452,7 +290,74 @@ mod tests {
     }
 
     #[test]
-    fn landing_damage_uses_the_selected_maps_thresholds_and_gravity() {
+    fn invincible_void_rescue_relocates_reliably_and_preserves_equipment() {
+        let server = ServerGameplayConfig::load_default().expect("gameplay config missing");
+        let mut app = App::new();
+        app.insert_resource(server.gameplay_config())
+            .insert_resource(server)
+            .insert_resource(MapConfig::for_grid(Vec::new(), geometry(1, 1)))
+            .init_resource::<Carriers>()
+            .insert_resource(CollisionWorld::from_map_layout(
+                &MapLayout::default(),
+                &BarrierKindTable::default(),
+            ))
+            .init_resource::<PlayerMap>()
+            .insert_resource(Invincibility(true))
+            .insert_resource(ServerTick(42))
+            .insert_resource(PortalAssignments::new(PortalMode::Both))
+            .init_resource::<PendingExplosions>()
+            .add_systems(Update, players_fall_death_system);
+        let id = PlayerId(1);
+        let pos = Position {
+            y: CHARACTER_FALL_DEATH_Y - 1.0,
+            ..default()
+        };
+        let entity = app.world_mut().spawn((PlayerMarker, id, pos, Health(37.0))).id();
+        let (sender, mut receiver) = unbounded_channel();
+        let mut info = PlayerInfo::new(entity, sender);
+        info.connection.logged_in = true;
+        info.session.score = 5;
+        info.life.missiles = 3;
+        info.life.held_keys.push(BarrierKindId(1));
+        info.life.power_ups[PowerUpKind::Speed.index()] = PowerUpState::Permanent;
+        app.world_mut().resource_mut::<PlayerMap>().insert(id, info);
+        app.update();
+        assert!(receiver.try_recv().is_err());
+        assert_eq!(*app.world().get::<Position>(entity).expect("position missing"), pos);
+        app.world_mut()
+            .resource_mut::<PlayerMap>()
+            .get_mut(&id)
+            .expect("player missing")
+            .life
+            .outcomes
+            .fell_out_of_world = true;
+        app.update();
+        let ServerToClient::Send(message @ ServerMessage::PlayerRelocated(_)) =
+            receiver.try_recv().expect("relocation missing")
+        else {
+            panic!("void rescue did not send a relocation")
+        };
+        assert_eq!(message.lane(), Lane::Reliable);
+        let ServerMessage::PlayerRelocated(relocation) = message else {
+            unreachable!()
+        };
+        assert_eq!(relocation.id, id);
+        assert_eq!(relocation.tick, 42);
+        assert_eq!(relocation.player.generation, PlayerGeneration(1));
+        assert_eq!(relocation.player.health.0, 37.0);
+        assert_eq!(relocation.player.score, 5);
+        assert_eq!(relocation.player.missiles, 3);
+        assert_eq!(relocation.player.held_keys, [BarrierKindId(1)]);
+        assert!(relocation.player.power_up(PowerUpKind::Speed));
+        assert_eq!(
+            *app.world().get::<Position>(entity).expect("position missing"),
+            relocation.player.movement.pos
+        );
+        assert!(receiver.try_recv().is_err());
+    }
+
+    #[test]
+    fn landing_damage_uses_impact_speed_and_map_thresholds() {
         for (safe, lethal, drop, low_gravity, max_health, initial_health, expected_health) in [
             (12.0, 16.0, 12.0, false, 100.0, 100.0, 100.0),
             (8.0, 16.0, 12.0, false, 100.0, 100.0, 50.0),
@@ -491,15 +396,10 @@ mod tests {
             let (sender, mut receiver) = unbounded_channel();
             let mut info = PlayerInfo::new(entity, sender);
             info.connection.logged_in = true;
-            info.life.fall_state = PlayerFallState {
-                support: CharacterSupport::Ground,
-                peak_y: drop,
-                crushed: false,
-                lifted: false,
-            };
-            if low_gravity {
-                info.life.power_ups[PowerUpKind::LowGravity.index()] = PowerUpState::Permanent;
-            }
+            info.life.outcomes.landings.push(Landing {
+                pos: Position::default(),
+                impact_speed: (2.0_f32 * if low_gravity { 1.0 } else { 2.0 } * drop).sqrt(),
+            });
             app.world_mut().resource_mut::<PlayerMap>().insert(id, info);
 
             app.update();
@@ -512,9 +412,16 @@ mod tests {
                 .is_dead();
             assert_eq!(dead, expected_health == 0.0);
             if !dead {
-                assert_eq!(
-                    app.world().get::<Health>(entity).expect("player health missing").0,
-                    expected_health
+                assert!(
+                    (app.world().get::<Health>(entity).expect("player health missing").0 - expected_health).abs()
+                        < 0.001
+                );
+            }
+            app.update();
+            if !dead {
+                assert!(
+                    (app.world().get::<Health>(entity).expect("player health missing").0 - expected_health).abs()
+                        < 0.001
                 );
             }
             let mut impact_health = None;
@@ -523,10 +430,10 @@ mod tests {
                     impact_health = Some(impact.health.0);
                 }
             }
-            assert_eq!(
-                impact_health,
-                (expected_health < initial_health).then_some(expected_health)
-            );
+            assert_eq!(impact_health.is_some(), expected_health < initial_health);
+            if let Some(health) = impact_health {
+                assert!((health - expected_health).abs() < 0.001);
+            }
         }
     }
 
@@ -547,23 +454,10 @@ mod tests {
     }
 
     #[test]
-    fn low_gravity_jump_lands_below_safe_distance() {
-        // Low-gravity jump: apex ≈ 14.4 m of drop under g = 5, charged like a
-        // 14.4 · 5/25 = 2.88 m normal fall — well under the safe threshold.
-        let distance = effective_fall_distance(14.4, 5.0, TEST_GRAVITY);
-        assert!((distance - 2.88).abs() < 1e-4, "expected 2.88m, got {distance}m");
-    }
-
-    #[test]
-    fn phantom_fall_charges_zero_distance() {
-        // Velocity fabricated while standing: no drop, no damage.
-        assert_eq!(effective_fall_distance(0.0, TEST_GRAVITY, TEST_GRAVITY), 0.0);
-    }
-
-    #[test]
-    fn genuine_fall_distance_passes_through() {
-        // A normal-gravity fall charges its full height — independent of the
-        // terminal-velocity clamp, so a long fall stays lethal.
-        assert_eq!(effective_fall_distance(13.2, TEST_GRAVITY, TEST_GRAVITY), 13.2);
+    fn impact_energy_determines_the_equivalent_drop() {
+        assert_eq!(fall_distance_for_speed(0.0, TEST_GRAVITY), 0.0);
+        assert_eq!(fall_distance_for_speed(10.0, TEST_GRAVITY), 2.0);
+        assert_eq!(fall_distance_for_speed(20.0, TEST_GRAVITY), 8.0);
+        assert_eq!(fall_distance_for_speed(25.0, TEST_GRAVITY), 12.5);
     }
 }

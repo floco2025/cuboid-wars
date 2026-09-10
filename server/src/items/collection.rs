@@ -259,7 +259,10 @@ fn collect_health_potion(
         .connection
         .channel
         .send(ServerToClient::Send(ServerMessage::HealthPotionCollected(
-            SHealthPotionCollected { health: *health },
+            SHealthPotionCollected {
+                generation: player_info.session.generation,
+                health: *health,
+            },
         )));
 }
 

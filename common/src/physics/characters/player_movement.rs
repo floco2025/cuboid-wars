@@ -18,7 +18,6 @@ pub struct PlayerMovementStep<'a> {
     pub start: Position,
     pub vertical_velocity: f32,
     pub control_velocity: Vec3,
-    pub additional_displacement: Vec3,
     pub delta: f32,
     pub has_low_gravity: bool,
     pub held_keys: &'a [BarrierKindId],
@@ -29,17 +28,14 @@ pub struct PlayerMovementStep<'a> {
     pub collision_world: &'a CollisionWorld,
     pub map_settings: &'a MapSettings,
     pub gameplay_config: &'a GameplayConfig,
-    // `None` keeps portal backing solid: for remote players, which only the
-    // server places at an exit.
-    pub portal_set: Option<&'a PortalSet>,
+    pub portal_set: &'a PortalSet,
     pub carriers: &'a Carriers,
 }
 
 #[must_use]
 pub fn step_player_movement(step: PlayerMovementStep<'_>) -> CharacterMovementResult {
     let passable_kinds = passable_barrier_kinds(step.held_keys, step.open_kinds);
-    let external_displacement = step.additional_displacement
-        + momentum_displacement(Some(step.knockback), Some(&*step.airborne_momentum), step.delta);
+    let external_displacement = momentum_displacement(Some(step.knockback), Some(&*step.airborne_momentum), step.delta);
     let movement = step_character_movement(
         CharacterStep {
             start: step.start,
@@ -55,7 +51,7 @@ pub fn step_player_movement(step: PlayerMovementStep<'_>) -> CharacterMovementRe
             passable_kinds: &passable_kinds,
             physics: step.gameplay_config.player.physics(),
             ladder_climb_ratio: step.map_settings.movement.ladder_climb_ratio,
-            portals: step.portal_set,
+            portals: Some(step.portal_set),
             carriers: step.carriers,
         },
     );

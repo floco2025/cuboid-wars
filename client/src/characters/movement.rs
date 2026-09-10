@@ -2,15 +2,15 @@ use bevy::prelude::*;
 
 use super::PreviousTickPosition;
 use crate::{
-    actors::{ActorMap, ActorMovementQuery, actor_start_positions, apply_actor_moves, plan_actor_moves},
+    actors::ActorMap,
     config::{AssetSet, ClientSettings},
-    players::{PlayerMap, PlayerMovementQuery, apply_player_moves, plan_player_moves},
+    players::{LocalPlayerMarker, PlayerMap, PlayerMovementQuery, apply_player_moves, plan_player_moves},
 };
 use common::{
     config::GameplayConfig,
     map::Carriers,
-    physics::{CollisionWorld, PortalSet},
-    protocol::{ActorMarker, MapSettings, PlateState, PlayerMarker, Position},
+    physics::{CharacterMovePlan, CollisionWorld, PortalSet},
+    protocol::{ActorId, ActorMarker, MapSettings, PlateState, PlayerMarker, Position},
 };
 
 // Run at the start of each fixed tick, before `characters_movement_system`,
@@ -18,7 +18,7 @@ use common::{
 // the previous tick. The render-rate transform sync then lerps between
 // these two values for smooth motion above 30 Hz.
 pub fn capture_previous_tick_position_system(
-    mut query: Query<(&Position, &mut PreviousTickPosition), Or<(With<PlayerMarker>, With<ActorMarker>)>>,
+    mut query: Query<(&Position, &mut PreviousTickPosition), With<LocalPlayerMarker>>,
 ) {
     for (pos, mut prev) in &mut query {
         prev.0 = *pos;
@@ -40,11 +40,10 @@ pub fn characters_movement_system(
     portal_set: Res<PortalSet>,
     carriers: Res<Carriers>,
     mut players_query: PlayerMovementQuery,
-    mut actors_query: ActorMovementQuery,
+    actors_query: Query<(Entity, &ActorId, &Position), (With<ActorMarker>, Without<PlayerMarker>)>,
 ) {
     let delta = time.delta_secs();
     let mut planned_moves = Vec::new();
-    let actor_starts = actor_start_positions(&actors_query, &actors, &gameplay_config);
 
     plan_player_moves(
         &mut commands,
@@ -59,19 +58,15 @@ pub fn characters_movement_system(
         &mut players_query,
         &mut planned_moves,
     );
-    plan_actor_moves(
-        &mut commands,
-        delta,
-        &collision_world,
-        &map_settings,
-        &gameplay_config,
-        &actors,
-        &plates,
-        &carriers,
-        &actor_starts,
-        &mut actors_query,
-        &mut planned_moves,
-    );
+    planned_moves.extend(actors_query.iter().filter_map(|(entity, id, pos)| {
+        let info = actors.get(id)?;
+        Some(CharacterMovePlan::stationary(
+            entity,
+            *pos,
+            0.0,
+            gameplay_config.expect_actor(&info.kind).physics(),
+        ))
+    }));
     apply_player_moves(
         &mut commands,
         delta,
@@ -81,5 +76,4 @@ pub fn characters_movement_system(
         &mut players_query,
         &planned_moves,
     );
-    apply_actor_moves(&mut actors_query, &actors, &planned_moves);
 }

@@ -3,21 +3,22 @@ use common::protocol::*;
 
 use super::{
     actors::{
-        handle_actor_beam_message, handle_actor_death_message, handle_actor_hit_message, handle_actor_move_message,
+        handle_actor_beam_message, handle_actor_death_message, handle_actor_hit_message, handle_actor_moves_message,
     },
     context::ServerMessageContext,
     io::apply_pong,
     items::{handle_gold_collected_message, handle_health_potion_collected_message},
-    missiles::{handle_missile_detonated_message, handle_missile_launch_message, handle_missile_move_message},
+    missiles::{handle_missile_detonated_message, handle_missile_launch_message, handle_missile_moves_message},
     players::{
-        handle_eraser_entered_message, handle_player_death_message, handle_player_fall_damage_message,
+        handle_equipment_erased_message, handle_player_death_message, handle_player_fall_damage_message,
         handle_player_hit_message, handle_player_knockback_message, handle_player_moves_message,
-        handle_player_status_message, handle_projectile_shot_message,
+        handle_player_relocated_message, handle_player_status_message,
     },
-    portals::{handle_portal_crossed_message, handle_portal_fizzled_message, handle_portal_opened_message},
+    portals::{handle_portal_fizzled_message, handle_portal_opened_message},
     presentation::{
         handle_checkpoint_reached_message, handle_feed_message, handle_firework_message, handle_pressure_plate_message,
     },
+    projectiles::handle_projectile_shot_message,
     quests::handle_quest_updates_message,
     snapshot::handle_snapshot_message,
 };
@@ -35,15 +36,16 @@ pub(super) fn route_server_message(
         ServerMessage::Snapshot(message) => {
             handle_snapshot_message(message, commands, my_player_id, context);
         }
+        ServerMessage::PlayerRelocated(message) => handle_player_relocated_message(message, commands, context),
         ServerMessage::PlayerMoves(message) => {
             handle_player_moves_message(message, commands, my_player_id, context);
         }
         ServerMessage::ProjectileShot(message) => handle_projectile_shot_message(message, commands, context),
-        ServerMessage::ActorMove(message) => handle_actor_move_message(message, commands, context),
+        ServerMessage::ActorMoves(message) => handle_actor_moves_message(message, commands, context),
         ServerMessage::MissileLaunch(message) => {
             handle_missile_launch_message(message, commands, my_player_id, context);
         }
-        ServerMessage::MissileMove(message) => handle_missile_move_message(message, commands, context),
+        ServerMessage::MissileMoves(message) => handle_missile_moves_message(message, context),
         ServerMessage::PlayerDeath(message) => {
             handle_player_death_message(message, commands, my_player_id, context);
         }
@@ -61,7 +63,7 @@ pub(super) fn route_server_message(
         ServerMessage::ActorHit(message) => handle_actor_hit_message(message, commands, context),
         ServerMessage::ActorBeam(message) => handle_actor_beam_message(message, context),
         ServerMessage::CheckpointReached(_) => handle_checkpoint_reached_message(commands, context),
-        ServerMessage::EraserEntered(_) => handle_eraser_entered_message(commands, context),
+        ServerMessage::EquipmentErased(_) => handle_equipment_erased_message(commands, context),
         ServerMessage::PlayerStatus(message) => {
             handle_player_status_message(message, commands, my_player_id, context);
         }
@@ -79,8 +81,14 @@ pub(super) fn route_server_message(
         ServerMessage::PortalOpened(message) => {
             handle_portal_opened_message(message, commands, my_player_id, context);
         }
-        ServerMessage::PortalCrossed(message) => handle_portal_crossed_message(message, commands, context),
         ServerMessage::Feed(message) => handle_feed_message(message, context),
-        ServerMessage::Pong(message) => apply_pong(&context.time, &mut context.rtt, message),
+        ServerMessage::Pong(message) => apply_pong(
+            &context.time,
+            &mut context.rtt,
+            &mut context.clocks.tick_sync,
+            &mut context.clocks.server_tick,
+            message,
+            &context.network,
+        ),
     }
 }

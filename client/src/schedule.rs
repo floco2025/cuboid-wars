@@ -46,7 +46,7 @@ pub fn configure_client_sets(app: &mut App) {
             // Laser beams and missile exhaust anchor to this frame's
             // interpolated character/missile transforms, so they must read
             // the freshly-synced values.
-            ClientSet::CharacterSync,
+            ClientSet::CharacterSync.after(ClientSet::Network),
             ClientSet::Presentation.after(ClientSet::CharacterSync),
             // Rain intensity is smoothed in Sky before the shared particle
             // clouds in Presentation consume the spawned drops.

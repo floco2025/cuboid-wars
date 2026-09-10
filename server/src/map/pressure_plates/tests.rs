@@ -16,6 +16,7 @@ use crate::{
     },
     network::ServerToClient,
     players::{PlayerInfo, PlayerMap, players_group_respawn_system, players_respawn_system},
+    portals::PortalAssignments,
     quests::{
         QuestBoard, QuestCatalog,
         test_support::{catalog, completed, drain, feed_lines, quest},
@@ -29,8 +30,8 @@ use common::{
     physics::CollisionWorld,
     protocol::{
         BarrierKindId, BarrierKindTable, BridgeKindId, BridgeKindTable, CarrierId, HeldPurpose, HexColor, KindDef,
-        LightBridge, MapLayout, MapSettings, PlatePurpose, PlateState, PlayerId, PlayerMarker, Position, QuestId,
-        QuestScope, ServerMessage,
+        LightBridge, MapLayout, MapSettings, PlatePurpose, PlateState, PlayerId, PlayerMarker, PortalMode, Position,
+        QuestId, QuestScope, ServerMessage, ServerTick,
     },
 };
 
@@ -990,6 +991,8 @@ fn toggle_switches_reset_before_a_dead_player_respawns() {
             rows: [1, 2],
         });
     app.insert_resource(config.gameplay_config())
+        .init_resource::<ServerTick>()
+        .insert_resource(PortalAssignments::new(PortalMode::Both))
         .init_resource::<ActorMap>()
         .init_resource::<ActorRespawnTimers>()
         .init_resource::<PendingActorSpawns>()

@@ -12,9 +12,10 @@ use crate::{
     combat::{DeathSource, PendingExplosions, kill_actor, kill_player},
     config::{ActorRespawnConfig, ActorRespawnScope, PlayerRespawnMode, RespawnConfig, ServerGameplayConfig},
     map::{ActorSpawnZone, CellGrid, EdgeGrid, LevelGrid, MapConfig, PlayerSpawnZone},
-    missiles::{MissileInfo, MissileMap},
+    missiles::MissileMap,
     network::ServerToClient,
     players::{PlayerInfo, PlayerQuestState, enter_group_respawn, players_group_respawn_system},
+    portals::PortalAssignments,
     schedule::{ServerSet, configure_server_schedule},
 };
 use common::{
@@ -23,8 +24,8 @@ use common::{
     map::Carriers,
     physics::CollisionWorld,
     protocol::{
-        ActorId, CarrierId, Health, HomingTarget, MapLayout, MissileMarker, PlayerDeathEffect, PlayerId, PlayerMarker,
-        Position, ProjectileMarker, QuestId, ServerMessage, ServerTick, server_tick_advance_system,
+        ActorId, CarrierId, Health, MapLayout, Missile, MissileMovementState, PlayerDeathEffect, PlayerId,
+        PlayerMarker, PortalMode, Position, QuestId, ServerMessage, ServerTick, server_tick_advance_system,
     },
 };
 
@@ -91,7 +92,8 @@ pub(crate) fn respawn_app(mode: PlayerRespawnMode, scope: ActorRespawnScope) -> 
         .init_resource::<PendingActorSpawns>()
         .init_resource::<PendingExplosions>()
         .init_resource::<MissileMap>()
-        .init_resource::<ServerTick>();
+        .init_resource::<ServerTick>()
+        .insert_resource(PortalAssignments::new(PortalMode::Both));
     configure_server_schedule(&mut app);
     app.add_systems(Startup, actors_initial_spawn_system).add_systems(
         Update,
@@ -221,7 +223,7 @@ fn logout_restores_actors_on_an_empty_server_after_the_remaining_delay_and_beam_
         materialize_actors(&mut app);
         let player = PlayerId(1);
         let (entity, _rx) = add_player(&mut app, player);
-        let projectile = app.world_mut().spawn((ProjectileMarker, player)).id();
+
         if died_first {
             kill(&mut app, player);
             advance(&mut app, 1.0);
@@ -252,7 +254,6 @@ fn logout_restores_actors_on_an_empty_server_after_the_remaining_delay_and_beam_
         assert_eq!(app.world().resource::<ActorSpawner>().next_id, 6);
         assert_eq!(app.world().resource::<PendingExplosions>().0.len(), blasts);
         assert!(!app.world().resource::<PlayerMap>().has_active_players());
-        assert!(app.world().get_entity(projectile).is_ok());
     }
 }
 
@@ -269,20 +270,16 @@ fn an_actor_killed_during_the_player_countdown_returns_after_beam_in_without_cle
         .next()
         .expect("actor missing")
         .0;
-    let projectile = app.world_mut().spawn((ProjectileMarker, victim)).id();
-    let missile_entity = app.world_mut().spawn(MissileMarker).id();
+
     let mut missiles = app.world_mut().resource_mut::<MissileMap>();
     let missile_id = missiles.allocate();
     missiles.insert(
         missile_id,
-        MissileInfo::new(
-            missile_entity,
-            victim,
-            Some(HomingTarget::Actor(actor_id)),
-            Vec3::X,
-            0.0,
-            10.0,
-        ),
+        Missile {
+            shooter: victim,
+            seq: 0,
+            movement: MissileMovementState::from_velocity(Position::default(), Vec3::X),
+        },
     );
 
     kill(&mut app, victim);
@@ -329,8 +326,7 @@ fn an_actor_killed_during_the_player_countdown_returns_after_beam_in_without_cle
             actor.anchor.expect("turret anchor missing").pos
         );
     }
-    assert!(app.world().get_entity(projectile).is_ok());
-    assert!(app.world().get_entity(missile_entity).is_ok());
+
     assert!(app.world().resource::<MissileMap>().get(&missile_id).is_some());
     assert_eq!(app.world().resource::<PendingExplosions>().0.len(), 2);
 }

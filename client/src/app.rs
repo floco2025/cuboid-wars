@@ -29,7 +29,6 @@ use crate::{
     vfx::{ExplosionAssets, ExplosionVfxBudget, ParticleClouds, RainIntensity, presentation_plugin},
 };
 use common::{
-    constants::TICK_HZ,
     physics::PortalSet,
     protocol::{SInit, ServerTick},
 };
@@ -106,7 +105,7 @@ pub fn build_client_app(
         OpaqueRenderer::Deferred => DefaultOpaqueRendererMethod::deferred(),
     });
 
-    app.insert_resource(Time::<Fixed>::from_hz(f64::from(TICK_HZ)));
+    app.insert_resource(Time::<Fixed>::from_duration(bootstrap.world.network.tick_duration()));
     // Master volume precedence: CLI flag, then the saved settings, then the default.
     let volume = options
         .volume

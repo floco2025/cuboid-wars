@@ -228,6 +228,7 @@ fn carrier_motion_and_reconciliation_do_not_drive_footsteps() {
     let start = Position::default();
     let mut motion = PlayerAnimationMotion::default();
     let step = CharacterMovementResult {
+        impact_speed: 0.0,
         grounding: Default::default(),
         position: Position { x: 1.1, y: 0.2, z: 0.0 },
         vertical_velocity: 0.0,

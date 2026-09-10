@@ -10,6 +10,7 @@ mod kind_table;
 mod map_layout;
 mod movement;
 mod plates;
+mod player_generation;
 mod portals;
 mod position;
 mod quests;
@@ -38,8 +39,12 @@ pub use movement::{
     ActorMoveIntent, ActorMovementState, FaceYaw, MissileMovementState, PlayerMoveIntent, PlayerMovementState,
 };
 pub use plates::{HeldPurpose, PlateState};
+pub use player_generation::PlayerGeneration;
 pub use portals::{Portal, PortalAccess, PortalEnd};
 pub use position::Position;
 pub use quests::{QuestGroupProgress, QuestGroupStatus, QuestScope, QuestStateProgress, QuestStatus};
 pub use textures::{TextureSettings, validate_texture_catalog, validate_texture_materials};
 pub use tick::{ServerTick, server_tick_advance_system, ticks_from_secs};
+
+mod update_cadence;
+pub use update_cadence::UpdateCadence;

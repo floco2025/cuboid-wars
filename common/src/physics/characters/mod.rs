@@ -26,7 +26,7 @@ pub use movement_plan::{blocking_character_move_plan, character_move_plan_is_blo
 pub use player_control::player_control_velocity;
 pub use player_movement::{PlayerMovementStep, step_player_movement};
 pub use player_state::{PlayerMotionBundle, player_movement_state};
-pub use support::{character_crushed_at, grounding_diagnostics, position_has_floor_support};
+pub use support::{grounding_diagnostics, position_has_floor_support};
 pub use types::{CharacterMovePlan, CharacterMovementResult, CharacterSupport, GroundingDiagnostics};
 
 #[cfg(test)]

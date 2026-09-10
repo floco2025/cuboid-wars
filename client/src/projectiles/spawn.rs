@@ -6,7 +6,7 @@ use crate::{
 };
 use common::{
     config::GameplayConfig,
-    physics::{CollisionWorld, ProjectileMotion, ProjectileSpawnInfo, calculate_projectile_spawns},
+    physics::{CollisionWorld, ProjectileMotion, calculate_projectile_spawns},
     protocol::*,
 };
 
@@ -47,9 +47,7 @@ struct ProjectileBundle {
     mesh: Mesh3d,
     material: MeshMaterial3d<StandardMaterial>,
     transform: Transform,
-    // Authoritative simulation state lives in `Position`, stepped at the
-    // fixed `TICK_HZ` rate to match the server's integration; `Transform` is
-    // presentation only, interpolated between the last two tick positions.
+    // Fixed steps keep the trajectory independent of rendering frame rate.
     position: Position,
     previous_tick_position: PreviousTickPosition,
     proj_motion: ProjectileMotion,
@@ -58,23 +56,6 @@ struct ProjectileBundle {
 }
 
 impl ProjectileBundle {
-    fn new(
-        projectile_assets: &ProjectileAssets,
-        gameplay: &GameplayConfig,
-        projectile_speed: f32,
-        position: Vec3,
-        direction_yaw: f32,
-        direction_pitch: f32,
-        shooter_id: PlayerId,
-    ) -> Self {
-        Self::with_motion(
-            projectile_assets,
-            position,
-            ProjectileMotion::new(direction_yaw, direction_pitch, projectile_speed, &gameplay.projectiles),
-            shooter_id,
-        )
-    }
-
     fn with_motion(
         projectile_assets: &ProjectileAssets,
         position: Vec3,
@@ -94,9 +75,9 @@ impl ProjectileBundle {
     }
 }
 
-// Presentation-only "ember" for the firework show: a glowing projectile with
-// an explicit velocity and a short life. No server twin exists, so it can
-// never deal damage — it just arcs, bounces, and sparks like the real ones.
+#[derive(Component)]
+pub struct EmberMarker;
+
 const EMBER_LIFETIME_SECS: f32 = 6.0;
 
 pub fn spawn_ember_projectile(
@@ -109,11 +90,9 @@ pub fn spawn_ember_projectile(
 ) {
     let mut motion = ProjectileMotion::from_velocity(velocity, &gameplay.projectiles);
     motion.lifetime = Timer::from_seconds(EMBER_LIFETIME_SECS, TimerMode::Once);
-    commands.spawn(ProjectileBundle::with_motion(
-        projectile_assets,
-        pos,
-        motion,
-        shooter.unwrap_or(PlayerId(u32::MAX)),
+    commands.spawn((
+        ProjectileBundle::with_motion(projectile_assets, pos, motion, shooter.unwrap_or(PlayerId(u32::MAX))),
+        EmberMarker,
     ));
 }
 
@@ -121,19 +100,10 @@ pub fn spawn_ember_projectile(
 // Projectile Spawning
 // ============================================================================
 
-// Spawn projectile(s) on whether player has multi-shot power-up
-#[expect(
-    clippy::too_many_arguments,
-    reason = "presentation spawn mirrors the server's spawn inputs"
-)]
 pub fn spawn_projectiles(
     commands: &mut Commands,
     projectile_assets: &ProjectileAssets,
-    pos: &Position,
-    face_yaw: f32,
-    face_pitch: f32,
-    multi_shot_pattern: Option<&str>,
-    shooter_eye_height: f32,
+    shot: &CProjectileShot,
     gameplay: &GameplayConfig,
     projectile_speed: f32,
     collision_world: &CollisionWorld,
@@ -141,48 +111,28 @@ pub fn spawn_projectiles(
     shooter_id: PlayerId,
 ) -> usize {
     let spawns = calculate_projectile_spawns(
-        pos,
-        face_yaw,
-        face_pitch,
-        multi_shot_pattern,
-        shooter_eye_height,
+        &shot.origin,
+        shot.face_yaw,
+        shot.face_pitch,
+        shot.pattern,
         gameplay,
         collision_world,
         open_kinds,
     );
 
-    for spawn_info in &spawns {
-        spawn_single_projectile(
-            commands,
-            projectile_assets,
-            gameplay,
+    for spawn in &spawns {
+        let motion = ProjectileMotion::new(
+            spawn.direction_yaw,
+            spawn.direction_pitch,
             projectile_speed,
-            spawn_info,
-            shooter_id,
+            &gameplay.projectiles,
         );
+        commands.spawn(ProjectileBundle::with_motion(
+            projectile_assets,
+            Vec3::from(spawn.position),
+            motion,
+            shooter_id,
+        ));
     }
-
     spawns.len()
-}
-
-// Internal helper to spawn a single projectile
-fn spawn_single_projectile(
-    commands: &mut Commands,
-    projectile_assets: &ProjectileAssets,
-    gameplay: &GameplayConfig,
-    projectile_speed: f32,
-    spawn_info: &ProjectileSpawnInfo,
-    shooter_id: PlayerId,
-) {
-    let spawn_pos = Vec3::new(spawn_info.position.x, spawn_info.position.y, spawn_info.position.z);
-
-    commands.spawn(ProjectileBundle::new(
-        projectile_assets,
-        gameplay,
-        projectile_speed,
-        spawn_pos,
-        spawn_info.direction_yaw,
-        spawn_info.direction_pitch,
-        shooter_id,
-    ));
 }

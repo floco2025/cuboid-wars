@@ -7,13 +7,15 @@ use common::{
         earliest_projectile_event, projectile_overlaps_character,
     },
     protocol::{
-        ActorId, ActorMarker, FaceYaw, MapSettings, PlateState, PlayerId, PlayerMarker, Position, ProjectileMarker,
+        ActorId, ActorMarker, CProjectileHit, ClientMessage, FaceYaw, MapSettings, PlateState, PlayerId, PlayerMarker,
+        Position, ProjectileMarker,
     },
 };
 
 use super::{
     audio::LastBounceSound,
     collision::{closest_character_hit, handle_field_collisions, present_character_impact, present_world_bounce},
+    spawn::EmberMarker,
 };
 use crate::{
     actors::ActorMap,
@@ -22,7 +24,8 @@ use crate::{
     cameras::MainCameraMarker,
     characters::PreviousTickPosition,
     config::{AssetSet, ClientSettings},
-    players::LocalPlayerMarker,
+    network::{ClientToServer, ClientToServerChannel},
+    players::{LocalPlayerMarker, MyPlayerId, PlayerMap},
     vfx::ParticleClouds,
 };
 
@@ -36,11 +39,11 @@ pub struct ProjectileWorld<'w> {
     plates: Res<'w, PlateState>,
     portal_set: Res<'w, PortalSet>,
     bridge_assets: Res<'w, BridgeAssets>,
+    players: Res<'w, PlayerMap>,
+    my_player_id: Res<'w, MyPlayerId>,
+    to_server: Res<'w, ClientToServerChannel>,
 }
-// Runs in `FixedUpdate` at the shared `TICK_HZ`. The semi-implicit Euler
-// integration in `ProjectileMotion` is step-size-dependent, so stepping at
-// render rate would systematically diverge from the server's 30 Hz
-// trajectories (and compound at every bounce).
+// Fixed steps keep gravity, drag, and ricochets independent of rendering frame rate.
 pub fn projectiles_movement_system(
     mut commands: Commands,
     time: Res<Time>,
@@ -53,6 +56,7 @@ pub fn projectiles_movement_system(
             &mut PreviousTickPosition,
             &mut ProjectileMotion,
             &PlayerId,
+            Has<EmberMarker>,
         ),
         // The `Without`s make this provably disjoint from the player/actor
         // `&Position` queries below (B0001).
@@ -80,7 +84,7 @@ pub fn projectiles_movement_system(
         .map(|transform| transform.translation())
         .unwrap_or(Vec3::ZERO);
 
-    for (projectile_entity, mut position, mut previous_tick_position, mut projectile, shooter_id) in
+    for (projectile_entity, mut position, mut previous_tick_position, mut projectile, shooter_id, ember) in
         &mut projectile_query
     {
         projectile.lifetime.tick(time.delta());
@@ -105,7 +109,12 @@ pub fn projectiles_movement_system(
             if !projectile.left_shooter {
                 let overlaps_shooter = player_query
                     .iter()
-                    .find(|(_, _, _, player_id, _)| *player_id == shooter_id)
+                    .find(|(entity, _, _, player_id, _)| {
+                        *player_id == shooter_id
+                            && world.players.get(player_id).is_some_and(|info| {
+                                info.entity == *entity && world.players.accepts_generation(**player_id, info.generation)
+                            })
+                    })
                     .is_some_and(|(_, player_pos, face_yaw, _, _)| {
                         projectile_overlaps_character(
                             &projectile,
@@ -128,6 +137,7 @@ pub fn projectiles_movement_system(
                 &player_query,
                 &actor_query,
                 &actors,
+                &world.players,
                 &world.gameplay_config,
             );
             let field_t = projectile.field_collision_t(
@@ -141,6 +151,7 @@ pub fn projectiles_movement_system(
                 projectile.velocity,
                 remaining_delta,
                 world.gameplay_config.projectiles.radius,
+                delta,
             );
             let excluded_colliders = portal_hop.map_or(&[][..], |hop| hop.entry_backing);
             let surface_t =
@@ -201,6 +212,16 @@ pub fn projectiles_movement_system(
                     previous_tick_position.0 = current_pos;
                 }
                 ProjectileEvent::Hit => {
+                    let hit = character_hit.expect("character event missing its hit");
+                    if !ember && *shooter_id == world.my_player_id.0 {
+                        let direction = hit.hit().direction;
+                        world
+                            .to_server
+                            .send(ClientToServer::Send(ClientMessage::ProjectileHit(CProjectileHit {
+                                target: hit.target(),
+                                direction: [direction.x, direction.z],
+                            })));
+                    }
                     present_character_impact(
                         &mut commands,
                         asset_server.as_ref(),
@@ -211,7 +232,7 @@ pub fn projectiles_movement_system(
                         &projectile,
                         &current_pos,
                         remaining_delta,
-                        character_hit.expect("character event missing its hit"),
+                        hit,
                     );
                     terminated = true;
                     break;

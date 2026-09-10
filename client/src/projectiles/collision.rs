@@ -3,7 +3,9 @@ use bevy::prelude::*;
 use common::{
     config::GameplayConfig,
     physics::{BallCharacterHit, CollisionWorld, FieldKind, ProjectileMotion, SurfaceBounce, projectile_character_hit},
-    protocol::{ActorId, ActorMarker, BarrierKindId, FaceYaw, PlayerId, PlayerMarker, Position},
+    protocol::{
+        ActorId, ActorMarker, BarrierKindId, FaceYaw, HitTarget, PlayerGeneration, PlayerId, PlayerMarker, Position,
+    },
 };
 
 use super::audio::{
@@ -14,7 +16,7 @@ use crate::{
     barriers::BarrierAssets,
     bridges::BridgeAssets,
     config::{AssetSet, ClientSettings},
-    players::LocalPlayerMarker,
+    players::{LocalPlayerMarker, PlayerMap},
     vfx::{ImpactKind, ParticleCloud, spawn_impact_sparks},
 };
 
@@ -26,11 +28,18 @@ pub(super) fn closest_character_hit(
     player_query: &Query<(Entity, &Position, &FaceYaw, &PlayerId, Has<LocalPlayerMarker>), With<PlayerMarker>>,
     actor_query: &Query<(&ActorId, &Position, &FaceYaw), With<ActorMarker>>,
     actors: &ActorMap,
+    players: &PlayerMap,
     gameplay_config: &GameplayConfig,
 ) -> Option<ProjectileTargetHit> {
     let mut closest_hit = None;
 
-    for (_player_entity, player_pos, face_yaw, player_id, is_local_player) in player_query.iter() {
+    for (entity, player_pos, face_yaw, player_id, is_local_player) in player_query.iter() {
+        let Some(info) = players.get(player_id).filter(|info| info.entity == entity) else {
+            continue;
+        };
+        if !players.accepts_generation(*player_id, info.generation) {
+            continue;
+        }
         // Self-hits only count once the projectile has left the shooter's
         // hitbox (see `ProjectileMotion::left_shooter`).
         if shooter_id == *player_id && !proj_motion.left_shooter {
@@ -47,7 +56,12 @@ pub(super) fn closest_character_hit(
         ) {
             closest_hit = Some(closer_hit(
                 closest_hit,
-                ProjectileTargetHit::Player { is_local_player, hit },
+                ProjectileTargetHit::Player {
+                    id: *player_id,
+                    generation: info.generation,
+                    is_local_player,
+                    hit,
+                },
             ));
         }
     }
@@ -62,7 +76,10 @@ pub(super) fn closest_character_hit(
             .physics();
         if let Some(hit) = projectile_character_hit(proj_pos, proj_motion, delta, actor_pos, face_yaw.0, actor_physics)
         {
-            closest_hit = Some(closer_hit(closest_hit, ProjectileTargetHit::Actor { hit }));
+            closest_hit = Some(closer_hit(
+                closest_hit,
+                ProjectileTargetHit::Actor { id: *actor_id, hit },
+            ));
         }
     }
 
@@ -189,15 +206,25 @@ pub(super) fn present_world_bounce(
 #[derive(Clone, Copy)]
 pub(super) enum ProjectileTargetHit {
     Player {
+        id: PlayerId,
+        generation: PlayerGeneration,
         is_local_player: bool,
         hit: BallCharacterHit,
     },
     Actor {
+        id: ActorId,
         hit: BallCharacterHit,
     },
 }
 
 impl ProjectileTargetHit {
+    pub(super) const fn target(self) -> HitTarget {
+        match self {
+            Self::Player { id, generation, .. } => HitTarget::Player { id, generation },
+            Self::Actor { id, .. } => HitTarget::Actor(id),
+        }
+    }
+
     pub(super) const fn hit(self) -> BallCharacterHit {
         match self {
             Self::Player { hit, .. } | Self::Actor { hit, .. } => hit,

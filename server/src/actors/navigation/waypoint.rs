@@ -1,5 +1,5 @@
 use common::{
-    constants::{LADDER_CLIMB_MIN_SPEED, LADDER_WIDTH, TICK_SECS},
+    constants::{LADDER_CLIMB_MIN_SPEED, LADDER_WIDTH},
     protocol::{ActorMoveIntent, Position},
 };
 
@@ -69,10 +69,10 @@ impl NavWaypoint {
         matches!(self.kind, WaypointKind::Walk)
     }
 
-    pub fn movement_intent(self, pos: &Position, speed: f32) -> ActorMoveIntent {
+    pub fn movement_intent(self, pos: &Position, speed: f32, delta: f32) -> ActorMoveIntent {
         let target = self.position;
         let direction = (target.x - pos.x).atan2(target.z - pos.z);
-        let walk_speed = speed.min(pos.horizontal_distance_sq(&target).sqrt() / TICK_SECS);
+        let walk_speed = speed.min(pos.horizontal_distance_sq(&target).sqrt() / delta);
         match self.kind {
             WaypointKind::Walk => ActorMoveIntent::Moving {
                 direction,

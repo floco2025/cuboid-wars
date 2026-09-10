@@ -47,24 +47,6 @@ pub fn apply_portal_view(
     }
 }
 
-// Takes back what `apply_portal_view` did for a crossing the server
-// rejected: the aim returns by the turn the crossing (and any after it)
-// gave it, and the transient tilt goes with them. The follow camera places
-// itself from the stored aim every frame.
-pub fn undo_portal_view(
-    commands: &mut Commands,
-    camera: Option<Entity>,
-    local_player_info: &mut LocalPlayerInfo,
-    view_change: Vec2,
-) {
-    local_player_info.stored_yaw -= view_change.x;
-    local_player_info.stored_pitch =
-        (local_player_info.stored_pitch - view_change.y).clamp(-CAMERA_MAX_PITCH, CAMERA_MAX_PITCH);
-    if let Some(camera_entity) = camera {
-        commands.entity(camera_entity).remove::<PortalTransitBlend>();
-    }
-}
-
 // Maps the current camera view through the pair and splits it into the
 // upright target aim (yaw, pitch clamped to the mouse-look limits) plus the
 // seeded full rotation whose leftover tilt the blend decays. Camera forward
@@ -97,46 +79,7 @@ fn portal_view_transition(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bevy::ecs::system::SystemState;
     use common::math::angle_delta_radians;
-
-    #[test]
-    fn undoing_a_crossing_restores_the_aim_and_drops_the_blend() {
-        let entry = PortalFrame::from_surface(Vec3::new(0.0, 1.0, 0.0), Vec3::Z, 0.0);
-        let exit = PortalFrame::from_surface(Vec3::new(5.0, 1.0, 0.0), Vec3::X, 0.0);
-        let mut world = World::new();
-        let camera = world.spawn(Transform::default()).id();
-        let mut local = LocalPlayerInfo {
-            stored_yaw: 0.7,
-            stored_pitch: -0.2,
-            ..default()
-        };
-        let before = Vec2::new(local.stored_yaw, local.stored_pitch);
-        let mut state = SystemState::<Commands>::new(&mut world);
-        apply_portal_view(
-            &mut state.get_mut(&mut world).expect("commands unavailable"),
-            Some(camera),
-            &mut local,
-            Vec3::ZERO,
-            &entry,
-            &exit,
-            0.0,
-        );
-        state.apply(&mut world);
-        assert!(world.get::<PortalTransitBlend>(camera).is_some());
-        let view_change = Vec2::new(local.stored_yaw, local.stored_pitch) - before;
-        assert!(view_change.length() > 0.1);
-        undo_portal_view(
-            &mut state.get_mut(&mut world).expect("commands unavailable"),
-            Some(camera),
-            &mut local,
-            view_change,
-        );
-        state.apply(&mut world);
-        assert!((local.stored_yaw - before.x).abs() < 1e-5);
-        assert!((local.stored_pitch - before.y).abs() < 1e-5);
-        assert!(world.get::<PortalTransitBlend>(camera).is_none());
-    }
 
     #[test]
     fn view_through_a_facing_pair_is_preserved_without_tilt() {

@@ -1,60 +1,204 @@
-use bevy::prelude::*;
-
+use super::blast::missile_blast_hits;
 use crate::{
-    characters::PreviousTickPosition, constants::RECON_MISSILE_SNAP_DISTANCE, missiles::MissileVelocity,
-    network::ServerReconciliation,
+    actors::ActorMap,
+    characters::PreviousTickPosition,
+    missiles::{AirGraph, MissileMap, MissileVelocity, OwnedMissile, guide_missile},
+    network::{ClientToServer, ClientToServerChannel},
+    players::PlayerMap,
+    vfx::BlastRadii,
 };
-use common::protocol::{MissileId, MissileMarker, MovementDivergence, Position};
+use bevy::{ecs::system::SystemParam, prelude::*};
+use common::{
+    config::{GameplayConfig, NetworkConfig},
+    constants::MISSILE_RADIUS,
+    map::Carriers,
+    physics::{CollisionWorld, ball_character_hit, ball_overlaps_character, character_hitbox_center},
+    protocol::*,
+};
 
-// Dead-reckon the last server velocity on all three axes (missiles fly; no
-// gravity, no local collision — the server owns detonation) plus the shared
-// reconciliation bleed, applied on all three axes too. Runs in `FixedUpdate`
-// for 30 Hz parity with the server's integration. Captures its own
-// `PreviousTickPosition` — the shared capture system only covers characters.
+type MissileQuery<'w, 's> = Query<
+    'w,
+    's,
+    (
+        Entity,
+        &'static MissileId,
+        &'static mut Position,
+        &'static mut PreviousTickPosition,
+        &'static mut MissileVelocity,
+        &'static mut OwnedMissile,
+    ),
+    With<MissileMarker>,
+>;
+type TargetQuery<'w, 's> = Query<
+    'w,
+    's,
+    (&'static Position, &'static FaceYaw),
+    (Or<(With<PlayerMarker>, With<ActorMarker>)>, Without<MissileMarker>),
+>;
+
+#[derive(SystemParam)]
+pub struct MissileMovementParams<'w, 's> {
+    missiles: ResMut<'w, MissileMap>,
+    query: MissileQuery<'w, 's>,
+    targets: TargetQuery<'w, 's>,
+    players: Res<'w, PlayerMap>,
+    actors: Res<'w, ActorMap>,
+    world: Res<'w, CollisionWorld>,
+    carriers: Res<'w, Carriers>,
+    graph: Res<'w, AirGraph>,
+    plates: Res<'w, PlateState>,
+    gameplay: Res<'w, GameplayConfig>,
+    settings: Res<'w, MapSettings>,
+    blast_radii: Res<'w, BlastRadii>,
+    to_server: Res<'w, ClientToServerChannel>,
+    network: Res<'w, NetworkConfig>,
+}
+
 pub fn missiles_movement_system(
     mut commands: Commands,
     time: Res<Time>,
-    mut query: Query<
-        (
-            Entity,
-            &MissileId,
-            &mut Position,
-            &mut PreviousTickPosition,
-            &mut MissileVelocity,
-            Option<&mut ServerReconciliation>,
-        ),
-        With<MissileMarker>,
-    >,
+    mut cadence: Local<UpdateCadence>,
+    mut params: MissileMovementParams,
 ) {
     let delta = time.delta_secs();
-    for (entity, missile_id, mut pos, mut prev, mut velocity, mut recon_option) in &mut query {
-        prev.0 = *pos;
-
-        let correction = if let Some(recon) = recon_option.as_mut() {
-            let divergence = MovementDivergence {
-                delta: recon.correction_delta,
-                limit: RECON_MISSILE_SNAP_DISTANCE,
-            };
-            if !divergence.within_limit() {
-                warn!(
-                    "missile#{} out of sync, {divergence}; snapping to server position",
-                    missile_id.0
-                );
-                *pos = recon.server_pos;
-                velocity.0 = recon.server_velocity;
-                commands.entity(entity).remove::<ServerReconciliation>();
-                prev.0 = *pos;
+    let send = cadence.ready(params.network.update_hz, params.network.server_hz);
+    if params.query.is_empty() {
+        return;
+    }
+    let mut updates = Vec::new();
+    let bodies: Vec<_> = params
+        .players
+        .iter()
+        .filter_map(|(id, info)| {
+            if !params.players.accepts_generation(*id, info.generation) {
+                return None;
+            }
+            let (pos, yaw) = params.targets.get(info.entity).ok()?;
+            Some((
+                HitTarget::Player {
+                    id: *id,
+                    generation: info.generation,
+                },
+                *pos,
+                yaw.0,
+                params.gameplay.player.physics(),
+            ))
+        })
+        .chain(params.actors.iter().filter_map(|(id, info)| {
+            let (pos, yaw) = params.targets.get(info.entity).ok()?;
+            Some((
+                HitTarget::Actor(*id),
+                *pos,
+                yaw.0,
+                params.gameplay.expect_actor(&info.kind).physics(),
+            ))
+        }))
+        .collect();
+    for (entity, id, mut pos, mut previous, mut velocity, mut owned) in &mut params.query {
+        if !params.missiles.contains_key(id) {
+            continue;
+        }
+        previous.0 = *pos;
+        owned.seq = owned.seq.wrapping_add(1);
+        let flight = &mut owned.flight;
+        let target = flight
+            .target
+            .and_then(|target| {
+                bodies.iter().find(|(body, ..)| match (target, body) {
+                    (HomingTarget::Player(id), HitTarget::Player { id: other, .. }) => id == *other,
+                    (HomingTarget::Actor(id), HitTarget::Actor(other)) => id == *other,
+                    _ => false,
+                })
+            })
+            .map(|(_, pos, _, physics)| character_hitbox_center(*pos, *physics));
+        velocity.0 = guide_missile(
+            flight,
+            &params.gameplay.missiles,
+            &params.graph,
+            &params.carriers,
+            &params.world,
+            &params.plates.open_barrier_kinds,
+            *pos,
+            target,
+            velocity.0,
+            params.settings.movement.missile_speed,
+            delta,
+        );
+        if !flight.armed {
+            flight.armed = !bodies.iter().any(|(target, body, yaw, physics)| {
+                matches!(target, HitTarget::Player { id, .. } if *id == flight.shooter)
+                    && ball_overlaps_character(&pos, MISSILE_RADIUS, body, *yaw, *physics)
+            });
+        }
+        let translation = velocity.0 * delta;
+        let origin = Vec3::from(*pos);
+        let mut earliest = flight.detonate_at.map(|impact| {
+            if translation.length_squared() > 0.0 {
+                ((Vec3::from(impact) - origin).dot(translation) / translation.length_squared()).clamp(0.0, 1.0)
+            } else {
+                0.0
+            }
+        });
+        let mut consider = |t: f32| {
+            if earliest.is_none_or(|old| t < old) {
+                earliest = Some(t);
+            }
+        };
+        if let Some(hit) = params.world.cast_moving_ball(origin, translation, MISSILE_RADIUS) {
+            consider(hit.t);
+        }
+        if let Some(hit) = params.world.cast_moving_ball_against_fields(
+            origin,
+            translation,
+            MISSILE_RADIUS,
+            &params.plates.open_barrier_kinds,
+        ) {
+            consider(hit.t);
+        }
+        for (target, body, yaw, physics) in &bodies {
+            if !flight.armed && matches!(target, HitTarget::Player { id, .. } if *id == flight.shooter) {
                 continue;
             }
-            let fraction = recon.correction_fraction(delta);
-            if recon.applied_fraction >= 1.0 {
-                commands.entity(entity).remove::<ServerReconciliation>();
+            if let Some(hit) = ball_character_hit(&pos, velocity.0, MISSILE_RADIUS, delta, body, *yaw, *physics) {
+                consider(hit.time_of_impact);
             }
-            recon.correction_delta * fraction
+        }
+        if let Some(t) = earliest {
+            let impact = origin + translation * t;
+            let hits = missile_blast_hits(
+                impact,
+                params.blast_radii.missile,
+                &params.world,
+                &params.plates.open_barrier_kinds,
+                bodies.iter().map(|(target, pos, _, physics)| (*target, *pos, *physics)),
+            );
+            params
+                .to_server
+                .send(ClientToServer::Send(ClientMessage::MissileDetonated(
+                    CMissileDetonated {
+                        id: *id,
+                        pos: impact.into(),
+                        hits,
+                    },
+                )));
+            params.missiles.remove(id);
+            commands.entity(entity).despawn();
         } else {
-            Vec3::ZERO
-        };
-
-        *pos += velocity.0 * delta + correction;
+            *pos += translation;
+            if send {
+                updates.push(MissileMove {
+                    id: *id,
+                    seq: owned.seq,
+                    movement: MissileMovementState::from_velocity(*pos, velocity.0),
+                });
+            }
+        }
+    }
+    if !updates.is_empty() {
+        params
+            .to_server
+            .send(ClientToServer::Send(ClientMessage::MissileMoves(CMissileMoves {
+                moves: updates,
+            })));
     }
 }

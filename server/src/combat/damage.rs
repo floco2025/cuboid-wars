@@ -120,6 +120,7 @@ pub fn kill_player(
         players,
         ServerMessage::PlayerDeath(SPlayerDeath {
             id,
+            generation: players.get(&id).expect("dead player missing").session.generation,
             pos,
             killer,
             victim_score,

@@ -6,9 +6,11 @@ use bevy::{
         touch::TouchPhase,
     },
     prelude::*,
-    window::{CursorGrabMode, CursorOptions},
+    window::{CursorGrabMode, CursorOptions, PrimaryWindow, WindowFocused},
 };
 use common::{
+    config::NetworkConfig,
+    map::Carriers,
     physics::{AirborneMomentum, CharacterSupport, CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity},
     protocol::{
         BarrierKindTable, ClientMessage, FaceYaw, MapLayout, PlayerId, PlayerMoveIntent, PortalAccess, PortalPairId,
@@ -17,8 +19,8 @@ use common::{
 };
 
 use super::{
-    WeaponMode, input_camera_view_toggle_system, input_camera_zoom_system, input_cursor_capture_system,
-    input_facing_lock_toggle_system, input_movement_system,
+    WeaponMode, focus::input_focus_system, input_camera_view_toggle_system, input_camera_zoom_system,
+    input_cursor_capture_system, input_facing_lock_toggle_system, input_movement_system,
 };
 use crate::{
     cameras::{CameraInputState, CameraViewMode, FollowCamera, TopDownCameraYaw},
@@ -47,6 +49,8 @@ fn input_app() -> (App, Entity, Entity) {
             &BarrierKindTable::default(),
         ))
         .init_resource::<common::protocol::ServerTick>()
+        .init_resource::<NetworkConfig>()
+        .init_resource::<Carriers>()
         .init_resource::<PlayerMap>()
         .init_resource::<LocalPlayerInfo>()
         .init_resource::<TopDownCameraYaw>()
@@ -87,6 +91,80 @@ fn input_app() -> (App, Entity, Entity) {
         ))
         .id();
     (app, player, cursor)
+}
+
+#[test]
+fn losing_focus_clears_movement_before_physics_even_if_focus_returns_in_the_same_frame() {
+    for immediate_refocus in [false, true] {
+        let (mut app, player, window) = input_app();
+        app.add_message::<WindowFocused>()
+            .add_systems(PreUpdate, input_focus_system);
+        app.world_mut().entity_mut(window).insert(PrimaryWindow);
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::KeyW);
+        app.world_mut()
+            .resource_mut::<ButtonInput<MouseButton>>()
+            .press(MouseButton::Left);
+        app.update();
+        assert!(matches!(
+            app.world().get::<PlayerMoveIntent>(player),
+            Some(PlayerMoveIntent::Walking { .. })
+        ));
+
+        app.world_mut().write_message(WindowFocused { window, focused: false });
+        if immediate_refocus {
+            app.world_mut().write_message(WindowFocused { window, focused: true });
+        }
+        app.world_mut().run_schedule(PreUpdate);
+        assert_eq!(
+            *app.world()
+                .get::<PlayerMoveIntent>(player)
+                .expect("player intent missing"),
+            PlayerMoveIntent::Idle
+        );
+        assert!(
+            app.world()
+                .resource::<ButtonInput<KeyCode>>()
+                .get_pressed()
+                .next()
+                .is_none()
+        );
+        assert!(
+            app.world()
+                .resource::<ButtonInput<MouseButton>>()
+                .get_pressed()
+                .next()
+                .is_none()
+        );
+        app.update();
+        assert_eq!(
+            *app.world()
+                .get::<PlayerMoveIntent>(player)
+                .expect("player intent missing"),
+            PlayerMoveIntent::Idle
+        );
+
+        app.world_mut().write_message(WindowFocused { window, focused: true });
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::KeyD);
+        app.update();
+        assert!(matches!(
+            app.world().get::<PlayerMoveIntent>(player),
+            Some(PlayerMoveIntent::Walking { .. })
+        ));
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .release(KeyCode::KeyD);
+        app.update();
+        assert_eq!(
+            *app.world()
+                .get::<PlayerMoveIntent>(player)
+                .expect("player intent missing"),
+            PlayerMoveIntent::Idle
+        );
+    }
 }
 
 #[test]

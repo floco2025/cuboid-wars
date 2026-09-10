@@ -9,13 +9,16 @@ use crate::{
     combat::{DeathSource, kill_player},
     config::ServerGameplayConfig,
     map::MapConfig,
-    network::{ServerToClient, broadcast_firework_show},
+    network::{ServerToClient, broadcast_firework_show, broadcast_to_all},
     players::{PlayerMap, PlayerStateQuery},
     quests::{QuestBoard, QuestCatalog, complete_quest, unlock_quest},
 };
 use common::{
     config::GameplayConfig,
-    protocol::{BarrierKindId, Health, ItemType, PlayerId, PowerUpKind, QuestGroupProgress, QuestId, QuestScope},
+    protocol::{
+        BarrierKindId, Health, ItemType, PlayerId, PowerUpKind, QuestGroupProgress, QuestId, QuestScope, SPlayerStatus,
+        ServerMessage,
+    },
 };
 
 pub(super) enum AdminOutcome {
@@ -221,8 +224,12 @@ pub(super) fn run_admin_command(
                 return Private("sender not found".to_owned());
             };
             let max = gameplay_config.missiles.max_missiles;
-            // Pickup cues would make an admin grant sound like a world pickup.
             let missiles = info.add_missiles(max, max);
+            let status = SPlayerStatus {
+                collected: Some(ItemType::MissilePack),
+                ..info.status(sender)
+            };
+            broadcast_to_all(players, ServerMessage::PlayerStatus(status));
             Private(format!("gave missiles ({missiles}/{max})"))
         }
         AdminCommand::Firework => {

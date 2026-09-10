@@ -1,13 +1,9 @@
 use bevy_ecs::prelude::*;
 
-use crate::constants::TICK_HZ;
-
 // The tick a simulation step corresponds to on the server. The server counts
 // it, one per update, and stamps it on the state messages. The client counts
-// its own fixed steps and keeps the value at the server tick that will apply
-// what it commits now — server time plus one-way latency — corrected from the
-// server's echoes of its own commits (`TickSync` in the client). World motion
-// that both sides must agree on at tick granularity is a pure function of it.
+// its own fixed steps and estimates current server time from pongs and RTT.
+// World motion shared by both sides is a pure function of this tick.
 #[derive(Resource, Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct ServerTick(pub u32);
 
@@ -18,6 +14,6 @@ pub fn server_tick_advance_system(mut tick: ResMut<ServerTick>) {
 // A configured duration as whole ticks, so both sides time it from the
 // shared tick alone.
 #[must_use]
-pub fn ticks_from_secs(secs: f32) -> u32 {
-    (secs * TICK_HZ as f32).round() as u32
+pub fn ticks_from_secs(secs: f32, server_hz: u32) -> u32 {
+    (secs * server_hz as f32).round() as u32
 }

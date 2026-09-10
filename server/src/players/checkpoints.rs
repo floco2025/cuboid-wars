@@ -38,7 +38,7 @@ pub(crate) fn players_checkpoints_system(
     for (id, player) in players.iter_mut().filter(|(_, player)| player.connection.logged_in) {
         let position = player.entity().and_then(|entity| positions.get(entity).ok());
         let contact = position
-            .filter(|_| player.life.fall_state.support() == CharacterSupport::Ground)
+            .filter(|_| player.life.support == CharacterSupport::Ground)
             .and_then(|(pos, _)| {
                 checkpoint_at_position(
                     &map.checkpoints,

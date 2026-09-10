@@ -63,37 +63,13 @@ pub const LADDER_FUNNEL_GAIN: f32 = 4.0;
 pub const LEVEL_CLASSIFICATION_TOLERANCE: f32 = 0.5;
 
 // ============================================================================
-// Networking
-// ============================================================================
-
-// Rate at which the server broadcasts the full-state `SSnapshot` snapshot to
-// all clients. The snapshot is the authoritative source of presence and
-// state for entities that aren't carried by one-shot cues.
-pub const SNAPSHOT_HZ: u32 = 4;
-pub const SNAPSHOT_SECS: f32 = 1.0 / SNAPSHOT_HZ as f32;
-
-// ============================================================================
 // Game Tick
 // ============================================================================
 
-// Shared game tick rate. Drives the server simulation loop, the client's
-// physics-prediction `FixedUpdate`, server actor-AI decisions, and client
-// player-input commits. Lower = less CPU and bandwidth, higher = more
-// responsive AI and input.
+// Default simulation timing; runtime rates come from NetworkConfig.
 pub const TICK_HZ: u32 = 30;
 pub const TICK_SECS: f32 = 1.0 / TICK_HZ as f32;
 pub const TICK_DURATION: Duration = Duration::from_nanos(1_000_000_000 / TICK_HZ as u64);
-
-// ============================================================================
-// Movement Reconciliation
-// ============================================================================
-
-// Per-axis boundary for server rejection and local-player snapping. The
-// server simulates the same intent from the same start, so a legitimate
-// disagreement is small: about six ticks of terminal-velocity fall between
-// accepted reports, one tick of carrier phase, and the blast a client has
-// not received yet.
-pub const PLAYER_MOVEMENT_TRUST_DISTANCE: f32 = 5.0;
 
 // ============================================================================
 // Characters

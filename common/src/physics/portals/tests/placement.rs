@@ -123,9 +123,7 @@ fn placement_rejects_overlap_with_another_portal() {
     };
     let existing = [portal(PortalEnd::A, Vec3::new(0.5, 1.6, 0.0), Vec3::Z, 0.0)];
     assert!(portal_placement_overlaps(
-        &placement,
-        PortalPairId(2),
-        PortalEnd::B,
+        &placement.portal(PortalPairId(2), PortalEnd::B, &Carriers::default()),
         &existing,
         &Carriers::default()
     ));
@@ -141,18 +139,14 @@ fn placement_allows_clear_space_and_replacing_its_own_end() {
     };
     let clear = [portal(PortalEnd::A, Vec3::new(2.0, 1.6, 0.0), Vec3::Z, 0.0)];
     assert!(!portal_placement_overlaps(
-        &placement,
-        PortalPairId(2),
-        PortalEnd::B,
+        &placement.portal(PortalPairId(2), PortalEnd::B, &Carriers::default()),
         &clear,
         &Carriers::default()
     ));
 
     let replaced = [portal(PortalEnd::B, Vec3::new(0.0, 1.6, 0.0), Vec3::Z, 0.0)];
     assert!(!portal_placement_overlaps(
-        &placement,
-        PortalPairId(1),
-        PortalEnd::B,
+        &placement.portal(PortalPairId(1), PortalEnd::B, &Carriers::default()),
         &replaced,
         &Carriers::default()
     ));

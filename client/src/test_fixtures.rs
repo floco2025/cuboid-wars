@@ -4,6 +4,7 @@ use std::collections::HashMap;
 
 use common::{
     config::{GameplayConfig, KnockbackConfig, MapGeometryConfig, MapMovementConfig, PlayerMovementConfig},
+    map::MapGeometry,
     protocol::{MapSettings, PortalMode},
 };
 
@@ -29,6 +30,10 @@ pub(crate) const LEVEL_HEIGHT: f32 = 4.4;
 pub(crate) const FLOOR_THICKNESS: f32 = 0.4;
 pub(crate) const WALL_THICKNESS: f32 = 0.3;
 pub(crate) const WALL_HEIGHT: f32 = LEVEL_HEIGHT - FLOOR_THICKNESS;
+
+pub(crate) fn geometry(cols: i32, rows: i32) -> MapGeometry {
+    MapGeometry::new(cols, rows, sizes())
+}
 
 pub(crate) fn sizes() -> MapGeometryConfig {
     MapGeometryConfig {

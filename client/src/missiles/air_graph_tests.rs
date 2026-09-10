@@ -1,0 +1,288 @@
+use super::*;
+use crate::test_fixtures::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS, geometry};
+use common::{
+    constants::MISSILE_RADIUS,
+    protocol::{Barrier, BarrierKindTable, Carrier, Floor, MapLayout, Position, Wall},
+};
+
+fn map(cols: i32, rows: i32, levels: usize) -> AirGraph {
+    AirGraph {
+        grids: vec![super::super::air_graph::AirGrid {
+            carrier: CarrierId::WORLD,
+            geometry: geometry(cols, rows),
+            layers: levels as i32 + 1,
+        }],
+    }
+}
+
+fn wall(x1: f32, z1: f32, x2: f32, z2: f32) -> Wall {
+    Wall {
+        x1,
+        z1,
+        x2,
+        z2,
+        width: WALL_THICKNESS,
+        y: 0.0,
+        height: WALL_HEIGHT,
+        level: 0,
+        carrier: CarrierId::WORLD,
+    }
+}
+
+fn floor(x1: f32, z1: f32, x2: f32, z2: f32, y: f32) -> Floor {
+    Floor {
+        x1,
+        z1,
+        x2,
+        z2,
+        y,
+        thickness: FLOOR_THICKNESS,
+        level: 1,
+        carrier: CarrierId::WORLD,
+    }
+}
+
+fn world(layout: &MapLayout) -> CollisionWorld {
+    CollisionWorld::from_map_layout(layout, &BarrierKindTable::default())
+}
+
+fn assert_clear_path(world: &CollisionWorld, from: Vec3, to: Vec3, path: &VecDeque<Vec3>) {
+    let mut previous = from;
+    for point in path {
+        assert!(
+            sweep_clear(world, &[], previous, *point - previous, MISSILE_RADIUS),
+            "blocked leg {previous} -> {point}"
+        );
+        previous = *point;
+    }
+    assert_eq!(previous, to);
+}
+
+#[test]
+fn air_path_reaches_fuse_range_of_a_target_beside_a_wall() {
+    let graph = map(4, 4, 2);
+    let world = world(&MapLayout {
+        walls: vec![wall(0.0, -6.8, 0.0, 6.8)],
+        ..default()
+    });
+    let from = Vec3::new(-5.1, 1.0, -1.7);
+    let target = Vec3::new(WALL_THICKNESS / 2.0 + 0.26, 1.0, -1.7);
+    assert!(!world.attack_path_clear(from, target, &[]));
+    assert!(!sweep_clear(&world, &[], target, Vec3::ZERO, MISSILE_RADIUS));
+    let path = graph
+        .path(&Carriers::default(), &world, &[], from, target, MISSILE_RADIUS, 1.0)
+        .expect("route to exposed fuse range missing");
+    let end = *path.back().expect("terminal waypoint missing");
+    assert!(end.distance(target) < 1.0);
+    assert!(world.attack_path_clear(end, target, &[]));
+    assert_clear_path(&world, from, end, &path);
+    assert!(
+        graph
+            .path(&Carriers::default(), &world, &[], from, target, MISSILE_RADIUS, 0.0)
+            .is_none()
+    );
+}
+
+#[test]
+fn fuse_range_does_not_make_a_route_through_cover() {
+    let graph = map(2, 1, 2);
+    let world = world(&MapLayout {
+        walls: vec![wall(0.0, -2.0, 0.0, 2.0)],
+        floors: vec![floor(-3.5, -2.0, 3.5, 2.0, LEVEL_HEIGHT)],
+        ..default()
+    });
+    let from = Vec3::new(-0.5, 1.0, 0.0);
+    let target = Vec3::new(WALL_THICKNESS / 2.0 + 0.26, 1.0, 0.0);
+    assert!(from.distance(target) < 1.0);
+    assert!(
+        graph
+            .path(&Carriers::default(), &world, &[], from, target, MISSILE_RADIUS, 1.0)
+            .is_none()
+    );
+}
+
+#[test]
+fn air_path_descends_through_a_floor_opening() {
+    let graph = map(2, 1, 2);
+    let layout = MapLayout {
+        floors: vec![floor(-3.4, -1.7, 0.0, 1.7, LEVEL_HEIGHT)],
+        ..default()
+    };
+    let world = world(&layout);
+    let from = Vec3::new(-1.7, LEVEL_HEIGHT + 1.0, 0.0);
+    let to = Vec3::new(-1.7, 1.0, 0.0);
+    let path = graph
+        .path(&Carriers::default(), &world, &[], from, to, MISSILE_RADIUS, 1.0)
+        .expect("route through floor opening missing");
+    assert_clear_path(&world, from, to, &path);
+    assert!(path.iter().any(|point| point.x > 0.0));
+}
+
+#[test]
+fn air_path_crests_over_an_open_topped_wall() {
+    let graph = map(2, 1, 1);
+    let layout = MapLayout {
+        walls: vec![wall(0.0, -2.0, 0.0, 2.0)],
+        ..default()
+    };
+    let world = world(&layout);
+    let from = Vec3::new(-1.7, 1.0, 0.0);
+    let to = Vec3::new(1.7, 1.0, 0.0);
+    let path = graph
+        .path(&Carriers::default(), &world, &[], from, to, MISSILE_RADIUS, 1.0)
+        .expect("route over wall missing");
+    assert_clear_path(&world, from, to, &path);
+    assert!(path.iter().any(|point| point.y > WALL_HEIGHT));
+}
+
+#[test]
+fn air_path_fails_when_fully_roofed() {
+    let graph = map(2, 1, 2);
+    let layout = MapLayout {
+        walls: vec![wall(0.0, -2.0, 0.0, 2.0)],
+        floors: vec![floor(-3.5, -2.0, 3.5, 2.0, LEVEL_HEIGHT)],
+        ..default()
+    };
+    let world = world(&layout);
+    assert!(
+        graph
+            .path(
+                &Carriers::default(),
+                &world,
+                &[],
+                Vec3::new(-1.7, 1.0, 0.0),
+                Vec3::new(1.7, 1.0, 0.0),
+                MISSILE_RADIUS,
+                1.0
+            )
+            .is_none()
+    );
+}
+
+#[test]
+fn routes_into_a_shifted_room_keep_clear_of_its_walls_floor_and_roof() {
+    let mut map = map(7, 7, 3);
+    let room_grid = geometry(3, 3);
+    let mut room = self::map(3, 3, 2).grids.remove(0);
+    room.carrier = CarrierId(1);
+    map.grids.push(room);
+    let graph = map;
+    let half = room_grid.width() / 2.0;
+    let door_half = room_grid.cell_size() / 2.0;
+    let walls = [
+        wall(-half, -half, half, -half),
+        wall(-half, half, half, half),
+        wall(half, -half, half, half),
+        wall(-half, -half, -half, -door_half),
+        wall(-half, door_half, -half, half),
+        wall(0.0, -half, 0.0, door_half),
+    ]
+    .map(|wall| Wall {
+        carrier: CarrierId(1),
+        ..wall
+    });
+    let layout = MapLayout {
+        walls: walls.to_vec(),
+        floors: vec![
+            Floor {
+                carrier: CarrierId(1),
+                ..floor(-half, -half, half, half, 0.0)
+            },
+            Floor {
+                carrier: CarrierId(1),
+                ..floor(-half, -half, half, half, LEVEL_HEIGHT)
+            },
+        ],
+        carriers: vec![Carrier {
+            parent: CarrierId::WORLD,
+            level: 0,
+            levels: 1,
+            from: Position::from(Vec3::new(-1.1, 0.0, -0.7)),
+            to: Position::from(Vec3::new(1.2, 2.3, 1.0)),
+            travel_ticks: 120,
+            pause_ticks: 30,
+            phase_ticks: 0,
+        }],
+        ..default()
+    };
+    let mut carriers = Carriers::from_layout(&layout);
+    let mut world = world(&layout);
+    for tick in [0, 30, 60, 90, 120, 180, 240] {
+        carriers.advance(tick);
+        world.set_carrier_poses(&carriers);
+        let target = carriers.pose(CarrierId(1)).transform_point(Vec3::new(2.0, 1.0, 1.0));
+        for offset in [Vec3::X, Vec3::NEG_X, Vec3::Z, Vec3::NEG_Z] {
+            let from = (target + offset * 8.0).with_y(1.5);
+            let path = graph
+                .path(&carriers, &world, &[], from, target, MISSILE_RADIUS, 1.0)
+                .expect("route through moving room's door missing");
+            assert_clear_path(&world, from, target, &path);
+        }
+    }
+}
+
+#[test]
+fn a_gap_narrower_than_the_missile_diameter_is_not_a_route() {
+    let graph = map(2, 1, 1);
+    let layout = MapLayout {
+        walls: vec![wall(0.0, -2.0, 0.0, -0.2), wall(0.0, 0.2, 0.0, 2.0)],
+        floors: vec![floor(-3.5, -2.0, 3.5, 2.0, LEVEL_HEIGHT)],
+        ..default()
+    };
+    let world = world(&layout);
+    let from = Vec3::new(-1.7, 1.0, 0.0);
+    let to = Vec3::new(1.7, 1.0, 0.0);
+    assert!(
+        graph
+            .path(&Carriers::default(), &world, &[], from, to, MISSILE_RADIUS, 1.0)
+            .is_none()
+    );
+    assert!(
+        graph
+            .path(&Carriers::default(), &world, &[], from, to, 0.1, 1.0)
+            .is_some()
+    );
+}
+
+#[test]
+fn opened_barriers_allow_a_route_without_stale_grid_flags() {
+    let graph = map(2, 1, 1);
+    let layout = MapLayout {
+        barriers: vec![Barrier {
+            x1: 0.0,
+            z1: -2.0,
+            x2: 0.0,
+            z2: 2.0,
+            width: 0.2,
+            y: 0.0,
+            height: WALL_HEIGHT,
+            level: 0,
+            levels: 1,
+            carrier: CarrierId::WORLD,
+            kind: BarrierKindId(0),
+        }],
+        floors: vec![floor(-3.5, -2.0, 3.5, 2.0, LEVEL_HEIGHT)],
+        ..default()
+    };
+    let kinds = BarrierKindTable::from_ids(vec!["gate".into()]).expect("test barrier catalog invalid");
+    let world = CollisionWorld::from_map_layout(&layout, &kinds);
+    let from = Vec3::new(-0.5, 1.0, 0.0);
+    let to = Vec3::new(0.3, 1.0, 0.0);
+    assert!(
+        graph
+            .path(&Carriers::default(), &world, &[], from, to, MISSILE_RADIUS, 1.0)
+            .is_none()
+    );
+    assert_eq!(
+        graph.path(
+            &Carriers::default(),
+            &world,
+            &[BarrierKindId(0)],
+            from,
+            to,
+            MISSILE_RADIUS,
+            1.0
+        ),
+        Some(VecDeque::from([to]))
+    );
+}

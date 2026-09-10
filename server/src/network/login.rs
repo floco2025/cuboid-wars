@@ -1,8 +1,7 @@
 use bevy::prelude::*;
 
 use crate::{
-    characters::MovementStart,
-    network::{FeedAudience, FeedEvent, ServerToClient, emit_feed},
+    network::{FeedAudience, FeedEvent, ServerToClient, broadcast_player_relocation, emit_feed},
     players::{PlayerMap, enter_group_respawn, player_spawn_destination},
     portals::{PortalAssignments, PortalMap},
     quests::{QuestBoard, QuestCatalog, assign_quests},
@@ -110,7 +109,6 @@ pub(super) fn handle_login_message(
     info.life.checkpoint_contact = spawn.contact;
     commands.entity(entity).insert((
         spawn.pos,
-        MovementStart(spawn.pos),
         PlayerMoveIntent::Idle,
         FaceYaw(spawn.face_yaw),
         CharacterVerticalVelocity::default(),
@@ -118,6 +116,14 @@ pub(super) fn handle_login_message(
         KnockbackVelocity::default(),
         Health(world.server_gameplay_config.combat.health.player.max),
     ));
+    broadcast_player_relocation(
+        players,
+        id,
+        world.tick.0,
+        PlayerMovementState::new(spawn.pos, PlayerMoveIntent::Idle, 0.0, spawn.face_yaw),
+        Health(world.server_gameplay_config.combat.health.player.max),
+        portal_access,
+    );
 }
 
 #[cfg(test)]
@@ -189,8 +195,10 @@ mod tests {
                 portal_access: PortalAccess::None,
             },
             world: WorldBootstrap {
+                network: Default::default(),
                 gameplay: config.gameplay_bootstrap(),
                 map: MapBootstrap {
+                    missile_air_grids: Vec::new(),
                     layout: MapLayout::default(),
                     settings: MapSettings {
                         barrier_kinds: vec![
@@ -238,7 +246,7 @@ mod checkpoint_tests {
     use crate::{
         config::{ActorRespawnScope, PlayerRespawnMode, ServerGameplayConfig},
         map::MapConfig,
-        network::{CharacterQueries, ServerToClient, SharedWorld},
+        network::{ServerToClient, SharedWorld, handlers::CharacterQueries},
         players::{CheckpointId, PlayerCheckpoint, PlayerInfo, PlayerMap, respawn_tests::respawn_app},
         portals::{PortalAssignments, PortalMap},
         quests::{QuestBoard, QuestCatalog},
@@ -311,8 +319,10 @@ mod checkpoint_tests {
             let settings = app.world().resource::<MapSettings>().clone();
             let gameplay = app.world().resource::<ServerGameplayConfig>().gameplay_bootstrap();
             app.insert_resource(WorldBootstrap {
+                network: Default::default(),
                 gameplay,
                 map: MapBootstrap {
+                    missile_air_grids: Vec::new(),
                     layout: layout.clone(),
                     settings: settings.clone(),
                     items: MapItems(Vec::new()),

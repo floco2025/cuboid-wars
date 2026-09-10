@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 
 use bevy::prelude::*;
 
-use common::protocol::{ActorId, PlayerId, Position};
+use common::protocol::{ActorId, MissileBlastHit, PlayerId, Position};
 
 pub enum PendingExplosion {
     Player {
@@ -20,6 +20,7 @@ pub enum PendingExplosion {
     Missile {
         shooter: PlayerId,
         pos: Position,
+        hits: Vec<MissileBlastHit>,
     },
 }
 
@@ -40,7 +41,7 @@ impl PendingExplosions {
         });
     }
 
-    pub fn push_missile(&mut self, shooter: PlayerId, pos: Position) {
-        self.0.push_back(PendingExplosion::Missile { shooter, pos });
+    pub fn push_missile(&mut self, shooter: PlayerId, pos: Position, hits: Vec<MissileBlastHit>) {
+        self.0.push_back(PendingExplosion::Missile { shooter, pos, hits });
     }
 }

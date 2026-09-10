@@ -1,5 +1,5 @@
-use super::*;
-use bevy::prelude::*;
+use super::{focus::input_focus_system, *};
+use bevy::{input::InputSystems, prelude::*};
 
 use crate::{
     missiles::lock_on_system,
@@ -16,6 +16,8 @@ fn gameplay_input_active(console: Res<ConsoleState>, menu: Res<SettingsMenuState
 
 pub fn input_plugin(app: &mut App) {
     app.init_resource::<PendingWeaponSelection>();
+    // Clear held input and intent before FixedUpdate can simulate another step.
+    app.add_systems(PreUpdate, input_focus_system.after(InputSystems));
     app.add_systems(PreUpdate, windowed_frame_system);
     app.add_systems(
         Update,

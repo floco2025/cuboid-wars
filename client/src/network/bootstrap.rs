@@ -6,6 +6,7 @@ use crate::{
     carriers::{CarrierStoreys, spawn_carrier_entities},
     characters::MaxHealth,
     config::{AssetSet, ClientSettings},
+    missiles::AirGraph,
     players::MyPlayerId,
     projectiles::ProjectileAssets,
     ui::{HudBanner, QuestLog},
@@ -14,6 +15,7 @@ use crate::{
 use common::{map::Carriers, physics::CollisionWorld, protocol::*};
 
 pub(crate) fn install_bootstrap(app: &mut App, message: SInit, asset_set: &AssetSet) -> anyhow::Result<()> {
+    message.world.network.validate()?;
     let gameplay_config = message.world.gameplay.gameplay_config()?;
     let map_settings = &message.world.map.settings;
     map_settings.movement.validate("map.settings.movement")?;
@@ -59,13 +61,15 @@ pub(crate) fn install_bootstrap(app: &mut App, message: SInit, asset_set: &Asset
             .map(|(kind, actor)| (kind.clone(), actor.death_blast_radius))
             .collect(),
     };
+    let air_graph = AirGraph::new(&message.world.map.missile_air_grids, map_settings.geometry);
     let collision_world = CollisionWorld::from_map_layout(&message.world.map.layout, &barrier_kind_table);
     let carriers = Carriers::from_layout(&message.world.map.layout);
     let carrier_entities = spawn_carrier_entities(app.world_mut(), &message.world.map.layout, &carriers);
     let carrier_storeys = CarrierStoreys::from_layout(&message.world.map.layout);
 
     debug!("received Init: my_id=player#{}", message.player.id.0);
-    app.insert_resource(MyPlayerId(message.player.id))
+    app.insert_resource(message.world.network)
+        .insert_resource(MyPlayerId(message.player.id))
         .insert_resource(message.player.portal_access)
         .insert_resource(gameplay_config)
         .insert_resource(barrier_kind_table)
@@ -75,6 +79,7 @@ pub(crate) fn install_bootstrap(app: &mut App, message: SInit, asset_set: &Asset
         .insert_resource(message.world.map.layout)
         .insert_resource(message.world.map.settings)
         .insert_resource(collision_world)
+        .insert_resource(air_graph)
         .insert_resource(carriers)
         .insert_resource(carrier_entities)
         .insert_resource(carrier_storeys)

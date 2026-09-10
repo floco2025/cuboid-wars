@@ -1,5 +1,6 @@
 mod camera;
 mod cursor;
+mod focus;
 mod missiles;
 mod movement;
 #[cfg(test)]

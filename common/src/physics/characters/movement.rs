@@ -379,6 +379,12 @@ fn finish_character_movement(
     } else {
         CharacterSupport::Airborne
     };
+    // Ground probes can zero velocity before the cast; preserve that incoming impact too.
+    let impact_speed = if support == CharacterSupport::Ground {
+        (-step.vertical_velocity.min(request.next_vertical_velocity)).max(0.0)
+    } else {
+        0.0
+    };
     // Leaving a tile keeps its rise or drop: a jump off a rising lift goes
     // higher, the way it does off a real one.
     if support == CharacterSupport::Airborne {
@@ -402,6 +408,7 @@ fn finish_character_movement(
         grounding,
         position: resolved,
         vertical_velocity,
+        impact_speed,
         support,
         blocked,
         floor_velocity,

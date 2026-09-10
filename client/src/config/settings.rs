@@ -11,12 +11,16 @@ use crate::constants::{
     RENDERING_PORTAL_VIEW_BUDGET_DEFAULT, RENDERING_VSYNC_DEFAULT,
 };
 
-use super::{audio::AudioConfig, camera::CameraConfig, hud::HudConfig, rendering::RenderingConfig, vfx::VfxConfig};
+use super::{
+    audio::AudioConfig, camera::CameraConfig, hud::HudConfig, interpolation::InterpolationConfig,
+    rendering::RenderingConfig, vfx::VfxConfig,
+};
 
 // JSON tuning and runtime preferences; local settings override only preferences.
 #[derive(Resource, Debug, Clone, Deserialize)]
 pub struct ClientSettings {
     pub rendering: RenderingConfig,
+    pub interpolation: InterpolationConfig,
     pub camera: CameraConfig,
     #[serde(skip)]
     pub preferences: UserPreferences,
@@ -188,6 +192,7 @@ impl ClientSettings {
 
     pub(crate) fn validate(&self) -> Result<()> {
         self.rendering.validate()?;
+        self.interpolation.validate()?;
         self.camera.validate()?;
         self.preferences.validate()?;
         self.hud.validate()?;

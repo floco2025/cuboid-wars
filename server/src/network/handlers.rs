@@ -2,7 +2,6 @@ use bevy::{ecs::system::SystemParam, prelude::*};
 
 use super::feed::{FeedAudience, FeedEvent, emit_feed};
 use crate::{
-    actors::ActorStateQuery,
     config::{FeedConfig, ServerGameplayConfig},
     map::MapConfig,
     network::ServerToClient,
@@ -17,8 +16,7 @@ use common::{
 // not ripple through every signature.
 #[derive(SystemParam)]
 pub(crate) struct SharedWorld<'w> {
-    pub(crate) map_layout: Res<'w, MapLayout>,
-    pub(crate) map_settings: Res<'w, MapSettings>,
+    pub(crate) tick: Res<'w, ServerTick>,
     pub(crate) collision_world: Res<'w, CollisionWorld>,
     pub(crate) carriers: Res<'w, Carriers>,
     pub(crate) gameplay_config: Res<'w, GameplayConfig>,
@@ -30,12 +28,12 @@ pub(crate) struct SharedWorld<'w> {
 #[derive(SystemParam)]
 pub(crate) struct CharacterQueries<'w, 's> {
     pub(crate) player_data: PlayerStateQuery<'w, 's>,
-    pub(crate) actor_data: ActorStateQuery<'w, 's>,
 }
 
-pub(super) fn handle_ping_message(id: PlayerId, message: CPing, players: &PlayerMap) {
+pub(super) fn handle_ping_message(id: PlayerId, message: CPing, players: &PlayerMap, tick: ServerTick) {
     if let Some(player) = players.get(&id) {
         let pong = ServerMessage::Pong(SPong {
+            tick: tick.0,
             timestamp_nanos: message.timestamp_nanos,
         });
         let _ = player.connection.channel.send(ServerToClient::Send(pong));

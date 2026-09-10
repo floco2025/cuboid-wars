@@ -1,5 +1,6 @@
 use crate::{
     config::GameplayConfig,
+    math::direction_from_yaw_pitch,
     physics::CollisionWorld,
     protocol::{BarrierKindId, Position},
 };
@@ -22,34 +23,28 @@ pub struct ProjectileSpawnInfo {
 // Returns a list of projectiles that should be spawned, excluding any that would
 // be blocked by walls on the way from the muzzle to the spawn point.
 #[must_use]
-#[expect(
-    clippy::too_many_arguments,
-    reason = "spawn geometry reads shooter state, config, and world"
-)]
 pub fn calculate_projectile_spawns(
-    shooter_pos: &Position,
+    origin: &Position,
     face_yaw: f32,
     face_pitch: f32,
-    multi_shot_pattern: Option<&str>,
-    shooter_eye_height: f32,
+    pattern: u8,
     gameplay: &GameplayConfig,
     collision_world: &CollisionWorld,
     open_kinds: &[BarrierKindId],
 ) -> Vec<ProjectileSpawnInfo> {
     let mut spawns = Vec::new();
 
-    let offsets = multi_shot_pattern
-        .and_then(|name| gameplay.projectiles.multi_shot.pattern(name))
-        .map_or(&[(0.0, 0.0)][..], |pattern| pattern.shots());
+    let Some(offsets) = gameplay.projectiles.multi_shot.shot_offsets(pattern) else {
+        return spawns;
+    };
 
     for &(yaw_offset, pitch_offset) in offsets {
         let shot_yaw = face_yaw + yaw_offset;
         let shot_pitch = face_pitch + pitch_offset;
 
-        let aim = crate::math::direction_from_yaw_pitch(shot_yaw, shot_pitch);
+        let aim = direction_from_yaw_pitch(shot_yaw, shot_pitch);
 
-        // Camera origin at eye height (match FPV) and push forward along aim direction
-        let camera_origin = Vec3::new(shooter_pos.x, shooter_pos.y + shooter_eye_height, shooter_pos.z);
+        let camera_origin = Vec3::from(*origin);
         let spawn_pos = camera_origin + aim * gameplay.projectiles.spawn_offset;
 
         let spawn_position: Position = spawn_pos.into();

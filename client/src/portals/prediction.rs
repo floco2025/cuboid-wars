@@ -8,10 +8,7 @@ use crate::{
 };
 use common::{
     config::GameplayConfig,
-    physics::{
-        AirborneMomentum, CharacterSupport, CharacterVerticalVelocity, KnockbackVelocity, PlayerHopBody, PortalSet,
-        player_movement_state,
-    },
+    physics::{AirborneMomentum, CharacterVerticalVelocity, KnockbackVelocity, PlayerHopBody, PortalSet},
     protocol::{FaceYaw, MapSettings, PlayerId, PlayerMoveIntent, Position, PowerUpKind},
 };
 
@@ -33,7 +30,6 @@ pub fn portal_transit_system(
             &mut PlayerMoveIntent,
             &mut KnockbackVelocity,
             &mut AirborneMomentum,
-            &CharacterSupport,
         ),
         With<LocalPlayerMarker>,
     >,
@@ -41,17 +37,8 @@ pub fn portal_transit_system(
     if local_player_info.is_dead || portal_set.is_empty() {
         return;
     }
-    for (
-        id,
-        mut pos,
-        mut prev,
-        mut face_yaw,
-        mut vertical_velocity,
-        mut move_intent,
-        mut knockback,
-        mut momentum,
-        support,
-    ) in &mut query
+    for (id, mut pos, mut prev, mut face_yaw, mut vertical_velocity, mut move_intent, mut knockback, mut momentum) in
+        &mut query
     {
         let (has_speed, stunned) = players
             .get(id)
@@ -74,21 +61,12 @@ pub fn portal_transit_system(
             continue;
         };
 
-        let entrance = player_movement_state(
-            *pos,
-            *move_intent,
-            &face_yaw,
-            &vertical_velocity,
-            &momentum,
-            &knockback,
-            *support,
-        );
+        let entrance = *pos;
         hop.apply_player_state(&mut pos, &mut face_yaw, &mut vertical_velocity, &mut move_intent);
         hop.apply_motion_components(&mut knockback, &mut momentum);
         // Anchor render interpolation at the exit: the transit renders as a
         // cut there, not a smear between the portals.
         prev.0 = *pos;
-        let view_before = Vec2::new(local_player_info.stored_yaw, local_player_info.stored_pitch);
         apply_portal_view(
             &mut commands,
             cameras.single().ok(),
@@ -98,7 +76,6 @@ pub fn portal_transit_system(
             &hop.exit,
             hop.yaw,
         );
-        let view_change = Vec2::new(local_player_info.stored_yaw, local_player_info.stored_pitch) - view_before;
-        local_player_info.reports.begin_crossing(entrance, view_change);
+        local_player_info.reports.begin_crossing(entrance);
     }
 }

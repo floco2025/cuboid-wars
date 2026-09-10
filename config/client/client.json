@@ -12,6 +12,7 @@
       "threshold_softness": 0.4
     }
   },
+  "interpolation": { "buffer_intervals": 2.0 },
   "vfx": {
     "pickups": { "emissive_brightness": 1.0 },
     "barriers": {

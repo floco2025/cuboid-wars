@@ -249,9 +249,12 @@ impl SpawnPlanner<'_> {
             pos: self.carriers.pose(zone.carrier).inverse_transform_position(&pos),
             face_yaw: self.rng.random_range(0.0..TAU),
             reserved_tick: self.tick,
-            due_tick: self
-                .tick
-                .wrapping_add(self.config.actors.settings.spawn_warning_ticks()),
+            due_tick: self.tick.wrapping_add(
+                self.config
+                    .actors
+                    .settings
+                    .spawn_warning_ticks(self.config.network.server_hz),
+            ),
         });
         true
     }

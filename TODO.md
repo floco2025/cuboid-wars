@@ -2,6 +2,10 @@
 
 ## Fixes
 
+- **Rejected portal placement plays two sounds:** trying to place a portal on a non-portalable texture plays both the fizzle sound and the placement sound. Play only the fizzle sound when placement is rejected.
+
+- **Third-person body clipping during portal traversal:** jumping into a floor portal makes the player's legs disappear before the body emerges from the exit, leaving the model visibly cut in half. Keep the body presentation continuous across portal entry and exit.
+
 - **Checkpoint re-entry replays the shared activation:** a jump in place inside a group zone (the seeded contact in `server/src/players/checkpoints.rs` survives only within 5 cm of the floor, so the first airborne tick drops it) or stepping out of and back into the already-active shared checkpoint re-runs the activation, regressing individual saves, rewriting everyone's facing, and clearing partial Group — all visits. Skip activation when the entered checkpoint is already `PlayerMap.shared_checkpoint`, and cover Ground → Airborne → Ground at the same spot with a test.
 
 - **Simultaneous shared entries lose the second:** when two shared checkpoints are entered on the same tick, `apply_checkpoint_entries` activates the lowest index and breaks, but the other entrant's `checkpoint_contact` is already recorded, so that checkpoint never activates until they leave and re-enter. Defer the remaining entries to the next tick instead of dropping them.
@@ -20,6 +24,12 @@
 
 ## Enhancements
 
+- **Separate test files:** move inline tests into sibling test files, or test directories where useful, so production-code changes can be reviewed independently of test changes in VS Code and other diff tools.
+
+- **Common-code ownership after the client-trust migration:** audit modules in `common` and move code used only by the client or only by the server into its owning crate. Keep shared types, protocol, configuration, and algorithms used by both sides in `common`.
+
+- **Host a game from a client:** colocate the server with one client so it can host the game. Use message queues for communication between the host client and its server, bypassing the network stack; remote clients connect over the network.
+
 - **Checkpoint scan on maps without checkpoints:** `players_checkpoints_system` runs a capsule cast per grounded player every tick before reading an empty list. Gate it with a `run_if` on `map.checkpoints`, like `pending_actor_spawns_active`.
 
 - **Checkpoint spawn sampler duplicates the zone sampler:** `checkpoint_spawn_position` repeats the attempt loop, radius inset, pose transform, and occupied test from `server/src/characters/spawning.rs` with a bare 100 beside `SPAWN_MAX_ATTEMPTS`, and blocks on every solid where zones test only walls. Share the loop and keep the clearance predicate and center-first attempt per caller.
@@ -31,14 +41,6 @@
 - **Tool Reference lacks Checkpoints:** the editor's Help → Tool Reference has no section for the Checkpoint tool, its Type selector, right-click type editing, or Erase Checkpoints.
 
 - **Grounding inspection after a blocked step:** the per-frame refresh now only fills characters that lack the diagnostics, so a body blocked by another character draws its probe from the motor's proposed position until the next tick.
-
-- **Crossing exits are unchecked:** `resolve_portal_crossing` compares only the entrance and adopts any exit, so a `CPortalCross` is a teleport with no geometry behind it. With the other abuse hardening, validate the exit against `PortalSet` through the shared `player_hop` from the accepted entrance.
-
-- **Crossing queue is unbounded:** `PlayerMovementReports` coalesces ordinary moves but keeps every crossing, and one is processed per tick. Cap the per-player queue with the other ingress budgets.
-
-- **Rejected crossing can leave the server body in the backing:** the server's step lets the body sink into an aperture it never crosses, so the retained position after a rejection may lie inside the wall behind the plane, and the owner snaps there. Rare (a rejection needs a large entrance disagreement); a push-out or a server-side re-hop would settle it.
-
-- **Report in flight across an instant respawn:** a report sent before the client learned of its death is dropped while the body is gone but not marked stale, so a respawn with no countdown could adopt it if the spawn lies within the trust distance of where it was sent. Advance the sequence cutoff at respawn or record the spawn tick.
 
 - **Rapier upgrades:** Recheck the capsule floor-motion regression before removing the contact-normal adapter in `common/src/physics/world/character_queries.rs`. It works around imprecise cast normals feeding Rapier 0.32’s slope decomposition.
 
@@ -53,8 +55,6 @@
 - **Puzzle design:** See [PUZZLES.md](PUZZLES.md) for the element inventory, nine example maps, guard encounters, and [next decisions](PUZZLES.md#next-decisions).
 
 ## Testing
-
-- **Client movement trust:** Play obstacle courses with multiple clients under latency, jitter, and packet loss. Check narrow landings, moving platforms, ladders, portal launches, knockback, and remote-player smoothing. Cross consecutive portals before confirmation and check uninterrupted local motion and remote transitions. Cross a close portal pair (both ends on one wall) under loss and watch the remote copy arrive without a stuck moment. Take a missile blast under loss and confirm the launch, and jump under loss, including low gravity, and confirm the takeoff. Force ordinary and portal entrance disagreements and confirm clean recovery with server rejection/client snap warnings; normal play should log no warnings.
 
 - **Shared checkpoints:** Play through Group — any and Group — all with multiple clients, including staggered visits, death, joining, and leaving. Check each player's next respawn and checkpoint notification.
 

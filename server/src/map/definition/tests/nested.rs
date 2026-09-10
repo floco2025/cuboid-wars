@@ -78,6 +78,7 @@ fn a_nested_plate_allows_actor_routes_through_parent_barriers() {
     switch.pressure_plates.push(red_barrier_plate());
     let (_, config) = compile_map(
         &root,
+        30,
         sizes(),
         &tree(vec![("switch", switch)]),
         &three_kind_table(),
@@ -94,6 +95,7 @@ fn a_parent_plate_allows_actor_routes_through_nested_barriers() {
     root.pressure_plates.push(red_barrier_plate());
     let (_, config) = compile_map(
         &root,
+        30,
         sizes(),
         &tree(vec![("corridor", barrier_corridor())]),
         &three_kind_table(),
@@ -115,6 +117,7 @@ fn a_deeply_nested_plate_allows_actor_routes_through_a_siblings_barriers() {
     switch.pressure_plates.push(red_barrier_plate());
     let (_, config) = compile_map(
         &root,
+        30,
         sizes(),
         &tree(vec![
             ("corridor", barrier_corridor()),
@@ -153,7 +156,7 @@ fn firework_plate_does_not_open_any_barrier_kind() {
     });
 
     let (layout, config) =
-        compile_map(&map_def, sizes(), &no_nested(), &three_kind_table(), &no_bridges()).expect("compile");
+        compile_map(&map_def, 30, sizes(), &no_nested(), &three_kind_table(), &no_bridges()).expect("compile");
     assert!(
         config.root_grid().levels[0].barrier_edges.vertical[0][1],
         "a firework plate opens no barrier kind for nav"
@@ -224,7 +227,7 @@ fn tree(maps: Vec<(&str, MapDef)>) -> LoadedMaps {
 }
 
 fn compile_host(host: &MapDef, nested: &LoadedMaps) -> (common::protocol::MapLayout, crate::map::MapConfig) {
-    compile_map(host, sizes(), nested, &empty_kind_table(), &no_bridges()).expect("host failed to compile")
+    compile_map(host, 30, sizes(), nested, &empty_kind_table(), &no_bridges()).expect("host failed to compile")
 }
 
 #[test]
@@ -391,11 +394,18 @@ fn nested_kinds_resolve_against_the_root_tables_and_an_unknown_kind_names_the_ne
     let host_def = host(vec![nested("room", 0, [2, 2], [2, 2], 0)]);
     let nested_maps = tree(vec![("room", keyed_room)]);
 
-    let (layout, _) = compile_map(&host_def, sizes(), &nested_maps, &red_only_kind_table(), &no_bridges())
-        .expect("a nested barrier of a root kind failed to compile");
+    let (layout, _) = compile_map(
+        &host_def,
+        30,
+        sizes(),
+        &nested_maps,
+        &red_only_kind_table(),
+        &no_bridges(),
+    )
+    .expect("a nested barrier of a root kind failed to compile");
     assert_eq!(layout.barriers.len(), 1);
 
-    let error = compile_map(&host_def, sizes(), &nested_maps, &empty_kind_table(), &no_bridges())
+    let error = compile_map(&host_def, 30, sizes(), &nested_maps, &empty_kind_table(), &no_bridges())
         .expect_err("an unknown nested kind compiled");
     assert!(format!("{error:#}").contains("nested map \"room\""), "{error:#}");
 }

@@ -420,12 +420,12 @@ fn multi_shot_fires_the_configured_stencil() {
     let (yaw, pitch) = (0.3, 0.1);
     let close = |a: f32, b: f32| (a - b).abs() < 1e-5;
 
-    let single = calculate_projectile_spawns(&shooter, yaw, pitch, None, 1.6, &gameplay, &world, &[]);
+    let single = calculate_projectile_spawns(&shooter, yaw, pitch, 0, &gameplay, &world, &[]);
     assert_eq!(single.len(), 1);
     assert!(close(single[0].direction_yaw, yaw) && close(single[0].direction_pitch, pitch));
 
     let spread = 1.5_f32.to_radians();
-    let multi = calculate_projectile_spawns(&shooter, yaw, pitch, Some("test"), 1.6, &gameplay, &world, &[]);
+    let multi = calculate_projectile_spawns(&shooter, yaw, pitch, 1, &gameplay, &world, &[]);
     let offsets: Vec<(f32, f32)> = multi
         .iter()
         .map(|spawn| (spawn.direction_yaw - yaw, spawn.direction_pitch - pitch))

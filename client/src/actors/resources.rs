@@ -3,8 +3,8 @@ use std::collections::HashMap;
 
 use crate::network::accept_newer_tick;
 use common::{
-    constants::TICK_SECS,
-    protocol::{ActorAnchor, ActorBeam, ActorId},
+    config::NetworkConfig,
+    protocol::{ActorBeam, ActorId},
 };
 
 // Actor information (client-side).
@@ -13,7 +13,6 @@ pub struct ActorInfo {
     // Kind string from the wire `Actor.kind`. Used to look up per-kind
     // model, sounds, and effects when this actor is destroyed.
     pub kind: String,
-    pub anchor: Option<ActorAnchor>,
     pub beam: ActorBeamState,
 }
 
@@ -24,10 +23,10 @@ pub struct ActorBeamState {
 }
 
 impl ActorBeamState {
-    pub fn active(&self, tick: u32) -> Option<ActorBeam> {
+    pub fn active(&self, tick: u32, network: &NetworkConfig) -> Option<ActorBeam> {
         let mut beam = self.beam?;
         let elapsed_ticks = (tick.wrapping_sub(self.tick?) as i32).max(0);
-        beam.remaining_secs -= elapsed_ticks as f32 * TICK_SECS;
+        beam.remaining_secs -= elapsed_ticks as f32 * network.tick_secs();
         (beam.remaining_secs > 0.0).then_some(beam)
     }
 
@@ -124,12 +123,12 @@ mod tests {
         beam.apply(10, burst(1));
         beam.apply(12, None);
         beam.apply(11, burst(2));
-        assert_eq!(beam.active(12), None);
+        assert_eq!(beam.active(12, &NetworkConfig::default()), None);
         beam.apply(13, burst(2));
         beam.apply(12, None);
-        assert_eq!(beam.active(13), burst(2));
+        assert_eq!(beam.active(13, &NetworkConfig::default()), burst(2));
         beam.apply(14, None);
-        assert_eq!(beam.active(14), None);
+        assert_eq!(beam.active(14, &NetworkConfig::default()), None);
     }
 
     #[test]
@@ -138,10 +137,10 @@ mod tests {
         beam.apply(u32::MAX, burst(1));
         beam.apply(0, burst(2));
         beam.apply(u32::MAX, None);
-        assert_eq!(beam.active(0), burst(2));
-        let active = beam.active(30).expect("beam expired early");
+        assert_eq!(beam.active(0, &NetworkConfig::default()), burst(2));
+        let active = beam.active(30, &NetworkConfig::default()).expect("beam expired early");
         assert!((active.remaining_secs - 1.0).abs() < 0.0001);
-        assert_eq!(beam.active(61), None);
+        assert_eq!(beam.active(61, &NetworkConfig::default()), None);
     }
 
     #[test]
@@ -155,16 +154,24 @@ mod tests {
                 remaining_secs: 1.0,
             }),
         );
-        assert!((beam.active(55).expect("beam expired early").remaining_secs - 0.5).abs() < 0.0001);
-        assert_eq!(beam.active(71), None);
+        assert!(
+            (beam
+                .active(55, &NetworkConfig::default())
+                .expect("beam expired early")
+                .remaining_secs
+                - 0.5)
+                .abs()
+                < 0.0001
+        );
+        assert_eq!(beam.active(71, &NetworkConfig::default()), None);
         beam.apply(
             60,
             Some(ActorBeam {
                 target: PlayerId(1),
                 started_tick: 10,
-                remaining_secs: 10.0 * TICK_SECS,
+                remaining_secs: 10.0 * NetworkConfig::default().tick_secs(),
             }),
         );
-        assert_eq!(beam.active(71), None);
+        assert_eq!(beam.active(71, &NetworkConfig::default()), None);
     }
 }

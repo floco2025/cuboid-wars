@@ -1,14 +1,18 @@
+#[cfg(test)]
+pub(super) use common::physics::blast_falloff_at_distance;
 use std::collections::HashMap;
 
 use bevy::{ecs::system::SystemParam, prelude::*};
 use common::{
     config::{GameplayConfig, MapMovementConfig},
-    constants::EXPLOSION_BLAST_CORE_FRACTION,
     health::apply_damage,
-    physics::{CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity, character_hitbox_center},
+    physics::{
+        CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity, character_hitbox_center, planar_shove,
+        visible_blast_falloff,
+    },
     protocol::{
-        ActorId, ActorMarker, BarrierKindId, Health, MapSettings, PlateState, PlayerId, PlayerMarker, Position,
-        SPlayerKnockback, ServerMessage,
+        ActorId, ActorMarker, BarrierKindId, Health, HitTarget, MapSettings, MissileBlastHit, PlateState, PlayerId,
+        PlayerMarker, Position, SPlayerKnockback, ServerMessage,
     },
 };
 
@@ -24,14 +28,7 @@ use crate::{
 type PlayerBlastQuery<'w, 's> = Query<
     'w,
     's,
-    (
-        Entity,
-        &'static PlayerId,
-        &'static Position,
-        &'static mut Health,
-        &'static mut CharacterVerticalVelocity,
-        &'static mut KnockbackVelocity,
-    ),
+    (Entity, &'static PlayerId, &'static Position, &'static mut Health),
     (With<PlayerMarker>, Without<ActorMarker>),
 >;
 
@@ -95,6 +92,7 @@ struct BlastSpec {
     // Player credited for blast kills. Death blasts credit no one; a missile
     // blast credits its shooter.
     killer: Option<PlayerId>,
+    reported_hits: Option<Vec<MissileBlastHit>>,
 }
 
 struct DeadPlayer {
@@ -210,6 +208,7 @@ fn blast_spec(pending: PendingExplosion, gameplay: &GameplayConfig, server: &Ser
             excluded_actor: None,
             damage: server.combat.damage.player_blast,
             killer: None,
+            reported_hits: None,
         },
         PendingExplosion::Actor {
             source_id,
@@ -225,14 +224,16 @@ fn blast_spec(pending: PendingExplosion, gameplay: &GameplayConfig, server: &Ser
             excluded_actor: Some(source_entity),
             damage: server.combat.damage.expect_actor(&spawn_kind).death_blast,
             killer: None,
+            reported_hits: None,
         },
-        PendingExplosion::Missile { shooter, pos } => BlastSpec {
+        PendingExplosion::Missile { shooter, pos, hits } => BlastSpec {
             source: BlastSource::Missile(shooter),
             // The detonation point itself — a missile has no character body.
             center: Vec3::from(pos),
             excluded_actor: None,
             damage: server.combat.damage.missile_blast,
             killer: Some(shooter),
+            reported_hits: Some(hits),
         },
     }
 }
@@ -257,15 +258,18 @@ fn apply_blast(
 ) -> BlastOutcome {
     let mut outcome = BlastOutcome::default();
 
-    for (entity, id, pos, mut health, mut vertical_velocity, knockback) in player_query.iter_mut() {
-        if players.get(id).is_some_and(|info| info.is_dead()) {
+    for (entity, id, pos, mut health) in player_query.iter_mut() {
+        let Some(player) = players.get(id).filter(|info| !info.is_dead()) else {
             continue;
-        }
+        };
         let victim_center = character_hitbox_center(*pos, gameplay.player.physics());
-        let Some(falloff) = visible_blast_falloff(
-            spec.center,
+        let Some((falloff, direction)) = blast_hit(
+            spec,
+            HitTarget::Player {
+                id: *id,
+                generation: player.session.generation,
+            },
             victim_center,
-            spec.damage.radius,
             collision_world,
             open_barriers,
         ) else {
@@ -283,13 +287,12 @@ fn apply_blast(
             }
         }
 
-        vertical_velocity.0 += movement.knockback.up_speed * falloff;
         accumulate_impulse(
             player_impulses,
             *id,
             entity,
-            Some(&*knockback),
-            planar_shove(spec.center, victim_center, falloff, movement.knockback.max_speed),
+            None,
+            direction * falloff * movement.knockback.max_speed + Vec3::Y * movement.knockback.up_speed * falloff,
         );
     }
 
@@ -302,10 +305,10 @@ fn apply_blast(
         };
         let actor_physics = gameplay.expect_actor(&info.spawn_kind).physics();
         let victim_center = character_hitbox_center(*pos, actor_physics);
-        let Some(falloff) = visible_blast_falloff(
-            spec.center,
+        let Some((falloff, direction)) = blast_hit(
+            spec,
+            HitTarget::Actor(*id),
             victim_center,
-            spec.damage.radius,
             collision_world,
             open_barriers,
         ) else {
@@ -330,7 +333,7 @@ fn apply_blast(
             *id,
             entity,
             knockback,
-            planar_shove(spec.center, victim_center, falloff, movement.knockback.max_speed),
+            direction * falloff * movement.knockback.max_speed,
         );
     }
 
@@ -352,27 +355,22 @@ pub(super) fn accumulate_impulse<Id: std::hash::Hash + Eq + Copy>(
 }
 
 fn apply_player_impulses(context: &mut ExplosionContext, impulses: HashMap<PlayerId, AccumulatedImpulse>) {
-    let max_speed = context.map_settings.movement.knockback.max_speed * 1.5;
     for (id, impulse) in impulses {
         if context.players.get(&id).is_some_and(|info| info.is_dead()) {
             continue;
         }
-        let Ok((_, _, _, health, vertical_velocity, mut knockback)) = context.player_query.get_mut(impulse.entity)
-        else {
+        let Ok((_, _, _, health)) = context.player_query.get_mut(impulse.entity) else {
             continue;
         };
-        let velocity = impulse.velocity.clamp_length_max(max_speed);
-        knockback.0 = velocity;
         if let Some(info) = context.players.get(&id) {
             let _ = info
                 .connection
                 .channel
                 .send(ServerToClient::Send(ServerMessage::PlayerKnockback(SPlayerKnockback {
                     id,
+                    generation: info.session.generation,
                     health: *health,
-                    vertical_velocity: vertical_velocity.0,
-                    velocity_x: velocity.x,
-                    velocity_z: velocity.z,
+                    impulse: impulse.velocity.to_array(),
                 })));
         }
     }
@@ -391,43 +389,27 @@ fn apply_actor_impulses(context: &mut ExplosionContext, impulses: HashMap<ActorI
     }
 }
 
-fn visible_blast_falloff(
-    center: Vec3,
-    target: Vec3,
-    radius: f32,
-    collision_world: &CollisionWorld,
-    open_barriers: &[BarrierKindId],
-) -> Option<f32> {
-    let distance_squared = center.distance_squared(target);
-    if distance_squared >= radius * radius {
-        return None;
-    }
-    if !collision_world.attack_path_clear(center, target, open_barriers) {
-        return None;
-    }
-    Some(blast_falloff_at_distance(distance_squared.sqrt(), radius))
-}
-
-fn planar_shove(center: Vec3, target: Vec3, falloff: f32, max_speed: f32) -> Vec3 {
-    Vec3::new(target.x - center.x, 0.0, target.z - center.z).normalize_or_zero() * max_speed * falloff
-}
-
-pub(super) fn blast_falloff_at_distance(distance: f32, radius: f32) -> f32 {
-    if distance >= radius {
-        return 0.0;
-    }
-    let core = radius * EXPLOSION_BLAST_CORE_FRACTION;
-    if distance <= core {
-        return 1.0;
-    }
-    let progress = (distance - core) / (radius - core);
-    (1.0 - progress).powi(2)
-}
-
 fn source_description(source: &BlastSource, players: &PlayerMap) -> String {
     match source {
         BlastSource::Player(id) => format!("{}'s death explosion", players.describe(id)),
         BlastSource::Actor { id, kind } => format!("{kind}#{}'s explosion", id.0),
         BlastSource::Missile(id) => format!("{}'s missile explosion", players.describe(id)),
     }
+}
+
+fn blast_hit(
+    spec: &BlastSpec,
+    target: HitTarget,
+    center: Vec3,
+    world: &CollisionWorld,
+    open_kinds: &[BarrierKindId],
+) -> Option<(f32, Vec3)> {
+    if let Some(hits) = &spec.reported_hits {
+        let hit = hits.iter().find(|hit| hit.target == target)?;
+        let direction = Vec3::new(hit.direction[0], 0.0, hit.direction[1]);
+        return (hit.falloff.is_finite() && direction.is_finite())
+            .then(|| (hit.falloff.clamp(0.0, 1.0), direction.clamp_length_max(1.0)));
+    }
+    let falloff = visible_blast_falloff(spec.center, center, spec.damage.radius, world, open_kinds)?;
+    Some((falloff, planar_shove(spec.center, center, 1.0, 1.0)))
 }

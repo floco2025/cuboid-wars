@@ -9,7 +9,7 @@ use common::{
         CharacterSupport, CharacterVerticalVelocity, CollisionWorld, GroundingDiagnostics, PortalSet,
         grounding_diagnostics, passable_barrier_kinds,
     },
-    protocol::{FaceYaw, PlateState, PlayerId, Position},
+    protocol::{ActorMarker, FaceYaw, PlateState, PlayerId, Position},
 };
 
 use super::BoundsMode;
@@ -18,7 +18,7 @@ use crate::{
     constants::{
         BOUNDS_AIRBORNE_COLOR, BOUNDS_CAPSULE_COLOR, BOUNDS_GROUNDED_COLOR, BOUNDS_HITBOX_COLOR, BOUNDS_LADDER_COLOR,
     },
-    players::{CuboidShake, PlayerMap},
+    players::{CuboidShake, PlayerMap, RemotePlayerMotion},
 };
 
 #[derive(Component)]
@@ -113,10 +113,8 @@ fn bounds_transform(parent: &Transform, center: Vec3, rotation: Quat) -> Transfo
         .with_scale(parent.scale.recip())
 }
 
-// The tick planners own a character's diagnostics; this fills them in for a
-// character that has not stepped yet, so a fresh body draws its probe on
-// its first frame.
-pub fn refresh_grounding_debug_system(
+// Interpolated characters have no physics step to refresh their grounding diagnostics.
+pub(crate) fn refresh_grounding_debug_system(
     mut commands: Commands,
     mode: Res<BoundsMode>,
     world: Res<CollisionWorld>,
@@ -124,14 +122,26 @@ pub fn refresh_grounding_debug_system(
     plates: Res<PlateState>,
     players: Res<PlayerMap>,
     roots: Query<(&ChildOf, &CharacterBounds)>,
-    actors: Query<(&Position, Option<&PlayerId>, &CharacterVerticalVelocity), Without<GroundingDiagnostics>>,
+    characters: Query<
+        (
+            &Position,
+            Option<&PlayerId>,
+            &CharacterVerticalVelocity,
+            Option<&CharacterSupport>,
+        ),
+        Or<(
+            Without<GroundingDiagnostics>,
+            With<RemotePlayerMotion>,
+            With<ActorMarker>,
+        )>,
+    >,
 ) {
     if *mode != BoundsMode::Grounding {
         return;
     }
     for (parent, bounds) in &roots {
         let entity = parent.parent();
-        let Ok((pos, player, motion)) = actors.get(entity) else {
+        let Ok((pos, player, motion, support)) = characters.get(entity) else {
             continue;
         };
         let keys = player
@@ -145,12 +155,14 @@ pub fn refresh_grounding_debug_system(
         };
         let mut ground = grounding_diagnostics(&world, pos, bounds.physics, &passable, &excluded);
         ground.supported &= motion.0 <= 0.0;
-        let support = if ground.supported {
-            CharacterSupport::Ground
-        } else {
-            CharacterSupport::Airborne
-        };
-        commands.entity(entity).insert((ground, support));
+        commands.entity(entity).insert(ground);
+        if support.is_none() {
+            commands.entity(entity).insert(if ground.supported {
+                CharacterSupport::Ground
+            } else {
+                CharacterSupport::Airborne
+            });
+        }
     }
 }
 
@@ -286,7 +298,10 @@ mod tests {
     }
     #[test]
     fn bounds_interpolate_between_ticks_without_animation_or_hit_shake() {
-        use crate::{characters::PreviousTickPosition, players::players_transform_sync_system};
+        use crate::{
+            characters::PreviousTickPosition,
+            players::{LocalPlayerMarker, players_transform_sync_system},
+        };
         use common::{
             config::{HitboxConfig, MovementColliderConfig},
             protocol::PlayerMarker,
@@ -315,6 +330,7 @@ mod tests {
                 .world_mut()
                 .spawn((
                     PlayerMarker,
+                    LocalPlayerMarker,
                     Position { x: 4.0, y: 0.0, z: 0.0 },
                     PreviousTickPosition(Position { x: 3.0, y: 0.0, z: 0.0 }),
                     FaceYaw(-1.3),

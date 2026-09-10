@@ -47,8 +47,7 @@ impl CarrierId {
     }
 }
 
-// What a missile homes on. Carried in `CMissileShot`; guidance is server-only,
-// so it never rides snapshots or intents.
+// Launch messages carry the selected target to the shooter that owns guidance.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Encode, Decode)]
 pub enum HomingTarget {
     Player(PlayerId),

@@ -117,6 +117,7 @@ impl Fixture {
         self.graph.build_ladder_links(
             &self.layout.ladders[0],
             &LadderClimber {
+                delta: TICK_SECS,
                 collision_world: &world,
                 map_settings: &settings,
                 physics: self.physics,
@@ -332,7 +333,7 @@ fn actors_complete_ladder_routes_on_moving_carriers() {
                                 remaining.pop_front();
                             }
                             let Some(&waypoint) = remaining.front() else { break };
-                            let intent = waypoint.movement_intent(&local, speed);
+                            let intent = waypoint.movement_intent(&local, speed, TICK_SECS);
                             carriers.advance(tick);
                             world.set_carrier_poses(&carriers);
                             let step = step_actor_movement(ActorMovementStep {
@@ -440,7 +441,7 @@ fn ladder_targets_hold_a_stable_height_and_cannot_skip_blocked_spans() {
             .waypoints
             .back()
             .expect("pursuit endpoint missing")
-            .movement_intent(&start, 5.0)
+            .movement_intent(&start, 5.0, TICK_SECS)
             .speed(),
         Some(0.0)
     );

@@ -1,15 +1,10 @@
-mod air_graph;
-mod guidance;
-mod movement;
-mod pathfind;
-mod plugin;
+mod reports;
 mod resources;
 mod spawn;
-mod steering;
 
-pub use air_graph::AirGraph;
-pub use guidance::missiles_guidance_system;
-pub use movement::missiles_movement_system;
-pub use plugin::missiles_plugin;
-pub use resources::{MissileInfo, MissileMap, MissileVelocity};
+pub(crate) use reports::{handle_missile_detonated, handle_missile_moves};
+pub use resources::MissileMap;
 pub(crate) use spawn::handle_missile_shot_message;
+
+#[cfg(test)]
+mod reports_tests;

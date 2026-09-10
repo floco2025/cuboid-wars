@@ -14,7 +14,7 @@ fn every_registered_map_loads_and_validates() {
     let server = ServerGameplayConfig::load_default().expect("server gameplay config rejected");
     for (name, entry) in &server.maps {
         let (barrier_kinds, bridge_kinds) = entry.settings.kind_tables().expect("shipped kind tables rejected");
-        let map = generate_map(name, &entry.settings, &barrier_kinds, &bridge_kinds)
+        let map = generate_map(name, 30, &entry.settings, &barrier_kinds, &bridge_kinds)
             .unwrap_or_else(|error| panic!("shipped map {name:?} failed to generate: {error:#}"));
         validate_map_actor_kinds(&server, &map.config).unwrap_or_else(|error| panic!("{name}: {error}"));
         validate_map_quests(&entry.quests, &map.config, entry.random_items.as_ref())
@@ -37,7 +37,7 @@ fn every_shipped_ladder_ascends_at_least_one_storey() {
         let map_settings = &map_server_config.settings;
         let (kind_table, bridge_table) = map_settings.kind_tables().expect("shipped kind tables rejected");
         let map_sizes = map_settings.geometry;
-        let layout = generate_map(map_name, map_settings, &kind_table, &bridge_table)
+        let layout = generate_map(map_name, 30, map_settings, &kind_table, &bridge_table)
             .expect("map failed to generate")
             .layout;
         let world = CollisionWorld::from_map_layout(&layout, &kind_table);
@@ -106,7 +106,7 @@ fn every_shipped_carrier_carries_a_standing_player_through_its_cycle() {
     for (map_name, map_server_config) in &server_gameplay.maps {
         let map_settings = &map_server_config.settings;
         let (kind_table, bridge_table) = map_settings.kind_tables().expect("shipped kind tables rejected");
-        let layout = generate_map(map_name, map_settings, &kind_table, &bridge_table)
+        let layout = generate_map(map_name, 30, map_settings, &kind_table, &bridge_table)
             .expect("map failed to generate")
             .layout;
         let mut world = CollisionWorld::from_map_layout(&layout, &kind_table);

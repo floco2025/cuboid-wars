@@ -61,8 +61,7 @@ impl PortalPlacement {
     }
 }
 
-// Shared client/server placement; shots can disagree while replicated
-// plate state or carrier poses are catching up.
+// Resolve the shot against the firing client's geometry and carrier poses.
 pub fn compute_portal_placement(
     origin: Vec3,
     direction: Vec3,
@@ -269,17 +268,11 @@ const PORTAL_OVERLAP_HALF_DEPTH: f32 = 0.05;
 // Whether the candidate crosses another end where the ends are right now;
 // an end that later rides its carrier into a static one is not foreseen.
 #[must_use]
-pub fn portal_placement_overlaps(
-    placement: &PortalPlacement,
-    pair: PortalPairId,
-    end: PortalEnd,
-    existing: &[Portal],
-    carriers: &Carriers,
-) -> bool {
-    let candidate = PortalFrame::from_surface(placement.pos, placement.normal, placement.yaw);
+pub fn portal_placement_overlaps(candidate: &Portal, existing: &[Portal], carriers: &Carriers) -> bool {
+    let frame = PortalFrame::from_portal(candidate, carriers);
     existing.iter().any(|portal| {
-        (portal.pair, portal.end) != (pair, end)
-            && portal_frames_overlap(&candidate, &PortalFrame::from_portal(portal, carriers))
+        (portal.pair, portal.end) != (candidate.pair, candidate.end)
+            && portal_frames_overlap(&frame, &PortalFrame::from_portal(portal, carriers))
     })
 }
 

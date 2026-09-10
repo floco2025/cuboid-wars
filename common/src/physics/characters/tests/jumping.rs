@@ -59,6 +59,13 @@ fn landing_reports_ground_support() {
 
     assert_eq!(step.vertical_velocity, 0.0);
     assert_eq!(step.support, CharacterSupport::Ground);
+    assert_eq!(step.impact_speed, 12.5);
+    let standing = step_in(
+        &collision_world,
+        character_step_toward(step.position, 0.0, pos.x, pos.z, 0.1),
+        LadderMode::Automatic,
+    );
+    assert_eq!(standing.impact_speed, 0.0);
 }
 
 #[test]
@@ -159,4 +166,34 @@ fn player_on_floor_top_can_move_over_adjacent_floor_slab_edge() {
         step.position.y >= floor.y - 0.01,
         "expected player to remain near floor top, got {step:?}"
     );
+}
+
+#[test]
+fn landing_keeps_incoming_speed_when_a_ground_probe_stops_the_fall() {
+    let world = collision_world(&[lower_floor()], &[]);
+    let pos = Position::default();
+    let result = step_in(
+        &world,
+        character_step_toward(pos, -15.0, 0.0, 0.0, 0.1),
+        LadderMode::Automatic,
+    );
+    assert_eq!(result.vertical_velocity, 0.0);
+    assert_eq!(result.impact_speed, 15.0);
+}
+
+#[test]
+fn landing_speed_uses_accumulated_velocity_with_only_this_steps_gravity_change() {
+    let world = collision_world(&[lower_floor()], &[]);
+    let carriers = Carriers::default();
+    for gravity in [0.0, 5.0, 25.0] {
+        let mut env = test_environment(&world, &carriers, player_physics(), LadderMode::Automatic);
+        env.gravity = gravity;
+        let pos = Position {
+            y: 0.4,
+            ..Default::default()
+        };
+        let result = step_character_movement(character_step_toward(pos, -20.0, 0.0, 0.0, 0.1), &env);
+        assert_eq!(result.impact_speed, 20.0 + gravity * 0.1);
+        assert_eq!(result.vertical_velocity, 0.0);
+    }
 }

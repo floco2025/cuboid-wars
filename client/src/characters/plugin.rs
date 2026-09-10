@@ -11,7 +11,8 @@ use crate::{
     carriers::carriers_transform_sync_system,
     missiles::missiles_movement_system,
     players::{
-        local_player_cuboid_shake_system, player_animation_update_system, players_transform_sync_system,
+        LocalPlayerMarker, interpolate_remote_players_system, local_player_cuboid_shake_system,
+        player_animation_update_system, players_transform_sync_system, report_player_movement_events_system,
         report_player_movement_system,
     },
     portals::{portal_surfaces_transform_sync_system, portal_transit_system},
@@ -25,7 +26,7 @@ use crate::{
 // The tick advances first so everything the step records carries the tick it
 // belongs to; the previous position is captured before movement so the
 // render-rate transform sync can interpolate; the report goes out after the
-// transit and before knockback decay to match the server's comparison phase.
+// transit and before knockback decay.
 pub fn prediction_plugin(app: &mut App) {
     app.add_systems(
         FixedUpdate,
@@ -36,11 +37,9 @@ pub fn prediction_plugin(app: &mut App) {
             carried_portals_refresh_system,
             characters_movement_system,
             portal_transit_system,
+            report_player_movement_events_system,
             report_player_movement_system,
-            knockback_decay_system,
-            // Projectiles step at the same fixed tick as the server so
-            // the step-size-dependent integration doesn't diverge from
-            // the authoritative trajectories.
+            knockback_decay_system::<With<LocalPlayerMarker>>,
             projectiles_movement_system,
             missiles_movement_system,
         )
@@ -48,21 +47,25 @@ pub fn prediction_plugin(app: &mut App) {
     );
 }
 
-// Transform sync runs every render frame and lerps between the last
-// two ticks' positions so motion looks smooth above 30 Hz.
+// Character presentation follows local fixed ticks or buffered remote samples each render frame.
 pub fn character_sync_plugin(app: &mut App) {
     app.init_resource::<BoundsMode>();
     app.add_systems(
         Update,
         (
             character_models_attach_system,
-            players_transform_sync_system.after(local_player_cuboid_shake_system),
+            interpolate_remote_players_system,
+            players_transform_sync_system
+                .after(local_player_cuboid_shake_system)
+                .after(interpolate_remote_players_system),
             carriers_transform_sync_system,
             portal_surfaces_transform_sync_system,
             characters_visual_turn_system
                 .after(players_transform_sync_system)
                 .after(actors_transform_sync_system),
-            refresh_grounding_debug_system,
+            refresh_grounding_debug_system
+                .after(interpolate_remote_players_system)
+                .after(actors_transform_sync_system),
             character_bounds_sync_system
                 .after(characters_visual_turn_system)
                 .after(refresh_grounding_debug_system),

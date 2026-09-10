@@ -11,7 +11,7 @@ use crate::{
     config::CharacterPhysicsConfig,
     constants::{
         CHARACTER_CARRIER_RIDE_TOLERANCE, CHARACTER_CARRIER_TIE_EPSILON, CHARACTER_CONTACT_OFFSET,
-        CHARACTER_GROUND_SNAP_DISTANCE, CHARACTER_MAX_SLOPE, TICK_SECS,
+        CHARACTER_GROUND_SNAP_DISTANCE, CHARACTER_MAX_SLOPE,
     },
     map::Carriers,
     physics::world::{CollisionWorld, ShapeCastHit},
@@ -176,10 +176,10 @@ pub(super) fn rider_carry(step: &CharacterStep, env: &CharacterEnvironment, shap
     };
     RiderCarry {
         displacement,
-        floor_velocity: if transit.is_some() {
+        floor_velocity: if transit.is_some() || step.delta <= 0.0 {
             Vec3::ZERO
         } else {
-            displacement / TICK_SECS
+            displacement / step.delta
         },
     }
 }
@@ -254,17 +254,4 @@ pub(super) fn snap_character_to_ground(
     {
         pos.y -= hit.t;
     }
-}
-
-// Accepted positions already include their carry; use the step's lift flag rather than probing again.
-#[must_use]
-pub fn character_crushed_at(pos: Position, env: &CharacterEnvironment, lifted: bool) -> bool {
-    if env.carriers.is_static() {
-        return false;
-    }
-    let excluded = env.portals.map_or_else(Vec::new, |portals| {
-        portals.collision_exclusions(Vec3::from(pos), env.physics)
-    });
-    env.collision_world
-        .character_crushed(&pos, env.physics, env.passable_kinds, &excluded, lifted)
 }

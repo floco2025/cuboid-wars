@@ -3,8 +3,8 @@ use bevy_ecs::prelude::*;
 use bincode::{Decode, Encode};
 
 use super::{
-    ActorMovementState, BarrierKindId, CarrierId, Health, ItemType, MissileMovementState, PlayerId, PlayerMoveIntent,
-    PlayerMovementState, PortalAccess, Position, PowerUpKind,
+    ActorMovementState, BarrierKindId, CarrierId, Health, ItemType, MissileMovementState, PlayerGeneration, PlayerId,
+    PlayerMoveIntent, PlayerMovementState, PortalAccess, Position, PowerUpKind,
 };
 
 // Marker components disambiguating entity archetypes across server and client.
@@ -26,10 +26,8 @@ pub struct ProjectileMarker;
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct Actor {
     pub kind: String,
-    pub anchor: Option<ActorAnchor>,
     pub beam: Option<ActorBeam>,
     pub movement: ActorMovementState,
-    pub face_yaw: f32,
     pub health: Health,
 }
 
@@ -71,6 +69,7 @@ pub struct SpawningActor {
 
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct Player {
+    pub generation: PlayerGeneration,
     pub name: String,
     // Carries facing too (`face_yaw`) — no separate field.
     pub movement: PlayerMovementState,
@@ -97,6 +96,7 @@ impl Player {
         health: Health,
     ) -> Self {
         Self {
+            generation: PlayerGeneration(0),
             name,
             movement: PlayerMovementState::new(pos, move_intent, 0.0, face_yaw),
             health,
@@ -127,5 +127,6 @@ pub struct Item {
 #[derive(Debug, Clone, Copy, Encode, Decode)]
 pub struct Missile {
     pub shooter: PlayerId,
+    pub seq: u32,
     pub movement: MissileMovementState,
 }

@@ -74,6 +74,7 @@ impl NavGraphs {
                 }
                 let movement = settings.movement.expect_actor(kind);
                 let climber = LadderClimber {
+                    delta: config.network.tick_secs(),
                     collision_world: &world,
                     map_settings: settings,
                     physics: actor.character.physics(),

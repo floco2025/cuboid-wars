@@ -1,35 +1,41 @@
 use bevy::prelude::*;
 
-use crate::{actors::ActorMap, characters::PreviousTickPosition};
+use super::{ActorAnimationVelocity, RemoteActorMotion};
 use common::{
     map::Carriers,
-    protocol::{ActorId, ActorMarker, Position},
+    physics::{CharacterSupport, CharacterVerticalVelocity},
+    protocol::{ActorMoveIntent, FaceYaw, Position},
 };
 
-// Interpolate actor `Transform` between the last-tick and current-tick
-// `Position` using the fixed-step overstep fraction. See the player
-// equivalent for context.
-pub fn actors_transform_sync_system(
-    actors: Res<ActorMap>,
+pub(crate) fn actors_transform_sync_system(
+    time: Res<Time>,
     carriers: Res<Carriers>,
     fixed_time: Res<Time<Fixed>>,
-    mut query: Query<(&ActorId, &Position, &PreviousTickPosition, &mut Transform), With<ActorMarker>>,
+    mut query: Query<(
+        &mut RemoteActorMotion,
+        &mut Position,
+        &mut FaceYaw,
+        &mut ActorMoveIntent,
+        &mut CharacterVerticalVelocity,
+        &mut CharacterSupport,
+        &mut ActorAnimationVelocity,
+        &mut Transform,
+    )>,
 ) {
-    let alpha = fixed_time.overstep_fraction();
-    for (id, pos, prev, mut transform) in &mut query {
-        let Some(info) = actors.get(id) else {
-            continue;
-        };
-        let interp = info.anchor.map_or_else(
-            || prev.lerp_to(*pos, alpha),
-            |anchor| {
-                carriers
-                    .pose_between(anchor.carrier, alpha)
-                    .transform_point(Vec3::from(anchor.pos))
-            },
+    for (mut buffer, mut pos, mut yaw, mut intent, mut vertical, mut support, mut velocity, mut transform) in &mut query
+    {
+        let (movement, travel) = buffer.advance(
+            time.delta_secs_f64() / fixed_time.timestep().as_secs_f64(),
+            &carriers,
+            fixed_time.overstep_fraction(),
+            fixed_time.timestep().as_secs_f64(),
         );
-        transform.translation.x = interp.x;
-        transform.translation.y = interp.y;
-        transform.translation.z = interp.z;
+        *pos = movement.pos;
+        yaw.0 = movement.face_yaw;
+        *intent = movement.move_intent;
+        vertical.0 = movement.vertical_velocity;
+        *support = movement.support;
+        velocity.0 = travel;
+        transform.translation = Vec3::from(*pos);
     }
 }

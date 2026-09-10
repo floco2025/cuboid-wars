@@ -39,6 +39,7 @@ pub(super) fn network_receive_system(
                 context
                     .players
                     .disconnect(&id, context.world.server_gameplay_config.player.respawn_secs);
+                context.missiles.remove_shooter(id);
                 let portal_access = context.portal_assignments.release(&id);
                 if context.portals.remove_access(portal_access) {
                     *context.portal_set = context

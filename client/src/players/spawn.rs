@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
-use super::BumpFeedbackState;
 use super::animation::{PlayerAnimationMotion, PlayerModel, player_animation_setup_system};
+use super::{BumpFeedbackState, RemotePlayerMotion};
 use crate::{
     cameras::LocalPlayerLabelMarker,
     characters::{PreviousTickPosition, load_character_model, model_transform, spawn_character_bounds},
@@ -15,6 +15,7 @@ use crate::{
 };
 use common::{
     config::GameplayConfig,
+    map::Carriers,
     physics::PlayerMotionBundle,
     protocol::{Health, Player, PlayerId, PlayerMarker, Position},
 };
@@ -33,6 +34,7 @@ pub fn eye_position(feet: Position, eye_height: f32) -> Vec3 {
 
 // The asset stores and tuning a player spawn draws on.
 pub struct PlayerSpawnContext<'a> {
+    pub carriers: &'a Carriers,
     pub asset_server: &'a AssetServer,
     pub meshes: &'a mut Assets<Mesh>,
     pub materials: &'a mut Assets<StandardMaterial>,
@@ -71,6 +73,7 @@ pub fn spawn_player(
     is_local: bool,
 ) -> Entity {
     let PlayerSpawnContext {
+        carriers,
         asset_server,
         meshes,
         materials,
@@ -80,7 +83,9 @@ pub fn spawn_player(
         gameplay_config,
         max_health,
     } = context;
-    let position = player.movement.pos;
+    let position = carriers
+        .pose(player.movement.carrier)
+        .transform_position(&player.movement.pos);
     let face_yaw = player.movement.face_yaw;
     let player_model = asset_set.player_model();
     let player_physics = gameplay_config.player.physics();
@@ -105,6 +110,8 @@ pub fn spawn_player(
         commands
             .entity(entity)
             .insert((LocalPlayerMarker, BumpFeedbackState::default()));
+    } else {
+        commands.entity(entity).insert(RemotePlayerMotion::new(player.movement));
     }
 
     let mut children = vec![];

@@ -439,7 +439,7 @@ fn shipping_map_zones_are_mutually_reachable() {
         .settings;
     let (barrier_kinds, bridge_kinds) = settings.kind_tables().expect("default map kind tables rejected");
     let GeneratedMap { config: map_config, .. } =
-        crate::map::generate_map(map_name, settings, &barrier_kinds, &bridge_kinds)
+        crate::map::generate_map(map_name, 30, settings, &barrier_kinds, &bridge_kinds)
             .expect("default map failed to generate");
     let graphs = NavGraphs::new(&map_config);
 
@@ -800,7 +800,7 @@ fn shipping_map_bruiser_capsule_fits_the_direct_basement_trench_approach() {
         layout,
         config: map_config,
         ..
-    } = crate::map::generate_map("hotel", settings, &barrier_kinds, &bridge_kinds)
+    } = crate::map::generate_map("hotel", 30, settings, &barrier_kinds, &bridge_kinds)
         .expect("hotel map failed to generate");
     let world = CollisionWorld::from_map_layout(&layout, &barrier_kinds);
     let geometry = map_config.root_grid().geometry;

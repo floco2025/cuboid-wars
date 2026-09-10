@@ -21,6 +21,7 @@ use common::{
 // from the parent source.
 pub(crate) fn compile_map(
     root: &MapDef,
+    server_hz: u32,
     sizes: MapGeometryConfig,
     nested: &LoadedMaps,
     kind_table: &BarrierKindTable,
@@ -38,6 +39,7 @@ pub(crate) fn compile_map(
         },
     };
     let scope = CompileScope {
+        server_hz,
         sizes,
         kind_table,
         bridge_table,
@@ -60,6 +62,7 @@ pub(crate) fn compile_map(
 }
 
 pub(super) struct CompileScope<'a> {
+    server_hz: u32,
     pub(super) sizes: MapGeometryConfig,
     pub(super) kind_table: &'a BarrierKindTable,
     pub(super) bridge_table: &'a BridgeKindTable,
@@ -87,9 +90,13 @@ fn compile_tree(
         let child_def = nested.get(&entry.map).expect("nested map missing from the loaded tree");
         let child_geometry = MapGeometry::new(child_def.grid_cols, child_def.grid_rows, scope.sizes);
         let id = next_carrier(out);
-        out.layout
-            .carriers
-            .push(nested_carrier(&geometry, &child_geometry, &entry.motion, carrier));
+        out.layout.carriers.push(nested_carrier(
+            &geometry,
+            &child_geometry,
+            &entry.motion,
+            carrier,
+            scope.server_hz,
+        ));
         let reach = usize::from(out.layout.carrier_base_level(id))
             + child_def.levels.len()
             + usize::from(out.layout.carrier_motion_levels(id));
@@ -119,6 +126,7 @@ fn carrier_from_motion(
     [level, to_level]: [u8; 2],
     nudge_scale: Vec3,
     parent: CarrierId,
+    server_hz: u32,
 ) -> Carrier {
     let from = end1 + Vec3::from(motion.from_nudge) * nudge_scale;
     let to = end2 + Vec3::from(motion.to_nudge) * nudge_scale;
@@ -128,9 +136,9 @@ fn carrier_from_motion(
         levels: level.abs_diff(to_level),
         from: from.into(),
         to: to.into(),
-        travel_ticks: ticks_from_secs(motion.travel_secs).max(1),
-        pause_ticks: ticks_from_secs(motion.pause_secs),
-        phase_ticks: ticks_from_secs(motion.phase_secs),
+        travel_ticks: ticks_from_secs(motion.travel_secs, server_hz).max(1),
+        pause_ticks: ticks_from_secs(motion.pause_secs, server_hz),
+        phase_ticks: ticks_from_secs(motion.phase_secs, server_hz),
     }
 }
 
@@ -138,7 +146,13 @@ fn carrier_from_motion(
 // the nested cell (0, 0) on the parent's `from` cell at storey `level`, and
 // likewise `to` at `to_level`. Both grids are centered on their own origin,
 // which is why the nested corner is subtracted.
-fn nested_carrier(parent: &MapGeometry, nested: &MapGeometry, motion: &MotionDef, parent_id: CarrierId) -> Carrier {
+fn nested_carrier(
+    parent: &MapGeometry,
+    nested: &MapGeometry,
+    motion: &MotionDef,
+    parent_id: CarrierId,
+    server_hz: u32,
+) -> Carrier {
     let level = u8::try_from(motion.level).unwrap_or(u8::MAX);
     let to_level = u8::try_from(motion.to_level()).unwrap_or(u8::MAX);
     let end1 = nested_origin_offset(parent, nested, motion.from, level);
@@ -148,7 +162,7 @@ fn nested_carrier(parent: &MapGeometry, nested: &MapGeometry, motion: &MotionDef
         parent.floor_thickness(),
         parent.wall_thickness(),
     );
-    carrier_from_motion(end1, end2, motion, [level, to_level], nudge_scale, parent_id)
+    carrier_from_motion(end1, end2, motion, [level, to_level], nudge_scale, parent_id, server_hz)
 }
 
 fn nested_origin_offset(parent: &MapGeometry, nested: &MapGeometry, cell: [i32; 2], level: u8) -> Vec3 {
@@ -158,3 +172,7 @@ fn nested_origin_offset(parent: &MapGeometry, nested: &MapGeometry, cell: [i32; 
         parent.cell_to_world_z(cell[1]) - nested.cell_to_world_z(0),
     )
 }
+
+#[cfg(test)]
+#[path = "timing_tests.rs"]
+mod timing_tests;

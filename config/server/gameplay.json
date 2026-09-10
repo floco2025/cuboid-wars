@@ -1,4 +1,9 @@
 {
+  "network": {
+    "server_hz": 30,
+    "update_hz": 30,
+    "snapshot_hz": 4
+  },
   "default_map": "hotel",
   "maps": [
     "hotel",

@@ -80,6 +80,7 @@ fn server_gameplay_config() -> ServerGameplayConfig {
         .movement
         .clone();
     ServerGameplayConfig {
+        network: Default::default(),
         default_map: "hotel".to_owned(),
         maps: HashMap::from([(
             "hotel".to_owned(),
@@ -139,12 +140,6 @@ fn server_gameplay_config() -> ServerGameplayConfig {
             projectiles: default.weapons.projectiles,
             missiles: MissilesServerConfig {
                 gameplay: default.weapons.missiles.gameplay,
-                turn_radius: 1.7,
-                lifetime_secs: 10.0,
-                launch_spread_degrees: 50.0,
-                weave_strength: 0.35,
-                proximity_fuse_distance: 1.5,
-                stall_secs: 2.0,
                 missiles_per_pack: 1,
             },
             portals: default.weapons.portals,
@@ -556,13 +551,13 @@ fn begin_respawn_zeros_powerups_keys_and_cooldown() {
     let mut info = make_player_info();
     info.life.power_ups = [PowerUpState::Timed(1.0); PowerUpKind::COUNT];
     info.life.stun_timer = 1.0;
-    info.life.last_shot_time = 99.0;
+    info.life.last_portal_shot_time = 99.0;
     info.add_key(common::protocol::BarrierKindId(0));
 
     info.begin_respawn(2.0);
 
     assert_eq!(info.life.power_ups, [PowerUpState::Inactive; PowerUpKind::COUNT]);
     assert_eq!(info.life.stun_timer, 0.0);
-    assert_eq!(info.life.last_shot_time, f32::NEG_INFINITY);
+    assert_eq!(info.life.last_portal_shot_time, f32::NEG_INFINITY);
     assert!(info.life.held_keys.is_empty());
 }

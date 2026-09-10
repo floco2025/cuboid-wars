@@ -7,11 +7,11 @@ use super::{
 };
 use crate::{
     actors::{ActorMap, PendingActorSpawns},
-    missiles::{MissileMap, handle_missile_shot_message},
+    missiles::{MissileMap, handle_missile_detonated, handle_missile_moves, handle_missile_shot_message},
     network::ServerToClient,
-    players::{PlayerMap, PlayerMovementReport, handle_portal_recovery_message, queue_player_movement},
+    players::{PlayerMap, handle_player_movement_event, queue_player_movement},
     portals::{PortalAssignments, PortalMap, handle_portal_shot_message},
-    projectiles::handle_projectile_shot_message,
+    projectiles::{PendingProjectileHits, handle_projectile_shot_message},
     quests::{QuestBoard, QuestCatalog},
 };
 use common::{physics::PortalSet, protocol::*};
@@ -23,8 +23,8 @@ pub(super) struct ClientMessageContext<'w, 's> {
     pub(super) world: SharedWorld<'w>,
     queries: CharacterQueries<'w, 's>,
     actors: ResMut<'w, ActorMap>,
-    plates: Res<'w, PlateState>,
-    missiles: ResMut<'w, MissileMap>,
+    pending_projectile_hits: ResMut<'w, PendingProjectileHits>,
+    pub(super) missiles: ResMut<'w, MissileMap>,
     pending_actor_spawns: ResMut<'w, PendingActorSpawns>,
     pub(super) portals: ResMut<'w, PortalMap>,
     pub(super) portal_assignments: ResMut<'w, PortalAssignments>,
@@ -86,66 +86,45 @@ pub(super) fn route_client_message(
                 return;
             }
             trace!("{:?} input: {:?}", id, message);
-            queue_player_movement(id, PlayerMovementReport::Move(message), &mut context.players);
+            queue_player_movement(id, message, &mut context.players);
         }
-        ClientMessage::PortalCross(message) => {
+        ClientMessage::PlayerMovementEvent(message) => handle_player_movement_event(id, message, &mut context.players),
+        ClientMessage::ProjectileShot(message) => handle_projectile_shot_message(
+            id,
+            message,
+            &context.players,
+            &context.world.gameplay_config.projectiles,
+        ),
+        ClientMessage::ProjectileHit(message) => context.pending_projectile_hits.push(id, message),
+        ClientMessage::MissileShot(message) => handle_missile_shot_message(
+            id,
+            message,
+            &mut context.players,
+            &mut context.missiles,
+            *context.world.tick,
+        ),
+        ClientMessage::MissileMoves(message) => {
+            handle_missile_moves(id, message, &mut context.missiles, &context.players)
+        }
+        ClientMessage::MissileDetonated(message) => handle_missile_detonated(
+            id,
+            message,
+            &mut context.missiles,
+            &context.players,
+            &mut context.admin.pending_explosions,
+            *context.world.tick,
+        ),
+        ClientMessage::PortalShot(message) => {
             if entity.is_none() {
                 return;
             }
-            queue_player_movement(id, PlayerMovementReport::PortalCross(message), &mut context.players);
-        }
-        ClientMessage::PortalRecovery(message) => {
-            handle_portal_recovery_message(id, message, &mut context.players);
-        }
-        ClientMessage::ProjectileShot(message) => {
-            let Some(entity) = entity else {
-                return;
-            };
-            debug!("{} shot", context.players.describe(&id));
-            handle_projectile_shot_message(
-                commands,
-                entity,
-                id,
-                &message,
-                &mut context.players,
-                &context.time,
-                &context.queries.player_data,
-                &context.world,
-                &context.plates,
-            );
-        }
-        ClientMessage::MissileShot(message) => {
-            let Some(entity) = entity else {
-                return;
-            };
-            debug!("{} missile shot at {:?}", context.players.describe(&id), message.target);
-            handle_missile_shot_message(
-                commands,
-                entity,
-                id,
-                &message,
-                &mut context.players,
-                &mut context.missiles,
-                &context.actors,
-                &context.queries,
-                &context.world,
-                &context.plates,
-            );
-        }
-        ClientMessage::PortalShot(message) => {
-            let Some(entity) = entity else {
-                return;
-            };
-            debug!("{} portal shot ({:?})", context.players.describe(&id), message.end);
+            debug!("{} portal shot ({:?})", context.players.describe(&id), message.result);
             handle_portal_shot_message(
-                entity,
                 id,
                 &message,
                 &mut context.players,
                 &context.time,
-                &context.queries.player_data,
                 &context.world,
-                &context.plates,
                 &context.portal_assignments,
                 &mut context.portals,
                 &mut context.portal_set,
@@ -153,7 +132,7 @@ pub(super) fn route_client_message(
         }
         ClientMessage::Ping(message) => {
             trace!("{:?} ping: {:?}", id, message);
-            handle_ping_message(id, message, &context.players);
+            handle_ping_message(id, message, &context.players, *context.world.tick);
         }
         ClientMessage::Admin(message) => {
             debug!("{} admin command: {:?}", context.players.describe(&id), message.command);

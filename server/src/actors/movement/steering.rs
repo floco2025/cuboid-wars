@@ -17,6 +17,7 @@ pub(super) fn desired_move(
     world_pos: &Position,
     roam_speed: f32,
     active_speed: f32,
+    delta: f32,
 ) -> ActorDesire {
     if let Some(route) = &info.route
         && let Some(target) = route.next()
@@ -27,7 +28,7 @@ pub(super) fn desired_move(
             active_speed
         };
         return ActorDesire::Move {
-            intent: target.movement_intent(pos, speed),
+            intent: target.movement_intent(pos, speed, delta),
             target: target.position,
         };
     }

@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use super::components::CuboidShake;
+use super::{LocalPlayerMarker, components::CuboidShake};
 use crate::characters::PreviousTickPosition;
 use common::protocol::{PlayerMarker, Position};
 
@@ -8,20 +8,26 @@ use common::protocol::{PlayerMarker, Position};
 // Transform Sync Systems
 // ============================================================================
 
-// Update player `Transform` from `Position` for rendering. Physics ticks at
-// a fixed 30 Hz while rendering runs at the display rate; interpolate
-// between the last-tick and current-tick positions using the fixed-step
-// overstep fraction so motion stays smooth.
 pub fn players_transform_sync_system(
     fixed_time: Res<Time<Fixed>>,
     mut player_query: Query<
-        (&Position, &PreviousTickPosition, &mut Transform, Option<&CuboidShake>),
+        (
+            &Position,
+            &PreviousTickPosition,
+            &mut Transform,
+            Option<&CuboidShake>,
+            Has<LocalPlayerMarker>,
+        ),
         With<PlayerMarker>,
     >,
 ) {
     let alpha = fixed_time.overstep_fraction();
-    for (pos, prev, mut transform, maybe_shake) in &mut player_query {
-        let interp = prev.lerp_to(*pos, alpha);
+    for (pos, prev, mut transform, maybe_shake, is_local) in &mut player_query {
+        let interp = if is_local {
+            prev.lerp_to(*pos, alpha)
+        } else {
+            Vec3::from(*pos)
+        };
         transform.translation.x = interp.x;
         transform.translation.y = interp.y;
         transform.translation.z = interp.z;
