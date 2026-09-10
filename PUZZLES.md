@@ -61,7 +61,7 @@ The settled field and eraser rules are implemented. Attack clearance and beam cl
 
 Actor navigation still excludes light bridges even while they are solid. Actors collide with them and can be supported by them, but planned routes do not cross them. Bridge-aware navigation remains an extension for enemy-luring puzzles.
 
-The relevant behavior lives in [collision queries](common/src/physics/world/collision_world.rs), [projectile movement](common/src/physics/projectiles/motion.rs), [beam damage](server/src/combat/beam.rs), [beam rendering](client/src/vfx/laser.rs), [player inventory](server/src/players/resources.rs), and [portal cleanup](server/src/portals/equipment.rs).
+The relevant behavior lives in [collision queries](common/src/physics/world/collision_world.rs), [projectile movement](client/src/projectiles/motion.rs), [beam damage](server/src/combat/beam.rs), [beam rendering](client/src/vfx/laser.rs), [player inventory](server/src/players/resources.rs), and [portal cleanup](server/src/portals/equipment.rs).
 
 ## Available elements
 
