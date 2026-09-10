@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::{
     network::{FeedAudience, FeedEvent, ServerToClient, emit_feed},
-    players::{PlayerMap, enter_group_respawn, place_player_body, player_spawn_destination},
+    players::{PlayerMap, enter_group_respawn, place_player_body, player_spawn_destination, spawn_zone_destination},
     portals::{PortalAssignments, PortalMap},
     quests::{QuestBoard, QuestCatalog, assign_quests},
 };
@@ -78,28 +78,32 @@ pub(super) fn handle_login_message(
         .filter_map(|player| player.entity().and_then(|entity| queries.player_data.get(entity).ok()))
         .map(|(pos, _, _)| *pos)
         .collect();
+    let physics = world.gameplay_config.player.physics();
     let spawn = player_spawn_destination(
         &world.map_config,
         &world.carriers,
         &world.collision_world,
         &occupied_positions,
-        world.gameplay_config.player.physics(),
+        physics,
         shared_checkpoint,
-    );
-    if enter_group_respawn(
-        commands,
-        players,
-        id,
-        spawn.as_ref().map_or_else(Position::default, |spawn| spawn.pos),
-    ) {
+    )
+    .unwrap_or_else(|| {
+        // A joining player gets a body now; the blocked checkpoint stays saved for the next respawn.
+        info!(
+            "{}: the shared checkpoint is blocked, spawning in a zone instead",
+            players.describe(&id)
+        );
+        spawn_zone_destination(
+            &world.map_config,
+            &world.carriers,
+            &world.collision_world,
+            &occupied_positions,
+            physics,
+        )
+    });
+    if enter_group_respawn(commands, players, id, spawn.pos) {
         return;
     }
-    let info = players.get_mut(&id).expect("logged-in player missing");
-    let Some(spawn) = spawn else {
-        info.wait_for_spawn();
-        commands.entity(entity).despawn();
-        return;
-    };
     place_player_body(
         commands,
         players,

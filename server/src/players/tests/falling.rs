@@ -1,9 +1,12 @@
 use super::*;
 use crate::{
-    players::{PlayerInfo, PowerUpState, outcomes::Landing},
+    players::{CheckpointId, PlayerCheckpoint, PlayerInfo, PowerUpState, outcomes::Landing},
     test_geometry::geometry,
 };
-use common::protocol::{BarrierKindId, BarrierKindTable, Lane, MapLayout, PlayerGeneration, PortalMode, PowerUpKind};
+use common::protocol::{
+    BarrierKindId, BarrierKindTable, CarrierId, Checkpoint, CheckpointKind, Floor, Lane, MapLayout, PlayerGeneration,
+    PortalMode, PowerUpKind,
+};
 use tokio::sync::mpsc::unbounded_channel;
 
 // Matches the shipping map's normal-gravity setting.
@@ -132,6 +135,79 @@ fn invincible_void_rescue_relocates_reliably_and_preserves_equipment() {
         relocation.player.movement.pos
     );
     assert!(receiver.try_recv().is_err());
+}
+
+#[test]
+fn an_invincible_void_rescue_returns_to_the_saved_checkpoint() {
+    let server = ServerGameplayConfig::load_default().expect("gameplay config missing");
+    let checkpoint = Checkpoint {
+        kind: CheckpointKind::Individual,
+        carrier: CarrierId::WORLD,
+        level: 0,
+        min_x: 10.0,
+        max_x: 14.0,
+        min_z: -2.0,
+        max_z: 2.0,
+        y: 0.0,
+    };
+    let layout = MapLayout {
+        floors: vec![Floor {
+            x1: 10.0,
+            x2: 14.0,
+            z1: -2.0,
+            z2: 2.0,
+            y: 0.0,
+            thickness: 0.2,
+            level: 0,
+            carrier: CarrierId::WORLD,
+        }],
+        ..default()
+    };
+    let mut map = MapConfig::for_grid(Vec::new(), geometry(1, 1));
+    map.checkpoints = vec![checkpoint];
+    let mut app = App::new();
+    app.insert_resource(server.gameplay_config())
+        .insert_resource(server)
+        .insert_resource(map)
+        .init_resource::<Carriers>()
+        .insert_resource(CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default()))
+        .init_resource::<PlayerMap>()
+        .insert_resource(Invincibility(true))
+        .init_resource::<ServerTick>()
+        .insert_resource(PortalAssignments::new(PortalMode::Both))
+        .init_resource::<PendingExplosions>()
+        .add_systems(Update, players_fatal_outcomes_system);
+    let id = PlayerId(1);
+    let pos = Position {
+        y: CHARACTER_FALL_DEATH_Y - 1.0,
+        ..default()
+    };
+    let entity = app.world_mut().spawn((PlayerMarker, id, pos, Health(37.0))).id();
+    let (sender, _receiver) = unbounded_channel();
+    let mut info = PlayerInfo::new(entity, sender);
+    info.connection.logged_in = true;
+    info.session.checkpoint = Some(PlayerCheckpoint {
+        id: CheckpointId(0),
+        facing: Vec3::X,
+    });
+    info.life.outcomes.fell_out_of_world = true;
+    app.world_mut().resource_mut::<PlayerMap>().insert(id, info);
+
+    app.update();
+
+    let landed = *app.world().get::<Position>(entity).expect("position missing");
+    assert!(
+        (10.0..=14.0).contains(&landed.x) && (-2.0..=2.0).contains(&landed.z),
+        "rescued to {landed:?}, not the checkpoint"
+    );
+    let player = app.world().resource::<PlayerMap>();
+    let info = player.get(&id).expect("player missing");
+    assert_eq!(
+        info.life.checkpoint_contact,
+        Some(CheckpointId(0)),
+        "the landing is no fresh entry"
+    );
+    assert_eq!(info.session.checkpoint.map(|c| c.id), Some(CheckpointId(0)));
 }
 
 #[test]

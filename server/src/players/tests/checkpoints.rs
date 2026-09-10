@@ -61,13 +61,34 @@ fn app(mode: PlayerRespawnMode) -> App {
 }
 
 fn stand(app: &mut App, id: PlayerId, pos: Position, support: CharacterSupport) {
+    stand_facing(app, id, pos, support, 0.7);
+}
+
+fn stand_facing(app: &mut App, id: PlayerId, pos: Position, support: CharacterSupport, yaw: f32) {
     let entity = {
         let mut players = app.world_mut().resource_mut::<PlayerMap>();
         let player = players.get_mut(&id).expect("player missing");
         player.life.movement.support = support;
         player.entity().expect("player body missing")
     };
-    app.world_mut().entity_mut(entity).insert((pos, FaceYaw(0.7)));
+    app.world_mut().entity_mut(entity).insert((pos, FaceYaw(yaw)));
+}
+
+fn shared_facing(app: &App) -> Option<Vec3> {
+    app.world()
+        .resource::<PlayerMap>()
+        .shared_checkpoint
+        .map(|checkpoint| checkpoint.facing)
+}
+
+fn has_visit(app: &App, id: PlayerId, checkpoint: usize) -> bool {
+    app.world()
+        .resource::<PlayerMap>()
+        .get(&id)
+        .expect("player missing")
+        .session
+        .checkpoint_visits
+        .contains_key(&CheckpointId(checkpoint))
 }
 
 fn saved(app: &App, id: PlayerId) -> Option<CheckpointId> {
@@ -509,5 +530,138 @@ fn stationary_or_respawning_players_do_not_overwrite_teammates_individual_progre
         CharacterSupport::Ground,
     );
     advance(&mut app, 0.0);
+    assert_eq!(
+        saved(&app, PlayerId(2)),
+        Some(CheckpointId(0)),
+        "returning to the active shared checkpoint does not either"
+    );
+}
+
+#[test]
+fn re_entering_the_active_shared_checkpoint_changes_nothing() {
+    let mut app = app(PlayerRespawnMode::Individual);
+    app.world_mut().resource_mut::<MapConfig>().checkpoints[0].kind = CheckpointKind::GroupAll;
+    app.world_mut().resource_mut::<MapConfig>().checkpoints[1].kind = CheckpointKind::GroupAny;
+    add_player(&mut app, PlayerId(1));
+    add_player(&mut app, PlayerId(2));
+    let inside = Position {
+        x: 22.0,
+        y: 0.0,
+        z: 0.0,
+    };
+    stand_facing(&mut app, PlayerId(1), inside, CharacterSupport::Ground, 0.7);
+    advance(&mut app, 0.0);
+    let facing = shared_facing(&app).expect("shared checkpoint not activated");
+    stand(
+        &mut app,
+        PlayerId(2),
+        Position {
+            x: 12.0,
+            y: 0.0,
+            z: 0.0,
+        },
+        CharacterSupport::Ground,
+    );
+    advance(&mut app, 0.0);
+    assert!(has_visit(&app, PlayerId(2), 0), "a partial group visit");
+
+    // A jump in place: the seeded contact drops on the airborne tick and the
+    // landing re-enters, facing another way.
+    stand_facing(&mut app, PlayerId(1), inside, CharacterSupport::Airborne, 2.0);
+    advance(&mut app, 0.0);
+    stand_facing(&mut app, PlayerId(1), inside, CharacterSupport::Ground, 2.0);
+    advance(&mut app, 0.0);
+    assert_eq!(shared_facing(&app), Some(facing), "the saved facing stands");
+    assert!(has_visit(&app, PlayerId(2), 0), "the partial visit stands");
     assert_eq!(saved(&app, PlayerId(2)), Some(CheckpointId(1)));
+
+    // Leaving and returning is the same re-entry.
+    stand_facing(
+        &mut app,
+        PlayerId(1),
+        Position {
+            x: 18.0,
+            y: 0.0,
+            z: 0.0,
+        },
+        CharacterSupport::Ground,
+        2.0,
+    );
+    advance(&mut app, 0.0);
+    stand_facing(&mut app, PlayerId(1), inside, CharacterSupport::Ground, 2.0);
+    advance(&mut app, 0.0);
+    assert_eq!(shared_facing(&app), Some(facing));
+    assert!(has_visit(&app, PlayerId(2), 0));
+
+    // Another shared checkpoint still activates once everyone has visited it.
+    stand(
+        &mut app,
+        PlayerId(1),
+        Position {
+            x: 12.0,
+            y: 0.0,
+            z: 0.0,
+        },
+        CharacterSupport::Ground,
+    );
+    advance(&mut app, 0.0);
+    assert_eq!(saved(&app, PlayerId(1)), Some(CheckpointId(0)));
+    assert_eq!(saved(&app, PlayerId(2)), Some(CheckpointId(0)));
+}
+
+#[test]
+fn simultaneous_shared_entries_activate_on_consecutive_ticks() {
+    let mut app = app(PlayerRespawnMode::Individual);
+    app.world_mut().resource_mut::<MapConfig>().checkpoints[0].kind = CheckpointKind::GroupAny;
+    app.world_mut().resource_mut::<MapConfig>().checkpoints[1].kind = CheckpointKind::GroupAny;
+    let (_, mut rx) = add_player(&mut app, PlayerId(1));
+    add_player(&mut app, PlayerId(2));
+    stand(
+        &mut app,
+        PlayerId(1),
+        Position {
+            x: 12.0,
+            y: 0.0,
+            z: 0.0,
+        },
+        CharacterSupport::Ground,
+    );
+    stand(
+        &mut app,
+        PlayerId(2),
+        Position {
+            x: 22.0,
+            y: 0.0,
+            z: 0.0,
+        },
+        CharacterSupport::Ground,
+    );
+    advance(&mut app, 0.0);
+    assert_eq!(
+        saved(&app, PlayerId(1)),
+        Some(CheckpointId(0)),
+        "map order wins the tick"
+    );
+    assert_eq!(saved(&app, PlayerId(2)), Some(CheckpointId(0)));
+
+    advance(&mut app, 0.0);
+    assert_eq!(
+        saved(&app, PlayerId(1)),
+        Some(CheckpointId(1)),
+        "the other entry follows"
+    );
+    assert_eq!(saved(&app, PlayerId(2)), Some(CheckpointId(1)));
+    let mut cues = 0;
+    while let Ok(message) = rx.try_recv() {
+        if matches!(message, ServerToClient::Send(ServerMessage::CheckpointReached(_))) {
+            cues += 1;
+        }
+    }
+    assert_eq!(cues, 2);
+    advance(&mut app, 0.0);
+    assert_eq!(
+        saved(&app, PlayerId(2)),
+        Some(CheckpointId(1)),
+        "and nothing flips back"
+    );
 }

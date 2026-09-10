@@ -40,4 +40,4 @@ pub use resources::{Invincibility, PlayerInfo, PlayerMap, PlayerQuestState, Play
 pub use respawn::players_respawn_system;
 pub use status::players_status_timers_system;
 
-pub(crate) use spawning::{PlayerSpawn, place_player_body, player_spawn_destination};
+pub(crate) use spawning::{place_player_body, player_spawn_destination, spawn_zone_destination};

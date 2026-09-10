@@ -40,6 +40,7 @@ from .constants import (
     NESTED_MAPS_LIST,
     SPAWN_ZONE_LISTS,
     ZONE_LISTS,
+    ZONE_PICK_ORDER,
     CHECKPOINT_LIST,
     MODE_ERASE_CHECKPOINTS,
 )
@@ -282,10 +283,9 @@ def hit_at(data: dict, level_idx: int, px: float, py: float, tolerance: float):
         return (HIT_PRESSURE_PLATE, (col, row))
     if any(i["level"] == on_level and (i["col"], i["row"]) == (col, row) for i in data.get(ITEMS_LIST, [])):
         return (HIT_ITEM, (col, row))
-    # Walk every zone list in reverse so the most-recently-painted entry
-    # wins. SPAWN_ZONE_LISTS is ordered actor → player, so when both zone
-    # types share a cell the actor zone is preferred.
-    for list_name in ZONE_LISTS:
+    # Lists in pick order, each walked in reverse so the most-recently-painted
+    # entry wins.
+    for list_name in ZONE_PICK_ORDER:
         for idx in range(len(data[list_name]) - 1, -1, -1):
             zone = data[list_name][idx]
             if zone["level"] == level_idx and zone_contains_cell(zone, col, row):

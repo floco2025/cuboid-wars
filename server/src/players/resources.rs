@@ -177,13 +177,6 @@ impl PlayerInfo {
         }
     }
 
-    pub(crate) fn wait_for_spawn(&mut self) {
-        // Waiting for a clear initial spawn is not a death or a world-reset event.
-        self.life = PlayerLife::with_lifecycle(PlayerLifecycle::Dead {
-            respawn_remaining_secs: 0.0,
-        });
-    }
-
     pub fn finish_respawn(&mut self, entity: Entity) {
         self.life.lifecycle = PlayerLifecycle::Alive(entity);
         self.advance_body();
@@ -442,7 +435,7 @@ impl PlayerMap {
                 let PlayerLifecycle::Dead { respawn_remaining_secs } = &mut info.life.lifecycle else {
                     continue;
                 };
-                *respawn_remaining_secs -= delta;
+                tick_timer(respawn_remaining_secs, delta);
                 if *respawn_remaining_secs <= 0.0 {
                     to_respawn.push(*id);
                 }
@@ -466,9 +459,10 @@ impl PlayerMap {
                     .filter(|info| info.connection.logged_in && !info.is_dead())
                     .count()
             };
+            // An elapsed countdown is a blocked respawn; like a living player it owes the full delay.
             let delay = self
                 .group_respawn
-                .or(info.respawn_remaining_secs())
+                .or(info.respawn_remaining_secs().filter(|secs| *secs > 0.0))
                 .unwrap_or(respawn_secs);
             self.record_reset(PlayerResetCounts { logged_in, alive }, delay);
         }

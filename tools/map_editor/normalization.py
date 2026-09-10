@@ -6,6 +6,7 @@ import copy
 
 from .constants import (
     ACTOR_ZONE_LIST,
+    CHECKPOINT_LIST,
     DEFAULT_GRID_COLS,
     DEFAULT_GRID_ROWS,
     FACES,
@@ -387,9 +388,17 @@ def player_zone_key(zone: dict) -> tuple:
     )
 
 
+# Two checkpoints may share a rectangle and differ by type, so the type is
+# part of a checkpoint's identity, in selection as in canonicalization.
+def checkpoint_key(zone: dict) -> tuple:
+    return (*player_zone_key(zone), zone["type"])
+
+
 def zone_key(list_name: str, zone: dict) -> tuple:
     if list_name == ACTOR_ZONE_LIST:
         return actor_zone_key(zone)
+    if list_name == CHECKPOINT_LIST:
+        return checkpoint_key(zone)
     return player_zone_key(zone)
 
 
@@ -413,7 +422,7 @@ def canonicalize_map(map_data: dict) -> dict:
     enforce_ramp_floor_rules(b)
     b["actor_spawn_zones"] = _dedupe_sorted(b["actor_spawn_zones"], actor_zone_key)
     b["player_spawn_zones"] = _dedupe_sorted(b["player_spawn_zones"], player_zone_key)
-    b["checkpoints"] = _dedupe_sorted(b["checkpoints"], lambda zone: (*player_zone_key(zone), zone["type"]))
+    b["checkpoints"] = _dedupe_sorted(b["checkpoints"], checkpoint_key)
     b["pressure_plates"] = _dedupe_sorted(b["pressure_plates"], pressure_plate_key)
     # Ramp footprints occupy cells on both the lower and upper level of each
     # ramp. Lights are not allowed inside any of those cells.

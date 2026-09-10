@@ -170,18 +170,21 @@ fn joining_inherits_shared_progress_and_respects_blocked_spawns_and_group_countd
             }
         }
         assert_eq!(group_cues, usize::from(group_countdown));
-        assert_eq!(relocations.len(), usize::from(!blocked && !group_countdown));
+        // A blocked checkpoint places the joiner in a spawn zone instead of leaving it bodiless.
+        assert_eq!(relocations.len(), usize::from(!group_countdown));
+        let checkpoint_pos = Position {
+            x: 32.0,
+            y: 6.5,
+            z: 12.0,
+        };
         for relocation in &relocations {
             assert_eq!(relocation.id, PlayerId(9));
             assert_eq!(relocation.player.generation, PlayerGeneration(0));
-            assert_eq!(
-                relocation.player.movement.pos,
-                Position {
-                    x: 32.0,
-                    y: 6.5,
-                    z: 12.0
-                }
-            );
+            if blocked {
+                assert_ne!(relocation.player.movement.pos, checkpoint_pos);
+            } else {
+                assert_eq!(relocation.player.movement.pos, checkpoint_pos);
+            }
             assert_eq!(
                 relocation.player.health.0,
                 app.world().resource::<ServerGameplayConfig>().combat.health.player.max
@@ -197,7 +200,7 @@ fn joining_inherits_shared_progress_and_respects_blocked_spawns_and_group_countd
             player.session.checkpoint.expect("shared checkpoint not inherited").id,
             CheckpointId(0)
         );
-        assert_eq!(player.is_dead(), blocked || group_countdown);
+        assert_eq!(player.is_dead(), group_countdown);
         assert_eq!(player.session.score, 0);
         if group_countdown {
             app.world_mut()
@@ -225,7 +228,7 @@ fn joining_inherits_shared_progress_and_respects_blocked_spawns_and_group_countd
             );
         }
         if blocked {
-            assert!(app.world().get_entity(entity).is_err());
+            assert_eq!(app.world().get_entity(entity).is_err(), group_countdown);
             layout.floors.push(floor);
             let mut collision = CollisionWorld::from_map_layout(&layout, &Default::default());
             collision.set_carrier_poses(app.world().resource::<Carriers>());
@@ -241,14 +244,13 @@ fn joining_inherits_shared_progress_and_respects_blocked_spawns_and_group_countd
             .get(&PlayerId(9))
             .expect("joining player missing");
         let body = player.entity().expect("joining player never spawned");
-        assert_eq!(
-            app.world().get::<Position>(body),
-            Some(&Position {
-                x: 32.0,
-                y: 6.5,
-                z: 12.0
-            })
-        );
-        assert_eq!(player.life.checkpoint_contact, Some(CheckpointId(0)));
+        if blocked && !group_countdown {
+            // Already alive in a spawn zone; clearing the checkpoint moves nobody.
+            assert_ne!(app.world().get::<Position>(body), Some(&checkpoint_pos));
+            assert_eq!(player.life.checkpoint_contact, None);
+        } else {
+            assert_eq!(app.world().get::<Position>(body), Some(&checkpoint_pos));
+            assert_eq!(player.life.checkpoint_contact, Some(CheckpointId(0)));
+        }
     }
 }

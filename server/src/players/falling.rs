@@ -1,8 +1,7 @@
 use bevy::prelude::*;
 
-use super::{Invincibility, PlayerMap, PlayerSpawn, place_player_body};
+use super::{Invincibility, PlayerMap, place_player_body, player_spawn_destination, spawn_zone_destination};
 use crate::{
-    characters::generate_player_spawn_position,
     combat::{DeathSource, PendingExplosions, apply_damage, kill_player},
     config::{FallDamageConfig, ServerGameplayConfig},
     map::MapConfig,
@@ -38,6 +37,7 @@ pub fn players_fatal_outcomes_system(
         };
         let crushed = info.life.outcomes.crushed.take();
         let fell_out_of_world = std::mem::take(&mut info.life.outcomes.fell_out_of_world);
+        let saved_checkpoint = info.session.checkpoint;
         if let Some(pos) = crushed.filter(|_| !invincibility.0) {
             info!("{} was crushed by moving geometry at {:?}", players.describe(id), pos);
             kill_player(
@@ -63,17 +63,23 @@ pub fn players_fatal_outcomes_system(
                 .filter(|(other, _, other_pos, _)| *other != entity && other_pos.y >= CHARACTER_FALL_DEATH_Y)
                 .map(|(_, _, other_pos, _)| *other_pos)
                 .collect();
-            let spawn_pos = generate_player_spawn_position(
+            let physics = gameplay_config.player.physics();
+            // The saved checkpoint, like a respawn; a spawn zone when it is blocked.
+            let spawn = player_spawn_destination(
                 &map_config,
                 &carriers,
                 &collision_world,
                 &occupied_positions,
-                gameplay_config.player.physics(),
-            );
+                physics,
+                saved_checkpoint,
+            )
+            .unwrap_or_else(|| {
+                spawn_zone_destination(&map_config, &carriers, &collision_world, &occupied_positions, physics)
+            });
             info!(
                 "{} fell out of the world while invincible; teleporting to {:?}",
                 players.describe(id),
-                spawn_pos
+                spawn.pos
             );
             if let Some(info) = players.get_mut(id) {
                 info.advance_body();
@@ -83,7 +89,7 @@ pub fn players_fatal_outcomes_system(
                 &mut players,
                 *id,
                 entity,
-                &PlayerSpawn::without_checkpoint(spawn_pos),
+                &spawn,
                 *health,
                 tick.0,
                 portal_assignments.get(id),

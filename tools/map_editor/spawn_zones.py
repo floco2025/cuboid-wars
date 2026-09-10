@@ -12,6 +12,7 @@ from .constants import (
     CHECKPOINT_TYPE_LABELS,
     SPAWN_ZONE_HANDLE_PIXELS,
     ZONE_LISTS,
+    ZONE_PICK_ORDER,
 )
 from .geometry import zone_contains_cell, zone_handle_centers, zone_rect
 from .normalization import zone_key
@@ -52,11 +53,8 @@ class SpawnZoneEditMixin:
     def spawn_zone_at(self, pos) -> ZoneRef | None:
         col = int(pos.x() // 1)
         row = int(pos.y() // 1)
-        # Priority order when zones overlap a cell: actor → player. Actor
-        # zones carry per-zone configuration (kind / count), so the user is
-        # more likely to want them. Within each list, iterate in reverse so
-        # the most-recently-painted wins.
-        for list_name in ZONE_LISTS:
+        # Lists in pick order; within each, the most-recently-painted wins.
+        for list_name in ZONE_PICK_ORDER:
             for idx in range(len(self.map_data[list_name]) - 1, -1, -1):
                 zone = self.map_data[list_name][idx]
                 if zone["level"] == self.current_level and zone_contains_cell(zone, col, row):
@@ -160,7 +158,7 @@ class SpawnZoneEditMixin:
         zone = after[drag.list_name][drag.index]
         zone["cols"] = [c0, c1]
         zone["rows"] = [r0, r1]
-        self.apply_change("Edit Checkpoint" if drag.list_name == "checkpoints" else "Edit Spawn Zone", after)
+        self.apply_change("Edit Checkpoint" if drag.list_name == CHECKPOINT_LIST else "Edit Spawn Zone", after)
         self.selected_spawn_zone_ref = self._zone_ref_after_change(drag.list_name, zone)
 
     def selected_spawn_zone_has_fields(self) -> bool:

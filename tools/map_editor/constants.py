@@ -132,6 +132,10 @@ CHECKPOINT_LIST = "checkpoints"
 CHECKPOINT_TYPE_LABELS = {"individual": "Individual", "group_any": "Group — any", "group_all": "Group — all"}
 SPAWN_ZONE_LISTS = (ACTOR_ZONE_LIST, PLAYER_ZONE_LIST)
 ZONE_LISTS = (*SPAWN_ZONE_LISTS, CHECKPOINT_LIST)
+# Which zone a pick under the cursor prefers when zones overlap a cell: a
+# checkpoint first, then an actor zone (it carries per-zone settings), then a
+# player zone.
+ZONE_PICK_ORDER = (CHECKPOINT_LIST, *SPAWN_ZONE_LISTS)
 ITEMS_LIST = "items"
 NESTED_MAPS_LIST = "nested_maps"
 

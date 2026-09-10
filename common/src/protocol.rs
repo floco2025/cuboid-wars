@@ -598,6 +598,7 @@ impl SPlayerStatus {
 pub struct SEquipmentErased;
 
 // Sent only to the player whose checkpoint changed, for the sound and banner.
+// Reliable: nothing else carries the save, so a lost cue would stay lost.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SCheckpointReached;
 
@@ -845,7 +846,8 @@ impl ServerMessage {
             | Self::PlayerKnockback(_)
             | Self::Feed(_)
             | Self::QuestUpdates(_)
-            | Self::Firework(_) => Lane::Reliable,
+            | Self::Firework(_)
+            | Self::CheckpointReached(_) => Lane::Reliable,
             Self::Snapshot(_)
             | Self::PlayerMoves(_)
             | Self::ProjectileShot(_)
@@ -859,7 +861,6 @@ impl ServerMessage {
             | Self::ActorBeam(_)
             | Self::PlayerStatus(_)
             | Self::EquipmentErased(_)
-            | Self::CheckpointReached(_)
             | Self::GoldCollected(_)
             | Self::HealthPotionCollected(_)
             | Self::PressurePlate(_)

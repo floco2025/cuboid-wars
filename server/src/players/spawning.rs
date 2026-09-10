@@ -19,6 +19,8 @@ pub(crate) struct PlayerSpawn {
     pub contact: Option<CheckpointId>,
 }
 
+// The saved checkpoint when it has a clear spot, `None` while it is blocked;
+// a spawn zone otherwise.
 pub(crate) fn player_spawn_destination(
     map: &MapConfig,
     carriers: &Carriers,
@@ -27,27 +29,39 @@ pub(crate) fn player_spawn_destination(
     physics: CharacterPhysicsConfig,
     saved: Option<PlayerCheckpoint>,
 ) -> Option<PlayerSpawn> {
-    let (pos, face_yaw) = if let Some(saved) = saved {
-        let checkpoint = &map.checkpoints[saved.id.0];
-        let pose = carriers.pose(checkpoint.carrier);
-        let pos = checkpoint_spawn_position(checkpoint, &pose, collision_world, occupied, physics)?;
-        let facing = pose.transform_vector(saved.facing);
-        (pos, facing.x.atan2(facing.z))
-    } else {
-        let pos = generate_player_spawn_position(map, carriers, collision_world, occupied, physics);
-        (pos, spawn_face_yaw(&pos))
+    let Some(saved) = saved else {
+        return Some(spawn_zone_destination(
+            map,
+            carriers,
+            collision_world,
+            occupied,
+            physics,
+        ));
     };
-    let contact = checkpoint_at_position(&map.checkpoints, carriers, collision_world, &pos, physics, &[]);
-    Some(PlayerSpawn { pos, face_yaw, contact })
+    let checkpoint = &map.checkpoints[saved.id.0];
+    let pose = carriers.pose(checkpoint.carrier);
+    let pos = checkpoint_spawn_position(checkpoint, &pose, collision_world, occupied, physics)?;
+    let facing = pose.transform_vector(saved.facing);
+    Some(PlayerSpawn {
+        pos,
+        face_yaw: facing.x.atan2(facing.z),
+        contact: checkpoint_at_position(&map.checkpoints, carriers, collision_world, &pos, physics, &[]),
+    })
 }
 
-impl PlayerSpawn {
-    pub(crate) fn without_checkpoint(pos: Position) -> Self {
-        Self {
-            pos,
-            face_yaw: spawn_face_yaw(&pos),
-            contact: None,
-        }
+// A spawn zone placement, seeded with the checkpoint the spot happens to be in.
+pub(crate) fn spawn_zone_destination(
+    map: &MapConfig,
+    carriers: &Carriers,
+    collision_world: &CollisionWorld,
+    occupied: &[Position],
+    physics: CharacterPhysicsConfig,
+) -> PlayerSpawn {
+    let pos = generate_player_spawn_position(map, carriers, collision_world, occupied, physics);
+    PlayerSpawn {
+        pos,
+        face_yaw: spawn_face_yaw(&pos),
+        contact: checkpoint_at_position(&map.checkpoints, carriers, collision_world, &pos, physics, &[]),
     }
 }
 

@@ -2,27 +2,9 @@
 
 ## Fixes
 
-- **Rejected portal placement plays two sounds:** trying to place a portal on a non-portalable texture plays both the fizzle sound and the placement sound. Play only the fizzle sound when placement is rejected.
+## Enhancements
 
 - **Third-person body clipping during portal traversal:** jumping into a floor portal makes the player's legs disappear before the body emerges from the exit, leaving the model visibly cut in half. Keep the body presentation continuous across portal entry and exit.
-
-- **Checkpoint re-entry replays the shared activation:** a jump in place inside a group zone (the seeded contact in `server/src/players/checkpoints.rs` survives only within 5 cm of the floor, so the first airborne tick drops it) or stepping out of and back into the already-active shared checkpoint re-runs the activation, regressing individual saves, rewriting everyone's facing, and clearing partial Group — all visits. Skip activation when the entered checkpoint is already `PlayerMap.shared_checkpoint`, and cover Ground → Airborne → Ground at the same spot with a test.
-
-- **Simultaneous shared entries lose the second:** when two shared checkpoints are entered on the same tick, `apply_checkpoint_entries` activates the lowest index and breaks, but the other entrant's `checkpoint_contact` is already recorded, so that checkpoint never activates until they leave and re-enter. Defer the remaining entries to the next tick instead of dropping them.
-
-- **Blocked initial placement is silent:** a login whose checkpoint destination is blocked retries every tick but gives no sign of it: no `SPlayerDeath`, no log line, and no spawn-zone fallback (`player_spawn_destination` returns `None` through `?`), so the client sits bodiless with an inert camera until the destination clears. Fall back to the spawn zone or tell the client it is waiting.
-
-- **Negative respawn timer resets the world at once:** a blocked respawn keeps ticking `respawn_remaining_secs` below zero, and `PlayerMap::disconnect` passes that value as the actor-reset delay, so the logout resets actors on the next tick instead of after `respawn_secs`. Clamp the countdown or treat a non-positive remainder as the full delay.
-
-- **God-mode void fall ignores the checkpoint:** `players_fatal_outcomes_system` teleports an invincible player through `generate_player_spawn_position` and never seeds `checkpoint_contact`, so it lands in the spawn zone and, where a spawn zone overlaps a checkpoint, counts as a fresh entry. Route it through `player_spawn_destination` like login and respawn.
-
-- **Checkpoint cue can be lost:** `SCheckpointReached` rides the unreliable lane and nothing in the snapshot carries the saved checkpoint, so one dropped datagram loses the sound and banner until the next death. Send it on the reliable lane or add the saved checkpoint to `SSnapshot`.
-
-- **Editor cannot pick a checkpoint under a spawn zone:** `hit_at` and `spawn_zone_at` in `tools/map_editor/erasing.py` return the first zone list's hit, so a checkpoint overlapping a spawn zone can never be right-clicked, hovered, or Alt-dragged. The comments there and in `spawn_zones.py` still describe the old actor → player order, and `spawn_zones.py` and `regions.py` compare against the literal `"checkpoints"` instead of `CHECKPOINT_LIST`.
-
-- **Editor confuses same-rectangle checkpoints:** `zone_key` in `tools/map_editor/normalization.py` keys checkpoints by rectangle only while canonicalization keys them by rectangle and type, so editing the type of one of two overlapping checkpoints re-selects the first and later edits apply to the wrong zone.
-
-## Enhancements
 
 - **Pressure plates cover characters' feet:** give plates collision geometry so players and other characters stand on their surface instead of intersecting the model. Keep the support height aligned with the tread in both active and inactive states.
 
@@ -40,7 +22,7 @@
 
 - **Checkpoint list stored twice:** `MapConfig.checkpoints` copies `MapLayout.checkpoints` verbatim and `CheckpointId` indexes both by convention. Drop the copy and pass the layout's list to the checkpoint, respawn, and spawn-destination code; `level_tag` is also evaluated twice per zone in `server/src/map/definition/geometry.rs`.
 
-- **Checkpoint code cleanups:** flatten `ZoneDef` into `CheckpointDef`, replace `wait_for_spawn` with `begin_respawn(0.0)`, move `CHECKPOINT_COLOR` into `client/src/constants.rs`, and name the repeated `"Checkpoint reached"` literal in `ui/hud_banner.rs`.
+- **Checkpoint code cleanups:** flatten `ZoneDef` into `CheckpointDef`, move `CHECKPOINT_COLOR` into `client/src/constants.rs`, and name the repeated `"Checkpoint reached"` literal in `ui/hud_banner.rs`.
 
 - **Tool Reference lacks Checkpoints:** the editor's Help → Tool Reference has no section for the Checkpoint tool, its Type selector, right-click type editing, or Erase Checkpoints.
 

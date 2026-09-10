@@ -7,11 +7,19 @@ from unittest.mock import patch
 from PySide6.QtCore import QPointF
 from PySide6.QtWidgets import QComboBox
 
-from editor_fixtures import WindowTestCase, floor
-from map_editor.constants import CHECKPOINT_TYPE_LABELS, HIT_CHECKPOINT, MODE_CHECKPOINT, MODE_ERASE_CHECKPOINTS, MODE_ERASE_SPAWN_ZONES
+from editor_fixtures import EditorHost, WindowTestCase, floor
+from map_editor.constants import (
+    CHECKPOINT_LIST,
+    CHECKPOINT_TYPE_LABELS,
+    HIT_CHECKPOINT,
+    HIT_SPAWN_ZONE,
+    MODE_CHECKPOINT,
+    MODE_ERASE_CHECKPOINTS,
+    MODE_ERASE_SPAWN_ZONES,
+)
 from map_editor.erasing import erase_cell_rect, erase_group_rect, erase_hit, hit_at
 from map_editor.io import read_map, write_map
-from map_editor.normalization import canonicalize_map, empty_map, normalize_map
+from map_editor.normalization import canonicalize_map, empty_map, normalize_map, zone_key
 from map_editor.regions import TileRegion, copy_region, delete_region, paste_region
 from map_editor.transforms import insert_level_data, remove_level_data, resize_map_data, translate_map
 from map_editor.types import ZoneRef
@@ -27,6 +35,33 @@ def checkpoint_map():
 
 
 class CheckpointTests(unittest.TestCase):
+    def test_a_checkpoint_under_a_spawn_zone_is_picked_first(self):
+        data = checkpoint_map()
+        rect = {"level": 0, "cols": [1, 4], "rows": [1, 4]}
+        data["player_spawn_zones"] = [dict(rect)]
+        data["actor_spawn_zones"] = [{**rect, "kind": "zapper", "count": 1}]
+
+        self.assertEqual(hit_at(data, 0, 2.5, 2.5, 0.1), (HIT_CHECKPOINT, (CHECKPOINT_LIST, 0)))
+        self.assertEqual(EditorHost(data, []).spawn_zone_at(QPointF(2.5, 2.5)), ZoneRef(CHECKPOINT_LIST, 0))
+
+        data["checkpoints"] = []
+        self.assertEqual(hit_at(data, 0, 2.5, 2.5, 0.1), (HIT_SPAWN_ZONE, ("actor_spawn_zones", 0)))
+        self.assertEqual(EditorHost(data, []).spawn_zone_at(QPointF(2.5, 2.5)), ZoneRef("actor_spawn_zones", 0))
+
+    def test_same_rectangle_checkpoints_keep_their_identity(self):
+        data = checkpoint_map()
+        first = data["checkpoints"][0]
+        second = {**first, "type": "group_all"}
+        data["checkpoints"] = [first, second]
+
+        self.assertNotEqual(zone_key(CHECKPOINT_LIST, first), zone_key(CHECKPOINT_LIST, second))
+        canonical = canonicalize_map(data)
+        self.assertEqual(len(canonical["checkpoints"]), 2)
+        host = EditorHost(canonical, [])
+        for zone in (first, second):
+            ref = host._zone_ref_after_change(CHECKPOINT_LIST, zone)
+            self.assertEqual(canonical["checkpoints"][ref.index]["type"], zone["type"])
+
     def test_roundtrip_including_nested_geometry_and_absent_list(self):
         data = checkpoint_map()
         data["nested_geometry"] = {"platform": checkpoint_map()}

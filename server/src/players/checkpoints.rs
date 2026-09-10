@@ -90,6 +90,7 @@ pub(super) fn apply_checkpoint_entries(
         .collect();
     entered.sort_by_key(|(player, checkpoint)| (checkpoint.id, player.0));
     let mut shared_entries = BTreeMap::new();
+    let mut shared_entrants: BTreeMap<CheckpointId, Vec<PlayerId>> = BTreeMap::new();
     for (id, saved) in entered {
         let Some(player) = players.get_mut(&id).filter(|player| player.connection.logged_in) else {
             continue;
@@ -98,15 +99,24 @@ pub(super) fn apply_checkpoint_entries(
             CheckpointKind::Individual => player.session.checkpoint = Some(saved),
             CheckpointKind::GroupAny => {
                 shared_entries.entry(saved.id).or_insert(saved);
+                shared_entrants.entry(saved.id).or_default().push(id);
             }
             CheckpointKind::GroupAll => {
                 player.session.checkpoint_visits.insert(saved.id, saved.facing);
                 shared_entries.entry(saved.id).or_insert(saved);
+                shared_entrants.entry(saved.id).or_default().push(id);
             }
         }
     }
+    let active = players.shared_checkpoint.map(|checkpoint| checkpoint.id);
+    let mut activated = None;
     for (index, checkpoint) in checkpoints.iter().enumerate() {
         let id = CheckpointId(index);
+        // Re-entering the active shared checkpoint changes nothing: individual
+        // saves, the saved facing, and partial visits all stand.
+        if active == Some(id) {
+            continue;
+        }
         let saved = match checkpoint.kind {
             CheckpointKind::Individual => continue,
             CheckpointKind::GroupAny => shared_entries.get(&id).copied(),
@@ -140,7 +150,21 @@ pub(super) fn apply_checkpoint_entries(
             player.session.checkpoint = Some(saved);
             player.session.checkpoint_visits.clear();
         }
+        activated = Some(id);
         break;
+    }
+    // One activation per tick: whoever entered another shared checkpoint now
+    // enters it again next tick instead of standing there unnoticed.
+    if let Some(activated) = activated {
+        for entrant in shared_entrants
+            .iter()
+            .filter(|(id, _)| **id != activated)
+            .flat_map(|(_, entrants)| entrants)
+        {
+            if let Some(player) = players.get_mut(entrant) {
+                player.life.checkpoint_contact = None;
+            }
+        }
     }
     for (id, previous) in previous {
         let player = players.get(&id).expect("checkpoint recipient missing");

@@ -18,10 +18,17 @@ fn barrier_kind_cap() -> u16 {
 }
 
 #[test]
+fn the_checkpoint_cue_rides_the_reliable_lane() {
+    assert_eq!(
+        ServerMessage::CheckpointReached(SCheckpointReached).lane(),
+        Lane::Reliable
+    );
+}
+
+#[test]
 fn unreliable_lane_messages_fit_one_datagram() {
     let messages = [
         ServerMessage::EquipmentErased(SEquipmentErased),
-        ServerMessage::CheckpointReached(SCheckpointReached),
         ServerMessage::PlayerStatus(SPlayerStatus {
             id: PlayerId(1),
             generation: PlayerGeneration(0),

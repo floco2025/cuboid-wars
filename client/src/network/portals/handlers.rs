@@ -42,6 +42,7 @@ pub(in crate::network) fn handle_portal_opened_message(
     }
 }
 
+// A rejected shot: only the fizzle sounds, at the impact for everyone else.
 pub(in crate::network) fn handle_portal_fizzled_message(
     message: SPortalFizzled,
     commands: &mut Commands,
@@ -55,11 +56,6 @@ pub(in crate::network) fn handle_portal_fizzled_message(
         &context.carrier_entities,
     );
     if message.shooter == my_player_id {
-        play_sound(
-            commands,
-            &context.assets.asset_server,
-            context.assets.asset_set.player_sound("portal_fire"),
-        );
         play_sound(
             commands,
             &context.assets.asset_server,
@@ -77,16 +73,5 @@ pub(in crate::network) fn handle_portal_fizzled_message(
             &context.client_settings.audio,
             impact,
         );
-        if let Some(shooter) = context.players.get(&message.shooter)
-            && let Ok(position) = context.player_data.get(shooter.entity)
-        {
-            play_spatial_sound(
-                commands,
-                &context.assets.asset_server,
-                context.assets.asset_set.player_sound("portal_fire"),
-                &context.client_settings.audio,
-                eye_position(*position, context.gameplay_config.player.eye_height()),
-            );
-        }
     }
 }

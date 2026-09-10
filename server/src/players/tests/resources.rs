@@ -464,3 +464,36 @@ fn begin_respawn_preserves_session_state() {
     );
     assert_eq!(info.session.score, 42, "score survives death");
 }
+
+#[test]
+fn a_blocked_respawns_logout_owes_the_full_actor_reset_delay() {
+    let mut players = PlayerMap::new(RespawnConfig {
+        players: PlayerRespawnMode::Individual,
+        actors: ActorRespawnConfig {
+            on_player_death: DeathTrigger::Any,
+            scope: ActorRespawnScope::Dead,
+        },
+    });
+    players.insert(PlayerId(1), active_info());
+    players.insert(PlayerId(2), active_info());
+    assert!(players.begin_respawn(PlayerId(1), 2.0));
+    // The death's own reset fires while the respawn stays blocked past its countdown.
+    let (due, reset) = players.tick_respawns(3.0);
+    assert_eq!(due, [PlayerId(1)]);
+    assert!(reset.is_some());
+    assert_eq!(
+        players
+            .get(&PlayerId(1))
+            .expect("dead player missing")
+            .respawn_remaining_secs(),
+        Some(0.0),
+        "the countdown holds at zero"
+    );
+
+    players.disconnect(&PlayerId(1), 2.0);
+    assert!(
+        players.tick_respawns(1.0).1.is_none(),
+        "the logout waits the full delay"
+    );
+    assert!(players.tick_respawns(1.0).1.is_some());
+}
