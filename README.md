@@ -111,25 +111,6 @@ cargo run --release --bin client                       # connect to 127.0.0.1:80
 cargo run --release --bin client -- --name "Alice"     # custom name
 ```
 
-The server's tick, movement, and snapshot rates are configurable, and clients
-show other players, actors, and missiles a short, steady delay behind their
-latest updates.
-
-For a small puzzle, run `cargo run --release --bin server -- --map puzzle_stages`.
-The [nine puzzle examples](PUZZLES.md#small-example-maps) include eight solo maps and one for two players.
-
-For local multiplayer testing on macOS:
-
-```bash
-./launch_clients.sh 4              # 4 tiled windowed clients
-./launch_clients.sh 2 100          # 2 clients with 100ms simulated lag each way
-./launch_clients.sh 2 100 0.1      # ... and 10% of unreliable messages dropped
-./launch_clients.sh 2 100 0 0.5    # 50–150ms delay for unreliable messages
-```
-
-Simulated lag includes 5% jitter for unreliable messages by default. Set
-`--jitter 0` on the client, or the launcher's fourth argument to `0`, for fixed delay.
-
 The repo ships a self-signed `cert.pem` / `key.pem` for LAN testing. **Replace
 them for anything beyond localhost** — they are not production-safe.
 
@@ -140,9 +121,6 @@ python3 tools/editor.py hotel      # edits config/server/maps/hotel/layout.json 
 ```
 
 Maps are listed by name in `config/server/gameplay.json` (`maps` + `default_map`). Each map has a folder containing `layout.json` and a hand-edited `settings.json` for movement, kind catalogs, respawn policies, quests, and other tuning. To add a map, register its name and create its settings file; the editor can then create its layout.
-The editor (PySide6) covers everything in a map file: floors, grass, walls,
-ramps, ladders, barriers, equipment erasers, spawn zones, items, pressure plates, lights, and
-per-face materials.
 
 ## License
 
