@@ -104,6 +104,7 @@ fn carrier_local_reports_relay_unchanged_while_the_server_places_the_rider_with_
             travel_ticks: 30,
             pause_ticks: 10,
             phase_ticks: 0,
+            switch: None,
         }],
         ..default()
     };
@@ -118,7 +119,9 @@ fn carrier_local_reports_relay_unchanged_while_the_server_places_the_rider_with_
     message.movement.support = CharacterSupport::Ground;
     deliver(&mut app, message);
     for tick in [1, 15, 30, 40, 55, 70, 80] {
-        app.world_mut().resource_mut::<Carriers>().advance(tick);
+        app.world_mut()
+            .resource_mut::<Carriers>()
+            .advance(tick, &PlateState::default());
         app.update();
         let expected = app
             .world()
@@ -141,7 +144,9 @@ fn carrier_local_reports_relay_unchanged_while_the_server_places_the_rider_with_
     };
     deliver(&mut app, report(2, exit));
     for tick in [81, 90, 100] {
-        app.world_mut().resource_mut::<Carriers>().advance(tick);
+        app.world_mut()
+            .resource_mut::<Carriers>()
+            .advance(tick, &PlateState::default());
         app.update();
         assert_eq!(
             *app.world().get::<Position>(entity).expect("player position missing"),

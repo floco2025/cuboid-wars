@@ -96,6 +96,7 @@ fn validation_rejects_actor_zone_with_empty_kind() {
             rows: [0, 1],
             kind: String::new(),
             count: 1,
+            switch: None,
         }],
         vec![player_zone(0, 0, 0)],
         Vec::new(),
@@ -118,6 +119,7 @@ fn validation_accepts_unknown_kind_strings() {
             rows: [0, 1],
             kind: "boss".into(),
             count: 1,
+            switch: None,
         }],
         vec![player_zone(0, 0, 0)],
         Vec::new(),
@@ -217,7 +219,7 @@ fn validate_rejects_plate_conflicts_with_bridges_and_other_plates() {
         level: 0,
         col: 1,
         row: 0,
-        purpose: PressurePlatePurposeDef::Firework,
+        switch: FIREWORKS.into(),
     });
 
     let err = validate_map(&map_def).expect_err("a plate on a bridge must fail");
@@ -226,19 +228,9 @@ fn validate_rejects_plate_conflicts_with_bridges_and_other_plates() {
     map_def.levels[0].light_bridges.clear();
     map_def.levels[0].floors.push(floor_def(1, 0));
     map_def.levels.push(level(vec![[1, 0]]));
-    for purpose in [
-        PressurePlatePurposeDef::Barrier { kind: "red".into() },
-        PressurePlatePurposeDef::Barrier { kind: "blue".into() },
-        PressurePlatePurposeDef::Bridge { kind: "skyway".into() },
-        PressurePlatePurposeDef::Firework,
-    ] {
-        map_def.pressure_plates[0].purpose = PressurePlatePurposeDef::Barrier { kind: "red".into() };
-        map_def.pressure_plates.push(PressurePlateDef {
-            level: 0,
-            col: 1,
-            row: 0,
-            purpose,
-        });
+    for switch in ["red", "blue", "skyway", FIREWORKS] {
+        map_def.pressure_plates[0].switch = "red".into();
+        map_def.pressure_plates.push(plate_def(0, 1, 0, switch));
         let err = validate_map(&map_def).expect_err("overlapping pressure plates accepted");
         assert!(err.to_string().contains("duplicates a plate"), "{err}");
         map_def.pressure_plates[1].level = 1;
@@ -260,7 +252,7 @@ fn validate_rejects_a_plate_without_a_floor_or_on_a_ramp() {
         level,
         col,
         row,
-        purpose: PressurePlatePurposeDef::Firework,
+        switch: FIREWORKS.into(),
     };
 
     map_def.pressure_plates.push(plate(0, 0, 3));
@@ -531,4 +523,29 @@ fn eraser_validation_rejects_duplicates_diagonals_and_out_of_bounds_edges() {
             .collect();
         assert!(validate_map(&definition).is_err());
     }
+}
+
+#[test]
+fn validate_rejects_empty_switch_names() {
+    let mut map_def = map_with_zones(
+        4,
+        vec![level(vec![[0, 0]])],
+        vec![actor_zone(0, 0, 0)],
+        vec![player_zone(0, 0, 0)],
+        Vec::new(),
+    );
+    map_def.pressure_plates.push(plate_def(0, 0, 0, ""));
+    let err = validate_map(&map_def).expect_err("a plate with an empty switch accepted");
+    assert!(
+        err.to_string().contains("pressure_plates[0] has empty `switch`"),
+        "{err}"
+    );
+    map_def.pressure_plates.clear();
+
+    map_def.actor_spawn_zones[0].switch = Some(String::new());
+    let err = validate_map(&map_def).expect_err("a zone with an empty switch accepted");
+    assert!(
+        err.to_string().contains("actor_spawn_zones[0] has empty `switch`"),
+        "{err}"
+    );
 }

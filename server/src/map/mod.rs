@@ -30,7 +30,7 @@ pub use grid::grid_coords_from_position;
 pub use light_cycle::{LightState, light_cycle_is_running, light_cycle_system, light_preset_from_str};
 pub use plugin::map_plugin;
 pub use resources::{
-    ActorSpawnZone, CarrierGrid, Cell, CellGrid, EdgeGrid, LevelGrid, MapConfig, PlacedItem, PlayerSpawnZone,
-    PressurePlateRuntime,
+    ActorSpawnZone, CarrierGrid, Cell, CellGrid, EdgeGrid, LevelGrid, MapConfig, MapFireworks, PlacedItem,
+    PlayerSpawnZone, PressurePlateRuntime,
 };
 pub use weather::{WeatherState, weather_needs_tick, weather_system};

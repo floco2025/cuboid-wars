@@ -11,6 +11,7 @@ fn motion(level: u32, from: [i32; 2], to: [i32; 2], to_level: u32) -> MotionDef 
         phase_secs: 0.0,
         from_nudge: [0.0; 3],
         to_nudge: [0.0; 3],
+        switch: None,
     }
 }
 
@@ -46,7 +47,7 @@ fn red_barrier_plate() -> PressurePlateDef {
         level: 0,
         col: 0,
         row: 0,
-        purpose: PressurePlatePurposeDef::Barrier { kind: "red".into() },
+        switch: "red".into(),
     }
 }
 
@@ -76,10 +77,8 @@ fn a_nested_plate_allows_actor_routes_through_parent_barriers() {
     root.nested_maps.push(nested("switch", 0, [0, 1], [1, 1], 0));
     let mut switch = host(Vec::new());
     switch.pressure_plates.push(red_barrier_plate());
-    let (_, config) = compile_map(
+    let (_, config) = compile_with(
         &root,
-        30,
-        sizes(),
         &tree(vec![("switch", switch)]),
         &three_kind_table(),
         &no_bridges(),
@@ -93,10 +92,8 @@ fn a_nested_plate_allows_actor_routes_through_parent_barriers() {
 fn a_parent_plate_allows_actor_routes_through_nested_barriers() {
     let mut root = host(vec![nested("corridor", 0, [0, 1], [1, 1], 0)]);
     root.pressure_plates.push(red_barrier_plate());
-    let (_, config) = compile_map(
+    let (_, config) = compile_with(
         &root,
-        30,
-        sizes(),
         &tree(vec![("corridor", barrier_corridor())]),
         &three_kind_table(),
         &no_bridges(),
@@ -115,10 +112,8 @@ fn a_deeply_nested_plate_allows_actor_routes_through_a_siblings_barriers() {
     let middle = host(vec![nested("switch", 0, [0, 1], [1, 1], 0)]);
     let mut switch = host(Vec::new());
     switch.pressure_plates.push(red_barrier_plate());
-    let (_, config) = compile_map(
+    let (_, config) = compile_with(
         &root,
-        30,
-        sizes(),
         &tree(vec![
             ("corridor", barrier_corridor()),
             ("middle", middle),
@@ -152,23 +147,17 @@ fn firework_plate_does_not_open_any_barrier_kind() {
         level: 0,
         col: 0,
         row: 0,
-        purpose: PressurePlatePurposeDef::Firework,
+        switch: FIREWORKS.into(),
     });
 
-    let (layout, config) =
-        compile_map(&map_def, 30, sizes(), &no_nested(), &three_kind_table(), &no_bridges()).expect("compile");
+    let (layout, config) = compile_with(&map_def, &no_nested(), &three_kind_table(), &no_bridges()).expect("compile");
     assert!(
         config.root_grid().levels[0].barrier_edges.vertical[0][1],
         "a firework plate opens no barrier kind for nav"
     );
-    assert_eq!(
-        config.pressure_plates[0].purpose,
-        common::protocol::PlatePurpose::Firework
-    );
-    assert_eq!(
-        layout.pressure_plates[0].purpose,
-        common::protocol::PlatePurpose::Firework
-    );
+    let fireworks = switch_id(&three_kind_table(), &no_bridges(), FIREWORKS);
+    assert_eq!(config.pressure_plates[0].switch, fireworks);
+    assert_eq!(layout.pressure_plates[0].switch, fireworks);
 }
 
 // A 3x2 room with a floor on every cell, a wall along its north edge, one
@@ -204,7 +193,7 @@ fn room() -> MapDef {
         level: 0,
         col: 1,
         row: 1,
-        purpose: PressurePlatePurposeDef::Firework,
+        switch: FIREWORKS.into(),
     });
     map_def
 }
@@ -227,7 +216,7 @@ fn tree(maps: Vec<(&str, MapDef)>) -> LoadedMaps {
 }
 
 fn compile_host(host: &MapDef, nested: &LoadedMaps) -> (common::protocol::MapLayout, crate::map::MapConfig) {
-    compile_map(host, 30, sizes(), nested, &empty_kind_table(), &no_bridges()).expect("host failed to compile")
+    compile_with(host, nested, &empty_kind_table(), &no_bridges()).expect("host failed to compile")
 }
 
 #[test]
@@ -394,18 +383,11 @@ fn nested_kinds_resolve_against_the_root_tables_and_an_unknown_kind_names_the_ne
     let host_def = host(vec![nested("room", 0, [2, 2], [2, 2], 0)]);
     let nested_maps = tree(vec![("room", keyed_room)]);
 
-    let (layout, _) = compile_map(
-        &host_def,
-        30,
-        sizes(),
-        &nested_maps,
-        &red_only_kind_table(),
-        &no_bridges(),
-    )
-    .expect("a nested barrier of a root kind failed to compile");
+    let (layout, _) = compile_with(&host_def, &nested_maps, &red_only_kind_table(), &no_bridges())
+        .expect("a nested barrier of a root kind failed to compile");
     assert_eq!(layout.barriers.len(), 1);
 
-    let error = compile_map(&host_def, 30, sizes(), &nested_maps, &empty_kind_table(), &no_bridges())
+    let error = compile_with(&host_def, &nested_maps, &empty_kind_table(), &no_bridges())
         .expect_err("an unknown nested kind compiled");
     assert!(format!("{error:#}").contains("nested map \"room\""), "{error:#}");
 }
@@ -458,4 +440,43 @@ fn nested_player_spawn_zones_items_and_plates_carry_their_carrier() {
     assert_eq!(config.placed_items[0].carrier, CarrierId(1));
     assert_eq!(config.pressure_plates.len(), 1);
     assert_eq!(config.pressure_plates[0].carrier, CarrierId(1));
+}
+
+#[test]
+fn a_nested_map_names_the_switch_that_runs_its_carrier() {
+    let mut entry = nested("room", 0, [2, 2], [2, 5], 0);
+    entry.motion.switch = Some(FIREWORKS.into());
+    let host_def = host(vec![entry]);
+    let (layout, _) = compile_host(&host_def, &tree(vec![("room", room())]));
+    let fireworks = switch_id(&empty_kind_table(), &no_bridges(), FIREWORKS);
+    assert_eq!(layout.carriers[0].switch, Some(fireworks));
+
+    let mut entry = nested("room", 0, [2, 2], [2, 5], 0);
+    entry.motion.switch = Some("void".into());
+    let host_def = host(vec![entry]);
+    let error = compile_with(
+        &host_def,
+        &tree(vec![("room", room())]),
+        &empty_kind_table(),
+        &no_bridges(),
+    )
+    .expect_err("an unknown carrier switch compiled");
+    assert!(format!("{error:#}").contains("unknown switch"), "{error:#}");
+
+    let mut plateless = room();
+    plateless.pressure_plates.clear();
+    let mut entry = nested("room", 0, [2, 2], [2, 5], 0);
+    entry.motion.switch = Some(FIREWORKS.into());
+    let host_def = host(vec![entry]);
+    let error = compile_with(
+        &host_def,
+        &tree(vec![("room", plateless)]),
+        &empty_kind_table(),
+        &no_bridges(),
+    )
+    .expect_err("a carrier on an unplated switch compiled");
+    assert!(
+        format!("{error:#}").contains("operated by no pressure plate"),
+        "{error:#}"
+    );
 }

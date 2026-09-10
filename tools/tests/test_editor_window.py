@@ -13,10 +13,8 @@ from map_editor.constants import (
     HIT_LADDER,
     HIT_LIGHT,
     MODE_ACTOR_SPAWN_ZONE,
-    MODE_BRIDGE_PLATE,
     MODE_ERASE,
     MODE_ERASE_LADDERS,
-    MODE_FIREWORK_PLATE,
     MODE_FLOOR,
     MODE_FLOOR_MATERIAL,
     MODE_ITEM,
@@ -125,8 +123,6 @@ class WindowTests(WindowTestCase):
             MODE_LADDER: "toggle_ladder_at",
             MODE_LIGHT: "add_light_at",
             MODE_PRESSURE_PLATE: "prompt_and_add_pressure_plate",
-            MODE_BRIDGE_PLATE: "prompt_and_add_bridge_plate",
-            MODE_FIREWORK_PLATE: "add_firework_plate",
             MODE_ITEM: "prompt_and_add_item",
         }
         for mode, method in methods.items():
@@ -152,8 +148,8 @@ class WindowTests(WindowTestCase):
         window = self.window
         canvas = window.canvas
         for cancel in ("escape", "tool", "outside"):
-            with self.subTest(cancel=cancel), patch.object(window, "add_firework_plate") as place:
-                window.mode_combo.setCurrentText(MODE_FIREWORK_PLATE)
+            with self.subTest(cancel=cancel), patch.object(window, "prompt_and_add_pressure_plate") as place:
+                window.mode_combo.setCurrentText(MODE_PRESSURE_PLATE)
                 self.app.processEvents()
                 position = canvas.viewport.from_grid(QPointF(2.5, 2.5)).toPoint()
                 QTest.mousePress(canvas, Qt.MouseButton.LeftButton, pos=position)
@@ -331,18 +327,15 @@ class WindowTests(WindowTestCase):
 
     def test_conflicting_loaded_plates_can_be_erased_independently(self):
         window = self.window
-        window.barrier_kind_colors = {"a": "#ff0000", "b": "#00ff00"}
+        window.switch_ids = ["a", "b"]
         data = copy.deepcopy(window.map_data)
-        data["pressure_plates"] = [
-            {"level": 0, "col": 1, "row": 1, "type": "barrier", "kind": kind}
-            for kind in ("a", "b")
-        ]
+        data["pressure_plates"] = [{"level": 0, "col": 1, "row": 1, "switch": switch} for switch in ("a", "b")]
         window.doc.replace_with_new(data)
         canvas = window.canvas
         position = canvas.viewport.from_grid(QPointF(1.5, 1.5)).toPoint()
 
         def choose_erase(menu, *_):
-            action = next(a for a in menu.actions() if a.text() == "Erase Barrier Plate (a)")
+            action = next(a for a in menu.actions() if a.text() == "Erase Pressure Plate (a)")
             action.trigger()
 
         menu = QMenu(canvas)
@@ -351,7 +344,7 @@ class WindowTests(WindowTestCase):
             canvas.contextMenuEvent(
                 QContextMenuEvent(QContextMenuEvent.Reason.Mouse, position, canvas.mapToGlobal(position))
             )
-        self.assertEqual([p["kind"] for p in window.plates_at(1, 1)], ["b"])
+        self.assertEqual([p["switch"] for p in window.plates_at(1, 1)], ["b"])
 
     def test_invalid_ladders_remain_erasable_without_breaking_other_tools(self):
         window = self.window
@@ -451,8 +444,9 @@ class WindowTests(WindowTestCase):
         window.add_floor_rect((2, 1), (2, 1))
         window.barrier_kind_colors = {"gate": "#ff0000"}
         window.bridge_kind_colors = {"bridge": "#00ff00"}
-        window.recent_barrier_kind = window.recent_pressure_plate_kind = "gate"
-        window.recent_bridge_kind = window.recent_bridge_plate_kind = "bridge"
+        window.switch_ids = ["gate", "bridge"]
+        window.recent_barrier_kind = window.recent_pressure_plate_switch = "gate"
+        window.recent_bridge_kind = "bridge"
         window.recent_item_type = "health_potion"
         with (
             patch("map_editor.placement.KindDialog.prompt") as kind,
@@ -461,12 +455,13 @@ class WindowTests(WindowTestCase):
             window.prompt_and_add_barrier_line((1, 1), (2, 1))
             window.prompt_and_add_pressure_plate(1, 1)
             window.prompt_and_add_light_bridge_rect((4, 4), (4, 4))
-            window.prompt_and_add_bridge_plate(2, 1)
+            window.recent_pressure_plate_switch = "bridge"
+            window.prompt_and_add_pressure_plate(2, 1)
             window.prompt_and_add_item(1, 1)
             kind.assert_not_called()
             item.assert_not_called()
         self.assertEqual(window.map_data["items"][0]["type"], "health_potion")
-        self.assertEqual(len(window.map_data["pressure_plates"]), 2)
+        self.assertEqual([p["switch"] for p in window.map_data["pressure_plates"]], ["gate", "bridge"])
 
     def test_nested_map_placement_reuses_configured_motion(self):
         window = self.window
@@ -481,26 +476,36 @@ class WindowTests(WindowTestCase):
     def test_actor_picker_rejects_unknown_kinds_and_toolbar_reuses_valid_choices(self):
         window = self.window
         kind = window.actor_kinds[0]
-        dialog = ActorSpawnFieldsDialog(window, kind, 3)
+        dialog = ActorSpawnFieldsDialog(window, kind, 3, ["guards"], None)
         self.assertGreater(dialog._kind_edit.count(), 0)
-        self.assertEqual(dialog.values(), (kind, 3))
+        self.assertEqual(dialog.values(), (kind, 3, None))
+        dialog._switch_combo.setCurrentText("guards")
+        self.assertEqual(dialog.values(), (kind, 3, "guards"))
         dialog.deleteLater()
         with (
             patch.object(ActorSpawnFieldsDialog, "exec", return_value=QDialog.DialogCode.Accepted),
             patch("map_editor.dialogs.catalogs.QMessageBox.warning") as warning,
         ):
-            self.assertIsNone(ActorSpawnFieldsDialog.prompt(window, "not_a_kind", 3))
+            self.assertIsNone(ActorSpawnFieldsDialog.prompt(window, "not_a_kind", 3, ["guards"], None))
             warning.assert_called_once()
-        window.mode_combo.setCurrentText(MODE_ACTOR_SPAWN_ZONE)
+        window.switch_ids = ["guards"]
         window.recent_actor_spawn_kind = kind
         window.recent_actor_spawn_count = 7
+        window.recent_actor_spawn_switch = "guards"
+        window.mode_combo.setCurrentText(MODE_ACTOR_SPAWN_ZONE)
         window.tool_settings.refresh()
         combos = window.tool_settings.findChildren(QComboBox)
         self.assertEqual(combos[0].currentText(), kind)
+        self.assertEqual(combos[1].currentText(), "guards")
         with patch.object(ActorSpawnFieldsDialog, "prompt") as prompt:
             window.add_actor_spawn_zone_rect((2, 2), (3, 3))
             prompt.assert_not_called()
-        self.assertEqual(window.map_data["actor_spawn_zones"][0]["count"], 7)
+        zone = window.map_data["actor_spawn_zones"][0]
+        self.assertEqual((zone["count"], zone["switch"]), (7, "guards"))
+        window.recent_actor_spawn_switch = ""
+        with patch.object(ActorSpawnFieldsDialog, "prompt") as prompt:
+            window.add_actor_spawn_zone_rect((4, 4), (5, 5))
+        self.assertNotIn("switch", window.map_data["actor_spawn_zones"][1])
 
     def test_canvas_letter_shortcuts_do_not_steal_actor_search_text(self):
         window = self.window

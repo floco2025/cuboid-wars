@@ -9,8 +9,8 @@
       {"level": 0, "cols": [1, 2], "rows": [6, 7]}
     ],
     "pressure_plates": [
-      {"level": 0, "col": 1, "row": 5, "type": "bridge", "kind": "roof"},
-      {"level": 1, "col": 1, "row": 4, "type": "firework"}
+      {"level": 0, "col": 1, "row": 5, "switch": "roof"},
+      {"level": 1, "col": 1, "row": 4, "switch": "fireworks"}
     ],
     "items": [
       {"level": 1, "col": 1, "row": 3, "type": "gold"}

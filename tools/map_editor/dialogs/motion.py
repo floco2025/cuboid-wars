@@ -37,9 +37,12 @@ def _row(widgets: list[QWidget]) -> QWidget:
 class MotionDialog(QDialog):
     """Modal dialog asking which map to nest and how it travels: the level
     of its far end, the time one leg takes, the pause at each end, the phase
-    offset of its cycle, and each end's nudge, its displacement from the
-    anchor, x and z in wall widths and y in floor widths. `recent` is the
-    previous answer, remembered for the next placement."""
+    offset of its cycle, each end's nudge, its displacement from the anchor,
+    x and z in wall widths and y in floor widths, and the switch that runs
+    it, if any. `recent` is the previous answer, remembered for the next
+    placement."""
+
+    NO_SWITCH = "(none)"
 
     def __init__(
         self,
@@ -49,19 +52,33 @@ class MotionDialog(QDialog):
         recent: NestedMotion | None,
         title: str,
         map_names: list[str],
+        switches: list[str],
     ):
         super().__init__(parent)
         self.setWindowTitle(title)
         recent_map = recent.map_name if recent else ""
-        to_level, travel_secs, pause_secs, phase_secs, from_nudge, to_nudge = (
-            (recent.to_level, recent.travel_secs, recent.pause_secs, recent.phase_secs, recent.from_nudge, recent.to_nudge)
+        to_level, travel_secs, pause_secs, phase_secs, from_nudge, to_nudge, switch = (
+            (
+                recent.to_level,
+                recent.travel_secs,
+                recent.pause_secs,
+                recent.phase_secs,
+                recent.from_nudge,
+                recent.to_nudge,
+                recent.switch,
+            )
             if recent
-            else (current_level, 2.0, 1.0, 0.0, (0.0, 0.0, 0.0), (0.0, 0.0, 0.0))
+            else (current_level, 2.0, 1.0, 0.0, (0.0, 0.0, 0.0), (0.0, 0.0, 0.0), None)
         )
         self._map = QComboBox()
         self._map.addItems(map_names)
         if recent_map in map_names:
             self._map.setCurrentText(recent_map)
+        self._switch = QComboBox()
+        self._switch.addItem(self.NO_SWITCH)
+        self._switch.addItems(switches)
+        if switch in switches:
+            self._switch.setCurrentText(switch)
 
         self._to_level = QSpinBox()
         self._to_level.setRange(0, max(0, level_count - 1))
@@ -89,6 +106,7 @@ class MotionDialog(QDialog):
         form.addRow("Phase offset from the start (s):", self._phase)
         form.addRow("Nudge end 1 (x, z wall widths; y floor widths):", _row(self._from_nudge))
         form.addRow("Nudge end 2 (x, z wall widths; y floor widths):", _row(self._to_nudge))
+        form.addRow("Switch that runs it:", self._switch)
 
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(self.accept)
@@ -98,7 +116,8 @@ class MotionDialog(QDialog):
         layout.addLayout(form)
         layout.addWidget(buttons)
 
-    def motion(self) -> tuple[int, float, float, float, Nudge, Nudge]:
+    def motion(self) -> tuple[int, float, float, float, Nudge, Nudge, str | None]:
+        switch = self._switch.currentText()
         return (
             self._to_level.value(),
             self._travel.value(),
@@ -106,6 +125,7 @@ class MotionDialog(QDialog):
             self._phase.value(),
             tuple(box.value() for box in self._from_nudge),
             tuple(box.value() for box in self._to_nudge),
+            None if switch == self.NO_SWITCH else switch,
         )
 
     @classmethod
@@ -116,12 +136,13 @@ class MotionDialog(QDialog):
         current_level: int,
         recent: NestedMotion | None,
         map_names: list[str],
+        switches: list[str],
         title: str = "Place Nested Map",
     ) -> NestedMotion | None:
         if not map_names:
             QMessageBox.warning(parent, title, "Create nested geometry with Edit → New Nested Map first.")
             return None
-        dialog = cls(parent, level_count, current_level, recent, title, map_names)
+        dialog = cls(parent, level_count, current_level, recent, title, map_names, switches)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return None
         return NestedMotion(dialog._map.currentText(), *dialog.motion())

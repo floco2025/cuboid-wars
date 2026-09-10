@@ -9,8 +9,8 @@
       {"level": 0, "cols": [2, 3], "rows": [5, 6]}
     ],
     "pressure_plates": [
-      {"level": 0, "col": 3, "row": 5, "type": "barrier", "kind": "cyan"},
-      {"level": 0, "col": 12, "row": 5, "type": "firework"}
+      {"level": 0, "col": 3, "row": 5, "switch": "cyan"},
+      {"level": 0, "col": 12, "row": 5, "switch": "fireworks"}
     ],
     "items": [
       {"level": 0, "col": 2, "row": 4, "type": "portal_gun"},

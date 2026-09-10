@@ -9,7 +9,7 @@
       {"level": 1, "cols": [1, 2], "rows": [6, 7]}
     ],
     "pressure_plates": [
-      {"level": 1, "col": 13, "row": 5, "type": "firework"}
+      {"level": 1, "col": 13, "row": 5, "switch": "fireworks"}
     ],
     "items": [
       {"level": 1, "col": 12, "row": 5, "type": "gold"},

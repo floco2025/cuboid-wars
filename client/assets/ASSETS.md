@@ -11,6 +11,7 @@
 | `models/turret.glb` | Project-created model and surface textures | Project-owned |
 | `models/wall_light_decorative.glb` | Project-created | Project-owned |
 | `models/wall_light_utility.glb` | Project-created | Project-owned |
+| `models/pressure_plate.glb` | Project-created model and activation animation | Project-owned |
 | `models/mocap/cmu/*.amc`, `*.asf` | [Carnegie Mellon University Graphics Lab Motion Capture Database](http://mocap.cs.cmu.edu/) | [CMU terms and capture list](models/mocap/cmu/README.md) |
 
 ## Textures

@@ -17,7 +17,7 @@ fn app() -> App {
     let mut config = ServerGameplayConfig::load_default().expect("server config invalid");
     config.combat.damage.projectile = 10.0;
     let catalog = QuestCatalog::from_quests(&[]);
-    app.insert_resource(QuestBoard::from_catalog(&catalog))
+    app.insert_resource(QuestBoard::from_catalog(&catalog, None))
         .insert_resource(catalog)
         .insert_resource(config)
         .insert_resource(Invincibility(false))

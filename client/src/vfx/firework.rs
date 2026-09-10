@@ -77,8 +77,9 @@ pub struct FireworkShow {
 }
 
 impl FireworkShow {
-    // The server broadcasts every trigger (it cannot know a show's length),
-    // so a show that is still playing wins over a new seed.
+    // The fireworks switch spaces its shows by `FIREWORK_SHOW_SECS` plus the
+    // map's cooldown, so only `/firework` can arrive mid-show; the show that
+    // is still playing wins over its seed.
     pub fn start(&mut self, seed: u64, map_layout: Option<&MapLayout>, geometry: MapGeometryConfig) {
         if !self.events.is_empty() {
             return;

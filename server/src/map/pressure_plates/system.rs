@@ -13,8 +13,7 @@ use crate::{
 use common::{
     map::{Carriers, MapGeometry},
     protocol::{
-        BarrierKindTable, BridgeKindTable, HeldPurpose, PlatePurpose, PlateState, PlayerId, PlayerMarker, Position,
-        SPressurePlate, ServerMessage,
+        PlateState, PlayerId, PlayerMarker, Position, SPressurePlate, ServerMessage, ServerTick, SwitchId, SwitchTable,
     },
 };
 
@@ -37,11 +36,13 @@ pub fn player_on_plate(plate: &PressurePlateRuntime, pos: &Position, geometry: &
     pos.x >= min_x && pos.x <= max_x && pos.z >= min_z && pos.z <= max_z
 }
 
-// Barrier and bridge kinds use their configured activation: any occupied plate
-// for momentary, each fresh plate press for toggle, and toggle with exactly one
-// logged-in player for auto. Entering auto toggle seeds from current occupancy.
-// Fireworks require min(plate count, alive player count), with at least one alive
-// player, and fire only on the threshold's rising edge.
+// Each switch uses its configured activation over the plates that name it:
+// held for momentary, each fresh plate press for toggle, and toggle with
+// exactly one logged-in player for auto. Entering auto toggle seeds from
+// current occupancy. `held` decides what holding means: any occupied plate,
+// or every living player on one (every plate when players outnumber them).
+// The fireworks switch starts a show whenever it is active and the previous
+// show plus the cooldown have passed.
 pub(crate) fn pressure_plates_system(
     map_config: Res<MapConfig>,
     carriers: Res<Carriers>,
@@ -49,8 +50,8 @@ pub(crate) fn pressure_plates_system(
     server_gameplay_config: Res<ServerGameplayConfig>,
     mut quest_board: ResMut<QuestBoard>,
     quest_catalog: Res<QuestCatalog>,
-    barrier_kinds: Res<BarrierKindTable>,
-    bridge_kinds: Res<BridgeKindTable>,
+    switch_table: Res<SwitchTable>,
+    tick: Res<ServerTick>,
     positions: Query<&Position, With<PlayerMarker>>,
     plates_state: Res<PlateState>,
     mut switches: ResMut<PressureSwitches>,
@@ -72,10 +73,10 @@ pub(crate) fn pressure_plates_system(
         &carriers,
         &players,
         &positions,
-        quest_board.locked_plate_purposes(),
+        quest_board.locked_switches(),
     );
     let held: HashSet<usize> = holders.keys().copied().collect();
-    let edges = switches.update(logged_in, held.clone(), plates);
+    let edges = switches.update(logged_in, alive, held.clone(), plates, tick.0);
 
     // Edge-triggered cues: at most one press and one release cue per tick,
     // regardless of how many plates flipped — the messages carry no plate
@@ -94,15 +95,14 @@ pub(crate) fn pressure_plates_system(
     PlateFeed {
         players: &players,
         feed: &server_gameplay_config.feed,
-        barrier_kinds: &barrier_kinds,
-        bridge_kinds: &bridge_kinds,
+        switch_table: &switch_table,
         plates,
     }
     .emit(&holders, &edges, &plates_state, &switches.state());
 
-    if run_firework_plates(plates, &held, alive, &mut switches) {
+    if switches.fireworks_due(tick.0) {
         broadcast_firework_show(&players);
-        // `/firework` bypasses this on purpose: only the plates count.
+        // `/firework` bypasses this on purpose: only the switch counts.
         record_event(
             &mut players,
             &mut quest_board,
@@ -113,40 +113,35 @@ pub(crate) fn pressure_plates_system(
     }
 }
 
-// The feed's view of the plates: who switched a purpose on, and which
-// purposes went off.
+// The feed's view of the plates: who turned a switch on, and which switches
+// went off.
 struct PlateFeed<'a> {
     players: &'a PlayerMap,
     feed: &'a FeedConfig,
-    barrier_kinds: &'a BarrierKindTable,
-    bridge_kinds: &'a BridgeKindTable,
+    switch_table: &'a SwitchTable,
     plates: &'a [PressurePlateRuntime],
 }
 
 impl PlateFeed<'_> {
-    fn kind_name(&self, purpose: HeldPurpose) -> String {
-        match purpose {
-            HeldPurpose::Barrier(kind) => self
-                .barrier_kinds
-                .id(kind)
-                .expect("barrier kind missing from BarrierKindTable")
-                .to_owned(),
-            HeldPurpose::Bridge(kind) => self
-                .bridge_kinds
-                .id(kind)
-                .expect("bridge kind missing from BridgeKindTable")
-                .to_owned(),
-        }
+    fn switch_name(&self, switch: SwitchId) -> String {
+        self.switch_table
+            .id(switch)
+            .expect("switch missing from SwitchTable")
+            .to_owned()
     }
 
     fn emit(&self, holders: &HashMap<usize, PlayerId>, edges: &PlateEdges, before: &PlateState, after: &PlateState) {
         let held: HashSet<usize> = holders.keys().copied().collect();
-        let held_per_purpose = held_count_per_purpose(&held, self.plates);
-        let prev_held_per_purpose = held_count_per_purpose(&edges.prev_held, self.plates);
-        let next: Vec<_> = after.held().collect();
+        let held_per_switch = held_count_per_switch(&held, self.plates);
+        let prev_held_per_switch = held_count_per_switch(&edges.prev_held, self.plates);
 
-        for purpose in next.iter().copied().filter(|purpose| !before.contains(*purpose)) {
-            let Some(presser) = presser_of_purpose(purpose, holders, &edges.prev_held, self.plates) else {
+        for switch in after
+            .active_switches
+            .iter()
+            .copied()
+            .filter(|switch| !before.is_active(*switch))
+        {
+            let Some(presser) = presser_of_switch(switch, holders, &edges.prev_held, self.plates) else {
                 continue;
             };
             let name = self.players.display_name(&presser);
@@ -154,41 +149,33 @@ impl PlateFeed<'_> {
                 self.players,
                 self.feed,
                 FeedAudience::Everyone,
-                FeedEvent::plate_held(purpose, name, self.kind_name(purpose)),
+                FeedEvent::SwitchOn {
+                    name,
+                    switch_name: self.switch_name(switch),
+                },
             );
         }
-        for purpose in before.held().filter(|purpose| !next.contains(purpose)) {
-            let held_now = held_per_purpose.get(&purpose).copied().unwrap_or(0);
-            let held_before = prev_held_per_purpose.get(&purpose).copied().unwrap_or(0);
-            if !edges.flipped.contains(&purpose) && held_now >= held_before {
+        for switch in before
+            .active_switches
+            .iter()
+            .copied()
+            .filter(|switch| !after.is_active(*switch))
+        {
+            let held_now = held_per_switch.get(&switch).copied().unwrap_or(0);
+            let held_before = prev_held_per_switch.get(&switch).copied().unwrap_or(0);
+            if !edges.flipped.contains(&switch) && held_now >= held_before {
                 continue;
             }
             emit_feed(
                 self.players,
                 self.feed,
                 FeedAudience::Everyone,
-                FeedEvent::plate_released(purpose, self.kind_name(purpose)),
+                FeedEvent::SwitchOff {
+                    switch_name: self.switch_name(switch),
+                },
             );
         }
     }
-}
-
-// Whether this tick's firework plates start a show: the threshold's rising edge.
-fn run_firework_plates(
-    plates: &[PressurePlateRuntime],
-    held: &HashSet<usize>,
-    alive: usize,
-    switches: &mut PressureSwitches,
-) -> bool {
-    let firework_plates = plates
-        .iter()
-        .filter(|plate| plate.purpose == PlatePurpose::Firework)
-        .count();
-    let held_fireworks = held
-        .iter()
-        .filter(|idx| plates[**idx].purpose == PlatePurpose::Firework)
-        .count();
-    switches.fireworks_started(firework_plates_ready(firework_plates, held_fireworks, alive))
 }
 
 pub(crate) fn pressure_switch_reset_system(
@@ -197,6 +184,7 @@ pub(crate) fn pressure_switch_reset_system(
     mut players: ResMut<PlayerMap>,
     positions: Query<&Position, With<PlayerMarker>>,
     quest_board: Res<QuestBoard>,
+    tick: Res<ServerTick>,
     mut switches: ResMut<PressureSwitches>,
 ) {
     let resets = players.take_resets();
@@ -204,13 +192,17 @@ pub(crate) fn pressure_switch_reset_system(
         return;
     }
     let logged_in = players.values().filter(|info| info.connection.logged_in).count();
+    let alive = players
+        .values()
+        .filter(|info| info.connection.logged_in && !info.is_dead())
+        .count();
     let plates = &map_config.pressure_plates;
     let holders = plate_holders(
         &map_config,
         &carriers,
         &players,
         &positions,
-        quest_board.locked_plate_purposes(),
+        quest_board.locked_switches(),
     );
     let held: HashSet<_> = holders.keys().copied().collect();
     switches.reset(
@@ -220,8 +212,10 @@ pub(crate) fn pressure_switch_reset_system(
                 .any(|counts| trigger.applies(counts.logged_in, counts.alive))
         },
         logged_in,
+        alive,
         &held,
         plates,
+        tick.0,
     );
 }
 
@@ -230,7 +224,7 @@ fn plate_holders(
     carriers: &Carriers,
     players: &PlayerMap,
     positions: &Query<&Position, With<PlayerMarker>>,
-    locked: &[PlatePurpose],
+    locked: &[SwitchId],
 ) -> HashMap<usize, PlayerId> {
     let mut holders = HashMap::new();
     for (idx, plate) in map_config.pressure_plates.iter().enumerate() {
@@ -253,37 +247,32 @@ fn plate_holders(
     holders
 }
 
-// Everyone alive is on a firework plate — or every plate is held when the
-// players outnumber them.
-pub(super) fn firework_plates_ready(plates: usize, held: usize, alive: usize) -> bool {
-    plates > 0 && alive > 0 && held >= plates.min(alive)
+// Plates of a switch that solves a still-locked quest don't exist for the
+// players yet.
+fn plate_active(plate: &PressurePlateRuntime, locked: &[SwitchId]) -> bool {
+    !locked.contains(&plate.switch)
 }
 
-// Plates that solve a still-locked quest don't exist for the players yet.
-fn plate_active(plate: &PressurePlateRuntime, locked: &[PlatePurpose]) -> bool {
-    !locked.contains(&plate.purpose)
-}
-
-fn held_count_per_purpose(held: &HashSet<usize>, plates: &[PressurePlateRuntime]) -> HashMap<HeldPurpose, usize> {
+fn held_count_per_switch(held: &HashSet<usize>, plates: &[PressurePlateRuntime]) -> HashMap<SwitchId, usize> {
     let mut counts = HashMap::new();
-    for purpose in held.iter().filter_map(|idx| plates[*idx].purpose.held()) {
-        *counts.entry(purpose).or_insert(0) += 1;
+    for switch in held.iter().map(|idx| plates[*idx].switch) {
+        *counts.entry(switch).or_insert(0) += 1;
     }
     counts
 }
 
-// Who gets credit for flipping a purpose on: the holder of one of its
-// plates that was not held last tick, else any current holder. `None` when
-// nobody is on a plate of that purpose.
-pub(super) fn presser_of_purpose(
-    purpose: HeldPurpose,
+// Who gets credit for turning a switch on: the holder of one of its plates
+// that was not held last tick, else any current holder. `None` when nobody
+// is on a plate of that switch.
+pub(super) fn presser_of_switch(
+    switch: SwitchId,
     holders: &HashMap<usize, PlayerId>,
     prev_held: &HashSet<usize>,
     plates: &[PressurePlateRuntime],
 ) -> Option<PlayerId> {
     let mut standing = None;
     for (idx, id) in holders {
-        if plates[*idx].purpose.held() != Some(purpose) {
+        if plates[*idx].switch != switch {
             continue;
         }
         if !prev_held.contains(idx) {

@@ -9,7 +9,7 @@ pub struct BarrierKindId(pub u16);
 impl KindId for BarrierKindId {
     const MAX: Option<usize> = Some(28);
     const CONFIG_KEY: &'static str = "barrier_kinds";
-    const NOUN: &'static str = "barrier";
+    const NOUN: &'static str = "barrier kind";
 
     fn from_index(index: u16) -> Self {
         Self(index)

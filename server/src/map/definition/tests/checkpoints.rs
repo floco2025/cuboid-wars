@@ -16,7 +16,7 @@ fn checkpoints_require_valid_nonoverlapping_flat_floor_rectangles() {
     let mut map = map_with_zones(4, vec![level(vec![[0, 0], [1, 0]])], Vec::new(), Vec::new(), Vec::new());
     map.checkpoints.push(checkpoint_def(0, 0, 0));
     validate_map(&map).expect("checkpoint map rejected");
-    let compile = |map: &MapDef| compile_map(map, 30, sizes(), &no_nested(), &empty_kind_table(), &no_bridges());
+    let compile = |map: &MapDef| compile_with(map, &no_nested(), &empty_kind_table(), &no_bridges());
     let (layout, config) = compile(&map).expect("checkpoint compilation failed");
     assert_eq!(layout.checkpoints.len(), 1);
     assert_eq!(config.checkpoints.len(), 1);
@@ -70,13 +70,12 @@ fn repeated_nested_checkpoints_have_separate_carriers_and_runtime_slots() {
                 phase_secs: 0.0,
                 from_nudge: [0.0; 3],
                 to_nudge: [0.0; 3],
+                switch: None,
             },
         })
         .to_vec();
-    let (layout, config) = compile_map(
+    let (layout, config) = compile_with(
         &root,
-        30,
-        sizes(),
         &LoadedMaps::from([("platform".into(), nested)]),
         &empty_kind_table(),
         &no_bridges(),
@@ -99,7 +98,7 @@ fn checkpoint_types_are_required_and_preserved_on_the_wire() {
                 .expect("checkpoint type rejected");
         let mut map = map_with_zones(2, vec![level(vec![[0, 0]])], Vec::new(), Vec::new(), Vec::new());
         map.checkpoints.push(definition);
-        let (layout, config) = compile_map(&map, 30, sizes(), &no_nested(), &empty_kind_table(), &no_bridges())
+        let (layout, config) = compile_with(&map, &no_nested(), &empty_kind_table(), &no_bridges())
             .expect("typed checkpoint compilation failed");
         assert_eq!(config.checkpoints[0].kind, kind);
         let bytes = bincode::encode_to_vec(&layout, bincode::config::standard()).expect("checkpoint encoding failed");

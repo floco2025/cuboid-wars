@@ -103,7 +103,7 @@ pub(super) fn network_broadcast_snapshot_system(
     let all_items = collect_items(&items, &item_positions);
     let all_missiles = snapshot_missiles(&missiles);
 
-    let (quests, locked_plate_purposes) = conditions.quests.snapshot_fields(&conditions.quest_catalog, &players);
+    let (quests, locked_switches) = conditions.quests.snapshot_fields(&conditions.quest_catalog, &players);
     let msg = ServerMessage::Snapshot(SSnapshot {
         tick: tick.0,
         players: all_players,
@@ -114,7 +114,7 @@ pub(super) fn network_broadcast_snapshot_system(
         missiles: all_missiles,
         plates: (*plates).clone(),
         quests,
-        locked_plate_purposes,
+        locked_switches,
         rain_intensity: conditions.weather.intensity(),
         lighting: conditions.light.blend(),
         portals: conditions.portals.snapshot_portals(),

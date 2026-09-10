@@ -8,15 +8,17 @@ from ..constants import ITEM_KEY_TYPE, ITEM_TYPES
 
 
 class ActorSpawnFieldsDialog(QDialog):
-    """Modal dialog with a searchable actor catalog and count field.
+    """Modal dialog with a searchable actor catalog, a count field, and the
+    map switch that activates the zone, if any.
 
     Used both when painting a new actor zone and when editing an existing
-    one. Returns (kind, count) on accept; None on cancel.
+    one. Returns (kind, count, switch-or-None) on accept; None on cancel.
     """
 
     MAX_COUNT = 9999
+    NO_SWITCH = "(none)"
 
-    def __init__(self, parent, kind: str, count: int):
+    def __init__(self, parent, kind: str, count: int, switches: list[str], switch: str | None):
         super().__init__(parent)
         self.setWindowTitle("Actor Spawn Zone")
 
@@ -30,10 +32,16 @@ class ActorSpawnFieldsDialog(QDialog):
         self._count_spin = QSpinBox()
         self._count_spin.setRange(0, self.MAX_COUNT)
         self._count_spin.setValue(count)
+        self._switch_combo = QComboBox()
+        self._switch_combo.addItem(self.NO_SWITCH)
+        self._switch_combo.addItems(switches)
+        if switch in switches:
+            self._switch_combo.setCurrentText(switch)
 
         form = QFormLayout()
         form.addRow("Kind:", self._kind_edit)
         form.addRow("Count:", self._count_spin)
+        form.addRow("Switch:", self._switch_combo)
 
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(self.accept)
@@ -43,28 +51,35 @@ class ActorSpawnFieldsDialog(QDialog):
         layout.addLayout(form)
         layout.addWidget(buttons)
 
-    def values(self) -> tuple[str, int]:
-        return self._kind_edit.currentText().strip(), self._count_spin.value()
+    def values(self) -> tuple[str, int, str | None]:
+        switch = self._switch_combo.currentText()
+        return (
+            self._kind_edit.currentText().strip(),
+            self._count_spin.value(),
+            None if switch == self.NO_SWITCH else switch,
+        )
 
     @classmethod
-    def prompt(cls, parent, kind: str, count: int) -> tuple[str, int] | None:
-        dialog = cls(parent, kind, count)
+    def prompt(
+        cls, parent, kind: str, count: int, switches: list[str], switch: str | None
+    ) -> tuple[str, int, str | None] | None:
+        dialog = cls(parent, kind, count, switches, switch)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return None
-        new_kind, new_count = dialog.values()
+        new_kind, new_count, new_switch = dialog.values()
         if new_kind not in load_actor_kinds():
             QMessageBox.warning(parent, "Actor Spawn Zone", "Choose an actor kind from the catalog.")
             return None
-        return new_kind, new_count
+        return new_kind, new_count, new_switch
 
 
 class KindDialog(QDialog):
-    """Modal dialog asking which kind to use from one of the map's kind
-    catalogs (barrier or bridge kinds, from its gameplay settings). `noun`
-    names that catalog in the empty-catalog warning. Returns the chosen id
-    string on accept, None on cancel."""
+    """Modal dialog asking which id to use from one of the map's catalogs
+    (barrier kinds, bridge kinds, or switches, from its gameplay settings).
+    `noun` names one entry of that catalog in the empty-catalog warning.
+    Returns the chosen id string on accept, None on cancel."""
 
-    def __init__(self, parent, title: str, kinds: list[str], current: str | None):
+    def __init__(self, parent, title: str, kinds: list[str], current: str | None, noun: str = "kind"):
         super().__init__(parent)
         self.setWindowTitle(title)
 
@@ -75,7 +90,7 @@ class KindDialog(QDialog):
             self._combo.setCurrentIndex(kinds.index(current))
 
         form = QFormLayout()
-        form.addRow("Kind:", self._combo)
+        form.addRow(f"{noun.capitalize()}:", self._combo)
 
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(self.accept)
@@ -88,16 +103,17 @@ class KindDialog(QDialog):
     def value(self) -> str:
         return self._combo.currentText()
 
+    # `noun` is the catalog entry ("barrier kind", "switch"), pluralized with an s.
     @classmethod
     def prompt(cls, parent, title: str, kinds: list[str], current: str | None, noun: str) -> str | None:
         if not kinds:
             QMessageBox.warning(
                 parent,
                 title,
-                f"This map lists no {noun} kinds; add them to its gameplay settings first.",
+                f"This map lists no {noun}s; add them to its gameplay settings first.",
             )
             return None
-        dialog = cls(parent, title, kinds, current)
+        dialog = cls(parent, title, kinds, current, noun)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return None
         return dialog.value()

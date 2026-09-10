@@ -197,7 +197,7 @@ fn hotel_sized_snapshot_takes_the_stream_carrier() {
         missiles: Vec::new(),
         plates: PlateState::default(),
         quests: Vec::new(),
-        locked_plate_purposes: Vec::new(),
+        locked_switches: Vec::new(),
         rain_intensity: 0.0,
         lighting: LightingBlend {
             from: "bright".to_owned(),

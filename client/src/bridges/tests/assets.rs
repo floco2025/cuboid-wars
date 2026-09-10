@@ -7,7 +7,7 @@ fn bridges_use_translucent_panes_and_solid_frames() {
     let kinds = [KindDef {
         id: "blue".into(),
         color: HexColor([0, 0, 255]),
-        pressure_switch: Default::default(),
+        switch: None,
     }];
     let config = LightBridgeVfxConfig {
         emissive_brightness: 4.0,

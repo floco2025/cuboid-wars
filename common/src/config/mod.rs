@@ -23,7 +23,7 @@ pub use missiles::MissilesConfig;
 pub use movement::{ActorMovementConfig, KnockbackConfig, MapMovementConfig, PlayerMovementConfig};
 pub use network::{NetworkConfig, UpdateCadence};
 pub use portals::PortalsConfig;
-pub use pressure_switch::{PressureSwitchActivation, PressureSwitchConfig};
+pub use pressure_switch::{PressureSwitchActivation, PressureSwitchConfig, SwitchHold};
 pub use projectiles::{MultiShotConfig, MultiShotPatternConfig, ProjectilesConfig};
 pub use transport::{create_quinn_client_config, create_quinn_server_config, load_certs, load_private_key};
 pub use validation::{validate_non_negative_finite, validate_positive_finite};

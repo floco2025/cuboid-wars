@@ -21,9 +21,7 @@ from .constants import (
     MODE_ACTOR_SPAWN_ZONE,
     MODE_BARRIER,
     MODE_EQUIPMENT_ERASER,
-    MODE_BRIDGE_PLATE,
     MODE_ERASE_KEEP_FLOORS,
-    MODE_FIREWORK_PLATE,
     MODE_FLOOR,
     MODE_FLOOR_MATERIAL,
     MODE_GRASS,
@@ -157,8 +155,6 @@ CLICK_TOOLS = {
     MODE_LIGHT: _light_tool,
     MODE_LADDER: _ladder_tool,
     MODE_PRESSURE_PLATE: _click_place_tool("prompt_and_add_pressure_plate"),
-    MODE_BRIDGE_PLATE: _click_place_tool("prompt_and_add_bridge_plate"),
-    MODE_FIREWORK_PLATE: _click_place_tool("add_firework_plate"),
     MODE_ITEM: _click_place_tool("prompt_and_add_item"),
 }
 
@@ -576,13 +572,11 @@ class Canvas(CanvasPaintingMixin, QWidget):
             menu.addAction("Edit Item...", lambda: self.window.edit_item_at(*value))
         elif kind == HIT_PRESSURE_PLATE:
             for plate in self.window.plates_at(*value):
-                label = f"{plate['type'].capitalize()} Plate"
-                if "kind" in plate:
-                    label += f" ({plate['kind']})"
-                    menu.addAction(
-                        f"Edit {label}...",
-                        lambda _checked=False, key=pressure_plate_key(plate): self.window.edit_pressure_plate_at(key),
-                    )
+                label = f"Pressure Plate ({plate.get('switch') or '?'})"
+                menu.addAction(
+                    f"Edit {label}...",
+                    lambda _checked=False, key=pressure_plate_key(plate): self.window.edit_pressure_plate_at(key),
+                )
                 menu.addAction(f"Erase {label}", lambda _checked=False, key=pressure_plate_key(plate): self.window.erase_pressure_plate(key))
         if kind != HIT_PRESSURE_PLATE and not (preserve_floors and kind in FLOOR_HIT_KINDS):
             menu.addAction(f"Erase {kind}", lambda: self.window.erase_hit(hit, preserve_floors))

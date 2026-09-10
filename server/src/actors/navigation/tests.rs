@@ -37,6 +37,7 @@ fn zone(level: u8, col: i32, row: i32) -> ActorSpawnZone {
         rows: [row, row + 1],
         kind: test_kinds::BEAM.into(),
         count: 1,
+        switch: None,
     }
 }
 
@@ -437,9 +438,9 @@ fn shipping_map_zones_are_mutually_reachable() {
         .get(map_name)
         .expect("default map settings missing")
         .settings;
-    let (barrier_kinds, bridge_kinds) = settings.kind_tables().expect("default map kind tables rejected");
+    let (barrier_kinds, bridge_kinds, switch_table) = settings.kind_tables().expect("default map kind tables rejected");
     let GeneratedMap { config: map_config, .. } =
-        crate::map::generate_map(map_name, 30, settings, &barrier_kinds, &bridge_kinds)
+        crate::map::generate_map(map_name, 30, settings, &barrier_kinds, &bridge_kinds, &switch_table)
             .expect("default map failed to generate");
     let graphs = NavGraphs::new(&map_config);
 
@@ -795,12 +796,12 @@ fn shipping_map_bruiser_capsule_fits_the_direct_basement_trench_approach() {
         .get("hotel")
         .expect("hotel settings missing")
         .settings;
-    let (barrier_kinds, bridge_kinds) = settings.kind_tables().expect("hotel kind tables rejected");
+    let (barrier_kinds, bridge_kinds, switch_table) = settings.kind_tables().expect("hotel kind tables rejected");
     let GeneratedMap {
         layout,
         config: map_config,
         ..
-    } = crate::map::generate_map("hotel", 30, settings, &barrier_kinds, &bridge_kinds)
+    } = crate::map::generate_map("hotel", 30, settings, &barrier_kinds, &bridge_kinds, &switch_table)
         .expect("hotel map failed to generate");
     let world = CollisionWorld::from_map_layout(&layout, &barrier_kinds);
     let geometry = map_config.root_grid().geometry;

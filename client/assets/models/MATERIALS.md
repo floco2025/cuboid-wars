@@ -36,6 +36,12 @@ The `wear` section of [bruiser.json](bruiser.json) configures the painted armour
 
 `materials.joint` in [player.json](player.json) selects the FreePBR synthetic rubber with a 0.3 m tile size and 0.15 normal strength for fine, shallow grain on flexible parts; the bruiser and scuttler tires keep independent, coarser settings. The generator embeds a darker, lower-contrast variant of the rubber, while the white shells (`ivory`), steel, visor, chassis, markings, and lights are plain materials. The `wear` section controls scuffs, scratches, and shallow dent relief on the solid ivory plastic, lighter than on the wheeled actors and concentrated on shoulders, cuffs, lower legs, and feet; it has no paint or exposed metal. `--preview` renders one still per clip and `/tmp/player-detail.png`; `--rear` adds `/tmp/player-rear-head.png`.
 
+## Pressure plate
+
+`materials.accent.color` in [pressure_plate.json](pressure_plate.json) sets the tread color; `materials.light` controls the active strips and indicator. All surfaces use plain materials. `--preview` reimports the GLB and renders blue, amber, and violet plates in both states to `/tmp/pressure-plate-preview.png`, plus a closer pair in `/tmp/pressure-plate-detail.png`. The model is an asset for integration; the client and editor do not load it yet.
+
+The GLB has a 1 m square footprint, Y up, and its origin at floor center. Its tread, rim lights, and four O/I indicators are symmetric under quarter turns, so it has no front. Its default pose is inactive. The `Activate` clip runs from inactive at 0 s to active at 0.3 s: the tread sinks 0.03 m, covers retract to expose emissive strips, and all four mechanical indicators flip from O to I. Hold the final pose while active and reverse the clip to deactivate. `PressurePlatePanel`, `PressurePlateShutters`, and `PressurePlateStatus1` through `PressurePlateStatus4` are the animated nodes; `PressurePlateAccent` is the independent tint material. The animation uses node transforms, so it needs no animated-material extension.
+
 ## Rebuilding
 
 Run from the repository root:
@@ -47,6 +53,7 @@ Run from the repository root:
 /opt/homebrew/bin/blender --background --python client/assets/models/zapper.py -- --preview --motion
 /opt/homebrew/bin/blender --background --python client/assets/models/turret.py -- --preview
 /opt/homebrew/bin/blender --background --python client/assets/models/wall_lights.py -- --preview
+/opt/homebrew/bin/blender --background --python client/assets/models/pressure_plate.py -- --preview
 ```
 
 Everything after `--` is optional: `--preview` renders stills to `/tmp`, and `--motion` adds a frame sequence. `wall_lights.py` reads separate decorative and utility JSON files and rebuilds both models. Other generators rebuild independently. Restart the client to inspect regenerated models in-game.

@@ -2,7 +2,7 @@ use bevy::prelude::Resource;
 use common::{
     map::Carriers,
     physics::CollisionWorld,
-    protocol::{CarrierId, MapLayout, MapSettings, PlatePurpose},
+    protocol::{BarrierKindId, CarrierId, MapLayout, MapSettings},
 };
 
 use crate::{config::ServerGameplayConfig, map::MapConfig};
@@ -42,16 +42,19 @@ impl NavGraphs {
         {
             return;
         }
-        let (barrier_kinds, _) = settings
+        let (barrier_kinds, _, switch_table) = settings
             .kind_tables()
             .expect("map kind tables invalid after validation");
-        let passable: Vec<_> = layout
-            .pressure_plates
-            .iter()
-            .filter_map(|plate| match plate.purpose {
-                PlatePurpose::Barrier(kind) => Some(kind),
-                _ => None,
+        // Barrier kinds some plate opens: a route may plan through them and
+        // wait for physics to let the actor pass.
+        let passable: Vec<BarrierKindId> = settings
+            .barrier_switches(&switch_table)
+            .into_iter()
+            .enumerate()
+            .filter(|(_, switch)| {
+                switch.is_some_and(|switch| layout.pressure_plates.iter().any(|plate| plate.switch == switch))
             })
+            .map(|(index, _)| BarrierKindId(index as u16))
             .collect();
         for (index, graph) in self.0.iter_mut().enumerate() {
             let carrier = CarrierId(index as u16);

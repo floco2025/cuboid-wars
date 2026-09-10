@@ -48,40 +48,45 @@
     "actors": { "on_player_death": "never", "scope": "dead" }
   },
   "portals": "both",
+  "switches": [
+    {
+      "id": "sightline",
+      "activation": "auto",
+      "reset_on_player_death": "never"
+    },
+    {
+      "id": "power",
+      "activation": "auto",
+      "reset_on_player_death": "never"
+    },
+    {
+      "id": "fireworks",
+      "activation": "momentary",
+      "reset_on_player_death": "never",
+      "held": "everyone"
+    }
+  ],
+  "fireworks": {"switch": "fireworks", "cooldown_secs": 30.0},
   "barrier_kinds": [
     {
       "id": "sightline",
       "color": "#30d8ff",
-      "pressure_switch": {
-        "activation": "auto",
-        "reset_on_player_death": "never"
-      }
+      "switch": "sightline"
     },
     {
       "id": "amber",
-      "color": "#f0c020",
-      "pressure_switch": {
-        "activation": "auto",
-        "reset_on_player_death": "never"
-      }
+      "color": "#f0c020"
     },
     {
       "id": "blue",
-      "color": "#5090ff",
-      "pressure_switch": {
-        "activation": "auto",
-        "reset_on_player_death": "never"
-      }
+      "color": "#5090ff"
     }
   ],
   "bridge_kinds": [
     {
       "id": "power",
       "color": "#22cc33",
-      "pressure_switch": {
-        "activation": "auto",
-        "reset_on_player_death": "never"
-      }
+      "switch": "power"
     }
   ],
   "random_items": null,

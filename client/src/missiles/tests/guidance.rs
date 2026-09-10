@@ -3,7 +3,7 @@ use crate::test_fixtures::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THIC
 use common::{
     config::MissilesConfig,
     constants::TICK_SECS,
-    protocol::{BarrierKindTable, Carrier, CarrierId, Floor, MapLayout, PlayerId, Wall},
+    protocol::{BarrierKindTable, Carrier, CarrierId, Floor, MapLayout, PlateState, PlayerId, Wall},
 };
 use std::f32::consts::FRAC_PI_4;
 
@@ -73,6 +73,7 @@ fn a_wall_moving_across_a_cached_route_triggers_an_immediate_replan() {
             travel_ticks: 60,
             pause_ticks: 30,
             phase_ticks: 0,
+            switch: None,
         }],
         ..default()
     };
@@ -86,7 +87,7 @@ fn a_wall_moving_across_a_cached_route_triggers_an_immediate_replan() {
         .expect("initial route missing");
     info.path_target = Some(target);
     info.path_retry_timer = 0.4;
-    carriers.advance(60);
+    carriers.advance(60, &PlateState::default());
     world.set_carrier_poses(&carriers);
     assert!(!route_clear(
         &info.path,
@@ -337,6 +338,7 @@ fn missiles_reach_targets_inside_a_moving_room_without_clipping_its_shell() {
             travel_ticks: 180,
             pause_ticks: 30,
             phase_ticks: 0,
+            switch: None,
         }],
         ..default()
     };
@@ -344,7 +346,7 @@ fn missiles_reach_targets_inside_a_moving_room_without_clipping_its_shell() {
     for first_tick in [0, 90, 210] {
         for side in [Vec3::X, Vec3::NEG_X, Vec3::Z, Vec3::NEG_Z] {
             let mut carriers = Carriers::from_layout(&layout);
-            carriers.advance(first_tick);
+            carriers.advance(first_tick, &PlateState::default());
             let mut world = world(&layout);
             let local_target = Vec3::new(2.0, 1.1, 1.0);
             let target = carriers.pose(CarrierId(1)).transform_point(local_target);
@@ -353,7 +355,7 @@ fn missiles_reach_targets_inside_a_moving_room_without_clipping_its_shell() {
             let mut info = info();
             let mut reached = false;
             for tick in first_tick..first_tick + 300 {
-                carriers.advance(tick);
+                carriers.advance(tick, &PlateState::default());
                 world.set_carrier_poses(&carriers);
                 let target = carriers.pose(CarrierId(1)).transform_point(local_target);
                 info.lifetime_timer -= TICK_SECS;

@@ -47,8 +47,9 @@ pub(crate) struct MapDef {
 // in wall widths (across columns and rows), y in floor thicknesses (up).
 // Two floors meeting at a grid line overlap by one wall width (each
 // extends half past its line), so a nudge of one width and a hair back
-// along the travel keeps a floor clear of the one it meets. Top-level like
-// ramps and ladders because it may cross storeys.
+// along the travel keeps a floor clear of the one it meets. `switch` names
+// the map switch that runs the motion; without one it runs from the start.
+// Top-level like ramps and ladders because it may cross storeys.
 #[derive(Debug, Clone, Deserialize)]
 pub(crate) struct MotionDef {
     pub(crate) level: u32,
@@ -65,6 +66,8 @@ pub(crate) struct MotionDef {
     pub(crate) from_nudge: [f32; 3],
     #[serde(default)]
     pub(crate) to_nudge: [f32; 3],
+    #[serde(default)]
+    pub(crate) switch: Option<String>,
 }
 
 impl MotionDef {
@@ -199,6 +202,8 @@ pub(crate) struct RampDef {
     pub(crate) materials: FaceMaterials,
 }
 
+// `switch` names the map switch that activates the zone; without one the
+// zone fills at startup and refills on its kind's timer.
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
 pub(crate) struct ActorSpawnZoneDef {
     pub(crate) level: u32,
@@ -206,6 +211,8 @@ pub(crate) struct ActorSpawnZoneDef {
     pub(crate) rows: [i32; 2],
     pub(crate) kind: String,
     pub(crate) count: u32,
+    #[serde(default)]
+    pub(crate) switch: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
@@ -230,28 +237,15 @@ pub(crate) struct ItemDef {
     pub(crate) kind: Option<String>,
 }
 
-// A single-cell plate with a purpose (see `pressure_plates_system`): open
-// every barrier of a kind, power every light bridge of a kind while enough
-// plates of that kind are held, or launch the firework show once enough
-// players stand on firework plates.
+// A single-cell plate operating one of the map's switches by id (see
+// `pressure_plates_system`); what the switch drives is declared on its
+// targets.
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
 pub(crate) struct PressurePlateDef {
     pub(crate) level: u32,
     pub(crate) col: i32,
     pub(crate) row: i32,
-    #[serde(flatten)]
-    pub(crate) purpose: PressurePlatePurposeDef,
-}
-
-// `{"type": "barrier", "kind": "lobby"}` / `{"type": "bridge", "kind":
-// "skyway"}` / `{"type": "firework"}`; `kind` references `BarrierKindTable`
-// or `BridgeKindTable` by id, whichever the type names.
-#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
-#[serde(tag = "type", rename_all = "snake_case")]
-pub(crate) enum PressurePlatePurposeDef {
-    Barrier { kind: String },
-    Bridge { kind: String },
-    Firework,
+    pub(crate) switch: String,
 }
 
 #[derive(Debug, Deserialize)]

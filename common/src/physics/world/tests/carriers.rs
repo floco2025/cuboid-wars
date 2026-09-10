@@ -3,7 +3,7 @@ use rapier3d::{control::KinematicCharacterController, prelude::Vector};
 use super::*;
 use crate::{
     config::gameplay::load_test_gameplay, constants::TICK_SECS, map::Carriers,
-    physics::characters::character_movement_pose,
+    physics::characters::character_movement_pose, protocol::PlateState,
 };
 
 #[test]
@@ -19,7 +19,7 @@ fn carrier_colliders_follow_the_carrier_pose() {
 
     assert!(probe(&world, 0.0).is_some(), "the tile starts at its first end");
     let mut carriers = Carriers::from_layout(&layout);
-    carriers.advance(60);
+    carriers.advance(60, &PlateState::default());
     world.set_carrier_poses(&carriers);
     assert!(probe(&world, 0.0).is_none(), "the tile left its first end");
     assert!(probe(&world, 8.0).is_some(), "the tile arrived at its second end");
@@ -155,12 +155,13 @@ fn carrier_pushes_respect_barrier_passability_bridge_power_and_portal_exclusions
                 travel_ticks: 60,
                 pause_ticks: 0,
                 phase_ticks: 0,
+                switch: None,
             }],
             ..Default::default()
         };
         let mut world = CollisionWorld::from_map_layout(&layout, &table);
         let mut carriers = Carriers::from_layout(&layout);
-        carriers.advance(1);
+        carriers.advance(1, &PlateState::default());
         world.set_carrier_poses(&carriers);
         let handles: Vec<_> = world.colliders.iter().map(|(handle, _)| handle).collect();
         for powered in [false, true] {

@@ -185,16 +185,21 @@ class SpawnZoneEditMixin:
             return
         if ref.list_name != ACTOR_ZONE_LIST:
             return
-        result = self.prompt_for_actor_spawn_fields(zone["kind"], zone["count"])
+        result = self.prompt_for_actor_spawn_fields(zone["kind"], zone["count"], zone.get("switch"))
         if result is None:
             return
-        kind, count = result
+        kind, count, switch = result
         after = copy.deepcopy(self.map_data)
         if not (0 <= ref.index < len(after[ref.list_name])):
             return
-        after[ref.list_name][ref.index]["kind"] = kind
-        after[ref.list_name][ref.index]["count"] = count
+        edited = after[ref.list_name][ref.index]
+        edited["kind"] = kind
+        edited["count"] = count
+        edited.pop("switch", None)
+        if switch:
+            edited["switch"] = switch
         self.apply_change("Edit Actor Spawn Zone", after)
         self.recent_actor_spawn_kind = kind
         self.recent_actor_spawn_count = count
+        self.recent_actor_spawn_switch = switch or ""
         self.selected_spawn_zone_ref = self._zone_ref_after_change(ref.list_name, after[ref.list_name][ref.index])

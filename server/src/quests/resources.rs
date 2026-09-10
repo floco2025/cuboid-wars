@@ -3,7 +3,7 @@ use std::collections::{BTreeSet, HashMap};
 use bevy::prelude::Resource;
 
 use crate::{config::Quest, players::PlayerMap};
-use common::protocol::{PlatePurpose, QuestGroupProgress, QuestGroupStatus, QuestId, QuestScope};
+use common::protocol::{QuestGroupProgress, QuestGroupStatus, QuestId, QuestScope, SwitchId};
 
 use super::QuestCatalog;
 
@@ -69,15 +69,16 @@ impl QuestRuntimeState {
 #[derive(Resource, Debug)]
 pub struct QuestBoard {
     states: HashMap<QuestId, QuestRuntimeState>,
-    // Quests whose plates are only live once they unlock.
-    claims: Vec<(QuestId, PlatePurpose)>,
+    // Quests whose switch's plates are only live once they unlock.
+    claims: Vec<(QuestId, SwitchId)>,
     // Cached from `claims` + `unlocked`; refreshed on every unlock.
-    locked_plate_purposes: Vec<PlatePurpose>,
+    locked_switches: Vec<SwitchId>,
 }
 
 impl QuestBoard {
+    // `fireworks_switch` is the map's, claimed by every fireworks quest.
     #[must_use]
-    pub fn from_catalog(catalog: &QuestCatalog) -> Self {
+    pub fn from_catalog(catalog: &QuestCatalog, fireworks_switch: Option<SwitchId>) -> Self {
         let states = catalog
             .iter()
             .map(|quest| {
@@ -89,14 +90,15 @@ impl QuestBoard {
             .collect();
         let claims = catalog
             .iter()
-            .filter_map(|quest| quest.kind.plate_purpose().map(|purpose| (quest.id.clone(), purpose)))
+            .filter(|quest| quest.kind.locks_fireworks_switch())
+            .filter_map(|quest| fireworks_switch.map(|switch| (quest.id.clone(), switch)))
             .collect();
         let mut board = Self {
             states,
             claims,
-            locked_plate_purposes: Vec::new(),
+            locked_switches: Vec::new(),
         };
-        board.refresh_locked_plate_purposes();
+        board.refresh_locked_switches();
         board
     }
 
@@ -110,7 +112,7 @@ impl QuestBoard {
 
     pub fn unlock(&mut self, id: &QuestId) {
         self.state_mut(id).unlock();
-        self.refresh_locked_plate_purposes();
+        self.refresh_locked_switches();
     }
 
     pub fn finish_group(&mut self, quest: &Quest) -> bool {
@@ -161,22 +163,22 @@ impl QuestBoard {
         }
     }
 
-    // Plate purposes still locked: a claimed purpose waits for one of its
-    // claiming quests to unlock; unclaimed purposes are never locked.
+    // Switches still locked: a claimed switch waits for one of its claiming
+    // quests to unlock; unclaimed switches are never locked.
     #[must_use]
-    pub fn locked_plate_purposes(&self) -> &[PlatePurpose] {
-        &self.locked_plate_purposes
+    pub fn locked_switches(&self) -> &[SwitchId] {
+        &self.locked_switches
     }
 
-    fn refresh_locked_plate_purposes(&mut self) {
-        let claimed: BTreeSet<PlatePurpose> = self.claims.iter().map(|(_, purpose)| *purpose).collect();
-        self.locked_plate_purposes = claimed
+    fn refresh_locked_switches(&mut self) {
+        let claimed: BTreeSet<SwitchId> = self.claims.iter().map(|(_, switch)| *switch).collect();
+        self.locked_switches = claimed
             .into_iter()
-            .filter(|purpose| {
+            .filter(|switch| {
                 !self
                     .claims
                     .iter()
-                    .any(|(id, claimed)| claimed == purpose && self.is_unlocked(id))
+                    .any(|(id, claimed)| claimed == switch && self.is_unlocked(id))
             })
             .collect();
     }
@@ -216,11 +218,8 @@ impl QuestBoard {
         &self,
         catalog: &QuestCatalog,
         players: &PlayerMap,
-    ) -> (Vec<QuestGroupStatus>, Vec<PlatePurpose>) {
-        (
-            self.group_statuses(catalog, players),
-            self.locked_plate_purposes.clone(),
-        )
+    ) -> (Vec<QuestGroupStatus>, Vec<SwitchId>) {
+        (self.group_statuses(catalog, players), self.locked_switches.clone())
     }
 }
 

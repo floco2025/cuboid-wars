@@ -8,13 +8,14 @@ use common::protocol::CarrierId;
 fn config_and_map() -> (ServerGameplayConfig, MapConfig) {
     let server = ServerGameplayConfig::load_default().expect("load server gameplay");
     let settings = &server.maps.get("hotel").expect("hotel settings missing").settings;
-    let (barrier_kinds, bridge_kinds) = settings.kind_tables().expect("hotel kind tables rejected");
+    let (barrier_kinds, bridge_kinds, switch_table) = settings.kind_tables().expect("hotel kind tables rejected");
     let map = crate::map::generate_map(
         "hotel",
         server.network.server_hz,
         settings,
         &barrier_kinds,
         &bridge_kinds,
+        &switch_table,
     )
     .expect("hotel map failed to generate")
     .config;
@@ -46,6 +47,7 @@ fn immovable_capacity_counts_only_usable_floors_on_the_zones_carrier() {
         rows: [0, 1],
         kind: "turret".into(),
         count: 1,
+        switch: None,
     });
     validate_map_actor_kinds(&server, &map).expect("one turret rejected");
     map.actor_spawn_zones[0].count = 2;

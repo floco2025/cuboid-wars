@@ -60,6 +60,7 @@ class NestedMapsMixin:
             entry["level"],
             NestedMotion.from_entry(entry),
             self.nested_map_names(),
+            self.switches,
             title="Edit Nested Map",
         )
         if result is None:
@@ -76,6 +77,7 @@ class NestedMapsMixin:
         entry = next((e for e in after.get(NESTED_MAPS_LIST, []) if nested_map_key(e) == key), None)
         if entry is None:
             return
+        entry.pop("switch", None)
         entry.update(motion.to_entry())
         self.apply_change("Edit Nested Map", after)
 
@@ -107,6 +109,7 @@ class NestedMapsMixin:
             self.current_level,
             recent,
             self.nested_map_names(),
+            self.switches,
         )
         if result is None:
             return

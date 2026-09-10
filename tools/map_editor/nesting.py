@@ -21,6 +21,8 @@ class NestedMotion:
     phase_secs: float
     from_nudge: Nudge
     to_nudge: Nudge
+    # The switch that runs the motion; `None` runs it from the start.
+    switch: str | None = None
 
     @classmethod
     def from_entry(cls, entry: dict) -> "NestedMotion":
@@ -32,10 +34,11 @@ class NestedMotion:
             entry["phase_secs"],
             tuple(entry["from_nudge"]),
             tuple(entry["to_nudge"]),
+            entry.get("switch") or None,
         )
 
     def to_entry(self) -> dict:
-        return {
+        entry = {
             "map": self.map_name,
             "to_level": self.to_level,
             "travel_secs": self.travel_secs,
@@ -44,6 +47,9 @@ class NestedMotion:
             "from_nudge": list(self.from_nudge),
             "to_nudge": list(self.to_nudge),
         }
+        if self.switch:
+            entry["switch"] = self.switch
+        return entry
 
 
 @dataclass(frozen=True)

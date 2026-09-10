@@ -1,24 +1,32 @@
 use bevy::math::Vec3;
 use common::{
     constants::{CHARACTER_CARRIER_RIDE_TOLERANCE, TICK_SECS},
-    map::Carriers,
+    map::{CarrierRun, Carriers},
     physics::{CharacterEnvironment, CharacterStep, CollisionWorld, LadderMode, step_character_movement},
-    protocol::{CarrierId, Position},
+    protocol::{CarrierId, PlateState, Position},
 };
 
 use super::generate_map;
-use crate::config::{ServerGameplayConfig, validate_map_actor_kinds, validate_map_quests};
+use crate::config::{ServerGameplayConfig, validate_map_actor_kinds, validate_map_fireworks, validate_map_quests};
 
 #[test]
 fn every_registered_map_loads_and_validates() {
     let server = ServerGameplayConfig::load_default().expect("server gameplay config rejected");
     for (name, entry) in &server.maps {
-        let (barrier_kinds, bridge_kinds) = entry.settings.kind_tables().expect("shipped kind tables rejected");
-        let map = generate_map(name, 30, &entry.settings, &barrier_kinds, &bridge_kinds)
+        let (barrier_kinds, bridge_kinds, switch_table) =
+            entry.settings.kind_tables().expect("shipped kind tables rejected");
+        let map = generate_map(name, 30, &entry.settings, &barrier_kinds, &bridge_kinds, &switch_table)
             .unwrap_or_else(|error| panic!("shipped map {name:?} failed to generate: {error:#}"));
         validate_map_actor_kinds(&server, &map.config).unwrap_or_else(|error| panic!("{name}: {error}"));
-        validate_map_quests(&entry.quests, &map.config, entry.random_items.as_ref())
+        let fireworks_switch = validate_map_fireworks(entry.fireworks.as_ref(), &map.config, &switch_table)
             .unwrap_or_else(|error| panic!("{name}: {error}"));
+        validate_map_quests(
+            &entry.quests,
+            &map.config,
+            entry.random_items.as_ref(),
+            fireworks_switch,
+        )
+        .unwrap_or_else(|error| panic!("{name}: {error}"));
     }
 }
 
@@ -35,9 +43,10 @@ fn every_shipped_ladder_ascends_at_least_one_storey() {
     let physics = gameplay.player.physics();
     for (map_name, map_server_config) in &server_gameplay.maps {
         let map_settings = &map_server_config.settings;
-        let (kind_table, bridge_table) = map_settings.kind_tables().expect("shipped kind tables rejected");
+        let (kind_table, bridge_table, switch_table) =
+            map_settings.kind_tables().expect("shipped kind tables rejected");
         let map_sizes = map_settings.geometry;
-        let layout = generate_map(map_name, 30, map_settings, &kind_table, &bridge_table)
+        let layout = generate_map(map_name, 30, map_settings, &kind_table, &bridge_table, &switch_table)
             .expect("map failed to generate")
             .layout;
         let world = CollisionWorld::from_map_layout(&layout, &kind_table);
@@ -105,22 +114,33 @@ fn every_shipped_carrier_carries_a_standing_player_through_its_cycle() {
     let mut checked = 0;
     for (map_name, map_server_config) in &server_gameplay.maps {
         let map_settings = &map_server_config.settings;
-        let (kind_table, bridge_table) = map_settings.kind_tables().expect("shipped kind tables rejected");
-        let layout = generate_map(map_name, 30, map_settings, &kind_table, &bridge_table)
+        let (kind_table, bridge_table, switch_table) =
+            map_settings.kind_tables().expect("shipped kind tables rejected");
+        let layout = generate_map(map_name, 30, map_settings, &kind_table, &bridge_table, &switch_table)
             .expect("map failed to generate")
             .layout;
         let mut world = CollisionWorld::from_map_layout(&layout, &kind_table);
         let mut carriers = Carriers::from_layout(&layout);
+        // Every switched carrier running from tick 0, so it cycles like a free one.
+        let mut plates = PlateState::default();
+        for (index, carrier) in layout.carriers.iter().enumerate() {
+            if carrier.switch.is_some() {
+                plates.carrier_runs.push((
+                    CarrierId::from_carried_index(index),
+                    CarrierRun::STOPPED.set_running(true, 0),
+                ));
+            }
+        }
 
         for (index, carrier) in layout.carriers.iter().enumerate() {
             let id = CarrierId::from_carried_index(index);
-            carriers.advance(0);
+            carriers.advance(0, &plates);
             world.set_carrier_poses(&carriers);
             let mut pos = Position::from(carriers.pose(id).translation);
             let mut vertical_velocity = 0.0;
             let cycle = 2 * (carrier.travel_ticks + carrier.pause_ticks);
             for tick in 1..=cycle {
-                carriers.advance(tick);
+                carriers.advance(tick, &plates);
                 world.set_carrier_poses(&carriers);
                 let step = step_character_movement(
                     CharacterStep {

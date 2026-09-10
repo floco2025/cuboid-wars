@@ -9,10 +9,10 @@
       {"level": 0, "cols": [2, 3], "rows": [4, 5]}
     ],
     "pressure_plates": [
-      {"level": 0, "col": 12, "row": 2, "type": "firework"},
-      {"level": 0, "col": 3, "row": 4, "type": "barrier", "kind": "start"},
-      {"level": 0, "col": 4, "row": 4, "type": "barrier", "kind": "pen"},
-      {"level": 0, "col": 10, "row": 7, "type": "barrier", "kind": "pen"}
+      {"level": 0, "col": 12, "row": 2, "switch": "fireworks"},
+      {"level": 0, "col": 3, "row": 4, "switch": "start"},
+      {"level": 0, "col": 4, "row": 4, "switch": "pen"},
+      {"level": 0, "col": 10, "row": 7, "switch": "pen"}
     ],
     "items": [
       {"level": 0, "col": 12, "row": 1, "type": "gold"},

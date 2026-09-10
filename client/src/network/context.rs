@@ -8,7 +8,7 @@ use common::{
 
 use crate::{
     actors::{ActorGhostMap, ActorMap},
-    barriers::{BarrierAssets, LockedPlatePurposes},
+    barriers::{BarrierAssets, LockedSwitches},
     cameras::MainCameraMarker,
     carriers::{CarrierEntities, CarrierStoreys},
     characters::MaxHealth,
@@ -91,7 +91,7 @@ pub(super) struct ServerMessageContext<'w, 's> {
     pub(super) feed: ResMut<'w, MessageFeed>,
     pub(super) firework_show: ResMut<'w, FireworkShow>,
     pub(super) plates: ResMut<'w, PlateState>,
-    pub(super) locked_plate_purposes: ResMut<'w, LockedPlatePurposes>,
+    pub(super) locked_switches: ResMut<'w, LockedSwitches>,
     pub(super) rain_intensity: ResMut<'w, RainIntensity>,
     pub(super) lighting: ResMut<'w, LightingState>,
     pub(super) player_data: Query<'w, 's, &'static Position, With<PlayerMarker>>,

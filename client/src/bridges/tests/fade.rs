@@ -3,8 +3,8 @@ use super::*;
 #[test]
 fn fade_targets_follow_the_powered_kinds() {
     let plates = PlateState {
-        open_barrier_kinds: Vec::new(),
         powered_bridge_kinds: vec![BridgeKindId(1)],
+        ..Default::default()
     };
     let config = LightBridgeVfxConfig {
         emissive_brightness: 1.0,

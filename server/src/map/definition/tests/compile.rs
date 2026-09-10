@@ -10,8 +10,7 @@ fn inaccessible_floor_emits_physical_slab_but_not_regular_floor() {
         Vec::new(),
     );
 
-    let (layout, config) =
-        compile_map(&map_def, 30, sizes(), &no_nested(), &empty_kind_table(), &no_bridges()).expect("compile");
+    let (layout, config) = compile_with(&map_def, &no_nested(), &empty_kind_table(), &no_bridges()).expect("compile");
     let geometry = config.root_grid().geometry;
     let inaccessible_cell = config.root_grid().levels[0].cells.rows[0][2];
     assert!(!inaccessible_cell.has_floor);
@@ -41,15 +40,7 @@ fn compile_resolves_known_barrier_kind() {
         r1: 0,
         kind: "red".into(),
     });
-    let (layout, _) = compile_map(
-        &map_def,
-        30,
-        sizes(),
-        &no_nested(),
-        &red_only_kind_table(),
-        &no_bridges(),
-    )
-    .expect("compile");
+    let (layout, _) = compile_with(&map_def, &no_nested(), &red_only_kind_table(), &no_bridges()).expect("compile");
     assert_eq!(layout.barriers.len(), 1);
     assert_eq!(layout.barriers[0].kind, common::protocol::BarrierKindId(0));
 }
@@ -72,15 +63,7 @@ fn stacked_barriers_compile_into_one_record_when_no_floor_splits_them() {
             kind: "red".into(),
         });
     }
-    let (layout, _) = compile_map(
-        &map_def,
-        30,
-        sizes(),
-        &no_nested(),
-        &red_only_kind_table(),
-        &no_bridges(),
-    )
-    .expect("compile");
+    let (layout, _) = compile_with(&map_def, &no_nested(), &red_only_kind_table(), &no_bridges()).expect("compile");
     assert_eq!(layout.barriers.len(), 1);
     assert_eq!(layout.barriers[0].level, 0);
     assert_eq!(layout.barriers[0].levels, 2);
@@ -105,15 +88,7 @@ fn a_floor_beside_the_upper_barrier_keeps_the_storeys_apart() {
             kind: "red".into(),
         });
     }
-    let (layout, _) = compile_map(
-        &map_def,
-        30,
-        sizes(),
-        &no_nested(),
-        &red_only_kind_table(),
-        &no_bridges(),
-    )
-    .expect("compile");
+    let (layout, _) = compile_with(&map_def, &no_nested(), &red_only_kind_table(), &no_bridges()).expect("compile");
     assert_eq!(layout.barriers.len(), 2);
     assert!(layout.barriers.iter().all(|barrier| barrier.levels == 1));
 }
@@ -147,11 +122,10 @@ fn pressure_plate_barrier_is_open_for_pathfinding() {
         level: 0,
         col: 0,
         row: 0,
-        purpose: PressurePlatePurposeDef::Barrier { kind: "red".into() },
+        switch: "red".into(),
     });
 
-    let (_, config) =
-        compile_map(&map_def, 30, sizes(), &no_nested(), &three_kind_table(), &no_bridges()).expect("compile");
+    let (_, config) = compile_with(&map_def, &no_nested(), &three_kind_table(), &no_bridges()).expect("compile");
     let barrier_edges = &config.root_grid().levels[0].barrier_edges;
     assert!(
         !barrier_edges.vertical[0][1],
@@ -180,7 +154,7 @@ fn compiled_wall_trim_blocks_portal_shots_through_the_storey_seam() {
             });
         }
     }
-    let (layout, config) = compile_map(&map, 30, sizes(), &no_nested(), &empty_kind_table(), &no_bridges())
+    let (layout, config) = compile_with(&map, &no_nested(), &empty_kind_table(), &no_bridges())
         .expect("stacked wall map failed to compile");
     let world = CollisionWorld::from_map_layout(&layout, &empty_kind_table());
     let geometry = config.root_grid().geometry;
@@ -203,19 +177,82 @@ fn compiled_wall_trim_blocks_portal_shots_through_the_storey_seam() {
 }
 
 #[test]
-fn plate_defs_parse_every_purpose() {
+fn plate_zone_and_motion_defs_parse_their_switch() {
     let json = r#"[
-        {"level": 1, "col": 2, "row": 3, "type": "barrier", "kind": "red"},
-        {"level": 0, "col": 4, "row": 5, "type": "firework"},
-        {"level": 2, "col": 6, "row": 7, "type": "bridge", "kind": "skyway"}
+        {"level": 1, "col": 2, "row": 3, "switch": "red"},
+        {"level": 0, "col": 4, "row": 5, "switch": "fireworks"}
     ]"#;
     let defs: Vec<PressurePlateDef> = serde_json::from_str(json).expect("plate defs parse");
-    assert_eq!(defs[0].purpose, PressurePlatePurposeDef::Barrier { kind: "red".into() });
-    assert_eq!(defs[1].purpose, PressurePlatePurposeDef::Firework);
-    assert_eq!((defs[1].level, defs[1].col, defs[1].row), (0, 4, 5));
+    assert_eq!(defs[0].switch, "red");
     assert_eq!(
-        defs[2].purpose,
-        PressurePlatePurposeDef::Bridge { kind: "skyway".into() }
+        (defs[1].level, defs[1].col, defs[1].row, defs[1].switch.as_str()),
+        (0, 4, 5, "fireworks")
+    );
+    assert!(serde_json::from_str::<PressurePlateDef>(r#"{"level": 1, "col": 2, "row": 3}"#).is_err());
+    assert!(
+        serde_json::from_str::<PressurePlateDef>(r#"{"level": 1, "col": 2, "row": 3, "type": "firework"}"#).is_err()
+    );
+
+    let zone: ActorSpawnZoneDef =
+        serde_json::from_str(r#"{"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "zapper", "count": 2}"#)
+            .expect("zone def parses");
+    assert_eq!(zone.switch, None);
+    let zone: ActorSpawnZoneDef = serde_json::from_str(
+        r#"{"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "zapper", "count": 2, "switch": "guards"}"#,
+    )
+    .expect("switched zone def parses");
+    assert_eq!(zone.switch.as_deref(), Some("guards"));
+
+    let motion: NestedMapDef =
+        serde_json::from_str(r#"{"map": "lift", "level": 0, "from": [0, 0], "to": [0, 3], "travel_secs": 2.0}"#)
+            .expect("nested map def parses");
+    assert_eq!(motion.motion.switch, None);
+    let motion: NestedMapDef = serde_json::from_str(
+        r#"{"map": "lift", "level": 0, "from": [0, 0], "to": [0, 3], "travel_secs": 2.0, "switch": "lift"}"#,
+    )
+    .expect("switched nested map def parses");
+    assert_eq!(motion.motion.switch.as_deref(), Some("lift"));
+}
+
+#[test]
+fn compile_resolves_switches_and_rejects_unknown_or_unplated_ones() {
+    let kinds = red_only_kind_table();
+    let bridges = no_bridges();
+    let mut map_def = map_with_zones(
+        4,
+        vec![level(vec![[0, 0], [1, 0]])],
+        vec![actor_zone(0, 1, 0)],
+        vec![player_zone(0, 0, 0)],
+        Vec::new(),
+    );
+    map_def.pressure_plates.push(plate_def(0, 0, 0, "red"));
+    map_def.actor_spawn_zones[0].switch = Some("red".into());
+    let (layout, config) = compile_with(&map_def, &no_nested(), &kinds, &bridges).expect("switched zone map rejected");
+    let red = switch_id(&kinds, &bridges, "red");
+    assert_eq!(config.pressure_plates[0].switch, red);
+    assert_eq!(layout.pressure_plates[0].switch, red);
+    assert_eq!(config.actor_spawn_zones[0].switch, Some(red));
+
+    map_def.actor_spawn_zones[0].switch = Some("void".into());
+    let err = compile_with(&map_def, &no_nested(), &kinds, &bridges).expect_err("unknown zone switch accepted");
+    let chain: String = err.chain().map(|e| e.to_string()).collect::<Vec<_>>().join(" | ");
+    assert!(
+        chain.contains("actor_spawn_zones[0]") && chain.contains("unknown switch"),
+        "{chain}"
+    );
+
+    map_def.actor_spawn_zones[0].switch = Some(FIREWORKS.into());
+    let err = compile_with(&map_def, &no_nested(), &kinds, &bridges).expect_err("unplated zone switch accepted");
+    let chain: String = err.chain().map(|e| e.to_string()).collect::<Vec<_>>().join(" | ");
+    assert!(chain.contains("operated by no pressure plate"), "{chain}");
+
+    map_def.actor_spawn_zones[0].switch = None;
+    map_def.pressure_plates[0].switch = "void".into();
+    let err = compile_with(&map_def, &no_nested(), &kinds, &bridges).expect_err("unknown plate switch accepted");
+    let chain: String = err.chain().map(|e| e.to_string()).collect::<Vec<_>>().join(" | ");
+    assert!(
+        chain.contains("pressure_plates[0]") && chain.contains("unknown switch"),
+        "{chain}"
     );
 }
 
@@ -225,15 +262,8 @@ fn compile_merges_light_bridge_cells_into_one_rectangle() {
     map_def.levels[0].floors = vec![floor_def(0, 3)];
     map_def.player_spawn_zones = vec![player_zone(0, 0, 3)];
 
-    let (layout, config) = compile_map(
-        &map_def,
-        30,
-        sizes(),
-        &no_nested(),
-        &empty_kind_table(),
-        &skyway_bridge_table(),
-    )
-    .expect("compile");
+    let (layout, config) =
+        compile_with(&map_def, &no_nested(), &empty_kind_table(), &skyway_bridge_table()).expect("compile");
     let geometry = config.root_grid().geometry;
 
     assert_eq!(layout.light_bridges.len(), 1, "a 2x2 block is one collider");
@@ -256,15 +286,8 @@ fn portal_shots_cannot_leak_through_compiled_bridge_landing_seams_or_outer_edges
         0,
         level((0..4).flat_map(|row| (0..4).map(move |col| [col, row])).collect()),
     );
-    let (layout, config) = compile_map(
-        &map_def,
-        30,
-        sizes(),
-        &no_nested(),
-        &empty_kind_table(),
-        &skyway_bridge_table(),
-    )
-    .expect("bridge landing map failed to compile");
+    let (layout, config) = compile_with(&map_def, &no_nested(), &empty_kind_table(), &skyway_bridge_table())
+        .expect("bridge landing map failed to compile");
     let geometry = config.root_grid().geometry;
     let mut world = CollisionWorld::from_map_layout(&layout, &empty_kind_table());
     let pad = geometry.wall_half_thickness();
@@ -304,15 +327,8 @@ fn compile_rejects_unknown_bridge_kind() {
     let mut map_def = map_with_bridges(&[[1, 0]]);
     map_def.levels[0].light_bridges[0].kind = "magenta".into();
 
-    let err = compile_map(
-        &map_def,
-        30,
-        sizes(),
-        &no_nested(),
-        &empty_kind_table(),
-        &skyway_bridge_table(),
-    )
-    .expect_err("unknown bridge kind must fail");
+    let err = compile_with(&map_def, &no_nested(), &empty_kind_table(), &skyway_bridge_table())
+        .expect_err("unknown bridge kind must fail");
     let chain: String = err.chain().map(|e| e.to_string()).collect::<Vec<_>>().join(" | ");
     assert!(chain.contains("unknown bridge kind"), "got: {chain}");
     assert!(chain.contains("light_bridges[0]"), "got: {chain}");
@@ -334,15 +350,8 @@ fn compile_rejects_unknown_barrier_kind() {
         r1: 0,
         kind: "magenta".into(),
     });
-    let err = compile_map(
-        &map_def,
-        30,
-        sizes(),
-        &no_nested(),
-        &red_only_kind_table(),
-        &no_bridges(),
-    )
-    .expect_err("unknown kind must fail");
+    let err = compile_with(&map_def, &no_nested(), &red_only_kind_table(), &no_bridges())
+        .expect_err("unknown kind must fail");
     let chain: String = err.chain().map(|e| e.to_string()).collect::<Vec<_>>().join(" | ");
     assert!(
         chain.to_lowercase().contains("magenta") || chain.to_lowercase().contains("unknown barrier kind"),
@@ -380,8 +389,7 @@ fn compile_resolves_three_distinct_kinds() {
         r1: 0,
         kind: "green".into(),
     });
-    let (layout, _) =
-        compile_map(&map_def, 30, sizes(), &no_nested(), &three_kind_table(), &no_bridges()).expect("compile");
+    let (layout, _) = compile_with(&map_def, &no_nested(), &three_kind_table(), &no_bridges()).expect("compile");
     assert_eq!(layout.barriers.len(), 3);
     let kinds: Vec<u16> = layout.barriers.iter().map(|b| b.kind.0).collect();
     // The merger sorts by (level, kind, axis-coords), so kind ascending.
@@ -399,8 +407,7 @@ fn compile_drops_grass_without_floor() {
     );
     map_def.levels[0].grass.push(cell_def(0, 0));
     map_def.levels[0].grass.push(cell_def(2, 2));
-    let (layout, _) =
-        compile_map(&map_def, 30, sizes(), &no_nested(), &empty_kind_table(), &no_bridges()).expect("compile");
+    let (layout, _) = compile_with(&map_def, &no_nested(), &empty_kind_table(), &no_bridges()).expect("compile");
     assert_eq!(layout.grass.len(), 1);
     assert_eq!(layout.grass[0].level, 0);
 }
@@ -415,8 +422,7 @@ fn grass_compiles_to_cell_center_and_floor_top() {
         Vec::new(),
     );
     map_def.levels[1].grass.push(cell_def(1, 2));
-    let (layout, config) =
-        compile_map(&map_def, 30, sizes(), &no_nested(), &empty_kind_table(), &no_bridges()).expect("compile");
+    let (layout, config) = compile_with(&map_def, &no_nested(), &empty_kind_table(), &no_bridges()).expect("compile");
     let geometry = config.root_grid().geometry;
     assert_eq!(layout.grass.len(), 1);
     let cell = layout.grass[0];
@@ -439,8 +445,7 @@ fn grass_allowed_on_inaccessible_floor() {
     );
     map_def.levels[0].grass.push(cell_def(1, 0));
     validate_map(&map_def).expect("grass on an inaccessible floor should load");
-    let (layout, _) =
-        compile_map(&map_def, 30, sizes(), &no_nested(), &empty_kind_table(), &no_bridges()).expect("compile");
+    let (layout, _) = compile_with(&map_def, &no_nested(), &empty_kind_table(), &no_bridges()).expect("compile");
     assert_eq!(layout.grass.len(), 1);
 }
 
@@ -454,7 +459,7 @@ fn compile_rejects_item_on_floorless_cell() {
         Vec::new(),
     );
     map_def.items.push(item_def(0, 2, 2, "gold", None));
-    let err = compile_map(&map_def, 30, sizes(), &no_nested(), &empty_kind_table(), &no_bridges())
+    let err = compile_with(&map_def, &no_nested(), &empty_kind_table(), &no_bridges())
         .expect_err("item on a floorless cell must fail");
     assert!(err.to_string().contains("floor"));
 }
@@ -469,7 +474,7 @@ fn compile_rejects_item_on_ramp_cell() {
         vec![ramp([0, 0], [1, 2], 1)],
     );
     map_def.items.push(item_def(1, 0, 0, "gold", None));
-    let err = compile_map(&map_def, 30, sizes(), &no_nested(), &empty_kind_table(), &no_bridges())
+    let err = compile_with(&map_def, &no_nested(), &empty_kind_table(), &no_bridges())
         .expect_err("item on a ramp cell must fail");
     assert!(err.to_string().contains("ramp"));
 }
@@ -484,15 +489,7 @@ fn compile_resolves_key_item_barrier_kind() {
         Vec::new(),
     );
     map_def.items.push(item_def(0, 0, 0, "key", Some("red")));
-    let (_, config) = compile_map(
-        &map_def,
-        30,
-        sizes(),
-        &no_nested(),
-        &red_only_kind_table(),
-        &no_bridges(),
-    )
-    .expect("compile");
+    let (_, config) = compile_with(&map_def, &no_nested(), &red_only_kind_table(), &no_bridges()).expect("compile");
     assert_eq!(config.placed_items.len(), 1);
     assert_eq!(
         config.placed_items[0].item_type,
@@ -511,8 +508,7 @@ fn ladder_compiles_to_world_segment_and_normal() {
     );
     map_def.ladders.push(ladder(0, 1, 1, WallSide::North, 1));
 
-    let (layout, _) =
-        compile_map(&map_def, 30, sizes(), &no_nested(), &empty_kind_table(), &no_bridges()).expect("compile");
+    let (layout, _) = compile_with(&map_def, &no_nested(), &empty_kind_table(), &no_bridges()).expect("compile");
 
     assert_eq!(layout.ladders.len(), 1);
     let out = layout.ladders[0];
@@ -544,15 +540,8 @@ fn eraser_edges_compile_to_full_storey_volumes_without_solid_geometry() {
         r1: 1,
     });
     validate_map(&definition).expect("eraser map rejected");
-    let (layout, config) = compile_map(
-        &definition,
-        30,
-        sizes(),
-        &no_nested(),
-        &empty_kind_table(),
-        &no_bridges(),
-    )
-    .expect("eraser map failed to compile");
+    let (layout, config) = compile_with(&definition, &no_nested(), &empty_kind_table(), &no_bridges())
+        .expect("eraser map failed to compile");
     assert_eq!(layout.erasers.len(), 1);
     let field = layout.erasers[0];
     assert_eq!(field.height, LEVEL_HEIGHT);

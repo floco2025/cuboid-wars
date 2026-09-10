@@ -73,6 +73,7 @@ pub(crate) fn map_settings() -> MapSettings {
             },
         },
         portals: PortalMode::Both,
+        switches: Vec::new(),
         barrier_kinds: Vec::new(),
         bridge_kinds: Vec::new(),
     }

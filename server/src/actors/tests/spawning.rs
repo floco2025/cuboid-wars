@@ -4,7 +4,7 @@ use crate::{
     map::{CellGrid, EdgeGrid, LevelGrid},
 };
 use bevy::ecs::system::RunSystemOnce;
-use common::protocol::{ActorId, Carrier, CarrierId, MapLayout};
+use common::protocol::{ActorId, Carrier, CarrierId, MapLayout, SwitchId};
 
 fn spawn_app(cols: i32, counts: &[u32], respawn_secs: Option<f32>) -> App {
     spawn_app_for(IMMOVABLE, cols, counts, respawn_secs)
@@ -40,6 +40,7 @@ fn spawn_app_for(kind: &str, cols: i32, counts: &[u32], respawn_secs: Option<f32
             rows: [0, 1],
             kind: kind.into(),
             count,
+            switch: None,
         })
         .collect();
     let mut app = App::new();
@@ -57,6 +58,7 @@ fn spawn_app_for(kind: &str, cols: i32, counts: &[u32], respawn_secs: Option<f32
         .init_resource::<ActorSpawner>()
         .init_resource::<PendingActorSpawns>()
         .init_resource::<ServerTick>()
+        .init_resource::<PlateState>()
         .add_systems(Startup, actors_initial_spawn_system)
         .add_systems(Update, (actors_pending_spawn_system, actors_respawn_system).chain());
     app
@@ -285,6 +287,7 @@ fn a_pending_spawn_on_a_carrier_materializes_where_the_carrier_is_now() {
         travel_ticks: 12,
         pause_ticks: 0,
         phase_ticks: 0,
+        switch: None,
     };
     let mut carriers = Carriers::from_layout(&MapLayout {
         carriers: vec![carrier],
@@ -295,7 +298,7 @@ fn a_pending_spawn_on_a_carrier_materializes_where_the_carrier_is_now() {
     spawn.pos = Position { x: 1.0, y: 0.0, z: 2.0 };
     assert_eq!(spawn.world_position(&carriers), Position { x: 1.0, y: 0.0, z: 2.0 });
 
-    carriers.advance(6);
+    carriers.advance(6, &PlateState::default());
 
     assert_eq!(spawn.world_position(&carriers), Position { x: 7.0, y: 0.0, z: 2.0 });
 }
@@ -311,6 +314,7 @@ fn expiring_selected_cooldowns_advances_pending_and_missing_slots() {
                 rows: [0, 1],
                 kind: CONTACT.to_owned(),
                 count: 2,
+                switch: None,
             },
             ActorSpawnZone {
                 carrier: CarrierId::WORLD,
@@ -319,6 +323,7 @@ fn expiring_selected_cooldowns_advances_pending_and_missing_slots() {
                 rows: [0, 1],
                 kind: BEAM.to_owned(),
                 count: 1,
+                switch: None,
             },
         ],
         ..MapConfig::for_grid(
@@ -390,4 +395,196 @@ fn a_spawn_is_due_on_its_due_tick() {
 
     assert_eq!(due.len(), 1);
     assert!(pending.is_empty());
+}
+
+const GUARDS: SwitchId = SwitchId(0);
+
+// A one-zone app whose zone is operated by `GUARDS`, switched off.
+fn switched_app(respawn_secs: Option<f32>, count: u32) -> App {
+    let mut app = spawn_app_for(CONTACT, 3, &[count], respawn_secs);
+    app.world_mut().resource_mut::<MapConfig>().actor_spawn_zones[0].switch = Some(GUARDS);
+    app
+}
+
+fn set_switch(app: &mut App, active: bool) {
+    let mut plates = app.world_mut().resource_mut::<PlateState>();
+    plates.active_switches = if active { vec![GUARDS] } else { Vec::new() };
+}
+
+fn zone_state(app: &App) -> Option<ActorRespawnState> {
+    app.world().resource::<ActorRespawnTimers>().0.get(&0).copied()
+}
+
+fn pending_count(app: &App) -> usize {
+    app.world().resource::<PendingActorSpawns>().0.len()
+}
+
+fn materialize_pending(app: &mut App) {
+    let due = app
+        .world()
+        .resource::<PendingActorSpawns>()
+        .0
+        .iter()
+        .map(|spawn| spawn.due_tick)
+        .max()
+        .expect("nothing pending to materialize");
+    app.world_mut().resource_mut::<ServerTick>().0 = due;
+    app.update();
+    assert_eq!(pending_count(app), 0);
+}
+
+fn destroy_one(app: &mut App) {
+    let id = *app
+        .world()
+        .resource::<ActorMap>()
+        .iter()
+        .next()
+        .expect("no live actor to destroy")
+        .0;
+    let removed = app
+        .world_mut()
+        .resource_mut::<ActorMap>()
+        .remove(&id)
+        .expect("live actor missing");
+    app.world_mut().despawn(removed.entity);
+}
+
+#[test]
+fn a_switched_zone_spawns_nothing_until_its_switch_turns_on() {
+    let mut app = switched_app(Some(0.0), 2);
+    for _ in 0..3 {
+        app.update();
+    }
+    assert_eq!(pending_count(&app), 0, "no initial fill");
+    assert_eq!(zone_state(&app), Some(ActorRespawnState::Inactive));
+
+    set_switch(&mut app, true);
+    app.update();
+    assert_eq!(pending_count(&app), 2, "a zero respawn time fills on the next pass");
+    assert_eq!(zone_state(&app), None);
+    app.update();
+    assert_eq!(pending_count(&app), 2, "an active full zone queues nothing more");
+}
+
+#[test]
+fn an_activation_starts_the_kinds_countdown() {
+    let mut app = switched_app(Some(1000.0), 1);
+    app.update();
+    set_switch(&mut app, true);
+    app.update();
+    assert_eq!(pending_count(&app), 0);
+    assert!(
+        matches!(zone_state(&app), Some(ActorRespawnState::Cooldown(secs)) if secs > 999.0),
+        "{:?}",
+        zone_state(&app)
+    );
+
+    app.world_mut()
+        .resource_mut::<ActorRespawnTimers>()
+        .0
+        .insert(0, ActorRespawnState::Cooldown(0.0));
+    app.update();
+    assert_eq!(pending_count(&app), 1, "the countdown's end fills the zone");
+}
+
+#[test]
+fn a_switched_off_zone_drops_its_countdown_and_ignores_kills() {
+    let mut app = switched_app(Some(1000.0), 1);
+    app.update();
+    set_switch(&mut app, true);
+    app.update();
+    assert!(matches!(zone_state(&app), Some(ActorRespawnState::Cooldown(_))));
+    set_switch(&mut app, false);
+    app.update();
+    assert_eq!(
+        zone_state(&app),
+        Some(ActorRespawnState::Inactive),
+        "the countdown is dropped"
+    );
+    set_switch(&mut app, true);
+    app.update();
+    assert!(
+        matches!(zone_state(&app), Some(ActorRespawnState::Cooldown(secs)) if secs > 999.0),
+        "a fresh countdown starts on reactivation: {:?}",
+        zone_state(&app)
+    );
+
+    let mut app = switched_app(Some(0.0), 1);
+    app.update();
+    set_switch(&mut app, true);
+    app.update();
+    materialize_pending(&mut app);
+    assert_eq!(app.world().resource::<ActorMap>().values().count(), 1);
+    set_switch(&mut app, false);
+    app.update();
+    destroy_one(&mut app);
+    for _ in 0..3 {
+        app.update();
+    }
+    assert_eq!(pending_count(&app), 0, "a kill while off arms nothing");
+    assert_eq!(zone_state(&app), Some(ActorRespawnState::Inactive));
+    set_switch(&mut app, true);
+    app.update();
+    assert_eq!(pending_count(&app), 1, "reactivation refills the vacancy");
+}
+
+#[test]
+fn an_active_switched_zone_refills_kills_on_its_kinds_timer() {
+    let mut app = switched_app(Some(0.0), 1);
+    app.update();
+    set_switch(&mut app, true);
+    app.update();
+    materialize_pending(&mut app);
+    destroy_one(&mut app);
+    app.update();
+    assert_eq!(
+        pending_count(&app),
+        1,
+        "a zero respawn time refills at once while active"
+    );
+}
+
+#[test]
+fn a_reset_leaves_an_inactive_switched_zone_empty_and_refills_an_active_one() {
+    let mut app = switched_app(Some(0.0), 1);
+    app.update();
+    reset(&mut app, ActorRespawnScope::All);
+    app.update();
+    assert_eq!(pending_count(&app), 0);
+    assert_eq!(zone_state(&app), Some(ActorRespawnState::Inactive));
+
+    set_switch(&mut app, true);
+    app.update();
+    materialize_pending(&mut app);
+    reset(&mut app, ActorRespawnScope::All);
+    assert_eq!(app.world().resource::<ActorMap>().values().count(), 0);
+    app.update();
+    assert_eq!(
+        pending_count(&app),
+        1,
+        "an active zone refills after a reset like any other"
+    );
+}
+
+#[test]
+fn expediting_respawns_skips_a_switched_off_zone() {
+    let mut app = switched_app(Some(0.0), 1);
+    app.update();
+    let expedited = app
+        .world_mut()
+        .run_system_once(
+            |actors: Res<ActorMap>,
+             mut pending: ResMut<PendingActorSpawns>,
+             mut timers: ResMut<ActorRespawnTimers>,
+             map_config: Res<MapConfig>,
+             config: Res<ServerGameplayConfig>,
+             tick: Res<ServerTick>| {
+                expedite_actor_respawns(&actors, &mut pending, &mut timers, &map_config, &config, tick.0, None)
+            },
+        )
+        .expect("expedite system failed");
+    assert_eq!(expedited, 0);
+    app.update();
+    assert_eq!(pending_count(&app), 0);
+    assert_eq!(zone_state(&app), Some(ActorRespawnState::Inactive));
 }

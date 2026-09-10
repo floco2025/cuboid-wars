@@ -8,7 +8,7 @@ use common::{
     physics::{CollisionWorld, FieldKind, PortalSet},
     protocol::{
         Barrier, BarrierKindId, BarrierKindTable, BridgeKindId, Carrier, CarrierId, Floor, LightBridge, MapLayout,
-        Portal, PortalEnd, PortalPairId, Position, Ramp, Wall,
+        PlateState, Portal, PortalEnd, PortalPairId, Position, Ramp, Wall,
     },
 };
 
@@ -558,6 +558,7 @@ fn moving_projectile_portals(entry_travel: Vec3, exit_travel: Vec3, obstacles: &
         travel_ticks: 1,
         pause_ticks: 0,
         phase_ticks: 0,
+        switch: None,
     };
     let wall = Wall {
         x1: -2.0,
@@ -593,8 +594,8 @@ fn moving_projectile_portals(entry_travel: Vec3, exit_travel: Vec3, obstacles: &
     };
     let mut world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
     let mut carriers = Carriers::from_layout(&layout);
-    carriers.advance(0);
-    carriers.advance(1);
+    carriers.advance(0, &PlateState::default());
+    carriers.advance(1, &PlateState::default());
     world.set_carrier_poses(&carriers);
     let set = PortalSet::rebuild(
         &[

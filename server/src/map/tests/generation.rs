@@ -11,6 +11,7 @@ fn missing_map_returns_contextual_error() {
             .settings,
         &BarrierKindTable::default(),
         &BridgeKindTable::default(),
+        &SwitchTable::default(),
     )
     .err()
     .expect("missing map must fail");
@@ -35,6 +36,7 @@ fn a_map_cannot_reference_an_alias_outside_its_host_catalog() {
         &settings,
         &BarrierKindTable::default(),
         &BridgeKindTable::default(),
+        &SwitchTable::default(),
     )
     .err()
     .expect("undeclared map material was accepted");

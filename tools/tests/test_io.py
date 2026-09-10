@@ -30,33 +30,43 @@ class FileIoTests(unittest.TestCase):
         data = empty_map(2, 2)
         data["levels"][0]["floors"] = [floor(0, 0), floor(1, 0)]
         data["pressure_plates"] = [
-            {"level": 0, "col": 0, "row": 0, "type": "barrier", "kind": KIND},
-            {"level": 0, "col": 1, "row": 0, "type": "firework"},
+            {"level": 0, "col": 0, "row": 0, "switch": KIND},
+            {"level": 0, "col": 1, "row": 0, "switch": "fireworks"},
         ]
 
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "map.json"
             write_map(path, data)
             text = path.read_text(encoding="utf-8")
-            self.assertIn('"type": "firework"}', text)
+            self.assertIn('"switch": "fireworks"}', text)
             self.assertEqual(read_map(path)["pressure_plates"], data["pressure_plates"])
 
-    def test_bridges_and_bridge_plates_round_trip_through_the_file_format(self) -> None:
+    def test_bridges_switched_zones_and_nested_maps_round_trip_through_the_file_format(self) -> None:
         data = empty_map(2, 2)
         data["levels"][0]["floors"] = [floor(0, 0)]
         data["levels"][0]["light_bridges"] = [{"col": 1, "row": 0, "kind": BRIDGE_KIND}]
-        data["pressure_plates"] = [{"level": 0, "col": 0, "row": 0, "type": "bridge", "kind": BRIDGE_KIND}]
-        self.assertEqual(validate_map(data, [], [BRIDGE_KIND]), [])
+        data["pressure_plates"] = [{"level": 0, "col": 0, "row": 0, "switch": BRIDGE_KIND}]
+        data["actor_spawn_zones"] = [
+            {"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "zapper", "count": 1, "switch": BRIDGE_KIND},
+            {"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "zapper", "count": 2},
+        ]
+        data["nested_maps"] = [
+            {**nested("tile", 0, [0, 0], [1, 0]), "switch": BRIDGE_KIND},
+            nested("tile", 0, [1, 1], [1, 1]),
+        ]
+        self.assertEqual(validate_map(data, [], [BRIDGE_KIND], switches=[BRIDGE_KIND]), [])
 
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "map.json"
             write_map(path, data)
             text = path.read_text(encoding="utf-8")
             self.assertIn('"light_bridges": [', text)
-            self.assertIn('"type": "bridge"', text)
+            self.assertEqual(text.count('"switch": "skyway"'), 3)
             loaded = read_map(path)
             self.assertEqual(loaded["levels"][0]["light_bridges"], data["levels"][0]["light_bridges"])
             self.assertEqual(loaded["pressure_plates"], data["pressure_plates"])
+            self.assertEqual(loaded["actor_spawn_zones"], data["actor_spawn_zones"])
+            self.assertEqual(loaded["nested_maps"], data["nested_maps"])
 
     def test_nested_maps_round_trip_and_are_the_last_key(self) -> None:
         data = empty_map(6, 6)

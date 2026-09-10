@@ -12,6 +12,7 @@ fn tag_adds_the_carrier_base_and_motion() {
         travel_ticks: 1,
         pause_ticks: 0,
         phase_ticks: 0,
+        switch: None,
     };
     let storeys = CarrierStoreys::from_layout(&MapLayout {
         carriers: vec![lift],

@@ -261,7 +261,7 @@ def ladder_spans_level(ladder: dict, level_idx: int) -> bool:
 
 def normalize_nested_map(entry: dict) -> dict:
     level = int(entry.get("level", 0))
-    return {
+    normalized = {
         "map": str(entry.get("map", "")),
         "level": level,
         "from": [int(entry["from"][0]), int(entry["from"][1])],
@@ -273,6 +273,10 @@ def normalize_nested_map(entry: dict) -> dict:
         "from_nudge": [float(axis) for axis in entry.get("from_nudge", (0.0, 0.0, 0.0))],
         "to_nudge": [float(axis) for axis in entry.get("to_nudge", (0.0, 0.0, 0.0))],
     }
+    # Only a switched motion carries a switch; a stray empty one is dropped.
+    if entry.get("switch"):
+        normalized["switch"] = str(entry["switch"])
+    return normalized
 
 
 def nested_map_key(entry: dict) -> tuple:
@@ -321,7 +325,10 @@ def normalize_actor_spawn_zone(zone: dict) -> dict:
         count = int(zone.get("count", 0))
     except (TypeError, ValueError):
         count = 0
-    return {**_normalize_zone_rect(zone), "kind": kind, "count": count}
+    normalized = {**_normalize_zone_rect(zone), "kind": kind, "count": count}
+    if zone.get("switch"):
+        normalized["switch"] = str(zone["switch"])
+    return normalized
 
 
 def normalize_player_spawn_zone(zone: dict) -> dict:
@@ -340,22 +347,21 @@ def normalize_item(item: dict) -> dict:
     return out
 
 
+# A missing switch is kept missing for the validator to flag rather than
+# invented.
 def normalize_pressure_plate(plate: dict) -> dict:
     normalized = {
         "level": int(plate.get("level", 0)),
         "col": int(plate.get("col", 0)),
         "row": int(plate.get("row", 0)),
-        "type": str(plate.get("type", "")),
     }
-    # Only barrier and bridge plates take a kind; a stray one is kept for the
-    # validator to flag rather than silently dropped.
-    if "kind" in plate:
-        normalized["kind"] = str(plate["kind"])
+    if "switch" in plate:
+        normalized["switch"] = str(plate["switch"])
     return normalized
 
 
 def pressure_plate_key(plate: dict) -> tuple:
-    return (plate["level"], plate["row"], plate["col"], plate["type"], plate.get("kind", ""))
+    return (plate["level"], plate["row"], plate["col"], plate.get("switch", ""))
 
 
 def actor_zone_key(zone: dict) -> tuple:

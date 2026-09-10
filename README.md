@@ -36,8 +36,9 @@ items, scoring, and the death/respawn flow.
 - **Barriers & keys** — coloured barriers block everyone; the matching key
   lets you through until you die.
 - **Light bridges** — ghostly walkways powered by pressure plates.
-- **Pressure plates** — open barriers or power bridges, with configurable
-  hold, toggle, and automatic solo/multiplayer behavior.
+- **Pressure plates** — operate switches that open barriers, power bridges,
+  run moving platforms, release guards, or launch fireworks, with
+  configurable hold, toggle, and automatic solo/multiplayer behavior.
 - **Actors** — scuttlers, bruisers, and zappers patrol and hunt; all
   explode when killed.
 - **Turrets** — stationary guards with deadly sustained laser bursts.

@@ -54,23 +54,51 @@ class BarrierKindTests(unittest.TestCase):
 
 
 class PressurePlateTests(unittest.TestCase):
-    def test_plate_validation_flags_bad_types_and_kinds(self) -> None:
+    def test_plate_validation_flags_missing_and_unknown_switches(self) -> None:
         data = empty_map(2, 2)
-        data["levels"][0]["floors"] = [floor(0, 0)]
+        data["levels"][0]["floors"] = [floor(0, 0), floor(1, 1)]
         data["pressure_plates"] = [
-            {"level": 0, "col": 0, "row": 0, "type": "confetti"},
-            {"level": 0, "col": 0, "row": 0, "type": "barrier", "kind": "nope"},
-            {"level": 0, "col": 1, "row": 0, "type": "firework", "kind": KIND},
-            {"level": 0, "col": 1, "row": 1, "type": "firework"},
-            {"level": 0, "col": 1, "row": 1, "type": "firework"},
+            {"level": 0, "col": 0, "row": 0},
+            {"level": 0, "col": 0, "row": 0, "switch": "nope"},
+            {"level": 0, "col": 1, "row": 1, "switch": "fireworks"},
+            {"level": 0, "col": 1, "row": 1, "switch": "fireworks"},
         ]
 
-        errors = validate_map(data, [KIND], [])
+        errors = validate_map(data, [KIND], [], switches=[KIND, "fireworks"])
 
-        self.assertTrue(any("unknown type 'confetti'" in error for error in errors))
-        self.assertTrue(any("unknown barrier kind 'nope'; known: [treasure]" in error for error in errors))
-        self.assertTrue(any("must not have `kind`" in error for error in errors))
+        self.assertTrue(any("pressure_plates[0] has no switch" in error for error in errors))
+        self.assertTrue(any("unknown switch 'nope'; known: [treasure, fireworks]" in error for error in errors))
         self.assertTrue(any("duplicates a plate" in error for error in errors))
+        self.assertFalse(any("unknown switch" in error for error in validate_map(data, [KIND], [])))
+
+    def test_zone_and_nested_map_switches_must_be_known_and_plated(self) -> None:
+        data = empty_map(4, 4)
+        data["levels"][0]["floors"] = [floor(0, 0), floor(2, 2)]
+        data["pressure_plates"] = [{"level": 0, "col": 0, "row": 0, "switch": "guards"}]
+        data["actor_spawn_zones"] = [
+            {"level": 0, "cols": [2, 3], "rows": [2, 3], "kind": "zapper", "count": 1, "switch": "guards"},
+            {"level": 0, "cols": [2, 3], "rows": [2, 3], "kind": "zapper", "count": 1, "switch": "nope"},
+            {"level": 0, "cols": [2, 3], "rows": [2, 3], "kind": "zapper", "count": 1, "switch": "lift"},
+            {"level": 0, "cols": [2, 3], "rows": [2, 3], "kind": "zapper", "count": 1, "switch": ""},
+        ]
+        data["nested_maps"] = [
+            {**nested("cabin", 0, [1, 1], [3, 1]), "switch": "guards"},
+            {**nested("cabin", 0, [1, 2], [3, 2]), "switch": "lift"},
+        ]
+        switches = ["guards", "lift"]
+
+        errors = validate_map(data, [], [], switches=switches, plated_switches={"guards"})
+
+        self.assertTrue(any("actor_spawn_zones[1] names unknown switch 'nope'" in e for e in errors))
+        self.assertTrue(any("actor_spawn_zones[2] names switch 'lift', which no pressure plate operates" in e for e in errors))
+        self.assertTrue(any("actor_spawn_zones[3] has an empty switch" in e for e in errors))
+        self.assertTrue(any("nested_maps[1] names switch 'lift', which no pressure plate operates" in e for e in errors))
+        self.assertFalse(any("actor_spawn_zones[0]" in e or "nested_maps[0]" in e for e in errors))
+        self.assertEqual(
+            [e for e in validate_map(data, [], []) if "switch" in e],
+            ["actor_spawn_zones[3] has an empty switch"],
+            "without a catalog only the empty switch is an error",
+        )
 
     def test_plates_need_a_slab_outside_ramp_footprints(self) -> None:
         data = empty_map(4, 4)
@@ -79,10 +107,10 @@ class PressurePlateTests(unittest.TestCase):
         data["levels"][0]["inaccessible_floors"] = [floor(3, 3)]
         data["ramps"] = [{"lower_level": 0, "low": [0, 1], "high": [2, 2], **faces()}]
         data["pressure_plates"] = [
-            {"level": 0, "col": 0, "row": 0, "type": "firework"},
-            {"level": 0, "col": 3, "row": 3, "type": "firework"},
-            {"level": 0, "col": 1, "row": 0, "type": "firework"},
-            {"level": 0, "col": 1, "row": 1, "type": "firework"},
+            {"level": 0, "col": 0, "row": 0, "switch": "fireworks"},
+            {"level": 0, "col": 3, "row": 3, "switch": "fireworks"},
+            {"level": 0, "col": 1, "row": 0, "switch": "fireworks"},
+            {"level": 0, "col": 1, "row": 1, "switch": "fireworks"},
         ]
 
         self.assertEqual(
@@ -90,7 +118,7 @@ class PressurePlateTests(unittest.TestCase):
             ["pressure_plates[2] [1, 0] has no floor", "pressure_plates[3] [1, 1] is inside a ramp footprint"],
         )
         host = EditorHost(data, [])
-        host.add_firework_plate(1, 0)
+        host.add_pressure_plate(1, 0, "fireworks")
         self.assertEqual(host.statuses, ["Plate not placed: cell [1, 0] has no floor."])
         self.assertEqual(len(host.map_data["pressure_plates"]), 4)
 
@@ -110,11 +138,11 @@ class LightBridgeTests(unittest.TestCase):
             {"col": 2, "row": 2, "kind": BRIDGE_KIND},
         ]
         data["pressure_plates"] = [
-            {"level": 0, "col": 2, "row": 2, "type": "firework"},
-            {"level": 0, "col": 0, "row": 0, "type": "bridge", "kind": "nope"},
+            {"level": 0, "col": 2, "row": 2, "switch": "fireworks"},
+            {"level": 0, "col": 0, "row": 0, "switch": "nope"},
         ]
 
-        errors = validate_map(data, [], [BRIDGE_KIND])
+        errors = validate_map(data, [], [BRIDGE_KIND], switches=["fireworks", BRIDGE_KIND])
 
         self.assertTrue(any("light_bridge[0] has unknown kind 'nope'; known: [skyway]" in e for e in errors))
         self.assertTrue(any("light_bridge[0] [0, 0] sits on a floor" in e for e in errors))
@@ -122,7 +150,7 @@ class LightBridgeTests(unittest.TestCase):
         self.assertTrue(any("light_bridge[2] [1, 1] sits on a ramp" in e for e in errors))
         self.assertTrue(any("light_bridge[4] [2, 2] duplicates another light bridge" in e for e in errors))
         self.assertTrue(any("pressure_plates[0] [2, 2] sits on a light bridge" in e for e in errors))
-        self.assertTrue(any("unknown bridge kind 'nope'; known: [skyway]" in e for e in errors))
+        self.assertTrue(any("pressure_plates[1] has unknown switch 'nope'; known: [fireworks, skyway]" in e for e in errors))
 
 
 class NestedMapTests(unittest.TestCase):

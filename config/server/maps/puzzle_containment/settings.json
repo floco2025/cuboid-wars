@@ -41,30 +41,39 @@
     "actors": { "on_player_death": "solo", "scope": "all" }
   },
   "portals": "both",
+  "switches": [
+    {
+      "id": "start",
+      "activation": "auto",
+      "reset_on_player_death": "solo"
+    },
+    {
+      "id": "pen",
+      "activation": "auto",
+      "reset_on_player_death": "solo"
+    },
+    {
+      "id": "fireworks",
+      "activation": "momentary",
+      "reset_on_player_death": "never",
+      "held": "everyone"
+    }
+  ],
+  "fireworks": {"switch": "fireworks", "cooldown_secs": 30.0},
   "barrier_kinds": [
     {
       "id": "start",
       "color": "#23d80f",
-      "pressure_switch": {
-        "activation": "auto",
-        "reset_on_player_death": "solo"
-      }
+      "switch": "start"
     },
     {
       "id": "pen",
       "color": "#30d8ff",
-      "pressure_switch": {
-        "activation": "auto",
-        "reset_on_player_death": "solo"
-      }
+      "switch": "pen"
     },
     {
       "id": "exit",
-      "color": "#f0c020",
-      "pressure_switch": {
-        "activation": "auto",
-        "reset_on_player_death": "solo"
-      }
+      "color": "#f0c020"
     }
   ],
   "bridge_kinds": [],

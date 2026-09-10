@@ -16,8 +16,8 @@ use common::{
     map::Carriers,
     physics::{CharacterSupport, CharacterVerticalVelocity, CollisionWorld},
     protocol::{
-        ActorAnchor, ActorMarker, ActorMoveIntent, FaceYaw, Health, MapSettings, PlayerMarker, Position, ServerTick,
-        sequence_is_newer,
+        ActorAnchor, ActorMarker, ActorMoveIntent, FaceYaw, Health, MapSettings, PlateState, PlayerMarker, Position,
+        ServerTick, sequence_is_newer,
     },
 };
 
@@ -67,14 +67,42 @@ fn tick_actor_respawns(timers: &mut ActorRespawnTimers, delta: f32) -> Vec<usize
                 (*remaining_secs <= 0.0).then_some(*zone_idx)
             }
             ActorRespawnState::Reset | ActorRespawnState::WaitingForSpace => Some(*zone_idx),
+            ActorRespawnState::Inactive => None,
         })
         .collect()
 }
 
-// Startup-only: fill every spawn zone to its `count`. Runs once when the
-// world boots, irrespective of `respawn_secs` — initial fill is universal.
-// Spawns are queued, not spawned: each waits out its beam-in warning window
-// in `PendingActorSpawns` before `actors_pending_spawn_system` materializes it.
+// A switched zone follows its switch: off parks it `Inactive`, dropping
+// any countdown, wait, or reset; turning on starts its kind's countdown,
+// after which every vacancy fills. An active zone is otherwise left to the
+// ordinary rules. Runs before this tick's vacancies and countdowns.
+fn sync_switched_zones(
+    timers: &mut ActorRespawnTimers,
+    map_config: &MapConfig,
+    plates: &PlateState,
+    config: &ServerGameplayConfig,
+) {
+    for (zone_idx, zone) in map_config.actor_spawn_zones.iter().enumerate() {
+        let Some(switch) = zone.switch else {
+            continue;
+        };
+        if !plates.is_active(switch) {
+            timers.0.insert(zone_idx, ActorRespawnState::Inactive);
+        } else if timers.0.get(&zone_idx) == Some(&ActorRespawnState::Inactive) {
+            let respawn_secs = config
+                .expect_actor(&zone.kind)
+                .respawn_secs
+                .expect("switched zone's kind has no respawn time after validation");
+            timers.0.insert(zone_idx, ActorRespawnState::Cooldown(respawn_secs));
+        }
+    }
+}
+
+// Startup-only: fill every spawn zone to its `count`, irrespective of
+// `respawn_secs` — initial fill is universal — except a switched zone, which
+// waits for its switch. Spawns are queued, not spawned: each waits out its
+// beam-in warning window in `PendingActorSpawns` before
+// `actors_pending_spawn_system` materializes it.
 pub fn actors_initial_spawn_system(
     mut pending: ResMut<PendingActorSpawns>,
     mut spawner: ResMut<ActorSpawner>,
@@ -99,7 +127,11 @@ pub fn actors_initial_spawn_system(
         tick: tick.0,
     };
     for (zone_idx, zone) in map_config.actor_spawn_zones.iter().enumerate() {
-        planner.queue_zone(zone_idx, zone, zone.count);
+        if zone.switch.is_some() {
+            planner.timers.0.insert(zone_idx, ActorRespawnState::Inactive);
+        } else {
+            planner.queue_zone(zone_idx, zone, zone.count);
+        }
     }
 }
 
@@ -113,11 +145,14 @@ pub fn actors_respawn_system(
     carriers: Res<Carriers>,
     collision_world: Res<CollisionWorld>,
     server_gameplay_config: Res<ServerGameplayConfig>,
+    plates: Res<PlateState>,
     tick: Res<ServerTick>,
     players: Query<&Position, With<PlayerMarker>>,
     actor_positions: Query<&Position, (With<ActorMarker>, Without<PlayerMarker>)>,
 ) {
-    // A zone gets one timer for all vacancies; later deaths do not restart it.
+    sync_switched_zones(&mut timers, &map_config, &plates, &server_gameplay_config);
+    // A zone gets one timer for all vacancies; later deaths do not restart it
+    // (and an `Inactive` entry stays: a kill while the switch is off arms nothing).
     let dt = time.delta_secs();
     for zone_idx in actors.drain_vacated_spawn_zones() {
         let Some(zone) = map_config.actor_spawn_zones.get(zone_idx) else {
@@ -295,8 +330,11 @@ pub(crate) fn expedite_actor_respawns(
             let missing = zone.count.saturating_sub(occupied_by_zone[zone_idx]);
             if missing > 0 {
                 let state = timers.0.entry(zone_idx).or_insert(ActorRespawnState::Cooldown(0.0));
-                if let ActorRespawnState::Cooldown(remaining_secs) = state {
-                    *remaining_secs = 0.0;
+                match state {
+                    ActorRespawnState::Cooldown(remaining_secs) => *remaining_secs = 0.0,
+                    // A switched-off zone stays empty; its switch decides.
+                    ActorRespawnState::Inactive => continue,
+                    ActorRespawnState::Reset | ActorRespawnState::WaitingForSpace => {}
                 }
                 respawning += missing as usize;
             }

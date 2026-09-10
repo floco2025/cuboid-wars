@@ -57,6 +57,18 @@ class NestedMapTests(unittest.TestCase):
         )
         self.assertEqual((entry["from_nudge"], entry["to_nudge"]), ([0.0, 0.0, 0.0], [0.0, -0.5, 0.5]))
 
+    def test_a_nested_maps_switch_is_written_only_while_set(self) -> None:
+        host = EditorHost(empty_map(8, 8), [])
+        motion = NestedMotion("cabin", 0, 2.0, 0.0, 0.0, (0.0, 0.0, 0.0), (0.0, 0.0, 0.0), "lift")
+        host.place_nested_map((1, 1), (4, 1), motion)
+        entry = host.map_data["nested_maps"][0]
+        self.assertEqual(entry["switch"], "lift")
+        self.assertEqual(NestedMotion.from_entry({**entry, "to_level": 0, "phase_secs": 0.0}).switch, "lift")
+
+        key = (0, (1, 1), 0, (4, 1), "cabin")
+        host.set_nested_map_properties(key, NestedMotion("cabin", 0, 2.0, 0.0, 0.0, (0.0, 0.0, 0.0), (0.0, 0.0, 0.0)))
+        self.assertNotIn("switch", host.map_data["nested_maps"][0])
+
     def test_placing_on_the_same_start_cell_replaces_the_old_nested_map(self) -> None:
         host = EditorHost(empty_map(8, 8), [])
         host.place_nested_map((1, 1), (4, 1), NestedMotion("cabin", 0, 2.0, 0.0, 0.0, (0.0, 0.0, 0.0), (0.0, 0.0, 0.0)))

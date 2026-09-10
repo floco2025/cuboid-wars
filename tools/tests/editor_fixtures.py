@@ -55,14 +55,14 @@ def nested(map_name: str, level: int, start: list[int], end: list[int], to_level
 
 
 # An 8x8 map whose cell (1, 1) holds a floor, a north wall with a light,
-# a barrier plate, and a gold item, and (2, 2) a bare floor.
+# a plate on the `barrier_1` switch, and a gold item, and (2, 2) a bare floor.
 def furnished_map() -> dict:
     data = empty_map(8, 8)
     level = data["levels"][0]
     level["floors"] = [floor(1, 1), floor(2, 2)]
     level["walls"] = [{"c0": 1, "r0": 1, "c1": 2, "r1": 1, "all": DEFAULT_ALIAS}]
     level["lights"] = [{"col": 1, "row": 1, "side": "N"}]
-    data["pressure_plates"] = [{"level": 0, "col": 1, "row": 1, "type": "barrier", "kind": "barrier_1"}]
+    data["pressure_plates"] = [{"level": 0, "col": 1, "row": 1, "switch": "barrier_1"}]
     data["items"] = [{"level": 0, "col": 1, "row": 1, "type": "gold"}]
     data["player_spawn_zones"] = []
     return data
@@ -98,6 +98,9 @@ class EditorHost(PlacementMixin, ItemsMixin, LightsMixin, NestedMapsMixin, Erase
         self.current_level = 0
         self.bridge_kinds = bridge_kinds
         self.barrier_kinds = ["barrier_1"]
+        self.switches = ["barrier_1", "fireworks"]
+        self.recent_pressure_plate_switch = "barrier_1"
+        self.recent_actor_spawn_switch = ""
         self.canvas = StubCanvas()
         self.spawn_zone_drag = None
         self.current_material = DEFAULT_ALIAS

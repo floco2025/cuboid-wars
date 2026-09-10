@@ -50,6 +50,7 @@ fn joining_inherits_shared_progress_and_respects_blocked_spawns_and_group_countd
                 travel_ticks: 30,
                 pause_ticks: 0,
                 phase_ticks: 0,
+                switch: None,
             }],
             ..default()
         };
@@ -67,7 +68,7 @@ fn joining_inherits_shared_progress_and_respects_blocked_spawns_and_group_countd
             layout.floors.push(floor);
         }
         let mut carriers = Carriers::from_layout(&layout);
-        carriers.advance(15);
+        carriers.advance(15, &PlateState::default());
         let mut collision = CollisionWorld::from_map_layout(&layout, &Default::default());
         collision.set_carrier_poses(&carriers);
         let settings = app.world().resource::<MapSettings>().clone();
@@ -88,7 +89,7 @@ fn joining_inherits_shared_progress_and_respects_blocked_spawns_and_group_countd
             .insert_resource(PortalAssignments::new(settings.portals))
             .init_resource::<PortalMap>();
         let catalog = QuestCatalog::from_quests(&[]);
-        app.insert_resource(QuestBoard::from_catalog(&catalog))
+        app.insert_resource(QuestBoard::from_catalog(&catalog, None))
             .insert_resource(catalog);
         app.world_mut().resource_mut::<MapConfig>().checkpoints = vec![checkpoint];
         app.world_mut().resource_mut::<PlayerMap>().shared_checkpoint = Some(PlayerCheckpoint {

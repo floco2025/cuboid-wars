@@ -112,6 +112,7 @@ impl Fixture {
                 rows: [2, 3],
                 kind: kind.to_owned(),
                 count: 1,
+                switch: None,
             }],
             ..MapConfig::for_grid(levels(level_count), geometry)
         };
@@ -127,6 +128,7 @@ impl Fixture {
                 travel_ticks: 1,
                 pause_ticks: 0,
                 phase_ticks: 0,
+                switch: None,
             });
         }
         let carriers = Carriers::from_layout(&layout);

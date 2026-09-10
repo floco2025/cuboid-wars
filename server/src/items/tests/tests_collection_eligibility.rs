@@ -28,7 +28,7 @@ fn test_app() -> App {
         .placed_items
         .clone();
     let quest_catalog = QuestCatalog::from_config(&server);
-    let quest_board = QuestBoard::from_catalog(&quest_catalog);
+    let quest_board = QuestBoard::from_catalog(&quest_catalog, None);
     let mut app = App::new();
     app.add_plugins(MinimalPlugins)
         .insert_resource(server)

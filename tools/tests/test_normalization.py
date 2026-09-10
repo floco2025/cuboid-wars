@@ -7,6 +7,7 @@ from map_editor.normalization import (
     empty_level,
     empty_map,
     nested_map_spans_level,
+    normalize_map,
     normalize_nested_map,
 )
 from map_editor.validation import validate_map
@@ -44,18 +45,36 @@ class NormalizationTests(unittest.TestCase):
         once = canonicalize_map(data)
         self.assertEqual(canonicalize_map(once), once)
 
-    def test_canonicalization_preserves_conflicting_plate_purposes_for_validation(self) -> None:
+    def test_canonicalization_preserves_conflicting_plate_switches_for_validation(self) -> None:
         data = empty_map(2, 2)
         data["levels"][0]["floors"] = [floor(0, 0)]
-        barrier = {"level": 0, "col": 0, "row": 0, "type": "barrier", "kind": KIND}
-        firework = {"level": 0, "col": 0, "row": 0, "type": "firework"}
+        barrier = {"level": 0, "col": 0, "row": 0, "switch": KIND}
+        firework = {"level": 0, "col": 0, "row": 0, "switch": "fireworks"}
         data["pressure_plates"] = [firework, barrier, dict(firework)]
 
         result = canonicalize_map(data)
 
-        self.assertEqual(result["pressure_plates"], [barrier, firework])
-        errors = validate_map(result, [KIND], [])
+        self.assertEqual(result["pressure_plates"], [firework, barrier])
+        errors = validate_map(result, [KIND], [], switches=[KIND, "fireworks"])
         self.assertTrue(any("duplicates a plate at level 0 [0, 0]" in error for error in errors))
+
+    def test_zone_and_nested_map_switches_survive_normalization_only_when_set(self) -> None:
+        data = empty_map(2, 2)
+        data["actor_spawn_zones"] = [
+            {"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "zapper", "count": 1, "switch": "guards"},
+            {"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "zapper", "count": 1, "switch": ""},
+        ]
+        data["nested_maps"] = [
+            {"map": "tile", "level": 0, "from": [0, 0], "to": [1, 0], "switch": "lift"},
+            {"map": "tile", "level": 0, "from": [1, 1], "to": [1, 1], "switch": None},
+        ]
+
+        result = normalize_map(data)
+
+        self.assertEqual([zone.get("switch") for zone in result["actor_spawn_zones"]], ["guards", None])
+        self.assertEqual([entry.get("switch") for entry in result["nested_maps"]], ["lift", None])
+        self.assertNotIn("switch", result["actor_spawn_zones"][1])
+        self.assertNotIn("switch", result["nested_maps"][1])
 
     def test_canonicalization_keeps_the_last_bridge_per_cell_sorted_by_row_then_col(self) -> None:
         data = empty_map(3, 3)

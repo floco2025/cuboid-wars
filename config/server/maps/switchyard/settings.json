@@ -47,32 +47,47 @@
     "actors": { "on_player_death": "never", "scope": "dead" }
   },
   "portals": "both",
+  "switches": [
+    {
+      "id": "customs",
+      "activation": "auto",
+      "reset_on_player_death": "never"
+    },
+    {
+      "id": "dispatch",
+      "activation": "auto",
+      "reset_on_player_death": "never"
+    },
+    {
+      "id": "freight",
+      "activation": "auto",
+      "reset_on_player_death": "never"
+    },
+    {
+      "id": "fireworks",
+      "activation": "momentary",
+      "reset_on_player_death": "never",
+      "held": "everyone"
+    }
+  ],
+  "fireworks": {"switch": "fireworks", "cooldown_secs": 30.0},
   "barrier_kinds": [
     {
       "id": "customs",
       "color": "#f0c020",
-      "pressure_switch": {
-        "activation": "auto",
-        "reset_on_player_death": "never"
-      }
+      "switch": "customs"
     },
     {
       "id": "dispatch",
       "color": "#5090ff",
-      "pressure_switch": {
-        "activation": "auto",
-        "reset_on_player_death": "never"
-      }
+      "switch": "dispatch"
     }
   ],
   "bridge_kinds": [
     {
       "id": "freight",
       "color": "#30d8ff",
-      "pressure_switch": {
-        "activation": "auto",
-        "reset_on_player_death": "never"
-      }
+      "switch": "freight"
     }
   ],
   "random_items": null,

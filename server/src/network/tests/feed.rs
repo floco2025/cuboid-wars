@@ -114,35 +114,19 @@ fn death_wording_is_resolved_before_the_wire() {
 }
 
 #[test]
-fn barrier_name_and_style_are_explicit() {
-    let line = render(FeedEvent::BarrierOpened {
+fn switch_lines_name_the_switch_and_dim_the_release() {
+    let on = render(FeedEvent::SwitchOn {
         name: "Alex".to_owned(),
-        kind: BarrierKindId(2),
-        kind_name: "treasure".to_owned(),
+        switch_name: "treasure".to_owned(),
     });
+    assert_eq!(text(&on), "Alex turned on the treasure switch");
+    assert_eq!(on.spans[0].style, FeedStyle::Default);
 
-    assert_eq!(text(&line), "Alex opened the treasure barriers");
-    assert_eq!(line.spans[1].style, FeedStyle::Barrier(BarrierKindId(2)));
-}
-
-#[test]
-fn bridge_lines_color_only_the_kind_word() {
-    let kind = BridgeKindId(1);
-    let powered = render(FeedEvent::BridgePowered {
-        name: "Alex".to_owned(),
-        kind,
-        kind_name: "skyway".to_owned(),
+    let off = render(FeedEvent::SwitchOff {
+        switch_name: "treasure".to_owned(),
     });
-    assert_eq!(text(&powered), "Alex powered the skyway bridges");
-    assert_eq!(powered.spans[1].style, FeedStyle::Bridge(kind));
-
-    let dark = render(FeedEvent::BridgeUnpowered {
-        kind,
-        kind_name: "skyway".to_owned(),
-    });
-    assert_eq!(text(&dark), "The skyway bridges went dark");
-    assert_eq!(dark.spans[0].style, FeedStyle::Dim);
-    assert_eq!(dark.spans[1].style, FeedStyle::Bridge(kind));
+    assert_eq!(text(&off), "The treasure switch turned off");
+    assert_eq!(off.spans[0].style, FeedStyle::Dim);
 }
 
 #[test]
@@ -199,15 +183,6 @@ fn key_found_and_barrier_closed_color_only_the_kind_word() {
     assert_eq!(text(&found), "Alex found a key");
     assert_eq!(found.spans[0].style, FeedStyle::Default);
     assert_eq!(found.spans[1].style, FeedStyle::Barrier(kind));
-
-    let closed = render(FeedEvent::BarrierClosed {
-        kind,
-        kind_name: "treasure".to_owned(),
-    });
-    assert_eq!(text(&closed), "The treasure barriers closed");
-    assert_eq!(closed.spans[0].style, FeedStyle::Dim);
-    assert_eq!(closed.spans[1].style, FeedStyle::Barrier(kind));
-    assert_eq!(closed.spans[2].style, FeedStyle::Dim);
 }
 
 #[test]

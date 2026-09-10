@@ -5,7 +5,7 @@ use common::{
     config::{NetworkConfig, UpdateCadence},
     map::Carriers,
     physics::{CharacterSupport, CharacterVerticalVelocity},
-    protocol::{ActorMoveIntent, ActorMovementState, Carrier, CarrierId, FaceYaw, MapLayout, Position},
+    protocol::{ActorMoveIntent, ActorMovementState, Carrier, CarrierId, FaceYaw, MapLayout, PlateState, Position},
 };
 
 use super::{ActorAnimationVelocity, RemoteActorMotion, interpolate_remote_actors_system};
@@ -188,6 +188,7 @@ fn buffered_actors_follow_stopping_reversing_and_nested_platforms_without_wheel_
         travel_ticks: 30,
         pause_ticks: 9,
         phase_ticks: 0,
+        switch: None,
     };
     let layout = MapLayout {
         carriers: vec![
@@ -209,7 +210,7 @@ fn buffered_actors_follow_stopping_reversing_and_nested_platforms_without_wheel_
             let mut buffer = RemoteActorMotion::new(0, state, timing(hz));
             let mut cadence = UpdateCadence::new(hz, 30);
             for tick in 1..180 {
-                carriers.advance(tick);
+                carriers.advance(tick, &PlateState::default());
                 if cadence.ready() && !(45..90).contains(&tick) {
                     buffer.push(tick, state);
                 }

@@ -1,9 +1,15 @@
 use bevy::prelude::Resource;
 
+use crate::config::FireworksConfig;
 use common::{
     map::MapGeometry,
-    protocol::{CarrierId, Checkpoint, ItemType, MapItems},
+    protocol::{CarrierId, Checkpoint, ItemType, MapItems, SwitchId},
 };
+
+// The selected map's fireworks switch and cooldown, `None` when no switch
+// launches shows.
+#[derive(Resource, Clone, Debug)]
+pub struct MapFireworks(pub Option<FireworksConfig>);
 
 // Cell flags. Light bridges deliberately set none of them: actors never
 // walk a bridge, and item, spawn, and air-graph cells ignore them too.
@@ -99,6 +105,8 @@ pub struct LevelGrid {
     pub barrier_edges: EdgeGrid,
 }
 
+// `switch` gates a zone: it spawns nothing until that switch is active and
+// refills only while it stays active (`actors_respawn_system`).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ActorSpawnZone {
     pub carrier: CarrierId,
@@ -107,6 +115,7 @@ pub struct ActorSpawnZone {
     pub rows: [i32; 2],
     pub kind: String,
     pub count: u32,
+    pub switch: Option<SwitchId>,
 }
 
 impl ActorSpawnZone {
@@ -167,7 +176,7 @@ pub struct PressurePlateRuntime {
     pub level: u8,
     pub col: i32,
     pub row: i32,
-    pub purpose: common::protocol::PlatePurpose,
+    pub switch: SwitchId,
 }
 
 // One map's grid: its geometry (the grid size is its own; the sizes are

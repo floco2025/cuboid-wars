@@ -10,6 +10,7 @@ fn carrier(parent: CarrierId, level: u8, levels: u8) -> Carrier {
         travel_ticks: 1,
         pause_ticks: 0,
         phase_ticks: 0,
+        switch: None,
     }
 }
 

@@ -8,7 +8,7 @@ pub use assets::{BarrierAssets, build_barrier_assets};
 pub use common::protocol::PlateState;
 pub use keys::KeyKinds;
 pub use pressure_plates::{
-    LockedPlatePurposes, PlatePurposeMarker, PressurePlateMarker, pressure_plates_spawn_system,
+    LockedSwitches, PlateSwitchMarker, PressurePlateMarker, pressure_plates_spawn_system,
     pressure_plates_visibility_system,
 };
 pub use pulsate::barriers_pulsate_system;

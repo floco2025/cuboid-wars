@@ -2,7 +2,9 @@ use std::{iter::once, path::PathBuf};
 
 use crate::map::MapConfig;
 use anyhow::{Context, Result, ensure};
-use common::protocol::{BarrierKindTable, BridgeKindTable, MapLayout, MapSettings, validate_texture_materials};
+use common::protocol::{
+    BarrierKindTable, BridgeKindTable, MapLayout, MapSettings, SwitchTable, validate_texture_materials,
+};
 
 use super::definition;
 
@@ -17,8 +19,8 @@ pub fn generate_map(
     settings: &MapSettings,
     barrier_kinds: &BarrierKindTable,
     bridge_kinds: &BridgeKindTable,
+    switches: &SwitchTable,
 ) -> Result<GeneratedMap> {
-    let sizes = settings.geometry;
     let path = map_path(map_name);
     let source = definition::load_map(&path).with_context(|| format!("failed to load map at {}", path.display()))?;
     let map_def = source.geometry;
@@ -52,8 +54,16 @@ pub fn generate_map(
             )?;
         }
     }
-    let (layout, config) = definition::compile_map(&map_def, server_hz, sizes, &nested, barrier_kinds, bridge_kinds)
-        .with_context(|| format!("failed to compile map at {}", path.display()))?;
+    let (layout, config) = definition::compile_map(
+        &map_def,
+        server_hz,
+        settings,
+        &nested,
+        barrier_kinds,
+        bridge_kinds,
+        switches,
+    )
+    .with_context(|| format!("failed to compile map at {}", path.display()))?;
     Ok(GeneratedMap { layout, config })
 }
 

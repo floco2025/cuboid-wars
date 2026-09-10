@@ -18,7 +18,6 @@ from .constants import (
     ITEM_TYPES,
     MODE_ACTOR_SPAWN_ZONE,
     MODE_BARRIER,
-    MODE_BRIDGE_PLATE,
     MODE_FLOOR,
     MODE_INACCESSIBLE_FLOOR,
     MODE_ITEM,
@@ -183,11 +182,11 @@ class ToolSettings(QWidget):
             MODE_ACTOR_SPAWN_ZONE: lambda: (
                 combo("Actor", "recent_actor_spawn_kind", window.actor_kinds, editable=True),
                 number("Count", "recent_actor_spawn_count", 0, 9999),
+                combo("Switch", "recent_actor_spawn_switch", window.switches),
             ),
             MODE_BARRIER: lambda: combo("Kind", "recent_barrier_kind", window.barrier_kinds),
-            MODE_PRESSURE_PLATE: lambda: combo("Kind", "recent_pressure_plate_kind", window.barrier_kinds),
+            MODE_PRESSURE_PLATE: lambda: combo("Switch", "recent_pressure_plate_switch", window.switches),
             MODE_LIGHT_BRIDGE: lambda: combo("Kind", "recent_bridge_kind", window.bridge_kinds),
-            MODE_BRIDGE_PLATE: lambda: combo("Kind", "recent_bridge_plate_kind", window.bridge_kinds),
             MODE_LIGHT: lambda: combo("Style", "recent_light_kind", window.wall_light_kinds, required=True),
             MODE_ITEM: item_controls,
             MODE_LADDER: lambda: number("Storeys", "recent_ladder_levels", 1, max(1, len(window.map_data["levels"]) - 1)),
@@ -213,6 +212,7 @@ class ToolSettings(QWidget):
             window.current_level,
             window.recent_nested_map,
             window.nested_map_names(),
+            window.switches,
             title="Nested Map Defaults",
         )
         if result is not None:

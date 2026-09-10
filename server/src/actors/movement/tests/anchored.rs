@@ -62,6 +62,7 @@ fn turret_stays_at_carrier_anchor_despite_gravity_and_knockback() {
             travel_ticks: 30,
             pause_ticks: 2,
             phase_ticks: 0,
+            switch: None,
         }],
         ..Default::default()
     };
@@ -101,7 +102,9 @@ fn turret_stays_at_carrier_anchor_despite_gravity_and_knockback() {
         KnockbackVelocity(Vec3::new(20.0, 0.0, 20.0)),
     ));
     for tick in 0..130 {
-        app.world_mut().resource_mut::<Carriers>().advance(tick);
+        app.world_mut()
+            .resource_mut::<Carriers>()
+            .advance(tick, &PlateState::default());
         app.update();
         let expected = anchor.world_position(app.world().resource::<Carriers>());
         assert_eq!(

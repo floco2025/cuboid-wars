@@ -155,6 +155,7 @@ fn incompatible_material_impact_keeps_its_carrier_local_position() {
         travel_ticks: 30,
         pause_ticks: 0,
         phase_ticks: 15,
+        switch: None,
     });
     let carriers = Carriers::from_layout(&layout);
     let origin = carriers.pose(CarrierId(1)).transform_point(Vec3::new(0.0, 1.6, 3.0));

@@ -37,40 +37,33 @@
     "actors": { "on_player_death": "never", "scope": "dead" }
   },
   "portals": "single",
+  "switches": [
+    {
+      "id": "bridge_1",
+      "activation": "toggle",
+      "reset_on_player_death": "never"
+    }
+  ],
+  "fireworks": null,
   "barrier_kinds": [
     {
       "id": "barrier_1",
-      "color": "#f0c020",
-      "pressure_switch": {
-        "activation": "auto",
-        "reset_on_player_death": "never"
-      }
+      "color": "#f0c020"
     }
   ],
   "bridge_kinds": [
     {
       "id": "bridge_1",
       "color": "#30d8ff",
-      "pressure_switch": {
-        "activation": "auto",
-        "reset_on_player_death": "never"
-      }
+      "switch": "bridge_1"
     },
     {
       "id": "bridge_2",
-      "color": "#30d8ff",
-      "pressure_switch": {
-        "activation": "auto",
-        "reset_on_player_death": "never"
-      }
+      "color": "#30d8ff"
     },
     {
       "id": "bridge_3",
-      "color": "#30d8ff",
-      "pressure_switch": {
-        "activation": "auto",
-        "reset_on_player_death": "never"
-      }
+      "color": "#30d8ff"
     }
   ],
   "random_items": null,

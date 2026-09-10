@@ -5,22 +5,22 @@ use crate::{
     config::{AssetSet, ClientSettings, MaterialDef},
     map::tiled_cuboid,
 };
-use common::protocol::{MapLayout, MapSettings, PlatePurpose};
+use common::protocol::{MapLayout, MapSettings, SwitchId};
 
 #[derive(Component)]
 pub struct PressurePlateMarker;
 
-// The plate's purpose, matched against the snapshot's locked purposes.
+// The switch the plate operates, matched against the snapshot's locked switches.
 #[derive(Component)]
-pub struct PlatePurposeMarker(pub PlatePurpose);
+pub struct PlateSwitchMarker(pub SwitchId);
 
-// Snapshot state: plate purposes still locked behind a quest. Their plates
-// are hidden here and inert server-side.
+// Snapshot state: switches still locked behind a quest. Their plates are
+// hidden here and inert server-side.
 #[derive(Resource, Default, PartialEq, Eq)]
-pub struct LockedPlatePurposes(pub Vec<PlatePurpose>);
+pub struct LockedSwitches(pub Vec<SwitchId>);
 
-fn plate_visibility(purpose: PlatePurpose, locked: &[PlatePurpose]) -> Visibility {
-    if locked.contains(&purpose) {
+fn plate_visibility(switch: SwitchId, locked: &[SwitchId]) -> Visibility {
+    if locked.contains(&switch) {
         Visibility::Hidden
     } else {
         Visibility::Visible
@@ -31,15 +31,15 @@ fn plate_visibility(purpose: PlatePurpose, locked: &[PlatePurpose]) -> Visibilit
 // Level focus never touches plates, so writing both directions here races
 // nothing.
 pub fn pressure_plates_visibility_system(
-    locked: Res<LockedPlatePurposes>,
-    mut plates: Query<(&PlatePurposeMarker, &mut Visibility), With<PressurePlateMarker>>,
+    locked: Res<LockedSwitches>,
+    mut plates: Query<(&PlateSwitchMarker, &mut Visibility), With<PressurePlateMarker>>,
 ) {
     if !locked.is_changed() {
         return;
     }
-    // A lock change affects only matching purposes; equal writes would retrigger propagation on the rest.
-    for (purpose, mut visibility) in &mut plates {
-        visibility.set_if_neq(plate_visibility(purpose.0, &locked.0));
+    // A lock change affects only matching switches; equal writes would retrigger propagation on the rest.
+    for (switch, mut visibility) in &mut plates {
+        visibility.set_if_neq(plate_visibility(switch.0, &locked.0));
     }
 }
 
@@ -49,7 +49,7 @@ const PLATE_SIDE_CELLS: f32 = 0.5;
 const PLATE_Y_OFFSET: f32 = 0.01;
 // Housing: a frame slab spanning the footprint with the panel inset on top
 // (materials from `assets.json::pressure_plate`) — a physical mechanism
-// rather than a painted decal. Every plate looks the same; its purpose is
+// rather than a painted decal. Every plate looks the same; its switch is
 // not shown.
 const PLATE_FRAME_HEIGHT: f32 = 0.05;
 const PLATE_PANEL_FRACTION: f32 = 0.7;
@@ -119,7 +119,7 @@ pub fn pressure_plates_spawn_system(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     existing: Query<Entity, With<PressurePlateMarker>>,
-    locked: Res<LockedPlatePurposes>,
+    locked: Res<LockedSwitches>,
     carrier_entities: Res<CarrierEntities>,
     storeys: Res<CarrierStoreys>,
 ) {
@@ -149,11 +149,11 @@ pub fn pressure_plates_spawn_system(
         commands
             .spawn((
                 PressurePlateMarker,
-                PlatePurposeMarker(plate.purpose),
+                PlateSwitchMarker(plate.switch),
                 storeys.tag(plate.carrier, plate.level, 0),
                 ChildOf(carrier_entities.get(plate.carrier)),
                 Transform::from_translation(Vec3::new(plate.center_x, floor_y, plate.center_z)),
-                plate_visibility(plate.purpose, &locked.0),
+                plate_visibility(plate.switch, &locked.0),
             ))
             .with_children(|parent| {
                 parent.spawn((

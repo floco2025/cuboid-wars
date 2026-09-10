@@ -1,0 +1,41 @@
+{
+  "materials": {
+    "housing": {
+      "name": "PressurePlateHousing",
+      "color": [0.15, 0.18, 0.20],
+      "metallic": 0.85,
+      "roughness": 0.36
+    },
+    "edge": {
+      "name": "PressurePlateEdge",
+      "color": [0.38, 0.43, 0.46],
+      "metallic": 0.9,
+      "roughness": 0.29
+    },
+    "dark": {
+      "name": "PressurePlateDark",
+      "color": [0.012, 0.018, 0.023],
+      "metallic": 0,
+      "roughness": 0.7
+    },
+    "accent": {
+      "name": "PressurePlateAccent",
+      "color": [0.025, 0.32, 0.5],
+      "metallic": 0.15,
+      "roughness": 0.38
+    },
+    "marking": {
+      "name": "PressurePlateMarking",
+      "color": [0.72, 0.79, 0.82],
+      "metallic": 0,
+      "roughness": 0.5
+    },
+    "light": {
+      "name": "PressurePlateLight",
+      "color": [0.7, 0.88, 1],
+      "metallic": 0,
+      "roughness": 0.35,
+      "emission": 3
+    }
+  }
+}

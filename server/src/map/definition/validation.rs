@@ -82,6 +82,9 @@ fn validate_actor_spawn_zones(map_def: &MapDef) -> Result<()> {
         if zone.kind.is_empty() {
             return Err(anyhow!("{label} has empty `kind`"));
         }
+        if zone.switch.as_deref() == Some("") {
+            return Err(anyhow!("{label} has empty `switch`"));
+        }
     }
     Ok(())
 }
@@ -152,6 +155,9 @@ fn validate_pressure_plates(map_def: &MapDef) -> Result<()> {
     let mut seen = BTreeSet::new();
     for (idx, plate) in map_def.pressure_plates.iter().enumerate() {
         let label = format!("pressure_plates[{idx}]");
+        if plate.switch.is_empty() {
+            return Err(anyhow!("{label} has empty `switch`"));
+        }
         if plate.level as usize >= map_def.levels.len() {
             return Err(anyhow!(
                 "{label} level {} out of range (level count = {})",
@@ -509,6 +515,9 @@ fn validate_motion(motion: &MotionDef, map_def: &MapDef) -> Result<()> {
     }
     if !(motion.phase_secs.is_finite() && motion.phase_secs >= 0.0) {
         return Err(anyhow!("phase_secs must not be negative, got {}", motion.phase_secs));
+    }
+    if motion.switch.as_deref() == Some("") {
+        return Err(anyhow!("switch must not be empty"));
     }
     Ok(())
 }

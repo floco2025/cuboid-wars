@@ -1,67 +1,47 @@
 use bevy_ecs::prelude::Resource;
 use bincode::{Decode, Encode};
 
-use super::{BarrierKindId, BridgeKindId, PlatePurpose};
+use super::{BarrierKindId, BridgeKindId, CarrierId, SwitchId};
+use crate::map::CarrierRun;
 
-// What a holding plate holds while enough of its plates are pressed.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum HeldPurpose {
-    Barrier(BarrierKindId),
-    Bridge(BridgeKindId),
-}
-
-impl PlatePurpose {
-    // Fireworks are momentary, so this is the one place that says they hold
-    // nothing.
-    #[must_use]
-    pub fn held(self) -> Option<HeldPurpose> {
-        match self {
-            Self::Barrier(kind) => Some(HeldPurpose::Barrier(kind)),
-            Self::Bridge(kind) => Some(HeldPurpose::Bridge(kind)),
-            Self::Firework => None,
-        }
-    }
-}
-
-// What the pressure plates currently hold: barrier kinds open (passable and
-// invisible) and bridge kinds powered (solid and lit). One value on both
-// sides — the server's plate system writes it, every snapshot carries it,
-// the collision filters read the open kinds and `powered_bridges_sync_system`
-// applies the powered kinds to the bridge colliders. Both lists stay sorted
-// so equality diffs are stable.
+// What the pressure plates currently hold: the active switches and what
+// they drive — barrier kinds open (passable and invisible), bridge kinds
+// powered (solid and lit), and each switched carrier's run. One value on
+// both sides — the server's plate system writes it, every snapshot carries
+// it, the collision filters read the open kinds, `powered_bridges_sync_system`
+// applies the powered kinds to the bridge colliders, `Carriers::advance`
+// places switched carriers from their runs, and the actor spawner reads the
+// active switches for its zones. Every list stays sorted so equality diffs
+// are stable.
 #[derive(Resource, Debug, Default, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct PlateState {
+    pub active_switches: Vec<SwitchId>,
     pub open_barrier_kinds: Vec<BarrierKindId>,
     pub powered_bridge_kinds: Vec<BridgeKindId>,
+    pub carrier_runs: Vec<(CarrierId, CarrierRun)>,
 }
 
 impl PlateState {
-    pub fn from_held(held: impl IntoIterator<Item = HeldPurpose>) -> Self {
-        let mut state = Self::default();
-        for purpose in held {
-            match purpose {
-                HeldPurpose::Barrier(kind) => state.open_barrier_kinds.push(kind),
-                HeldPurpose::Bridge(kind) => state.powered_bridge_kinds.push(kind),
-            }
-        }
-        state.open_barrier_kinds.sort();
-        state.powered_bridge_kinds.sort();
-        state
-    }
-
-    pub fn held(&self) -> impl Iterator<Item = HeldPurpose> + '_ {
-        self.open_barrier_kinds
-            .iter()
-            .map(|kind| HeldPurpose::Barrier(*kind))
-            .chain(self.powered_bridge_kinds.iter().map(|kind| HeldPurpose::Bridge(*kind)))
-    }
-
     #[must_use]
-    pub fn contains(&self, purpose: HeldPurpose) -> bool {
-        match purpose {
-            HeldPurpose::Barrier(kind) => self.open_barrier_kinds.contains(&kind),
-            HeldPurpose::Bridge(kind) => self.powered_bridge_kinds.contains(&kind),
-        }
+    pub fn is_active(&self, switch: SwitchId) -> bool {
+        self.active_switches.binary_search(&switch).is_ok()
+    }
+
+    // A switched carrier's run; `None` for a free carrier or one whose
+    // switch has never been active, which rests at run 0.
+    #[must_use]
+    pub fn carrier_run(&self, carrier: CarrierId) -> Option<CarrierRun> {
+        self.carrier_runs
+            .binary_search_by_key(&carrier, |(id, _)| *id)
+            .ok()
+            .map(|index| self.carrier_runs[index].1)
+    }
+
+    pub fn sort(&mut self) {
+        self.active_switches.sort_unstable();
+        self.open_barrier_kinds.sort_unstable();
+        self.powered_bridge_kinds.sort_unstable();
+        self.carrier_runs.sort_unstable_by_key(|(id, _)| *id);
     }
 }
 

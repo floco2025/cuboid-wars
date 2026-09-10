@@ -14,9 +14,6 @@ from .constants import (
     LADDER_SIDES,
     LIGHT_SIDES,
     MAP_NAME_RE,
-    PLATE_TYPE_BARRIER,
-    PLATE_TYPE_BRIDGE,
-    PLATE_TYPES,
 )
 from .catalogs import MapCatalogs
 from .geometry import (
@@ -72,11 +69,24 @@ class ValidationErrors(list):
             self.issues.append(replace(issue, message=message, map_name=map_name))
 
 
+# The switches some plate of the document operates: a zone or nested map
+# naming any other could never start, so the server rejects it.
+def plated_switches(geometries: list[dict]) -> set[str]:
+    return {
+        plate["switch"]
+        for geometry in geometries
+        for plate in geometry.get("pressure_plates", [])
+        if plate.get("switch")
+    }
+
+
 def validate_map(
     map_data: dict,
     barrier_kinds: list[str],
     bridge_kinds: list[str],
     *,
+    switches: list[str] | None = None,
+    plated_switches: set[str] | None = None,
     map_name: str | None = None,
     nested_lookup=None,
     actor_kinds: list[str] | None = None,
@@ -105,6 +115,7 @@ def validate_map(
             errors.append(f"actor_spawn_zones[{idx}] has negative count")
         if immovable_actor_kinds and zone["kind"] in immovable_actor_kinds:
             _validate_immovable_capacity(zone, idx, map_data, errors)
+        _validate_switch_target(zone, f"actor_spawn_zones[{idx}]", switches, plated_switches, errors)
 
     for idx, zone in enumerate(map_data["player_spawn_zones"]):
         errors.locate("player_spawn_zones", zone)
@@ -112,7 +123,7 @@ def validate_map(
 
     _validate_checkpoints(map_data, errors)
     _validate_items(map_data, kinds, errors)
-    _validate_pressure_plates(map_data, kinds, bridge_kinds, errors)
+    _validate_pressure_plates(map_data, switches, errors)
 
     for level_idx, level in enumerate(map_data["levels"]):
         prefix = level_label(level, level_idx)
@@ -214,7 +225,7 @@ def validate_map(
             errors.append(f"ramp {ramp}: {msg}")
 
     _validate_ladders(map_data, errors)
-    _validate_nested_maps(map_data, errors, map_name, nested_lookup)
+    _validate_nested_maps(map_data, errors, map_name, nested_lookup, switches, plated_switches)
 
     _validate_face_aliases(map_data, errors, material_aliases)
 
@@ -243,6 +254,8 @@ def validate_document(
             geometry,
             list(catalogs.barrier_kind_colors),
             list(catalogs.bridge_kind_colors),
+            switches=list(catalogs.switches),
+            plated_switches=plated_switches([root, *definitions.values()]),
             map_name=name,
             nested_lookup=lambda key: nested_map_shape(definitions.get(key)),
             actor_kinds=actor_kinds,
@@ -285,7 +298,14 @@ def _validate_ladders(map_data: dict, errors: list[str]) -> None:
                 errors.append(f"{label} overlaps ladders[{other_idx}] on the same edge")
 
 
-def _validate_nested_maps(map_data: dict, errors: list[str], map_name: str | None, nested_lookup) -> None:
+def _validate_nested_maps(
+    map_data: dict,
+    errors: list[str],
+    map_name: str | None,
+    nested_lookup,
+    switches: list[str] | None = None,
+    plated: set[str] | None = None,
+) -> None:
     # Mirrors the Rust loader's entry checks: a safe name, ends on the grid
     # and on real storeys, sane timing, one entry per start cell, and no
     # nesting loop; a stationary entry is a room placed once. Only the map
@@ -323,6 +343,7 @@ def _validate_nested_maps(map_data: dict, errors: list[str], map_name: str | Non
                 and all(isinstance(axis, (int, float)) and math.isfinite(axis) for axis in nudge)
             ):
                 errors.append(f"{label} {end} is not three numbers")
+        _validate_switch_target(entry, label, switches, plated, errors)
         key = (level, tuple(start))
         if key in seen:
             errors.append(f"{label} duplicates a nested map starting at level {level} {start}")
@@ -333,7 +354,23 @@ def _validate_nested_maps(map_data: dict, errors: list[str], map_name: str | Non
             errors.append("nested maps loop: " + " -> ".join(cycle))
 
 
-def _validate_pressure_plates(map_data: dict, kinds: list[str], bridge_kinds: list[str], errors: list[str]) -> None:
+# A zone's or nested map's optional switch: known to the catalog and
+# operated by some plate of the document.
+def _validate_switch_target(
+    entry: dict, label: str, switches: list[str] | None, plated: set[str] | None, errors: list[str]
+) -> None:
+    switch = entry.get("switch")
+    if switch is None:
+        return
+    if not switch:
+        errors.append(f"{label} has an empty switch")
+    elif switches is not None and switch not in switches:
+        errors.append(f"{label} names unknown switch {switch!r}; known: [{_known(switches)}]")
+    elif plated is not None and switch not in plated:
+        errors.append(f"{label} names switch {switch!r}, which no pressure plate operates")
+
+
+def _validate_pressure_plates(map_data: dict, switches: list[str] | None, errors: list[str]) -> None:
     cols = map_data["grid_cols"]
     rows = map_data["grid_rows"]
     seen: set[tuple] = set()
@@ -347,20 +384,11 @@ def _validate_pressure_plates(map_data: dict, kinds: list[str], bridge_kinds: li
         if not (0 <= col < cols and 0 <= row < rows):
             errors.append(f"{label} [{col}, {row}] is outside the grid")
             continue
-        plate_type = plate.get("type")
-        if plate_type == PLATE_TYPE_BARRIER:
-            kind = plate.get("kind")
-            if kind not in kinds:
-                errors.append(f"{label} has unknown barrier kind {kind!r}; known: [{_known(kinds)}]")
-        elif plate_type == PLATE_TYPE_BRIDGE:
-            kind = plate.get("kind")
-            if kind not in bridge_kinds:
-                errors.append(f"{label} has unknown bridge kind {kind!r}; known: [{_known(bridge_kinds)}]")
-        elif plate_type not in PLATE_TYPES:
-            known = ", ".join(PLATE_TYPES)
-            errors.append(f"{label} has unknown type {plate_type!r}; known: [{known}]")
-        elif "kind" in plate:
-            errors.append(f"{label} ({plate_type}) must not have `kind` — only barrier and bridge plates take one")
+        switch = plate.get("switch")
+        if not switch:
+            errors.append(f"{label} has no switch")
+        elif switches is not None and switch not in switches:
+            errors.append(f"{label} has unknown switch {switch!r}; known: [{_known(switches)}]")
         level = map_data["levels"][level_idx]
         if any(b["col"] == col and b["row"] == row for b in level.get("light_bridges", [])):
             errors.append(f"{label} [{col}, {row}] sits on a light bridge")

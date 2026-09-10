@@ -6,13 +6,13 @@ use bevy::math::Vec3;
 use super::{
     geometry::compile_geometry,
     load::LoadedMaps,
-    schema::{MapDef, MotionDef, PressurePlatePurposeDef},
+    schema::{MapDef, MotionDef},
 };
 use crate::{map::MapConfig, schedule::ticks_from_secs};
 use common::{
     config::MapGeometryConfig,
     map::MapGeometry,
-    protocol::{BarrierKindTable, BridgeKindTable, Carrier, CarrierId, MapLayout},
+    protocol::{BarrierKindTable, BridgeKindTable, Carrier, CarrierId, MapLayout, MapSettings, SwitchId, SwitchTable},
 };
 
 // The map being played and every map it nests, into one layout and one
@@ -22,10 +22,11 @@ use common::{
 pub(crate) fn compile_map(
     root: &MapDef,
     server_hz: u32,
-    sizes: MapGeometryConfig,
+    settings: &MapSettings,
     nested: &LoadedMaps,
     kind_table: &BarrierKindTable,
     bridge_table: &BridgeKindTable,
+    switch_table: &SwitchTable,
 ) -> anyhow::Result<(MapLayout, MapConfig)> {
     let mut out = CompileOutput {
         layout: MapLayout::default(),
@@ -38,19 +39,28 @@ pub(crate) fn compile_map(
             pressure_plates: Vec::new(),
         },
     };
+    let plated_switches: HashSet<&str> = once(root)
+        .chain(nested.values())
+        .flat_map(|map| &map.pressure_plates)
+        .map(|plate| plate.switch.as_str())
+        .collect();
     let scope = CompileScope {
         server_hz,
-        sizes,
+        sizes: settings.geometry,
         kind_table,
         bridge_table,
-        plate_barrier_kinds: once(root)
-            .chain(nested.values())
-            .flat_map(|map| &map.pressure_plates)
-            .filter_map(|plate| match &plate.purpose {
-                PressurePlatePurposeDef::Barrier { kind } => Some(kind.as_str()),
-                PressurePlatePurposeDef::Bridge { .. } | PressurePlatePurposeDef::Firework => None,
+        switch_table,
+        plate_barrier_kinds: settings
+            .barrier_kinds
+            .iter()
+            .filter(|def| {
+                def.switch
+                    .as_deref()
+                    .is_some_and(|switch| plated_switches.contains(switch))
             })
+            .map(|def| def.id.as_str())
             .collect(),
+        plated_switches,
     };
     compile_tree(root, nested, &scope, CarrierId::WORLD, &mut out)?;
     // The renderer indexes the material vectors by segment position, so any
@@ -66,8 +76,26 @@ pub(super) struct CompileScope<'a> {
     pub(super) sizes: MapGeometryConfig,
     pub(super) kind_table: &'a BarrierKindTable,
     pub(super) bridge_table: &'a BridgeKindTable,
+    pub(super) switch_table: &'a SwitchTable,
     // Plate effects span the whole tree; actors may plan through these barriers and wait for physics to let them pass.
     pub(super) plate_barrier_kinds: HashSet<&'a str>,
+    // Switches some plate in the tree operates: a carrier or zone naming any other could never start.
+    plated_switches: HashSet<&'a str>,
+}
+
+impl CompileScope<'_> {
+    // A target's switch: known to the catalog and operated by a plate somewhere in the tree.
+    pub(super) fn target_switch(&self, switch: Option<&str>) -> anyhow::Result<Option<SwitchId>> {
+        let Some(switch) = switch else {
+            return Ok(None);
+        };
+        let id = self.switch_table.resolve(switch)?;
+        ensure!(
+            self.plated_switches.contains(switch),
+            "switch {switch:?} is operated by no pressure plate in the map"
+        );
+        Ok(Some(id))
+    }
 }
 
 pub(super) struct CompileOutput {
@@ -90,12 +118,16 @@ fn compile_tree(
         let child_def = nested.get(&entry.map).expect("nested map missing from the loaded tree");
         let child_geometry = MapGeometry::new(child_def.grid_cols, child_def.grid_rows, scope.sizes);
         let id = next_carrier(out);
+        let switch = scope
+            .target_switch(entry.motion.switch.as_deref())
+            .with_context(|| format!("nested map {:?}", entry.map))?;
         out.layout.carriers.push(nested_carrier(
             &geometry,
             &child_geometry,
             &entry.motion,
             carrier,
             scope.server_hz,
+            switch,
         ));
         let reach = usize::from(out.layout.carrier_base_level(id))
             + child_def.levels.len()
@@ -127,6 +159,7 @@ fn carrier_from_motion(
     nudge_scale: Vec3,
     parent: CarrierId,
     server_hz: u32,
+    switch: Option<SwitchId>,
 ) -> Carrier {
     let from = end1 + Vec3::from(motion.from_nudge) * nudge_scale;
     let to = end2 + Vec3::from(motion.to_nudge) * nudge_scale;
@@ -139,6 +172,7 @@ fn carrier_from_motion(
         travel_ticks: ticks_from_secs(motion.travel_secs, server_hz).max(1),
         pause_ticks: ticks_from_secs(motion.pause_secs, server_hz),
         phase_ticks: ticks_from_secs(motion.phase_secs, server_hz),
+        switch,
     }
 }
 
@@ -152,6 +186,7 @@ fn nested_carrier(
     motion: &MotionDef,
     parent_id: CarrierId,
     server_hz: u32,
+    switch: Option<SwitchId>,
 ) -> Carrier {
     let level = u8::try_from(motion.level).unwrap_or(u8::MAX);
     let to_level = u8::try_from(motion.to_level()).unwrap_or(u8::MAX);
@@ -162,7 +197,16 @@ fn nested_carrier(
         parent.floor_thickness(),
         parent.wall_thickness(),
     );
-    carrier_from_motion(end1, end2, motion, [level, to_level], nudge_scale, parent_id, server_hz)
+    carrier_from_motion(
+        end1,
+        end2,
+        motion,
+        [level, to_level],
+        nudge_scale,
+        parent_id,
+        server_hz,
+        switch,
+    )
 }
 
 fn nested_origin_offset(parent: &MapGeometry, nested: &MapGeometry, cell: [i32; 2], level: u8) -> Vec3 {

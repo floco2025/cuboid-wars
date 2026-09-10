@@ -10,7 +10,7 @@
       {"level": 5, "cols": [36, 38], "rows": [8, 10], "type": "individual"}
     ],
     "pressure_plates": [
-      {"level": 0, "col": 3, "row": 10, "type": "bridge", "kind": "bridge_1"}
+      {"level": 0, "col": 3, "row": 10, "switch": "bridge_1"}
     ],
     "items": [
       {"level": 0, "col": 6, "row": 7, "type": "speed"},

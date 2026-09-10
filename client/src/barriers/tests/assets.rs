@@ -9,7 +9,7 @@ fn barriers_are_translucent_and_keys_use_solid_glowing_symbols() {
     let kinds = [KindDef {
         id: "red".into(),
         color: HexColor([255, 0, 0]),
-        pressure_switch: Default::default(),
+        switch: None,
     }];
     let config = BarrierVfxConfig {
         emissive_brightness: 7.0,

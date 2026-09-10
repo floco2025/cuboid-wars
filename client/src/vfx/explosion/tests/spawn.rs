@@ -1,6 +1,6 @@
 use super::{super::scorch::ScorchMark, *};
 use crate::{map::GrassBurn, test_fixtures::WALL_HEIGHT};
-use common::protocol::{BarrierKindTable, Carrier, CarrierId, Floor, MapLayout, Wall};
+use common::protocol::{BarrierKindTable, Carrier, CarrierId, Floor, MapLayout, PlateState, Wall};
 
 #[test]
 fn shard_count_clamps_to_bounds() {
@@ -49,7 +49,7 @@ fn density_scales_particle_count_and_zero_disables_it() {
 fn explode(map_layout: &MapLayout, center: Vec3, blast_radius: f32) -> (World, Vec<Entity>) {
     let mut collision_world = CollisionWorld::from_map_layout(map_layout, &BarrierKindTable::default());
     let mut carriers = Carriers::from_layout(map_layout);
-    carriers.advance(0);
+    carriers.advance(0, &PlateState::default());
     collision_world.set_carrier_poses(&carriers);
     let mut meshes = Assets::<Mesh>::default();
     let mut materials = Assets::<StandardMaterial>::default();
@@ -184,6 +184,7 @@ fn marks_on_a_carrier_hang_under_it_in_its_frame() {
             travel_ticks: 1,
             pause_ticks: 0,
             phase_ticks: 0,
+            switch: None,
         }],
         ..default()
     };

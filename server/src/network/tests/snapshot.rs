@@ -30,6 +30,7 @@ fn actor_updates_repeat_full_state_at_the_configured_rate_in_the_carrier_frame()
                 travel_ticks: 30,
                 pause_ticks: 5,
                 phase_ticks: 0,
+                switch: None,
             }],
             ..default()
         };
@@ -74,7 +75,9 @@ fn actor_updates_repeat_full_state_at_the_configured_rate_in_the_carrier_frame()
         let mut updates = 0;
         for tick in 1..=60 {
             app.world_mut().resource_mut::<ServerTick>().0 = tick;
-            app.world_mut().resource_mut::<Carriers>().advance(tick);
+            app.world_mut()
+                .resource_mut::<Carriers>()
+                .advance(tick, &PlateState::default());
             let pos = app
                 .world()
                 .resource::<Carriers>()

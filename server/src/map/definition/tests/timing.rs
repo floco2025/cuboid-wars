@@ -17,6 +17,7 @@ fn carrier_travel_pause_and_phase_keep_their_seconds_at_sixty_hz() {
             Vec3::ONE,
             CarrierId::WORLD,
             hz,
+            None,
         )
     };
     let baseline = carrier(30);

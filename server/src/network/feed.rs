@@ -1,6 +1,6 @@
 use super::{ServerToClient, broadcast_to_all, broadcast_to_others};
 use crate::{config::FeedConfig, players::PlayerMap};
-use common::protocol::{BarrierKindId, BridgeKindId, FeedSpan, FeedStyle, HeldPurpose, PlayerId, SFeed, ServerMessage};
+use common::protocol::{BarrierKindId, FeedSpan, FeedStyle, PlayerId, SFeed, ServerMessage};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DeathCause {
@@ -56,23 +56,13 @@ pub enum FeedEvent {
     GroupQuestCompleted {
         title: String,
     },
-    BarrierOpened {
+    // A press that turned a switch on, credited to `name`.
+    SwitchOn {
         name: String,
-        kind: BarrierKindId,
-        kind_name: String,
+        switch_name: String,
     },
-    BarrierClosed {
-        kind: BarrierKindId,
-        kind_name: String,
-    },
-    BridgePowered {
-        name: String,
-        kind: BridgeKindId,
-        kind_name: String,
-    },
-    BridgeUnpowered {
-        kind: BridgeKindId,
-        kind_name: String,
+    SwitchOff {
+        switch_name: String,
     },
     AdminReply {
         text: String,
@@ -85,23 +75,6 @@ pub enum FeedEvent {
         name: String,
         text: String,
     },
-}
-
-impl FeedEvent {
-    // A plate press that flipped `purpose` on, credited to `name`.
-    pub fn plate_held(purpose: HeldPurpose, name: String, kind_name: String) -> Self {
-        match purpose {
-            HeldPurpose::Barrier(kind) => Self::BarrierOpened { name, kind, kind_name },
-            HeldPurpose::Bridge(kind) => Self::BridgePowered { name, kind, kind_name },
-        }
-    }
-
-    pub fn plate_released(purpose: HeldPurpose, kind_name: String) -> Self {
-        match purpose {
-            HeldPurpose::Barrier(kind) => Self::BarrierClosed { kind, kind_name },
-            HeldPurpose::Bridge(kind) => Self::BridgeUnpowered { kind, kind_name },
-        }
-    }
 }
 
 pub fn emit_feed(players: &PlayerMap, config: &FeedConfig, audience: FeedAudience, event: FeedEvent) {
@@ -134,10 +107,8 @@ fn announces(config: &FeedConfig, event: &FeedEvent) -> bool {
         FeedEvent::QuestCompleted { .. } => config.quest_completed,
         FeedEvent::EveryoneQuestPartDone { .. } => config.quest_part_done,
         FeedEvent::GroupQuestCompleted { .. } => config.group_quest_completed,
-        FeedEvent::BarrierOpened { .. } => config.barrier_opened,
-        FeedEvent::BarrierClosed { .. } => config.barrier_closed,
-        FeedEvent::BridgePowered { .. } => config.bridge_powered,
-        FeedEvent::BridgeUnpowered { .. } => config.bridge_unpowered,
+        FeedEvent::SwitchOn { .. } => config.switch_on,
+        FeedEvent::SwitchOff { .. } => config.switch_off,
         FeedEvent::AdminReply { .. } => false,
         FeedEvent::AdminAction { .. } => config.admin_action,
         FeedEvent::Chat { .. } => config.chat,
@@ -165,26 +136,10 @@ fn render(event: FeedEvent) -> SFeed {
             FeedStyle::Default,
         ),
         FeedEvent::GroupQuestCompleted { title } => one(format!("Everyone completed {title}"), FeedStyle::Default),
-        FeedEvent::BarrierOpened { name, kind, kind_name } => vec![
-            span(format!("{name} opened the "), FeedStyle::Default),
-            span(kind_name, FeedStyle::Barrier(kind)),
-            span(" barriers", FeedStyle::Default),
-        ],
-        FeedEvent::BarrierClosed { kind, kind_name } => vec![
-            span("The ", FeedStyle::Dim),
-            span(kind_name, FeedStyle::Barrier(kind)),
-            span(" barriers closed", FeedStyle::Dim),
-        ],
-        FeedEvent::BridgePowered { name, kind, kind_name } => vec![
-            span(format!("{name} powered the "), FeedStyle::Default),
-            span(kind_name, FeedStyle::Bridge(kind)),
-            span(" bridges", FeedStyle::Default),
-        ],
-        FeedEvent::BridgeUnpowered { kind, kind_name } => vec![
-            span("The ", FeedStyle::Dim),
-            span(kind_name, FeedStyle::Bridge(kind)),
-            span(" bridges went dark", FeedStyle::Dim),
-        ],
+        FeedEvent::SwitchOn { name, switch_name } => {
+            one(format!("{name} turned on the {switch_name} switch"), FeedStyle::Default)
+        }
+        FeedEvent::SwitchOff { switch_name } => one(format!("The {switch_name} switch turned off"), FeedStyle::Dim),
         FeedEvent::AdminReply { text } => one(text, FeedStyle::Console),
         FeedEvent::AdminAction { name, text } => one(format!("{name}: {text}"), FeedStyle::Console),
         FeedEvent::Chat { name, text } => one(format!("{name}: {text}"), FeedStyle::Chat),

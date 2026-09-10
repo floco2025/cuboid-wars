@@ -274,6 +274,8 @@ pub struct ActorSpawner {
     pub next_id: u32,
 }
 
+// Per zone index; a zone with no entry is active and full. A switched zone
+// whose switch is off holds `Inactive`, the one state that never comes due.
 #[derive(Resource, Default)]
 pub struct ActorRespawnTimers(pub(crate) HashMap<usize, ActorRespawnState>);
 
@@ -282,6 +284,7 @@ pub(crate) enum ActorRespawnState {
     Cooldown(f32),
     Reset,
     WaitingForSpace,
+    Inactive,
 }
 
 // A spawn that has been decided (id, spot, and heading reserved) but whose

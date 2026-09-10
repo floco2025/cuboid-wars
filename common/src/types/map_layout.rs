@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use bevy_ecs::prelude::Resource;
 use bincode::{Decode, Encode};
 use serde::Deserialize;
@@ -8,8 +8,8 @@ use serde::Deserialize;
 use crate::config::{MapGeometryConfig, MapMovementConfig};
 
 use super::{
-    BarrierKindId, BarrierKindTable, BridgeKindId, BridgeKindTable, CarrierId, ItemType, KindDef, Position,
-    face_materials::FaceMaterials, textures::TextureSettings,
+    BarrierKindId, BarrierKindTable, BridgeKindId, BridgeKindTable, CarrierId, ItemType, KindDef, Position, SwitchDef,
+    SwitchId, SwitchTable, face_materials::FaceMaterials, kind_table::KindId, textures::TextureSettings,
 };
 
 // Layout records are in their carrier's frame: world space for
@@ -155,7 +155,9 @@ impl LightBridge {
 // A rigid group of map records that slides between two poses. Every record
 // naming this carrier is in its local frame; the carrier's origin sits at
 // `from` in its parent's frame at end 1 and at `to` at end 2, out, held,
-// back, held (`map::carrier_offset_at`, a pure function of the shared tick).
+// back, held (`map::carrier_offset_at`, a pure function of its run ticks:
+// the shared tick for a free carrier, the ticks its switch has kept it
+// running for a switched one, replicated in `PlateState.carrier_runs`).
 // `level` is the parent storey its local level 0 sits on and `levels` the
 // storeys the motion spans, for level focus. Parents precede their children
 // in `MapLayout.carriers`. A moving tile is a nested one-cell map.
@@ -169,6 +171,7 @@ pub struct Carrier {
     pub travel_ticks: u32,
     pub pause_ticks: u32,
     pub phase_ticks: u32,
+    pub switch: Option<SwitchId>,
 }
 
 // Freestanding climbable element anchored on a grid edge. The segment is the
@@ -192,31 +195,20 @@ pub struct Ladder {
     pub carrier: CarrierId,
 }
 
-// What holding a plate does. Barrier plates open every barrier of their kind
-// (fully passable + invisible, globally) while enough of them are held —
-// distinct from keys (per-player filter). Bridge plates power every light
-// bridge of their kind (solid + lit) on the same terms. Firework plates
-// launch the show once enough players stand on them. Thresholds live on the
-// server; clients receive the held state via `SSnapshot.plates` and the
-// show via `SFirework`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encode, Decode)]
-pub enum PlatePurpose {
-    Barrier(BarrierKindId),
-    Bridge(BridgeKindId),
-    Firework,
-}
-
-// Coop puzzle primitive: a floor-cell-mounted plate. The center is shipped
-// here (not col/row) so the client never needs `MapGeometry` to position
-// the visual marker. The server keeps the original (col, row) on its own
-// runtime mirror for plate-occupancy tests.
+// Coop puzzle primitive: a floor-cell-mounted plate that operates one of
+// the map's switches (`MapSettings.switches`); what that switch drives is
+// declared on its targets. The center is shipped here (not col/row) so the
+// client never needs `MapGeometry` to position the visual marker. The
+// server keeps the original (col, row) on its own runtime mirror for
+// plate-occupancy tests. Clients receive what the switches hold via
+// `SSnapshot.plates`.
 #[derive(Debug, Clone, Copy, Encode, Decode)]
 pub struct PressurePlate {
     pub level: u8,
     pub center_x: f32,
     pub center_y: f32,
     pub center_z: f32,
-    pub purpose: PlatePurpose,
+    pub switch: SwitchId,
     pub carrier: CarrierId,
 }
 
@@ -338,11 +330,13 @@ pub struct MapSettings {
     pub movement: MapMovementConfig,
     pub portals: PortalMode,
 
+    // Ordered catalog assigning this map's stable `SwitchId` values, each
+    // with its plates' policy; empty when the map has no pressure plates.
+    pub switches: Vec<SwitchDef>,
     // Ordered catalog assigning this map's stable `BarrierKindId` values;
-    // empty when the map has no barriers, keys, or barrier plates.
+    // empty when the map has no barriers or keys.
     pub barrier_kinds: Vec<KindDef>,
-    // Same for `BridgeKindId`; empty when the map has no light bridges or
-    // bridge plates.
+    // Same for `BridgeKindId`; empty when the map has no light bridges.
     pub bridge_kinds: Vec<KindDef>,
 }
 
@@ -379,12 +373,31 @@ impl MapItems {
 }
 
 impl MapSettings {
-    // The id tables both sides build once at startup from the catalogs.
-    pub fn kind_tables(&self) -> Result<(BarrierKindTable, BridgeKindTable)> {
-        Ok((
-            BarrierKindTable::from_defs(&self.barrier_kinds)?,
-            BridgeKindTable::from_defs(&self.bridge_kinds)?,
-        ))
+    // The id tables both sides build once at startup from the catalogs, with
+    // every kind's switch checked against the switch catalog.
+    pub fn kind_tables(&self) -> Result<(BarrierKindTable, BridgeKindTable, SwitchTable)> {
+        let switches = SwitchTable::from_switch_defs(&self.switches)?;
+        let barriers = BarrierKindTable::from_defs(&self.barrier_kinds)?;
+        let bridges = BridgeKindTable::from_defs(&self.bridge_kinds)?;
+        kind_switches(BarrierKindId::CONFIG_KEY, &self.barrier_kinds, &switches)?;
+        kind_switches(BridgeKindId::CONFIG_KEY, &self.bridge_kinds, &switches)?;
+        Ok((barriers, bridges, switches))
+    }
+
+    // The switch driving each kind, in catalog order, `None` for a kind no
+    // plate controls.
+    pub fn barrier_switches(&self, switches: &SwitchTable) -> Vec<Option<SwitchId>> {
+        self.barrier_kinds
+            .iter()
+            .map(|def| def.switch.as_deref().and_then(|id| switches.index_of(id)))
+            .collect()
+    }
+
+    pub fn bridge_switches(&self, switches: &SwitchTable) -> Vec<Option<SwitchId>> {
+        self.bridge_kinds
+            .iter()
+            .map(|def| def.switch.as_deref().and_then(|id| switches.index_of(id)))
+            .collect()
     }
 
     #[must_use]
@@ -395,6 +408,18 @@ impl MapSettings {
             self.movement.gravity
         }
     }
+}
+
+// Every kind's `switch` must name a catalog entry; the error names the kind.
+fn kind_switches(config_key: &str, kinds: &[KindDef], switches: &SwitchTable) -> Result<()> {
+    for def in kinds {
+        if let Some(switch) = &def.switch {
+            switches
+                .resolve(switch)
+                .map_err(|err| anyhow!("{config_key} {:?}: {err}", def.id))?;
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]

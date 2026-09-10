@@ -400,18 +400,20 @@ pub struct SSnapshot {
     pub items: Vec<(ItemId, Item)>,
     // Seeds joining observers and repeats the latest owner samples.
     pub missiles: Vec<(MissileId, Missile)>,
-    // What the pressure plates hold right now: open barrier kinds (the
-    // client hides them; the server unions them with each player's
-    // `held_keys` for the collision filter) and powered bridge kinds (solid
-    // and lit on both sides). Empty on maps with no plates.
+    // What the pressure plates hold right now: the active switches, the
+    // open barrier kinds (the client hides them; the server unions them with
+    // each player's `held_keys` for the collision filter), the powered
+    // bridge kinds (solid and lit on both sides), and each switched
+    // carrier's run (both sides place it from that and the tick). Empty on
+    // maps with no plates.
     pub plates: PlateState,
     // Unlocked `shared` / `everyone` quests. Completed quests stay listed
     // for the session so late joiners and clients that missed updates catch up.
     pub quests: Vec<QuestGroupStatus>,
-    // Plate purposes still locked behind a quest: the plates that solve a
-    // quest are inert and hidden until that quest unlocks. Sorted, usually
-    // empty.
-    pub locked_plate_purposes: Vec<PlatePurpose>,
+    // Switches still locked behind a quest: the plates of a switch that
+    // solves a quest are inert and hidden until that quest unlocks. Sorted,
+    // usually empty.
+    pub locked_switches: Vec<SwitchId>,
     // Weather from 0.0 (clear) to 1.0 (full rain). Repeated snapshots keep
     // late joiners and clients that missed updates in sync. Clients smooth
     // the changes when rendering rain.
@@ -729,10 +731,11 @@ pub struct SQuestUpdates {
     pub updates: Vec<QuestUpdate>,
 }
 
-// Admin `/firework` or the firework plates: play the client-side firework
+// Admin `/firework` or the fireworks switch: play the client-side firework
 // show. Pure presentation — the server broadcasts the seed and forgets; every
 // client derives the same choreography from it, so all clients see the same
-// show.
+// show. The switch spaces its shows by `FIREWORK_SHOW_SECS` plus the map's
+// cooldown; `/firework` during a show is ignored by the client.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SFirework {
     pub seed: u64,

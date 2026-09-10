@@ -36,7 +36,7 @@ fn test_app() -> App {
         .clone();
     let collision_world = CollisionWorld::from_map_layout(&MapLayout::default(), &BarrierKindTable::default());
     let quest_catalog = QuestCatalog::from_config(&server);
-    let quest_board = QuestBoard::from_catalog(&quest_catalog);
+    let quest_board = QuestBoard::from_catalog(&quest_catalog, None);
     let mut app = App::new();
     app.add_plugins(MinimalPlugins)
         .insert_resource(gameplay)

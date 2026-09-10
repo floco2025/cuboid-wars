@@ -6,7 +6,7 @@ use common::{
     constants::TICK_SECS,
     map::Carriers,
     physics::CollisionWorld,
-    protocol::{BarrierKindTable, Carrier, CarrierId, Floor, Ladder, MapLayout, Position, Wall},
+    protocol::{BarrierKindTable, Carrier, CarrierId, Floor, Ladder, MapLayout, PlateState, Position, Wall},
 };
 use rand::{SeedableRng, rngs::StdRng};
 
@@ -314,6 +314,7 @@ fn actors_complete_ladder_routes_on_moving_carriers() {
                     travel_ticks: 180,
                     pause_ticks: 30,
                     phase_ticks,
+                    switch: None,
                 });
                 for floor in &mut fixture.layout.floors {
                     floor.carrier = CarrierId(1);
@@ -335,7 +336,7 @@ fn actors_complete_ladder_routes_on_moving_carriers() {
                             }
                             let Some(&waypoint) = remaining.front() else { break };
                             let intent = waypoint.movement_intent(&local, speed, TICK_SECS);
-                            carriers.advance(tick);
+                            carriers.advance(tick, &PlateState::default());
                             world.set_carrier_poses(&carriers);
                             let step = step_actor_movement(ActorMovementStep {
                                 start: pos,
@@ -379,6 +380,7 @@ fn permissions_control_graph_links_and_roam_territories_per_kind() {
             rows: [0, 1],
             kind: kind.into(),
             count: 1,
+            switch: None,
         });
     }
     let mut config = test_kinds::server_config();

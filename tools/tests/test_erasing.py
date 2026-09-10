@@ -205,7 +205,7 @@ class RightClickTests(unittest.TestCase):
         self.assertEqual(host.hit_at(near_top)[0], HIT_WALL)
 
         self.assertEqual(host.hit_at(center), (HIT_PRESSURE_PLATE, (1, 1)))
-        self.assertEqual([p["type"] for p in host.plates_at(1, 1)], ["barrier"])
+        self.assertEqual([p["switch"] for p in host.plates_at(1, 1)], ["barrier_1"])
         host.erase_hit((HIT_PRESSURE_PLATE, (1, 1)))
         self.assertEqual(host.map_data["pressure_plates"], [])
 

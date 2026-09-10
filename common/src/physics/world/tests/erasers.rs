@@ -1,7 +1,7 @@
 use super::*;
 use crate::{
     config::gameplay::load_test_gameplay,
-    protocol::{BarrierKindTable, Carrier, MapLayout, Wall},
+    protocol::{BarrierKindTable, Carrier, MapLayout, PlateState, Wall},
 };
 
 fn field() -> Eraser {
@@ -96,6 +96,7 @@ fn moving_field_sweeps_stationary_player_without_solid_carrier_geometry() {
             travel_ticks: 1,
             pause_ticks: 0,
             phase_ticks: 0,
+            switch: None,
         }],
         ..Default::default()
     };
@@ -113,7 +114,7 @@ fn moving_field_sweeps_stationary_player_without_solid_carrier_geometry() {
             .is_some()
     };
     assert!(!touches(&world, None));
-    carriers.advance(1);
+    carriers.advance(1, &PlateState::default());
     world.set_carrier_poses(&carriers);
     assert!(!touches(&world, None));
     assert!(touches(&world, Some(&carriers)));

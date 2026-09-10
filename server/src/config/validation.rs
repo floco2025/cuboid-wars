@@ -3,9 +3,9 @@ use std::collections::{HashMap, HashSet};
 use anyhow::{Result, bail};
 use serde::{Deserialize, Deserializer};
 
-use super::{Quest, QuestKind, RandomItemsConfig, ServerGameplayConfig};
+use super::{FireworksConfig, Quest, QuestKind, RandomItemsConfig, ServerGameplayConfig};
 use crate::map::MapConfig;
-use common::protocol::{ItemType, PlatePurpose};
+use common::protocol::{ItemType, SwitchId, SwitchTable};
 
 // A per-actor-kind map must name every configured kind (a missing entry
 // silently defaulting is the footgun) and nothing else (a typo).
@@ -38,6 +38,12 @@ pub(crate) fn validate_map_actor_kinds(config: &ServerGameplayConfig, map_config
                 zone.kind
             );
         }
+        if zone.switch.is_some() && config.expect_actor(&zone.kind).respawn_secs.is_none() {
+            bail!(
+                "map actor spawn zone {zone_idx} is operated by a switch but its kind {:?} has respawn_secs null, so it would never spawn; give the kind a respawn time",
+                zone.kind
+            );
+        }
         if config.expect_actor(&zone.kind).character.immovable {
             let capacity = zone.immovable_cells(map_config.grid(zone.carrier)).count();
             if zone.count as usize > capacity {
@@ -53,10 +59,30 @@ pub(crate) fn validate_map_actor_kinds(config: &ServerGameplayConfig, map_config
     Ok(())
 }
 
+// The fireworks switch resolved, and operated by some plate of the map.
+pub(crate) fn validate_map_fireworks(
+    fireworks: Option<&FireworksConfig>,
+    map_config: &MapConfig,
+    switches: &SwitchTable,
+) -> Result<Option<SwitchId>> {
+    let Some(fireworks) = fireworks else {
+        return Ok(None);
+    };
+    let switch = switches.resolve(&fireworks.switch)?;
+    if !map_config.pressure_plates.iter().any(|plate| plate.switch == switch) {
+        bail!(
+            "fireworks switch {:?} is operated by no pressure plate in the map",
+            fireworks.switch
+        );
+    }
+    Ok(Some(switch))
+}
+
 pub(crate) fn validate_map_quests(
     quests: &[Quest],
     map_config: &MapConfig,
     random_items: Option<&RandomItemsConfig>,
+    fireworks_switch: Option<SwitchId>,
 ) -> Result<()> {
     for quest in quests {
         let available = match quest.kind {
@@ -71,10 +97,7 @@ pub(crate) fn validate_map_quests(
                     .any(|item| item.item_type == ItemType::Gold)
                     || random_items.is_some_and(|items| items.types.iter().any(|item| item == "gold"))
             }
-            QuestKind::Fireworks => map_config
-                .pressure_plates
-                .iter()
-                .any(|plate| plate.purpose == PlatePurpose::Firework),
+            QuestKind::Fireworks => fireworks_switch.is_some(),
         };
         if !available {
             bail!(

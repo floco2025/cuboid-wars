@@ -12,15 +12,10 @@ GAMEPLAY_PATH = REPO_ROOT / "config" / "server" / "gameplay.json"
 ASSETS_PATH = REPO_ROOT / "config" / "client" / "assets.json"
 
 
-# Editor-only: the game renders every plate alike, so this colour exists just
-# to tell firework plates from barrier plates on the canvas.
-FIREWORK_PLATE_COLOR = "#e040fb"
-
-# Pressure plate `type` values; barrier and bridge plates also carry a `kind`.
-PLATE_TYPE_BARRIER = "barrier"
-PLATE_TYPE_BRIDGE = "bridge"
-PLATE_TYPE_FIREWORK = "firework"
-PLATE_TYPES = (PLATE_TYPE_BARRIER, PLATE_TYPE_BRIDGE, PLATE_TYPE_FIREWORK)
+# Editor-only: the game renders every plate alike, so these colours exist
+# just to tell the switches apart on the canvas, by catalog position.
+SWITCH_PLATE_COLORS = ("#38bdf8", "#f59e0b", "#a3e635", "#e040fb", "#fb7185", "#2dd4bf", "#c084fc", "#facc15")
+UNKNOWN_SWITCH_PLATE_COLOR = "#9ca3af"
 
 MODE_SELECT = "Select Tiles"
 MODE_JUMP_REACH = "Jump Reach"
@@ -59,9 +54,7 @@ MODE_LIGHT = "Light"
 MODE_ERASE_LIGHTS = "Erase Lights"
 MODE_LADDER = "Ladder"
 MODE_ERASE_LADDERS = "Erase Ladders"
-MODE_PRESSURE_PLATE = "Barrier Plate"
-MODE_BRIDGE_PLATE = "Bridge Plate"
-MODE_FIREWORK_PLATE = "Firework Plate"
+MODE_PRESSURE_PLATE = "Pressure Plate"
 MODE_ERASE_PRESSURE_PLATES = "Erase Pressure Plates"
 RAMP_MODES = (MODE_RAMP_UP, MODE_RAMP_DOWN)
 ERASE_MODES = (MODE_ERASE, MODE_ERASE_KEEP_FLOORS)
@@ -128,7 +121,7 @@ MODE_CATEGORIES: list[tuple[str, list[str]]] = [
     ("Ladders", [MODE_LADDER, MODE_ERASE_LADDERS]),
     ("Materials", [MODE_FLOOR_MATERIAL, MODE_WALL_MATERIAL, MODE_RAMP_MATERIAL]),
     ("Lights", [MODE_LIGHT, MODE_ERASE_LIGHTS]),
-    ("Pressure Plates", [MODE_PRESSURE_PLATE, MODE_BRIDGE_PLATE, MODE_FIREWORK_PLATE, MODE_ERASE_PRESSURE_PLATES]),
+    ("Pressure Plates", [MODE_PRESSURE_PLATE, MODE_ERASE_PRESSURE_PLATES]),
     ("Items", [MODE_ITEM, MODE_ERASE_ITEMS]),
     ("Erase", [MODE_ERASE, MODE_ERASE_KEEP_FLOORS]),
 ]

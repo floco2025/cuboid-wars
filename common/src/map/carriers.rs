@@ -1,7 +1,11 @@
 use bevy_ecs::prelude::Resource;
 use bevy_math::Vec3;
+use bincode::{Decode, Encode};
 
-use crate::protocol::{Carrier, CarrierId, MapLayout, Position};
+use crate::{
+    math::sequence_is_newer,
+    protocol::{Carrier, CarrierId, MapLayout, PlateState, Position},
+};
 
 // A carrier's placement in world space. Translation only for now; a
 // rotation about the vertical axis joins later, and every consumer goes
@@ -68,14 +72,59 @@ impl CarrierPose {
     }
 }
 
-// Where a carrier's origin is in its parent's frame at `tick`: out along the
-// path, held, back, held — a pure function of the tick, so both sides place
-// every carrier from the shared clock alone.
+// How far a switched carrier has run: the run ticks it had at `since_tick`
+// and whether it has been running since. A pure function of the tick once
+// replicated, so both sides place the carrier from the shared clock and
+// this small value; a flip changes only the value, never the pose it was
+// at. Absent from `PlateState`, a switched carrier rests at run 0.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode)]
+pub struct CarrierRun {
+    pub running: bool,
+    pub run_ticks: u32,
+    pub since_tick: u32,
+}
+
+impl CarrierRun {
+    pub const STOPPED: Self = Self {
+        running: false,
+        run_ticks: 0,
+        since_tick: 0,
+    };
+
+    // A stamp newer than the tick (a client whose clock trails the server's)
+    // adds nothing yet rather than wrapping.
+    #[must_use]
+    pub fn run_ticks_at(&self, tick: u32) -> u32 {
+        if !self.running || sequence_is_newer(self.since_tick, tick) {
+            self.run_ticks
+        } else {
+            self.run_ticks.wrapping_add(tick.wrapping_sub(self.since_tick))
+        }
+    }
+
+    // The run after its switch flips at `tick`; unchanged when it did not,
+    // since re-stamping would park a trailing client's carrier again.
+    #[must_use]
+    pub fn set_running(self, running: bool, tick: u32) -> Self {
+        if running == self.running {
+            return self;
+        }
+        Self {
+            running,
+            run_ticks: self.run_ticks_at(tick),
+            since_tick: tick,
+        }
+    }
+}
+
+// Where a carrier's origin is in its parent's frame after `run_ticks` of
+// motion: out along the path, held, back, held. A free carrier's run ticks
+// are the shared tick; a switched one's come from its `CarrierRun`.
 #[must_use]
-pub fn carrier_offset_at(carrier: &Carrier, tick: u32) -> Vec3 {
+pub fn carrier_offset_at(carrier: &Carrier, run_ticks: u32) -> Vec3 {
     let travel = carrier.travel_ticks;
     let cycle = 2 * (travel + carrier.pause_ticks);
-    let phase = tick.wrapping_add(carrier.phase_ticks) % cycle;
+    let phase = run_ticks.wrapping_add(carrier.phase_ticks) % cycle;
     let progress = if phase < travel {
         phase as f32 / travel as f32
     } else if phase < travel + carrier.pause_ticks {
@@ -90,8 +139,9 @@ pub fn carrier_offset_at(carrier: &Carrier, tick: u32) -> Vec3 {
 
 // Every carrier with its world pose at the last two ticks, in layout order.
 // Built once from the layout on both sides and advanced right before
-// character movement (`carriers_advance_system`). The default is the static
-// world: no carriers, every id but `WORLD` unknown.
+// character movement (`carriers_advance_system`), switched carriers from
+// the runs the plate state carries. The default is the static world: no
+// carriers, every id but `WORLD` unknown.
 #[derive(Resource, Default)]
 pub struct Carriers {
     carried: Vec<CarrierRuntime>,
@@ -119,6 +169,8 @@ impl Carriers {
             let pose = carriers
                 .pose(carrier.parent)
                 .then(&CarrierPose::from_translation(carrier_offset_at(carrier, 0)));
+            // Run 0 on both a free and a switched carrier: the tick-0 pose and the
+            // stopped pose a client holds until its first snapshot coincide.
             carriers.carried.push(CarrierRuntime {
                 carrier: *carrier,
                 previous: pose,
@@ -151,12 +203,18 @@ impl Carriers {
 
     // Parents precede children, so each world pose composes from a parent
     // already at this tick.
-    pub fn advance(&mut self, tick: u32) {
+    pub fn advance(&mut self, tick: u32, plates: &PlateState) {
         for index in 0..self.carried.len() {
             let carrier = self.carried[index].carrier;
+            let id = CarrierId::from_carried_index(index);
+            let run_ticks = if carrier.switch.is_some() {
+                plates.carrier_run(id).unwrap_or(CarrierRun::STOPPED).run_ticks_at(tick)
+            } else {
+                tick
+            };
             let pose = self
                 .pose(carrier.parent)
-                .then(&CarrierPose::from_translation(carrier_offset_at(&carrier, tick)));
+                .then(&CarrierPose::from_translation(carrier_offset_at(&carrier, run_ticks)));
             let runtime = &mut self.carried[index];
             runtime.previous = runtime.current;
             runtime.current = pose;

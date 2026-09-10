@@ -29,14 +29,14 @@
       {"level": 4, "cols": [12, 18], "rows": [21, 24]}
     ],
     "pressure_plates": [
-      {"level": 1, "col": 13, "row": 13, "type": "barrier", "kind": "lobby"},
-      {"level": 1, "col": 16, "row": 13, "type": "barrier", "kind": "lobby"},
-      {"level": 1, "col": 13, "row": 16, "type": "barrier", "kind": "lobby"},
-      {"level": 1, "col": 16, "row": 16, "type": "barrier", "kind": "lobby"},
-      {"level": 5, "col": 10, "row": 10, "type": "firework"},
-      {"level": 5, "col": 19, "row": 10, "type": "firework"},
-      {"level": 5, "col": 10, "row": 19, "type": "firework"},
-      {"level": 5, "col": 19, "row": 19, "type": "firework"}
+      {"level": 1, "col": 13, "row": 13, "switch": "lobby"},
+      {"level": 1, "col": 16, "row": 13, "switch": "lobby"},
+      {"level": 1, "col": 13, "row": 16, "switch": "lobby"},
+      {"level": 1, "col": 16, "row": 16, "switch": "lobby"},
+      {"level": 5, "col": 10, "row": 10, "switch": "fireworks"},
+      {"level": 5, "col": 19, "row": 10, "switch": "fireworks"},
+      {"level": 5, "col": 10, "row": 19, "switch": "fireworks"},
+      {"level": 5, "col": 19, "row": 19, "switch": "fireworks"}
     ],
     "items": [
       {"level": 0, "col": 12, "row": 12, "type": "gold"},

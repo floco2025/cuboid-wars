@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from .constants import ASSETS_PATH, GAMEPLAY_PATH, MAP_NAME_RE, MAPS_DIR
@@ -57,6 +57,40 @@ def load_map_kinds(map_name: str, key: str) -> dict[str, str]:
 
 def load_map_barrier_kinds(map_name: str) -> dict[str, str]:
     return load_map_kinds(map_name, "barrier_kinds")
+
+
+SWITCH_ACTIVATIONS = ("momentary", "toggle", "auto")
+SWITCH_RESETS = ("never", "solo", "any", "all")
+SWITCH_HOLDS = ("any", "everyone")
+
+
+# A map's switch catalog from its gameplay settings, in catalog order: the
+# ids a plate, a kind, an actor zone, or a nested map may name.
+def load_map_switches(map_name: str) -> list[str]:
+    map_settings = load_map_settings(map_name)
+    source = map_settings_path(map_name)
+    if "switches" not in map_settings:
+        raise ValueError(f"{source}: switches is required; use [] when the map has none")
+    value = map_settings["switches"]
+    if not isinstance(value, list):
+        raise ValueError(f"{source}: switches must be an array of {{id, activation, reset_on_player_death}} objects")
+    switches: list[str] = []
+    for idx, entry in enumerate(value):
+        path = f"{source}: switches[{idx}]"
+        if not isinstance(entry, dict) or not isinstance(entry.get("id"), str):
+            raise ValueError(f"{path} must be an object with a string `id`")
+        switch = entry["id"]
+        if not switch:
+            raise ValueError(f"{path}.id is empty")
+        if switch in switches:
+            raise ValueError(f"{path}.id duplicates {switch!r}")
+        for key, allowed in (("activation", SWITCH_ACTIVATIONS), ("reset_on_player_death", SWITCH_RESETS)):
+            if entry.get(key) not in allowed:
+                raise ValueError(f"{path}.{key} must be one of {', '.join(allowed)}, got {entry.get(key)!r}")
+        if entry.get("held", "any") not in SWITCH_HOLDS:
+            raise ValueError(f"{path}.held must be one of {', '.join(SWITCH_HOLDS)}, got {entry.get('held')!r}")
+        switches.append(switch)
+    return switches
 
 
 def load_map_bridge_kinds(map_name: str) -> dict[str, str]:
@@ -144,12 +178,14 @@ def require_map_settings(name: str) -> None:
 class MapCatalogs:
     """Everything one map's `settings.json` gives the editor: kind ids in
     catalog order with their colours, the wall width nudges are drawn in,
-    and the texture aliases with their portal permission."""
+    the texture aliases with their portal permission, and the switch ids."""
 
     barrier_kind_colors: dict[str, str]
     bridge_kind_colors: dict[str, str]
     wall_width_cells: float
     texture_catalog: dict[str, bool]
+    # The switch ids in catalog order.
+    switches: list[str] = field(default_factory=list)
 
     @classmethod
     def load(cls, map_name: str) -> "MapCatalogs":
@@ -158,4 +194,5 @@ class MapCatalogs:
             load_map_bridge_kinds(map_name),
             load_map_wall_width_cells(map_name),
             load_texture_catalog(map_name),
+            load_map_switches(map_name),
         )

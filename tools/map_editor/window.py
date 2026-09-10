@@ -56,7 +56,7 @@ from .spawn_zones import SpawnZoneEditMixin
 from .structure import StructureMixin
 from .tool_settings import ToolSettings
 from .types import SpawnZoneDrag, ZoneRef
-from .validation import ValidationErrors, validate_document, validate_map
+from .validation import ValidationErrors, plated_switches, validate_document, validate_map
 from .window_geometry import WindowGeometry
 
 
@@ -99,14 +99,15 @@ class EditorWindow(
         self.recent_checkpoint_type: str = "individual"
         self.recent_actor_spawn_kind: str = ""
         self.recent_actor_spawn_count: int = DEFAULT_ACTOR_COUNT
+        # Empty = the zone has no switch.
+        self.recent_actor_spawn_switch: str = ""
         first_kind = self.barrier_kinds[0] if self.barrier_kinds else None
         self.recent_barrier_kind: str | None = first_kind
-        self.recent_pressure_plate_kind: str | None = first_kind
+        self.recent_pressure_plate_switch: str | None = self.switches[0] if self.switches else None
         self.recent_item_type: str = ITEM_TYPES[0]
         self.recent_item_key_kind: str | None = first_kind
         first_bridge_kind = self.bridge_kinds[0] if self.bridge_kinds else None
         self.recent_bridge_kind: str | None = first_bridge_kind
-        self.recent_bridge_plate_kind: str | None = first_bridge_kind
         # (row_spacing, row_offset, col_spacing, col_offset) — remembered
         # across opens of the Auto-Place Lights dialog. Spacing is "cells
         # skipped between lights": 0 = every cell, 1 = every other, 2 = every
@@ -186,6 +187,10 @@ class EditorWindow(
         return list(self.bridge_kind_colors)
 
     @property
+    def switches(self) -> list[str]:
+        return list(self.switch_ids)
+
+    @property
     def dirty(self) -> bool:
         return self.doc.dirty
 
@@ -202,6 +207,8 @@ class EditorWindow(
             data,
             self.barrier_kinds,
             self.bridge_kinds,
+            switches=self.switches,
+            plated_switches=plated_switches(self._document_geometries(data)),
             map_name=self.doc.active_map,
             nested_lookup=self.nested_map_shape,
             actor_kinds=self.actor_kinds,
@@ -209,6 +216,13 @@ class EditorWindow(
             wall_light_kinds=self.wall_light_kinds,
             material_aliases=self.materials_catalog,
         )
+
+    # Every geometry of the document with `data` standing in for the active map.
+    def _document_geometries(self, data: dict) -> list[dict]:
+        active = self.doc.active_map
+        geometries = [data if active is None else self.doc.root_data]
+        geometries.extend(data if name == active else geometry for name, geometry in self.doc.nested_geometry.items())
+        return geometries
 
     # The whole document against the catalogs of `map_name`, or the adopted ones.
     def validate_document(self, data: dict, map_name: str | None = None) -> ValidationErrors:
@@ -222,7 +236,13 @@ class EditorWindow(
         )
 
     def current_catalogs(self) -> MapCatalogs:
-        return MapCatalogs(self.barrier_kind_colors, self.bridge_kind_colors, self.wall_width_cells, self.texture_catalog)
+        return MapCatalogs(
+            self.barrier_kind_colors,
+            self.bridge_kind_colors,
+            self.wall_width_cells,
+            self.texture_catalog,
+            self.switches,
+        )
 
     # Every view, dialog, and validation reads the catalogs of one map;
     # opening, Save As, and a settings reload all switch them here.
@@ -230,6 +250,7 @@ class EditorWindow(
         self.catalog_map = map_name
         self.barrier_kind_colors = catalogs.barrier_kind_colors
         self.bridge_kind_colors = catalogs.bridge_kind_colors
+        self.switch_ids = list(catalogs.switches)
         self.wall_width_cells = catalogs.wall_width_cells
         self.texture_catalog = catalogs.texture_catalog
         self.materials_catalog = list(catalogs.texture_catalog)

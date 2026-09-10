@@ -9,7 +9,7 @@ pub struct BridgeKindId(pub u16);
 impl KindId for BridgeKindId {
     const MAX: Option<usize> = None;
     const CONFIG_KEY: &'static str = "bridge_kinds";
-    const NOUN: &'static str = "bridge";
+    const NOUN: &'static str = "bridge kind";
 
     fn from_index(index: u16) -> Self {
         Self(index)

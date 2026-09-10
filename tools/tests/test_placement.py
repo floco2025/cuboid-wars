@@ -53,14 +53,14 @@ class PlacementTests(unittest.TestCase):
         self.assertEqual(len(host.map_data["pressure_plates"]), 1)
         self.assertEqual(len(host.map_data["levels"][0]["lights"]), 1)
 
-    def test_occupied_plate_tiles_reject_every_purpose_but_allow_edit_and_undo(self) -> None:
+    def test_occupied_plate_tiles_reject_every_switch_but_allow_edit_and_undo(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             doc = MapDocument(None, recovery_dir=Path(directory))
             data = empty_map(8, 8)
             data["levels"][0]["floors"] = [floor(1, 1)]
             doc.replace_with_new(data)
             host = EditorHost(None, ["bridge"], doc=doc)
-            host.barrier_kinds = ["a", "b", "c"]
+            host.switches = ["a", "b", "c", "fireworks"]
             host.add_pressure_plate(1, 1, "a")
             a = host.plates_at(1, 1)[0]
             before = copy.deepcopy(host.map_data)
@@ -68,19 +68,20 @@ class PlacementTests(unittest.TestCase):
             for place in (
                 lambda: host.add_pressure_plate(1, 1, "a"),
                 lambda: host.add_pressure_plate(1, 1, "b"),
-                lambda: host.add_bridge_plate(1, 1, "bridge"),
-                lambda: host.add_firework_plate(1, 1),
+                lambda: host.add_pressure_plate(1, 1, "fireworks"),
             ):
                 place()
                 self.assertIn("already a pressure plate", host.statuses[-1])
                 self.assertEqual(host.map_data, before)
                 self.assertEqual(doc.undo_stack.count(), undo_count)
+            host.add_pressure_plate(2, 2, "void")
+            self.assertEqual(host.statuses[-1], "Unknown switch 'void'")
+            self.assertEqual(host.map_data, before)
             with patch("map_editor.placement.KindDialog.prompt", return_value="c"):
                 host.edit_pressure_plate_at(pressure_plate_key(a))
-            self.assertEqual([p["kind"] for p in host.plates_at(1, 1)], ["c"])
+            self.assertEqual([p["switch"] for p in host.plates_at(1, 1)], ["c"])
             doc.undo_stack.undo()
             self.assertEqual(host.map_data, before)
-            upper = {**a, "level": 1, "type": "firework"}
-            upper.pop("kind")
+            upper = {**a, "level": 1, "switch": "fireworks"}
             upper_data = insert_level_data(host.map_data, 1)
             self.assertEqual(len(place_plate(upper_data, upper)["pressure_plates"]), 2)

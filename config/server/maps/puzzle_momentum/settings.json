@@ -41,6 +41,15 @@
     "actors": { "on_player_death": "never", "scope": "dead" }
   },
   "portals": "both",
+  "switches": [
+    {
+      "id": "fireworks",
+      "activation": "momentary",
+      "reset_on_player_death": "never",
+      "held": "everyone"
+    }
+  ],
+  "fireworks": {"switch": "fireworks", "cooldown_secs": 30.0},
   "barrier_kinds": [],
   "bridge_kinds": [],
   "random_items": null,

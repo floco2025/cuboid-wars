@@ -7,9 +7,9 @@
       {"level":1,"cols":[3,5],"rows":[5,7]}
     ],
     "pressure_plates": [
-      {"level":1,"col":3,"row":3,"type":"barrier","kind":"sightline"},
-      {"level":2,"col":3,"row":8,"type":"bridge","kind":"power"},
-      {"level":2,"col":16,"row":9,"type":"firework"}
+      {"level":1,"col":3,"row":3,"switch":"sightline"},
+      {"level":2,"col":3,"row":8,"switch":"power"},
+      {"level":2,"col":16,"row":9,"switch":"fireworks"}
     ],
     "items": [
       {"level":1,"col":4,"row":7,"type":"portal_gun"},

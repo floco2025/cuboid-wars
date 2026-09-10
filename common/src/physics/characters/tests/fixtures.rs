@@ -8,7 +8,7 @@ pub(super) use crate::{
 };
 use crate::{
     config::gameplay::load_test_gameplay,
-    protocol::{BarrierKindTable, Carrier, CarrierId},
+    protocol::{BarrierKindTable, Carrier, CarrierId, PlateState},
 };
 pub(super) use bevy_math::Vec3;
 
@@ -260,8 +260,8 @@ pub(crate) fn collision_world_with(walls: &[Wall], floors: &[Floor], ramps: &[Ra
 pub(crate) fn world_at(layout: &MapLayout, tick: u32) -> (CollisionWorld, Carriers) {
     let mut world = CollisionWorld::from_map_layout(layout, &BarrierKindTable::default());
     let mut carriers = Carriers::from_layout(layout);
-    carriers.advance(tick.wrapping_sub(1));
-    carriers.advance(tick);
+    carriers.advance(tick.wrapping_sub(1), &PlateState::default());
+    carriers.advance(tick, &PlateState::default());
     world.set_carrier_poses(&carriers);
     (world, carriers)
 }
@@ -298,6 +298,7 @@ pub(crate) fn slider() -> (Carrier, Floor) {
             travel_ticks: 60,
             pause_ticks: 0,
             phase_ticks: 0,
+            switch: None,
         },
         Floor {
             x1: -1.5,

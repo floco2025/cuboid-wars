@@ -7,9 +7,9 @@
       {"level": 1, "cols": [2, 4], "rows": [4, 6]}
     ],
     "pressure_plates": [
-      {"level": 1, "col": 3, "row": 9, "type": "barrier", "kind": "customs"},
-      {"level": 2, "col": 19, "row": 6, "type": "barrier", "kind": "dispatch"},
-      {"level": 3, "col": 22, "row": 7, "type": "firework"}
+      {"level": 1, "col": 3, "row": 9, "switch": "customs"},
+      {"level": 2, "col": 19, "row": 6, "switch": "dispatch"},
+      {"level": 3, "col": 22, "row": 7, "switch": "fireworks"}
     ],
     "items": [
       {"level": 1, "col": 9, "row": 5, "type": "portal_gun"},
@@ -998,7 +998,7 @@
         "actor_spawn_zones": [],
         "player_spawn_zones": [],
         "pressure_plates": [
-          {"level": 0, "col": 0, "row": 0, "type": "bridge", "kind": "freight"}
+          {"level": 0, "col": 0, "row": 0, "switch": "freight"}
         ],
         "items": [],
         "levels": [

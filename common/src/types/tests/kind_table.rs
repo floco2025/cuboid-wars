@@ -1,36 +1,53 @@
 use super::*;
-use crate::protocol::{BarrierKindId, BarrierKindTable, BridgeKindId, BridgeKindTable};
+use crate::{
+    config::SwitchHold,
+    protocol::{BarrierKindId, BarrierKindTable, BridgeKindId, BridgeKindTable, SwitchDef},
+};
 
 #[test]
-fn pressure_switch_configuration_is_required_and_round_trips_on_the_wire() {
+fn a_kinds_switch_is_optional_and_round_trips_on_the_wire() {
+    for value in [
+        serde_json::json!({"id": "cyan", "color": "#30d8ff"}),
+        serde_json::json!({"id": "cyan", "color": "#30d8ff", "switch": "lobby"}),
+    ] {
+        let kind: KindDef = serde_json::from_value(value).expect("valid kind rejected");
+        let bytes = bincode::encode_to_vec(&kind, bincode::config::standard()).expect("kind encoding failed");
+        let (decoded, _): (KindDef, _) =
+            bincode::decode_from_slice(&bytes, bincode::config::standard()).expect("kind decoding failed");
+        assert_eq!(decoded, kind);
+    }
+    assert!(
+        serde_json::from_value::<KindDef>(serde_json::json!({"id": "cyan", "color": "#30d8ff", "switch": 3})).is_err()
+    );
+}
+
+#[test]
+fn a_switch_definition_defaults_its_hold_and_round_trips_on_the_wire() {
     for activation in ["auto", "momentary", "toggle"] {
         for trigger in ["never", "solo", "any", "all"] {
-            let value = serde_json::json!({
-                "id": "cyan", "color": "#30d8ff",
-                "pressure_switch": {"activation": activation, "reset_on_player_death": trigger}
-            });
-            let kind: KindDef = serde_json::from_value(value).expect("valid pressure switch config rejected");
-            let bytes = bincode::encode_to_vec(&kind, bincode::config::standard()).expect("kind encoding failed");
-            let (decoded, _): (KindDef, _) =
-                bincode::decode_from_slice(&bytes, bincode::config::standard()).expect("kind decoding failed");
-            assert_eq!(decoded, kind);
+            let value = serde_json::json!({"id": "lobby", "activation": activation, "reset_on_player_death": trigger});
+            let switch: SwitchDef = serde_json::from_value(value).expect("valid switch rejected");
+            assert_eq!(switch.policy.held, SwitchHold::Any);
+            let bytes = bincode::encode_to_vec(&switch, bincode::config::standard()).expect("switch encoding failed");
+            let (decoded, _): (SwitchDef, _) =
+                bincode::decode_from_slice(&bytes, bincode::config::standard()).expect("switch decoding failed");
+            assert_eq!(decoded, switch);
         }
     }
-    assert!(serde_json::from_value::<KindDef>(serde_json::json!({"id": "cyan", "color": "#30d8ff"})).is_err());
-    for config in [
-        serde_json::json!({}),
-        serde_json::json!({"activation": "auto"}),
-        serde_json::json!({"reset_on_player_death": "all"}),
-        serde_json::json!({"activation": "hold", "reset_on_player_death": "all"}),
-        serde_json::json!({"activation": "auto", "reset_on_player_death": "always"}),
-        serde_json::json!({"activation": "auto", "reset_on_player_death": "single"}),
+    let everyone: SwitchDef = serde_json::from_value(serde_json::json!({
+        "id": "finale", "activation": "momentary", "reset_on_player_death": "never", "held": "everyone"
+    }))
+    .expect("everyone hold rejected");
+    assert_eq!(everyone.policy.held, SwitchHold::Everyone);
+    for value in [
+        serde_json::json!({"id": "lobby"}),
+        serde_json::json!({"id": "lobby", "activation": "auto"}),
+        serde_json::json!({"id": "lobby", "reset_on_player_death": "all"}),
+        serde_json::json!({"id": "lobby", "activation": "hold", "reset_on_player_death": "all"}),
+        serde_json::json!({"id": "lobby", "activation": "auto", "reset_on_player_death": "always"}),
+        serde_json::json!({"id": "lobby", "activation": "auto", "reset_on_player_death": "never", "held": "all"}),
     ] {
-        assert!(
-            serde_json::from_value::<KindDef>(serde_json::json!({
-                "id": "cyan", "color": "#30d8ff", "pressure_switch": config
-            }))
-            .is_err()
-        );
+        assert!(serde_json::from_value::<SwitchDef>(value).is_err());
     }
 }
 

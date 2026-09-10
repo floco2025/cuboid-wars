@@ -1,23 +1,28 @@
 use super::*;
 
 #[test]
-fn held_purposes_round_trip_sorted() {
-    let state = PlateState::from_held([
-        HeldPurpose::Bridge(BridgeKindId(1)),
-        HeldPurpose::Barrier(BarrierKindId(2)),
-        HeldPurpose::Barrier(BarrierKindId(0)),
-    ]);
+fn sorted_lookups_find_switches_and_runs() {
+    let running = CarrierRun {
+        running: true,
+        run_ticks: 5,
+        since_tick: 10,
+    };
+    let mut state = PlateState {
+        active_switches: vec![SwitchId(3), SwitchId(1)],
+        open_barrier_kinds: vec![BarrierKindId(2), BarrierKindId(0)],
+        powered_bridge_kinds: vec![BridgeKindId(1)],
+        carrier_runs: vec![(CarrierId(2), running), (CarrierId(1), CarrierRun::STOPPED)],
+    };
+    state.sort();
+    assert_eq!(state.active_switches, [SwitchId(1), SwitchId(3)]);
     assert_eq!(state.open_barrier_kinds, [BarrierKindId(0), BarrierKindId(2)]);
-    assert_eq!(state.powered_bridge_kinds, [BridgeKindId(1)]);
-    assert_eq!(
-        state.held().collect::<Vec<_>>(),
-        [
-            HeldPurpose::Barrier(BarrierKindId(0)),
-            HeldPurpose::Barrier(BarrierKindId(2)),
-            HeldPurpose::Bridge(BridgeKindId(1)),
-        ]
-    );
-    assert!(state.contains(HeldPurpose::Bridge(BridgeKindId(1))));
-    assert!(!state.contains(HeldPurpose::Barrier(BarrierKindId(1))));
-    assert_eq!(PlateState::from_held(state.held()), state);
+    assert!(state.is_active(SwitchId(3)));
+    assert!(!state.is_active(SwitchId(2)));
+    assert_eq!(state.carrier_run(CarrierId(2)), Some(running));
+    assert_eq!(state.carrier_run(CarrierId(1)), Some(CarrierRun::STOPPED));
+    assert_eq!(state.carrier_run(CarrierId(3)), None);
+    let bytes = bincode::encode_to_vec(&state, bincode::config::standard()).expect("plate state encoding failed");
+    let (decoded, _): (PlateState, _) =
+        bincode::decode_from_slice(&bytes, bincode::config::standard()).expect("plate state decoding failed");
+    assert_eq!(decoded, state);
 }

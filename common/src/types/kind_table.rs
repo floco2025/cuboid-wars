@@ -6,13 +6,15 @@ use bincode::{Decode, Encode};
 use serde::Deserialize;
 
 use super::color::HexColor;
-use crate::config::PressureSwitchConfig;
 
+// A barrier or bridge kind. `switch` names the map switch that opens or
+// powers it; a kind without one is never plate-controlled.
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, Deserialize)]
 pub struct KindDef {
     pub id: String,
     pub color: HexColor,
-    pub pressure_switch: PressureSwitchConfig,
+    #[serde(default)]
+    pub switch: Option<String>,
 }
 
 // A kind id: a stable on-wire index into one of the selected map's ordered
@@ -22,7 +24,7 @@ pub struct KindDef {
 // in `physics/world/colliders.rs`); `None` when the kinds share one group.
 pub trait KindId: Copy + Debug + Eq + Hash + Ord + Send + Sync + 'static {
     const MAX: Option<usize>;
-    // The `settings.json` key and the singular noun, for error messages.
+    // The `settings.json` key and the singular noun phrase, for error messages.
     const CONFIG_KEY: &'static str;
     const NOUN: &'static str;
     fn from_index(index: u16) -> Self;
@@ -107,7 +109,7 @@ impl<K: KindId> KindTable<K> {
     pub fn resolve(&self, id: &str) -> Result<K> {
         self.index_of(id).ok_or_else(|| {
             let known = self.ids.join(", ");
-            anyhow!("unknown {} kind {id:?}; known kinds: [{known}]", K::NOUN)
+            anyhow!("unknown {} {id:?}; known: [{known}]", K::NOUN)
         })
     }
 }

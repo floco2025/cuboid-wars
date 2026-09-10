@@ -2,7 +2,10 @@ pub(super) use bevy::math::Vec3;
 pub(super) use common::{
     map::Carriers,
     physics::{CollisionWorld, compute_portal_placement},
-    protocol::{BarrierKindTable, BridgeKindId, BridgeKindTable, CarrierId, FaceMaterials, Position, TextureSettings},
+    protocol::{
+        BarrierKindTable, BridgeKindId, BridgeKindTable, CarrierId, FaceMaterials, HexColor, KindDef, MapLayout,
+        MapSettings, Position, SwitchDef, SwitchId, SwitchTable, TextureSettings,
+    },
 };
 
 pub(super) use super::super::{
@@ -10,16 +13,83 @@ pub(super) use super::super::{
     load::LoadedMaps,
     schema::{
         ActorSpawnZoneDef, BarrierDef, CellDef, EraserDef, FloorDef, ItemDef, LadderDef, LevelDef, LightBridgeDef,
-        MapDef, MotionDef, NestedMapDef, PressurePlateDef, PressurePlatePurposeDef, RampDef, WallDef, WallSide,
-        ZoneDef,
+        MapDef, MotionDef, NestedMapDef, PressurePlateDef, RampDef, WallDef, WallSide, ZoneDef,
     },
     validation::validate_map,
 };
 pub(super) use crate::{
     actors::navigation::NavGraph,
     map::MapConfig,
-    test_geometry::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS, sizes},
+    test_geometry::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS, map_settings, sizes},
 };
+
+// The switch every plate in these tests may name: one per barrier and
+// bridge kind, named after it, plus `fireworks`.
+pub(crate) const FIREWORKS: &str = "fireworks";
+
+// Settings whose switches are the kinds of both tables plus `fireworks`,
+// each kind driven by its namesake switch.
+pub(crate) fn compile_settings(kinds: &BarrierKindTable, bridges: &BridgeKindTable) -> MapSettings {
+    let switch_ids = kinds
+        .ids()
+        .iter()
+        .chain(bridges.ids())
+        .cloned()
+        .chain([FIREWORKS.to_owned()]);
+    let kind_def = |id: &String| KindDef {
+        id: id.clone(),
+        color: HexColor([0; 3]),
+        switch: Some(id.clone()),
+    };
+    MapSettings {
+        switches: switch_ids
+            .map(|id| SwitchDef {
+                id,
+                policy: Default::default(),
+            })
+            .collect(),
+        barrier_kinds: kinds.ids().iter().map(kind_def).collect(),
+        bridge_kinds: bridges.ids().iter().map(kind_def).collect(),
+        ..map_settings()
+    }
+}
+
+pub(crate) fn switch_table(kinds: &BarrierKindTable, bridges: &BridgeKindTable) -> SwitchTable {
+    SwitchTable::from_switch_defs(&compile_settings(kinds, bridges).switches).expect("test switch table rejected")
+}
+
+pub(crate) fn switch_id(kinds: &BarrierKindTable, bridges: &BridgeKindTable, switch: &str) -> SwitchId {
+    switch_table(kinds, bridges)
+        .index_of(switch)
+        .expect("test switch missing from its table")
+}
+
+// `compile_map` with the test settings for these tables.
+pub(crate) fn compile_with(
+    map: &MapDef,
+    nested: &LoadedMaps,
+    kinds: &BarrierKindTable,
+    bridges: &BridgeKindTable,
+) -> anyhow::Result<(MapLayout, MapConfig)> {
+    compile_map(
+        map,
+        30,
+        &compile_settings(kinds, bridges),
+        nested,
+        kinds,
+        bridges,
+        &switch_table(kinds, bridges),
+    )
+}
+
+pub(crate) fn plate_def(level: u32, col: i32, row: i32, switch: &str) -> PressurePlateDef {
+    PressurePlateDef {
+        level,
+        col,
+        row,
+        switch: switch.into(),
+    }
+}
 
 pub(crate) fn empty_kind_table() -> BarrierKindTable {
     BarrierKindTable::default()
@@ -99,6 +169,7 @@ pub(crate) fn actor_zone(level: u32, col: i32, row: i32) -> ActorSpawnZoneDef {
         rows: [row, row + 1],
         kind: "actor".into(),
         count: 1,
+        switch: None,
     }
 }
 

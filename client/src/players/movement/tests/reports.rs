@@ -4,7 +4,8 @@ use common::{
     map::Carriers,
     physics::{CharacterSupport, CollisionWorld, PortalSet},
     protocol::{
-        BarrierKindTable, Carrier, CarrierId, MapLayout, PlayerId, PlayerMarker, Portal, PortalEnd, PortalPairId,
+        BarrierKindTable, Carrier, CarrierId, MapLayout, PlateState, PlayerId, PlayerMarker, Portal, PortalEnd,
+        PortalPairId,
     },
 };
 use std::f32::consts::PI;
@@ -40,6 +41,7 @@ fn grounded_rider_reports_local_position_and_takeoff_immediately_returns_to_worl
             travel_ticks: 30,
             pause_ticks: 10,
             phase_ticks: 0,
+            switch: None,
         }],
         ..default()
     };
@@ -74,7 +76,7 @@ fn grounded_rider_reports_local_position_and_takeoff_immediately_returns_to_worl
     let mut reports = 0;
     for tick in 1..=41 {
         let pos = app.world_mut().resource_scope(|_, mut carriers: Mut<Carriers>| {
-            carriers.advance(tick);
+            carriers.advance(tick, &PlateState::default());
             carriers.pose(CarrierId(1)).transform_position(&local)
         });
         app.world_mut().entity_mut(entity).insert(pos);
@@ -114,6 +116,7 @@ fn boarding_a_carrier_reports_immediately() {
             travel_ticks: 30,
             pause_ticks: 10,
             phase_ticks: 0,
+            switch: None,
         }],
         ..default()
     };

@@ -35,7 +35,7 @@ fn prepare_source(mut source: MapSource) -> Result<MapSource> {
     for name in source.nested_geometry.keys() {
         visit_named(name, &source.nested_geometry, &mut Vec::new(), &mut checked)?;
     }
-    // Unplaced definitions must not contribute pressure-plate purposes to compilation.
+    // Unplaced definitions must not contribute pressure plates to compilation.
     source.nested_geometry.retain(|name, _| used.contains(name));
     Ok(source)
 }

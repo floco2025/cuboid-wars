@@ -13,6 +13,7 @@ from map_editor.catalogs import (
     list_map_names,
     load_map_barrier_kinds,
     load_map_settings,
+    load_map_switches,
     map_layout_path,
     map_name_from_path,
     map_settings_path,
@@ -72,6 +73,30 @@ class MapSettingsTests(unittest.TestCase):
         path.write_text("{}")
         with self.assertRaisesRegex(ValueError, "settings.json: barrier_kinds"):
             load_map_barrier_kinds("hotel")
+        with self.assertRaisesRegex(ValueError, "settings.json: switches is required"):
+            load_map_switches("hotel")
+
+    def test_switch_catalog_keeps_its_order_and_rejects_bad_policies(self):
+        path = map_settings_path("hotel")
+        path.parent.mkdir(parents=True)
+        good = [
+            {"id": "lobby", "activation": "auto", "reset_on_player_death": "never"},
+            {"id": "finale", "activation": "momentary", "reset_on_player_death": "all", "held": "everyone"},
+        ]
+        path.write_text(json.dumps({"switches": good}))
+        self.assertEqual(load_map_switches("hotel"), ["lobby", "finale"])
+        for bad, message in [
+            ([{"id": "", "activation": "auto", "reset_on_player_death": "never"}], "id is empty"),
+            (good + [good[0]], "duplicates 'lobby'"),
+            ([{"id": "a", "activation": "hold", "reset_on_player_death": "never"}], "activation must be one of"),
+            ([{"id": "a", "activation": "auto", "reset_on_player_death": "always"}], "reset_on_player_death must be"),
+            ([{"id": "a", "activation": "auto", "reset_on_player_death": "never", "held": "all"}], "held must be"),
+            ([{"activation": "auto", "reset_on_player_death": "never"}], "string `id`"),
+            ({}, "must be an array"),
+        ]:
+            path.write_text(json.dumps({"switches": bad}))
+            with self.assertRaisesRegex(ValueError, message):
+                load_map_switches("hotel")
 
     def test_layout_identity_comes_from_the_folder(self):
         self.assertEqual(map_name_from_path(map_layout_path("hotel")), "hotel")

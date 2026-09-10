@@ -12,7 +12,7 @@ use super::{
 use crate::test_geometry::sizes;
 use common::{
     config::{ActorMovementConfig, KnockbackConfig, MapMovementConfig, PlayerMovementConfig},
-    protocol::{HexColor, KindDef, MapSettings, PortalMode},
+    protocol::{HexColor, KindDef, MapSettings, PortalMode, SwitchDef},
 };
 
 fn actor_kinds() -> HashMap<String, ActorKindServerConfig> {
@@ -61,7 +61,7 @@ fn kind(id: &str) -> KindDef {
     KindDef {
         id: id.to_owned(),
         color: HexColor([0; 3]),
-        pressure_switch: Default::default(),
+        switch: None,
     }
 }
 
@@ -74,10 +74,12 @@ fn ok_map_entry() -> MapServerConfig {
             geometry: sizes(),
             movement: ok_movement(),
             portals: PortalMode::Both,
+            switches: Vec::new(),
             barrier_kinds: Vec::new(),
             bridge_kinds: Vec::new(),
         },
         random_items: None,
+        fireworks: None,
         player_fall: FallDamageConfig {
             safe_distance: 8.0,
             lethal_distance: 15.0,
@@ -189,6 +191,8 @@ fn parse_map_entry(
         },
         "portals": portals,
         "player_fall": { "safe_distance": 8.0, "lethal_distance": 15.0 },
+        "switches": [],
+        "fireworks": null,
         "barrier_kinds": [],
         "bridge_kinds": [],
         "random_items": null,
@@ -496,7 +500,11 @@ fn validate_maps_rejects_duplicate_barrier_kinds() {
         .barrier_kinds = vec![kind("lobby"), kind("lobby")];
 
     let error = validate_test_maps(&maps, "hotel").expect_err("duplicate barrier kinds must be rejected");
-    assert!(error.to_string().contains("settings.json: barrier_kinds"));
+    assert!(
+        format!("{error:#}").contains("settings.json: switches, barrier_kinds, or bridge_kinds")
+            && format!("{error:#}").contains("barrier_kinds contains duplicate"),
+        "{error:#}"
+    );
 }
 
 #[test]
@@ -524,7 +532,79 @@ fn validate_maps_rejects_duplicate_bridge_kinds() {
         .bridge_kinds = vec![kind("skyway"), kind("skyway")];
 
     let error = validate_test_maps(&maps, "hotel").expect_err("duplicate bridge kinds must be rejected");
-    assert!(error.to_string().contains("settings.json: bridge_kinds"));
+    assert!(
+        format!("{error:#}").contains("bridge_kinds contains duplicate"),
+        "{error:#}"
+    );
+}
+
+#[test]
+fn validate_maps_rejects_duplicate_switches_and_unknown_kind_switches() {
+    let mut maps = one_map("hotel");
+    maps.get_mut("hotel").expect("hotel entry missing").settings.switches =
+        vec![switch_def("lobby"), switch_def("lobby")];
+    let error = validate_test_maps(&maps, "hotel").expect_err("duplicate switches must be rejected");
+    assert!(
+        format!("{error:#}").contains("switches contains duplicate"),
+        "{error:#}"
+    );
+
+    let mut maps = one_map("hotel");
+    let settings = &mut maps.get_mut("hotel").expect("hotel entry missing").settings;
+    settings.switches = vec![switch_def("lobby")];
+    settings.barrier_kinds = vec![KindDef {
+        switch: Some("void".to_owned()),
+        ..kind("treasure")
+    }];
+    let error = validate_test_maps(&maps, "hotel").expect_err("an unknown kind switch must be rejected");
+    let chain = format!("{error:#}");
+    assert!(
+        chain.contains("barrier_kinds \"treasure\"") && chain.contains("unknown switch \"void\""),
+        "{chain}"
+    );
+}
+
+#[test]
+fn validate_maps_checks_the_fireworks_switch_and_cooldown() {
+    for (fireworks, expected) in [
+        (
+            FireworksConfig {
+                switch: "void".to_owned(),
+                cooldown_secs: 5.0,
+            },
+            "fireworks.switch names unknown switch",
+        ),
+        (
+            FireworksConfig {
+                switch: "lobby".to_owned(),
+                cooldown_secs: -1.0,
+            },
+            "fireworks.cooldown_secs",
+        ),
+    ] {
+        let mut maps = one_map("hotel");
+        let entry = maps.get_mut("hotel").expect("hotel entry missing");
+        entry.settings.switches = vec![switch_def("lobby")];
+        entry.fireworks = Some(fireworks);
+        let error = validate_test_maps(&maps, "hotel").expect_err("a bad fireworks block must be rejected");
+        assert!(format!("{error:#}").contains(expected), "{error:#}");
+    }
+
+    let mut maps = one_map("hotel");
+    let entry = maps.get_mut("hotel").expect("hotel entry missing");
+    entry.settings.switches = vec![switch_def("lobby")];
+    entry.fireworks = Some(FireworksConfig {
+        switch: "lobby".to_owned(),
+        cooldown_secs: 0.0,
+    });
+    validate_test_maps(&maps, "hotel").expect("a fireworks block naming a catalog switch rejected");
+}
+
+fn switch_def(id: &str) -> SwitchDef {
+    SwitchDef {
+        id: id.to_owned(),
+        policy: Default::default(),
+    }
 }
 
 #[test]

@@ -4,7 +4,7 @@ use anyhow::Context;
 
 use super::{
     compile::{CompileOutput, CompileScope},
-    schema::{FloorDef, LadderDef, MapDef, PressurePlatePurposeDef, RampDef, WallSide},
+    schema::{FloorDef, LadderDef, MapDef, RampDef, WallSide},
 };
 use crate::map::{
     ActorSpawnZone, CarrierGrid, CellGrid, EdgeGrid, LevelGrid, PlacedItem, PlayerSpawnZone, PressurePlateRuntime,
@@ -22,7 +22,7 @@ use common::{
     map::MapGeometry,
     protocol::{
         Barrier, BarrierKindTable, BridgeKindTable, CarrierId, Checkpoint, Eraser, FaceMaterials, Floor, GrassCell,
-        ItemType, Ladder, LightBridge, PlatePurpose, PressurePlate, Ramp, Wall, WallLight,
+        ItemType, Ladder, LightBridge, PressurePlate, Ramp, Wall, WallLight,
     },
 };
 
@@ -49,7 +49,7 @@ pub(super) fn compile_geometry(
         .map(|level| floor_mask(map_def, level.floors.iter().chain(&level.inaccessible_floors)))
         .collect();
 
-    let pressure_plates = pressure_plates(map_def, scope.kind_table, scope.bridge_table, carrier)?;
+    let pressure_plates = pressure_plates(map_def, scope, carrier)?;
     let level_grids = compile_level_grids(map_def, scope, &regular_floor_masks, &slab_masks, &ramp_specs);
     let (walls, wall_materials) = compile_walls(&level_grids, &geometry, &assets, carrier);
     let barriers = compile_barriers(map_def, scope.kind_table, &slab_masks, &geometry, carrier)?;
@@ -96,7 +96,7 @@ pub(super) fn compile_geometry(
             center_x: geometry.cell_center_x(p.col),
             center_y: geometry.level_y(p.level),
             center_z: geometry.cell_center_z(p.row),
-            purpose: p.purpose,
+            switch: p.switch,
             carrier,
         }));
     layout.ladders.extend(
@@ -111,7 +111,9 @@ pub(super) fn compile_geometry(
 
     let config = &mut out.config;
     config.grids.push(CarrierGrid::new(carrier, geometry, level_grids));
-    config.actor_spawn_zones.extend(actor_spawn_zones(map_def, carrier));
+    config
+        .actor_spawn_zones
+        .extend(actor_spawn_zones(map_def, scope, carrier)?);
     config.player_spawn_zones.extend(player_spawn_zones(map_def, carrier));
     config.placed_items.extend(placed_items);
     config.pressure_plates.extend(pressure_plates);
@@ -354,17 +356,27 @@ fn empty_mask(grid_cols: i32, grid_rows: i32) -> Mask {
     vec![vec![false; grid_cols as usize]; grid_rows as usize]
 }
 
-fn actor_spawn_zones(map_def: &MapDef, carrier: CarrierId) -> Vec<ActorSpawnZone> {
+fn actor_spawn_zones(
+    map_def: &MapDef,
+    scope: &CompileScope,
+    carrier: CarrierId,
+) -> anyhow::Result<Vec<ActorSpawnZone>> {
     map_def
         .actor_spawn_zones
         .iter()
-        .map(|zone| ActorSpawnZone {
-            carrier,
-            level: u8::try_from(zone.level).unwrap_or(u8::MAX),
-            cols: zone.cols,
-            rows: zone.rows,
-            kind: zone.kind.clone(),
-            count: zone.count,
+        .enumerate()
+        .map(|(idx, zone)| {
+            Ok(ActorSpawnZone {
+                carrier,
+                level: u8::try_from(zone.level).unwrap_or(u8::MAX),
+                cols: zone.cols,
+                rows: zone.rows,
+                kind: zone.kind.clone(),
+                count: zone.count,
+                switch: scope
+                    .target_switch(zone.switch.as_deref())
+                    .with_context(|| format!("actor_spawn_zones[{idx}]"))?,
+            })
         })
         .collect()
 }
@@ -459,8 +471,7 @@ fn compile_light_bridges(
 
 fn pressure_plates(
     map_def: &MapDef,
-    kind_table: &BarrierKindTable,
-    bridge_table: &BridgeKindTable,
+    scope: &CompileScope,
     carrier: CarrierId,
 ) -> anyhow::Result<Vec<PressurePlateRuntime>> {
     map_def
@@ -468,25 +479,15 @@ fn pressure_plates(
         .iter()
         .enumerate()
         .map(|(idx, p)| {
-            let purpose = match &p.purpose {
-                PressurePlatePurposeDef::Barrier { kind } => PlatePurpose::Barrier(
-                    kind_table
-                        .resolve(kind)
-                        .with_context(|| format!("pressure_plates[{idx}]"))?,
-                ),
-                PressurePlatePurposeDef::Bridge { kind } => PlatePurpose::Bridge(
-                    bridge_table
-                        .resolve(kind)
-                        .with_context(|| format!("pressure_plates[{idx}]"))?,
-                ),
-                PressurePlatePurposeDef::Firework => PlatePurpose::Firework,
-            };
             Ok(PressurePlateRuntime {
                 carrier,
                 level: level_tag(p.level as usize),
                 col: p.col,
                 row: p.row,
-                purpose,
+                switch: scope
+                    .switch_table
+                    .resolve(&p.switch)
+                    .with_context(|| format!("pressure_plates[{idx}]"))?,
             })
         })
         .collect()

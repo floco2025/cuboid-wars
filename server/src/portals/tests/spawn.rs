@@ -40,13 +40,14 @@ impl Fixture {
                 travel_ticks: 30,
                 pause_ticks: 5,
                 phase_ticks: 0,
+                switch: None,
             }],
             ..default()
         };
         let mut world = World::new();
         world.insert_resource(CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default()));
         let mut carriers = Carriers::from_layout(&layout);
-        carriers.advance(17);
+        carriers.advance(17, &PlateState::default());
         world.insert_resource(carriers);
         world.insert_resource(layout.clone());
         world.insert_resource(settings.clone());

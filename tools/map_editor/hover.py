@@ -80,7 +80,10 @@ def element_hover_text(data: dict, level_idx: int, hit) -> str | None:
         list_name, index = value
         zone = data[list_name][index]
         if list_name == ACTOR_ZONE_LIST:
-            return f"Actor spawn zone: {zone['kind']}\nCount: {zone['count']}"
+            label = f"Actor spawn zone: {zone['kind']}\nCount: {zone['count']}"
+            if zone.get("switch"):
+                label += f"\nSwitch: {zone['switch']}"
+            return label
         return f"Checkpoint: {CHECKPOINT_TYPE_LABELS.get(zone['type'], zone['type'])}" if kind == HIT_CHECKPOINT else "Player spawn zone"
 
     if kind == HIT_RAMP:
@@ -101,6 +104,8 @@ def element_hover_text(data: dict, level_idx: int, hit) -> str | None:
             label += f"\nTravel: {entry['travel_secs']:g} s · Pause: {entry['pause_secs']:g} s"
             if entry["phase_secs"]:
                 label += f"\nPhase: {entry['phase_secs']:g} s"
+        if entry.get("switch"):
+            label += f"\nSwitch: {entry['switch']}"
         return label
 
     return kind

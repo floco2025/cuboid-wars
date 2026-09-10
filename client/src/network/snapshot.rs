@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use common::protocol::*;
 
-use crate::barriers::LockedPlatePurposes;
+use crate::barriers::LockedSwitches;
 
 use super::{
     actors::{sync_actors, sync_spawning_actors},
@@ -46,8 +46,8 @@ pub(super) fn handle_snapshot_message(
     // Stable equality keeps identical snapshots from waking the visibility systems.
     context.plates.set_if_neq(message.plates);
     context
-        .locked_plate_purposes
-        .set_if_neq(LockedPlatePurposes(message.locked_plate_purposes));
+        .locked_switches
+        .set_if_neq(LockedSwitches(message.locked_switches));
 
     context.rain_intensity.target = message.rain_intensity;
     if context.lighting.target != message.lighting {

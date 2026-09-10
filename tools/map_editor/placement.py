@@ -9,9 +9,6 @@ from .constants import (
     CHECKPOINT_LIST,
     FACES,
     MODE_RAMP_UP,
-    PLATE_TYPE_BARRIER,
-    PLATE_TYPE_BRIDGE,
-    PLATE_TYPE_FIREWORK,
     PLAYER_ZONE_LIST,
 )
 from .dialogs import ActorSpawnFieldsDialog, KindDialog, MaterialAssignmentDialog
@@ -61,7 +58,7 @@ class PlacementMixin:
         result = self.prompt_for_actor_spawn_fields()
         if result is None:
             return
-        kind, count = result
+        kind, count, switch = result
         c0, r0, c1, r1 = rect_from_cells(start, end)
         after = copy.deepcopy(self.map_data)
         new_zone = {
@@ -71,9 +68,12 @@ class PlacementMixin:
             "kind": kind,
             "count": count,
         }
+        if switch:
+            new_zone["switch"] = switch
         after[ACTOR_ZONE_LIST].append(new_zone)
         self.recent_actor_spawn_kind = kind
         self.recent_actor_spawn_count = count
+        self.recent_actor_spawn_switch = switch or ""
         self.apply_change("Paint Actor Spawn Zone", after)
         self.selected_spawn_zone_ref = self._zone_ref_after_change(ACTOR_ZONE_LIST, new_zone)
 
@@ -97,17 +97,22 @@ class PlacementMixin:
         self.apply_change(f"Paint {label}", after)
         self.selected_spawn_zone_ref = self._zone_ref_after_change(list_name, new_zone)
 
+    # `(kind, count, switch)`, the switch `None` for a zone without one.
     def prompt_for_actor_spawn_fields(
         self,
         kind: str | None = None,
         count: int | None = None,
-    ) -> tuple[str, int] | None:
+        switch: str | None = None,
+    ) -> tuple[str, int, str | None] | None:
         if kind is None and self.recent_actor_spawn_kind in self.actor_kinds:
-            return self.recent_actor_spawn_kind, self.recent_actor_spawn_count
+            recent_switch = self.recent_actor_spawn_switch
+            return self.recent_actor_spawn_kind, self.recent_actor_spawn_count, recent_switch or None
         return ActorSpawnFieldsDialog.prompt(
             self,
             kind if kind is not None else self.recent_actor_spawn_kind,
             count if count is not None else self.recent_actor_spawn_count,
+            self.switches,
+            switch if kind is not None else (self.recent_actor_spawn_switch or None),
         )
 
     def add_wall_line(self, start: tuple[int, int], end: tuple[int, int]) -> None:
@@ -117,14 +122,14 @@ class PlacementMixin:
         self.apply_change("Place Equipment Eraser", paint_erasers(self.map_data, self.current_level, start, end))
 
     def prompt_and_add_barrier_line(self, start: tuple[int, int], end: tuple[int, int]) -> None:
-        kind = self.placement_kind("Place Barrier", self.barrier_kinds, self.recent_barrier_kind, "barrier")
+        kind = self.placement_kind("Place Barrier", self.barrier_kinds, self.recent_barrier_kind, "barrier kind")
         if kind is None:
             return
         self.recent_barrier_kind = kind
         self.add_barrier_line(start, end, kind)
 
     def prompt_and_add_light_bridge_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
-        kind = self.placement_kind("Place Light Bridge", self.bridge_kinds, self.recent_bridge_kind, "bridge")
+        kind = self.placement_kind("Place Light Bridge", self.bridge_kinds, self.recent_bridge_kind, "bridge kind")
         if kind is None:
             return
         self.recent_bridge_kind = kind
@@ -137,40 +142,18 @@ class PlacementMixin:
         self.apply_change(f"Place Light Bridge ({kind})", paint_bridges(self.map_data, self.current_level, rect_from_cells(start, end), kind))
 
     def prompt_and_add_pressure_plate(self, col: int, row: int) -> None:
-        kind = self.placement_kind(
-            "Place Barrier Plate", self.barrier_kinds, self.recent_pressure_plate_kind, "barrier"
-        )
-        if kind is None:
+        switch = self.placement_kind("Place Pressure Plate", self.switches, self.recent_pressure_plate_switch, "switch")
+        if switch is None:
             return
-        self.recent_pressure_plate_kind = kind
-        self.add_pressure_plate(col, row, kind)
+        self.recent_pressure_plate_switch = switch
+        self.add_pressure_plate(col, row, switch)
 
-    def add_pressure_plate(self, col: int, row: int, kind: str) -> None:
-        if kind not in self.barrier_kinds:
-            self.notify(f"Unknown plate kind {kind!r}")
+    def add_pressure_plate(self, col: int, row: int, switch: str) -> None:
+        if switch not in self.switches:
+            self.notify(f"Unknown switch {switch!r}")
             return
-        plate = {"level": self.current_level, "col": col, "row": row, "type": PLATE_TYPE_BARRIER, "kind": kind}
-        self._add_plate(plate, f"Place Barrier Plate ({kind})")
-
-    def prompt_and_add_bridge_plate(self, col: int, row: int) -> None:
-        kind = self.placement_kind(
-            "Place Bridge Plate", self.bridge_kinds, self.recent_bridge_plate_kind, "bridge"
-        )
-        if kind is None:
-            return
-        self.recent_bridge_plate_kind = kind
-        self.add_bridge_plate(col, row, kind)
-
-    def add_bridge_plate(self, col: int, row: int, kind: str) -> None:
-        if kind not in self.bridge_kinds:
-            self.notify(f"Unknown plate kind {kind!r}")
-            return
-        plate = {"level": self.current_level, "col": col, "row": row, "type": PLATE_TYPE_BRIDGE, "kind": kind}
-        self._add_plate(plate, f"Place Bridge Plate ({kind})")
-
-    def add_firework_plate(self, col: int, row: int) -> None:
-        plate = {"level": self.current_level, "col": col, "row": row, "type": PLATE_TYPE_FIREWORK}
-        self._add_plate(plate, "Place Firework Plate")
+        plate = {"level": self.current_level, "col": col, "row": row, "switch": switch}
+        self._add_plate(plate, f"Place Pressure Plate ({switch})")
 
     def plates_at(self, col: int, row: int) -> list[dict]:
         return [
@@ -181,16 +164,14 @@ class PlacementMixin:
 
     def edit_pressure_plate_at(self, key: tuple) -> None:
         plate = next((p for p in self.map_data["pressure_plates"] if pressure_plate_key(p) == key), None)
-        if plate is None or plate["type"] == PLATE_TYPE_FIREWORK:
+        if plate is None:
             return
-        barrier = plate["type"] == PLATE_TYPE_BARRIER
-        kinds, noun = (self.barrier_kinds, "barrier") if barrier else (self.bridge_kinds, "bridge")
-        title = f"Edit {noun.capitalize()} Plate"
-        kind = KindDialog.prompt(self, title, kinds, plate["kind"], noun)
-        if kind is None or kind == plate["kind"]:
+        title = "Edit Pressure Plate"
+        switch = KindDialog.prompt(self, title, self.switches, plate.get("switch"), "switch")
+        if switch is None or switch == plate.get("switch"):
             return
         try:
-            after = place_plate(self.map_data, {**plate, "kind": kind}, replacing=key)
+            after = place_plate(self.map_data, {**plate, "switch": switch}, replacing=key)
         except ValueError as exc:
             self.notify(str(exc))
             return

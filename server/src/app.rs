@@ -8,9 +8,9 @@ use crate::{
     },
     characters::characters_plugin,
     combat::{PendingExplosions, combat_plugin},
-    config::{ServerGameplayConfig, validate_map_actor_kinds, validate_map_quests},
+    config::{ServerGameplayConfig, validate_map_actor_kinds, validate_map_fireworks, validate_map_quests},
     items::{ItemMap, ItemSpawner, RandomItems, items_plugin},
-    map::{GeneratedMap, LightState, WeatherState, generate_map, map_plugin},
+    map::{GeneratedMap, LightState, MapFireworks, WeatherState, generate_map, map_plugin},
     missiles::{MissileMap, missiles_plugin},
     network::{FromClientsChannel, network_plugin},
     players::{Invincibility, PlayerMap, players_plugin},
@@ -76,7 +76,7 @@ pub fn build_server_app(
     );
     let random_items = RandomItems::from_config(map_server_config.random_items.as_ref());
     let portal_assignments = PortalAssignments::new(map_settings.portals);
-    let (barrier_kind_table, bridge_kind_table) = map_settings.kind_tables()?;
+    let (barrier_kind_table, bridge_kind_table, switch_table) = map_settings.kind_tables()?;
     let GeneratedMap {
         layout: map_layout,
         config: map_config,
@@ -86,7 +86,9 @@ pub fn build_server_app(
         &map_settings,
         &barrier_kind_table,
         &bridge_kind_table,
+        &switch_table,
     )?;
+    let fireworks_switch = validate_map_fireworks(map_server_config.fireworks.as_ref(), &map_config, &switch_table)?;
     let map_geometry = map_config.root_grid().geometry;
     let map_items = map_config.available_items(&random_items.pool);
     let collision_world = CollisionWorld::from_map_layout(&map_layout, &barrier_kind_table);
@@ -98,9 +100,10 @@ pub fn build_server_app(
         &map_server_config.quests,
         &map_config,
         map_server_config.random_items.as_ref(),
+        fireworks_switch,
     )?;
     let quest_catalog = QuestCatalog::from_quests(&map_server_config.quests);
-    let quest_board = QuestBoard::from_catalog(&quest_catalog);
+    let quest_board = QuestBoard::from_catalog(&quest_catalog, fireworks_switch);
     let actor_territories = ActorTerritories::new(&nav_graphs, &map_config, &server_gameplay_config)?;
     let world_bootstrap = WorldBootstrap {
         network: server_gameplay_config.network,
@@ -156,6 +159,8 @@ pub fn build_server_app(
         .insert_resource(actor_territories)
         .insert_resource(barrier_kind_table)
         .insert_resource(bridge_kind_table)
+        .insert_resource(switch_table)
+        .insert_resource(MapFireworks(map_server_config.fireworks.clone()))
         .insert_resource(gameplay_config)
         .insert_resource(server_gameplay_config)
         .insert_resource(quest_catalog)

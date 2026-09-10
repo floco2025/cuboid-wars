@@ -24,6 +24,10 @@
 
 ## Enhancements
 
+- **Render ramps as stairs:** add an option to show ramps as stairs while retaining smooth ramp collision and movement. Make stair use configurable per actor kind, like ladder use.
+
+- **Pressure plate model integration:** load `models/pressure_plate.glb`, tint its tread by switch kind, and drive its activation animation from switch state. The generator and state previews are ready; client and editor integration remain.
+
 - **Host a game from a client:** colocate the server with one client so it can host the game. Use message queues for communication between the host client and its server, bypassing the network stack; remote clients connect over the network.
 
 - **Missiles through portals:** a missile chasing a target through a portal detonates on the aperture's backing instead of crossing, while bullets hop through; rank `projectile_hop` against the other events in the missile sweep in `client/src/missiles/movement.rs`.
@@ -53,6 +57,8 @@
 - **Moving-platform physics:** Evaluate kinematic rigid bodies only if they reduce carrier support/pushing code. Preserve tick-driven client/server motion, boarding and takeoff behavior, portal-relative travel, and crushing rules; body integration alone does not replace those policies.
 
 ## Testing
+
+- **Switched carriers, zones, and fireworks:** With several clients, run a nested map on a switch (the one-off correction after a flip learned late, riders staying aboard through a freeze), an actor zone on a switch through death resets and logout, and a fireworks switch with `held: everyone` repeating after its cooldown.
 
 - **Shared checkpoints:** Play through Group — any and Group — all with multiple clients, including staggered visits, death, joining, and leaving. Check each player's next respawn and checkpoint notification.
 

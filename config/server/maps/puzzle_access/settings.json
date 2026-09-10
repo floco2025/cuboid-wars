@@ -41,14 +41,25 @@
     "actors": { "on_player_death": "never", "scope": "dead" }
   },
   "portals": "both",
+  "switches": [
+    {
+      "id": "cyan",
+      "activation": "toggle",
+      "reset_on_player_death": "all"
+    },
+    {
+      "id": "fireworks",
+      "activation": "momentary",
+      "reset_on_player_death": "never",
+      "held": "everyone"
+    }
+  ],
+  "fireworks": {"switch": "fireworks", "cooldown_secs": 30.0},
   "barrier_kinds": [
     {
       "id": "cyan",
       "color": "#30d8ff",
-      "pressure_switch": {
-        "activation": "toggle",
-        "reset_on_player_death": "all"
-      }
+      "switch": "cyan"
     }
   ],
   "bridge_kinds": [],

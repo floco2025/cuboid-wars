@@ -1,6 +1,9 @@
 use super::*;
 use crate::test_fixtures::{LEVEL_HEIGHT, sizes};
-use common::protocol::{CarrierId, Floor};
+use common::{
+    constants::FIREWORK_SHOW_SECS,
+    protocol::{CarrierId, Floor},
+};
 
 fn layout() -> MapLayout {
     MapLayout {
@@ -119,4 +122,31 @@ fn a_finished_show_starts_again() {
 
     assert!(!show.events.is_empty());
     assert_eq!(show.elapsed, 0.0);
+}
+
+#[test]
+fn every_cue_of_a_show_lies_within_the_shared_show_length() {
+    // A field far larger than any shipped map, since rocket flight time
+    // grows with it and the finale's pops are the last cues.
+    let wide = MapLayout {
+        floors: vec![Floor {
+            x1: -150.0,
+            z1: -150.0,
+            x2: 150.0,
+            z2: 150.0,
+            y: 0.0,
+            thickness: 0.4,
+            level: 0,
+            carrier: CarrierId::WORLD,
+        }],
+        ..Default::default()
+    };
+    for seed in [0, 1, 7, 42, 1234, u64::MAX] {
+        let events = build_show(seed, Some(&wide), sizes());
+        let last = events.iter().map(|event| event.at_secs).fold(0.0_f32, f32::max);
+        assert!(
+            last <= FIREWORK_SHOW_SECS,
+            "seed {seed}: a cue at {last} s runs past the {FIREWORK_SHOW_SECS} s the server spaces shows by"
+        );
+    }
 }

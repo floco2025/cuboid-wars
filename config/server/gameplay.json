@@ -216,10 +216,8 @@
     "quest_completed": true,
     "quest_part_done": true,
     "group_quest_completed": true,
-    "barrier_opened": true,
-    "barrier_closed": true,
-    "bridge_powered": true,
-    "bridge_unpowered": true,
+    "switch_on": true,
+    "switch_off": true,
     "admin_action": true,
     "chat": true
   }

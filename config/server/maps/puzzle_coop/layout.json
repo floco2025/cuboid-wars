@@ -7,9 +7,9 @@
       {"level": 1, "cols": [2, 3], "rows": [5, 6]}
     ],
     "pressure_plates": [
-      {"level": 1, "col": 2, "row": 4, "type": "bridge", "kind": "relay"},
-      {"level": 1, "col": 11, "row": 2, "type": "firework"},
-      {"level": 1, "col": 11, "row": 5, "type": "firework"}
+      {"level": 1, "col": 2, "row": 4, "switch": "relay"},
+      {"level": 1, "col": 11, "row": 2, "switch": "fireworks"},
+      {"level": 1, "col": 11, "row": 5, "switch": "fireworks"}
     ],
     "items": [
       {"level": 1, "col": 10, "row": 4, "type": "portal_gun"},

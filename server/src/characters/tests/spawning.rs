@@ -144,6 +144,7 @@ fn nested_zone_fixture(rest: Position, floored: bool) -> (MapConfig, Carriers, A
             travel_ticks: 1,
             pause_ticks: 0,
             phase_ticks: 0,
+            switch: None,
         }],
         ..MapLayout::default()
     });
@@ -154,6 +155,7 @@ fn nested_zone_fixture(rest: Position, floored: bool) -> (MapConfig, Carriers, A
         rows: [1, 2],
         kind: "scuttler".to_owned(),
         count: 1,
+        switch: None,
     };
     (map_config, carriers, zone)
 }
@@ -246,6 +248,7 @@ fn immovable_spawn_checks_every_cell_before_reporting_a_full_zone() {
         rows: [0, 1],
         kind: "turret".into(),
         count: 120,
+        switch: None,
     };
     let geometry = map.root_grid().geometry;
     let centers: Vec<_> = (0..120)
@@ -290,6 +293,7 @@ fn immovable_spawn_waits_instead_of_shifting_away_from_an_obstructed_center() {
         rows: [1, 2],
         kind: "turret".into(),
         count: 1,
+        switch: None,
     };
     assert!(
         generate_actor_spawn_position_in_zone(&map, &Carriers::default(), &zone, &world, &[], &actor_config("turret"))

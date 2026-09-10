@@ -27,6 +27,8 @@ def _ramp_body(ramp: dict) -> str:
 
 def _actor_spawn_zone_body(zone: dict) -> str:
     body = {"level": zone["level"], "cols": zone["cols"], "rows": zone["rows"], "kind": zone["kind"], "count": zone["count"]}
+    if zone.get("switch"):
+        body["switch"] = zone["switch"]
     return _inline_object_body(body)
 
 
@@ -39,9 +41,9 @@ def _checkpoint_body(zone: dict) -> str:
 
 
 def _pressure_plate_body(plate: dict) -> str:
-    body = {"level": plate["level"], "col": plate["col"], "row": plate["row"], "type": plate["type"]}
-    if "kind" in plate:
-        body["kind"] = plate["kind"]
+    body = {"level": plate["level"], "col": plate["col"], "row": plate["row"]}
+    if "switch" in plate:
+        body["switch"] = plate["switch"]
     return _inline_object_body(body)
 
 
@@ -170,6 +172,8 @@ def _nested_map_body(entry: dict) -> str:
         "from_nudge": entry["from_nudge"],
         "to_nudge": entry["to_nudge"],
     }
+    if entry.get("switch"):
+        body["switch"] = entry["switch"]
     return _inline_object_body(body)
 
 

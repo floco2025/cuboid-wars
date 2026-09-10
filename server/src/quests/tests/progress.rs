@@ -58,7 +58,7 @@ fn initial_progress(quest: &QuestState) -> u32 {
 fn individual_progress_and_completion_stay_per_player() {
     let config = catalog(vec![quest("gold", QuestKind::Gold, QuestScope::Individual, 2, None)]);
     let quest_catalog = QuestCatalog::from_config(&config);
-    let mut board = QuestBoard::from_catalog(&quest_catalog);
+    let mut board = QuestBoard::from_catalog(&quest_catalog, None);
     let mut players = PlayerMap::default();
     let mut alice = join(&mut players, 1, &quest_catalog, &board);
     let mut bob = join(&mut players, 2, &quest_catalog, &board);
@@ -88,7 +88,7 @@ fn actor_kill_respects_kind_filter() {
     bruisers.actor_kind = Some("bruiser".to_owned());
     let config = catalog(vec![bruisers]);
     let quest_catalog = QuestCatalog::from_config(&config);
-    let mut board = QuestBoard::from_catalog(&quest_catalog);
+    let mut board = QuestBoard::from_catalog(&quest_catalog, None);
     let mut players = PlayerMap::default();
     let _alice = join(&mut players, 1, &quest_catalog, &board);
 
@@ -102,7 +102,7 @@ fn actor_kill_respects_kind_filter() {
 fn shared_quest_pools_progress_and_scores_everyone_once() {
     let config = catalog(vec![quest("hunt", QuestKind::ActorKills, QuestScope::Shared, 2, None)]);
     let quest_catalog = QuestCatalog::from_config(&config);
-    let mut board = QuestBoard::from_catalog(&quest_catalog);
+    let mut board = QuestBoard::from_catalog(&quest_catalog, None);
     let mut players = PlayerMap::default();
     let mut alice = join(&mut players, 1, &quest_catalog, &board);
     let mut bob = join(&mut players, 2, &quest_catalog, &board);
@@ -130,7 +130,7 @@ fn shared_quest_pools_progress_and_scores_everyone_once() {
 fn shared_quest_counts_events_from_a_departed_player() {
     let config = catalog(vec![quest("hunt", QuestKind::ActorKills, QuestScope::Shared, 2, None)]);
     let quest_catalog = QuestCatalog::from_config(&config);
-    let mut board = QuestBoard::from_catalog(&quest_catalog);
+    let mut board = QuestBoard::from_catalog(&quest_catalog, None);
     let mut players = PlayerMap::default();
     let _alice = join(&mut players, 1, &quest_catalog, &board);
     let _bob = join(&mut players, 2, &quest_catalog, &board);
@@ -149,7 +149,7 @@ fn shared_quest_counts_events_from_a_departed_player() {
 fn everyone_quest_completes_when_the_last_player_reaches_the_threshold() {
     let config = catalog(vec![quest("gold", QuestKind::Gold, QuestScope::Everyone, 1, None)]);
     let quest_catalog = QuestCatalog::from_config(&config);
-    let mut board = QuestBoard::from_catalog(&quest_catalog);
+    let mut board = QuestBoard::from_catalog(&quest_catalog, None);
     let mut players = PlayerMap::default();
     let mut alice = join(&mut players, 1, &quest_catalog, &board);
     let mut bob = join(&mut players, 2, &quest_catalog, &board);
@@ -175,7 +175,7 @@ fn everyone_quest_completes_when_the_last_player_reaches_the_threshold() {
 fn everyone_quest_waits_for_a_dead_holdout() {
     let config = catalog(vec![quest("gold", QuestKind::Gold, QuestScope::Everyone, 1, None)]);
     let quest_catalog = QuestCatalog::from_config(&config);
-    let mut board = QuestBoard::from_catalog(&quest_catalog);
+    let mut board = QuestBoard::from_catalog(&quest_catalog, None);
     let mut players = PlayerMap::default();
     let _alice = join(&mut players, 1, &quest_catalog, &board);
     let _ghost = join_with(&mut players, 2, &quest_catalog, &board, true);
@@ -194,7 +194,7 @@ fn everyone_quest_waits_for_a_dead_holdout() {
 fn late_joiner_raises_the_denominator() {
     let config = catalog(vec![quest("gold", QuestKind::Gold, QuestScope::Everyone, 1, None)]);
     let quest_catalog = QuestCatalog::from_config(&config);
-    let mut board = QuestBoard::from_catalog(&quest_catalog);
+    let mut board = QuestBoard::from_catalog(&quest_catalog, None);
     let mut players = PlayerMap::default();
     let mut alice = join(&mut players, 1, &quest_catalog, &board);
     let _bob = join(&mut players, 2, &quest_catalog, &board);
@@ -214,7 +214,7 @@ fn late_joiner_raises_the_denominator() {
 fn recheck_completes_when_the_leaver_was_the_holdout() {
     let config = catalog(vec![quest("gold", QuestKind::Gold, QuestScope::Everyone, 1, None)]);
     let quest_catalog = QuestCatalog::from_config(&config);
-    let mut board = QuestBoard::from_catalog(&quest_catalog);
+    let mut board = QuestBoard::from_catalog(&quest_catalog, None);
     let mut players = PlayerMap::default();
     let mut alice = join(&mut players, 1, &quest_catalog, &board);
     let _bob = join(&mut players, 2, &quest_catalog, &board);
@@ -233,7 +233,7 @@ fn recheck_completes_when_the_leaver_was_the_holdout() {
 fn recheck_completes_nothing_when_the_only_finisher_left() {
     let config = catalog(vec![quest("gold", QuestKind::Gold, QuestScope::Everyone, 1, None)]);
     let quest_catalog = QuestCatalog::from_config(&config);
-    let mut board = QuestBoard::from_catalog(&quest_catalog);
+    let mut board = QuestBoard::from_catalog(&quest_catalog, None);
     let mut players = PlayerMap::default();
     let _alice = join(&mut players, 1, &quest_catalog, &board);
     let _bob = join(&mut players, 2, &quest_catalog, &board);
@@ -249,7 +249,7 @@ fn recheck_completes_nothing_when_the_only_finisher_left() {
 fn recheck_on_an_empty_server_completes_nothing() {
     let config = catalog(vec![quest("gold", QuestKind::Gold, QuestScope::Everyone, 1, None)]);
     let quest_catalog = QuestCatalog::from_config(&config);
-    let mut board = QuestBoard::from_catalog(&quest_catalog);
+    let mut board = QuestBoard::from_catalog(&quest_catalog, None);
     let mut players = PlayerMap::default();
     let _alice = join(&mut players, 1, &quest_catalog, &board);
     players.disconnect(&PlayerId(1), 2.0);
@@ -266,7 +266,7 @@ fn group_completion_unlocks_dependents_and_assigns_them_to_everyone() {
         quest("show", QuestKind::Fireworks, QuestScope::Shared, 1, Some("gold")),
     ]);
     let quest_catalog = QuestCatalog::from_config(&config);
-    let mut board = QuestBoard::from_catalog(&quest_catalog);
+    let mut board = QuestBoard::from_catalog(&quest_catalog, None);
     let mut players = PlayerMap::default();
     let mut alice = join(&mut players, 1, &quest_catalog, &board);
     let mut bob = join(&mut players, 2, &quest_catalog, &board);
@@ -323,7 +323,7 @@ fn requires_chain_unlocks_one_step_at_a_time() {
         quest("later", QuestKind::Gold, QuestScope::Shared, 1, Some("bonus")),
     ]);
     let quest_catalog = QuestCatalog::from_config(&config);
-    let mut board = QuestBoard::from_catalog(&quest_catalog);
+    let mut board = QuestBoard::from_catalog(&quest_catalog, None);
     let mut players = PlayerMap::default();
     let _alice = join(&mut players, 1, &quest_catalog, &board);
 
@@ -351,7 +351,7 @@ fn world_event_only_hits_its_kind() {
         quest("gold", QuestKind::Gold, QuestScope::Individual, 5, None),
     ]);
     let quest_catalog = QuestCatalog::from_config(&config);
-    let mut board = QuestBoard::from_catalog(&quest_catalog);
+    let mut board = QuestBoard::from_catalog(&quest_catalog, None);
     let mut players = PlayerMap::default();
     let _alice = join(&mut players, 1, &quest_catalog, &board);
 
@@ -371,7 +371,7 @@ fn world_event_only_hits_its_kind() {
 fn dead_but_logged_in_players_are_credited_at_group_completion() {
     let config = catalog(vec![quest("show", QuestKind::Fireworks, QuestScope::Shared, 1, None)]);
     let quest_catalog = QuestCatalog::from_config(&config);
-    let mut board = QuestBoard::from_catalog(&quest_catalog);
+    let mut board = QuestBoard::from_catalog(&quest_catalog, None);
     let mut players = PlayerMap::default();
     let mut alice = join(&mut players, 1, &quest_catalog, &board);
     let mut ghost = join_with(&mut players, 2, &quest_catalog, &board, true);
@@ -398,7 +398,7 @@ fn assign_quests_skips_locked_and_seeds_completed_group_quests() {
         quest("later", QuestKind::Gold, QuestScope::Shared, 1, Some("show")),
     ]);
     let quest_catalog = QuestCatalog::from_config(&config);
-    let mut board = QuestBoard::from_catalog(&quest_catalog);
+    let mut board = QuestBoard::from_catalog(&quest_catalog, None);
     board.finish_group(quest_catalog.get(&id("gold")).expect("gold quest missing"));
     board.unlock(&id("show"));
 
@@ -418,7 +418,7 @@ fn assign_quests_skips_locked_and_seeds_completed_group_quests() {
 fn joining_against_a_live_pooled_counter_sees_the_pool() {
     let config = catalog(vec![quest("pool", QuestKind::Gold, QuestScope::Shared, 5, None)]);
     let quest_catalog = QuestCatalog::from_config(&config);
-    let mut board = QuestBoard::from_catalog(&quest_catalog);
+    let mut board = QuestBoard::from_catalog(&quest_catalog, None);
     let mut players = PlayerMap::default();
     let _alice = join(&mut players, 1, &quest_catalog, &board);
     for _ in 0..3 {
@@ -433,7 +433,7 @@ fn joining_against_a_live_pooled_counter_sees_the_pool() {
 fn admin_completion_finishes_individual_quests_for_the_targets_only() {
     let config = catalog(vec![quest("gold", QuestKind::Gold, QuestScope::Individual, 3, None)]);
     let quest_catalog = QuestCatalog::from_config(&config);
-    let mut board = QuestBoard::from_catalog(&quest_catalog);
+    let mut board = QuestBoard::from_catalog(&quest_catalog, None);
     let mut players = PlayerMap::default();
     let mut alice = join(&mut players, 1, &quest_catalog, &board);
     let _bob = join(&mut players, 2, &quest_catalog, &board);
@@ -474,7 +474,7 @@ fn admin_completion_finishes_individual_quests_for_the_targets_only() {
 fn admin_completion_of_an_everyone_quest_completes_the_group_once_every_part_is_done() {
     let config = catalog(vec![quest("gold", QuestKind::Gold, QuestScope::Everyone, 3, None)]);
     let quest_catalog = QuestCatalog::from_config(&config);
-    let mut board = QuestBoard::from_catalog(&quest_catalog);
+    let mut board = QuestBoard::from_catalog(&quest_catalog, None);
     let mut players = PlayerMap::default();
     let mut alice = join(&mut players, 1, &quest_catalog, &board);
     let _bob = join(&mut players, 2, &quest_catalog, &board);
@@ -518,7 +518,7 @@ fn admin_unlock_and_shared_completion_bypass_the_prerequisite() {
         quest("bonus", QuestKind::Gold, QuestScope::Individual, 1, Some("hunt")),
     ]);
     let quest_catalog = QuestCatalog::from_config(&config);
-    let mut board = QuestBoard::from_catalog(&quest_catalog);
+    let mut board = QuestBoard::from_catalog(&quest_catalog, None);
     let mut players = PlayerMap::default();
     let mut alice = join(&mut players, 1, &quest_catalog, &board);
 

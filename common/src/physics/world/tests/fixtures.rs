@@ -116,6 +116,7 @@ pub(crate) fn slider_layout() -> MapLayout {
             travel_ticks: 60,
             pause_ticks: 0,
             phase_ticks: 0,
+            switch: None,
         }],
         floors: vec![Floor {
             x1: -1.5,

@@ -167,3 +167,14 @@ pub const PORTAL_KNOCKBACK_CARRY_FACTOR: f32 = 1.5;
 // alone takes three arguments.
 pub const CONSOLE_CHAT_MAX_CHARS: usize = 128;
 pub const CONSOLE_COMMAND_MAX_CHARS: usize = 256;
+
+// ============================================================================
+// Fireworks
+// ============================================================================
+
+// How long the client's seeded firework show runs, from the launch cue to
+// its last cue (`client/src/vfx/firework.rs::build_show`, whose finale pops
+// land about 30 s in plus a rocket's flight). The server does not play the
+// show; it spaces a fireworks switch's repeats by this plus the map's
+// cooldown.
+pub const FIREWORK_SHOW_SECS: f32 = 45.0;

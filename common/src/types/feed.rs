@@ -1,6 +1,6 @@
 use bincode::{Decode, Encode};
 
-use super::{barrier_kind::BarrierKindId, bridge_kind::BridgeKindId};
+use super::barrier_kind::BarrierKindId;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Encode, Decode)]
 pub enum FeedStyle {
@@ -9,7 +9,6 @@ pub enum FeedStyle {
     Chat,
     Console,
     Barrier(BarrierKindId),
-    Bridge(BridgeKindId),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]

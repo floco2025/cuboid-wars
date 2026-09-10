@@ -4,7 +4,7 @@ use anyhow::{Result, bail};
 use serde::Deserialize;
 
 use super::validation::deserialize_required_option;
-use common::protocol::{PlatePurpose, QuestId, QuestScope};
+use common::protocol::{QuestId, QuestScope};
 
 // One map's server-side quest definition. Quest updates project the display
 // fields, scope, and threshold; advancement rules, filters, and points stay server-only.
@@ -34,19 +34,16 @@ pub struct Quest {
 pub enum QuestKind {
     Gold,
     ActorKills,
-    // Completed when the firework plates launch the show (`/firework` doesn't count).
+    // Completed when the fireworks switch launches a show (`/firework` doesn't count).
     Fireworks,
 }
 
 impl QuestKind {
-    // The plate purpose whose plates solve this kind of quest, if any. Those
+    // Whether the map's fireworks switch solves this kind of quest. Its
     // plates stay locked until such a quest unlocks.
     #[must_use]
-    pub fn plate_purpose(self) -> Option<PlatePurpose> {
-        match self {
-            Self::Fireworks => Some(PlatePurpose::Firework),
-            Self::Gold | Self::ActorKills => None,
-        }
+    pub fn locks_fireworks_switch(self) -> bool {
+        matches!(self, Self::Fireworks)
     }
 
     // Kinds advanced by something that happens to the world rather than by
