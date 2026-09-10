@@ -1,18 +1,17 @@
 use bevy::prelude::*;
 
-use super::{PlayerMap, player_spawn_destination};
+use super::{PlayerMap, place_player_body, player_spawn_destination};
 use crate::{
     actors::{ActorMap, ActorRespawnTimers, PendingActorSpawns, reset_actors},
     config::ServerGameplayConfig,
     map::MapConfig,
-    network::broadcast_player_relocation,
     portals::PortalAssignments,
 };
 use common::{
     config::GameplayConfig,
     map::Carriers,
-    physics::{AirborneMomentum, CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity},
-    protocol::{FaceYaw, Health, PlayerMarker, PlayerMoveIntent, PlayerMovementState, Position, ServerTick},
+    physics::CollisionWorld,
+    protocol::{Health, PlayerMarker, Position, ServerTick},
 };
 
 // Individual timers and the shared group timer expire here, after combat.
@@ -67,37 +66,21 @@ pub fn players_respawn_system(
         ) else {
             continue;
         };
-        let pos = spawn.pos;
-        let face_yaw = spawn.face_yaw;
-        let move_intent = PlayerMoveIntent::Idle;
-        let entity = commands
-            .spawn((
-                PlayerMarker,
-                id,
-                pos,
-                move_intent,
-                FaceYaw(face_yaw),
-                CharacterVerticalVelocity::default(),
-                AirborneMomentum::default(),
-                KnockbackVelocity::default(),
-                Health(server_gameplay_config.combat.health.player.max),
-            ))
-            .id();
-
+        let entity = commands.spawn((PlayerMarker, id)).id();
         if let Some(info) = players.get_mut(&id) {
             info.finish_respawn(entity);
-            info.life.checkpoint_contact = spawn.contact;
         }
-
-        broadcast_player_relocation(
-            &players,
+        place_player_body(
+            &mut commands,
+            &mut players,
             id,
-            tick.0,
-            PlayerMovementState::new(pos, move_intent, 0.0, face_yaw),
+            entity,
+            &spawn,
             Health(server_gameplay_config.combat.health.player.max),
+            tick.0,
             portal_assignments.get(&id),
         );
-        occupied_positions.push(pos);
-        info!("{} respawned at {:?}", players.describe(&id), pos);
+        occupied_positions.push(spawn.pos);
+        info!("{} respawned at {:?}", players.describe(&id), spawn.pos);
     }
 }

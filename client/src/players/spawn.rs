@@ -9,6 +9,7 @@ use crate::{
     constants::{
         LABEL_PLAYER_BAR_WIDTH, LABEL_PLAYER_NAME_GAP, LABEL_PLAYER_TEXTURE_HEIGHT, LABEL_PLAYER_TEXTURE_WIDTH,
     },
+    network::SampleTiming,
     ui::floating_labels::{
         LABEL_RENDER_FRAMES, LabelCamera, setup_label_texture, spawn_floating_health_bar, spawn_floating_player_label,
     },
@@ -43,6 +44,7 @@ pub struct PlayerSpawnContext<'a> {
     pub client_settings: &'a ClientSettings,
     pub gameplay_config: &'a GameplayConfig,
     pub max_health: f32,
+    pub sample_timing: SampleTiming,
 }
 
 // ============================================================================
@@ -82,6 +84,7 @@ pub fn spawn_player(
         client_settings,
         gameplay_config,
         max_health,
+        sample_timing,
     } = context;
     let position = carriers
         .pose(player.movement.carrier)
@@ -111,7 +114,9 @@ pub fn spawn_player(
             .entity(entity)
             .insert((LocalPlayerMarker, BumpFeedbackState::default()));
     } else {
-        commands.entity(entity).insert(RemotePlayerMotion::new(player.movement));
+        commands
+            .entity(entity)
+            .insert(RemotePlayerMotion::new(player.movement, sample_timing));
     }
 
     let mut children = vec![];

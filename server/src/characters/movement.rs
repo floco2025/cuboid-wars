@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use common::{
     config::{CharacterPhysicsConfig, GameplayConfig},
     map::Carriers,
-    physics::{CharacterMovePlan, CharacterVerticalVelocity, CollisionWorld},
+    physics::{CharacterMovePlan, CollisionWorld},
     protocol::{ActorMarker, MapSettings, PlateState, PlayerId, PlayerMarker, Position},
 };
 
@@ -11,20 +11,10 @@ use crate::{
     players::PlayerMap,
 };
 
-type PlayerMovementQuery<'w, 's> = Query<
-    'w,
-    's,
-    (
-        Entity,
-        &'static PlayerId,
-        &'static Position,
-        &'static CharacterVerticalVelocity,
-    ),
-    (With<PlayerMarker>, Without<ActorMarker>),
->;
+type PlayerMovementQuery<'w, 's> =
+    Query<'w, 's, (Entity, &'static PlayerId, &'static Position), (With<PlayerMarker>, Without<ActorMarker>)>;
 
 pub fn characters_movement_system(
-    mut commands: Commands,
     time: Res<Time>,
     collision_world: Res<CollisionWorld>,
     gameplay_config: Res<GameplayConfig>,
@@ -40,18 +30,18 @@ pub fn characters_movement_system(
     let mut planned_moves = Vec::new();
     let actor_starts: Vec<(Entity, Position, CharacterPhysicsConfig)> = actor_query
         .iter()
-        .filter_map(|(entity, id, _, pos, _, _, _, _, _, _)| {
+        .filter_map(|(entity, id, _, pos, _, _, _, _, _, _, _)| {
             let info = actors.get(id)?;
             Some((entity, *pos, gameplay_config.expect_actor(&info.spawn_kind).physics()))
         })
         .collect();
 
-    planned_moves.extend(player_query.iter().filter_map(|(entity, id, pos, vertical)| {
-        players.get(id).filter(|info| !info.is_dead())?;
+    planned_moves.extend(player_query.iter().filter_map(|(entity, id, pos)| {
+        let info = players.get(id).filter(|info| !info.is_dead())?;
         Some(CharacterMovePlan::stationary(
             entity,
             *pos,
-            vertical.0,
+            info.life.movement.vertical_velocity,
             gameplay_config.player.physics(),
         ))
     }));
@@ -59,7 +49,6 @@ pub fn characters_movement_system(
         delta,
         &collision_world,
         &map_settings,
-        &mut commands,
         &plates,
         &carriers,
         &actors,

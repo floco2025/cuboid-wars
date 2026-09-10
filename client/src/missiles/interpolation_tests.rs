@@ -1,12 +1,26 @@
-use super::{MissileInfo, MissileMap, MissileVelocity, RemoteMissileMotion, missiles_transform_sync_system};
-use crate::{characters::PreviousTickPosition, config::ClientSettings};
+use super::{MissileImpact, MissileVelocity, RemoteMissileMotion, interpolate_remote_missiles_system};
+use crate::{
+    config::ClientSettings,
+    missiles::{MissileInfo, MissileMap},
+    network::SampleTiming,
+};
 use bevy::prelude::*;
-use common::config::NetworkConfig;
-use common::{math::angle_delta_radians, protocol::*};
+use common::{
+    config::{NetworkConfig, UpdateCadence},
+    math::angle_delta_radians,
+    protocol::*,
+};
 use std::{f32::consts::PI, time::Duration};
 
 fn sample(x: f32) -> MissileMovementState {
     MissileMovementState::from_velocity(Position { x, ..default() }, Vec3::X * 20.0)
+}
+
+fn immediate() -> SampleTiming {
+    SampleTiming {
+        delay_ticks: 0.0,
+        interval_ticks: 1.0,
+    }
 }
 
 #[test]
@@ -15,14 +29,24 @@ fn repeated_snapshots_and_reordered_updates_cannot_restart_or_reverse_flight() {
     start.yaw = 3.0;
     let mut end = sample(2.0);
     end.yaw = -3.0;
-    let mut motion = RemoteMissileMotion::new(u32::MAX - 1, start, 0.0);
-    motion.push(1, end);
-    motion.push(u32::MAX, sample(-50.0));
-    motion.push(1, sample(50.0));
-    let halfway = motion.advance(1.5);
-    assert_eq!(halfway.pos.x, 1.0);
-    assert!(angle_delta_radians(halfway.yaw, PI).abs() < 1e-5);
-    assert_eq!(motion.advance(1.5), end);
+    let mut motion = RemoteMissileMotion::new(u32::MAX - 1, start, immediate());
+    assert!(motion.push(1, end));
+    assert!(!motion.push(u32::MAX, sample(-50.0)));
+    assert!(!motion.push(1, sample(50.0)));
+    let mut previous = 0.0;
+    let mut blended = false;
+    for _ in 0..12 {
+        let shown = motion.advance(0.5);
+        assert!(shown.pos.x >= previous && shown.pos.x <= 2.0);
+        assert!(shown.yaw.abs() >= 3.0 - 1e-5, "yaw turned the long way round");
+        if shown.pos.x > 0.0 && shown.pos.x < 2.0 {
+            blended = true;
+            assert!(angle_delta_radians(shown.yaw, PI).abs() < 0.2);
+        }
+        previous = shown.pos.x;
+    }
+    assert!(blended);
+    assert_eq!(motion.advance(1.0), end);
     assert_eq!(motion.advance(1000.0), end);
 }
 
@@ -33,37 +57,42 @@ fn configured_buffer_smooths_flight_and_holds_after_packet_gaps() {
         let mut motion = RemoteMissileMotion::new(
             0,
             sample(0.0),
-            settings.interpolation.delay_ticks(&NetworkConfig {
-                update_hz: hz,
-                ..Default::default()
-            }),
+            SampleTiming::new(
+                &settings.interpolation,
+                &NetworkConfig {
+                    update_hz: hz,
+                    ..Default::default()
+                },
+            ),
         );
-        let mut cadence = UpdateCadence::default();
+        let mut cadence = UpdateCadence::new(hz, 30);
+        cadence.ready();
         let mut previous = 0.0;
         for tick in 1..240 {
-            if cadence.ready(hz, 30) && !(30..60).contains(&tick) {
+            if cadence.ready() && !(30..60).contains(&tick) {
                 motion.push(tick, sample((tick as f32 / 30.0 * 20.0).min(60.0)));
             }
             for _ in 0..4 {
                 let x = motion.advance(0.25).pos.x;
-                assert!(x >= previous && x <= 60.0, "{hz} Hz tick {tick}: {previous} -> {x}");
-                assert!(x - previous <= 20.0 / 120.0 + 1e-4);
+                assert!(
+                    x >= previous - 1e-4 && x <= 60.0 + 1e-4,
+                    "{hz} Hz tick {tick}: {previous} -> {x}"
+                );
                 previous = x;
             }
         }
-        assert_eq!(previous, 60.0);
+        assert!((previous - 60.0).abs() < 1e-4);
     }
 }
 
 #[test]
-fn observer_rendering_holds_the_latest_sample_despite_its_speed() {
+fn a_reported_impact_is_flown_to_at_the_last_speed_and_then_marked() {
     let mut app = App::new();
     let mut time = Time::<()>::default();
-    time.advance_by(Duration::from_secs_f64(1.0 / 60.0));
+    time.advance_by(Duration::from_secs_f64(1.0 / 30.0));
     app.insert_resource(time)
-        .init_resource::<Time<Fixed>>()
-        .init_resource::<MissileMap>()
-        .add_systems(Update, missiles_transform_sync_system);
+        .insert_resource(Time::<Fixed>::from_hz(30.0))
+        .add_systems(Update, interpolate_remote_missiles_system);
     let movement = sample(8.0);
     let entity = app
         .world_mut()
@@ -71,20 +100,17 @@ fn observer_rendering_holds_the_latest_sample_despite_its_speed() {
             MissileMarker,
             MissileId(1),
             movement.pos,
-            PreviousTickPosition(movement.pos),
             MissileVelocity(movement.velocity()),
-            Transform::default(),
+            RemoteMissileMotion::new(
+                0,
+                movement,
+                SampleTiming {
+                    delay_ticks: 2.0,
+                    interval_ticks: 1.0,
+                },
+            ),
         ))
         .id();
-    app.world_mut().resource_mut::<MissileMap>().entries.insert(
-        MissileId(1),
-        MissileInfo {
-            entity,
-            shooter: PlayerId(2),
-            born_tick: 0,
-            remote: Some(RemoteMissileMotion::new(0, movement, 0.0)),
-        },
-    );
     for _ in 0..120 {
         app.update();
     }
@@ -92,12 +118,32 @@ fn observer_rendering_holds_the_latest_sample_despite_its_speed() {
         *app.world().get::<Position>(entity).expect("position missing"),
         movement.pos
     );
+    let impact = Position {
+        x: 12.0,
+        ..movement.pos
+    };
+    app.world_mut()
+        .get_mut::<RemoteMissileMotion>(entity)
+        .expect("missile buffer missing")
+        .detonate_at(impact, 1.0 / 30.0);
+    let mut previous = 8.0;
+    let mut frames = 0;
+    while app.world().get::<MissileImpact>(entity).is_none() {
+        app.update();
+        let x = app.world().get::<Position>(entity).expect("position missing").x;
+        assert!(x >= previous && x <= 12.0 + 1e-4);
+        previous = x;
+        frames += 1;
+        assert!(frames <= 12, "the flight to the impact took too long");
+    }
+    assert!(frames >= 4, "the flight to the impact was cut short");
+    assert!((previous - 12.0).abs() < 1e-4);
     assert_eq!(
         app.world()
-            .get::<Transform>(entity)
-            .expect("transform missing")
-            .translation,
-        Vec3::from(movement.pos)
+            .get::<MissileImpact>(entity)
+            .expect("impact marker missing")
+            .0,
+        impact
     );
 }
 
@@ -112,4 +158,21 @@ fn detonated_missiles_stay_retired_until_snapshots_have_passed_their_death() {
     }
     missiles.discard_retired_before(0);
     assert!(!missiles.is_retired(&MissileId(1)));
+}
+
+#[test]
+fn a_flight_ended_here_consumes_its_own_detonation_cue_once() {
+    let mut missiles = MissileMap::default();
+    missiles.insert(
+        MissileId(4),
+        MissileInfo {
+            entity: Entity::PLACEHOLDER,
+            shooter: PlayerId(1),
+            born_tick: 3,
+        },
+    );
+    assert!(missiles.remove(&MissileId(4)).is_some());
+    assert!(!missiles.retire(MissileId(4), 9));
+    assert!(missiles.is_retired(&MissileId(4)));
+    assert!(!missiles.retire(MissileId(4), 9));
 }

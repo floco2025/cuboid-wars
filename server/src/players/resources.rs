@@ -7,39 +7,15 @@ use crate::{
     config::{ActorRespawnScope, PlayerRespawnMode, PowerUpsConfig, RespawnConfig},
     network::ServerToClient,
 };
-use common::{
-    physics::{AirborneMomentum, CharacterSupport, CharacterVerticalVelocity, KnockbackVelocity},
-    protocol::{
-        BarrierKindId, CMove, FaceYaw, Health, ItemType, Player, PlayerGeneration, PlayerId, PlayerMarker,
-        PlayerMoveIntent, PlayerMovementState, PortalAccess, Position, PowerUpKind, QuestId, QuestScope, SPlayerStatus,
-    },
+use common::protocol::{
+    BarrierKindId, FaceYaw, Health, ItemType, Player, PlayerGeneration, PlayerId, PlayerMarker, PlayerMoveIntent,
+    PlayerMovementState, PortalAccess, Position, PowerUpKind, QuestId, QuestScope, SPlayerStatus,
 };
 
-use super::{CheckpointId, PlayerCheckpoint, PlayerMovementEvents, PowerUpState};
+use super::{CheckpointId, PendingOutcomes, PlayerCheckpoint, PowerUpState};
 
-pub type PlayerStateQuery<'w, 's> = Query<
-    'w,
-    's,
-    (
-        &'static Position,
-        &'static PlayerMoveIntent,
-        &'static FaceYaw,
-        &'static Health,
-    ),
-    With<PlayerMarker>,
->;
-
-// The rest of a player's movement state, beside `PlayerStateQuery`.
-pub type PlayerMotionQuery<'w, 's> = Query<
-    'w,
-    's,
-    (
-        &'static CharacterVerticalVelocity,
-        &'static AirborneMomentum,
-        &'static KnockbackVelocity,
-    ),
-    With<PlayerMarker>,
->;
+pub type PlayerStateQuery<'w, 's> =
+    Query<'w, 's, (&'static Position, &'static FaceYaw, &'static Health), With<PlayerMarker>>;
 
 #[derive(Resource)]
 pub struct Invincibility(pub bool);
@@ -103,7 +79,8 @@ enum PlayerLifecycle {
 
 pub struct PlayerLife {
     lifecycle: PlayerLifecycle,
-    pub(crate) movement_report: Option<CMove>,
+    // The newest accepted report, kept in its carrier frame; placement seeds it with the spawn state.
+    pub(crate) movement: PlayerMovementState,
     pub(crate) portal_crossing: u32,
     pub power_ups: [PowerUpState; PowerUpKind::COUNT],
     pub stun_timer: f32,
@@ -115,8 +92,7 @@ pub struct PlayerLife {
     // ascending so the encoded `SPlayerStatus` bytes are deterministic and
     // the client can change-detect via a single equality check.
     pub held_keys: Vec<BarrierKindId>,
-    pub support: CharacterSupport,
-    pub(crate) outcomes: PlayerMovementEvents,
+    pub(crate) outcomes: PendingOutcomes,
     pub checkpoint_contact: Option<CheckpointId>,
 }
 
@@ -128,15 +104,14 @@ impl PlayerLife {
     fn with_lifecycle(lifecycle: PlayerLifecycle) -> Self {
         Self {
             lifecycle,
-            movement_report: None,
+            movement: PlayerMovementState::new(Position::default(), PlayerMoveIntent::Idle, 0.0, 0.0),
             portal_crossing: 0,
             power_ups: [PowerUpState::Inactive; PowerUpKind::COUNT],
             stun_timer: 0.0,
             last_portal_shot_time: f32::NEG_INFINITY,
             missiles: 0,
             held_keys: Vec::new(),
-            support: CharacterSupport::Airborne,
-            outcomes: PlayerMovementEvents::default(),
+            outcomes: PendingOutcomes::default(),
             checkpoint_contact: None,
         }
     }
@@ -216,10 +191,9 @@ impl PlayerInfo {
 
     pub(crate) fn advance_body(&mut self) {
         self.session.generation = self.session.generation.next();
-        self.life.movement_report = None;
+        self.life.movement = PlayerMovementState::new(Position::default(), PlayerMoveIntent::Idle, 0.0, 0.0);
         self.life.portal_crossing = 0;
-        self.life.support = CharacterSupport::Airborne;
-        self.life.outcomes = PlayerMovementEvents::default();
+        self.life.outcomes = PendingOutcomes::default();
     }
 
     #[must_use]

@@ -16,7 +16,9 @@ use crate::{
 };
 use common::{
     map::Carriers,
-    physics::{AirborneMomentum, CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity},
+    physics::{
+        AirborneMomentum, CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity, blast_falloff_at_distance,
+    },
     protocol::{
         ActorAnchor, ActorId, ActorMarker, Barrier, BarrierKindId, BarrierKindTable, BridgeKindId, CarrierId, Health,
         LightBridge, MapLayout, PlateState, PlayerId, PlayerMarker, Position, SPlayerDeath, ServerMessage,
@@ -615,7 +617,7 @@ fn activating_cover_stops_an_existing_beam_burst_and_reopening_restores_damage()
 fn queue_missile_blast(app: &mut App, shooter: PlayerId, pos: Position) {
     use common::{
         config::GameplayConfig,
-        physics::{character_hitbox_center, planar_shove, visible_blast_falloff},
+        physics::{blast_hit, character_hitbox_center},
         protocol::{HitTarget, MissileBlastHit},
     };
     let world = app.world();
@@ -652,14 +654,13 @@ fn queue_missile_blast(app: &mut App, shooter: PlayerId, pos: Position) {
     let hits = candidates
         .filter_map(|(target, pos, physics)| {
             let victim = character_hitbox_center(pos, physics);
-            let falloff = visible_blast_falloff(
+            let (falloff, direction) = blast_hit(
                 center,
                 victim,
                 radius,
                 world.resource::<CollisionWorld>(),
                 &world.resource::<PlateState>().open_barrier_kinds,
             )?;
-            let direction = planar_shove(center, victim, 1.0, 1.0);
             Some(MissileBlastHit {
                 target,
                 falloff,

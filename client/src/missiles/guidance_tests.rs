@@ -1,5 +1,5 @@
 use super::*;
-use crate::test_fixtures::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS, geometry};
+use crate::test_fixtures::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS, gameplay_config, geometry};
 use common::{
     config::MissilesConfig,
     constants::TICK_SECS,
@@ -12,18 +12,7 @@ fn info() -> MissileFlight {
 }
 
 fn config() -> MissilesConfig {
-    MissilesConfig {
-        lock_range: 100.0,
-        lock_assist_radius: 1.2,
-        require_lock: true,
-        max_missiles: 3,
-        turn_radius: 1.7,
-        lifetime_secs: 10.0,
-        launch_spread_degrees: 45.0,
-        weave_strength: 0.1,
-        proximity_fuse_distance: 1.0,
-        stall_secs: 2.0,
-    }
+    gameplay_config().missiles
 }
 
 fn map(cols: i32, rows: i32, levels: usize) -> AirGraph {
@@ -415,4 +404,51 @@ fn missiles_reach_targets_inside_a_moving_room_without_clipping_its_shell() {
             );
         }
     }
+}
+
+#[test]
+fn a_missile_skimming_geometry_still_fuses_on_its_target() {
+    let world = world(&MapLayout {
+        walls: vec![wall(0.0, -4.0, 0.0, 4.0)],
+        ..default()
+    });
+    // Hugging the wall face: the missile's own centre is within its radius of it.
+    let origin = Vec3::new(WALL_THICKNESS / 2.0 + 0.2, 1.0, 0.0);
+    let target = Vec3::new(1.0, 1.0, 0.0);
+    let travel = Vec3::X * 0.5;
+    assert!(!sweep_clear(&world, &[], origin, travel, MISSILE_RADIUS));
+    assert_eq!(
+        proximity_detonation(&world, &[], origin, travel, target, 1.0),
+        Some(origin + travel)
+    );
+}
+
+#[test]
+fn a_route_whose_waypoints_went_unreachable_retries_on_the_next_tick() {
+    let graph = map(4, 4, 2);
+    let world = world(&MapLayout {
+        walls: vec![wall(0.0, -4.0, 0.0, 4.0)],
+        ..default()
+    });
+    let origin = Vec3::new(WALL_THICKNESS / 2.0 + 0.2, 1.0, 0.0);
+    let target = Vec3::new(1.0, 1.0, 0.0);
+    let mut info = info();
+    info.path_target = Some(target);
+    assert!(
+        route_objective(
+            &mut info,
+            &graph,
+            &Carriers::default(),
+            &world,
+            &[],
+            origin,
+            target,
+            MISSILE_RADIUS,
+            1.0,
+            TICK_SECS
+        )
+        .is_none()
+    );
+    assert!(info.path.is_empty());
+    assert_eq!(info.path_retry_timer, 0.0);
 }

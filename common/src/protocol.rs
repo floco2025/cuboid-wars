@@ -158,7 +158,7 @@
 //    only on the firing client; all clients install accepted portals from
 //    `SPortalOpened` or snapshots.
 //
-//    `CPlayerMovementEvent` reports landing impact speeds, crushing, falls out
+//    `CMoveOutcome` reports landing impact speeds, crushing, falls out
 //    of the world, and equipment erasure. These events are ordered
 //    by the reliable lane, independently of movement sequence cutoffs; a later
 //    movement report cannot cancel an event or repeat it. Impact positions
@@ -206,13 +206,13 @@ pub struct CMove {
 
 // Reliable events are independent of movement sequence cutoffs and never reposition a body.
 #[derive(Debug, Clone, Encode, Decode)]
-pub struct CPlayerMovementEvent {
+pub struct CMoveOutcome {
     pub generation: PlayerGeneration,
-    pub event: PlayerMovementEvent,
+    pub event: MoveOutcome,
 }
 
 #[derive(Debug, Clone, Encode, Decode)]
-pub enum PlayerMovementEvent {
+pub enum MoveOutcome {
     Landed {
         // A lethal impact needs its explosion position even if movement reports arrive later.
         pos: Position,
@@ -477,8 +477,7 @@ pub struct SPlayerDeath {
     pub id: PlayerId,
     pub generation: PlayerGeneration,
     // The next snapshot omits the victim, so this cue supplies the death
-    // position. The client snaps here to show the corpse at the server's
-    // death spot even when local prediction placed it elsewhere.
+    // position for observers' effects; the owner keeps its own position.
     pub pos: Position,
     // Player credited with the kill; `None` for non-player causes and
     // self-kills. Only pairs with `killer_score` below — the feed line
@@ -759,7 +758,7 @@ pub enum ClientMessage {
     MissileShot(CMissileShot),
     MissileDetonated(CMissileDetonated),
     PortalShot(CPortalShot),
-    PlayerMovementEvent(CPlayerMovementEvent),
+    MoveOutcome(CMoveOutcome),
     Admin(CAdmin),
     Chat(CChat),
 }
@@ -824,7 +823,7 @@ impl ClientMessage {
             | Self::MissileShot(_)
             | Self::MissileDetonated(_)
             | Self::PortalShot(_)
-            | Self::PlayerMovementEvent(_)
+            | Self::MoveOutcome(_)
             | Self::Admin(_)
             | Self::Chat(_) => Lane::Reliable,
             Self::Move(_) | Self::MissileMoves(_) | Self::ProjectileShot(_) | Self::Ping(_) => Lane::Unreliable,

@@ -3,18 +3,13 @@ use crate::{
     characters::characters_movement_system,
     config::ServerGameplayConfig,
     network::collect_player_moves,
-    players::{
-        PlayerInfo, PlayerMap, PlayerMotionQuery, PlayerStateQuery, apply_player_movement_system, queue_player_movement,
-    },
+    players::{PlayerInfo, PlayerMap, PlayerStateQuery, apply_player_movement_system, queue_player_movement},
 };
 use bevy::{ecs::system::SystemState, prelude::*};
 use common::{
     constants::TICK_DURATION,
     map::Carriers,
-    physics::{
-        AirborneMomentum, CharacterSupport, CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity, PortalSet,
-        knockback_decay_system,
-    },
+    physics::{CharacterSupport, CollisionWorld, PortalSet, knockback_decay_system},
     protocol::*,
 };
 use tokio::sync::mpsc::unbounded_channel;
@@ -55,17 +50,7 @@ fn movement_app(layout: MapLayout) -> (App, Entity) {
         );
     let entity = app
         .world_mut()
-        .spawn((
-            ID,
-            PlayerMarker,
-            Position::default(),
-            PlayerMoveIntent::Idle,
-            FaceYaw(0.0),
-            CharacterVerticalVelocity(0.0),
-            AirborneMomentum::default(),
-            KnockbackVelocity::default(),
-            Health(100.0),
-        ))
+        .spawn((ID, PlayerMarker, Position::default(), FaceYaw(0.0), Health(100.0)))
         .id();
     let (sender, _) = unbounded_channel();
     let mut info = PlayerInfo::new(entity, sender);
@@ -84,7 +69,9 @@ fn report(seq: u32, pos: Position) -> CMove {
 }
 
 fn deliver(app: &mut App, message: CMove) {
-    queue_player_movement(ID, message, &mut app.world_mut().resource_mut::<PlayerMap>());
+    app.world_mut().resource_scope(|world, mut players: Mut<PlayerMap>| {
+        queue_player_movement(ID, message, &mut players, world.resource::<Carriers>());
+    });
 }
 
 fn cross(app: &mut App, seq: u32, crossing: u32, exit_x: f32) {
@@ -243,15 +230,14 @@ fn crossing_and_full_exit_motion_survive_sequence_wrap() {
     )
     .with_momentum(Vec3::X * 4.0, Vec3::Z * -3.0);
     movement.support = CharacterSupport::Ladder;
-    queue_player_movement(
-        ID,
+    deliver(
+        &mut app,
         CMove {
             generation: PlayerGeneration(0),
             seq: 1,
             portal_crossing: 2,
             movement,
         },
-        &mut app.world_mut().resource_mut::<PlayerMap>(),
     );
     app.update();
     let entry = result(&mut app);
@@ -266,9 +252,9 @@ fn crossing_and_full_exit_motion_survive_sequence_wrap() {
 }
 
 fn result(app: &mut App) -> PlayerMove {
-    let mut state = SystemState::<(PlayerStateQuery, PlayerMotionQuery)>::new(app.world_mut());
-    let (positions, motions) = state.get(app.world()).expect("movement collection state invalid");
-    collect_player_moves(app.world().resource::<PlayerMap>(), &positions, &motions)
+    let mut state = SystemState::<PlayerStateQuery>::new(app.world_mut());
+    let positions = state.get(app.world()).expect("movement collection state invalid");
+    collect_player_moves(app.world().resource::<PlayerMap>(), &positions)
         .into_iter()
         .find(|entry| entry.id == ID)
         .expect("movement missing")
@@ -306,26 +292,13 @@ fn accepts_client_state_through_a_wall() {
         *app.world().get::<Position>(entity).expect("position missing"),
         expected.pos
     );
-    assert_eq!(
-        app.world()
-            .get::<CharacterVerticalVelocity>(entity)
-            .expect("vertical missing")
-            .0,
-        7.0
-    );
-    assert_eq!(
-        app.world().get::<AirborneMomentum>(entity).expect("momentum missing").0,
-        Vec3::new(-3.0, 0.0, 2.0)
-    );
-    assert_eq!(
-        app.world()
-            .get::<KnockbackVelocity>(entity)
-            .expect("knockback missing")
-            .0,
-        Vec3::X
-    );
     assert_eq!(app.world().get::<FaceYaw>(entity).expect("facing missing").0, 2.0);
-    assert_eq!(result(&mut app).movement.pos, expected.pos);
+    let relayed = result(&mut app).movement;
+    assert_eq!(relayed.pos, expected.pos);
+    assert_eq!(relayed.vertical_velocity, 7.0);
+    assert_eq!(relayed.airborne_momentum, [-3.0, 0.0, 2.0]);
+    assert_eq!(relayed.knockback, [1.0, 0.0, 0.0]);
+    assert_eq!(relayed.move_intent, expected.move_intent);
 }
 
 #[test]
@@ -342,14 +315,11 @@ fn accepted_reports_remain_stationary_without_fresh_reports() {
             },
         ),
     );
-    {
-        let mut players = app.world_mut().resource_mut::<PlayerMap>();
-        let mut moving = report(2, Position { x: 500.0, ..default() });
-        moving.movement.vertical_velocity = -8.0;
-        moving.movement.knockback = [3.0, 0.0, 2.0];
-        moving.movement.move_intent = PlayerMoveIntent::Running { direction: 1.0 };
-        queue_player_movement(ID, moving, &mut players);
-    }
+    let mut moving = report(2, Position { x: 500.0, ..default() });
+    moving.movement.vertical_velocity = -8.0;
+    moving.movement.knockback = [3.0, 0.0, 2.0];
+    moving.movement.move_intent = PlayerMoveIntent::Running { direction: 1.0 };
+    deliver(&mut app, moving);
     app.update();
     let accepted = result(&mut app);
     assert_eq!(accepted.movement.pos.x, 500.0);
@@ -370,7 +340,7 @@ fn accepted_reports_remain_stationary_without_fresh_reports() {
 
 #[test]
 fn only_newest_report_steers_and_is_processed_even_when_packets_arrive_together() {
-    let (mut app, entity) = movement_app(MapLayout::default());
+    let (mut app, _) = movement_app(MapLayout::default());
     let mut stale = report(1, Position { x: 3.0, y: 0.0, z: 0.0 });
     stale.movement.move_intent = PlayerMoveIntent::Running { direction: 1.0 };
     deliver(&mut app, stale.clone());
@@ -380,10 +350,7 @@ fn only_newest_report_steers_and_is_processed_even_when_packets_arrive_together(
     let entry = result(&mut app);
     assert_eq!(entry.seq, 3);
     assert_eq!(entry.movement.pos.x, 1.0);
-    assert_eq!(
-        *app.world().get::<PlayerMoveIntent>(entity).expect("intent missing"),
-        PlayerMoveIntent::Idle
-    );
+    assert_eq!(entry.movement.move_intent, PlayerMoveIntent::Idle);
 }
 
 #[test]
@@ -402,35 +369,62 @@ fn non_finite_reports_do_not_advance_sequence_or_replace_fresh_state() {
 }
 
 #[test]
-fn accepted_landing_stops_server_fall_velocity() {
-    let layout = MapLayout {
-        floors: vec![Floor {
-            x1: -5.0,
-            x2: 5.0,
-            z1: -5.0,
-            z2: 5.0,
-            y: 0.0,
-            thickness: 0.2,
-            level: 0,
-            carrier: CarrierId::WORLD,
-        }],
-        ..default()
-    };
-    let (mut app, entity) = movement_app(layout);
-    app.world_mut().get_mut::<Position>(entity).expect("position missing").y = 2.0;
-    app.world_mut()
-        .get_mut::<CharacterVerticalVelocity>(entity)
-        .expect("vertical missing")
-        .0 = -8.0;
-    deliver(&mut app, report(1, Position::default()));
+fn a_report_replaces_the_retained_vertical_velocity_whole() {
+    let (mut app, _) = movement_app(MapLayout::default());
+    let mut falling = report(1, Position { y: 2.0, ..default() });
+    falling.movement.vertical_velocity = -8.0;
+    deliver(&mut app, falling);
     app.update();
-    assert_eq!(
-        app.world()
-            .get::<CharacterVerticalVelocity>(entity)
-            .expect("vertical missing")
-            .0,
-        0.0
-    );
+    assert_eq!(result(&mut app).movement.vertical_velocity, -8.0);
+    deliver(&mut app, report(2, Position::default()));
+    app.update();
+    assert_eq!(result(&mut app).movement.vertical_velocity, 0.0);
+}
+
+#[test]
+fn reports_naming_an_unknown_carrier_are_rejected() {
+    let (mut app, entity) = movement_app(MapLayout::default());
+    deliver(&mut app, report(1, Position { x: 1.0, ..default() }));
+    let mut stray = report(2, Position { x: 50.0, ..default() });
+    stray.movement.carrier = CarrierId(1);
+    deliver(&mut app, stray);
+    app.update();
+    let entry = result(&mut app);
+    assert_eq!(entry.seq, 1);
+    assert_eq!(entry.movement.pos.x, 1.0);
+    assert_eq!(app.world().get::<Position>(entity).expect("position missing").x, 1.0);
+    deliver(&mut app, report(2, Position { x: 2.0, ..default() }));
+    app.update();
+    assert_eq!(result(&mut app).movement.pos.x, 2.0);
+}
+
+#[test]
+fn reports_while_dead_are_dropped_and_keep_the_sequence_cutoff() {
+    let (mut app, entity) = movement_app(MapLayout::default());
+    deliver(&mut app, report(5, Position { x: 1.0, ..default() }));
+    app.update();
+    app.world_mut()
+        .resource_mut::<PlayerMap>()
+        .get_mut(&ID)
+        .expect("player missing")
+        .begin_respawn(1.0);
+    deliver(&mut app, report(6, Position { x: 9.0, ..default() }));
+    app.update();
+    let info = player_info(&app);
+    assert_eq!(info.session.last_move_seq, 5);
+    assert_eq!(info.life.movement.pos.x, 0.0);
+    assert_eq!(app.world().get::<Position>(entity).expect("position missing").x, 1.0);
+    let mut fresh = report(6, Position { x: 3.0, ..default() });
+    app.world_mut()
+        .resource_mut::<PlayerMap>()
+        .get_mut(&ID)
+        .expect("player missing")
+        .finish_respawn(entity);
+    fresh.generation = PlayerGeneration(1);
+    deliver(&mut app, fresh);
+    app.update();
+    assert_eq!(player_info(&app).session.last_move_seq, 6);
+    assert_eq!(result(&mut app).movement.pos.x, 3.0);
 }
 
 #[test]
@@ -441,10 +435,10 @@ fn reported_support_persists_without_fresh_reports() {
     message.movement.support = CharacterSupport::Ground;
     deliver(&mut app, message);
     app.update();
-    assert_eq!(player_info(&app).life.support, CharacterSupport::Ground);
+    assert_eq!(player_info(&app).life.movement.support, CharacterSupport::Ground);
     assert_eq!(result(&mut app).movement.support, CharacterSupport::Ground);
     app.update();
-    assert_eq!(player_info(&app).life.support, CharacterSupport::Ground);
+    assert_eq!(player_info(&app).life.movement.support, CharacterSupport::Ground);
     assert_eq!(result(&mut app).movement.support, CharacterSupport::Ground);
 }
 

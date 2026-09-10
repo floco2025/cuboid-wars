@@ -18,6 +18,15 @@ pub struct ProjectileSpawnInfo {
     pub direction_pitch: f32,
 }
 
+// Whether the muzzle check runs. The shooter drops a shot its own muzzle
+// blocks; an observer reproduces the shooter's set instead, because carriers
+// and plate state have moved on by the time the volley is relayed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MuzzleCheck {
+    Enforced,
+    Skipped,
+}
+
 // Calculate valid projectile spawn positions for a shot
 //
 // Returns a list of projectiles that should be spawned, excluding any that would
@@ -31,6 +40,7 @@ pub fn calculate_projectile_spawns(
     gameplay: &GameplayConfig,
     collision_world: &CollisionWorld,
     open_kinds: &[BarrierKindId],
+    muzzle_check: MuzzleCheck,
 ) -> Vec<ProjectileSpawnInfo> {
     let mut spawns = Vec::new();
 
@@ -50,13 +60,15 @@ pub fn calculate_projectile_spawns(
         let spawn_position: Position = spawn_pos.into();
         let camera_pos: Position = camera_origin.into();
 
-        if projectile_spawn_is_blocked(
-            &camera_pos,
-            &spawn_position,
-            gameplay.projectiles.radius,
-            collision_world,
-            open_kinds,
-        ) {
+        if muzzle_check == MuzzleCheck::Enforced
+            && projectile_spawn_is_blocked(
+                &camera_pos,
+                &spawn_position,
+                gameplay.projectiles.radius,
+                collision_world,
+                open_kinds,
+            )
+        {
             continue;
         }
 

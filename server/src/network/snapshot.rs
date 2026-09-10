@@ -4,14 +4,18 @@ use crate::{
     actors::{ActorMap, ActorMotionQuery, ActorStateQuery, PendingActorSpawns},
     items::ItemMap,
     map::{LightState, WeatherState},
-    players::{PlayerMap, PlayerMotionQuery, PlayerStateQuery},
+    players::{PlayerMap, PlayerStateQuery},
     quests::{QuestBoard, QuestCatalog},
 };
-use common::{config::NetworkConfig, map::Carriers, protocol::*};
+use common::{
+    config::{NetworkConfig, UpdateCadence},
+    map::Carriers,
+    protocol::*,
+};
 
 use super::broadcast::{
-    broadcast_to_all, collect_actor_moves, collect_items, collect_player_moves, snapshot_active_players,
-    snapshot_actors, snapshot_missiles, snapshot_spawning_actors,
+    broadcast_player_moves, broadcast_to_all, collect_actor_moves, collect_items, collect_player_moves,
+    snapshot_active_players, snapshot_actors, snapshot_missiles, snapshot_spawning_actors,
 };
 use crate::{
     missiles::MissileMap,
@@ -30,30 +34,34 @@ pub struct WorldConditions<'w> {
     portal_assignments: Res<'w, PortalAssignments>,
 }
 
+// The cadence ticks even on an empty server so it keeps its phase.
+fn broadcast_due(
+    cadence: &mut Option<UpdateCadence>,
+    configured: impl FnOnce() -> UpdateCadence,
+    players: &PlayerMap,
+) -> bool {
+    cadence.get_or_insert_with(configured).ready() && players.has_active_players()
+}
+
 pub(super) fn network_broadcast_player_moves_system(
     network: Res<NetworkConfig>,
-    mut cadence: Local<UpdateCadence>,
+    mut cadence: Local<Option<UpdateCadence>>,
     tick: Res<ServerTick>,
     players: Res<PlayerMap>,
     player_data: PlayerStateQuery,
-    motions: PlayerMotionQuery,
 ) {
-    if !cadence.ready(network.update_hz, network.server_hz) {
+    if !broadcast_due(&mut cadence, || network.update_cadence(), &players) {
         return;
     }
-    let moves = collect_player_moves(&players, &player_data, &motions);
-    if moves.is_empty() {
-        return;
+    let moves = collect_player_moves(&players, &player_data);
+    if !moves.is_empty() {
+        broadcast_player_moves(&players, tick.0, &moves);
     }
-    broadcast_to_all(
-        &players,
-        ServerMessage::PlayerMoves(SPlayerMoves { tick: tick.0, moves }),
-    );
 }
 
 pub(super) fn network_broadcast_actor_moves_system(
     network: Res<NetworkConfig>,
-    mut cadence: Local<UpdateCadence>,
+    mut cadence: Local<Option<UpdateCadence>>,
     tick: Res<ServerTick>,
     players: Res<PlayerMap>,
     actors: Res<ActorMap>,
@@ -61,7 +69,7 @@ pub(super) fn network_broadcast_actor_moves_system(
     motions: ActorMotionQuery,
     carriers: Res<Carriers>,
 ) {
-    if !cadence.ready(network.update_hz, network.server_hz) || !players.has_active_players() {
+    if !broadcast_due(&mut cadence, || network.update_cadence(), &players) {
         return;
     }
     let moves = collect_actor_moves(&actors, &actor_data, &motions, &carriers);
@@ -72,7 +80,7 @@ pub(super) fn network_broadcast_actor_moves_system(
 
 pub(super) fn network_broadcast_snapshot_system(
     network: Res<NetworkConfig>,
-    mut cadence: Local<UpdateCadence>,
+    mut cadence: Local<Option<UpdateCadence>>,
     tick: Res<ServerTick>,
     players: Res<PlayerMap>,
     actors: Res<ActorMap>,
@@ -81,21 +89,16 @@ pub(super) fn network_broadcast_snapshot_system(
     plates: Res<PlateState>,
     conditions: WorldConditions,
     player_data: PlayerStateQuery,
-    motions: PlayerMotionQuery,
     actor_data: ActorStateQuery,
     actor_motions: ActorMotionQuery,
     item_positions: Query<&Position, With<ItemMarker>>,
     missiles: Res<MissileMap>,
 ) {
-    if !cadence.ready(network.snapshot_hz, network.server_hz) {
+    if !broadcast_due(&mut cadence, || network.snapshot_cadence(), &players) {
         return;
     }
 
-    if !players.has_active_players() {
-        return;
-    }
-
-    let all_players = snapshot_active_players(&players, &player_data, &motions, &conditions.portal_assignments);
+    let all_players = snapshot_active_players(&players, &player_data, &conditions.portal_assignments);
     let all_actors = snapshot_actors(&actors, &actor_data, &actor_motions, &conditions.carriers);
     let all_items = collect_items(&items, &item_positions);
     let all_missiles = snapshot_missiles(&missiles);

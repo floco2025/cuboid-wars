@@ -45,6 +45,3 @@ pub use position::Position;
 pub use quests::{QuestGroupProgress, QuestGroupStatus, QuestScope, QuestStateProgress, QuestStatus};
 pub use textures::{TextureSettings, validate_texture_catalog, validate_texture_materials};
 pub use tick::{ServerTick, server_tick_advance_system, ticks_from_secs};
-
-mod update_cadence;
-pub use update_cadence::UpdateCadence;

@@ -26,13 +26,10 @@ pub(crate) fn handle_portal_shot_message(
         return;
     }
     let normal = Vec3::new(portal.nx, portal.ny, portal.nz);
-    if !Vec3::from(portal.pos).is_finite()
+    if !portal.pos.is_finite()
         || !portal.yaw.is_finite()
         || normal.try_normalize().is_none()
-        || portal
-            .carrier
-            .carried_index()
-            .is_some_and(|index| index >= world.carriers.carried_count())
+        || !world.carriers.contains(portal.carrier)
     {
         return;
     }

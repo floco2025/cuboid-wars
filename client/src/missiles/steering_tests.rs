@@ -1,6 +1,9 @@
 use super::*;
 use crate::test_fixtures::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS};
-use common::protocol::{BarrierKindTable, CarrierId, Floor, MapLayout, Wall};
+use common::{
+    constants::MISSILE_RADIUS,
+    protocol::{BarrierKindTable, CarrierId, Floor, MapLayout, Wall},
+};
 use std::f32::consts::SQRT_2;
 
 #[test]
@@ -163,4 +166,34 @@ fn pick_clear_direction_dives_toward_a_target_below() {
         .expect("a descending candidate past the slab edge should be clear");
 
     assert!(picked.y < -0.2, "expected a diving direction, got {picked}");
+}
+
+#[test]
+fn a_terminal_approach_starts_from_a_missile_already_touching_geometry() {
+    let world = CollisionWorld::from_map_layout(
+        &MapLayout {
+            walls: vec![Wall {
+                x1: 0.0,
+                z1: -4.0,
+                x2: 0.0,
+                z2: 4.0,
+                width: WALL_THICKNESS,
+                y: 0.0,
+                height: WALL_HEIGHT,
+                level: 0,
+                carrier: CarrierId::WORLD,
+            }],
+            ..Default::default()
+        },
+        &BarrierKindTable::default(),
+    );
+    // Skimming the wall face: the start overlaps, the travel away from it does not.
+    let origin = Vec3::new(WALL_THICKNESS / 2.0 + 0.2, 1.0, 0.0);
+    let target = Vec3::new(6.0, 1.0, 0.0);
+    assert!(!sweep_clear(&world, &[], origin, target - origin, MISSILE_RADIUS));
+    assert!(travel_clear(&world, &[], origin, target - origin, MISSILE_RADIUS));
+    assert_eq!(
+        terminal_approach(&world, &[], origin, target, MISSILE_RADIUS, 1.0),
+        Some(target)
+    );
 }

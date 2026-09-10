@@ -23,6 +23,11 @@ impl Position {
         dx.mul_add(dx, dz * dz)
     }
 
+    #[must_use]
+    pub fn is_finite(&self) -> bool {
+        self.x.is_finite() && self.y.is_finite() && self.z.is_finite()
+    }
+
     // Squared 3D distance.
     #[must_use]
     pub fn distance_sq(&self, other: &Self) -> f32 {

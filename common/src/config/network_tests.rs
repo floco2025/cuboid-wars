@@ -78,3 +78,19 @@ fn sixty_hz_allows_independent_update_rates_but_neither_can_exceed_the_server() 
         assert!(config.validate().is_err());
     }
 }
+
+#[test]
+fn every_rate_sends_immediately_without_drift_at_different_simulation_frequencies() {
+    for server_hz in [20, 30, 50, 60, 120] {
+        for update_hz in 1..=server_hz {
+            let mut cadence = UpdateCadence::new(update_hz, server_hz);
+            let due: Vec<_> = (0..server_hz * 10).filter(|_| cadence.ready()).collect();
+            assert_eq!(due[0], 0);
+            assert_eq!(due.len(), update_hz as usize * 10);
+            for pair in due.windows(2) {
+                let interval = pair[1] - pair[0];
+                assert!((server_hz / update_hz..=server_hz.div_ceil(update_hz)).contains(&interval));
+            }
+        }
+    }
+}

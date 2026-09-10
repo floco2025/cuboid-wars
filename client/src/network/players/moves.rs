@@ -10,7 +10,6 @@ use common::{map::Carriers, physics::PlayerMotionBundle, protocol::*};
 pub(in crate::network) fn handle_player_moves_message(
     message: SPlayerMoves,
     commands: &mut Commands,
-    my_player_id: PlayerId,
     context: &mut ServerMessageContext,
 ) {
     if !accept_newer_tick(&mut context.clocks.last_player_moves_tick.0, message.tick) {
@@ -24,17 +23,13 @@ pub(in crate::network) fn handle_player_moves_message(
         let Some(player) = context.players.get_mut(&entry.id) else {
             continue;
         };
-        if entry.id == my_player_id
-            || entry.generation != player.generation
-            || !sequence_is_newer(tick, player.last_movement_tick)
-        {
+        if entry.generation != player.generation || !sequence_is_newer(tick, player.last_movement_tick) {
             continue;
         }
         player.last_movement_tick = tick;
-        let delay = context.client_settings.interpolation.delay_ticks(&context.network);
         commands.entity(player.entity).queue(move |mut entity: EntityWorldMut| {
             if let Some(mut motion) = entity.get_mut::<RemotePlayerMotion>() {
-                motion.push(entry, delay);
+                motion.push(entry);
             }
         });
     }

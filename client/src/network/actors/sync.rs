@@ -2,7 +2,10 @@ use bevy::prelude::*;
 use std::collections::HashSet;
 
 use super::super::context::ServerMessageContext;
-use crate::actors::{ActorInfo, ActorMap, RemoteActorMotion, beam_in_ghost_state, spawn_actor, spawn_actor_ghost};
+use crate::{
+    actors::{ActorInfo, ActorMap, RemoteActorMotion, beam_in_ghost_state, spawn_actor, spawn_actor_ghost},
+    network::SampleTiming,
+};
 use common::protocol::{Actor, ActorId, ActorMovementState, CarrierId, SpawningActor};
 
 pub(in crate::network) fn sync_actors(
@@ -21,7 +24,7 @@ pub(in crate::network) fn sync_actors(
         let buffer = RemoteActorMotion::new(
             tick,
             actor.movement,
-            context.client_settings.interpolation.delay_ticks(&context.network),
+            SampleTiming::new(&context.client_settings.interpolation, &context.network),
         );
         let mut actor = actor.clone();
         actor.movement.pos = context

@@ -1,12 +1,12 @@
 use bevy::prelude::*;
 
-use super::{Invincibility, PlayerMap};
+use super::{Invincibility, PlayerMap, PlayerSpawn, place_player_body};
 use crate::{
-    characters::{generate_player_spawn_position, spawn_face_yaw},
+    characters::generate_player_spawn_position,
     combat::{DeathSource, PendingExplosions, kill_player},
     config::{FallDamageConfig, ServerGameplayConfig},
     map::MapConfig,
-    network::{ServerToClient, broadcast_player_relocation},
+    network::ServerToClient,
     portals::PortalAssignments,
 };
 use common::{
@@ -14,14 +14,12 @@ use common::{
     constants::CHARACTER_FALL_DEATH_Y,
     health::apply_damage,
     map::Carriers,
-    physics::{CollisionWorld, PlayerMotionBundle},
-    protocol::{
-        Health, MapSettings, PlayerId, PlayerMarker, PlayerMoveIntent, PlayerMovementState, Position,
-        SPlayerFallDamage, ServerMessage, ServerTick,
-    },
+    physics::CollisionWorld,
+    protocol::{Health, MapSettings, PlayerId, PlayerMarker, Position, SPlayerFallDamage, ServerMessage, ServerTick},
 };
 
-pub fn players_fall_death_system(
+// Crushing and void falls reported by the owner; an invincible void fall is rescued instead.
+pub fn players_fatal_outcomes_system(
     mut commands: Commands,
     tick: Res<ServerTick>,
     portal_assignments: Res<PortalAssignments>,
@@ -78,14 +76,19 @@ pub fn players_fall_death_system(
                 players.describe(id),
                 spawn_pos
             );
-            let movement = PlayerMovementState::new(spawn_pos, PlayerMoveIntent::Idle, 0.0, spawn_face_yaw(&spawn_pos));
-            commands
-                .entity(entity)
-                .insert((spawn_pos, PlayerMotionBundle::from(&movement)));
             if let Some(info) = players.get_mut(id) {
                 info.advance_body();
             }
-            broadcast_player_relocation(&players, *id, tick.0, movement, *health, portal_assignments.get(id));
+            place_player_body(
+                &mut commands,
+                &mut players,
+                *id,
+                entity,
+                &PlayerSpawn::without_checkpoint(spawn_pos),
+                *health,
+                tick.0,
+                portal_assignments.get(id),
+            );
             continue;
         }
         info!("{} fell out of the world", players.describe(id));
@@ -122,13 +125,13 @@ pub fn players_fall_damage_system(
     invincibility: Res<Invincibility>,
     map_settings: Res<MapSettings>,
     fall: Res<FallDamageConfig>,
-    mut player_query: Query<(Entity, &PlayerId, &Position, &mut Health), With<PlayerMarker>>,
+    mut player_query: Query<(Entity, &PlayerId, &mut Health), With<PlayerMarker>>,
 ) {
     let invincible = invincibility.0;
     let max_health = server_gameplay_config.combat.health.player.max;
     let respawn_secs = server_gameplay_config.player.respawn_secs;
 
-    for (entity, id, _, mut health) in player_query.iter_mut() {
+    for (entity, id, mut health) in player_query.iter_mut() {
         let Some(info) = players.get_mut(id) else { continue };
         if info.is_dead() {
             continue;
@@ -216,9 +219,8 @@ mod tests {
         players::{PlayerInfo, PowerUpState, outcomes::Landing},
         test_geometry::geometry,
     };
-    use common::{
-        physics::CharacterVerticalVelocity,
-        protocol::{BarrierKindId, BarrierKindTable, Lane, MapLayout, PlayerGeneration, PortalMode, PowerUpKind},
+    use common::protocol::{
+        BarrierKindId, BarrierKindTable, Lane, MapLayout, PlayerGeneration, PortalMode, PowerUpKind,
     };
     use tokio::sync::mpsc::unbounded_channel;
 
@@ -244,17 +246,11 @@ mod tests {
             .init_resource::<ServerTick>()
             .insert_resource(PortalAssignments::new(PortalMode::Both))
             .insert_resource(PendingExplosions::default())
-            .add_systems(Update, players_fall_death_system);
+            .add_systems(Update, players_fatal_outcomes_system);
         let id = PlayerId(1);
         let entity = app
             .world_mut()
-            .spawn((
-                PlayerMarker,
-                id,
-                Position::default(),
-                Health(100.0),
-                CharacterVerticalVelocity::default(),
-            ))
+            .spawn((PlayerMarker, id, Position::default(), Health(100.0)))
             .id();
         let (sender, mut receiver) = unbounded_channel();
         let mut info = PlayerInfo::new(entity, sender);
@@ -306,7 +302,7 @@ mod tests {
             .insert_resource(ServerTick(42))
             .insert_resource(PortalAssignments::new(PortalMode::Both))
             .init_resource::<PendingExplosions>()
-            .add_systems(Update, players_fall_death_system);
+            .add_systems(Update, players_fatal_outcomes_system);
         let id = PlayerId(1);
         let pos = Position {
             y: CHARACTER_FALL_DEATH_Y - 1.0,

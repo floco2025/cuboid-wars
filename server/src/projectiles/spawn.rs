@@ -1,5 +1,3 @@
-use bevy::prelude::Vec3;
-
 use crate::{network::broadcast_to_others, players::PlayerMap};
 use common::{config::ProjectilesConfig, protocol::*};
 
@@ -9,7 +7,7 @@ pub(crate) fn handle_projectile_shot_message(
     players: &PlayerMap,
     config: &ProjectilesConfig,
 ) {
-    if !Vec3::from(shot.origin).is_finite()
+    if !shot.origin.is_finite()
         || !shot.face_yaw.is_finite()
         || !shot.face_pitch.is_finite()
         || config.multi_shot.shot_offsets(shot.pattern).is_none()

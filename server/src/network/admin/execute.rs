@@ -176,6 +176,8 @@ pub(super) fn run_admin_command(
                     added += 1;
                 }
             }
+            let status = info.status(sender);
+            broadcast_to_all(players, ServerMessage::PlayerStatus(status));
             Private(format!("gave {added} key(s)"))
         }
         AdminCommand::GiveKey(color) => match admin.barrier_kind_table.index_of(&color) {
@@ -183,11 +185,15 @@ pub(super) fn run_admin_command(
                 let Some(info) = players.get_mut(&sender) else {
                     return Private("sender not found".to_owned());
                 };
-                Private(if info.add_key(kind) {
-                    format!("gave the {color} key")
-                } else {
-                    format!("already holding the {color} key")
-                })
+                if !info.add_key(kind) {
+                    return Private(format!("already holding the {color} key"));
+                }
+                let status = SPlayerStatus {
+                    collected: Some(ItemType::Key(kind)),
+                    ..info.status(sender)
+                };
+                broadcast_to_all(players, ServerMessage::PlayerStatus(status));
+                Private(format!("gave the {color} key"))
             }
             None => Private(format!(
                 "unknown key color {color:?} (colors: {})",
@@ -201,6 +207,8 @@ pub(super) fn run_admin_command(
             for item_type in PowerUpKind::ALL.map(PowerUpKind::to_item_type) {
                 info.grant_power_up(item_type, &admin.power_ups);
             }
+            let status = info.status(sender);
+            broadcast_to_all(players, ServerMessage::PlayerStatus(status));
             Private(format!("gave {} power-ups", PowerUpKind::COUNT))
         }
         AdminCommand::GivePowerup(power_up) => {
@@ -217,6 +225,11 @@ pub(super) fn run_admin_command(
                 return Private("sender not found".to_owned());
             };
             info.grant_power_up(item_type, &admin.power_ups);
+            let status = SPlayerStatus {
+                collected: Some(item_type),
+                ..info.status(sender)
+            };
+            broadcast_to_all(players, ServerMessage::PlayerStatus(status));
             Private(format!("gave the {power_up} power-up"))
         }
         AdminCommand::GiveMissiles => {
@@ -378,7 +391,7 @@ fn kill_targets(
 ) -> usize {
     let mut count = 0usize;
     for (id, entity) in targets {
-        let Ok((pos, _, _, _)) = player_data.get(*entity) else {
+        let Ok((pos, _, _)) = player_data.get(*entity) else {
             continue;
         };
         kill_player(

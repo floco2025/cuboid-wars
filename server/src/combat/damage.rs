@@ -94,6 +94,13 @@ pub fn kill_player(
     pending_explosions: &mut PendingExplosions,
 ) {
     let killer = kill_credit(&source, id, players);
+    let Some(generation) = players
+        .get(&id)
+        .filter(|info| !info.is_dead())
+        .map(|info| info.session.generation)
+    else {
+        return;
+    };
     if !players.begin_respawn(id, respawn_secs) {
         return;
     }
@@ -120,7 +127,7 @@ pub fn kill_player(
         players,
         ServerMessage::PlayerDeath(SPlayerDeath {
             id,
-            generation: players.get(&id).expect("dead player missing").session.generation,
+            generation,
             pos,
             killer,
             victim_score,

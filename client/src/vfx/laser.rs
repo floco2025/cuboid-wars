@@ -9,8 +9,7 @@ use crate::{
     players::PlayerMap,
 };
 use common::{
-    config::NetworkConfig,
-    config::{GameplayConfig, HitboxConfig},
+    config::{GameplayConfig, HitboxConfig, NetworkConfig},
     physics::CollisionWorld,
     protocol::{ActorId, ActorMarker, PlateState, PlayerId, Position, ServerTick},
 };

@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use common::physics::{CharacterMovePlan, overlapping_character};
 
-use super::{feedback::bump, outcomes::LocalMovementStep, planning::PlayerMovementQuery};
+use super::{feedback::bump, planning::PlayerMovementQuery};
 use crate::config::{AssetSet, AudioConfig};
 
 // Below this horizontal speed a tick counts as standing still.
@@ -26,11 +26,6 @@ pub(crate) fn apply_player_moves(
         if !is_local {
             continue;
         }
-        commands.entity(planned_move.entity).insert(LocalMovementStep {
-            start: planned_move.start,
-            crushed: planned_move.crushed,
-            impact_speed: planned_move.impact_speed,
-        });
         let hits_character = overlapping_character(planned_move, planned_moves).is_some();
 
         if hits_character {

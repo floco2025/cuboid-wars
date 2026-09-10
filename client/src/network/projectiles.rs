@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use common::protocol::SProjectileShot;
+use common::{physics::MuzzleCheck, protocol::SProjectileShot};
 
 use super::context::ServerMessageContext;
 use crate::{audio::play_spatial_sound, projectiles::spawn_projectiles};
@@ -21,6 +21,7 @@ pub(super) fn handle_projectile_shot_message(
         &context.collision_world,
         &context.plates.open_barrier_kinds,
         message.id,
+        MuzzleCheck::Skipped,
     ) > 0
     {
         play_spatial_sound(

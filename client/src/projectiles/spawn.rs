@@ -6,7 +6,7 @@ use crate::{
 };
 use common::{
     config::GameplayConfig,
-    physics::{CollisionWorld, ProjectileMotion, calculate_projectile_spawns},
+    physics::{CollisionWorld, MuzzleCheck, ProjectileMotion, calculate_projectile_spawns},
     protocol::*,
 };
 
@@ -90,6 +90,8 @@ pub fn spawn_ember_projectile(
 ) {
     let mut motion = ProjectileMotion::from_velocity(velocity, &gameplay.projectiles);
     motion.lifetime = Timer::from_seconds(EMBER_LIFETIME_SECS, TimerMode::Once);
+    // A show with no viewer of record still needs a shooter id: this one
+    // matches no body, so the ember simply never skips or reports a hit.
     commands.spawn((
         ProjectileBundle::with_motion(projectile_assets, pos, motion, shooter.unwrap_or(PlayerId(u32::MAX))),
         EmberMarker,
@@ -109,6 +111,7 @@ pub fn spawn_projectiles(
     collision_world: &CollisionWorld,
     open_kinds: &[BarrierKindId],
     shooter_id: PlayerId,
+    muzzle_check: MuzzleCheck,
 ) -> usize {
     let spawns = calculate_projectile_spawns(
         &shot.origin,
@@ -118,6 +121,7 @@ pub fn spawn_projectiles(
         gameplay,
         collision_world,
         open_kinds,
+        muzzle_check,
     );
 
     for spawn in &spawns {

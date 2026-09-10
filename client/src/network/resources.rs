@@ -29,7 +29,6 @@ pub fn accept_newer_tick(last: &mut Option<u32>, tick: u32) -> bool {
 #[derive(Resource, Default)]
 pub struct RoundTripTime {
     pub rtt: Duration,
-    pub pending_sent_at: Option<Duration>,
     pub measurements: VecDeque<Duration>,
 }
 

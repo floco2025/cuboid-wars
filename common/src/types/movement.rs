@@ -174,7 +174,7 @@ impl PlayerMovementState {
 
     #[must_use]
     pub fn is_finite(&self) -> bool {
-        Vec3::from(self.pos).is_finite()
+        self.pos.is_finite()
             && self.move_intent.is_finite()
             && self.vertical_velocity.is_finite()
             && self.face_yaw.is_finite()

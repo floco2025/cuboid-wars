@@ -1,6 +1,6 @@
 use std::f32::consts::FRAC_PI_2;
 
-use bevy::prelude::{Commands, Vec3};
+use bevy::prelude::Vec3;
 
 use crate::actors::{ActorMap, ActorMode};
 use common::{
@@ -22,7 +22,6 @@ pub(crate) fn plan_actor_moves(
     delta: f32,
     collision_world: &CollisionWorld,
     map_settings: &MapSettings,
-    commands: &mut Commands,
     plates: &PlateState,
     carriers: &Carriers,
     actors: &ActorMap,
@@ -33,8 +32,19 @@ pub(crate) fn plan_actor_moves(
     let actor_order = sorted_actor_plan_order(query, actors, carriers);
 
     for actor_order in actor_order {
-        let Ok((entity, id, actor_movement, pos, motion, mut move_intent, mut face_yaw, knockback, _, character)) =
-            query.get_mut(actor_order.entity)
+        let Ok((
+            entity,
+            id,
+            actor_movement,
+            pos,
+            motion,
+            mut move_intent,
+            mut face_yaw,
+            mut support,
+            knockback,
+            _,
+            character,
+        )) = query.get_mut(actor_order.entity)
         else {
             continue;
         };
@@ -45,7 +55,7 @@ pub(crate) fn plan_actor_moves(
         let current_pos = *pos;
         if let Some(anchor) = info.anchor {
             *move_intent = ActorMoveIntent::Idle;
-            commands.entity(entity).insert(CharacterSupport::Ground);
+            *support = CharacterSupport::Ground;
             if let ActorMode::Engage { target_pos, .. } = info.mode {
                 face_yaw.0 = direction_toward(&current_pos, &target_pos);
             }
@@ -106,7 +116,7 @@ pub(crate) fn plan_actor_moves(
         if let Some(direction) = selected.intent.direction().or(hold_facing) {
             face_yaw.0 = direction;
         }
-        commands.entity(entity).insert(selected.step.support);
+        *support = selected.step.support;
         planned_moves.push(CharacterMovePlan::from_movement_result(
             entity,
             current_pos,

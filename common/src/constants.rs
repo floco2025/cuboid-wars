@@ -49,7 +49,7 @@ pub const LADDER_STANDOFF_CLEARANCE: f32 = 0.05;
 // from lifting off.
 pub const LADDER_CLIMB_FACING_FRACTION: f32 = 0.5;
 // ...and carry at least this much speed into the face (m/s), so micro drift
-// (reconciliation nudges, knockback tails) never reads as climbing.
+// (knockback tails, carrier jitter) never reads as climbing.
 pub const LADDER_CLIMB_MIN_SPEED: f32 = 1.0;
 // While ascending or descending, a character gets an additive pull along
 // the ladder face toward its center axis; idle latch does not pull. Pull
@@ -59,7 +59,7 @@ pub const LADDER_FUNNEL_GAIN: f32 = 4.0;
 
 // Y tolerance for mapping a world position to a discrete map level
 // (`MapGeometryConfig::level_for_y`). This keeps brief jumps and small
-// vertical prediction differences from changing render/filter level.
+// vertical wobble from changing render/filter level.
 pub const LEVEL_CLASSIFICATION_TOLERANCE: f32 = 0.5;
 
 // ============================================================================
@@ -107,6 +107,9 @@ pub const CHARACTER_STEP_HEIGHT: f32 = 0.2;
 pub const CHARACTER_STEP_MIN_WIDTH: f32 = 0.2;
 
 pub const CHARACTER_MAX_SLOPE: f32 = std::f32::consts::FRAC_PI_4;
+
+// Overlapping blasts may stack up to this multiple of one blast's `knockback.max_speed`.
+pub const KNOCKBACK_CLAMP_RATIO: f32 = 1.5;
 
 // ============================================================================
 // Explosions

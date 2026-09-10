@@ -1,7 +1,7 @@
 use bevy_math::Vec3;
 use bevy_time::{Timer, TimerMode};
 
-use super::{ProjectileMotion, calculate_projectile_spawns};
+use super::{MuzzleCheck, ProjectileMotion, calculate_projectile_spawns};
 use crate::{
     config::MultiShotConfig,
     test_geometry::{BARRIER_THICKNESS, FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS},
@@ -420,12 +420,12 @@ fn multi_shot_fires_the_configured_stencil() {
     let (yaw, pitch) = (0.3, 0.1);
     let close = |a: f32, b: f32| (a - b).abs() < 1e-5;
 
-    let single = calculate_projectile_spawns(&shooter, yaw, pitch, 0, &gameplay, &world, &[]);
+    let single = calculate_projectile_spawns(&shooter, yaw, pitch, 0, &gameplay, &world, &[], MuzzleCheck::Enforced);
     assert_eq!(single.len(), 1);
     assert!(close(single[0].direction_yaw, yaw) && close(single[0].direction_pitch, pitch));
 
     let spread = 1.5_f32.to_radians();
-    let multi = calculate_projectile_spawns(&shooter, yaw, pitch, 1, &gameplay, &world, &[]);
+    let multi = calculate_projectile_spawns(&shooter, yaw, pitch, 1, &gameplay, &world, &[], MuzzleCheck::Enforced);
     let offsets: Vec<(f32, f32)> = multi
         .iter()
         .map(|spawn| (spawn.direction_yaw - yaw, spawn.direction_pitch - pitch))
@@ -445,6 +445,41 @@ fn multi_shot_fires_the_configured_stencil() {
             "{offsets:?}"
         );
     }
+}
+
+#[test]
+fn a_relayed_volley_reproduces_the_shooters_spawn_set_through_a_blocking_muzzle() {
+    let mut gameplay = crate::config::gameplay::load_test_gameplay().expect("default gameplay config failed to load");
+    gameplay.projectiles.multi_shot =
+        MultiShotConfig::from_stencil("multi_shot", 30.0, 30.0, &["xox"].map(str::to_owned)).expect("stencil rejected");
+    let shooter = Position { x: 0.0, y: 1.0, z: 0.0 };
+    let open = CollisionWorld::from_map_layout(&MapLayout::default(), &BarrierKindTable::default());
+    // A wall beside the shooter that only one muzzle of the volley clips.
+    let blocked = collision_world(
+        &[Wall {
+            x1: 0.5,
+            z1: -2.0,
+            x2: 0.5,
+            z2: 2.0,
+            width: WALL_THICKNESS,
+            y: 0.0,
+            height: WALL_HEIGHT,
+            level: 0,
+            carrier: CarrierId::WORLD,
+        }],
+        &[],
+        &[],
+    );
+    let spawns = |world: &CollisionWorld, check| {
+        calculate_projectile_spawns(&shooter, 0.0, 0.0, 1, &gameplay, world, &[], check)
+            .iter()
+            .map(|spawn| spawn.direction_yaw)
+            .collect::<Vec<_>>()
+    };
+    let shooter_set = spawns(&open, MuzzleCheck::Enforced);
+    assert_eq!(shooter_set.len(), 3);
+    assert_eq!(spawns(&blocked, MuzzleCheck::Enforced).len(), 2);
+    assert_eq!(spawns(&blocked, MuzzleCheck::Skipped), shooter_set);
 }
 
 #[test]

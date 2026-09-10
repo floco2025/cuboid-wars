@@ -14,10 +14,9 @@ use crate::{math::PHYSICS_EPSILON, protocol::MapSettings};
 #[derive(Component, Default)]
 pub struct CharacterVerticalVelocity(pub f32);
 
-// Horizontal blast shove, decaying linearly to zero. Movement planning (server
-// and client prediction) reads `step` as extra displacement on top of the
-// intent-derived target; the decay systems tick it down after movement so
-// both sides integrate the same curve. The vertical part of a launch rides
+// Horizontal blast shove, decaying linearly to zero. Movement planning reads
+// `step` as extra displacement on top of the intent-derived target; the decay
+// system ticks it down after movement. The vertical part of a launch rides
 // `CharacterVerticalVelocity` instead.
 #[derive(Component, Debug, Default, Clone, Copy)]
 pub struct KnockbackVelocity(pub Vec3);
@@ -89,6 +88,7 @@ pub fn knockback_decay_system<F: QueryFilter>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::protocol::CarrierId;
 
     #[test]
     fn airborne_momentum_does_not_decay_between_airborne_steps() {
@@ -118,6 +118,7 @@ mod tests {
             vertical_velocity: 1.0,
             support: CharacterSupport::Airborne,
             blocked: false,
+            carrier: CarrierId::WORLD,
             floor_velocity: Vec3::ZERO,
             lifted: false,
             crushed: false,

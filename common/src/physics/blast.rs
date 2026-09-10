@@ -18,6 +18,19 @@ pub fn visible_blast_falloff(
     Some(blast_falloff_at_distance(distance_squared.sqrt(), radius))
 }
 
+// Falloff and the unit planar shove direction for one victim of a blast;
+// `None` when it is out of range or behind cover.
+pub fn blast_hit(
+    center: Vec3,
+    victim: Vec3,
+    radius: f32,
+    collision_world: &CollisionWorld,
+    open_barriers: &[BarrierKindId],
+) -> Option<(f32, Vec3)> {
+    let falloff = visible_blast_falloff(center, victim, radius, collision_world, open_barriers)?;
+    Some((falloff, planar_shove(center, victim, 1.0, 1.0)))
+}
+
 pub fn planar_shove(center: Vec3, target: Vec3, falloff: f32, max_speed: f32) -> Vec3 {
     Vec3::new(target.x - center.x, 0.0, target.z - center.z).normalize_or_zero() * max_speed * falloff
 }

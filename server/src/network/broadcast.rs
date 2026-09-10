@@ -5,14 +5,10 @@ use crate::{
     items::ItemMap,
     missiles::MissileMap,
     network::ServerToClient,
-    players::{PlayerInfo, PlayerMap, PlayerMotionQuery, PlayerStateQuery},
+    players::{PlayerInfo, PlayerMap, PlayerStateQuery},
     portals::PortalAssignments,
 };
-use common::{
-    map::Carriers,
-    physics::{CharacterSupport, player_movement_state},
-    protocol::*,
-};
+use common::{map::Carriers, protocol::*};
 
 // ============================================================================
 // Broadcasting Helpers
@@ -39,6 +35,26 @@ pub fn broadcast_to_all(players: &PlayerMap, message: ServerMessage) {
                 .channel
                 .send(ServerToClient::Send(message.clone()));
         }
+    }
+}
+
+// Each client owns its movement, so a recipient never gets its own entry back.
+pub(super) fn broadcast_player_moves(players: &PlayerMap, tick: u32, moves: &[PlayerMove]) {
+    for (recipient, info) in players.iter() {
+        if !info.connection.logged_in {
+            continue;
+        }
+        let moves: Vec<PlayerMove> = moves.iter().filter(|entry| entry.id != *recipient).copied().collect();
+        if moves.is_empty() {
+            continue;
+        }
+        let _ = info
+            .connection
+            .channel
+            .send(ServerToClient::Send(ServerMessage::PlayerMoves(SPlayerMoves {
+                tick,
+                moves,
+            })));
     }
 }
 
@@ -76,11 +92,11 @@ pub fn broadcast_player_relocation(
 // Data Collection Functions
 // ============================================================================
 
-// An active, alive player with the per-tick state both broadcasts read.
+// An active, alive player with the state both broadcasts read: the retained
+// report and the entity's health.
 struct ActivePlayer<'a> {
     id: PlayerId,
     info: &'a PlayerInfo,
-    movement: PlayerMovementState,
     health: Health,
 }
 
@@ -88,36 +104,20 @@ struct ActivePlayer<'a> {
 fn active_players<'a>(
     players: &'a PlayerMap,
     player_data: &'a PlayerStateQuery,
-    motions: &'a PlayerMotionQuery,
 ) -> impl Iterator<Item = ActivePlayer<'a>> {
     players.iter().filter_map(|(player_id, info)| {
+        if !info.connection.logged_in {
+            return None;
+        }
         // Death must surface as snapshot absence. A killed player's entity
         // despawn is deferred, so on a same-tick snapshot the corpse would
         // otherwise still resolve and ship here — after `SPlayerDeath`
         // already went out.
-        if !info.connection.logged_in {
-            return None;
-        }
         let entity = info.entity()?;
-        let (pos, move_intent, face_yaw, health) = player_data.get(entity).ok()?;
-        let (vertical_velocity, airborne_momentum, knockback) = motions.get(entity).ok()?;
-        let mut movement = player_movement_state(
-            *pos,
-            *move_intent,
-            face_yaw,
-            vertical_velocity,
-            airborne_momentum,
-            knockback,
-            info.life.support,
-        );
-        if let Some(report) = &info.life.movement_report {
-            movement.carrier = report.movement.carrier;
-            movement.pos = report.movement.pos;
-        }
+        let (_, _, health) = player_data.get(entity).ok()?;
         Some(ActivePlayer {
             id: *player_id,
             info,
-            movement,
             health: *health,
         })
     })
@@ -128,33 +128,30 @@ fn active_players<'a>(
 pub fn snapshot_active_players(
     players: &PlayerMap,
     player_data: &PlayerStateQuery,
-    motions: &PlayerMotionQuery,
     portal_assignments: &PortalAssignments,
 ) -> Vec<(PlayerId, Player)> {
-    active_players(players, player_data, motions)
+    active_players(players, player_data)
         .map(|player| {
             (
                 player.id,
-                player
-                    .info
-                    .snapshot_player(player.movement, player.health, portal_assignments.get(&player.id)),
+                player.info.snapshot_player(
+                    player.info.life.movement,
+                    player.health,
+                    portal_assignments.get(&player.id),
+                ),
             )
         })
         .collect()
 }
 
-// Every active, alive player's movement state, for `SPlayerMoves`.
+// Every active, alive player's retained report, for `SPlayerMoves`.
 #[must_use]
-pub fn collect_player_moves(
-    players: &PlayerMap,
-    player_data: &PlayerStateQuery,
-    motions: &PlayerMotionQuery,
-) -> Vec<PlayerMove> {
-    active_players(players, player_data, motions)
+pub fn collect_player_moves(players: &PlayerMap, player_data: &PlayerStateQuery) -> Vec<PlayerMove> {
+    active_players(players, player_data)
         .map(|player| PlayerMove {
             id: player.id,
             generation: player.info.session.generation,
-            movement: player.movement,
+            movement: player.info.life.movement,
             seq: player.info.session.last_move_seq,
             portal_crossing: player.info.life.portal_crossing,
         })
@@ -213,7 +210,7 @@ fn active_actors<'a>(
                 move_intent: *move_intent,
                 vertical_velocity: vertical.0,
                 face_yaw: face_yaw.0,
-                support: support.copied().unwrap_or(CharacterSupport::Airborne),
+                support: *support,
             },
             *health,
         ))
@@ -276,21 +273,11 @@ mod tests {
     use super::*;
     use crate::players::PlayerInfo;
     use bevy::ecs::system::SystemState;
-    use common::physics::{AirborneMomentum, CharacterVerticalVelocity, KnockbackVelocity};
-    use tokio::sync::mpsc::unbounded_channel;
+    use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
 
     fn spawn_player_entity(world: &mut World) -> Entity {
         world
-            .spawn((
-                Position::default(),
-                PlayerMoveIntent::Idle,
-                FaceYaw(0.0),
-                Health(100.0),
-                PlayerMarker,
-                CharacterVerticalVelocity(0.0),
-                AirborneMomentum::default(),
-                KnockbackVelocity::default(),
-            ))
+            .spawn((Position::default(), FaceYaw(0.0), Health(100.0), PlayerMarker))
             .id()
     }
 
@@ -315,15 +302,10 @@ mod tests {
         dead.begin_respawn(2.0);
         players.insert(PlayerId(2), dead);
 
-        let mut state: SystemState<(PlayerStateQuery, PlayerMotionQuery)> = SystemState::new(&mut world);
-        let (player_data, motions) = state.get(&world).expect("system params invalid for the test world");
+        let mut state: SystemState<PlayerStateQuery> = SystemState::new(&mut world);
+        let player_data = state.get(&world).expect("system params invalid for the test world");
 
-        let snapshot = snapshot_active_players(
-            &players,
-            &player_data,
-            &motions,
-            &PortalAssignments::new(PortalMode::Both),
-        );
+        let snapshot = snapshot_active_players(&players, &player_data, &PortalAssignments::new(PortalMode::Both));
 
         assert_eq!(snapshot.len(), 1);
         assert_eq!(snapshot[0].0, PlayerId(1));
@@ -341,13 +323,46 @@ mod tests {
         dead.begin_respawn(2.0);
         players.insert(PlayerId(2), dead);
 
-        let mut state: SystemState<(PlayerStateQuery, PlayerMotionQuery)> = SystemState::new(&mut world);
-        let (player_data, motions) = state.get(&world).expect("system params invalid for the test world");
+        let mut state: SystemState<PlayerStateQuery> = SystemState::new(&mut world);
+        let player_data = state.get(&world).expect("system params invalid for the test world");
 
-        let moves = collect_player_moves(&players, &player_data, &motions);
+        let moves = collect_player_moves(&players, &player_data);
 
         assert_eq!(moves.len(), 1);
         assert_eq!(moves[0].id, PlayerId(1));
+    }
+
+    #[test]
+    fn player_moves_reach_every_other_client_without_the_recipients_own_entry() {
+        let mut world = World::new();
+        let mut players = PlayerMap::default();
+        let mut receivers: Vec<(PlayerId, UnboundedReceiver<ServerToClient>)> = Vec::new();
+        for id in [PlayerId(1), PlayerId(2), PlayerId(3)] {
+            let entity = spawn_player_entity(&mut world);
+            let (tx, rx) = unbounded_channel();
+            let mut info = PlayerInfo::new(entity, tx);
+            info.connection.logged_in = true;
+            players.insert(id, info);
+            receivers.push((id, rx));
+        }
+        let mut state: SystemState<PlayerStateQuery> = SystemState::new(&mut world);
+        let player_data = state.get(&world).expect("system params invalid for the test world");
+        let moves = collect_player_moves(&players, &player_data);
+        assert_eq!(moves.len(), 3);
+
+        broadcast_player_moves(&players, 9, &moves);
+
+        for (id, receiver) in &mut receivers {
+            let ServerToClient::Send(ServerMessage::PlayerMoves(message)) =
+                receiver.try_recv().expect("movement batch missing")
+            else {
+                panic!("unexpected message");
+            };
+            assert_eq!(message.tick, 9);
+            assert_eq!(message.moves.len(), 2);
+            assert!(message.moves.iter().all(|entry| entry.id != *id));
+            assert!(receiver.try_recv().is_err());
+        }
     }
 
     #[test]

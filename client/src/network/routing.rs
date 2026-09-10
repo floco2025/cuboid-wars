@@ -37,15 +37,13 @@ pub(super) fn route_server_message(
             handle_snapshot_message(message, commands, my_player_id, context);
         }
         ServerMessage::PlayerRelocated(message) => handle_player_relocated_message(message, commands, context),
-        ServerMessage::PlayerMoves(message) => {
-            handle_player_moves_message(message, commands, my_player_id, context);
-        }
+        ServerMessage::PlayerMoves(message) => handle_player_moves_message(message, commands, context),
         ServerMessage::ProjectileShot(message) => handle_projectile_shot_message(message, commands, context),
         ServerMessage::ActorMoves(message) => handle_actor_moves_message(message, commands, context),
         ServerMessage::MissileLaunch(message) => {
             handle_missile_launch_message(message, commands, my_player_id, context);
         }
-        ServerMessage::MissileMoves(message) => handle_missile_moves_message(message, context),
+        ServerMessage::MissileMoves(message) => handle_missile_moves_message(message, commands, context),
         ServerMessage::PlayerDeath(message) => {
             handle_player_death_message(message, commands, my_player_id, context);
         }

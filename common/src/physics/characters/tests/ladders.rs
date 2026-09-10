@@ -92,7 +92,7 @@ fn slow_drift_into_the_face_does_not_climb() {
     };
 
     // Straight in but at 0.5 m/s — below the absolute climb-speed floor
-    // (reconciliation nudges and knockback tails look like this).
+    // (knockback tails look like this).
     let step = ladder_step(&world, start, 0.0, start.x, start.z + 0.05);
 
     assert!(step.vertical_velocity <= 0.0);

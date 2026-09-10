@@ -2,7 +2,11 @@ use bevy_ecs::prelude::{Component, Entity};
 use bevy_math::Vec3;
 use bincode::{Decode, Encode};
 
-use crate::{config::CharacterPhysicsConfig, physics::world::ShapeCastHit, protocol::Position};
+use crate::{
+    config::CharacterPhysicsConfig,
+    physics::world::ShapeCastHit,
+    protocol::{CarrierId, Position},
+};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CharacterMovementResult {
@@ -14,6 +18,9 @@ pub struct CharacterMovementResult {
     // True when static-world collision materially blocked requested movement.
     // Side contacts that Rapier resolves by auto-stepping are not treated as blocked.
     pub blocked: bool,
+    // The carrier the body rode this step, `CarrierId::WORLD` when none; the
+    // frame the owner reports its position in.
+    pub carrier: CarrierId,
     // Velocity of the carrier that carried the body this step, zero
     // otherwise. Its vertical part is already in `vertical_velocity` when the
     // body ends airborne; the horizontal part becomes `AirborneMomentum`.
@@ -35,8 +42,8 @@ pub struct GroundingDiagnostics {
 }
 
 // Derived independently each step and never read back by the movement motor.
-// The owning client reports it with its movement; the server adopts it with
-// an accepted position instead of probing again.
+// The owning client reports it with its movement; the server keeps the report
+// instead of probing again.
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Encode, Decode)]
 pub enum CharacterSupport {
     Airborne,

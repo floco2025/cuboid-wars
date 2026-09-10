@@ -1,66 +1,109 @@
-use std::collections::VecDeque;
-
-use bevy::prelude::*;
+use bevy::{ecs::system::SystemParam, prelude::*};
 use common::{
-    math::{angle_delta_radians, sequence_is_newer},
-    protocol::MissileMovementState,
+    config::GameplayConfig,
+    map::Carriers,
+    math::angle_delta_radians,
+    physics::CollisionWorld,
+    protocol::{MapLayout, MissileId, MissileMovementState, Position},
 };
 
-const MAX_SAMPLES: usize = 64;
-
-#[derive(Component)]
-pub(crate) struct RemoteMissileMotion {
-    samples: VecDeque<MovementSample>,
-    cursor: f64,
-}
-
-#[derive(Clone, Copy)]
-struct MovementSample {
-    seq: u32,
-    at: f64,
-    movement: MissileMovementState,
-}
+use super::{MissileImpact, MissileMap, MissileVelocity, RemoteMissileMotion};
+use crate::{
+    audio::play_explosion_sound,
+    carriers::CarrierEntities,
+    config::{AssetSet, ClientSettings},
+    vfx::{BlastRadii, ExplosionAssets, ExplosionSpawnCtx, ExplosionVfxBudget, spawn_missile_explosion},
+};
 
 impl RemoteMissileMotion {
-    pub(crate) fn new(seq: u32, movement: MissileMovementState, delay_ticks: f64) -> Self {
-        Self {
-            samples: VecDeque::from([MovementSample { seq, at: 0.0, movement }]),
-            cursor: -delay_ticks,
-        }
-    }
-
-    pub(crate) fn push(&mut self, seq: u32, movement: MissileMovementState) {
-        let last = self.samples.back().expect("missile movement buffer is empty");
-        if !sequence_is_newer(seq, last.seq) {
-            return;
-        }
-        let at = last.at + f64::from(seq.wrapping_sub(last.seq));
-        self.samples.push_back(MovementSample { seq, at, movement });
-        if self.samples.len() > MAX_SAMPLES {
-            self.samples.pop_front();
-        }
-    }
-
     pub(crate) fn advance(&mut self, delta_ticks: f64) -> MissileMovementState {
-        let newest = self.samples.back().expect("missile movement buffer is empty").at;
-        self.cursor = (self.cursor + delta_ticks).min(newest);
-        while self.samples.get(1).is_some_and(|sample| sample.at <= self.cursor) {
-            self.samples.pop_front();
-        }
-        let left = self.samples.front().expect("missile movement buffer is empty");
-        let mut movement = left.movement;
-        let Some(right) = self.samples.get(1) else {
+        let playback = self.buffer.advance(delta_ticks);
+        let mut movement = *playback.left;
+        let Some(right) = playback.right else {
             return movement;
         };
-        if self.cursor < left.at {
-            return movement;
-        }
-        let alpha = ((self.cursor - left.at) / (right.at - left.at)) as f32;
         let start = Vec3::from(movement.pos);
-        movement.pos = (start + (Vec3::from(right.movement.pos) - start) * alpha).into();
-        movement.yaw += angle_delta_radians(right.movement.yaw, movement.yaw) * alpha;
-        movement.pitch += (right.movement.pitch - movement.pitch) * alpha;
-        movement.speed += (right.movement.speed - movement.speed) * alpha;
+        movement.pos = start.lerp(Vec3::from(right.pos), playback.alpha).into();
+        movement.yaw += angle_delta_radians(right.yaw, movement.yaw) * playback.alpha;
+        movement.pitch += (right.pitch - movement.pitch) * playback.alpha;
+        movement.speed += (right.speed - movement.speed) * playback.alpha;
         movement
     }
 }
+
+pub(crate) fn interpolate_remote_missiles_system(
+    mut commands: Commands,
+    time: Res<Time>,
+    fixed_time: Res<Time<Fixed>>,
+    mut query: Query<(Entity, &mut RemoteMissileMotion, &mut Position, &mut MissileVelocity), Without<MissileImpact>>,
+) {
+    let delta_ticks = time.delta_secs_f64() / fixed_time.timestep().as_secs_f64();
+    for (entity, mut motion, mut pos, mut velocity) in &mut query {
+        let movement = motion.advance(delta_ticks);
+        *pos = movement.pos;
+        velocity.0 = movement.velocity();
+        if let Some(impact) = motion.detonation_reached() {
+            commands.entity(entity).insert(MissileImpact(impact));
+        }
+    }
+}
+
+#[derive(SystemParam)]
+pub(crate) struct MissileExplosionParams<'w> {
+    meshes: ResMut<'w, Assets<Mesh>>,
+    materials: ResMut<'w, Assets<StandardMaterial>>,
+    budget: ResMut<'w, ExplosionVfxBudget>,
+    explosion_assets: Res<'w, ExplosionAssets>,
+    gameplay_config: Res<'w, GameplayConfig>,
+    collision_world: Res<'w, CollisionWorld>,
+    map_layout: Res<'w, MapLayout>,
+    carriers: Res<'w, Carriers>,
+    carrier_entities: Res<'w, CarrierEntities>,
+    blast_radii: Res<'w, BlastRadii>,
+    asset_server: Res<'w, AssetServer>,
+    asset_set: Res<'w, AssetSet>,
+    client_settings: Res<'w, ClientSettings>,
+}
+
+impl MissileExplosionParams<'_> {
+    fn explode(&mut self, commands: &mut Commands, pos: Position) {
+        let mut ctx = ExplosionSpawnCtx {
+            meshes: &mut self.meshes,
+            materials: &mut self.materials,
+            budget: &mut self.budget,
+            explosion_assets: &self.explosion_assets,
+            gameplay_config: &self.gameplay_config,
+            collision_world: Some(&self.collision_world),
+            map_layout: Some(&self.map_layout),
+            carriers: &self.carriers,
+            carrier_entities: &self.carrier_entities,
+            blast_radii: &self.blast_radii,
+        };
+        spawn_missile_explosion(commands, &mut ctx, pos);
+        play_explosion_sound(
+            commands,
+            &self.asset_server,
+            self.asset_set.player_sound("explodes"),
+            &self.client_settings.audio,
+            Vec3::from(pos),
+            Some(self.blast_radii.missile),
+        );
+    }
+}
+
+pub(crate) fn remote_missile_impacts_system(
+    mut commands: Commands,
+    mut missiles: ResMut<MissileMap>,
+    mut explosion: MissileExplosionParams,
+    query: Query<(Entity, &MissileId, &MissileImpact)>,
+) {
+    for (entity, id, impact) in &query {
+        missiles.take(id);
+        commands.entity(entity).despawn();
+        explosion.explode(&mut commands, impact.0);
+    }
+}
+
+#[cfg(test)]
+#[path = "interpolation_tests.rs"]
+mod tests;

@@ -13,6 +13,7 @@ mod projectiles;
 mod quests;
 mod resources;
 mod routing;
+mod sample_buffer;
 mod snapshot;
 mod tick;
 mod transport;
@@ -24,6 +25,7 @@ pub(crate) use resources::accept_newer_tick;
 pub use resources::{
     ClientToServerChannel, LastPlayerMovesTick, LastSnapshotTick, RoundTripTime, ServerToClientChannel,
 };
+pub(crate) use sample_buffer::{SampleBuffer, SampleTiming};
 pub use tick::TickSync;
 pub use transport::{ClientToServer, ServerToClient, configure_client, network_io_task};
 

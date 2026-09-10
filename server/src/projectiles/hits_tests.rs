@@ -206,3 +206,53 @@ fn cosmetic_volley_relays_its_origin_and_numeric_pattern_while_shooter_is_dead()
     assert_eq!(ServerMessage::ProjectileShot(relay).lane(), Lane::Unreliable);
     assert_eq!(ClientMessage::ProjectileShot(shot).lane(), Lane::Unreliable);
 }
+
+#[test]
+fn malformed_or_unknown_pattern_volleys_are_not_relayed() {
+    let mut app = app();
+    let (_owner, _) = player(&mut app, PlayerId(1));
+    let (_observer, mut receiver) = player(&mut app, PlayerId(2));
+    let valid = CProjectileShot {
+        origin: Position { x: 1.0, y: 2.0, z: 3.0 },
+        face_yaw: 0.5,
+        face_pitch: -0.2,
+        pattern: 0,
+    };
+    let invalid = [
+        CProjectileShot {
+            origin: Position {
+                x: f32::NAN,
+                ..valid.origin
+            },
+            ..valid
+        },
+        CProjectileShot {
+            face_yaw: f32::INFINITY,
+            ..valid
+        },
+        CProjectileShot {
+            face_pitch: f32::NAN,
+            ..valid
+        },
+        CProjectileShot { pattern: 255, ..valid },
+    ];
+    for shot in invalid {
+        handle_projectile_shot_message(
+            PlayerId(1),
+            shot,
+            app.world().resource::<PlayerMap>(),
+            &app.world().resource::<ServerGameplayConfig>().weapons.projectiles,
+        );
+        assert!(receiver.try_recv().is_err(), "{shot:?} was relayed");
+    }
+    handle_projectile_shot_message(
+        PlayerId(1),
+        valid,
+        app.world().resource::<PlayerMap>(),
+        &app.world().resource::<ServerGameplayConfig>().weapons.projectiles,
+    );
+    assert!(matches!(
+        receiver.try_recv(),
+        Ok(ServerToClient::Send(ServerMessage::ProjectileShot(_)))
+    ));
+}

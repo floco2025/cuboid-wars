@@ -1,5 +1,8 @@
 use super::super::context::ServerMessageContext;
-use crate::missiles::{MissileInfo, RemoteMissileMotion, spawn_missile};
+use crate::{
+    missiles::{MissileInfo, MissileMap, RemoteMissileMotion, spawn_missile},
+    network::SampleTiming,
+};
 use bevy::prelude::*;
 use common::protocol::*;
 use std::collections::HashSet;
@@ -10,45 +13,93 @@ pub(in crate::network) fn sync_missiles(
     tick: u32,
     server_missiles: &[(MissileId, Missile)],
 ) {
+    let my_player_id = context.my_player_id.0;
     context.missiles.discard_retired_before(tick);
-    let ids: HashSet<_> = server_missiles.iter().map(|(id, _)| *id).collect();
+    let listed: HashSet<_> = server_missiles.iter().map(|(id, _)| *id).collect();
     for (id, missile) in server_missiles {
         // Only the reliable launch starts the owner; snapshots never restart or reposition its flight.
-        if missile.shooter == context.my_player_id.0 || context.missiles.is_retired(id) {
+        if missile.shooter == my_player_id || context.missiles.is_retired(id) {
             continue;
         }
-        if !context.missiles.contains_key(id) {
-            let entity = spawn_missile(commands, &context.assets.missile_assets, *id, &missile.movement);
-            let delay = context.client_settings.interpolation.delay_ticks(&context.network);
-            context.missiles.entries.insert(
-                *id,
-                MissileInfo {
-                    entity,
-                    shooter: missile.shooter,
-                    born_tick: tick,
-                    remote: Some(RemoteMissileMotion::new(missile.seq, missile.movement, delay)),
-                },
-            );
-        } else {
-            apply_missile_movement_state(context, *id, missile.seq, missile.movement);
+        match context.missiles.get(id) {
+            Some(info) => apply_missile_movement_state(commands, info.entity, missile.seq, missile.movement),
+            None => {
+                let entity = spawn_missile(commands, &context.assets.missile_assets, *id, &missile.movement);
+                commands.entity(entity).insert(RemoteMissileMotion::new(
+                    missile.seq,
+                    missile.movement,
+                    SampleTiming::new(&context.client_settings.interpolation, &context.network),
+                ));
+                context.missiles.insert(
+                    *id,
+                    MissileInfo {
+                        entity,
+                        shooter: missile.shooter,
+                        born_tick: tick,
+                    },
+                );
+            }
         }
     }
-    context.missiles.entries.retain(|id, info| {
-        if info.shooter == context.my_player_id.0 || ids.contains(id) || !sequence_is_newer(tick, info.born_tick) {
-            return true;
+    for id in stale_missile_ids(&context.missiles, my_player_id, tick, &listed) {
+        if let Some(info) = context.missiles.take(&id) {
+            commands.entity(info.entity).despawn();
         }
-        commands.entity(info.entity).despawn();
-        false
-    });
+    }
+}
+
+// Observed missiles the snapshot no longer lists, except those launched after the tick it describes.
+fn stale_missile_ids(
+    missiles: &MissileMap,
+    my_player_id: PlayerId,
+    tick: u32,
+    listed: &HashSet<MissileId>,
+) -> Vec<MissileId> {
+    missiles
+        .iter()
+        .filter(|(id, info)| {
+            info.shooter != my_player_id && !listed.contains(id) && !sequence_is_newer(info.born_tick, tick)
+        })
+        .map(|(id, _)| *id)
+        .collect()
 }
 
 pub(super) fn apply_missile_movement_state(
-    context: &mut ServerMessageContext,
-    id: MissileId,
+    commands: &mut Commands,
+    entity: Entity,
     seq: u32,
     movement: MissileMovementState,
 ) {
-    if let Some(motion) = context.missiles.get_mut(&id).and_then(|info| info.remote.as_mut()) {
-        motion.push(seq, movement);
+    commands.entity(entity).queue(move |mut entity: EntityWorldMut| {
+        if let Some(mut motion) = entity.get_mut::<RemoteMissileMotion>() {
+            motion.push(seq, movement);
+        }
+    });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn info(shooter: u32, born_tick: u32) -> MissileInfo {
+        MissileInfo {
+            entity: Entity::PLACEHOLDER,
+            shooter: PlayerId(shooter),
+            born_tick,
+        }
+    }
+
+    #[test]
+    fn a_snapshot_removes_only_others_missiles_launched_at_or_before_its_tick() {
+        let mut missiles = MissileMap::default();
+        missiles.insert(MissileId(1), info(2, 10));
+        missiles.insert(MissileId(2), info(2, 21));
+        missiles.insert(MissileId(3), info(1, 10));
+        missiles.insert(MissileId(4), info(2, 10));
+        let stale = stale_missile_ids(&missiles, PlayerId(1), 20, &HashSet::from([MissileId(4)]));
+        assert_eq!(stale, [MissileId(1)]);
+        let mut later = stale_missile_ids(&missiles, PlayerId(1), 21, &HashSet::new());
+        later.sort_unstable_by_key(|id| id.0);
+        assert_eq!(later, [MissileId(1), MissileId(2), MissileId(4)]);
     }
 }

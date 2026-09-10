@@ -13,8 +13,8 @@ use common::{
     map::Carriers,
     physics::{AirborneMomentum, CharacterSupport, CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity},
     protocol::{
-        BarrierKindTable, ClientMessage, FaceYaw, MapLayout, PlayerId, PlayerMoveIntent, PortalAccess, PortalPairId,
-        Position,
+        BarrierKindTable, CarrierId, ClientMessage, FaceYaw, MapLayout, PlayerId, PlayerMoveIntent, PortalAccess,
+        PortalPairId, Position,
     },
 };
 
@@ -28,7 +28,9 @@ use crate::{
     constants::{INPUT_ZOOM_PIXELS_PER_LINE, INPUT_ZOOM_SENSITIVITY_BASE},
     map::LevelFocusEnabled,
     network::{ClientToServer, ClientToServerChannel},
-    players::{LocalPlayerInfo, LocalPlayerMarker, MyPlayerId, PlayerMap, report_player_movement_system},
+    players::{
+        LocalMovementStep, LocalPlayerInfo, LocalPlayerMarker, MyPlayerId, PlayerMap, report_player_movement_system,
+    },
     test_fixtures,
     ui::{ConsoleState, SettingsMenuState},
 };
@@ -87,7 +89,13 @@ fn input_app() -> (App, Entity, Entity) {
             CharacterVerticalVelocity(0.0),
             AirborneMomentum::default(),
             KnockbackVelocity::default(),
-            CharacterSupport::Ground,
+            LocalMovementStep {
+                start: Position::default(),
+                crushed: false,
+                impact_speed: 0.0,
+                carrier: CarrierId::WORLD,
+                support: CharacterSupport::Ground,
+            },
         ))
         .id();
     (app, player, cursor)

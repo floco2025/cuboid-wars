@@ -11,7 +11,7 @@ use tokio::{
 
 use common::config::NetworkConfig;
 use server::{
-    app::build_server_app,
+    app::{NetworkOverrides, build_server_app},
     config::configure_server,
     network::{FromClientsChannel, accept_connections_task},
 };
@@ -45,9 +45,11 @@ async fn main() -> Result<()> {
     let (to_server, from_clients) = unbounded_channel();
     let mut app = build_server_app(
         args.map.as_deref(),
-        args.server_hz,
-        args.update_hz,
-        args.snapshot_hz,
+        NetworkOverrides {
+            server_hz: args.server_hz,
+            update_hz: args.update_hz,
+            snapshot_hz: args.snapshot_hz,
+        },
         FromClientsChannel::new(from_clients),
     )?;
     tokio::spawn(accept_connections_task(endpoint, to_server));

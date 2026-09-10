@@ -42,7 +42,7 @@ impl PlayerAnimationMotion {
         delta: f32,
     ) {
         self.support = step.support;
-        // Carriers, reconciliation and knockback must not make an idle player walk.
+        // Carriers and knockback must not make an idle player walk.
         let travelled =
             (Vec3::from(step.position) - Vec3::from(start) - external_displacement) / delta - step.floor_velocity;
         let direction = control_velocity.normalize_or_zero();

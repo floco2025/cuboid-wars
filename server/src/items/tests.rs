@@ -410,8 +410,8 @@ mod collection_eligibility_tests {
 
     #[test]
     fn eraser_wins_over_same_tick_pickup_and_does_not_repeat_status() {
-        use crate::players::{erase_equipment_system, handle_player_movement_event};
-        use common::protocol::{CPlayerMovementEvent, PlayerGeneration, PlayerMovementEvent};
+        use crate::players::{erase_equipment_system, handle_move_outcome};
+        use common::protocol::{CMoveOutcome, MoveOutcome, PlayerGeneration};
         use common::{
             physics::CollisionWorld,
             protocol::{BarrierKindTable, Eraser, MapLayout, PowerUpKind},
@@ -435,11 +435,11 @@ mod collection_eligibility_tests {
             .add_systems(Update, erase_equipment_system.after(item_collection_system));
         let id = PlayerId(1);
         let (entity, mut rx) = spawn_player(&mut app, id, Position::default());
-        handle_player_movement_event(
+        handle_move_outcome(
             id,
-            CPlayerMovementEvent {
+            CMoveOutcome {
                 generation: PlayerGeneration(0),
-                event: PlayerMovementEvent::EraseEquipment,
+                event: MoveOutcome::EraseEquipment,
             },
             &mut app.world_mut().resource_mut::<PlayerMap>(),
         );

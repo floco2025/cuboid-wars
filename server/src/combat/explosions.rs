@@ -1,15 +1,11 @@
-#[cfg(test)]
-pub(super) use common::physics::blast_falloff_at_distance;
 use std::collections::HashMap;
 
 use bevy::{ecs::system::SystemParam, prelude::*};
 use common::{
     config::{GameplayConfig, MapMovementConfig},
+    constants::KNOCKBACK_CLAMP_RATIO,
     health::apply_damage,
-    physics::{
-        CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity, character_hitbox_center, planar_shove,
-        visible_blast_falloff,
-    },
+    physics::{CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity, blast_hit, character_hitbox_center},
     protocol::{
         ActorId, ActorMarker, BarrierKindId, Health, HitTarget, MapSettings, MissileBlastHit, PlateState, PlayerId,
         PlayerMarker, Position, SPlayerKnockback, ServerMessage,
@@ -263,7 +259,7 @@ fn apply_blast(
             continue;
         };
         let victim_center = character_hitbox_center(*pos, gameplay.player.physics());
-        let Some((falloff, direction)) = blast_hit(
+        let Some((falloff, direction)) = resolved_blast_hit(
             spec,
             HitTarget::Player {
                 id: *id,
@@ -305,7 +301,7 @@ fn apply_blast(
         };
         let actor_physics = gameplay.expect_actor(&info.spawn_kind).physics();
         let victim_center = character_hitbox_center(*pos, actor_physics);
-        let Some((falloff, direction)) = blast_hit(
+        let Some((falloff, direction)) = resolved_blast_hit(
             spec,
             HitTarget::Actor(*id),
             victim_center,
@@ -377,7 +373,7 @@ fn apply_player_impulses(context: &mut ExplosionContext, impulses: HashMap<Playe
 }
 
 fn apply_actor_impulses(context: &mut ExplosionContext, impulses: HashMap<ActorId, AccumulatedImpulse>) {
-    let max_speed = context.map_settings.movement.knockback.max_speed * 1.5;
+    let max_speed = context.map_settings.movement.knockback.max_speed * KNOCKBACK_CLAMP_RATIO;
     for (id, impulse) in impulses {
         if context.actors.get(&id).is_none() {
             continue;
@@ -397,7 +393,7 @@ fn source_description(source: &BlastSource, players: &PlayerMap) -> String {
     }
 }
 
-fn blast_hit(
+fn resolved_blast_hit(
     spec: &BlastSpec,
     target: HitTarget,
     center: Vec3,
@@ -410,6 +406,5 @@ fn blast_hit(
         return (hit.falloff.is_finite() && direction.is_finite())
             .then(|| (hit.falloff.clamp(0.0, 1.0), direction.clamp_length_max(1.0)));
     }
-    let falloff = visible_blast_falloff(spec.center, center, spec.damage.radius, world, open_kinds)?;
-    Some((falloff, planar_shove(spec.center, center, 1.0, 1.0)))
+    blast_hit(spec.center, center, spec.damage.radius, world, open_kinds)
 }

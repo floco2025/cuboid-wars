@@ -11,7 +11,7 @@ use crate::{
     config::{ServerGameplayConfig, validate_map_actor_kinds, validate_map_quests},
     items::{ItemMap, ItemSpawner, RandomItems, items_plugin},
     map::{GeneratedMap, LightState, WeatherState, generate_map, map_plugin},
-    missiles::MissileMap,
+    missiles::{MissileMap, missiles_plugin},
     network::{FromClientsChannel, network_plugin},
     players::{Invincibility, PlayerMap, players_plugin},
     portals::{PortalAssignments, PortalMap, portals_plugin},
@@ -21,6 +21,7 @@ use crate::{
 };
 use bevy::time::TimeUpdateStrategy;
 use common::{
+    config::NetworkConfig,
     map::Carriers,
     physics::{CollisionWorld, PortalSet},
     protocol::{MapBootstrap, MissileAirGrid, PlateState, ServerTick, WorldBootstrap, server_tick_advance_system},
@@ -28,23 +29,35 @@ use common::{
 
 const LOG_FILTER: &str = "wgpu=error,naga=warn";
 
+// Command-line rate overrides; each one replaces its `gameplay.json::network` field.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct NetworkOverrides {
+    pub server_hz: Option<u32>,
+    pub update_hz: Option<u32>,
+    pub snapshot_hz: Option<u32>,
+}
+
+impl NetworkOverrides {
+    fn apply(self, network: &mut NetworkConfig) {
+        if let Some(server_hz) = self.server_hz {
+            network.server_hz = server_hz;
+        }
+        if let Some(update_hz) = self.update_hz {
+            network.update_hz = update_hz;
+        }
+        if let Some(snapshot_hz) = self.snapshot_hz {
+            network.snapshot_hz = snapshot_hz;
+        }
+    }
+}
+
 pub fn build_server_app(
     map_override: Option<&str>,
-    server_hz: Option<u32>,
-    update_hz: Option<u32>,
-    snapshot_hz: Option<u32>,
+    overrides: NetworkOverrides,
     from_clients: FromClientsChannel,
 ) -> Result<App> {
     let mut server_gameplay_config = ServerGameplayConfig::load_default()?;
-    if let Some(server_hz) = server_hz {
-        server_gameplay_config.network.server_hz = server_hz;
-    }
-    if let Some(update_hz) = update_hz {
-        server_gameplay_config.network.update_hz = update_hz;
-    }
-    if let Some(snapshot_hz) = snapshot_hz {
-        server_gameplay_config.network.snapshot_hz = snapshot_hz;
-    }
+    overrides.apply(&mut server_gameplay_config.network);
     server_gameplay_config.network.validate()?;
     let gameplay_config = server_gameplay_config.gameplay_config();
     let map_name = map_override.unwrap_or(&server_gameplay_config.default_map);
@@ -174,6 +187,7 @@ pub fn build_server_app(
         combat_plugin,
         items_plugin,
         map_plugin,
+        missiles_plugin,
         network_plugin,
         players_plugin,
         portals_plugin,
@@ -188,7 +202,7 @@ mod tests {
     use super::*;
     use crate::network::{ClientToServer, ServerToClient};
     use common::{
-        config::{GameplayConfig, NetworkConfig},
+        config::GameplayConfig,
         constants::{TICK_DURATION, TICK_SECS},
         protocol::{
             CAdmin, CLogin, CMove, ClientMessage, ItemType, PlayerGeneration, PlayerId, PlayerMoveIntent,
@@ -200,8 +214,15 @@ mod tests {
     #[test]
     fn give_missiles_sends_weapon_selection_cue_even_when_ammo_is_full() {
         let (incoming, receiver) = unbounded_channel();
-        let mut app = build_server_app(Some("obby"), None, None, Some(1), FromClientsChannel::new(receiver))
-            .expect("server app failed to initialize");
+        let mut app = build_server_app(
+            Some("obby"),
+            NetworkOverrides {
+                snapshot_hz: Some(1),
+                ..default()
+            },
+            FromClientsChannel::new(receiver),
+        )
+        .expect("server app failed to initialize");
         let id = PlayerId(1);
         let (sender, mut receiver) = unbounded_channel();
         incoming
@@ -258,8 +279,15 @@ mod tests {
     #[test]
     fn full_server_schedule_broadcasts_the_latest_sample_to_both_clients() {
         let (incoming, receiver) = unbounded_channel();
-        let mut app = build_server_app(Some("obby"), None, Some(30), None, FromClientsChannel::new(receiver))
-            .expect("obby server app did not build");
+        let mut app = build_server_app(
+            Some("obby"),
+            NetworkOverrides {
+                update_hz: Some(30),
+                ..default()
+            },
+            FromClientsChannel::new(receiver),
+        )
+        .expect("obby server app did not build");
         app.update();
         let mut receivers = Vec::new();
         for id in [PlayerId(1), PlayerId(2)] {
@@ -312,7 +340,7 @@ mod tests {
                 pos
             );
         }
-        for (_, receiver) in &mut receivers {
+        for (id, receiver) in &mut receivers {
             let latest = std::iter::from_fn(|| receiver.try_recv().ok())
                 .filter_map(|message| match message {
                     ServerToClient::Send(ServerMessage::PlayerMoves(moves)) => Some(moves),
@@ -320,11 +348,11 @@ mod tests {
                 })
                 .last()
                 .expect("movement broadcast missing");
-            assert_eq!(latest.moves.len(), 2);
-            assert!(latest.moves.iter().all(|entry| entry.seq == 1));
+            assert_eq!(latest.moves.len(), 1);
+            assert!(latest.moves.iter().all(|entry| entry.id != *id && entry.seq == 1));
         }
         app.update();
-        for (_, receiver) in &mut receivers {
+        for (id, receiver) in &mut receivers {
             let latest = std::iter::from_fn(|| receiver.try_recv().ok())
                 .filter_map(|message| match message {
                     ServerToClient::Send(ServerMessage::PlayerMoves(moves)) => Some(moves),
@@ -332,15 +360,23 @@ mod tests {
                 })
                 .last()
                 .expect("live movement missing");
-            assert!(latest.moves.iter().all(|entry| entry.seq == 1));
+            assert!(latest.moves.iter().all(|entry| entry.id != *id && entry.seq == 1));
         }
     }
 
     #[test]
     fn independent_rate_overrides_reach_init_and_leave_simulation_unchanged() {
         let (incoming, receiver) = unbounded_channel();
-        let mut app = build_server_app(Some("obby"), None, Some(2), Some(7), FromClientsChannel::new(receiver))
-            .expect("server app failed");
+        let mut app = build_server_app(
+            Some("obby"),
+            NetworkOverrides {
+                update_hz: Some(2),
+                snapshot_hz: Some(7),
+                ..default()
+            },
+            FromClientsChannel::new(receiver),
+        )
+        .expect("server app failed");
         let (sender, mut receiver) = unbounded_channel();
         incoming
             .send((PlayerId(1), ClientToServer::Registration { to_client: sender }))
@@ -349,6 +385,17 @@ mod tests {
             .send((
                 PlayerId(1),
                 ClientToServer::Message(ClientMessage::Login(CLogin { name: "Player".into() })),
+            ))
+            .expect("login failed");
+        // Movement batches carry the other players, so the counted client needs company.
+        let (observed, _observed_receiver) = unbounded_channel();
+        incoming
+            .send((PlayerId(2), ClientToServer::Registration { to_client: observed }))
+            .expect("registration failed");
+        incoming
+            .send((
+                PlayerId(2),
+                ClientToServer::Message(ClientMessage::Login(CLogin { name: "Other".into() })),
             ))
             .expect("login failed");
         app.update();

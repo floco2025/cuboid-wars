@@ -11,7 +11,7 @@ pub fn players_plugin(app: &mut App) {
             apply_player_movement_system
                 .in_set(ServerSet::Movement)
                 .before(characters_movement_system),
-            (players_fall_damage_system, players_fall_death_system)
+            (players_fall_damage_system, players_fatal_outcomes_system)
                 .chain_ignore_deferred()
                 .in_set(ServerSet::CombatDamage),
             (

@@ -1,4 +1,7 @@
 use bevy::prelude::*;
+use common::protocol::{PlayerMove, PlayerMovementState};
+
+use crate::network::{SampleBuffer, SampleTiming};
 
 // ============================================================================
 // Components
@@ -52,4 +55,44 @@ pub struct CuboidShake {
 pub struct PortalTransitBlend {
     pub delta: Quat,
     pub timer: Timer,
+}
+
+// ============================================================================
+// Remote Movement
+// ============================================================================
+
+// One reported movement sample; the crossing count tells playback where a
+// portal cut lies.
+#[derive(Clone, Copy)]
+pub(crate) struct PlayerSample {
+    pub(crate) portal_crossing: u32,
+    pub(crate) movement: PlayerMovementState,
+}
+
+// A remote body's reported movement, played back behind its sample timeline.
+#[derive(Component)]
+pub(crate) struct RemotePlayerMotion(pub(crate) SampleBuffer<PlayerSample>);
+
+impl RemotePlayerMotion {
+    // Seeded from a snapshot or relocation, which carries no sequence.
+    pub(crate) fn new(movement: PlayerMovementState, timing: SampleTiming) -> Self {
+        Self(SampleBuffer::new(
+            None,
+            PlayerSample {
+                portal_crossing: 0,
+                movement,
+            },
+            timing,
+        ))
+    }
+
+    pub(crate) fn push(&mut self, entry: PlayerMove) -> bool {
+        self.0.push(
+            entry.seq,
+            PlayerSample {
+                portal_crossing: entry.portal_crossing,
+                movement: entry.movement,
+            },
+        )
+    }
 }

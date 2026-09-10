@@ -24,18 +24,19 @@ mod tests {
     use super::*;
 
     #[test]
-    fn wire_encoding_matches_the_integer_without_extra_bytes() {
-        for value in [0, 250, 251, 65_535, 65_536, u32::MAX] {
-            let config = bincode::config::standard();
-            let bytes = bincode::encode_to_vec(PlayerGeneration(value), config).expect("generation encoding failed");
-            assert_eq!(
-                bytes,
-                bincode::encode_to_vec(value, config).expect("integer encoding failed")
-            );
-            let (decoded, length): (PlayerGeneration, _) =
-                bincode::decode_from_slice(&bytes, config).expect("generation decoding failed");
-            assert_eq!(decoded, PlayerGeneration(value));
-            assert_eq!(length, bytes.len());
-        }
+    fn advancing_wraps_to_zero() {
+        assert_eq!(PlayerGeneration(u32::MAX).next(), PlayerGeneration(0));
+        assert_eq!(PlayerGeneration(6).next(), PlayerGeneration(7));
+    }
+
+    #[test]
+    fn ordering_follows_advancement_across_the_wrap() {
+        let last = PlayerGeneration(u32::MAX);
+        let wrapped = last.next();
+        assert!(wrapped.is_newer_than(last));
+        assert!(!last.is_newer_than(wrapped));
+        assert!(!wrapped.is_newer_than(wrapped));
+        assert!(PlayerGeneration(3).is_newer_than(PlayerGeneration(2)));
+        assert!(!PlayerGeneration(2).is_newer_than(PlayerGeneration(3)));
     }
 }

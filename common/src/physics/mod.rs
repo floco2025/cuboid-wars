@@ -8,7 +8,7 @@ mod watchdog;
 mod world;
 
 pub use barriers::passable_barrier_kinds;
-pub use blast::{blast_falloff_at_distance, planar_shove, visible_blast_falloff};
+pub use blast::{blast_falloff_at_distance, blast_hit, planar_shove, visible_blast_falloff};
 pub use characters::{
     ActorMovementStep, AirborneMomentum, BallCharacterHit, CharacterEnvironment, CharacterMovePlan,
     CharacterMovementResult, CharacterStep, CharacterSupport, CharacterVerticalVelocity, GroundingDiagnostics,
@@ -26,8 +26,9 @@ pub use portals::{
     traverse_move_intent, traverse_vector,
 };
 pub use projectiles::{
-    FieldImpact, PROJECTILE_EVENT_LIMIT, ProjectileEvent, ProjectileMotion, ProjectileSpawnInfo, SurfaceBounce,
-    calculate_projectile_spawns, earliest_projectile_event, projectile_character_hit, projectile_overlaps_character,
+    FieldImpact, MuzzleCheck, PROJECTILE_EVENT_LIMIT, ProjectileEvent, ProjectileMotion, ProjectileSpawnInfo,
+    SurfaceBounce, calculate_projectile_spawns, earliest_projectile_event, projectile_character_hit,
+    projectile_overlaps_character,
 };
 pub use watchdog::ProgressWatchdog;
 pub use world::{

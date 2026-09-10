@@ -25,6 +25,7 @@ pub(crate) fn handle_missile_shot_message(
             seq: 0,
             movement: msg.movement,
         },
+        tick.0,
     );
     broadcast_to_all(
         players,

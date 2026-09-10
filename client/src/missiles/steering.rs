@@ -35,6 +35,19 @@ pub(super) fn sweep_clear(
     collision_world.projectile_path_clear(origin, translation, radius, open_kinds)
 }
 
+// A missile skimming a floor or a door frame is already within its radius of
+// geometry; the fuse and the terminal approach judge the travel alone so it
+// can still reach its target there.
+pub(super) fn travel_clear(
+    collision_world: &CollisionWorld,
+    open_kinds: &[BarrierKindId],
+    origin: Vec3,
+    translation: Vec3,
+    radius: f32,
+) -> bool {
+    collision_world.projectile_sweep_clear(origin, translation, radius, open_kinds)
+}
+
 pub(super) fn terminal_approach(
     world: &CollisionWorld,
     open_kinds: &[BarrierKindId],
@@ -44,13 +57,13 @@ pub(super) fn terminal_approach(
     fuse_distance: f32,
 ) -> Option<Vec3> {
     let displacement = target - origin;
-    if sweep_clear(world, open_kinds, origin, displacement, radius) {
+    if travel_clear(world, open_kinds, origin, displacement, radius) {
         return Some(target);
     }
     let travel = (displacement.length() - fuse_distance * MISSILE_APPROACH_FUSE_FRACTION).max(0.0);
     let approach = origin + displacement.normalize_or_zero() * travel;
     (world.attack_path_clear(approach, target, open_kinds)
-        && sweep_clear(world, open_kinds, origin, approach - origin, radius))
+        && travel_clear(world, open_kinds, origin, approach - origin, radius))
     .then_some(approach)
 }
 
@@ -64,12 +77,18 @@ pub(super) fn pick_clear_direction(
     open_kinds: &[BarrierKindId],
     origin: Vec3,
     desired: Vec3,
-    lookahead: f32,
+    lookahead_distance: f32,
     radius: f32,
 ) -> Option<Vec3> {
-    direction_candidates(desired)
-        .into_iter()
-        .find(|candidate| sweep_clear(collision_world, open_kinds, origin, *candidate * lookahead, radius))
+    direction_candidates(desired).into_iter().find(|candidate| {
+        sweep_clear(
+            collision_world,
+            open_kinds,
+            origin,
+            *candidate * lookahead_distance,
+            radius,
+        )
+    })
 }
 
 fn direction_candidates(desired: Vec3) -> Vec<Vec3> {
@@ -108,14 +127,14 @@ pub(super) fn steer_clear(
     objective: Vec3,
     turn_radius: f32,
     delta: f32,
-    lookahead: f32,
+    lookahead_secs: f32,
     radius: f32,
 ) -> Vec3 {
     let desired = objective.normalize_or_zero();
     if delta <= 0.0 || desired == Vec3::ZERO || velocity.length_squared() <= f32::EPSILON {
         return velocity;
     }
-    let lookahead = lookahead.max(delta);
+    let lookahead_secs = lookahead_secs.max(delta);
     let clear_time = |direction| {
         turn_clear_time(
             world,
@@ -125,11 +144,11 @@ pub(super) fn steer_clear(
             direction,
             turn_radius,
             delta,
-            lookahead,
+            lookahead_secs,
             radius,
         )
     };
-    if clear_time(desired) >= lookahead {
+    if clear_time(desired) >= lookahead_secs {
         return steer(velocity, desired, turn_radius, delta);
     }
     let mut best = desired;
@@ -140,7 +159,7 @@ pub(super) fn steer_clear(
             best = candidate;
             best_time = time;
         }
-        if time >= lookahead {
+        if time >= lookahead_secs {
             break;
         }
     }
@@ -155,12 +174,12 @@ fn turn_clear_time(
     desired: Vec3,
     turn_radius: f32,
     delta: f32,
-    lookahead: f32,
+    lookahead_secs: f32,
     radius: f32,
 ) -> f32 {
     let mut elapsed = 0.0;
-    while elapsed < lookahead {
-        let step = delta.min(lookahead - elapsed);
+    while elapsed < lookahead_secs {
+        let step = delta.min(lookahead_secs - elapsed);
         velocity = steer(velocity, desired, turn_radius, step);
         let translation = velocity * step;
         if !sweep_clear(world, open_kinds, origin, translation, radius) {

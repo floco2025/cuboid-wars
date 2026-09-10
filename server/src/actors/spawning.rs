@@ -14,7 +14,7 @@ use crate::{
 use common::{
     config::{ActorGameplayConfig, ActorMovementConfig},
     map::Carriers,
-    physics::{CharacterVerticalVelocity, CollisionWorld},
+    physics::{CharacterSupport, CharacterVerticalVelocity, CollisionWorld},
     protocol::{
         ActorAnchor, ActorMarker, ActorMoveIntent, FaceYaw, Health, MapSettings, PlayerMarker, Position, ServerTick,
         sequence_is_newer,
@@ -365,6 +365,7 @@ fn materialize_actor(
             move_intent,
             FaceYaw(spawn.face_yaw),
             CharacterVerticalVelocity::default(),
+            CharacterSupport::Airborne,
             Health(max_health),
             ActorCrushed::default(),
             ActorCharacter(character.clone()),

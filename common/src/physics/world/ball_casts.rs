@@ -57,11 +57,29 @@ impl CollisionWorld {
         radius: f32,
         open_kinds: &[BarrierKindId],
     ) -> bool {
+        !self.projectile_start_blocked(position, radius, open_kinds)
+            && self.projectile_sweep_clear(position, translation, radius, open_kinds)
+    }
+
+    // The travel alone, ignoring where it starts: a body already touching
+    // geometry still has to judge where it is going.
+    #[must_use]
+    pub fn projectile_sweep_clear(
+        &self,
+        position: Vec3,
+        translation: Vec3,
+        radius: f32,
+        open_kinds: &[BarrierKindId],
+    ) -> bool {
         let groups = character_collision_groups(open_kinds, self.all_barrier_groups);
-        !self.ball_overlaps_groups(position, radius, groups)
-            && self
-                .cast_moving_ball_with_filter(position, translation, radius, groups, &[])
-                .is_none()
+        self.cast_moving_ball_with_filter(position, translation, radius, groups, &[])
+            .is_none()
+    }
+
+    #[must_use]
+    pub fn projectile_start_blocked(&self, position: Vec3, radius: f32, open_kinds: &[BarrierKindId]) -> bool {
+        let groups = character_collision_groups(open_kinds, self.all_barrier_groups);
+        self.ball_overlaps_groups(position, radius, groups)
     }
 
     #[must_use]

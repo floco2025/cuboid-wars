@@ -29,7 +29,6 @@ impl ProjectilesConfig {
         if !(self.bounce_retention.is_finite() && (0.0..=1.0).contains(&self.bounce_retention)) {
             bail!("{path}.bounce_retention must be within 0.0..=1.0");
         }
-        self.multi_shot.validate_pattern_count()?;
         Ok(())
     }
 }

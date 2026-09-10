@@ -6,7 +6,7 @@ use bevy::{
 };
 use common::{
     physics::{CharacterMovementResult, CharacterSupport},
-    protocol::{MapSettings, PlayerId, PlayerMoveIntent, Position},
+    protocol::{CarrierId, MapSettings, PlayerId, PlayerMoveIntent, Position},
 };
 
 use super::{
@@ -224,7 +224,7 @@ fn walking_off_an_edge_falls_and_airborne_motion_takes_priority_over_stun() {
 }
 
 #[test]
-fn carrier_motion_and_reconciliation_do_not_drive_footsteps() {
+fn carrier_motion_and_knockback_do_not_drive_footsteps() {
     let start = Position::default();
     let mut motion = PlayerAnimationMotion::default();
     let step = CharacterMovementResult {
@@ -234,6 +234,7 @@ fn carrier_motion_and_reconciliation_do_not_drive_footsteps() {
         vertical_velocity: 0.0,
         support: CharacterSupport::Ground,
         blocked: false,
+        carrier: CarrierId::WORLD,
         floor_velocity: Vec3::new(10.0, 2.0, 0.0),
         lifted: true,
         crushed: false,

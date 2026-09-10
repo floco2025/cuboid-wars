@@ -4,6 +4,7 @@ use super::{super::context::ServerMessageContext, sync::apply_missile_movement_s
 use crate::{
     audio::{play_explosion_sound, play_sound, play_spatial_sound},
     missiles::{MissileFlight, MissileInfo, OwnedMissile, RemoteMissileMotion, spawn_missile},
+    network::SampleTiming,
     vfx::spawn_missile_explosion,
 };
 use common::protocol::*;
@@ -20,17 +21,11 @@ pub(in crate::network) fn handle_missile_launch_message(
         return;
     }
     if !context.missiles.contains_key(&message.id) {
-        if message.shooter != my_player_id
-            && context
-                .clocks
-                .last_snapshot_tick
-                .0
-                .is_some_and(|tick| !sequence_is_newer(message.tick, tick))
-        {
+        if message.shooter != my_player_id && launch_is_stale(context.clocks.last_snapshot_tick.0, message.tick) {
             return;
         }
         let entity = spawn_missile(commands, &context.assets.missile_assets, message.id, &message.movement);
-        let remote = if message.shooter == my_player_id {
+        if message.shooter == my_player_id {
             commands.entity(entity).insert(OwnedMissile {
                 flight: MissileFlight::new(
                     message.shooter,
@@ -40,21 +35,19 @@ pub(in crate::network) fn handle_missile_launch_message(
                 ),
                 seq: 0,
             });
-            None
         } else {
-            Some(RemoteMissileMotion::new(
+            commands.entity(entity).insert(RemoteMissileMotion::new(
                 0,
                 message.movement,
-                context.client_settings.interpolation.delay_ticks(&context.network),
-            ))
-        };
-        context.missiles.entries.insert(
+                SampleTiming::new(&context.client_settings.interpolation, &context.network),
+            ));
+        }
+        context.missiles.insert(
             message.id,
             MissileInfo {
                 entity,
                 shooter: message.shooter,
                 born_tick: message.tick,
-                remote,
             },
         );
     }
@@ -75,12 +68,25 @@ pub(in crate::network) fn handle_missile_launch_message(
     }
 }
 
-pub(in crate::network) fn handle_missile_moves_message(message: SMissileMoves, context: &mut ServerMessageContext) {
+// A launch behind a snapshot that already omits the missile describes a flight that has ended.
+fn launch_is_stale(last_snapshot_tick: Option<u32>, launch_tick: u32) -> bool {
+    last_snapshot_tick.is_some_and(|tick| !sequence_is_newer(launch_tick, tick))
+}
+
+pub(in crate::network) fn handle_missile_moves_message(
+    message: SMissileMoves,
+    commands: &mut Commands,
+    context: &mut ServerMessageContext,
+) {
     for update in message.moves {
-        apply_missile_movement_state(context, update.id, update.seq, update.movement);
+        if let Some(info) = context.missiles.get(&update.id) {
+            apply_missile_movement_state(commands, info.entity, update.seq, update.movement);
+        }
     }
 }
 
+// An observer flies the missile on to the reported impact before exploding
+// it; the shooter already exploded its own flight where it ended.
 pub(in crate::network) fn handle_missile_detonated_message(
     message: SMissileDetonated,
     commands: &mut Commands,
@@ -89,16 +95,50 @@ pub(in crate::network) fn handle_missile_detonated_message(
     if !context.missiles.retire(message.id, message.tick) {
         return;
     }
-    if let Some(info) = context.missiles.remove(&message.id) {
-        commands.entity(info.entity).despawn();
+    let Some(info) = context.missiles.get(&message.id) else {
+        explode(commands, context, message.pos);
+        return;
+    };
+    if info.shooter == context.my_player_id.0 {
+        // A flight the server ended before this shooter did.
+        if let Some(info) = context.missiles.take(&message.id) {
+            commands.entity(info.entity).despawn();
+        }
+        explode(commands, context, message.pos);
+        return;
     }
-    spawn_missile_explosion(commands, &mut context.explosion_ctx(), message.pos);
+    let tick_secs = context.network.tick_secs();
+    let pos = message.pos;
+    commands.entity(info.entity).queue(move |mut entity: EntityWorldMut| {
+        if let Some(mut motion) = entity.get_mut::<RemoteMissileMotion>() {
+            motion.detonate_at(pos, tick_secs);
+        }
+    });
+}
+
+fn explode(commands: &mut Commands, context: &mut ServerMessageContext, pos: Position) {
+    spawn_missile_explosion(commands, &mut context.explosion_ctx(), pos);
     play_explosion_sound(
         commands,
         &context.assets.asset_server,
         context.assets.asset_set.player_sound("explodes"),
         &context.client_settings.audio,
-        Vec3::from(message.pos),
+        Vec3::from(pos),
         Some(context.assets.blast_radii.missile),
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::launch_is_stale;
+
+    #[test]
+    fn a_launch_is_stale_only_behind_an_applied_snapshot() {
+        assert!(!launch_is_stale(None, 5));
+        assert!(!launch_is_stale(Some(4), 5));
+        assert!(launch_is_stale(Some(5), 5));
+        assert!(launch_is_stale(Some(6), 5));
+        assert!(!launch_is_stale(Some(u32::MAX), 0));
+        assert!(launch_is_stale(Some(0), u32::MAX));
+    }
 }

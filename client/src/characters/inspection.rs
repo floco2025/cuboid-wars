@@ -18,7 +18,7 @@ use crate::{
     constants::{
         BOUNDS_AIRBORNE_COLOR, BOUNDS_CAPSULE_COLOR, BOUNDS_GROUNDED_COLOR, BOUNDS_HITBOX_COLOR, BOUNDS_LADDER_COLOR,
     },
-    players::{CuboidShake, PlayerMap, RemotePlayerMotion},
+    players::{CuboidShake, LocalMovementStep, PlayerMap, RemotePlayerMotion},
 };
 
 #[derive(Component)]
@@ -175,6 +175,7 @@ pub fn grounding_debug_system(
         Option<&CuboidShake>,
         &GroundingDiagnostics,
         Option<&CharacterSupport>,
+        Option<&LocalMovementStep>,
     )>,
     cameras: Query<&GlobalTransform, With<MainCameraMarker>>,
     mut gizmos: Gizmos,
@@ -184,17 +185,21 @@ pub fn grounding_debug_system(
     }
     let camera_rotation = cameras.single().ok().map(GlobalTransform::rotation);
     for (parent, bounds) in &roots {
-        let Ok((pos, transform, shake, ground, support)) = query.get(parent.parent()) else {
+        let Ok((pos, transform, shake, ground, support, step)) = query.get(parent.parent()) else {
             continue;
         };
         let origin = rendered_feet(transform, shake);
         // Diagnostics are sampled at physics ticks; draw them in the interpolated body's frame.
         let render_offset = origin - Vec3::from(*pos);
-        let support = support.copied().unwrap_or(if ground.supported {
-            CharacterSupport::Ground
-        } else {
-            CharacterSupport::Airborne
-        });
+        // The local body keeps its support on its step; interpolated bodies carry the component.
+        let support = step
+            .map(|step| step.support)
+            .or(support.copied())
+            .unwrap_or(if ground.supported {
+                CharacterSupport::Ground
+            } else {
+                CharacterSupport::Airborne
+            });
         let (label, color) = match support {
             CharacterSupport::Ground => ("Grounded", BOUNDS_GROUNDED_COLOR),
             CharacterSupport::Airborne => ("Airborne", BOUNDS_AIRBORNE_COLOR),

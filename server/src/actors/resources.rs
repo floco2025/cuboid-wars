@@ -5,14 +5,13 @@ use bevy::prelude::*;
 use common::{
     config::ActorGameplayConfig,
     map::Carriers,
-    physics::{CharacterSupport, CharacterVerticalVelocity},
+    physics::{CharacterSupport, CharacterVerticalVelocity, ProgressWatchdog},
     protocol::{
         ActorAnchor, ActorBeam, ActorId, ActorMarker, ActorMoveIntent, CarrierId, FaceYaw, Health, PlayerId, Position,
     },
 };
 
 use super::navigation::{NavNode, NavWaypoint, PlannedRoute, WaypointKind};
-use crate::watchdog::ProgressWatchdog;
 
 // Whether this tick's movement left the actor inside a carrier's geometry;
 // written by `apply_actor_moves`, read by `actors_removal_system`.
@@ -37,7 +36,7 @@ pub type ActorStateQuery<'w, 's> = Query<
 >;
 
 pub type ActorMotionQuery<'w, 's> =
-    Query<'w, 's, (&'static CharacterVerticalVelocity, Option<&'static CharacterSupport>), With<ActorMarker>>;
+    Query<'w, 's, (&'static CharacterVerticalVelocity, &'static CharacterSupport), With<ActorMarker>>;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub(crate) enum ActorMode {

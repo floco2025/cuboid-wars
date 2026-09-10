@@ -1,10 +1,10 @@
 use bevy::prelude::*;
 use common::{
-    config::GameplayConfig,
+    config::{GameplayConfig, NetworkConfig, UpdateCadence},
     constants::CHARACTER_FALL_DEATH_Y,
     map::Carriers,
-    physics::CollisionWorld,
-    protocol::{CPlayerMovementEvent, ClientMessage, PlayerMovementEvent, Position},
+    physics::{CharacterSupport, CollisionWorld},
+    protocol::{CMoveOutcome, CarrierId, ClientMessage, MoveOutcome, Position},
 };
 
 use crate::{
@@ -12,19 +12,24 @@ use crate::{
     players::{LocalPlayerInfo, LocalPlayerMarker},
 };
 
+// What the motor decided this tick, for the systems that report it.
 #[derive(Component)]
-pub(crate) struct LocalMovementStep {
-    pub start: Position,
-    pub crushed: bool,
-    pub impact_speed: f32,
+pub struct LocalMovementStep {
+    pub(crate) start: Position,
+    pub(crate) crushed: bool,
+    pub(crate) impact_speed: f32,
+    pub(crate) carrier: CarrierId,
+    pub(crate) support: CharacterSupport,
 }
 
-pub(crate) fn report_player_movement_events_system(
+pub(crate) fn report_move_outcomes_system(
     to_server: Res<ClientToServerChannel>,
     mut local: ResMut<LocalPlayerInfo>,
     collision: Res<CollisionWorld>,
     carriers: Res<Carriers>,
     gameplay: Res<GameplayConfig>,
+    network: Res<NetworkConfig>,
+    mut eraser_cadence: Local<Option<UpdateCadence>>,
     query: Query<(&Position, &LocalMovementStep), With<LocalPlayerMarker>>,
 ) {
     if local.is_dead {
@@ -39,7 +44,7 @@ pub(crate) fn report_player_movement_events_system(
     let sweep_end = crossing.copied().unwrap_or(*pos);
     let physics = gameplay.player.physics();
     let touching = collision
-        .character_eraser_contacts(pos, pos, physics, None)
+        .character_eraser_contacts(pos, pos, physics, Some(&carriers))
         .next()
         .is_some();
     let swept = collision
@@ -47,29 +52,34 @@ pub(crate) fn report_player_movement_events_system(
         .next()
         .is_some();
     let send = |outcome| {
-        to_server.send(ClientToServer::Send(ClientMessage::PlayerMovementEvent(
-            CPlayerMovementEvent {
-                generation,
-                event: outcome,
-            },
-        )))
+        to_server.send(ClientToServer::Send(ClientMessage::MoveOutcome(CMoveOutcome {
+            generation,
+            event: outcome,
+        })))
     };
-    // A pickup update can arrive after contact, so the client inventory cannot gate erasure.
-    if touching || swept {
-        send(PlayerMovementEvent::EraseEquipment);
+    // A pickup update can arrive after contact, so the client inventory cannot
+    // gate erasure: standing in a field keeps reporting, at the movement
+    // cadence, and entry restarts that cadence so it is reported at once.
+    let contact = touching || swept;
+    let erase_due = contact && eraser_cadence.get_or_insert_with(|| network.update_cadence()).ready();
+    if !contact {
+        *eraser_cadence = None;
+    }
+    if erase_due {
+        send(MoveOutcome::EraseEquipment);
     }
     if crossing.is_none() && step.impact_speed > 0.0 {
-        send(PlayerMovementEvent::Landed {
+        send(MoveOutcome::Landed {
             pos: *pos,
             impact_speed: step.impact_speed,
         });
     }
     if crossing.is_none() && step.crushed {
-        send(PlayerMovementEvent::Crushed { pos: *pos });
+        send(MoveOutcome::Crushed { pos: *pos });
     }
     if pos.y < CHARACTER_FALL_DEATH_Y && !reports.void_reported {
         reports.void_reported = true;
-        send(PlayerMovementEvent::FellOutOfWorld);
+        send(MoveOutcome::FellOutOfWorld);
     }
 }
 
@@ -86,9 +96,13 @@ mod tests {
         app.insert_resource(test_fixtures::gameplay_config())
             .insert_resource(CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default()))
             .insert_resource(Carriers::from_layout(&layout))
+            .insert_resource(NetworkConfig {
+                update_hz: 30,
+                ..default()
+            })
             .init_resource::<LocalPlayerInfo>()
             .insert_resource(ClientToServerChannel::new(tx))
-            .add_systems(Update, report_player_movement_events_system);
+            .add_systems(Update, report_move_outcomes_system);
         let entity = app
             .world_mut()
             .spawn((
@@ -98,20 +112,22 @@ mod tests {
                     start: Position::default(),
                     crushed: false,
                     impact_speed: 0.0,
+                    carrier: CarrierId::WORLD,
+                    support: CharacterSupport::Airborne,
                 },
             ))
             .id();
         (app, entity, rx)
     }
 
-    fn messages(rx: &mut UnboundedReceiver<ClientToServer>) -> Vec<PlayerMovementEvent> {
+    fn messages(rx: &mut UnboundedReceiver<ClientToServer>) -> Vec<MoveOutcome> {
         std::iter::from_fn(|| rx.try_recv().ok())
             .map(|command| {
-                let ClientToServer::Send(message @ ClientMessage::PlayerMovementEvent(_)) = command else {
+                let ClientToServer::Send(message @ ClientMessage::MoveOutcome(_)) = command else {
                     panic!("unexpected command")
                 };
                 assert_eq!(message.lane(), Lane::Reliable);
-                let ClientMessage::PlayerMovementEvent(event) = message else {
+                let ClientMessage::MoveOutcome(event) = message else {
                     unreachable!()
                 };
                 event.event
@@ -140,7 +156,7 @@ mod tests {
             } else {
                 assert!(matches!(
                     events.as_slice(),
-                    [PlayerMovementEvent::Landed { impact_speed: 20.0, .. }]
+                    [MoveOutcome::Landed { impact_speed: 20.0, .. }]
                 ));
             }
             app.world_mut()
@@ -187,10 +203,74 @@ mod tests {
             assert_eq!(
                 messages(&mut rx)
                     .iter()
-                    .any(|event| matches!(event, PlayerMovementEvent::EraseEquipment)),
+                    .any(|event| matches!(event, MoveOutcome::EraseEquipment)),
                 expected
             );
         }
+    }
+
+    #[test]
+    fn a_dead_local_player_sends_no_movement_outcome() {
+        let (mut app, entity, mut rx) = app(MapLayout::default());
+        let mut step = app
+            .world_mut()
+            .get_mut::<LocalMovementStep>(entity)
+            .expect("step missing");
+        step.impact_speed = 20.0;
+        step.crushed = true;
+        app.world_mut().get_mut::<Position>(entity).expect("position missing").y = CHARACTER_FALL_DEATH_Y - 1.0;
+        app.world_mut().resource_mut::<LocalPlayerInfo>().is_dead = true;
+        app.update();
+        assert!(messages(&mut rx).is_empty());
+    }
+
+    #[test]
+    fn standing_in_an_eraser_repeats_at_the_movement_cadence_and_re_entry_reports_at_once() {
+        let layout = MapLayout {
+            erasers: vec![Eraser {
+                x1: 0.0,
+                x2: 0.0,
+                z1: -5.0,
+                z2: 5.0,
+                y: -1.0,
+                height: 5.0,
+                width: 0.5,
+                level: 0,
+                carrier: CarrierId::WORLD,
+            }],
+            ..default()
+        };
+        let (mut app, entity, mut rx) = app(layout);
+        app.world_mut().insert_resource(NetworkConfig {
+            server_hz: 30,
+            update_hz: 10,
+            snapshot_hz: 4,
+        });
+        let erased = |rx: &mut UnboundedReceiver<ClientToServer>| {
+            messages(rx)
+                .iter()
+                .any(|event| matches!(event, MoveOutcome::EraseEquipment))
+        };
+        let mut reports = 0;
+        for _ in 0..6 {
+            app.update();
+            reports += usize::from(erased(&mut rx));
+        }
+        assert_eq!(reports, 2, "entry plus one cadence tick over six ticks at 10 Hz");
+        let place = |app: &mut App, x: f32| {
+            app.world_mut().get_mut::<Position>(entity).expect("position missing").x = x;
+            app.world_mut()
+                .get_mut::<LocalMovementStep>(entity)
+                .expect("step missing")
+                .start
+                .x = x;
+        };
+        place(&mut app, 50.0);
+        app.update();
+        assert!(!erased(&mut rx));
+        place(&mut app, 0.0);
+        app.update();
+        assert!(erased(&mut rx), "re-entry is reported at once");
     }
 
     #[test]
@@ -201,25 +281,16 @@ mod tests {
             .expect("step missing")
             .crushed = true;
         app.update();
-        assert!(matches!(
-            messages(&mut rx).as_slice(),
-            [PlayerMovementEvent::Crushed { .. }]
-        ));
+        assert!(matches!(messages(&mut rx).as_slice(), [MoveOutcome::Crushed { .. }]));
         app.update();
-        assert!(matches!(
-            messages(&mut rx).as_slice(),
-            [PlayerMovementEvent::Crushed { .. }]
-        ));
+        assert!(matches!(messages(&mut rx).as_slice(), [MoveOutcome::Crushed { .. }]));
         app.world_mut()
             .get_mut::<LocalMovementStep>(entity)
             .expect("step missing")
             .crushed = false;
         app.world_mut().get_mut::<Position>(entity).expect("position missing").y = CHARACTER_FALL_DEATH_Y - 1.0;
         app.update();
-        assert!(matches!(
-            messages(&mut rx).as_slice(),
-            [PlayerMovementEvent::FellOutOfWorld]
-        ));
+        assert!(matches!(messages(&mut rx).as_slice(), [MoveOutcome::FellOutOfWorld]));
         app.update();
         assert!(messages(&mut rx).is_empty());
         app.world_mut()
@@ -227,9 +298,6 @@ mod tests {
             .reports
             .begin_body(PlayerGeneration(1));
         app.update();
-        assert!(matches!(
-            messages(&mut rx).as_slice(),
-            [PlayerMovementEvent::FellOutOfWorld]
-        ));
+        assert!(matches!(messages(&mut rx).as_slice(), [MoveOutcome::FellOutOfWorld]));
     }
 }

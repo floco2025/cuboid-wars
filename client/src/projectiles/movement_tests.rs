@@ -3,7 +3,7 @@ use std::{f32::consts::FRAC_PI_2, time::Duration};
 use bevy::{ecs::world::CommandQueue, prelude::*};
 use common::{
     config::GameplayConfig,
-    physics::{CollisionWorld, PortalSet},
+    physics::{CollisionWorld, MuzzleCheck, PortalSet},
     protocol::*,
 };
 use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
@@ -111,7 +111,8 @@ fn fire(app: &mut App, shooter: PlayerId, ember: bool) {
                 120.0,
                 world.resource::<CollisionWorld>(),
                 &[],
-                shooter
+                shooter,
+                MuzzleCheck::Enforced,
             ),
             1
         );

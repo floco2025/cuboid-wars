@@ -9,7 +9,7 @@ use crate::{
     actors::{ActorMap, PendingActorSpawns},
     missiles::{MissileMap, handle_missile_detonated, handle_missile_moves, handle_missile_shot_message},
     network::ServerToClient,
-    players::{PlayerMap, handle_player_movement_event, queue_player_movement},
+    players::{PlayerMap, handle_move_outcome, queue_player_movement},
     portals::{PortalAssignments, PortalMap, handle_portal_shot_message},
     projectiles::{PendingProjectileHits, handle_projectile_shot_message},
     quests::{QuestBoard, QuestCatalog},
@@ -86,9 +86,9 @@ pub(super) fn route_client_message(
                 return;
             }
             trace!("{:?} input: {:?}", id, message);
-            queue_player_movement(id, message, &mut context.players);
+            queue_player_movement(id, message, &mut context.players, &context.world.carriers);
         }
-        ClientMessage::PlayerMovementEvent(message) => handle_player_movement_event(id, message, &mut context.players),
+        ClientMessage::MoveOutcome(message) => handle_move_outcome(id, message, &mut context.players),
         ClientMessage::ProjectileShot(message) => handle_projectile_shot_message(
             id,
             message,

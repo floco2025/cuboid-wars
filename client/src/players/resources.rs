@@ -93,7 +93,10 @@ impl PlayerMap {
         self.players.insert(id, info)
     }
 
+    // The map is the only record of a player; a body that leaves it takes its
+    // retired generation with it.
     pub fn remove(&mut self, id: &PlayerId) -> Option<PlayerInfo> {
+        self.retired_bodies.remove(id);
         self.players.remove(id)
     }
 
@@ -218,9 +221,6 @@ mod tests {
             assert!(!players.accepts_generation(id, generation));
             assert!(players.accepts_death(id, generation));
             assert!(!players.accepts_body_cue(id, generation));
-            players.remove(&id);
-            assert!(!players.accepts_generation(id, generation));
-            assert!(players.accepts_death(id, generation));
             player.generation = generation.next();
             assert!(players.accepts_generation(id, player.generation));
             players.insert(id, PlayerInfo::from_snapshot(Entity::PLACEHOLDER, &player, 12));
@@ -228,6 +228,18 @@ mod tests {
             assert!(!players.retire_body(id, generation));
             assert!(!players.accepts_body_cue(id, generation));
         }
+    }
+
+    #[test]
+    fn removing_a_player_forgets_its_retired_body() {
+        let id = PlayerId(1);
+        let player = snapshot_player();
+        let mut players = PlayerMap::default();
+        players.insert(id, PlayerInfo::from_snapshot(Entity::PLACEHOLDER, &player, 10));
+        assert!(players.retire_body(id, player.generation));
+        players.remove(&id);
+        assert!(players.accepts_generation(id, player.generation));
+        assert!(players.retire_body(id, player.generation));
     }
 
     #[test]

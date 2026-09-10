@@ -96,6 +96,7 @@ pub fn grounding_diagnostics(
 // The rider's carry: how far the body follows a carrier this tick, and
 // the velocity the step reports for it.
 pub(super) struct RiderCarry {
+    pub carrier: CarrierId,
     pub displacement: Vec3,
     pub floor_velocity: Vec3,
 }
@@ -116,7 +117,7 @@ pub(super) fn rider_carry(step: &CharacterStep, env: &CharacterEnvironment, shap
     let transit = env
         .portals
         .and_then(|portals| portals.transit_carrier(Vec3::from(step.start), env.physics));
-    let displacement = match transit {
+    let carrier = match transit {
         Some((carrier, backing)) => {
             let supported_elsewhere = character_ground_hit(
                 env.collision_world,
@@ -127,13 +128,9 @@ pub(super) fn rider_carry(step: &CharacterStep, env: &CharacterEnvironment, shap
                 env.physics,
             )
             .is_some_and(|hit| hit.carrier != carrier);
-            if supported_elsewhere {
-                Vec3::ZERO
-            } else {
-                env.carriers.displacement(carrier)
-            }
+            (!supported_elsewhere).then_some(carrier)
         }
-        None if env.carriers.is_static() => Vec3::ZERO,
+        None if env.carriers.is_static() => None,
         None => env
             .collision_world
             .carried_ladder_at_previous_pose(&step.start, env.carriers)
@@ -171,10 +168,11 @@ pub(super) fn rider_carry(step: &CharacterStep, env: &CharacterEnvironment, shap
                     env.physics,
                     env.carriers,
                 )
-            })
-            .map_or(Vec3::ZERO, |carrier| env.carriers.displacement(carrier)),
+            }),
     };
+    let displacement = carrier.map_or(Vec3::ZERO, |carrier| env.carriers.displacement(carrier));
     RiderCarry {
+        carrier: carrier.unwrap_or(CarrierId::WORLD),
         displacement,
         floor_velocity: if transit.is_some() || step.delta <= 0.0 {
             Vec3::ZERO

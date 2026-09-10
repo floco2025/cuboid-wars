@@ -3,13 +3,13 @@ use bevy::prelude::*;
 use super::super::context::ServerMessageContext;
 use crate::{
     audio::{play_explosion_sound, play_sound, play_spatial_sound},
-    characters::PreviousTickPosition,
     players::{CameraShake, CuboidShake, LocalPlayerInfo, PlayerMap},
     ui::{BannerMessage, HudBanner},
     vfx::spawn_player_explosion,
 };
 use common::{
-    physics::{AirborneMomentum, CharacterVerticalVelocity, KnockbackVelocity},
+    constants::KNOCKBACK_CLAMP_RATIO,
+    physics::{CharacterVerticalVelocity, KnockbackVelocity},
     protocol::*,
 };
 
@@ -148,7 +148,7 @@ pub(in crate::network) fn handle_player_fall_damage_message(
 }
 
 // Blast launch for the local player. The server adopts this client's next
-// accepted report whole, so the impulse lives on only if prediction applies
+// report whole, so the impulse lives on only if the local simulation applies
 // it here. Remote players need nothing — their motion arrives with the
 // movement stream.
 // No camera shake here: the knockback the blast applies IS the feedback —
@@ -169,7 +169,7 @@ pub(in crate::network) fn handle_player_knockback_message(
     let Some(info) = context.players.get(&message.id) else {
         return;
     };
-    let max_speed = context.map_settings.movement.knockback.max_speed * 1.5;
+    let max_speed = context.map_settings.movement.knockback.max_speed * KNOCKBACK_CLAMP_RATIO;
     commands.entity(info.entity).queue(move |entity: EntityWorldMut| {
         apply_player_impulse(entity, message, max_speed);
     });
@@ -243,8 +243,8 @@ fn apply_player_death(
     // of record; this just cuts the latency.
     if let Some(info) = players.get_mut(&event.id) {
         info.score = event.victim_score;
-        // The server zeroes missiles in `clear_per_life_state`; mirror it
-        // here so the ammo HUD resets on the death tick.
+        // Death starts a fresh life on the server; mirror the empty ammo
+        // here so the HUD resets on the death tick.
         info.missiles = 0;
     }
     if let (Some(killer_id), Some(killer_score)) = (event.killer, event.killer_score)
@@ -258,14 +258,10 @@ fn apply_player_death(
     }
 
     if event.id == my_player_id {
+        // The owner's own position is the truth; the death view stays where
+        // the local step left the body, and no step moves it while dead.
         if let Some(info) = players.get(&event.id) {
-            // Keep the death view anchored to the server's death position.
-            commands.entity(info.entity).insert((
-                Visibility::Hidden,
-                event.pos,
-                PreviousTickPosition(event.pos),
-                AirborneMomentum::default(),
-            ));
+            commands.entity(info.entity).insert(Visibility::Hidden);
         }
         local_player_info.is_dead = true;
         local_player_info.reports.clear_crossings();

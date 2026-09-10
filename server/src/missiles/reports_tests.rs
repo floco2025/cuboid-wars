@@ -95,6 +95,7 @@ fn moves_relay_only_fresh_owner_samples_across_wrap_and_during_death() {
             seq: u32::MAX - 1,
             movement: shot().movement,
         },
+        0,
     );
     let update = MissileMove {
         id,
@@ -203,6 +204,7 @@ fn disconnect_removes_only_that_shooters_flights() {
                 seq: 0,
                 movement: shot().movement,
             },
+            0,
         );
     }
     missiles.remove_shooter(PlayerId(1));

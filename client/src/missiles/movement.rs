@@ -1,15 +1,18 @@
-use super::blast::missile_blast_hits;
+use super::missile_blast_hits;
 use crate::{
     actors::ActorMap,
+    audio::play_explosion_sound,
+    carriers::CarrierEntities,
     characters::PreviousTickPosition,
+    config::{AssetSet, ClientSettings},
     missiles::{AirGraph, MissileMap, MissileVelocity, OwnedMissile, guide_missile},
     network::{ClientToServer, ClientToServerChannel},
     players::PlayerMap,
-    vfx::BlastRadii,
+    vfx::{BlastRadii, ExplosionAssets, ExplosionSpawnCtx, ExplosionVfxBudget, spawn_missile_explosion},
 };
 use bevy::{ecs::system::SystemParam, prelude::*};
 use common::{
-    config::{GameplayConfig, NetworkConfig},
+    config::{GameplayConfig, NetworkConfig, UpdateCadence},
     constants::MISSILE_RADIUS,
     map::Carriers,
     physics::{CollisionWorld, ball_character_hit, ball_overlaps_character, character_hitbox_center},
@@ -54,14 +57,30 @@ pub struct MissileMovementParams<'w, 's> {
     network: Res<'w, NetworkConfig>,
 }
 
+// The shooter is the one client that knows the exact impact point, so its own
+// blast plays here instead of waiting for the server's cue.
+#[derive(SystemParam)]
+pub struct MissileBlastPresentation<'w> {
+    meshes: ResMut<'w, Assets<Mesh>>,
+    materials: ResMut<'w, Assets<StandardMaterial>>,
+    budget: ResMut<'w, ExplosionVfxBudget>,
+    explosion_assets: Res<'w, ExplosionAssets>,
+    carrier_entities: Res<'w, CarrierEntities>,
+    map_layout: Res<'w, MapLayout>,
+    asset_server: Res<'w, AssetServer>,
+    asset_set: Res<'w, AssetSet>,
+    client_settings: Res<'w, ClientSettings>,
+}
+
 pub fn missiles_movement_system(
     mut commands: Commands,
     time: Res<Time>,
-    mut cadence: Local<UpdateCadence>,
+    mut cadence: Local<Option<UpdateCadence>>,
     mut params: MissileMovementParams,
+    mut presentation: MissileBlastPresentation,
 ) {
     let delta = time.delta_secs();
-    let send = cadence.ready(params.network.update_hz, params.network.server_hz);
+    let send = cadence.get_or_insert_with(|| params.network.update_cadence()).ready();
     if params.query.is_empty() {
         return;
     }
@@ -144,6 +163,14 @@ pub fn missiles_movement_system(
                 earliest = Some(t);
             }
         };
+        // A cast that starts inside a collider reports nothing, so a missile
+        // swept into geometry would fly out the far side unguided.
+        if params
+            .world
+            .projectile_start_blocked(origin, MISSILE_RADIUS, &params.plates.open_barrier_kinds)
+        {
+            consider(0.0);
+        }
         if let Some(hit) = params.world.cast_moving_ball(origin, translation, MISSILE_RADIUS) {
             consider(hit.t);
         }
@@ -183,6 +210,30 @@ pub fn missiles_movement_system(
                 )));
             params.missiles.remove(id);
             commands.entity(entity).despawn();
+            spawn_missile_explosion(
+                &mut commands,
+                &mut ExplosionSpawnCtx {
+                    meshes: &mut presentation.meshes,
+                    materials: &mut presentation.materials,
+                    budget: &mut presentation.budget,
+                    explosion_assets: &presentation.explosion_assets,
+                    gameplay_config: &params.gameplay,
+                    collision_world: Some(&params.world),
+                    map_layout: Some(&presentation.map_layout),
+                    carriers: &params.carriers,
+                    carrier_entities: &presentation.carrier_entities,
+                    blast_radii: &params.blast_radii,
+                },
+                impact.into(),
+            );
+            play_explosion_sound(
+                &mut commands,
+                &presentation.asset_server,
+                presentation.asset_set.player_sound("explodes"),
+                &presentation.client_settings.audio,
+                impact,
+                Some(params.blast_radii.missile),
+            );
         } else {
             *pos += translation;
             if send {
@@ -202,3 +253,7 @@ pub fn missiles_movement_system(
             })));
     }
 }
+
+#[cfg(test)]
+#[path = "movement_tests.rs"]
+mod tests;

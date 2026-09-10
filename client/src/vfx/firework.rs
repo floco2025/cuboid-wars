@@ -89,7 +89,7 @@ impl FireworkShow {
 }
 
 // A cosmetic rocket in flight. Deliberately NOT a `MissileMarker` entity —
-// the missile snapshot diff / transform sync / dead reckoning must never see
+// the missile snapshot diff, transform sync, and interpolation must never see
 // show props.
 #[derive(Component)]
 pub struct FireworkRocket {

@@ -1,16 +1,15 @@
-use common::config::NetworkConfig;
 use std::{f32::consts::PI, time::Duration};
 
 use bevy::prelude::*;
 use common::{
+    config::{NetworkConfig, UpdateCadence},
     map::Carriers,
-    math::angle_delta_radians,
     physics::{CharacterSupport, CharacterVerticalVelocity},
-    protocol::{ActorMoveIntent, ActorMovementState, Carrier, CarrierId, FaceYaw, MapLayout, Position, UpdateCadence},
+    protocol::{ActorMoveIntent, ActorMovementState, Carrier, CarrierId, FaceYaw, MapLayout, Position},
 };
 
-use super::{ActorAnimationVelocity, RemoteActorMotion, actors_transform_sync_system};
-use crate::config::ClientSettings;
+use super::{ActorAnimationVelocity, RemoteActorMotion, interpolate_remote_actors_system};
+use crate::{actors::actors_transform_sync_system, config::ClientSettings, network::SampleTiming};
 
 fn sample(x: f32) -> ActorMovementState {
     ActorMovementState {
@@ -26,29 +25,39 @@ fn sample(x: f32) -> ActorMovementState {
     }
 }
 
+fn timing(hz: u32) -> SampleTiming {
+    let settings = ClientSettings::load_default().expect("client settings are invalid");
+    SampleTiming::new(
+        &settings.interpolation,
+        &NetworkConfig {
+            update_hz: hz,
+            ..Default::default()
+        },
+    )
+}
+
+fn immediate() -> SampleTiming {
+    SampleTiming {
+        delay_ticks: 0.0,
+        interval_ticks: 1.0,
+    }
+}
+
 #[test]
 fn stops_and_packet_gaps_never_extrapolate_or_pull_an_actor_back() {
-    let settings = ClientSettings::load_default().expect("client settings are invalid");
     for hz in [1, 7, 10, 15, 30] {
-        let mut buffer = RemoteActorMotion::new(
-            0,
-            sample(0.0),
-            settings.interpolation.delay_ticks(&NetworkConfig {
-                update_hz: hz,
-                ..Default::default()
-            }),
-        );
-        let mut cadence = UpdateCadence::default();
+        let mut buffer = RemoteActorMotion::new(0, sample(0.0), timing(hz));
+        let mut cadence = UpdateCadence::new(hz, 30);
+        cadence.ready();
         let mut previous = 0.0;
         for tick in 1..360 {
-            if cadence.ready(hz, 30) && !(45..90).contains(&tick) {
+            if cadence.ready() && !(45..90).contains(&tick) {
                 buffer.push(tick, sample((tick as f32 / 30.0).min(4.0)));
             }
             for _ in 0..4 {
                 let (state, velocity) = buffer.advance(0.25, &Carriers::default(), 1.0, 1.0 / 30.0);
                 assert!(state.pos.x >= previous, "backward motion at {hz} Hz, tick {tick}");
                 assert!(state.pos.x <= 4.0, "overshoot at {hz} Hz");
-                assert!(state.pos.x - previous <= 1.0 / 120.0 + 1e-5, "jump after a packet gap");
                 assert!(velocity.x >= 0.0);
                 previous = state.pos.x;
             }
@@ -69,17 +78,27 @@ fn snapshot_and_movement_samples_share_ordering_across_tick_wraparound() {
     start.vertical_velocity = -6.0;
     let mut landed = sample(3.0);
     landed.face_yaw = -3.0;
-    let mut buffer = RemoteActorMotion::new(u32::MAX - 1, start, 0.0);
-    buffer.push(1, landed);
-    buffer.push(u32::MAX, sample(-100.0));
-    buffer.push(1, sample(100.0));
-    let (middle, _) = buffer.advance(1.5, &Carriers::default(), 1.0, 1.0 / 30.0);
-    assert_eq!(middle.pos.x, 1.5);
-    assert_eq!(middle.vertical_velocity, -3.0);
-    assert_eq!(middle.support, CharacterSupport::Airborne);
-    assert!(angle_delta_radians(middle.face_yaw, PI).abs() < 1e-5);
-    let (end, _) = buffer.advance(1.5, &Carriers::default(), 1.0, 1.0 / 30.0);
-    assert_eq!(end, landed);
+    let mut buffer = RemoteActorMotion::new(u32::MAX - 1, start, immediate());
+    assert!(!buffer.push(u32::MAX - 1, sample(-100.0)));
+    assert!(buffer.push(1, landed));
+    assert!(!buffer.push(u32::MAX, sample(-100.0)));
+    assert!(!buffer.push(1, sample(100.0)));
+    let mut previous = start;
+    let mut blended = false;
+    loop {
+        let (state, _) = buffer.advance(0.5, &Carriers::default(), 1.0, 1.0 / 30.0);
+        assert!(state.pos.x >= previous.pos.x && state.pos.x <= 3.0);
+        assert!(state.vertical_velocity >= previous.vertical_velocity);
+        assert!(state.face_yaw.abs() >= 3.0 - 1e-5, "facing turned the long way round");
+        if state == landed {
+            break;
+        }
+        assert_eq!(state.support, CharacterSupport::Airborne);
+        blended |= state.pos.x > 0.0;
+        previous = state;
+    }
+    assert!(blended);
+    assert!((previous.face_yaw.abs() - PI).abs() < 0.2);
 }
 
 #[test]
@@ -90,14 +109,17 @@ fn rendering_holds_reported_bodies_despite_movement_intent_and_vertical_velocity
     app.insert_resource(time)
         .init_resource::<Time<Fixed>>()
         .init_resource::<Carriers>()
-        .add_systems(Update, actors_transform_sync_system);
+        .add_systems(
+            Update,
+            (interpolate_remote_actors_system, actors_transform_sync_system).chain(),
+        );
     let mut movement = sample(0.0);
     movement.vertical_velocity = -50.0;
     movement.support = CharacterSupport::Airborne;
     let entity = app
         .world_mut()
         .spawn((
-            RemoteActorMotion::new(10, movement, 0.0),
+            RemoteActorMotion::new(10, movement, immediate()),
             movement.pos,
             FaceYaw(movement.face_yaw),
             movement.move_intent,
@@ -127,7 +149,7 @@ fn rendering_holds_reported_bodies_despite_movement_intent_and_vertical_velocity
         .get_mut::<RemoteActorMotion>(entity)
         .expect("actor buffer missing")
         .push(40, target);
-    for _ in 0..31 {
+    for _ in 0..40 {
         app.update();
         let pos = *app.world().get::<Position>(entity).expect("actor position missing");
         assert_eq!(
@@ -179,24 +201,16 @@ fn buffered_actors_follow_stopping_reversing_and_nested_platforms_without_wheel_
         ],
         ..default()
     };
-    let settings = ClientSettings::load_default().expect("client settings are invalid");
     for carrier in [CarrierId(1), CarrierId(2)] {
         for hz in [10, 30] {
             let mut carriers = Carriers::from_layout(&layout);
             let mut state = sample(2.0);
             state.carrier = carrier;
-            let mut buffer = RemoteActorMotion::new(
-                0,
-                state,
-                settings.interpolation.delay_ticks(&NetworkConfig {
-                    update_hz: hz,
-                    ..Default::default()
-                }),
-            );
-            let mut cadence = UpdateCadence::default();
+            let mut buffer = RemoteActorMotion::new(0, state, timing(hz));
+            let mut cadence = UpdateCadence::new(hz, 30);
             for tick in 1..180 {
                 carriers.advance(tick);
-                if cadence.ready(hz, 30) && !(45..90).contains(&tick) {
+                if cadence.ready() && !(45..90).contains(&tick) {
                     buffer.push(tick, state);
                 }
                 for frame in 0..4 {

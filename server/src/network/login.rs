@@ -1,15 +1,12 @@
 use bevy::prelude::*;
 
 use crate::{
-    network::{FeedAudience, FeedEvent, ServerToClient, broadcast_player_relocation, emit_feed},
-    players::{PlayerMap, enter_group_respawn, player_spawn_destination},
+    network::{FeedAudience, FeedEvent, ServerToClient, emit_feed},
+    players::{PlayerMap, enter_group_respawn, place_player_body, player_spawn_destination},
     portals::{PortalAssignments, PortalMap},
     quests::{QuestBoard, QuestCatalog, assign_quests},
 };
-use common::{
-    physics::{AirborneMomentum, CharacterVerticalVelocity, KnockbackVelocity, PortalSet},
-    protocol::*,
-};
+use common::{physics::PortalSet, protocol::*};
 
 use super::handlers::{CharacterQueries, SharedWorld};
 
@@ -82,7 +79,7 @@ pub(super) fn handle_login_message(
         .values()
         .filter(|player| player.connection.logged_in && player.entity() != Some(entity))
         .filter_map(|player| player.entity().and_then(|entity| queries.player_data.get(entity).ok()))
-        .map(|(pos, _, _, _)| *pos)
+        .map(|(pos, _, _)| *pos)
         .collect();
     let spawn = player_spawn_destination(
         &world.map_config,
@@ -106,22 +103,14 @@ pub(super) fn handle_login_message(
         commands.entity(entity).despawn();
         return;
     };
-    info.life.checkpoint_contact = spawn.contact;
-    commands.entity(entity).insert((
-        spawn.pos,
-        PlayerMoveIntent::Idle,
-        FaceYaw(spawn.face_yaw),
-        CharacterVerticalVelocity::default(),
-        AirborneMomentum::default(),
-        KnockbackVelocity::default(),
-        Health(world.server_gameplay_config.combat.health.player.max),
-    ));
-    broadcast_player_relocation(
+    place_player_body(
+        commands,
         players,
         id,
-        world.tick.0,
-        PlayerMovementState::new(spawn.pos, PlayerMoveIntent::Idle, 0.0, spawn.face_yaw),
+        entity,
+        &spawn,
         Health(world.server_gameplay_config.combat.health.player.max),
+        world.tick.0,
         portal_access,
     );
 }
@@ -412,12 +401,14 @@ mod checkpoint_tests {
                 Ok(ServerToClient::Send(ServerMessage::Init(_)))
             ));
             let mut group_cues = 0;
+            let mut relocations = Vec::new();
             while let Ok(message) = rx.try_recv() {
                 match message {
                     ServerToClient::Send(ServerMessage::PlayerDeath(death)) => {
                         assert_eq!(death.effect, PlayerDeathEffect::GroupRespawn);
                         group_cues += 1;
                     }
+                    ServerToClient::Send(ServerMessage::PlayerRelocated(relocation)) => relocations.push(relocation),
                     ServerToClient::Send(ServerMessage::CheckpointReached(_)) => {
                         panic!("login notified checkpoint entry")
                     }
@@ -425,6 +416,23 @@ mod checkpoint_tests {
                 }
             }
             assert_eq!(group_cues, usize::from(group_countdown));
+            assert_eq!(relocations.len(), usize::from(!blocked && !group_countdown));
+            for relocation in &relocations {
+                assert_eq!(relocation.id, PlayerId(9));
+                assert_eq!(relocation.player.generation, PlayerGeneration(0));
+                assert_eq!(
+                    relocation.player.movement.pos,
+                    Position {
+                        x: 32.0,
+                        y: 6.5,
+                        z: 12.0
+                    }
+                );
+                assert_eq!(
+                    relocation.player.health.0,
+                    app.world().resource::<ServerGameplayConfig>().combat.health.player.max
+                );
+            }
             assert!(app.world_mut().resource_mut::<PlayerMap>().take_resets().is_empty());
             let player = app
                 .world()

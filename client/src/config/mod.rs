@@ -12,6 +12,7 @@ pub use assets::{AimRigDef, AssetSet, MaterialDef, ModelDef, SkyboxDef, WheelMod
 pub use audio::{AudioConfig, BumpAudioConfig};
 pub use camera::FollowCameraConfig;
 pub use hud::BannerTiming;
+pub use interpolation::InterpolationConfig;
 pub use local::{LOCAL_SETTINGS_VERSION, LocalSettings};
 pub use rendering::OpaqueRenderer;
 pub use settings::{ClientSettings, GrassConfig, LightingConfig, MoonLighting, SunLighting, WeatherConfig};

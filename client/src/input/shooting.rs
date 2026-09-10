@@ -10,7 +10,7 @@ use crate::{
 };
 use common::{
     config::GameplayConfig,
-    physics::CollisionWorld,
+    physics::{CollisionWorld, MuzzleCheck},
     protocol::{CProjectileShot, ClientMessage, MapSettings, PlateState, Position},
 };
 
@@ -89,6 +89,7 @@ pub fn input_shooting_system(
             &collision_world,
             &shooter.plates.open_barrier_kinds,
             shooter.my_player_id.0,
+            MuzzleCheck::Enforced,
         ) > 0
         {
             to_server.send(ClientToServer::Send(ClientMessage::ProjectileShot(shot)));

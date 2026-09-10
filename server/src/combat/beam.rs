@@ -62,10 +62,10 @@ pub fn actors_beam_damage_system(
         let Ok(actor_pos) = actor_positions.get(info.entity) else {
             continue;
         };
-        let Some(target_entity) = players
+        let Some((target_entity, target_generation)) = players
             .get(&target_id)
             .filter(|player| player.connection.logged_in)
-            .and_then(|player| player.entity())
+            .and_then(|player| Some((player.entity()?, player.session.generation)))
         else {
             continue;
         };
@@ -118,11 +118,7 @@ pub fn actors_beam_damage_system(
                 &players,
                 ServerMessage::PlayerHit(SPlayerHit {
                     id: target_id,
-                    generation: players
-                        .get(&target_id)
-                        .expect("beam target player missing")
-                        .session
-                        .generation,
+                    generation: target_generation,
                     kind: HitKind::Beam,
                     hit_dir_x,
                     hit_dir_z,

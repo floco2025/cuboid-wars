@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use common::{config::NetworkConfig, protocol::*};
 use tokio::sync::mpsc::unbounded_channel;
 
-use super::build_server_app;
+use super::{NetworkOverrides, build_server_app};
 use crate::network::{ClientToServer, FromClientsChannel, ServerToClient};
 
 #[test]
@@ -10,9 +10,11 @@ fn sixty_hz_reaches_bootstrap_advances_one_second_and_preserves_network_cadences
     let (incoming, receiver) = unbounded_channel();
     let mut app = build_server_app(
         Some("obby"),
-        Some(60),
-        Some(30),
-        Some(4),
+        NetworkOverrides {
+            server_hz: Some(60),
+            update_hz: Some(30),
+            snapshot_hz: Some(4),
+        },
         FromClientsChannel::new(receiver),
     )
     .expect("60 Hz server config rejected");
@@ -24,6 +26,17 @@ fn sixty_hz_reaches_bootstrap_advances_one_second_and_preserves_network_cadences
         .send((
             PlayerId(1),
             ClientToServer::Message(ClientMessage::Login(CLogin { name: "Player".into() })),
+        ))
+        .expect("login failed");
+    // Movement batches carry the other players, so the counted client needs company.
+    let (observed, _observed_receiver) = unbounded_channel();
+    incoming
+        .send((PlayerId(2), ClientToServer::Registration { to_client: observed }))
+        .expect("registration failed");
+    incoming
+        .send((
+            PlayerId(2),
+            ClientToServer::Message(ClientMessage::Login(CLogin { name: "Other".into() })),
         ))
         .expect("login failed");
     app.update();
@@ -65,9 +78,11 @@ fn cli_rates_are_checked_together_after_overrides() {
         assert!(
             build_server_app(
                 Some("obby"),
-                Some(server),
-                Some(updates),
-                Some(snapshots),
+                NetworkOverrides {
+                    server_hz: Some(server),
+                    update_hz: Some(updates),
+                    snapshot_hz: Some(snapshots),
+                },
                 FromClientsChannel::new(receiver)
             )
             .is_err()

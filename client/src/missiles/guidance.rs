@@ -2,7 +2,7 @@ use super::{
     AirGraph, MissileFlight,
     steering::{
         closest_point_on_segment, lead_point, pick_clear_direction, steer_clear, sweep_clear, target_velocity_estimate,
-        terminal_approach, weave_direction,
+        terminal_approach, travel_clear, weave_direction,
     },
 };
 use bevy::prelude::*;
@@ -87,7 +87,7 @@ fn proximity_detonation(
     let closest = closest_point_on_segment(origin, travel, target);
     (closest.distance_squared(target) <= fuse_distance * fuse_distance
         && world.attack_path_clear(closest, target, open_kinds)
-        && sweep_clear(world, open_kinds, origin, closest - origin, MISSILE_RADIUS))
+        && travel_clear(world, open_kinds, origin, closest - origin, MISSILE_RADIUS))
     .then_some(closest)
 }
 
@@ -147,8 +147,9 @@ fn guided_velocity(
     } else {
         dodge_objective(info, world, open_kinds, origin, target, speed, delta)
     };
-    let lookahead = ((origin.distance(target) - config.proximity_fuse_distance).max(0.0) / speed.max(f32::EPSILON))
-        .clamp(delta, MISSILE_TURN_LOOKAHEAD_SECS.max(delta));
+    let lookahead_secs = ((origin.distance(target) - config.proximity_fuse_distance).max(0.0)
+        / speed.max(f32::EPSILON))
+    .clamp(delta, MISSILE_TURN_LOOKAHEAD_SECS.max(delta));
     steer_clear(
         world,
         open_kinds,
@@ -157,7 +158,7 @@ fn guided_velocity(
         objective,
         config.turn_radius,
         delta,
-        lookahead,
+        lookahead_secs,
         MISSILE_RADIUS,
     )
 }
@@ -205,27 +206,28 @@ fn route_objective(
             fuse_distance,
         )
     {
-        match air_graph.path(
-            carriers,
-            collision_world,
-            open_kinds,
-            origin,
-            target_center,
-            radius,
-            fuse_distance,
-        ) {
-            Some(path) => {
-                info.path = path;
-                info.path_target = Some(target_center);
-            }
-            None => {
-                info.path.clear();
-                info.path_target = Some(target_center);
-            }
-        }
+        info.path = air_graph
+            .path(
+                carriers,
+                collision_world,
+                open_kinds,
+                origin,
+                target_center,
+                radius,
+                fuse_distance,
+            )
+            .unwrap_or_default();
+        info.path_target = Some(target_center);
         info.path_retry_timer = MISSILE_PATH_RETRY_SECS;
     }
+    let found_route = !info.path.is_empty();
     advance_waypoints(&mut info.path, origin, collision_world, open_kinds, radius);
+    if found_route && info.path.is_empty() {
+        // An empty route reads as clear, so nothing would ask the graph again
+        // for the whole retry window; a route that went unreachable asks on the
+        // next tick, while a graph that found nothing waits the window out.
+        info.path_retry_timer = 0.0;
+    }
     let waypoint = info.path.front()?;
     info.avoid_dir = None;
     Some(*waypoint - origin)
@@ -245,13 +247,27 @@ fn dodge_objective(
     delta: f32,
 ) -> Vec3 {
     info.avoid_timer -= delta;
-    let lookahead = missile_speed * MISSILE_AVOID_LOOKAHEAD_SECS;
+    let lookahead_distance = missile_speed * MISSILE_AVOID_LOOKAHEAD_SECS;
     let desired = (aim_point - origin).normalize_or_zero();
     let committed = info.avoid_dir.filter(|dir| {
-        info.avoid_timer > 0.0 && sweep_clear(collision_world, open_kinds, origin, *dir * lookahead, MISSILE_RADIUS)
+        info.avoid_timer > 0.0
+            && sweep_clear(
+                collision_world,
+                open_kinds,
+                origin,
+                *dir * lookahead_distance,
+                MISSILE_RADIUS,
+            )
     });
     let chosen = committed.or_else(|| {
-        let picked = pick_clear_direction(collision_world, open_kinds, origin, desired, lookahead, MISSILE_RADIUS);
+        let picked = pick_clear_direction(
+            collision_world,
+            open_kinds,
+            origin,
+            desired,
+            lookahead_distance,
+            MISSILE_RADIUS,
+        );
         info.avoid_dir = picked;
         info.avoid_timer = MISSILE_AVOID_COMMIT_SECS;
         picked

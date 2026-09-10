@@ -280,6 +280,7 @@ fn an_actor_killed_during_the_player_countdown_returns_after_beam_in_without_cle
             seq: 0,
             movement: MissileMovementState::from_velocity(Position::default(), Vec3::X),
         },
+        0,
     );
 
     kill(&mut app, victim);
@@ -431,9 +432,34 @@ fn a_group_death_resets_teammates_once_and_respawns_everyone_together() {
             .begin_respawn(PlayerId(2), 20.0)
     );
     advance(&mut app, 1.0);
+    let mut relocated: Vec<_> = std::iter::from_fn(|| rx.try_recv().ok())
+        .filter_map(|message| match message {
+            ServerToClient::Send(ServerMessage::PlayerRelocated(relocation)) => Some(relocation),
+            _ => None,
+        })
+        .collect();
+    relocated.sort_by_key(|relocation| relocation.id.0);
+    assert_eq!(
+        relocated
+            .iter()
+            .map(|relocation| (relocation.id, relocation.player.generation.0))
+            .collect::<Vec<_>>(),
+        [(PlayerId(1), 1), (PlayerId(2), 1)]
+    );
     let players = app.world().resource::<PlayerMap>();
     let max_health = app.world().resource::<ServerGameplayConfig>().combat.health.player.max;
     assert!(!players.group_respawn_active());
+    for relocation in &relocated {
+        let info = players.get(&relocation.id).expect("relocated player missing");
+        assert_eq!(relocation.player.movement.pos, info.life.movement.pos);
+        assert_eq!(relocation.player.movement.face_yaw, info.life.movement.face_yaw);
+        assert_eq!(relocation.player.health, Health(max_health));
+        assert_eq!(
+            app.world()
+                .get::<Position>(info.entity().expect("respawned entity missing")),
+            Some(&relocation.player.movement.pos)
+        );
+    }
     for (id, info) in players.iter() {
         assert!(!info.is_dead());
         let charged = if *id == PlayerId(1) { player_death } else { 0 };

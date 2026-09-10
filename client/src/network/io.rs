@@ -40,7 +40,6 @@ pub(super) fn network_receive_system(
 // System to send ping requests every `PING_INTERVAL` seconds.
 pub(super) fn network_ping_system(
     time: Res<Time>,
-    mut rtt: ResMut<RoundTripTime>,
     to_server: Res<ClientToServerChannel>,
     mut timer: Local<f32>,
     mut initialized: Local<bool>,
@@ -56,14 +55,17 @@ pub(super) fn network_ping_system(
     // Send ping request every PING_INTERVAL seconds
     if *timer >= PING_INTERVAL {
         *timer = 0.0;
-        let now = time.elapsed();
-        rtt.pending_sent_at = Some(now);
         to_server.send(ClientToServer::Send(ClientMessage::Ping(CPing {
-            timestamp_nanos: now.as_nanos() as u64,
+            timestamp_nanos: time.elapsed().as_nanos() as u64,
         })));
     }
 }
 
+// Older echoes than this are forged or from before a clock reset and must not feed the RTT or the clock.
+const PONG_MAX_AGE: Duration = Duration::from_secs(5);
+
+// Every pong measures against the send time it echoes, so a round trip longer
+// than the ping interval still counts.
 pub(super) fn apply_pong(
     time: &Time,
     rtt: &mut RoundTripTime,
@@ -72,14 +74,10 @@ pub(super) fn apply_pong(
     message: SPong,
     network: &NetworkConfig,
 ) {
-    let Some(sent_at) = rtt.pending_sent_at else {
+    let sent_at = Duration::from_nanos(message.timestamp_nanos);
+    let Some(measured_rtt) = time.elapsed().checked_sub(sent_at).filter(|rtt| *rtt <= PONG_MAX_AGE) else {
         return;
     };
-    if message.timestamp_nanos != sent_at.as_nanos() as u64 {
-        return;
-    }
-    let measured_rtt = time.elapsed().saturating_sub(sent_at);
-    rtt.pending_sent_at = None;
     rtt.measurements.push_back(measured_rtt);
     if rtt.measurements.len() > 10 {
         rtt.measurements.pop_front();
@@ -97,47 +95,82 @@ pub(super) fn apply_pong(
 mod tests {
     use super::*;
 
+    fn pong(tick: u32, sent_at: Duration) -> SPong {
+        SPong {
+            tick,
+            timestamp_nanos: sent_at.as_nanos() as u64,
+        }
+    }
+
     #[test]
-    fn pong_matches_the_pending_ping_including_a_ping_sent_at_startup() {
+    fn pong_measures_against_its_echoed_send_time_including_a_ping_sent_at_startup() {
         let mut time = Time::default();
         time.advance_by(Duration::from_millis(10));
-        let mut rtt = RoundTripTime {
-            pending_sent_at: Some(Duration::ZERO),
-            ..default()
-        };
+        let mut rtt = RoundTripTime::default();
         let mut sync = TickSync::default();
         let mut tick = ServerTick(0);
-        let pong = SPong {
-            tick: 100,
-            timestamp_nanos: 0,
-        };
         apply_pong(
             &time,
             &mut rtt,
             &mut sync,
             &mut tick,
-            SPong {
-                timestamp_nanos: 1,
-                ..pong.clone()
-            },
-            &NetworkConfig::default(),
-        );
-        assert_eq!(tick.0, 0);
-        assert!(rtt.pending_sent_at.is_some());
-        apply_pong(
-            &time,
-            &mut rtt,
-            &mut sync,
-            &mut tick,
-            pong.clone(),
+            pong(100, Duration::ZERO),
             &NetworkConfig::default(),
         );
         assert_eq!(tick.0, 100);
         assert_eq!(rtt.rtt, Duration::from_millis(10));
-        assert!(rtt.pending_sent_at.is_none());
         tick.0 = 101;
-        apply_pong(&time, &mut rtt, &mut sync, &mut tick, pong, &NetworkConfig::default());
+        apply_pong(
+            &time,
+            &mut rtt,
+            &mut sync,
+            &mut tick,
+            pong(100, Duration::ZERO),
+            &NetworkConfig::default(),
+        );
         assert_eq!(tick.0, 101);
+    }
+
+    #[test]
+    fn a_round_trip_longer_than_the_ping_interval_still_updates_rtt_and_the_clock() {
+        let mut time = Time::default();
+        time.advance_by(Duration::from_millis(1200));
+        let mut rtt = RoundTripTime::default();
+        let mut sync = TickSync::default();
+        let mut tick = ServerTick(0);
+        // A second ping went out at 1.0 s; the first pong arrives after it.
+        apply_pong(
+            &time,
+            &mut rtt,
+            &mut sync,
+            &mut tick,
+            pong(100, Duration::ZERO),
+            &NetworkConfig::default(),
+        );
+        assert_eq!(rtt.rtt, Duration::from_millis(1200));
+        assert_eq!(tick.0, 118);
+    }
+
+    #[test]
+    fn ancient_or_future_echoes_are_ignored() {
+        let mut time = Time::default();
+        time.advance_by(Duration::from_secs(10));
+        let mut rtt = RoundTripTime::default();
+        let mut sync = TickSync::default();
+        let mut tick = ServerTick(0);
+        for sent_at in [Duration::ZERO, Duration::from_secs(11)] {
+            apply_pong(
+                &time,
+                &mut rtt,
+                &mut sync,
+                &mut tick,
+                pong(100, sent_at),
+                &NetworkConfig::default(),
+            );
+        }
+        assert_eq!(tick.0, 0);
+        assert_eq!(rtt.rtt, Duration::ZERO);
+        assert!(rtt.measurements.is_empty());
     }
 
     #[test]
@@ -145,7 +178,6 @@ mod tests {
         let mut time = Time::default();
         time.advance_by(Duration::from_millis(200));
         let mut rtt = RoundTripTime {
-            pending_sent_at: Some(Duration::ZERO),
             measurements: [Duration::from_millis(10)].into(),
             ..default()
         };
@@ -156,10 +188,7 @@ mod tests {
             &mut rtt,
             &mut sync,
             &mut tick,
-            SPong {
-                tick: 100,
-                timestamp_nanos: 0,
-            },
+            pong(100, Duration::ZERO),
             &NetworkConfig::default(),
         );
         assert_eq!(tick.0, 101);

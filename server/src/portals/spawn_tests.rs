@@ -233,3 +233,47 @@ fn assignments_and_body_lifecycle_guard_placements() {
             .all(|receiver| receiver.try_recv().is_err())
     );
 }
+
+#[test]
+fn malformed_geometry_is_rejected_before_the_cooldown_or_any_placement() {
+    let mut fixture = Fixture::new(PortalMode::Both);
+    let id = PlayerId(1);
+    let portal = fixture.portal(id, PortalEnd::A, 2.0);
+    let invalid = [
+        Portal {
+            pos: Position {
+                x: f32::NAN,
+                ..portal.pos
+            },
+            ..portal
+        },
+        Portal {
+            yaw: f32::INFINITY,
+            ..portal
+        },
+        Portal {
+            nx: 0.0,
+            ny: 0.0,
+            nz: 0.0,
+            ..portal
+        },
+        Portal {
+            carrier: CarrierId(5),
+            ..portal
+        },
+    ];
+    for invalid in invalid {
+        fixture.shoot(id, PlayerGeneration(3), PortalShotResult::Placed(invalid));
+        fixture.shoot(id, PlayerGeneration(3), PortalShotResult::Fizzled(invalid));
+    }
+    assert!(fixture.portals.snapshot_portals().is_empty());
+    assert!(
+        fixture
+            .receivers
+            .iter_mut()
+            .all(|receiver| receiver.try_recv().is_err())
+    );
+    fixture.shoot(id, PlayerGeneration(3), PortalShotResult::Placed(portal));
+    assert_eq!(fixture.portals.snapshot_portals(), vec![portal]);
+    fixture.assert_opened(id, portal);
+}

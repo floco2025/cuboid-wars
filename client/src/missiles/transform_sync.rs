@@ -1,35 +1,29 @@
 use crate::{
     characters::PreviousTickPosition,
-    missiles::{MissileMap, MissileVelocity, missile_rotation, resources::OwnedMissile},
+    missiles::{MissileVelocity, OwnedMissile, missile_rotation},
 };
 use bevy::prelude::*;
-use common::protocol::{MissileId, MissileMarker, Position};
+use common::protocol::{MissileMarker, Position};
 
 pub(crate) fn missiles_transform_sync_system(
-    time: Res<Time>,
     fixed_time: Res<Time<Fixed>>,
-    mut missiles: ResMut<MissileMap>,
     mut query: Query<
         (
-            &MissileId,
-            &mut Position,
+            &Position,
             &PreviousTickPosition,
-            &mut MissileVelocity,
+            &MissileVelocity,
             &mut Transform,
-            Option<&OwnedMissile>,
+            Has<OwnedMissile>,
         ),
         With<MissileMarker>,
     >,
 ) {
-    for (id, mut pos, previous, mut velocity, mut transform, owned) in &mut query {
-        if owned.is_some() {
-            transform.translation = previous.lerp_to(*pos, fixed_time.overstep_fraction());
-        } else if let Some(motion) = missiles.get_mut(id).and_then(|info| info.remote.as_mut()) {
-            let movement = motion.advance(time.delta_secs_f64() / fixed_time.timestep().as_secs_f64());
-            *pos = movement.pos;
-            velocity.0 = movement.velocity();
-            transform.translation = Vec3::from(*pos);
-        }
+    for (pos, previous, velocity, mut transform, owned) in &mut query {
+        transform.translation = if owned {
+            previous.lerp_to(*pos, fixed_time.overstep_fraction())
+        } else {
+            Vec3::from(*pos)
+        };
         transform.rotation = missile_rotation(velocity.0);
     }
 }

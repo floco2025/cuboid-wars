@@ -18,7 +18,6 @@ use common::{
 };
 
 fn step(
-    mut commands: Commands,
     world: Res<CollisionWorld>,
     settings: Res<MapSettings>,
     plates: Res<PlateState>,
@@ -28,14 +27,13 @@ fn step(
 ) {
     let starts = query
         .iter()
-        .map(|(entity, _, _, pos, _, _, _, _, _, character)| (entity, *pos, character.0.physics()))
+        .map(|(entity, _, _, pos, _, _, _, _, _, _, character)| (entity, *pos, character.0.physics()))
         .collect::<Vec<_>>();
     let mut planned = Vec::new();
     plan_actor_moves(
         1.0 / 30.0,
         &world,
         &settings,
-        &mut commands,
         &plates,
         &carriers,
         &actors,

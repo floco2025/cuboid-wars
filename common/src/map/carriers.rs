@@ -138,6 +138,12 @@ impl Carriers {
         self.carried.len()
     }
 
+    // Wire-supplied carrier ids must be checked here before any pose lookup.
+    #[must_use]
+    pub fn contains(&self, id: CarrierId) -> bool {
+        id.carried_index().is_none_or(|index| index < self.carried.len())
+    }
+
     // Every carrier but the world, in layout order.
     pub fn carried_ids(&self) -> impl Iterator<Item = CarrierId> {
         (0..self.carried.len()).map(CarrierId::from_carried_index)

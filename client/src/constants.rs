@@ -56,6 +56,20 @@ pub const AUDIO_MASTER_VOLUME_DEFAULT: f32 = 1.0;
 pub const PING_INTERVAL: f32 = 1.0;
 
 // ============================================================================
+// Remote Sample Buffers
+// ============================================================================
+
+// Playback rate correction per sample interval the lead is off its target,
+// and the largest correction applied.
+pub const SAMPLE_BUFFER_RATE_GAIN: f64 = 0.1;
+pub const SAMPLE_BUFFER_MAX_RATE_DEVIATION: f64 = 0.2;
+// A lead this many intervals past the target is re-centred at once.
+pub const SAMPLE_BUFFER_RECENTER_INTERVALS: f64 = 3.0;
+// A sample this many intervals after its predecessor restarts the timeline at the cursor.
+pub const SAMPLE_BUFFER_GAP_CAP_INTERVALS: f64 = 4.0;
+pub const SAMPLE_BUFFER_MAX_SAMPLES: usize = 64;
+
+// ============================================================================
 // Character Visuals
 // ============================================================================
 

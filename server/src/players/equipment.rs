@@ -30,10 +30,8 @@ pub fn erase_equipment_system(mut players: ResMut<PlayerMap>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::players::{PlayerInfo, PowerUpState, handle_player_movement_event};
-    use common::protocol::{
-        BarrierKindId, CPlayerMovementEvent, PlayerGeneration, PlayerId, PlayerMovementEvent, PowerUpKind,
-    };
+    use crate::players::{PlayerInfo, PowerUpState, handle_move_outcome};
+    use common::protocol::{BarrierKindId, CMoveOutcome, MoveOutcome, PlayerGeneration, PlayerId, PowerUpKind};
     use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
 
     fn test_app() -> (App, UnboundedReceiver<ServerToClient>) {
@@ -48,11 +46,11 @@ mod tests {
     }
 
     fn erase(app: &mut App) {
-        handle_player_movement_event(
+        handle_move_outcome(
             PlayerId(1),
-            CPlayerMovementEvent {
+            CMoveOutcome {
                 generation: PlayerGeneration(0),
-                event: PlayerMovementEvent::EraseEquipment,
+                event: MoveOutcome::EraseEquipment,
             },
             &mut app.world_mut().resource_mut::<PlayerMap>(),
         );

@@ -14,7 +14,7 @@
 
 - **Negative respawn timer resets the world at once:** a blocked respawn keeps ticking `respawn_remaining_secs` below zero, and `PlayerMap::disconnect` passes that value as the actor-reset delay, so the logout resets actors on the next tick instead of after `respawn_secs`. Clamp the countdown or treat a non-positive remainder as the full delay.
 
-- **God-mode void fall ignores the checkpoint:** `players_fall_death_system` teleports an invincible player through `generate_player_spawn_position` and never seeds `checkpoint_contact`, so it lands in the spawn zone and, where a spawn zone overlaps a checkpoint, counts as a fresh entry. Route it through `player_spawn_destination` like login and respawn.
+- **God-mode void fall ignores the checkpoint:** `players_fatal_outcomes_system` teleports an invincible player through `generate_player_spawn_position` and never seeds `checkpoint_contact`, so it lands in the spawn zone and, where a spawn zone overlaps a checkpoint, counts as a fresh entry. Route it through `player_spawn_destination` like login and respawn.
 
 - **Checkpoint cue can be lost:** `SCheckpointReached` rides the unreliable lane and nothing in the snapshot carries the saved checkpoint, so one dropped datagram loses the sound and banner until the next death. Send it on the reliable lane or add the saved checkpoint to `SSnapshot`.
 
@@ -29,6 +29,10 @@
 - **Common-code ownership after the client-trust migration:** audit modules in `common` and move code used only by the client or only by the server into its owning crate. Keep shared types, protocol, configuration, and algorithms used by both sides in `common`.
 
 - **Host a game from a client:** colocate the server with one client so it can host the game. Use message queues for communication between the host client and its server, bypassing the network stack; remote clients connect over the network.
+
+- **Missiles through portals:** a missile chasing a target through a portal detonates on the aperture's backing instead of crossing, while bullets hop through; rank `projectile_hop` against the other events in the missile sweep in `client/src/missiles/movement.rs`.
+
+- **Late launch cue:** an observer whose applied snapshot is already past a missile's launch tick spawns the missile from the snapshot but skips the launch sound (`client/src/network/missiles/handlers.rs`).
 
 - **Checkpoint scan on maps without checkpoints:** `players_checkpoints_system` runs a capsule cast per grounded player every tick before reading an empty list. Gate it with a `run_if` on `map.checkpoints`, like `pending_actor_spawns_active`.
 

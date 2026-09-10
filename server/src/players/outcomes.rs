@@ -1,9 +1,9 @@
-use common::protocol::{CPlayerMovementEvent, PlayerId, PlayerMovementEvent, Position};
+use common::protocol::{CMoveOutcome, MoveOutcome, PlayerId, Position};
 
 use super::PlayerMap;
 
 #[derive(Default)]
-pub(crate) struct PlayerMovementEvents {
+pub(crate) struct PendingOutcomes {
     pub landings: Vec<Landing>,
     pub crushed: Option<Position>,
     pub fell_out_of_world: bool,
@@ -15,27 +15,23 @@ pub(crate) struct Landing {
     pub impact_speed: f32,
 }
 
-pub(crate) fn handle_player_movement_event(id: PlayerId, message: CPlayerMovementEvent, players: &mut PlayerMap) {
+pub(crate) fn handle_move_outcome(id: PlayerId, message: CMoveOutcome, players: &mut PlayerMap) {
     let Some(info) = players.get_mut(&id) else { return };
     if info.is_dead() || info.session.generation != message.generation {
         return;
     }
     let outcomes = &mut info.life.outcomes;
     match message.event {
-        PlayerMovementEvent::Landed { pos, impact_speed }
-            if finite(pos) && impact_speed.is_finite() && impact_speed >= 0.0 =>
+        MoveOutcome::Landed { pos, impact_speed }
+            if pos.is_finite() && impact_speed.is_finite() && impact_speed >= 0.0 =>
         {
             outcomes.landings.push(Landing { pos, impact_speed });
         }
-        PlayerMovementEvent::Crushed { pos } if finite(pos) => outcomes.crushed = Some(pos),
-        PlayerMovementEvent::FellOutOfWorld => outcomes.fell_out_of_world = true,
-        PlayerMovementEvent::EraseEquipment => outcomes.erase_equipment = true,
+        MoveOutcome::Crushed { pos } if pos.is_finite() => outcomes.crushed = Some(pos),
+        MoveOutcome::FellOutOfWorld => outcomes.fell_out_of_world = true,
+        MoveOutcome::EraseEquipment => outcomes.erase_equipment = true,
         _ => {}
     }
-}
-
-fn finite(pos: Position) -> bool {
-    pos.x.is_finite() && pos.y.is_finite() && pos.z.is_finite()
 }
 
 #[cfg(test)]
@@ -54,29 +50,29 @@ mod tests {
         let mut info = PlayerInfo::new(Entity::PLACEHOLDER, tx);
         info.session.last_move_seq = 1000;
         players.insert(id, info);
-        let event = CPlayerMovementEvent {
+        let event = CMoveOutcome {
             generation: PlayerGeneration(0),
-            event: PlayerMovementEvent::Landed {
+            event: MoveOutcome::Landed {
                 pos: Position::default(),
                 impact_speed: 8.0,
             },
         };
-        handle_player_movement_event(id, event.clone(), &mut players);
+        handle_move_outcome(id, event.clone(), &mut players);
         assert_eq!(
             players.get(&id).expect("player missing").life.outcomes.landings.len(),
             1
         );
         players.get_mut(&id).expect("player missing").advance_body();
-        handle_player_movement_event(id, event, &mut players);
+        handle_move_outcome(id, event, &mut players);
         let info = players.get(&id).expect("player missing");
         assert!(info.life.outcomes.landings.is_empty());
         assert_eq!(info.session.last_move_seq, 1000);
         players.get_mut(&id).expect("player missing").begin_respawn(1.0);
-        handle_player_movement_event(
+        handle_move_outcome(
             id,
-            CPlayerMovementEvent {
+            CMoveOutcome {
                 generation: PlayerGeneration(1),
-                event: PlayerMovementEvent::FellOutOfWorld,
+                event: MoveOutcome::FellOutOfWorld,
             },
             &mut players,
         );
@@ -97,15 +93,15 @@ mod tests {
         let mut players = PlayerMap::default();
         players.insert(id, PlayerInfo::new(Entity::PLACEHOLDER, tx));
         for outcome in [
-            PlayerMovementEvent::Crushed {
+            MoveOutcome::Crushed {
                 pos: Position::default(),
             },
-            PlayerMovementEvent::EraseEquipment,
-            PlayerMovementEvent::EraseEquipment,
+            MoveOutcome::EraseEquipment,
+            MoveOutcome::EraseEquipment,
         ] {
-            handle_player_movement_event(
+            handle_move_outcome(
                 id,
-                CPlayerMovementEvent {
+                CMoveOutcome {
                     generation: PlayerGeneration(0),
                     event: outcome,
                 },
@@ -128,20 +124,20 @@ mod tests {
             ..Position::default()
         };
         for outcome in [
-            PlayerMovementEvent::Crushed { pos },
-            PlayerMovementEvent::Landed { pos, impact_speed: 8.0 },
-            PlayerMovementEvent::Landed {
+            MoveOutcome::Crushed { pos },
+            MoveOutcome::Landed { pos, impact_speed: 8.0 },
+            MoveOutcome::Landed {
                 pos: Position::default(),
                 impact_speed: f32::NAN,
             },
-            PlayerMovementEvent::Landed {
+            MoveOutcome::Landed {
                 pos: Position::default(),
                 impact_speed: -1.0,
             },
         ] {
-            handle_player_movement_event(
+            handle_move_outcome(
                 id,
-                CPlayerMovementEvent {
+                CMoveOutcome {
                     generation: PlayerGeneration(0),
                     event: outcome,
                 },

@@ -1,54 +1,16 @@
-use std::collections::VecDeque;
-
 use bevy::prelude::*;
 use common::{
     map::Carriers,
-    math::{angle_delta_radians, sequence_is_newer},
-    protocol::{ActorMovementState, CarrierId},
+    math::angle_delta_radians,
+    physics::{CharacterSupport, CharacterVerticalVelocity},
+    protocol::{ActorMoveIntent, ActorMovementState, CarrierId, FaceYaw, Position},
 };
 
-const MAX_SAMPLES: usize = 64;
-
-#[derive(Component)]
-pub(crate) struct RemoteActorMotion {
-    samples: VecDeque<MovementSample>,
-    cursor: f64,
-}
-
-#[derive(Clone, Copy)]
-struct MovementSample {
-    tick: u32,
-    at: f64,
-    movement: ActorMovementState,
-}
-
-#[derive(Component, Default)]
-pub(crate) struct ActorAnimationVelocity(pub Vec3);
+use super::{ActorAnimationVelocity, RemoteActorMotion};
+use crate::characters::rendered_carrier_position;
 
 impl RemoteActorMotion {
-    pub(crate) fn new(tick: u32, movement: ActorMovementState, delay_ticks: f64) -> Self {
-        Self {
-            samples: VecDeque::from([MovementSample {
-                tick,
-                at: 0.0,
-                movement,
-            }]),
-            cursor: -delay_ticks,
-        }
-    }
-
-    pub(crate) fn push(&mut self, tick: u32, movement: ActorMovementState) {
-        let last = self.samples.back().expect("actor movement buffer is empty");
-        if !sequence_is_newer(tick, last.tick) {
-            return;
-        }
-        let at = last.at + f64::from(tick.wrapping_sub(last.tick));
-        self.samples.push_back(MovementSample { tick, at, movement });
-        if self.samples.len() > MAX_SAMPLES {
-            self.samples.pop_front();
-        }
-    }
-
+    // The rendered state this frame and the world velocity playback moves at.
     pub(crate) fn advance(
         &mut self,
         delta_ticks: f64,
@@ -56,35 +18,60 @@ impl RemoteActorMotion {
         carrier_alpha: f32,
         tick_secs: f64,
     ) -> (ActorMovementState, Vec3) {
-        let newest = self.samples.back().expect("actor movement buffer is empty").at;
-        // Holding the newest sample avoids overshooting stops when an update is late.
-        self.cursor = (self.cursor + delta_ticks).min(newest);
-        while self.samples.get(1).is_some_and(|sample| sample.at <= self.cursor) {
-            self.samples.pop_front();
-        }
-        let left = self.samples.front().expect("actor movement buffer is empty");
-        let mut movement = render_movement(left.movement, carriers, carrier_alpha);
-        let Some(right) = self.samples.get(1) else {
+        let playback = self.0.advance(delta_ticks);
+        let mut movement = rendered(playback.left, carriers, carrier_alpha);
+        let Some(right) = playback.right else {
             return (movement, Vec3::ZERO);
         };
-        if self.cursor < left.at {
-            return (movement, Vec3::ZERO);
-        }
-        let span = right.at - left.at;
-        let alpha = ((self.cursor - left.at) / span) as f32;
         let start = Vec3::from(movement.pos);
-        let end = Vec3::from(render_movement(right.movement, carriers, carrier_alpha).pos);
-        movement.pos = start.lerp(end, alpha).into();
-        movement.face_yaw += angle_delta_radians(right.movement.face_yaw, movement.face_yaw) * alpha;
-        movement.vertical_velocity += (right.movement.vertical_velocity - movement.vertical_velocity) * alpha;
-        (movement, (end - start) * (1.0 / (span * tick_secs)) as f32)
+        let end = Vec3::from(rendered(right, carriers, carrier_alpha).pos);
+        movement.pos = start.lerp(end, playback.alpha).into();
+        movement.face_yaw += angle_delta_radians(right.face_yaw, movement.face_yaw) * playback.alpha;
+        movement.vertical_velocity += (right.vertical_velocity - movement.vertical_velocity) * playback.alpha;
+        (
+            movement,
+            (end - start) * (1.0 / (playback.span_ticks * tick_secs)) as f32,
+        )
     }
 }
 
-fn render_movement(mut movement: ActorMovementState, carriers: &Carriers, alpha: f32) -> ActorMovementState {
-    movement.pos = carriers
-        .pose_between(movement.carrier, alpha)
-        .transform_position(&movement.pos);
+fn rendered(sample: &ActorMovementState, carriers: &Carriers, carrier_alpha: f32) -> ActorMovementState {
+    let mut movement = *sample;
+    movement.pos = rendered_carrier_position(movement.carrier, &movement.pos, carriers, carrier_alpha);
     movement.carrier = CarrierId::WORLD;
     movement
 }
+
+pub(crate) fn interpolate_remote_actors_system(
+    time: Res<Time>,
+    fixed_time: Res<Time<Fixed>>,
+    carriers: Res<Carriers>,
+    mut query: Query<(
+        &mut RemoteActorMotion,
+        &mut Position,
+        &mut FaceYaw,
+        &mut ActorMoveIntent,
+        &mut CharacterVerticalVelocity,
+        &mut CharacterSupport,
+        &mut ActorAnimationVelocity,
+    )>,
+) {
+    for (mut buffer, mut pos, mut yaw, mut intent, mut vertical, mut support, mut velocity) in &mut query {
+        let (movement, travel) = buffer.advance(
+            time.delta_secs_f64() / fixed_time.timestep().as_secs_f64(),
+            &carriers,
+            fixed_time.overstep_fraction(),
+            fixed_time.timestep().as_secs_f64(),
+        );
+        *pos = movement.pos;
+        yaw.0 = movement.face_yaw;
+        *intent = movement.move_intent;
+        vertical.0 = movement.vertical_velocity;
+        *support = movement.support;
+        velocity.0 = travel;
+    }
+}
+
+#[cfg(test)]
+#[path = "interpolation_tests.rs"]
+mod tests;

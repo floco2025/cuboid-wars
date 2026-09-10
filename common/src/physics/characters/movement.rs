@@ -23,7 +23,7 @@ use crate::{
     map::Carriers,
     math::from_rapier,
     physics::{PortalSet, world::CollisionWorld},
-    protocol::{BarrierKindId, Position},
+    protocol::{BarrierKindId, CarrierId, Position},
 };
 
 const CHARACTER_BLOCKED_MOVEMENT_EPSILON: f32 = 0.01;
@@ -47,8 +47,8 @@ pub fn player_jump_velocity(
 }
 
 // One fixed-tick request. Ladder decisions read only `control_velocity`;
-// reconciliation, knockback, and portal momentum ride `external_displacement`
-// so they can move the body without impersonating player/actor intent.
+// knockback and portal momentum ride `external_displacement` so they can move
+// the body without impersonating player/actor intent.
 #[derive(Debug, Clone, Copy)]
 pub struct CharacterStep {
     pub start: Position,
@@ -82,6 +82,7 @@ pub struct CharacterEnvironment<'a> {
 pub fn step_character_movement(step: CharacterStep, env: &CharacterEnvironment) -> CharacterMovementResult {
     let shape = character_movement_shape(env.physics);
     let RiderCarry {
+        carrier,
         displacement: carry,
         floor_velocity,
     } = rider_carry(&step, env, &shape);
@@ -104,7 +105,15 @@ pub fn step_character_movement(step: CharacterStep, env: &CharacterEnvironment) 
         )
     });
     let collision = resolve_character_collision(step, env, &movement_excluded, &shape, &request);
-    finish_character_movement(step, env, &movement_excluded, request, collision, floor_velocity)
+    finish_character_movement(
+        step,
+        env,
+        &movement_excluded,
+        request,
+        collision,
+        carrier,
+        floor_velocity,
+    )
 }
 
 struct MovementRequest {
@@ -322,6 +331,7 @@ fn finish_character_movement(
     excluded_colliders: &[ColliderHandle],
     request: MovementRequest,
     collision: CharacterCollisionResult,
+    carrier: CarrierId,
     floor_velocity: Vec3,
 ) -> CharacterMovementResult {
     let mut resolved = Position {
@@ -411,6 +421,7 @@ fn finish_character_movement(
         impact_speed,
         support,
         blocked,
+        carrier,
         floor_velocity,
         lifted: request.lifted,
         crushed,
