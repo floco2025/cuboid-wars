@@ -239,6 +239,12 @@ pub const ITEM_MISSILE_COLOR: Color = Color::srgb(0.95, 0.45, 0.10); // Orange (
 // ============================================================================
 
 // Mesh dimensions (m): Y-up cylinder body, cone nose, 4 fins at the tail.
+// Collision ball the shooter sweeps for flight, the proximity fuse, and launch
+// clearance; the rendered mesh must fit inside it or missiles clip the walls
+// they fly along (`rendered_missile_fits_inside_the_collision_ball` pins that).
+pub const MISSILE_RADIUS: f32 = 0.3;
+// Launch distance in front of the shooter's eye along the aim.
+pub const MISSILE_SPAWN_OFFSET: f32 = 1.0;
 pub const MISSILE_BODY_RADIUS: f32 = 0.08;
 pub const MISSILE_BODY_LENGTH: f32 = 0.5;
 pub const MISSILE_NOSE_LENGTH: f32 = 0.2;

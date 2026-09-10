@@ -4,6 +4,7 @@ mod focus;
 mod missiles;
 mod movement;
 #[cfg(test)]
+#[path = "tests/movement.rs"]
 mod movement_tests;
 mod portals;
 mod shooting;

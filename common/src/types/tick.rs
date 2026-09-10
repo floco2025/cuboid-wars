@@ -10,10 +10,3 @@ pub struct ServerTick(pub u32);
 pub fn server_tick_advance_system(mut tick: ResMut<ServerTick>) {
     tick.0 = tick.0.wrapping_add(1);
 }
-
-// A configured duration as whole ticks, so both sides time it from the
-// shared tick alone.
-#[must_use]
-pub fn ticks_from_secs(secs: f32, server_hz: u32) -> u32 {
-    (secs * server_hz as f32).round() as u32
-}

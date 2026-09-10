@@ -2,7 +2,7 @@ use super::*;
 use bevy::prelude::*;
 
 use common::{
-    physics::{carried_portals_refresh_system, carriers_advance_system, knockback_decay_system},
+    physics::{carriers_advance_system, knockback_decay_system},
     protocol::server_tick_advance_system,
 };
 
@@ -15,6 +15,7 @@ use crate::{
         player_animation_update_system, players_transform_sync_system, report_move_outcomes_system,
         report_player_movement_system,
     },
+    portals::carried_portals_refresh_system,
     portals::{portal_surfaces_transform_sync_system, portal_transit_system},
     projectiles::projectiles_movement_system,
     schedule::ClientSet,

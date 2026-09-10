@@ -1,11 +1,11 @@
 use std::collections::VecDeque;
 
-use super::*;
+use super::{super::blocking_character_move_plan, *};
 use crate::actors::navigation::WaypointKind;
 use common::{
     config::{CharacterPhysicsConfig, HitboxConfig, MovementColliderConfig},
     constants::{LADDER_RAIL_INSET, LADDER_STANDOFF_CLEARANCE, TICK_SECS},
-    physics::{blocking_character_move_plan, character_paths_intersect},
+    physics::character_paths_intersect,
     protocol::{BarrierKindTable, Ladder},
 };
 

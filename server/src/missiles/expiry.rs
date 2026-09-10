@@ -1,11 +1,11 @@
 use bevy::prelude::*;
 use common::{
     config::{GameplayConfig, NetworkConfig},
-    protocol::{SMissileDetonated, ServerMessage, ServerTick, ticks_from_secs},
+    protocol::{SMissileDetonated, ServerMessage, ServerTick},
 };
 
 use super::MissileMap;
-use crate::{network::broadcast_to_all, players::PlayerMap};
+use crate::{network::broadcast_to_all, players::PlayerMap, schedule::ticks_from_secs};
 
 // Report lag a flying missile may accumulate past its lifetime before the server gives up on it.
 const MISSILE_EXPIRY_MARGIN_SECS: f32 = 2.0;

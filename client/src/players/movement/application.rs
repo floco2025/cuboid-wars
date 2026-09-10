@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use common::physics::{CharacterMovePlan, overlapping_character};
+use common::physics::{CharacterMovePlan, character_move_plans_intersect};
 
 use super::{feedback::bump, planning::PlayerMovementQuery};
 use crate::config::{AssetSet, AudioConfig};
@@ -58,3 +58,18 @@ pub(crate) fn apply_player_moves(
         }
     }
 }
+
+// Another character's planned position this move plan would overlap.
+#[must_use]
+fn overlapping_character<'a>(
+    candidate: &CharacterMovePlan,
+    planned_moves: &'a [CharacterMovePlan],
+) -> Option<&'a CharacterMovePlan> {
+    planned_moves
+        .iter()
+        .find(|other| other.entity != candidate.entity && character_move_plans_intersect(candidate, other))
+}
+
+#[cfg(test)]
+#[path = "tests/application.rs"]
+mod tests;

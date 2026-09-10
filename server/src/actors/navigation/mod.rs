@@ -6,6 +6,7 @@ mod territory;
 mod waypoint;
 
 #[cfg(test)]
+#[path = "tests/ladder.rs"]
 mod ladder_tests;
 #[cfg(test)]
 mod tests;

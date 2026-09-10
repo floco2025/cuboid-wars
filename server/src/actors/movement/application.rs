@@ -1,6 +1,6 @@
-use common::physics::{CharacterMovePlan, blocking_character_move_plan};
+use common::physics::CharacterMovePlan;
 
-use super::query::ActorMovementQuery;
+use super::{blocking_character_move_plan, query::ActorMovementQuery};
 use crate::actors::ActorMap;
 
 pub(crate) fn apply_actor_moves(

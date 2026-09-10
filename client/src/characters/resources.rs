@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use bevy::prelude::*;
+use common::protocol::Health;
 
 #[derive(Resource, Default, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BoundsMode {
@@ -39,3 +40,15 @@ impl MaxHealth {
             .expect("actor kind sent by server is missing from SInit max health")
     }
 }
+
+#[must_use]
+pub fn health_ratio(health: Health, max_health: f32) -> f32 {
+    if max_health <= 0.0 {
+        return 0.0;
+    }
+    (health.0 / max_health).clamp(0.0, 1.0)
+}
+
+#[cfg(test)]
+#[path = "tests/resources.rs"]
+mod tests;

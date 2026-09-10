@@ -41,11 +41,7 @@ pub(super) fn network_receive_system(
                     .disconnect(&id, context.world.server_gameplay_config.player.respawn_secs);
                 context.missiles.remove_shooter(id);
                 let portal_access = context.portal_assignments.release(&id);
-                if context.portals.remove_access(portal_access) {
-                    *context.portal_set = context
-                        .portals
-                        .rebuild_set(&context.world.collision_world, &context.world.carriers);
-                }
+                context.portals.remove_access(portal_access);
                 if let Some(entity) = entity {
                     commands.entity(entity).despawn();
                 }

@@ -8,11 +8,11 @@ use super::{
     load::LoadedMaps,
     schema::{MapDef, MotionDef, PressurePlatePurposeDef},
 };
-use crate::map::MapConfig;
+use crate::{map::MapConfig, schedule::ticks_from_secs};
 use common::{
     config::MapGeometryConfig,
     map::MapGeometry,
-    protocol::{BarrierKindTable, BridgeKindTable, Carrier, CarrierId, MapLayout, ticks_from_secs},
+    protocol::{BarrierKindTable, BridgeKindTable, Carrier, CarrierId, MapLayout},
 };
 
 // The map being played and every map it nests, into one layout and one
@@ -174,5 +174,5 @@ fn nested_origin_offset(parent: &MapGeometry, nested: &MapGeometry, cell: [i32; 
 }
 
 #[cfg(test)]
-#[path = "timing_tests.rs"]
+#[path = "tests/timing.rs"]
 mod timing_tests;

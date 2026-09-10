@@ -122,21 +122,6 @@ pub const KNOCKBACK_CLAMP_RATIO: f32 = 1.5;
 pub const EXPLOSION_BLAST_CORE_FRACTION: f32 = 0.25;
 
 // ============================================================================
-// Missiles
-// ============================================================================
-
-// Fixed missile geometry. The server sweeps this ball for collision, the
-// proximity fuse, and launch clearance. The client renders a separately
-// tuned, smaller mesh (`client::constants::MISSILE_BODY_RADIUS`) — feel and
-// looks are deliberately independent — but its widest radial extent must
-// fit inside this ball or missiles visibly clip walls they fly along; a
-// client test (`rendered_missile_fits_inside_the_collision_ball`) pins
-// that. Flight/guidance tuning stays in `config/server/gameplay.json`.
-pub const MISSILE_RADIUS: f32 = 0.3;
-// Launch distance in front of the shooter's eye along the aim.
-pub const MISSILE_SPAWN_OFFSET: f32 = 1.0;
-
-// ============================================================================
 // Portals
 // ============================================================================
 

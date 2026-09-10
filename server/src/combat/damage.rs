@@ -8,10 +8,16 @@ use crate::{
     players::PlayerMap,
     quests::{QuestBoard, QuestCatalog, QuestEvent, record_event},
 };
-use common::{
-    health::apply_damage,
-    protocol::{ActorId, Health, PlayerDeathEffect, PlayerId, Position, SActorDeath, SPlayerDeath, ServerMessage},
+use common::protocol::{
+    ActorId, Health, PlayerDeathEffect, PlayerId, Position, SActorDeath, SPlayerDeath, ServerMessage,
 };
+
+pub fn apply_damage(health: &mut Health, amount: f32) {
+    if amount <= 0.0 {
+        return;
+    }
+    health.0 = (health.0 - amount).max(0.0);
+}
 
 // What killed a player, by id. `kill_player` derives both the kill credit
 // (`SPlayerDeath.killer`) and the feed's `DeathCause` from it.

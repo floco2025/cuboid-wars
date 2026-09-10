@@ -41,5 +41,5 @@ fn launch_direction(aim: Vec3, spread_rad: f32, rng: &mut impl RngExt) -> Vec3 {
 }
 
 #[cfg(test)]
-#[path = "launch_tests.rs"]
+#[path = "tests/launch.rs"]
 mod tests;

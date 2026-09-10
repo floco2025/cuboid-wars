@@ -2145,6 +2145,7 @@ dependencies = [
  "common",
  "quinn",
  "rand",
+ "rapier3d",
  "raw-window-handle",
  "rustls",
  "serde",

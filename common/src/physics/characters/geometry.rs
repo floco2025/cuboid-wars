@@ -16,7 +16,7 @@ pub fn character_movement_shape(physics: CharacterPhysicsConfig) -> Capsule {
 }
 
 #[must_use]
-pub(super) fn character_hitbox_shape(physics: CharacterPhysicsConfig) -> Cuboid {
+pub fn character_hitbox_shape(physics: CharacterPhysicsConfig) -> Cuboid {
     let hitbox = physics.hitbox;
     Cuboid::new(Vector::new(hitbox.width, hitbox.height, hitbox.depth) / 2.0)
 }
@@ -34,21 +34,6 @@ pub fn character_movement_center(pos: Position, physics: CharacterPhysicsConfig)
 #[must_use]
 pub fn character_hitbox_center(pos: Position, physics: CharacterPhysicsConfig) -> Vec3 {
     Vec3::new(pos.x, physics.hitbox_center_y(pos.y), pos.z)
-}
-
-#[must_use]
-pub fn character_surface_distance(
-    a: Position,
-    a_physics: CharacterPhysicsConfig,
-    b: Position,
-    b_physics: CharacterPhysicsConfig,
-) -> f32 {
-    let ac = a_physics.movement_collider;
-    let bc = b_physics.movement_collider;
-    let vertical_gap = ((a.y + ac.radius()) - (b.y + bc.height - bc.radius()))
-        .max((b.y + bc.radius()) - (a.y + ac.height - ac.radius()))
-        .max(0.0);
-    (a.horizontal_distance_sq(&b) + vertical_gap * vertical_gap).sqrt() - ac.radius() - bc.radius()
 }
 
 pub fn character_movement_pose(pos: &Position, physics: CharacterPhysicsConfig) -> Pose {
@@ -91,7 +76,7 @@ pub fn character_paths_intersect(
     .is_ok_and(|hit| hit.is_some())
 }
 
-pub(super) fn character_positions_intersect(
+pub fn character_positions_intersect(
     pos1: &Position,
     physics1: CharacterPhysicsConfig,
     pos2: &Position,
@@ -108,57 +93,6 @@ pub(super) fn character_positions_intersect(
     .is_ok_and(|overlaps| overlaps)
 }
 
-#[must_use]
-pub fn character_overlaps_item(character_pos: &Position, item_pos: &Position, collection_radius: f32) -> bool {
-    let dx = character_pos.x - item_pos.x;
-    let dy = character_pos.y - item_pos.y;
-    let dz = character_pos.z - item_pos.z;
-    let dist_sq = dx.mul_add(dx, dy.mul_add(dy, dz * dz));
-    dist_sq <= collection_radius * collection_radius
-}
-
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::{config::gameplay::load_test_gameplay, physics::ball_overlaps_character};
-
-    #[test]
-    fn movement_and_damage_dimensions_are_independent() {
-        let mut physics = load_test_gameplay()
-            .expect("test gameplay config rejected")
-            .player
-            .physics();
-        let movement = character_movement_shape(physics);
-        let position = Position::default();
-        let target = Position { x: 0.8, y: 1.0, z: 0.0 };
-        assert!(!ball_overlaps_character(&target, 0.05, &position, 0.0, physics));
-        physics.hitbox.width = 2.0;
-        assert!(ball_overlaps_character(&target, 0.05, &position, 0.0, physics));
-        let after = character_movement_shape(physics);
-        assert_eq!(after.radius, movement.radius);
-        assert_eq!(after.segment.a, movement.segment.a);
-        assert_eq!(after.segment.b, movement.segment.b);
-        let hitbox = character_hitbox_shape(physics);
-        physics.movement_collider.diameter = 0.8;
-        assert_eq!(character_hitbox_shape(physics), hitbox);
-    }
-
-    #[test]
-    fn capsule_surface_distance_accounts_for_vertical_separation_and_round_ends() {
-        let physics = load_test_gameplay()
-            .expect("test gameplay config rejected")
-            .player
-            .physics();
-        let at = Position::default();
-        let radius = physics.movement_collider.radius();
-        for direction in [Vec3::X, Vec3::Z, Vec3::new(1.0, 0.0, 1.0).normalize()] {
-            let other = Position::from(direction * (radius * 2.0 + 0.1));
-            assert!((character_surface_distance(at, physics, other, physics) - 0.1).abs() < 1e-5);
-        }
-        let above = Position {
-            y: physics.movement_collider.height + 0.1,
-            ..at
-        };
-        assert!((character_surface_distance(at, physics, above, physics) - 0.1).abs() < 1e-5);
-    }
-}
+#[path = "tests/geometry.rs"]
+mod tests;

@@ -10,13 +10,5 @@ pub fn fade_out_alpha(remaining_secs: f32, fade_secs: f32) -> f32 {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn fade_holds_then_falls_linearly() {
-        assert_eq!(fade_out_alpha(5.0, 1.0), 1.0);
-        assert_eq!(fade_out_alpha(0.5, 1.0), 0.5);
-        assert_eq!(fade_out_alpha(0.0, 1.0), 0.0);
-    }
-}
+#[path = "tests/fade.rs"]
+mod tests;

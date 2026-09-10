@@ -271,5 +271,5 @@ pub(super) fn steer(velocity: Vec3, to_objective: Vec3, turn_radius: f32, delta:
 }
 
 #[cfg(test)]
-#[path = "steering_tests.rs"]
+#[path = "tests/steering.rs"]
 mod tests;

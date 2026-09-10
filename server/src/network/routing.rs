@@ -14,7 +14,7 @@ use crate::{
     projectiles::{PendingProjectileHits, handle_projectile_shot_message},
     quests::{QuestBoard, QuestCatalog},
 };
-use common::{physics::PortalSet, protocol::*};
+use common::protocol::*;
 
 #[derive(SystemParam)]
 pub(super) struct ClientMessageContext<'w, 's> {
@@ -28,7 +28,6 @@ pub(super) struct ClientMessageContext<'w, 's> {
     pending_actor_spawns: ResMut<'w, PendingActorSpawns>,
     pub(super) portals: ResMut<'w, PortalMap>,
     pub(super) portal_assignments: ResMut<'w, PortalAssignments>,
-    pub(super) portal_set: ResMut<'w, PortalSet>,
     admin: AdminContext<'w>,
     pub(super) quest_board: ResMut<'w, QuestBoard>,
     pub(super) quest_catalog: Res<'w, QuestCatalog>,
@@ -67,7 +66,6 @@ pub(super) fn route_client_message(
                 &context.quest_board,
                 &mut context.portal_assignments,
                 &mut context.portals,
-                &mut context.portal_set,
             );
         }
         ClientMessage::Login(_) => {
@@ -127,7 +125,6 @@ pub(super) fn route_client_message(
                 &context.world,
                 &context.portal_assignments,
                 &mut context.portals,
-                &mut context.portal_set,
             );
         }
         ClientMessage::Ping(message) => {

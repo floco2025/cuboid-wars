@@ -2,19 +2,18 @@ use bevy::{ecs::system::SystemParam, prelude::*};
 use common::{
     config::GameplayConfig,
     math::PHYSICS_EPSILON,
-    physics::{
-        CollisionWorld, PROJECTILE_EVENT_LIMIT, PortalSet, ProjectileEvent, ProjectileMotion,
-        earliest_projectile_event, projectile_overlaps_character,
-    },
+    physics::{CollisionWorld, PortalSet},
     protocol::{
         ActorId, ActorMarker, CProjectileHit, ClientMessage, FaceYaw, MapSettings, PlateState, PlayerId, PlayerMarker,
-        Position, ProjectileMarker,
+        Position,
     },
 };
 
 use super::{
+    PROJECTILE_EVENT_LIMIT, ProjectileEvent, ProjectileMarker, ProjectileMotion,
     audio::LastBounceSound,
     collision::{closest_character_hit, handle_field_collisions, present_character_impact, present_world_bounce},
+    earliest_projectile_event, projectile_overlaps_character,
     spawn::EmberMarker,
 };
 use crate::{

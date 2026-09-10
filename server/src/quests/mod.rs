@@ -3,6 +3,7 @@ mod progress;
 mod resources;
 
 #[cfg(test)]
+#[path = "tests/progress.rs"]
 mod progress_tests;
 #[cfg(test)]
 pub(crate) mod test_support;

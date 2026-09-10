@@ -1,11 +1,9 @@
+use super::{ActorMovementStep, character_move_plan_is_blocked, step_actor_movement};
 use bevy::prelude::{Entity, Vec3};
 use common::{
     config::CharacterPhysicsConfig,
     map::Carriers,
-    physics::{
-        ActorMovementStep, CharacterMovePlan, CharacterMovementResult, CharacterSupport, CollisionWorld,
-        character_move_plan_is_blocked, step_actor_movement,
-    },
+    physics::{CharacterMovePlan, CharacterMovementResult, CharacterSupport, CollisionWorld},
     protocol::{ActorMoveIntent, BarrierKindId, MapSettings, Position},
 };
 

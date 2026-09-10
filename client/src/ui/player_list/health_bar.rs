@@ -1,7 +1,10 @@
 use bevy::{ecs::hierarchy::ChildSpawnerCommands, prelude::*};
-use common::{health::health_ratio, protocol::Health};
+use common::protocol::Health;
 
-use crate::constants::{HEALTH_BAR_FILL_COLOR, HEALTH_BAR_TRACK_COLOR};
+use crate::{
+    characters::health_ratio,
+    constants::{HEALTH_BAR_FILL_COLOR, HEALTH_BAR_TRACK_COLOR},
+};
 
 // Lives on the inner fill node of a health bar UI tree. Tracks the entity
 // whose `Health` drives the fill width plus the maximum health (constant

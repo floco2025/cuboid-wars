@@ -17,12 +17,6 @@ pub struct ActorMarker;
 #[derive(Component, Debug, Default)]
 pub struct ItemMarker;
 
-#[derive(Component, Debug, Default)]
-pub struct MissileMarker;
-
-#[derive(Component, Debug, Default)]
-pub struct ProjectileMarker;
-
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct Actor {
     pub kind: String,

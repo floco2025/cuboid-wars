@@ -105,5 +105,5 @@ pub(crate) fn remote_missile_impacts_system(
 }
 
 #[cfg(test)]
-#[path = "interpolation_tests.rs"]
+#[path = "tests/interpolation.rs"]
 mod tests;

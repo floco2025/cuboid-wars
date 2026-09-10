@@ -1,6 +1,7 @@
 pub mod cubemap;
 mod grass;
 #[cfg(test)]
+#[path = "tests/light.rs"]
 mod light_tests;
 mod rendering;
 mod resources;

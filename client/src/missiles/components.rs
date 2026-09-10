@@ -54,3 +54,6 @@ impl RemoteMissileMotion {
         self.detonation.filter(|_| self.buffer.at_end())
     }
 }
+
+#[derive(Component, Debug, Default)]
+pub struct MissileMarker;

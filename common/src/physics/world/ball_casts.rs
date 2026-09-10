@@ -152,12 +152,7 @@ impl CollisionWorld {
     }
 
     #[must_use]
-    pub(crate) fn projectile_spawn_overlaps_blocker(
-        &self,
-        position: Vec3,
-        radius: f32,
-        open_kinds: &[BarrierKindId],
-    ) -> bool {
+    pub fn projectile_spawn_overlaps_blocker(&self, position: Vec3, radius: f32, open_kinds: &[BarrierKindId]) -> bool {
         // Walls, floors, and powered bridges are always blockers. Barriers
         // block the muzzle unless the kind is currently open (pressure-plate
         // held) — those barriers are gone visually and shots pass through

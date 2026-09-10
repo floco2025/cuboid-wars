@@ -1,5 +1,6 @@
+use super::ProjectileMarker;
 use bevy::prelude::*;
-use common::protocol::{Position, ProjectileMarker};
+use common::protocol::Position;
 
 use crate::characters::PreviousTickPosition;
 

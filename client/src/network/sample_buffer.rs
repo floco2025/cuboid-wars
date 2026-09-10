@@ -165,5 +165,5 @@ impl<T> SampleBuffer<T> {
 }
 
 #[cfg(test)]
-#[path = "sample_buffer_tests.rs"]
+#[path = "tests/sample_buffer.rs"]
 mod tests;

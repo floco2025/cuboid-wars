@@ -5,8 +5,10 @@ mod resources;
 mod spawn;
 
 #[cfg(test)]
+#[path = "tests/expiry.rs"]
 mod expiry_tests;
 #[cfg(test)]
+#[path = "tests/reports.rs"]
 mod reports_tests;
 
 pub use plugin::missiles_plugin;

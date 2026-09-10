@@ -1,10 +1,7 @@
 use bevy::prelude::*;
 
 use crate::{actors::ActorMap, config::ServerGameplayConfig};
-use common::{
-    health::regenerate_health,
-    protocol::{ActorId, ActorMarker, Health, PlayerMarker},
-};
+use common::protocol::{ActorId, ActorMarker, Health, PlayerMarker};
 
 pub fn characters_health_regeneration_system(
     time: Res<Time>,
@@ -41,3 +38,14 @@ pub fn characters_health_regeneration_system(
         regenerate_health(&mut health, actor_health.max, gain);
     }
 }
+
+pub(crate) fn regenerate_health(health: &mut Health, max_health: f32, amount: f32) {
+    if amount <= 0.0 {
+        return;
+    }
+    health.0 = (health.0 + amount).min(max_health);
+}
+
+#[cfg(test)]
+#[path = "tests/health.rs"]
+mod tests;

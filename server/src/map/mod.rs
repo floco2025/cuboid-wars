@@ -20,6 +20,7 @@ mod walls;
 mod weather;
 
 #[cfg(test)]
+#[path = "tests/shipped.rs"]
 mod shipped_tests;
 
 pub(crate) use edges::{CellSide, has_edge_on_cell_side};

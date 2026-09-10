@@ -97,5 +97,5 @@ impl UpdateCadence {
 }
 
 #[cfg(test)]
-#[path = "network_tests.rs"]
+#[path = "tests/network.rs"]
 mod tests;

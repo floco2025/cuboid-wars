@@ -2,18 +2,14 @@ pub(super) use super::super::*;
 pub(super) use crate::{
     config::CharacterPhysicsConfig,
     map::{Carriers, ramp_surface_at},
-    physics::{CollisionWorld, character_overlaps_item},
+    physics::CollisionWorld,
     protocol::{Floor, Ladder, MapLayout, Position, Ramp, Wall},
     test_geometry::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS},
 };
-use std::collections::HashMap;
-
 use crate::{
-    config::{KnockbackConfig, MapMovementConfig, PlayerMovementConfig, gameplay::load_test_gameplay},
-    protocol::{BarrierKindTable, Carrier, CarrierId, MapSettings, PortalMode},
-    test_geometry::sizes,
+    config::gameplay::load_test_gameplay,
+    protocol::{BarrierKindTable, Carrier, CarrierId},
 };
-pub(super) use bevy_ecs::prelude::Entity;
 pub(super) use bevy_math::Vec3;
 
 // Movement tuning for movement tests (the shipping map's settings): gravity
@@ -337,42 +333,6 @@ pub(crate) fn ride(
     )
 }
 
-pub(crate) fn test_entity(index: u32) -> Entity {
-    Entity::from_raw_u32(index).expect("test entity index out of range")
-}
-
-// The map settings the actor policy reads: `test_environment`'s gravity and
-// climb ratio, so an actor step and a raw step agree.
-pub(crate) fn test_map_settings() -> MapSettings {
-    MapSettings {
-        skybox: "test".to_owned(),
-        textures: Default::default(),
-        geometry: sizes(),
-        movement: MapMovementConfig {
-            player: PlayerMovementConfig {
-                walk_speed: 6.0,
-                run_speed: TEST_PLAYER_SPEED,
-                speed_power_up: 1.6,
-                jump_speed: 12.0,
-            },
-            actors: HashMap::new(),
-            missile_speed: 20.0,
-            projectile_speed: 30.0,
-            gravity: TEST_GRAVITY,
-            low_gravity: 5.0,
-            ladder_climb_ratio: TEST_LADDER_CLIMB_RATIO,
-            knockback: KnockbackConfig {
-                max_speed: 10.0,
-                up_speed: 4.0,
-                deceleration: 12.0,
-            },
-        },
-        portals: PortalMode::Both,
-        barrier_kinds: Vec::new(),
-        bridge_kinds: Vec::new(),
-    }
-}
-
 pub(crate) fn player_physics() -> CharacterPhysicsConfig {
     load_test_gameplay()
         .expect("test gameplay config rejected")
@@ -422,8 +382,4 @@ pub(crate) fn character_step_toward(
         external_displacement: Vec3::ZERO,
         delta,
     }
-}
-
-pub(crate) fn planned_move(entity: Entity, start: Position, target: Position) -> CharacterMovePlan {
-    CharacterMovePlan::from_target(entity, start, target, 0.0, player_physics(), false)
 }

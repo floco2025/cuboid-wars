@@ -1,34 +1,24 @@
 mod barriers;
 mod blast;
 mod characters;
-mod lock;
 mod portals;
-mod projectiles;
 mod watchdog;
 mod world;
 
 pub use barriers::passable_barrier_kinds;
 pub use blast::{blast_falloff_at_distance, blast_hit, planar_shove, visible_blast_falloff};
 pub use characters::{
-    ActorMovementStep, AirborneMomentum, BallCharacterHit, CharacterEnvironment, CharacterMovePlan,
-    CharacterMovementResult, CharacterStep, CharacterSupport, CharacterVerticalVelocity, GroundingDiagnostics,
-    HitDirection, KnockbackVelocity, LadderMode, PlayerMotionBundle, PlayerMovementStep, ball_character_hit,
-    ball_overlaps_character, blocking_character_move_plan, character_hitbox_center, character_move_plan_is_blocked,
-    character_movement_center, character_movement_shape, character_overlaps_item, character_paths_intersect,
-    character_surface_distance, grounding_diagnostics, knockback_decay_system, momentum_displacement,
-    overlapping_character, player_control_velocity, player_jump_velocity, player_movement_state,
-    position_has_floor_support, step_actor_movement, step_character_movement, step_player_movement,
+    AirborneMomentum, CharacterEnvironment, CharacterMovePlan, CharacterMovementResult, CharacterStep,
+    CharacterSupport, CharacterVerticalVelocity, GroundingDiagnostics, KnockbackVelocity, LadderMode,
+    character_hitbox_center, character_hitbox_shape, character_move_plans_intersect, character_movement_center,
+    character_movement_shape, character_paths_intersect, character_positions_intersect, grounding_diagnostics,
+    knockback_decay_system, player_control_velocity, player_jump_velocity, position_has_floor_support,
+    step_character_movement,
 };
-pub use lock::acquire_lock;
 pub use portals::{
     CharacterHopBody, CharacterPortalHop, PlayerHopBody, PortalFrame, PortalPlacement, PortalPlacementFailure,
-    PortalSet, ProjectileHop, carried_portals_refresh_system, compute_portal_placement, portal_placement_overlaps,
-    traverse_move_intent, traverse_vector,
-};
-pub use projectiles::{
-    FieldImpact, MuzzleCheck, PROJECTILE_EVENT_LIMIT, ProjectileEvent, ProjectileMotion, ProjectileSpawnInfo,
-    SurfaceBounce, calculate_projectile_spawns, earliest_projectile_event, projectile_character_hit,
-    projectile_overlaps_character,
+    PortalSet, ProjectileHop, compute_portal_placement, portal_placement_overlaps, traverse_move_intent,
+    traverse_vector,
 };
 pub use watchdog::ProgressWatchdog;
 pub use world::{

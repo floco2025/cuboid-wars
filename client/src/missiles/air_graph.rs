@@ -205,5 +205,5 @@ impl AirGraph {
 }
 
 #[cfg(test)]
-#[path = "air_graph_tests.rs"]
+#[path = "tests/air_graph.rs"]
 mod tests;

@@ -6,11 +6,12 @@ use crate::{
     config::AssetSet,
     network::{ClientToServer, ClientToServerChannel},
     players::{LocalPlayerInfo, LocalPlayerMarker, MyPlayerId},
+    projectiles::MuzzleCheck,
     projectiles::{ProjectileAssets, spawn_projectiles},
 };
 use common::{
     config::GameplayConfig,
-    physics::{CollisionWorld, MuzzleCheck},
+    physics::CollisionWorld,
     protocol::{CProjectileShot, ClientMessage, MapSettings, PlateState, Position},
 };
 

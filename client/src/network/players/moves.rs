@@ -2,10 +2,11 @@ use super::super::context::ServerMessageContext;
 use crate::{
     characters::PreviousTickPosition,
     network::resources::accept_newer_tick,
+    players::PlayerMotionBundle,
     players::{PlayerInfo, RemotePlayerMotion},
 };
 use bevy::prelude::*;
-use common::{map::Carriers, physics::PlayerMotionBundle, protocol::*};
+use common::{map::Carriers, protocol::*};
 
 pub(in crate::network) fn handle_player_moves_message(
     message: SPlayerMoves,

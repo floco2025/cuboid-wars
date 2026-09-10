@@ -1,5 +1,6 @@
 mod aim_rig;
 #[cfg(test)]
+#[path = "tests/aim_rig.rs"]
 mod aim_rig_tests;
 mod components;
 mod interpolation;
@@ -9,9 +10,11 @@ mod spawn;
 mod transform_sync;
 mod wheel_animation;
 #[cfg(test)]
+#[path = "tests/wheel_animation.rs"]
 mod wheel_animation_tests;
 mod wheel_grounding;
 #[cfg(test)]
+#[path = "tests/wheel_grounding.rs"]
 mod wheel_grounding_tests;
 
 pub(crate) use aim_rig::{AimJointMarker, AimRig, FixedFacingMarker};

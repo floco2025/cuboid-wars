@@ -1,10 +1,12 @@
-use super::missile_blast_hits;
+use super::{MissileMarker, missile_blast_hits};
 use crate::{
     actors::ActorMap,
     audio::play_explosion_sound,
     carriers::CarrierEntities,
     characters::PreviousTickPosition,
+    characters::{ball_character_hit, ball_overlaps_character},
     config::{AssetSet, ClientSettings},
+    constants::MISSILE_RADIUS,
     missiles::{AirGraph, MissileMap, MissileVelocity, OwnedMissile, guide_missile},
     network::{ClientToServer, ClientToServerChannel},
     players::PlayerMap,
@@ -13,9 +15,8 @@ use crate::{
 use bevy::{ecs::system::SystemParam, prelude::*};
 use common::{
     config::{GameplayConfig, NetworkConfig, UpdateCadence},
-    constants::MISSILE_RADIUS,
     map::Carriers,
-    physics::{CollisionWorld, ball_character_hit, ball_overlaps_character, character_hitbox_center},
+    physics::{CollisionWorld, character_hitbox_center},
     protocol::*,
 };
 
@@ -255,5 +256,5 @@ pub fn missiles_movement_system(
 }
 
 #[cfg(test)]
-#[path = "movement_tests.rs"]
+#[path = "tests/movement.rs"]
 mod tests;

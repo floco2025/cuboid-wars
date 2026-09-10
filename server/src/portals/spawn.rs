@@ -5,10 +5,7 @@ use crate::{
     network::{SharedWorld, broadcast_to_all},
     players::PlayerMap,
 };
-use common::{
-    physics::{PortalSet, portal_placement_overlaps},
-    protocol::*,
-};
+use common::{physics::portal_placement_overlaps, protocol::*};
 
 pub(crate) fn handle_portal_shot_message(
     id: PlayerId,
@@ -18,7 +15,6 @@ pub(crate) fn handle_portal_shot_message(
     world: &SharedWorld,
     portal_assignments: &PortalAssignments,
     portals: &mut PortalMap,
-    portal_set: &mut PortalSet,
 ) {
     let portal = msg.result.portal();
     let access = portal_assignments.get(&id);
@@ -54,7 +50,6 @@ pub(crate) fn handle_portal_shot_message(
             {
                 return;
             }
-            *portal_set = portals.rebuild_set(&world.collision_world, &world.carriers);
             broadcast_to_all(
                 players,
                 ServerMessage::PortalOpened(SPortalOpened { shooter: id, portal }),

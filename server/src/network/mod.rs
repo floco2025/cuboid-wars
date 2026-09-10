@@ -9,6 +9,7 @@ mod resources;
 mod routing;
 mod snapshot;
 #[cfg(test)]
+#[path = "tests/snapshot.rs"]
 mod snapshot_tests;
 mod transport;
 

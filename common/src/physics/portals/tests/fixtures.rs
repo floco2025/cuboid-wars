@@ -20,7 +20,6 @@ use crate::{
     config::{
         CharacterPhysicsConfig, KnockbackConfig, MapMovementConfig, PlayerMovementConfig, gameplay::load_test_gameplay,
     },
-    physics::ProjectileMotion,
     protocol::TextureSettings,
 };
 
@@ -152,27 +151,6 @@ pub(crate) fn moving_projectile_portals(
         &carriers,
     );
     (world, set)
-}
-
-pub(crate) fn portal_test_projectile(velocity: Vec3) -> ProjectileMotion {
-    let mut config = load_test_gameplay().expect("test gameplay config invalid").projectiles;
-    config.radius = 0.08;
-    config.bounce_retention = 1.0;
-    ProjectileMotion::from_velocity(velocity, &config)
-}
-
-pub(crate) fn projectile_obstacle(z: f32, width: f32) -> Wall {
-    Wall {
-        x1: -2.0,
-        x2: 2.0,
-        z1: z,
-        z2: z,
-        y: 0.0,
-        height: 3.0,
-        width,
-        level: 0,
-        carrier: CarrierId::WORLD,
-    }
 }
 
 // One 12 m wall along X at z = 0 (level 0) with the room floor on +Z.

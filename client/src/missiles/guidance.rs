@@ -5,10 +5,10 @@ use super::{
         terminal_approach, travel_clear, weave_direction,
     },
 };
+use crate::constants::MISSILE_RADIUS;
 use bevy::prelude::*;
 use common::{
     config::MissilesConfig,
-    constants::MISSILE_RADIUS,
     map::Carriers,
     physics::CollisionWorld,
     protocol::{BarrierKindId, Position},
@@ -313,5 +313,5 @@ fn advance_waypoints(
 }
 
 #[cfg(test)]
-#[path = "guidance_tests.rs"]
+#[path = "tests/guidance.rs"]
 mod tests;

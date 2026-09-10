@@ -1,5 +1,6 @@
 mod animation;
 #[cfg(test)]
+#[path = "tests/animation.rs"]
 mod animation_tests;
 mod components;
 mod death;
@@ -19,8 +20,8 @@ pub use effects::{
 };
 pub use movement::{LocalMovementReports, report_player_movement_system};
 pub(crate) use movement::{
-    LocalMovementStep, PlayerMovementQuery, apply_player_moves, interpolate_remote_players_system, plan_player_moves,
-    report_move_outcomes_system,
+    LocalMovementStep, PlayerMotionBundle, PlayerMovementQuery, apply_player_moves, interpolate_remote_players_system,
+    plan_player_moves, report_move_outcomes_system,
 };
 pub use resources::{LocalPlayerInfo, MyPlayerId, PlayerInfo, PlayerMap};
 pub use spawn::{LocalPlayerMarker, PlayerSpawnContext, eye_position, spawn_player};

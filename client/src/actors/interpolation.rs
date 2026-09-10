@@ -73,5 +73,5 @@ pub(crate) fn interpolate_remote_actors_system(
 }
 
 #[cfg(test)]
-#[path = "interpolation_tests.rs"]
+#[path = "tests/interpolation.rs"]
 mod tests;

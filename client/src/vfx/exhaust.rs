@@ -5,12 +5,14 @@ use super::{
     firework::FireworkRocket,
     particles::{ParticleClouds, ParticleSpawn},
 };
-use crate::constants::{
-    MISSILE_BODY_LENGTH, MISSILE_EXHAUST_BACK_SPEED, MISSILE_EXHAUST_BASE_COLOR, MISSILE_EXHAUST_EMISSIVE_BRIGHTNESS,
-    MISSILE_EXHAUST_JITTER, MISSILE_EXHAUST_PARTICLE_LIFETIME_SECS, MISSILE_EXHAUST_PARTICLE_SIZE,
-    MISSILE_EXHAUST_PARTICLES_PER_SEC, MISSILE_EXHAUST_RISE_ACCELERATION,
+use crate::{
+    constants::{
+        MISSILE_BODY_LENGTH, MISSILE_EXHAUST_BACK_SPEED, MISSILE_EXHAUST_BASE_COLOR,
+        MISSILE_EXHAUST_EMISSIVE_BRIGHTNESS, MISSILE_EXHAUST_JITTER, MISSILE_EXHAUST_PARTICLE_LIFETIME_SECS,
+        MISSILE_EXHAUST_PARTICLE_SIZE, MISSILE_EXHAUST_PARTICLES_PER_SEC, MISSILE_EXHAUST_RISE_ACCELERATION,
+    },
+    missiles::MissileMarker,
 };
-use common::protocol::MissileMarker;
 
 // Emits from the interpolated render transform (Update, not FixedUpdate) so
 // the trail is continuous at any frame rate, for local and remote missiles

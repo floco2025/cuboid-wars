@@ -23,8 +23,7 @@ pub use barrier_kind::{BarrierKindId, BarrierKindTable};
 pub use bridge_kind::{BridgeKindId, BridgeKindTable};
 pub use color::HexColor;
 pub use entities::{
-    Actor, ActorAnchor, ActorBeam, ActorMarker, Item, ItemMarker, Missile, MissileMarker, Player, PlayerMarker,
-    ProjectileMarker, SpawningActor,
+    Actor, ActorAnchor, ActorBeam, ActorMarker, Item, ItemMarker, Missile, Player, PlayerMarker, SpawningActor,
 };
 pub use face_materials::FaceMaterials;
 pub use feed::{FeedSpan, FeedStyle};
@@ -44,4 +43,4 @@ pub use portals::{Portal, PortalAccess, PortalEnd};
 pub use position::Position;
 pub use quests::{QuestGroupProgress, QuestGroupStatus, QuestScope, QuestStateProgress, QuestStatus};
 pub use textures::{TextureSettings, validate_texture_catalog, validate_texture_materials};
-pub use tick::{ServerTick, server_tick_advance_system, ticks_from_secs};
+pub use tick::{ServerTick, server_tick_advance_system};

@@ -1,5 +1,6 @@
 mod cache;
 #[cfg(test)]
+#[path = "tests/gltf.rs"]
 mod gltf_tests;
 mod grass;
 mod mipmaps;

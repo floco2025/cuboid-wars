@@ -10,6 +10,7 @@ use crate::{
         LABEL_PLAYER_BAR_WIDTH, LABEL_PLAYER_NAME_GAP, LABEL_PLAYER_TEXTURE_HEIGHT, LABEL_PLAYER_TEXTURE_WIDTH,
     },
     network::SampleTiming,
+    players::PlayerMotionBundle,
     ui::floating_labels::{
         LABEL_RENDER_FRAMES, LabelCamera, setup_label_texture, spawn_floating_health_bar, spawn_floating_player_label,
     },
@@ -17,7 +18,6 @@ use crate::{
 use common::{
     config::GameplayConfig,
     map::Carriers,
-    physics::PlayerMotionBundle,
     protocol::{Health, Player, PlayerId, PlayerMarker, Position},
 };
 

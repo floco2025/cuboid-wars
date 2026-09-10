@@ -3,10 +3,11 @@ use bevy::{
     ecs::{lifecycle::HookContext, world::DeferredWorld},
     prelude::*,
 };
-use common::{health::health_ratio, protocol::Health};
+use common::protocol::Health;
 
 use crate::{
     cameras::RENDER_LAYER_CHARACTER_LABEL,
+    characters::health_ratio,
     constants::{
         HEALTH_BAR_FILL_COLOR, HEALTH_BAR_TRACK_COLOR, LABEL_BACKGROUND_COLOR, LABEL_PLAYER_MESH_WIDTH,
         LABEL_TEXT_COLOR, LABEL_TEXT_PADDING_X, LABEL_TEXT_PADDING_Y,

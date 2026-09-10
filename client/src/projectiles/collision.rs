@@ -1,8 +1,9 @@
-use crate::constants::PROJECTILE_IMPACT_MIN_BOUNCE_SPEED;
+use super::{ProjectileMotion, SurfaceBounce, projectile_character_hit};
+use crate::{characters::BallCharacterHit, constants::PROJECTILE_IMPACT_MIN_BOUNCE_SPEED};
 use bevy::prelude::*;
 use common::{
     config::GameplayConfig,
-    physics::{BallCharacterHit, CollisionWorld, FieldKind, ProjectileMotion, SurfaceBounce, projectile_character_hit},
+    physics::{CollisionWorld, FieldKind},
     protocol::{
         ActorId, ActorMarker, BarrierKindId, FaceYaw, HitTarget, PlayerGeneration, PlayerId, PlayerMarker, Position,
     },

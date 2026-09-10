@@ -1,9 +1,10 @@
+use super::MissileMarker;
 use crate::{
     characters::PreviousTickPosition,
     missiles::{MissileVelocity, OwnedMissile, missile_rotation},
 };
 use bevy::prelude::*;
-use common::protocol::{MissileMarker, Position};
+use common::protocol::Position;
 
 pub(crate) fn missiles_transform_sync_system(
     fixed_time: Res<Time<Fixed>>,

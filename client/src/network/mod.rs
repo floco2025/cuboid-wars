@@ -30,4 +30,5 @@ pub use tick::TickSync;
 pub use transport::{ClientToServer, ServerToClient, configure_client, network_io_task};
 
 #[cfg(test)]
+#[path = "tests/timing.rs"]
 mod timing_tests;

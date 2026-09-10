@@ -4,7 +4,6 @@ use bevy::{ecs::system::SystemParam, prelude::*};
 use common::{
     config::{GameplayConfig, MapMovementConfig},
     constants::KNOCKBACK_CLAMP_RATIO,
-    health::apply_damage,
     physics::{CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity, blast_hit, character_hitbox_center},
     protocol::{
         ActorId, ActorMarker, BarrierKindId, Health, HitTarget, MapSettings, MissileBlastHit, PlateState, PlayerId,
@@ -12,7 +11,9 @@ use common::{
     },
 };
 
-use super::{DeathSource, PendingExplosion, PendingExplosions, award_actor_kill, kill_actor, kill_player};
+use super::{
+    DeathSource, PendingExplosion, PendingExplosions, apply_damage, award_actor_kill, kill_actor, kill_player,
+};
 use crate::{
     actors::ActorMap,
     config::{BlastConfig, ServerGameplayConfig},

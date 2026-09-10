@@ -1,14 +1,11 @@
 use bevy::prelude::*;
 
+use super::{MuzzleCheck, ProjectileMotion, calculate_projectile_spawns};
 use crate::{
     characters::PreviousTickPosition,
     constants::{PROJECTILE_BODY_EMISSIVE, PROJECTILE_COLOR},
 };
-use common::{
-    config::GameplayConfig,
-    physics::{CollisionWorld, MuzzleCheck, ProjectileMotion, calculate_projectile_spawns},
-    protocol::*,
-};
+use common::{config::GameplayConfig, physics::CollisionWorld, protocol::*};
 
 // ============================================================================
 // Resources
@@ -74,6 +71,9 @@ impl ProjectileBundle {
         }
     }
 }
+
+#[derive(Component, Debug, Default)]
+pub struct ProjectileMarker;
 
 #[derive(Component)]
 pub struct EmberMarker;

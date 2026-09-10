@@ -46,5 +46,5 @@ pub(super) fn bfs_path<N: Copy + Eq + Hash>(
 }
 
 #[cfg(test)]
-#[path = "pathfind_tests.rs"]
+#[path = "tests/pathfind.rs"]
 mod tests;

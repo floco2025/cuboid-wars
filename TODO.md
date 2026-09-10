@@ -26,10 +26,6 @@
 
 ## Enhancements
 
-- **Separate test files:** move inline tests into sibling test files, or test directories where useful, so production-code changes can be reviewed independently of test changes in VS Code and other diff tools.
-
-- **Common-code ownership after the client-trust migration:** audit modules in `common` and move code used only by the client or only by the server into its owning crate. Keep shared types, protocol, configuration, and algorithms used by both sides in `common`.
-
 - **Host a game from a client:** colocate the server with one client so it can host the game. Use message queues for communication between the host client and its server, bypassing the network stack; remote clients connect over the network.
 
 - **Missiles through portals:** a missile chasing a target through a portal detonates on the aperture's backing instead of crossing, while bullets hop through; rank `projectile_hop` against the other events in the missile sweep in `client/src/missiles/movement.rs`.

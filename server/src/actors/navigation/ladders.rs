@@ -1,13 +1,12 @@
 use std::collections::VecDeque;
 
+use crate::actors::movement::{ActorMovementStep, step_actor_movement};
 use bevy::prelude::Vec3;
 use common::{
     config::CharacterPhysicsConfig,
     constants::{LADDER_CLIMB_MIN_SPEED, LADDER_RAIL_INSET, LADDER_STANDOFF_CLEARANCE},
     map::Carriers,
-    physics::{
-        ActorMovementStep, CharacterMovementResult, CharacterSupport, CollisionWorld, LadderVolume, step_actor_movement,
-    },
+    physics::{CharacterMovementResult, CharacterSupport, CollisionWorld, LadderVolume},
     protocol::{ActorMoveIntent, BarrierKindId, Ladder, MapSettings, Position},
 };
 

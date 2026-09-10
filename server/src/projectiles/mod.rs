@@ -4,6 +4,7 @@ mod resources;
 mod spawn;
 
 #[cfg(test)]
+#[path = "tests/hits.rs"]
 mod hits_tests;
 
 pub use plugin::projectiles_plugin;

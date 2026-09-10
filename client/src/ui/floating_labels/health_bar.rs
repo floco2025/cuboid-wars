@@ -1,7 +1,10 @@
 use bevy::prelude::*;
-use common::{health::health_ratio, protocol::Health};
+use common::protocol::Health;
 
-use crate::ui::floating_labels::spawn::{FloatingHealthBarFill, floating_health_bar_fill_transform};
+use crate::{
+    characters::health_ratio,
+    ui::floating_labels::spawn::{FloatingHealthBarFill, floating_health_bar_fill_transform},
+};
 
 // Rescale each character's world-space health-bar fill quad to its tracked
 // character's current health. The bar is plain geometry rendered by the main

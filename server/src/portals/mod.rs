@@ -3,6 +3,7 @@ mod plugin;
 mod resources;
 mod spawn;
 #[cfg(test)]
+#[path = "tests/spawn.rs"]
 mod spawn_tests;
 
 pub use plugin::portals_plugin;

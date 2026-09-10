@@ -157,12 +157,5 @@ impl FromWorld for ExplosionAssets {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn larger_explosions_have_a_lower_sound_pitch() {
-        assert!(explosion_sound_speed(6.0) > explosion_sound_speed(15.0));
-        assert_eq!(explosion_sound_speed(100.0), 0.84);
-    }
-}
+#[path = "tests/assets.rs"]
+mod tests;

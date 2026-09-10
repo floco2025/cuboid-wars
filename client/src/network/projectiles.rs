@@ -1,8 +1,8 @@
 use bevy::prelude::*;
-use common::{physics::MuzzleCheck, protocol::SProjectileShot};
+use common::protocol::SProjectileShot;
 
 use super::context::ServerMessageContext;
-use crate::{audio::play_spatial_sound, projectiles::spawn_projectiles};
+use crate::{audio::play_spatial_sound, projectiles::MuzzleCheck, projectiles::spawn_projectiles};
 
 pub(super) fn handle_projectile_shot_message(
     message: SProjectileShot,

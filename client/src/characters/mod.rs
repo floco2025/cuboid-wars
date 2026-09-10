@@ -1,4 +1,5 @@
 mod animation;
+mod ball_hits;
 mod components;
 mod inspection;
 mod model;
@@ -9,6 +10,7 @@ mod resources;
 mod visual_turn;
 
 pub use animation::{AnimationToPlay, character_animation_system};
+pub(crate) use ball_hits::{BallCharacterHit, ball_character_hit, ball_overlaps_character};
 pub use components::PreviousTickPosition;
 pub(crate) use inspection::refresh_grounding_debug_system;
 pub use inspection::{character_bounds_sync_system, grounding_debug_system, spawn_character_bounds};
@@ -16,5 +18,5 @@ pub use model::{CharacterModel, character_models_attach_system, load_character_m
 pub use movement::{capture_previous_tick_position_system, characters_movement_system};
 pub use plugin::{character_sync_plugin, local_simulation_plugin};
 pub(crate) use remote_pose::rendered_carrier_position;
-pub use resources::{BoundsMode, MaxHealth};
+pub use resources::{BoundsMode, MaxHealth, health_ratio};
 pub use visual_turn::characters_visual_turn_system;
