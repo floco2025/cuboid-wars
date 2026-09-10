@@ -565,9 +565,15 @@ fn re_entering_the_active_shared_checkpoint_changes_nothing() {
     advance(&mut app, 0.0);
     assert!(has_visit(&app, PlayerId(2), 0), "a partial group visit");
 
-    // A jump in place: the seeded contact drops on the airborne tick and the
-    // landing re-enters, facing another way.
-    stand_facing(&mut app, PlayerId(1), inside, CharacterSupport::Airborne, 2.0);
+    // A jump in place: above the seeded contact's band the airborne tick drops
+    // it, and the landing re-enters, facing another way.
+    stand_facing(
+        &mut app,
+        PlayerId(1),
+        Position { y: 1.0, ..inside },
+        CharacterSupport::Airborne,
+        2.0,
+    );
     advance(&mut app, 0.0);
     stand_facing(&mut app, PlayerId(1), inside, CharacterSupport::Ground, 2.0);
     advance(&mut app, 0.0);
@@ -625,10 +631,25 @@ fn a_re_entry_of_the_active_checkpoint_is_not_deferred() {
     advance(&mut app, 0.0);
     assert_eq!(saved(&app, PlayerId(2)), Some(CheckpointId(1)));
 
-    // One tick: player 1 lands again in the active checkpoint while player 2
-    // enters the other one.
-    stand(&mut app, PlayerId(1), inside, CharacterSupport::Airborne);
+    // One tick: player 1 lands again in the active checkpoint (a jump above
+    // the seeded contact's band) while player 2 enters the other one.
+    stand(
+        &mut app,
+        PlayerId(1),
+        Position { y: 1.0, ..inside },
+        CharacterSupport::Airborne,
+    );
     advance(&mut app, 0.0);
+    assert!(
+        app.world()
+            .resource::<PlayerMap>()
+            .get(&PlayerId(1))
+            .expect("player missing")
+            .life
+            .checkpoint_contact
+            .is_none(),
+        "the jump must drop the contact for the landing to count as a re-entry"
+    );
     stand(&mut app, PlayerId(1), inside, CharacterSupport::Ground);
     stand(
         &mut app,
