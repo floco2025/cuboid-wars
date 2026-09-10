@@ -5,14 +5,19 @@ use crate::{
     constants::{CAMERA_MAX_PITCH, PORTAL_VIEW_BLEND_SECS},
     players::{LocalPlayerInfo, PortalTransitBlend},
 };
-use common::physics::{PortalFrame, traverse_vector};
+use common::{
+    constants::PORTAL_STANDABLE_NORMAL_Y,
+    physics::{PortalFrame, traverse_vector, traverse_yaw},
+};
 
-// Portal-style exit reorientation. The aim (stored yaw/pitch) jumps straight
-// to the mapped upright view — pitch carried through the pair — while the
-// camera is seeded with the fully mapped, possibly tilted view and
-// `local_player_portal_blend_system` decays the difference over
-// `PORTAL_VIEW_BLEND_SECS`. The world never rotates; only the view transient
-// does.
+// Portal-style exit reorientation. Out of a wall, the aim (stored yaw/pitch)
+// jumps straight to the mapped upright view — pitch carried through the pair
+// — while the camera is seeded with the fully mapped, possibly tilted view
+// and `local_player_portal_blend_system` decays the difference over
+// `PORTAL_VIEW_BLEND_SECS`. Out of a floor or ceiling the mapped view would
+// point at the sky or the ground, so the aim keeps its pitch and turns its
+// yaw the way the held input turns, with no transient. The world never
+// rotates; only the view transient does.
 pub fn apply_portal_view(
     commands: &mut Commands,
     camera: Option<Entity>,
@@ -59,6 +64,12 @@ fn portal_view_transition(
     camera_pitch: f32,
     fallback_face_yaw: f32,
 ) -> (Quat, f32, f32) {
+    if exit.normal.y.abs() >= PORTAL_STANDABLE_NORMAL_Y {
+        // A camera yaw looks along -Z and a facing yaw along +Z: half a turn apart.
+        let yaw = traverse_yaw(entry, exit, camera_yaw + PI) - PI;
+        let target = Quat::from_euler(EulerRot::YXZ, yaw, camera_pitch, 0.0);
+        return (target, yaw, camera_pitch);
+    }
     let rotation = Quat::from_euler(EulerRot::YXZ, camera_yaw, camera_pitch, 0.0);
     let forward = traverse_vector(entry, exit, rotation * Vec3::NEG_Z);
     let up = traverse_vector(entry, exit, rotation * Vec3::Y);

@@ -18,7 +18,7 @@ pub use characters::{
 pub use portals::{
     CharacterHopBody, CharacterPortalHop, PlayerHopBody, PortalFrame, PortalPlacement, PortalPlacementFailure,
     PortalSet, ProjectileHop, compute_portal_placement, portal_placement_overlaps, traverse_move_intent,
-    traverse_vector,
+    traverse_point, traverse_rotation, traverse_vector, traverse_yaw,
 };
 pub use watchdog::ProgressWatchdog;
 pub use world::{

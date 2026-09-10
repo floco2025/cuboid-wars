@@ -15,7 +15,7 @@ use crate::{
     input::{WeaponMode, WindowedFrame, input_plugin},
     items::{ItemMap, setup_item_assets},
     map::{DebugColors, LevelFocusEnabled, map_plugin, setup_scene_lighting_system, sky_weather_plugin},
-    materials::{GrassMaterialPlugin, generate_material_mipmaps_system},
+    materials::{GrassMaterialPlugin, PortalClipMaterialPlugin, generate_material_mipmaps_system},
     missiles::{LockOnTarget, MissileAssets, MissileMap},
     network::{
         ClientToServerChannel, LastPlayerMovesTick, LastSnapshotTick, RoundTripTime, ServerToClientChannel, TickSync,
@@ -98,7 +98,7 @@ pub fn build_client_app(
         client_settings.preferences.vsync,
         start_fullscreen,
     )));
-    app.add_plugins(GrassMaterialPlugin);
+    app.add_plugins((GrassMaterialPlugin, PortalClipMaterialPlugin));
     app.insert_resource(match client_settings.rendering.opaque_renderer {
         OpaqueRenderer::Auto => DefaultOpaqueRendererMethod::default(),
         OpaqueRenderer::Forward => DefaultOpaqueRendererMethod::forward(),

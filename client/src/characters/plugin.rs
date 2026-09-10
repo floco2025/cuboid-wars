@@ -15,8 +15,10 @@ use crate::{
         player_animation_update_system, players_transform_sync_system, report_move_outcomes_system,
         report_player_movement_system,
     },
-    portals::carried_portals_refresh_system,
-    portals::{portal_surfaces_transform_sync_system, portal_transit_system},
+    portals::{
+        carried_portals_refresh_system, portal_body_clipping_system, portal_surfaces_transform_sync_system,
+        portal_transit_system,
+    },
     projectiles::projectiles_movement_system,
     schedule::ClientSet,
     ui::floating_labels::{
@@ -73,6 +75,7 @@ pub fn character_sync_plugin(app: &mut App) {
                 .after(refresh_grounding_debug_system),
             grounding_debug_system.after(character_bounds_sync_system),
             player_animation_update_system.after(characters_visual_turn_system),
+            portal_body_clipping_system.after(player_animation_update_system),
             floating_labels_billboard_system,
             player_name_label_render_system,
             floating_health_bar_fill_system,

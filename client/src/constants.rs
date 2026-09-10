@@ -298,9 +298,9 @@ pub const PORTAL_FIZZLE_SPARK_LIFT_SPEED: f32 = 0.5;
 // Spark lifetimes as fractions of the ring's: the base plus a step per spark.
 pub const PORTAL_FIZZLE_SPARK_LIFETIME_FRACTION: f32 = 0.65;
 pub const PORTAL_FIZZLE_SPARK_LIFETIME_STEP: f32 = 0.03;
-// Portal-style exit reorientation: the camera is seeded with the fully
-// mapped (possibly tilted) view and blended back to the upright aim over
-// this window.
+// Portal-style exit reorientation out of a wall: the camera is seeded with
+// the fully mapped (possibly tilted) view and blended back to the upright
+// aim over this window. Floor and ceiling exits cut to the level aim.
 pub const PORTAL_VIEW_BLEND_SECS: f32 = 0.25;
 
 // ============================================================================

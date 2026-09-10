@@ -466,3 +466,48 @@ fn swept_portal_gate_uses_the_plane_crossing_point() {
         .is_none()
     );
 }
+
+#[test]
+fn traverse_rotation_turns_vectors_like_traverse_vector() {
+    let set = pair(
+        Vec3::new(0.0, 1.0, 0.0),
+        Vec3::new(0.0, 0.6, 0.8),
+        Vec3::new(9.0, 3.0, 1.0),
+        Vec3::X,
+    );
+    let (entry, exit) = frames(&set);
+    let rotation = traverse_rotation(entry, exit);
+    for v in [Vec3::X, Vec3::Y, Vec3::Z, Vec3::new(1.3, -4.2, 2.9)] {
+        assert!((rotation * v - traverse_vector(entry, exit, v)).length() < 1e-4);
+    }
+}
+
+#[test]
+fn traverse_point_carries_an_offset_behind_the_entry_to_the_front_of_the_exit() {
+    let set = pair(Vec3::new(0.0, 1.6, 0.0), Vec3::Z, Vec3::new(10.0, 1.0, 10.0), Vec3::X);
+    let (entry, exit) = frames(&set);
+    assert!((traverse_point(entry, exit, entry.center) - exit.center).length() < 1e-5);
+    let sunk = entry.center - entry.normal * 0.3 + entry.up * 0.2;
+    let mapped = traverse_point(entry, exit, sunk);
+    assert!(((mapped - exit.center).dot(exit.normal) - 0.3).abs() < 1e-5);
+    assert!(((mapped - exit.center).dot(exit.up) - 0.2).abs() < 1e-5);
+}
+
+#[test]
+fn straddled_gate_is_the_one_whose_plane_the_body_reaches_from_the_front() {
+    let set = pair(Vec3::new(0.0, 1.6, 0.0), Vec3::Z, Vec3::new(10.0, 1.0, 10.0), Vec3::X);
+    let physics = player_physics();
+    let (entry, exit) = set
+        .straddled_gate(Vec3::new(0.0, 0.7, 0.15), physics)
+        .expect("a body touching the plane from the front is not straddling it");
+    assert_eq!(entry.end, PortalEnd::A);
+    assert_eq!(exit.end, PortalEnd::B);
+    assert!(set.straddled_gate(Vec3::new(0.0, 0.7, 2.0), physics).is_none());
+    assert!(set.straddled_gate(Vec3::new(0.0, 0.7, -0.15), physics).is_none());
+    assert!(set.straddled_gate(Vec3::new(3.0, 0.7, 0.15), physics).is_none());
+    let (entry, exit) = set
+        .straddled_gate(Vec3::new(10.05, 0.1, 10.0), physics)
+        .expect("the body carried past the plane is not straddling the exit");
+    assert_eq!(entry.end, PortalEnd::B);
+    assert_eq!(exit.end, PortalEnd::A);
+}

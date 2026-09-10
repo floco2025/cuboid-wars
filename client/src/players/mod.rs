@@ -11,7 +11,7 @@ mod spawn;
 mod transform_sync;
 
 pub use animation::PlayerAnimationMotion;
-pub(crate) use animation::player_animation_update_system;
+pub(crate) use animation::{PlayerAnimationPlayback, player_animation_update_system};
 pub use components::{BumpFeedbackState, CameraShake, CuboidShake, PortalTransitBlend};
 pub(crate) use components::{PlayerSample, RemotePlayerMotion};
 pub use death::death_overlay_visibility_system;

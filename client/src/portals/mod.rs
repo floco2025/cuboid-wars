@@ -1,3 +1,4 @@
+mod clipping;
 mod projection;
 mod refresh;
 mod render;
@@ -7,6 +8,8 @@ mod transform_sync;
 mod transit;
 mod view;
 
+pub(crate) use clipping::portal_body_clipping_system;
+pub use clipping::{PortalBodyModels, PortalTwinMarker};
 pub(crate) use refresh::carried_portals_refresh_system;
 pub use render::portal_render_plugin;
 pub use resources::{PortalInfo, PortalMap};

@@ -35,6 +35,22 @@ pub fn traverse_vector(entry: &PortalFrame, exit: &PortalFrame, v: Vec3) -> Vec3
     exit.up * along_up - exit.right * across - exit.normal * into
 }
 
+// The point mapping the character hop applies: the offset from the entry
+// centre re-emitted from the exit centre.
+#[must_use]
+pub fn traverse_point(entry: &PortalFrame, exit: &PortalFrame, p: Vec3) -> Vec3 {
+    exit.center + traverse_vector(entry, exit, p - entry.center)
+}
+
+// The rotation `traverse_vector` applies to every vector, for mapping a
+// whole pose through the pair.
+#[must_use]
+pub fn traverse_rotation(entry: &PortalFrame, exit: &PortalFrame) -> Quat {
+    let from_entry = Mat3::from_cols(entry.right, entry.up, entry.normal).transpose();
+    let to_exit = Mat3::from_cols(-exit.right, exit.up, -exit.normal);
+    Quat::from_mat3(&(to_exit * from_entry))
+}
+
 #[must_use]
 pub fn traverse_move_intent(entry: &PortalFrame, exit: &PortalFrame, intent: PlayerMoveIntent) -> PlayerMoveIntent {
     // The server keeps using the last intent until another CMove arrives; it
@@ -54,7 +70,7 @@ pub fn traverse_move_intent(entry: &PortalFrame, exit: &PortalFrame, intent: Pla
 // the facing vertical; the fallbacks pick the stable direction that remains —
 // out of a tilted exit, or along a vertical exit's in-plane up.
 #[must_use]
-pub(super) fn traverse_yaw(entry: &PortalFrame, exit: &PortalFrame, yaw: f32) -> f32 {
+pub fn traverse_yaw(entry: &PortalFrame, exit: &PortalFrame, yaw: f32) -> f32 {
     let mapped = traverse_vector(entry, exit, direction_from_yaw_pitch(yaw, 0.0));
     if mapped.x * mapped.x + mapped.z * mapped.z > 0.01 {
         mapped.x.atan2(mapped.z)
@@ -333,6 +349,25 @@ impl PortalSet {
             let distance = offset.dot(gate.frame.normal);
             (distance > -reach && distance <= reach && in_character_aperture(offset, &gate.frame))
                 .then_some((gate.portal.carrier, gate.backing.as_slice()))
+        })
+    }
+
+    // The gate a body is passing through, for drawing it on both sides of
+    // the plane: its centre is in front of the plane, inside the aperture,
+    // and within the body's reach of it, so part of the body may already be
+    // behind. Returns the gate's portal and its paired end.
+    #[must_use]
+    pub fn straddled_gate(&self, origin: Vec3, physics: CharacterPhysicsConfig) -> Option<(&Portal, &Portal)> {
+        if self.pairs.is_empty() {
+            return None;
+        }
+        let shape = character_movement_shape(physics);
+        let center = character_movement_center(origin.into(), physics);
+        self.gates().find_map(|(gate, paired)| {
+            let offset = center - gate.frame.center;
+            let distance = offset.dot(gate.frame.normal);
+            (distance >= 0.0 && distance < corridor_reach(&shape, gate) && in_character_aperture(offset, &gate.frame))
+                .then_some((&gate.portal, &paired.portal))
         })
     }
 
