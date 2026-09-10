@@ -20,8 +20,6 @@
 
 ## Enhancements
 
-- **Knockback message cleanup:** Rename `SPlayerBlast` to `SPlayerKnockback` to describe the effect the client applies. Remove the unused `hit_dir_x`, `hit_dir_z`, and `strength` fields; keep the health and velocity data.
-
 - **Checkpoint scan on maps without checkpoints:** `players_checkpoints_system` runs a capsule cast per grounded player every tick before reading an empty list. Gate it with a `run_if` on `map.checkpoints`, like `pending_actor_spawns_active`.
 
 - **Checkpoint spawn sampler duplicates the zone sampler:** `checkpoint_spawn_position` repeats the attempt loop, radius inset, pose transform, and occupied test from `server/src/characters/spawning.rs` with a bare 100 beside `SPAWN_MAX_ATTEMPTS`, and blocks on every solid where zones test only walls. Share the loop and keep the clearance predicate and center-first attempt per caller.

@@ -256,20 +256,12 @@ pub(super) fn snap_character_to_ground(
     }
 }
 
-// The step's crush test at a position the body did not reach by stepping
-// (a position accepted from a client report). Such a position has already
-// received its carry, so the rider probe cannot name the carrier that
-// lifted it; any carrier rising or sinking this tick makes world colliders
-// count, which only matters for a body a lift pressed into a ceiling.
+// Accepted positions already include their carry; use the step's lift flag rather than probing again.
 #[must_use]
-pub fn character_crushed_at(pos: Position, env: &CharacterEnvironment) -> bool {
+pub fn character_crushed_at(pos: Position, env: &CharacterEnvironment, lifted: bool) -> bool {
     if env.carriers.is_static() {
         return false;
     }
-    let lifted = env
-        .carriers
-        .carried_ids()
-        .any(|carrier| env.carriers.displacement(carrier).y != 0.0);
     let excluded = env.portals.map_or_else(Vec::new, |portals| {
         portals.collision_exclusions(Vec3::from(pos), env.physics)
     });

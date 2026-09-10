@@ -105,9 +105,10 @@ pub(crate) fn finish_player_movement_system(
                 portals: Some(&portal_set),
                 carriers: &carriers,
             };
+            let lifted = info.life.fall_state.was_lifted();
             info.life
                 .fall_state
-                .record_movement(movement.support, character_crushed_at(*pos, &env));
+                .record_movement(movement.support, character_crushed_at(*pos, &env, lifted), lifted);
         }
         erasers.swept.extend(
             collision

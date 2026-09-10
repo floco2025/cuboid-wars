@@ -84,6 +84,7 @@ pub(in crate::network) fn sync_players(
             ))
             .remove::<ServerReconciliation>();
         info.last_movement_tick = tick;
+        info.spawn_tick = tick;
         context.local_player_info.reports.invalidate();
         context.local_player_info.reports.clear_crossings();
         context.local_player_info.is_dead = false;

@@ -405,6 +405,7 @@ fn finish_character_movement(
         support,
         blocked,
         floor_velocity,
+        lifted: request.lifted,
         crushed,
     }
 }

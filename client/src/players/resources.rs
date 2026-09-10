@@ -25,6 +25,8 @@ pub struct PlayerInfo {
     // local fire prediction update it early; the snapshot self-heals).
     pub missiles: u32,
     pub last_movement_tick: u32,
+    // The spawn snapshot already places this body past any crossings through this tick.
+    pub spawn_tick: u32,
 }
 
 impl PlayerInfo {
@@ -39,6 +41,7 @@ impl PlayerInfo {
             held_keys: Vec::new(),
             missiles: 0,
             last_movement_tick: tick,
+            spawn_tick: tick,
         };
         info.apply_snapshot(player);
         info

@@ -105,7 +105,7 @@
 //    not an action: the report after it carries the vertical velocity it
 //    produced.
 //
-//    An impulse the server applies to a player's own movement (`SPlayerBlast`)
+//    An impulse the server applies to a player's own movement (`SPlayerKnockback`)
 //    is an event too: the next accepted report replaces the server's copy of
 //    it, so the victim's client is the only place the impulse survives.
 //
@@ -120,10 +120,11 @@
 //    owner keeps its current prediction, while observers move the remote
 //    player to the exit. The server's two lanes are as independent as the
 //    client's, so the event can arrive after the same tick's `SPlayerMoves`;
-//    observers apply it whenever it arrives, since a body that kept solid
-//    portal backing cannot be smoothed through the wall. Rejection goes only
-//    to the owner, with the server state to snap back to. A snapshot cannot
-//    tell the owner whether its crossing was accepted.
+//    observers apply it whenever it arrives within the body's current life,
+//    since a body that kept solid portal backing cannot be smoothed through
+//    the wall. Crossings covered by its spawn snapshot are ignored.
+//    Rejection goes only to the owner, with the server state to snap back
+//    to. A snapshot cannot tell the owner whether its crossing was accepted.
 //
 //    On rejection, both sides discard movement and further crossings that
 //    depended on the rejected crossing. The owner snaps back and answers
@@ -589,22 +590,17 @@ pub struct SPortalCrossed {
     pub movement: PlayerMovementState,
 }
 
-// Blast result, sent only to the surviving victim. The absolute velocities
+// Knockback result, sent only to the surviving victim. The absolute velocities
 // are the blast: the victim's next accepted report replaces the server's
 // copy, so the client must apply them itself, and a lost one would be lost
-// for good. Health updates the HUD on the damage tick. Direction/strength
-// ride along for future feedback use — the client currently plays none
-// (the knockback itself is the feedback).
+// for good. Health updates the HUD on the damage tick.
 #[derive(Debug, Clone, Encode, Decode)]
-pub struct SPlayerBlast {
+pub struct SPlayerKnockback {
     pub id: PlayerId,
     pub health: Health,
     pub vertical_velocity: f32,
     pub velocity_x: f32,
     pub velocity_z: f32,
-    pub hit_dir_x: f32,
-    pub hit_dir_z: f32,
-    pub strength: f32,
 }
 
 // One server-rendered message-feed line. Spans carry semantic styles so the
@@ -720,7 +716,7 @@ pub enum ServerMessage {
     Pong(SPong),
     // Events
     PortalCrossed(SPortalCrossed),
-    PlayerBlast(SPlayerBlast),
+    PlayerKnockback(SPlayerKnockback),
     Feed(SFeed),
     QuestUpdates(SQuestUpdates),
     Firework(SFirework),
@@ -817,7 +813,7 @@ impl ServerMessage {
         match self {
             Self::Init(_)
             | Self::PortalCrossed(_)
-            | Self::PlayerBlast(_)
+            | Self::PlayerKnockback(_)
             | Self::Feed(_)
             | Self::QuestUpdates(_)
             | Self::Firework(_) => Lane::Reliable,
@@ -951,15 +947,12 @@ mod tests {
             Lane::Reliable
         );
         assert_eq!(
-            ServerMessage::PlayerBlast(SPlayerBlast {
+            ServerMessage::PlayerKnockback(SPlayerKnockback {
                 id: PlayerId(1),
                 health: Health(10.0),
                 vertical_velocity: 7.0,
                 velocity_x: 1.0,
                 velocity_z: -1.0,
-                hit_dir_x: 0.7,
-                hit_dir_z: 0.7,
-                strength: 0.5,
             })
             .lane(),
             Lane::Reliable

@@ -234,6 +234,7 @@ fn carrier_motion_and_reconciliation_do_not_drive_footsteps() {
         support: CharacterSupport::Ground,
         blocked: false,
         floor_velocity: Vec3::new(10.0, 2.0, 0.0),
+        lifted: true,
         crushed: false,
     };
     motion.record_step(start, &step, Vec3::ZERO, Vec3::X * 0.1, 0.1);

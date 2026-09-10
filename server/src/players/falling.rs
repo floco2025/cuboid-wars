@@ -25,6 +25,7 @@ pub struct PlayerFallState {
     support: CharacterSupport,
     peak_y: f32,
     crushed: bool,
+    lifted: bool,
 }
 
 impl Default for PlayerFallState {
@@ -33,6 +34,7 @@ impl Default for PlayerFallState {
             support: CharacterSupport::Airborne,
             peak_y: f32::NEG_INFINITY,
             crushed: false,
+            lifted: false,
         }
     }
 }
@@ -48,9 +50,15 @@ impl PlayerFallState {
         self.crushed
     }
 
-    pub(crate) fn record_movement(&mut self, support: CharacterSupport, crushed: bool) {
+    #[must_use]
+    pub(crate) const fn was_lifted(&self) -> bool {
+        self.lifted
+    }
+
+    pub(crate) fn record_movement(&mut self, support: CharacterSupport, crushed: bool, lifted: bool) {
         self.support = support;
         self.crushed = crushed;
+        self.lifted = lifted;
     }
 
     pub(crate) fn reset(&mut self) {
@@ -374,10 +382,10 @@ mod tests {
     fn a_crush_is_reported_for_the_step_that_found_it() {
         let mut state = PlayerFallState::default();
 
-        state.record_movement(CharacterSupport::Ground, true);
+        state.record_movement(CharacterSupport::Ground, true, false);
         assert!(state.is_crushed());
 
-        state.record_movement(CharacterSupport::Ground, false);
+        state.record_movement(CharacterSupport::Ground, false, false);
         assert!(!state.is_crushed());
     }
 
@@ -413,7 +421,9 @@ mod tests {
         let (sender, mut receiver) = unbounded_channel();
         let mut info = PlayerInfo::new(entity, sender);
         info.connection.logged_in = true;
-        info.life.fall_state.record_movement(CharacterSupport::Ground, true);
+        info.life
+            .fall_state
+            .record_movement(CharacterSupport::Ground, true, false);
         app.world_mut().resource_mut::<PlayerMap>().insert(id, info);
 
         app.update();
@@ -485,6 +495,7 @@ mod tests {
                 support: CharacterSupport::Ground,
                 peak_y: drop,
                 crushed: false,
+                lifted: false,
             };
             if low_gravity {
                 info.life.power_ups[PowerUpKind::LowGravity.index()] = PowerUpState::Permanent;

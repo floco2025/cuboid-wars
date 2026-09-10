@@ -10,8 +10,8 @@ use super::{
     items::{handle_gold_collected_message, handle_health_potion_collected_message},
     missiles::{handle_missile_detonated_message, handle_missile_launch_message, handle_missile_move_message},
     players::{
-        handle_eraser_entered_message, handle_player_blast_message, handle_player_death_message,
-        handle_player_fall_damage_message, handle_player_hit_message, handle_player_moves_message,
+        handle_eraser_entered_message, handle_player_death_message, handle_player_fall_damage_message,
+        handle_player_hit_message, handle_player_knockback_message, handle_player_moves_message,
         handle_player_status_message, handle_projectile_shot_message,
     },
     portals::{handle_portal_crossed_message, handle_portal_fizzled_message, handle_portal_opened_message},
@@ -55,8 +55,8 @@ pub(super) fn route_server_message(
         ServerMessage::PlayerFallDamage(message) => {
             handle_player_fall_damage_message(message, commands, my_player_id, context);
         }
-        ServerMessage::PlayerBlast(message) => {
-            handle_player_blast_message(message, commands, my_player_id, context);
+        ServerMessage::PlayerKnockback(message) => {
+            handle_player_knockback_message(message, commands, my_player_id, context);
         }
         ServerMessage::ActorHit(message) => handle_actor_hit_message(message, commands, context),
         ServerMessage::ActorBeam(message) => handle_actor_beam_message(message, context),

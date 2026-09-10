@@ -182,8 +182,8 @@ pub(in crate::network) fn handle_player_fall_damage_message(
 // movement stream.
 // No camera shake here: the knockback the blast applies IS the feedback —
 // shake on top reads as double impact. Shake is projectile-hits only.
-pub(in crate::network) fn handle_player_blast_message(
-    message: SPlayerBlast,
+pub(in crate::network) fn handle_player_knockback_message(
+    message: SPlayerKnockback,
     commands: &mut Commands,
     my_player_id: PlayerId,
     context: &mut ServerMessageContext,
@@ -314,6 +314,7 @@ mod tests {
             held_keys: Vec::new(),
             missiles: 0,
             last_movement_tick: 0,
+            spawn_tick: 0,
         }
     }
 

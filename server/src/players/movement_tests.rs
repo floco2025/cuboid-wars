@@ -11,6 +11,7 @@ use crate::{
 };
 use bevy::{ecs::system::SystemState, prelude::*};
 use common::{
+    config::GameplayConfig,
     constants::TICK_DURATION,
     map::Carriers,
     physics::{
@@ -473,6 +474,86 @@ fn accepted_position_inside_a_carrier_slab_is_crushed() {
         deliver(&mut app, report(1, Position { y: -0.2, ..default() }));
         app.update();
         assert_eq!(player_info(&app).life.fall_state.is_crushed(), expected, "{carrier:?}");
+    }
+}
+
+#[test]
+fn accepted_world_overlap_is_crushing_only_when_this_body_was_lifted() {
+    for (carrier_x, expected_crushed) in [(0.0, true), (100.0, false)] {
+        let slab = Floor {
+            x1: -2.0,
+            z1: -2.0,
+            x2: 2.0,
+            z2: 2.0,
+            y: 0.0,
+            thickness: 0.2,
+            level: 0,
+            carrier: CarrierId::WORLD,
+        };
+        let layout = MapLayout {
+            floors: vec![
+                slab,
+                Floor {
+                    carrier: CarrierId(1),
+                    ..slab
+                },
+            ],
+            carriers: vec![Carrier {
+                parent: CarrierId::WORLD,
+                level: 0,
+                levels: 1,
+                from: Position {
+                    x: carrier_x,
+                    ..default()
+                },
+                to: Position {
+                    x: carrier_x,
+                    y: 6.0,
+                    z: 0.0,
+                },
+                travel_ticks: 60,
+                pause_ticks: 0,
+                phase_ticks: 0,
+            }],
+            ..default()
+        };
+        let (mut app, entity) = movement_app(layout.clone());
+        let height = app
+            .world()
+            .resource::<GameplayConfig>()
+            .player
+            .physics()
+            .movement_collider
+            .height;
+        let layout = MapLayout {
+            floors: layout
+                .floors
+                .iter()
+                .copied()
+                .chain([Floor {
+                    y: height + 0.02 + slab.thickness,
+                    ..slab
+                }])
+                .collect(),
+            ..layout
+        };
+        let mut carriers = Carriers::from_layout(&layout);
+        carriers.advance(1);
+        let mut collision = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
+        collision.set_carrier_poses(&carriers);
+        app.insert_resource(carriers).insert_resource(collision);
+        let accepted = Position { y: 0.1, ..default() };
+        deliver(&mut app, report(1, accepted));
+        app.update();
+        assert_eq!(
+            *app.world().get::<Position>(entity).expect("position missing"),
+            accepted
+        );
+        assert_eq!(
+            player_info(&app).life.fall_state.is_crushed(),
+            expected_crushed,
+            "carrier x={carrier_x}"
+        );
     }
 }
 

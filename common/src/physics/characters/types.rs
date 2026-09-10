@@ -17,6 +17,8 @@ pub struct CharacterMovementResult {
     // otherwise. Its vertical part is already in `vertical_velocity` when the
     // body ends airborne; the horizontal part becomes `AirborneMomentum`.
     pub floor_velocity: Vec3,
+    // Includes carried portal transit, which does not contribute floor velocity.
+    pub lifted: bool,
     // The body ended the step inside a carrier's geometry: a carrier moved
     // into it and the collision could not push it clear. The server kills
     // a crushed body; nothing tunnels through a carrier.

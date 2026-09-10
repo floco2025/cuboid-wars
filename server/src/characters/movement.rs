@@ -132,7 +132,9 @@ fn plan_player_moves(
             carriers,
         });
         if let Some(info) = players.get_mut(player_id) {
-            info.life.fall_state.record_movement(step.support, step.crushed);
+            info.life
+                .fall_state
+                .record_movement(step.support, step.crushed, step.lifted);
         }
 
         planned_moves.push(CharacterMovePlan::from_movement_result(

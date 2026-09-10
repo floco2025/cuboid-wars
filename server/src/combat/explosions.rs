@@ -8,7 +8,7 @@ use common::{
     physics::{CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity, character_hitbox_center},
     protocol::{
         ActorId, ActorMarker, BarrierKindId, Health, MapSettings, PlateState, PlayerId, PlayerMarker, Position,
-        SPlayerBlast, ServerMessage,
+        SPlayerKnockback, ServerMessage,
     },
 };
 
@@ -118,8 +118,6 @@ struct BlastOutcome {
 pub(super) struct AccumulatedImpulse {
     entity: Entity,
     pub(super) velocity: Vec3,
-    pub(super) blast_delta: Vec3,
-    pub(super) strength: f32,
 }
 
 pub fn explosions_system(mut context: ExplosionContext) {
@@ -292,7 +290,6 @@ fn apply_blast(
             entity,
             Some(&*knockback),
             planar_shove(spec.center, victim_center, falloff, movement.knockback.max_speed),
-            falloff,
         );
     }
 
@@ -334,7 +331,6 @@ fn apply_blast(
             entity,
             knockback,
             planar_shove(spec.center, victim_center, falloff, movement.knockback.max_speed),
-            falloff,
         );
     }
 
@@ -347,17 +343,12 @@ pub(super) fn accumulate_impulse<Id: std::hash::Hash + Eq + Copy>(
     entity: Entity,
     current: Option<&KnockbackVelocity>,
     shove: Vec3,
-    strength: f32,
 ) {
     let accumulated = impulses.entry(id).or_insert_with(|| AccumulatedImpulse {
         entity,
         velocity: current.map_or(Vec3::ZERO, |knockback| knockback.0),
-        blast_delta: Vec3::ZERO,
-        strength: 0.0,
     });
     accumulated.velocity += shove;
-    accumulated.blast_delta += shove;
-    accumulated.strength = (accumulated.strength + strength).min(1.0);
 }
 
 fn apply_player_impulses(context: &mut ExplosionContext, impulses: HashMap<PlayerId, AccumulatedImpulse>) {
@@ -372,20 +363,16 @@ fn apply_player_impulses(context: &mut ExplosionContext, impulses: HashMap<Playe
         };
         let velocity = impulse.velocity.clamp_length_max(max_speed);
         knockback.0 = velocity;
-        let direction = impulse.blast_delta.normalize_or_zero();
         if let Some(info) = context.players.get(&id) {
             let _ = info
                 .connection
                 .channel
-                .send(ServerToClient::Send(ServerMessage::PlayerBlast(SPlayerBlast {
+                .send(ServerToClient::Send(ServerMessage::PlayerKnockback(SPlayerKnockback {
                     id,
                     health: *health,
                     vertical_velocity: vertical_velocity.0,
                     velocity_x: velocity.x,
                     velocity_z: velocity.z,
-                    hit_dir_x: direction.x,
-                    hit_dir_z: direction.z,
-                    strength: impulse.strength,
                 })));
         }
     }

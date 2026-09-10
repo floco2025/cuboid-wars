@@ -64,7 +64,7 @@ fn stand(app: &mut App, id: PlayerId, pos: Position, support: CharacterSupport) 
     let entity = {
         let mut players = app.world_mut().resource_mut::<PlayerMap>();
         let player = players.get_mut(&id).expect("player missing");
-        player.life.fall_state.record_movement(support, false);
+        player.life.fall_state.record_movement(support, false, false);
         player.entity().expect("player body missing")
     };
     app.world_mut().entity_mut(entity).insert((pos, FaceYaw(0.7)));

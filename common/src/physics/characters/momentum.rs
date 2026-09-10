@@ -115,6 +115,7 @@ mod tests {
             support: CharacterSupport::Airborne,
             blocked: false,
             floor_velocity: Vec3::ZERO,
+            lifted: false,
             crushed: false,
         };
         let mut momentum = AirborneMomentum(Vec3::X);

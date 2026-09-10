@@ -36,10 +36,8 @@ fn apply_portal_crossing_result(
     to_server: &ClientToServerChannel,
 ) {
     if result.id != my_player_id {
-        // Placed whenever it arrives: the body kept solid portal backing, so
-        // smoothing from a newer update cannot take it through the wall, and
-        // the next update corrects a tick-old exit forward.
-        if result.accepted {
+        // Solid portal backing prevents smoothing through the wall, even after a newer movement update.
+        if result.accepted && sequence_is_newer(result.tick, player.spawn_tick) {
             if sequence_is_newer(result.tick, player.last_movement_tick) {
                 player.last_movement_tick = result.tick;
             }
@@ -231,8 +229,31 @@ mod tests {
     }
 
     #[test]
-    fn remote_crossings_always_place_the_body_and_never_rewind_the_tick() {
-        for latest_tick in [4, 5, 6] {
+    fn remote_crossings_covered_by_the_spawn_snapshot_are_ignored() {
+        for (spawn_tick, crossing_tick) in [(20, 15), (15, 15), (0, u32::MAX), (u32::MAX, u32::MAX - 1)] {
+            let mut fixture = fixture();
+            fixture.player = PlayerInfo::from_snapshot(
+                fixture.entity,
+                &Player::new("Player".into(), CURRENT, PlayerMoveIntent::Idle, 0.0, 0, Health(100.0)),
+                spawn_tick,
+            );
+            let result = SPortalCrossed {
+                id: PlayerId(2),
+                tick: crossing_tick,
+                ..crossed(10, true)
+            };
+            assert!(apply(&mut fixture, result).is_none());
+            assert_eq!(
+                *fixture.world.get::<Position>(fixture.entity).expect("position missing"),
+                CURRENT
+            );
+            assert_eq!(fixture.player.last_movement_tick, spawn_tick);
+        }
+    }
+
+    #[test]
+    fn remote_crossings_within_a_life_place_the_body_without_rewinding_the_tick() {
+        for (spawn_tick, crossing_tick, latest_tick) in [(4, 5, 4), (4, 5, 5), (4, 5, 6), (u32::MAX, 0, 1)] {
             let mut world = World::new();
             let current = Position {
                 x: 20.0,
@@ -243,14 +264,15 @@ mod tests {
             let mut player = PlayerInfo::from_snapshot(
                 entity,
                 &Player::new("Player".into(), current, PlayerMoveIntent::Idle, 0.0, 0, Health(100.0)),
-                latest_tick,
+                spawn_tick,
             );
+            player.last_movement_tick = latest_tick;
             let movement =
                 PlayerMovementState::new(Position { x: 10.0, ..default() }, PlayerMoveIntent::Idle, 3.0, 1.0);
             let result = SPortalCrossed {
                 id: PlayerId(2),
                 seq: 10,
-                tick: 5,
+                tick: crossing_tick,
                 accepted: true,
                 movement,
             };
@@ -267,7 +289,12 @@ mod tests {
             );
             state.apply(&mut world);
             assert_eq!(*world.get::<Position>(entity).expect("position missing"), movement.pos);
-            assert_eq!(player.last_movement_tick, latest_tick.max(5));
+            let expected_tick = if sequence_is_newer(crossing_tick, latest_tick) {
+                crossing_tick
+            } else {
+                latest_tick
+            };
+            assert_eq!(player.last_movement_tick, expected_tick);
         }
     }
 }

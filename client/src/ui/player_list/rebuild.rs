@@ -158,6 +158,7 @@ mod tests {
             held_keys: Vec::new(),
             missiles: 0,
             last_movement_tick: 0,
+            spawn_tick: 0,
         }
     }
 

@@ -88,13 +88,11 @@ fn accumulated_impulses_sum_existing_and_new_velocity() {
     let existing = KnockbackVelocity(Vec3::X * 2.0);
     let mut impulses = HashMap::new();
 
-    accumulate_impulse(&mut impulses, id, entity, Some(&existing), Vec3::X * 3.0, 0.4);
-    accumulate_impulse(&mut impulses, id, entity, Some(&existing), Vec3::Z * 4.0, 0.5);
+    accumulate_impulse(&mut impulses, id, entity, Some(&existing), Vec3::X * 3.0);
+    accumulate_impulse(&mut impulses, id, entity, Some(&existing), Vec3::Z * 4.0);
 
     let impulse = impulses.get(&id).expect("player impulse");
     assert_eq!(impulse.velocity, Vec3::new(5.0, 0.0, 4.0));
-    assert_eq!(impulse.blast_delta, Vec3::new(3.0, 0.0, 4.0));
-    assert!((impulse.strength - 0.9).abs() < f32::EPSILON);
 }
 
 #[test]
@@ -312,9 +310,10 @@ fn simultaneous_blasts_send_one_combined_player_result() {
 
     app.update();
 
-    let ServerToClient::Send(ServerMessage::PlayerBlast(message)) = receiver.try_recv().expect("combined blast result")
+    let ServerToClient::Send(ServerMessage::PlayerKnockback(message)) =
+        receiver.try_recv().expect("combined blast result")
     else {
-        panic!("expected player blast message");
+        panic!("expected player knockback message");
     };
     let health = *app.world().entity(entity).get::<Health>().expect("player health");
     assert_eq!(message.id, id);
@@ -322,7 +321,7 @@ fn simultaneous_blasts_send_one_combined_player_result() {
     assert!(message.health.0 < 1_000.0);
     assert!(message.velocity_x.abs() < 0.001);
     assert!(message.velocity_z.abs() < 0.001);
-    assert!(message.strength > 0.0);
+    assert!(message.vertical_velocity > 0.0);
     assert!(receiver.try_recv().is_err());
 }
 
