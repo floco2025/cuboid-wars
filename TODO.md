@@ -2,8 +2,6 @@
 
 ## Fixes
 
-- **Pressure plates cover characters' feet:** give plates collision geometry so players and other characters stand on their surface instead of intersecting the model. Keep the support height aligned with the tread in both active and inactive states.
-
 - **Rejected portal placement plays two sounds:** trying to place a portal on a non-portalable texture plays both the fizzle sound and the placement sound. Play only the fizzle sound when placement is rejected.
 
 - **Third-person body clipping during portal traversal:** jumping into a floor portal makes the player's legs disappear before the body emerges from the exit, leaving the model visibly cut in half. Keep the body presentation continuous across portal entry and exit.
@@ -12,7 +10,7 @@
 
 - **Simultaneous shared entries lose the second:** when two shared checkpoints are entered on the same tick, `apply_checkpoint_entries` activates the lowest index and breaks, but the other entrant's `checkpoint_contact` is already recorded, so that checkpoint never activates until they leave and re-enter. Defer the remaining entries to the next tick instead of dropping them.
 
-- **Blocked initial placement is silent:** a login whose checkpoint destination is blocked leaves the player `Dead { 0 }` with no body, no `SPlayerDeath`, no log line, and no spawn-zone fallback (`player_spawn_destination` returns `None` through `?`), so the client sits bodiless with an inert camera until it disconnects. Fall back to the spawn zone or tell the client it is waiting.
+- **Blocked initial placement is silent:** a login whose checkpoint destination is blocked retries every tick but gives no sign of it: no `SPlayerDeath`, no log line, and no spawn-zone fallback (`player_spawn_destination` returns `None` through `?`), so the client sits bodiless with an inert camera until the destination clears. Fall back to the spawn zone or tell the client it is waiting.
 
 - **Negative respawn timer resets the world at once:** a blocked respawn keeps ticking `respawn_remaining_secs` below zero, and `PlayerMap::disconnect` passes that value as the actor-reset delay, so the logout resets actors on the next tick instead of after `respawn_secs`. Clamp the countdown or treat a non-positive remainder as the full delay.
 
@@ -20,11 +18,13 @@
 
 - **Checkpoint cue can be lost:** `SCheckpointReached` rides the unreliable lane and nothing in the snapshot carries the saved checkpoint, so one dropped datagram loses the sound and banner until the next death. Send it on the reliable lane or add the saved checkpoint to `SSnapshot`.
 
-- **Editor cannot pick a checkpoint under a spawn zone:** `hit_at` and `spawn_zone_at` in `tools/map_editor/erasing.py` return the first zone list's hit, so a checkpoint overlapping a spawn zone can never be right-clicked, hovered, or Alt-dragged. The comments there and in `spawn_zones.py` still describe the old actor → player order, and `spawn_zones.py` compares against the literal `"checkpoints"` instead of `CHECKPOINT_LIST`.
+- **Editor cannot pick a checkpoint under a spawn zone:** `hit_at` and `spawn_zone_at` in `tools/map_editor/erasing.py` return the first zone list's hit, so a checkpoint overlapping a spawn zone can never be right-clicked, hovered, or Alt-dragged. The comments there and in `spawn_zones.py` still describe the old actor → player order, and `spawn_zones.py` and `regions.py` compare against the literal `"checkpoints"` instead of `CHECKPOINT_LIST`.
 
 - **Editor confuses same-rectangle checkpoints:** `zone_key` in `tools/map_editor/normalization.py` keys checkpoints by rectangle only while canonicalization keys them by rectangle and type, so editing the type of one of two overlapping checkpoints re-selects the first and later edits apply to the wrong zone.
 
 ## Enhancements
+
+- **Pressure plates cover characters' feet:** give plates collision geometry so players and other characters stand on their surface instead of intersecting the model. Keep the support height aligned with the tread in both active and inactive states.
 
 - **Render ramps as stairs:** add an option to show ramps as stairs while retaining smooth ramp collision and movement. Make stair use configurable per actor kind, like ladder use.
 
@@ -32,7 +32,7 @@
 
 - **Missiles through portals:** a missile chasing a target through a portal detonates on the aperture's backing instead of crossing, while bullets hop through; rank `projectile_hop` against the other events in the missile sweep in `client/src/missiles/movement.rs`.
 
-- **Late launch cue:** an observer whose applied snapshot is already past a missile's launch tick spawns the missile from the snapshot but skips the launch sound (`client/src/network/missiles/handlers.rs`).
+- **Late launch cue:** an observer whose snapshot arrives before the launch cue spawns the missile from the snapshot and plays the launch sound only when the cue lands, after the missile is already in flight (`client/src/network/missiles/handlers.rs`).
 
 - **Checkpoint scan on maps without checkpoints:** `players_checkpoints_system` runs a capsule cast per grounded player every tick before reading an empty list. Gate it with a `run_if` on `map.checkpoints`, like `pending_actor_spawns_active`.
 
