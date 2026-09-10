@@ -9,7 +9,9 @@
     "checkpoints": [
       {"level": 5, "cols": [36, 38], "rows": [8, 10], "type": "individual"}
     ],
-    "pressure_plates": [],
+    "pressure_plates": [
+      {"level": 0, "col": 3, "row": 10, "type": "bridge", "kind": "bridge_1"}
+    ],
     "items": [
       {"level": 0, "col": 6, "row": 7, "type": "speed"},
       {"level": 0, "col": 10, "row": 7, "type": "low_gravity"},
@@ -36,6 +38,8 @@
       {
         "name": "Level 0",
         "floors": [
+          {"col": 0, "row": 5, "all": "basement-floor"},
+          {"col": 0, "row": 6, "all": "basement-floor"},
           {"col": 0, "row": 7, "all": "basement-floor"},
           {"col": 1, "row": 7, "all": "basement-floor"},
           {"col": 2, "row": 7, "all": "basement-floor"},
@@ -114,6 +118,8 @@
       {
         "name": "Level 1",
         "floors": [
+          {"col": 0, "row": 3, "all": "basement-floor"},
+          {"col": 0, "row": 4, "all": "basement-floor"},
           {"col": 27, "row": 7, "all": "basement-floor"},
           {"col": 28, "row": 7, "all": "basement-floor"},
           {"col": 27, "row": 8, "all": "basement-floor"},
@@ -151,7 +157,14 @@
       },
       {
         "name": "Level 2",
-        "floors": [],
+        "floors": [
+          {"col": 0, "row": 2, "all": "basement-floor"},
+          {"col": 1, "row": 2, "all": "basement-floor"},
+          {"col": 2, "row": 2, "all": "basement-floor"},
+          {"col": 3, "row": 2, "all": "basement-floor"},
+          {"col": 2, "row": 3, "all": "basement-floor"},
+          {"col": 3, "row": 3, "all": "basement-floor"}
+        ],
         "inaccessible_floors": [],
         "grass": [],
         "walls": [
@@ -175,7 +188,18 @@
           {"c0": 28, "r0": 9, "c1": 28, "r1": 10},
           {"c0": 28, "r0": 10, "c1": 28, "r1": 11}
         ],
-        "light_bridges": [],
+        "light_bridges": [
+          {"col": 2, "row": 4, "kind": "bridge_1"},
+          {"col": 3, "row": 4, "kind": "bridge_1"},
+          {"col": 2, "row": 5, "kind": "bridge_1"},
+          {"col": 3, "row": 5, "kind": "bridge_1"},
+          {"col": 2, "row": 6, "kind": "bridge_1"},
+          {"col": 3, "row": 6, "kind": "bridge_1"},
+          {"col": 2, "row": 7, "kind": "bridge_1"},
+          {"col": 3, "row": 7, "kind": "bridge_1"},
+          {"col": 2, "row": 8, "kind": "bridge_1"},
+          {"col": 3, "row": 8, "kind": "bridge_1"}
+        ],
         "lights": []
       },
       {
@@ -300,7 +324,10 @@
       }
     ],
     "ladders": [],
-    "ramps": [],
+    "ramps": [
+      {"lower_level": 0, "low": [0, 7], "high": [1, 5], "all": "basement-floor"},
+      {"lower_level": 1, "low": [0, 5], "high": [1, 3], "all": "basement-floor"}
+    ],
     "nested_maps": [
       {"map": "Shuttle", "level": 0, "from": [1, 11], "to": [36, 11], "to_level": 5, "travel_secs": 8.0, "pause_secs": 2.0, "phase_secs": 0.0, "from_nudge": [0.0, 0.0, 1.01], "to_nudge": [0.0, 0.0, 1.01]}
     ],
