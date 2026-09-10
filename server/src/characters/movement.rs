@@ -13,7 +13,7 @@ use common::{
 
 use crate::{
     actors::{ActorMap, ActorMovementQuery, apply_actor_moves, plan_actor_moves},
-    players::{PlayerInfo, PlayerMap, PlayerMovementPath},
+    players::{PlayerInfo, PlayerMap},
 };
 
 type PlayerMovementQuery<'w, 's> = Query<
@@ -98,11 +98,7 @@ fn plan_player_moves(
     let player_physics = player_config.physics();
     for (entity, pos, motion, move_intent, player_id, knockback, mut momentum) in query.iter_mut() {
         if let Some(info) = players.get_mut(player_id) {
-            info.life.movement_path = Some(PlayerMovementPath {
-                start: *pos,
-                start_hops: info.session.hops,
-                portal_entry: None,
-            });
+            info.life.movement_start = Some(*pos);
         }
         let info = players.get(player_id);
         let control_velocity = player_control_velocity(
@@ -128,7 +124,7 @@ fn plan_player_moves(
             collision_world,
             map_settings,
             gameplay_config,
-            portal_set,
+            portal_set: Some(portal_set),
             carriers,
         });
         if let Some(info) = players.get_mut(player_id) {

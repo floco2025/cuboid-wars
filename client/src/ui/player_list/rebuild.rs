@@ -157,9 +157,7 @@ mod tests {
             stunned: false,
             held_keys: Vec::new(),
             missiles: 0,
-            hops: 0,
-            hop_tick: 0,
-            disputed_since: None,
+            last_movement_tick: 0,
         }
     }
 

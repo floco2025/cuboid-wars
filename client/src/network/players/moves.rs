@@ -2,7 +2,7 @@ use super::super::context::ServerMessageContext;
 use crate::{
     characters::PreviousTickPosition,
     network::{ServerReconciliation, TickSync, extrapolated_correction, resources::accept_newer_tick},
-    players::{CrossingVerdict, LocalPlayerInfo, PlayerInfo, PlayerMap},
+    players::{LocalPlayerInfo, PlayerInfo},
 };
 use bevy::prelude::*;
 use common::{
@@ -35,10 +35,8 @@ pub(in crate::network) fn handle_player_moves_message(
             &context.local_player_info,
             &mut context.clocks.tick_sync,
             &mut context.clocks.server_tick,
-            &mut context.players,
         );
     }
-    let clock_seeded = context.clocks.tick_sync.is_seeded();
     for entry in message.moves {
         let Some(player) = context.players.get_mut(&entry.id) else {
             continue;
@@ -67,19 +65,14 @@ pub(in crate::network) fn handle_player_moves_message(
                 delta.y,
                 delta.z
             );
-            snap_player(commands, player, entry.movement, entry.hops, tick);
+            snap_player(commands, player, entry.movement);
             reset_local_comparisons(&mut context.local_player_info);
             continue;
         }
-        match player.judge_crossing(tick, entry.hops, clock_seeded) {
-            CrossingVerdict::Skipped => continue,
-            CrossingVerdict::Settled => {
-                warn!("{} crossing dispute settled for the server; teleporting", player.name);
-                snap_player(commands, player, entry.movement, entry.hops, tick);
-                continue;
-            }
-            CrossingVerdict::Paired => {}
+        if !sequence_is_newer(tick, player.last_movement_tick) {
+            continue;
         }
+        player.last_movement_tick = tick;
         let movement = entry.movement;
         let velocity = player_movement_velocity(
             movement,
@@ -107,6 +100,9 @@ pub(in crate::network) fn handle_player_moves_message(
 }
 
 fn local_snap_delta(local: &mut LocalPlayerInfo, entry: &PlayerMove) -> Option<Vec3> {
+    if local.portal_crossings.is_pending() {
+        return None;
+    }
     let seq = entry.move_seq?;
     if local
         .last_comparison_seq
@@ -120,16 +116,12 @@ fn local_snap_delta(local: &mut LocalPlayerInfo, entry: &PlayerMove) -> Option<V
     (!player_movement_is_trusted(delta)).then_some(delta)
 }
 
-fn reset_local_comparisons(local: &mut LocalPlayerInfo) {
+pub(in crate::network) fn reset_local_comparisons(local: &mut LocalPlayerInfo) {
     local.committed_positions.clear();
-    local.pending_input = None;
     local.last_comparison_seq = Some(local.move_seq);
 }
 
-fn snap_player(commands: &mut Commands, info: &mut PlayerInfo, movement: PlayerMovementState, hops: u32, tick: u32) {
-    info.hops = hops;
-    info.hop_tick = tick;
-    info.disputed_since = None;
+pub(in crate::network) fn snap_player(commands: &mut Commands, info: &mut PlayerInfo, movement: PlayerMovementState) {
     commands
         .entity(info.entity)
         .insert((
@@ -150,7 +142,6 @@ fn sync_player_clock(
     local_player_info: &LocalPlayerInfo,
     tick_sync: &mut TickSync,
     server_tick: &mut ServerTick,
-    players: &mut PlayerMap,
 ) {
     let Some(recorded_tick) = local_player_info.committed_positions.tick_for_seq(move_seq) else {
         return;
@@ -159,9 +150,6 @@ fn sync_player_clock(
     trace!("clock error {error} ticks at the echo of seq {move_seq}");
     if let Some(shift) = tick_sync.observe(error, move_seq, local_player_info.move_seq) {
         server_tick.0 = server_tick.0.wrapping_add_signed(shift);
-        for player in players.values_mut() {
-            player.hop_tick = player.hop_tick.wrapping_add_signed(shift);
-        }
         info!("clock shifted by {shift} ticks to {}", server_tick.0);
     }
 }
@@ -187,11 +175,10 @@ fn player_movement_velocity(
 mod tests {
     use super::*;
 
-    fn comparison(seq: u32, x: f32, hops: u32) -> PlayerMove {
+    fn comparison(seq: u32, x: f32) -> PlayerMove {
         PlayerMove {
             id: PlayerId(1),
             move_seq: Some(seq),
-            hops,
             movement: PlayerMovementState::new(Position { x, y: 0.0, z: 0.0 }, PlayerMoveIntent::Idle, 0.0, 0.0),
         }
     }
@@ -200,7 +187,7 @@ mod tests {
     fn an_update_without_a_processed_report_cannot_snap_the_local_player() {
         let mut local = LocalPlayerInfo::default();
         local.committed_positions.record(1, 10, Position::default());
-        let mut entry = comparison(1, 100.0, 0);
+        let mut entry = comparison(1, 100.0);
         entry.move_seq = None;
         assert!(local_snap_delta(&mut local, &entry).is_none());
         entry.move_seq = Some(1);
@@ -208,26 +195,38 @@ mod tests {
     }
 
     #[test]
-    fn local_comparison_uses_the_recorded_position_despite_hop_disagreement() {
+    fn local_comparison_uses_the_recorded_position_and_shared_distance() {
         let mut local = LocalPlayerInfo::default();
         local.committed_positions.record(1, 10, Position::default());
-        assert!(local_snap_delta(&mut local, &comparison(1, 4.99, 0)).is_none());
+        assert!(local_snap_delta(&mut local, &comparison(1, 4.99)).is_none());
         local.committed_positions.record(2, 11, Position::default());
-        assert_eq!(
-            local_snap_delta(&mut local, &comparison(2, 5.0, 0)),
-            Some(Vec3::X * 5.0)
-        );
+        assert_eq!(local_snap_delta(&mut local, &comparison(2, 5.0)), Some(Vec3::X * 5.0));
+    }
+
+    #[test]
+    fn pending_crossings_suspend_local_snaps_until_all_are_confirmed() {
+        let mut local = LocalPlayerInfo::default();
+        let movement = comparison(1, 0.0).movement;
+        local.portal_crossings.record(1, movement, Vec2::ZERO);
+        local.portal_crossings.record(2, movement, Vec2::ZERO);
+        local.committed_positions.record(3, 10, Position::default());
+        let entry = comparison(3, 100.0);
+        assert!(local_snap_delta(&mut local, &entry).is_none());
+        local.portal_crossings.resolve(1, true);
+        assert!(local_snap_delta(&mut local, &entry).is_none());
+        local.portal_crossings.resolve(2, true);
+        assert_eq!(local_snap_delta(&mut local, &entry), Some(Vec3::X * 100.0));
     }
 
     #[test]
     fn repeated_outdated_and_missing_comparisons_do_not_snap() {
         let mut local = LocalPlayerInfo::default();
         local.committed_positions.record(2, 10, Position::default());
-        let result = comparison(2, 8.0, 0);
+        let result = comparison(2, 8.0);
         assert!(local_snap_delta(&mut local, &result).is_some());
         assert!(local_snap_delta(&mut local, &result).is_none());
-        assert!(local_snap_delta(&mut local, &comparison(1, 100.0, 0)).is_none());
-        assert!(local_snap_delta(&mut local, &comparison(3, 100.0, 0)).is_none());
+        assert!(local_snap_delta(&mut local, &comparison(1, 100.0)).is_none());
+        assert!(local_snap_delta(&mut local, &comparison(3, 100.0)).is_none());
     }
 
     #[test]
@@ -239,15 +238,15 @@ mod tests {
         for seq in 1..=10 {
             local.committed_positions.record(seq, seq, Position::default());
         }
-        assert!(local_snap_delta(&mut local, &comparison(4, 8.0, 0)).is_some());
+        assert!(local_snap_delta(&mut local, &comparison(4, 8.0)).is_some());
         reset_local_comparisons(&mut local);
         for seq in 5..=10 {
-            assert!(local_snap_delta(&mut local, &comparison(seq, 8.0, 0)).is_none());
+            assert!(local_snap_delta(&mut local, &comparison(seq, 8.0)).is_none());
         }
         local
             .committed_positions
             .record(11, 11, Position { x: 8.0, y: 0.0, z: 0.0 });
-        assert!(local_snap_delta(&mut local, &comparison(11, 8.0, 1)).is_none());
+        assert!(local_snap_delta(&mut local, &comparison(11, 8.0)).is_none());
     }
 
     #[test]
@@ -257,7 +256,7 @@ mod tests {
             ..default()
         };
         local.committed_positions.record(0, 10, Position::default());
-        assert!(local_snap_delta(&mut local, &comparison(0, 8.0, 0)).is_some());
+        assert!(local_snap_delta(&mut local, &comparison(0, 8.0)).is_some());
     }
 
     #[test]
@@ -269,10 +268,9 @@ mod tests {
         local.committed_positions.record(1, 10, Position::default());
         let mut clock = TickSync::default();
         let mut tick = ServerTick(11);
-        let mut players = PlayerMap::default();
-        sync_player_clock(20, 1, &local, &mut clock, &mut tick, &mut players);
+        sync_player_clock(20, 1, &local, &mut clock, &mut tick);
         assert_eq!(tick.0, 21);
-        sync_player_clock(20, 1, &local, &mut clock, &mut tick, &mut players);
+        sync_player_clock(20, 1, &local, &mut clock, &mut tick);
         assert_eq!(tick.0, 21);
     }
 }

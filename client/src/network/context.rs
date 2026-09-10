@@ -17,7 +17,7 @@ use crate::{
     items::{ItemAssets, ItemMap},
     map::skybox::LightingState,
     missiles::{MissileAssets, MissileMap},
-    network::{LastPlayerMovesTick, LastSnapshotTick, RoundTripTime, TickSync},
+    network::{ClientToServerChannel, LastPlayerMovesTick, LastSnapshotTick, RoundTripTime, TickSync},
     players::{LocalPlayerInfo, MyPlayerId, PlayerMap},
     portals::{PortalAssets, PortalMap},
     projectiles::ProjectileAssets,
@@ -58,6 +58,7 @@ pub(super) struct StreamClocks<'w> {
 // Each resource appears once and the queries are read-only, so this needs no `ParamSet`.
 #[derive(SystemParam)]
 pub(super) struct ServerMessageContext<'w, 's> {
+    pub(super) to_server: Res<'w, ClientToServerChannel>,
     pub(super) my_player_id: Res<'w, MyPlayerId>,
     pub(super) time: Res<'w, Time>,
     pub(super) rtt: ResMut<'w, RoundTripTime>,

@@ -3,30 +3,21 @@ use bevy::prelude::*;
 use crate::{
     cameras::MainCameraMarker,
     characters::PreviousTickPosition,
-    players::{LocalPlayerInfo, MyPlayerId, PlayerMap, eye_position},
+    players::{LocalPlayerInfo, LocalPlayerMarker, PlayerMap, eye_position},
     portals::apply_portal_view,
 };
 use common::{
     config::GameplayConfig,
     physics::{AirborneMomentum, CharacterVerticalVelocity, KnockbackVelocity, PlayerHopBody, PortalSet},
-    protocol::{FaceYaw, MapSettings, PlayerId, PlayerMarker, PlayerMoveIntent, Position, PowerUpKind, ServerTick},
+    protocol::{FaceYaw, MapSettings, PlayerId, PlayerMoveIntent, PlayerMovementState, Position, PowerUpKind},
 };
 
-// Portal transit for every simulated player, local and remote alike — the
-// same shared crossing the server computes, run right after this tick's
-// movement. A crossing is derived state, not an input event: the shared
-// geometry (placements arrive via `SPortalOpened`) plus the motion this
-// client already simulates determine it, so there is no teleport message.
-// A wrong guess about a remote player's motion near a plane surfaces as an
-// ordinary snapshot correction.
 pub fn portal_transit_system(
     mut commands: Commands,
     portal_set: Res<PortalSet>,
     gameplay_config: Res<GameplayConfig>,
     map_settings: Res<MapSettings>,
-    my_player_id: Res<MyPlayerId>,
-    server_tick: Res<ServerTick>,
-    mut players: ResMut<PlayerMap>,
+    players: Res<PlayerMap>,
     mut local_player_info: ResMut<LocalPlayerInfo>,
     cameras: Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
     mut query: Query<
@@ -41,10 +32,10 @@ pub fn portal_transit_system(
             Option<&mut KnockbackVelocity>,
             Option<&mut AirborneMomentum>,
         ),
-        With<PlayerMarker>,
+        With<LocalPlayerMarker>,
     >,
 ) {
-    if portal_set.is_empty() {
+    if local_player_info.is_dead || portal_set.is_empty() {
         return;
     }
     for (entity, id, mut pos, mut prev, mut face_yaw, mut vertical_velocity, mut move_intent, knockback, momentum) in
@@ -71,25 +62,29 @@ pub fn portal_transit_system(
             continue;
         };
 
+        let entrance = PlayerMovementState::new(*pos, *move_intent, vertical_velocity.0, face_yaw.0).with_momentum(
+            momentum.as_deref().map_or(Vec3::ZERO, |m| m.0),
+            knockback.as_deref().map_or(Vec3::ZERO, |k| k.0),
+        );
         hop.apply_player_state(&mut pos, &mut face_yaw, &mut vertical_velocity, &mut move_intent);
         hop.apply_motion_components(&mut commands, entity, knockback, momentum);
         // Anchor render interpolation at the exit: the transit renders as a
         // cut there, not a smear between the portals.
         prev.0 = *pos;
-        if let Some(info) = players.get_mut(id) {
-            info.hops = info.hops.wrapping_add(1);
-            info.hop_tick = server_tick.0;
-        }
-        if my_player_id.0 == *id {
-            apply_portal_view(
-                &mut commands,
-                cameras.single().ok(),
-                &mut local_player_info,
-                eye_position(*pos, gameplay_config.player.eye_height()),
-                &hop.entry,
-                &hop.exit,
-                hop.yaw,
-            );
-        }
+        let view_before = Vec2::new(local_player_info.stored_yaw, local_player_info.stored_pitch);
+        apply_portal_view(
+            &mut commands,
+            cameras.single().ok(),
+            &mut local_player_info,
+            eye_position(*pos, gameplay_config.player.eye_height()),
+            &hop.entry,
+            &hop.exit,
+            hop.yaw,
+        );
+        let view_change = Vec2::new(local_player_info.stored_yaw, local_player_info.stored_pitch) - view_before;
+        let seq = local_player_info.move_seq.wrapping_add(1);
+        local_player_info.portal_crossings.record(seq, entrance, view_change);
+        local_player_info.committed_positions.clear();
+        local_player_info.last_comparison_seq = Some(local_player_info.move_seq);
     }
 }

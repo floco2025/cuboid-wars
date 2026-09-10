@@ -1,100 +1,136 @@
-// Wire protocol between client and server.
+// Messages exchanged by client and server.
+// Names starting with C are sent by the client; names starting with S are
+// sent by the server. For example: client CLogin -> server SInit.
 //
-// Every message has a role, and the role decides its QUIC lane. `Lane` and
-// the `lane()` methods at the bottom of this file are the authoritative
-// assignment; the transport in `common/src/network.rs` dispatches on them
-// and knows nothing else about messages.
+// Delivery: two QUIC lanes
 //
-// Lanes:
-// * Reliable — delivered, in order, both directions, on one long-lived
-//   bidirectional stream per connection.
-// * Unreliable — may be lost and may arrive out of order; every handler
-//   tolerates both. The transport picks the carrier per send (a datagram
-//   when the message fits one packet, its own stream otherwise) and never
-//   drops anything. `SSnapshot` and `SPlayerMoves` replace state wholesale,
-//   so each carries the server tick it reflects and the client ignores an
-//   older one; that tick is also the clock the client keeps (`ServerTick`).
+// A lane controls how a message travels:
+// * Reliable: messages arrive in send order while the connection stays open.
+//   Lost data is sent again, which can delay the messages behind it.
+// * Unreliable: messages may be lost or arrive out of order. Receivers must
+//   cope with both. Small messages use datagrams (individual packets); larger
+//   messages use separate streams. The transport never discards them itself.
 //
-// Roles, in both directions:
+// The lanes are independent: an unreliable update can arrive before an
+// earlier reliable message. Ordering rules belong to the receiving code.
 //
-// 1. Bootstrap (reliable) — `CLogin` in, `SInit` out, once per connection.
-//    `SInit` is the first thing the server writes on the reliable lane, and
-//    the client ignores every message until it holds `SInit`. Anything that
-//    can precede it is unreliable, droppable by definition, so there is no
-//    pre-init buffer and no readiness handshake. On the server, `CLogin`
-//    alone makes a connection `Active`; an unreliable message that overtakes
-//    it is dropped with a warning.
+// Each message's role determines its default lane, assigned by `lane()` below.
+// Pending portal crossings temporarily put `CMove` on the reliable lane;
+// that exchange is described below. `common/src/network.rs` handles delivery
+// using the supplied lane and knows nothing about gameplay.
 //
-// 2. State (unreliable, latest wins) — the complete periodic picture.
-//    `SSnapshot` is the authoritative current state of every player, actor,
-//    and item (plus shared world state such as open barrier kinds, group
-//    quest status, plate gating, and placed portals), broadcast at
-//    `SNAPSHOT_HZ`. Sole vehicle for presence: a player appears in the first
-//    `SSnapshot` they show up in and disappears in the first they're absent
-//    from. Presence includes pre-presence: `spawning_actors` carries reserved
-//    actor spawns during their warning window, so clients render a beam-in
-//    ghost before the actor exists. `SPlayerMoves` is the per-tick companion:
-//    every active player's live movement. The server accepts client movement
-//    within the shared per-axis trust distance; larger disagreements retain
-//    its simulation. `PlayerMove.move_seq` is present only when that tick
-//    processed a client report, pairing the position with the local client's
-//    recorded result for snap decisions and clock synchronization. Without
-//    a fresh report the server keeps simulating, but no sequence is echoed.
-//    Remote players smooth every update. Actors and missiles keep per-change
-//    cues plus snapshots; they need no client-report comparison.
+// Message roles
 //
-//    Projectiles are the deliberate exception. They are short-lived, fast,
-//    and numerous, so they are replicated as shot cues (`SProjectileShot`)
-//    rather than snapshot entities. Clients simulate them only for
-//    presentation; authoritative hit/death outcomes still come from the
-//    server. Missiles are NOT that exception: they fly for seconds and steer
-//    server-side, so they are full snapshot entities reconciled like actors.
+// 1. Bootstrap (reliable): starting the connection.
 //
-// 3. Cues (unreliable) — short messages that arrive ahead of the next state
-//    message and are healed by it, so a lost cue costs at most a sound, a
-//    shake, automatic weapon selection, or a snapshot interval of latency.
-//    A cue exists only when the snapshot alone can't carry it, which is one of:
-//      * Sub-tick latency matters. Movement prediction inputs (`SActorMove`,
-//        `SMissileMove`, `SMissileLaunch`) must
-//        arrive faster than snapshot cadence so clients can dead-reckon
-//        between snapshots; camera shake from `SPlayerHit` needs to land on
-//        the impact frame, not 1–2 ticks later. `SActorBeam` accelerates
-//        burst starts, retargeting, and stops; snapshots carry the same state.
-//      * Edge-triggered, not level-triggered. "You just picked up a power-up"
-//        is a transition with an associated sound (`SPlayerStatus`,
-//        `SGoldCollected`). The snapshot also carries the flag, but a
-//        level-triggered handler would play the sound every tick it was set.
-//        The cue fires the sound exactly once at the transition; the snapshot
-//        keeps the HUD icon correct if the cue was dropped.
-//      * The cue carries information the snapshot doesn't. `SPlayerHit`
-//        ships hit direction for directional camera shake; `SActorDeath` /
-//        `SPlayerDeath` trigger immediate death-side work (VFX, overlay,
-//        entity teardown) one tick before the snapshot would catch up.
-//    Inbound, `CMove` is both cue and state: sent every tick, changed or
-//    not, so a lost one heals at the next. `CPing` / `SPong` measure RTT on
-//    the same terms.
+//    The client sends `CLogin`; the server replies with `SInit`, containing
+//    the player's ID, gameplay settings, and map. This happens once per
+//    connection. `SInit` is the server's first reliable message.
 //
-// 4. Events (reliable) — messages the snapshot cannot stand in for, so loss
-//    is not an option; the client treats receipt as authoritative until a
-//    follow-up message updates it. `SQuestUpdates` carries durable
-//    per-player quest state (unicast; every update is the complete current
-//    state, so it has no ordering dependency on an earlier quest message,
-//    and group quest state also rides the snapshot). `SFeed` is one
-//    server-rendered line for the message feed: final text spans with
-//    semantic styles the client maps to colors; public lines target everyone
-//    or everyone except one player, admin replies the issuer. `SFirework`
-//    starts the client-side show from a seed. Inbound events are the
-//    player's actions (`CJump`, `CProjectileShot`, `CMissileShot`,
-//    `CPortalShot`), which nothing could replay if lost, plus `CAdmin` and
-//    `CChat`.
+//    An unreliable message may arrive before `SInit`. The client discards
+//    everything until it receives `SInit`, so it needs no startup buffer.
+//    The server accepts gameplay messages after handling `CLogin`; an update
+//    that arrives before login is dropped with a warning. There is no extra
+//    "client ready" message.
 //
-// When adding a message, pick the smallest role that fits — most shared
-// "X changed" things belong in the snapshot, not a new message — and it
-// takes that role's lane.
+// 2. State (unreliable): the current picture, sent repeatedly.
 //
-// The server supplies the authenticated `PlayerId` from its transport; keeping
-// that ID out of the wire payload prevents clients from choosing their own
-// identity.
+//    `SSnapshot` lists the players, actors, items, missiles, and shared world
+//    state, such as plates, quests, weather, and portals. It is sent at
+//    `SNAPSHOT_HZ`. The client uses the entity lists to create missing entities
+//    and remove absent ones. `spawning_actors` lets it show an actor's arrival
+//    effect during the warning period before that actor exists.
+//
+//    `SPlayerMoves` sends every active player's movement each server tick.
+//    Both it and `SSnapshot` carry a `tick`: the server simulation step that
+//    produced the update. The client tracks the newest tick separately for
+//    each stream and ignores older updates. It also keeps its own estimate
+//    of the server's tick in `ServerTick`.
+//
+//    The client sends its own movement in `CMove` every tick, even when idle.
+//    Each report has a sequence number (`seq`) identifying that client update.
+//    The server simulates the reported movement intent, then accepts the
+//    client's result if the position difference is within the shared limit
+//    on every axis. Otherwise it keeps its simulated position.
+//
+//    `PlayerMove.move_seq` identifies the report processed on that server
+//    tick. The owning client compares the reply with its saved position for
+//    that sequence: small differences do nothing; large differences snap.
+//    This pairing also helps synchronize the client's clock. Without a fresh
+//    report the server keeps simulating, but sends no `move_seq`, so the
+//    client cannot compare a later server position with an earlier report.
+//
+//    Remote players smooth corrections between updates. Actors and missiles
+//    also use snapshots and movement cues to correct their local simulation;
+//    they have no client movement reports to match.
+//
+//    Projectiles are short-lived and numerous, so snapshots omit them.
+//    `SProjectileShot` tells clients to simulate the visible shot; the server
+//    still decides hits and deaths. Missiles last longer and change course,
+//    so they remain in snapshots.
+//
+// 3. Cues (unreliable): prompt feedback before the next state update.
+//
+//    A lost cue can cost a sound, animation, or delay, but later state updates
+//    keep the game state correct. Cues serve three purposes:
+//    * Earlier updates: `SActorMove`, `SMissileMove`, and `SMissileLaunch` let
+//      clients predict motion before the next snapshot. `SActorBeam` reports
+//      beam changes; snapshots also carry the beam state.
+//    * One-time feedback: `SPlayerStatus` can play a pickup sound when an item
+//      is collected. Repeated snapshots keep the inventory correct without
+//      playing the sound again. `SGoldCollected` does the same for gold.
+//    * Details absent from snapshots: `SPlayerHit` carries the hit direction
+//      for camera shake. Death cues supply the death position and effects;
+//      the next snapshot still confirms that the entity is gone.
+//
+//    `CMove` also acts as a cue: the next report replaces a lost one.
+//    `CPing` and `SPong` use this lane to measure round-trip time (RTT).
+//
+// 4. Events (reliable): information a later snapshot cannot replace.
+//
+//    Examples sent by the server:
+//    * `SQuestUpdates`: the recipient's quest progress. Each update contains
+//      the complete state of the affected quest. Group quest progress also
+//      appears in snapshots.
+//    * `SFeed`: a chat, announcement, or admin reply, with text and styling
+//      chosen by the server. It goes to everyone or selected recipients.
+//    * `SFirework`: the seed that makes clients play the same firework show.
+//
+//    Client actions also use this lane: jumps (`CJump`), shots
+//    (`CProjectileShot`, `CMissileShot`, `CPortalShot`), and console submissions
+//    (`CAdmin`, `CChat`). A later movement report cannot repeat a lost action.
+//
+//    Portal crossings use a reliable exchange too. The owning client crosses
+//    immediately and sends `CPortalCross` instead of that tick's `CMove`, with
+//    the movement states before and after crossing. The server compares the
+//    entrance position after its corresponding movement step, using the same
+//    distance limit as ordinary movement. If accepted, it adopts the exit
+//    state. It never independently crosses a player.
+//
+//    `SPortalCrossed` reports the decision. Acceptance goes to everyone: the
+//    owner keeps its current prediction, while observers move the remote
+//    player directly to the exit unless they already have newer movement.
+//    Rejection goes only to the owner, with the server state to snap back to.
+//    A snapshot cannot tell the owner whether its crossing was accepted.
+//
+//    On rejection, both sides discard movement and further crossings that
+//    depended on the rejected crossing. After snapping back, the owner sends
+//    `CPortalRecovery` with its last sent sequence. The server can then accept
+//    fresh reports and discard anything from before that recovery.
+//
+//    While a crossing awaits confirmation, subsequent `CMove`s use the same
+//    reliable lane so they cannot arrive ahead of it. When reports queue up,
+//    the server keeps only the latest in each run of ordinary moves, but
+//    processes every crossing in order.
+//
+// Adding messages
+//
+// Prefer a snapshot field for shared state. Add a cue when timely feedback
+// or a one-time effect is needed, and an event when loss cannot be repaired
+// by later state. Assign the corresponding lane in `lane()`.
+//
+// The server gets the sender's `PlayerId` from the connection. Client
+// messages omit that ID so a client cannot claim to be another player.
 
 use bevy_ecs::prelude::Resource;
 use bincode::{Decode, Encode};
@@ -112,34 +148,26 @@ pub struct CLogin {
     pub name: String,
 }
 
-// The local player's steady-state input: movement intent plus facing in
-// radians, carried by `CMove`.
-#[derive(Debug, Clone, Copy, Encode, Decode)]
-pub struct PlayerInput {
-    pub move_intent: PlayerMoveIntent,
-    pub face_yaw: f32,
-}
-
-impl PlayerInput {
-    #[must_use]
-    pub fn is_finite(&self) -> bool {
-        self.move_intent.is_finite() && self.face_yaw.is_finite()
-    }
-}
-
-// Sent after every client movement step and portal transit, before knockback
-// decay. `input` and `hops` describe the start of that step; `movement` and
-// `result_hops` describe its result. Sequence ordering selects the newest
-// report per server tick; the server compares after its corresponding step,
-// then adopts the entire client result only within the shared trust limit.
-// A hop mismatch protects the input frame but never vetoes the result.
+// Sent after each movement step, before knockback decay; the server compares
+// against its corresponding step using the intent in the reported state.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct CMove {
     pub seq: u32,
-    pub input: PlayerInput,
-    pub hops: u32,
     pub movement: PlayerMovementState,
-    pub result_hops: u32,
+}
+
+// Reliable crossing boundary: compare the entrance side, then adopt the exit.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct CPortalCross {
+    pub seq: u32,
+    pub entrance: PlayerMovementState,
+    pub movement: PlayerMovementState,
+}
+
+// Sent after applying a rejected crossing; earlier movement is now obsolete.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct CPortalRecovery {
+    pub seq: u32,
 }
 
 // Client to Server: One-shot jump request.
@@ -184,10 +212,9 @@ pub struct CPing {
     pub timestamp_nanos: u64,
 }
 
-// Client to Server: raw admin command string (e.g. "rain start"). The
-// client stays dumb — parsing, execution, authorization, and the reply
-// text (answered as an `SFeed` line) all live server-side, so new commands
-// never touch the protocol.
+// Admin command text (e.g. "rain start"). The server checks permission,
+// interprets and runs the command, and replies through `SFeed`. Adding a
+// command needs no protocol change.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct CAdmin {
     pub command: String,
@@ -247,8 +274,8 @@ pub struct LightingBlend {
     pub blend: f32,
 }
 
-// Periodic full-world snapshot. Sole source of truth for player/actor/item
-// presence; cues are paired against it for sub-tick latency.
+// Periodic world state. Entity lists tell the client what exists;
+// cues provide earlier feedback, and later snapshots repair missed updates.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SSnapshot {
     // The server tick whose state this is; the client ignores a snapshot
@@ -261,43 +288,38 @@ pub struct SSnapshot {
     // to `actors` in the snapshot where the actor materializes.
     pub spawning_actors: Vec<(ActorId, SpawningActor)>,
     pub items: Vec<(ItemId, Item)>,
-    // In-flight missiles. Unlike projectiles, missiles ARE snapshot entities:
-    // they fly for seconds and steer server-side, so presence and position
-    // self-heal here while `SMissileMove` carries course changes.
+    // Missiles last long enough to need position updates. This list repairs
+    // missed launch and course-change cues.
     pub missiles: Vec<(MissileId, Missile)>,
     // What the pressure plates hold right now: open barrier kinds (the
     // client hides them; the server unions them with each player's
     // `held_keys` for the collision filter) and powered bridge kinds (solid
     // and lit on both sides). Empty on maps with no plates.
     pub plates: PlateState,
-    // Every unlocked `shared` / `everyone` quest. Completed ones stay listed
-    // (completions are latched for the session) so late joiners and dropped
-    // cues self-heal.
+    // Unlocked `shared` / `everyone` quests. Completed quests stay listed
+    // for the session so late joiners and clients that missed updates catch up.
     pub quests: Vec<QuestGroupStatus>,
     // Plate purposes still locked behind a quest: the plates that solve a
     // quest are inert and hidden until that quest unlocks. Sorted, usually
     // empty.
     pub locked_plate_purposes: Vec<PlatePurpose>,
-    // Server-scheduled weather, 0.0 (clear) to 1.0 (full rain). Durable
-    // level-triggered state, so it rides the snapshot — late joiners enter
-    // mid-storm correctly and a dropped packet self-heals. Clients smooth
-    // the 4 Hz steps and drive all rain presentation from it.
+    // Weather from 0.0 (clear) to 1.0 (full rain). Repeated snapshots keep
+    // late joiners and clients that missed updates in sync. Clients smooth
+    // the changes when rendering rain.
     pub rain_intensity: f32,
     // Server-driven lighting: which two presets the world is between and
     // how far. Same snapshot rationale as the rain intensity. The client
     // resolves the names against its configured looks and eases toward the
     // blended result.
     pub lighting: LightingBlend,
-    // Every placed portal end, sorted by pair and
-    // end. Durable, everyone-visible world objects: the snapshot is their
-    // system of record, and late joiners and dropped `SPortalOpened` cues
-    // self-heal here.
+    // Placed portal ends, sorted by pair and end. This list supplies portals
+    // to late joiners and repairs missed `SPortalOpened` cues.
     pub portals: Vec<Portal>,
 }
 
-// Live state for remote prediction; presence remains snapshot-owned. `tick`
-// orders the stream and, with a present `move_seq`, pairs a client report
-// with the server step that processed it.
+// Movement between snapshots. `tick` orders these updates; each `move_seq`
+// identifies the client report processed on that tick. Snapshots determine
+// which players exist.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SPlayerMoves {
     pub tick: u32,
@@ -308,11 +330,9 @@ pub struct SPlayerMoves {
 pub struct PlayerMove {
     pub id: PlayerId,
     pub movement: PlayerMovementState,
-    // Some(seq) only for a CMove processed this tick; None avoids comparing
+    // Some(seq) only for a report processed this tick; None avoids comparing
     // continued server movement against an earlier client position.
     pub move_seq: Option<u32>,
-    // Remote prediction uses this to avoid correcting across a stale crossing.
-    pub hops: u32,
 }
 
 // --- Cues (ahead of the next snapshot, healed by it) ---
@@ -345,9 +365,8 @@ pub struct SMissileLaunch {
     pub movement: MissileMovementState,
 }
 
-// Missile course change. Broadcast when the server-steered direction drifts
-// past an epsilon from the last broadcast; clients dead-reckon a straight
-// line in between and reconcile against the carried position.
+// Missile course change. Sent when the direction changes enough; clients
+// continue in a straight line between updates and correct toward this position.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SMissileMove {
     pub id: MissileId,
@@ -360,11 +379,9 @@ pub struct SMissileMove {
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SPlayerDeath {
     pub id: PlayerId,
-    // Server-authoritative position at the moment of death. The snapshot can't
-    // carry it — the victim is already gone from the next snapshot — so the cue
-    // does. The client snaps the dying entity here: local prediction may have
-    // drifted from the server before reconciliation converged, and the corpse
-    // stays visible (top-down death view) on the true death spot.
+    // The next snapshot omits the victim, so this cue supplies the death
+    // position. The client snaps here to show the corpse at the server's
+    // death spot even when local prediction placed it elsewhere.
     pub pos: Position,
     // Player credited with the kill; `None` for non-player causes and
     // self-kills. Only pairs with `killer_score` below — the feed line
@@ -432,17 +449,15 @@ pub struct SPlayerHit {
     pub health: Health,
 }
 
-// Player took damage from a hard landing. Unicast to the victim. Pairs with
-// `SPlayerHit` but for falls — same role (post-damage health for HUD +
-// directional camera wiggle, but on the vertical axis). Lethal falls also
-// surface `SPlayerDeath` on the same tick.
+// Hard-landing damage, sent only to the victim for the health display and
+// vertical camera shake. A lethal fall also sends `SPlayerDeath` that tick.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SPlayerFallDamage {
     pub id: PlayerId,
     pub health: Health,
 }
 
-// Blast result for a surviving victim. Unicast to the victim: health updates
+// Blast result, sent only to the surviving victim: health updates
 // the HUD on the damage tick and the absolute velocities keep prediction
 // aligned. Direction/strength ride along for future feedback use — the
 // client currently plays none (the knockback itself is the feedback).
@@ -504,11 +519,11 @@ impl SPlayerStatus {
     }
 }
 
-// An eraser entry that removes equipment plays a sound. Unicast to the entering player.
+// Sent only to the entering player to play a sound when an eraser removes equipment.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SEraserEntered;
 
-// Private edge-triggered sound and banner; checkpoint progress stays on the server.
+// Sent only to the player whose checkpoint changed, for the sound and banner.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SCheckpointReached;
 
@@ -521,7 +536,7 @@ pub struct SGoldCollected {
     pub score: i32,
 }
 
-// Player collected a health potion. Unicast cue for the pickup sound +
+// Player collected a health potion. Sent only to that player for the pickup sound +
 // the post-pickup health value, so the HUD updates immediately rather than
 // waiting up to a snapshot interval. `SPlayerStatus` carries no health;
 // the snapshot's `Player.health` is still the system of record.
@@ -540,10 +555,7 @@ pub struct SPressurePlate {
 }
 
 // A portal end was placed or moved. Latency cue for the placement visual and
-// portal-gun sound, plus keeping every client's portal geometry fresh: portal
-// crossings are not messaged at all, each client simulates every player's
-// crossings from the shared geometry, so a placement must reach observers
-// quickly. The snapshot's `portals` list is the system of record.
+// portal-gun sound. The snapshot's `portals` list is the system of record.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SPortalOpened {
     pub shooter: PlayerId,
@@ -566,6 +578,17 @@ pub struct SPong {
 
 // --- Events (delivered; nothing in the snapshot could stand in) ---
 
+// Accepted transitions reach everyone; rejections reach only the crossing player.
+// One type keeps this rare reply simple; the owner ignores movement on acceptance.
+#[derive(Debug, Clone, Copy, Encode, Decode)]
+pub struct SPortalCrossed {
+    pub id: PlayerId,
+    pub seq: u32,
+    pub tick: u32,
+    pub accepted: bool,
+    pub movement: PlayerMovementState,
+}
+
 // One server-rendered message-feed line. Spans carry semantic styles so the
 // client only maps them to its configured presentation.
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
@@ -573,9 +596,8 @@ pub struct SFeed {
     pub spans: Vec<FeedSpan>,
 }
 
-// Complete client-visible state for one assigned quest. Static display data is
-// deliberately repeated on updates: quest traffic is sparse, and making each
-// update independently applicable is simpler than imposing cross-stream order.
+// Complete state of one assigned quest. Updates are rare, so repeating the
+// display text keeps each update usable without waiting for another message.
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct QuestState {
     pub id: QuestId,
@@ -602,10 +624,9 @@ pub struct QuestUpdate {
     pub quest: QuestState,
 }
 
-// Batched for initial assignment and future multi-quest unlocks; ordinary
-// progress and completion updates usually contain one entry. Unicast for an
-// individual quest and sent independently to each active player for group
-// quests because `QuestState` includes that player's own progress.
+// Initial assignment and unlocks may include several quests; progress updates
+// usually contain one. Sent separately to each affected player because even
+// group quests include that player's own progress.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SQuestUpdates {
     pub updates: Vec<QuestUpdate>,
@@ -637,15 +658,16 @@ pub enum ClientMessage {
     ProjectileShot(CProjectileShot),
     MissileShot(CMissileShot),
     PortalShot(CPortalShot),
+    PortalCross(CPortalCross),
+    PortalRecovery(CPortalRecovery),
     Admin(CAdmin),
     Chat(CChat),
 }
 
 // All server to client messages. Variants are grouped by role to match the
 // struct ordering above; new messages should land in the appropriate group.
-// Note: bincode encodes the discriminant by position, so reordering touches
-// the wire format — fine for an in-dev workspace where server and client
-// always build from the same source.
+// Bincode identifies each variant by its position in this list. Reordering
+// changes the wire format; client and server must build from matching source.
 #[expect(
     clippy::large_enum_variant,
     reason = "SInit intentionally carries the complete bootstrap state"
@@ -680,6 +702,7 @@ pub enum ServerMessage {
     PortalFizzled(SPortalFizzled),
     Pong(SPong),
     // Events
+    PortalCrossed(SPortalCrossed),
     Feed(SFeed),
     QuestUpdates(SQuestUpdates),
     Firework(SFirework),
@@ -708,6 +731,8 @@ impl ClientMessage {
             | Self::ProjectileShot(_)
             | Self::MissileShot(_)
             | Self::PortalShot(_)
+            | Self::PortalCross(_)
+            | Self::PortalRecovery(_)
             | Self::Admin(_)
             | Self::Chat(_) => Lane::Reliable,
             Self::Move(_) | Self::Ping(_) => Lane::Unreliable,
@@ -719,7 +744,9 @@ impl ServerMessage {
     #[must_use]
     pub const fn lane(&self) -> Lane {
         match self {
-            Self::Init(_) | Self::Feed(_) | Self::QuestUpdates(_) | Self::Firework(_) => Lane::Reliable,
+            Self::Init(_) | Self::Feed(_) | Self::QuestUpdates(_) | Self::Firework(_) | Self::PortalCrossed(_) => {
+                Lane::Reliable
+            }
             Self::Snapshot(_)
             | Self::PlayerMoves(_)
             | Self::ProjectileShot(_)
@@ -861,17 +888,10 @@ mod tests {
     #[test]
     fn actions_are_reliable_and_input_is_not() {
         assert_eq!(ClientMessage::Jump(CJump {}).lane(), Lane::Reliable);
-        let input = PlayerInput {
-            move_intent: PlayerMoveIntent::Idle,
-            face_yaw: 0.0,
-        };
         assert_eq!(
             ClientMessage::Move(CMove {
                 seq: 1,
-                input,
-                hops: 0,
-                movement: PlayerMovementState::new(position(), input.move_intent, 0.0, input.face_yaw),
-                result_hops: 0
+                movement: PlayerMovementState::new(position(), PlayerMoveIntent::Idle, 0.0, 0.0),
             })
             .lane(),
             Lane::Unreliable
@@ -906,7 +926,6 @@ mod tests {
                     held_keys: Vec::new(),
                     missiles: 0,
                     portal_access: PortalAccess::None,
-                    hops: 0,
                 },
             )
         };

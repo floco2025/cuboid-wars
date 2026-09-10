@@ -1,11 +1,9 @@
 use bevy::prelude::*;
 use std::collections::HashMap;
 
-use common::protocol::{
-    BarrierKindId, Player, PlayerId, PlayerInput, Position, PowerUpKind, SPlayerStatus, sequence_is_newer,
-};
+use common::protocol::{BarrierKindId, Player, PlayerId, Position, PowerUpKind, SPlayerStatus};
 
-use crate::constants::RECON_PLAYER_HOP_DISPUTE_SLACK_TICKS;
+use crate::portals::LocalPortalCrossings;
 
 const COMMITTED_POSITION_RING_LEN: usize = 64;
 
@@ -28,27 +26,7 @@ pub struct PlayerInfo {
     // Missile ammo, mirrored from the snapshot (`SPlayerStatus` and the
     // local fire prediction update it early; the snapshot self-heals).
     pub missiles: u32,
-    // Portal crossings this client's own simulation of the player has made,
-    // seeded from the snapshot. A server state pairs with that simulation
-    // only while its count matches.
-    pub hops: u32,
-    // The tick our simulation made its last crossing at (the snapshot's tick
-    // at appearance). A state from before it is from the other side by
-    // right, not in dispute.
-    pub hop_tick: u32,
-    // The server tick of the first state disputing our count, while a
-    // dispute is open.
-    pub disputed_since: Option<u32>,
-}
-
-// How a server state relates to our simulation of the player: on the same
-// side of the same crossings, from the other side (not to be steered or
-// reconciled from), or settling a dispute for the server.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CrossingVerdict {
-    Paired,
-    Skipped,
-    Settled,
+    pub last_movement_tick: u32,
 }
 
 impl PlayerInfo {
@@ -62,39 +40,10 @@ impl PlayerInfo {
             stunned: false,
             held_keys: Vec::new(),
             missiles: 0,
-            hops: player.hops,
-            hop_tick: tick,
-            disputed_since: None,
+            last_movement_tick: tick,
         };
         info.apply_snapshot(player);
         info
-    }
-
-    // Judges a state carrying `hops` at server tick `tick`. A state from
-    // before our own crossing is from the other side by right and is only
-    // skipped; one from at or after it without the crossing, or one carrying
-    // a crossing we never made, is evidence of a misprediction, and evidence
-    // outlasting `RECON_PLAYER_HOP_DISPUTE_SLACK_TICKS` settles for the server, whose
-    // count and tick we adopt. Nothing settles until `TickSync` has
-    // measured the clock: under the rough seed `hop_tick` sits a round trip
-    // early.
-    pub fn judge_crossing(&mut self, tick: u32, hops: u32, clock_seeded: bool) -> CrossingVerdict {
-        if hops == self.hops {
-            self.disputed_since = None;
-            return CrossingVerdict::Paired;
-        }
-        let evidence = sequence_is_newer(hops, self.hops) || !sequence_is_newer(self.hop_tick, tick);
-        if !evidence || !clock_seeded {
-            return CrossingVerdict::Skipped;
-        }
-        let since = *self.disputed_since.get_or_insert(tick);
-        if tick.wrapping_sub(since) < RECON_PLAYER_HOP_DISPUTE_SLACK_TICKS {
-            return CrossingVerdict::Skipped;
-        }
-        self.hops = hops;
-        self.hop_tick = tick;
-        self.disputed_since = None;
-        CrossingVerdict::Settled
     }
 
     pub fn apply_snapshot(&mut self, player: &Player) {
@@ -217,7 +166,7 @@ pub struct LocalPlayerInfo {
     pub move_seq: u32,
     pub committed_positions: CommittedPositionRing,
     pub last_comparison_seq: Option<u32>,
-    pub pending_input: Option<(PlayerInput, u32)>,
+    pub portal_crossings: LocalPortalCrossings,
     pub stored_yaw: f32,
     pub stored_pitch: f32,
     // True from the moment the local player vanishes from `SSnapshot` until
@@ -233,7 +182,7 @@ impl Default for LocalPlayerInfo {
             move_seq: 0,
             committed_positions: CommittedPositionRing::default(),
             last_comparison_seq: None,
-            pending_input: None,
+            portal_crossings: LocalPortalCrossings::default(),
             stored_yaw: 0.0,
             stored_pitch: 0.0,
             is_dead: false,
@@ -257,7 +206,6 @@ mod tests {
             held_keys: vec![BarrierKindId(1), BarrierKindId(3)],
             missiles: 2,
             portal_access: PortalAccess::None,
-            hops: 0,
         }
     }
 
@@ -274,84 +222,7 @@ mod tests {
         assert_eq!(info.stunned, player.stunned);
         assert_eq!(info.held_keys, player.held_keys);
         assert_eq!(info.missiles, player.missiles);
-        assert_eq!(info.hops, player.hops);
-        assert_eq!(info.hop_tick, 42);
-    }
-
-    fn crossing_info(hops: u32, hop_tick: u32) -> PlayerInfo {
-        let mut info = PlayerInfo::from_snapshot(Entity::PLACEHOLDER, &snapshot_player(), hop_tick);
-        info.hops = hops;
-        info
-    }
-
-    #[test]
-    fn a_matching_state_pairs_and_clears_a_dispute() {
-        let mut info = crossing_info(3, 100);
-        info.disputed_since = Some(90);
-
-        assert_eq!(info.judge_crossing(101, 3, true), CrossingVerdict::Paired);
-        assert_eq!(info.disputed_since, None);
-    }
-
-    #[test]
-    fn a_state_from_before_our_crossing_is_skipped_not_evidence() {
-        let mut info = crossing_info(3, 100);
-
-        assert_eq!(info.judge_crossing(95, 2, true), CrossingVerdict::Skipped);
-        assert_eq!(info.disputed_since, None);
-        assert_eq!(info.hops, 3);
-    }
-
-    #[test]
-    fn a_missing_crossing_settles_after_the_slack() {
-        let mut info = crossing_info(3, 100);
-        for tick in 100..100 + RECON_PLAYER_HOP_DISPUTE_SLACK_TICKS {
-            assert_eq!(
-                info.judge_crossing(tick, 2, true),
-                CrossingVerdict::Skipped,
-                "tick {tick}"
-            );
-        }
-        assert_eq!(info.disputed_since, Some(100));
-
-        let settled = 100 + RECON_PLAYER_HOP_DISPUTE_SLACK_TICKS;
-        assert_eq!(info.judge_crossing(settled, 2, true), CrossingVerdict::Settled);
-        assert_eq!(info.hops, 2);
-        assert_eq!(info.hop_tick, settled);
-        assert_eq!(info.disputed_since, None);
-    }
-
-    #[test]
-    fn a_server_crossing_we_did_not_make_settles_after_the_slack() {
-        let mut info = crossing_info(3, 50);
-
-        assert_eq!(info.judge_crossing(200, 4, true), CrossingVerdict::Skipped);
-        assert_eq!(info.disputed_since, Some(200));
-        assert_eq!(
-            info.judge_crossing(200 + RECON_PLAYER_HOP_DISPUTE_SLACK_TICKS, 4, true),
-            CrossingVerdict::Settled
-        );
-        assert_eq!(info.hops, 4);
-    }
-
-    #[test]
-    fn an_unseeded_clock_never_settles() {
-        let mut info = crossing_info(3, 100);
-        for tick in 100..200 {
-            assert_eq!(info.judge_crossing(tick, 2, false), CrossingVerdict::Skipped);
-        }
-        assert_eq!(info.hops, 3);
-        assert_eq!(info.disputed_since, None);
-    }
-
-    #[test]
-    fn a_pairing_within_the_slack_ends_the_dispute() {
-        let mut info = crossing_info(3, 100);
-        assert_eq!(info.judge_crossing(100, 2, true), CrossingVerdict::Skipped);
-        assert_eq!(info.disputed_since, Some(100));
-
-        assert_eq!(info.judge_crossing(103, 3, true), CrossingVerdict::Paired);
-        assert_eq!(info.disputed_since, None);
+        assert_eq!(info.last_movement_tick, 42);
     }
 
     #[test]

@@ -9,7 +9,7 @@ use common::{
 use crate::{
     actors::actors_transform_sync_system,
     carriers::carriers_transform_sync_system,
-    input::{capture_player_input_system, commit_player_input_system},
+    input::commit_player_input_system,
     missiles::missiles_movement_system,
     players::{local_player_cuboid_shake_system, player_animation_update_system, players_transform_sync_system},
     portals::{portal_surfaces_transform_sync_system, portal_transit_system},
@@ -20,14 +20,12 @@ use crate::{
     },
 };
 
-// Capture the input frame before physics and report its result after portal
-// transit, before knockback decay, matching the server comparison phase.
+// Report before knockback decay to match the server comparison phase.
 pub fn prediction_plugin(app: &mut App) {
     app.add_systems(
         FixedUpdate,
         (
             server_tick_advance_system,
-            capture_player_input_system,
             capture_previous_tick_position_system,
             carriers_advance_system,
             carried_portals_refresh_system,

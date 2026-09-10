@@ -86,7 +86,6 @@ pub struct Player {
     pub portal_access: PortalAccess,
     // Portal crossings the player has made; seeds the client's count when
     // the player appears.
-    pub hops: u32,
 }
 
 impl Player {
@@ -109,7 +108,6 @@ impl Player {
             held_keys: Vec::new(),
             missiles: 0,
             portal_access: PortalAccess::None,
-            hops: 0,
         }
     }
 

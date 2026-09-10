@@ -29,7 +29,7 @@ pub struct PlayerMovementStep<'a> {
     pub collision_world: &'a CollisionWorld,
     pub map_settings: &'a MapSettings,
     pub gameplay_config: &'a GameplayConfig,
-    pub portal_set: &'a PortalSet,
+    pub portal_set: Option<&'a PortalSet>,
     pub carriers: &'a Carriers,
 }
 
@@ -53,7 +53,7 @@ pub fn step_player_movement(mut step: PlayerMovementStep<'_>) -> CharacterMoveme
             passable_kinds: &passable_kinds,
             physics: step.gameplay_config.player.physics(),
             ladder_climb_ratio: step.map_settings.movement.ladder_climb_ratio,
-            portals: Some(step.portal_set),
+            portals: step.portal_set,
             carriers: step.carriers,
         },
     );

@@ -28,10 +28,18 @@ pub enum ServerToClient {
 #[derive(Debug, Clone)]
 pub enum ClientToServer {
     Send(ClientMessage),
+    // Crossing follow-up movement must stay behind its reliable boundary.
+    SendReliable(ClientMessage),
     // Nothing sends this yet: today the client just exits and drops the
     // connection. Kept for an eventual graceful shutdown (e.g. an `AppExit`
     // hook) that tells the server why we left.
     Close,
+}
+
+impl ClientToServer {
+    fn is_unreliable(&self) -> bool {
+        matches!(self, Self::Send(message) if message.lane() == Lane::Unreliable)
+    }
 }
 
 // Bidirectional bridge between the server connection and the Bevy world.
@@ -48,11 +56,7 @@ pub async fn network_io_task(
         to_client,
         |event| matches!(event, ServerToClient::Message(message) if message.lane() == Lane::Unreliable),
     );
-    let mut from_client = impaired_receiver(
-        impairment,
-        from_client,
-        |command| matches!(command, ClientToServer::Send(message) if message.lane() == Lane::Unreliable),
-    );
+    let mut from_client = impaired_receiver(impairment, from_client, ClientToServer::is_unreliable);
     match connection.open_bi().await {
         Ok((send, recv)) => drive_lanes(&connection, send, recv, &to_client, &mut from_client, impairment).await,
         Err(error) => error!("failed to open the reliable lane: {error}"),
@@ -96,13 +100,18 @@ async fn write_outbound(
             command = from_client.recv() => command,
             _ = connection.closed() => return Ok(()),
         };
+        let lane = if command.as_ref().is_some_and(ClientToServer::is_unreliable) {
+            Lane::Unreliable
+        } else {
+            Lane::Reliable
+        };
         match command {
-            Some(ClientToServer::Send(message)) => {
-                if message.lane() == Lane::Unreliable && impairment.drops() {
+            Some(ClientToServer::Send(message) | ClientToServer::SendReliable(message)) => {
+                if lane == Lane::Unreliable && impairment.drops() {
                     continue;
                 }
                 trace!("sending to server: {:?}", message);
-                send_message(connection, &mut send, message.lane(), &message).await?;
+                send_message(connection, &mut send, lane, &message).await?;
             }
             Some(ClientToServer::Close) => {
                 let _ = send.finish();
@@ -147,4 +156,53 @@ pub fn configure_client() -> Result<ClientConfig> {
     crypto.alpn_protocols = vec![common::network::ALPN_PROTOCOL.to_vec()];
 
     create_quinn_client_config(crypto)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+    use tokio::{sync::mpsc::unbounded_channel, time::Instant};
+
+    #[tokio::test(start_paused = true)]
+    async fn crossing_followup_moves_share_reliable_order_and_fixed_delay() {
+        let lag = Duration::from_millis(100);
+        let impairment = Impairment {
+            lag,
+            jitter: 1.0,
+            drop_probability: 1.0,
+        };
+        let (input, receiver) = unbounded_channel();
+        let mut output = impaired_receiver(impairment, receiver, ClientToServer::is_unreliable);
+        let movement = PlayerMovementState::new(Position::default(), PlayerMoveIntent::Idle, 0.0, 0.0);
+        let start = Instant::now();
+        input
+            .send(ClientToServer::Send(ClientMessage::PortalCross(CPortalCross {
+                seq: 1,
+                entrance: movement,
+                movement,
+            })))
+            .expect("transport input closed");
+        for seq in 2..=10 {
+            input
+                .send(ClientToServer::SendReliable(ClientMessage::Move(CMove {
+                    seq,
+                    movement,
+                })))
+                .expect("transport input closed");
+        }
+        drop(input);
+        for seq in 1..=10 {
+            let command = output.recv().await.expect("reliable report missing");
+            assert!(!command.is_unreliable());
+            let actual = match command {
+                ClientToServer::Send(ClientMessage::PortalCross(report)) => report.seq,
+                ClientToServer::SendReliable(ClientMessage::Move(report)) => report.seq,
+                _ => panic!("unexpected movement command"),
+            };
+            assert_eq!(actual, seq);
+            assert_eq!(Instant::now() - start, lag);
+        }
+        assert!(ClientToServer::Send(ClientMessage::Move(CMove { seq: 11, movement })).is_unreliable());
+    }
 }

@@ -8,11 +8,11 @@ use crate::{
     network::ServerToClient,
 };
 use common::protocol::{
-    BarrierKindId, CMove, FaceYaw, Health, ItemType, Player, PlayerId, PlayerMarker, PlayerMoveIntent,
-    PlayerMovementState, PortalAccess, Position, PowerUpKind, QuestId, QuestScope, SPlayerStatus,
+    BarrierKindId, FaceYaw, Health, ItemType, Player, PlayerId, PlayerMarker, PlayerMoveIntent, PlayerMovementState,
+    PortalAccess, Position, PowerUpKind, QuestId, QuestScope, SPlayerStatus,
 };
 
-use super::{CheckpointId, PlayerCheckpoint, PlayerFallState, PlayerMovementPath, PowerUpState};
+use super::{CheckpointId, PlayerCheckpoint, PlayerFallState, PlayerMovementReports, PowerUpState};
 
 pub type PlayerStateQuery<'w, 's> = Query<
     'w,
@@ -72,7 +72,6 @@ pub struct PlayerConnection {
 pub struct PlayerSession {
     // Sequences survive respawn, like the client counter.
     pub last_move_seq: u32,
-    pub hops: u32,
     pub score: i32,
     pub quest_states: HashMap<QuestId, PlayerQuestState>,
     pub checkpoint: Option<PlayerCheckpoint>,
@@ -86,9 +85,10 @@ enum PlayerLifecycle {
 }
 
 pub struct PlayerLife {
-    pub pending_move: Option<CMove>,
+    pub(crate) pending_moves: PlayerMovementReports,
+    pub(crate) portal_recovery_pending: bool,
     pub processed_move_seq: Option<u32>,
-    pub(crate) movement_path: Option<PlayerMovementPath>,
+    pub(crate) movement_start: Option<Position>,
     lifecycle: PlayerLifecycle,
     pub power_ups: [PowerUpState; PowerUpKind::COUNT],
     pub stun_timer: f32,
@@ -112,9 +112,10 @@ impl PlayerLife {
     fn with_lifecycle(lifecycle: PlayerLifecycle) -> Self {
         Self {
             lifecycle,
-            pending_move: None,
+            pending_moves: PlayerMovementReports::default(),
+            portal_recovery_pending: false,
             processed_move_seq: None,
-            movement_path: None,
+            movement_start: None,
             power_ups: [PowerUpState::Inactive; PowerUpKind::COUNT],
             stun_timer: 0.0,
             last_shot_time: f32::NEG_INFINITY,
@@ -329,7 +330,6 @@ impl PlayerInfo {
             held_keys: self.life.held_keys.clone(),
             missiles: self.life.missiles,
             portal_access,
-            hops: self.session.hops,
         }
     }
 

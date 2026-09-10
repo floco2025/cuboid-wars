@@ -288,6 +288,7 @@ fn apply_player_death(
                 .remove::<ServerReconciliation>();
         }
         local_player_info.is_dead = true;
+        local_player_info.portal_crossings.clear();
         banner.push(if event.effect == PlayerDeathEffect::GroupRespawn {
             BannerMessage::GroupRespawn
         } else {
@@ -312,9 +313,7 @@ mod tests {
             stunned: false,
             held_keys: Vec::new(),
             missiles: 0,
-            hops: 0,
-            hop_tick: 0,
-            disputed_since: None,
+            last_movement_tick: 0,
         }
     }
 

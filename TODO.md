@@ -46,7 +46,7 @@
 
 ## Testing
 
-- **Client movement trust:** Play obstacle courses with multiple clients under latency, jitter, and packet loss. Check narrow landings, moving platforms, ladders, portal launches, knockback, and remote-player smoothing. Force a large disagreement and confirm clean local recovery with server rejection/client snap warnings.
+- **Client movement trust:** Play obstacle courses with multiple clients under latency, jitter, and packet loss. Check narrow landings, moving platforms, ladders, portal launches, knockback, and remote-player smoothing. Cross consecutive portals before confirmation and check uninterrupted local motion and remote transitions. Force ordinary and portal entrance disagreements and confirm clean recovery with server rejection/client snap warnings.
 
 - **Shared checkpoints:** Play through Group — any and Group — all with multiple clients, including staggered visits, death, joining, and leaving. Check each player's next respawn and checkpoint notification.
 

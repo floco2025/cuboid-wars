@@ -56,6 +56,7 @@ pub(in crate::network) fn sync_players(
     });
     if local_just_died {
         context.local_player_info.is_dead = true;
+        context.local_player_info.portal_crossings.clear();
     }
 
     // Local-player respawn: our id reappears while dead, so hard-teleport the
@@ -85,14 +86,10 @@ pub(in crate::network) fn sync_players(
                 Visibility::Visible,
             ))
             .remove::<ServerReconciliation>();
-        // The pre-death records and any pending crossing dispute describe a
-        // player that no longer exists.
-        info.hops = server_player.hops;
-        info.hop_tick = tick;
-        info.disputed_since = None;
+        info.last_movement_tick = tick;
         context.local_player_info.committed_positions.clear();
         context.local_player_info.last_comparison_seq = Some(context.local_player_info.move_seq);
-        context.local_player_info.pending_input = None;
+        context.local_player_info.portal_crossings.clear();
         context.local_player_info.is_dead = false;
 
         if let Some(reminder) = context.quest_log.reminder() {

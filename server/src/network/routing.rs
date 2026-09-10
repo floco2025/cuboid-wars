@@ -13,7 +13,10 @@ use crate::{
     missiles::{MissileMap, handle_missile_shot_message},
     network::ServerToClient,
     players::PlayerMap,
-    portals::{PortalAssignments, PortalMap, handle_portal_shot_message},
+    portals::{
+        PortalAssignments, PortalMap, handle_portal_cross_message, handle_portal_recovery_message,
+        handle_portal_shot_message,
+    },
     projectiles::handle_projectile_shot_message,
     quests::{QuestBoard, QuestCatalog},
 };
@@ -97,6 +100,14 @@ pub(super) fn route_client_message(
             };
             trace!("{:?} jump", id);
             handle_jump_message(commands, entity, id, &context.players, &context.queries, &context.world);
+        }
+        ClientMessage::PortalCross(message) => {
+            if entity.is_some() {
+                handle_portal_cross_message(id, message, &mut context.players);
+            }
+        }
+        ClientMessage::PortalRecovery(message) => {
+            handle_portal_recovery_message(id, message, &mut context.players);
         }
         ClientMessage::ProjectileShot(message) => {
             let Some(entity) = entity else {

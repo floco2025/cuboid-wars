@@ -17,8 +17,8 @@ use common::{
 };
 
 use super::{
-    WeaponMode, capture_player_input_system, commit_player_input_system, input_camera_view_toggle_system,
-    input_camera_zoom_system, input_cursor_capture_system, input_facing_lock_toggle_system, input_movement_system,
+    WeaponMode, commit_player_input_system, input_camera_view_toggle_system, input_camera_zoom_system,
+    input_cursor_capture_system, input_facing_lock_toggle_system, input_movement_system,
 };
 use crate::{
     cameras::{CameraInputState, CameraViewMode, FollowCamera, TopDownCameraYaw},
@@ -229,12 +229,7 @@ fn unlocked_firing_faces_view_without_changing_movement_or_lock_and_commits_faci
         app.insert_resource(ClientToServerChannel::new(sender))
             .insert_resource(weapon)
             .insert_resource(access)
-            .add_systems(
-                Update,
-                (capture_player_input_system, commit_player_input_system)
-                    .chain()
-                    .after(input_movement_system),
-            );
+            .add_systems(Update, commit_player_input_system.after(input_movement_system));
         app.world_mut().resource_mut::<FollowCamera>().locked = false;
         app.world_mut()
             .resource_mut::<ButtonInput<KeyCode>>()
@@ -263,7 +258,7 @@ fn unlocked_firing_faces_view_without_changing_movement_or_lock_and_commits_faci
         let mut committed_yaw = None;
         while let Ok(ClientToServer::Send(message)) = receiver.try_recv() {
             if let ClientMessage::Move(message) = message {
-                committed_yaw = Some(message.input.face_yaw);
+                committed_yaw = Some(message.movement.face_yaw);
             }
         }
         assert_eq!(committed_yaw, Some(PI));

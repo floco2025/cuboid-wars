@@ -237,7 +237,6 @@ mod tests {
                     held_keys: Vec::new(),
                     missiles: 0,
                     portal_access: BOTH,
-                    hops: 0,
                 },
                 0,
             ),

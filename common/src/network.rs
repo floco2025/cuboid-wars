@@ -1,5 +1,5 @@
 // QUIC transport shared by client and server: two lanes, selected per message
-// by `protocol::Lane`.
+// by the supplied `protocol::Lane`; `protocol.rs` owns the assignment rules.
 //
 // * Reliable: one bidirectional stream per connection, opened by the client
 //   right after connecting and accepted by the server before it reads

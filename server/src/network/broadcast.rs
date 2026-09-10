@@ -148,7 +148,6 @@ pub fn collect_player_moves(
             id: player.id,
             movement: player.movement,
             move_seq: player.info.life.processed_move_seq,
-            hops: player.info.session.hops,
         })
         .collect()
 }

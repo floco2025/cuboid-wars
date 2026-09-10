@@ -12,7 +12,7 @@ mod weapons;
 mod window_frame;
 
 pub use camera::{input_camera_zoom_system, input_facing_lock_toggle_system};
-pub use commit::{capture_player_input_system, commit_player_input_system};
+pub use commit::commit_player_input_system;
 pub use cursor::input_cursor_capture_system;
 pub use missiles::input_missile_system;
 pub use movement::input_movement_system;

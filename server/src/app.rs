@@ -160,8 +160,7 @@ mod tests {
     fn full_server_schedule_accepts_and_broadcasts_two_clients_then_clears_echo_sequences() {
         use crate::network::{ClientToServer, ServerToClient};
         use common::protocol::{
-            CLogin, CMove, ClientMessage, PlayerId, PlayerInput, PlayerMoveIntent, PlayerMovementState, Position,
-            ServerMessage,
+            CLogin, CMove, ClientMessage, PlayerId, PlayerMoveIntent, PlayerMovementState, Position, ServerMessage,
         };
         use tokio::sync::mpsc::unbounded_channel;
 
@@ -205,13 +204,7 @@ mod tests {
                     *id,
                     ClientToServer::Message(ClientMessage::Move(CMove {
                         seq: 1,
-                        input: PlayerInput {
-                            move_intent: PlayerMoveIntent::Idle,
-                            face_yaw: 0.0,
-                        },
-                        hops: 0,
                         movement: PlayerMovementState::new(*pos, PlayerMoveIntent::Idle, 0.0, 0.0),
-                        result_hops: 0,
                     })),
                 ))
                 .expect("movement delivery failed");

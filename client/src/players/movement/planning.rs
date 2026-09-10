@@ -101,7 +101,7 @@ pub(crate) fn plan_player_moves(
             collision_world,
             map_settings,
             gameplay_config,
-            portal_set,
+            portal_set: is_local.then_some(portal_set),
             carriers,
         });
         commands.entity(entity).insert((step.grounding, step.support));

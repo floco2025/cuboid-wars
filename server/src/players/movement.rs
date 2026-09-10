@@ -1,4 +1,5 @@
-use super::{EraserContacts, PlayerMap, reconciliation::reconcile_player_movement};
+use super::{EraserContacts, PlayerMap, PlayerMovementReport, reconciliation::reconcile_player_movement};
+use crate::portals::{broadcast_portal_crossing, resolve_portal_crossing};
 use bevy::prelude::*;
 use common::{
     config::GameplayConfig,
@@ -9,15 +10,9 @@ use common::{
     },
     protocol::{
         FaceYaw, MapSettings, PlateState, PlayerId, PlayerMarker, PlayerMoveIntent, PlayerMovementState, Position,
+        ServerTick,
     },
 };
-
-pub(crate) struct PlayerMovementPath {
-    pub start: Position,
-    pub start_hops: u32,
-    // Eraser sweeps stop at the entry, never across the gap between portals.
-    pub portal_entry: Option<Position>,
-}
 
 pub(crate) fn apply_pending_player_inputs_system(
     mut players: ResMut<PlayerMap>,
@@ -28,13 +23,11 @@ pub(crate) fn apply_pending_player_inputs_system(
             continue;
         };
         info.life.processed_move_seq = None;
-        let Some(report) = &info.life.pending_move else {
+        let Some(report) = info.life.pending_moves.front() else {
             continue;
         };
-        if report.hops == info.session.hops {
-            *intent = report.input.move_intent;
-            yaw.0 = report.input.face_yaw;
-        }
+        *intent = report.comparison_state().move_intent;
+        yaw.0 = report.comparison_state().face_yaw;
     }
 }
 
@@ -48,6 +41,7 @@ pub(crate) fn finish_player_movement_system(
     plates: Res<PlateState>,
     portal_set: Res<PortalSet>,
     time: Res<Time>,
+    tick: Res<ServerTick>,
     mut erasers: ResMut<EraserContacts>,
     mut query: Query<
         (
@@ -63,24 +57,31 @@ pub(crate) fn finish_player_movement_system(
         With<PlayerMarker>,
     >,
 ) {
+    let mut crossings = Vec::new();
     for (entity, id, mut pos, mut yaw, mut vertical, mut intent, knockback, airborne) in &mut query {
         let Some(info) = players.get_mut(id) else {
             continue;
         };
-        let path = info.life.movement_path.take().unwrap_or(PlayerMovementPath {
-            start: *pos,
-            start_hops: info.session.hops,
-            portal_entry: None,
-        });
-        let predicted_hops = info.session.hops;
+        let start = info.life.movement_start.take().unwrap_or(*pos);
         let mut movement = PlayerMovementState::new(*pos, *intent, vertical.0, yaw.0).with_momentum(
             airborne.map_or(Vec3::ZERO, |m| m.0),
             knockback.map_or(Vec3::ZERO, |m| m.0),
         );
-        let accepted = reconcile_player_movement(*id, info, &mut movement);
-        if info.session.hops != path.start_hops {
-            info.life.fall_state.reset();
-        }
+        let mut portal_entrance = None;
+        let accepted = match info.life.pending_moves.pop() {
+            Some(PlayerMovementReport::Move(report)) => {
+                reconcile_player_movement(*id, info, report.seq, report.movement, &mut movement)
+            }
+            Some(PlayerMovementReport::PortalCross(report)) => {
+                let result = resolve_portal_crossing(*id, info, &report, &mut movement, tick.0);
+                if result.accepted {
+                    portal_entrance = Some(report.entrance.pos);
+                }
+                crossings.push(result);
+                result.accepted
+            }
+            None => false,
+        };
         *pos = movement.pos;
         *intent = movement.move_intent;
         yaw.0 = movement.face_yaw;
@@ -89,7 +90,7 @@ pub(crate) fn finish_player_movement_system(
             AirborneMomentum(Vec3::from_array(movement.airborne_momentum)),
             KnockbackVelocity(Vec3::from_array(movement.knockback)),
         ));
-        if accepted || info.session.hops != path.start_hops {
+        if accepted {
             let passable = passable_barrier_kinds(&info.life.held_keys, &plates.open_barrier_kinds);
             let control = player_control_velocity(*intent, &settings.movement, info.has_speed(), info.is_stunned());
             let env = CharacterEnvironment {
@@ -113,19 +114,14 @@ pub(crate) fn finish_player_movement_system(
             info.life.fall_state.record_movement(support, crushed);
             commands.entity(entity).insert((support, grounding));
         }
-        let sweep_end = if info.session.hops == path.start_hops {
-            Some(*pos)
-        } else if info.session.hops == predicted_hops {
-            path.portal_entry
-        } else {
-            None
-        };
-        if let Some(end) = sweep_end {
-            erasers.swept.extend(
-                collision
-                    .character_eraser_contacts(&path.start, &end, gameplay.player.physics(), Some(&carriers))
-                    .map(|field| (*id, field)),
-            );
-        }
+        let sweep_end = portal_entrance.unwrap_or(*pos);
+        erasers.swept.extend(
+            collision
+                .character_eraser_contacts(&start, &sweep_end, gameplay.player.physics(), Some(&carriers))
+                .map(|field| (*id, field)),
+        );
+    }
+    for result in crossings {
+        broadcast_portal_crossing(&players, result);
     }
 }

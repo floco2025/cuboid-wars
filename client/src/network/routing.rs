@@ -14,7 +14,7 @@ use super::{
         handle_player_fall_damage_message, handle_player_hit_message, handle_player_moves_message,
         handle_player_status_message, handle_projectile_shot_message,
     },
-    portals::{handle_portal_fizzled_message, handle_portal_opened_message},
+    portals::{handle_portal_crossed_message, handle_portal_fizzled_message, handle_portal_opened_message},
     presentation::{
         handle_checkpoint_reached_message, handle_feed_message, handle_firework_message, handle_pressure_plate_message,
     },
@@ -30,6 +30,7 @@ pub(super) fn route_server_message(
     let my_player_id = context.my_player_id.0;
 
     match message {
+        ServerMessage::PortalCrossed(message) => handle_portal_crossed_message(message, commands, context),
         ServerMessage::Init(_) => error!("received Init more than once"),
         ServerMessage::QuestUpdates(message) => handle_quest_updates_message(message, commands, context),
         ServerMessage::Snapshot(message) => {

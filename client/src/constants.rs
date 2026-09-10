@@ -82,12 +82,6 @@ pub const RECON_CORRECTION_MIN_SECS: f32 = 0.25;
 
 pub const RECON_CHARACTER_SNAP_DISTANCE: f32 = 3.0;
 
-// --- Remote players ---
-
-// Remote prediction may cross after the server update arrives; allow that
-// delay before settling a persistent crossing dispute for the server.
-pub const RECON_PLAYER_HOP_DISPUTE_SLACK_TICKS: u32 = 10;
-
 // --- Missiles ---
 
 // Missile course changes are broadcast promptly, so clients barely drift.

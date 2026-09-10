@@ -6,7 +6,7 @@ use crate::{
     config::{FeedConfig, ServerGameplayConfig},
     map::MapConfig,
     network::ServerToClient,
-    players::{PlayerInfo, PlayerMap, PlayerStateQuery},
+    players::{PlayerInfo, PlayerMap, PlayerMovementReport, PlayerStateQuery, queue_player_movement},
 };
 use common::{
     config::GameplayConfig,
@@ -39,17 +39,7 @@ pub(crate) struct CharacterQueries<'w, 's> {
 }
 
 pub(super) fn handle_move_message(id: PlayerId, message: CMove, players: &mut PlayerMap) {
-    let Some(info) = players.get_mut(&id) else {
-        return;
-    };
-    if !message.input.is_finite()
-        || !message.movement.is_finite()
-        || !sequence_is_newer(message.seq, info.session.last_move_seq)
-    {
-        return;
-    }
-    info.session.last_move_seq = message.seq;
-    info.life.pending_move = Some(message);
+    queue_player_movement(id, PlayerMovementReport::Move(message), players);
 }
 
 pub(super) fn handle_jump_message(

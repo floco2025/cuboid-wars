@@ -1,3 +1,4 @@
+mod crossing;
 mod prediction;
 mod projection;
 mod render;
@@ -6,6 +7,7 @@ mod spawn;
 mod transform_sync;
 mod view;
 
+pub use crossing::LocalPortalCrossings;
 pub use prediction::portal_transit_system;
 pub use render::portal_render_plugin;
 pub use resources::{PortalInfo, PortalMap};
