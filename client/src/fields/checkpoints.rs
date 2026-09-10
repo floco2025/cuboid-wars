@@ -8,9 +8,8 @@ use super::{FieldMeshes, KindVisual, VisualField, spawn_field_visual};
 use crate::{
     carriers::{CarrierEntities, CarrierStoreys},
     config::ClientSettings,
+    constants::CHECKPOINT_COLOR,
 };
-
-const CHECKPOINT_COLOR: Color = Color::srgb(1.0, 0.7, 0.12);
 
 #[derive(Component)]
 pub struct CheckpointMarker;

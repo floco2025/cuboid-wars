@@ -79,6 +79,7 @@ pub(crate) fn respawn_app(mode: PlayerRespawnMode, scope: ActorRespawnScope) -> 
             &MapLayout::default(),
             &Default::default(),
         ))
+        .init_resource::<MapLayout>()
         .insert_resource(PlayerMap::new(RespawnConfig {
             players: mode,
             actors: ActorRespawnConfig {

@@ -258,9 +258,8 @@ pub(crate) struct EraserDef {
 
 #[derive(Debug, Clone, Deserialize)]
 pub(crate) struct CheckpointDef {
-    pub(crate) level: u32,
-    pub(crate) cols: [i32; 2],
-    pub(crate) rows: [i32; 2],
+    #[serde(flatten)]
+    pub(crate) zone: ZoneDef,
     #[serde(rename = "type")]
     pub(crate) kind: CheckpointKind,
 }

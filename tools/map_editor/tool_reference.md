@@ -45,6 +45,13 @@ Every element group ends with its own **Erase** tool that removes only that elem
 - **Player Spawn Zone** — Drag a rectangle. No prompt — players spawn anywhere in any player zone.
 - **Erase Spawn Zones** — Drag a rectangle to remove every actor and player spawn zone it touches on the current level.
 
+## Checkpoints
+
+A checkpoint is a rectangle of flat accessible floor that players respawn in once they have landed in it. Checkpoints may overlap spawn zones but not each other; Map Issues reports overlaps and cells without flat floor.
+
+- **Checkpoint** — Choose Type in the toolbar, then drag a rectangle. Individual saves the entrant's own respawn point, Group — any saves everyone's when one player enters, and Group — all waits until every player has visited. Alt-drag moves or resizes a checkpoint like a spawn zone; right-click it to change its type or erase it.
+- **Erase Checkpoints** — Drag a rectangle to remove every checkpoint it touches on the current level.
+
 ## Walls
 
 - **Wall** — Drag along grid lines to place atomic wall edges.

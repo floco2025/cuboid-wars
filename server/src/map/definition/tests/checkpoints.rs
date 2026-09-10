@@ -4,9 +4,7 @@ use common::protocol::{CheckpointKind, MapLayout};
 
 fn checkpoint_def(level: u32, col: i32, row: i32) -> CheckpointDef {
     CheckpointDef {
-        level,
-        cols: [col, col + 1],
-        rows: [row, row + 1],
+        zone: player_zone(level, col, row),
         kind: CheckpointKind::Individual,
     }
 }
@@ -19,7 +17,6 @@ fn checkpoints_require_valid_nonoverlapping_flat_floor_rectangles() {
     let compile = |map: &MapDef| compile_with(map, &no_nested(), &empty_kind_table(), &no_bridges());
     let (layout, config) = compile(&map).expect("checkpoint compilation failed");
     assert_eq!(layout.checkpoints.len(), 1);
-    assert_eq!(config.checkpoints.len(), 1);
     let checkpoint = layout.checkpoints[0];
     assert_eq!(checkpoint.min_x, config.root_grid().geometry.cell_to_world_x(0));
     assert_eq!(checkpoint.max_x, config.root_grid().geometry.cell_to_world_x(1));
@@ -31,17 +28,17 @@ fn checkpoints_require_valid_nonoverlapping_flat_floor_rectangles() {
             .contains("overlaps")
     );
     map.checkpoints.pop();
-    map.checkpoints[0].level = 3;
+    map.checkpoints[0].zone.level = 3;
     assert!(validate_map(&map).is_err());
-    map.checkpoints[0].level = 0;
-    map.checkpoints[0].cols = [0, 3];
+    map.checkpoints[0].zone.level = 0;
+    map.checkpoints[0].zone.cols = [0, 3];
     assert!(
         validate_map(&map)
             .expect_err("checkpoint without flat floor accepted")
             .to_string()
             .contains("flat accessible floor")
     );
-    map.checkpoints[0].cols = [0, 1];
+    map.checkpoints[0].zone.cols = [0, 1];
     map.ramps.push(ramp([0, 0], [1, 2], 0));
     map.levels.push(level(Vec::new()));
     assert!(
@@ -83,7 +80,7 @@ fn repeated_nested_checkpoints_have_separate_carriers_and_runtime_slots() {
     .expect("nested checkpoint map rejected");
     assert_eq!(layout.checkpoints.len(), 2);
     assert_ne!(layout.checkpoints[0].carrier, layout.checkpoints[1].carrier);
-    assert_eq!(config.checkpoints.len(), 2);
+    assert_eq!(config.grids.len(), 3);
 }
 
 #[test]
@@ -98,9 +95,9 @@ fn checkpoint_types_are_required_and_preserved_on_the_wire() {
                 .expect("checkpoint type rejected");
         let mut map = map_with_zones(2, vec![level(vec![[0, 0]])], Vec::new(), Vec::new(), Vec::new());
         map.checkpoints.push(definition);
-        let (layout, config) = compile_with(&map, &no_nested(), &empty_kind_table(), &no_bridges())
+        let (layout, _) = compile_with(&map, &no_nested(), &empty_kind_table(), &no_bridges())
             .expect("typed checkpoint compilation failed");
-        assert_eq!(config.checkpoints[0].kind, kind);
+        assert_eq!(layout.checkpoints[0].kind, kind);
         let bytes = bincode::encode_to_vec(&layout, bincode::config::standard()).expect("checkpoint encoding failed");
         let (decoded, _): (MapLayout, _) =
             bincode::decode_from_slice(&bytes, bincode::config::standard()).expect("checkpoint decoding failed");

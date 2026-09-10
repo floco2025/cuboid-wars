@@ -26,6 +26,7 @@ fn a_crushed_player_dies_at_the_reported_contact() {
             &MapLayout::default(),
             &BarrierKindTable::default(),
         ))
+        .init_resource::<MapLayout>()
         .insert_resource(PlayerMap::default())
         .insert_resource(Invincibility(false))
         .init_resource::<ServerTick>()
@@ -82,6 +83,7 @@ fn invincible_void_rescue_relocates_reliably_and_preserves_equipment() {
             &MapLayout::default(),
             &BarrierKindTable::default(),
         ))
+        .init_resource::<MapLayout>()
         .init_resource::<PlayerMap>()
         .insert_resource(Invincibility(true))
         .insert_resource(ServerTick(42))
@@ -161,16 +163,16 @@ fn an_invincible_void_rescue_returns_to_the_saved_checkpoint() {
             level: 0,
             carrier: CarrierId::WORLD,
         }],
+        checkpoints: vec![checkpoint],
         ..default()
     };
-    let mut map = MapConfig::for_grid(Vec::new(), geometry(1, 1));
-    map.checkpoints = vec![checkpoint];
     let mut app = App::new();
     app.insert_resource(server.gameplay_config())
         .insert_resource(server)
-        .insert_resource(map)
+        .insert_resource(MapConfig::for_grid(Vec::new(), geometry(1, 1)))
         .init_resource::<Carriers>()
         .insert_resource(CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default()))
+        .insert_resource(layout)
         .init_resource::<PlayerMap>()
         .insert_resource(Invincibility(true))
         .init_resource::<ServerTick>()
@@ -208,6 +210,89 @@ fn an_invincible_void_rescue_returns_to_the_saved_checkpoint() {
         "the landing is no fresh entry"
     );
     assert_eq!(info.session.checkpoint.map(|c| c.id), Some(CheckpointId(0)));
+}
+
+#[test]
+fn simultaneous_invincible_rescues_take_distinct_spots() {
+    let server = ServerGameplayConfig::load_default().expect("gameplay config missing");
+    let checkpoint = Checkpoint {
+        kind: CheckpointKind::Individual,
+        carrier: CarrierId::WORLD,
+        level: 0,
+        min_x: 10.0,
+        max_x: 14.0,
+        min_z: -2.0,
+        max_z: 2.0,
+        y: 0.0,
+    };
+    let layout = MapLayout {
+        floors: vec![Floor {
+            x1: 10.0,
+            x2: 14.0,
+            z1: -2.0,
+            z2: 2.0,
+            y: 0.0,
+            thickness: 0.2,
+            level: 0,
+            carrier: CarrierId::WORLD,
+        }],
+        checkpoints: vec![checkpoint],
+        ..default()
+    };
+    let mut app = App::new();
+    app.insert_resource(server.gameplay_config())
+        .insert_resource(server)
+        .insert_resource(MapConfig::for_grid(Vec::new(), geometry(1, 1)))
+        .init_resource::<Carriers>()
+        .insert_resource(CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default()))
+        .insert_resource(layout)
+        .init_resource::<PlayerMap>()
+        .insert_resource(Invincibility(true))
+        .init_resource::<ServerTick>()
+        .insert_resource(PortalAssignments::new(PortalMode::Both))
+        .init_resource::<PendingExplosions>()
+        .add_systems(Update, players_fatal_outcomes_system);
+    let mut entities = Vec::new();
+    for id in [PlayerId(1), PlayerId(2)] {
+        let pos = Position {
+            x: id.0 as f32,
+            y: CHARACTER_FALL_DEATH_Y - 1.0,
+            z: 0.0,
+        };
+        let entity = app.world_mut().spawn((PlayerMarker, id, pos, Health(37.0))).id();
+        let (sender, _receiver) = unbounded_channel();
+        let mut info = PlayerInfo::new(entity, sender);
+        info.connection.logged_in = true;
+        info.session.checkpoint = Some(PlayerCheckpoint {
+            id: CheckpointId(0),
+            facing: Vec3::X,
+        });
+        info.life.outcomes.fell_out_of_world = true;
+        app.world_mut().resource_mut::<PlayerMap>().insert(id, info);
+        entities.push(entity);
+    }
+
+    app.update();
+
+    let landed: Vec<Position> = entities
+        .iter()
+        .map(|entity| *app.world().get::<Position>(*entity).expect("position missing"))
+        .collect();
+    for pos in &landed {
+        assert!(
+            (10.0..=14.0).contains(&pos.x) && (-2.0..=2.0).contains(&pos.z),
+            "rescued to {pos:?}, not the checkpoint"
+        );
+    }
+    let gap = (Vec3::from(landed[0]) - Vec3::from(landed[1])).length();
+    let diameter = app
+        .world()
+        .resource::<GameplayConfig>()
+        .player
+        .physics()
+        .movement_collider
+        .diameter;
+    assert!(gap >= diameter, "the two rescues overlap: {landed:?}");
 }
 
 #[test]

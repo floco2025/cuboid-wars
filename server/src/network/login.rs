@@ -81,6 +81,7 @@ pub(super) fn handle_login_message(
     let physics = world.gameplay_config.player.physics();
     let spawn = player_spawn_destination(
         &world.map_config,
+        &world.map_layout.checkpoints,
         &world.carriers,
         &world.collision_world,
         &occupied_positions,
@@ -95,6 +96,7 @@ pub(super) fn handle_login_message(
         );
         spawn_zone_destination(
             &world.map_config,
+            &world.map_layout.checkpoints,
             &world.carriers,
             &world.collision_world,
             &occupied_positions,

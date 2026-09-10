@@ -62,21 +62,20 @@ pub(super) fn compile_geometry(
     let (ramps, ramp_materials) = compile_ramps(&ramp_specs, &geometry, &assets, carrier);
     let placed_items = placed_items(map_def, scope.kind_table, &level_grids, carrier)?;
 
-    let mut checkpoints = Vec::new();
-    for zone in &map_def.checkpoints {
-        checkpoints.push(Checkpoint {
-            kind: zone.kind,
-            carrier,
-            level: level_tag(zone.level as usize),
-            min_x: geometry.cell_to_world_x(zone.cols[0]),
-            max_x: geometry.cell_to_world_x(zone.cols[1]),
-            min_z: geometry.cell_to_world_z(zone.rows[0]),
-            max_z: geometry.cell_to_world_z(zone.rows[1]),
-            y: geometry.level_y(level_tag(zone.level as usize)),
-        });
-    }
     let layout = &mut out.layout;
-    layout.checkpoints.extend(checkpoints.iter().copied());
+    layout.checkpoints.extend(map_def.checkpoints.iter().map(|def| {
+        let level = level_tag(def.zone.level as usize);
+        Checkpoint {
+            kind: def.kind,
+            carrier,
+            level,
+            min_x: geometry.cell_to_world_x(def.zone.cols[0]),
+            max_x: geometry.cell_to_world_x(def.zone.cols[1]),
+            min_z: geometry.cell_to_world_z(def.zone.rows[0]),
+            max_z: geometry.cell_to_world_z(def.zone.rows[1]),
+            y: geometry.level_y(level),
+        }
+    }));
     layout.walls.extend(walls);
     layout.wall_materials.extend(wall_materials);
     layout.ramps.extend(ramps);
@@ -117,7 +116,6 @@ pub(super) fn compile_geometry(
     config.player_spawn_zones.extend(player_spawn_zones(map_def, carrier));
     config.placed_items.extend(placed_items);
     config.pressure_plates.extend(pressure_plates);
-    config.checkpoints.extend(checkpoints);
 
     Ok(())
 }

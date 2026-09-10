@@ -13,7 +13,9 @@ use common::{
     constants::CHARACTER_FALL_DEATH_Y,
     map::Carriers,
     physics::CollisionWorld,
-    protocol::{Health, MapSettings, PlayerId, PlayerMarker, Position, SPlayerFallDamage, ServerMessage, ServerTick},
+    protocol::{
+        Health, MapLayout, MapSettings, PlayerId, PlayerMarker, Position, SPlayerFallDamage, ServerMessage, ServerTick,
+    },
 };
 
 // Crushing and void falls reported by the owner; an invincible void fall is rescued instead.
@@ -27,10 +29,14 @@ pub fn players_fatal_outcomes_system(
     server_gameplay_config: Res<ServerGameplayConfig>,
     invincibility: Res<Invincibility>,
     map_config: Res<MapConfig>,
+    map_layout: Res<MapLayout>,
     carriers: Res<Carriers>,
     collision_world: Res<CollisionWorld>,
     player_query: Query<(Entity, &PlayerId, &Position, &Health), With<PlayerMarker>>,
 ) {
+    // Destinations already claimed this tick: the relocations are queued, so
+    // the query still shows those players in the void.
+    let mut rescued: Vec<Position> = Vec::new();
     for (entity, id, pos, health) in player_query.iter() {
         let Some(info) = players.get_mut(id).filter(|info| !info.is_dead()) else {
             continue;
@@ -62,11 +68,13 @@ pub fn players_fatal_outcomes_system(
                 .iter()
                 .filter(|(other, _, other_pos, _)| *other != entity && other_pos.y >= CHARACTER_FALL_DEATH_Y)
                 .map(|(_, _, other_pos, _)| *other_pos)
+                .chain(rescued.iter().copied())
                 .collect();
             let physics = gameplay_config.player.physics();
             // The saved checkpoint, like a respawn; a spawn zone when it is blocked.
             let spawn = player_spawn_destination(
                 &map_config,
+                &map_layout.checkpoints,
                 &carriers,
                 &collision_world,
                 &occupied_positions,
@@ -74,8 +82,16 @@ pub fn players_fatal_outcomes_system(
                 saved_checkpoint,
             )
             .unwrap_or_else(|| {
-                spawn_zone_destination(&map_config, &carriers, &collision_world, &occupied_positions, physics)
+                spawn_zone_destination(
+                    &map_config,
+                    &map_layout.checkpoints,
+                    &carriers,
+                    &collision_world,
+                    &occupied_positions,
+                    physics,
+                )
             });
+            rescued.push(spawn.pos);
             info!(
                 "{} fell out of the world while invincible; teleporting to {:?}",
                 players.describe(id),

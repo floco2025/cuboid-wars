@@ -3,7 +3,6 @@ use std::time::Duration;
 use super::handle_login_message;
 use crate::{
     config::{ActorRespawnScope, PlayerRespawnMode, ServerGameplayConfig},
-    map::MapConfig,
     network::{ServerToClient, SharedWorld, handlers::CharacterQueries},
     players::{CheckpointId, PlayerCheckpoint, PlayerInfo, PlayerMap, respawn_tests::respawn_app},
     portals::{PortalAssignments, PortalMap},
@@ -67,6 +66,7 @@ fn joining_inherits_shared_progress_and_respects_blocked_spawns_and_group_countd
         if !blocked {
             layout.floors.push(floor);
         }
+        layout.checkpoints.push(checkpoint);
         let mut carriers = Carriers::from_layout(&layout);
         carriers.advance(15, &PlateState::default());
         let mut collision = CollisionWorld::from_map_layout(&layout, &Default::default());
@@ -91,7 +91,6 @@ fn joining_inherits_shared_progress_and_respects_blocked_spawns_and_group_countd
         let catalog = QuestCatalog::from_quests(&[]);
         app.insert_resource(QuestBoard::from_catalog(&catalog, None))
             .insert_resource(catalog);
-        app.world_mut().resource_mut::<MapConfig>().checkpoints = vec![checkpoint];
         app.world_mut().resource_mut::<PlayerMap>().shared_checkpoint = Some(PlayerCheckpoint {
             id: CheckpointId(0),
             facing: Vec3::X,

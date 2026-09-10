@@ -14,18 +14,6 @@
 
 - **Missiles through portals:** a missile chasing a target through a portal detonates on the aperture's backing instead of crossing, while bullets hop through; rank `projectile_hop` against the other events in the missile sweep in `client/src/missiles/movement.rs`.
 
-- **Late launch cue:** an observer whose snapshot arrives before the launch cue spawns the missile from the snapshot and plays the launch sound only when the cue lands, after the missile is already in flight (`client/src/network/missiles/handlers.rs`).
-
-- **Checkpoint scan on maps without checkpoints:** `players_checkpoints_system` runs a capsule cast per grounded player every tick before reading an empty list. Gate it with a `run_if` on `map.checkpoints`, like `pending_actor_spawns_active`.
-
-- **Checkpoint spawn sampler duplicates the zone sampler:** `checkpoint_spawn_position` repeats the attempt loop, radius inset, pose transform, and occupied test from `server/src/characters/spawning.rs` with a bare 100 beside `SPAWN_MAX_ATTEMPTS`, and blocks on every solid where zones test only walls. Share the loop and keep the clearance predicate and center-first attempt per caller.
-
-- **Checkpoint list stored twice:** `MapConfig.checkpoints` copies `MapLayout.checkpoints` verbatim and `CheckpointId` indexes both by convention. Drop the copy and pass the layout's list to the checkpoint, respawn, and spawn-destination code; `level_tag` is also evaluated twice per zone in `server/src/map/definition/geometry.rs`.
-
-- **Checkpoint code cleanups:** flatten `ZoneDef` into `CheckpointDef`, move `CHECKPOINT_COLOR` into `client/src/constants.rs`, and name the repeated `"Checkpoint reached"` literal in `ui/hud_banner.rs`.
-
-- **Tool Reference lacks Checkpoints:** the editor's Help → Tool Reference has no section for the Checkpoint tool, its Type selector, right-click type editing, or Erase Checkpoints.
-
 - **Grounding inspection after a blocked step:** the per-frame refresh now only fills characters that lack the diagnostics, so a body blocked by another character draws its probe from the motor's proposed position until the next tick.
 
 - **Rapier upgrades:** Recheck the capsule floor-motion regression before removing the contact-normal adapter in `common/src/physics/world/character_queries.rs`. It works around imprecise cast normals feeding Rapier 0.32’s slope decomposition.

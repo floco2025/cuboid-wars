@@ -65,13 +65,13 @@ impl ZoneRect for ZoneDef {
 
 impl ZoneRect for CheckpointDef {
     fn level(&self) -> u32 {
-        self.level
+        self.zone.level
     }
     fn cols(&self) -> [i32; 2] {
-        self.cols
+        self.zone.cols
     }
     fn rows(&self) -> [i32; 2] {
-        self.rows
+        self.zone.rows
     }
 }
 
@@ -679,9 +679,10 @@ fn normalized_wall(wall: [i32; 4]) -> [i32; 4] {
 }
 
 fn validate_checkpoints(map_def: &MapDef) -> Result<()> {
-    for (index, zone) in map_def.checkpoints.iter().enumerate() {
+    for (index, checkpoint) in map_def.checkpoints.iter().enumerate() {
         let label = format!("checkpoints[{index}]");
-        validate_zone_placement(zone, &label, map_def)?;
+        validate_zone_placement(checkpoint, &label, map_def)?;
+        let zone = &checkpoint.zone;
         let floors: BTreeSet<_> = map_def.levels[zone.level as usize]
             .floors
             .iter()
@@ -696,7 +697,7 @@ fn validate_checkpoints(map_def: &MapDef) -> Result<()> {
             }
         }
 
-        for other in &map_def.checkpoints[..index] {
+        for other in map_def.checkpoints[..index].iter().map(|other| &other.zone) {
             if zone.level == other.level
                 && zone.cols[0] < other.cols[1]
                 && other.cols[0] < zone.cols[1]

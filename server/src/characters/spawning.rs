@@ -15,6 +15,26 @@ use common::{
 
 const SPAWN_MAX_ATTEMPTS: usize = 100;
 
+// The first of up to `SPAWN_MAX_ATTEMPTS` candidates that `clear` accepts
+// and no occupied body intersects. `candidate` gets the attempt number, so
+// a caller can try a preferred spot first.
+pub(crate) fn sample_clear_position(
+    occupied_positions: &[Position],
+    character_physics: CharacterPhysicsConfig,
+    mut candidate: impl FnMut(usize, &mut ThreadRng) -> Option<Position>,
+    clear: impl Fn(&Position) -> bool,
+) -> Option<Position> {
+    let mut rng = rng();
+    (0..SPAWN_MAX_ATTEMPTS).find_map(|attempt| {
+        let pos = candidate(attempt, &mut rng)?;
+        (clear(&pos)
+            && !occupied_positions
+                .iter()
+                .any(|other| character_position_intersects_character(&pos, other, character_physics)))
+        .then_some(pos)
+    })
+}
+
 // Initial facing for a freshly spawned character: toward the map origin (0,0).
 // The negation + atan2 argument order is the non-obvious part, so the rule
 // lives in one place shared by login and respawn.
@@ -141,20 +161,17 @@ fn pick_clear_position(
     occupied_positions: &[Position],
     character_physics: CharacterPhysicsConfig,
 ) -> Option<Position> {
-    let mut rng = rng();
-    for _ in 0..SPAWN_MAX_ATTEMPTS {
-        let &(carrier, level, col, row) = valid_cells.choose(&mut rng)?;
-        let geometry = &map_config.grid(carrier).geometry;
-        let Some(local) = random_position_in_spawn_cell(&mut rng, geometry, level, col, row, character_physics) else {
-            continue;
-        };
-        let pos = carriers.pose(carrier).transform_position(&local);
-
-        if character_spawn_position_is_clear(&pos, collision_world, occupied_positions, character_physics) {
-            return Some(pos);
-        }
-    }
-    None
+    sample_clear_position(
+        occupied_positions,
+        character_physics,
+        |_, rng| {
+            let &(carrier, level, col, row) = valid_cells.choose(rng)?;
+            let geometry = &map_config.grid(carrier).geometry;
+            let local = random_position_in_spawn_cell(rng, geometry, level, col, row, character_physics)?;
+            Some(carriers.pose(carrier).transform_position(&local))
+        },
+        |pos| !collision_world.character_overlaps_wall(pos, character_physics),
+    )
 }
 
 fn random_position_in_spawn_cell(

@@ -3,7 +3,7 @@ use common::{
     config::CharacterPhysicsConfig,
     map::Carriers,
     physics::CollisionWorld,
-    protocol::{FaceYaw, Health, PlayerId, PlayerMoveIntent, PlayerMovementState, PortalAccess, Position},
+    protocol::{Checkpoint, FaceYaw, Health, PlayerId, PlayerMoveIntent, PlayerMovementState, PortalAccess, Position},
 };
 
 use super::{CheckpointId, PlayerCheckpoint, PlayerMap, checkpoint_at_position, checkpoint_spawn_position};
@@ -23,6 +23,7 @@ pub(crate) struct PlayerSpawn {
 // a spawn zone otherwise.
 pub(crate) fn player_spawn_destination(
     map: &MapConfig,
+    checkpoints: &[Checkpoint],
     carriers: &Carriers,
     collision_world: &CollisionWorld,
     occupied: &[Position],
@@ -32,26 +33,28 @@ pub(crate) fn player_spawn_destination(
     let Some(saved) = saved else {
         return Some(spawn_zone_destination(
             map,
+            checkpoints,
             carriers,
             collision_world,
             occupied,
             physics,
         ));
     };
-    let checkpoint = &map.checkpoints[saved.id.0];
+    let checkpoint = &checkpoints[saved.id.0];
     let pose = carriers.pose(checkpoint.carrier);
     let pos = checkpoint_spawn_position(checkpoint, &pose, collision_world, occupied, physics)?;
     let facing = pose.transform_vector(saved.facing);
     Some(PlayerSpawn {
         pos,
         face_yaw: facing.x.atan2(facing.z),
-        contact: checkpoint_at_position(&map.checkpoints, carriers, collision_world, &pos, physics, &[]),
+        contact: checkpoint_at_position(checkpoints, carriers, collision_world, &pos, physics, &[]),
     })
 }
 
 // A spawn zone placement, seeded with the checkpoint the spot happens to be in.
 pub(crate) fn spawn_zone_destination(
     map: &MapConfig,
+    checkpoints: &[Checkpoint],
     carriers: &Carriers,
     collision_world: &CollisionWorld,
     occupied: &[Position],
@@ -61,7 +64,7 @@ pub(crate) fn spawn_zone_destination(
     PlayerSpawn {
         pos,
         face_yaw: spawn_face_yaw(&pos),
-        contact: checkpoint_at_position(&map.checkpoints, carriers, collision_world, &pos, physics, &[]),
+        contact: checkpoint_at_position(checkpoints, carriers, collision_world, &pos, physics, &[]),
     }
 }
 

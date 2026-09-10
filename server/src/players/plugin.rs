@@ -16,7 +16,7 @@ pub fn players_plugin(app: &mut App) {
                 .in_set(ServerSet::CombatDamage),
             (
                 players_group_respawn_system,
-                players_checkpoints_system,
+                players_checkpoints_system.run_if(checkpoints_exist),
                 players_respawn_system,
             )
                 .chain()

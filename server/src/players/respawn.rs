@@ -11,7 +11,7 @@ use common::{
     config::GameplayConfig,
     map::Carriers,
     physics::CollisionWorld,
-    protocol::{Health, PlayerMarker, Position, ServerTick},
+    protocol::{Health, MapLayout, PlayerMarker, Position, ServerTick},
 };
 
 // Individual timers and the shared group timer expire here, after combat.
@@ -28,6 +28,7 @@ pub fn players_respawn_system(
     portal_assignments: Res<PortalAssignments>,
     mut players: ResMut<PlayerMap>,
     map_config: Res<MapConfig>,
+    map_layout: Res<MapLayout>,
     carriers: Res<Carriers>,
     collision_world: Res<CollisionWorld>,
     gameplay_config: Res<GameplayConfig>,
@@ -58,6 +59,7 @@ pub fn players_respawn_system(
         let saved = players.get(&id).and_then(|player| player.session.checkpoint);
         let Some(spawn) = player_spawn_destination(
             &map_config,
+            &map_layout.checkpoints,
             &carriers,
             &collision_world,
             &occupied_positions,

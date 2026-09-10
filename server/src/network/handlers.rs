@@ -21,6 +21,7 @@ pub(crate) struct SharedWorld<'w> {
     pub(crate) carriers: Res<'w, Carriers>,
     pub(crate) gameplay_config: Res<'w, GameplayConfig>,
     pub(crate) map_config: Res<'w, MapConfig>,
+    pub(crate) map_layout: Res<'w, MapLayout>,
     pub(crate) server_gameplay_config: Res<'w, ServerGameplayConfig>,
     pub(crate) world_bootstrap: Res<'w, WorldBootstrap>,
 }

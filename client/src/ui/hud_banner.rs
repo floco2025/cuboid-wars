@@ -10,6 +10,7 @@ use crate::{
 
 const DEATH_TEXT: &str = "You died!";
 const GROUP_RESPAWN_TEXT: &str = "Group respawning";
+const CHECKPOINT_REACHED_TEXT: &str = "Checkpoint reached";
 
 #[derive(Component)]
 pub struct HudBannerMarker;
@@ -30,7 +31,7 @@ impl BannerMessage {
             Self::QuestAnnouncement(text) | Self::QuestCompleted(text) => text,
             Self::Death => DEATH_TEXT,
             Self::GroupRespawn => GROUP_RESPAWN_TEXT,
-            Self::CheckpointReached => "Checkpoint reached",
+            Self::CheckpointReached => CHECKPOINT_REACHED_TEXT,
         }
     }
 
@@ -41,7 +42,7 @@ impl BannerMessage {
             Self::Death => (DEATH_TEXT.to_owned(), client_settings.hud.banner.death),
             Self::GroupRespawn => (GROUP_RESPAWN_TEXT.to_owned(), client_settings.hud.banner.death),
             Self::CheckpointReached => (
-                "Checkpoint reached".to_owned(),
+                CHECKPOINT_REACHED_TEXT.to_owned(),
                 client_settings.hud.banner.checkpoint_reached,
             ),
         }

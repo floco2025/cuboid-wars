@@ -235,6 +235,13 @@ pub const ITEM_HEALTH_COLOR: Color = Color::srgb(0.20, 0.95, 0.30); // Green (he
 pub const ITEM_MISSILE_COLOR: Color = Color::srgb(0.95, 0.45, 0.10); // Orange (missile pack)
 
 // ============================================================================
+// Checkpoints
+// ============================================================================
+
+// The amber perimeter every checkpoint zone draws; the fixture has no per-kind look.
+pub const CHECKPOINT_COLOR: Color = Color::srgb(1.0, 0.7, 0.12);
+
+// ============================================================================
 // Missiles
 // ============================================================================
 

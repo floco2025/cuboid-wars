@@ -16,7 +16,6 @@ use super::{
 };
 use crate::{
     config::{ActorRespawnScope, PlayerRespawnMode, ServerGameplayConfig},
-    map::MapConfig,
     network::ServerToClient,
     schedule::ServerSet,
 };
@@ -52,10 +51,11 @@ fn app(mode: PlayerRespawnMode) -> App {
     let checkpoints = vec![checkpoint(10.0), checkpoint(20.0)];
     let layout = MapLayout {
         floors: checkpoints.iter().copied().map(floor).collect(),
+        checkpoints,
         ..default()
     };
-    app.world_mut().resource_mut::<MapConfig>().checkpoints = checkpoints;
     app.insert_resource(CollisionWorld::from_map_layout(&layout, &Default::default()));
+    app.insert_resource(layout);
     app.add_systems(Update, players_checkpoints_system.in_set(ServerSet::Maintenance));
     app
 }
@@ -317,7 +317,7 @@ fn checkpoint_spawns_follow_carriers_and_avoid_players_and_barriers() {
 }
 
 fn entries(app: &mut App, entries: &[(u32, usize)]) {
-    let checkpoints = app.world().resource::<MapConfig>().checkpoints.clone();
+    let checkpoints = app.world().resource::<MapLayout>().checkpoints.clone();
     let entered = entries
         .iter()
         .map(|&(player, checkpoint)| {
@@ -349,7 +349,7 @@ fn shared_checkpoints_work_with_both_respawn_policies() {
     for mode in [PlayerRespawnMode::Individual, PlayerRespawnMode::Group] {
         for kind in [CheckpointKind::GroupAny, CheckpointKind::GroupAll] {
             let mut app = app(mode);
-            app.world_mut().resource_mut::<MapConfig>().checkpoints[1].kind = kind;
+            app.world_mut().resource_mut::<MapLayout>().checkpoints[1].kind = kind;
             add_player(&mut app, PlayerId(1));
             add_player(&mut app, PlayerId(2));
             entries(&mut app, &[(1, 1), (2, 1)]);
@@ -376,7 +376,7 @@ fn shared_checkpoints_work_with_both_respawn_policies() {
 #[test]
 fn group_all_visits_survive_death_and_membership_changes() {
     let mut app = app(PlayerRespawnMode::Individual);
-    app.world_mut().resource_mut::<MapConfig>().checkpoints[1].kind = CheckpointKind::GroupAll;
+    app.world_mut().resource_mut::<MapLayout>().checkpoints[1].kind = CheckpointKind::GroupAll;
     let (_, mut first) = add_player(&mut app, PlayerId(1));
     let (_, mut second) = add_player(&mut app, PlayerId(2));
     entries(&mut app, &[(1, 1)]);
@@ -429,8 +429,8 @@ fn group_all_visits_survive_death_and_membership_changes() {
 #[test]
 fn a_shared_activation_clears_other_partial_visits_and_empty_sessions_reset() {
     let mut app = app(PlayerRespawnMode::Individual);
-    app.world_mut().resource_mut::<MapConfig>().checkpoints[0].kind = CheckpointKind::GroupAll;
-    app.world_mut().resource_mut::<MapConfig>().checkpoints[1].kind = CheckpointKind::GroupAny;
+    app.world_mut().resource_mut::<MapLayout>().checkpoints[0].kind = CheckpointKind::GroupAll;
+    app.world_mut().resource_mut::<MapLayout>().checkpoints[1].kind = CheckpointKind::GroupAny;
     add_player(&mut app, PlayerId(1));
     add_player(&mut app, PlayerId(2));
     entries(&mut app, &[(1, 0)]);
@@ -450,8 +450,8 @@ fn shared_activations_win_simultaneous_individual_entries_once_in_map_order() {
     let mut app = app(PlayerRespawnMode::Individual);
     let mut third = checkpoint(30.0);
     third.kind = CheckpointKind::GroupAny;
-    app.world_mut().resource_mut::<MapConfig>().checkpoints.push(third);
-    app.world_mut().resource_mut::<MapConfig>().checkpoints[0].kind = CheckpointKind::GroupAny;
+    app.world_mut().resource_mut::<MapLayout>().checkpoints.push(third);
+    app.world_mut().resource_mut::<MapLayout>().checkpoints[0].kind = CheckpointKind::GroupAny;
     let (_, mut rx) = add_player(&mut app, PlayerId(1));
     add_player(&mut app, PlayerId(2));
     entries(&mut app, &[(1, 1), (2, 2), (2, 0)]);
@@ -467,7 +467,7 @@ fn shared_activations_win_simultaneous_individual_entries_once_in_map_order() {
 #[test]
 fn stationary_or_respawning_players_do_not_overwrite_teammates_individual_progress() {
     let mut app = app(PlayerRespawnMode::Individual);
-    app.world_mut().resource_mut::<MapConfig>().checkpoints[1].kind = CheckpointKind::GroupAny;
+    app.world_mut().resource_mut::<MapLayout>().checkpoints[1].kind = CheckpointKind::GroupAny;
     add_player(&mut app, PlayerId(1));
     add_player(&mut app, PlayerId(2));
     stand(
@@ -540,8 +540,8 @@ fn stationary_or_respawning_players_do_not_overwrite_teammates_individual_progre
 #[test]
 fn re_entering_the_active_shared_checkpoint_changes_nothing() {
     let mut app = app(PlayerRespawnMode::Individual);
-    app.world_mut().resource_mut::<MapConfig>().checkpoints[0].kind = CheckpointKind::GroupAll;
-    app.world_mut().resource_mut::<MapConfig>().checkpoints[1].kind = CheckpointKind::GroupAny;
+    app.world_mut().resource_mut::<MapLayout>().checkpoints[0].kind = CheckpointKind::GroupAll;
+    app.world_mut().resource_mut::<MapLayout>().checkpoints[1].kind = CheckpointKind::GroupAny;
     add_player(&mut app, PlayerId(1));
     add_player(&mut app, PlayerId(2));
     let inside = Position {
@@ -610,10 +610,54 @@ fn re_entering_the_active_shared_checkpoint_changes_nothing() {
 }
 
 #[test]
+fn a_re_entry_of_the_active_checkpoint_is_not_deferred() {
+    let mut app = app(PlayerRespawnMode::Individual);
+    app.world_mut().resource_mut::<MapLayout>().checkpoints[0].kind = CheckpointKind::GroupAny;
+    app.world_mut().resource_mut::<MapLayout>().checkpoints[1].kind = CheckpointKind::GroupAny;
+    add_player(&mut app, PlayerId(1));
+    add_player(&mut app, PlayerId(2));
+    let inside = Position {
+        x: 22.0,
+        y: 0.0,
+        z: 0.0,
+    };
+    stand(&mut app, PlayerId(1), inside, CharacterSupport::Ground);
+    advance(&mut app, 0.0);
+    assert_eq!(saved(&app, PlayerId(2)), Some(CheckpointId(1)));
+
+    // One tick: player 1 lands again in the active checkpoint while player 2
+    // enters the other one.
+    stand(&mut app, PlayerId(1), inside, CharacterSupport::Airborne);
+    advance(&mut app, 0.0);
+    stand(&mut app, PlayerId(1), inside, CharacterSupport::Ground);
+    stand(
+        &mut app,
+        PlayerId(2),
+        Position {
+            x: 12.0,
+            y: 0.0,
+            z: 0.0,
+        },
+        CharacterSupport::Ground,
+    );
+    advance(&mut app, 0.0);
+    assert_eq!(saved(&app, PlayerId(1)), Some(CheckpointId(0)));
+    for _ in 0..3 {
+        advance(&mut app, 0.0);
+        assert_eq!(
+            saved(&app, PlayerId(1)),
+            Some(CheckpointId(0)),
+            "nobody moved, nothing rolls back"
+        );
+        assert_eq!(saved(&app, PlayerId(2)), Some(CheckpointId(0)));
+    }
+}
+
+#[test]
 fn simultaneous_shared_entries_activate_on_consecutive_ticks() {
     let mut app = app(PlayerRespawnMode::Individual);
-    app.world_mut().resource_mut::<MapConfig>().checkpoints[0].kind = CheckpointKind::GroupAny;
-    app.world_mut().resource_mut::<MapConfig>().checkpoints[1].kind = CheckpointKind::GroupAny;
+    app.world_mut().resource_mut::<MapLayout>().checkpoints[0].kind = CheckpointKind::GroupAny;
+    app.world_mut().resource_mut::<MapLayout>().checkpoints[1].kind = CheckpointKind::GroupAny;
     let (_, mut rx) = add_player(&mut app, PlayerId(1));
     add_player(&mut app, PlayerId(2));
     stand(

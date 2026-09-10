@@ -1,24 +1,29 @@
 use std::collections::BTreeMap;
 
 use bevy::prelude::*;
-use rand::{RngExt, rng};
+use rand::RngExt;
 
 use super::PlayerMap;
-use crate::{map::MapConfig, network::ServerToClient};
+use crate::{characters::sample_clear_position, network::ServerToClient};
 use common::{
     config::{CharacterPhysicsConfig, GameplayConfig},
     constants::CHARACTER_CONTACT_OFFSET,
     map::{CarrierPose, Carriers},
     math::direction_from_yaw_pitch,
-    physics::{CharacterSupport, CollisionWorld, character_paths_intersect, grounding_diagnostics},
+    physics::{CharacterSupport, CollisionWorld, grounding_diagnostics},
     protocol::{
-        BarrierKindId, Checkpoint, CheckpointKind, FaceYaw, PlayerId, PlayerMarker, Position, SCheckpointReached,
-        ServerMessage,
+        BarrierKindId, Checkpoint, CheckpointKind, FaceYaw, MapLayout, PlayerId, PlayerMarker, Position,
+        SCheckpointReached, ServerMessage,
     },
 };
 
+// Index into `MapLayout.checkpoints`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CheckpointId(pub usize);
+
+pub(crate) fn checkpoints_exist(layout: Res<MapLayout>) -> bool {
+    !layout.checkpoints.is_empty()
+}
 
 #[derive(Debug, Clone, Copy)]
 pub struct PlayerCheckpoint {
@@ -28,7 +33,7 @@ pub struct PlayerCheckpoint {
 
 pub(crate) fn players_checkpoints_system(
     mut players: ResMut<PlayerMap>,
-    map: Res<MapConfig>,
+    map: Res<MapLayout>,
     carriers: Res<Carriers>,
     collision_world: Res<CollisionWorld>,
     gameplay: Res<GameplayConfig>,
@@ -154,11 +159,13 @@ pub(super) fn apply_checkpoint_entries(
         break;
     }
     // One activation per tick: whoever entered another shared checkpoint now
-    // enters it again next tick instead of standing there unnoticed.
+    // enters it again next tick instead of standing there unnoticed. A
+    // re-entry of the checkpoint that was active is not an entry to repeat,
+    // or it would win the next tick and roll everyone back.
     if let Some(activated) = activated {
         for entrant in shared_entrants
             .iter()
-            .filter(|(id, _)| **id != activated)
+            .filter(|(id, _)| **id != activated && Some(**id) != active)
             .flat_map(|(_, entrants)| entrants)
         {
             if let Some(player) = players.get_mut(entrant) {
@@ -219,33 +226,33 @@ pub(crate) fn checkpoint_spawn_position(
     if min_x > max_x || min_z > max_z {
         return None;
     }
-    let mut random = rng();
-    for attempt in 0..100 {
-        let local = Position {
-            x: if attempt == 0 {
-                (min_x + max_x) / 2.0
-            } else {
-                random.random_range(min_x..=max_x)
-            },
-            y: checkpoint.y,
-            z: if attempt == 0 {
-                (min_z + max_z) / 2.0
-            } else {
-                random.random_range(min_z..=max_z)
-            },
-        };
-        let pos = pose.transform_position(&local);
-        if collision_world.character_overlaps_solid(&pos, physics, &[])
-            || occupied
-                .iter()
-                .any(|other| character_paths_intersect(&pos, &pos, physics, other, other, physics))
-        {
-            continue;
-        }
-        let ground = grounding_diagnostics(collision_world, &pos, physics, &[], &[]);
-        if ground.supported && ground.hit.is_some_and(|hit| hit.carrier == checkpoint.carrier) {
-            return Some(pos);
-        }
-    }
-    None
+    // The center first, then anywhere in the rectangle; a spot is clear of
+    // every solid and stands on the checkpoint's own carrier.
+    sample_clear_position(
+        occupied,
+        physics,
+        |attempt, rng| {
+            let local = Position {
+                x: if attempt == 0 {
+                    (min_x + max_x) / 2.0
+                } else {
+                    rng.random_range(min_x..=max_x)
+                },
+                y: checkpoint.y,
+                z: if attempt == 0 {
+                    (min_z + max_z) / 2.0
+                } else {
+                    rng.random_range(min_z..=max_z)
+                },
+            };
+            Some(pose.transform_position(&local))
+        },
+        |pos| {
+            if collision_world.character_overlaps_solid(pos, physics, &[]) {
+                return false;
+            }
+            let ground = grounding_diagnostics(collision_world, pos, physics, &[], &[]);
+            ground.supported && ground.hit.is_some_and(|hit| hit.carrier == checkpoint.carrier)
+        },
+    )
 }

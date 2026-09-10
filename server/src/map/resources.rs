@@ -3,7 +3,7 @@ use bevy::prelude::Resource;
 use crate::config::FireworksConfig;
 use common::{
     map::MapGeometry,
-    protocol::{CarrierId, Checkpoint, ItemType, MapItems, SwitchId},
+    protocol::{CarrierId, ItemType, MapItems, SwitchId},
 };
 
 // The selected map's fireworks switch and cooldown, `None` when no switch
@@ -206,7 +206,6 @@ pub struct MapConfig {
     pub grids: Vec<CarrierGrid>,
     pub actor_spawn_zones: Vec<ActorSpawnZone>,
     pub player_spawn_zones: Vec<PlayerSpawnZone>,
-    pub checkpoints: Vec<Checkpoint>,
     pub placed_items: Vec<PlacedItem>,
     pub pressure_plates: Vec<PressurePlateRuntime>,
 }
@@ -220,7 +219,6 @@ impl MapConfig {
             grids: vec![CarrierGrid::new(CarrierId::WORLD, geometry, levels)],
             actor_spawn_zones: Vec::new(),
             player_spawn_zones: Vec::new(),
-            checkpoints: Vec::new(),
             placed_items: Vec::new(),
             pressure_plates: Vec::new(),
         }
