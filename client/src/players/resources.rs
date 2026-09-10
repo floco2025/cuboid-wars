@@ -1,11 +1,9 @@
 use bevy::prelude::*;
 use std::collections::HashMap;
 
-use common::protocol::{BarrierKindId, Player, PlayerId, Position, PowerUpKind, SPlayerStatus};
+use common::protocol::{BarrierKindId, Player, PlayerId, PowerUpKind, SPlayerStatus};
 
-use crate::portals::LocalPortalCrossings;
-
-const COMMITTED_POSITION_RING_LEN: usize = 64;
+use super::LocalMovementReports;
 
 // My player ID assigned by the server.
 #[derive(Resource)]
@@ -117,56 +115,11 @@ impl PlayerMap {
     }
 }
 
-// Sequences pair the local result with the server comparison; ticks also
-// feed clock synchronization. A snap invalidates all recorded positions.
-pub struct CommittedPositionRing([Option<CommittedPosition>; COMMITTED_POSITION_RING_LEN]);
-
-#[derive(Clone, Copy)]
-pub struct CommittedPosition {
-    seq: u32,
-    pub tick: u32,
-    pub pos: Position,
-}
-
-impl CommittedPositionRing {
-    pub fn record(&mut self, seq: u32, tick: u32, pos: Position) {
-        self.0[Self::slot(seq)] = Some(CommittedPosition { seq, tick, pos });
-    }
-
-    #[must_use]
-    pub fn get(&self, seq: u32) -> Option<CommittedPosition> {
-        self.0[Self::slot(seq)].filter(|c| c.seq == seq)
-    }
-
-    #[must_use]
-    pub fn tick_for_seq(&self, seq: u32) -> Option<u32> {
-        self.get(seq).map(|c| c.tick)
-    }
-
-    pub fn clear(&mut self) {
-        *self = Self::default();
-    }
-
-    fn slot(seq: u32) -> usize {
-        seq as usize % COMMITTED_POSITION_RING_LEN
-    }
-}
-
-impl Default for CommittedPositionRing {
-    fn default() -> Self {
-        Self([None; COMMITTED_POSITION_RING_LEN])
-    }
-}
-
 // Client-only local player state (not synced).
 #[derive(Resource)]
 pub struct LocalPlayerInfo {
     pub last_shot_time: f32,
-    // Stamped on every `CMove`; the server ignores an older one.
-    pub move_seq: u32,
-    pub committed_positions: CommittedPositionRing,
-    pub last_comparison_seq: Option<u32>,
-    pub portal_crossings: LocalPortalCrossings,
+    pub reports: LocalMovementReports,
     pub stored_yaw: f32,
     pub stored_pitch: f32,
     // True from the moment the local player vanishes from `SSnapshot` until
@@ -179,10 +132,7 @@ impl Default for LocalPlayerInfo {
     fn default() -> Self {
         Self {
             last_shot_time: f32::NEG_INFINITY,
-            move_seq: 0,
-            committed_positions: CommittedPositionRing::default(),
-            last_comparison_seq: None,
-            portal_crossings: LocalPortalCrossings::default(),
+            reports: LocalMovementReports::default(),
             stored_yaw: 0.0,
             stored_pitch: 0.0,
             is_dead: false,
@@ -246,43 +196,5 @@ mod tests {
         assert_eq!(info.stunned, status.stunned);
         assert_eq!(info.held_keys, status.held_keys);
         assert_eq!(info.missiles, status.missiles);
-    }
-
-    #[test]
-    fn committed_position_is_found_by_its_seq() {
-        let mut positions = CommittedPositionRing::default();
-        let pos = Position { x: 1.0, y: 2.0, z: 3.0 };
-        positions.record(7, 100, pos);
-        let recorded = positions.get(7).expect("seq 7 missing from the ring");
-        assert_eq!(recorded.pos, pos);
-        assert_eq!(recorded.tick, 100);
-    }
-
-    #[test]
-    fn committed_position_misses_an_unrecorded_seq() {
-        let mut positions = CommittedPositionRing::default();
-        assert!(positions.get(0).is_none());
-        assert!(positions.tick_for_seq(0).is_none());
-        positions.record(7, 0, Position::default());
-        assert!(positions.get(7 + COMMITTED_POSITION_RING_LEN as u32).is_none());
-        assert!(positions.tick_for_seq(7 + COMMITTED_POSITION_RING_LEN as u32).is_none());
-    }
-
-    #[test]
-    fn committed_position_is_overwritten_a_ring_later() {
-        let mut positions = CommittedPositionRing::default();
-        positions.record(7, 0, Position::default());
-        positions.record(7 + COMMITTED_POSITION_RING_LEN as u32, 0, Position::default());
-        assert!(positions.get(7).is_none());
-        assert!(positions.tick_for_seq(7).is_none());
-    }
-
-    #[test]
-    fn cleared_ring_holds_nothing() {
-        let mut positions = CommittedPositionRing::default();
-        positions.record(7, 0, Position::default());
-        positions.clear();
-        assert!(positions.get(7).is_none());
-        assert!(positions.tick_for_seq(7).is_none());
     }
 }

@@ -7,9 +7,12 @@ use crate::{
     config::{ActorRespawnScope, PlayerRespawnMode, PowerUpsConfig, RespawnConfig},
     network::ServerToClient,
 };
-use common::protocol::{
-    BarrierKindId, FaceYaw, Health, ItemType, Player, PlayerId, PlayerMarker, PlayerMoveIntent, PlayerMovementState,
-    PortalAccess, Position, PowerUpKind, QuestId, QuestScope, SPlayerStatus,
+use common::{
+    physics::{AirborneMomentum, CharacterVerticalVelocity, KnockbackVelocity},
+    protocol::{
+        BarrierKindId, FaceYaw, Health, ItemType, Player, PlayerId, PlayerMarker, PlayerMoveIntent,
+        PlayerMovementState, PortalAccess, Position, PowerUpKind, QuestId, QuestScope, SPlayerStatus,
+    },
 };
 
 use super::{CheckpointId, PlayerCheckpoint, PlayerFallState, PlayerMovementReports, PowerUpState};
@@ -22,6 +25,18 @@ pub type PlayerStateQuery<'w, 's> = Query<
         &'static PlayerMoveIntent,
         &'static FaceYaw,
         &'static Health,
+    ),
+    With<PlayerMarker>,
+>;
+
+// The rest of a player's movement state, beside `PlayerStateQuery`.
+pub type PlayerMotionQuery<'w, 's> = Query<
+    'w,
+    's,
+    (
+        &'static CharacterVerticalVelocity,
+        &'static AirborneMomentum,
+        &'static KnockbackVelocity,
     ),
     With<PlayerMarker>,
 >;
@@ -70,7 +85,8 @@ pub struct PlayerConnection {
 
 #[derive(Default)]
 pub struct PlayerSession {
-    // Sequences survive respawn, like the client counter.
+    // Newest report sequence admitted. Per session, so a respawn does not
+    // reset it under a client counter that keeps climbing.
     pub last_move_seq: u32,
     pub score: i32,
     pub quest_states: HashMap<QuestId, PlayerQuestState>,
@@ -85,11 +101,13 @@ enum PlayerLifecycle {
 }
 
 pub struct PlayerLife {
-    pub(crate) pending_moves: PlayerMovementReports,
-    pub(crate) portal_recovery_pending: bool,
-    pub processed_move_seq: Option<u32>,
-    pub(crate) movement_start: Option<Position>,
     lifecycle: PlayerLifecycle,
+    pub(crate) pending_moves: PlayerMovementReports,
+    // A rejected crossing holds every report until `CPortalRecovery`; the
+    // respawn that replaces this struct is the only other release.
+    pub(crate) portal_recovery_pending: bool,
+    // The report this tick processed, echoed as `PlayerMove.move_seq`.
+    pub(crate) processed_move_seq: Option<u32>,
     pub power_ups: [PowerUpState; PowerUpKind::COUNT],
     pub stun_timer: f32,
     pub last_shot_time: f32,
@@ -115,7 +133,6 @@ impl PlayerLife {
             pending_moves: PlayerMovementReports::default(),
             portal_recovery_pending: false,
             processed_move_seq: None,
-            movement_start: None,
             power_ups: [PowerUpState::Inactive; PowerUpKind::COUNT],
             stun_timer: 0.0,
             last_shot_time: f32::NEG_INFINITY,

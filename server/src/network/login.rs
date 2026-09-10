@@ -1,13 +1,14 @@
 use bevy::prelude::*;
 
 use crate::{
+    characters::MovementStart,
     network::{FeedAudience, FeedEvent, ServerToClient, emit_feed},
     players::{PlayerMap, enter_group_respawn, player_spawn_destination},
     portals::{PortalAssignments, PortalMap},
     quests::{QuestBoard, QuestCatalog, assign_quests},
 };
 use common::{
-    physics::{AirborneMomentum, CharacterVerticalVelocity, PortalSet},
+    physics::{AirborneMomentum, CharacterVerticalVelocity, KnockbackVelocity, PortalSet},
     protocol::*,
 };
 
@@ -109,10 +110,12 @@ pub(super) fn handle_login_message(
     info.life.checkpoint_contact = spawn.contact;
     commands.entity(entity).insert((
         spawn.pos,
+        MovementStart(spawn.pos),
         PlayerMoveIntent::Idle,
         FaceYaw(spawn.face_yaw),
         CharacterVerticalVelocity::default(),
         AirborneMomentum::default(),
+        KnockbackVelocity::default(),
         Health(world.server_gameplay_config.combat.health.player.max),
     ));
 }

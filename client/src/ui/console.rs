@@ -225,7 +225,7 @@ pub(super) fn console_send_system(
             }),
             ConsoleSubmission::Chat(text) => ClientMessage::Chat(CChat { text: text.clone() }),
         };
-        let _ = to_server.send(ClientToServer::Send(message));
+        to_server.send(ClientToServer::Send(message));
     }
 }
 

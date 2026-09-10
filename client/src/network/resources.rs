@@ -1,9 +1,6 @@
 use bevy::prelude::*;
 use std::{collections::VecDeque, time::Duration};
-use tokio::sync::mpsc::{
-    UnboundedReceiver, UnboundedSender,
-    error::{SendError, TryRecvError},
-};
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, error::TryRecvError};
 
 use common::protocol::sequence_is_newer;
 
@@ -46,8 +43,10 @@ impl ClientToServerChannel {
         Self(sender)
     }
 
-    pub fn send(&self, msg: ClientToServer) -> Result<(), SendError<ClientToServer>> {
-        self.0.send(msg)
+    // The receiver is the network task; once it is gone the connection is
+    // closing and there is nobody left to tell.
+    pub fn send(&self, msg: ClientToServer) {
+        let _ = self.0.send(msg);
     }
 }
 

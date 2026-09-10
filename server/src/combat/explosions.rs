@@ -30,7 +30,7 @@ type PlayerBlastQuery<'w, 's> = Query<
         &'static Position,
         &'static mut Health,
         &'static mut CharacterVerticalVelocity,
-        Option<&'static KnockbackVelocity>,
+        &'static mut KnockbackVelocity,
     ),
     (With<PlayerMarker>, Without<ActorMarker>),
 >;
@@ -290,7 +290,7 @@ fn apply_blast(
             player_impulses,
             *id,
             entity,
-            knockback,
+            Some(&*knockback),
             planar_shove(spec.center, victim_center, falloff, movement.knockback.max_speed),
             falloff,
         );
@@ -366,14 +366,12 @@ fn apply_player_impulses(context: &mut ExplosionContext, impulses: HashMap<Playe
         if context.players.get(&id).is_some_and(|info| info.is_dead()) {
             continue;
         }
-        let Ok((_, _, _, health, vertical_velocity, _)) = context.player_query.get_mut(impulse.entity) else {
+        let Ok((_, _, _, health, vertical_velocity, mut knockback)) = context.player_query.get_mut(impulse.entity)
+        else {
             continue;
         };
         let velocity = impulse.velocity.clamp_length_max(max_speed);
-        context
-            .commands
-            .entity(impulse.entity)
-            .insert(KnockbackVelocity(velocity));
+        knockback.0 = velocity;
         let direction = impulse.blast_delta.normalize_or_zero();
         if let Some(info) = context.players.get(&id) {
             let _ = info

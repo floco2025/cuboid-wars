@@ -88,7 +88,11 @@ pub const TICK_DURATION: Duration = Duration::from_nanos(1_000_000_000 / TICK_HZ
 // Movement Reconciliation
 // ============================================================================
 
-// Shared boundary for server rejection and local-player snapping, per axis.
+// Per-axis boundary for server rejection and local-player snapping. The
+// server simulates the same intent from the same start, so a legitimate
+// disagreement is small: about six ticks of terminal-velocity fall between
+// accepted reports, one tick of carrier phase, and the blast a client has
+// not received yet.
 pub const PLAYER_MOVEMENT_TRUST_DISTANCE: f32 = 5.0;
 
 // ============================================================================

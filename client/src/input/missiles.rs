@@ -75,7 +75,7 @@ pub fn input_missile_system(
         info.missiles = info.missiles.saturating_sub(1);
     }
 
-    let _ = to_server.send(ClientToServer::Send(ClientMessage::MissileShot(CMissileShot {
+    to_server.send(ClientToServer::Send(ClientMessage::MissileShot(CMissileShot {
         target,
         face_yaw: aim.yaw,
         face_pitch: pitch,

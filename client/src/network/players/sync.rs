@@ -9,8 +9,8 @@ use crate::{
     ui::BannerMessage,
 };
 use common::{
-    physics::{AirborneMomentum, CharacterVerticalVelocity, KnockbackVelocity},
-    protocol::{FaceYaw, Player, PlayerId},
+    physics::PlayerMotionBundle,
+    protocol::{Player, PlayerId},
 };
 
 pub(in crate::network) fn sync_players(
@@ -56,7 +56,7 @@ pub(in crate::network) fn sync_players(
     });
     if local_just_died {
         context.local_player_info.is_dead = true;
-        context.local_player_info.portal_crossings.clear();
+        context.local_player_info.reports.clear_crossings();
     }
 
     // Local-player respawn: our id reappears while dead, so hard-teleport the
@@ -79,17 +79,13 @@ pub(in crate::network) fn sync_players(
                 // Reset the previous-tick anchor so render interpolation doesn't
                 // smear the respawn teleport across one render frame.
                 PreviousTickPosition(server_player.movement.pos),
-                FaceYaw(server_player.movement.face_yaw),
-                CharacterVerticalVelocity(server_player.movement.vertical_velocity),
-                AirborneMomentum(Vec3::from_array(server_player.movement.airborne_momentum)),
-                KnockbackVelocity(Vec3::from_array(server_player.movement.knockback)),
+                PlayerMotionBundle::from(&server_player.movement),
                 Visibility::Visible,
             ))
             .remove::<ServerReconciliation>();
         info.last_movement_tick = tick;
-        context.local_player_info.committed_positions.clear();
-        context.local_player_info.last_comparison_seq = Some(context.local_player_info.move_seq);
-        context.local_player_info.portal_crossings.clear();
+        context.local_player_info.reports.invalidate();
+        context.local_player_info.reports.clear_crossings();
         context.local_player_info.is_dead = false;
 
         if let Some(reminder) = context.quest_log.reminder() {

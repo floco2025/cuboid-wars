@@ -30,7 +30,6 @@ pub(super) fn route_server_message(
     let my_player_id = context.my_player_id.0;
 
     match message {
-        ServerMessage::PortalCrossed(message) => handle_portal_crossed_message(message, commands, context),
         ServerMessage::Init(_) => error!("received Init more than once"),
         ServerMessage::QuestUpdates(message) => handle_quest_updates_message(message, commands, context),
         ServerMessage::Snapshot(message) => {
@@ -80,6 +79,7 @@ pub(super) fn route_server_message(
         ServerMessage::PortalOpened(message) => {
             handle_portal_opened_message(message, commands, my_player_id, context);
         }
+        ServerMessage::PortalCrossed(message) => handle_portal_crossed_message(message, commands, context),
         ServerMessage::Feed(message) => handle_feed_message(message, context),
         ServerMessage::Pong(message) => apply_pong(&context.time, &mut context.rtt, message),
     }

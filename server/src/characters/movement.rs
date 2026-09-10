@@ -16,17 +16,23 @@ use crate::{
     players::{PlayerInfo, PlayerMap},
 };
 
+// Where this tick's step began, for the sweeps that run after the position
+// is chosen.
+#[derive(Component)]
+pub struct MovementStart(pub Position);
+
 type PlayerMovementQuery<'w, 's> = Query<
     'w,
     's,
     (
         Entity,
         &'static mut Position,
+        &'static mut MovementStart,
         &'static mut CharacterVerticalVelocity,
         &'static PlayerMoveIntent,
         &'static PlayerId,
-        Option<&'static KnockbackVelocity>,
-        Option<&'static mut AirborneMomentum>,
+        &'static KnockbackVelocity,
+        &'static mut AirborneMomentum,
     ),
     (With<PlayerMarker>, Without<ActorMarker>),
 >;
@@ -96,10 +102,8 @@ fn plan_player_moves(
 ) {
     let player_config = &gameplay_config.player;
     let player_physics = player_config.physics();
-    for (entity, pos, motion, move_intent, player_id, knockback, mut momentum) in query.iter_mut() {
-        if let Some(info) = players.get_mut(player_id) {
-            info.life.movement_start = Some(*pos);
-        }
+    for (entity, pos, mut start, motion, move_intent, player_id, knockback, mut momentum) in query.iter_mut() {
+        start.0 = *pos;
         let info = players.get(player_id);
         let control_velocity = player_control_velocity(
             *move_intent,
@@ -120,7 +124,7 @@ fn plan_player_moves(
             held_keys,
             open_kinds: &plates.open_barrier_kinds,
             knockback,
-            airborne_momentum: momentum.as_deref_mut(),
+            airborne_momentum: &mut momentum,
             collision_world,
             map_settings,
             gameplay_config,
@@ -142,7 +146,7 @@ fn plan_player_moves(
 
 fn apply_player_moves(query: &mut PlayerMovementQuery, planned_moves: &[CharacterMovePlan]) {
     for planned_move in planned_moves {
-        let Ok((_, mut pos, mut motion, _, _, _, _)) = query.get_mut(planned_move.entity) else {
+        let Ok((_, mut pos, _, mut motion, _, _, _, _)) = query.get_mut(planned_move.entity) else {
             continue;
         };
 

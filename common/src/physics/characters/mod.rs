@@ -7,6 +7,7 @@ mod movement;
 mod movement_plan;
 mod player_control;
 mod player_movement;
+mod player_state;
 mod support;
 mod types;
 
@@ -24,7 +25,8 @@ pub use movement::{CharacterEnvironment, CharacterStep, player_jump_velocity, st
 pub use movement_plan::{blocking_character_move_plan, character_move_plan_is_blocked, overlapping_character};
 pub use player_control::player_control_velocity;
 pub use player_movement::{PlayerMovementStep, step_player_movement};
-pub use support::{grounding_diagnostics, inspect_character_support, position_has_floor_support};
+pub use player_state::{PlayerMotionBundle, player_movement_state};
+pub use support::{character_crushed_at, grounding_diagnostics, position_has_floor_support};
 pub use types::{CharacterMovePlan, CharacterMovementResult, CharacterSupport, GroundingDiagnostics};
 
 #[cfg(test)]

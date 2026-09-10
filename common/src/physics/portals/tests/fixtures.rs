@@ -420,7 +420,7 @@ pub(crate) fn run_ticks(
             CharacterHopBody {
                 control_velocity: Vec3::ZERO,
                 knockback: Vec3::ZERO,
-                portal_momentum: Vec3::ZERO,
+                airborne_momentum: Vec3::ZERO,
                 vertical_velocity,
                 yaw: 0.0,
             },

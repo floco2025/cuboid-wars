@@ -78,7 +78,7 @@ pub fn input_shooting_system(
             face_pitch: pitch,
             pattern: pattern.map(str::to_owned),
         });
-        let _ = to_server.send(ClientToServer::Send(shot_msg));
+        to_server.send(ClientToServer::Send(shot_msg));
 
         if spawn_projectiles(
             &mut commands,

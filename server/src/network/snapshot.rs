@@ -4,13 +4,13 @@ use crate::{
     actors::{ActorMap, ActorStateQuery, PendingActorSpawns},
     items::ItemMap,
     map::{LightState, WeatherState},
-    players::{PlayerMap, PlayerStateQuery},
+    players::{PlayerMap, PlayerMotionQuery, PlayerStateQuery},
     quests::{QuestBoard, QuestCatalog},
 };
 use common::{
     constants::SNAPSHOT_SECS,
-    physics::{AirborneMomentum, CharacterVerticalVelocity, KnockbackVelocity},
-    protocol::{ActorMarker, ItemMarker, PlayerMarker, *},
+    physics::CharacterVerticalVelocity,
+    protocol::{ActorMarker, ItemMarker, *},
 };
 
 use super::broadcast::{
@@ -39,14 +39,7 @@ pub(super) fn network_broadcast_player_moves_system(
     tick: Res<ServerTick>,
     players: Res<PlayerMap>,
     player_data: PlayerStateQuery,
-    motions: Query<
-        (
-            &CharacterVerticalVelocity,
-            Option<&AirborneMomentum>,
-            Option<&KnockbackVelocity>,
-        ),
-        With<PlayerMarker>,
-    >,
+    motions: PlayerMotionQuery,
 ) {
     let moves = collect_player_moves(&players, &player_data, &motions);
     if moves.is_empty() {
@@ -69,14 +62,7 @@ pub(super) fn network_broadcast_snapshot_system(
     plates: Res<PlateState>,
     conditions: WorldConditions,
     player_data: PlayerStateQuery,
-    motions: Query<
-        (
-            &CharacterVerticalVelocity,
-            Option<&AirborneMomentum>,
-            Option<&KnockbackVelocity>,
-        ),
-        With<PlayerMarker>,
-    >,
+    motions: PlayerMotionQuery,
     actor_data: ActorStateQuery,
     actor_motions: Query<&CharacterVerticalVelocity, With<ActorMarker>>,
     item_positions: Query<&Position, With<ItemMarker>>,

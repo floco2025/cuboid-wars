@@ -104,7 +104,7 @@ pub fn input_portal_system(
     }
 
     local_player_info.last_shot_time = now;
-    let _ = to_server.send(ClientToServer::Send(ClientMessage::PortalShot(CPortalShot {
+    to_server.send(ClientToServer::Send(ClientMessage::PortalShot(CPortalShot {
         end,
         face_yaw: aim.yaw,
         face_pitch: pitch,

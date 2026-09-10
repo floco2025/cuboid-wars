@@ -154,18 +154,20 @@ pub fn build_server_app(map_override: Option<&str>, from_clients: FromClientsCha
 #[cfg(test)]
 mod tests {
     use super::*;
-    use common::constants::TICK_SECS;
+    use crate::network::{ClientToServer, ServerToClient};
+    use common::{
+        constants::TICK_SECS,
+        protocol::{
+            CLogin, CMove, ClientMessage, PlayerId, PlayerMoveIntent, PlayerMovementState, Position, ServerMessage,
+        },
+    };
+    use tokio::sync::mpsc::unbounded_channel;
 
     #[test]
     fn full_server_schedule_accepts_and_broadcasts_two_clients_then_clears_echo_sequences() {
-        use crate::network::{ClientToServer, ServerToClient};
-        use common::protocol::{
-            CLogin, CMove, ClientMessage, PlayerId, PlayerMoveIntent, PlayerMovementState, Position, ServerMessage,
-        };
-        use tokio::sync::mpsc::unbounded_channel;
-
         let (incoming, receiver) = unbounded_channel();
-        let mut app = build_server_app(Some("obby"), FromClientsChannel::new(receiver)).expect("server app failed");
+        let mut app =
+            build_server_app(Some("obby"), FromClientsChannel::new(receiver)).expect("obby server app did not build");
         app.update();
         let mut receivers = Vec::new();
         for id in [PlayerId(1), PlayerId(2)] {

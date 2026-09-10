@@ -47,11 +47,15 @@
 //    each stream and ignores older updates. It also keeps its own estimate
 //    of the server's tick in `ServerTick`.
 //
-//    The client sends its own movement in `CMove` every tick, even when idle.
-//    Each report has a sequence number (`seq`) identifying that client update.
-//    The server simulates the reported movement intent, then accepts the
-//    client's result if the position difference is within the shared limit
-//    on every axis. Otherwise it keeps its simulated position.
+//    The client sends its own movement in `CMove` every tick, even when idle:
+//    the whole `PlayerMovementState` its step produced, with a sequence
+//    number (`seq`) identifying that client update. A lost report is
+//    replaced by the next; nothing is retransmitted. The server applies the
+//    reported intent and facing, simulates the tick, and adopts the reported
+//    state whole (position, vertical velocity, momentum, knockback, support)
+//    when the positions agree within `PLAYER_MOVEMENT_TRUST_DISTANCE` on
+//    every axis (`MovementDivergence`). Otherwise it keeps its simulated
+//    position; intent and facing were applied either way.
 //
 //    `PlayerMove.move_seq` identifies the report processed on that server
 //    tick. The owning client compares the reply with its saved position for
@@ -83,7 +87,6 @@
 //      for camera shake. Death cues supply the death position and effects;
 //      the next snapshot still confirms that the entity is gone.
 //
-//    `CMove` also acts as a cue: the next report replaces a lost one.
 //    `CPing` and `SPong` use this lane to measure round-trip time (RTT).
 //
 // 4. Events (reliable): information a later snapshot cannot replace.
@@ -96,9 +99,15 @@
 //      chosen by the server. It goes to everyone or selected recipients.
 //    * `SFirework`: the seed that makes clients play the same firework show.
 //
-//    Client actions also use this lane: jumps (`CJump`), shots
-//    (`CProjectileShot`, `CMissileShot`, `CPortalShot`), and console submissions
-//    (`CAdmin`, `CChat`). A later movement report cannot repeat a lost action.
+//    Client actions also use this lane: shots (`CProjectileShot`,
+//    `CMissileShot`, `CPortalShot`) and console submissions (`CAdmin`,
+//    `CChat`). A later movement report cannot repeat a lost action. A jump is
+//    not an action: the report after it carries the vertical velocity it
+//    produced.
+//
+//    An impulse the server applies to a player's own movement (`SPlayerBlast`)
+//    is an event too: the next accepted report replaces the server's copy of
+//    it, so the victim's client is the only place the impulse survives.
 //
 //    Portal crossings use a reliable exchange too. The owning client crosses
 //    immediately and sends `CPortalCross` instead of that tick's `CMove`, with
@@ -109,18 +118,26 @@
 //
 //    `SPortalCrossed` reports the decision. Acceptance goes to everyone: the
 //    owner keeps its current prediction, while observers move the remote
-//    player directly to the exit unless they already have newer movement.
-//    Rejection goes only to the owner, with the server state to snap back to.
-//    A snapshot cannot tell the owner whether its crossing was accepted.
+//    player to the exit. The server's two lanes are as independent as the
+//    client's, so the event can arrive after the same tick's `SPlayerMoves`;
+//    observers apply it whenever it arrives, since a body that kept solid
+//    portal backing cannot be smoothed through the wall. Rejection goes only
+//    to the owner, with the server state to snap back to. A snapshot cannot
+//    tell the owner whether its crossing was accepted.
 //
 //    On rejection, both sides discard movement and further crossings that
-//    depended on the rejected crossing. After snapping back, the owner sends
-//    `CPortalRecovery` with its last sent sequence. The server can then accept
-//    fresh reports and discard anything from before that recovery.
+//    depended on the rejected crossing. The owner snaps back and answers
+//    every rejection with `CPortalRecovery` carrying its last sent sequence,
+//    whether or not it still holds the crossing: the server accepts no
+//    report until the recovery arrives, and only a death would otherwise
+//    clear that. The server then accepts fresh reports and discards anything
+//    from before the recovery.
 //
 //    While a crossing awaits confirmation, subsequent `CMove`s use the same
-//    reliable lane so they cannot arrive ahead of it. When reports queue up,
-//    the server keeps only the latest in each run of ordinary moves, but
+//    reliable lane so they cannot arrive ahead of it: a report that overtook
+//    the crossing would advance the sequence cutoff past it, and the server
+//    would drop the crossing without a reply. When reports queue up, the
+//    server keeps only the latest in each run of ordinary moves, but
 //    processes every crossing in order.
 //
 // Adding messages
@@ -132,11 +149,14 @@
 // The server gets the sender's `PlayerId` from the connection. Client
 // messages omit that ID so a client cannot claim to be another player.
 
+use std::fmt;
+
 use bevy_ecs::prelude::Resource;
+use bevy_math::Vec3;
 use bincode::{Decode, Encode};
 
-use crate::config::GameplayBootstrap;
 pub use crate::types::*;
+use crate::{config::GameplayBootstrap, constants::PLAYER_MOVEMENT_TRUST_DISTANCE};
 
 // ============================================================================
 // Client Messages
@@ -169,10 +189,6 @@ pub struct CPortalCross {
 pub struct CPortalRecovery {
     pub seq: u32,
 }
-
-// Client to Server: One-shot jump request.
-#[derive(Debug, Clone, Encode, Decode)]
-pub struct CJump {}
 
 // Client to Server: Projectile shot fired.
 #[derive(Debug, Clone, Encode, Decode)]
@@ -457,22 +473,6 @@ pub struct SPlayerFallDamage {
     pub health: Health,
 }
 
-// Blast result, sent only to the surviving victim: health updates
-// the HUD on the damage tick and the absolute velocities keep prediction
-// aligned. Direction/strength ride along for future feedback use — the
-// client currently plays none (the knockback itself is the feedback).
-#[derive(Debug, Clone, Encode, Decode)]
-pub struct SPlayerBlast {
-    pub id: PlayerId,
-    pub health: Health,
-    pub vertical_velocity: f32,
-    pub velocity_x: f32,
-    pub velocity_z: f32,
-    pub hit_dir_x: f32,
-    pub hit_dir_z: f32,
-    pub strength: f32,
-}
-
 // Actor was hit by a projectile. Drives the `hit_actor` sound on the
 // shooter's client and carries the post-hit health so floating health
 // bars update on the impact tick instead of waiting for the next
@@ -589,6 +589,24 @@ pub struct SPortalCrossed {
     pub movement: PlayerMovementState,
 }
 
+// Blast result, sent only to the surviving victim. The absolute velocities
+// are the blast: the victim's next accepted report replaces the server's
+// copy, so the client must apply them itself, and a lost one would be lost
+// for good. Health updates the HUD on the damage tick. Direction/strength
+// ride along for future feedback use — the client currently plays none
+// (the knockback itself is the feedback).
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SPlayerBlast {
+    pub id: PlayerId,
+    pub health: Health,
+    pub vertical_velocity: f32,
+    pub velocity_x: f32,
+    pub velocity_z: f32,
+    pub hit_dir_x: f32,
+    pub hit_dir_z: f32,
+    pub strength: f32,
+}
+
 // One server-rendered message-feed line. Spans carry semantic styles so the
 // client only maps them to its configured presentation.
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
@@ -650,11 +668,11 @@ pub struct SFirework {
 pub enum ClientMessage {
     // Bootstrap
     Login(CLogin),
-    // Cues
+    // State
     Move(CMove),
+    // Cues
     Ping(CPing),
     // Events
-    Jump(CJump),
     ProjectileShot(CProjectileShot),
     MissileShot(CMissileShot),
     PortalShot(CPortalShot),
@@ -689,7 +707,6 @@ pub enum ServerMessage {
     MissileDetonated(SMissileDetonated),
     PlayerHit(SPlayerHit),
     PlayerFallDamage(SPlayerFallDamage),
-    PlayerBlast(SPlayerBlast),
     ActorHit(SActorHit),
     ActorBeam(SActorBeam),
     PlayerStatus(SPlayerStatus),
@@ -703,6 +720,7 @@ pub enum ServerMessage {
     Pong(SPong),
     // Events
     PortalCrossed(SPortalCrossed),
+    PlayerBlast(SPlayerBlast),
     Feed(SFeed),
     QuestUpdates(SQuestUpdates),
     Firework(SFirework),
@@ -713,6 +731,60 @@ pub enum ServerMessage {
 #[must_use]
 pub const fn sequence_is_newer(seq: u32, last: u32) -> bool {
     seq != last && seq.wrapping_sub(last) < (1 << 31)
+}
+
+// How far two positions of one body disagree, judged per axis against a
+// limit. Displays as the line every rejection and snap logs.
+#[derive(Debug, Clone, Copy)]
+pub struct MovementDivergence {
+    pub delta: Vec3,
+    pub limit: f32,
+}
+
+impl MovementDivergence {
+    #[must_use]
+    pub fn between(from: Position, to: Position, limit: f32) -> Self {
+        Self {
+            delta: Vec3::from(to) - Vec3::from(from),
+            limit,
+        }
+    }
+
+    #[must_use]
+    pub fn within_limit(&self) -> bool {
+        self.delta.is_finite() && self.delta.abs().max_element() < self.limit
+    }
+}
+
+impl fmt::Display for MovementDivergence {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let magnitudes = self.delta.abs();
+        let axis = if magnitudes.x >= magnitudes.y && magnitudes.x >= magnitudes.z {
+            "x"
+        } else if magnitudes.y >= magnitudes.z {
+            "y"
+        } else {
+            "z"
+        };
+        write!(
+            f,
+            "worst axis {axis}: {:.2} m (limit {:.2}; Δ x={:.2}, y={:.2}, z={:.2})",
+            magnitudes.max_element(),
+            self.limit,
+            self.delta.x,
+            self.delta.y,
+            self.delta.z
+        )
+    }
+}
+
+impl PlayerMovementState {
+    // The trust rule: the server adopts a report, and the owning client keeps
+    // its prediction, only while the two positions agree this closely.
+    #[must_use]
+    pub fn divergence_from(&self, other: &Self) -> MovementDivergence {
+        MovementDivergence::between(other.pos, self.pos, PLAYER_MOVEMENT_TRUST_DISTANCE)
+    }
 }
 
 // The QUIC lane a message rides; see the top-of-file comment.
@@ -727,7 +799,6 @@ impl ClientMessage {
     pub const fn lane(&self) -> Lane {
         match self {
             Self::Login(_)
-            | Self::Jump(_)
             | Self::ProjectileShot(_)
             | Self::MissileShot(_)
             | Self::PortalShot(_)
@@ -744,9 +815,12 @@ impl ServerMessage {
     #[must_use]
     pub const fn lane(&self) -> Lane {
         match self {
-            Self::Init(_) | Self::Feed(_) | Self::QuestUpdates(_) | Self::Firework(_) | Self::PortalCrossed(_) => {
-                Lane::Reliable
-            }
+            Self::Init(_)
+            | Self::PortalCrossed(_)
+            | Self::PlayerBlast(_)
+            | Self::Feed(_)
+            | Self::QuestUpdates(_)
+            | Self::Firework(_) => Lane::Reliable,
             Self::Snapshot(_)
             | Self::PlayerMoves(_)
             | Self::ProjectileShot(_)
@@ -758,7 +832,6 @@ impl ServerMessage {
             | Self::MissileDetonated(_)
             | Self::PlayerHit(_)
             | Self::PlayerFallDamage(_)
-            | Self::PlayerBlast(_)
             | Self::ActorHit(_)
             | Self::ActorBeam(_)
             | Self::PlayerStatus(_)
@@ -821,16 +894,6 @@ mod tests {
                     carrier: CarrierId::WORLD,
                 },
             }),
-            ServerMessage::PlayerBlast(SPlayerBlast {
-                id: PlayerId(1),
-                health: Health(10.0),
-                vertical_velocity: 7.0,
-                velocity_x: 1.0,
-                velocity_z: -1.0,
-                hit_dir_x: 0.7,
-                hit_dir_z: 0.7,
-                strength: 0.5,
-            }),
             ServerMessage::PlayerDeath(SPlayerDeath {
                 id: PlayerId(1),
                 pos: position(),
@@ -868,11 +931,37 @@ mod tests {
     }
 
     #[test]
-    fn reliable_lane_carries_bootstrap_state_and_text() {
+    fn reliable_lane_carries_bootstrap_events_and_text() {
+        let movement = PlayerMovementState::new(position(), PlayerMoveIntent::Idle, 0.0, 0.0);
         assert_eq!(ServerMessage::Feed(SFeed { spans: Vec::new() }).lane(), Lane::Reliable);
         assert_eq!(ServerMessage::Firework(SFirework { seed: 7 }).lane(), Lane::Reliable);
         assert_eq!(
             ServerMessage::QuestUpdates(SQuestUpdates { updates: Vec::new() }).lane(),
+            Lane::Reliable
+        );
+        assert_eq!(
+            ServerMessage::PortalCrossed(SPortalCrossed {
+                id: PlayerId(1),
+                seq: 1,
+                tick: 1,
+                accepted: true,
+                movement,
+            })
+            .lane(),
+            Lane::Reliable
+        );
+        assert_eq!(
+            ServerMessage::PlayerBlast(SPlayerBlast {
+                id: PlayerId(1),
+                health: Health(10.0),
+                vertical_velocity: 7.0,
+                velocity_x: 1.0,
+                velocity_z: -1.0,
+                hit_dir_x: 0.7,
+                hit_dir_z: 0.7,
+                strength: 0.5,
+            })
+            .lane(),
             Lane::Reliable
         );
         assert_eq!(
@@ -886,20 +975,51 @@ mod tests {
     }
 
     #[test]
-    fn actions_are_reliable_and_input_is_not() {
-        assert_eq!(ClientMessage::Jump(CJump {}).lane(), Lane::Reliable);
+    fn actions_and_crossings_are_reliable_and_movement_is_not() {
+        let movement = PlayerMovementState::new(position(), PlayerMoveIntent::Idle, 0.0, 0.0);
         assert_eq!(
-            ClientMessage::Move(CMove {
+            ClientMessage::PortalCross(CPortalCross {
                 seq: 1,
-                movement: PlayerMovementState::new(position(), PlayerMoveIntent::Idle, 0.0, 0.0),
+                entrance: movement,
+                movement,
             })
             .lane(),
-            Lane::Unreliable
+            Lane::Reliable
         );
+        assert_eq!(
+            ClientMessage::PortalRecovery(CPortalRecovery { seq: 1 }).lane(),
+            Lane::Reliable
+        );
+        assert_eq!(ClientMessage::Move(CMove { seq: 1, movement }).lane(), Lane::Unreliable);
         assert_eq!(
             ClientMessage::Ping(CPing { timestamp_nanos: 0 }).lane(),
             Lane::Unreliable
         );
+    }
+
+    #[test]
+    fn movement_trust_is_finite_and_strictly_per_axis() {
+        let limit = PLAYER_MOVEMENT_TRUST_DISTANCE;
+        let divergence = |delta| MovementDivergence { delta, limit };
+        assert!(divergence(Vec3::splat(limit - 0.01)).within_limit());
+        for axis in [Vec3::X, Vec3::Y, Vec3::Z] {
+            for sign in [-1.0, 1.0] {
+                assert!(divergence(axis * sign * (limit - 0.01)).within_limit());
+                assert!(!divergence(axis * sign * limit).within_limit());
+                assert!(!divergence(axis * sign * (limit + 0.01)).within_limit());
+            }
+        }
+        assert!(!divergence(Vec3::splat(f32::NAN)).within_limit());
+        assert!(!divergence(Vec3::splat(f32::INFINITY)).within_limit());
+    }
+
+    #[test]
+    fn divergence_reports_the_dominant_axis() {
+        let describe = |delta| MovementDivergence { delta, limit: 5.0 }.to_string();
+        assert!(describe(Vec3::new(-3.0, 1.0, 2.0)).starts_with("worst axis x: 3.00 m (limit 5.00;"));
+        assert!(describe(Vec3::new(1.0, -3.0, 2.0)).starts_with("worst axis y: 3.00 m"));
+        assert!(describe(Vec3::new(1.0, 2.0, -3.0)).starts_with("worst axis z: 3.00 m"));
+        assert!(describe(Vec3::splat(2.0)).starts_with("worst axis x"));
     }
 
     #[test]

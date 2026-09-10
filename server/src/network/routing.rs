@@ -2,21 +2,15 @@ use bevy::{ecs::system::SystemParam, prelude::*};
 
 use super::{
     admin::{AdminContext, handle_admin_message},
-    handlers::{
-        CharacterQueries, SharedWorld, handle_chat_message, handle_jump_message, handle_move_message,
-        handle_ping_message,
-    },
+    handlers::{CharacterQueries, SharedWorld, handle_chat_message, handle_ping_message},
     login::handle_login_message,
 };
 use crate::{
     actors::{ActorMap, PendingActorSpawns},
     missiles::{MissileMap, handle_missile_shot_message},
     network::ServerToClient,
-    players::PlayerMap,
-    portals::{
-        PortalAssignments, PortalMap, handle_portal_cross_message, handle_portal_recovery_message,
-        handle_portal_shot_message,
-    },
+    players::{PlayerMap, PlayerMovementReport, handle_portal_recovery_message, queue_player_movement},
+    portals::{PortalAssignments, PortalMap, handle_portal_shot_message},
     projectiles::handle_projectile_shot_message,
     quests::{QuestBoard, QuestCatalog},
 };
@@ -88,23 +82,17 @@ pub(super) fn route_client_message(
             warn!("{} sent gameplay traffic before login", context.players.describe(&id));
         }
         ClientMessage::Move(message) => {
-            let Some(_) = entity else {
+            if entity.is_none() {
                 return;
-            };
+            }
             trace!("{:?} input: {:?}", id, message);
-            handle_move_message(id, message, &mut context.players);
-        }
-        ClientMessage::Jump(_) => {
-            let Some(entity) = entity else {
-                return;
-            };
-            trace!("{:?} jump", id);
-            handle_jump_message(commands, entity, id, &context.players, &context.queries, &context.world);
+            queue_player_movement(id, PlayerMovementReport::Move(message), &mut context.players);
         }
         ClientMessage::PortalCross(message) => {
-            if entity.is_some() {
-                handle_portal_cross_message(id, message, &mut context.players);
+            if entity.is_none() {
+                return;
             }
+            queue_player_movement(id, PlayerMovementReport::PortalCross(message), &mut context.players);
         }
         ClientMessage::PortalRecovery(message) => {
             handle_portal_recovery_message(id, message, &mut context.players);

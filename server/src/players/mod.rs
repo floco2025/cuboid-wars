@@ -15,6 +15,8 @@ mod status;
 #[cfg(test)]
 mod checkpoints_tests;
 #[cfg(test)]
+mod movement_tests;
+#[cfg(test)]
 mod resources_tests;
 #[cfg(test)]
 pub(crate) mod respawn_tests;
@@ -25,14 +27,15 @@ pub use equipment::{EraserContacts, erase_equipment_system};
 pub use falling::{PlayerFallState, players_fall_damage_system, players_fall_death_system};
 pub(crate) use group_respawn::{enter_group_respawn, players_group_respawn_system};
 pub(crate) use movement::{apply_pending_player_inputs_system, finish_player_movement_system};
-pub(crate) use movement_reports::{PlayerMovementReport, PlayerMovementReports};
+pub(crate) use movement_reports::{
+    PlayerMovementReport, PlayerMovementReports, handle_portal_recovery_message, queue_player_movement,
+};
 pub use plugin::players_plugin;
 pub use power_ups::PowerUpState;
-pub(crate) use reconciliation::{queue_player_movement, reconcile_player_movement};
 
 pub use resources::{
-    Invincibility, PlayerConnection, PlayerInfo, PlayerLife, PlayerMap, PlayerQuestState, PlayerSession,
-    PlayerStateQuery,
+    Invincibility, PlayerConnection, PlayerInfo, PlayerLife, PlayerMap, PlayerMotionQuery, PlayerQuestState,
+    PlayerSession, PlayerStateQuery,
 };
 pub use respawn::players_respawn_system;
 pub use status::players_status_timers_system;

@@ -9,9 +9,11 @@ use common::{
 use crate::{
     actors::actors_transform_sync_system,
     carriers::carriers_transform_sync_system,
-    input::commit_player_input_system,
     missiles::missiles_movement_system,
-    players::{local_player_cuboid_shake_system, player_animation_update_system, players_transform_sync_system},
+    players::{
+        local_player_cuboid_shake_system, player_animation_update_system, players_transform_sync_system,
+        report_player_movement_system,
+    },
     portals::{portal_surfaces_transform_sync_system, portal_transit_system},
     projectiles::projectiles_movement_system,
     schedule::ClientSet,
@@ -20,7 +22,10 @@ use crate::{
     },
 };
 
-// Report before knockback decay to match the server comparison phase.
+// The tick advances first so everything the step records carries the tick it
+// belongs to; the previous position is captured before movement so the
+// render-rate transform sync can interpolate; the report goes out after the
+// transit and before knockback decay to match the server's comparison phase.
 pub fn prediction_plugin(app: &mut App) {
     app.add_systems(
         FixedUpdate,
@@ -31,7 +36,7 @@ pub fn prediction_plugin(app: &mut App) {
             carried_portals_refresh_system,
             characters_movement_system,
             portal_transit_system,
-            commit_player_input_system,
+            report_player_movement_system,
             knockback_decay_system,
             // Projectiles step at the same fixed tick as the server so
             // the step-size-dependent integration doesn't diverge from

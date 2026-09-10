@@ -176,10 +176,10 @@ pub(in crate::network) fn handle_player_fall_damage_message(
     }
 }
 
-// Blast launch for the local player. The server already applied the same
-// impulse authoritatively; prediction must integrate it too or the next
-// reconciliation drags the launch back. Remote players need nothing — their
-// motion arrives via snapshots.
+// Blast launch for the local player. The server adopts this client's next
+// accepted report whole, so the impulse lives on only if prediction applies
+// it here. Remote players need nothing — their motion arrives with the
+// movement stream.
 // No camera shake here: the knockback the blast applies IS the feedback —
 // shake on top reads as double impact. Shake is projectile-hits only.
 pub(in crate::network) fn handle_player_blast_message(
@@ -288,7 +288,7 @@ fn apply_player_death(
                 .remove::<ServerReconciliation>();
         }
         local_player_info.is_dead = true;
-        local_player_info.portal_crossings.clear();
+        local_player_info.reports.clear_crossings();
         banner.push(if event.effect == PlayerDeathEffect::GroupRespawn {
             BannerMessage::GroupRespawn
         } else {

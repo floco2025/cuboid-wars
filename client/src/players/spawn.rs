@@ -15,8 +15,8 @@ use crate::{
 };
 use common::{
     config::GameplayConfig,
-    physics::{AirborneMomentum, CharacterVerticalVelocity, KnockbackVelocity},
-    protocol::{FaceYaw, Health, Player, PlayerId, PlayerMarker, PlayerMoveIntent, Position},
+    physics::PlayerMotionBundle,
+    protocol::{Health, Player, PlayerId, PlayerMarker, Position},
 };
 
 // Marks the local-player entity (the player you control). Spawned by
@@ -52,10 +52,8 @@ struct PlayerBundle {
     player_id: PlayerId,
     player_marker: PlayerMarker,
     position: Position,
-    move_intent: PlayerMoveIntent,
-    motion: CharacterVerticalVelocity,
+    motion: PlayerMotionBundle,
     health: Health,
-    face_direction: FaceYaw,
     transform: Transform,
     visibility: Visibility,
 }
@@ -92,17 +90,13 @@ pub fn spawn_player(
                 player_id: id,
                 player_marker: PlayerMarker,
                 position,
-                move_intent: player.movement.move_intent,
-                motion: CharacterVerticalVelocity(player.movement.vertical_velocity),
+                motion: PlayerMotionBundle::from(&player.movement),
                 health: player.health,
-                face_direction: FaceYaw(face_yaw),
                 transform: Transform::from_xyz(position.x, position.y, position.z)
                     .with_rotation(Quat::from_rotation_y(face_yaw)),
                 visibility: Visibility::Visible,
             },
             PreviousTickPosition(position),
-            AirborneMomentum(Vec3::from_array(player.movement.airborne_momentum)),
-            KnockbackVelocity(Vec3::from_array(player.movement.knockback)),
             PlayerAnimationMotion::default(),
         ))
         .id();

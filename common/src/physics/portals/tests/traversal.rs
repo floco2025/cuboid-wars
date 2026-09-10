@@ -3,7 +3,7 @@ use crate::{
     config::gameplay::load_test_gameplay,
     constants::CHARACTER_CONTACT_OFFSET,
     math::angle_delta_radians,
-    physics::CharacterVerticalVelocity,
+    physics::{AirborneMomentum, CharacterVerticalVelocity, KnockbackVelocity},
     protocol::{FaceYaw, PlayerMoveIntent},
 };
 
@@ -92,7 +92,7 @@ fn same_wall_hop_maps_held_input_away_from_the_exit() {
             CharacterHopBody {
                 control_velocity: control,
                 knockback: Vec3::ZERO,
-                portal_momentum: Vec3::ZERO,
+                airborne_momentum: Vec3::ZERO,
                 vertical_velocity: 0.0,
                 yaw: PI,
             },
@@ -121,7 +121,7 @@ fn same_wall_hop_maps_held_input_away_from_the_exit() {
             CharacterHopBody {
                 control_velocity: next_control,
                 knockback: hop.knockback,
-                portal_momentum: hop.portal_momentum,
+                airborne_momentum: hop.airborne_momentum,
                 vertical_velocity: hop.vertical_velocity,
                 yaw: hop.yaw,
             },
@@ -178,7 +178,7 @@ fn square_on_wall_entry_to_floor_exit_faces_the_exit_up() {
 }
 
 #[test]
-fn falling_into_floor_portal_carries_out_of_wall_as_portal_momentum() {
+fn falling_into_floor_portal_carries_out_of_wall_as_airborne_momentum() {
     let set = pair(Vec3::new(0.0, 0.0, 0.0), Vec3::Y, Vec3::new(10.0, 2.0, 0.0), Vec3::X);
     let hop = set
         .character_hop(
@@ -188,7 +188,7 @@ fn falling_into_floor_portal_carries_out_of_wall_as_portal_momentum() {
             CharacterHopBody {
                 control_velocity: Vec3::ZERO,
                 knockback: Vec3::ZERO,
-                portal_momentum: Vec3::ZERO,
+                airborne_momentum: Vec3::ZERO,
                 vertical_velocity: -10.0,
                 yaw: 0.0,
             },
@@ -197,7 +197,7 @@ fn falling_into_floor_portal_carries_out_of_wall_as_portal_momentum() {
         .expect("fall through a floor portal did not trigger");
     assert!(hop.vertical_velocity.abs() < 1e-4);
     assert!(hop.knockback.length() < 1e-4);
-    assert!((hop.portal_momentum - Vec3::new(10.0, 0.0, 0.0)).length() < 1e-4);
+    assert!((hop.airborne_momentum - Vec3::new(10.0, 0.0, 0.0)).length() < 1e-4);
 }
 
 #[test]
@@ -211,7 +211,7 @@ fn walking_into_wall_portal_exits_floor_portal_upward() {
             CharacterHopBody {
                 control_velocity: Vec3::new(0.0, 0.0, -6.0),
                 knockback: Vec3::ZERO,
-                portal_momentum: Vec3::ZERO,
+                airborne_momentum: Vec3::ZERO,
                 vertical_velocity: 0.0,
                 yaw: PI,
             },
@@ -221,7 +221,7 @@ fn walking_into_wall_portal_exits_floor_portal_upward() {
     // Control maps into the vertical write but not either momentum carry.
     assert!((hop.vertical_velocity - 6.0).abs() < 1e-4);
     assert!(hop.knockback.length() < 1e-4);
-    assert!(hop.portal_momentum.length() < 1e-4);
+    assert!(hop.airborne_momentum.length() < 1e-4);
     // Emerges half-in: the crossing penetration is carried through.
     assert!((hop.origin.y - (0.1 - 0.9 - CHARACTER_CONTACT_OFFSET)).abs() < 1e-4);
 }
@@ -247,18 +247,18 @@ fn falling_into_floor_portal_exits_ramp_at_its_normal_angle() {
                 move_intent: PlayerMoveIntent::Idle,
                 has_speed: false,
                 stunned: false,
-                knockback: None,
-                airborne_momentum: None,
+                knockback: &KnockbackVelocity::default(),
+                airborne_momentum: &AirborneMomentum::default(),
                 vertical_velocity: -10.0,
                 yaw: 0.0,
             },
         )
         .expect("floor-to-ramp portal crossing missing");
-    let exit_velocity = hop.portal_momentum + hop.knockback + Vec3::Y * hop.vertical_velocity;
+    let exit_velocity = hop.airborne_momentum + hop.knockback + Vec3::Y * hop.vertical_velocity;
 
     assert!((exit_velocity - ramp_normal * 10.0).length() < 1e-4);
     assert!(hop.knockback.length() < 1e-4);
-    assert!(hop.portal_momentum.z > 1.0);
+    assert!(hop.airborne_momentum.z > 1.0);
 }
 
 #[test]
@@ -272,7 +272,7 @@ fn crossing_the_plane_triggers_and_carries_penetration() {
             CharacterHopBody {
                 control_velocity: Vec3::new(0.0, 0.0, -6.0),
                 knockback: Vec3::ZERO,
-                portal_momentum: Vec3::ZERO,
+                airborne_momentum: Vec3::ZERO,
                 vertical_velocity: 0.0,
                 yaw: PI,
             },
@@ -294,7 +294,7 @@ fn approaching_without_crossing_does_not_trigger() {
         CharacterHopBody {
             control_velocity: Vec3::new(0.0, 0.0, -6.0),
             knockback: Vec3::ZERO,
-            portal_momentum: Vec3::ZERO,
+            airborne_momentum: Vec3::ZERO,
             vertical_velocity: 0.0,
             yaw: PI,
         },
@@ -313,7 +313,7 @@ fn crossing_from_behind_does_not_trigger() {
         CharacterHopBody {
             control_velocity: Vec3::new(0.0, 0.0, 1.0),
             knockback: Vec3::ZERO,
-            portal_momentum: Vec3::ZERO,
+            airborne_momentum: Vec3::ZERO,
             vertical_velocity: 0.0,
             yaw: 0.0,
         },
@@ -332,7 +332,7 @@ fn crossing_outside_the_aperture_does_not_trigger() {
         CharacterHopBody {
             control_velocity: Vec3::new(0.0, 0.0, -6.0),
             knockback: Vec3::ZERO,
-            portal_momentum: Vec3::ZERO,
+            airborne_momentum: Vec3::ZERO,
             vertical_velocity: 0.0,
             yaw: PI,
         },
@@ -353,7 +353,7 @@ fn off_center_crossing_uses_the_full_rectangle() {
         CharacterHopBody {
             control_velocity: Vec3::new(0.0, 0.0, -6.0),
             knockback: Vec3::ZERO,
-            portal_momentum: Vec3::ZERO,
+            airborne_momentum: Vec3::ZERO,
             vertical_velocity: 0.0,
             yaw: PI,
         },
@@ -373,7 +373,7 @@ fn knockback_carry_is_capped() {
             CharacterHopBody {
                 control_velocity: Vec3::ZERO,
                 knockback: Vec3::X * 50.0,
-                portal_momentum: Vec3::ZERO,
+                airborne_momentum: Vec3::ZERO,
                 vertical_velocity: -1.0,
                 yaw: 0.0,
             },
@@ -394,7 +394,7 @@ fn an_external_teleport_is_not_a_crossing() {
         CharacterHopBody {
             control_velocity: Vec3::ZERO,
             knockback: Vec3::ZERO,
-            portal_momentum: Vec3::ZERO,
+            airborne_momentum: Vec3::ZERO,
             vertical_velocity: 0.0,
             yaw: PI,
         },
@@ -433,7 +433,7 @@ fn swept_portal_gate_uses_the_plane_crossing_point() {
             CharacterHopBody {
                 control_velocity: inside_move,
                 knockback: Vec3::ZERO,
-                portal_momentum: Vec3::ZERO,
+                airborne_momentum: Vec3::ZERO,
                 vertical_velocity: 0.0,
                 yaw: PI,
             },
@@ -457,7 +457,7 @@ fn swept_portal_gate_uses_the_plane_crossing_point() {
             CharacterHopBody {
                 control_velocity: outside_move,
                 knockback: Vec3::ZERO,
-                portal_momentum: Vec3::ZERO,
+                airborne_momentum: Vec3::ZERO,
                 vertical_velocity: 0.0,
                 yaw: PI,
             },

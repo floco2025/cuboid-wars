@@ -1,29 +1,25 @@
-use super::{EraserContacts, PlayerMap, PlayerMovementReport, reconciliation::reconcile_player_movement};
-use crate::portals::{broadcast_portal_crossing, resolve_portal_crossing};
+use super::{
+    EraserContacts, PlayerMap, PlayerMovementReport,
+    reconciliation::{adopt_trusted_movement, resolve_portal_crossing},
+};
+use crate::{characters::MovementStart, network::broadcast_portal_crossing};
 use bevy::prelude::*;
 use common::{
     config::GameplayConfig,
     map::Carriers,
     physics::{
         AirborneMomentum, CharacterEnvironment, CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity,
-        LadderMode, PortalSet, inspect_character_support, passable_barrier_kinds, player_control_velocity,
+        LadderMode, PortalSet, character_crushed_at, passable_barrier_kinds, player_movement_state,
     },
-    protocol::{
-        FaceYaw, MapSettings, PlateState, PlayerId, PlayerMarker, PlayerMoveIntent, PlayerMovementState, Position,
-        ServerTick,
-    },
+    protocol::{FaceYaw, MapSettings, PlateState, PlayerId, PlayerMarker, PlayerMoveIntent, Position, ServerTick},
 };
 
 pub(crate) fn apply_pending_player_inputs_system(
-    mut players: ResMut<PlayerMap>,
+    players: Res<PlayerMap>,
     mut query: Query<(&PlayerId, &mut PlayerMoveIntent, &mut FaceYaw), With<PlayerMarker>>,
 ) {
     for (id, mut intent, mut yaw) in &mut query {
-        let Some(info) = players.get_mut(id) else {
-            continue;
-        };
-        info.life.processed_move_seq = None;
-        let Some(report) = info.life.pending_moves.front() else {
+        let Some(report) = players.get(id).and_then(|info| info.life.pending_moves.front()) else {
             continue;
         };
         *intent = report.comparison_state().move_intent;
@@ -31,8 +27,12 @@ pub(crate) fn apply_pending_player_inputs_system(
     }
 }
 
+// Chooses each player's position for this tick: the client's report where
+// it is trusted, the server's step otherwise. Support comes with an accepted
+// report, since the client's step already judged it; only the crush test is
+// re-run there. Eraser sweeps run from the step's start to the chosen
+// position, stopping at a crossing's entrance.
 pub(crate) fn finish_player_movement_system(
-    mut commands: Commands,
     mut players: ResMut<PlayerMap>,
     gameplay: Res<GameplayConfig>,
     settings: Res<MapSettings>,
@@ -40,42 +40,47 @@ pub(crate) fn finish_player_movement_system(
     carriers: Res<Carriers>,
     plates: Res<PlateState>,
     portal_set: Res<PortalSet>,
-    time: Res<Time>,
     tick: Res<ServerTick>,
     mut erasers: ResMut<EraserContacts>,
     mut query: Query<
         (
-            Entity,
             &PlayerId,
+            &MovementStart,
             &mut Position,
             &mut FaceYaw,
             &mut CharacterVerticalVelocity,
             &mut PlayerMoveIntent,
-            Option<&KnockbackVelocity>,
-            Option<&AirborneMomentum>,
+            &mut AirborneMomentum,
+            &mut KnockbackVelocity,
         ),
         With<PlayerMarker>,
     >,
 ) {
     let mut crossings = Vec::new();
-    for (entity, id, mut pos, mut yaw, mut vertical, mut intent, knockback, airborne) in &mut query {
+    for (id, start, mut pos, mut yaw, mut vertical, mut intent, mut momentum, mut knockback) in &mut query {
         let Some(info) = players.get_mut(id) else {
             continue;
         };
-        let start = info.life.movement_start.take().unwrap_or(*pos);
-        let mut movement = PlayerMovementState::new(*pos, *intent, vertical.0, yaw.0).with_momentum(
-            airborne.map_or(Vec3::ZERO, |m| m.0),
-            knockback.map_or(Vec3::ZERO, |m| m.0),
+        let mut movement = player_movement_state(
+            *pos,
+            *intent,
+            &yaw,
+            &vertical,
+            &momentum,
+            &knockback,
+            info.life.fall_state.support(),
         );
-        let mut portal_entrance = None;
-        let accepted = match info.life.pending_moves.pop() {
+        let report = info.life.pending_moves.pop_front();
+        info.life.processed_move_seq = report.as_ref().map(PlayerMovementReport::seq);
+        let mut sweep_end = None;
+        let accepted = match report {
             Some(PlayerMovementReport::Move(report)) => {
-                reconcile_player_movement(*id, info, report.seq, report.movement, &mut movement)
+                adopt_trusted_movement(*id, info, report.seq, report.movement, &mut movement)
             }
             Some(PlayerMovementReport::PortalCross(report)) => {
                 let result = resolve_portal_crossing(*id, info, &report, &mut movement, tick.0);
                 if result.accepted {
-                    portal_entrance = Some(report.entrance.pos);
+                    sweep_end = Some(report.entrance.pos);
                 }
                 crossings.push(result);
                 result.accepted
@@ -86,13 +91,10 @@ pub(crate) fn finish_player_movement_system(
         *intent = movement.move_intent;
         yaw.0 = movement.face_yaw;
         vertical.0 = movement.vertical_velocity;
-        commands.entity(entity).insert((
-            AirborneMomentum(Vec3::from_array(movement.airborne_momentum)),
-            KnockbackVelocity(Vec3::from_array(movement.knockback)),
-        ));
+        momentum.0 = Vec3::from_array(movement.airborne_momentum);
+        knockback.0 = Vec3::from_array(movement.knockback);
         if accepted {
             let passable = passable_barrier_kinds(&info.life.held_keys, &plates.open_barrier_kinds);
-            let control = player_control_velocity(*intent, &settings.movement, info.has_speed(), info.is_stunned());
             let env = CharacterEnvironment {
                 collision_world: &collision,
                 gravity: settings.gravity_for(info.has_low_gravity()),
@@ -103,24 +105,22 @@ pub(crate) fn finish_player_movement_system(
                 portals: Some(&portal_set),
                 carriers: &carriers,
             };
-            let (support, grounding, crushed) = inspect_character_support(
-                *pos,
-                vertical.0,
-                control,
-                &env,
-                time.delta_secs(),
-                info.life.fall_state.is_crushed(),
-            );
-            info.life.fall_state.record_movement(support, crushed);
-            commands.entity(entity).insert((support, grounding));
+            info.life
+                .fall_state
+                .record_movement(movement.support, character_crushed_at(*pos, &env));
         }
-        let sweep_end = portal_entrance.unwrap_or(*pos);
         erasers.swept.extend(
             collision
-                .character_eraser_contacts(&start, &sweep_end, gameplay.player.physics(), Some(&carriers))
+                .character_eraser_contacts(
+                    &start.0,
+                    &sweep_end.unwrap_or(*pos),
+                    gameplay.player.physics(),
+                    Some(&carriers),
+                )
                 .map(|field| (*id, field)),
         );
     }
+    // Sent after the loop: the loop holds the roster mutably.
     for result in crossings {
         broadcast_portal_crossing(&players, result);
     }

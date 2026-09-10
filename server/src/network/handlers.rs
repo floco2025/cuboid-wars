@@ -6,14 +6,10 @@ use crate::{
     config::{FeedConfig, ServerGameplayConfig},
     map::MapConfig,
     network::ServerToClient,
-    players::{PlayerInfo, PlayerMap, PlayerMovementReport, PlayerStateQuery, queue_player_movement},
+    players::{PlayerMap, PlayerStateQuery},
 };
 use common::{
-    config::GameplayConfig,
-    constants::CONSOLE_CHAT_MAX_CHARS,
-    map::Carriers,
-    physics::{CharacterVerticalVelocity, CollisionWorld, player_jump_velocity},
-    protocol::*,
+    config::GameplayConfig, constants::CONSOLE_CHAT_MAX_CHARS, map::Carriers, physics::CollisionWorld, protocol::*,
 };
 
 // The world view and the character queries every ingress handler reads from.
@@ -34,46 +30,7 @@ pub(crate) struct SharedWorld<'w> {
 #[derive(SystemParam)]
 pub(crate) struct CharacterQueries<'w, 's> {
     pub(crate) player_data: PlayerStateQuery<'w, 's>,
-    pub(crate) player_motions: Query<'w, 's, &'static CharacterVerticalVelocity, With<PlayerMarker>>,
     pub(crate) actor_data: ActorStateQuery<'w, 's>,
-}
-
-pub(super) fn handle_move_message(id: PlayerId, message: CMove, players: &mut PlayerMap) {
-    queue_player_movement(id, PlayerMovementReport::Move(message), players);
-}
-
-pub(super) fn handle_jump_message(
-    commands: &mut Commands,
-    entity: Entity,
-    id: PlayerId,
-    players: &PlayerMap,
-    queries: &CharacterQueries,
-    world: &SharedWorld,
-) {
-    if players.get(&id).is_some_and(PlayerInfo::is_stunned) {
-        return;
-    }
-
-    let Ok((pos, _, _, _)) = queries.player_data.get(entity) else {
-        return;
-    };
-    let Ok(motion) = queries.player_motions.get(entity) else {
-        return;
-    };
-
-    let Some(next_vertical_velocity) = player_jump_velocity(
-        motion.0,
-        &world.collision_world,
-        world.gameplay_config.player.physics(),
-        world.map_settings.movement.player.jump_speed,
-        pos,
-    ) else {
-        return;
-    };
-
-    commands
-        .entity(entity)
-        .insert(CharacterVerticalVelocity(next_vertical_velocity));
 }
 
 pub(super) fn handle_ping_message(id: PlayerId, message: CPing, players: &PlayerMap) {

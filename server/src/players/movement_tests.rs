@@ -1,13 +1,13 @@
-use super::handlers::handle_move_message;
 use crate::{
     actors::ActorMap,
-    characters::characters_movement_system,
+    characters::{MovementStart, characters_movement_system},
     config::ServerGameplayConfig,
+    network::{ServerToClient, collect_player_moves},
     players::{
-        EraserContacts, PlayerInfo, PlayerMap, PlayerStateQuery, apply_pending_player_inputs_system,
-        finish_player_movement_system,
+        EraserContacts, PlayerInfo, PlayerMap, PlayerMotionQuery, PlayerMovementReport, PlayerStateQuery,
+        apply_pending_player_inputs_system, finish_player_movement_system, handle_portal_recovery_message,
+        queue_player_movement,
     },
-    portals::{handle_portal_cross_message, handle_portal_recovery_message},
 };
 use bevy::{ecs::system::SystemState, prelude::*};
 use common::{
@@ -29,7 +29,14 @@ fn movement_app(layout: MapLayout) -> (App, Entity) {
     time.advance_by(TICK_DURATION);
     app.insert_resource(time)
         .insert_resource(config.gameplay_config())
-        .insert_resource(config.maps["hotel"].settings.clone())
+        .insert_resource(
+            config
+                .maps
+                .get("hotel")
+                .expect("hotel map missing from the server gameplay config")
+                .settings
+                .clone(),
+        )
         .insert_resource(CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default()))
         .insert_resource(Carriers::from_layout(&layout))
         .init_resource::<PortalSet>()
@@ -54,10 +61,12 @@ fn movement_app(layout: MapLayout) -> (App, Entity) {
             ID,
             PlayerMarker,
             Position::default(),
+            MovementStart(Position::default()),
             PlayerMoveIntent::Idle,
             FaceYaw(0.0),
             CharacterVerticalVelocity(0.0),
             AirborneMomentum::default(),
+            KnockbackVelocity::default(),
             Health(100.0),
         ))
         .id();
@@ -76,13 +85,17 @@ fn report(seq: u32, pos: Position) -> CMove {
 }
 
 fn deliver(app: &mut App, message: CMove) {
-    handle_move_message(ID, message, &mut app.world_mut().resource_mut::<PlayerMap>());
+    queue_player_movement(
+        ID,
+        PlayerMovementReport::Move(message),
+        &mut app.world_mut().resource_mut::<PlayerMap>(),
+    );
 }
 
 fn cross(app: &mut App, seq: u32, entrance_x: f32, exit_x: f32) {
-    handle_portal_cross_message(
+    queue_player_movement(
         ID,
-        CPortalCross {
+        PlayerMovementReport::PortalCross(CPortalCross {
             seq,
             entrance: report(
                 seq,
@@ -93,9 +106,13 @@ fn cross(app: &mut App, seq: u32, entrance_x: f32, exit_x: f32) {
             )
             .movement,
             movement: report(seq, Position { x: exit_x, ..default() }).movement,
-        },
+        }),
         &mut app.world_mut().resource_mut::<PlayerMap>(),
     );
+}
+
+fn player_info(app: &App) -> &PlayerInfo {
+    app.world().resource::<PlayerMap>().get(&ID).expect("player missing")
 }
 
 #[test]
@@ -126,21 +143,15 @@ fn rejection_discards_dependent_moves_until_recovery_and_filters_delayed_packets
     deliver(&mut app, report(3, Position { x: 201.0, ..default() }));
     app.update();
     assert_eq!(result(&mut app).movement.pos.x, 0.0);
-    assert!(
-        app.world()
-            .resource::<PlayerMap>()
-            .get(&ID)
-            .expect("player missing")
-            .life
-            .portal_recovery_pending
-    );
+    assert!(player_info(&app).life.portal_recovery_pending);
     deliver(&mut app, report(4, Position { x: 1.0, ..default() }));
     cross(&mut app, 5, 0.0, 300.0);
     // This fresh datagram overtakes recovery; dropping it must not advance the cutoff.
     deliver(&mut app, report(8, Position { x: 1.0, ..default() }));
     app.update();
-    assert_eq!(result(&mut app).move_seq, None);
-    assert_eq!(result(&mut app).movement.pos.x, 0.0);
+    let entry = result(&mut app);
+    assert_eq!(entry.move_seq, None);
+    assert_eq!(entry.movement.pos.x, 0.0);
     handle_portal_recovery_message(
         ID,
         CPortalRecovery { seq: 7 },
@@ -151,8 +162,9 @@ fn rejection_discards_dependent_moves_until_recovery_and_filters_delayed_packets
     assert_eq!(result(&mut app).move_seq, None);
     deliver(&mut app, report(9, Position { x: 1.0, ..default() }));
     app.update();
-    assert_eq!(result(&mut app).move_seq, Some(9));
-    assert_eq!(result(&mut app).movement.pos.x, 1.0);
+    let entry = result(&mut app);
+    assert_eq!(entry.move_seq, Some(9));
+    assert_eq!(entry.movement.pos.x, 1.0);
 }
 
 #[test]
@@ -173,7 +185,7 @@ fn crossing_recovery_and_full_exit_motion_survive_sequence_wrap() {
         &mut app.world_mut().resource_mut::<PlayerMap>(),
     );
     cross(&mut app, u32::MAX, 0.0, 200.0);
-    let movement = PlayerMovementState::new(
+    let mut movement = PlayerMovementState::new(
         Position {
             x: 100.0,
             y: 10.0,
@@ -184,13 +196,14 @@ fn crossing_recovery_and_full_exit_motion_survive_sequence_wrap() {
         -2.0,
     )
     .with_momentum(Vec3::X * 4.0, Vec3::Z * -3.0);
-    handle_portal_cross_message(
+    movement.support = CharacterSupport::Ladder;
+    queue_player_movement(
         ID,
-        CPortalCross {
+        PlayerMovementReport::PortalCross(CPortalCross {
             seq: 1,
             entrance: result(&mut app).movement,
             movement,
-        },
+        }),
         &mut app.world_mut().resource_mut::<PlayerMap>(),
     );
     app.update();
@@ -202,6 +215,7 @@ fn crossing_recovery_and_full_exit_motion_survive_sequence_wrap() {
     assert_eq!(entry.movement.vertical_velocity, movement.vertical_velocity);
     assert_eq!(entry.movement.airborne_momentum, movement.airborne_momentum);
     assert_eq!(entry.movement.knockback, movement.knockback);
+    assert_eq!(entry.movement.support, movement.support);
 }
 
 #[test]
@@ -219,7 +233,7 @@ fn accepted_crossings_broadcast_to_observers_and_rejections_only_to_the_owner() 
         }
         cross(&mut app, 1, if accepted { 0.0 } else { 5.0 }, 100.0);
         app.update();
-        let super::ServerToClient::Send(ServerMessage::PortalCrossed(event)) =
+        let ServerToClient::Send(ServerMessage::PortalCrossed(event)) =
             owner.try_recv().expect("crossing response missing")
         else {
             panic!("unexpected response")
@@ -260,19 +274,9 @@ fn eraser_sweeps_cover_the_entrance_motion_without_crossing_the_portal_gap() {
 }
 
 fn result(app: &mut App) -> PlayerMove {
-    let mut state = SystemState::<(
-        PlayerStateQuery,
-        Query<
-            (
-                &CharacterVerticalVelocity,
-                Option<&AirborneMomentum>,
-                Option<&KnockbackVelocity>,
-            ),
-            With<PlayerMarker>,
-        >,
-    )>::new(app.world_mut());
+    let mut state = SystemState::<(PlayerStateQuery, PlayerMotionQuery)>::new(app.world_mut());
     let (positions, motions) = state.get(app.world()).expect("movement collection state invalid");
-    super::broadcast::collect_player_moves(app.world().resource::<PlayerMap>(), &positions, &motions)
+    collect_player_moves(app.world().resource::<PlayerMap>(), &positions, &motions)
         .into_iter()
         .find(|entry| entry.id == ID)
         .expect("movement missing")
@@ -361,8 +365,9 @@ fn only_newest_report_steers_and_is_processed_even_when_packets_arrive_together(
     deliver(&mut app, report(3, Position { x: 1.0, y: 0.0, z: 0.0 }));
     deliver(&mut app, stale);
     app.update();
-    assert_eq!(result(&mut app).move_seq, Some(3));
-    assert_eq!(result(&mut app).movement.pos.x, 1.0);
+    let entry = result(&mut app);
+    assert_eq!(entry.move_seq, Some(3));
+    assert_eq!(entry.movement.pos.x, 1.0);
     assert_eq!(
         *app.world().get::<PlayerMoveIntent>(entity).expect("intent missing"),
         PlayerMoveIntent::Idle
@@ -379,12 +384,13 @@ fn non_finite_reports_do_not_advance_sequence_or_replace_fresh_state() {
     deliver(&mut app, invalid);
     deliver(&mut app, report(2, Position { x: 1.0, y: 0.0, z: 0.0 }));
     app.update();
-    assert_eq!(result(&mut app).move_seq, Some(2));
-    assert_eq!(result(&mut app).movement.pos.x, 1.0);
+    let entry = result(&mut app);
+    assert_eq!(entry.move_seq, Some(2));
+    assert_eq!(entry.movement.pos.x, 1.0);
 }
 
 #[test]
-fn accepted_landing_refreshes_support_and_stops_server_fall_velocity() {
+fn accepted_landing_stops_server_fall_velocity() {
     let layout = MapLayout {
         floors: vec![Floor {
             x1: -5.0,
@@ -413,16 +419,61 @@ fn accepted_landing_refreshes_support_and_stops_server_fall_velocity() {
             .0,
         0.0
     );
-    assert_eq!(
-        app.world()
-            .resource::<PlayerMap>()
-            .get(&ID)
-            .expect("player missing")
-            .life
-            .fall_state
-            .support(),
-        CharacterSupport::Ground
-    );
+}
+
+// The server's own step in empty space finds no support; the accepted
+// report's support stands until the next tick without one.
+#[test]
+fn accepted_reports_carry_their_support_and_the_step_takes_over_without_one() {
+    let (mut app, _) = movement_app(MapLayout::default());
+    app.world_mut().resource_mut::<MapSettings>().movement.gravity = 0.0;
+    let mut message = report(1, Position::default());
+    message.movement.support = CharacterSupport::Ground;
+    deliver(&mut app, message);
+    app.update();
+    assert_eq!(player_info(&app).life.fall_state.support(), CharacterSupport::Ground);
+    assert_eq!(result(&mut app).movement.support, CharacterSupport::Ground);
+    app.update();
+    assert_eq!(player_info(&app).life.fall_state.support(), CharacterSupport::Airborne);
+    assert_eq!(result(&mut app).movement.support, CharacterSupport::Airborne);
+}
+
+// Crushing is the one thing re-derived at an accepted position: a body
+// reported inside a carrier's slab is crushed, one inside a world slab is
+// not, as in the step.
+#[test]
+fn accepted_position_inside_a_carrier_slab_is_crushed() {
+    let slab = Floor {
+        x1: -1.5,
+        z1: -1.5,
+        x2: 1.5,
+        z2: 1.5,
+        y: 0.0,
+        thickness: 0.4,
+        level: 0,
+        carrier: CarrierId::WORLD,
+    };
+    for (carrier, expected) in [(CarrierId(1), true), (CarrierId::WORLD, false)] {
+        let layout = MapLayout {
+            floors: vec![Floor { carrier, ..slab }],
+            carriers: vec![Carrier {
+                parent: CarrierId::WORLD,
+                level: 0,
+                levels: 0,
+                from: Position::default(),
+                to: Position::default(),
+                travel_ticks: 1,
+                pause_ticks: 0,
+                phase_ticks: 0,
+            }],
+            ..default()
+        };
+        let (mut app, _) = movement_app(layout);
+        app.world_mut().resource_mut::<MapSettings>().movement.gravity = 0.0;
+        deliver(&mut app, report(1, Position { y: -0.2, ..default() }));
+        app.update();
+        assert_eq!(player_info(&app).life.fall_state.is_crushed(), expected, "{carrier:?}");
+    }
 }
 
 #[test]

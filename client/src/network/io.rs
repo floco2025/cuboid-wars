@@ -59,7 +59,7 @@ pub(super) fn network_ping_system(
         *timer = 0.0;
         let now = time.elapsed();
         rtt.pending_sent_at = now;
-        let _ = to_server.send(ClientToServer::Send(ClientMessage::Ping(CPing {
+        to_server.send(ClientToServer::Send(ClientMessage::Ping(CPing {
             timestamp_nanos: now.as_nanos() as u64,
         })));
     }

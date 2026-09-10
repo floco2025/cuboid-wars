@@ -24,20 +24,22 @@ pub struct PlayerMovementStep<'a> {
     pub held_keys: &'a [BarrierKindId],
     // Barrier kinds the pressure plates hold open (`PlateState`).
     pub open_kinds: &'a [BarrierKindId],
-    pub knockback: Option<&'a KnockbackVelocity>,
-    pub airborne_momentum: Option<&'a mut AirborneMomentum>,
+    pub knockback: &'a KnockbackVelocity,
+    pub airborne_momentum: &'a mut AirborneMomentum,
     pub collision_world: &'a CollisionWorld,
     pub map_settings: &'a MapSettings,
     pub gameplay_config: &'a GameplayConfig,
+    // `None` keeps portal backing solid: for remote players, which only the
+    // server places at an exit.
     pub portal_set: Option<&'a PortalSet>,
     pub carriers: &'a Carriers,
 }
 
 #[must_use]
-pub fn step_player_movement(mut step: PlayerMovementStep<'_>) -> CharacterMovementResult {
+pub fn step_player_movement(step: PlayerMovementStep<'_>) -> CharacterMovementResult {
     let passable_kinds = passable_barrier_kinds(step.held_keys, step.open_kinds);
     let external_displacement = step.additional_displacement
-        + momentum_displacement(step.knockback, step.airborne_momentum.as_deref(), step.delta);
+        + momentum_displacement(Some(step.knockback), Some(&*step.airborne_momentum), step.delta);
     let movement = step_character_movement(
         CharacterStep {
             start: step.start,
@@ -57,8 +59,6 @@ pub fn step_player_movement(mut step: PlayerMovementStep<'_>) -> CharacterMoveme
             carriers: step.carriers,
         },
     );
-    if let Some(momentum) = step.airborne_momentum.as_mut() {
-        momentum.finish_step(&movement);
-    }
+    step.airborne_momentum.finish_step(&movement);
     movement
 }

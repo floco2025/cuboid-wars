@@ -1,15 +1,14 @@
 use super::super::context::ServerMessageContext;
 use crate::{
     characters::PreviousTickPosition,
-    network::{ServerReconciliation, TickSync, extrapolated_correction, resources::accept_newer_tick},
+    constants::RECON_CHARACTER_SNAP_DISTANCE,
+    network::{RoundTripTime, ServerReconciliation, TickSync, extrapolated_correction, resources::accept_newer_tick},
     players::{LocalPlayerInfo, PlayerInfo},
 };
 use bevy::prelude::*;
 use common::{
     config::MapMovementConfig,
-    constants::PLAYER_MOVEMENT_TRUST_DISTANCE,
-    math::{player_movement_is_trusted, worst_axis_divergence},
-    physics::{AirborneMomentum, CharacterVerticalVelocity, KnockbackVelocity, player_control_velocity},
+    physics::{PlayerMotionBundle, player_control_velocity},
     protocol::*,
 };
 
@@ -41,97 +40,86 @@ pub(in crate::network) fn handle_player_moves_message(
         let Some(player) = context.players.get_mut(&entry.id) else {
             continue;
         };
-        let is_local = entry.id == my_player_id;
-        if is_local && context.local_player_info.is_dead {
-            continue;
-        }
-        if is_local {
-            let Some(seq) = entry.move_seq else {
+        if entry.id == my_player_id {
+            let local = &mut context.local_player_info;
+            if local.is_dead {
                 continue;
-            };
-            let Some(delta) = local_snap_delta(&mut context.local_player_info, &entry) else {
-                continue;
-            };
-            let (axis, magnitude) = worst_axis_divergence(delta);
-            warn!(
-                "{}#{}, move {} out of sync: |{}|={:.2} >= {:.2} (Δ x={:.2}, y={:.2}, z={:.2}); snapping to server position",
-                player.name,
-                entry.id.0,
-                seq,
-                axis,
-                magnitude,
-                PLAYER_MOVEMENT_TRUST_DISTANCE,
-                delta.x,
-                delta.y,
-                delta.z
-            );
-            snap_player(commands, player, entry.movement);
-            reset_local_comparisons(&mut context.local_player_info);
+            }
+            if let Some(seq) = entry.move_seq
+                && let Some(divergence) = local.reports.snap_divergence(seq, entry.movement.pos)
+            {
+                warn!(
+                    "{}#{}, move {seq} out of sync, {divergence}; snapping to server position",
+                    player.name, entry.id.0
+                );
+                snap_player(commands, player, &entry.movement);
+                local.reports.invalidate();
+            }
             continue;
         }
         if !sequence_is_newer(tick, player.last_movement_tick) {
             continue;
         }
         player.last_movement_tick = tick;
-        let movement = entry.movement;
         let velocity = player_movement_velocity(
-            movement,
+            entry.movement,
             &context.map_settings.movement,
             player.power_up(PowerUpKind::Speed),
             player.stunned,
         );
-        let mut entity = commands.entity(player.entity);
-        entity.insert((
-            movement.move_intent,
-            FaceYaw(movement.face_yaw),
-            CharacterVerticalVelocity(movement.vertical_velocity),
-            AirborneMomentum(Vec3::from_array(movement.airborne_momentum)),
-            KnockbackVelocity(Vec3::from_array(movement.knockback)),
-        ));
-        if let Ok(pos) = context.player_data.get(player.entity) {
-            entity.insert(ServerReconciliation::new(
-                extrapolated_correction(*pos, movement.pos, velocity, &context.rtt),
-                movement.pos,
-                velocity,
-                &context.rtt,
-            ));
+        let current = context.player_data.get(player.entity).ok().copied();
+        place_remote_player(
+            commands,
+            entry.id,
+            player,
+            &entry.movement,
+            velocity,
+            current,
+            &context.rtt,
+        );
+    }
+}
+
+// A remote update smooths toward its position when the gap is drift and
+// cuts to it when it is not: under trust an accepted jump this large is a
+// portal, a respawn, or a relocation, and the smoothing would push the
+// body through whatever stands between.
+fn place_remote_player(
+    commands: &mut Commands,
+    id: PlayerId,
+    player: &PlayerInfo,
+    movement: &PlayerMovementState,
+    velocity: Vec3,
+    current: Option<Position>,
+    rtt: &RoundTripTime,
+) {
+    let correction = current.map(|current| extrapolated_correction(current, movement.pos, velocity, rtt));
+    let divergence = correction.map(|delta| MovementDivergence {
+        delta,
+        limit: RECON_CHARACTER_SNAP_DISTANCE,
+    });
+    match divergence {
+        Some(divergence) if !divergence.within_limit() => {
+            debug!("{}#{} cut to server position, {divergence}", player.name, id.0);
+            snap_player(commands, player, movement);
+        }
+        _ => {
+            let mut entity = commands.entity(player.entity);
+            entity.insert(PlayerMotionBundle::from(movement));
+            if let Some(correction) = correction {
+                entity.insert(ServerReconciliation::new(correction, movement.pos, velocity, rtt));
+            }
         }
     }
 }
 
-fn local_snap_delta(local: &mut LocalPlayerInfo, entry: &PlayerMove) -> Option<Vec3> {
-    if local.portal_crossings.is_pending() {
-        return None;
-    }
-    let seq = entry.move_seq?;
-    if local
-        .last_comparison_seq
-        .is_some_and(|last| !sequence_is_newer(seq, last))
-    {
-        return None;
-    }
-    local.last_comparison_seq = Some(seq);
-    let recorded = local.committed_positions.get(seq)?.pos;
-    let delta = Vec3::from(entry.movement.pos) - Vec3::from(recorded);
-    (!player_movement_is_trusted(delta)).then_some(delta)
-}
-
-pub(in crate::network) fn reset_local_comparisons(local: &mut LocalPlayerInfo) {
-    local.committed_positions.clear();
-    local.last_comparison_seq = Some(local.move_seq);
-}
-
-pub(in crate::network) fn snap_player(commands: &mut Commands, info: &mut PlayerInfo, movement: PlayerMovementState) {
+pub(in crate::network) fn snap_player(commands: &mut Commands, info: &PlayerInfo, movement: &PlayerMovementState) {
     commands
         .entity(info.entity)
         .insert((
             movement.pos,
             PreviousTickPosition(movement.pos),
-            movement.move_intent,
-            FaceYaw(movement.face_yaw),
-            CharacterVerticalVelocity(movement.vertical_velocity),
-            AirborneMomentum(Vec3::from_array(movement.airborne_momentum)),
-            KnockbackVelocity(Vec3::from_array(movement.knockback)),
+            PlayerMotionBundle::from(movement),
         ))
         .remove::<ServerReconciliation>();
 }
@@ -143,12 +131,12 @@ fn sync_player_clock(
     tick_sync: &mut TickSync,
     server_tick: &mut ServerTick,
 ) {
-    let Some(recorded_tick) = local_player_info.committed_positions.tick_for_seq(move_seq) else {
+    let Some(recorded_tick) = local_player_info.reports.echo_tick(move_seq) else {
         return;
     };
     let error = tick.wrapping_sub(recorded_tick) as i32;
     trace!("clock error {error} ticks at the echo of seq {move_seq}");
-    if let Some(shift) = tick_sync.observe(error, move_seq, local_player_info.move_seq) {
+    if let Some(shift) = tick_sync.observe(error, move_seq, local_player_info.reports.seq()) {
         server_tick.0 = server_tick.0.wrapping_add_signed(shift);
         info!("clock shifted by {shift} ticks to {}", server_tick.0);
     }
@@ -174,103 +162,68 @@ fn player_movement_velocity(
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn comparison(seq: u32, x: f32) -> PlayerMove {
-        PlayerMove {
-            id: PlayerId(1),
-            move_seq: Some(seq),
-            movement: PlayerMovementState::new(Position { x, y: 0.0, z: 0.0 }, PlayerMoveIntent::Idle, 0.0, 0.0),
-        }
-    }
-
-    #[test]
-    fn an_update_without_a_processed_report_cannot_snap_the_local_player() {
-        let mut local = LocalPlayerInfo::default();
-        local.committed_positions.record(1, 10, Position::default());
-        let mut entry = comparison(1, 100.0);
-        entry.move_seq = None;
-        assert!(local_snap_delta(&mut local, &entry).is_none());
-        entry.move_seq = Some(1);
-        assert!(local_snap_delta(&mut local, &entry).is_some());
-    }
-
-    #[test]
-    fn local_comparison_uses_the_recorded_position_and_shared_distance() {
-        let mut local = LocalPlayerInfo::default();
-        local.committed_positions.record(1, 10, Position::default());
-        assert!(local_snap_delta(&mut local, &comparison(1, 4.99)).is_none());
-        local.committed_positions.record(2, 11, Position::default());
-        assert_eq!(local_snap_delta(&mut local, &comparison(2, 5.0)), Some(Vec3::X * 5.0));
-    }
-
-    #[test]
-    fn pending_crossings_suspend_local_snaps_until_all_are_confirmed() {
-        let mut local = LocalPlayerInfo::default();
-        let movement = comparison(1, 0.0).movement;
-        local.portal_crossings.record(1, movement, Vec2::ZERO);
-        local.portal_crossings.record(2, movement, Vec2::ZERO);
-        local.committed_positions.record(3, 10, Position::default());
-        let entry = comparison(3, 100.0);
-        assert!(local_snap_delta(&mut local, &entry).is_none());
-        local.portal_crossings.resolve(1, true);
-        assert!(local_snap_delta(&mut local, &entry).is_none());
-        local.portal_crossings.resolve(2, true);
-        assert_eq!(local_snap_delta(&mut local, &entry), Some(Vec3::X * 100.0));
-    }
-
-    #[test]
-    fn repeated_outdated_and_missing_comparisons_do_not_snap() {
-        let mut local = LocalPlayerInfo::default();
-        local.committed_positions.record(2, 10, Position::default());
-        let result = comparison(2, 8.0);
-        assert!(local_snap_delta(&mut local, &result).is_some());
-        assert!(local_snap_delta(&mut local, &result).is_none());
-        assert!(local_snap_delta(&mut local, &comparison(1, 100.0)).is_none());
-        assert!(local_snap_delta(&mut local, &comparison(3, 100.0)).is_none());
-    }
-
-    #[test]
-    fn snap_ignores_in_flight_reports_then_accepts_fresh_comparisons() {
-        let mut local = LocalPlayerInfo {
-            move_seq: 10,
-            ..default()
-        };
-        for seq in 1..=10 {
-            local.committed_positions.record(seq, seq, Position::default());
-        }
-        assert!(local_snap_delta(&mut local, &comparison(4, 8.0)).is_some());
-        reset_local_comparisons(&mut local);
-        for seq in 5..=10 {
-            assert!(local_snap_delta(&mut local, &comparison(seq, 8.0)).is_none());
-        }
-        local
-            .committed_positions
-            .record(11, 11, Position { x: 8.0, y: 0.0, z: 0.0 });
-        assert!(local_snap_delta(&mut local, &comparison(11, 8.0)).is_none());
-    }
-
-    #[test]
-    fn comparison_sequence_wraps() {
-        let mut local = LocalPlayerInfo {
-            last_comparison_seq: Some(u32::MAX),
-            ..default()
-        };
-        local.committed_positions.record(0, 10, Position::default());
-        assert!(local_snap_delta(&mut local, &comparison(0, 8.0)).is_some());
-    }
+    use bevy::ecs::system::SystemState;
+    use common::physics::CharacterVerticalVelocity;
+    use std::time::Duration;
 
     #[test]
     fn clock_uses_processing_tick_and_ignores_repeated_result() {
-        let mut local = LocalPlayerInfo {
-            move_seq: 1,
-            ..default()
-        };
-        local.committed_positions.record(1, 10, Position::default());
+        let mut local = LocalPlayerInfo::default();
+        local.reports.record(1, 10, Position::default());
         let mut clock = TickSync::default();
         let mut tick = ServerTick(11);
         sync_player_clock(20, 1, &local, &mut clock, &mut tick);
         assert_eq!(tick.0, 21);
         sync_player_clock(20, 1, &local, &mut clock, &mut tick);
         assert_eq!(tick.0, 21);
+    }
+
+    #[test]
+    fn remote_updates_smooth_drift_and_cut_to_larger_jumps() {
+        for (gap, cut) in [(1.0, false), (RECON_CHARACTER_SNAP_DISTANCE, true)] {
+            let mut world = World::new();
+            let entity = world
+                .spawn((Position::default(), PreviousTickPosition(Position::default())))
+                .id();
+            let player = PlayerInfo::from_snapshot(
+                entity,
+                &Player::new(
+                    "Player".into(),
+                    Position::default(),
+                    PlayerMoveIntent::Idle,
+                    0.0,
+                    0,
+                    Health(100.0),
+                ),
+                0,
+            );
+            let movement =
+                PlayerMovementState::new(Position { x: gap, ..default() }, PlayerMoveIntent::Idle, -3.0, 1.0);
+            let rtt = RoundTripTime {
+                rtt: Duration::from_millis(0),
+                ..default()
+            };
+            let mut state = SystemState::<Commands>::new(&mut world);
+            place_remote_player(
+                &mut state.get_mut(&mut world).expect("commands unavailable"),
+                PlayerId(2),
+                &player,
+                &movement,
+                Vec3::ZERO,
+                Some(Position::default()),
+                &rtt,
+            );
+            state.apply(&mut world);
+            let position = *world.get::<Position>(entity).expect("position missing");
+            assert_eq!(position.x, if cut { gap } else { 0.0 }, "gap {gap}");
+            assert_eq!(world.get::<ServerReconciliation>(entity).is_some(), !cut);
+            assert_eq!(
+                world
+                    .get::<CharacterVerticalVelocity>(entity)
+                    .expect("vertical velocity missing")
+                    .0,
+                -3.0
+            );
+        }
     }
 }

@@ -37,8 +37,15 @@ pub enum ClientToServer {
 }
 
 impl ClientToServer {
+    fn lane(&self) -> Lane {
+        match self {
+            Self::Send(message) => message.lane(),
+            Self::SendReliable(_) | Self::Close => Lane::Reliable,
+        }
+    }
+
     fn is_unreliable(&self) -> bool {
-        matches!(self, Self::Send(message) if message.lane() == Lane::Unreliable)
+        self.lane() == Lane::Unreliable
     }
 }
 
@@ -100,19 +107,12 @@ async fn write_outbound(
             command = from_client.recv() => command,
             _ = connection.closed() => return Ok(()),
         };
-        let lane = if command.as_ref().is_some_and(ClientToServer::is_unreliable) {
-            Lane::Unreliable
-        } else {
-            Lane::Reliable
-        };
-        match command {
-            Some(ClientToServer::Send(message) | ClientToServer::SendReliable(message)) => {
-                if lane == Lane::Unreliable && impairment.drops() {
-                    continue;
-                }
-                trace!("sending to server: {:?}", message);
-                send_message(connection, &mut send, lane, &message).await?;
+        let (message, lane) = match command {
+            Some(ClientToServer::Send(message)) => {
+                let lane = message.lane();
+                (message, lane)
             }
+            Some(ClientToServer::SendReliable(message)) => (message, Lane::Reliable),
             Some(ClientToServer::Close) => {
                 let _ = send.finish();
                 connection.close(0u32.into(), b"client closing");
@@ -124,7 +124,12 @@ async fn write_outbound(
                 connection.close(0u32.into(), b"client closing");
                 return Ok(());
             }
+        };
+        if lane == Lane::Unreliable && impairment.drops() {
+            continue;
         }
+        trace!("sending to server: {:?}", message);
+        send_message(connection, &mut send, lane, &message).await?;
     }
 }
 

@@ -1,5 +1,6 @@
 use bevy_ecs::prelude::{Component, Entity};
 use bevy_math::Vec3;
+use bincode::{Decode, Encode};
 
 use crate::{config::CharacterPhysicsConfig, physics::world::ShapeCastHit, protocol::Position};
 
@@ -31,7 +32,9 @@ pub struct GroundingDiagnostics {
 }
 
 // Derived independently each step and never read back by the movement motor.
-#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+// The owning client reports it with its movement; the server adopts it with
+// an accepted position instead of probing again.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Encode, Decode)]
 pub enum CharacterSupport {
     Airborne,
     Ground,

@@ -9,7 +9,7 @@ use bevy::{
     window::{CursorGrabMode, CursorOptions},
 };
 use common::{
-    physics::{CharacterVerticalVelocity, CollisionWorld},
+    physics::{AirborneMomentum, CharacterSupport, CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity},
     protocol::{
         BarrierKindTable, ClientMessage, FaceYaw, MapLayout, PlayerId, PlayerMoveIntent, PortalAccess, PortalPairId,
         Position,
@@ -17,8 +17,8 @@ use common::{
 };
 
 use super::{
-    WeaponMode, commit_player_input_system, input_camera_view_toggle_system, input_camera_zoom_system,
-    input_cursor_capture_system, input_facing_lock_toggle_system, input_movement_system,
+    WeaponMode, input_camera_view_toggle_system, input_camera_zoom_system, input_cursor_capture_system,
+    input_facing_lock_toggle_system, input_movement_system,
 };
 use crate::{
     cameras::{CameraInputState, CameraViewMode, FollowCamera, TopDownCameraYaw},
@@ -26,7 +26,7 @@ use crate::{
     constants::{INPUT_ZOOM_PIXELS_PER_LINE, INPUT_ZOOM_SENSITIVITY_BASE},
     map::LevelFocusEnabled,
     network::{ClientToServer, ClientToServerChannel},
-    players::{LocalPlayerInfo, LocalPlayerMarker, MyPlayerId, PlayerMap},
+    players::{LocalPlayerInfo, LocalPlayerMarker, MyPlayerId, PlayerMap, report_player_movement_system},
     test_fixtures,
     ui::{ConsoleState, SettingsMenuState},
 };
@@ -81,6 +81,9 @@ fn input_app() -> (App, Entity, Entity) {
             FaceYaw(0.0),
             PlayerMoveIntent::Idle,
             CharacterVerticalVelocity(0.0),
+            AirborneMomentum::default(),
+            KnockbackVelocity::default(),
+            CharacterSupport::Ground,
         ))
         .id();
     (app, player, cursor)
@@ -229,7 +232,7 @@ fn unlocked_firing_faces_view_without_changing_movement_or_lock_and_commits_faci
         app.insert_resource(ClientToServerChannel::new(sender))
             .insert_resource(weapon)
             .insert_resource(access)
-            .add_systems(Update, commit_player_input_system.after(input_movement_system));
+            .add_systems(Update, report_player_movement_system.after(input_movement_system));
         app.world_mut().resource_mut::<FollowCamera>().locked = false;
         app.world_mut()
             .resource_mut::<ButtonInput<KeyCode>>()

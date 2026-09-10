@@ -3,13 +3,14 @@ use bevy::prelude::*;
 use super::{PlayerMap, player_spawn_destination};
 use crate::{
     actors::{ActorMap, ActorRespawnTimers, PendingActorSpawns, reset_actors},
+    characters::MovementStart,
     config::ServerGameplayConfig,
     map::MapConfig,
 };
 use common::{
     config::GameplayConfig,
     map::Carriers,
-    physics::{AirborneMomentum, CharacterVerticalVelocity, CollisionWorld},
+    physics::{AirborneMomentum, CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity},
     protocol::{FaceYaw, Health, PlayerMarker, PlayerMoveIntent, Position},
 };
 
@@ -72,10 +73,12 @@ pub fn players_respawn_system(
                 PlayerMarker,
                 id,
                 pos,
+                MovementStart(pos),
                 move_intent,
                 FaceYaw(face_yaw),
                 CharacterVerticalVelocity::default(),
                 AirborneMomentum::default(),
+                KnockbackVelocity::default(),
                 Health(server_gameplay_config.combat.health.player.max),
             ))
             .id();

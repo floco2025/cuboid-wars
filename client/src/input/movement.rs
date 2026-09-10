@@ -2,7 +2,7 @@ use bevy::{ecs::system::SystemParam, input::mouse::MouseMotion, math::Vec2, prel
 use common::{
     config::GameplayConfig,
     physics::{CharacterVerticalVelocity, CollisionWorld, player_jump_velocity},
-    protocol::{CJump, ClientMessage, FaceYaw, MapSettings, PlayerId, PlayerMoveIntent, PortalAccess, Position},
+    protocol::{FaceYaw, MapSettings, PlayerId, PlayerMoveIntent, PortalAccess, Position},
 };
 use std::f32::consts::PI;
 
@@ -11,7 +11,6 @@ use crate::{
     cameras::{CameraInputState, CameraViewMode, FollowCamera, TopDownCameraYaw},
     config::ClientSettings,
     constants::{CAMERA_MAX_PITCH, INPUT_MOUSE_SENSITIVITY_BASE},
-    network::{ClientToServer, ClientToServerChannel},
     players::{LocalPlayerInfo, LocalPlayerMarker, MyPlayerId, PlayerMap},
     ui::{ConsoleState, SettingsMenuState},
 };
@@ -57,15 +56,13 @@ type LocalPlayerInputQuery<'w, 's> = Query<
 
 // Handle WASD movement and mouse rotation at render rate. Writes
 // `PlayerMoveIntent` and `FaceYaw` to the local-player ECS components
-// continuously so the camera and local prediction stay smooth; the network
-// commit happens once per game tick in `commit_player_input_system`. Jumps
-// are sent immediately on key-press — discrete events feel best with no
-// commit-tick latency.
+// continuously so the camera and local prediction stay smooth; the movement
+// they produce reaches the server once per game tick in
+// `report_player_movement_system`, a jump as the vertical velocity it set.
 pub fn input_movement_system(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut mouse_motion: MessageReader<MouseMotion>,
     camera_input: CameraMovementInput,
-    to_server: Res<ClientToServerChannel>,
     my_player_id: Res<MyPlayerId>,
     players: Res<PlayerMap>,
     mut local_player_info: ResMut<LocalPlayerInfo>,
@@ -121,12 +118,6 @@ pub fn input_movement_system(
         map_settings.movement.player.jump_speed,
         &mut local_player_query,
     );
-
-    // Jump is event-shaped, sent immediately. Move-intent and face are state,
-    // sent by the per-tick commit system.
-    if jump_requested {
-        let _ = to_server.send(ClientToServer::Send(ClientMessage::Jump(CJump {})));
-    }
 }
 
 // Applies this frame's mouse motion to the active view's yaw (and pitch for

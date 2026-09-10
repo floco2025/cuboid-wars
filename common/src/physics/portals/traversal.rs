@@ -96,8 +96,8 @@ pub struct PlayerHopBody<'a> {
     pub move_intent: PlayerMoveIntent,
     pub has_speed: bool,
     pub stunned: bool,
-    pub knockback: Option<&'a KnockbackVelocity>,
-    pub airborne_momentum: Option<&'a AirborneMomentum>,
+    pub knockback: &'a KnockbackVelocity,
+    pub airborne_momentum: &'a AirborneMomentum,
     pub vertical_velocity: f32,
     pub yaw: f32,
 }
@@ -106,7 +106,7 @@ pub struct PlayerHopBody<'a> {
 pub struct CharacterHopBody {
     pub control_velocity: Vec3,
     pub knockback: Vec3,
-    pub portal_momentum: Vec3,
+    pub airborne_momentum: Vec3,
     pub vertical_velocity: f32,
     pub yaw: f32,
 }
@@ -124,7 +124,7 @@ pub struct CharacterPortalHop {
     pub knockback: Vec3,
     // Non-blast horizontal velocity carried through the portal. It persists
     // in the air so a launch keeps its mapped angle.
-    pub portal_momentum: Vec3,
+    pub airborne_momentum: Vec3,
     // The gate that was crossed, for camera view mapping.
     pub entry: PortalFrame,
     pub exit: PortalFrame,
@@ -144,25 +144,9 @@ impl CharacterPortalHop {
         *move_intent = traverse_move_intent(&self.entry, &self.exit, *move_intent);
     }
 
-    pub fn apply_motion_components(
-        &self,
-        commands: &mut Commands,
-        entity: Entity,
-        knockback: Option<Mut<'_, KnockbackVelocity>>,
-        portal_momentum: Option<Mut<'_, AirborneMomentum>>,
-    ) {
-        match knockback {
-            Some(mut existing) => existing.0 = self.knockback,
-            None => {
-                commands.entity(entity).insert(KnockbackVelocity(self.knockback));
-            }
-        }
-        match portal_momentum {
-            Some(mut existing) => existing.0 = self.portal_momentum,
-            None => {
-                commands.entity(entity).insert(AirborneMomentum(self.portal_momentum));
-            }
-        }
+    pub fn apply_motion_components(&self, knockback: &mut KnockbackVelocity, airborne_momentum: &mut AirborneMomentum) {
+        knockback.0 = self.knockback;
+        airborne_momentum.0 = self.airborne_momentum;
     }
 }
 
@@ -288,8 +272,8 @@ impl PortalSet {
             gameplay_config.player.physics(),
             CharacterHopBody {
                 control_velocity: player_control_velocity(body.move_intent, movement, body.has_speed, body.stunned),
-                knockback: body.knockback.map_or(Vec3::ZERO, |velocity| velocity.0),
-                portal_momentum: body.airborne_momentum.map_or(Vec3::ZERO, |momentum| momentum.0),
+                knockback: body.knockback.0,
+                airborne_momentum: body.airborne_momentum.0,
                 vertical_velocity: body.vertical_velocity,
                 yaw: body.yaw,
             },
@@ -399,7 +383,7 @@ impl PortalSet {
     // the body stays inside the exit aperture; this is also what lets a
     // steering player escape a fall chain) and penetration carried — and so
     // does velocity, split into vertical velocity, blast knockback, and
-    // airborne portal momentum.
+    // airborne momentum.
     #[must_use]
     pub fn character_hop(
         &self,
@@ -412,7 +396,7 @@ impl PortalSet {
         let CharacterHopBody {
             control_velocity,
             knockback,
-            portal_momentum,
+            airborne_momentum,
             vertical_velocity,
             yaw,
         } = body;
@@ -425,7 +409,7 @@ impl PortalSet {
         let shape = character_movement_shape(physics);
         let center_offset = character_movement_center(Position::default(), physics);
         let center_to = to + center_offset;
-        let portal_velocity = portal_momentum + Vec3::Y * vertical_velocity;
+        let portal_velocity = airborne_momentum + Vec3::Y * vertical_velocity;
         let velocity = control_velocity + knockback + portal_velocity;
         for (entry_gate, exit_gate) in self.gates() {
             let entry = &entry_gate.frame;
@@ -456,7 +440,7 @@ impl PortalSet {
                 yaw: traverse_yaw(entry, exit, yaw),
                 vertical_velocity: mapped_velocity.y,
                 knockback: Vec3::new(mapped_knockback.x, 0.0, mapped_knockback.z).clamp_length_max(knockback_cap),
-                portal_momentum: Vec3::new(mapped_portal_velocity.x, 0.0, mapped_portal_velocity.z),
+                airborne_momentum: Vec3::new(mapped_portal_velocity.x, 0.0, mapped_portal_velocity.z),
                 entry: *entry,
                 exit: *exit,
             });

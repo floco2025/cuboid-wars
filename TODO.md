@@ -20,6 +20,8 @@
 
 ## Enhancements
 
+- **Knockback message cleanup:** Rename `SPlayerBlast` to `SPlayerKnockback` to describe the effect the client applies. Remove the unused `hit_dir_x`, `hit_dir_z`, and `strength` fields; keep the health and velocity data.
+
 - **Checkpoint scan on maps without checkpoints:** `players_checkpoints_system` runs a capsule cast per grounded player every tick before reading an empty list. Gate it with a `run_if` on `map.checkpoints`, like `pending_actor_spawns_active`.
 
 - **Checkpoint spawn sampler duplicates the zone sampler:** `checkpoint_spawn_position` repeats the attempt loop, radius inset, pose transform, and occupied test from `server/src/characters/spawning.rs` with a bare 100 beside `SPAWN_MAX_ATTEMPTS`, and blocks on every solid where zones test only walls. Share the loop and keep the clearance predicate and center-first attempt per caller.
@@ -31,6 +33,14 @@
 - **Tool Reference lacks Checkpoints:** the editor's Help → Tool Reference has no section for the Checkpoint tool, its Type selector, right-click type editing, or Erase Checkpoints.
 
 - **Grounding inspection after a blocked step:** the per-frame refresh now only fills characters that lack the diagnostics, so a body blocked by another character draws its probe from the motor's proposed position until the next tick.
+
+- **Crossing exits are unchecked:** `resolve_portal_crossing` compares only the entrance and adopts any exit, so a `CPortalCross` is a teleport with no geometry behind it. With the other abuse hardening, validate the exit against `PortalSet` through the shared `player_hop` from the accepted entrance.
+
+- **Crossing queue is unbounded:** `PlayerMovementReports` coalesces ordinary moves but keeps every crossing, and one is processed per tick. Cap the per-player queue with the other ingress budgets.
+
+- **Rejected crossing can leave the server body in the backing:** the server's step lets the body sink into an aperture it never crosses, so the retained position after a rejection may lie inside the wall behind the plane, and the owner snaps there. Rare (a rejection needs a large entrance disagreement); a push-out or a server-side re-hop would settle it.
+
+- **Report in flight across an instant respawn:** a report sent before the client learned of its death is dropped while the body is gone but not marked stale, so a respawn with no countdown could adopt it if the spawn lies within the trust distance of where it was sent. Advance the sequence cutoff at respawn or record the spawn tick.
 
 - **Rapier upgrades:** Recheck the capsule floor-motion regression before removing the contact-normal adapter in `common/src/physics/world/character_queries.rs`. It works around imprecise cast normals feeding Rapier 0.32’s slope decomposition.
 
@@ -46,7 +56,7 @@
 
 ## Testing
 
-- **Client movement trust:** Play obstacle courses with multiple clients under latency, jitter, and packet loss. Check narrow landings, moving platforms, ladders, portal launches, knockback, and remote-player smoothing. Cross consecutive portals before confirmation and check uninterrupted local motion and remote transitions. Force ordinary and portal entrance disagreements and confirm clean recovery with server rejection/client snap warnings.
+- **Client movement trust:** Play obstacle courses with multiple clients under latency, jitter, and packet loss. Check narrow landings, moving platforms, ladders, portal launches, knockback, and remote-player smoothing. Cross consecutive portals before confirmation and check uninterrupted local motion and remote transitions. Cross a close portal pair (both ends on one wall) under loss and watch the remote copy arrive without a stuck moment. Take a missile blast under loss and confirm the launch, and jump under loss, including low gravity, and confirm the takeoff. Force ordinary and portal entrance disagreements and confirm clean recovery with server rejection/client snap warnings; normal play should log no warnings.
 
 - **Shared checkpoints:** Play through Group — any and Group — all with multiple clients, including staggered visits, death, joining, and leaving. Check each player's next respawn and checkpoint notification.
 

@@ -2,7 +2,7 @@ use bevy_math::Vec3;
 use rapier3d::{parry::shape::Capsule, prelude::ColliderHandle};
 
 use super::{
-    CharacterSupport, GroundingDiagnostics,
+    GroundingDiagnostics,
     geometry::{character_movement_pose, character_movement_shape},
     ladder::{LadderMode, evaluate_ladder_interaction},
     movement::{CharacterEnvironment, CharacterStep},
@@ -256,41 +256,23 @@ pub(super) fn snap_character_to_ground(
     }
 }
 
+// The step's crush test at a position the body did not reach by stepping
+// (a position accepted from a client report). Such a position has already
+// received its carry, so the rider probe cannot name the carrier that
+// lifted it; any carrier rising or sinking this tick makes world colliders
+// count, which only matters for a body a lift pressed into a ceiling.
 #[must_use]
-pub fn inspect_character_support(
-    pos: Position,
-    vertical_velocity: f32,
-    control_velocity: Vec3,
-    env: &CharacterEnvironment,
-    delta: f32,
-    lifted: bool,
-) -> (CharacterSupport, GroundingDiagnostics, bool) {
+pub fn character_crushed_at(pos: Position, env: &CharacterEnvironment) -> bool {
+    if env.carriers.is_static() {
+        return false;
+    }
+    let lifted = env
+        .carriers
+        .carried_ids()
+        .any(|carrier| env.carriers.displacement(carrier).y != 0.0);
     let excluded = env.portals.map_or_else(Vec::new, |portals| {
         portals.collision_exclusions(Vec3::from(pos), env.physics)
     });
-    let grounding = grounding_diagnostics(env.collision_world, &pos, env.physics, env.passable_kinds, &excluded);
-    let grounded = vertical_velocity <= 0.0 && grounding.supported;
-    let ladder = env.collision_world.ladder_volume_at(&pos);
-    let interaction = evaluate_ladder_interaction(
-        ladder,
-        env.ladder_mode,
-        &pos,
-        vertical_velocity,
-        control_velocity,
-        delta,
-        grounded,
-        env.ladder_climb_ratio,
-    );
-    let support = if interaction.is_supported() {
-        CharacterSupport::Ladder
-    } else if grounded {
-        CharacterSupport::Ground
-    } else {
-        CharacterSupport::Airborne
-    };
-    let crushed = !env.carriers.is_static()
-        && env
-            .collision_world
-            .character_crushed(&pos, env.physics, env.passable_kinds, &excluded, lifted);
-    (support, grounding, crushed)
+    env.collision_world
+        .character_crushed(&pos, env.physics, env.passable_kinds, &excluded, lifted)
 }

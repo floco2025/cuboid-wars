@@ -3,6 +3,7 @@ use bevy_math::Vec3;
 use bincode::{Decode, Encode};
 
 use super::Position;
+use crate::physics::CharacterSupport;
 
 #[derive(Debug, Clone, Encode, Decode, Copy, Component, Default, PartialEq)]
 pub enum PlayerMoveIntent {
@@ -133,6 +134,9 @@ impl ActorMoveIntent {
 #[derive(Component, Default)]
 pub struct FaceYaw(pub f32);
 
+// Everything one movement step leaves behind, as the wire carries it.
+// `physics::player_movement_state` builds it from the components and
+// `PlayerMotionBundle` turns it back into them.
 #[derive(Debug, Clone, Copy, Encode, Decode)]
 pub struct PlayerMovementState {
     pub pos: Position,
@@ -141,6 +145,7 @@ pub struct PlayerMovementState {
     pub face_yaw: f32,
     pub airborne_momentum: [f32; 3],
     pub knockback: [f32; 3],
+    pub support: CharacterSupport,
 }
 
 impl PlayerMovementState {
@@ -153,6 +158,7 @@ impl PlayerMovementState {
             face_yaw,
             airborne_momentum: [0.0; 3],
             knockback: [0.0; 3],
+            support: CharacterSupport::Airborne,
         }
     }
 
@@ -169,8 +175,8 @@ impl PlayerMovementState {
             && self.move_intent.is_finite()
             && self.vertical_velocity.is_finite()
             && self.face_yaw.is_finite()
-            && self.airborne_momentum.iter().all(|v| v.is_finite())
-            && self.knockback.iter().all(|v| v.is_finite())
+            && Vec3::from_array(self.airborne_momentum).is_finite()
+            && Vec3::from_array(self.knockback).is_finite()
     }
 }
 

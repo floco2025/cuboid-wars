@@ -16,7 +16,7 @@ use crate::{
 };
 use common::{
     map::Carriers,
-    physics::{CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity},
+    physics::{AirborneMomentum, CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity},
     protocol::{
         ActorAnchor, ActorId, ActorMarker, Barrier, BarrierKindId, BarrierKindTable, BridgeKindId, CarrierId, Health,
         LightBridge, MapLayout, PlateState, PlayerId, PlayerMarker, Position, SPlayerDeath, ServerMessage,
@@ -286,6 +286,8 @@ fn simultaneous_blasts_send_one_combined_player_result() {
             Position::default(),
             Health(1_000.0),
             CharacterVerticalVelocity::default(),
+            AirborneMomentum::default(),
+            KnockbackVelocity::default(),
         ))
         .id();
     let (sender, mut receiver) = unbounded_channel();
@@ -338,6 +340,8 @@ fn spawn_logged_in_player(
             Position { x, ..default() },
             Health(health),
             CharacterVerticalVelocity::default(),
+            AirborneMomentum::default(),
+            KnockbackVelocity::default(),
         ))
         .id();
     let (sender, receiver) = unbounded_channel();
@@ -543,7 +547,12 @@ fn fields_shield_players_and_actors_from_missile_damage_and_knockback() {
                     .0;
                 assert_eq!(health < 10000.0, !active, "bridge={bridge}, active={active}");
                 assert_eq!(vertical > 0.0, !active);
-                assert_eq!(app.world().get::<KnockbackVelocity>(entity).is_some(), !active);
+                assert_eq!(
+                    app.world()
+                        .get::<KnockbackVelocity>(entity)
+                        .is_some_and(|knockback| knockback.0 != Vec3::ZERO),
+                    !active
+                );
             }
         }
     }

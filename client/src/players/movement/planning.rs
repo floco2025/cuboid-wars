@@ -24,7 +24,7 @@ pub(crate) fn plan_player_moves(
     collision_world: &CollisionWorld,
     map_settings: &MapSettings,
     gameplay_config: &GameplayConfig,
-    players: &mut PlayerMap,
+    players: &PlayerMap,
     plates: &PlateState,
     portal_set: &PortalSet,
     carriers: &Carriers,
@@ -86,7 +86,7 @@ pub(crate) fn plan_player_moves(
             _ => Vec3::ZERO,
         };
         let external_displacement =
-            correction_displacement + momentum_displacement(knockback, airborne_momentum.as_deref(), delta);
+            correction_displacement + momentum_displacement(Some(knockback), Some(&*airborne_momentum), delta);
         let step = step_player_movement(PlayerMovementStep {
             start: *client_pos,
             vertical_velocity: motion.0,
@@ -97,7 +97,7 @@ pub(crate) fn plan_player_moves(
             held_keys,
             open_kinds: &plates.open_barrier_kinds,
             knockback,
-            airborne_momentum: airborne_momentum.as_deref_mut(),
+            airborne_momentum: &mut airborne_momentum,
             collision_world,
             map_settings,
             gameplay_config,
@@ -126,8 +126,8 @@ pub(crate) type PlayerMovementQuery<'w, 's> = Query<
         &'static mut CharacterVerticalVelocity,
         Option<&'static mut BumpFeedbackState>,
         Option<&'static mut ServerReconciliation>,
-        Option<&'static KnockbackVelocity>,
-        Option<&'static mut AirborneMomentum>,
+        &'static KnockbackVelocity,
+        &'static mut AirborneMomentum,
         &'static mut PlayerAnimationMotion,
         Has<LocalPlayerMarker>,
     ),
@@ -170,6 +170,8 @@ mod tests {
                         PreviousTickPosition(Position::default()),
                         PlayerMoveIntent::Idle,
                         CharacterVerticalVelocity(0.0),
+                        AirborneMomentum::default(),
+                        KnockbackVelocity::default(),
                         PlayerAnimationMotion::default(),
                         ServerReconciliation::new(Vec3::X * error, server_pos, Vec3::NEG_Y * 2.0, &rtt),
                     ))
@@ -186,7 +188,7 @@ mod tests {
                     &collision,
                     &settings,
                     &gameplay,
-                    &mut PlayerMap::default(),
+                    &PlayerMap::default(),
                     &PlateState::default(),
                     &PortalSet::default(),
                     &Carriers::default(),

@@ -27,5 +27,3 @@ pub use resources::{
 };
 pub use tick::TickSync;
 pub use transport::{ClientToServer, ServerToClient, configure_client, network_io_task};
-
-pub use common::math::worst_axis_divergence;

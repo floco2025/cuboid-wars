@@ -7,5 +7,5 @@ pub(super) use handlers::{
     handle_player_fall_damage_message, handle_player_hit_message, handle_player_status_message,
     handle_projectile_shot_message,
 };
-pub(super) use moves::{handle_player_moves_message, reset_local_comparisons, snap_player};
+pub(super) use moves::{handle_player_moves_message, snap_player};
 pub(super) use sync::sync_players;

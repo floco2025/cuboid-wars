@@ -5,11 +5,11 @@ use crate::{
     items::ItemMap,
     missiles::{MissileMap, MissileVelocity},
     network::ServerToClient,
-    players::{PlayerInfo, PlayerMap, PlayerStateQuery},
+    players::{PlayerInfo, PlayerMap, PlayerMotionQuery, PlayerStateQuery},
     portals::PortalAssignments,
 };
 use common::{
-    physics::{AirborneMomentum, CharacterVerticalVelocity, KnockbackVelocity},
+    physics::{CharacterVerticalVelocity, player_movement_state},
     protocol::*,
 };
 
@@ -52,6 +52,17 @@ pub fn broadcast_firework_show(players: &PlayerMap) {
     );
 }
 
+// An accepted crossing places the player for everyone; a rejection only
+// tells the owner where to snap back to.
+pub fn broadcast_portal_crossing(players: &PlayerMap, result: SPortalCrossed) {
+    let message = ServerMessage::PortalCrossed(result);
+    if result.accepted {
+        broadcast_to_all(players, message);
+    } else if let Some(owner) = players.get(&result.id).filter(|info| info.connection.logged_in) {
+        let _ = owner.connection.channel.send(ServerToClient::Send(message));
+    }
+}
+
 // ============================================================================
 // Data Collection Functions
 // ============================================================================
@@ -68,14 +79,7 @@ struct ActivePlayer<'a> {
 fn active_players<'a>(
     players: &'a PlayerMap,
     player_data: &'a PlayerStateQuery,
-    motions: &'a Query<
-        (
-            &CharacterVerticalVelocity,
-            Option<&AirborneMomentum>,
-            Option<&KnockbackVelocity>,
-        ),
-        With<PlayerMarker>,
-    >,
+    motions: &'a PlayerMotionQuery,
 ) -> impl Iterator<Item = ActivePlayer<'a>> {
     players.iter().filter_map(|(player_id, info)| {
         // Death must surface as snapshot absence. A killed player's entity
@@ -87,12 +91,16 @@ fn active_players<'a>(
         }
         let entity = info.entity()?;
         let (pos, move_intent, face_yaw, health) = player_data.get(entity).ok()?;
-        let motion = motions.get(entity).ok();
-        let movement = PlayerMovementState::new(*pos, *move_intent, motion.map_or(0.0, |m| m.0.0), face_yaw.0)
-            .with_momentum(
-                motion.and_then(|m| m.1).map_or(Vec3::ZERO, |m| m.0),
-                motion.and_then(|m| m.2).map_or(Vec3::ZERO, |m| m.0),
-            );
+        let (vertical_velocity, airborne_momentum, knockback) = motions.get(entity).ok()?;
+        let movement = player_movement_state(
+            *pos,
+            *move_intent,
+            face_yaw,
+            vertical_velocity,
+            airborne_momentum,
+            knockback,
+            info.life.fall_state.support(),
+        );
         Some(ActivePlayer {
             id: *player_id,
             info,
@@ -107,14 +115,7 @@ fn active_players<'a>(
 pub fn snapshot_active_players(
     players: &PlayerMap,
     player_data: &PlayerStateQuery,
-    motions: &Query<
-        (
-            &CharacterVerticalVelocity,
-            Option<&AirborneMomentum>,
-            Option<&KnockbackVelocity>,
-        ),
-        With<PlayerMarker>,
-    >,
+    motions: &PlayerMotionQuery,
     portal_assignments: &PortalAssignments,
 ) -> Vec<(PlayerId, Player)> {
     active_players(players, player_data, motions)
@@ -134,14 +135,7 @@ pub fn snapshot_active_players(
 pub fn collect_player_moves(
     players: &PlayerMap,
     player_data: &PlayerStateQuery,
-    motions: &Query<
-        (
-            &CharacterVerticalVelocity,
-            Option<&AirborneMomentum>,
-            Option<&KnockbackVelocity>,
-        ),
-        With<PlayerMarker>,
-    >,
+    motions: &PlayerMotionQuery,
 ) -> Vec<PlayerMove> {
     active_players(players, player_data, motions)
         .map(|player| PlayerMove {
@@ -250,6 +244,7 @@ mod tests {
     use super::*;
     use crate::players::PlayerInfo;
     use bevy::ecs::system::SystemState;
+    use common::physics::{AirborneMomentum, KnockbackVelocity};
     use tokio::sync::mpsc::unbounded_channel;
 
     fn spawn_player_entity(world: &mut World) -> Entity {
@@ -261,6 +256,8 @@ mod tests {
                 Health(100.0),
                 PlayerMarker,
                 CharacterVerticalVelocity(0.0),
+                AirborneMomentum::default(),
+                KnockbackVelocity::default(),
             ))
             .id()
     }
@@ -286,17 +283,7 @@ mod tests {
         dead.begin_respawn(2.0);
         players.insert(PlayerId(2), dead);
 
-        let mut state: SystemState<(
-            PlayerStateQuery,
-            Query<
-                (
-                    &CharacterVerticalVelocity,
-                    Option<&AirborneMomentum>,
-                    Option<&KnockbackVelocity>,
-                ),
-                With<PlayerMarker>,
-            >,
-        )> = SystemState::new(&mut world);
+        let mut state: SystemState<(PlayerStateQuery, PlayerMotionQuery)> = SystemState::new(&mut world);
         let (player_data, motions) = state.get(&world).expect("system params invalid for the test world");
 
         let snapshot = snapshot_active_players(
@@ -322,17 +309,7 @@ mod tests {
         dead.begin_respawn(2.0);
         players.insert(PlayerId(2), dead);
 
-        let mut state: SystemState<(
-            PlayerStateQuery,
-            Query<
-                (
-                    &CharacterVerticalVelocity,
-                    Option<&AirborneMomentum>,
-                    Option<&KnockbackVelocity>,
-                ),
-                With<PlayerMarker>,
-            >,
-        )> = SystemState::new(&mut world);
+        let mut state: SystemState<(PlayerStateQuery, PlayerMotionQuery)> = SystemState::new(&mut world);
         let (player_data, motions) = state.get(&world).expect("system params invalid for the test world");
 
         let moves = collect_player_moves(&players, &player_data, &motions);

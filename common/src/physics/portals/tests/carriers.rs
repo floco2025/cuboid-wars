@@ -246,7 +246,7 @@ fn a_rising_plane_catches_a_crossing_the_stale_test_would_miss() {
                 CharacterHopBody {
                     control_velocity: Vec3::ZERO,
                     knockback: Vec3::ZERO,
-                    portal_momentum: Vec3::ZERO,
+                    airborne_momentum: Vec3::ZERO,
                     vertical_velocity: -3.0,
                     yaw: 0.0,
                 },
@@ -273,7 +273,7 @@ fn a_rising_plane_catches_a_crossing_the_stale_test_would_miss() {
                 CharacterHopBody {
                     control_velocity: Vec3::ZERO,
                     knockback: Vec3::ZERO,
-                    portal_momentum: Vec3::ZERO,
+                    airborne_momentum: Vec3::ZERO,
                     vertical_velocity: -3.0,
                     yaw: 0.0,
                 },

@@ -10,19 +10,23 @@ use crate::{
 // Components
 // ============================================================================
 
-// Remote prediction closes an extrapolated gap over a correction window.
-// Large errors snap to the absolute server position to avoid feeding an
-// already-applied correction back through delayed updates.
+// The gap a remote character or missile still has to close toward its last
+// server sample, bled off over a correction window. Each consumer keeps its
+// own snap threshold; a gap past it is taken as a cut to `server_pos`, since
+// feeding it back through delayed updates would never converge.
 #[derive(Component)]
 pub struct ServerReconciliation {
     pub correction_delta: Vec3,
     pub server_pos: Position,
     pub server_velocity: Vec3,
     pub applied_fraction: f32,
-    pub rtt: f32,
+    rtt: f32,
 }
 
 impl ServerReconciliation {
+    // Updates replace this component, so in steady state this is an
+    // exponential pull toward a moving target; when the stream pauses the
+    // last correction finishes linearly, capped so it cannot overshoot.
     pub fn correction_fraction(&mut self, delta: f32) -> f32 {
         let window = (self.rtt * RECON_CORRECTION_TIME_RTT_MULTIPLIER).max(RECON_CORRECTION_MIN_SECS);
         let fraction = (delta / window).min(1.0 - self.applied_fraction);

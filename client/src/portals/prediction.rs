@@ -8,8 +8,11 @@ use crate::{
 };
 use common::{
     config::GameplayConfig,
-    physics::{AirborneMomentum, CharacterVerticalVelocity, KnockbackVelocity, PlayerHopBody, PortalSet},
-    protocol::{FaceYaw, MapSettings, PlayerId, PlayerMoveIntent, PlayerMovementState, Position, PowerUpKind},
+    physics::{
+        AirborneMomentum, CharacterSupport, CharacterVerticalVelocity, KnockbackVelocity, PlayerHopBody, PortalSet,
+        player_movement_state,
+    },
+    protocol::{FaceYaw, MapSettings, PlayerId, PlayerMoveIntent, Position, PowerUpKind},
 };
 
 pub fn portal_transit_system(
@@ -22,15 +25,15 @@ pub fn portal_transit_system(
     cameras: Query<Entity, (With<Camera3d>, With<MainCameraMarker>)>,
     mut query: Query<
         (
-            Entity,
             &PlayerId,
             &mut Position,
             &mut PreviousTickPosition,
             &mut FaceYaw,
             &mut CharacterVerticalVelocity,
             &mut PlayerMoveIntent,
-            Option<&mut KnockbackVelocity>,
-            Option<&mut AirborneMomentum>,
+            &mut KnockbackVelocity,
+            &mut AirborneMomentum,
+            &CharacterSupport,
         ),
         With<LocalPlayerMarker>,
     >,
@@ -38,8 +41,17 @@ pub fn portal_transit_system(
     if local_player_info.is_dead || portal_set.is_empty() {
         return;
     }
-    for (entity, id, mut pos, mut prev, mut face_yaw, mut vertical_velocity, mut move_intent, knockback, momentum) in
-        &mut query
+    for (
+        id,
+        mut pos,
+        mut prev,
+        mut face_yaw,
+        mut vertical_velocity,
+        mut move_intent,
+        mut knockback,
+        mut momentum,
+        support,
+    ) in &mut query
     {
         let (has_speed, stunned) = players
             .get(id)
@@ -53,8 +65,8 @@ pub fn portal_transit_system(
                 move_intent: *move_intent,
                 has_speed,
                 stunned,
-                knockback: knockback.as_deref(),
-                airborne_momentum: momentum.as_deref(),
+                knockback: &knockback,
+                airborne_momentum: &momentum,
                 vertical_velocity: vertical_velocity.0,
                 yaw: face_yaw.0,
             },
@@ -62,12 +74,17 @@ pub fn portal_transit_system(
             continue;
         };
 
-        let entrance = PlayerMovementState::new(*pos, *move_intent, vertical_velocity.0, face_yaw.0).with_momentum(
-            momentum.as_deref().map_or(Vec3::ZERO, |m| m.0),
-            knockback.as_deref().map_or(Vec3::ZERO, |k| k.0),
+        let entrance = player_movement_state(
+            *pos,
+            *move_intent,
+            &face_yaw,
+            &vertical_velocity,
+            &momentum,
+            &knockback,
+            *support,
         );
         hop.apply_player_state(&mut pos, &mut face_yaw, &mut vertical_velocity, &mut move_intent);
-        hop.apply_motion_components(&mut commands, entity, knockback, momentum);
+        hop.apply_motion_components(&mut knockback, &mut momentum);
         // Anchor render interpolation at the exit: the transit renders as a
         // cut there, not a smear between the portals.
         prev.0 = *pos;
@@ -82,9 +99,6 @@ pub fn portal_transit_system(
             hop.yaw,
         );
         let view_change = Vec2::new(local_player_info.stored_yaw, local_player_info.stored_pitch) - view_before;
-        let seq = local_player_info.move_seq.wrapping_add(1);
-        local_player_info.portal_crossings.record(seq, entrance, view_change);
-        local_player_info.committed_positions.clear();
-        local_player_info.last_comparison_seq = Some(local_player_info.move_seq);
+        local_player_info.reports.begin_crossing(entrance, view_change);
     }
 }
