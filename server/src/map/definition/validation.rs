@@ -621,8 +621,12 @@ fn validate_ramp(ramp: &RampDef, grid_cols: i32, grid_rows: i32, level_count: us
 
 pub(super) fn canonicalize(map_def: &mut MapDef) {
     map_def.actor_spawn_zones.sort_by(|a, b| {
-        (a.level, a.rows[0], a.cols[0], a.rows[1], a.cols[1], &a.kind, a.count)
-            .cmp(&(b.level, b.rows[0], b.cols[0], b.rows[1], b.cols[1], &b.kind, b.count))
+        (
+            a.level, a.rows[0], a.cols[0], a.rows[1], a.cols[1], &a.kind, a.count, &a.switch,
+        )
+            .cmp(&(
+                b.level, b.rows[0], b.cols[0], b.rows[1], b.cols[1], &b.kind, b.count, &b.switch,
+            ))
     });
     map_def.actor_spawn_zones.dedup();
 

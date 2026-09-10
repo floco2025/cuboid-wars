@@ -3,7 +3,8 @@ import unittest
 from editor_fixtures import DEFAULT_ALIAS, EditorHost, NESTED_SHAPES, faces, floor, nested
 from map_editor.editing import paint_floors
 from map_editor.normalization import empty_level, empty_map
-from map_editor.validation import validate_map
+from map_editor.catalogs import MapCatalogs
+from map_editor.validation import placed_definitions, validate_document, validate_map
 
 KIND = "treasure"
 BRIDGE_KIND = "skyway"
@@ -99,6 +100,28 @@ class PressurePlateTests(unittest.TestCase):
             ["actor_spawn_zones[3] has an empty switch"],
             "without a catalog only the empty switch is an error",
         )
+
+    def test_only_placed_geometry_supplies_a_targets_plates(self) -> None:
+        data = empty_map(6, 6)
+        data["levels"][0]["floors"] = [floor(0, 0), floor(3, 3)]
+        data["actor_spawn_zones"] = [
+            {"level": 0, "cols": [3, 4], "rows": [3, 4], "kind": "zapper", "count": 1, "switch": "guards"},
+        ]
+        room = empty_map(1, 1)
+        room["levels"][0]["floors"] = [floor(0, 0)]
+        room["pressure_plates"] = [{"level": 0, "col": 0, "row": 0, "switch": "guards"}]
+        data["nested_geometry"] = {"room": room, "hall": empty_map(2, 2)}
+        catalogs = MapCatalogs({}, {}, 0.1, {DEFAULT_ALIAS: True}, ["guards"])
+
+        self.assertEqual(placed_definitions(data, data["nested_geometry"]), {})
+        errors = validate_document(data, catalogs, actor_kinds=["zapper"])
+        self.assertTrue(any("names switch 'guards', which no pressure plate operates" in e for e in errors))
+
+        data["nested_geometry"]["hall"]["nested_maps"] = [nested("room", 0, [0, 0], [0, 0])]
+        data["nested_maps"] = [nested("hall", 0, [1, 1], [1, 1])]
+        self.assertEqual(set(placed_definitions(data, data["nested_geometry"])), {"hall", "room"})
+        errors = validate_document(data, catalogs, actor_kinds=["zapper"])
+        self.assertFalse(any("no pressure plate operates" in e for e in errors), list(errors))
 
     def test_plates_need_a_slab_outside_ramp_footprints(self) -> None:
         data = empty_map(4, 4)

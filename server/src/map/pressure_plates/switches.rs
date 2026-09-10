@@ -196,7 +196,10 @@ impl PressureSwitches {
 
     // A death or logout reset: every toggle switch whose policy `triggered`
     // goes off, and its plates held right now count as already pressed, so
-    // the reset wins even for a surviving holder until a fresh press.
+    // the reset wins even for a surviving holder until a fresh press. Every
+    // other switch keeps its last observed occupancy: the death may have
+    // lowered an `everyone` threshold to what the survivors hold, and the
+    // next update must still see that rising edge.
     pub fn reset(
         &mut self,
         triggered: impl Fn(DeathTrigger) -> bool,
@@ -210,12 +213,15 @@ impl PressureSwitches {
         for (index, switch) in self.switches.iter_mut().enumerate() {
             let id = SwitchId(index as u16);
             let occupied = occupied(switch.config.held, id, held, plates, alive);
-            switch.update_mode(logged_in, occupied, tick);
-            if switch.toggle && triggered(switch.config.reset_on_player_death) {
+            let changed_mode = switch.update_mode(logged_in, occupied, tick);
+            let reset_now = switch.toggle && triggered(switch.config.reset_on_player_death);
+            if reset_now {
                 switch.set_active(false, tick);
                 reset.insert(id);
             }
-            switch.occupied = occupied;
+            if reset_now || changed_mode {
+                switch.occupied = occupied;
+            }
         }
         let on_reset_switch = |idx: &usize| reset.contains(&plates[*idx].switch);
         self.prev_held.retain(|idx| !on_reset_switch(idx));

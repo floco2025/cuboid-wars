@@ -77,6 +77,7 @@ class ToolSettings(QWidget):
             tuple(window.wall_light_kinds),
             tuple(window.barrier_kinds),
             tuple(window.bridge_kinds),
+            tuple(window.switches),
             tuple(window.materials_catalog),
             tuple(window.texture_catalog.items()),
             len(window.map_data["levels"]),

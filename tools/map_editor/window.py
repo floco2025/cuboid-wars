@@ -56,7 +56,7 @@ from .spawn_zones import SpawnZoneEditMixin
 from .structure import StructureMixin
 from .tool_settings import ToolSettings
 from .types import SpawnZoneDrag, ZoneRef
-from .validation import ValidationErrors, plated_switches, validate_document, validate_map
+from .validation import ValidationErrors, placed_definitions, plated_switches, validate_document, validate_map
 from .window_geometry import WindowGeometry
 
 
@@ -217,12 +217,15 @@ class EditorWindow(
             material_aliases=self.materials_catalog,
         )
 
-    # Every geometry of the document with `data` standing in for the active map.
+    # The root and every placed geometry of the document, with `data`
+    # standing in for the active map.
     def _document_geometries(self, data: dict) -> list[dict]:
         active = self.doc.active_map
-        geometries = [data if active is None else self.doc.root_data]
-        geometries.extend(data if name == active else geometry for name, geometry in self.doc.nested_geometry.items())
-        return geometries
+        root = data if active is None else self.doc.root_data
+        definitions = {
+            name: data if name == active else geometry for name, geometry in self.doc.nested_geometry.items()
+        }
+        return [root, *placed_definitions(root, definitions).values()]
 
     # The whole document against the catalogs of `map_name`, or the adopted ones.
     def validate_document(self, data: dict, map_name: str | None = None) -> ValidationErrors:

@@ -58,6 +58,15 @@ class NormalizationTests(unittest.TestCase):
         errors = validate_map(result, [KIND], [], switches=[KIND, "fireworks"])
         self.assertTrue(any("duplicates a plate at level 0 [0, 0]" in error for error in errors))
 
+    def test_canonicalization_keeps_actor_zones_that_differ_only_by_switch(self) -> None:
+        data = empty_map(4, 4)
+        zone = {"level": 0, "cols": [0, 2], "rows": [0, 2], "kind": "zapper", "count": 1}
+        data["actor_spawn_zones"] = [{**zone, "switch": "guards"}, dict(zone), {**zone, "switch": "guards"}, dict(zone)]
+
+        result = canonicalize_map(data)
+
+        self.assertEqual(result["actor_spawn_zones"], [zone, {**zone, "switch": "guards"}])
+
     def test_zone_and_nested_map_switches_survive_normalization_only_when_set(self) -> None:
         data = empty_map(2, 2)
         data["actor_spawn_zones"] = [

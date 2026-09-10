@@ -473,6 +473,19 @@ class WindowTests(WindowTestCase):
             prompt.assert_not_called()
         self.assertEqual([entry["travel_secs"] for entry in window.map_data["nested_maps"]], [3.0, 3.0])
 
+    def test_toolbar_switch_choices_follow_the_catalog(self):
+        window = self.window
+        window.switch_ids = ["a"]
+        window.mode_combo.setCurrentText(MODE_PRESSURE_PLATE)
+        window.tool_settings.refresh()
+        combo = window.tool_settings.body.findChildren(QComboBox)[0]
+        self.assertEqual([combo.itemText(i) for i in range(combo.count())], ["", "a"])
+
+        window.switch_ids = ["a", "b"]
+        window.tool_settings.refresh()
+        combo = window.tool_settings.body.findChildren(QComboBox)[0]
+        self.assertEqual([combo.itemText(i) for i in range(combo.count())], ["", "a", "b"])
+
     def test_actor_picker_rejects_unknown_kinds_and_toolbar_reuses_valid_choices(self):
         window = self.window
         kind = window.actor_kinds[0]

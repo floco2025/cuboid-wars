@@ -526,6 +526,36 @@ fn eraser_validation_rejects_duplicates_diagonals_and_out_of_bounds_edges() {
 }
 
 #[test]
+fn canonicalize_keeps_zones_that_differ_only_by_switch() {
+    let mut map_def = map_with_zones(
+        4,
+        vec![level(vec![[0, 0]])],
+        vec![
+            actor_zone(0, 0, 0),
+            actor_zone(0, 0, 0),
+            actor_zone(0, 0, 0),
+            actor_zone(0, 0, 0),
+        ],
+        vec![player_zone(0, 0, 0)],
+        Vec::new(),
+    );
+    map_def.actor_spawn_zones[0].switch = Some("guards".into());
+    map_def.actor_spawn_zones[2].switch = Some("guards".into());
+
+    canonicalize(&mut map_def);
+
+    assert_eq!(
+        map_def
+            .actor_spawn_zones
+            .iter()
+            .map(|zone| zone.switch.as_deref())
+            .collect::<Vec<_>>(),
+        [None, Some("guards")],
+        "true duplicates merge; a different switch is a different zone"
+    );
+}
+
+#[test]
 fn validate_rejects_empty_switch_names() {
     let mut map_def = map_with_zones(
         4,

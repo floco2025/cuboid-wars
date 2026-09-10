@@ -373,6 +373,7 @@ def actor_zone_key(zone: dict) -> tuple:
         zone["cols"][1],
         zone["kind"],
         zone["count"],
+        zone.get("switch", ""),
     )
 
 

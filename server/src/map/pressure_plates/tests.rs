@@ -523,6 +523,55 @@ fn an_everyone_toggle_flips_on_the_thresholds_rising_edge() {
 }
 
 #[test]
+fn an_everyone_toggle_flips_when_a_death_lowers_its_threshold() {
+    for trigger in [DeathTrigger::Never, DeathTrigger::Any] {
+        let mut app = app(
+            catalog(vec![]),
+            vec![
+                lobby_plate(),
+                PressurePlateRuntime {
+                    col: 1,
+                    ..lobby_plate()
+                },
+            ],
+        );
+        install_switches(
+            &mut app,
+            PressureSwitchConfig {
+                activation: PressureSwitchActivation::Toggle,
+                reset_on_player_death: trigger,
+                held: SwitchHold::Everyone,
+            },
+            PressureSwitchConfig::default(),
+        );
+        let (holder, _) = standing_player(&mut app, 1);
+        let (other, _) = standing_player(&mut app, 2);
+        step_off(&mut app, other);
+        app.update();
+        assert!(open_kinds(&app).is_empty(), "one holder of two is no threshold");
+
+        // The death leaves one living player, whom the held plate satisfies.
+        die(&mut app, 2);
+        app.update();
+        app.update();
+        if trigger == DeathTrigger::Never {
+            assert_eq!(
+                open_kinds(&app),
+                [LOBBY],
+                "the lowered threshold is a fresh rising edge"
+            );
+        } else {
+            assert!(open_kinds(&app).is_empty(), "a reset switch needs a release first");
+            step_off(&mut app, holder);
+            app.update();
+            step_on(&mut app, holder);
+            app.update();
+            assert_eq!(open_kinds(&app), [LOBBY]);
+        }
+    }
+}
+
+#[test]
 fn a_lone_player_toggles_a_barrier_kind_with_each_press() {
     let mut app = app(catalog(Vec::new()), vec![lobby_plate()]);
     let (entity, mut rx) = standing_player(&mut app, 1);

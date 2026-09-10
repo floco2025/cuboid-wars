@@ -15,7 +15,7 @@ pub(super) use super::super::{
         ActorSpawnZoneDef, BarrierDef, CellDef, EraserDef, FloorDef, ItemDef, LadderDef, LevelDef, LightBridgeDef,
         MapDef, MotionDef, NestedMapDef, PressurePlateDef, RampDef, WallDef, WallSide, ZoneDef,
     },
-    validation::validate_map,
+    validation::{canonicalize, validate_map},
 };
 pub(super) use crate::{
     actors::navigation::NavGraph,

@@ -69,8 +69,23 @@ class ValidationErrors(list):
             self.issues.append(replace(issue, message=message, map_name=map_name))
 
 
-# The switches some plate of the document operates: a zone or nested map
-# naming any other could never start, so the server rejects it.
+# The named geometries the root places, directly or through other placed
+# geometry, by name. The server compiles only these, so only their plates
+# count.
+def placed_definitions(root: dict, definitions: dict) -> dict[str, dict]:
+    placed: dict[str, dict] = {}
+    pending = [entry.get("map") for entry in root.get("nested_maps", [])]
+    while pending:
+        name = pending.pop()
+        if name in placed or name not in definitions:
+            continue
+        placed[name] = definitions[name]
+        pending.extend(entry.get("map") for entry in definitions[name].get("nested_maps", []))
+    return placed
+
+
+# The switches some plate of the placed geometry operates: a zone or nested
+# map naming any other could never start, so the server rejects it.
 def plated_switches(geometries: list[dict]) -> set[str]:
     return {
         plate["switch"]
@@ -255,7 +270,7 @@ def validate_document(
             list(catalogs.barrier_kind_colors),
             list(catalogs.bridge_kind_colors),
             switches=list(catalogs.switches),
-            plated_switches=plated_switches([root, *definitions.values()]),
+            plated_switches=plated_switches([root, *placed_definitions(root, definitions).values()]),
             map_name=name,
             nested_lookup=lambda key: nested_map_shape(definitions.get(key)),
             actor_kinds=actor_kinds,
