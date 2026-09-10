@@ -3,7 +3,8 @@ use bevy::prelude::*;
 
 use crate::{
     barriers::{
-        barriers_pulsate_system, barriers_spawn_system, barriers_visibility_system, pressure_plates_spawn_system,
+        PressurePlateModel, barriers_pulsate_system, barriers_spawn_system, barriers_visibility_system,
+        pressure_plates_animation_system, pressure_plates_attach_system, pressure_plates_spawn_system,
         pressure_plates_visibility_system,
     },
     bridges::{bridges_fade_system, bridges_spawn_system},
@@ -20,7 +21,8 @@ pub fn map_plugin(app: &mut App) {
     app.init_resource::<FocusedMapLevel>()
         .init_resource::<FieldMeshes>()
         .init_resource::<EraserAssets>()
-        .init_resource::<CheckpointAssets>();
+        .init_resource::<CheckpointAssets>()
+        .init_resource::<PressurePlateModel>();
     app.add_systems(
         Update,
         (
@@ -47,8 +49,13 @@ pub fn map_plugin(app: &mut App) {
             barriers_visibility_system
                 .after(barriers_spawn_system)
                 .after(update_focused_map_level_system),
-            pressure_plates_spawn_system,
-            pressure_plates_visibility_system,
+            (
+                pressure_plates_spawn_system,
+                pressure_plates_attach_system,
+                pressure_plates_visibility_system,
+                pressure_plates_animation_system,
+            )
+                .chain(),
             bridges_spawn_system.after(update_focused_map_level_system),
             bridges_fade_system,
         )

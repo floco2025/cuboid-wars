@@ -256,8 +256,10 @@
   },
   "ladder": { "material": "used-stainless-steel" },
   "pressure_plate": {
-    "panel": { "material": "worn-walkway-metal" },
-    "frame": { "material": "used-stainless-steel" }
+    "scene": "models/pressure_plate.glb",
+    "default_color": "#2c99bc",
+    "light_color": [0.854, 0.945, 1.0],
+    "emissive_luminance": 3.0
   },
   "player": {
     "model": {

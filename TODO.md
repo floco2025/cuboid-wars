@@ -2,6 +2,8 @@
 
 ## Fixes
 
+- **Pressure plates cover characters' feet:** give plates collision geometry so players and other characters stand on their surface instead of intersecting the model. Keep the support height aligned with the tread in both active and inactive states.
+
 - **Rejected portal placement plays two sounds:** trying to place a portal on a non-portalable texture plays both the fizzle sound and the placement sound. Play only the fizzle sound when placement is rejected.
 
 - **Third-person body clipping during portal traversal:** jumping into a floor portal makes the player's legs disappear before the body emerges from the exit, leaving the model visibly cut in half. Keep the body presentation continuous across portal entry and exit.
@@ -25,8 +27,6 @@
 ## Enhancements
 
 - **Render ramps as stairs:** add an option to show ramps as stairs while retaining smooth ramp collision and movement. Make stair use configurable per actor kind, like ladder use.
-
-- **Pressure plate model integration:** load `models/pressure_plate.glb`, tint its tread by switch kind, and drive its activation animation from switch state. The generator and state previews are ready; client and editor integration remain.
 
 - **Host a game from a client:** colocate the server with one client so it can host the game. Use message queues for communication between the host client and its server, bypassing the network stack; remote clients connect over the network.
 

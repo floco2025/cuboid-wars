@@ -245,6 +245,7 @@ class EditorWindow(
             self.wall_width_cells,
             self.texture_catalog,
             self.switches,
+            self.plate_colors,
         )
 
     # Every view, dialog, and validation reads the catalogs of one map;
@@ -254,6 +255,7 @@ class EditorWindow(
         self.barrier_kind_colors = catalogs.barrier_kind_colors
         self.bridge_kind_colors = catalogs.bridge_kind_colors
         self.switch_ids = list(catalogs.switches)
+        self.plate_colors = dict(catalogs.plate_colors)
         self.wall_width_cells = catalogs.wall_width_cells
         self.texture_catalog = catalogs.texture_catalog
         self.materials_catalog = list(catalogs.texture_catalog)

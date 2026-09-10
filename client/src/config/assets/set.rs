@@ -11,8 +11,9 @@ use serde::Deserialize;
 
 use super::{
     lighting::{SkyboxDef, WallLightModelDef},
-    material::{MaterialBinding, MaterialDef, PressurePlateAssets},
+    material::{MaterialBinding, MaterialDef},
     model::{ModelDef, validate_model},
+    pressure_plate::PressurePlateDef,
 };
 
 const REQUIRED_PLAYER_SOUNDS: &[&str] = &[
@@ -47,7 +48,7 @@ const REQUIRED_ACTOR_SOUNDS: &[&str] = &["explodes", "fire"];
 pub struct AssetSet {
     pub(super) materials: HashMap<String, MaterialDef>,
     ladder: MaterialBinding,
-    pressure_plate: PressurePlateAssets,
+    pressure_plate: PressurePlateDef,
     #[serde(default)]
     aliases: HashMap<String, String>,
     player: PlayerAssets,
@@ -93,17 +94,12 @@ impl AssetSet {
                 material.textures.normal
             );
         }
-        for (path, binding) in [
-            ("ladder", &self.ladder),
-            ("pressure_plate.panel", &self.pressure_plate.panel),
-            ("pressure_plate.frame", &self.pressure_plate.frame),
-        ] {
-            anyhow::ensure!(
-                self.materials.contains_key(&binding.material),
-                "`{path}.material` points to unknown material `{}`",
-                binding.material
-            );
-        }
+        anyhow::ensure!(
+            self.materials.contains_key(&self.ladder.material),
+            "`ladder.material` points to unknown material `{}`",
+            self.ladder.material
+        );
+        self.pressure_plate.validate()?;
         validate_model("player.model", &self.player.model)?;
         for sound in REQUIRED_PLAYER_SOUNDS {
             validate_sound("player.sounds", &self.player.sounds, sound)?;
@@ -197,16 +193,11 @@ impl AssetSet {
     }
 
     #[must_use]
-    pub fn plate_panel_material_def(&self) -> &MaterialDef {
-        self.exact_material(&self.pressure_plate.panel.material)
+    pub fn pressure_plate(&self) -> &PressurePlateDef {
+        &self.pressure_plate
     }
 
-    #[must_use]
-    pub fn plate_frame_material_def(&self) -> &MaterialDef {
-        self.exact_material(&self.pressure_plate.frame.material)
-    }
-
-    // Direct lookup for references INSIDE assets.json (ladders and plates). Aliases are the map-authoring vocabulary — indirection only
+    // Direct lookup for references INSIDE assets.json. Aliases are the map-authoring vocabulary — indirection only
     // earns its keep for references living outside this file, so internal
     // bindings name concrete materials.
     fn exact_material(&self, id: &str) -> &MaterialDef {
@@ -334,6 +325,7 @@ impl AssetSet {
             push(&mut out, &light.scene);
         }
         push(&mut out, &self.player.model.scene);
+        push(&mut out, &self.pressure_plate.scene);
         for sound in self.player.sounds.values() {
             push(&mut out, sound);
         }

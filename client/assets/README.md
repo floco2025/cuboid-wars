@@ -16,7 +16,8 @@ See [ASSETS.md](ASSETS.md) for the provenance register: authors, sources, licens
 
 - `materials` — texture sets: `textures` paths (`base_color`, `normal`, `occlusion`, `metallic_roughness`), `tile_size` in metres, `metallic`, `roughness`, `repeat`, and `linear_data_textures`. Normal maps carry their Y convention in the file name (`-normal-dx` or `-normal-gl`).
 - `aliases` — map texture alias → material. A map enables an alias in its `settings.json::textures` with a `portalable` flag, and its layout names aliases per face.
-- `ladder` and `pressure_plate.panel` / `pressure_plate.frame` — fixture materials.
+- `ladder` — fixture material.
+- `pressure_plate` — model `scene`, fallback `default_color`, `light_color`, and `emissive_luminance`. Treads inherit barrier/bridge colors or a switch's `plate_color` override.
 - `player` and `actors.<kind>` — `model` (`scene`, `scale`, `x_offset` / `y_offset` / `z_offset`, `x_rotation_degrees`, `animation_index`, `animation_speed`, optional `wheels` and `aim_rig`, `rotate_with_facing`) and `sounds`. Positions are feet-based, so `y_offset` is the model origin's offset from the character's feet.
 - `wall_lights.<kind>` — `scene`, `scale`, `offset_from_wall`, `brightness`, `range`, `radius`, `emissive_luminance`, `color`, and `flicker`.
 - `skyboxes.<name>` — `image`, `brightness`, `rotation_period_secs`, `sun_step_degrees`, and `sun_disc`.

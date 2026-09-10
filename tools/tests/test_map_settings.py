@@ -14,6 +14,7 @@ from map_editor.catalogs import (
     load_map_barrier_kinds,
     load_map_settings,
     load_map_switches,
+    load_map_plate_colors,
     map_layout_path,
     map_name_from_path,
     map_settings_path,
@@ -91,12 +92,28 @@ class MapSettingsTests(unittest.TestCase):
             ([{"id": "a", "activation": "hold", "reset_on_player_death": "never"}], "activation must be one of"),
             ([{"id": "a", "activation": "auto", "reset_on_player_death": "always"}], "reset_on_player_death must be"),
             ([{"id": "a", "activation": "auto", "reset_on_player_death": "never", "held": "all"}], "held must be"),
+            ([{"id": "a", "activation": "auto", "reset_on_player_death": "never", "plate_color": "red"}], "plate_color must look like"),
             ([{"activation": "auto", "reset_on_player_death": "never"}], "string `id`"),
             ({}, "must be an array"),
         ]:
             path.write_text(json.dumps({"switches": bad}))
             with self.assertRaisesRegex(ValueError, message):
                 load_map_switches("hotel")
+
+    def test_plate_colors_follow_targets_and_explicit_switch_colors(self):
+        path = map_settings_path("hotel")
+        path.parent.mkdir(parents=True)
+        path.write_text(json.dumps({
+            "switches": [{"id": "door"}, {"id": "bridge"}, {"id": "show", "plate_color": "#9b5de5"}, {"id": "other"}],
+            "barrier_kinds": [{"id": "green", "color": "#22cc33", "switch": "door"}],
+            "bridge_kinds": [{"id": "cyan", "color": "#30d8ff", "switch": "bridge"}],
+        }))
+        colors = load_map_plate_colors("hotel")
+        self.assertEqual(colors, {"door": "#22cc33", "bridge": "#30d8ff", "show": "#9b5de5", "other": "#2c99bc"})
+        settings = json.loads(path.read_text())
+        settings["switches"][0]["plate_color"] = "#ffaa00"
+        path.write_text(json.dumps(settings))
+        self.assertEqual(load_map_plate_colors("hotel")["door"], "#ffaa00")
 
     def test_layout_identity_comes_from_the_folder(self):
         self.assertEqual(map_name_from_path(map_layout_path("hotel")), "hotel")

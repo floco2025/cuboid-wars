@@ -39,6 +39,18 @@ fn a_switch_definition_defaults_its_hold_and_round_trips_on_the_wire() {
     }))
     .expect("everyone hold rejected");
     assert_eq!(everyone.policy.held, SwitchHold::Everyone);
+    assert_eq!(everyone.plate_color, None);
+    let colored: SwitchDef = serde_json::from_value(serde_json::json!({
+        "id": "show", "activation": "toggle", "reset_on_player_death": "never", "plate_color": "#9b5de5"
+    }))
+    .expect("colored switch rejected");
+    let bytes = bincode::encode_to_vec(&colored, bincode::config::standard()).expect("switch encoding failed");
+    let (decoded, _): (SwitchDef, _) =
+        bincode::decode_from_slice(&bytes, bincode::config::standard()).expect("switch decoding failed");
+    assert_eq!(
+        decoded.plate_color.expect("plate color missing after wire decode").0,
+        [155, 93, 229]
+    );
     for value in [
         serde_json::json!({"id": "lobby"}),
         serde_json::json!({"id": "lobby", "activation": "auto"}),
@@ -46,6 +58,7 @@ fn a_switch_definition_defaults_its_hold_and_round_trips_on_the_wire() {
         serde_json::json!({"id": "lobby", "activation": "hold", "reset_on_player_death": "all"}),
         serde_json::json!({"id": "lobby", "activation": "auto", "reset_on_player_death": "always"}),
         serde_json::json!({"id": "lobby", "activation": "auto", "reset_on_player_death": "never", "held": "all"}),
+        serde_json::json!({"id": "show", "activation": "auto", "reset_on_player_death": "never", "plate_color": "violet"}),
     ] {
         assert!(serde_json::from_value::<SwitchDef>(value).is_err());
     }

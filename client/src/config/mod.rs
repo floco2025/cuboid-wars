@@ -8,7 +8,7 @@ mod rendering;
 mod settings;
 mod vfx;
 
-pub use assets::{AimRigDef, AssetSet, MaterialDef, ModelDef, SkyboxDef, WheelModelDef, gltf_path};
+pub use assets::{AimRigDef, AssetSet, MaterialDef, ModelDef, PressurePlateDef, SkyboxDef, WheelModelDef, gltf_path};
 pub use audio::{AudioConfig, BumpAudioConfig};
 pub use camera::FollowCameraConfig;
 pub use hud::BannerTiming;

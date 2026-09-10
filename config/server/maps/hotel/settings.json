@@ -57,6 +57,7 @@
     },
     {
       "id": "fireworks",
+      "plate_color": "#9b5de5",
       "activation": "momentary",
       "reset_on_player_death": "never",
       "held": "everyone"

@@ -1,7 +1,10 @@
 use bincode::{Decode, Encode};
 use serde::Deserialize;
 
-use super::kind_table::{KindId, KindTable};
+use super::{
+    HexColor, MapSettings,
+    kind_table::{KindId, KindTable},
+};
 use crate::config::PressureSwitchConfig;
 
 // Index into the selected map's ordered `switches`: what a pressure plate
@@ -30,8 +33,23 @@ pub type SwitchTable = KindTable<SwitchId>;
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, Deserialize)]
 pub struct SwitchDef {
     pub id: String,
+    #[serde(default)]
+    pub plate_color: Option<HexColor>,
     #[serde(flatten)]
     pub policy: PressureSwitchConfig,
+}
+
+impl MapSettings {
+    pub fn pressure_plate_color(&self, switch: SwitchId) -> Option<HexColor> {
+        let switch = self.switches.get(usize::from(switch.0))?;
+        switch.plate_color.or_else(|| {
+            self.barrier_kinds
+                .iter()
+                .chain(&self.bridge_kinds)
+                .find(|kind| kind.switch.as_deref() == Some(switch.id.as_str()))
+                .map(|kind| kind.color)
+        })
+    }
 }
 
 impl SwitchTable {

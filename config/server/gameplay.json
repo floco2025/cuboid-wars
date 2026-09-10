@@ -7,18 +7,7 @@
   "default_map": "hotel",
   "maps": [
     "hotel",
-    "obby",
-    "relay",
-    "switchyard",
-    "puzzle_stages",
-    "puzzle_access",
-    "puzzle_shield",
-    "puzzle_cover",
-    "puzzle_sequence",
-    "puzzle_momentum",
-    "puzzle_coop",
-    "puzzle_containment",
-    "puzzle_logic"
+    "obby"
   ],
   "player": {
     "movement_collider": { "diameter": 0.6, "height": 1.8 },

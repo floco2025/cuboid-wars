@@ -39,7 +39,7 @@ pub(crate) fn respawn_app(mode: PlayerRespawnMode, scope: ActorRespawnScope) -> 
         .get_mut("turret")
         .expect("turret config missing")
         .respawn_secs = None;
-    let settings = config.maps["puzzle_stages"].settings.clone();
+    let settings = config.maps[&config.default_map].settings.clone();
     let mut cells = CellGrid::new(6, 1);
     for cell in &mut cells.rows[0] {
         cell.has_floor = true;

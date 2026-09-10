@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 
 from PySide6.QtCore import QPoint, QPointF, QRectF, Qt
-from PySide6.QtGui import QBrush, QColor, QPainter, QPen
+from PySide6.QtGui import QBrush, QColor, QPainter, QPen, QPolygonF
 
 from .constants import (
     ACTOR_ZONE_LIST,
@@ -399,14 +399,38 @@ class CanvasPaintingMixin:
             if plate["level"] == level_idx:
                 self._paint_pressure_plate(painter, cell, plate)
 
-    # A grey frame around a panel coloured by the plate's switch; hover names it.
     def _paint_pressure_plate(self, painter: QPainter, cell: float, plate: dict) -> None:
-        color = switch_plate_color(self.window.switches, plate.get("switch"))
-        inset = cell * 0.25
-        rect = QRectF(plate["col"] * cell + inset, plate["row"] * cell + inset, cell * 0.5, cell * 0.5)
-        frame = rect.width() * 0.1
-        painter.fillRect(rect, QColor("#64748b"))
-        painter.fillRect(rect.adjusted(frame, frame, -frame, -frame), color)
+        color = switch_plate_color(self.window.plate_colors, plate.get("switch"))
+        painter.save()
+        painter.translate((plate["col"] + 0.5) * cell, (plate["row"] + 0.5) * cell)
+        painter.scale(cell * 0.5, cell * 0.5)
+
+        def octagon(side, cut):
+            half = side / 2
+            return QPolygonF([QPointF(x, y) for x, y in (
+                (-half + cut, -half), (half - cut, -half), (half, -half + cut),
+                (half, half - cut), (half - cut, half), (-half + cut, half),
+                (-half, half - cut), (-half, -half + cut),
+            )])
+
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor("#64748b"))
+        painter.drawPolygon(octagon(1.0, 0.12))
+        painter.setBrush(QColor("#303b40"))
+        painter.drawPolygon(octagon(0.95, 0.11))
+        painter.setBrush(color)
+        painter.drawPolygon(octagon(0.73, 0.10))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.setPen(QPen(QColor("#303b40"), 0.018))
+        for side in (0.60, 0.44, 0.28):
+            painter.drawPolygon(octagon(side, side * 0.14))
+        for _ in range(4):
+            painter.fillRect(QRectF(-0.33, -0.455, 0.19, 0.025), QColor("#10181d"))
+            painter.fillRect(QRectF(0.14, -0.455, 0.19, 0.025), QColor("#10181d"))
+            painter.setPen(QPen(QColor("#c7d1d6"), 0.012))
+            painter.drawEllipse(QPointF(0, -0.437), 0.018, 0.018)
+            painter.rotate(90)
+        painter.restore()
 
     def _paint_items(self, painter: QPainter, cell: float, level_idx: int) -> None:
         items = self.window.map_data.get(ITEMS_LIST, [])

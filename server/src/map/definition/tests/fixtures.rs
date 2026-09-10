@@ -45,6 +45,7 @@ pub(crate) fn compile_settings(kinds: &BarrierKindTable, bridges: &BridgeKindTab
         switches: switch_ids
             .map(|id| SwitchDef {
                 id,
+                plate_color: None,
                 policy: Default::default(),
             })
             .collect(),

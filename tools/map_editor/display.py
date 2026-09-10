@@ -34,7 +34,6 @@ from .constants import (
     MODE_PLAYER_SPAWN_ZONE,
     MODE_CHECKPOINT,
     MODE_RAMP_MATERIAL,
-    SWITCH_PLATE_COLORS,
     UNKNOWN_SWITCH_PLATE_COLOR,
 )
 from .normalization import compact_face_materials
@@ -44,11 +43,8 @@ def pressure_plate_label(plate: dict) -> str:
     return f"Pressure plate: {plate.get('switch') or '(missing switch)'}"
 
 
-# The canvas colour of a plate, by its switch's place in the catalog.
-def switch_plate_color(switches: list[str], switch: str | None) -> QColor:
-    if switch not in switches:
-        return QColor(UNKNOWN_SWITCH_PLATE_COLOR)
-    return QColor(SWITCH_PLATE_COLORS[switches.index(switch) % len(SWITCH_PLATE_COLORS)])
+def switch_plate_color(colors: dict[str, str], switch: str | None) -> QColor:
+    return QColor(colors.get(switch, UNKNOWN_SWITCH_PLATE_COLOR))
 
 
 def contrasting_text_color(color: QColor) -> QColor:

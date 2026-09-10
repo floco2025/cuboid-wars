@@ -89,8 +89,25 @@ def load_map_switches(map_name: str) -> list[str]:
                 raise ValueError(f"{path}.{key} must be one of {', '.join(allowed)}, got {entry.get(key)!r}")
         if entry.get("held", "any") not in SWITCH_HOLDS:
             raise ValueError(f"{path}.held must be one of {', '.join(SWITCH_HOLDS)}, got {entry.get('held')!r}")
+        color = entry.get("plate_color")
+        if color is not None and (not isinstance(color, str) or not HEX_COLOR.fullmatch(color)):
+            raise ValueError(f"{path}.plate_color must look like #rrggbb, got {color!r}")
         switches.append(switch)
     return switches
+
+
+def load_map_plate_colors(map_name: str) -> dict[str, str]:
+    settings = load_map_settings(map_name)
+    with ASSETS_PATH.open(encoding="utf-8") as handle:
+        default_color = json.load(handle)["pressure_plate"]["default_color"]
+    kinds = [*settings["barrier_kinds"], *settings["bridge_kinds"]]
+    return {
+        switch["id"]: switch.get("plate_color") or next(
+            (kind["color"] for kind in kinds if kind.get("switch") == switch["id"]),
+            default_color,
+        )
+        for switch in settings["switches"]
+    }
 
 
 def load_map_bridge_kinds(map_name: str) -> dict[str, str]:
@@ -186,6 +203,7 @@ class MapCatalogs:
     texture_catalog: dict[str, bool]
     # The switch ids in catalog order.
     switches: list[str] = field(default_factory=list)
+    plate_colors: dict[str, str] = field(default_factory=dict)
 
     @classmethod
     def load(cls, map_name: str) -> "MapCatalogs":
@@ -195,4 +213,5 @@ class MapCatalogs:
             load_map_wall_width_cells(map_name),
             load_texture_catalog(map_name),
             load_map_switches(map_name),
+            load_map_plate_colors(map_name),
         )

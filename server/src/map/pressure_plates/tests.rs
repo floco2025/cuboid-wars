@@ -204,6 +204,7 @@ fn spare_plate() -> PressurePlateRuntime {
 fn switch_def(id: &str, policy: PressureSwitchConfig) -> SwitchDef {
     SwitchDef {
         id: id.to_owned(),
+        plate_color: None,
         policy,
     }
 }

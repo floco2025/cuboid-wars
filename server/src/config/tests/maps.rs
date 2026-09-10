@@ -603,6 +603,7 @@ fn validate_maps_checks_the_fireworks_switch_and_cooldown() {
 fn switch_def(id: &str) -> SwitchDef {
     SwitchDef {
         id: id.to_owned(),
+        plate_color: None,
         policy: Default::default(),
     }
 }

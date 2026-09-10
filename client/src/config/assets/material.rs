@@ -1,17 +1,8 @@
 use serde::Deserialize;
 
-// A fixture's material (`ladder`, the `pressure_plate` parts): one entry of
-// `materials`.
 #[derive(Debug, Clone, Deserialize)]
 pub(super) struct MaterialBinding {
     pub(super) material: String,
-}
-
-// The plate housing: the walkway panel and the frame around it.
-#[derive(Debug, Clone, Deserialize)]
-pub(super) struct PressurePlateAssets {
-    pub(super) panel: MaterialBinding,
-    pub(super) frame: MaterialBinding,
 }
 
 #[derive(Debug, Clone, Deserialize)]

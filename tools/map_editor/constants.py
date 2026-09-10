@@ -14,7 +14,6 @@ ASSETS_PATH = REPO_ROOT / "config" / "client" / "assets.json"
 
 # Editor-only: the game renders every plate alike, so these colours exist
 # just to tell the switches apart on the canvas, by catalog position.
-SWITCH_PLATE_COLORS = ("#38bdf8", "#f59e0b", "#a3e635", "#e040fb", "#fb7185", "#2dd4bf", "#c084fc", "#facc15")
 UNKNOWN_SWITCH_PLATE_COLOR = "#9ca3af"
 
 MODE_SELECT = "Select Tiles"
