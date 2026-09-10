@@ -28,10 +28,9 @@
       {"level": 4, "cols": [21, 24], "rows": [12, 18]},
       {"level": 4, "cols": [12, 18], "rows": [21, 24]}
     ],
+    "checkpoints": [],
     "pressure_plates": [
       {"level": 1, "col": 13, "row": 13, "switch": "lobby"},
-      {"level": 1, "col": 16, "row": 13, "switch": "lobby"},
-      {"level": 1, "col": 13, "row": 16, "switch": "lobby"},
       {"level": 1, "col": 16, "row": 16, "switch": "lobby"},
       {"level": 5, "col": 10, "row": 10, "switch": "fireworks"},
       {"level": 5, "col": 19, "row": 10, "switch": "fireworks"},
@@ -786,6 +785,8 @@
           {"c0": 19, "r0": 18, "c1": 19, "r1": 19, "kind": "treasure"},
           {"c0": 27, "r0": 14, "c1": 27, "r1": 15, "kind": "basement"}
         ],
+        "erasers": [],
+        "light_bridges": [],
         "lights": [
           {"col": 7, "row": 5, "side": "N", "kind": "utility"},
           {"col": 10, "row": 5, "side": "N", "kind": "utility"},
@@ -2730,6 +2731,8 @@
           {"c0": 20, "r0": 8, "c1": 21, "r1": 8, "kind": "basement"},
           {"c0": 22, "r0": 16, "c1": 22, "r1": 17, "kind": "lobby"}
         ],
+        "erasers": [],
+        "light_bridges": [],
         "lights": [
           {"col": 5, "row": 5, "side": "N", "kind": "decorative"},
           {"col": 5, "row": 5, "side": "W", "kind": "decorative"},
@@ -3477,6 +3480,8 @@
           {"c0": 24, "r0": 23, "c1": 24, "r1": 24, "all": "exterior-walls", "west": "upper-interior-walls"}
         ],
         "barriers": [],
+        "erasers": [],
+        "light_bridges": [],
         "lights": [
           {"col": 6, "row": 6, "side": "W", "kind": "decorative"},
           {"col": 8, "row": 7, "side": "W", "kind": "decorative"},
@@ -4090,6 +4095,8 @@
           {"c0": 22, "r0": 7, "c1": 23, "r1": 7, "kind": "gravity"},
           {"c0": 23, "r0": 7, "c1": 23, "r1": 8, "kind": "gravity"}
         ],
+        "erasers": [],
+        "light_bridges": [],
         "lights": [
           {"col": 7, "row": 6, "side": "N", "kind": "decorative"},
           {"col": 9, "row": 6, "side": "N", "kind": "decorative"},
@@ -4569,6 +4576,8 @@
           {"c0": 20, "r0": 19, "c1": 20, "r1": 20, "all": "rooftop-wall"}
         ],
         "barriers": [],
+        "erasers": [],
+        "light_bridges": [],
         "lights": []
       },
       {
@@ -4615,6 +4624,8 @@
         "grass": [],
         "walls": [],
         "barriers": [],
+        "erasers": [],
+        "light_bridges": [],
         "lights": []
       }
     ],
@@ -4635,6 +4646,7 @@
       {"lower_level": 2, "low": [24, 21], "high": [23, 23], "all": "slab", "top": "rooftop-floor"},
       {"lower_level": 3, "low": [8, 7], "high": [7, 9], "all": "slab", "top": "rooftop-floor"},
       {"lower_level": 3, "low": [23, 23], "high": [22, 21], "all": "slab", "top": "rooftop-floor"}
-    ]
+    ],
+    "nested_maps": []
   }
 }
