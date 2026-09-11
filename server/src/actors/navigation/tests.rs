@@ -4,7 +4,7 @@ use bevy::prelude::Vec3;
 use common::{
     map::CarrierPose,
     physics::CollisionWorld,
-    protocol::{CarrierId, MapLayout, Position, Wall},
+    protocol::{BridgeId, CarrierId, MapLayout, Position, Wall},
 };
 use rand::{SeedableRng, rngs::StdRng};
 
@@ -64,6 +64,67 @@ fn path_to_spawn_zone(nav: &NavGraph, start: &Position, zone: &ActorSpawnZone) -
     }
     let route = nav.route_to_any(&[], start_node, |node| targets.contains(&node), |_| true)?;
     Some(route.waypoints.into_iter().map(|point| point.position).collect())
+}
+
+// One column: floor at both ends, one bridge slab over the three cells
+// between.
+fn bridge_strip_nav() -> NavGraph {
+    let mut cells = CellGrid::new(1, 5);
+    cells.rows[0][0].has_floor = true;
+    cells.rows[4][0].has_floor = true;
+    for row in 1..4 {
+        cells.rows[row][0].bridge = Some(BridgeId(7));
+    }
+    nav_for(MapConfig::for_grid(
+        vec![level(cells, EdgeGrid::new(1, 5))],
+        geometry(1, 5),
+    ))
+}
+
+#[test]
+fn routes_cross_a_bridge_only_while_it_is_powered() {
+    let mut nav = bridge_strip_nav();
+    let start = Position {
+        x: 0.0,
+        y: 0.0,
+        z: nav.geometry.cell_center_z(0),
+    };
+    let far_end = zone(0, 0, 4);
+
+    let path = path_to_spawn_zone(&nav, &start, &far_end).expect("a fresh graph walks every bridge");
+    assert_eq!(path.len(), 4, "one leg per bridge cell and one onto the far floor");
+
+    nav.set_powered_bridges(&[]);
+    assert!(
+        path_to_spawn_zone(&nav, &start, &far_end).is_none(),
+        "an unpowered bridge is a gap"
+    );
+
+    nav.set_powered_bridges(&[BridgeId(7)]);
+    assert_eq!(
+        path_to_spawn_zone(&nav, &start, &far_end).map(|path| path.len()),
+        Some(4)
+    );
+}
+
+#[test]
+fn a_bridge_cell_counts_as_lost_only_while_unpowered() {
+    let mut nav = bridge_strip_nav();
+    let on_bridge = Position {
+        x: 0.0,
+        y: 0.0,
+        z: nav.geometry.cell_center_z(2),
+    };
+    let on_floor = Position {
+        x: 0.0,
+        y: 0.0,
+        z: nav.geometry.cell_center_z(0),
+    };
+    assert!(!nav.position_over_unpowered_bridge(&on_bridge));
+
+    nav.set_powered_bridges(&[]);
+    assert!(nav.position_over_unpowered_bridge(&on_bridge));
+    assert!(!nav.position_over_unpowered_bridge(&on_floor));
 }
 
 fn full_floor_nav(cols: i32, rows: i32) -> NavGraph {

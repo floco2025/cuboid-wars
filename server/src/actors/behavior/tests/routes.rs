@@ -186,3 +186,57 @@ fn reached_ladder_target_remains_a_hold_instead_of_becoming_idle() {
     }
     assert!(info.route.is_some());
 }
+
+// The fixture's grid with cell (3, 2) a bridge instead of floor.
+fn graph_with_bridge_at_3_2(fixture: &Fixture) -> NavGraph {
+    let cols = 12;
+    let rows = 5;
+    let mut cells = CellGrid::new(cols, rows);
+    for row in &mut cells.rows {
+        for cell in row {
+            cell.has_floor = true;
+        }
+    }
+    cells.rows[2][3].has_floor = false;
+    cells.rows[2][3].bridge = Some(BridgeId(0));
+    NavGraph::new(&CarrierGrid::new(
+        CarrierId::WORLD,
+        fixture.geometry,
+        vec![LevelGrid {
+            cells,
+            edges: EdgeGrid::new(cols, rows),
+            barrier_edges: EdgeGrid::new(cols, rows),
+        }],
+    ))
+}
+
+#[test]
+fn route_onto_a_bridge_that_lost_power_is_dropped_for_a_fresh_decision() {
+    let fixture = Fixture::new(CONTACT);
+    let mut graph = graph_with_bridge_at_3_2(&fixture);
+    let mut info = info(CONTACT);
+    info.route = Some(route_through(&[fixture.pos(3, 2), fixture.pos(5, 2)], &fixture));
+    info.decision_timer = 1.0;
+
+    drop_route_onto_lost_bridge(&mut info, &graph);
+    assert!(info.route.is_some(), "a powered bridge keeps the route");
+    assert_eq!(info.decision_timer, 1.0);
+
+    graph.set_powered_bridges(&[]);
+    drop_route_onto_lost_bridge(&mut info, &graph);
+    assert!(info.route.is_none(), "the leg onto the gap is abandoned");
+    assert_eq!(info.decision_timer, 0.0, "the actor decides afresh at once");
+}
+
+#[test]
+fn route_over_floor_survives_a_bridge_losing_power_elsewhere() {
+    let fixture = Fixture::new(CONTACT);
+    let mut graph = graph_with_bridge_at_3_2(&fixture);
+    let mut info = info(CONTACT);
+    info.route = Some(route_through(&[fixture.pos(2, 2), fixture.pos(2, 4)], &fixture));
+
+    graph.set_powered_bridges(&[]);
+    drop_route_onto_lost_bridge(&mut info, &graph);
+
+    assert!(info.route.is_some());
+}

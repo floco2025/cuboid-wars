@@ -4,7 +4,7 @@ use rand::{Rng, rng};
 use crate::{
     actors::{
         ActorCharacter, ActorInfo, ActorMap, ActorMode, ActorRoute, BeamState,
-        navigation::{ActorTerritories, NavGraphs, NavWaypoint, WALK_REACH_DISTANCE, WaypointKind},
+        navigation::{ActorTerritories, NavGraph, NavGraphs, NavWaypoint, WALK_REACH_DISTANCE, WaypointKind},
     },
     config::{ActorAttackConfig, ActorKindServerConfig, ServerGameplayConfig},
     network::broadcast_to_all,
@@ -78,12 +78,15 @@ pub fn actors_behavior_system(
         // one the actor's position was last resolved at.
         let pose = carriers.pose(info.carrier);
         let local_pos = pose.inverse_transform_position(pos);
+        let nav_graph = nav_graphs.get(info.carrier);
         let previous_beam = info.beam.snapshot().map(|beam| (beam.started_tick, beam.target));
         let stalled = if character.immovable {
             tick_beam_state(info, delta, kind_config, &player_states);
             false
         } else {
-            tick_runtime_state(info, local_pos, delta, kind_config, &player_states)
+            let stalled = tick_runtime_state(info, local_pos, delta, kind_config, &player_states);
+            drop_route_onto_lost_bridge(info, nav_graph);
+            stalled
         };
         if stalled {
             info.decision_timer = 0.0;
@@ -116,7 +119,7 @@ pub fn actors_behavior_system(
             actor_physics: character.physics(),
             actor_eye_height: character.eye_height(),
             player_physics: gameplay_config.player.physics(),
-            nav_graph: nav_graphs.get(info.carrier),
+            nav_graph,
             territory,
             collision_world: &collision_world,
             open_barriers: &plates.open_barriers,
@@ -182,6 +185,17 @@ pub(super) fn tick_runtime_state(
     let stalled = tick_route_stall(info, pos, delta);
     tick_beam_state(info, delta, kind_config, players);
     stalled
+}
+
+// A bridge that lost power takes the route planned over it with it: an
+// actor about to step onto it stops at the edge and decides afresh instead
+// of walking off. One already on the slab is falling.
+pub(super) fn drop_route_onto_lost_bridge(info: &mut ActorInfo, nav_graph: &NavGraph) {
+    let next = info.route.as_ref().and_then(ActorRoute::next);
+    if next.is_some_and(|next| next.is_walk() && nav_graph.position_over_unpowered_bridge(&next.position)) {
+        info.set_route(None);
+        info.decision_timer = 0.0;
+    }
 }
 
 fn advance_route(info: &mut ActorInfo, pos: Position) {

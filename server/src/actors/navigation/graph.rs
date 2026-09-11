@@ -1,6 +1,10 @@
 use std::collections::HashMap;
 
-use common::{constants::LEVEL_CLASSIFICATION_TOLERANCE, map::MapGeometry, protocol::Position};
+use common::{
+    constants::LEVEL_CLASSIFICATION_TOLERANCE,
+    map::MapGeometry,
+    protocol::{BridgeId, Position},
+};
 
 use super::{LadderLink, routing::DIRECT_ROUTE_CLEARANCE_MARGIN};
 
@@ -19,24 +23,57 @@ pub(crate) struct NavNode {
 pub struct NavGraph {
     pub(super) levels: Vec<LevelGrid>,
     pub(super) geometry: MapGeometry,
+    // Links every bridge cell, so `powered_bridges` alone decides which of
+    // them a route may use.
     adjacency: HashMap<NavNode, Vec<NavNode>>,
+    powered_bridges: Vec<BridgeId>,
     pub(super) ladder_routes: HashMap<String, Vec<LadderLink>>,
 }
 
 impl NavGraph {
+    // A fresh graph walks every bridge, its whole potential reach, which
+    // the territories are built from; `set_powered_bridges` narrows it to
+    // the plates' state before the first behaviour tick.
     #[must_use]
     pub fn new(grid: &CarrierGrid) -> Self {
         let mut graph = Self {
             levels: grid.levels.clone(),
             geometry: grid.geometry,
             adjacency: HashMap::new(),
+            powered_bridges: Vec::new(),
             ladder_routes: HashMap::new(),
         };
+        let mut every_bridge: Vec<BridgeId> = graph
+            .levels
+            .iter()
+            .flat_map(|level| level.cells.rows.iter().flatten())
+            .filter_map(|cell| cell.bridge)
+            .collect();
+        every_bridge.sort_unstable();
+        every_bridge.dedup();
+        graph.powered_bridges = every_bridge;
         graph.adjacency = graph
             .all_traversable_nodes()
             .map(|node| (node, graph.calculate_neighbors(node)))
             .collect();
         graph
+    }
+
+    pub fn set_powered_bridges(&mut self, powered: &[BridgeId]) {
+        self.powered_bridges = powered.to_vec();
+        self.powered_bridges.sort_unstable();
+    }
+
+    fn bridge_powered(&self, bridge: BridgeId) -> bool {
+        self.powered_bridges.binary_search(&bridge).is_ok()
+    }
+
+    // Whether `pos` stands over a bridge the plates do not power.
+    #[must_use]
+    pub(crate) fn position_over_unpowered_bridge(&self, pos: &Position) -> bool {
+        self.cell(self.node_containing(pos))
+            .and_then(|cell| cell.bridge)
+            .is_some_and(|bridge| !self.bridge_powered(bridge))
     }
 
     // Inside the grid's volume: within its columns and rows, not below its
@@ -198,19 +235,24 @@ impl NavGraph {
     // The node of the cell under `pos`, or the closest traversable one.
     #[must_use]
     pub(crate) fn nearest_node_for_position(&self, pos: &Position) -> Option<NavNode> {
-        let level = self.geometry.level_for_y(pos.y);
-        let row = self.geometry.cell_row_containing_z(pos.z);
-        let col = self.geometry.cell_col_containing_x(pos.x);
-        let direct = NavNode { level, row, col };
+        let direct = self.node_containing(pos);
         if self.is_traversable(direct) {
             return Some(direct);
         }
 
         self.all_traversable_nodes().min_by(|a, b| {
-            let a_score = self.node_position_score(*a, pos, level);
-            let b_score = self.node_position_score(*b, pos, level);
+            let a_score = self.node_position_score(*a, pos, direct.level);
+            let b_score = self.node_position_score(*b, pos, direct.level);
             a_score.total_cmp(&b_score)
         })
+    }
+
+    fn node_containing(&self, pos: &Position) -> NavNode {
+        NavNode {
+            level: self.geometry.level_for_y(pos.y),
+            row: self.geometry.cell_row_containing_z(pos.z),
+            col: self.geometry.cell_col_containing_x(pos.x),
+        }
     }
 
     fn all_traversable_nodes(&self) -> impl Iterator<Item = NavNode> + '_ {
@@ -361,6 +403,9 @@ impl NavGraph {
         let Some(cell) = self.cell(node) else {
             return false;
         };
+        if let Some(bridge) = cell.bridge {
+            return self.bridge_powered(bridge);
+        }
         // A bare ramp opening (`has_ramp_from_below` without authored floor)
         // is standable only on its arrival strip — directly above the
         // slope's top cell; the rest of the opening is a hole over the slope.

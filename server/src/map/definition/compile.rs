@@ -13,8 +13,8 @@ use common::{
     config::MapGeometryConfig,
     map::MapGeometry,
     protocol::{
-        BarrierId, BarrierKindTable, BridgeId, BridgeKindTable, Carrier, CarrierId, MapLayout, MapSettings, SwitchId,
-        SwitchTable,
+        BarrierId, BarrierKindTable, BridgeId, BridgeKindTable, Carrier, CarrierId, LightBridge, MapLayout,
+        MapSettings, SwitchId, SwitchTable,
     },
 };
 
@@ -61,12 +61,47 @@ pub(crate) fn compile_map(
     for (index, bridge) in out.layout.light_bridges.iter_mut().enumerate() {
         bridge.id = BridgeId(u32::try_from(index).expect("bridge count exceeds u32"));
     }
+    for bridge in &out.layout.light_bridges {
+        mark_bridge_cells(&mut out.config, bridge);
+    }
     // The renderer indexes the material vectors by segment position, so any
     // length divergence is a bug here, not in the client.
     assert_eq!(out.layout.walls.len(), out.layout.wall_materials.len());
     assert_eq!(out.layout.floors.len(), out.layout.floor_materials.len());
     assert_eq!(out.layout.ramps.len(), out.layout.ramp_materials.len());
     Ok((out.layout, out.config))
+}
+
+// Tags the cells whose centres a bridge slab covers with its id, in its
+// carrier's grid. A slab's padding never reaches a neighbouring centre.
+fn mark_bridge_cells(config: &mut MapConfig, bridge: &LightBridge) {
+    let grid = config
+        .grids
+        .iter_mut()
+        .find(|grid| grid.carrier == bridge.carrier)
+        .expect("bridge names a carrier with no grid");
+    let geometry = grid.geometry;
+    let level = grid
+        .levels
+        .get_mut(usize::from(bridge.level))
+        .expect("bridge level missing from its carrier's grid");
+    let (min_x, max_x, min_z, max_z) = bridge.bounds_xz();
+    for row in geometry.cell_row_containing_z(min_z)..=geometry.cell_row_containing_z(max_z) {
+        for col in geometry.cell_col_containing_x(min_x)..=geometry.cell_col_containing_x(max_x) {
+            if !(min_x..max_x).contains(&geometry.cell_center_x(col))
+                || !(min_z..max_z).contains(&geometry.cell_center_z(row))
+            {
+                continue;
+            }
+            let cell = usize::try_from(row)
+                .ok()
+                .zip(usize::try_from(col).ok())
+                .and_then(|(row, col)| level.cells.rows.get_mut(row)?.get_mut(col));
+            if let Some(cell) = cell {
+                cell.bridge = Some(bridge.id);
+            }
+        }
+    }
 }
 
 pub(super) struct CompileScope<'a> {

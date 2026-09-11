@@ -13,7 +13,7 @@ mod tests;
 
 pub use graph::NavGraph;
 pub(crate) use graph::NavNode;
-pub use graphs::NavGraphs;
+pub use graphs::{NavGraphs, nav_bridges_sync_system};
 pub(crate) use ladders::LadderLink;
 pub(crate) use routing::PlannedRoute;
 pub use territory::ActorTerritories;

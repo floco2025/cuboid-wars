@@ -83,6 +83,7 @@ impl NavGraph {
                 neighbors.push(link.to);
             }
         }
+        neighbors.retain(|next| self.is_traversable(*next));
         neighbors
     }
 

@@ -1,8 +1,8 @@
-use bevy::prelude::Resource;
+use bevy::prelude::{DetectChanges, Res, ResMut, Resource};
 use common::{
     map::Carriers,
     physics::CollisionWorld,
-    protocol::{BarrierId, CarrierId, MapLayout, MapSettings},
+    protocol::{BarrierId, BridgeId, CarrierId, MapLayout, MapSettings, PlateState},
 };
 
 use crate::{config::ServerGameplayConfig, map::MapConfig};
@@ -95,6 +95,21 @@ impl NavGraphs {
         self.0
             .get(usize::from(carrier.0))
             .expect("carrier named by an actor spawn zone has no navigation graph")
+    }
+
+    pub fn set_powered_bridges(&mut self, powered: &[BridgeId]) {
+        for graph in &mut self.0 {
+            graph.set_powered_bridges(powered);
+        }
+    }
+}
+
+// Applies the powered bridges to the navigation graphs, as
+// `powered_bridges_sync_system` does to the collision world, so the
+// behaviour that follows plans over this tick's bridges.
+pub fn nav_bridges_sync_system(plates: Res<PlateState>, mut graphs: ResMut<NavGraphs>) {
+    if plates.is_changed() {
+        graphs.set_powered_bridges(&plates.powered_bridges);
     }
 }
 

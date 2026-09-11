@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use common::protocol::server_tick_advance_system;
 
-use super::*;
+use super::{navigation::nav_bridges_sync_system, *};
 use crate::{players::players_respawn_system, schedule::ServerSet};
 
 pub fn actors_plugin(app: &mut App) {
@@ -13,7 +13,9 @@ pub fn actors_plugin(app: &mut App) {
                 .run_if(pending_actor_spawns_active)
                 .in_set(ServerSet::Prepare)
                 .after(server_tick_advance_system),
-            actors_behavior_system.in_set(ServerSet::Behavior),
+            (nav_bridges_sync_system, actors_behavior_system)
+                .chain()
+                .in_set(ServerSet::Behavior),
             actors_removal_system.in_set(ServerSet::CombatRemoval),
             actors_respawn_system
                 .run_if(actor_respawns_active)

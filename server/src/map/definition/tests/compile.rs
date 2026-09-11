@@ -300,6 +300,13 @@ fn compile_merges_light_bridge_cells_into_one_rectangle() {
     assert!((max_x - (geometry.cell_to_world_x(3) + pad)).abs() < 1e-4);
     assert!((min_z - (geometry.cell_to_world_z(0) - pad)).abs() < 1e-4);
     assert!((max_z - (geometry.cell_to_world_z(2) + pad)).abs() < 1e-4);
+    let cells = &config.root_grid().levels[0].cells.rows;
+    for (row, cells) in cells.iter().enumerate() {
+        for (col, cell) in cells.iter().enumerate() {
+            let covered = (1..3).contains(&col) && (0..2).contains(&row);
+            assert_eq!(cell.bridge, covered.then_some(bridge.id), "cell ({col}, {row})");
+        }
+    }
 }
 
 #[test]

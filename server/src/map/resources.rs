@@ -3,7 +3,7 @@ use bevy::prelude::Resource;
 use super::FireworksConfig;
 use common::{
     map::MapGeometry,
-    protocol::{CarrierId, ItemType, MapItems, PlateState, SwitchId},
+    protocol::{BridgeId, CarrierId, ItemType, MapItems, PlateState, SwitchId},
 };
 
 // The selected map's fireworks switch and cooldown, `None` when no switch
@@ -11,8 +11,9 @@ use common::{
 #[derive(Resource, Clone, Debug)]
 pub struct MapFireworks(pub Option<FireworksConfig>);
 
-// Cell flags. Light bridges deliberately set none of them: actors never
-// walk a bridge, and item, spawn, and air-graph cells ignore them too.
+// Cell flags. A light bridge sets only `bridge`, the slab over the cell:
+// actor navigation walks it while the plates power it, and item, spawn,
+// and air-graph cells ignore it.
 #[derive(Copy, Clone, Debug, Default)]
 pub struct Cell {
     pub has_ramp: bool,
@@ -28,6 +29,7 @@ pub struct Cell {
     pub ramp_top_south: bool,
     pub ramp_top_west: bool,
     pub ramp_top_east: bool,
+    pub bridge: Option<BridgeId>,
 }
 
 impl Cell {

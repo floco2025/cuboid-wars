@@ -8,7 +8,7 @@ pub(super) use super::super::{
         decide_beam_actor, decide_contact_actor, decide_contact_beam_actor, decide_stationary_actor, retarget_beam,
     },
     perception::{PlayerState, update_awareness},
-    tick::{actors_behavior_system, shake_loose, tick_runtime_state},
+    tick::{actors_behavior_system, drop_route_onto_lost_bridge, shake_loose, tick_runtime_state},
     transitions::{BehaviorContext, EVADE_REPLAN_INTERVAL_SECS, enter_evade, keep_or_install_engagement_route},
 };
 pub(super) use crate::{
@@ -30,8 +30,8 @@ pub(super) use common::{
     map::{CarrierPose, Carriers, MapGeometry},
     physics::{CharacterSupport, CollisionWorld},
     protocol::{
-        ActorBeam, ActorId, ActorMarker, Barrier, BarrierKindId, Carrier, CarrierId, Health, MapItems, MapLayout,
-        PlateState, PlayerId, PlayerMarker, Position, ServerMessage, ServerTick, Wall,
+        ActorBeam, ActorId, ActorMarker, Barrier, BarrierKindId, BridgeId, Carrier, CarrierId, Health, MapItems,
+        MapLayout, PlateState, PlayerId, PlayerMarker, Position, ServerMessage, ServerTick, Wall,
     },
 };
 
