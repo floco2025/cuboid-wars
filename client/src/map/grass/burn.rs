@@ -69,8 +69,8 @@ impl GrassBurn {
         }
 
         let inner_radius = outer_radius * EXPLOSION_GRASS_BURN_CORE_RADIUS_FACTOR;
-        let edge_progress = ((distance - inner_radius) / (outer_radius - inner_radius)).clamp(0.0, 1.0);
-        (1.0 - edge_progress * edge_progress * (3.0 - 2.0 * edge_progress)) * self.intensity
+        let edge = SmoothStepCurve.sample_clamped(f32::inverse_lerp(inner_radius, outer_radius, distance));
+        (1.0 - edge) * self.intensity
     }
 
     fn intersects_cell(&self, cell: GrassCell, cell_size: f32) -> bool {

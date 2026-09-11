@@ -620,7 +620,8 @@ fn visible_aperture(
 
 // The view's four side planes and its near plane, read off the clip matrix
 // rows; a point is inside where `plane · (p, 1) >= 0`. Bevy's reverse Z puts
-// the near plane at clip z = w.
+// the near plane at clip z = w, so `ViewFrustum::from_clip_from_world` does
+// not apply: its near half-space (`row3 + row2`) lies behind the eye there.
 fn frustum_planes(clip_from_world: &Mat4) -> [Vec4; 5] {
     let row = |index| clip_from_world.row(index);
     [

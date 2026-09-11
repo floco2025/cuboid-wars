@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use super::BridgeAssets;
 use crate::{
     config::{ClientSettings, LightBridgeVfxConfig},
-    vfx::{color_with_alpha, ease_blend},
+    vfx::color_with_alpha,
 };
 use common::protocol::{BridgeId, PlateState};
 
@@ -53,7 +53,8 @@ fn fade_step(alpha: f32, target: f32, delta_secs: f32, fade_secs: f32) -> Option
     if (alpha - target).abs() <= f32::EPSILON {
         return None;
     }
-    let next = alpha + (target - alpha) * ease_blend(delta_secs, fade_secs);
+    let mut next = alpha;
+    next.smooth_nudge(&target, 1.0 / fade_secs, delta_secs);
     Some(if (next - target).abs() < BRIDGE_FADE_SNAP {
         target
     } else {

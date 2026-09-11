@@ -231,7 +231,7 @@ fn rocket(events: &mut Vec<FireworkEvent>, rng: &mut StdRng, field: &ShowField, 
     let pop_at = at_secs + fuse_secs;
     if stars {
         for _ in 0..7 {
-            let dir = random_unit(rng);
+            let dir = Sphere::new(1.0).sample_boundary(rng);
             events.push(FireworkEvent {
                 at_secs: pop_at,
                 action: FireworkAction::Launch {
@@ -281,20 +281,6 @@ fn beam(rng: &mut StdRng, field: &ShowField, duration_secs: f32, sweep_rate: std
         // Alternate sweep directions.
         sweep_rate: if rng.random_range(0.0..1.0) < 0.5 { rate } else { -rate },
         duration_secs,
-    }
-}
-
-fn random_unit(rng: &mut StdRng) -> Vec3 {
-    loop {
-        let v = Vec3::new(
-            rng.random_range(-1.0..1.0),
-            rng.random_range(-1.0..1.0),
-            rng.random_range(-1.0..1.0),
-        );
-        let len_sq = v.length_squared();
-        if len_sq > 0.01 && len_sq <= 1.0 {
-            return v / len_sq.sqrt();
-        }
     }
 }
 

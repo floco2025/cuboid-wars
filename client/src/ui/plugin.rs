@@ -2,7 +2,8 @@ use super::{
     console::{ConsoleSubmission, console_input_system, console_send_system},
     *,
 };
-use bevy::prelude::*;
+use bevy::{prelude::*, time::common_conditions::on_timer};
+use std::time::Duration;
 
 use crate::{
     players::death_overlay_visibility_system, schedule::ClientSet,
@@ -35,7 +36,8 @@ pub fn hud_plugin(app: &mut App) {
             ui_quest_panel_offset_system,
             ui_stunned_blink_system,
             ui_rtt_system,
-            ui_fps_system,
+            // Once a second, so the readout is not relaid out every frame.
+            ui_fps_system.run_if(on_timer(Duration::from_secs(1))),
             ui_crosshair_system,
             ui_crosshair_lock_system.after(ui_crosshair_system),
             death_overlay_visibility_system,

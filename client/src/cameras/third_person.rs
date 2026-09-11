@@ -19,11 +19,13 @@ pub(super) fn third_person_transform(
     let reset = state
         .previous_pivot
         .is_none_or(|previous| previous.distance(pivot) > config.max_distance);
-    state.arm_distance = if reset || allowed < state.arm_distance {
-        allowed
+    if reset || allowed < state.arm_distance {
+        state.arm_distance = allowed;
     } else {
-        state.arm_distance + (allowed - state.arm_distance) * (1.0 - (-config.obstruction_return_rate * dt).exp())
-    };
+        state
+            .arm_distance
+            .smooth_nudge(&allowed, config.obstruction_return_rate, dt);
+    }
     state.previous_pivot = Some(pivot);
     Transform {
         translation: pivot + offset.normalize_or_zero() * state.arm_distance,

@@ -70,11 +70,6 @@ pub(super) fn repeated_indices(count: usize, vertices_per_particle: usize, templ
     indices
 }
 
-// The classic ease-in-out ramp on [0, 1].
-pub(super) fn smoothstep(value: f32) -> f32 {
-    value * value * (3.0 - 2.0 * value)
-}
-
 #[cfg(test)]
 #[path = "tests/cube.rs"]
 mod tests;

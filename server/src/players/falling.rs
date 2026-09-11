@@ -226,8 +226,7 @@ fn fall_distance_for_speed(impact_speed: f32, normal_gravity: f32) -> f32 {
 // (full health), clamping the falloff beyond the lethal endpoint.
 // Keep this curve in sync with tools/map_editor/jump_reach.py::FallSettings.damage_fraction.
 fn fall_damage_for_distance(distance: f32, safe: f32, lethal: f32, max_health: f32) -> f32 {
-    let t = ((distance - safe) / (lethal - safe)).clamp(0.0, 1.0);
-    t * max_health
+    f32::inverse_lerp(safe, lethal, distance).clamp(0.0, 1.0) * max_health
 }
 
 #[cfg(test)]

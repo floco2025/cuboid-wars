@@ -72,11 +72,7 @@ fn blends_are_halfway_per_channel() {
     let mid = blend_targets(&config, &wire("bright", "dark", 0.5));
     assert_targets_eq(
         &mid,
-        &LevelTargets::lerp(
-            &LevelTargets::sun(&config.bright),
-            &LevelTargets::moon(&config.dark),
-            0.5,
-        ),
+        &LevelTargets::sun(&config.bright).interpolate_stable(&LevelTargets::moon(&config.dark), 0.5),
     );
     assert!(
         (mid.phase_percent - LevelTargets::moon(&config.dim).phase_percent).abs() > 1.0,

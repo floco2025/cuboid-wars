@@ -1,15 +1,10 @@
-use bevy::prelude::*;
+use bevy::{
+    diagnostic::{Diagnostic, DiagnosticsStore, FrameTimeDiagnosticsPlugin},
+    prelude::*,
+};
 use std::time::Duration;
 
 use crate::{cameras::SceneRenderTarget, config::ClientSettings, network::RoundTripTime};
-
-// FPS measurement tracking.
-#[derive(Resource, Default)]
-pub struct FpsMeasurement {
-    pub frame_count: u32,
-    pub fps_timer: f32,
-    pub fps: f32,
-}
 
 // Marker for the column holding the RTT and FPS readouts.
 #[derive(Component)]
@@ -52,21 +47,17 @@ pub fn ui_rtt_system(rtt: Res<RoundTripTime>, mut query: Single<&mut Text, With<
 }
 
 pub fn ui_fps_system(
-    time: Res<Time>,
-    mut fps: ResMut<FpsMeasurement>,
+    diagnostics: Res<DiagnosticsStore>,
     scene_target: Res<SceneRenderTarget>,
     mut query: Single<&mut Text, With<FpsMarker>>,
 ) {
-    fps.frame_count += 1;
-    fps.fps_timer += time.delta_secs();
-
-    if fps.fps_timer >= 1.0 {
-        fps.fps = fps.frame_count as f32 / fps.fps_timer;
-        query.0 = fps_label(fps.fps, scene_target.size);
-
-        fps.frame_count = 0;
-        fps.fps_timer = 0.0;
-    }
+    let Some(fps) = diagnostics
+        .get(&FrameTimeDiagnosticsPlugin::FPS)
+        .and_then(Diagnostic::smoothed)
+    else {
+        return;
+    };
+    query.0 = fps_label(fps as f32, scene_target.size);
 }
 
 fn fps_label(fps: f32, render_size: UVec2) -> String {

@@ -11,7 +11,6 @@ use std::f32::consts::TAU;
 
 use super::{
     beam::take_emissions,
-    fade::ease_blend,
     particles::{ParticleCloud, ParticleClouds, ParticleSpawn},
 };
 use crate::{
@@ -69,8 +68,9 @@ pub struct RainIntensity {
 }
 
 pub fn rain_smoothing_system(time: Res<Time>, mut rain: ResMut<RainIntensity>) {
-    let blend = ease_blend(time.delta_secs(), SMOOTHING_TAU_SECS);
-    rain.current += (rain.target - rain.current) * blend;
+    let target = rain.target;
+    rain.current
+        .smooth_nudge(&target, 1.0 / SMOOTHING_TAU_SECS, time.delta_secs());
 }
 
 // Emit falling drops in a disc around the camera, only in columns open to

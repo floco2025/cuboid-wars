@@ -178,9 +178,8 @@ fn smooth_cyclic_sample(samples: &[f32], progress: f32) -> f32 {
     let sample_position = progress * samples.len() as f32;
     let current = sample_position.floor() as usize % samples.len();
     let next = (current + 1) % samples.len();
-    let fraction = sample_position.fract();
-    let smooth_fraction = fraction * fraction * (3.0 - 2.0 * fraction);
-    samples[current] + (samples[next] - samples[current]) * smooth_fraction
+    let smooth_fraction = SmoothStepCurve.sample_clamped(sample_position.fract());
+    samples[current].lerp(samples[next], smooth_fraction)
 }
 
 fn scorch_color(alpha: f32, ring: f32) -> [f32; 4] {

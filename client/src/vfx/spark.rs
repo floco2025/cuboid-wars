@@ -76,9 +76,8 @@ fn outward_cone_direction(rng: &mut impl Rng, axis: Vec3, surface_normal: Vec3, 
     let sin_theta = (1.0 - cos_theta * cos_theta).sqrt();
     let azimuth = rng.random_range(0.0..TAU);
     let mut direction = axis * cos_theta + (tangent * azimuth.cos() + bitangent * azimuth.sin()) * sin_theta;
-    let normal_component = direction.dot(surface_normal);
-    if normal_component < 0.0 {
-        direction -= 2.0 * normal_component * surface_normal;
+    if direction.dot(surface_normal) < 0.0 {
+        direction = direction.reflect(surface_normal);
     }
     direction.normalize_or(surface_normal)
 }

@@ -1,5 +1,5 @@
 use super::particles::ExplosionVfxBudget;
-use crate::{constants::*, vfx::cube::smoothstep};
+use crate::constants::*;
 use bevy::{
     asset::RenderAssetUsages,
     light::NotShadowCaster,
@@ -118,7 +118,7 @@ fn smoke_positions(particles: &[SmokeParticle], elapsed: f32, right: Vec3, up: V
     let mut positions = Vec::with_capacity(particles.len() * SMOKE_VERTICES_PER_PARTICLE);
     for particle in particles {
         let progress = (elapsed / particle.lifetime).clamp(0.0, 1.0);
-        let scale = particle.start_size + (particle.end_size - particle.start_size) * progress.sqrt();
+        let scale = particle.start_size.lerp(particle.end_size, progress.sqrt());
         positions.push(particle.position.to_array());
         for ring_radius in [SMOKE_INNER_RADIUS, 1.0] {
             for segment in 0..SMOKE_RING_SEGMENTS {
@@ -146,12 +146,14 @@ fn smoke_alpha(elapsed: f32, lifetime: f32, max_alpha: f32) -> f32 {
     if elapsed >= lifetime {
         return 0.0;
     }
-    let fade_in = smoothstep((elapsed / EXPLOSION_SMOKE_FADE_IN_SECS).clamp(0.0, 1.0));
+    let fade_in = SmoothStepCurve.sample_clamped(elapsed / EXPLOSION_SMOKE_FADE_IN_SECS);
     let progress = (elapsed / lifetime).clamp(0.0, 1.0);
-    let fade_out_progress = ((progress - EXPLOSION_SMOKE_FADE_OUT_START_FRACTION)
-        / (1.0 - EXPLOSION_SMOKE_FADE_OUT_START_FRACTION))
-        .clamp(0.0, 1.0);
-    max_alpha * fade_in * (1.0 - smoothstep(fade_out_progress))
+    let fade_out = SmoothStepCurve.sample_clamped(f32::inverse_lerp(
+        EXPLOSION_SMOKE_FADE_OUT_START_FRACTION,
+        1.0,
+        progress,
+    ));
+    max_alpha * fade_in * (1.0 - fade_out)
 }
 
 fn smoke_indices(count: usize) -> Vec<u32> {

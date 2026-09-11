@@ -3,10 +3,7 @@ use std::{collections::HashMap, f32::consts::TAU};
 use bevy::{asset::AssetId, light::NotShadowCaster, prelude::*, world_serialization::WorldInstanceReady};
 use rand::{RngExt, rng};
 
-use super::{
-    cube::smoothstep,
-    particles::{ParticleCloud, ParticleClouds, ParticleSpawn},
-};
+use super::particles::{ParticleCloud, ParticleClouds, ParticleSpawn};
 use crate::constants::*;
 use common::protocol::{ServerTick, sequence_is_newer};
 
@@ -115,7 +112,7 @@ pub fn beam_ghost_fade_system(
 ) {
     let overstep = fixed_time.overstep_fraction();
     for (ghost, children) in &ghosts {
-        let progress = smoothstep(ghost.fade_progress(tick.0, overstep));
+        let progress = SmoothStepCurve.sample_clamped(ghost.fade_progress(tick.0, overstep));
         let full_intensity = (BEAM_IN_LIGHT_INTENSITY_LUMENS_PER_M3 * ghost.volume()).max(BEAM_IN_LIGHT_MIN_INTENSITY);
         for child in children {
             if let Ok(mut light) = lights.get_mut(*child) {

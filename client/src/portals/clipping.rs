@@ -140,7 +140,7 @@ pub(crate) fn portal_body_clipping_system(
         });
         let model_world = match transient {
             Some((false, fraction, turn)) => {
-                let eased = fraction * fraction * (3.0 - 2.0 * fraction);
+                let eased = SmoothStepCurve.sample_clamped(fraction);
                 let centre = character_movement_center(player_transform.translation.into(), physics);
                 let model_world = pose_about(centre, Quat::IDENTITY.slerp(turn, 1.0 - eased), base_world);
                 *model_transform =

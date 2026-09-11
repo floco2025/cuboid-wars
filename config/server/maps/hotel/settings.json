@@ -75,7 +75,7 @@
       "multi_shot": 30.0,
       "portal_gun": 60.0,
       "speed": 30.0,
-      "low_gravity": 20.0
+      "low_gravity": 30.0
     }
   },
   "placed_items": {

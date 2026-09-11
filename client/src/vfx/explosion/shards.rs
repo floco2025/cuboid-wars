@@ -102,7 +102,7 @@ pub(super) fn spawn_shard_cloud(
 
 pub(super) fn bounce_on_surface(particle: &mut ShardParticle, plane: SurfacePlane) {
     let from_plane = particle.position - plane.point;
-    let planar = from_plane - plane.normal * from_plane.dot(plane.normal);
+    let planar = from_plane.reject_from_normalized(plane.normal);
     if planar.length_squared() > plane.radius * plane.radius {
         return;
     }

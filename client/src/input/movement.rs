@@ -1,4 +1,4 @@
-use bevy::{ecs::system::SystemParam, input::mouse::MouseMotion, math::Vec2, prelude::*};
+use bevy::{ecs::system::SystemParam, input::mouse::AccumulatedMouseMotion, math::Vec2, prelude::*};
 use common::{
     config::GameplayConfig,
     physics::{CharacterVerticalVelocity, CollisionWorld, player_jump_velocity},
@@ -61,7 +61,7 @@ type LocalPlayerInputQuery<'w, 's> = Query<
 // `report_player_movement_system`, a jump as the vertical velocity it set.
 pub fn input_movement_system(
     keyboard: Res<ButtonInput<KeyCode>>,
-    mut mouse_motion: MessageReader<MouseMotion>,
+    mouse_motion: Res<AccumulatedMouseMotion>,
     camera_input: CameraMovementInput,
     my_player_id: Res<MyPlayerId>,
     players: Res<PlayerMap>,
@@ -79,14 +79,12 @@ pub fn input_movement_system(
     // transform and write it to ECS, overwriting the authoritative spawn-time
     // facing.
     if local_player_query.is_empty() {
-        for _ in mouse_motion.read() {}
         return;
     }
 
     if camera_input.state.released || camera_input.console.open || camera_input.menu.open {
-        // Drain mouse events and force idle intent locally; the commit
-        // system will pick it up at the next tick boundary.
-        for _ in mouse_motion.read() {}
+        // Force idle intent locally; the commit system will pick it up at
+        // the next tick boundary.
         for (_, mut input, _, _) in local_player_query.iter_mut() {
             *input = PlayerMoveIntent::Idle;
         }
@@ -96,7 +94,7 @@ pub fn input_movement_system(
     let view_mode = *camera_input.view;
     let orbit = view_mode == CameraViewMode::ThirdPerson && !camera_input.follow.locked;
     let current_yaw = calculate_current_orientation(
-        &mut mouse_motion,
+        mouse_motion.delta,
         view_mode,
         &mut local_player_info,
         &mut top_down_camera_yaw,
@@ -123,7 +121,7 @@ pub fn input_movement_system(
 // Applies this frame's mouse motion to the active view's yaw (and pitch for
 // mouse look) and returns the resulting view yaw.
 fn calculate_current_orientation(
-    mouse_motion: &mut MessageReader<MouseMotion>,
+    mouse_delta: Vec2,
     view_mode: CameraViewMode,
     local_player_info: &mut LocalPlayerInfo,
     top_down_camera_yaw: &mut TopDownCameraYaw,
@@ -131,9 +129,7 @@ fn calculate_current_orientation(
     invert_y: bool,
 ) -> f32 {
     if view_mode.is_top_down() {
-        for motion in mouse_motion.read() {
-            top_down_camera_yaw.0 = motion.delta.x.mul_add(-mouse_sensitivity, top_down_camera_yaw.0);
-        }
+        top_down_camera_yaw.0 = mouse_delta.x.mul_add(-mouse_sensitivity, top_down_camera_yaw.0);
         return top_down_camera_yaw.0;
     }
 
@@ -144,10 +140,8 @@ fn calculate_current_orientation(
     } else {
         -mouse_sensitivity
     };
-    for motion in mouse_motion.read() {
-        local_player_info.stored_yaw = motion.delta.x.mul_add(-mouse_sensitivity, local_player_info.stored_yaw);
-        local_player_info.stored_pitch = motion.delta.y.mul_add(pitch_step, local_player_info.stored_pitch);
-    }
+    local_player_info.stored_yaw = mouse_delta.x.mul_add(-mouse_sensitivity, local_player_info.stored_yaw);
+    local_player_info.stored_pitch = mouse_delta.y.mul_add(pitch_step, local_player_info.stored_pitch);
     local_player_info.stored_pitch = local_player_info
         .stored_pitch
         .clamp(-CAMERA_MAX_PITCH, CAMERA_MAX_PITCH);

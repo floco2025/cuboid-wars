@@ -2,54 +2,16 @@ use bevy::prelude::*;
 
 use common::{
     config::MapGeometryConfig,
-    protocol::{Floor, MapLayout, Position},
+    protocol::{MapLayout, Position},
 };
 
 // Fallback half-extent used before the server-supplied `MapLayout` arrives.
 // Once it does, we use the actual floor footprint instead.
 const FALLBACK_HALF_EXTENT: f32 = 40.0;
 
-#[derive(Copy, Clone)]
-struct FloorBounds {
-    min_x: f32,
-    max_x: f32,
-    min_z: f32,
-    max_z: f32,
-}
-
-impl FloorBounds {
-    const fn fallback() -> Self {
-        Self {
-            min_x: -FALLBACK_HALF_EXTENT,
-            max_x: FALLBACK_HALF_EXTENT,
-            min_z: -FALLBACK_HALF_EXTENT,
-            max_z: FALLBACK_HALF_EXTENT,
-        }
-    }
-
-    fn include_floor(&mut self, floor: &Floor) {
-        let (min_x, max_x, min_z, max_z) = floor.bounds_xz();
-        self.min_x = self.min_x.min(min_x);
-        self.max_x = self.max_x.max(max_x);
-        self.min_z = self.min_z.min(min_z);
-        self.max_z = self.max_z.max(max_z);
-    }
-
-    fn center(self) -> Vec3 {
-        Vec3::new(
-            f32::midpoint(self.min_x, self.max_x),
-            0.0,
-            f32::midpoint(self.min_z, self.max_z),
-        )
-    }
-
-    fn width(self) -> f32 {
-        self.max_x - self.min_x
-    }
-
-    fn depth(self) -> f32 {
-        self.max_z - self.min_z
-    }
+// The framed floor footprint on the XZ plane: `Rect` x is world x, y is world z.
+fn fallback_bounds() -> Rect {
+    Rect::from_center_half_size(Vec2::ZERO, Vec2::splat(FALLBACK_HALF_EXTENT))
 }
 
 pub(super) fn window_aspect_ratio(windows: &Query<&Window>) -> f32 {
@@ -70,11 +32,9 @@ pub(super) fn topdown_camera_transform(
 ) -> Transform {
     let view_direction = topdown_view_direction(yaw);
     let player_level = geometry.nearest_level_to_y(player_pos.y);
-    let floor_bounds = map_layout.map_or_else(FloorBounds::fallback, |layout| {
-        floor_bounds_for_level(layout, player_level)
-    });
-    let mut target = floor_bounds.center();
-    target.y = geometry.level_y(player_level);
+    let floor_bounds = map_layout.map_or_else(fallback_bounds, |layout| floor_bounds_for_level(layout, player_level));
+    let center = floor_bounds.center();
+    let mut target = Vec3::new(center.x, geometry.level_y(player_level), center.y);
     let camera_offset = topdown_camera_offset_to_fit(
         floor_bounds,
         aspect_ratio,
@@ -90,33 +50,22 @@ pub(super) fn topdown_camera_transform(
     Transform::from_translation(target + camera_offset).looking_at(target, Vec3::Y)
 }
 
-fn floor_bounds_for_level(map_layout: &MapLayout, level: u8) -> FloorBounds {
-    let mut bounds = FloorBounds {
-        min_x: f32::INFINITY,
-        max_x: f32::NEG_INFINITY,
-        min_z: f32::INFINITY,
-        max_z: f32::NEG_INFINITY,
-    };
-
+fn floor_bounds_for_level(map_layout: &MapLayout, level: u8) -> Rect {
     // Carried floors are in their carrier's frame and move; the view frames
     // the map itself.
-    for floor in map_layout
+    let bounds = map_layout
         .floors
         .iter()
         .filter(|floor| floor.carrier.is_world() && floor.level == level)
-    {
-        bounds.include_floor(floor);
-    }
-
-    if bounds.min_x.is_finite() {
-        bounds
-    } else {
-        FloorBounds::fallback()
-    }
+        .fold(Rect::EMPTY, |bounds, floor| {
+            let (min_x, max_x, min_z, max_z) = floor.bounds_xz();
+            bounds.union(Rect::new(min_x, min_z, max_x, max_z))
+        });
+    if bounds.is_empty() { fallback_bounds() } else { bounds }
 }
 
 fn topdown_camera_offset_to_fit(
-    bounds: FloorBounds,
+    bounds: Rect,
     aspect_ratio: f32,
     fov: f32,
     view_direction: Vec3,
@@ -136,7 +85,7 @@ fn topdown_camera_offset_to_fit(
     Vec3::Y * (view_distance * tilt.cos()) + view_direction * (view_distance * tilt.sin())
 }
 
-fn projected_center_shift(bounds: FloorBounds, camera_offset: Vec3, view_direction: Vec3) -> f32 {
+fn projected_center_shift(bounds: Rect, camera_offset: Vec3, view_direction: Vec3) -> f32 {
     let half_view_extent = floor_extent_along_view(bounds, view_direction) / 2.0;
     let view_offset = camera_offset.dot(view_direction);
     if half_view_extent <= 0.0 || view_offset.abs() <= f32::EPSILON {
@@ -151,17 +100,17 @@ fn projected_center_shift(bounds: FloorBounds, camera_offset: Vec3, view_directi
     ((discriminant.sqrt() - distance_squared) / (2.0 * view_offset)).clamp(-half_view_extent, half_view_extent)
 }
 
-fn floor_extent_along_view(bounds: FloorBounds, view_direction: Vec3) -> f32 {
+fn floor_extent_along_view(bounds: Rect, view_direction: Vec3) -> f32 {
     if view_direction.x.abs() > view_direction.z.abs() {
         bounds.width()
     } else {
-        bounds.depth()
+        bounds.height()
     }
 }
 
-fn floor_extent_across_view(bounds: FloorBounds, view_direction: Vec3) -> f32 {
+fn floor_extent_across_view(bounds: Rect, view_direction: Vec3) -> f32 {
     if view_direction.x.abs() > view_direction.z.abs() {
-        bounds.depth()
+        bounds.height()
     } else {
         bounds.width()
     }

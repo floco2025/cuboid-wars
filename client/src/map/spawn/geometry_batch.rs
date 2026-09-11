@@ -1,11 +1,6 @@
 use std::collections::BTreeMap;
 
-use bevy::{
-    asset::RenderAssetUsages,
-    mesh::{MeshVertexAttribute, VertexAttributeValues},
-    prelude::*,
-    render::render_resource::PrimitiveTopology,
-};
+use bevy::prelude::*;
 use rand::{RngExt, rng};
 
 use crate::{
@@ -57,9 +52,7 @@ pub(super) struct SegmentTarget {
 #[derive(Default)]
 struct MeshBatch {
     material_id: String,
-    positions: Vec<[f32; 3]>,
-    normals: Vec<[f32; 3]>,
-    uvs: Vec<[f32; 2]>,
+    mesh: Option<Mesh>,
 }
 
 pub struct MapGeometryBatch {
@@ -95,7 +88,10 @@ impl MapGeometryBatch {
 
     #[must_use]
     pub fn triangle_count(&self) -> usize {
-        self.batches.values().map(|batch| batch.positions.len() / 3).sum()
+        self.batches
+            .values()
+            .map(|batch| batch.mesh.as_ref().map_or(0, |mesh| mesh.count_vertices() / 3))
+            .sum()
     }
 
     // Open a fresh logical-segment scope. Subsequent `add_mesh` calls until
@@ -146,9 +142,9 @@ impl MapGeometryBatch {
     ) {
         let mode = self.mode;
         for (key, batch) in self.batches {
-            if batch.positions.is_empty() {
+            let Some(mut mesh) = batch.mesh else {
                 continue;
-            }
+            };
 
             let material = match mode {
                 DebugColorMode::Off => {
@@ -165,7 +161,6 @@ impl MapGeometryBatch {
                 DebugColorMode::ByMaterial => materials.add(material_color_for(&batch.material_id)),
                 DebugColorMode::BySegment => materials.add(random_debug_material()),
             };
-            let mut mesh = batch.into_mesh();
             let _ = mesh.generate_tangents();
 
             spawn_batch(
@@ -182,41 +177,13 @@ impl MapGeometryBatch {
 
 impl MeshBatch {
     fn append(&mut self, mesh: &Mesh, transform: Transform) {
-        let positions = float3_attribute(mesh, Mesh::ATTRIBUTE_POSITION);
-        let normals = float3_attribute(mesh, Mesh::ATTRIBUTE_NORMAL);
-        let uvs = float2_attribute(mesh, Mesh::ATTRIBUTE_UV_0);
-        assert_eq!(positions.len(), normals.len(), "map mesh positions/normals must match");
-        assert_eq!(positions.len(), uvs.len(), "map mesh positions/uvs must match");
-
-        for ((position, normal), uv) in positions.iter().zip(normals).zip(uvs) {
-            let carrier_position = transform.transform_point(Vec3::from_array(*position));
-            let carrier_normal = transform.rotation * Vec3::from_array(*normal);
-            self.positions.push(carrier_position.to_array());
-            self.normals.push(carrier_normal.normalize_or_zero().to_array());
-            self.uvs.push(*uv);
+        let mesh = mesh.clone().transformed_by(transform);
+        match &mut self.mesh {
+            Some(batch) => batch
+                .merge(&mesh)
+                .expect("map mesh does not match its batch's vertex attributes or topology"),
+            None => self.mesh = Some(mesh),
         }
-    }
-
-    fn into_mesh(self) -> Mesh {
-        let mut mesh = Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::default());
-        mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, self.positions);
-        mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, self.normals);
-        mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, self.uvs);
-        mesh
-    }
-}
-
-fn float3_attribute(mesh: &Mesh, attribute: MeshVertexAttribute) -> &[[f32; 3]] {
-    match mesh.attribute(attribute) {
-        Some(VertexAttributeValues::Float32x3(values)) => values,
-        _ => panic!("map mesh attribute {attribute:?} must be Float32x3"),
-    }
-}
-
-fn float2_attribute(mesh: &Mesh, attribute: MeshVertexAttribute) -> &[[f32; 2]] {
-    match mesh.attribute(attribute) {
-        Some(VertexAttributeValues::Float32x2(values)) => values,
-        _ => panic!("map mesh attribute {attribute:?} must be Float32x2"),
     }
 }
 

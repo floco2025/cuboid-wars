@@ -9,7 +9,6 @@ use crate::{
     cameras::{MainCameraMarker, RearviewCameraMarker, SkyDiscRenderLayer},
     config::{AssetSet, ClientSettings, LightingConfig, MoonLighting, SkyboxDef, SunLighting},
     constants::{CELESTIAL_DISC_MOON_COLOR, CELESTIAL_DISC_SUN_COLOR},
-    vfx::ease_blend,
 };
 use common::protocol::{LightingBlend, MapSettings};
 
@@ -336,17 +335,18 @@ impl LevelTargets {
             saturation: moon.saturation,
         }
     }
+}
 
-    fn lerp(a: &Self, b: &Self, s: f32) -> Self {
-        let lerp = |a: f32, b: f32| a + (b - a) * s;
+impl StableInterpolate for LevelTargets {
+    fn interpolate_stable(&self, other: &Self, t: f32) -> Self {
         Self {
-            sky: lerp(a.sky, b.sky),
-            illuminance: lerp(a.illuminance, b.illuminance),
-            ambient: lerp(a.ambient, b.ambient),
-            disc: lerp(a.disc, b.disc),
-            phase_percent: lerp(a.phase_percent, b.phase_percent),
-            color: a.color.lerp(b.color, s),
-            saturation: lerp(a.saturation, b.saturation),
+            sky: self.sky.lerp(other.sky, t),
+            illuminance: self.illuminance.lerp(other.illuminance, t),
+            ambient: self.ambient.lerp(other.ambient, t),
+            disc: self.disc.lerp(other.disc, t),
+            phase_percent: self.phase_percent.lerp(other.phase_percent, t),
+            color: self.color.lerp(other.color, t),
+            saturation: self.saturation.lerp(other.saturation, t),
         }
     }
 }
@@ -366,11 +366,7 @@ fn look(config: &LightingConfig, name: &str) -> LevelTargets {
 }
 
 fn blend_targets(config: &LightingConfig, blend: &LightingBlend) -> LevelTargets {
-    LevelTargets::lerp(
-        &look(config, &blend.from),
-        &look(config, &blend.to),
-        blend.blend.clamp(0.0, 1.0),
-    )
+    look(config, &blend.from).interpolate_stable(&look(config, &blend.to), blend.blend.clamp(0.0, 1.0))
 }
 
 // Drive the world's lighting toward the snapshot's blend. Every channel is
@@ -389,16 +385,17 @@ pub(super) fn lighting_blend_system(
     mut gradings: Query<&mut ColorGrading, Or<(With<MainCameraMarker>, With<RearviewCameraMarker>)>>,
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
-    let blend = if lighting.eased {
-        ease_blend(time.delta_secs(), LIGHT_FADE_TAU_SECS)
+    let target = blend_targets(&client_settings.lighting, &lighting.target);
+    if lighting.eased {
+        lighting
+            .current
+            .smooth_nudge(&target, 1.0 / LIGHT_FADE_TAU_SECS, time.delta_secs());
     } else {
         // Keep snapping until the first snapshot's blend has been applied;
         // only later changes get the fade.
         lighting.eased = lighting.synced;
-        1.0
-    };
-    let target = blend_targets(&client_settings.lighting, &lighting.target);
-    lighting.current = LevelTargets::lerp(&lighting.current, &target, blend);
+        lighting.current = target;
+    }
     let level = lighting.current.clone();
 
     // Low light mutes the world: post-tonemap saturation on the presenting

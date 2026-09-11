@@ -46,8 +46,7 @@ pub struct FollowCamera {
 
 impl FollowCamera {
     pub fn pivot_blend(&self) -> f32 {
-        let blend = self.distance.clamp(0.0, 1.0);
-        blend * blend * (3.0 - 2.0 * blend)
+        SmoothStepCurve.sample_clamped(self.distance)
     }
 
     // The shoulder offset eases in with the pivot, so a slight zoom-out does

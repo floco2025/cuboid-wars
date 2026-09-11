@@ -85,7 +85,6 @@ pub fn local_player_portal_blend_system(
         commands.entity(entity).remove::<PortalTransitBlend>();
         return;
     }
-    let fraction = blend.timer.fraction();
-    let eased = fraction * fraction * (3.0 - 2.0 * fraction);
+    let eased = SmoothStepCurve.sample_clamped(blend.timer.fraction());
     transform.rotation = Quat::IDENTITY.slerp(blend.delta, 1.0 - eased) * transform.rotation;
 }

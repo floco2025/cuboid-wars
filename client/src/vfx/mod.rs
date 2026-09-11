@@ -21,7 +21,7 @@ pub use explosion::{
     spawn_actor_explosion, spawn_missile_explosion, spawn_player_explosion,
 };
 pub(crate) use explosion::{ClipRegion, ScorchOutline, with_white_vertex_colors};
-pub(crate) use fade::{color_with_alpha, ease_blend, srgb_color, translucent_kind_material};
+pub(crate) use fade::{color_with_alpha, srgb_color, translucent_kind_material};
 pub use firework::{FireworkShow, firework_system};
 #[cfg(test)]
 pub(crate) use laser::beam_target_local;

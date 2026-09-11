@@ -71,7 +71,7 @@ impl ProjectileMotion {
             0.0
         };
 
-        self.velocity -= 2.0 * dot * normal;
+        self.velocity = self.velocity.reflect(normal);
 
         let retention = 1.0 - cos_impact * (1.0 - self.bounce_retention);
         self.velocity *= retention;

@@ -1,6 +1,6 @@
 use super::*;
 use crate::test_fixtures::{LEVEL_HEIGHT, sizes};
-use common::protocol::CarrierId;
+use common::protocol::{CarrierId, Floor};
 use std::f32::consts::FRAC_PI_2;
 
 fn wide_layout() -> MapLayout {
@@ -27,12 +27,7 @@ fn view_direction_follows_yaw() {
 
 #[test]
 fn extents_swap_with_the_view_axis() {
-    let bounds = FloorBounds {
-        min_x: -20.0,
-        max_x: 20.0,
-        min_z: -10.0,
-        max_z: 10.0,
-    };
+    let bounds = Rect::new(-20.0, -10.0, 20.0, 10.0);
     // Looking along Z: the along-view extent is the map depth.
     assert_eq!(floor_extent_along_view(bounds, Vec3::Z), 20.0);
     assert_eq!(floor_extent_across_view(bounds, Vec3::Z), 40.0);

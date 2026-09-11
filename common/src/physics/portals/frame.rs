@@ -52,7 +52,7 @@ impl PortalFrame {
         } else {
             Vec3::Y
         };
-        let up = (reference - normal * reference.dot(normal)).normalize();
+        let up = reference.reject_from_normalized(normal).normalize();
         Self {
             center,
             normal,

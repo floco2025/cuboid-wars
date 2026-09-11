@@ -1,5 +1,6 @@
 use anyhow::Result;
 use bevy::{
+    diagnostic::FrameTimeDiagnosticsPlugin,
     log::LogPlugin,
     pbr::DefaultOpaqueRendererMethod,
     prelude::*,
@@ -26,7 +27,7 @@ use crate::{
     portals::{PortalAssets, PortalMap, portal_render_plugin},
     projectiles::LastBounceSound,
     schedule::configure_client_sets,
-    ui::{ConsoleState, FpsMeasurement, HudShapeAssets, MessageFeed, hud_plugin, setup_ui_system},
+    ui::{ConsoleState, HudShapeAssets, MessageFeed, hud_plugin, setup_ui_system},
     vfx::{ExplosionAssets, ExplosionVfxBudget, ParticleClouds, RainIntensity, presentation_plugin},
 };
 use common::{
@@ -106,7 +107,11 @@ pub fn build_client_app(
         plugins = plugins.disable::<LogPlugin>();
     }
     app.add_plugins(plugins);
-    app.add_plugins((GrassMaterialPlugin, PortalClipMaterialPlugin));
+    app.add_plugins((
+        GrassMaterialPlugin,
+        PortalClipMaterialPlugin,
+        FrameTimeDiagnosticsPlugin::default(),
+    ));
     app.insert_resource(match client_settings.rendering.opaque_renderer {
         OpaqueRenderer::Auto => DefaultOpaqueRendererMethod::default(),
         OpaqueRenderer::Forward => DefaultOpaqueRendererMethod::forward(),
@@ -131,7 +136,6 @@ pub fn build_client_app(
         .insert_resource(ItemMap::default())
         .insert_resource(LocalPlayerInfo::default())
         .insert_resource(RoundTripTime::default())
-        .insert_resource(FpsMeasurement::default())
         .insert_resource(LastSnapshotTick::default())
         .insert_resource(LastPlayerMovesTick::default())
         .insert_resource(ServerTick::default())

@@ -24,17 +24,7 @@ pub(crate) fn color_with_alpha(color: Color, alpha: f32) -> Color {
     Color::srgba(linear.red, linear.green, linear.blue, alpha)
 }
 
-// Fraction of the remaining distance to cover this frame for a frame-rate
-// independent exponential approach with time constant `tau_secs`.
-pub(crate) fn ease_blend(delta_secs: f32, tau_secs: f32) -> f32 {
-    1.0 - (-delta_secs / tau_secs).exp()
-}
-
 pub(crate) fn srgb_color(color: HexColor) -> Color {
     let [r, g, b] = color.0;
     Color::srgb_u8(r, g, b)
 }
-
-#[cfg(test)]
-#[path = "tests/fade.rs"]
-mod tests;
