@@ -27,6 +27,8 @@ def _ramp_body(ramp: dict) -> str:
 
 def _actor_spawn_zone_body(zone: dict) -> str:
     body = {"level": zone["level"], "cols": zone["cols"], "rows": zone["rows"], "kind": zone["kind"], "count": zone["count"]}
+    if "respawn_secs" in zone:
+        body["respawn_secs"] = zone["respawn_secs"]
     body.update(control_fields(zone))
     return _inline_object_body(body)
 

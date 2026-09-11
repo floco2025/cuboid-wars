@@ -41,7 +41,7 @@ Every element group ends with its own **Erase** tool that removes only that elem
 
 ## Spawn Zones
 
-- **Actor Spawn Zone** — Choose Actor and Count in the toolbar, then drag a rectangle. **Controls…** selects an optional pressure plate kind and On/Off response; right-click edits existing zones. Without a plate assignment the zone spawns normally. Immovable actors spawn at cell centers; Count cannot exceed the zone's usable floor cells.
+- **Actor Spawn Zone** — Choose Actor and Count in the toolbar, then drag a rectangle. **Controls…** sets Respawn, the delay before a killed actor's slot refills (Never fills the zone once), and an optional pressure plate kind and On/Off response; new zones reuse those values, and right-click edits existing zones. Without a plate assignment the zone spawns normally; a zone its plate holds back keeps counting down and refills once the plate allows. Immovable actors spawn at cell centers; Count cannot exceed the zone's usable floor cells.
 - **Player Spawn Zone** — Drag a rectangle. No prompt — players spawn anywhere in any player zone.
 - **Erase Spawn Zones** — Drag a rectangle to remove every actor and player spawn zone it touches on the current level.
 

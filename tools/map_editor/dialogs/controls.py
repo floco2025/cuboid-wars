@@ -1,4 +1,30 @@
-from PySide6.QtWidgets import QComboBox, QDialog, QDialogButtonBox, QFormLayout, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QComboBox, QDialog, QDialogButtonBox, QFormLayout, QSpinBox, QVBoxLayout, QWidget
+
+
+class RespawnSpinBox(QSpinBox):
+    """Seconds before an actor zone refills a killed actor's slot; the minimum
+    reads "Never" and stands for `null` in the map file."""
+
+    NEVER = -1
+    MAX_SECS = 9999
+
+    def __init__(self, secs):
+        super().__init__()
+        self.setRange(self.NEVER, self.MAX_SECS)
+        self.setSuffix(" s")
+        self.setSpecialValueText("Never")
+        self.set_secs(secs)
+
+    def set_secs(self, secs) -> None:
+        try:
+            value = self.NEVER if secs is None else int(round(float(secs)))
+        except (TypeError, ValueError):
+            value = self.NEVER
+        self.setValue(max(self.NEVER, min(self.MAX_SECS, value)))
+
+    def secs(self) -> int | None:
+        value = self.value()
+        return None if value == self.NEVER else value
 
 
 def choice(values, current, *, optional=False, mixed=False):

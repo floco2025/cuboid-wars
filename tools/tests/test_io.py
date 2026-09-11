@@ -47,8 +47,8 @@ class FileIoTests(unittest.TestCase):
         data["levels"][0]["light_bridges"] = [{"col": 1, "row": 0, "kind": BRIDGE_KIND}]
         data["pressure_plates"] = [{"level": 0, "col": 0, "row": 0, "switch": BRIDGE_KIND}]
         data["actor_spawn_zones"] = [
-            {"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "zapper", "count": 1, "switch": BRIDGE_KIND},
-            {"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "zapper", "count": 2},
+            {"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "zapper", "count": 1, "respawn_secs": 90, "switch": BRIDGE_KIND},
+            {"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "zapper", "count": 2, "respawn_secs": 90},
         ]
         data["nested_maps"] = [
             {**nested("tile", 0, [0, 0], [1, 0]), "switch": BRIDGE_KIND},

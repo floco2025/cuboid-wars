@@ -21,7 +21,7 @@ class ResizeTests(unittest.TestCase):
         level["lights"] = [{"col": 1, "row": 1, "side": "N"}]
         level["light_bridges"] = [{"col": 1, "row": 3, "kind": BRIDGE_KIND}]
         data["actor_spawn_zones"] = [
-            {"level": 0, "cols": [1, 3], "rows": [1, 3], "kind": "scuttler", "count": 1}
+            {"level": 0, "cols": [1, 3], "rows": [1, 3], "kind": "scuttler", "count": 1, "respawn_secs": 90}
         ]
         data["items"] = [{"level": 0, "col": 1, "row": 1, "type": "gold"}]
         data["pressure_plates"] = [{"level": 0, "col": 1, "row": 1, "type": "barrier", "kind": KIND}]

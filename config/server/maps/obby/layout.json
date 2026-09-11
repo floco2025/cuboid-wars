@@ -5,7 +5,7 @@
     "grid_cols": 100,
     "grid_rows": 40,
     "actor_spawn_zones": [
-      {"level": 5, "cols": [36, 38], "rows": [19, 21], "kind": "scuttler", "count": 6, "switch": "bridge_1", "switch_inverted": false}
+      {"level": 5, "cols": [36, 38], "rows": [19, 21], "kind": "scuttler", "count": 6, "respawn_secs": 10, "switch": "bridge_1", "switch_inverted": false}
     ],
     "player_spawn_zones": [
       {"level": 5, "cols": [38, 40], "rows": [8, 10]}

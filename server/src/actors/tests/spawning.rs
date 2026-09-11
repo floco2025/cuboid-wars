@@ -11,13 +11,7 @@ fn spawn_app(cols: i32, counts: &[u32], respawn_secs: Option<f32>) -> App {
 }
 
 fn spawn_app_for(kind: &str, cols: i32, counts: &[u32], respawn_secs: Option<f32>) -> App {
-    let mut config = test_kinds::server_config();
-    config
-        .actors
-        .kinds
-        .get_mut(kind)
-        .expect("actor kind missing")
-        .respawn_secs = respawn_secs;
+    let config = test_kinds::server_config();
     let settings = config.maps[&config.default_map].settings.clone();
     let mut cells = CellGrid::new(cols, 1);
     for cell in &mut cells.rows[0] {
@@ -42,6 +36,7 @@ fn spawn_app_for(kind: &str, cols: i32, counts: &[u32], respawn_secs: Option<f32
             rows: [0, 1],
             kind: kind.into(),
             count,
+            respawn_secs,
             switch: None,
         })
         .collect();
@@ -317,6 +312,7 @@ fn expiring_selected_cooldowns_advances_pending_and_missing_slots() {
                 rows: [0, 1],
                 kind: CONTACT.to_owned(),
                 count: 2,
+                respawn_secs: Some(90.0),
                 switch: None,
             },
             ActorSpawnZone {
@@ -328,6 +324,7 @@ fn expiring_selected_cooldowns_advances_pending_and_missing_slots() {
                 rows: [0, 1],
                 kind: BEAM.to_owned(),
                 count: 1,
+                respawn_secs: Some(180.0),
                 switch: None,
             },
         ],
@@ -340,7 +337,6 @@ fn expiring_selected_cooldowns_advances_pending_and_missing_slots() {
             crate::test_geometry::geometry(1, 1),
         )
     };
-    let config = test_kinds::server_config();
     let mut contact = pending_spawn(1, 60);
     contact.kind = CONTACT.to_owned();
     let mut beam = pending_spawn(2, 60);
@@ -355,7 +351,6 @@ fn expiring_selected_cooldowns_advances_pending_and_missing_slots() {
         &mut pending,
         &mut timers,
         &map_config,
-        &config,
         100,
         Some(CONTACT),
     );
@@ -454,6 +449,13 @@ fn destroy_one(app: &mut App) {
     app.world_mut().despawn(removed.entity);
 }
 
+fn expire_countdown(app: &mut App) {
+    app.world_mut()
+        .resource_mut::<ActorRespawnTimers>()
+        .0
+        .insert(0, ActorRespawnState::Cooldown(0.0));
+}
+
 #[test]
 fn a_switched_zone_spawns_nothing_until_its_switch_turns_on() {
     let mut app = switched_app(Some(0.0), 2);
@@ -461,80 +463,82 @@ fn a_switched_zone_spawns_nothing_until_its_switch_turns_on() {
         app.update();
     }
     assert_eq!(pending_count(&app), 0, "no initial fill");
-    assert_eq!(zone_state(&app), Some(ActorRespawnState::Inactive));
+    assert_eq!(
+        zone_state(&app),
+        Some(ActorRespawnState::Reset),
+        "due, waiting for the switch"
+    );
 
     set_switch(&mut app, true);
     app.update();
-    assert_eq!(pending_count(&app), 2, "a zero respawn time fills on the next pass");
+    assert_eq!(pending_count(&app), 2, "turning on fills on the next pass");
     assert_eq!(zone_state(&app), None);
     app.update();
     assert_eq!(pending_count(&app), 2, "an active full zone queues nothing more");
 }
 
 #[test]
-fn an_activation_starts_the_kinds_countdown() {
-    let mut app = switched_app(Some(1000.0), 1);
+fn an_activation_fills_the_zone_at_once_whatever_its_respawn_time() {
+    let mut app = switched_app(Some(1000.0), 2);
     app.update();
     set_switch(&mut app, true);
     app.update();
-    assert_eq!(pending_count(&app), 0);
-    assert!(
-        matches!(zone_state(&app), Some(ActorRespawnState::Cooldown(secs)) if secs > 999.0),
-        "{:?}",
-        zone_state(&app)
-    );
-
-    app.world_mut()
-        .resource_mut::<ActorRespawnTimers>()
-        .0
-        .insert(0, ActorRespawnState::Cooldown(0.0));
-    app.update();
-    assert_eq!(pending_count(&app), 1, "the countdown's end fills the zone");
+    assert_eq!(pending_count(&app), 2);
+    assert_eq!(zone_state(&app), None);
 }
 
 #[test]
-fn a_switched_off_zone_drops_its_countdown_and_ignores_kills() {
+fn switching_off_and_on_does_not_restart_a_countdown() {
     let mut app = switched_app(Some(1000.0), 1);
     app.update();
     set_switch(&mut app, true);
     app.update();
-    assert!(matches!(zone_state(&app), Some(ActorRespawnState::Cooldown(_))));
-    set_switch(&mut app, false);
+    materialize_pending(&mut app);
+    destroy_one(&mut app);
     app.update();
-    assert_eq!(
-        zone_state(&app),
-        Some(ActorRespawnState::Inactive),
-        "the countdown is dropped"
-    );
-    set_switch(&mut app, true);
+    assert!(matches!(zone_state(&app), Some(ActorRespawnState::Cooldown(secs)) if secs > 999.0));
+    set_switch(&mut app, false);
     app.update();
     assert!(
         matches!(zone_state(&app), Some(ActorRespawnState::Cooldown(secs)) if secs > 999.0),
-        "a fresh countdown starts on reactivation: {:?}",
+        "switching off keeps the countdown: {:?}",
         zone_state(&app)
     );
+    expire_countdown(&mut app);
+    app.update();
+    assert_eq!(pending_count(&app), 0, "a due zone waits for its switch");
+    set_switch(&mut app, true);
+    app.update();
+    assert_eq!(
+        pending_count(&app),
+        1,
+        "the switch fills the due zone without a fresh countdown"
+    );
+    assert_eq!(zone_state(&app), None);
+}
 
+#[test]
+fn a_kill_while_switched_off_arms_the_countdown() {
     let mut app = switched_app(Some(0.0), 1);
     app.update();
     set_switch(&mut app, true);
     app.update();
     materialize_pending(&mut app);
-    assert_eq!(app.world().resource::<ActorMap>().values().count(), 1);
     set_switch(&mut app, false);
     app.update();
     destroy_one(&mut app);
     for _ in 0..3 {
         app.update();
     }
-    assert_eq!(pending_count(&app), 0, "a kill while off arms nothing");
-    assert_eq!(zone_state(&app), Some(ActorRespawnState::Inactive));
+    assert_eq!(pending_count(&app), 0, "the vacancy waits for the switch");
+    assert!(matches!(zone_state(&app), Some(ActorRespawnState::Cooldown(_))));
     set_switch(&mut app, true);
     app.update();
-    assert_eq!(pending_count(&app), 1, "reactivation refills the vacancy");
+    assert_eq!(pending_count(&app), 1, "turning on refills the vacancy at once");
 }
 
 #[test]
-fn an_active_switched_zone_refills_kills_on_its_kinds_timer() {
+fn an_active_switched_zone_refills_kills_on_its_timer() {
     let mut app = switched_app(Some(0.0), 1);
     app.update();
     set_switch(&mut app, true);
@@ -550,13 +554,13 @@ fn an_active_switched_zone_refills_kills_on_its_kinds_timer() {
 }
 
 #[test]
-fn a_reset_leaves_an_inactive_switched_zone_empty_and_refills_an_active_one() {
+fn a_reset_leaves_a_switched_off_zone_waiting_and_refills_an_active_one() {
     let mut app = switched_app(Some(0.0), 1);
     app.update();
     reset(&mut app, ActorRespawnScope::All);
     app.update();
     assert_eq!(pending_count(&app), 0);
-    assert_eq!(zone_state(&app), Some(ActorRespawnState::Inactive));
+    assert_eq!(zone_state(&app), Some(ActorRespawnState::Reset));
 
     set_switch(&mut app, true);
     app.update();
@@ -572,8 +576,15 @@ fn a_reset_leaves_an_inactive_switched_zone_empty_and_refills_an_active_one() {
 }
 
 #[test]
-fn expediting_respawns_skips_a_switched_off_zone() {
-    let mut app = switched_app(Some(0.0), 1);
+fn expediting_respawns_makes_a_switched_off_zone_due_for_its_switch() {
+    let mut app = switched_app(Some(1000.0), 1);
+    app.update();
+    set_switch(&mut app, true);
+    app.update();
+    materialize_pending(&mut app);
+    set_switch(&mut app, false);
+    app.update();
+    destroy_one(&mut app);
     app.update();
     let expedited = app
         .world_mut()
@@ -582,30 +593,37 @@ fn expediting_respawns_skips_a_switched_off_zone() {
              mut pending: ResMut<PendingActorSpawns>,
              mut timers: ResMut<ActorRespawnTimers>,
              map_config: Res<MapConfig>,
-             config: Res<ServerGameplayConfig>,
              tick: Res<ServerTick>| {
-                expedite_actor_respawns(&actors, &mut pending, &mut timers, &map_config, &config, tick.0, None)
+                expedite_actor_respawns(&actors, &mut pending, &mut timers, &map_config, tick.0, None)
             },
         )
         .expect("expedite system failed");
-    assert_eq!(expedited, 0);
+    assert_eq!(expedited, 1);
     app.update();
-    assert_eq!(pending_count(&app), 0);
-    assert_eq!(zone_state(&app), Some(ActorRespawnState::Inactive));
+    assert_eq!(pending_count(&app), 0, "still waits for the switch");
+    set_switch(&mut app, true);
+    app.update();
+    assert_eq!(pending_count(&app), 1);
 }
 
 #[test]
-fn an_inverted_zone_fills_at_boot_while_its_switch_is_off_and_parks_once_it_turns_on() {
-    let mut app = switched_app(Some(1000.0), 2);
+fn an_inverted_zone_fills_at_boot_while_its_switch_is_off_and_holds_once_it_turns_on() {
+    let mut app = switched_app(Some(0.0), 2);
     app.world_mut().resource_mut::<MapConfig>().actor_spawn_zones[0].switch_inverted = true;
     app.update();
     assert_eq!(pending_count(&app), 2);
-    assert_ne!(zone_state(&app), Some(ActorRespawnState::Inactive));
-    app.update();
-    assert_eq!(pending_count(&app), 2);
+    assert_eq!(zone_state(&app), None);
+    materialize_pending(&mut app);
     set_switch(&mut app, true);
     app.update();
-    assert_eq!(zone_state(&app), Some(ActorRespawnState::Inactive));
+    destroy_one(&mut app);
+    for _ in 0..3 {
+        app.update();
+    }
+    assert_eq!(pending_count(&app), 0, "a zone its switch holds back does not refill");
+    set_switch(&mut app, false);
+    app.update();
+    assert_eq!(pending_count(&app), 1);
 }
 
 #[test]
@@ -615,9 +633,28 @@ fn an_inverted_zone_that_boots_switched_on_waits_for_the_switch_to_turn_off() {
     set_switch(&mut app, true);
     app.update();
     assert_eq!(pending_count(&app), 0);
-    assert_eq!(zone_state(&app), Some(ActorRespawnState::Inactive));
+    assert_eq!(zone_state(&app), Some(ActorRespawnState::Reset));
     set_switch(&mut app, false);
     app.update();
+    assert_eq!(pending_count(&app), 2);
+    assert_eq!(zone_state(&app), None);
+}
+
+#[test]
+fn a_zone_without_a_respawn_time_never_refills_even_when_toggled() {
+    let mut app = switched_app(None, 1);
+    app.update();
+    set_switch(&mut app, true);
+    app.update();
+    assert_eq!(pending_count(&app), 1);
+    materialize_pending(&mut app);
+    destroy_one(&mut app);
+    set_switch(&mut app, false);
+    app.update();
+    set_switch(&mut app, true);
+    for _ in 0..3 {
+        app.update();
+    }
     assert_eq!(pending_count(&app), 0);
-    assert!(matches!(zone_state(&app), Some(ActorRespawnState::Cooldown(secs)) if secs > 0.0));
+    assert_eq!(zone_state(&app), None);
 }

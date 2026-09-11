@@ -284,7 +284,6 @@ pub(crate) enum ActorRespawnState {
     Cooldown(f32),
     Reset,
     WaitingForSpace,
-    Inactive,
 }
 
 // A spawn that has been decided (id, spot, and heading reserved) but whose

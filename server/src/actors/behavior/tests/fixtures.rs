@@ -111,6 +111,7 @@ impl Fixture {
                 rows: [2, 3],
                 kind: kind.to_owned(),
                 count: 1,
+                respawn_secs: None,
                 switch: None,
             }],
             ..MapConfig::for_grid(levels(level_count), geometry)

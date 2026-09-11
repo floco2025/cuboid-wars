@@ -184,6 +184,8 @@ class ToolSettings(QWidget):
         def actor_controls():
             combo("Actor", "recent_actor_spawn_kind", window.actor_kinds, editable=True)
             number("Count", "recent_actor_spawn_count", 0, 9999)
+            # Respawn lives in the dialog: a third inline field overflows the
+            # toolbar at the default window width.
             button = QPushButton("Controls…")
             button.clicked.connect(self.configure_actor)
             form.addWidget(button)
@@ -219,12 +221,13 @@ class ToolSettings(QWidget):
     def configure_actor(self) -> None:
         window = self.window
         result = ActorSpawnFieldsDialog.prompt(window, window.recent_actor_spawn_kind, window.recent_actor_spawn_count,
-                                               window.switches, window.recent_actor_spawn_switch or None,
-                                               window.recent_actor_spawn_inverted)
+                                               window.recent_actor_spawn_respawn_secs, window.switches,
+                                               window.recent_actor_spawn_switch or None, window.recent_actor_spawn_inverted)
         if result is not None:
-            kind, count, switch, inverted = result
+            kind, count, respawn_secs, switch, inverted = result
             window.recent_actor_spawn_kind = kind
             window.recent_actor_spawn_count = count
+            window.recent_actor_spawn_respawn_secs = respawn_secs
             window.recent_actor_spawn_switch = switch or ""
             window.recent_actor_spawn_inverted = inverted
             self.refresh()

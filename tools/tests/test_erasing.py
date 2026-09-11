@@ -30,7 +30,7 @@ def wall(c0: int, r0: int, c1: int, r1: int) -> dict:
 
 
 def actor_zone(level: int, c0: int, r0: int, c1: int, r1: int) -> dict:
-    return {"level": level, "cols": [c0, c1], "rows": [r0, r1], "kind": "bruiser", "count": 1}
+    return {"level": level, "cols": [c0, c1], "rows": [r0, r1], "kind": "bruiser", "count": 1, "respawn_secs": 90}
 
 
 class LayerEraserTests(unittest.TestCase):

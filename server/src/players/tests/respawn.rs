@@ -33,12 +33,6 @@ pub(crate) fn respawn_app(mode: PlayerRespawnMode, scope: ActorRespawnScope) -> 
     let mut config = ServerGameplayConfig::load_default().expect("gameplay config rejected");
     config.player.respawn_secs = 2.0;
     config.actors.settings.spawn_warning_secs = 3.0;
-    config
-        .actors
-        .kinds
-        .get_mut("turret")
-        .expect("turret config missing")
-        .respawn_secs = None;
     let settings = config.maps[&config.default_map].settings.clone();
     let mut cells = CellGrid::new(6, 1);
     for cell in &mut cells.rows[0] {
@@ -68,6 +62,7 @@ pub(crate) fn respawn_app(mode: PlayerRespawnMode, scope: ActorRespawnScope) -> 
             rows: [0, 1],
             kind: "turret".into(),
             count: 1,
+            respawn_secs: None,
             switch: None,
         })
         .collect();
@@ -338,13 +333,9 @@ fn an_actor_killed_during_the_player_countdown_returns_after_beam_in_without_cle
 fn actor_reset_scopes_preserve_or_replace_survivors_and_pending_spawns() {
     for scope in [ActorRespawnScope::Dead, ActorRespawnScope::All] {
         let mut app = respawn_app(PlayerRespawnMode::Individual, scope);
-        app.world_mut()
-            .resource_mut::<ServerGameplayConfig>()
-            .actors
-            .kinds
-            .get_mut("turret")
-            .expect("turret config missing")
-            .respawn_secs = Some(180.0);
+        for zone in &mut app.world_mut().resource_mut::<MapConfig>().actor_spawn_zones {
+            zone.respawn_secs = Some(180.0);
+        }
         let pending_id = {
             let mut pending = app.world_mut().resource_mut::<PendingActorSpawns>();
             pending.0[2].due_tick += 300;
@@ -524,13 +515,6 @@ fn reset_refills_wait_for_space_even_for_movable_actors_without_automatic_respaw
         let mut app = respawn_app(PlayerRespawnMode::Individual, ActorRespawnScope::Dead);
         app.world_mut().resource_mut::<PendingActorSpawns>().0.clear();
         app.world_mut().resource_mut::<ActorRespawnTimers>().0.clear();
-        app.world_mut()
-            .resource_mut::<ServerGameplayConfig>()
-            .actors
-            .kinds
-            .get_mut(kind)
-            .expect("actor kind missing")
-            .respawn_secs = None;
         let mut map = app.world_mut().resource_mut::<MapConfig>();
         map.actor_spawn_zones.truncate(1);
         map.actor_spawn_zones[0].kind = kind.into();

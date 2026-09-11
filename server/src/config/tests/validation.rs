@@ -41,6 +41,7 @@ fn immovable_capacity_counts_only_usable_floors_on_the_zones_carrier() {
         rows: [0, 1],
         kind: "turret".into(),
         count: 1,
+        respawn_secs: None,
         switch: None,
     });
     validate_map_actor_kinds(&server, &map).expect("one turret rejected");

@@ -129,6 +129,10 @@ def validate_map(
             errors.append(f"actor_spawn_zones[{idx}] has unknown actor kind {zone['kind']!r}")
         if zone["count"] < 0:
             errors.append(f"actor_spawn_zones[{idx}] has negative count")
+        if "respawn_secs" not in zone:
+            errors.append(f"actor_spawn_zones[{idx}] needs `respawn_secs` (seconds, or null to never refill)")
+        elif zone["respawn_secs"] is not None and not _is_non_negative_number(zone["respawn_secs"]):
+            errors.append(f"actor_spawn_zones[{idx}] respawn_secs must be a non-negative number or null")
         if immovable_actor_kinds and zone["kind"] in immovable_actor_kinds:
             _validate_immovable_capacity(zone, idx, map_data, errors)
         _validate_switch_target(zone, f"actor_spawn_zones[{idx}]", switches, plated_switches, errors)
@@ -526,6 +530,9 @@ def _validate_immovable_capacity(zone: dict, index: int, map_data: dict, errors:
             f"but has only {capacity} usable floor cells"
         )
 
+
+def _is_non_negative_number(value) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) and value >= 0
 
 def _validate_zone_rect(zone: dict, label: str, map_data: dict, errors: list[str]) -> None:
     cols = map_data["grid_cols"]

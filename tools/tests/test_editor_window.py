@@ -493,17 +493,17 @@ class WindowTests(WindowTestCase):
     def test_actor_picker_rejects_unknown_kinds_and_toolbar_reuses_valid_choices(self):
         window = self.window
         kind = window.actor_kinds[0]
-        dialog = ActorSpawnFieldsDialog(window, kind, 3, ["guards"], None)
+        dialog = ActorSpawnFieldsDialog(window, kind, 3, 90, ["guards"], None)
         self.assertGreater(dialog._kind_edit.count(), 0)
-        self.assertEqual(dialog.values(), (kind, 3, None, False))
+        self.assertEqual(dialog.values(), (kind, 3, 90, None, False))
         dialog._switch_combo.setCurrentText("guards")
-        self.assertEqual(dialog.values(), (kind, 3, "guards", False))
+        self.assertEqual(dialog.values(), (kind, 3, 90, "guards", False))
         dialog.deleteLater()
         with (
             patch.object(ActorSpawnFieldsDialog, "exec", return_value=QDialog.DialogCode.Accepted),
             patch("map_editor.dialogs.catalogs.QMessageBox.warning") as warning,
         ):
-            self.assertIsNone(ActorSpawnFieldsDialog.prompt(window, "not_a_kind", 3, ["guards"], None))
+            self.assertIsNone(ActorSpawnFieldsDialog.prompt(window, "not_a_kind", 3, 90, ["guards"], None))
             warning.assert_called_once()
         window.doc.root_data["switch_kinds"] = [{"id": name, "activation": "toggle", "reset_on_player_death": "never"} for name in ["guards"]]
         window.switch_ids = ["guards"]

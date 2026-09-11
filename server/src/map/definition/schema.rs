@@ -4,6 +4,8 @@ use serde::Deserialize;
 
 use common::protocol::{CheckpointKind, FaceMaterials, SwitchDef};
 
+use crate::config::deserialize_required_option;
+
 #[derive(Debug, Deserialize)]
 pub(crate) struct MapFile {
     pub(crate) map: MapDef,
@@ -233,15 +235,18 @@ pub(crate) struct RampDef {
     pub(crate) materials: FaceMaterials,
 }
 
-// `switch` names the map switch that activates the zone; without one the
-// zone fills at startup and refills on its kind's timer.
-#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+// `respawn_secs` is the delay before a killed actor's slot refills; `null`
+// never refills. `switch` names the map switch that lets the zone spawn;
+// without one the zone fills at startup and refills on its timer.
+#[derive(Debug, Clone, Deserialize, PartialEq)]
 pub(crate) struct ActorSpawnZoneDef {
     pub(crate) level: u32,
     pub(crate) cols: [i32; 2],
     pub(crate) rows: [i32; 2],
     pub(crate) kind: String,
     pub(crate) count: u32,
+    #[serde(deserialize_with = "deserialize_required_option")]
+    pub(crate) respawn_secs: Option<f32>,
     #[serde(default)]
     pub(crate) switch: Option<String>,
     #[serde(default)]

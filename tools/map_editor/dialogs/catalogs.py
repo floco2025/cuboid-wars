@@ -4,22 +4,32 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QComboBox, QDialog, QDialogButtonBox, QFormLayout, QMessageBox, QSpinBox, QVBoxLayout
 
 from ..catalogs import load_actor_kinds
-from .controls import SwitchControl
+from .controls import RespawnSpinBox, SwitchControl
 from ..constants import ITEM_KEY_TYPE, ITEM_TYPES
 
 
 class ActorSpawnFieldsDialog(QDialog):
-    """Modal dialog with a searchable actor catalog, a count field, and the
-    map switch that activates the zone, if any.
+    """Modal dialog with a searchable actor catalog, a count field, the
+    respawn delay, and the map switch that activates the zone, if any.
 
     Used both when painting a new actor zone and when editing an existing
-    one. Returns (kind, count, switch-or-None, inverted) on accept; None on cancel.
+    one. Returns (kind, count, respawn_secs-or-None, switch-or-None, inverted)
+    on accept; None on cancel.
     """
 
     MAX_COUNT = 9999
     NO_SWITCH = "(none)"
 
-    def __init__(self, parent, kind: str, count: int, switches: list[str], switch: str | None, inverted: bool = False):
+    def __init__(
+        self,
+        parent,
+        kind: str,
+        count: int,
+        respawn_secs: int | None,
+        switches: list[str],
+        switch: str | None,
+        inverted: bool = False,
+    ):
         super().__init__(parent)
         self.setWindowTitle("Actor Spawn Zone")
 
@@ -33,12 +43,14 @@ class ActorSpawnFieldsDialog(QDialog):
         self._count_spin = QSpinBox()
         self._count_spin.setRange(0, self.MAX_COUNT)
         self._count_spin.setValue(count)
+        self._respawn_spin = RespawnSpinBox(respawn_secs)
         self.control = SwitchControl(switches, switch, inverted)
         self._switch_combo = self.control.kind
 
         form = QFormLayout()
         form.addRow("Kind:", self._kind_edit)
         form.addRow("Count:", self._count_spin)
+        form.addRow("Respawn:", self._respawn_spin)
         form.addRow(self.control)
 
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
@@ -49,27 +61,35 @@ class ActorSpawnFieldsDialog(QDialog):
         layout.addLayout(form)
         layout.addWidget(buttons)
 
-    def values(self) -> tuple[str, int, str | None, bool]:
+    def values(self) -> tuple[str, int, int | None, str | None, bool]:
         switch, inverted = self.control.state()
         return (
             self._kind_edit.currentText().strip(),
             self._count_spin.value(),
+            self._respawn_spin.secs(),
             switch,
             inverted,
         )
 
     @classmethod
     def prompt(
-        cls, parent, kind: str, count: int, switches: list[str], switch: str | None, inverted: bool = False
-    ) -> tuple[str, int, str | None, bool] | None:
-        dialog = cls(parent, kind, count, switches, switch, inverted)
+        cls,
+        parent,
+        kind: str,
+        count: int,
+        respawn_secs: int | None,
+        switches: list[str],
+        switch: str | None,
+        inverted: bool = False,
+    ) -> tuple[str, int, int | None, str | None, bool] | None:
+        dialog = cls(parent, kind, count, respawn_secs, switches, switch, inverted)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return None
-        new_kind, new_count, new_switch, inverted = dialog.values()
-        if new_kind not in load_actor_kinds():
+        values = dialog.values()
+        if values[0] not in load_actor_kinds():
             QMessageBox.warning(parent, "Actor Spawn Zone", "Choose an actor kind from the catalog.")
             return None
-        return new_kind, new_count, new_switch, inverted
+        return values
 
 
 class KindDialog(QDialog):

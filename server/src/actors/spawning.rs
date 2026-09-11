@@ -67,42 +67,15 @@ fn tick_actor_respawns(timers: &mut ActorRespawnTimers, delta: f32) -> Vec<usize
                 (*remaining_secs <= 0.0).then_some(*zone_idx)
             }
             ActorRespawnState::Reset | ActorRespawnState::WaitingForSpace => Some(*zone_idx),
-            ActorRespawnState::Inactive => None,
         })
         .collect()
 }
 
-// A switched zone follows its switch: off parks it `Inactive`, dropping
-// any countdown, wait, or reset; turning on starts its kind's countdown,
-// after which every vacancy fills. An active zone is otherwise left to the
-// ordinary rules. Runs before this tick's vacancies and countdowns.
-fn sync_switched_zones(
-    timers: &mut ActorRespawnTimers,
-    map_config: &MapConfig,
-    plates: &PlateState,
-    config: &ServerGameplayConfig,
-) {
-    for (zone_idx, zone) in map_config.actor_spawn_zones.iter().enumerate() {
-        let Some(switch) = zone.switch else {
-            continue;
-        };
-        if plates.is_active(switch) == zone.switch_inverted {
-            timers.0.insert(zone_idx, ActorRespawnState::Inactive);
-        } else if timers.0.get(&zone_idx) == Some(&ActorRespawnState::Inactive) {
-            let respawn_secs = config
-                .expect_actor(&zone.kind)
-                .respawn_secs
-                .expect("switched zone's kind has no respawn time after validation");
-            timers.0.insert(zone_idx, ActorRespawnState::Cooldown(respawn_secs));
-        }
-    }
-}
-
 // Startup-only: fill every spawn zone to its `count`, irrespective of
-// `respawn_secs` — initial fill is universal — except a switched zone whose
-// condition does not hold yet, which waits for its switch like
-// `sync_switched_zones`. Spawns are queued, not spawned: each waits out its
-// beam-in warning window in `PendingActorSpawns` before
+// `respawn_secs` — initial fill is universal. A switched zone whose switch
+// does not allow it yet is left due, and `actors_respawn_system` fills it
+// the tick the switch does. Spawns are queued, not spawned: each waits out
+// its beam-in warning window in `PendingActorSpawns` before
 // `actors_pending_spawn_system` materializes it.
 pub fn actors_initial_spawn_system(
     mut pending: ResMut<PendingActorSpawns>,
@@ -129,13 +102,10 @@ pub fn actors_initial_spawn_system(
         tick: tick.0,
     };
     for (zone_idx, zone) in map_config.actor_spawn_zones.iter().enumerate() {
-        if zone
-            .switch
-            .is_some_and(|switch| plates.is_active(switch) == zone.switch_inverted)
-        {
-            planner.timers.0.insert(zone_idx, ActorRespawnState::Inactive);
-        } else {
+        if zone.is_enabled(&plates) {
             planner.queue_zone(zone_idx, zone, zone.count);
+        } else {
+            planner.timers.0.insert(zone_idx, ActorRespawnState::Reset);
         }
     }
 }
@@ -155,15 +125,16 @@ pub fn actors_respawn_system(
     players: Query<&Position, With<PlayerMarker>>,
     actor_positions: Query<&Position, (With<ActorMarker>, Without<PlayerMarker>)>,
 ) {
-    sync_switched_zones(&mut timers, &map_config, &plates, &server_gameplay_config);
-    // A zone gets one timer for all vacancies; later deaths do not restart it
-    // (and an `Inactive` entry stays: a kill while the switch is off arms nothing).
+    // A zone gets one timer for all vacancies; later deaths do not restart it,
+    // and neither does its switch: a kill while the zone is switched off counts
+    // down all the same, and the vacancy fills once the countdown and the
+    // switch both allow.
     let dt = time.delta_secs();
     for zone_idx in actors.drain_vacated_spawn_zones() {
         let Some(zone) = map_config.actor_spawn_zones.get(zone_idx) else {
             continue;
         };
-        let Some(respawn_secs) = server_gameplay_config.expect_actor(&zone.kind).respawn_secs else {
+        let Some(respawn_secs) = zone.respawn_secs else {
             continue;
         };
         arm_actor_respawn(&mut timers, zone_idx, respawn_secs);
@@ -205,6 +176,11 @@ pub fn actors_respawn_system(
             planner.timers.0.remove(&zone_idx);
             continue;
         };
+        // A due zone its switch holds back keeps its entry and fills the
+        // tick the switch allows.
+        if !zone.is_enabled(&plates) {
+            continue;
+        }
         let missing = zone.count.saturating_sub(live_by_zone[zone_idx]);
         planner.queue_zone(zone_idx, zone, missing);
     }
@@ -237,7 +213,7 @@ impl SpawnPlanner<'_> {
                     previous,
                     Some(ActorRespawnState::Reset | ActorRespawnState::WaitingForSpace)
                 );
-                match kind_config.respawn_secs {
+                match zone.respawn_secs {
                     Some(respawn_secs) if !kind_config.character.immovable && !retry_immediately => {
                         warn!(
                             "actor spawn zone {zone_idx} on carrier {} has no clear spot for a {:?}; retrying after its respawn time",
@@ -305,7 +281,6 @@ pub(crate) fn expedite_actor_respawns(
     pending: &mut PendingActorSpawns,
     timers: &mut ActorRespawnTimers,
     map_config: &MapConfig,
-    server_gameplay_config: &ServerGameplayConfig,
     tick: u32,
     actor_kind: Option<&str>,
 ) -> usize {
@@ -330,16 +305,12 @@ pub(crate) fn expedite_actor_respawns(
         if actor_kind.is_some_and(|kind| zone.kind != kind) {
             continue;
         }
-        let kind_server_config = server_gameplay_config.expect_actor(&zone.kind);
-        if kind_server_config.respawn_secs.is_some() {
+        if zone.respawn_secs.is_some() {
             let missing = zone.count.saturating_sub(occupied_by_zone[zone_idx]);
             if missing > 0 {
                 let state = timers.0.entry(zone_idx).or_insert(ActorRespawnState::Cooldown(0.0));
-                match state {
-                    ActorRespawnState::Cooldown(remaining_secs) => *remaining_secs = 0.0,
-                    // A switched-off zone stays empty; its switch decides.
-                    ActorRespawnState::Inactive => continue,
-                    ActorRespawnState::Reset | ActorRespawnState::WaitingForSpace => {}
+                if let ActorRespawnState::Cooldown(remaining_secs) = state {
+                    *remaining_secs = 0.0;
                 }
                 respawning += missing as usize;
             }

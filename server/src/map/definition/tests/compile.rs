@@ -208,15 +208,23 @@ fn plate_zone_and_motion_defs_parse_their_switch() {
         serde_json::from_str::<PressurePlateDef>(r#"{"level": 1, "col": 2, "row": 3, "type": "firework"}"#).is_err()
     );
 
-    let zone: ActorSpawnZoneDef =
-        serde_json::from_str(r#"{"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "zapper", "count": 2}"#)
-            .expect("zone def parses");
-    assert_eq!(zone.switch, None);
     let zone: ActorSpawnZoneDef = serde_json::from_str(
-        r#"{"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "zapper", "count": 2, "switch": "guards"}"#,
+        r#"{"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "zapper", "count": 2, "respawn_secs": 90}"#,
+    )
+    .expect("zone def parses");
+    assert_eq!((zone.respawn_secs, zone.switch), (Some(90.0), None));
+    let zone: ActorSpawnZoneDef = serde_json::from_str(
+        r#"{"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "zapper", "count": 2, "respawn_secs": null, "switch": "guards"}"#,
     )
     .expect("switched zone def parses");
-    assert_eq!(zone.switch.as_deref(), Some("guards"));
+    assert_eq!((zone.respawn_secs, zone.switch.as_deref()), (None, Some("guards")));
+    assert!(
+        serde_json::from_str::<ActorSpawnZoneDef>(
+            r#"{"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "zapper", "count": 2}"#
+        )
+        .is_err(),
+        "respawn_secs must be explicit"
+    );
 
     let motion: NestedMapDef =
         serde_json::from_str(r#"{"map": "lift", "level": 0, "from": [0, 0], "to": [0, 3], "travel_secs": 2.0}"#)

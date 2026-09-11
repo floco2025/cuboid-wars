@@ -5,7 +5,7 @@ use anyhow::{Result, bail};
 use common::config::ActorGameplayConfig;
 use serde::Deserialize;
 
-use super::validation::{deserialize_required_option, validate_non_negative_finite, validate_positive_finite};
+use super::validation::{validate_non_negative_finite, validate_positive_finite};
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct ActorsConfig {
@@ -51,8 +51,6 @@ impl ActorSettingsConfig {
 pub struct ActorKindServerConfig {
     #[serde(flatten)]
     pub character: ActorGameplayConfig,
-    #[serde(deserialize_with = "deserialize_required_option")]
-    pub respawn_secs: Option<f32>,
     pub vision_range: f32,
     pub roam_steps: usize,
     pub attack: ActorAttackConfig,
@@ -61,9 +59,6 @@ pub struct ActorKindServerConfig {
 impl ActorKindServerConfig {
     fn validate(&self, path: &str) -> Result<()> {
         self.character.validate(path)?;
-        if let Some(delay_secs) = self.respawn_secs {
-            validate_non_negative_finite(delay_secs, &format!("{path}.respawn_secs"))?;
-        }
         if !self.character.immovable && self.roam_steps == 0 {
             bail!("{path}.roam_steps must be at least 1 for mobile actors");
         }

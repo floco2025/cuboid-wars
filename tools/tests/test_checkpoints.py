@@ -39,7 +39,7 @@ class CheckpointTests(unittest.TestCase):
         data = checkpoint_map()
         rect = {"level": 0, "cols": [1, 4], "rows": [1, 4]}
         data["player_spawn_zones"] = [dict(rect)]
-        data["actor_spawn_zones"] = [{**rect, "kind": "zapper", "count": 1}]
+        data["actor_spawn_zones"] = [{**rect, "kind": "zapper", "count": 1, "respawn_secs": 90}]
 
         self.assertEqual(hit_at(data, 0, 2.5, 2.5, 0.1), (HIT_CHECKPOINT, (CHECKPOINT_LIST, 0)))
         self.assertEqual(EditorHost(data, []).spawn_zone_at(QPointF(2.5, 2.5)), ZoneRef(CHECKPOINT_LIST, 0))

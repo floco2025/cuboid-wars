@@ -174,7 +174,7 @@ class SpawnZoneHandleTests(WindowTestCase):
     def test_right_click_selection_can_resize_without_option_and_undo(self):
         window = self.window
         data = copy.deepcopy(window.map_data)
-        data["actor_spawn_zones"] = [{"level": 0, "cols": [2, 4], "rows": [2, 4], "kind": "zapper", "count": 3}]
+        data["actor_spawn_zones"] = [{"level": 0, "cols": [2, 4], "rows": [2, 4], "kind": "zapper", "count": 3, "respawn_secs": 90}]
         window.apply_change("Spawn zone", data)
         canvas = window.canvas
         canvas.zoom_by(1.2)

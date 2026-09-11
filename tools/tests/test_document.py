@@ -70,7 +70,7 @@ class DocumentTests(unittest.TestCase):
         data["levels"][0]["lights"] = [{"col": 2, "row": 2, "side": "invalid"}]
         data["ladders"] = [{"col": 3, "row": 3, "lower_level": 0, "levels": 0, "side": "invalid"}]
         data["items"] = [{"col": 7, "row": 7, "level": 0, "type": "gold"}]
-        data["actor_spawn_zones"] = [{"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "unknown", "count": -2}]
+        data["actor_spawn_zones"] = [{"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "unknown", "count": -2, "respawn_secs": 90}]
         write_map(self.path, data)
         self.doc.load(self.path)
         return self.doc.map_data

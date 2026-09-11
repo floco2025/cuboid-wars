@@ -39,6 +39,7 @@ fn zone(level: u8, col: i32, row: i32) -> ActorSpawnZone {
         rows: [row, row + 1],
         kind: test_kinds::BEAM.into(),
         count: 1,
+        respawn_secs: None,
         switch: None,
     }
 }

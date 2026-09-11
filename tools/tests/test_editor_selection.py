@@ -30,7 +30,7 @@ def furnished_block() -> dict:
         "light_bridges": [{"col": 2, "row": 0, "kind": "bridge"}],
         "lights": [{"col": 0, "row": 0, "side": "N"}],
     })
-    data["actor_spawn_zones"] = [{"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "beetle", "count": 2}]
+    data["actor_spawn_zones"] = [{"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "beetle", "count": 2, "respawn_secs": 90}]
     data["player_spawn_zones"] = [{"level": 1, "cols": [0, 1], "rows": [0, 1]}]
     data["items"] = [{"level": 0, "col": 0, "row": 0, "type": "gold"}]
     data["pressure_plates"] = [{"level": 0, "col": 0, "row": 0, "type": "firework"}]
@@ -152,7 +152,7 @@ class RegionTests(unittest.TestCase):
 class SelectHostTests(unittest.TestCase):
     def test_a_press_selects_a_spawn_zone_before_a_drag_can_move_it(self) -> None:
         data = empty_map(8, 8)
-        data["actor_spawn_zones"] = [{"level": 0, "cols": [1, 3], "rows": [1, 3], "kind": "beetle", "count": 2}]
+        data["actor_spawn_zones"] = [{"level": 0, "cols": [1, 3], "rows": [1, 3], "kind": "beetle", "count": 2, "respawn_secs": 90}]
         host = EditorHost(data, [])
         inside = QPointF(2.5, 2.5)
 

@@ -331,6 +331,8 @@ def normalize_actor_spawn_zone(zone: dict) -> dict:
     except (TypeError, ValueError):
         count = 0
     normalized = {**_normalize_zone_rect(zone), "kind": kind, "count": count}
+    if "respawn_secs" in zone:
+        normalized["respawn_secs"] = copy.deepcopy(zone["respawn_secs"])
     normalized.update(control_fields(zone))
     return normalized
 
@@ -377,6 +379,7 @@ def actor_zone_key(zone: dict) -> tuple:
         zone["cols"][1],
         zone["kind"],
         zone["count"],
+        str(zone.get("respawn_secs")),
         zone.get("switch", ""),
     )
 

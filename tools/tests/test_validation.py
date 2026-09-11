@@ -73,15 +73,35 @@ class PressurePlateTests(unittest.TestCase):
         self.assertTrue(any("duplicates a plate" in error for error in errors))
         self.assertFalse(any("unknown switch" in error for error in validate_map(data, [KIND], [])))
 
+    def test_actor_zone_respawn_must_be_explicit_and_non_negative(self) -> None:
+        data = empty_map(4, 4)
+        data["levels"][0]["floors"] = [floor(2, 2)]
+        zone = {"level": 0, "cols": [2, 3], "rows": [2, 3], "kind": "zapper", "count": 1}
+        data["actor_spawn_zones"] = [
+            zone,
+            {**zone, "respawn_secs": None},
+            {**zone, "respawn_secs": 0},
+            {**zone, "respawn_secs": -1},
+            {**zone, "respawn_secs": "soon"},
+            {**zone, "respawn_secs": True},
+        ]
+
+        errors = validate_map(data, [], [])
+
+        self.assertTrue(any("actor_spawn_zones[0] needs `respawn_secs`" in e for e in errors))
+        self.assertFalse(any("actor_spawn_zones[1]" in e or "actor_spawn_zones[2]" in e for e in errors))
+        for idx in (3, 4, 5):
+            self.assertTrue(any(f"actor_spawn_zones[{idx}] respawn_secs must be a non-negative number or null" in e for e in errors))
+
     def test_zone_and_nested_map_switches_must_be_known_and_plated(self) -> None:
         data = empty_map(4, 4)
         data["levels"][0]["floors"] = [floor(0, 0), floor(2, 2)]
         data["pressure_plates"] = [{"level": 0, "col": 0, "row": 0, "switch": "guards"}]
         data["actor_spawn_zones"] = [
-            {"level": 0, "cols": [2, 3], "rows": [2, 3], "kind": "zapper", "count": 1, "switch": "guards"},
-            {"level": 0, "cols": [2, 3], "rows": [2, 3], "kind": "zapper", "count": 1, "switch": "nope"},
-            {"level": 0, "cols": [2, 3], "rows": [2, 3], "kind": "zapper", "count": 1, "switch": "lift"},
-            {"level": 0, "cols": [2, 3], "rows": [2, 3], "kind": "zapper", "count": 1, "switch": ""},
+            {"level": 0, "cols": [2, 3], "rows": [2, 3], "kind": "zapper", "count": 1, "respawn_secs": 90, "switch": "guards"},
+            {"level": 0, "cols": [2, 3], "rows": [2, 3], "kind": "zapper", "count": 1, "respawn_secs": 90, "switch": "nope"},
+            {"level": 0, "cols": [2, 3], "rows": [2, 3], "kind": "zapper", "count": 1, "respawn_secs": 90, "switch": "lift"},
+            {"level": 0, "cols": [2, 3], "rows": [2, 3], "kind": "zapper", "count": 1, "respawn_secs": 90, "switch": ""},
         ]
         data["nested_maps"] = [
             {**nested("cabin", 0, [1, 1], [3, 1]), "switch": "guards"},
@@ -120,7 +140,7 @@ class PressurePlateTests(unittest.TestCase):
         data = empty_map(6, 6)
         data["levels"][0]["floors"] = [floor(0, 0), floor(3, 3)]
         data["actor_spawn_zones"] = [
-            {"level": 0, "cols": [3, 4], "rows": [3, 4], "kind": "zapper", "count": 1, "switch": "guards"},
+            {"level": 0, "cols": [3, 4], "rows": [3, 4], "kind": "zapper", "count": 1, "respawn_secs": 90, "switch": "guards"},
         ]
         room = empty_map(1, 1)
         room["levels"][0]["floors"] = [floor(0, 0)]

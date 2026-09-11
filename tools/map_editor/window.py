@@ -30,6 +30,7 @@ from .catalogs import (
 from .control_actions import ControlActionsMixin
 from .constants import (
     DEFAULT_ACTOR_COUNT,
+    DEFAULT_ACTOR_RESPAWN_SECS,
     ERASE_MODES,
     ITEM_TYPES,
     MODE_CATEGORIES,
@@ -103,6 +104,7 @@ class EditorWindow(
         self.recent_checkpoint_type: str = "individual"
         self.recent_actor_spawn_kind: str = ""
         self.recent_actor_spawn_count: int = DEFAULT_ACTOR_COUNT
+        self.recent_actor_spawn_respawn_secs: int | None = DEFAULT_ACTOR_RESPAWN_SECS
         # Empty = the zone has no switch.
         self.recent_actor_spawn_switch: str = ""
         self.recent_actor_spawn_inverted = False

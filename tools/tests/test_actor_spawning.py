@@ -11,7 +11,7 @@ def spawn_map(count=2):
     data = empty_map(4, 2)
     data["player_spawn_zones"] = []
     data["actor_spawn_zones"] = [
-        {"level": 0, "cols": [0, 4], "rows": [0, 2], "kind": "turret", "count": count}
+        {"level": 0, "cols": [0, 4], "rows": [0, 2], "kind": "turret", "count": count, "respawn_secs": 90}
     ]
     data["levels"][0]["floors"] = [
         {"col": col, "row": 0, "all": DEFAULT_ALIAS} for col in (0, 1)

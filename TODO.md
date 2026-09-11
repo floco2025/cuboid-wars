@@ -22,7 +22,7 @@
 
 ## Testing
 
-- **Switched targets after the review fixes:** With several clients, check that an Off-response actor zone is filled at boot, that a client joining while an Off-response carrier is mid-travel lands on it, that fireworks never start without a press, and that a Save As in the editor carries edited barrier and bridge catalogs to the destination map.
+- **Switched targets after the review fixes:** With several clients, check that pressing a plate fills an On-response actor zone after the beam-in warning, that switching a zone off and on again neither restarts nor skips its refill countdown, that an Off-response actor zone is filled at boot, that a client joining while an Off-response carrier is mid-travel lands on it, that fireworks never start without a press, and that a Save As in the editor carries edited barrier and bridge catalogs to the destination map.
 
 - **Shared checkpoints:** Play through Group — any and Group — all with multiple clients, including staggered visits, death, joining, and leaving. Check each player's next respawn and checkpoint notification.
 

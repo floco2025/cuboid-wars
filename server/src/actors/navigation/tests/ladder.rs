@@ -384,6 +384,7 @@ fn permissions_control_graph_links_and_roam_territories_per_kind() {
             rows: [0, 1],
             kind: kind.into(),
             count: 1,
+            respawn_secs: None,
             switch: None,
         });
     }

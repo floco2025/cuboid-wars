@@ -38,12 +38,6 @@ pub(crate) fn validate_map_actor_kinds(config: &ServerGameplayConfig, map_config
                 zone.kind
             );
         }
-        if zone.switch.is_some() && config.expect_actor(&zone.kind).respawn_secs.is_none() {
-            bail!(
-                "map actor spawn zone {zone_idx} is operated by a switch but its kind {:?} has respawn_secs null, so it would never spawn; give the kind a respawn time",
-                zone.kind
-            );
-        }
         if config.expect_actor(&zone.kind).character.immovable {
             let capacity = zone.immovable_cells(map_config.grid(zone.carrier)).count();
             if zone.count as usize > capacity {
@@ -95,7 +89,7 @@ pub(super) use common::config::{validate_non_negative_finite, validate_positive_
 
 // Serde fills an absent `Option` field with `None`; routing it through
 // `deserialize_with` makes the key mandatory, so `null` is always a choice.
-pub(super) fn deserialize_required_option<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
+pub(crate) fn deserialize_required_option<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
 where
     D: Deserializer<'de>,
     T: Deserialize<'de>,

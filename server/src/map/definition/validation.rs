@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 
 use anyhow::{Context, Result, anyhow};
 
-use common::protocol::ItemType;
+use common::{config::validate_non_negative_finite, protocol::ItemType};
 
 use super::{
     geometry::ramp_spec_from_def,
@@ -84,6 +84,9 @@ fn validate_actor_spawn_zones(map_def: &MapDef) -> Result<()> {
         }
         if zone.switch.as_deref() == Some("") {
             return Err(anyhow!("{label} has empty `switch`"));
+        }
+        if let Some(respawn_secs) = zone.respawn_secs {
+            validate_non_negative_finite(respawn_secs, &format!("{label}.respawn_secs"))?;
         }
     }
     Ok(())

@@ -60,7 +60,7 @@ class NormalizationTests(unittest.TestCase):
 
     def test_canonicalization_keeps_actor_zones_that_differ_only_by_switch(self) -> None:
         data = empty_map(4, 4)
-        zone = {"level": 0, "cols": [0, 2], "rows": [0, 2], "kind": "zapper", "count": 1}
+        zone = {"level": 0, "cols": [0, 2], "rows": [0, 2], "kind": "zapper", "count": 1, "respawn_secs": 90}
         data["actor_spawn_zones"] = [{**zone, "switch": "guards"}, dict(zone), {**zone, "switch": "guards"}, dict(zone)]
 
         result = canonicalize_map(data)
@@ -70,8 +70,8 @@ class NormalizationTests(unittest.TestCase):
     def test_zone_and_nested_map_switches_preserve_authored_values(self) -> None:
         data = empty_map(2, 2)
         data["actor_spawn_zones"] = [
-            {"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "zapper", "count": 1, "switch": "guards"},
-            {"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "zapper", "count": 1, "switch": ""},
+            {"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "zapper", "count": 1, "respawn_secs": 90, "switch": "guards"},
+            {"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "zapper", "count": 1, "respawn_secs": 90, "switch": ""},
         ]
         data["nested_maps"] = [
             {"map": "tile", "level": 0, "from": [0, 0], "to": [1, 0], "switch": "lift"},

@@ -3,7 +3,7 @@ use bevy::prelude::Resource;
 use super::FireworksConfig;
 use common::{
     map::MapGeometry,
-    protocol::{CarrierId, ItemType, MapItems, SwitchId},
+    protocol::{CarrierId, ItemType, MapItems, PlateState, SwitchId},
 };
 
 // The selected map's fireworks switch and cooldown, `None` when no switch
@@ -105,9 +105,10 @@ pub struct LevelGrid {
     pub barrier_edges: EdgeGrid,
 }
 
-// `switch` gates a zone: it spawns nothing until that switch is active and
-// refills only while it stays active (`actors_respawn_system`).
-#[derive(Clone, Debug, PartialEq, Eq)]
+// `respawn_secs` is the delay before a vacancy refills; `None` never refills.
+// `switch` gates the zone: it spawns nothing while the switch does not match,
+// but its countdown keeps running meanwhile (`actors_respawn_system`).
+#[derive(Clone, Debug, PartialEq)]
 pub struct ActorSpawnZone {
     pub switch_inverted: bool,
     pub carrier: CarrierId,
@@ -116,12 +117,21 @@ pub struct ActorSpawnZone {
     pub rows: [i32; 2],
     pub kind: String,
     pub count: u32,
+    pub respawn_secs: Option<f32>,
     pub switch: Option<SwitchId>,
 }
 
 impl ActorSpawnZone {
     pub fn cells(&self) -> impl Iterator<Item = (i32, i32)> {
         zone_cells(self.cols, self.rows)
+    }
+
+    // Whether the zone may spawn now: always without a switch, otherwise
+    // while its pressure plate kind matches its On/Off response.
+    #[must_use]
+    pub fn is_enabled(&self, plates: &PlateState) -> bool {
+        self.switch
+            .is_none_or(|switch| plates.is_active(switch) != self.switch_inverted)
     }
 
     pub fn immovable_cells<'a>(&'a self, grid: &'a CarrierGrid) -> impl Iterator<Item = (i32, i32)> + 'a {

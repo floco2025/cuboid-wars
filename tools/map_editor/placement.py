@@ -64,7 +64,7 @@ class PlacementMixin:
         result = self.prompt_for_actor_spawn_fields()
         if result is None:
             return
-        kind, count, switch, inverted = result
+        kind, count, respawn_secs, switch, inverted = result
         c0, r0, c1, r1 = rect_from_cells(start, end)
         after = copy.deepcopy(self.map_data)
         new_zone = {
@@ -73,6 +73,7 @@ class PlacementMixin:
             "rows": [r0, r1],
             "kind": kind,
             "count": count,
+            "respawn_secs": respawn_secs,
         }
         if switch:
             new_zone["switch"] = switch
@@ -80,6 +81,7 @@ class PlacementMixin:
         after[ACTOR_ZONE_LIST].append(new_zone)
         self.recent_actor_spawn_kind = kind
         self.recent_actor_spawn_count = count
+        self.recent_actor_spawn_respawn_secs = respawn_secs
         self.recent_actor_spawn_switch = switch or ""
         self.recent_actor_spawn_inverted = inverted
         self.apply_change("Paint Actor Spawn Zone", after)
@@ -105,20 +107,30 @@ class PlacementMixin:
         self.apply_change(f"Paint {label}", after)
         self.selected_spawn_zone_ref = self._zone_ref_after_change(list_name, new_zone)
 
+    # Without `kind` the toolbar's recent values stand for a new zone; with it
+    # every argument is the edited zone's own, `respawn_secs` None included.
     def prompt_for_actor_spawn_fields(
         self,
         kind: str | None = None,
         count: int | None = None,
+        respawn_secs: int | None = None,
         switch: str | None = None,
         inverted: bool = False,
-    ) -> tuple[str, int, str | None, bool] | None:
+    ) -> tuple[str, int, int | None, str | None, bool] | None:
         if kind is None and self.recent_actor_spawn_kind in self.actor_kinds:
             recent_switch = self.recent_actor_spawn_switch
-            return self.recent_actor_spawn_kind, self.recent_actor_spawn_count, recent_switch or None, self.recent_actor_spawn_inverted
+            return (
+                self.recent_actor_spawn_kind,
+                self.recent_actor_spawn_count,
+                self.recent_actor_spawn_respawn_secs,
+                recent_switch or None,
+                self.recent_actor_spawn_inverted,
+            )
         return ActorSpawnFieldsDialog.prompt(
             self,
             kind if kind is not None else self.recent_actor_spawn_kind,
             count if count is not None else self.recent_actor_spawn_count,
+            respawn_secs if kind is not None else self.recent_actor_spawn_respawn_secs,
             self.switches,
             switch if kind is not None else (self.recent_actor_spawn_switch or None),
             inverted if kind is not None else self.recent_actor_spawn_inverted,
