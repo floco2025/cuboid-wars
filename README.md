@@ -11,21 +11,12 @@ A fast-paced multiplayer arena game built with Rust, Bevy, Rapier, and renet.
 
 ## Overview
 
-Cuboid Wars is a networked 3D arena game on compact, multi-level maps.
-Players run, jump, climb ladders, and shoot through corridors gated by
-color-coded barriers, fight hostile scuttlers, bruisers, and zappers
-that patrol and hunt, launch seeking missiles that fly the map's
-airspace to their target, and complete quests for score.
-
-Each client owns its player's movement; other clients interpolate its reports.
-The server simulates actors; clients interpolate their movement samples.
-The shooter decides bullet hits and simulates missiles; other clients simulate
-cosmetic bullets and interpolate missiles. The server applies damage and manages
-items, scoring, and the death/respawn flow.
+Cuboid Wars is a networked 3D game on multi-level maps, from combat arenas
+to obstacle courses, built from the features below.
 
 ## Gameplay
 
-- **Humanoid robots** — animated players that walk, run, climb, jump, and land.
+- **Humanoid robots** — animated player characters.
 - **Quests** — objectives assigned at login, worth points when completed.
 - **Gold** — collect gold coins for score and quest progress.
 - **Power-ups** — single-shot, multi-shot, speed, low-gravity, and portal-gun pickups, plus instant-heal potions.
@@ -39,59 +30,47 @@ items, scoring, and the death/respawn flow.
 - **Pressure plates** — operate switches that open barriers, power bridges,
   run moving platforms, release guards, or launch fireworks, with
   configurable hold, toggle, and automatic solo/multiplayer behavior.
-- **Actors** — scuttlers, bruisers, and zappers patrol and hunt; all
-  explode when killed.
+- **Enemies** — hostile robots that patrol and hunt; all explode when killed.
 - **Turrets** — stationary guards with deadly sustained laser bursts.
 - **Ladders** — climb between levels.
 - **Moving maps** — tiles, rooms, and whole buildings that slide or lift through a map, everything inside riding along, monsters included. Get pinned by one and it kills you.
-- **Fall damage** — short drops are safe; long falls scale up to lethal.
+- **Fall damage** — long drops hurt or kill.
 - **Checkpoints** — return to individual checkpoints or shared ones activated by any or all players.
-- **Death & respawn** — return after a short delay, individually or with your group; some maps also restore enemies.
-- **Scoring** — kills, gold, actor kills, and quest completions award
-  points.
+- **Death & respawn** — respawn individually or with your group; some maps also restore enemies.
+- **Scoring** — kills, gold, and quest completions award points.
 - **Weather & lighting** — rain and a bright/dim/dark light cycle, set per
   map.
-- **Chat & admin console** — Enter to chat, `/` for commands; `/help` lists them and `/peace` toggles actor attacks.
-- **One executable** — play alone, host a game your friends join, join theirs, or run a dedicated server.
+- **Chat & admin console** — `/help` lists the commands.
 
 ## Controls
 
-| Action | Key |
-| --- | --- |
-| Move | WASD |
-| Sprint | hold Shift |
-| Jump | Space |
-| Climb ladder | walk into it (Space lets go) |
-| Look | mouse |
-| Cycle weapons / multi-shot patterns | Q |
-| Fire selected weapon / portal A | Left mouse button |
-| Place portal B (when both portals are available) | Right mouse button |
-| Chat / admin console | Enter or `/` (↑/↓ history) |
-| Settings menu (also frees the cursor) | Escape |
-| Toggle top-down view (restores previous zoom) | V |
-| Lock / unlock third-person camera and facing | F |
-| Orbit third-person camera (locked or unlocked) | mouse |
-| Zoom between first and third person | mouse wheel |
-| Release cursor and pause movement | Shift-Escape |
-| Toggle level-focus (hide floors/walls on other levels) | R |
-| Cycle bounds: off → collider + support → hitbox | B |
-| Toggle fullscreen | F11 / Ctrl-F / Cmd-F |
+### Gameplay
 
-Scrolling fully in enters first person and enables facing lock; zooming back
-out keeps it locked. The mouse orbits in both states without holding a button.
-Movement follows the camera's horizontal direction. Unlocked, the robot faces
-its movement direction; locked, it faces the camera's aim and can strafe or
-backpedal. In third person the crosshair sits a little above centre and shots
-converge on what it points at. The camera pulls in around solid geometry and
-extends smoothly when clear. First person, third person, and the rearview share
-the FOV slider. Mouse and zoom sensitivity are multipliers, with 1 the standard
-speed and most of each slider given to speeds below it. Menu settings are saved
-locally and restored on the next start.
+| Action                                   | Key                  |
+| ---------------------------------------- | -------------------- |
+| Settings menu (also frees the cursor)    | Escape               |
+| Look                                     | mouse                |
+| Move                                     | WASD                 |
+| Sprint                                   | hold Shift           |
+| Jump                                     | Space                |
+| Cycle weapons / multi-shot patterns      | Q                    |
+| Fire selected weapon / portal A          | Left mouse button    |
+| Place portal B (when both are available) | Right mouse button   |
+| Zoom between first and third person      | mouse wheel          |
+| Lock / unlock third-person camera        | F                    |
+| Toggle fullscreen                        | F11 / Ctrl-F / Cmd-F |
+| Chat                                     | Enter                |
 
-Weapon pickups automatically select that weapon, except single-shot pickups
-keep an active multi-shot selection. Q cycles through the weapons you hold,
-including single-shot and multi-shot separately, and skips missiles when ammo
-is empty.
+### Debug
+
+| Action                                             | Key          |
+| -------------------------------------------------- | ------------ |
+| Toggle top-down view                               | V            |
+| Toggle level-focus                                 | R            |
+| Cycle bounds: off → collider+support → hitbox      | B            |
+| Cycle debug colors: off → by material → by segment | C            |
+| Release cursor                                     | Shift-Escape |
+| Admin console                                      | /            |
 
 ## Technical stack
 
@@ -103,8 +82,9 @@ is empty.
 
 ## Running locally
 
-Cargo invocations default to `--release` in this repo (debug builds pull in too
-much for our purposes).
+One executable plays alone, hosts a game your friends join, joins theirs, or
+runs a dedicated server. Cargo invocations default to `--release` in this repo
+(debug builds pull in too much for our purposes).
 
 ```bash
 cargo run --release                                    # single-player
