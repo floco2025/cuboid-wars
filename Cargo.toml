@@ -14,7 +14,7 @@ anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 bevy = { version = "0.19", default-features = false }
 crossbeam-channel = "0.5"
-whoami = "2.0.1"
+whoami = "2"
 
 [workspace]
 members = ["common", "server", "client"]

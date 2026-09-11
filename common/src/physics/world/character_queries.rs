@@ -151,7 +151,7 @@ impl QueryDispatcher for CharacterQueryDispatcher<'_> {
         if let Some(hit) = hit.as_mut() {
             let mut impact_pose = *pose;
             impact_pose.translation += velocity * hit.time_of_impact;
-            // Rapier 0.32's slope decomposition can discard forward motion with imprecise capsule cast normals.
+            // Rapier's slope decomposition discards forward motion on imprecise capsule cast normals.
             if let Some(contact) = self.0.contact(&impact_pose, a, b, f32::MAX)? {
                 hit.normal1 = contact.normal1.normalize_or_zero();
                 hit.normal2 = contact.normal2.normalize_or_zero();

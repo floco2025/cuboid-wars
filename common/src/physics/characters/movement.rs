@@ -17,8 +17,8 @@ use super::{
 use crate::{
     config::CharacterPhysicsConfig,
     constants::{
-        CHARACTER_CONTACT_OFFSET, CHARACTER_GROUND_SNAP_DISTANCE, CHARACTER_MAX_SLOPE, CHARACTER_STEP_HEIGHT,
-        CHARACTER_STEP_MIN_WIDTH, CHARACTER_TERMINAL_VELOCITY,
+        CHARACTER_CONTACT_OFFSET, CHARACTER_MAX_SLOPE, CHARACTER_STEP_HEIGHT, CHARACTER_STEP_MIN_WIDTH,
+        CHARACTER_TERMINAL_VELOCITY,
     },
     map::Carriers,
     math::from_rapier,
@@ -27,6 +27,8 @@ use crate::{
 };
 
 const CHARACTER_BLOCKED_MOVEMENT_EPSILON: f32 = 0.01;
+// Rapier's own zero-length threshold for a character move.
+const CHARACTER_RESTING_MOVEMENT: f32 = 1e-5;
 
 #[must_use]
 pub fn player_jump_velocity(
@@ -257,10 +259,7 @@ fn resolve_character_collision(
 ) -> CharacterCollisionResult {
     let mut saw_side_contact = false;
     let mut hit_ceiling = false;
-    let mut controller = character_controller();
-    if !request.can_follow_ground {
-        controller.snap_to_ground = None;
-    }
+    let controller = character_controller();
     let pose = character_movement_pose(&step.start, env.physics);
     let mut observe = |collision: CharacterCollision| {
         let normal = from_rapier(collision.hit.normal1);
@@ -306,20 +305,26 @@ fn resolve_character_collision(
         motion_start.translation += push;
     }
     // Resolve incoming geometry first so control input cannot cancel the push while still inside it.
-    let movement = env.collision_world.move_character(
-        step.delta,
-        &controller,
-        shape,
-        &motion_start,
-        request.requested_total - request.carried,
-        env.passable_kinds,
-        excluded_colliders,
-        observe,
-    );
+    let requested = request.requested_total - request.carried;
+    // A body asking for no move stays where the carrier push left it: the
+    // controller would otherwise push it out of every overlap, undoing the
+    // push and hiding a crush. Its support comes from the ground probe.
+    let movement = (requested.length() > CHARACTER_RESTING_MOVEMENT).then(|| {
+        env.collision_world.move_character(
+            step.delta,
+            &controller,
+            shape,
+            &motion_start,
+            requested,
+            env.passable_kinds,
+            excluded_colliders,
+            observe,
+        )
+    });
 
     CharacterCollisionResult {
-        translation: carried + movement.translation,
-        grounded: movement.grounded,
+        translation: carried + movement.as_ref().map_or(Vector::ZERO, |movement| movement.translation),
+        grounded: movement.is_some_and(|movement| movement.grounded),
         saw_side_contact,
         hit_ceiling,
     }
@@ -453,7 +458,10 @@ fn character_controller() -> KinematicCharacterController {
         }),
         max_slope_climb_angle: CHARACTER_MAX_SLOPE,
         min_slope_slide_angle: CHARACTER_MAX_SLOPE,
-        snap_to_ground: Some(CharacterLength::Absolute(CHARACTER_GROUND_SNAP_DISTANCE)),
+        // The motor follows the ground itself (`snap_character_to_ground`,
+        // which casts from above the skin); rapier's snap casts from the
+        // touching capsule, where the cast can stagnate and sink the body.
+        snap_to_ground: None,
         ..KinematicCharacterController::default()
     }
 }
