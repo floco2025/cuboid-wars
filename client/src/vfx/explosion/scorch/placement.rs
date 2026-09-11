@@ -171,15 +171,16 @@ pub(crate) fn wall_scorch_placements(
                 placement.half_plane(Vec3::Y, top),
             ]];
             placement.region.cut = wall_shadows(&placement, map_layout, center, diameter * 0.5);
-            insert_largest_distinct(&mut placements, placement);
+            insert_merging_coincident(&mut placements, placement);
         }
     }
     placements
 }
 
-// Where no blast from `center` reaches on the mark's plane: behind every
-// wall within the mark's reach, over that wall's length and height. The
-// wall a mark sits on lies behind its own face and shadows nothing of it.
+// Where no blast from `center` reaches on the mark's plane: the shadow every
+// wall within the mark's reach casts, the pyramid from the blast through
+// its near face, so a blast reaches over a low wall and around a short one.
+// The wall a mark sits on lies behind its own face and shadows nothing of it.
 fn wall_shadows(placement: &ScorchPlacement, map_layout: &MapLayout, center: Vec3, radius: f32) -> Vec<Convex> {
     let mark = placement.transform.translation;
     map_layout
@@ -189,7 +190,7 @@ fn wall_shadows(placement: &ScorchPlacement, map_layout: &MapLayout, center: Vec
         .filter(|wall| wall.y <= mark.y + radius && wall.y + wall.height >= mark.y - radius)
         .filter_map(|wall| {
             let segment = WallSegment::new(wall)?;
-            let (closest, side, signed_side_distance) = segment.closest(center);
+            let (_, side, signed_side_distance) = segment.closest(center);
             if signed_side_distance.abs() <= wall.width * 0.5 {
                 return None;
             }
@@ -198,16 +199,33 @@ fn wall_shadows(placement: &ScorchPlacement, map_layout: &MapLayout, center: Vec
                 return None;
             }
             let facing = side * signed_side_distance.signum();
-            let face = closest + facing * (wall.width * 0.5);
-            Some(vec![
-                placement.half_plane(facing, facing.dot(face)),
-                placement.half_plane(-segment.direction, -segment.start.dot(segment.direction)),
-                placement.half_plane(segment.direction, segment.end.dot(segment.direction)),
-                placement.half_plane(Vec3::NEG_Y, -wall.y),
-                placement.half_plane(Vec3::Y, wall.y + wall.height),
-            ])
+            let lift = facing * (wall.width * 0.5);
+            let (bottom, top) = (Vec3::Y * wall.y, Vec3::Y * (wall.y + wall.height));
+            let face = [
+                segment.start + lift + bottom,
+                segment.end + lift + bottom,
+                segment.end + lift + top,
+                segment.start + lift + top,
+            ];
+            Some(shadow_of(placement, center, facing, face))
         })
         .collect()
+}
+
+// The shadow of a rectangle lit from `center`: past its plane, inside the
+// pyramid from `center` through its edges.
+fn shadow_of(placement: &ScorchPlacement, center: Vec3, facing: Vec3, corners: [Vec3; 4]) -> Convex {
+    let middle = corners.iter().sum::<Vec3>() / 4.0;
+    let mut shadow = vec![placement.half_plane(facing, facing.dot(middle))];
+    for (index, &start) in corners.iter().enumerate() {
+        let end = corners[(index + 1) % corners.len()];
+        let mut normal = (end - start).cross(center - start);
+        if normal.dot(middle - start) > 0.0 {
+            normal = -normal;
+        }
+        shadow.push(placement.half_plane(normal, normal.dot(start)));
+    }
+    shadow
 }
 
 struct WallSegment {
@@ -282,19 +300,20 @@ pub(crate) fn surface_cross_section_diameter(radius: f32, surface_distance: f32)
     Some(2.0 * radius.mul_add(radius, -surface_distance * surface_distance).sqrt())
 }
 
-fn insert_largest_distinct(placements: &mut Vec<ScorchPlacement>, candidate: ScorchPlacement) {
+// Adjoining wall sections meet at one face point and give the same mark
+// twice, each cut to its own rectangle; one mark on both rectangles covers
+// the seam.
+fn insert_merging_coincident(placements: &mut Vec<ScorchPlacement>, candidate: ScorchPlacement) {
     if let Some(existing) = placements.iter_mut().find(|existing| {
         existing.carrier == candidate.carrier
-            && existing.normal.dot(candidate.normal) > 0.99
+            && existing.normal.dot(candidate.normal) > 0.999
             && existing
                 .transform
                 .translation
                 .distance_squared(candidate.transform.translation)
-                < 0.04
+                < 1e-6
     }) {
-        if candidate.transform.scale.x > existing.transform.scale.x {
-            *existing = candidate;
-        }
+        existing.region.keep.extend(candidate.region.keep);
         return;
     }
     placements.push(candidate);

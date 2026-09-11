@@ -105,7 +105,55 @@ fn ground_mark_stops_at_a_wall_and_continues_past_its_end() {
     let placement = ground(&layout, Vec3::new(-1.0, 0.0, 0.0), Vec3::Y, 6.0);
     let points = points(&placement);
     assert!(points.iter().all(|p| p.x > -1e-3 || p.z <= 0.9 + 1e-3));
-    assert!(points.iter().any(|p| p.x > 0.2 && p.z > 1.0));
+    // The shadow spreads past the wall's end from the blast at x = -1.
+    assert!(
+        points
+            .iter()
+            .all(|p| p.z <= 0.9 + 1e-3 || p.x >= -1.0 + (p.z / 0.9) - 1e-2)
+    );
+    assert!(points.iter().any(|p| p.x > 0.1 && p.z > 1.0));
+}
+
+#[test]
+fn a_blast_above_a_low_wall_marks_the_floor_beyond_its_shadow() {
+    let layout = MapLayout {
+        floors: vec![floor(-10.0, -10.0, 10.0, 10.0)],
+        walls: vec![Wall {
+            height: 0.5,
+            ..wall(-10.0, 1.0, 10.0, 1.0)
+        }],
+        ..default()
+    };
+    let contact = SurfaceContact {
+        point: Vec3::ZERO,
+        normal: Vec3::Y,
+        carrier: CarrierId::WORLD,
+    };
+    let placement = ground_scorch_placement(
+        contact,
+        &layout,
+        &carriers(&layout),
+        Vec3::new(0.0, 2.0, 0.0),
+        8.0,
+        style(),
+    );
+    let points = points(&placement);
+    // From 2 m up, the 0.5 m wall at z = 0.9 shades the floor out to z = 1.2.
+    assert!(points.iter().all(|p| p.z <= 0.9 + 1e-3 || p.z >= 1.2 - 1e-2));
+    assert!(points.iter().any(|p| p.z > 1.3));
+}
+
+#[test]
+fn marks_on_adjoining_wall_sections_cover_the_seam() {
+    let layout = MapLayout {
+        walls: vec![wall(-4.0, 1.0, 0.0, 1.0), wall(0.0, 1.0, 4.0, 1.0)],
+        ..default()
+    };
+    let placements = wall_scorch_placements(&layout, &carriers(&layout), Vec3::new(0.0, 1.0, 0.0), 2.0, 1.0, style());
+    assert_eq!(placements.len(), 1);
+    let points = points(&placements[0]);
+    assert!(points.iter().any(|p| p.x < -0.5));
+    assert!(points.iter().any(|p| p.x > 0.5));
 }
 
 #[test]
@@ -165,9 +213,11 @@ fn a_nearer_wall_shadows_the_mark_on_the_wall_behind() {
         .iter()
         .find(|placement| placement.transform.translation.z > 2.0)
         .expect("mark on the far wall");
+    // The near wall's ends at x = ±1, 0.9 m from the blast, shade the far
+    // face 2.885 m out to x = ±3.2.
     let behind_points = points(behind);
-    assert!(behind_points.iter().all(|p| p.x.abs() >= 1.0 - 1e-3));
-    assert!(behind_points.iter().any(|p| p.x.abs() > 1.01));
+    assert!(behind_points.iter().all(|p| p.x.abs() >= 3.2 - 1e-2));
+    assert!(behind_points.iter().any(|p| p.x.abs() > 3.3));
     let near = placements
         .iter()
         .find(|placement| placement.transform.translation.z < 2.0)

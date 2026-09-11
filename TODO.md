@@ -2,10 +2,6 @@
 
 ## Fixes
 
-- **Scorch marks stop at wall seams:** adjoining wall sections can produce marks at the same position with different clipping regions, but deduplication discards one section's mark. Preserve both pieces or combine their regions.
-
-- **Scorch shadows ignore blast height:** a blast above a low wall loses its ground scorch behind the wall even where the blast has a clear path over the top. Project the shadow from the blast position using the wall's finite height.
-
 - **Grass burns through walls:** a blast beside a wall burns the grass on the far side of it. The scorch mark is cut by that wall's shadow; the burn outline in `map/grass/burn.rs` could take the same cut.
 
 - **Portal body pose jumps at the crossing:** between floor portals, the emerging twin is upside down but the main body replaces it upright when the center crosses, swapping the visible legs for the upper body. Preserve the rendered pose across the handoff before reorienting it.
