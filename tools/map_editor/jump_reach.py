@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from math import ceil, isfinite, sqrt
 
+from .catalogs import setting_number
 from .floor_footprints import FloorFootprints
 
 
@@ -29,16 +30,6 @@ class FallSettings:
         return fraction if fraction * self.max_health >= FALL_DAMAGE_EMIT_THRESHOLD else 0.0
 
 
-def _number(settings: dict, source: str, path: str, *, allow_zero: bool = False) -> float:
-    value = settings
-    for key in path.split("."):
-        value = value.get(key) if isinstance(value, dict) else None
-    if type(value) not in (int, float) or not isfinite(value) or (value < 0 if allow_zero else value <= 0):
-        requirement = "nonnegative" if allow_zero else "positive"
-        raise ValueError(f"{source}: {path} must be a finite {requirement} number")
-    return float(value)
-
-
 @dataclass(frozen=True)
 class JumpSettings:
     cell_size: float
@@ -55,12 +46,12 @@ class JumpSettings:
     @classmethod
     def from_settings(cls, settings: dict, source: str, *, gameplay: dict, gameplay_source: str) -> "JumpSettings":
         def number(path: str, *, allow_zero: bool = False) -> float:
-            return _number(settings, source, path, allow_zero=allow_zero)
+            return setting_number(settings, source, path, allow_zero=allow_zero)
 
         fall = FallSettings(
             number("player_fall.safe_distance", allow_zero=True),
             number("player_fall.lethal_distance"),
-            _number(gameplay, gameplay_source, "combat.health.player.max"),
+            setting_number(gameplay, gameplay_source, "combat.health.player.max"),
         )
         if fall.safe_distance >= fall.lethal_distance:
             raise ValueError(f"{source}: player_fall.safe_distance must be < player_fall.lethal_distance")

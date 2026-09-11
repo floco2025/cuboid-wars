@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import re
+from math import isfinite
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
@@ -132,6 +133,17 @@ def load_texture_catalog(host: str) -> dict[str, bool]:
             raise ValueError(f"{path}.{alias}: expected a nonempty alias and an explicit portalable boolean")
         result[alias] = entry["portalable"]
     return dict(sorted(result.items()))
+
+
+# A finite number at a dotted path, positive unless `allow_zero`; errors name the source file and path.
+def setting_number(settings: dict, source: str, path: str, *, allow_zero: bool = False) -> float:
+    value = settings
+    for key in path.split("."):
+        value = value.get(key) if isinstance(value, dict) else None
+    if type(value) not in (int, float) or not isfinite(value) or (value < 0 if allow_zero else value <= 0):
+        requirement = "nonnegative" if allow_zero else "positive"
+        raise ValueError(f"{source}: {path} must be a finite {requirement} number")
+    return float(value)
 
 
 def read_settings_text(path: Path) -> str:

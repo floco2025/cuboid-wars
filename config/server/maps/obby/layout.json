@@ -5,7 +5,7 @@
     "grid_cols": 100,
     "grid_rows": 40,
     "actor_spawn_zones": [
-      {"level": 5, "cols": [36, 38], "rows": [19, 21], "kind": "scuttler", "count": 6, "respawn_secs": 10, "switch": "bridge_1", "switch_inverted": false}
+      {"level": 5, "cols": [36, 38], "rows": [20, 22], "kind": "scuttler", "count": 6, "respawn_secs": 10, "switch": "bridge_1", "switch_inverted": false}
     ],
     "player_spawn_zones": [
       {"level": 5, "cols": [38, 40], "rows": [8, 10]}
@@ -38,7 +38,9 @@
       {"level": 3, "col": 31, "row": 7, "type": "speed"},
       {"level": 3, "col": 31, "row": 8, "type": "speed"},
       {"level": 3, "col": 31, "row": 9, "type": "speed"},
-      {"level": 3, "col": 31, "row": 10, "type": "speed"}
+      {"level": 3, "col": 31, "row": 10, "type": "speed"},
+      {"level": 5, "col": 35, "row": 17, "type": "single_shot"},
+      {"level": 5, "col": 38, "row": 17, "type": "single_shot"}
     ],
     "levels": [
       {
@@ -278,19 +280,24 @@
           {"col": 37, "row": 12, "all": "basement-floor"},
           {"col": 38, "row": 12, "all": "basement-floor"},
           {"col": 39, "row": 12, "all": "basement-floor"},
-          {"col": 36, "row": 18, "all": "basement-floor"},
-          {"col": 37, "row": 18, "all": "basement-floor"},
-          {"col": 36, "row": 19, "all": "basement-floor"},
-          {"col": 37, "row": 19, "all": "basement-floor"},
+          {"col": 35, "row": 17, "all": "basement-floor"},
+          {"col": 38, "row": 17, "all": "basement-floor"},
           {"col": 36, "row": 20, "all": "basement-floor"},
           {"col": 37, "row": 20, "all": "basement-floor"},
           {"col": 36, "row": 21, "all": "basement-floor"},
-          {"col": 37, "row": 21, "all": "basement-floor"}
+          {"col": 37, "row": 21, "all": "basement-floor"},
+          {"col": 36, "row": 22, "all": "basement-floor"},
+          {"col": 37, "row": 22, "all": "basement-floor"},
+          {"col": 36, "row": 23, "all": "basement-floor"},
+          {"col": 37, "row": 23, "all": "basement-floor"}
         ],
         "inaccessible_floors": [],
         "grass": [],
         "walls": [],
-        "barriers": [],
+        "barriers": [
+          {"c0": 36, "r0": 22, "c1": 37, "r1": 22, "kind": "barrier_1"},
+          {"c0": 37, "r0": 22, "c1": 38, "r1": 22, "kind": "barrier_1"}
+        ],
         "erasers": [],
         "light_bridges": [
           {"col": 36, "row": 13, "kind": "bridge_1", "switch": "bridge_1"},
@@ -302,7 +309,11 @@
           {"col": 36, "row": 16, "kind": "bridge_1", "switch": "bridge_1"},
           {"col": 37, "row": 16, "kind": "bridge_1", "switch": "bridge_1"},
           {"col": 36, "row": 17, "kind": "bridge_1", "switch": "bridge_1"},
-          {"col": 37, "row": 17, "kind": "bridge_1", "switch": "bridge_1"}
+          {"col": 37, "row": 17, "kind": "bridge_1", "switch": "bridge_1"},
+          {"col": 36, "row": 18, "kind": "bridge_1"},
+          {"col": 37, "row": 18, "kind": "bridge_1"},
+          {"col": 36, "row": 19, "kind": "bridge_1"},
+          {"col": 37, "row": 19, "kind": "bridge_1"}
         ],
         "lights": []
       },

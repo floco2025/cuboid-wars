@@ -28,6 +28,11 @@ Every element group ends with its own **Erase** tool that removes only that elem
 - **Fall damage** — Set `player_fall.safe_distance` and `player_fall.lethal_distance` in the map’s hand-edited `settings.json` (initially 8 m and 15 m). Damage rises from zero at the safe distance to full health at the lethal distance. Drops are measured from the jump’s highest point and adjusted for gravity, matching the game. Triangles can kill an injured player. Estimates assume power-ups last through landing.
 - **Changes** — Movement, fall settings, and global maximum player health reload automatically. Adding or removing floors and changing ramp joins refreshes reach while keeping the origin selected, including undo/redo. Switching outer/nested geometry, replacing a document, resizing, or inserting/removing levels clears the origin; structural undo/redo also clears it.
 
+## Run Time
+
+- **Run Time** — Click any cell, including an empty one, to set a run origin. Every other cell on that level shows the seconds from the origin's centre to its own in a straight line: the upper number at run speed, the lower with the speed power-up. Hover shows both to two decimals. The origin has a white dashed outline; another click replaces it. Numbers and the legend stay visible while using other tools. **Clear** beside the legend or **Clear Run Time** in View removes them; Escape leaves them in place.
+- **Estimate** — Uses the map's `grid_cell_size`, `run_speed`, and `speed_power_up`, and the legend shows both speeds. Walls, obstacles, ramps, ladders, jumps, and platform motion are ignored, so the number is the shortest possible time. Numbers hide when cells are too small to hold them; hover still reports them. Movement settings reload automatically. Switching outer/nested geometry, replacing a document, resizing, or inserting/removing levels clears the origin.
+
 ## Floors
 
 - **Floor** — Drag cells to add floor.

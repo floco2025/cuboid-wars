@@ -35,6 +35,7 @@ from .constants import (
     ITEM_TYPES,
     MODE_CATEGORIES,
     MODE_JUMP_REACH,
+    MODE_RUN_TIME,
     MODE_RAMP_DOWN,
     MODE_RAMP_UP,
     MODE_SELECT,
@@ -53,6 +54,7 @@ from .nested_maps import NestedMapsMixin
 from .nesting import NestedMotion
 from .normalization import level_label
 from .placement import PlacementMixin
+from .run_time_overlay import RunTimeOverlay
 from .select import SelectMixin
 from .spawn_zones import SpawnZoneEditMixin
 from .structure import StructureMixin
@@ -162,6 +164,7 @@ class EditorWindow(
         self.issues_action.setVisible(False)
 
         self.jump_reach = JumpReachOverlay(self)
+        self.run_time = RunTimeOverlay(self)
         self.build_menus()
         self.build_toolbar()
         self.doc.changed.connect(self._on_document_changed)
@@ -213,13 +216,15 @@ class EditorWindow(
     def undo_stack(self) -> QUndoStack:
         return self.doc.undo_stack
 
-    def validate(self, data: dict) -> ValidationErrors:
+    # `plated_from` is the map whose plates operate the switches `data` names;
+    # a clipboard block is checked against the map it is pasted into.
+    def validate(self, data: dict, plated_from: dict | None = None) -> ValidationErrors:
         return validate_map(
             data,
             self.barrier_kinds,
             self.bridge_kinds,
             switches=self.switches,
-            plated_switches=plated_switches(self._document_geometries(data)),
+            plated_switches=plated_switches(self._document_geometries(data if plated_from is None else plated_from)),
             map_name=self.doc.active_map,
             nested_lookup=self.nested_map_shape,
             actor_kinds=self.actor_kinds,
@@ -277,6 +282,7 @@ class EditorWindow(
     def adopt_map(self, map_name: str) -> None:
         self.adopt_catalogs(map_name, MapCatalogs.load(map_name))
         self.jump_reach.reload_settings()
+        self.run_time.reload_settings()
         self.clear_selection()
         self.current_level = 0
         self.refresh_ui()
@@ -291,6 +297,7 @@ class EditorWindow(
         model = QStandardItemModel(combo)
         model.appendRow(QStandardItem(MODE_SELECT))
         model.appendRow(QStandardItem(MODE_JUMP_REACH))
+        model.appendRow(QStandardItem(MODE_RUN_TIME))
         header_font = QFont()
         header_font.setBold(True)
         for label, modes in MODE_CATEGORIES:
@@ -383,6 +390,7 @@ class EditorWindow(
         view_menu.addAction(self.adjacent_levels_action)
         self.canvas_shortcut(self.adjacent_levels_action)
         view_menu.addAction(self.jump_reach.clear_action)
+        view_menu.addAction(self.run_time.clear_action)
 
         help_menu = self.menuBar().addMenu("&Help")
         self.add_menu_action(help_menu, "Tool &Reference", None, self.show_tool_reference)
@@ -433,6 +441,8 @@ class EditorWindow(
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, toolbar)
         self.addToolBarBreak(Qt.ToolBarArea.TopToolBarArea)
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.jump_reach.toolbar)
+        self.addToolBarBreak(Qt.ToolBarArea.TopToolBarArea)
+        self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.run_time.toolbar)
 
     # === State updates & UI refresh ===
 
@@ -493,6 +503,7 @@ class EditorWindow(
         self.dependencies.watch(self.catalog_map)
         self.tool_settings.refresh()
         self.jump_reach.refresh()
+        self.run_time.refresh()
 
     def refresh_issues(self, *, validate: bool = True) -> None:
         if validate:
@@ -540,6 +551,7 @@ class EditorWindow(
         self.refresh_issues(validate=False)
         self.tool_settings.refresh()
         self.jump_reach.refresh()
+        self.run_time.refresh()
 
     def set_material_overlay(self, enabled: bool) -> None:
         self.show_material_overlay = enabled

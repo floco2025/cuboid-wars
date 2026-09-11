@@ -168,7 +168,7 @@ class SelectMixin:
         col, row = self.tile_selection[:2]
         try:
             after = paste_region(self.map_data, self.tile_clipboard, (col, row), self.current_level)
-            errors = self.validate(self.tile_clipboard)
+            errors = self.validate(self.tile_clipboard, plated_from=after)
             if errors:
                 raise ValueError("The copied block cannot be used in this map:\n\n" + "\n".join(errors[:8]))
             before = {issue.identity() for issue in self.validate(self.map_data).issues}

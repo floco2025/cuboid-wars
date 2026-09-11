@@ -18,6 +18,7 @@ UNKNOWN_SWITCH_PLATE_COLOR = "#9ca3af"
 
 MODE_SELECT = "Select Tiles"
 MODE_JUMP_REACH = "Jump Reach"
+MODE_RUN_TIME = "Run Time"
 MODE_FLOOR = "Floor"
 MODE_INACCESSIBLE_FLOOR = "Blocked Floor"
 MODE_ERASE_FLOORS = "Erase Floors"
