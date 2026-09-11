@@ -1,12 +1,15 @@
 use std::mem;
 
 use bevy::prelude::*;
-use common::protocol::{LightBridge, MapLayout};
+use common::protocol::{BridgeId, LightBridge, MapLayout};
 
 use crate::fields::{clip_surface_rects, surface_frame_rects};
 
+// One drawn surface: the bridges of one kind and controls that share a
+// carrier, storey, and height. `bridge` is the first of `members`.
 pub(super) struct BridgeVisual {
     pub bridge: LightBridge,
+    pub members: Vec<BridgeId>,
     pub surfaces: Vec<Rect>,
     pub frames: Vec<Rect>,
 }
@@ -26,10 +29,12 @@ pub(super) fn bridge_visuals(layout: &MapLayout) -> Vec<BridgeVisual> {
                 && other.y == bridge.y
                 && other.thickness == bridge.thickness
         }) {
+            group.members.push(bridge.id);
             group.surfaces.push(surface);
         } else {
             groups.push(BridgeVisual {
                 bridge: *bridge,
+                members: vec![bridge.id],
                 surfaces: vec![surface],
                 frames: Vec::new(),
             });

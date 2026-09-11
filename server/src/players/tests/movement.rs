@@ -31,7 +31,7 @@ fn movement_app(layout: MapLayout) -> (App, Entity) {
                 .settings
                 .clone(),
         )
-        .insert_resource(CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default()))
+        .insert_resource(CollisionWorld::from_map_layout(&layout))
         .insert_resource(Carriers::from_layout(&layout))
         .init_resource::<PortalSet>()
         .init_resource::<PlayerMap>()

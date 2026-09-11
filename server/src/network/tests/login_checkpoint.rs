@@ -71,7 +71,7 @@ fn joining_inherits_shared_progress_and_respects_blocked_spawns_and_group_countd
         layout.checkpoints.push(checkpoint);
         let mut carriers = Carriers::from_layout(&layout);
         carriers.advance(15, &PlateState::default());
-        let mut collision = CollisionWorld::from_map_layout(&layout, &Default::default());
+        let mut collision = CollisionWorld::from_map_layout(&layout);
         collision.set_carrier_poses(&carriers);
         let settings = app.world().resource::<MapSettings>().clone();
         let gameplay = app.world().resource::<ServerGameplayConfig>().gameplay_bootstrap();
@@ -231,7 +231,7 @@ fn joining_inherits_shared_progress_and_respects_blocked_spawns_and_group_countd
         if blocked {
             assert_eq!(app.world().get_entity(entity).is_err(), group_countdown);
             layout.floors.push(floor);
-            let mut collision = CollisionWorld::from_map_layout(&layout, &Default::default());
+            let mut collision = CollisionWorld::from_map_layout(&layout);
             collision.set_carrier_poses(app.world().resource::<Carriers>());
             app.insert_resource(collision);
             app.world_mut()

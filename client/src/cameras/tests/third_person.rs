@@ -1,28 +1,25 @@
 use super::*;
 use crate::{cameras::CameraViewMode, constants::INPUT_ZOOM_SENSITIVITY_BASE, test_fixtures::follow_camera};
-use common::protocol::{BarrierKindTable, CarrierId, MapLayout, Wall};
+use common::protocol::{CarrierId, MapLayout, Wall};
 fn world(wall: bool) -> CollisionWorld {
-    CollisionWorld::from_map_layout(
-        &MapLayout {
-            walls: if wall {
-                vec![Wall {
-                    x1: -5.0,
-                    z1: 2.0,
-                    x2: 5.0,
-                    z2: 2.0,
-                    width: 0.2,
-                    y: 0.0,
-                    height: 4.0,
-                    level: 0,
-                    carrier: CarrierId::WORLD,
-                }]
-            } else {
-                vec![]
-            },
-            ..default()
+    CollisionWorld::from_map_layout(&MapLayout {
+        walls: if wall {
+            vec![Wall {
+                x1: -5.0,
+                z1: 2.0,
+                x2: 5.0,
+                z2: 2.0,
+                width: 0.2,
+                y: 0.0,
+                height: 4.0,
+                level: 0,
+                carrier: CarrierId::WORLD,
+            }]
+        } else {
+            vec![]
         },
-        &BarrierKindTable::default(),
-    )
+        ..default()
+    })
 }
 #[test]
 fn arm_retracts_before_wall_and_eases_back_into_clear_space() {

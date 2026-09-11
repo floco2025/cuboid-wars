@@ -3,8 +3,7 @@ use std::f32::consts::PI;
 use super::*;
 use crate::{players::PlayerInfo, test_fixtures};
 use common::protocol::{
-    BarrierKindTable, CarrierId, FaceMaterials, Health, Player, PlayerGeneration, PlayerMoveIntent, Position,
-    TextureSettings, Wall,
+    CarrierId, FaceMaterials, Health, Player, PlayerGeneration, PlayerMoveIntent, Position, TextureSettings, Wall,
 };
 use tokio::sync::mpsc::unbounded_channel;
 
@@ -30,7 +29,7 @@ fn firing_sends_the_client_resolved_geometry_and_current_body_generation() {
         };
         let mut settings = test_fixtures::map_settings();
         settings.textures = [("surface".to_owned(), TextureSettings { portalable })].into();
-        let collision = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
+        let collision = CollisionWorld::from_map_layout(&layout);
         let id = PlayerId(7);
         let entity = app.world_mut().spawn((id, LocalPlayerMarker)).id();
         let mut player = Player::new(

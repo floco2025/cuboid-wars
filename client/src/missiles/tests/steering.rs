@@ -3,7 +3,7 @@ use crate::{
     constants::MISSILE_RADIUS,
     test_fixtures::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS},
 };
-use common::protocol::{BarrierKindTable, CarrierId, Floor, MapLayout, Wall};
+use common::protocol::{CarrierId, Floor, MapLayout, Wall};
 use std::f32::consts::SQRT_2;
 
 #[test]
@@ -121,7 +121,7 @@ fn pick_clear_direction_prefers_climbing_over_a_wall() {
         }],
         ..Default::default()
     };
-    let world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
+    let world = CollisionWorld::from_map_layout(&layout);
     let origin = Vec3::new(0.0, 2.0, 0.0);
 
     let picked =
@@ -132,7 +132,7 @@ fn pick_clear_direction_prefers_climbing_over_a_wall() {
 
 #[test]
 fn pick_clear_direction_in_open_space_returns_desired() {
-    let world = CollisionWorld::from_map_layout(&MapLayout::default(), &BarrierKindTable::default());
+    let world = CollisionWorld::from_map_layout(&MapLayout::default());
     let picked = pick_clear_direction(&world, &[], Vec3::new(0.0, 5.0, 0.0), Vec3::Z, 7.2, 0.3)
         .expect("open space always has a clear candidate");
     assert!(
@@ -159,7 +159,7 @@ fn pick_clear_direction_dives_toward_a_target_below() {
         }],
         ..Default::default()
     };
-    let world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
+    let world = CollisionWorld::from_map_layout(&layout);
     // Straight down onto the slab is blocked; the fan must find the
     // descending direction past the slab edge.
     let picked = pick_clear_direction(&world, &[], Vec3::new(0.0, 6.0, 0.0), Vec3::NEG_Y, 7.2, 0.3)
@@ -170,23 +170,20 @@ fn pick_clear_direction_dives_toward_a_target_below() {
 
 #[test]
 fn a_terminal_approach_starts_from_a_missile_already_touching_geometry() {
-    let world = CollisionWorld::from_map_layout(
-        &MapLayout {
-            walls: vec![Wall {
-                x1: 0.0,
-                z1: -4.0,
-                x2: 0.0,
-                z2: 4.0,
-                width: WALL_THICKNESS,
-                y: 0.0,
-                height: WALL_HEIGHT,
-                level: 0,
-                carrier: CarrierId::WORLD,
-            }],
-            ..Default::default()
-        },
-        &BarrierKindTable::default(),
-    );
+    let world = CollisionWorld::from_map_layout(&MapLayout {
+        walls: vec![Wall {
+            x1: 0.0,
+            z1: -4.0,
+            x2: 0.0,
+            z2: 4.0,
+            width: WALL_THICKNESS,
+            y: 0.0,
+            height: WALL_HEIGHT,
+            level: 0,
+            carrier: CarrierId::WORLD,
+        }],
+        ..Default::default()
+    });
     // Skimming the wall face: the start overlaps, the travel away from it does not.
     let origin = Vec3::new(WALL_THICKNESS / 2.0 + 0.2, 1.0, 0.0);
     let target = Vec3::new(6.0, 1.0, 0.0);

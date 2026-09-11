@@ -433,23 +433,20 @@ fn occluded_player_keeps_last_seen_state_without_refresh() {
     info.awareness[0].forget_remaining_secs = 4.0;
 
     let wall_x = (actor_pos.x + player.pos.x) / 2.0;
-    let blocked_world = CollisionWorld::from_map_layout(
-        &MapLayout {
-            walls: vec![Wall {
-                x1: wall_x,
-                z1: actor_pos.z - 3.0,
-                x2: wall_x,
-                z2: actor_pos.z + 3.0,
-                width: 0.2,
-                level: 0,
-                y: 0.0,
-                height: WALL_HEIGHT,
-                carrier: CarrierId::WORLD,
-            }],
-            ..MapLayout::default()
-        },
-        &BarrierKindTable::default(),
-    );
+    let blocked_world = CollisionWorld::from_map_layout(&MapLayout {
+        walls: vec![Wall {
+            x1: wall_x,
+            z1: actor_pos.z - 3.0,
+            x2: wall_x,
+            z2: actor_pos.z + 3.0,
+            width: 0.2,
+            level: 0,
+            y: 0.0,
+            height: WALL_HEIGHT,
+            carrier: CarrierId::WORLD,
+        }],
+        ..MapLayout::default()
+    });
     let moved_player = PlayerState {
         pos: fixture.pos(4, 2),
         support: CharacterSupport::Ladder,
@@ -501,8 +498,7 @@ fn beam_actor_sees_a_player_through_a_barrier_but_waits_for_a_clear_attack() {
         }],
         ..Default::default()
     };
-    let kinds = BarrierKindTable::from_ids(vec!["shield".into()]).expect("barrier catalog rejected");
-    fixture.collision_world = CollisionWorld::from_map_layout(&layout, &kinds);
+    fixture.collision_world = CollisionWorld::from_map_layout(&layout);
     let mut info = info(BEAM);
     update_awareness(
         &mut info,
@@ -573,31 +569,27 @@ fn closing_a_barrier_immediately_stops_an_immovable_actor() {
     let target = fixture.pos(3, 2);
     let kind = BarrierKindId(0);
     let x = (origin.x + target.x) / 2.0;
-    let kinds = BarrierKindTable::from_ids(vec!["shield".into()]).expect("barrier catalog rejected");
-    fixture.collision_world = CollisionWorld::from_map_layout(
-        &MapLayout {
-            barriers: vec![Barrier {
-                id: Default::default(),
+    fixture.collision_world = CollisionWorld::from_map_layout(&MapLayout {
+        barriers: vec![Barrier {
+            id: Default::default(),
 
-                switch: None,
-                switch_inverted: false,
+            switch: None,
+            switch_inverted: false,
 
-                x1: x,
-                x2: x,
-                z1: origin.z - 4.0,
-                z2: origin.z + 4.0,
-                y: 0.0,
-                height: WALL_HEIGHT,
-                width: 0.1,
-                level: 0,
-                levels: 1,
-                kind,
-                carrier: CarrierId::WORLD,
-            }],
-            ..Default::default()
-        },
-        &kinds,
-    );
+            x1: x,
+            x2: x,
+            z1: origin.z - 4.0,
+            z2: origin.z + 4.0,
+            y: 0.0,
+            height: WALL_HEIGHT,
+            width: 0.1,
+            level: 0,
+            levels: 1,
+            kind,
+            carrier: CarrierId::WORLD,
+        }],
+        ..Default::default()
+    });
     let mut state = info(IMMOVABLE);
     state.awareness.push(aware(7, target, CharacterSupport::Ground, true));
     let mut context = fixture.context(IMMOVABLE, origin);

@@ -76,7 +76,7 @@ fn turret_stays_at_carrier_anchor_despite_gravity_and_knockback() {
     app.insert_resource(settings)
         .insert_resource(server)
         .insert_resource(Carriers::from_layout(&layout))
-        .insert_resource(CollisionWorld::from_map_layout(&layout, &Default::default()))
+        .insert_resource(CollisionWorld::from_map_layout(&layout))
         .init_resource::<ActorMap>()
         .init_resource::<PlayerMap>()
         .init_resource::<PlateState>()

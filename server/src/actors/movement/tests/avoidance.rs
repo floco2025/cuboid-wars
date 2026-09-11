@@ -1,7 +1,7 @@
 use super::*;
 use common::{
     constants::{LADDER_RAIL_INSET, LADDER_STANDOFF_CLEARANCE},
-    protocol::{BarrierKindTable, Ladder},
+    protocol::Ladder,
 };
 use std::f32::consts::FRAC_PI_2;
 
@@ -97,25 +97,22 @@ fn blocked_climber_holds_its_rung_and_resumes_when_clear() {
         y: 1.0,
         z: -(LADDER_RAIL_INSET + physics.movement_collider.radius() + LADDER_STANDOFF_CLEARANCE),
     };
-    let world = CollisionWorld::from_map_layout(
-        &MapLayout {
-            ladders: vec![Ladder {
-                x1: -0.6,
-                x2: 0.6,
-                z1: 0.0,
-                z2: 0.0,
-                nx: 0.0,
-                nz: -1.0,
-                y: 0.0,
-                height: 4.4,
-                level: 0,
-                levels: 1,
-                carrier: CarrierId::WORLD,
-            }],
-            ..Default::default()
-        },
-        &BarrierKindTable::default(),
-    );
+    let world = CollisionWorld::from_map_layout(&MapLayout {
+        ladders: vec![Ladder {
+            x1: -0.6,
+            x2: 0.6,
+            z1: 0.0,
+            z2: 0.0,
+            nx: 0.0,
+            nz: -1.0,
+            y: 0.0,
+            height: 4.4,
+            level: 0,
+            levels: 1,
+            carrier: CarrierId::WORLD,
+        }],
+        ..Default::default()
+    });
     let blockers = [(
         test_entity(2),
         Position {

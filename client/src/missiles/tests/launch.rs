@@ -26,7 +26,7 @@ fn launch_direction_zero_spread_is_straight() {
 #[test]
 fn a_blocked_runway_is_resampled_and_a_boxed_in_muzzle_falls_back_to_the_aim() {
     use crate::test_fixtures::{WALL_HEIGHT, WALL_THICKNESS};
-    use common::protocol::{BarrierKindTable, CarrierId, MapLayout, Wall};
+    use common::protocol::{CarrierId, MapLayout, Wall};
 
     let wall = |x1, z1, x2, z2| Wall {
         x1,
@@ -40,13 +40,10 @@ fn a_blocked_runway_is_resampled_and_a_boxed_in_muzzle_falls_back_to_the_aim() {
         carrier: CarrierId::WORLD,
     };
     let world = |walls: Vec<Wall>| {
-        CollisionWorld::from_map_layout(
-            &MapLayout {
-                walls,
-                ..Default::default()
-            },
-            &BarrierKindTable::default(),
-        )
+        CollisionWorld::from_map_layout(&MapLayout {
+            walls,
+            ..Default::default()
+        })
     };
     let muzzle = Vec3::new(0.0, 1.5, 0.0);
     let spread = 60.0_f32.to_radians();

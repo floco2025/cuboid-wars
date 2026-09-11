@@ -1,5 +1,4 @@
 pub(super) use super::super::*;
-use crate::protocol::BarrierId;
 pub(super) use crate::{
     constants::{PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH, PORTAL_RIM_SCALE, TICK_SECS},
     map::Carriers,
@@ -7,8 +6,8 @@ pub(super) use crate::{
         CharacterEnvironment, CharacterStep, CharacterSupport, CollisionWorld, LadderMode, step_character_movement,
     },
     protocol::{
-        BarrierKindId, BarrierKindTable, Carrier, CarrierId, FaceMaterials, Floor, MapLayout, Portal, PortalEnd,
-        PortalPairId, Position, Ramp, Wall,
+        BarrierId, BarrierKindId, Carrier, CarrierId, FaceMaterials, Floor, MapLayout, Portal, PortalEnd, PortalPairId,
+        Position, Ramp, Wall,
     },
     test_geometry::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS},
 };
@@ -71,7 +70,7 @@ pub(crate) fn portal(end: PortalEnd, pos: Vec3, normal: Vec3, yaw: f32) -> Porta
 }
 
 pub(crate) fn empty_world() -> CollisionWorld {
-    CollisionWorld::from_map_layout(&MapLayout::default(), &BarrierKindTable::default())
+    CollisionWorld::from_map_layout(&MapLayout::default())
 }
 
 pub(crate) fn pair(a_pos: Vec3, a_normal: Vec3, b_pos: Vec3, b_normal: Vec3) -> PortalSet {
@@ -226,7 +225,7 @@ pub(crate) fn place_on_geometry(
 }
 
 pub(crate) fn place(layout: &MapLayout, origin: Vec3, toward: Vec3, yaw: f32) -> Option<PortalPlacement> {
-    let world = CollisionWorld::from_map_layout(layout, &BarrierKindTable::default());
+    let world = CollisionWorld::from_map_layout(layout);
     place_on_geometry(
         origin,
         (toward - origin).normalize(),
@@ -244,7 +243,7 @@ pub(crate) fn material_shot(
     origin: Vec3,
     direction: Vec3,
 ) -> Result<PortalPlacement, PortalPlacementFailure> {
-    let world = CollisionWorld::from_map_layout(layout, &BarrierKindTable::default());
+    let world = CollisionWorld::from_map_layout(layout);
     compute_portal_placement(
         origin,
         direction,
@@ -328,7 +327,7 @@ pub(crate) fn tile_wall_layout(beside_floor: bool) -> MapLayout {
 
 // The world with the tile at `tick`, its collider placed there.
 pub(crate) fn tile_world(layout: &MapLayout, tick: u32) -> (CollisionWorld, Carriers) {
-    let mut world = CollisionWorld::from_map_layout(layout, &BarrierKindTable::default());
+    let mut world = CollisionWorld::from_map_layout(layout);
     let mut carriers = Carriers::from_layout(layout);
     carriers.advance(tick.wrapping_sub(1), &PlateState::default());
     carriers.advance(tick, &PlateState::default());

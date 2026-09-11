@@ -1,4 +1,3 @@
-use common::protocol::{BarrierId, BridgeId};
 use std::collections::HashMap;
 
 use bevy::prelude::*;
@@ -21,8 +20,8 @@ use common::{
         AirborneMomentum, CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity, blast_falloff_at_distance,
     },
     protocol::{
-        ActorAnchor, ActorId, ActorMarker, Barrier, BarrierKindId, BarrierKindTable, BridgeKindId, CarrierId, Health,
-        LightBridge, MapLayout, PlateState, PlayerId, PlayerMarker, Position, SPlayerDeath, ServerMessage,
+        ActorAnchor, ActorId, ActorMarker, Barrier, BarrierId, BarrierKindId, BridgeId, BridgeKindId, CarrierId,
+        Health, LightBridge, MapLayout, PlateState, PlayerId, PlayerMarker, Position, SPlayerDeath, ServerMessage,
     },
 };
 
@@ -35,7 +34,7 @@ fn test_app() -> App {
         .expect("default map settings missing")
         .settings
         .clone();
-    let collision_world = CollisionWorld::from_map_layout(&MapLayout::default(), &BarrierKindTable::default());
+    let collision_world = CollisionWorld::from_map_layout(&MapLayout::default());
     let quest_catalog = QuestCatalog::from_config(&server);
     let quest_board = QuestBoard::from_catalog(&quest_catalog, None);
     let mut app = App::new();
@@ -513,8 +512,7 @@ fn field_world(bridge: bool) -> CollisionWorld {
             ..default()
         }
     };
-    let kinds = BarrierKindTable::from_ids(vec!["shield".into()]).expect("barrier catalog rejected");
-    CollisionWorld::from_map_layout(&layout, &kinds)
+    CollisionWorld::from_map_layout(&layout)
 }
 
 fn power_field(app: &mut App, bridge: bool, active: bool) {

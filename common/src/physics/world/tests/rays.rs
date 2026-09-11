@@ -3,7 +3,7 @@ use crate::protocol::BarrierId;
 
 #[test]
 fn ground_surface_below_hits_floor_instead_of_wall_top() {
-    let world = CollisionWorld::from_map_layout(&test_map_layout(), &BarrierKindTable::default());
+    let world = CollisionWorld::from_map_layout(&test_map_layout());
 
     let hit = world
         .ground_surface_below(Vec3::new(2.0, LEVEL_HEIGHT + WALL_HEIGHT + 1.0, 0.0), WALL_HEIGHT + 2.0)
@@ -15,7 +15,7 @@ fn ground_surface_below_hits_floor_instead_of_wall_top() {
 
 #[test]
 fn ground_surface_below_returns_ramp_normal() {
-    let world = CollisionWorld::from_map_layout(&test_map_layout(), &BarrierKindTable::default());
+    let world = CollisionWorld::from_map_layout(&test_map_layout());
 
     let hit = world
         .ground_surface_below(Vec3::new(2.0, LEVEL_HEIGHT + 2.0, 6.0), LEVEL_HEIGHT + 2.0)
@@ -27,7 +27,7 @@ fn ground_surface_below_returns_ramp_normal() {
 
 #[test]
 fn ground_surface_below_returns_none_over_void() {
-    let world = CollisionWorld::from_map_layout(&test_map_layout(), &BarrierKindTable::default());
+    let world = CollisionWorld::from_map_layout(&test_map_layout());
 
     assert!(
         world
@@ -38,7 +38,7 @@ fn ground_surface_below_returns_none_over_void() {
 
 #[test]
 fn world_surface_along_ray_hits_wall_between_points() {
-    let world = CollisionWorld::from_map_layout(&test_map_layout(), &BarrierKindTable::default());
+    let world = CollisionWorld::from_map_layout(&test_map_layout());
 
     let hit = world
         .world_surface_along_ray(Vec3::new(2.0, LEVEL_HEIGHT + 1.0, 2.0), Vec3::NEG_Z, 4.0)
@@ -49,7 +49,7 @@ fn world_surface_along_ray_hits_wall_between_points() {
 
 #[test]
 fn world_surface_along_ray_hits_floor_unlike_wall_filter() {
-    let world = CollisionWorld::from_map_layout(&test_map_layout(), &BarrierKindTable::default());
+    let world = CollisionWorld::from_map_layout(&test_map_layout());
     let origin = Vec3::new(2.0, LEVEL_HEIGHT + 1.0, 2.0);
 
     // A downward-pitched beam must clip at the floor; the walls-only filter
@@ -60,7 +60,7 @@ fn world_surface_along_ray_hits_floor_unlike_wall_filter() {
 
 #[test]
 fn world_surface_along_ray_returns_none_in_the_open() {
-    let world = CollisionWorld::from_map_layout(&test_map_layout(), &BarrierKindTable::default());
+    let world = CollisionWorld::from_map_layout(&test_map_layout());
 
     assert!(
         world
@@ -90,7 +90,7 @@ fn wall_surface_along_ray_ignores_barrier() {
         width: BARRIER_THICKNESS,
         carrier: CarrierId::WORLD,
     });
-    let world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
+    let world = CollisionWorld::from_map_layout(&layout);
 
     let hit = world
         .wall_surface_along_ray(Vec3::new(2.0, LEVEL_HEIGHT + 1.0, 2.0), Vec3::NEG_Z, 3.0)
@@ -123,8 +123,7 @@ fn portal_shots_only_pass_blocking_barriers_when_the_kind_is_globally_open() {
         kind: BarrierKindId(0),
         carrier: CarrierId::WORLD,
     });
-    let table = BarrierKindTable::from_ids(vec!["red".into(), "blue".into()]).expect("barrier catalog rejected");
-    let world = CollisionWorld::from_map_layout(&layout, &table);
+    let world = CollisionWorld::from_map_layout(&layout);
     let origin = Vec3::new(2.0, LEVEL_HEIGHT + 1.5, 4.0);
     for open in [vec![], vec![BarrierId(1)], vec![BarrierId(0)]] {
         let hit = world.portal_surface_along_ray(origin, Vec3::NEG_Z, 10.0, &open);
@@ -159,8 +158,7 @@ fn barriers_are_transparent_cover_until_globally_opened() {
         }],
         ..Default::default()
     };
-    let table = BarrierKindTable::from_ids(vec!["shield".into()]).expect("barrier catalog rejected");
-    let world = CollisionWorld::from_map_layout(&layout, &table);
+    let world = CollisionWorld::from_map_layout(&layout);
     for (from, to) in [
         (Vec3::new(0.0, 1.0, -2.0), Vec3::new(0.0, 1.0, 2.0)),
         (Vec3::new(0.0, 1.0, 2.0), Vec3::new(0.0, 1.0, -2.0)),

@@ -23,8 +23,9 @@
 // 1. Bootstrap (reliable): starting the connection.
 //
 //    The client sends `CLogin`; the server replies with `SInit`, containing
-//    the player's ID, gameplay settings, and map. This happens once per
-//    connection. `SInit` is the server's first reliable message.
+//    the player's ID, gameplay settings, map, and the plates' current state.
+//    This happens once per connection. `SInit` is the server's first
+//    reliable message.
 //
 //    An unreliable message may arrive before `SInit`. The client discards
 //    everything until it receives `SInit`, so it needs no startup buffer.
@@ -341,6 +342,10 @@ pub struct CChat {
 pub struct SInit {
     pub player: PlayerBootstrap,
     pub world: WorldBootstrap,
+    // What the plates hold and which switches a quest still locks at login,
+    // so an inverted target is right at rest before the first snapshot.
+    pub plates: PlateState,
+    pub locked_switches: Vec<SwitchId>,
 }
 
 #[derive(Debug, Clone, Encode, Decode)]

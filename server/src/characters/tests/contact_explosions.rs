@@ -1,11 +1,10 @@
 use super::*;
 use crate::test_geometry::{WALL_HEIGHT, WALL_THICKNESS};
-use common::protocol::{Barrier, BarrierKindTable, CarrierId, MapLayout, Wall};
-use common::protocol::{BarrierId, BarrierKindId};
+use common::protocol::{Barrier, BarrierId, BarrierKindId, CarrierId, MapLayout, Wall};
 
 #[test]
 fn touching_an_actor_does_not_detonate_it_during_peace() {
-    let collision_world = CollisionWorld::from_map_layout(&MapLayout::default(), &BarrierKindTable::default());
+    let collision_world = CollisionWorld::from_map_layout(&MapLayout::default());
     let (player, mut actor, trigger_gap) = bodies();
     let mut world = World::new();
     actor.entity = world.spawn((ActorMarker, Health(100.0))).id();
@@ -58,7 +57,7 @@ fn bodies() -> (CharacterBody, CharacterBody, f32) {
 #[test]
 fn nearby_player_triggers_contact_explosion_without_cover() {
     let (player, actor, distance) = bodies();
-    let world = CollisionWorld::from_map_layout(&MapLayout::default(), &BarrierKindTable::default());
+    let world = CollisionWorld::from_map_layout(&MapLayout::default());
 
     assert!(character_bodies_touch(&player, &actor, distance, &world, &[]));
 }
@@ -80,7 +79,7 @@ fn wall_blocks_contact_explosion() {
         }],
         ..default()
     };
-    let world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
+    let world = CollisionWorld::from_map_layout(&layout);
 
     assert!(!character_bodies_touch(&player, &actor, distance, &world, &[]));
 }
@@ -89,7 +88,7 @@ fn wall_blocks_contact_explosion() {
 fn vertically_separated_player_does_not_trigger_contact_explosion() {
     let (mut player, actor, distance) = bodies();
     player.pos.y = 3.0;
-    let world = CollisionWorld::from_map_layout(&MapLayout::default(), &BarrierKindTable::default());
+    let world = CollisionWorld::from_map_layout(&MapLayout::default());
 
     assert!(!character_bodies_touch(&player, &actor, distance, &world, &[]));
 }
@@ -119,8 +118,7 @@ fn closed_barrier_blocks_contact_detonation() {
         }],
         ..default()
     };
-    let kinds = BarrierKindTable::from_ids(vec!["shield".into()]).expect("barrier catalog rejected");
-    let world = CollisionWorld::from_map_layout(&layout, &kinds);
+    let world = CollisionWorld::from_map_layout(&layout);
     assert!(!character_bodies_touch(&player, &actor, distance, &world, &[]));
     assert!(character_bodies_touch(
         &player,

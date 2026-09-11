@@ -113,7 +113,7 @@ Each tile can hold one pressure plate per level, on a floor or blocked floor out
 
 Each kind chooses `momentary`, `toggle`, or `auto` activation, a death reset rule (`never`, `solo`, `any`, or `all`), and `any` or `everyone` holding. Auto toggles with one logged-in player and is momentary with several. Everyone requires each living player on a plate, or every plate occupied when players outnumber them. The optional color override takes a hex color such as `#9b5de5`; otherwise plates inherit the first linked barrier color, then bridge color, then the default fixture color.
 
-Barriers, bridges, actor zones, moving nested maps, and **Map → Fireworks** choose one pressure plate kind and an On/Off response. Without an assignment, barriers stay closed, bridges unpowered, actor zones active, and moving maps running. Fireworks need an assignment. **Map → Barrier Kinds** and **Bridge Kinds** edit appearance catalogs in `settings.json`; keys always match barrier kinds. Catalog changes share Save, Undo, and autosave recovery with the layout.
+Barriers, bridges, actor zones, and moving nested maps choose one pressure plate kind and an On/Off response; **Map → Fireworks** chooses the kind alone and a cooldown. Without an assignment, barriers stay closed, bridges unpowered, actor zones active, and moving maps running. Fireworks need an assignment. **Map → Barrier Kinds** and **Bridge Kinds** edit appearance catalogs in `settings.json`; keys always match barrier kinds. Catalog changes share Save, Undo, and autosave recovery with the layout.
 
 - **Pressure Plate** — Choose a kind in the toolbar and click a cell. Right-click a plate to change its kind or erase it. Its rim light and four indicators show the kind's state in-game.
 

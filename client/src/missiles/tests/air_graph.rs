@@ -3,9 +3,7 @@ use crate::{
     constants::MISSILE_RADIUS,
     test_fixtures::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS, geometry},
 };
-use common::protocol::BarrierId;
-use common::protocol::BarrierKindId;
-use common::protocol::{Barrier, BarrierKindTable, Carrier, Floor, MapLayout, PlateState, Position, Wall};
+use common::protocol::{Barrier, BarrierId, BarrierKindId, Carrier, Floor, MapLayout, PlateState, Position, Wall};
 
 fn map(cols: i32, rows: i32, levels: usize) -> AirGraph {
     AirGraph {
@@ -45,7 +43,7 @@ fn floor(x1: f32, z1: f32, x2: f32, z2: f32, y: f32) -> Floor {
 }
 
 fn world(layout: &MapLayout) -> CollisionWorld {
-    CollisionWorld::from_map_layout(layout, &BarrierKindTable::default())
+    CollisionWorld::from_map_layout(layout)
 }
 
 fn assert_clear_path(world: &CollisionWorld, from: Vec3, to: Vec3, path: &VecDeque<Vec3>) {
@@ -274,8 +272,7 @@ fn opened_barriers_allow_a_route_without_stale_grid_flags() {
         floors: vec![floor(-3.5, -2.0, 3.5, 2.0, LEVEL_HEIGHT)],
         ..default()
     };
-    let kinds = BarrierKindTable::from_ids(vec!["gate".into()]).expect("test barrier catalog invalid");
-    let world = CollisionWorld::from_map_layout(&layout, &kinds);
+    let world = CollisionWorld::from_map_layout(&layout);
     let from = Vec3::new(-0.5, 1.0, 0.0);
     let to = Vec3::new(0.3, 1.0, 0.0);
     assert!(

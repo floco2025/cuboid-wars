@@ -8,7 +8,7 @@ use crate::{
     },
     characters::characters_plugin,
     combat::{PendingExplosions, combat_plugin},
-    config::{ServerGameplayConfig, validate_map_actor_kinds, validate_map_fireworks, validate_map_quests},
+    config::{ServerGameplayConfig, validate_map_actor_kinds, validate_map_quests},
     items::{ItemMap, ItemSpawner, RandomItems, items_plugin},
     map::{GeneratedMap, LightState, MapFireworks, WeatherState, generate_map, map_plugin},
     missiles::{MissileMap, missiles_plugin},
@@ -66,7 +66,20 @@ pub fn build_server_app(
         known.sort_unstable();
         bail!("unknown map {map_name:?} (available: {known:?})");
     };
-    let map_settings = map_server_config.settings.clone();
+    let GeneratedMap {
+        layout: map_layout,
+        config: map_config,
+        settings: map_settings,
+        barrier_kinds: barrier_kind_table,
+        bridge_kinds: bridge_kind_table,
+        switch_table,
+        fireworks,
+        fireworks_switch,
+    } = generate_map(
+        map_name,
+        server_gameplay_config.network.server_hz,
+        &map_server_config.settings,
+    )?;
     let power_ups_config = map_server_config.power_ups.clone();
     let placed_items_config = map_server_config.placed_items.clone();
     let weather_state = WeatherState::new(server_gameplay_config.cycles.weather.clone(), map_server_config.weather);
@@ -76,22 +89,9 @@ pub fn build_server_app(
     );
     let random_items = RandomItems::from_config(map_server_config.random_items.as_ref());
     let portal_assignments = PortalAssignments::new(map_settings.portals);
-    let (barrier_kind_table, bridge_kind_table, switch_table) = map_settings.kind_tables()?;
-    let GeneratedMap {
-        layout: map_layout,
-        config: map_config,
-    } = generate_map(
-        map_name,
-        server_gameplay_config.network.server_hz,
-        &map_settings,
-        &barrier_kind_table,
-        &bridge_kind_table,
-        &switch_table,
-    )?;
-    let fireworks_switch = validate_map_fireworks(map_server_config.fireworks.as_ref(), &map_config, &switch_table)?;
     let map_geometry = map_config.root_grid().geometry;
     let map_items = map_config.available_items(&random_items.pool);
-    let collision_world = CollisionWorld::from_map_layout(&map_layout, &barrier_kind_table);
+    let collision_world = CollisionWorld::from_map_layout(&map_layout);
     let carriers = Carriers::from_layout(&map_layout);
     let mut nav_graphs = NavGraphs::new(&map_config);
     nav_graphs.add_ladder_routes(&map_layout, &map_settings, &server_gameplay_config);
@@ -160,7 +160,7 @@ pub fn build_server_app(
         .insert_resource(barrier_kind_table)
         .insert_resource(bridge_kind_table)
         .insert_resource(switch_table)
-        .insert_resource(MapFireworks(map_server_config.fireworks.clone()))
+        .insert_resource(MapFireworks(fireworks))
         .insert_resource(gameplay_config)
         .insert_resource(server_gameplay_config)
         .insert_resource(quest_catalog)

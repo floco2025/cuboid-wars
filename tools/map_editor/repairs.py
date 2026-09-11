@@ -23,4 +23,6 @@ def repair_summary(data: dict, repaired: dict) -> list[str]:
         if removed or added:
             prefix = f"Level {level}: " if level is not None else ""
             lines.append(f"{prefix}{name.replace('_', ' ')}: remove/change {removed}, add/change {added}")
+    if data.get("fireworks") != repaired.get("fireworks"):
+        lines.append("fireworks: remove switch_inverted")
     return lines

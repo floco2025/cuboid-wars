@@ -69,6 +69,18 @@ class NestedMapTests(unittest.TestCase):
         host.set_nested_map_properties(key, NestedMotion("cabin", 0, 2.0, 0.0, 0.0, (0.0, 0.0, 0.0), (0.0, 0.0, 0.0)))
         self.assertNotIn("switch", host.map_data["nested_maps"][0])
 
+    def test_clearing_a_nested_maps_switch_drops_its_response_too(self) -> None:
+        host = EditorHost(empty_map(8, 8), [])
+        motion = NestedMotion("cabin", 0, 2.0, 0.0, 0.0, (0.0, 0.0, 0.0), (0.0, 0.0, 0.0), "lift", True)
+        host.place_nested_map((1, 1), (4, 1), motion)
+        self.assertTrue(host.map_data["nested_maps"][0]["switch_inverted"])
+        key = (0, (1, 1), 0, (4, 1), "cabin")
+        host.set_nested_map_properties(key, NestedMotion("cabin", 0, 2.0, 0.0, 0.0, (0.0, 0.0, 0.0), (0.0, 0.0, 0.0)))
+        entry = host.map_data["nested_maps"][0]
+        self.assertNotIn("switch", entry)
+        self.assertNotIn("switch_inverted", entry)
+        self.assertFalse(NestedMotion.from_entry(entry).switch_inverted)
+
     def test_placing_on_the_same_start_cell_replaces_the_old_nested_map(self) -> None:
         host = EditorHost(empty_map(8, 8), [])
         host.place_nested_map((1, 1), (4, 1), NestedMotion("cabin", 0, 2.0, 0.0, 0.0, (0.0, 0.0, 0.0), (0.0, 0.0, 0.0)))

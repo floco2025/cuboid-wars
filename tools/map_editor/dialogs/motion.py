@@ -115,7 +115,7 @@ class MotionDialog(QDialog):
         layout.addWidget(buttons)
 
     def motion(self) -> tuple[int, float, float, float, Nudge, Nudge, str | None, bool]:
-        control = self.control.values()
+        switch, inverted = self.control.state()
         return (
             self._to_level.value(),
             self._travel.value(),
@@ -123,8 +123,8 @@ class MotionDialog(QDialog):
             self._phase.value(),
             tuple(box.value() for box in self._from_nudge),
             tuple(box.value() for box in self._to_nudge),
-            control["switch"],
-            control["switch_inverted"],
+            switch,
+            inverted,
         )
 
     @classmethod

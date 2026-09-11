@@ -54,10 +54,7 @@ fn app() -> (App, UnboundedReceiver<ClientToServer>) {
         .insert_resource(bridges)
         .insert_resource(gameplay)
         .insert_resource(test_fixtures::map_settings())
-        .insert_resource(CollisionWorld::from_map_layout(
-            &MapLayout::default(),
-            &BarrierKindTable::default(),
-        ))
+        .insert_resource(CollisionWorld::from_map_layout(&MapLayout::default()))
         .insert_resource(ClientToServerChannel::new(sender))
         .insert_resource(MyPlayerId(PlayerId(1)))
         .init_resource::<PlayerMap>()

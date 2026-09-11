@@ -7,7 +7,7 @@ use bevy::{
 
 use crate::{
     actors::{ActorGhostMap, ActorMap, actor_visuals_plugin},
-    barriers::{LockedSwitches, PlateState},
+    barriers::LockedSwitches,
     cameras::{CameraViewMode, TopDownCameraYaw, camera_plugin, clamp_msaa_to_device_system, setup_cameras_system},
     characters::{character_sync_plugin, local_simulation_plugin},
     config::{AssetSet, ClientSettings, LocalSettings, OpaqueRenderer},
@@ -129,8 +129,8 @@ pub fn build_client_app(
         .insert_resource(LastPlayerMovesTick::default())
         .insert_resource(ServerTick::default())
         .insert_resource(TickSync::default())
-        .insert_resource(PlateState::default())
-        .insert_resource(LockedSwitches::default())
+        .insert_resource(bootstrap.plates.clone())
+        .insert_resource(LockedSwitches(bootstrap.locked_switches.clone()))
         .insert_resource(CameraViewMode::default())
         .insert_resource(TopDownCameraYaw::default())
         .insert_resource(LevelFocusEnabled::default())

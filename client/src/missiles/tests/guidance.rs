@@ -3,7 +3,7 @@ use crate::test_fixtures::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THIC
 use common::{
     config::MissilesConfig,
     constants::TICK_SECS,
-    protocol::{BarrierKindTable, Carrier, CarrierId, Floor, MapLayout, PlateState, PlayerId, Wall},
+    protocol::{Carrier, CarrierId, Floor, MapLayout, PlateState, PlayerId, Wall},
 };
 use std::f32::consts::FRAC_PI_4;
 
@@ -40,7 +40,7 @@ fn wall(x1: f32, z1: f32, x2: f32, z2: f32) -> Wall {
 }
 
 fn world(layout: &MapLayout) -> CollisionWorld {
-    CollisionWorld::from_map_layout(layout, &BarrierKindTable::default())
+    CollisionWorld::from_map_layout(layout)
 }
 
 #[test]

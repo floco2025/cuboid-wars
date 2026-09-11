@@ -7,7 +7,7 @@ use crate::{
     test_fixtures,
 };
 use bevy::camera::visibility::RenderLayers;
-use common::protocol::{BarrierKindTable, CarrierId, FaceYaw, PlateState, PlayerId, Wall};
+use common::protocol::{CarrierId, FaceYaw, PlateState, PlayerId, Wall};
 use std::time::Duration;
 
 fn world(wall: bool) -> CollisionWorld {
@@ -29,7 +29,7 @@ fn world(wall: bool) -> CollisionWorld {
         },
         ..default()
     };
-    CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default())
+    CollisionWorld::from_map_layout(&layout)
 }
 
 fn app() -> (App, Entity, f32) {

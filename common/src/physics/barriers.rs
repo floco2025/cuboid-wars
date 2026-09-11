@@ -15,5 +15,5 @@ pub fn passable_barriers(held_keys: &[BarrierKindId], open: &[BarrierId], barrie
 }
 
 #[cfg(test)]
-#[path = "tests/barriers_passable_barrier_kinds.rs"]
+#[path = "tests/barriers.rs"]
 mod tests;

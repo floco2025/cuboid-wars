@@ -9,12 +9,10 @@ use super::{
 use crate::{
     actors::{ActorMap, ActorRespawnTimers, PendingActorSpawns},
     combat::{DeathSource, PendingExplosions, kill_player},
-    config::{
-        FireworksConfig, LightingMode, PlayerRespawnMode, QuestKind, RespawnConfig, ServerGameplayConfig, WeatherMode,
-    },
+    config::{LightingMode, PlayerRespawnMode, QuestKind, RespawnConfig, ServerGameplayConfig, WeatherMode},
     map::{
-        CellGrid, EdgeGrid, LevelGrid, LightState, MapConfig, MapFireworks, PlayerSpawnZone, PressurePlateRuntime,
-        WeatherState, map_plugin,
+        CellGrid, EdgeGrid, FireworksConfig, LevelGrid, LightState, MapConfig, MapFireworks, PlayerSpawnZone,
+        PressurePlateRuntime, WeatherState, map_plugin,
     },
     network::ServerToClient,
     players::{PlayerInfo, PlayerMap, players_group_respawn_system, players_respawn_system},
@@ -34,7 +32,7 @@ use common::{
     protocol::{
         Barrier, BarrierId, BarrierKindId, BridgeId, BridgeKindId, Carrier, CarrierId, HexColor, KindDef, LightBridge,
         MapLayout, MapSettings, PlateState, PlayerId, PlayerMarker, PortalMode, Position, QuestId, QuestScope,
-        ServerMessage, ServerTick, SwitchDef, SwitchId, server_tick_advance_system,
+        ServerMessage, ServerTick, SwitchDef, SwitchId, SwitchTable, server_tick_advance_system,
     },
 };
 
@@ -271,12 +269,13 @@ fn app_with_layout(config: ServerGameplayConfig, plates: Vec<PressurePlateRuntim
     let quest_catalog = QuestCatalog::from_config(&config);
     let board = QuestBoard::from_catalog(&quest_catalog, Some(FIREWORKS_SWITCH));
     let settings = harness_settings(&config);
-    let (barrier_table, bridge_table, switch_table) = settings.kind_tables().expect("harness settings rejected");
+    let (barrier_table, bridge_table) = settings.kind_tables().expect("harness settings rejected");
+    let switch_table = SwitchTable::from_switch_defs(&settings.switches).expect("harness switches rejected");
     let mut app = App::new();
     app.insert_resource(WeatherState::new(config.cycles.weather.clone(), WeatherMode::Clear))
         .insert_resource(LightState::new(config.cycles.lighting.clone(), LightingMode::Bright))
         .insert_resource(settings)
-        .insert_resource(CollisionWorld::from_map_layout(&layout, &Default::default()))
+        .insert_resource(CollisionWorld::from_map_layout(&layout))
         .insert_resource(Carriers::from_layout(&layout))
         .insert_resource(layout);
     app.add_plugins(MinimalPlugins)
@@ -300,8 +299,6 @@ fn app_with_layout(config: ServerGameplayConfig, plates: Vec<PressurePlateRuntim
         .insert_resource(bridge_table)
         .insert_resource(switch_table)
         .insert_resource(MapFireworks(Some(FireworksConfig {
-            switch_inverted: false,
-
             switch: "fireworks".to_owned(),
             cooldown_secs: FIREWORK_COOLDOWN_SECS,
         })))
@@ -1200,27 +1197,24 @@ fn bridge_collision_loses_power_on_the_death_or_logout_tick() {
     for logout in [false, true] {
         let mut app = app(catalog(vec![]), vec![lobby_plate(), skyway_plate()]);
         configure_switches(&mut app, PressureSwitchActivation::Toggle, DeathTrigger::All);
-        app.insert_resource(CollisionWorld::from_map_layout(
-            &MapLayout {
-                light_bridges: vec![LightBridge {
-                    id: Default::default(),
-                    switch: None,
-                    switch_inverted: false,
+        app.insert_resource(CollisionWorld::from_map_layout(&MapLayout {
+            light_bridges: vec![LightBridge {
+                id: Default::default(),
+                switch: None,
+                switch_inverted: false,
 
-                    x1: -1.0,
-                    x2: 1.0,
-                    z1: -1.0,
-                    z2: 1.0,
-                    y: 0.0,
-                    thickness: 0.1,
-                    level: 0,
-                    kind: BridgeKindId(0),
-                    carrier: CarrierId::WORLD,
-                }],
-                ..default()
-            },
-            &Default::default(),
-        ));
+                x1: -1.0,
+                x2: 1.0,
+                z1: -1.0,
+                z2: 1.0,
+                y: 0.0,
+                thickness: 0.1,
+                level: 0,
+                kind: BridgeKindId(0),
+                carrier: CarrierId::WORLD,
+            }],
+            ..default()
+        }));
         standing_player(&mut app, 1);
         let clear = |app: &App| {
             app.world()
@@ -1394,23 +1388,17 @@ fn same_kind_fields_and_an_inverted_carrier_respond_per_target() {
 }
 
 #[test]
-fn inverted_fireworks_wait_for_unlock_and_stop_while_the_kind_is_on() {
+fn fireworks_are_never_due_before_their_plate_is_pressed() {
     let mut app = app(catalog(vec![]), vec![]);
-    app.world_mut()
-        .resource_mut::<MapFireworks>()
-        .0
-        .as_mut()
-        .expect("fireworks missing")
-        .switch_inverted = true;
     let mut switches = PressureSwitches::from_world(app.world_mut());
-    assert!(!switches.fireworks_due(0, &[FIREWORKS_SWITCH]));
-    assert!(switches.fireworks_due(0, &[]));
+    assert!(!switches.fireworks_due(0, &[]));
     let plates = [PressurePlateRuntime {
         switch: FIREWORKS_SWITCH,
         ..lobby_plate()
     }];
-    switches.update(1, 1, HashSet::from([0]), &plates, 1);
-    assert!(!switches.fireworks_due(10000, &[]));
-    switches.update(1, 1, HashSet::new(), &plates, 10001);
-    assert!(switches.fireworks_due(10001, &[]));
+    switches.update(1, 1, HashSet::new(), &plates, 1);
+    assert!(!switches.fireworks_due(1, &[]));
+    switches.update(1, 1, HashSet::from([0]), &plates, 2);
+    assert!(!switches.fireworks_due(2, &[FIREWORKS_SWITCH]));
+    assert!(switches.fireworks_due(2, &[]));
 }

@@ -3,7 +3,7 @@ use crate::{constants::LADDER_OVERSHOOT, protocol::Ladder};
 
 #[test]
 fn collision_world_contains_solids_for_walls_floors_and_ramps() {
-    let world = CollisionWorld::from_map_layout(&test_map_layout(), &BarrierKindTable::default());
+    let world = CollisionWorld::from_map_layout(&test_map_layout());
 
     assert_eq!(world.solid_count(), 3);
     assert_eq!(
@@ -14,7 +14,7 @@ fn collision_world_contains_solids_for_walls_floors_and_ramps() {
 
 #[test]
 fn wall_solid_uses_wall_level_height() {
-    let world = CollisionWorld::from_map_layout(&test_map_layout(), &BarrierKindTable::default());
+    let world = CollisionWorld::from_map_layout(&test_map_layout());
     let (_, wall_collider) = world
         .colliders
         .iter()
@@ -43,7 +43,7 @@ fn ladder_volume_covers_the_front_and_overshoot() {
         }],
         ..Default::default()
     };
-    let world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
+    let world = CollisionWorld::from_map_layout(&layout);
     let in_volume = |x: f32, y: f32, z: f32| world.ladder_volume_at(&Position { x, y, z }).is_some();
 
     assert!(in_volume(0.0, 0.0, -0.4));
@@ -74,7 +74,7 @@ fn ladder_volume_is_not_a_solid() {
         }],
         ..Default::default()
     };
-    let world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
+    let world = CollisionWorld::from_map_layout(&layout);
 
     assert_eq!(world.solid_count(), 0);
 }

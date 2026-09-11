@@ -78,6 +78,7 @@ class NestedMapsMixin:
         if entry is None:
             return
         entry.pop("switch", None)
+        entry.pop("switch_inverted", None)
         entry.update(motion.to_entry())
         self.apply_change("Edit Nested Map", after)
 

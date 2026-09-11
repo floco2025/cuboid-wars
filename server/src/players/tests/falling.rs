@@ -4,8 +4,8 @@ use crate::{
     test_geometry::geometry,
 };
 use common::protocol::{
-    BarrierKindId, BarrierKindTable, CarrierId, Checkpoint, CheckpointKind, Floor, Lane, MapLayout, PlayerGeneration,
-    PortalMode, PowerUpKind,
+    BarrierKindId, CarrierId, Checkpoint, CheckpointKind, Floor, Lane, MapLayout, PlayerGeneration, PortalMode,
+    PowerUpKind,
 };
 use tokio::sync::mpsc::unbounded_channel;
 
@@ -22,10 +22,7 @@ fn a_crushed_player_dies_at_the_reported_contact() {
         .insert_resource(server)
         .insert_resource(MapConfig::for_grid(Vec::new(), geometry(1, 1)))
         .insert_resource(Carriers::default())
-        .insert_resource(CollisionWorld::from_map_layout(
-            &MapLayout::default(),
-            &BarrierKindTable::default(),
-        ))
+        .insert_resource(CollisionWorld::from_map_layout(&MapLayout::default()))
         .init_resource::<MapLayout>()
         .insert_resource(PlayerMap::default())
         .insert_resource(Invincibility(false))
@@ -79,10 +76,7 @@ fn invincible_void_rescue_relocates_reliably_and_preserves_equipment() {
         .insert_resource(server)
         .insert_resource(MapConfig::for_grid(Vec::new(), geometry(1, 1)))
         .init_resource::<Carriers>()
-        .insert_resource(CollisionWorld::from_map_layout(
-            &MapLayout::default(),
-            &BarrierKindTable::default(),
-        ))
+        .insert_resource(CollisionWorld::from_map_layout(&MapLayout::default()))
         .init_resource::<MapLayout>()
         .init_resource::<PlayerMap>()
         .insert_resource(Invincibility(true))
@@ -171,7 +165,7 @@ fn an_invincible_void_rescue_returns_to_the_saved_checkpoint() {
         .insert_resource(server)
         .insert_resource(MapConfig::for_grid(Vec::new(), geometry(1, 1)))
         .init_resource::<Carriers>()
-        .insert_resource(CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default()))
+        .insert_resource(CollisionWorld::from_map_layout(&layout))
         .insert_resource(layout)
         .init_resource::<PlayerMap>()
         .insert_resource(Invincibility(true))
@@ -244,7 +238,7 @@ fn simultaneous_invincible_rescues_take_distinct_spots() {
         .insert_resource(server)
         .insert_resource(MapConfig::for_grid(Vec::new(), geometry(1, 1)))
         .init_resource::<Carriers>()
-        .insert_resource(CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default()))
+        .insert_resource(CollisionWorld::from_map_layout(&layout))
         .insert_resource(layout)
         .init_resource::<PlayerMap>()
         .insert_resource(Invincibility(true))

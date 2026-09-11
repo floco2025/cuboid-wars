@@ -171,7 +171,7 @@ fn compiled_wall_trim_blocks_portal_shots_through_the_storey_seam() {
     }
     let (layout, config) = compile_with(&map, &no_nested(), &empty_kind_table(), &no_bridges())
         .expect("stacked wall map failed to compile");
-    let world = CollisionWorld::from_map_layout(&layout, &empty_kind_table());
+    let world = CollisionWorld::from_map_layout(&layout);
     let geometry = config.root_grid().geometry;
     let seam_y = geometry.level_y(1) - geometry.floor_thickness() / 2.0;
     let placement = compute_portal_placement(
@@ -304,7 +304,7 @@ fn portal_shots_cannot_leak_through_compiled_bridge_landing_seams_or_outer_edges
     let (layout, config) = compile_with(&map_def, &no_nested(), &empty_kind_table(), &skyway_bridge_table())
         .expect("bridge landing map failed to compile");
     let geometry = config.root_grid().geometry;
-    let mut world = CollisionWorld::from_map_layout(&layout, &empty_kind_table());
+    let mut world = CollisionWorld::from_map_layout(&layout);
     let pad = geometry.wall_half_thickness();
     let floor_edge = geometry.cell_to_world_x(1) + pad;
     let bridge_edge = geometry.cell_to_world_x(3) + pad;

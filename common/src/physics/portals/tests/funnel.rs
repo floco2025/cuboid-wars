@@ -32,7 +32,7 @@ fn perpetual_floor_fall_keeps_its_speed_across_hops() {
         ],
         ..Default::default()
     };
-    let world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
+    let world = CollisionWorld::from_map_layout(&layout);
     let set = PortalSet::rebuild(
         &[
             portal(PortalEnd::A, Vec3::new(0.0, 0.0, 0.0), Vec3::Y, 0.0),
@@ -120,7 +120,7 @@ fn floor_to_ceiling_fall_accelerates_toward_terminal_velocity() {
         }],
         ..Default::default()
     };
-    let world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
+    let world = CollisionWorld::from_map_layout(&layout);
     let set = PortalSet::rebuild(
         &[
             portal(PortalEnd::A, Vec3::new(0.0, 0.0, 0.0), Vec3::Y, 0.0),
@@ -272,7 +272,7 @@ fn steering_sideways_escapes_a_portal_fall_chain() {
         }],
         ..Default::default()
     };
-    let world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
+    let world = CollisionWorld::from_map_layout(&layout);
     let set = PortalSet::rebuild(
         &[
             portal(PortalEnd::A, Vec3::new(0.0, 0.0, 0.0), Vec3::Y, 0.0),
@@ -370,7 +370,7 @@ fn floor_portal_funnel_is_symmetric_through_character_movement() {
         }],
         ..Default::default()
     };
-    let world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
+    let world = CollisionWorld::from_map_layout(&layout);
     let set = PortalSet::rebuild(
         &[
             portal(PortalEnd::A, Vec3::ZERO, Vec3::Y, 0.0),
@@ -468,7 +468,7 @@ fn misaligned_fall_loop_is_sustained_by_funneling() {
         }],
         ..Default::default()
     };
-    let world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
+    let world = CollisionWorld::from_map_layout(&layout);
     let set = PortalSet::rebuild(
         &[
             portal(PortalEnd::A, Vec3::new(0.0, 0.0, 0.0), Vec3::Y, 0.0),

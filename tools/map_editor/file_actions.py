@@ -41,8 +41,14 @@ class FileActionsMixin:
         path = self.choose_map_path("New Map")
         if path is None or (path.exists() and not self.confirm_replace_map(path)):
             return
+        try:
+            map_name = map_name_from_path(path)
+            MapCatalogs.load(map_name)
+        except (OSError, ValueError) as exc:
+            QMessageBox.critical(self, "New Map Failed", str(exc))
+            return
         self.doc.replace_with_new(empty_map(new_cols, new_rows), path)
-        self.adopt_map(map_name_from_path(path))
+        self.adopt_map(map_name)
 
     def confirm_replace_map(self, path: Path) -> bool:
         answer = QMessageBox.question(
@@ -293,8 +299,10 @@ class FileActionsMixin:
             if self.recent_light_kind not in self.wall_light_kinds:
                 self.recent_light_kind = next(iter(self.wall_light_kinds), "")
             self.immovable_actor_kinds = load_immovable_actor_kinds()
+            # Loading validates the settings file before the document adopts it.
+            catalogs = MapCatalogs.load(self.catalog_map)
             self.doc.reload_settings()
-            self.adopt_catalogs(self.catalog_map, MapCatalogs.load(self.catalog_map))
+            self.adopt_catalogs(self.catalog_map, catalogs)
         except (OSError, ValueError, KeyError) as exc:
             self.notify(f"Catalog reload failed: {exc}")
         self.jump_reach.reload_settings()

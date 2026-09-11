@@ -3,8 +3,8 @@ use common::{
     config::GameplayConfig,
     physics::CollisionWorld,
     protocol::{
-        ActorId, ActorMarker, BarrierKindTable, CarrierId, FaceYaw, Health, MapLayout, PlateState, Player, PlayerId,
-        PlayerMoveIntent, Position, Wall,
+        ActorId, ActorMarker, CarrierId, FaceYaw, Health, MapLayout, PlateState, Player, PlayerId, PlayerMoveIntent,
+        Position, Wall,
     },
 };
 
@@ -203,10 +203,7 @@ fn beam_follows_the_muzzle_without_turning_the_base_or_bypassing_cover() {
         .init_resource::<PlayerMap>()
         .init_resource::<PlateState>()
         .insert_resource(gameplay)
-        .insert_resource(CollisionWorld::from_map_layout(
-            &MapLayout::default(),
-            &BarrierKindTable::default(),
-        ))
+        .insert_resource(CollisionWorld::from_map_layout(&MapLayout::default()))
         .add_systems(
             Update,
             (characters_visual_turn_system, laser_beam_update_system).chain(),
@@ -311,7 +308,7 @@ fn beam_follows_the_muzzle_without_turning_the_base_or_bypassing_cover() {
         }],
         ..default()
     };
-    app.insert_resource(CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default()));
+    app.insert_resource(CollisionWorld::from_map_layout(&layout));
     app.update();
     assert_eq!(
         *app.world().get::<Visibility>(beam).expect("beam visibility missing"),

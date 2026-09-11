@@ -6,23 +6,20 @@ fn actor_already_in_stable_cover_holds_position() {
     let actor_pos = open.pos(4, 2);
     let threat = open.pos(1, 2);
     let wall_x = (open.pos(2, 2).x + open.pos(3, 2).x) / 2.0;
-    let world = CollisionWorld::from_map_layout(
-        &MapLayout {
-            walls: vec![Wall {
-                x1: wall_x,
-                z1: actor_pos.z - 3.0,
-                x2: wall_x,
-                z2: actor_pos.z + 3.0,
-                width: 0.2,
-                level: 0,
-                y: 0.0,
-                height: WALL_HEIGHT,
-                carrier: CarrierId::WORLD,
-            }],
-            ..MapLayout::default()
-        },
-        &BarrierKindTable::default(),
-    );
+    let world = CollisionWorld::from_map_layout(&MapLayout {
+        walls: vec![Wall {
+            x1: wall_x,
+            z1: actor_pos.z - 3.0,
+            x2: wall_x,
+            z2: actor_pos.z + 3.0,
+            width: 0.2,
+            level: 0,
+            y: 0.0,
+            height: WALL_HEIGHT,
+            carrier: CarrierId::WORLD,
+        }],
+        ..MapLayout::default()
+    });
     let fixture = Fixture::with_world(CONTACT, world);
     let mut info = info(CONTACT);
     info.awareness.push(aware(7, threat, CharacterSupport::Ladder, false));
@@ -48,23 +45,20 @@ fn evade_route_is_replaced_when_same_cell_threat_exposes_destination() {
         ..protected_threat
     };
     let wall_x = (open.pos(2, 2).x + open.pos(3, 2).x) / 2.0;
-    let world = CollisionWorld::from_map_layout(
-        &MapLayout {
-            walls: vec![Wall {
-                x1: wall_x,
-                z1: destination.z - 0.5,
-                x2: wall_x,
-                z2: destination.z + 0.5,
-                width: 0.2,
-                level: 0,
-                y: 0.0,
-                height: WALL_HEIGHT,
-                carrier: CarrierId::WORLD,
-            }],
-            ..MapLayout::default()
-        },
-        &BarrierKindTable::default(),
-    );
+    let world = CollisionWorld::from_map_layout(&MapLayout {
+        walls: vec![Wall {
+            x1: wall_x,
+            z1: destination.z - 0.5,
+            x2: wall_x,
+            z2: destination.z + 0.5,
+            width: 0.2,
+            level: 0,
+            y: 0.0,
+            height: WALL_HEIGHT,
+            carrier: CarrierId::WORLD,
+        }],
+        ..MapLayout::default()
+    });
     let fixture = Fixture::with_world(CONTACT, world);
     let context = fixture.context(CONTACT, actor_pos);
     assert!(context.stable_cover(&destination, &[protected_threat]));

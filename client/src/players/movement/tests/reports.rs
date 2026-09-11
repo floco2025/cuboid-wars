@@ -3,10 +3,7 @@ use crate::{characters::PreviousTickPosition, players::PlayerMap, portals::porta
 use common::{
     map::Carriers,
     physics::{CharacterSupport, CollisionWorld, PortalSet},
-    protocol::{
-        BarrierKindTable, Carrier, CarrierId, MapLayout, PlateState, PlayerId, PlayerMarker, Portal, PortalEnd,
-        PortalPairId,
-    },
+    protocol::{Carrier, CarrierId, MapLayout, PlateState, PlayerId, PlayerMarker, Portal, PortalEnd, PortalPairId},
 };
 use std::f32::consts::PI;
 use tokio::sync::mpsc::unbounded_channel;
@@ -208,7 +205,7 @@ fn new_body_clears_crossings_and_reports_immediately_without_resetting_sequence(
 fn crossings_send_immediately_and_repeat_the_boundary_in_later_reports() {
     let mut app = App::new();
     let (sender, mut receiver) = unbounded_channel();
-    let collision = CollisionWorld::from_map_layout(&MapLayout::default(), &BarrierKindTable::default());
+    let collision = CollisionWorld::from_map_layout(&MapLayout::default());
     let portals: Vec<_> = [PortalEnd::A, PortalEnd::B]
         .into_iter()
         .enumerate()

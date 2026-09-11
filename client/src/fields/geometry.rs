@@ -1,7 +1,7 @@
 use std::f32::consts::FRAC_PI_2;
 
 use bevy::prelude::*;
-use common::protocol::{Barrier, BarrierId, BarrierKindId, CarrierId, Checkpoint, Eraser, Floor, MapLayout};
+use common::protocol::{Barrier, BarrierId, BarrierKindId, CarrierId, Checkpoint, Eraser, Floor, MapLayout, SwitchId};
 
 use super::surface::{clip_surface_rects, floor_bounds, surface_frame_rects};
 
@@ -9,8 +9,11 @@ const MERGE_EPSILON: f32 = 1e-4;
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct VisualField {
+    // One of the barriers a merged pane covers; they all share its kind and controls.
     pub barrier: Option<BarrierId>,
     pub kind: Option<BarrierKindId>,
+    pub switch: Option<SwitchId>,
+    pub switch_inverted: bool,
     pub carrier: CarrierId,
     pub level: u8,
     pub levels: u8,
@@ -34,6 +37,8 @@ impl VisualField {
             Self {
                 barrier: None,
                 kind: None,
+                switch: None,
+                switch_inverted: false,
                 carrier: c.carrier,
                 level: c.level,
                 levels: 1,
@@ -53,6 +58,8 @@ impl VisualField {
         Self {
             barrier: Some(barrier.id),
             kind: Some(barrier.kind),
+            switch: barrier.switch,
+            switch_inverted: barrier.switch_inverted,
             carrier: barrier.carrier,
             level: barrier.level,
             levels: barrier.levels,
@@ -72,6 +79,8 @@ impl VisualField {
         Self {
             barrier: None,
             kind: None,
+            switch: None,
+            switch_inverted: false,
             carrier: eraser.carrier,
             level: eraser.level,
             levels: 1,
@@ -111,8 +120,9 @@ impl VisualField {
     }
 
     fn can_merge(&self, other: &Self, floors: &[Floor], floor_thickness: f32, stack: bool) -> bool {
-        if self.barrier != other.barrier
-            || self.kind != other.kind
+        if self.kind != other.kind
+            || self.switch != other.switch
+            || self.switch_inverted != other.switch_inverted
             || self.carrier != other.carrier
             || self.axis != other.axis
             || !near(self.plane, other.plane)

@@ -2,7 +2,7 @@ use super::*;
 use bevy::camera::CameraProjection;
 use common::{
     config::{HitboxConfig, MovementColliderConfig},
-    protocol::{BarrierKindTable, CarrierId, MapLayout, Wall},
+    protocol::{CarrierId, MapLayout, Wall},
 };
 
 #[test]
@@ -26,23 +26,20 @@ fn raised_crosshair_ray_matches_projection_across_fovs_and_camera_rotations() {
 
 #[test]
 fn raised_crosshair_and_shot_reach_the_same_wall_point() {
-    let world = CollisionWorld::from_map_layout(
-        &MapLayout {
-            walls: vec![Wall {
-                x1: -10.0,
-                z1: -20.0,
-                x2: 10.0,
-                z2: -20.0,
-                width: 0.2,
-                y: 0.0,
-                height: 30.0,
-                level: 0,
-                carrier: CarrierId::WORLD,
-            }],
-            ..default()
-        },
-        &BarrierKindTable::default(),
-    );
+    let world = CollisionWorld::from_map_layout(&MapLayout {
+        walls: vec![Wall {
+            x1: -10.0,
+            z1: -20.0,
+            x2: 10.0,
+            z2: -20.0,
+            width: 0.2,
+            y: 0.0,
+            height: 30.0,
+            level: 0,
+            carrier: CarrierId::WORLD,
+        }],
+        ..default()
+    });
     let eye = Vec3::new(0.0, 1.7, 0.0);
     let camera = Transform::from_xyz(0.5, 1.4, 4.0);
     let ray = crosshair_direction(&camera, &PerspectiveProjection::default(), 0.15);
@@ -59,7 +56,7 @@ fn raised_crosshair_and_shot_reach_the_same_wall_point() {
 
 #[test]
 fn shoulder_camera_converges_on_near_character() {
-    let world = CollisionWorld::from_map_layout(&MapLayout::default(), &BarrierKindTable::default());
+    let world = CollisionWorld::from_map_layout(&MapLayout::default());
     let physics = CharacterPhysicsConfig {
         movement_collider: MovementColliderConfig {
             diameter: 0.6,
@@ -98,23 +95,20 @@ fn shoulder_camera_converges_on_near_character() {
 
 #[test]
 fn shoulder_visibility_does_not_bypass_muzzle_cover() {
-    let world = CollisionWorld::from_map_layout(
-        &MapLayout {
-            walls: vec![Wall {
-                x1: -1.0,
-                z1: -1.0,
-                x2: 0.3,
-                z2: -1.0,
-                width: 0.2,
-                y: 0.0,
-                height: 3.0,
-                level: 0,
-                carrier: CarrierId::WORLD,
-            }],
-            ..default()
-        },
-        &BarrierKindTable::default(),
-    );
+    let world = CollisionWorld::from_map_layout(&MapLayout {
+        walls: vec![Wall {
+            x1: -1.0,
+            z1: -1.0,
+            x2: 0.3,
+            z2: -1.0,
+            width: 0.2,
+            y: 0.0,
+            height: 3.0,
+            level: 0,
+            carrier: CarrierId::WORLD,
+        }],
+        ..default()
+    });
     let eye = Vec3::new(0.0, 1.4, 0.0);
     let camera = Vec3::new(0.45, 1.4, 4.0);
     assert!(world.world_surface_along_ray(camera, Vec3::NEG_Z, 20.0).is_none());

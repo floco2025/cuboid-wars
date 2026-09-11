@@ -47,7 +47,7 @@ fn app(hz: u32) -> (App, UnboundedReceiver<ClientToServer>) {
         })
         .insert_resource(test_fixtures::gameplay_config())
         .insert_resource(test_fixtures::map_settings())
-        .insert_resource(CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default()))
+        .insert_resource(CollisionWorld::from_map_layout(&layout))
         .insert_resource(AirGraph::new(&[], test_fixtures::sizes()))
         .insert_resource(BlastRadii {
             player: 5.0,
@@ -233,7 +233,7 @@ fn a_missile_inside_geometry_detonates_where_it_is() {
         }],
         ..default()
     };
-    app.insert_resource(CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default()));
+    app.insert_resource(CollisionWorld::from_map_layout(&layout));
     let entity = missile(&mut app, MissileId(1), true, 20.0, 10.0);
     app.update();
     assert!(app.world().get_entity(entity).is_err());

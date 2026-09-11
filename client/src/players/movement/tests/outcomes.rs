@@ -1,13 +1,13 @@
 use super::*;
 use crate::test_fixtures;
-use common::protocol::{BarrierKindTable, CarrierId, Eraser, Lane, MapLayout, PlayerGeneration};
+use common::protocol::{CarrierId, Eraser, Lane, MapLayout, PlayerGeneration};
 use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
 
 fn app(layout: MapLayout) -> (App, Entity, UnboundedReceiver<ClientToServer>) {
     let mut app = App::new();
     let (tx, rx) = unbounded_channel();
     app.insert_resource(test_fixtures::gameplay_config())
-        .insert_resource(CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default()))
+        .insert_resource(CollisionWorld::from_map_layout(&layout))
         .insert_resource(Carriers::from_layout(&layout))
         .insert_resource(NetworkConfig {
             update_hz: 30,

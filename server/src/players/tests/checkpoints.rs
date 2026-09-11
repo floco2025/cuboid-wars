@@ -3,8 +3,8 @@ use common::{
     map::Carriers,
     physics::{CharacterSupport, CollisionWorld},
     protocol::{
-        Barrier, BarrierKindId, BarrierKindTable, Carrier, CarrierId, Checkpoint, CheckpointKind, FaceYaw, Floor,
-        Health, MapLayout, PlateState, PlayerId, Position, ServerMessage,
+        Barrier, BarrierKindId, Carrier, CarrierId, Checkpoint, CheckpointKind, FaceYaw, Floor, Health, MapLayout,
+        PlateState, PlayerId, Position, ServerMessage,
     },
 };
 
@@ -54,7 +54,7 @@ fn app(mode: PlayerRespawnMode) -> App {
         checkpoints,
         ..default()
     };
-    app.insert_resource(CollisionWorld::from_map_layout(&layout, &Default::default()));
+    app.insert_resource(CollisionWorld::from_map_layout(&layout));
     app.insert_resource(layout);
     app.add_systems(Update, players_checkpoints_system.in_set(ServerSet::Maintenance));
     app
@@ -161,10 +161,7 @@ fn deaths_preserve_checkpoints_clear_equipment_and_retry_blocked_group_or_indivi
             player.life.power_ups.fill(PowerUpState::Permanent);
         }
         kill(&mut app, id);
-        app.insert_resource(CollisionWorld::from_map_layout(
-            &MapLayout::default(),
-            &Default::default(),
-        ));
+        app.insert_resource(CollisionWorld::from_map_layout(&MapLayout::default()));
         advance(&mut app, 2.1);
         assert!(
             app.world()
@@ -177,7 +174,7 @@ fn deaths_preserve_checkpoints_clear_equipment_and_retry_blocked_group_or_indivi
             floors: vec![floor(checkpoint(10.0))],
             ..default()
         };
-        app.insert_resource(CollisionWorld::from_map_layout(&layout, &Default::default()));
+        app.insert_resource(CollisionWorld::from_map_layout(&layout));
         advance(&mut app, 0.1);
         let players = app.world().resource::<PlayerMap>();
         let player = players.get(&id).expect("player missing");
@@ -275,7 +272,7 @@ fn checkpoint_spawns_follow_carriers_and_avoid_players_and_barriers() {
     };
     let mut carriers = Carriers::from_layout(&layout);
     let pose = carriers.pose(c.carrier);
-    let mut world = CollisionWorld::from_map_layout(&layout, &Default::default());
+    let mut world = CollisionWorld::from_map_layout(&layout);
     let center = checkpoint_spawn_position(&c, &pose, &world, &[], physics).expect("clear checkpoint rejected");
     assert_eq!(
         center,
@@ -318,8 +315,7 @@ fn checkpoint_spawns_follow_carriers_and_avoid_players_and_barriers() {
         levels: 1,
         carrier: c.carrier,
     });
-    let kinds = BarrierKindTable::from_ids(vec!["gate".into()]).expect("barrier catalog rejected");
-    let world = CollisionWorld::from_map_layout(&layout, &kinds);
+    let world = CollisionWorld::from_map_layout(&layout);
     assert!(checkpoint_spawn_position(&c, &pose, &world, &[], physics).is_none());
 }
 

@@ -61,7 +61,9 @@ def edit_catalog(root: dict, catalog: str, entries: list[dict], renames: dict[st
     validate_catalog(catalog, entries)
     after = copy.deepcopy(root)
     source = after.setdefault("_settings", {}) if catalog in ("barrier_kinds", "bridge_kinds") else after
-    removed = {entry["id"] for entry in source.get(catalog, [])} - set(renames) - {entry["id"] for entry in entries}
+    previous = {entry["id"] for entry in source.get(catalog, [])}
+    kept = {entry["id"] for entry in entries} & previous - set(renames.values())
+    removed = previous - set(renames) - kept
     for entry, field in references(after, catalog):
         value = entry.get(field)
         if value in removed:

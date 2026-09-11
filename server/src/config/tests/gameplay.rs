@@ -30,11 +30,6 @@ impl TestConfigDir {
         let directory = self.0.join("maps").join(name);
         fs::create_dir_all(&directory).expect("temporary map directory unavailable");
         fs::write(directory.join("settings.json"), text).expect("temporary map settings unwritable");
-        fs::write(
-            directory.join("layout.json"),
-            include_str!("../../../../config/server/maps/hotel/layout.json"),
-        )
-        .expect("temporary map layout unwritable");
     }
 
     fn load(&self) -> Result<ServerGameplayConfig> {
@@ -60,8 +55,20 @@ fn settings_and_controls_resolve_beside_global_config_without_loading_unregister
     assert_eq!(loaded.default_map, "hotel");
     assert_eq!(loaded.maps.len(), 1);
     assert_eq!(loaded.maps["hotel"].settings.skybox, "custom-sky");
-    assert_eq!(loaded.maps["hotel"].settings.switches[0].id, "lobby");
-    assert!(loaded.maps["hotel"].fireworks.is_some());
+}
+
+#[test]
+fn a_registered_map_loads_without_a_layout() {
+    let directory = TestConfigDir::new();
+    directory.write_settings(
+        "fresh",
+        include_str!("../../../../config/server/maps/hotel/settings.json"),
+    );
+    directory.write_registry(json!(["hotel", "fresh"]), "hotel");
+    assert!(!directory.0.join("maps").join("fresh").join("layout.json").exists());
+    let loaded = directory.load().expect("a map without a layout blocked the registry");
+    assert!(loaded.maps.contains_key("fresh"));
+    assert!(loaded.maps["fresh"].settings.switches.is_empty());
 }
 
 #[test]

@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use common::{
     config::{CharacterPhysicsConfig, HitboxConfig, MovementColliderConfig},
     physics::CollisionWorld,
-    protocol::{ActorMarker, BarrierKindTable, CarrierId, Floor, MapLayout, Position, Ramp},
+    protocol::{ActorMarker, CarrierId, Floor, MapLayout, Position, Ramp},
 };
 
 use super::wheel_grounding::{WheelGrounding, ground_pose, wheel_grounding_system};
@@ -44,31 +44,28 @@ fn grounding() -> WheelGrounding {
 }
 
 fn ramp_world() -> CollisionWorld {
-    CollisionWorld::from_map_layout(
-        &MapLayout {
-            ramps: vec![Ramp {
-                x1: -4.0,
-                x2: 4.0,
-                z1: 0.0,
-                z2: 12.0,
-                y1: 0.0,
-                y2: 6.0,
-                carrier: CarrierId::WORLD,
-            }],
-            floors: vec![Floor {
-                x1: -4.0,
-                x2: 4.0,
-                z1: -4.0,
-                z2: 0.0,
-                y: 0.0,
-                thickness: 0.2,
-                level: 0,
-                carrier: CarrierId::WORLD,
-            }],
-            ..default()
-        },
-        &BarrierKindTable::default(),
-    )
+    CollisionWorld::from_map_layout(&MapLayout {
+        ramps: vec![Ramp {
+            x1: -4.0,
+            x2: 4.0,
+            z1: 0.0,
+            z2: 12.0,
+            y1: 0.0,
+            y2: 6.0,
+            carrier: CarrierId::WORLD,
+        }],
+        floors: vec![Floor {
+            x1: -4.0,
+            x2: 4.0,
+            z1: -4.0,
+            z2: 0.0,
+            y: 0.0,
+            thickness: 0.2,
+            level: 0,
+            carrier: CarrierId::WORLD,
+        }],
+        ..default()
+    })
 }
 
 #[test]

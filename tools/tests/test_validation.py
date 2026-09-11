@@ -2,8 +2,9 @@ import unittest
 
 from editor_fixtures import DEFAULT_ALIAS, EditorHost, NESTED_SHAPES, faces, floor, nested
 from map_editor.editing import paint_floors
-from map_editor.normalization import empty_level, empty_map
+from map_editor.normalization import canonicalize_map, empty_level, empty_map
 from map_editor.catalogs import MapCatalogs
+from map_editor.repairs import repair_summary
 from map_editor.validation import placed_definitions, validate_document, validate_map
 
 KIND = "treasure"
@@ -100,6 +101,20 @@ class PressurePlateTests(unittest.TestCase):
             ["actor_spawn_zones[3] has an empty switch"],
             "without a catalog only the empty switch is an error",
         )
+
+    def test_fireworks_take_no_response_and_repair_drops_one(self) -> None:
+        data = empty_map(2, 2)
+        data["levels"][0]["floors"] = [floor(0, 0)]
+        data["pressure_plates"] = [{"level": 0, "col": 0, "row": 0, "switch": "show"}]
+        data["fireworks"] = {"switch": "show", "cooldown_secs": 5, "switch_inverted": True}
+        catalogs = MapCatalogs({}, {}, 0.1, {DEFAULT_ALIAS: True}, ["show"])
+        errors = validate_document(data, catalogs)
+        self.assertEqual(list(errors), ["fireworks has no On/Off response; remove switch_inverted"])
+        repaired = canonicalize_map(data)
+        self.assertEqual(repaired["fireworks"], {"switch": "show", "cooldown_secs": 5})
+        self.assertEqual(repair_summary(data, repaired), ["fireworks: remove switch_inverted"])
+        self.assertEqual(validate_document(repaired, catalogs), [])
+        self.assertEqual(repair_summary(repaired, canonicalize_map(repaired)), [])
 
     def test_only_placed_geometry_supplies_a_targets_plates(self) -> None:
         data = empty_map(6, 6)

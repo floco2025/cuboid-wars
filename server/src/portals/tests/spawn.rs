@@ -47,7 +47,7 @@ impl Fixture {
             ..default()
         };
         let mut world = World::new();
-        world.insert_resource(CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default()));
+        world.insert_resource(CollisionWorld::from_map_layout(&layout));
         let mut carriers = Carriers::from_layout(&layout);
         carriers.advance(17, &PlateState::default());
         world.insert_resource(carriers);
@@ -67,6 +67,7 @@ impl Fixture {
         });
         world.insert_resource(config);
         world.init_resource::<ServerTick>();
+        world.init_resource::<PlateState>();
         let mut players = PlayerMap::default();
         let mut assignments = PortalAssignments::new(mode);
         let mut receivers = Vec::new();

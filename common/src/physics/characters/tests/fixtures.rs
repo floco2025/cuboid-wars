@@ -8,7 +8,7 @@ pub(super) use crate::{
 };
 use crate::{
     config::gameplay::load_test_gameplay,
-    protocol::{BarrierKindTable, Carrier, CarrierId, PlateState},
+    protocol::{Carrier, CarrierId, PlateState},
 };
 pub(super) use bevy_math::Vec3;
 
@@ -187,14 +187,11 @@ pub(crate) fn ladder_back_landing_floor_x() -> Floor {
 }
 
 pub(crate) fn ladder_collision_world(floors: &[Floor], ladders: &[Ladder]) -> CollisionWorld {
-    CollisionWorld::from_map_layout(
-        &MapLayout {
-            floors: floors.to_vec(),
-            ladders: ladders.to_vec(),
-            ..Default::default()
-        },
-        &BarrierKindTable::default(),
-    )
+    CollisionWorld::from_map_layout(&MapLayout {
+        floors: floors.to_vec(),
+        ladders: ladders.to_vec(),
+        ..Default::default()
+    })
 }
 
 pub(crate) fn test_wall() -> Wall {
@@ -244,21 +241,18 @@ pub(crate) fn collision_world(floors: &[Floor], ramps: &[Ramp]) -> CollisionWorl
 }
 
 pub(crate) fn collision_world_with(walls: &[Wall], floors: &[Floor], ramps: &[Ramp]) -> CollisionWorld {
-    CollisionWorld::from_map_layout(
-        &MapLayout {
-            walls: walls.to_vec(),
-            ramps: ramps.to_vec(),
-            floors: floors.to_vec(),
-            ..Default::default()
-        },
-        &BarrierKindTable::default(),
-    )
+    CollisionWorld::from_map_layout(&MapLayout {
+        walls: walls.to_vec(),
+        ramps: ramps.to_vec(),
+        floors: floors.to_vec(),
+        ..Default::default()
+    })
 }
 
 // The world `tick` ticks into its carriers' cycles: `previous` is the pose
 // one tick earlier, and the colliders already sit at `current`.
 pub(crate) fn world_at(layout: &MapLayout, tick: u32) -> (CollisionWorld, Carriers) {
-    let mut world = CollisionWorld::from_map_layout(layout, &BarrierKindTable::default());
+    let mut world = CollisionWorld::from_map_layout(layout);
     let mut carriers = Carriers::from_layout(layout);
     carriers.advance(tick.wrapping_sub(1), &PlateState::default());
     carriers.advance(tick, &PlateState::default());

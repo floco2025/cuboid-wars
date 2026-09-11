@@ -19,6 +19,7 @@ from .dialogs import ActorSpawnFieldsDialog, KindDialog, MaterialAssignmentDialo
 from .dialogs.controls import FieldPropertiesDialog
 from .editing import (
     material_values,
+    merge_record,
     paint_bridges,
     paint_edges,
     paint_erasers,
@@ -187,8 +188,9 @@ class PlacementMixin:
                                               self.switches,
                                               [{"kind": kind, **controls}])
         if values is not None:
-            setattr(self, f"recent_{prefix}_kind", values.pop("kind", kind))
-            setattr(self, f"recent_{prefix}_controls", values)
+            defaults = merge_record({"kind": kind, **controls}, values)
+            setattr(self, f"recent_{prefix}_kind", defaults.pop("kind", kind))
+            setattr(self, f"recent_{prefix}_controls", defaults)
             self.tool_settings.refresh()
 
     def prompt_and_add_pressure_plate(self, col: int, row: int) -> None:

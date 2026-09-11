@@ -1,6 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
-    fs,
+    fs, mem,
     path::Path,
 };
 
@@ -21,23 +21,35 @@ pub(crate) fn load_map(path: &Path) -> Result<MapSource> {
     prepare_source(file.map).with_context(|| format!("validating map at {}", path.display()))
 }
 
-fn prepare_source(mut source: MapSource) -> Result<MapSource> {
-    validate_map(&source.geometry)?;
-    canonicalize(&mut source.geometry);
-    for (name, geometry) in &mut source.nested_geometry {
+fn prepare_source(mut root: MapDef) -> Result<MapSource> {
+    let switch_kinds = mem::take(&mut root.switch_kinds);
+    let fireworks = root.fireworks.take();
+    let mut nested_geometry = mem::take(&mut root.nested_geometry);
+    validate_map(&root)?;
+    canonicalize(&mut root);
+    for (name, geometry) in &mut nested_geometry {
         ensure!(is_valid_map_name(name), "invalid nested_geometry name {name:?}");
+        ensure!(
+            geometry.switch_kinds.is_empty() && geometry.fireworks.is_none() && geometry.nested_geometry.is_empty(),
+            "nested geometry {name:?} defines switch_kinds, fireworks, or nested_geometry, which only the root map defines"
+        );
         validate_map(geometry).with_context(|| format!("nested geometry {name:?}"))?;
         canonicalize(geometry);
     }
     let mut checked = HashSet::new();
-    visit(&source.geometry, &source.nested_geometry, &mut Vec::new(), &mut checked)?;
+    visit(&root, &nested_geometry, &mut Vec::new(), &mut checked)?;
     let used = checked.clone();
-    for name in source.nested_geometry.keys() {
-        visit_named(name, &source.nested_geometry, &mut Vec::new(), &mut checked)?;
+    for name in nested_geometry.keys() {
+        visit_named(name, &nested_geometry, &mut Vec::new(), &mut checked)?;
     }
     // Unplaced definitions must not contribute pressure plates to compilation.
-    source.nested_geometry.retain(|name, _| used.contains(name));
-    Ok(source)
+    nested_geometry.retain(|name, _| used.contains(name));
+    Ok(MapSource {
+        geometry: root,
+        nested_geometry,
+        switch_kinds,
+        fireworks,
+    })
 }
 
 fn visit_named(

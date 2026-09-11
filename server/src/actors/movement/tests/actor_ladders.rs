@@ -4,7 +4,7 @@ use bevy::math::Vec3;
 use common::{
     map::Carriers,
     physics::{CharacterMovementResult, CharacterSupport, CollisionWorld},
-    protocol::{ActorMoveIntent, BarrierKindTable, CarrierId, Ladder, MapLayout, Position},
+    protocol::{ActorMoveIntent, CarrierId, Ladder, MapLayout, Position},
 };
 
 use crate::{
@@ -36,13 +36,10 @@ fn actor_step(
     velocity: f32,
     start: Position,
 ) -> CharacterMovementResult {
-    let world = CollisionWorld::from_map_layout(
-        &MapLayout {
-            ladders: vec![test_ladder()],
-            ..Default::default()
-        },
-        &BarrierKindTable::default(),
-    );
+    let world = CollisionWorld::from_map_layout(&MapLayout {
+        ladders: vec![test_ladder()],
+        ..Default::default()
+    });
     let physics = ServerGameplayConfig::load_default()
         .expect("server gameplay config missing")
         .gameplay_config()

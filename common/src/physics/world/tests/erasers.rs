@@ -1,7 +1,7 @@
 use super::*;
 use crate::{
     config::gameplay::load_test_gameplay,
-    protocol::{BarrierKindTable, Carrier, MapLayout, PlateState, Wall},
+    protocol::{Carrier, MapLayout, PlateState, Wall},
 };
 
 fn field() -> Eraser {
@@ -19,7 +19,7 @@ fn field() -> Eraser {
 }
 
 fn world(layout: &MapLayout) -> CollisionWorld {
-    CollisionWorld::from_map_layout(layout, &BarrierKindTable::default())
+    CollisionWorld::from_map_layout(layout)
 }
 
 #[test]

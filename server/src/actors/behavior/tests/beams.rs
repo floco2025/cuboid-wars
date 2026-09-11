@@ -78,7 +78,7 @@ fn immovable_actor_fires_over_cover_below_its_gun_despite_its_lower_body_center(
         }],
         ..default()
     };
-    app.insert_resource(CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default()));
+    app.insert_resource(CollisionWorld::from_map_layout(&layout));
     step_tick(&mut app);
     assert!(app.world().get::<Health>(player).expect("player health missing").0 < 5000.0);
 }

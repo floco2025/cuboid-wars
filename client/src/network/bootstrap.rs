@@ -19,7 +19,7 @@ pub(crate) fn install_bootstrap(app: &mut App, message: SInit, asset_set: &Asset
     let gameplay_config = message.world.gameplay.gameplay_config()?;
     let map_settings = &message.world.map.settings;
     map_settings.movement.validate("map.settings.movement")?;
-    let (barrier_kind_table, _, _) = map_settings.kind_tables()?;
+    let (barrier_kind_table, _) = map_settings.kind_tables()?;
     asset_set.validate_map_bindings(map_settings, &message.world.map.layout)?;
     asset_set.validate_gameplay_bindings(gameplay_config.actors.keys().map(String::as_str))?;
     let vfx = app.world().resource::<ClientSettings>().vfx;
@@ -68,7 +68,7 @@ pub(crate) fn install_bootstrap(app: &mut App, message: SInit, asset_set: &Asset
             .collect(),
     };
     let air_graph = AirGraph::new(&message.world.map.missile_air_grids, map_settings.geometry);
-    let collision_world = CollisionWorld::from_map_layout(&message.world.map.layout, &barrier_kind_table);
+    let collision_world = CollisionWorld::from_map_layout(&message.world.map.layout);
     let carriers = Carriers::from_layout(&message.world.map.layout);
     let carrier_entities = spawn_carrier_entities(app.world_mut(), &message.world.map.layout, &carriers);
     let carrier_storeys = CarrierStoreys::from_layout(&message.world.map.layout);

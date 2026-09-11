@@ -2,22 +2,34 @@ use std::collections::HashMap;
 
 use serde::Deserialize;
 
-use common::protocol::{CheckpointKind, FaceMaterials};
+use common::protocol::{CheckpointKind, FaceMaterials, SwitchDef};
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct MapFile {
-    pub(crate) map: MapSource,
+    pub(crate) map: MapDef,
 }
 
-#[derive(Debug, Deserialize)]
+// A loaded root document: its geometry, the named geometry it embeds, and
+// the catalogs only the root carries (`load` moves them off the root `MapDef`).
+#[derive(Debug)]
 pub(crate) struct MapSource {
-    #[serde(flatten)]
     pub(crate) geometry: MapDef,
-    #[serde(default)]
     pub(crate) nested_geometry: HashMap<String, MapDef>,
+    pub(crate) switch_kinds: Vec<SwitchDef>,
+    pub(crate) fireworks: Option<FireworksConfig>,
+}
+
+// The switch that plays the firework show: while it is active a show
+// starts, plays, waits `cooldown_secs`, and repeats.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FireworksConfig {
+    pub switch: String,
+    pub cooldown_secs: f32,
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct MapDef {
     pub(crate) grid_cols: i32,
     pub(crate) grid_rows: i32,
@@ -38,6 +50,13 @@ pub(crate) struct MapDef {
     pub(crate) ladders: Vec<LadderDef>,
     #[serde(default)]
     pub(crate) nested_maps: Vec<NestedMapDef>,
+    // Root only: `load` rejects them on nested geometry.
+    #[serde(default)]
+    pub(crate) switch_kinds: Vec<SwitchDef>,
+    #[serde(default)]
+    pub(crate) fireworks: Option<FireworksConfig>,
+    #[serde(default)]
+    pub(crate) nested_geometry: HashMap<String, MapDef>,
 }
 
 // How a nested map moves: between two cells, `from` on `level` and `to` on

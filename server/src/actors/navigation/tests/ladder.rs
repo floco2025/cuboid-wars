@@ -6,7 +6,7 @@ use common::{
     constants::TICK_SECS,
     map::Carriers,
     physics::CollisionWorld,
-    protocol::{BarrierKindTable, Carrier, CarrierId, Floor, Ladder, MapLayout, PlateState, Position, Wall},
+    protocol::{Carrier, CarrierId, Floor, Ladder, MapLayout, PlateState, Position, Wall},
 };
 use rand::{SeedableRng, rngs::StdRng};
 
@@ -112,7 +112,7 @@ impl Fixture {
     }
 
     fn links(&self) -> Vec<super::LadderLink> {
-        let world = CollisionWorld::from_map_layout(&self.layout, &BarrierKindTable::default());
+        let world = CollisionWorld::from_map_layout(&self.layout);
         let carriers = Carriers::default();
         let settings = map_settings();
         self.graph.build_ladder_links(
@@ -325,7 +325,7 @@ fn actors_complete_ladder_routes_on_moving_carriers() {
                 for link in links {
                     for speed in [3.0, 5.0] {
                         let mut carriers = Carriers::from_layout(&fixture.layout);
-                        let mut world = CollisionWorld::from_map_layout(&fixture.layout, &BarrierKindTable::default());
+                        let mut world = CollisionWorld::from_map_layout(&fixture.layout);
                         let mut pos = carriers
                             .pose(CarrierId(1))
                             .transform_position(&fixture.graph.node_center(link.from));

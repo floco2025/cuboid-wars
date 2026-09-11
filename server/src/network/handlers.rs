@@ -24,6 +24,7 @@ pub(crate) struct SharedWorld<'w> {
     pub(crate) map_layout: Res<'w, MapLayout>,
     pub(crate) server_gameplay_config: Res<'w, ServerGameplayConfig>,
     pub(crate) world_bootstrap: Res<'w, WorldBootstrap>,
+    pub(crate) plates: Res<'w, PlateState>,
 }
 
 #[derive(SystemParam)]

@@ -50,12 +50,12 @@ class ActorSpawnFieldsDialog(QDialog):
         layout.addWidget(buttons)
 
     def values(self) -> tuple[str, int, str | None, bool]:
-        control = self.control.values()
+        switch, inverted = self.control.state()
         return (
             self._kind_edit.currentText().strip(),
             self._count_spin.value(),
-            control["switch"],
-            control["switch_inverted"],
+            switch,
+            inverted,
         )
 
     @classmethod

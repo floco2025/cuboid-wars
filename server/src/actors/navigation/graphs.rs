@@ -42,10 +42,7 @@ impl NavGraphs {
         {
             return;
         }
-        let (barrier_kinds, _, _) = settings
-            .kind_tables()
-            .expect("map kind tables invalid after validation");
-        // Barrier kinds some plate opens: a route may plan through them and
+        // Barriers some plate opens: a route may plan through them and
         // wait for physics to let the actor pass.
         let passable: Vec<BarrierId> = layout
             .barriers
@@ -66,7 +63,7 @@ impl NavGraphs {
             if local.ladders.is_empty() {
                 continue;
             }
-            let world = CollisionWorld::from_map_layout(&local, &barrier_kinds);
+            let world = CollisionWorld::from_map_layout(&local);
             let carriers = Carriers::default();
             for (kind, actor) in &config.actors.kinds {
                 if !actor.character.can_use_ladders {

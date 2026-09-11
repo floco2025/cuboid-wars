@@ -4,7 +4,7 @@ use bevy::prelude::Vec3;
 use common::{
     map::CarrierPose,
     physics::CollisionWorld,
-    protocol::{BarrierKindTable, CarrierId, MapLayout, Position, Wall},
+    protocol::{CarrierId, MapLayout, Position, Wall},
 };
 use rand::{SeedableRng, rngs::StdRng};
 
@@ -242,23 +242,20 @@ fn cover_route_uses_world_occlusion() {
     let mut edges = EdgeGrid::new(2, 2);
     edges.vertical[0][1] = true;
     let nav = nav_for(MapConfig::for_grid(vec![level(cells, edges)], geometry(2, 2)));
-    let world = CollisionWorld::from_map_layout(
-        &MapLayout {
-            walls: vec![Wall {
-                x1: 0.0,
-                z1: -4.0,
-                x2: 0.0,
-                z2: 0.0,
-                width: WALL_THICKNESS,
-                level: 0,
-                y: 0.0,
-                height: WALL_HEIGHT,
-                carrier: CarrierId::WORLD,
-            }],
-            ..MapLayout::default()
-        },
-        &BarrierKindTable::default(),
-    );
+    let world = CollisionWorld::from_map_layout(&MapLayout {
+        walls: vec![Wall {
+            x1: 0.0,
+            z1: -4.0,
+            x2: 0.0,
+            z2: 0.0,
+            width: WALL_THICKNESS,
+            level: 0,
+            y: 0.0,
+            height: WALL_HEIGHT,
+            carrier: CarrierId::WORLD,
+        }],
+        ..MapLayout::default()
+    });
     let threat = cell_center(2, 2, 0, 0);
     let start = cell_center(2, 2, 0, 1);
     let actor_eye = |candidate: &Position| Vec3::new(candidate.x, candidate.y + 0.8, candidate.z);
@@ -440,10 +437,8 @@ fn shipping_map_zones_are_mutually_reachable() {
         .get(map_name)
         .expect("default map settings missing")
         .settings;
-    let (barrier_kinds, bridge_kinds, switch_table) = settings.kind_tables().expect("default map kind tables rejected");
     let GeneratedMap { config: map_config, .. } =
-        crate::map::generate_map(map_name, 30, settings, &barrier_kinds, &bridge_kinds, &switch_table)
-            .expect("default map failed to generate");
+        crate::map::generate_map(map_name, 30, settings).expect("default map failed to generate");
     let graphs = NavGraphs::new(&map_config);
 
     // Zones on different carriers are on different grids; each carrier's
@@ -706,23 +701,20 @@ fn wall_end_nav_and_world() -> (NavGraph, CollisionWorld) {
     let mut edges = EdgeGrid::new(2, 2);
     edges.vertical[0][1] = true;
     let nav = nav_for(MapConfig::for_grid(vec![level(cells, edges)], geometry(2, 2)));
-    let world = CollisionWorld::from_map_layout(
-        &MapLayout {
-            walls: vec![Wall {
-                x1: 0.0,
-                z1: -CELL,
-                x2: 0.0,
-                z2: 0.0,
-                width: WALL_THICKNESS,
-                level: 0,
-                y: 0.0,
-                height: WALL_HEIGHT,
-                carrier: CarrierId::WORLD,
-            }],
-            ..MapLayout::default()
-        },
-        &BarrierKindTable::default(),
-    );
+    let world = CollisionWorld::from_map_layout(&MapLayout {
+        walls: vec![Wall {
+            x1: 0.0,
+            z1: -CELL,
+            x2: 0.0,
+            z2: 0.0,
+            width: WALL_THICKNESS,
+            level: 0,
+            y: 0.0,
+            height: WALL_HEIGHT,
+            carrier: CarrierId::WORLD,
+        }],
+        ..MapLayout::default()
+    });
     (nav, world)
 }
 
@@ -798,14 +790,12 @@ fn shipping_map_bruiser_capsule_fits_the_direct_basement_trench_approach() {
         .get("hotel")
         .expect("hotel settings missing")
         .settings;
-    let (barrier_kinds, bridge_kinds, switch_table) = settings.kind_tables().expect("hotel kind tables rejected");
     let GeneratedMap {
         layout,
         config: map_config,
         ..
-    } = crate::map::generate_map("hotel", 30, settings, &barrier_kinds, &bridge_kinds, &switch_table)
-        .expect("hotel map failed to generate");
-    let world = CollisionWorld::from_map_layout(&layout, &barrier_kinds);
+    } = crate::map::generate_map("hotel", 30, settings).expect("hotel map failed to generate");
+    let world = CollisionWorld::from_map_layout(&layout);
     let geometry = map_config.root_grid().geometry;
     let nav = nav_for(map_config);
     let bruiser = gameplay_config.expect_actor("bruiser").physics();

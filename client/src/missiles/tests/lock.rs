@@ -2,7 +2,7 @@ use super::*;
 use crate::test_fixtures::{WALL_HEIGHT, WALL_THICKNESS};
 use common::{
     config::{CharacterPhysicsConfig, HitboxConfig, MovementColliderConfig},
-    protocol::{ActorId, BarrierKindTable, CarrierId, MapLayout, PlayerId, Wall},
+    protocol::{ActorId, CarrierId, MapLayout, PlayerId, Wall},
 };
 
 fn physics() -> CharacterPhysicsConfig {
@@ -21,7 +21,7 @@ fn physics() -> CharacterPhysicsConfig {
 }
 
 fn empty_world() -> CollisionWorld {
-    CollisionWorld::from_map_layout(&MapLayout::default(), &BarrierKindTable::default())
+    CollisionWorld::from_map_layout(&MapLayout::default())
 }
 
 fn candidate(target: HomingTarget, z: f32) -> (HomingTarget, Position, f32, CharacterPhysicsConfig) {
@@ -87,7 +87,7 @@ fn acquire_lock_rejects_candidate_behind_wall() {
         }],
         ..Default::default()
     };
-    let world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
+    let world = CollisionWorld::from_map_layout(&layout);
     let target = HomingTarget::Player(PlayerId(1));
     let locked = acquire_lock(
         &world,

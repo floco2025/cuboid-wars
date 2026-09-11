@@ -1,5 +1,3 @@
-import copy
-
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QComboBox,
@@ -16,7 +14,7 @@ from PySide6.QtWidgets import (
 )
 
 from ..control_catalogs import validate_catalog
-from .controls import SwitchControl
+from .controls import choice
 
 
 class ControlCatalogDialog(QDialog):
@@ -120,13 +118,13 @@ class FireworksDialog(QDialog):
     def __init__(self, parent, switches, current):
         super().__init__(parent)
         self.setWindowTitle("Fireworks")
-        current = copy.deepcopy(current or {})
-        self.control = SwitchControl(switches, current.get("switch"), current.get("switch_inverted", False))
+        current = current or {}
+        self.kind = choice(switches, current.get("switch"), optional=True)
         self.cooldown = QDoubleSpinBox()
         self.cooldown.setRange(0, 86400)
         self.cooldown.setValue(current.get("cooldown_secs", 0))
         form = QFormLayout()
-        form.addRow(self.control)
+        form.addRow("Pressure plate kind:", self.kind)
         form.addRow("Cooldown between shows (s):", self.cooldown)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(self.accept)
@@ -136,5 +134,5 @@ class FireworksDialog(QDialog):
         layout.addWidget(buttons)
 
     def value(self):
-        values = self.control.values()
-        return {**values, "cooldown_secs": self.cooldown.value()} if values.get("switch") else None
+        kind = self.kind.currentData()
+        return {"switch": kind, "cooldown_secs": self.cooldown.value()} if kind else None

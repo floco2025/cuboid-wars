@@ -8,17 +8,9 @@ use common::protocol::CarrierId;
 fn config_and_map() -> (ServerGameplayConfig, MapConfig) {
     let server = ServerGameplayConfig::load_default().expect("load server gameplay");
     let settings = &server.maps.get("hotel").expect("hotel settings missing").settings;
-    let (barrier_kinds, bridge_kinds, switch_table) = settings.kind_tables().expect("hotel kind tables rejected");
-    let map = crate::map::generate_map(
-        "hotel",
-        server.network.server_hz,
-        settings,
-        &barrier_kinds,
-        &bridge_kinds,
-        &switch_table,
-    )
-    .expect("hotel map failed to generate")
-    .config;
+    let map = crate::map::generate_map("hotel", server.network.server_hz, settings)
+        .expect("hotel map failed to generate")
+        .config;
     (server, map)
 }
 

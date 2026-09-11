@@ -3,9 +3,9 @@ use std::collections::{HashMap, HashSet};
 use anyhow::{Result, bail};
 use serde::{Deserialize, Deserializer};
 
-use super::{FireworksConfig, Quest, QuestKind, RandomItemsConfig, ServerGameplayConfig};
+use super::{Quest, QuestKind, RandomItemsConfig, ServerGameplayConfig};
 use crate::map::MapConfig;
-use common::protocol::{ItemType, SwitchId, SwitchTable};
+use common::protocol::{ItemType, SwitchId};
 
 // A per-actor-kind map must name every configured kind (a missing entry
 // silently defaulting is the footgun) and nothing else (a typo).
@@ -60,24 +60,6 @@ pub(crate) fn validate_map_actor_kinds(config: &ServerGameplayConfig, map_config
 }
 
 // The fireworks switch resolved, and operated by some plate of the map.
-pub(crate) fn validate_map_fireworks(
-    fireworks: Option<&FireworksConfig>,
-    map_config: &MapConfig,
-    switches: &SwitchTable,
-) -> Result<Option<SwitchId>> {
-    let Some(fireworks) = fireworks else {
-        return Ok(None);
-    };
-    let switch = switches.resolve(&fireworks.switch)?;
-    if !map_config.pressure_plates.iter().any(|plate| plate.switch == switch) {
-        bail!(
-            "fireworks switch {:?} is operated by no pressure plate in the map",
-            fireworks.switch
-        );
-    }
-    Ok(Some(switch))
-}
-
 pub(crate) fn validate_map_quests(
     quests: &[Quest],
     map_config: &MapConfig,

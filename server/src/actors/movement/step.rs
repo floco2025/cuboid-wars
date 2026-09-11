@@ -18,7 +18,7 @@ pub struct ActorMovementStep<'a> {
     pub delta: f32,
     pub can_use_ladders: bool,
     pub physics: CharacterPhysicsConfig,
-    // Barrier kinds the pressure plates hold open (`PlateState`); actors
+    // Barriers the pressure plates hold open (`PlateState`); actors
     // hold no keys.
     pub open_kinds: &'a [BarrierId],
     pub collision_world: &'a CollisionWorld,

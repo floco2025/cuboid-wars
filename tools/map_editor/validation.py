@@ -270,14 +270,14 @@ def validate_document(
                 validate_catalog(catalog, root["_settings"][catalog])
     except (ValueError, TypeError, AttributeError) as exc:
         errors.append(str(exc))
-    if "key_kinds" in root:
-        errors.append("Keys are derived from settings.json barrier_kinds; remove key_kinds")
     fireworks = root.get("fireworks")
     if fireworks is not None and not isinstance(fireworks, dict):
         errors.append("fireworks must be an object or null")
     elif fireworks is not None:
         if not fireworks.get("switch"):
             errors.append("fireworks requires a pressure plate kind")
+        if "switch_inverted" in fireworks:
+            errors.append("fireworks has no On/Off response; remove switch_inverted")
         _validate_switch_target(fireworks, "fireworks", catalogs.switches, plated_switches([root, *placed_definitions(root, definitions).values()]), errors)
         cooldown = fireworks.get("cooldown_secs")
         if not isinstance(cooldown, (int, float)) or isinstance(cooldown, bool) or not math.isfinite(cooldown) or cooldown < 0:

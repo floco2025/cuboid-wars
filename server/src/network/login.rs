@@ -55,6 +55,8 @@ pub(super) fn handle_login_message(
     let init_message = ServerMessage::Init(SInit {
         player: PlayerBootstrap { id, portal_access },
         world: (*world.world_bootstrap).clone(),
+        plates: (*world.plates).clone(),
+        locked_switches: quest_board.locked_switches().to_vec(),
     });
     if let Err(error) = channel.send(ServerToClient::Send(init_message)) {
         warn!("failed to send init to {:?}: {}", id, error);

@@ -3,11 +3,23 @@ from unittest.mock import patch
 
 from PySide6.QtCore import QPointF
 from PySide6.QtGui import QContextMenuEvent
-from PySide6.QtWidgets import QMenu
+from PySide6.QtWidgets import QDialog, QMenu
 
 from editor_fixtures import DEFAULT_ALIAS, WindowTestCase
 from map_editor.constants import MODE_ERASE_KEEP_FLOORS, MODE_LIGHT_BRIDGE, MODE_SELECT
+from map_editor.dialogs.controls import FieldPropertiesDialog
 from map_editor.normalization import empty_level, empty_map
+
+
+# The field dialog runs for real; `kind` picks an appearance, None cancels.
+def field_dialog(kind):
+    def run(dialog):
+        if kind is None:
+            return QDialog.DialogCode.Rejected
+        dialog.appearance.setCurrentIndex(dialog.appearance.findData(kind))
+        return QDialog.DialogCode.Accepted
+
+    return patch.object(FieldPropertiesDialog, "exec", run)
 
 
 class ContextEditingTests(WindowTestCase):
@@ -60,7 +72,7 @@ class ContextEditingTests(WindowTestCase):
                 for mode in (MODE_SELECT, MODE_LIGHT_BRIDGE, MODE_ERASE_KEEP_FLOORS):
                     with self.subTest(mode=mode):
                         window.set_mode(mode)
-                        with patch("map_editor.dialogs.KindDialog.prompt", return_value="b") as prompt, patch("map_editor.placement.FieldPropertiesDialog.prompt", return_value={"kind": "b"}):
+                        with patch("map_editor.dialogs.KindDialog.prompt", return_value="b") as prompt, field_dialog("b"):
                             self.choose_action(point, title)
                         if name == "lights":
                             self.assertEqual(prompt.call_args.args[3], "a")
@@ -90,7 +102,7 @@ class ContextEditingTests(WindowTestCase):
                 ((2.5, 4.0), "Edit Barrier..."),
                 ((4.5, 3.05), "Edit Light..."),
             ):
-                with self.subTest(choice=choice, title=title), patch("map_editor.dialogs.KindDialog.prompt", return_value=choice), patch("map_editor.placement.FieldPropertiesDialog.prompt", return_value=None if choice is None else {"kind": choice}):
+                with self.subTest(choice=choice, title=title), patch("map_editor.dialogs.KindDialog.prompt", return_value=choice), field_dialog(choice):
                     self.choose_action(point, title)
                     self.assertEqual(window.map_data, before)
                     self.assertEqual(window.undo_stack.count(), 0)

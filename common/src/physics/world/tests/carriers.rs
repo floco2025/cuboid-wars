@@ -1,16 +1,18 @@
-use crate::protocol::{BarrierId, BridgeId};
 use rapier3d::{control::KinematicCharacterController, prelude::Vector};
 
 use super::*;
 use crate::{
-    config::gameplay::load_test_gameplay, constants::TICK_SECS, map::Carriers,
-    physics::characters::character_movement_pose, protocol::PlateState,
+    config::gameplay::load_test_gameplay,
+    constants::TICK_SECS,
+    map::Carriers,
+    physics::characters::character_movement_pose,
+    protocol::{BarrierId, BridgeId, PlateState},
 };
 
 #[test]
 fn carrier_colliders_follow_the_carrier_pose() {
     let layout = slider_layout();
-    let mut world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
+    let mut world = CollisionWorld::from_map_layout(&layout);
     assert_eq!(world.solid_kinds(), vec![ColliderKind::Floor]);
     let shape = character_movement_shape(wide_body());
     let probe = |world: &CollisionWorld, x: f32| {
@@ -39,7 +41,7 @@ fn ground_hit_names_the_carrier_under_the_feet() {
         level: 1,
         carrier: CarrierId::WORLD,
     });
-    let world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
+    let world = CollisionWorld::from_map_layout(&layout);
     let shape = character_movement_shape(wide_body());
     let probe = |x: f32| {
         let pose = Pose::translation(x, LEVEL_HEIGHT + 0.0 + 0.05, 0.0);
@@ -65,7 +67,7 @@ fn world_surface_ray_names_the_carrier_it_hits() {
         level: 0,
         carrier: CarrierId::WORLD,
     });
-    let world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
+    let world = CollisionWorld::from_map_layout(&layout);
     let above = Vec3::new(0.0, LEVEL_HEIGHT + 1.0, 0.0);
 
     let hit = world
@@ -129,7 +131,6 @@ fn carrier_pushes_respect_barrier_passability_bridge_power_and_portal_exclusions
         kind: BridgeKindId(0),
         carrier,
     };
-    let table = BarrierKindTable::from_ids(vec!["red".into()]).expect("barrier catalog invalid");
     let physics = load_test_gameplay()
         .expect("test gameplay config invalid")
         .player
@@ -171,7 +172,7 @@ fn carrier_pushes_respect_barrier_passability_bridge_power_and_portal_exclusions
             }],
             ..Default::default()
         };
-        let mut world = CollisionWorld::from_map_layout(&layout, &table);
+        let mut world = CollisionWorld::from_map_layout(&layout);
         let mut carriers = Carriers::from_layout(&layout);
         carriers.advance(1, &PlateState::default());
         world.set_carrier_poses(&carriers);

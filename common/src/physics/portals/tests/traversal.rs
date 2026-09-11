@@ -406,7 +406,7 @@ fn an_external_teleport_is_not_a_crossing() {
 #[test]
 fn swept_portal_gate_uses_the_plane_crossing_point() {
     let layout = placement_layout();
-    let world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
+    let world = CollisionWorld::from_map_layout(&layout);
     let placement =
         place(&layout, Vec3::new(0.0, 1.6, 3.0), Vec3::new(0.0, 1.6, 0.0), PI).expect("clear wall center rejected");
     let set = PortalSet::rebuild(

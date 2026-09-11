@@ -30,8 +30,8 @@ pub(super) use common::{
     map::{CarrierPose, Carriers, MapGeometry},
     physics::{CharacterSupport, CollisionWorld},
     protocol::{
-        ActorBeam, ActorId, ActorMarker, Barrier, BarrierKindId, BarrierKindTable, Carrier, CarrierId, Health,
-        MapItems, MapLayout, PlateState, PlayerId, PlayerMarker, Position, ServerMessage, ServerTick, Wall,
+        ActorBeam, ActorId, ActorMarker, Barrier, BarrierKindId, Carrier, CarrierId, Health, MapItems, MapLayout,
+        PlateState, PlayerId, PlayerMarker, Position, ServerMessage, ServerTick, Wall,
     },
 };
 
@@ -51,10 +51,7 @@ pub(crate) struct Fixture {
 
 impl Fixture {
     pub(crate) fn new(kind: &str) -> Self {
-        Self::with_world(
-            kind,
-            CollisionWorld::from_map_layout(&MapLayout::default(), &BarrierKindTable::default()),
-        )
+        Self::with_world(kind, CollisionWorld::from_map_layout(&MapLayout::default()))
     }
 
     pub(crate) fn with_world(kind: &str, collision_world: CollisionWorld) -> Self {
@@ -65,7 +62,7 @@ impl Fixture {
         Self::with_levels_and_world(
             kind,
             level_count,
-            CollisionWorld::from_map_layout(&MapLayout::default(), &BarrierKindTable::default()),
+            CollisionWorld::from_map_layout(&MapLayout::default()),
         )
     }
 
@@ -77,7 +74,7 @@ impl Fixture {
         Self::build(
             kind,
             1,
-            CollisionWorld::from_map_layout(&MapLayout::default(), &BarrierKindTable::default()),
+            CollisionWorld::from_map_layout(&MapLayout::default()),
             Some(rest),
         )
     }

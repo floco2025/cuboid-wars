@@ -10,9 +10,9 @@ use std::time::Duration;
 
 // Barriers. Force-field segments authored on grid edges; same shape as walls
 // (wall height, this fraction of the wall thickness) but rendered as
-// translucent pulsating geometry on the client. Each kind gets its own
-// collision group (`barrier_collision_group`) so held keys and open pressure
-// plates grant passage through individual barriers (`passable_barriers`).
+// translucent pulsating geometry on the client. Every barrier shares one
+// collision group and a query passes the instances its holder's keys and
+// the open pressure plates allow (`passable_barriers`).
 pub const BARRIER_THICKNESS_FRACTION: f32 = 1.0 / 6.0;
 
 // Slab thickness of a light bridge, as a fraction of the floor thickness.

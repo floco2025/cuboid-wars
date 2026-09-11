@@ -21,6 +21,8 @@ def choice(values, current, *, optional=False, mixed=False):
 class SwitchControl(QWidget):
     def __init__(self, switches, current=None, inverted=False, *, mixed=False, response_mixed=False):
         super().__init__()
+        self.mixed = mixed
+        self.initial = (None if mixed else current or None, None if response_mixed else inverted)
         self.kind = choice(switches, current, optional=True, mixed=mixed)
         self.response = choice(
             ["On", "Off"], None if response_mixed else "Off" if inverted else "On", mixed=response_mixed
@@ -35,15 +37,24 @@ class SwitchControl(QWidget):
     def sync_enabled(self):
         self.response.setEnabled(self.kind.currentData() != "")
 
+    def state(self):
+        """The selected plate kind, `None` for none, and whether it responds Off."""
+        return self.kind.currentData() or None, self.response.currentData() == "Off"
+
     def values(self):
+        """What changed from the initial selection: `switch` None clears the
+        assignment, an absent key leaves the records' value alone."""
+        kind, inverted = self.state()
+        initial_kind, initial_inverted = self.initial
         result = {}
-        kind, response = self.kind.currentData(), self.response.currentData()
-        if kind is not None:
-            result["switch"] = kind or None
-        if kind == "":
-            result["switch_inverted"] = False
-        elif response is not None:
-            result["switch_inverted"] = response == "Off"
+        if self.kind.currentData() == "":
+            if self.mixed or initial_kind is not None:
+                result["switch"] = None
+            return result
+        if kind is not None and kind != initial_kind:
+            result["switch"] = kind
+        if self.response.currentData() is not None and inverted != initial_inverted:
+            result["switch_inverted"] = inverted
         return result
 
 

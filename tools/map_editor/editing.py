@@ -17,10 +17,19 @@ def replace_records(data: dict, name: str, entries: list[dict], level: int | Non
     return after
 
 
+def merge_record(entry: dict, values: dict) -> dict:
+    merged = {**entry, **values}
+    if values.get("switch", "") is None:
+        del merged["switch"]
+    if "switch" in values and "switch" not in merged:
+        merged.pop("switch_inverted", None)
+    return merged
+
+
 def update_records(data: dict, name: str, predicate, values: dict, level: int | None = None) -> dict:
     target = data if level is None else data["levels"][level]
     return replace_records(
-        data, name, [{**entry, **values} if predicate(entry) else entry for entry in target.get(name, [])], level
+        data, name, [merge_record(entry, values) if predicate(entry) else entry for entry in target.get(name, [])], level
     )
 
 

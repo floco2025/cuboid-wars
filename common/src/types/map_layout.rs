@@ -9,7 +9,7 @@ use crate::config::{MapGeometryConfig, MapMovementConfig};
 
 use super::{
     BarrierId, BarrierKindId, BarrierKindTable, BridgeId, BridgeKindId, BridgeKindTable, CarrierId, ItemType, KindDef,
-    Position, SwitchDef, SwitchId, SwitchTable, face_materials::FaceMaterials, textures::TextureSettings,
+    Position, SwitchDef, SwitchId, face_materials::FaceMaterials, textures::TextureSettings,
 };
 
 // Layout records are in their carrier's frame: world space for
@@ -382,11 +382,10 @@ impl MapItems {
 }
 
 impl MapSettings {
-    pub fn kind_tables(&self) -> Result<(BarrierKindTable, BridgeKindTable, SwitchTable)> {
-        let switches = SwitchTable::from_switch_defs(&self.switches)?;
+    pub fn kind_tables(&self) -> Result<(BarrierKindTable, BridgeKindTable)> {
         let barriers = BarrierKindTable::from_defs(&self.barrier_kinds)?;
         let bridges = BridgeKindTable::from_defs(&self.bridge_kinds)?;
-        Ok((barriers, bridges, switches))
+        Ok((barriers, bridges))
     }
 
     #[must_use]

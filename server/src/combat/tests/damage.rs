@@ -97,7 +97,6 @@ fn server_gameplay_config() -> ServerGameplayConfig {
                     bridge_kinds: Vec::new(),
                 },
                 random_items: None,
-                fireworks: None,
                 player_fall: FallDamageConfig {
                     safe_distance: 4.0,
                     lethal_distance: 12.0,

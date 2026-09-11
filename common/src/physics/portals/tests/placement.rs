@@ -1,10 +1,9 @@
-use crate::protocol::{BarrierId, BridgeId};
 use std::f32::consts::FRAC_PI_2;
 
 use super::*;
 use crate::{
     constants::PORTAL_LIGHT_CLEARANCE,
-    protocol::{Barrier, BridgeKindId, LightBridge, PressurePlate, SwitchId, WallLight},
+    protocol::{Barrier, BarrierId, BridgeId, BridgeKindId, LightBridge, PressurePlate, SwitchId, WallLight},
     test_geometry::{BARRIER_THICKNESS, BRIDGE_THICKNESS},
 };
 
@@ -37,8 +36,7 @@ fn opening_a_barrier_exposes_a_fitting_portal_surface_behind_it() {
         kind: BarrierKindId(0),
         carrier: CarrierId::WORLD,
     });
-    let kinds = BarrierKindTable::from_ids(vec!["gate".into(), "other".into()]).expect("barrier catalog rejected");
-    let world = CollisionWorld::from_map_layout(&layout, &kinds);
+    let world = CollisionWorld::from_map_layout(&layout);
     for open in [vec![], vec![BarrierId(1)], vec![BarrierId(0)], vec![]] {
         let placement = place_on_geometry(
             Vec3::new(0.0, 1.6, 4.0),
@@ -97,7 +95,7 @@ fn bridge_power_controls_portal_placement_on_the_floor_and_ceiling_beyond_it() {
         }],
         ..Default::default()
     };
-    let mut world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
+    let mut world = CollisionWorld::from_map_layout(&layout);
     for powered in [false, true, false] {
         world.set_powered_bridges(if powered { &[BridgeId(0)] } else { &[] });
         for (origin_y, direction, surface_y) in [
@@ -252,7 +250,7 @@ fn wall_portal_near_ramp_excludes_only_wall_backing() {
         }],
         ..Default::default()
     };
-    let world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
+    let world = CollisionWorld::from_map_layout(&layout);
     let set = PortalSet::rebuild(
         &[
             portal(PortalEnd::A, Vec3::new(-1.85, center_y, z), Vec3::X, 0.0),
@@ -294,7 +292,7 @@ fn wall_portal_across_a_stacked_wall_opens_its_trim_strip() {
         }],
         ..Default::default()
     };
-    let world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
+    let world = CollisionWorld::from_map_layout(&layout);
     let set = PortalSet::rebuild(
         &[
             portal(
@@ -340,7 +338,7 @@ fn wall_portal_keeps_the_floor_it_stands_on_solid() {
         }],
         ..Default::default()
     };
-    let world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
+    let world = CollisionWorld::from_map_layout(&layout);
     let set = PortalSet::rebuild(
         &[
             portal(PortalEnd::A, Vec3::new(0.0, 1.0, -WALL_THICKNESS / 2.0), -Vec3::Z, 0.0),
@@ -500,7 +498,7 @@ fn placement_front_clearance_rejects_a_powered_light_bridge() {
         thickness: BRIDGE_THICKNESS,
         carrier: CarrierId::WORLD,
     });
-    let mut world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
+    let mut world = CollisionWorld::from_map_layout(&layout);
     let origin = Vec3::new(0.0, 3.7, 3.0);
     let aim = Vec3::new(0.0, 3.7, 0.0);
     let shoot = |world: &CollisionWorld| {

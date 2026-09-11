@@ -28,7 +28,7 @@ fn incompatible_material_fizzles_when_a_geometric_nudge_finds_space() {
         Vec3::NEG_Z,
         0.0,
         40.0,
-        &CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default()),
+        &CollisionWorld::from_map_layout(&layout),
         &layout,
         &Carriers::default(),
         &[],
@@ -107,7 +107,7 @@ fn portal_fit_detects_a_narrow_forbidden_patch_between_backing_probes() {
     };
     layout.walls.push(patch);
     layout.wall_materials.push(FaceMaterials::uniform("blocked"));
-    let world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
+    let world = CollisionWorld::from_map_layout(&layout);
     let frame = PortalFrame::from_surface(Vec3::new(0.0, 1.6, WALL_THICKNESS / 2.0), Vec3::Z, 0.0);
     assert!(!world.portal_materials_allow(&frame, &layout, &test_textures()));
     let placement = material_shot(&layout, Vec3::new(0.0, 1.6, 3.0), Vec3::NEG_Z)

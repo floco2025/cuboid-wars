@@ -77,10 +77,7 @@ pub(crate) fn respawn_app(mode: PlayerRespawnMode, scope: ActorRespawnScope) -> 
         .insert_resource(config)
         .insert_resource(settings)
         .insert_resource(map)
-        .insert_resource(CollisionWorld::from_map_layout(
-            &MapLayout::default(),
-            &Default::default(),
-        ))
+        .insert_resource(CollisionWorld::from_map_layout(&MapLayout::default()))
         .init_resource::<MapLayout>()
         .insert_resource(PlayerMap::new(RespawnConfig {
             players: mode,

@@ -1,3 +1,4 @@
+import copy
 import json
 import os
 import tempfile
@@ -12,10 +13,10 @@ from editor_fixtures import WindowTestCase
 from map_editor.catalogs import (
     list_map_names,
     load_map_barrier_kinds,
+    load_map_bridge_kinds,
     load_map_settings,
-    load_map_switches,
-    load_map_plate_colors,
     map_layout_path,
+    plate_colors,
     map_name_from_path,
     map_settings_path,
 )
@@ -74,30 +75,6 @@ class MapSettingsTests(unittest.TestCase):
         path.write_text("{}")
         with self.assertRaisesRegex(ValueError, "settings.json: barrier_kinds"):
             load_map_barrier_kinds("hotel")
-        self.assertEqual(load_map_switches("hotel"), [])
-
-    def test_switch_catalog_keeps_its_order_and_rejects_bad_policies(self):
-        path = map_layout_path("hotel")
-        path.parent.mkdir(parents=True)
-        good = [
-            {"id": "lobby", "activation": "auto", "reset_on_player_death": "never"},
-            {"id": "finale", "activation": "momentary", "reset_on_player_death": "all", "held": "everyone"},
-        ]
-        path.write_text(json.dumps({"map": {"switch_kinds": good}}))
-        self.assertEqual(load_map_switches("hotel"), ["lobby", "finale"])
-        for bad, message in [
-            ([{"id": "", "activation": "auto", "reset_on_player_death": "never"}], "id is empty"),
-            (good + [good[0]], "duplicates 'lobby'"),
-            ([{"id": "a", "activation": "hold", "reset_on_player_death": "never"}], "activation must be one of"),
-            ([{"id": "a", "activation": "auto", "reset_on_player_death": "always"}], "reset_on_player_death must be"),
-            ([{"id": "a", "activation": "auto", "reset_on_player_death": "never", "held": "all"}], "held must be"),
-            ([{"id": "a", "activation": "auto", "reset_on_player_death": "never", "plate_color": "red"}], "plate_color must look like"),
-            ([{"activation": "auto", "reset_on_player_death": "never"}], "string `id`"),
-            ({}, "must be an array"),
-        ]:
-            path.write_text(json.dumps({"map": {"switch_kinds": bad}}))
-            with self.assertRaisesRegex(ValueError, message):
-                load_map_switches("hotel")
 
     def test_plate_colors_follow_targets_and_explicit_switch_colors(self):
         path = map_settings_path("hotel")
@@ -110,12 +87,11 @@ class MapSettingsTests(unittest.TestCase):
         data["switch_kinds"] = [{"id": "door"}, {"id": "bridge"}, {"id": "show", "plate_color": "#9b5de5"}, {"id": "other"}]
         data["levels"][0]["barriers"] = [{"c0": 0, "r0": 0, "c1": 1, "r1": 0, "kind": "green", "switch": "door"}]
         data["levels"][0]["light_bridges"] = [{"col": 0, "row": 0, "kind": "cyan", "switch": "bridge"}]
-        write_map(map_layout_path("hotel"), data)
-        colors = load_map_plate_colors("hotel")
+        barriers, bridges = load_map_barrier_kinds("hotel"), load_map_bridge_kinds("hotel")
+        colors = plate_colors(data, barriers, bridges)
         self.assertEqual(colors, {"door": "#22cc33", "bridge": "#30d8ff", "show": "#9b5de5", "other": "#2c99bc"})
         data["switch_kinds"][0]["plate_color"] = "#ffaa00"
-        write_map(map_layout_path("hotel"), data)
-        self.assertEqual(load_map_plate_colors("hotel")["door"], "#ffaa00")
+        self.assertEqual(plate_colors(data, barriers, bridges)["door"], "#ffaa00")
 
     def test_layout_identity_comes_from_the_folder(self):
         self.assertEqual(map_name_from_path(map_layout_path("hotel")), "hotel")
@@ -182,6 +158,43 @@ class MapSettingsWindowTests(WindowTestCase):
         self.assertTrue(self.window.save())
         self.assertTrue(self.window.path.exists())
         self.assertEqual(settings.read_bytes(), source)
+
+    def test_new_with_a_malformed_settings_file_reports_and_keeps_the_document(self):
+        global_config = json.loads(self.global_path.read_text())
+        global_config["maps"].append("fresh")
+        self.global_path.write_text(json.dumps(global_config))
+        settings = map_settings_path("fresh")
+        settings.parent.mkdir()
+        settings.write_text('{"barrier_kinds": [],}')
+        original = self.window.doc.root_data.copy()
+        with (
+            patch("map_editor.file_actions.ResizeMapDialog.prompt", return_value=(8, 8, 0, 0)),
+            patch("map_editor.file_actions.QInputDialog.getItem", return_value=("fresh", True)),
+            patch("map_editor.file_actions.QMessageBox.critical") as critical,
+        ):
+            self.window.new_file()
+        critical.assert_called_once()
+        self.assertIn("fresh/settings.json", critical.call_args.args[2])
+        self.assertEqual(self.window.path, self.path)
+        self.assertEqual(self.window.doc.root_data, original)
+        self.assertEqual(self.window.catalog_map, "hotel")
+
+    def test_an_invalid_settings_reload_keeps_the_catalogs_and_reports(self):
+        window = self.window
+        path = map_settings_path("hotel")
+        window.reload_dependencies()
+        colors = dict(window.barrier_kind_colors)
+        settings_before = copy.deepcopy(window.doc.root_data["_settings"])
+        settings = json.loads(path.read_text())
+        del settings["barrier_kinds"][0]["color"]
+        path.write_text(json.dumps(settings))
+        window.reload_dependencies()
+        self.assertIn("Catalog reload failed", window.canvas.notice.text())
+        self.assertEqual(window.barrier_kind_colors, colors)
+        self.assertEqual(window.doc.root_data["_settings"], settings_before)
+        window.add_floor_rect((2, 2), (2, 2))
+        window.refresh_ui()
+        self.assertEqual(window.barrier_kind_colors, colors)
 
     def test_new_over_an_existing_layout_replaces_it_only_after_asking(self):
         obby = map_layout_path("obby")

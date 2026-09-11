@@ -212,6 +212,9 @@ pub(crate) fn map_with_zones(
         ramps,
         ladders: Vec::new(),
         nested_maps: Vec::new(),
+        switch_kinds: Vec::new(),
+        fireworks: None,
+        nested_geometry: Default::default(),
     }
 }
 

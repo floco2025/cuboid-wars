@@ -1,6 +1,7 @@
-use bevy::math::Vec3;
-use bevy::time::{Timer, TimerMode};
-use common::protocol::{BarrierId, BridgeId};
+use bevy::{
+    math::Vec3,
+    time::{Timer, TimerMode},
+};
 
 use common::{
     config::MultiShotConfig,
@@ -8,7 +9,7 @@ use common::{
     map::Carriers,
     physics::{CollisionWorld, FieldKind, PortalSet},
     protocol::{
-        Barrier, BarrierKindId, BarrierKindTable, BridgeKindId, Carrier, CarrierId, Floor, LightBridge, MapLayout,
+        Barrier, BarrierId, BarrierKindId, BridgeId, BridgeKindId, Carrier, CarrierId, Floor, LightBridge, MapLayout,
         PlateState, Portal, PortalEnd, PortalPairId, Position, Ramp, Wall,
     },
 };
@@ -75,15 +76,12 @@ fn test_floor(level: u8) -> Floor {
 }
 
 fn collision_world(walls: &[Wall], floors: &[Floor], ramps: &[Ramp]) -> CollisionWorld {
-    CollisionWorld::from_map_layout(
-        &MapLayout {
-            walls: walls.to_vec(),
-            floors: floors.to_vec(),
-            ramps: ramps.to_vec(),
-            ..Default::default()
-        },
-        &common::protocol::BarrierKindTable::default(),
-    )
+    CollisionWorld::from_map_layout(&MapLayout {
+        walls: walls.to_vec(),
+        floors: floors.to_vec(),
+        ramps: ramps.to_vec(),
+        ..Default::default()
+    })
 }
 
 #[test]
@@ -139,31 +137,27 @@ fn world_bounce_reports_first_contact_normal() {
 #[test]
 fn barrier_impact_reports_kind_and_surface_normal() {
     let kind = BarrierKindId(0);
-    let table = BarrierKindTable::from_ids(vec!["test".to_owned()]).expect("barrier kind table should build");
-    let world = CollisionWorld::from_map_layout(
-        &MapLayout {
-            barriers: vec![Barrier {
-                id: Default::default(),
+    let world = CollisionWorld::from_map_layout(&MapLayout {
+        barriers: vec![Barrier {
+            id: Default::default(),
 
-                switch: None,
-                switch_inverted: false,
+            switch: None,
+            switch_inverted: false,
 
-                x1: -2.0,
-                z1: 1.0,
-                x2: 2.0,
-                z2: 1.0,
-                level: 0,
-                levels: 1,
-                kind,
-                y: 0.0,
-                height: WALL_HEIGHT,
-                width: BARRIER_THICKNESS,
-                carrier: CarrierId::WORLD,
-            }],
-            ..Default::default()
-        },
-        &table,
-    );
+            x1: -2.0,
+            z1: 1.0,
+            x2: 2.0,
+            z2: 1.0,
+            level: 0,
+            levels: 1,
+            kind,
+            y: 0.0,
+            height: WALL_HEIGHT,
+            width: BARRIER_THICKNESS,
+            carrier: CarrierId::WORLD,
+        }],
+        ..Default::default()
+    });
     let pos = Position { x: 0.0, y: 1.0, z: 0.0 };
     let motion = test_projectile_motion(Vec3::new(0.0, 0.0, 20.0));
     let impact = motion
@@ -244,15 +238,12 @@ mod spawning {
     }
 
     fn collision_world(walls: &[Wall], ramps: &[Ramp], floors: &[Floor]) -> CollisionWorld {
-        CollisionWorld::from_map_layout(
-            &MapLayout {
-                walls: walls.to_vec(),
-                ramps: ramps.to_vec(),
-                floors: floors.to_vec(),
-                ..Default::default()
-            },
-            &common::protocol::BarrierKindTable::default(),
-        )
+        CollisionWorld::from_map_layout(&MapLayout {
+            walls: walls.to_vec(),
+            ramps: ramps.to_vec(),
+            floors: floors.to_vec(),
+            ..Default::default()
+        })
     }
 
     fn player_eye_height() -> f32 {
@@ -436,7 +427,7 @@ mod spawning {
 fn multi_shot_fires_the_configured_stencil() {
     let mut gameplay = crate::test_fixtures::gameplay_config();
     gameplay.projectiles.multi_shot = multi_shot(1.5, 1.5, &["x.x", ".o.", "x.x"]);
-    let world = CollisionWorld::from_map_layout(&MapLayout::default(), &BarrierKindTable::default());
+    let world = CollisionWorld::from_map_layout(&MapLayout::default());
     let shooter = Position { x: 0.0, y: 1.0, z: 0.0 };
     let (yaw, pitch) = (0.3, 0.1);
     let close = |a: f32, b: f32| (a - b).abs() < 1e-5;
@@ -473,7 +464,7 @@ fn a_relayed_volley_reproduces_the_shooters_spawn_set_through_a_blocking_muzzle(
     let mut gameplay = crate::test_fixtures::gameplay_config();
     gameplay.projectiles.multi_shot = multi_shot(30.0, 30.0, &["xox"]);
     let shooter = Position { x: 0.0, y: 1.0, z: 0.0 };
-    let open = CollisionWorld::from_map_layout(&MapLayout::default(), &BarrierKindTable::default());
+    let open = CollisionWorld::from_map_layout(&MapLayout::default());
     // A wall beside the shooter that only one muzzle of the volley clips.
     let blocked = collision_world(
         &[Wall {
@@ -523,7 +514,7 @@ fn powered_bridges_absorb_projectiles_from_both_sides_instead_of_bouncing() {
         }],
         ..Default::default()
     };
-    let mut world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
+    let mut world = CollisionWorld::from_map_layout(&layout);
     for powered in [false, true, false] {
         let powered_kinds = [BridgeId(u32::from(kind.0))];
         world.set_powered_bridges(if powered { &powered_kinds } else { &[] });
@@ -604,7 +595,7 @@ fn moving_projectile_portals(entry_travel: Vec3, exit_travel: Vec3, obstacles: &
         .collect(),
         ..Default::default()
     };
-    let mut world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
+    let mut world = CollisionWorld::from_map_layout(&layout);
     let mut carriers = Carriers::from_layout(&layout);
     carriers.advance(0, &PlateState::default());
     carriers.advance(1, &PlateState::default());

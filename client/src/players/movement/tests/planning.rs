@@ -1,17 +1,14 @@
 use super::*;
 use crate::test_fixtures;
 use bevy::ecs::system::SystemState;
-use common::{
-    constants::TICK_SECS,
-    protocol::{BarrierKindTable, MapLayout},
-};
+use common::{constants::TICK_SECS, protocol::MapLayout};
 use std::f32::consts::FRAC_PI_2;
 
 #[test]
 fn remote_bodies_stay_at_reported_positions_while_the_owner_simulates() {
     let gameplay = test_fixtures::gameplay_config();
     let settings = test_fixtures::map_settings();
-    let collision = CollisionWorld::from_map_layout(&MapLayout::default(), &BarrierKindTable::default());
+    let collision = CollisionWorld::from_map_layout(&MapLayout::default());
     for is_local in [false, true] {
         let mut world = World::new();
         let position = Position {
@@ -74,7 +71,7 @@ fn remote_bodies_stay_at_reported_positions_while_the_owner_simulates() {
 fn a_dead_local_player_gets_no_plan() {
     let gameplay = test_fixtures::gameplay_config();
     let settings = test_fixtures::map_settings();
-    let collision = CollisionWorld::from_map_layout(&MapLayout::default(), &BarrierKindTable::default());
+    let collision = CollisionWorld::from_map_layout(&MapLayout::default());
     let mut world = World::new();
     let position = Position {
         x: 0.0,

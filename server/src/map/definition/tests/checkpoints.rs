@@ -1,5 +1,4 @@
-use super::super::schema::CheckpointDef;
-use super::*;
+use super::{super::schema::CheckpointDef, *};
 use common::protocol::{CheckpointKind, MapLayout};
 
 fn checkpoint_def(level: u32, col: i32, row: i32) -> CheckpointDef {

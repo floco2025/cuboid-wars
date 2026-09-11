@@ -7,8 +7,8 @@ use rapier3d::{
 use super::{
     CollisionWorld,
     colliders::{
-        BRIDGE_COLLISION_GROUP, ColliderKind, FLOOR_COLLISION_GROUP, WALL_COLLISION_GROUP, barrier_blocks,
-        character_collision_groups, query_filter, surface_collision_groups, world_collision_groups,
+        BARRIER_COLLISION_GROUP, BRIDGE_COLLISION_GROUP, ColliderKind, FLOOR_COLLISION_GROUP, WALL_COLLISION_GROUP,
+        barrier_blocks, character_collision_groups, query_filter, surface_collision_groups, world_collision_groups,
     },
     shape_cast::ShapeCastHit,
 };
@@ -91,10 +91,7 @@ impl CollisionWorld {
         radius: f32,
         open_kinds: &[BarrierId],
     ) -> Option<ShapeCastHit> {
-        let groups = self.all_barrier_groups | BRIDGE_COLLISION_GROUP;
-        if groups.is_empty() {
-            return None;
-        }
+        let groups = BARRIER_COLLISION_GROUP | BRIDGE_COLLISION_GROUP;
         self.cast_moving_ball_with_filter(position, translation, radius, groups, &[], open_kinds)
     }
 
@@ -152,11 +149,11 @@ impl CollisionWorld {
 
     #[must_use]
     pub fn projectile_spawn_overlaps_blocker(&self, position: Vec3, radius: f32, open_kinds: &[BarrierId]) -> bool {
-        // Walls, floors, and powered bridges are always blockers. Barriers
-        // block the muzzle unless the kind is currently open (pressure-plate
-        // held) — those barriers are gone visually and shots pass through
-        // them, so the muzzle clipping them is fine.
-        let groups = WALL_COLLISION_GROUP | FLOOR_COLLISION_GROUP | BRIDGE_COLLISION_GROUP | self.all_barrier_groups;
+        // Walls, floors, and powered bridges are always blockers. A barrier
+        // blocks the muzzle unless it is currently open (pressure-plate
+        // held) — an open barrier is gone visually and shots pass through
+        // it, so the muzzle clipping it is fine.
+        let groups = WALL_COLLISION_GROUP | FLOOR_COLLISION_GROUP | BRIDGE_COLLISION_GROUP | BARRIER_COLLISION_GROUP;
         self.ball_overlaps_groups(position, radius, groups, open_kinds)
     }
 

@@ -5,14 +5,14 @@ use super::{BarrierId, BridgeId, CarrierId, SwitchId};
 use crate::map::CarrierRun;
 
 // What the pressure plates currently hold: the active switches and what
-// they drive — barrier kinds open (passable and invisible), bridge kinds
+// they drive — the barriers open (passable and invisible), the bridges
 // powered (solid and lit), and each switched carrier's run. One value on
-// both sides — the server's plate system writes it, every snapshot carries
-// it, the collision filters read the open kinds, `powered_bridges_sync_system`
-// applies the powered kinds to the bridge colliders, `Carriers::advance`
-// places switched carriers from their runs, and the actor spawner reads the
-// active switches for its zones. Every list stays sorted so equality diffs
-// are stable.
+// both sides — the server's plate system writes it, `SInit` and every
+// snapshot carry it, the collision filters read the open barriers,
+// `powered_bridges_sync_system` applies the powered bridges to their
+// colliders, `Carriers::advance` places switched carriers from their runs,
+// and the actor spawner reads the active switches for its zones. Every list
+// stays sorted so equality diffs are stable.
 #[derive(Resource, Debug, Default, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct PlateState {
     pub active_switches: Vec<SwitchId>,

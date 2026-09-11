@@ -14,10 +14,7 @@ use super::{
     respawn::RespawnConfig,
     validation::{deserialize_required_option, validate_covers_actor_kinds, validate_positive_finite},
 };
-use common::{
-    config::validate_non_negative_finite,
-    protocol::{ItemType, MapSettings, validate_texture_catalog},
-};
+use common::protocol::{ItemType, MapSettings, validate_texture_catalog};
 
 // Server-side wrapper around the wire `MapSettings`: the flattened settings
 // ship to clients in `SInit`, while the rest stays server-only.
@@ -29,9 +26,6 @@ pub struct MapServerConfig {
     // `None` = no random item spawning on this map.
     #[serde(deserialize_with = "deserialize_required_option")]
     pub random_items: Option<RandomItemsConfig>,
-    // `None` = no switch launches the firework show on this map.
-    #[serde(skip)]
-    pub fireworks: Option<FireworksConfig>,
     pub placed_items: PlacedItemsConfig,
     pub power_ups: PowerUpsConfig,
     pub respawn: RespawnConfig,
@@ -71,25 +65,6 @@ impl LightingMode {
             Self::Dark => Some("dark"),
             Self::Auto => None,
         }
-    }
-}
-
-// The switch that plays the firework show: while it is active a show
-// starts, plays, waits `cooldown_secs`, and repeats.
-#[derive(Debug, Clone, Deserialize)]
-pub struct FireworksConfig {
-    #[serde(default)]
-    pub switch_inverted: bool,
-    pub switch: String,
-    pub cooldown_secs: f32,
-}
-
-impl FireworksConfig {
-    fn validate(&self, path: &str, settings: &MapSettings) -> Result<()> {
-        if !settings.switches.iter().any(|def| def.id == self.switch) {
-            bail!("{path}.switch names unknown switch {:?}", self.switch);
-        }
-        validate_non_negative_finite(self.cooldown_secs, &format!("{path}.cooldown_secs"))
     }
 }
 
@@ -133,10 +108,7 @@ pub(super) fn validate_maps(
         entry
             .settings
             .kind_tables()
-            .with_context(|| format!("invalid {path} switches, barrier_kinds, or bridge_kinds"))?;
-        if let Some(fireworks) = &entry.fireworks {
-            fireworks.validate(&format!("{path} fireworks"), &entry.settings)?;
-        }
+            .with_context(|| format!("invalid {path} barrier_kinds or bridge_kinds"))?;
         validate_texture_catalog(&entry.settings.textures, &format!("{path} textures"))?;
         entry.settings.geometry.validate(&format!("{path} geometry"))?;
         let movement_path = format!("{path} movement");

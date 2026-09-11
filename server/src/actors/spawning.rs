@@ -99,8 +99,9 @@ fn sync_switched_zones(
 }
 
 // Startup-only: fill every spawn zone to its `count`, irrespective of
-// `respawn_secs` — initial fill is universal — except a switched zone, which
-// waits for its switch. Spawns are queued, not spawned: each waits out its
+// `respawn_secs` — initial fill is universal — except a switched zone whose
+// condition does not hold yet, which waits for its switch like
+// `sync_switched_zones`. Spawns are queued, not spawned: each waits out its
 // beam-in warning window in `PendingActorSpawns` before
 // `actors_pending_spawn_system` materializes it.
 pub fn actors_initial_spawn_system(
@@ -111,6 +112,7 @@ pub fn actors_initial_spawn_system(
     carriers: Res<Carriers>,
     collision_world: Res<CollisionWorld>,
     server_gameplay_config: Res<ServerGameplayConfig>,
+    plates: Res<PlateState>,
     tick: Res<ServerTick>,
     players: Query<&Position, With<PlayerMarker>>,
 ) {
@@ -127,7 +129,10 @@ pub fn actors_initial_spawn_system(
         tick: tick.0,
     };
     for (zone_idx, zone) in map_config.actor_spawn_zones.iter().enumerate() {
-        if zone.switch.is_some() {
+        if zone
+            .switch
+            .is_some_and(|switch| plates.is_active(switch) == zone.switch_inverted)
+        {
             planner.timers.0.insert(zone_idx, ActorRespawnState::Inactive);
         } else {
             planner.queue_zone(zone_idx, zone, zone.count);

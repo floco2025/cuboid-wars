@@ -6,7 +6,7 @@ use common::{
     config::{CharacterPhysicsConfig, HitboxConfig, MovementColliderConfig},
     constants::{LADDER_RAIL_INSET, LADDER_STANDOFF_CLEARANCE, TICK_SECS},
     physics::character_paths_intersect,
-    protocol::{BarrierKindTable, Ladder},
+    protocol::Ladder,
 };
 
 #[test]
@@ -54,35 +54,32 @@ fn ladder_traffic(transpose: bool, traffic: Traffic) {
         y: 0.0,
         z: -(LADDER_RAIL_INSET + physics.movement_collider.radius() + LADDER_STANDOFF_CLEARANCE),
     });
-    let world = CollisionWorld::from_map_layout(
-        &MapLayout {
-            floors: vec![
-                floor(),
-                Floor {
-                    x1: if transpose { 0.0 } else { -4.0 },
-                    z1: if transpose { -4.0 } else { 0.0 },
-                    y: 4.4,
-                    level: 1,
-                    ..floor()
-                },
-            ],
-            ladders: vec![Ladder {
-                x1: if transpose { 0.0 } else { -0.6 },
-                x2: if transpose { 0.0 } else { 0.6 },
-                z1: if transpose { -0.6 } else { 0.0 },
-                z2: if transpose { 0.6 } else { 0.0 },
-                nx: if transpose { -1.0 } else { 0.0 },
-                nz: if transpose { 0.0 } else { -1.0 },
-                y: 0.0,
-                height: 4.4,
-                level: 0,
-                levels: 1,
-                carrier: CarrierId::WORLD,
-            }],
-            ..Default::default()
-        },
-        &BarrierKindTable::default(),
-    );
+    let world = CollisionWorld::from_map_layout(&MapLayout {
+        floors: vec![
+            floor(),
+            Floor {
+                x1: if transpose { 0.0 } else { -4.0 },
+                z1: if transpose { -4.0 } else { 0.0 },
+                y: 4.4,
+                level: 1,
+                ..floor()
+            },
+        ],
+        ladders: vec![Ladder {
+            x1: if transpose { 0.0 } else { -0.6 },
+            x2: if transpose { 0.0 } else { 0.6 },
+            z1: if transpose { -0.6 } else { 0.0 },
+            z2: if transpose { 0.6 } else { 0.0 },
+            nx: if transpose { -1.0 } else { 0.0 },
+            nz: if transpose { 0.0 } else { -1.0 },
+            y: 0.0,
+            height: 4.4,
+            level: 0,
+            levels: 1,
+            carrier: CarrierId::WORLD,
+        }],
+        ..Default::default()
+    });
 
     let descending = matches!(traffic, Traffic::SideBySideDescent);
     let landing_y = if descending { 0.0 } else { 4.4 };

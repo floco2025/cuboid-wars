@@ -1,6 +1,6 @@
 use bevy::prelude::Resource;
 
-use crate::config::FireworksConfig;
+use super::FireworksConfig;
 use common::{
     map::MapGeometry,
     protocol::{CarrierId, ItemType, MapItems, SwitchId},

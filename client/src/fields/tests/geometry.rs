@@ -1,4 +1,6 @@
-use common::protocol::CheckpointKind;
+use super::*;
+use common::protocol::{BarrierId, CheckpointKind, SwitchId, Wall};
+
 #[test]
 fn checkpoint_perimeter_has_four_vertical_sides_and_an_open_top() {
     let checkpoint = Checkpoint {
@@ -24,9 +26,6 @@ fn checkpoint_perimeter_has_four_vertical_sides_and_an_open_top() {
     assert_eq!(fields[0].rect.width(), 6.0);
     assert_eq!(fields[2].rect.width(), 8.0);
 }
-
-use super::*;
-use common::protocol::Wall;
 
 fn barrier() -> Barrier {
     Barrier {
@@ -120,10 +119,12 @@ fn adjacent_fields_merge_without_internal_frames_but_not_across_kinds_or_carrier
     for kind in [None, Some(BarrierKindId(0))] {
         let a = field(kind);
         let b = VisualField {
+            barrier: Some(BarrierId(1)),
             rect: Rect::new(4.0, 0.0, 8.0, 3.5),
             ..a
         };
         let c = VisualField {
+            barrier: Some(BarrierId(2)),
             rect: Rect::new(8.0, 0.0, 12.0, 3.5),
             ..a
         };
@@ -141,6 +142,14 @@ fn adjacent_fields_merge_without_internal_frames_but_not_across_kinds_or_carrier
                 ..b
             },
             VisualField {
+                switch: Some(SwitchId(0)),
+                ..b
+            },
+            VisualField {
+                switch_inverted: true,
+                ..b
+            },
+            VisualField {
                 rect: Rect::new(4.1, 0.0, 8.1, 3.5),
                 ..b
             },
@@ -154,7 +163,9 @@ fn adjacent_fields_merge_without_internal_frames_but_not_across_kinds_or_carrier
 fn scrambled_rectangular_grids_merge_to_one_outer_frame() {
     let order = [(0, 0), (1, 0), (1, 1), (2, 1), (2, 2), (1, 2), (0, 2), (0, 1), (2, 0)];
     for kind in [None, Some(BarrierKindId(0))] {
+        let mut ids = 0..;
         let fields = order.map(|(column, level)| VisualField {
+            barrier: ids.next().map(BarrierId),
             rect: Rect::new(
                 column as f32 * 4.0,
                 level as f32 * 4.0,
@@ -176,6 +187,7 @@ fn stacked_fields_bridge_floorless_gaps_and_keep_floor_separated_storeys_apart()
     for kind in [None, Some(BarrierKindId(0))] {
         let lower = field(kind);
         let upper = VisualField {
+            barrier: Some(BarrierId(1)),
             rect: Rect::new(0.0, 4.0, 4.0, 7.5),
             level: 1,
             ..lower
@@ -194,6 +206,7 @@ fn stacked_fields_merge_between_wall_trim_without_leaving_an_open_seam() {
         for axis in [0, 2] {
             let lower = VisualField { axis, ..field(kind) };
             let upper = VisualField {
+                barrier: Some(BarrierId(1)),
                 rect: Rect::new(0.0, 4.0, 4.0, 7.5),
                 level: 1,
                 ..lower

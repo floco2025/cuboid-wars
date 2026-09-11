@@ -21,7 +21,7 @@ fn light_bridge_supports_a_character_only_while_powered() {
         }],
         ..Default::default()
     };
-    let mut world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
+    let mut world = CollisionWorld::from_map_layout(&layout);
     assert_eq!(world.solid_kinds(), vec![ColliderKind::Bridge]);
 
     let shape = character_movement_shape(wide_body());
@@ -57,7 +57,7 @@ fn a_powered_light_bridge_stays_out_of_sight_and_ground_probes() {
         }],
         ..Default::default()
     };
-    let mut world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
+    let mut world = CollisionWorld::from_map_layout(&layout);
     world.set_powered_bridges(&[BridgeId(0)]);
     let above = Vec3::new(0.0, LEVEL_HEIGHT + 1.0, 0.0);
     let below = Vec3::new(0.0, LEVEL_HEIGHT - 1.0, 0.0);
@@ -98,7 +98,7 @@ fn bridge_power_blocks_attacks_and_beams_without_blocking_awareness() {
         }],
         ..Default::default()
     };
-    let mut world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
+    let mut world = CollisionWorld::from_map_layout(&layout);
     for powered in [false, true, false] {
         let powered_kinds = [BridgeId(u32::from(kind.0))];
         world.set_powered_bridges(if powered { &powered_kinds } else { &[] });
@@ -135,7 +135,7 @@ fn portal_shots_only_stop_at_powered_bridges() {
         kind: BridgeKindId(0),
         carrier: CarrierId::WORLD,
     });
-    let mut world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
+    let mut world = CollisionWorld::from_map_layout(&layout);
     let origin = Vec3::new(2.0, LEVEL_HEIGHT + 4.0, 2.0);
     for powered in [false, true, false] {
         world.set_powered_bridges(if powered { &[BridgeId(0)] } else { &[] });

@@ -280,7 +280,6 @@ def normalize_nested_map(entry: dict) -> dict:
         "from_nudge": [float(axis) for axis in entry.get("from_nudge", (0.0, 0.0, 0.0))],
         "to_nudge": [float(axis) for axis in entry.get("to_nudge", (0.0, 0.0, 0.0))],
     }
-    # Only a switched motion carries a switch; a stray empty one is dropped.
     normalized.update(control_fields(entry))
     return normalized
 
@@ -420,6 +419,8 @@ def _dedupe_sorted(zones: list[dict], key_fn) -> list[dict]:
 
 def canonicalize_map(map_data: dict) -> dict:
     b = normalize_map(copy.deepcopy(map_data))
+    if isinstance(b.get("fireworks"), dict):
+        b["fireworks"] = {key: value for key, value in b["fireworks"].items() if key != "switch_inverted"}
     # Sorted before the floor rules, which resolve stacked ramps in list
     # order: the result must not depend on the file's order.
     b["ramps"] = sorted(b["ramps"], key=lambda r: (r["lower_level"], tuple(r["low"]), tuple(r["high"])))

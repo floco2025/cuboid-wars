@@ -11,8 +11,8 @@ use common::{
 };
 
 use crate::{
-    config::{FireworksConfig, ServerGameplayConfig},
-    map::{MapFireworks, PressurePlateRuntime},
+    config::ServerGameplayConfig,
+    map::{FireworksConfig, MapFireworks, PressurePlateRuntime},
     schedule::ticks_from_secs,
 };
 
@@ -56,7 +56,6 @@ impl PressureSwitch {
 // The fireworks switch's cadence: while it is active a show starts whenever
 // the previous show and the cooldown have passed.
 struct FireworkTarget {
-    inverted: bool,
     switch: SwitchId,
     interval_ticks: u32,
     next_show_at: Option<u32>,
@@ -136,7 +135,6 @@ impl PressureSwitches {
             }
         }
         let fireworks = fireworks.map(|fireworks| FireworkTarget {
-            inverted: fireworks.switch_inverted,
             switch: switch_table
                 .index_of(&fireworks.switch)
                 .expect("fireworks switch missing from SwitchTable"),
@@ -226,9 +224,7 @@ impl PressureSwitches {
         let Some(fireworks) = &mut self.fireworks else {
             return false;
         };
-        if locked.contains(&fireworks.switch)
-            || self.switches[usize::from(fireworks.switch.0)].active == fireworks.inverted
-        {
+        if locked.contains(&fireworks.switch) || !self.switches[usize::from(fireworks.switch.0)].active {
             return false;
         }
         if fireworks.next_show_at.is_some_and(|at| sequence_is_newer(at, tick)) {

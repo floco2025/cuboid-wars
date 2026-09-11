@@ -45,7 +45,7 @@ def load_map_kinds(map_name: str, key: str) -> dict[str, str]:
         if not isinstance(entry, dict) or not isinstance(entry.get("id"), str) or not isinstance(entry.get("color"), str):
             raise ValueError(f"{path} must be an object with string `id` and `color`")
         if set(entry) - {"id", "color"}:
-            raise ValueError(f"{path}: kinds define id and color; assign pressure plate controls in layout.json")
+            raise ValueError(f"{path}: kinds define only id and color")
         kind, color = entry["id"], entry["color"]
         if not kind:
             raise ValueError(f"{path}.id is empty")
@@ -64,35 +64,6 @@ def load_map_barrier_kinds(map_name: str) -> dict[str, str]:
 SWITCH_ACTIVATIONS = ("momentary", "toggle", "auto")
 SWITCH_RESETS = ("never", "solo", "any", "all")
 SWITCH_HOLDS = ("any", "everyone")
-
-
-def load_map_switches(map_name: str) -> list[str]:
-    source = map_layout_path(map_name)
-    if not source.exists():
-        return []
-    value = read_settings_json(source)["map"].get("switch_kinds", [])
-    if not isinstance(value, list):
-        raise ValueError(f"{source}: switch_kinds must be an array of {{id, activation, reset_on_player_death}} objects")
-    switches: list[str] = []
-    for idx, entry in enumerate(value):
-        path = f"{source}: switch_kinds[{idx}]"
-        if not isinstance(entry, dict) or not isinstance(entry.get("id"), str):
-            raise ValueError(f"{path} must be an object with a string `id`")
-        switch = entry["id"]
-        if not switch:
-            raise ValueError(f"{path}.id is empty")
-        if switch in switches:
-            raise ValueError(f"{path}.id duplicates {switch!r}")
-        for key, allowed in (("activation", SWITCH_ACTIVATIONS), ("reset_on_player_death", SWITCH_RESETS)):
-            if entry.get(key) not in allowed:
-                raise ValueError(f"{path}.{key} must be one of {', '.join(allowed)}, got {entry.get(key)!r}")
-        if entry.get("held", "any") not in SWITCH_HOLDS:
-            raise ValueError(f"{path}.held must be one of {', '.join(SWITCH_HOLDS)}, got {entry.get('held')!r}")
-        color = entry.get("plate_color")
-        if color is not None and (not isinstance(color, str) or not HEX_COLOR.fullmatch(color)):
-            raise ValueError(f"{path}.plate_color must look like #rrggbb, got {color!r}")
-        switches.append(switch)
-    return switches
 
 
 def switch_entries(root: dict) -> list[dict]:
@@ -117,13 +88,6 @@ def plate_colors(root: dict, barriers: dict[str, str], bridges: dict[str, str]) 
     return {entry["id"]: override(entry) or next(
         (color for switch, color in targets if switch == entry["id"] and color), default_color,
     ) for entry in switch_entries(root)}
-
-
-def load_map_plate_colors(map_name: str) -> dict[str, str]:
-    path = map_layout_path(map_name)
-    root = read_settings_json(path)["map"] if path.exists() else {}
-    return plate_colors(root,
-                       load_map_barrier_kinds(map_name), load_map_bridge_kinds(map_name))
 
 
 def load_map_bridge_kinds(map_name: str) -> dict[str, str]:
@@ -151,15 +115,22 @@ def load_texture_catalog(host: str) -> dict[str, bool]:
     return dict(sorted(result.items()))
 
 
-def read_settings_json(path: Path) -> dict:
+def read_settings_text(path: Path) -> str:
+    return path.read_text(encoding="utf-8")
+
+
+def parse_settings_json(text: str, path: Path) -> dict:
     try:
-        with path.open(encoding="utf-8") as handle:
-            value = json.load(handle)
+        value = json.loads(text)
     except json.JSONDecodeError as exc:
         raise ValueError(f"Invalid JSON in {path}: {exc}") from exc
     if not isinstance(value, dict):
         raise ValueError(f"{path} must contain a JSON object")
     return value
+
+
+def read_settings_json(path: Path) -> dict:
+    return parse_settings_json(read_settings_text(path), path)
 
 
 def list_map_names() -> list[str]:
@@ -200,11 +171,7 @@ def map_name_from_path(path: Path) -> str:
 def load_map_settings(name: str) -> dict:
     if name not in list_map_names():
         raise ValueError(f"Map {name!r} is not registered in {GAMEPLAY_PATH}.")
-    settings = read_settings_json(map_settings_path(name))
-    for field in ("switches", "switch_kinds", "fireworks"):
-        if field in settings:
-            raise ValueError(f"{map_settings_path(name)}: {field} belongs in layout.json")
-    return settings
+    return read_settings_json(map_settings_path(name))
 
 
 def require_map_settings(name: str) -> None:

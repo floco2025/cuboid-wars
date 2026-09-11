@@ -50,10 +50,7 @@ fn spawn_app_for(kind: &str, cols: i32, counts: &[u32], respawn_secs: Option<f32
         .insert_resource(config)
         .insert_resource(settings)
         .insert_resource(map)
-        .insert_resource(CollisionWorld::from_map_layout(
-            &MapLayout::default(),
-            &Default::default(),
-        ))
+        .insert_resource(CollisionWorld::from_map_layout(&MapLayout::default()))
         .init_resource::<Carriers>()
         .init_resource::<ActorMap>()
         .init_resource::<ActorRespawnTimers>()
@@ -598,8 +595,22 @@ fn expediting_respawns_skips_a_switched_off_zone() {
 }
 
 #[test]
-fn an_inverted_zone_spawns_while_its_pressure_plate_kind_is_off() {
-    let mut app = switched_app(Some(0.0), 2);
+fn an_inverted_zone_fills_at_boot_while_its_switch_is_off_and_parks_once_it_turns_on() {
+    let mut app = switched_app(Some(1000.0), 2);
+    app.world_mut().resource_mut::<MapConfig>().actor_spawn_zones[0].switch_inverted = true;
+    app.update();
+    assert_eq!(pending_count(&app), 2);
+    assert_ne!(zone_state(&app), Some(ActorRespawnState::Inactive));
+    app.update();
+    assert_eq!(pending_count(&app), 2);
+    set_switch(&mut app, true);
+    app.update();
+    assert_eq!(zone_state(&app), Some(ActorRespawnState::Inactive));
+}
+
+#[test]
+fn an_inverted_zone_that_boots_switched_on_waits_for_the_switch_to_turn_off() {
+    let mut app = switched_app(Some(1000.0), 2);
     app.world_mut().resource_mut::<MapConfig>().actor_spawn_zones[0].switch_inverted = true;
     set_switch(&mut app, true);
     app.update();
@@ -607,5 +618,6 @@ fn an_inverted_zone_spawns_while_its_pressure_plate_kind_is_off() {
     assert_eq!(zone_state(&app), Some(ActorRespawnState::Inactive));
     set_switch(&mut app, false);
     app.update();
-    assert_eq!(pending_count(&app), 2);
+    assert_eq!(pending_count(&app), 0);
+    assert!(matches!(zone_state(&app), Some(ActorRespawnState::Cooldown(secs)) if secs > 0.0));
 }

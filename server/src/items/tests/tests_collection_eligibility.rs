@@ -220,7 +220,7 @@ fn eraser_wins_over_same_tick_pickup_and_does_not_repeat_status() {
     use common::protocol::{CMoveOutcome, MoveOutcome, PlayerGeneration};
     use common::{
         physics::CollisionWorld,
-        protocol::{BarrierKindTable, Eraser, MapLayout, PowerUpKind},
+        protocol::{Eraser, MapLayout, PowerUpKind},
     };
     let mut app = test_app();
     let layout = MapLayout {
@@ -237,7 +237,7 @@ fn eraser_wins_over_same_tick_pickup_and_does_not_repeat_status() {
         }],
         ..Default::default()
     };
-    app.insert_resource(CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default()))
+    app.insert_resource(CollisionWorld::from_map_layout(&layout))
         .add_systems(Update, erase_equipment_system.after(item_collection_system));
     let id = PlayerId(1);
     let (entity, mut rx) = spawn_player(&mut app, id, Position::default());

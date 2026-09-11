@@ -7,9 +7,9 @@ use rapier3d::prelude::{
 
 use super::{
     colliders::{
-        BARRIER_COLLISION_GROUP, BRIDGE_COLLISION_GROUP, ColliderKind, collider_interaction_groups,
-        insert_barrier_collider, insert_bridge_collider, insert_floor_collider, insert_ramp_collider,
-        insert_wall_collider, query_filter, surface_collision_groups,
+        BRIDGE_COLLISION_GROUP, ColliderKind, collider_interaction_groups, insert_barrier_collider,
+        insert_bridge_collider, insert_floor_collider, insert_ramp_collider, insert_wall_collider, query_filter,
+        surface_collision_groups,
     },
     erasers::EraserVolume,
     ladders::LadderVolume,
@@ -18,7 +18,7 @@ use super::{
 use crate::{
     map::Carriers,
     math::{rapier_pose, to_rapier},
-    protocol::{Barrier, BarrierId, BarrierKindId, BarrierKindTable, BridgeId, CarrierId, MapLayout},
+    protocol::{Barrier, BarrierId, BarrierKindId, BridgeId, CarrierId, MapLayout},
 };
 
 #[derive(Resource)]
@@ -27,11 +27,6 @@ pub struct CollisionWorld {
     pub(super) colliders: ColliderSet,
     pub(super) broad_phase: BroadPhaseBvh,
     pub(super) narrow_phase: NarrowPhase,
-    // Cached union of every configured barrier kind's collision group.
-    // Recomputed at construction (depends on `BarrierKindTable.len()`); used
-    // by character filters and barrier-only shape casts so we don't loop
-    // the table per query.
-    pub(super) all_barrier_groups: Group,
     pub(crate) barriers: Vec<Barrier>,
     // Every light bridge collider with its kind, for `set_powered_bridges`.
     bridge_colliders: Vec<(BridgeId, ColliderHandle)>,
@@ -54,7 +49,7 @@ impl CollisionWorld {
     }
 
     #[must_use]
-    pub fn from_map_layout(map_layout: &MapLayout, _kind_table: &BarrierKindTable) -> Self {
+    pub fn from_map_layout(map_layout: &MapLayout) -> Self {
         let bodies = RigidBodySet::new();
         let mut colliders = ColliderSet::new();
         let mut collider_handles = Vec::new();
@@ -118,8 +113,6 @@ impl CollisionWorld {
             &mut events,
         );
 
-        let all_barrier_groups = BARRIER_COLLISION_GROUP;
-
         let ladder_locals: Vec<_> = map_layout.ladders.iter().map(LadderVolume::from_ladder).collect();
         let ladder_volumes = ladder_locals.clone();
         let eraser_locals: Vec<_> = map_layout.erasers.iter().map(EraserVolume::from_eraser).collect();
@@ -130,7 +123,6 @@ impl CollisionWorld {
             colliders,
             broad_phase,
             narrow_phase,
-            all_barrier_groups,
             barriers: map_layout.barriers.clone(),
             bridge_colliders,
             carrier_colliders,

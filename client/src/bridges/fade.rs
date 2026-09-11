@@ -17,8 +17,7 @@ pub fn bridges_fade_system(
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     let config = client_settings.vfx.light_bridges;
-    for (idx, visual) in bridge_assets.bridges.iter().enumerate() {
-        let kind = BridgeId(u32::try_from(idx).expect("bridge index exceeds u32"));
+    for (bridge, visual) in &bridge_assets.visuals {
         let Some(alpha) = materials
             .get(&visual.surface)
             .map(|material| material.base_color.alpha())
@@ -27,7 +26,7 @@ pub fn bridges_fade_system(
         };
         let Some(next) = fade_step(
             alpha,
-            fade_target(&plates, kind, config),
+            fade_target(&plates, *bridge, config),
             time.delta_secs(),
             config.fade_secs,
         ) else {
@@ -41,8 +40,8 @@ pub fn bridges_fade_system(
     }
 }
 
-fn fade_target(plates: &PlateState, kind: BridgeId, config: LightBridgeVfxConfig) -> f32 {
-    if plates.powered_bridges.contains(&kind) {
+fn fade_target(plates: &PlateState, bridge: BridgeId, config: LightBridgeVfxConfig) -> f32 {
+    if plates.powered_bridges.contains(&bridge) {
         config.opacity
     } else {
         config.unpowered_opacity

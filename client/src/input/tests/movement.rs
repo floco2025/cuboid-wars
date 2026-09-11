@@ -13,8 +13,7 @@ use common::{
     map::Carriers,
     physics::{AirborneMomentum, CharacterSupport, CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity},
     protocol::{
-        BarrierKindTable, CarrierId, ClientMessage, FaceYaw, MapLayout, PlayerId, PlayerMoveIntent, PortalAccess,
-        PortalPairId, Position,
+        CarrierId, ClientMessage, FaceYaw, MapLayout, PlayerId, PlayerMoveIntent, PortalAccess, PortalPairId, Position,
     },
 };
 
@@ -46,10 +45,7 @@ fn input_app() -> (App, Entity, Entity) {
         .insert_resource(ClientToServerChannel::new(sender))
         .insert_resource(MyPlayerId(PlayerId(1)))
         .insert_resource(test_fixtures::map_settings())
-        .insert_resource(CollisionWorld::from_map_layout(
-            &MapLayout::default(),
-            &BarrierKindTable::default(),
-        ))
+        .insert_resource(CollisionWorld::from_map_layout(&MapLayout::default()))
         .init_resource::<common::protocol::ServerTick>()
         .init_resource::<NetworkConfig>()
         .init_resource::<Carriers>()

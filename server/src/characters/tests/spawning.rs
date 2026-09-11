@@ -10,7 +10,7 @@ fn empty_layout() -> MapLayout {
 }
 
 fn collision_world(layout: &MapLayout) -> CollisionWorld {
-    CollisionWorld::from_map_layout(layout, &common::protocol::BarrierKindTable::default())
+    CollisionWorld::from_map_layout(layout)
 }
 
 fn character_physics() -> CharacterPhysicsConfig {
