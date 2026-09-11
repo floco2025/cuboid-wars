@@ -14,12 +14,21 @@ from .normalization import normalize_map
 def read_map(path: Path) -> dict:
     with path.open("r", encoding="utf-8") as handle:
         data = json.load(handle)
-    return normalize_map(data["map"])
+    result = normalize_map(data["map"])
+    if "editor_settings" in data:
+        result["_settings"] = data["editor_settings"]
+    return result
 
 
-def write_map(path: Path, map_data: dict) -> None:
+def write_map(path: Path, map_data: dict, *, recovery: bool = False) -> None:
     wrapper = {"map": normalize_map(map_data)}
     text = format_map_file(wrapper) + "\n"
+    if recovery and "_settings" in map_data:
+        text = text.rstrip()[:-1] + ',\n  "editor_settings": ' + json.dumps(map_data["_settings"], indent=2) + "\n}\n"
+    write_text_atomic(path, text)
+
+
+def write_text_atomic(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
     try:

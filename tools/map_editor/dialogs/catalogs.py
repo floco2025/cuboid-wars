@@ -4,6 +4,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QComboBox, QDialog, QDialogButtonBox, QFormLayout, QMessageBox, QSpinBox, QVBoxLayout
 
 from ..catalogs import load_actor_kinds
+from .controls import SwitchControl
 from ..constants import ITEM_KEY_TYPE, ITEM_TYPES
 
 
@@ -12,13 +13,13 @@ class ActorSpawnFieldsDialog(QDialog):
     map switch that activates the zone, if any.
 
     Used both when painting a new actor zone and when editing an existing
-    one. Returns (kind, count, switch-or-None) on accept; None on cancel.
+    one. Returns (kind, count, switch-or-None, inverted) on accept; None on cancel.
     """
 
     MAX_COUNT = 9999
     NO_SWITCH = "(none)"
 
-    def __init__(self, parent, kind: str, count: int, switches: list[str], switch: str | None):
+    def __init__(self, parent, kind: str, count: int, switches: list[str], switch: str | None, inverted: bool = False):
         super().__init__(parent)
         self.setWindowTitle("Actor Spawn Zone")
 
@@ -32,16 +33,13 @@ class ActorSpawnFieldsDialog(QDialog):
         self._count_spin = QSpinBox()
         self._count_spin.setRange(0, self.MAX_COUNT)
         self._count_spin.setValue(count)
-        self._switch_combo = QComboBox()
-        self._switch_combo.addItem(self.NO_SWITCH)
-        self._switch_combo.addItems(switches)
-        if switch in switches:
-            self._switch_combo.setCurrentText(switch)
+        self.control = SwitchControl(switches, switch, inverted)
+        self._switch_combo = self.control.kind
 
         form = QFormLayout()
         form.addRow("Kind:", self._kind_edit)
         form.addRow("Count:", self._count_spin)
-        form.addRow("Switch:", self._switch_combo)
+        form.addRow(self.control)
 
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(self.accept)
@@ -51,31 +49,32 @@ class ActorSpawnFieldsDialog(QDialog):
         layout.addLayout(form)
         layout.addWidget(buttons)
 
-    def values(self) -> tuple[str, int, str | None]:
-        switch = self._switch_combo.currentText()
+    def values(self) -> tuple[str, int, str | None, bool]:
+        control = self.control.values()
         return (
             self._kind_edit.currentText().strip(),
             self._count_spin.value(),
-            None if switch == self.NO_SWITCH else switch,
+            control["switch"],
+            control["switch_inverted"],
         )
 
     @classmethod
     def prompt(
-        cls, parent, kind: str, count: int, switches: list[str], switch: str | None
-    ) -> tuple[str, int, str | None] | None:
-        dialog = cls(parent, kind, count, switches, switch)
+        cls, parent, kind: str, count: int, switches: list[str], switch: str | None, inverted: bool = False
+    ) -> tuple[str, int, str | None, bool] | None:
+        dialog = cls(parent, kind, count, switches, switch, inverted)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return None
-        new_kind, new_count, new_switch = dialog.values()
+        new_kind, new_count, new_switch, inverted = dialog.values()
         if new_kind not in load_actor_kinds():
             QMessageBox.warning(parent, "Actor Spawn Zone", "Choose an actor kind from the catalog.")
             return None
-        return new_kind, new_count, new_switch
+        return new_kind, new_count, new_switch, inverted
 
 
 class KindDialog(QDialog):
     """Modal dialog asking which id to use from one of the map's catalogs
-    (barrier kinds, bridge kinds, or switches, from its gameplay settings).
+    (barrier kinds, bridge kinds, or pressure plate kinds).
     `noun` names one entry of that catalog in the empty-catalog warning.
     Returns the chosen id string on accept, None on cancel."""
 
@@ -110,7 +109,7 @@ class KindDialog(QDialog):
             QMessageBox.warning(
                 parent,
                 title,
-                f"This map lists no {noun}s; add them to its gameplay settings first.",
+                f"This map lists no {noun}s; add them in the Map menu first.",
             )
             return None
         dialog = cls(parent, title, kinds, current, noun)
@@ -174,7 +173,7 @@ class ItemTypeDialog(QDialog):
             QMessageBox.warning(
                 parent,
                 title,
-                "This map lists no barrier kinds. Add them to its gameplay settings first.",
+                "This map lists no barrier kinds. Add them in the Map menu first.",
             )
             return None
         return item_type, kind

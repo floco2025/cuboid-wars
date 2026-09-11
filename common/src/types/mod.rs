@@ -4,6 +4,7 @@ mod color;
 mod entities;
 mod face_materials;
 mod feed;
+mod field_ids;
 mod ids;
 mod items;
 mod kind_table;
@@ -28,6 +29,7 @@ pub use entities::{
 };
 pub use face_materials::FaceMaterials;
 pub use feed::{FeedSpan, FeedStyle};
+pub use field_ids::{BarrierId, BridgeId};
 pub use ids::{ActorId, CarrierId, HomingTarget, ItemId, MissileId, PlayerId, PortalPairId, QuestId};
 pub use items::{ItemType, PowerUpKind};
 pub use kind_table::{KindDef, KindId, KindTable};

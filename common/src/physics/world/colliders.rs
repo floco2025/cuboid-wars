@@ -1,7 +1,7 @@
 use bevy_math::Vec3;
 use rapier3d::prelude::{
-    ColliderBuilder, ColliderHandle, ColliderSet, Group, InteractionGroups, InteractionTestMode, Pose, QueryFilter,
-    Vector,
+    Collider, ColliderBuilder, ColliderHandle, ColliderSet, Group, InteractionGroups, InteractionTestMode, Pose,
+    QueryFilter, Vector,
 };
 
 use super::shape_cast::FieldKind;
@@ -9,34 +9,26 @@ use super::shape_cast::FieldKind;
 use crate::{
     map::{RampAxis, ramp_axis},
     math::to_rapier,
-    protocol::{Barrier, BarrierKindId, BridgeKindId, CarrierId, Floor, KindId, LightBridge, Ramp, Wall},
+    protocol::{Barrier, BarrierId, BridgeId, CarrierId, Floor, LightBridge, Ramp, Wall},
 };
 
-// Rapier's 32 collision groups, split once here: walls/floors/ramps take
-// bits 0..2, every light bridge shares bit 3 (a bridge collider is a member
-// only while its kind is powered — `CollisionWorld::set_powered_bridges`),
-// and barrier kinds take bits 4..31 (`BarrierKindId(n)` → bit `4 + n`),
-// which is where `BarrierKindId::MAX` comes from. A carrier's colliders are
-// ordinary members of these groups: what moves is their pose, not their
-// kind.
 pub(super) const WALL_COLLISION_GROUP: Group = Group::GROUP_1;
 pub(super) const FLOOR_COLLISION_GROUP: Group = Group::GROUP_2;
 const RAMP_COLLISION_GROUP: Group = Group::GROUP_3;
 pub(super) const BRIDGE_COLLISION_GROUP: Group = Group::GROUP_4;
-const BARRIER_GROUP_BIT_OFFSET: u32 = 4;
-const _: () = assert!(matches!(BarrierKindId::MAX, Some(max) if BARRIER_GROUP_BIT_OFFSET as usize + max == 32));
+pub(super) const BARRIER_COLLISION_GROUP: Group = Group::GROUP_5;
 
-// Collider `user_data`: the kind tag in the low byte, the kind's payload
-// (barrier or bridge kind id) from bit 8, the carrier from bit 24, and
-// the wall/floor/ramp material index from bit 40.
+// Field IDs and surface material indices share bit 40; the collider tag distinguishes them.
 const COLLIDER_KIND_MASK: u128 = 0xff;
-const KIND_SHIFT: u32 = 8;
+const KIND_SHIFT: u32 = 40;
 const ID_MASK: u128 = 0xffff;
 const CARRIER_SHIFT: u32 = 24;
 
-#[must_use]
-pub(crate) fn barrier_collision_group(kind: BarrierKindId) -> Group {
-    Group::from_bits_retain(1u32 << (BARRIER_GROUP_BIT_OFFSET + u32::from(kind.0)))
+pub(super) fn barrier_blocks(collider: &Collider, passable: &[BarrierId]) -> bool {
+    match ColliderKind::field_kind_from_user_data(collider.user_data) {
+        Some(FieldKind::Barrier(id)) => !passable.contains(&id),
+        _ => true,
+    }
 }
 
 // World geometry that bounces projectiles (walls, floors, ramps), on any
@@ -59,17 +51,8 @@ pub(super) fn ground_collision_groups() -> Group {
     FLOOR_COLLISION_GROUP | RAMP_COLLISION_GROUP
 }
 
-// Filter for character (player + actor) movement. Starts from the surface
-// groups plus every configured barrier kind, then removes each kind in
-// `passable_kinds`: for players the union of held keys and pressure-plate
-// open kinds (`crate::physics::passable_barrier_kinds`), for actors the open
-// kinds alone.
-pub(super) fn character_collision_groups(passable_kinds: &[BarrierKindId], all_barriers: Group) -> Group {
-    let mut groups = surface_collision_groups() | all_barriers;
-    for kind in passable_kinds {
-        groups.remove(barrier_collision_group(*kind));
-    }
-    groups
+pub(super) fn character_collision_groups() -> Group {
+    surface_collision_groups() | BARRIER_COLLISION_GROUP
 }
 
 pub(super) fn query_filter(groups: Group) -> QueryFilter<'static> {
@@ -101,19 +84,19 @@ impl ColliderKind {
         tag | (u128::from(carrier.0) << CARRIER_SHIFT)
     }
 
-    fn barrier_user_data(kind: BarrierKindId, carrier: CarrierId) -> u128 {
+    fn barrier_user_data(kind: BarrierId, carrier: CarrierId) -> u128 {
         Self::Barrier.user_data(carrier) | (u128::from(kind.0) << KIND_SHIFT)
     }
 
-    fn bridge_user_data(kind: BridgeKindId, carrier: CarrierId) -> u128 {
+    fn bridge_user_data(kind: BridgeId, carrier: CarrierId) -> u128 {
         Self::Bridge.user_data(carrier) | (u128::from(kind.0) << KIND_SHIFT)
     }
 
     pub(super) fn field_kind_from_user_data(user_data: u128) -> Option<FieldKind> {
-        let id = ((user_data >> KIND_SHIFT) & ID_MASK) as u16;
+        let id = ((user_data >> KIND_SHIFT) & u128::from(u32::MAX)) as u32;
         match Self::from_user_data(user_data)? {
-            Self::Barrier => Some(FieldKind::Barrier(BarrierKindId(id))),
-            Self::Bridge => Some(FieldKind::Bridge(BridgeKindId(id))),
+            Self::Barrier => Some(FieldKind::Barrier(BarrierId(id))),
+            Self::Bridge => Some(FieldKind::Bridge(BridgeId(id))),
             _ => None,
         }
     }
@@ -157,8 +140,7 @@ pub(super) fn insert_floor_collider(colliders: &mut ColliderSet, floor: &Floor) 
 }
 
 // Barriers mirror walls geometrically (a thin cuboid along a grid edge),
-// but with per-kind collision groups so each player's filter can drop
-// the kinds they hold keys for.
+// with instance IDs so each player's query can exclude passable barriers.
 pub(super) fn insert_barrier_collider(colliders: &mut ColliderSet, barrier: &Barrier) -> ColliderHandle {
     let (center, half_extents) = edge_cuboid(
         barrier.x1,
@@ -173,8 +155,8 @@ pub(super) fn insert_barrier_collider(colliders: &mut ColliderSet, barrier: &Bar
         colliders,
         center,
         half_extents,
-        ColliderKind::barrier_user_data(barrier.kind, barrier.carrier),
-        barrier_collision_group(barrier.kind),
+        ColliderKind::barrier_user_data(barrier.id, barrier.carrier),
+        BARRIER_COLLISION_GROUP,
     )
 }
 
@@ -187,7 +169,7 @@ pub(super) fn insert_bridge_collider(colliders: &mut ColliderSet, bridge: &Light
         colliders,
         center,
         half_extents,
-        ColliderKind::bridge_user_data(bridge.kind, bridge.carrier),
+        ColliderKind::bridge_user_data(bridge.id, bridge.carrier),
         Group::empty(),
     )
 }

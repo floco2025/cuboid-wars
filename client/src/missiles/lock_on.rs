@@ -93,7 +93,7 @@ fn compute_lock(
         aim.origin,
         aim.direction * MISSILE_SPAWN_OFFSET,
         MISSILE_RADIUS,
-        &plates.open_barrier_kinds,
+        &plates.open_barriers,
     ) {
         return None;
     }

@@ -306,6 +306,8 @@ fn actors_complete_ladder_routes_on_moving_carriers() {
                 let mut fixture = Fixture::new(2, intermediate, false);
                 let links = fixture.links();
                 fixture.layout.carriers.push(Carrier {
+                    switch_inverted: false,
+
                     parent: CarrierId::WORLD,
                     level: 0,
                     levels: 0,
@@ -374,6 +376,8 @@ fn permissions_control_graph_links_and_roam_territories_per_kind() {
     let mut map = MapConfig::for_grid(fixture.graph.levels.clone(), fixture.graph.geometry);
     for kind in [CONTACT, BEAM] {
         map.actor_spawn_zones.push(ActorSpawnZone {
+            switch_inverted: false,
+
             carrier: CarrierId::WORLD,
             level: 0,
             cols: [0, 1],

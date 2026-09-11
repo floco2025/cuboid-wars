@@ -12,11 +12,19 @@ from .constants import (
     EDITOR_CELL,
     ERASE_MODES,
     FLOOR_HIT_KINDS,
+    HIT_BARRIER,
+    HIT_FLOOR,
+    HIT_INACCESSIBLE_FLOOR,
     HIT_ITEM,
+    HIT_LADDER,
+    HIT_LIGHT,
+    HIT_LIGHT_BRIDGE,
     HIT_NESTED_MAP,
     HIT_PRESSURE_PLATE,
+    HIT_RAMP,
     HIT_CHECKPOINT,
     HIT_SPAWN_ZONE,
+    HIT_WALL,
     MATERIAL_MODES,
     MODE_ACTOR_SPAWN_ZONE,
     MODE_BARRIER,
@@ -570,6 +578,16 @@ class Canvas(CanvasPaintingMixin, QWidget):
             menu.addAction("Edit Nested Map...", lambda: self.window.edit_nested_map(value))
         elif kind == HIT_ITEM:
             menu.addAction("Edit Item...", lambda: self.window.edit_item_at(*value))
+        elif kind == HIT_LIGHT_BRIDGE:
+            menu.addAction("Edit Light Bridge...", lambda: self.window.edit_light_bridge_at(*value))
+        elif kind == HIT_BARRIER:
+            menu.addAction("Edit Barrier...", lambda: self.window.edit_barrier_at(value))
+        elif kind == HIT_LIGHT:
+            menu.addAction("Edit Light...", lambda: self.window.edit_light_at(*value))
+        elif kind == HIT_LADDER:
+            menu.addAction("Edit Ladder...", lambda: self.window.edit_ladder_at(value))
+        elif kind in (HIT_FLOOR, HIT_INACCESSIBLE_FLOOR, HIT_WALL, HIT_RAMP):
+            menu.addAction(f"Edit {kind} Materials...", lambda: self.window.edit_materials_at(hit))
         elif kind == HIT_PRESSURE_PLATE:
             for plate in self.window.plates_at(*value):
                 label = f"Pressure Plate ({plate.get('switch') or '?'})"

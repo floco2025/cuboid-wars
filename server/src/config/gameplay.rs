@@ -68,8 +68,42 @@ impl ServerGameplayConfig {
             let settings_path = directory.join("maps").join(&name).join("settings.json");
             let text = fs::read_to_string(&settings_path)
                 .with_context(|| format!("failed to read {}", settings_path.display()))?;
-            let settings =
+            let value: serde_json::Value =
                 serde_json::from_str(&text).with_context(|| format!("failed to parse {}", settings_path.display()))?;
+            for field in ["switches", "switch_kinds", "fireworks"] {
+                anyhow::ensure!(
+                    value.get(field).is_none(),
+                    "{}: {field} belongs in layout.json",
+                    settings_path.display()
+                );
+            }
+            anyhow::ensure!(
+                value.get("key_kinds").is_none(),
+                "{}: keys are derived from barrier_kinds",
+                settings_path.display()
+            );
+            let mut settings: MapServerConfig = serde_json::from_value(value)
+                .with_context(|| format!("failed to parse {}", settings_path.display()))?;
+            let layout_path = settings_path.with_file_name("layout.json");
+            let layout: serde_json::Value = serde_json::from_str(
+                &fs::read_to_string(&layout_path)
+                    .with_context(|| format!("failed to read {}", layout_path.display()))?,
+            )
+            .with_context(|| format!("failed to parse {}", layout_path.display()))?;
+            let map = &layout["map"];
+            anyhow::ensure!(
+                map.get("key_kinds").is_none(),
+                "{}: keys are derived from settings.json barrier_kinds",
+                layout_path.display()
+            );
+            settings.settings.switches = serde_json::from_value(
+                map.get("switch_kinds")
+                    .cloned()
+                    .unwrap_or_else(|| serde_json::json!([])),
+            )
+            .with_context(|| format!("{}: switch_kinds", layout_path.display()))?;
+            settings.fireworks = serde_json::from_value(map["fireworks"].clone())
+                .with_context(|| format!("{}: fireworks", layout_path.display()))?;
             maps.insert(name, settings);
         }
         let config = Self {

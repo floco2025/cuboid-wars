@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use bevy_ecs::prelude::Resource;
 use bincode::{Decode, Encode};
 use serde::Deserialize;
@@ -8,8 +8,8 @@ use serde::Deserialize;
 use crate::config::{MapGeometryConfig, MapMovementConfig};
 
 use super::{
-    BarrierKindId, BarrierKindTable, BridgeKindId, BridgeKindTable, CarrierId, ItemType, KindDef, Position, SwitchDef,
-    SwitchId, SwitchTable, face_materials::FaceMaterials, kind_table::KindId, textures::TextureSettings,
+    BarrierId, BarrierKindId, BarrierKindTable, BridgeId, BridgeKindId, BridgeKindTable, CarrierId, ItemType, KindDef,
+    Position, SwitchDef, SwitchId, SwitchTable, face_materials::FaceMaterials, textures::TextureSettings,
 };
 
 // Layout records are in their carrier's frame: world space for
@@ -97,6 +97,10 @@ pub struct WallLight {
 // (`server/src/map/barriers.rs`).
 #[derive(Debug, Clone, Encode, Decode, Copy)]
 pub struct Barrier {
+    pub id: BarrierId,
+    pub switch: Option<SwitchId>,
+    pub switch_inverted: bool,
+
     pub x1: f32,
     pub z1: f32,
     pub x2: f32,
@@ -124,11 +128,14 @@ pub struct Eraser {
 }
 
 // A plate-powered walkway: one merged rectangle of same-kind cells, a thin
-// slab whose standing surface is `y`. Solid and lit only while its kind is
-// powered (`PlateState.powered_bridge_kinds`, applied to the collider by
+// slab whose standing surface is `y`. Solid and lit only while its instance is
+// powered (`PlateState.powered_bridges`, applied to the collider by
 // `CollisionWorld::set_powered_bridges`).
 #[derive(Debug, Clone, Encode, Decode, Copy)]
 pub struct LightBridge {
+    pub id: BridgeId,
+    pub switch: Option<SwitchId>,
+    pub switch_inverted: bool,
     pub x1: f32,
     pub z1: f32,
     pub x2: f32,
@@ -163,6 +170,7 @@ impl LightBridge {
 // in `MapLayout.carriers`. A moving tile is a nested one-cell map.
 #[derive(Debug, Clone, Encode, Decode, Copy)]
 pub struct Carrier {
+    pub switch_inverted: bool,
     pub parent: CarrierId,
     pub level: u8,
     pub levels: u8,
@@ -332,6 +340,7 @@ pub struct MapSettings {
 
     // Ordered catalog assigning this map's stable `SwitchId` values, each
     // with its plates' policy; empty when the map has no pressure plates.
+    #[serde(skip)]
     pub switches: Vec<SwitchDef>,
     // Ordered catalog assigning this map's stable `BarrierKindId` values;
     // empty when the map has no barriers or keys.
@@ -373,31 +382,11 @@ impl MapItems {
 }
 
 impl MapSettings {
-    // The id tables both sides build once at startup from the catalogs, with
-    // every kind's switch checked against the switch catalog.
     pub fn kind_tables(&self) -> Result<(BarrierKindTable, BridgeKindTable, SwitchTable)> {
         let switches = SwitchTable::from_switch_defs(&self.switches)?;
         let barriers = BarrierKindTable::from_defs(&self.barrier_kinds)?;
         let bridges = BridgeKindTable::from_defs(&self.bridge_kinds)?;
-        kind_switches(BarrierKindId::CONFIG_KEY, &self.barrier_kinds, &switches)?;
-        kind_switches(BridgeKindId::CONFIG_KEY, &self.bridge_kinds, &switches)?;
         Ok((barriers, bridges, switches))
-    }
-
-    // The switch driving each kind, in catalog order, `None` for a kind no
-    // plate controls.
-    pub fn barrier_switches(&self, switches: &SwitchTable) -> Vec<Option<SwitchId>> {
-        self.barrier_kinds
-            .iter()
-            .map(|def| def.switch.as_deref().and_then(|id| switches.index_of(id)))
-            .collect()
-    }
-
-    pub fn bridge_switches(&self, switches: &SwitchTable) -> Vec<Option<SwitchId>> {
-        self.bridge_kinds
-            .iter()
-            .map(|def| def.switch.as_deref().and_then(|id| switches.index_of(id)))
-            .collect()
     }
 
     #[must_use]
@@ -408,18 +397,6 @@ impl MapSettings {
             self.movement.gravity
         }
     }
-}
-
-// Every kind's `switch` must name a catalog entry; the error names the kind.
-fn kind_switches(config_key: &str, kinds: &[KindDef], switches: &SwitchTable) -> Result<()> {
-    for def in kinds {
-        if let Some(switch) = &def.switch {
-            switches
-                .resolve(switch)
-                .map_err(|err| anyhow!("{config_key} {:?}: {err}", def.id))?;
-        }
-    }
-    Ok(())
 }
 
 #[cfg(test)]

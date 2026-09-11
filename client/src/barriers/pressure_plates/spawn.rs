@@ -38,7 +38,7 @@ pub fn pressure_plates_spawn_system(
     let side = settings.geometry.grid_cell_size * PLATE_SIDE_CELLS;
     for plate in &layout.pressure_plates {
         let color = settings
-            .pressure_plate_color(plate.switch)
+            .pressure_plate_color(plate.switch, &layout)
             .unwrap_or(assets.pressure_plate().default_color);
         commands.spawn((
             PressurePlateMarker,

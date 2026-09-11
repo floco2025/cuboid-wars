@@ -85,7 +85,7 @@ pub fn actors_beam_damage_system(
         if !collision_world.attack_path_clear(
             Vec3::from(*actor_pos) + Vec3::Y * actor_config.beam_origin_y_offset(),
             target_center,
-            &plates.open_barrier_kinds,
+            &plates.open_barriers,
         ) {
             continue;
         }

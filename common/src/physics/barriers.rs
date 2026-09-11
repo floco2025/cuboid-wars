@@ -1,25 +1,19 @@
-use crate::protocol::BarrierKindId;
+use crate::protocol::{Barrier, BarrierId, BarrierKindId};
 
-// Merge per-player `held_keys` with the globally `open_kinds` (currently held
-// open by pressure plates, `PlateState.open_barrier_kinds`) into the slice
-// that `step_character_movement` treats as "barriers I can pass through".
-// One source of truth used by both server-authoritative movement and
-// client-side prediction — keeps the two sides in agreement about what's
-// passable.
 #[must_use]
-pub fn passable_barrier_kinds(held_keys: &[BarrierKindId], open_kinds: &[BarrierKindId]) -> Vec<BarrierKindId> {
-    if open_kinds.is_empty() {
-        return held_keys.to_vec();
-    }
-    let mut combined: Vec<BarrierKindId> = held_keys.to_vec();
-    for k in open_kinds {
-        if !combined.contains(k) {
-            combined.push(*k);
-        }
-    }
-    combined
+pub fn passable_barriers(held_keys: &[BarrierKindId], open: &[BarrierId], barriers: &[Barrier]) -> Vec<BarrierId> {
+    let mut passable = open.to_vec();
+    passable.extend(
+        barriers
+            .iter()
+            .filter(|barrier| held_keys.contains(&barrier.kind))
+            .map(|barrier| barrier.id),
+    );
+    passable.sort_unstable();
+    passable.dedup();
+    passable
 }
 
 #[cfg(test)]
 #[path = "tests/barriers_passable_barrier_kinds.rs"]
-mod passable_barrier_kinds_tests;
+mod tests;

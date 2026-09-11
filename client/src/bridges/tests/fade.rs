@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn fade_targets_follow_the_powered_kinds() {
     let plates = PlateState {
-        powered_bridge_kinds: vec![BridgeKindId(1)],
+        powered_bridges: vec![BridgeId(1)],
         ..Default::default()
     };
     let config = LightBridgeVfxConfig {
@@ -12,8 +12,8 @@ fn fade_targets_follow_the_powered_kinds() {
         unpowered_opacity: 0.1,
         fade_secs: 0.25,
     };
-    assert_eq!(fade_target(&plates, BridgeKindId(1), config), config.opacity);
-    assert_eq!(fade_target(&plates, BridgeKindId(0), config), config.unpowered_opacity);
+    assert_eq!(fade_target(&plates, BridgeId(1), config), config.opacity);
+    assert_eq!(fade_target(&plates, BridgeId(0), config), config.unpowered_opacity);
 }
 
 #[test]

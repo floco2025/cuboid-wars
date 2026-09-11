@@ -4,13 +4,36 @@ from __future__ import annotations
 
 import copy
 
+from PySide6.QtWidgets import QInputDialog
+
 from .constants import LADDER_SIDES
+from .editing import update_records
 from .geometry import cell_side_from_click, ladder_anchor_from_click, wall_endpoints_for_cell_side
 from .normalization import ladder_edge_key, ladder_key, ladder_spans_level, ladders_overlap
 
 
 class LaddersMixin:
     # === Ladders ===
+
+    def edit_ladder_at(self, key: tuple) -> None:
+        ladder = next((ladder for ladder in self.map_data["ladders"] if ladder_key(ladder) == key), None)
+        if ladder is None:
+            return
+        max_levels = len(self.map_data["levels"]) - 1 - ladder["lower_level"]
+        if max_levels < 1:
+            self.notify("A ladder needs a level above its base to climb to.")
+            return
+        levels, accepted = QInputDialog.getInt(
+            self, "Edit Ladder", "Storeys:", min(max_levels, max(1, ladder["levels"])), 1, max_levels,
+        )
+        if not accepted or levels == ladder["levels"]:
+            return
+        candidate = {**ladder, "levels": levels}
+        if any(ladder_key(other) != key and ladders_overlap(candidate, other) for other in self.map_data["ladders"]):
+            self.notify("A ladder already spans part of that edge.")
+            return
+        after = update_records(self.map_data, "ladders", lambda ladder: ladder_key(ladder) == key, {"levels": levels})
+        self.apply_change("Edit Ladder", after)
 
     def toggle_ladder_at(self, pos) -> None:
         px = pos.x()

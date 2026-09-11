@@ -27,11 +27,11 @@ class ItemsMixin:
             self.notify(f"Item not placed: cell [{col}, {row}] already holds one; right-click it to edit or erase.")
             return
         if self.recent_item_type in ITEM_TYPES:
-            if self.recent_item_type != ITEM_KEY_TYPE or self.recent_item_key_kind in self.barrier_kinds:
+            if self.recent_item_type != ITEM_KEY_TYPE or self.recent_item_key_kind in self.key_kinds:
                 self.add_item(col, row, self.recent_item_type, self.recent_item_key_kind)
                 return
         result = ItemTypeDialog.prompt(
-            self, "Place Item", self.barrier_kinds, self.recent_item_type, self.recent_item_key_kind
+            self, "Place Item", self.key_kinds, self.recent_item_type, self.recent_item_key_kind
         )
         if result is None:
             return
@@ -45,7 +45,7 @@ class ItemsMixin:
         item = self.item_at(col, row)
         if item is None:
             return
-        result = ItemTypeDialog.prompt(self, "Edit Item", self.barrier_kinds, item["type"], item.get("kind"))
+        result = ItemTypeDialog.prompt(self, "Edit Item", self.key_kinds, item["type"], item.get("kind"))
         if result is None:
             return
         item_type, kind = result
@@ -56,7 +56,7 @@ class ItemsMixin:
         if error is not None:
             self.notify(f"Item not placed: cell {error}.")
             return
-        if item_type == ITEM_KEY_TYPE and kind not in self.barrier_kinds:
+        if item_type == ITEM_KEY_TYPE and kind not in self.key_kinds:
             self.notify(f"Unknown key kind {kind!r}")
             return
         after = copy.deepcopy(self.map_data)

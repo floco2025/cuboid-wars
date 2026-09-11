@@ -8,10 +8,15 @@ from .constants import (
     ACTOR_ZONE_LIST,
     CHECKPOINT_LIST,
     FACES,
+    HIT_FLOOR,
+    HIT_INACCESSIBLE_FLOOR,
+    HIT_RAMP,
+    HIT_WALL,
     MODE_RAMP_UP,
     PLAYER_ZONE_LIST,
 )
 from .dialogs import ActorSpawnFieldsDialog, KindDialog, MaterialAssignmentDialog
+from .dialogs.controls import FieldPropertiesDialog
 from .editing import (
     material_values,
     paint_bridges,
@@ -24,7 +29,7 @@ from .editing import (
     top_left_materials,
     update_records,
 )
-from .normalization import plate_cell_error, pressure_plate_key
+from .normalization import edge_key, plate_cell_error, pressure_plate_key
 from .geometry import (
     ramp_error,
     ramp_points_from_cells,
@@ -58,7 +63,7 @@ class PlacementMixin:
         result = self.prompt_for_actor_spawn_fields()
         if result is None:
             return
-        kind, count, switch = result
+        kind, count, switch, inverted = result
         c0, r0, c1, r1 = rect_from_cells(start, end)
         after = copy.deepcopy(self.map_data)
         new_zone = {
@@ -70,10 +75,12 @@ class PlacementMixin:
         }
         if switch:
             new_zone["switch"] = switch
+            new_zone["switch_inverted"] = inverted
         after[ACTOR_ZONE_LIST].append(new_zone)
         self.recent_actor_spawn_kind = kind
         self.recent_actor_spawn_count = count
         self.recent_actor_spawn_switch = switch or ""
+        self.recent_actor_spawn_inverted = inverted
         self.apply_change("Paint Actor Spawn Zone", after)
         self.selected_spawn_zone_ref = self._zone_ref_after_change(ACTOR_ZONE_LIST, new_zone)
 
@@ -97,22 +104,23 @@ class PlacementMixin:
         self.apply_change(f"Paint {label}", after)
         self.selected_spawn_zone_ref = self._zone_ref_after_change(list_name, new_zone)
 
-    # `(kind, count, switch)`, the switch `None` for a zone without one.
     def prompt_for_actor_spawn_fields(
         self,
         kind: str | None = None,
         count: int | None = None,
         switch: str | None = None,
-    ) -> tuple[str, int, str | None] | None:
+        inverted: bool = False,
+    ) -> tuple[str, int, str | None, bool] | None:
         if kind is None and self.recent_actor_spawn_kind in self.actor_kinds:
             recent_switch = self.recent_actor_spawn_switch
-            return self.recent_actor_spawn_kind, self.recent_actor_spawn_count, recent_switch or None
+            return self.recent_actor_spawn_kind, self.recent_actor_spawn_count, recent_switch or None, self.recent_actor_spawn_inverted
         return ActorSpawnFieldsDialog.prompt(
             self,
             kind if kind is not None else self.recent_actor_spawn_kind,
             count if count is not None else self.recent_actor_spawn_count,
             self.switches,
             switch if kind is not None else (self.recent_actor_spawn_switch or None),
+            inverted if kind is not None else self.recent_actor_spawn_inverted,
         )
 
     def add_wall_line(self, start: tuple[int, int], end: tuple[int, int]) -> None:
@@ -139,7 +147,49 @@ class PlacementMixin:
         if kind not in self.bridge_kinds:
             self.notify(f"Unknown bridge kind {kind!r}")
             return
-        self.apply_change(f"Place Light Bridge ({kind})", paint_bridges(self.map_data, self.current_level, rect_from_cells(start, end), kind))
+        self.apply_change(f"Place Light Bridge ({kind})", paint_bridges(self.map_data, self.current_level, rect_from_cells(start, end), kind, self.recent_bridge_controls))
+
+    def edit_light_bridge_at(self, col: int, row: int) -> None:
+        def matches(bridge: dict) -> bool:
+            return (bridge["col"], bridge["row"]) == (col, row)
+
+        bridge = next((b for b in self.map_data["levels"][self.current_level]["light_bridges"] if matches(b)), None)
+        if bridge is None:
+            return
+        self.edit_fields("light_bridges", "Edit Light Bridge", matches)
+
+    def edit_fields(self, name: str, title: str, matches) -> None:
+        entries = [entry for entry in self.map_data["levels"][self.current_level][name] if matches(entry)]
+        if not entries:
+            return
+        barrier = name == "barriers"
+        values = FieldPropertiesDialog.prompt(self, title, self.barrier_kinds if barrier else self.bridge_kinds,
+                                              self.switches, entries)
+        if values is not None:
+            self.apply_change(title, update_records(self.map_data, name, matches, values, self.current_level))
+
+    def edit_selected_fields(self, name: str) -> None:
+        if self.tile_selection is None:
+            return
+        c0, r0, c1, r1 = self.tile_selection
+        def matches(entry):
+            if name == "barriers":
+                return c0 <= entry["c0"] <= c1 and c0 <= entry["c1"] <= c1 and r0 <= entry["r0"] <= r1 and r0 <= entry["r1"] <= r1
+            return c0 <= entry["col"] < c1 and r0 <= entry["row"] < r1
+        self.edit_fields(name, "Edit Selected Barriers" if name == "barriers" else "Edit Selected Light Bridges", matches)
+
+    def configure_field_defaults(self, barrier: bool) -> None:
+        prefix = "barrier" if barrier else "bridge"
+        controls = getattr(self, f"recent_{prefix}_controls")
+        kind = getattr(self, f"recent_{prefix}_kind")
+        values = FieldPropertiesDialog.prompt(self, "Barrier Defaults" if barrier else "Light Bridge Defaults",
+                                              self.barrier_kinds if barrier else self.bridge_kinds,
+                                              self.switches,
+                                              [{"kind": kind, **controls}])
+        if values is not None:
+            setattr(self, f"recent_{prefix}_kind", values.pop("kind", kind))
+            setattr(self, f"recent_{prefix}_controls", values)
+            self.tool_settings.refresh()
 
     def prompt_and_add_pressure_plate(self, col: int, row: int) -> None:
         switch = self.placement_kind("Place Pressure Plate", self.switches, self.recent_pressure_plate_switch, "switch")
@@ -198,7 +248,13 @@ class PlacementMixin:
         if kind not in self.barrier_kinds:
             self.notify(f"Unknown barrier kind {kind!r}")
             return
-        self.apply_change(f"Place Barrier ({kind})", paint_edges(self.map_data, self.current_level, start, end, kind=kind))
+        self.apply_change(f"Place Barrier ({kind})", paint_edges(self.map_data, self.current_level, start, end, kind=kind, controls=self.recent_barrier_controls))
+
+    def edit_barrier_at(self, key: tuple) -> None:
+        barrier = next((b for b in self.map_data["levels"][self.current_level]["barriers"] if edge_key(b) == key), None)
+        if barrier is None:
+            return
+        self.edit_fields("barriers", "Edit Barrier", lambda b: edge_key(b) == key)
 
     def add_ramp(self, start_cell: tuple[int, int], end_cell: tuple[int, int], mode: str) -> None:
         start_point, end_point = ramp_points_from_cells(start_cell, end_cell)
@@ -232,6 +288,33 @@ class PlacementMixin:
         self.apply_change(f"Place {mode}", place_ramp(self.map_data, new_ramp))
 
     # === Material assignment ===
+
+    def edit_materials_at(self, hit) -> None:
+        kind, key = hit
+        level = self.current_level
+        if kind in (HIT_FLOOR, HIT_INACCESSIBLE_FLOOR):
+            name = "floors" if kind == HIT_FLOOR else "inaccessible_floors"
+            matches = lambda entry: (entry["col"], entry["row"]) == key
+        elif kind == HIT_WALL:
+            name = "walls"
+            matches = lambda entry: edge_key(entry) == key
+        elif kind == HIT_RAMP:
+            name, level = "ramps", None
+            matches = lambda entry: (entry["lower_level"], tuple(entry["low"]), tuple(entry["high"])) == key
+        else:
+            return
+        target = self.map_data if level is None else self.map_data["levels"][level]
+        entry = next((entry for entry in target[name] if matches(entry)), None)
+        if entry is None:
+            return
+        title = f"Edit {kind} Materials"
+        result = MaterialAssignmentDialog.prompt(
+            self, title, f"1 {kind.lower()}", self.materials_catalog, material_values([entry]),
+            portalability=self.texture_catalog,
+            source=top_left_materials([entry], name),
+        )
+        if result is not None:
+            self.apply_change(title, update_records(self.map_data, name, matches, result, level))
 
     def assign_floor_materials_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
         c0, r0, c1, r1 = rect_from_cells(start, end)

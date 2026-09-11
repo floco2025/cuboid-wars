@@ -12,7 +12,7 @@ use std::time::Duration;
 // (wall height, this fraction of the wall thickness) but rendered as
 // translucent pulsating geometry on the client. Each kind gets its own
 // collision group (`barrier_collision_group`) so held keys and open pressure
-// plates gate pass-through per color (`passable_barrier_kinds`).
+// plates grant passage through individual barriers (`passable_barriers`).
 pub const BARRIER_THICKNESS_FRACTION: f32 = 1.0 / 6.0;
 
 // Slab thickness of a light bridge, as a fraction of the floor thickness.

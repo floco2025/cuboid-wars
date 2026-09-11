@@ -90,7 +90,7 @@ fn style_color(style: FeedStyle, barrier_assets: &BarrierAssets) -> Color {
         FeedStyle::Dim => FEED_DIM_TEXT_COLOR,
         FeedStyle::Chat => FEED_CHAT_TEXT_COLOR,
         FeedStyle::Console => CONSOLE_TEXT_COLOR,
-        FeedStyle::Barrier(kind) => color_with_full_alpha(barrier_assets.base_color(kind)),
+        FeedStyle::Key(kind) => color_with_full_alpha(barrier_assets.key_color(kind)),
     }
 }
 

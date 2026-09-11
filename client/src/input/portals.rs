@@ -97,7 +97,7 @@ pub fn input_portal_system(
         &world.collision_world,
         &world.map_layout,
         &world.carriers,
-        &world.plates.open_barrier_kinds,
+        &world.plates.open_barriers,
         &world.map_settings.textures,
     );
     let existing = world.portals.wire_portals();

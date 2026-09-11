@@ -26,7 +26,7 @@ pub struct AdminContext<'w> {
     pub actor_respawn_timers: ResMut<'w, ActorRespawnTimers>,
     pub server_gameplay_config: Res<'w, ServerGameplayConfig>,
     pub power_ups: Res<'w, PowerUpsConfig>,
-    pub barrier_kind_table: Res<'w, BarrierKindTable>,
+    pub key_kind_table: Res<'w, BarrierKindTable>,
     pub quest_catalog: Res<'w, QuestCatalog>,
     pub server_tick: Res<'w, ServerTick>,
 }

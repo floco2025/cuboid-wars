@@ -182,7 +182,7 @@ fn key_found_and_barrier_closed_color_only_the_kind_word() {
     });
     assert_eq!(text(&found), "Alex found a key");
     assert_eq!(found.spans[0].style, FeedStyle::Default);
-    assert_eq!(found.spans[1].style, FeedStyle::Barrier(kind));
+    assert_eq!(found.spans[1].style, FeedStyle::Key(kind));
 }
 
 #[test]

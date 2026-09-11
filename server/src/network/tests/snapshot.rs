@@ -18,6 +18,8 @@ fn actor_updates_repeat_full_state_at_the_configured_rate_in_the_carrier_frame()
     for hz in [1, 7, 10, 30] {
         let layout = MapLayout {
             carriers: vec![Carrier {
+                switch_inverted: false,
+
                 parent: CarrierId::WORLD,
                 level: 0,
                 levels: 1,

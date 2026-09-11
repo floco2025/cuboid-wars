@@ -251,6 +251,8 @@ fn checkpoint_spawns_follow_carriers_and_avoid_players_and_barriers() {
     let mut layout = MapLayout {
         floors: vec![floor(c)],
         carriers: vec![Carrier {
+            switch_inverted: false,
+
             parent: CarrierId::WORLD,
             level: 0,
             levels: 1,
@@ -299,6 +301,11 @@ fn checkpoint_spawns_follow_carriers_and_avoid_players_and_barriers() {
         }
     );
     layout.barriers.push(Barrier {
+        id: Default::default(),
+
+        switch: None,
+        switch_inverted: false,
+
         x1: 0.0,
         z1: 0.0,
         x2: 4.0,

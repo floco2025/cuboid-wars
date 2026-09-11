@@ -15,7 +15,7 @@ use crate::{
     },
     map::Carriers,
     physics::world::{CollisionWorld, ShapeCastHit},
-    protocol::{BarrierKindId, CarrierId, Position},
+    protocol::{BarrierId, CarrierId, Position},
 };
 
 #[must_use]
@@ -32,7 +32,7 @@ pub(super) fn character_ground_hit(
     collision_world: &CollisionWorld,
     shape: &Capsule,
     pos: &Position,
-    passable_kinds: &[BarrierKindId],
+    passable_kinds: &[BarrierId],
     excluded_colliders: &[ColliderHandle],
     physics: CharacterPhysicsConfig,
 ) -> Option<ShapeCastHit> {
@@ -52,7 +52,7 @@ fn probe_character_ground(
     collision_world: &CollisionWorld,
     shape: &Capsule,
     pos: &Position,
-    passable_kinds: &[BarrierKindId],
+    passable_kinds: &[BarrierId],
     excluded_colliders: &[ColliderHandle],
     physics: CharacterPhysicsConfig,
     distance: f32,
@@ -73,7 +73,7 @@ pub fn grounding_diagnostics(
     collision_world: &CollisionWorld,
     pos: &Position,
     physics: CharacterPhysicsConfig,
-    passable_kinds: &[BarrierKindId],
+    passable_kinds: &[BarrierId],
     excluded_colliders: &[ColliderHandle],
 ) -> GroundingDiagnostics {
     let hit = probe_character_ground(
@@ -195,7 +195,7 @@ fn supporting_carrier(
     collision_world: &CollisionWorld,
     shape: &Capsule,
     pos: &Position,
-    passable_kinds: &[BarrierKindId],
+    passable_kinds: &[BarrierId],
     physics: CharacterPhysicsConfig,
     carriers: &Carriers,
 ) -> Option<CarrierId> {
@@ -236,7 +236,7 @@ pub(super) fn snap_character_to_ground(
     collision_world: &CollisionWorld,
     pos: &mut Position,
     physics: CharacterPhysicsConfig,
-    passable_kinds: &[BarrierKindId],
+    passable_kinds: &[BarrierId],
     excluded_colliders: &[ColliderHandle],
 ) {
     if let Some(hit) = probe_character_ground(

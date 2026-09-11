@@ -5,19 +5,16 @@ use crate::{
 };
 
 #[test]
-fn a_kinds_switch_is_optional_and_round_trips_on_the_wire() {
-    for value in [
-        serde_json::json!({"id": "cyan", "color": "#30d8ff"}),
-        serde_json::json!({"id": "cyan", "color": "#30d8ff", "switch": "lobby"}),
-    ] {
-        let kind: KindDef = serde_json::from_value(value).expect("valid kind rejected");
-        let bytes = bincode::encode_to_vec(&kind, bincode::config::standard()).expect("kind encoding failed");
-        let (decoded, _): (KindDef, _) =
-            bincode::decode_from_slice(&bytes, bincode::config::standard()).expect("kind decoding failed");
-        assert_eq!(decoded, kind);
-    }
+fn appearance_kinds_round_trip_and_reject_switch_assignments() {
+    let value = serde_json::json!({"id": "cyan", "color": "#30d8ff"});
+    let kind: KindDef = serde_json::from_value(value).expect("valid kind rejected");
+    let bytes = bincode::encode_to_vec(&kind, bincode::config::standard()).expect("kind encoding failed");
+    let (decoded, _): (KindDef, _) =
+        bincode::decode_from_slice(&bytes, bincode::config::standard()).expect("kind decoding failed");
+    assert_eq!(decoded, kind);
     assert!(
-        serde_json::from_value::<KindDef>(serde_json::json!({"id": "cyan", "color": "#30d8ff", "switch": 3})).is_err()
+        serde_json::from_value::<KindDef>(serde_json::json!({"id": "cyan", "color": "#30d8ff", "switch": "lobby"}))
+            .is_err()
     );
 }
 
@@ -77,7 +74,7 @@ fn rejects_empty_id() {
 }
 
 fn barrier_max() -> usize {
-    BarrierKindId::MAX.expect("barrier kinds carry no collision-group cap")
+    BarrierKindId::MAX.expect("barrier kind datagram cap missing")
 }
 
 #[test]

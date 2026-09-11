@@ -45,7 +45,7 @@ pub fn bridges_spawn_system(
                 spawn_framed_surface(
                     parent,
                     &field_meshes,
-                    &bridge_assets.kinds[usize::from(bridge.kind.0)],
+                    &bridge_assets.bridges[bridge.id.0 as usize],
                     visual.surfaces,
                     visual.frames,
                     center,

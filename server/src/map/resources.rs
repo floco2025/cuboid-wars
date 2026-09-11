@@ -109,6 +109,7 @@ pub struct LevelGrid {
 // refills only while it stays active (`actors_respawn_system`).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ActorSpawnZone {
+    pub switch_inverted: bool,
     pub carrier: CarrierId,
     pub level: u8,
     pub cols: [i32; 2],

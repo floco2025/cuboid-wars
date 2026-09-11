@@ -22,6 +22,8 @@ impl Climber {
     fn new(travel: Vec3, phase_ticks: u32, height: f32) -> Self {
         let layout = MapLayout {
             carriers: vec![Carrier {
+                switch_inverted: false,
+
                 parent: CarrierId::WORLD,
                 level: 0,
                 levels: 0,

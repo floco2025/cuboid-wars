@@ -290,6 +290,8 @@ pub(crate) const TILE: CarrierId = CarrierId(1);
 pub(crate) fn slider() -> (Carrier, Floor) {
     (
         Carrier {
+            switch_inverted: false,
+
             parent: CarrierId::WORLD,
             level: 0,
             levels: 0,

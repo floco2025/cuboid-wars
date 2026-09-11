@@ -1,7 +1,7 @@
 use std::f32::consts::FRAC_PI_2;
 
 use bevy::prelude::*;
-use common::protocol::{Barrier, BarrierKindId, CarrierId, Checkpoint, Eraser, Floor, MapLayout};
+use common::protocol::{Barrier, BarrierId, BarrierKindId, CarrierId, Checkpoint, Eraser, Floor, MapLayout};
 
 use super::surface::{clip_surface_rects, floor_bounds, surface_frame_rects};
 
@@ -9,6 +9,7 @@ const MERGE_EPSILON: f32 = 1e-4;
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct VisualField {
+    pub barrier: Option<BarrierId>,
     pub kind: Option<BarrierKindId>,
     pub carrier: CarrierId,
     pub level: u8,
@@ -31,6 +32,7 @@ impl VisualField {
         .map(|(x1, z1, x2, z2)| {
             let (axis, plane, rect) = segment_rect(Vec3::new(x1, c.y, z1), Vec3::new(x2, c.y + height, z2));
             Self {
+                barrier: None,
                 kind: None,
                 carrier: c.carrier,
                 level: c.level,
@@ -49,6 +51,7 @@ impl VisualField {
             Vec3::new(barrier.x2, barrier.y + barrier.height, barrier.z2),
         );
         Self {
+            barrier: Some(barrier.id),
             kind: Some(barrier.kind),
             carrier: barrier.carrier,
             level: barrier.level,
@@ -67,6 +70,7 @@ impl VisualField {
             Vec3::new(eraser.x2, eraser.y + eraser.height - floor_thickness, eraser.z2),
         );
         Self {
+            barrier: None,
             kind: None,
             carrier: eraser.carrier,
             level: eraser.level,
@@ -107,7 +111,8 @@ impl VisualField {
     }
 
     fn can_merge(&self, other: &Self, floors: &[Floor], floor_thickness: f32, stack: bool) -> bool {
-        if self.kind != other.kind
+        if self.barrier != other.barrier
+            || self.kind != other.kind
             || self.carrier != other.carrier
             || self.axis != other.axis
             || !near(self.plane, other.plane)

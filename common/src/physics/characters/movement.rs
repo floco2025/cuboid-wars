@@ -23,7 +23,7 @@ use crate::{
     map::Carriers,
     math::from_rapier,
     physics::{PortalSet, world::CollisionWorld},
-    protocol::{BarrierKindId, CarrierId, Position},
+    protocol::{BarrierId, CarrierId, Position},
 };
 
 const CHARACTER_BLOCKED_MOVEMENT_EPSILON: f32 = 0.01;
@@ -65,7 +65,7 @@ pub struct CharacterStep {
 pub struct CharacterEnvironment<'a> {
     pub collision_world: &'a CollisionWorld,
     pub gravity: f32,
-    pub passable_kinds: &'a [BarrierKindId],
+    pub passable_kinds: &'a [BarrierId],
     pub physics: CharacterPhysicsConfig,
     pub ladder_climb_ratio: f32,
     pub ladder_mode: LadderMode,

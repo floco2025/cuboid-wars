@@ -32,8 +32,15 @@ fn app() -> (App, UnboundedReceiver<ClientToServer>) {
     let mut meshes = Assets::default();
     let mut materials = Assets::default();
     let assets = ProjectileAssets::new(&mut meshes, &mut materials, gameplay.projectiles.radius);
-    let barriers = build_barrier_assets(&mut meshes, &mut materials, &[], settings.vfx.barriers, 1.0);
-    let bridges = build_bridge_assets(&mut materials, &[], settings.vfx.light_bridges);
+    let barriers = build_barrier_assets(
+        &mut meshes,
+        &mut materials,
+        &[],
+        &MapLayout::default(),
+        settings.vfx.barriers,
+        1.0,
+    );
+    let bridges = build_bridge_assets(&mut materials, &[], &MapLayout::default(), settings.vfx.light_bridges);
     let mut time = Time::<()>::default();
     time.advance_by(Duration::from_secs_f32(1.0 / 30.0));
     let (sender, receiver) = unbounded_channel();

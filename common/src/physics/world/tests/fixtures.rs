@@ -100,6 +100,8 @@ pub(crate) fn wide_body() -> CharacterPhysicsConfig {
 pub(crate) fn slider_layout() -> MapLayout {
     MapLayout {
         carriers: vec![Carrier {
+            switch_inverted: false,
+
             parent: CarrierId::WORLD,
             level: 1,
             levels: 0,

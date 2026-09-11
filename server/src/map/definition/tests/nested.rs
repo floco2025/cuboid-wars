@@ -2,6 +2,8 @@ use super::*;
 
 fn motion(level: u32, from: [i32; 2], to: [i32; 2], to_level: u32) -> MotionDef {
     MotionDef {
+        switch_inverted: false,
+
         level,
         from,
         to,
@@ -32,6 +34,9 @@ fn barrier_corridor() -> MapDef {
     );
     for (col, kind) in [(1, "red"), (2, "blue")] {
         map.levels[0].barriers.push(BarrierDef {
+            switch: (kind == "red").then(|| "red".into()),
+            switch_inverted: false,
+
             c0: col,
             r0: 0,
             c1: col,
@@ -137,6 +142,9 @@ fn firework_plate_does_not_open_any_barrier_kind() {
         Vec::new(),
     );
     map_def.levels[0].barriers.push(BarrierDef {
+        switch: None,
+        switch_inverted: false,
+
         c0: 1,
         r0: 0,
         c1: 1,
@@ -374,6 +382,9 @@ fn nested_records_stay_in_their_own_frame_and_carry_their_id() {
 fn nested_kinds_resolve_against_the_root_tables_and_an_unknown_kind_names_the_nested_map() {
     let mut keyed_room = room();
     keyed_room.levels[0].barriers.push(BarrierDef {
+        switch: None,
+        switch_inverted: false,
+
         c0: 1,
         r0: 0,
         c1: 1,

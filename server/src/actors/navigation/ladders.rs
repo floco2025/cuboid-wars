@@ -7,7 +7,7 @@ use common::{
     constants::{LADDER_CLIMB_MIN_SPEED, LADDER_RAIL_INSET, LADDER_STANDOFF_CLEARANCE},
     map::Carriers,
     physics::{CharacterMovementResult, CharacterSupport, CollisionWorld, LadderVolume},
-    protocol::{ActorMoveIntent, BarrierKindId, Ladder, MapSettings, Position},
+    protocol::{ActorMoveIntent, BarrierId, Ladder, MapSettings, Position},
 };
 
 use super::{NavGraph, NavNode, NavWaypoint, PlannedRoute, WaypointKind};
@@ -21,7 +21,7 @@ pub(super) struct LadderClimber<'a> {
     pub(super) collision_world: &'a CollisionWorld,
     pub(super) map_settings: &'a MapSettings,
     pub(super) physics: CharacterPhysicsConfig,
-    pub(super) passable_kinds: &'a [BarrierKindId],
+    pub(super) passable_kinds: &'a [BarrierId],
     pub(super) carriers: &'a Carriers,
 }
 

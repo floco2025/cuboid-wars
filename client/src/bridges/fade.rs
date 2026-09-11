@@ -5,13 +5,10 @@ use crate::{
     config::{ClientSettings, LightBridgeVfxConfig},
     vfx::{color_with_alpha, ease_blend},
 };
-use common::protocol::{BridgeKindId, PlateState};
+use common::protocol::{BridgeId, PlateState};
 
 const BRIDGE_FADE_SNAP: f32 = 0.002;
 
-// Ease each kind's shared material alpha toward its powered/unpowered level.
-// One write per kind reaches every bridge of that kind; the material's own
-// `base_color.alpha` is the fade state.
 pub fn bridges_fade_system(
     time: Res<Time>,
     client_settings: Res<ClientSettings>,
@@ -20,8 +17,8 @@ pub fn bridges_fade_system(
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     let config = client_settings.vfx.light_bridges;
-    for (idx, visual) in bridge_assets.kinds.iter().enumerate() {
-        let kind = BridgeKindId(u16::try_from(idx).expect("bridge kind index exceeds u16"));
+    for (idx, visual) in bridge_assets.bridges.iter().enumerate() {
+        let kind = BridgeId(u32::try_from(idx).expect("bridge index exceeds u32"));
         let Some(alpha) = materials
             .get(&visual.surface)
             .map(|material| material.base_color.alpha())
@@ -37,15 +34,15 @@ pub fn bridges_fade_system(
             continue;
         };
         // `get_mut` marks the asset modified and re-extracts it to the GPU,
-        // so a settled kind is left untouched.
+        // so a settled bridge is left untouched.
         if let Some(mut material) = materials.get_mut(&visual.surface) {
             material.base_color = color_with_alpha(visual.base_color, next);
         }
     }
 }
 
-fn fade_target(plates: &PlateState, kind: BridgeKindId, config: LightBridgeVfxConfig) -> f32 {
-    if plates.powered_bridge_kinds.contains(&kind) {
+fn fade_target(plates: &PlateState, kind: BridgeId, config: LightBridgeVfxConfig) -> f32 {
+    if plates.powered_bridges.contains(&kind) {
         config.opacity
     } else {
         config.unpowered_opacity

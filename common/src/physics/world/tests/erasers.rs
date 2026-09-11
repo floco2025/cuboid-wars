@@ -88,6 +88,8 @@ fn moving_field_sweeps_stationary_player_without_solid_carrier_geometry() {
             ..field()
         }],
         carriers: vec![Carrier {
+            switch_inverted: false,
+
             parent: CarrierId::WORLD,
             level: 0,
             levels: 1,

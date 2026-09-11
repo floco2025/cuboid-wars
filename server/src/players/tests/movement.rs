@@ -88,6 +88,8 @@ fn player_info(app: &App) -> &PlayerInfo {
 fn carrier_local_reports_relay_unchanged_while_the_server_places_the_rider_with_the_platform() {
     let layout = MapLayout {
         carriers: vec![Carrier {
+            switch_inverted: false,
+
             parent: CarrierId::WORLD,
             level: 0,
             levels: 0,

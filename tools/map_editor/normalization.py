@@ -121,6 +121,7 @@ def normalize_map(map_data: dict) -> dict:
     ladders = [normalize_ladder(l) for l in map_data.get("ladders", [])]
     nested_maps = [normalize_nested_map(n) for n in map_data.get("nested_maps", [])]
     return {
+        **{key: copy.deepcopy(map_data[key]) for key in ("switch_kinds", "fireworks", "_settings") if key in map_data},
         "grid_cols": cols,
         "grid_rows": rows,
         "actor_spawn_zones": actor_spawn_zones,
@@ -163,6 +164,10 @@ def normalize_eraser(eraser: dict) -> dict:
     return {key: int(eraser[key]) for key in ("c0", "r0", "c1", "r1")}
 
 
+def control_fields(entry: dict) -> dict:
+    return {key: copy.deepcopy(entry[key]) for key in ("switch", "switch_inverted") if key in entry}
+
+
 def normalize_barrier(barrier: dict) -> dict:
     kind = str(barrier.get("kind", ""))
     return {
@@ -171,11 +176,12 @@ def normalize_barrier(barrier: dict) -> dict:
         "c1": int(barrier["c1"]),
         "r1": int(barrier["r1"]),
         "kind": kind,
+        **control_fields(barrier),
     }
 
 
 def normalize_light_bridge(bridge: dict) -> dict:
-    return {"col": int(bridge["col"]), "row": int(bridge["row"]), "kind": str(bridge.get("kind", ""))}
+    return {"col": int(bridge["col"]), "row": int(bridge["row"]), "kind": str(bridge.get("kind", "")), **control_fields(bridge)}
 
 
 def normalize_ramp(ramp: dict) -> dict:
@@ -275,8 +281,7 @@ def normalize_nested_map(entry: dict) -> dict:
         "to_nudge": [float(axis) for axis in entry.get("to_nudge", (0.0, 0.0, 0.0))],
     }
     # Only a switched motion carries a switch; a stray empty one is dropped.
-    if entry.get("switch"):
-        normalized["switch"] = str(entry["switch"])
+    normalized.update(control_fields(entry))
     return normalized
 
 
@@ -327,8 +332,7 @@ def normalize_actor_spawn_zone(zone: dict) -> dict:
     except (TypeError, ValueError):
         count = 0
     normalized = {**_normalize_zone_rect(zone), "kind": kind, "count": count}
-    if zone.get("switch"):
-        normalized["switch"] = str(zone["switch"])
+    normalized.update(control_fields(zone))
     return normalized
 
 

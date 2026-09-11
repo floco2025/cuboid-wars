@@ -41,6 +41,8 @@ fn immovable_capacity_counts_only_usable_floors_on_the_zones_carrier() {
         }],
     ));
     map.actor_spawn_zones.push(ActorSpawnZone {
+        switch_inverted: false,
+
         carrier: CarrierId(1),
         level: 0,
         cols: [0, 4],

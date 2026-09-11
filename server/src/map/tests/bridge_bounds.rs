@@ -5,6 +5,10 @@ const PAD: f32 = 0.25;
 
 fn bridge(x1: f32, z1: f32, kind: u16) -> LightBridge {
     LightBridge {
+        id: Default::default(),
+        switch: None,
+        switch_inverted: false,
+
         x1,
         x2: x1 + 4.0,
         z1,

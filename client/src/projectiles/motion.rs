@@ -7,7 +7,7 @@ use common::{
     config::ProjectilesConfig,
     math::{PHYSICS_EPSILON, direction_from_yaw_pitch},
     physics::{CollisionWorld, FieldKind},
-    protocol::{BarrierKindId, Position},
+    protocol::{BarrierId, Position},
 };
 
 #[derive(Component)]
@@ -100,7 +100,7 @@ impl ProjectileMotion {
         projectile_pos: &Position,
         delta: f32,
         collision_world: &CollisionWorld,
-        open_kinds: &[BarrierKindId],
+        open_kinds: &[BarrierId],
     ) -> Option<f32> {
         let translation = self.velocity * delta;
         collision_world
@@ -161,7 +161,7 @@ impl ProjectileMotion {
         projectile_pos: &Position,
         delta: f32,
         collision_world: &CollisionWorld,
-        open_kinds: &[BarrierKindId],
+        open_kinds: &[BarrierId],
     ) -> Option<FieldImpact> {
         let translation = self.velocity * delta;
         let hit = collision_world.cast_moving_ball_against_fields(

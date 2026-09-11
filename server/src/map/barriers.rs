@@ -12,12 +12,15 @@ use std::collections::HashMap;
 use super::{mask::Mask, segments::MERGE_EPS};
 use common::{
     map::MapGeometry,
-    protocol::{Barrier, BarrierKindId, CarrierId},
+    protocol::{Barrier, BarrierKindId, CarrierId, SwitchId},
 };
 
 // One authored barrier: its grid edge as `[c0, r0, c1, r1]` and its resolved kind.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct BarrierEdge {
+    pub switch: Option<SwitchId>,
+    pub switch_inverted: bool,
+
     pub edge: [i32; 4],
     pub kind: BarrierKindId,
 }
@@ -81,13 +84,13 @@ pub(crate) fn stack_barriers(
     );
     let mut barriers: Vec<Barrier> = Vec::new();
     // Runs that reached the previous level, keyed by edge and kind, as indexes into `barriers`.
-    let mut open_runs: HashMap<(GridEdge, BarrierKindId), usize> = HashMap::new();
+    let mut open_runs: HashMap<(GridEdge, BarrierKindId, Option<SwitchId>, bool), usize> = HashMap::new();
     for (level_idx, (edges, slab_mask)) in levels.iter().zip(slab_masks).enumerate() {
         let level = u8::try_from(level_idx).unwrap_or(u8::MAX);
         let mut runs = HashMap::new();
         for barrier in edges {
             let grid_edge = GridEdge::from_authored(barrier.edge);
-            let key = (grid_edge, barrier.kind);
+            let key = (grid_edge, barrier.kind, barrier.switch, barrier.switch_inverted);
             let continued = open_runs
                 .get(&key)
                 .copied()
@@ -115,6 +118,10 @@ pub(crate) fn stack_barriers(
 fn barrier_from_edge(barrier: &BarrierEdge, geometry: &MapGeometry, level: u8, carrier: CarrierId) -> Barrier {
     let [c0, r0, c1, r1] = barrier.edge;
     Barrier {
+        id: Default::default(),
+        switch: barrier.switch,
+        switch_inverted: barrier.switch_inverted,
+
         x1: geometry.cell_to_world_x(c0),
         z1: geometry.cell_to_world_z(r0),
         x2: geometry.cell_to_world_x(c1),
@@ -178,8 +185,8 @@ pub(crate) fn merge_barriers(barriers: Vec<Barrier>) -> Vec<Barrier> {
     merged
 }
 
-fn group_key(b: &Barrier) -> (u8, u8, u16) {
-    (b.level, b.levels, b.kind.0)
+fn group_key(b: &Barrier) -> (u8, u8, u16, Option<SwitchId>, bool) {
+    (b.level, b.levels, b.kind.0, b.switch, b.switch_inverted)
 }
 
 fn normalize_endpoints(mut b: Barrier) -> Barrier {

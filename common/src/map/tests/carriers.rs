@@ -6,6 +6,8 @@ use crate::{
 
 fn slider() -> Carrier {
     Carrier {
+        switch_inverted: false,
+
         parent: CarrierId::WORLD,
         level: 0,
         levels: 0,

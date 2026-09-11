@@ -9,7 +9,6 @@ fn barriers_are_translucent_and_keys_use_solid_glowing_symbols() {
     let kinds = [KindDef {
         id: "red".into(),
         color: HexColor([255, 0, 0]),
-        switch: None,
     }];
     let config = BarrierVfxConfig {
         emissive_brightness: 7.0,
@@ -19,7 +18,7 @@ fn barriers_are_translucent_and_keys_use_solid_glowing_symbols() {
             frequency_hz: 0.5,
         },
     };
-    let assets = build_barrier_assets(&mut meshes, &mut materials, &kinds, config, 3.0);
+    let assets = build_barrier_assets(&mut meshes, &mut materials, &kinds, &MapLayout::default(), config, 3.0);
     let key_mesh = meshes.get(assets.key_mesh()).expect("key mesh missing");
     let positions = key_mesh
         .attribute(Mesh::ATTRIBUTE_POSITION)

@@ -1,9 +1,14 @@
 use super::*;
+use crate::protocol::BridgeId;
 
 #[test]
 fn light_bridge_supports_a_character_only_while_powered() {
     let layout = MapLayout {
         light_bridges: vec![LightBridge {
+            id: Default::default(),
+            switch: None,
+            switch_inverted: false,
+
             x1: 0.0,
             z1: 0.0,
             x2: 4.0,
@@ -24,9 +29,9 @@ fn light_bridge_supports_a_character_only_while_powered() {
     let probe = |world: &CollisionWorld| world.ground_hit(&shape, &pose, 1.0, 0.0, &[], &[]);
 
     assert!(probe(&world).is_none(), "an unpowered bridge is not ground");
-    world.set_powered_bridges(&[BridgeKindId(1)]);
+    world.set_powered_bridges(&[BridgeId(1)]);
     assert!(probe(&world).is_none(), "another powered kind is not this bridge");
-    world.set_powered_bridges(&[BridgeKindId(0)]);
+    world.set_powered_bridges(&[BridgeId(0)]);
     assert!(probe(&world).is_some(), "a powered bridge is ground");
     world.set_powered_bridges(&[]);
     assert!(probe(&world).is_none(), "power switches off again");
@@ -36,6 +41,10 @@ fn light_bridge_supports_a_character_only_while_powered() {
 fn a_powered_light_bridge_stays_out_of_sight_and_ground_probes() {
     let layout = MapLayout {
         light_bridges: vec![LightBridge {
+            id: Default::default(),
+            switch: None,
+            switch_inverted: false,
+
             x1: -2.0,
             z1: -2.0,
             x2: 2.0,
@@ -49,7 +58,7 @@ fn a_powered_light_bridge_stays_out_of_sight_and_ground_probes() {
         ..Default::default()
     };
     let mut world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
-    world.set_powered_bridges(&[BridgeKindId(0)]);
+    world.set_powered_bridges(&[BridgeId(0)]);
     let above = Vec3::new(0.0, LEVEL_HEIGHT + 1.0, 0.0);
     let below = Vec3::new(0.0, LEVEL_HEIGHT - 1.0, 0.0);
 
@@ -73,6 +82,10 @@ fn bridge_power_blocks_attacks_and_beams_without_blocking_awareness() {
     let kind = BridgeKindId(0);
     let layout = MapLayout {
         light_bridges: vec![LightBridge {
+            id: Default::default(),
+            switch: None,
+            switch_inverted: false,
+
             x1: -3.0,
             z1: -3.0,
             x2: 3.0,
@@ -87,7 +100,7 @@ fn bridge_power_blocks_attacks_and_beams_without_blocking_awareness() {
     };
     let mut world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
     for powered in [false, true, false] {
-        let powered_kinds = [kind];
+        let powered_kinds = [BridgeId(u32::from(kind.0))];
         world.set_powered_bridges(if powered { &powered_kinds } else { &[] });
         for (from, to) in [(Vec3::Y * 4.0, Vec3::ZERO), (Vec3::ZERO, Vec3::Y * 4.0)] {
             assert!(world.line_of_sight_clear(from, to));
@@ -108,6 +121,10 @@ fn portal_shots_only_stop_at_powered_bridges() {
     layout.walls.clear();
     layout.ramps.clear();
     layout.light_bridges.push(LightBridge {
+        id: Default::default(),
+        switch: None,
+        switch_inverted: false,
+
         x1: 0.0,
         z1: 0.0,
         x2: 4.0,
@@ -121,7 +138,7 @@ fn portal_shots_only_stop_at_powered_bridges() {
     let mut world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
     let origin = Vec3::new(2.0, LEVEL_HEIGHT + 4.0, 2.0);
     for powered in [false, true, false] {
-        world.set_powered_bridges(if powered { &[BridgeKindId(0)] } else { &[] });
+        world.set_powered_bridges(if powered { &[BridgeId(0)] } else { &[] });
         let hit = world.portal_surface_along_ray(origin, Vec3::NEG_Y, 10.0, &[]);
         assert_eq!(hit.is_some(), !powered);
         if let Some(hit) = hit {

@@ -106,6 +106,8 @@ impl Fixture {
         let carrier = if rest.is_some() { CarrierId(1) } else { CarrierId::WORLD };
         let mut map = MapConfig {
             actor_spawn_zones: vec![ActorSpawnZone {
+                switch_inverted: false,
+
                 carrier,
                 level: 0,
                 cols: [1, 2],
@@ -120,6 +122,8 @@ impl Fixture {
         if let Some(rest) = rest {
             map.grids.push(CarrierGrid::new(carrier, geometry, levels(1)));
             layout.carriers.push(Carrier {
+                switch_inverted: false,
+
                 parent: CarrierId::WORLD,
                 level: 0,
                 levels: 0,

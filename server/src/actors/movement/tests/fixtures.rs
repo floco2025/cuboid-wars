@@ -126,7 +126,7 @@ pub(crate) fn context<'a>(
         collision_world,
         planned_moves,
         actor_starts,
-        open_barrier_kinds: &[],
+        open_barriers: &[],
         map_settings: &TEST_SETTINGS,
         knockback_step: bevy::prelude::Vec3::ZERO,
         carrier_step: bevy::prelude::Vec3::ZERO,

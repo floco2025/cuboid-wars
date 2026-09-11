@@ -1,5 +1,7 @@
 {
   "map": {
+    "switch_kinds": [{"id": "lobby", "activation": "auto", "reset_on_player_death": "never"}, {"id": "fireworks", "plate_color": "#9b5de5", "activation": "momentary", "reset_on_player_death": "never", "held": "everyone"}],
+    "fireworks": {"switch": "fireworks", "cooldown_secs": 30.0},
     "grid_cols": 30,
     "grid_rows": 30,
     "actor_spawn_zones": [
@@ -2727,9 +2729,9 @@
         ],
         "barriers": [
           {"c0": 7, "r0": 21, "c1": 8, "r1": 21, "kind": "basement"},
-          {"c0": 9, "r0": 13, "c1": 9, "r1": 14, "kind": "lobby"},
+          {"c0": 9, "r0": 13, "c1": 9, "r1": 14, "kind": "lobby", "switch": "lobby"},
           {"c0": 20, "r0": 8, "c1": 21, "r1": 8, "kind": "basement"},
-          {"c0": 22, "r0": 16, "c1": 22, "r1": 17, "kind": "lobby"}
+          {"c0": 22, "r0": 16, "c1": 22, "r1": 17, "kind": "lobby", "switch": "lobby"}
         ],
         "erasers": [],
         "light_bridges": [],

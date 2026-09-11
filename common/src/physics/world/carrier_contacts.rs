@@ -6,7 +6,7 @@ use rapier3d::{
 
 use super::{
     CollisionWorld,
-    colliders::{ColliderKind, character_collision_groups, query_filter},
+    colliders::{ColliderKind, barrier_blocks, character_collision_groups, query_filter},
 };
 use crate::{
     config::CharacterPhysicsConfig,
@@ -14,7 +14,7 @@ use crate::{
     map::Carriers,
     math::PHYSICS_EPSILON,
     physics::characters::{character_movement_pose, character_movement_shape},
-    protocol::{BarrierKindId, Position},
+    protocol::{BarrierId, Position},
 };
 
 impl CollisionWorld {
@@ -25,12 +25,13 @@ impl CollisionWorld {
         shape: &dyn Shape,
         start: &Pose,
         carriers: &Carriers,
-        passable_kinds: &[BarrierKindId],
+        passable_kinds: &[BarrierId],
         excluded_colliders: &[ColliderHandle],
         mut events: impl FnMut(CharacterCollision),
     ) -> Vector {
         let allow = |handle: ColliderHandle, collider: &Collider| {
             !excluded_colliders.contains(&handle)
+                && barrier_blocks(collider, passable_kinds)
                 && ColliderKind::from_user_data(collider.user_data) != Some(ColliderKind::Ramp)
                 && carriers
                     .displacement(self.carrier_of(handle))
@@ -38,7 +39,7 @@ impl CollisionWorld {
                     .length_squared()
                     > PHYSICS_EPSILON * PHYSICS_EPSILON
         };
-        let mut filter = query_filter(character_collision_groups(passable_kinds, self.all_barrier_groups));
+        let mut filter = query_filter(character_collision_groups());
         filter.predicate = Some(&allow);
         let mut pose = *start;
         let mut overlaps: Vec<_> = self
@@ -81,7 +82,7 @@ impl CollisionWorld {
         &self,
         pos: &Position,
         physics: CharacterPhysicsConfig,
-        passable_kinds: &[BarrierKindId],
+        passable_kinds: &[BarrierId],
         excluded_colliders: &[ColliderHandle],
         lifted: bool,
     ) -> bool {
@@ -92,10 +93,11 @@ impl CollisionWorld {
         };
         let allow = |handle: ColliderHandle, collider: &Collider| {
             !excluded_colliders.contains(&handle)
+                && barrier_blocks(collider, passable_kinds)
                 && ColliderKind::from_user_data(collider.user_data) != Some(ColliderKind::Ramp)
                 && (lifted || !self.carrier_of(handle).is_world())
         };
-        let mut filter = query_filter(character_collision_groups(passable_kinds, self.all_barrier_groups));
+        let mut filter = query_filter(character_collision_groups());
         filter.predicate = Some(&allow);
         self.shape_overlaps(character_movement_pose(pos, physics), &inset, filter)
     }

@@ -19,7 +19,7 @@ pub(super) fn handle_projectile_shot_message(
         &context.gameplay_config,
         context.map_settings.movement.projectile_speed,
         &context.collision_world,
-        &context.plates.open_barrier_kinds,
+        &context.plates.open_barriers,
         message.id,
         MuzzleCheck::Skipped,
     ) > 0

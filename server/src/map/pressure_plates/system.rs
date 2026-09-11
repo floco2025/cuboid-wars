@@ -100,7 +100,7 @@ pub(crate) fn pressure_plates_system(
     }
     .emit(&holders, &edges, &plates_state, &switches.state());
 
-    if switches.fireworks_due(tick.0) {
+    if switches.fireworks_due(tick.0, quest_board.locked_switches()) {
         broadcast_firework_show(&players);
         // `/firework` bypasses this on purpose: only the switch counts.
         record_event(

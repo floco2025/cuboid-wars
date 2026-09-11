@@ -3,6 +3,8 @@ use crate::{
     constants::MISSILE_RADIUS,
     test_fixtures::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS, geometry},
 };
+use common::protocol::BarrierId;
+use common::protocol::BarrierKindId;
 use common::protocol::{Barrier, BarrierKindTable, Carrier, Floor, MapLayout, PlateState, Position, Wall};
 
 fn map(cols: i32, rows: i32, levels: usize) -> AirGraph {
@@ -194,6 +196,8 @@ fn routes_into_a_shifted_room_keep_clear_of_its_walls_floor_and_roof() {
             },
         ],
         carriers: vec![Carrier {
+            switch_inverted: false,
+
             parent: CarrierId::WORLD,
             level: 0,
             levels: 1,
@@ -250,6 +254,11 @@ fn opened_barriers_allow_a_route_without_stale_grid_flags() {
     let graph = map(2, 1, 1);
     let layout = MapLayout {
         barriers: vec![Barrier {
+            id: Default::default(),
+
+            switch: None,
+            switch_inverted: false,
+
             x1: 0.0,
             z1: -2.0,
             x2: 0.0,
@@ -278,7 +287,7 @@ fn opened_barriers_allow_a_route_without_stale_grid_flags() {
         graph.path(
             &Carriers::default(),
             &world,
-            &[BarrierKindId(0)],
+            &[BarrierId(0)],
             from,
             to,
             MISSILE_RADIUS,

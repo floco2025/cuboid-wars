@@ -4,11 +4,11 @@ Every element group ends with its own **Erase** tool that removes only that elem
 
 ## Navigation and Tool Settings
 
-- **Map** — Open a map registered by name in `gameplay.json`. Its folder contains the editor-owned `layout.json` and hand-edited `settings.json`. The Map picker switches between the outer map and its named nested geometry; all views use the parent's kinds and texture catalog. Save, autosave, and undo cover the whole document. Undo switches to the affected map.
+- **Map** — Open a map registered by name in `gameplay.json`. Its folder contains `layout.json` for placement and controls and `settings.json` for appearance catalogs and tuning. The Map picker switches between the outer map and its named nested geometry; all views use the parent's kinds and texture catalog. Save, autosave, and undo cover the whole document. Undo switches to the affected map.
 
 - **Zoom / Pan / Fit Map** — `Cmd+Plus` / `Cmd+Minus` on macOS, or `Ctrl+Plus` / `Ctrl+Minus` elsewhere, zoom in and out. Scroll with a wheel, Magic Mouse, or touchpad to pan; Shift-wheel pans horizontally. Scroll bars appear when the map extends outside the view, and panning stops at the map edges. Space-drag and middle-drag also pan. View → Fit Map (`F`) shows the whole map.
 - **Window** — Size, position, and maximized state are remembered across launches, shared by every map. Off-screen positions are brought back onto an available screen. New, Open, and Resize Map fit the canvas without changing the window size.
-- **Tool Settings** — Properties appear beside the Tool picker in the top toolbar, only for tools that need them. Placement always uses the previous values; a dialog is needed only when no usable choice has been made yet. Change values in the toolbar, or open nested-map motion through **Settings…**. Right-click property editing still opens a dialog.
+- **Tool Settings** — Properties appear beside the Tool picker in the top toolbar, only for tools that need them. Placement always uses the previous values; a dialog is needed only when no usable choice has been made yet. Change values in the toolbar, use **Controls…** for pressure plate assignments, or open nested-map motion through **Settings…**. Right-click property editing still opens a dialog.
 - **Single-tile tools** — Ladders, lights, plates, and items preview one tile or edge, never a range. Holding the mouse button lets you adjust the target; releasing places once. Escape or releasing off-grid cancels.
 - **Feedback** — Placement warnings and copy confirmations appear briefly over the canvas without taking focus or blocking clicks. Undo and Redo menus name the available actions.
 - **Hover details** — Hover any element to see its type and relevant properties, including materials, kind, actor count, or nested-map motion. Overlapping elements follow the same priority as right-click; material tools show their target's materials.
@@ -41,7 +41,7 @@ Every element group ends with its own **Erase** tool that removes only that elem
 
 ## Spawn Zones
 
-- **Actor Spawn Zone** — Choose Actor, Count, and optionally the Switch that activates the zone in the toolbar, then drag a rectangle. If no actor is selected yet, the first placement asks for all three. A switched zone spawns nothing until its switch is on. Immovable actors spawn at cell centers; Count cannot exceed the zone's usable floor cells.
+- **Actor Spawn Zone** — Choose Actor and Count in the toolbar, then drag a rectangle. **Controls…** selects an optional pressure plate kind and On/Off response; right-click edits existing zones. Without a plate assignment the zone spawns normally. Immovable actors spawn at cell centers; Count cannot exceed the zone's usable floor cells.
 - **Player Spawn Zone** — Drag a rectangle. No prompt — players spawn anywhere in any player zone.
 - **Erase Spawn Zones** — Drag a rectangle to remove every actor and player spawn zone it touches on the current level.
 
@@ -64,12 +64,12 @@ A checkpoint is a rectangle of flat accessible floor that players respawn in onc
 
 ## Barriers
 
-- **Barrier** — Choose Kind in the toolbar and drag along grid lines to place a translucent pulsating force-field. Kinds and their colors come from that map's `barrier_kinds` in its `settings.json`.
+- **Barrier** — Choose Kind and **Controls…** in the toolbar, then drag along grid lines. Controls choose a pressure plate kind and whether to open when it is On or Off. Every barrier also accepts its matching key automatically. Right-click to edit a barrier; **Edit → Edit Selected Barriers** applies chosen properties to the selected tiles on this level.
 - **Erase Barriers** — Drag a rectangle to remove every barrier edge inside or on its border.
 
 ## Light Bridges
 
-- **Light Bridge** — Choose Kind in the toolbar and drag cells to place a translucent walkway that is solid while its kind’s pressure switch is active. Kinds and their colors come from that map's `bridge_kinds` in its `settings.json`. The validator flags a bridge that shares a cell with a floor or a ramp.
+- **Light Bridge** — Choose Kind and **Controls…** in the toolbar, then drag cells. Controls choose a pressure plate kind and whether the walkway is powered when it is On or Off; without an assignment it is unpowered. Right-click to edit a bridge; **Edit → Edit Selected Light Bridges** applies chosen properties to the selected tiles on this level. Bridges cannot share cells with floors or ramps.
 - **Erase Light Bridges** — Drag a rectangle to remove every light bridge inside it on the current level.
 
 ## Ramps
@@ -83,15 +83,17 @@ A checkpoint is a rectangle of flat accessible floor that players respawn in onc
 
 - **Create / Rename / Delete** — Edit → New Nested Map creates named geometry in the parent file and selects it for editing. Rename Nested Map updates every placement of that name. Delete Nested Map removes an unused definition; erase its placements first if it is in use. All three actions can be undone.
 
-- **Nested Map** — Click a cell to place named nested geometry with its cell (0, 0) on it, standing still; drag to a second cell to make it slide there and back. A moving tile is a nested one-cell map (`tile`), and a lift is one whose far end is on another level. Placement reuses the motion configured under the toolbar's **Settings…** (the first placement opens it): which map (any other file in `config/server/maps`), the level of the far end, how long one leg takes, the pause at each end, a phase offset, a nudge for each end, its (x, y, z) displacement from the anchor, x and z in wall widths (across columns and rows) and y in floor widths (up), zero by default, and optionally the switch that runs the motion (a switched map moves only while its switch is on and freezes where it is otherwise); two floors meeting at a grid line overlap by one wall width, so a nudge of 1.01 back along the travel leaves them just clear. Everything in the nested map rides along: floors, walls, ladders, plates, items, and its own nested maps. On the canvas the ends are numbered squares 1 and 2 with a band between them, and the nested map's footprint is outlined and named where it rests at each end, its nudge applied, solid where it starts and dashed where it arrives (a y nudge cannot be drawn on the plan, so it is written after the name); a red `name?` is a missing geometry definition. Nothing checks for overlap with the map around it. Dragging from an end moves that end, clicking an end opens the entry's properties, and right-clicking an end offers the same in any tool, beside Erase.
+- **Nested Map** — Click a cell to place named nested geometry with its cell (0, 0) on it, standing still; drag to a second cell to make it slide there and back. A moving tile is a nested one-cell map (`tile`), and a lift is one whose far end is on another level. Placement reuses the motion configured under the toolbar's **Settings…** (the first placement opens it): which map (any other file in `config/server/maps`), the level of the far end, how long one leg takes, the pause at each end, a phase offset, a nudge for each end, its (x, y, z) displacement from the anchor, x and z in wall widths (across columns and rows) and y in floor widths (up), zero by default, and optionally a pressure plate kind and On/Off response that runs the motion; it freezes otherwise; two floors meeting at a grid line overlap by one wall width, so a nudge of 1.01 back along the travel leaves them just clear. Everything in the nested map rides along: floors, walls, ladders, plates, items, and its own nested maps. On the canvas the ends are numbered squares 1 and 2 with a band between them, and the nested map's footprint is outlined and named where it rests at each end, its nudge applied, solid where it starts and dashed where it arrives (a y nudge cannot be drawn on the plan, so it is written after the name); a red `name?` is a missing geometry definition. Nothing checks for overlap with the map around it. Dragging from an end moves that end, clicking an end opens the entry's properties, and right-clicking an end offers the same in any tool, beside Erase.
 - **Erase Nested Maps** — Drag a rectangle to remove every nested map whose start or end cell on the current level is inside it.
 
 ## Ladders
 
-- **Ladder** — Set Storeys in the toolbar, then click the cell where the ladder's rails should stand, near the edge it climbs; the hover ghost previews it under the cursor. The span starts at the current level and is capped at the map's top level. Ladders are climbable from both sides and block walking through below their top; no wall or floor is required — a ladder can stand at an open balcony front. Click an existing ladder (from either side of its edge) to remove it.
+- **Ladder** — Set Storeys in the toolbar, then click the cell where the ladder's rails should stand, near the edge it climbs; the hover ghost previews it under the cursor. The span starts at the current level and is capped at the map's top level. Ladders are climbable from both sides and block walking through below their top; no wall or floor is required — a ladder can stand at an open balcony front. Right-click a ladder on any level it spans to change its Storeys while keeping its base; overlapping another ladder is refused. Click an existing ladder (from either side of its edge) to remove it.
 - **Erase Ladders** — Drag a rectangle to remove every ladder whose anchor edge is inside it and whose span touches the current level.
 
 ## Materials
+
+Right-click a floor, blocked floor, wall, or ramp to edit that element's materials. A ramp can be edited from either level it connects.
 
 Faces with different materials across the selection start at **Mixed / leave unchanged**. Those faces keep their individual values unless you choose a material; **Apply Top to all faces** uses the Top choice for every face.
 **Use top-left materials** fills all six fields from the topmost, then leftmost selected floor, wall, or ramp, independently of file order or drag direction. You can adjust the fields before pressing OK; Cancel leaves the map unchanged.
@@ -102,14 +104,19 @@ Faces with different materials across the selection start at **Mixed / leave unc
 
 ## Lights
 
-- **Light** — Choose a **Style** from the toolbar, then click a cell near a wall to add a wall light on that side; the hover ghost shows the side a click would use, and only where a wall accepts one. Right-click a light to erase it. Use **Edit → Auto-Place Lights** to choose a style and fill the current level on a stride; **Edit → Clear Lights On Level** to start over.
+- **Light** — Choose a **Style** from the toolbar, then click a cell near a wall to add a wall light on that side; the hover ghost shows the side a click would use, and only where a wall accepts one. Right-click a light to change its style or erase it. Use **Edit → Auto-Place Lights** to choose a style and fill the current level on a stride; **Edit → Clear Lights On Level** to start over.
 - **Erase Lights** — Drag a rectangle to remove every light inside it on the current level.
 
 ## Pressure Plates
 
-Each tile can hold one pressure plate on each level. A plate needs a floor or blocked floor under it and cannot sit inside a ramp footprint; the hover ghost shows only where a click would succeed, and loaded plates elsewhere are reported in Map Issues. Every plate operates one of the map's switches, listed in its `settings.json` under `switches`; what a switch does is declared on its targets: a barrier or bridge kind's `switch` in the same file, an actor spawn zone's or nested map's Switch in the editor, and the `fireworks` block. Plates use a symmetric frame with four indicators and a panel coloured like the first linked barrier or bridge kind; hover names the switch. Set a switch's `plate_color` (`#rrggbb`) for other uses or to override inheritance; otherwise the client asset catalog's `pressure_plate.default_color` supplies the color. Right-click a plate to edit or erase it. Configure each switch directly in `settings.json`: `activation` is `momentary`, `toggle`, or `auto`; `reset_on_player_death` is `never`, `solo`, `any`, or `all`; `held` is `any` (one occupied plate) or `everyone` (every living player on one of its plates, or every plate when players outnumber them). Auto toggles with one logged-in player and is momentary with multiple players. The editor reads switch ids; it does not edit these policies. Map Issues reports a plate on an unknown switch and a zone or nested map whose switch no plate in the document operates.
+Each tile can hold one pressure plate per level, on a floor or blocked floor outside ramp footprints. Several plates may share a kind and operate the same targets. **Map → Pressure Plate Kinds** creates, edits, renames, and deletes kinds. The root layout stores their policies and all target assignments; nested maps share the root catalog. Rename updates all references, and a kind still in use cannot be deleted.
 
-- **Pressure Plate** — Choose Switch in the toolbar and left-click a cell to place a plate. Right-click a plate to change its switch or erase it.
+Each kind chooses `momentary`, `toggle`, or `auto` activation, a death reset rule (`never`, `solo`, `any`, or `all`), and `any` or `everyone` holding. Auto toggles with one logged-in player and is momentary with several. Everyone requires each living player on a plate, or every plate occupied when players outnumber them. The optional color override takes a hex color such as `#9b5de5`; otherwise plates inherit the first linked barrier color, then bridge color, then the default fixture color.
+
+Barriers, bridges, actor zones, moving nested maps, and **Map → Fireworks** choose one pressure plate kind and an On/Off response. Without an assignment, barriers stay closed, bridges unpowered, actor zones active, and moving maps running. Fireworks need an assignment. **Map → Barrier Kinds** and **Bridge Kinds** edit appearance catalogs in `settings.json`; keys always match barrier kinds. Catalog changes share Save, Undo, and autosave recovery with the layout.
+
+- **Pressure Plate** — Choose a kind in the toolbar and click a cell. Right-click a plate to change its kind or erase it. Its rim light and four indicators show the kind's state in-game.
+
 - **Erase Pressure Plates** — Drag a rectangle to remove every plate inside it on the current level.
 
 ## Items

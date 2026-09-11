@@ -8,7 +8,7 @@ pub enum FeedStyle {
     Dim,
     Chat,
     Console,
-    Barrier(BarrierKindId),
+    Key(BarrierKindId),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]

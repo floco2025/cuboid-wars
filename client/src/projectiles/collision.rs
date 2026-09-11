@@ -5,7 +5,7 @@ use common::{
     config::GameplayConfig,
     physics::{CollisionWorld, FieldKind},
     protocol::{
-        ActorId, ActorMarker, BarrierKindId, FaceYaw, HitTarget, PlayerGeneration, PlayerId, PlayerMarker, Position,
+        ActorId, ActorMarker, BarrierId, FaceYaw, HitTarget, PlayerGeneration, PlayerId, PlayerMarker, Position,
     },
 };
 
@@ -145,7 +145,7 @@ pub(super) fn handle_field_collisions(
     proj_pos: &Position,
     delta: f32,
     collision_world: &CollisionWorld,
-    open_kinds: &[BarrierKindId],
+    open_kinds: &[BarrierId],
 ) -> bool {
     let Some(impact) = proj_motion.terminate_at_field(proj_pos, delta, collision_world, open_kinds) else {
         return false;
@@ -158,8 +158,8 @@ pub(super) fn handle_field_collisions(
         impact.normal,
         proj_motion.velocity.length(),
         ImpactKind::Barrier(match impact.kind {
-            FieldKind::Barrier(kind) => barrier_assets.base_color(kind),
-            FieldKind::Bridge(kind) => bridge_assets.base_color(kind),
+            FieldKind::Barrier(kind) => barrier_assets.field_color(kind),
+            FieldKind::Bridge(kind) => bridge_assets.field_color(kind),
         }),
     );
     commands.entity(proj_entity).despawn();

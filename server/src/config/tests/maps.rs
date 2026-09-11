@@ -61,7 +61,6 @@ fn kind(id: &str) -> KindDef {
     KindDef {
         id: id.to_owned(),
         color: HexColor([0; 3]),
-        switch: None,
     }
 }
 
@@ -539,28 +538,14 @@ fn validate_maps_rejects_duplicate_bridge_kinds() {
 }
 
 #[test]
-fn validate_maps_rejects_duplicate_switches_and_unknown_kind_switches() {
+fn validate_maps_rejects_duplicate_switch_kinds() {
     let mut maps = one_map("hotel");
     maps.get_mut("hotel").expect("hotel entry missing").settings.switches =
         vec![switch_def("lobby"), switch_def("lobby")];
     let error = validate_test_maps(&maps, "hotel").expect_err("duplicate switches must be rejected");
     assert!(
-        format!("{error:#}").contains("switches contains duplicate"),
+        format!("{error:#}").contains("switch_kinds contains duplicate"),
         "{error:#}"
-    );
-
-    let mut maps = one_map("hotel");
-    let settings = &mut maps.get_mut("hotel").expect("hotel entry missing").settings;
-    settings.switches = vec![switch_def("lobby")];
-    settings.barrier_kinds = vec![KindDef {
-        switch: Some("void".to_owned()),
-        ..kind("treasure")
-    }];
-    let error = validate_test_maps(&maps, "hotel").expect_err("an unknown kind switch must be rejected");
-    let chain = format!("{error:#}");
-    assert!(
-        chain.contains("barrier_kinds \"treasure\"") && chain.contains("unknown switch \"void\""),
-        "{chain}"
     );
 }
 
@@ -569,6 +554,8 @@ fn validate_maps_checks_the_fireworks_switch_and_cooldown() {
     for (fireworks, expected) in [
         (
             FireworksConfig {
+                switch_inverted: false,
+
                 switch: "void".to_owned(),
                 cooldown_secs: 5.0,
             },
@@ -576,6 +563,8 @@ fn validate_maps_checks_the_fireworks_switch_and_cooldown() {
         ),
         (
             FireworksConfig {
+                switch_inverted: false,
+
                 switch: "lobby".to_owned(),
                 cooldown_secs: -1.0,
             },
@@ -594,6 +583,8 @@ fn validate_maps_checks_the_fireworks_switch_and_cooldown() {
     let entry = maps.get_mut("hotel").expect("hotel entry missing");
     entry.settings.switches = vec![switch_def("lobby")];
     entry.fireworks = Some(FireworksConfig {
+        switch_inverted: false,
+
         switch: "lobby".to_owned(),
         cooldown_secs: 0.0,
     });

@@ -49,39 +49,11 @@
     "actors": { "on_player_death": "never", "scope": "dead" }
   },
   "portals": "both",
-  "switches": [
-    {
-      "id": "lobby",
-      "activation": "auto",
-      "reset_on_player_death": "never"
-    },
-    {
-      "id": "fireworks",
-      "plate_color": "#9b5de5",
-      "activation": "momentary",
-      "reset_on_player_death": "never",
-      "held": "everyone"
-    }
-  ],
-  "fireworks": {"switch": "fireworks", "cooldown_secs": 30.0},
   "barrier_kinds": [
-    {
-      "id": "treasure",
-      "color": "#ff3333"
-    },
-    {
-      "id": "basement",
-      "color": "#f0c020"
-    },
-    {
-      "id": "gravity",
-      "color": "#5090ff"
-    },
-    {
-      "id": "lobby",
-      "color": "#22cc33",
-      "switch": "lobby"
-    }
+    { "id": "treasure", "color": "#ff3333" },
+    { "id": "basement", "color": "#f0c020" },
+    { "id": "gravity", "color": "#5090ff" },
+    { "id": "lobby", "color": "#22cc33" }
   ],
   "bridge_kinds": [],
   "random_items": {

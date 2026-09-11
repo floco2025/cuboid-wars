@@ -3,8 +3,8 @@ pub(super) use common::{
     map::Carriers,
     physics::{CollisionWorld, compute_portal_placement},
     protocol::{
-        BarrierKindTable, BridgeKindId, BridgeKindTable, CarrierId, FaceMaterials, HexColor, KindDef, MapLayout,
-        MapSettings, Position, SwitchDef, SwitchId, SwitchTable, TextureSettings,
+        BarrierKindTable, BridgeKindTable, CarrierId, FaceMaterials, HexColor, KindDef, MapLayout, MapSettings,
+        Position, SwitchDef, SwitchId, SwitchTable, TextureSettings,
     },
 };
 
@@ -27,8 +27,6 @@ pub(super) use crate::{
 // bridge kind, named after it, plus `fireworks`.
 pub(crate) const FIREWORKS: &str = "fireworks";
 
-// Settings whose switches are the kinds of both tables plus `fireworks`,
-// each kind driven by its namesake switch.
 pub(crate) fn compile_settings(kinds: &BarrierKindTable, bridges: &BridgeKindTable) -> MapSettings {
     let switch_ids = kinds
         .ids()
@@ -39,7 +37,6 @@ pub(crate) fn compile_settings(kinds: &BarrierKindTable, bridges: &BridgeKindTab
     let kind_def = |id: &String| KindDef {
         id: id.clone(),
         color: HexColor([0; 3]),
-        switch: Some(id.clone()),
     };
     MapSettings {
         switches: switch_ids
@@ -126,6 +123,9 @@ pub(crate) fn cell_def(col: i32, row: i32) -> CellDef {
 
 pub(crate) fn bridge_def(col: i32, row: i32) -> LightBridgeDef {
     LightBridgeDef {
+        switch: None,
+        switch_inverted: false,
+
         col,
         row,
         kind: "skyway".into(),
@@ -165,6 +165,8 @@ pub(crate) fn level_with_inaccessible(floors: Vec<[i32; 2]>, inaccessible_floors
 
 pub(crate) fn actor_zone(level: u32, col: i32, row: i32) -> ActorSpawnZoneDef {
     ActorSpawnZoneDef {
+        switch_inverted: false,
+
         level,
         cols: [col, col + 1],
         rows: [row, row + 1],

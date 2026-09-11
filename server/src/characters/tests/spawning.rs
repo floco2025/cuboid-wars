@@ -136,6 +136,8 @@ fn nested_zone_fixture(rest: Position, floored: bool) -> (MapConfig, Carriers, A
         .push(CarrierGrid::new(CarrierId(1), geometry(2, 2), vec![nested]));
     let carriers = Carriers::from_layout(&MapLayout {
         carriers: vec![Carrier {
+            switch_inverted: false,
+
             parent: CarrierId::WORLD,
             level: 0,
             levels: 0,
@@ -149,6 +151,8 @@ fn nested_zone_fixture(rest: Position, floored: bool) -> (MapConfig, Carriers, A
         ..MapLayout::default()
     });
     let zone = ActorSpawnZone {
+        switch_inverted: false,
+
         carrier: CarrierId(1),
         level: 0,
         cols: [1, 2],
@@ -242,6 +246,8 @@ fn immovable_spawn_checks_every_cell_before_reporting_a_full_zone() {
         geometry(120, 1),
     );
     let zone = ActorSpawnZone {
+        switch_inverted: false,
+
         carrier: CarrierId::WORLD,
         level: 0,
         cols: [0, 120],
@@ -287,6 +293,8 @@ fn immovable_spawn_waits_instead_of_shifting_away_from_an_obstructed_center() {
     let world = collision_world(&layout);
     let map = MapConfig::for_grid(vec![floor_level(2, 2, &[(1, 1)])], geometry);
     let zone = ActorSpawnZone {
+        switch_inverted: false,
+
         carrier: CarrierId::WORLD,
         level: 0,
         cols: [1, 2],

@@ -67,7 +67,7 @@ class NormalizationTests(unittest.TestCase):
 
         self.assertEqual(result["actor_spawn_zones"], [zone, {**zone, "switch": "guards"}])
 
-    def test_zone_and_nested_map_switches_survive_normalization_only_when_set(self) -> None:
+    def test_zone_and_nested_map_switches_preserve_authored_values(self) -> None:
         data = empty_map(2, 2)
         data["actor_spawn_zones"] = [
             {"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "zapper", "count": 1, "switch": "guards"},
@@ -80,10 +80,10 @@ class NormalizationTests(unittest.TestCase):
 
         result = normalize_map(data)
 
-        self.assertEqual([zone.get("switch") for zone in result["actor_spawn_zones"]], ["guards", None])
+        self.assertEqual([zone.get("switch") for zone in result["actor_spawn_zones"]], ["guards", ""])
         self.assertEqual([entry.get("switch") for entry in result["nested_maps"]], ["lift", None])
-        self.assertNotIn("switch", result["actor_spawn_zones"][1])
-        self.assertNotIn("switch", result["nested_maps"][1])
+        self.assertEqual(result["actor_spawn_zones"][1]["switch"], "")
+        self.assertIsNone(result["nested_maps"][1]["switch"])
 
     def test_canonicalization_keeps_the_last_bridge_per_cell_sorted_by_row_then_col(self) -> None:
         data = empty_map(3, 3)

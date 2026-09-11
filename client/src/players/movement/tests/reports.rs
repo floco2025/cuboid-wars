@@ -25,6 +25,8 @@ fn step(carrier: CarrierId, support: CharacterSupport) -> LocalMovementStep {
 fn grounded_rider_reports_local_position_and_takeoff_immediately_returns_to_world_space() {
     let layout = MapLayout {
         carriers: vec![Carrier {
+            switch_inverted: false,
+
             parent: CarrierId::WORLD,
             level: 0,
             levels: 1,
@@ -108,6 +110,8 @@ fn grounded_rider_reports_local_position_and_takeoff_immediately_returns_to_worl
 fn boarding_a_carrier_reports_immediately() {
     let layout = MapLayout {
         carriers: vec![Carrier {
+            switch_inverted: false,
+
             parent: CarrierId::WORLD,
             level: 0,
             levels: 1,

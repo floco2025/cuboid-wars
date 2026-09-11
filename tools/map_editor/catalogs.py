@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from .constants import ASSETS_PATH, GAMEPLAY_PATH, MAP_NAME_RE, MAPS_DIR
@@ -44,6 +44,8 @@ def load_map_kinds(map_name: str, key: str) -> dict[str, str]:
         path = f"{source}: {key}[{idx}]"
         if not isinstance(entry, dict) or not isinstance(entry.get("id"), str) or not isinstance(entry.get("color"), str):
             raise ValueError(f"{path} must be an object with string `id` and `color`")
+        if set(entry) - {"id", "color"}:
+            raise ValueError(f"{path}: kinds define id and color; assign pressure plate controls in layout.json")
         kind, color = entry["id"], entry["color"]
         if not kind:
             raise ValueError(f"{path}.id is empty")
@@ -64,19 +66,16 @@ SWITCH_RESETS = ("never", "solo", "any", "all")
 SWITCH_HOLDS = ("any", "everyone")
 
 
-# A map's switch catalog from its gameplay settings, in catalog order: the
-# ids a plate, a kind, an actor zone, or a nested map may name.
 def load_map_switches(map_name: str) -> list[str]:
-    map_settings = load_map_settings(map_name)
-    source = map_settings_path(map_name)
-    if "switches" not in map_settings:
-        raise ValueError(f"{source}: switches is required; use [] when the map has none")
-    value = map_settings["switches"]
+    source = map_layout_path(map_name)
+    if not source.exists():
+        return []
+    value = read_settings_json(source)["map"].get("switch_kinds", [])
     if not isinstance(value, list):
-        raise ValueError(f"{source}: switches must be an array of {{id, activation, reset_on_player_death}} objects")
+        raise ValueError(f"{source}: switch_kinds must be an array of {{id, activation, reset_on_player_death}} objects")
     switches: list[str] = []
     for idx, entry in enumerate(value):
-        path = f"{source}: switches[{idx}]"
+        path = f"{source}: switch_kinds[{idx}]"
         if not isinstance(entry, dict) or not isinstance(entry.get("id"), str):
             raise ValueError(f"{path} must be an object with a string `id`")
         switch = entry["id"]
@@ -96,18 +95,35 @@ def load_map_switches(map_name: str) -> list[str]:
     return switches
 
 
-def load_map_plate_colors(map_name: str) -> dict[str, str]:
-    settings = load_map_settings(map_name)
+def switch_entries(root: dict) -> list[dict]:
+    entries = root.get("switch_kinds", [])
+    return [entry for entry in entries if isinstance(entry, dict) and isinstance(entry.get("id"), str)] if isinstance(entries, list) else []
+
+
+def plate_colors(root: dict, barriers: dict[str, str], bridges: dict[str, str]) -> dict[str, str]:
+    from .validation import placed_definitions
     with ASSETS_PATH.open(encoding="utf-8") as handle:
         default_color = json.load(handle)["pressure_plate"]["default_color"]
-    kinds = [*settings["barrier_kinds"], *settings["bridge_kinds"]]
-    return {
-        switch["id"]: switch.get("plate_color") or next(
-            (kind["color"] for kind in kinds if kind.get("switch") == switch["id"]),
-            default_color,
-        )
-        for switch in settings["switches"]
-    }
+    geometries = [root, *placed_definitions(root, root.get("nested_geometry", {})).values()]
+    targets = [(entry.get("switch"), colors.get(entry.get("kind")))
+               for name, colors in (("barriers", barriers), ("light_bridges", bridges))
+               for kind in colors
+               for geometry in geometries for level in geometry.get("levels", [])
+               for entry in level.get(name, []) if entry.get("kind") == kind]
+    def override(entry):
+        color = entry.get("plate_color")
+        return color if isinstance(color, str) and HEX_COLOR.fullmatch(color) else None
+
+    return {entry["id"]: override(entry) or next(
+        (color for switch, color in targets if switch == entry["id"] and color), default_color,
+    ) for entry in switch_entries(root)}
+
+
+def load_map_plate_colors(map_name: str) -> dict[str, str]:
+    path = map_layout_path(map_name)
+    root = read_settings_json(path)["map"] if path.exists() else {}
+    return plate_colors(root,
+                       load_map_barrier_kinds(map_name), load_map_bridge_kinds(map_name))
 
 
 def load_map_bridge_kinds(map_name: str) -> dict[str, str]:
@@ -184,7 +200,11 @@ def map_name_from_path(path: Path) -> str:
 def load_map_settings(name: str) -> dict:
     if name not in list_map_names():
         raise ValueError(f"Map {name!r} is not registered in {GAMEPLAY_PATH}.")
-    return read_settings_json(map_settings_path(name))
+    settings = read_settings_json(map_settings_path(name))
+    for field in ("switches", "switch_kinds", "fireworks"):
+        if field in settings:
+            raise ValueError(f"{map_settings_path(name)}: {field} belongs in layout.json")
+    return settings
 
 
 def require_map_settings(name: str) -> None:
@@ -193,9 +213,7 @@ def require_map_settings(name: str) -> None:
 
 @dataclass(frozen=True)
 class MapCatalogs:
-    """Everything one map's `settings.json` gives the editor: kind ids in
-    catalog order with their colours, the wall width nudges are drawn in,
-    the texture aliases with their portal permission, and the switch ids."""
+    """The host map's appearance, controls, materials, and drawing settings."""
 
     barrier_kind_colors: dict[str, str]
     bridge_kind_colors: dict[str, str]
@@ -205,6 +223,15 @@ class MapCatalogs:
     switches: list[str] = field(default_factory=list)
     plate_colors: dict[str, str] = field(default_factory=dict)
 
+    def for_layout(self, root: dict) -> "MapCatalogs":
+        settings = root.get("_settings", {})
+        barriers = {entry["id"]: entry["color"] for entry in settings["barrier_kinds"]} if "barrier_kinds" in settings else self.barrier_kind_colors
+        bridges = {entry["id"]: entry["color"] for entry in settings["bridge_kinds"]} if "bridge_kinds" in settings else self.bridge_kind_colors
+        return replace(self, barrier_kind_colors=barriers, bridge_kind_colors=bridges,
+                       switches=[entry["id"] for entry in switch_entries(root)],
+                       plate_colors=plate_colors(root, barriers, bridges))
+
+
     @classmethod
     def load(cls, map_name: str) -> "MapCatalogs":
         return cls(
@@ -212,6 +239,4 @@ class MapCatalogs:
             load_map_bridge_kinds(map_name),
             load_map_wall_width_cells(map_name),
             load_texture_catalog(map_name),
-            load_map_switches(map_name),
-            load_map_plate_colors(map_name),
-        )
+        ).for_layout(read_settings_json(map_layout_path(map_name))["map"] if map_layout_path(map_name).exists() else {})

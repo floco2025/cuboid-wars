@@ -33,6 +33,8 @@ fn joining_inherits_shared_progress_and_respects_blocked_spawns_and_group_countd
         };
         let mut layout = MapLayout {
             carriers: vec![Carrier {
+                switch_inverted: false,
+
                 parent: CarrierId::WORLD,
                 level: 0,
                 levels: 1,

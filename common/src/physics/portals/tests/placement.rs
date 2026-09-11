@@ -1,3 +1,4 @@
+use crate::protocol::{BarrierId, BridgeId};
 use std::f32::consts::FRAC_PI_2;
 
 use super::*;
@@ -19,6 +20,11 @@ fn placement_accepts_a_clear_wall_center() {
 fn opening_a_barrier_exposes_a_fitting_portal_surface_behind_it() {
     let mut layout = placement_layout();
     layout.barriers.push(Barrier {
+        id: Default::default(),
+
+        switch: None,
+        switch_inverted: false,
+
         x1: -6.0,
         z1: 2.0,
         x2: 6.0,
@@ -33,7 +39,7 @@ fn opening_a_barrier_exposes_a_fitting_portal_surface_behind_it() {
     });
     let kinds = BarrierKindTable::from_ids(vec!["gate".into(), "other".into()]).expect("barrier catalog rejected");
     let world = CollisionWorld::from_map_layout(&layout, &kinds);
-    for open in [vec![], vec![BarrierKindId(1)], vec![BarrierKindId(0)], vec![]] {
+    for open in [vec![], vec![BarrierId(1)], vec![BarrierId(0)], vec![]] {
         let placement = place_on_geometry(
             Vec3::new(0.0, 1.6, 4.0),
             Vec3::NEG_Z,
@@ -44,7 +50,7 @@ fn opening_a_barrier_exposes_a_fitting_portal_surface_behind_it() {
             &Carriers::default(),
             &open,
         );
-        assert_eq!(placement.is_some(), open.contains(&BarrierKindId(0)));
+        assert_eq!(placement.is_some(), open.contains(&BarrierId(0)));
         if let Some(placement) = placement {
             assert!((placement.pos.z - WALL_THICKNESS / 2.0).abs() < 1e-4);
             assert!(placement.normal.abs_diff_eq(Vec3::Z, 1e-4));
@@ -75,6 +81,10 @@ fn bridge_power_controls_portal_placement_on_the_floor_and_ceiling_beyond_it() {
             },
         ],
         light_bridges: vec![LightBridge {
+            id: Default::default(),
+            switch: None,
+            switch_inverted: false,
+
             x1: -3.0,
             z1: -3.0,
             x2: 3.0,
@@ -89,7 +99,7 @@ fn bridge_power_controls_portal_placement_on_the_floor_and_ceiling_beyond_it() {
     };
     let mut world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
     for powered in [false, true, false] {
-        world.set_powered_bridges(if powered { &[BridgeKindId(0)] } else { &[] });
+        world.set_powered_bridges(if powered { &[BridgeId(0)] } else { &[] });
         for (origin_y, direction, surface_y) in [
             (LEVEL_HEIGHT + 1.5, Vec3::NEG_Y, 0.0),
             (LEVEL_HEIGHT - 1.5, Vec3::Y, ceiling_y - FLOOR_THICKNESS),
@@ -476,6 +486,10 @@ fn placement_front_clearance_rejects_a_powered_light_bridge() {
         carrier: CarrierId::WORLD,
     });
     layout.light_bridges.push(LightBridge {
+        id: Default::default(),
+        switch: None,
+        switch_inverted: false,
+
         x1: -6.0,
         z1: 0.0,
         x2: 6.0,
@@ -508,7 +522,7 @@ fn placement_front_clearance_rejects_a_powered_light_bridge() {
         "ghost bridge moved the portal to {ghost:?}"
     );
 
-    world.set_powered_bridges(&[BridgeKindId(0)]);
+    world.set_powered_bridges(&[BridgeId(0)]);
     let solid = shoot(&world).expect("no fitting spot below the powered bridge");
     let rim_top = solid.pos.y + PORTAL_HALF_HEIGHT * PORTAL_RIM_SCALE;
     assert!(

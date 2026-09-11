@@ -7,7 +7,7 @@ use rapier3d::prelude::{
 
 use super::{
     colliders::{
-        BRIDGE_COLLISION_GROUP, ColliderKind, barrier_collision_group, collider_interaction_groups,
+        BARRIER_COLLISION_GROUP, BRIDGE_COLLISION_GROUP, ColliderKind, collider_interaction_groups,
         insert_barrier_collider, insert_bridge_collider, insert_floor_collider, insert_ramp_collider,
         insert_wall_collider, query_filter, surface_collision_groups,
     },
@@ -18,7 +18,7 @@ use super::{
 use crate::{
     map::Carriers,
     math::{rapier_pose, to_rapier},
-    protocol::{BarrierKindId, BarrierKindTable, BridgeKindId, CarrierId, MapLayout},
+    protocol::{Barrier, BarrierId, BarrierKindId, BarrierKindTable, BridgeId, CarrierId, MapLayout},
 };
 
 #[derive(Resource)]
@@ -32,8 +32,9 @@ pub struct CollisionWorld {
     // by character filters and barrier-only shape casts so we don't loop
     // the table per query.
     pub(super) all_barrier_groups: Group,
+    pub(crate) barriers: Vec<Barrier>,
     // Every light bridge collider with its kind, for `set_powered_bridges`.
-    bridge_colliders: Vec<(BridgeKindId, ColliderHandle)>,
+    bridge_colliders: Vec<(BridgeId, ColliderHandle)>,
     // Each carrier's colliders with their carrier-local poses, in layout
     // order, and the same handles flat, for `set_carrier_poses`.
     carrier_colliders: Vec<Vec<(ColliderHandle, Pose)>>,
@@ -48,8 +49,12 @@ pub struct CollisionWorld {
 }
 
 impl CollisionWorld {
+    pub fn passable_barriers(&self, held_keys: &[BarrierKindId], open: &[BarrierId]) -> Vec<BarrierId> {
+        crate::physics::passable_barriers(held_keys, open, &self.barriers)
+    }
+
     #[must_use]
-    pub fn from_map_layout(map_layout: &MapLayout, kind_table: &BarrierKindTable) -> Self {
+    pub fn from_map_layout(map_layout: &MapLayout, _kind_table: &BarrierKindTable) -> Self {
         let bodies = RigidBodySet::new();
         let mut colliders = ColliderSet::new();
         let mut collider_handles = Vec::new();
@@ -94,7 +99,7 @@ impl CollisionWorld {
         for bridge in &map_layout.light_bridges {
             let handle = insert_bridge_collider(&mut colliders, bridge);
             collider_handles.push(carried(&colliders, handle, bridge.carrier));
-            bridge_colliders.push((bridge.kind, handle));
+            bridge_colliders.push((bridge.id, handle));
         }
         let carried_handles = carrier_colliders
             .iter()
@@ -113,10 +118,7 @@ impl CollisionWorld {
             &mut events,
         );
 
-        let mut all_barrier_groups = Group::empty();
-        for idx in 0..kind_table.len() {
-            all_barrier_groups |= barrier_collision_group(BarrierKindId(idx as u16));
-        }
+        let all_barrier_groups = BARRIER_COLLISION_GROUP;
 
         let ladder_locals: Vec<_> = map_layout.ladders.iter().map(LadderVolume::from_ladder).collect();
         let ladder_volumes = ladder_locals.clone();
@@ -129,6 +131,7 @@ impl CollisionWorld {
             broad_phase,
             narrow_phase,
             all_barrier_groups,
+            barriers: map_layout.barriers.clone(),
             bridge_colliders,
             carrier_colliders,
             carried_handles,
@@ -200,12 +203,12 @@ impl CollisionWorld {
         ColliderKind::carrier_from_user_data(self.colliders[handle].user_data)
     }
 
-    // Bridge power is world state, not per-query state: the powered kinds'
+    // Bridge power is world state, not per-query state: the powered bridges'
     // colliders join `BRIDGE_COLLISION_GROUP` and the rest leave every group,
     // so each surface query sees the current bridges without carrying the
     // powered set. Both sides apply `PlateState` here whenever it changes
     // (`powered_bridges_sync_system`).
-    pub fn set_powered_bridges(&mut self, powered: &[BridgeKindId]) {
+    pub fn set_powered_bridges(&mut self, powered: &[BridgeId]) {
         for (kind, handle) in &self.bridge_colliders {
             let membership = if powered.contains(kind) {
                 BRIDGE_COLLISION_GROUP

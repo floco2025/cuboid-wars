@@ -13,6 +13,10 @@ fn bridge_surface_rects(bridge: &LightBridge, walls: &[Wall]) -> Vec<Rect> {
 
 fn bridge() -> LightBridge {
     LightBridge {
+        id: Default::default(),
+        switch: None,
+        switch_inverted: false,
+
         x1: -0.25,
         x2: 4.25,
         z1: -0.25,

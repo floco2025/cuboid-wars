@@ -176,6 +176,8 @@ fn rendering_holds_reported_bodies_despite_movement_intent_and_vertical_velocity
 #[test]
 fn buffered_actors_follow_stopping_reversing_and_nested_platforms_without_wheel_travel() {
     let platform = Carrier {
+        switch_inverted: false,
+
         parent: CarrierId::WORLD,
         level: 0,
         levels: 1,

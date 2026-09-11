@@ -30,7 +30,7 @@ pub struct MapServerConfig {
     #[serde(deserialize_with = "deserialize_required_option")]
     pub random_items: Option<RandomItemsConfig>,
     // `None` = no switch launches the firework show on this map.
-    #[serde(deserialize_with = "deserialize_required_option")]
+    #[serde(skip)]
     pub fireworks: Option<FireworksConfig>,
     pub placed_items: PlacedItemsConfig,
     pub power_ups: PowerUpsConfig,
@@ -78,6 +78,8 @@ impl LightingMode {
 // starts, plays, waits `cooldown_secs`, and repeats.
 #[derive(Debug, Clone, Deserialize)]
 pub struct FireworksConfig {
+    #[serde(default)]
+    pub switch_inverted: bool,
     pub switch: String,
     pub cooldown_secs: f32,
 }

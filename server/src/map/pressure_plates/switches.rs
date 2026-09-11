@@ -6,8 +6,7 @@ use common::{
     constants::FIREWORK_SHOW_SECS,
     map::CarrierRun,
     protocol::{
-        BarrierKindId, BarrierKindTable, BridgeKindId, BridgeKindTable, CarrierId, MapLayout, MapSettings, PlateState,
-        SwitchId, SwitchTable, sequence_is_newer,
+        BarrierId, BridgeId, CarrierId, MapLayout, MapSettings, PlateState, SwitchId, SwitchTable, sequence_is_newer,
     },
 };
 
@@ -25,9 +24,9 @@ struct PressureSwitch {
     // Whether its plates met the hold rule last tick; an `everyone` toggle
     // flips on that rule's rising edge.
     occupied: bool,
-    barriers: Vec<BarrierKindId>,
-    bridges: Vec<BridgeKindId>,
-    carriers: Vec<(CarrierId, CarrierRun)>,
+    barriers: Vec<(BarrierId, bool)>,
+    bridges: Vec<(BridgeId, bool)>,
+    carriers: Vec<(CarrierId, bool, CarrierRun)>,
 }
 
 impl PressureSwitch {
@@ -48,8 +47,8 @@ impl PressureSwitch {
             return;
         }
         self.active = active;
-        for (_, run) in &mut self.carriers {
-            *run = run.set_running(active, tick);
+        for (_, inverted, run) in &mut self.carriers {
+            *run = run.set_running(active != *inverted, tick);
         }
     }
 }
@@ -57,6 +56,7 @@ impl PressureSwitch {
 // The fireworks switch's cadence: while it is active a show starts whenever
 // the previous show and the cooldown have passed.
 struct FireworkTarget {
+    inverted: bool,
     switch: SwitchId,
     interval_ticks: u32,
     next_show_at: Option<u32>,
@@ -83,8 +83,6 @@ impl FromWorld for PressureSwitches {
     fn from_world(world: &mut World) -> Self {
         Self::new(
             world.resource::<MapSettings>(),
-            world.resource::<BarrierKindTable>(),
-            world.resource::<BridgeKindTable>(),
             world.resource::<SwitchTable>(),
             world.resource::<MapLayout>(),
             world.resource::<MapFireworks>().0.as_ref(),
@@ -94,12 +92,8 @@ impl FromWorld for PressureSwitches {
 }
 
 impl PressureSwitches {
-    // The switch table owns the id assignment; the settings carry each
-    // switch's policy and each kind's switch, the layout each carrier's.
     pub fn new(
         settings: &MapSettings,
-        barriers: &BarrierKindTable,
-        bridges: &BridgeKindTable,
         switch_table: &SwitchTable,
         layout: &MapLayout,
         fireworks: Option<&FireworksConfig>,
@@ -118,34 +112,31 @@ impl PressureSwitches {
                 carriers: Vec::new(),
             })
             .collect();
-        for (def, switch) in settings
-            .barrier_kinds
-            .iter()
-            .zip(settings.barrier_switches(switch_table))
-        {
-            if let Some(switch) = switch {
-                let kind = barriers
-                    .index_of(&def.id)
-                    .expect("barrier kind missing from BarrierKindTable");
-                switches[usize::from(switch.0)].barriers.push(kind);
+        for barrier in &layout.barriers {
+            if let Some(switch) = barrier.switch {
+                switches[usize::from(switch.0)]
+                    .barriers
+                    .push((barrier.id, barrier.switch_inverted));
             }
         }
-        for (def, switch) in settings.bridge_kinds.iter().zip(settings.bridge_switches(switch_table)) {
-            if let Some(switch) = switch {
-                let kind = bridges
-                    .index_of(&def.id)
-                    .expect("bridge kind missing from BridgeKindTable");
-                switches[usize::from(switch.0)].bridges.push(kind);
+        for bridge in &layout.light_bridges {
+            if let Some(switch) = bridge.switch {
+                switches[usize::from(switch.0)]
+                    .bridges
+                    .push((bridge.id, bridge.switch_inverted));
             }
         }
         for (index, carrier) in layout.carriers.iter().enumerate() {
             if let Some(switch) = carrier.switch {
-                switches[usize::from(switch.0)]
-                    .carriers
-                    .push((CarrierId::from_carried_index(index), CarrierRun::STOPPED));
+                switches[usize::from(switch.0)].carriers.push((
+                    CarrierId::from_carried_index(index),
+                    carrier.switch_inverted,
+                    CarrierRun::STOPPED.set_running(carrier.switch_inverted, 0),
+                ));
             }
         }
         let fireworks = fireworks.map(|fireworks| FireworkTarget {
+            inverted: fireworks.switch_inverted,
             switch: switch_table
                 .index_of(&fireworks.switch)
                 .expect("fireworks switch missing from SwitchTable"),
@@ -231,11 +222,13 @@ impl PressureSwitches {
     // Whether a show starts this tick: the fireworks switch is active and
     // the previous show plus the cooldown have passed. The stamp is never
     // cleared, so a re-press during a cooldown waits it out.
-    pub fn fireworks_due(&mut self, tick: u32) -> bool {
+    pub fn fireworks_due(&mut self, tick: u32, locked: &[SwitchId]) -> bool {
         let Some(fireworks) = &mut self.fireworks else {
             return false;
         };
-        if !self.switches[usize::from(fireworks.switch.0)].active {
+        if locked.contains(&fireworks.switch)
+            || self.switches[usize::from(fireworks.switch.0)].active == fireworks.inverted
+        {
             return false;
         }
         if fireworks.next_show_at.is_some_and(|at| sequence_is_newer(at, tick)) {
@@ -250,10 +243,24 @@ impl PressureSwitches {
         for (index, switch) in self.switches.iter().enumerate() {
             if switch.active {
                 state.active_switches.push(SwitchId(index as u16));
-                state.open_barrier_kinds.extend(&switch.barriers);
-                state.powered_bridge_kinds.extend(&switch.bridges);
             }
-            state.carrier_runs.extend(switch.carriers.iter().copied());
+            state.open_barriers.extend(
+                switch
+                    .barriers
+                    .iter()
+                    .filter(|(_, inverted)| switch.active != *inverted)
+                    .map(|(id, _)| *id),
+            );
+            state.powered_bridges.extend(
+                switch
+                    .bridges
+                    .iter()
+                    .filter(|(_, inverted)| switch.active != *inverted)
+                    .map(|(id, _)| *id),
+            );
+            state
+                .carrier_runs
+                .extend(switch.carriers.iter().map(|(id, _, run)| (*id, *run)));
         }
         state.sort();
         state

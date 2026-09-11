@@ -35,6 +35,8 @@ fn fixture() -> (NavGraphs, Carriers) {
     };
     let carriers = Carriers::from_layout(&MapLayout {
         carriers: vec![Carrier {
+            switch_inverted: false,
+
             parent: CarrierId::WORLD,
             level: 0,
             levels: 0,

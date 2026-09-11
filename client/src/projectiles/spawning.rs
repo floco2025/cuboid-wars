@@ -3,7 +3,7 @@ use common::{
     config::GameplayConfig,
     math::direction_from_yaw_pitch,
     physics::CollisionWorld,
-    protocol::{BarrierKindId, Position},
+    protocol::{BarrierId, Position},
 };
 
 // ============================================================================
@@ -39,7 +39,7 @@ pub fn calculate_projectile_spawns(
     pattern: u8,
     gameplay: &GameplayConfig,
     collision_world: &CollisionWorld,
-    open_kinds: &[BarrierKindId],
+    open_kinds: &[BarrierId],
     muzzle_check: MuzzleCheck,
 ) -> Vec<ProjectileSpawnInfo> {
     let mut spawns = Vec::new();
@@ -87,7 +87,7 @@ pub(super) fn projectile_spawn_is_blocked(
     end: &Position,
     radius: f32,
     collision_world: &CollisionWorld,
-    open_kinds: &[BarrierKindId],
+    open_kinds: &[BarrierId],
 ) -> bool {
     let start_vec = Vec3::from(*start);
     let end_vec = Vec3::from(*end);

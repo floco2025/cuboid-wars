@@ -1,6 +1,6 @@
 use super::steering::sweep_clear;
 use bevy::prelude::*;
-use common::{physics::CollisionWorld, protocol::BarrierKindId};
+use common::{physics::CollisionWorld, protocol::BarrierId};
 use rand::RngExt;
 use std::f32::consts::TAU;
 const LAUNCH_SAMPLES: usize = 8;
@@ -15,7 +15,7 @@ pub fn clear_launch_direction(
     runway: f32,
     radius: f32,
     collision_world: &CollisionWorld,
-    open_kinds: &[BarrierKindId],
+    open_kinds: &[BarrierId],
     rng: &mut impl RngExt,
 ) -> Vec3 {
     for _ in 0..LAUNCH_SAMPLES {

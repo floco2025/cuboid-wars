@@ -5,7 +5,7 @@ mod portals;
 mod watchdog;
 mod world;
 
-pub use barriers::passable_barrier_kinds;
+pub use barriers::passable_barriers;
 pub use blast::{blast_falloff_at_distance, blast_hit, planar_shove, visible_blast_falloff};
 pub use characters::{
     AirborneMomentum, CharacterEnvironment, CharacterMovePlan, CharacterMovementResult, CharacterStep,

@@ -119,7 +119,7 @@ pub fn actors_behavior_system(
             nav_graph: nav_graphs.get(info.carrier),
             territory,
             collision_world: &collision_world,
-            open_barriers: &plates.open_barrier_kinds,
+            open_barriers: &plates.open_barriers,
             kind_config,
             players_armed: map_items.contains(ItemType::SingleShotPowerUp)
                 || map_items.contains(ItemType::MultiShotPowerUp)

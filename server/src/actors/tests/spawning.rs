@@ -34,6 +34,8 @@ fn spawn_app_for(kind: &str, cols: i32, counts: &[u32], respawn_secs: Option<f32
     map.actor_spawn_zones = counts
         .iter()
         .map(|&count| ActorSpawnZone {
+            switch_inverted: false,
+
             carrier: CarrierId::WORLD,
             level: 0,
             cols: [0, cols],
@@ -275,6 +277,8 @@ fn pending_spawn(id: u32, due_tick: u32) -> PendingActorSpawn {
 #[test]
 fn a_pending_spawn_on_a_carrier_materializes_where_the_carrier_is_now() {
     let carrier = Carrier {
+        switch_inverted: false,
+
         parent: CarrierId::WORLD,
         level: 0,
         levels: 0,
@@ -308,6 +312,8 @@ fn expiring_selected_cooldowns_advances_pending_and_missing_slots() {
     let map_config = MapConfig {
         actor_spawn_zones: vec![
             ActorSpawnZone {
+                switch_inverted: false,
+
                 carrier: CarrierId::WORLD,
                 level: 0,
                 cols: [0, 1],
@@ -317,6 +323,8 @@ fn expiring_selected_cooldowns_advances_pending_and_missing_slots() {
                 switch: None,
             },
             ActorSpawnZone {
+                switch_inverted: false,
+
                 carrier: CarrierId::WORLD,
                 level: 0,
                 cols: [0, 1],
@@ -587,4 +595,17 @@ fn expediting_respawns_skips_a_switched_off_zone() {
     app.update();
     assert_eq!(pending_count(&app), 0);
     assert_eq!(zone_state(&app), Some(ActorRespawnState::Inactive));
+}
+
+#[test]
+fn an_inverted_zone_spawns_while_its_pressure_plate_kind_is_off() {
+    let mut app = switched_app(Some(0.0), 2);
+    app.world_mut().resource_mut::<MapConfig>().actor_spawn_zones[0].switch_inverted = true;
+    set_switch(&mut app, true);
+    app.update();
+    assert_eq!(pending_count(&app), 0);
+    assert_eq!(zone_state(&app), Some(ActorRespawnState::Inactive));
+    set_switch(&mut app, false);
+    app.update();
+    assert_eq!(pending_count(&app), 2);
 }

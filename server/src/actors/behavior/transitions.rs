@@ -12,7 +12,7 @@ use common::{
     config::CharacterPhysicsConfig,
     map::CarrierPose,
     physics::CollisionWorld,
-    protocol::{BarrierKindId, PlayerId, Position},
+    protocol::{BarrierId, PlayerId, Position},
 };
 
 pub(super) const EVADE_REPLAN_INTERVAL_SECS: f32 = 0.5;
@@ -33,7 +33,7 @@ pub(super) struct BehaviorContext<'a> {
     pub(super) nav_graph: &'a NavGraph,
     pub(super) territory: &'a ActorTerritory,
     pub(super) collision_world: &'a CollisionWorld,
-    pub(super) open_barriers: &'a [BarrierKindId],
+    pub(super) open_barriers: &'a [BarrierId],
     pub(super) kind_config: &'a ActorKindServerConfig,
     // Whether the map lets players hurt actors at all.
     pub(super) players_armed: bool,

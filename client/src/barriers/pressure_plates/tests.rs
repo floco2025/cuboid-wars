@@ -1,5 +1,8 @@
 use bevy::{gltf::GltfMaterialName, prelude::*};
-use common::protocol::{CarrierId, HexColor, KindDef, MapLayout, PlateState, PressurePlate, SwitchDef, SwitchId};
+use common::protocol::{
+    Barrier, BarrierId, BarrierKindId, BridgeId, BridgeKindId, CarrierId, HexColor, KindDef, LightBridge, MapLayout,
+    PlateState, PressurePlate, SwitchDef, SwitchId,
+};
 
 use super::{animation::PlatePlayback, *};
 use crate::{
@@ -47,14 +50,42 @@ fn model_tracks_switches_colors_locks_and_layout_replacement() {
     settings.barrier_kinds = vec![KindDef {
         id: "door".into(),
         color: HexColor([34, 204, 51]),
-        switch: Some("door".into()),
     }];
     settings.bridge_kinds = vec![KindDef {
         id: "bridge".into(),
         color: HexColor([48, 216, 255]),
-        switch: Some("bridge".into()),
     }];
     let layout = MapLayout {
+        barriers: vec![Barrier {
+            id: BarrierId(0),
+            kind: BarrierKindId(0),
+            switch: Some(SwitchId(0)),
+            switch_inverted: false,
+            x1: 0.0,
+            z1: 0.0,
+            x2: 2.0,
+            z2: 0.0,
+            width: 0.1,
+            y: 0.0,
+            height: 2.0,
+            level: 0,
+            levels: 1,
+            carrier: CarrierId::WORLD,
+        }],
+        light_bridges: vec![LightBridge {
+            id: BridgeId(0),
+            kind: BridgeKindId(0),
+            switch: Some(SwitchId(1)),
+            switch_inverted: false,
+            x1: 0.0,
+            z1: 0.0,
+            x2: 2.0,
+            z2: 2.0,
+            y: 0.0,
+            thickness: 0.1,
+            level: 0,
+            carrier: CarrierId::WORLD,
+        }],
         pressure_plates: (0..4)
             .map(|index| PressurePlate {
                 level: 0,

@@ -1,4 +1,5 @@
 pub(super) use super::super::*;
+use crate::protocol::BarrierId;
 pub(super) use crate::{
     constants::{PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH, PORTAL_RIM_SCALE, TICK_SECS},
     map::Carriers,
@@ -94,6 +95,8 @@ pub(crate) fn moving_projectile_portals(
     obstacles: &[Wall],
 ) -> (CollisionWorld, PortalSet) {
     let carrier = Carrier {
+        switch_inverted: false,
+
         parent: CarrierId::WORLD,
         level: 0,
         levels: 0,
@@ -206,7 +209,7 @@ pub(crate) fn place_on_geometry(
     world: &CollisionWorld,
     layout: &MapLayout,
     carriers: &Carriers,
-    open: &[BarrierKindId],
+    open: &[BarrierId],
 ) -> Option<PortalPlacement> {
     compute_portal_placement(
         origin,
@@ -294,6 +297,8 @@ pub(crate) fn tile_wall_layout(beside_floor: bool) -> MapLayout {
             },
         ],
         carriers: vec![Carrier {
+            switch_inverted: false,
+
             parent: CarrierId::WORLD,
             level: 0,
             levels: 0,

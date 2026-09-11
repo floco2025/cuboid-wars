@@ -86,7 +86,7 @@ fn sync_switched_zones(
         let Some(switch) = zone.switch else {
             continue;
         };
-        if !plates.is_active(switch) {
+        if plates.is_active(switch) == zone.switch_inverted {
             timers.0.insert(zone_idx, ActorRespawnState::Inactive);
         } else if timers.0.get(&zone_idx) == Some(&ActorRespawnState::Inactive) {
             let respawn_secs = config

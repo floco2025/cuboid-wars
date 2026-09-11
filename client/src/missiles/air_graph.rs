@@ -6,7 +6,7 @@ use common::{
     config::MapGeometryConfig,
     map::{Carriers, MapGeometry},
     physics::CollisionWorld,
-    protocol::{BarrierKindId, CarrierId, MissileAirGrid},
+    protocol::{BarrierId, CarrierId, MissileAirGrid},
 };
 
 use super::{
@@ -63,7 +63,7 @@ impl AirGraph {
         &self,
         carriers: &Carriers,
         world: &CollisionWorld,
-        open_kinds: &[BarrierKindId],
+        open_kinds: &[BarrierId],
         from: Vec3,
         to: Vec3,
         radius: f32,

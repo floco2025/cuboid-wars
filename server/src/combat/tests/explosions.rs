@@ -1,3 +1,4 @@
+use common::protocol::{BarrierId, BridgeId};
 use std::collections::HashMap;
 
 use bevy::prelude::*;
@@ -473,6 +474,10 @@ fn field_world(bridge: bool) -> CollisionWorld {
     let layout = if bridge {
         MapLayout {
             light_bridges: vec![LightBridge {
+                id: Default::default(),
+                switch: None,
+                switch_inverted: false,
+
                 x1: -4.0,
                 z1: -4.0,
                 x2: 4.0,
@@ -488,6 +493,11 @@ fn field_world(bridge: bool) -> CollisionWorld {
     } else {
         MapLayout {
             barriers: vec![Barrier {
+                id: Default::default(),
+
+                switch: None,
+                switch_inverted: false,
+
                 x1: 1.0,
                 z1: -4.0,
                 x2: 1.0,
@@ -509,13 +519,9 @@ fn field_world(bridge: bool) -> CollisionWorld {
 
 fn power_field(app: &mut App, bridge: bool, active: bool) {
     let mut plates = app.world_mut().resource_mut::<PlateState>();
-    plates.open_barrier_kinds = if active { vec![] } else { vec![BarrierKindId(0)] };
-    let powered = if bridge && active {
-        vec![BridgeKindId(0)]
-    } else {
-        vec![]
-    };
-    plates.powered_bridge_kinds = powered.clone();
+    plates.open_barriers = if active { vec![] } else { vec![BarrierId(0)] };
+    let powered = if bridge && active { vec![BridgeId(0)] } else { vec![] };
+    plates.powered_bridges = powered.clone();
     app.world_mut()
         .resource_mut::<CollisionWorld>()
         .set_powered_bridges(&powered);
@@ -659,7 +665,7 @@ fn queue_missile_blast(app: &mut App, shooter: PlayerId, pos: Position) {
                 victim,
                 radius,
                 world.resource::<CollisionWorld>(),
-                &world.resource::<PlateState>().open_barrier_kinds,
+                &world.resource::<PlateState>().open_barriers,
             )?;
             Some(MissileBlastHit {
                 target,

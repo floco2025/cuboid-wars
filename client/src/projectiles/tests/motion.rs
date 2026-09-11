@@ -1,5 +1,6 @@
 use bevy::math::Vec3;
 use bevy::time::{Timer, TimerMode};
+use common::protocol::{BarrierId, BridgeId};
 
 use common::{
     config::MultiShotConfig,
@@ -142,6 +143,11 @@ fn barrier_impact_reports_kind_and_surface_normal() {
     let world = CollisionWorld::from_map_layout(
         &MapLayout {
             barriers: vec![Barrier {
+                id: Default::default(),
+
+                switch: None,
+                switch_inverted: false,
+
                 x1: -2.0,
                 z1: 1.0,
                 x2: 2.0,
@@ -164,7 +170,7 @@ fn barrier_impact_reports_kind_and_surface_normal() {
         .terminate_at_field(&pos, 0.1, &world, &[])
         .expect("projectile should hit barrier");
 
-    assert_eq!(impact.kind, FieldKind::Barrier(kind));
+    assert_eq!(impact.kind, FieldKind::Barrier(BarrierId(u32::from(kind.0))));
     assert!(impact.normal.dot(Vec3::NEG_Z) > 0.99);
     assert!(impact.point.z < 1.0);
 }
@@ -501,6 +507,10 @@ fn powered_bridges_absorb_projectiles_from_both_sides_instead_of_bouncing() {
     let kind = BridgeKindId(0);
     let layout = MapLayout {
         light_bridges: vec![LightBridge {
+            id: Default::default(),
+            switch: None,
+            switch_inverted: false,
+
             x1: -2.0,
             z1: -2.0,
             x2: 2.0,
@@ -515,7 +525,7 @@ fn powered_bridges_absorb_projectiles_from_both_sides_instead_of_bouncing() {
     };
     let mut world = CollisionWorld::from_map_layout(&layout, &BarrierKindTable::default());
     for powered in [false, true, false] {
-        let powered_kinds = [kind];
+        let powered_kinds = [BridgeId(u32::from(kind.0))];
         world.set_powered_bridges(if powered { &powered_kinds } else { &[] });
         for (y, velocity) in [(4.0, Vec3::NEG_Y * 40.0), (0.0, Vec3::Y * 40.0)] {
             let pos = Position { x: 0.0, y, z: 0.0 };
@@ -525,7 +535,7 @@ fn powered_bridges_absorb_projectiles_from_both_sides_instead_of_bouncing() {
             let impact = motion.terminate_at_field(&pos, 0.1, &world, &[]);
             assert_eq!(impact.is_some(), powered);
             if let Some(impact) = impact {
-                assert_eq!(impact.kind, FieldKind::Bridge(kind));
+                assert_eq!(impact.kind, FieldKind::Bridge(BridgeId(u32::from(kind.0))));
                 assert!(impact.normal.dot(velocity) < 0.0);
             }
             assert_eq!(motion.velocity, velocity);
@@ -550,6 +560,8 @@ fn portal(end: PortalEnd, pos: Vec3, normal: Vec3) -> Portal {
 // tick, posed at tick 1, plus extra world walls.
 fn moving_projectile_portals(entry_travel: Vec3, exit_travel: Vec3, obstacles: &[Wall]) -> (CollisionWorld, PortalSet) {
     let carrier = Carrier {
+        switch_inverted: false,
+
         parent: CarrierId::WORLD,
         level: 0,
         levels: 0,

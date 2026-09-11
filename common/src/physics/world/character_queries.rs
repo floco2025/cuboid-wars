@@ -8,12 +8,12 @@ use rapier3d::{
 
 use super::{
     CollisionWorld,
-    colliders::{WALL_COLLISION_GROUP, character_collision_groups, query_filter},
+    colliders::{WALL_COLLISION_GROUP, barrier_blocks, character_collision_groups, query_filter},
 };
 use crate::{
     config::CharacterPhysicsConfig,
     physics::characters::{character_movement_pose, character_movement_shape},
-    protocol::{BarrierKindId, Position},
+    protocol::{BarrierId, Position},
 };
 
 impl CollisionWorld {
@@ -25,18 +25,18 @@ impl CollisionWorld {
         character_movement_shape: &dyn Shape,
         character_pos: &Pose,
         desired_translation: Vector,
-        passable_kinds: &[BarrierKindId],
+        passable_kinds: &[BarrierId],
         excluded_colliders: &[ColliderHandle],
         events: impl FnMut(CharacterCollision),
     ) -> EffectiveCharacterMovement {
         // Portal transit: the aperture's backing colliders stop existing for
         // a body overlapping the aperture, which is what lets it pass
         // through the surface.
-        let allow = |handle: ColliderHandle, _: &Collider| !excluded_colliders.contains(&handle);
-        let mut filter = query_filter(character_collision_groups(passable_kinds, self.all_barrier_groups));
-        if !excluded_colliders.is_empty() {
-            filter.predicate = Some(&allow);
-        }
+        let allow = |handle: ColliderHandle, collider: &Collider| {
+            !excluded_colliders.contains(&handle) && barrier_blocks(collider, passable_kinds)
+        };
+        let mut filter = query_filter(character_collision_groups());
+        filter.predicate = Some(&allow);
         let dispatcher = CharacterQueryDispatcher(self.narrow_phase.query_dispatcher());
         let query_pipeline = self
             .broad_phase
@@ -65,12 +65,15 @@ impl CollisionWorld {
         &self,
         pos: &Position,
         physics: CharacterPhysicsConfig,
-        passable_kinds: &[BarrierKindId],
+        passable_kinds: &[BarrierId],
     ) -> bool {
+        let allow = |_: ColliderHandle, collider: &Collider| barrier_blocks(collider, passable_kinds);
+        let mut filter = query_filter(character_collision_groups());
+        filter.predicate = Some(&allow);
         self.shape_overlaps(
             character_movement_pose(pos, physics),
             &character_movement_shape(physics),
-            query_filter(character_collision_groups(passable_kinds, self.all_barrier_groups)),
+            filter,
         )
     }
 

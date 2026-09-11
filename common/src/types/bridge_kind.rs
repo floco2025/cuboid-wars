@@ -3,7 +3,7 @@ use bincode::{Decode, Encode};
 use super::kind_table::{KindId, KindTable};
 
 // Index into the selected map's ordered `bridge_kinds`.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode)]
+#[derive(Debug, Default, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode)]
 pub struct BridgeKindId(pub u16);
 
 impl KindId for BridgeKindId {

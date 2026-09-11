@@ -10,7 +10,7 @@ use common::{
     config::{CharacterPhysicsConfig, GameplayConfig},
     math::direction_from_yaw_pitch,
     physics::CollisionWorld,
-    protocol::{BarrierKindId, FaceYaw, PlateState, Position},
+    protocol::{BarrierId, FaceYaw, PlateState, Position},
 };
 
 const AIM_DISTANCE: f32 = 1000.0;
@@ -61,7 +61,7 @@ pub fn camera_aim_system(
             camera.translation,
             crosshair_direction(camera, projection, crosshair_height_offset),
             eye,
-            &plates.open_barrier_kinds,
+            &plates.open_barriers,
             candidates,
         )
     };
@@ -84,7 +84,7 @@ fn third_person_aim(
     camera: Vec3,
     forward: Vec3,
     eye: Vec3,
-    open_barriers: &[BarrierKindId],
+    open_barriers: &[BarrierId],
     candidates: impl Iterator<Item = (Position, f32, CharacterPhysicsConfig)>,
 ) -> Vec3 {
     // Only converge on targets in front of the shooter's plane, never on cover behind their shoulder.

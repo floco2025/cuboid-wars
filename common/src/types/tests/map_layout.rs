@@ -2,6 +2,8 @@ use super::*;
 
 fn carrier(parent: CarrierId, level: u8, levels: u8) -> Carrier {
     Carrier {
+        switch_inverted: false,
+
         parent,
         level,
         levels,

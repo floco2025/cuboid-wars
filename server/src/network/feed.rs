@@ -123,7 +123,7 @@ fn render(event: FeedEvent) -> SFeed {
         FeedEvent::ActorDestroyed { name, kind } => one(format!("{name} destroyed a {kind}"), FeedStyle::Default),
         FeedEvent::KeyFound { name, kind } => vec![
             span(format!("{name} found a "), FeedStyle::Default),
-            span("key", FeedStyle::Barrier(kind)),
+            span("key", FeedStyle::Key(kind)),
         ],
         FeedEvent::QuestCompleted { name, title } => one(format!("{name} completed {title}"), FeedStyle::Default),
         FeedEvent::EveryoneQuestPartDone {

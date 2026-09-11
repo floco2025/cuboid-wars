@@ -6,7 +6,7 @@ const fn level(level: u8, span: u8) -> MapLevel {
 
 #[test]
 fn visibility_combines_open_kind_and_level_focus() {
-    let kind = BarrierKindId(2);
+    let kind = BarrierId(2);
 
     assert_eq!(
         barrier_visibility(&[kind], FocusedMapLevel(Some(1)), kind, level(1, 0)),
@@ -24,7 +24,7 @@ fn visibility_combines_open_kind_and_level_focus() {
 
 #[test]
 fn a_stacked_barrier_shows_on_every_storey_it_spans() {
-    let kind = BarrierKindId(0);
+    let kind = BarrierId(0);
 
     assert_eq!(
         barrier_visibility(&[], FocusedMapLevel(Some(2)), kind, level(1, 1)),

@@ -1,42 +1,39 @@
 use bevy::prelude::*;
 
 use crate::{config::LightBridgeVfxConfig, fields::KindVisual, vfx::srgb_color};
-use common::protocol::{BridgeKindId, KindDef};
+use common::protocol::{BridgeId, KindDef, MapLayout};
 
-// Sharing each kind's material keeps every bridge of that kind fading
-// together. Indexed by `BridgeKindId`, in the map's kind order.
+// Separate instance materials let same-color bridges respond independently.
 #[derive(Resource)]
 pub struct BridgeAssets {
-    pub(super) kinds: Vec<KindVisual>,
+    pub(super) bridges: Vec<KindVisual>,
 }
 
 impl BridgeAssets {
-    pub fn material_for(&self, kind: BridgeKindId) -> &Handle<StandardMaterial> {
-        &self.kinds[usize::from(kind.0)].surface
-    }
-
-    pub fn base_color(&self, kind: BridgeKindId) -> Color {
-        self.kinds[usize::from(kind.0)].base_color
+    pub fn field_color(&self, id: BridgeId) -> Color {
+        self.bridges[id.0 as usize].base_color
     }
 }
 
 pub fn build_bridge_assets(
     materials: &mut Assets<StandardMaterial>,
     kinds: &[KindDef],
+    layout: &MapLayout,
     config: LightBridgeVfxConfig,
 ) -> BridgeAssets {
-    let kinds = kinds
+    let bridges = layout
+        .light_bridges
         .iter()
-        .map(|kind| {
+        .map(|bridge| {
             KindVisual::new(
                 materials,
-                srgb_color(kind.color),
+                srgb_color(kinds[usize::from(bridge.kind.0)].color),
                 config.unpowered_opacity,
                 config.emissive_brightness,
             )
         })
         .collect();
-    BridgeAssets { kinds }
+    BridgeAssets { bridges }
 }
 
 #[cfg(test)]

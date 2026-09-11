@@ -28,6 +28,8 @@ impl Fixture {
         let settings = config.maps["hotel"].settings.clone();
         let layout = MapLayout {
             carriers: vec![Carrier {
+                switch_inverted: false,
+
                 parent: CarrierId::WORLD,
                 level: 0,
                 levels: 1,

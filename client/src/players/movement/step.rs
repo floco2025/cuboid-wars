@@ -5,9 +5,9 @@ use common::{
     map::Carriers,
     physics::{
         AirborneMomentum, CharacterEnvironment, CharacterMovementResult, CharacterStep, CollisionWorld,
-        KnockbackVelocity, LadderMode, PortalSet, passable_barrier_kinds, step_character_movement,
+        KnockbackVelocity, LadderMode, PortalSet, step_character_movement,
     },
-    protocol::{BarrierKindId, MapSettings, Position},
+    protocol::{BarrierId, BarrierKindId, MapSettings, Position},
 };
 
 pub(crate) struct PlayerMovementStep<'a> {
@@ -18,7 +18,7 @@ pub(crate) struct PlayerMovementStep<'a> {
     pub has_low_gravity: bool,
     pub held_keys: &'a [BarrierKindId],
     // Barrier kinds the pressure plates hold open (`PlateState`).
-    pub open_kinds: &'a [BarrierKindId],
+    pub open_kinds: &'a [BarrierId],
     pub knockback: &'a KnockbackVelocity,
     pub airborne_momentum: &'a mut AirborneMomentum,
     pub collision_world: &'a CollisionWorld,
@@ -30,7 +30,7 @@ pub(crate) struct PlayerMovementStep<'a> {
 
 #[must_use]
 pub(crate) fn step_player_movement(step: PlayerMovementStep<'_>) -> CharacterMovementResult {
-    let passable_kinds = passable_barrier_kinds(step.held_keys, step.open_kinds);
+    let passable_kinds = step.collision_world.passable_barriers(step.held_keys, step.open_kinds);
     let external_displacement = momentum_displacement(Some(step.knockback), Some(&*step.airborne_momentum), step.delta);
     let movement = step_character_movement(
         CharacterStep {

@@ -30,6 +30,11 @@ use common::protocol::Wall;
 
 fn barrier() -> Barrier {
     Barrier {
+        id: Default::default(),
+
+        switch: None,
+        switch_inverted: false,
+
         x1: 0.0,
         z1: 0.0,
         x2: 4.0,

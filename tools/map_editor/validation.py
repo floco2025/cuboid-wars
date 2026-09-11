@@ -6,6 +6,7 @@ import math
 import re
 from dataclasses import dataclass, replace
 
+from .control_catalogs import validate_catalog
 from .constants import (
     FACES,
     CHECKPOINT_TYPE_LABELS,
@@ -172,6 +173,8 @@ def validate_map(
             errors.locate("barriers", barrier, level_idx)
             c0, r0, c1, r1 = barrier["c0"], barrier["r0"], barrier["c1"], barrier["r1"]
             kind = barrier.get("kind")
+            label = f"{prefix}: barrier[{idx}]"
+            _validate_switch_target(barrier, label, switches, plated_switches, errors)
             if not (grid_point_in_bounds(c0, r0, cols, rows) and grid_point_in_bounds(c1, r1, cols, rows)):
                 errors.append(f"{prefix}: barrier[{idx}] [{c0}, {r0}, {c1}, {r1}] is outside the grid-line bounds")
             if abs(c1 - c0) + abs(r1 - r0) != 1:
@@ -206,6 +209,7 @@ def validate_map(
             errors.locate("light_bridges", bridge, level_idx)
             c, r, kind = bridge["col"], bridge["row"], bridge.get("kind")
             label = f"{prefix}: light_bridge[{idx}]"
+            _validate_switch_target(bridge, label, switches, plated_switches, errors)
             if not (0 <= c < cols and 0 <= r < rows):
                 errors.append(f"{label} [{c}, {r}] is outside the grid")
             if kind not in bridge_kinds:
@@ -259,10 +263,31 @@ def validate_document(
     parent's catalogs, each issue labelled with the geometry it is in."""
     definitions = root.get("nested_geometry", {})
     errors = ValidationErrors()
+    try:
+        validate_catalog("switch_kinds", root.get("switch_kinds", []))
+        for catalog in ("barrier_kinds", "bridge_kinds"):
+            if catalog in root.get("_settings", {}):
+                validate_catalog(catalog, root["_settings"][catalog])
+    except (ValueError, TypeError, AttributeError) as exc:
+        errors.append(str(exc))
+    if "key_kinds" in root:
+        errors.append("Keys are derived from settings.json barrier_kinds; remove key_kinds")
+    fireworks = root.get("fireworks")
+    if fireworks is not None and not isinstance(fireworks, dict):
+        errors.append("fireworks must be an object or null")
+    elif fireworks is not None:
+        if not fireworks.get("switch"):
+            errors.append("fireworks requires a pressure plate kind")
+        _validate_switch_target(fireworks, "fireworks", catalogs.switches, plated_switches([root, *placed_definitions(root, definitions).values()]), errors)
+        cooldown = fireworks.get("cooldown_secs")
+        if not isinstance(cooldown, (int, float)) or isinstance(cooldown, bool) or not math.isfinite(cooldown) or cooldown < 0:
+            errors.append("fireworks cooldown_secs must be finite and nonnegative")
     for name, geometry in [(None, root), *definitions.items()]:
         label = f"Nested {name}" if name is not None else None
         if name is not None and not MAP_NAME_RE.fullmatch(name):
             errors.append(f"{label}: use only ASCII letters, digits, '_' or '-' in the name", map_name=name)
+        if name is not None and (geometry.get("switch_kinds") or geometry.get("fireworks")):
+            errors.append(f"{label}: control definitions belong in the outer map", map_name=name)
         if name is not None and "nested_geometry" in geometry:
             errors.append(f"{label}: named geometry belongs in the outer map's nested_geometry", map_name=name)
         found = validate_map(
@@ -375,6 +400,8 @@ def _validate_switch_target(
     entry: dict, label: str, switches: list[str] | None, plated: set[str] | None, errors: list[str]
 ) -> None:
     switch = entry.get("switch")
+    if not isinstance(entry.get("switch_inverted", False), bool):
+        errors.append(f"{label} switch_inverted must be true or false")
     if switch is None:
         return
     if not switch:

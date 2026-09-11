@@ -4,6 +4,8 @@ use common::protocol::{Carrier, Position};
 #[test]
 fn tag_adds_the_carrier_base_and_motion() {
     let lift = Carrier {
+        switch_inverted: false,
+
         parent: CarrierId::WORLD,
         level: 2,
         levels: 1,

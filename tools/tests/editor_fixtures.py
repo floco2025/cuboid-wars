@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 from PySide6.QtCore import QEvent, QPoint, QSettings, Qt
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QMessageBox
 
 from map_editor.constants import FACES
 from map_editor.erase_tools import EraseMixin
@@ -101,6 +101,10 @@ class EditorHost(PlacementMixin, ItemsMixin, LightsMixin, NestedMapsMixin, Erase
         self.switches = ["barrier_1", "fireworks"]
         self.recent_pressure_plate_switch = "barrier_1"
         self.recent_actor_spawn_switch = ""
+        self.recent_actor_spawn_inverted = False
+        self.recent_barrier_controls = {}
+        self.recent_bridge_controls = {}
+        self.key_kinds = self.barrier_kinds
         self.canvas = StubCanvas()
         self.spawn_zone_drag = None
         self.current_material = DEFAULT_ALIAS
@@ -144,6 +148,10 @@ class WindowTestCase(unittest.TestCase):
         cls.app = qt_app()
 
     def setUp(self):
+        for method in ("warning", "critical", "question"):
+            guard = patch.object(QMessageBox, method, side_effect=AssertionError("Unexpected message dialog"))
+            guard.start()
+            self.addCleanup(guard.stop)
         self.temp = tempfile.TemporaryDirectory()
         self.path = Path(self.temp.name) / "hotel" / "layout.json"
         data = empty_map(8, 8)

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 
-from .normalization import compact_face_materials
+from .normalization import compact_face_materials, control_fields
 
 
 def json_scalar(value) -> str:
@@ -27,8 +27,7 @@ def _ramp_body(ramp: dict) -> str:
 
 def _actor_spawn_zone_body(zone: dict) -> str:
     body = {"level": zone["level"], "cols": zone["cols"], "rows": zone["rows"], "kind": zone["kind"], "count": zone["count"]}
-    if zone.get("switch"):
-        body["switch"] = zone["switch"]
+    body.update(control_fields(zone))
     return _inline_object_body(body)
 
 
@@ -52,6 +51,7 @@ def format_map_file(wrapper: dict) -> str:
     lines = [
         "{",
         '  "map": {',
+        *[f'    "{key}": {json.dumps(map_data[key])},' for key in ("switch_kinds", "fireworks") if key in map_data],
         f'    "grid_cols": {map_data["grid_cols"]},',
         f'    "grid_rows": {map_data["grid_rows"]},',
         *with_trailing_comma(format_object_array("actor_spawn_zones", map_data["actor_spawn_zones"], _actor_spawn_zone_body, 4)),
@@ -172,8 +172,7 @@ def _nested_map_body(entry: dict) -> str:
         "from_nudge": entry["from_nudge"],
         "to_nudge": entry["to_nudge"],
     }
-    if entry.get("switch"):
-        body["switch"] = entry["switch"]
+    body.update(control_fields(entry))
     return _inline_object_body(body)
 
 
@@ -181,12 +180,13 @@ def _barrier_body(barrier: dict) -> str:
     body = {
         "c0": barrier["c0"], "r0": barrier["r0"], "c1": barrier["c1"], "r1": barrier["r1"],
         "kind": barrier["kind"],
+        **control_fields(barrier),
     }
     return _inline_object_body(body)
 
 
 def _light_bridge_body(bridge: dict) -> str:
-    return _inline_object_body({"col": bridge["col"], "row": bridge["row"], "kind": bridge["kind"]})
+    return _inline_object_body({"col": bridge["col"], "row": bridge["row"], "kind": bridge["kind"], **control_fields(bridge)})
 
 
 def _inline_object_body(body: dict) -> str:

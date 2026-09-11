@@ -6,13 +6,13 @@ use crate::{
     fields::{FieldMeshes, VisualField, merge_fields, spawn_field_visual},
     map::{FocusedMapLevel, MapLevel, map_level_visibility},
 };
-use common::protocol::{BarrierKindId, MapLayout, MapSettings, PlateState};
+use common::protocol::{BarrierId, MapLayout, MapSettings, PlateState};
 
 #[derive(Component)]
 pub struct BarrierMarker;
 
 #[derive(Component)]
-pub struct BarrierKind(BarrierKindId);
+pub struct BarrierInstance(BarrierId);
 
 pub fn barriers_spawn_system(
     mut commands: Commands,
@@ -46,11 +46,16 @@ pub fn barriers_spawn_system(
         commands
             .spawn((
                 BarrierMarker,
-                BarrierKind(kind),
+                BarrierInstance(field.barrier.expect("barrier visual missing its id")),
                 level,
                 ChildOf(carrier_entities.get(field.carrier)),
                 field.transform(),
-                barrier_visibility(&plates.open_barrier_kinds, *focused, kind, level),
+                barrier_visibility(
+                    &plates.open_barriers,
+                    *focused,
+                    field.barrier.expect("barrier visual missing its id"),
+                    level,
+                ),
             ))
             .with_children(|parent| {
                 spawn_field_visual(
@@ -67,23 +72,18 @@ pub fn barriers_spawn_system(
 pub fn barriers_visibility_system(
     plates: Res<PlateState>,
     focused: Res<FocusedMapLevel>,
-    mut barriers: Query<(&BarrierKind, &MapLevel, &mut Visibility), With<BarrierMarker>>,
+    mut barriers: Query<(&BarrierInstance, &MapLevel, &mut Visibility), With<BarrierMarker>>,
 ) {
     if !plates.is_changed() && !focused.is_changed() {
         return;
     }
     // An input change affects only some barriers; equal writes would retrigger propagation on the rest.
     for (kind, level, mut visibility) in &mut barriers {
-        visibility.set_if_neq(barrier_visibility(&plates.open_barrier_kinds, *focused, kind.0, *level));
+        visibility.set_if_neq(barrier_visibility(&plates.open_barriers, *focused, kind.0, *level));
     }
 }
 
-fn barrier_visibility(
-    open: &[BarrierKindId],
-    focused: FocusedMapLevel,
-    kind: BarrierKindId,
-    level: MapLevel,
-) -> Visibility {
+fn barrier_visibility(open: &[BarrierId], focused: FocusedMapLevel, kind: BarrierId, level: MapLevel) -> Visibility {
     if open.contains(&kind) {
         Visibility::Hidden
     } else {

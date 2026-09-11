@@ -29,7 +29,7 @@ from .constants import (
     MODE_WALL,
     RAMP_MODES,
 )
-from .dialogs import MotionDialog
+from .dialogs import ActorSpawnFieldsDialog, MotionDialog
 from .display import portal_label
 
 
@@ -76,6 +76,7 @@ class ToolSettings(QWidget):
             tuple(window.actor_kinds),
             tuple(window.wall_light_kinds),
             tuple(window.barrier_kinds),
+            tuple(window.key_kinds),
             tuple(window.bridge_kinds),
             tuple(window.switches),
             tuple(window.materials_catalog),
@@ -115,8 +116,8 @@ class ToolSettings(QWidget):
             box.setEditable(editable)
             box.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
             box.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
-            box.setMinimumContentsLength(9)
-            box.setMaximumWidth(150)
+            box.setMinimumContentsLength(6 if mode == MODE_ACTOR_SPAWN_ZONE else 9)
+            box.setMaximumWidth(110 if mode == MODE_ACTOR_SPAWN_ZONE else 150)
             box.setCurrentText(getattr(window, attribute) or "")
             box.setToolTip(box.currentText())
             if editable:
@@ -150,7 +151,7 @@ class ToolSettings(QWidget):
 
         def item_controls():
             item, _ = combo("Item", "recent_item_type", list(ITEM_TYPES), required=True)
-            key, label = combo("Kind", "recent_item_key_kind", window.barrier_kinds)
+            key, label = combo("Kind", "recent_item_key_kind", window.key_kinds)
             self.key_controls = (key, label)
 
             def show_key_kind(item_type):
@@ -173,6 +174,20 @@ class ToolSettings(QWidget):
             button.clicked.connect(self.configure_motion)
             form.addWidget(button)
 
+        def field_controls(barrier):
+            prefix = "barrier" if barrier else "bridge"
+            combo("Kind", f"recent_{prefix}_kind", window.barrier_kinds if barrier else window.bridge_kinds)
+            button = QPushButton("Controls…")
+            button.clicked.connect(lambda: window.configure_field_defaults(barrier))
+            form.addWidget(button)
+
+        def actor_controls():
+            combo("Actor", "recent_actor_spawn_kind", window.actor_kinds, editable=True)
+            number("Count", "recent_actor_spawn_count", 0, 9999)
+            button = QPushButton("Controls…")
+            button.clicked.connect(self.configure_actor)
+            form.addWidget(button)
+
         # The controls each tool needs, by mode.
         builders = {
             **dict.fromkeys(
@@ -180,14 +195,10 @@ class ToolSettings(QWidget):
                 material_controls,
             ),
             MODE_CHECKPOINT: checkpoint_controls,
-            MODE_ACTOR_SPAWN_ZONE: lambda: (
-                combo("Actor", "recent_actor_spawn_kind", window.actor_kinds, editable=True),
-                number("Count", "recent_actor_spawn_count", 0, 9999),
-                combo("Switch", "recent_actor_spawn_switch", window.switches),
-            ),
-            MODE_BARRIER: lambda: combo("Kind", "recent_barrier_kind", window.barrier_kinds),
+            MODE_ACTOR_SPAWN_ZONE: actor_controls,
+            MODE_BARRIER: lambda: field_controls(True),
             MODE_PRESSURE_PLATE: lambda: combo("Switch", "recent_pressure_plate_switch", window.switches),
-            MODE_LIGHT_BRIDGE: lambda: combo("Kind", "recent_bridge_kind", window.bridge_kinds),
+            MODE_LIGHT_BRIDGE: lambda: field_controls(False),
             MODE_LIGHT: lambda: combo("Style", "recent_light_kind", window.wall_light_kinds, required=True),
             MODE_ITEM: item_controls,
             MODE_LADDER: lambda: number("Storeys", "recent_ladder_levels", 1, max(1, len(window.map_data["levels"]) - 1)),
@@ -204,6 +215,19 @@ class ToolSettings(QWidget):
             previous.hide()
             previous.deleteLater()
         self.available_changed.emit(has_settings)
+
+    def configure_actor(self) -> None:
+        window = self.window
+        result = ActorSpawnFieldsDialog.prompt(window, window.recent_actor_spawn_kind, window.recent_actor_spawn_count,
+                                               window.switches, window.recent_actor_spawn_switch or None,
+                                               window.recent_actor_spawn_inverted)
+        if result is not None:
+            kind, count, switch, inverted = result
+            window.recent_actor_spawn_kind = kind
+            window.recent_actor_spawn_count = count
+            window.recent_actor_spawn_switch = switch or ""
+            window.recent_actor_spawn_inverted = inverted
+            self.refresh()
 
     def configure_motion(self) -> None:
         window = self.window

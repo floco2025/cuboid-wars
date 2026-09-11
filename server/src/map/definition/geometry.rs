@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 
 use anyhow::Context;
 
@@ -21,8 +21,8 @@ use common::{
     constants::LADDER_WIDTH,
     map::MapGeometry,
     protocol::{
-        Barrier, BarrierKindTable, BridgeKindTable, CarrierId, Checkpoint, Eraser, FaceMaterials, Floor, GrassCell,
-        ItemType, Ladder, LightBridge, PressurePlate, Ramp, Wall, WallLight,
+        Barrier, BarrierKindTable, BridgeKindId, CarrierId, Checkpoint, Eraser, FaceMaterials, Floor, GrassCell,
+        ItemType, Ladder, LightBridge, PressurePlate, Ramp, SwitchId, Wall, WallLight,
     },
 };
 
@@ -52,10 +52,10 @@ pub(super) fn compile_geometry(
     let pressure_plates = pressure_plates(map_def, scope, carrier)?;
     let level_grids = compile_level_grids(map_def, scope, &regular_floor_masks, &slab_masks, &ramp_specs);
     let (walls, wall_materials) = compile_walls(&level_grids, &geometry, &assets, carrier);
-    let barriers = compile_barriers(map_def, scope.kind_table, &slab_masks, &geometry, carrier)?;
+    let barriers = compile_barriers(map_def, scope, &slab_masks, &geometry, carrier)?;
     let (floors, floor_materials) = compile_floors(&level_grids, &slab_masks, &ramp_specs, &geometry, &assets, carrier);
     let light_bridges = flush_light_bridges(
-        compile_light_bridges(map_def, &geometry, scope.bridge_table, carrier)?,
+        compile_light_bridges(map_def, &geometry, scope, carrier)?,
         &floors,
         geometry.wall_half_thickness(),
     );
@@ -155,7 +155,11 @@ fn compile_level_grids(
                 set_edge(&mut edge_grid, [wall.c0, wall.r0, wall.c1, wall.r1]);
             }
             for barrier in &level.barriers {
-                if !scope.plate_barrier_kinds.contains(barrier.kind.as_str()) {
+                if !barrier
+                    .switch
+                    .as_deref()
+                    .is_some_and(|id| scope.plated_switches.contains(id))
+                {
                     set_edge(&mut barrier_edge_grid, [barrier.c0, barrier.r0, barrier.c1, barrier.r1]);
                 }
             }
@@ -217,7 +221,7 @@ fn compile_walls(
 
 fn compile_barriers(
     map_def: &MapDef,
-    kind_table: &BarrierKindTable,
+    scope: &CompileScope,
     slab_masks: &[Mask],
     geometry: &MapGeometry,
     carrier: CarrierId,
@@ -226,10 +230,13 @@ fn compile_barriers(
     for (level_idx, level) in map_def.levels.iter().enumerate() {
         let mut edges = Vec::with_capacity(level.barriers.len());
         for (barrier_idx, b) in level.barriers.iter().enumerate() {
-            let kind = kind_table
+            let kind = scope
+                .kind_table
                 .resolve(&b.kind)
                 .with_context(|| format!("level {level_idx} barriers[{barrier_idx}]"))?;
             edges.push(BarrierEdge {
+                switch: scope.target_switch(b.switch.as_deref())?,
+                switch_inverted: b.switch_inverted,
                 edge: [b.c0, b.r0, b.c1, b.r1],
                 kind,
             });
@@ -365,6 +372,7 @@ fn actor_spawn_zones(
         .enumerate()
         .map(|(idx, zone)| {
             Ok(ActorSpawnZone {
+                switch_inverted: zone.switch_inverted,
                 carrier,
                 level: u8::try_from(zone.level).unwrap_or(u8::MAX),
                 cols: zone.cols,
@@ -435,7 +443,7 @@ fn placed_items(
 fn compile_light_bridges(
     map_def: &MapDef,
     geometry: &MapGeometry,
-    bridge_table: &BridgeKindTable,
+    scope: &CompileScope,
     carrier: CarrierId,
 ) -> anyhow::Result<Vec<LightBridge>> {
     let mut out = Vec::new();
@@ -446,23 +454,42 @@ fn compile_light_bridges(
             .iter()
             .enumerate()
             .map(|(idx, def)| {
-                let kind = bridge_table
+                let kind = scope
+                    .bridge_table
                     .resolve(&def.kind)
                     .with_context(|| format!("level {level_idx} light_bridges[{idx}]"))?;
-                Ok((def.col, def.row, kind))
+                Ok((
+                    def.col,
+                    def.row,
+                    kind,
+                    scope.target_switch(def.switch.as_deref())?,
+                    def.switch_inverted,
+                ))
             })
             .collect::<anyhow::Result<Vec<_>>>()?;
-        out.extend(merge_light_bridges(&cells).into_iter().map(|rect| LightBridge {
-            x1: geometry.cell_to_world_x(rect.c0),
-            z1: geometry.cell_to_world_z(rect.r0),
-            x2: geometry.cell_to_world_x(rect.c1),
-            z2: geometry.cell_to_world_z(rect.r1),
-            y: geometry.level_y(level_u8),
-            thickness: geometry.bridge_thickness(),
-            level: level_u8,
-            kind: rect.kind,
-            carrier,
-        }));
+        let mut groups = BTreeMap::<(BridgeKindId, Option<SwitchId>, bool), Vec<_>>::new();
+        for (col, row, kind, switch, inverted) in cells {
+            groups
+                .entry((kind, switch, inverted))
+                .or_default()
+                .push((col, row, kind));
+        }
+        for ((_, switch, switch_inverted), cells) in groups {
+            out.extend(merge_light_bridges(&cells).into_iter().map(|rect| LightBridge {
+                id: Default::default(),
+                switch,
+                switch_inverted,
+                x1: geometry.cell_to_world_x(rect.c0),
+                z1: geometry.cell_to_world_z(rect.r0),
+                x2: geometry.cell_to_world_x(rect.c1),
+                z2: geometry.cell_to_world_z(rect.r1),
+                y: geometry.level_y(level_u8),
+                thickness: geometry.bridge_thickness(),
+                level: level_u8,
+                kind: rect.kind,
+                carrier,
+            }));
+        }
     }
     Ok(out)
 }

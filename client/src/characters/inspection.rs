@@ -7,7 +7,7 @@ use common::{
     constants::CHARACTER_CONTACT_OFFSET,
     physics::{
         CharacterSupport, CharacterVerticalVelocity, CollisionWorld, GroundingDiagnostics, PortalSet,
-        grounding_diagnostics, passable_barrier_kinds,
+        grounding_diagnostics,
     },
     protocol::{ActorMarker, FaceYaw, PlateState, PlayerId, Position},
 };
@@ -147,7 +147,7 @@ pub(crate) fn refresh_grounding_debug_system(
         let keys = player
             .and_then(|id| players.get(id))
             .map_or(&[][..], |p| p.held_keys.as_slice());
-        let passable = passable_barrier_kinds(keys, &plates.open_barrier_kinds);
+        let passable = world.passable_barriers(keys, &plates.open_barriers);
         let excluded = if player.is_some() {
             portals.collision_exclusions(Vec3::from(*pos), bounds.physics)
         } else {

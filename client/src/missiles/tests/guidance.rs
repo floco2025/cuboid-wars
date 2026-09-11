@@ -65,6 +65,8 @@ fn a_wall_moving_across_a_cached_route_triggers_an_immediate_replan() {
             ..wall(0.0, -5.0, 0.0, 5.0)
         }],
         carriers: vec![Carrier {
+            switch_inverted: false,
+
             parent: CarrierId::WORLD,
             level: 0,
             levels: 0,
@@ -330,6 +332,8 @@ fn missiles_reach_targets_inside_a_moving_room_without_clipping_its_shell() {
             })
             .collect(),
         carriers: vec![Carrier {
+            switch_inverted: false,
+
             parent: CarrierId::WORLD,
             level: 0,
             levels: 1,

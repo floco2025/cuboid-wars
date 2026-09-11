@@ -1,3 +1,4 @@
+use crate::protocol::{BarrierId, BridgeId};
 use rapier3d::{control::KinematicCharacterController, prelude::Vector};
 
 use super::*;
@@ -96,6 +97,11 @@ fn carrier_pushes_respect_barrier_passability_bridge_power_and_portal_exclusions
         carrier,
     };
     let barrier = Barrier {
+        id: Default::default(),
+
+        switch: None,
+        switch_inverted: false,
+
         x1: wall.x1,
         x2: wall.x2,
         z1: wall.z1,
@@ -109,6 +115,10 @@ fn carrier_pushes_respect_barrier_passability_bridge_power_and_portal_exclusions
         carrier,
     };
     let bridge = LightBridge {
+        id: Default::default(),
+        switch: None,
+        switch_inverted: false,
+
         x1: -2.0,
         x2: 2.0,
         z1: -2.0,
@@ -147,6 +157,8 @@ fn carrier_pushes_respect_barrier_passability_bridge_power_and_portal_exclusions
                 vec![]
             },
             carriers: vec![Carrier {
+                switch_inverted: false,
+
                 parent: CarrierId::WORLD,
                 level: 0,
                 levels: 0,
@@ -165,8 +177,8 @@ fn carrier_pushes_respect_barrier_passability_bridge_power_and_portal_exclusions
         world.set_carrier_poses(&carriers);
         let handles: Vec<_> = world.colliders.iter().map(|(handle, _)| handle).collect();
         for powered in [false, true] {
-            world.set_powered_bridges(if powered { &[BridgeKindId(0)] } else { &[] });
-            for passable in [vec![], vec![BarrierKindId(0)]] {
+            world.set_powered_bridges(if powered { &[BridgeId(0)] } else { &[] });
+            for passable in [vec![], vec![BarrierId(0)]] {
                 for excluded in [&[][..], handles.as_slice()] {
                     let movement = world.push_character_from_carriers(
                         TICK_SECS,

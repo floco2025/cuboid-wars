@@ -2,20 +2,18 @@ use bincode::{Decode, Encode};
 use serde::Deserialize;
 
 use super::{
-    HexColor, MapSettings,
+    HexColor, MapLayout, MapSettings,
     kind_table::{KindId, KindTable},
 };
 use crate::config::PressureSwitchConfig;
 
-// Index into the selected map's ordered `switches`: what a pressure plate
-// operates, and what barrier kinds, bridge kinds, carriers, actor spawn
-// zones, and the fireworks name to be driven by it.
+// Index into the root layout's pressure plate kind catalog, shared by plates and targets.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode)]
 pub struct SwitchId(pub u16);
 
 impl KindId for SwitchId {
     const MAX: Option<usize> = None;
-    const CONFIG_KEY: &'static str = "switches";
+    const CONFIG_KEY: &'static str = "switch_kinds";
     const NOUN: &'static str = "switch";
 
     fn from_index(index: u16) -> Self {
@@ -29,7 +27,7 @@ impl KindId for SwitchId {
 
 pub type SwitchTable = KindTable<SwitchId>;
 
-// One entry of a map's `switches` catalog.
+// One entry of the root layout's `switch_kinds` catalog.
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, Deserialize)]
 pub struct SwitchDef {
     pub id: String,
@@ -40,14 +38,31 @@ pub struct SwitchDef {
 }
 
 impl MapSettings {
-    pub fn pressure_plate_color(&self, switch: SwitchId) -> Option<HexColor> {
-        let switch = self.switches.get(usize::from(switch.0))?;
-        switch.plate_color.or_else(|| {
+    pub fn pressure_plate_color(&self, switch: SwitchId, layout: &MapLayout) -> Option<HexColor> {
+        let def = self.switches.get(usize::from(switch.0))?;
+        def.plate_color.or_else(|| {
             self.barrier_kinds
                 .iter()
-                .chain(&self.bridge_kinds)
-                .find(|kind| kind.switch.as_deref() == Some(switch.id.as_str()))
-                .map(|kind| kind.color)
+                .enumerate()
+                .find(|(index, _)| {
+                    layout
+                        .barriers
+                        .iter()
+                        .any(|b| usize::from(b.kind.0) == *index && b.switch == Some(switch))
+                })
+                .map(|(_, kind)| kind.color)
+                .or_else(|| {
+                    self.bridge_kinds
+                        .iter()
+                        .enumerate()
+                        .find(|(index, _)| {
+                            layout
+                                .light_bridges
+                                .iter()
+                                .any(|b| usize::from(b.kind.0) == *index && b.switch == Some(switch))
+                        })
+                        .map(|(_, kind)| kind.color)
+                })
         })
     }
 }

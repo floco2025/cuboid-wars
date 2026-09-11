@@ -1,7 +1,7 @@
 use bevy_ecs::prelude::Resource;
 use bincode::{Decode, Encode};
 
-use super::{BarrierKindId, BridgeKindId, CarrierId, SwitchId};
+use super::{BarrierId, BridgeId, CarrierId, SwitchId};
 use crate::map::CarrierRun;
 
 // What the pressure plates currently hold: the active switches and what
@@ -16,8 +16,8 @@ use crate::map::CarrierRun;
 #[derive(Resource, Debug, Default, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct PlateState {
     pub active_switches: Vec<SwitchId>,
-    pub open_barrier_kinds: Vec<BarrierKindId>,
-    pub powered_bridge_kinds: Vec<BridgeKindId>,
+    pub open_barriers: Vec<BarrierId>,
+    pub powered_bridges: Vec<BridgeId>,
     pub carrier_runs: Vec<(CarrierId, CarrierRun)>,
 }
 
@@ -39,8 +39,8 @@ impl PlateState {
 
     pub fn sort(&mut self) {
         self.active_switches.sort_unstable();
-        self.open_barrier_kinds.sort_unstable();
-        self.powered_bridge_kinds.sort_unstable();
+        self.open_barriers.sort_unstable();
+        self.powered_bridges.sort_unstable();
         self.carrier_runs.sort_unstable_by_key(|(id, _)| *id);
     }
 }

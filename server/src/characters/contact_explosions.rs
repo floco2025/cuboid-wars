@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use common::{
     config::{CharacterPhysicsConfig, GameplayConfig},
     physics::{CollisionWorld, character_hitbox_center},
-    protocol::{ActorId, ActorMarker, BarrierKindId, Health, PlateState, PlayerMarker, Position},
+    protocol::{ActorId, ActorMarker, BarrierId, Health, PlateState, PlayerMarker, Position},
 };
 
 use crate::{actors::ActorMap, characters::character_surface_distance, config::ServerGameplayConfig};
@@ -53,7 +53,7 @@ pub(super) fn contact_explosions_system(
         &players,
         &contact_actors,
         &collision,
-        &plates.open_barrier_kinds,
+        &plates.open_barriers,
     );
 }
 
@@ -63,7 +63,7 @@ pub(super) fn detonate_actors_touching_players(
     players: &[CharacterBody],
     contact_actors: &[(CharacterBody, f32)],
     collision_world: &CollisionWorld,
-    open_barriers: &[BarrierKindId],
+    open_barriers: &[BarrierId],
 ) {
     if peaceful {
         return;
@@ -84,7 +84,7 @@ fn character_bodies_touch(
     b: &CharacterBody,
     trigger_gap: f32,
     collision_world: &CollisionWorld,
-    open_barriers: &[BarrierKindId],
+    open_barriers: &[BarrierId],
 ) -> bool {
     // Character movement blocks before colliders overlap, so contact uses a
     // configurable surface tolerance instead of requiring actual intersection.

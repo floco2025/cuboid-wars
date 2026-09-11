@@ -62,6 +62,8 @@ fn shown(buffer: &mut RemotePlayerMotion, delta_ticks: f64) -> PlayerMovementSta
 
 fn moving_platforms() -> Carriers {
     let platform = Carrier {
+        switch_inverted: false,
+
         parent: CarrierId::WORLD,
         level: 0,
         levels: 1,

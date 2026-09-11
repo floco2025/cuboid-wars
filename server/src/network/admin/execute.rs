@@ -169,7 +169,7 @@ pub(super) fn run_admin_command(
                 return Private("sender not found".to_owned());
             };
             let mut added = 0usize;
-            for index in 0..admin.barrier_kind_table.len() {
+            for index in 0..admin.key_kind_table.len() {
                 if let Ok(kind) = u16::try_from(index)
                     && info.add_key(BarrierKindId(kind))
                 {
@@ -180,7 +180,7 @@ pub(super) fn run_admin_command(
             broadcast_to_all(players, ServerMessage::PlayerStatus(status));
             Private(format!("gave {added} key(s)"))
         }
-        AdminCommand::GiveKey(color) => match admin.barrier_kind_table.index_of(&color) {
+        AdminCommand::GiveKey(color) => match admin.key_kind_table.index_of(&color) {
             Some(kind) => {
                 let Some(info) = players.get_mut(&sender) else {
                     return Private("sender not found".to_owned());
@@ -197,7 +197,7 @@ pub(super) fn run_admin_command(
             }
             None => Private(format!(
                 "unknown key color {color:?} (colors: {})",
-                admin.barrier_kind_table.ids().join(", ")
+                admin.key_kind_table.ids().join(", ")
             )),
         },
         AdminCommand::GivePowerups => {

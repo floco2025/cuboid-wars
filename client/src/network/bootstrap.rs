@@ -32,10 +32,16 @@ pub(crate) fn install_bootstrap(app: &mut App, message: SInit, asset_set: &Asset
                     &mut meshes,
                     &mut materials,
                     &map_settings.barrier_kinds,
+                    &message.world.map.layout,
                     vfx.barriers,
                     vfx.pickups.emissive_brightness,
                 ),
-                build_bridge_assets(&mut materials, &map_settings.bridge_kinds, vfx.light_bridges),
+                build_bridge_assets(
+                    &mut materials,
+                    &map_settings.bridge_kinds,
+                    &message.world.map.layout,
+                    vfx.light_bridges,
+                ),
                 ProjectileAssets::new(&mut meshes, &mut materials, gameplay_config.projectiles.radius),
             )
         });

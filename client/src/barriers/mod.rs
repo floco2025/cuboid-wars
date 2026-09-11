@@ -13,4 +13,4 @@ pub use pressure_plates::{
 };
 pub(crate) use pressure_plates::{PressurePlateModel, pressure_plates_animation_system, pressure_plates_attach_system};
 pub use pulsate::barriers_pulsate_system;
-pub use spawn::{BarrierKind, BarrierMarker, barriers_spawn_system, barriers_visibility_system};
+pub use spawn::{BarrierInstance, BarrierMarker, barriers_spawn_system, barriers_visibility_system};

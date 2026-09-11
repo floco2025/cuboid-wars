@@ -195,7 +195,7 @@ pub fn laser_beam_update_system(
         }
         // Damage and beam clipping share the active-field filter.
         let length = collision_world
-            .attack_surface_along_ray(origin, direction, full_length, &plates.open_barrier_kinds)
+            .attack_surface_along_ray(origin, direction, full_length, &plates.open_barriers)
             .map_or(full_length, |hit| hit.point.distance(origin));
         let muzzle_distance = articulated.map_or(0.0, |(rig, frame)| rig.muzzle_distance(frame));
         let Some(pose) = beam_pose(origin, direction, length, muzzle_distance) else {

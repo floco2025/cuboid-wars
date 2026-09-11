@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use std::f32::consts::TAU;
 
-use common::{physics::CollisionWorld, protocol::BarrierKindId};
+use common::{physics::CollisionWorld, protocol::BarrierId};
 
 // How far inside the fuse boundary a terminal approach stops, so rounding
 // cannot leave the route just outside it.
@@ -27,7 +27,7 @@ const MISSILE_LEAD_MAX_TARGET_SPEED: f32 = 15.0;
 
 pub(super) fn sweep_clear(
     collision_world: &CollisionWorld,
-    open_kinds: &[BarrierKindId],
+    open_kinds: &[BarrierId],
     origin: Vec3,
     translation: Vec3,
     radius: f32,
@@ -40,7 +40,7 @@ pub(super) fn sweep_clear(
 // can still reach its target there.
 pub(super) fn travel_clear(
     collision_world: &CollisionWorld,
-    open_kinds: &[BarrierKindId],
+    open_kinds: &[BarrierId],
     origin: Vec3,
     translation: Vec3,
     radius: f32,
@@ -50,7 +50,7 @@ pub(super) fn travel_clear(
 
 pub(super) fn terminal_approach(
     world: &CollisionWorld,
-    open_kinds: &[BarrierKindId],
+    open_kinds: &[BarrierId],
     origin: Vec3,
     target: Vec3,
     radius: f32,
@@ -74,7 +74,7 @@ pub(super) fn terminal_approach(
 // the lookahead).
 pub(super) fn pick_clear_direction(
     collision_world: &CollisionWorld,
-    open_kinds: &[BarrierKindId],
+    open_kinds: &[BarrierId],
     origin: Vec3,
     desired: Vec3,
     lookahead_distance: f32,
@@ -121,7 +121,7 @@ fn direction_candidates(desired: Vec3) -> Vec<Vec3> {
 
 pub(super) fn steer_clear(
     world: &CollisionWorld,
-    open_kinds: &[BarrierKindId],
+    open_kinds: &[BarrierId],
     origin: Vec3,
     velocity: Vec3,
     objective: Vec3,
@@ -168,7 +168,7 @@ pub(super) fn steer_clear(
 
 fn turn_clear_time(
     world: &CollisionWorld,
-    open_kinds: &[BarrierKindId],
+    open_kinds: &[BarrierId],
     mut origin: Vec3,
     mut velocity: Vec3,
     desired: Vec3,

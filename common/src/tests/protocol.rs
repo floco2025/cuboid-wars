@@ -13,8 +13,7 @@ fn position() -> Position {
 }
 
 fn barrier_kind_cap() -> u16 {
-    u16::try_from(BarrierKindId::MAX.expect("barrier kinds carry no collision-group cap"))
-        .expect("barrier kind cap exceeds u16")
+    u16::try_from(BarrierKindId::MAX.expect("barrier kind datagram cap missing")).expect("barrier kind cap exceeds u16")
 }
 
 #[test]

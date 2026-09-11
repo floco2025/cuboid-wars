@@ -20,7 +20,7 @@ use crate::{
     map::Carriers,
     math::{direction_from_yaw_pitch, rapier_pose},
     physics::CollisionWorld,
-    protocol::{BarrierKindId, CarrierId, MapLayout, Portal, PortalEnd, PortalPairId, TextureSettings, WallLight},
+    protocol::{BarrierId, CarrierId, MapLayout, Portal, PortalEnd, PortalPairId, TextureSettings, WallLight},
 };
 
 // Where a validated portal shot lands: the aperture center (world space),
@@ -70,7 +70,7 @@ pub fn compute_portal_placement(
     collision_world: &CollisionWorld,
     map_layout: &MapLayout,
     carriers: &Carriers,
-    open_barriers: &[BarrierKindId],
+    open_barriers: &[BarrierId],
     textures: &BTreeMap<String, TextureSettings>,
 ) -> Result<PortalPlacement, PortalPlacementFailure> {
     let hit = collision_world

@@ -217,6 +217,8 @@ fn marks_on_a_carrier_hang_under_it_in_its_frame() {
         walls: vec![wall(CarrierId(1))],
         floors: vec![floor(CarrierId(1))],
         carriers: vec![Carrier {
+            switch_inverted: false,
+
             parent: CarrierId::WORLD,
             level: 0,
             levels: 0,

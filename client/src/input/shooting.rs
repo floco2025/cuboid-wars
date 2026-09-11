@@ -88,7 +88,7 @@ pub fn input_shooting_system(
             &gameplay_config,
             shooter.map_settings.movement.projectile_speed,
             &collision_world,
-            &shooter.plates.open_barrier_kinds,
+            &shooter.plates.open_barriers,
             shooter.my_player_id.0,
             MuzzleCheck::Enforced,
         ) > 0

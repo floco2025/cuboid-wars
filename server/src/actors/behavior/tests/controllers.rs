@@ -1,4 +1,5 @@
 use super::*;
+use common::protocol::BarrierId;
 
 #[test]
 fn contact_actor_engages_reachable_ground_player() {
@@ -481,6 +482,11 @@ fn beam_actor_sees_a_player_through_a_barrier_but_waits_for_a_clear_attack() {
     let x = (actor_pos.x + target.x) / 2.0;
     let layout = MapLayout {
         barriers: vec![Barrier {
+            id: Default::default(),
+
+            switch: None,
+            switch_inverted: false,
+
             x1: x,
             x2: x,
             z1: actor_pos.z - 4.0,
@@ -517,7 +523,7 @@ fn beam_actor_sees_a_player_through_a_barrier_but_waits_for_a_clear_attack() {
     let mut context = fixture.context(BEAM, actor_pos);
     assert!(decide_beam_actor(&mut info, &context, &mut rng).is_none());
     assert!(matches!(info.beam, BeamState::Ready));
-    let opened = [kind];
+    let opened = [BarrierId(u32::from(kind.0))];
     context.open_barriers = &opened;
     assert!(decide_beam_actor(&mut info, &context, &mut rng).is_some());
 }
@@ -571,6 +577,11 @@ fn closing_a_barrier_immediately_stops_an_immovable_actor() {
     fixture.collision_world = CollisionWorld::from_map_layout(
         &MapLayout {
             barriers: vec![Barrier {
+                id: Default::default(),
+
+                switch: None,
+                switch_inverted: false,
+
                 x1: x,
                 x2: x,
                 z1: origin.z - 4.0,
@@ -590,7 +601,7 @@ fn closing_a_barrier_immediately_stops_an_immovable_actor() {
     let mut state = info(IMMOVABLE);
     state.awareness.push(aware(7, target, CharacterSupport::Ground, true));
     let mut context = fixture.context(IMMOVABLE, origin);
-    let opened = [kind];
+    let opened = [BarrierId(u32::from(kind.0))];
     context.open_barriers = &opened;
     decide_stationary_actor(&mut state, &context);
     assert_eq!(state.beam.target(), Some(PlayerId(7)));

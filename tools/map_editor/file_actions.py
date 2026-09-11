@@ -104,7 +104,7 @@ class FileActionsMixin:
         try:
             map_name = map_name_from_path(path)
             require_map_settings(map_name)
-            errors = self.validate_document(self.doc.root_data, map_name=map_name)
+            errors = self.validate_document(self.doc.data_for_destination(path), map_name=map_name)
         except Exception as exc:
             QMessageBox.critical(self, "Save Failed", str(exc))
             return False
@@ -293,6 +293,7 @@ class FileActionsMixin:
             if self.recent_light_kind not in self.wall_light_kinds:
                 self.recent_light_kind = next(iter(self.wall_light_kinds), "")
             self.immovable_actor_kinds = load_immovable_actor_kinds()
+            self.doc.reload_settings()
             self.adopt_catalogs(self.catalog_map, MapCatalogs.load(self.catalog_map))
         except (OSError, ValueError, KeyError) as exc:
             self.notify(f"Catalog reload failed: {exc}")

@@ -7,21 +7,17 @@ use serde::Deserialize;
 
 use super::color::HexColor;
 
-// A barrier or bridge kind. `switch` names the map switch that opens or
-// powers it; a kind without one is never plate-controlled.
+// A reusable appearance or key identity with its display color.
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct KindDef {
     pub id: String,
     pub color: HexColor,
-    #[serde(default)]
-    pub switch: Option<String>,
 }
 
 // A kind id: a stable on-wire index into one of the selected map's ordered
 // kind catalogs. The server ships those catalogs in `SInit` so both sides
-// assign the same indices. `MAX` caps a catalog
-// whose kinds each own a Rapier collision group (the bit budget is laid out
-// in `physics/world/colliders.rs`); `None` when the kinds share one group.
+// assign the same indices. `MAX` applies any domain-specific catalog limit.
 pub trait KindId: Copy + Debug + Eq + Hash + Ord + Send + Sync + 'static {
     const MAX: Option<usize>;
     // The `settings.json` key and the singular noun phrase, for error messages.
@@ -58,11 +54,7 @@ impl<K: KindId> KindTable<K> {
         if let Some(max) = K::MAX
             && ids.len() > max
         {
-            bail!(
-                "{} has {} entries; max is {max} (limited by available Rapier collision groups)",
-                K::CONFIG_KEY,
-                ids.len(),
-            );
+            bail!("{} has {} entries; max is {max}", K::CONFIG_KEY, ids.len(),);
         }
         let mut index_by_id = HashMap::with_capacity(ids.len());
         for (idx, id) in ids.iter().enumerate() {

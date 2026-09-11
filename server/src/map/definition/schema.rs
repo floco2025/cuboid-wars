@@ -68,6 +68,8 @@ pub(crate) struct MotionDef {
     pub(crate) to_nudge: [f32; 3],
     #[serde(default)]
     pub(crate) switch: Option<String>,
+    #[serde(default)]
+    pub(crate) switch_inverted: bool,
 }
 
 impl MotionDef {
@@ -174,6 +176,7 @@ pub(crate) struct WallDef {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct BarrierDef {
     pub(crate) c0: i32,
     pub(crate) r0: i32,
@@ -181,16 +184,25 @@ pub(crate) struct BarrierDef {
     pub(crate) r1: i32,
     // String id, looked up in the loaded `BarrierKindTable` at compile time.
     pub(crate) kind: String,
+    #[serde(default)]
+    pub(crate) switch: Option<String>,
+    #[serde(default)]
+    pub(crate) switch_inverted: bool,
 }
 
 // One cell of a light bridge. Same-kind cells merge into rectangles at
 // compile time (`map::bridges`), so authoring stays per cell like floors.
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct LightBridgeDef {
     pub(crate) col: i32,
     pub(crate) row: i32,
     // String id, looked up in the loaded `BridgeKindTable` at compile time.
     pub(crate) kind: String,
+    #[serde(default)]
+    pub(crate) switch: Option<String>,
+    #[serde(default)]
+    pub(crate) switch_inverted: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -213,6 +225,8 @@ pub(crate) struct ActorSpawnZoneDef {
     pub(crate) count: u32,
     #[serde(default)]
     pub(crate) switch: Option<String>,
+    #[serde(default)]
+    pub(crate) switch_inverted: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]

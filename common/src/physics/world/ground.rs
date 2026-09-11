@@ -5,10 +5,10 @@ use rapier3d::{
 
 use super::{
     CollisionWorld,
-    colliders::{ColliderKind, character_collision_groups, query_filter},
+    colliders::{ColliderKind, barrier_blocks, character_collision_groups, query_filter},
     shape_cast::{ShapeCastHit, upward_surface_hit},
 };
-use crate::protocol::{BarrierKindId, CarrierId};
+use crate::protocol::{BarrierId, CarrierId};
 
 impl CollisionWorld {
     #[must_use]
@@ -18,7 +18,7 @@ impl CollisionWorld {
         character_pos: &Pose,
         max_distance: f32,
         target_distance: f32,
-        passable_kinds: &[BarrierKindId],
+        passable_kinds: &[BarrierId],
         excluded_colliders: &[ColliderHandle],
     ) -> Option<ShapeCastHit> {
         let allow = |handle: ColliderHandle, _: &Collider| !excluded_colliders.contains(&handle);
@@ -40,7 +40,7 @@ impl CollisionWorld {
         character_movement_shape: &dyn Shape,
         character_pos: &Pose,
         max_distance: f32,
-        passable_kinds: &[BarrierKindId],
+        passable_kinds: &[BarrierId],
         carrier: CarrierId,
     ) -> Option<ShapeCastHit> {
         let on_carrier = |_: ColliderHandle, collider: &Collider| {
@@ -62,11 +62,14 @@ impl CollisionWorld {
         character_pos: &Pose,
         max_distance: f32,
         target_distance: f32,
-        passable_kinds: &[BarrierKindId],
+        passable_kinds: &[BarrierId],
         predicate: Option<&dyn Fn(ColliderHandle, &Collider) -> bool>,
     ) -> Option<ShapeCastHit> {
-        let mut filter = query_filter(character_collision_groups(passable_kinds, self.all_barrier_groups));
-        filter.predicate = predicate;
+        let allow = |handle: ColliderHandle, collider: &Collider| {
+            barrier_blocks(collider, passable_kinds) && predicate.is_none_or(|predicate| predicate(handle, collider))
+        };
+        let mut filter = query_filter(character_collision_groups());
+        filter.predicate = Some(&allow);
         let options = ShapeCastOptions {
             max_time_of_impact: max_distance,
             target_distance,

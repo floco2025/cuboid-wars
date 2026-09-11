@@ -6,7 +6,7 @@ use common::{
     constants::KNOCKBACK_CLAMP_RATIO,
     physics::{CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity, blast_hit, character_hitbox_center},
     protocol::{
-        ActorId, ActorMarker, BarrierKindId, Health, HitTarget, MapSettings, MissileBlastHit, PlateState, PlayerId,
+        ActorId, ActorMarker, BarrierId, Health, HitTarget, MapSettings, MissileBlastHit, PlateState, PlayerId,
         PlayerMarker, Position, SPlayerKnockback, ServerMessage,
     },
 };
@@ -128,7 +128,7 @@ pub fn explosions_system(mut context: ExplosionContext) {
             &context.map_settings.movement,
             context.invincibility.0,
             &context.collision_world,
-            &context.plates.open_barrier_kinds,
+            &context.plates.open_barriers,
             &context.players,
             &context.actors,
             &mut context.player_query,
@@ -245,7 +245,7 @@ fn apply_blast(
     movement: &MapMovementConfig,
     invincible: bool,
     collision_world: &CollisionWorld,
-    open_barriers: &[BarrierKindId],
+    open_barriers: &[BarrierId],
     players: &PlayerMap,
     actors: &ActorMap,
     player_query: &mut PlayerBlastQuery,
@@ -399,7 +399,7 @@ fn resolved_blast_hit(
     target: HitTarget,
     center: Vec3,
     world: &CollisionWorld,
-    open_kinds: &[BarrierKindId],
+    open_kinds: &[BarrierId],
 ) -> Option<(f32, Vec3)> {
     if let Some(hits) = &spec.reported_hits {
         let hit = hits.iter().find(|hit| hit.target == target)?;

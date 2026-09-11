@@ -7,16 +7,25 @@ use crate::{
     items::{item_symbol_mesh, pickup_material},
     vfx::srgb_color,
 };
-use common::protocol::{BarrierKindId, ItemType, KindDef};
+use common::protocol::{BarrierId, BarrierKindId, ItemType, KindDef, MapLayout};
 
 // Indexed by `BarrierKindId`, in the map's kind order.
 #[derive(Resource)]
 pub struct BarrierAssets {
     pub(super) kinds: Vec<KindVisual>,
     key_mesh: Handle<Mesh>,
+    barrier_kinds: Vec<BarrierKindId>,
 }
 
 impl BarrierAssets {
+    pub fn key_color(&self, kind: BarrierKindId) -> Color {
+        self.base_color(kind)
+    }
+
+    pub fn field_color(&self, id: BarrierId) -> Color {
+        self.base_color(self.barrier_kinds[id.0 as usize])
+    }
+
     pub fn material_for(&self, kind: BarrierKindId) -> &Handle<StandardMaterial> {
         &self.kinds[kind.0 as usize].surface
     }
@@ -32,10 +41,10 @@ impl BarrierAssets {
     }
 
     pub fn key_material_for(&self, kind: BarrierKindId) -> &Handle<StandardMaterial> {
-        self.kinds[kind.0 as usize]
+        self.kinds[usize::from(kind.0)]
             .key_material
             .as_ref()
-            .expect("barrier kind visual has no key material")
+            .expect("key material missing from barrier kind")
     }
 }
 
@@ -43,6 +52,7 @@ pub fn build_barrier_assets(
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
     kinds: &[KindDef],
+    layout: &MapLayout,
     config: BarrierVfxConfig,
     pickup_glow: f32,
 ) -> BarrierAssets {
@@ -62,7 +72,11 @@ pub fn build_barrier_assets(
         })
         .collect();
 
-    BarrierAssets { kinds, key_mesh }
+    BarrierAssets {
+        kinds,
+        key_mesh,
+        barrier_kinds: layout.barriers.iter().map(|b| b.kind).collect(),
+    }
 }
 
 #[cfg(test)]

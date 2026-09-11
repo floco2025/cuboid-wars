@@ -7,7 +7,7 @@ use common::{
         CharacterEnvironment, CharacterMovementResult, CharacterStep, CollisionWorld, LadderMode,
         step_character_movement,
     },
-    protocol::{ActorMoveIntent, BarrierKindId, MapSettings, Position},
+    protocol::{ActorMoveIntent, BarrierId, MapSettings, Position},
 };
 
 pub struct ActorMovementStep<'a> {
@@ -20,7 +20,7 @@ pub struct ActorMovementStep<'a> {
     pub physics: CharacterPhysicsConfig,
     // Barrier kinds the pressure plates hold open (`PlateState`); actors
     // hold no keys.
-    pub open_kinds: &'a [BarrierKindId],
+    pub open_kinds: &'a [BarrierId],
     pub collision_world: &'a CollisionWorld,
     pub map_settings: &'a MapSettings,
     pub carriers: &'a Carriers,

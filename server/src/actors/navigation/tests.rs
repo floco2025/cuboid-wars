@@ -31,6 +31,8 @@ fn level(cells: CellGrid, edges: EdgeGrid) -> LevelGrid {
 
 fn zone(level: u8, col: i32, row: i32) -> ActorSpawnZone {
     ActorSpawnZone {
+        switch_inverted: false,
+
         carrier: CarrierId::WORLD,
         level,
         cols: [col, col + 1],

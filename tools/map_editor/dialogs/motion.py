@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 )
 
 from ..nesting import NestedMotion, Nudge
+from .controls import SwitchControl
 
 
 def _nudge_spin_box(axis: str, value: float) -> QDoubleSpinBox:
@@ -74,11 +75,8 @@ class MotionDialog(QDialog):
         self._map.addItems(map_names)
         if recent_map in map_names:
             self._map.setCurrentText(recent_map)
-        self._switch = QComboBox()
-        self._switch.addItem(self.NO_SWITCH)
-        self._switch.addItems(switches)
-        if switch in switches:
-            self._switch.setCurrentText(switch)
+        self.control = SwitchControl(switches, switch, recent.switch_inverted if recent else False)
+        self._switch = self.control.kind
 
         self._to_level = QSpinBox()
         self._to_level.setRange(0, max(0, level_count - 1))
@@ -106,7 +104,7 @@ class MotionDialog(QDialog):
         form.addRow("Phase offset from the start (s):", self._phase)
         form.addRow("Nudge end 1 (x, z wall widths; y floor widths):", _row(self._from_nudge))
         form.addRow("Nudge end 2 (x, z wall widths; y floor widths):", _row(self._to_nudge))
-        form.addRow("Switch that runs it:", self._switch)
+        form.addRow(self.control)
 
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(self.accept)
@@ -116,8 +114,8 @@ class MotionDialog(QDialog):
         layout.addLayout(form)
         layout.addWidget(buttons)
 
-    def motion(self) -> tuple[int, float, float, float, Nudge, Nudge, str | None]:
-        switch = self._switch.currentText()
+    def motion(self) -> tuple[int, float, float, float, Nudge, Nudge, str | None, bool]:
+        control = self.control.values()
         return (
             self._to_level.value(),
             self._travel.value(),
@@ -125,7 +123,8 @@ class MotionDialog(QDialog):
             self._phase.value(),
             tuple(box.value() for box in self._from_nudge),
             tuple(box.value() for box in self._to_nudge),
-            None if switch == self.NO_SWITCH else switch,
+            control["switch"],
+            control["switch_inverted"],
         )
 
     @classmethod

@@ -50,6 +50,8 @@ fn turret_stays_at_carrier_anchor_despite_gravity_and_knockback() {
     let settings = server.maps[&server.default_map].settings.clone();
     let layout = MapLayout {
         carriers: vec![Carrier {
+            switch_inverted: false,
+
             parent: CarrierId::WORLD,
             level: 0,
             levels: 1,

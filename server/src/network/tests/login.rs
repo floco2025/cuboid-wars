@@ -75,12 +75,10 @@ fn init_message_round_trips_complete_bootstrap() {
                         KindDef {
                             id: "lobby".to_owned(),
                             color: HexColor([0x22, 0xcc, 0x33]),
-                            switch: None,
                         },
                         KindDef {
                             id: "basement".to_owned(),
                             color: HexColor([0xf0, 0xc0, 0x20]),
-                            switch: None,
                         },
                     ],
                     ..map_settings

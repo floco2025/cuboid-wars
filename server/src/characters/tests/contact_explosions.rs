@@ -1,6 +1,7 @@
 use super::*;
 use crate::test_geometry::{WALL_HEIGHT, WALL_THICKNESS};
 use common::protocol::{Barrier, BarrierKindTable, CarrierId, MapLayout, Wall};
+use common::protocol::{BarrierId, BarrierKindId};
 
 #[test]
 fn touching_an_actor_does_not_detonate_it_during_peace() {
@@ -99,6 +100,11 @@ fn closed_barrier_blocks_contact_detonation() {
     let kind = BarrierKindId(0);
     let layout = MapLayout {
         barriers: vec![Barrier {
+            id: Default::default(),
+
+            switch: None,
+            switch_inverted: false,
+
             x1: 0.0,
             z1: -2.0,
             x2: 0.0,
@@ -116,5 +122,11 @@ fn closed_barrier_blocks_contact_detonation() {
     let kinds = BarrierKindTable::from_ids(vec!["shield".into()]).expect("barrier catalog rejected");
     let world = CollisionWorld::from_map_layout(&layout, &kinds);
     assert!(!character_bodies_touch(&player, &actor, distance, &world, &[]));
-    assert!(character_bodies_touch(&player, &actor, distance, &world, &[kind]));
+    assert!(character_bodies_touch(
+        &player,
+        &actor,
+        distance,
+        &world,
+        &[BarrierId(u32::from(kind.0))]
+    ));
 }

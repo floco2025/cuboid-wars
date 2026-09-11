@@ -3,13 +3,13 @@ use rapier3d::parry::query;
 
 use crate::{
     math::from_rapier,
-    protocol::{BarrierKindId, BridgeKindId, CarrierId},
+    protocol::{BarrierId, BridgeId, CarrierId},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FieldKind {
-    Barrier(BarrierKindId),
-    Bridge(BridgeKindId),
+    Barrier(BarrierId),
+    Bridge(BridgeId),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

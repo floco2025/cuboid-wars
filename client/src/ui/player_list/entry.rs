@@ -119,7 +119,7 @@ pub(super) fn spawn_player_entry(
                             for &kind in key_kinds {
                                 let color = barrier_assets
                                     .filter(|_| player_info.held_keys.contains(&kind))
-                                    .map_or(HUD_SLOT_EMPTY_COLOR, |assets| assets.base_color(kind));
+                                    .map_or(HUD_SLOT_EMPTY_COLOR, |assets| assets.key_color(kind));
                                 spawn_key_icon(row, color, shapes);
                             }
                         });

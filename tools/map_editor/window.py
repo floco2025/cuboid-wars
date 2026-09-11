@@ -27,6 +27,7 @@ from .catalogs import (
     map_name_from_path,
     require_map_settings,
 )
+from .control_actions import ControlActionsMixin
 from .constants import (
     DEFAULT_ACTOR_COUNT,
     ERASE_MODES,
@@ -61,6 +62,7 @@ from .window_geometry import WindowGeometry
 
 
 class EditorWindow(
+    ControlActionsMixin,
     FileActionsMixin,
     NestedDefinitionsMixin,
     PlacementMixin,
@@ -96,11 +98,14 @@ class EditorWindow(
         self.shortcuts = []
         # The last values placed, shown in the toolbar and reused without a
         # prompt; the kinds start on the map's first listed kind.
+        self.recent_barrier_controls = {}
+        self.recent_bridge_controls = {}
         self.recent_checkpoint_type: str = "individual"
         self.recent_actor_spawn_kind: str = ""
         self.recent_actor_spawn_count: int = DEFAULT_ACTOR_COUNT
         # Empty = the zone has no switch.
         self.recent_actor_spawn_switch: str = ""
+        self.recent_actor_spawn_inverted = False
         first_kind = self.barrier_kinds[0] if self.barrier_kinds else None
         self.recent_barrier_kind: str | None = first_kind
         self.recent_pressure_plate_switch: str | None = self.switches[0] if self.switches else None
@@ -187,6 +192,10 @@ class EditorWindow(
         return list(self.bridge_kind_colors)
 
     @property
+    def key_kinds(self) -> list[str]:
+        return self.barrier_kinds
+
+    @property
     def switches(self) -> list[str]:
         return list(self.switch_ids)
 
@@ -229,7 +238,7 @@ class EditorWindow(
 
     # The whole document against the catalogs of `map_name`, or the adopted ones.
     def validate_document(self, data: dict, map_name: str | None = None) -> ValidationErrors:
-        catalogs = self.current_catalogs() if map_name is None else MapCatalogs.load(map_name)
+        catalogs = (self.current_catalogs() if map_name is None else MapCatalogs.load(map_name)).for_layout(data)
         return validate_document(
             data,
             catalogs,
@@ -251,6 +260,7 @@ class EditorWindow(
     # Every view, dialog, and validation reads the catalogs of one map;
     # opening, Save As, and a settings reload all switch them here.
     def adopt_catalogs(self, map_name: str, catalogs: MapCatalogs) -> None:
+        catalogs = catalogs.for_layout(self.doc.root_data)
         self.catalog_map = map_name
         self.barrier_kind_colors = catalogs.barrier_kind_colors
         self.bridge_kind_colors = catalogs.bridge_kind_colors
@@ -343,6 +353,7 @@ class EditorWindow(
         self.add_menu_action(edit_menu, "Auto-Place &Lights...", None, self.open_auto_place_lights_dialog)
         self.add_menu_action(edit_menu, "&Clear Lights On Level", None, self.clear_lights_on_current_level)
 
+        self.build_control_menu()
         view_menu = self.menuBar().addMenu("&View")
         self.add_menu_action(view_menu, "Next Level", QKeySequence(Qt.Key.Key_PageUp), self.next_level)
         self.add_menu_action(view_menu, "Previous Level", QKeySequence(Qt.Key.Key_PageDown), self.previous_level)
@@ -453,6 +464,7 @@ class EditorWindow(
         self.doc.apply_change(label, after)
 
     def refresh_ui(self) -> None:
+        self.adopt_catalogs(self.catalog_map, self.current_catalogs())
         self.map_combo.blockSignals(True)
         self.map_combo.clear()
         self.map_combo.addItem("Outer map", None)

@@ -12,7 +12,10 @@ use crate::{map::MapConfig, schedule::ticks_from_secs};
 use common::{
     config::MapGeometryConfig,
     map::MapGeometry,
-    protocol::{BarrierKindTable, BridgeKindTable, Carrier, CarrierId, MapLayout, MapSettings, SwitchId, SwitchTable},
+    protocol::{
+        BarrierId, BarrierKindTable, BridgeId, BridgeKindTable, Carrier, CarrierId, MapLayout, MapSettings, SwitchId,
+        SwitchTable,
+    },
 };
 
 // The map being played and every map it nests, into one layout and one
@@ -49,19 +52,15 @@ pub(crate) fn compile_map(
         kind_table,
         bridge_table,
         switch_table,
-        plate_barrier_kinds: settings
-            .barrier_kinds
-            .iter()
-            .filter(|def| {
-                def.switch
-                    .as_deref()
-                    .is_some_and(|switch| plated_switches.contains(switch))
-            })
-            .map(|def| def.id.as_str())
-            .collect(),
         plated_switches,
     };
     compile_tree(root, nested, &scope, CarrierId::WORLD, &mut out)?;
+    for (index, barrier) in out.layout.barriers.iter_mut().enumerate() {
+        barrier.id = BarrierId(u32::try_from(index).expect("barrier count exceeds u32"));
+    }
+    for (index, bridge) in out.layout.light_bridges.iter_mut().enumerate() {
+        bridge.id = BridgeId(u32::try_from(index).expect("bridge count exceeds u32"));
+    }
     // The renderer indexes the material vectors by segment position, so any
     // length divergence is a bug here, not in the client.
     assert_eq!(out.layout.walls.len(), out.layout.wall_materials.len());
@@ -76,10 +75,8 @@ pub(super) struct CompileScope<'a> {
     pub(super) kind_table: &'a BarrierKindTable,
     pub(super) bridge_table: &'a BridgeKindTable,
     pub(super) switch_table: &'a SwitchTable,
-    // Plate effects span the whole tree; actors may plan through these barriers and wait for physics to let them pass.
-    pub(super) plate_barrier_kinds: HashSet<&'a str>,
     // Switches some plate in the tree operates: a carrier or zone naming any other could never start.
-    plated_switches: HashSet<&'a str>,
+    pub(super) plated_switches: HashSet<&'a str>,
 }
 
 impl CompileScope<'_> {
@@ -163,6 +160,7 @@ fn carrier_from_motion(
     let from = end1 + Vec3::from(motion.from_nudge) * nudge_scale;
     let to = end2 + Vec3::from(motion.to_nudge) * nudge_scale;
     Carrier {
+        switch_inverted: motion.switch_inverted,
         parent,
         level: level.min(to_level),
         levels: level.abs_diff(to_level),

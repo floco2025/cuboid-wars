@@ -4,7 +4,7 @@ use common::{
     config::CharacterPhysicsConfig,
     map::Carriers,
     physics::{CharacterMovePlan, CharacterMovementResult, CharacterSupport, CollisionWorld},
-    protocol::{ActorMoveIntent, BarrierKindId, MapSettings, Position},
+    protocol::{ActorMoveIntent, BarrierId, MapSettings, Position},
 };
 
 #[derive(Copy, Clone)]
@@ -29,7 +29,7 @@ pub(super) struct ActorMoveContext<'a> {
     pub(super) collision_world: &'a CollisionWorld,
     pub(super) planned_moves: &'a [CharacterMovePlan],
     pub(super) actor_starts: &'a [(Entity, Position, CharacterPhysicsConfig)],
-    pub(super) open_barrier_kinds: &'a [BarrierKindId],
+    pub(super) open_barriers: &'a [BarrierId],
     pub(super) map_settings: &'a MapSettings,
     pub(super) can_use_ladders: bool,
     pub(super) knockback_step: Vec3,
@@ -88,7 +88,7 @@ impl ActorMoveContext<'_> {
             delta: self.delta,
             can_use_ladders: self.can_use_ladders,
             physics: self.actor_physics,
-            open_kinds: self.open_barrier_kinds,
+            open_kinds: self.open_barriers,
             collision_world: self.collision_world,
             map_settings: self.map_settings,
             carriers: self.carriers,

@@ -143,7 +143,7 @@ pub fn projectiles_movement_system(
                 &current_pos,
                 remaining_delta,
                 collision_world,
-                &world.plates.open_barrier_kinds,
+                &world.plates.open_barriers,
             );
             let portal_hop = world.portal_set.projectile_hop(
                 Vec3::from(current_pos),
@@ -176,7 +176,7 @@ pub fn projectiles_movement_system(
                         &current_pos,
                         remaining_delta,
                         collision_world,
-                        &world.plates.open_barrier_kinds,
+                        &world.plates.open_barriers,
                     );
                     assert!(hit, "field event missing its collision");
                     terminated = true;

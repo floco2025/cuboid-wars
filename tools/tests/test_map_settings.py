@@ -74,17 +74,16 @@ class MapSettingsTests(unittest.TestCase):
         path.write_text("{}")
         with self.assertRaisesRegex(ValueError, "settings.json: barrier_kinds"):
             load_map_barrier_kinds("hotel")
-        with self.assertRaisesRegex(ValueError, "settings.json: switches is required"):
-            load_map_switches("hotel")
+        self.assertEqual(load_map_switches("hotel"), [])
 
     def test_switch_catalog_keeps_its_order_and_rejects_bad_policies(self):
-        path = map_settings_path("hotel")
+        path = map_layout_path("hotel")
         path.parent.mkdir(parents=True)
         good = [
             {"id": "lobby", "activation": "auto", "reset_on_player_death": "never"},
             {"id": "finale", "activation": "momentary", "reset_on_player_death": "all", "held": "everyone"},
         ]
-        path.write_text(json.dumps({"switches": good}))
+        path.write_text(json.dumps({"map": {"switch_kinds": good}}))
         self.assertEqual(load_map_switches("hotel"), ["lobby", "finale"])
         for bad, message in [
             ([{"id": "", "activation": "auto", "reset_on_player_death": "never"}], "id is empty"),
@@ -96,7 +95,7 @@ class MapSettingsTests(unittest.TestCase):
             ([{"activation": "auto", "reset_on_player_death": "never"}], "string `id`"),
             ({}, "must be an array"),
         ]:
-            path.write_text(json.dumps({"switches": bad}))
+            path.write_text(json.dumps({"map": {"switch_kinds": bad}}))
             with self.assertRaisesRegex(ValueError, message):
                 load_map_switches("hotel")
 
@@ -104,15 +103,18 @@ class MapSettingsTests(unittest.TestCase):
         path = map_settings_path("hotel")
         path.parent.mkdir(parents=True)
         path.write_text(json.dumps({
-            "switches": [{"id": "door"}, {"id": "bridge"}, {"id": "show", "plate_color": "#9b5de5"}, {"id": "other"}],
-            "barrier_kinds": [{"id": "green", "color": "#22cc33", "switch": "door"}],
-            "bridge_kinds": [{"id": "cyan", "color": "#30d8ff", "switch": "bridge"}],
+            "barrier_kinds": [{"id": "green", "color": "#22cc33"}],
+            "bridge_kinds": [{"id": "cyan", "color": "#30d8ff"}],
         }))
+        data = empty_map(3, 3)
+        data["switch_kinds"] = [{"id": "door"}, {"id": "bridge"}, {"id": "show", "plate_color": "#9b5de5"}, {"id": "other"}]
+        data["levels"][0]["barriers"] = [{"c0": 0, "r0": 0, "c1": 1, "r1": 0, "kind": "green", "switch": "door"}]
+        data["levels"][0]["light_bridges"] = [{"col": 0, "row": 0, "kind": "cyan", "switch": "bridge"}]
+        write_map(map_layout_path("hotel"), data)
         colors = load_map_plate_colors("hotel")
         self.assertEqual(colors, {"door": "#22cc33", "bridge": "#30d8ff", "show": "#9b5de5", "other": "#2c99bc"})
-        settings = json.loads(path.read_text())
-        settings["switches"][0]["plate_color"] = "#ffaa00"
-        path.write_text(json.dumps(settings))
+        data["switch_kinds"][0]["plate_color"] = "#ffaa00"
+        write_map(map_layout_path("hotel"), data)
         self.assertEqual(load_map_plate_colors("hotel")["door"], "#ffaa00")
 
     def test_layout_identity_comes_from_the_folder(self):

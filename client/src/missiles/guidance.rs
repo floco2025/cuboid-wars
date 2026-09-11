@@ -11,7 +11,7 @@ use common::{
     config::MissilesConfig,
     map::Carriers,
     physics::CollisionWorld,
-    protocol::{BarrierKindId, Position},
+    protocol::{BarrierId, Position},
 };
 use std::collections::VecDeque;
 
@@ -36,7 +36,7 @@ pub fn guide_missile(
     air_graph: &AirGraph,
     carriers: &Carriers,
     world: &CollisionWorld,
-    open_kinds: &[BarrierKindId],
+    open_kinds: &[BarrierId],
     pos: Position,
     target: Option<Vec3>,
     velocity: Vec3,
@@ -78,7 +78,7 @@ pub fn guide_missile(
 
 fn proximity_detonation(
     world: &CollisionWorld,
-    open_kinds: &[BarrierKindId],
+    open_kinds: &[BarrierId],
     origin: Vec3,
     travel: Vec3,
     target: Vec3,
@@ -97,7 +97,7 @@ fn guided_velocity(
     air_graph: &AirGraph,
     carriers: &Carriers,
     world: &CollisionWorld,
-    open_kinds: &[BarrierKindId],
+    open_kinds: &[BarrierId],
     origin: Vec3,
     target: Vec3,
     velocity: Vec3,
@@ -182,7 +182,7 @@ fn route_objective(
     air_graph: &AirGraph,
     carriers: &Carriers,
     collision_world: &CollisionWorld,
-    open_kinds: &[BarrierKindId],
+    open_kinds: &[BarrierId],
     origin: Vec3,
     target_center: Vec3,
     radius: f32,
@@ -240,7 +240,7 @@ fn route_objective(
 fn dodge_objective(
     info: &mut MissileFlight,
     collision_world: &CollisionWorld,
-    open_kinds: &[BarrierKindId],
+    open_kinds: &[BarrierId],
     origin: Vec3,
     aim_point: Vec3,
     missile_speed: f32,
@@ -280,7 +280,7 @@ fn route_clear(
     origin: Vec3,
     target: Vec3,
     world: &CollisionWorld,
-    open_kinds: &[BarrierKindId],
+    open_kinds: &[BarrierId],
     radius: f32,
     fuse_distance: f32,
 ) -> bool {
@@ -298,7 +298,7 @@ fn advance_waypoints(
     path: &mut VecDeque<Vec3>,
     origin: Vec3,
     world: &CollisionWorld,
-    open_kinds: &[BarrierKindId],
+    open_kinds: &[BarrierId],
     radius: f32,
 ) {
     // Near a corner is not past it: skip only waypoints with a clear shortcut.

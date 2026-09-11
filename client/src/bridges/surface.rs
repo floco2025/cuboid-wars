@@ -19,6 +19,8 @@ pub(super) fn bridge_visuals(layout: &MapLayout) -> Vec<BridgeVisual> {
         if let Some(group) = groups.iter_mut().find(|group| {
             let other = &group.bridge;
             other.kind == bridge.kind
+                && other.switch == bridge.switch
+                && other.switch_inverted == bridge.switch_inverted
                 && other.carrier == bridge.carrier
                 && other.level == bridge.level
                 && other.y == bridge.y

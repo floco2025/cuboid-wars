@@ -6,13 +6,28 @@ import copy
 
 from PySide6.QtWidgets import QMessageBox
 
-from .dialogs import AutoPlaceLightsDialog
+from .dialogs import AutoPlaceLightsDialog, KindDialog
+from .editing import update_records
 from .geometry import cell_side_from_click, ramp_cells_on_level, wall_endpoints_for_cell_side
 from .normalization import edge_key, level_label, light_key, light_placement_error
 
 
 class LightsMixin:
     # === Lights ===
+
+    def edit_light_at(self, col: int, row: int, side: str) -> None:
+        def matches(light: dict) -> bool:
+            return (light["col"], light["row"], light["side"]) == (col, row, side)
+
+        light = next((light for light in self.map_data["levels"][self.current_level]["lights"] if matches(light)), None)
+        if light is None:
+            return
+        title = "Edit Light"
+        kind = KindDialog.prompt(self, title, self.wall_light_kinds, light.get("kind"), "style")
+        if kind is None or kind == light.get("kind"):
+            return
+        after = update_records(self.map_data, "lights", matches, {"kind": kind}, self.current_level)
+        self.apply_change(title, after)
 
     def add_light_at(self, pos) -> None:
         px = pos.x()

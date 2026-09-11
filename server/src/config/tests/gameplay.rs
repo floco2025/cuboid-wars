@@ -30,6 +30,11 @@ impl TestConfigDir {
         let directory = self.0.join("maps").join(name);
         fs::create_dir_all(&directory).expect("temporary map directory unavailable");
         fs::write(directory.join("settings.json"), text).expect("temporary map settings unwritable");
+        fs::write(
+            directory.join("layout.json"),
+            include_str!("../../../../config/server/maps/hotel/layout.json"),
+        )
+        .expect("temporary map layout unwritable");
     }
 
     fn load(&self) -> Result<ServerGameplayConfig> {
@@ -44,7 +49,7 @@ impl Drop for TestConfigDir {
 }
 
 #[test]
-fn settings_resolve_beside_global_config_without_loading_layouts_or_unregistered_folders() {
+fn settings_and_controls_resolve_beside_global_config_without_loading_unregistered_folders() {
     let directory = TestConfigDir::new();
     let mut settings: Value = serde_json::from_str(include_str!("../../../../config/server/maps/hotel/settings.json"))
         .expect("hotel settings JSON invalid");
@@ -55,7 +60,8 @@ fn settings_resolve_beside_global_config_without_loading_layouts_or_unregistered
     assert_eq!(loaded.default_map, "hotel");
     assert_eq!(loaded.maps.len(), 1);
     assert_eq!(loaded.maps["hotel"].settings.skybox, "custom-sky");
-    assert!(!directory.0.join("maps/hotel/layout.json").exists());
+    assert_eq!(loaded.maps["hotel"].settings.switches[0].id, "lobby");
+    assert!(loaded.maps["hotel"].fireworks.is_some());
 }
 
 #[test]

@@ -8,6 +8,11 @@ const GREEN: BarrierKindId = BarrierKindId(2);
 
 fn h(x1: f32, x2: f32, z: f32, kind: BarrierKindId) -> Barrier {
     Barrier {
+        id: Default::default(),
+
+        switch: None,
+        switch_inverted: false,
+
         x1,
         x2,
         z1: z,
@@ -24,6 +29,11 @@ fn h(x1: f32, x2: f32, z: f32, kind: BarrierKindId) -> Barrier {
 
 fn v(x: f32, z1: f32, z2: f32, kind: BarrierKindId) -> Barrier {
     Barrier {
+        id: Default::default(),
+
+        switch: None,
+        switch_inverted: false,
+
         x1: x,
         x2: x,
         z1,
@@ -40,6 +50,9 @@ fn v(x: f32, z1: f32, z2: f32, kind: BarrierKindId) -> Barrier {
 
 fn edge(c0: i32, r0: i32, c1: i32, r1: i32, kind: BarrierKindId) -> BarrierEdge {
     BarrierEdge {
+        switch: None,
+        switch_inverted: false,
+
         edge: [c0, r0, c1, r1],
         kind,
     }

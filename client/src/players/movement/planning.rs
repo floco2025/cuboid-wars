@@ -77,7 +77,7 @@ pub(crate) fn plan_player_moves(
             delta,
             has_low_gravity,
             held_keys,
-            open_kinds: &plates.open_barrier_kinds,
+            open_kinds: &plates.open_barriers,
             knockback,
             airborne_momentum: &mut airborne_momentum,
             collision_world,

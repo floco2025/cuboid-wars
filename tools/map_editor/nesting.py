@@ -23,6 +23,7 @@ class NestedMotion:
     to_nudge: Nudge
     # The switch that runs the motion; `None` runs it from the start.
     switch: str | None = None
+    switch_inverted: bool = False
 
     @classmethod
     def from_entry(cls, entry: dict) -> "NestedMotion":
@@ -35,6 +36,7 @@ class NestedMotion:
             tuple(entry["from_nudge"]),
             tuple(entry["to_nudge"]),
             entry.get("switch") or None,
+            entry.get("switch_inverted", False),
         )
 
     def to_entry(self) -> dict:
@@ -49,6 +51,7 @@ class NestedMotion:
         }
         if self.switch:
             entry["switch"] = self.switch
+            entry["switch_inverted"] = self.switch_inverted
         return entry
 
 

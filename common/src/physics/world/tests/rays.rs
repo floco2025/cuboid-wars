@@ -1,4 +1,5 @@
 use super::*;
+use crate::protocol::BarrierId;
 
 #[test]
 fn ground_surface_below_hits_floor_instead_of_wall_top() {
@@ -72,6 +73,11 @@ fn world_surface_along_ray_returns_none_in_the_open() {
 fn wall_surface_along_ray_ignores_barrier() {
     let mut layout = test_map_layout();
     layout.barriers.push(Barrier {
+        id: Default::default(),
+
+        switch: None,
+        switch_inverted: false,
+
         x1: 0.0,
         z1: 1.0,
         x2: 4.0,
@@ -100,6 +106,11 @@ fn portal_shots_only_pass_blocking_barriers_when_the_kind_is_globally_open() {
     layout.floors.clear();
     layout.ramps.clear();
     layout.barriers.push(Barrier {
+        id: Default::default(),
+
+        switch: None,
+        switch_inverted: false,
+
         x1: 0.0,
         z1: 2.0,
         x2: 4.0,
@@ -115,9 +126,9 @@ fn portal_shots_only_pass_blocking_barriers_when_the_kind_is_globally_open() {
     let table = BarrierKindTable::from_ids(vec!["red".into(), "blue".into()]).expect("barrier catalog rejected");
     let world = CollisionWorld::from_map_layout(&layout, &table);
     let origin = Vec3::new(2.0, LEVEL_HEIGHT + 1.5, 4.0);
-    for open in [vec![], vec![BarrierKindId(1)], vec![BarrierKindId(0)]] {
+    for open in [vec![], vec![BarrierId(1)], vec![BarrierId(0)]] {
         let hit = world.portal_surface_along_ray(origin, Vec3::NEG_Z, 10.0, &open);
-        assert_eq!(hit.is_some(), open.contains(&BarrierKindId(0)));
+        assert_eq!(hit.is_some(), open.contains(&BarrierId(0)));
         if let Some(hit) = hit {
             assert!(hit.point.z < 1.0, "portal landed on the barrier instead of the wall");
         }
@@ -129,6 +140,11 @@ fn barriers_are_transparent_cover_until_globally_opened() {
     let kind = BarrierKindId(0);
     let layout = MapLayout {
         barriers: vec![Barrier {
+            id: Default::default(),
+
+            switch: None,
+            switch_inverted: false,
+
             x1: -3.0,
             z1: 0.0,
             x2: 3.0,
@@ -150,8 +166,8 @@ fn barriers_are_transparent_cover_until_globally_opened() {
         (Vec3::new(0.0, 1.0, 2.0), Vec3::new(0.0, 1.0, -2.0)),
     ] {
         assert!(world.line_of_sight_clear(from, to));
-        for open in [&[][..], &[BarrierKindId(1)], &[kind], &[]] {
-            let blocked = !open.contains(&kind);
+        for open in [&[][..], &[BarrierId(1)], &[BarrierId(u32::from(kind.0))], &[]] {
+            let blocked = !open.contains(&BarrierId(u32::from(kind.0)));
             assert_eq!(!world.attack_path_clear(from, to, open), blocked);
             assert_eq!(
                 world.attack_surface_along_ray(from, to - from, 4.0, open).is_some(),

@@ -34,6 +34,9 @@ fn compile_resolves_known_barrier_kind() {
         Vec::new(),
     );
     map_def.levels[0].barriers.push(BarrierDef {
+        switch: None,
+        switch_inverted: false,
+
         c0: 0,
         r0: 0,
         c1: 1,
@@ -56,6 +59,9 @@ fn stacked_barriers_compile_into_one_record_when_no_floor_splits_them() {
     );
     for level in &mut map_def.levels {
         level.barriers.push(BarrierDef {
+            switch: None,
+            switch_inverted: false,
+
             c0: 0,
             r0: 0,
             c1: 1,
@@ -81,6 +87,9 @@ fn a_floor_beside_the_upper_barrier_keeps_the_storeys_apart() {
     );
     for level in &mut map_def.levels {
         level.barriers.push(BarrierDef {
+            switch: None,
+            switch_inverted: false,
+
             c0: 0,
             r0: 0,
             c1: 1,
@@ -104,6 +113,9 @@ fn pressure_plate_barrier_is_open_for_pathfinding() {
     );
     // Vertical edge between cols 0 and 1 → `vertical[0][1]`; kind "red" has a plate.
     map_def.levels[0].barriers.push(BarrierDef {
+        switch: Some("red".into()),
+        switch_inverted: false,
+
         c0: 1,
         r0: 0,
         c1: 1,
@@ -112,6 +124,9 @@ fn pressure_plate_barrier_is_open_for_pathfinding() {
     });
     // Vertical edge between cols 1 and 2 → `vertical[0][2]`; kind "blue" has none.
     map_def.levels[0].barriers.push(BarrierDef {
+        switch: None,
+        switch_inverted: false,
+
         c0: 2,
         r0: 0,
         c1: 2,
@@ -298,7 +313,7 @@ fn portal_shots_cannot_leak_through_compiled_bridge_landing_seams_or_outer_edges
         geometry.cell_to_world_z(0) + 0.5,
         geometry.cell_to_world_z(1) + pad - 1e-3,
     ];
-    world.set_powered_bridges(&[BridgeKindId(0)]);
+    world.set_powered_bridges(&layout.light_bridges.iter().map(|bridge| bridge.id).collect::<Vec<_>>());
     for z in zs {
         for x in [floor_edge - 1e-3, floor_edge, floor_edge + 1e-3, bridge_edge - 1e-3] {
             let origin = Vec3::new(x, LEVEL_HEIGHT + 2.0, z);
@@ -344,6 +359,9 @@ fn compile_rejects_unknown_barrier_kind() {
         Vec::new(),
     );
     map_def.levels[0].barriers.push(BarrierDef {
+        switch: None,
+        switch_inverted: false,
+
         c0: 0,
         r0: 0,
         c1: 1,
@@ -369,6 +387,9 @@ fn compile_resolves_three_distinct_kinds() {
         Vec::new(),
     );
     map_def.levels[0].barriers.push(BarrierDef {
+        switch: None,
+        switch_inverted: false,
+
         c0: 0,
         r0: 0,
         c1: 1,
@@ -376,6 +397,9 @@ fn compile_resolves_three_distinct_kinds() {
         kind: "red".into(),
     });
     map_def.levels[0].barriers.push(BarrierDef {
+        switch: None,
+        switch_inverted: false,
+
         c0: 1,
         r0: 0,
         c1: 2,
@@ -383,6 +407,9 @@ fn compile_resolves_three_distinct_kinds() {
         kind: "blue".into(),
     });
     map_def.levels[0].barriers.push(BarrierDef {
+        switch: None,
+        switch_inverted: false,
+
         c0: 2,
         r0: 0,
         c1: 3,
@@ -551,4 +578,70 @@ fn eraser_edges_compile_to_full_storey_volumes_without_solid_geometry() {
     assert_eq!(field.z2, geometry.cell_to_world_z(1));
     assert!(layout.barriers.is_empty());
     assert!(layout.walls.is_empty());
+}
+
+#[test]
+fn same_appearance_targets_keep_independent_controls_and_instance_ids() {
+    let mut map = map_with_zones(
+        4,
+        vec![level(vec![[0, 0], [3, 0]])],
+        Vec::new(),
+        vec![player_zone(0, 0, 0)],
+        Vec::new(),
+    );
+    for (col, switch) in [(0, "red"), (3, "blue")] {
+        map.pressure_plates.push(PressurePlateDef {
+            level: 0,
+            col,
+            row: 0,
+            switch: switch.into(),
+        });
+    }
+    for (col, switch) in [(0, Some("red")), (1, Some("blue")), (2, None)] {
+        map.levels[0].barriers.push(BarrierDef {
+            c0: col,
+            r0: 1,
+            c1: col + 1,
+            r1: 1,
+            kind: "red".into(),
+            switch: switch.map(str::to_owned),
+            switch_inverted: switch == Some("blue"),
+        });
+    }
+    for (col, switch) in [(1, "red"), (2, "blue")] {
+        map.levels[0].light_bridges.push(LightBridgeDef {
+            col,
+            row: 2,
+            kind: "skyway".into(),
+            switch: Some(switch.into()),
+            switch_inverted: switch == "blue",
+        });
+    }
+    let (layout, _) = compile_with(&map, &no_nested(), &three_kind_table(), &skyway_bridge_table())
+        .expect("independent targets rejected");
+    assert_eq!(layout.barriers.len(), 3);
+    assert!(layout.barriers.windows(2).all(|pair| pair[0].id != pair[1].id));
+    assert!(
+        layout
+            .barriers
+            .iter()
+            .all(|barrier| barrier.kind == layout.barriers[0].kind)
+    );
+    assert!(layout.barriers.iter().any(|barrier| barrier.switch.is_none()));
+    assert_eq!(
+        layout.barriers.iter().filter(|barrier| barrier.switch_inverted).count(),
+        1
+    );
+    let bridges = &layout.light_bridges;
+    assert!(bridges.iter().any(|bridge| !bridge.switch_inverted));
+    assert!(bridges.iter().any(|bridge| bridge.switch_inverted));
+    for (index, bridge) in bridges.iter().enumerate() {
+        assert_eq!(bridge.kind, bridges[0].kind);
+        let name = if bridge.switch_inverted { "blue" } else { "red" };
+        assert_eq!(
+            bridge.switch,
+            Some(switch_id(&three_kind_table(), &skyway_bridge_table(), name))
+        );
+        assert!(bridges[index + 1..].iter().all(|other| bridge.id != other.id));
+    }
 }

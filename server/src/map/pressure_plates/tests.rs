@@ -32,14 +32,14 @@ use common::{
     map::{CarrierRun, Carriers, MapGeometry},
     physics::CollisionWorld,
     protocol::{
-        BarrierKindId, BridgeKindId, Carrier, CarrierId, HexColor, KindDef, LightBridge, MapLayout, MapSettings,
-        PlateState, PlayerId, PlayerMarker, PortalMode, Position, QuestId, QuestScope, ServerMessage, ServerTick,
-        SwitchDef, SwitchId, server_tick_advance_system,
+        Barrier, BarrierId, BarrierKindId, BridgeId, BridgeKindId, Carrier, CarrierId, HexColor, KindDef, LightBridge,
+        MapLayout, MapSettings, PlateState, PlayerId, PlayerMarker, PortalMode, Position, QuestId, QuestScope,
+        ServerMessage, ServerTick, SwitchDef, SwitchId, server_tick_advance_system,
     },
 };
 
-const LOBBY: BarrierKindId = BarrierKindId(0);
-const SKYWAY: BridgeKindId = BridgeKindId(0);
+const LOBBY: BarrierId = BarrierId(0);
+const SKYWAY: BridgeId = BridgeId(0);
 // The harness switches, in catalog order: the lobby barriers', the skyway
 // bridges', the fireworks', and one nothing names.
 const LOBBY_SWITCH: SwitchId = SwitchId(0);
@@ -233,7 +233,41 @@ fn app(config: ServerGameplayConfig, plates: Vec<PressurePlateRuntime>) -> App {
     app_with_layout(config, plates, MapLayout::default())
 }
 
-fn app_with_layout(config: ServerGameplayConfig, plates: Vec<PressurePlateRuntime>, layout: MapLayout) -> App {
+fn app_with_layout(config: ServerGameplayConfig, plates: Vec<PressurePlateRuntime>, mut layout: MapLayout) -> App {
+    if layout.barriers.is_empty() {
+        layout.barriers.push(Barrier {
+            id: LOBBY,
+            kind: BarrierKindId(0),
+            switch: Some(LOBBY_SWITCH),
+            switch_inverted: false,
+            x1: 100.0,
+            z1: 100.0,
+            x2: 102.0,
+            z2: 100.0,
+            width: 0.1,
+            y: 0.0,
+            height: 2.0,
+            level: 0,
+            levels: 1,
+            carrier: CarrierId::WORLD,
+        });
+    }
+    if layout.light_bridges.is_empty() {
+        layout.light_bridges.push(LightBridge {
+            id: SKYWAY,
+            kind: BridgeKindId(0),
+            switch: Some(SKYWAY_SWITCH),
+            switch_inverted: false,
+            x1: 100.0,
+            z1: 100.0,
+            x2: 102.0,
+            z2: 102.0,
+            y: 0.0,
+            thickness: 0.1,
+            level: 0,
+            carrier: CarrierId::WORLD,
+        });
+    }
     let quest_catalog = QuestCatalog::from_config(&config);
     let board = QuestBoard::from_catalog(&quest_catalog, Some(FIREWORKS_SWITCH));
     let settings = harness_settings(&config);
@@ -266,6 +300,8 @@ fn app_with_layout(config: ServerGameplayConfig, plates: Vec<PressurePlateRuntim
         .insert_resource(bridge_table)
         .insert_resource(switch_table)
         .insert_resource(MapFireworks(Some(FireworksConfig {
+            switch_inverted: false,
+
             switch: "fireworks".to_owned(),
             cooldown_secs: FIREWORK_COOLDOWN_SECS,
         })))
@@ -278,11 +314,10 @@ fn app_with_layout(config: ServerGameplayConfig, plates: Vec<PressurePlateRuntim
     app
 }
 
-fn kind(id: &str, switch: &str) -> KindDef {
+fn kind(id: &str, _switch: &str) -> KindDef {
     KindDef {
         id: id.to_owned(),
         color: HexColor([0; 3]),
-        switch: Some(switch.to_owned()),
     }
 }
 
@@ -336,12 +371,12 @@ fn step_onto_second_plate(app: &mut App, entity: Entity) {
         .expect("player position missing") = pos;
 }
 
-fn open_kinds(app: &App) -> Vec<BarrierKindId> {
-    app.world().resource::<PlateState>().open_barrier_kinds.clone()
+fn open_kinds(app: &App) -> Vec<BarrierId> {
+    app.world().resource::<PlateState>().open_barriers.clone()
 }
 
-fn powered_kinds(app: &App) -> Vec<BridgeKindId> {
-    app.world().resource::<PlateState>().powered_bridge_kinds.clone()
+fn powered_kinds(app: &App) -> Vec<BridgeId> {
+    app.world().resource::<PlateState>().powered_bridges.clone()
 }
 
 fn active_switches(app: &App) -> Vec<SwitchId> {
@@ -680,9 +715,7 @@ fn a_barrier_plate_never_powers_a_bridge_kind() {
 #[test]
 fn one_switch_opens_a_barrier_kind_and_powers_a_bridge_kind_together() {
     let mut app = app(catalog(Vec::new()), vec![lobby_plate()]);
-    let mut settings = app.world().resource::<MapSettings>().clone();
-    settings.bridge_kinds[0].switch = Some("lobby".to_owned());
-    app.insert_resource(settings);
+    app.world_mut().resource_mut::<MapLayout>().light_bridges[0].switch = Some(LOBBY_SWITCH);
     let switches = PressureSwitches::from_world(app.world_mut());
     app.insert_resource(switches);
 
@@ -717,6 +750,8 @@ fn a_plate_whose_switch_has_no_targets_still_clicks_and_feeds() {
 fn switched_carrier_layout() -> MapLayout {
     MapLayout {
         carriers: vec![Carrier {
+            switch_inverted: false,
+
             parent: CarrierId::WORLD,
             level: 0,
             levels: 0,
@@ -1168,6 +1203,10 @@ fn bridge_collision_loses_power_on_the_death_or_logout_tick() {
         app.insert_resource(CollisionWorld::from_map_layout(
             &MapLayout {
                 light_bridges: vec![LightBridge {
+                    id: Default::default(),
+                    switch: None,
+                    switch_inverted: false,
+
                     x1: -1.0,
                     x2: 1.0,
                     z1: -1.0,
@@ -1175,7 +1214,7 @@ fn bridge_collision_loses_power_on_the_death_or_logout_tick() {
                     y: 0.0,
                     thickness: 0.1,
                     level: 0,
-                    kind: SKYWAY,
+                    kind: BridgeKindId(0),
                     carrier: CarrierId::WORLD,
                 }],
                 ..default()
@@ -1315,4 +1354,63 @@ fn toggle_switches_reset_before_a_dead_player_respawns() {
             .expect("respawned player missing")
             .is_dead()
     );
+}
+
+#[test]
+fn same_kind_fields_and_an_inverted_carrier_respond_per_target() {
+    let mut layout = switched_carrier_layout();
+    layout.carriers[0].switch_inverted = true;
+    let mut app = app_with_layout(catalog(vec![]), vec![lobby_plate()], layout);
+    {
+        let mut layout = app.world_mut().resource_mut::<MapLayout>();
+        let mut opposite = layout.barriers[0];
+        opposite.id = BarrierId(1);
+        opposite.switch_inverted = true;
+        layout.barriers.push(opposite);
+        opposite.id = BarrierId(2);
+        opposite.switch = None;
+        layout.barriers.push(opposite);
+        layout.light_bridges[0].switch = Some(LOBBY_SWITCH);
+        let mut opposite = layout.light_bridges[0];
+        opposite.id = BridgeId(1);
+        opposite.switch_inverted = true;
+        layout.light_bridges.push(opposite);
+    }
+    configure_switches(&mut app, PressureSwitchActivation::Momentary, DeathTrigger::Never);
+    app.update();
+    assert_eq!(open_kinds(&app), [BarrierId(1)]);
+    assert_eq!(powered_kinds(&app), [BridgeId(1)]);
+    assert!(carrier_run(&app).running);
+    let (player, _) = standing_player(&mut app, 1);
+    app.update();
+    assert_eq!(open_kinds(&app), [LOBBY]);
+    assert_eq!(powered_kinds(&app), [SKYWAY]);
+    assert!(!carrier_run(&app).running);
+    step_off(&mut app, player);
+    app.update();
+    assert_eq!(open_kinds(&app), [BarrierId(1)]);
+    assert_eq!(powered_kinds(&app), [BridgeId(1)]);
+    assert!(carrier_run(&app).running);
+}
+
+#[test]
+fn inverted_fireworks_wait_for_unlock_and_stop_while_the_kind_is_on() {
+    let mut app = app(catalog(vec![]), vec![]);
+    app.world_mut()
+        .resource_mut::<MapFireworks>()
+        .0
+        .as_mut()
+        .expect("fireworks missing")
+        .switch_inverted = true;
+    let mut switches = PressureSwitches::from_world(app.world_mut());
+    assert!(!switches.fireworks_due(0, &[FIREWORKS_SWITCH]));
+    assert!(switches.fireworks_due(0, &[]));
+    let plates = [PressurePlateRuntime {
+        switch: FIREWORKS_SWITCH,
+        ..lobby_plate()
+    }];
+    switches.update(1, 1, HashSet::from([0]), &plates, 1);
+    assert!(!switches.fireworks_due(10000, &[]));
+    switches.update(1, 1, HashSet::new(), &plates, 10001);
+    assert!(switches.fireworks_due(10001, &[]));
 }
