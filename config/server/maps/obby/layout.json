@@ -5,18 +5,18 @@
     "grid_cols": 100,
     "grid_rows": 40,
     "actor_spawn_zones": [
-      {"level": 5, "cols": [36, 38], "rows": [20, 22], "kind": "scuttler", "count": 6, "respawn_secs": 10, "switch": "bridge_1", "switch_inverted": false}
+      {"level": 5, "cols": [38, 40], "rows": [20, 22], "kind": "scuttler", "count": 6, "respawn_secs": 5, "switch": "bridge_1", "switch_inverted": false}
     ],
     "player_spawn_zones": [
-      {"level": 5, "cols": [38, 40], "rows": [8, 10]}
+      {"level": 5, "cols": [40, 42], "rows": [8, 10]}
     ],
     "checkpoints": [
-      {"level": 5, "cols": [36, 38], "rows": [8, 10], "type": "individual"}
+      {"level": 5, "cols": [38, 40], "rows": [8, 10], "type": "individual"}
     ],
     "pressure_plates": [
       {"level": 0, "col": 3, "row": 10, "switch": "bridge_1"},
-      {"level": 5, "col": 36, "row": 11, "switch": "bridge_1"},
-      {"level": 5, "col": 37, "row": 11, "switch": "bridge_1"}
+      {"level": 5, "col": 38, "row": 11, "switch": "bridge_1"},
+      {"level": 5, "col": 39, "row": 11, "switch": "bridge_1"}
     ],
     "items": [
       {"level": 0, "col": 6, "row": 7, "type": "speed"},
@@ -39,8 +39,14 @@
       {"level": 3, "col": 31, "row": 8, "type": "speed"},
       {"level": 3, "col": 31, "row": 9, "type": "speed"},
       {"level": 3, "col": 31, "row": 10, "type": "speed"},
-      {"level": 5, "col": 35, "row": 17, "type": "single_shot"},
-      {"level": 5, "col": 38, "row": 17, "type": "single_shot"}
+      {"level": 5, "col": 36, "row": 16, "type": "key", "kind": "barrier_1"},
+      {"level": 5, "col": 37, "row": 16, "type": "key", "kind": "barrier_1"},
+      {"level": 5, "col": 40, "row": 16, "type": "key", "kind": "barrier_1"},
+      {"level": 5, "col": 41, "row": 16, "type": "key", "kind": "barrier_1"},
+      {"level": 5, "col": 36, "row": 17, "type": "single_shot"},
+      {"level": 5, "col": 37, "row": 17, "type": "single_shot"},
+      {"level": 5, "col": 40, "row": 17, "type": "single_shot"},
+      {"level": 5, "col": 41, "row": 17, "type": "single_shot"}
     ],
     "levels": [
       {
@@ -225,19 +231,9 @@
         "floors": [],
         "inaccessible_floors": [],
         "grass": [],
-        "walls": [
-          {"c0": 27, "r0": 7, "c1": 28, "r1": 7, "all": "basement-floor"},
-          {"c0": 27, "r0": 11, "c1": 28, "r1": 11, "all": "basement-floor"},
-          {"c0": 28, "r0": 7, "c1": 29, "r1": 7, "all": "basement-floor"},
-          {"c0": 28, "r0": 11, "c1": 29, "r1": 11, "all": "basement-floor"}
-        ],
+        "walls": [],
         "barriers": [],
-        "erasers": [
-          {"c0": 28, "r0": 7, "c1": 28, "r1": 8},
-          {"c0": 28, "r0": 8, "c1": 28, "r1": 9},
-          {"c0": 28, "r0": 9, "c1": 28, "r1": 10},
-          {"c0": 28, "r0": 10, "c1": 28, "r1": 11}
-        ],
+        "erasers": [],
         "light_bridges": [],
         "lights": []
       },
@@ -250,70 +246,94 @@
           {"col": 37, "row": 7, "all": "basement-floor"},
           {"col": 38, "row": 7, "all": "basement-floor"},
           {"col": 39, "row": 7, "all": "basement-floor"},
+          {"col": 40, "row": 7, "all": "basement-floor"},
+          {"col": 41, "row": 7, "all": "basement-floor"},
           {"col": 34, "row": 8, "all": "basement-floor"},
           {"col": 35, "row": 8, "all": "basement-floor"},
           {"col": 36, "row": 8, "all": "basement-floor"},
           {"col": 37, "row": 8, "all": "basement-floor"},
           {"col": 38, "row": 8, "all": "basement-floor"},
           {"col": 39, "row": 8, "all": "basement-floor"},
+          {"col": 40, "row": 8, "all": "basement-floor"},
+          {"col": 41, "row": 8, "all": "basement-floor"},
           {"col": 34, "row": 9, "all": "basement-floor"},
           {"col": 35, "row": 9, "all": "basement-floor"},
           {"col": 36, "row": 9, "all": "basement-floor"},
           {"col": 37, "row": 9, "all": "basement-floor"},
           {"col": 38, "row": 9, "all": "basement-floor"},
           {"col": 39, "row": 9, "all": "basement-floor"},
+          {"col": 40, "row": 9, "all": "basement-floor"},
+          {"col": 41, "row": 9, "all": "basement-floor"},
           {"col": 34, "row": 10, "all": "basement-floor"},
           {"col": 35, "row": 10, "all": "basement-floor"},
           {"col": 36, "row": 10, "all": "basement-floor"},
           {"col": 37, "row": 10, "all": "basement-floor"},
           {"col": 38, "row": 10, "all": "basement-floor"},
           {"col": 39, "row": 10, "all": "basement-floor"},
-          {"col": 34, "row": 11, "all": "basement-floor"},
-          {"col": 35, "row": 11, "all": "basement-floor"},
+          {"col": 40, "row": 10, "all": "basement-floor"},
+          {"col": 41, "row": 10, "all": "basement-floor"},
           {"col": 36, "row": 11, "all": "basement-floor"},
           {"col": 37, "row": 11, "all": "basement-floor"},
           {"col": 38, "row": 11, "all": "basement-floor"},
           {"col": 39, "row": 11, "all": "basement-floor"},
-          {"col": 34, "row": 12, "all": "basement-floor"},
-          {"col": 35, "row": 12, "all": "basement-floor"},
+          {"col": 40, "row": 11, "all": "basement-floor"},
+          {"col": 41, "row": 11, "all": "basement-floor"},
           {"col": 36, "row": 12, "all": "basement-floor"},
           {"col": 37, "row": 12, "all": "basement-floor"},
           {"col": 38, "row": 12, "all": "basement-floor"},
           {"col": 39, "row": 12, "all": "basement-floor"},
-          {"col": 35, "row": 17, "all": "basement-floor"},
-          {"col": 38, "row": 17, "all": "basement-floor"},
-          {"col": 36, "row": 20, "all": "basement-floor"},
-          {"col": 37, "row": 20, "all": "basement-floor"},
-          {"col": 36, "row": 21, "all": "basement-floor"},
-          {"col": 37, "row": 21, "all": "basement-floor"},
-          {"col": 36, "row": 22, "all": "basement-floor"},
-          {"col": 37, "row": 22, "all": "basement-floor"},
-          {"col": 36, "row": 23, "all": "basement-floor"},
-          {"col": 37, "row": 23, "all": "basement-floor"}
+          {"col": 40, "row": 12, "all": "basement-floor"},
+          {"col": 41, "row": 12, "all": "basement-floor"},
+          {"col": 36, "row": 16, "all": "basement-floor"},
+          {"col": 37, "row": 16, "all": "basement-floor"},
+          {"col": 40, "row": 16, "all": "basement-floor"},
+          {"col": 41, "row": 16, "all": "basement-floor"},
+          {"col": 36, "row": 17, "all": "basement-floor"},
+          {"col": 37, "row": 17, "all": "basement-floor"},
+          {"col": 40, "row": 17, "all": "basement-floor"},
+          {"col": 41, "row": 17, "all": "basement-floor"},
+          {"col": 38, "row": 20, "all": "basement-floor"},
+          {"col": 39, "row": 20, "all": "basement-floor"},
+          {"col": 38, "row": 21, "all": "basement-floor"},
+          {"col": 39, "row": 21, "all": "basement-floor"},
+          {"col": 38, "row": 22, "all": "basement-floor"},
+          {"col": 39, "row": 22, "all": "basement-floor"},
+          {"col": 38, "row": 23, "all": "basement-floor"},
+          {"col": 39, "row": 23, "all": "basement-floor"}
         ],
         "inaccessible_floors": [],
         "grass": [],
-        "walls": [],
-        "barriers": [
-          {"c0": 36, "r0": 22, "c1": 37, "r1": 22, "kind": "barrier_1"},
-          {"c0": 37, "r0": 22, "c1": 38, "r1": 22, "kind": "barrier_1"}
+        "walls": [
+          {"c0": 34, "r0": 7, "c1": 35, "r1": 7, "all": "basement-floor"},
+          {"c0": 34, "r0": 11, "c1": 35, "r1": 11, "all": "basement-floor"},
+          {"c0": 35, "r0": 7, "c1": 36, "r1": 7, "all": "basement-floor"},
+          {"c0": 35, "r0": 11, "c1": 36, "r1": 11, "all": "basement-floor"}
         ],
-        "erasers": [],
+        "barriers": [
+          {"c0": 38, "r0": 22, "c1": 39, "r1": 22, "kind": "barrier_1"},
+          {"c0": 39, "r0": 22, "c1": 40, "r1": 22, "kind": "barrier_1"}
+        ],
+        "erasers": [
+          {"c0": 35, "r0": 7, "c1": 35, "r1": 8},
+          {"c0": 35, "r0": 8, "c1": 35, "r1": 9},
+          {"c0": 35, "r0": 9, "c1": 35, "r1": 10},
+          {"c0": 35, "r0": 10, "c1": 35, "r1": 11}
+        ],
         "light_bridges": [
-          {"col": 36, "row": 13, "kind": "bridge_1", "switch": "bridge_1"},
-          {"col": 37, "row": 13, "kind": "bridge_1", "switch": "bridge_1"},
-          {"col": 36, "row": 14, "kind": "bridge_1", "switch": "bridge_1"},
-          {"col": 37, "row": 14, "kind": "bridge_1", "switch": "bridge_1"},
-          {"col": 36, "row": 15, "kind": "bridge_1", "switch": "bridge_1"},
-          {"col": 37, "row": 15, "kind": "bridge_1", "switch": "bridge_1"},
-          {"col": 36, "row": 16, "kind": "bridge_1", "switch": "bridge_1"},
-          {"col": 37, "row": 16, "kind": "bridge_1", "switch": "bridge_1"},
-          {"col": 36, "row": 17, "kind": "bridge_1", "switch": "bridge_1"},
-          {"col": 37, "row": 17, "kind": "bridge_1", "switch": "bridge_1"},
-          {"col": 36, "row": 18, "kind": "bridge_1"},
-          {"col": 37, "row": 18, "kind": "bridge_1"},
-          {"col": 36, "row": 19, "kind": "bridge_1"},
-          {"col": 37, "row": 19, "kind": "bridge_1"}
+          {"col": 38, "row": 13, "kind": "bridge_1", "switch": "bridge_1"},
+          {"col": 39, "row": 13, "kind": "bridge_1", "switch": "bridge_1"},
+          {"col": 38, "row": 14, "kind": "bridge_1", "switch": "bridge_1"},
+          {"col": 39, "row": 14, "kind": "bridge_1", "switch": "bridge_1"},
+          {"col": 38, "row": 15, "kind": "bridge_1", "switch": "bridge_1"},
+          {"col": 39, "row": 15, "kind": "bridge_1", "switch": "bridge_1"},
+          {"col": 38, "row": 16, "kind": "bridge_1", "switch": "bridge_1"},
+          {"col": 39, "row": 16, "kind": "bridge_1", "switch": "bridge_1"},
+          {"col": 38, "row": 17, "kind": "bridge_1", "switch": "bridge_1"},
+          {"col": 39, "row": 17, "kind": "bridge_1", "switch": "bridge_1"},
+          {"col": 38, "row": 18, "kind": "bridge_1", "switch": "bridge_1"},
+          {"col": 39, "row": 18, "kind": "bridge_1", "switch": "bridge_1"},
+          {"col": 38, "row": 19, "kind": "bridge_1", "switch": "bridge_1"},
+          {"col": 39, "row": 19, "kind": "bridge_1", "switch": "bridge_1"}
         ],
         "lights": []
       },
@@ -322,9 +342,19 @@
         "floors": [],
         "inaccessible_floors": [],
         "grass": [],
-        "walls": [],
+        "walls": [
+          {"c0": 34, "r0": 7, "c1": 35, "r1": 7, "all": "basement-floor"},
+          {"c0": 34, "r0": 11, "c1": 35, "r1": 11, "all": "basement-floor"},
+          {"c0": 35, "r0": 7, "c1": 36, "r1": 7, "all": "basement-floor"},
+          {"c0": 35, "r0": 11, "c1": 36, "r1": 11, "all": "basement-floor"}
+        ],
         "barriers": [],
-        "erasers": [],
+        "erasers": [
+          {"c0": 35, "r0": 7, "c1": 35, "r1": 8},
+          {"c0": 35, "r0": 8, "c1": 35, "r1": 9},
+          {"c0": 35, "r0": 9, "c1": 35, "r1": 10},
+          {"c0": 35, "r0": 10, "c1": 35, "r1": 11}
+        ],
         "light_bridges": [],
         "lights": []
       },
@@ -333,9 +363,19 @@
         "floors": [],
         "inaccessible_floors": [],
         "grass": [],
-        "walls": [],
+        "walls": [
+          {"c0": 34, "r0": 7, "c1": 35, "r1": 7, "all": "basement-floor"},
+          {"c0": 34, "r0": 11, "c1": 35, "r1": 11, "all": "basement-floor"},
+          {"c0": 35, "r0": 7, "c1": 36, "r1": 7, "all": "basement-floor"},
+          {"c0": 35, "r0": 11, "c1": 36, "r1": 11, "all": "basement-floor"}
+        ],
         "barriers": [],
-        "erasers": [],
+        "erasers": [
+          {"c0": 35, "r0": 7, "c1": 35, "r1": 8},
+          {"c0": 35, "r0": 8, "c1": 35, "r1": 9},
+          {"c0": 35, "r0": 9, "c1": 35, "r1": 10},
+          {"c0": 35, "r0": 10, "c1": 35, "r1": 11}
+        ],
         "light_bridges": [],
         "lights": []
       },
