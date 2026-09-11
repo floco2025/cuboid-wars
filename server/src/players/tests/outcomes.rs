@@ -2,12 +2,12 @@ use super::*;
 use crate::players::PlayerInfo;
 use bevy::prelude::Entity;
 use common::protocol::PlayerGeneration;
-use tokio::sync::mpsc::unbounded_channel;
+use crossbeam_channel::unbounded;
 
 #[test]
 fn outcomes_survive_later_movement_but_not_body_replacement() {
     let id = PlayerId(1);
-    let (tx, _) = unbounded_channel();
+    let (tx, _) = unbounded();
     let mut players = PlayerMap::default();
     let mut info = PlayerInfo::new(Entity::PLACEHOLDER, tx);
     info.session.last_move_seq = 1000;
@@ -51,7 +51,7 @@ fn outcomes_survive_later_movement_but_not_body_replacement() {
 #[test]
 fn a_brief_crush_and_eraser_pass_are_not_lost_between_ticks() {
     let id = PlayerId(1);
-    let (tx, _) = unbounded_channel();
+    let (tx, _) = unbounded();
     let mut players = PlayerMap::default();
     players.insert(id, PlayerInfo::new(Entity::PLACEHOLDER, tx));
     for outcome in [
@@ -78,7 +78,7 @@ fn a_brief_crush_and_eraser_pass_are_not_lost_between_ticks() {
 #[test]
 fn malformed_outcomes_do_not_reach_gameplay_rules() {
     let id = PlayerId(1);
-    let (tx, _) = unbounded_channel();
+    let (tx, _) = unbounded();
     let mut players = PlayerMap::default();
     players.insert(id, PlayerInfo::new(Entity::PLACEHOLDER, tx));
     let pos = Position {

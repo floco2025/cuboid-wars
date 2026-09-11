@@ -1,11 +1,11 @@
 use super::*;
 use crate::players::{PlayerInfo, PowerUpState, handle_move_outcome};
 use common::protocol::{BarrierKindId, CMoveOutcome, MoveOutcome, PlayerGeneration, PlayerId, PowerUpKind};
-use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
+use crossbeam_channel::{Receiver, unbounded};
 
-fn test_app() -> (App, UnboundedReceiver<ServerMessage>) {
+fn test_app() -> (App, Receiver<ServerMessage>) {
     let mut app = App::new();
-    let (tx, rx) = unbounded_channel();
+    let (tx, rx) = unbounded();
     let mut info = PlayerInfo::new(Entity::PLACEHOLDER, tx);
     info.connection.logged_in = true;
     let mut players = PlayerMap::default();
@@ -25,7 +25,7 @@ fn erase(app: &mut App) {
     );
 }
 
-fn erasure_cues(rx: &mut UnboundedReceiver<ServerMessage>) -> usize {
+fn erasure_cues(rx: &mut Receiver<ServerMessage>) -> usize {
     std::iter::from_fn(|| rx.try_recv().ok())
         .filter(|message| matches!(message, ServerMessage::EquipmentErased(_)))
         .count()
@@ -33,7 +33,7 @@ fn erasure_cues(rx: &mut UnboundedReceiver<ServerMessage>) -> usize {
 
 #[test]
 fn empty_inventory_and_repeated_commands_stay_silent() {
-    let (mut app, mut rx) = test_app();
+    let (mut app, rx) = test_app();
     app.world_mut()
         .resource_mut::<PlayerMap>()
         .get_mut(&PlayerId(1))
@@ -48,7 +48,7 @@ fn empty_inventory_and_repeated_commands_stay_silent() {
 
 #[test]
 fn missile_ammo_alone_is_erased_and_broadcast_once() {
-    let (mut app, mut rx) = test_app();
+    let (mut app, rx) = test_app();
     app.world_mut()
         .resource_mut::<PlayerMap>()
         .get_mut(&PlayerId(1))

@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use bevy::{ecs::system::SystemState, prelude::*};
 use common::{map::Carriers, physics::CollisionWorld, protocol::*};
-use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
+use crossbeam_channel::{Receiver, unbounded};
 
 use super::{PortalAssignments, PortalMap, handle_portal_shot_message};
 use crate::{
@@ -19,7 +19,7 @@ struct Fixture {
     assignments: PortalAssignments,
     portals: PortalMap,
     time: Time,
-    receivers: Vec<UnboundedReceiver<ServerMessage>>,
+    receivers: Vec<Receiver<ServerMessage>>,
 }
 
 impl Fixture {
@@ -73,7 +73,7 @@ impl Fixture {
         let mut receivers = Vec::new();
         for id in [PlayerId(1), PlayerId(2)] {
             let entity = world.spawn_empty().id();
-            let (sender, receiver) = unbounded_channel();
+            let (sender, receiver) = unbounded();
             let mut info = PlayerInfo::new(entity, sender);
             info.connection.logged_in = true;
             info.session.generation = PlayerGeneration(3);

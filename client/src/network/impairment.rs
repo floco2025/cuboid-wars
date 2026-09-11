@@ -1,10 +1,9 @@
-use std::{collections::VecDeque, time::Duration};
+use std::{
+    collections::VecDeque,
+    time::{Duration, Instant},
+};
 
 use rand::{RngExt, rng};
-use tokio::{
-    sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel},
-    time::{Instant, sleep_until},
-};
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Impairment {
@@ -14,11 +13,15 @@ pub struct Impairment {
 }
 
 impl Impairment {
+    pub(super) fn delays(&self) -> bool {
+        !self.lag.is_zero()
+    }
+
     pub(super) fn drops(&self) -> bool {
         self.drop_probability > 0.0 && rng().random_bool(f64::from(self.drop_probability))
     }
 
-    fn delay(&self, unreliable: bool) -> Duration {
+    pub(super) fn delay(&self, unreliable: bool) -> Duration {
         if !unreliable || self.jitter == 0.0 || self.lag.is_zero() {
             return self.lag;
         }
@@ -27,88 +30,32 @@ impl Impairment {
     }
 }
 
-pub(super) fn impaired_sender<T: Send + 'static>(
-    impairment: Impairment,
-    output: UnboundedSender<T>,
-    unreliable: impl Fn(&T) -> bool + Send + 'static,
-) -> UnboundedSender<T> {
-    if impairment.lag.is_zero() {
-        return output;
-    }
-    let (sender, receiver) = unbounded_channel();
-    tokio::spawn(delay_stage(
-        move |item| impairment.delay(unreliable(item)),
-        receiver,
-        output,
-    ));
-    sender
+// Messages waiting out a simulated delay, released in deadline order so a
+// shorter delay overtakes a longer one queued before it.
+pub struct DelayQueue<T> {
+    queue: VecDeque<(Instant, T)>,
 }
 
-pub(super) fn impaired_receiver<T: Send + 'static>(
-    impairment: Impairment,
-    input: UnboundedReceiver<T>,
-    unreliable: impl Fn(&T) -> bool + Send + 'static,
-) -> UnboundedReceiver<T> {
-    if impairment.lag.is_zero() {
-        return input;
+impl<T> Default for DelayQueue<T> {
+    fn default() -> Self {
+        Self { queue: VecDeque::new() }
     }
-    let (sender, receiver) = unbounded_channel();
-    tokio::spawn(delay_stage(
-        move |item| impairment.delay(unreliable(item)),
-        input,
-        sender,
-    ));
-    receiver
 }
 
-async fn delay_stage<T>(
-    mut delay: impl FnMut(&T) -> Duration,
-    mut input: UnboundedReceiver<T>,
-    output: UnboundedSender<T>,
-) {
-    let mut queue: VecDeque<(Instant, T)> = VecDeque::new();
-    loop {
-        let Some((due, _)) = queue.front() else {
-            match input.recv().await {
-                Some(item) => {
-                    let lag = delay(&item);
-                    enqueue(&mut queue, item, lag);
-                }
-                None => break,
-            }
-            continue;
-        };
-        let due = *due;
-        tokio::select! {
-            () = sleep_until(due) => {
-                let Some((_, item)) = queue.pop_front() else {
-                    return;
-                };
-                if output.send(item).is_err() {
-                    return;
-                }
-            }
-            received = input.recv() => match received {
-                Some(item) => {
-                    let lag = delay(&item);
-                    enqueue(&mut queue, item, lag);
-                }
-                None => break,
-            },
+impl<T> DelayQueue<T> {
+    pub fn push(&mut self, now: Instant, delay: Duration, item: T) {
+        let due = now + delay;
+        let index = self.queue.partition_point(|(queued, _)| *queued <= due);
+        self.queue.insert(index, (due, item));
+    }
+
+    pub fn pop_due(&mut self, now: Instant) -> Option<T> {
+        let (due, _) = self.queue.front()?;
+        if *due > now {
+            return None;
         }
+        self.queue.pop_front().map(|(_, item)| item)
     }
-    while let Some((due, item)) = queue.pop_front() {
-        sleep_until(due).await;
-        if output.send(item).is_err() {
-            return;
-        }
-    }
-}
-
-fn enqueue<T>(queue: &mut VecDeque<(Instant, T)>, item: T, lag: Duration) {
-    let due = Instant::now() + lag;
-    let index = queue.partition_point(|(queued, _)| *queued <= due);
-    queue.insert(index, (due, item));
 }
 
 #[cfg(test)]

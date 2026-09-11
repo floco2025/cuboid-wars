@@ -12,8 +12,6 @@
 
 - **Render ramps as stairs:** add an option to show ramps as stairs while retaining smooth ramp collision and movement. Make stair use configurable per actor kind, like ladder use.
 
-- **Replace QUIC with a synchronous transport:** Tokio only serves Quinn's async API now that the game targets a few players. A transport polled from the game loop such as `renet` (reliable and unreliable channels, shared-key encryption instead of the certificate files) would remove the runtime; each remote client would become a link the server drains each tick, like the host's local queues.
-
 - **Missiles through portals:** a missile chasing a target through a portal detonates on the aperture's backing instead of crossing, while bullets hop through; rank `projectile_hop` against the other events in the missile sweep in `client/src/missiles/movement.rs`.
 
 - **Player-scaled actor counts:** let a spawn zone's actor count depend on the number of logged-in players instead of one fixed `count`. The scaling rule is still to be decided; define it so that later joins fill the added slots and departures let the surplus die off without a cull.

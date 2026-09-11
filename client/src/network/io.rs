@@ -1,11 +1,13 @@
 use bevy::prelude::*;
-use std::time::Duration;
-use tokio::sync::mpsc::error::TryRecvError;
+use std::{
+    ops::ControlFlow,
+    time::{Duration, Instant},
+};
 
 use super::{context::ServerMessageContext, routing::route_server_message};
 use crate::{
     constants::PING_INTERVAL,
-    network::{ClientToServerChannel, RoundTripTime, ServerToClientChannel, TickSync},
+    network::{ClientToServerChannel, RoundTripTime, ServerLink, TickSync},
 };
 use common::{config::NetworkConfig, protocol::*};
 
@@ -13,23 +15,30 @@ use common::{config::NetworkConfig, protocol::*};
 // Network Message Processing System
 // ============================================================================
 
-// Main system to process all incoming messages from the server.
+// Routes everything the link has received; a closed link ends the app.
 pub(super) fn network_receive_system(
     mut commands: Commands,
-    mut from_server: ResMut<ServerToClientChannel>,
+    mut link: ResMut<ServerLink>,
     mut exit: MessageWriter<AppExit>,
     mut context: ServerMessageContext,
 ) {
-    loop {
-        match from_server.try_recv() {
-            Ok(message) => route_server_message(message, &mut commands, &mut context),
-            Err(TryRecvError::Empty) => break,
-            Err(TryRecvError::Disconnected) => {
-                error!("disconnected from server");
-                exit.write(AppExit::Success);
-                break;
-            }
-        }
+    let received = link.receive(Instant::now(), |message| {
+        route_server_message(message, &mut commands, &mut context);
+        ControlFlow::Continue(())
+    });
+    if let Err(error) = received {
+        error!("disconnected from server: {error:#}");
+        exit.write(AppExit::Success);
+    }
+}
+
+// Runs last so every send of the frame, fixed steps included, leaves now.
+// On the frame the app exits it also tells the server, which otherwise
+// waits out the connection timeout.
+pub(super) fn network_flush_system(mut link: ResMut<ServerLink>, mut exit: MessageReader<AppExit>) {
+    link.flush(Instant::now());
+    if exit.read().next().is_some() {
+        link.disconnect();
     }
 }
 

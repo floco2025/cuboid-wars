@@ -1,6 +1,6 @@
 use super::*;
 
-fn actor_app(kind: &str, health: f32) -> (App, Entity, UnboundedReceiver<ServerMessage>) {
+fn actor_app(kind: &str, health: f32) -> (App, Entity, Receiver<ServerMessage>) {
     let fixture = Fixture::new(kind);
     let origin = fixture.pos(1, 2);
     let target = fixture.pos(3, 2);
@@ -29,7 +29,7 @@ fn actor_app(kind: &str, health: f32) -> (App, Entity, UnboundedReceiver<ServerM
         .world_mut()
         .spawn((PlayerMarker, PlayerId(7), target, Health(health)))
         .id();
-    let (sender, receiver) = unbounded_channel();
+    let (sender, receiver) = unbounded();
     let mut player_info = PlayerInfo::new(player, sender);
     player_info.connection.logged_in = true;
     app.world_mut()
@@ -124,7 +124,7 @@ fn peace_stops_attacks_and_targeting_until_disabled_for_every_actor_kind() {
 
 #[test]
 fn immovable_actor_holds_long_burst_and_stops_when_player_disconnects() {
-    let (mut app, player, mut receiver) = actor_app(IMMOVABLE, 5000.0);
+    let (mut app, player, receiver) = actor_app(IMMOVABLE, 5000.0);
     for _ in 0..120 {
         step_tick(&mut app);
     }
@@ -174,7 +174,7 @@ fn immovable_actor_holds_long_burst_and_stops_when_player_disconnects() {
 
 #[test]
 fn immovable_actor_repeats_bursts_with_a_damage_free_cooldown_and_transition_cues() {
-    let (mut app, player, mut receiver) = actor_app(IMMOVABLE, 50000.0);
+    let (mut app, player, receiver) = actor_app(IMMOVABLE, 50000.0);
     let attack = app
         .world()
         .resource::<ServerGameplayConfig>()
@@ -237,7 +237,7 @@ fn active_beams_retarget_disconnected_players_before_the_next_navigation_decisio
             .world_mut()
             .spawn((PlayerMarker, PlayerId(8), pos, Health(5000.0)))
             .id();
-        let (sender, _receiver) = unbounded_channel();
+        let (sender, _receiver) = unbounded();
         let mut info = PlayerInfo::new(next, sender);
         info.connection.logged_in = true;
         app.world_mut().resource_mut::<PlayerMap>().insert(PlayerId(8), info);

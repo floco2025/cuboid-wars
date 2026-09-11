@@ -6,9 +6,9 @@ use crate::players::PlayerInfo;
 
 #[test]
 fn give_key_and_powerup_mutate_sender_state() {
-    use tokio::sync::mpsc::unbounded_channel;
+    use crossbeam_channel::unbounded;
 
-    let (tx, _rx) = unbounded_channel();
+    let (tx, _rx) = unbounded();
     let mut info = PlayerInfo::new(Entity::PLACEHOLDER, tx);
     let table = BarrierKindTable::from_ids(vec!["lobby".to_owned(), "basement".to_owned()])
         .expect("test barrier kind table failed to build");

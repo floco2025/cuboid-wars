@@ -2,21 +2,22 @@
 // Names starting with C are sent by the client; names starting with S are
 // sent by the server. For example: client CLogin -> server SInit.
 //
-// Delivery: two QUIC lanes
+// Delivery: two lanes
 //
 // A lane controls how a message travels:
 // * Reliable: messages arrive in send order while the connection stays open.
 //   Lost data is sent again, which can delay the messages behind it.
 // * Unreliable: messages may be lost or arrive out of order. Receivers must
-//   cope with both. Small messages use datagrams (individual packets); larger
-//   messages use separate streams. The transport never discards them itself.
+//   cope with both. A message that fits one packet is sent once; a larger
+//   one is sent again until it arrives, in no particular order. The
+//   transport never discards them itself.
 //
 // The lanes are independent: an unreliable update can arrive before an
 // earlier reliable message. Ordering rules belong to the receiving code.
 //
 // Each message's role determines its default lane, assigned by `lane()` below.
-// `common/src/network.rs` handles delivery
-// using the supplied lane and knows nothing about gameplay.
+// `common/src/network.rs` maps lanes onto transport channels and knows
+// nothing about gameplay.
 //
 // Message roles
 //
@@ -816,7 +817,7 @@ pub enum ServerMessage {
     Firework(SFirework),
 }
 
-// The QUIC lane a message rides; see the top-of-file comment.
+// The lane a message rides; see the top-of-file comment.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Lane {
     Reliable,

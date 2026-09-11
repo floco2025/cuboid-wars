@@ -6,7 +6,7 @@ use common::{
     physics::{CollisionWorld, PortalSet},
     protocol::*,
 };
-use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
+use crossbeam_channel::{Receiver, unbounded};
 
 use super::{
     LastBounceSound, ProjectileAssets, projectiles_movement_system, spawn_ember_projectile, spawn_projectiles,
@@ -22,7 +22,7 @@ use crate::{
     vfx::ParticleClouds,
 };
 
-fn app() -> (App, UnboundedReceiver<ClientMessage>) {
+fn app() -> (App, Receiver<ClientMessage>) {
     let mut app = App::new();
     app.add_plugins((TaskPoolPlugin::default(), AssetPlugin::default()));
     app.init_asset::<AudioSource>();
@@ -42,7 +42,7 @@ fn app() -> (App, UnboundedReceiver<ClientMessage>) {
     let bridges = build_bridge_assets(&mut materials, &[], &MapLayout::default(), settings.vfx.light_bridges);
     let mut time = Time::<()>::default();
     time.advance_by(Duration::from_secs_f32(1.0 / 30.0));
-    let (sender, receiver) = unbounded_channel();
+    let (sender, receiver) = unbounded();
     app.insert_resource(time)
         .insert_resource(settings)
         .insert_resource(test_fixtures::asset_set())
@@ -127,7 +127,7 @@ fn fire(app: &mut App, shooter: PlayerId, ember: bool) {
 #[test]
 fn only_the_shooters_real_bullet_reports_a_hit_once_even_while_dead() {
     for (shooter, ember, reports) in [(PlayerId(1), false, 1), (PlayerId(2), false, 0), (PlayerId(1), true, 0)] {
-        let (mut app, mut receiver) = app();
+        let (mut app, receiver) = app();
         app.world_mut().resource_mut::<LocalPlayerInfo>().is_dead = true;
         fire(&mut app, shooter, ember);
         app.update();
@@ -153,7 +153,7 @@ fn only_the_shooters_real_bullet_reports_a_hit_once_even_while_dead() {
 
 #[test]
 fn cosmetic_bullets_without_a_shooter_record_finish_their_normal_lifetime() {
-    let (mut app, mut receiver) = app();
+    let (mut app, receiver) = app();
     let actor = app
         .world()
         .resource::<ActorMap>()

@@ -1,6 +1,6 @@
 use bevy::{ecs::system::RunSystemOnce, prelude::*};
+use crossbeam_channel::{Receiver, unbounded};
 use std::collections::{HashMap, HashSet};
-use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
 
 use super::{
     switches::PressureSwitches,
@@ -318,7 +318,7 @@ fn kind(id: &str, _switch: &str) -> KindDef {
 }
 
 // A logged-in player standing in the middle of cell (0, 0).
-fn standing_player(app: &mut App, id: u32) -> (Entity, UnboundedReceiver<ServerMessage>) {
+fn standing_player(app: &mut App, id: u32) -> (Entity, Receiver<ServerMessage>) {
     let geometry = *app.world().resource::<MapGeometry>();
     let pos = Position {
         x: geometry.cell_center_x(0),
@@ -326,7 +326,7 @@ fn standing_player(app: &mut App, id: u32) -> (Entity, UnboundedReceiver<ServerM
         z: geometry.cell_center_z(0),
     };
     let entity = app.world_mut().spawn((PlayerMarker, PlayerId(id), pos)).id();
-    let (tx, mut rx) = unbounded_channel();
+    let (tx, rx) = unbounded();
     let mut info = PlayerInfo::new(entity, tx);
     info.connection.logged_in = true;
     while rx.try_recv().is_ok() {}

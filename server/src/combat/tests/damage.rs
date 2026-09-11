@@ -2,7 +2,7 @@ use crate::config::fixtures;
 use std::collections::HashMap;
 
 use bevy::prelude::*;
-use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
+use crossbeam_channel::{Receiver, unbounded};
 
 use super::{PendingExplosions, damage::*};
 use crate::{
@@ -19,8 +19,8 @@ use common::protocol::{
     ActorId, CarrierId, Health, PlayerId, PortalMode, Position, PowerUpKind, SPlayerDeath, ServerMessage,
 };
 
-fn logged_in_player(players: &mut PlayerMap, id: PlayerId, name: &str) -> UnboundedReceiver<ServerMessage> {
-    let (tx, rx) = unbounded_channel();
+fn logged_in_player(players: &mut PlayerMap, id: PlayerId, name: &str) -> Receiver<ServerMessage> {
+    let (tx, rx) = unbounded();
     let mut info = PlayerInfo::new(Entity::PLACEHOLDER, tx);
     info.connection.logged_in = true;
     info.connection.name = name.to_owned();
@@ -28,7 +28,7 @@ fn logged_in_player(players: &mut PlayerMap, id: PlayerId, name: &str) -> Unboun
     rx
 }
 
-fn next_player_death(receiver: &mut UnboundedReceiver<ServerMessage>) -> SPlayerDeath {
+fn next_player_death(receiver: &mut Receiver<ServerMessage>) -> SPlayerDeath {
     loop {
         match receiver.try_recv().expect("expected a PlayerDeath broadcast") {
             ServerMessage::PlayerDeath(msg) => return msg,
@@ -37,7 +37,7 @@ fn next_player_death(receiver: &mut UnboundedReceiver<ServerMessage>) -> SPlayer
     }
 }
 
-fn feed_lines(receiver: &mut UnboundedReceiver<ServerMessage>) -> Vec<String> {
+fn feed_lines(receiver: &mut Receiver<ServerMessage>) -> Vec<String> {
     let mut lines = Vec::new();
     while let Ok(envelope) = receiver.try_recv() {
         if let ServerMessage::Feed(feed) = envelope {
@@ -197,7 +197,7 @@ fn server_gameplay_config() -> ServerGameplayConfig {
 }
 
 fn make_player_info() -> PlayerInfo {
-    let (tx, _rx) = unbounded_channel();
+    let (tx, _rx) = unbounded();
     PlayerInfo::new(Entity::PLACEHOLDER, tx)
 }
 
@@ -329,13 +329,13 @@ fn dead_actor_takes_no_further_hits_or_score() {
 
 #[test]
 fn kill_player_broadcasts_player_death() {
-    use tokio::sync::mpsc::unbounded_channel;
+    use crossbeam_channel::unbounded;
 
     let mut app = App::new();
     let mut players = PlayerMap::default();
 
     // Receiver with a logged-in shooter so the broadcast can reach them.
-    let (shooter_tx, mut shooter_rx) = unbounded_channel();
+    let (shooter_tx, shooter_rx) = unbounded();
     let mut shooter = PlayerInfo::new(Entity::PLACEHOLDER, shooter_tx);
     shooter.connection.logged_in = true;
     players.insert(PlayerId(1), shooter);

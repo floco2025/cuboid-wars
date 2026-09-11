@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, HashMap};
 
 use bevy::prelude::*;
-use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
+use crossbeam_channel::{Sender, unbounded};
 
 use crate::config::{ActorRespawnScope, PlayerRespawnMode, PowerUpsConfig, RespawnConfig};
 use common::protocol::{
@@ -52,7 +52,7 @@ impl PlayerQuestState {
 
 pub struct PlayerConnection {
     pub logged_in: bool,
-    pub channel: UnboundedSender<ServerMessage>,
+    pub channel: Sender<ServerMessage>,
     pub name: String,
 }
 
@@ -60,7 +60,7 @@ impl PlayerConnection {
     // Dropping the live sender is the hang-up; the dead replacement keeps later
     // broadcasts harmless until the transport reports the disconnect.
     pub fn hang_up(&mut self) {
-        let (dead, _) = unbounded_channel();
+        let (dead, _) = unbounded();
         self.channel = dead;
     }
 }
@@ -137,7 +137,7 @@ pub struct PlayerInfo {
 
 impl PlayerInfo {
     #[must_use]
-    pub fn new(entity: Entity, channel: UnboundedSender<ServerMessage>) -> Self {
+    pub fn new(entity: Entity, channel: Sender<ServerMessage>) -> Self {
         Self {
             connection: PlayerConnection {
                 logged_in: false,

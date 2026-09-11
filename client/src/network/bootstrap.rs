@@ -1,9 +1,12 @@
+use std::{
+    ops::ControlFlow,
+    thread,
+    time::{Duration, Instant},
+};
+
 use anyhow::{Context, Result, bail};
 use bevy::prelude::*;
-use tokio::{
-    runtime::Handle,
-    sync::mpsc::{UnboundedReceiver, UnboundedSender},
-};
+use crossbeam_channel::Sender;
 
 use crate::{
     barriers::{KeyKinds, build_barrier_assets},
@@ -19,27 +22,41 @@ use crate::{
 };
 use common::{map::Carriers, physics::CollisionWorld, protocol::*};
 
-// Sends `CLogin` and waits for `SInit`. Anything that lands before it is a
-// snapshot or an unreliable message, which the protocol lets us drop; the
-// reliable lane guarantees `SInit` comes first on it.
-pub fn login(
-    handle: &Handle,
-    to_server: &UnboundedSender<ClientMessage>,
-    from_server: &mut UnboundedReceiver<ServerMessage>,
-    name: String,
-) -> Result<SInit> {
+use super::ServerLink;
+
+// Past netcode's own 15 s request timeout, so a dead address reports as such.
+const LOGIN_TIMEOUT: Duration = Duration::from_secs(20);
+const LOGIN_POLL: Duration = Duration::from_millis(2);
+
+// Sends `CLogin` and pumps the link until `SInit`. Anything that lands before
+// it is a snapshot or an unreliable message, which the protocol lets us drop;
+// the reliable lane guarantees `SInit` comes first on it. Reading stops at
+// `SInit`, so what the server sent right behind it reaches the app.
+pub fn login(link: &mut ServerLink, to_server: &Sender<ClientMessage>, name: String) -> Result<SInit> {
     to_server
         .send(ClientMessage::Login(CLogin { name }))
         .context("server link closed before login")?;
-    handle.block_on(async {
-        loop {
-            match from_server.recv().await {
-                Some(ServerMessage::Init(message)) => return Ok(message),
-                Some(_) => {}
-                None => bail!("server disconnected before SInit"),
+    let deadline = Instant::now() + LOGIN_TIMEOUT;
+    loop {
+        let now = Instant::now();
+        let mut init = None;
+        link.receive(now, |message| {
+            if let ServerMessage::Init(message) = message {
+                init = Some(message);
+                return ControlFlow::Break(());
             }
+            ControlFlow::Continue(())
+        })
+        .context("server disconnected before SInit")?;
+        if let Some(init) = init {
+            return Ok(init);
         }
-    })
+        link.flush(now);
+        if now > deadline {
+            bail!("no SInit within {} s", LOGIN_TIMEOUT.as_secs());
+        }
+        thread::sleep(LOGIN_POLL);
+    }
 }
 
 pub(crate) fn install_bootstrap(app: &mut App, message: SInit, asset_set: &AssetSet) -> Result<()> {

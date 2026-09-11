@@ -105,7 +105,7 @@ fn saved(app: &App, id: PlayerId) -> Option<CheckpointId> {
 fn only_grounded_players_activate_and_notifications_do_not_repeat() {
     let mut app = app(PlayerRespawnMode::Individual);
     let id = PlayerId(1);
-    let (_, mut receiver) = add_player(&mut app, id);
+    let (_, receiver) = add_player(&mut app, id);
     add_player(&mut app, PlayerId(2));
     for (y, support) in [
         (1.0, CharacterSupport::Airborne),
@@ -141,7 +141,7 @@ fn deaths_preserve_checkpoints_clear_equipment_and_retry_blocked_group_or_indivi
     for mode in [PlayerRespawnMode::Individual, PlayerRespawnMode::Group] {
         let mut app = app(mode);
         let id = PlayerId(1);
-        let (_, mut receiver) = add_player(&mut app, id);
+        let (_, receiver) = add_player(&mut app, id);
         stand(
             &mut app,
             id,
@@ -376,8 +376,8 @@ fn shared_checkpoints_work_with_both_respawn_policies() {
 fn group_all_visits_survive_death_and_membership_changes() {
     let mut app = app(PlayerRespawnMode::Individual);
     app.world_mut().resource_mut::<MapLayout>().checkpoints[1].kind = CheckpointKind::GroupAll;
-    let (_, mut first) = add_player(&mut app, PlayerId(1));
-    let (_, mut second) = add_player(&mut app, PlayerId(2));
+    let (_, first) = add_player(&mut app, PlayerId(1));
+    let (_, second) = add_player(&mut app, PlayerId(2));
     entries(&mut app, &[(1, 1)]);
     assert!(saved(&app, PlayerId(1)).is_none());
     assert!(first.try_recv().is_err());
@@ -451,7 +451,7 @@ fn shared_activations_win_simultaneous_individual_entries_once_in_map_order() {
     third.kind = CheckpointKind::GroupAny;
     app.world_mut().resource_mut::<MapLayout>().checkpoints.push(third);
     app.world_mut().resource_mut::<MapLayout>().checkpoints[0].kind = CheckpointKind::GroupAny;
-    let (_, mut rx) = add_player(&mut app, PlayerId(1));
+    let (_, rx) = add_player(&mut app, PlayerId(1));
     add_player(&mut app, PlayerId(2));
     entries(&mut app, &[(1, 1), (2, 2), (2, 0)]);
     assert_eq!(saved(&app, PlayerId(1)), Some(CheckpointId(0)));
@@ -675,7 +675,7 @@ fn simultaneous_shared_entries_activate_on_consecutive_ticks() {
     let mut app = app(PlayerRespawnMode::Individual);
     app.world_mut().resource_mut::<MapLayout>().checkpoints[0].kind = CheckpointKind::GroupAny;
     app.world_mut().resource_mut::<MapLayout>().checkpoints[1].kind = CheckpointKind::GroupAny;
-    let (_, mut rx) = add_player(&mut app, PlayerId(1));
+    let (_, rx) = add_player(&mut app, PlayerId(1));
     add_player(&mut app, PlayerId(2));
     stand(
         &mut app,

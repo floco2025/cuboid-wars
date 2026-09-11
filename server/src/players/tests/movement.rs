@@ -12,7 +12,7 @@ use common::{
     physics::{CharacterSupport, CollisionWorld, PortalSet, knockback_decay_system},
     protocol::*,
 };
-use tokio::sync::mpsc::unbounded_channel;
+use crossbeam_channel::unbounded;
 
 const ID: PlayerId = PlayerId(1);
 
@@ -52,7 +52,7 @@ fn movement_app(layout: MapLayout) -> (App, Entity) {
         .world_mut()
         .spawn((ID, PlayerMarker, Position::default(), FaceYaw(0.0), Health(100.0)))
         .id();
-    let (sender, _) = unbounded_channel();
+    let (sender, _) = unbounded();
     let mut info = PlayerInfo::new(entity, sender);
     info.connection.logged_in = true;
     app.world_mut().resource_mut::<PlayerMap>().insert(ID, info);

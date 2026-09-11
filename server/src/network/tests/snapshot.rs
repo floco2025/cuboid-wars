@@ -5,7 +5,7 @@ use common::{
     physics::{CharacterSupport, CharacterVerticalVelocity},
     protocol::*,
 };
-use tokio::sync::mpsc::unbounded_channel;
+use crossbeam_channel::unbounded;
 
 use super::{broadcast::snapshot_actors, snapshot::network_broadcast_actor_moves_system};
 use crate::{
@@ -47,7 +47,7 @@ fn actor_updates_repeat_full_state_at_the_configured_rate_in_the_carrier_frame()
         .init_resource::<PlayerMap>()
         .init_resource::<ServerTick>()
         .add_systems(Update, network_broadcast_actor_moves_system);
-        let (sender, mut receiver) = unbounded_channel();
+        let (sender, receiver) = unbounded();
         let player_entity = app.world_mut().spawn_empty().id();
         let mut player = PlayerInfo::new(player_entity, sender);
         player.connection.logged_in = true;

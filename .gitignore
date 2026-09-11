@@ -9,10 +9,6 @@ __pycache__
 *.crt
 *.csr
 
-# Allow only these specific certificates for development and testing
-!/cert.pem
-!/key.pem
-
 # Per-user Claude Code state (permission decisions, etc.)
 .claude
 

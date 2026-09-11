@@ -8,7 +8,7 @@ use common::protocol::{
     BarrierKindId, CarrierId, Checkpoint, CheckpointKind, Floor, Lane, MapLayout, PlayerGeneration, PortalMode,
     PowerUpKind,
 };
-use tokio::sync::mpsc::unbounded_channel;
+use crossbeam_channel::unbounded;
 
 const TEST_GRAVITY: f32 = 25.0;
 
@@ -35,7 +35,7 @@ fn a_crushed_player_dies_at_the_reported_contact() {
         .world_mut()
         .spawn((PlayerMarker, id, Position::default(), Health(100.0)))
         .id();
-    let (sender, mut receiver) = unbounded_channel();
+    let (sender, receiver) = unbounded();
     let mut info = PlayerInfo::new(entity, sender);
     info.connection.logged_in = true;
     let contact = Position { x: 20.0, ..default() };
@@ -90,7 +90,7 @@ fn invincible_void_rescue_relocates_reliably_and_preserves_equipment() {
         ..default()
     };
     let entity = app.world_mut().spawn((PlayerMarker, id, pos, Health(37.0))).id();
-    let (sender, mut receiver) = unbounded_channel();
+    let (sender, receiver) = unbounded();
     let mut info = PlayerInfo::new(entity, sender);
     info.connection.logged_in = true;
     info.session.score = 5;
@@ -177,7 +177,7 @@ fn an_invincible_void_rescue_returns_to_the_saved_checkpoint() {
         ..default()
     };
     let entity = app.world_mut().spawn((PlayerMarker, id, pos, Health(37.0))).id();
-    let (sender, _receiver) = unbounded_channel();
+    let (sender, _receiver) = unbounded();
     let mut info = PlayerInfo::new(entity, sender);
     info.connection.logged_in = true;
     info.session.checkpoint = Some(PlayerCheckpoint {
@@ -252,7 +252,7 @@ fn simultaneous_invincible_rescues_take_distinct_spots() {
             z: 0.0,
         };
         let entity = app.world_mut().spawn((PlayerMarker, id, pos, Health(37.0))).id();
-        let (sender, _receiver) = unbounded_channel();
+        let (sender, _receiver) = unbounded();
         let mut info = PlayerInfo::new(entity, sender);
         info.connection.logged_in = true;
         info.session.checkpoint = Some(PlayerCheckpoint {
@@ -324,7 +324,7 @@ fn landing_damage_uses_impact_speed_and_map_thresholds() {
             .world_mut()
             .spawn((PlayerMarker, id, Position::default(), Health(initial_health)))
             .id();
-        let (sender, mut receiver) = unbounded_channel();
+        let (sender, receiver) = unbounded();
         let mut info = PlayerInfo::new(entity, sender);
         info.connection.logged_in = true;
         info.life.outcomes.landings.push(Landing {

@@ -5,29 +5,35 @@ use bevy::prelude::App;
 use rand::random;
 use serde_json::json;
 
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
+use crossbeam_channel::{Receiver, Sender, unbounded};
 
 use super::{NetworkOverrides, ServerAppOptions, build_server_app_with_loader};
 use crate::{
     config::fixtures::server_config,
     map::generation::generate_map_at,
-    network::{ClientLink, NewLinksChannel},
+    network::{ClientLink, Listener, NewLinksChannel},
 };
 use common::protocol::{ClientMessage, ServerMessage};
 
 // A client's ends of the queues its `ClientLink` registers.
-pub(super) fn connect(
-    register: &UnboundedSender<ClientLink>,
-) -> (UnboundedSender<ClientMessage>, UnboundedReceiver<ServerMessage>) {
-    let (to_client, from_server) = unbounded_channel();
-    let (to_server, from_client) = unbounded_channel();
+pub(crate) fn connect(register: &Sender<ClientLink>) -> (Sender<ClientMessage>, Receiver<ServerMessage>) {
+    let (to_client, from_server) = unbounded();
+    let (to_server, from_client) = unbounded();
     register
         .send(ClientLink { to_client, from_client })
         .expect("registration queue closed");
     (to_server, from_server)
 }
 
-pub(super) fn server_app(overrides: NetworkOverrides, new_links: NewLinksChannel) -> Result<App> {
+pub(crate) fn server_app(overrides: NetworkOverrides, new_links: NewLinksChannel) -> Result<App> {
+    server_app_with_listener(overrides, new_links, None)
+}
+
+pub(crate) fn server_app_with_listener(
+    overrides: NetworkOverrides,
+    new_links: NewLinksChannel,
+    listener: Option<Listener>,
+) -> Result<App> {
     let mut config = server_config();
     for map in config.maps.values_mut() {
         map.random_items = None;
@@ -37,7 +43,7 @@ pub(super) fn server_app(overrides: NetworkOverrides, new_links: NewLinksChannel
         network: overrides,
         logging: false,
     };
-    build_server_app_with_loader(config, options, new_links, |name, hz, settings| {
+    build_server_app_with_loader(config, options, new_links, listener, |name, hz, settings| {
         let directory = std::env::temp_dir().join(format!("cuboid_app_{}", random::<u64>()));
         fs::create_dir(&directory)?;
         let path = directory.join("layout.json");

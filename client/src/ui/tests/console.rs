@@ -1,4 +1,4 @@
-use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
+use crossbeam_channel::{Receiver, unbounded};
 
 use super::*;
 
@@ -89,8 +89,8 @@ fn typing_drops_control_characters() {
     assert_eq!(console.buffer, "ab");
 }
 
-fn app() -> (App, UnboundedReceiver<ClientMessage>) {
-    let (tx, rx) = unbounded_channel();
+fn app() -> (App, Receiver<ClientMessage>) {
+    let (tx, rx) = unbounded();
     let mut app = App::new();
     app.add_message::<KeyboardInput>()
         .add_message::<ConsoleSubmission>()
@@ -129,7 +129,7 @@ fn slash_opens_prefilled_on_any_layout() {
 
 #[test]
 fn enter_opens_empty_and_submits_the_typed_line() {
-    let (mut app, mut rx) = app();
+    let (mut app, rx) = app();
 
     press(&mut app, KeyCode::Enter, Key::Enter, Some("\r"));
     assert!(console(&app).open);
@@ -148,7 +148,7 @@ fn enter_opens_empty_and_submits_the_typed_line() {
 
 #[test]
 fn escape_cancels_without_sending() {
-    let (mut app, mut rx) = app();
+    let (mut app, rx) = app();
     press(&mut app, KeyCode::Enter, Key::Enter, Some("\r"));
     press(&mut app, KeyCode::KeyH, Key::Character("h".into()), Some("h"));
 

@@ -1,11 +1,11 @@
 use bevy::prelude::Entity;
-use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
+use crossbeam_channel::{Receiver, unbounded};
 
 use super::*;
 use crate::players::PlayerInfo;
 
-fn players() -> (PlayerMap, UnboundedReceiver<ServerMessage>) {
-    let (tx, rx) = unbounded_channel();
+fn players() -> (PlayerMap, Receiver<ServerMessage>) {
+    let (tx, rx) = unbounded();
     let mut info = PlayerInfo::new(Entity::PLACEHOLDER, tx);
     info.connection.logged_in = true;
     let mut players = PlayerMap::default();
@@ -20,7 +20,7 @@ fn chat() -> FeedEvent {
     }
 }
 
-fn receive(rx: &mut UnboundedReceiver<ServerMessage>) -> SFeed {
+fn receive(rx: &mut Receiver<ServerMessage>) -> SFeed {
     match rx.try_recv().expect("feed line missing") {
         ServerMessage::Feed(line) => line,
         other => panic!("unexpected envelope: {other:?}"),
@@ -64,8 +64,8 @@ fn private_delivery_bypasses_public_switches() {
 
 #[test]
 fn everyone_except_skips_only_the_named_player() {
-    let (mut players, mut first) = players();
-    let (tx, mut second) = unbounded_channel();
+    let (mut players, first) = players();
+    let (tx, mut second) = unbounded();
     let mut info = PlayerInfo::new(Entity::PLACEHOLDER, tx);
     info.connection.logged_in = true;
     players.insert(PlayerId(2), info);

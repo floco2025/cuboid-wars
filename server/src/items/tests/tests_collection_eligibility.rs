@@ -1,7 +1,7 @@
 use crate::config::fixtures;
 use bevy::prelude::*;
 use common::{map::Carriers, protocol::CarrierId};
-use tokio::sync::mpsc::unbounded_channel;
+use crossbeam_channel::unbounded;
 
 use crate::{
     config::{PowerUpsConfig, ServerGameplayConfig},
@@ -44,13 +44,9 @@ fn test_app() -> App {
     app
 }
 
-fn spawn_player(
-    app: &mut App,
-    id: PlayerId,
-    pos: Position,
-) -> (Entity, tokio::sync::mpsc::UnboundedReceiver<ServerMessage>) {
+fn spawn_player(app: &mut App, id: PlayerId, pos: Position) -> (Entity, crossbeam_channel::Receiver<ServerMessage>) {
     let entity = app.world_mut().spawn((PlayerMarker, id, pos, Health(50.0))).id();
-    let (sender, receiver) = unbounded_channel();
+    let (sender, receiver) = unbounded();
     let mut info = PlayerInfo::new(entity, sender);
     info.connection.logged_in = true;
     app.world_mut().resource_mut::<PlayerMap>().insert(id, info);
@@ -83,7 +79,7 @@ fn permanent_single_shot_pickup_grants_fire_and_leaves_duplicates_for_other_play
         .duration_secs
         .single_shot = 0.0;
     let id = PlayerId(1);
-    let (_, mut rx) = spawn_player(&mut app, id, Position::default());
+    let (_, rx) = spawn_player(&mut app, id, Position::default());
     assert!(
         !app.world_mut()
             .resource_mut::<PlayerMap>()
@@ -126,7 +122,7 @@ fn permanent_single_shot_pickup_grants_fire_and_leaves_duplicates_for_other_play
 fn overlapping_gold_is_collected_and_scores() {
     let mut app = test_app();
     let id = PlayerId(1);
-    let (_, mut rx) = spawn_player(&mut app, id, Position::default());
+    let (_, rx) = spawn_player(&mut app, id, Position::default());
     let item = spawn_item(&mut app, 1, ItemType::Gold, Position::default(), random(0.0));
 
     app.update();
@@ -173,7 +169,7 @@ fn permanent_power_up_stays_for_other_players_and_timed_pickup_refreshes() {
     config.duration_secs.portal_gun = 0.0;
     config.duration_secs.speed = 30.0;
     let id = PlayerId(1);
-    let (_, mut rx) = spawn_player(&mut app, id, Position::default());
+    let (_, rx) = spawn_player(&mut app, id, Position::default());
     spawn_item(
         &mut app,
         1,
@@ -239,7 +235,7 @@ fn eraser_wins_over_same_tick_pickup_and_does_not_repeat_status() {
     app.insert_resource(CollisionWorld::from_map_layout(&layout))
         .add_systems(Update, erase_equipment_system.after(item_collection_system));
     let id = PlayerId(1);
-    let (entity, mut rx) = spawn_player(&mut app, id, Position::default());
+    let (entity, rx) = spawn_player(&mut app, id, Position::default());
     handle_move_outcome(
         id,
         CMoveOutcome {

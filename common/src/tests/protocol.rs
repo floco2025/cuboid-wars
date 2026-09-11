@@ -1,8 +1,9 @@
 use super::*;
-use crate::{network::encode_message, physics::CharacterSupport, protocol::CarrierId};
-
-// Comfortably under quinn's ~1150-byte datagram limit at the initial MTU.
-const DATAGRAM_BUDGET: usize = 1100;
+use crate::{
+    network::{RETRANSMITTED_CHANNEL, SLICE_BYTES, UNRELIABLE_CHANNEL, channel_for, encode_message},
+    physics::CharacterSupport,
+    protocol::CarrierId,
+};
 
 fn position() -> Position {
     Position {
@@ -25,7 +26,7 @@ fn the_checkpoint_cue_rides_the_reliable_lane() {
 }
 
 #[test]
-fn unreliable_lane_messages_fit_one_datagram() {
+fn unreliable_lane_messages_fit_one_packet() {
     let messages = [
         ServerMessage::EquipmentErased(SEquipmentErased),
         ServerMessage::PlayerStatus(SPlayerStatus {
@@ -86,7 +87,8 @@ fn unreliable_lane_messages_fit_one_datagram() {
     for message in &messages {
         assert_eq!(message.lane(), Lane::Unreliable, "{message:?}");
         let len = encode_message(message).expect("message failed to encode").len();
-        assert!(len < DATAGRAM_BUDGET, "{message:?} encodes to {len} bytes");
+        assert!(len <= SLICE_BYTES, "{message:?} encodes to {len} bytes");
+        assert_eq!(channel_for(message.lane(), len), UNRELIABLE_CHANNEL);
     }
 }
 
@@ -147,7 +149,7 @@ fn sequence_comparison_wraps() {
 }
 
 #[test]
-fn hotel_sized_snapshot_takes_the_stream_carrier() {
+fn hotel_sized_snapshot_takes_the_retransmitted_channel() {
     let player = |i: u32| {
         (
             PlayerId(i),
@@ -213,5 +215,6 @@ fn hotel_sized_snapshot_takes_the_stream_carrier() {
         portals: Vec::new(),
     });
     let len = encode_message(&snapshot).expect("snapshot failed to encode").len();
-    assert!(len > DATAGRAM_BUDGET, "hotel-sized snapshot encodes to {len} bytes");
+    assert!(len > SLICE_BYTES, "hotel-sized snapshot encodes to {len} bytes");
+    assert_eq!(channel_for(snapshot.lane(), len), RETRANSMITTED_CHANNEL);
 }

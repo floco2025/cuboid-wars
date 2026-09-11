@@ -37,7 +37,7 @@ use crate::{
 fn input_app() -> (App, Entity, Entity) {
     let settings: ClientSettings =
         serde_json::from_str(test_fixtures::SETTINGS_JSON).expect("client settings JSON is invalid");
-    let (sender, _receiver) = tokio::sync::mpsc::unbounded_channel();
+    let (sender, _receiver) = crossbeam_channel::unbounded();
     let mut app = App::new();
     app.insert_resource(CameraViewMode::ThirdPerson)
         .insert_resource(test_fixtures::gameplay_config())
@@ -312,7 +312,7 @@ fn unlocked_firing_faces_view_without_changing_movement_or_lock_and_commits_faci
         ),
     ] {
         let (mut app, player, _) = input_app();
-        let (sender, mut receiver) = tokio::sync::mpsc::unbounded_channel();
+        let (sender, receiver) = crossbeam_channel::unbounded();
         app.insert_resource(ClientToServerChannel::new(sender))
             .insert_resource(weapon)
             .insert_resource(access)

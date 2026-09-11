@@ -4,7 +4,7 @@ use common::{
     config::{GameplayConfig, NetworkConfig},
     protocol::*,
 };
-use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
+use crossbeam_channel::{Receiver, unbounded};
 
 use super::{MissileMap, expiry::missiles_expiry_system, handle_missile_moves};
 use crate::{
@@ -12,7 +12,7 @@ use crate::{
     schedule::ticks_from_secs,
 };
 
-fn app() -> (App, UnboundedReceiver<ServerMessage>) {
+fn app() -> (App, Receiver<ServerMessage>) {
     let server = fixtures::server_config();
     let mut app = App::new();
     app.insert_resource(server.gameplay_config())
@@ -21,7 +21,7 @@ fn app() -> (App, UnboundedReceiver<ServerMessage>) {
         .init_resource::<MissileMap>()
         .init_resource::<PlayerMap>()
         .add_systems(Update, missiles_expiry_system);
-    let (sender, receiver) = unbounded_channel();
+    let (sender, receiver) = unbounded();
     let mut info = PlayerInfo::new(app.world_mut().spawn_empty().id(), sender);
     info.connection.logged_in = true;
     app.world_mut().resource_mut::<PlayerMap>().insert(PlayerId(1), info);
@@ -38,7 +38,7 @@ fn missile(pos: Position) -> Missile {
 
 #[test]
 fn an_unreported_missile_is_removed_after_its_lifetime_with_a_cue_at_its_last_position() {
-    let (mut app, mut receiver) = app();
+    let (mut app, receiver) = app();
     let lifetime_ticks = {
         let gameplay = app.world().resource::<GameplayConfig>();
         ticks_from_secs(gameplay.missiles.lifetime_secs, 30)
@@ -83,7 +83,7 @@ fn an_unreported_missile_is_removed_after_its_lifetime_with_a_cue_at_its_last_po
 
 #[test]
 fn launch_age_survives_tick_wrap() {
-    let (mut app, mut receiver) = app();
+    let (mut app, receiver) = app();
     app.world_mut()
         .resource_mut::<MissileMap>()
         .insert(MissileId(1), missile(Position::default()), u32::MAX - 5);

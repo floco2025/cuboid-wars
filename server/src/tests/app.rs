@@ -8,11 +8,11 @@ use common::{
         PlayerMovementState, Position, ServerMessage,
     },
 };
-use tokio::sync::mpsc::unbounded_channel;
+use crossbeam_channel::unbounded;
 
 #[test]
 fn give_missiles_sends_weapon_selection_cue_even_when_ammo_is_full() {
-    let (register, new_links) = unbounded_channel();
+    let (register, new_links) = unbounded();
     let mut app = server_app(
         NetworkOverrides {
             snapshot_hz: Some(1),
@@ -22,7 +22,7 @@ fn give_missiles_sends_weapon_selection_cue_even_when_ammo_is_full() {
     )
     .expect("server app failed to initialize");
     let id = PlayerId(1);
-    let (client, mut receiver) = connect(&register);
+    let (client, receiver) = connect(&register);
     client
         .send(ClientMessage::Login(CLogin { name: "Player".into() }))
         .expect("login failed");
@@ -67,7 +67,7 @@ fn give_missiles_sends_weapon_selection_cue_even_when_ammo_is_full() {
 
 #[test]
 fn full_server_schedule_broadcasts_the_latest_sample_to_both_clients() {
-    let (register, new_links) = unbounded_channel();
+    let (register, new_links) = unbounded();
     let mut app = server_app(
         NetworkOverrides {
             update_hz: Some(30),
@@ -145,7 +145,7 @@ fn full_server_schedule_broadcasts_the_latest_sample_to_both_clients() {
 
 #[test]
 fn independent_rate_overrides_reach_init_and_leave_simulation_unchanged() {
-    let (register, new_links) = unbounded_channel();
+    let (register, new_links) = unbounded();
     let mut app = server_app(
         NetworkOverrides {
             update_hz: Some(2),
@@ -155,7 +155,7 @@ fn independent_rate_overrides_reach_init_and_leave_simulation_unchanged() {
         NewLinksChannel::new(new_links),
     )
     .expect("server app failed");
-    let (client, mut receiver) = connect(&register);
+    let (client, receiver) = connect(&register);
     client
         .send(ClientMessage::Login(CLogin { name: "Player".into() }))
         .expect("login failed");

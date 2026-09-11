@@ -16,14 +16,14 @@ use crate::{
 };
 use bevy::prelude::*;
 use common::{config::NetworkConfig, constants::TICK_SECS, map::Carriers, physics::CollisionWorld, protocol::*};
+use crossbeam_channel::{Receiver, unbounded};
 use std::{collections::HashMap, time::Duration};
-use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
 
-fn app(hz: u32) -> (App, UnboundedReceiver<ClientMessage>) {
+fn app(hz: u32) -> (App, Receiver<ClientMessage>) {
     let mut app = App::new();
     app.add_plugins((TaskPoolPlugin::default(), AssetPlugin::default()));
     app.init_asset::<AudioSource>();
-    let (sender, receiver) = unbounded_channel();
+    let (sender, receiver) = unbounded();
     let mut time = Time::<()>::default();
     time.advance_by(Duration::from_secs_f32(TICK_SECS));
     let layout = MapLayout::default();
@@ -106,7 +106,7 @@ fn missile(app: &mut App, id: MissileId, owned: bool, speed: f32, lifetime: f32)
 #[test]
 fn only_shooters_flights_simulate_and_report_at_the_configured_rate_without_a_living_shooter() {
     for hz in [7, 10, 30] {
-        let (mut app, mut receiver) = app(hz);
+        let (mut app, receiver) = app(hz);
         let local = missile(&mut app, MissileId(1), true, 20.0, 10.0);
         let remote = missile(&mut app, MissileId(2), false, 100.0, 10.0);
         for _ in 0..30 {
@@ -137,7 +137,7 @@ fn only_shooters_flights_simulate_and_report_at_the_configured_rate_without_a_li
 
 #[test]
 fn a_fast_missile_reports_the_swept_hit_and_victim_generation_once() {
-    let (mut app, mut receiver) = app(10);
+    let (mut app, receiver) = app(10);
     let id = PlayerId(2);
     let pos = Position { x: 5.0, y: 0.0, z: 0.0 };
     let target = app.world_mut().spawn((PlayerMarker, id, pos, FaceYaw(0.0))).id();
@@ -175,7 +175,7 @@ fn a_fast_missile_reports_the_swept_hit_and_victim_generation_once() {
 
 #[test]
 fn lifetime_detonation_needs_no_target_or_movement_packet() {
-    let (mut app, mut receiver) = app(1);
+    let (mut app, receiver) = app(1);
     let entity = missile(&mut app, MissileId(1), true, 20.0, TICK_SECS * 1.5);
     app.update();
     while receiver.try_recv().is_ok() {}
@@ -191,7 +191,7 @@ fn lifetime_detonation_needs_no_target_or_movement_packet() {
 
 #[test]
 fn a_retired_body_kept_for_the_death_camera_does_not_block_flight() {
-    let (mut app, mut receiver) = app(10);
+    let (mut app, receiver) = app(10);
     let id = PlayerId(1);
     let pos = Position { x: 5.0, y: 0.0, z: 0.0 };
     let target = app.world_mut().spawn((PlayerMarker, id, pos, FaceYaw(0.0))).id();
@@ -212,7 +212,7 @@ fn a_retired_body_kept_for_the_death_camera_does_not_block_flight() {
 
 #[test]
 fn a_missile_inside_geometry_detonates_where_it_is() {
-    let (mut app, mut receiver) = app(10);
+    let (mut app, receiver) = app(10);
     let layout = MapLayout {
         walls: vec![Wall {
             x1: 0.0,
@@ -239,7 +239,7 @@ fn a_missile_inside_geometry_detonates_where_it_is() {
 
 #[test]
 fn a_missile_arms_against_its_shooter_only_after_leaving_them() {
-    let (mut app, mut receiver) = app(10);
+    let (mut app, receiver) = app(10);
     let id = PlayerId(1);
     let shooter = app
         .world_mut()
@@ -282,7 +282,7 @@ fn a_missile_arms_against_its_shooter_only_after_leaving_them() {
 
 #[test]
 fn a_missile_that_stops_making_progress_detonates_itself() {
-    let (mut app, mut receiver) = app(10);
+    let (mut app, receiver) = app(10);
     let stall_secs = test_fixtures::gameplay_config().missiles.stall_secs;
     let entity = missile(&mut app, MissileId(1), true, 0.0, stall_secs * 10.0);
     for _ in 0..(stall_secs / TICK_SECS) as usize + 3 {
@@ -296,7 +296,7 @@ fn a_missile_that_stops_making_progress_detonates_itself() {
 
 #[test]
 fn a_dead_target_clears_the_missiles_lock() {
-    let (mut app, mut receiver) = app(10);
+    let (mut app, receiver) = app(10);
     let id = PlayerId(2);
     let pos = Position {
         x: 40.0,

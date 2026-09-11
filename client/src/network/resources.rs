@@ -1,8 +1,16 @@
 use bevy::prelude::*;
-use std::{collections::VecDeque, time::Duration};
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, error::TryRecvError};
+use std::{
+    collections::VecDeque,
+    ops::ControlFlow,
+    time::{Duration, Instant},
+};
+
+use anyhow::{Result, bail};
+use crossbeam_channel::{Receiver, Sender, TryRecvError};
 
 use common::protocol::{ClientMessage, ServerMessage, sequence_is_newer};
+
+use super::transport::RemoteLink;
 
 // Newest `SSnapshot.tick` applied; an older snapshot is ignored. `None`
 // until the first one.
@@ -32,34 +40,60 @@ pub struct RoundTripTime {
 
 // The app's sending end of the client-to-server queue.
 #[derive(Resource)]
-pub struct ClientToServerChannel(UnboundedSender<ClientMessage>);
+pub struct ClientToServerChannel(Sender<ClientMessage>);
 
 impl ClientToServerChannel {
     #[must_use]
-    pub const fn new(sender: UnboundedSender<ClientMessage>) -> Self {
+    pub const fn new(sender: Sender<ClientMessage>) -> Self {
         Self(sender)
     }
 
-    // The receiver is the network task or the host's own server; once it is
+    // The receiver is the remote link or the host's own server; once it is
     // gone the link is closing and there is nobody left to tell.
     pub fn send(&self, message: ClientMessage) {
         let _ = self.0.send(message);
     }
 }
 
-// The app's receiving end of the server-to-client queue; a closed queue is
-// the disconnect.
+// The app's receiving side of the server link: the host's own client reads
+// its server's queue, a joined client pumps the UDP connection.
 #[derive(Resource)]
-pub struct ServerToClientChannel(UnboundedReceiver<ServerMessage>);
+pub enum ServerLink {
+    Local(Receiver<ServerMessage>),
+    Remote(Box<RemoteLink>),
+}
 
-impl ServerToClientChannel {
-    #[must_use]
-    pub const fn new(receiver: UnboundedReceiver<ServerMessage>) -> Self {
-        Self(receiver)
+impl ServerLink {
+    // Hands the messages that have arrived to `sink` until it breaks; the
+    // rest wait for the next call. An error is the link closing, with the
+    // reason.
+    pub fn receive(&mut self, now: Instant, mut sink: impl FnMut(ServerMessage) -> ControlFlow<()>) -> Result<()> {
+        match self {
+            Self::Local(receiver) => loop {
+                match receiver.try_recv() {
+                    Ok(message) => {
+                        if sink(message).is_break() {
+                            return Ok(());
+                        }
+                    }
+                    Err(TryRecvError::Empty) => return Ok(()),
+                    Err(TryRecvError::Disconnected) => bail!("the server closed the queue"),
+                }
+            },
+            Self::Remote(link) => link.receive(now, sink),
+        }
     }
 
-    pub fn try_recv(&mut self) -> Result<ServerMessage, TryRecvError> {
-        self.0.try_recv()
+    pub fn flush(&mut self, now: Instant) {
+        if let Self::Remote(link) = self {
+            link.flush(now);
+        }
+    }
+
+    pub fn disconnect(&mut self) {
+        if let Self::Remote(link) = self {
+            link.disconnect();
+        }
     }
 }
 

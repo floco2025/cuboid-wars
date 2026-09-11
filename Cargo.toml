@@ -12,7 +12,8 @@ server = { path = "server" }
 common = { path = "common" }
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
-tokio = { version = "1", features = ["rt-multi-thread", "sync", "signal"] }
+bevy = { version = "0.19", default-features = false }
+crossbeam-channel = "0.5"
 whoami = "2.0.1"
 
 [workspace]

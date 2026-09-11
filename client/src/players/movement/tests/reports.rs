@@ -5,8 +5,8 @@ use common::{
     physics::{CharacterSupport, CollisionWorld, PortalSet},
     protocol::{Carrier, CarrierId, MapLayout, PlateState, PlayerId, PlayerMarker, Portal, PortalEnd, PortalPairId},
 };
+use crossbeam_channel::unbounded;
 use std::f32::consts::PI;
-use tokio::sync::mpsc::unbounded_channel;
 
 fn step(carrier: CarrierId, support: CharacterSupport) -> LocalMovementStep {
     LocalMovementStep {
@@ -45,7 +45,7 @@ fn grounded_rider_reports_local_position_and_takeoff_immediately_returns_to_worl
         ..default()
     };
     let mut app = App::new();
-    let (sender, mut receiver) = unbounded_channel();
+    let (sender, receiver) = unbounded();
     app.insert_resource(Carriers::from_layout(&layout))
         .insert_resource(NetworkConfig {
             update_hz: 10,
@@ -122,7 +122,7 @@ fn boarding_a_carrier_reports_immediately() {
         ..default()
     };
     let mut app = App::new();
-    let (sender, mut receiver) = unbounded_channel();
+    let (sender, receiver) = unbounded();
     app.insert_resource(Carriers::from_layout(&layout))
         .insert_resource(NetworkConfig {
             update_hz: 1,
@@ -161,7 +161,7 @@ fn boarding_a_carrier_reports_immediately() {
 #[test]
 fn a_dead_local_player_sends_no_movement_report() {
     let mut app = App::new();
-    let (sender, mut receiver) = unbounded_channel();
+    let (sender, receiver) = unbounded();
     app.init_resource::<Carriers>()
         .insert_resource(NetworkConfig::default())
         .insert_resource(ClientToServerChannel::new(sender))
@@ -203,7 +203,7 @@ fn new_body_clears_crossings_and_reports_immediately_without_resetting_sequence(
 #[test]
 fn crossings_send_immediately_and_repeat_the_boundary_in_later_reports() {
     let mut app = App::new();
-    let (sender, mut receiver) = unbounded_channel();
+    let (sender, receiver) = unbounded();
     let collision = CollisionWorld::from_map_layout(&MapLayout::default());
     let portals: Vec<_> = [PortalEnd::A, PortalEnd::B]
         .into_iter()

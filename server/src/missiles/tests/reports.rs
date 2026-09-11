@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 use common::protocol::*;
-use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
+use crossbeam_channel::{Receiver, unbounded};
 
 use super::{MissileMap, handle_missile_detonated, handle_missile_moves, handle_missile_shot_message};
 use crate::{
@@ -8,8 +8,8 @@ use crate::{
     players::{PlayerInfo, PlayerMap},
 };
 
-fn players() -> (PlayerMap, UnboundedReceiver<ServerMessage>) {
-    let (sender, receiver) = unbounded_channel();
+fn players() -> (PlayerMap, Receiver<ServerMessage>) {
+    let (sender, receiver) = unbounded();
     let mut world = World::new();
     let mut info = PlayerInfo::new(world.spawn_empty().id(), sender);
     info.connection.logged_in = true;
@@ -37,7 +37,7 @@ fn shot() -> CMissileShot {
 
 #[test]
 fn launch_adopts_client_geometry_and_target_without_a_server_body_query() {
-    let (mut players, mut receiver) = players();
+    let (mut players, receiver) = players();
     let mut missiles = MissileMap::default();
     let shot = shot();
     handle_missile_shot_message(PlayerId(1), shot.clone(), &mut players, &mut missiles, ServerTick(17));
@@ -57,7 +57,7 @@ fn launch_adopts_client_geometry_and_target_without_a_server_body_query() {
 
 #[test]
 fn stale_body_invalid_geometry_and_empty_ammo_do_not_launch() {
-    let (mut players, mut receiver) = players();
+    let (mut players, receiver) = players();
     let mut missiles = MissileMap::default();
     let mut stale = shot();
     stale.generation = PlayerGeneration(3);
@@ -75,8 +75,8 @@ fn stale_body_invalid_geometry_and_empty_ammo_do_not_launch() {
 
 #[test]
 fn moves_relay_only_fresh_owner_samples_across_wrap_and_during_death() {
-    let (mut players, mut owner_receiver) = players();
-    let (sender, mut receiver) = unbounded_channel();
+    let (mut players, owner_receiver) = players();
+    let (sender, receiver) = unbounded();
     let mut observer = PlayerInfo::new(World::new().spawn_empty().id(), sender);
     observer.connection.logged_in = true;
     players.insert(PlayerId(2), observer);
@@ -130,7 +130,7 @@ fn moves_relay_only_fresh_owner_samples_across_wrap_and_during_death() {
 
 #[test]
 fn detonation_is_owner_bound_and_applies_once_even_without_any_movement_report() {
-    let (mut players, mut receiver) = players();
+    let (mut players, receiver) = players();
     let mut missiles = MissileMap::default();
     handle_missile_shot_message(PlayerId(1), shot(), &mut players, &mut missiles, ServerTick(10));
     let id = *missiles.iter().next().expect("missile missing").0;

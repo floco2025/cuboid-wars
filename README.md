@@ -1,6 +1,6 @@
 # Cuboid Wars
 
-A fast-paced multiplayer arena game built with Rust, Bevy, Rapier, and QUIC.
+A fast-paced multiplayer arena game built with Rust, Bevy, Rapier, and renet.
 
 ![Cuboid Wars Screenshot](client/assets/screenshot1.png)
 ![Cuboid Wars Screenshot](client/assets/screenshot2.png)
@@ -97,7 +97,7 @@ is empty.
 
 - **Engine** — Bevy (ECS)
 - **Physics** — Rapier (static map collision, kinematic characters, projectile shape casts)
-- **Networking** — QUIC via `quinn`
+- **Networking** — UDP via `renet` and its netcode transport, polled from the game loop
 - **Wire format** — `bincode` 2 (binary)
 - **Architecture** — client–server with a shared `common` crate (protocol, physics, map types, spawn validation)
 
@@ -114,8 +114,7 @@ cargo run --release -- join 192.168.1.100:8080 --name "Alice"
 cargo run --release -- serve --map hotel               # dedicated headless server
 ```
 
-The repo ships a self-signed `cert.pem` / `key.pem` for LAN testing. **Replace
-them for anything beyond localhost** — they are not production-safe.
+The server accepts anyone who can reach its port; keep it on a LAN you trust.
 
 ## Map editor
 

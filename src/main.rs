@@ -1,17 +1,15 @@
-use std::{net::SocketAddr, time::Duration};
+use std::{net::SocketAddr, process, time::Duration};
 
 use anyhow::Result;
+use bevy::app::AppExit;
 use clap::{Args, Parser, Subcommand};
-use tokio::{
-    runtime::Runtime,
-    sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel},
-};
+use crossbeam_channel::{Sender, unbounded};
 
 use client::{
     app::{ClientAppOptions, build_client_app},
-    network::{ClientToServerChannel, Impairment, ServerToClientChannel, connect_to_server, login},
+    network::{ClientToServerChannel, Impairment, ServerLink, connect, login},
 };
-use common::protocol::{ClientMessage, ServerMessage};
+use common::protocol::ClientMessage;
 use server::{
     app::{NetworkOverrides, ServerAppOptions, build_server_app, run_server_loop},
     network::{NewLinksChannel, listen},
@@ -173,60 +171,50 @@ fn parse_fraction(value: &str) -> Result<f32, String> {
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
-    let runtime = Runtime::new()?;
     match cli.mode {
         None => {
-            let (to_server, from_server) = spawn_embedded_server(runtime.handle(), cli.world.server_options(), None)?;
-            play(&runtime, &cli.window, to_server, from_server, false)
+            let (to_server, link) = spawn_embedded_server(cli.world.server_options(), None)?;
+            play(&cli.window, to_server, link, false)
         }
         Some(Mode::Host { bind, window, world }) => {
-            let (to_server, from_server) = spawn_embedded_server(runtime.handle(), world.server_options(), Some(bind))?;
-            play(&runtime, &window, to_server, from_server, false)
+            let (to_server, link) = spawn_embedded_server(world.server_options(), Some(bind))?;
+            play(&window, to_server, link, false)
         }
         Some(Mode::Join {
             server,
             impairment,
             window,
         }) => {
-            let (to_server, from_server) = connect_to_server(runtime.handle(), server, impairment.impairment())?;
-            play(&runtime, &window, to_server, from_server, true)
+            let (to_server, link) = connect(server, impairment.impairment())?;
+            play(&window, to_server, link, true)
         }
         Some(Mode::Serve { bind, world }) => {
-            let (register, new_links) = unbounded_channel();
-            let app = build_server_app(world.server_options(), NewLinksChannel::new(new_links))?;
-            listen(runtime.handle(), bind, register)?;
-            run_server_loop(app, runtime.handle())
+            let (_register, new_links) = unbounded();
+            let listener = listen(bind)?;
+            let app = build_server_app(world.server_options(), NewLinksChannel::new(new_links), Some(listener))?;
+            run_server_loop(app)
         }
     }
 }
 
-// Logs in over the queues, builds the client app around them, and runs it on
+// Logs in over the link, builds the client app around it, and runs it on
 // this thread; `logging` is false when an embedded server owns the log plugin.
-fn play(
-    runtime: &Runtime,
-    window: &WindowArgs,
-    to_server: UnboundedSender<ClientMessage>,
-    mut from_server: UnboundedReceiver<ServerMessage>,
-    logging: bool,
-) -> Result<()> {
-    let bootstrap = login(runtime.handle(), &to_server, &mut from_server, window.player_name())?;
+// Bevy's default plugins turn Ctrl+C into an `AppExit`, and the network
+// plugin tells the server on the frame the app exits.
+fn play(window: &WindowArgs, to_server: Sender<ClientMessage>, mut link: ServerLink, logging: bool) -> Result<()> {
+    let bootstrap = login(&mut link, &to_server, window.player_name())?;
     let mut app = build_client_app(
         window.client_options(logging),
         ClientToServerChannel::new(to_server),
-        ServerToClientChannel::new(from_server),
+        link,
         bootstrap,
     )?;
-    // Winit's macOS event loop can leave SIGINT queued without waking the
-    // application, so service it from Tokio and use the conventional exit code.
-    runtime.spawn(async {
-        if tokio::signal::ctrl_c().await.is_ok() {
-            std::process::exit(130);
-        }
+    let exit = app.run();
+    // Winit does not always finish tearing down after AppExit on macOS.
+    process::exit(match exit {
+        AppExit::Success => 0,
+        AppExit::Error(code) => i32::from(code.get()),
     });
-
-    app.run();
-    // Tokio and winit do not always finish tearing down after AppExit on macOS.
-    std::process::exit(0);
 }
 
 #[cfg(test)]

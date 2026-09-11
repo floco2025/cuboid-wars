@@ -7,7 +7,6 @@ mod gameplay;
 mod items;
 mod maps;
 mod missiles;
-mod network;
 mod quests;
 mod respawn;
 mod scoring;
@@ -33,7 +32,6 @@ pub use items::{PlacedItemRespawnSecs, PlacedItemsConfig, PowerUpDurationSecs, P
 pub(crate) use maps::is_valid_map_name;
 pub use maps::{LightingMode, MapServerConfig, RandomItemsConfig, WeatherMode};
 pub use missiles::MissilesServerConfig;
-pub use network::configure_server;
 pub use quests::{Quest, QuestKind};
 pub use respawn::{ActorRespawnConfig, ActorRespawnScope, PlayerRespawnMode, RespawnConfig};
 pub use scoring::ScoringConfig;

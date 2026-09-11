@@ -2,7 +2,7 @@ use crate::config::fixtures;
 use std::time::Duration;
 
 use bevy::{ecs::world::CommandQueue, prelude::*};
-use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
+use crossbeam_channel::{Receiver, unbounded};
 
 use super::{PlayerMap, respawn::*};
 use crate::{
@@ -132,14 +132,14 @@ fn materialize_actors(app: &mut App) {
     advance(app, TICK_DURATION.as_secs_f32());
 }
 
-pub(super) fn add_player(app: &mut App, id: PlayerId) -> (Entity, UnboundedReceiver<ServerMessage>) {
+pub(super) fn add_player(app: &mut App, id: PlayerId) -> (Entity, Receiver<ServerMessage>) {
     let pos = Position {
         x: -8.0 + id.0 as f32,
         y: 0.0,
         z: 0.0,
     };
     let entity = app.world_mut().spawn((PlayerMarker, id, pos, Health(30.0))).id();
-    let (tx, rx) = unbounded_channel();
+    let (tx, rx) = unbounded();
     let mut info = PlayerInfo::new(entity, tx);
     info.connection.logged_in = true;
     info.connection.name = format!("Player {}", id.0);
@@ -387,7 +387,7 @@ fn actor_reset_scopes_preserve_or_replace_survivors_and_pending_spawns() {
 fn a_group_death_resets_teammates_once_and_respawns_everyone_together() {
     let mut app = respawn_app(PlayerRespawnMode::Group, ActorRespawnScope::All);
     materialize_actors(&mut app);
-    let (first, mut rx) = add_player(&mut app, PlayerId(1));
+    let (first, rx) = add_player(&mut app, PlayerId(1));
     let (second, _rx) = add_player(&mut app, PlayerId(2));
     kill(&mut app, PlayerId(1));
     advance(&mut app, 1.0);

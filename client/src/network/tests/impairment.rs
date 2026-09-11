@@ -3,107 +3,80 @@ use super::*;
 const LAG: Duration = Duration::from_millis(50);
 const SPACING: Duration = Duration::from_millis(10);
 
-#[tokio::test(start_paused = true)]
-async fn delay_stage_forwards_in_order_after_lag() {
-    let (input, stage_input) = unbounded_channel();
-    let (stage_output, mut output) = unbounded_channel();
-    tokio::spawn(delay_stage(|_| LAG, stage_input, stage_output));
+fn millis(ms: u64) -> Duration {
+    Duration::from_millis(ms)
+}
+
+#[test]
+fn delay_queue_releases_in_order_after_lag() {
     let start = Instant::now();
+    let mut queue = DelayQueue::default();
     for item in 1..=3u32 {
-        input.send(item).expect("stage dropped its input");
-        tokio::task::yield_now().await;
-        tokio::time::advance(SPACING).await;
+        queue.push(start + SPACING * (item - 1), LAG, item);
     }
 
+    assert_eq!(queue.pop_due(start + LAG - millis(1)), None);
     for expected in 1..=3u32 {
-        let item = output.recv().await.expect("stage closed early");
-        assert_eq!(item, expected);
-        let earliest = LAG + SPACING * (expected - 1);
-        assert!(Instant::now() - start >= earliest, "item {item} arrived early");
+        let due = start + LAG + SPACING * (expected - 1);
+        assert_eq!(queue.pop_due(due - millis(1)), None, "item {expected} released early");
+        assert_eq!(queue.pop_due(due), Some(expected));
     }
+    assert_eq!(queue.pop_due(start + millis(1_000)), None);
 }
 
-#[tokio::test(start_paused = true)]
-async fn earlier_deadlines_overtake_pending_messages() {
-    let (input, stage_input) = unbounded_channel();
-    let (stage_output, mut output) = unbounded_channel();
-    tokio::spawn(delay_stage(
-        |lag: &u64| Duration::from_millis(*lag),
-        stage_input,
-        stage_output,
-    ));
+#[test]
+fn earlier_deadlines_overtake_pending_messages() {
     let start = Instant::now();
-    input.send(150).expect("stage dropped its input");
-    tokio::task::yield_now().await;
-    tokio::time::advance(SPACING).await;
-    input.send(50).expect("stage dropped its input");
+    let mut queue = DelayQueue::default();
+    queue.push(start, millis(150), "slow");
+    queue.push(start + SPACING, millis(50), "quick");
 
-    assert_eq!(output.recv().await, Some(50));
-    assert_eq!(Instant::now() - start, Duration::from_millis(60));
-    assert_eq!(output.recv().await, Some(150));
-    assert_eq!(Instant::now() - start, Duration::from_millis(150));
+    assert_eq!(queue.pop_due(start + millis(59)), None);
+    assert_eq!(queue.pop_due(start + millis(60)), Some("quick"));
+    assert_eq!(queue.pop_due(start + millis(149)), None);
+    assert_eq!(queue.pop_due(start + millis(150)), Some("slow"));
 }
 
-#[tokio::test(start_paused = true)]
-async fn delay_stage_drains_after_input_closes() {
-    let (input, stage_input) = unbounded_channel();
-    let (stage_output, mut output) = unbounded_channel();
-    tokio::spawn(delay_stage(
-        |(lag, _): &(u64, &str)| Duration::from_millis(*lag),
-        stage_input,
-        stage_output,
-    ));
-    input.send((100, "slow")).expect("stage dropped its input");
-    input.send((50, "first")).expect("stage dropped its input");
-    input.send((50, "second")).expect("stage dropped its input");
-    drop(input);
+#[test]
+fn equal_deadlines_keep_insertion_order() {
+    let start = Instant::now();
+    let mut queue = DelayQueue::default();
+    queue.push(start, millis(100), "slow");
+    queue.push(start, millis(50), "first");
+    queue.push(start, millis(50), "second");
 
-    assert_eq!(output.recv().await, Some((50, "first")));
-    assert_eq!(output.recv().await, Some((50, "second")));
-    assert_eq!(output.recv().await, Some((100, "slow")));
-    assert_eq!(output.recv().await, None);
+    assert_eq!(queue.pop_due(start + millis(50)), Some("first"));
+    assert_eq!(queue.pop_due(start + millis(50)), Some("second"));
+    assert_eq!(queue.pop_due(start + millis(50)), None);
+    assert_eq!(queue.pop_due(start + millis(100)), Some("slow"));
 }
 
-#[tokio::test(start_paused = true)]
-async fn both_delay_directions_preserve_reliable_order_among_unreliable_messages() {
+#[test]
+fn jittered_unreliable_delays_never_reorder_reliable_messages() {
     let impairment = Impairment {
         lag: LAG,
         jitter: 1.0,
         ..Default::default()
     };
-    for inbound in [true, false] {
-        let (input, output) = unbounded_channel();
-        let (input, mut output) = if inbound {
-            (
-                impaired_sender(impairment, input, |(_, unreliable)| *unreliable),
-                output,
-            )
-        } else {
-            (
-                input,
-                impaired_receiver(impairment, output, |(_, unreliable)| *unreliable),
-            )
-        };
-        for id in 0..6 {
-            input.send((id, true)).expect("stage dropped its input");
-            input.send((id, false)).expect("stage dropped its input");
-            tokio::task::yield_now().await;
-            tokio::time::advance(SPACING).await;
-        }
-        drop(input);
-        let mut reliable = Vec::new();
-        let mut unreliable = Vec::new();
-        while let Some((id, unordered)) = output.recv().await {
-            if unordered {
-                unreliable.push(id);
-            } else {
-                reliable.push(id);
-            }
-        }
-        assert_eq!(reliable, (0..6).collect::<Vec<_>>());
-        unreliable.sort();
-        assert_eq!(unreliable, reliable);
+    let start = Instant::now();
+    let mut queue = DelayQueue::default();
+    for id in 0..6u32 {
+        let now = start + SPACING * id;
+        queue.push(now, impairment.delay(true), (id, true));
+        queue.push(now, impairment.delay(false), (id, false));
     }
+    let mut reliable = Vec::new();
+    let mut unreliable = Vec::new();
+    while let Some((id, unordered)) = queue.pop_due(start + millis(1_000)) {
+        if unordered {
+            unreliable.push(id);
+        } else {
+            reliable.push(id);
+        }
+    }
+    assert_eq!(reliable, (0..6).collect::<Vec<_>>());
+    unreliable.sort();
+    assert_eq!(unreliable, reliable);
 }
 
 #[test]
@@ -125,17 +98,16 @@ fn jitter_stays_within_bounds_and_leaves_reliable_delay_fixed() {
 }
 
 #[test]
-fn zero_lag_bypasses_both_delay_stages_even_with_jitter() {
+fn zero_lag_releases_at_once_even_with_jitter() {
     let impairment = Impairment {
         jitter: 1.0,
         ..Default::default()
     };
     assert_eq!(impairment.delay(true), Duration::ZERO);
-    let (input, output) = unbounded_channel();
-    let input = impaired_sender(impairment, input, |_| true);
-    let mut output = impaired_receiver(impairment, output, |_| true);
-    input.send(7).expect("stage dropped its input");
-    assert_eq!(output.try_recv(), Ok(7));
+    let now = Instant::now();
+    let mut queue = DelayQueue::default();
+    queue.push(now, impairment.delay(true), 7);
+    assert_eq!(queue.pop_due(now), Some(7));
 }
 
 #[test]

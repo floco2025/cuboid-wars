@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 use bincode::config::standard;
-use tokio::sync::mpsc::unbounded_channel;
+use crossbeam_channel::unbounded;
 
 use super::{PowerUpState, resources::*};
 use crate::config::{
@@ -16,7 +16,7 @@ use common::{
 
 fn dummy_info() -> PlayerInfo {
     // Real channel + real Entity; we only exercise the held_keys path.
-    let (tx, _rx) = unbounded_channel();
+    let (tx, _rx) = unbounded();
     PlayerInfo::new(Entity::PLACEHOLDER, tx)
 }
 

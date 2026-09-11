@@ -1,7 +1,7 @@
 pub(super) use bevy::prelude::*;
+pub(super) use crossbeam_channel::{Receiver, unbounded};
 pub(super) use rand::{SeedableRng, rngs::StdRng};
 pub(super) use std::time::Duration;
-pub(super) use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
 
 pub(super) use super::super::{
     controllers::{

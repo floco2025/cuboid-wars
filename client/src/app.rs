@@ -19,7 +19,7 @@ use crate::{
     materials::{GrassMaterialPlugin, PortalClipMaterialPlugin, generate_material_mipmaps_system},
     missiles::{LockOnTarget, MissileAssets, MissileMap},
     network::{
-        ClientToServerChannel, LastPlayerMovesTick, LastSnapshotTick, RoundTripTime, ServerToClientChannel, TickSync,
+        ClientToServerChannel, LastPlayerMovesTick, LastSnapshotTick, RoundTripTime, ServerLink, TickSync,
         install_bootstrap, network_plugin,
     },
     players::{LocalPlayerInfo, PlayerMap},
@@ -47,7 +47,7 @@ pub struct ClientAppOptions {
 pub fn build_client_app(
     options: ClientAppOptions,
     to_server: ClientToServerChannel,
-    from_server: ServerToClientChannel,
+    link: ServerLink,
     bootstrap: SInit,
 ) -> Result<App> {
     let asset_set = AssetSet::load_default()?;
@@ -124,7 +124,7 @@ pub fn build_client_app(
     )));
 
     app.insert_resource(to_server)
-        .insert_resource(from_server)
+        .insert_resource(link)
         .insert_resource(PlayerMap::default())
         .insert_resource(ActorMap::default())
         .insert_resource(ActorGhostMap::default())

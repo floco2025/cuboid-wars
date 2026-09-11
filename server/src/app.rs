@@ -1,9 +1,7 @@
+use std::{thread, time::Instant};
+
 use anyhow::{Result, bail};
 use bevy::prelude::*;
-use tokio::{
-    runtime::Handle,
-    time::{self, Instant, MissedTickBehavior},
-};
 
 use crate::{
     actors::{
@@ -16,7 +14,7 @@ use crate::{
     items::{ItemMap, ItemSpawner, RandomItems, items_plugin},
     map::{GeneratedMap, LightState, MapFireworks, WeatherState, generate_map, map_plugin},
     missiles::{MissileMap, missiles_plugin},
-    network::{ClientLinks, NewLinksChannel, network_plugin},
+    network::{ClientLinks, Listener, NewLinksChannel, network_plugin},
     players::{Invincibility, PlayerMap, players_plugin},
     portals::{PortalAssignments, PortalMap, portals_plugin},
     projectiles::projectiles_plugin,
@@ -64,14 +62,26 @@ pub struct ServerAppOptions {
     pub logging: bool,
 }
 
-pub fn build_server_app(options: ServerAppOptions, new_links: NewLinksChannel) -> Result<App> {
-    build_server_app_with_loader(ServerGameplayConfig::load_default()?, options, new_links, generate_map)
+// `listener` is the UDP endpoint remote clients join through; single-player has none.
+pub fn build_server_app(
+    options: ServerAppOptions,
+    new_links: NewLinksChannel,
+    listener: Option<Listener>,
+) -> Result<App> {
+    build_server_app_with_loader(
+        ServerGameplayConfig::load_default()?,
+        options,
+        new_links,
+        listener,
+        generate_map,
+    )
 }
 
 fn build_server_app_with_loader(
     mut server_gameplay_config: ServerGameplayConfig,
     options: ServerAppOptions,
     new_links: NewLinksChannel,
+    listener: Option<Listener>,
     load_map: impl FnOnce(&str, u32, &MapSettings) -> Result<GeneratedMap>,
 ) -> Result<App> {
     options.network.apply(&mut server_gameplay_config.network);
@@ -146,8 +156,7 @@ fn build_server_app_with_loader(
     // Server time is tick time: every update advances `Time` by exactly one
     // tick, so delta-driven timers and tick-driven carriers agree and the
     // integration matches the client's fixed step. An overrun skips wall
-    // time (`MissedTickBehavior::Skip` in `run_server_loop`) instead of
-    // stretching a tick.
+    // time (`run_server_loop`) instead of stretching a tick.
     app.insert_resource(TimeUpdateStrategy::ManualDuration(
         server_gameplay_config.network.tick_duration(),
     ));
@@ -197,12 +206,15 @@ fn build_server_app_with_loader(
         .insert_resource(PendingActorSpawns::default())
         .insert_resource(new_links)
         .insert_resource(ClientLinks::default())
-        .insert_resource(PendingExplosions::default())
+        .insert_resource(ServerTick::default());
+    if let Some(listener) = listener {
+        app.insert_resource(listener);
+    }
+    app.insert_resource(PendingExplosions::default())
         .insert_resource(MissileMap::default())
         .insert_resource(PortalMap::default())
         .insert_resource(portal_assignments)
-        .insert_resource(PlateState::default())
-        .insert_resource(ServerTick::default());
+        .insert_resource(PlateState::default());
 
     configure_server_schedule(&mut app);
     app.add_systems(Update, server_tick_advance_system.in_set(ServerSet::Prepare));
@@ -222,16 +234,21 @@ fn build_server_app_with_loader(
     Ok(app)
 }
 
-// Paces the ticks on the runtime's timer while the app stays on the calling thread.
-pub fn run_server_loop(mut app: App, handle: &Handle) -> ! {
+// Paces the ticks on wall time; after an overrun the missed ticks are
+// skipped rather than caught up.
+pub fn run_server_loop(mut app: App) -> ! {
     info!("starting ECS server loop...");
     let tick_duration = app.world().resource::<NetworkConfig>().tick_duration();
-    let _runtime = handle.enter();
-    let mut interval = time::interval(tick_duration);
-    interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
+    let mut next_tick = Instant::now();
     let mut frame: u64 = 0;
     loop {
-        handle.block_on(interval.tick());
+        let now = Instant::now();
+        if next_tick > now {
+            thread::sleep(next_tick - now);
+        } else if now - next_tick > tick_duration {
+            next_tick = now;
+        }
+        next_tick += tick_duration;
 
         let update_start = Instant::now();
         app.update();
@@ -260,4 +277,4 @@ mod rate_tests;
 
 #[cfg(test)]
 #[path = "tests/app_fixtures.rs"]
-mod fixtures;
+pub(crate) mod fixtures;

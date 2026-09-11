@@ -10,7 +10,7 @@ use crate::{
 };
 use bevy::{ecs::system::SystemState, prelude::*};
 use common::{map::Carriers, physics::CollisionWorld, protocol::*};
-use tokio::sync::mpsc::unbounded_channel;
+use crossbeam_channel::unbounded;
 
 #[test]
 fn joining_inherits_shared_progress_and_respects_blocked_spawns_and_group_countdowns() {
@@ -99,7 +99,7 @@ fn joining_inherits_shared_progress_and_respects_blocked_spawns_and_group_countd
         });
         if group_countdown {
             let entity = app.world_mut().spawn_empty().id();
-            let (channel, _) = unbounded_channel();
+            let (channel, _) = unbounded();
             let mut existing = PlayerInfo::new(entity, channel);
             existing.connection.logged_in = true;
             let mut players = app.world_mut().resource_mut::<PlayerMap>();
@@ -119,7 +119,7 @@ fn joining_inherits_shared_progress_and_respects_blocked_spawns_and_group_countd
                 Health(30.0),
             ))
             .id();
-        let (tx, mut rx) = unbounded_channel();
+        let (tx, rx) = unbounded();
         app.world_mut()
             .resource_mut::<PlayerMap>()
             .insert(PlayerId(9), PlayerInfo::new(entity, tx));

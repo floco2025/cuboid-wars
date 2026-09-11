@@ -1,21 +1,22 @@
 use bevy::prelude::Resource;
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, error::TryRecvError};
+use crossbeam_channel::{Receiver, Sender, TryRecvError};
+use renet::ClientId;
 
 use common::protocol::{ClientMessage, PlayerId, ServerMessage};
 
-// The server's ends of one client's queues. A QUIC task holds the other ends
-// for a remote client; the host's own client holds them directly.
+// The server's ends of one client's queues, for a link made outside the app:
+// the host's own client holds the other ends.
 pub struct ClientLink {
-    pub to_client: UnboundedSender<ServerMessage>,
-    pub from_client: UnboundedReceiver<ClientMessage>,
+    pub to_client: Sender<ServerMessage>,
+    pub from_client: Receiver<ClientMessage>,
 }
 
 #[derive(Resource)]
-pub struct NewLinksChannel(UnboundedReceiver<ClientLink>);
+pub struct NewLinksChannel(Receiver<ClientLink>);
 
 impl NewLinksChannel {
     #[must_use]
-    pub const fn new(receiver: UnboundedReceiver<ClientLink>) -> Self {
+    pub const fn new(receiver: Receiver<ClientLink>) -> Self {
         Self(receiver)
     }
 
@@ -24,19 +25,30 @@ impl NewLinksChannel {
     }
 }
 
-// Every registered client's receiver, in registration order, with the id
+// Where a registered client's messages come from: a queue for the host's own
+// client, the listener for a remote one, whose replies wait in `outgoing`
+// until the flush hands them to renet.
+pub enum LinkSource {
+    Local(Receiver<ClientMessage>),
+    Remote {
+        client_id: ClientId,
+        outgoing: Receiver<ServerMessage>,
+    },
+}
+
+// Every registered client's source, in registration order, with the id
 // assigned on registration.
 #[derive(Resource, Default)]
 pub struct ClientLinks {
     last_id: u32,
-    links: Vec<(PlayerId, UnboundedReceiver<ClientMessage>)>,
+    links: Vec<(PlayerId, LinkSource)>,
 }
 
 impl ClientLinks {
-    pub fn register(&mut self, from_client: UnboundedReceiver<ClientMessage>) -> PlayerId {
+    pub fn register(&mut self, source: LinkSource) -> PlayerId {
         self.last_id = self.last_id.checked_add(1).expect("player id counter overflowed");
         let id = PlayerId(self.last_id);
-        self.links.push((id, from_client));
+        self.links.push((id, source));
         id
     }
 
@@ -44,7 +56,15 @@ impl ClientLinks {
         self.links.retain(|(link, _)| *link != id);
     }
 
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = (PlayerId, &mut UnboundedReceiver<ClientMessage>)> {
-        self.links.iter_mut().map(|(id, from_client)| (*id, from_client))
+    #[must_use]
+    pub fn player_of(&self, client_id: ClientId) -> Option<PlayerId> {
+        self.links.iter().find_map(|(id, source)| match source {
+            LinkSource::Remote { client_id: remote, .. } if *remote == client_id => Some(*id),
+            _ => None,
+        })
+    }
+
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = (PlayerId, &mut LinkSource)> {
+        self.links.iter_mut().map(|(id, source)| (*id, source))
     }
 }

@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 use common::{config::NetworkConfig, protocol::*};
-use tokio::sync::mpsc::unbounded_channel;
+use crossbeam_channel::unbounded;
 
 use super::{
     NetworkOverrides,
@@ -10,7 +10,7 @@ use crate::network::NewLinksChannel;
 
 #[test]
 fn sixty_hz_reaches_bootstrap_advances_one_second_and_preserves_network_cadences() {
-    let (register, new_links) = unbounded_channel();
+    let (register, new_links) = unbounded();
     let mut app = server_app(
         NetworkOverrides {
             server_hz: Some(60),
@@ -20,7 +20,7 @@ fn sixty_hz_reaches_bootstrap_advances_one_second_and_preserves_network_cadences
         NewLinksChannel::new(new_links),
     )
     .expect("60 Hz server config rejected");
-    let (client, mut receiver) = connect(&register);
+    let (client, receiver) = connect(&register);
     client
         .send(ClientMessage::Login(CLogin { name: "Player".into() }))
         .expect("login failed");
@@ -64,7 +64,7 @@ fn sixty_hz_reaches_bootstrap_advances_one_second_and_preserves_network_cadences
 #[test]
 fn cli_rates_are_checked_together_after_overrides() {
     for (server, updates, snapshots) in [(0, 1, 1), (30, 60, 4), (60, 30, 61)] {
-        let (_, new_links) = unbounded_channel();
+        let (_, new_links) = unbounded();
         assert!(
             server_app(
                 NetworkOverrides {

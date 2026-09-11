@@ -23,12 +23,10 @@ pub use bootstrap::login;
 pub use impairment::Impairment;
 pub use plugin::network_plugin;
 pub(crate) use resources::accept_newer_tick;
-pub use resources::{
-    ClientToServerChannel, LastPlayerMovesTick, LastSnapshotTick, RoundTripTime, ServerToClientChannel,
-};
+pub use resources::{ClientToServerChannel, LastPlayerMovesTick, LastSnapshotTick, RoundTripTime, ServerLink};
 pub(crate) use sample_buffer::{SampleBuffer, SampleTiming};
 pub use tick::TickSync;
-pub use transport::connect_to_server;
+pub use transport::connect;
 
 #[cfg(test)]
 #[path = "tests/timing.rs"]

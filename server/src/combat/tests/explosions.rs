@@ -2,7 +2,7 @@ use crate::config::fixtures;
 use std::collections::HashMap;
 
 use bevy::prelude::*;
-use tokio::sync::mpsc::unbounded_channel;
+use crossbeam_channel::unbounded;
 
 use super::{PendingExplosions, explosions::*};
 use crate::{
@@ -131,7 +131,7 @@ fn crushed_actor_death_broadcasts_once_and_detonates_without_kill_credit() {
     let mut app = test_app();
     app.add_systems(Update, (actors_removal_system, explosions_system).chain());
     let observer_id = PlayerId(1);
-    let (_, mut receiver) = spawn_logged_in_player(&mut app, observer_id, 100.0, 100.0);
+    let (_, receiver) = spawn_logged_in_player(&mut app, observer_id, 100.0, 100.0);
     let crushed_id = ActorId(1);
     let crushed = spawn_actor(&mut app, crushed_id, 0.0, 100.0);
     let nearby = spawn_actor(&mut app, ActorId(2), 5.0, 1.0);
@@ -207,7 +207,7 @@ fn missile_destroys_turret_with_normal_death_cue_and_kill_credit() {
     let mut app = test_app();
     app.add_systems(Update, explosions_system);
     let shooter = PlayerId(1);
-    let (_, mut receiver) = spawn_logged_in_player(&mut app, shooter, 100.0, 500.0);
+    let (_, receiver) = spawn_logged_in_player(&mut app, shooter, 100.0, 500.0);
     let id = ActorId(1);
     let entity = spawn_actor(&mut app, id, 1.0, 50.0);
     let pos = *app.world().get::<Position>(entity).expect("turret position missing");
@@ -286,7 +286,7 @@ fn simultaneous_blasts_send_one_combined_player_result() {
             KnockbackVelocity(Vec3::Z * 3.0),
         ))
         .id();
-    let (sender, mut receiver) = unbounded_channel();
+    let (sender, receiver) = unbounded();
     app.world_mut()
         .resource_mut::<PlayerMap>()
         .insert(id, PlayerInfo::new(entity, sender));
@@ -340,7 +340,7 @@ fn spawn_logged_in_player(
     id: PlayerId,
     x: f32,
     health: f32,
-) -> (Entity, tokio::sync::mpsc::UnboundedReceiver<ServerMessage>) {
+) -> (Entity, crossbeam_channel::Receiver<ServerMessage>) {
     let entity = app
         .world_mut()
         .spawn((
@@ -353,14 +353,14 @@ fn spawn_logged_in_player(
             KnockbackVelocity::default(),
         ))
         .id();
-    let (sender, receiver) = unbounded_channel();
+    let (sender, receiver) = unbounded();
     let mut info = PlayerInfo::new(entity, sender);
     info.connection.logged_in = true;
     app.world_mut().resource_mut::<PlayerMap>().insert(id, info);
     (entity, receiver)
 }
 
-fn next_player_death(receiver: &mut tokio::sync::mpsc::UnboundedReceiver<ServerMessage>) -> SPlayerDeath {
+fn next_player_death(receiver: &mut crossbeam_channel::Receiver<ServerMessage>) -> SPlayerDeath {
     loop {
         match receiver.try_recv().expect("expected a PlayerDeath broadcast") {
             ServerMessage::PlayerDeath(msg) => return msg,
@@ -369,7 +369,7 @@ fn next_player_death(receiver: &mut tokio::sync::mpsc::UnboundedReceiver<ServerM
     }
 }
 
-fn next_feed_line(receiver: &mut tokio::sync::mpsc::UnboundedReceiver<ServerMessage>) -> String {
+fn next_feed_line(receiver: &mut crossbeam_channel::Receiver<ServerMessage>) -> String {
     loop {
         match receiver.try_recv().expect("expected a Feed broadcast") {
             ServerMessage::Feed(msg) => {
@@ -438,7 +438,7 @@ fn missile_blast_kills_actor_with_shooter_credit() {
     let mut app = test_app();
     app.add_systems(Update, explosions_system);
     let shooter_id = PlayerId(1);
-    let (_, mut shooter_rx) = spawn_logged_in_player(&mut app, shooter_id, 100.0, 100.0);
+    let (_, shooter_rx) = spawn_logged_in_player(&mut app, shooter_id, 100.0, 100.0);
     spawn_actor(&mut app, ActorId(1), 0.0, 1.0);
     queue_missile_blast(&mut app, shooter_id, Position::default());
 
@@ -528,7 +528,7 @@ fn fields_shield_players_and_actors_from_missile_damage_and_knockback() {
             let mut app = test_app();
             app.insert_resource(field_world(bridge))
                 .add_systems(Update, explosions_system);
-            let (player, mut receiver) = spawn_logged_in_player(&mut app, PlayerId(1), 2.0, 10000.0);
+            let (player, receiver) = spawn_logged_in_player(&mut app, PlayerId(1), 2.0, 10000.0);
             app.world_mut()
                 .resource_mut::<PlayerMap>()
                 .get_mut(&PlayerId(1))
@@ -678,7 +678,7 @@ fn reported_missile_hits_ignore_server_distance_but_not_victim_generation_or_dup
     use common::protocol::{HitTarget, MissileBlastHit, PlayerGeneration};
     let mut app = test_app();
     app.add_systems(Update, explosions_system);
-    let (entity, mut receiver) = spawn_logged_in_player(&mut app, PlayerId(1), 1000.0, 10000.0);
+    let (entity, receiver) = spawn_logged_in_player(&mut app, PlayerId(1), 1000.0, 10000.0);
     let generation = app
         .world()
         .resource::<PlayerMap>()

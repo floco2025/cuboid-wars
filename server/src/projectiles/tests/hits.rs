@@ -1,7 +1,7 @@
 use crate::config::fixtures;
 use bevy::prelude::*;
 use common::protocol::*;
-use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
+use crossbeam_channel::{Receiver, unbounded};
 
 use super::{PendingProjectileHits, handle_projectile_shot_message, hits::projectile_hits_system};
 use crate::{
@@ -29,7 +29,7 @@ fn app() -> App {
     app
 }
 
-fn player(app: &mut App, id: PlayerId) -> (Entity, UnboundedReceiver<ServerMessage>) {
+fn player(app: &mut App, id: PlayerId) -> (Entity, Receiver<ServerMessage>) {
     let entity = app
         .world_mut()
         .spawn((
@@ -42,7 +42,7 @@ fn player(app: &mut App, id: PlayerId) -> (Entity, UnboundedReceiver<ServerMessa
             Health(25.0),
         ))
         .id();
-    let (sender, receiver) = unbounded_channel();
+    let (sender, receiver) = unbounded();
     let mut info = PlayerInfo::new(entity, sender);
     info.connection.logged_in = true;
     info.session.generation = PlayerGeneration(4);
@@ -65,7 +65,7 @@ fn lost_volley_and_shooter_death_or_respawn_do_not_cancel_hits() {
     for respawned in [false, true] {
         let mut app = app();
         let (body, _owner) = player(&mut app, PlayerId(1));
-        let (victim, mut receiver) = player(&mut app, PlayerId(2));
+        let (victim, receiver) = player(&mut app, PlayerId(2));
         let mut players = app.world_mut().resource_mut::<PlayerMap>();
         let shooter = players.get_mut(&PlayerId(1)).expect("shooter missing");
         shooter.begin_respawn(5.0);
@@ -168,8 +168,8 @@ fn multishot_pellets_award_actor_damage_and_one_kill_without_server_flight_entit
 #[test]
 fn cosmetic_volley_relays_its_origin_and_numeric_pattern_while_shooter_is_dead() {
     let mut app = app();
-    let (_owner, mut owner_receiver) = player(&mut app, PlayerId(1));
-    let (_observer, mut receiver) = player(&mut app, PlayerId(2));
+    let (_owner, owner_receiver) = player(&mut app, PlayerId(1));
+    let (_observer, receiver) = player(&mut app, PlayerId(2));
     app.world_mut()
         .resource_mut::<PlayerMap>()
         .get_mut(&PlayerId(1))
@@ -206,7 +206,7 @@ fn cosmetic_volley_relays_its_origin_and_numeric_pattern_while_shooter_is_dead()
 fn malformed_or_unknown_pattern_volleys_are_not_relayed() {
     let mut app = app();
     let (_owner, _) = player(&mut app, PlayerId(1));
-    let (_observer, mut receiver) = player(&mut app, PlayerId(2));
+    let (_observer, receiver) = player(&mut app, PlayerId(2));
     let valid = CProjectileShot {
         origin: Position { x: 1.0, y: 2.0, z: 3.0 },
         face_yaw: 0.5,

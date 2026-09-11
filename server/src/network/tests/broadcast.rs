@@ -1,7 +1,7 @@
 use super::*;
 use crate::players::PlayerInfo;
 use bevy::ecs::system::SystemState;
-use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
+use crossbeam_channel::{Receiver, unbounded};
 
 fn spawn_player_entity(world: &mut World) -> Entity {
     world
@@ -10,7 +10,7 @@ fn spawn_player_entity(world: &mut World) -> Entity {
 }
 
 fn active_player(entity: Entity) -> PlayerInfo {
-    let (tx, _rx) = unbounded_channel();
+    let (tx, _rx) = unbounded();
     let mut info = PlayerInfo::new(entity, tx);
     info.connection.logged_in = true;
     info
@@ -64,10 +64,10 @@ fn player_moves_exclude_dead_players() {
 fn player_moves_reach_every_other_client_without_the_recipients_own_entry() {
     let mut world = World::new();
     let mut players = PlayerMap::default();
-    let mut receivers: Vec<(PlayerId, UnboundedReceiver<ServerMessage>)> = Vec::new();
+    let mut receivers: Vec<(PlayerId, Receiver<ServerMessage>)> = Vec::new();
     for id in [PlayerId(1), PlayerId(2), PlayerId(3)] {
         let entity = spawn_player_entity(&mut world);
-        let (tx, rx) = unbounded_channel();
+        let (tx, rx) = unbounded();
         let mut info = PlayerInfo::new(entity, tx);
         info.connection.logged_in = true;
         players.insert(id, info);

@@ -1,133 +1,152 @@
-use std::net::SocketAddr;
-
-use anyhow::{Context, Result};
-use bevy::prelude::{debug, error, trace};
-use quinn::{ClientConfig, Connection, ConnectionError, Endpoint, RecvStream, SendStream};
-use tokio::{
-    runtime::Handle,
-    sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel},
+use std::{
+    net::{SocketAddr, UdpSocket},
+    ops::ControlFlow,
+    time::Instant,
 };
 
+use anyhow::{Context, Result, anyhow, bail};
+use bevy::prelude::{debug, error, warn};
+use bincode::Decode;
+use crossbeam_channel::{Receiver, Sender, unbounded};
+use renet::RenetClient;
+use renet_netcode::{ClientAuthentication, NetcodeClientTransport};
+
 use common::{
-    config::{create_quinn_client_config, load_certs},
-    network::{drive_lane, receive_lanes, send_message},
+    network::{CHANNELS, PROTOCOL_ID, channel_for, connection_config, decode_message, encode_message, unix_now},
     protocol::*,
 };
 
-use super::impairment::{Impairment, impaired_receiver, impaired_sender};
+use super::{
+    impairment::{DelayQueue, Impairment},
+    resources::ServerLink,
+};
 
-// Connects to `server` and starts the network task on the runtime; returns
-// the app's ends of the two queues.
-pub fn connect_to_server(
-    handle: &Handle,
-    server: SocketAddr,
+// A joined game's connection, pumped from the app: `receive` in the network
+// set, `flush` at the end of the frame.
+pub struct RemoteLink {
+    client: RenetClient,
+    transport: NetcodeClientTransport,
+    outgoing: Receiver<ClientMessage>,
     impairment: Impairment,
-) -> Result<(UnboundedSender<ClientMessage>, UnboundedReceiver<ServerMessage>)> {
-    let connection = handle.block_on(async {
-        let mut endpoint = Endpoint::client("0.0.0.0:0".parse()?)?;
-        endpoint.set_default_client_config(configure_client()?);
-        endpoint
-            .connect(server, "localhost")?
-            .await
-            .context("failed to connect to server")
-    })?;
-    let (to_client, from_server) = unbounded_channel();
-    let (to_server, from_client) = unbounded_channel();
-    handle.spawn(network_io_task(connection, to_client, from_client, impairment));
-    Ok((to_server, from_server))
+    inbound: DelayQueue<ServerMessage>,
+    outbound: DelayQueue<ClientMessage>,
+    polled: Instant,
 }
 
-// Bidirectional bridge between the server connection and the Bevy world.
-// `CLogin` is queued before this task runs, so the reliable lane opened here
-// carries data at once and the server sees it immediately. Returning drops
-// `to_client`, which is how the app learns the connection is gone.
-async fn network_io_task(
-    connection: Connection,
-    to_client: UnboundedSender<ServerMessage>,
-    from_client: UnboundedReceiver<ClientMessage>,
-    impairment: Impairment,
-) {
-    let to_client = impaired_sender(impairment, to_client, |message: &ServerMessage| {
-        message.lane() == Lane::Unreliable
-    });
-    let mut from_client = impaired_receiver(impairment, from_client, |message: &ClientMessage| {
-        message.lane() == Lane::Unreliable
-    });
-    match connection.open_bi().await {
-        Ok((send, recv)) => drive_lanes(&connection, send, recv, &to_client, &mut from_client, impairment).await,
-        Err(error) => error!("failed to open the reliable lane: {error}"),
-    }
-    log_close_reason(&connection);
-    debug!("network task exiting");
+// Starts connecting to `server`; returns the app's sender and the link.
+pub fn connect(server: SocketAddr, impairment: Impairment) -> Result<(Sender<ClientMessage>, ServerLink)> {
+    let bind: SocketAddr = if server.is_ipv4() { "0.0.0.0:0" } else { "[::]:0" }.parse()?;
+    let socket = UdpSocket::bind(bind).context("failed to open a UDP socket")?;
+    let authentication = ClientAuthentication::Unsecure {
+        protocol_id: PROTOCOL_ID,
+        client_id: rand::random(),
+        server_addr: server,
+        user_data: None,
+    };
+    let transport = NetcodeClientTransport::new(unix_now(), authentication, socket)
+        .map_err(|error| anyhow!("failed to start the connection: {error:?}"))?;
+    let (to_server, outgoing) = unbounded();
+    let link = RemoteLink {
+        client: RenetClient::new(connection_config()),
+        transport,
+        outgoing,
+        impairment,
+        inbound: DelayQueue::default(),
+        outbound: DelayQueue::default(),
+        polled: Instant::now(),
+    };
+    Ok((to_server, ServerLink::Remote(Box::new(link))))
 }
 
-async fn drive_lanes(
-    connection: &Connection,
-    send: SendStream,
-    mut recv: RecvStream,
-    to_client: &UnboundedSender<ServerMessage>,
-    from_client: &mut UnboundedReceiver<ClientMessage>,
-    impairment: Impairment,
-) {
-    let forward = |message: ServerMessage| to_client.send(message).context("client ingress channel closed");
-    tokio::join!(
-        receive_lanes(connection, &mut recv, forward, || impairment.drops()),
-        drive_lane(
-            connection,
-            "writer",
-            write_outbound(connection, send, from_client, impairment)
-        ),
-    );
-}
-
-async fn write_outbound(
-    connection: &Connection,
-    mut send: SendStream,
-    from_client: &mut UnboundedReceiver<ClientMessage>,
-    impairment: Impairment,
-) -> Result<()> {
-    loop {
-        let message = tokio::select! {
-            message = from_client.recv() => message,
-            _ = connection.closed() => return Ok(()),
-        };
-        let Some(message) = message else {
-            debug!("client hung up");
-            let _ = send.finish();
-            connection.close(0u32.into(), b"client closing");
-            return Ok(());
-        };
-        let lane = message.lane();
-        if lane == Lane::Unreliable && impairment.drops() {
-            continue;
+impl RemoteLink {
+    // Advances the connection by the wall time since the last poll, reads
+    // every waiting packet, and hands the messages that are due to `sink`
+    // until it breaks; the rest stay queued. An error is the link closing,
+    // with the reason. Without simulated lag the delay queues stay empty and
+    // messages pass straight through.
+    pub fn receive(&mut self, now: Instant, mut sink: impl FnMut(ServerMessage) -> ControlFlow<()>) -> Result<()> {
+        let delta = now.saturating_duration_since(self.polled);
+        self.polled = now;
+        self.client.update(delta);
+        if let Err(error) = self.transport.update(delta, &mut self.client) {
+            bail!("{error:?}");
         }
-        trace!("sending to server: {:?}", message);
-        send_message(connection, &mut send, lane, &message).await?;
+        if self.client.is_disconnected() {
+            bail!("{:?}", self.client.disconnect_reason());
+        }
+        for channel in CHANNELS {
+            while let Some(bytes) = self.client.receive_message(channel) {
+                let Some(message) = decoded::<ServerMessage>(&bytes) else {
+                    continue;
+                };
+                let unreliable = message.lane() == Lane::Unreliable;
+                if unreliable && self.impairment.drops() {
+                    continue;
+                }
+                if self.impairment.delays() {
+                    self.inbound.push(now, self.impairment.delay(unreliable), message);
+                } else if sink(message).is_break() {
+                    return Ok(());
+                }
+            }
+        }
+        while let Some(message) = self.inbound.pop_due(now) {
+            if sink(message).is_break() {
+                break;
+            }
+        }
+        Ok(())
+    }
+
+    // Hands the frame's sends to renet and puts their packets on the wire.
+    // Nothing is handed over before the handshake completes, so `CLogin`
+    // waits here rather than in a channel that is not open yet.
+    pub fn flush(&mut self, now: Instant) {
+        if self.client.is_connected() {
+            while let Ok(message) = self.outgoing.try_recv() {
+                let unreliable = message.lane() == Lane::Unreliable;
+                if unreliable && self.impairment.drops() {
+                    continue;
+                }
+                if self.impairment.delays() {
+                    self.outbound.push(now, self.impairment.delay(unreliable), message);
+                } else {
+                    send(&mut self.client, &message);
+                }
+            }
+            while let Some(message) = self.outbound.pop_due(now) {
+                send(&mut self.client, &message);
+            }
+        }
+        if let Err(error) = self.transport.send_packets(&mut self.client) {
+            debug!("packets not sent: {error:?}");
+        }
+    }
+
+    // Tells the server at once instead of leaving it to time out.
+    pub fn disconnect(&mut self) {
+        self.transport.disconnect();
     }
 }
 
-fn log_close_reason(connection: &Connection) {
-    match connection.close_reason() {
-        Some(ConnectionError::ApplicationClosed { .. }) => error!("server closed connection"),
-        Some(ConnectionError::TimedOut) => error!("server connection timed out"),
-        Some(ConnectionError::LocallyClosed) => debug!("connection to server closed locally"),
-        Some(error) => error!("connection error: {error}"),
-        None => debug!("disconnected from server"),
+// An undecodable message is a bug on the sending side and is skipped, not fatal.
+fn decoded<T: Decode<()>>(bytes: &[u8]) -> Option<T> {
+    match decode_message(bytes) {
+        Ok(message) => Some(message),
+        Err(error) => {
+            warn!("skipping an undecodable server message: {error}");
+            None
+        }
     }
 }
 
-fn configure_client() -> Result<ClientConfig> {
-    let certs = load_certs()?;
-
-    let mut roots = rustls::RootCertStore::empty();
-    for cert in certs {
-        roots.add(cert).context("Failed to add certificate to root store")?;
+fn send(client: &mut RenetClient, message: &ClientMessage) {
+    match encode_message(message) {
+        Ok(bytes) => client.send_message(channel_for(message.lane(), bytes.len()), bytes),
+        Err(error) => error!("dropping a message to the server: {error}"),
     }
-
-    let mut crypto = rustls::ClientConfig::builder()
-        .with_root_certificates(roots)
-        .with_no_client_auth();
-    crypto.alpn_protocols = vec![common::network::ALPN_PROTOCOL.to_vec()];
-
-    create_quinn_client_config(crypto)
 }
+
+#[cfg(test)]
+#[path = "tests/transport.rs"]
+mod tests;

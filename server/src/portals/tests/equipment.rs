@@ -1,7 +1,7 @@
 use super::*;
 use crate::players::{PlayerInfo, PowerUpState};
 use common::protocol::{CarrierId, PlayerId, Portal, PortalEnd, PortalMode, Position};
-use tokio::sync::mpsc::unbounded_channel;
+use crossbeam_channel::unbounded;
 
 #[test]
 fn gun_loss_removes_controlled_ends_and_preserves_assignments_and_equipped_partners() {
@@ -12,7 +12,7 @@ fn gun_loss_removes_controlled_ends_and_preserves_assignments_and_equipped_partn
                 let mut assignments = PortalAssignments::new(mode);
                 let mut players = PlayerMap::default();
                 for id in 1..=count {
-                    let (tx, _) = unbounded_channel();
+                    let (tx, _) = unbounded();
                     let mut info = PlayerInfo::new(Entity::PLACEHOLDER, tx);
                     info.life.power_ups[PowerUpKind::PortalGun.index()] = PowerUpState::Permanent;
                     players.insert(PlayerId(id), info);

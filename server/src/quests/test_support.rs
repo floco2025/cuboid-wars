@@ -1,6 +1,6 @@
 use crate::config::fixtures;
 use bevy::prelude::Entity;
-use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
+use crossbeam_channel::{Receiver, unbounded};
 
 use super::{QuestBoard, QuestCatalog, assign_quests};
 use crate::{
@@ -43,7 +43,7 @@ pub(crate) fn join(
     id: u32,
     catalog: &QuestCatalog,
     board: &QuestBoard,
-) -> UnboundedReceiver<ServerMessage> {
+) -> Receiver<ServerMessage> {
     join_with(players, id, catalog, board, false)
 }
 
@@ -53,8 +53,8 @@ pub(crate) fn join_with(
     catalog: &QuestCatalog,
     board: &QuestBoard,
     dead: bool,
-) -> UnboundedReceiver<ServerMessage> {
-    let (tx, mut rx) = unbounded_channel();
+) -> Receiver<ServerMessage> {
+    let (tx, rx) = unbounded();
     let mut info = PlayerInfo::new(Entity::PLACEHOLDER, tx);
     info.connection.logged_in = true;
     info.connection.name = format!("P{id}");
@@ -70,7 +70,7 @@ pub(crate) fn join_with(
 
 // What a fresh player would be assigned right now.
 pub(crate) fn assignment_for(catalog: &QuestCatalog, board: &QuestBoard) -> Vec<QuestState> {
-    let (tx, mut rx) = unbounded_channel();
+    let (tx, rx) = unbounded();
     let mut info = PlayerInfo::new(Entity::PLACEHOLDER, tx);
     info.connection.logged_in = true;
     let player = PlayerId(1);
@@ -87,7 +87,7 @@ pub(crate) fn assignment_for(catalog: &QuestCatalog, board: &QuestBoard) -> Vec<
     }
 }
 
-pub(crate) fn drain(receiver: &mut UnboundedReceiver<ServerMessage>) -> Vec<ServerMessage> {
+pub(crate) fn drain(receiver: &mut Receiver<ServerMessage>) -> Vec<ServerMessage> {
     let mut messages = Vec::new();
     while let Ok(message) = receiver.try_recv() {
         messages.push(message);

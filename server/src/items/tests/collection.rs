@@ -1,10 +1,10 @@
 use crate::config::fixtures;
-use tokio::sync::mpsc::unbounded_channel;
+use crossbeam_channel::unbounded;
 
 use super::*;
 
 fn player() -> PlayerInfo {
-    let (tx, _rx) = unbounded_channel();
+    let (tx, _rx) = unbounded();
     PlayerInfo::new(Entity::PLACEHOLDER, tx)
 }
 

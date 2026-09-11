@@ -5,7 +5,7 @@ use crate::{players::PlayerInfo, test_fixtures};
 use common::protocol::{
     CarrierId, FaceMaterials, Health, Player, PlayerGeneration, PlayerMoveIntent, Position, TextureSettings, Wall,
 };
-use tokio::sync::mpsc::unbounded_channel;
+use crossbeam_channel::unbounded;
 
 #[test]
 fn firing_sends_the_client_resolved_geometry_and_current_body_generation() {
@@ -43,7 +43,7 @@ fn firing_sends_the_client_resolved_geometry_and_current_body_generation() {
         player.generation = PlayerGeneration(4);
         let mut players = PlayerMap::default();
         players.insert(id, PlayerInfo::from_snapshot(entity, &player, 0));
-        let (sender, mut receiver) = unbounded_channel();
+        let (sender, receiver) = unbounded();
         app.insert_resource(players)
             .insert_resource(ClientToServerChannel::new(sender))
             .insert_resource(WeaponMode::Portal)

@@ -4,6 +4,7 @@ mod feed;
 mod handlers;
 mod incoming;
 mod login;
+mod outgoing;
 mod plugin;
 mod resources;
 mod routing;
@@ -19,5 +20,5 @@ pub use broadcast::{broadcast_firework_show, broadcast_player_relocation, broadc
 pub use feed::{DeathCause, FeedAudience, FeedEvent, emit_feed};
 pub(crate) use handlers::SharedWorld;
 pub use plugin::network_plugin;
-pub use resources::{ClientLink, ClientLinks, NewLinksChannel};
-pub use transport::listen;
+pub use resources::{ClientLink, ClientLinks, LinkSource, NewLinksChannel};
+pub use transport::{Listener, listen};
