@@ -10,7 +10,7 @@ use super::{
 
 // Hands every remote player's queued replies to renet and puts the tick's
 // packets on the wire; runs last so nothing sent this tick waits a tick.
-pub(super) fn network_flush_system(mut links: ResMut<ClientLinks>, listener: Option<ResMut<Listener>>) {
+pub(crate) fn network_flush_system(mut links: ResMut<ClientLinks>, listener: Option<ResMut<Listener>>) {
     let Some(mut listener) = listener else {
         return;
     };

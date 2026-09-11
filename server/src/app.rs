@@ -14,7 +14,7 @@ use crate::{
     items::{ItemMap, ItemSpawner, RandomItems, items_plugin},
     map::{GeneratedMap, LightState, MapFireworks, WeatherState, generate_map, map_plugin},
     missiles::{MissileMap, missiles_plugin},
-    network::{ClientLinks, Listener, NewLinksChannel, network_plugin},
+    network::{ClientLinks, Listener, LocalLink, network_plugin, register_local},
     players::{Invincibility, PlayerMap, players_plugin},
     portals::{PortalAssignments, PortalMap, portals_plugin},
     projectiles::projectiles_plugin,
@@ -62,17 +62,19 @@ pub struct ServerAppOptions {
     pub logging: bool,
 }
 
-// `listener` is the UDP endpoint remote clients join through; single-player has none.
+// `listener` is the UDP endpoint remote clients join through and `local` the
+// host's own client; a dedicated server has no local client, single-player
+// no listener.
 pub fn build_server_app(
     options: ServerAppOptions,
-    new_links: NewLinksChannel,
     listener: Option<Listener>,
+    local: Option<LocalLink>,
 ) -> Result<App> {
     build_server_app_with_loader(
         ServerGameplayConfig::load_default()?,
         options,
-        new_links,
         listener,
+        local,
         generate_map,
     )
 }
@@ -80,8 +82,8 @@ pub fn build_server_app(
 fn build_server_app_with_loader(
     mut server_gameplay_config: ServerGameplayConfig,
     options: ServerAppOptions,
-    new_links: NewLinksChannel,
     listener: Option<Listener>,
+    local: Option<LocalLink>,
     load_map: impl FnOnce(&str, u32, &MapSettings) -> Result<GeneratedMap>,
 ) -> Result<App> {
     options.network.apply(&mut server_gameplay_config.network);
@@ -204,7 +206,6 @@ fn build_server_app_with_loader(
         .insert_resource(ActorSpawner::default())
         .insert_resource(ActorRespawnTimers::default())
         .insert_resource(PendingActorSpawns::default())
-        .insert_resource(new_links)
         .insert_resource(ClientLinks::default())
         .insert_resource(ServerTick::default());
     if let Some(listener) = listener {
@@ -230,12 +231,18 @@ fn build_server_app_with_loader(
         portals_plugin,
         projectiles_plugin,
     ));
+    if let Some(link) = local {
+        register_local(app.world_mut(), link);
+    }
 
     Ok(app)
 }
 
-// Paces the ticks on wall time; after an overrun the missed ticks are
-// skipped rather than caught up.
+// Paces the ticks on absolute wall-clock deadlines; after an overrun the
+// missed ticks are skipped rather than caught up. Bevy's `ScheduleRunnerPlugin`
+// would instead sleep for what is left of the tick after each update, so every
+// sleep overshoot would accumulate as tick-rate drift, and server time is tick
+// time.
 pub fn run_server_loop(mut app: App) -> ! {
     info!("starting ECS server loop...");
     let tick_duration = app.world().resource::<NetworkConfig>().tick_duration();

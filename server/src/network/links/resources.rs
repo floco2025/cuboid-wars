@@ -1,28 +1,14 @@
 use bevy::prelude::Resource;
-use crossbeam_channel::{Receiver, Sender, TryRecvError};
+use crossbeam_channel::{Receiver, Sender};
 use renet::ClientId;
 
 use common::protocol::{ClientMessage, PlayerId, ServerMessage};
 
-// The server's ends of one client's queues, for a link made outside the app:
-// the host's own client holds the other ends.
-pub struct ClientLink {
+// The server's ends of the host's own client's queues; that client holds
+// the other ends.
+pub struct LocalLink {
     pub to_client: Sender<ServerMessage>,
     pub from_client: Receiver<ClientMessage>,
-}
-
-#[derive(Resource)]
-pub struct NewLinksChannel(Receiver<ClientLink>);
-
-impl NewLinksChannel {
-    #[must_use]
-    pub const fn new(receiver: Receiver<ClientLink>) -> Self {
-        Self(receiver)
-    }
-
-    pub fn try_recv(&mut self) -> Result<ClientLink, TryRecvError> {
-        self.0.try_recv()
-    }
 }
 
 // Where a registered client's messages come from: a queue for the host's own

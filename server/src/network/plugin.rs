@@ -4,7 +4,7 @@ use crate::schedule::ServerSet;
 
 use super::{
     incoming::network_receive_system,
-    outgoing::network_flush_system,
+    links::network_flush_system,
     snapshot::{
         network_broadcast_actor_moves_system, network_broadcast_player_moves_system, network_broadcast_snapshot_system,
     },

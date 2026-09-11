@@ -8,21 +8,16 @@ use common::{
         PlayerMovementState, Position, ServerMessage,
     },
 };
-use crossbeam_channel::unbounded;
 
 #[test]
 fn give_missiles_sends_weapon_selection_cue_even_when_ammo_is_full() {
-    let (register, new_links) = unbounded();
-    let mut app = server_app(
-        NetworkOverrides {
-            snapshot_hz: Some(1),
-            ..default()
-        },
-        NewLinksChannel::new(new_links),
-    )
+    let mut app = server_app(NetworkOverrides {
+        snapshot_hz: Some(1),
+        ..default()
+    })
     .expect("server app failed to initialize");
     let id = PlayerId(1);
-    let (client, receiver) = connect(&register);
+    let (client, receiver) = connect(&mut app);
     client
         .send(ClientMessage::Login(CLogin { name: "Player".into() }))
         .expect("login failed");
@@ -67,19 +62,15 @@ fn give_missiles_sends_weapon_selection_cue_even_when_ammo_is_full() {
 
 #[test]
 fn full_server_schedule_broadcasts_the_latest_sample_to_both_clients() {
-    let (register, new_links) = unbounded();
-    let mut app = server_app(
-        NetworkOverrides {
-            update_hz: Some(30),
-            ..default()
-        },
-        NewLinksChannel::new(new_links),
-    )
+    let mut app = server_app(NetworkOverrides {
+        update_hz: Some(30),
+        ..default()
+    })
     .expect("test server app did not build");
     app.update();
     let mut clients = Vec::new();
     for id in [PlayerId(1), PlayerId(2)] {
-        let (client, receiver) = connect(&register);
+        let (client, receiver) = connect(&mut app);
         client
             .send(ClientMessage::Login(CLogin {
                 name: format!("Player {}", id.0),
@@ -145,22 +136,18 @@ fn full_server_schedule_broadcasts_the_latest_sample_to_both_clients() {
 
 #[test]
 fn independent_rate_overrides_reach_init_and_leave_simulation_unchanged() {
-    let (register, new_links) = unbounded();
-    let mut app = server_app(
-        NetworkOverrides {
-            update_hz: Some(2),
-            snapshot_hz: Some(7),
-            ..default()
-        },
-        NewLinksChannel::new(new_links),
-    )
+    let mut app = server_app(NetworkOverrides {
+        update_hz: Some(2),
+        snapshot_hz: Some(7),
+        ..default()
+    })
     .expect("server app failed");
-    let (client, receiver) = connect(&register);
+    let (client, receiver) = connect(&mut app);
     client
         .send(ClientMessage::Login(CLogin { name: "Player".into() }))
         .expect("login failed");
     // Movement batches carry the other players, so the counted client needs company.
-    let (other, _other_receiver) = connect(&register);
+    let (other, _other_receiver) = connect(&mut app);
     other
         .send(ClientMessage::Login(CLogin { name: "Other".into() }))
         .expect("login failed");

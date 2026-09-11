@@ -4,7 +4,6 @@ use std::{
 };
 
 use bevy::prelude::App;
-use crossbeam_channel::unbounded;
 use renet::{Bytes, RenetClient};
 use renet_netcode::{ClientAuthentication, NetcodeClientTransport};
 
@@ -12,9 +11,8 @@ use super::listen;
 use crate::{
     app::{
         NetworkOverrides,
-        fixtures::{server_app, server_app_with_listener},
+        fixtures::{connect, server_app, server_app_with_listener},
     },
-    network::NewLinksChannel,
     players::PlayerMap,
 };
 use common::{
@@ -74,15 +72,10 @@ impl RawClient {
 }
 
 fn listening_app() -> (App, RawClient) {
-    let (_register, new_links) = unbounded();
     let listener = listen("127.0.0.1:0".parse().expect("loopback address invalid")).expect("listen failed");
     let server = listener.local_addr();
-    let app = server_app_with_listener(
-        NetworkOverrides::default(),
-        NewLinksChannel::new(new_links),
-        Some(listener),
-    )
-    .expect("listening server app did not build");
+    let app = server_app_with_listener(NetworkOverrides::default(), Some(listener))
+        .expect("listening server app did not build");
     let raw = RawClient::connect(server);
     (app, raw)
 }
@@ -150,9 +143,8 @@ fn undecodable_bytes_from_a_remote_client_are_skipped() {
 
 #[test]
 fn a_server_without_a_listener_still_serves_local_links() {
-    let (register, new_links) = unbounded();
-    let mut app = server_app(NetworkOverrides::default(), NewLinksChannel::new(new_links)).expect("server app failed");
-    let (client, receiver) = crate::app::fixtures::connect(&register);
+    let mut app = server_app(NetworkOverrides::default()).expect("server app failed");
+    let (client, receiver) = connect(&mut app);
     client
         .send(ClientMessage::Login(CLogin { name: "Local".into() }))
         .expect("login failed");

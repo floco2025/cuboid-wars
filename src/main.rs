@@ -3,7 +3,7 @@ use std::{net::SocketAddr, process, time::Duration};
 use anyhow::Result;
 use bevy::app::AppExit;
 use clap::{Args, Parser, Subcommand};
-use crossbeam_channel::{Sender, unbounded};
+use crossbeam_channel::Sender;
 
 use client::{
     app::{ClientAppOptions, build_client_app},
@@ -12,7 +12,7 @@ use client::{
 use common::protocol::ClientMessage;
 use server::{
     app::{NetworkOverrides, ServerAppOptions, build_server_app, run_server_loop},
-    network::{NewLinksChannel, listen},
+    network::listen,
 };
 
 use crate::host::spawn_embedded_server;
@@ -189,9 +189,8 @@ fn main() -> Result<()> {
             play(&window, to_server, link, true)
         }
         Some(Mode::Serve { bind, world }) => {
-            let (_register, new_links) = unbounded();
             let listener = listen(bind)?;
-            let app = build_server_app(world.server_options(), NewLinksChannel::new(new_links), Some(listener))?;
+            let app = build_server_app(world.server_options(), Some(listener), None)?;
             run_server_loop(app)
         }
     }

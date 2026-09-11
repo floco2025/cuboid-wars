@@ -6,9 +6,9 @@ use super::{
         handle_actor_beam_message, handle_actor_death_message, handle_actor_hit_message, handle_actor_moves_message,
     },
     context::ServerMessageContext,
-    io::apply_pong,
     items::{handle_gold_collected_message, handle_health_potion_collected_message},
     missiles::{handle_missile_detonated_message, handle_missile_launch_message, handle_missile_moves_message},
+    ping::apply_pong,
     players::{
         handle_equipment_erased_message, handle_player_death_message, handle_player_fall_damage_message,
         handle_player_hit_message, handle_player_knockback_message, handle_player_moves_message,

@@ -1,31 +1,25 @@
 use bevy::prelude::*;
 use common::{config::NetworkConfig, protocol::*};
-use crossbeam_channel::unbounded;
 
 use super::{
     NetworkOverrides,
     fixtures::{connect, server_app},
 };
-use crate::network::NewLinksChannel;
 
 #[test]
 fn sixty_hz_reaches_bootstrap_advances_one_second_and_preserves_network_cadences() {
-    let (register, new_links) = unbounded();
-    let mut app = server_app(
-        NetworkOverrides {
-            server_hz: Some(60),
-            update_hz: Some(30),
-            snapshot_hz: Some(4),
-        },
-        NewLinksChannel::new(new_links),
-    )
+    let mut app = server_app(NetworkOverrides {
+        server_hz: Some(60),
+        update_hz: Some(30),
+        snapshot_hz: Some(4),
+    })
     .expect("60 Hz server config rejected");
-    let (client, receiver) = connect(&register);
+    let (client, receiver) = connect(&mut app);
     client
         .send(ClientMessage::Login(CLogin { name: "Player".into() }))
         .expect("login failed");
     // Movement batches carry the other players, so the counted client needs company.
-    let (other, _other_receiver) = connect(&register);
+    let (other, _other_receiver) = connect(&mut app);
     other
         .send(ClientMessage::Login(CLogin { name: "Other".into() }))
         .expect("login failed");
@@ -64,16 +58,12 @@ fn sixty_hz_reaches_bootstrap_advances_one_second_and_preserves_network_cadences
 #[test]
 fn cli_rates_are_checked_together_after_overrides() {
     for (server, updates, snapshots) in [(0, 1, 1), (30, 60, 4), (60, 30, 61)] {
-        let (_, new_links) = unbounded();
         assert!(
-            server_app(
-                NetworkOverrides {
-                    server_hz: Some(server),
-                    update_hz: Some(updates),
-                    snapshot_hz: Some(snapshots),
-                },
-                NewLinksChannel::new(new_links)
-            )
+            server_app(NetworkOverrides {
+                server_hz: Some(server),
+                update_hz: Some(updates),
+                snapshot_hz: Some(snapshots),
+            })
             .is_err()
         );
     }

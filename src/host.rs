@@ -7,7 +7,7 @@ use client::network::ServerLink;
 use common::protocol::ClientMessage;
 use server::{
     app::{ServerAppOptions, build_server_app, run_server_loop},
-    network::{ClientLink, NewLinksChannel, listen},
+    network::{LocalLink, listen},
 };
 
 // Runs the server on its own thread and returns the local client's ends of its
@@ -20,16 +20,13 @@ pub fn spawn_embedded_server(
 ) -> Result<(Sender<ClientMessage>, ServerLink)> {
     let (to_client, from_server) = unbounded();
     let (to_server, from_client) = unbounded();
-    let (register, new_links) = unbounded();
-    register
-        .send(ClientLink { to_client, from_client })
-        .expect("fresh link queue rejected the local link");
+    let local = LocalLink { to_client, from_client };
     let (built, build_result) = sync_channel(1);
     thread::Builder::new().name("server".into()).spawn(move || {
         let app = bind
             .map(listen)
             .transpose()
-            .and_then(|listener| build_server_app(options, NewLinksChannel::new(new_links), listener));
+            .and_then(|listener| build_server_app(options, listener, Some(local)));
         match app {
             Ok(app) => {
                 let _ = built.send(Ok(()));

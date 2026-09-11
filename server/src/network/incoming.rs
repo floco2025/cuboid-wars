@@ -4,7 +4,7 @@ use renet::ServerEvent;
 
 use crate::{
     network::{FeedAudience, FeedEvent, emit_feed},
-    players::PlayerInfo,
+    players::{PlayerInfo, PlayerMap},
     quests::recheck_everyone_quests,
 };
 use common::{
@@ -13,31 +13,32 @@ use common::{
 };
 
 use super::{
-    resources::{ClientLinks, LinkSource, NewLinksChannel},
+    links::{ClientLinks, LinkSource, Listener, LocalLink},
     routing::{ClientMessageContext, route_client_message},
-    transport::Listener,
 };
 
-// Registrations come before any link is drained, so a client's messages are
-// only read once its `PlayerInfo` exists: netcode reports a connection before
-// its first payload, and a queue link is registered before it is polled. A
-// closed queue or a netcode disconnect is the client leaving.
+// Registers the host's own client before the app runs, so its messages are
+// only read once its `PlayerInfo` exists.
+pub fn register_local(world: &mut World, link: LocalLink) -> PlayerId {
+    let id = world
+        .resource_mut::<ClientLinks>()
+        .register(LinkSource::Local(link.from_client));
+    let entity = world.spawn((PlayerMarker, id)).id();
+    world
+        .resource_mut::<PlayerMap>()
+        .insert(id, PlayerInfo::new(entity, link.to_client));
+    id
+}
+
+// A remote client's messages are only read once its `PlayerInfo` exists:
+// netcode reports a connection before its first payload. A closed queue or a
+// netcode disconnect is the client leaving.
 pub(super) fn network_receive_system(
     mut commands: Commands,
-    mut new_links: ResMut<NewLinksChannel>,
     mut links: ResMut<ClientLinks>,
     mut listener: Option<ResMut<Listener>>,
     mut context: ClientMessageContext,
 ) {
-    while let Ok(link) = new_links.try_recv() {
-        register(
-            &mut commands,
-            &mut links,
-            &mut context,
-            LinkSource::Local(link.from_client),
-            link.to_client,
-        );
-    }
     if let Some(listener) = listener.as_deref_mut() {
         if let Err(error) = listener.poll() {
             error!("listener failed to poll: {error:#}");
