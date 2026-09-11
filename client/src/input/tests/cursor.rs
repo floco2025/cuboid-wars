@@ -29,6 +29,13 @@ fn cursor_changed_tick(app: &mut App) -> Tick {
         .expect("cursor options missing from test window")
         .last_changed()
 }
+fn send_focus(app: &mut App, window: Entity, focused: bool) {
+    app.world_mut()
+        .get_mut::<Window>(window)
+        .expect("window missing from test app")
+        .focused = focused;
+    app.world_mut().write_message(WindowFocused { window, focused });
+}
 #[test]
 fn unlocked_orbit_keeps_mouse_captured_and_menu_restores_it() {
     let mut app = app(CameraViewMode::ThirdPerson);
@@ -76,10 +83,10 @@ fn focus_gain_centres_the_pointer_and_grabs_again() {
     app.update();
     let settled = cursor_changed_tick(&mut app);
     let window = primary_window(&mut app);
-    app.world_mut().write_message(WindowFocused { window, focused: false });
+    send_focus(&mut app, window, false);
     app.update();
     assert_eq!(cursor_changed_tick(&mut app), settled);
-    app.world_mut().write_message(WindowFocused { window, focused: true });
+    send_focus(&mut app, window, true);
     app.update();
     assert_ne!(cursor_changed_tick(&mut app), settled);
     let window = app.world().get::<Window>(window).expect("window missing from test app");
@@ -89,11 +96,49 @@ fn focus_gain_centres_the_pointer_and_grabs_again() {
     );
 }
 #[test]
+fn focus_gain_followed_by_loss_leaves_the_pointer_alone() {
+    let mut app = app(CameraViewMode::FirstPerson);
+    app.update();
+    app.update();
+    let settled = cursor_changed_tick(&mut app);
+    let window = primary_window(&mut app);
+    for focused in [true, false, true, false] {
+        send_focus(&mut app, window, focused);
+    }
+    for _ in 0..2 {
+        app.update();
+        assert_eq!(cursor_changed_tick(&mut app), settled);
+        let window = app.world().get::<Window>(window).expect("window missing from test app");
+        assert_eq!(window.physical_cursor_position(), None);
+    }
+}
+#[test]
+fn focus_loss_followed_by_gain_regrabs_only_once() {
+    let mut app = app(CameraViewMode::FirstPerson);
+    app.update();
+    app.update();
+    let settled = cursor_changed_tick(&mut app);
+    let window = primary_window(&mut app);
+    for focused in [false, true, false, true] {
+        send_focus(&mut app, window, focused);
+    }
+    app.update();
+    let regrabbed = cursor_changed_tick(&mut app);
+    assert_ne!(regrabbed, settled);
+    let window = app.world().get::<Window>(window).expect("window missing from test app");
+    assert_eq!(
+        window.physical_cursor_position(),
+        Some(window.physical_size().as_vec2() / 2.0)
+    );
+    app.update();
+    assert_eq!(cursor_changed_tick(&mut app), regrabbed);
+}
+#[test]
 fn focus_gain_under_an_overlay_leaves_the_pointer_alone() {
     let mut app = app(CameraViewMode::FirstPerson);
     app.world_mut().resource_mut::<SettingsMenuState>().open = true;
     let window = primary_window(&mut app);
-    app.world_mut().write_message(WindowFocused { window, focused: true });
+    send_focus(&mut app, window, true);
     app.update();
     let (window, cursor) = app
         .world_mut()

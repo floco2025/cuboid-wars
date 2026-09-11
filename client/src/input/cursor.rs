@@ -36,7 +36,11 @@ pub fn input_cursor_capture_system(
     // macOS locks the pointer only for the foreground app and leaves it where
     // it was, so a window that just became key centres the pointer and grabs
     // again; winit's warp re-associates the mouse, so the grab must follow it.
-    let focused = focus.read().any(|event| event.focused && event.window == entity);
+    let focused = focus
+        .read()
+        .filter(|event| event.window == entity)
+        .last()
+        .is_some_and(|event| event.focused);
     let regrab = capture && focused;
     if regrab {
         let centre = window.size() / 2.0;

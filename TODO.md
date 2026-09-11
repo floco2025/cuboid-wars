@@ -22,10 +22,6 @@
 
 ## Testing
 
-- **Cut scorch marks:** Detonate missiles at a floor edge, against a wall from both rooms, on a ramp near its top, in a corner, and on a moving tile. No mark should float in the air, show through a wall, or continue past a wall's end other than around it.
-
-- **Switched targets:** With several clients, check same-color barriers and bridges with different pressure plate kinds and On/Off responses, including matching-key passage through every barrier of that kind. Run a nested map on a switch (the one-off correction after a flip learned late, riders staying aboard through a freeze), an actor zone through death resets and logout, and fireworks with `held: everyone` repeating after its cooldown.
-
 - **Shared checkpoints:** Play through Group — any and Group — all with multiple clients, including staggered visits, death, joining, and leaving. Check each player's next respawn and checkpoint notification.
 
 - **Sliding-carrier pushing:** Let the moving cabin's wall push you while standing still, walking against it, and stepping sideways out of its path. Confirm open space is safe, being pinned against another wall still crushes, and boarding moving platforms remains safe. Crushed actors should play their normal explosion animation and sound.
