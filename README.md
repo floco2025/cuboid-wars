@@ -11,21 +11,12 @@ A fast-paced multiplayer arena game built with Rust, Bevy, Rapier, and renet.
 
 ## Overview
 
-Cuboid Wars is a networked 3D arena game on compact, multi-level maps.
-Players run, jump, climb ladders, and shoot through corridors gated by
-color-coded barriers, fight hostile scuttlers, bruisers, and zappers
-that patrol and hunt, launch seeking missiles that fly the map's
-airspace to their target, and complete quests for score.
-
-Each client owns its player's movement; other clients interpolate its reports.
-The server simulates actors; clients interpolate their movement samples.
-The shooter decides bullet hits and simulates missiles; other clients simulate
-cosmetic bullets and interpolate missiles. The server applies damage and manages
-items, scoring, and the death/respawn flow.
+Cuboid Wars is a networked 3D game on multi-level maps, from combat arenas
+to obstacle courses, built from the features below.
 
 ## Gameplay
 
-- **Humanoid robots** — animated players that walk, run, climb, jump, and land.
+- **Humanoid robots** — animated player characters.
 - **Quests** — objectives assigned at login, worth points when completed.
 - **Gold** — collect gold coins for score and quest progress.
 - **Power-ups** — single-shot, multi-shot, speed, low-gravity, and portal-gun pickups, plus instant-heal potions.
@@ -39,20 +30,17 @@ items, scoring, and the death/respawn flow.
 - **Pressure plates** — operate switches that open barriers, power bridges,
   run moving platforms, release guards, or launch fireworks, with
   configurable hold, toggle, and automatic solo/multiplayer behavior.
-- **Actors** — scuttlers, bruisers, and zappers patrol and hunt; all
-  explode when killed.
+- **Enemies** — hostile robots that patrol and hunt; all explode when killed.
 - **Turrets** — stationary guards with deadly sustained laser bursts.
 - **Ladders** — climb between levels.
 - **Moving maps** — tiles, rooms, and whole buildings that slide or lift through a map, everything inside riding along, monsters included. Get pinned by one and it kills you.
-- **Fall damage** — short drops are safe; long falls scale up to lethal.
+- **Fall damage** — long drops hurt or kill.
 - **Checkpoints** — return to individual checkpoints or shared ones activated by any or all players.
-- **Death & respawn** — return after a short delay, individually or with your group; some maps also restore enemies.
-- **Scoring** — kills, gold, actor kills, and quest completions award
-  points.
+- **Death & respawn** — respawn individually or with your group; some maps also restore enemies.
+- **Scoring** — kills, gold, and quest completions award points.
 - **Weather & lighting** — rain and a bright/dim/dark light cycle, set per
   map.
-- **Chat & admin console** — Enter to chat, `/` for commands; `/help` lists them and `/peace` toggles actor attacks.
-- **One executable** — play alone, host a game your friends join, join theirs, or run a dedicated server.
+- **Chat & admin console** — `/help` lists the commands.
 
 ## Controls
 
@@ -72,10 +60,6 @@ items, scoring, and the death/respawn flow.
 | Lock / unlock third-person camera        | F                    |
 | Toggle fullscreen                        | F11 / Ctrl-F / Cmd-F |
 | Chat                                     | Enter                |
-
-Movement follows the camera. Unlocked, the robot faces where it walks; locked
-with F or by zooming into first person, it faces the crosshair and can strafe.
-Picking up a weapon selects it, and Q cycles through the ones you hold.
 
 ### Debug
 
@@ -98,8 +82,9 @@ Picking up a weapon selects it, and Q cycles through the ones you hold.
 
 ## Running locally
 
-Cargo invocations default to `--release` in this repo (debug builds pull in too
-much for our purposes).
+One executable plays alone, hosts a game your friends join, joins theirs, or
+runs a dedicated server. Cargo invocations default to `--release` in this repo
+(debug builds pull in too much for our purposes).
 
 ```bash
 cargo run --release                                    # single-player
