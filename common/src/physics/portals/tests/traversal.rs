@@ -497,17 +497,46 @@ fn traverse_point_carries_an_offset_behind_the_entry_to_the_front_of_the_exit() 
 fn straddled_gate_is_the_one_whose_plane_the_body_reaches_from_the_front() {
     let set = pair(Vec3::new(0.0, 1.6, 0.0), Vec3::Z, Vec3::new(10.0, 1.0, 10.0), Vec3::X);
     let physics = player_physics();
-    let (entry, exit) = set
-        .straddled_gate(Vec3::new(0.0, 0.7, 0.15), physics)
+    let carriers = Carriers::default();
+    let gate = set
+        .straddled_gate(Vec3::new(0.0, 0.7, 0.15), physics, &carriers, 1.0)
         .expect("a body touching the plane from the front is not straddling it");
-    assert_eq!(entry.end, PortalEnd::A);
-    assert_eq!(exit.end, PortalEnd::B);
-    assert!(set.straddled_gate(Vec3::new(0.0, 0.7, 2.0), physics).is_none());
-    assert!(set.straddled_gate(Vec3::new(0.0, 0.7, -0.15), physics).is_none());
-    assert!(set.straddled_gate(Vec3::new(3.0, 0.7, 0.15), physics).is_none());
-    let (entry, exit) = set
-        .straddled_gate(Vec3::new(10.05, 0.1, 10.0), physics)
+    assert_eq!((gate.pair, gate.end), (PortalPairId(1), PortalEnd::A));
+    assert!((gate.exit.center - Vec3::new(10.0, 1.0, 10.0)).length() < 1e-5);
+    assert!(
+        set.straddled_gate(Vec3::new(0.0, 0.7, 2.0), physics, &carriers, 1.0)
+            .is_none()
+    );
+    assert!(
+        set.straddled_gate(Vec3::new(0.0, 0.7, -0.15), physics, &carriers, 1.0)
+            .is_none()
+    );
+    assert!(
+        set.straddled_gate(Vec3::new(3.0, 0.7, 0.15), physics, &carriers, 1.0)
+            .is_none()
+    );
+    let gate = set
+        .straddled_gate(Vec3::new(10.05, 0.1, 10.0), physics, &carriers, 1.0)
         .expect("the body carried past the plane is not straddling the exit");
-    assert_eq!(entry.end, PortalEnd::B);
-    assert_eq!(exit.end, PortalEnd::A);
+    assert_eq!(gate.end, PortalEnd::B);
+    assert!((gate.exit.center - Vec3::new(0.0, 1.6, 0.0)).length() < 1e-5);
+}
+
+#[test]
+fn a_carried_gate_is_straddled_where_it_is_drawn() {
+    let layout = tile_wall_layout(false);
+    let (world, carriers) = tile_world(&layout, 1);
+    let set = PortalSet::rebuild(&[carried_portal(0.0), wall_portal()], &world, &carriers);
+    let physics = player_physics();
+    let current = tile_center(&carriers);
+    let travel = current - carriers.pose_between(TILE, 0.0).translation;
+    assert!(travel.x > 0.05, "the tile did not slide along x this tick: {travel}");
+    // Just inside the aperture's leading edge at this tick's pose, so the
+    // pose one tick earlier, drawn at alpha 0, leaves the body outside.
+    let origin = Vec3::new(current.x + PORTAL_HALF_WIDTH - 0.02, current.y + 0.01, current.z);
+    let gate = set
+        .straddled_gate(origin, physics, &carriers, 1.0)
+        .expect("the body over the drawn aperture is not straddling it");
+    assert!((gate.entry.center - current).length() < 1e-4);
+    assert!(set.straddled_gate(origin, physics, &carriers, 0.0).is_none());
 }

@@ -9,7 +9,7 @@ mod transit;
 mod view;
 
 pub(crate) use clipping::portal_body_clipping_system;
-pub use clipping::{PortalBodyModels, PortalTwinMarker};
+pub use clipping::{PortalBody, PortalTwinMarker};
 pub(crate) use refresh::carried_portals_refresh_system;
 pub use render::portal_render_plugin;
 pub use resources::{PortalInfo, PortalMap};

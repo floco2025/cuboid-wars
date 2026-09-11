@@ -11,7 +11,7 @@ use crate::{
     },
     network::SampleTiming,
     players::PlayerMotionBundle,
-    portals::{PortalBodyModels, PortalTwinMarker},
+    portals::{PortalBody, PortalTwinMarker},
     ui::floating_labels::{
         LABEL_RENDER_FRAMES, LabelCamera, setup_label_texture, spawn_floating_health_bar, spawn_floating_player_label,
     },
@@ -142,7 +142,9 @@ pub fn spawn_player(
         ))
         .id();
     children.push(twin);
-    commands.entity(entity).insert(PortalBodyModels { model, twin });
+    commands
+        .entity(entity)
+        .insert(PortalBody::new(model, twin, model_transform(player_model)));
 
     let health_bars = client_settings.hud.health_bars;
     let height_above = client_settings.hud.floating_labels.height_above;

@@ -19,7 +19,7 @@ use crate::{
         AirborneMomentum, CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity, character_movement_center,
         character_movement_shape, player_control_velocity,
     },
-    protocol::{CarrierId, FaceYaw, PlayerMoveIntent, Portal, PortalEnd, Position},
+    protocol::{CarrierId, FaceYaw, PlayerMoveIntent, Portal, PortalEnd, PortalPairId, Position},
 };
 
 pub(super) const PORTAL_PROJECTILE_EXIT_STANDOFF: f32 = 0.02;
@@ -104,8 +104,8 @@ fn body_support(shape: &impl SupportMap, direction: Vec3) -> f32 {
 // How far a body's transit corridor extends to either side of a gate's
 // plane: the body's own reach along the normal plus the margin that keeps
 // entry, crossing, and emergence collision-free.
-fn corridor_reach(shape: &Capsule, gate: &PortalGate) -> f32 {
-    body_support(shape, gate.frame.normal) + TRANSIT_MARGIN
+fn corridor_reach(shape: &Capsule, frame: &PortalFrame) -> f32 {
+    body_support(shape, frame.normal) + TRANSIT_MARGIN
 }
 
 pub struct PlayerHopBody<'a> {
@@ -193,6 +193,26 @@ struct PortalGate {
     // plane misses crossings and a body a descending plane sweeps through
     // is never caught.
     carry: Vec3,
+}
+
+// The gate a body straddles, with both ends' frames where they are drawn.
+#[derive(Debug, Clone, Copy)]
+pub struct StraddledGate {
+    pub entry: PortalFrame,
+    pub exit: PortalFrame,
+    pub pair: PortalPairId,
+    pub end: PortalEnd,
+}
+
+impl PortalGate {
+    // The frame between the last two ticks; a world gate never moves.
+    fn rendered_frame(&self, carriers: &Carriers, alpha: f32) -> PortalFrame {
+        if self.portal.carrier.is_world() {
+            self.frame
+        } else {
+            PortalFrame::from_portal_between(&self.portal, carriers, alpha)
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -318,7 +338,7 @@ impl PortalSet {
         let mut excluded = Vec::new();
         for (gate, _) in self.gates() {
             let offset = center - gate.frame.center;
-            if offset.dot(gate.frame.normal) > -corridor_reach(&shape, gate)
+            if offset.dot(gate.frame.normal) > -corridor_reach(&shape, &gate.frame)
                 && in_character_aperture(offset, &gate.frame)
             {
                 excluded.extend_from_slice(&gate.backing);
@@ -345,29 +365,41 @@ impl PortalSet {
                 return None;
             }
             let offset = center - gate.frame.center;
-            let reach = corridor_reach(&shape, gate);
+            let reach = corridor_reach(&shape, &gate.frame);
             let distance = offset.dot(gate.frame.normal);
             (distance > -reach && distance <= reach && in_character_aperture(offset, &gate.frame))
                 .then_some((gate.portal.carrier, gate.backing.as_slice()))
         })
     }
 
-    // The gate a body is passing through, for drawing it on both sides of
-    // the plane: its centre is in front of the plane, inside the aperture,
-    // and within the body's reach of it, so part of the body may already be
-    // behind. Returns the gate's portal and its paired end.
+    // The gate a body is drawn passing through, judged where the gate is
+    // drawn (`alpha` between the last two ticks): its centre is in front of
+    // the plane, inside the aperture, and within the body's reach of it, so
+    // part of the body may already be behind.
     #[must_use]
-    pub fn straddled_gate(&self, origin: Vec3, physics: CharacterPhysicsConfig) -> Option<(&Portal, &Portal)> {
+    pub fn straddled_gate(
+        &self,
+        origin: Vec3,
+        physics: CharacterPhysicsConfig,
+        carriers: &Carriers,
+        alpha: f32,
+    ) -> Option<StraddledGate> {
         if self.pairs.is_empty() {
             return None;
         }
         let shape = character_movement_shape(physics);
         let center = character_movement_center(origin.into(), physics);
         self.gates().find_map(|(gate, paired)| {
-            let offset = center - gate.frame.center;
-            let distance = offset.dot(gate.frame.normal);
-            (distance >= 0.0 && distance < corridor_reach(&shape, gate) && in_character_aperture(offset, &gate.frame))
-                .then_some((&gate.portal, &paired.portal))
+            let frame = gate.rendered_frame(carriers, alpha);
+            let offset = center - frame.center;
+            let distance = offset.dot(frame.normal);
+            (distance >= 0.0 && distance < corridor_reach(&shape, &frame) && in_character_aperture(offset, &frame))
+                .then(|| StraddledGate {
+                    entry: frame,
+                    exit: paired.rendered_frame(carriers, alpha),
+                    pair: gate.portal.pair,
+                    end: gate.portal.end,
+                })
         })
     }
 
@@ -390,7 +422,7 @@ impl PortalSet {
             let target_offset = target - gate.frame.center;
             let start_distance = start_offset.dot(gate.frame.normal);
             let target_distance = target_offset.dot(gate.frame.normal);
-            let behind_reach = corridor_reach(&shape, gate);
+            let behind_reach = corridor_reach(&shape, &gate.frame);
             if start_distance <= -behind_reach && target_distance <= -behind_reach {
                 continue;
             }
