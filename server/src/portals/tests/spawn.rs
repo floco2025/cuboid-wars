@@ -1,3 +1,4 @@
+use crate::config::fixtures;
 use std::time::Duration;
 
 use bevy::{ecs::system::SystemState, prelude::*};
@@ -6,7 +7,6 @@ use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
 
 use super::{PortalAssignments, PortalMap, handle_portal_shot_message};
 use crate::{
-    config::ServerGameplayConfig,
     map::MapConfig,
     network::{ServerToClient, SharedWorld},
     players::{PlayerInfo, PlayerMap, PowerUpState},
@@ -24,7 +24,7 @@ struct Fixture {
 
 impl Fixture {
     fn new(mode: PortalMode) -> Self {
-        let config = ServerGameplayConfig::load_default().expect("gameplay config is invalid");
+        let config = fixtures::server_config();
         let settings = config.maps["hotel"].settings.clone();
         let layout = MapLayout {
             carriers: vec![Carrier {

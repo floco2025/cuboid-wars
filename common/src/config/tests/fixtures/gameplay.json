@@ -1,0 +1,112 @@
+{
+  "player": {
+    "movement_collider": { "diameter": 0.6, "height": 1.8 },
+    "hitbox": {
+      "width": 0.6,
+      "height": 1.78,
+      "depth": 0.25,
+      "bottom_offset": 0.02
+    },
+    "eye_height": 1.62
+  },
+  "actors": {
+    "scuttler": {
+      "movement_collider": { "diameter": 1.05, "height": 1.1 },
+      "hitbox": {
+        "width": 1.1,
+        "height": 0.88,
+        "depth": 1.02,
+        "bottom_offset": 0.0
+      },
+      "eye_height": 0.79,
+      "can_use_ladders": false,
+      "immovable": false
+    },
+    "bruiser": {
+      "movement_collider": { "diameter": 1.6422, "height": 1.6675 },
+      "hitbox": {
+        "width": 1.84,
+        "height": 1.5295,
+        "depth": 1.9895,
+        "bottom_offset": 0.0
+      },
+      "eye_height": 1.38,
+      "can_use_ladders": false,
+      "immovable": false
+    },
+    "zapper": {
+      "movement_collider": { "diameter": 0.88, "height": 1.75 },
+      "hitbox": {
+        "width": 0.94,
+        "height": 0.5,
+        "depth": 0.76,
+        "bottom_offset": 1.23
+      },
+      "beam_origin_height": 1.35,
+      "eye_height": 1.59,
+      "can_use_ladders": false,
+      "immovable": false
+    },
+    "turret": {
+      "movement_collider": { "diameter": 0.5, "height": 1.62 },
+      "hitbox": {
+        "width": 0.5,
+        "height": 1.61,
+        "depth": 0.5,
+        "bottom_offset": 0.01
+      },
+      "beam_origin_height": 1.45,
+      "eye_height": 1.6,
+      "can_use_ladders": false,
+      "immovable": true
+    }
+  },
+  "projectiles": {
+    "lifetime_secs": 8.0,
+    "spawn_offset": 1.0,
+    "radius": 0.08,
+    "cooldown_secs": 0.1,
+    "gravity_scale": 0.4,
+    "drag_factor": 0.011,
+    "bounce_retention": 0.85,
+    "multi_shot": {
+      "spread_degrees": 1.2,
+      "allowed_patterns": ["star_4", "line_5"],
+      "patterns": {
+        "dice_5": {
+          "column_scale": 1.0,
+          "row_scale": 1.0,
+          "stencil": ["x.x", ".o.", "x.x"]
+        },
+        "line_5": {
+          "column_scale": 1.0,
+          "row_scale": 1.0,
+          "stencil": ["xxoxx"]
+        },
+        "star_4": {
+          "column_scale": 1.0,
+          "row_scale": 0.577,
+          "stencil": [".x.", "...", ".o.", "x.x"]
+        },
+        "triangle_3": {
+          "column_scale": 1.0,
+          "row_scale": 1.732,
+          "stencil": [".o.", "x.x"]
+        }
+      }
+    }
+  },
+  "missiles": {
+    "lock_range": 100.0,
+    "lock_assist_radius": 1.2,
+    "require_lock": true,
+    "max_missiles": 3,
+    "turn_radius": 1.7,
+    "lifetime_secs": 10.0,
+    "launch_spread_degrees": 45.0,
+    "weave_strength": 0.1,
+    "proximity_fuse_distance": 1.0,
+    "stall_secs": 2.0
+  },
+  "portals": { "range": 100.0 }
+}

@@ -1,3 +1,4 @@
+use crate::test_fixtures;
 use bevy::{gltf::GltfMaterialName, prelude::*};
 use common::protocol::{
     Barrier, BarrierId, BarrierKindId, BridgeId, BridgeKindId, CarrierId, HexColor, KindDef, LightBridge, MapLayout,
@@ -7,7 +8,6 @@ use common::protocol::{
 use super::{animation::PlatePlayback, *};
 use crate::{
     carriers::{CarrierEntities, CarrierStoreys},
-    config::AssetSet,
     test_assets::{headless_asset_app, settle},
     test_fixtures::map_settings,
 };
@@ -100,7 +100,7 @@ fn model_tracks_switches_colors_locks_and_layout_replacement() {
     };
     let mut app = headless_asset_app(|app| {
         let carrier = app.world_mut().spawn(Transform::from_xyz(5.0, 0.0, 0.0)).id();
-        app.insert_resource(AssetSet::load_default().expect("asset configuration invalid"))
+        app.insert_resource(test_fixtures::asset_set())
             .insert_resource(settings)
             .insert_resource(CarrierEntities::new(vec![carrier]))
             .insert_resource(CarrierStoreys::from_layout(&layout))

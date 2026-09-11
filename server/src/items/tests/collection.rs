@@ -1,3 +1,4 @@
+use crate::config::fixtures;
 use tokio::sync::mpsc::unbounded_channel;
 
 use super::*;
@@ -9,7 +10,7 @@ fn player() -> PlayerInfo {
 
 #[test]
 fn pickups_without_effect_stay_in_the_world() {
-    let server_config = ServerGameplayConfig::load_default().expect("load default server gameplay config");
+    let server_config = fixtures::server_config();
     let config = server_config.gameplay_config();
     let max_health = server_config.combat.health.player.max;
     let mut player = player();
@@ -64,7 +65,7 @@ fn pickups_without_effect_stay_in_the_world() {
 
 #[test]
 fn active_power_ups_are_still_collected_to_reset_their_timer() {
-    let server_config = ServerGameplayConfig::load_default().expect("load default server gameplay config");
+    let server_config = fixtures::server_config();
     let config = server_config.gameplay_config();
     let mut player = player();
     player.grant_power_up(ItemType::SpeedPowerUp, &server_config.maps["hotel"].power_ups);

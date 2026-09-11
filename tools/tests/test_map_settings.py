@@ -1,15 +1,13 @@
 import copy
 import json
 import os
-import tempfile
-import unittest
-from pathlib import Path
 from unittest.mock import patch
 
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QMessageBox
 
 from editor_fixtures import WindowTestCase
+from config_fixtures import ConfigTestCase
 from map_editor.catalogs import (
     list_map_names,
     load_map_barrier_kinds,
@@ -20,25 +18,17 @@ from map_editor.catalogs import (
     map_name_from_path,
     map_settings_path,
 )
-from map_editor.constants import GAMEPLAY_PATH
 from map_editor.io import read_map, write_map
 from map_editor.normalization import empty_map
 
 
-class MapSettingsTests(unittest.TestCase):
+class MapSettingsTests(ConfigTestCase):
     def setUp(self):
-        self.temp = tempfile.TemporaryDirectory()
-        self.addCleanup(self.temp.cleanup)
-        self.root = Path(self.temp.name)
-        self.global_path = self.root / "gameplay.json"
+        super().setUp()
         self.global_path.write_text(json.dumps({"default_map": "hotel", "maps": ["hotel"]}))
-        for target, value in [
-            ("map_editor.catalogs.GAMEPLAY_PATH", self.global_path),
-            ("map_editor.catalogs.MAPS_DIR", self.root / "maps"),
-        ]:
-            override = patch(target, value)
-            override.start()
-            self.addCleanup(override.stop)
+        override = patch("map_editor.catalogs.MAPS_DIR", self.root / "maps")
+        override.start()
+        self.addCleanup(override.stop)
 
     def test_registry_rejects_invalid_names_duplicates_and_default(self):
         for names, default_map in [([], "hotel"), ([""], ""), (["../hotel"], "../hotel"),
@@ -102,43 +92,28 @@ class MapSettingsTests(unittest.TestCase):
 
 
 class MapSettingsWindowTests(WindowTestCase):
-    def setUp(self):
-        super().setUp()
-        global_config = json.loads(GAMEPLAY_PATH.read_text())
-        settings = {name: map_settings_path(name).read_bytes() for name in ["hotel", "obby"]}
-        self.root = Path(self.temp.name)
-        self.global_path = self.root / "gameplay.json"
-        global_config["maps"] = ["hotel", "obby"]
-        global_config["default_map"] = "hotel"
-        self.global_path.write_text(json.dumps(global_config))
-        for name, data in settings.items():
-            directory = self.root / name
-            directory.mkdir(exist_ok=True)
-            (directory / "settings.json").write_bytes(data)
-        for target, value in [
-            ("map_editor.catalogs.GAMEPLAY_PATH", self.global_path),
-            ("map_editor.catalogs.MAPS_DIR", self.root),
-            ("map_editor.dependencies.GAMEPLAY_PATH", self.global_path),
-        ]:
-            override = patch(target, value)
-            override.start()
-            self.addCleanup(override.stop)
-        self.window.refresh_ui()
-
-    def test_save_as_changes_layout_and_catalog_but_preserves_both_settings_files(self):
+    def test_save_as_copies_layout_and_catalogs_and_preserves_destination_tuning(self):
         before = {name: map_settings_path(name).read_bytes() for name in ["hotel", "obby"]}
+        edited = copy.deepcopy(self.window.doc.root_data)
+        edited["_settings"]["barrier_kinds"] = [{"id": "edited", "color": "#123456"}]
+        edited["_settings"]["bridge_kinds"] = [{"id": "light", "color": "#654321"}]
+        self.window.doc.apply_root_change("Edit catalogs", edited, None)
         data = self.window.doc.root_data.copy()
+        source_settings = data.pop("_settings")
         with patch("map_editor.file_actions.QInputDialog.getItem", return_value=("obby", True)):
             self.assertTrue(self.window.save_as())
         self.assertEqual(self.window.path, map_layout_path("obby"))
         self.assertEqual(self.window.catalog_map, "obby")
-        self.assertEqual(self.window.barrier_kinds, ["barrier_1"])
+        self.assertEqual(self.window.barrier_kinds, [entry["id"] for entry in source_settings["barrier_kinds"]])
         self.assertIn("obby", self.window.windowTitle())
         self.assertEqual(read_map(self.window.path), data)
         self.assertIn(str(map_settings_path("obby").resolve()), self.window.dependencies.watcher.files())
         self.assertNotIn(str(map_settings_path("hotel").resolve()), self.window.dependencies.watcher.files())
-        for name, original in before.items():
-            self.assertEqual(map_settings_path(name).read_bytes(), original)
+        self.assertEqual(map_settings_path("hotel").read_bytes(), before["hotel"])
+        destination = json.loads(before["obby"])
+        for key in ("barrier_kinds", "bridge_kinds"):
+            destination[key] = source_settings[key]
+        self.assertEqual(json.loads(map_settings_path("obby").read_text()), destination)
 
     def test_new_registered_map_can_create_a_layout_without_overwriting_settings(self):
         source = map_settings_path("hotel").read_bytes()
@@ -157,7 +132,7 @@ class MapSettingsWindowTests(WindowTestCase):
         self.assertFalse(self.window.path.exists())
         self.assertTrue(self.window.save())
         self.assertTrue(self.window.path.exists())
-        self.assertEqual(settings.read_bytes(), source)
+        self.assertEqual(json.loads(settings.read_text()), json.loads(source))
 
     def test_new_with_a_malformed_settings_file_reports_and_keeps_the_document(self):
         global_config = json.loads(self.global_path.read_text())

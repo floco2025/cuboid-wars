@@ -1,3 +1,4 @@
+use super::fixtures::server_app;
 use super::*;
 use crate::network::{ClientToServer, ServerToClient};
 use common::{
@@ -13,8 +14,7 @@ use tokio::sync::mpsc::unbounded_channel;
 #[test]
 fn give_missiles_sends_weapon_selection_cue_even_when_ammo_is_full() {
     let (incoming, receiver) = unbounded_channel();
-    let mut app = build_server_app(
-        Some("obby"),
+    let mut app = server_app(
         NetworkOverrides {
             snapshot_hz: Some(1),
             ..default()
@@ -78,15 +78,14 @@ fn give_missiles_sends_weapon_selection_cue_even_when_ammo_is_full() {
 #[test]
 fn full_server_schedule_broadcasts_the_latest_sample_to_both_clients() {
     let (incoming, receiver) = unbounded_channel();
-    let mut app = build_server_app(
-        Some("obby"),
+    let mut app = server_app(
         NetworkOverrides {
             update_hz: Some(30),
             ..default()
         },
         FromClientsChannel::new(receiver),
     )
-    .expect("obby server app did not build");
+    .expect("test server app did not build");
     app.update();
     let mut receivers = Vec::new();
     for id in [PlayerId(1), PlayerId(2)] {
@@ -166,8 +165,7 @@ fn full_server_schedule_broadcasts_the_latest_sample_to_both_clients() {
 #[test]
 fn independent_rate_overrides_reach_init_and_leave_simulation_unchanged() {
     let (incoming, receiver) = unbounded_channel();
-    let mut app = build_server_app(
-        Some("obby"),
+    let mut app = server_app(
         NetworkOverrides {
             update_hz: Some(2),
             snapshot_hz: Some(7),

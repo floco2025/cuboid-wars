@@ -24,7 +24,9 @@ use common::{
     config::NetworkConfig,
     map::Carriers,
     physics::CollisionWorld,
-    protocol::{MapBootstrap, MissileAirGrid, PlateState, ServerTick, WorldBootstrap, server_tick_advance_system},
+    protocol::{
+        MapBootstrap, MapSettings, MissileAirGrid, PlateState, ServerTick, WorldBootstrap, server_tick_advance_system,
+    },
 };
 
 const LOG_FILTER: &str = "wgpu=error,naga=warn";
@@ -56,7 +58,22 @@ pub fn build_server_app(
     overrides: NetworkOverrides,
     from_clients: FromClientsChannel,
 ) -> Result<App> {
-    let mut server_gameplay_config = ServerGameplayConfig::load_default()?;
+    build_server_app_with_loader(
+        ServerGameplayConfig::load_default()?,
+        map_override,
+        overrides,
+        from_clients,
+        generate_map,
+    )
+}
+
+fn build_server_app_with_loader(
+    mut server_gameplay_config: ServerGameplayConfig,
+    map_override: Option<&str>,
+    overrides: NetworkOverrides,
+    from_clients: FromClientsChannel,
+    load_map: impl FnOnce(&str, u32, &MapSettings) -> Result<GeneratedMap>,
+) -> Result<App> {
     overrides.apply(&mut server_gameplay_config.network);
     server_gameplay_config.network.validate()?;
     let gameplay_config = server_gameplay_config.gameplay_config();
@@ -75,7 +92,7 @@ pub fn build_server_app(
         switch_table,
         fireworks,
         fireworks_switch,
-    } = generate_map(
+    } = load_map(
         map_name,
         server_gameplay_config.network.server_hz,
         &map_server_config.settings,
@@ -208,3 +225,7 @@ mod tests;
 #[cfg(test)]
 #[path = "tests/app_rate.rs"]
 mod rate_tests;
+
+#[cfg(test)]
+#[path = "tests/app_fixtures.rs"]
+mod fixtures;

@@ -1,4 +1,5 @@
 use super::*;
+use crate::config::fixtures;
 use crate::{
     players::{CheckpointId, PlayerCheckpoint, PlayerInfo, PowerUpState, outcomes::Landing},
     test_geometry::geometry,
@@ -9,12 +10,11 @@ use common::protocol::{
 };
 use tokio::sync::mpsc::unbounded_channel;
 
-// Matches the shipping map's normal-gravity setting.
 const TEST_GRAVITY: f32 = 25.0;
 
 #[test]
 fn a_crushed_player_dies_at_the_reported_contact() {
-    let server = ServerGameplayConfig::load_default().expect("default server gameplay config missing");
+    let server = fixtures::server_config();
     let gameplay = server.gameplay_config();
     let mut app = App::new();
     app.add_plugins(MinimalPlugins)
@@ -70,7 +70,7 @@ fn fall_damage_zero_at_safe_distance() {
 
 #[test]
 fn invincible_void_rescue_relocates_reliably_and_preserves_equipment() {
-    let server = ServerGameplayConfig::load_default().expect("gameplay config missing");
+    let server = fixtures::server_config();
     let mut app = App::new();
     app.insert_resource(server.gameplay_config())
         .insert_resource(server)
@@ -135,7 +135,7 @@ fn invincible_void_rescue_relocates_reliably_and_preserves_equipment() {
 
 #[test]
 fn an_invincible_void_rescue_returns_to_the_saved_checkpoint() {
-    let server = ServerGameplayConfig::load_default().expect("gameplay config missing");
+    let server = fixtures::server_config();
     let checkpoint = Checkpoint {
         kind: CheckpointKind::Individual,
         carrier: CarrierId::WORLD,
@@ -208,7 +208,7 @@ fn an_invincible_void_rescue_returns_to_the_saved_checkpoint() {
 
 #[test]
 fn simultaneous_invincible_rescues_take_distinct_spots() {
-    let server = ServerGameplayConfig::load_default().expect("gameplay config missing");
+    let server = fixtures::server_config();
     let checkpoint = Checkpoint {
         kind: CheckpointKind::Individual,
         carrier: CarrierId::WORLD,
@@ -304,7 +304,7 @@ fn landing_damage_uses_impact_speed_and_map_thresholds() {
         (0.0, 8.0, 1.0, false, 8.0, 8.0, 7.0),
         (0.0, 8.0, 100.0, false, 0.5, 0.5, 0.5),
     ] {
-        let mut server = ServerGameplayConfig::load_default().expect("server gameplay config missing");
+        let mut server = fixtures::server_config();
         server.combat.health.player.max = max_health;
         let mut settings = server.maps["hotel"].settings.clone();
         settings.movement.gravity = 2.0;

@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 from editor_fixtures import WindowTestCase
 from map_editor.catalogs import load_texture_catalog
-from map_editor.constants import ASSETS_PATH, MODE_FLOOR
+from map_editor.constants import MODE_FLOOR
 from map_editor.normalization import empty_map, normalize_map
 from map_editor.validation import validate_map
 
@@ -58,5 +58,5 @@ class TextureHostWindowTests(WindowTestCase):
 
     def test_editor_watches_wall_light_catalog_but_not_texture_images(self):
         watched = self.window.dependencies.watcher.files() + self.window.dependencies.watcher.directories()
-        self.assertIn(str(ASSETS_PATH.resolve()), watched)
+        self.assertIn(str(self.assets_path.resolve()), watched)
         self.assertFalse(any("client/assets/textures" in path for path in watched))

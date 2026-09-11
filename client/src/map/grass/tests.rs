@@ -1,3 +1,4 @@
+use crate::test_fixtures;
 use std::f32::consts::TAU;
 
 use bevy::{mesh::VertexAttributeValues, prelude::*};
@@ -11,7 +12,7 @@ use super::{
     spawn::{GrassCellVisual, OpenEdges, grass_cell_aabb},
 };
 use crate::{
-    config::{ClientSettings, GrassConfig},
+    config::GrassConfig,
     constants::{EXPLOSION_GRASS_BURN_CENTER_HEIGHT_FACTOR, EXPLOSION_GRASS_BURN_CENTER_SWAY_FACTOR},
     test_fixtures::{CELL, map_settings},
 };
@@ -193,7 +194,7 @@ fn weaker_overlapping_burn_does_not_override_stronger_burn() {
 
 #[test]
 fn removing_burn_restores_original_grass_mesh() {
-    let settings = ClientSettings::load_default().expect("default client config should load");
+    let settings = test_fixtures::client_settings();
     let cell = test_cell();
     let baseline = grass_cell_mesh(cell, CELL, &settings.grass, ALL_OPEN, &[]);
     let expected_positions = positions(&baseline).to_vec();

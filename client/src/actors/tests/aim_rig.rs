@@ -17,7 +17,7 @@ use crate::{
         AnimationToPlay, character_animation_system, characters_visual_turn_system, load_character_model,
         model_transform,
     },
-    config::{AssetSet, ModelDef},
+    config::ModelDef,
     players::{PlayerInfo, PlayerMap},
     test_assets::{headless_asset_app, settle},
     test_fixtures,
@@ -43,8 +43,8 @@ fn aim_loaded_models(
 
 #[test]
 fn configured_aim_models_track_targets_while_their_animations_play() {
-    let assets: serde_json::Value = serde_json::from_str(include_str!("../../../../config/client/assets.json"))
-        .expect("client assets JSON is invalid");
+    let assets: serde_json::Value =
+        serde_json::from_str(test_fixtures::ASSETS_JSON).expect("client assets JSON is invalid");
     for actor in assets["actors"].as_object().expect("actor assets missing").values() {
         let model: ModelDef = serde_json::from_value(actor["model"].clone()).expect("actor model is invalid");
         let Some(definition) = model.aim_rig.clone() else {
@@ -194,7 +194,7 @@ fn aiming_respects_rotated_bases_and_scaled_models() {
 fn beam_follows_the_muzzle_without_turning_the_base_or_bypassing_cover() {
     let gameplay: GameplayConfig = test_fixtures::gameplay_config();
     let aim_local = beam_target_local(ActorId(1), &gameplay.player.physics().hitbox, 0.0);
-    let assets = AssetSet::load_default().expect("client assets rejected");
+    let assets = test_fixtures::asset_set();
     let model = assets.actor_model("turret");
     let model_transform = Transform::from_xyz(0.0, model.y_offset, 0.0);
     let mut app = App::new();

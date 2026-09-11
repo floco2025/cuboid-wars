@@ -1,0 +1,163 @@
+{
+  "materials": {
+    "test": {
+      "textures": {
+        "base_color": "textures/test-color.png",
+        "normal": "textures/test-normal-gl.png",
+        "occlusion": "textures/test-occlusion.png",
+        "metallic_roughness": "textures/test-metallic-roughness.png"
+      },
+      "metallic": 0.0,
+      "roughness": 0.8
+    }
+  },
+  "aliases": { "basement-floor": "test", "slab": "test" },
+  "ladder": { "material": "test" },
+  "pressure_plate": {
+    "scene": "models/pressure_plate.glb",
+    "default_color": "#2c99bc",
+    "light_color": [0.854, 0.945, 1.0],
+    "emissive_luminance": 3.0
+  },
+  "player": {
+    "model": {
+      "scene": "models/player.glb#Scene0",
+      "scale": 1.0,
+      "y_offset": 0.0
+    },
+    "sounds": {
+      "laser_show": "sounds/impactGeneric_light_001.ogg",
+      "fire": "sounds/impactGeneric_light_001.ogg",
+      "missile_launch": "sounds/impactGeneric_light_001.ogg",
+      "dry_fire": "sounds/impactGeneric_light_001.ogg",
+      "take_hit": "sounds/impactGeneric_light_001.ogg",
+      "explodes": "sounds/impactGeneric_light_001.ogg",
+      "fall_damage": "sounds/impactGeneric_light_001.ogg",
+      "void_fall": "sounds/impactGeneric_light_001.ogg",
+      "collect_power_up": "sounds/impactGeneric_light_001.ogg",
+      "eraser": "sounds/impactGeneric_light_001.ogg",
+      "collect_gold": "sounds/impactGeneric_light_001.ogg",
+      "bump_wall": "sounds/impactGeneric_light_001.ogg",
+      "bump_player": "sounds/impactGeneric_light_001.ogg",
+      "hit_wall": "sounds/impactGeneric_light_001.ogg",
+      "hit_player": "sounds/impactGeneric_light_001.ogg",
+      "hit_actor": "sounds/impactGeneric_light_001.ogg",
+      "barrier_impact": "sounds/impactGeneric_light_001.ogg",
+      "plate_press": "sounds/impactGeneric_light_001.ogg",
+      "plate_release": "sounds/impactGeneric_light_001.ogg",
+      "portal_fizzle": "sounds/impactGeneric_light_001.ogg",
+      "portal_fire": "sounds/impactGeneric_light_001.ogg",
+      "quest_completed": "sounds/impactGeneric_light_001.ogg",
+      "checkpoint_reached": "sounds/impactGeneric_light_001.ogg",
+      "rain": "sounds/impactGeneric_light_001.ogg"
+    }
+  },
+  "actors": {
+    "scuttler": {
+      "model": {
+        "scene": "models/scuttler.glb#Scene0",
+        "scale": 1.0,
+        "y_offset": 0.0,
+        "wheels": {
+          "radius": 0.215,
+          "track": 0.87,
+          "wheelbase": 0.58,
+          "idle_animation": 0,
+          "drive_animation": 1,
+          "drive_cycle_secs": 1.0
+        }
+      },
+      "sounds": {
+        "explodes": "sounds/impactGeneric_light_001.ogg",
+        "fire": "sounds/impactGeneric_light_001.ogg"
+      }
+    },
+    "bruiser": {
+      "model": {
+        "scene": "models/bruiser.glb#Scene0",
+        "scale": 1.15,
+        "y_offset": 0.0,
+        "wheels": {
+          "radius": 0.277,
+          "track": 1.27,
+          "wheelbase": 1.12,
+          "idle_animation": 0,
+          "drive_animation": 1,
+          "drive_cycle_secs": 1.0
+        }
+      },
+      "sounds": {
+        "explodes": "sounds/impactGeneric_light_001.ogg",
+        "fire": "sounds/impactGeneric_light_001.ogg"
+      }
+    },
+    "zapper": {
+      "model": {
+        "scene": "models/zapper.glb#Scene0",
+        "scale": 1.0,
+        "y_offset": 0.0,
+        "animation_index": 0,
+        "animation_speed": 1.0,
+        "aim_rig": {
+          "yaw_node": "ZapperYaw",
+          "pitch_node": "ZapperPitch",
+          "muzzle_node": "ZapperMuzzle"
+        }
+      },
+      "sounds": {
+        "explodes": "sounds/impactGeneric_light_001.ogg",
+        "fire": "sounds/impactGeneric_light_001.ogg"
+      }
+    },
+    "turret": {
+      "model": {
+        "scene": "models/turret.glb#Scene0",
+        "scale": 1.0,
+        "y_offset": 0.0,
+        "rotate_with_facing": false,
+        "aim_rig": {
+          "yaw_node": "TurretYaw",
+          "pitch_node": "TurretPitch",
+          "muzzle_node": "TurretMuzzle"
+        }
+      },
+      "sounds": {
+        "explodes": "sounds/impactGeneric_light_001.ogg",
+        "fire": "sounds/impactGeneric_light_001.ogg"
+      }
+    }
+  },
+  "wall_lights": {
+    "decorative": {
+      "scene": "models/wall_light_decorative.glb",
+      "scale": 1.0,
+      "offset_from_wall": 0.32,
+      "brightness": 15000.0,
+      "range": 5.0,
+      "radius": 0.1,
+      "emissive_luminance": 1.5,
+      "color": [1.0, 0.86, 0.65],
+      "flicker": false
+    },
+    "utility": {
+      "scene": "models/wall_light_utility.glb",
+      "scale": 1.0,
+      "offset_from_wall": 0.32,
+      "brightness": 20000.0,
+      "range": 5.0,
+      "radius": 0.1,
+      "emissive_luminance": 2.0,
+      "color": [0.8, 0.91, 1.0],
+      "flicker": true
+    }
+  },
+  "skyboxes": {
+    "test": {
+      "image": "test-sky.png",
+      "brightness": 1000.0,
+      "rotation_period_secs": 200.0,
+      "sun_step_degrees": 0.05,
+      "sun_disc": { "distance": 800.0, "radius": 24.0, "luminance": 50000000.0 }
+    }
+  }
+}

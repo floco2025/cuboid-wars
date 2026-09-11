@@ -1,9 +1,10 @@
 use super::*;
+use crate::test_fixtures;
 
 #[test]
 fn checkpoint_banner_uses_its_own_timing_and_text() {
-    let mut settings: ClientSettings = serde_json::from_str(include_str!("../../../../config/client/client.json"))
-        .expect("client configuration rejected");
+    let mut settings: ClientSettings =
+        serde_json::from_str(test_fixtures::SETTINGS_JSON).expect("client configuration rejected");
     settings.hud.banner.checkpoint_reached = BannerTiming {
         duration_secs: 0.75,
         fade_out_secs: 0.1,

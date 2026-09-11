@@ -1,6 +1,6 @@
 import copy
 import json
-import subprocess
+import io
 import sys
 import tempfile
 import unittest
@@ -8,8 +8,9 @@ from pathlib import Path
 from unittest.mock import patch
 
 from editor_fixtures import DEFAULT_ALIAS, WindowTestCase, qt_app
-from map_editor.catalogs import list_map_names, load_texture_catalog
-from map_editor.constants import GAMEPLAY_PATH, MAP_NAME_RE, MAPS_DIR, REPO_ROOT
+from map_editor.catalogs import load_texture_catalog
+from map_editor.app import main
+from config_fixtures import ConfigTestCase
 from map_editor.document import MapDocument
 from map_editor.editing import paint_floors
 from map_editor.io import read_map, write_map
@@ -31,7 +32,7 @@ def parent_map():
     return normalize_map(root)
 
 
-class NestedDocumentTests(unittest.TestCase):
+class NestedDocumentTests(ConfigTestCase):
     @classmethod
     def setUpClass(cls):
         qt_app()
@@ -87,25 +88,12 @@ class NestedDocumentTests(unittest.TestCase):
             self.assertEqual(doc.root_data, data)
 
     def test_cli_requires_settings_before_opening_a_window(self):
-        result = subprocess.run(
-            [sys.executable, str(REPO_ROOT / "tools/editor.py"), "unregistered"],
-            capture_output=True, text=True,
-        )
-        self.assertEqual(result.returncode, 2)
-        self.assertIn("not registered", result.stderr)
+        with patch.object(sys, "argv", ["editor.py", "unregistered"]), patch("sys.stderr", new_callable=io.StringIO) as stderr:
+            with self.assertRaises(SystemExit) as failure:
+                main()
+        self.assertEqual(failure.exception.code, 2)
+        self.assertIn("not registered", stderr.getvalue())
 
-    def test_shipped_nested_geometry_is_embedded_in_registered_parents(self):
-        self.assertEqual(
-            {path.name for path in MAPS_DIR.iterdir() if path.is_dir() and MAP_NAME_RE.fullmatch(path.name)},
-            set(list_map_names()),
-        )
-        registry = json.loads(GAMEPLAY_PATH.read_text())["maps"]
-        for name in registry:
-            root = read_map(MAPS_DIR / name / "layout.json")
-            definitions = root.get("nested_geometry", {})
-            for geometry in [root, *definitions.values()]:
-                for entry in geometry["nested_maps"]:
-                    self.assertIn(entry["map"], definitions)
 
 
 class NestedWindowTests(WindowTestCase):

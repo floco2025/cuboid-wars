@@ -292,7 +292,9 @@ Use a distinct model texture only when it contributes visibly at normal gameplay
 
 ## Testing
 
-Test algorithms, state transitions, interactions, and regressions. Do not add tests that merely repeat configured values or trivial getters. Use small, explicit fixtures for behavior tests; configuration-only edits rely on existing load and validation checks.
+Add tests selectively for algorithms, state transitions, interactions, persistence, and meaningful regressions. A code change does not automatically need a new test. Do not test cosmetic tuning, trivial getters, duplicated constants, or restatements of the implementation. Remove redundant coverage while preserving distinct failure scenarios. When a test breaks, decide whether it caught a bug, needs simpler setup, or should be removed before updating expectations.
+
+No test or shared test helper may depend on shipped configuration, directly or indirectly. Supply small, explicit test-owned configuration; shared fixtures must return fresh values, and each test sets the values relevant to its assertions. Loader and serialization tests use test-owned JSON and temporary files. Do not copy shipped files during tests, keep fixtures synchronized with gameplay tuning, or add production defaults just for tests. Editor fixtures install their catalogs before constructing windows or documents, including file watchers and command-line entry points.
 
 `cargo test --release --workspace` is the canonical command. Unit tests live
 in a `tests/` directory beside the module they cover, one file per source
@@ -303,17 +305,19 @@ that cover a whole directory module are declared from its `mod.rs` the same
 way (`tests/<name>.rs`, module `<name>_tests`) or as that directory's
 `tests.rs`/`tests/mod.rs`; `include_str!` paths in a test count from the
 `tests/` directory. Shared fixtures live in `common/src/test_geometry.rs`,
-`server/src/test_geometry.rs`, and `client/src/test_fixtures.rs`. No source
+`server/src/test_geometry.rs`, and `client/src/test_fixtures.rs`; server
+configuration fixtures live in `server/src/config/test_fixtures.rs`. No source
 file holds an inline `mod tests`, and there are no crate-level `tests/`
 integration-test directories. Name tests after what they assert
 (e.g. `lethal_hit_returns_true`, `matching_keys_open_all_barriers_of_their_kind`).
 The map editor's headless `unittest` suite lives in `tools/tests/` and covers
 its pure geometry, normalization, resizing, and validation helpers.
 
-A test that loads a shipped model asserts only what runtime code reads from
-it (configured node names, clip indices, the emissive/housing split, texture
-colour spaces), iterates the catalog in `config/client/assets.json` rather
-than naming a model, and never counts materials or textures or names a bone.
+Shipped models may be loaded for compatibility checks using an explicit
+test-owned model catalog. Assert only runtime requirements (rig node names,
+clip indices, the emissive/housing split, texture colour spaces), never
+incidental material or texture counts or unrelated bone names. Do not read
+`config/client/assets.json` to configure these tests.
 `client/src/test_assets.rs` is the headless app every such test loads
 through: spawn models with `load_character_model`, preload bare GLBs with
 `preload_gltfs`, then `settle` before sampling; it fails a test whose scene

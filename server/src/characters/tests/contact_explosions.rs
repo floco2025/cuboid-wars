@@ -1,4 +1,5 @@
 use super::*;
+use crate::config::fixtures;
 use crate::test_geometry::{WALL_HEIGHT, WALL_THICKNESS};
 use common::protocol::{Barrier, BarrierId, BarrierKindId, CarrierId, MapLayout, Wall};
 
@@ -27,7 +28,7 @@ fn touching_an_actor_does_not_detonate_it_during_peace() {
 }
 
 fn bodies() -> (CharacterBody, CharacterBody, f32) {
-    let server = ServerGameplayConfig::load_default().expect("default server gameplay config should load");
+    let server = fixtures::server_config();
     let gameplay = server.gameplay_config();
     let player = CharacterBody {
         entity: Entity::from_bits(1),

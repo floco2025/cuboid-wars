@@ -2,14 +2,13 @@ use bevy::prelude::*;
 use common::{config::NetworkConfig, protocol::*};
 use tokio::sync::mpsc::unbounded_channel;
 
-use super::{NetworkOverrides, build_server_app};
+use super::{NetworkOverrides, fixtures::server_app};
 use crate::network::{ClientToServer, FromClientsChannel, ServerToClient};
 
 #[test]
 fn sixty_hz_reaches_bootstrap_advances_one_second_and_preserves_network_cadences() {
     let (incoming, receiver) = unbounded_channel();
-    let mut app = build_server_app(
-        Some("obby"),
+    let mut app = server_app(
         NetworkOverrides {
             server_hz: Some(60),
             update_hz: Some(30),
@@ -76,8 +75,7 @@ fn cli_rates_are_checked_together_after_overrides() {
     for (server, updates, snapshots) in [(0, 1, 1), (30, 60, 4), (60, 30, 61)] {
         let (_, receiver) = unbounded_channel();
         assert!(
-            build_server_app(
-                Some("obby"),
+            server_app(
                 NetworkOverrides {
                     server_hz: Some(server),
                     update_hz: Some(updates),

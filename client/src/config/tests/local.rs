@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_fixtures;
 
 fn sample() -> LocalSettings {
     LocalSettings {
@@ -32,7 +33,7 @@ fn local_settings_round_trip() {
     saved.save_to_path(&path).expect("local settings failed to save");
     let loaded = LocalSettings::load_from_path(&path).expect("saved local settings failed to load");
     assert_eq!(saved, loaded);
-    let mut settings = ClientSettings::load_default().expect("client settings are invalid");
+    let mut settings = test_fixtures::client_settings();
     loaded.apply_to(&mut settings);
     assert_eq!(settings.preferences, saved.preferences);
     std::fs::remove_file(&path).ok();
@@ -48,7 +49,7 @@ fn local_settings_save_replaces_existing_file() {
 
     let loaded = LocalSettings::load_from_path(&path).expect("replaced local settings failed to load");
     assert_eq!(saved, loaded);
-    let mut settings = ClientSettings::load_default().expect("client settings are invalid");
+    let mut settings = test_fixtures::client_settings();
     loaded.apply_to(&mut settings);
     assert_eq!(settings.preferences, saved.preferences);
     std::fs::remove_file(&path).ok();

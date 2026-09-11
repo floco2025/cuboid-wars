@@ -1,9 +1,10 @@
+use crate::test_fixtures;
 use bevy::audio::Volume;
 
 use super::*;
 
 fn snapshot(fullscreen: bool) -> LocalSettings {
-    let settings = ClientSettings::load_default().expect("shipped client config rejected");
+    let settings = test_fixtures::client_settings();
     let frame = WindowedFrame {
         position: Some(IVec2::new(100, 80)),
         size: UVec2::new(1200, 800),
@@ -59,7 +60,7 @@ fn sensitivity_sliders_save_multipliers_and_restore_their_positions() {
     use super::super::{observers::on_slider_value_change, state::SliderSetting};
     use bevy::ui_widgets::{SliderValue, ValueChange};
     let mut app = App::new();
-    let settings = ClientSettings::load_default().expect("client settings are invalid");
+    let settings = test_fixtures::client_settings();
     app.insert_resource(settings).init_resource::<GlobalVolume>();
     app.add_observer(on_slider_value_change);
     let sliders = [SliderSetting::MouseSensitivity, SliderSetting::ZoomSensitivity].map(|setting| {
@@ -90,7 +91,7 @@ fn sensitivity_sliders_save_multipliers_and_restore_their_positions() {
         );
         assert_eq!(local.preferences.mouse_sensitivity, coordinate.exp2());
         assert_eq!(local.preferences.zoom_sensitivity, coordinate.exp2());
-        let mut restored = ClientSettings::load_default().expect("client settings are invalid");
+        let mut restored = test_fixtures::client_settings();
         local.apply_to(&mut restored);
         for (slider, setting, preference) in [
             (

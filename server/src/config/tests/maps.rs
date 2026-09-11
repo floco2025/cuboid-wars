@@ -1,3 +1,4 @@
+use crate::config::fixtures;
 use std::{collections::HashMap, path::Path};
 
 use anyhow::Result;
@@ -16,10 +17,7 @@ use common::{
 };
 
 fn actor_kinds() -> HashMap<String, ActorKindServerConfig> {
-    let mut actors = crate::config::ServerGameplayConfig::load_default()
-        .expect("gameplay config rejected")
-        .actors
-        .kinds;
+    let mut actors = fixtures::server_config().actors.kinds;
     actors.remove("turret");
     actors
 }
@@ -101,9 +99,7 @@ fn ok_map_entry() -> MapServerConfig {
 
 #[test]
 fn map_respawn_policy_requires_every_field_and_rejects_unknown_modes() {
-    let source: serde_json::Value =
-        serde_json::from_str(include_str!("../../../../config/server/maps/hotel/settings.json"))
-            .expect("map settings JSON is invalid");
+    let source: serde_json::Value = serde_json::from_str(fixtures::MAP_JSON).expect("map settings JSON is invalid");
     let mut entry = source.clone();
     entry
         .as_object_mut()
@@ -226,9 +222,7 @@ fn validate_maps_accepts_single_valid_entry() {
 
 #[test]
 fn map_fall_thresholds_are_required_and_validated_with_their_source() {
-    let source: serde_json::Value =
-        serde_json::from_str(include_str!("../../../../config/server/maps/hotel/settings.json"))
-            .expect("map settings JSON is invalid");
+    let source: serde_json::Value = serde_json::from_str(fixtures::MAP_JSON).expect("map settings JSON is invalid");
     let mut missing = source.clone();
     missing
         .as_object_mut()
@@ -395,9 +389,7 @@ fn map_entry_requires_explicit_weather_and_lighting() {
 
 #[test]
 fn textures_require_an_explicit_catalog_and_boolean_permissions() {
-    let source: serde_json::Value =
-        serde_json::from_str(include_str!("../../../../config/server/maps/hotel/settings.json"))
-            .expect("map settings JSON is invalid");
+    let source: serde_json::Value = serde_json::from_str(fixtures::MAP_JSON).expect("map settings JSON is invalid");
     let mut hotel = source.clone();
     hotel
         .as_object_mut()
@@ -418,9 +410,7 @@ fn textures_require_an_explicit_catalog_and_boolean_permissions() {
 
 #[test]
 fn map_entry_requires_explicit_barrier_kinds() {
-    let source: serde_json::Value =
-        serde_json::from_str(include_str!("../../../../config/server/maps/hotel/settings.json"))
-            .expect("map settings JSON is invalid");
+    let source: serde_json::Value = serde_json::from_str(fixtures::MAP_JSON).expect("map settings JSON is invalid");
     let mut hotel = source.clone();
     hotel
         .as_object_mut()
@@ -434,9 +424,7 @@ fn map_entry_requires_explicit_barrier_kinds() {
 
 #[test]
 fn map_entry_requires_placed_items() {
-    let source: serde_json::Value =
-        serde_json::from_str(include_str!("../../../../config/server/maps/hotel/settings.json"))
-            .expect("map settings JSON is invalid");
+    let source: serde_json::Value = serde_json::from_str(fixtures::MAP_JSON).expect("map settings JSON is invalid");
     let mut hotel = source.clone();
     hotel
         .as_object_mut()
@@ -475,9 +463,7 @@ fn map_entry_accepts_empty_kind_catalogs() {
 #[test]
 fn map_entry_rejects_null_kind_catalogs() {
     for key in ["barrier_kinds", "bridge_kinds"] {
-        let source: serde_json::Value =
-            serde_json::from_str(include_str!("../../../../config/server/maps/hotel/settings.json"))
-                .expect("map settings JSON is invalid");
+        let source: serde_json::Value = serde_json::from_str(fixtures::MAP_JSON).expect("map settings JSON is invalid");
         let mut hotel = source.clone();
         hotel[key] = serde_json::Value::Null;
 
@@ -505,9 +491,7 @@ fn validate_maps_rejects_duplicate_barrier_kinds() {
 
 #[test]
 fn map_entry_requires_explicit_bridge_kinds() {
-    let source: serde_json::Value =
-        serde_json::from_str(include_str!("../../../../config/server/maps/hotel/settings.json"))
-            .expect("map settings JSON is invalid");
+    let source: serde_json::Value = serde_json::from_str(fixtures::MAP_JSON).expect("map settings JSON is invalid");
     let mut hotel = source.clone();
     hotel
         .as_object_mut()
@@ -555,11 +539,6 @@ fn map_entry_accepts_single_or_both_portal_ownership() {
 
     let single = parse_map_entry("single", Some("clear"), Some("bright")).expect("map entry JSON is invalid");
     assert_eq!(single.settings.portals, PortalMode::Single);
-}
-
-#[test]
-fn validate_maps_accepts_map_without_random_items() {
-    validate_test_maps(&one_map("hotel"), "hotel").expect("map without random_items should pass");
 }
 
 #[test]

@@ -1,7 +1,8 @@
 use crate::config::ServerGameplayConfig;
+use crate::config::fixtures;
 
 fn config() -> ServerGameplayConfig {
-    ServerGameplayConfig::load_default().expect("default server gameplay config should load")
+    fixtures::server_config()
 }
 
 #[test]

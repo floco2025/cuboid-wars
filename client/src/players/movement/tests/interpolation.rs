@@ -1,6 +1,5 @@
 use super::*;
 use crate::{
-    config::ClientSettings,
     network::{SampleBuffer, SampleTiming},
     players::PlayerMotionBundle,
     test_fixtures,
@@ -35,7 +34,7 @@ fn immediate() -> SampleTiming {
 }
 
 fn timing(hz: u32) -> SampleTiming {
-    let settings = ClientSettings::load_default().expect("client settings are invalid");
+    let settings = test_fixtures::client_settings();
     SampleTiming::new(
         &settings.interpolation,
         &NetworkConfig {

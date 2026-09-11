@@ -22,10 +22,6 @@
 
 ## Testing
 
-- **Actors on light bridges:** On obby, toggle the bridge and check that scuttlers cross it while it is powered, that one about to step onto it stops at the edge when it loses power, and that any standing on it fall without a death effect.
-
-- **Switched targets after the review fixes:** With several clients, check that pressing a plate fills an On-response actor zone after the beam-in warning, that switching a zone off and on again neither restarts nor skips its refill countdown, that an Off-response actor zone is filled at boot, that a client joining while an Off-response carrier is mid-travel lands on it, that fireworks never start without a press, and that a Save As in the editor carries edited barrier and bridge catalogs to the destination map.
-
 - **Shared checkpoints:** Play through Group — any and Group — all with multiple clients, including staggered visits, death, joining, and leaving. Check each player's next respawn and checkpoint notification.
 
 - **Sliding-carrier pushing:** Let the moving cabin's wall push you while standing still, walking against it, and stepping sideways out of its path. Confirm open space is safe, being pinned against another wall still crushes, and boarding moving platforms remains safe. Crushed actors should play their normal explosion animation and sound.

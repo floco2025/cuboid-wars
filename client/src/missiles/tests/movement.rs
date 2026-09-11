@@ -2,7 +2,6 @@ use crate::{
     actors::ActorMap,
     carriers::CarrierEntities,
     characters::PreviousTickPosition,
-    config::{AssetSet, ClientSettings},
     network::{ClientToServer, ClientToServerChannel, SampleTiming},
     players::{PlayerInfo, PlayerMap},
     test_fixtures,
@@ -37,8 +36,8 @@ fn app(hz: u32) -> (App, UnboundedReceiver<ClientToServer>) {
         .insert_resource(explosion_assets)
         .insert_resource(CarrierEntities::new(Vec::new()))
         .insert_resource(layout.clone())
-        .insert_resource(AssetSet::load_default().expect("asset catalog invalid"))
-        .insert_resource(ClientSettings::load_default().expect("client settings invalid"))
+        .insert_resource(test_fixtures::asset_set())
+        .insert_resource(test_fixtures::client_settings())
         .init_resource::<ExplosionVfxBudget>()
         .insert_resource(NetworkConfig {
             server_hz: 30,

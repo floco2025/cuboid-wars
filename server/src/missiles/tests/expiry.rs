@@ -1,3 +1,4 @@
+use crate::config::fixtures;
 use bevy::prelude::*;
 use common::{
     config::{GameplayConfig, NetworkConfig},
@@ -7,14 +8,13 @@ use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
 
 use super::{MissileMap, expiry::missiles_expiry_system, handle_missile_moves};
 use crate::{
-    config::ServerGameplayConfig,
     network::ServerToClient,
     players::{PlayerInfo, PlayerMap},
     schedule::ticks_from_secs,
 };
 
 fn app() -> (App, UnboundedReceiver<ServerToClient>) {
-    let server = ServerGameplayConfig::load_default().expect("server gameplay config missing");
+    let server = fixtures::server_config();
     let mut app = App::new();
     app.insert_resource(server.gameplay_config())
         .insert_resource(NetworkConfig::default())

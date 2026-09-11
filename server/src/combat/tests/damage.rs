@@ -1,3 +1,4 @@
+use crate::config::fixtures;
 use std::collections::HashMap;
 
 use bevy::prelude::*;
@@ -71,7 +72,7 @@ fn kill_with(players: &mut PlayerMap, victim: PlayerId, source: DeathSource) {
 }
 
 fn server_gameplay_config() -> ServerGameplayConfig {
-    let default = ServerGameplayConfig::load_default().expect("default server gameplay config should load");
+    let default = fixtures::server_config();
     let movement = default
         .maps
         .get("hotel")
@@ -309,7 +310,7 @@ fn invincible_player_takes_no_beam_damage() {
 
 #[test]
 fn dead_actor_takes_no_further_hits_or_score() {
-    let config = ServerGameplayConfig::load_default().expect("default server gameplay config should load");
+    let config = fixtures::server_config();
     let mut players = make_player_map_with(PlayerId(1), PlayerId(2));
     let mut health = Health(1.0);
 

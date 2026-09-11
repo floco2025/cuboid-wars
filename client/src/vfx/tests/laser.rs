@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_fixtures;
 use crate::{actors::ActorInfo, players::PlayerInfo};
 use bevy::audio::PlaybackMode;
 use common::protocol::{ActorBeam, Health, Player, PlayerMoveIntent};
@@ -48,8 +49,8 @@ fn sync_app() -> App {
         .init_asset::<Mesh>()
         .init_asset::<StandardMaterial>()
         .init_asset::<AudioSource>()
-        .insert_resource(AssetSet::load_default().expect("asset set rejected"))
-        .insert_resource(ClientSettings::load_default().expect("client settings rejected"))
+        .insert_resource(test_fixtures::asset_set())
+        .insert_resource(test_fixtures::client_settings())
         .init_resource::<ServerTick>()
         .init_resource::<NetworkConfig>()
         .init_resource::<ActorMap>()

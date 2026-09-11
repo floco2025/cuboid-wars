@@ -1,3 +1,4 @@
+use crate::test_fixtures;
 use bevy::{animation::AnimationTargetId, prelude::*};
 use common::{physics::CharacterSupport, protocol::ActorMoveIntent};
 
@@ -13,8 +14,8 @@ use crate::{
 
 #[test]
 fn bevy_loads_configured_wheeled_models_and_starts_and_stops_their_wheels() {
-    let assets: serde_json::Value = serde_json::from_str(include_str!("../../../../config/client/assets.json"))
-        .expect("client assets JSON is invalid");
+    let assets: serde_json::Value =
+        serde_json::from_str(test_fixtures::ASSETS_JSON).expect("client assets JSON is invalid");
     for actor in assets["actors"].as_object().expect("actor assets missing").values() {
         let model: ModelDef = serde_json::from_value(actor["model"].clone()).expect("actor model is invalid");
         if let Some(wheels) = model.wheels {

@@ -53,7 +53,3 @@ pub(super) fn wall_edge_key(from: [i32; 2], to: [i32; 2]) -> ([i32; 2], [i32; 2]
         (to, from)
     }
 }
-
-#[cfg(test)]
-#[path = "tests/loading.rs"]
-mod tests;

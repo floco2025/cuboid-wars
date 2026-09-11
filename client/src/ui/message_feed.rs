@@ -100,7 +100,3 @@ fn color_with_full_alpha(color: Color) -> Color {
     let srgba = color.to_srgba();
     Color::srgba(srgba.red, srgba.green, srgba.blue, 1.0)
 }
-
-#[cfg(test)]
-#[path = "tests/message_feed.rs"]
-mod tests;

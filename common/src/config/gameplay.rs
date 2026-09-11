@@ -48,41 +48,9 @@ impl GameplayConfig {
     }
 }
 
-// Test-only view of the shared tuning in `config/server/gameplay.json`.
 #[cfg(test)]
 pub(crate) fn load_test_gameplay() -> Result<GameplayConfig> {
-    use anyhow::Context;
-
-    #[derive(Deserialize)]
-    struct TestGameplaySource {
-        player: CharacterGameplayConfig,
-        actors: TestActorsSource,
-        weapons: TestWeaponsSource,
-    }
-
-    #[derive(Deserialize)]
-    struct TestActorsSource {
-        kinds: HashMap<String, ActorGameplayConfig>,
-    }
-
-    #[derive(Deserialize)]
-    struct TestWeaponsSource {
-        projectiles: ProjectilesConfig,
-        missiles: MissilesConfig,
-        portals: PortalsConfig,
-    }
-
-    let path = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../config/server/gameplay.json"));
-    let text = std::fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
-    let source: TestGameplaySource =
-        serde_json::from_str(&text).with_context(|| format!("failed to parse {}", path.display()))?;
-    let config = GameplayConfig {
-        player: source.player,
-        projectiles: source.weapons.projectiles,
-        missiles: source.weapons.missiles,
-        portals: source.weapons.portals,
-        actors: source.actors.kinds,
-    };
+    let config: GameplayConfig = serde_json::from_str(include_str!("tests/fixtures/gameplay.json"))?;
     config.validate()?;
     Ok(config)
 }

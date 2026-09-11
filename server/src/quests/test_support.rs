@@ -1,3 +1,4 @@
+use crate::config::fixtures;
 use bevy::prelude::Entity;
 use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
 
@@ -26,9 +27,8 @@ pub(crate) fn quest(id: &str, kind: QuestKind, scope: QuestScope, threshold: u32
     }
 }
 
-// The shipped config with a synthetic catalog.
 pub(crate) fn catalog(quests: Vec<Quest>) -> ServerGameplayConfig {
-    let mut config = ServerGameplayConfig::load_default().expect("default server gameplay config should load");
+    let mut config = fixtures::server_config();
     config
         .maps
         .get_mut(&config.default_map)

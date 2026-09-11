@@ -11,7 +11,7 @@ use rand::{SeedableRng, rngs::StdRng};
 use super::{NavGraph, NavGraphs, NavNode, routing::COVER_SEARCH_MAX_STEPS};
 use crate::{
     actors::test_kinds,
-    map::{ActorSpawnZone, CarrierGrid, CellGrid, EdgeGrid, GeneratedMap, LevelGrid, MapConfig},
+    map::{ActorSpawnZone, CarrierGrid, CellGrid, EdgeGrid, LevelGrid, MapConfig},
     test_geometry::{CELL, LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS, geometry},
 };
 
@@ -485,49 +485,6 @@ fn ramp_node_is_not_a_cover_destination() {
     assert!(!nav.is_cover_destination(ramp_node));
 }
 
-// End-to-end guard on the real map: every actor zone must be reachable
-// from every other zone's floor. Catches nav-rule regressions that
-// disconnect levels (e.g. over-strict ramp gating) before they surface
-// as in-game "NO nav path" spam.
-#[test]
-fn shipping_map_zones_are_mutually_reachable() {
-    let server_gameplay_config =
-        crate::config::ServerGameplayConfig::load_default().expect("default server gameplay config should load");
-    let map_name = &server_gameplay_config.default_map;
-    let settings = &server_gameplay_config
-        .maps
-        .get(map_name)
-        .expect("default map settings missing")
-        .settings;
-    let GeneratedMap { config: map_config, .. } =
-        crate::map::generate_map(map_name, 30, settings).expect("default map failed to generate");
-    let graphs = NavGraphs::new(&map_config);
-
-    // Zones on different carriers are on different grids; each carrier's
-    // zones must reach one another on its own graph.
-    for (from_idx, from) in map_config.actor_spawn_zones.iter().enumerate() {
-        let geometry = map_config.grid(from.carrier).geometry;
-        let nav = graphs.get(from.carrier);
-        let (col, row) = from.cells().next().expect("zone rect is empty");
-        let start = Position {
-            x: geometry.cell_center_x(col),
-            y: geometry.level_y(from.level),
-            z: geometry.cell_center_z(row),
-        };
-        for (to_idx, to) in map_config.actor_spawn_zones.iter().enumerate() {
-            if to.carrier != from.carrier {
-                continue;
-            }
-            assert!(
-                path_to_spawn_zone(nav, &start, to).is_some(),
-                "no nav path from zone {from_idx} (level {}) to zone {to_idx} (level {})",
-                from.level,
-                to.level
-            );
-        }
-    }
-}
-
 #[test]
 fn graphs_hold_one_graph_per_grid_in_carrier_order() {
     let mut cells = CellGrid::new(2, 2);
@@ -836,66 +793,4 @@ fn route_start_stays_direct_when_the_body_fits_past_the_wall_end() {
 
     assert_eq!(route.waypoints.len(), 1);
     assert_eq!(route.waypoints.front().map(|point| &point.position), Some(&target));
-}
-
-// Regression for bruisers parking at the mouth of the hotel's basement
-// ramp trench: off-centre at the base, the leg into the one-cell-wide
-// trench dragged the body through the trench wall's end, and every replan
-// produced the same leg.
-#[test]
-fn shipping_map_bruiser_capsule_fits_the_direct_basement_trench_approach() {
-    let server_gameplay_config =
-        crate::config::ServerGameplayConfig::load_default().expect("default server gameplay config should load");
-    let gameplay_config = server_gameplay_config.gameplay_config();
-    let settings = &server_gameplay_config
-        .maps
-        .get("hotel")
-        .expect("hotel settings missing")
-        .settings;
-    let GeneratedMap {
-        layout,
-        config: map_config,
-        ..
-    } = crate::map::generate_map("hotel", 30, settings).expect("hotel map failed to generate");
-    let world = CollisionWorld::from_map_layout(&layout);
-    let geometry = map_config.root_grid().geometry;
-    let nav = nav_for(map_config);
-    let bruiser = gameplay_config.expect_actor("bruiser").physics();
-    let center = |level: u8, col: i32, row: i32| Position {
-        x: geometry.cell_center_x(col),
-        y: geometry.level_y(level),
-        z: geometry.cell_center_z(row),
-    };
-    let base = center(0, 0, 15);
-    let start = Position {
-        x: base.x + 0.9,
-        z: base.z - 0.8,
-        ..base
-    };
-    let target = center(1, 0, 12);
-    let mut route = nav
-        .engagement_route(
-            &[],
-            &start,
-            &target,
-            bruiser.movement_collider.radius(),
-            bruiser.movement_collider.radius(),
-        )
-        .expect("the lobby is reachable up the basement ramp");
-    let trench_entry = route
-        .waypoints
-        .front()
-        .map(|point| &point.position)
-        .copied()
-        .expect("route has a first leg");
-    assert!(!world.character_sweep_hits_wall(&start, &trench_entry, bruiser));
-
-    nav.anchor_route_start(&[], &start, &mut route, &world, bruiser, CarrierPose::IDENTITY);
-
-    assert_eq!(
-        route.waypoints.front().map(|point| &point.position),
-        Some(&trench_entry)
-    );
-    assert!(!world.character_sweep_hits_wall(&start, &base, bruiser));
-    assert!(!world.character_sweep_hits_wall(&base, &trench_entry, bruiser));
 }

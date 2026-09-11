@@ -3,45 +3,13 @@ use crate::{map::GrassBurn, test_fixtures::WALL_HEIGHT};
 use common::protocol::{Carrier, CarrierId, Floor, MapLayout, PlateState, Wall};
 
 #[test]
-fn shard_count_clamps_to_bounds() {
-    assert_eq!(shard_count(0.1), EXPLOSION_SHARD_MIN_COUNT);
-    assert_eq!(shard_count(1000.0), EXPLOSION_SHARD_MAX_COUNT);
-    let mid = shard_count(10.0);
-    assert!(mid > EXPLOSION_SHARD_MIN_COUNT && mid < EXPLOSION_SHARD_MAX_COUNT);
-}
-
-#[test]
-fn shard_count_steps_up_with_blast_radius() {
-    // The three shipped kinds must be visibly distinct.
-    assert!(shard_count(6.0) < shard_count(10.0));
-    assert!(shard_count(10.0) < shard_count(15.0));
-}
-
-#[test]
 fn density_scales_particle_count_and_zero_disables_it() {
-    let full = scaled_particle_count(
-        10.0,
-        EXPLOSION_SHARDS_PER_RADIUS_METER,
-        EXPLOSION_REFERENCE_SHARDS_PER_METER,
-        EXPLOSION_SHARD_MIN_COUNT,
-        EXPLOSION_SHARD_MAX_COUNT,
-    );
-    let half = scaled_particle_count(
-        10.0,
-        EXPLOSION_SHARDS_PER_RADIUS_METER / 2.0,
-        EXPLOSION_REFERENCE_SHARDS_PER_METER,
-        EXPLOSION_SHARD_MIN_COUNT,
-        EXPLOSION_SHARD_MAX_COUNT,
-    );
+    let full = scaled_particle_count(10.0, 4.0, 4.0, 2, 100);
+    let half = scaled_particle_count(10.0, 2.0, 4.0, 2, 100);
     assert_eq!(half, full / 2);
-    let disabled = scaled_particle_count(
-        10.0,
-        0.0,
-        EXPLOSION_REFERENCE_SHARDS_PER_METER,
-        EXPLOSION_SHARD_MIN_COUNT,
-        EXPLOSION_SHARD_MAX_COUNT,
-    );
-    assert_eq!(disabled, 0);
+    assert_eq!(scaled_particle_count(10.0, 0.0, 4.0, 2, 100), 0);
+    assert_eq!(scaled_particle_count(0.1, 4.0, 4.0, 2, 100), 2);
+    assert_eq!(scaled_particle_count(1000.0, 4.0, 4.0, 2, 100), 100);
 }
 
 // The marks an explosion at `center` leaves on `map_layout`, with one

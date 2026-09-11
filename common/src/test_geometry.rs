@@ -1,5 +1,3 @@
-// Reference sizes for tests that lay out a world by hand: the shipped maps'
-// values, so hand-built fixtures and generated maps agree.
 use crate::{
     config::MapGeometryConfig,
     constants::{BARRIER_THICKNESS_FRACTION, BRIDGE_THICKNESS_FRACTION},

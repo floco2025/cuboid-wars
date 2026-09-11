@@ -1,15 +1,10 @@
 use super::*;
+use crate::config::fixtures;
 use bevy::math::Vec3;
-
-use crate::config::ServerGameplayConfig;
 
 #[test]
 fn capsule_surface_distance_accounts_for_vertical_separation_and_round_ends() {
-    let physics = ServerGameplayConfig::load_default()
-        .expect("server gameplay config missing")
-        .gameplay_config()
-        .player
-        .physics();
+    let physics = fixtures::server_config().gameplay_config().player.physics();
     let at = Position::default();
     let radius = physics.movement_collider.radius();
     for direction in [Vec3::X, Vec3::Z, Vec3::new(1.0, 0.0, 1.0).normalize()] {

@@ -10,6 +10,7 @@ from PySide6.QtCore import QEvent, QPoint, QSettings, Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QMessageBox
 
+from config_fixtures import install_catalogs
 from map_editor.constants import FACES
 from map_editor.erase_tools import EraseMixin
 from map_editor.io import write_map
@@ -153,6 +154,8 @@ class WindowTestCase(unittest.TestCase):
             guard.start()
             self.addCleanup(guard.stop)
         self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        install_catalogs(self, Path(self.temp.name))
         self.path = Path(self.temp.name) / "hotel" / "layout.json"
         data = empty_map(8, 8)
         data["player_spawn_zones"] = []
@@ -178,7 +181,6 @@ class WindowTestCase(unittest.TestCase):
         # the process on exit.
         self.app.clipboard().clear()
         self.recents.stop()
-        self.temp.cleanup()
 
     def click(self, col, row):
         size = self.window.canvas.cell_size()

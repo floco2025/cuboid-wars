@@ -349,6 +349,7 @@ fn add_missiles_caps_at_max_and_reports_the_new_count() {
     assert_eq!(info.add_missiles(2, 3), 2);
     assert_eq!(info.add_missiles(5, 3), 3, "adds clamp to the cap");
     assert_eq!(info.add_missiles(0, 3), 3, "zero add is a no-op");
+    assert_eq!(info.life.missiles, 3);
 }
 
 #[test]
@@ -362,14 +363,6 @@ fn try_start_missile_requires_ammo() {
     assert!(info.try_start_missile());
     assert_eq!(info.life.missiles, 0);
     assert!(!info.try_start_missile(), "magazine empty");
-}
-
-#[test]
-fn add_missiles_clamps_at_max() {
-    let mut info = dummy_info();
-    assert_eq!(info.add_missiles(2, 3), 2);
-    assert_eq!(info.add_missiles(5, 3), 3);
-    assert_eq!(info.life.missiles, 3);
 }
 
 #[test]

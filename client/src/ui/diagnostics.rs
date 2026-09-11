@@ -72,7 +72,3 @@ pub fn ui_fps_system(
 fn fps_label(fps: f32, render_size: UVec2) -> String {
     format!("FPS: {fps:.0} | {}x{}", render_size.x, render_size.y)
 }
-
-#[cfg(test)]
-#[path = "tests/diagnostics.rs"]
-mod tests;

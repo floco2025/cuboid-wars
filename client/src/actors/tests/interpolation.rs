@@ -1,3 +1,4 @@
+use crate::test_fixtures;
 use std::{f32::consts::PI, time::Duration};
 
 use bevy::prelude::*;
@@ -9,7 +10,7 @@ use common::{
 };
 
 use super::{ActorAnimationVelocity, RemoteActorMotion, interpolate_remote_actors_system};
-use crate::{actors::actors_transform_sync_system, config::ClientSettings, network::SampleTiming};
+use crate::{actors::actors_transform_sync_system, network::SampleTiming};
 
 fn sample(x: f32) -> ActorMovementState {
     ActorMovementState {
@@ -26,7 +27,7 @@ fn sample(x: f32) -> ActorMovementState {
 }
 
 fn timing(hz: u32) -> SampleTiming {
-    let settings = ClientSettings::load_default().expect("client settings are invalid");
+    let settings = test_fixtures::client_settings();
     SampleTiming::new(
         &settings.interpolation,
         &NetworkConfig {

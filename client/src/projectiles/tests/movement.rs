@@ -15,7 +15,6 @@ use crate::{
     actors::{ActorInfo, ActorMap},
     barriers::build_barrier_assets,
     bridges::build_bridge_assets,
-    config::{AssetSet, ClientSettings},
     network::{ClientToServer, ClientToServerChannel},
     players::{LocalPlayerInfo, MyPlayerId, PlayerMap},
     projectiles::{MuzzleCheck, ProjectileMarker},
@@ -28,7 +27,7 @@ fn app() -> (App, UnboundedReceiver<ClientToServer>) {
     app.add_plugins((TaskPoolPlugin::default(), AssetPlugin::default()));
     app.init_asset::<AudioSource>();
     let gameplay = test_fixtures::gameplay_config();
-    let settings = ClientSettings::load_default().expect("client settings invalid");
+    let settings = test_fixtures::client_settings();
     let mut meshes = Assets::default();
     let mut materials = Assets::default();
     let assets = ProjectileAssets::new(&mut meshes, &mut materials, gameplay.projectiles.radius);
@@ -46,7 +45,7 @@ fn app() -> (App, UnboundedReceiver<ClientToServer>) {
     let (sender, receiver) = unbounded_channel();
     app.insert_resource(time)
         .insert_resource(settings)
-        .insert_resource(AssetSet::load_default().expect("asset catalog invalid"))
+        .insert_resource(test_fixtures::asset_set())
         .insert_resource(meshes)
         .insert_resource(materials)
         .insert_resource(assets)

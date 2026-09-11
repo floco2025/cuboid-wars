@@ -54,7 +54,7 @@ fn firing_sends_the_client_resolved_geometry_and_current_body_generation() {
                 yaw: PI,
                 ..default()
             })
-            .insert_resource(AssetSet::load_default().expect("asset config is invalid"))
+            .insert_resource(test_fixtures::asset_set())
             .insert_resource(test_fixtures::gameplay_config())
             .insert_resource(collision)
             .insert_resource(layout)

@@ -1,7 +1,7 @@
+use crate::config::fixtures;
 use crate::{
     actors::ActorMap,
     characters::characters_movement_system,
-    config::ServerGameplayConfig,
     network::collect_player_moves,
     players::{PlayerInfo, PlayerMap, PlayerStateQuery, apply_player_movement_system, queue_player_movement},
 };
@@ -17,7 +17,7 @@ use tokio::sync::mpsc::unbounded_channel;
 const ID: PlayerId = PlayerId(1);
 
 fn movement_app(layout: MapLayout) -> (App, Entity) {
-    let config = ServerGameplayConfig::load_default().expect("gameplay config missing");
+    let config = fixtures::server_config();
     let mut app = App::new();
     let mut time = Time::<()>::default();
     time.advance_by(TICK_DURATION);

@@ -1,8 +1,8 @@
-use crate::config::ServerGameplayConfig;
+use crate::config::fixtures;
 
 #[test]
 fn feed_rejects_missing_actor_kind() {
-    let mut config = ServerGameplayConfig::load_default().expect("default server gameplay config should load");
+    let mut config = fixtures::server_config();
     config.feed.actor_destroyed.remove("scuttler");
     let err = config
         .feed
@@ -14,7 +14,7 @@ fn feed_rejects_missing_actor_kind() {
 
 #[test]
 fn feed_rejects_unknown_actor_kind() {
-    let mut config = ServerGameplayConfig::load_default().expect("default server gameplay config should load");
+    let mut config = fixtures::server_config();
     config.feed.actor_destroyed.insert("banana".to_owned(), true);
     let err = config
         .feed

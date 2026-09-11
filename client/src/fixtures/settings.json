@@ -1,0 +1,123 @@
+{
+  "rendering": {
+    "opaque_renderer": "auto",
+    "directional_shadows": true,
+    "shadow_map_size": 2048,
+    "mipmaps": true,
+    "texture_anisotropy": 8,
+    "bloom": {
+      "enabled": true,
+      "intensity": 0.15,
+      "threshold": 2.5,
+      "threshold_softness": 0.4
+    }
+  },
+  "interpolation": { "buffer_intervals": 2.0 },
+  "vfx": {
+    "pickups": { "emissive_brightness": 1.0 },
+    "barriers": {
+      "emissive_brightness": 2.0,
+      "opacity": 0.45,
+      "pulse": { "min_opacity": 0.35, "frequency_hz": 0.5 }
+    },
+    "erasers": { "emissive_brightness": 3.0, "opacity": 0.2 },
+    "light_bridges": {
+      "emissive_brightness": 1.0,
+      "opacity": 0.8,
+      "unpowered_opacity": 0.2,
+      "fade_secs": 0.25
+    }
+  },
+  "audio": {
+    "spatial_distance_scale": 0.1,
+    "explosion_gain": 2.0,
+    "rain_volume": 1.0,
+    "bump": { "min_run_up": 1.0, "full_run_up": 6.0 }
+  },
+  "weather": {
+    "rain_drops_per_second": 1000.0,
+    "rain_drop_size": 0.01,
+    "rain_spawn_radius": 15.0,
+    "spawn_lead_fraction": 0.35
+  },
+  "lighting": {
+    "bright": {
+      "sky_brightness": 1000.0,
+      "ambient_brightness": 70.0,
+      "sun_illuminance": 8000.0,
+      "sun_disc_luminance": 100.0,
+      "saturation": 1.0
+    },
+    "dim": {
+      "sky_brightness": 48.0,
+      "ambient_brightness": 30.0,
+      "moon_illuminance": 150.0,
+      "moon_disc_luminance": 7.0,
+      "moon_phase_percent": 100.0,
+      "saturation": 0.5
+    },
+    "dark": {
+      "sky_brightness": 12.0,
+      "ambient_brightness": 15.0,
+      "moon_illuminance": 50.0,
+      "moon_disc_luminance": 7.0,
+      "moon_phase_percent": 30.0,
+      "saturation": 0.3
+    }
+  },
+  "camera": {
+    "follow": {
+      "max_distance": 3.5,
+      "first_person_distance": 1.1,
+      "pivot_height": 1.4,
+      "shoulder_offset": 0.0,
+      "collision_radius": 0.2,
+      "obstruction_return_rate": 8.0
+    },
+    "top_down": { "fov_degrees": 45.0, "margin": 1.15, "tilt_degrees": 35.0 },
+    "rearview": { "width_ratio": 0.2, "height_ratio": 0.2 },
+    "shake": {
+      "projectile": {
+        "intensity": 0.1,
+        "vertical_ratio": 0.2,
+        "duration_secs": 0.3
+      },
+      "laser": {
+        "intensity": 0.2,
+        "vertical_ratio": 0.2,
+        "duration_secs": 0.3
+      },
+      "fall": { "intensity": 0.2, "vertical_ratio": 0.5, "duration_secs": 0.3 }
+    }
+  },
+  "hud": {
+    "reference_width": 1920.0,
+    "settings_menu": { "panel_width": 420.0, "control_width": 180.0 },
+    "font_sizes": {
+      "player_list": 18.0,
+      "score": 16.0,
+      "message_feed": 18.0,
+      "floating_label": 40.0,
+      "banner": 40.0,
+      "quest_panel": 16.0,
+      "settings_menu": 18.0
+    },
+    "banner": {
+      "quest_announcement": { "duration_secs": 10.0, "fade_out_secs": 0.8 },
+      "quest_completed": { "duration_secs": 5.0, "fade_out_secs": 0.8 },
+      "death": { "duration_secs": 3.0, "fade_out_secs": 0.8 },
+      "checkpoint_reached": { "duration_secs": 1.2, "fade_out_secs": 0.3 },
+      "max_entries": 5
+    },
+    "message_feed": { "entry_duration_secs": 10.0, "max_entries": 10 },
+    "floating_labels": { "height_above": 0.5 },
+    "health_bars": {
+      "player_aspect": 0.056,
+      "actor_aspect": 0.129,
+      "player_list_width": 140.0,
+      "player_list_height": 8.0
+    },
+    "quest_panel": { "card_width": 240.0, "bar_height": 8.0 }
+  },
+  "grass": { "enabled": true, "tufts_per_m2": 16.0 }
+}

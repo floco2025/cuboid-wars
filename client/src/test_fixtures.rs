@@ -1,5 +1,3 @@
-// Reference sizes for tests that lay out a world by hand: the shipped maps'
-// values, so hand-built fixtures agree with what the server ships.
 use std::collections::HashMap;
 
 use common::{
@@ -9,21 +7,22 @@ use common::{
     protocol::{MapSettings, PortalMode},
 };
 
-use crate::config::FollowCameraConfig;
+use crate::config::{AssetSet, ClientSettings, FollowCameraConfig};
 
-// The client projection of the shipped `gameplay.json`, for tests that need
-// the real player body and weapon tuning.
+pub(crate) const SETTINGS_JSON: &str = include_str!("fixtures/settings.json");
+pub(crate) const ASSETS_JSON: &str = include_str!("fixtures/assets.json");
+
 pub(crate) fn gameplay_config() -> GameplayConfig {
-    let source: serde_json::Value = serde_json::from_str(include_str!("../../config/server/gameplay.json"))
-        .expect("server gameplay JSON is invalid");
-    serde_json::from_value(serde_json::json!({
-        "player": source["player"],
-        "actors": source["actors"]["kinds"],
-        "projectiles": source["weapons"]["projectiles"],
-        "missiles": source["weapons"]["missiles"],
-        "portals": source["weapons"]["portals"],
-    }))
-    .expect("client gameplay config is invalid")
+    serde_json::from_str(include_str!("../../common/src/config/tests/fixtures/gameplay.json"))
+        .expect("test gameplay config is invalid")
+}
+
+pub(crate) fn client_settings() -> ClientSettings {
+    serde_json::from_str(SETTINGS_JSON).expect("test client settings are invalid")
+}
+
+pub(crate) fn asset_set() -> AssetSet {
+    serde_json::from_str(ASSETS_JSON).expect("test asset configuration is invalid")
 }
 
 pub(crate) const CELL: f32 = 3.4;

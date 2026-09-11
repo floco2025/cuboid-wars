@@ -187,6 +187,7 @@ fn projectile_hits_level_zero_floor_underside() {
 }
 
 mod spawning {
+    use crate::test_fixtures;
     use common::{
         physics::CollisionWorld,
         protocol::{CarrierId, Floor, MapLayout, Position, Ramp, Wall},
@@ -247,7 +248,7 @@ mod spawning {
     }
 
     fn player_eye_height() -> f32 {
-        crate::test_fixtures::gameplay_config().player.eye_height()
+        test_fixtures::gameplay_config().player.eye_height()
     }
 
     #[test]
@@ -425,7 +426,7 @@ mod spawning {
 
 #[test]
 fn multi_shot_fires_the_configured_stencil() {
-    let mut gameplay = crate::test_fixtures::gameplay_config();
+    let mut gameplay = test_fixtures::gameplay_config();
     gameplay.projectiles.multi_shot = multi_shot(1.5, 1.5, &["x.x", ".o.", "x.x"]);
     let world = CollisionWorld::from_map_layout(&MapLayout::default());
     let shooter = Position { x: 0.0, y: 1.0, z: 0.0 };
@@ -461,7 +462,7 @@ fn multi_shot_fires_the_configured_stencil() {
 
 #[test]
 fn a_relayed_volley_reproduces_the_shooters_spawn_set_through_a_blocking_muzzle() {
-    let mut gameplay = crate::test_fixtures::gameplay_config();
+    let mut gameplay = test_fixtures::gameplay_config();
     gameplay.projectiles.multi_shot = multi_shot(30.0, 30.0, &["xox"]);
     let shooter = Position { x: 0.0, y: 1.0, z: 0.0 };
     let open = CollisionWorld::from_map_layout(&MapLayout::default());

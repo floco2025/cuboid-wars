@@ -1,6 +1,6 @@
 use super::{MissileImpact, MissileVelocity, RemoteMissileMotion, interpolate_remote_missiles_system};
+use crate::test_fixtures;
 use crate::{
-    config::ClientSettings,
     missiles::{MissileInfo, MissileMap, MissileMarker},
     network::SampleTiming,
 };
@@ -52,7 +52,7 @@ fn repeated_snapshots_and_reordered_updates_cannot_restart_or_reverse_flight() {
 
 #[test]
 fn configured_buffer_smooths_flight_and_holds_after_packet_gaps() {
-    let settings = ClientSettings::load_default().expect("client config invalid");
+    let settings = test_fixtures::client_settings();
     for hz in [7, 10, 30] {
         let mut motion = RemoteMissileMotion::new(
             0,

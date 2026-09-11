@@ -1,11 +1,5 @@
 use super::*;
-use crate::test_geometry::{FLOOR_THICKNESS, LEVEL_HEIGHT, WALL_HEIGHT, sizes};
-
-#[test]
-fn wall_height_is_the_pitch_minus_the_slab() {
-    assert_eq!(sizes().wall_height(), WALL_HEIGHT);
-    assert_eq!(sizes().wall_height() + FLOOR_THICKNESS, LEVEL_HEIGHT);
-}
+use crate::test_geometry::{LEVEL_HEIGHT, sizes};
 
 #[test]
 fn level_for_y_tolerates_a_small_dip_and_clamps_below_ground() {

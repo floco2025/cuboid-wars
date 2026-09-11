@@ -1,3 +1,4 @@
+use crate::config::fixtures;
 // Actor kinds for tests, one per attack shape, with the health, damage,
 // scoring, feed, and movement entries the config keys by kind, so no test
 // leans on a shipped kind's name or tuning.
@@ -157,10 +158,8 @@ pub(crate) fn physics(name: &str) -> CharacterPhysicsConfig {
     kind(name).character.physics()
 }
 
-// The shipped config with every table keyed by actor kind replaced by the
-// test kinds.
 pub(crate) fn server_config() -> ServerGameplayConfig {
-    let mut config = ServerGameplayConfig::load_default().expect("default server gameplay config invalid");
+    let mut config = fixtures::server_config();
     let kinds: Vec<(String, TestKind)> = KINDS.iter().map(|name| ((*name).to_owned(), test_kind(name))).collect();
     config.actors.kinds = table(&kinds, |kind| kind.server.clone());
     config.combat.health.actors = table(&kinds, |kind| ActorHealthConfig {

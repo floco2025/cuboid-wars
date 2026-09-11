@@ -1,5 +1,6 @@
 use super::*;
-use crate::config::{ActorKindServerConfig, ServerGameplayConfig};
+use crate::config::ActorKindServerConfig;
+use crate::config::fixtures;
 
 fn ok_quest(id: &str, threshold: u32) -> Quest {
     Quest {
@@ -21,10 +22,7 @@ fn no_actors() -> HashMap<String, ()> {
 }
 
 fn default_actors() -> HashMap<String, ActorKindServerConfig> {
-    ServerGameplayConfig::load_default()
-        .expect("default server gameplay config should load")
-        .actors
-        .kinds
+    fixtures::server_config().actors.kinds
 }
 
 fn validate<T>(quests: &[Quest], actors: &HashMap<String, T>) -> Result<()> {

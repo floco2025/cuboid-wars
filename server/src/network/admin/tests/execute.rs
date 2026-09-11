@@ -1,3 +1,4 @@
+use crate::config::fixtures;
 use common::protocol::BarrierKindTable;
 
 use super::*;
@@ -16,7 +17,7 @@ fn give_key_and_powerup_mutate_sender_state() {
     assert!(info.add_key(kind));
     assert!(!info.add_key(kind), "second add of the same key must be a no-op");
 
-    let config = ServerGameplayConfig::load_default().expect("default server gameplay config failed to load");
+    let config = fixtures::server_config();
     info.grant_power_up(ItemType::SpeedPowerUp, &config.maps["hotel"].power_ups);
     assert!(
         info.has(common::protocol::PowerUpKind::Speed),

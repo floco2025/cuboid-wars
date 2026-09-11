@@ -35,8 +35,8 @@ use crate::{
 };
 
 fn input_app() -> (App, Entity, Entity) {
-    let settings: ClientSettings = serde_json::from_str(include_str!("../../../../config/client/client.json"))
-        .expect("client settings JSON is invalid");
+    let settings: ClientSettings =
+        serde_json::from_str(test_fixtures::SETTINGS_JSON).expect("client settings JSON is invalid");
     let (sender, _receiver) = tokio::sync::mpsc::unbounded_channel();
     let mut app = App::new();
     app.insert_resource(CameraViewMode::ThirdPerson)

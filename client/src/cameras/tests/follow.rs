@@ -35,7 +35,7 @@ fn world(wall: bool) -> CollisionWorld {
 fn app() -> (App, Entity, f32) {
     let gameplay = test_fixtures::gameplay_config();
     let eye_height = gameplay.player.eye_height();
-    let mut settings = ClientSettings::load_default().expect("client settings are invalid");
+    let mut settings = test_fixtures::client_settings();
     settings.camera.follow = test_fixtures::follow_camera();
     let mut app = App::new();
     app.insert_resource(gameplay)

@@ -39,3 +39,6 @@ pub use respawn::{ActorRespawnConfig, ActorRespawnScope, PlayerRespawnMode, Resp
 pub use scoring::ScoringConfig;
 pub(crate) use validation::{deserialize_required_option, validate_map_actor_kinds, validate_map_quests};
 pub use weapons::WeaponsConfig;
+
+#[cfg(test)]
+pub(crate) use gameplay::fixtures;

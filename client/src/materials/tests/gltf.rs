@@ -1,3 +1,4 @@
+use crate::test_fixtures;
 use bevy::{
     gltf::{Gltf, GltfMaterial},
     image::ImageSampler,
@@ -11,8 +12,7 @@ use crate::{
 
 #[test]
 fn model_gltf_textures_reach_standard_materials_with_correct_colour_spaces() {
-    let catalog: serde_json::Value =
-        serde_json::from_str(include_str!("../../../../config/client/assets.json")).expect("asset catalog invalid");
+    let catalog: serde_json::Value = serde_json::from_str(test_fixtures::ASSETS_JSON).expect("asset catalog invalid");
     let mut paths: Vec<_> = catalog["actors"]
         .as_object()
         .expect("actor catalog missing")

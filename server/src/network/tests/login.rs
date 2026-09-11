@@ -1,5 +1,5 @@
 use super::{MAX_NAME_CHARS, sanitize_player_name};
-use crate::config::ServerGameplayConfig;
+use crate::config::fixtures;
 use common::protocol::{
     BarrierKindId, HexColor, ItemType, KindDef, MapBootstrap, MapItems, MapLayout, MapSettings, PlateState,
     PlayerBootstrap, PlayerId, PortalAccess, SInit, ServerMessage, WorldBootstrap,
@@ -33,7 +33,7 @@ fn ordinary_name_is_preserved() {
 
 #[test]
 fn bootstrap_actor_values_are_sorted_and_match_config() {
-    let config = ServerGameplayConfig::load_default().expect("default server gameplay config failed to load");
+    let config = fixtures::server_config();
     let actors = config.gameplay_bootstrap().actors;
     let combat = &config.combat;
     assert_eq!(actors.len(), config.actors.kinds.len());
@@ -52,7 +52,7 @@ fn bootstrap_actor_values_are_sorted_and_match_config() {
 
 #[test]
 fn init_message_round_trips_complete_bootstrap() {
-    let config = ServerGameplayConfig::load_default().expect("default server gameplay config failed to load");
+    let config = fixtures::server_config();
     let map_settings = config
         .maps
         .get(&config.default_map)

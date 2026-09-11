@@ -1,3 +1,4 @@
+use crate::test_fixtures;
 use bevy::{gltf::Gltf, prelude::*};
 use common::protocol::{CarrierId, MapLayout, Position, WallLight};
 
@@ -10,7 +11,7 @@ use crate::{
 
 #[test]
 fn unknown_wall_light_kind_fails_before_rendering() {
-    let assets = AssetSet::load_default().expect("asset catalog invalid");
+    let assets = test_fixtures::asset_set();
     let layout = MapLayout {
         wall_lights: vec![WallLight {
             kind: "missing-fixture".into(),
@@ -29,7 +30,7 @@ fn unknown_wall_light_kind_fails_before_rendering() {
 #[test]
 fn wall_light_models_keep_emitters_separate_from_their_housing() {
     let mut catalog: serde_json::Value =
-        serde_json::from_str(include_str!("../../../../config/client/assets.json")).expect("asset catalog invalid");
+        serde_json::from_str(test_fixtures::ASSETS_JSON).expect("asset catalog invalid");
     for (index, light) in catalog["wall_lights"]
         .as_object_mut()
         .expect("wall lights missing")

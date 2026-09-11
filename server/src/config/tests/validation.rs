@@ -1,4 +1,5 @@
 use super::*;
+use crate::config::fixtures;
 use crate::{
     map::{ActorSpawnZone, CarrierGrid, CellGrid, EdgeGrid, LevelGrid},
     test_geometry::geometry,
@@ -6,17 +7,25 @@ use crate::{
 use common::protocol::CarrierId;
 
 fn config_and_map() -> (ServerGameplayConfig, MapConfig) {
-    let server = ServerGameplayConfig::load_default().expect("load server gameplay");
-    let settings = &server.maps.get("hotel").expect("hotel settings missing").settings;
-    let map = crate::map::generate_map("hotel", server.network.server_hz, settings)
-        .expect("hotel map failed to generate")
-        .config;
+    let server = fixtures::server_config();
+    let mut map = MapConfig::for_grid(Vec::new(), geometry(2, 2));
+    map.actor_spawn_zones.push(ActorSpawnZone {
+        switch_inverted: false,
+        carrier: CarrierId::WORLD,
+        level: 0,
+        cols: [0, 1],
+        rows: [0, 1],
+        kind: "scuttler".into(),
+        count: 1,
+        respawn_secs: None,
+        switch: None,
+    });
     (server, map)
 }
 
 #[test]
 fn immovable_capacity_counts_only_usable_floors_on_the_zones_carrier() {
-    let server = ServerGameplayConfig::load_default().expect("gameplay config rejected");
+    let server = fixtures::server_config();
     let mut map = MapConfig::for_grid(Vec::new(), geometry(4, 1));
     let mut cells = CellGrid::new(4, 1);
     cells.rows[0][0].has_floor = true;

@@ -1,5 +1,3 @@
-// Reference sizes for tests that lay out a world by hand: the shipped maps'
-// values, so hand-built fixtures and generated maps agree.
 use std::collections::HashMap;
 
 use common::{
@@ -29,8 +27,6 @@ pub(crate) fn geometry(grid_cols: i32, grid_rows: i32) -> MapGeometry {
     MapGeometry::new(grid_cols, grid_rows, sizes())
 }
 
-// The settings resource for movement tests: the sizes above with the
-// shipped gravity and ladder climb ratio.
 pub(crate) fn map_settings() -> MapSettings {
     MapSettings {
         skybox: "test".to_owned(),

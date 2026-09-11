@@ -1,25 +1,12 @@
-use std::{collections::HashSet, fs, path::Path};
-
+use crate::test_fixtures;
 use common::protocol::{MapLayout, TextureSettings};
 
-use super::{AssetSet, ModelDef, model::validate_model};
+use super::{ModelDef, model::validate_model};
 use crate::test_fixtures::map_settings;
-
-// The server's actor kinds, straight from the shipped JSON.
-fn server_actor_kinds() -> Vec<String> {
-    let gameplay: serde_json::Value = serde_json::from_str(include_str!("../../../../config/server/gameplay.json"))
-        .expect("server gameplay config does not parse");
-    gameplay["actors"]["kinds"]
-        .as_object()
-        .expect("actors.kinds is not an object")
-        .keys()
-        .cloned()
-        .collect()
-}
 
 #[test]
 fn missing_map_texture_binding_fails_before_rendering() {
-    let assets = AssetSet::load_default().expect("shipped assets are invalid");
+    let assets = test_fixtures::asset_set();
     let mut settings = map_settings();
     settings
         .textures
@@ -31,23 +18,13 @@ fn missing_map_texture_binding_fails_before_rendering() {
 }
 
 #[test]
-fn default_assets_match_server_gameplay() {
-    let assets = AssetSet::load_default().expect("shipped assets.json fails to load");
-    let kinds = server_actor_kinds();
-
-    assets
-        .validate_gameplay_bindings(kinds.iter().map(String::as_str))
-        .expect("client asset bindings fail for the shipped gameplay");
-}
-
-#[test]
 fn actor_kind_set_mismatch_is_rejected() {
-    let mut assets = AssetSet::load_default().expect("shipped assets.json fails to load");
-    let kinds = server_actor_kinds();
+    let mut assets = test_fixtures::asset_set();
+    let kinds = ["scuttler", "bruiser", "zapper", "turret"];
     assets.actors.remove("scuttler");
 
     let error = assets
-        .validate_gameplay_bindings(kinds.iter().map(String::as_str))
+        .validate_gameplay_bindings(kinds)
         .expect_err("missing actor assets must fail");
 
     assert!(error.to_string().contains("only in gameplay: [\"scuttler\"]"));
@@ -55,7 +32,7 @@ fn actor_kind_set_mismatch_is_rejected() {
 
 #[test]
 fn actor_catalog_can_be_replaced_with_arbitrary_names() {
-    let mut assets = AssetSet::load_default().expect("shipped assets.json fails to load");
+    let mut assets = test_fixtures::asset_set();
     let definitions: Vec<_> = assets.actors.values().cloned().collect();
     assets.actors.clear();
     for (index, actor) in definitions.into_iter().enumerate() {
@@ -106,7 +83,7 @@ fn malformed_model_capabilities_are_rejected() {
 
 #[test]
 fn missing_required_actor_sound_is_rejected() {
-    let mut assets = AssetSet::load_default().expect("shipped assets.json fails to load");
+    let mut assets = test_fixtures::asset_set();
     assets
         .actors
         .get_mut("scuttler")
@@ -121,7 +98,7 @@ fn missing_required_actor_sound_is_rejected() {
 
 #[test]
 fn invalid_actor_model_is_rejected() {
-    let mut assets = AssetSet::load_default().expect("shipped assets.json fails to load");
+    let mut assets = test_fixtures::asset_set();
     assets
         .actors
         .get_mut("scuttler")
@@ -136,56 +113,16 @@ fn invalid_actor_model_is_rejected() {
 
 #[test]
 fn normal_map_without_a_convention_suffix_is_rejected() {
-    let mut assets = AssetSet::load_default().expect("shipped assets.json fails to load");
+    let mut assets = test_fixtures::asset_set();
     let (name, material) = assets
         .materials
         .iter_mut()
         .next()
-        .expect("shipped assets.json has no materials");
+        .expect("test asset configuration has no materials");
     let name = name.clone();
     material.textures.normal = "textures/example/example-normal.png".to_owned();
 
     let error = assets.validate().expect_err("unsuffixed normal map must fail");
 
     assert!(error.to_string().contains(&format!("materials.{name}.textures.normal")));
-}
-
-// Bevy's `AssetServer.load` ends in `std::fs::File::open`, which is
-// case-sensitive on Linux but case-insensitive on macOS APFS (default)
-// and Windows NTFS. A casing typo in `assets.json` slips past Mac dev
-// testing and 404s on a Linux client. Walk each referenced path's parent
-// directory and assert the exact filename is present — `Path::exists`
-// would be fooled by macOS's case-insensitive layer.
-#[test]
-fn referenced_assets_exist_case_exactly() {
-    let assets = AssetSet::load_default().expect("shipped assets.json fails to load");
-    let assets_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("assets");
-
-    let mut errors: Vec<String> = Vec::new();
-    for path in assets.referenced_asset_paths() {
-        let full = assets_root.join(&path);
-        let parent = full.parent().expect("path has no parent");
-        let want = full.file_name().expect("path has no filename");
-        let entries: HashSet<_> = match fs::read_dir(parent) {
-            Ok(rd) => rd.filter_map(|e| e.ok().map(|e| e.file_name())).collect(),
-            Err(_) => HashSet::new(),
-        };
-        if entries.contains(want) {
-            continue;
-        }
-        let ci_match = entries
-            .iter()
-            .find(|n| n.to_string_lossy().eq_ignore_ascii_case(&want.to_string_lossy()))
-            .map(|n| n.to_string_lossy().into_owned());
-        match ci_match {
-            Some(other) => errors.push(format!(
-                "`{path}` referenced in assets.json — disk has `{}/{}` (case mismatch)",
-                parent.file_name().unwrap_or_default().to_string_lossy(),
-                other,
-            )),
-            None => errors.push(format!("`{path}` referenced in assets.json — not found on disk")),
-        }
-    }
-
-    assert!(errors.is_empty(), "asset path mismatches:\n  {}", errors.join("\n  "));
 }

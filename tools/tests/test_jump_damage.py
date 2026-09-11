@@ -3,13 +3,14 @@ from dataclasses import replace
 import unittest
 from unittest.mock import patch
 
+from config_fixtures import ConfigTestCase
 from editor_fixtures import WindowTestCase
 from map_editor.catalogs import load_map_settings
 from map_editor.jump_reach import ANTI_GRAVITY, BOTH, NORMAL, SPEED, FallSettings, JumpSettings, calculate_reach
 from map_editor.normalization import empty_level, empty_map
 
 
-class JumpDamageTests(unittest.TestCase):
+class JumpDamageTests(ConfigTestCase):
     settings = JumpSettings(1, 1, 2, 1, 1, 2, 2, 1, 0, FallSettings(4, 12, 100))
 
     def reach(self, settings=None, **kwargs):

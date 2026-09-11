@@ -1,3 +1,4 @@
+use crate::config::fixtures;
 use std::f32::consts::PI;
 
 use bevy::math::Vec3;
@@ -9,7 +10,6 @@ use common::{
 
 use crate::{
     actors::movement::{ActorMovementStep, step_actor_movement},
-    config::ServerGameplayConfig,
     test_geometry::{LEVEL_HEIGHT, map_settings},
 };
 
@@ -40,11 +40,7 @@ fn actor_step(
         ladders: vec![test_ladder()],
         ..Default::default()
     });
-    let physics = ServerGameplayConfig::load_default()
-        .expect("server gameplay config missing")
-        .gameplay_config()
-        .player
-        .physics();
+    let physics = fixtures::server_config().gameplay_config().player.physics();
     step_actor_movement(ActorMovementStep {
         start,
         vertical_velocity: velocity,

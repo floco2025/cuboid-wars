@@ -1,4 +1,5 @@
 use super::*;
+use crate::config::fixtures;
 use crate::{
     map::{CarrierGrid, CellGrid, EdgeGrid, LevelGrid, MapConfig, PlayerSpawnZone},
     test_geometry::{LEVEL_HEIGHT, WALL_HEIGHT, WALL_THICKNESS, geometry},
@@ -14,19 +15,11 @@ fn collision_world(layout: &MapLayout) -> CollisionWorld {
 }
 
 fn character_physics() -> CharacterPhysicsConfig {
-    crate::config::ServerGameplayConfig::load_default()
-        .expect("default server gameplay config should load")
-        .gameplay_config()
-        .player
-        .physics()
+    fixtures::server_config().gameplay_config().player.physics()
 }
 
 fn actor_config(kind: &str) -> ActorGameplayConfig {
-    crate::config::ServerGameplayConfig::load_default()
-        .expect("gameplay config rejected")
-        .expect_actor(kind)
-        .character
-        .clone()
+    fixtures::server_config().expect_actor(kind).character.clone()
 }
 
 fn map_config_with_player_spawn(level: u8, col: i32, row: i32) -> MapConfig {

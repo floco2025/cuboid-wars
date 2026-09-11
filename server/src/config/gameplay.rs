@@ -198,3 +198,7 @@ impl PlayerServerConfig {
 #[cfg(test)]
 #[path = "tests/gameplay.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "test_fixtures.rs"]
+pub(crate) mod fixtures;

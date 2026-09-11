@@ -1,9 +1,10 @@
 use super::*;
+use crate::test_fixtures;
 
 #[test]
 fn rearview_uses_live_follow_fov_independently_of_top_down() {
     let mut app = App::new();
-    app.insert_resource(ClientSettings::load_default().expect("client settings are invalid"))
+    app.insert_resource(test_fixtures::client_settings())
         .init_resource::<CameraViewMode>()
         .init_resource::<UiScale>()
         .insert_resource(SceneRenderTarget {

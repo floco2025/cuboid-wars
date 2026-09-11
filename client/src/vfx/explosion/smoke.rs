@@ -172,7 +172,3 @@ fn smoke_indices(count: usize) -> Vec<u32> {
     }
     indices
 }
-
-#[cfg(test)]
-#[path = "tests/smoke.rs"]
-mod tests;

@@ -1,3 +1,4 @@
+use crate::config::fixtures;
 use std::collections::HashMap;
 
 use bevy::prelude::*;
@@ -26,7 +27,7 @@ use common::{
 };
 
 fn test_app() -> App {
-    let server = ServerGameplayConfig::load_default().expect("default server gameplay config should load");
+    let server = fixtures::server_config();
     let gameplay = server.gameplay_config();
     let map_settings = server
         .maps

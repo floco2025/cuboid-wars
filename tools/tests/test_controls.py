@@ -6,7 +6,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 from editor_fixtures import DEFAULT_ALIAS, WindowTestCase, qt_app
-from map_editor.constants import MAPS_DIR
 from map_editor.control_catalogs import edit_catalog, validate_catalog
 from map_editor.dialogs.control_catalogs import FireworksDialog
 from map_editor.dialogs.controls import FieldPropertiesDialog
@@ -175,12 +174,20 @@ class ControlTests(unittest.TestCase):
             self.assertEqual(obby.with_name("settings.json").read_text(), original)
 
     def test_catalog_saves_rewrite_only_their_own_values(self):
-        for name in ("hotel", "obby"):
-            text = (MAPS_DIR / name / "settings.json").read_text(encoding="utf-8")
-            settings = json.loads(text)
-            catalogs = {catalog: settings[catalog] for catalog in ("barrier_kinds", "bridge_kinds")}
-            self.assertEqual(splice_catalogs(text, catalogs), text)
-        obby = (MAPS_DIR / "obby" / "settings.json").read_text(encoding="utf-8")
+        obby = '\n'.join([
+            '{',
+            '  "movement": { "gravity": 12 },',
+            '  "barrier_kinds": [{ "id": "barrier_1", "color": "#f0c020" }],',
+            '  "bridge_kinds": [',
+            '    { "id": "bridge_1", "color": "#30d8ff" },',
+            '    { "id": "bridge_2", "color": "#30d8ff" },',
+            '    { "id": "bridge_3", "color": "#30d8ff" }',
+            '  ],',
+            '  "skybox": "test"',
+            '}', '',
+        ])
+        settings = json.loads(obby)
+        self.assertEqual(splice_catalogs(obby, {key: settings[key] for key in ("barrier_kinds", "bridge_kinds")}), obby)
         recolored = splice_catalogs(obby, {"barrier_kinds": [{"id": "barrier_1", "color": "#123456"}]})
         self.assertEqual(recolored, obby.replace('{ "id": "barrier_1", "color": "#f0c020" }', '{ "id": "barrier_1", "color": "#123456" }'))
         collapsed = splice_catalogs(obby, {"bridge_kinds": [{"id": "bridge_1", "color": "#30d8ff"}]})

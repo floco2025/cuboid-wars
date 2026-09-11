@@ -12,8 +12,6 @@ use crate::{
 };
 pub(super) use bevy_math::Vec3;
 
-// Movement tuning for movement tests (the shipping map's settings): gravity
-// magnitude, ladder climb ratio, and the player's run speed.
 pub(crate) const TEST_GRAVITY: f32 = 25.0;
 pub(crate) const TEST_LADDER_CLIMB_RATIO: f32 = 0.4;
 pub(crate) const TEST_PLAYER_SPEED: f32 = 9.0;

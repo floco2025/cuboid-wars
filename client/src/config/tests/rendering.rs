@@ -24,36 +24,20 @@ fn error_for(config: RenderingConfig) -> String {
 }
 
 #[test]
-fn zero_texture_anisotropy_is_rejected_by_path() {
-    let mut config = rendering();
-    config.texture_anisotropy = 0;
-    assert!(error_for(config).contains("rendering.texture_anisotropy"));
-}
-
-#[test]
-fn zero_shadow_map_size_is_rejected_by_path() {
-    let mut config = rendering();
-    config.shadow_map_size = 0;
-    assert!(error_for(config).contains("rendering.shadow_map_size"));
-}
-
-#[test]
-fn negative_bloom_intensity_is_rejected_by_path() {
-    let mut config = rendering();
-    config.bloom.intensity = -0.1;
-    assert!(error_for(config).contains("rendering.bloom.intensity"));
-}
-
-#[test]
-fn non_finite_bloom_threshold_is_rejected_by_path() {
-    let mut config = rendering();
-    config.bloom.threshold = f32::NAN;
-    assert!(error_for(config).contains("rendering.bloom.threshold"));
-}
-
-#[test]
-fn negative_bloom_threshold_softness_is_rejected_by_path() {
-    let mut config = rendering();
-    config.bloom.threshold_softness = -1.0;
-    assert!(error_for(config).contains("rendering.bloom.threshold_softness"));
+fn invalid_rendering_controls_name_the_field() {
+    for (edit, field) in [
+        (
+            (|c: &mut RenderingConfig| c.texture_anisotropy = 0) as fn(&mut RenderingConfig),
+            "texture_anisotropy",
+        ),
+        (|c| c.shadow_map_size = 0, "shadow_map_size"),
+        (|c| c.bloom.intensity = -0.1, "bloom.intensity"),
+        (|c| c.bloom.threshold = f32::NAN, "bloom.threshold"),
+        (|c| c.bloom.threshold_softness = -1.0, "bloom.threshold_softness"),
+    ] {
+        let mut config = rendering();
+        edit(&mut config);
+        let error = error_for(config);
+        assert!(error.contains(&format!("rendering.{field}")), "{error}");
+    }
 }

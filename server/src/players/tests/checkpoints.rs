@@ -1,3 +1,4 @@
+use crate::config::fixtures;
 use bevy::prelude::*;
 use common::{
     map::Carriers,
@@ -238,11 +239,7 @@ fn a_player_killed_at_a_checkpoint_does_not_activate_it() {
 
 #[test]
 fn checkpoint_spawns_follow_carriers_and_avoid_players_and_barriers() {
-    let physics = ServerGameplayConfig::load_default()
-        .expect("gameplay config rejected")
-        .gameplay_config()
-        .player
-        .physics();
+    let physics = fixtures::server_config().gameplay_config().player.physics();
     let mut c = checkpoint(0.0);
     c.carrier = CarrierId(1);
     let mut layout = MapLayout {

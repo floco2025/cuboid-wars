@@ -1,3 +1,4 @@
+use crate::config::fixtures;
 use bevy::prelude::*;
 use common::protocol::*;
 use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
@@ -14,7 +15,7 @@ use crate::{
 
 fn app() -> App {
     let mut app = App::new();
-    let mut config = ServerGameplayConfig::load_default().expect("server config invalid");
+    let mut config = fixtures::server_config();
     config.combat.damage.projectile = 10.0;
     let catalog = QuestCatalog::from_quests(&[]);
     app.insert_resource(QuestBoard::from_catalog(&catalog, None))

@@ -1,3 +1,4 @@
+use crate::config::fixtures;
 use bevy::prelude::*;
 use common::{map::Carriers, protocol::CarrierId};
 use tokio::sync::mpsc::unbounded_channel;
@@ -18,7 +19,7 @@ use common::{
 };
 
 fn test_app() -> App {
-    let server = ServerGameplayConfig::load_default().expect("default server gameplay config should load");
+    let server = fixtures::server_config();
     let gameplay = server.gameplay_config();
     let power_ups = server.maps[&server.default_map].power_ups.clone();
     let placed_items = server
