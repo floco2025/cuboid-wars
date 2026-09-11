@@ -85,11 +85,12 @@ pub fn build_client_app(
                 .unwrap_or(WINDOW_SIZE_DEFAULT.y),
         ),
         position_pending: position.is_some(),
+        focus_pending: true,
     };
-    // A windowed start that restores a position is created hidden, since the
-    // position lands a frame later (`windowed_frame_system`); a fullscreen
+    // A windowed start is created hidden and shown by `windowed_frame_system`
+    // once placed, since a restored position lands a frame later; a fullscreen
     // start covers the screen and shows at once.
-    let start_visible = start_fullscreen || !windowed_frame.position_pending;
+    let start_visible = start_fullscreen;
     let mipmaps = client_settings.rendering.mipmaps;
     let mut app = App::new();
     app.add_plugins(DefaultPlugins.set(asset_plugin()).set(window_plugin(

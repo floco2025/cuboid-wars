@@ -10,6 +10,9 @@ pub struct WindowedFrame {
     pub size: UVec2,
     // macOS creation positions the content, while runtime placement positions the frame.
     pub position_pending: bool,
+    // Winit activates the app before any window exists, which can leave a
+    // macOS launch behind the terminal; the shown window asks once more.
+    pub focus_pending: bool,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -75,6 +78,12 @@ fn update_frame(window: &mut Window, frame: &mut WindowedFrame, space: PositionS
             window.position = WindowPosition::At(physical);
         }
         return;
+    }
+    if window.visible && frame.focus_pending {
+        // A frame after showing: Bevy applies `focused` before `visible`, and
+        // winit ignores a focus request for a hidden window.
+        frame.focus_pending = false;
+        window.focused = true;
     }
     window.visible = true;
     let size = window.size().round().as_uvec2();

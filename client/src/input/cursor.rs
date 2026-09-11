@@ -4,17 +4,19 @@ use crate::{
 };
 use bevy::{
     prelude::*,
-    window::{CursorGrabMode, CursorOptions},
+    window::{CursorGrabMode, CursorOptions, PrimaryWindow, WindowFocused},
 };
 
 pub fn input_cursor_capture_system(
     mouse: Res<ButtonInput<MouseButton>>,
     keyboard: Res<ButtonInput<KeyCode>>,
+    mut focus: MessageReader<WindowFocused>,
     console: Res<ConsoleState>,
     menu: Res<SettingsMenuState>,
     mut input: ResMut<CameraInputState>,
-    mut cursor: Single<&mut CursorOptions>,
+    window: Single<(Entity, &mut Window, &mut CursorOptions), With<PrimaryWindow>>,
 ) {
+    let (entity, mut window, mut cursor) = window.into_inner();
     input.suppress_fire = false;
     let overlay = console.open || menu.open;
     if input.released
@@ -31,11 +33,21 @@ pub fn input_cursor_capture_system(
     } else {
         CursorGrabMode::None
     };
-    // Equal writes would send redundant cursor updates to winit.
+    // macOS locks the pointer only for the foreground app and leaves it where
+    // it was, so a window that just became key centres the pointer and grabs
+    // again; winit's warp re-associates the mouse, so the grab must follow it.
+    let focused = focus.read().any(|event| event.focused && event.window == entity);
+    let regrab = capture && focused;
+    if regrab {
+        let centre = window.size() / 2.0;
+        window.set_cursor_position(Some(centre));
+    }
+    // Equal writes would send redundant cursor updates to winit; a regrab
+    // wants exactly that write, since Bevy re-grabs on any change.
     if cursor.visible == capture {
         cursor.visible = !capture;
     }
-    if cursor.grab_mode != grab_mode {
+    if cursor.grab_mode != grab_mode || regrab {
         cursor.grab_mode = grab_mode;
     }
 }

@@ -8,6 +8,7 @@ fn snapshot(fullscreen: bool) -> LocalSettings {
         position: Some(IVec2::new(100, 80)),
         size: UVec2::new(1200, 800),
         position_pending: false,
+        focus_pending: false,
     };
     local_settings(&settings, &GlobalVolume::new(Volume::Linear(0.5)), fullscreen, frame)
 }
@@ -84,6 +85,7 @@ fn sensitivity_sliders_save_multipliers_and_restore_their_positions() {
                 position: None,
                 size: UVec2::new(1280, 720),
                 position_pending: false,
+                focus_pending: false,
             },
         );
         assert_eq!(local.preferences.mouse_sensitivity, coordinate.exp2());

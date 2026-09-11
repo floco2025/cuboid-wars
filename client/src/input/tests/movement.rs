@@ -67,6 +67,7 @@ fn input_app() -> (App, Entity, Entity) {
         .init_resource::<LevelFocusEnabled>()
         .add_message::<MouseMotion>()
         .add_message::<MouseWheel>()
+        .add_message::<WindowFocused>()
         .add_systems(
             Update,
             (
@@ -78,7 +79,10 @@ fn input_app() -> (App, Entity, Entity) {
             )
                 .chain(),
         );
-    let cursor = app.world_mut().spawn(CursorOptions::default()).id();
+    let cursor = app
+        .world_mut()
+        .spawn((Window::default(), PrimaryWindow, CursorOptions::default()))
+        .id();
     let player = app
         .world_mut()
         .spawn((
@@ -105,9 +109,7 @@ fn input_app() -> (App, Entity, Entity) {
 fn losing_focus_clears_movement_before_physics_even_if_focus_returns_in_the_same_frame() {
     for immediate_refocus in [false, true] {
         let (mut app, player, window) = input_app();
-        app.add_message::<WindowFocused>()
-            .add_systems(PreUpdate, input_focus_system);
-        app.world_mut().entity_mut(window).insert(PrimaryWindow);
+        app.add_systems(PreUpdate, input_focus_system);
         app.world_mut()
             .resource_mut::<ButtonInput<KeyCode>>()
             .press(KeyCode::KeyW);

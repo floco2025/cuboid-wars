@@ -38,6 +38,7 @@ fn wayland_ignores_saved_position_and_reveals_the_window() {
         position: Some(IVec2::new(400, 200)),
         size: UVec2::new(900, 600),
         position_pending: true,
+        focus_pending: false,
     };
     update_frame(&mut window, &mut frame, PositionSpace::from_handle(handle));
     assert!(window.visible);
@@ -48,4 +49,32 @@ fn wayland_ignores_saved_position_and_reveals_the_window() {
     window.resolution.set(1000.0, 700.0);
     update_frame(&mut window, &mut frame, PositionSpace::Compositor);
     assert_eq!(frame.size, UVec2::new(1000, 700));
+}
+
+#[test]
+fn focus_is_requested_once_the_frame_after_the_window_shows() {
+    let mut window = Window {
+        visible: false,
+        focused: false,
+        resolution: (900, 600).into(),
+        ..default()
+    };
+    let mut frame = WindowedFrame {
+        position: Some(IVec2::new(400, 200)),
+        size: UVec2::new(900, 600),
+        position_pending: true,
+        focus_pending: true,
+    };
+    update_frame(&mut window, &mut frame, PositionSpace::Logical);
+    assert!(!window.visible);
+    assert!(!window.focused);
+    update_frame(&mut window, &mut frame, PositionSpace::Logical);
+    assert!(window.visible);
+    assert!(!window.focused);
+    update_frame(&mut window, &mut frame, PositionSpace::Logical);
+    assert!(window.focused);
+    assert!(!frame.focus_pending);
+    window.focused = false;
+    update_frame(&mut window, &mut frame, PositionSpace::Logical);
+    assert!(!window.focused);
 }
