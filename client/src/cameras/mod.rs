@@ -6,7 +6,6 @@ mod resources;
 mod scene_target;
 mod setup;
 mod third_person;
-mod top_down;
 mod visibility;
 
 pub use aim::camera_aim_system;
@@ -17,7 +16,7 @@ pub(crate) use components::{
 };
 pub use follow::local_player_camera_sync_system;
 pub use rearview::{local_player_rearview_sync_system, local_player_rearview_viewport_system};
-pub use resources::{CameraAim, CameraInputState, CameraViewMode, FollowCamera, SceneRenderTarget, TopDownCameraYaw};
+pub use resources::{CameraAim, CameraInputState, CameraViewMode, FollowCamera, SceneRenderTarget};
 pub use scene_target::scene_render_target_system;
 pub use setup::{clamp_msaa_to_device_system, setup_cameras_system, supported_msaa_samples};
 pub use visibility::local_player_view_mode_system;

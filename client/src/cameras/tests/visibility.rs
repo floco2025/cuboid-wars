@@ -25,9 +25,9 @@ fn first_person_hides_local_labels_and_excludes_local_mesh_layer() {
 }
 
 #[test]
-fn top_down_camera_includes_local_player_layer_and_labels_inherit_player_visibility() {
+fn debug_camera_includes_local_player_layer_and_labels_inherit_player_visibility() {
     let mut app = App::new();
-    app.insert_resource(CameraViewMode::TopDown)
+    app.insert_resource(CameraViewMode::Debug)
         .add_systems(Update, local_player_view_mode_system);
     let label = app.world_mut().spawn((LocalPlayerLabelMarker, Visibility::Hidden)).id();
     let camera = app.world_mut().spawn((MainCameraMarker, RenderLayers::default())).id();

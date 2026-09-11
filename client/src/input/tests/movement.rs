@@ -22,7 +22,7 @@ use super::{
     input_cursor_capture_system, input_facing_lock_toggle_system, input_movement_system,
 };
 use crate::{
-    cameras::{CameraInputState, CameraViewMode, FollowCamera, TopDownCameraYaw},
+    cameras::{CameraInputState, CameraViewMode, FollowCamera},
     config::ClientSettings,
     constants::{INPUT_ZOOM_PIXELS_PER_LINE, INPUT_ZOOM_SENSITIVITY_BASE},
     map::LevelFocusEnabled,
@@ -51,7 +51,6 @@ fn input_app() -> (App, Entity, Entity) {
         .init_resource::<Carriers>()
         .init_resource::<PlayerMap>()
         .init_resource::<LocalPlayerInfo>()
-        .init_resource::<TopDownCameraYaw>()
         .init_resource::<FollowCamera>()
         .init_resource::<CameraInputState>()
         .init_resource::<WeaponMode>()
@@ -393,6 +392,31 @@ fn unlocked_idle_retains_shot_facing_but_empty_hands_and_menus_do_not_turn() {
     app.update();
     assert_eq!(app.world().get::<FaceYaw>(player).expect("player facing missing").0, PI);
     assert!(app.world().resource::<LocalPlayerInfo>().stored_yaw.abs() > 0.0);
+}
+
+#[test]
+fn v_cycles_debug_with_level_focus_then_all_levels_then_back() {
+    let (mut app, _, _) = input_app();
+    let far = app.world().resource::<ClientSettings>().camera.debug.distance;
+    let expected = [
+        (CameraViewMode::Debug, true),
+        (CameraViewMode::Debug, false),
+        (CameraViewMode::FirstPerson, false),
+    ];
+    for (view, focus) in expected {
+        {
+            let mut keys = app.world_mut().resource_mut::<ButtonInput<KeyCode>>();
+            keys.clear();
+            keys.press(KeyCode::KeyV);
+        }
+        app.update();
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .release(KeyCode::KeyV);
+        assert_eq!(*app.world().resource::<CameraViewMode>(), view);
+        assert_eq!(app.world().resource::<LevelFocusEnabled>().0, focus);
+    }
+    assert_eq!(app.world().resource::<FollowCamera>().debug_distance, far);
 }
 
 #[test]

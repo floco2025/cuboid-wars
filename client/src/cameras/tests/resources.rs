@@ -73,17 +73,21 @@ fn tiny_scroll_events_accumulate_without_flipping_modes() {
     assert!(camera.distance > config.first_person_distance);
 }
 #[test]
-fn top_down_restores_zoom_and_ignores_scroll() {
+fn debug_view_snaps_to_its_distance_zooms_without_a_cap_and_restores_the_previous_view() {
     let config = follow_camera();
     for (view, distance) in [(CameraViewMode::FirstPerson, 0.0), (CameraViewMode::ThirdPerson, 3.0)] {
         let mut camera = FollowCamera {
             distance,
             ..Default::default()
         };
-        assert_eq!(camera.toggle_top_down(view), CameraViewMode::TopDown);
-        camera.zoom(CameraViewMode::TopDown, 10.0, 0.5 / INPUT_ZOOM_SENSITIVITY_BASE, config);
+        assert_eq!(camera.toggle_debug(view, 15.0), CameraViewMode::Debug);
+        assert_eq!(camera.debug_distance, 15.0);
+        camera.zoom(CameraViewMode::Debug, -100.0, 1.0 / INPUT_ZOOM_SENSITIVITY_BASE, config);
+        assert_eq!(camera.debug_distance, 115.0);
+        camera.zoom(CameraViewMode::Debug, 200.0, 1.0 / INPUT_ZOOM_SENSITIVITY_BASE, config);
+        assert_eq!(camera.debug_distance, 0.0);
         assert_eq!(camera.distance, distance);
-        assert_eq!(camera.toggle_top_down(CameraViewMode::TopDown), view);
+        assert_eq!(camera.toggle_debug(CameraViewMode::Debug, 15.0), view);
     }
 }
 #[test]

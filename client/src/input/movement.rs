@@ -8,7 +8,7 @@ use std::f32::consts::PI;
 
 use super::{WeaponMode, portals::portal_end_for_button};
 use crate::{
-    cameras::{CameraInputState, CameraViewMode, FollowCamera, TopDownCameraYaw},
+    cameras::{CameraInputState, CameraViewMode, FollowCamera},
     config::ClientSettings,
     constants::{CAMERA_MAX_PITCH, INPUT_MOUSE_SENSITIVITY_BASE},
     players::{LocalPlayerInfo, LocalPlayerMarker, MyPlayerId, PlayerMap},
@@ -66,7 +66,6 @@ pub fn input_movement_system(
     my_player_id: Res<MyPlayerId>,
     players: Res<PlayerMap>,
     mut local_player_info: ResMut<LocalPlayerInfo>,
-    mut top_down_camera_yaw: ResMut<TopDownCameraYaw>,
     mut local_player_query: LocalPlayerInputQuery,
     collision_world: Res<CollisionWorld>,
     gameplay_config: Res<GameplayConfig>,
@@ -92,12 +91,10 @@ pub fn input_movement_system(
     }
 
     let view_mode = *camera_input.view;
-    let orbit = view_mode == CameraViewMode::ThirdPerson && !camera_input.follow.locked;
+    let orbit = view_mode.is_debug() || (view_mode == CameraViewMode::ThirdPerson && !camera_input.follow.locked);
     let current_yaw = calculate_current_orientation(
         mouse_motion.delta,
-        view_mode,
         &mut local_player_info,
-        &mut top_down_camera_yaw,
         mouse_sensitivity,
         client_settings.preferences.invert_y,
     );
@@ -118,21 +115,14 @@ pub fn input_movement_system(
     );
 }
 
-// Applies this frame's mouse motion to the active view's yaw (and pitch for
-// mouse look) and returns the resulting view yaw.
+// Applies this frame's mouse motion to the view yaw and pitch and returns
+// the resulting view yaw.
 fn calculate_current_orientation(
     mouse_delta: Vec2,
-    view_mode: CameraViewMode,
     local_player_info: &mut LocalPlayerInfo,
-    top_down_camera_yaw: &mut TopDownCameraYaw,
     mouse_sensitivity: f32,
     invert_y: bool,
 ) -> f32 {
-    if view_mode.is_top_down() {
-        top_down_camera_yaw.0 = mouse_delta.x.mul_add(-mouse_sensitivity, top_down_camera_yaw.0);
-        return top_down_camera_yaw.0;
-    }
-
     // The stored aim is the input, not the camera: portal presentation tilt
     // must not feed back into mouse orientation or movement.
     let pitch_step = if invert_y {

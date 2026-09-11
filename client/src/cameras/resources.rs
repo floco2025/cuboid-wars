@@ -2,13 +2,14 @@ use bevy::prelude::*;
 
 use crate::{config::FollowCameraConfig, constants::INPUT_ZOOM_SENSITIVITY_BASE};
 
-// Camera view mode.
+// Camera view mode. `Debug` is a free orbit around the character's centre
+// that passes through geometry and never locks the facing.
 #[derive(Resource, Default, PartialEq, Eq, Clone, Copy, Debug)]
 pub enum CameraViewMode {
     #[default]
     FirstPerson,
     ThirdPerson,
-    TopDown,
+    Debug,
 }
 
 impl CameraViewMode {
@@ -18,14 +19,10 @@ impl CameraViewMode {
     }
 
     #[must_use]
-    pub const fn is_top_down(self) -> bool {
-        matches!(self, Self::TopDown)
+    pub const fn is_debug(self) -> bool {
+        matches!(self, Self::Debug)
     }
 }
-
-// Horizontal rotation of the top-down camera around the current level center.
-#[derive(Resource, Clone, Copy, Debug, Default)]
-pub struct TopDownCameraYaw(pub f32);
 
 // The offscreen image the 3D cameras render into; the compositor camera
 // upscales it to the window. `size` mirrors the image so consumers don't
@@ -42,6 +39,7 @@ pub struct FollowCamera {
     pub distance: f32,
     pub arm_distance: f32,
     pub previous_pivot: Option<Vec3>,
+    pub debug_distance: f32,
 }
 
 impl FollowCamera {
@@ -67,11 +65,14 @@ impl FollowCamera {
         distance.min(self.arm_distance * distance / arm)
     }
 
-    pub fn toggle_top_down(&mut self, view: CameraViewMode) -> CameraViewMode {
+    pub fn toggle_debug(&mut self, view: CameraViewMode, far_distance: f32) -> CameraViewMode {
         self.previous_pivot = None;
         match view {
-            CameraViewMode::FirstPerson | CameraViewMode::ThirdPerson => CameraViewMode::TopDown,
-            CameraViewMode::TopDown => {
+            CameraViewMode::FirstPerson | CameraViewMode::ThirdPerson => {
+                self.debug_distance = far_distance;
+                CameraViewMode::Debug
+            }
+            CameraViewMode::Debug => {
                 if self.distance == 0.0 {
                     CameraViewMode::FirstPerson
                 } else {
@@ -83,9 +84,13 @@ impl FollowCamera {
 
     // Wheel zoom updates the requested distance and the facing lock only; the
     // follow camera derives the first/third-person view from the arm it ends
-    // up with.
+    // up with. In the debug view it moves the debug distance alone, uncapped.
     pub fn zoom(&mut self, view: CameraViewMode, wheel: f32, sensitivity: f32, config: FollowCameraConfig) {
-        if view.is_top_down() || wheel == 0.0 {
+        if wheel == 0.0 {
+            return;
+        }
+        if view.is_debug() {
+            self.debug_distance = (self.debug_distance - wheel * INPUT_ZOOM_SENSITIVITY_BASE * sensitivity).max(0.0);
             return;
         }
         let initial = if wheel > 0.0 && self.previous_pivot.is_some() && self.distance > 0.0 {
@@ -119,6 +124,7 @@ impl Default for FollowCamera {
             distance: 0.0,
             arm_distance: 0.0,
             previous_pivot: None,
+            debug_distance: 0.0,
         }
     }
 }

@@ -6,10 +6,10 @@ use bevy::{
 use super::{WindowedFrame, camera::fullscreen_shortcut_modifier};
 
 use crate::{
-    cameras::{CameraViewMode, FollowCamera, TopDownCameraYaw},
+    cameras::{CameraViewMode, FollowCamera},
     characters::BoundsMode,
+    config::ClientSettings,
     map::{DebugColors, LevelFocusEnabled},
-    players::LocalPlayerInfo,
 };
 
 pub fn input_bounds_cycle_system(keyboard: Res<ButtonInput<KeyCode>>, mut visible: ResMut<BoundsMode>) {
@@ -22,33 +22,25 @@ pub fn input_bounds_cycle_system(keyboard: Res<ButtonInput<KeyCode>>, mut visibl
 // Input Toggle Systems
 // ============================================================================
 
-// Toggle camera view mode with V key
+// V cycles the debug view: on with level focus, on with every storey shown,
+// then back to the follow view.
 pub fn input_camera_view_toggle_system(
     keyboard: Res<ButtonInput<KeyCode>>,
+    client_settings: Res<ClientSettings>,
     mut view_mode: ResMut<CameraViewMode>,
     mut focus: ResMut<LevelFocusEnabled>,
-    mut top_down_camera_yaw: ResMut<TopDownCameraYaw>,
-    local_player_info: Res<LocalPlayerInfo>,
     mut third: ResMut<FollowCamera>,
 ) {
-    if keyboard.just_pressed(KeyCode::KeyV) {
-        let new_mode = third.toggle_top_down(*view_mode);
-        *view_mode = new_mode;
-
-        if new_mode.is_top_down() {
-            top_down_camera_yaw.0 = local_player_info.stored_yaw;
-        }
-        focus.0 = new_mode.is_top_down();
+    if !keyboard.just_pressed(KeyCode::KeyV) {
+        return;
     }
-}
-
-// Toggle level-focus mode with R key. When enabled, the visibility system
-// hides walls/floors at other levels and ramps that don't touch the local
-// player's current level.
-pub fn input_level_focus_toggle_system(keyboard: Res<ButtonInput<KeyCode>>, mut focus: ResMut<LevelFocusEnabled>) {
-    if keyboard.just_pressed(KeyCode::KeyR) {
-        focus.0 = !focus.0;
+    if view_mode.is_debug() && focus.0 {
+        focus.0 = false;
+        return;
     }
+    let new_mode = third.toggle_debug(*view_mode, client_settings.camera.debug.distance);
+    *view_mode = new_mode;
+    focus.0 = new_mode.is_debug();
 }
 
 // Cycle the map's debug-color mode with C key: Off → ByMaterial → BySegment → Off.

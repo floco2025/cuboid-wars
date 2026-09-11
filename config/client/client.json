@@ -74,7 +74,7 @@
       "collision_radius": 0.2,
       "obstruction_return_rate": 8.0
     },
-    "top_down": { "fov_degrees": 45.0, "margin": 1.15, "tilt_degrees": 35.0 },
+    "debug": { "distance": 15.0 },
     "rearview": { "width_ratio": 0.2, "height_ratio": 0.2 },
     "shake": {
       "projectile": {

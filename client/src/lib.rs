@@ -20,8 +20,10 @@ pub mod portals;
 pub mod projectiles;
 pub mod schedule;
 #[cfg(test)]
+#[path = "tests/assets.rs"]
 pub(crate) mod test_assets;
 #[cfg(test)]
+#[path = "tests/fixtures.rs"]
 pub(crate) mod test_fixtures;
 pub mod ui;
 pub mod vfx;

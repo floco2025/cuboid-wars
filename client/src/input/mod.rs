@@ -20,7 +20,7 @@ pub use portals::input_portal_system;
 pub use shooting::input_shooting_system;
 pub use toggles::{
     enter_borderless_fullscreen, enter_windowed, input_bounds_cycle_system, input_camera_view_toggle_system,
-    input_debug_colors_cycle_system, input_fullscreen_toggle_system, input_level_focus_toggle_system,
+    input_debug_colors_cycle_system, input_fullscreen_toggle_system,
 };
 pub use weapons::{PendingWeaponSelection, WeaponMode, input_weapon_select_system};
 pub use window_frame::{WindowedFrame, windowed_frame_system};

@@ -13,7 +13,7 @@ pub fn local_player_view_mode_system(
     mut labels: Query<(Ref<LocalPlayerLabelMarker>, &mut Visibility)>,
     mut main_cameras: Query<(Ref<MainCameraMarker>, &mut RenderLayers)>,
 ) {
-    let label_visibility = if view_mode.is_top_down() {
+    let label_visibility = if view_mode.is_debug() {
         // A hidden player, such as a dead local player, must also hide its labels.
         Visibility::Inherited
     } else {

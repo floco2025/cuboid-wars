@@ -7,5 +7,6 @@ pub mod network;
 pub mod physics;
 pub mod protocol;
 #[cfg(test)]
+#[path = "tests/geometry.rs"]
 pub(crate) mod test_geometry;
 pub mod types;

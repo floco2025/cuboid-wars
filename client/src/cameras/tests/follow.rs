@@ -7,7 +7,7 @@ use crate::{
     test_fixtures,
 };
 use bevy::camera::visibility::RenderLayers;
-use common::protocol::{CarrierId, FaceYaw, PlateState, PlayerId, Wall};
+use common::protocol::{CarrierId, FaceYaw, MapLayout, PlateState, PlayerId, Wall};
 use std::time::Duration;
 
 fn world(wall: bool) -> CollisionWorld {
@@ -47,7 +47,6 @@ fn app() -> (App, Entity, f32) {
         .init_resource::<Time<Fixed>>()
         .init_resource::<CameraViewMode>()
         .init_resource::<FollowCamera>()
-        .init_resource::<TopDownCameraYaw>()
         .init_resource::<LocalPlayerInfo>()
         .init_resource::<CameraAim>()
         .init_resource::<PlayerMap>()
@@ -212,7 +211,24 @@ fn crosshair_height_is_fixed_in_third_person_and_recentres_when_obstructed() {
         app.world().resource::<CameraAim>().crosshair_height_offset,
         CROSSHAIR_THIRD_PERSON_HEIGHT
     );
-    app.insert_resource(CameraViewMode::TopDown);
+    app.insert_resource(CameraViewMode::Debug);
     app.update();
-    assert_eq!(app.world().resource::<CameraAim>().crosshair_height_offset, 0.0);
+    assert_eq!(
+        app.world().resource::<CameraAim>().crosshair_height_offset,
+        CROSSHAIR_THIRD_PERSON_HEIGHT
+    );
+}
+
+#[test]
+fn debug_view_orbits_the_character_centre_through_geometry() {
+    let (mut app, camera, _) = app();
+    app.insert_resource(world(true));
+    app.insert_resource(CameraViewMode::Debug);
+    app.world_mut().resource_mut::<FollowCamera>().debug_distance = 12.0;
+    app.update();
+    let physics = app.world().resource::<GameplayConfig>().player.physics();
+    let centre = character_movement_center(Position::default(), physics);
+    let pose = app.world().get::<Transform>(camera).expect("camera transform missing");
+    assert!((pose.translation.distance(centre) - 12.0).abs() < 1e-4);
+    assert!(app.world().resource::<CameraViewMode>().is_debug());
 }

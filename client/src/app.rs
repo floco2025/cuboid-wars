@@ -10,7 +10,7 @@ use bevy::{
 use crate::{
     actors::{ActorGhostMap, ActorMap, actor_visuals_plugin},
     barriers::LockedSwitches,
-    cameras::{CameraViewMode, TopDownCameraYaw, camera_plugin, clamp_msaa_to_device_system, setup_cameras_system},
+    cameras::{CameraViewMode, camera_plugin, clamp_msaa_to_device_system, setup_cameras_system},
     characters::{character_sync_plugin, local_simulation_plugin},
     config::{AssetSet, ClientSettings, LocalSettings, OpaqueRenderer},
     constants::{AUDIO_MASTER_VOLUME_DEFAULT, WINDOW_FULLSCREEN_DEFAULT, WINDOW_SIZE_DEFAULT},
@@ -143,7 +143,6 @@ pub fn build_client_app(
         .insert_resource(bootstrap.plates.clone())
         .insert_resource(LockedSwitches(bootstrap.locked_switches.clone()))
         .insert_resource(CameraViewMode::default())
-        .insert_resource(TopDownCameraYaw::default())
         .insert_resource(LevelFocusEnabled::default())
         .insert_resource(asset_set.clone())
         .insert_resource(client_settings)

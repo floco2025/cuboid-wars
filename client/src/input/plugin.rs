@@ -39,7 +39,6 @@ pub fn input_plugin(app: &mut App) {
             (
                 input_camera_view_toggle_system,
                 input_facing_lock_toggle_system,
-                input_level_focus_toggle_system,
                 input_debug_colors_cycle_system,
                 input_bounds_cycle_system,
             )

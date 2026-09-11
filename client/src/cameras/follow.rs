@@ -1,10 +1,6 @@
 use bevy::prelude::*;
 
-use super::{
-    CameraViewMode, FollowCamera, MainCameraMarker, TopDownCameraYaw,
-    third_person::third_person_transform,
-    top_down::{topdown_camera_transform, window_aspect_ratio},
-};
+use super::{CameraViewMode, FollowCamera, MainCameraMarker, third_person::third_person_transform};
 use crate::{
     characters::PreviousTickPosition,
     config::ClientSettings,
@@ -12,8 +8,8 @@ use crate::{
 };
 use common::{
     config::GameplayConfig,
-    physics::CollisionWorld,
-    protocol::{MapLayout, MapSettings, Position},
+    physics::{CollisionWorld, character_movement_center},
+    protocol::Position,
 };
 
 // Update camera position to follow local player. Physics ticks at 30 Hz;
@@ -21,8 +17,6 @@ use common::{
 // stays smooth at the render rate.
 pub fn local_player_camera_sync_system(
     local_player_query: Query<(&Position, &PreviousTickPosition), With<LocalPlayerMarker>>,
-    map_layout: Res<MapLayout>,
-    map_settings: Res<MapSettings>,
     windows: Query<&Window>,
     fixed_time: Res<Time<Fixed>>,
     mut camera_query: Query<
@@ -30,7 +24,6 @@ pub fn local_player_camera_sync_system(
         (With<Camera3d>, With<MainCameraMarker>),
     >,
     mut view_mode: ResMut<CameraViewMode>,
-    top_down_camera_yaw: Res<TopDownCameraYaw>,
     client_settings: Res<ClientSettings>,
     gameplay_config: Res<GameplayConfig>,
     local_player_info: Res<LocalPlayerInfo>,
@@ -57,26 +50,7 @@ pub fn local_player_camera_sync_system(
         return;
     };
 
-    persp.fov = if view_mode.is_top_down() {
-        client_settings.camera.top_down.fov_degrees
-    } else {
-        client_settings.preferences.fov_degrees
-    }
-    .to_radians();
-
-    if view_mode.is_top_down() {
-        *camera_transform = topdown_camera_transform(
-            player_pos,
-            Some(&map_layout),
-            map_settings.geometry,
-            window_aspect_ratio(&windows),
-            persp.fov,
-            top_down_camera_yaw.0,
-            client_settings.camera.top_down.margin,
-            client_settings.camera.top_down.tilt_degrees,
-        );
-        return;
-    }
+    persp.fov = client_settings.preferences.fov_degrees.to_radians();
 
     let config = client_settings.camera.follow;
     let eye_height = gameplay_config.player.eye_height();
@@ -86,37 +60,48 @@ pub fn local_player_camera_sync_system(
         local_player_info.stored_pitch,
         0.0,
     );
-    if third.distance > config.first_person_distance {
-        let pivot = follow_pivot(player_pos, eye_height, config.pivot_height, third.pivot_blend());
-        let radius = near_plane_radius(
-            persp.near,
-            persp.fov,
-            window_aspect_ratio(&windows),
-            config.collision_radius,
-        );
-        *camera_transform = third_person_transform(
-            &collision_world,
-            pivot,
+    if view_mode.is_debug() {
+        // No arm sweep: the debug camera goes through geometry and shows
+        // whatever is there.
+        let centre = character_movement_center(*player_pos, gameplay_config.player.physics());
+        *camera_transform = Transform {
+            translation: centre + rotation * Vec3::new(0.0, 0.0, third.debug_distance),
             rotation,
-            config,
-            radius,
-            time.delta_secs(),
-            &mut third,
-        );
+            ..default()
+        };
     } else {
-        third.arm_distance = 0.0;
-        third.previous_pivot = None;
-    }
+        if third.distance > config.first_person_distance {
+            let pivot = follow_pivot(player_pos, eye_height, config.pivot_height, third.pivot_blend());
+            let radius = near_plane_radius(
+                persp.near,
+                persp.fov,
+                window_aspect_ratio(&windows),
+                config.collision_radius,
+            );
+            *camera_transform = third_person_transform(
+                &collision_world,
+                pivot,
+                rotation,
+                config,
+                radius,
+                time.delta_secs(),
+                &mut third,
+            );
+        } else {
+            third.arm_distance = 0.0;
+            third.previous_pivot = None;
+        }
 
-    // Only the explicit zoom-in (`FollowCamera::zoom`) locks the facing; an
-    // obstruction that collapses the arm is temporary and must not undo an
-    // orbit the player unlocked.
-    if third.arm_distance > config.first_person_distance {
-        view_mode.set_if_neq(CameraViewMode::ThirdPerson);
-    } else {
-        view_mode.set_if_neq(CameraViewMode::FirstPerson);
-        camera_transform.rotation = rotation;
-        camera_transform.translation = eye_position(*player_pos, eye_height);
+        // Only the explicit zoom-in (`FollowCamera::zoom`) locks the facing; an
+        // obstruction that collapses the arm is temporary and must not undo an
+        // orbit the player unlocked.
+        if third.arm_distance > config.first_person_distance {
+            view_mode.set_if_neq(CameraViewMode::ThirdPerson);
+        } else {
+            view_mode.set_if_neq(CameraViewMode::FirstPerson);
+            camera_transform.rotation = rotation;
+            camera_transform.translation = eye_position(*player_pos, eye_height);
+        }
     }
     if let Some(shake) = maybe_shake {
         camera_transform.translation += Vec3::new(shake.offset_x, shake.offset_y, shake.offset_z);
@@ -138,6 +123,12 @@ fn follow_pivot(feet: &Position, eye_height: f32, pivot_height: f32, blend: f32)
 fn near_plane_radius(near: f32, fov: f32, aspect_ratio: f32, collision_radius: f32) -> f32 {
     let near_half_height = near * (fov * 0.5).tan();
     collision_radius.max(Vec3::new(near_half_height * aspect_ratio, near_half_height, near).length())
+}
+
+fn window_aspect_ratio(windows: &Query<&Window>) -> f32 {
+    windows
+        .single()
+        .map_or(16.0 / 9.0, |window| window.width() / window.height().max(1.0))
 }
 
 #[cfg(test)]

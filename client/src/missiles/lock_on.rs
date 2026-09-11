@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use super::{MissileMarker, acquire_lock};
 use crate::{
     actors::ActorMap,
-    cameras::{CameraAim, CameraInputState, CameraViewMode},
+    cameras::{CameraAim, CameraInputState},
     constants::{MISSILE_RADIUS, MISSILE_SPAWN_OFFSET},
     input::WeaponMode,
     missiles::LockOnTarget,
@@ -27,7 +27,6 @@ type LockCandidateQuery<'w, 's> = Query<
 // the camera sync so the ray matches what the player sees (shake included).
 pub fn lock_on_system(
     mut lock: ResMut<LockOnTarget>,
-    view_mode: Res<CameraViewMode>,
     input: Res<CameraInputState>,
     local_player_info: Res<LocalPlayerInfo>,
     console: Res<ConsoleState>,
@@ -42,7 +41,6 @@ pub fn lock_on_system(
     plates: Res<PlateState>,
 ) {
     let new_lock = compute_lock(
-        &view_mode,
         &input,
         &local_player_info,
         &console,
@@ -62,7 +60,6 @@ pub fn lock_on_system(
 
 #[expect(clippy::too_many_arguments, reason = "pure helper over the system's full guard set")]
 fn compute_lock(
-    view_mode: &CameraViewMode,
     input: &CameraInputState,
     local_player_info: &LocalPlayerInfo,
     console: &ConsoleState,
@@ -76,12 +73,7 @@ fn compute_lock(
     weapon_mode: &WeaponMode,
     plates: &PlateState,
 ) -> Option<HomingTarget> {
-    if view_mode.is_top_down()
-        || input.released
-        || local_player_info.is_dead
-        || console.open
-        || *weapon_mode != WeaponMode::Missile
-    {
+    if input.released || local_player_info.is_dead || console.open || *weapon_mode != WeaponMode::Missile {
         return None;
     }
     // Lock requires ammo: a lit crosshair always means "fire will launch".

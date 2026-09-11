@@ -1,12 +1,12 @@
 use anyhow::{Result, ensure};
 use serde::Deserialize;
 
-use super::settings::{validate_fov, validate_non_negative_finite, validate_positive_finite, validate_unit_ratio};
+use super::settings::{validate_non_negative_finite, validate_positive_finite, validate_unit_ratio};
 
 #[derive(Debug, Clone, Copy, Deserialize)]
 pub struct CameraConfig {
     pub follow: FollowCameraConfig,
-    pub top_down: TopDownConfig,
+    pub debug: DebugCameraConfig,
     pub rearview: RearviewConfig,
     pub shake: CameraShakeConfig,
 }
@@ -41,22 +41,15 @@ pub struct RearviewConfig {
     pub height_ratio: f32,
 }
 
+// The debug view's orbit distance on entry; the wheel moves it from there.
 #[derive(Debug, Clone, Copy, Deserialize)]
-pub struct TopDownConfig {
-    pub fov_degrees: f32,
-    pub margin: f32,
-    pub tilt_degrees: f32,
+pub struct DebugCameraConfig {
+    pub distance: f32,
 }
 
 impl CameraConfig {
     pub(super) fn validate(&self) -> Result<()> {
-        validate_fov(self.top_down.fov_degrees, "camera.top_down.fov_degrees")?;
-        validate_positive_finite(self.top_down.margin, "camera.top_down.margin")?;
-        validate_positive_finite(self.top_down.tilt_degrees, "camera.top_down.tilt_degrees")?;
-        ensure!(
-            self.top_down.tilt_degrees < 90.0,
-            "camera.top_down.tilt_degrees must be < 90"
-        );
+        validate_positive_finite(self.debug.distance, "camera.debug.distance")?;
         self.follow.validate()?;
         self.rearview.validate()?;
         self.shake.validate()?;

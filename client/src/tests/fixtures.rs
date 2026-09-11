@@ -9,11 +9,13 @@ use common::{
 
 use crate::config::{AssetSet, ClientSettings, FollowCameraConfig};
 
-pub(crate) const SETTINGS_JSON: &str = include_str!("fixtures/settings.json");
+// The shipped settings are the base of every whole-schema `ClientSettings`;
+// each test pins the values its assertions depend on.
+pub(crate) const SETTINGS_JSON: &str = include_str!("../../../config/client/client.json");
 pub(crate) const ASSETS_JSON: &str = include_str!("fixtures/assets.json");
 
 pub(crate) fn gameplay_config() -> GameplayConfig {
-    serde_json::from_str(include_str!("../../common/src/config/tests/fixtures/gameplay.json"))
+    serde_json::from_str(include_str!("../../../common/src/config/tests/fixtures/gameplay.json"))
         .expect("test gameplay config is invalid")
 }
 

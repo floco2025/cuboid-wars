@@ -2,7 +2,7 @@ use bevy::{ecs::system::EntityCommands, math::Rot2, prelude::*};
 
 use super::settings_menu::SettingsMenuState;
 use crate::{
-    cameras::{CameraAim, CameraViewMode},
+    cameras::CameraAim,
     constants::{
         CROSSHAIR_COLOR, CROSSHAIR_LOCK_COLOR, CROSSHAIR_SIZE_PX, CROSSHAIR_THICKNESS_PX, PORTAL_A_COLOR,
         PORTAL_B_COLOR,
@@ -235,16 +235,15 @@ const fn portal_color(end: PortalEnd) -> Color {
 }
 
 pub(crate) fn ui_crosshair_visibility_system(
-    view_mode: Res<CameraViewMode>,
     menu: Res<SettingsMenuState>,
     mut query: Query<&mut Visibility, With<CrosshairMarker>>,
 ) {
-    if !view_mode.is_changed() && !menu.is_changed() {
+    if !menu.is_changed() {
         return;
     }
 
     for mut visibility in &mut query {
-        *visibility = if !view_mode.is_top_down() && !menu.open {
+        *visibility = if !menu.open {
             Visibility::Visible
         } else {
             Visibility::Hidden

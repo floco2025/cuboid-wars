@@ -8,7 +8,6 @@ use crate::{
 use bevy::prelude::*;
 use common::{
     config::{CharacterPhysicsConfig, GameplayConfig},
-    math::direction_from_yaw_pitch,
     physics::CollisionWorld,
     protocol::{BarrierId, FaceYaw, PlateState, Position},
 };
@@ -19,7 +18,7 @@ pub fn camera_aim_system(
     mut aim: ResMut<CameraAim>,
     view: Res<CameraViewMode>,
     camera: Query<(&Transform, &Projection), With<MainCameraMarker>>,
-    local_player: Query<(&Position, &FaceYaw), With<LocalPlayerMarker>>,
+    local_player: Query<&Position, With<LocalPlayerMarker>>,
     characters: Query<(&Position, &FaceYaw)>,
     players: Res<PlayerMap>,
     actors: Res<ActorMap>,
@@ -28,21 +27,19 @@ pub fn camera_aim_system(
     config: Res<GameplayConfig>,
     plates: Res<PlateState>,
 ) {
-    let Ok((position, face)) = local_player.single() else {
+    let Ok(position) = local_player.single() else {
         return;
     };
     let Ok((camera, Projection::Perspective(projection))) = camera.single() else {
         return;
     };
     let eye = Vec3::new(position.x, position.y + config.player.eye_height(), position.z);
-    let crosshair_height_offset = if *view == CameraViewMode::ThirdPerson {
-        CROSSHAIR_THIRD_PERSON_HEIGHT
-    } else {
+    let crosshair_height_offset = if view.is_first_person() {
         0.0
+    } else {
+        CROSSHAIR_THIRD_PERSON_HEIGHT
     };
-    let direction = if view.is_top_down() {
-        direction_from_yaw_pitch(face.0, 0.0)
-    } else if view.is_first_person() {
+    let direction = if view.is_first_person() {
         *camera.forward()
     } else {
         let candidates = players

@@ -65,8 +65,7 @@ to obstacle courses, built from the features below.
 
 | Action                                             | Key          |
 | -------------------------------------------------- | ------------ |
-| Toggle top-down view                               | V            |
-| Toggle level-focus                                 | R            |
+| Cycle debug camera: level focus → all levels → off | V            |
 | Cycle bounds: off → collider+support → hitbox      | B            |
 | Cycle debug colors: off → by material → by segment | C            |
 | Release cursor                                     | Shift-Escape |

@@ -13,4 +13,5 @@ pub mod projectiles;
 pub mod quests;
 mod schedule;
 #[cfg(test)]
+#[path = "tests/geometry.rs"]
 pub(crate) mod test_geometry;

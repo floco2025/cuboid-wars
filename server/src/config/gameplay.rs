@@ -200,5 +200,5 @@ impl PlayerServerConfig {
 mod tests;
 
 #[cfg(test)]
-#[path = "test_fixtures.rs"]
+#[path = "tests/fixtures.rs"]
 pub(crate) mod fixtures;
