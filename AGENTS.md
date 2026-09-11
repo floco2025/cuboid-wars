@@ -10,7 +10,7 @@ Read [TODO.md](TODO.md) at the start of a task and keep it updated when discussi
 
 ## Project structure
 
-Rust workspace. The root package builds the one `cuboid-wars` executable: `src/main.rs` parses the CLI and picks the mode (single-player without a subcommand, `host`, `join`, `serve`), and `src/host.rs` runs the embedded server thread for the two modes that play and serve at once. Three library crates hold everything else:
+Rust workspace. The root package builds the one `cuboid-wars` executable: `src/main.rs` parses the CLI and picks the mode from one optional flag (`--host`, `--join`, or `--serve`, each with an optional address; none is single-player), and `src/host.rs` runs the embedded server thread for the two modes that play and serve at once. Three library crates hold everything else:
 
 - **`common/`** — shared between client and server.
   - `math.rs` — `direction_from_yaw_pitch`, `sequence_is_newer`, `PHYSICS_EPSILON`, and the glam ↔ Rapier conversions (`to_rapier`, `from_rapier`, `rapier_pose`) every physics file uses.
@@ -59,7 +59,7 @@ Other notable paths:
 - `config/client/client_local.json` — local values from the settings menu, the fullscreen shortcuts, and the last windowed placement. Gitignored, so `git pull` cannot update it: unlike every other JSON it carries a version, and any format change must bump `LOCAL_SETTINGS_VERSION` (`client/src/config/local.rs`) — a stale version is discarded and rewritten, never migrated.
 - `config/server/gameplay.json` — the global gameplay configuration. Its `network` block configures `server_hz`, `update_hz`, and `snapshot_hz` (the two rates between 1 and `server_hz`), overridable with server `--server-hz`, `--update-hz`, and `--snapshot-hz`; the effective values ship in `SInit.world.network`. It holds player and per-kind actor bodies; shared projectile, missile-lock, missile-guidance, and portal tuning; server-only actor behaviour, combat, scoring, feeds, and weather/lighting cycles; and the named-map registry. The multi-shot `patterns` block is a palette; `allowed_patterns` names the ordered subset that ships and that Q cycles. `maps` is an explicit array of registered map names. The loader resolves every map’s `settings.json` into `ServerGameplayConfig.maps` and validates it against global tuning, naming the source file and field in errors; the root layout's `switch_kinds` and `fireworks` are read and validated when the selected map is generated (`generate_map` fills `MapSettings.switches` and returns the switch table and the fireworks switch). Each map’s `config/server/maps/<name>/settings.json` owns its `geometry` block (`grid_cell_size`, `level_height`, `floor_thickness`, `wall_thickness`), its complete `movement` block (gravity, player walk/run/jump and actor/projectile/missile speeds, ladder climb ratio, knockback), portal ownership (`portals`: `single`/`both`), `textures` (alias → explicit `portalable` boolean), `barrier_kinds` and `bridge_kinds` (ordered catalogs of `id` and `color`, also determining matching key names and colors for barriers, shipped to the client), optional `random_items`, power-up durations in `power_ups.duration_secs` (`0` lasts until death or erasure), placed-item respawn times in `placed_items`, player/actor respawn policies in `respawn`, player fall-damage thresholds in `player_fall`, quests, skybox, weather, and lighting. A quest's points live beside that quest, and quest ids need only be unique within their map. `default_map` selects the map unless `--map <name>` overrides it. The server validates everything once and sends a client-only gameplay projection plus the selected map, the plates' current state, and the quest-locked switches through `SInit`; clients do not load gameplay JSON. Actor movement tuning and the kind's body (`ActorCharacter`) are resolved once into each server actor's components rather than looked up by kind during movement.
 - `config/server/maps/` — one folder per named map, with `settings.json` for tuning and `layout.json` for geometry, zones, placed `items`, per-cell `light_bridges`, top-level `nested_maps` placements, embedded `nested_geometry` definitions, and `pressure_plates` — each naming the `switch` it operates; `actor_spawn_zones` carry their `respawn_secs` (`null` never refills) and may name a `switch` too. The root layout owns `switch_kinds`, target assignments, and optional `fireworks`; appearance kinds and tuning come from the sibling settings file.
-- `launch_clients.sh` — spawns N tiled windowed `join` clients for local multiplayer testing against a running `serve` or `host` (`./launch_clients.sh [num_clients] [lag_ms] [drop] [jitter]`, macOS).
+- `launch_clients.sh` — spawns N tiled windowed `--join` clients for local multiplayer testing against a running `--serve` or `--host` (`./launch_clients.sh [num_clients] [lag_ms] [drop] [jitter]`, macOS).
 - `bacon.toml` — `bacon` job definitions; use `bacon clippy`, `bacon test`, etc. as the watch loop.
 
 ## Build, run, lint, format
@@ -76,12 +76,12 @@ After all edits are done, run `./tools/format.sh` before handing the work back. 
 cargo build --release
 cargo check --release
 cargo run --release                                         # single-player: window + embedded server, no port
-cargo run --release -- host                                 # also accepts joiners on 127.0.0.1:8080
-cargo run --release -- host --bind 0.0.0.0:8080 --map hotel
-cargo run --release -- join 192.168.1.100:8080 --name "Player"
-cargo run --release -- join --lag-ms 80 --drop 0.02         # 127.0.0.1:8080 with simulated impairment
-cargo run --release -- serve                                # headless server, loads default_map
-cargo run --release -- serve --update-hz 15 --snapshot-hz 4
+cargo run --release -- --host                               # also accepts joiners on 127.0.0.1:8080
+cargo run --release -- --host 0.0.0.0:8080 --map hotel
+cargo run --release -- --join 192.168.1.100:8080 --name "Player"
+cargo run --release -- --join --lag-ms 80 --drop 0.02       # 127.0.0.1:8080 with simulated impairment
+cargo run --release -- --serve                              # headless server on 127.0.0.1:8080, loads default_map
+cargo run --release -- --serve 0.0.0.0:8080 --update-hz 15 --snapshot-hz 4
 cargo clippy --release --workspace --all-targets
 ./tools/format.sh
 cargo test --release --workspace

@@ -2,7 +2,7 @@ use std::{net::SocketAddr, process, time::Duration};
 
 use anyhow::Result;
 use bevy::app::AppExit;
-use clap::{Args, Parser, Subcommand};
+use clap::{ArgGroup, Args, Parser};
 use crossbeam_channel::Sender;
 
 use client::{
@@ -21,68 +21,54 @@ mod host;
 
 const DEFAULT_ADDRESS: &str = "127.0.0.1:8080";
 
-// Without a subcommand the game is single-player: a window and an embedded
+// At most one mode flag; none is single-player, a window and an embedded
 // server that listens to nobody.
-#[derive(Parser)]
-#[command(author, version, about = "Cuboid Wars", long_about = None, args_conflicts_with_subcommands = true)]
+#[derive(Parser, Debug)]
+#[command(author, version, about = "Cuboid Wars", long_about = None)]
+#[command(group = ArgGroup::new("mode").args(["host", "join", "serve"]))]
 struct Cli {
-    #[command(subcommand)]
-    mode: Option<Mode>,
+    /// Play and let others join at this address.
+    #[arg(long, value_name = "ADDRESS", num_args = 0..=1, default_missing_value = DEFAULT_ADDRESS)]
+    host: Option<SocketAddr>,
+
+    /// Join the server at this address.
+    #[arg(long, value_name = "ADDRESS", num_args = 0..=1, default_missing_value = DEFAULT_ADDRESS)]
+    join: Option<SocketAddr>,
+
+    /// Run a headless server at this address.
+    #[arg(long, value_name = "ADDRESS", num_args = 0..=1, default_missing_value = DEFAULT_ADDRESS)]
+    serve: Option<SocketAddr>,
+
     #[command(flatten)]
     window: WindowArgs,
+
     #[command(flatten)]
     world: WorldArgs,
-}
 
-#[derive(Subcommand)]
-enum Mode {
-    /// Play and let others join over the network.
-    Host {
-        #[arg(short, long, default_value = DEFAULT_ADDRESS)]
-        bind: SocketAddr,
-        #[command(flatten)]
-        window: WindowArgs,
-        #[command(flatten)]
-        world: WorldArgs,
-    },
-    /// Join a server.
-    Join {
-        #[arg(default_value = DEFAULT_ADDRESS)]
-        server: SocketAddr,
-        #[command(flatten)]
-        impairment: ImpairmentArgs,
-        #[command(flatten)]
-        window: WindowArgs,
-    },
-    /// Run a headless server.
-    Serve {
-        #[arg(short, long, default_value = DEFAULT_ADDRESS)]
-        bind: SocketAddr,
-        #[command(flatten)]
-        world: WorldArgs,
-    },
+    #[command(flatten)]
+    impairment: ImpairmentArgs,
 }
 
 #[derive(Args, Debug)]
 struct WindowArgs {
-    #[arg(short, long)]
+    #[arg(short, long, conflicts_with = "serve")]
     name: Option<String>,
 
     // Position uses macOS points or Windows/X11 pixels; Wayland chooses placement.
-    #[arg(long)]
+    #[arg(long, conflicts_with = "serve")]
     window_x: Option<i32>,
 
-    #[arg(long)]
+    #[arg(long, conflicts_with = "serve")]
     window_y: Option<i32>,
 
     // Windowed size in logical pixels; each axis defaults to the saved size.
-    #[arg(long)]
+    #[arg(long, conflicts_with = "serve")]
     window_width: Option<u32>,
 
-    #[arg(long)]
+    #[arg(long, conflicts_with = "serve")]
     window_height: Option<u32>,
 
-    #[arg(long)]
+    #[arg(long, conflicts_with = "serve")]
     volume: Option<f32>,
 }
 
@@ -108,16 +94,16 @@ impl WindowArgs {
 
 #[derive(Args, Debug)]
 struct WorldArgs {
-    #[arg(long)]
+    #[arg(long, conflicts_with = "join")]
     map: Option<String>,
 
-    #[arg(long, value_parser = clap::value_parser!(u32).range(1..))]
+    #[arg(long, conflicts_with = "join", value_parser = clap::value_parser!(u32).range(1..))]
     server_hz: Option<u32>,
 
-    #[arg(long, value_parser = clap::value_parser!(u32).range(1..))]
+    #[arg(long, conflicts_with = "join", value_parser = clap::value_parser!(u32).range(1..))]
     update_hz: Option<u32>,
 
-    #[arg(long, value_parser = clap::value_parser!(u32).range(1..))]
+    #[arg(long, conflicts_with = "join", value_parser = clap::value_parser!(u32).range(1..))]
     snapshot_hz: Option<u32>,
 }
 
@@ -136,18 +122,20 @@ impl WorldArgs {
     }
 }
 
+// Joining only: `requires` alone would let `--host` stand in for the missing
+// `--join`, since clap waives a requirement that conflicts with a present flag.
 #[derive(Args, Debug)]
 struct ImpairmentArgs {
     /// Simulated one-way delay in milliseconds, applied in both directions.
-    #[arg(long, default_value = "0")]
+    #[arg(long, default_value = "0", requires = "join", conflicts_with_all = ["host", "serve"])]
     lag_ms: u64,
 
     /// Unreliable delay variation as a fraction of lag; 0 disables it, 0.5 varies by ±50%.
-    #[arg(long, default_value = "0.05", value_parser = parse_fraction)]
+    #[arg(long, default_value = "0.05", value_parser = parse_fraction, requires = "join", conflicts_with_all = ["host", "serve"])]
     jitter: f32,
 
     /// Fraction of unreliable messages to discard, sent and received.
-    #[arg(long, default_value = "0", value_parser = parse_fraction)]
+    #[arg(long, default_value = "0", value_parser = parse_fraction, requires = "join", conflicts_with_all = ["host", "serve"])]
     drop: f32,
 }
 
@@ -171,29 +159,16 @@ fn parse_fraction(value: &str) -> Result<f32, String> {
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
-    match cli.mode {
-        None => {
-            let (to_server, link) = spawn_embedded_server(cli.world.server_options(), None)?;
-            play(&cli.window, to_server, link, false)
-        }
-        Some(Mode::Host { bind, window, world }) => {
-            let (to_server, link) = spawn_embedded_server(world.server_options(), Some(bind))?;
-            play(&window, to_server, link, false)
-        }
-        Some(Mode::Join {
-            server,
-            impairment,
-            window,
-        }) => {
-            let (to_server, link) = connect(server, impairment.impairment())?;
-            play(&window, to_server, link, true)
-        }
-        Some(Mode::Serve { bind, world }) => {
-            let listener = listen(bind)?;
-            let app = build_server_app(world.server_options(), Some(listener), None)?;
-            run_server_loop(app)
-        }
+    if let Some(bind) = cli.serve {
+        let listener = listen(bind)?;
+        let app = build_server_app(cli.world.server_options(), Some(listener), None)?;
+        run_server_loop(app);
     }
+    let (to_server, link) = match cli.join {
+        Some(server) => connect(server, cli.impairment.impairment())?,
+        None => spawn_embedded_server(cli.world.server_options(), cli.host)?,
+    };
+    play(&cli.window, to_server, link, cli.join.is_some())
 }
 
 // Logs in over the link, builds the client app around it, and runs it on

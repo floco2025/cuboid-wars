@@ -108,10 +108,10 @@ much for our purposes).
 
 ```bash
 cargo run --release                                    # single-player
-cargo run --release -- host                            # play and accept joiners on 127.0.0.1:8080
-cargo run --release -- host --bind 0.0.0.0:8080        # accept joiners from the LAN
-cargo run --release -- join 192.168.1.100:8080 --name "Alice"
-cargo run --release -- serve --map hotel               # dedicated headless server
+cargo run --release -- --host                          # play and accept joiners on 127.0.0.1:8080
+cargo run --release -- --host 0.0.0.0:8080             # accept joiners from the LAN
+cargo run --release -- --join 192.168.1.100:8080 --name "Alice"
+cargo run --release -- --serve --map hotel             # dedicated headless server on 127.0.0.1:8080
 ```
 
 The server accepts anyone who can reach its port; keep it on a LAN you trust.
