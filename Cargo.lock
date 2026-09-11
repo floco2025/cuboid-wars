@@ -2141,7 +2141,6 @@ dependencies = [
  "bevy",
  "bevy_mod_mipmap_generator",
  "bincode",
- "clap",
  "common",
  "quinn",
  "rand",
@@ -2152,7 +2151,6 @@ dependencies = [
  "serde_json",
  "tempfile",
  "tokio",
- "whoami",
 ]
 
 [[package]]
@@ -2453,6 +2451,19 @@ dependencies = [
  "dispatch2",
  "nix",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "cuboid-wars"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "client",
+ "common",
+ "server",
+ "tokio",
+ "whoami",
 ]
 
 [[package]]
@@ -5432,7 +5443,6 @@ dependencies = [
  "anyhow",
  "bevy",
  "bincode",
- "clap",
  "common",
  "quinn",
  "rand",

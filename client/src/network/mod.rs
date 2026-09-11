@@ -19,6 +19,7 @@ mod tick;
 mod transport;
 
 pub(crate) use bootstrap::install_bootstrap;
+pub use bootstrap::login;
 pub use impairment::Impairment;
 pub use plugin::network_plugin;
 pub(crate) use resources::accept_newer_tick;
@@ -27,7 +28,7 @@ pub use resources::{
 };
 pub(crate) use sample_buffer::{SampleBuffer, SampleTiming};
 pub use tick::TickSync;
-pub use transport::{ClientToServer, ServerToClient, configure_client, network_io_task};
+pub use transport::connect_to_server;
 
 #[cfg(test)]
 #[path = "tests/timing.rs"]

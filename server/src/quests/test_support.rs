@@ -5,7 +5,6 @@ use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
 use super::{QuestBoard, QuestCatalog, assign_quests};
 use crate::{
     config::{Quest, QuestKind, ServerGameplayConfig},
-    network::ServerToClient,
     players::{PlayerInfo, PlayerMap},
 };
 use common::protocol::{
@@ -44,7 +43,7 @@ pub(crate) fn join(
     id: u32,
     catalog: &QuestCatalog,
     board: &QuestBoard,
-) -> UnboundedReceiver<ServerToClient> {
+) -> UnboundedReceiver<ServerMessage> {
     join_with(players, id, catalog, board, false)
 }
 
@@ -54,7 +53,7 @@ pub(crate) fn join_with(
     catalog: &QuestCatalog,
     board: &QuestBoard,
     dead: bool,
-) -> UnboundedReceiver<ServerToClient> {
+) -> UnboundedReceiver<ServerMessage> {
     let (tx, mut rx) = unbounded_channel();
     let mut info = PlayerInfo::new(Entity::PLACEHOLDER, tx);
     info.connection.logged_in = true;
@@ -79,7 +78,7 @@ pub(crate) fn assignment_for(catalog: &QuestCatalog, board: &QuestBoard) -> Vec<
     players.insert(player, info);
     assign_quests(&mut players, player, catalog, board);
     match rx.try_recv() {
-        Ok(ServerToClient::Send(ServerMessage::QuestUpdates(message))) => message
+        Ok(ServerMessage::QuestUpdates(message)) => message
             .updates
             .into_iter()
             .filter_map(|update| (update.reason == QuestUpdateReason::Assigned).then_some(update.quest))
@@ -88,12 +87,10 @@ pub(crate) fn assignment_for(catalog: &QuestCatalog, board: &QuestBoard) -> Vec<
     }
 }
 
-pub(crate) fn drain(receiver: &mut UnboundedReceiver<ServerToClient>) -> Vec<ServerMessage> {
+pub(crate) fn drain(receiver: &mut UnboundedReceiver<ServerMessage>) -> Vec<ServerMessage> {
     let mut messages = Vec::new();
-    while let Ok(envelope) = receiver.try_recv() {
-        if let ServerToClient::Send(msg) = envelope {
-            messages.push(msg);
-        }
+    while let Ok(message) = receiver.try_recv() {
+        messages.push(message);
     }
     messages
 }

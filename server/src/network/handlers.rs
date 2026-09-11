@@ -4,7 +4,6 @@ use super::feed::{FeedAudience, FeedEvent, emit_feed};
 use crate::{
     config::{FeedConfig, ServerGameplayConfig},
     map::MapConfig,
-    network::ServerToClient,
     players::{PlayerMap, PlayerStateQuery},
 };
 use common::{
@@ -38,7 +37,7 @@ pub(super) fn handle_ping_message(id: PlayerId, message: CPing, players: &Player
             tick: tick.0,
             timestamp_nanos: message.timestamp_nanos,
         });
-        let _ = player.connection.channel.send(ServerToClient::Send(pong));
+        let _ = player.connection.channel.send(pong);
     }
 }
 

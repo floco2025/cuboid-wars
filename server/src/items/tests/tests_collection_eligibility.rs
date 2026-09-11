@@ -6,7 +6,6 @@ use tokio::sync::mpsc::unbounded_channel;
 use crate::{
     config::{PowerUpsConfig, ServerGameplayConfig},
     items::{ItemInfo, ItemMap, ItemPlacement, item_collection_system},
-    network::ServerToClient,
     players::{PlayerInfo, PlayerMap, PowerUpState},
     quests::{QuestBoard, QuestCatalog},
 };
@@ -49,7 +48,7 @@ fn spawn_player(
     app: &mut App,
     id: PlayerId,
     pos: Position,
-) -> (Entity, tokio::sync::mpsc::UnboundedReceiver<ServerToClient>) {
+) -> (Entity, tokio::sync::mpsc::UnboundedReceiver<ServerMessage>) {
     let entity = app.world_mut().spawn((PlayerMarker, id, pos, Health(50.0))).id();
     let (sender, receiver) = unbounded_channel();
     let mut info = PlayerInfo::new(entity, sender);
@@ -103,7 +102,7 @@ fn permanent_single_shot_pickup_grants_fire_and_leaves_duplicates_for_other_play
     assert!(app.world().resource::<ItemMap>().get(&first).is_none());
     assert!(std::iter::from_fn(|| rx.try_recv().ok()).any(|message| matches!(
         message,
-        ServerToClient::Send(ServerMessage::PlayerStatus(status))
+        ServerMessage::PlayerStatus(status)
             if status.collected == Some(ItemType::SingleShotPowerUp)
                 && status.power_up(PowerUpKind::SingleShot)
                 && !status.power_up(PowerUpKind::MultiShot)
@@ -143,8 +142,7 @@ fn overlapping_gold_is_collected_and_scores() {
             .score,
         expected
     );
-    let gold_cue = std::iter::from_fn(|| rx.try_recv().ok())
-        .any(|msg| matches!(msg, ServerToClient::Send(ServerMessage::GoldCollected(_))));
+    let gold_cue = std::iter::from_fn(|| rx.try_recv().ok()).any(|msg| matches!(msg, ServerMessage::GoldCollected(_)));
     assert!(gold_cue, "pickup cue must be unicast");
 }
 
@@ -186,7 +184,7 @@ fn permanent_power_up_stays_for_other_players_and_timed_pickup_refreshes() {
     app.update();
     assert!(std::iter::from_fn(|| rx.try_recv().ok()).any(|message| matches!(
         message,
-        ServerToClient::Send(ServerMessage::PlayerStatus(status))
+        ServerMessage::PlayerStatus(status)
             if status.collected == Some(ItemType::PortalGunPowerUp)
     )));
     let second = spawn_item(
@@ -290,7 +288,7 @@ fn eraser_wins_over_same_tick_pickup_and_does_not_repeat_status() {
     assert_eq!(app.world().get::<Health>(entity), Some(&Health(50.0)));
     let mut last = None;
     let mut collected = false;
-    while let Ok(ServerToClient::Send(message)) = rx.try_recv() {
+    while let Ok(message) = rx.try_recv() {
         if let ServerMessage::PlayerStatus(status) = message {
             collected |= status.collected.is_some();
             last = Some(status);

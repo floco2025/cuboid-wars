@@ -12,7 +12,7 @@
 
 - **Render ramps as stairs:** add an option to show ramps as stairs while retaining smooth ramp collision and movement. Make stair use configurable per actor kind, like ladder use.
 
-- **Host a game from a client:** colocate the server with one client so it can host the game. Use message queues for communication between the host client and its server, bypassing the network stack; remote clients connect over the network.
+- **Replace QUIC with a synchronous transport:** Tokio only serves Quinn's async API now that the game targets a few players. A transport polled from the game loop such as `renet` (reliable and unreliable channels, shared-key encryption instead of the certificate files) would remove the runtime; each remote client would become a link the server drains each tick, like the host's local queues.
 
 - **Missiles through portals:** a missile chasing a target through a portal detonates on the aperture's backing instead of crossing, while bullets hop through; rank `projectile_hop` against the other events in the missile sweep in `client/src/missiles/movement.rs`.
 

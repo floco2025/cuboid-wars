@@ -1,5 +1,9 @@
 use anyhow::{Result, bail};
 use bevy::prelude::*;
+use tokio::{
+    runtime::Handle,
+    time::{self, Instant, MissedTickBehavior},
+};
 
 use crate::{
     actors::{
@@ -12,7 +16,7 @@ use crate::{
     items::{ItemMap, ItemSpawner, RandomItems, items_plugin},
     map::{GeneratedMap, LightState, MapFireworks, WeatherState, generate_map, map_plugin},
     missiles::{MissileMap, missiles_plugin},
-    network::{FromClientsChannel, network_plugin},
+    network::{ClientLinks, NewLinksChannel, network_plugin},
     players::{Invincibility, PlayerMap, players_plugin},
     portals::{PortalAssignments, PortalMap, portals_plugin},
     projectiles::projectiles_plugin,
@@ -53,31 +57,27 @@ impl NetworkOverrides {
     }
 }
 
-pub fn build_server_app(
-    map_override: Option<&str>,
-    overrides: NetworkOverrides,
-    from_clients: FromClientsChannel,
-) -> Result<App> {
-    build_server_app_with_loader(
-        ServerGameplayConfig::load_default()?,
-        map_override,
-        overrides,
-        from_clients,
-        generate_map,
-    )
+pub struct ServerAppOptions {
+    pub map: Option<String>,
+    pub network: NetworkOverrides,
+    // Only one Bevy `LogPlugin` may install per process; the app built first owns it.
+    pub logging: bool,
+}
+
+pub fn build_server_app(options: ServerAppOptions, new_links: NewLinksChannel) -> Result<App> {
+    build_server_app_with_loader(ServerGameplayConfig::load_default()?, options, new_links, generate_map)
 }
 
 fn build_server_app_with_loader(
     mut server_gameplay_config: ServerGameplayConfig,
-    map_override: Option<&str>,
-    overrides: NetworkOverrides,
-    from_clients: FromClientsChannel,
+    options: ServerAppOptions,
+    new_links: NewLinksChannel,
     load_map: impl FnOnce(&str, u32, &MapSettings) -> Result<GeneratedMap>,
 ) -> Result<App> {
-    overrides.apply(&mut server_gameplay_config.network);
+    options.network.apply(&mut server_gameplay_config.network);
     server_gameplay_config.network.validate()?;
     let gameplay_config = server_gameplay_config.gameplay_config();
-    let map_name = map_override.unwrap_or(&server_gameplay_config.default_map);
+    let map_name = options.map.as_deref().unwrap_or(&server_gameplay_config.default_map);
     let Some(map_server_config) = server_gameplay_config.maps.get(map_name).cloned() else {
         let mut known: Vec<&str> = server_gameplay_config.maps.keys().map(String::as_str).collect();
         known.sort_unstable();
@@ -146,16 +146,19 @@ fn build_server_app_with_loader(
     // Server time is tick time: every update advances `Time` by exactly one
     // tick, so delta-driven timers and tick-driven carriers agree and the
     // integration matches the client's fixed step. An overrun skips wall
-    // time (`MissedTickBehavior::Skip` in main.rs) instead of stretching a
-    // tick.
+    // time (`MissedTickBehavior::Skip` in `run_server_loop`) instead of
+    // stretching a tick.
     app.insert_resource(TimeUpdateStrategy::ManualDuration(
         server_gameplay_config.network.tick_duration(),
     ));
-    app.add_plugins(MinimalPlugins).add_plugins(bevy::log::LogPlugin {
-        level: bevy::log::Level::INFO,
-        filter: LOG_FILTER.to_string(),
-        ..default()
-    });
+    app.add_plugins(MinimalPlugins);
+    if options.logging {
+        app.add_plugins(bevy::log::LogPlugin {
+            level: bevy::log::Level::INFO,
+            filter: LOG_FILTER.to_string(),
+            ..default()
+        });
+    }
 
     info!("generated map {map_name:?}: {}", map_layout.summary());
 
@@ -192,7 +195,8 @@ fn build_server_app_with_loader(
         .insert_resource(ActorSpawner::default())
         .insert_resource(ActorRespawnTimers::default())
         .insert_resource(PendingActorSpawns::default())
-        .insert_resource(from_clients)
+        .insert_resource(new_links)
+        .insert_resource(ClientLinks::default())
         .insert_resource(PendingExplosions::default())
         .insert_resource(MissileMap::default())
         .insert_resource(PortalMap::default())
@@ -216,6 +220,34 @@ fn build_server_app_with_loader(
     ));
 
     Ok(app)
+}
+
+// Paces the ticks on the runtime's timer while the app stays on the calling thread.
+pub fn run_server_loop(mut app: App, handle: &Handle) -> ! {
+    info!("starting ECS server loop...");
+    let tick_duration = app.world().resource::<NetworkConfig>().tick_duration();
+    let _runtime = handle.enter();
+    let mut interval = time::interval(tick_duration);
+    interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
+    let mut frame: u64 = 0;
+    loop {
+        handle.block_on(interval.tick());
+
+        let update_start = Instant::now();
+        app.update();
+        let update_elapsed = update_start.elapsed();
+
+        if update_elapsed > tick_duration {
+            warn!(
+                "tick {} took {:.2}ms (exceeded {:.2}ms budget)",
+                frame,
+                update_elapsed.as_secs_f64() * 1000.0,
+                tick_duration.as_secs_f64() * 1000.0
+            );
+        }
+
+        frame += 1;
+    }
 }
 
 #[cfg(test)]

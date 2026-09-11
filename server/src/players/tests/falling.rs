@@ -53,7 +53,7 @@ fn a_crushed_player_dies_at_the_reported_contact() {
     assert!(app.world().get_entity(entity).is_err());
     let death = loop {
         match receiver.try_recv().expect("no death message reached the player") {
-            ServerToClient::Send(ServerMessage::PlayerDeath(death)) => break death,
+            ServerMessage::PlayerDeath(death) => break death,
             _ => continue,
         }
     };
@@ -109,9 +109,7 @@ fn invincible_void_rescue_relocates_reliably_and_preserves_equipment() {
         .outcomes
         .fell_out_of_world = true;
     app.update();
-    let ServerToClient::Send(message @ ServerMessage::PlayerRelocated(_)) =
-        receiver.try_recv().expect("relocation missing")
-    else {
+    let message @ ServerMessage::PlayerRelocated(_) = receiver.try_recv().expect("relocation missing") else {
         panic!("void rescue did not send a relocation")
     };
     assert_eq!(message.lane(), Lane::Reliable);
@@ -357,7 +355,7 @@ fn landing_damage_uses_impact_speed_and_map_thresholds() {
         }
         let mut impact_health = None;
         while let Ok(message) = receiver.try_recv() {
-            if let ServerToClient::Send(ServerMessage::PlayerFallDamage(impact)) = message {
+            if let ServerMessage::PlayerFallDamage(impact) = message {
                 impact_health = Some(impact.health.0);
             }
         }

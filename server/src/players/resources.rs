@@ -1,15 +1,12 @@
 use std::collections::{BTreeMap, HashMap};
 
 use bevy::prelude::*;
-use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
 
-use crate::{
-    config::{ActorRespawnScope, PlayerRespawnMode, PowerUpsConfig, RespawnConfig},
-    network::ServerToClient,
-};
+use crate::config::{ActorRespawnScope, PlayerRespawnMode, PowerUpsConfig, RespawnConfig};
 use common::protocol::{
     BarrierKindId, FaceYaw, Health, ItemType, Player, PlayerGeneration, PlayerId, PlayerMarker, PlayerMoveIntent,
-    PlayerMovementState, PortalAccess, Position, PowerUpKind, QuestId, QuestScope, SPlayerStatus,
+    PlayerMovementState, PortalAccess, Position, PowerUpKind, QuestId, QuestScope, SPlayerStatus, ServerMessage,
 };
 
 use super::{CheckpointId, PendingOutcomes, PlayerCheckpoint, PowerUpState};
@@ -55,8 +52,17 @@ impl PlayerQuestState {
 
 pub struct PlayerConnection {
     pub logged_in: bool,
-    pub channel: UnboundedSender<ServerToClient>,
+    pub channel: UnboundedSender<ServerMessage>,
     pub name: String,
+}
+
+impl PlayerConnection {
+    // Dropping the live sender is the hang-up; the dead replacement keeps later
+    // broadcasts harmless until the transport reports the disconnect.
+    pub fn hang_up(&mut self) {
+        let (dead, _) = unbounded_channel();
+        self.channel = dead;
+    }
 }
 
 #[derive(Default)]
@@ -131,7 +137,7 @@ pub struct PlayerInfo {
 
 impl PlayerInfo {
     #[must_use]
-    pub fn new(entity: Entity, channel: UnboundedSender<ServerToClient>) -> Self {
+    pub fn new(entity: Entity, channel: UnboundedSender<ServerMessage>) -> Self {
         Self {
             connection: PlayerConnection {
                 logged_in: false,

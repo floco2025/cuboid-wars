@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use crate::{
-    network::{FeedAudience, FeedEvent, ServerToClient, emit_feed},
+    network::{FeedAudience, FeedEvent, emit_feed},
     players::{PlayerMap, enter_group_respawn, place_player_body, player_spawn_destination, spawn_zone_destination},
     portals::{PortalAssignments, PortalMap},
     quests::{QuestBoard, QuestCatalog, assign_quests},
@@ -58,7 +58,7 @@ pub(super) fn handle_login_message(
         plates: (*world.plates).clone(),
         locked_switches: quest_board.locked_switches().to_vec(),
     });
-    if let Err(error) = channel.send(ServerToClient::Send(init_message)) {
+    if let Err(error) = channel.send(init_message) {
         warn!("failed to send init to {:?}: {}", id, error);
     }
 

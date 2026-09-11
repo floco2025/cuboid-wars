@@ -4,7 +4,7 @@ use crate::{
     audio::play_sound,
     cameras::{CameraAim, CameraInputState},
     config::AssetSet,
-    network::{ClientToServer, ClientToServerChannel},
+    network::ClientToServerChannel,
     players::{LocalPlayerInfo, LocalPlayerMarker, MyPlayerId},
     projectiles::MuzzleCheck,
     projectiles::{ProjectileAssets, spawn_projectiles},
@@ -93,7 +93,7 @@ pub fn input_shooting_system(
             MuzzleCheck::Enforced,
         ) > 0
         {
-            to_server.send(ClientToServer::Send(ClientMessage::ProjectileShot(shot)));
+            to_server.send(ClientMessage::ProjectileShot(shot));
             play_sound(&mut commands, &asset_server, asset_set.player_sound("fire"));
         } else {
             play_sound(&mut commands, &asset_server, asset_set.player_sound("dry_fire"));

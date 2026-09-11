@@ -89,7 +89,7 @@ fn typing_drops_control_characters() {
     assert_eq!(console.buffer, "ab");
 }
 
-fn app() -> (App, UnboundedReceiver<ClientToServer>) {
+fn app() -> (App, UnboundedReceiver<ClientMessage>) {
     let (tx, rx) = unbounded_channel();
     let mut app = App::new();
     app.add_message::<KeyboardInput>()
@@ -142,7 +142,7 @@ fn enter_opens_empty_and_submits_the_typed_line() {
     assert!(!console(&app).open);
     assert!(matches!(
         rx.try_recv(),
-        Ok(ClientToServer::Send(ClientMessage::Chat(CChat { text }))) if text == "hi"
+        Ok(ClientMessage::Chat(CChat { text })) if text == "hi"
     ));
 }
 

@@ -2,46 +2,37 @@ use bevy::prelude::*;
 use common::{config::NetworkConfig, protocol::*};
 use tokio::sync::mpsc::unbounded_channel;
 
-use super::{NetworkOverrides, fixtures::server_app};
-use crate::network::{ClientToServer, FromClientsChannel, ServerToClient};
+use super::{
+    NetworkOverrides,
+    fixtures::{connect, server_app},
+};
+use crate::network::NewLinksChannel;
 
 #[test]
 fn sixty_hz_reaches_bootstrap_advances_one_second_and_preserves_network_cadences() {
-    let (incoming, receiver) = unbounded_channel();
+    let (register, new_links) = unbounded_channel();
     let mut app = server_app(
         NetworkOverrides {
             server_hz: Some(60),
             update_hz: Some(30),
             snapshot_hz: Some(4),
         },
-        FromClientsChannel::new(receiver),
+        NewLinksChannel::new(new_links),
     )
     .expect("60 Hz server config rejected");
-    let (sender, mut receiver) = unbounded_channel();
-    incoming
-        .send((PlayerId(1), ClientToServer::Registration { to_client: sender }))
-        .expect("registration failed");
-    incoming
-        .send((
-            PlayerId(1),
-            ClientToServer::Message(ClientMessage::Login(CLogin { name: "Player".into() })),
-        ))
+    let (client, mut receiver) = connect(&register);
+    client
+        .send(ClientMessage::Login(CLogin { name: "Player".into() }))
         .expect("login failed");
     // Movement batches carry the other players, so the counted client needs company.
-    let (observed, _observed_receiver) = unbounded_channel();
-    incoming
-        .send((PlayerId(2), ClientToServer::Registration { to_client: observed }))
-        .expect("registration failed");
-    incoming
-        .send((
-            PlayerId(2),
-            ClientToServer::Message(ClientMessage::Login(CLogin { name: "Other".into() })),
-        ))
+    let (other, _other_receiver) = connect(&register);
+    other
+        .send(ClientMessage::Login(CLogin { name: "Other".into() }))
         .expect("login failed");
     app.update();
     let init = std::iter::from_fn(|| receiver.try_recv().ok())
         .find_map(|message| match message {
-            ServerToClient::Send(ServerMessage::Init(init)) => Some(init),
+            ServerMessage::Init(init) => Some(init),
             _ => None,
         })
         .expect("bootstrap missing");
@@ -60,8 +51,8 @@ fn sixty_hz_reaches_bootstrap_advances_one_second_and_preserves_network_cadences
     let mut snapshots = 0;
     for message in std::iter::from_fn(|| receiver.try_recv().ok()) {
         match message {
-            ServerToClient::Send(ServerMessage::PlayerMoves(_)) => moves += 1,
-            ServerToClient::Send(ServerMessage::Snapshot(_)) => snapshots += 1,
+            ServerMessage::PlayerMoves(_) => moves += 1,
+            ServerMessage::Snapshot(_) => snapshots += 1,
             _ => {}
         }
     }
@@ -73,7 +64,7 @@ fn sixty_hz_reaches_bootstrap_advances_one_second_and_preserves_network_cadences
 #[test]
 fn cli_rates_are_checked_together_after_overrides() {
     for (server, updates, snapshots) in [(0, 1, 1), (30, 60, 4), (60, 30, 61)] {
-        let (_, receiver) = unbounded_channel();
+        let (_, new_links) = unbounded_channel();
         assert!(
             server_app(
                 NetworkOverrides {
@@ -81,7 +72,7 @@ fn cli_rates_are_checked_together_after_overrides() {
                     update_hz: Some(updates),
                     snapshot_hz: Some(snapshots),
                 },
-                FromClientsChannel::new(receiver)
+                NewLinksChannel::new(new_links)
             )
             .is_err()
         );

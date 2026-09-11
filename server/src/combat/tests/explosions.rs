@@ -10,7 +10,6 @@ use crate::{
     characters::characters_health_regeneration_system,
     config::ServerGameplayConfig,
     map::MapConfig,
-    network::ServerToClient,
     players::{Invincibility, PlayerInfo, PlayerMap},
     quests::{QuestBoard, QuestCatalog},
     test_geometry::geometry,
@@ -146,9 +145,7 @@ fn crushed_actor_death_broadcasts_once_and_detonates_without_kill_credit() {
     app.update();
 
     for id in [crushed_id, ActorId(2)] {
-        let ServerToClient::Send(ServerMessage::ActorDeath(death)) =
-            receiver.try_recv().expect("actor death cue missing")
-        else {
+        let ServerMessage::ActorDeath(death) = receiver.try_recv().expect("actor death cue missing") else {
             panic!("unexpected message instead of actor death cue");
         };
         assert_eq!(death.id, id);
@@ -228,7 +225,7 @@ fn missile_destroys_turret_with_normal_death_cue_and_kill_credit() {
     assert!(app.world().get_entity(entity).is_err());
     assert!(app.world().resource::<ActorMap>().get(&id).is_none());
     let mut deaths = Vec::new();
-    while let Ok(ServerToClient::Send(message)) = receiver.try_recv() {
+    while let Ok(message) = receiver.try_recv() {
         if let ServerMessage::ActorDeath(death) = message {
             deaths.push(death);
         }
@@ -311,9 +308,7 @@ fn simultaneous_blasts_send_one_combined_player_result() {
 
     app.update();
 
-    let ServerToClient::Send(ServerMessage::PlayerKnockback(message)) =
-        receiver.try_recv().expect("combined blast result")
-    else {
+    let ServerMessage::PlayerKnockback(message) = receiver.try_recv().expect("combined blast result") else {
         panic!("expected player knockback message");
     };
     let health = *app.world().entity(entity).get::<Health>().expect("player health");
@@ -345,7 +340,7 @@ fn spawn_logged_in_player(
     id: PlayerId,
     x: f32,
     health: f32,
-) -> (Entity, tokio::sync::mpsc::UnboundedReceiver<ServerToClient>) {
+) -> (Entity, tokio::sync::mpsc::UnboundedReceiver<ServerMessage>) {
     let entity = app
         .world_mut()
         .spawn((
@@ -365,19 +360,19 @@ fn spawn_logged_in_player(
     (entity, receiver)
 }
 
-fn next_player_death(receiver: &mut tokio::sync::mpsc::UnboundedReceiver<ServerToClient>) -> SPlayerDeath {
+fn next_player_death(receiver: &mut tokio::sync::mpsc::UnboundedReceiver<ServerMessage>) -> SPlayerDeath {
     loop {
         match receiver.try_recv().expect("expected a PlayerDeath broadcast") {
-            ServerToClient::Send(ServerMessage::PlayerDeath(msg)) => return msg,
+            ServerMessage::PlayerDeath(msg) => return msg,
             _ => continue,
         }
     }
 }
 
-fn next_feed_line(receiver: &mut tokio::sync::mpsc::UnboundedReceiver<ServerToClient>) -> String {
+fn next_feed_line(receiver: &mut tokio::sync::mpsc::UnboundedReceiver<ServerMessage>) -> String {
     loop {
         match receiver.try_recv().expect("expected a Feed broadcast") {
-            ServerToClient::Send(ServerMessage::Feed(msg)) => {
+            ServerMessage::Feed(msg) => {
                 return msg.spans.into_iter().map(|span| span.text).collect();
             }
             _ => continue,
@@ -462,7 +457,7 @@ fn missile_blast_kills_actor_with_shooter_credit() {
 
     let death = loop {
         match shooter_rx.try_recv().expect("expected an ActorDeath broadcast") {
-            ServerToClient::Send(ServerMessage::ActorDeath(msg)) => break msg,
+            ServerMessage::ActorDeath(msg) => break msg,
             _ => continue,
         }
     };
@@ -552,7 +547,7 @@ fn fields_shield_players_and_actors_from_missile_damage_and_knockback() {
             );
             app.update();
             let impulse = std::iter::from_fn(|| receiver.try_recv().ok()).find_map(|message| match message {
-                ServerToClient::Send(ServerMessage::PlayerKnockback(message)) => Some(message.impulse),
+                ServerMessage::PlayerKnockback(message) => Some(message.impulse),
                 _ => None,
             });
             assert_eq!(impulse.is_some(), !active);
@@ -725,8 +720,7 @@ fn reported_missile_hits_ignore_server_distance_but_not_victim_generation_or_dup
         app.world().get::<Health>(entity).expect("health missing").0,
         10000.0 - damage
     );
-    let ServerToClient::Send(ServerMessage::PlayerKnockback(message)) = receiver.try_recv().expect("impulse missing")
-    else {
+    let ServerMessage::PlayerKnockback(message) = receiver.try_recv().expect("impulse missing") else {
         panic!("unexpected reply");
     };
     assert_eq!(message.impulse[0], 0.0);

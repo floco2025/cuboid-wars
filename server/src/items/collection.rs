@@ -4,7 +4,7 @@ use crate::{
     characters::{character_overlaps_item, regenerate_health},
     config::{PlacedItemsConfig, PowerUpsConfig, ServerGameplayConfig},
     items::{ItemMap, ItemPlacement},
-    network::{FeedAudience, FeedEvent, ServerToClient, broadcast_to_all, emit_feed},
+    network::{FeedAudience, FeedEvent, broadcast_to_all, emit_feed},
     players::{PlayerInfo, PlayerMap},
     quests::{QuestBoard, QuestCatalog, QuestEvent, record_event},
 };
@@ -205,9 +205,9 @@ fn collect_gold(
         let _ = player_info
             .connection
             .channel
-            .send(ServerToClient::Send(ServerMessage::GoldCollected(SGoldCollected {
+            .send(ServerMessage::GoldCollected(SGoldCollected {
                 score: player_info.session.score,
-            })));
+            }));
     }
 }
 
@@ -257,12 +257,10 @@ fn collect_health_potion(
     let _ = player_info
         .connection
         .channel
-        .send(ServerToClient::Send(ServerMessage::HealthPotionCollected(
-            SHealthPotionCollected {
-                generation: player_info.session.generation,
-                health: *health,
-            },
-        )));
+        .send(ServerMessage::HealthPotionCollected(SHealthPotionCollected {
+            generation: player_info.session.generation,
+            health: *health,
+        }));
 }
 
 fn collect_missile_pack(

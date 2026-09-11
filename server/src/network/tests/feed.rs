@@ -4,7 +4,7 @@ use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
 use super::*;
 use crate::players::PlayerInfo;
 
-fn players() -> (PlayerMap, UnboundedReceiver<ServerToClient>) {
+fn players() -> (PlayerMap, UnboundedReceiver<ServerMessage>) {
     let (tx, rx) = unbounded_channel();
     let mut info = PlayerInfo::new(Entity::PLACEHOLDER, tx);
     info.connection.logged_in = true;
@@ -20,9 +20,9 @@ fn chat() -> FeedEvent {
     }
 }
 
-fn receive(rx: &mut UnboundedReceiver<ServerToClient>) -> SFeed {
+fn receive(rx: &mut UnboundedReceiver<ServerMessage>) -> SFeed {
     match rx.try_recv().expect("feed line missing") {
-        ServerToClient::Send(ServerMessage::Feed(line)) => line,
+        ServerMessage::Feed(line) => line,
         other => panic!("unexpected envelope: {other:?}"),
     }
 }

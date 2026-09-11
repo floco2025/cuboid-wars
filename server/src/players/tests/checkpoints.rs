@@ -17,7 +17,6 @@ use super::{
 };
 use crate::{
     config::{ActorRespawnScope, PlayerRespawnMode, ServerGameplayConfig},
-    network::ServerToClient,
     schedule::ServerSet,
 };
 
@@ -126,7 +125,7 @@ fn only_grounded_players_activate_and_notifications_do_not_repeat() {
     assert!(saved(&app, PlayerId(2)).is_none());
     let mut notifications = 0;
     while let Ok(message) = receiver.try_recv() {
-        if matches!(message, ServerToClient::Send(ServerMessage::CheckpointReached(_))) {
+        if matches!(message, ServerMessage::CheckpointReached(_)) {
             notifications += 1;
         }
     }
@@ -209,7 +208,7 @@ fn deaths_preserve_checkpoints_clear_equipment_and_retry_blocked_group_or_indivi
         advance(&mut app, 0.0);
         let mut notifications = 0;
         while let Ok(message) = receiver.try_recv() {
-            if matches!(message, ServerToClient::Send(ServerMessage::CheckpointReached(_))) {
+            if matches!(message, ServerMessage::CheckpointReached(_)) {
                 notifications += 1;
             }
         }
@@ -399,7 +398,7 @@ fn group_all_visits_survive_death_and_membership_changes() {
     }
     let mut cues = 0;
     while let Ok(message) = second.try_recv() {
-        if matches!(message, ServerToClient::Send(ServerMessage::CheckpointReached(_))) {
+        if matches!(message, ServerMessage::CheckpointReached(_)) {
             cues += 1;
         }
     }
@@ -457,10 +456,7 @@ fn shared_activations_win_simultaneous_individual_entries_once_in_map_order() {
     entries(&mut app, &[(1, 1), (2, 2), (2, 0)]);
     assert_eq!(saved(&app, PlayerId(1)), Some(CheckpointId(0)));
     assert_eq!(saved(&app, PlayerId(2)), Some(CheckpointId(0)));
-    assert!(matches!(
-        rx.try_recv(),
-        Ok(ServerToClient::Send(ServerMessage::CheckpointReached(_)))
-    ));
+    assert!(matches!(rx.try_recv(), Ok(ServerMessage::CheckpointReached(_))));
     assert!(rx.try_recv().is_err());
 }
 
@@ -718,7 +714,7 @@ fn simultaneous_shared_entries_activate_on_consecutive_ticks() {
     assert_eq!(saved(&app, PlayerId(2)), Some(CheckpointId(1)));
     let mut cues = 0;
     while let Ok(message) = rx.try_recv() {
-        if matches!(message, ServerToClient::Send(ServerMessage::CheckpointReached(_))) {
+        if matches!(message, ServerMessage::CheckpointReached(_)) {
             cues += 1;
         }
     }

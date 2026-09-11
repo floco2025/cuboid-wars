@@ -5,7 +5,7 @@ use crate::{
     audio::play_sound,
     cameras::{CameraAim, CameraInputState},
     config::AssetSet,
-    network::{ClientToServer, ClientToServerChannel},
+    network::ClientToServerChannel,
     players::{LocalPlayerInfo, LocalPlayerMarker, PlayerMap},
     portals::PortalMap,
 };
@@ -107,10 +107,10 @@ pub fn input_portal_system(
     };
 
     local_player_info.last_shot_time = now;
-    to_server.send(ClientToServer::Send(ClientMessage::PortalShot(CPortalShot {
+    to_server.send(ClientMessage::PortalShot(CPortalShot {
         generation: player.generation,
         result,
-    })));
+    }));
 }
 
 fn portal_shot_result(

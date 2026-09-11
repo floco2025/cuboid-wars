@@ -8,7 +8,7 @@ use crate::{
     config::{AssetSet, ClientSettings},
     constants::MISSILE_RADIUS,
     missiles::{AirGraph, MissileMap, MissileVelocity, OwnedMissile, guide_missile},
-    network::{ClientToServer, ClientToServerChannel},
+    network::ClientToServerChannel,
     players::PlayerMap,
     vfx::{BlastRadii, ExplosionAssets, ExplosionSpawnCtx, ExplosionVfxBudget, spawn_missile_explosion},
 };
@@ -202,13 +202,11 @@ pub fn missiles_movement_system(
             );
             params
                 .to_server
-                .send(ClientToServer::Send(ClientMessage::MissileDetonated(
-                    CMissileDetonated {
-                        id: *id,
-                        pos: impact.into(),
-                        hits,
-                    },
-                )));
+                .send(ClientMessage::MissileDetonated(CMissileDetonated {
+                    id: *id,
+                    pos: impact.into(),
+                    hits,
+                }));
             params.missiles.remove(id);
             commands.entity(entity).despawn();
             spawn_missile_explosion(
@@ -249,9 +247,7 @@ pub fn missiles_movement_system(
     if !updates.is_empty() {
         params
             .to_server
-            .send(ClientToServer::Send(ClientMessage::MissileMoves(CMissileMoves {
-                moves: updates,
-            })));
+            .send(ClientMessage::MissileMoves(CMissileMoves { moves: updates }));
     }
 }
 

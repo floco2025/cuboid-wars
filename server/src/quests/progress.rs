@@ -1,6 +1,6 @@
 use crate::{
     config::{FeedConfig, Quest, QuestKind},
-    network::{FeedAudience, FeedEvent, ServerToClient, emit_feed},
+    network::{FeedAudience, FeedEvent, emit_feed},
     players::{PlayerInfo, PlayerMap, PlayerQuestState},
 };
 use common::protocol::{
@@ -448,5 +448,5 @@ fn send_group_update(players: &PlayerMap, board: &QuestBoard, quest: &CatalogQue
 }
 
 fn send(info: &PlayerInfo, message: ServerMessage) {
-    let _ = info.connection.channel.send(ServerToClient::Send(message));
+    let _ = info.connection.channel.send(message);
 }

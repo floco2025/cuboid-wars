@@ -8,7 +8,6 @@ use super::{
 use crate::{
     actors::{ActorMap, PendingActorSpawns},
     missiles::{MissileMap, handle_missile_detonated, handle_missile_moves, handle_missile_shot_message},
-    network::ServerToClient,
     players::{PlayerMap, handle_move_outcome, queue_player_movement},
     portals::{PortalAssignments, PortalMap, handle_portal_shot_message},
     projectiles::{PendingProjectileHits, handle_projectile_shot_message},
@@ -70,9 +69,9 @@ pub(super) fn route_client_message(
         }
         ClientMessage::Login(_) => {
             warn!("{} sent a second login", context.players.describe(&id));
-            // Close to enforce a single-login flow.
-            if let Some(player) = context.players.get(&id) {
-                let _ = player.connection.channel.send(ServerToClient::Close);
+            // Hang up to enforce a single-login flow.
+            if let Some(player) = context.players.get_mut(&id) {
+                player.connection.hang_up();
             }
         }
         // An unreliable message can overtake `CLogin`; drop it.

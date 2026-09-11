@@ -19,5 +19,5 @@ pub use broadcast::{broadcast_firework_show, broadcast_player_relocation, broadc
 pub use feed::{DeathCause, FeedAudience, FeedEvent, emit_feed};
 pub(crate) use handlers::SharedWorld;
 pub use plugin::network_plugin;
-pub use resources::FromClientsChannel;
-pub use transport::{ClientToServer, ServerToClient, accept_connections_task};
+pub use resources::{ClientLink, ClientLinks, NewLinksChannel};
+pub use transport::listen;

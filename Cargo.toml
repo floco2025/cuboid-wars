@@ -1,3 +1,20 @@
+[package]
+name = "cuboid-wars"
+version = "0.1.0"
+edition = "2024"
+
+[lints]
+workspace = true
+
+[dependencies]
+client = { path = "client" }
+server = { path = "server" }
+common = { path = "common" }
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "signal"] }
+whoami = "2.0.1"
+
 [workspace]
 members = ["common", "server", "client"]
 resolver = "2"

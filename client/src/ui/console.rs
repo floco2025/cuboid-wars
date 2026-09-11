@@ -12,7 +12,7 @@ use bevy::{
 use crate::{
     config::ClientSettings,
     constants::{CONSOLE_TEXT_COLOR, FEED_CHAT_TEXT_COLOR},
-    network::{ClientToServer, ClientToServerChannel},
+    network::ClientToServerChannel,
 };
 use common::{
     constants::{CONSOLE_CHAT_MAX_CHARS, CONSOLE_COMMAND_MAX_CHARS},
@@ -225,7 +225,7 @@ pub(super) fn console_send_system(
             }),
             ConsoleSubmission::Chat(text) => ClientMessage::Chat(CChat { text: text.clone() }),
         };
-        to_server.send(ClientToServer::Send(message));
+        to_server.send(message);
     }
 }
 

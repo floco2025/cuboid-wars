@@ -8,7 +8,7 @@ use common::{
 
 use super::{outcomes::LocalMovementStep, player_movement_state};
 use crate::{
-    network::{ClientToServer, ClientToServerChannel},
+    network::ClientToServerChannel,
     players::{LocalPlayerInfo, LocalPlayerMarker},
 };
 
@@ -90,12 +90,12 @@ pub fn report_player_movement_system(
     let mut movement = player_movement_state(*pos, *intent, yaw, vertical, momentum, knockback, step.support);
     movement.carrier = carrier;
     movement.pos = carriers.pose(carrier).inverse_transform_position(pos);
-    to_server.send(ClientToServer::Send(ClientMessage::Move(CMove {
+    to_server.send(ClientMessage::Move(CMove {
         generation: reports.generation,
         seq: reports.seq,
         portal_crossing: reports.portal_crossing,
         movement,
-    })));
+    }));
 }
 
 #[cfg(test)]

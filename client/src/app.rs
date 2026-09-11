@@ -1,5 +1,6 @@
 use anyhow::Result;
 use bevy::{
+    log::LogPlugin,
     pbr::DefaultOpaqueRendererMethod,
     prelude::*,
     window::{CursorGrabMode, CursorOptions, MonitorSelection, PresentMode, WindowMode, WindowPlugin},
@@ -39,6 +40,8 @@ pub struct ClientAppOptions {
     pub window_width: Option<u32>,
     pub window_height: Option<u32>,
     pub volume: Option<f32>,
+    // Only one Bevy `LogPlugin` may install per process; an embedded server built first owns it.
+    pub logging: bool,
 }
 
 pub fn build_client_app(
@@ -93,12 +96,16 @@ pub fn build_client_app(
     let start_visible = start_fullscreen;
     let mipmaps = client_settings.rendering.mipmaps;
     let mut app = App::new();
-    app.add_plugins(DefaultPlugins.set(asset_plugin()).set(window_plugin(
+    let mut plugins = DefaultPlugins.set(asset_plugin()).set(window_plugin(
         windowed_frame.size,
         start_visible,
         client_settings.preferences.vsync,
         start_fullscreen,
-    )));
+    ));
+    if !options.logging {
+        plugins = plugins.disable::<LogPlugin>();
+    }
+    app.add_plugins(plugins);
     app.add_plugins((GrassMaterialPlugin, PortalClipMaterialPlugin));
     app.insert_resource(match client_settings.rendering.opaque_renderer {
         OpaqueRenderer::Auto => DefaultOpaqueRendererMethod::default(),
@@ -190,9 +197,11 @@ pub fn build_client_app(
     Ok(app)
 }
 
+// Anchored at this crate at compile time like the config paths: Bevy resolves
+// a relative root against the executable's package, which is the workspace root.
 fn asset_plugin() -> AssetPlugin {
     AssetPlugin {
-        file_path: "assets".to_string(),
+        file_path: concat!(env!("CARGO_MANIFEST_DIR"), "/assets").to_string(),
         ..default()
     }
 }

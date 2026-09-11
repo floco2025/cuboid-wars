@@ -14,7 +14,6 @@ use crate::{
         CellGrid, EdgeGrid, FireworksConfig, LevelGrid, LightState, MapConfig, MapFireworks, PlayerSpawnZone,
         PressurePlateRuntime, WeatherState, map_plugin,
     },
-    network::ServerToClient,
     players::{PlayerInfo, PlayerMap, players_group_respawn_system, players_respawn_system},
     portals::PortalAssignments,
     quests::{
@@ -319,7 +318,7 @@ fn kind(id: &str, _switch: &str) -> KindDef {
 }
 
 // A logged-in player standing in the middle of cell (0, 0).
-fn standing_player(app: &mut App, id: u32) -> (Entity, UnboundedReceiver<ServerToClient>) {
+fn standing_player(app: &mut App, id: u32) -> (Entity, UnboundedReceiver<ServerMessage>) {
     let geometry = *app.world().resource::<MapGeometry>();
     let pos = Position {
         x: geometry.cell_center_x(0),

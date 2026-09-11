@@ -8,7 +8,6 @@ use crate::{
     actors::{ActorInfo, ActorMap},
     combat::PendingExplosions,
     config::ServerGameplayConfig,
-    network::ServerToClient,
     players::{Invincibility, PlayerInfo, PlayerMap},
     quests::{QuestBoard, QuestCatalog},
 };
@@ -30,7 +29,7 @@ fn app() -> App {
     app
 }
 
-fn player(app: &mut App, id: PlayerId) -> (Entity, UnboundedReceiver<ServerToClient>) {
+fn player(app: &mut App, id: PlayerId) -> (Entity, UnboundedReceiver<ServerMessage>) {
     let entity = app
         .world_mut()
         .spawn((
@@ -83,7 +82,10 @@ fn lost_volley_and_shooter_death_or_respawn_do_not_cancel_hits() {
             *app.world().get::<Health>(victim).expect("victim missing"),
             Health(15.0)
         );
-        assert!(std::iter::from_fn(|| receiver.try_recv().ok()).any(|message| matches!(message, ServerToClient::Send(ServerMessage::PlayerHit(hit)) if hit.health == Health(15.0))));
+        assert!(
+            std::iter::from_fn(|| receiver.try_recv().ok())
+                .any(|message| matches!(message, ServerMessage::PlayerHit(hit) if hit.health == Health(15.0)))
+        );
         app.update();
         assert_eq!(
             *app.world().get::<Health>(victim).expect("victim missing"),
@@ -189,8 +191,7 @@ fn cosmetic_volley_relays_its_origin_and_numeric_pattern_while_shooter_is_dead()
         app.world().resource::<PlayerMap>(),
         &app.world().resource::<ServerGameplayConfig>().weapons.projectiles,
     );
-    let ServerToClient::Send(ServerMessage::ProjectileShot(relay)) = receiver.try_recv().expect("volley relay missing")
-    else {
+    let ServerMessage::ProjectileShot(relay) = receiver.try_recv().expect("volley relay missing") else {
         panic!("unexpected relay")
     };
     assert_eq!(relay.id, PlayerId(1));
@@ -245,8 +246,5 @@ fn malformed_or_unknown_pattern_volleys_are_not_relayed() {
         app.world().resource::<PlayerMap>(),
         &app.world().resource::<ServerGameplayConfig>().weapons.projectiles,
     );
-    assert!(matches!(
-        receiver.try_recv(),
-        Ok(ServerToClient::Send(ServerMessage::ProjectileShot(_)))
-    ));
+    assert!(matches!(receiver.try_recv(), Ok(ServerMessage::ProjectileShot(_))));
 }

@@ -14,7 +14,6 @@ use crate::{
     config::{ActorRespawnConfig, ActorRespawnScope, PlayerRespawnMode, RespawnConfig, ServerGameplayConfig},
     map::{ActorSpawnZone, CellGrid, EdgeGrid, LevelGrid, MapConfig, PlayerSpawnZone},
     missiles::MissileMap,
-    network::ServerToClient,
     players::{PlayerInfo, PlayerQuestState, enter_group_respawn, players_group_respawn_system},
     portals::PortalAssignments,
     schedule::{ServerSet, configure_server_schedule},
@@ -133,7 +132,7 @@ fn materialize_actors(app: &mut App) {
     advance(app, TICK_DURATION.as_secs_f32());
 }
 
-pub(super) fn add_player(app: &mut App, id: PlayerId) -> (Entity, UnboundedReceiver<ServerToClient>) {
+pub(super) fn add_player(app: &mut App, id: PlayerId) -> (Entity, UnboundedReceiver<ServerMessage>) {
     let pos = Position {
         x: -8.0 + id.0 as f32,
         y: 0.0,
@@ -399,7 +398,7 @@ fn a_group_death_resets_teammates_once_and_respawns_everyone_together() {
     let player_death = app.world().resource::<ServerGameplayConfig>().scoring.player_death;
     let mut effects = Vec::new();
     let mut feed_count = 0;
-    while let Ok(ServerToClient::Send(message)) = rx.try_recv() {
+    while let Ok(message) = rx.try_recv() {
         match message {
             ServerMessage::PlayerDeath(death) => {
                 assert_eq!(death.killer, None);
@@ -428,7 +427,7 @@ fn a_group_death_resets_teammates_once_and_respawns_everyone_together() {
     advance(&mut app, 1.0);
     let mut relocated: Vec<_> = std::iter::from_fn(|| rx.try_recv().ok())
         .filter_map(|message| match message {
-            ServerToClient::Send(ServerMessage::PlayerRelocated(relocation)) => Some(relocation),
+            ServerMessage::PlayerRelocated(relocation) => Some(relocation),
             _ => None,
         })
         .collect();

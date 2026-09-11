@@ -4,7 +4,6 @@ use crate::{
     actors::{ActorInfo, ActorMap, ActorMotionQuery, ActorStateQuery, PendingActorSpawns},
     items::ItemMap,
     missiles::MissileMap,
-    network::ServerToClient,
     players::{PlayerInfo, PlayerMap, PlayerStateQuery},
     portals::PortalAssignments,
 };
@@ -18,10 +17,7 @@ use common::{map::Carriers, protocol::*};
 pub fn broadcast_to_others(players: &PlayerMap, skip: PlayerId, message: ServerMessage) {
     for (other_id, other_info) in players.iter() {
         if *other_id != skip && other_info.connection.logged_in {
-            let _ = other_info
-                .connection
-                .channel
-                .send(ServerToClient::Send(message.clone()));
+            let _ = other_info.connection.channel.send(message.clone());
         }
     }
 }
@@ -30,10 +26,7 @@ pub fn broadcast_to_others(players: &PlayerMap, skip: PlayerId, message: ServerM
 pub fn broadcast_to_all(players: &PlayerMap, message: ServerMessage) {
     for player_info in players.values() {
         if player_info.connection.logged_in {
-            let _ = player_info
-                .connection
-                .channel
-                .send(ServerToClient::Send(message.clone()));
+            let _ = player_info.connection.channel.send(message.clone());
         }
     }
 }
@@ -51,10 +44,7 @@ pub(super) fn broadcast_player_moves(players: &PlayerMap, tick: u32, moves: &[Pl
         let _ = info
             .connection
             .channel
-            .send(ServerToClient::Send(ServerMessage::PlayerMoves(SPlayerMoves {
-                tick,
-                moves,
-            })));
+            .send(ServerMessage::PlayerMoves(SPlayerMoves { tick, moves }));
     }
 }
 

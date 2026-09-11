@@ -23,7 +23,7 @@ use crate::{
     cameras::MainCameraMarker,
     characters::PreviousTickPosition,
     config::{AssetSet, ClientSettings},
-    network::{ClientToServer, ClientToServerChannel},
+    network::ClientToServerChannel,
     players::{LocalPlayerMarker, MyPlayerId, PlayerMap},
     vfx::ParticleClouds,
 };
@@ -214,12 +214,10 @@ pub fn projectiles_movement_system(
                     let hit = character_hit.expect("character event missing its hit");
                     if !ember && *shooter_id == world.my_player_id.0 {
                         let direction = hit.hit().direction;
-                        world
-                            .to_server
-                            .send(ClientToServer::Send(ClientMessage::ProjectileHit(CProjectileHit {
-                                target: hit.target(),
-                                direction: [direction.x, direction.z],
-                            })));
+                        world.to_server.send(ClientMessage::ProjectileHit(CProjectileHit {
+                            target: hit.target(),
+                            direction: [direction.x, direction.z],
+                        }));
                     }
                     present_character_impact(
                         &mut commands,

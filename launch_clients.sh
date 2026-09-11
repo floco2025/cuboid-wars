@@ -62,7 +62,7 @@ for i in $(seq 0 $((NUM_CLIENTS - 1))); do
     Y_LOGICAL=$((MENUBAR_HEIGHT + GAP + ROW * (WINDOW_HEIGHT + TITLEBAR_HEIGHT + GAP)))
     
     echo "Client $i: COL=$COL, ROW=$ROW, Logical=($X_LOGICAL, $Y_LOGICAL)"
-    cargo run --bin client --release -- --window-x $X_LOGICAL --window-y $Y_LOGICAL --window-width $WINDOW_WIDTH --window-height $WINDOW_HEIGHT \
+    cargo run --release -- join --window-x $X_LOGICAL --window-y $Y_LOGICAL --window-width $WINDOW_WIDTH --window-height $WINDOW_HEIGHT \
     --name "" --lag-ms $LAG_MS --drop $DROP --jitter $JITTER &
 done
 

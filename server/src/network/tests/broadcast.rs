@@ -64,7 +64,7 @@ fn player_moves_exclude_dead_players() {
 fn player_moves_reach_every_other_client_without_the_recipients_own_entry() {
     let mut world = World::new();
     let mut players = PlayerMap::default();
-    let mut receivers: Vec<(PlayerId, UnboundedReceiver<ServerToClient>)> = Vec::new();
+    let mut receivers: Vec<(PlayerId, UnboundedReceiver<ServerMessage>)> = Vec::new();
     for id in [PlayerId(1), PlayerId(2), PlayerId(3)] {
         let entity = spawn_player_entity(&mut world);
         let (tx, rx) = unbounded_channel();
@@ -81,9 +81,7 @@ fn player_moves_reach_every_other_client_without_the_recipients_own_entry() {
     broadcast_player_moves(&players, 9, &moves);
 
     for (id, receiver) in &mut receivers {
-        let ServerToClient::Send(ServerMessage::PlayerMoves(message)) =
-            receiver.try_recv().expect("movement batch missing")
-        else {
+        let ServerMessage::PlayerMoves(message) = receiver.try_recv().expect("movement batch missing") else {
             panic!("unexpected message");
         };
         assert_eq!(message.tick, 9);

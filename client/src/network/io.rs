@@ -1,10 +1,11 @@
 use bevy::prelude::*;
 use std::time::Duration;
+use tokio::sync::mpsc::error::TryRecvError;
 
 use super::{context::ServerMessageContext, routing::route_server_message};
 use crate::{
     constants::PING_INTERVAL,
-    network::{ClientToServer, ClientToServerChannel, RoundTripTime, ServerToClient, ServerToClientChannel, TickSync},
+    network::{ClientToServerChannel, RoundTripTime, ServerToClientChannel, TickSync},
 };
 use common::{config::NetworkConfig, protocol::*};
 
@@ -19,15 +20,14 @@ pub(super) fn network_receive_system(
     mut exit: MessageWriter<AppExit>,
     mut context: ServerMessageContext,
 ) {
-    // Process all messages from the server
-    while let Ok(msg) = from_server.try_recv() {
-        match msg {
-            ServerToClient::Disconnected => {
+    loop {
+        match from_server.try_recv() {
+            Ok(message) => route_server_message(message, &mut commands, &mut context),
+            Err(TryRecvError::Empty) => break,
+            Err(TryRecvError::Disconnected) => {
                 error!("disconnected from server");
                 exit.write(AppExit::Success);
-            }
-            ServerToClient::Message(message) => {
-                route_server_message(message, &mut commands, &mut context);
+                break;
             }
         }
     }
@@ -55,9 +55,9 @@ pub(super) fn network_ping_system(
     // Send ping request every PING_INTERVAL seconds
     if *timer >= PING_INTERVAL {
         *timer = 0.0;
-        to_server.send(ClientToServer::Send(ClientMessage::Ping(CPing {
+        to_server.send(ClientMessage::Ping(CPing {
             timestamp_nanos: time.elapsed().as_nanos() as u64,
-        })));
+        }));
     }
 }
 

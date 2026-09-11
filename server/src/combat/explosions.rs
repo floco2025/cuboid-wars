@@ -17,7 +17,6 @@ use super::{
 use crate::{
     actors::ActorMap,
     config::{BlastConfig, ServerGameplayConfig},
-    network::ServerToClient,
     players::{Invincibility, PlayerMap},
     quests::{QuestBoard, QuestCatalog},
 };
@@ -363,12 +362,12 @@ fn apply_player_impulses(context: &mut ExplosionContext, impulses: HashMap<Playe
             let _ = info
                 .connection
                 .channel
-                .send(ServerToClient::Send(ServerMessage::PlayerKnockback(SPlayerKnockback {
+                .send(ServerMessage::PlayerKnockback(SPlayerKnockback {
                     id,
                     generation: info.session.generation,
                     health: *health,
                     impulse: impulse.velocity.to_array(),
-                })));
+                }));
         }
     }
 }

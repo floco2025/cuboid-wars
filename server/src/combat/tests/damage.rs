@@ -13,14 +13,13 @@ use crate::{
         PlacedItemRespawnSecs, PlacedItemsConfig, PlayerHealthConfig, PowerUpDurationSecs, PowerUpsConfig,
         ScoringConfig, ServerGameplayConfig, WeaponsConfig, WeatherCycleConfig, WeatherMode,
     },
-    network::ServerToClient,
     players::{PlayerInfo, PlayerMap, PowerUpState},
 };
 use common::protocol::{
     ActorId, CarrierId, Health, PlayerId, PortalMode, Position, PowerUpKind, SPlayerDeath, ServerMessage,
 };
 
-fn logged_in_player(players: &mut PlayerMap, id: PlayerId, name: &str) -> UnboundedReceiver<ServerToClient> {
+fn logged_in_player(players: &mut PlayerMap, id: PlayerId, name: &str) -> UnboundedReceiver<ServerMessage> {
     let (tx, rx) = unbounded_channel();
     let mut info = PlayerInfo::new(Entity::PLACEHOLDER, tx);
     info.connection.logged_in = true;
@@ -29,19 +28,19 @@ fn logged_in_player(players: &mut PlayerMap, id: PlayerId, name: &str) -> Unboun
     rx
 }
 
-fn next_player_death(receiver: &mut UnboundedReceiver<ServerToClient>) -> SPlayerDeath {
+fn next_player_death(receiver: &mut UnboundedReceiver<ServerMessage>) -> SPlayerDeath {
     loop {
         match receiver.try_recv().expect("expected a PlayerDeath broadcast") {
-            ServerToClient::Send(ServerMessage::PlayerDeath(msg)) => return msg,
+            ServerMessage::PlayerDeath(msg) => return msg,
             _ => continue,
         }
     }
 }
 
-fn feed_lines(receiver: &mut UnboundedReceiver<ServerToClient>) -> Vec<String> {
+fn feed_lines(receiver: &mut UnboundedReceiver<ServerMessage>) -> Vec<String> {
     let mut lines = Vec::new();
     while let Ok(envelope) = receiver.try_recv() {
-        if let ServerToClient::Send(ServerMessage::Feed(feed)) = envelope {
+        if let ServerMessage::Feed(feed) = envelope {
             lines.push(feed.spans.into_iter().map(|span| span.text).collect());
         }
     }
@@ -369,7 +368,7 @@ fn kill_player_broadcasts_player_death() {
 
     let envelope = shooter_rx.try_recv().expect("shooter should have received PlayerDeath");
     match envelope {
-        crate::network::ServerToClient::Send(ServerMessage::PlayerDeath(death)) => {
+        ServerMessage::PlayerDeath(death) => {
             assert_eq!(death.id, PlayerId(2));
         }
         other => panic!("unexpected message: {other:?}"),

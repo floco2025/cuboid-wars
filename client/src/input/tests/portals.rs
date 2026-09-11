@@ -71,8 +71,7 @@ fn firing_sends_the_client_resolved_geometry_and_current_body_generation() {
             .resource_mut::<ButtonInput<MouseButton>>()
             .press(MouseButton::Left);
         app.update();
-        let ClientToServer::Send(ClientMessage::PortalShot(shot)) = receiver.try_recv().expect("portal shot missing")
-        else {
+        let ClientMessage::PortalShot(shot) = receiver.try_recv().expect("portal shot missing") else {
             panic!("portal input sent a different message");
         };
         assert_eq!(shot.generation, PlayerGeneration(4));

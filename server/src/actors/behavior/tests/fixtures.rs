@@ -20,7 +20,6 @@ pub(super) use crate::{
     combat::{PendingExplosions, actors_beam_damage_system},
     config::ServerGameplayConfig,
     map::{ActorSpawnZone, CarrierGrid, CellGrid, EdgeGrid, LevelGrid, MapConfig},
-    network::ServerToClient,
     players::{Invincibility, PlayerInfo, PlayerMap},
     test_geometry::{CELL, LEVEL_HEIGHT, WALL_HEIGHT, geometry},
 };

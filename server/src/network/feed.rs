@@ -1,4 +1,4 @@
-use super::{ServerToClient, broadcast_to_all, broadcast_to_others};
+use super::{broadcast_to_all, broadcast_to_others};
 use crate::{config::FeedConfig, players::PlayerMap};
 use common::protocol::{BarrierKindId, FeedSpan, FeedStyle, PlayerId, SFeed, ServerMessage};
 
@@ -87,7 +87,7 @@ pub fn emit_feed(players: &PlayerMap, config: &FeedConfig, audience: FeedAudienc
         FeedAudience::EveryoneExcept(skip) => broadcast_to_others(players, skip, message),
         FeedAudience::Player(player) => {
             if let Some(info) = players.get(&player) {
-                let _ = info.connection.channel.send(ServerToClient::Send(message));
+                let _ = info.connection.channel.send(message);
             }
         }
     }

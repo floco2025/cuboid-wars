@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use common::protocol::{SEquipmentErased, ServerMessage};
 
 use super::PlayerMap;
-use crate::network::{ServerToClient, broadcast_to_all};
+use crate::network::broadcast_to_all;
 
 pub fn erase_equipment_system(mut players: ResMut<PlayerMap>) {
     let mut statuses = Vec::new();
@@ -16,7 +16,7 @@ pub fn erase_equipment_system(mut players: ResMut<PlayerMap>) {
             let _ = info
                 .connection
                 .channel
-                .send(ServerToClient::Send(ServerMessage::EquipmentErased(SEquipmentErased)));
+                .send(ServerMessage::EquipmentErased(SEquipmentErased));
         }
         if erased {
             statuses.push(info.status(*id));

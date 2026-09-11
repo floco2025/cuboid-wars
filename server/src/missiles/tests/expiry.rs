@@ -8,12 +8,11 @@ use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
 
 use super::{MissileMap, expiry::missiles_expiry_system, handle_missile_moves};
 use crate::{
-    network::ServerToClient,
     players::{PlayerInfo, PlayerMap},
     schedule::ticks_from_secs,
 };
 
-fn app() -> (App, UnboundedReceiver<ServerToClient>) {
+fn app() -> (App, UnboundedReceiver<ServerMessage>) {
     let server = fixtures::server_config();
     let mut app = App::new();
     app.insert_resource(server.gameplay_config())
@@ -72,8 +71,7 @@ fn an_unreported_missile_is_removed_after_its_lifetime_with_a_cue_at_its_last_po
     app.world_mut().resource_mut::<ServerTick>().0 = 10 + lifetime_ticks + 61;
     app.update();
     assert!(app.world().resource::<MissileMap>().get(&MissileId(3)).is_none());
-    let ServerToClient::Send(ServerMessage::MissileDetonated(cue)) = receiver.try_recv().expect("expiry cue missing")
-    else {
+    let ServerMessage::MissileDetonated(cue) = receiver.try_recv().expect("expiry cue missing") else {
         panic!("unexpected message");
     };
     assert_eq!(cue.id, MissileId(3));

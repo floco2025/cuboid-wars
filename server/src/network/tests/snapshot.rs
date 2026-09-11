@@ -7,7 +7,7 @@ use common::{
 };
 use tokio::sync::mpsc::unbounded_channel;
 
-use super::{ServerToClient, broadcast::snapshot_actors, snapshot::network_broadcast_actor_moves_system};
+use super::{broadcast::snapshot_actors, snapshot::network_broadcast_actor_moves_system};
 use crate::{
     actors::{ActorInfo, ActorMap, ActorMotionQuery, ActorStateQuery},
     players::{PlayerInfo, PlayerMap},
@@ -87,7 +87,7 @@ fn actor_updates_repeat_full_state_at_the_configured_rate_in_the_carrier_frame()
                 .transform_position(&local);
             app.world_mut().entity_mut(entity).insert(pos);
             app.update();
-            while let Ok(ServerToClient::Send(message)) = receiver.try_recv() {
+            while let Ok(message) = receiver.try_recv() {
                 let ServerMessage::ActorMoves(message) = message else {
                     panic!("unexpected message");
                 };

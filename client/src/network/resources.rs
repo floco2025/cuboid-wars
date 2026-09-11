@@ -2,9 +2,7 @@ use bevy::prelude::*;
 use std::{collections::VecDeque, time::Duration};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, error::TryRecvError};
 
-use common::protocol::sequence_is_newer;
-
-use super::transport::{ClientToServer, ServerToClient};
+use common::protocol::{ClientMessage, ServerMessage, sequence_is_newer};
 
 // Newest `SSnapshot.tick` applied; an older snapshot is ignored. `None`
 // until the first one.
@@ -32,34 +30,35 @@ pub struct RoundTripTime {
     pub measurements: VecDeque<Duration>,
 }
 
-// Resource wrapper for the client to server channel.
+// The app's sending end of the client-to-server queue.
 #[derive(Resource)]
-pub struct ClientToServerChannel(UnboundedSender<ClientToServer>);
+pub struct ClientToServerChannel(UnboundedSender<ClientMessage>);
 
 impl ClientToServerChannel {
     #[must_use]
-    pub const fn new(sender: UnboundedSender<ClientToServer>) -> Self {
+    pub const fn new(sender: UnboundedSender<ClientMessage>) -> Self {
         Self(sender)
     }
 
-    // The receiver is the network task; once it is gone the connection is
-    // closing and there is nobody left to tell.
-    pub fn send(&self, msg: ClientToServer) {
-        let _ = self.0.send(msg);
+    // The receiver is the network task or the host's own server; once it is
+    // gone the link is closing and there is nobody left to tell.
+    pub fn send(&self, message: ClientMessage) {
+        let _ = self.0.send(message);
     }
 }
 
-// Resource wrapper for the server to client channel.
+// The app's receiving end of the server-to-client queue; a closed queue is
+// the disconnect.
 #[derive(Resource)]
-pub struct ServerToClientChannel(UnboundedReceiver<ServerToClient>);
+pub struct ServerToClientChannel(UnboundedReceiver<ServerMessage>);
 
 impl ServerToClientChannel {
     #[must_use]
-    pub const fn new(receiver: UnboundedReceiver<ServerToClient>) -> Self {
+    pub const fn new(receiver: UnboundedReceiver<ServerMessage>) -> Self {
         Self(receiver)
     }
 
-    pub fn try_recv(&mut self) -> Result<ServerToClient, TryRecvError> {
+    pub fn try_recv(&mut self) -> Result<ServerMessage, TryRecvError> {
         self.0.try_recv()
     }
 }

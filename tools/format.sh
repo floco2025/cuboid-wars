@@ -2,7 +2,7 @@
 set -eu
 cd "$(dirname "$0")/.."
 
-cargo fmt
+cargo fmt --all
 prettier --write --print-width 80 --object-wrap collapse \
     '{client,common,config,server,tools}/**/*.json' \
     '!config/server/maps/*/layout.json' '!config/client/client_local.json'

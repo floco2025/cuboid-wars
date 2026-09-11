@@ -4,7 +4,7 @@ use bevy::prelude::*;
 use rand::RngExt;
 
 use super::PlayerMap;
-use crate::{characters::sample_clear_position, network::ServerToClient};
+use crate::characters::sample_clear_position;
 use common::{
     config::{CharacterPhysicsConfig, GameplayConfig},
     constants::CHARACTER_CONTACT_OFFSET,
@@ -179,9 +179,7 @@ pub(super) fn apply_checkpoint_entries(
             let _ = player
                 .connection
                 .channel
-                .send(ServerToClient::Send(ServerMessage::CheckpointReached(
-                    SCheckpointReached,
-                )));
+                .send(ServerMessage::CheckpointReached(SCheckpointReached));
         }
     }
 }

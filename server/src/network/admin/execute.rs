@@ -9,7 +9,7 @@ use crate::{
     combat::{DeathSource, kill_player},
     config::ServerGameplayConfig,
     map::MapConfig,
-    network::{ServerToClient, broadcast_firework_show, broadcast_to_all},
+    network::{broadcast_firework_show, broadcast_to_all},
     players::{PlayerMap, PlayerStateQuery},
     quests::{QuestBoard, QuestCatalog, complete_quest, unlock_quest},
 };
@@ -294,9 +294,9 @@ pub(super) fn run_admin_command(
         }
         AdminCommand::Kick(name) => {
             let mut count = 0usize;
-            for (_, info) in players.iter() {
+            for (_, info) in players.iter_mut() {
                 if info.connection.logged_in && info.connection.name.to_lowercase() == name.to_lowercase() {
-                    let _ = info.connection.channel.send(ServerToClient::Close);
+                    info.connection.hang_up();
                     count += 1;
                 }
             }

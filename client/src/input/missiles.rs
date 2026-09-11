@@ -6,7 +6,7 @@ use crate::{
     config::AssetSet,
     constants::{MISSILE_RADIUS, MISSILE_SPAWN_OFFSET},
     missiles::{LockOnTarget, clear_launch_direction},
-    network::{ClientToServer, ClientToServerChannel},
+    network::ClientToServerChannel,
     players::{LocalPlayerInfo, LocalPlayerMarker, MyPlayerId, PlayerMap},
 };
 use common::{
@@ -95,9 +95,9 @@ pub fn input_missile_system(
         &plates.open_barriers,
         &mut rand::rng(),
     );
-    to_server.send(ClientToServer::Send(ClientMessage::MissileShot(CMissileShot {
+    to_server.send(ClientMessage::MissileShot(CMissileShot {
         generation,
         target,
         movement: MissileMovementState::from_velocity(muzzle.into(), direction * speed),
-    })));
+    }));
 }

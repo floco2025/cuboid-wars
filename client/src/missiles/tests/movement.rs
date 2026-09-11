@@ -2,7 +2,7 @@ use crate::{
     actors::ActorMap,
     carriers::CarrierEntities,
     characters::PreviousTickPosition,
-    network::{ClientToServer, ClientToServerChannel, SampleTiming},
+    network::{ClientToServerChannel, SampleTiming},
     players::{PlayerInfo, PlayerMap},
     test_fixtures,
     vfx::{BlastRadii, ExplosionAssets, ExplosionVfxBudget},
@@ -19,7 +19,7 @@ use common::{config::NetworkConfig, constants::TICK_SECS, map::Carriers, physics
 use std::{collections::HashMap, time::Duration};
 use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
 
-fn app(hz: u32) -> (App, UnboundedReceiver<ClientToServer>) {
+fn app(hz: u32) -> (App, UnboundedReceiver<ClientMessage>) {
     let mut app = App::new();
     app.add_plugins((TaskPoolPlugin::default(), AssetPlugin::default()));
     app.init_asset::<AudioSource>();
@@ -121,7 +121,7 @@ fn only_shooters_flights_simulate_and_report_at_the_configured_rate_without_a_li
         assert_eq!(messages.len(), hz as usize);
         let mut last = 0;
         for message in messages {
-            let ClientToServer::Send(ClientMessage::MissileMoves(message)) = message else {
+            let ClientMessage::MissileMoves(message) = message else {
                 panic!("unexpected flight report");
             };
             assert_eq!(message.moves.len(), 1);
@@ -149,9 +149,7 @@ fn a_fast_missile_reports_the_swept_hit_and_victim_generation_once() {
     let entity = missile(&mut app, MissileId(3), true, 300.0, 10.0);
     app.update();
     assert!(app.world().get_entity(entity).is_err());
-    let ClientToServer::Send(message) = receiver.try_recv().expect("detonation report missing") else {
-        panic!("unexpected close");
-    };
+    let message = receiver.try_recv().expect("detonation report missing");
     assert_eq!(message.lane(), Lane::Reliable);
     let ClientMessage::MissileDetonated(report) = message else {
         panic!("expected detonation");
@@ -183,9 +181,7 @@ fn lifetime_detonation_needs_no_target_or_movement_packet() {
     while receiver.try_recv().is_ok() {}
     app.update();
     assert!(app.world().get_entity(entity).is_err());
-    let ClientToServer::Send(ClientMessage::MissileDetonated(report)) =
-        receiver.try_recv().expect("detonation missing")
-    else {
+    let ClientMessage::MissileDetonated(report) = receiver.try_recv().expect("detonation missing") else {
         panic!("unexpected report");
     };
     assert!(report.hits.is_empty());
@@ -209,8 +205,7 @@ fn a_retired_body_kept_for_the_death_camera_does_not_block_flight() {
     let entity = missile(&mut app, MissileId(3), true, 300.0, 10.0);
     app.update();
     assert!(app.world().get::<Position>(entity).expect("flight hit the dead body").x > 9.0);
-    let ClientToServer::Send(ClientMessage::MissileMoves(_)) = receiver.try_recv().expect("movement report missing")
-    else {
+    let ClientMessage::MissileMoves(_) = receiver.try_recv().expect("movement report missing") else {
         panic!("flight detonated against the dead body");
     };
 }
@@ -236,9 +231,7 @@ fn a_missile_inside_geometry_detonates_where_it_is() {
     let entity = missile(&mut app, MissileId(1), true, 20.0, 10.0);
     app.update();
     assert!(app.world().get_entity(entity).is_err());
-    let ClientToServer::Send(ClientMessage::MissileDetonated(report)) =
-        receiver.try_recv().expect("detonation missing")
-    else {
+    let ClientMessage::MissileDetonated(report) = receiver.try_recv().expect("detonation missing") else {
         panic!("unexpected report");
     };
     assert_eq!(report.pos, Position { x: 0.0, y: 1.0, z: 0.0 });
@@ -283,7 +276,7 @@ fn a_missile_arms_against_its_shooter_only_after_leaving_them() {
     app.update();
     assert!(app.world().get_entity(entity).is_err());
     let detonation = std::iter::from_fn(|| receiver.try_recv().ok())
-        .any(|message| matches!(message, ClientToServer::Send(ClientMessage::MissileDetonated(_))));
+        .any(|message| matches!(message, ClientMessage::MissileDetonated(_)));
     assert!(detonation, "an armed missile passed through its shooter");
 }
 
@@ -297,7 +290,7 @@ fn a_missile_that_stops_making_progress_detonates_itself() {
     }
     assert!(app.world().get_entity(entity).is_err());
     let detonation = std::iter::from_fn(|| receiver.try_recv().ok())
-        .any(|message| matches!(message, ClientToServer::Send(ClientMessage::MissileDetonated(_))));
+        .any(|message| matches!(message, ClientMessage::MissileDetonated(_)));
     assert!(detonation, "a wedged missile flew on forever");
 }
 

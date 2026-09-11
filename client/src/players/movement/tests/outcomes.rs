@@ -3,7 +3,7 @@ use crate::test_fixtures;
 use common::protocol::{CarrierId, Eraser, Lane, MapLayout, PlayerGeneration};
 use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
 
-fn app(layout: MapLayout) -> (App, Entity, UnboundedReceiver<ClientToServer>) {
+fn app(layout: MapLayout) -> (App, Entity, UnboundedReceiver<ClientMessage>) {
     let mut app = App::new();
     let (tx, rx) = unbounded_channel();
     app.insert_resource(test_fixtures::gameplay_config())
@@ -33,10 +33,10 @@ fn app(layout: MapLayout) -> (App, Entity, UnboundedReceiver<ClientToServer>) {
     (app, entity, rx)
 }
 
-fn messages(rx: &mut UnboundedReceiver<ClientToServer>) -> Vec<MoveOutcome> {
+fn messages(rx: &mut UnboundedReceiver<ClientMessage>) -> Vec<MoveOutcome> {
     std::iter::from_fn(|| rx.try_recv().ok())
         .map(|command| {
-            let ClientToServer::Send(message @ ClientMessage::MoveOutcome(_)) = command else {
+            let message @ ClientMessage::MoveOutcome(_) = command else {
                 panic!("unexpected command")
             };
             assert_eq!(message.lane(), Lane::Reliable);
@@ -158,7 +158,7 @@ fn standing_in_an_eraser_repeats_at_the_movement_cadence_and_re_entry_reports_at
         update_hz: 10,
         snapshot_hz: 4,
     });
-    let erased = |rx: &mut UnboundedReceiver<ClientToServer>| {
+    let erased = |rx: &mut UnboundedReceiver<ClientMessage>| {
         messages(rx)
             .iter()
             .any(|event| matches!(event, MoveOutcome::EraseEquipment))

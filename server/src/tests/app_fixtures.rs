@@ -5,15 +5,39 @@ use bevy::prelude::App;
 use rand::random;
 use serde_json::json;
 
-use super::{NetworkOverrides, build_server_app_with_loader};
-use crate::{config::fixtures::server_config, map::generation::generate_map_at, network::FromClientsChannel};
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 
-pub(super) fn server_app(overrides: NetworkOverrides, from_clients: FromClientsChannel) -> Result<App> {
+use super::{NetworkOverrides, ServerAppOptions, build_server_app_with_loader};
+use crate::{
+    config::fixtures::server_config,
+    map::generation::generate_map_at,
+    network::{ClientLink, NewLinksChannel},
+};
+use common::protocol::{ClientMessage, ServerMessage};
+
+// A client's ends of the queues its `ClientLink` registers.
+pub(super) fn connect(
+    register: &UnboundedSender<ClientLink>,
+) -> (UnboundedSender<ClientMessage>, UnboundedReceiver<ServerMessage>) {
+    let (to_client, from_server) = unbounded_channel();
+    let (to_server, from_client) = unbounded_channel();
+    register
+        .send(ClientLink { to_client, from_client })
+        .expect("registration queue closed");
+    (to_server, from_server)
+}
+
+pub(super) fn server_app(overrides: NetworkOverrides, new_links: NewLinksChannel) -> Result<App> {
     let mut config = server_config();
     for map in config.maps.values_mut() {
         map.random_items = None;
     }
-    build_server_app_with_loader(config, None, overrides, from_clients, |name, hz, settings| {
+    let options = ServerAppOptions {
+        map: None,
+        network: overrides,
+        logging: false,
+    };
+    build_server_app_with_loader(config, options, new_links, |name, hz, settings| {
         let directory = std::env::temp_dir().join(format!("cuboid_app_{}", random::<u64>()));
         fs::create_dir(&directory)?;
         let path = directory.join("layout.json");

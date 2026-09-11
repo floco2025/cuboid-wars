@@ -1,4 +1,9 @@
+use anyhow::{Context, Result, bail};
 use bevy::prelude::*;
+use tokio::{
+    runtime::Handle,
+    sync::mpsc::{UnboundedReceiver, UnboundedSender},
+};
 
 use crate::{
     barriers::{KeyKinds, build_barrier_assets},
@@ -14,7 +19,30 @@ use crate::{
 };
 use common::{map::Carriers, physics::CollisionWorld, protocol::*};
 
-pub(crate) fn install_bootstrap(app: &mut App, message: SInit, asset_set: &AssetSet) -> anyhow::Result<()> {
+// Sends `CLogin` and waits for `SInit`. Anything that lands before it is a
+// snapshot or an unreliable message, which the protocol lets us drop; the
+// reliable lane guarantees `SInit` comes first on it.
+pub fn login(
+    handle: &Handle,
+    to_server: &UnboundedSender<ClientMessage>,
+    from_server: &mut UnboundedReceiver<ServerMessage>,
+    name: String,
+) -> Result<SInit> {
+    to_server
+        .send(ClientMessage::Login(CLogin { name }))
+        .context("server link closed before login")?;
+    handle.block_on(async {
+        loop {
+            match from_server.recv().await {
+                Some(ServerMessage::Init(message)) => return Ok(message),
+                Some(_) => {}
+                None => bail!("server disconnected before SInit"),
+            }
+        }
+    })
+}
+
+pub(crate) fn install_bootstrap(app: &mut App, message: SInit, asset_set: &AssetSet) -> Result<()> {
     message.world.network.validate()?;
     let gameplay_config = message.world.gameplay.gameplay_config()?;
     let map_settings = &message.world.map.settings;

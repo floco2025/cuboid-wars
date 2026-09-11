@@ -1,6 +1,6 @@
 use super::*;
 
-fn actor_app(kind: &str, health: f32) -> (App, Entity, UnboundedReceiver<ServerToClient>) {
+fn actor_app(kind: &str, health: f32) -> (App, Entity, UnboundedReceiver<ServerMessage>) {
     let fixture = Fixture::new(kind);
     let origin = fixture.pos(1, 2);
     let target = fixture.pos(3, 2);
@@ -138,7 +138,7 @@ fn immovable_actor_holds_long_burst_and_stops_when_player_disconnects() {
     assert!(actor.route.is_none());
     assert_eq!(actor.beam.target(), Some(PlayerId(7)));
     let mut targets = Vec::new();
-    while let Ok(ServerToClient::Send(message)) = receiver.try_recv() {
+    while let Ok(message) = receiver.try_recv() {
         if let ServerMessage::ActorBeam(cue) = message {
             targets.push(cue.beam.map(|beam| beam.target));
         }
@@ -204,7 +204,7 @@ fn immovable_actor_repeats_bursts_with_a_damage_free_cooldown_and_transition_cue
     let expected_cooldown_ticks = (attack.cooldown_secs / TICK_SECS).ceil() as u32;
     assert!((expected_cooldown_ticks..=expected_cooldown_ticks + 1).contains(&cooldown_ticks));
     let mut cues = Vec::new();
-    while let Ok(ServerToClient::Send(message)) = receiver.try_recv() {
+    while let Ok(message) = receiver.try_recv() {
         if let ServerMessage::ActorBeam(cue) = message {
             cues.push(cue);
         }

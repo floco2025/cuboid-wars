@@ -3,7 +3,7 @@ use std::time::Duration;
 use super::handle_login_message;
 use crate::{
     config::{ActorRespawnScope, PlayerRespawnMode, ServerGameplayConfig},
-    network::{ServerToClient, SharedWorld, handlers::CharacterQueries},
+    network::{SharedWorld, handlers::CharacterQueries},
     players::{CheckpointId, PlayerCheckpoint, PlayerInfo, PlayerMap, respawn_tests::respawn_app},
     portals::{PortalAssignments, PortalMap},
     quests::{QuestBoard, QuestCatalog},
@@ -151,20 +151,17 @@ fn joining_inherits_shared_progress_and_respects_blocked_spawns_and_group_countd
             );
         }
         system.apply(app.world_mut());
-        assert!(matches!(
-            rx.try_recv(),
-            Ok(ServerToClient::Send(ServerMessage::Init(_)))
-        ));
+        assert!(matches!(rx.try_recv(), Ok(ServerMessage::Init(_))));
         let mut group_cues = 0;
         let mut relocations = Vec::new();
         while let Ok(message) = rx.try_recv() {
             match message {
-                ServerToClient::Send(ServerMessage::PlayerDeath(death)) => {
+                ServerMessage::PlayerDeath(death) => {
                     assert_eq!(death.effect, PlayerDeathEffect::GroupRespawn);
                     group_cues += 1;
                 }
-                ServerToClient::Send(ServerMessage::PlayerRelocated(relocation)) => relocations.push(relocation),
-                ServerToClient::Send(ServerMessage::CheckpointReached(_)) => {
+                ServerMessage::PlayerRelocated(relocation) => relocations.push(relocation),
+                ServerMessage::CheckpointReached(_) => {
                     panic!("login notified checkpoint entry")
                 }
                 _ => {}

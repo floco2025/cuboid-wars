@@ -5,7 +5,6 @@ use crate::{
     combat::{DeathSource, PendingExplosions, apply_damage, kill_player},
     config::{FallDamageConfig, ServerGameplayConfig},
     map::MapConfig,
-    network::ServerToClient,
     portals::PortalAssignments,
 };
 use common::{
@@ -190,13 +189,11 @@ pub fn players_fall_damage_system(
                 let _ = info
                     .connection
                     .channel
-                    .send(ServerToClient::Send(ServerMessage::PlayerFallDamage(
-                        SPlayerFallDamage {
-                            id: *id,
-                            generation: info.session.generation,
-                            health: *health,
-                        },
-                    )));
+                    .send(ServerMessage::PlayerFallDamage(SPlayerFallDamage {
+                        id: *id,
+                        generation: info.session.generation,
+                        health: *health,
+                    }));
             }
             if health.0 <= 0.0 {
                 info!(

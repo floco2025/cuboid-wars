@@ -80,7 +80,7 @@ fn grounded_rider_reports_local_position_and_takeoff_immediately_returns_to_worl
         });
         app.world_mut().entity_mut(entity).insert(pos);
         app.update();
-        if let Ok(ClientToServer::Send(ClientMessage::Move(report))) = receiver.try_recv() {
+        if let Ok(ClientMessage::Move(report)) = receiver.try_recv() {
             assert_eq!(report.movement.carrier, CarrierId(1));
             assert!((Vec3::from(report.movement.pos) - Vec3::from(local)).length() < 1e-5);
             reports += 1;
@@ -96,7 +96,7 @@ fn grounded_rider_reports_local_position_and_takeoff_immediately_returns_to_worl
         .entity_mut(entity)
         .insert((takeoff, step(CarrierId::WORLD, CharacterSupport::Airborne)));
     app.update();
-    let ClientToServer::Send(ClientMessage::Move(report)) = receiver.try_recv().expect("takeoff report missing") else {
+    let ClientMessage::Move(report) = receiver.try_recv().expect("takeoff report missing") else {
         panic!("expected movement report");
     };
     assert_eq!(report.movement.carrier, CarrierId::WORLD);
@@ -152,8 +152,7 @@ fn boarding_a_carrier_reports_immediately() {
         .entity_mut(entity)
         .insert(step(CarrierId(1), CharacterSupport::Ground));
     app.update();
-    let ClientToServer::Send(ClientMessage::Move(report)) = receiver.try_recv().expect("boarding report missing")
-    else {
+    let ClientMessage::Move(report) = receiver.try_recv().expect("boarding report missing") else {
         panic!("expected movement report");
     };
     assert_eq!(report.movement.carrier, CarrierId(1));
@@ -263,7 +262,7 @@ fn crossings_send_immediately_and_repeat_the_boundary_in_later_reports() {
     app.world_mut().entity_mut(local).insert(LocalPlayerMarker);
     let remote = spawn(app.world_mut(), 2);
     app.update();
-    let ClientToServer::Send(ClientMessage::Move(crossing)) = receiver.try_recv().expect("crossing missing") else {
+    let ClientMessage::Move(crossing) = receiver.try_recv().expect("crossing missing") else {
         panic!("expected crossing event")
     };
     assert_eq!(crossing.seq, 1);
@@ -285,19 +284,19 @@ fn crossings_send_immediately_and_repeat_the_boundary_in_later_reports() {
     app.update();
     assert!(matches!(
         receiver.try_recv(),
-        Ok(ClientToServer::Send(ClientMessage::Move(CMove {
+        Ok(ClientMessage::Move(CMove {
             seq: 3,
             portal_crossing: 2,
             ..
-        })))
+        }))
     ));
     app.update();
     assert!(matches!(
         receiver.try_recv(),
-        Ok(ClientToServer::Send(ClientMessage::Move(CMove {
+        Ok(ClientMessage::Move(CMove {
             seq: 4,
             portal_crossing: 2,
             ..
-        })))
+        }))
     ));
 }

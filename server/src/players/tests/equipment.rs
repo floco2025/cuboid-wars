@@ -3,7 +3,7 @@ use crate::players::{PlayerInfo, PowerUpState, handle_move_outcome};
 use common::protocol::{BarrierKindId, CMoveOutcome, MoveOutcome, PlayerGeneration, PlayerId, PowerUpKind};
 use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
 
-fn test_app() -> (App, UnboundedReceiver<ServerToClient>) {
+fn test_app() -> (App, UnboundedReceiver<ServerMessage>) {
     let mut app = App::new();
     let (tx, rx) = unbounded_channel();
     let mut info = PlayerInfo::new(Entity::PLACEHOLDER, tx);
@@ -25,9 +25,9 @@ fn erase(app: &mut App) {
     );
 }
 
-fn erasure_cues(rx: &mut UnboundedReceiver<ServerToClient>) -> usize {
+fn erasure_cues(rx: &mut UnboundedReceiver<ServerMessage>) -> usize {
     std::iter::from_fn(|| rx.try_recv().ok())
-        .filter(|message| matches!(message, ServerToClient::Send(ServerMessage::EquipmentErased(_))))
+        .filter(|message| matches!(message, ServerMessage::EquipmentErased(_)))
         .count()
 }
 
@@ -61,14 +61,14 @@ fn missile_ammo_alone_is_erased_and_broadcast_once() {
     assert_eq!(
         messages
             .iter()
-            .filter(|message| matches!(message, ServerToClient::Send(ServerMessage::EquipmentErased(_))))
+            .filter(|message| matches!(message, ServerMessage::EquipmentErased(_)))
             .count(),
         1
     );
     let statuses: Vec<_> = messages
         .into_iter()
         .filter_map(|message| match message {
-            ServerToClient::Send(ServerMessage::PlayerStatus(status)) => Some(status),
+            ServerMessage::PlayerStatus(status) => Some(status),
             _ => None,
         })
         .collect();

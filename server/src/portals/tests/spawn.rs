@@ -8,7 +8,7 @@ use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
 use super::{PortalAssignments, PortalMap, handle_portal_shot_message};
 use crate::{
     map::MapConfig,
-    network::{ServerToClient, SharedWorld},
+    network::SharedWorld,
     players::{PlayerInfo, PlayerMap, PowerUpState},
     test_geometry::geometry,
 };
@@ -19,7 +19,7 @@ struct Fixture {
     assignments: PortalAssignments,
     portals: PortalMap,
     time: Time,
-    receivers: Vec<UnboundedReceiver<ServerToClient>>,
+    receivers: Vec<UnboundedReceiver<ServerMessage>>,
 }
 
 impl Fixture {
@@ -123,9 +123,7 @@ impl Fixture {
 
     fn assert_opened(&mut self, shooter: PlayerId, portal: Portal) {
         for receiver in &mut self.receivers {
-            let ServerToClient::Send(ServerMessage::PortalOpened(message)) =
-                receiver.try_recv().expect("placement cue missing")
-            else {
+            let ServerMessage::PortalOpened(message) = receiver.try_recv().expect("placement cue missing") else {
                 panic!("placement sent a different cue");
             };
             assert_eq!(message.shooter, shooter);
@@ -185,8 +183,7 @@ fn reported_fizzle_is_relayed_once_and_does_not_replace_a_portal() {
         fixture.shoot(id, PlayerGeneration(3), PortalShotResult::Fizzled(impact));
     }
     for receiver in &mut fixture.receivers {
-        let ServerToClient::Send(ServerMessage::PortalFizzled(message)) = receiver.try_recv().expect("fizzle missing")
-        else {
+        let ServerMessage::PortalFizzled(message) = receiver.try_recv().expect("fizzle missing") else {
             panic!("fizzle sent a different cue");
         };
         assert_eq!(message.shooter, id);

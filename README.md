@@ -52,6 +52,7 @@ items, scoring, and the death/respawn flow.
 - **Weather & lighting** — rain and a bright/dim/dark light cycle, set per
   map.
 - **Chat & admin console** — Enter to chat, `/` for commands; `/help` lists them and `/peace` toggles actor attacks.
+- **One executable** — play alone, host a game your friends join, join theirs, or run a dedicated server.
 
 ## Controls
 
@@ -106,10 +107,11 @@ Cargo invocations default to `--release` in this repo (debug builds pull in too
 much for our purposes).
 
 ```bash
-cargo run --release --bin server                       # bind 127.0.0.1:8080, loads default_map
-cargo run --release --bin server -- --map hotel        # load a specific map
-cargo run --release --bin client                       # connect to 127.0.0.1:8080
-cargo run --release --bin client -- --name "Alice"     # custom name
+cargo run --release                                    # single-player
+cargo run --release -- host                            # play and accept joiners on 127.0.0.1:8080
+cargo run --release -- host --bind 0.0.0.0:8080        # accept joiners from the LAN
+cargo run --release -- join 192.168.1.100:8080 --name "Alice"
+cargo run --release -- serve --map hotel               # dedicated headless server
 ```
 
 The repo ships a self-signed `cert.pem` / `key.pem` for LAN testing. **Replace

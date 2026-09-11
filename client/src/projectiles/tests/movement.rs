@@ -15,14 +15,14 @@ use crate::{
     actors::{ActorInfo, ActorMap},
     barriers::build_barrier_assets,
     bridges::build_bridge_assets,
-    network::{ClientToServer, ClientToServerChannel},
+    network::ClientToServerChannel,
     players::{LocalPlayerInfo, MyPlayerId, PlayerMap},
     projectiles::{MuzzleCheck, ProjectileMarker},
     test_fixtures,
     vfx::ParticleClouds,
 };
 
-fn app() -> (App, UnboundedReceiver<ClientToServer>) {
+fn app() -> (App, UnboundedReceiver<ClientMessage>) {
     let mut app = App::new();
     app.add_plugins((TaskPoolPlugin::default(), AssetPlugin::default()));
     app.init_asset::<AudioSource>();
@@ -135,7 +135,7 @@ fn only_the_shooters_real_bullet_reports_a_hit_once_even_while_dead() {
         let messages: Vec<_> = std::iter::from_fn(|| receiver.try_recv().ok()).collect();
         assert_eq!(messages.len(), reports);
         for message in messages {
-            let ClientToServer::Send(ClientMessage::ProjectileHit(hit)) = message else {
+            let ClientMessage::ProjectileHit(hit) = message else {
                 panic!("unexpected report")
             };
             assert_eq!(hit.target, HitTarget::Actor(ActorId(7)));

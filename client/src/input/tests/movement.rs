@@ -26,7 +26,7 @@ use crate::{
     config::ClientSettings,
     constants::{INPUT_ZOOM_PIXELS_PER_LINE, INPUT_ZOOM_SENSITIVITY_BASE},
     map::LevelFocusEnabled,
-    network::{ClientToServer, ClientToServerChannel},
+    network::ClientToServerChannel,
     players::{
         LocalMovementStep, LocalPlayerInfo, LocalPlayerMarker, MyPlayerId, PlayerMap, report_player_movement_system,
     },
@@ -343,7 +343,7 @@ fn unlocked_firing_faces_view_without_changing_movement_or_lock_and_commits_faci
             assert_eq!(app.world().resource::<LocalPlayerInfo>().stored_yaw, 0.0);
         }
         let mut committed_yaw = None;
-        while let Ok(ClientToServer::Send(message)) = receiver.try_recv() {
+        while let Ok(message) = receiver.try_recv() {
             if let ClientMessage::Move(message) = message {
                 committed_yaw = Some(message.movement.face_yaw);
             }

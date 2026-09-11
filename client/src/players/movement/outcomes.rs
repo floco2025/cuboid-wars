@@ -8,7 +8,7 @@ use common::{
 };
 
 use crate::{
-    network::{ClientToServer, ClientToServerChannel},
+    network::ClientToServerChannel,
     players::{LocalPlayerInfo, LocalPlayerMarker},
 };
 
@@ -52,10 +52,10 @@ pub(crate) fn report_move_outcomes_system(
         .next()
         .is_some();
     let send = |outcome| {
-        to_server.send(ClientToServer::Send(ClientMessage::MoveOutcome(CMoveOutcome {
+        to_server.send(ClientMessage::MoveOutcome(CMoveOutcome {
             generation,
             event: outcome,
-        })))
+        }))
     };
     // A pickup update can arrive after contact, so the client inventory cannot
     // gate erasure: standing in a field keeps reporting, at the movement
