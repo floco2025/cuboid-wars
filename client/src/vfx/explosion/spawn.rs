@@ -3,8 +3,8 @@ use super::{
     assets::{BlastRadii, ExplosionAssets, shockwave_mesh},
     particles::{ExplosionVfxBudget, SurfacePlane},
     scorch::{
-        SCORCH_SURFACE_OFFSET, ScorchPlacement, ScorchStyle, spawn_scorch_mark, surface_cross_section_diameter,
-        wall_scorch_diameter, wall_scorch_placements,
+        SCORCH_SURFACE_OFFSET, ScorchStyle, SurfaceContact, ground_scorch_placement, spawn_scorch_mark,
+        surface_cross_section_diameter, wall_scorch_placements,
     },
     shards::spawn_shard_cloud,
     smoke::spawn_smoke_cloud,
@@ -37,8 +37,8 @@ pub struct ExplosionSpawnCtx<'a> {
     pub budget: &'a mut ExplosionVfxBudget,
     pub explosion_assets: &'a ExplosionAssets,
     pub gameplay_config: &'a GameplayConfig,
-    pub collision_world: Option<&'a CollisionWorld>,
-    pub map_layout: Option<&'a MapLayout>,
+    pub collision_world: &'a CollisionWorld,
+    pub map_layout: &'a MapLayout,
     pub carriers: &'a Carriers,
     pub carrier_entities: &'a CarrierEntities,
     pub blast_radii: &'a BlastRadii,
@@ -58,8 +58,8 @@ impl<'a> ExplosionSpawnCtx<'a> {
 // What an explosion's surface effects land on: the geometry to probe, and
 // the carrier roots a mark hangs under.
 struct ExplosionSurfaces<'a> {
-    collision_world: Option<&'a CollisionWorld>,
-    map_layout: Option<&'a MapLayout>,
+    collision_world: &'a CollisionWorld,
+    map_layout: &'a MapLayout,
     carriers: &'a Carriers,
     carrier_entities: &'a CarrierEntities,
 }
@@ -165,8 +165,7 @@ fn spawn_explosion(
     // ring always marks a real danger area.
     let reach_radius = blast_radius.unwrap_or(fireball_diameter * 0.5);
     let standing_distance = (center.y - ground_y).max(0.0) + SCORCH_SURFACE_OFFSET;
-    let ground_surface =
-        collision_world.and_then(|world| world.ground_surface_below(center, reach_radius.max(standing_distance)));
+    let ground_surface = collision_world.ground_surface_below(center, reach_radius.max(standing_distance));
 
     // Start pulses at a tiny scale, not zero — a degenerate scale inverts to
     // NaN normals for one frame.
@@ -189,7 +188,7 @@ fn spawn_explosion(
     if let (Some(blast_radius), Some(surface)) = (blast_radius, ground_surface) {
         let ring_material = materials.add(explosion_assets.ring_template.clone());
         let ring_mesh = meshes.add(shockwave_mesh(
-            collision_world,
+            Some(collision_world),
             center,
             surface.normal,
             blast_radius * EXPLOSION_SHOCKWAVE_DIAMETER_FACTOR,
@@ -219,64 +218,46 @@ fn spawn_explosion(
     let mut rng = rng();
     let scorch_diameter = 2.0 * reach_radius * EXPLOSION_SCORCH_BLAST_DIAMETER_FACTOR;
     let scorch_radius = scorch_diameter * 0.5;
-    let scorch_style = ScorchStyle::random(explosion_assets.scorch_meshes.len(), &mut rng);
-    if let Some(surface) = ground_surface {
-        let distance = center.distance(surface.point);
-        if let Some(diameter) = surface_cross_section_diameter(scorch_radius, distance) {
-            spawn_scorch_mark(
-                commands,
-                materials,
-                budget,
-                explosion_assets,
-                carrier_entities,
-                ScorchPlacement::on_surface(surface, carriers, diameter, scorch_style),
-                scorch_style,
-                EXPLOSION_SCORCH_MAX_ACTIVE,
-            );
-        }
-    }
-    if let Some(map_layout) = map_layout {
-        for placement in wall_scorch_placements(
-            map_layout,
-            carriers,
-            center,
-            scorch_radius,
-            EXPLOSION_SCORCH_WALL_REACH_FACTOR,
+    let scorch_style = ScorchStyle::random(explosion_assets.scorch_variants.len(), &mut rng);
+    if let Some(surface) = ground_surface
+        && let Some(diameter) = surface_cross_section_diameter(scorch_radius, center.distance(surface.point))
+    {
+        let contact = SurfaceContact {
+            point: surface.point,
+            normal: surface.normal,
+            carrier: surface.carrier,
+        };
+        spawn_scorch_mark(
+            commands,
+            meshes,
+            materials,
+            budget,
+            explosion_assets,
+            carrier_entities,
+            ground_scorch_placement(contact, map_layout, carriers, center, diameter, scorch_style),
             scorch_style,
-        ) {
-            spawn_scorch_mark(
-                commands,
-                materials,
-                budget,
-                explosion_assets,
-                carrier_entities,
-                placement,
-                scorch_style,
-                EXPLOSION_SCORCH_MAX_ACTIVE,
-            );
-        }
-    } else if let Some(world) = collision_world {
-        let wall_probe_distance = scorch_radius * EXPLOSION_SCORCH_WALL_REACH_FACTOR;
-        for direction in [Vec3::X, Vec3::NEG_X, Vec3::Z, Vec3::NEG_Z] {
-            if let Some(surface) = world.wall_surface_along_ray(center, direction, wall_probe_distance)
-                && let Some(diameter) = wall_scorch_diameter(
-                    scorch_radius,
-                    center.distance(surface.point),
-                    EXPLOSION_SCORCH_WALL_REACH_FACTOR,
-                )
-            {
-                spawn_scorch_mark(
-                    commands,
-                    materials,
-                    budget,
-                    explosion_assets,
-                    carrier_entities,
-                    ScorchPlacement::on_surface(surface, carriers, diameter, scorch_style),
-                    scorch_style,
-                    EXPLOSION_SCORCH_MAX_ACTIVE,
-                );
-            }
-        }
+            EXPLOSION_SCORCH_MAX_ACTIVE,
+        );
+    }
+    for placement in wall_scorch_placements(
+        map_layout,
+        carriers,
+        center,
+        scorch_radius,
+        EXPLOSION_SCORCH_WALL_REACH_FACTOR,
+        scorch_style,
+    ) {
+        spawn_scorch_mark(
+            commands,
+            meshes,
+            materials,
+            budget,
+            explosion_assets,
+            carrier_entities,
+            placement,
+            scorch_style,
+            EXPLOSION_SCORCH_MAX_ACTIVE,
+        );
     }
 
     let ground_plane = ground_surface.map(|surface| SurfacePlane::from_hit(surface, center, reach_radius * 0.75));
@@ -285,7 +266,7 @@ fn spawn_explosion(
         meshes,
         explosion_assets.shard_material.clone(),
         budget,
-        collision_world,
+        Some(collision_world),
         ground_plane,
         center,
         reach_radius,

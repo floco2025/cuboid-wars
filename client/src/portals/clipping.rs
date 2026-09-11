@@ -40,7 +40,6 @@ pub(crate) struct PortalClipMaterials {
 // state copied over so both advance identically this frame. The
 // first-person camera does not draw the local body, and its twin stays
 // hidden with it.
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn portal_body_clipping_system(
     mut commands: Commands,
     portal_set: Res<PortalSet>,
@@ -141,7 +140,6 @@ fn twin_transform_for(player: &Transform, model: &Transform, entry: &PortalFrame
     GlobalTransform::from(mapped).reparented_to(&GlobalTransform::from(*player))
 }
 
-#[allow(clippy::too_many_arguments)]
 fn clip_model(
     commands: &mut Commands,
     clip_states: &mut Query<&mut PortalClipMaterials>,

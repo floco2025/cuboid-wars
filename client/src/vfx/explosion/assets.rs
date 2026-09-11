@@ -1,4 +1,4 @@
-use super::scorch::scorch_mesh;
+use super::scorch::{ScorchVariant, scorch_variant};
 use crate::constants::*;
 use bevy::{asset::RenderAssetUsages, mesh::Indices, prelude::*, render::render_resource::PrimitiveTopology};
 use common::physics::CollisionWorld;
@@ -26,7 +26,7 @@ pub fn explosion_sound_speed(radius: f32) -> f32 {
 #[derive(Resource)]
 pub struct ExplosionAssets {
     pub(super) fireball_mesh: Handle<Mesh>,
-    pub(super) scorch_meshes: Vec<Handle<Mesh>>,
+    pub(super) scorch_variants: Vec<ScorchVariant>,
     pub(super) shard_material: Handle<StandardMaterial>,
     pub(super) smoke_material: Handle<StandardMaterial>,
     pub(super) fireball_template: StandardMaterial,
@@ -45,8 +45,8 @@ impl ExplosionAssets {
             // Unit-diameter meshes: `Transform::scale` equals the layer's
             // world diameter in meters.
             fireball_mesh: meshes.add(with_white_vertex_colors(Mesh::from(Sphere::new(0.5)))),
-            scorch_meshes: (0..EXPLOSION_SCORCH_MESH_VARIANT_COUNT)
-                .map(|variant| meshes.add(scorch_mesh(variant as u64)))
+            scorch_variants: (0..EXPLOSION_SCORCH_MESH_VARIANT_COUNT)
+                .map(|variant| scorch_variant(variant as u64))
                 .collect(),
             shard_material: materials.add(StandardMaterial {
                 base_color: Color::srgb(1.0, 0.6, 0.25),
