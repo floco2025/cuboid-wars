@@ -51,13 +51,17 @@ pub fn ui_fps_system(
     scene_target: Res<SceneRenderTarget>,
     mut query: Single<&mut Text, With<FpsMarker>>,
 ) {
-    let Some(fps) = diagnostics
-        .get(&FrameTimeDiagnosticsPlugin::FPS)
-        .and_then(Diagnostic::smoothed)
+    // The mean frame time over the diagnostic's history, so alternating fast
+    // and slow frames report the sustained rate. `smoothed` would not: its
+    // default time constant is under one frame at 60 FPS.
+    let Some(frame_time_ms) = diagnostics
+        .get(&FrameTimeDiagnosticsPlugin::FRAME_TIME)
+        .and_then(Diagnostic::average)
+        .filter(|frame_time_ms| *frame_time_ms > 0.0)
     else {
         return;
     };
-    query.0 = fps_label(fps as f32, scene_target.size);
+    query.0 = fps_label((1000.0 / frame_time_ms) as f32, scene_target.size);
 }
 
 fn fps_label(fps: f32, render_size: UVec2) -> String {

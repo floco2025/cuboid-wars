@@ -1,5 +1,5 @@
 use bevy::{
-    input::mouse::{AccumulatedMouseScroll, MouseScrollUnit},
+    input::mouse::{MouseScrollUnit, MouseWheel},
     prelude::*,
 };
 
@@ -40,7 +40,7 @@ pub fn input_facing_lock_toggle_system(
 // waits for the local player to exist, and an open overlay swallows the
 // wheel.
 pub fn input_camera_zoom_system(
-    wheel: Res<AccumulatedMouseScroll>,
+    mut wheel: MessageReader<MouseWheel>,
     view_mode: Res<CameraViewMode>,
     state: Res<CameraInputState>,
     console: Res<ConsoleState>,
@@ -52,13 +52,18 @@ pub fn input_camera_zoom_system(
     if local_players.is_empty() {
         return;
     }
+    // Per event, not `AccumulatedMouseScroll`: that sums raw values and keeps
+    // only the last unit, so a pixel event plus a line event would distort.
+    let zoom: f32 = wheel
+        .read()
+        .map(|event| match event.unit {
+            MouseScrollUnit::Line => event.y,
+            MouseScrollUnit::Pixel => event.y / INPUT_ZOOM_PIXELS_PER_LINE,
+        })
+        .sum();
     if state.released || console.open || menu.open {
         return;
     }
-    let zoom = match wheel.unit {
-        MouseScrollUnit::Line => wheel.delta.y,
-        MouseScrollUnit::Pixel => wheel.delta.y / INPUT_ZOOM_PIXELS_PER_LINE,
-    };
     follow.zoom(
         *view_mode,
         zoom,

@@ -2,10 +2,7 @@ use std::f32::consts::PI;
 
 use bevy::{
     input::{
-        mouse::{
-            AccumulatedMouseMotion, AccumulatedMouseScroll, MouseMotion, MouseScrollUnit, MouseWheel,
-            accumulate_mouse_motion_system, accumulate_mouse_scroll_system,
-        },
+        mouse::{AccumulatedMouseMotion, MouseMotion, MouseScrollUnit, MouseWheel, accumulate_mouse_motion_system},
         touch::TouchPhase,
     },
     prelude::*,
@@ -68,11 +65,7 @@ fn input_app() -> (App, Entity, Entity) {
         .add_message::<MouseWheel>()
         .add_message::<WindowFocused>()
         .init_resource::<AccumulatedMouseMotion>()
-        .init_resource::<AccumulatedMouseScroll>()
-        .add_systems(
-            PreUpdate,
-            (accumulate_mouse_motion_system, accumulate_mouse_scroll_system),
-        )
+        .add_systems(PreUpdate, accumulate_mouse_motion_system)
         .add_systems(
             Update,
             (
