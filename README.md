@@ -56,42 +56,37 @@ items, scoring, and the death/respawn flow.
 
 ## Controls
 
-| Action | Key |
-| --- | --- |
-| Move | WASD |
-| Sprint | hold Shift |
-| Jump | Space |
-| Climb ladder | walk into it (Space lets go) |
-| Look | mouse |
-| Cycle weapons / multi-shot patterns | Q |
-| Fire selected weapon / portal A | Left mouse button |
-| Place portal B (when both portals are available) | Right mouse button |
-| Chat / admin console | Enter or `/` (↑/↓ history) |
-| Settings menu (also frees the cursor) | Escape |
-| Toggle top-down view (restores previous zoom) | V |
-| Lock / unlock third-person camera and facing | F |
-| Orbit third-person camera (locked or unlocked) | mouse |
-| Zoom between first and third person | mouse wheel |
-| Release cursor and pause movement | Shift-Escape |
-| Toggle level-focus (hide floors/walls on other levels) | R |
-| Cycle bounds: off → collider + support → hitbox | B |
-| Toggle fullscreen | F11 / Ctrl-F / Cmd-F |
+### Gameplay
 
-Scrolling fully in enters first person and enables facing lock; zooming back
-out keeps it locked. The mouse orbits in both states without holding a button.
-Movement follows the camera's horizontal direction. Unlocked, the robot faces
-its movement direction; locked, it faces the camera's aim and can strafe or
-backpedal. In third person the crosshair sits a little above centre and shots
-converge on what it points at. The camera pulls in around solid geometry and
-extends smoothly when clear. First person, third person, and the rearview share
-the FOV slider. Mouse and zoom sensitivity are multipliers, with 1 the standard
-speed and most of each slider given to speeds below it. Menu settings are saved
-locally and restored on the next start.
+| Action                                   | Key                  |
+| ---------------------------------------- | -------------------- |
+| Settings menu (also frees the cursor)    | Escape               |
+| Look                                     | mouse                |
+| Move                                     | WASD                 |
+| Sprint                                   | hold Shift           |
+| Jump                                     | Space                |
+| Cycle weapons / multi-shot patterns      | Q                    |
+| Fire selected weapon / portal A          | Left mouse button    |
+| Place portal B (when both are available) | Right mouse button   |
+| Zoom between first and third person      | mouse wheel          |
+| Lock / unlock third-person camera        | F                    |
+| Toggle fullscreen                        | F11 / Ctrl-F / Cmd-F |
+| Chat                                     | Enter                |
 
-Weapon pickups automatically select that weapon, except single-shot pickups
-keep an active multi-shot selection. Q cycles through the weapons you hold,
-including single-shot and multi-shot separately, and skips missiles when ammo
-is empty.
+Movement follows the camera. Unlocked, the robot faces where it walks; locked
+with F or by zooming into first person, it faces the crosshair and can strafe.
+Picking up a weapon selects it, and Q cycles through the ones you hold.
+
+### Debug
+
+| Action                                             | Key          |
+| -------------------------------------------------- | ------------ |
+| Toggle top-down view                               | V            |
+| Toggle level-focus                                 | R            |
+| Cycle bounds: off → collider+support → hitbox      | B            |
+| Cycle debug colors: off → by material → by segment | C            |
+| Release cursor                                     | Shift-Escape |
+| Admin console                                      | /            |
 
 ## Technical stack
 
