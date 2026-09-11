@@ -53,9 +53,7 @@ class AutoPlaceLightsDialog(QDialog):
         form.addRow("Column spacing (cells skipped between lights)", self.col_spacing)
         form.addRow("Column offset (starting column)", self.col_offset)
 
-        buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
-        )
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
 

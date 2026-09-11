@@ -10,7 +10,16 @@ from PySide6.QtTest import QTest
 from editor_fixtures import WindowTestCase
 from map_editor.catalogs import load_map_settings
 from map_editor.constants import MODE_FLOOR, MODE_FLOOR_MATERIAL, MODE_JUMP_REACH, MODE_SELECT
-from map_editor.jump_reach import ANTI_GRAVITY, BOTH, NORMAL, SPEED, FallSettings, JumpSettings, calculate_reach, landing_time
+from map_editor.jump_reach import (
+    ANTI_GRAVITY,
+    BOTH,
+    NORMAL,
+    SPEED,
+    FallSettings,
+    JumpSettings,
+    calculate_reach,
+    landing_time,
+)
 from map_editor.normalization import empty_level, empty_map
 from map_editor.transforms import insert_level_data, resize_map_data
 
@@ -21,9 +30,16 @@ class JumpReachTests(unittest.TestCase):
     def reach(self, *, margin=0, running=True, settings=None, origin=(1, 5, 5)):
         data = empty_map(20, 20)
         data["levels"] = [empty_level(i) for i in range(5)]
-        return {key: sum(landings) for key, landings in calculate_reach(
-            settings or self.settings, origin, data, running=running, margin=margin,
-        ).items()}
+        return {
+            key: sum(landings)
+            for key, landings in calculate_reach(
+                settings or self.settings,
+                origin,
+                data,
+                running=running,
+                margin=margin,
+            ).items()
+        }
 
     def test_four_combinations_have_independent_ranges(self):
         reach = self.reach()
@@ -76,7 +92,9 @@ class JumpReachTests(unittest.TestCase):
 
     def parse_settings(self, settings):
         return JumpSettings.from_settings(
-            settings, "settings.json", gameplay={"combat": {"health": {"player": {"max": 100}}}},
+            settings,
+            "settings.json",
+            gameplay={"combat": {"health": {"player": {"max": 100}}}},
             gameplay_source="gameplay.json",
         )
 
@@ -84,9 +102,16 @@ class JumpReachTests(unittest.TestCase):
         settings = {
             "player_fall": {"safe_distance": 8, "lethal_distance": 15},
             "geometry": {"grid_cell_size": 1, "level_height": 1, "wall_thickness": 0.2},
-            "movement": {"gravity": 2, "low_gravity": 1, "player": {
-                "jump_speed": 2, "walk_speed": 0.5, "run_speed": 1, "speed_power_up": 2,
-            }},
+            "movement": {
+                "gravity": 2,
+                "low_gravity": 1,
+                "player": {
+                    "jump_speed": 2,
+                    "walk_speed": 0.5,
+                    "run_speed": 1,
+                    "speed_power_up": 2,
+                },
+            },
         }
         self.assertEqual(self.parse_settings(settings), replace(self.settings, wall_thickness=0.2))
         for value in (None, True, "1", 0, -1, float("nan"), float("inf")):

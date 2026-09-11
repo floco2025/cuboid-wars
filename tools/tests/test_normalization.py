@@ -70,8 +70,24 @@ class NormalizationTests(unittest.TestCase):
     def test_zone_and_nested_map_switches_preserve_authored_values(self) -> None:
         data = empty_map(2, 2)
         data["actor_spawn_zones"] = [
-            {"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "zapper", "count": 1, "respawn_secs": 90, "switch": "guards"},
-            {"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "zapper", "count": 1, "respawn_secs": 90, "switch": ""},
+            {
+                "level": 0,
+                "cols": [0, 1],
+                "rows": [0, 1],
+                "kind": "zapper",
+                "count": 1,
+                "respawn_secs": 90,
+                "switch": "guards",
+            },
+            {
+                "level": 0,
+                "cols": [0, 1],
+                "rows": [0, 1],
+                "kind": "zapper",
+                "count": 1,
+                "respawn_secs": 90,
+                "switch": "",
+            },
         ]
         data["nested_maps"] = [
             {"map": "tile", "level": 0, "from": [0, 0], "to": [1, 0], "switch": "lift"},

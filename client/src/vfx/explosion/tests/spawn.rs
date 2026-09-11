@@ -216,7 +216,7 @@ fn marks_on_a_carrier_hang_under_it_in_its_frame() {
         floor_mark.1.translation
     );
     drop(marks);
-    let burns: Vec<_> = world.query::<&GrassBurn>().iter(&world).copied().collect();
+    let burns: Vec<_> = world.query::<&GrassBurn>().iter(&world).cloned().collect();
     assert_eq!(burns.len(), 1);
     assert_eq!(burns[0].carrier, CarrierId(1));
 }

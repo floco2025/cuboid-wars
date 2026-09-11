@@ -58,7 +58,9 @@ class ControlActionsMixin:
             motion = self.recent_nested_map
             if motion is not None and motion.switch:
                 switch = follow(motion.switch)
-                self.recent_nested_map = replace(motion, switch=switch, switch_inverted=bool(switch) and motion.switch_inverted)
+                self.recent_nested_map = replace(
+                    motion, switch=switch, switch_inverted=bool(switch) and motion.switch_inverted
+                )
         elif catalog == "barrier_kinds":
             self.recent_barrier_kind = follow(self.recent_barrier_kind) if self.recent_barrier_kind else None
             self.recent_item_key_kind = follow(self.recent_item_key_kind) if self.recent_item_key_kind else None

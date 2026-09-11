@@ -111,10 +111,17 @@ class WindowTests(WindowTestCase):
                         self.assertEqual(window.isMaximized(), maximized)
 
     def move_with_button(self, canvas, position):
-        self.app.sendEvent(canvas, QMouseEvent(
-            QEvent.Type.MouseMove, QPointF(position), QPointF(canvas.mapToGlobal(position)),
-            Qt.MouseButton.NoButton, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier,
-        ))
+        self.app.sendEvent(
+            canvas,
+            QMouseEvent(
+                QEvent.Type.MouseMove,
+                QPointF(position),
+                QPointF(canvas.mapToGlobal(position)),
+                Qt.MouseButton.NoButton,
+                Qt.MouseButton.LeftButton,
+                Qt.KeyboardModifier.NoModifier,
+            ),
+        )
 
     def test_single_tile_tools_preview_and_commit_one_target_without_drag_ranges(self):
         window = self.window
@@ -327,7 +334,9 @@ class WindowTests(WindowTestCase):
 
     def test_conflicting_loaded_plates_can_be_erased_independently(self):
         window = self.window
-        window.doc.root_data["switch_kinds"] = [{"id": name, "activation": "toggle", "reset_on_player_death": "never"} for name in ["a", "b"]]
+        window.doc.root_data["switch_kinds"] = [
+            {"id": name, "activation": "toggle", "reset_on_player_death": "never"} for name in ["a", "b"]
+        ]
         window.switch_ids = ["a", "b"]
         data = copy.deepcopy(window.map_data)
         data["pressure_plates"] = [{"level": 0, "col": 1, "row": 1, "switch": switch} for switch in ("a", "b")]
@@ -447,7 +456,9 @@ class WindowTests(WindowTestCase):
         window.bridge_kind_colors = {"bridge": "#00ff00"}
         window.doc.root_data["_settings"]["barrier_kinds"] = [{"id": "gate", "color": "#ff0000"}]
         window.doc.root_data["_settings"]["bridge_kinds"] = [{"id": "bridge", "color": "#00ff00"}]
-        window.doc.root_data["switch_kinds"] = [{"id": name, "activation": "toggle", "reset_on_player_death": "never"} for name in ["gate", "bridge"]]
+        window.doc.root_data["switch_kinds"] = [
+            {"id": name, "activation": "toggle", "reset_on_player_death": "never"} for name in ["gate", "bridge"]
+        ]
         window.switch_ids = ["gate", "bridge"]
         window.recent_barrier_kind = window.recent_pressure_plate_switch = "gate"
         window.recent_bridge_kind = "bridge"
@@ -479,14 +490,18 @@ class WindowTests(WindowTestCase):
 
     def test_toolbar_switch_choices_follow_the_catalog(self):
         window = self.window
-        window.doc.root_data["switch_kinds"] = [{"id": name, "activation": "toggle", "reset_on_player_death": "never"} for name in ["a"]]
+        window.doc.root_data["switch_kinds"] = [
+            {"id": name, "activation": "toggle", "reset_on_player_death": "never"} for name in ["a"]
+        ]
         window.switch_ids = ["a"]
         window.mode_combo.setCurrentText(MODE_PRESSURE_PLATE)
         window.tool_settings.refresh()
         combo = window.tool_settings.body.findChildren(QComboBox)[0]
         self.assertEqual([combo.itemText(i) for i in range(combo.count())], ["", "a"])
 
-        window.doc.root_data["switch_kinds"] = [{"id": name, "activation": "toggle", "reset_on_player_death": "never"} for name in ["a", "b"]]
+        window.doc.root_data["switch_kinds"] = [
+            {"id": name, "activation": "toggle", "reset_on_player_death": "never"} for name in ["a", "b"]
+        ]
         window.switch_ids = ["a", "b"]
         window.tool_settings.refresh()
         combo = window.tool_settings.body.findChildren(QComboBox)[0]
@@ -507,7 +522,9 @@ class WindowTests(WindowTestCase):
         ):
             self.assertIsNone(ActorSpawnFieldsDialog.prompt(window, "not_a_kind", 3, 90, ["guards"], None))
             warning.assert_called_once()
-        window.doc.root_data["switch_kinds"] = [{"id": name, "activation": "toggle", "reset_on_player_death": "never"} for name in ["guards"]]
+        window.doc.root_data["switch_kinds"] = [
+            {"id": name, "activation": "toggle", "reset_on_player_death": "never"} for name in ["guards"]
+        ]
         window.switch_ids = ["guards"]
         window.recent_actor_spawn_kind = kind
         window.recent_actor_spawn_count = 7

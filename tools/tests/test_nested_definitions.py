@@ -76,7 +76,9 @@ class NestedDocumentTests(ConfigTestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "hotel.json"
             data = parent_map()
-            data["nested_geometry"]["room"]["ladders"] = [{"lower_level": 0, "col": 1, "row": 0, "side": "N", "levels": 3}]
+            data["nested_geometry"]["room"]["ladders"] = [
+                {"lower_level": 0, "col": 1, "row": 0, "side": "N", "levels": 3}
+            ]
             write_map(path, data)
             doc = MapDocument(path)
             repaired, summary = doc.proposed_repairs()
@@ -88,12 +90,14 @@ class NestedDocumentTests(ConfigTestCase):
             self.assertEqual(doc.root_data, data)
 
     def test_cli_requires_settings_before_opening_a_window(self):
-        with patch.object(sys, "argv", ["editor.py", "unregistered"]), patch("sys.stderr", new_callable=io.StringIO) as stderr:
+        with (
+            patch.object(sys, "argv", ["editor.py", "unregistered"]),
+            patch("sys.stderr", new_callable=io.StringIO) as stderr,
+        ):
             with self.assertRaises(SystemExit) as failure:
                 main()
         self.assertEqual(failure.exception.code, 2)
         self.assertIn("not registered", stderr.getvalue())
-
 
 
 class NestedWindowTests(WindowTestCase):
@@ -108,15 +112,21 @@ class NestedWindowTests(WindowTestCase):
 
     def test_selector_uses_parent_catalogs_and_clears_selection(self):
         window = self.window
-        catalogs = (window.barrier_kind_colors.copy(), window.bridge_kind_colors.copy(),
-                    window.texture_catalog.copy(), window.wall_width_cells)
+        catalogs = (
+            window.barrier_kind_colors.copy(),
+            window.bridge_kind_colors.copy(),
+            window.texture_catalog.copy(),
+            window.wall_width_cells,
+        )
         window.tile_selection = (4, 4, 5, 5)
         self.select("room")
         self.assertEqual(window.map_data["grid_cols"], 3)
         self.assertIsNone(window.tile_selection)
         self.assertFalse(window.dirty)
-        self.assertEqual((window.barrier_kind_colors, window.bridge_kind_colors,
-                          window.texture_catalog, window.wall_width_cells), catalogs)
+        self.assertEqual(
+            (window.barrier_kind_colors, window.bridge_kind_colors, window.texture_catalog, window.wall_width_cells),
+            catalogs,
+        )
         window.apply_change("Paint", paint_floors(window.map_data, 0, (0, 0, 1, 1), DEFAULT_ALIAS))
         self.assertTrue(window.save())
         self.assertEqual(window.doc.active_map, "room")
@@ -155,8 +165,9 @@ class NestedWindowTests(WindowTestCase):
         with patch("map_editor.file_actions.QMessageBox.warning") as warning:
             self.assertFalse(window.save())
         self.assertIn("Nested room", warning.call_args.args[2])
-        issue = next(issue for issue in window.validate_document(window.doc.root_data).issues
-                     if "missing-alias" in issue.message)
+        issue = next(
+            issue for issue in window.validate_document(window.doc.root_data).issues if "missing-alias" in issue.message
+        )
         window.focus_issue(issue)
         self.assertEqual(window.doc.active_map, "room")
         self.assertEqual(window.canvas.issue_rects, [(1, 1, 2, 2)])

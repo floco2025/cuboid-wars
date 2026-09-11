@@ -2,8 +2,6 @@
 
 ## Fixes
 
-- **Grass burns through walls:** a blast beside a wall burns the grass on the far side of it. The scorch mark is cut by that wall's shadow; the burn outline in `map/grass/burn.rs` could take the same cut.
-
 - **Portal body pose jumps at the crossing:** between floor portals, the emerging twin is upside down but the main body replaces it upright when the center crosses, swapping the visible legs for the upper body. Preserve the rendered pose across the handoff before reorienting it.
 
 - **Body clipping flickers on moving portals:** straddle detection uses the current tick's portal frame against the interpolated player position, while the visible portal and clipping planes use the interpolated carrier pose. Use the same rendered frames for detection and clipping.

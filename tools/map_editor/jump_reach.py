@@ -33,11 +33,7 @@ def _number(settings: dict, source: str, path: str, *, allow_zero: bool = False)
     value = settings
     for key in path.split("."):
         value = value.get(key) if isinstance(value, dict) else None
-    if (
-        type(value) not in (int, float)
-        or not isfinite(value)
-        or (value < 0 if allow_zero else value <= 0)
-    ):
+    if type(value) not in (int, float) or not isfinite(value) or (value < 0 if allow_zero else value <= 0):
         requirement = "nonnegative" if allow_zero else "positive"
         raise ValueError(f"{source}: {path} must be a finite {requirement} number")
     return float(value)

@@ -45,7 +45,9 @@ class LightsMixin:
             self.notify(error)
             return
         after = copy.deepcopy(self.map_data)
-        after["levels"][level_idx]["lights"].append({"col": col, "row": row, "side": side, "kind": self.recent_light_kind})
+        after["levels"][level_idx]["lights"].append(
+            {"col": col, "row": row, "side": side, "kind": self.recent_light_kind}
+        )
         self.apply_change("Add Light", after)
 
     def auto_place_lights_on_current_level(
@@ -72,7 +74,7 @@ class LightsMixin:
         selected_rows = set(range(row_offset, rows, row_spacing + 1))
 
         candidates: list[dict] = []
-        for (c, r) in floors_on_level:
+        for c, r in floors_on_level:
             if (c, r) in ramp_cells:
                 continue
             if c in selected_cols:

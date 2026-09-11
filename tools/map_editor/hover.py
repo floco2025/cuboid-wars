@@ -69,10 +69,7 @@ def element_hover_text(data: dict, level_idx: int, hit) -> str | None:
         )
 
     if kind == HIT_ITEM:
-        item = next(
-            e for e in data[ITEMS_LIST]
-            if e["level"] == level_idx and (e["col"], e["row"]) == value
-        )
+        item = next(e for e in data[ITEMS_LIST] if e["level"] == level_idx and (e["col"], e["row"]) == value)
         label = item["type"].replace("_", " ").capitalize()
         return f"{label}: {item['kind']}" if "kind" in item else label
 
@@ -84,22 +81,21 @@ def element_hover_text(data: dict, level_idx: int, hit) -> str | None:
             if zone.get("switch"):
                 label += f"\nSwitch: {zone['switch']}"
             return label
-        return f"Checkpoint: {CHECKPOINT_TYPE_LABELS.get(zone['type'], zone['type'])}" if kind == HIT_CHECKPOINT else "Player spawn zone"
+        return (
+            f"Checkpoint: {CHECKPOINT_TYPE_LABELS.get(zone['type'], zone['type'])}"
+            if kind == HIT_CHECKPOINT
+            else "Player spawn zone"
+        )
 
     if kind == HIT_RAMP:
         lower = value[0]
-        ramp = next(
-            e for e in data["ramps"]
-            if (e["lower_level"], tuple(e["low"]), tuple(e["high"])) == value
-        )
+        ramp = next(e for e in data["ramps"] if (e["lower_level"], tuple(e["low"]), tuple(e["high"])) == value)
         return f"Ramp\nLevels {lower} → {lower + 1}\n{materials_summary(ramp)}"
 
     if kind == HIT_NESTED_MAP:
         entry = next(e for e in data[NESTED_MAPS_LIST] if nested_map_key(e) == value)
         label = f"Nested map: {entry['map']}\nLevel {entry['level']}"
-        if (entry["level"], entry["from"], entry["from_nudge"]) != (
-            entry["to_level"], entry["to"], entry["to_nudge"]
-        ):
+        if (entry["level"], entry["from"], entry["from_nudge"]) != (entry["to_level"], entry["to"], entry["to_nudge"]):
             label += f" → Level {entry['to_level']}"
             label += f"\nTravel: {entry['travel_secs']:g} s · Pause: {entry['pause_secs']:g} s"
             if entry["phase_secs"]:

@@ -99,9 +99,11 @@ class NestedMapsMixin:
 
     def add_nested_map(self, start_cell: tuple[int, int], end_cell: tuple[int, int]) -> None:
         recent = self.recent_nested_map
-        if (recent is not None
-                and 0 <= recent.to_level < len(self.map_data["levels"])
-                and recent.map_name in self.nested_map_names()):
+        if (
+            recent is not None
+            and 0 <= recent.to_level < len(self.map_data["levels"])
+            and recent.map_name in self.nested_map_names()
+        ):
             self.place_nested_map(start_cell, end_cell, recent)
             return
         result = MotionDialog.prompt_nested(

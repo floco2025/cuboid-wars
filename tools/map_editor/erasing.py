@@ -147,11 +147,15 @@ def erase_walls(data: dict, level_idx: int, rect: Rect) -> dict:
 # on a level empties them. A group spanning levels (ramps, ladders, nested
 # maps, zones) keeps its level test inside its keep function.
 def _keep_level_cells(name: str):
-    return lambda data, level_idx, rect: {(level_idx, name): cells_outside(data["levels"][level_idx].get(name, []), rect)}
+    return lambda data, level_idx, rect: {
+        (level_idx, name): cells_outside(data["levels"][level_idx].get(name, []), rect)
+    }
 
 
 def _keep_level_edges(name: str):
-    return lambda data, level_idx, rect: {(level_idx, name): edges_outside(data["levels"][level_idx].get(name, []), rect)}
+    return lambda data, level_idx, rect: {
+        (level_idx, name): edges_outside(data["levels"][level_idx].get(name, []), rect)
+    }
 
 
 def _keep_cells_on_level(name: str):
@@ -189,14 +193,25 @@ ERASE_GROUPS = {
     MODE_ERASE_LIGHT_BRIDGES: ("light bridges", _keep_level_cells("light_bridges")),
     MODE_ERASE_LIGHTS: ("lights", _keep_level_cells("lights")),
     MODE_ERASE_SPAWN_ZONES: ("spawn zones", _keep_spawn_zones),
-    MODE_ERASE_CHECKPOINTS: ("checkpoints", lambda data, level_idx, rect: {(None, CHECKPOINT_LIST): zones_outside(data[CHECKPOINT_LIST], level_idx, rect)}),
+    MODE_ERASE_CHECKPOINTS: (
+        "checkpoints",
+        lambda data, level_idx, rect: {(None, CHECKPOINT_LIST): zones_outside(data[CHECKPOINT_LIST], level_idx, rect)},
+    ),
     MODE_ERASE_ITEMS: ("items", _keep_cells_on_level(ITEMS_LIST)),
     MODE_ERASE_PRESSURE_PLATES: ("plates", _keep_cells_on_level("pressure_plates")),
-    MODE_ERASE_RAMPS: ("ramps", lambda data, level_idx, rect: {(None, "ramps"): ramps_outside(data["ramps"], level_idx, rect)}),
-    MODE_ERASE_LADDERS: ("ladders", lambda data, level_idx, rect: {(None, "ladders"): ladders_outside(data.get("ladders", []), level_idx, rect)}),
+    MODE_ERASE_RAMPS: (
+        "ramps",
+        lambda data, level_idx, rect: {(None, "ramps"): ramps_outside(data["ramps"], level_idx, rect)},
+    ),
+    MODE_ERASE_LADDERS: (
+        "ladders",
+        lambda data, level_idx, rect: {(None, "ladders"): ladders_outside(data.get("ladders", []), level_idx, rect)},
+    ),
     MODE_ERASE_NESTED_MAPS: (
         "nested maps",
-        lambda data, level_idx, rect: {(None, NESTED_MAPS_LIST): nested_maps_outside(data.get(NESTED_MAPS_LIST, []), level_idx, rect)},
+        lambda data, level_idx, rect: {
+            (None, NESTED_MAPS_LIST): nested_maps_outside(data.get(NESTED_MAPS_LIST, []), level_idx, rect)
+        },
     ),
 }
 
@@ -207,8 +222,7 @@ def erase_group_rect(data: dict, mode: str, level_idx: int, rect: Rect) -> dict 
     _, keep = ERASE_GROUPS[mode]
     kept = keep(data, level_idx, rect)
     current = {
-        (level, name): (data["levels"][level] if level is not None else data).get(name, [])
-        for level, name in kept
+        (level, name): (data["levels"][level] if level is not None else data).get(name, []) for level, name in kept
     }
     if all(len(kept[key]) == len(current[key]) for key in kept):
         return None
@@ -362,11 +376,7 @@ def erase_hit(data: dict, level_idx: int, hit, preserve_floors: bool = False) ->
     elif kind == HIT_EQUIPMENT_ERASER:
         level["erasers"] = [eraser for eraser in level.get("erasers", []) if edge_key(eraser) != value]
     elif kind == HIT_BARRIER:
-        level["barriers"] = [
-            barrier
-            for barrier in level.get("barriers", [])
-            if edge_key(barrier) != value
-        ]
+        level["barriers"] = [barrier for barrier in level.get("barriers", []) if edge_key(barrier) != value]
     elif kind == HIT_RAMP:
         lower, low, high = value
         after["ramps"] = [

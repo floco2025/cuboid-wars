@@ -95,3 +95,15 @@ fn vertices_on_a_cut_take_interpolated_colours() {
     assert!(!on_cut.is_empty());
     assert!(on_cut.iter().all(|vertex| (vertex.color[3] - 0.5).abs() < 1e-6));
 }
+
+#[test]
+fn contains_follows_keep_and_cut() {
+    let region = ClipRegion {
+        keep: vec![vec![left_of(0.5)]],
+        cut: vec![vec![right_of(0.25), left_of(0.4)]],
+    };
+    assert!(region.contains(Vec2::new(0.1, 0.0)));
+    assert!(!region.contains(Vec2::new(0.3, 0.0)));
+    assert!(!region.contains(Vec2::new(0.7, 0.0)));
+    assert!(ClipRegion::default().contains(Vec2::new(0.7, 0.0)));
+}

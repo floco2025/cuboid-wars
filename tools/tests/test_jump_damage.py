@@ -57,7 +57,9 @@ class JumpDamageTests(ConfigTestCase):
         gameplay = {"combat": {"health": {"player": {"max": 100}}}}
 
         def parse(value, global_value=gameplay):
-            return JumpSettings.from_settings(value, "maps/example/settings.json", gameplay=global_value, gameplay_source="gameplay.json")
+            return JumpSettings.from_settings(
+                value, "maps/example/settings.json", gameplay=global_value, gameplay_source="gameplay.json"
+            )
 
         for field in ("safe_distance", "lethal_distance"):
             for value in (None, True, "8", -1, float("nan"), float("inf")):

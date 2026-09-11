@@ -184,4 +184,8 @@ class WindowTestCase(unittest.TestCase):
 
     def click(self, col, row):
         size = self.window.canvas.cell_size()
-        QTest.mouseClick(self.window.canvas, Qt.MouseButton.LeftButton, pos=QPoint(round((col + .5) * size), round((row + .5) * size)))
+        QTest.mouseClick(
+            self.window.canvas,
+            Qt.MouseButton.LeftButton,
+            pos=QPoint(round((col + 0.5) * size), round((row + 0.5) * size)),
+        )

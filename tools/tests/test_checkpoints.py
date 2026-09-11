@@ -112,7 +112,9 @@ class CheckpointTests(unittest.TestCase):
         self.assertEqual(erased["checkpoints"], [])
         self.assertEqual(erased["player_spawn_zones"], data["player_spawn_zones"])
         self.assertEqual(erased["levels"], data["levels"])
-        self.assertEqual(erase_group_rect(data, MODE_ERASE_SPAWN_ZONES, 0, (1, 1, 4, 4))["checkpoints"], data["checkpoints"])
+        self.assertEqual(
+            erase_group_rect(data, MODE_ERASE_SPAWN_ZONES, 0, (1, 1, 4, 4))["checkpoints"], data["checkpoints"]
+        )
         for keep_floors in (False, True):
             self.assertEqual(erase_cell_rect(data, 0, (1, 1), (3, 3), keep_floors)["checkpoints"], [])
 
@@ -153,7 +155,9 @@ class CheckpointWindowTests(WindowTestCase):
         window.apply_change("Set up floors", data)
         window.mode_combo.setCurrentText(MODE_CHECKPOINT)
         self.click(1, 1)
-        self.assertEqual(window.map_data["checkpoints"], [{"level": 0, "cols": [1, 2], "rows": [1, 2], "type": "individual"}])
+        self.assertEqual(
+            window.map_data["checkpoints"], [{"level": 0, "cols": [1, 2], "rows": [1, 2], "type": "individual"}]
+        )
         window.set_selected_spawn_zone(ZoneRef("checkpoints", 0))
         self.assertTrue(window.begin_spawn_zone_drag(QPointF(2, 2)))
         window.update_spawn_zone_edit_drag(QPointF(3, 3))

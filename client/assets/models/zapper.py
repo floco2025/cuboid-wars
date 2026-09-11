@@ -47,9 +47,7 @@ def sphere(name, pos, size, mat, parent):
 
 
 def cylinder(name, pos, radius, depth, mat, parent, axis="Z"):
-    return primitives.cylinder(
-        name, pos, radius, depth, mat, child_of(parent), axis, 32, 0.003, 3, "quads"
-    )
+    return primitives.cylinder(name, pos, radius, depth, mat, child_of(parent), axis, 32, 0.003, 3, "quads")
 
 
 def ring(name, pos, outer, inner, height, mat, parent, axis="Z"):
@@ -95,15 +93,11 @@ def ring(name, pos, outer, inner, height, mat, parent, axis="Z"):
         obj.rotation_euler.x = math.pi / 2
     for i, face in enumerate(data.polygons):
         face.use_smooth = i % 4 < 2
-    return primitives.finish(
-        obj, name, mat, child_of(parent), 0.002, 3, cylindrical=True
-    )
+    return primitives.finish(obj, name, mat, child_of(parent), 0.002, 3, cylindrical=True)
 
 
 def label(text, pos, size, parent, rotation=(math.pi / 2, 0, math.pi)):
-    return primitives.label(
-        text, pos, size, rotation, graphite, child_of(parent), 0.00015
-    )
+    return primitives.label(text, pos, size, rotation, graphite, child_of(parent), 0.00015)
 
 
 root = empty("ZapperRoot")
@@ -133,13 +127,9 @@ for x in (-0.065, 0, 0.065):
 box("Rear flight beacon", (0, -0.224, 0.029), (0.05, 0.007, 0.018), cyan, hull, 0.004)
 box("Sensor mask", (0, 0.166, 0.028), (0.235, 0.035, 0.075), glass, hull, 0.022)
 for sign in (-1, 1):
-    cylinder(
-        "Sensor socket", (sign * 0.068, 0.189, 0.031), 0.026, 0.016, metal, hull, "Y"
-    )
+    cylinder("Sensor socket", (sign * 0.068, 0.189, 0.031), 0.026, 0.016, metal, hull, "Y")
     cylinder("Sensor glass", (sign * 0.068, 0.20, 0.031), 0.019, 0.006, cyan, hull, "Y")
-    cylinder(
-        "Sensor pupil", (sign * 0.068, 0.204, 0.031), 0.012, 0.003, glass, hull, "Y"
-    )
+    cylinder("Sensor pupil", (sign * 0.068, 0.204, 0.031), 0.012, 0.003, glass, hull, "Y")
     brow = box(
         "Canted sensor brow",
         (sign * 0.071, 0.19, 0.071),
@@ -152,18 +142,14 @@ for sign in (-1, 1):
 
 pods, rotors, vanes = [], [], []
 for sign, side in ((-1, "L"), (1, "R")):
-    cylinder(
-        "Lift trunnion", (sign * 0.173, -0.014, -0.015), 0.041, 0.06, metal, hull, "X"
-    )
+    cylinder("Lift trunnion", (sign * 0.173, -0.014, -0.015), 0.041, 0.06, metal, hull, "X")
     pod = empty("LiftPod." + side, (sign * 0.322, -0.014, -0.015), hull)
     pods.append(pod)
     ring("White fan duct", (0, 0, 0), 0.137, 0.113, 0.075, shell, pod)
     ring("Metal duct lip", (0, 0, 0.04), 0.138, 0.111, 0.014, metal, pod)
     ring("Dark inner duct", (0, 0, -0.004), 0.114, 0.106, 0.051, graphite, pod)
     for angle in (0, math.pi / 2):
-        brace = box(
-            "Motor support", (0, 0, -0.026), (0.218, 0.015, 0.012), metal, pod, 0.003
-        )
+        brace = box("Motor support", (0, 0, -0.026), (0.218, 0.015, 0.012), metal, pod, 0.003)
         brace.rotation_euler.z = angle
     cylinder("Lift motor", (0, 0, 0), 0.032, 0.07, graphite, pod)
     rotor = empty("Impeller." + side, (0, 0, 0.012), pod)
@@ -192,9 +178,7 @@ for sign, side in ((-1, "L"), (1, "R")):
         )
     vane = empty("Stabilizer." + side, (sign * 0.13, -0.175, -0.02), hull)
     vanes.append(vane)
-    fin = box(
-        "Tail control vane", (0, -0.03, 0.02), (0.025, 0.12, 0.092), shell, vane, 0.009
-    )
+    fin = box("Tail control vane", (0, -0.03, 0.02), (0.025, 0.12, 0.092), shell, vane, 0.009)
     fin.rotation_euler.y = sign * 0.25
     box("Tail vane tip", (0, -0.055, 0.063), (0.034, 0.064, 0.014), accent, vane, 0.003)
 
@@ -244,11 +228,7 @@ cylinder("Beam lens", (0, 0.28, 0), 0.035, 0.007, red, pitch, "Y")
 empty("ZapperMuzzle", (0, MUZZLE_DISTANCE, 0), pitch)
 
 bake_articulated_wear(
-    [
-        obj
-        for obj in bpy.context.scene.objects
-        if obj.type == "MESH" and obj.active_material == shell
-    ],
+    [obj for obj in bpy.context.scene.objects if obj.type == "MESH" and obj.active_material == shell],
     shell,
     palette.wear,
     MODEL,
@@ -317,14 +297,10 @@ def keep_hover(document):
     hover = document["animations"][0]
     hover["name"] = "Hover"
     hover["channels"] = [
-        channel
-        for channel in hover["channels"]
-        if channel_target(document, channel) in animated_names
+        channel for channel in hover["channels"] if channel_target(document, channel) in animated_names
     ]
     assert animated_names == {channel_target(document, c) for c in hover["channels"]}
-    assert all(
-        "uri" not in image for image in document.get("images", [])
-    ), "Textures must be embedded"
+    assert all("uri" not in image for image in document.get("images", [])), "Textures must be embedded"
 
 
 rewrite_glb_json(MODEL, keep_hover)

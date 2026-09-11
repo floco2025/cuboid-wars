@@ -68,10 +68,19 @@ class EditorNavigationTests(WindowTestCase):
     def scroll(self, *, pixels=QPoint(), angle=QPoint(), modifiers=Qt.KeyboardModifier.NoModifier, inverted=False):
         canvas = self.window.canvas
         position = QPointF(100, 100)
-        self.app.sendEvent(canvas, QWheelEvent(
-            position, QPointF(canvas.mapToGlobal(position.toPoint())), pixels, angle,
-            Qt.MouseButton.NoButton, modifiers, Qt.ScrollPhase.ScrollUpdate, inverted,
-        ))
+        self.app.sendEvent(
+            canvas,
+            QWheelEvent(
+                position,
+                QPointF(canvas.mapToGlobal(position.toPoint())),
+                pixels,
+                angle,
+                Qt.MouseButton.NoButton,
+                modifiers,
+                Qt.ScrollPhase.ScrollUpdate,
+                inverted,
+            ),
+        )
 
     def test_pixel_gestures_pan_both_axes_without_zooming_or_editing(self):
         self.window.mode_combo.setCurrentText(MODE_ERASE)
@@ -152,7 +161,10 @@ class EditorNavigationTests(WindowTestCase):
         canvas.zoom_by(3)
         self.app.processEvents()
         self.scroll(pixels=QPoint(-10000, -10000))
-        self.assertEqual(canvas.viewport.offset, QPointF(canvas.width() - 8 * canvas.cell_size(), canvas.height() - 8 * canvas.cell_size()))
+        self.assertEqual(
+            canvas.viewport.offset,
+            QPointF(canvas.width() - 8 * canvas.cell_size(), canvas.height() - 8 * canvas.cell_size()),
+        )
         self.scroll(pixels=QPoint(10000, 10000))
         self.assertEqual(canvas.viewport.offset, QPointF())
 
@@ -174,7 +186,9 @@ class SpawnZoneHandleTests(WindowTestCase):
     def test_right_click_selection_can_resize_without_option_and_undo(self):
         window = self.window
         data = copy.deepcopy(window.map_data)
-        data["actor_spawn_zones"] = [{"level": 0, "cols": [2, 4], "rows": [2, 4], "kind": "zapper", "count": 3, "respawn_secs": 90}]
+        data["actor_spawn_zones"] = [
+            {"level": 0, "cols": [2, 4], "rows": [2, 4], "kind": "zapper", "count": 3, "respawn_secs": 90}
+        ]
         window.apply_change("Spawn zone", data)
         canvas = window.canvas
         canvas.zoom_by(1.2)

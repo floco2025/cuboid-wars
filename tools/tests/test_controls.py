@@ -34,7 +34,10 @@ class ControlTests(unittest.TestCase):
             ([{"id": "a", "activation": "hold", "reset_on_player_death": "never"}], "activation must be one of"),
             ([{"id": "a", "activation": "auto", "reset_on_player_death": "always"}], "reset_on_player_death must be"),
             ([{"id": "a", "activation": "auto", "reset_on_player_death": "never", "held": "all"}], "held must be"),
-            ([{"id": "a", "activation": "auto", "reset_on_player_death": "never", "plate_color": "red"}], "color must look like"),
+            (
+                [{"id": "a", "activation": "auto", "reset_on_player_death": "never", "plate_color": "red"}],
+                "color must look like",
+            ),
             ([{"activation": "auto", "reset_on_player_death": "never"}], "nonempty"),
             ({}, "expected a list"),
         ]:
@@ -87,7 +90,12 @@ class ControlTests(unittest.TestCase):
         root["switch_kinds"].append({"id": "b", "activation": "toggle", "reset_on_player_death": "never"})
         root["pressure_plates"][1]["switch"] = "b"
         with self.assertRaisesRegex(ValueError, "'b' is still assigned"):
-            edit_catalog(root, "switch_kinds", [{"id": "b", "activation": "auto", "reset_on_player_death": "never"}], {"lobby": "b"})
+            edit_catalog(
+                root,
+                "switch_kinds",
+                [{"id": "b", "activation": "auto", "reset_on_player_death": "never"}],
+                {"lobby": "b"},
+            )
         swapped = edit_catalog(
             root,
             "switch_kinds",
@@ -137,7 +145,11 @@ class ControlTests(unittest.TestCase):
                 "barrier_kinds": [{"id": "barrier_1", "color": "#f0c020"}],
                 "bridge_kinds": [{"id": f"bridge_{index}", "color": "#30d8ff"} for index in (1, 2, 3)],
             }
-            hotel_settings = {"barrier_kinds": [{"id": "treasure", "color": "#ff3333"}], "bridge_kinds": [], "portals": "both"}
+            hotel_settings = {
+                "barrier_kinds": [{"id": "treasure", "color": "#ff3333"}],
+                "bridge_kinds": [],
+                "portals": "both",
+            }
             layout = empty_map(3, 3)
             layout["levels"][0]["light_bridges"] = [{"col": 0, "row": 0, "kind": "bridge_1"}]
             obby = self.map_folder(directory, "obby", obby_settings, layout)
@@ -156,12 +168,23 @@ class ControlTests(unittest.TestCase):
             self.assertEqual({entry["id"] for entry in written["bridge_kinds"]} >= {"bridge_1"}, True)
             self.assertFalse(doc.settings_dirty)
             unchanged = MapDocument(obby)
-            self.assertEqual(unchanged.data_for_destination(hotel)["_settings"], hotel_settings | {"barrier_kinds": recolored, "bridge_kinds": obby_settings["bridge_kinds"]})
+            self.assertEqual(
+                unchanged.data_for_destination(hotel)["_settings"],
+                hotel_settings | {"barrier_kinds": recolored, "bridge_kinds": obby_settings["bridge_kinds"]},
+            )
 
     def test_undo_after_save_as_keeps_the_destinations_catalogs(self):
         with tempfile.TemporaryDirectory() as directory:
-            hotel = self.map_folder(directory, "hotel", {"barrier_kinds": [{"id": "treasure", "color": "#ff3333"}], "bridge_kinds": []}, empty_map(3, 3))
-            obby_settings = {"barrier_kinds": [{"id": "barrier_1", "color": "#f0c020"}], "bridge_kinds": [{"id": "bridge_1", "color": "#30d8ff"}]}
+            hotel = self.map_folder(
+                directory,
+                "hotel",
+                {"barrier_kinds": [{"id": "treasure", "color": "#ff3333"}], "bridge_kinds": []},
+                empty_map(3, 3),
+            )
+            obby_settings = {
+                "barrier_kinds": [{"id": "barrier_1", "color": "#f0c020"}],
+                "bridge_kinds": [{"id": "bridge_1", "color": "#30d8ff"}],
+            }
             obby = self.map_folder(directory, "obby", obby_settings, empty_map(3, 3))
             original = obby.with_name("settings.json").read_text()
             doc = MapDocument(hotel)
@@ -174,35 +197,55 @@ class ControlTests(unittest.TestCase):
             self.assertEqual(obby.with_name("settings.json").read_text(), original)
 
     def test_catalog_saves_rewrite_only_their_own_values(self):
-        obby = '\n'.join([
-            '{',
-            '  "movement": { "gravity": 12 },',
-            '  "barrier_kinds": [{ "id": "barrier_1", "color": "#f0c020" }],',
-            '  "bridge_kinds": [',
-            '    { "id": "bridge_1", "color": "#30d8ff" },',
-            '    { "id": "bridge_2", "color": "#30d8ff" },',
-            '    { "id": "bridge_3", "color": "#30d8ff" }',
-            '  ],',
-            '  "skybox": "test"',
-            '}', '',
-        ])
+        obby = "\n".join(
+            [
+                "{",
+                '  "movement": { "gravity": 12 },',
+                '  "barrier_kinds": [{ "id": "barrier_1", "color": "#f0c020" }],',
+                '  "bridge_kinds": [',
+                '    { "id": "bridge_1", "color": "#30d8ff" },',
+                '    { "id": "bridge_2", "color": "#30d8ff" },',
+                '    { "id": "bridge_3", "color": "#30d8ff" }',
+                "  ],",
+                '  "skybox": "test"',
+                "}",
+                "",
+            ]
+        )
         settings = json.loads(obby)
         self.assertEqual(splice_catalogs(obby, {key: settings[key] for key in ("barrier_kinds", "bridge_kinds")}), obby)
         recolored = splice_catalogs(obby, {"barrier_kinds": [{"id": "barrier_1", "color": "#123456"}]})
-        self.assertEqual(recolored, obby.replace('{ "id": "barrier_1", "color": "#f0c020" }', '{ "id": "barrier_1", "color": "#123456" }'))
+        self.assertEqual(
+            recolored,
+            obby.replace('{ "id": "barrier_1", "color": "#f0c020" }', '{ "id": "barrier_1", "color": "#123456" }'),
+        )
         collapsed = splice_catalogs(obby, {"bridge_kinds": [{"id": "bridge_1", "color": "#30d8ff"}]})
-        broken = "\n".join([
-            '  "bridge_kinds": [',
-            '    { "id": "bridge_1", "color": "#30d8ff" },',
-            '    { "id": "bridge_2", "color": "#30d8ff" },',
-            '    { "id": "bridge_3", "color": "#30d8ff" }',
-            "  ],",
-        ])
-        self.assertEqual(collapsed, obby.replace(broken, '  "bridge_kinds": [{ "id": "bridge_1", "color": "#30d8ff" }],'))
-        wide = splice_catalogs(obby, {"barrier_kinds": [{"id": "barrier_1", "color": "#f0c020"}, {"id": "b", "color": "#f0c020"}]})
-        self.assertIn('\n  "barrier_kinds": [\n    { "id": "barrier_1", "color": "#f0c020" },\n    { "id": "b", "color": "#f0c020" }\n  ],\n', wide)
-        added = splice_catalogs('{\n  "skybox": "x",\n  "barrier_kinds": []\n}\n', {"bridge_kinds": [{"id": "b", "color": "#ffffff"}]})
-        self.assertEqual(added, '{\n  "skybox": "x",\n  "barrier_kinds": [],\n  "bridge_kinds": [{ "id": "b", "color": "#ffffff" }]\n}\n')
+        broken = "\n".join(
+            [
+                '  "bridge_kinds": [',
+                '    { "id": "bridge_1", "color": "#30d8ff" },',
+                '    { "id": "bridge_2", "color": "#30d8ff" },',
+                '    { "id": "bridge_3", "color": "#30d8ff" }',
+                "  ],",
+            ]
+        )
+        self.assertEqual(
+            collapsed, obby.replace(broken, '  "bridge_kinds": [{ "id": "bridge_1", "color": "#30d8ff" }],')
+        )
+        wide = splice_catalogs(
+            obby, {"barrier_kinds": [{"id": "barrier_1", "color": "#f0c020"}, {"id": "b", "color": "#f0c020"}]}
+        )
+        self.assertIn(
+            '\n  "barrier_kinds": [\n    { "id": "barrier_1", "color": "#f0c020" },\n    { "id": "b", "color": "#f0c020" }\n  ],\n',
+            wide,
+        )
+        added = splice_catalogs(
+            '{\n  "skybox": "x",\n  "barrier_kinds": []\n}\n', {"bridge_kinds": [{"id": "b", "color": "#ffffff"}]}
+        )
+        self.assertEqual(
+            added,
+            '{\n  "skybox": "x",\n  "barrier_kinds": [],\n  "bridge_kinds": [{ "id": "b", "color": "#ffffff" }]\n}\n',
+        )
 
     def test_bulk_controls_preserve_mixed_appearance_and_choose_one_plate_kind(self):
         dialog = FieldPropertiesDialog(
@@ -271,7 +314,9 @@ class ControlTests(unittest.TestCase):
             original_layout = path.read_text()
             original_settings = settings_path.read_text()
             doc = MapDocument(path)
-            after = edit_catalog(doc.root_data, "barrier_kinds", [{"id": "blue", "color": "#0000ff"}], {"green": "blue"})
+            after = edit_catalog(
+                doc.root_data, "barrier_kinds", [{"id": "blue", "color": "#0000ff"}], {"green": "blue"}
+            )
             doc.apply_root_change("Rename barrier", after, None)
             with patch("map_editor.document.write_map", side_effect=OSError("write failed")):
                 with self.assertRaisesRegex(OSError, "write failed"):
@@ -294,12 +339,16 @@ class ControlWindowTests(WindowTestCase):
         window.recent_actor_spawn_switch = "lobby"
         window.recent_actor_spawn_inverted = True
         window.recent_pressure_plate_switch = "door"
-        window.recent_nested_map = NestedMotion("tile", 0, 2.0, 0.0, 0.0, (0.0, 0.0, 0.0), (0.0, 0.0, 0.0), "lobby", True)
+        window.recent_nested_map = NestedMotion(
+            "tile", 0, 2.0, 0.0, 0.0, (0.0, 0.0, 0.0), (0.0, 0.0, 0.0), "lobby", True
+        )
         renamed = [
             {"id": "entrance", "activation": "toggle", "reset_on_player_death": "never"},
             {"id": "door", "activation": "toggle", "reset_on_player_death": "never"},
         ]
-        with patch("map_editor.control_actions.ControlCatalogDialog.prompt", return_value=(renamed, {"lobby": "entrance"})):
+        with patch(
+            "map_editor.control_actions.ControlCatalogDialog.prompt", return_value=(renamed, {"lobby": "entrance"})
+        ):
             window.edit_control_catalog("switch_kinds", "Pressure Plate Kinds")
         self.assertEqual(window.recent_barrier_controls, {"switch": "entrance", "switch_inverted": True})
         self.assertEqual(window.recent_actor_spawn_switch, "entrance")

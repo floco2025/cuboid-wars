@@ -43,8 +43,7 @@ def synthesize():
     # Fade after removing DC so both endpoints remain silent.
     mean = sum(samples) / count
     samples = [
-        (sample - mean) * min(index / 64.0, (count - 1 - index) / 64.0, 1.0)
-        for index, sample in enumerate(samples)
+        (sample - mean) * min(index / 64.0, (count - 1 - index) / 64.0, 1.0) for index, sample in enumerate(samples)
     ]
     gain = PEAK * 32767 / max(abs(sample) for sample in samples)
     return b"".join(struct.pack("<h", round(sample * gain)) for sample in samples)

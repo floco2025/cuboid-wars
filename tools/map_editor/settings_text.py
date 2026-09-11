@@ -16,11 +16,19 @@ def _scalar(value) -> str:
 
 
 def _object_text(entry: dict, indent: str, trailing: str) -> str:
-    collapsed = "{ " + ", ".join(f"{_scalar(key)}: {_scalar(value)}" for key, value in entry.items()) + " }" if entry else "{}"
+    collapsed = (
+        "{ " + ", ".join(f"{_scalar(key)}: {_scalar(value)}" for key, value in entry.items()) + " }" if entry else "{}"
+    )
     if len(indent + collapsed + trailing) <= PRINT_WIDTH:
         return collapsed
     inner = indent + INDENT
-    return "{\n" + ",\n".join(f"{inner}{_scalar(key)}: {_scalar(value)}" for key, value in entry.items()) + "\n" + indent + "}"
+    return (
+        "{\n"
+        + ",\n".join(f"{inner}{_scalar(key)}: {_scalar(value)}" for key, value in entry.items())
+        + "\n"
+        + indent
+        + "}"
+    )
 
 
 def format_kinds(entries: list[dict], prefix: str, indent: str, trailing: str) -> str:

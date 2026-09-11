@@ -343,7 +343,9 @@ class EditorWindow(
         self.add_menu_action(edit_menu, "Review &Repairs...", None, self.review_repairs)
         edit_menu.addSeparator()
         self.add_menu_action(edit_menu, "New Nested Map...", None, self.new_nested_map)
-        self.rename_nested_action = self.add_menu_action(edit_menu, "Rename Nested Map...", None, self.rename_nested_map)
+        self.rename_nested_action = self.add_menu_action(
+            edit_menu, "Rename Nested Map...", None, self.rename_nested_map
+        )
         self.delete_nested_action = self.add_menu_action(edit_menu, "Delete Nested Map", None, self.delete_nested_map)
         edit_menu.addSeparator()
         self.add_menu_action(edit_menu, "Resi&ze Map...", None, self.resize_map)

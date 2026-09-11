@@ -62,9 +62,7 @@ class ItemsMixin:
         after = copy.deepcopy(self.map_data)
         items = after.setdefault(ITEMS_LIST, [])
         # Same-cell placement replaces the existing item.
-        items[:] = [
-            i for i in items if not (i["level"] == self.current_level and i["col"] == col and i["row"] == row)
-        ]
+        items[:] = [i for i in items if not (i["level"] == self.current_level and i["col"] == col and i["row"] == row)]
         new_item = {"level": self.current_level, "col": col, "row": row, "type": item_type}
         if item_type == ITEM_KEY_TYPE:
             new_item["kind"] = kind

@@ -2,32 +2,46 @@ use super::{
     mesh::{BLADE_MAX_OVERHANG, grass_cell_mesh},
     spawn::GrassCellVisual,
 };
-use crate::{config::ClientSettings, vfx::ScorchOutline};
+use crate::{
+    config::ClientSettings,
+    constants::EXPLOSION_GRASS_BURN_CORE_RADIUS_FACTOR,
+    vfx::{ClipRegion, ScorchOutline},
+};
 use bevy::prelude::*;
 use common::protocol::{CarrierId, GrassCell, MapSettings};
 use std::collections::HashMap;
 
 pub(super) const BURN_VERTICAL_TOLERANCE: f32 = 0.1;
 
-// `center` is in the carrier's frame, like the grass it burns.
-#[derive(Component, Debug, Clone, Copy, PartialEq)]
+// `center` is in the carrier's frame, like the grass it burns; `region` is
+// where the scorch mark shows, in the mark's own plane.
+#[derive(Component, Debug, Clone, PartialEq)]
 pub struct GrassBurn {
     pub(crate) carrier: CarrierId,
-    pub(super) center: Vec3,
-    pub(super) radius: f32,
-    pub(super) rotation: f32,
-    pub(super) outline: ScorchOutline,
-    pub(super) intensity: f32,
+    center: Vec3,
+    radius: f32,
+    rotation: f32,
+    outline: ScorchOutline,
+    region: ClipRegion,
+    intensity: f32,
 }
 
 impl GrassBurn {
-    pub(crate) fn new(carrier: CarrierId, center: Vec3, radius: f32, rotation: f32, mesh_index: usize) -> Self {
+    pub(crate) fn new(
+        carrier: CarrierId,
+        center: Vec3,
+        radius: f32,
+        rotation: f32,
+        mesh_index: usize,
+        region: ClipRegion,
+    ) -> Self {
         Self {
             carrier,
             center,
             radius,
             rotation,
             outline: ScorchOutline::for_mesh(mesh_index),
+            region,
             intensity: 1.0,
         }
     }
@@ -36,7 +50,30 @@ impl GrassBurn {
         self.intensity = intensity.clamp(0.0, 1.0);
     }
 
-    fn intersects_cell(self, cell: GrassCell, cell_size: f32) -> bool {
+    pub(crate) fn strength_at(&self, root: Vec3) -> f32 {
+        if self.radius <= 0.0 || (root.y - self.center.y).abs() > BURN_VERTICAL_TOLERANCE {
+            return 0.0;
+        }
+
+        let offset = Vec2::new(root.x - self.center.x, root.z - self.center.z);
+        let distance = offset.length();
+        let angle = offset.y.atan2(offset.x) + self.rotation;
+        let outer_radius = self.radius * self.outline.radius_factor(angle);
+        if distance >= outer_radius {
+            return 0.0;
+        }
+        // The mark's own plane: its unit disc, spun by `rotation` (`ScorchPlacement::new`).
+        let plane_point = Vec2::from_angle(self.rotation).rotate(offset) / (2.0 * self.radius);
+        if !self.region.contains(plane_point) {
+            return 0.0;
+        }
+
+        let inner_radius = outer_radius * EXPLOSION_GRASS_BURN_CORE_RADIUS_FACTOR;
+        let edge_progress = ((distance - inner_radius) / (outer_radius - inner_radius)).clamp(0.0, 1.0);
+        (1.0 - edge_progress * edge_progress * (3.0 - 2.0 * edge_progress)) * self.intensity
+    }
+
+    fn intersects_cell(&self, cell: GrassCell, cell_size: f32) -> bool {
         if cell.carrier != self.carrier || (self.center.y - cell.y).abs() > BURN_VERTICAL_TOLERANCE {
             return false;
         }
@@ -56,19 +93,19 @@ pub fn grass_burn_system(
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
     let cell_size = map_settings.geometry.grid_cell_size;
-    let current_burns: HashMap<Entity, GrassBurn> = burns.iter().map(|(entity, burn)| (entity, *burn)).collect();
+    let current_burns: HashMap<Entity, GrassBurn> = burns.iter().map(|(entity, burn)| (entity, burn.clone())).collect();
     let mut dirty_footprints = Vec::new();
 
     for (entity, burn) in &current_burns {
         match previous_burns.get(entity) {
             Some(previous) if previous == burn => {}
-            Some(previous) => dirty_footprints.extend([*previous, *burn]),
-            None => dirty_footprints.push(*burn),
+            Some(previous) => dirty_footprints.extend([previous.clone(), burn.clone()]),
+            None => dirty_footprints.push(burn.clone()),
         }
     }
     for (entity, burn) in previous_burns.iter() {
         if !current_burns.contains_key(entity) {
-            dirty_footprints.push(*burn);
+            dirty_footprints.push(burn.clone());
         }
     }
 
@@ -82,8 +119,8 @@ pub fn grass_burn_system(
 
         let affecting_burns: Vec<GrassBurn> = current_burns
             .values()
-            .copied()
             .filter(|burn| burn.intersects_cell(visual.cell, cell_size))
+            .cloned()
             .collect();
         if !dirty && affecting_burns.is_empty() {
             continue;

@@ -47,7 +47,15 @@ class FileIoTests(unittest.TestCase):
         data["levels"][0]["light_bridges"] = [{"col": 1, "row": 0, "kind": BRIDGE_KIND}]
         data["pressure_plates"] = [{"level": 0, "col": 0, "row": 0, "switch": BRIDGE_KIND}]
         data["actor_spawn_zones"] = [
-            {"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "zapper", "count": 1, "respawn_secs": 90, "switch": BRIDGE_KIND},
+            {
+                "level": 0,
+                "cols": [0, 1],
+                "rows": [0, 1],
+                "kind": "zapper",
+                "count": 1,
+                "respawn_secs": 90,
+                "switch": BRIDGE_KIND,
+            },
             {"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "zapper", "count": 2, "respawn_secs": 90},
         ]
         data["nested_maps"] = [
@@ -70,7 +78,9 @@ class FileIoTests(unittest.TestCase):
 
     def test_nested_maps_round_trip_and_are_the_last_key(self) -> None:
         data = empty_map(6, 6)
-        data["nested_maps"] = [{**nested("cabin", 0, [2, 2], [4, 2]), "from_nudge": [0.3, 0.0, 0.0], "to_nudge": [0.0, -1.0, 1.01]}]
+        data["nested_maps"] = [
+            {**nested("cabin", 0, [2, 2], [4, 2]), "from_nudge": [0.3, 0.0, 0.0], "to_nudge": [0.0, -1.0, 1.01]}
+        ]
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "nested.json"
             write_map(path, data)

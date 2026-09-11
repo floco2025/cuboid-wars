@@ -23,9 +23,7 @@ PREVIEW_COLORS = (
 
 
 def box(name, pos, size, mat, parent, bevel=0.003):
-    return primitives.box(
-        name, pos, size, mat, primitives.child_of(parent), bevel, 2, "all"
-    )
+    return primitives.box(name, pos, size, mat, primitives.child_of(parent), bevel, 2, "all")
 
 
 def outline(side, cut):
@@ -49,21 +47,15 @@ def shell(name, rings, mat, parent, bevel=0.003, closed=True):
         following = (ring + 1) % len(rings)
         for i in range(8):
             j = (i + 1) % 8
-            faces.append(
-                (ring * 8 + i, ring * 8 + j, following * 8 + j, following * 8 + i)
-            )
+            faces.append((ring * 8 + i, ring * 8 + j, following * 8 + j, following * 8 + i))
     if not closed:
-        faces.extend(
-            (tuple(reversed(range(8))), tuple(range(len(vertices) - 8, len(vertices))))
-        )
+        faces.extend((tuple(reversed(range(8))), tuple(range(len(vertices) - 8, len(vertices)))))
     mesh = bpy.data.meshes.new(name)
     mesh.from_pydata(vertices, [], faces)
     mesh.update()
     obj = bpy.data.objects.new(name, mesh)
     bpy.context.collection.objects.link(obj)
-    return primitives.finish(
-        obj, name, mat, primitives.child_of(parent), bevel, 2, "all"
-    )
+    return primitives.finish(obj, name, mat, primitives.child_of(parent), bevel, 2, "all")
 
 
 def puck(name, x, y, z, radius, depth, mat, parent, vertices=24):
@@ -149,10 +141,7 @@ def indicator(index, root, dark, edge, light, marking):
     box("Status drum", (0, 0, 0), (0.117, 0.047, 0.024), dark, status, 0.005)
     stroke(
         "Inactive O",
-        [
-            (0.012 * math.cos(t), 0.014 * math.sin(t))
-            for t in [math.tau * i / 32 for i in range(32)]
-        ],
+        [(0.012 * math.cos(t), 0.014 * math.sin(t)) for t in [math.tau * i / 32 for i in range(32)]],
         0.0035,
         0.014,
         marking,
@@ -182,9 +171,7 @@ def build():
     dark, metal, edge = palette["dark"], palette["housing"], palette["edge"]
     accent, light, marking = palette["accent"], palette["light"], palette["marking"]
 
-    shell(
-        "Base gasket", [(0.97, 0.105, 0), (0.98, 0.11, 0.018)], dark, root, closed=False
-    )
+    shell("Base gasket", [(0.97, 0.105, 0), (0.98, 0.11, 0.018)], dark, root, closed=False)
     shell(
         "Cast housing",
         [
@@ -356,9 +343,7 @@ def pose_import(path, frame, offset, color=None):
         }
         for mat in accents:
             mat.diffuse_color = (*color, 1)
-            mat.node_tree.nodes.get("Principled BSDF").inputs[
-                "Base Color"
-            ].default_value = (*color, 1)
+            mat.node_tree.nodes.get("Principled BSDF").inputs["Base Color"].default_value = (*color, 1)
     return imported
 
 
@@ -405,9 +390,7 @@ def render_preview(path):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--preview", action="store_true")
-    arguments = parser.parse_args(
-        sys.argv[sys.argv.index("--") + 1 :] if "--" in sys.argv else []
-    )
+    arguments = parser.parse_args(sys.argv[sys.argv.index("--") + 1 :] if "--" in sys.argv else [])
     preview.clear_scene()
     _, panel, shutter, indicators = build()
     animate(panel, shutter, indicators)

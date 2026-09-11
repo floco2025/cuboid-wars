@@ -72,5 +72,6 @@ class FloorFootprints:
         destination = self.rectangles(*target, extra_cells=(origin[1:],) if same_level else ())
         return min(
             hypot(max(0, a[0] - b[2], b[0] - a[2]), max(0, a[1] - b[3], b[1] - a[3]))
-            for a in source for b in destination
+            for a in source
+            for b in destination
         )

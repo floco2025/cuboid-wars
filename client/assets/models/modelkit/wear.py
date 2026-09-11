@@ -65,10 +65,7 @@ def panel_coordinates(obj):
     for name, values in (
         (
             "PanelPosition",
-            [
-                tuple(vertex.co[i] - center[i] for i in range(3))
-                for vertex in obj.data.vertices
-            ],
+            [tuple(vertex.co[i] - center[i] for i in range(3)) for vertex in obj.data.vertices],
         ),
         ("PanelHalfSize", [half] * len(obj.data.vertices)),
     ):
@@ -92,28 +89,17 @@ def validate_painted_wear(settings, name):
         raise ValueError(f"{name}: wear fields missing or unknown")
     for key in scalar_fields:
         value = settings[key]
-        if (
-            not isinstance(value, (int, float))
-            or isinstance(value, bool)
-            or not math.isfinite(value)
-            or value < 0
-        ):
+        if not isinstance(value, (int, float)) or isinstance(value, bool) or not math.isfinite(value) or value < 0:
             raise ValueError(f"{name}: wear.{key} must be nonnegative and finite")
     for key in color_fields:
         value = settings[key]
-        if len(value) != 3 or any(
-            not math.isfinite(v) or not 0 <= v <= 1 for v in value
-        ):
+        if len(value) != 3 or any(not math.isfinite(v) or not 0 <= v <= 1 for v in value):
             raise ValueError(f"{name}: wear.{key} must be an RGB color")
     for site in settings["chip_sites"]:
         if site.keys() != {"center", "extent"} or any(len(site[k]) != 3 for k in site):
             raise ValueError(f"{name}: each chip site needs center and extent vectors")
-        if any(not math.isfinite(v) for k in site for v in site[k]) or any(
-            v <= 0 for v in site["extent"]
-        ):
-            raise ValueError(
-                f"{name}: chip coordinates must be finite and extents positive"
-            )
+        if any(not math.isfinite(v) for k in site for v in site[k]) or any(v <= 0 for v in site["extent"]):
+            raise ValueError(f"{name}: chip coordinates must be finite and extents positive")
 
 
 def validate_surface_wear(settings, name):
@@ -131,12 +117,7 @@ def validate_surface_wear(settings, name):
         return (
             isinstance(value, list)
             and len(value) == 3
-            and all(
-                isinstance(v, (int, float))
-                and not isinstance(v, bool)
-                and math.isfinite(v)
-                for v in value
-            )
+            and all(isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) for v in value)
         )
 
     for field in colors:
@@ -159,9 +140,7 @@ def validate_surface_wear(settings, name):
                 or not all(vector(site[k]) for k in site)
                 or any(v <= 0 for v in site["extent"])
             ):
-                raise ValueError(
-                    f"{name}: wear.{field} requires centers and positive extents"
-                )
+                raise ValueError(f"{name}: wear.{field} requires centers and positive extents")
     for stroke in settings["scratches"]:
         if (
             stroke.keys() != {"start", "end", "width"}
@@ -172,9 +151,7 @@ def validate_surface_wear(settings, name):
             or not math.isfinite(stroke["width"])
             or stroke["width"] <= 0
         ):
-            raise ValueError(
-                f"{name}: scratches require distinct endpoints and positive widths"
-            )
+            raise ValueError(f"{name}: scratches require distinct endpoints and positive widths")
 
 
 def painted_wear_graph(graph, settings, base):
@@ -212,9 +189,7 @@ def painted_wear_graph(graph, settings, base):
     edge_wear = graph.calculate(
         "MULTIPLY",
         graph.calculate("LESS_THAN", edge_distance, width),
-        graph.calculate(
-            "GREATER_THAN", graph.noise(coordinate, 24), settings["edge_chip_threshold"]
-        ),
+        graph.calculate("GREATER_THAN", graph.noise(coordinate, 24), settings["edge_chip_threshold"]),
     )
     impact_chips = 0.0
     for site in settings["chip_sites"]:
@@ -229,9 +204,7 @@ def painted_wear_graph(graph, settings, base):
             ),
             radial.inputs[0],
         )
-        boundary = graph.calculate(
-            "ADD", 0.55, graph.calculate("MULTIPLY", chips, 0.65)
-        )
+        boundary = graph.calculate("ADD", 0.55, graph.calculate("MULTIPLY", chips, 0.65))
         impact_chips = graph.calculate(
             "MAXIMUM",
             impact_chips,
@@ -242,9 +215,7 @@ def painted_wear_graph(graph, settings, base):
         graph.noise(graph.vector("MULTIPLY", coordinate, (65, 5, 22)), 1),
         0.71,
     )
-    scratches = graph.calculate(
-        "MULTIPLY", scratches, graph.calculate("GREATER_THAN", mottling, 0.53)
-    )
+    scratches = graph.calculate("MULTIPLY", scratches, graph.calculate("GREATER_THAN", mottling, 0.53))
     wear = graph.calculate("MAXIMUM", edge_wear, impact_chips)
     colour = graph.mix(mottling, base_color, (*settings["paint_variation_color"], 1))
     colour = graph.mix(wear, colour, (*settings["exposed_metal_color"], 1))
@@ -306,22 +277,16 @@ def surface_wear_graph(graph, mesh, settings, base, style, model):
             ),
             radial.inputs[0],
         )
-        return graph.calculate(
-            "MAXIMUM", graph.calculate("SUBTRACT", 1, radial.outputs["Value"]), 0
-        )
+        return graph.calculate("MAXIMUM", graph.calculate("SUBTRACT", 1, radial.outputs["Value"]), 0)
 
     scuffs = 0.0
     for site in settings["scuff_sites"]:
-        scuffs = graph.calculate(
-            "MAXIMUM", scuffs, graph.calculate("MULTIPLY", patch(site), 2.5)
-        )
+        scuffs = graph.calculate("MAXIMUM", scuffs, graph.calculate("MULTIPLY", patch(site), 2.5))
     scuffs = graph.calculate("MINIMUM", scuffs, 1)
     scuffs = graph.calculate(
         "MULTIPLY",
         scuffs,
-        graph.calculate(
-            "ADD", 0.4, graph.calculate("MULTIPLY", graph.noise(coordinate, 160), 0.6)
-        ),
+        graph.calculate("ADD", 0.4, graph.calculate("MULTIPLY", graph.noise(coordinate, 160), 0.6)),
     )
     scratch_wander = graph.noise(coordinate, 115)
     scratch_width = graph.noise(coordinate, 210)
@@ -337,17 +302,13 @@ def surface_wear_graph(graph, mesh, settings, base, style, model):
         tangent = end - start
         tangent -= normal * tangent.dot(normal)
         if tangent.length < 1e-6:
-            raise ValueError(
-                f"{settings_name}: scratch runs perpendicular to its surface"
-            )
+            raise ValueError(f"{settings_name}: scratch runs perpendicular to its surface")
         start = center - tangent / 2
         direction = tuple(tangent)
         length_squared = sum(v * v for v in direction)
         dot = graph.nodes.new("ShaderNodeVectorMath")
         dot.operation = "DOT_PRODUCT"
-        graph.links.new(
-            graph.vector("SUBTRACT", coordinate, tuple(start)), dot.inputs[0]
-        )
+        graph.links.new(graph.vector("SUBTRACT", coordinate, tuple(start)), dot.inputs[0])
         dot.inputs[1].default_value = direction
         t = graph.calculate(
             "MINIMUM",
@@ -414,9 +375,7 @@ def surface_wear_graph(graph, mesh, settings, base, style, model):
         width = graph.calculate(
             "MULTIPLY",
             stroke["width"],
-            graph.calculate(
-                "ADD", 0.18, graph.calculate("MULTIPLY", scratch_width, 1.35)
-            ),
+            graph.calculate("ADD", 0.18, graph.calculate("MULTIPLY", scratch_width, 1.35)),
         )
         taper = graph.calculate(
             "MAXIMUM",
@@ -471,16 +430,10 @@ def surface_wear_graph(graph, mesh, settings, base, style, model):
         scratches = graph.calculate(
             "MAXIMUM",
             scratches,
-            graph.calculate(
-                "MULTIPLY", graph.calculate("POWER", groove, 0.65), depth_mask
-            ),
+            graph.calculate("MULTIPLY", graph.calculate("POWER", groove, 0.65), depth_mask),
         )
-        lips = graph.calculate(
-            "MAXIMUM", lips, graph.calculate("MULTIPLY", lip, depth_mask)
-        )
-        if (stroke_index + 1) % 20 == 0 or stroke_index + 1 == len(
-            settings["scratches"]
-        ):
+        lips = graph.calculate("MAXIMUM", lips, graph.calculate("MULTIPLY", lip, depth_mask))
+        if (stroke_index + 1) % 20 == 0 or stroke_index + 1 == len(settings["scratches"]):
             # Small mask passes stay within Cycles' shader stack limit.
             mask = bpy.data.images.new(
                 f"{model.stem}-scratch-mask-{len(scratch_images)}",
@@ -537,30 +490,22 @@ def surface_wear_graph(graph, mesh, settings, base, style, model):
             graph.calculate(
                 "MULTIPLY",
                 bowl,
-                graph.calculate(
-                    "ADD", 0.8, graph.calculate("MULTIPLY", dent_grain, 0.2)
-                ),
+                graph.calculate("ADD", 0.8, graph.calculate("MULTIPLY", dent_grain, 0.2)),
             ),
         )
     colour = graph.mix(scuffs, base_color, (*settings["scuff_color"], 1))
     if style == "plastic":
-        colour = graph.mix(
-            graph.calculate("MULTIPLY", lips, 0.55), colour, (0.91, 0.9, 0.86, 1)
-        )
+        colour = graph.mix(graph.calculate("MULTIPLY", lips, 0.55), colour, (0.91, 0.9, 0.86, 1))
     colour = graph.mix(scratches, colour, (*settings["scratch_color"], 1))
     damage = graph.calculate("MAXIMUM", scuffs, scratches)
     roughness = graph.calculate(
         "ADD",
         base_roughness,
-        graph.calculate(
-            "MULTIPLY", damage, settings["scuff_roughness"] - base_roughness
-        ),
+        graph.calculate("MULTIPLY", damage, settings["scuff_roughness"] - base_roughness),
     )
     metallic = base_metallic
     micrograin = graph.noise(
-        graph.vector(
-            "MULTIPLY", coordinate, (1, 1, 0.035) if style == "metal" else (1, 1, 1)
-        ),
+        graph.vector("MULTIPLY", coordinate, (1, 1, 0.035) if style == "metal" else (1, 1, 1)),
         1300,
     )
     relief = graph.calculate(
@@ -568,9 +513,7 @@ def surface_wear_graph(graph, mesh, settings, base, style, model):
         graph.calculate("MULTIPLY", scratches, settings["scratch_depth"]),
         graph.calculate("MULTIPLY", dents, settings["dent_depth"]),
     )
-    relief = graph.calculate(
-        "ADD", relief, graph.calculate("MULTIPLY", micrograin, settings["grain_depth"])
-    )
+    relief = graph.calculate("ADD", relief, graph.calculate("MULTIPLY", micrograin, settings["grain_depth"]))
     bump = graph.nodes.new("ShaderNodeBump")
     bump.inputs["Distance"].default_value = 1
     bump.invert = True
@@ -615,9 +558,7 @@ def bake_maps(mesh, graph, channels, model, style):
         if style != "painted":
             scene.cycles.samples = 16 if channel == "metallic-roughness" else 4
         print(f"Baking {model.stem} {channel}", flush=True)
-        image = bpy.data.images.new(
-            f"{model.stem}-{channel}", width=RESOLUTION, height=RESOLUTION, alpha=False
-        )
+        image = bpy.data.images.new(f"{model.stem}-{channel}", width=RESOLUTION, height=RESOLUTION, alpha=False)
         image.colorspace_settings.name = "sRGB" if channel == "albedo" else "Non-Color"
         target.image = image
         if source is None:
@@ -751,9 +692,7 @@ def bake_articulated_wear(objects, material, settings, model):
     for obj in objects:
         if obj.data.uv_layers.active is None:
             obj.data.uv_layers.new()
-    for loop, identity in zip(
-        mesh.data.uv_layers.active.data, mesh.data.attributes["BakeCorner"].data
-    ):
+    for loop, identity in zip(mesh.data.uv_layers.active.data, mesh.data.attributes["BakeCorner"].data):
         obj, index = corners[identity.value]
         obj.data.uv_layers.active.data[index].uv = loop.uv
     data = mesh.data

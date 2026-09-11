@@ -39,15 +39,7 @@ pub(crate) fn spawn_scorch_mark(
         return;
     }
     let material = materials.add(explosion_assets.scorch_template.clone());
-    let grass_burn = (placement.normal().dot(Vec3::Y) > 0.999).then(|| {
-        GrassBurn::new(
-            placement.carrier,
-            placement.transform.translation - placement.normal() * SCORCH_SURFACE_OFFSET,
-            placement.transform.scale.x * 0.5,
-            style.rotation(),
-            style.mesh_index,
-        )
-    });
+    let grass_burn = placement.grass_burn(style);
     let entity = {
         let mut entity_commands = commands.spawn((
             Mesh3d(meshes.add(variant.mesh())),

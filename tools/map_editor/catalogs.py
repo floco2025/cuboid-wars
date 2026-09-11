@@ -42,7 +42,11 @@ def load_map_kinds(map_name: str, key: str) -> dict[str, str]:
     kinds: dict[str, str] = {}
     for idx, entry in enumerate(value):
         path = f"{source}: {key}[{idx}]"
-        if not isinstance(entry, dict) or not isinstance(entry.get("id"), str) or not isinstance(entry.get("color"), str):
+        if (
+            not isinstance(entry, dict)
+            or not isinstance(entry.get("id"), str)
+            or not isinstance(entry.get("color"), str)
+        ):
             raise ValueError(f"{path} must be an object with string `id` and `color`")
         if set(entry) - {"id", "color"}:
             raise ValueError(f"{path}: kinds define only id and color")
@@ -68,26 +72,41 @@ SWITCH_HOLDS = ("any", "everyone")
 
 def switch_entries(root: dict) -> list[dict]:
     entries = root.get("switch_kinds", [])
-    return [entry for entry in entries if isinstance(entry, dict) and isinstance(entry.get("id"), str)] if isinstance(entries, list) else []
+    return (
+        [entry for entry in entries if isinstance(entry, dict) and isinstance(entry.get("id"), str)]
+        if isinstance(entries, list)
+        else []
+    )
 
 
 def plate_colors(root: dict, barriers: dict[str, str], bridges: dict[str, str]) -> dict[str, str]:
     from .validation import placed_definitions
+
     with ASSETS_PATH.open(encoding="utf-8") as handle:
         default_color = json.load(handle)["pressure_plate"]["default_color"]
     geometries = [root, *placed_definitions(root, root.get("nested_geometry", {})).values()]
-    targets = [(entry.get("switch"), colors.get(entry.get("kind")))
-               for name, colors in (("barriers", barriers), ("light_bridges", bridges))
-               for kind in colors
-               for geometry in geometries for level in geometry.get("levels", [])
-               for entry in level.get(name, []) if entry.get("kind") == kind]
+    targets = [
+        (entry.get("switch"), colors.get(entry.get("kind")))
+        for name, colors in (("barriers", barriers), ("light_bridges", bridges))
+        for kind in colors
+        for geometry in geometries
+        for level in geometry.get("levels", [])
+        for entry in level.get(name, [])
+        if entry.get("kind") == kind
+    ]
+
     def override(entry):
         color = entry.get("plate_color")
         return color if isinstance(color, str) and HEX_COLOR.fullmatch(color) else None
 
-    return {entry["id"]: override(entry) or next(
-        (color for switch, color in targets if switch == entry["id"] and color), default_color,
-    ) for entry in switch_entries(root)}
+    return {
+        entry["id"]: override(entry)
+        or next(
+            (color for switch, color in targets if switch == entry["id"] and color),
+            default_color,
+        )
+        for entry in switch_entries(root)
+    }
 
 
 def load_map_bridge_kinds(map_name: str) -> dict[str, str]:
@@ -192,12 +211,23 @@ class MapCatalogs:
 
     def for_layout(self, root: dict) -> "MapCatalogs":
         settings = root.get("_settings", {})
-        barriers = {entry["id"]: entry["color"] for entry in settings["barrier_kinds"]} if "barrier_kinds" in settings else self.barrier_kind_colors
-        bridges = {entry["id"]: entry["color"] for entry in settings["bridge_kinds"]} if "bridge_kinds" in settings else self.bridge_kind_colors
-        return replace(self, barrier_kind_colors=barriers, bridge_kind_colors=bridges,
-                       switches=[entry["id"] for entry in switch_entries(root)],
-                       plate_colors=plate_colors(root, barriers, bridges))
-
+        barriers = (
+            {entry["id"]: entry["color"] for entry in settings["barrier_kinds"]}
+            if "barrier_kinds" in settings
+            else self.barrier_kind_colors
+        )
+        bridges = (
+            {entry["id"]: entry["color"] for entry in settings["bridge_kinds"]}
+            if "bridge_kinds" in settings
+            else self.bridge_kind_colors
+        )
+        return replace(
+            self,
+            barrier_kind_colors=barriers,
+            bridge_kind_colors=bridges,
+            switches=[entry["id"] for entry in switch_entries(root)],
+            plate_colors=plate_colors(root, barriers, bridges),
+        )
 
     @classmethod
     def load(cls, map_name: str) -> "MapCatalogs":

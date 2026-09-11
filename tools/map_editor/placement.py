@@ -52,10 +52,18 @@ class PlacementMixin:
         return {"low": low, "high": high, "lower_level": lower_level, **dict.fromkeys(FACES, self.current_material)}
 
     def add_floor_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
-        self.apply_change("Paint Floor", paint_floors(self.map_data, self.current_level, rect_from_cells(start, end), self.current_material))
+        self.apply_change(
+            "Paint Floor",
+            paint_floors(self.map_data, self.current_level, rect_from_cells(start, end), self.current_material),
+        )
 
     def add_inaccessible_floor_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
-        self.apply_change("Paint Inaccessible Floor", paint_floors(self.map_data, self.current_level, rect_from_cells(start, end), self.current_material, blocked=True))
+        self.apply_change(
+            "Paint Inaccessible Floor",
+            paint_floors(
+                self.map_data, self.current_level, rect_from_cells(start, end), self.current_material, blocked=True
+            ),
+        )
 
     def add_grass_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
         self.apply_change("Paint Grass", paint_grass(self.map_data, self.current_level, rect_from_cells(start, end)))
@@ -137,7 +145,9 @@ class PlacementMixin:
         )
 
     def add_wall_line(self, start: tuple[int, int], end: tuple[int, int]) -> None:
-        self.apply_change("Place Wall", paint_edges(self.map_data, self.current_level, start, end, material=self.current_material))
+        self.apply_change(
+            "Place Wall", paint_edges(self.map_data, self.current_level, start, end, material=self.current_material)
+        )
 
     def add_equipment_eraser_line(self, start: tuple[int, int], end: tuple[int, int]) -> None:
         self.apply_change("Place Equipment Eraser", paint_erasers(self.map_data, self.current_level, start, end))
@@ -160,7 +170,12 @@ class PlacementMixin:
         if kind not in self.bridge_kinds:
             self.notify(f"Unknown bridge kind {kind!r}")
             return
-        self.apply_change(f"Place Light Bridge ({kind})", paint_bridges(self.map_data, self.current_level, rect_from_cells(start, end), kind, self.recent_bridge_controls))
+        self.apply_change(
+            f"Place Light Bridge ({kind})",
+            paint_bridges(
+                self.map_data, self.current_level, rect_from_cells(start, end), kind, self.recent_bridge_controls
+            ),
+        )
 
     def edit_light_bridge_at(self, col: int, row: int) -> None:
         def matches(bridge: dict) -> bool:
@@ -176,8 +191,9 @@ class PlacementMixin:
         if not entries:
             return
         barrier = name == "barriers"
-        values = FieldPropertiesDialog.prompt(self, title, self.barrier_kinds if barrier else self.bridge_kinds,
-                                              self.switches, entries)
+        values = FieldPropertiesDialog.prompt(
+            self, title, self.barrier_kinds if barrier else self.bridge_kinds, self.switches, entries
+        )
         if values is not None:
             self.apply_change(title, update_records(self.map_data, name, matches, values, self.current_level))
 
@@ -185,20 +201,32 @@ class PlacementMixin:
         if self.tile_selection is None:
             return
         c0, r0, c1, r1 = self.tile_selection
+
         def matches(entry):
             if name == "barriers":
-                return c0 <= entry["c0"] <= c1 and c0 <= entry["c1"] <= c1 and r0 <= entry["r0"] <= r1 and r0 <= entry["r1"] <= r1
+                return (
+                    c0 <= entry["c0"] <= c1
+                    and c0 <= entry["c1"] <= c1
+                    and r0 <= entry["r0"] <= r1
+                    and r0 <= entry["r1"] <= r1
+                )
             return c0 <= entry["col"] < c1 and r0 <= entry["row"] < r1
-        self.edit_fields(name, "Edit Selected Barriers" if name == "barriers" else "Edit Selected Light Bridges", matches)
+
+        self.edit_fields(
+            name, "Edit Selected Barriers" if name == "barriers" else "Edit Selected Light Bridges", matches
+        )
 
     def configure_field_defaults(self, barrier: bool) -> None:
         prefix = "barrier" if barrier else "bridge"
         controls = getattr(self, f"recent_{prefix}_controls")
         kind = getattr(self, f"recent_{prefix}_kind")
-        values = FieldPropertiesDialog.prompt(self, "Barrier Defaults" if barrier else "Light Bridge Defaults",
-                                              self.barrier_kinds if barrier else self.bridge_kinds,
-                                              self.switches,
-                                              [{"kind": kind, **controls}])
+        values = FieldPropertiesDialog.prompt(
+            self,
+            "Barrier Defaults" if barrier else "Light Bridge Defaults",
+            self.barrier_kinds if barrier else self.bridge_kinds,
+            self.switches,
+            [{"kind": kind, **controls}],
+        )
         if values is not None:
             defaults = merge_record({"kind": kind, **controls}, values)
             setattr(self, f"recent_{prefix}_kind", defaults.pop("kind", kind))
@@ -262,7 +290,12 @@ class PlacementMixin:
         if kind not in self.barrier_kinds:
             self.notify(f"Unknown barrier kind {kind!r}")
             return
-        self.apply_change(f"Place Barrier ({kind})", paint_edges(self.map_data, self.current_level, start, end, kind=kind, controls=self.recent_barrier_controls))
+        self.apply_change(
+            f"Place Barrier ({kind})",
+            paint_edges(
+                self.map_data, self.current_level, start, end, kind=kind, controls=self.recent_barrier_controls
+            ),
+        )
 
     def edit_barrier_at(self, key: tuple) -> None:
         barrier = next((b for b in self.map_data["levels"][self.current_level]["barriers"] if edge_key(b) == key), None)
@@ -323,7 +356,11 @@ class PlacementMixin:
             return
         title = f"Edit {kind} Materials"
         result = MaterialAssignmentDialog.prompt(
-            self, title, f"1 {kind.lower()}", self.materials_catalog, material_values([entry]),
+            self,
+            title,
+            f"1 {kind.lower()}",
+            self.materials_catalog,
+            material_values([entry]),
             portalability=self.texture_catalog,
             source=top_left_materials([entry], name),
         )
@@ -345,7 +382,8 @@ class PlacementMixin:
             self.notify("No floor segments in selection.")
             return
         result = MaterialAssignmentDialog.prompt(
-            self, "Floor Materials",
+            self,
+            "Floor Materials",
             f"{len(affected_floors)} floor cell(s) in selection",
             self.materials_catalog,
             material_values(affected_floors),
@@ -371,10 +409,7 @@ class PlacementMixin:
 
         def edge_inside(wall: dict) -> bool:
             return (
-                c0 <= wall["c0"] <= c1
-                and c0 <= wall["c1"] <= c1
-                and r0 <= wall["r0"] <= r1
-                and r0 <= wall["r1"] <= r1
+                c0 <= wall["c0"] <= c1 and c0 <= wall["c1"] <= c1 and r0 <= wall["r0"] <= r1 and r0 <= wall["r1"] <= r1
             )
 
         affected_walls = [w for w in level["walls"] if edge_inside(w)]
@@ -382,7 +417,8 @@ class PlacementMixin:
             self.notify("No wall edges in selection.")
             return
         result = MaterialAssignmentDialog.prompt(
-            self, "Wall Materials",
+            self,
+            "Wall Materials",
             f"{len(affected_walls)} wall edge(s) in selection",
             self.materials_catalog,
             material_values(affected_walls),
@@ -402,16 +438,15 @@ class PlacementMixin:
         level_idx = self.current_level
 
         def ramp_in_rect(ramp: dict) -> bool:
-            return level_idx == ramp["lower_level"] and rects_overlap(
-                (c0, r0, c1, r1), ramp_rect(ramp)
-            )
+            return level_idx == ramp["lower_level"] and rects_overlap((c0, r0, c1, r1), ramp_rect(ramp))
 
         affected_ramps = [r for r in self.map_data["ramps"] if ramp_in_rect(r)]
         if not affected_ramps:
             self.notify("No ramps in selection.")
             return
         result = MaterialAssignmentDialog.prompt(
-            self, "Ramp Materials",
+            self,
+            "Ramp Materials",
             f"{len(affected_ramps)} ramp(s) in selection",
             self.materials_catalog,
             material_values(affected_ramps),

@@ -38,9 +38,7 @@ def box(name, pos, size, mat, parent=None, bevel=0.012):
 
 
 def cylinder(name, pos, radius, depth, mat, parent=None, axis="Z", vertices=16):
-    return primitives.cylinder(
-        name, pos, radius, depth, mat, child_of(parent), axis, vertices, 0.006, 2, None
-    )
+    return primitives.cylinder(name, pos, radius, depth, mat, child_of(parent), axis, vertices, 0.006, 2, None)
 
 
 def beam(name, start, end, width, mat, parent=None):
@@ -61,9 +59,7 @@ cylinder("Pedestal collar", (0, 0, 0.25), 0.15, 0.14, steel, base)
 cylinder("Load column", (0, 0, 0.73), 0.095, 0.88, dark, base, vertices=8)
 for sign in (-1, 1):
     box("Column armour", (sign * 0.088, 0, 0.73), (0.048, 0.145, 0.74), armour, base)
-    beam(
-        "Base brace", (sign * 0.25, 0, 0.16), (sign * 0.10, 0, 0.46), 0.075, steel, base
-    )
+    beam("Base brace", (sign * 0.25, 0, 0.16), (sign * 0.10, 0, 0.46), 0.075, steel, base)
     for y in (-0.2, 0.2):
         cylinder(
             "Anchor bolt",
@@ -84,9 +80,7 @@ cylinder("Bearing rim", (0, 0, 1.225), 0.19, 0.025, steel, base)
 yaw = empty("TurretYaw", (0, 0, 1.45), base)
 cylinder("Rotating turntable", (0, 0, -0.19), 0.16, 0.065, dark, yaw)
 for sign in (-1, 1):
-    box(
-        "Gimbal fork", (sign * 0.225, 0, -0.08), (0.065, 0.19, 0.28), armour, yaw, 0.022
-    )
+    box("Gimbal fork", (sign * 0.225, 0, -0.08), (0.065, 0.19, 0.28), armour, yaw, 0.022)
     cylinder("Pitch bearing", (sign * 0.266, 0, 0), 0.078, 0.035, dark, yaw, "X")
     cylinder("Bearing cap", (sign * 0.288, 0, 0), 0.049, 0.018, steel, yaw, "X", 12)
     cylinder("Bearing light", (sign * 0.300, 0, 0), 0.018, 0.009, cyan, yaw, "X", 12)
@@ -170,11 +164,7 @@ for obj in bpy.context.scene.objects:
         groups.setdefault((obj.parent, obj.active_material), []).append(obj)
 
 bake_articulated_wear(
-    [
-        obj
-        for obj in bpy.context.scene.objects
-        if obj.type == "MESH" and obj.active_material == armour
-    ],
+    [obj for obj in bpy.context.scene.objects if obj.type == "MESH" and obj.active_material == armour],
     armour,
     palette.wear,
     MODEL,

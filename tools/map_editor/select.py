@@ -25,8 +25,12 @@ class SelectMixin:
         self.paste_action = self.add_menu_action(menu, "&Paste", QKeySequence.StandardKey.Paste, self.paste_selection)
         self.delete_action = self.add_menu_action(menu, "&Delete...", None, self.delete_selection)
         self.delete_action.setShortcuts([QKeySequence("Delete"), QKeySequence("Backspace")])
-        self.edit_barriers_action = self.add_menu_action(menu, "Edit Selected Barriers…", None, lambda: self.edit_selected_fields("barriers"))
-        self.edit_bridges_action = self.add_menu_action(menu, "Edit Selected Light Bridges…", None, lambda: self.edit_selected_fields("light_bridges"))
+        self.edit_barriers_action = self.add_menu_action(
+            menu, "Edit Selected Barriers…", None, lambda: self.edit_selected_fields("barriers")
+        )
+        self.edit_bridges_action = self.add_menu_action(
+            menu, "Edit Selected Light Bridges…", None, lambda: self.edit_selected_fields("light_bridges")
+        )
         menu.addSeparator()
         self.add_menu_action(menu, "Select &All Tiles", QKeySequence.StandardKey.SelectAll, self.select_all_tiles)
         self.deselect_action = self.add_menu_action(menu, "Deselect", QKeySequence("Escape"), self.clear_selection)
@@ -49,7 +53,13 @@ class SelectMixin:
 
     def update_selection_actions(self) -> None:
         selected = self.mode == MODE_SELECT and self.tile_selection is not None
-        for action in (self.cut_action, self.copy_action, self.delete_action, self.edit_barriers_action, self.edit_bridges_action):
+        for action in (
+            self.cut_action,
+            self.copy_action,
+            self.delete_action,
+            self.edit_barriers_action,
+            self.edit_bridges_action,
+        ):
             action.setEnabled(selected)
         self.paste_action.setEnabled(selected and self.tile_clipboard is not None)
         self.deselect_action.setEnabled(True)
@@ -115,8 +125,12 @@ class SelectMixin:
         if self.mode != MODE_SELECT or self.tile_selection is None:
             return None
         count, accepted = QInputDialog.getInt(
-            self, f"{operation} Tiles", f"How many levels to {operation.lower()}?\nStarting at the current level, upward:",
-            1, 1, len(self.map_data["levels"]) - self.current_level,
+            self,
+            f"{operation} Tiles",
+            f"How many levels to {operation.lower()}?\nStarting at the current level, upward:",
+            1,
+            1,
+            len(self.map_data["levels"]) - self.current_level,
         )
         return TileRegion(self.tile_selection, self.current_level, count) if accepted else None
 
@@ -165,4 +179,6 @@ class SelectMixin:
             QMessageBox.information(self, "Cannot Paste Tiles", str(exc))
             return
         self.apply_change("Paste Tiles", after)
-        self.set_tile_selection((col, row, col + self.tile_clipboard["grid_cols"], row + self.tile_clipboard["grid_rows"]))
+        self.set_tile_selection(
+            (col, row, col + self.tile_clipboard["grid_cols"], row + self.tile_clipboard["grid_rows"])
+        )

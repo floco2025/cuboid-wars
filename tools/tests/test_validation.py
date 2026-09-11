@@ -91,17 +91,51 @@ class PressurePlateTests(unittest.TestCase):
         self.assertTrue(any("actor_spawn_zones[0] needs `respawn_secs`" in e for e in errors))
         self.assertFalse(any("actor_spawn_zones[1]" in e or "actor_spawn_zones[2]" in e for e in errors))
         for idx in (3, 4, 5):
-            self.assertTrue(any(f"actor_spawn_zones[{idx}] respawn_secs must be a non-negative number or null" in e for e in errors))
+            self.assertTrue(
+                any(f"actor_spawn_zones[{idx}] respawn_secs must be a non-negative number or null" in e for e in errors)
+            )
 
     def test_zone_and_nested_map_switches_must_be_known_and_plated(self) -> None:
         data = empty_map(4, 4)
         data["levels"][0]["floors"] = [floor(0, 0), floor(2, 2)]
         data["pressure_plates"] = [{"level": 0, "col": 0, "row": 0, "switch": "guards"}]
         data["actor_spawn_zones"] = [
-            {"level": 0, "cols": [2, 3], "rows": [2, 3], "kind": "zapper", "count": 1, "respawn_secs": 90, "switch": "guards"},
-            {"level": 0, "cols": [2, 3], "rows": [2, 3], "kind": "zapper", "count": 1, "respawn_secs": 90, "switch": "nope"},
-            {"level": 0, "cols": [2, 3], "rows": [2, 3], "kind": "zapper", "count": 1, "respawn_secs": 90, "switch": "lift"},
-            {"level": 0, "cols": [2, 3], "rows": [2, 3], "kind": "zapper", "count": 1, "respawn_secs": 90, "switch": ""},
+            {
+                "level": 0,
+                "cols": [2, 3],
+                "rows": [2, 3],
+                "kind": "zapper",
+                "count": 1,
+                "respawn_secs": 90,
+                "switch": "guards",
+            },
+            {
+                "level": 0,
+                "cols": [2, 3],
+                "rows": [2, 3],
+                "kind": "zapper",
+                "count": 1,
+                "respawn_secs": 90,
+                "switch": "nope",
+            },
+            {
+                "level": 0,
+                "cols": [2, 3],
+                "rows": [2, 3],
+                "kind": "zapper",
+                "count": 1,
+                "respawn_secs": 90,
+                "switch": "lift",
+            },
+            {
+                "level": 0,
+                "cols": [2, 3],
+                "rows": [2, 3],
+                "kind": "zapper",
+                "count": 1,
+                "respawn_secs": 90,
+                "switch": "",
+            },
         ]
         data["nested_maps"] = [
             {**nested("cabin", 0, [1, 1], [3, 1]), "switch": "guards"},
@@ -112,9 +146,13 @@ class PressurePlateTests(unittest.TestCase):
         errors = validate_map(data, [], [], switches=switches, plated_switches={"guards"})
 
         self.assertTrue(any("actor_spawn_zones[1] names unknown switch 'nope'" in e for e in errors))
-        self.assertTrue(any("actor_spawn_zones[2] names switch 'lift', which no pressure plate operates" in e for e in errors))
+        self.assertTrue(
+            any("actor_spawn_zones[2] names switch 'lift', which no pressure plate operates" in e for e in errors)
+        )
         self.assertTrue(any("actor_spawn_zones[3] has an empty switch" in e for e in errors))
-        self.assertTrue(any("nested_maps[1] names switch 'lift', which no pressure plate operates" in e for e in errors))
+        self.assertTrue(
+            any("nested_maps[1] names switch 'lift', which no pressure plate operates" in e for e in errors)
+        )
         self.assertFalse(any("actor_spawn_zones[0]" in e or "nested_maps[0]" in e for e in errors))
         self.assertEqual(
             [e for e in validate_map(data, [], []) if "switch" in e],
@@ -140,7 +178,15 @@ class PressurePlateTests(unittest.TestCase):
         data = empty_map(6, 6)
         data["levels"][0]["floors"] = [floor(0, 0), floor(3, 3)]
         data["actor_spawn_zones"] = [
-            {"level": 0, "cols": [3, 4], "rows": [3, 4], "kind": "zapper", "count": 1, "respawn_secs": 90, "switch": "guards"},
+            {
+                "level": 0,
+                "cols": [3, 4],
+                "rows": [3, 4],
+                "kind": "zapper",
+                "count": 1,
+                "respawn_secs": 90,
+                "switch": "guards",
+            },
         ]
         room = empty_map(1, 1)
         room["levels"][0]["floors"] = [floor(0, 0)]
@@ -208,7 +254,9 @@ class LightBridgeTests(unittest.TestCase):
         self.assertTrue(any("light_bridge[2] [1, 1] sits on a ramp" in e for e in errors))
         self.assertTrue(any("light_bridge[4] [2, 2] duplicates another light bridge" in e for e in errors))
         self.assertTrue(any("pressure_plates[0] [2, 2] sits on a light bridge" in e for e in errors))
-        self.assertTrue(any("pressure_plates[1] has unknown switch 'nope'; known: [fireworks, skyway]" in e for e in errors))
+        self.assertTrue(
+            any("pressure_plates[1] has unknown switch 'nope'; known: [fireworks, skyway]" in e for e in errors)
+        )
 
 
 class NestedMapTests(unittest.TestCase):

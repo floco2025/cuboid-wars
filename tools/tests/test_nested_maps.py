@@ -35,7 +35,9 @@ class NestedMapTests(unittest.TestCase):
         host = EditorHost(data, [])
 
         host.drag_nested_map((5, 1), (5, 4))
-        self.assertEqual((host.map_data["nested_maps"][0]["from"], host.map_data["nested_maps"][0]["to"]), ([1, 1], [5, 4]))
+        self.assertEqual(
+            (host.map_data["nested_maps"][0]["from"], host.map_data["nested_maps"][0]["to"]), ([1, 1], [5, 4])
+        )
         host.drag_nested_map((1, 1), (2, 5))
         self.assertTrue(host.statuses[-1].startswith("Nested map end not moved"))
         self.assertEqual(host.map_data["nested_maps"][0]["from"], [1, 1])
@@ -47,7 +49,9 @@ class NestedMapTests(unittest.TestCase):
         host = EditorHost(data, [])
         key = (0, (1, 1), 0, (4, 1), "cabin")
 
-        host.set_nested_map_properties(key, NestedMotion("loop_a", 1, 3.5, 0.25, 2.0, (0.0, 0.0, 0.0), (0.0, -0.5, 0.5)))
+        host.set_nested_map_properties(
+            key, NestedMotion("loop_a", 1, 3.5, 0.25, 2.0, (0.0, 0.0, 0.0), (0.0, -0.5, 0.5))
+        )
 
         entry = host.map_data["nested_maps"][0]
         self.assertEqual((entry["from"], entry["to"]), ([1, 1], [4, 1]))
@@ -84,7 +88,9 @@ class NestedMapTests(unittest.TestCase):
     def test_placing_on_the_same_start_cell_replaces_the_old_nested_map(self) -> None:
         host = EditorHost(empty_map(8, 8), [])
         host.place_nested_map((1, 1), (4, 1), NestedMotion("cabin", 0, 2.0, 0.0, 0.0, (0.0, 0.0, 0.0), (0.0, 0.0, 0.0)))
-        host.place_nested_map((1, 1), (1, 4), NestedMotion("loop_a", 0, 2.0, 0.0, 0.0, (0.0, 0.0, 0.0), (0.0, 0.0, 0.0)))
+        host.place_nested_map(
+            (1, 1), (1, 4), NestedMotion("loop_a", 0, 2.0, 0.0, 0.0, (0.0, 0.0, 0.0), (0.0, 0.0, 0.0))
+        )
 
         self.assertEqual([(e["map"], e["to"]) for e in host.map_data["nested_maps"]], [("loop_a", [1, 4])])
 

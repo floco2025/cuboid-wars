@@ -130,7 +130,10 @@ class LayerEraserTests(unittest.TestCase):
         after = erase_hit(data, 0, (HIT_WALL, (0, 0, 1, 0)))
         self.assertEqual(
             after["levels"][0]["lights"],
-            [{"col": 0, "row": 0, "side": "S", "kind": "utility"}, {"col": 3, "row": 3, "side": "N", "kind": "utility"}],
+            [
+                {"col": 0, "row": 0, "side": "S", "kind": "utility"},
+                {"col": 3, "row": 3, "side": "N", "kind": "utility"},
+            ],
         )
 
     def test_erase_clears_every_element_and_keep_floors_keeps_what_stands_on_them(self) -> None:

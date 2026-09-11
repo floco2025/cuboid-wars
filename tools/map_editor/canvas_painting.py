@@ -65,9 +65,9 @@ from .geometry import (
 # Glyphs: grid records to pixel shapes, `cell` being the cell size in pixels
 # ============================================================================
 
-_LIGHT_MARKER_BASE = 0.08   # cells: distance from the wall to the marker's base
-_LIGHT_MARKER_TIP = 0.30    # cells: distance from the wall to the marker's tip
-_LIGHT_MARKER_HALF_W = 0.12 # cells: half-width of the marker's base
+_LIGHT_MARKER_BASE = 0.08  # cells: distance from the wall to the marker's base
+_LIGHT_MARKER_TIP = 0.30  # cells: distance from the wall to the marker's tip
+_LIGHT_MARKER_HALF_W = 0.12  # cells: half-width of the marker's base
 
 
 def light_marker_polygon(light: dict, cell: float) -> list[QPoint]:
@@ -91,8 +91,8 @@ def light_marker_polygon(light: dict, cell: float) -> list[QPoint]:
 # Ladder glyph proportions, in cell units. The glyph hugs the anchor edge
 # on the ladder's rail side: two rails parallel to the edge plus rungs
 # between them — a ladder seen face-on.
-_LADDER_SPAN = (0.15, 0.85)   # extent along the edge
-_LADDER_NEAR = 0.04           # rail offsets from the edge
+_LADDER_SPAN = (0.15, 0.85)  # extent along the edge
+_LADDER_NEAR = 0.04  # rail offsets from the edge
 _LADDER_FAR = 0.26
 _LADDER_RUNG_COUNT = 4
 
@@ -209,7 +209,11 @@ class CanvasPaintingMixin:
         if window.mode != MODE_SELECT:
             return
         rect = window.tile_selection
-        if window.select_drag_kind == DRAG_TILES and self.drag_start_cell is not None and self.drag_current_cell is not None:
+        if (
+            window.select_drag_kind == DRAG_TILES
+            and self.drag_start_cell is not None
+            and self.drag_current_cell is not None
+        ):
             rect = rect_from_cells(self.drag_start_cell, self.drag_current_cell)
         if rect is None:
             return
@@ -217,7 +221,9 @@ class CanvasPaintingMixin:
         painter.setPen(QPen(QColor("#38bdf8"), 2))
         painter.setBrush(QColor(56, 189, 248, 55))
         inset = min(1, cell * 0.1)
-        painter.drawRect(QRectF(c0 * cell, r0 * cell, (c1 - c0) * cell, (r1 - r0) * cell).adjusted(inset, inset, -inset, -inset))
+        painter.drawRect(
+            QRectF(c0 * cell, r0 * cell, (c1 - c0) * cell, (r1 - r0) * cell).adjusted(inset, inset, -inset, -inset)
+        )
         block = window.tile_clipboard
         if block is None or window.select_drag_kind is not None:
             return
@@ -227,7 +233,9 @@ class CanvasPaintingMixin:
         painter.setPen(QPen(color, 2, Qt.PenStyle.DashLine))
         painter.setBrush(Qt.BrushStyle.NoBrush)
         inset = min(3, cell * 0.15)
-        painter.drawRect(QRectF(c0 * cell, r0 * cell, width * cell, height * cell).adjusted(inset, inset, -inset, -inset))
+        painter.drawRect(
+            QRectF(c0 * cell, r0 * cell, width * cell, height * cell).adjusted(inset, inset, -inset, -inset)
+        )
         text = f"Paste replaces {levels} level(s)"
         if not fits:
             text += " · outside map"
@@ -295,7 +303,9 @@ class CanvasPaintingMixin:
             painter.setPen(Qt.PenStyle.NoPen)
             return
         if mode == MODE_PRESSURE_PLATE:
-            if self.window.plates_at(col, row) or plate_cell_error(self.window.map_data, self.window.current_level, col, row):
+            if self.window.plates_at(col, row) or plate_cell_error(
+                self.window.map_data, self.window.current_level, col, row
+            ):
                 return
             painter.save()
             painter.setOpacity(0.5)
@@ -351,7 +361,9 @@ class CanvasPaintingMixin:
         for bridge in self.visible_entries("light_bridges", bridges):
             color = QColor(self.window.bridge_kind_colors.get(bridge.get("kind", ""), "#30d8ff"))
             inset = min(1, cell * 0.1)
-            rect = QRectF(bridge["col"] * cell + inset, bridge["row"] * cell + inset, cell - 2 * inset, cell - 2 * inset)
+            rect = QRectF(
+                bridge["col"] * cell + inset, bridge["row"] * cell + inset, cell - 2 * inset, cell - 2 * inset
+            )
             fill = QColor(color)
             fill.setAlpha(115)
             painter.setPen(Qt.PenStyle.NoPen)
@@ -407,11 +419,21 @@ class CanvasPaintingMixin:
 
         def octagon(side, cut):
             half = side / 2
-            return QPolygonF([QPointF(x, y) for x, y in (
-                (-half + cut, -half), (half - cut, -half), (half, -half + cut),
-                (half, half - cut), (half - cut, half), (-half + cut, half),
-                (-half, half - cut), (-half, -half + cut),
-            )])
+            return QPolygonF(
+                [
+                    QPointF(x, y)
+                    for x, y in (
+                        (-half + cut, -half),
+                        (half - cut, -half),
+                        (half, -half + cut),
+                        (half, half - cut),
+                        (half - cut, half),
+                        (-half + cut, half),
+                        (-half, half - cut),
+                        (-half, -half + cut),
+                    )
+                ]
+            )
 
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(QColor("#64748b"))
@@ -446,7 +468,8 @@ class CanvasPaintingMixin:
             if item_type in ITEM_SYMBOLS:
                 color = (
                     self.window.barrier_kind_colors.get(item.get("kind", ""), "#cccccc")
-                    if item_type == ITEM_KEY_TYPE else ITEM_TYPE_COLORS[item_type]
+                    if item_type == ITEM_KEY_TYPE
+                    else ITEM_TYPE_COLORS[item_type]
                 )
                 paint_item_symbol(painter, item_type, cx, cy, cell * 0.65, QColor(color))
                 continue
@@ -500,8 +523,10 @@ class CanvasPaintingMixin:
             self.paint_wall_preview(painter, self.drag_start_point, end, cell, color=QColor(EQUIPMENT_ERASER_COLOR))
         elif self.drag_start_cell and self.drag_current_cell and self.window.mode in RAMP_MODES:
             self.paint_ramp_preview(painter, self.drag_start_cell, self.drag_current_cell, cell)
-        elif self.drag_start_cell and self.drag_current_cell and (
-            self.window.mode == MODE_NESTED_MAP or self.window.select_drag_kind == DRAG_NESTED_END
+        elif (
+            self.drag_start_cell
+            and self.drag_current_cell
+            and (self.window.mode == MODE_NESTED_MAP or self.window.select_drag_kind == DRAG_NESTED_END)
         ):
             self._paint_nested_map_drag(painter, cell)
 
@@ -522,7 +547,9 @@ class CanvasPaintingMixin:
         default_wall_color = QColor("#f1f5f9")
         for wall in self.visible_entries("walls", level["walls"]):
             color = face_color(wall) if overlay else default_wall_color
-            painter.setPen(QPen(color, min(WALL_PEN_WIDTH, max(1, cell * 0.2)), Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+            painter.setPen(
+                QPen(color, min(WALL_PEN_WIDTH, max(1, cell * 0.2)), Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap)
+            )
             painter.drawLine(wall["c0"] * cell, wall["r0"] * cell, wall["c1"] * cell, wall["r1"] * cell)
 
     def _paint_barriers(self, painter: QPainter, level: dict, cell: float) -> None:
@@ -532,7 +559,14 @@ class CanvasPaintingMixin:
         for barrier in self.visible_entries("barriers", level.get("barriers", [])):
             kind = barrier.get("kind", "")
             display = self.window.barrier_kind_colors.get(kind, "#ff5050")
-            painter.setPen(QPen(QColor(display), min(BARRIER_PEN_WIDTH, max(1, cell * 0.15)), Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+            painter.setPen(
+                QPen(
+                    QColor(display),
+                    min(BARRIER_PEN_WIDTH, max(1, cell * 0.15)),
+                    Qt.PenStyle.SolidLine,
+                    Qt.PenCapStyle.RoundCap,
+                )
+            )
             painter.drawLine(
                 barrier["c0"] * cell,
                 barrier["r0"] * cell,
@@ -702,11 +736,7 @@ class CanvasPaintingMixin:
         # Grid-point based: 2D rectangle when the drag spans both axes, or a
         # thick line when it collapses onto a single row or column. Painted
         # after walls so it sits on top of them.
-        if not (
-            self.window.mode == MODE_WALL_MATERIAL
-            and self.drag_start_point
-            and self.drag_current_point
-        ):
+        if not (self.window.mode == MODE_WALL_MATERIAL and self.drag_start_point and self.drag_current_point):
             return
         sc, sr = self.drag_start_point
         ec, er = self.drag_current_point
@@ -788,8 +818,10 @@ class CanvasPaintingMixin:
             wall = self.hover_target
             painter.setPen(QPen(highlight, WALL_HIGHLIGHT_WIDTH, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
             painter.drawLine(
-                wall["c0"] * cell, wall["r0"] * cell,
-                wall["c1"] * cell, wall["r1"] * cell,
+                wall["c0"] * cell,
+                wall["r0"] * cell,
+                wall["c1"] * cell,
+                wall["r1"] * cell,
             )
         painter.setPen(Qt.PenStyle.NoPen)
 
@@ -881,7 +913,9 @@ class CanvasPaintingMixin:
         else:
             painter.setBrush(QColor("#d97706") if is_lower_level else QColor("#8b5cf6"))
         inset = min(3, cell * 0.15)
-        painter.drawRect(QRectF(c0 * cell, r0 * cell, (c1 - c0) * cell, (r1 - r0) * cell).adjusted(inset, inset, -inset, -inset))
+        painter.drawRect(
+            QRectF(c0 * cell, r0 * cell, (c1 - c0) * cell, (r1 - r0) * cell).adjusted(inset, inset, -inset, -inset)
+        )
         if cell < 8:
             return
 

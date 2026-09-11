@@ -24,10 +24,15 @@ class WindowGeometry(QObject):
         window.installEventFilter(self)
 
     def eventFilter(self, watched, event) -> bool:
-        if watched is self.window and self.window.isVisible() and event.type() in (
-            QEvent.Type.Move,
-            QEvent.Type.Resize,
-            QEvent.Type.WindowStateChange,
+        if (
+            watched is self.window
+            and self.window.isVisible()
+            and event.type()
+            in (
+                QEvent.Type.Move,
+                QEvent.Type.Resize,
+                QEvent.Type.WindowStateChange,
+            )
         ):
             self.timer.start()
         return super().eventFilter(watched, event)

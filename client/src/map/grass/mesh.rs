@@ -1,14 +1,14 @@
 use super::{
-    burn::{BURN_VERTICAL_TOLERANCE, GrassBurn},
+    burn::GrassBurn,
     spawn::{OpenEdges, quantized_key},
 };
 use crate::{
     config::GrassConfig,
     constants::{
         EXPLOSION_GRASS_BURN_CENTER_HEIGHT_FACTOR, EXPLOSION_GRASS_BURN_CENTER_SWAY_FACTOR,
-        EXPLOSION_GRASS_BURN_CENTER_WIDTH_FACTOR, EXPLOSION_GRASS_BURN_COLOR, EXPLOSION_GRASS_BURN_CORE_RADIUS_FACTOR,
-        EXPLOSION_GRASS_BURN_MAX_COLOR_BLEND, EXPLOSION_GRASS_BURN_MID_BRIGHTNESS_FACTOR,
-        EXPLOSION_GRASS_BURN_ROOT_BRIGHTNESS_FACTOR, EXPLOSION_GRASS_BURN_TIP_BRIGHTNESS_FACTOR,
+        EXPLOSION_GRASS_BURN_CENTER_WIDTH_FACTOR, EXPLOSION_GRASS_BURN_COLOR, EXPLOSION_GRASS_BURN_MAX_COLOR_BLEND,
+        EXPLOSION_GRASS_BURN_MID_BRIGHTNESS_FACTOR, EXPLOSION_GRASS_BURN_ROOT_BRIGHTNESS_FACTOR,
+        EXPLOSION_GRASS_BURN_TIP_BRIGHTNESS_FACTOR,
     },
 };
 use bevy::{asset::RenderAssetUsages, mesh::Indices, prelude::*, render::render_resource::PrimitiveTopology};
@@ -110,10 +110,7 @@ pub(super) fn grass_cell_mesh(
             let phase = rng.random_range(0.0..1.0);
             let hue = tuft_hue + rng.random_range(-BLADE_HUE_JITTER..=BLADE_HUE_JITTER);
             let lightness = tuft_lightness + rng.random_range(-BLADE_LIGHTNESS_JITTER..=BLADE_LIGHTNESS_JITTER);
-            let burn_strength = burns
-                .iter()
-                .map(|burn| burn_strength_at(root, *burn))
-                .fold(0.0_f32, f32::max);
+            let burn_strength = burns.iter().map(|burn| burn.strength_at(root)).fold(0.0_f32, f32::max);
             let height_scale = 1.0 - burn_strength * (1.0 - EXPLOSION_GRASS_BURN_CENTER_HEIGHT_FACTOR);
             let width_scale = 1.0 - burn_strength * (1.0 - EXPLOSION_GRASS_BURN_CENTER_WIDTH_FACTOR);
             let sway_scale = 1.0 - burn_strength * (1.0 - EXPLOSION_GRASS_BURN_CENTER_SWAY_FACTOR);
@@ -195,24 +192,6 @@ fn ring_color(hue: f32, saturation: f32, lightness: f32, lightness_scale: f32) -
     Color::hsl(hue, saturation, (lightness * lightness_scale).min(0.95))
         .to_linear()
         .to_f32_array()
-}
-
-pub(super) fn burn_strength_at(root: Vec3, burn: GrassBurn) -> f32 {
-    if burn.radius <= 0.0 || (root.y - burn.center.y).abs() > BURN_VERTICAL_TOLERANCE {
-        return 0.0;
-    }
-
-    let offset = Vec2::new(root.x - burn.center.x, root.z - burn.center.z);
-    let distance = offset.length();
-    let angle = offset.y.atan2(offset.x) + burn.rotation;
-    let outer_radius = burn.radius * burn.outline.radius_factor(angle);
-    if distance >= outer_radius {
-        return 0.0;
-    }
-
-    let inner_radius = outer_radius * EXPLOSION_GRASS_BURN_CORE_RADIUS_FACTOR;
-    let edge_progress = ((distance - inner_radius) / (outer_radius - inner_radius)).clamp(0.0, 1.0);
-    (1.0 - edge_progress * edge_progress * (3.0 - 2.0 * edge_progress)) * burn.intensity
 }
 
 fn burned_color(color: [f32; 4], strength: f32, brightness: f32) -> [f32; 4] {

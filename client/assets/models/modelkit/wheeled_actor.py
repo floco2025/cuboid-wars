@@ -34,13 +34,9 @@ class Parts:
         return primitives.rigged(self.objects, bone)
 
     def box(self, name, pos, size, mat, bone="Hull", bevel=0.018):
-        return primitives.box(
-            name, pos, size, mat, self.attach(bone), bevel, self.bevel_segments(bevel)
-        )
+        return primitives.box(name, pos, size, mat, self.attach(bone), bevel, self.bevel_segments(bevel))
 
-    def cylinder(
-        self, name, pos, radius, depth, mat, bone="Hull", axis="Z", vertices=32
-    ):
+    def cylinder(self, name, pos, radius, depth, mat, bone="Hull", axis="Z", vertices=32):
         return primitives.cylinder(
             name,
             pos,
@@ -56,9 +52,7 @@ class Parts:
         )
 
     def label(self, text, pos, size, rotation, bone="Hull"):
-        return primitives.label(
-            text, pos, size, rotation, self.ink, self.attach(bone), 0.0005
-        )
+        return primitives.label(text, pos, size, rotation, self.ink, self.attach(bone), 0.0005)
 
 
 def assemble(parts, armour, wear, model, name):
@@ -140,9 +134,7 @@ def animate(rig, sensor_sway, hull_bob):
                     bone.location = rest[bone.name].inverted() @ Vector(
                         (0, 0, hull_bob * (1 - math.cos(2 * math.tau * t)))
                     )
-                bone.rotation_quaternion = (
-                    rest[bone.name].inverted() @ rotation @ rest[bone.name]
-                )
+                bone.rotation_quaternion = rest[bone.name].inverted() @ rotation @ rest[bone.name]
                 for channel in ("location", "rotation_quaternion"):
                     bone.keyframe_insert(data_path=channel, frame=frame)
     rig.animation_data.action = bpy.data.actions["Idle"]
@@ -187,8 +179,7 @@ def export(model, rig, mesh):
         "Bounds:",
         tuple(
             round(
-                max(v.co[i] for v in mesh.data.vertices)
-                - min(v.co[i] for v in mesh.data.vertices),
+                max(v.co[i] for v in mesh.data.vertices) - min(v.co[i] for v in mesh.data.vertices),
                 3,
             )
             for i in range(3)
@@ -232,9 +223,7 @@ def preview_actor(model, camera, look_at, ortho_scale, extra_views=(), motion=Fa
             continue
         shader = mat.node_tree.nodes.get("Principled BSDF")
         if shader and shader.inputs["Base Color"].is_linked:
-            image = getattr(
-                shader.inputs["Base Color"].links[0].from_node, "image", None
-            )
+            image = getattr(shader.inputs["Base Color"].links[0].from_node, "image", None)
             if image:
                 mat.diffuse_color = tuple(image.pixels[:4])
     preview.aim(studio_camera, camera, look_at)

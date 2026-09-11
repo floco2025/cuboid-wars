@@ -48,9 +48,7 @@ class ModelMaterials:
             try:
                 self.materials[key] = self.create(key, definition)
             except (ValueError, KeyError, TypeError) as error:
-                raise ValueError(
-                    f"{self.path.name}: materials.{key}: {error}"
-                ) from error
+                raise ValueError(f"{self.path.name}: materials.{key}: {error}") from error
 
     def __getitem__(self, key):
         return self.materials[key]
@@ -83,29 +81,19 @@ class ModelMaterials:
         for field in ("color", "emission_color"):
             if field in definition:
                 value = np.asarray(definition[field], dtype=float)
-                if value.shape != (3,) or not np.all(
-                    np.isfinite(value) & (value >= 0) & (value <= 1)
-                ):
+                if value.shape != (3,) or not np.all(np.isfinite(value) & (value >= 0) & (value <= 1)):
                     raise ValueError(f"{field} must contain three values from 0 to 1")
-        if "backface_culling" in definition and not isinstance(
-            definition["backface_culling"], bool
-        ):
+        if "backface_culling" in definition and not isinstance(definition["backface_culling"], bool):
             raise ValueError("backface_culling must be a boolean")
         name = definition.get("name", key)
         if "source" in definition:
             mat = catalog_material(
                 definition["source"],
                 name,
-                tuning={
-                    field: definition[field]
-                    for field in TUNING_FIELDS
-                    if field in definition
-                },
+                tuning={field: definition[field] for field in TUNING_FIELDS if field in definition},
             )
         else:
-            mat = plain_material(
-                name, definition["color"], roughness=definition.get("roughness", 0.4)
-            )
+            mat = plain_material(name, definition["color"], roughness=definition.get("roughness", 0.4))
         shader = mat.node_tree.nodes.get("Principled BSDF")
         if "metallic" in definition:
             socket = shader.inputs["Metallic"]
@@ -178,9 +166,7 @@ def catalog_material(key, name=None, *, tuning=None):
                     # Bevy's glTF loader ignores normalTexture.scale, so bake strength.
                     vectors = rgba[:, :3] * 2 - 1
                     vectors[:, :2] *= normal_strength
-                    vectors /= np.maximum(
-                        np.linalg.norm(vectors, axis=1, keepdims=True), 1e-8
-                    )
+                    vectors /= np.maximum(np.linalg.norm(vectors, axis=1, keepdims=True), 1e-8)
                     rgba[:, :3] = vectors * 0.5 + 0.5
             image.pixels.foreach_set(pixels)
         image.pack()
@@ -199,10 +185,7 @@ def catalog_material(key, name=None, *, tuning=None):
     group = get_settings_group()
     output = nodes.new("ShaderNodeGroup")
     output.node_tree = group
-    if (
-        definition["textures"]["occlusion"]
-        == definition["textures"]["metallic_roughness"]
-    ):
+    if definition["textures"]["occlusion"] == definition["textures"]["metallic_roughness"]:
         links.new(separate.outputs["Red"], output.inputs["Occlusion"])
     else:
         links.new(texture("occlusion"), output.inputs["Occlusion"])
@@ -216,10 +199,7 @@ def project_uv(obj, mat, cylindrical=False):
     tile = mat.get("tile_size", 1.0)
     uv = obj.data.uv_layers.active or obj.data.uv_layers.new()
     for face in obj.data.polygons:
-        points = [
-            obj.data.vertices[obj.data.loops[i].vertex_index].co
-            for i in face.loop_indices
-        ]
+        points = [obj.data.vertices[obj.data.loops[i].vertex_index].co for i in face.loop_indices]
         if cylindrical and abs(face.normal.z) < 0.5:
             angles = [math.atan2(point.y, point.x) for point in points]
             if max(angles) - min(angles) > math.pi:

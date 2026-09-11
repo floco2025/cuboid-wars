@@ -19,9 +19,7 @@ def rewrite_glb_json(path, edit):
     encoded = json.dumps(document, separators=(",", ":")).encode()
     encoded += b" " * (-len(encoded) % 4)
     binary = raw[20 + length :]
-    header = struct.pack(
-        "<4sIIII", b"glTF", 2, 20 + len(encoded) + len(binary), len(encoded), JSON_CHUNK
-    )
+    header = struct.pack("<4sIIII", b"glTF", 2, 20 + len(encoded) + len(binary), len(encoded), JSON_CHUNK)
     path.write_bytes(header + encoded + binary)
 
 

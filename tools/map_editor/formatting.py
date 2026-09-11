@@ -21,12 +21,23 @@ def with_trailing_comma(lines: list[str]) -> list[str]:
 
 
 def _ramp_body(ramp: dict) -> str:
-    body = {"lower_level": ramp["lower_level"], "low": ramp["low"], "high": ramp["high"], **compact_face_materials(ramp)}
+    body = {
+        "lower_level": ramp["lower_level"],
+        "low": ramp["low"],
+        "high": ramp["high"],
+        **compact_face_materials(ramp),
+    }
     return _inline_object_body(body)
 
 
 def _actor_spawn_zone_body(zone: dict) -> str:
-    body = {"level": zone["level"], "cols": zone["cols"], "rows": zone["rows"], "kind": zone["kind"], "count": zone["count"]}
+    body = {
+        "level": zone["level"],
+        "cols": zone["cols"],
+        "rows": zone["rows"],
+        "kind": zone["kind"],
+        "count": zone["count"],
+    }
     if "respawn_secs" in zone:
         body["respawn_secs"] = zone["respawn_secs"]
     body.update(control_fields(zone))
@@ -38,7 +49,9 @@ def _player_spawn_zone_body(zone: dict) -> str:
 
 
 def _checkpoint_body(zone: dict) -> str:
-    return _inline_object_body({"level": zone["level"], "cols": zone["cols"], "rows": zone["rows"], "type": zone["type"]})
+    return _inline_object_body(
+        {"level": zone["level"], "cols": zone["cols"], "rows": zone["rows"], "type": zone["type"]}
+    )
 
 
 def _pressure_plate_body(plate: dict) -> str:
@@ -56,10 +69,16 @@ def format_map_file(wrapper: dict) -> str:
         *[f'    "{key}": {json.dumps(map_data[key])},' for key in ("switch_kinds", "fireworks") if key in map_data],
         f'    "grid_cols": {map_data["grid_cols"]},',
         f'    "grid_rows": {map_data["grid_rows"]},',
-        *with_trailing_comma(format_object_array("actor_spawn_zones", map_data["actor_spawn_zones"], _actor_spawn_zone_body, 4)),
-        *with_trailing_comma(format_object_array("player_spawn_zones", map_data["player_spawn_zones"], _player_spawn_zone_body, 4)),
+        *with_trailing_comma(
+            format_object_array("actor_spawn_zones", map_data["actor_spawn_zones"], _actor_spawn_zone_body, 4)
+        ),
+        *with_trailing_comma(
+            format_object_array("player_spawn_zones", map_data["player_spawn_zones"], _player_spawn_zone_body, 4)
+        ),
         *with_trailing_comma(format_object_array("checkpoints", map_data.get("checkpoints", []), _checkpoint_body, 4)),
-        *with_trailing_comma(format_object_array("pressure_plates", map_data.get("pressure_plates", []), _pressure_plate_body, 4)),
+        *with_trailing_comma(
+            format_object_array("pressure_plates", map_data.get("pressure_plates", []), _pressure_plate_body, 4)
+        ),
         *with_trailing_comma(format_object_array("items", map_data.get("items", []), _item_body, 4)),
         '    "levels": [',
     ]
@@ -134,7 +153,10 @@ def _grass_body(grass: dict) -> str:
 
 def _wall_body(wall: dict) -> str:
     body = {
-        "c0": wall["c0"], "r0": wall["r0"], "c1": wall["c1"], "r1": wall["r1"],
+        "c0": wall["c0"],
+        "r0": wall["r0"],
+        "c1": wall["c1"],
+        "r1": wall["r1"],
         **compact_face_materials(wall),
     }
     return _inline_object_body(body)
@@ -155,7 +177,9 @@ def _item_body(item: dict) -> str:
 def _ladder_body(ladder: dict) -> str:
     body = {
         "lower_level": ladder["lower_level"],
-        "col": ladder["col"], "row": ladder["row"], "side": ladder["side"],
+        "col": ladder["col"],
+        "row": ladder["row"],
+        "side": ladder["side"],
         "levels": ladder["levels"],
     }
     return _inline_object_body(body)
@@ -180,7 +204,10 @@ def _nested_map_body(entry: dict) -> str:
 
 def _barrier_body(barrier: dict) -> str:
     body = {
-        "c0": barrier["c0"], "r0": barrier["r0"], "c1": barrier["c1"], "r1": barrier["r1"],
+        "c0": barrier["c0"],
+        "r0": barrier["r0"],
+        "c1": barrier["c1"],
+        "r1": barrier["r1"],
         "kind": barrier["kind"],
         **control_fields(barrier),
     }
@@ -188,7 +215,9 @@ def _barrier_body(barrier: dict) -> str:
 
 
 def _light_bridge_body(bridge: dict) -> str:
-    return _inline_object_body({"col": bridge["col"], "row": bridge["row"], "kind": bridge["kind"], **control_fields(bridge)})
+    return _inline_object_body(
+        {"col": bridge["col"], "row": bridge["row"], "kind": bridge["kind"], **control_fields(bridge)}
+    )
 
 
 def _inline_object_body(body: dict) -> str:

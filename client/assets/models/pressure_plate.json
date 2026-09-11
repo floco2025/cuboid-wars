@@ -2,7 +2,7 @@
   "materials": {
     "housing": {
       "name": "PressurePlateHousing",
-      "color": [0.15, 0.18, 0.20],
+      "color": [0.15, 0.18, 0.2],
       "metallic": 0.85,
       "roughness": 0.36
     },

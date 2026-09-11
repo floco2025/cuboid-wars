@@ -54,9 +54,7 @@ def studio(scene, look_at, size):
         light = bpy.context.object
         light.data.energy = power * size * size
         light.data.size = 3 * size
-        light.rotation_euler = (
-            (look_at - light.location).to_track_quat("-Z", "Y").to_euler()
-        )
+        light.rotation_euler = (look_at - light.location).to_track_quat("-Z", "Y").to_euler()
     bpy.ops.object.camera_add()
     camera = bpy.context.object
     scene.camera = camera
@@ -69,9 +67,7 @@ def studio(scene, look_at, size):
 
 def aim(camera, location, look_at):
     camera.location = location
-    camera.rotation_euler = (
-        (Vector(look_at) - Vector(location)).to_track_quat("-Z", "Y").to_euler()
-    )
+    camera.rotation_euler = (Vector(look_at) - Vector(location)).to_track_quat("-Z", "Y").to_euler()
 
 
 def floor(material, size=200):

@@ -84,7 +84,17 @@ LADDER_SIDES = LIGHT_SIDES
 # Item type ids mirror `ItemType::from_config_id` in common/src/types/items.rs,
 # plus "key" (which additionally carries a barrier kind).
 ITEM_KEY_TYPE = "key"
-ITEM_TYPES = ("single_shot", "multi_shot", "missile_pack", "portal_gun", "health_potion", "speed", "low_gravity", "gold", ITEM_KEY_TYPE)
+ITEM_TYPES = (
+    "single_shot",
+    "multi_shot",
+    "missile_pack",
+    "portal_gun",
+    "health_potion",
+    "speed",
+    "low_gravity",
+    "gold",
+    ITEM_KEY_TYPE,
+)
 # Canvas glyph colors for non-key items, mirroring the in-game `ITEM_*_COLOR`
 # constants in client/src/constants.rs; keys use their barrier kind's color.
 ITEM_TYPE_COLORS = {

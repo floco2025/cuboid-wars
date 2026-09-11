@@ -39,8 +39,18 @@ class CanvasScrollArea(QAbstractScrollArea):
         try:
             view = self.canvas.viewport
             for bar, offset, cells, size in (
-                (self.horizontalScrollBar(), view.offset.x(), self.canvas.window.map_data["grid_cols"], self.canvas.width()),
-                (self.verticalScrollBar(), view.offset.y(), self.canvas.window.map_data["grid_rows"], self.canvas.height()),
+                (
+                    self.horizontalScrollBar(),
+                    view.offset.x(),
+                    self.canvas.window.map_data["grid_cols"],
+                    self.canvas.width(),
+                ),
+                (
+                    self.verticalScrollBar(),
+                    view.offset.y(),
+                    self.canvas.window.map_data["grid_rows"],
+                    self.canvas.height(),
+                ),
             ):
                 extent = cells * view.cell
                 bar.setPageStep(size)

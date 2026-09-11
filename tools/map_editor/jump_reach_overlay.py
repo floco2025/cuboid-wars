@@ -3,7 +3,16 @@ from math import ceil, floor
 
 from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QAction, QColor, QPainterPath, QPen, QPolygonF
-from PySide6.QtWidgets import QComboBox, QDoubleSpinBox, QHBoxLayout, QLabel, QPushButton, QToolBar, QWidget, QWidgetAction
+from PySide6.QtWidgets import (
+    QComboBox,
+    QDoubleSpinBox,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QToolBar,
+    QWidget,
+    QWidgetAction,
+)
 
 from .catalogs import load_map_settings, map_settings_path, read_settings_json
 from .constants import GAMEPLAY_PATH, MODE_JUMP_REACH
@@ -50,7 +59,9 @@ class JumpReachOverlay:
         self.margin.setSuffix(" s")
         self.margin.setKeyboardTracking(False)
         self.margin.setAccessibleName("Takeoff margin")
-        self.margin.setToolTip("Jump this much travel time before the edge, allowing for edge judgement and button timing.")
+        self.margin.setToolTip(
+            "Jump this much travel time before the edge, allowing for edge judgement and button timing."
+        )
         caption.setBuddy(self.margin)
         controls.addWidget(caption)
         controls.addWidget(self.margin)
@@ -79,8 +90,10 @@ class JumpReachOverlay:
         try:
             name = self.window.catalog_map
             self.settings = JumpSettings.from_settings(
-                load_map_settings(name), str(map_settings_path(name)),
-                gameplay=read_settings_json(GAMEPLAY_PATH), gameplay_source=str(GAMEPLAY_PATH),
+                load_map_settings(name),
+                str(map_settings_path(name)),
+                gameplay=read_settings_json(GAMEPLAY_PATH),
+                gameplay_source=str(GAMEPLAY_PATH),
             )
             self.error = None
         except (OSError, ValueError) as exc:
@@ -106,11 +119,11 @@ class JumpReachOverlay:
         if self.origin is None:
             return
         after = self.window.map_data
-        if (
-            self.active_map != self.window.doc.active_map
-            or (before["grid_cols"], before["grid_rows"], len(before["levels"]))
-            != (after["grid_cols"], after["grid_rows"], len(after["levels"]))
-        ):
+        if self.active_map != self.window.doc.active_map or (
+            before["grid_cols"],
+            before["grid_rows"],
+            len(before["levels"]),
+        ) != (after["grid_cols"], after["grid_rows"], len(after["levels"])):
             self.clear()
         elif slab_cells(before) != slab_cells(after) or corner_filler_skips(before) != corner_filler_skips(after):
             self.recompute()
@@ -121,8 +134,11 @@ class JumpReachOverlay:
         if self.origin is not None and self.settings is not None:
             data = self.window.map_data
             self.results = calculate_reach(
-                self.settings, self.origin, data,
-                running=self.movement.currentText() == "Run", margin=self.margin.value(),
+                self.settings,
+                self.origin,
+                data,
+                running=self.movement.currentText() == "Run",
+                margin=self.margin.value(),
             )
         self.refresh()
         self.window.canvas.update()
@@ -145,9 +161,7 @@ class JumpReachOverlay:
             f'<span style="color: {color}">{index + 1} {name}</span>'
             for index, (_, name, color) in enumerate(SCENARIOS)
         )
-        self.legend.setText(
-            f"{legend} &nbsp; ● No damage &nbsp; △ Damage &nbsp; × Fatal at full health"
-        )
+        self.legend.setText(f"{legend} &nbsp; ● No damage &nbsp; △ Damage &nbsp; × Fatal at full health")
         self.legend.setToolTip(
             "Markers read left to right. Empty cells represent potential landing floors. "
             "Triangles survive at full health but can kill an injured player. "
@@ -207,9 +221,15 @@ class JumpReachOverlay:
                         elif landings[bit] < 1:
                             painter.setPen(QPen(QColor(color), size * 0.2))
                             painter.setBrush(QColor("#111418"))
-                            painter.drawPolygon(QPolygonF([
-                                QPointF(x + size / 2, y), QPointF(x + size, y + size), QPointF(x, y + size),
-                            ]))
+                            painter.drawPolygon(
+                                QPolygonF(
+                                    [
+                                        QPointF(x + size / 2, y),
+                                        QPointF(x + size, y + size),
+                                        QPointF(x, y + size),
+                                    ]
+                                )
+                            )
                         else:
                             cross = QPainterPath(QPointF(x, y))
                             cross.lineTo(x + size, y + size)

@@ -20,8 +20,7 @@ class EquipmentTests(unittest.TestCase):
         data["player_spawn_zones"] = []
         data["levels"][0]["floors"] = [{"col": col, "row": 1, "all": DEFAULT_ALIAS} for col in (1, 2)]
         data["items"] = [
-            {"level": 0, "col": col, "row": 1, "type": kind}
-            for col, kind in ((1, "single_shot"), (2, "multi_shot"))
+            {"level": 0, "col": col, "row": 1, "type": kind} for col, kind in ((1, "single_shot"), (2, "multi_shot"))
         ]
         data = canonicalize_map(data)
         encoded = format_map_file({"map": data})

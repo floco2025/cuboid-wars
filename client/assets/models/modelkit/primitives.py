@@ -84,12 +84,8 @@ def orient(obj, axis):
         obj.rotation_euler.x = math.pi / 2
 
 
-def cylinder(
-    name, pos, radius, depth, mat, attach, axis, vertices, bevel, segments, smooth
-):
-    bpy.ops.mesh.primitive_cylinder_add(
-        vertices=vertices, radius=radius, depth=depth, location=pos
-    )
+def cylinder(name, pos, radius, depth, mat, attach, axis, vertices, bevel, segments, smooth):
+    bpy.ops.mesh.primitive_cylinder_add(vertices=vertices, radius=radius, depth=depth, location=pos)
     obj = bpy.context.object
     orient(obj, axis)
     return finish(obj, name, mat, attach, bevel, segments, smooth, cylindrical=True)
@@ -109,9 +105,7 @@ def rod(name, start, end, radius, mat, attach, vertices, bevel, segments, smooth
 
 
 def sphere(name, pos, size, mat, attach, segments, ring_count):
-    bpy.ops.mesh.primitive_uv_sphere_add(
-        segments=segments, ring_count=ring_count, radius=1, location=pos
-    )
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=segments, ring_count=ring_count, radius=1, location=pos)
     obj = bpy.context.object
     obj.scale = size
     return finish(obj, name, mat, attach, 0, 0, smooth="all")

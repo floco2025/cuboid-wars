@@ -378,11 +378,7 @@
       "range": 5.0,
       "radius": 0.1,
       "emissive_luminance": 1.5,
-      "color": [
-        1.0,
-        0.86,
-        0.65
-      ],
+      "color": [1.0, 0.86, 0.65],
       "flicker": false
     },
     "utility": {
@@ -393,11 +389,7 @@
       "range": 5.0,
       "radius": 0.1,
       "emissive_luminance": 2.0,
-      "color": [
-        0.8,
-        0.91,
-        1.0
-      ],
+      "color": [0.8, 0.91, 1.0],
       "flicker": true
     }
   },

@@ -52,7 +52,9 @@ class FileActionsMixin:
 
     def confirm_replace_map(self, path: Path) -> bool:
         answer = QMessageBox.question(
-            self, "Replace Map?", f"Replace the layout for {map_name_from_path(path)} with this map?",
+            self,
+            "Replace Map?",
+            f"Replace the layout for {map_name_from_path(path)} with this map?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
             QMessageBox.StandardButton.Cancel,
         )
@@ -184,7 +186,9 @@ class FileActionsMixin:
         autosave = self.doc.autosave_path()
         box = QMessageBox(self)
         box.setWindowTitle("Recover Autosave?")
-        box.setText(f"An autosave exists at {autosave.name} that is newer than the layout for {self.catalog_map}. Recover it?")
+        box.setText(
+            f"An autosave exists at {autosave.name} that is newer than the layout for {self.catalog_map}. Recover it?"
+        )
         box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         box.setDefaultButton(QMessageBox.StandardButton.Yes)
         if box.exec() != QMessageBox.StandardButton.Yes:
@@ -202,7 +206,9 @@ class FileActionsMixin:
         repaired, summary = self.doc.proposed_repairs()
         if not summary:
             if not quiet:
-                QMessageBox.information(self, "Map Repairs", "No automatic repairs are needed. Other issues can be edited from Map Issues.")
+                QMessageBox.information(
+                    self, "Map Repairs", "No automatic repairs are needed. Other issues can be edited from Map Issues."
+                )
             return
         box = QMessageBox(self)
         box.setWindowTitle("Review Map Repairs")
@@ -217,7 +223,9 @@ class FileActionsMixin:
     def recover_unsaved_map(self) -> None:
         if not self.confirm_discard_changes():
             return
-        path, _ = QFileDialog.getOpenFileName(self, "Recover Unsaved Map", str(self.doc.recovery_dir), "Autosaved maps (*.autosave.json)")
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Recover Unsaved Map", str(self.doc.recovery_dir), "Autosaved maps (*.autosave.json)"
+        )
         if not path:
             return
         try:
@@ -226,7 +234,9 @@ class FileActionsMixin:
             QMessageBox.warning(self, "Recovery Failed", str(exc))
             return
         if not recovered:
-            QMessageBox.information(self, "Map In Use", "That recovery file belongs to an editor that is still running.")
+            QMessageBox.information(
+                self, "Map In Use", "That recovery file belongs to an editor that is still running."
+            )
             return
         self.adopt_map(self.catalog_map)
         self.review_repairs(quiet=True)

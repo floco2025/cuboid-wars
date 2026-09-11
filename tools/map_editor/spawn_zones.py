@@ -184,7 +184,11 @@ class SpawnZoneEditMixin:
         if ref.list_name != ACTOR_ZONE_LIST:
             return
         result = self.prompt_for_actor_spawn_fields(
-            zone["kind"], zone["count"], zone.get("respawn_secs"), zone.get("switch"), zone.get("switch_inverted", False)
+            zone["kind"],
+            zone["count"],
+            zone.get("respawn_secs"),
+            zone.get("switch"),
+            zone.get("switch_inverted", False),
         )
         if result is None:
             return

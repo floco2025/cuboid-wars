@@ -108,7 +108,7 @@ DRAG_PREVIEW_COLORS: dict[str, QColor] = {
     MODE_RAMP_MATERIAL: QColor(168, 85, 247, 120),  # purple to distinguish from floor mode pink
     MODE_ERASE: QColor(248, 113, 113, 120),
     MODE_ERASE_KEEP_FLOORS: QColor(251, 146, 60, 120),
-    MODE_ERASE_LIGHTS: QColor(250, 204, 21, 120),   # amber — distinct from red erase tools
+    MODE_ERASE_LIGHTS: QColor(250, 204, 21, 120),  # amber — distinct from red erase tools
     MODE_ERASE_PRESSURE_PLATES: QColor(245, 158, 11, 120),  # amber family, like Erase Items
     MODE_ERASE_FLOORS: QColor(245, 158, 11, 120),
     MODE_ERASE_WALLS: QColor(245, 158, 11, 120),

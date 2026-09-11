@@ -3,6 +3,7 @@ mod marks;
 mod placement;
 mod variants;
 
+pub(crate) use clip::ClipRegion;
 #[cfg(test)]
 pub(super) use marks::ScorchMark;
 pub use marks::scorch_marks_system;

@@ -42,20 +42,14 @@ parts.box(
     graphite,
     bevel=0.075,
 )
-parts.box(
-    "Gunmetal main glacis", (0, -0.03, 0.84), (0.99, 1.0, 0.38), armour, bevel=0.045
-)
-parts.box(
-    "Upper service deck", (0, 0.13, 1.02), (0.79, 0.66, 0.09), armour, bevel=0.025
-)
+parts.box("Gunmetal main glacis", (0, -0.03, 0.84), (0.99, 1.0, 0.38), armour, bevel=0.045)
+parts.box("Upper service deck", (0, 0.13, 1.02), (0.79, 0.66, 0.09), armour, bevel=0.025)
 
 for sign in (-1, 1):
     for index, y in enumerate((-0.56, 0, 0.56)):
         bone = ("WheelL" if sign < 0 else "WheelR") + str(index)
         bones.append((bone, (sign * 0.635, y, WHEEL_RADIUS), "Root"))
-        parts.cylinder(
-            "Drive axle", (sign * 0.50, y, 0.27), 0.085, 0.30, steel, "Root", "X"
-        )
+        parts.cylinder("Drive axle", (sign * 0.50, y, 0.27), 0.085, 0.30, steel, "Root", "X")
         parts.cylinder(
             "Heavy elastomer tyre",
             (sign * 0.635, y, 0.27),
@@ -66,15 +60,9 @@ for sign in (-1, 1):
             "X",
             48,
         )
-        parts.cylinder(
-            "Hub recess", (sign * 0.749, y, 0.27), 0.18, 0.017, graphite, bone, "X"
-        )
-        parts.cylinder(
-            "Armoured hub", (sign * 0.761, y, 0.27), 0.135, 0.022, armour, bone, "X"
-        )
-        parts.cylinder(
-            "Axle cap", (sign * 0.78, y, 0.27), 0.064, 0.024, steel, bone, "X", 12
-        )
+        parts.cylinder("Hub recess", (sign * 0.749, y, 0.27), 0.18, 0.017, graphite, bone, "X")
+        parts.cylinder("Armoured hub", (sign * 0.761, y, 0.27), 0.135, 0.022, armour, bone, "X")
+        parts.cylinder("Axle cap", (sign * 0.78, y, 0.27), 0.064, 0.024, steel, bone, "X", 12)
         for angle_index in range(8):
             a = math.tau * angle_index / 8
             parts.cylinder(
@@ -104,8 +92,7 @@ for sign in (-1, 1):
                 )
                 block.rotation_mode = "QUATERNION"
                 block.rotation_quaternion = (
-                    Euler((-a, 0, 0)).to_quaternion()
-                    @ Euler((0, 0, lane * 0.20)).to_quaternion()
+                    Euler((-a, 0, 0)).to_quaternion() @ Euler((0, 0, lane * 0.20)).to_quaternion()
                 )
                 outward = block.rotation_quaternion @ Vector((0, 0, 1))
                 assert outward.dot(Vector((0, math.sin(a), math.cos(a)))) > 0.9999
@@ -155,15 +142,9 @@ for sign in (-1, 1):
             graphite,
             bevel=0.006,
         )
-    parts.label(
-        "S-08", (sign * 0.786, -0.05, 0.73), 0.066, (math.pi / 2, 0, sign * math.pi / 2)
-    )
-    parts.cylinder(
-        "Impact piston", (sign * 0.40, -0.58, 0.49), 0.096, 0.25, steel, axis="Y"
-    )
-    parts.cylinder(
-        "Piston dust boot", (sign * 0.40, -0.60, 0.49), 0.12, 0.12, rubber, axis="Y"
-    )
+    parts.label("S-08", (sign * 0.786, -0.05, 0.73), 0.066, (math.pi / 2, 0, sign * math.pi / 2))
+    parts.cylinder("Impact piston", (sign * 0.40, -0.58, 0.49), 0.096, 0.25, steel, axis="Y")
+    parts.cylinder("Piston dust boot", (sign * 0.40, -0.60, 0.49), 0.12, 0.12, rubber, axis="Y")
     parts.box(
         "Ram shoulder",
         (sign * 0.33, -0.71, 0.51),
@@ -201,17 +182,11 @@ for sign in (-1, 1):
         graphite,
         axis="Y",
     )
-    parts.cylinder(
-        "Front status lamp", (sign * 0.57, -0.707, 0.74), 0.025, 0.009, amber, axis="Y"
-    )
+    parts.cylinder("Front status lamp", (sign * 0.57, -0.707, 0.74), 0.025, 0.009, amber, axis="Y")
 
-parts.box(
-    "Central impact beam", (0, -0.735, 0.49), (0.61, 0.11, 0.21), graphite, bevel=0.025
-)
+parts.box("Central impact beam", (0, -0.735, 0.49), (0.61, 0.11, 0.21), graphite, bevel=0.025)
 for x in (-0.20, -0.10, 0, 0.10, 0.20):
-    parts.box(
-        "Impact grille bar", (x, -0.802, 0.51), (0.035, 0.031, 0.15), steel, bevel=0.008
-    )
+    parts.box("Impact grille bar", (x, -0.802, 0.51), (0.035, 0.031, 0.15), steel, bevel=0.008)
 parts.box(
     "Reactor breastplate recess",
     (0, -0.523, 0.86),
@@ -219,20 +194,14 @@ parts.box(
     graphite,
     bevel=0.027,
 )
-parts.box(
-    "Charge status glass", (0, -0.555, 0.87), (0.45, 0.015, 0.12), glass, bevel=0.018
-)
+parts.box("Charge status glass", (0, -0.555, 0.87), (0.45, 0.015, 0.12), glass, bevel=0.018)
 for x in (-0.17, -0.085, 0, 0.085, 0.17):
-    parts.box(
-        "Charge indicator", (x, -0.565, 0.87), (0.034, 0.012, 0.075), amber, bevel=0.008
-    )
+    parts.box("Charge indicator", (x, -0.565, 0.87), (0.034, 0.012, 0.075), amber, bevel=0.008)
 parts.label("STAND CLEAR", (0, -0.56, 0.77), 0.035, (math.pi / 2, 0, 0))
 
 parts.cylinder("Sensor turntable", (0, -0.12, 1.05), 0.24, 0.085, graphite)
 parts.cylinder("Turntable bearing", (0, -0.12, 1.096), 0.20, 0.032, steel)
-parts.box(
-    "Sensor helmet", (0, -0.17, 1.19), (0.64, 0.49, 0.25), armour, "Sensor", 0.035
-)
+parts.box("Sensor helmet", (0, -0.17, 1.19), (0.64, 0.49, 0.25), armour, "Sensor", 0.035)
 parts.box(
     "Optical brow gasket",
     (0, -0.399, 1.20),
@@ -241,9 +210,7 @@ parts.box(
     "Sensor",
     0.033,
 )
-parts.box(
-    "Smoked optical band", (0, -0.43, 1.19), (0.47, 0.023, 0.12), glass, "Sensor", 0.028
-)
+parts.box("Smoked optical band", (0, -0.43, 1.19), (0.47, 0.023, 0.12), glass, "Sensor", 0.028)
 for x in (-0.115, 0.115):
     parts.box(
         "Optic housing",
@@ -349,9 +316,7 @@ for sign in (-1, 1):
             steel,
             vertices=6,
         )
-parts.box(
-    "Service hatch gasket", (0, 0.17, 1.068), (0.29, 0.35, 0.009), graphite, bevel=0.018
-)
+parts.box("Service hatch gasket", (0, 0.17, 1.068), (0.29, 0.35, 0.009), graphite, bevel=0.018)
 parts.box("Service hatch", (0, 0.17, 1.075), (0.264, 0.324, 0.012), armour, bevel=0.012)
 for x in (-0.10, 0.10):
     for y in (0.045, 0.295):
@@ -401,13 +366,9 @@ for part in parts.objects:
                 - max(min(p[i] for p in points), centre[i] - half[i])
                 for i in range(3)
             ]
-            assert (
-                min(overlap) <= 0
-            ), f"{part.name} intersects a tyre envelope: {overlap}"
+            assert min(overlap) <= 0, f"{part.name} intersects a tyre envelope: {overlap}"
 
-mesh = wheeled_actor.assemble(
-    parts.objects, armour, palette.wear, MODEL, "S-08 / armoured interceptor"
-)
+mesh = wheeled_actor.assemble(parts.objects, armour, palette.wear, MODEL, "S-08 / armoured interceptor")
 rig = wheeled_actor.build_rig(bones, mesh, "Bruiser")
 wheeled_actor.animate(rig, sensor_sway=(0.025, 0.16), hull_bob=0.003)
 wheeled_actor.export(MODEL, rig, mesh)

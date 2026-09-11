@@ -20,7 +20,7 @@ pub use explosion::{
     explosion_particles_system, explosion_pulse_system, explosion_sound_speed, scorch_marks_system,
     spawn_actor_explosion, spawn_missile_explosion, spawn_player_explosion,
 };
-pub(crate) use explosion::{ScorchOutline, with_white_vertex_colors};
+pub(crate) use explosion::{ClipRegion, ScorchOutline, with_white_vertex_colors};
 pub(crate) use fade::{color_with_alpha, ease_blend, srgb_color, translucent_kind_material};
 pub use firework::{FireworkShow, firework_system};
 #[cfg(test)]

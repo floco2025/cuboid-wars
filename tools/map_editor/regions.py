@@ -57,7 +57,12 @@ def _whole_object(
 
 # The whole-object rule for every record spanning cells or levels; a
 # nested map's two ends are judged separately.
-WHOLE_OBJECT_NOUNS = {**dict.fromkeys(ZONE_LISTS, "spawn zone"), CHECKPOINT_LIST: "checkpoint", "ramps": "ramp", "ladders": "ladder"}
+WHOLE_OBJECT_NOUNS = {
+    **dict.fromkeys(ZONE_LISTS, "spawn zone"),
+    CHECKPOINT_LIST: "checkpoint",
+    "ramps": "ramp",
+    "ladders": "ladder",
+}
 
 
 def _global_selected(name: str, entry: dict, region: TileRegion, subject: str, include: str) -> bool:
@@ -88,7 +93,8 @@ def _partition(
             remaining["levels"][index][name] = []
             for entry in source.get(name, []):
                 inside = (
-                    wall_overlaps_rect(_edge(entry), region.rect) if name in EDGE_LISTS
+                    wall_overlaps_rect(_edge(entry), region.rect)
+                    if name in EDGE_LISTS
                     else region.contains_cell(entry["col"], entry["row"])
                 )
                 target = selected[name] if inside else remaining["levels"][index][name]
@@ -130,12 +136,16 @@ def _check_boundary_lights(before: dict, after: dict, region: TileRegion) -> Non
                 and not region.contains_cell(light["col"], light["row"])
                 and wall_endpoints_for_cell_side(light["col"], light["row"], light["side"]) in removed
             ):
-                raise ValueError("A boundary wall holds a light outside the selection. Include the tile on that side too.")
+                raise ValueError(
+                    "A boundary wall holds a light outside the selection. Include the tile on that side too."
+                )
 
 
 def paste_region(data: dict, block: dict, cell: tuple[int, int], level: int) -> dict:
     col, row = cell
-    destination = TileRegion((col, row, col + block["grid_cols"], row + block["grid_rows"]), level, len(block["levels"]))
+    destination = TileRegion(
+        (col, row, col + block["grid_cols"], row + block["grid_rows"]), level, len(block["levels"])
+    )
     expanded = copy.deepcopy(data)
     while len(expanded["levels"]) < destination.top:
         expanded["levels"].append(empty_level(len(expanded["levels"])))

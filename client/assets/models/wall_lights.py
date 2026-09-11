@@ -25,9 +25,7 @@ def box(name, pos, size, mat, bevel=0.015):
 
 
 def rod(name, start, end, radius, mat, vertices=24):
-    return primitives.rod(
-        name, start, end, radius, mat, loose, vertices, 0.003, 3, "all"
-    )
+    return primitives.rod(name, start, end, radius, mat, loose, vertices, 0.003, 3, "all")
 
 
 def decorative():
@@ -88,9 +86,7 @@ def capsule_body(name, width, height, rings, mat):
     for ring in range(len(rings) - 1):
         for i in range(n):
             j = (i + 1) % n
-            faces.append(
-                (ring * n + i, ring * n + j, (ring + 1) * n + j, (ring + 1) * n + i)
-            )
+            faces.append((ring * n + i, ring * n + j, (ring + 1) * n + j, (ring + 1) * n + i))
     faces.append(tuple(range((len(rings) - 1) * n, len(rings) * n)))
     mesh = bpy.data.meshes.new(name)
     mesh.from_pydata(vertices, [], faces)
@@ -125,9 +121,7 @@ def utility():
     dark = palette["dark"]
     guard_metal = palette["guard_metal"]
     glow = palette["glow"]
-    capsule_body(
-        "Oval cast housing", 0.44, 0.72, [(1, 0), (1, -0.095), (0.96, -0.125)], metal
-    )
+    capsule_body("Oval cast housing", 0.44, 0.72, [(1, 0), (1, -0.095), (0.96, -0.125)], metal)
     capsule_body("Weather seal", 0.385, 0.655, [(1, -0.115), (1, -0.143)], dark)
     capsule_body(
         "Domed opal lens",

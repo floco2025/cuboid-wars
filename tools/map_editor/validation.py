@@ -168,10 +168,7 @@ def validate_map(
             if abs(c1 - c0) + abs(r1 - r0) != 1:
                 errors.append(f"{prefix}: wall [{c0}, {r0}, {c1}, {r1}] is not one grid edge")
 
-        wall_endpoints_set = {
-            edge_key(w)
-            for w in level["walls"]
-        }
+        wall_endpoints_set = {edge_key(w) for w in level["walls"]}
         barrier_seen: set[tuple[int, int, int, int]] = set()
         for idx, barrier in enumerate(level.get("barriers", [])):
             errors.locate("barriers", barrier, level_idx)
@@ -282,9 +279,20 @@ def validate_document(
             errors.append("fireworks requires a pressure plate kind")
         if "switch_inverted" in fireworks:
             errors.append("fireworks has no On/Off response; remove switch_inverted")
-        _validate_switch_target(fireworks, "fireworks", catalogs.switches, plated_switches([root, *placed_definitions(root, definitions).values()]), errors)
+        _validate_switch_target(
+            fireworks,
+            "fireworks",
+            catalogs.switches,
+            plated_switches([root, *placed_definitions(root, definitions).values()]),
+            errors,
+        )
         cooldown = fireworks.get("cooldown_secs")
-        if not isinstance(cooldown, (int, float)) or isinstance(cooldown, bool) or not math.isfinite(cooldown) or cooldown < 0:
+        if (
+            not isinstance(cooldown, (int, float))
+            or isinstance(cooldown, bool)
+            or not math.isfinite(cooldown)
+            or cooldown < 0
+        ):
             errors.append("fireworks cooldown_secs must be finite and nonnegative")
     for name, geometry in [(None, root), *definitions.items()]:
         label = f"Nested {name}" if name is not None else None
@@ -334,9 +342,7 @@ def _validate_ladders(map_data: dict, errors: list[str]) -> None:
         if levels < 1:
             errors.append(f"{label} must span at least 1 storey")
         if not (0 <= lower and lower + levels < level_count):
-            errors.append(
-                f"{label} spans levels {lower}..{lower + levels} but the map has {level_count} level(s)"
-            )
+            errors.append(f"{label} spans levels {lower}..{lower + levels} but the map has {level_count} level(s)")
         for other_idx, other in enumerate(map_data["ladders"][:idx]):
             if ladders_overlap(ladder, other):
                 errors.append(f"{label} overlaps ladders[{other_idx}] on the same edge")
@@ -489,7 +495,9 @@ def _validate_face_aliases(map_data: dict, errors: ValidationErrors, aliases) ->
             _check_face_aliases(floor, f"{prefix}: floor [{floor['col']}, {floor['row']}]", errors, aliases)
         for floor in level["inaccessible_floors"]:
             errors.locate("inaccessible_floors", floor, level_idx)
-            _check_face_aliases(floor, f"{prefix}: inaccessible_floor [{floor['col']}, {floor['row']}]", errors, aliases)
+            _check_face_aliases(
+                floor, f"{prefix}: inaccessible_floor [{floor['col']}, {floor['row']}]", errors, aliases
+            )
         for wall in level["walls"]:
             errors.locate("walls", wall, level_idx)
             label = f"{prefix}: wall [{wall['c0']}, {wall['r0']}, {wall['c1']}, {wall['r1']}]"
@@ -533,6 +541,7 @@ def _validate_immovable_capacity(zone: dict, index: int, map_data: dict, errors:
 
 def _is_non_negative_number(value) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) and value >= 0
+
 
 def _validate_zone_rect(zone: dict, label: str, map_data: dict, errors: list[str]) -> None:
     cols = map_data["grid_cols"]

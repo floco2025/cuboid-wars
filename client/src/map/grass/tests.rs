@@ -7,7 +7,7 @@ use super::{
     burn::{BURN_VERTICAL_TOLERANCE, GrassBurn, grass_burn_system},
     mesh::{
         BLADE_HEIGHT_MAX, BLADE_MAX_OVERHANG, BLADES_PER_TUFT, INDICES_PER_BLADE, MID_SWAY_WEIGHT, VERTICES_PER_BLADE,
-        WIND_SWAY_FACTOR, burn_strength_at, cell_tuft_count, grass_cell_mesh,
+        WIND_SWAY_FACTOR, cell_tuft_count, grass_cell_mesh,
     },
     spawn::{GrassCellVisual, OpenEdges, grass_cell_aabb},
 };
@@ -15,6 +15,7 @@ use crate::{
     config::GrassConfig,
     constants::{EXPLOSION_GRASS_BURN_CENTER_HEIGHT_FACTOR, EXPLOSION_GRASS_BURN_CENTER_SWAY_FACTOR},
     test_fixtures::{CELL, map_settings},
+    vfx::ClipRegion,
 };
 use common::protocol::{CarrierId, GrassCell};
 
@@ -95,7 +96,14 @@ fn burned_grass_remains_visible_short_dark_and_still() {
     let cell = test_cell();
     let config = grass_config();
     let normal = grass_cell_mesh(cell, CELL, &config, ALL_OPEN, &[]);
-    let burn = GrassBurn::new(CarrierId::WORLD, Vec3::new(cell.x, cell.y, cell.z), CELL * 4.0, 0.7, 3);
+    let burn = GrassBurn::new(
+        CarrierId::WORLD,
+        Vec3::new(cell.x, cell.y, cell.z),
+        CELL * 4.0,
+        0.7,
+        3,
+        ClipRegion::default(),
+    );
     let burned = grass_cell_mesh(cell, CELL, &config, ALL_OPEN, &[burn]);
 
     assert!(!positions(&burned).is_empty());
@@ -119,8 +127,15 @@ fn recovering_grass_interpolates_between_burned_and_healthy() {
     let cell = test_cell();
     let config = grass_config();
     let normal = grass_cell_mesh(cell, CELL, &config, ALL_OPEN, &[]);
-    let mut burn = GrassBurn::new(CarrierId::WORLD, Vec3::new(cell.x, cell.y, cell.z), CELL * 4.0, 0.7, 3);
-    let burned = grass_cell_mesh(cell, CELL, &config, ALL_OPEN, &[burn]);
+    let mut burn = GrassBurn::new(
+        CarrierId::WORLD,
+        Vec3::new(cell.x, cell.y, cell.z),
+        CELL * 4.0,
+        0.7,
+        3,
+        ClipRegion::default(),
+    );
+    let burned = grass_cell_mesh(cell, CELL, &config, ALL_OPEN, std::slice::from_ref(&burn));
     burn.set_intensity(0.5);
     let recovering = grass_cell_mesh(cell, CELL, &config, ALL_OPEN, &[burn]);
 
@@ -139,18 +154,18 @@ fn recovering_grass_interpolates_between_burned_and_healthy() {
 #[test]
 fn different_scorch_variants_produce_different_burn_outlines() {
     let center = Vec3::ZERO;
-    let first = GrassBurn::new(CarrierId::WORLD, center, 10.0, 0.4, 0);
-    let second = GrassBurn::new(CarrierId::WORLD, center, 10.0, 0.4, 1);
+    let first = GrassBurn::new(CarrierId::WORLD, center, 10.0, 0.4, 0, ClipRegion::default());
+    let second = GrassBurn::new(CarrierId::WORLD, center, 10.0, 0.4, 1, ClipRegion::default());
     let first_samples: Vec<f32> = (0..32)
         .map(|index| {
             let angle = index as f32 / 32.0 * TAU;
-            burn_strength_at(Vec3::new(angle.cos() * 8.0, 0.0, angle.sin() * 8.0), first)
+            first.strength_at(Vec3::new(angle.cos() * 8.0, 0.0, angle.sin() * 8.0))
         })
         .collect();
     let second_samples: Vec<f32> = (0..32)
         .map(|index| {
             let angle = index as f32 / 32.0 * TAU;
-            burn_strength_at(Vec3::new(angle.cos() * 8.0, 0.0, angle.sin() * 8.0), second)
+            second.strength_at(Vec3::new(angle.cos() * 8.0, 0.0, angle.sin() * 8.0))
         })
         .collect();
 
@@ -169,6 +184,7 @@ fn burn_on_another_level_does_not_change_grass() {
         CELL * 4.0,
         0.0,
         0,
+        ClipRegion::default(),
     );
     let other_level = grass_cell_mesh(cell, CELL, &config, ALL_OPEN, &[burn]);
 
@@ -182,9 +198,9 @@ fn weaker_overlapping_burn_does_not_override_stronger_burn() {
     let cell = test_cell();
     let config = grass_config();
     let center = Vec3::new(cell.x, cell.y, cell.z);
-    let strong = GrassBurn::new(CarrierId::WORLD, center, CELL * 4.0, 0.0, 0);
-    let weak = GrassBurn::new(CarrierId::WORLD, center, CELL, 1.0, 1);
-    let strong_only = grass_cell_mesh(cell, CELL, &config, ALL_OPEN, &[strong]);
+    let strong = GrassBurn::new(CarrierId::WORLD, center, CELL * 4.0, 0.0, 0, ClipRegion::default());
+    let weak = GrassBurn::new(CarrierId::WORLD, center, CELL, 1.0, 1, ClipRegion::default());
+    let strong_only = grass_cell_mesh(cell, CELL, &config, ALL_OPEN, std::slice::from_ref(&strong));
     let overlapping = grass_cell_mesh(cell, CELL, &config, ALL_OPEN, &[weak, strong]);
 
     assert_eq!(positions(&strong_only), positions(&overlapping));
@@ -218,6 +234,7 @@ fn removing_burn_restores_original_grass_mesh() {
             CELL * 4.0,
             0.0,
             0,
+            ClipRegion::default(),
         ))
         .id();
 

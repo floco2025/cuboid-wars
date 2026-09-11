@@ -62,7 +62,8 @@ class NestedDefinitionsMixin:
         if name is None:
             return
         users = [
-            label for label, geometry in [("Outer map", self.doc.root_data), *self.doc.nested_geometry.items()]
+            label
+            for label, geometry in [("Outer map", self.doc.root_data), *self.doc.nested_geometry.items()]
             if label != name and any(entry["map"] == name for entry in geometry["nested_maps"])
         ]
         if users:

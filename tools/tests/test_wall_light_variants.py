@@ -34,23 +34,17 @@ class WallLightVariantTests(WindowTestCase):
         window.add_wall_line((1, 1), (2, 1))
         window.set_mode(MODE_LIGHT)
         selector = next(
-            widget
-            for widget, attribute in window.tool_settings.bindings
-            if attribute == "recent_light_kind"
+            widget for widget, attribute in window.tool_settings.bindings if attribute == "recent_light_kind"
         )
         selector.setCurrentText("utility")
         window.add_light_at(QPointF(1.5, 1.05))
         self.assertEqual(window.map_data["levels"][0]["lights"][0]["kind"], "utility")
-        self.assertIn(
-            "utility", element_hover_text(window.map_data, 0, (HIT_LIGHT, (1, 1, "N")))
-        )
+        self.assertIn("utility", element_hover_text(window.map_data, 0, (HIT_LIGHT, (1, 1, "N"))))
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp) / "layout.json"
             write_map(path, window.map_data)
             restored = read_map(path)
-            self.assertEqual(
-                restored["levels"][0]["lights"], window.map_data["levels"][0]["lights"]
-            )
+            self.assertEqual(restored["levels"][0]["lights"], window.map_data["levels"][0]["lights"])
         window.undo_stack.undo()
         self.assertEqual(window.map_data["levels"][0]["lights"], [])
         window.undo_stack.redo()
@@ -74,10 +68,7 @@ class WallLightVariantTests(WindowTestCase):
         ):
             window.open_auto_place_lights_dialog()
         self.assertEqual(
-            {
-                light["col"]: light["kind"]
-                for light in window.map_data["levels"][0]["lights"]
-            },
+            {light["col"]: light["kind"] for light in window.map_data["levels"][0]["lights"]},
             {1: "decorative", 2: "utility"},
         )
         window.undo_stack.undo()

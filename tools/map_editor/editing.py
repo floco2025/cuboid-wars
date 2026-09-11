@@ -29,7 +29,10 @@ def merge_record(entry: dict, values: dict) -> dict:
 def update_records(data: dict, name: str, predicate, values: dict, level: int | None = None) -> dict:
     target = data if level is None else data["levels"][level]
     return replace_records(
-        data, name, [merge_record(entry, values) if predicate(entry) else entry for entry in target.get(name, [])], level
+        data,
+        name,
+        [merge_record(entry, values) if predicate(entry) else entry for entry in target.get(name, [])],
+        level,
     )
 
 
@@ -60,7 +63,14 @@ def paint_grass(data: dict, level_idx: int, rect: tuple) -> dict:
 
 
 def paint_edges(
-    data: dict, level_idx: int, start: tuple, end: tuple, *, material: str | None = None, kind: str | None = None, controls: dict | None = None
+    data: dict,
+    level_idx: int,
+    start: tuple,
+    end: tuple,
+    *,
+    material: str | None = None,
+    kind: str | None = None,
+    controls: dict | None = None,
 ) -> dict:
     after = copy.deepcopy(data)
     level = after["levels"][level_idx]
@@ -91,7 +101,9 @@ def paint_erasers(data: dict, level_idx: int, start: tuple, end: tuple) -> dict:
 def paint_bridges(data: dict, level_idx: int, rect: tuple, kind: str, controls: dict | None = None) -> dict:
     c0, r0, c1, r1 = rect
     existing = {(b["col"], b["row"]): b for b in data["levels"][level_idx].get("light_bridges", [])}
-    existing.update({(c, r): {"col": c, "row": r, "kind": kind, **(controls or {})} for r in range(r0, r1) for c in range(c0, c1)})
+    existing.update(
+        {(c, r): {"col": c, "row": r, "kind": kind, **(controls or {})} for r in range(r0, r1) for c in range(c0, c1)}
+    )
     return replace_records(data, "light_bridges", list(existing.values()), level_idx)
 
 

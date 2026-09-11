@@ -30,12 +30,8 @@ bones = [
     ("Sensor", (0, -0.24, 0.73), "Hull"),
 ]
 parts.box("Underbody skid", (0, 0, 0.26), (0.64, 0.76, 0.16), graphite, "Root", 0.05)
-parts.box(
-    "Floating armour belt", (0, 0, 0.40), (0.72, 0.78, 0.20), graphite, bevel=0.07
-)
-parts.box(
-    "Rounded charge housing", (0, 0.01, 0.52), (0.70, 0.72, 0.29), ivory, bevel=0.10
-)
+parts.box("Floating armour belt", (0, 0, 0.40), (0.72, 0.78, 0.20), graphite, bevel=0.07)
+parts.box("Rounded charge housing", (0, 0.01, 0.52), (0.70, 0.72, 0.29), ivory, bevel=0.10)
 for sign in (-1, 1):
     parts.box(
         "Shoulder armour",
@@ -74,9 +70,7 @@ for sign in (-1, 1):
             bone,
             "X",
         )
-        parts.cylinder(
-            "Ivory hub", (sign * 0.525, y, 0.21), 0.10, 0.025, ivory, bone, "X"
-        )
+        parts.cylinder("Ivory hub", (sign * 0.525, y, 0.21), 0.10, 0.025, ivory, bone, "X")
         parts.cylinder(
             "Captive axle bolt",
             (sign * 0.542, y, 0.21),
@@ -117,9 +111,7 @@ for sign in (-1, 1):
                 0.004,
             )
             obj.rotation_euler.x = -angle
-    parts.label(
-        "M-03", (sign * 0.359, 0.04, 0.54), 0.067, (math.pi / 2, 0, sign * math.pi / 2)
-    )
+    parts.label("M-03", (sign * 0.359, 0.04, 0.54), 0.067, (math.pi / 2, 0, sign * math.pi / 2))
     for y in (0.12, 0.18, 0.24):
         parts.box(
             "Cooling gill",
@@ -153,9 +145,7 @@ for angle in range(0, 360, 60):
         steel,
         vertices=12,
     )
-parts.box(
-    "Front shock bumper", (0, -0.421, 0.315), (0.65, 0.09, 0.12), rubber, "Root", 0.035
-)
+parts.box("Front shock bumper", (0, -0.421, 0.315), (0.65, 0.09, 0.12), rubber, "Root", 0.035)
 parts.box(
     "Bumper identification plate",
     (0, -0.469, 0.326),
@@ -165,9 +155,7 @@ parts.box(
     0.008,
 )
 for x in (-0.105, 0, 0.105):
-    obj = parts.box(
-        "Caution slash", (x, -0.476, 0.326), (0.025, 0.005, 0.057), ink, "Root", 0.001
-    )
+    obj = parts.box("Caution slash", (x, -0.476, 0.326), (0.025, 0.005, 0.057), ink, "Root", 0.001)
     obj.rotation_euler.y = -0.45
 parts.cylinder("Sensor swivel", (0, -0.24, 0.70), 0.105, 0.07, graphite)
 parts.box("Sensor pod", (0, -0.27, 0.785), (0.34, 0.25, 0.17), ivory, "Sensor", 0.055)
@@ -179,15 +167,9 @@ parts.box(
     "Sensor",
     0.03,
 )
-parts.cylinder(
-    "Optic bezel", (-0.039, -0.421, 0.79), 0.053, 0.016, steel, "Sensor", "Y"
-)
-parts.cylinder(
-    "Amber tracking optic", (-0.039, -0.432, 0.79), 0.039, 0.012, amber, "Sensor", "Y"
-)
-parts.cylinder(
-    "Optic pupil", (-0.039, -0.441, 0.79), 0.024, 0.006, glass, "Sensor", "Y"
-)
+parts.cylinder("Optic bezel", (-0.039, -0.421, 0.79), 0.053, 0.016, steel, "Sensor", "Y")
+parts.cylinder("Amber tracking optic", (-0.039, -0.432, 0.79), 0.039, 0.012, amber, "Sensor", "Y")
+parts.cylinder("Optic pupil", (-0.039, -0.441, 0.79), 0.024, 0.006, glass, "Sensor", "Y")
 parts.cylinder("Rangefinder", (0.085, -0.414, 0.79), 0.018, 0.008, blue, "Sensor", "Y")
 parts.box(
     "Offset brow",
@@ -197,18 +179,12 @@ parts.box(
     "Sensor",
     0.006,
 )
-parts.box(
-    "Rear battery hatch", (0, 0.381, 0.52), (0.40, 0.027, 0.18), graphite, bevel=0.024
-)
+parts.box("Rear battery hatch", (0, 0.381, 0.52), (0.40, 0.027, 0.18), graphite, bevel=0.024)
 for x in (-0.13, 0.13):
-    parts.cylinder(
-        "Battery latch", (x, 0.402, 0.52), 0.022, 0.018, steel, axis="Y", vertices=12
-    )
+    parts.cylinder("Battery latch", (x, 0.402, 0.52), 0.022, 0.018, steel, axis="Y", vertices=12)
 parts.label("CAUTION", (0, 0.406, 0.55), 0.033, (math.pi / 2, 0, math.pi))
 
-mesh = wheeled_actor.assemble(
-    parts.objects, ivory, palette.wear, MODEL, "M-03 / demolition rover"
-)
+mesh = wheeled_actor.assemble(parts.objects, ivory, palette.wear, MODEL, "M-03 / demolition rover")
 rig = wheeled_actor.build_rig(bones, mesh, "Scuttler")
 wheeled_actor.animate(rig, sensor_sway=(0.045, 0.24), hull_bob=0.005)
 wheeled_actor.export(MODEL, rig, mesh)

@@ -33,9 +33,7 @@ scene.render.resolution_x = 1440
 scene.render.resolution_y = 640
 scene.render.resolution_percentage = 100
 
-clips = (
-    ("Jump", "Fall", "Land", "Idle") if JUMP else ("Walk", "Run", "Climb", "StrafeLeft")
-)
+clips = ("Jump", "Fall", "Land", "Idle") if JUMP else ("Walk", "Run", "Climb", "StrafeLeft")
 for index, clip in enumerate(("Idle",) if HANDS else clips):
     previous = set(scene.objects)
     bpy.ops.import_scene.gltf(filepath=str(MODEL))
@@ -56,15 +54,11 @@ for index, clip in enumerate(("Idle",) if HANDS else clips):
     text.data.body = clip
     text.data.align_x = "CENTER"
     text.data.size = 0.16
-    text.rotation_euler = (
-        (Vector((0, -10, 3)) - text.location).to_track_quat("Z", "Y").to_euler()
-    )
+    text.rotation_euler = (Vector((0, -10, 3)) - text.location).to_track_quat("Z", "Y").to_euler()
 
 bpy.ops.object.camera_add(location=(3.1, -10, 3.3))
 scene.camera = bpy.context.object
-scene.camera.rotation_euler = (
-    (Vector((0, 0, 0.85)) - scene.camera.location).to_track_quat("-Z", "Y").to_euler()
-)
+scene.camera.rotation_euler = (Vector((0, 0, 0.85)) - scene.camera.location).to_track_quat("-Z", "Y").to_euler()
 scene.camera.data.type = "ORTHO"
 scene.camera.data.ortho_scale = 5.7
 scene.render.image_settings.file_format = "PNG"
@@ -75,9 +69,7 @@ if HANDS:
     scene.frame_set(10)
     target = rig.matrix_world @ rig.pose.bones["Hand.R"].head + Vector((0, 0, -0.075))
     scene.camera.location = target + Vector((0.1, -0.8, 0.16))
-    scene.camera.rotation_euler = (
-        (target - scene.camera.location).to_track_quat("-Z", "Y").to_euler()
-    )
+    scene.camera.rotation_euler = (target - scene.camera.location).to_track_quat("-Z", "Y").to_euler()
     scene.camera.data.ortho_scale = 0.25
     scene.render.resolution_x = scene.render.resolution_y = 900
     scene.render.engine = "CYCLES"
@@ -88,9 +80,7 @@ if HANDS:
         light = bpy.context.object
         light.data.energy = power
         light.data.size = 2
-        light.rotation_euler = (
-            (target - light.location).to_track_quat("-Z", "Y").to_euler()
-        )
+        light.rotation_euler = (target - light.location).to_track_quat("-Z", "Y").to_euler()
     scene.render.filepath = "/tmp/player-hand.png"
     bpy.ops.render.render(write_still=True)
 else:

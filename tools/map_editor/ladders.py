@@ -24,7 +24,12 @@ class LaddersMixin:
             self.notify("A ladder needs a level above its base to climb to.")
             return
         levels, accepted = QInputDialog.getInt(
-            self, "Edit Ladder", "Storeys:", min(max_levels, max(1, ladder["levels"])), 1, max_levels,
+            self,
+            "Edit Ladder",
+            "Storeys:",
+            min(max_levels, max(1, ladder["levels"])),
+            1,
+            max_levels,
         )
         if not accepted or levels == ladder["levels"]:
             return
@@ -56,7 +61,8 @@ class LaddersMixin:
         edge = wall_endpoints_for_cell_side(col, row, side)
         existing = next(
             (
-                l for l in self.map_data.get("ladders", [])
+                l
+                for l in self.map_data.get("ladders", [])
                 if l["side"] in LADDER_SIDES and ladder_edge_key(l) == edge and ladder_spans_level(l, level_idx)
             ),
             None,

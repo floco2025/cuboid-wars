@@ -72,7 +72,10 @@ class ContextEditingTests(WindowTestCase):
                 for mode in (MODE_SELECT, MODE_LIGHT_BRIDGE, MODE_ERASE_KEEP_FLOORS):
                     with self.subTest(mode=mode):
                         window.set_mode(mode)
-                        with patch("map_editor.dialogs.KindDialog.prompt", return_value="b") as prompt, field_dialog("b"):
+                        with (
+                            patch("map_editor.dialogs.KindDialog.prompt", return_value="b") as prompt,
+                            field_dialog("b"),
+                        ):
                             self.choose_action(point, title)
                         if name == "lights":
                             self.assertEqual(prompt.call_args.args[3], "a")
@@ -102,7 +105,11 @@ class ContextEditingTests(WindowTestCase):
                 ((2.5, 4.0), "Edit Barrier..."),
                 ((4.5, 3.05), "Edit Light..."),
             ):
-                with self.subTest(choice=choice, title=title), patch("map_editor.dialogs.KindDialog.prompt", return_value=choice), field_dialog(choice):
+                with (
+                    self.subTest(choice=choice, title=title),
+                    patch("map_editor.dialogs.KindDialog.prompt", return_value=choice),
+                    field_dialog(choice),
+                ):
                     self.choose_action(point, title)
                     self.assertEqual(window.map_data, before)
                     self.assertEqual(window.undo_stack.count(), 0)
@@ -116,8 +123,7 @@ class ContextEditingTests(WindowTestCase):
         level["inaccessible_floors"] = [{"col": 4, "row": 3, "all": DEFAULT_ALIAS}]
         level["walls"] = [{"c0": 2, "r0": 5, "c1": 3, "r1": 5, "all": DEFAULT_ALIAS}]
         data["ramps"] = [
-            {"lower_level": 0, "low": [col, 1], "high": [col + 2, 2], "all": DEFAULT_ALIAS}
-            for col in (1, 4)
+            {"lower_level": 0, "low": [col, 1], "high": [col + 2, 2], "all": DEFAULT_ALIAS} for col in (1, 4)
         ]
         window.doc.replace_with_new(data)
         window.set_level_index(1)
@@ -135,7 +141,9 @@ class ContextEditingTests(WindowTestCase):
                     self.choose_action(point, title)
                 self.assertEqual(window.map_data, before)
                 self.assertEqual(window.undo_stack.count(), history)
-                with patch("map_editor.placement.MaterialAssignmentDialog.prompt", return_value={"top": material}) as prompt:
+                with patch(
+                    "map_editor.placement.MaterialAssignmentDialog.prompt", return_value={"top": material}
+                ) as prompt:
                     self.choose_action(point, title)
                 self.assertEqual(prompt.call_args.args[4]["top"], DEFAULT_ALIAS)
                 expected = copy.deepcopy(before)
@@ -182,7 +190,10 @@ class ContextEditingTests(WindowTestCase):
         ]
         window.doc.replace_with_new(data)
         before = copy.deepcopy(window.map_data)
-        with patch("map_editor.ladders.QInputDialog.getInt", return_value=(3, True)), patch.object(window, "notify") as notify:
+        with (
+            patch("map_editor.ladders.QInputDialog.getInt", return_value=(3, True)),
+            patch.object(window, "notify") as notify,
+        ):
             self.choose_action((2.5, 3.0), "Edit Ladder...")
         self.assertIn("already spans", notify.call_args.args[0])
         self.assertEqual(window.map_data, before)

@@ -31,9 +31,16 @@ class MapSettingsTests(ConfigTestCase):
         self.addCleanup(override.stop)
 
     def test_registry_rejects_invalid_names_duplicates_and_default(self):
-        for names, default_map in [([], "hotel"), ([""], ""), (["../hotel"], "../hotel"),
-                                   (["hotel", "hotel"], "hotel"), ({"hotel": {}}, "hotel"),
-                                   ([1], "hotel"), (["hotel"], "missing"), (["hotel"], [])]:
+        for names, default_map in [
+            ([], "hotel"),
+            ([""], ""),
+            (["../hotel"], "../hotel"),
+            (["hotel", "hotel"], "hotel"),
+            ({"hotel": {}}, "hotel"),
+            ([1], "hotel"),
+            (["hotel"], "missing"),
+            (["hotel"], []),
+        ]:
             with self.subTest(names=names, default_map=default_map):
                 self.global_path.write_text(json.dumps({"maps": names, "default_map": default_map}))
                 with self.assertRaisesRegex(ValueError, "gameplay.json"):
@@ -69,12 +76,21 @@ class MapSettingsTests(ConfigTestCase):
     def test_plate_colors_follow_targets_and_explicit_switch_colors(self):
         path = map_settings_path("hotel")
         path.parent.mkdir(parents=True)
-        path.write_text(json.dumps({
-            "barrier_kinds": [{"id": "green", "color": "#22cc33"}],
-            "bridge_kinds": [{"id": "cyan", "color": "#30d8ff"}],
-        }))
+        path.write_text(
+            json.dumps(
+                {
+                    "barrier_kinds": [{"id": "green", "color": "#22cc33"}],
+                    "bridge_kinds": [{"id": "cyan", "color": "#30d8ff"}],
+                }
+            )
+        )
         data = empty_map(3, 3)
-        data["switch_kinds"] = [{"id": "door"}, {"id": "bridge"}, {"id": "show", "plate_color": "#9b5de5"}, {"id": "other"}]
+        data["switch_kinds"] = [
+            {"id": "door"},
+            {"id": "bridge"},
+            {"id": "show", "plate_color": "#9b5de5"},
+            {"id": "other"},
+        ]
         data["levels"][0]["barriers"] = [{"c0": 0, "r0": 0, "c1": 1, "r1": 0, "kind": "green", "switch": "door"}]
         data["levels"][0]["light_bridges"] = [{"col": 0, "row": 0, "kind": "cyan", "switch": "bridge"}]
         barriers, bridges = load_map_barrier_kinds("hotel"), load_map_bridge_kinds("hotel")

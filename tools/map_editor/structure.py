@@ -16,9 +16,7 @@ class StructureMixin:
     # === Map structure (resize / levels / help) ===
 
     def resize_map(self) -> None:
-        result = ResizeMapDialog.prompt(
-            self, self.map_data["grid_cols"], self.map_data["grid_rows"]
-        )
+        result = ResizeMapDialog.prompt(self, self.map_data["grid_cols"], self.map_data["grid_rows"])
         if result is None:
             return
         new_cols, new_rows, anchor_x, anchor_y = result
@@ -48,9 +46,11 @@ class StructureMixin:
             self.canvas.issue_rects = [ramp_rect(ramp) for ramp in crossing]
             self.canvas.update()
             answer = QMessageBox.question(
-                self, "Insert Level Through Ramps",
+                self,
+                "Insert Level Through Ramps",
                 f"Inserting here separates the endpoints of {len(crossing)} highlighted ramp(s). Remove those ramps and insert the level?",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel, QMessageBox.StandardButton.Cancel,
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+                QMessageBox.StandardButton.Cancel,
             )
             self.canvas.issue_rects = []
             self.canvas.update()

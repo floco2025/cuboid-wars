@@ -115,6 +115,32 @@ fn ground_mark_stops_at_a_wall_and_continues_past_its_end() {
 }
 
 #[test]
+fn grass_burn_stops_at_the_wall_that_cuts_the_mark() {
+    let layout = MapLayout {
+        floors: vec![floor(-10.0, -10.0, 10.0, 10.0)],
+        walls: vec![wall(-10.0, 1.0, 10.0, 1.0)],
+        ..default()
+    };
+    let placement = ground(&layout, Vec3::ZERO, Vec3::Y, 6.0);
+    let burn = placement.grass_burn(style()).expect("a level ground mark burns grass");
+    for x in [-1.0, 0.0, 1.0] {
+        for z in [-1.0, -0.5, 0.0, 0.5, 0.8] {
+            assert!(
+                burn.strength_at(Vec3::new(x, 0.0, z)) > 0.0,
+                "grass at ({x}, {z}) is not burned"
+            );
+        }
+        for z in [1.1, 1.5, 2.0] {
+            assert_eq!(
+                burn.strength_at(Vec3::new(x, 0.0, z)),
+                0.0,
+                "grass at ({x}, {z}) burned behind the wall"
+            );
+        }
+    }
+}
+
+#[test]
 fn a_blast_above_a_low_wall_marks_the_floor_beyond_its_shadow() {
     let layout = MapLayout {
         floors: vec![floor(-10.0, -10.0, 10.0, 10.0)],

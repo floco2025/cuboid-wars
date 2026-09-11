@@ -16,7 +16,9 @@ class EraseMixin:
 
     def erase_cell_rect(self, start: tuple[int, int], end: tuple[int, int], preserve_floors: bool) -> None:
         label = "Erase Non-Floor Area" if preserve_floors else "Erase Area"
-        self.apply_change(label, erasing.erase_cell_rect(self.map_data, self.current_level, start, end, preserve_floors))
+        self.apply_change(
+            label, erasing.erase_cell_rect(self.map_data, self.current_level, start, end, preserve_floors)
+        )
 
     # The `Erase <group>` tools: clear one record group inside the dragged
     # rectangle on the current level.

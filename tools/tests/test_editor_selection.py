@@ -20,17 +20,21 @@ from map_editor.types import ZoneRef
 def furnished_block() -> dict:
     data = empty_map(4, 4)
     data["levels"].append(empty_map()["levels"][0])
-    data["levels"][0].update({
-        "floors": [{"col": 0, "row": 0, "all": DEFAULT_ALIAS}],
-        "inaccessible_floors": [{"col": 1, "row": 0, "all": DEFAULT_ALIAS}],
-        "grass": [{"col": 0, "row": 0}],
-        "walls": [{"c0": 0, "r0": 0, "c1": 1, "r1": 0, "all": DEFAULT_ALIAS}],
-        "barriers": [{"c0": 3, "r0": 0, "c1": 4, "r1": 0, "kind": "gate"}],
-        "erasers": [{"c0": 1, "r0": 1, "c1": 2, "r1": 1}],
-        "light_bridges": [{"col": 2, "row": 0, "kind": "bridge"}],
-        "lights": [{"col": 0, "row": 0, "side": "N"}],
-    })
-    data["actor_spawn_zones"] = [{"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "beetle", "count": 2, "respawn_secs": 90}]
+    data["levels"][0].update(
+        {
+            "floors": [{"col": 0, "row": 0, "all": DEFAULT_ALIAS}],
+            "inaccessible_floors": [{"col": 1, "row": 0, "all": DEFAULT_ALIAS}],
+            "grass": [{"col": 0, "row": 0}],
+            "walls": [{"c0": 0, "r0": 0, "c1": 1, "r1": 0, "all": DEFAULT_ALIAS}],
+            "barriers": [{"c0": 3, "r0": 0, "c1": 4, "r1": 0, "kind": "gate"}],
+            "erasers": [{"c0": 1, "r0": 1, "c1": 2, "r1": 1}],
+            "light_bridges": [{"col": 2, "row": 0, "kind": "bridge"}],
+            "lights": [{"col": 0, "row": 0, "side": "N"}],
+        }
+    )
+    data["actor_spawn_zones"] = [
+        {"level": 0, "cols": [0, 1], "rows": [0, 1], "kind": "beetle", "count": 2, "respawn_secs": 90}
+    ]
     data["player_spawn_zones"] = [{"level": 1, "cols": [0, 1], "rows": [0, 1]}]
     data["items"] = [{"level": 0, "col": 0, "row": 0, "type": "gold"}]
     data["pressure_plates"] = [{"level": 0, "col": 0, "row": 0, "type": "firework"}]
@@ -91,8 +95,12 @@ class RegionTests(unittest.TestCase):
     def test_partial_multicell_and_multilevel_objects_are_rejected_without_mutation(self):
         data = furnished_block()
         before = copy.deepcopy(data)
-        for rect, levels, message in [((0, 2, 2, 3), 2, "ramp"), ((0, 2, 4, 4), 1, "ramp"),
-                                      ((3, 3, 4, 4), 1, "ladder"), ((1, 1, 2, 2), 2, "nested map")]:
+        for rect, levels, message in [
+            ((0, 2, 2, 3), 2, "ramp"),
+            ((0, 2, 4, 4), 1, "ramp"),
+            ((3, 3, 4, 4), 1, "ladder"),
+            ((1, 1, 2, 2), 2, "nested map"),
+        ]:
             with self.subTest(message=message, rect=rect, levels=levels):
                 with self.assertRaisesRegex(ValueError, message):
                     delete_region(data, TileRegion(rect, 0, levels))
@@ -152,7 +160,9 @@ class RegionTests(unittest.TestCase):
 class SelectHostTests(unittest.TestCase):
     def test_a_press_selects_a_spawn_zone_before_a_drag_can_move_it(self) -> None:
         data = empty_map(8, 8)
-        data["actor_spawn_zones"] = [{"level": 0, "cols": [1, 3], "rows": [1, 3], "kind": "beetle", "count": 2, "respawn_secs": 90}]
+        data["actor_spawn_zones"] = [
+            {"level": 0, "cols": [1, 3], "rows": [1, 3], "kind": "beetle", "count": 2, "respawn_secs": 90}
+        ]
         host = EditorHost(data, [])
         inside = QPointF(2.5, 2.5)
 
@@ -243,10 +253,23 @@ class SelectionWindowTests(WindowTestCase):
         self.assertIsNone(self.window.canvas.hover_target)
 
     def test_save_rejects_nested_map_errors_before_writing(self):
-        self.window.map_data["nested_maps"] = canonicalize_map({**empty_map(), "nested_maps": [{
-            "map": "map", "level": 0, "from": [0, 0], "to": [0, 0],
-        }]})["nested_maps"]
-        with patch("map_editor.file_actions.QMessageBox.warning") as warning, patch.object(self.window.doc, "write") as write:
+        self.window.map_data["nested_maps"] = canonicalize_map(
+            {
+                **empty_map(),
+                "nested_maps": [
+                    {
+                        "map": "map",
+                        "level": 0,
+                        "from": [0, 0],
+                        "to": [0, 0],
+                    }
+                ],
+            }
+        )["nested_maps"]
+        with (
+            patch("map_editor.file_actions.QMessageBox.warning") as warning,
+            patch.object(self.window.doc, "write") as write,
+        ):
             self.assertFalse(self.window.save())
         write.assert_not_called()
         self.assertIn("named geometry is missing", warning.call_args.args[2])
@@ -334,10 +357,13 @@ class SelectionWindowTests(WindowTestCase):
     def test_resize_reports_pressure_plates_even_when_no_geometry_is_lost(self):
         self.window.map_data["pressure_plates"] = [{"level": 0, "col": 7, "row": 7, "type": "firework"}]
         before = copy.deepcopy(self.window.map_data)
-        with patch("map_editor.structure.ResizeMapDialog.prompt", return_value=(6, 6, 0, 0)), patch(
-            "map_editor.structure.QMessageBox.question", return_value=QMessageBox.StandardButton.Cancel,
-        ) as question:
+        with (
+            patch("map_editor.structure.ResizeMapDialog.prompt", return_value=(6, 6, 0, 0)),
+            patch(
+                "map_editor.structure.QMessageBox.question",
+                return_value=QMessageBox.StandardButton.Cancel,
+            ) as question,
+        ):
             self.window.resize_map()
         self.assertIn("1 pressure plates", question.call_args.args[2])
         self.assertEqual(self.window.map_data, before)
-

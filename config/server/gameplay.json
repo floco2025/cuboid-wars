@@ -1,17 +1,15 @@
 {
-  "network": {
-    "server_hz": 30,
-    "update_hz": 30,
-    "snapshot_hz": 4
-  },
+  "network": { "server_hz": 30, "update_hz": 30, "snapshot_hz": 4 },
   "default_map": "hotel",
-  "maps": [
-    "hotel",
-    "obby"
-  ],
+  "maps": ["hotel", "obby"],
   "player": {
     "movement_collider": { "diameter": 0.6, "height": 1.8 },
-    "hitbox": { "width": 0.6, "height": 1.78, "depth": 0.25, "bottom_offset": 0.02 },
+    "hitbox": {
+      "width": 0.6,
+      "height": 1.78,
+      "depth": 0.25,
+      "bottom_offset": 0.02
+    },
     "eye_height": 1.62,
     "respawn_secs": 2.0
   },
@@ -20,7 +18,12 @@
     "kinds": {
       "scuttler": {
         "movement_collider": { "diameter": 1.05, "height": 1.1 },
-        "hitbox": { "width": 1.1, "height": 0.88, "depth": 1.02, "bottom_offset": 0.0 },
+        "hitbox": {
+          "width": 1.1,
+          "height": 0.88,
+          "depth": 1.02,
+          "bottom_offset": 0.0
+        },
         "eye_height": 0.79,
         "can_use_ladders": false,
         "immovable": false,
@@ -30,7 +33,12 @@
       },
       "bruiser": {
         "movement_collider": { "diameter": 1.6422, "height": 1.6675 },
-        "hitbox": { "width": 1.84, "height": 1.5295, "depth": 1.9895, "bottom_offset": 0.0 },
+        "hitbox": {
+          "width": 1.84,
+          "height": 1.5295,
+          "depth": 1.9895,
+          "bottom_offset": 0.0
+        },
         "eye_height": 1.38,
         "can_use_ladders": false,
         "immovable": false,
@@ -40,7 +48,12 @@
       },
       "zapper": {
         "movement_collider": { "diameter": 0.88, "height": 1.75 },
-        "hitbox": { "width": 0.94, "height": 0.50, "depth": 0.76, "bottom_offset": 1.23 },
+        "hitbox": {
+          "width": 0.94,
+          "height": 0.5,
+          "depth": 0.76,
+          "bottom_offset": 1.23
+        },
         "beam_origin_height": 1.35,
         "eye_height": 1.59,
         "can_use_ladders": false,
@@ -56,14 +69,24 @@
       },
       "turret": {
         "movement_collider": { "diameter": 0.5, "height": 1.62 },
-        "hitbox": { "width": 0.5, "height": 1.61, "depth": 0.5, "bottom_offset": 0.01 },
+        "hitbox": {
+          "width": 0.5,
+          "height": 1.61,
+          "depth": 0.5,
+          "bottom_offset": 0.01
+        },
         "beam_origin_height": 1.45,
         "eye_height": 1.6,
         "can_use_ladders": false,
         "immovable": true,
         "vision_range": 40.0,
         "roam_steps": 0,
-        "attack": { "type": "beam", "range": 25.0, "duration_secs": 14.784, "cooldown_secs": 0.5 }
+        "attack": {
+          "type": "beam",
+          "range": 25.0,
+          "duration_secs": 14.784,
+          "cooldown_secs": 0.5
+        }
       }
     }
   },
@@ -156,12 +179,7 @@
     "player_kill": 0,
     "player_death": -1000,
     "gold": 100,
-    "actor_hit": {
-      "scuttler": 5,
-      "bruiser": 10,
-      "zapper": 50,
-      "turret": 50
-    },
+    "actor_hit": { "scuttler": 5, "bruiser": 10, "zapper": 50, "turret": 50 },
     "actor_kill": {
       "scuttler": 50,
       "bruiser": 200,

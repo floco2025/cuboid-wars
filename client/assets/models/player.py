@@ -77,9 +77,7 @@ def cylinder(name, pos, radius, depth, mat, bone, axis="Z", vertices=16):
 
 
 def rod(name, start, end, radius, mat, bone):
-    return primitives.rod(
-        name, start, end, radius, mat, rigged(parts, bone), 12, 0.003, 3, "quads"
-    )
+    return primitives.rod(name, start, end, radius, mat, rigged(parts, bone), 12, 0.003, 3, "quads")
 
 
 def shell(name, x, rings, mat, bone, arc=(0, math.tau), exponent=1.0):
@@ -102,9 +100,7 @@ def shell(name, x, rings, mat, bone, arc=(0, math.tau), exponent=1.0):
     for i in range(len(rings) - 1):
         for j in range(segments):
             k = (j + 1) % count
-            faces.append(
-                (i * count + j, i * count + k, (i + 1) * count + k, (i + 1) * count + j)
-            )
+            faces.append((i * count + j, i * count + k, (i + 1) * count + k, (i + 1) * count + j))
     if closed:
         faces.extend(
             [
@@ -150,9 +146,7 @@ def cable(name, points, radius, mat, bone):
 
 
 def stencil(text, pos, size, bone):
-    return primitives.label(
-        text, pos, size, (math.pi / 2, 0, 0), lettering, rigged(parts, bone), 0.0003
-    )
+    return primitives.label(text, pos, size, (math.pi / 2, 0, 0), lettering, rigged(parts, bone), 0.0003)
 
 
 # Blender -Y exports as game +Z, matching player FaceYaw.
@@ -370,9 +364,7 @@ for x, mat in ((0.074, eye), (0.091, amber)):
 
 sphere("Cervical socket", (0, 0, 1.454), (0.053, 0.052, 0.046), joint, "Torso")
 cylinder("Cervical bearing", (0, 0, 1.49), 0.042, 0.105, steel, "Head", vertices=32)
-cylinder(
-    "Neck flexible sleeve", (0, 0, 1.479), 0.047, 0.081, joint, "Head", vertices=32
-)
+cylinder("Neck flexible sleeve", (0, 0, 1.479), 0.047, 0.081, joint, "Head", vertices=32)
 sphere("Occipital ball joint", (0, 0, 1.539), (0.047, 0.048, 0.044), chassis, "Head")
 for z in (1.458, 1.482, 1.506):
     cylinder("Neck seal", (0, 0, z), 0.052, 0.013, joint, "Head", vertices=32)
@@ -602,9 +594,7 @@ for side, sign in (("L", -1), ("R", 1)):
     )
     cylinder("Ankle gimbal", (x, 0, 0.115), 0.031, 0.105, steel, ankle, "X", 24)
     for z in (0.127, 0.146):
-        cylinder(
-            "Ankle flex seal", (x, 0.008, z), 0.032, 0.012, joint, ankle, vertices=24
-        )
+        cylinder("Ankle flex seal", (x, 0.008, z), 0.032, 0.012, joint, ankle, vertices=24)
     shell(
         "Articulated foot sole",
         x,
@@ -695,9 +685,7 @@ for side, sign in (("L", -1), ("R", 1)):
         upper,
     )
     cylinder("Elbow hinge", (ex, 0, 1.10), 0.039, 0.111, joint, forearm, "X", 24)
-    cylinder(
-        "Elbow cap", (ex + sign * 0.058, 0, 1.10), 0.027, 0.013, steel, forearm, "X", 24
-    )
+    cylinder("Elbow cap", (ex + sign * 0.058, 0, 1.10), 0.027, 0.013, steel, forearm, "X", 24)
     rod("Forearm drive", (ex, 0, 1.10), (wx, 0, 0.823), 0.021, chassis, forearm)
     rod(
         "Radial strut",
@@ -914,16 +902,12 @@ bpy.ops.object.mode_set(mode="OBJECT")
 mesh.parent = rig
 modifier = mesh.modifiers.new("Rigid joint deformation", "ARMATURE")
 modifier.object = rig
-rest_rotation = {
-    bone.name: bone.matrix_local.to_quaternion() for bone in armature.bones
-}
+rest_rotation = {bone.name: bone.matrix_local.to_quaternion() for bone in armature.bones}
 
 
 def rotate(name, x=0, y=0, z=0):
     rotation = rest_rotation[name]
-    rig.pose.bones[name].rotation_quaternion = (
-        rotation.inverted() @ Euler((x, y, z)).to_quaternion() @ rotation
-    )
+    rig.pose.bones[name].rotation_quaternion = rotation.inverted() @ Euler((x, y, z)).to_quaternion() @ rotation
 
 
 def translate(name, x=0, y=0, z=0):
@@ -978,23 +962,14 @@ checked_bones = (
     "Fingers.L",
     "Fingers.R",
 )
-checked_bones += tuple(
-    f"FingerTip.{index}.{side}" for side in ("L", "R") for index in range(4)
-)
+checked_bones += tuple(f"FingerTip.{index}.{side}" for side in ("L", "R") for index in range(4))
 rest_vertices = {}
 for name in checked_bones:
     group = mesh.vertex_groups[name].index
     rest_vertices[name] = np.array(
-        [
-            (*vertex.co, 1)
-            for vertex in mesh.data.vertices
-            if any(weight.group == group for weight in vertex.groups)
-        ]
+        [(*vertex.co, 1) for vertex in mesh.data.vertices if any(weight.group == group for weight in vertex.groups)]
     )
-inverse_bind = {
-    name: np.array(armature.bones[name].matrix_local.inverted())
-    for name in checked_bones
-}
+inverse_bind = {name: np.array(armature.bones[name].matrix_local.inverted()) for name in checked_bones}
 
 
 def posed_vertices(name):
@@ -1007,19 +982,13 @@ def finish_pose(clip, frame, clearance):
     if clip not in ("Jump", "Fall", "Climb"):
         lowest = min(posed_vertices(name)[:, 2].min() for name in ("Foot.L", "Foot.R"))
         root = rig.pose.bones["Root"]
-        root.location += rest_rotation["Root"].inverted() @ Vector(
-            (0, 0, clearance - lowest)
-        )
+        root.location += rest_rotation["Root"].inverted() @ Vector((0, 0, clearance - lowest))
         bpy.context.view_layer.update()
     pelvis = posed_vertices("Root")
     for name in checked_bones[3:]:
         limb = posed_vertices(name)
-        overlap = np.minimum(pelvis.max(axis=0), limb.max(axis=0)) - np.maximum(
-            pelvis.min(axis=0), limb.min(axis=0)
-        )
-        assert not np.all(
-            overlap > 0
-        ), f"{clip} frame {frame}: {name} intersects the pelvic armour by {overlap}"
+        overlap = np.minimum(pelvis.max(axis=0), limb.max(axis=0)) - np.maximum(pelvis.min(axis=0), limb.min(axis=0))
+        assert not np.all(overlap > 0), f"{clip} frame {frame}: {name} intersects the pelvic armour by {overlap}"
 
 
 bpy.context.scene.render.fps = FPS
@@ -1038,9 +1007,7 @@ for clip in CLIPS:
         elif frame == frames and clip not in ("Jump", "Fall", "Land"):
             for bone in rig.pose.bones:
                 error = np.abs(np.array(bone.matrix) - first_pose[bone.name]).max()
-                assert (
-                    error < 0.0001
-                ), f"{clip}: {bone.name} has a discontinuous loop ({error})"
+                assert error < 0.0001, f"{clip}: {bone.name} has a discontinuous loop ({error})"
         for bone in rig.pose.bones:
             for channel in ("location", "rotation_quaternion", "scale"):
                 bone.keyframe_insert(data_path=channel, frame=frame)
@@ -1073,10 +1040,7 @@ def order_clips(document):
 
 
 rewrite_glb_json(MODEL, order_clips)
-print(
-    f"Exported {MODEL.name}: {len(CLIPS)} clips, {len(armature.bones)} joints, "
-    f"{MODEL.stat().st_size:,} bytes"
-)
+print(f"Exported {MODEL.name}: {len(CLIPS)} clips, {len(armature.bones)} joints, {MODEL.stat().st_size:,} bytes")
 
 if "--preview" in sys.argv:
     preview.clear_scene()
@@ -1097,9 +1061,7 @@ if "--preview" in sys.argv:
     for clip in CLIPS:
         track = tracks[clip]
         track.mute = False
-        scene.frame_set(
-            round(durations[clip] * FPS * (0.45 if clip == "Jump" else 0.15))
-        )
+        scene.frame_set(round(durations[clip] * FPS * (0.45 if clip == "Jump" else 0.15)))
         preview.render(scene, f"/tmp/player-{clip.lower()}.png")
         track.mute = True
 

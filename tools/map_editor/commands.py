@@ -9,6 +9,7 @@ from PySide6.QtGui import QUndoCommand
 if TYPE_CHECKING:
     from .document import MapDocument
 
+
 class SetMapCommand(QUndoCommand):
     def __init__(self, document: "MapDocument", text: str, before: dict, after: dict, active_map: str | None):
         super().__init__(text)

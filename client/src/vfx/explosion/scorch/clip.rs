@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use super::variants::{ScorchVariant, ScorchVertex};
 
 // A half-plane of the mark's plane: keeps the points with `normal · p <= offset`.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct HalfPlane {
     pub(super) normal: Vec2,
     pub(super) offset: f32,
@@ -20,8 +20,8 @@ pub(super) type Convex = Vec<HalfPlane>;
 
 // Where a mark shows: on any `keep` region (anywhere when none is listed),
 // and off every `cut` region.
-#[derive(Clone, Debug, Default)]
-pub(super) struct ClipRegion {
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) struct ClipRegion {
     pub(super) keep: Vec<Convex>,
     pub(super) cut: Vec<Convex>,
 }
@@ -29,6 +29,11 @@ pub(super) struct ClipRegion {
 type Polygon = Vec<ScorchVertex>;
 
 impl ClipRegion {
+    pub(crate) fn contains(&self, point: Vec2) -> bool {
+        (self.keep.is_empty() || self.keep.iter().any(|region| inside(region, point)))
+            && !self.cut.iter().any(|region| inside(region, point))
+    }
+
     pub(super) fn apply(&self, variant: &ScorchVariant) -> ScorchVariant {
         let mut clipped = ScorchVariant::default();
         for triangle in &variant.triangles {
@@ -59,6 +64,10 @@ impl ClipRegion {
         }
         clipped
     }
+}
+
+fn inside(region: &Convex, point: Vec2) -> bool {
+    region.iter().all(|half| half.excess(point) <= 0.0)
 }
 
 // Pieces thinner than rounding noise along a cut are dropped, not drawn.

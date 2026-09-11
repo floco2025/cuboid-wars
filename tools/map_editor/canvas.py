@@ -261,7 +261,9 @@ class Canvas(CanvasPaintingMixin, QWidget):
         super().resizeEvent(event)
 
     def fit_map(self) -> None:
-        self.viewport.fit(self.width(), self.height(), self.window.map_data["grid_cols"], self.window.map_data["grid_rows"])
+        self.viewport.fit(
+            self.width(), self.height(), self.window.map_data["grid_cols"], self.window.map_data["grid_rows"]
+        )
         self.refresh_view()
 
     def zoom_by(self, factor: float, anchor: QPointF | None = None) -> None:
@@ -279,7 +281,9 @@ class Canvas(CanvasPaintingMixin, QWidget):
             self.refresh_view()
 
     def constrain_view(self) -> None:
-        self.viewport.constrain(self.width(), self.height(), self.window.map_data["grid_cols"], self.window.map_data["grid_rows"])
+        self.viewport.constrain(
+            self.width(), self.height(), self.window.map_data["grid_cols"], self.window.map_data["grid_rows"]
+        )
 
     def refresh_view(self) -> None:
         self.constrain_view()
@@ -322,7 +326,7 @@ class Canvas(CanvasPaintingMixin, QWidget):
         visible = self.viewport.visible_rect(self.width(), self.height()).adjusted(-1, -1, 1, 1)
         for entry in entries:
             c0, r0, c1, r1 = record_rect(name, entry)
-            if visible.intersects(QRectF(c0, r0, max(.1, c1 - c0), max(.1, r1 - r0))):
+            if visible.intersects(QRectF(c0, r0, max(0.1, c1 - c0), max(0.1, r1 - r0))):
                 yield entry
 
     # A grid-unit distance for `pixels` on screen, for picking tolerances.
@@ -347,7 +351,9 @@ class Canvas(CanvasPaintingMixin, QWidget):
         )
 
     def mousePressEvent(self, event) -> None:
-        if event.button() == Qt.MouseButton.MiddleButton or (self.pan_key and event.button() == Qt.MouseButton.LeftButton):
+        if event.button() == Qt.MouseButton.MiddleButton or (
+            self.pan_key and event.button() == Qt.MouseButton.LeftButton
+        ):
             self.setFocus(Qt.FocusReason.MouseFocusReason)
             self.window.cancel_interaction()
             self.pan_origin = event.position()
@@ -383,10 +389,14 @@ class Canvas(CanvasPaintingMixin, QWidget):
             if self.window.mode == MODE_SELECT and not self.pan_key:
                 handle = self.window.selected_spawn_zone_handle(self.grid_position(event.position()))
                 cursor = {
-                    "nw": Qt.CursorShape.SizeFDiagCursor, "se": Qt.CursorShape.SizeFDiagCursor,
-                    "ne": Qt.CursorShape.SizeBDiagCursor, "sw": Qt.CursorShape.SizeBDiagCursor,
-                    "n": Qt.CursorShape.SizeVerCursor, "s": Qt.CursorShape.SizeVerCursor,
-                    "e": Qt.CursorShape.SizeHorCursor, "w": Qt.CursorShape.SizeHorCursor,
+                    "nw": Qt.CursorShape.SizeFDiagCursor,
+                    "se": Qt.CursorShape.SizeFDiagCursor,
+                    "ne": Qt.CursorShape.SizeBDiagCursor,
+                    "sw": Qt.CursorShape.SizeBDiagCursor,
+                    "n": Qt.CursorShape.SizeVerCursor,
+                    "s": Qt.CursorShape.SizeVerCursor,
+                    "e": Qt.CursorShape.SizeHorCursor,
+                    "w": Qt.CursorShape.SizeHorCursor,
                 }.get(handle, self.window.cursor_for_mode(self.window.mode))
                 self.setCursor(cursor)
             if self.window.mode in MATERIAL_MODES:
@@ -527,7 +537,9 @@ class Canvas(CanvasPaintingMixin, QWidget):
     def mouseReleaseEvent(self, event) -> None:
         if self.pan_origin is not None:
             self.pan_origin = None
-            self.setCursor(Qt.CursorShape.OpenHandCursor if self.pan_key else self.window.cursor_for_mode(self.window.mode))
+            self.setCursor(
+                Qt.CursorShape.OpenHandCursor if self.pan_key else self.window.cursor_for_mode(self.window.mode)
+            )
             return
         if event.button() != Qt.MouseButton.LeftButton:
             return
@@ -558,7 +570,12 @@ class Canvas(CanvasPaintingMixin, QWidget):
         # when it has properties, and erased.
         menu = QMenu(self)
         if self.window.mode == MODE_SELECT:
-            for action in (self.window.cut_action, self.window.copy_action, self.window.paste_action, self.window.delete_action):
+            for action in (
+                self.window.cut_action,
+                self.window.copy_action,
+                self.window.paste_action,
+                self.window.delete_action,
+            ):
                 menu.addAction(action)
             menu.addSeparator()
         hit = self.window.hit_at(self.grid_position(event.pos()))
@@ -573,7 +590,10 @@ class Canvas(CanvasPaintingMixin, QWidget):
             list_name, index = value
             self.window.set_selected_spawn_zone(ZoneRef(list_name, index))
             if self.window.selected_spawn_zone_has_fields():
-                menu.addAction("Edit Checkpoint..." if kind == HIT_CHECKPOINT else "Edit Spawn Zone...", lambda: self.window.edit_selected_spawn_zone_fields())
+                menu.addAction(
+                    "Edit Checkpoint..." if kind == HIT_CHECKPOINT else "Edit Spawn Zone...",
+                    lambda: self.window.edit_selected_spawn_zone_fields(),
+                )
         elif kind == HIT_NESTED_MAP:
             menu.addAction("Edit Nested Map...", lambda: self.window.edit_nested_map(value))
         elif kind == HIT_ITEM:
@@ -595,7 +615,10 @@ class Canvas(CanvasPaintingMixin, QWidget):
                     f"Edit {label}...",
                     lambda _checked=False, key=pressure_plate_key(plate): self.window.edit_pressure_plate_at(key),
                 )
-                menu.addAction(f"Erase {label}", lambda _checked=False, key=pressure_plate_key(plate): self.window.erase_pressure_plate(key))
+                menu.addAction(
+                    f"Erase {label}",
+                    lambda _checked=False, key=pressure_plate_key(plate): self.window.erase_pressure_plate(key),
+                )
         if kind != HIT_PRESSURE_PLATE and not (preserve_floors and kind in FLOOR_HIT_KINDS):
             menu.addAction(f"Erase {kind}", lambda: self.window.erase_hit(hit, preserve_floors))
         menu.exec(event.globalPos())

@@ -126,15 +126,20 @@ def normalize_map(map_data: dict) -> dict:
         "grid_rows": rows,
         "actor_spawn_zones": actor_spawn_zones,
         "player_spawn_zones": player_spawn_zones,
-        "checkpoints": [{**normalize_player_spawn_zone(z), "type": str(z.get("type", ""))} for z in map_data.get("checkpoints", [])],
+        "checkpoints": [
+            {**normalize_player_spawn_zone(z), "type": str(z.get("type", ""))} for z in map_data.get("checkpoints", [])
+        ],
         "items": items,
         "pressure_plates": pressure_plates,
         "levels": levels,
         "ramps": ramps,
         "ladders": ladders,
         "nested_maps": nested_maps,
-        **({"nested_geometry": {name: normalize_map(data) for name, data in map_data["nested_geometry"].items()}}
-           if "nested_geometry" in map_data else {}),
+        **(
+            {"nested_geometry": {name: normalize_map(data) for name, data in map_data["nested_geometry"].items()}}
+            if "nested_geometry" in map_data
+            else {}
+        ),
     }
 
 
@@ -181,7 +186,12 @@ def normalize_barrier(barrier: dict) -> dict:
 
 
 def normalize_light_bridge(bridge: dict) -> dict:
-    return {"col": int(bridge["col"]), "row": int(bridge["row"]), "kind": str(bridge.get("kind", "")), **control_fields(bridge)}
+    return {
+        "col": int(bridge["col"]),
+        "row": int(bridge["row"]),
+        "kind": str(bridge.get("kind", "")),
+        **control_fields(bridge),
+    }
 
 
 def normalize_ramp(ramp: dict) -> dict:
@@ -446,8 +456,7 @@ def canonicalize_map(map_data: dict) -> dict:
         level["floors"] = _dedupe_floors(level["floors"])
         floor_keys = {(f["col"], f["row"]) for f in level["floors"]}
         level["inaccessible_floors"] = [
-            f for f in _dedupe_floors(level["inaccessible_floors"])
-            if (f["col"], f["row"]) not in floor_keys
+            f for f in _dedupe_floors(level["inaccessible_floors"]) if (f["col"], f["row"]) not in floor_keys
         ]
         ramp_set = ramp_cells_by_level[level_idx]
         # Grass only survives on slab cells (floor or inaccessible floor)
@@ -455,26 +464,25 @@ def canonicalize_map(map_data: dict) -> dict:
         # same canonicalize pass — the two can never desync.
         slab_keys = floor_keys | {(f["col"], f["row"]) for f in level["inaccessible_floors"]}
         level["grass"] = [
-            g for g in _dedupe_floors(level["grass"])
+            g
+            for g in _dedupe_floors(level["grass"])
             if (g["col"], g["row"]) in slab_keys and (g["col"], g["row"]) not in ramp_set
         ]
         level["walls"] = _dedupe_edges(level["walls"])
         level["erasers"] = _dedupe_edges(level.get("erasers", []))
-        wall_endpoints_set = {
-            edge_key(w)
-            for w in level["walls"]
-        }
+        wall_endpoints_set = {edge_key(w) for w in level["walls"]}
         # Drop barriers that share an edge with a wall on the same level so
         # canonical files satisfy the Rust loader's conflict rule.
         level["barriers"] = [
-            b for b in _dedupe_edges(level.get("barriers", []))
-            if edge_key(b) not in wall_endpoints_set
+            b for b in _dedupe_edges(level.get("barriers", [])) if edge_key(b) not in wall_endpoints_set
         ]
         level["light_bridges"] = _dedupe_floors(level.get("light_bridges", []))
         cols, rows = b["grid_cols"], b["grid_rows"]
         in_bounds_lights = [
-            l for l in level.get("lights", [])
-            if 0 <= l["col"] < cols and 0 <= l["row"] < rows
+            l
+            for l in level.get("lights", [])
+            if 0 <= l["col"] < cols
+            and 0 <= l["row"] < rows
             and l["side"] in LIGHT_SIDES
             and wall_endpoints_for_cell_side(l["col"], l["row"], l["side"]) in wall_endpoints_set
             and (l["col"], l["row"]) not in ramp_set
@@ -498,9 +506,12 @@ def canonicalize_map(map_data: dict) -> dict:
     # overlapping same-edge span — the loader rejects overlaps.
     cols, rows = b["grid_cols"], b["grid_rows"]
     in_bounds_ladders = [
-        l for l in b["ladders"]
-        if 0 <= l["col"] < cols and 0 <= l["row"] < rows
-        and l["side"] in LADDER_SIDES and l["levels"] >= 1
+        l
+        for l in b["ladders"]
+        if 0 <= l["col"] < cols
+        and 0 <= l["row"] < rows
+        and l["side"] in LADDER_SIDES
+        and l["levels"] >= 1
         and l["lower_level"] >= 0
         and l["lower_level"] + l["levels"] < len(b["levels"])
     ]
@@ -569,14 +580,11 @@ def enforce_ramp_floor_rules(map_data: dict) -> None:
                 lower_existing[(col, row)] = {"col": col, "row": row, **ramp_faces}
         map_data["levels"][lower]["floors"] = list(lower_existing.values())
         map_data["levels"][lower]["inaccessible_floors"] = [
-            f for f in map_data["levels"][lower]["inaccessible_floors"]
-            if (f["col"], f["row"]) not in cells
+            f for f in map_data["levels"][lower]["inaccessible_floors"] if (f["col"], f["row"]) not in cells
         ]
         map_data["levels"][upper]["floors"] = [
-            f for f in map_data["levels"][upper]["floors"]
-            if (f["col"], f["row"]) not in cells
+            f for f in map_data["levels"][upper]["floors"] if (f["col"], f["row"]) not in cells
         ]
         map_data["levels"][upper]["inaccessible_floors"] = [
-            f for f in map_data["levels"][upper]["inaccessible_floors"]
-            if (f["col"], f["row"]) not in cells
+            f for f in map_data["levels"][upper]["inaccessible_floors"] if (f["col"], f["row"]) not in cells
         ]

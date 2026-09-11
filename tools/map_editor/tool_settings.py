@@ -64,7 +64,9 @@ class ToolSettings(QWidget):
                 widget.setValue(value)
             widget.blockSignals(False)
         if self.material_permission is not None:
-            self.material_permission.setText(portal_label(self.window.texture_catalog.get(self.window.current_material, False)))
+            self.material_permission.setText(
+                portal_label(self.window.texture_catalog.get(self.window.current_material, False))
+            )
         if self.key_controls is not None:
             for widget in self.key_controls:
                 widget.setVisible(self.window.recent_item_type == ITEM_KEY_TYPE)
@@ -125,7 +127,9 @@ class ToolSettings(QWidget):
                 box.completer().setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
             box.currentTextChanged.connect(lambda text: setattr(window, attribute, text))
             if attribute == "current_material":
-                box.currentTextChanged.connect(lambda alias: box.setToolTip(portal_label(window.texture_catalog.get(alias, False))))
+                box.currentTextChanged.connect(
+                    lambda alias: box.setToolTip(portal_label(window.texture_catalog.get(alias, False)))
+                )
             else:
                 box.currentTextChanged.connect(box.setToolTip)
             self.bindings.append((box, attribute))
@@ -165,7 +169,9 @@ class ToolSettings(QWidget):
             box, _ = combo("Material", "current_material", window.materials_catalog, required=True)
             permission = QLabel(portal_label(window.texture_catalog.get(window.current_material, False)))
             self.material_permission = permission
-            box.currentTextChanged.connect(lambda alias: permission.setText(portal_label(window.texture_catalog.get(alias, False))))
+            box.currentTextChanged.connect(
+                lambda alias: permission.setText(portal_label(window.texture_catalog.get(alias, False)))
+            )
             form.addWidget(permission)
 
         def motion_button():
@@ -203,7 +209,9 @@ class ToolSettings(QWidget):
             MODE_LIGHT_BRIDGE: lambda: field_controls(False),
             MODE_LIGHT: lambda: combo("Style", "recent_light_kind", window.wall_light_kinds, required=True),
             MODE_ITEM: item_controls,
-            MODE_LADDER: lambda: number("Storeys", "recent_ladder_levels", 1, max(1, len(window.map_data["levels"]) - 1)),
+            MODE_LADDER: lambda: number(
+                "Storeys", "recent_ladder_levels", 1, max(1, len(window.map_data["levels"]) - 1)
+            ),
             MODE_NESTED_MAP: motion_button,
         }
         if mode in builders:
@@ -220,9 +228,15 @@ class ToolSettings(QWidget):
 
     def configure_actor(self) -> None:
         window = self.window
-        result = ActorSpawnFieldsDialog.prompt(window, window.recent_actor_spawn_kind, window.recent_actor_spawn_count,
-                                               window.recent_actor_spawn_respawn_secs, window.switches,
-                                               window.recent_actor_spawn_switch or None, window.recent_actor_spawn_inverted)
+        result = ActorSpawnFieldsDialog.prompt(
+            window,
+            window.recent_actor_spawn_kind,
+            window.recent_actor_spawn_count,
+            window.recent_actor_spawn_respawn_secs,
+            window.switches,
+            window.recent_actor_spawn_switch or None,
+            window.recent_actor_spawn_inverted,
+        )
         if result is not None:
             kind, count, respawn_secs, switch, inverted = result
             window.recent_actor_spawn_kind = kind

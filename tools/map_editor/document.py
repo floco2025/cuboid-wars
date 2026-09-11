@@ -37,7 +37,10 @@ class MapDocument(QObject):
 
     def __init__(self, path: Path | None, *, recovery_dir: Path | None = None):
         super().__init__()
-        self.recovery_dir = recovery_dir or Path(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppLocalDataLocation)) / "recovery"
+        self.recovery_dir = (
+            recovery_dir
+            or Path(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppLocalDataLocation)) / "recovery"
+        )
         self.session_path = self.recovery_dir / f"untitled-{uuid4().hex}.autosave.json"
         self.recovery_lock: QLockFile | None = None
         self.path: Path | None = path
@@ -150,7 +153,9 @@ class MapDocument(QObject):
         summary = repair_summary(self.root_data, repaired)
         for name, geometry in self.nested_geometry.items():
             repaired["nested_geometry"][name] = canonicalize_map(geometry)
-            summary.extend(f"Nested {name}: {line}" for line in repair_summary(geometry, repaired["nested_geometry"][name]))
+            summary.extend(
+                f"Nested {name}: {line}" for line in repair_summary(geometry, repaired["nested_geometry"][name])
+            )
         return repaired, summary
 
     def apply_repairs(self, repaired: dict) -> bool:
@@ -244,10 +249,15 @@ class MapDocument(QObject):
     def data_for_destination(self, destination: Path) -> dict:
         if destination == self.path:
             return self.root_data
-        data = self.with_settings({key: value for key, value in self.root_data.items() if key != "_settings"}, destination)
+        data = self.with_settings(
+            {key: value for key, value in self.root_data.items() if key != "_settings"}, destination
+        )
         if self.settings_dirty and "_settings" in data:
             edited = self.root_data.get("_settings", {})
-            data["_settings"] = {**data["_settings"], **{catalog: copy.deepcopy(edited[catalog]) for catalog in CATALOGS if catalog in edited}}
+            data["_settings"] = {
+                **data["_settings"],
+                **{catalog: copy.deepcopy(edited[catalog]) for catalog in CATALOGS if catalog in edited},
+            }
         return data
 
     def write(self, path: Path | None = None) -> None:
@@ -262,7 +272,11 @@ class MapDocument(QObject):
             settings = parse_settings_json(original, settings_path)
             baseline = (self._saved_data or {}).get("_settings", {}) if destination == self.path else settings
             edited = data.get("_settings", {})
-            changed = {catalog: edited[catalog] for catalog in CATALOGS if catalog in edited and edited[catalog] != baseline.get(catalog)}
+            changed = {
+                catalog: edited[catalog]
+                for catalog in CATALOGS
+                if catalog in edited and edited[catalog] != baseline.get(catalog)
+            }
             data["_settings"] = {**settings, **copy.deepcopy(changed)}
             text = splice_catalogs(original, changed)
             if text != original:

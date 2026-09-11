@@ -5,6 +5,7 @@ use super::{
     marks::SCORCH_SURFACE_OFFSET,
     variants::ScorchStyle,
 };
+use crate::map::GrassBurn;
 use common::{
     map::{Carriers, RampAxis, ramp_axis},
     math::PHYSICS_EPSILON,
@@ -49,8 +50,17 @@ impl ScorchPlacement {
         }
     }
 
-    pub(super) fn normal(&self) -> Vec3 {
-        self.normal
+    pub(super) fn grass_burn(&self, style: ScorchStyle) -> Option<GrassBurn> {
+        (self.normal.dot(Vec3::Y) > 0.999).then(|| {
+            GrassBurn::new(
+                self.carrier,
+                self.transform.translation - self.normal * SCORCH_SURFACE_OFFSET,
+                self.transform.scale.x * 0.5,
+                style.rotation(),
+                style.mesh_index,
+                self.region.clone(),
+            )
+        })
     }
 
     // The carrier-space half-space `normal · p <= offset`, in the mark's own plane.

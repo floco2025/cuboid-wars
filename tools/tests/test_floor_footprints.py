@@ -37,7 +37,9 @@ class FloorFootprintTests(unittest.TestCase):
 
     def test_all_diagonal_neighbors_leave_two_narrow_fillers(self):
         footprints = FloorFootprints(self.data([(2, 2), (1, 1), (3, 1), (1, 3), (3, 3)]), 4, 0.4)
-        self.assertEqual(footprints.rectangles(0, 2, 2), [(7.8, 8, 12.2, 12), (8.2, 7.8, 11.8, 8), (8.2, 12, 11.8, 12.2)])
+        self.assertEqual(
+            footprints.rectangles(0, 2, 2), [(7.8, 8, 12.2, 12), (8.2, 7.8, 11.8, 8), (8.2, 12, 11.8, 12.2)]
+        )
 
     def test_gap_uses_rectangles_without_filling_missing_corners(self):
         footprints = FloorFootprints(self.data([(2, 2), (3, 1)]), 4, 0.4)
@@ -73,7 +75,9 @@ class FloorFootprintTests(unittest.TestCase):
 
     def test_screenshot_jump_accounts_for_actual_tile_edges(self):
         data = empty_map(16, 10)
-        data["levels"][0]["floors"] = [floor(c, r) for c, r in ((5, 4), (6, 4), (5, 5), (6, 5), (5, 6), (6, 6), (9, 7), (10, 7))]
+        data["levels"][0]["floors"] = [
+            floor(c, r) for c, r in ((5, 4), (6, 4), (5, 5), (6, 5), (5, 6), (6, 6), (9, 7), (10, 7))
+        ]
         footprints = FloorFootprints(data, 4, 0.4)
         self.assertAlmostEqual(footprints.distance((0, 6, 5), (0, 9, 7)), 8.4970583145)
         settings = JumpSettings(4, 2.4, 12, 5, 5, 1.818, 24, 13.2, 0.4, FallSettings(8, 15, 100))
