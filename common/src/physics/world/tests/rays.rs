@@ -1,5 +1,8 @@
 use super::*;
-use crate::protocol::BarrierId;
+use crate::{
+    map::Carriers,
+    protocol::{BarrierId, FaceMaterials, PlateState},
+};
 
 #[test]
 fn ground_surface_below_hits_floor_instead_of_wall_top() {
@@ -174,4 +177,46 @@ fn barriers_are_transparent_cover_until_globally_opened() {
             assert_eq!(!world.projectile_path_clear(from, to - from, 0.1, open), blocked);
         }
     }
+}
+#[test]
+fn support_rays_report_top_materials_on_floors_ramps_and_walls() {
+    let mut layout = test_map_layout();
+    layout.floor_materials = vec![FaceMaterials::uniform("floor")];
+    layout.wall_materials = vec![FaceMaterials::uniform("wall")];
+    layout.ramp_materials = vec![FaceMaterials::uniform("ramp")];
+    let world = CollisionWorld::from_map_layout(&layout);
+    for (origin, expected) in [
+        (Vec3::new(2.0, LEVEL_HEIGHT + 0.2, 2.0), "floor"),
+        (Vec3::new(2.0, LEVEL_HEIGHT + 2.0, 6.0), "ramp"),
+        (Vec3::new(2.0, LEVEL_HEIGHT + WALL_HEIGHT + 0.2, 0.0), "wall"),
+    ] {
+        let hit = world
+            .support_surface_on_carrier(origin, 10.0, CarrierId::WORLD, &[])
+            .expect("support surface missing");
+        assert_eq!(world.surface_material(&hit, &layout), Some(expected));
+        assert!(
+            world
+                .support_surface_on_carrier(origin, 10.0, CarrierId(1), &[])
+                .is_none()
+        );
+    }
+}
+
+#[test]
+fn support_material_follows_a_moving_carrier() {
+    let mut layout = slider_layout();
+    layout.floor_materials = vec![FaceMaterials::uniform("steel")];
+    let mut world = CollisionWorld::from_map_layout(&layout);
+    let mut carriers = Carriers::from_layout(&layout);
+    carriers.advance(60, &PlateState::default());
+    world.set_carrier_poses(&carriers);
+    assert!(
+        world
+            .support_surface_on_carrier(Vec3::new(0.0, LEVEL_HEIGHT + 0.1, 0.0), 1.0, CarrierId(1), &[])
+            .is_none()
+    );
+    let hit = world
+        .support_surface_on_carrier(Vec3::new(8.0, LEVEL_HEIGHT + 0.1, 0.0), 1.0, CarrierId(1), &[])
+        .expect("moved support missing");
+    assert_eq!(world.surface_material(&hit, &layout), Some("steel"));
 }

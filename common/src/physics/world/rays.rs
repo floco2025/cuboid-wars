@@ -23,6 +23,34 @@ pub struct WorldSurfaceHit {
 }
 
 impl CollisionWorld {
+    pub fn support_surface_on_carrier(
+        &self,
+        origin: Vec3,
+        max_distance: f32,
+        carrier: CarrierId,
+        passable: &[BarrierId],
+    ) -> Option<WorldSurfaceHit> {
+        if !origin.is_finite() || !max_distance.is_finite() || max_distance <= 0.0 {
+            return None;
+        }
+        let ray = Ray::new(to_rapier(origin), to_rapier(Vec3::NEG_Y));
+        let allow = |_: ColliderHandle, collider: &Collider| {
+            ColliderKind::carrier_from_user_data(collider.user_data) == carrier && barrier_blocks(collider, passable)
+        };
+        let mut filter = query_filter(character_collision_groups());
+        filter.predicate = Some(&allow);
+        let (collider, hit) = self
+            .query_pipeline(filter)
+            .cast_ray_and_get_normal(&ray, max_distance, false)?;
+        let normal = from_rapier(hit.normal);
+        (normal.y > 0.1).then_some(WorldSurfaceHit {
+            point: origin + Vec3::NEG_Y * hit.time_of_impact,
+            normal,
+            carrier,
+            collider,
+        })
+    }
+
     #[must_use]
     pub fn ground_surface_below(&self, origin: Vec3, max_distance: f32) -> Option<WorldSurfaceHit> {
         let hit = self.surface_along_ray(origin, Vec3::NEG_Y, max_distance, ground_collision_groups(), &[])?;

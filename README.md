@@ -14,34 +14,6 @@ A fast-paced multiplayer arena game built with Rust, Bevy, Rapier, and renet.
 Cuboid Wars is a networked 3D game on multi-level maps, from combat arenas
 to obstacle courses, built from the features below.
 
-## Gameplay
-
-- **Humanoid robots** — animated player characters.
-- **Quests** — objectives assigned at login, worth points when completed.
-- **Gold** — collect gold coins for score and quest progress.
-- **Power-ups** — single-shot, multi-shot, speed, low-gravity, and portal-gun pickups, plus instant-heal potions.
-- **Seeking missiles** — collect a pack, lock onto a target, and fire; the
-  missile flies the map's airspace to it.
-- **Portal guns** — collect a gun to place linked portals and travel between them.
-- **Equipment erasers** — walk-through energy fields that strip your weapons and power-ups.
-- **Barriers & keys** — coloured barriers block everyone; the matching key
-  lets you through until you die.
-- **Light bridges** — ghostly walkways powered by pressure plates.
-- **Pressure plates** — operate switches that open barriers, power bridges,
-  run moving platforms, release guards, or launch fireworks, with
-  configurable hold, toggle, and automatic solo/multiplayer behavior.
-- **Enemies** — hostile robots that patrol and hunt; all explode when killed.
-- **Turrets** — stationary guards with deadly sustained laser bursts.
-- **Ladders** — climb between levels.
-- **Moving maps** — tiles, rooms, and whole buildings that slide or lift through a map, everything inside riding along, monsters included. Get pinned by one and it kills you.
-- **Fall damage** — long drops hurt or kill.
-- **Checkpoints** — return to individual checkpoints or shared ones activated by any or all players.
-- **Death & respawn** — respawn individually or with your group; some maps also restore enemies.
-- **Scoring** — kills, gold, and quest completions award points.
-- **Weather & lighting** — rain and a bright/dim/dark light cycle, set per
-  map.
-- **Chat & admin console** — `/help` lists the commands.
-
 ## Controls
 
 ### Gameplay
@@ -82,11 +54,11 @@ to obstacle courses, built from the features below.
 ## Running locally
 
 One executable plays alone, hosts a game your friends join, joins theirs, or
-runs a dedicated server. Cargo invocations default to `--release` in this repo
-(debug builds pull in too much for our purposes).
+runs a dedicated server.
 
 ```bash
 cargo run --release                                    # single-player
+cargo run --release -- --god --peace                   # invincible players and peaceful enemies
 cargo run --release -- --host                          # play and accept joiners on 127.0.0.1:8080
 cargo run --release -- --host 0.0.0.0:8080             # accept joiners from the LAN
 cargo run --release -- --join 192.168.1.100:8080 --name "Alice"

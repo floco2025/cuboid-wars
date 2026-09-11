@@ -24,6 +24,7 @@ pub(super) enum SliderSetting {
     Fov,
     ShakeScale,
     MasterVolume,
+    FootstepVolume,
 }
 
 impl SliderSetting {

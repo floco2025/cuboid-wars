@@ -9,6 +9,7 @@ use bevy::{
 
 use crate::{
     actors::{ActorGhostMap, ActorMap, actor_visuals_plugin},
+    audio::AudioAnalysis,
     barriers::LockedSwitches,
     cameras::{CameraViewMode, camera_plugin, clamp_msaa_to_device_system, setup_cameras_system},
     characters::{character_sync_plugin, local_simulation_plugin},
@@ -52,6 +53,7 @@ pub fn build_client_app(
     bootstrap: SInit,
 ) -> Result<App> {
     let asset_set = AssetSet::load_default()?;
+    let audio_analysis = AudioAnalysis::load_default()?;
     let mut client_settings = ClientSettings::load_default()?;
     let local_settings = LocalSettings::load();
     if let Some(local) = &local_settings {
@@ -129,6 +131,7 @@ pub fn build_client_app(
     )));
 
     app.insert_resource(to_server)
+        .insert_resource(audio_analysis)
         .insert_resource(link)
         .insert_resource(PlayerMap::default())
         .insert_resource(ActorMap::default())

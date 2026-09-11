@@ -13,7 +13,7 @@ use super::{
     },
     erasers::EraserVolume,
     ladders::LadderVolume,
-    portal_backing::MATERIAL_INDEX_SHIFT,
+    surface_materials::MATERIAL_INDEX_SHIFT,
 };
 use crate::{
     map::Carriers,

@@ -7,6 +7,7 @@ pub(super) struct MaterialBinding {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct MaterialDef {
+    pub footstep: Option<String>,
     pub(crate) textures: TextureDef,
     #[serde(default)]
     pub tile_size: Option<f32>,

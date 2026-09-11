@@ -97,6 +97,14 @@ struct WorldArgs {
     #[arg(long, conflicts_with = "join")]
     map: Option<String>,
 
+    /// Start with god mode enabled for all players, like /god on.
+    #[arg(long, conflicts_with = "join")]
+    god: bool,
+
+    /// Start with actors ignoring players and unable to attack, like /peace on.
+    #[arg(long, conflicts_with = "join")]
+    peace: bool,
+
     #[arg(long, conflicts_with = "join", value_parser = clap::value_parser!(u32).range(1..))]
     server_hz: Option<u32>,
 
@@ -112,6 +120,8 @@ impl WorldArgs {
     fn server_options(&self) -> ServerAppOptions {
         ServerAppOptions {
             map: self.map.clone(),
+            god: self.god,
+            peace: self.peace,
             network: NetworkOverrides {
                 server_hz: self.server_hz,
                 update_hz: self.update_hz,

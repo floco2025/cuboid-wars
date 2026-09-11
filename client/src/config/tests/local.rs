@@ -22,6 +22,7 @@ fn sample() -> LocalSettings {
             shake_scale: 0.5,
             show_diagnostics: false,
             rearview_mirror: true,
+            footstep_volume_db: -9.0,
         },
     }
 }

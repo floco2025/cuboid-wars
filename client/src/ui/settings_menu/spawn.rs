@@ -11,7 +11,10 @@ use super::{
 };
 use crate::{
     config::ClientSettings,
-    constants::{HUD_ROW_GAP_PX, SETTINGS_BACKDROP_COLOR, SETTINGS_OUTLINE_COLOR, SETTINGS_PANEL_BG_COLOR},
+    constants::{
+        AUDIO_VOLUME_DB_MAX, AUDIO_VOLUME_DB_MIN, HUD_ROW_GAP_PX, SETTINGS_BACKDROP_COLOR, SETTINGS_OUTLINE_COLOR,
+        SETTINGS_PANEL_BG_COLOR,
+    },
 };
 
 // Spawned on open and despawned on close, so every open reads the live
@@ -167,10 +170,20 @@ pub(super) fn settings_menu_lifecycle_system(
                         font,
                         dims.control_width,
                         SliderSetting::MasterVolume,
-                        0.0,
-                        2.0,
-                        global_volume.volume.to_linear(),
-                        2,
+                        AUDIO_VOLUME_DB_MIN,
+                        AUDIO_VOLUME_DB_MAX,
+                        global_volume.volume.to_decibels(),
+                        0,
+                    ));
+                    panel.spawn(slider_row(
+                        "Footstep volume",
+                        font,
+                        dims.control_width,
+                        SliderSetting::FootstepVolume,
+                        AUDIO_VOLUME_DB_MIN,
+                        AUDIO_VOLUME_DB_MAX,
+                        settings.preferences.footstep_volume_db,
+                        0,
                     ));
 
                     panel.spawn(section_header("HUD", font));

@@ -5,10 +5,10 @@ use bevy::prelude::Resource;
 use serde::{Deserialize, Serialize};
 
 use crate::constants::{
-    CAMERA_FOV_DEGREES_DEFAULT, CAMERA_REARVIEW_MIRROR_DEFAULT, CAMERA_SHAKE_SCALE_DEFAULT,
-    HUD_SHOW_DIAGNOSTICS_DEFAULT, INPUT_INVERT_Y_DEFAULT, INPUT_MOUSE_SENSITIVITY_DEFAULT,
-    INPUT_ZOOM_SENSITIVITY_DEFAULT, RENDERING_FULLSCREEN_RESOLUTION_DEFAULT, RENDERING_MSAA_SAMPLES_DEFAULT,
-    RENDERING_PORTAL_VIEW_BUDGET_DEFAULT, RENDERING_VSYNC_DEFAULT,
+    AUDIO_FOOTSTEP_VOLUME_DB_DEFAULT, AUDIO_VOLUME_DB_MAX, AUDIO_VOLUME_DB_MIN, CAMERA_FOV_DEGREES_DEFAULT,
+    CAMERA_REARVIEW_MIRROR_DEFAULT, CAMERA_SHAKE_SCALE_DEFAULT, HUD_SHOW_DIAGNOSTICS_DEFAULT, INPUT_INVERT_Y_DEFAULT,
+    INPUT_MOUSE_SENSITIVITY_DEFAULT, INPUT_ZOOM_SENSITIVITY_DEFAULT, RENDERING_FULLSCREEN_RESOLUTION_DEFAULT,
+    RENDERING_MSAA_SAMPLES_DEFAULT, RENDERING_PORTAL_VIEW_BUDGET_DEFAULT, RENDERING_VSYNC_DEFAULT,
 };
 
 use super::{
@@ -147,6 +147,7 @@ pub struct UserPreferences {
     pub shake_scale: f32,
     pub show_diagnostics: bool,
     pub rearview_mirror: bool,
+    pub footstep_volume_db: f32,
 }
 
 impl Default for UserPreferences {
@@ -163,6 +164,7 @@ impl Default for UserPreferences {
             shake_scale: CAMERA_SHAKE_SCALE_DEFAULT,
             show_diagnostics: HUD_SHOW_DIAGNOSTICS_DEFAULT,
             rearview_mirror: CAMERA_REARVIEW_MIRROR_DEFAULT,
+            footstep_volume_db: AUDIO_FOOTSTEP_VOLUME_DB_DEFAULT,
         }
     }
 }
@@ -211,6 +213,9 @@ impl UserPreferences {
         validate_positive_finite(self.zoom_sensitivity, "zoom_sensitivity")?;
         validate_fov(self.fov_degrees, "fov_degrees")?;
         validate_non_negative_finite(self.shake_scale, "shake_scale")?;
+        if !(AUDIO_VOLUME_DB_MIN..=AUDIO_VOLUME_DB_MAX).contains(&self.footstep_volume_db) {
+            bail!("footstep_volume_db must be in [{AUDIO_VOLUME_DB_MIN}, {AUDIO_VOLUME_DB_MAX}]");
+        }
         if !matches!(self.msaa_samples, 1 | 2 | 4 | 8) {
             bail!("msaa_samples must be one of 1, 2, 4, or 8");
         }

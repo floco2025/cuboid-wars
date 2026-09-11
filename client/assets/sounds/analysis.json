@@ -1,0 +1,538 @@
+{
+  "version": 1,
+  "analysis_sample_rate": 48000,
+  "target_50ms_rms_dbfs": -24.0,
+  "peak_ceiling_dbfs": -6.0,
+  "sounds": {
+    "sounds/Retro Charge StereoUP 12.wav": {
+      "sha256": "4d5de54d9ca10bb16b85ee6cec34ef8f94546343e6bfd07f1f872fc3a2269998",
+      "sample_rate": 44100,
+      "channels": 2,
+      "duration_secs": 1.427604,
+      "peak_dbfs": -0.958614,
+      "rms_dbfs": -14.981093,
+      "strongest_50ms_rms_dbfs": -7.338383,
+      "suggested_gain_db": -16.661617
+    },
+    "sounds/Retro Event Acute 08.wav": {
+      "sha256": "d038ce2acd2af30b981835a54e194ae39a5d2cd4a413b5c6168d8d42f5febf4d",
+      "sample_rate": 48000,
+      "channels": 2,
+      "duration_secs": 1.450667,
+      "peak_dbfs": -12.709887,
+      "rms_dbfs": -29.968452,
+      "strongest_50ms_rms_dbfs": -21.135668,
+      "suggested_gain_db": -2.864332
+    },
+    "sounds/Retro Explosion Short 15.wav": {
+      "sha256": "bba8f702a276eae5f48d6d0b5cb2d30bfd53dc87dfee1cf7d1e370af2ff58579",
+      "sample_rate": 44100,
+      "channels": 2,
+      "duration_secs": 0.911667,
+      "peak_dbfs": -0.263601,
+      "rms_dbfs": -13.829891,
+      "strongest_50ms_rms_dbfs": -8.042222,
+      "suggested_gain_db": -15.957778
+    },
+    "sounds/Retro Impact Punch 07.wav": {
+      "sha256": "1bb518750e2ba7160e1856cd856827d9cf25951b851b1b75a83a376fd20fd24e",
+      "sample_rate": 44100,
+      "channels": 2,
+      "duration_secs": 0.286979,
+      "peak_dbfs": 0.243408,
+      "rms_dbfs": -12.222647,
+      "strongest_50ms_rms_dbfs": -6.385709,
+      "suggested_gain_db": -17.614291
+    },
+    "sounds/Retro Missile Launcher 01.wav": {
+      "sha256": "e1b5fb6df707be26e994e96d1d998e75a5118b94d23d27bea570a540beb31b59",
+      "sample_rate": 44100,
+      "channels": 2,
+      "duration_secs": 1.570396,
+      "peak_dbfs": -3.034359,
+      "rms_dbfs": -21.18892,
+      "strongest_50ms_rms_dbfs": -13.146929,
+      "suggested_gain_db": -10.853071
+    },
+    "sounds/Retro Negative Short 23.wav": {
+      "sha256": "0d8f3a7303d3c8d34cde413de12efb28e35a50624db8ffc3d96f2b8c85772124",
+      "sample_rate": 44100,
+      "channels": 1,
+      "duration_secs": 0.672208,
+      "peak_dbfs": 0.086591,
+      "rms_dbfs": -11.364475,
+      "strongest_50ms_rms_dbfs": -7.373833,
+      "suggested_gain_db": -16.626167
+    },
+    "sounds/Retro PowerUP StereoUP 05.wav": {
+      "sha256": "907f8b670bf2182d1453a550af24cc730a85cafad36215167363fac2066c36a3",
+      "sample_rate": 44100,
+      "channels": 2,
+      "duration_secs": 0.997146,
+      "peak_dbfs": -1.087107,
+      "rms_dbfs": -16.955853,
+      "strongest_50ms_rms_dbfs": -10.049715,
+      "suggested_gain_db": -13.950285
+    },
+    "sounds/Retro Success Melody 01 - sawtooth lead 1.wav": {
+      "sha256": "093b076bae870eac2f9117b924bf97e0da857f27a6f300d9f0e0e708a4d48db6",
+      "sample_rate": 44100,
+      "channels": 1,
+      "duration_secs": 1.846,
+      "peak_dbfs": -14.652501,
+      "rms_dbfs": -26.750621,
+      "strongest_50ms_rms_dbfs": -21.952327,
+      "suggested_gain_db": -2.047673
+    },
+    "sounds/Retro Turn Off 12.wav": {
+      "sha256": "64b216f8e6fb2e49b4e11c2f2ce2d8d944c29420d48b71e0d803ba04430a8180",
+      "sample_rate": 44100,
+      "channels": 2,
+      "duration_secs": 6.075167,
+      "peak_dbfs": -4.875465,
+      "rms_dbfs": -20.544161,
+      "strongest_50ms_rms_dbfs": -13.482649,
+      "suggested_gain_db": -10.517351
+    },
+    "sounds/doorClose_2.ogg": {
+      "sha256": "4aa4fe79836c53cd6d0cb0b22ddc33b9901429463ae1bb75131f072683f63f21",
+      "sample_rate": 48000,
+      "channels": 2,
+      "duration_secs": 0.612479,
+      "peak_dbfs": -2.407383,
+      "rms_dbfs": -18.841729,
+      "strongest_50ms_rms_dbfs": -10.530256,
+      "suggested_gain_db": -13.469744
+    },
+    "sounds/doorOpen_1.ogg": {
+      "sha256": "4ab93bab96522d8eb109ff96dc57cb6765deb02448fe14c10472084be5bb2a0b",
+      "sample_rate": 48000,
+      "channels": 2,
+      "duration_secs": 0.918958,
+      "peak_dbfs": 0.583294,
+      "rms_dbfs": -20.207922,
+      "strongest_50ms_rms_dbfs": -9.910875,
+      "suggested_gain_db": -14.089125
+    },
+    "sounds/footstep00.ogg": {
+      "sha256": "6fe61ef1fc3bcf0e253bf2eb64759db6cb69e2fe452f4d88cc597ecf78a3d601",
+      "sample_rate": 48000,
+      "channels": 2,
+      "duration_secs": 0.248854,
+      "peak_dbfs": 0.331163,
+      "rms_dbfs": -19.722449,
+      "strongest_50ms_rms_dbfs": -13.505843,
+      "suggested_gain_db": -10.494157
+    },
+    "sounds/footstep01.ogg": {
+      "sha256": "313472dba31fd0c855376069fa368bb5a198c27251cc8398ef464578b7047a4c",
+      "sample_rate": 48000,
+      "channels": 2,
+      "duration_secs": 0.282479,
+      "peak_dbfs": 0.241785,
+      "rms_dbfs": -18.298465,
+      "strongest_50ms_rms_dbfs": -11.729892,
+      "suggested_gain_db": -12.270108
+    },
+    "sounds/footstep02.ogg": {
+      "sha256": "2d9575b7dead6e1217ca113991fc5229e9b6d998ea0726ebbb277e7398ab888f",
+      "sample_rate": 48000,
+      "channels": 2,
+      "duration_secs": 0.242146,
+      "peak_dbfs": -1.176082,
+      "rms_dbfs": -22.127579,
+      "strongest_50ms_rms_dbfs": -18.082555,
+      "suggested_gain_db": -5.917445
+    },
+    "sounds/footstep03.ogg": {
+      "sha256": "a86756b9af9f370455ab47844239bb07fd1bee7a113068c91f0fcd9b72703fae",
+      "sample_rate": 48000,
+      "channels": 2,
+      "duration_secs": 0.269021,
+      "peak_dbfs": 0.441646,
+      "rms_dbfs": -20.046342,
+      "strongest_50ms_rms_dbfs": -13.287348,
+      "suggested_gain_db": -10.712652
+    },
+    "sounds/footstep04.ogg": {
+      "sha256": "fd264d72a7cd622b82abde202f4ed09fa7de95d34c36473ee938ce66cdf39830",
+      "sample_rate": 48000,
+      "channels": 2,
+      "duration_secs": 0.322833,
+      "peak_dbfs": -3.522518,
+      "rms_dbfs": -25.139469,
+      "strongest_50ms_rms_dbfs": -18.239162,
+      "suggested_gain_db": -5.760838
+    },
+    "sounds/footstep05.ogg": {
+      "sha256": "817957e1f95d97fd36870064c41673895575cde17bccb245f50364c86ed10198",
+      "sample_rate": 48000,
+      "channels": 2,
+      "duration_secs": 0.275771,
+      "peak_dbfs": -2.985956,
+      "rms_dbfs": -26.214352,
+      "strongest_50ms_rms_dbfs": -18.934181,
+      "suggested_gain_db": -5.065819
+    },
+    "sounds/footstep06.ogg": {
+      "sha256": "6cabfe7ae95d227a84066c6e17014ac31cc7c89b14ef51d7877e98352d4a64fb",
+      "sample_rate": 48000,
+      "channels": 2,
+      "duration_secs": 0.242125,
+      "peak_dbfs": -0.259495,
+      "rms_dbfs": -21.897247,
+      "strongest_50ms_rms_dbfs": -17.046602,
+      "suggested_gain_db": -6.953398
+    },
+    "sounds/footstep07.ogg": {
+      "sha256": "42924cdbf998d5b3db180a339fd74afc94c570d594a536687e337ef1bdfdb346",
+      "sample_rate": 48000,
+      "channels": 2,
+      "duration_secs": 0.255583,
+      "peak_dbfs": 0.057043,
+      "rms_dbfs": -21.627173,
+      "strongest_50ms_rms_dbfs": -14.603894,
+      "suggested_gain_db": -9.396106
+    },
+    "sounds/footstep08.ogg": {
+      "sha256": "668f14dc1254d0d0f33025e9c7dbcdf2c2f00462ed0e07fb8f099c1d711c1337",
+      "sample_rate": 48000,
+      "channels": 2,
+      "duration_secs": 0.255583,
+      "peak_dbfs": 0.713723,
+      "rms_dbfs": -16.991396,
+      "strongest_50ms_rms_dbfs": -10.007737,
+      "suggested_gain_db": -13.992263
+    },
+    "sounds/footstep09.ogg": {
+      "sha256": "9324ebb9b2c5bcd078dcb523c6518d38a9f34081069d511602c2efb14ce06ce2",
+      "sample_rate": 48000,
+      "channels": 2,
+      "duration_secs": 0.215229,
+      "peak_dbfs": -6.085244,
+      "rms_dbfs": -23.470963,
+      "strongest_50ms_rms_dbfs": -19.488102,
+      "suggested_gain_db": -4.511898
+    },
+    "sounds/footstep_carpet_000.ogg": {
+      "sha256": "b9524658b52a99a20590f8feefc103088637fd13ea8ec35811aee785e1f2f330",
+      "sample_rate": 44100,
+      "channels": 2,
+      "duration_secs": 0.166896,
+      "peak_dbfs": -1.082211,
+      "rms_dbfs": -23.663,
+      "strongest_50ms_rms_dbfs": -18.441717,
+      "suggested_gain_db": -5.558283
+    },
+    "sounds/footstep_carpet_001.ogg": {
+      "sha256": "9af3c3f76705107339e72036e4053bdca3eaa50ad31c8c929f42ce8d40e5d781",
+      "sample_rate": 44100,
+      "channels": 2,
+      "duration_secs": 0.141896,
+      "peak_dbfs": -1.161885,
+      "rms_dbfs": -19.624748,
+      "strongest_50ms_rms_dbfs": -15.133008,
+      "suggested_gain_db": -8.866992
+    },
+    "sounds/footstep_carpet_002.ogg": {
+      "sha256": "9af3c3f76705107339e72036e4053bdca3eaa50ad31c8c929f42ce8d40e5d781",
+      "sample_rate": 44100,
+      "channels": 2,
+      "duration_secs": 0.141896,
+      "peak_dbfs": -1.161885,
+      "rms_dbfs": -19.624748,
+      "strongest_50ms_rms_dbfs": -15.133008,
+      "suggested_gain_db": -8.866992
+    },
+    "sounds/footstep_carpet_003.ogg": {
+      "sha256": "4ae7454338d57c7d102145919ae653c7d010eb542797c4f25a1c7470be3a7e4c",
+      "sample_rate": 44100,
+      "channels": 2,
+      "duration_secs": 0.141896,
+      "peak_dbfs": -1.14841,
+      "rms_dbfs": -22.85639,
+      "strongest_50ms_rms_dbfs": -18.33332,
+      "suggested_gain_db": -5.66668
+    },
+    "sounds/footstep_carpet_004.ogg": {
+      "sha256": "4ae7454338d57c7d102145919ae653c7d010eb542797c4f25a1c7470be3a7e4c",
+      "sample_rate": 44100,
+      "channels": 2,
+      "duration_secs": 0.141896,
+      "peak_dbfs": -1.14841,
+      "rms_dbfs": -22.85639,
+      "strongest_50ms_rms_dbfs": -18.33332,
+      "suggested_gain_db": -5.66668
+    },
+    "sounds/footstep_concrete_000.ogg": {
+      "sha256": "d7267e183067757c92c169de2a379abea592cfca6b39bb2e8feea15221ad79fe",
+      "sample_rate": 44100,
+      "channels": 2,
+      "duration_secs": 0.103021,
+      "peak_dbfs": -0.924875,
+      "rms_dbfs": -20.851239,
+      "strongest_50ms_rms_dbfs": -17.745266,
+      "suggested_gain_db": -6.254734
+    },
+    "sounds/footstep_concrete_001.ogg": {
+      "sha256": "507a75eb19b897087855a3be3cf11a12d7fa37d143ad535eeebe0b8031c7325d",
+      "sample_rate": 44100,
+      "channels": 2,
+      "duration_secs": 0.10475,
+      "peak_dbfs": -1.060881,
+      "rms_dbfs": -22.359715,
+      "strongest_50ms_rms_dbfs": -19.190457,
+      "suggested_gain_db": -4.939119
+    },
+    "sounds/footstep_concrete_002.ogg": {
+      "sha256": "b21fa546d74941196b25da8a20b7010abd8c05c4fcf93545d1f344e66a664e13",
+      "sample_rate": 44100,
+      "channels": 2,
+      "duration_secs": 0.109896,
+      "peak_dbfs": -0.989806,
+      "rms_dbfs": -22.6641,
+      "strongest_50ms_rms_dbfs": -19.282153,
+      "suggested_gain_db": -5.010194
+    },
+    "sounds/footstep_concrete_003.ogg": {
+      "sha256": "8b513c2f0316324060b9174b8f28df6c2147418c506e6a53b77f18e149a5547b",
+      "sample_rate": 44100,
+      "channels": 2,
+      "duration_secs": 0.107604,
+      "peak_dbfs": -1.100228,
+      "rms_dbfs": -21.655076,
+      "strongest_50ms_rms_dbfs": -18.365696,
+      "suggested_gain_db": -5.634304
+    },
+    "sounds/footstep_concrete_004.ogg": {
+      "sha256": "24dd8db2413e5b81ad181e1205c12a1c7801da5f85715d471b92a4b2f632e45e",
+      "sample_rate": 44100,
+      "channels": 2,
+      "duration_secs": 0.111458,
+      "peak_dbfs": -0.994659,
+      "rms_dbfs": -21.159958,
+      "strongest_50ms_rms_dbfs": -17.712874,
+      "suggested_gain_db": -6.287126
+    },
+    "sounds/footstep_grass_000.ogg": {
+      "sha256": "9d49497777405d78d7cf7f2888e28277f3a23192300cfd1d79d54876b20f479f",
+      "sample_rate": 44100,
+      "channels": 2,
+      "duration_secs": 0.774687,
+      "peak_dbfs": -1.05751,
+      "rms_dbfs": -29.86599,
+      "strongest_50ms_rms_dbfs": -17.981789,
+      "suggested_gain_db": -6.018211
+    },
+    "sounds/footstep_grass_001.ogg": {
+      "sha256": "fb28781bd22b2eefdc14077f1adf5c94d7fe9c3a130194633b55f3e0d39d9f04",
+      "sample_rate": 44100,
+      "channels": 2,
+      "duration_secs": 0.670708,
+      "peak_dbfs": -1.132152,
+      "rms_dbfs": -28.81205,
+      "strongest_50ms_rms_dbfs": -17.596207,
+      "suggested_gain_db": -6.403793
+    },
+    "sounds/footstep_grass_002.ogg": {
+      "sha256": "73a520139f5be716a403bfe9c80e0e94d1e61d8e9de04a354b336392164b53dc",
+      "sample_rate": 44100,
+      "channels": 2,
+      "duration_secs": 0.689562,
+      "peak_dbfs": -1.059554,
+      "rms_dbfs": -29.47601,
+      "strongest_50ms_rms_dbfs": -18.135095,
+      "suggested_gain_db": -5.864905
+    },
+    "sounds/footstep_grass_003.ogg": {
+      "sha256": "0546e1d8ab2def714425701a18bd34c5ee2794b12e858e5b595aabcf38a34137",
+      "sample_rate": 44100,
+      "channels": 2,
+      "duration_secs": 0.666438,
+      "peak_dbfs": -0.899281,
+      "rms_dbfs": -29.443794,
+      "strongest_50ms_rms_dbfs": -18.213283,
+      "suggested_gain_db": -5.786717
+    },
+    "sounds/footstep_grass_004.ogg": {
+      "sha256": "086fd4ab3546a507ea5f5c759a9a10e535c95ade13705c238bc0eeffd7d4e8ba",
+      "sample_rate": 44100,
+      "channels": 2,
+      "duration_secs": 0.587333,
+      "peak_dbfs": -1.083001,
+      "rms_dbfs": -28.507754,
+      "strongest_50ms_rms_dbfs": -17.828794,
+      "suggested_gain_db": -6.171206
+    },
+    "sounds/freesound_community-laser-beam-76426.wav": {
+      "sha256": "474d0befa88dc587543b85cfe6f2303650bb0e6eae8fb4c3f01db2d9689e6d7d",
+      "sample_rate": 24000,
+      "channels": 2,
+      "duration_secs": 14.784,
+      "peak_dbfs": -4.558338,
+      "rms_dbfs": -18.438384,
+      "strongest_50ms_rms_dbfs": -11.46469,
+      "suggested_gain_db": -12.53531
+    },
+    "sounds/impactGeneric_light_001.ogg": {
+      "sha256": "c3cd1c073d186ae8fa35788ba94de581f1826e7427a7bb26490b2695fac18efa",
+      "sample_rate": 44100,
+      "channels": 2,
+      "duration_secs": 0.114604,
+      "peak_dbfs": -1.007776,
+      "rms_dbfs": -19.989279,
+      "strongest_50ms_rms_dbfs": -16.450361,
+      "suggested_gain_db": -7.549639
+    },
+    "sounds/impactGlass_heavy_001.ogg": {
+      "sha256": "58686e0e562612cc566791844a10e269f8d1921f4766c14ba43976fd0a429f4e",
+      "sample_rate": 44100,
+      "channels": 2,
+      "duration_secs": 0.429021,
+      "peak_dbfs": -0.952251,
+      "rms_dbfs": -25.271973,
+      "strongest_50ms_rms_dbfs": -16.147098,
+      "suggested_gain_db": -7.852902
+    },
+    "sounds/impactGlass_light_000.ogg": {
+      "sha256": "d750cf88097d0c3e69920e6e14496e1444e1a9da01aa4cca8f5ec8cb44c57b4f",
+      "sample_rate": 44100,
+      "channels": 2,
+      "duration_secs": 0.23075,
+      "peak_dbfs": -1.531389,
+      "rms_dbfs": -21.776108,
+      "strongest_50ms_rms_dbfs": -15.20064,
+      "suggested_gain_db": -8.79936
+    },
+    "sounds/impactMetal_light_000.ogg": {
+      "sha256": "33b5e6e37c6e9d54e07bf5a89b12c76e879f40c1ea83cdd82714df1d6f9fec6d",
+      "sample_rate": 44100,
+      "channels": 2,
+      "duration_secs": 0.372979,
+      "peak_dbfs": -1.029382,
+      "rms_dbfs": -21.064215,
+      "strongest_50ms_rms_dbfs": -12.698192,
+      "suggested_gain_db": -11.301808
+    },
+    "sounds/impactMetal_light_001.ogg": {
+      "sha256": "fba69c467ddd85da7b1d82e259f936b876d9ba6a3d6f1b24bdd10468e46bfe08",
+      "sample_rate": 44100,
+      "channels": 2,
+      "duration_secs": 0.248938,
+      "peak_dbfs": -0.986692,
+      "rms_dbfs": -19.991481,
+      "strongest_50ms_rms_dbfs": -13.153583,
+      "suggested_gain_db": -10.846417
+    },
+    "sounds/impactMetal_light_002.ogg": {
+      "sha256": "25a96f90a9a1f88a531e824e126f0519504625e5635e65a72e4f31611428db29",
+      "sample_rate": 44100,
+      "channels": 2,
+      "duration_secs": 0.232896,
+      "peak_dbfs": -1.399003,
+      "rms_dbfs": -20.559186,
+      "strongest_50ms_rms_dbfs": -13.983008,
+      "suggested_gain_db": -10.016992
+    },
+    "sounds/impactMetal_light_003.ogg": {
+      "sha256": "92d5db6bfc672d9dc1b4f390b2900504f013187fa36335472554fafefa9050b1",
+      "sample_rate": 44100,
+      "channels": 2,
+      "duration_secs": 0.482042,
+      "peak_dbfs": -1.483594,
+      "rms_dbfs": -20.741846,
+      "strongest_50ms_rms_dbfs": -11.682775,
+      "suggested_gain_db": -12.317225
+    },
+    "sounds/impactMetal_light_004.ogg": {
+      "sha256": "9b1c35820fba507081261f19ab5f461f69a5e2627a7d91acdb73ca3cfc997979",
+      "sample_rate": 44100,
+      "channels": 2,
+      "duration_secs": 0.2105,
+      "peak_dbfs": -1.131715,
+      "rms_dbfs": -20.61481,
+      "strongest_50ms_rms_dbfs": -14.448158,
+      "suggested_gain_db": -9.551842
+    },
+    "sounds/impactMetal_medium_003.ogg": {
+      "sha256": "2a185e2e57211d02c1bdd33b872d6b6a2fe83e6c14f4e56f426a95e717acf08e",
+      "sample_rate": 44100,
+      "channels": 2,
+      "duration_secs": 0.251083,
+      "peak_dbfs": -1.33525,
+      "rms_dbfs": -21.732768,
+      "strongest_50ms_rms_dbfs": -14.850044,
+      "suggested_gain_db": -9.149956
+    },
+    "sounds/impactPlank_medium_001.ogg": {
+      "sha256": "d7c304319f8beac616231b62041fa8da74045b62d7155965516efb9b19303df4",
+      "sample_rate": 44100,
+      "channels": 2,
+      "duration_secs": 0.779021,
+      "peak_dbfs": -1.00695,
+      "rms_dbfs": -20.635127,
+      "strongest_50ms_rms_dbfs": -8.786356,
+      "suggested_gain_db": -15.213644
+    },
+    "sounds/impactPunch_heavy_001.ogg": {
+      "sha256": "f92f5cb6ba4ff2766497292ffd90865654317eeca976f5652e0708dbdcdc0dd9",
+      "sample_rate": 44100,
+      "channels": 2,
+      "duration_secs": 0.535958,
+      "peak_dbfs": -1.180115,
+      "rms_dbfs": -17.483794,
+      "strongest_50ms_rms_dbfs": -8.179375,
+      "suggested_gain_db": -15.820625
+    },
+    "sounds/impactTin_medium_004.ogg": {
+      "sha256": "fd53e24efec3d5c1cee5a46fee70f97efd4bd01e53ac5d9b5f3b6719dfe9f5aa",
+      "sample_rate": 44100,
+      "channels": 2,
+      "duration_secs": 0.201729,
+      "peak_dbfs": -1.266216,
+      "rms_dbfs": -23.091013,
+      "strongest_50ms_rms_dbfs": -17.138433,
+      "suggested_gain_db": -6.861567
+    },
+    "sounds/metalClick.ogg": {
+      "sha256": "9851a69d0c613e13bceef08060ecc4148f098ef487927cbebe270d642398a3b3",
+      "sample_rate": 48000,
+      "channels": 2,
+      "duration_secs": 0.445833,
+      "peak_dbfs": -6.92918,
+      "rms_dbfs": -34.328695,
+      "strongest_50ms_rms_dbfs": -27.456811,
+      "suggested_gain_db": 0.0
+    },
+    "sounds/metalLatch.ogg": {
+      "sha256": "ba9ba60b172b3ebc131a940f25793cd2e207aca7af73dc80d637277f060f1708",
+      "sample_rate": 48000,
+      "channels": 2,
+      "duration_secs": 0.261333,
+      "peak_dbfs": 1.615325,
+      "rms_dbfs": -20.444791,
+      "strongest_50ms_rms_dbfs": -13.308238,
+      "suggested_gain_db": -10.691762
+    },
+    "sounds/portal-fizzle.wav": {
+      "sha256": "a47a232cc1af6116e1bf3c83d54971e8374ca012f4cc33c32516c2ddea43bcfb",
+      "sample_rate": 44100,
+      "channels": 1,
+      "duration_secs": 0.55,
+      "peak_dbfs": -3.02449,
+      "rms_dbfs": -22.161452,
+      "strongest_50ms_rms_dbfs": -13.659401,
+      "suggested_gain_db": -10.340599
+    },
+    "sounds/rain-on-umbrella-loop.wav": {
+      "sha256": "d133651c9c78b0c9edaa4d7f87bfecf3a43ce1d6a6779ade5463af65b9691799",
+      "sample_rate": 48000,
+      "channels": 2,
+      "duration_secs": 10.104,
+      "peak_dbfs": -3.706407,
+      "rms_dbfs": -30.704595,
+      "strongest_50ms_rms_dbfs": -24.482116,
+      "suggested_gain_db": -2.293593
+    }
+  }
+}

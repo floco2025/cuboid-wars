@@ -11,7 +11,8 @@
         "normal": "textures/brushed-metal-ue/brushed-metal_normal-dx.png",
         "occlusion": "textures/brushed-metal-ue/brushed-metal_ao.png",
         "metallic_roughness": "textures/brushed-metal-ue/brushed-metal_metallic-roughness.png"
-      }
+      },
+      "footstep": "steel"
     },
     "synth-rubber": {
       "tile_size": 1.0,
@@ -37,7 +38,8 @@
         "normal": "textures/used-stainless-steel-ue/used-stainless-steel_normal-dx.png",
         "occlusion": "textures/used-stainless-steel-ue/used-stainless-steel_ao.png",
         "metallic_roughness": "textures/used-stainless-steel-ue/used-stainless-steel_metallic-roughness.png"
-      }
+      },
+      "footstep": "steel"
     },
     "smooth-temple-blocks": {
       "tile_size": 8.0,
@@ -50,7 +52,8 @@
         "normal": "textures/smooth-temple-blocks-ue/smooth-temple-blocks_normal-dx.png",
         "occlusion": "textures/smooth-temple-blocks-ue/smooth-temple-blocks_ao.png",
         "metallic_roughness": "textures/smooth-temple-blocks-ue/smooth-temple-blocks_metallic-roughness.png"
-      }
+      },
+      "footstep": "concrete"
     },
     "art-deco-scales-wallpaper": {
       "tile_size": 3.0,
@@ -76,7 +79,8 @@
         "normal": "textures/modern-brick1_ue/modern-brick1_normal-dx.png",
         "occlusion": "textures/modern-brick1_ue/modern-brick1_ao.png",
         "metallic_roughness": "textures/modern-brick1_ue/modern-brick1_metallic-roughness.png"
-      }
+      },
+      "footstep": "concrete"
     },
     "rectangle-polished-tile": {
       "tile_size": 8.0,
@@ -89,7 +93,8 @@
         "normal": "textures/rectangle-polished-tile-ue/rectangle-polished-tile_normal-dx.png",
         "occlusion": "textures/rectangle-polished-tile-ue/rectangle-polished-tile_ao.png",
         "metallic_roughness": "textures/rectangle-polished-tile-ue/rectangle-polished-tile_metallic-roughness.png"
-      }
+      },
+      "footstep": "concrete"
     },
     "steelplate1": {
       "tile_size": 6.0,
@@ -102,7 +107,8 @@
         "normal": "textures/steelplate1-ue/steelplate1_normal-dx.png",
         "occlusion": "textures/steelplate1-ue/steelplate1_ao.png",
         "metallic_roughness": "textures/steelplate1-ue/steelplate1_metallic-roughness.png"
-      }
+      },
+      "footstep": "steel"
     },
     "worn-walkway-metal": {
       "tile_size": 1.2,
@@ -115,7 +121,8 @@
         "normal": "textures/worn-walkway-metal-ue/worn-walkway-metal_normal-dx.png",
         "occlusion": "textures/worn-walkway-metal-ue/worn-walkway-metal_ao.png",
         "metallic_roughness": "textures/worn-walkway-metal-ue/worn-walkway-metal_metallic-roughness.png"
-      }
+      },
+      "footstep": "steel"
     },
     "beige-carpet-worn1": {
       "tile_size": 3.0,
@@ -128,7 +135,8 @@
         "normal": "textures/beige-carpet-worn1-ue/beige-carpet-worn1-Normal-dx.png",
         "occlusion": "textures/beige-carpet-worn1-ue/beige-carpet-worn1-ao.png",
         "metallic_roughness": "textures/beige-carpet-worn1-ue/beige-carpet-worn1-metallic-roughness.png"
-      }
+      },
+      "footstep": "carpet"
     },
     "cheap_old_linoleum1": {
       "tile_size": 6.0,
@@ -154,7 +162,8 @@
         "normal": "textures/bricks-mortar-ue/bricks-mortar-normal-dx.png",
         "occlusion": "textures/bricks-mortar-ue/bricks-mortar-ao.png",
         "metallic_roughness": "textures/bricks-mortar-ue/bricks-mortar-metallic-roughness.png"
-      }
+      },
+      "footstep": "concrete"
     },
     "damp-block-wall": {
       "tile_size": 6.0,
@@ -167,7 +176,8 @@
         "normal": "textures/damp-block-wall-ue/damp-block-wall_normal-dx.png",
         "occlusion": "textures/damp-block-wall-ue/damp-block-wall_ao.png",
         "metallic_roughness": "textures/damp-block-wall-ue/damp-block-wall_metallic-roughness.png"
-      }
+      },
+      "footstep": "concrete"
     },
     "stucco1": {
       "tile_size": 4.0,
@@ -219,7 +229,8 @@
         "normal": "textures/mud-with-vegetation-ue/mud_with_vegetation_Normal-dx.png",
         "occlusion": "textures/mud-with-vegetation-ue/mud_with_vegetation_ao.png",
         "metallic_roughness": "textures/mud-with-vegetation-ue/mud_with_vegetation_metallic-roughness.png"
-      }
+      },
+      "footstep": "grass"
     },
     "patched-brickwork": {
       "tile_size": 3.0,
@@ -232,7 +243,8 @@
         "normal": "textures/patched-brickwork-ue/patched-brickwork_normal-dx.png",
         "occlusion": "textures/patched-brickwork-ue/patched-brickwork_ao.png",
         "metallic_roughness": "textures/patched-brickwork-ue/patched-brickwork_metallic-roughness.png"
-      }
+      },
+      "footstep": "concrete"
     }
   },
   "aliases": {
@@ -400,6 +412,75 @@
       "rotation_period_secs": 200.0,
       "sun_step_degrees": 0.05,
       "sun_disc": { "distance": 800.0, "radius": 24.0, "luminance": 50000000.0 }
+    }
+  },
+  "footsteps": {
+    "volume_db": -8,
+    "ladder_volume_db": -2,
+    "default": "plain",
+    "sets": {
+      "concrete": {
+        "samples": [
+          "sounds/footstep_concrete_000.ogg",
+          "sounds/footstep_concrete_001.ogg",
+          "sounds/footstep_concrete_002.ogg",
+          "sounds/footstep_concrete_003.ogg",
+          "sounds/footstep_concrete_004.ogg"
+        ],
+        "volume_db": 5
+      },
+      "carpet": {
+        "samples": [
+          "sounds/footstep_carpet_000.ogg",
+          "sounds/footstep_carpet_001.ogg",
+          "sounds/footstep_carpet_002.ogg",
+          "sounds/footstep_carpet_003.ogg",
+          "sounds/footstep_carpet_004.ogg"
+        ],
+        "volume_db": -2
+      },
+      "grass": {
+        "samples": [
+          "sounds/footstep_grass_000.ogg",
+          "sounds/footstep_grass_001.ogg",
+          "sounds/footstep_grass_002.ogg",
+          "sounds/footstep_grass_003.ogg",
+          "sounds/footstep_grass_004.ogg"
+        ],
+        "volume_db": 1
+      },
+      "steel": {
+        "samples": [
+          "sounds/footstep_concrete_000.ogg",
+          "sounds/footstep_concrete_001.ogg",
+          "sounds/footstep_concrete_002.ogg",
+          "sounds/footstep_concrete_004.ogg"
+        ],
+        "accent": {
+          "samples": [
+            "sounds/impactMetal_light_000.ogg",
+            "sounds/impactMetal_light_001.ogg",
+            "sounds/impactMetal_light_002.ogg",
+            "sounds/impactMetal_light_003.ogg",
+            "sounds/impactMetal_light_004.ogg"
+          ],
+          "volume_db": -18
+        },
+        "volume_db": 2
+      },
+      "plain": {
+        "samples": [
+          "sounds/footstep01.ogg",
+          "sounds/footstep02.ogg",
+          "sounds/footstep03.ogg",
+          "sounds/footstep04.ogg",
+          "sounds/footstep05.ogg",
+          "sounds/footstep06.ogg",
+          "sounds/footstep08.ogg",
+          "sounds/footstep09.ogg"
+        ],
+        "volume_db": -2
+      }
     }
   }
 }

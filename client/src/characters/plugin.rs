@@ -11,7 +11,7 @@ use crate::{
     carriers::carriers_transform_sync_system,
     missiles::{interpolate_remote_missiles_system, missiles_movement_system, remote_missile_impacts_system},
     players::{
-        LocalPlayerMarker, interpolate_remote_players_system, local_player_cuboid_shake_system,
+        LocalPlayerMarker, footsteps_plugin, interpolate_remote_players_system, local_player_cuboid_shake_system,
         player_animation_update_system, players_transform_sync_system, report_move_outcomes_system,
         report_player_movement_system,
     },
@@ -52,6 +52,7 @@ pub fn local_simulation_plugin(app: &mut App) {
 
 // Character presentation follows local fixed ticks or buffered remote samples each render frame.
 pub fn character_sync_plugin(app: &mut App) {
+    app.add_plugins(footsteps_plugin);
     app.init_resource::<BoundsMode>();
     app.add_systems(
         Update,

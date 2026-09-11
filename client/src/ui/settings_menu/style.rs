@@ -12,7 +12,7 @@ use super::state::{
 };
 use crate::{
     config::ClientSettings,
-    constants::{SETTINGS_ACCENT_COLOR, SETTINGS_OUTLINE_COLOR, SETTINGS_SLIDER_TRACK_COLOR},
+    constants::{AUDIO_VOLUME_DB_MIN, SETTINGS_ACCENT_COLOR, SETTINGS_OUTLINE_COLOR, SETTINGS_SLIDER_TRACK_COLOR},
 };
 
 // Nothing change-detects these colors, so the restyle writes unconditionally while the menu is open.
@@ -110,7 +110,13 @@ fn slider_label(setting: SliderSetting, value: f32) -> String {
         SliderSetting::MouseSensitivity | SliderSetting::ZoomSensitivity => format!("{value:.2}x"),
         SliderSetting::Fov => format!("{value:.0}"),
         SliderSetting::ShakeScale => format!("{value:.1}x"),
-        SliderSetting::MasterVolume => format!("{:.0}%", value * 100.0),
+        SliderSetting::MasterVolume | SliderSetting::FootstepVolume => {
+            if value <= AUDIO_VOLUME_DB_MIN {
+                "Off".to_owned()
+            } else {
+                format!("{value:.0} dB")
+            }
+        }
     }
 }
 

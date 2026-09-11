@@ -6,7 +6,7 @@ use common::{
     protocol::{MapSettings, PlayerId, PlayerMoveIntent, Position},
 };
 
-use super::PlayerMap;
+use super::{PlayerMap, footsteps::FootstepPlayback};
 use crate::{
     characters::CharacterModel,
     constants::{
@@ -98,6 +98,7 @@ pub(crate) struct PlayerModel {
 
 #[derive(Clone)]
 pub(crate) struct PlayerAnimationSource {
+    pub(super) handles: Vec<Handle<AnimationClip>>,
     pub(super) owner: Entity,
     pub(super) graph: Handle<AnimationGraph>,
     pub(super) clips: Vec<AnimationNodeIndex>,
@@ -112,8 +113,9 @@ impl PlayerAnimationSource {
         }
         let handles = PlayerClip::ALL.map(|clip| clips[clip as usize].clone());
         let climb_clip = handles[PlayerClip::Climb as usize].clone();
-        let (graph, clips) = AnimationGraph::from_clips(handles);
+        let (graph, clips) = AnimationGraph::from_clips(handles.clone());
         Some(Self {
+            handles: handles.to_vec(),
             owner,
             graph: graphs.add(graph),
             clips,
@@ -239,6 +241,7 @@ pub(crate) fn player_animation_setup_system(
                 source: source.clone(),
                 state: AnimationState::default(),
             },
+            FootstepPlayback::default(),
         ));
     }
 }

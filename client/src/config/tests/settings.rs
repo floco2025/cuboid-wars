@@ -22,6 +22,27 @@ fn preferences_reject_portal_budget_above_settings_maximum() {
         .expect_err("oversized portal view budget should fail");
     assert!(error.to_string().contains("portal_view_budget"));
 }
+
+#[test]
+fn footstep_volume_defaults_to_neutral_and_validates_the_db_range() {
+    let mut settings = test_fixtures::client_settings();
+    assert_eq!(settings.preferences.footstep_volume_db, 0.0);
+    for db in [-20.0, -6.0, 0.0, 6.0, 20.0] {
+        settings.preferences.footstep_volume_db = db;
+        settings
+            .preferences
+            .validate()
+            .expect("valid footstep adjustment rejected");
+    }
+    for db in [-21.0, 21.0, f32::NAN, f32::NEG_INFINITY, f32::INFINITY] {
+        settings.preferences.footstep_volume_db = db;
+        let error = settings
+            .preferences
+            .validate()
+            .expect_err("invalid footstep adjustment accepted");
+        assert!(error.to_string().contains("footstep_volume_db"));
+    }
+}
 #[test]
 fn json_cannot_override_runtime_preference_defaults() {
     let mut json: serde_json::Value =

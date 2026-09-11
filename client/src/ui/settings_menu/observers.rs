@@ -1,5 +1,5 @@
 use bevy::{
-    audio::{GlobalVolume, Volume},
+    audio::GlobalVolume,
     prelude::*,
     ui::Checked,
     ui_widgets::{Activate, SliderValue, ValueChange},
@@ -10,6 +10,7 @@ use super::state::{CheckboxSetting, CyclerButton, CyclerSetting, SliderSetting};
 use bevy::render::renderer::RenderAdapter;
 
 use crate::{
+    audio::settings_volume,
     cameras::supported_msaa_samples,
     config::ClientSettings,
     input::{WindowedFrame, enter_borderless_fullscreen, enter_windowed},
@@ -38,7 +39,8 @@ pub(super) fn on_slider_value_change(
         SliderSetting::ZoomSensitivity => settings.preferences.zoom_sensitivity = value,
         SliderSetting::Fov => settings.preferences.fov_degrees = value,
         SliderSetting::ShakeScale => settings.preferences.shake_scale = value,
-        SliderSetting::MasterVolume => global_volume.volume = Volume::Linear(value),
+        SliderSetting::MasterVolume => global_volume.volume = settings_volume(value),
+        SliderSetting::FootstepVolume => settings.preferences.footstep_volume_db = value,
     }
 }
 

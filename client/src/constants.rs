@@ -47,6 +47,9 @@ pub const CAMERA_MAX_PITCH: f32 = FRAC_PI_2 - 0.05;
 // ============================================================================
 
 pub const AUDIO_MASTER_VOLUME_DEFAULT: f32 = 1.0;
+pub const AUDIO_FOOTSTEP_VOLUME_DB_DEFAULT: f32 = 0.0;
+pub const AUDIO_VOLUME_DB_MIN: f32 = -20.0;
+pub const AUDIO_VOLUME_DB_MAX: f32 = 20.0;
 
 // ============================================================================
 // RTT measurement
@@ -84,6 +87,18 @@ pub const PLAYER_ANIMATION_TAKEOFF_BLEND_SECS: f32 = 0.04;
 pub const PLAYER_ANIMATION_WALK_SPEED: f32 = 3.0;
 pub const PLAYER_ANIMATION_RUN_SPEED: f32 = 5.0;
 pub const PLAYER_ANIMATION_CLIMB_RUNGS_PER_CYCLE: f32 = 2.0;
+// Sole contacts sampled from player.glb; reverse playback contacts the forward lift-off phases.
+pub const PLAYER_FOOTSTEP_WALK_PHASES: &[f32] = &[0.03, 0.53];
+pub const PLAYER_FOOTSTEP_WALK_REVERSE_PHASES: &[f32] = &[0.17, 0.67];
+pub const PLAYER_FOOTSTEP_RUN_PHASES: &[f32] = &[0.46, 0.96];
+pub const PLAYER_FOOTSTEP_RUN_REVERSE_PHASES: &[f32] = &[0.26, 0.76];
+pub const PLAYER_FOOTSTEP_STRAFE_PHASES: &[f32] = &[0.29, 0.49, 0.78, 0.98];
+pub const PLAYER_FOOTSTEP_CLIMB_PHASES: &[f32] = &[0.30, 0.96];
+pub const PLAYER_FOOTSTEP_CLIMB_REVERSE_PHASES: &[f32] = &[0.02, 0.65];
+pub const PLAYER_FOOTSTEP_MIN_INTERVAL_SECS: f64 = 0.08;
+pub const PLAYER_FOOTSTEP_PROBE_HEIGHT: f32 = 0.15;
+pub const PLAYER_FOOTSTEP_PROBE_REACH: f32 = 0.65;
+
 pub const PLAYER_ANIMATION_STANDSTILL_SPEED: f32 = 0.2;
 pub const PLAYER_ANIMATION_APEX_SPEED: f32 = 0.15;
 pub const PLAYER_ANIMATION_LANDING_MIN_AIR_SECS: f32 = 0.1;

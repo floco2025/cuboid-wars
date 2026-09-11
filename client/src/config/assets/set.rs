@@ -10,6 +10,7 @@ use common::protocol::{MapLayout, MapSettings, validate_texture_catalog, validat
 use serde::Deserialize;
 
 use super::{
+    FootstepSounds,
     lighting::{SkyboxDef, WallLightModelDef},
     material::{MaterialBinding, MaterialDef},
     model::{ModelDef, validate_model},
@@ -46,6 +47,7 @@ const REQUIRED_ACTOR_SOUNDS: &[&str] = &["explodes", "fire"];
 
 #[derive(Resource, Debug, Clone, Deserialize)]
 pub struct AssetSet {
+    pub footsteps: FootstepSounds,
     pub(super) materials: HashMap<String, MaterialDef>,
     ladder: MaterialBinding,
     pressure_plate: PressurePlateDef,
@@ -75,6 +77,7 @@ impl AssetSet {
     }
 
     pub(super) fn validate(&self) -> Result<()> {
+        self.footsteps.validate()?;
         anyhow::ensure!(
             !self.skyboxes.is_empty(),
             "asset config must define at least one entry in `skyboxes`"
@@ -88,6 +91,10 @@ impl AssetSet {
             );
         }
         for (name, material) in &self.materials {
+            if let Some(binding) = &material.footstep {
+                self.footsteps
+                    .validate_binding(binding, &format!("materials.{name}.footstep"))?;
+            }
             anyhow::ensure!(
                 material.textures.normal_is_directx().is_some(),
                 "`materials.{name}.textures.normal` must be named `-normal-dx` or `-normal-gl`, got `{}`",

@@ -5,6 +5,7 @@ mod animation_tests;
 mod components;
 mod death;
 mod effects;
+mod footsteps;
 mod movement;
 mod resources;
 mod spawn;
@@ -18,6 +19,7 @@ pub use death::death_overlay_visibility_system;
 pub use effects::{
     local_player_camera_shake_system, local_player_cuboid_shake_system, local_player_portal_blend_system,
 };
+pub(crate) use footsteps::footsteps_plugin;
 pub use movement::{LocalMovementReports, report_player_movement_system};
 pub(crate) use movement::{
     LocalMovementStep, PlayerMotionBundle, PlayerMovementQuery, apply_player_moves, interpolate_remote_players_system,

@@ -23,6 +23,7 @@ fn label_text(text: &str, font_size: f32) -> impl Bundle {
             ..default()
         },
         TextColor(Color::WHITE),
+        TextLayout::no_wrap(),
     )
 }
 
@@ -54,7 +55,7 @@ pub(super) fn section_header(text: &str, font_size: f32) -> impl Bundle {
 
 // The value readout lives inside the control's fixed width, so the whole
 // group matches the cyclers' footprint and the right column stays one width.
-const VALUE_BOX_PX: f32 = 48.0;
+const VALUE_BOX_FONT_WIDTH: f32 = 4.0;
 const CONTROL_GAP_PX: f32 = 8.0;
 
 #[expect(clippy::too_many_arguments, reason = "one call site per setting row")]
@@ -68,6 +69,7 @@ pub(super) fn slider_row(
     value: f32,
     precision: i32,
 ) -> impl Bundle {
+    let value_width = font_size * VALUE_BOX_FONT_WIDTH;
     (
         row(),
         children![
@@ -84,7 +86,7 @@ pub(super) fn slider_row(
                 },
                 children![
                     slider(
-                        control_width - VALUE_BOX_PX - CONTROL_GAP_PX,
+                        control_width - value_width - CONTROL_GAP_PX,
                         setting,
                         min,
                         max,
@@ -93,7 +95,7 @@ pub(super) fn slider_row(
                     ),
                     (
                         Node {
-                            width: Val::Px(VALUE_BOX_PX),
+                            width: Val::Px(value_width),
                             flex_shrink: 0.0,
                             justify_content: JustifyContent::FlexEnd,
                             ..default()
@@ -230,6 +232,7 @@ pub(super) fn cycler_row(label: &str, font_size: f32, control_width: f32, settin
                             ..default()
                         },
                         TextColor(Color::WHITE),
+                        TextLayout::no_wrap(),
                     ),
                     cycler_button(setting, 1, ">", font_size),
                 ],

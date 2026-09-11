@@ -1,4 +1,4 @@
-use super::fixtures::{connect, server_app};
+use super::fixtures::{connect, server_app, server_app_with_options};
 use super::*;
 use common::{
     config::GameplayConfig,
@@ -8,6 +8,50 @@ use common::{
         PlayerMovementState, Position, ServerMessage,
     },
 };
+
+#[test]
+fn startup_god_and_peace_share_the_console_state() {
+    for god in [false, true] {
+        for peace in [false, true] {
+            let mut app = server_app_with_options(
+                ServerAppOptions {
+                    map: None,
+                    god,
+                    peace,
+                    network: NetworkOverrides::default(),
+                    logging: false,
+                },
+                None,
+            )
+            .expect("server app failed to initialize");
+            assert_eq!(app.world().resource::<Invincibility>().0, god);
+            assert_eq!(app.world().resource::<ActorMap>().peaceful, peace);
+            let (client, receiver) = connect(&mut app);
+            client
+                .send(ClientMessage::Login(CLogin { name: "Player".into() }))
+                .expect("login failed");
+            app.update();
+            let snapshot = std::iter::from_fn(|| receiver.try_recv().ok())
+                .find_map(|message| match message {
+                    ServerMessage::Snapshot(snapshot) => Some(snapshot),
+                    _ => None,
+                })
+                .expect("initial snapshot missing");
+            assert_eq!(snapshot.actors_peaceful, peace);
+
+            for (command, expected_god, expected_peace) in [("/god", !god, peace), ("/peace", !god, !peace)] {
+                client
+                    .send(ClientMessage::Admin(CAdmin {
+                        command: command.into(),
+                    }))
+                    .expect("admin command delivery failed");
+                app.update();
+                assert_eq!(app.world().resource::<Invincibility>().0, expected_god);
+                assert_eq!(app.world().resource::<ActorMap>().peaceful, expected_peace);
+            }
+        }
+    }
+}
 
 #[test]
 fn give_missiles_sends_weapon_selection_cue_even_when_ammo_is_full() {

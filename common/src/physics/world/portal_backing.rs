@@ -13,6 +13,7 @@ use rapier3d::{
 use super::{
     CollisionWorld, WorldSurfaceHit,
     colliders::{ColliderKind, query_filter, world_collision_groups},
+    surface_materials::collider_material,
 };
 use crate::{
     constants::{PORTAL_HALF_HEIGHT, PORTAL_HALF_WIDTH, PORTAL_RIM_SCALE},
@@ -21,7 +22,6 @@ use crate::{
     protocol::{CarrierId, MapLayout, TextureSettings},
 };
 
-pub(super) const MATERIAL_INDEX_SHIFT: u32 = 40;
 const SURFACE_DEPTH: f32 = 0.02;
 const RIM_SEGMENTS: usize = 64;
 // Coplanar grid faces can protrude slightly past the portal plane through floating-point noise.
@@ -74,7 +74,9 @@ impl CollisionWorld {
         layout: &MapLayout,
         textures: &BTreeMap<String, TextureSettings>,
     ) -> bool {
-        material_allows(&self.colliders[hit.collider], hit.normal, layout, textures)
+        self.surface_material(hit, layout)
+            .and_then(|alias| textures.get(alias))
+            .is_some_and(|texture| texture.portalable)
     }
 
     pub(crate) fn portal_materials_allow(
@@ -98,44 +100,11 @@ impl CollisionWorld {
                     .expect("world surface has no support map")
                     .support_point(collider.position(), outward);
                 (from_rapier(front).dot(frame.normal) - plane).abs() > SURFACE_DEPTH
-                    || material_allows(collider, frame.normal, layout, textures)
+                    || collider_material(collider, frame.normal, layout)
+                        .and_then(|alias| textures.get(alias))
+                        .is_some_and(|texture| texture.portalable)
             })
     }
-}
-
-fn material_allows(
-    collider: &Collider,
-    normal: Vec3,
-    layout: &MapLayout,
-    textures: &BTreeMap<String, TextureSettings>,
-) -> bool {
-    let index = (collider.user_data >> MATERIAL_INDEX_SHIFT) as usize;
-    let materials = match ColliderKind::from_user_data(collider.user_data) {
-        Some(ColliderKind::Wall) => layout.wall_materials.get(index),
-        Some(ColliderKind::Floor) => layout.floor_materials.get(index),
-        Some(ColliderKind::Ramp) => layout.ramp_materials.get(index),
-        _ => None,
-    };
-    let Some(materials) = materials else {
-        return false;
-    };
-    let local = collider.position().rotation.inverse() * to_rapier(normal);
-    let alias = if local.y > 0.001 {
-        &materials.top
-    } else if local.y < -0.001 {
-        &materials.bottom
-    } else if local.x.abs() > local.z.abs() {
-        if local.x > 0.0 {
-            &materials.east
-        } else {
-            &materials.west
-        }
-    } else if local.z > 0.0 {
-        &materials.south
-    } else {
-        &materials.north
-    };
-    textures.get(alias).is_some_and(|texture| texture.portalable)
 }
 
 fn aperture_backing_shape() -> &'static SharedShape {

@@ -57,6 +57,8 @@ impl NetworkOverrides {
 
 pub struct ServerAppOptions {
     pub map: Option<String>,
+    pub god: bool,
+    pub peace: bool,
     pub network: NetworkOverrides,
     // Only one Bevy `LogPlugin` may install per process; the app built first owns it.
     pub logging: bool,
@@ -173,6 +175,8 @@ fn build_server_app_with_loader(
 
     info!("generated map {map_name:?}: {}", map_layout.summary());
 
+    let mut actors = ActorMap::default();
+    actors.set_peaceful(options.peace);
     app.insert_resource(server_gameplay_config.network)
         .insert_resource(map_layout)
         .insert_resource(map_items)
@@ -181,7 +185,7 @@ fn build_server_app_with_loader(
         .insert_resource(world_bootstrap)
         .insert_resource(weather_state)
         .insert_resource(light_state)
-        .insert_resource(Invincibility(false))
+        .insert_resource(Invincibility(options.god))
         .insert_resource(collision_world)
         .insert_resource(carriers)
         .insert_resource(map_config)
@@ -197,7 +201,7 @@ fn build_server_app_with_loader(
         .insert_resource(quest_catalog)
         .insert_resource(quest_board)
         .insert_resource(PlayerMap::new(map_server_config.respawn))
-        .insert_resource(ActorMap::default())
+        .insert_resource(actors)
         .insert_resource(ItemMap::default())
         .insert_resource(ItemSpawner::default())
         .insert_resource(random_items)

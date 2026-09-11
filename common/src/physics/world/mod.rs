@@ -11,6 +11,7 @@ mod ladders;
 mod portal_backing;
 mod rays;
 mod shape_cast;
+mod surface_materials;
 
 pub use bridge_power::powered_bridges_sync_system;
 pub use carrier_sync::carriers_advance_system;

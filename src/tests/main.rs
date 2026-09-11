@@ -57,6 +57,8 @@ fn window_options_need_a_window_and_world_options_a_server() {
         &["--serve", "--volume", "0.5"],
         &["--join", "--map", "hotel"],
         &["--join", "--server-hz", "30"],
+        &["--join", "--god"],
+        &["--join", "--peace"],
     ] {
         let error = parse(args).expect_err("option accepted in the wrong mode");
         assert_eq!(error.kind(), ErrorKind::ArgumentConflict, "{args:?}");
@@ -64,6 +66,30 @@ fn window_options_need_a_window_and_world_options_a_server() {
     assert!(parse(&["--serve", "--map", "hotel"]).is_ok());
     assert!(parse(&["--join", "--name", "Alex", "--volume", "0.5"]).is_ok());
     assert!(parse(&["--host", "--name", "Alex", "--map", "hotel"]).is_ok());
+}
+
+#[test]
+fn god_and_peace_enable_independently_in_every_server_mode() {
+    let modes: [&[&str]; 3] = [&[], &["--host"], &["--serve"]];
+    for mode in modes {
+        for god in [false, true] {
+            for peace in [false, true] {
+                let mut args = mode.to_vec();
+                if god {
+                    args.push("--god");
+                }
+                if peace {
+                    args.push("--peace");
+                }
+                let options = parse(&args)
+                    .expect("startup mode arguments rejected")
+                    .world
+                    .server_options();
+                assert_eq!(options.god, god, "{args:?}");
+                assert_eq!(options.peace, peace, "{args:?}");
+            }
+        }
+    }
 }
 
 #[test]

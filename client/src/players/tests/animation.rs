@@ -285,6 +285,7 @@ fn playback_follows_map_speeds_without_restarting_each_frame() {
             AnimationTransitions::new(),
             PlayerAnimationPlayback {
                 source: PlayerAnimationSource {
+                    handles: vec![Handle::default(); PlayerClip::ALL.len()],
                     owner,
                     graph: Handle::default(),
                     clips,
