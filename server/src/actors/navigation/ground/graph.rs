@@ -6,9 +6,9 @@ use common::{
     protocol::{BridgeId, Position},
 };
 
-use super::{LadderLink, routing::DIRECT_ROUTE_CLEARANCE_MARGIN};
+use super::LadderLink;
 
-use crate::map::{ActorSpawnZone, CarrierGrid, Cell, CellSide, LevelGrid, has_edge_on_cell_side};
+use crate::map::{CarrierGrid, Cell, CellSide, LevelGrid, has_edge_on_cell_side};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) struct NavNode {
@@ -31,9 +31,7 @@ pub struct NavGraph {
 }
 
 impl NavGraph {
-    // A fresh graph walks every bridge, its whole potential reach, which
-    // the territories are built from; `set_powered_bridges` narrows it to
-    // the plates' state before the first behaviour tick.
+    // Build every potential bridge edge; plate state filters routes at runtime.
     #[must_use]
     pub fn new(grid: &CarrierGrid) -> Self {
         let mut graph = Self {
@@ -76,10 +74,6 @@ impl NavGraph {
             .is_some_and(|bridge| !self.bridge_powered(bridge))
     }
 
-    // Inside the grid's volume: within its columns and rows, not below its
-    // ground storey, and not above its top one. A route target outside it
-    // is unreachable, so a player beside a nested map or under a lifted
-    // tile is never chased off the map.
     #[must_use]
     pub(crate) fn contains(&self, pos: &Position) -> bool {
         let col = self.geometry.cell_col_containing_x(pos.x);
@@ -88,22 +82,6 @@ impl NavGraph {
             && (0..self.geometry.grid_rows).contains(&row)
             && pos.y >= -LEVEL_CLASSIFICATION_TOLERANCE
             && usize::from(self.geometry.level_for_y(pos.y)) < self.levels.len()
-    }
-
-    pub(super) fn zone_nodes(&self, zone: &ActorSpawnZone) -> Vec<NavNode> {
-        let mut nodes: Vec<_> = zone
-            .cells()
-            .filter_map(|(col, row)| {
-                self.nearest_node_for_position(&Position {
-                    x: self.geometry.cell_center_x(col),
-                    y: self.geometry.level_y(zone.level),
-                    z: self.geometry.cell_center_z(row),
-                })
-            })
-            .collect();
-        nodes.sort_unstable();
-        nodes.dedup();
-        nodes
     }
 
     pub(super) fn neighbors(&self, node: NavNode) -> &[NavNode] {
@@ -164,33 +142,11 @@ impl NavGraph {
         true
     }
 
-    // Whether a route's final leg can simply be re-aimed at a moved target:
-    // only a straight line across flat floor on one level can be judged, and
-    // it fails when the body does not fit it.
-    pub(crate) fn engagement_retarget_is_valid(
-        &self,
-        start: &Position,
-        target: &Position,
-        actor_half_width: f32,
-        actor_half_depth: f32,
-    ) -> bool {
-        let level = self.geometry.level_for_y(start.y);
-        if self.geometry.level_for_y(target.y) != level
-            || self.flat_floor_node_at(start.x, start.z, level).is_none()
-            || self.flat_floor_node_at(target.x, target.z, level).is_none()
-        {
-            return true;
-        }
-        self.flat_path_is_clear(
-            start,
-            target,
-            actor_half_width + DIRECT_ROUTE_CLEARANCE_MARGIN,
-            actor_half_depth + DIRECT_ROUTE_CLEARANCE_MARGIN,
-        )
-    }
-
     pub(super) fn is_cover_destination(&self, node: NavNode) -> bool {
-        self.cell(node).is_some_and(Cell::is_flat_floor)
+        self.is_traversable(node)
+            && self
+                .cell(node)
+                .is_some_and(|cell| !cell.has_ramp && !cell.has_ramp_from_below)
     }
 
     fn flat_floor_node_at(&self, x: f32, z: f32, level: u8) -> Option<NavNode> {
@@ -255,7 +211,7 @@ impl NavGraph {
         }
     }
 
-    fn all_traversable_nodes(&self) -> impl Iterator<Item = NavNode> + '_ {
+    pub(super) fn all_traversable_nodes(&self) -> impl Iterator<Item = NavNode> + '_ {
         self.levels.iter().enumerate().flat_map(move |(level_idx, level_grid)| {
             let level = u8::try_from(level_idx).unwrap_or(u8::MAX);
             level_grid

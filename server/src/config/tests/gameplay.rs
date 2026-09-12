@@ -159,20 +159,6 @@ fn invalid_map_values_name_the_settings_file_and_field() {
 }
 
 #[test]
-fn mobile_actor_requires_positive_roam_steps() {
-    let mut config = fixtures::server_config();
-    config
-        .actors
-        .kinds
-        .get_mut("scuttler")
-        .expect("scuttler config missing")
-        .roam_steps = 0;
-    let error = config
-        .validate(Path::new("."))
-        .expect_err("mobile actor accepted zero roam steps");
-    assert!(error.to_string().contains("actors.kinds.scuttler.roam_steps"));
-}
-#[test]
 fn immovable_actor_rejects_unused_speed_settings() {
     let mut config = fixtures::server_config();
     let map = config.maps.get_mut("obby").expect("Obby settings missing");
@@ -193,7 +179,7 @@ fn movable_actor_requires_speed_settings() {
     let mut config = fixtures::server_config();
     let actor = config.actors.kinds.get_mut("turret").expect("turret config missing");
     actor.character.immovable = false;
-    actor.roam_steps = 1;
+
     let error = config
         .validate(Path::new("."))
         .expect_err("movable actor accepted missing speeds");

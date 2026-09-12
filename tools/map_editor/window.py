@@ -22,7 +22,6 @@ from .canvas_scroll import CanvasScrollArea
 from .catalogs import (
     MapCatalogs,
     load_actor_kinds,
-    load_immovable_actor_kinds,
     load_wall_light_kinds,
     map_name_from_path,
     require_map_settings,
@@ -95,7 +94,9 @@ class EditorWindow(
         self.actor_kinds = load_actor_kinds()
         self.wall_light_kinds = load_wall_light_kinds()
         self.recent_light_kind = next(iter(self.wall_light_kinds), "")
-        self.immovable_actor_kinds = load_immovable_actor_kinds()
+        self.recent_actor_spawn_levels = 1
+        self.recent_actor_roam_distance = 0.0
+        self.recent_player_spawn_levels = 1
         self.current_level = 0
         self.mode = MODE_SELECT
         self.shortcuts = []
@@ -136,6 +137,7 @@ class EditorWindow(
         self.tile_clipboard: dict | None = None
         self.select_drag_kind: str | None = None
         self.show_material_overlay = False
+        self.show_roam_extensions = False
         # Show prev/next level geometry as ghosted overlays — helps when
         # placing ramps that span two levels.
         self.show_adjacent_levels = False
@@ -228,7 +230,6 @@ class EditorWindow(
             map_name=self.doc.active_map,
             nested_lookup=self.nested_map_shape,
             actor_kinds=self.actor_kinds,
-            immovable_actor_kinds=self.immovable_actor_kinds,
             wall_light_kinds=self.wall_light_kinds,
             material_aliases=self.materials_catalog,
         )
@@ -250,7 +251,6 @@ class EditorWindow(
             data,
             catalogs,
             actor_kinds=self.actor_kinds,
-            immovable_actor_kinds=self.immovable_actor_kinds,
             wall_light_kinds=self.wall_light_kinds,
         )
 
@@ -389,6 +389,13 @@ class EditorWindow(
         self.adjacent_levels_action.toggled.connect(self.set_adjacent_levels)
         view_menu.addAction(self.adjacent_levels_action)
         self.canvas_shortcut(self.adjacent_levels_action)
+        self.roam_extensions_action = QAction("Show &Roam Extensions", self)
+        self.roam_extensions_action.setCheckable(True)
+        self.roam_extensions_action.setChecked(self.show_roam_extensions)
+        self.roam_extensions_action.setShortcut(QKeySequence("R"))
+        self.roam_extensions_action.toggled.connect(self.set_roam_extensions)
+        view_menu.addAction(self.roam_extensions_action)
+        self.canvas_shortcut(self.roam_extensions_action)
         view_menu.addAction(self.jump_reach.clear_action)
         view_menu.addAction(self.run_time.clear_action)
 
@@ -539,6 +546,7 @@ class EditorWindow(
         if 0 <= index < len(self.map_data["levels"]):
             self.cancel_interaction()
             self.current_level = index
+            self.tool_settings.refresh()
             self.canvas.update()
             self.refresh_issues(validate=False)
 
@@ -552,6 +560,10 @@ class EditorWindow(
         self.tool_settings.refresh()
         self.jump_reach.refresh()
         self.run_time.refresh()
+
+    def set_roam_extensions(self, enabled: bool) -> None:
+        self.show_roam_extensions = enabled
+        self.canvas.update()
 
     def set_material_overlay(self, enabled: bool) -> None:
         self.show_material_overlay = enabled

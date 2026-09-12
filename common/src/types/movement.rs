@@ -73,6 +73,9 @@ fn player_speed_with_power_up(speed: f32, has_speed_power_up: bool, speed_multip
 pub enum ActorMoveIntent {
     #[default]
     Idle,
+    Flying {
+        velocity: [f32; 3],
+    },
     Moving {
         direction: f32,
         speed: f32,
@@ -101,9 +104,12 @@ impl ActorMoveIntent {
     }
 
     #[must_use]
-    pub const fn direction(&self) -> Option<f32> {
+    pub fn direction(&self) -> Option<f32> {
         match self {
             Self::Idle => None,
+            Self::Flying { velocity } => {
+                (velocity[0] != 0.0 || velocity[2] != 0.0).then(|| velocity[0].atan2(velocity[2]))
+            }
             Self::ExitingLadder { direction, .. }
             | Self::Moving { direction, .. }
             | Self::Climbing { direction, .. } => Some(*direction),
@@ -111,9 +117,10 @@ impl ActorMoveIntent {
     }
 
     #[must_use]
-    pub const fn speed(&self) -> Option<f32> {
+    pub fn speed(&self) -> Option<f32> {
         match self {
             Self::Idle => None,
+            Self::Flying { velocity } => Some(Vec3::from_array(*velocity).length()),
             Self::ExitingLadder { speed, .. } | Self::Moving { speed, .. } | Self::Climbing { speed, .. } => {
                 Some(*speed)
             }
@@ -124,6 +131,7 @@ impl ActorMoveIntent {
     pub fn to_horizontal_velocity(&self) -> Vec3 {
         match self {
             Self::Idle => Vec3::ZERO,
+            Self::Flying { velocity } => Vec3::from_array(*velocity).with_y(0.0),
             Self::ExitingLadder { direction, speed }
             | Self::Moving { direction, speed }
             | Self::Climbing { direction, speed } => Vec3::new(direction.sin() * speed, 0.0, direction.cos() * speed),
@@ -193,9 +201,7 @@ pub struct ActorMovementState {
     pub support: CharacterSupport,
 }
 
-// Missile flight state on the wire. Unlike `ActorMovementState`, missiles fly:
-// the direction needs pitch, which `ActorMoveIntent` structurally cannot carry
-// (its velocity is horizontal-only). Decomposed into scalars per wire style.
+// Missile flight reports its orientation independently of actor facing.
 #[derive(Debug, Clone, Copy, PartialEq, Encode, Decode)]
 pub struct MissileMovementState {
     pub pos: Position,

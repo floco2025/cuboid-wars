@@ -49,6 +49,9 @@ def record_levels(entry: dict, level: int | None = None) -> tuple[int, int]:
         return level, level
     if "lower_level" in entry:
         return entry["lower_level"], entry["lower_level"] + entry.get("levels", 1)
+    if "cols" in entry and "rows" in entry:
+        span = entry.get("levels", 1)
+        return entry["level"], entry["level"] + (span if type(span) is int and span > 0 else 1) - 1
     return min(entry["level"], entry.get("to_level", entry["level"])), max(
         entry["level"], entry.get("to_level", entry["level"])
     )
@@ -109,6 +112,19 @@ def remap_levels(data: dict, pivot: int, *, remove: bool) -> dict:
         kept = []
         for entry in moved.get(name, []):
             lower, upper = record_levels(entry)
+            if name in ZONE_LISTS and lower <= pivot <= upper:
+                if remove:
+                    if entry.get("levels", 1) == 1:
+                        continue
+                    entry["levels"] -= 1
+                    if entry["level"] == pivot:
+                        kept.append(entry)
+                        continue
+                elif lower < pivot:
+                    entry["levels"] = entry.get("levels", 1) + 1
+                if remove:
+                    kept.append(entry)
+                    continue
             if remove and lower <= pivot <= upper:
                 continue
             if name == "ladders" and lower < pivot <= upper:

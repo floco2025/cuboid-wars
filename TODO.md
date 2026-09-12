@@ -2,13 +2,12 @@
 
 ## Fixes
 
-- **Flying actors are bound to the ground:** actors such as the zapper currently follow surfaces while hovering above them. Give them true flight with 3D navigation, allowing travel through any reachable open space without ground support while avoiding collisions with all geometry.
-
 - **Portal body pose jumps at the crossing:** between floor portals, the emerging twin is upside down but the main body replaces it upright when the center crosses, swapping the visible legs for the upper body. Preserve the rendered pose across the handoff before reorienting it.
 
 - **Body clipping flickers on moving portals:** straddle detection uses the current tick's portal frame against the interpolated player position, while the visible portal and clipping planes use the interpolated carrier pose. Use the same rendered frames for detection and clipping.
 
 ## Enhancements
+
 
 - **Pressure plates cover characters' feet:** give plates collision geometry so players and other characters stand on their surface instead of intersecting the model. Keep the support height aligned with the tread in both active and inactive states.
 

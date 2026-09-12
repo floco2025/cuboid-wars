@@ -20,7 +20,8 @@
       },
       "eye_height": 0.79,
       "can_use_ladders": false,
-      "immovable": false
+      "immovable": false,
+      "locomotion": "ground"
     },
     "bruiser": {
       "movement_collider": { "diameter": 1.6422, "height": 1.6675 },
@@ -32,7 +33,8 @@
       },
       "eye_height": 1.38,
       "can_use_ladders": false,
-      "immovable": false
+      "immovable": false,
+      "locomotion": "ground"
     },
     "zapper": {
       "movement_collider": { "diameter": 0.88, "height": 1.75 },
@@ -45,7 +47,8 @@
       "beam_origin_height": 1.35,
       "eye_height": 1.59,
       "can_use_ladders": false,
-      "immovable": false
+      "immovable": false,
+      "locomotion": "ground"
     },
     "turret": {
       "movement_collider": { "diameter": 0.5, "height": 1.62 },
@@ -58,7 +61,8 @@
       "beam_origin_height": 1.45,
       "eye_height": 1.6,
       "can_use_ladders": false,
-      "immovable": true
+      "immovable": true,
+      "locomotion": "ground"
     }
   },
   "projectiles": {

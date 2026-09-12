@@ -103,6 +103,9 @@ class EditorHost(PlacementMixin, ItemsMixin, LightsMixin, NestedMapsMixin, Erase
         self.recent_pressure_plate_switch = "barrier_1"
         self.recent_actor_spawn_switch = ""
         self.recent_actor_spawn_inverted = False
+        self.recent_actor_spawn_levels = 1
+        self.recent_actor_roam_distance = 0.0
+        self.recent_player_spawn_levels = 1
         self.recent_barrier_controls = {}
         self.recent_bridge_controls = {}
         self.key_kinds = self.barrier_kinds

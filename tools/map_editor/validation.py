@@ -106,7 +106,6 @@ def validate_map(
     map_name: str | None = None,
     nested_lookup=None,
     actor_kinds: list[str] | None = None,
-    immovable_actor_kinds: set[str] | None = None,
     material_aliases: list[str] | None = None,
     wall_light_kinds: list[str] | None = None,
 ) -> ValidationErrors:
@@ -123,6 +122,8 @@ def validate_map(
     for idx, zone in enumerate(map_data["actor_spawn_zones"]):
         errors.locate("actor_spawn_zones", zone)
         _validate_zone_rect(zone, f"actor_spawn_zones[{idx}]", map_data, errors)
+        if not _is_non_negative_number(zone.get("roam_distance", 0.0)):
+            errors.append(f"actor_spawn_zones[{idx}] roam_distance must be a finite non-negative number")
         if not zone["kind"]:
             errors.append(f"actor_spawn_zones[{idx}] has empty `kind`")
         elif actor_kinds is not None and zone["kind"] not in actor_kinds:
@@ -133,8 +134,6 @@ def validate_map(
             errors.append(f"actor_spawn_zones[{idx}] needs `respawn_secs` (seconds, or null to never refill)")
         elif zone["respawn_secs"] is not None and not _is_non_negative_number(zone["respawn_secs"]):
             errors.append(f"actor_spawn_zones[{idx}] respawn_secs must be a non-negative number or null")
-        if immovable_actor_kinds and zone["kind"] in immovable_actor_kinds:
-            _validate_immovable_capacity(zone, idx, map_data, errors)
         _validate_switch_target(zone, f"actor_spawn_zones[{idx}]", switches, plated_switches, errors)
 
     for idx, zone in enumerate(map_data["player_spawn_zones"]):
@@ -257,7 +256,6 @@ def validate_document(
     catalogs: MapCatalogs,
     *,
     actor_kinds: list[str] | None = None,
-    immovable_actor_kinds: set[str] | None = None,
     wall_light_kinds: list[str] | None = None,
 ) -> ValidationErrors:
     """Validate the outer map and every nested definition against the
@@ -311,7 +309,6 @@ def validate_document(
             map_name=name,
             nested_lookup=lambda key: nested_map_shape(definitions.get(key)),
             actor_kinds=actor_kinds,
-            immovable_actor_kinds=immovable_actor_kinds,
             material_aliases=list(catalogs.texture_catalog),
             wall_light_kinds=wall_light_kinds,
         )
@@ -519,26 +516,6 @@ def _check_face_aliases(seg: dict, label: str, errors: list[str], aliases) -> No
         )
 
 
-def _validate_immovable_capacity(zone: dict, index: int, map_data: dict, errors: list[str]) -> None:
-    level_index = zone["level"]
-    if not 0 <= level_index < len(map_data["levels"]):
-        return
-    level = map_data["levels"][level_index]
-    floors = {(floor["col"], floor["row"]) for floor in level["floors"]}
-    cells = floors - ramp_cells_on_level(map_data["ramps"], level_index)
-    c0, c1 = zone["cols"]
-    r0, r1 = zone["rows"]
-    capacity = sum(
-        c0 <= col < c1 and r0 <= row < r1 and 0 <= col < map_data["grid_cols"] and 0 <= row < map_data["grid_rows"]
-        for col, row in cells
-    )
-    if zone["count"] > capacity:
-        errors.append(
-            f"actor_spawn_zones[{index}] requests {zone['count']} immovable {zone['kind']!r} actors "
-            f"but has only {capacity} usable floor cells"
-        )
-
-
 def _is_non_negative_number(value) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) and value >= 0
 
@@ -548,6 +525,9 @@ def _validate_zone_rect(zone: dict, label: str, map_data: dict, errors: list[str
     rows = map_data["grid_rows"]
     if not (0 <= zone["level"] < len(map_data["levels"])):
         errors.append(f"{label} has an invalid level {zone['level']}")
+    span = zone.get("levels", 1)
+    if type(span) is not int or span < 1 or zone["level"] + span > len(map_data["levels"]):
+        errors.append(f"{label} has an invalid level span {span!r}")
     c0, c1 = zone["cols"]
     r0, r1 = zone["rows"]
     if c1 <= c0 or r1 <= r0:

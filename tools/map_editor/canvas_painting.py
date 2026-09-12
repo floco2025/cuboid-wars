@@ -58,6 +58,8 @@ from .geometry import (
     snapped_wall_end,
     zone_handle_centers,
     zone_rect,
+    zone_spans_level,
+    roam_slice_radius,
 )
 
 
@@ -829,10 +831,13 @@ class CanvasPaintingMixin:
     def paint_spawn_zones(self, painter: QPainter, cell: float, level_idx: int) -> None:
         # Player zones first (background), then actor (top — has the kind label).
         for zone in self.visible_entries(PLAYER_ZONE_LIST, self.window.map_data[PLAYER_ZONE_LIST]):
-            if zone["level"] == level_idx:
+            if zone_spans_level(zone, level_idx):
                 self.paint_player_spawn_zone(painter, zone, cell)
+        if self.window.show_roam_extensions:
+            for zone in self.window.map_data[ACTOR_ZONE_LIST]:
+                self.paint_roam_range(painter, zone, cell, level_idx)
         for zone in self.visible_entries(ACTOR_ZONE_LIST, self.window.map_data[ACTOR_ZONE_LIST]):
-            if zone["level"] == level_idx:
+            if zone_spans_level(zone, level_idx):
                 self.paint_actor_spawn_zone(painter, zone, cell)
 
         for zone in self.visible_entries(CHECKPOINT_LIST, self.window.map_data[CHECKPOINT_LIST]):
@@ -860,8 +865,39 @@ class CanvasPaintingMixin:
         painter.drawRect(rect)
         painter.setPen(QColor("#f8fafc"))
         label = f"{zone['kind']}:{zone['count']}" if zone["kind"] else "(empty)"
+        if zone.get("levels", 1) > 1:
+            label += f" · {zone['levels']} levels"
         if cell >= 8:
             painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, label)
+
+    def paint_roam_range(self, painter: QPainter, zone: dict, cell: float, level_idx: int) -> None:
+        if not self.window.show_roam_extensions:
+            return
+        geometry = self.window.doc.root_data.get("_settings", {}).get("geometry", {})
+        cell_size = geometry.get("grid_cell_size")
+        level_height = geometry.get("level_height")
+        if not cell_size or not level_height:
+            return
+        radius = roam_slice_radius(zone, level_idx, level_height)
+        if radius is None:
+            return
+        radius = radius / cell_size * cell
+        c0, r0, c1, r1 = zone_rect(zone)
+        rect = QRectF(c0 * cell, r0 * cell, (c1 - c0) * cell, (r1 - r0) * cell).adjusted(
+            -radius, -radius, radius, radius
+        )
+        color = zone_color(zone["kind"])
+        fill = QColor(color)
+        fill.setAlpha(18)
+        painter.setBrush(fill)
+        painter.setPen(QPen(color, 1.5, Qt.PenStyle.DashLine))
+        painter.drawRoundedRect(rect, radius, radius)
+        if cell >= 8:
+            painter.drawText(
+                rect.adjusted(5, 3, -5, -3),
+                Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter,
+                f"Roam +{zone['roam_distance']:g} m",
+            )
 
     def paint_player_spawn_zone(self, painter: QPainter, zone: dict, cell: float) -> None:
         c0, r0, c1, r1 = zone_rect(zone)
@@ -879,7 +915,7 @@ class CanvasPaintingMixin:
 
     def paint_spawn_zone_selection(self, painter: QPainter, cell: float, level_idx: int) -> None:
         zone = self.window.selected_spawn_zone()
-        if zone is None or zone["level"] != level_idx:
+        if zone is None or not zone_spans_level(zone, level_idx):
             return
         c0, r0, c1, r1 = zone_rect(zone)
         rect = QRectF(c0 * cell, r0 * cell, (c1 - c0) * cell, (r1 - r0) * cell)
@@ -901,6 +937,9 @@ class CanvasPaintingMixin:
         if candidate is None:
             return
         c0, r0, c1, r1 = candidate
+        if "kind" in drag.original_zone:
+            preview = {**drag.original_zone, "cols": [c0, c1], "rows": [r0, r1]}
+            self.paint_roam_range(painter, preview, cell, self.window.current_level)
         rect = QRectF(c0 * cell, r0 * cell, (c1 - c0) * cell, (r1 - r0) * cell)
         painter.setBrush(QColor(248, 250, 252, 70))
         painter.setPen(QPen(QColor("#f8fafc"), 2, Qt.PenStyle.DashLine))

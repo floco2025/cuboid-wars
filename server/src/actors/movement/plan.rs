@@ -1,4 +1,4 @@
-use bevy::prelude::Entity;
+use bevy::prelude::{Entity, Vec3};
 use common::{
     config::CharacterPhysicsConfig,
     math::PHYSICS_EPSILON,
@@ -53,40 +53,22 @@ fn character_move_plan_blocks(candidate: &CharacterMovePlan, other: &CharacterMo
 }
 
 fn character_move_plan_follows_front_move(candidate: &CharacterMovePlan, other: &CharacterMovePlan) -> bool {
-    let candidate_move_x = candidate.target.x - candidate.start.x;
-    let candidate_move_z = candidate.target.z - candidate.start.z;
-    let other_move_x = other.target.x - other.start.x;
-    let other_move_z = other.target.z - other.start.z;
-
-    let candidate_move_len_sq = candidate_move_x.mul_add(candidate_move_x, candidate_move_z * candidate_move_z);
-    let other_move_len_sq = other_move_x.mul_add(other_move_x, other_move_z * other_move_z);
-    if candidate_move_len_sq <= PHYSICS_EPSILON * PHYSICS_EPSILON
-        || other_move_len_sq <= PHYSICS_EPSILON * PHYSICS_EPSILON
+    let candidate_move = Vec3::from(candidate.target) - Vec3::from(candidate.start);
+    let other_move = Vec3::from(other.target) - Vec3::from(other.start);
+    if candidate_move.length_squared() <= PHYSICS_EPSILON * PHYSICS_EPSILON
+        || other_move.length_squared() <= PHYSICS_EPSILON * PHYSICS_EPSILON
     {
         return false;
     }
-
-    let to_other_start_x = other.start.x - candidate.start.x;
-    let to_other_start_z = other.start.z - candidate.start.z;
-    let other_starts_in_front = candidate_move_x.mul_add(to_other_start_x, candidate_move_z * to_other_start_z) > 0.0;
-    let moving_same_way = candidate_move_x.mul_add(other_move_x, candidate_move_z * other_move_z) > 0.0;
-    let final_positions_overlap =
-        character_positions_intersect(&candidate.target, candidate.physics, &other.target, other.physics);
-
-    other_starts_in_front && moving_same_way && !final_positions_overlap
+    let to_other = Vec3::from(other.start) - Vec3::from(candidate.start);
+    candidate_move.dot(to_other) > 0.0
+        && candidate_move.dot(other_move) > 0.0
+        && !character_positions_intersect(&candidate.target, candidate.physics, &other.target, other.physics)
 }
 
 fn position_is_behind_move_plan(candidate: &CharacterMovePlan, other_pos: &Position) -> bool {
-    let move_x = candidate.target.x - candidate.start.x;
-    let move_z = candidate.target.z - candidate.start.z;
-    let move_len_sq = move_x.mul_add(move_x, move_z * move_z);
-    if move_len_sq <= PHYSICS_EPSILON * PHYSICS_EPSILON {
-        return false;
-    }
-
-    let other_x = other_pos.x - candidate.start.x;
-    let other_z = other_pos.z - candidate.start.z;
-    move_x.mul_add(other_x, move_z * other_z) < 0.0
+    let movement = Vec3::from(candidate.target) - Vec3::from(candidate.start);
+    movement.dot(Vec3::from(*other_pos) - Vec3::from(candidate.start)) < 0.0
 }
 
 #[cfg(test)]

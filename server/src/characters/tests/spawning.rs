@@ -35,6 +35,7 @@ fn map_config_with_player_spawn(level: u8, col: i32, row: i32) -> MapConfig {
         player_spawn_zones: vec![PlayerSpawnZone {
             carrier: CarrierId::WORLD,
             level,
+            levels: 1,
             cols: [col, col + 1],
             rows: [row, row + 1],
         }],
@@ -148,6 +149,8 @@ fn nested_zone_fixture(rest: Position, floored: bool) -> (MapConfig, Carriers, A
 
         carrier: CarrierId(1),
         level: 0,
+        levels: 1,
+        roam_distance: 0.0,
         cols: [1, 2],
         rows: [1, 2],
         kind: "scuttler".to_owned(),
@@ -244,6 +247,8 @@ fn immovable_spawn_checks_every_cell_before_reporting_a_full_zone() {
 
         carrier: CarrierId::WORLD,
         level: 0,
+        levels: 1,
+        roam_distance: 0.0,
         cols: [0, 120],
         rows: [0, 1],
         kind: "turret".into(),
@@ -292,6 +297,8 @@ fn immovable_spawn_waits_instead_of_shifting_away_from_an_obstructed_center() {
 
         carrier: CarrierId::WORLD,
         level: 0,
+        levels: 1,
+        roam_distance: 0.0,
         cols: [1, 2],
         rows: [1, 2],
         kind: "turret".into(),

@@ -13,6 +13,8 @@ fn config_and_map() -> (ServerGameplayConfig, MapConfig) {
         switch_inverted: false,
         carrier: CarrierId::WORLD,
         level: 0,
+        levels: 1,
+        roam_distance: 0.0,
         cols: [0, 1],
         rows: [0, 1],
         kind: "scuttler".into(),
@@ -24,7 +26,7 @@ fn config_and_map() -> (ServerGameplayConfig, MapConfig) {
 }
 
 #[test]
-fn immovable_capacity_counts_only_usable_floors_on_the_zones_carrier() {
+fn immovable_zones_are_not_limited_by_floor_capacity() {
     let server = fixtures::server_config();
     let mut map = MapConfig::for_grid(Vec::new(), geometry(4, 1));
     let mut cells = CellGrid::new(4, 1);
@@ -46,6 +48,8 @@ fn immovable_capacity_counts_only_usable_floors_on_the_zones_carrier() {
 
         carrier: CarrierId(1),
         level: 0,
+        levels: 1,
+        roam_distance: 0.0,
         cols: [0, 4],
         rows: [0, 1],
         kind: "turret".into(),
@@ -55,9 +59,7 @@ fn immovable_capacity_counts_only_usable_floors_on_the_zones_carrier() {
     });
     validate_map_actor_kinds(&server, &map).expect("one turret rejected");
     map.actor_spawn_zones[0].count = 2;
-    let error = validate_map_actor_kinds(&server, &map).expect_err("overfilled immovable zone accepted");
-    assert!(error.to_string().contains("only 1 usable floor cells"), "{error}");
-    assert!(error.to_string().contains("carrier 1"), "{error}");
+    validate_map_actor_kinds(&server, &map).expect("immovable zone rejected for floor capacity");
     map.actor_spawn_zones[0].kind = "scuttler".into();
     map.actor_spawn_zones[0].count = 100;
     validate_map_actor_kinds(&server, &map).expect("movable actor count limited by cell count");

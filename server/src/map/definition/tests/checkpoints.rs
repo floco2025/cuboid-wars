@@ -3,7 +3,11 @@ use common::protocol::{CheckpointKind, MapLayout};
 
 fn checkpoint_def(level: u32, col: i32, row: i32) -> CheckpointDef {
     CheckpointDef {
-        zone: player_zone(level, col, row),
+        zone: ZoneDef {
+            level,
+            cols: [col, col + 1],
+            rows: [row, row + 1],
+        },
         kind: CheckpointKind::Individual,
     }
 }

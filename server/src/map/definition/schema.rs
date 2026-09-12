@@ -38,7 +38,7 @@ pub(crate) struct MapDef {
     #[serde(default)]
     pub(crate) actor_spawn_zones: Vec<ActorSpawnZoneDef>,
     #[serde(default)]
-    pub(crate) player_spawn_zones: Vec<ZoneDef>,
+    pub(crate) player_spawn_zones: Vec<SpawnZoneDef>,
     #[serde(default)]
     pub(crate) checkpoints: Vec<CheckpointDef>,
     #[serde(default)]
@@ -241,6 +241,10 @@ pub(crate) struct RampDef {
 #[derive(Debug, Clone, Deserialize, PartialEq)]
 pub(crate) struct ActorSpawnZoneDef {
     pub(crate) level: u32,
+    #[serde(default = "default_zone_levels")]
+    pub(crate) levels: u32,
+    #[serde(default)]
+    pub(crate) roam_distance: f32,
     pub(crate) cols: [i32; 2],
     pub(crate) rows: [i32; 2],
     pub(crate) kind: String,
@@ -258,6 +262,19 @@ pub(crate) struct ZoneDef {
     pub(crate) level: u32,
     pub(crate) cols: [i32; 2],
     pub(crate) rows: [i32; 2],
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+pub(crate) struct SpawnZoneDef {
+    pub(crate) level: u32,
+    #[serde(default = "default_zone_levels")]
+    pub(crate) levels: u32,
+    pub(crate) cols: [i32; 2],
+    pub(crate) rows: [i32; 2],
+}
+
+const fn default_zone_levels() -> u32 {
+    1
 }
 
 // A single map-authored item. `item_type` is an `ItemType` config id

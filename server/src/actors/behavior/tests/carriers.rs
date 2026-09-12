@@ -73,7 +73,11 @@ fn player_aboard_the_carrier_is_engaged_along_a_carrier_local_route() {
 
     let route = info.route.as_ref().expect("an engagement route");
     assert!(
-        route.destination.distance_sq(&target_local) < 1e-6,
+        super::super::geometry::attack_position(
+            fixture.pose().transform_position(&route.destination),
+            target_world,
+            &(&context).into()
+        ),
         "{:?}",
         route.destination
     );

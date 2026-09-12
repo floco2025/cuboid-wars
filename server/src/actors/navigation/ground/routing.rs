@@ -3,16 +3,11 @@ use std::collections::{HashMap, VecDeque};
 use common::{config::CharacterPhysicsConfig, map::CarrierPose, physics::CollisionWorld, protocol::Position};
 use rand::{Rng, RngExt};
 
-use super::{LadderLink, NavGraph, NavNode, NavWaypoint, WaypointKind, territory::ActorTerritory};
+use super::{ActorTerritory, LadderLink, NavGraph, NavNode, NavWaypoint, WaypointKind};
 
-// Threat exclusion radii for cover search, in grid cells.
-const PRIMARY_THREAT_EXCLUSION_CELLS: f32 = 1.5;
-const FALLBACK_THREAT_EXCLUSION_CELLS: f32 = 0.75;
-const MINIMUM_THREAT_EXCLUSION_CELLS: f32 = 0.25;
 // Body clearance added to the footprint when a straight leg is judged
 // against the floor cells it crosses.
 pub(super) const DIRECT_ROUTE_CLEARANCE_MARGIN: f32 = 0.1;
-pub(super) const COVER_SEARCH_MAX_STEPS: usize = 12;
 
 #[derive(Debug, Clone)]
 pub(crate) struct PlannedRoute {
@@ -23,45 +18,7 @@ pub(crate) struct PlannedRoute {
 impl NavGraph {
     #[must_use]
     pub(crate) fn position_in_roam_region(&self, pos: &Position, territory: &ActorTerritory) -> bool {
-        self.nearest_node_for_position(pos)
-            .is_some_and(|node| territory.contains(node))
-    }
-
-    pub(crate) fn roam_route(
-        &self,
-        ladders: &[LadderLink],
-        start: &Position,
-        territory: &ActorTerritory,
-        rng: &mut impl Rng,
-    ) -> Option<PlannedRoute> {
-        let start_node = self.route_start_node(start, ladders)?;
-        let candidates: Vec<_> = territory
-            .roam
-            .iter()
-            .copied()
-            .filter(|node| *node != start_node)
-            .collect();
-        if candidates.is_empty() {
-            return None;
-        }
-        let offset = rng.random_range(0..candidates.len());
-        for target in candidates.iter().cycle().skip(offset).take(candidates.len()) {
-            if let Some(route) = self.route_between_nodes(ladders, start_node, *target, |node| territory.contains(node))
-            {
-                return Some(route);
-            }
-        }
-        None
-    }
-
-    pub(crate) fn return_route(
-        &self,
-        ladders: &[LadderLink],
-        start: &Position,
-        territory: &ActorTerritory,
-    ) -> Option<PlannedRoute> {
-        let start_node = self.route_start_node(start, ladders)?;
-        self.route_to_any(ladders, start_node, |node| territory.contains(node), |_| true)
+        territory.contains_position((*pos).into())
     }
 
     pub(crate) fn engagement_route(
@@ -168,10 +125,19 @@ impl NavGraph {
         &self,
         ladders: &[LadderLink],
         start: &Position,
+        allowed: impl Fn(Position) -> bool,
         rng: &mut impl Rng,
     ) -> Option<PlannedRoute> {
         let node = self.route_start_node(start, ladders)?;
-        let neighbors = self.route_neighbors(node, ladders);
+        let neighbors: Vec<_> = self
+            .route_neighbors(node, ladders)
+            .into_iter()
+            .filter(|next| {
+                self.edge_waypoints(node, *next, ladders)
+                    .iter()
+                    .all(|point| allowed(point.position))
+            })
+            .collect();
         if neighbors.is_empty() {
             return None;
         }
@@ -180,86 +146,6 @@ impl NavGraph {
             waypoints: self.edge_waypoints(node, target, ladders).into(),
             destination_node: target,
         })
-    }
-
-    pub(crate) fn safe_cover_route(
-        &self,
-        ladders: &[LadderLink],
-        start: &Position,
-        threats: &[Position],
-        is_stable_cover: impl FnMut(&Position) -> bool + Copy,
-    ) -> Option<PlannedRoute> {
-        let start_node = self.route_start_node(start, ladders)?;
-        for exclusion_cells in [
-            PRIMARY_THREAT_EXCLUSION_CELLS,
-            FALLBACK_THREAT_EXCLUSION_CELLS,
-            MINIMUM_THREAT_EXCLUSION_CELLS,
-        ] {
-            let exclusion_radius = exclusion_cells * self.cell_size();
-            if let Some(route) =
-                self.nearest_cover_route(ladders, start_node, threats, exclusion_radius, is_stable_cover)
-            {
-                return Some(route);
-            }
-        }
-        None
-    }
-
-    // With no cover in reach the actor runs: a random cell within the cover
-    // search's reach that is farther from the nearest threat than it stands,
-    // or any reachable cell when it is cornered. `enter_evade` re-rolls the
-    // leg when it ends.
-    pub(crate) fn flee_route(
-        &self,
-        ladders: &[LadderLink],
-        start: &Position,
-        threats: &[Position],
-        rng: &mut impl Rng,
-    ) -> Option<PlannedRoute> {
-        let start_node = self.route_start_node(start, ladders)?;
-        let search = self.search(ladders, start_node, |_| true, COVER_SEARCH_MAX_STEPS, |_| false);
-        let mut reachable: Vec<NavNode> = search
-            .depths
-            .keys()
-            .copied()
-            .filter(|node| *node != start_node && self.is_cover_destination(*node))
-            .collect();
-        reachable.sort_unstable();
-        let here = minimum_threat_distance_sq(*start, threats);
-        let away: Vec<NavNode> = reachable
-            .iter()
-            .copied()
-            .filter(|node| minimum_threat_distance_sq(self.node_center(*node), threats) > here)
-            .collect();
-        let candidates = if away.is_empty() { &reachable } else { &away };
-        if candidates.is_empty() {
-            return None;
-        }
-        let target = candidates[rng.random_range(0..candidates.len())];
-        self.route_from_search(ladders, start_node, target, &search.came_from)
-    }
-
-    fn nearest_cover_route(
-        &self,
-        ladders: &[LadderLink],
-        start: NavNode,
-        threats: &[Position],
-        exclusion_radius: f32,
-        mut is_stable_cover: impl FnMut(&Position) -> bool,
-    ) -> Option<PlannedRoute> {
-        let exclusion_sq = exclusion_radius * exclusion_radius;
-        self.route_to_any_with_limit(
-            ladders,
-            start,
-            |node| node != start && self.is_cover_destination(node) && is_stable_cover(&self.node_center(node)),
-            |node| {
-                node == start
-                    || threats
-                        .iter()
-                        .all(|threat| self.node_center(node).horizontal_distance_sq(threat) >= exclusion_sq)
-            },
-            COVER_SEARCH_MAX_STEPS,
-        )
     }
 
     fn route_between_nodes(
@@ -332,11 +218,7 @@ impl NavGraph {
                 queue.push_back(next);
             }
         }
-        RouteSearch {
-            came_from,
-            depths,
-            stopped_at,
-        }
+        RouteSearch { came_from, stopped_at }
     }
 
     fn route_from_search(
@@ -370,14 +252,5 @@ impl NavGraph {
 
 struct RouteSearch {
     came_from: HashMap<NavNode, Option<NavNode>>,
-    depths: HashMap<NavNode, usize>,
     stopped_at: Option<NavNode>,
-}
-
-fn minimum_threat_distance_sq(pos: Position, threats: &[Position]) -> f32 {
-    threats
-        .iter()
-        .map(|threat| pos.horizontal_distance_sq(threat))
-        .min_by(f32::total_cmp)
-        .unwrap_or(f32::INFINITY)
 }

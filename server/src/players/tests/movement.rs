@@ -36,6 +36,7 @@ fn movement_app(layout: MapLayout) -> (App, Entity) {
         .init_resource::<PortalSet>()
         .init_resource::<PlayerMap>()
         .init_resource::<ActorMap>()
+        .init_resource::<crate::actors::navigation::ActorTerritories>()
         .init_resource::<PlateState>()
         .init_resource::<ServerTick>()
         .add_systems(

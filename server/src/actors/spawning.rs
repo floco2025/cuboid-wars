@@ -7,17 +7,17 @@ use crate::{
         ActorCharacter, ActorCrushed, ActorInfo, ActorMap, ActorRespawnState, ActorRespawnTimers, ActorSpawner,
         PendingActorSpawn, PendingActorSpawns,
     },
-    characters::generate_actor_spawn_position_in_zone,
+    characters::{generate_actor_spawn_position_in_zone, generate_flying_spawn_position},
     config::{ActorRespawnScope, ServerGameplayConfig},
     map::{ActorSpawnZone, MapConfig},
 };
 use common::{
-    config::{ActorGameplayConfig, ActorMovementConfig},
+    config::{ActorGameplayConfig, ActorMovementConfig, CharacterPhysicsConfig},
     map::Carriers,
-    physics::{CharacterSupport, CharacterVerticalVelocity, CollisionWorld},
+    physics::{CharacterSupport, CharacterVerticalVelocity, CollisionWorld, character_positions_intersect},
     protocol::{
-        ActorAnchor, ActorMarker, ActorMoveIntent, FaceYaw, Health, MapSettings, PlateState, PlayerMarker, Position,
-        ServerTick, sequence_is_newer,
+        ActorAnchor, ActorMarker, ActorMoveIntent, BarrierId, FaceYaw, Health, MapSettings, PlateState, PlayerMarker,
+        Position, ServerTick, sequence_is_newer,
     },
 };
 
@@ -93,13 +93,17 @@ pub fn actors_initial_spawn_system(
         pending: &mut pending,
         spawner: &mut spawner,
         timers: &mut timers,
-        occupied_positions: players.iter().copied().collect(),
+        occupied_positions: players
+            .iter()
+            .map(|p| (*p, server_gameplay_config.player.gameplay.physics()))
+            .collect(),
         rng: rng(),
         map_config: &map_config,
         carriers: &carriers,
         collision_world: &collision_world,
         config: &server_gameplay_config,
         tick: tick.0,
+        open: &plates.open_barriers,
     };
     for (zone_idx, zone) in map_config.actor_spawn_zones.iter().enumerate() {
         if zone.is_enabled(&plates) {
@@ -123,7 +127,7 @@ pub fn actors_respawn_system(
     plates: Res<PlateState>,
     tick: Res<ServerTick>,
     players: Query<&Position, With<PlayerMarker>>,
-    actor_positions: Query<&Position, (With<ActorMarker>, Without<PlayerMarker>)>,
+    actor_positions: Query<(&Position, &ActorCharacter), (With<ActorMarker>, Without<PlayerMarker>)>,
 ) {
     // A zone gets one timer for all vacancies; later deaths do not restart it,
     // and neither does its switch: a kill while the zone is switched off counts
@@ -152,12 +156,19 @@ pub fn actors_respawn_system(
         }
     }
     // Pending spawns already count toward quota and reserve their positions.
-    let mut occupied_positions: Vec<Position> = players.iter().chain(&actor_positions).copied().collect();
+    let mut occupied_positions: Vec<_> = players
+        .iter()
+        .map(|p| (*p, server_gameplay_config.player.gameplay.physics()))
+        .chain(actor_positions.iter().map(|(p, c)| (*p, c.0.physics())))
+        .collect();
     for entry in &pending.0 {
         if let Some(count) = live_by_zone.get_mut(entry.zone_idx) {
             *count += 1;
         }
-        occupied_positions.push(entry.world_position(&carriers));
+        occupied_positions.push((
+            entry.world_position(&carriers),
+            server_gameplay_config.expect_actor(&entry.kind).character.physics(),
+        ));
     }
     let mut planner = SpawnPlanner {
         pending: &mut pending,
@@ -170,6 +181,7 @@ pub fn actors_respawn_system(
         collision_world: &collision_world,
         config: &server_gameplay_config,
         tick: tick.0,
+        open: &plates.open_barriers,
     };
     for zone_idx in due_zones {
         let Some(zone) = map_config.actor_spawn_zones.get(zone_idx) else {
@@ -193,7 +205,8 @@ struct SpawnPlanner<'a> {
     spawner: &'a mut ActorSpawner,
     timers: &'a mut ActorRespawnTimers,
     // Every spot already taken: players, live actors, and the spawns reserved so far.
-    occupied_positions: Vec<Position>,
+    occupied_positions: Vec<(Position, CharacterPhysicsConfig)>,
+    open: &'a [BarrierId],
     rng: ThreadRng,
     map_config: &'a MapConfig,
     carriers: &'a Carriers,
@@ -245,17 +258,30 @@ impl SpawnPlanner<'_> {
     // rides the carrier through the warning window, which runs from `tick`.
     // False when the zone has no clear spot.
     fn queue_one(&mut self, zone_idx: usize, zone: &ActorSpawnZone, actor_config: &ActorGameplayConfig) -> bool {
-        let Some(pos) = generate_actor_spawn_position_in_zone(
-            self.map_config,
-            self.carriers,
-            zone,
-            self.collision_world,
-            &self.occupied_positions,
-            actor_config,
-        ) else {
+        let pos = if actor_config.flies() {
+            generate_flying_spawn_position(
+                self.map_config.grid(zone.carrier),
+                self.carriers,
+                zone,
+                self.collision_world,
+                &self.occupied_positions,
+                actor_config.physics(),
+                self.open,
+            )
+        } else {
+            generate_actor_spawn_position_in_zone(
+                self.map_config,
+                self.carriers,
+                zone,
+                self.collision_world,
+                &self.occupied_positions.iter().map(|(p, _)| *p).collect::<Vec<_>>(),
+                actor_config,
+            )
+        };
+        let Some(pos) = pos else {
             return false;
         };
-        self.occupied_positions.push(pos);
+        self.occupied_positions.push((pos, actor_config.physics()));
 
         self.pending.0.push(PendingActorSpawn {
             actor_id: self.spawner.allocate(),
@@ -320,10 +346,7 @@ pub(crate) fn expedite_actor_respawns(
     respawning
 }
 
-// Materializes the spawns due by this tick at their reserved spot,
-// unconditionally — a player squatting on it resolves via contact
-// detonation on the next tick. Runs in `Prepare`, so a pending entry's
-// removal and its actor's appearance land in the same snapshot.
+// Prepare keeps a warning's removal and its actor's appearance in the same snapshot.
 pub fn actors_pending_spawn_system(
     mut commands: Commands,
     mut actors: ResMut<ActorMap>,
@@ -332,14 +355,38 @@ pub fn actors_pending_spawn_system(
     server_gameplay_config: Res<ServerGameplayConfig>,
     map_settings: Res<MapSettings>,
     carriers: Res<Carriers>,
+    collision_world: Res<CollisionWorld>,
+    plates: Res<PlateState>,
+    bodies: Query<(&Position, Option<&ActorCharacter>), Or<(With<PlayerMarker>, With<ActorMarker>)>>,
 ) {
     let due = take_due_spawns(&mut pending.0, tick.0);
     if due.is_empty() {
         return;
     }
-    for spawn in due {
+    let mut occupied: Vec<_> = bodies
+        .iter()
+        .map(|(pos, actor)| {
+            (
+                *pos,
+                actor.map_or_else(|| server_gameplay_config.player.gameplay.physics(), |c| c.0.physics()),
+            )
+        })
+        .collect();
+    for mut spawn in due {
         let max_health = server_gameplay_config.combat.health.expect_actor(&spawn.kind).max;
         let character = &server_gameplay_config.expect_actor(&spawn.kind).character;
+        let pos = spawn.world_position(&carriers);
+        if character.flies()
+            && (collision_world.character_overlaps_solid(&pos, character.physics(), &plates.open_barriers)
+                || occupied
+                    .iter()
+                    .any(|(other, physics)| character_positions_intersect(&pos, character.physics(), other, *physics)))
+        {
+            spawn.due_tick = tick.0.wrapping_add(1);
+            pending.0.push(spawn);
+            continue;
+        }
+        occupied.push((pos, character.physics()));
         let movement = (!character.immovable).then(|| *map_settings.movement.expect_actor(&spawn.kind));
         materialize_actor(
             &mut commands,
@@ -390,6 +437,7 @@ fn materialize_actor(
         commands.entity(entity).insert(movement);
     }
     let mut info = ActorInfo::new(entity, spawn.zone_idx, spawn.kind, spawn.carrier);
+    info.flight = character.flies().then(Default::default);
     info.anchor = movement.is_none().then_some(ActorAnchor {
         carrier: spawn.carrier,
         pos: spawn.pos,

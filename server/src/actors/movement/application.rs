@@ -15,7 +15,9 @@ pub(crate) fn apply_actor_moves(
 
         let overlapping_move = blocking_character_move_plan(planned_move, planned_moves);
         if overlapping_move.is_some() && actors.get(id).is_none_or(|actor| actor.anchor.is_none()) {
-            pos.y = planned_move.target.y;
+            if actors.get(id).is_some_and(|actor| actor.flight.is_none()) {
+                pos.y = planned_move.target.y;
+            }
         } else {
             *pos = planned_move.target;
         }

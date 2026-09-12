@@ -135,7 +135,7 @@ fn build_server_app_with_loader(
     )?;
     let quest_catalog = QuestCatalog::from_quests(&map_server_config.quests);
     let quest_board = QuestBoard::from_catalog(&quest_catalog, fireworks_switch);
-    let actor_territories = ActorTerritories::new(&nav_graphs, &map_config, &server_gameplay_config)?;
+    let actor_territories = ActorTerritories::new(&map_config, &server_gameplay_config);
     let world_bootstrap = WorldBootstrap {
         network: server_gameplay_config.network,
         gameplay: server_gameplay_config.gameplay_bootstrap(),

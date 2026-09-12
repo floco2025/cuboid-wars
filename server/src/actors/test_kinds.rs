@@ -5,8 +5,8 @@ use crate::config::fixtures;
 use std::collections::HashMap;
 
 use common::config::{
-    ActorGameplayConfig, ActorMovementConfig, CharacterGameplayConfig, CharacterPhysicsConfig, HitboxConfig,
-    MovementColliderConfig,
+    ActorGameplayConfig, ActorLocomotion, ActorMovementConfig, CharacterGameplayConfig, CharacterPhysicsConfig,
+    HitboxConfig, MovementColliderConfig,
 };
 
 use crate::config::{
@@ -75,12 +75,13 @@ fn test_kind(name: &str) -> TestKind {
             server: ActorKindServerConfig {
                 character: ActorGameplayConfig {
                     character: body(1.05, 1.1, [1.1, 0.88, 1.02, 0.0], 0.79),
+                    locomotion: ActorLocomotion::Ground,
                     can_use_ladders: false,
                     immovable: false,
                     beam_origin_height: None,
                 },
                 vision_range: 60.0,
-                roam_steps: 3,
+
                 attack: ActorAttackConfig::Contact(ContactAttackConfig { trigger_gap: 0.4 }),
             },
             max_health: 150.0,
@@ -93,12 +94,13 @@ fn test_kind(name: &str) -> TestKind {
             server: ActorKindServerConfig {
                 character: ActorGameplayConfig {
                     character: body(0.88, 1.75, [0.94, 0.5, 0.76, 1.23], 1.59),
+                    locomotion: ActorLocomotion::Ground,
                     can_use_ladders: false,
                     immovable: false,
                     beam_origin_height: Some(1.35),
                 },
                 vision_range: 40.0,
-                roam_steps: 2,
+
                 attack: ActorAttackConfig::Beam(beam(25.0, 2.0, 8.0)),
             },
             max_health: 50.0,
@@ -111,12 +113,13 @@ fn test_kind(name: &str) -> TestKind {
             server: ActorKindServerConfig {
                 character: ActorGameplayConfig {
                     character: body(1.6, 1.7, [1.8, 1.5, 2.0, 0.0], 1.4),
+                    locomotion: ActorLocomotion::Ground,
                     can_use_ladders: false,
                     immovable: false,
                     beam_origin_height: None,
                 },
                 vision_range: 60.0,
-                roam_steps: 7,
+
                 attack: ActorAttackConfig::ContactBeam(ContactBeamAttackConfig {
                     contact: ContactAttackConfig { trigger_gap: 0.8 },
                     beam: beam(25.0, 2.0, 5.0),
@@ -132,12 +135,13 @@ fn test_kind(name: &str) -> TestKind {
             server: ActorKindServerConfig {
                 character: ActorGameplayConfig {
                     character: body(0.5, 1.62, [0.5, 1.61, 0.5, 0.01], 1.6),
+                    locomotion: ActorLocomotion::Ground,
                     can_use_ladders: false,
                     immovable: true,
                     beam_origin_height: Some(1.45),
                 },
                 vision_range: 40.0,
-                roam_steps: 0,
+
                 attack: ActorAttackConfig::Beam(beam(25.0, 15.0, 0.5)),
             },
             max_health: 50.0,

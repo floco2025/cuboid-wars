@@ -1310,6 +1310,7 @@ fn toggle_switches_reset_before_a_dead_player_respawns() {
         .push(PlayerSpawnZone {
             carrier: CarrierId::WORLD,
             level: 0,
+            levels: 1,
             cols: [1, 2],
             rows: [1, 2],
         });

@@ -6,7 +6,10 @@ use common::{config::validate_non_negative_finite, protocol::ItemType};
 
 use super::{
     geometry::ramp_spec_from_def,
-    schema::{ActorSpawnZoneDef, CheckpointDef, LadderDef, LevelDef, MapDef, MotionDef, RampDef, WallSide, ZoneDef},
+    schema::{
+        ActorSpawnZoneDef, CheckpointDef, LadderDef, LevelDef, MapDef, MotionDef, RampDef, SpawnZoneDef, WallSide,
+        ZoneDef,
+    },
 };
 use crate::config::is_valid_map_name;
 
@@ -35,11 +38,17 @@ pub(super) fn validate_map(map_def: &MapDef) -> Result<()> {
 // Used by the level-bounds and range checks below.
 trait ZoneRect {
     fn level(&self) -> u32;
+    fn levels(&self) -> u32 {
+        1
+    }
     fn cols(&self) -> [i32; 2];
     fn rows(&self) -> [i32; 2];
 }
 
 impl ZoneRect for ActorSpawnZoneDef {
+    fn levels(&self) -> u32 {
+        self.levels
+    }
     fn level(&self) -> u32 {
         self.level
     }
@@ -54,6 +63,21 @@ impl ZoneRect for ActorSpawnZoneDef {
 impl ZoneRect for ZoneDef {
     fn level(&self) -> u32 {
         self.level
+    }
+    fn cols(&self) -> [i32; 2] {
+        self.cols
+    }
+    fn rows(&self) -> [i32; 2] {
+        self.rows
+    }
+}
+
+impl ZoneRect for SpawnZoneDef {
+    fn level(&self) -> u32 {
+        self.level
+    }
+    fn levels(&self) -> u32 {
+        self.levels
     }
     fn cols(&self) -> [i32; 2] {
         self.cols
@@ -79,6 +103,7 @@ fn validate_actor_spawn_zones(map_def: &MapDef) -> Result<()> {
     for (zone_idx, zone) in map_def.actor_spawn_zones.iter().enumerate() {
         let label = format!("actor_spawn_zones[{zone_idx}]");
         validate_zone_placement(zone, &label, map_def)?;
+        validate_non_negative_finite(zone.roam_distance, &format!("{label}.roam_distance"))?;
         if zone.kind.is_empty() {
             return Err(anyhow!("{label} has empty `kind`"));
         }
@@ -232,6 +257,14 @@ fn validate_pressure_plates(map_def: &MapDef) -> Result<()> {
 }
 
 fn validate_zone_placement<Z: ZoneRect>(zone: &Z, label: &str, map_def: &MapDef) -> Result<()> {
+    if zone.levels() == 0
+        || zone
+            .level()
+            .checked_add(zone.levels())
+            .is_none_or(|end| end as usize > map_def.levels.len() || end > 256)
+    {
+        return Err(anyhow!("{label} level range is outside the map or empty"));
+    }
     if zone.level() as usize >= map_def.levels.len() {
         return Err(anyhow!(
             "{label} level {} out of range (level count = {})",
@@ -626,6 +659,7 @@ pub(super) fn canonicalize(map_def: &mut MapDef) {
     map_def.actor_spawn_zones.sort_by(|a, b| {
         (
             a.level,
+            a.levels,
             a.rows[0],
             a.cols[0],
             a.rows[1],
@@ -637,6 +671,7 @@ pub(super) fn canonicalize(map_def: &mut MapDef) {
         )
             .cmp(&(
                 b.level,
+                b.levels,
                 b.rows[0],
                 b.cols[0],
                 b.rows[1],
@@ -646,12 +681,18 @@ pub(super) fn canonicalize(map_def: &mut MapDef) {
                 &b.switch,
                 b.switch_inverted,
             ))
+            .then_with(|| a.roam_distance.total_cmp(&b.roam_distance))
+            .then_with(|| {
+                a.respawn_secs
+                    .partial_cmp(&b.respawn_secs)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
     });
     map_def.actor_spawn_zones.dedup();
 
     map_def
         .player_spawn_zones
-        .sort_by_key(|z| (z.level, z.rows[0], z.cols[0], z.rows[1], z.cols[1]));
+        .sort_by_key(|z| (z.level, z.levels, z.rows[0], z.cols[0], z.rows[1], z.cols[1]));
     map_def.player_spawn_zones.dedup();
 
     for level in &mut map_def.levels {

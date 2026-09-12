@@ -341,6 +341,10 @@ def normalize_actor_spawn_zone(zone: dict) -> dict:
     except (TypeError, ValueError):
         count = 0
     normalized = {**_normalize_zone_rect(zone), "kind": kind, "count": count}
+    if zone.get("levels", 1) != 1:
+        normalized["levels"] = copy.deepcopy(zone["levels"])
+    if zone.get("roam_distance", 0.0) != 0.0:
+        normalized["roam_distance"] = copy.deepcopy(zone["roam_distance"])
     if "respawn_secs" in zone:
         normalized["respawn_secs"] = copy.deepcopy(zone["respawn_secs"])
     normalized.update(control_fields(zone))
@@ -348,7 +352,10 @@ def normalize_actor_spawn_zone(zone: dict) -> dict:
 
 
 def normalize_player_spawn_zone(zone: dict) -> dict:
-    return _normalize_zone_rect(zone)
+    normalized = _normalize_zone_rect(zone)
+    if zone.get("levels", 1) != 1:
+        normalized["levels"] = copy.deepcopy(zone["levels"])
+    return normalized
 
 
 def normalize_item(item: dict) -> dict:
@@ -383,6 +390,8 @@ def pressure_plate_key(plate: dict) -> tuple:
 def actor_zone_key(zone: dict) -> tuple:
     return (
         zone["level"],
+        str(zone.get("levels", 1)),
+        str(zone.get("roam_distance", 0.0)),
         zone["rows"][0],
         zone["cols"][0],
         zone["rows"][1],
@@ -397,6 +406,7 @@ def actor_zone_key(zone: dict) -> tuple:
 def player_zone_key(zone: dict) -> tuple:
     return (
         zone["level"],
+        str(zone.get("levels", 1)),
         zone["rows"][0],
         zone["cols"][0],
         zone["rows"][1],

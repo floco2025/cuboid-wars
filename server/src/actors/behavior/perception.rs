@@ -53,7 +53,6 @@ pub(super) fn update_awareness(
             support: player.support,
             visible: true,
             forget_remaining_secs: forget_secs,
-            attack_anchor: None,
         });
     }
 

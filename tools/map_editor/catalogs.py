@@ -23,11 +23,6 @@ def load_actor_kinds() -> list[str]:
         return sorted(json.load(handle)["actors"]["kinds"])
 
 
-def load_immovable_actor_kinds() -> set[str]:
-    with GAMEPLAY_PATH.open(encoding="utf-8") as handle:
-        return {name for name, kind in json.load(handle)["actors"]["kinds"].items() if kind["immovable"]}
-
-
 HEX_COLOR = re.compile(r"#[0-9a-fA-F]{6}")
 
 

@@ -20,7 +20,6 @@ fn contact_actor_engages_reachable_ground_player() {
         }
     ));
     assert!(info.route.is_some());
-    assert_eq!(info.awareness[0].attack_anchor, Some(target));
 }
 
 #[test]
@@ -47,13 +46,15 @@ fn contact_actor_pursues_reachable_player_outside_home_region() {
         }
     ));
     let route = info.route.as_ref().expect("engagement should install a route");
-    assert_eq!(route.destination, target);
-    assert_eq!(route.waypoints.len(), 1);
-    assert_eq!(route.next().map(|point| point.position), Some(target));
+    assert!(super::super::geometry::attack_position(
+        route.destination,
+        target,
+        &(&fixture.context(CONTACT, actor_pos)).into()
+    ));
 }
 
 #[test]
-fn jumping_target_keeps_its_last_ground_attack_anchor() {
+fn jumping_target_is_pursued_to_a_reachable_attack_position() {
     let fixture = Fixture::new(CONTACT);
     let actor_pos = fixture.pos(1, 2);
     let anchor = fixture.pos(4, 2);
@@ -62,14 +63,19 @@ fn jumping_target_keeps_its_last_ground_attack_anchor() {
         target: PlayerId(7),
         target_pos: anchor,
     };
-    let mut target = aware(7, Position { y: 2.0, ..anchor }, CharacterSupport::Airborne, true);
-    target.attack_anchor = Some(anchor);
+    let target = aware(7, Position { y: 0.8, ..anchor }, CharacterSupport::Airborne, true);
     info.awareness.push(target);
     let mut rng = StdRng::seed_from_u64(1);
 
     decide_contact_actor(&mut info, &fixture.context(CONTACT, actor_pos), &mut rng);
 
-    assert!(matches!(info.mode, ActorMode::Engage { target: PlayerId(7), target_pos } if target_pos == anchor));
+    assert!(matches!(info.mode, ActorMode::Engage { target: PlayerId(7), target_pos } if target_pos == target.pos));
+    let route = info.route.as_ref().expect("reachable jumping target has no route");
+    assert!(super::super::geometry::attack_position(
+        route.destination,
+        target.pos,
+        &(&fixture.context(CONTACT, actor_pos)).into()
+    ));
 }
 
 #[test]
@@ -322,7 +328,10 @@ fn cooling_contact_beam_actor_keeps_engaging_instead_of_evading() {
 fn firing_contact_beam_actor_without_reachable_target_holds_facing_beam_target() {
     let fixture = Fixture::new(CONTACT_BEAM);
     let actor_pos = fixture.pos(1, 2);
-    let target = fixture.pos(3, 2);
+    let target = Position {
+        y: 20.0,
+        ..fixture.pos(3, 2)
+    };
     let mut info = info(CONTACT_BEAM);
     info.beam = BeamState::Firing {
         target: PlayerId(7),

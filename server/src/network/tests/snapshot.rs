@@ -120,3 +120,39 @@ fn actor_updates_repeat_full_state_at_the_configured_rate_in_the_carrier_frame()
         assert!(receiver.try_recv().is_err(), "removed actor was still broadcast");
     }
 }
+
+#[test]
+fn flying_actor_snapshots_use_world_positions_independent_of_spawn_carrier() {
+    let mut app = App::new();
+    let position = Position {
+        x: 20.0,
+        y: -90.0,
+        z: 10.0,
+    };
+    let intent = ActorMoveIntent::Flying {
+        velocity: [1.0, 2.0, 3.0],
+    };
+    let entity = app
+        .world_mut()
+        .spawn((
+            ActorMarker,
+            position,
+            intent,
+            FaceYaw(1.0),
+            Health(50.0),
+            CharacterVerticalVelocity(2.0),
+            CharacterSupport::Airborne,
+        ))
+        .id();
+    let mut actors = ActorMap::default();
+    let mut info = ActorInfo::new(entity, 0, "flyer".into(), CarrierId(1));
+    info.flight = Some(Default::default());
+    actors.insert(ActorId(1), info);
+    let mut query = SystemState::<(ActorStateQuery, ActorMotionQuery)>::new(app.world_mut());
+    let (bodies, motions) = query.get(app.world()).expect("actor snapshot query invalid");
+    let snapshot = snapshot_actors(&actors, &bodies, &motions, &Carriers::default());
+    let state = snapshot[0].1.movement;
+    assert_eq!(state.carrier, CarrierId::WORLD);
+    assert_eq!(state.pos, position);
+    assert_eq!(state.move_intent, intent);
+}

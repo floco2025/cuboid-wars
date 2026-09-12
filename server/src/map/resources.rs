@@ -2,7 +2,7 @@ use bevy::prelude::Resource;
 
 use super::FireworksConfig;
 use common::{
-    map::MapGeometry,
+    map::{MapGeometry, ZoneVolume},
     protocol::{BridgeId, CarrierId, ItemType, MapItems, PlateState, SwitchId},
 };
 
@@ -115,6 +115,8 @@ pub struct ActorSpawnZone {
     pub switch_inverted: bool,
     pub carrier: CarrierId,
     pub level: u8,
+    pub levels: u16,
+    pub roam_distance: f32,
     pub cols: [i32; 2],
     pub rows: [i32; 2],
     pub kind: String,
@@ -124,6 +126,14 @@ pub struct ActorSpawnZone {
 }
 
 impl ActorSpawnZone {
+    pub fn volume(&self, grid: &CarrierGrid) -> ZoneVolume {
+        ZoneVolume::from_grid(grid.geometry, self.level, self.levels, self.cols, self.rows)
+    }
+
+    pub fn level_range(&self) -> impl Iterator<Item = u8> {
+        (u16::from(self.level)..u16::from(self.level) + self.levels).filter_map(|level| u8::try_from(level).ok())
+    }
+
     pub fn cells(&self) -> impl Iterator<Item = (i32, i32)> {
         zone_cells(self.cols, self.rows)
     }
@@ -136,14 +146,16 @@ impl ActorSpawnZone {
             .is_none_or(|switch| plates.is_active(switch) != self.switch_inverted)
     }
 
-    pub fn immovable_cells<'a>(&'a self, grid: &'a CarrierGrid) -> impl Iterator<Item = (i32, i32)> + 'a {
-        self.cells().filter(|&(col, row)| {
-            grid.levels
-                .get(self.level as usize)
-                .and_then(|level| level.cells.rows.get(row as usize))
-                .and_then(|row| row.get(col as usize))
-                .is_some_and(|cell| cell.has_floor && cell.is_spawnable())
-        })
+    pub fn immovable_cells<'a>(&'a self, grid: &'a CarrierGrid) -> impl Iterator<Item = (u8, i32, i32)> + 'a {
+        self.level_range()
+            .flat_map(move |level| self.cells().map(move |(col, row)| (level, col, row)))
+            .filter(|&(level, col, row)| {
+                grid.levels
+                    .get(level as usize)
+                    .and_then(|level| level.cells.rows.get(row as usize))
+                    .and_then(|row| row.get(col as usize))
+                    .is_some_and(Cell::is_spawnable)
+            })
     }
 }
 
@@ -151,11 +163,15 @@ impl ActorSpawnZone {
 pub struct PlayerSpawnZone {
     pub carrier: CarrierId,
     pub level: u8,
+    pub levels: u16,
     pub cols: [i32; 2],
     pub rows: [i32; 2],
 }
 
 impl PlayerSpawnZone {
+    pub fn level_range(&self) -> impl Iterator<Item = u8> {
+        (u16::from(self.level)..u16::from(self.level) + self.levels).filter_map(|level| u8::try_from(level).ok())
+    }
     pub fn cells(&self) -> impl Iterator<Item = (i32, i32)> {
         zone_cells(self.cols, self.rows)
     }

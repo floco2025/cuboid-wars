@@ -46,8 +46,8 @@ Every element group ends with its own **Erase** tool that removes only that elem
 
 ## Spawn Zones
 
-- **Actor Spawn Zone** — Choose Actor and Count in the toolbar, then drag a rectangle. **Controls…** sets Respawn, the delay before a killed actor's slot refills (Never fills the zone once), and an optional pressure plate kind and On/Off response; new zones reuse those values, and right-click edits existing zones. Without a plate assignment the zone spawns normally; a zone its plate holds back keeps counting down and refills once the plate allows. Immovable actors spawn at cell centers; Count cannot exceed the zone's usable floor cells.
-- **Player Spawn Zone** — Drag a rectangle. No prompt — players spawn anywhere in any player zone.
+- **Actor Spawn Zone** — Choose Actor and Count in the toolbar, then drag a rectangle. **Controls…** sets First level, Levels, Roam extension in metres (default 0, inside the zone), Respawn, the delay before a killed actor's slot refills (Never fills the zone once), and an optional pressure plate kind and On/Off response; new zones reuse those values, and right-click edits existing zones. Without a plate assignment the zone spawns normally; a zone its plate holds back keeps counting down and refills once the plate allows. Count applies once across all levels. Immovable actors spawn at cell centers; surface suitability is left to the map designer. View → Show Roam Extensions (`R`, initially disabled) toggles the rounded roaming boundary.
+- **Player Spawn Zone** — Choose Levels in the toolbar and drag a rectangle. Right-click edits its first level and span; players may spawn on any level within any player zone.
 - **Erase Spawn Zones** — Drag a rectangle to remove every actor and player spawn zone it touches on the current level.
 
 ## Checkpoints
@@ -142,6 +142,7 @@ Barriers, bridges, actor zones, and moving nested maps choose one pressure plate
 | `←` / `→` | Previous / next tool |
 | `M` | Toggle Show Material Overlay |
 | `L` | Toggle Show Adjacent Levels |
+| `R` | Toggle Show Roam Extensions |
 | `Ctrl/Cmd+Plus` / `Ctrl/Cmd+Minus` | Zoom |
 | Wheel / touch surface / Space-drag / middle-drag | Pan |
 | Shift-wheel | Pan horizontally |

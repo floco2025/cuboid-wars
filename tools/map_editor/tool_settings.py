@@ -17,6 +17,7 @@ from .constants import (
     ITEM_KEY_TYPE,
     ITEM_TYPES,
     MODE_ACTOR_SPAWN_ZONE,
+    MODE_PLAYER_SPAWN_ZONE,
     MODE_BARRIER,
     MODE_FLOOR,
     MODE_INACCESSIBLE_FLOOR,
@@ -61,6 +62,8 @@ class ToolSettings(QWidget):
                 if attribute == "current_material":
                     widget.setToolTip(portal_label(self.window.texture_catalog.get(value, False)))
             else:
+                if attribute == "recent_player_spawn_levels":
+                    widget.setMaximum(max(1, len(self.window.map_data["levels"]) - self.window.current_level))
                 widget.setValue(value)
             widget.blockSignals(False)
         if self.material_permission is not None:
@@ -204,6 +207,9 @@ class ToolSettings(QWidget):
             ),
             MODE_CHECKPOINT: checkpoint_controls,
             MODE_ACTOR_SPAWN_ZONE: actor_controls,
+            MODE_PLAYER_SPAWN_ZONE: lambda: number(
+                "Levels", "recent_player_spawn_levels", 1, max(1, len(window.map_data["levels"]) - window.current_level)
+            ),
             MODE_BARRIER: lambda: field_controls(True),
             MODE_PRESSURE_PLATE: lambda: combo("Switch", "recent_pressure_plate_switch", window.switches),
             MODE_LIGHT_BRIDGE: lambda: field_controls(False),
@@ -236,14 +242,21 @@ class ToolSettings(QWidget):
             window.switches,
             window.recent_actor_spawn_switch or None,
             window.recent_actor_spawn_inverted,
+            level=window.current_level,
+            levels=window.recent_actor_spawn_levels,
+            roam_distance=window.recent_actor_roam_distance,
+            level_names=[entry.get("name", f"Level {index}") for index, entry in enumerate(window.map_data["levels"])],
         )
         if result is not None:
-            kind, count, respawn_secs, switch, inverted = result
+            kind, count, respawn_secs, switch, inverted, level, levels, roam_distance = result
             window.recent_actor_spawn_kind = kind
             window.recent_actor_spawn_count = count
             window.recent_actor_spawn_respawn_secs = respawn_secs
             window.recent_actor_spawn_switch = switch or ""
             window.recent_actor_spawn_inverted = inverted
+            window.recent_actor_spawn_levels = levels
+            window.recent_actor_roam_distance = roam_distance
+            window.level_combo.setCurrentIndex(level)
             self.refresh()
 
     def configure_motion(self) -> None:

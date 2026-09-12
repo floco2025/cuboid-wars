@@ -10,7 +10,7 @@ use common::{
     config::{ActorGameplayConfig, CharacterPhysicsConfig},
     map::{Carriers, MapGeometry},
     physics::{CollisionWorld, character_paths_intersect},
-    protocol::{CarrierId, Position},
+    protocol::{BarrierId, CarrierId, Position},
 };
 
 const SPAWN_MAX_ATTEMPTS: usize = 100;
@@ -59,11 +59,9 @@ pub fn generate_player_spawn_position(
 ) -> Position {
     let mut valid_cells = Vec::new();
     for zone in &map_config.player_spawn_zones {
-        valid_cells.extend(collect_valid_cells(
-            map_config.grid(zone.carrier),
-            zone.level,
-            zone.cells(),
-        ));
+        for level in zone.level_range() {
+            valid_cells.extend(collect_valid_cells(map_config.grid(zone.carrier), level, zone.cells()));
+        }
     }
     pick_clear_position(
         &valid_cells,
@@ -97,14 +95,28 @@ pub fn generate_actor_spawn_position_in_zone(
     actor_config: &ActorGameplayConfig,
 ) -> Option<Position> {
     let character_physics = actor_config.physics();
+    if actor_config.flies() {
+        return generate_flying_spawn_position(
+            map_config.grid(zone.carrier),
+            carriers,
+            zone,
+            collision_world,
+            &occupied_positions
+                .iter()
+                .map(|p| (*p, character_physics))
+                .collect::<Vec<_>>(),
+            character_physics,
+            &[],
+        );
+    }
     if actor_config.immovable {
         let grid = map_config.grid(zone.carrier);
         let mut cells: Vec<_> = zone.immovable_cells(grid).collect();
         cells.shuffle(&mut rng());
-        return cells.into_iter().find_map(|(col, row)| {
+        return cells.into_iter().find_map(|(level, col, row)| {
             let local = Position {
                 x: grid.geometry.cell_center_x(col),
-                y: grid.geometry.level_y(zone.level),
+                y: grid.geometry.level_y(level),
                 z: grid.geometry.cell_center_z(row),
             };
             let pos = carriers.pose(zone.carrier).transform_position(&local);
@@ -112,7 +124,10 @@ pub fn generate_actor_spawn_position_in_zone(
                 .then_some(pos)
         });
     }
-    let valid_cells = collect_valid_cells(map_config.grid(zone.carrier), zone.level, zone.cells());
+    let valid_cells: Vec<_> = zone
+        .level_range()
+        .flat_map(|level| collect_valid_cells(map_config.grid(zone.carrier), level, zone.cells()))
+        .collect();
     pick_clear_position(
         &valid_cells,
         map_config,
@@ -226,3 +241,45 @@ fn character_position_intersects_character(
 #[cfg(test)]
 #[path = "tests/spawning.rs"]
 mod tests;
+
+pub(crate) fn generate_flying_spawn_position(
+    grid: &CarrierGrid,
+    carriers: &Carriers,
+    zone: &ActorSpawnZone,
+    world: &CollisionWorld,
+    occupied: &[(Position, CharacterPhysicsConfig)],
+    physics: CharacterPhysicsConfig,
+    open: &[BarrierId],
+) -> Option<Position> {
+    let geometry = grid.geometry;
+    let radius = physics.movement_collider.radius();
+    let min = Vec3::new(
+        geometry.cell_to_world_x(zone.cols[0]) + radius,
+        geometry.level_y(zone.level) + 0.04,
+        geometry.cell_to_world_z(zone.rows[0]) + radius,
+    );
+    let max = Vec3::new(
+        geometry.cell_to_world_x(zone.cols[1]) - radius,
+        geometry.level_y(zone.level) + f32::from(zone.levels) * geometry.level_height()
+            - physics.movement_collider.height
+            - 0.04,
+        geometry.cell_to_world_z(zone.rows[1]) - radius,
+    );
+    if min.cmpgt(max).any() {
+        return None;
+    }
+    let mut rng = rng();
+    (0..SPAWN_MAX_ATTEMPTS).find_map(|_| {
+        let local = Vec3::new(
+            rng.random_range(min.x..=max.x),
+            rng.random_range(min.y..=max.y),
+            rng.random_range(min.z..=max.z),
+        );
+        let pos = Position::from(carriers.pose(zone.carrier).transform_point(local));
+        (!world.character_overlaps_solid(&pos, physics, open)
+            && !occupied
+                .iter()
+                .any(|(other, body)| character_paths_intersect(&pos, &pos, physics, other, other, *body)))
+        .then_some(pos)
+    })
+}

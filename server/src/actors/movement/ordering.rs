@@ -27,7 +27,11 @@ pub(super) fn sorted_actor_plan_order(
         .map(|(entity, id, _, pos, _, _, _, _, _, _, _)| {
             let info = actors.get(id);
             let local_pos = info.map_or(*pos, |info| {
-                carriers.previous_pose(info.carrier).inverse_transform_position(pos)
+                if info.flight.is_some() {
+                    *pos
+                } else {
+                    carriers.previous_pose(info.carrier).inverse_transform_position(pos)
+                }
             });
             ActorPlanOrder {
                 entity,
@@ -49,6 +53,12 @@ pub(super) fn sort_actor_plan_order(order: &mut [ActorPlanOrder]) {
 }
 
 pub(super) fn actor_route_distance(pos: &Position, info: Option<&ActorInfo>) -> f32 {
+    if let Some(flight) = info.and_then(|info| info.flight.as_ref()) {
+        return flight
+            .route
+            .front()
+            .map_or(f32::INFINITY, |target| pos.distance_sq(target).sqrt());
+    }
     let Some(route) = info
         .and_then(|info| info.route.as_ref())
         .filter(|route| !route.waypoints.is_empty())

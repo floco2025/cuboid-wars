@@ -27,8 +27,8 @@
         "eye_height": 0.79,
         "can_use_ladders": false,
         "immovable": false,
+        "locomotion": "ground",
         "vision_range": 60.0,
-        "roam_steps": 3,
         "attack": { "type": "contact", "trigger_gap": 0.4 }
       },
       "bruiser": {
@@ -42,27 +42,27 @@
         "eye_height": 1.38,
         "can_use_ladders": false,
         "immovable": false,
+        "locomotion": "ground",
         "vision_range": 60.0,
-        "roam_steps": 7,
         "attack": { "type": "contact", "trigger_gap": 0.8 }
       },
       "zapper": {
-        "movement_collider": { "diameter": 0.88, "height": 1.75 },
+        "movement_collider": { "diameter": 1.2, "height": 1.2 },
         "hitbox": {
           "width": 0.94,
           "height": 0.5,
           "depth": 0.76,
-          "bottom_offset": 1.23
+          "bottom_offset": 0.33
         },
-        "beam_origin_height": 1.35,
-        "eye_height": 1.59,
+        "beam_origin_height": 0.45,
+        "eye_height": 0.69,
         "can_use_ladders": false,
         "immovable": false,
+        "locomotion": "flying",
         "vision_range": 40.0,
-        "roam_steps": 2,
         "attack": {
           "type": "beam",
-          "range": 25.0,
+          "range": 15.0,
           "duration_secs": 2.0,
           "cooldown_secs": 8.0
         }
@@ -79,8 +79,8 @@
         "eye_height": 1.6,
         "can_use_ladders": false,
         "immovable": true,
+        "locomotion": "ground",
         "vision_range": 40.0,
-        "roam_steps": 0,
         "attack": {
           "type": "beam",
           "range": 25.0,

@@ -10,6 +10,23 @@ fn spawn_app(cols: i32, counts: &[u32], respawn_secs: Option<f32>) -> App {
     spawn_app_for(IMMOVABLE, cols, counts, respawn_secs)
 }
 
+#[test]
+fn multilevel_zone_shares_its_count_and_fills_both_floors_when_needed() {
+    let mut app = spawn_app(1, &[2], None);
+    {
+        let mut map = app.world_mut().resource_mut::<MapConfig>();
+        let upper = map.grids[0].levels[0].clone();
+        map.grids[0].levels.push(upper);
+        map.actor_spawn_zones[0].levels = 2;
+    }
+    app.update();
+    let pending = app.world().resource::<PendingActorSpawns>();
+    assert_eq!(pending.0.len(), 2);
+    let mut levels: Vec<_> = pending.0.iter().map(|spawn| spawn.pos.y).collect();
+    levels.sort_by(f32::total_cmp);
+    assert_eq!(levels, vec![0.0, crate::test_geometry::LEVEL_HEIGHT]);
+}
+
 fn spawn_app_for(kind: &str, cols: i32, counts: &[u32], respawn_secs: Option<f32>) -> App {
     let config = test_kinds::server_config();
     let settings = config.maps[&config.default_map].settings.clone();
@@ -32,6 +49,8 @@ fn spawn_app_for(kind: &str, cols: i32, counts: &[u32], respawn_secs: Option<f32
 
             carrier: CarrierId::WORLD,
             level: 0,
+            levels: 1,
+            roam_distance: 0.0,
             cols: [0, cols],
             rows: [0, 1],
             kind: kind.into(),
@@ -308,6 +327,8 @@ fn expiring_selected_cooldowns_advances_pending_and_missing_slots() {
 
                 carrier: CarrierId::WORLD,
                 level: 0,
+                levels: 1,
+                roam_distance: 0.0,
                 cols: [0, 1],
                 rows: [0, 1],
                 kind: CONTACT.to_owned(),
@@ -320,6 +341,8 @@ fn expiring_selected_cooldowns_advances_pending_and_missing_slots() {
 
                 carrier: CarrierId::WORLD,
                 level: 0,
+                levels: 1,
+                roam_distance: 0.0,
                 cols: [0, 1],
                 rows: [0, 1],
                 kind: BEAM.to_owned(),
@@ -657,4 +680,58 @@ fn a_zone_without_a_respawn_time_never_refills_even_when_toggled() {
     }
     assert_eq!(pending_count(&app), 0);
     assert_eq!(zone_state(&app), None);
+}
+
+#[test]
+fn flying_spawns_use_open_air_and_wait_when_geometry_enters_the_warning() {
+    use common::{config::ActorLocomotion, protocol::Wall};
+    let mut app = spawn_app_for(BEAM, 2, &[1], None);
+    {
+        let mut config = app.world_mut().resource_mut::<ServerGameplayConfig>();
+        let kind = config.actors.kinds.get_mut(BEAM).expect("test beam kind missing");
+        kind.character.locomotion = ActorLocomotion::Flying;
+
+        config.actors.settings.spawn_warning_secs = 1.0;
+    }
+    for cell in &mut app.world_mut().resource_mut::<MapConfig>().grids[0].levels[0]
+        .cells
+        .rows[0]
+    {
+        cell.has_floor = false;
+    }
+    app.update();
+    let (spawn_pos, due_tick) = {
+        let spawn = &app.world().resource::<PendingActorSpawns>().0[0];
+        (spawn.pos, spawn.due_tick)
+    };
+    assert!(spawn_pos.y > 0.0);
+    app.world_mut()
+        .insert_resource(CollisionWorld::from_map_layout(&MapLayout {
+            walls: vec![Wall {
+                x1: -10.0,
+                z1: spawn_pos.z,
+                x2: 10.0,
+                z2: spawn_pos.z,
+                y: -1.0,
+                height: 10.0,
+                width: 1.0,
+                level: 0,
+                carrier: CarrierId::WORLD,
+            }],
+            ..Default::default()
+        }));
+    app.world_mut().resource_mut::<ServerTick>().0 = due_tick;
+    app.update();
+    assert_eq!(app.world().resource::<ActorMap>().values().count(), 0);
+    assert_eq!(app.world().resource::<PendingActorSpawns>().0.len(), 1);
+    app.world_mut()
+        .insert_resource(CollisionWorld::from_map_layout(&MapLayout::default()));
+    app.world_mut().resource_mut::<ServerTick>().0 += 1;
+    app.update();
+    let actors = app.world().resource::<ActorMap>();
+    let actor = actors
+        .values()
+        .next()
+        .expect("flying actor missing after obstruction cleared");
+    assert!(actor.flight.is_some());
 }

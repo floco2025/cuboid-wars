@@ -5,6 +5,7 @@ from PySide6.QtWidgets import QComboBox, QDialog, QDialogButtonBox, QFormLayout,
 
 from ..catalogs import load_actor_kinds
 from .controls import RespawnSpinBox, SwitchControl
+from .spawn_volume import SpawnVolumeControl
 from ..constants import ITEM_KEY_TYPE, ITEM_TYPES
 
 
@@ -13,8 +14,7 @@ class ActorSpawnFieldsDialog(QDialog):
     respawn delay, and the map switch that activates the zone, if any.
 
     Used both when painting a new actor zone and when editing an existing
-    one. Returns (kind, count, respawn_secs-or-None, switch-or-None, inverted)
-    on accept; None on cancel.
+    one.
     """
 
     MAX_COUNT = 9999
@@ -29,6 +29,11 @@ class ActorSpawnFieldsDialog(QDialog):
         switches: list[str],
         switch: str | None,
         inverted: bool = False,
+        *,
+        level=0,
+        levels=1,
+        roam_distance=0.0,
+        level_names=None,
     ):
         super().__init__(parent)
         self.setWindowTitle("Actor Spawn Zone")
@@ -46,11 +51,13 @@ class ActorSpawnFieldsDialog(QDialog):
         self._respawn_spin = RespawnSpinBox(respawn_secs)
         self.control = SwitchControl(switches, switch, inverted)
         self._switch_combo = self.control.kind
+        self.volume = SpawnVolumeControl(level_names or ["Level 0"], level, levels, roam_distance)
 
         form = QFormLayout()
         form.addRow("Kind:", self._kind_edit)
         form.addRow("Count:", self._count_spin)
         form.addRow("Respawn:", self._respawn_spin)
+        form.addRow(self.volume)
         form.addRow(self.control)
 
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
@@ -61,7 +68,7 @@ class ActorSpawnFieldsDialog(QDialog):
         layout.addLayout(form)
         layout.addWidget(buttons)
 
-    def values(self) -> tuple[str, int, int | None, str | None, bool]:
+    def values(self):
         switch, inverted = self.control.state()
         return (
             self._kind_edit.currentText().strip(),
@@ -69,6 +76,7 @@ class ActorSpawnFieldsDialog(QDialog):
             self._respawn_spin.secs(),
             switch,
             inverted,
+            *self.volume.values(),
         )
 
     @classmethod
@@ -81,8 +89,9 @@ class ActorSpawnFieldsDialog(QDialog):
         switches: list[str],
         switch: str | None,
         inverted: bool = False,
-    ) -> tuple[str, int, int | None, str | None, bool] | None:
-        dialog = cls(parent, kind, count, respawn_secs, switches, switch, inverted)
+        **volume,
+    ):
+        dialog = cls(parent, kind, count, respawn_secs, switches, switch, inverted, **volume)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return None
         values = dialog.values()

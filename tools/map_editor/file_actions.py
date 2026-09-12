@@ -13,7 +13,6 @@ from .catalogs import (
     MapCatalogs,
     list_map_names,
     load_actor_kinds,
-    load_immovable_actor_kinds,
     load_wall_light_kinds,
     map_layout_path,
     map_name_from_path,
@@ -309,7 +308,6 @@ class FileActionsMixin:
             self.wall_light_kinds = load_wall_light_kinds()
             if self.recent_light_kind not in self.wall_light_kinds:
                 self.recent_light_kind = next(iter(self.wall_light_kinds), "")
-            self.immovable_actor_kinds = load_immovable_actor_kinds()
             # Loading validates the settings file before the document adopts it.
             catalogs = MapCatalogs.load(self.catalog_map)
             self.doc.reload_settings()

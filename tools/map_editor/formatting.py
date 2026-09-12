@@ -40,12 +40,22 @@ def _actor_spawn_zone_body(zone: dict) -> str:
     }
     if "respawn_secs" in zone:
         body["respawn_secs"] = zone["respawn_secs"]
+    for field in ("levels", "roam_distance"):
+        if field in zone:
+            body[field] = zone[field]
     body.update(control_fields(zone))
     return _inline_object_body(body)
 
 
 def _player_spawn_zone_body(zone: dict) -> str:
-    return _inline_object_body({"level": zone["level"], "cols": zone["cols"], "rows": zone["rows"]})
+    return _inline_object_body(
+        {
+            "level": zone["level"],
+            "cols": zone["cols"],
+            "rows": zone["rows"],
+            **({"levels": zone["levels"]} if "levels" in zone else {}),
+        }
+    )
 
 
 def _checkpoint_body(zone: dict) -> str:

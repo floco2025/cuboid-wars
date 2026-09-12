@@ -195,8 +195,16 @@ fn active_actors<'a>(
             *actor_id,
             info,
             ActorMovementState {
-                pos: carriers.pose(info.carrier).inverse_transform_position(pos),
-                carrier: info.carrier,
+                pos: if info.flight.is_some() {
+                    *pos
+                } else {
+                    carriers.pose(info.carrier).inverse_transform_position(pos)
+                },
+                carrier: if info.flight.is_some() {
+                    CarrierId::WORLD
+                } else {
+                    info.carrier
+                },
                 move_intent: *move_intent,
                 vertical_velocity: vertical.0,
                 face_yaw: face_yaw.0,

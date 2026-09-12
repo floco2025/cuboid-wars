@@ -9,12 +9,17 @@ use crate::{config::ServerGameplayConfig, map::MapConfig};
 
 use super::{NavGraph, ladders::LadderClimber};
 
-// One navigation graph per grid, indexed by carrier id: an actor navigates
-// the grid of the carrier its zone is on, in that carrier's frame.
+// One navigation graph per carrier grid.
 #[derive(Resource)]
 pub struct NavGraphs(Vec<NavGraph>);
 
 impl NavGraphs {
+    pub(super) fn iter(&self) -> impl Iterator<Item = (CarrierId, &NavGraph)> {
+        self.0
+            .iter()
+            .enumerate()
+            .map(|(index, graph)| (CarrierId(index as u16), graph))
+    }
     #[must_use]
     pub fn new(map: &MapConfig) -> Self {
         let graphs = map

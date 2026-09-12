@@ -1,6 +1,7 @@
 """Pure grid and spatial math for the editor canvas."""
 
 from __future__ import annotations
+import math
 
 
 def wall_endpoints_for_cell_side(col: int, row: int, side: str) -> tuple[int, int, int, int]:
@@ -209,3 +210,23 @@ def point_near_wall(px: float, py: float, wall: list[int], tolerance: float) -> 
     if r0 == r1:
         return min(c0, c1) - tolerance <= px <= max(c0, c1) + tolerance and abs(py - r0) <= tolerance
     return min(r0, r1) - tolerance <= py <= max(r0, r1) + tolerance and abs(px - c0) <= tolerance
+
+
+def zone_spans_level(zone: dict, level: int) -> bool:
+    span = zone.get("levels", 1)
+    return zone["level"] <= level < zone["level"] + (span if type(span) is int and span > 0 else 1)
+
+
+def roam_slice_radius(zone: dict, level: int, level_height: float) -> float | None:
+    distance = zone.get("roam_distance", 0.0)
+    if type(distance) not in (int, float) or not math.isfinite(distance) or distance <= 0:
+        return None
+    if type(zone.get("levels", 1)) is not int or zone.get("levels", 1) < 1:
+        return None
+    low = zone["level"] * level_height
+    high = (zone["level"] + zone.get("levels", 1)) * level_height
+    y = level * level_height
+    vertical = max(low - y, y - high, 0.0)
+    if vertical > distance:
+        return None
+    return (distance * distance - vertical * vertical) ** 0.5

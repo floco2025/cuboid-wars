@@ -228,3 +228,31 @@ fn buffered_actors_follow_stopping_reversing_and_nested_platforms_without_wheel_
         }
     }
 }
+
+#[test]
+fn delayed_flight_samples_preserve_vertical_motion_through_packet_gaps() {
+    let mut previous = Position::default();
+    let mut first = sample(0.0);
+    first.support = CharacterSupport::Airborne;
+    first.move_intent = ActorMoveIntent::Flying {
+        velocity: [1.0, 2.0, 0.0],
+    };
+    let mut buffer = RemoteActorMotion::new(0, first, timing(10));
+    for tick in 1..180 {
+        if tick % 3 == 0 && !(40..60).contains(&tick) {
+            let mut state = first;
+            state.pos = Position {
+                x: tick as f32 / 30.0,
+                y: tick as f32 / 15.0,
+                z: 0.0,
+            };
+            buffer.push(tick, state);
+        }
+        let (state, _) = buffer.advance(1.0, &Carriers::default(), 1.0, 1.0 / 30.0);
+        assert!(state.pos.y >= previous.y);
+        assert!((state.pos.y - state.pos.x * 2.0).abs() < 0.001);
+        assert_eq!(state.support, CharacterSupport::Airborne);
+        previous = state.pos;
+    }
+    assert!(previous.y > 10.0);
+}

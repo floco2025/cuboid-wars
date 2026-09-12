@@ -4,6 +4,7 @@ from .materials import MaterialAssignmentDialog
 from .motion import MotionDialog
 from .reference import ToolReferenceDialog
 from .resize import ResizeMapDialog
+from .spawn_volume import SpawnVolumeDialog
 
 __all__ = [
     "ActorSpawnFieldsDialog",
@@ -14,4 +15,5 @@ __all__ = [
     "MotionDialog",
     "ToolReferenceDialog",
     "ResizeMapDialog",
+    "SpawnVolumeDialog",
 ]

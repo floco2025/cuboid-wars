@@ -512,9 +512,9 @@ class WindowTests(WindowTestCase):
         kind = window.actor_kinds[0]
         dialog = ActorSpawnFieldsDialog(window, kind, 3, 90, ["guards"], None)
         self.assertGreater(dialog._kind_edit.count(), 0)
-        self.assertEqual(dialog.values(), (kind, 3, 90, None, False))
+        self.assertEqual(dialog.values(), (kind, 3, 90, None, False, 0, 1, 0.0))
         dialog._switch_combo.setCurrentText("guards")
-        self.assertEqual(dialog.values(), (kind, 3, 90, "guards", False))
+        self.assertEqual(dialog.values(), (kind, 3, 90, "guards", False, 0, 1, 0.0))
         dialog.deleteLater()
         with (
             patch.object(ActorSpawnFieldsDialog, "exec", return_value=QDialog.DialogCode.Accepted),
@@ -552,12 +552,19 @@ class WindowTests(WindowTestCase):
         edit.setFocus()
         edit.clear()
         window.canvas.viewport.fitted = False
-        QTest.keyClicks(edit, "fml")
-        self.assertEqual(edit.text(), "fml")
+        QTest.keyClicks(edit, "fmlr")
+        self.assertEqual(edit.text(), "fmlr")
         self.assertFalse(window.canvas.viewport.fitted)
         self.assertFalse(window.show_material_overlay)
         self.assertFalse(window.show_adjacent_levels)
+        self.assertFalse(window.show_roam_extensions)
         window.canvas.setFocus()
+        self.assertEqual(window.roam_extensions_action.shortcut().toString(), "R")
+        QTest.keyClick(window.canvas, Qt.Key.Key_R)
+        self.assertTrue(window.show_roam_extensions)
+        self.assertTrue(window.roam_extensions_action.isChecked())
+        window.roam_extensions_action.trigger()
+        self.assertFalse(window.show_roam_extensions)
         QTest.keyClick(window.canvas, Qt.Key.Key_F)
         self.assertTrue(window.canvas.viewport.fitted)
         self.assertEqual(window.adjacent_levels_action.shortcut().toString(), "L")

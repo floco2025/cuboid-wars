@@ -1,14 +1,12 @@
 use std::collections::{HashSet, VecDeque};
 
-use bevy::prelude::Vec3;
 use common::{
     map::CarrierPose,
     physics::CollisionWorld,
     protocol::{BridgeId, CarrierId, MapLayout, Position, Wall},
 };
-use rand::{SeedableRng, rngs::StdRng};
 
-use super::{NavGraph, NavGraphs, NavNode, routing::COVER_SEARCH_MAX_STEPS};
+use super::{NavGraph, NavGraphs, NavNode};
 use crate::{
     actors::test_kinds,
     map::{ActorSpawnZone, CarrierGrid, CellGrid, EdgeGrid, LevelGrid, MapConfig},
@@ -35,6 +33,8 @@ fn zone(level: u8, col: i32, row: i32) -> ActorSpawnZone {
 
         carrier: CarrierId::WORLD,
         level,
+        levels: 1,
+        roam_distance: 0.0,
         cols: [col, col + 1],
         rows: [row, row + 1],
         kind: test_kinds::BEAM.into(),
@@ -184,163 +184,6 @@ fn engagement_route_keeps_a_turn_around_a_wall() {
     assert!(route.waypoints.len() > 1);
     assert_ne!(route.waypoints.front().map(|point| &point.position), Some(&target));
     assert_eq!(route.waypoints.back().map(|point| &point.position), Some(&target));
-}
-
-#[test]
-fn engagement_retarget_rejects_blocked_flat_final_leg() {
-    let mut cells = CellGrid::new(2, 1);
-    for cell in &mut cells.rows[0] {
-        cell.has_floor = true;
-    }
-    let mut edges = EdgeGrid::new(2, 1);
-    edges.vertical[0][1] = true;
-    let nav = nav_for(MapConfig::for_grid(vec![level(cells, edges)], geometry(2, 1)));
-    let start = cell_center(2, 1, 0, 0);
-    let target = cell_center(2, 1, 1, 0);
-
-    assert!(!nav.engagement_retarget_is_valid(&start, &target, 0.5, 0.5));
-}
-
-#[test]
-fn cover_route_chooses_nearest_adequate_cover() {
-    let nav = full_floor_nav(6, 1);
-    let threat = cell_center(6, 1, 0, 0);
-    let start = cell_center(6, 1, 2, 0);
-    let near_cover = cell_center(6, 1, 3, 0);
-    let far_cover = cell_center(6, 1, 5, 0);
-
-    let route = nav
-        .safe_cover_route(&[], &start, &[threat], |candidate| {
-            *candidate == near_cover || *candidate == far_cover
-        })
-        .expect("both cover nodes should be reachable");
-
-    assert_eq!(route.waypoints.back().map(|point| &point.position), Some(&near_cover));
-}
-
-#[test]
-fn no_cover_in_reach_finds_no_cover_route() {
-    let nav = full_floor_nav(5, 1);
-    let threat = cell_center(5, 1, 0, 0);
-    let start = cell_center(5, 1, 4, 0);
-
-    let route = nav.safe_cover_route(&[], &start, &[threat], |_| false);
-
-    assert!(route.is_none());
-}
-
-#[test]
-fn cover_beyond_the_search_budget_is_not_found() {
-    let nav = full_floor_nav(30, 1);
-    let threat = cell_center(30, 1, 0, 0);
-    let start = cell_center(30, 1, 1, 0);
-    let remote_cover = cell_center(30, 1, 20, 0);
-
-    let route = nav.safe_cover_route(&[], &start, &[threat], |candidate| *candidate == remote_cover);
-
-    assert!(route.is_none());
-}
-
-#[test]
-fn flee_route_runs_away_from_the_threat_within_the_budget() {
-    let nav = full_floor_nav(30, 1);
-    let threat = cell_center(30, 1, 0, 0);
-    let start = cell_center(30, 1, 5, 0);
-    let mut rng = StdRng::seed_from_u64(1);
-
-    for _ in 0..8 {
-        let route = nav
-            .flee_route(&[], &start, &[threat], &mut rng)
-            .expect("nowhere to run on an open strip");
-        let destination = route
-            .waypoints
-            .back()
-            .map(|point| &point.position)
-            .expect("a flight has a destination");
-        assert!(destination.horizontal_distance_sq(&threat) > start.horizontal_distance_sq(&threat));
-        assert!(route.waypoints.len() <= COVER_SEARCH_MAX_STEPS);
-    }
-}
-
-#[test]
-fn a_cornered_actor_still_flees_somewhere() {
-    let nav = full_floor_nav(5, 1);
-    let threat = cell_center(5, 1, 0, 0);
-    let start = cell_center(5, 1, 4, 0);
-
-    let route = nav
-        .flee_route(&[], &start, &[threat], &mut StdRng::seed_from_u64(1))
-        .expect("nowhere to run from the corner");
-
-    assert_ne!(route.waypoints.back().map(|point| &point.position), Some(&start));
-}
-
-#[test]
-fn cover_route_does_not_cross_the_threat_for_an_equivalent_destination() {
-    let nav = full_floor_nav(5, 3);
-    let start = cell_center(5, 3, 2, 0);
-    let threat = cell_center(5, 3, 2, 1);
-    let across_threat = cell_center(5, 3, 2, 2);
-    let safe_side = cell_center(5, 3, 4, 0);
-
-    let route = nav
-        .safe_cover_route(&[], &start, &[threat], |candidate| {
-            *candidate == across_threat || *candidate == safe_side
-        })
-        .expect("a threat-avoiding cover route should exist");
-
-    assert_eq!(route.waypoints.back().map(|point| &point.position), Some(&safe_side));
-    assert!(!route.waypoints.iter().any(|point| point.position == threat));
-}
-
-#[test]
-fn cover_route_uses_world_occlusion() {
-    let mut cells = CellGrid::new(2, 2);
-    for row in &mut cells.rows {
-        for cell in row {
-            cell.has_floor = true;
-        }
-    }
-    let mut edges = EdgeGrid::new(2, 2);
-    edges.vertical[0][1] = true;
-    let nav = nav_for(MapConfig::for_grid(vec![level(cells, edges)], geometry(2, 2)));
-    let world = CollisionWorld::from_map_layout(&MapLayout {
-        walls: vec![Wall {
-            x1: 0.0,
-            z1: -4.0,
-            x2: 0.0,
-            z2: 0.0,
-            width: WALL_THICKNESS,
-            level: 0,
-            y: 0.0,
-            height: WALL_HEIGHT,
-            carrier: CarrierId::WORLD,
-        }],
-        ..MapLayout::default()
-    });
-    let threat = cell_center(2, 2, 0, 0);
-    let start = cell_center(2, 2, 0, 1);
-    let actor_eye = |candidate: &Position| Vec3::new(candidate.x, candidate.y + 0.8, candidate.z);
-    let player_center = Vec3::new(threat.x, threat.y + 0.8, threat.z);
-
-    let route = nav
-        .safe_cover_route(&[], &start, &[threat], |candidate| {
-            !world.line_of_sight_clear(actor_eye(candidate), player_center)
-        })
-        .expect("cover behind the wall is reachable around its end");
-
-    assert!(
-        !world.line_of_sight_clear(
-            actor_eye(
-                route
-                    .waypoints
-                    .back()
-                    .map(|point| &point.position)
-                    .expect("cover route has a destination")
-            ),
-            player_center,
-        )
-    );
 }
 
 #[test]

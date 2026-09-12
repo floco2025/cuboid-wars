@@ -1,6 +1,33 @@
 use super::*;
 
 #[test]
+fn spawn_volumes_validate_all_levels_and_allow_zero_roam_extension() {
+    let mut map = map_with_zones(
+        4,
+        vec![level(Vec::new()), level(Vec::new())],
+        vec![actor_zone(0, 0, 0)],
+        vec![player_zone(0, 0, 0)],
+        Vec::new(),
+    );
+    map.actor_spawn_zones[0].levels = 2;
+    map.player_spawn_zones[0].levels = 2;
+    validate_map(&map).expect("valid spawn volumes rejected");
+    for distance in [-1.0, f32::NAN, f32::INFINITY] {
+        map.actor_spawn_zones[0].roam_distance = distance;
+        assert!(validate_map(&map).is_err());
+    }
+    map.actor_spawn_zones[0].roam_distance = 0.0;
+    for span in [0, 3, u32::MAX] {
+        map.actor_spawn_zones[0].levels = span;
+        assert!(validate_map(&map).is_err());
+        map.actor_spawn_zones[0].levels = 2;
+        map.player_spawn_zones[0].levels = span;
+        assert!(validate_map(&map).is_err());
+        map.player_spawn_zones[0].levels = 2;
+    }
+}
+
+#[test]
 fn validation_accepts_actor_zone_without_floor() {
     // Empty cells (no floor at all) are allowed: kinds like flying actors
     // don't need a floor underfoot. Forbidden cells are obstructions.
@@ -94,6 +121,10 @@ fn validation_rejects_actor_zone_with_empty_kind() {
             switch_inverted: false,
 
             level: 0,
+
+            levels: 1,
+
+            roam_distance: 0.0,
             cols: [0, 1],
             rows: [0, 1],
             kind: String::new(),
@@ -120,6 +151,10 @@ fn validation_accepts_unknown_kind_strings() {
             switch_inverted: false,
 
             level: 0,
+
+            levels: 1,
+
+            roam_distance: 0.0,
             cols: [0, 1],
             rows: [0, 1],
             kind: "boss".into(),

@@ -49,6 +49,7 @@ pub(crate) fn respawn_app(mode: PlayerRespawnMode, scope: ActorRespawnScope) -> 
     map.player_spawn_zones.push(PlayerSpawnZone {
         carrier: CarrierId::WORLD,
         level: 0,
+        levels: 1,
         cols: [0, 3],
         rows: [0, 1],
     });
@@ -58,6 +59,8 @@ pub(crate) fn respawn_app(mode: PlayerRespawnMode, scope: ActorRespawnScope) -> 
 
             carrier: CarrierId::WORLD,
             level: 0,
+            levels: 1,
+            roam_distance: 0.0,
             cols: [col, col + 1],
             rows: [0, 1],
             kind: "turret".into(),

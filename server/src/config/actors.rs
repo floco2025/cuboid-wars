@@ -52,16 +52,12 @@ pub struct ActorKindServerConfig {
     #[serde(flatten)]
     pub character: ActorGameplayConfig,
     pub vision_range: f32,
-    pub roam_steps: usize,
     pub attack: ActorAttackConfig,
 }
 
 impl ActorKindServerConfig {
     fn validate(&self, path: &str) -> Result<()> {
         self.character.validate(path)?;
-        if !self.character.immovable && self.roam_steps == 0 {
-            bail!("{path}.roam_steps must be at least 1 for mobile actors");
-        }
         validate_positive_finite(self.vision_range, &format!("{path}.vision_range"))?;
         self.attack.validate(&format!("{path}.attack"))
     }

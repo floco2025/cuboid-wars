@@ -8,9 +8,9 @@ use common::{
     physics::CollisionWorld,
     protocol::{Carrier, CarrierId, Floor, Ladder, MapLayout, PlateState, Position, Wall},
 };
-use rand::{SeedableRng, rngs::StdRng};
 
-use super::{ActorTerritories, NavGraph, NavGraphs, NavNode, WaypointKind, ladders::LadderClimber};
+use super::{NavGraph, NavGraphs, NavNode, WaypointKind, ladders::LadderClimber};
+use crate::actors::navigation::ActorTerritories;
 use crate::{
     actors::movement::{ActorMovementStep, step_actor_movement},
     actors::test_kinds::{self, BEAM, CONTACT},
@@ -380,6 +380,8 @@ fn permissions_control_graph_links_and_roam_territories_per_kind() {
 
             carrier: CarrierId::WORLD,
             level: 0,
+            levels: 1,
+            roam_distance: CELL,
             cols: [0, 1],
             rows: [0, 1],
             kind: kind.into(),
@@ -403,28 +405,40 @@ fn permissions_control_graph_links_and_roam_territories_per_kind() {
     let ladders = graph.ladder_links(CONTACT);
     assert_eq!(ladders.len(), 2);
     assert!(graph.ladder_links(BEAM).is_empty());
-    let territories = ActorTerritories::new(&graphs, &map, &config).expect("ladder territories invalid");
-    assert_eq!(territories.get(0).roam.len(), 2);
-    assert_eq!(territories.get(1).roam.len(), 1);
-    let link = ladders
-        .iter()
-        .find(|link| link.from.level == 0)
-        .expect("ascending ladder route missing");
-    let start = graph.node_center(link.from);
-    let mut rng = StdRng::seed_from_u64(1);
-    assert!(
-        graph
-            .roam_route(ladders, &start, territories.get(0), &mut rng)
-            .is_some()
-    );
-    assert!(graph.flee_route(ladders, &start, &[start], &mut rng).is_some());
-    let mut home = territories.get(0).clone();
-    home.roam.retain(|node| *node != link.to);
-    assert!(
-        graph
-            .return_route(ladders, &graph.node_center(link.to), &home)
-            .is_some()
-    );
+    let territories = ActorTerritories::new(&map, &config);
+    let start = Position {
+        x: 0.0,
+        y: 0.0,
+        z: -CELL / 2.0,
+    };
+    let target = Position {
+        x: 0.0,
+        y: LEVEL_HEIGHT,
+        z: CELL / 2.0,
+    };
+    assert!(territories.get(0).contains_position(target.into()));
+    assert!(territories.get(1).contains_position(target.into()));
+    let world = CollisionWorld::from_map_layout(&fixture.layout);
+    let carriers = Carriers::default();
+    for kind in [CONTACT, BEAM] {
+        let query = super::GroundNavigation {
+            graphs: &graphs,
+            carriers: &carriers,
+            carrier: CarrierId::WORLD,
+            kind,
+            world: &world,
+            physics: config.expect_actor(kind).character.physics(),
+            open: &[],
+        };
+        let route = query.route(
+            start,
+            |pos, _| (pos.distance_sq(&target) < 0.001).then_some(target),
+            |_| true,
+            100,
+            None,
+        );
+        assert_eq!(route.is_some(), kind == CONTACT);
+    }
 }
 
 #[test]

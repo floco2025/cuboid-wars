@@ -14,7 +14,7 @@ use common::{
     config::GameplayConfig,
     map::Carriers,
     math::PHYSICS_EPSILON,
-    physics::CollisionWorld,
+    physics::{CollisionWorld, grounding_diagnostics},
     protocol::{
         ActorId, ActorMarker, ItemType, MapItems, PlateState, PlayerId, PlayerMarker, Position, SActorBeam,
         ServerMessage, ServerTick,
@@ -73,7 +73,22 @@ pub fn actors_behavior_system(
             continue;
         };
         let character = &character.0;
+        if character.flies() {
+            continue;
+        }
         let kind_config = server_gameplay_config.expect_actor(&info.spawn_kind);
+        if !character.immovable {
+            let grounding =
+                grounding_diagnostics(&collision_world, pos, character.physics(), &plates.open_barriers, &[]);
+            if grounding.supported
+                && let Some(hit) = grounding.hit
+                && hit.carrier != info.carrier
+            {
+                info.carrier = hit.carrier;
+                info.set_route(None);
+                info.decision_timer = 0.0;
+            }
+        }
         // Behaviour runs before the carriers advance, so this pose is the
         // one the actor's position was last resolved at.
         let pose = carriers.pose(info.carrier);
@@ -86,6 +101,17 @@ pub fn actors_behavior_system(
         } else {
             let stalled = tick_runtime_state(info, local_pos, delta, kind_config, &player_states);
             drop_route_onto_lost_bridge(info, nav_graph);
+            if info.route.as_ref().and_then(ActorRoute::next).is_some_and(|next| {
+                !collision_world.character_ground_route_clear(
+                    *pos,
+                    pose.transform_position(&next.position),
+                    character.physics(),
+                    &plates.open_barriers,
+                )
+            }) {
+                info.set_route(None);
+                info.decision_timer = 0.0;
+            }
             stalled
         };
         if stalled {
@@ -99,7 +125,8 @@ pub fn actors_behavior_system(
             continue;
         }
 
-        let territory = territories.get(info.spawn_zone_index);
+        let home = territories.get(info.spawn_zone_index);
+        let territory = home.in_frame(carriers.pose(home.carrier), pose);
         update_awareness(
             info,
             *pos,
@@ -117,10 +144,12 @@ pub fn actors_behavior_system(
             world_pos: *pos,
             pose,
             actor_physics: character.physics(),
-            actor_eye_height: character.eye_height(),
             player_physics: gameplay_config.player.physics(),
             nav_graph,
-            territory,
+            territory: &territory,
+            nav_graphs: &nav_graphs,
+            carriers: &carriers,
+            carrier: info.carrier,
             collision_world: &collision_world,
             open_barriers: &plates.open_barriers,
             kind_config,
@@ -274,15 +303,22 @@ fn tick_route_stall(info: &mut ActorInfo, pos: Position, delta: f32) -> bool {
 // jam loops (two evaders re-planning the same routes into each other
 // forever). A failed hop just trips the watchdog again and re-rolls.
 pub(super) fn shake_loose(info: &mut ActorInfo, context: &BehaviorContext<'_>, rng: &mut impl Rng) {
-    let planned =
-        context
-            .nav_graph
-            .random_neighbor_route(context.nav_graph.ladder_links(&info.spawn_kind), &context.pos, rng);
+    let planned = context.nav_graph.random_neighbor_route(
+        context.nav_graph.ladder_links(&info.spawn_kind),
+        &context.pos,
+        |pos| !matches!(info.mode, ActorMode::Roam) || context.territory.contains_position(pos.into()),
+        rng,
+    );
     context.install_route(info, planned);
     info.decision_timer = SHAKE_SECS;
 }
 
-fn tick_beam_state(info: &mut ActorInfo, delta: f32, kind_config: &ActorKindServerConfig, players: &[PlayerState]) {
+pub(super) fn tick_beam_state(
+    info: &mut ActorInfo,
+    delta: f32,
+    kind_config: &ActorKindServerConfig,
+    players: &[PlayerState],
+) {
     let mut ended = false;
     match &mut info.beam {
         BeamState::Ready => {}

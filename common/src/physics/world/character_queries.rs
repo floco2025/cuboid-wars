@@ -8,7 +8,9 @@ use rapier3d::{
 
 use super::{
     CollisionWorld,
-    colliders::{WALL_COLLISION_GROUP, barrier_blocks, character_collision_groups, query_filter},
+    colliders::{
+        BARRIER_COLLISION_GROUP, WALL_COLLISION_GROUP, barrier_blocks, character_collision_groups, query_filter,
+    },
 };
 use crate::{
     config::CharacterPhysicsConfig,
@@ -17,6 +19,33 @@ use crate::{
 };
 
 impl CollisionWorld {
+    #[must_use]
+    // Floor topology supplies support; this sweep checks walls and closed barriers.
+    pub fn character_ground_route_clear(
+        &self,
+        start: Position,
+        target: Position,
+        physics: CharacterPhysicsConfig,
+        open: &[BarrierId],
+    ) -> bool {
+        let allow = |_: ColliderHandle, collider: &Collider| barrier_blocks(collider, open);
+        let mut filter = query_filter(WALL_COLLISION_GROUP | BARRIER_COLLISION_GROUP);
+        filter.predicate = Some(&allow);
+        let translation = Vector::new(target.x - start.x, target.y - start.y, target.z - start.z);
+        self.query_pipeline(filter)
+            .cast_shape(
+                &character_movement_pose(&start, physics),
+                translation,
+                &character_movement_shape(physics),
+                ShapeCastOptions {
+                    max_time_of_impact: 1.0,
+                    stop_at_penetration: false,
+                    ..Default::default()
+                },
+            )
+            .is_none()
+    }
+
     #[must_use]
     pub(crate) fn move_character(
         &self,

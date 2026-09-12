@@ -106,6 +106,8 @@ impl Fixture {
 
                 carrier,
                 level: 0,
+                levels: 1,
+                roam_distance: CELL * 2.0,
                 cols: [1, 2],
                 rows: [2, 3],
                 kind: kind.to_owned(),
@@ -135,7 +137,7 @@ impl Fixture {
         let carriers = Carriers::from_layout(&layout);
         let graphs = NavGraphs::new(&map);
         let server = test_kinds::server_config();
-        let territories = ActorTerritories::new(&graphs, &map, &server).expect("test territory should build");
+        let territories = ActorTerritories::new(&map, &server);
         let gameplay = server.gameplay_config();
         Self {
             graphs,
@@ -175,9 +177,11 @@ impl Fixture {
             world_pos: pose.transform_position(&pos),
             pose,
             actor_physics: actor.physics(),
-            actor_eye_height: actor.eye_height(),
             player_physics: self.gameplay.player.physics(),
             nav_graph: self.graph(),
+            nav_graphs: &self.graphs,
+            carriers: &self.carriers,
+            carrier: self.carrier,
             territory: self.territories.get(0),
             collision_world: &self.collision_world,
             open_barriers: &[],
@@ -203,7 +207,6 @@ pub(crate) fn aware(
         support,
         visible,
         forget_remaining_secs: 10.0,
-        attack_anchor: None,
     }
 }
 

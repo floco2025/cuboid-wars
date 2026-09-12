@@ -37,6 +37,7 @@ fn step(
         &plates,
         &carriers,
         &actors,
+        &crate::actors::navigation::ActorTerritories::default(),
         &starts,
         &mut query,
         &mut planned,

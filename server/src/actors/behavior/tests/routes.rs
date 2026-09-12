@@ -93,6 +93,7 @@ fn stalled_actor_hops_to_a_random_neighbor_before_rethinking() {
     let fixture = Fixture::new(CONTACT);
     let mut info = info(CONTACT);
     let pos = fixture.pos(5, 2);
+    info.mode = ActorMode::Evade { fleeing: true };
     info.set_route(Some(route_through(&[fixture.pos(9, 2)], &fixture)));
 
     let mut stalled = false;
@@ -115,6 +116,25 @@ fn stalled_actor_hops_to_a_random_neighbor_before_rethinking() {
         "hop lands in a neighboring cell, got {hop_distance}"
     );
     assert!(info.decision_timer > 0.0, "controller deferred during the hop");
+}
+
+#[test]
+fn roaming_recovery_filters_neighbors_outside_the_zone_extension() {
+    let fixture = Fixture::new(CONTACT);
+    let pos = fixture.pos(3, 2);
+    let context = fixture.context(CONTACT, pos);
+    assert!(context.territory.contains_position(pos.into()));
+    for seed in 0..20 {
+        let mut info = info(CONTACT);
+        shake_loose(&mut info, &context, &mut StdRng::seed_from_u64(seed));
+        let route = info.route.expect("roaming actor ignored its reachable neighbors");
+        assert!(
+            route
+                .waypoints
+                .iter()
+                .all(|point| context.territory.contains_position(point.position.into()))
+        );
+    }
 }
 
 #[test]

@@ -6,6 +6,7 @@ mod character_queries;
 mod colliders;
 mod collision_world;
 mod erasers;
+mod flight;
 mod ground;
 mod ladders;
 mod portal_backing;

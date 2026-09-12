@@ -11,6 +11,7 @@ use common::{
     },
 };
 
+use super::navigation::air::FlightState;
 use super::navigation::{NavNode, NavWaypoint, PlannedRoute, WaypointKind};
 
 // Whether this tick's movement left the actor inside a carrier's geometry;
@@ -46,7 +47,7 @@ pub(crate) enum ActorMode {
         target: PlayerId,
         target_pos: Position,
     },
-    // `fleeing`: the route is a flight leg to a random cell, not cover.
+    // A fleeing actor keeps its retreat until the leg ends.
     Evade {
         fleeing: bool,
     },
@@ -120,13 +121,6 @@ impl ActorRoute {
             WaypointKind::Mount | WaypointKind::Exit => true,
         })
     }
-
-    pub(crate) fn retarget(&mut self, target: Position) {
-        if let Some(last) = self.waypoints.back_mut() {
-            last.position = target;
-            self.destination = target;
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -136,19 +130,16 @@ pub(crate) struct AwarePlayer {
     pub(crate) support: CharacterSupport,
     pub(crate) visible: bool,
     pub(crate) forget_remaining_secs: f32,
-    pub(crate) attack_anchor: Option<Position>,
 }
 
-// An actor belongs to the carrier its zone is on for life: it navigates
-// that carrier's grid in the carrier's frame (`route` is carrier-local) and
-// despawns if it leaves the carrier's map. `mode` and `awareness` keep
-// world positions, since perception and facing are world-space.
+// Ground routes use the supporting carrier; spawn ownership is the zone index.
 pub struct ActorInfo {
     pub entity: Entity,
     pub spawn_zone_index: usize,
     pub spawn_kind: String,
     pub carrier: CarrierId,
     pub anchor: Option<ActorAnchor>,
+    pub(crate) flight: Option<FlightState>,
     pub(crate) mode: ActorMode,
     pub(crate) route: Option<ActorRoute>,
     pub(crate) beam: BeamState,
@@ -172,6 +163,7 @@ impl ActorInfo {
             spawn_kind,
             carrier,
             anchor: None,
+            flight: None,
             mode: ActorMode::Roam,
             route: None,
             beam: BeamState::Ready,

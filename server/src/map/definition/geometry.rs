@@ -375,6 +375,8 @@ fn actor_spawn_zones(
                 switch_inverted: zone.switch_inverted,
                 carrier,
                 level: u8::try_from(zone.level).unwrap_or(u8::MAX),
+                levels: zone.levels as u16,
+                roam_distance: zone.roam_distance,
                 cols: zone.cols,
                 rows: zone.rows,
                 kind: zone.kind.clone(),
@@ -395,6 +397,7 @@ fn player_spawn_zones(map_def: &MapDef, carrier: CarrierId) -> Vec<PlayerSpawnZo
         .map(|zone| PlayerSpawnZone {
             carrier,
             level: u8::try_from(zone.level).unwrap_or(u8::MAX),
+            levels: zone.levels as u16,
             cols: zone.cols,
             rows: zone.rows,
         })

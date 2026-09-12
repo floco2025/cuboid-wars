@@ -282,7 +282,7 @@
     "sounds": {
       "laser_show": {
         "file": "sounds/freesound_community-laser-beam-76426.wav",
-        "volume_db": 13
+        "volume_db": 8
       },
       "fire": {
         "file": "sounds/impactGeneric_light_001.ogg",
@@ -408,7 +408,7 @@
       "model": {
         "scene": "models/zapper.glb#Scene0",
         "scale": 1.0,
-        "y_offset": 0.0,
+        "y_offset": -0.9,
         "animation_index": 0,
         "animation_speed": 1.0,
         "aim_rig": {
@@ -424,7 +424,7 @@
         },
         "fire": {
           "file": "sounds/freesound_community-laser-beam-76426.wav",
-          "volume_db": 13
+          "volume_db": 8
         }
       }
     },

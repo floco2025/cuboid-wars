@@ -8,13 +8,15 @@ from PySide6.QtWidgets import QInputDialog
 
 from .constants import (
     ACTOR_ZONE_LIST,
+    PLAYER_ZONE_LIST,
     CHECKPOINT_LIST,
     CHECKPOINT_TYPE_LABELS,
     SPAWN_ZONE_HANDLE_PIXELS,
     ZONE_LISTS,
     ZONE_PICK_ORDER,
 )
-from .geometry import zone_contains_cell, zone_handle_centers, zone_rect
+from .geometry import zone_contains_cell, zone_handle_centers, zone_rect, zone_spans_level
+from .dialogs import SpawnVolumeDialog
 from .normalization import zone_key
 from .types import SpawnZoneDrag, ZoneRef
 
@@ -57,13 +59,13 @@ class SpawnZoneEditMixin:
         for list_name in ZONE_PICK_ORDER:
             for idx in range(len(self.map_data[list_name]) - 1, -1, -1):
                 zone = self.map_data[list_name][idx]
-                if zone["level"] == self.current_level and zone_contains_cell(zone, col, row):
+                if zone_spans_level(zone, self.current_level) and zone_contains_cell(zone, col, row):
                     return ZoneRef(list_name, idx)
         return None
 
     def selected_spawn_zone_handle(self, pos) -> str | None:
         zone = self.selected_spawn_zone()
-        if zone is None or zone["level"] != self.current_level:
+        if zone is None or not zone_spans_level(zone, self.current_level):
             return None
         return self._handle_at_pos(zone, pos)
 
@@ -163,12 +165,28 @@ class SpawnZoneEditMixin:
 
     def selected_spawn_zone_has_fields(self) -> bool:
         ref = self.selected_spawn_zone_ref
-        return ref is not None and ref.list_name in (ACTOR_ZONE_LIST, CHECKPOINT_LIST)
+        return ref is not None and ref.list_name in (ACTOR_ZONE_LIST, PLAYER_ZONE_LIST, CHECKPOINT_LIST)
 
     def edit_selected_spawn_zone_fields(self) -> None:
         zone = self.selected_spawn_zone()
         ref = self.selected_spawn_zone_ref
         if zone is None or ref is None:
+            return
+        if ref.list_name == PLAYER_ZONE_LIST:
+            result = SpawnVolumeDialog.prompt(
+                self,
+                [entry.get("name", f"Level {index}") for index, entry in enumerate(self.map_data["levels"])],
+                zone["level"],
+                zone.get("levels", 1),
+            )
+            if result is not None:
+                after = copy.deepcopy(self.map_data)
+                after[ref.list_name][ref.index].update(level=result[0], levels=result[1])
+                self.recent_player_spawn_levels = result[1]
+                self.apply_change("Edit Player Spawn Zone", after)
+                self.selected_spawn_zone_ref = self._zone_ref_after_change(
+                    ref.list_name, after[ref.list_name][ref.index]
+                )
             return
         if ref.list_name == CHECKPOINT_LIST:
             labels = list(CHECKPOINT_TYPE_LABELS.values())
@@ -189,10 +207,13 @@ class SpawnZoneEditMixin:
             zone.get("respawn_secs"),
             zone.get("switch"),
             zone.get("switch_inverted", False),
+            zone["level"],
+            zone.get("levels", 1),
+            zone.get("roam_distance", 0.0),
         )
         if result is None:
             return
-        kind, count, respawn_secs, switch, inverted = result
+        kind, count, respawn_secs, switch, inverted, level, levels, roam_distance = result
         after = copy.deepcopy(self.map_data)
         if not (0 <= ref.index < len(after[ref.list_name])):
             return
@@ -200,6 +221,7 @@ class SpawnZoneEditMixin:
         edited["kind"] = kind
         edited["count"] = count
         edited["respawn_secs"] = respawn_secs
+        edited.update(level=level, levels=levels, roam_distance=roam_distance)
         edited.pop("switch_inverted", None)
         edited.pop("switch", None)
         if switch:
@@ -211,4 +233,6 @@ class SpawnZoneEditMixin:
         self.recent_actor_spawn_respawn_secs = respawn_secs
         self.recent_actor_spawn_switch = switch or ""
         self.recent_actor_spawn_inverted = inverted
+        self.recent_actor_spawn_levels = levels
+        self.recent_actor_roam_distance = roam_distance
         self.selected_spawn_zone_ref = self._zone_ref_after_change(ref.list_name, after[ref.list_name][ref.index])

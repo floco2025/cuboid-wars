@@ -38,17 +38,6 @@ pub(crate) fn validate_map_actor_kinds(config: &ServerGameplayConfig, map_config
                 zone.kind
             );
         }
-        if config.expect_actor(&zone.kind).character.immovable {
-            let capacity = zone.immovable_cells(map_config.grid(zone.carrier)).count();
-            if zone.count as usize > capacity {
-                bail!(
-                    "map actor spawn zone {zone_idx} on carrier {} requests {} immovable {:?} actors but has only {capacity} usable floor cells",
-                    zone.carrier.0,
-                    zone.count,
-                    zone.kind
-                );
-            }
-        }
     }
     Ok(())
 }

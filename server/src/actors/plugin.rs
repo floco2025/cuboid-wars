@@ -5,6 +5,7 @@ use super::{navigation::nav_bridges_sync_system, *};
 use crate::{players::players_respawn_system, schedule::ServerSet};
 
 pub fn actors_plugin(app: &mut App) {
+    app.init_resource::<navigation::air::AirHomes>();
     app.add_systems(Startup, actors_initial_spawn_system).add_systems(
         Update,
         (
@@ -13,7 +14,11 @@ pub fn actors_plugin(app: &mut App) {
                 .run_if(pending_actor_spawns_active)
                 .in_set(ServerSet::Prepare)
                 .after(server_tick_advance_system),
-            (nav_bridges_sync_system, actors_behavior_system)
+            (
+                nav_bridges_sync_system,
+                actors_behavior_system,
+                behavior::flying_actors_behavior_system,
+            )
                 .chain()
                 .in_set(ServerSet::Behavior),
             actors_removal_system.in_set(ServerSet::CombatRemoval),

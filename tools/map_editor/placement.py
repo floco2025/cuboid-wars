@@ -72,11 +72,13 @@ class PlacementMixin:
         result = self.prompt_for_actor_spawn_fields()
         if result is None:
             return
-        kind, count, respawn_secs, switch, inverted = result
+        kind, count, respawn_secs, switch, inverted, level, levels, roam_distance = result
         c0, r0, c1, r1 = rect_from_cells(start, end)
         after = copy.deepcopy(self.map_data)
         new_zone = {
-            "level": self.current_level,
+            "level": level,
+            "levels": levels,
+            "roam_distance": roam_distance,
             "cols": [c0, c1],
             "rows": [r0, r1],
             "kind": kind,
@@ -92,6 +94,8 @@ class PlacementMixin:
         self.recent_actor_spawn_respawn_secs = respawn_secs
         self.recent_actor_spawn_switch = switch or ""
         self.recent_actor_spawn_inverted = inverted
+        self.recent_actor_spawn_levels = levels
+        self.recent_actor_roam_distance = roam_distance
         self.apply_change("Paint Actor Spawn Zone", after)
         self.selected_spawn_zone_ref = self._zone_ref_after_change(ACTOR_ZONE_LIST, new_zone)
 
@@ -111,6 +115,8 @@ class PlacementMixin:
         }
         if list_name == CHECKPOINT_LIST:
             new_zone["type"] = self.recent_checkpoint_type
+        else:
+            new_zone["levels"] = min(self.recent_player_spawn_levels, len(self.map_data["levels"]) - self.current_level)
         after[list_name].append(new_zone)
         self.apply_change(f"Paint {label}", after)
         self.selected_spawn_zone_ref = self._zone_ref_after_change(list_name, new_zone)
@@ -124,7 +130,10 @@ class PlacementMixin:
         respawn_secs: int | None = None,
         switch: str | None = None,
         inverted: bool = False,
-    ) -> tuple[str, int, int | None, str | None, bool] | None:
+        level=None,
+        levels=None,
+        roam_distance=None,
+    ):
         if kind is None and self.recent_actor_spawn_kind in self.actor_kinds:
             recent_switch = self.recent_actor_spawn_switch
             return (
@@ -133,6 +142,9 @@ class PlacementMixin:
                 self.recent_actor_spawn_respawn_secs,
                 recent_switch or None,
                 self.recent_actor_spawn_inverted,
+                self.current_level,
+                min(self.recent_actor_spawn_levels, len(self.map_data["levels"]) - self.current_level),
+                self.recent_actor_roam_distance,
             )
         return ActorSpawnFieldsDialog.prompt(
             self,
@@ -142,6 +154,10 @@ class PlacementMixin:
             self.switches,
             switch if kind is not None else (self.recent_actor_spawn_switch or None),
             inverted if kind is not None else self.recent_actor_spawn_inverted,
+            level=self.current_level if level is None else level,
+            levels=self.recent_actor_spawn_levels if levels is None else levels,
+            roam_distance=self.recent_actor_roam_distance if roam_distance is None else roam_distance,
+            level_names=[entry.get("name", f"Level {index}") for index, entry in enumerate(self.map_data["levels"])],
         )
 
     def add_wall_line(self, start: tuple[int, int], end: tuple[int, int]) -> None:

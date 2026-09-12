@@ -2,7 +2,7 @@ use std::f32::consts::FRAC_PI_2;
 
 use bevy::prelude::Vec3;
 
-use crate::actors::{ActorMap, ActorMode};
+use crate::actors::{ActorMap, ActorMode, navigation::ActorTerritories};
 use common::{
     config::CharacterPhysicsConfig,
     map::Carriers,
@@ -12,6 +12,7 @@ use common::{
 
 use super::{
     context::{ActorMoveContext, CandidateStep, SelectedActorMove},
+    flight::select_flying_move,
     ordering::sorted_actor_plan_order,
     query::ActorMovementQuery,
     steering::{ActorDesire, desired_move, direction_toward},
@@ -25,6 +26,7 @@ pub(crate) fn plan_actor_moves(
     plates: &PlateState,
     carriers: &Carriers,
     actors: &ActorMap,
+    territories: &ActorTerritories,
     actor_starts: &[(bevy::prelude::Entity, Position, CharacterPhysicsConfig)],
     query: &mut ActorMovementQuery,
     planned_moves: &mut Vec<CharacterMovePlan>,
@@ -93,8 +95,31 @@ pub(crate) fn plan_actor_moves(
             carriers,
         };
 
+        if character.0.flies() {
+            let selected = select_flying_move(
+                &move_context,
+                info,
+                actor_movement.roam_speed,
+                actor_movement.active_speed,
+            );
+            *move_intent = selected.intent;
+            if let Some(direction) = selected.intent.direction() {
+                face_yaw.0 = direction;
+            } else if let ActorMode::Engage { target_pos, .. } = info.mode {
+                face_yaw.0 = direction_toward(&current_pos, &target_pos);
+            }
+            *support = selected.step.support;
+            planned_moves.push(CharacterMovePlan::from_movement_result(
+                entity,
+                current_pos,
+                selected.step,
+                actor_physics,
+            ));
+            continue;
+        }
+
         let mut hold_facing = None;
-        let selected = match desired_move(
+        let mut selected = match desired_move(
             info,
             &local_pos,
             &current_pos,
@@ -111,6 +136,18 @@ pub(crate) fn plan_actor_moves(
                 select_route_move(&move_context, intent, &pose.transform_position(&target))
             }
         };
+
+        if matches!(info.mode, ActorMode::Roam) {
+            let territory = territories.get(info.spawn_zone_index);
+            let home_pose = carriers.pose(territory.carrier);
+            let before = carriers
+                .previous_pose(territory.carrier)
+                .inverse_transform_point(current_pos.into());
+            let after = home_pose.inverse_transform_point(selected.step.position.into());
+            if territory.contains_position(before) && !territory.path_contains(before, after) {
+                selected = move_context.idle_move();
+            }
+        }
 
         *move_intent = selected.intent;
         if let Some(direction) = selected.intent.direction().or(hold_facing) {

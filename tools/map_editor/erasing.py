@@ -45,6 +45,7 @@ from .constants import (
     MODE_ERASE_CHECKPOINTS,
 )
 from .geometry import (
+    zone_spans_level,
     cell_side_from_click,
     point_near_wall,
     ramp_rect,
@@ -83,7 +84,7 @@ def ramps_outside(ramps: list[dict], level_idx: int, rect: Rect) -> list[dict]:
 
 
 def zones_outside(zones: list[dict], level_idx: int, rect: Rect) -> list[dict]:
-    return [zone for zone in zones if not (zone["level"] == level_idx and zone_intersects_rect(zone, rect))]
+    return [zone for zone in zones if not (zone_spans_level(zone, level_idx) and zone_intersects_rect(zone, rect))]
 
 
 def ladders_outside(ladders: list[dict], level_idx: int, rect: Rect) -> list[dict]:
@@ -302,7 +303,7 @@ def hit_at(data: dict, level_idx: int, px: float, py: float, tolerance: float):
     for list_name in ZONE_PICK_ORDER:
         for idx in range(len(data[list_name]) - 1, -1, -1):
             zone = data[list_name][idx]
-            if zone["level"] == level_idx and zone_contains_cell(zone, col, row):
+            if zone_spans_level(zone, level_idx) and zone_contains_cell(zone, col, row):
                 return (HIT_CHECKPOINT if list_name == CHECKPOINT_LIST else HIT_SPAWN_ZONE, (list_name, idx))
     for ramp in data["ramps"]:
         lower = ramp["lower_level"]

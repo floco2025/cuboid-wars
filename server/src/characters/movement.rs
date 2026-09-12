@@ -7,7 +7,7 @@ use common::{
 };
 
 use crate::{
-    actors::{ActorMap, ActorMovementQuery, apply_actor_moves, plan_actor_moves},
+    actors::{ActorMap, ActorMovementQuery, apply_actor_moves, navigation::ActorTerritories, plan_actor_moves},
     players::PlayerMap,
 };
 
@@ -23,6 +23,7 @@ pub fn characters_movement_system(
     plates: Res<PlateState>,
     carriers: Res<Carriers>,
     actors: Res<ActorMap>,
+    territories: Res<ActorTerritories>,
     player_query: PlayerMovementQuery,
     mut actor_query: ActorMovementQuery,
 ) {
@@ -52,6 +53,7 @@ pub fn characters_movement_system(
         &plates,
         &carriers,
         &actors,
+        &territories,
         &actor_starts,
         &mut actor_query,
         &mut planned_moves,

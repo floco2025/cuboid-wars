@@ -1,45 +1,15 @@
-use bevy::prelude::Vec3;
-use common::{
-    physics::{CharacterSupport, character_hitbox_center},
-    protocol::ActorBeam,
-};
+use super::beam::{find_beam_target, start_beam};
+use common::{physics::CharacterSupport, protocol::ActorBeam};
 use rand::Rng;
 
-use crate::{
-    actors::{ActorInfo, ActorMode, BeamState, resources::AwarePlayer},
-    config::ActorBeamAttackConfig,
-};
+use crate::actors::{ActorInfo, ActorMode, BeamState};
 
 use super::transitions::{
     BehaviorContext, enter_evade, enter_roam_or_return, install_ladder_engagement, keep_or_install_engagement_route,
 };
 
 pub(super) fn retarget_beam(info: &mut ActorInfo, context: &BehaviorContext<'_>) {
-    let BeamState::Firing { target: current, .. } = info.beam else {
-        return;
-    };
-    let target = info
-        .awareness
-        .iter()
-        .filter(|aware| beam_target_attackable(aware, context))
-        .min_by_key(|aware| aware.id != current)
-        .copied();
-    if let Some(aware) = target {
-        if let BeamState::Firing { target, .. } = &mut info.beam {
-            *target = aware.id;
-        }
-        if matches!(info.mode, ActorMode::Engage { target, .. } if target == current) {
-            info.mode = ActorMode::Engage {
-                target: aware.id,
-                target_pos: aware.pos,
-            };
-        }
-    } else {
-        info.beam = BeamState::Cooldown {
-            remaining_secs: beam_attack(context).cooldown_secs,
-        };
-        info.decision_timer = 0.0;
-    }
+    super::beam::retarget_beam(info, &context.into());
 }
 
 pub(super) fn decide_stationary_actor(info: &mut ActorInfo, context: &BehaviorContext<'_>) -> Option<ActorBeam> {
@@ -47,12 +17,12 @@ pub(super) fn decide_stationary_actor(info: &mut ActorInfo, context: &BehaviorCo
     if info.beam.target().is_none() {
         info.mode = ActorMode::Roam;
     }
-    find_beam_target(info, context).map(|target| {
+    find_beam_target(info, &context.into()).map(|target| {
         info.mode = ActorMode::Engage {
             target: target.id,
             target_pos: target.pos,
         };
-        start_beam(info, context, target)
+        start_beam(info, &context.into(), target)
     })
 }
 
@@ -71,13 +41,13 @@ pub(super) fn decide_beam_actor(
     if matches!(info.beam, BeamState::Firing { .. }) {
         return None;
     }
-    if let Some(target) = find_beam_target(info, context) {
+    if let Some(target) = find_beam_target(info, &context.into()) {
         info.mode = ActorMode::Engage {
             target: target.id,
             target_pos: target.pos,
         };
         info.set_route(None);
-        return Some(start_beam(info, context, target));
+        return Some(start_beam(info, &context.into(), target));
     }
 
     if matches!(info.beam, BeamState::Cooldown { .. }) {
@@ -115,54 +85,7 @@ pub(super) fn decide_contact_beam_actor(
         return None;
     }
     decide_contact_actor(info, context, rng);
-    find_beam_target(info, context).map(|target| start_beam(info, context, target))
-}
-
-fn find_beam_target(info: &ActorInfo, context: &BehaviorContext<'_>) -> Option<AwarePlayer> {
-    if !matches!(info.beam, BeamState::Ready) {
-        return None;
-    }
-    info.awareness
-        .iter()
-        .find(|aware| beam_target_attackable(aware, context))
-        .copied()
-}
-
-fn beam_target_attackable(aware: &AwarePlayer, context: &BehaviorContext<'_>) -> bool {
-    let range = context
-        .kind_config
-        .attack
-        .beam_range()
-        .expect("beam range missing from beam actor");
-    aware.visible
-        && context.world_pos.distance_sq(&aware.pos) <= range * range
-        && context.collision_world.attack_path_clear(
-            Vec3::from(context.world_pos) + Vec3::Y * context.kind_config.character.beam_origin_y_offset(),
-            character_hitbox_center(aware.pos, context.player_physics),
-            context.open_barriers,
-        )
-}
-
-fn start_beam(info: &mut ActorInfo, context: &BehaviorContext<'_>, target: AwarePlayer) -> ActorBeam {
-    let fire = beam_attack(context);
-    info.beam = BeamState::Firing {
-        target: target.id,
-        started_tick: context.tick,
-        remaining_secs: fire.duration_secs,
-    };
-    ActorBeam {
-        target: target.id,
-        started_tick: context.tick,
-        remaining_secs: fire.duration_secs,
-    }
-}
-
-fn beam_attack(context: &BehaviorContext<'_>) -> ActorBeamAttackConfig {
-    context
-        .kind_config
-        .attack
-        .beam()
-        .expect("beam attack config missing from beam controller")
+    find_beam_target(info, &context.into()).map(|target| start_beam(info, &context.into(), target))
 }
 
 fn try_engage_attackable_player(info: &mut ActorInfo, context: &BehaviorContext<'_>) -> bool {
@@ -177,21 +100,8 @@ fn try_engage_attackable_player(info: &mut ActorInfo, context: &BehaviorContext<
         if aware.support == CharacterSupport::Ladder && install_ladder_engagement(info, context, aware.id, aware.pos) {
             return true;
         }
-        let attack_anchor = match aware.support {
-            CharacterSupport::Ground => Some(aware.pos),
-            CharacterSupport::Airborne if current_target == Some(aware.id) => aware.attack_anchor,
-            CharacterSupport::Airborne | CharacterSupport::Ladder => None,
-        };
-        let Some(anchor) = attack_anchor else {
+        if !keep_or_install_engagement_route(info, context, aware.id, aware.pos) {
             continue;
-        };
-        if !keep_or_install_engagement_route(info, context, aware.id, anchor) {
-            continue;
-        }
-        if aware.support == CharacterSupport::Ground
-            && let Some(memory) = info.awareness.iter_mut().find(|memory| memory.id == aware.id)
-        {
-            memory.attack_anchor = Some(aware.pos);
         }
         return true;
     }
