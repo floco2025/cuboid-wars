@@ -62,7 +62,7 @@
       "multi_shot": 10,
       "missile_pack": 10,
       "portal_gun": 5,
-      "health_potion": 15,
+      "health_potion": 10,
       "speed": 10,
       "low_gravity": 10
     },
@@ -71,7 +71,7 @@
   },
   "power_ups": {
     "duration_secs": {
-      "single_shot": 60.0,
+      "single_shot": 90.0,
       "multi_shot": 30.0,
       "portal_gun": 90.0,
       "speed": 30.0,
