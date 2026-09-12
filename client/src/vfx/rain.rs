@@ -14,7 +14,7 @@ use super::{
     particles::{ParticleCloud, ParticleClouds, ParticleSpawn},
 };
 use crate::{
-    audio::play_sound_with,
+    audio::{NormalizationGain, play_sound_with},
     cameras::MainCameraMarker,
     config::{AssetSet, ClientSettings, WeatherConfig},
 };
@@ -239,7 +239,7 @@ pub fn rain_audio_system(
     asset_set: Res<AssetSet>,
     mut loop_entity: Local<Option<Entity>>,
     global_volume: Res<GlobalVolume>,
-    mut sinks: Query<&mut AudioSink>,
+    mut sounds: Query<(&NormalizationGain, &mut PlaybackSettings, Option<&mut AudioSink>)>,
 ) {
     let raining = rain.current >= RAIN_EPSILON;
     match *loop_entity {
@@ -248,7 +248,7 @@ pub fn rain_audio_system(
                 &mut commands,
                 &asset_server,
                 asset_set.player_sound("rain"),
-                PlaybackSettings::LOOP,
+                PlaybackSettings::LOOP.with_volume(Volume::Linear(rain.current * client_settings.audio.rain_volume)),
             );
             *loop_entity = Some(entity);
         }
@@ -257,12 +257,15 @@ pub fn rain_audio_system(
             *loop_entity = None;
         }
         Some(entity) => {
-            if let Ok(mut sink) = sinks.get_mut(entity) {
+            if let Ok((gain, mut playback, sink)) = sounds.get_mut(entity) {
                 // Runs after `apply_global_volume_system` (ordered before
                 // `ClientSet::Sky`), so this per-frame write wins its push.
-                sink.set_volume(
-                    Volume::Linear(rain.current * client_settings.audio.rain_volume) * global_volume.volume,
-                );
+                playback.volume = Volume::Linear(rain.current * client_settings.audio.rain_volume)
+                    * Volume::Decibels(asset_set.player_sound("rain").volume_db)
+                    * gain.0;
+                if let Some(mut sink) = sink {
+                    sink.set_volume(playback.volume * global_volume.volume);
+                }
             }
         }
         None => {}

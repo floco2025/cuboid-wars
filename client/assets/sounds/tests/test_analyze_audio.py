@@ -25,7 +25,9 @@ class AudioAnalysisTests(unittest.TestCase):
         self.assertAlmostEqual(measured["strongest_50ms_rms_dbfs"] + measured["suggested_gain_db"], -24)
         peak = measure([1.0] + [0.0] * 4800, 1)
         self.assertLessEqual(peak["peak_dbfs"] + peak["suggested_gain_db"], -6)
-        self.assertEqual(measure([0.00001] * 100, 1)["suggested_gain_db"], 0)
+        quiet = measure([0.00001] * 100, 1)
+        self.assertGreater(quiet["suggested_gain_db"], 0)
+        self.assertAlmostEqual(quiet["strongest_50ms_rms_dbfs"] + quiet["suggested_gain_db"], -24)
 
     def test_invalid_audio_is_rejected(self):
         for samples, channels in [([], 1), ([0.0], 2), ([float("nan")], 1), ([float("inf")], 1)]:

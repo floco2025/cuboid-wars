@@ -23,8 +23,8 @@ impl AudioAnalysis {
         ensure!(analysis.version == 1, "unsupported audio analysis version");
         for (path, sound) in &analysis.sounds {
             ensure!(
-                sound.suggested_gain_db.is_finite() && sound.suggested_gain_db <= 0.0,
-                "audio analysis gain for {path} must be finite and nonpositive"
+                sound.suggested_gain_db.is_finite() && 10.0_f32.powf(sound.suggested_gain_db / 20.0).is_finite(),
+                "audio analysis gain for {path} must produce a finite gain"
             );
         }
         Ok(analysis)

@@ -43,7 +43,7 @@
 
 | Asset | Source | License |
 | --- | --- | --- |
-| `sounds/Retro Charge StereoUP 12.wav`, `Retro Event Acute 08.wav`, `Retro Explosion Short 15.wav`, `Retro Impact Punch 07.wav`, `Retro Missile Launcher 01.wav`, `Retro Negative Short 23.wav`, `Retro PowerUP StereoUP 05.wav`, `Retro Turn Off 12.wav`, `Retro Success Melody 01 - sawtooth lead 1.wav` | Kronbits — [FreeSFX](https://kronbits.itch.io/freesfx) | CC0 1.0 |
+| `sounds/Retro Charge StereoUP 12.wav`, `Retro Event Acute 08.wav`, `Retro Explosion Short 15.wav`, `Retro FootStep Krushed Landing 01.wav`, `Retro Impact Punch 07.wav`, `Retro Missile Launcher 01.wav`, `Retro Negative Short 23.wav`, `Retro PowerUP StereoUP 05.wav`, `Retro Turn Off 12.wav`, `Retro Success Melody 01 - sawtooth lead 1.wav` | Kronbits — [FreeSFX](https://kronbits.itch.io/freesfx) | CC0 1.0 |
 | `sounds/impactGeneric_light_001.ogg`, `impactGlass_heavy_001.ogg`, `impactGlass_light_000.ogg`, `impactMetal_medium_003.ogg`, `impactPlank_medium_001.ogg`, `impactPunch_heavy_001.ogg`, `impactTin_medium_004.ogg` | Kenney — [Impact Sounds](https://kenney.nl/assets/impact-sounds) | [CC0](sounds/Kenney-Impact-Sounds-LICENSE.txt) |
 | `sounds/doorClose_2.ogg`, `doorOpen_1.ogg`, `metalClick.ogg`, `metalLatch.ogg` | Kenney — [RPG Audio](https://kenney.nl/assets/rpg-audio) | [CC0](sounds/Kenney-RPG-Audio-LICENSE.txt) |
 | `sounds/freesound_community-laser-beam-76426.wav` | peepholecircus / freesound_community — [Pixabay Laser beam](https://pixabay.com/sound-effects/film-special-effects-laser-beam-76426/); converted from MP3 | [Pixabay Content License](https://pixabay.com/service/license-summary/) |

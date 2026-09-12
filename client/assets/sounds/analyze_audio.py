@@ -63,7 +63,7 @@ def measure(samples, channels, rate=SAMPLE_RATE):
         strongest = max(strongest, running)
     peak = db(max(map(abs, samples)))
     rms50 = db(math.sqrt(strongest / window))
-    gain = min(0.0, TARGET_DBFS - rms50, PEAK_CEILING_DBFS - peak) if peak is not None else 0.0
+    gain = min(TARGET_DBFS - rms50, PEAK_CEILING_DBFS - peak) if peak is not None else 0.0
     return {
         "duration_secs": len(energy) / rate,
         "peak_dbfs": peak,

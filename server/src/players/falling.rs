@@ -13,7 +13,8 @@ use common::{
     map::Carriers,
     physics::CollisionWorld,
     protocol::{
-        Health, MapLayout, MapSettings, PlayerId, PlayerMarker, Position, SPlayerFallDamage, ServerMessage, ServerTick,
+        Health, MapLayout, MapSettings, PlayerId, PlayerMarker, Position, SPlayerFallDamage, SPlayerSoftLanding,
+        ServerMessage, ServerTick,
     },
 };
 
@@ -130,7 +131,7 @@ pub fn players_fatal_outcomes_system(
 // Players Fall Damage System
 // ============================================================================
 
-// Below this damage, skip the impact effect entirely. The lerp produces
+// Below this damage, skip damage and camera shake. The lerp produces
 // near-zero damage just past `safe_distance` due to float / tick
 // noise; without this gate the client would get a wiggle for every tiny
 // step off a curb.
@@ -164,17 +165,19 @@ pub fn players_fall_damage_system(
             }
             let pos = &impact.pos;
             let fall_distance = fall_distance_for_speed(impact.impact_speed, map_settings.movement.gravity);
-            if fall_distance <= fall.safe_distance {
-                continue;
-            }
-
             let damage = fall_damage_for_distance(fall_distance, fall.safe_distance, fall.lethal_distance, max_health);
-            // Skip the entire emission path for negligible damage —
-            // the safe-threshold lerp produces near-zero damage just
-            // past `safe_distance` from floating-point slack and
-            // discrete-tick noise. No HUD update or camera wiggle for
-            // a fall the player barely registers.
             if damage < FALL_DAMAGE_EMIT_THRESHOLD {
+                if impact.impact_speed > 0.0
+                    && let Some(info) = players.get(id)
+                {
+                    let _ = info
+                        .connection
+                        .channel
+                        .send(ServerMessage::PlayerSoftLanding(SPlayerSoftLanding {
+                            id: *id,
+                            generation: info.session.generation,
+                        }));
+                }
                 continue;
             }
             if !invincible {

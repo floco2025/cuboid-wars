@@ -107,6 +107,21 @@ pub(in crate::network) fn handle_player_hit_message(
     }
 }
 
+pub(in crate::network) fn handle_player_soft_landing_message(
+    message: SPlayerSoftLanding,
+    commands: &mut Commands,
+    my_player_id: PlayerId,
+    context: &mut ServerMessageContext,
+) {
+    if message.id == my_player_id && context.players.accepts_body_cue(message.id, message.generation) {
+        play_sound(
+            commands,
+            &context.assets.asset_server,
+            context.assets.asset_set.player_sound("landing"),
+        );
+    }
+}
+
 // Player took fall damage. Updates HUD health on the impact frame (instead
 // of waiting for the next snapshot), applies a vertical camera shake — same
 // envelope as a projectile hit, re-aimed along the Y axis — and plays the

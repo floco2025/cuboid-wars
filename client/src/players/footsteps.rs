@@ -1,6 +1,10 @@
 use std::iter;
 
-use bevy::{app::AnimationSystems, audio::Volume, prelude::*};
+use bevy::{
+    app::AnimationSystems,
+    audio::{SpatialScale, Volume},
+    prelude::*,
+};
 use common::{
     map::Carriers,
     physics::{CharacterSupport, CollisionWorld},
@@ -13,7 +17,7 @@ use super::{
     animation::{PlayerAnimationPlayback, PlayerClip},
 };
 use crate::{
-    audio::{AudioAnalysis, play_sound_with, play_spatial_sound_with, settings_volume},
+    audio::settings_volume,
     config::{AssetSet, ClientSettings},
     constants::{
         PLAYER_ANIMATION_STANDSTILL_SPEED, PLAYER_FOOTSTEP_CLIMB_PHASES, PLAYER_FOOTSTEP_CLIMB_REVERSE_PHASES,
@@ -106,7 +110,6 @@ fn player_footsteps_system(
     settings: Res<ClientSettings>,
     assets: Res<AssetSet>,
     asset_server: Res<AssetServer>,
-    analysis: Res<AudioAnalysis>,
     clips: Res<Assets<AnimationClip>>,
     world: Res<CollisionWorld>,
     layout: Res<MapLayout>,
@@ -225,19 +228,19 @@ fn player_footsteps_system(
         }
         let sample = &set.samples[sample_index(&set.samples, state.odd_step, state.last_sound.as_deref(), &mut rng)];
         let mut play = |sample: &str, gain: f32| {
-            let volume = footstep_volume * surface_volume * ladder_volume * analysis.gain(sample) * gain;
+            let volume = footstep_volume * surface_volume * ladder_volume * gain;
             let playback_settings = PlaybackSettings::DESPAWN.with_volume(Volume::Linear(volume));
+            let player = AudioPlayer::new(asset_server.load(sample.to_owned()));
             if local {
-                play_sound_with(&mut commands, &asset_server, sample, playback_settings);
+                commands.spawn((player, playback_settings));
             } else {
-                play_spatial_sound_with(
-                    &mut commands,
-                    &asset_server,
-                    sample,
-                    &settings.audio,
-                    playback_settings,
-                    feet,
-                );
+                commands.spawn((
+                    player,
+                    playback_settings
+                        .with_spatial(true)
+                        .with_spatial_scale(SpatialScale::new(settings.audio.spatial_distance_scale)),
+                    Transform::from_translation(feet),
+                ));
             }
         };
         play(sample, 1.0);

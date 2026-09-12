@@ -1,8 +1,50 @@
 use crate::test_fixtures;
 use common::protocol::{MapLayout, TextureSettings};
 
-use super::{ModelDef, model::validate_model};
+use super::{ModelDef, model::validate_model, sound::SoundDef};
 use crate::test_fixtures::map_settings;
+
+#[test]
+fn sound_definitions_default_to_zero_db_and_reject_invalid_files_and_gains() {
+    let mut assets = test_fixtures::asset_set();
+    let sound: SoundDef = serde_json::from_value(serde_json::json!({"file": "sounds/example.ogg"}))
+        .expect("sound without a volume rejected");
+    assert_eq!(sound.volume_db, 0.0);
+    for db in [-20.0, 0.0, 20.0, f32::NAN, f32::NEG_INFINITY, f32::INFINITY, f32::MAX] {
+        assets
+            .actors
+            .get_mut("scuttler")
+            .expect("actor fixture missing")
+            .sounds
+            .insert(
+                "extra".into(),
+                SoundDef {
+                    file: sound.file.clone(),
+                    volume_db: db,
+                },
+            );
+        if db.is_finite() && db.abs() <= 20.0 {
+            assets.validate().expect("valid sound adjustment rejected");
+        } else {
+            let error = assets.validate().expect_err("invalid sound adjustment accepted");
+            assert!(error.to_string().contains("actors.scuttler.sounds.extra.volume_db"));
+        }
+    }
+    assets
+        .actors
+        .get_mut("scuttler")
+        .expect("actor fixture missing")
+        .sounds
+        .insert(
+            "extra".into(),
+            SoundDef {
+                file: " ".into(),
+                volume_db: 0.0,
+            },
+        );
+    let error = assets.validate().expect_err("empty sound file accepted");
+    assert!(error.to_string().contains("actors.scuttler.sounds.extra.file"));
+}
 
 #[test]
 fn missing_map_texture_binding_fails_before_rendering() {

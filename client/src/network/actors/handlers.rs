@@ -44,7 +44,11 @@ pub(in crate::network) fn handle_actor_death_message(
     play_explosion_sound(
         commands,
         &context.assets.asset_server,
-        context.assets.asset_set.actor_sound(&info.kind, "explodes"),
+        context
+            .assets
+            .asset_set
+            .actor_sound(&info.kind, "explodes")
+            .expect("actor explosion sound missing"),
         &context.client_settings.audio,
         Vec3::from(message.pos),
         context.assets.blast_radii.actors.get(&info.kind).copied(),

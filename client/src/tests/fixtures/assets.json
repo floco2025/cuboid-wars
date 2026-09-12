@@ -26,30 +26,100 @@
       "y_offset": 0.0
     },
     "sounds": {
-      "laser_show": "sounds/impactGeneric_light_001.ogg",
-      "fire": "sounds/impactGeneric_light_001.ogg",
-      "missile_launch": "sounds/impactGeneric_light_001.ogg",
-      "dry_fire": "sounds/impactGeneric_light_001.ogg",
-      "take_hit": "sounds/impactGeneric_light_001.ogg",
-      "explodes": "sounds/impactGeneric_light_001.ogg",
-      "fall_damage": "sounds/impactGeneric_light_001.ogg",
-      "void_fall": "sounds/impactGeneric_light_001.ogg",
-      "collect_power_up": "sounds/impactGeneric_light_001.ogg",
-      "eraser": "sounds/impactGeneric_light_001.ogg",
-      "collect_gold": "sounds/impactGeneric_light_001.ogg",
-      "bump_wall": "sounds/impactGeneric_light_001.ogg",
-      "bump_player": "sounds/impactGeneric_light_001.ogg",
-      "hit_wall": "sounds/impactGeneric_light_001.ogg",
-      "hit_player": "sounds/impactGeneric_light_001.ogg",
-      "hit_actor": "sounds/impactGeneric_light_001.ogg",
-      "barrier_impact": "sounds/impactGeneric_light_001.ogg",
-      "plate_press": "sounds/impactGeneric_light_001.ogg",
-      "plate_release": "sounds/impactGeneric_light_001.ogg",
-      "portal_fizzle": "sounds/impactGeneric_light_001.ogg",
-      "portal_fire": "sounds/impactGeneric_light_001.ogg",
-      "quest_completed": "sounds/impactGeneric_light_001.ogg",
-      "checkpoint_reached": "sounds/impactGeneric_light_001.ogg",
-      "rain": "sounds/impactGeneric_light_001.ogg"
+      "laser_show": {
+        "file": "sounds/impactGeneric_light_001.ogg",
+        "volume_db": 0
+      },
+      "fire": { "file": "sounds/impactGeneric_light_001.ogg", "volume_db": 0 },
+      "missile_launch": {
+        "file": "sounds/impactGeneric_light_001.ogg",
+        "volume_db": 0
+      },
+      "dry_fire": {
+        "file": "sounds/impactGeneric_light_001.ogg",
+        "volume_db": 0
+      },
+      "take_hit": {
+        "file": "sounds/impactGeneric_light_001.ogg",
+        "volume_db": 0
+      },
+      "explodes": {
+        "file": "sounds/impactGeneric_light_001.ogg",
+        "volume_db": 0
+      },
+      "fall_damage": {
+        "file": "sounds/impactGeneric_light_001.ogg",
+        "volume_db": 0
+      },
+      "landing": {
+        "file": "sounds/impactGeneric_light_001.ogg",
+        "volume_db": -10
+      },
+      "void_fall": {
+        "file": "sounds/impactGeneric_light_001.ogg",
+        "volume_db": 0
+      },
+      "collect_power_up": {
+        "file": "sounds/impactGeneric_light_001.ogg",
+        "volume_db": 0
+      },
+      "eraser": {
+        "file": "sounds/impactGeneric_light_001.ogg",
+        "volume_db": 0
+      },
+      "collect_gold": {
+        "file": "sounds/impactGeneric_light_001.ogg",
+        "volume_db": 0
+      },
+      "bump_wall": {
+        "file": "sounds/impactGeneric_light_001.ogg",
+        "volume_db": 0
+      },
+      "bump_player": {
+        "file": "sounds/impactGeneric_light_001.ogg",
+        "volume_db": 0
+      },
+      "hit_wall": {
+        "file": "sounds/impactGeneric_light_001.ogg",
+        "volume_db": 0
+      },
+      "hit_player": {
+        "file": "sounds/impactGeneric_light_001.ogg",
+        "volume_db": 0
+      },
+      "hit_actor": {
+        "file": "sounds/impactGeneric_light_001.ogg",
+        "volume_db": 0
+      },
+      "barrier_impact": {
+        "file": "sounds/impactGeneric_light_001.ogg",
+        "volume_db": 0
+      },
+      "plate_press": {
+        "file": "sounds/impactGeneric_light_001.ogg",
+        "volume_db": 0
+      },
+      "plate_release": {
+        "file": "sounds/impactGeneric_light_001.ogg",
+        "volume_db": 0
+      },
+      "portal_fizzle": {
+        "file": "sounds/impactGeneric_light_001.ogg",
+        "volume_db": 0
+      },
+      "portal_fire": {
+        "file": "sounds/impactGeneric_light_001.ogg",
+        "volume_db": 0
+      },
+      "quest_completed": {
+        "file": "sounds/impactGeneric_light_001.ogg",
+        "volume_db": 0
+      },
+      "checkpoint_reached": {
+        "file": "sounds/impactGeneric_light_001.ogg",
+        "volume_db": 0
+      },
+      "rain": { "file": "sounds/impactGeneric_light_001.ogg", "volume_db": 0 }
     }
   },
   "actors": {
@@ -68,8 +138,10 @@
         }
       },
       "sounds": {
-        "explodes": "sounds/impactGeneric_light_001.ogg",
-        "fire": "sounds/impactGeneric_light_001.ogg"
+        "explodes": {
+          "file": "sounds/impactGeneric_light_001.ogg",
+          "volume_db": 0
+        }
       }
     },
     "bruiser": {
@@ -87,8 +159,10 @@
         }
       },
       "sounds": {
-        "explodes": "sounds/impactGeneric_light_001.ogg",
-        "fire": "sounds/impactGeneric_light_001.ogg"
+        "explodes": {
+          "file": "sounds/impactGeneric_light_001.ogg",
+          "volume_db": 0
+        }
       }
     },
     "zapper": {
@@ -105,8 +179,11 @@
         }
       },
       "sounds": {
-        "explodes": "sounds/impactGeneric_light_001.ogg",
-        "fire": "sounds/impactGeneric_light_001.ogg"
+        "explodes": {
+          "file": "sounds/impactGeneric_light_001.ogg",
+          "volume_db": 0
+        },
+        "fire": { "file": "sounds/impactGeneric_light_001.ogg", "volume_db": 0 }
       }
     },
     "turret": {
@@ -122,8 +199,11 @@
         }
       },
       "sounds": {
-        "explodes": "sounds/impactGeneric_light_001.ogg",
-        "fire": "sounds/impactGeneric_light_001.ogg"
+        "explodes": {
+          "file": "sounds/impactGeneric_light_001.ogg",
+          "volume_db": 0
+        },
+        "fire": { "file": "sounds/impactGeneric_light_001.ogg", "volume_db": 0 }
       }
     }
   },

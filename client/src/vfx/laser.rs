@@ -4,6 +4,7 @@ use bevy::{audio::SpatialScale, light::NotShadowCaster, prelude::*};
 
 use crate::{
     actors::{ActorMap, AimJointMarker, AimRig},
+    audio::sound_playback,
     config::{AssetSet, ClientSettings},
     constants::*,
     players::PlayerMap,
@@ -54,7 +55,7 @@ fn spawn_laser_beam(
         emissive: LinearRgba::rgb(brightness, 0.08 * brightness, 0.08 * brightness),
         ..default()
     });
-    commands.spawn((
+    let mut entity = commands.spawn((
         beam,
         // Unit-height cylinder with the real radius baked in; the update
         // system scales Y to the live beam length.
@@ -64,12 +65,17 @@ fn spawn_laser_beam(
         Transform::from_translation(position),
         // Hidden until the first update frame anchors it.
         Visibility::Hidden,
-        AudioPlayer::new(asset_server.load(asset_set.actor_sound(kind, "fire").to_owned())),
-        PlaybackSettings::ONCE
-            .with_start_position(Duration::from_secs_f32(elapsed_secs))
-            .with_spatial(true)
-            .with_spatial_scale(SpatialScale::new(settings.audio.spatial_distance_scale)),
     ));
+    if let Some(sound) = asset_set.actor_sound(kind, "fire") {
+        entity.insert(sound_playback(
+            asset_server,
+            sound,
+            PlaybackSettings::ONCE
+                .with_start_position(Duration::from_secs_f32(elapsed_secs))
+                .with_spatial(true)
+                .with_spatial_scale(SpatialScale::new(settings.audio.spatial_distance_scale)),
+        ));
+    }
 }
 
 // Spawn a beam for every burst the snapshot reports and despawn every beam

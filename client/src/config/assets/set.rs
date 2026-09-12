@@ -15,6 +15,7 @@ use super::{
     material::{MaterialBinding, MaterialDef},
     model::{ModelDef, validate_model},
     pressure_plate::PressurePlateDef,
+    sound::SoundDef,
 };
 
 const REQUIRED_PLAYER_SOUNDS: &[&str] = &[
@@ -31,6 +32,7 @@ const REQUIRED_PLAYER_SOUNDS: &[&str] = &[
     "hit_actor",
     "hit_player",
     "hit_wall",
+    "landing",
     "laser_show",
     "missile_launch",
     "plate_press",
@@ -43,7 +45,7 @@ const REQUIRED_PLAYER_SOUNDS: &[&str] = &[
     "take_hit",
     "void_fall",
 ];
-const REQUIRED_ACTOR_SOUNDS: &[&str] = &["explodes", "fire"];
+const REQUIRED_ACTOR_SOUNDS: &[&str] = &["explodes"];
 
 #[derive(Resource, Debug, Clone, Deserialize)]
 pub struct AssetSet {
@@ -108,9 +110,7 @@ impl AssetSet {
         );
         self.pressure_plate.validate()?;
         validate_model("player.model", &self.player.model)?;
-        for sound in REQUIRED_PLAYER_SOUNDS {
-            validate_sound("player.sounds", &self.player.sounds, sound)?;
-        }
+        validate_sounds("player.sounds", &self.player.sounds, REQUIRED_PLAYER_SOUNDS)?;
         for (kind, light) in &self.wall_lights {
             anyhow::ensure!(
                 !kind.trim().is_empty() && !light.scene.trim().is_empty(),
@@ -140,9 +140,7 @@ impl AssetSet {
         }
         for (kind, actor) in &self.actors {
             validate_model(&format!("actors.{kind}.model"), &actor.model)?;
-            for sound in REQUIRED_ACTOR_SOUNDS {
-                validate_sound(&format!("actors.{kind}.sounds"), &actor.sounds, sound)?;
-            }
+            validate_sounds(&format!("actors.{kind}.sounds"), &actor.sounds, REQUIRED_ACTOR_SOUNDS)?;
         }
         Ok(())
     }
@@ -246,20 +244,15 @@ impl AssetSet {
         (name, def)
     }
 
-    pub fn player_sound(&self, name: &str) -> &str {
+    pub fn player_sound(&self, name: &str) -> &SoundDef {
         self.player
             .sounds
             .get(name)
-            .map(String::as_str)
             .unwrap_or_else(|| panic!("asset set is missing player sound {name:?}"))
     }
 
-    pub fn actor_sound(&self, kind: &str, name: &str) -> &str {
-        self.actor(kind)
-            .sounds
-            .get(name)
-            .map(String::as_str)
-            .unwrap_or_else(|| panic!("asset set is missing actor sound {kind:?}.{name:?}"))
+    pub fn actor_sound(&self, kind: &str, name: &str) -> Option<&SoundDef> {
+        self.actor(kind).sounds.get(name)
     }
 
     fn actor(&self, kind: &str) -> &ActorAssets {
@@ -285,22 +278,26 @@ impl AssetSet {
     }
 }
 
-fn validate_sound(path: &str, sounds: &HashMap<String, String>, name: &str) -> Result<()> {
-    let Some(asset_path) = sounds.get(name) else {
-        bail!("asset config is missing required `{path}.{name}`");
-    };
-    anyhow::ensure!(!asset_path.trim().is_empty(), "`{path}.{name}` must not be empty");
+fn validate_sounds(path: &str, sounds: &HashMap<String, SoundDef>, required: &[&str]) -> Result<()> {
+    for name in required {
+        if !sounds.contains_key(*name) {
+            bail!("asset config is missing required `{path}.{name}`");
+        }
+    }
+    for (name, sound) in sounds {
+        sound.validate(&format!("{path}.{name}"))?;
+    }
     Ok(())
 }
 
 #[derive(Debug, Clone, Deserialize)]
 struct PlayerAssets {
     model: ModelDef,
-    sounds: HashMap<String, String>,
+    sounds: HashMap<String, SoundDef>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub(super) struct ActorAssets {
     pub(super) model: ModelDef,
-    pub(super) sounds: HashMap<String, String>,
+    pub(super) sounds: HashMap<String, SoundDef>,
 }

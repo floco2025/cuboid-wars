@@ -60,6 +60,36 @@ fn sync_app() -> App {
 }
 
 #[test]
+fn missing_fire_sound_keeps_the_beam_visual() {
+    let mut app = sync_app();
+    let asset_server = app.world().resource::<AssetServer>().clone();
+    spawn_laser_beam(
+        &mut app.world_mut().commands(),
+        &mut Assets::<Mesh>::default(),
+        &mut Assets::<StandardMaterial>::default(),
+        &asset_server,
+        &test_fixtures::asset_set(),
+        &test_fixtures::client_settings(),
+        LaserBeam {
+            actor: ActorId(1),
+            target: PlayerId(1),
+            started_tick: 1,
+        },
+        "scuttler",
+        Vec3::ZERO,
+        0.0,
+    );
+    app.world_mut().flush();
+    let beam = app
+        .world_mut()
+        .query_filtered::<Entity, With<LaserBeam>>()
+        .single(app.world())
+        .expect("beam missing");
+    assert!(app.world().get::<Mesh3d>(beam).is_some());
+    assert!(app.world().get::<AudioPlayer>(beam).is_none());
+}
+
+#[test]
 fn beam_keeps_one_effect_and_sound_through_retargeting() {
     let mut app = sync_app();
     for id in [PlayerId(1), PlayerId(2)] {

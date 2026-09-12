@@ -3,11 +3,14 @@ use bevy::{
     prelude::*,
 };
 
-use crate::{config::AudioConfig, vfx::explosion_sound_speed};
+use crate::{
+    config::{AudioConfig, SoundDef},
+    vfx::explosion_sound_speed,
+};
 
 // Flat one-shot feedback sound (UI clicks, own-player cues).
-pub fn play_sound(commands: &mut Commands, asset_server: &AssetServer, asset_path: &str) {
-    play_sound_with(commands, asset_server, asset_path, PlaybackSettings::DESPAWN);
+pub fn play_sound(commands: &mut Commands, asset_server: &AssetServer, sound: &SoundDef) {
+    play_sound_with(commands, asset_server, sound, PlaybackSettings::DESPAWN);
 }
 
 // Flat sound with explicit playback settings (loops, volume tweaks).
@@ -15,12 +18,10 @@ pub fn play_sound(commands: &mut Commands, asset_server: &AssetServer, asset_pat
 pub fn play_sound_with(
     commands: &mut Commands,
     asset_server: &AssetServer,
-    asset_path: &str,
+    sound: &SoundDef,
     settings: PlaybackSettings,
 ) -> Entity {
-    commands
-        .spawn((AudioPlayer::new(asset_server.load(asset_path.to_owned())), settings))
-        .id()
+    commands.spawn(sound_playback(asset_server, sound, settings)).id()
 }
 
 // Positional world one-shot: attenuates and pans with distance from `pos`
@@ -28,14 +29,14 @@ pub fn play_sound_with(
 pub fn play_spatial_sound(
     commands: &mut Commands,
     asset_server: &AssetServer,
-    asset_path: &str,
+    sound: &SoundDef,
     audio_config: &AudioConfig,
     pos: Vec3,
 ) {
     play_spatial_sound_with(
         commands,
         asset_server,
-        asset_path,
+        sound,
         audio_config,
         PlaybackSettings::DESPAWN,
         pos,
@@ -46,17 +47,20 @@ pub fn play_spatial_sound(
 pub fn play_spatial_sound_with(
     commands: &mut Commands,
     asset_server: &AssetServer,
-    asset_path: &str,
+    sound: &SoundDef,
     audio_config: &AudioConfig,
     settings: PlaybackSettings,
     pos: Vec3,
 ) -> Entity {
     commands
         .spawn((
-            AudioPlayer::new(asset_server.load(asset_path.to_owned())),
-            settings
-                .with_spatial(true)
-                .with_spatial_scale(SpatialScale::new(audio_config.spatial_distance_scale)),
+            sound_playback(
+                asset_server,
+                sound,
+                settings
+                    .with_spatial(true)
+                    .with_spatial_scale(SpatialScale::new(audio_config.spatial_distance_scale)),
+            ),
             Transform::from_translation(pos),
         ))
         .id()
@@ -68,7 +72,7 @@ pub fn play_spatial_sound_with(
 pub fn play_explosion_sound(
     commands: &mut Commands,
     asset_server: &AssetServer,
-    asset_path: &str,
+    sound: &SoundDef,
     audio_config: &AudioConfig,
     pos: Vec3,
     blast_radius: Option<f32>,
@@ -76,11 +80,20 @@ pub fn play_explosion_sound(
     play_spatial_sound_with(
         commands,
         asset_server,
-        asset_path,
+        sound,
         audio_config,
         PlaybackSettings::DESPAWN
             .with_volume(Volume::Linear(audio_config.explosion_gain))
             .with_speed(blast_radius.map_or(1.0, explosion_sound_speed)),
         pos,
     );
+}
+
+pub fn sound_playback(
+    asset_server: &AssetServer,
+    sound: &SoundDef,
+    mut settings: PlaybackSettings,
+) -> (AudioPlayer, PlaybackSettings) {
+    settings.volume *= Volume::Decibels(sound.volume_db);
+    (AudioPlayer::new(asset_server.load(sound.file.clone())), settings)
 }

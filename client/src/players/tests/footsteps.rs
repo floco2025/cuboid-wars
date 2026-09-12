@@ -6,6 +6,7 @@ use serde_json::{from_value, json};
 
 use super::*;
 use crate::{
+    audio::{AudioAnalysis, audio_plugin},
     players::animation::{AnimationState, PlayerAnimationSource},
     test_fixtures,
 };
@@ -94,6 +95,7 @@ fn sound_app(local: bool, support: CharacterSupport, volume_db: f32, clip: Playe
         .insert_resource(layout)
         .init_resource::<PlateState>()
         .init_resource::<PlayerMap>();
+    app.add_plugins(audio_plugin);
     let owner = app
         .world_mut()
         .spawn((

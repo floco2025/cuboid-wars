@@ -34,6 +34,16 @@
       "strongest_50ms_rms_dbfs": -8.042222,
       "suggested_gain_db": -15.957778
     },
+    "sounds/Retro FootStep Krushed Landing 01.wav": {
+      "sha256": "02f850bbf6a5cc6fc5af94cf787729e8195b7b40e86218e9f12ae9c2dfc9c1aa",
+      "sample_rate": 44100,
+      "channels": 2,
+      "duration_secs": 0.143875,
+      "peak_dbfs": 1.141532,
+      "rms_dbfs": -7.045018,
+      "strongest_50ms_rms_dbfs": -3.220805,
+      "suggested_gain_db": -20.779195
+    },
     "sounds/Retro Impact Punch 07.wav": {
       "sha256": "1bb518750e2ba7160e1856cd856827d9cf25951b851b1b75a83a376fd20fd24e",
       "sample_rate": 44100,
@@ -502,7 +512,7 @@
       "peak_dbfs": -6.92918,
       "rms_dbfs": -34.328695,
       "strongest_50ms_rms_dbfs": -27.456811,
-      "suggested_gain_db": 0.0
+      "suggested_gain_db": 0.92918
     },
     "sounds/metalLatch.ogg": {
       "sha256": "ba9ba60b172b3ebc131a940f25793cd2e207aca7af73dc80d637277f060f1708",

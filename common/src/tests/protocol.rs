@@ -28,6 +28,10 @@ fn the_checkpoint_cue_rides_the_reliable_lane() {
 #[test]
 fn unreliable_lane_messages_fit_one_packet() {
     let messages = [
+        ServerMessage::PlayerSoftLanding(SPlayerSoftLanding {
+            id: PlayerId(1),
+            generation: PlayerGeneration(0),
+        }),
         ServerMessage::EquipmentErased(SEquipmentErased),
         ServerMessage::PlayerStatus(SPlayerStatus {
             id: PlayerId(1),

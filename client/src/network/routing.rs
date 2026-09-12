@@ -12,7 +12,7 @@ use super::{
     players::{
         handle_equipment_erased_message, handle_player_death_message, handle_player_fall_damage_message,
         handle_player_hit_message, handle_player_knockback_message, handle_player_moves_message,
-        handle_player_relocated_message, handle_player_status_message,
+        handle_player_relocated_message, handle_player_soft_landing_message, handle_player_status_message,
     },
     portals::{handle_portal_fizzled_message, handle_portal_opened_message},
     presentation::{
@@ -54,6 +54,9 @@ pub(super) fn route_server_message(
         }
         ServerMessage::PlayerFallDamage(message) => {
             handle_player_fall_damage_message(message, commands, my_player_id, context);
+        }
+        ServerMessage::PlayerSoftLanding(message) => {
+            handle_player_soft_landing_message(message, commands, my_player_id, context);
         }
         ServerMessage::PlayerKnockback(message) => {
             handle_player_knockback_message(message, commands, my_player_id, context);

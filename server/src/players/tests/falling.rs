@@ -290,6 +290,7 @@ fn simultaneous_invincible_rescues_take_distinct_spots() {
 #[test]
 fn landing_damage_uses_impact_speed_and_map_thresholds() {
     for (safe, lethal, drop, low_gravity, max_health, initial_health, expected_health) in [
+        (4.0, 12.0, 0.0, false, 100.0, 100.0, 100.0),
         (12.0, 16.0, 12.0, false, 100.0, 100.0, 100.0),
         (8.0, 16.0, 12.0, false, 100.0, 100.0, 50.0),
         (4.0, 12.0, 12.0, false, 100.0, 100.0, 0.0),
@@ -353,15 +354,28 @@ fn landing_damage_uses_impact_speed_and_map_thresholds() {
                 (app.world().get::<Health>(entity).expect("player health missing").0 - expected_health).abs() < 0.001
             );
         }
-        let mut impact_health = None;
+        let mut impacts = Vec::new();
         while let Ok(message) = receiver.try_recv() {
-            if let ServerMessage::PlayerFallDamage(impact) = message {
-                impact_health = Some(impact.health.0);
+            match message {
+                ServerMessage::PlayerFallDamage(impact) => {
+                    assert_eq!(impact.id, id);
+                    impacts.push(Some(impact.health.0));
+                }
+                ServerMessage::PlayerSoftLanding(impact) => {
+                    assert_eq!(impact.id, id);
+                    impacts.push(None);
+                }
+                _ => {}
             }
         }
-        assert_eq!(impact_health.is_some(), expected_health < initial_health);
-        if let Some(health) = impact_health {
-            assert!((health - expected_health).abs() < 0.001);
+        if drop == 0.0 {
+            assert!(impacts.is_empty());
+        } else {
+            assert_eq!(impacts.len(), 1, "one landing must emit exactly one sound cue");
+            assert_eq!(impacts[0].is_some(), expected_health < initial_health);
+            if let Some(health) = impacts[0] {
+                assert!((health - expected_health).abs() < 0.001);
+            }
         }
     }
 }

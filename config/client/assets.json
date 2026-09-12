@@ -280,30 +280,85 @@
       "y_offset": 0.0
     },
     "sounds": {
-      "laser_show": "sounds/freesound_community-laser-beam-76426.wav",
-      "fire": "sounds/impactGeneric_light_001.ogg",
-      "missile_launch": "sounds/Retro Missile Launcher 01.wav",
-      "dry_fire": "sounds/metalLatch.ogg",
-      "take_hit": "sounds/impactPunch_heavy_001.ogg",
-      "explodes": "sounds/Retro Explosion Short 15.wav",
-      "fall_damage": "sounds/Retro Impact Punch 07.wav",
-      "void_fall": "sounds/Retro Turn Off 12.wav",
-      "collect_power_up": "sounds/Retro PowerUP StereoUP 05.wav",
-      "eraser": "sounds/Retro Negative Short 23.wav",
-      "collect_gold": "sounds/metalClick.ogg",
-      "bump_wall": "sounds/impactGlass_heavy_001.ogg",
-      "bump_player": "sounds/impactTin_medium_004.ogg",
-      "hit_wall": "sounds/impactGlass_light_000.ogg",
-      "hit_player": "sounds/impactGeneric_light_001.ogg",
-      "hit_actor": "sounds/impactMetal_medium_003.ogg",
-      "barrier_impact": "sounds/impactPlank_medium_001.ogg",
-      "plate_press": "sounds/doorOpen_1.ogg",
-      "plate_release": "sounds/doorClose_2.ogg",
-      "portal_fizzle": "sounds/portal-fizzle.wav",
-      "portal_fire": "sounds/Retro Charge StereoUP 12.wav",
-      "quest_completed": "sounds/Retro Event Acute 08.wav",
-      "checkpoint_reached": "sounds/Retro Success Melody 01 - sawtooth lead 1.wav",
-      "rain": "sounds/rain-on-umbrella-loop.wav"
+      "laser_show": {
+        "file": "sounds/freesound_community-laser-beam-76426.wav",
+        "volume_db": 13
+      },
+      "fire": {
+        "file": "sounds/impactGeneric_light_001.ogg",
+        "volume_db": 7.5
+      },
+      "missile_launch": {
+        "file": "sounds/Retro Missile Launcher 01.wav",
+        "volume_db": 11
+      },
+      "dry_fire": { "file": "sounds/metalLatch.ogg", "volume_db": 11 },
+      "take_hit": {
+        "file": "sounds/impactPunch_heavy_001.ogg",
+        "volume_db": 16
+      },
+      "explodes": {
+        "file": "sounds/Retro Explosion Short 15.wav",
+        "volume_db": 16
+      },
+      "fall_damage": {
+        "file": "sounds/Retro Impact Punch 07.wav",
+        "volume_db": 18
+      },
+      "landing": {
+        "file": "sounds/Retro FootStep Krushed Landing 01.wav",
+        "volume_db": -3
+      },
+      "void_fall": { "file": "sounds/Retro Turn Off 12.wav", "volume_db": 11 },
+      "collect_power_up": {
+        "file": "sounds/Retro PowerUP StereoUP 05.wav",
+        "volume_db": 14
+      },
+      "eraser": {
+        "file": "sounds/Retro Negative Short 23.wav",
+        "volume_db": 17
+      },
+      "collect_gold": { "file": "sounds/metalClick.ogg", "volume_db": -0.93 },
+      "bump_wall": {
+        "file": "sounds/impactGlass_heavy_001.ogg",
+        "volume_db": 7.9
+      },
+      "bump_player": {
+        "file": "sounds/impactTin_medium_004.ogg",
+        "volume_db": 6.9
+      },
+      "hit_wall": {
+        "file": "sounds/impactGlass_light_000.ogg",
+        "volume_db": 8.8
+      },
+      "hit_player": {
+        "file": "sounds/impactGeneric_light_001.ogg",
+        "volume_db": 7.5
+      },
+      "hit_actor": {
+        "file": "sounds/impactMetal_medium_003.ogg",
+        "volume_db": 9.1
+      },
+      "barrier_impact": {
+        "file": "sounds/impactPlank_medium_001.ogg",
+        "volume_db": 15
+      },
+      "plate_press": { "file": "sounds/doorOpen_1.ogg", "volume_db": 14 },
+      "plate_release": { "file": "sounds/doorClose_2.ogg", "volume_db": 13 },
+      "portal_fizzle": { "file": "sounds/portal-fizzle.wav", "volume_db": 10 },
+      "portal_fire": {
+        "file": "sounds/Retro Charge StereoUP 12.wav",
+        "volume_db": 17
+      },
+      "quest_completed": {
+        "file": "sounds/Retro Event Acute 08.wav",
+        "volume_db": 2.9
+      },
+      "checkpoint_reached": {
+        "file": "sounds/Retro Success Melody 01 - sawtooth lead 1.wav",
+        "volume_db": 2
+      },
+      "rain": { "file": "sounds/rain-on-umbrella-loop.wav", "volume_db": 2.3 }
     }
   },
   "actors": {
@@ -322,8 +377,10 @@
         }
       },
       "sounds": {
-        "explodes": "sounds/Retro Explosion Short 15.wav",
-        "fire": "sounds/freesound_community-laser-beam-76426.wav"
+        "explodes": {
+          "file": "sounds/Retro Explosion Short 15.wav",
+          "volume_db": 16
+        }
       }
     },
     "bruiser": {
@@ -341,8 +398,10 @@
         }
       },
       "sounds": {
-        "explodes": "sounds/Retro Explosion Short 15.wav",
-        "fire": "sounds/freesound_community-laser-beam-76426.wav"
+        "explodes": {
+          "file": "sounds/Retro Explosion Short 15.wav",
+          "volume_db": 16
+        }
       }
     },
     "zapper": {
@@ -359,8 +418,14 @@
         }
       },
       "sounds": {
-        "explodes": "sounds/Retro Explosion Short 15.wav",
-        "fire": "sounds/freesound_community-laser-beam-76426.wav"
+        "explodes": {
+          "file": "sounds/Retro Explosion Short 15.wav",
+          "volume_db": 16
+        },
+        "fire": {
+          "file": "sounds/freesound_community-laser-beam-76426.wav",
+          "volume_db": 13
+        }
       }
     },
     "turret": {
@@ -376,8 +441,14 @@
         }
       },
       "sounds": {
-        "explodes": "sounds/Retro Explosion Short 15.wav",
-        "fire": "sounds/freesound_community-laser-beam-76426.wav"
+        "explodes": {
+          "file": "sounds/Retro Explosion Short 15.wav",
+          "volume_db": 16
+        },
+        "fire": {
+          "file": "sounds/freesound_community-laser-beam-76426.wav",
+          "volume_db": 13
+        }
       }
     }
   },

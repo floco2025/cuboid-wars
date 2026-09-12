@@ -3,6 +3,8 @@ use std::collections::HashMap;
 use anyhow::{Result, ensure};
 use serde::Deserialize;
 
+use super::sound::validate_volume;
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct FootstepSounds {
     pub volume_db: f32,
@@ -53,14 +55,6 @@ impl FootstepSounds {
             .get(binding.unwrap_or(&self.default))
             .expect("footstep set missing")
     }
-}
-
-fn validate_volume(value: f32, path: &str) -> Result<()> {
-    ensure!(
-        value.is_finite() && 10.0_f32.powf(value / 20.0).is_finite(),
-        "{path} must produce a finite gain"
-    );
-    Ok(())
 }
 
 fn validate_samples(samples: &[String], name: &str) -> Result<()> {

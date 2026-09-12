@@ -9,7 +9,7 @@ use bevy::{
 
 use crate::{
     actors::{ActorGhostMap, ActorMap, actor_visuals_plugin},
-    audio::AudioAnalysis,
+    audio::{AudioAnalysis, audio_plugin},
     barriers::LockedSwitches,
     cameras::{CameraViewMode, camera_plugin, clamp_msaa_to_device_system, setup_cameras_system},
     characters::{character_sync_plugin, local_simulation_plugin},
@@ -179,6 +179,7 @@ pub fn build_client_app(
 
     configure_client_sets(&mut app);
     app.add_plugins((
+        audio_plugin,
         input_plugin,
         network_plugin,
         local_simulation_plugin,

@@ -4,7 +4,7 @@ use bevy::{audio::SpatialScale, ecs::system::SystemParam, light::NotShadowCaster
 use rand::{RngExt, SeedableRng, rngs::StdRng};
 
 use crate::{
-    audio::{play_explosion_sound, play_spatial_sound},
+    audio::{play_explosion_sound, play_spatial_sound, sound_playback},
     carriers::CarrierEntities,
     config::{AssetSet, ClientSettings},
     constants::LASER_EMISSIVE,
@@ -453,14 +453,13 @@ fn spawn_laser_beams(commands: &mut Commands, vfx: &mut FireworkVfx, assets: &Fi
             NotShadowCaster,
             Transform::from_translation(spec.pivot).with_rotation(Quat::from_rotation_arc(Vec3::Y, spec.start_dir)),
             // Looping spatial hum from the pivot; despawning the beam stops it.
-            AudioPlayer::new(
-                assets
-                    .asset_server
-                    .load(assets.asset_set.player_sound("laser_show").to_owned()),
+            sound_playback(
+                &assets.asset_server,
+                assets.asset_set.player_sound("laser_show"),
+                PlaybackSettings::LOOP
+                    .with_spatial(true)
+                    .with_spatial_scale(SpatialScale::new(assets.client_settings.audio.spatial_distance_scale)),
             ),
-            PlaybackSettings::LOOP
-                .with_spatial(true)
-                .with_spatial_scale(SpatialScale::new(assets.client_settings.audio.spatial_distance_scale)),
         ));
     }
 }

@@ -545,6 +545,12 @@ pub struct SPlayerHit {
     pub health: Health,
 }
 
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SPlayerSoftLanding {
+    pub id: PlayerId,
+    pub generation: PlayerGeneration,
+}
+
 // Hard-landing damage, sent only to the victim for the health display and
 // vertical camera shake. A lethal fall also sends `SPlayerDeath` that tick.
 #[derive(Debug, Clone, Encode, Decode)]
@@ -796,6 +802,7 @@ pub enum ServerMessage {
     ActorDeath(SActorDeath),
     PlayerHit(SPlayerHit),
     PlayerFallDamage(SPlayerFallDamage),
+    PlayerSoftLanding(SPlayerSoftLanding),
     ActorHit(SActorHit),
     ActorBeam(SActorBeam),
     PlayerStatus(SPlayerStatus),
@@ -863,6 +870,7 @@ impl ServerMessage {
             | Self::ActorDeath(_)
             | Self::PlayerHit(_)
             | Self::PlayerFallDamage(_)
+            | Self::PlayerSoftLanding(_)
             | Self::ActorHit(_)
             | Self::ActorBeam(_)
             | Self::PlayerStatus(_)
