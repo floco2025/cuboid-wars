@@ -3,6 +3,7 @@ use bevy::prelude::*;
 use super::{
     ActorAnimationVelocity,
     aim_rig::{FixedFacingMarker, aim_rig_setup_system},
+    movement_audio::spawn_movement_audio,
     wheel_animation::{WheelModel, wheel_animation_setup_system},
     wheel_grounding::WheelGrounding,
 };
@@ -111,6 +112,18 @@ pub fn spawn_actor(
     children.push(bar_entity);
 
     commands.entity(entity).add_children(&children);
+
+    if let Some(sound) = asset_set.actor_sound(&actor.kind, "movement") {
+        spawn_movement_audio(
+            commands,
+            asset_server,
+            entity,
+            actor_id,
+            gameplay_config.expect_actor(&actor.kind),
+            sound,
+            &client_settings.audio,
+        );
+    }
 
     entity
 }

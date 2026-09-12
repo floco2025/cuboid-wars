@@ -20,6 +20,8 @@
 
 ## Testing
 
+- **Actor movement sound mix:** Confirm several nearby actors remain audible together through turns and brief movement gaps. Check the scuttler's light tank, bruiser's heavy tank, and zapper's quadcopter balance against weapons and footsteps while moving, stopping, climbing, and hovering.
+
 - **Startup mouse capture:** Launch windowed, wait before moving the mouse, and confirm there is no initial view jump and the first click fires. Repeat after switching away and back.
 
 - **Shared checkpoints:** Play through Group — any and Group — all with multiple clients, including staggered visits, death, joining, and leaving. Check each player's next respawn and checkpoint notification.

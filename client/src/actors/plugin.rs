@@ -15,5 +15,6 @@ pub fn actor_visuals_plugin(app: &mut App) {
             wheel_grounding_system.after(characters_visual_turn_system),
         )
             .in_set(ClientSet::CharacterSync),
-    );
+    )
+    .add_systems(Update, actor_movement_audio_system.in_set(ClientSet::Presentation));
 }

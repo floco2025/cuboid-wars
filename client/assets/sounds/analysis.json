@@ -104,6 +104,16 @@
       "strongest_50ms_rms_dbfs": -13.482649,
       "suggested_gain_db": -10.517351
     },
+    "sounds/bruiser-movement.wav": {
+      "sha256": "748aa53ae5c72f7960e420c9f70db700ab8d25d75eb91ab05e447c24c28e564d",
+      "sample_rate": 44100,
+      "channels": 1,
+      "duration_secs": 6.0,
+      "peak_dbfs": -2.438267,
+      "rms_dbfs": -11.498705,
+      "strongest_50ms_rms_dbfs": -9.936273,
+      "suggested_gain_db": -14.063727
+    },
     "sounds/doorClose_2.ogg": {
       "sha256": "4aa4fe79836c53cd6d0cb0b22ddc33b9901429463ae1bb75131f072683f63f21",
       "sample_rate": 48000,
@@ -543,6 +553,26 @@
       "rms_dbfs": -30.704595,
       "strongest_50ms_rms_dbfs": -24.482116,
       "suggested_gain_db": -2.293593
+    },
+    "sounds/scuttler-movement.wav": {
+      "sha256": "09aa9032a07b6aca9044242db6ca254e24ac1b5a8167bf3896b88f7f026c3bcd",
+      "sample_rate": 44100,
+      "channels": 1,
+      "duration_secs": 6.0,
+      "peak_dbfs": -2.788272,
+      "rms_dbfs": -11.495386,
+      "strongest_50ms_rms_dbfs": -10.320125,
+      "suggested_gain_db": -13.679875
+    },
+    "sounds/zapper-movement.wav": {
+      "sha256": "9e6c8632cc6e3d01d63cc349d69528d6c22a6315cd0202a4608860b522755a38",
+      "sample_rate": 44100,
+      "channels": 1,
+      "duration_secs": 6.0,
+      "peak_dbfs": -2.668831,
+      "rms_dbfs": -14.771851,
+      "strongest_50ms_rms_dbfs": -11.726934,
+      "suggested_gain_db": -12.273066
     }
   }
 }
