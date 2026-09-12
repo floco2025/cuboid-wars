@@ -1,7 +1,7 @@
 use super::super::{ActorMovementQuery, apply_actor_moves, plan_actor_moves};
 use crate::{
     actors::{
-        ActorMap, PendingActorSpawn, PendingActorSpawns, actors_pending_spawn_system,
+        ActorMap, ActorRespawnTimers, PendingActorSpawn, PendingActorSpawns, actors_pending_spawn_system,
         test_kinds::{self, IMMOVABLE},
     },
     players::PlayerMap,
@@ -42,7 +42,7 @@ fn step(
         &mut query,
         &mut planned,
     );
-    apply_actor_moves(&mut query, &actors, &planned);
+    apply_actor_moves(&mut query, &actors, &planned, &world, &plates.open_barriers);
 }
 
 #[test]
@@ -79,6 +79,7 @@ fn turret_stays_at_carrier_anchor_despite_gravity_and_knockback() {
         .insert_resource(Carriers::from_layout(&layout))
         .insert_resource(CollisionWorld::from_map_layout(&layout))
         .init_resource::<ActorMap>()
+        .init_resource::<ActorRespawnTimers>()
         .init_resource::<PlayerMap>()
         .init_resource::<PlateState>()
         .init_resource::<ServerTick>()

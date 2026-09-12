@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import math
 
 from .constants import (
     ACTOR_ZONE_LIST,
@@ -387,26 +388,38 @@ def pressure_plate_key(plate: dict) -> tuple:
     return (plate["level"], plate["row"], plate["col"], plate.get("switch", ""))
 
 
+def _numeric_zone_key(value) -> tuple:
+    if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value):
+        return (0, value)
+    # Invalid authored values must survive normalization so the issues dock can report them.
+    return (1, type(value).__name__, repr(value))
+
+
+def _control_zone_key(value) -> tuple:
+    return (type(value).__name__, value if isinstance(value, (str, bool)) else repr(value))
+
+
 def actor_zone_key(zone: dict) -> tuple:
     return (
         zone["level"],
-        str(zone.get("levels", 1)),
-        str(zone.get("roam_distance", 0.0)),
+        _numeric_zone_key(zone.get("levels", 1)),
         zone["rows"][0],
         zone["cols"][0],
         zone["rows"][1],
         zone["cols"][1],
         zone["kind"],
         zone["count"],
-        str(zone.get("respawn_secs")),
-        zone.get("switch", ""),
+        _control_zone_key(zone.get("switch")),
+        _control_zone_key(zone.get("switch_inverted", False)),
+        _numeric_zone_key(zone.get("roam_distance", 0.0)),
+        (0,) if zone.get("respawn_secs") is None else (1, _numeric_zone_key(zone["respawn_secs"])),
     )
 
 
 def player_zone_key(zone: dict) -> tuple:
     return (
         zone["level"],
-        str(zone.get("levels", 1)),
+        _numeric_zone_key(zone.get("levels", 1)),
         zone["rows"][0],
         zone["cols"][0],
         zone["rows"][1],

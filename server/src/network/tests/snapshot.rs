@@ -1,6 +1,6 @@
 use bevy::{ecs::system::SystemState, prelude::*};
 use common::{
-    config::NetworkConfig,
+    config::{ActorLocomotion, NetworkConfig},
     map::Carriers,
     physics::{CharacterSupport, CharacterVerticalVelocity},
     protocol::*,
@@ -9,7 +9,10 @@ use crossbeam_channel::unbounded;
 
 use super::{broadcast::snapshot_actors, snapshot::network_broadcast_actor_moves_system};
 use crate::{
-    actors::{ActorInfo, ActorMap, ActorMotionQuery, ActorStateQuery},
+    actors::{
+        ActorCharacter, ActorInfo, ActorMap, ActorMotionQuery, ActorStateQuery,
+        test_kinds::{self, CONTACT},
+    },
     players::{PlayerInfo, PlayerMap},
 };
 
@@ -58,6 +61,7 @@ fn actor_updates_repeat_full_state_at_the_configured_rate_in_the_carrier_frame()
             .spawn((
                 id,
                 ActorMarker,
+                ActorCharacter(test_kinds::kind(CONTACT).character),
                 Position::default(),
                 ActorMoveIntent::Idle,
                 FaceYaw(1.25),
@@ -132,10 +136,13 @@ fn flying_actor_snapshots_use_world_positions_independent_of_spawn_carrier() {
     let intent = ActorMoveIntent::Flying {
         velocity: [1.0, 2.0, 3.0],
     };
+    let mut character = test_kinds::kind(CONTACT).character;
+    character.locomotion = ActorLocomotion::Flying;
     let entity = app
         .world_mut()
         .spawn((
             ActorMarker,
+            ActorCharacter(character),
             position,
             intent,
             FaceYaw(1.0),

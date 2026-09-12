@@ -1,11 +1,15 @@
 use bevy::prelude::*;
 use common::protocol::server_tick_advance_system;
 
-use super::{navigation::nav_bridges_sync_system, *};
+use super::{
+    behavior::flying_actors_behavior_system,
+    navigation::{air::AirHomes, nav_bridges_sync_system},
+    *,
+};
 use crate::{players::players_respawn_system, schedule::ServerSet};
 
 pub fn actors_plugin(app: &mut App) {
-    app.init_resource::<navigation::air::AirHomes>();
+    app.init_resource::<AirHomes>();
     app.add_systems(Startup, actors_initial_spawn_system).add_systems(
         Update,
         (
@@ -17,7 +21,7 @@ pub fn actors_plugin(app: &mut App) {
             (
                 nav_bridges_sync_system,
                 actors_behavior_system,
-                behavior::flying_actors_behavior_system,
+                flying_actors_behavior_system,
             )
                 .chain()
                 .in_set(ServerSet::Behavior),

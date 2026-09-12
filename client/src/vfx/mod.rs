@@ -11,8 +11,8 @@ mod rain;
 mod spark;
 
 pub use beam::{
-    BeamEmitter, BeamInGhost, beam_ghost_fade_system, beam_ghost_removed_system, beam_ghost_sparkle_system,
-    ghost_fade_setup_system,
+    BeamEmitter, BeamInGhost, MaterializedActorGhost, beam_ghost_fade_system, beam_ghost_removed_system,
+    beam_ghost_sparkle_system, ghost_fade_setup_system,
 };
 pub use exhaust::missile_exhaust_system;
 pub use explosion::{

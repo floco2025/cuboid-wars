@@ -76,6 +76,24 @@ pub fn character_paths_intersect(
     .is_ok_and(|hit| hit.is_some())
 }
 
+pub fn character_axis_separation(
+    first: &Position,
+    physics: CharacterPhysicsConfig,
+    second: &Position,
+    other_physics: CharacterPhysicsConfig,
+) -> Vec3 {
+    let body = physics.movement_collider;
+    let other = other_physics.movement_collider;
+    let bottom = first.y + body.radius();
+    let top = first.y + body.height - body.radius();
+    let other_bottom = second.y + other.radius();
+    let other_top = second.y + other.height - other.radius();
+    let mut separation = Vec3::from(*second) - Vec3::from(*first);
+    // Upright capsules separate by their closest axis points, not by the distance between their feet.
+    separation.y = (other_bottom - top).max(0.0) - (bottom - other_top).max(0.0);
+    separation
+}
+
 pub fn character_positions_intersect(
     pos1: &Position,
     physics1: CharacterPhysicsConfig,

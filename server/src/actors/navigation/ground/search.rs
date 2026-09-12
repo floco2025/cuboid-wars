@@ -1,7 +1,5 @@
-use std::{
-    cmp::Ordering,
-    collections::{BinaryHeap, HashMap, VecDeque},
-};
+use super::super::frontier::Frontier;
+use std::collections::{BinaryHeap, HashMap, VecDeque};
 
 use bevy::prelude::Vec3;
 use common::{
@@ -10,9 +8,9 @@ use common::{
     physics::{CollisionWorld, position_has_floor_support},
     protocol::{BarrierId, CarrierId, Position},
 };
+use rand::{Rng, RngExt};
 
 use super::{NavGraphs, NavNode, NavWaypoint, PlannedRoute};
-use rand::{Rng, RngExt};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
 struct Node {
@@ -20,30 +18,21 @@ struct Node {
     cell: NavNode,
 }
 
-#[derive(Clone, Copy)]
-struct Entry {
-    node: Node,
-    distance: f32,
+pub(crate) enum GroundSearchResult {
+    Pending,
+    Found(PlannedRoute),
+    Unreachable,
 }
 
-impl PartialEq for Entry {
-    fn eq(&self, other: &Self) -> bool {
-        self.cmp(other) == Ordering::Equal
-    }
-}
-impl Eq for Entry {}
-impl PartialOrd for Entry {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-impl Ord for Entry {
-    fn cmp(&self, other: &Self) -> Ordering {
-        other
-            .distance
-            .total_cmp(&self.distance)
-            .then_with(|| other.node.cmp(&self.node))
-    }
+pub(crate) struct GroundSearch {
+    start: Position,
+    start_node: Node,
+    queue: BinaryHeap<Frontier<Node>>,
+    parents: HashMap<Node, Node>,
+    distances: HashMap<Node, f32>,
+    retreat: Option<Node>,
+    score: f32,
+    expanded: usize,
 }
 
 pub(crate) struct GroundNavigation<'a> {
@@ -57,139 +46,225 @@ pub(crate) struct GroundNavigation<'a> {
 }
 
 impl GroundNavigation<'_> {
-    pub(crate) fn roam(
+    pub(crate) fn search(&self, start: Position) -> Option<GroundSearch> {
+        let graph = self.graphs.get(self.carrier);
+        let pose = self.carriers.pose(self.carrier);
+        let node = Node {
+            carrier: self.carrier,
+            cell: graph.route_start_node(&pose.inverse_transform_position(&start), graph.ladder_links(self.kind))?,
+        };
+        Some(GroundSearch {
+            start,
+            start_node: node,
+            queue: BinaryHeap::from([Frontier {
+                node,
+                cost: 0.0,
+                priority: 0.0,
+                order: 0,
+            }]),
+            parents: HashMap::from([(node, node)]),
+            distances: HashMap::from([(node, 0.0)]),
+            retreat: None,
+            score: f32::NEG_INFINITY,
+            expanded: 0,
+        })
+    }
+
+    pub(crate) fn advance(
+        &self,
+        search: &mut GroundSearch,
+        goal: impl Fn(Position, f32) -> Option<Position>,
+        allowed: impl Fn(Position, Position) -> bool,
+        work: &mut usize,
+        fallback: Option<&dyn Fn(Position) -> f32>,
+        limit: Option<usize>,
+    ) -> GroundSearchResult {
+        while *work > 0 && limit.is_none_or(|limit| search.expanded < limit) {
+            let Some(entry) = search.queue.pop() else {
+                return self.finish(search);
+            };
+            *work -= 1;
+            search.expanded += 1;
+            if entry.cost > search.distances[&entry.node] {
+                continue;
+            }
+            let node = entry.node;
+            let graph = self.graphs.get(node.carrier);
+            if !graph.is_traversable(node.cell) {
+                continue;
+            }
+            let pos = if node == search.start_node {
+                search.start
+            } else {
+                self.position(node)
+            };
+            if let Some(end) = goal(pos, graph.cell_size())
+                && allowed(pos, end)
+                && self
+                    .world
+                    .character_ground_route_clear(pos, end, self.physics, self.open)
+                && let Some(route) = self.reconstruct(search.start_node, node, end, &search.parents)
+            {
+                return GroundSearchResult::Found(route);
+            }
+            let score = fallback.map_or(f32::NEG_INFINITY, |score| score(pos));
+            if node != search.start_node && score > search.score {
+                search.score = score;
+                search.retreat = Some(node);
+            }
+            for next in self.neighbors(node) {
+                let points = self.edge(node, next);
+                let mut previous = pos;
+                let mut distance = entry.cost;
+                for point in &points {
+                    distance += previous.distance_sq(&point.position).sqrt();
+                    previous = point.position;
+                }
+                if search.distances.get(&next).is_some_and(|known| *known <= distance) {
+                    continue;
+                }
+                let mut previous = pos;
+                let clear = points.iter().all(|point| {
+                    let inside = allowed(previous, point.position);
+                    let clear = inside
+                        && self
+                            .world
+                            .character_ground_route_clear(previous, point.position, self.physics, self.open);
+                    previous = point.position;
+                    clear
+                });
+                if !clear {
+                    continue;
+                }
+                search.parents.insert(next, node);
+                search.distances.insert(next, distance);
+                search.queue.push(Frontier {
+                    node: next,
+                    cost: distance,
+                    priority: distance,
+                    order: search.distances.len(),
+                });
+            }
+        }
+        if limit.is_some_and(|limit| search.expanded >= limit) {
+            self.finish(search)
+        } else {
+            GroundSearchResult::Pending
+        }
+    }
+
+    fn finish(&self, search: &GroundSearch) -> GroundSearchResult {
+        search
+            .retreat
+            .and_then(|node| self.reconstruct(search.start_node, node, self.position(node), &search.parents))
+            .map_or(GroundSearchResult::Unreachable, GroundSearchResult::Found)
+    }
+
+    pub(crate) fn join_route(
+        &self,
+        start: Position,
+        route: &mut PlannedRoute,
+        allowed: &impl Fn(Position, Position) -> bool,
+    ) -> bool {
+        let pose = self.carriers.pose(self.carrier);
+        let mut previous = start;
+        let mut skip = 0;
+        for (index, point) in route.waypoints.iter().enumerate() {
+            if !point.is_walk() {
+                break;
+            }
+            let end = pose.transform_position(&point.position);
+            if start.distance_sq(&end) < self.graphs.get(self.carrier).cell_size().powi(2)
+                && allowed(start, end)
+                && self.walk_clear(start, end)
+            {
+                skip = index;
+            }
+        }
+        route.waypoints.drain(..skip);
+        route.waypoints.iter().all(|point| {
+            let end = pose.transform_position(&point.position);
+            let clear = allowed(previous, end)
+                && self
+                    .world
+                    .character_ground_route_clear(previous, end, self.physics, self.open)
+                && (!point.is_walk()
+                    || !self
+                        .graphs
+                        .get(self.carrier)
+                        .position_over_unpowered_bridge(&point.position));
+            previous = end;
+            clear
+        })
+    }
+
+    fn walk_clear(&self, start: Position, end: Position) -> bool {
+        let steps = (start.distance_sq(&end).sqrt() / self.physics.movement_collider.radius())
+            .ceil()
+            .max(1.0) as usize;
+        self.world
+            .character_ground_route_clear(start, end, self.physics, self.open)
+            && (1..=steps).all(|index| {
+                let position = Vec3::from(start).lerp(end.into(), index as f32 / steps as f32).into();
+                position_has_floor_support(self.world, &position, self.physics)
+            })
+    }
+
+    pub(crate) fn local_roam(
         &self,
         start: Position,
         allowed: impl Fn(Position) -> bool,
+        work: &mut usize,
         rng: &mut impl Rng,
     ) -> Option<PlannedRoute> {
-        let mut candidates: Vec<_> = self
-            .graphs
-            .iter()
-            .flat_map(|(carrier, graph)| {
-                graph
-                    .all_traversable_nodes()
-                    .map(move |cell| self.position(Node { carrier, cell }))
-            })
-            .filter(|pos| allowed(*pos))
-            .collect();
-        for _ in 0..candidates.len().min(8) {
-            let center = candidates.swap_remove(rng.random_range(0..candidates.len()));
-            if let Some(route) = self.route(
-                start,
-                |pos, size| {
-                    let matches = (pos.y - center.y).abs() < 0.1
-                        && (pos.x - center.x).abs() < size * 0.5
-                        && (pos.z - center.z).abs() < size * 0.5;
-                    matches.then_some(center)
-                },
-                &allowed,
-                2048,
-                None,
-            ) {
-                let mut route = route;
-                if let Some(last) = route.waypoints.back_mut() {
-                    let size = self.graphs.get(self.carrier).cell_size();
-                    let inset = (size * 0.5 - self.physics.movement_collider.radius() - 0.1).max(0.0);
-                    let pose = self.carriers.pose(self.carrier);
-                    let mut end = pose.transform_position(&last.position);
-                    end.x += rng.random_range(-inset..=inset);
-                    end.z += rng.random_range(-inset..=inset);
-                    if allowed(end)
-                        && self
-                            .world
-                            .character_ground_route_clear(center, end, self.physics, self.open)
-                    {
-                        last.position = pose.inverse_transform_position(&end);
-                    }
-                }
-                return Some(route);
+        let graph = self.graphs.get(self.carrier);
+        let pose = self.carriers.pose(self.carrier);
+        let local = pose.inverse_transform_position(&start);
+        let node = graph.route_start_node(&local, graph.ladder_links(self.kind))?;
+        if !graph.is_cover_destination(node) {
+            return None;
+        }
+        let center = pose.transform_position(&graph.node_center(node));
+        let inset = (graph.cell_size() * 0.5 - self.physics.movement_collider.radius() - 0.1).max(0.0);
+        for _ in 0..8 {
+            if *work == 0 {
+                break;
+            }
+            *work -= 1;
+            let end = Position {
+                x: center.x + rng.random_range(-inset..=inset),
+                z: center.z + rng.random_range(-inset..=inset),
+                ..center
+            };
+            if allowed(end)
+                && start.distance_sq(&end) > 0.04
+                && self
+                    .world
+                    .character_ground_route_clear(start, end, self.physics, self.open)
+            {
+                return Some(PlannedRoute {
+                    waypoints: VecDeque::from([NavWaypoint::walk(pose.inverse_transform_position(&end))]),
+                    destination_node: node,
+                });
             }
         }
         None
     }
 
+    #[cfg(test)]
     pub(crate) fn route(
         &self,
         start: Position,
         goal: impl Fn(Position, f32) -> Option<Position>,
-        allowed: impl Fn(Position) -> bool,
-        work: usize,
+        allowed: impl Fn(Position, Position) -> bool,
+        mut work: usize,
         fallback: Option<&dyn Fn(Position) -> f32>,
     ) -> Option<PlannedRoute> {
-        let graph = self.graphs.get(self.carrier);
-        let pose = self.carriers.pose(self.carrier);
-        let start_node = Node {
-            carrier: self.carrier,
-            cell: graph.route_start_node(&pose.inverse_transform_position(&start), graph.ladder_links(self.kind))?,
-        };
-        let mut queue = BinaryHeap::from([Entry {
-            node: start_node,
-            distance: 0.0,
-        }]);
-        let mut parents = HashMap::from([(start_node, start_node)]);
-        let mut distances = HashMap::from([(start_node, 0.0)]);
-        let mut retreat = None;
-        let mut score = f32::NEG_INFINITY;
-        for _ in 0..work {
-            let Some(entry) = queue.pop() else { break };
-            if entry.distance > distances[&entry.node] {
-                continue;
-            }
-            let node = entry.node;
-            let pos = if node == start_node { start } else { self.position(node) };
-            let graph = self.graphs.get(node.carrier);
-            if let Some(end) = goal(pos, graph.cell_size())
-                && allowed(end)
-                && !self.world.character_overlaps_solid(&end, self.physics, self.open)
-                && self
-                    .world
-                    .character_ground_route_clear(pos, end, self.physics, self.open)
-            {
-                return self.reconstruct(start_node, node, end, &parents);
-            }
-            let candidate_score = fallback.map_or(f32::NEG_INFINITY, |score| score(pos));
-            if node != start_node && candidate_score > score {
-                score = candidate_score;
-                retreat = Some(node);
-            }
-            for next in self.neighbors(node) {
-                let points = self.edge(node, next);
-                let mut previous = pos;
-                let mut distance = entry.distance;
-                let mut clear = true;
-                for point in points {
-                    let steps = (previous.distance_sq(&point.position).sqrt()
-                        / (self.physics.movement_collider.radius() * 0.5).max(0.05))
-                    .ceil()
-                    .max(1.0) as usize;
-                    let inside = (1..=steps).all(|index| {
-                        allowed(
-                            Vec3::from(previous)
-                                .lerp(point.position.into(), index as f32 / steps as f32)
-                                .into(),
-                        )
-                    });
-                    if !inside
-                        || !self
-                            .world
-                            .character_ground_route_clear(previous, point.position, self.physics, self.open)
-                    {
-                        clear = false;
-                        break;
-                    }
-                    distance += previous.distance_sq(&point.position).sqrt();
-                    previous = point.position;
-                }
-                if !clear || distances.get(&next).is_some_and(|known| *known <= distance) {
-                    continue;
-                }
-                parents.insert(next, node);
-                distances.insert(next, distance);
-                queue.push(Entry { node: next, distance });
-            }
+        let mut search = self.search(start)?;
+        match self.advance(&mut search, goal, allowed, &mut work, fallback, None) {
+            GroundSearchResult::Found(route) => Some(route),
+            _ => None,
         }
-        retreat.and_then(|node| self.reconstruct(start_node, node, self.position(node), &parents))
     }
 
     fn position(&self, node: Node) -> Position {

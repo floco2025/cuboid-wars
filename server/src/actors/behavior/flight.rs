@@ -1,13 +1,18 @@
 use super::{
     beam::{BeamContext, find_beam_target, retarget_beam, start_beam},
     geometry::{attack_position, covered, threat_distance_sq},
-    perception::{PlayerState, update_awareness},
-    tick::tick_beam_state,
+    perception::{decay_awareness, player_states, update_awareness},
+    tick::{
+        AI_DECISION_INTERVAL_SECS, ROUTE_STALL_PROGRESS_DISTANCE, ROUTE_STALL_TIMEOUT_SECS, SHAKE_SECS, tick_beam_state,
+    },
 };
 use crate::{
     actors::{
         ActorCharacter, ActorInfo, ActorMap, ActorMode, BeamState,
-        navigation::air::{AirHome, AirHomes, AirSearch, FlightState, FlightTask, SearchResult},
+        navigation::{
+            air::{AirHome, AirHomes, AirSearch, FlightState, FlightTask, SearchResult},
+            segment_threat_distance_sq,
+        },
     },
     config::{ActorAttackConfig, ServerGameplayConfig},
     map::MapConfig,
@@ -47,19 +52,7 @@ pub(crate) fn flying_actors_behavior_system(
     actor_query: Query<(&ActorId, &Position, &ActorCharacter), With<ActorMarker>>,
 ) {
     let delta = time.delta_secs();
-    let states: Vec<_> = player_query
-        .iter()
-        .filter_map(|(id, pos)| {
-            players
-                .get(id)
-                .filter(|p| !actors.peaceful && p.connection.logged_in && !p.is_dead())
-                .map(|p| PlayerState {
-                    id: *id,
-                    pos: *pos,
-                    support: p.life.movement.support,
-                })
-        })
-        .collect();
+    let states = player_states(&players, actors.peaceful, player_query.iter());
     let armed = [
         ItemType::SingleShotPowerUp,
         ItemType::MultiShotPowerUp,
@@ -95,26 +88,13 @@ pub(crate) fn flying_actors_behavior_system(
             home.age += delta;
         }
         home.last_tick = Some(tick.0);
-        if home.stale(pose, &plates.open_barriers, !carriers.is_static()) || home.powered != plates.powered_bridges {
-            *home = AirHome::new(
-                zone,
-                map.grid(zone.carrier),
-                physics,
-                range,
-                pose,
-                &plates.open_barriers,
-            );
-        }
-        home.follow_pose(pose);
-        home.powered.clone_from(&plates.powered_bridges);
+        home.refresh(&world, pose, &plates.open_barriers);
         let mut home_budget = share / 2;
         home.advance(&world, physics, &mut home_budget);
         let mut budget = share - share / 2 + home_budget;
         let previous_beam = info.beam.snapshot().map(|b| (b.started_tick, b.target));
         tick_beam_state(info, delta, kind, &states);
-        for aware in &mut info.awareness {
-            aware.forget_remaining_secs -= delta;
-        }
+        decay_awareness(info, delta);
         update_awareness(
             info,
             *pos,
@@ -143,7 +123,11 @@ pub(crate) fn flying_actors_behavior_system(
             flight.unreachable_secs = 1.0;
         }
         advance_route(&mut flight, *pos, &context, home, pose);
-        if !flight.route.is_empty() && info.watchdog.tick_3d(pos, delta, 0.25, 1.5) {
+        if !flight.route.is_empty()
+            && info
+                .watchdog
+                .tick_3d(pos, delta, ROUTE_STALL_PROGRESS_DISTANCE, ROUTE_STALL_TIMEOUT_SECS)
+        {
             let task = flight.task;
             flight.clear();
             for _ in 0..12 {
@@ -159,7 +143,7 @@ pub(crate) fn flying_actors_behavior_system(
                 {
                     flight.route.push_back(end.into());
                     flight.task = task;
-                    flight.recovery_secs = 0.6;
+                    flight.recovery_secs = SHAKE_SECS;
                     break;
                 }
             }
@@ -169,7 +153,7 @@ pub(crate) fn flying_actors_behavior_system(
         }
         info.decision_timer -= delta;
         if info.decision_timer <= 0.0 && flight.recovery_secs <= 0.0 {
-            info.decision_timer = 0.1;
+            info.decision_timer = AI_DECISION_INTERVAL_SECS;
             decide_flight(info, &mut flight, &context, home, pose, armed, &mut rng);
         }
         advance_search(info, &mut flight, &context, home, pose, &mut budget);
@@ -205,17 +189,21 @@ fn advance_search(
     let task = flight.task;
     let result = match task {
         Some(FlightTask::Return) => {
-            search.advance_to_goal(world, physics, open, budget, |_| true, |p| home.contains(p, pose))
+            search.advance_to_goal(world, physics, open, budget, |_, _| true, |p| home.contains(p, pose))
         }
         Some(FlightTask::Pursue(target)) => {
-            let aware = info.awareness.iter().find(|a| a.id == target);
+            let Some(aware) = info.awareness.iter().find(|a| a.id == target) else {
+                flight.clear();
+                info.decision_timer = 0.0;
+                return;
+            };
             search.advance_to_goal(
                 world,
                 physics,
                 open,
                 budget,
-                |_| true,
-                |p| aware.is_some_and(|a| attack_position(p.into(), a.pos, context)),
+                |_, _| true,
+                |p| attack_position(p.into(), aware.pos, context),
             )
         }
         Some(FlightTask::Evade) => {
@@ -226,16 +214,37 @@ fn advance_search(
                 open,
                 budget,
                 |p| covered(p, &threats, context),
-                |p| threat_distance_sq(p, &threats),
+                &threats,
+                physics.movement_collider.radius() + context.player_physics.movement_collider.radius(),
             )
         }
-        _ => search.advance(world, physics, open, budget, |p| {
-            task != Some(FlightTask::Roam) || home.contains(p, pose)
+        _ => search.advance(world, physics, open, budget, |from, to| {
+            task != Some(FlightTask::Roam) || home.path_contains(from, to, pose)
         }),
     };
     match result {
         SearchResult::Pending => {}
-        SearchResult::Found(route) => {
+        SearchResult::Found(mut route) => {
+            let threats: Vec<_> = info.awareness.iter().map(|aware| aware.pos).collect();
+            let clearance = search.escape_clearance(
+                &threats,
+                physics.movement_collider.radius() + context.player_physics.movement_collider.radius(),
+            );
+            let join = route.iter().enumerate().rev().find_map(|(index, point)| {
+                (world.character_flight_path_clear(context.world_pos, *point, physics, open)
+                    && (task != Some(FlightTask::Roam)
+                        || home.path_contains(context.world_pos.into(), (*point).into(), pose))
+                    && (task != Some(FlightTask::Evade)
+                        || segment_threat_distance_sq(context.world_pos.into(), (*point).into(), &threats) + 0.00001
+                            >= clearance))
+                    .then_some(index)
+            });
+            let Some(join) = join else {
+                flight.search = None;
+                info.decision_timer = 0.0;
+                return;
+            };
+            route.drain(..join);
             if task == Some(FlightTask::Evade) {
                 let threats: Vec<_> = info.awareness.iter().map(|a| a.pos).collect();
                 info.mode = ActorMode::Evade {
@@ -247,7 +256,6 @@ fn advance_search(
         }
         SearchResult::Unreachable => {
             flight.search = None;
-            flight.route.clear();
             flight.retry_secs = FLIGHT_RETRY_SECS;
             if let Some(FlightTask::Pursue(id)) = task
                 && let Some(aware) = info.awareness.iter().find(|a| a.id == id)
@@ -422,7 +430,12 @@ fn decide_flight(
         if flight.task == Some(FlightTask::Roam) && (!flight.route.is_empty() || flight.search.is_some()) {
             return;
         }
-        if let Some(target) = home.destination(pose, rng) {
+        if let Some(target) = home.destination(
+            pose,
+            context.collision_world,
+            context.kind_config.character.physics(),
+            rng,
+        ) {
             request_route(flight, FlightTask::Roam, context.world_pos, target, home.spacing);
         } else {
             flight.clear();
@@ -434,7 +447,12 @@ fn decide_flight(
         {
             return;
         }
-        if let Some(target) = home.nearest(Vec3::from(context.world_pos), pose) {
+        if let Some(target) = home.nearest(
+            Vec3::from(context.world_pos),
+            pose,
+            context.collision_world,
+            context.kind_config.character.physics(),
+        ) {
             request_route(flight, FlightTask::Return, context.world_pos, target, home.spacing);
         } else {
             flight.clear();
@@ -457,11 +475,10 @@ fn request_route(flight: &mut FlightState, task: FlightTask, start: Position, ta
         }
         flight.search = None;
     }
-    if let Some(destination) = flight.route.back() {
-        if destination.distance_sq(&target) <= spacing * spacing {
-            return;
-        }
-        flight.route.clear();
+    if let Some(destination) = flight.route.back()
+        && destination.distance_sq(&target) <= spacing * spacing
+    {
+        return;
     }
     flight.search = Some(AirSearch::new(start, target, spacing));
 }

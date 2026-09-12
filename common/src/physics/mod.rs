@@ -10,10 +10,10 @@ pub use blast::{blast_falloff_at_distance, blast_hit, planar_shove, visible_blas
 pub use characters::{
     AirborneMomentum, CharacterEnvironment, CharacterMovePlan, CharacterMovementResult, CharacterStep,
     CharacterSupport, CharacterVerticalVelocity, GroundingDiagnostics, KnockbackVelocity, LadderMode,
-    character_hitbox_center, character_hitbox_shape, character_move_plans_intersect, character_movement_center,
-    character_movement_shape, character_paths_intersect, character_positions_intersect, grounding_diagnostics,
-    knockback_decay_system, player_control_velocity, player_jump_velocity, position_has_floor_support,
-    step_character_movement,
+    character_axis_separation, character_hitbox_center, character_hitbox_shape, character_move_plans_intersect,
+    character_movement_center, character_movement_shape, character_paths_intersect, character_positions_intersect,
+    grounding_diagnostics, knockback_decay_system, player_control_velocity, player_jump_velocity,
+    position_has_floor_support, step_character_movement,
 };
 pub use portals::{
     CharacterHopBody, CharacterPortalHop, PlayerHopBody, PortalFrame, PortalPlacement, PortalPlacementFailure,

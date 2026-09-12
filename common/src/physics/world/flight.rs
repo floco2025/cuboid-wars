@@ -21,17 +21,6 @@ use crate::{
 };
 
 impl CollisionWorld {
-    pub fn flight_search_bounds(&self, start: Vec3, target: Vec3, margin: f32) -> (Vec3, Vec3) {
-        let mut min = start.min(target);
-        let mut max = start.max(target);
-        for (_, collider) in self.colliders.iter() {
-            let bounds = collider.compute_aabb();
-            min = min.min(from_rapier(bounds.mins));
-            max = max.max(from_rapier(bounds.maxs));
-        }
-        (min - Vec3::splat(margin), max + Vec3::splat(margin))
-    }
-
     pub fn character_flight_path_clear(
         &self,
         start: Position,
@@ -91,17 +80,13 @@ impl CollisionWorld {
             pose.translation += to_rapier(resolved);
             pushed = true;
         }
+        if !pushed {
+            pose = self.resolve_flying_overlap(pose, physics, open);
+        }
         let resolved = self.slide_flying_body(pose, translation, physics, open, &[]);
         pose.translation += to_rapier(resolved);
         let traveled = from_rapier(pose.translation - initial.translation);
         let position = Position::from(Vec3::from(start) + traveled);
-        let inset_margin = CHARACTER_CONTACT_OFFSET * 0.1;
-        let mut inset = physics;
-        inset.movement_collider.diameter =
-            (physics.movement_collider.diameter - inset_margin * 2.0).max(PHYSICS_EPSILON);
-        inset.movement_collider.height =
-            (physics.movement_collider.height - inset_margin * 2.0).max(inset.movement_collider.diameter);
-        let inset_position = Position::from(Vec3::from(position) + Vec3::Y * inset_margin);
         CharacterMovementResult {
             grounding: GroundingDiagnostics::default(),
             position,
@@ -112,8 +97,40 @@ impl CollisionWorld {
             carrier: CarrierId::WORLD,
             floor_velocity: Vec3::ZERO,
             lifted: false,
-            crushed: pushed && self.character_overlaps_solid(&inset_position, inset, open),
+            crushed: pushed && self.character_penetrates_solid(&position, physics, open),
         }
+    }
+
+    fn resolve_flying_overlap(&self, mut pose: Pose, physics: CharacterPhysicsConfig, open: &[BarrierId]) -> Pose {
+        let shape = character_movement_shape(physics);
+        let allow = |_: ColliderHandle, collider: &Collider| barrier_blocks(collider, open);
+        let mut filter = query_filter(character_collision_groups());
+        filter.predicate = Some(&allow);
+        for _ in 0..4 {
+            let mut overlaps: Vec<_> = self
+                .query_pipeline(filter)
+                .intersect_shape(pose, &shape)
+                .map(|(handle, _)| handle)
+                .collect();
+            if overlaps.is_empty() {
+                break;
+            }
+            overlaps.sort_unstable_by_key(|handle| handle.into_raw_parts());
+            for handle in &overlaps {
+                let collider = &self.colliders[*handle];
+                let Ok(Some(hit)) = contact(collider.position(), collider.shape(), &pose, &shape, 0.0) else {
+                    continue;
+                };
+                if hit.dist >= 0.0 {
+                    continue;
+                }
+                let normal = from_rapier(hit.normal1).normalize_or_zero();
+                let push = normal * (CHARACTER_CONTACT_OFFSET - hit.dist);
+                // Existing overlaps need a separating contact; a sweep from penetration can have no normal.
+                pose.translation += to_rapier(self.slide_flying_body(pose, push, physics, open, &overlaps));
+            }
+        }
+        pose
     }
 
     fn slide_flying_body(

@@ -181,6 +181,7 @@ impl Carriers {
     }
 
     #[must_use]
+    // This fast path means no carried geometry; nested maps can also be stationary.
     pub fn is_static(&self) -> bool {
         self.carried.is_empty()
     }

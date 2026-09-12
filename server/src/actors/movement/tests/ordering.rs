@@ -81,3 +81,33 @@ fn multi_waypoint_queue_plans_front_actor_before_rear_actor() {
         vec![ActorId(2), ActorId(1)]
     );
 }
+
+#[test]
+fn ground_and_flying_routes_compare_the_same_remaining_three_dimensional_length() {
+    use crate::actors::navigation::air::FlightState;
+    let points = [
+        Position { x: 3.0, y: 4.0, z: 0.0 },
+        Position {
+            x: 3.0,
+            y: 4.0,
+            z: 12.0,
+        },
+    ];
+    let mut ground = actor_info();
+    ground.route = Some(ActorRoute {
+        waypoints: points.map(NavWaypoint::walk).into(),
+        destination: points[1],
+        destination_node: NavNode {
+            level: 0,
+            row: 0,
+            col: 0,
+        },
+    });
+    let mut air = actor_info();
+    air.flight = Some(FlightState {
+        route: points.into(),
+        ..Default::default()
+    });
+    assert_eq!(actor_route_distance(&Position::default(), Some(&ground)), 17.0);
+    assert_eq!(actor_route_distance(&Position::default(), Some(&air)), 17.0);
+}

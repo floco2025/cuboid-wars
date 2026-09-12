@@ -683,7 +683,7 @@ fn a_zone_without_a_respawn_time_never_refills_even_when_toggled() {
 }
 
 #[test]
-fn flying_spawns_use_open_air_and_wait_when_geometry_enters_the_warning() {
+fn flying_spawns_reselect_blocked_reservations_and_restart_the_warning() {
     use common::{config::ActorLocomotion, protocol::Wall};
     let mut app = spawn_app_for(BEAM, 2, &[1], None);
     {
@@ -700,9 +700,9 @@ fn flying_spawns_use_open_air_and_wait_when_geometry_enters_the_warning() {
         cell.has_floor = false;
     }
     app.update();
-    let (spawn_pos, due_tick) = {
+    let (spawn_pos, due_tick, first_id) = {
         let spawn = &app.world().resource::<PendingActorSpawns>().0[0];
-        (spawn.pos, spawn.due_tick)
+        (spawn.pos, spawn.due_tick, spawn.actor_id)
     };
     assert!(spawn_pos.y > 0.0);
     app.world_mut()
@@ -726,7 +726,19 @@ fn flying_spawns_use_open_air_and_wait_when_geometry_enters_the_warning() {
     assert_eq!(app.world().resource::<PendingActorSpawns>().0.len(), 1);
     app.world_mut()
         .insert_resource(CollisionWorld::from_map_layout(&MapLayout::default()));
-    app.world_mut().resource_mut::<ServerTick>().0 += 1;
+    let replacement_due = {
+        let pending = app.world().resource::<PendingActorSpawns>();
+        let replacement = &pending.0[0];
+        assert_ne!(replacement.actor_id, first_id);
+        assert_ne!(replacement.pos, spawn_pos);
+        assert_eq!(replacement.reserved_tick, due_tick);
+        assert!(replacement.due_tick > due_tick);
+        replacement.due_tick
+    };
+    app.world_mut().resource_mut::<ServerTick>().0 = replacement_due - 1;
+    app.update();
+    assert_eq!(app.world().resource::<ActorMap>().values().count(), 0);
+    app.world_mut().resource_mut::<ServerTick>().0 = replacement_due;
     app.update();
     let actors = app.world().resource::<ActorMap>();
     let actor = actors

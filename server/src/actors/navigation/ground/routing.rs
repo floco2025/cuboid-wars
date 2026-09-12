@@ -3,7 +3,7 @@ use std::collections::{HashMap, VecDeque};
 use common::{config::CharacterPhysicsConfig, map::CarrierPose, physics::CollisionWorld, protocol::Position};
 use rand::{Rng, RngExt};
 
-use super::{ActorTerritory, LadderLink, NavGraph, NavNode, NavWaypoint, WaypointKind};
+use super::{LadderLink, NavGraph, NavNode, NavWaypoint, WaypointKind};
 
 // Body clearance added to the footprint when a straight leg is judged
 // against the floor cells it crosses.
@@ -16,11 +16,6 @@ pub(crate) struct PlannedRoute {
 }
 
 impl NavGraph {
-    #[must_use]
-    pub(crate) fn position_in_roam_region(&self, pos: &Position, territory: &ActorTerritory) -> bool {
-        territory.contains_position((*pos).into())
-    }
-
     pub(crate) fn engagement_route(
         &self,
         ladders: &[LadderLink],
@@ -171,6 +166,7 @@ impl NavGraph {
         is_target: impl FnMut(NavNode) -> bool,
         allowed: impl Fn(NavNode) -> bool,
     ) -> Option<PlannedRoute> {
+        // This structural traversal uses prevalidated edges and performs no physics queries.
         self.route_to_any_with_limit(ladders, start, is_target, allowed, usize::MAX)
     }
 

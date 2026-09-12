@@ -109,7 +109,7 @@ fn flyers_pursue_airborne_targets_outside_home_then_return_when_forgotten() {
         kind.character.physics(),
         &[],
         &mut 20000,
-        |_| true,
+        |_, _| true,
         |p| home.contains(p, CarrierPose::IDENTITY),
     );
     let SearchResult::Found(path) = result else {
@@ -240,4 +240,59 @@ fn fleeing_flyer_retreats_when_selected_cover_is_below_a_solid_floor() {
         assert!(step.position.distance_sq(&point) < 0.0001);
         pos = step.position;
     }
+}
+
+#[test]
+fn pursuing_flyer_keeps_its_live_route_while_replacement_search_is_pending() {
+    let start = Position::default();
+    let old = Vec3::new(3.0, 0.0, 0.0).into();
+    let mut flight = FlightState {
+        task: Some(FlightTask::Pursue(PlayerId(1))),
+        ..Default::default()
+    };
+    flight.route.push_back(old);
+    request_route(
+        &mut flight,
+        FlightTask::Pursue(PlayerId(1)),
+        start,
+        Vec3::new(8.0, 3.0, 0.0).into(),
+        0.5,
+    );
+    assert_eq!(flight.route.front(), Some(&old));
+    assert!(flight.search.is_some());
+}
+
+#[test]
+fn forgotten_pursuit_is_canceled_before_spending_search_work() {
+    let kind = flying_kind(CONTACT);
+    let world = CollisionWorld::from_map_layout(&MapLayout::default());
+    let home = home(kind.character.physics(), &world);
+    let mut info = ActorInfo::new(Entity::from_bits(1), 0, CONTACT.into(), CarrierId::WORLD);
+    let mut flight = FlightState::default();
+    request_route(
+        &mut flight,
+        FlightTask::Pursue(PlayerId(1)),
+        Position::default(),
+        Vec3::X.into(),
+        home.spacing,
+    );
+    let context = BeamContext {
+        tick: 0,
+        world_pos: Position::default(),
+        kind_config: &kind,
+        player_physics: test_kinds::physics(CONTACT),
+        collision_world: &world,
+        open_barriers: &[],
+    };
+    let mut budget = 7;
+    advance_search(
+        &mut info,
+        &mut flight,
+        &context,
+        &home,
+        CarrierPose::IDENTITY,
+        &mut budget,
+    );
+    assert!(flight.search.is_none());
+    assert_eq!(budget, 7);
 }

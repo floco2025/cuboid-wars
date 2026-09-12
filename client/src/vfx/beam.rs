@@ -5,7 +5,7 @@ use rand::{RngExt, rng};
 
 use super::particles::{ParticleCloud, ParticleClouds, ParticleSpawn};
 use crate::constants::*;
-use common::protocol::{ServerTick, sequence_is_newer};
+use common::protocol::ServerTick;
 
 // The warning window in server ticks; the fade is a pure function of the
 // shared tick, so nothing counts down or resyncs.
@@ -30,10 +30,6 @@ impl BeamInGhost {
         (age / window).clamp(0.0, 1.0)
     }
 
-    fn is_due(&self, tick: u32) -> bool {
-        !sequence_is_newer(self.due_tick, tick)
-    }
-
     fn volume(&self) -> f32 {
         8.0 * self.half_extents.x * self.half_extents.y * self.half_extents.z
     }
@@ -42,15 +38,11 @@ impl BeamInGhost {
 #[derive(Component)]
 pub struct BeamEmitter {
     sparkle_credit: f32,
-    materialization_emitted: bool,
 }
 
 impl Default for BeamEmitter {
     fn default() -> Self {
-        Self {
-            sparkle_credit: 1.0,
-            materialization_emitted: false,
-        }
+        Self { sparkle_credit: 1.0 }
     }
 }
 
@@ -132,7 +124,6 @@ pub fn beam_ghost_fade_system(
 
 pub fn beam_ghost_sparkle_system(
     time: Res<Time>,
-    tick: Res<ServerTick>,
     mut clouds: ResMut<ParticleClouds>,
     mut ghosts: Query<(&GlobalTransform, &BeamInGhost, &mut BeamEmitter)>,
 ) {
@@ -165,25 +156,21 @@ pub fn beam_ghost_sparkle_system(
                 color: base_color * rng.random_range(0.7..1.2),
             });
         }
-
-        if ghost.is_due(tick.0) && !emitter.materialization_emitted {
-            if BEAM_IN_MATERIALIZATION_RING_ENABLED {
-                spawn_materialization_ring(&mut clouds.sparkles, transform, ghost);
-            }
-            emitter.materialization_emitted = true;
-        }
     }
 }
+
+#[derive(Component)]
+pub struct MaterializedActorGhost;
 
 pub fn beam_ghost_removed_system(
     removed: On<Remove, BeamInGhost>,
     mut clouds: ResMut<ParticleClouds>,
-    ghosts: Query<(&GlobalTransform, &BeamInGhost, &BeamEmitter)>,
+    ghosts: Query<(&GlobalTransform, &BeamInGhost), With<MaterializedActorGhost>>,
 ) {
-    let Ok((transform, ghost, emitter)) = ghosts.get(removed.entity) else {
+    let Ok((transform, ghost)) = ghosts.get(removed.entity) else {
         return;
     };
-    if BEAM_IN_MATERIALIZATION_RING_ENABLED && !emitter.materialization_emitted {
+    if BEAM_IN_MATERIALIZATION_RING_ENABLED {
         spawn_materialization_ring(&mut clouds.sparkles, transform, ghost);
     }
 }

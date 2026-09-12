@@ -171,7 +171,7 @@ fn actor_spawn_in_a_nested_zone_goes_through_the_carriers_pose() {
     };
     let (map_config, carriers, zone) = nested_zone_fixture(rest, true);
 
-    let pos = generate_actor_spawn_position_in_zone(
+    let pos = generate_ground_actor_spawn_position(
         &map_config,
         &carriers,
         &zone,
@@ -195,7 +195,7 @@ fn actor_spawn_in_a_zone_without_a_spawnable_cell_yields_nothing() {
     let (map_config, carriers, zone) = nested_zone_fixture(Position::default(), false);
 
     assert!(
-        generate_actor_spawn_position_in_zone(
+        generate_ground_actor_spawn_position(
             &map_config,
             &carriers,
             &zone,
@@ -228,11 +228,11 @@ fn immovable_spawn_uses_the_cell_center_in_its_carriers_frame() {
     let turret = actor_config("turret");
     for _ in 0..10 {
         assert_eq!(
-            generate_actor_spawn_position_in_zone(&map, &carriers, &zone, &world, &[], &turret),
+            generate_ground_actor_spawn_position(&map, &carriers, &zone, &world, &[], &turret),
             Some(expected)
         );
     }
-    assert!(generate_actor_spawn_position_in_zone(&map, &carriers, &zone, &world, &[expected], &turret).is_none());
+    assert!(generate_ground_actor_spawn_position(&map, &carriers, &zone, &world, &[expected], &turret).is_none());
 }
 
 #[test]
@@ -267,10 +267,10 @@ fn immovable_spawn_checks_every_cell_before_reporting_a_full_zone() {
     let turret = actor_config("turret");
     let carriers = Carriers::default();
     assert_eq!(
-        generate_actor_spawn_position_in_zone(&map, &carriers, &zone, &world, &centers[..119], &turret),
+        generate_ground_actor_spawn_position(&map, &carriers, &zone, &world, &centers[..119], &turret),
         Some(centers[119])
     );
-    assert!(generate_actor_spawn_position_in_zone(&map, &carriers, &zone, &world, &centers, &turret).is_none());
+    assert!(generate_ground_actor_spawn_position(&map, &carriers, &zone, &world, &centers, &turret).is_none());
 }
 
 #[test]
@@ -307,7 +307,7 @@ fn immovable_spawn_waits_instead_of_shifting_away_from_an_obstructed_center() {
         switch: None,
     };
     assert!(
-        generate_actor_spawn_position_in_zone(&map, &Carriers::default(), &zone, &world, &[], &actor_config("turret"))
+        generate_ground_actor_spawn_position(&map, &Carriers::default(), &zone, &world, &[], &actor_config("turret"))
             .is_none()
     );
 }

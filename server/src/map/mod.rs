@@ -16,6 +16,7 @@ mod ramps;
 mod resources;
 mod segments;
 mod trim;
+mod volume;
 mod walls;
 mod weather;
 
@@ -34,4 +35,5 @@ pub use resources::{
     ActorSpawnZone, CarrierGrid, Cell, CellGrid, EdgeGrid, LevelGrid, MapConfig, MapFireworks, PlacedItem,
     PlayerSpawnZone, PressurePlateRuntime,
 };
+pub use volume::ZoneVolume;
 pub use weather::{WeatherState, weather_needs_tick, weather_system};

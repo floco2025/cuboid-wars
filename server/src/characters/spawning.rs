@@ -86,7 +86,7 @@ pub fn generate_player_spawn_position(
 // clear spot right now; the caller leaves the slot empty rather than spawn
 // somewhere the actor does not belong.
 #[must_use]
-pub fn generate_actor_spawn_position_in_zone(
+pub fn generate_ground_actor_spawn_position(
     map_config: &MapConfig,
     carriers: &Carriers,
     zone: &ActorSpawnZone,
@@ -95,20 +95,6 @@ pub fn generate_actor_spawn_position_in_zone(
     actor_config: &ActorGameplayConfig,
 ) -> Option<Position> {
     let character_physics = actor_config.physics();
-    if actor_config.flies() {
-        return generate_flying_spawn_position(
-            map_config.grid(zone.carrier),
-            carriers,
-            zone,
-            collision_world,
-            &occupied_positions
-                .iter()
-                .map(|p| (*p, character_physics))
-                .collect::<Vec<_>>(),
-            character_physics,
-            &[],
-        );
-    }
     if actor_config.immovable {
         let grid = map_config.grid(zone.carrier);
         let mut cells: Vec<_> = zone.immovable_cells(grid).collect();

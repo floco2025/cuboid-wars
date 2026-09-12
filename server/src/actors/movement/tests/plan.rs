@@ -1,7 +1,10 @@
 use std::slice::from_ref;
 
 use super::*;
-use common::config::{CharacterPhysicsConfig, HitboxConfig, MovementColliderConfig};
+use common::{
+    config::{CharacterPhysicsConfig, HitboxConfig, MovementColliderConfig},
+    physics::character_positions_intersect,
+};
 
 fn physics(width: f32, depth: f32) -> CharacterPhysicsConfig {
     CharacterPhysicsConfig {
@@ -79,4 +82,57 @@ fn actor_nearly_touching_a_waiting_climber_can_move_away_but_not_through_it() {
             blocked
         );
     }
+}
+
+#[test]
+fn descending_capsule_cannot_ignore_a_body_above_it_as_behind() {
+    let mut body = physics(0.88, 0.88);
+    body.movement_collider.height = 1.75;
+    let start = Position::default();
+    let end = Position {
+        x: 0.3,
+        y: -0.3,
+        z: 0.0,
+    };
+    let blocker = Position { x: 0.9, y: 1.2, z: 0.0 };
+    assert!(!character_positions_intersect(&start, body, &blocker, body));
+    assert!(character_positions_intersect(&end, body, &blocker, body));
+    let plan = CharacterMovePlan::from_target(Entity::from_bits(1), start, end, -3.0, body, false);
+    assert!(character_move_plan_is_blocked(
+        &plan,
+        &[],
+        &[(Entity::from_bits(2), blocker, body)]
+    ));
+}
+
+#[test]
+fn co_moving_bodies_cannot_cross_each_other_between_clear_endpoints() {
+    let body = physics(0.5, 0.5);
+    let rear = CharacterMovePlan::from_target(Entity::from_bits(1), pos(0.0), pos(3.0), 0.0, body, false);
+    let front = CharacterMovePlan::from_target(Entity::from_bits(2), pos(1.0), pos(2.0), 0.0, body, false);
+    assert!(blocking_character_move_plan(&rear, &[front]).is_some());
+}
+
+#[test]
+fn descending_capsule_cannot_deepen_an_existing_overlap_while_its_feet_move_away() {
+    let mut body = physics(0.88, 0.88);
+    body.movement_collider.height = 1.75;
+    let start = Position::default();
+    let end = Position {
+        x: 0.2,
+        y: -0.2,
+        z: 0.0,
+    };
+    let blocker = Position {
+        x: 0.8,
+        y: 1.15,
+        z: 0.0,
+    };
+    assert!(character_positions_intersect(&start, body, &blocker, body));
+    let plan = CharacterMovePlan::from_target(Entity::from_bits(1), start, end, -2.0, body, false);
+    assert!(character_move_plan_is_blocked(
+        &plan,
+        &[],
+        &[(Entity::from_bits(2), blocker, body)]
+    ));
 }

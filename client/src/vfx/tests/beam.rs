@@ -14,8 +14,6 @@ fn fade_progress_clamps_to_the_warning_window() {
     assert_eq!(ghost.fade_progress(190, 0.0), 1.0);
     assert_eq!(ghost.fade_progress(99, 0.9), 0.0);
     assert_eq!(ghost.fade_progress(250, 0.0), 1.0);
-    assert!(!ghost.is_due(189));
-    assert!(ghost.is_due(190));
 }
 
 #[test]

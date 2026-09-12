@@ -25,16 +25,18 @@ use super::{
     controllers::{
         decide_beam_actor, decide_contact_actor, decide_contact_beam_actor, decide_stationary_actor, retarget_beam,
     },
-    perception::{PlayerState, update_awareness},
+    perception::{PlayerState, decay_awareness, player_states, update_awareness},
     transitions::BehaviorContext,
 };
 
-const AI_DECISION_INTERVAL_SECS: f32 = 0.1;
-const ROUTE_STALL_PROGRESS_DISTANCE: f32 = 0.5;
-const ROUTE_STALL_TIMEOUT_SECS: f32 = 1.5;
+const GROUND_WORK_PER_TICK: usize = 2048;
+
+pub(super) const AI_DECISION_INTERVAL_SECS: f32 = 0.1;
+pub(super) const ROUTE_STALL_PROGRESS_DISTANCE: f32 = 0.5;
+pub(super) const ROUTE_STALL_TIMEOUT_SECS: f32 = 1.5;
 // How long the shake-loose hop owns the actor before the controller may
 // rethink — roughly one cell at active speed.
-const SHAKE_SECS: f32 = 0.6;
+pub(super) const SHAKE_SECS: f32 = 0.6;
 
 pub fn actors_behavior_system(
     time: Res<Time>,
@@ -53,31 +55,25 @@ pub fn actors_behavior_system(
     actor_query: Query<(&ActorId, &Position, &ActorCharacter), (With<ActorMarker>, Without<PlayerMarker>)>,
 ) {
     let delta = time.delta_secs();
-    let player_states: Vec<_> = player_query
-        .iter()
-        .filter_map(|(id, pos)| {
-            players
-                .get(id)
-                .filter(|info| !actors.peaceful && info.connection.logged_in && !info.is_dead())
-                .map(|info| PlayerState {
-                    id: *id,
-                    pos: *pos,
-                    support: info.life.movement.support,
-                })
-        })
-        .collect();
+    let player_states = player_states(&players, actors.peaceful, player_query.iter());
     let mut rng = rng();
-
-    for (id, pos, character) in &actor_query {
+    let count = actor_query
+        .iter()
+        .filter(|(_, _, c)| !c.0.flies() && !c.0.immovable)
+        .count()
+        .max(1);
+    let mut index = 0;
+    for (id, pos, character) in actor_query.iter().filter(|(_, _, c)| !c.0.flies()) {
         let Some(info) = actors.get_mut(id) else {
             continue;
         };
         let character = &character.0;
-        if character.flies() {
-            continue;
-        }
+        let share = GROUND_WORK_PER_TICK / count
+            + usize::from((index + tick.0 as usize) % count < GROUND_WORK_PER_TICK % count);
+        info.ground.tick(delta, if character.immovable { 0 } else { share });
+        index += usize::from(!character.immovable);
         let kind_config = server_gameplay_config.expect_actor(&info.spawn_kind);
-        if !character.immovable {
+        if !character.immovable && !carriers.is_static() {
             let grounding =
                 grounding_diagnostics(&collision_world, pos, character.physics(), &plates.open_barriers, &[]);
             if grounding.supported
@@ -85,6 +81,7 @@ pub fn actors_behavior_system(
                 && hit.carrier != info.carrier
             {
                 info.carrier = hit.carrier;
+                info.ground.clear();
                 info.set_route(None);
                 info.decision_timer = 0.0;
             }
@@ -206,9 +203,7 @@ pub(super) fn tick_runtime_state(
     players: &[PlayerState],
 ) -> bool {
     info.decision_timer -= delta;
-    for aware in &mut info.awareness {
-        aware.forget_remaining_secs = (aware.forget_remaining_secs - delta).max(0.0);
-    }
+    decay_awareness(info, delta);
     info.evade_replan_remaining_secs = (info.evade_replan_remaining_secs - delta).max(0.0);
     advance_route(info, pos);
     let stalled = tick_route_stall(info, pos, delta);
@@ -303,6 +298,7 @@ fn tick_route_stall(info: &mut ActorInfo, pos: Position, delta: f32) -> bool {
 // jam loops (two evaders re-planning the same routes into each other
 // forever). A failed hop just trips the watchdog again and re-rolls.
 pub(super) fn shake_loose(info: &mut ActorInfo, context: &BehaviorContext<'_>, rng: &mut impl Rng) {
+    info.ground.clear();
     let planned = context.nav_graph.random_neighbor_route(
         context.nav_graph.ladder_links(&info.spawn_kind),
         &context.pos,

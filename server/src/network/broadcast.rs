@@ -189,18 +189,18 @@ fn active_actors<'a>(
     carriers: &'a Carriers,
 ) -> impl Iterator<Item = (ActorId, &'a ActorInfo, ActorMovementState, Health)> {
     actors.iter().filter_map(|(actor_id, info)| {
-        let (pos, move_intent, face_yaw, health) = actor_data.get(info.entity).ok()?;
+        let (pos, move_intent, face_yaw, health, character) = actor_data.get(info.entity).ok()?;
         let (vertical, support) = motions.get(info.entity).ok()?;
         Some((
             *actor_id,
             info,
             ActorMovementState {
-                pos: if info.flight.is_some() {
+                pos: if character.0.flies() {
                     *pos
                 } else {
                     carriers.pose(info.carrier).inverse_transform_position(pos)
                 },
-                carrier: if info.flight.is_some() {
+                carrier: if character.0.flies() {
                     CarrierId::WORLD
                 } else {
                     info.carrier

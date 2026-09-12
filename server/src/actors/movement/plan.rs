@@ -1,8 +1,7 @@
 use bevy::prelude::{Entity, Vec3};
 use common::{
     config::CharacterPhysicsConfig,
-    math::PHYSICS_EPSILON,
-    physics::{CharacterMovePlan, character_move_plans_intersect, character_positions_intersect},
+    physics::{CharacterMovePlan, character_axis_separation, character_move_plans_intersect},
     protocol::Position,
 };
 
@@ -36,7 +35,7 @@ pub(crate) fn character_move_plan_is_blocked(
         if planned_moves.iter().any(|planned_move| planned_move.entity == *entity) {
             return false;
         }
-        if position_is_behind_move_plan(candidate, pos) {
+        if position_is_behind_move_plan(candidate, pos, *physics) {
             return false;
         }
         let stationary_character = CharacterMovePlan::stationary(*entity, *pos, 0.0, *physics);
@@ -45,30 +44,17 @@ pub(crate) fn character_move_plan_is_blocked(
 }
 
 fn character_move_plan_blocks(candidate: &CharacterMovePlan, other: &CharacterMovePlan) -> bool {
-    if other.entity == candidate.entity || !character_move_plans_intersect(candidate, other) {
-        return false;
-    }
-
-    !character_move_plan_follows_front_move(candidate, other)
+    other.entity != candidate.entity && character_move_plans_intersect(candidate, other)
 }
 
-fn character_move_plan_follows_front_move(candidate: &CharacterMovePlan, other: &CharacterMovePlan) -> bool {
-    let candidate_move = Vec3::from(candidate.target) - Vec3::from(candidate.start);
-    let other_move = Vec3::from(other.target) - Vec3::from(other.start);
-    if candidate_move.length_squared() <= PHYSICS_EPSILON * PHYSICS_EPSILON
-        || other_move.length_squared() <= PHYSICS_EPSILON * PHYSICS_EPSILON
-    {
-        return false;
-    }
-    let to_other = Vec3::from(other.start) - Vec3::from(candidate.start);
-    candidate_move.dot(to_other) > 0.0
-        && candidate_move.dot(other_move) > 0.0
-        && !character_positions_intersect(&candidate.target, candidate.physics, &other.target, other.physics)
-}
-
-fn position_is_behind_move_plan(candidate: &CharacterMovePlan, other_pos: &Position) -> bool {
+fn position_is_behind_move_plan(
+    candidate: &CharacterMovePlan,
+    other_pos: &Position,
+    other_physics: CharacterPhysicsConfig,
+) -> bool {
     let movement = Vec3::from(candidate.target) - Vec3::from(candidate.start);
-    movement.dot(Vec3::from(*other_pos) - Vec3::from(candidate.start)) < 0.0
+    let separation = character_axis_separation(&candidate.start, candidate.physics, other_pos, other_physics);
+    movement.dot(separation) < 0.0
 }
 
 #[cfg(test)]

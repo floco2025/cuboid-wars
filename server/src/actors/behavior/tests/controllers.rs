@@ -27,11 +27,7 @@ fn contact_actor_pursues_reachable_player_outside_home_region() {
     let fixture = Fixture::new(CONTACT);
     let actor_pos = fixture.pos(1, 2);
     let target = fixture.pos(10, 2);
-    assert!(
-        !fixture
-            .graph()
-            .position_in_roam_region(&target, fixture.territories.get(0))
-    );
+    assert!(!fixture.territories.get(0).contains_position(target.into()));
     let mut info = info(CONTACT);
     info.awareness.push(aware(7, target, CharacterSupport::Ground, true));
     let mut rng = StdRng::seed_from_u64(1);

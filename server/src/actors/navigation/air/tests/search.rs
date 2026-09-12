@@ -24,13 +24,13 @@ fn route_goes_above_a_wall_without_floor_and_respects_work_budget() {
     let mut search = AirSearch::new(start, target, physics.movement_collider.radius());
     let mut budget = 1;
     assert!(matches!(
-        search.advance(&world, physics, &[], &mut budget, |_| true),
+        search.advance(&world, physics, &[], &mut budget, |_, _| true),
         SearchResult::Pending
     ));
     assert_eq!(budget, 0);
     for _ in 0..100 {
         let mut budget = 128;
-        if let SearchResult::Found(path) = search.advance(&world, physics, &[], &mut budget, |_| true) {
+        if let SearchResult::Found(path) = search.advance(&world, physics, &[], &mut budget, |_, _| true) {
             assert!(path.iter().any(|p| p.y > 2.0));
             let mut previous = start;
             for point in path {
@@ -51,7 +51,7 @@ fn direct_flight_has_no_map_or_altitude_boundary() {
     let start = Position::default();
     let target = Position::from(Vec3::new(10000.0, -900.0, 20000.0));
     let mut search = AirSearch::new(start, target, physics.movement_collider.radius());
-    let SearchResult::Found(path) = search.advance(&world, physics, &[], &mut 1, |_| true) else {
+    let SearchResult::Found(path) = search.advance(&world, physics, &[], &mut 1, |_, _| true) else {
         panic!("direct air route missing");
     };
     assert_eq!(path, VecDeque::from([target]));
@@ -90,9 +90,15 @@ fn escape_finds_alternative_cover_around_a_wall_with_a_small_tick_budget() {
     let covered = |p: Vec3| p.x > 0.8 && p.z.abs() < 1.0;
     for _ in 0..16 {
         let mut budget = 16;
-        let result = search.advance_escape(&world, physics, &[], &mut budget, covered, |p| {
-            p.distance_squared(Vec3::new(-4.0, 0.0, 0.0))
-        });
+        let result = search.advance_escape(
+            &world,
+            physics,
+            &[],
+            &mut budget,
+            covered,
+            &[Vec3::new(-4.0, 0.0, 0.0).into()],
+            physics.movement_collider.radius() * 2.0,
+        );
         if let SearchResult::Found(route) = result {
             let end = *route.back().expect("escape endpoint missing");
             assert!(covered(Vec3::from(end)));

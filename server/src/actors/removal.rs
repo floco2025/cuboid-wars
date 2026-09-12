@@ -24,7 +24,9 @@ pub fn actors_removal_system(
         let Some(info) = actors.get(id) else {
             continue;
         };
-        let kind = if info.flight.is_none() && pos.y < CHARACTER_FALL_DEATH_Y {
+        let kind = if !server_gameplay_config.expect_actor(&info.spawn_kind).character.flies()
+            && pos.y < CHARACTER_FALL_DEATH_Y
+        {
             ActorDeathKind::Fall
         } else if crushed.0 {
             ActorDeathKind::Crushed

@@ -1,8 +1,9 @@
+use super::ZoneVolume;
 use bevy::prelude::Resource;
 
 use super::FireworksConfig;
 use common::{
-    map::{MapGeometry, ZoneVolume},
+    map::MapGeometry,
     protocol::{BridgeId, CarrierId, ItemType, MapItems, PlateState, SwitchId},
 };
 

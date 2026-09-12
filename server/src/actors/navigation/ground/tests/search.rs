@@ -1,12 +1,13 @@
 use super::super::GroundNavigation;
 use super::{NavGraphs, NavWaypoint};
+use crate::map::ZoneVolume;
 use crate::{
     actors::test_kinds::{self, CONTACT},
     map::{CarrierGrid, CellGrid, EdgeGrid, LevelGrid, MapConfig},
     test_geometry::{CELL, FLOOR_THICKNESS, geometry},
 };
 use common::{
-    map::{Carriers, ZoneVolume},
+    map::Carriers,
     physics::CollisionWorld,
     protocol::{Barrier, BarrierId, BarrierKindId, Carrier, CarrierId, Floor, MapLayout, Position, Wall},
 };
@@ -78,7 +79,7 @@ fn closed_barriers_block_routes_and_opening_them_allows_the_same_route() {
         let route = navigation.route(
             Position { x: -CELL, ..target },
             |pos, _| (pos.distance_sq(&target) < 0.001).then_some(target),
-            |_| true,
+            |_, _| true,
             100,
             None,
         );
@@ -125,7 +126,7 @@ fn roaming_cannot_detour_outside_its_volume_while_pursuit_can() {
         let route = navigation.route(
             start,
             |pos, _| (pos.distance_sq(&target) < 0.001).then_some(target),
-            |pos| !constrained || volume.contains(pos.into(), 0.0),
+            |from, to| !constrained || (volume.contains(from.into(), 0.0) && volume.contains(to.into(), 0.0)),
             100,
             None,
         );
@@ -187,7 +188,7 @@ fn routes_cross_connected_carriers_but_cannot_cross_an_air_gap() {
         let route = navigation.route(
             Position::default(),
             |pos, _| (pos.distance_sq(&target) < 0.001).then_some(target),
-            |_| true,
+            |_, _| true,
             100,
             None,
         );
@@ -196,4 +197,214 @@ fn routes_cross_connected_carriers_but_cannot_cross_an_air_gap() {
             assert_eq!(route.waypoints.back().map(|p: &NavWaypoint| p.position), Some(target));
         }
     }
+}
+
+#[test]
+fn long_routes_resume_under_a_small_budget_and_failed_queries_are_cached() {
+    use super::super::{GroundSearchResult, GroundState, GroundTask};
+    let map = rectangle(80, 1);
+    let graphs = NavGraphs::new(&map);
+    let carriers = Carriers::default();
+    let world = CollisionWorld::from_map_layout(&MapLayout::default());
+    let nav = GroundNavigation {
+        graphs: &graphs,
+        carriers: &carriers,
+        carrier: CarrierId::WORLD,
+        kind: CONTACT,
+        world: &world,
+        physics: test_kinds::physics(CONTACT),
+        open: &[],
+    };
+    let start = Position {
+        x: map.root_grid().geometry.cell_center_x(0),
+        ..Position::default()
+    };
+    let target = Position {
+        x: map.root_grid().geometry.cell_center_x(79),
+        ..start
+    };
+    let mut state = GroundState::default();
+    let mut found = false;
+    for _ in 0..40 {
+        state.tick(0.03, 4);
+        let result = state.route(
+            &nav,
+            GroundTask::Return,
+            start,
+            target,
+            |pos, _| (pos.distance_sq(&target) < 0.01).then_some(target),
+            |_, _| true,
+            None,
+            None,
+        );
+        assert!(state.work <= 4);
+        match result {
+            GroundSearchResult::Found(route) => {
+                assert_eq!(route.waypoints.back().map(|p| p.position), Some(target));
+                found = true;
+                break;
+            }
+            GroundSearchResult::Pending => assert_eq!(state.work, 0),
+            GroundSearchResult::Unreachable => panic!("valid long route was rejected instead of resumed"),
+        }
+    }
+    assert!(found);
+    let mut finished = false;
+    for _ in 0..40 {
+        state.tick(0.03, 4);
+        if matches!(
+            state.route(
+                &nav,
+                GroundTask::Return,
+                start,
+                target,
+                |_, _| None,
+                |_, _| true,
+                None,
+                None
+            ),
+            GroundSearchResult::Unreachable
+        ) {
+            finished = true;
+            break;
+        }
+    }
+    assert!(finished);
+    state.tick(0.03, 4);
+    assert!(matches!(
+        state.route(
+            &nav,
+            GroundTask::Return,
+            start,
+            target,
+            |_, _| panic!("cached failure searched again"),
+            |_, _| true,
+            None,
+            None
+        ),
+        GroundSearchResult::Unreachable
+    ));
+    assert_eq!(state.work, 4);
+    state.tick(1.1, 4);
+    assert!(matches!(
+        state.route(
+            &nav,
+            GroundTask::Return,
+            start,
+            Position {
+                x: target.x + 0.5,
+                ..target
+            },
+            |_, _| None,
+            |_, _| true,
+            None,
+            None
+        ),
+        GroundSearchResult::Pending
+    ));
+    assert_eq!(state.work, 0);
+}
+
+#[test]
+fn intermediate_floor_slabs_cannot_be_routed_through() {
+    let map = rectangle(3, 1);
+    let graphs = NavGraphs::new(&map);
+    let carriers = Carriers::default();
+    let world = CollisionWorld::from_map_layout(&MapLayout {
+        floors: vec![Floor {
+            carrier: CarrierId::WORLD,
+            level: 1,
+            x1: -0.5,
+            x2: 0.5,
+            z1: -CELL,
+            z2: CELL,
+            y: 1.2,
+            thickness: 0.5,
+        }],
+        ..Default::default()
+    });
+    let nav = GroundNavigation {
+        graphs: &graphs,
+        carriers: &carriers,
+        carrier: CarrierId::WORLD,
+        kind: CONTACT,
+        world: &world,
+        physics: test_kinds::physics(CONTACT),
+        open: &[],
+    };
+    let target = Position {
+        x: CELL,
+        ..Position::default()
+    };
+    assert!(
+        nav.route(
+            Position { x: -CELL, ..target },
+            |pos, _| (pos.distance_sq(&target) < 0.01).then_some(target),
+            |_, _| true,
+            100,
+            None
+        )
+        .is_none()
+    );
+}
+
+#[test]
+fn many_unreachable_queries_keep_their_per_tick_work_limit() {
+    use super::super::{GroundSearchResult, GroundState, GroundTask};
+    use common::protocol::PlayerId;
+    use std::{cell::Cell, time::Instant};
+    let map = rectangle(40, 40);
+    let graphs = NavGraphs::new(&map);
+    let carriers = Carriers::default();
+    let world = CollisionWorld::from_map_layout(&MapLayout::default());
+    let nav = GroundNavigation {
+        graphs: &graphs,
+        carriers: &carriers,
+        carrier: CarrierId::WORLD,
+        kind: CONTACT,
+        world: &world,
+        physics: test_kinds::physics(CONTACT),
+        open: &[],
+    };
+    let start = Position {
+        x: map.root_grid().geometry.cell_center_x(20),
+        y: 0.0,
+        z: map.root_grid().geometry.cell_center_z(20),
+    };
+    let target = Position { y: 100.0, ..start };
+    let mut states: Vec<_> = (0..16).map(|_| GroundState::default()).collect();
+    let elapsed = Instant::now();
+    let furthest_player = Cell::new(0);
+    for _ in 0..120 {
+        let visited = Cell::new(0usize);
+        for state in &mut states {
+            state.tick(1.0 / 30.0, 16);
+            for player in 1..=4 {
+                let result = state.route(
+                    &nav,
+                    GroundTask::Pursue(PlayerId(player)),
+                    start,
+                    target,
+                    |_, _| {
+                        visited.set(visited.get() + 1);
+                        furthest_player.set(furthest_player.get().max(player));
+                        None
+                    },
+                    |_, _| true,
+                    None,
+                    None,
+                );
+                if matches!(result, GroundSearchResult::Pending) {
+                    break;
+                }
+                assert!(matches!(result, GroundSearchResult::Unreachable));
+            }
+        }
+        assert!(visited.get() <= 16 * 16);
+    }
+    assert!(furthest_player.get() >= 2);
+    eprintln!(
+        "16 actors, 4 players, 1600-node map, 120 unreachable-search ticks: {:?}",
+        elapsed.elapsed()
+    );
 }

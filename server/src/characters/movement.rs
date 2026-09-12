@@ -58,5 +58,11 @@ pub fn characters_movement_system(
         &mut actor_query,
         &mut planned_moves,
     );
-    apply_actor_moves(&mut actor_query, &actors, &planned_moves);
+    apply_actor_moves(
+        &mut actor_query,
+        &actors,
+        &planned_moves,
+        &collision_world,
+        &plates.open_barriers,
+    );
 }

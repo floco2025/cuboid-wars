@@ -1,6 +1,6 @@
 use std::f32::consts::FRAC_PI_2;
 
-use bevy::prelude::Vec3;
+use bevy::prelude::{Entity, Vec3};
 
 use crate::actors::{ActorMap, ActorMode, navigation::ActorTerritories};
 use common::{
@@ -27,7 +27,7 @@ pub(crate) fn plan_actor_moves(
     carriers: &Carriers,
     actors: &ActorMap,
     territories: &ActorTerritories,
-    actor_starts: &[(bevy::prelude::Entity, Position, CharacterPhysicsConfig)],
+    actor_starts: &[(Entity, Position, CharacterPhysicsConfig)],
     query: &mut ActorMovementQuery,
     planned_moves: &mut Vec<CharacterMovePlan>,
 ) {

@@ -195,3 +195,35 @@ fn unarmed_players_are_not_evaded() {
 
     assert!(!matches!(info.mode, ActorMode::Evade { .. }), "evaded: {:?}", info.mode);
 }
+
+#[test]
+fn flee_destinations_vary_without_sacrificing_threat_clearance() {
+    use crate::actors::navigation::{evade_clearance, segment_threat_distance_sq};
+    use std::collections::HashSet;
+    let fixture = Fixture::new(CONTACT);
+    let actor_pos = fixture.pos(4, 2);
+    let threat = fixture.pos(1, 2);
+    let context = fixture.context(CONTACT, actor_pos);
+    let clearance = evade_clearance(
+        actor_pos.distance_sq(&threat),
+        context.actor_physics.movement_collider.radius() + context.player_physics.movement_collider.radius(),
+        0,
+    );
+    let mut destinations = HashSet::new();
+    for seed in 0..24 {
+        let mut actor = info(CONTACT);
+        actor.awareness.push(aware(7, threat, CharacterSupport::Ground, true));
+        enter_evade(&mut actor, &context, &mut StdRng::seed_from_u64(seed));
+        let route = actor.route.expect("flee route missing");
+        assert!(route.destination.distance_sq(&threat) > actor_pos.distance_sq(&threat));
+        destinations.insert((route.destination.x.to_bits(), route.destination.z.to_bits()));
+        let mut previous = actor_pos;
+        for point in route.waypoints {
+            assert!(
+                segment_threat_distance_sq(previous.into(), point.position.into(), &[threat]) + 0.00001 >= clearance
+            );
+            previous = point.position;
+        }
+    }
+    assert!(destinations.len() > 1);
+}

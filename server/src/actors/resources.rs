@@ -11,8 +11,7 @@ use common::{
     },
 };
 
-use super::navigation::air::FlightState;
-use super::navigation::{NavNode, NavWaypoint, PlannedRoute, WaypointKind};
+use super::navigation::{GroundState, NavNode, NavWaypoint, PlannedRoute, WaypointKind, air::FlightState};
 
 // Whether this tick's movement left the actor inside a carrier's geometry;
 // written by `apply_actor_moves`, read by `actors_removal_system`.
@@ -32,6 +31,7 @@ pub type ActorStateQuery<'w, 's> = Query<
         &'static ActorMoveIntent,
         &'static FaceYaw,
         &'static Health,
+        &'static ActorCharacter,
     ),
     With<ActorMarker>,
 >;
@@ -140,6 +140,7 @@ pub struct ActorInfo {
     pub carrier: CarrierId,
     pub anchor: Option<ActorAnchor>,
     pub(crate) flight: Option<FlightState>,
+    pub(crate) ground: GroundState,
     pub(crate) mode: ActorMode,
     pub(crate) route: Option<ActorRoute>,
     pub(crate) beam: BeamState,
@@ -164,6 +165,7 @@ impl ActorInfo {
             carrier,
             anchor: None,
             flight: None,
+            ground: GroundState::default(),
             mode: ActorMode::Roam,
             route: None,
             beam: BeamState::Ready,
@@ -200,6 +202,7 @@ impl ActorMap {
             if peaceful {
                 info.beam = BeamState::Ready;
                 info.awareness.clear();
+                info.ground.clear();
                 info.mode = ActorMode::Roam;
                 // Finish a ladder traversal before choosing a passive route.
                 if !info.route.as_ref().is_some_and(ActorRoute::traversing_ladder) {
@@ -281,8 +284,8 @@ pub(crate) enum ActorRespawnState {
 // A spawn that has been decided (id, spot, and heading reserved) but whose
 // beam-in warning window hasn't elapsed. The actor entity doesn't exist yet —
 // clients render a ghost from the snapshot's `spawning_actors` list. Counts
-// toward the zone quota and occupies its spot, since materialization is
-// unconditional. `pos` is in the zone's carrier frame, so the spot rides
+// toward the zone quota until materialized or canceled because its spot is blocked.
+// `pos` is in the zone's carrier frame, so the spot rides
 // the carrier through the window, which runs from `reserved_tick` to
 // `due_tick` on the shared tick.
 pub struct PendingActorSpawn {

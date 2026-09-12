@@ -448,7 +448,7 @@ fn horizontal_shortfall(desired: Vector, actual: Vector) -> f32 {
     (desired_len - actual_along_desired).max(0.0)
 }
 
-fn character_controller() -> KinematicCharacterController {
+pub(crate) fn character_controller() -> KinematicCharacterController {
     KinematicCharacterController {
         offset: CharacterLength::Absolute(CHARACTER_CONTACT_OFFSET),
         autostep: Some(CharacterAutostep {

@@ -8,19 +8,19 @@ use rapier3d::{
 
 use super::{
     CollisionWorld,
-    colliders::{
-        BARRIER_COLLISION_GROUP, WALL_COLLISION_GROUP, barrier_blocks, character_collision_groups, query_filter,
-    },
+    colliders::{WALL_COLLISION_GROUP, barrier_blocks, character_collision_groups, query_filter},
 };
 use crate::{
     config::CharacterPhysicsConfig,
-    physics::characters::{character_movement_pose, character_movement_shape},
+    constants::{CHARACTER_CONTACT_OFFSET, CHARACTER_MAX_SLOPE, CHARACTER_STEP_HEIGHT},
+    math::PHYSICS_EPSILON,
+    physics::characters::{character_controller, character_movement_pose, character_movement_shape},
     protocol::{BarrierId, Position},
 };
 
 impl CollisionWorld {
     #[must_use]
-    // Floor topology supplies support; this sweep checks walls and closed barriers.
+    // Use the motor's step and slope rules: a straight capsule sweep would reject walkable ramps.
     pub fn character_ground_route_clear(
         &self,
         start: Position,
@@ -28,22 +28,62 @@ impl CollisionWorld {
         physics: CharacterPhysicsConfig,
         open: &[BarrierId],
     ) -> bool {
-        let allow = |_: ColliderHandle, collider: &Collider| barrier_blocks(collider, open);
-        let mut filter = query_filter(WALL_COLLISION_GROUP | BARRIER_COLLISION_GROUP);
-        filter.predicate = Some(&allow);
+        let start = self.ground_route_position(start, physics, open);
+        let target = self.ground_route_position(target, physics, open);
         let translation = Vector::new(target.x - start.x, target.y - start.y, target.z - start.z);
-        self.query_pipeline(filter)
-            .cast_shape(
-                &character_movement_pose(&start, physics),
-                translation,
-                &character_movement_shape(physics),
-                ShapeCastOptions {
-                    max_time_of_impact: 1.0,
-                    stop_at_penetration: false,
-                    ..Default::default()
+        let movement = self.move_character(
+            1.0,
+            &character_controller(),
+            &character_movement_shape(physics),
+            &character_movement_pose(&start, physics),
+            translation,
+            open,
+            &[],
+            |_| {},
+        );
+        let error = movement.translation - translation;
+        error.x * error.x + error.z * error.z <= 0.05 * 0.05
+            && error.y.abs() <= CHARACTER_STEP_HEIGHT
+            && !self.character_penetrates_solid(
+                &Position {
+                    x: start.x + movement.translation.x,
+                    y: start.y + movement.translation.y,
+                    z: start.z + movement.translation.z,
                 },
+                physics,
+                open,
             )
-            .is_none()
+    }
+
+    fn ground_route_position(
+        &self,
+        mut position: Position,
+        physics: CharacterPhysicsConfig,
+        open: &[BarrierId],
+    ) -> Position {
+        let lift = physics.movement_collider.radius() + CHARACTER_STEP_HEIGHT;
+        let mut pose = character_movement_pose(&position, physics);
+        pose.translation.y += lift;
+        let Some(hit) = self.ground_hit(
+            &character_movement_shape(physics),
+            &pose,
+            lift + CHARACTER_CONTACT_OFFSET,
+            0.0,
+            open,
+            &[],
+        ) else {
+            return position;
+        };
+        if hit.normal.y < CHARACTER_MAX_SLOPE.cos() {
+            return position;
+        }
+        let adjustment = lift - hit.t + CHARACTER_CONTACT_OFFSET / hit.normal.y;
+        // Graph heights describe surfaces; an upright capsule's rounded base stands higher on a slope.
+        let slope_clearance = physics.movement_collider.radius() * (hit.normal.y.recip() - 1.0);
+        if adjustment.abs() <= CHARACTER_STEP_HEIGHT + slope_clearance + CHARACTER_CONTACT_OFFSET * 2.0 {
+            position.y += adjustment;
+        }
+        position
     }
 
     #[must_use]
@@ -103,6 +143,28 @@ impl CollisionWorld {
             character_movement_pose(pos, physics),
             &character_movement_shape(physics),
             filter,
+        )
+    }
+
+    pub fn character_penetrates_solid(
+        &self,
+        pos: &Position,
+        physics: CharacterPhysicsConfig,
+        open: &[BarrierId],
+    ) -> bool {
+        // Contact skin is harmless; crushing requires geometry inside the body.
+        let margin = CHARACTER_CONTACT_OFFSET * 0.1;
+        let mut inset = physics;
+        inset.movement_collider.diameter = (physics.movement_collider.diameter - margin * 2.0).max(PHYSICS_EPSILON);
+        inset.movement_collider.height =
+            (physics.movement_collider.height - margin * 2.0).max(inset.movement_collider.diameter);
+        self.character_overlaps_solid(
+            &Position {
+                y: pos.y + margin,
+                ..*pos
+            },
+            inset,
+            open,
         )
     }
 
@@ -204,3 +266,7 @@ impl QueryDispatcher for CharacterQueryDispatcher<'_> {
         self.0.cast_shapes_nonlinear(motion1, a, motion2, b, start, end, stop)
     }
 }
+
+#[cfg(test)]
+#[path = "tests/character_queries.rs"]
+mod tests;

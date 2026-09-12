@@ -99,6 +99,7 @@ impl ZoneRect for CheckpointDef {
     }
 }
 
+// Spawn support belongs to the designer; bridges and other carriers can supply it at runtime.
 fn validate_actor_spawn_zones(map_def: &MapDef) -> Result<()> {
     for (zone_idx, zone) in map_def.actor_spawn_zones.iter().enumerate() {
         let label = format!("actor_spawn_zones[{zone_idx}]");

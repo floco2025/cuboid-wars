@@ -5,13 +5,41 @@ use common::{
     protocol::{PlayerId, Position},
 };
 
-use crate::actors::resources::{ActorInfo, AwarePlayer};
+use crate::{
+    actors::resources::{ActorInfo, AwarePlayer},
+    players::PlayerMap,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(super) struct PlayerState {
     pub(super) id: PlayerId,
     pub(super) pos: Position,
     pub(super) support: CharacterSupport,
+}
+
+pub(super) fn player_states<'a>(
+    players: &PlayerMap,
+    peaceful: bool,
+    positions: impl Iterator<Item = (&'a PlayerId, &'a Position)>,
+) -> Vec<PlayerState> {
+    positions
+        .filter_map(|(id, pos)| {
+            players
+                .get(id)
+                .filter(|info| !peaceful && info.connection.logged_in && !info.is_dead())
+                .map(|info| PlayerState {
+                    id: *id,
+                    pos: *pos,
+                    support: info.life.movement.support,
+                })
+        })
+        .collect()
+}
+
+pub(super) fn decay_awareness(info: &mut ActorInfo, delta: f32) {
+    for aware in &mut info.awareness {
+        aware.forget_remaining_secs = (aware.forget_remaining_secs - delta).max(0.0);
+    }
 }
 
 pub(super) fn update_awareness(
@@ -56,6 +84,7 @@ pub(super) fn update_awareness(
         });
     }
 
+    info.ground.retain_targets(info.awareness.iter().map(|aware| aware.id));
     info.awareness.sort_by(|a, b| {
         actor_pos
             .distance_sq(&a.pos)

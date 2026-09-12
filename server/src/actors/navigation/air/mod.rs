@@ -1,4 +1,3 @@
-mod constants;
 mod home;
 mod search;
 mod state;

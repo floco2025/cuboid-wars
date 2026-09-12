@@ -6,6 +6,7 @@ use rapier3d::prelude::{
 };
 
 use super::{
+    bounds::WorldBounds,
     colliders::{
         BRIDGE_COLLISION_GROUP, ColliderKind, collider_interaction_groups, insert_barrier_collider,
         insert_bridge_collider, insert_floor_collider, insert_ramp_collider, insert_wall_collider, query_filter,
@@ -33,7 +34,7 @@ pub struct CollisionWorld {
     // Each carrier's colliders with their carrier-local poses, in layout
     // order, and the same handles flat, for `set_carrier_poses`.
     carrier_colliders: Vec<Vec<(ColliderHandle, Pose)>>,
-    carried_handles: Vec<ColliderHandle>,
+    pub(super) bounds: WorldBounds,
     // Ladder and eraser volumes as built from the local records, and the
     // same posed into world space by `set_carrier_poses`, which is what
     // queries read.
@@ -96,10 +97,7 @@ impl CollisionWorld {
             collider_handles.push(carried(&colliders, handle, bridge.carrier));
             bridge_colliders.push((bridge.id, handle));
         }
-        let carried_handles = carrier_colliders
-            .iter()
-            .flat_map(|handles| handles.iter().map(|(handle, _)| *handle))
-            .collect();
+        let bounds = WorldBounds::new(&colliders, map_layout.carriers.len());
 
         let mut broad_phase = BroadPhaseBvh::new();
         let narrow_phase = NarrowPhase::new();
@@ -126,13 +124,15 @@ impl CollisionWorld {
             barriers: map_layout.barriers.clone(),
             bridge_colliders,
             carrier_colliders,
-            carried_handles,
+            bounds,
             ladder_locals,
             ladder_volumes,
             eraser_locals,
             eraser_volumes,
         };
         world.set_carrier_poses(&Carriers::from_layout(map_layout));
+        // Initial placement is not a sweep through the intervening space.
+        world.bounds.finish_placement();
         world
     }
 
@@ -150,18 +150,24 @@ impl CollisionWorld {
         if self.carrier_colliders.is_empty() {
             return;
         }
+        let mut changed_handles = Vec::new();
         for (carrier, handles) in carriers.carried_ids().zip(&self.carrier_colliders) {
+            if !self.bounds.set_pose(carrier, carriers.pose(carrier).translation) {
+                continue;
+            }
             let pose = Pose::from_translation(to_rapier(carriers.pose(carrier).translation));
             for (handle, local) in handles {
                 self.colliders[*handle].set_position(pose * *local);
+                changed_handles.push(*handle);
             }
         }
+        self.bounds.refresh();
         let mut events = Vec::new();
         self.broad_phase.update(
             &IntegrationParameters::default(),
             &self.colliders,
             &self.bodies,
-            &self.carried_handles,
+            &changed_handles,
             &[],
             &mut events,
         );
@@ -207,7 +213,10 @@ impl CollisionWorld {
             } else {
                 Group::empty()
             };
-            self.colliders[*handle].set_collision_groups(collider_interaction_groups(membership));
+            if self.colliders[*handle].collision_groups().memberships != membership {
+                self.bounds.changed(self.carrier_of(*handle));
+                self.colliders[*handle].set_collision_groups(collider_interaction_groups(membership));
+            }
         }
     }
 

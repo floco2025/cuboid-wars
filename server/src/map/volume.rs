@@ -1,5 +1,5 @@
-use super::MapGeometry;
-use bevy_math::Vec3;
+use bevy::prelude::Vec3;
+use common::map::MapGeometry;
 
 #[derive(Clone, Copy, Debug)]
 pub struct ZoneVolume {
@@ -23,12 +23,12 @@ impl ZoneVolume {
         }
     }
 
-    pub fn distance_squared(self, point: Vec3) -> f32 {
-        point.distance_squared(point.clamp(self.min, self.max))
-    }
-
     pub fn contains(self, point: Vec3, extension: f32) -> bool {
-        self.distance_squared(point) <= extension * extension + 0.000001
+        point.is_finite()
+            && point
+                .as_dvec3()
+                .distance_squared(point.clamp(self.min, self.max).as_dvec3())
+                <= f64::from(extension).powi(2) + 0.000001
     }
 }
 

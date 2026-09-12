@@ -1,10 +1,13 @@
 use bevy::prelude::Vec3;
-use rand::Rng;
+use rand::{Rng, RngExt};
 
 use crate::{
     actors::{
         ActorInfo, ActorMode, ActorRoute,
-        navigation::{ActorTerritory, GroundNavigation, NavGraph, NavGraphs, PlannedRoute},
+        navigation::{
+            ActorTerritory, GroundNavigation, GroundSearchResult, GroundTask, NavGraph, NavGraphs, PlannedRoute,
+            evade_clearance, segment_threat_distance_sq,
+        },
     },
     config::ActorKindServerConfig,
 };
@@ -98,7 +101,7 @@ impl BehaviorContext<'_> {
 // that got exposed. With no cover in reach the actor takes a reachable retreat
 // instead, and that leg is kept until it ends, since a flight re-rolled
 // every decision is a jitter, not a flight.
-pub(super) fn enter_evade(info: &mut ActorInfo, context: &BehaviorContext<'_>, _rng: &mut impl Rng) {
+pub(super) fn enter_evade(info: &mut ActorInfo, context: &BehaviorContext<'_>, rng: &mut impl Rng) {
     let threats: Vec<_> = info.awareness.iter().map(|aware| aware.pos).collect();
     let evading = match info.mode {
         ActorMode::Evade { fleeing } => Some(fleeing),
@@ -122,63 +125,128 @@ pub(super) fn enter_evade(info: &mut ActorInfo, context: &BehaviorContext<'_>, _
     if evading == Some(false) && info.evade_replan_remaining_secs > 0.0 {
         return;
     }
+    if !matches!(info.mode, ActorMode::Evade { .. }) {
+        info.ground.evade_tier = 0;
+        info.ground.seed = rng.random();
+    }
     let safety = |pos: Position| super::geometry::threat_distance_sq(pos.into(), &threats);
-    let minimum =
-        safety(context.world_pos).min((context.actor_physics.movement_collider.radius() * 4.0).powi(2)) * 0.25;
-    let planned = context.navigation(&info.spawn_kind).route(
+    let clearance =
+        context.actor_physics.movement_collider.radius() + context.player_physics.movement_collider.radius();
+    let tier = info.ground.evade_tier;
+    let minimum = evade_clearance(safety(context.world_pos), clearance, tier);
+    let seed = info.ground.seed;
+    let retreat = |pos: Position| {
+        let distance = safety(pos);
+        if distance <= safety(context.world_pos) {
+            f32::NEG_INFINITY
+        } else {
+            distance.sqrt() + destination_variation(pos, seed) * clearance
+        }
+    };
+    let task = GroundTask::Evade(tier);
+    let target = threats.first().copied().unwrap_or(context.world_pos);
+    let result = info.ground.route(
+        &context.navigation(&info.spawn_kind),
+        task,
         context.world_pos,
+        target,
         |pos, _| context.stable_cover(&context.to_local(&pos), &threats).then_some(pos),
-        |pos| safety(pos) >= minimum,
-        256,
-        Some(&safety),
+        |from, to| segment_threat_distance_sq(from.into(), to.into(), &threats) + 0.00001 >= minimum,
+        Some(&retreat),
+        Some(256),
     );
-    let fleeing = planned
-        .as_ref()
-        .and_then(|route| route.waypoints.back())
-        .is_none_or(|point| !context.stable_cover(&point.position, &threats));
-    info.mode = ActorMode::Evade { fleeing };
-    context.install_route(info, planned);
-    info.evade_replan_remaining_secs = EVADE_REPLAN_INTERVAL_SECS;
+    info.mode = ActorMode::Evade { fleeing: true };
+    match result {
+        GroundSearchResult::Pending => info.decision_timer = 0.0,
+        GroundSearchResult::Found(planned) => {
+            let fleeing = planned
+                .waypoints
+                .back()
+                .is_none_or(|point| !context.stable_cover(&point.position, &threats));
+            info.mode = ActorMode::Evade { fleeing };
+            context.install_route(info, Some(planned));
+            info.evade_replan_remaining_secs = EVADE_REPLAN_INTERVAL_SECS;
+        }
+        GroundSearchResult::Unreachable => {
+            info.ground.evade_tier = (tier + 1).min(2);
+            info.ground.seed = rng.random();
+            info.decision_timer = if tier < 2 { 0.0 } else { EVADE_REPLAN_INTERVAL_SECS };
+        }
+    }
 }
 
 pub(super) fn enter_roam_or_return(info: &mut ActorInfo, context: &BehaviorContext<'_>, rng: &mut impl Rng) {
-    if context
-        .nav_graph
-        .position_in_roam_region(&context.pos, context.territory)
-    {
-        let continuing_roam = matches!(info.mode, ActorMode::Roam) && info.route.is_some();
-        info.mode = ActorMode::Roam;
-        info.evade_replan_remaining_secs = 0.0;
-        if continuing_roam {
-            return;
-        }
-        let route = context.navigation(&info.spawn_kind).roam(
-            context.world_pos,
-            |pos| context.territory.contains_position(context.to_local(&pos).into()),
-            rng,
-        );
-        context.install_route(info, route);
+    let roaming = context.territory.contains_position(context.pos.into());
+    let mode = if roaming {
+        ActorMode::Roam
     } else {
-        let continuing_return = matches!(info.mode, ActorMode::ReturnHome) && info.route.is_some();
-        info.mode = ActorMode::ReturnHome;
-        info.evade_replan_remaining_secs = 0.0;
-        if continuing_return {
-            return;
-        }
-        let route = context.navigation(&info.spawn_kind).route(
-            context.world_pos,
-            |pos, _| {
-                context
-                    .territory
-                    .contains_position(context.to_local(&pos).into())
-                    .then_some(pos)
-            },
-            |_| true,
-            usize::MAX,
-            None,
-        );
-        context.install_route(info, route);
+        ActorMode::ReturnHome
+    };
+    if info.mode == mode && info.route.is_some() {
+        return;
     }
+    if info.mode != mode {
+        info.set_route(None);
+    }
+    info.mode = mode;
+    info.evade_replan_remaining_secs = 0.0;
+    let task = if roaming { GroundTask::Roam } else { GroundTask::Return };
+    if !info.ground.pending(task) {
+        info.ground.seed = rng.random();
+    }
+    let seed = info.ground.seed;
+    let score = |pos: Position| {
+        if pos.distance_sq(&context.world_pos) < context.actor_physics.movement_collider.radius().powi(2) {
+            f32::NEG_INFINITY
+        } else {
+            destination_variation(pos, seed)
+        }
+    };
+    let result = info.ground.route(
+        &context.navigation(&info.spawn_kind),
+        task,
+        context.world_pos,
+        context.to_world(&context.territory.volume.min.into()),
+        |pos, _| (!roaming && context.territory.contains_position(context.to_local(&pos).into())).then_some(pos),
+        |from, to| {
+            !roaming
+                || context
+                    .territory
+                    .path_contains(context.to_local(&from).into(), context.to_local(&to).into())
+        },
+        roaming.then_some(&score as &dyn Fn(Position) -> f32),
+        roaming.then_some(128),
+    );
+    match result {
+        GroundSearchResult::Pending => info.decision_timer = 0.0,
+        GroundSearchResult::Found(route) => context.install_route(info, Some(route)),
+        GroundSearchResult::Unreachable => {
+            let route = if roaming {
+                context.navigation(&info.spawn_kind).local_roam(
+                    context.world_pos,
+                    |pos| context.territory.contains_position(context.to_local(&pos).into()),
+                    &mut info.ground.work,
+                    rng,
+                )
+            } else {
+                None
+            };
+            if route.is_some() {
+                context.install_route(info, route);
+            } else {
+                info.decision_timer = EVADE_REPLAN_INTERVAL_SECS;
+            }
+        }
+    }
+}
+
+fn destination_variation(pos: Position, seed: u32) -> f32 {
+    let mut hash = seed ^ pos.x.to_bits().rotate_left(7) ^ pos.y.to_bits().rotate_left(13) ^ pos.z.to_bits();
+    hash ^= hash >> 16;
+    hash = hash.wrapping_mul(0x7feb_352d);
+    hash ^= hash >> 15;
+    hash = hash.wrapping_mul(0x846c_a68b);
+    (hash ^ (hash >> 16)) as f32 / u32::MAX as f32
 }
 
 pub(super) fn keep_or_install_engagement_route(
@@ -203,8 +271,11 @@ pub(super) fn keep_or_install_engagement_route(
     {
         return true;
     }
-    let planned = context.navigation(&info.spawn_kind).route(
+    let result = info.ground.route(
+        &context.navigation(&info.spawn_kind),
+        GroundTask::Pursue(target),
         context.world_pos,
+        target_pos,
         |pos, cell_size| {
             if super::geometry::attack_position(pos, target_pos, beam) {
                 return Some(pos);
@@ -217,12 +288,18 @@ pub(super) fn keep_or_install_engagement_route(
             };
             super::geometry::attack_position(candidate, target_pos, beam).then_some(candidate)
         },
-        |_| true,
-        usize::MAX,
+        |_, _| true,
+        None,
         None,
     );
-    let Some(planned) = planned else {
-        return false;
+    let planned = match result {
+        GroundSearchResult::Pending => {
+            info.mode = ActorMode::Engage { target, target_pos };
+            info.decision_timer = 0.0;
+            return true;
+        }
+        GroundSearchResult::Unreachable => return false,
+        GroundSearchResult::Found(route) => route,
     };
     info.mode = ActorMode::Engage { target, target_pos };
     info.evade_replan_remaining_secs = 0.0;

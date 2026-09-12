@@ -192,7 +192,9 @@ impl Fixture {
 }
 
 pub(crate) fn info(kind: &str) -> ActorInfo {
-    ActorInfo::new(Entity::from_bits(1), 0, kind.to_owned(), CarrierId::WORLD)
+    let mut info = ActorInfo::new(Entity::from_bits(1), 0, kind.to_owned(), CarrierId::WORLD);
+    info.ground.work = 256;
+    info
 }
 
 pub(crate) fn aware(

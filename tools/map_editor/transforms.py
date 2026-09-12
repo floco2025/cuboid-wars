@@ -117,9 +117,6 @@ def remap_levels(data: dict, pivot: int, *, remove: bool) -> dict:
                     if entry.get("levels", 1) == 1:
                         continue
                     entry["levels"] -= 1
-                    if entry["level"] == pivot:
-                        kept.append(entry)
-                        continue
                 elif lower < pivot:
                     entry["levels"] = entry.get("levels", 1) + 1
                 if remove:

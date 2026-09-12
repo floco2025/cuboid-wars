@@ -1,7 +1,9 @@
-use crate::{config::ServerGameplayConfig, map::MapConfig};
+use crate::{
+    config::ServerGameplayConfig,
+    map::{MapConfig, ZoneVolume},
+};
 use bevy::prelude::{Resource, Vec3};
-use common::map::{CarrierPose, ZoneVolume};
-use common::protocol::CarrierId;
+use common::{map::CarrierPose, protocol::CarrierId};
 
 #[derive(Clone)]
 pub(crate) struct ActorTerritory {
@@ -39,13 +41,12 @@ impl ActorTerritories {
             .iter()
             .map(|zone| {
                 let kind = config.expect_actor(&zone.kind);
-                let territory = ActorTerritory {
+                ActorTerritory {
                     carrier: zone.carrier,
                     volume: zone.volume(map.grid(zone.carrier)),
                     distance: zone.roam_distance,
                     center_height: kind.character.physics().movement_collider.height / 2.0,
-                };
-                territory
+                }
             })
             .collect();
         Self(territories)

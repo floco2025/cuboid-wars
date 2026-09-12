@@ -183,3 +183,37 @@ fn flight_respects_barrier_and_bridge_power_and_ramp_solids() {
     let world = CollisionWorld::from_map_layout(&layout);
     assert!(!world.character_flight_path_clear(below, above, physics, &[]));
 }
+
+#[test]
+fn stationary_flyer_recovers_from_a_static_wall_overlap() {
+    let world = CollisionWorld::from_map_layout(&MapLayout {
+        walls: vec![Wall {
+            carrier: CarrierId::WORLD,
+            level: 0,
+            x1: 0.0,
+            x2: 0.0,
+            z1: -10.0,
+            z2: 10.0,
+            y: -10.0,
+            height: 20.0,
+            width: 0.3,
+        }],
+        ..Default::default()
+    });
+    let physics = wide_body();
+    for x in [-0.1, 0.0, 0.1] {
+        let start = Position { x, y: 1.0, z: 0.0 };
+        assert!(world.character_overlaps_solid(&start, physics, &[]));
+        let step = world.move_flying_character(start, Vec3::ZERO, 0.1, physics, &[], &Carriers::default());
+        assert!(!step.crushed);
+        assert!(
+            !world.character_overlaps_solid(&step.position, physics, &[]),
+            "{step:?}"
+        );
+        let target = Position {
+            z: 3.0,
+            ..step.position
+        };
+        assert!(world.character_flight_path_clear(step.position, target, physics, &[]));
+    }
+}

@@ -24,10 +24,10 @@ pub(super) fn sorted_actor_plan_order(
 ) -> Vec<ActorPlanOrder> {
     let mut order: Vec<ActorPlanOrder> = query
         .iter()
-        .map(|(entity, id, _, pos, _, _, _, _, _, _, _)| {
+        .map(|(entity, id, _, pos, _, _, _, _, _, _, character)| {
             let info = actors.get(id);
             let local_pos = info.map_or(*pos, |info| {
-                if info.flight.is_some() {
+                if character.0.flies() {
                     *pos
                 } else {
                     carriers.previous_pose(info.carrier).inverse_transform_position(pos)
@@ -54,10 +54,19 @@ pub(super) fn sort_actor_plan_order(order: &mut [ActorPlanOrder]) {
 
 pub(super) fn actor_route_distance(pos: &Position, info: Option<&ActorInfo>) -> f32 {
     if let Some(flight) = info.and_then(|info| info.flight.as_ref()) {
+        if flight.route.is_empty() {
+            return f32::INFINITY;
+        }
+        let mut previous = *pos;
         return flight
             .route
-            .front()
-            .map_or(f32::INFINITY, |target| pos.distance_sq(target).sqrt());
+            .iter()
+            .map(|point| {
+                let distance = previous.distance_sq(point).sqrt();
+                previous = *point;
+                distance
+            })
+            .sum();
     }
     let Some(route) = info
         .and_then(|info| info.route.as_ref())
@@ -68,11 +77,7 @@ pub(super) fn actor_route_distance(pos: &Position, info: Option<&ActorInfo>) -> 
     let mut distance = 0.0;
     let mut previous = *pos;
     for waypoint in &route.waypoints {
-        distance += if waypoint.is_walk() {
-            previous.horizontal_distance_sq(&waypoint.position).sqrt()
-        } else {
-            previous.distance_sq(&waypoint.position).sqrt()
-        };
+        distance += previous.distance_sq(&waypoint.position).sqrt();
         previous = waypoint.position;
     }
     distance

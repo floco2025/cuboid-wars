@@ -7,7 +7,7 @@ use crate::{
         ActorCharacter, ActorCrushed, ActorInfo, ActorMap, ActorRespawnState, ActorRespawnTimers, ActorSpawner,
         PendingActorSpawn, PendingActorSpawns,
     },
-    characters::{generate_actor_spawn_position_in_zone, generate_flying_spawn_position},
+    characters::{generate_flying_spawn_position, generate_ground_actor_spawn_position},
     config::{ActorRespawnScope, ServerGameplayConfig},
     map::{ActorSpawnZone, MapConfig},
 };
@@ -269,7 +269,7 @@ impl SpawnPlanner<'_> {
                 self.open,
             )
         } else {
-            generate_actor_spawn_position_in_zone(
+            generate_ground_actor_spawn_position(
                 self.map_config,
                 self.carriers,
                 zone,
@@ -351,6 +351,7 @@ pub fn actors_pending_spawn_system(
     mut commands: Commands,
     mut actors: ResMut<ActorMap>,
     mut pending: ResMut<PendingActorSpawns>,
+    mut timers: ResMut<ActorRespawnTimers>,
     tick: Res<ServerTick>,
     server_gameplay_config: Res<ServerGameplayConfig>,
     map_settings: Res<MapSettings>,
@@ -372,7 +373,7 @@ pub fn actors_pending_spawn_system(
             )
         })
         .collect();
-    for mut spawn in due {
+    for spawn in due {
         let max_health = server_gameplay_config.combat.health.expect_actor(&spawn.kind).max;
         let character = &server_gameplay_config.expect_actor(&spawn.kind).character;
         let pos = spawn.world_position(&carriers);
@@ -382,8 +383,7 @@ pub fn actors_pending_spawn_system(
                     .iter()
                     .any(|(other, physics)| character_positions_intersect(&pos, character.physics(), other, *physics)))
         {
-            spawn.due_tick = tick.0.wrapping_add(1);
-            pending.0.push(spawn);
+            timers.0.insert(spawn.zone_idx, ActorRespawnState::WaitingForSpace);
             continue;
         }
         occupied.push((pos, character.physics()));

@@ -433,7 +433,7 @@ fn permissions_control_graph_links_and_roam_territories_per_kind() {
         let route = query.route(
             start,
             |pos, _| (pos.distance_sq(&target) < 0.001).then_some(target),
-            |_| true,
+            |_, _| true,
             100,
             None,
         );

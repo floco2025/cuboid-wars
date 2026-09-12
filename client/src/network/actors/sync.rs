@@ -5,6 +5,7 @@ use super::super::context::ServerMessageContext;
 use crate::{
     actors::{ActorInfo, ActorMap, RemoteActorMotion, beam_in_ghost_state, spawn_actor, spawn_actor_ghost},
     network::SampleTiming,
+    vfx::MaterializedActorGhost,
 };
 use common::protocol::{Actor, ActorId, ActorMovementState, CarrierId, SpawningActor};
 
@@ -106,6 +107,10 @@ pub(in crate::network) fn sync_spawning_actors(
         if update_ids.contains(id) {
             true
         } else {
+            // A canceled reservation disappears too; only a confirmed actor produces the materialization burst.
+            if context.actors.contains_key(id) {
+                commands.entity(*entity).insert(MaterializedActorGhost);
+            }
             commands.entity(*entity).despawn();
             false
         }

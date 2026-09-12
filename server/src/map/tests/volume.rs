@@ -1,5 +1,5 @@
 use super::super::ZoneVolume;
-use bevy_math::Vec3;
+use bevy::prelude::Vec3;
 
 #[test]
 fn extension_measures_the_shortest_3d_distance_to_the_authored_box() {

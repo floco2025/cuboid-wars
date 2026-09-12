@@ -119,6 +119,7 @@ def validate_map(
         errors.append("at least one level is required")
     kinds = barrier_kinds
 
+    # Support and floor capacity belong to the designer, including zones placed on light bridges.
     for idx, zone in enumerate(map_data["actor_spawn_zones"]):
         errors.locate("actor_spawn_zones", zone)
         _validate_zone_rect(zone, f"actor_spawn_zones[{idx}]", map_data, errors)

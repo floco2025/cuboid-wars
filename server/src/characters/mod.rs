@@ -12,7 +12,7 @@ pub(crate) use health::regenerate_health;
 pub use movement::characters_movement_system;
 pub use plugin::characters_plugin;
 pub(crate) use spawning::{
-    generate_actor_spawn_position_in_zone, generate_player_spawn_position, sample_clear_position, spawn_face_yaw,
+    generate_ground_actor_spawn_position, generate_player_spawn_position, sample_clear_position, spawn_face_yaw,
 };
 
 pub(crate) use spawning::generate_flying_spawn_position;
