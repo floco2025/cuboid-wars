@@ -1,4 +1,4 @@
-use rand::{RngExt, rngs::ThreadRng};
+use rand::{Rng, seq::IndexedRandom};
 
 use crate::map::{CarrierGrid, grid_coords_from_position};
 use common::{
@@ -6,13 +6,15 @@ use common::{
     protocol::{ItemType, Position},
 };
 
-// Uniform pick over the map's configured random pool. `None` on an empty
-// pool — the caller skips the spawn entirely.
-pub(super) fn choose_item_type(rng: &mut ThreadRng, pool: &[ItemType]) -> Option<ItemType> {
+pub(super) fn choose_item_type(rng: &mut impl Rng, pool: &[(ItemType, f64)]) -> Option<ItemType> {
     if pool.is_empty() {
         return None;
     }
-    Some(pool[rng.random_range(0..pool.len())])
+    Some(
+        pool.choose_weighted(rng, |(_, weight)| *weight)
+            .expect("random item weights are invalid after config validation")
+            .0,
+    )
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
@@ -64,10 +66,4 @@ pub(super) fn eligible_item_spawn_cells(grid: &CarrierGrid) -> Vec<ItemSpawnCell
 // maps don't try to spawn more items than there are floor cells.
 pub(super) fn target_active_random_items(eligible_cell_count: usize, max_number: usize) -> usize {
     max_number.min(eligible_cell_count)
-}
-
-// `target_active` is the post-cap count from `target_active_random_items`.
-// Returns `None` when zero is achievable (degenerate map with no floor).
-pub(super) fn random_item_spawn_interval(despawn_secs: f32, target_active: usize) -> Option<f32> {
-    (target_active > 0).then_some(despawn_secs / target_active as f32)
 }

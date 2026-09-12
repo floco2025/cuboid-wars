@@ -140,7 +140,7 @@ fn ok_placed_items() -> PlacedItemsConfig {
 
 fn ok_random_items(types: &[&str]) -> RandomItemsConfig {
     RandomItemsConfig {
-        types: types.iter().map(|&t| t.to_owned()).collect(),
+        weights: types.iter().map(|&t| (t.to_owned(), 1.0)).collect(),
         max_number: 30,
         despawn_secs: 60.0,
     }
@@ -543,8 +543,12 @@ fn map_entry_accepts_single_or_both_portal_ownership() {
 
 #[test]
 fn validate_maps_accepts_valid_random_items() {
-    let maps = one_map_with_random_items("hotel", ok_random_items(&["speed", "gold"]));
-    validate_test_maps(&maps, "hotel").expect("valid random_items should pass");
+    let config = serde_json::from_str::<RandomItemsConfig>(
+        r#"{"weights":{"speed":0.5,"gold":3,"missile_pack":0},"max_number":30,"despawn_secs":60}"#,
+    )
+    .expect("random item weights JSON is invalid");
+    let maps = one_map_with_random_items("hotel", config);
+    validate_test_maps(&maps, "hotel").expect("valid random item weights rejected");
 }
 
 #[test]
@@ -562,17 +566,46 @@ fn validate_maps_rejects_unknown_random_item_type() {
 }
 
 #[test]
-fn validate_maps_rejects_duplicate_random_item_types() {
-    let maps = one_map_with_random_items("hotel", ok_random_items(&["speed", "speed"]));
-    let err = validate_test_maps(&maps, "hotel").expect_err("duplicate type must be rejected");
-    assert!(err.to_string().contains("duplicate"));
+fn validate_maps_rejects_invalid_random_item_weights() {
+    for weight in [-1.0, f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+        let mut config = ok_random_items(&["speed", "gold"]);
+        config.weights.insert("speed".to_owned(), weight);
+        let maps = one_map_with_random_items("hotel", config);
+        let err = validate_test_maps(&maps, "hotel").expect_err("invalid random item weight accepted");
+        assert!(err.to_string().contains("settings.json: random_items.weights.speed"));
+    }
 }
 
 #[test]
-fn validate_maps_rejects_empty_random_item_types() {
+fn validate_maps_rejects_empty_random_item_weights() {
     let maps = one_map_with_random_items("hotel", ok_random_items(&[]));
     let err = validate_test_maps(&maps, "hotel").expect_err("empty pool must be rejected");
-    assert!(err.to_string().contains("types"));
+    assert!(err.to_string().contains("weights"));
+}
+
+#[test]
+fn validate_maps_rejects_zero_total_random_item_weight() {
+    let mut config = ok_random_items(&["speed", "gold"]);
+    config.weights.values_mut().for_each(|weight| *weight = 0.0);
+    let maps = one_map_with_random_items("hotel", config);
+    let err = validate_test_maps(&maps, "hotel").expect_err("zero total random item weight accepted");
+    assert!(err.to_string().contains("at least one positive weight"));
+}
+
+#[test]
+fn validate_maps_rejects_overflowing_total_random_item_weight() {
+    let mut config = ok_random_items(&["speed", "gold"]);
+    config.weights.values_mut().for_each(|weight| *weight = f64::MAX);
+    let maps = one_map_with_random_items("hotel", config);
+    let err = validate_test_maps(&maps, "hotel").expect_err("overflowing total random item weight accepted");
+    assert!(err.to_string().contains("weights total must be finite"));
+}
+
+#[test]
+fn random_items_requires_weights() {
+    let err = serde_json::from_str::<RandomItemsConfig>(r#"{"types":["speed"],"max_number":30,"despawn_secs":60}"#)
+        .expect_err("random item config without weights accepted");
+    assert!(err.to_string().contains("missing field `weights`"));
 }
 
 #[test]

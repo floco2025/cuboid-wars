@@ -57,23 +57,23 @@
   ],
   "bridge_kinds": [],
   "random_items": {
-    "types": [
-      "single_shot",
-      "multi_shot",
-      "missile_pack",
-      "portal_gun",
-      "health_potion",
-      "speed",
-      "low_gravity"
-    ],
-    "max_number": 30,
+    "weights": {
+      "single_shot": 15,
+      "multi_shot": 10,
+      "missile_pack": 10,
+      "portal_gun": 5,
+      "health_potion": 15,
+      "speed": 10,
+      "low_gravity": 10
+    },
+    "max_number": 20,
     "despawn_secs": 60.0
   },
   "power_ups": {
     "duration_secs": {
-      "single_shot": 120.0,
+      "single_shot": 60.0,
       "multi_shot": 30.0,
-      "portal_gun": 60.0,
+      "portal_gun": 90.0,
       "speed": 30.0,
       "low_gravity": 30.0
     }

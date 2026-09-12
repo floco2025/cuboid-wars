@@ -26,7 +26,7 @@ fn key_kinds_are_sorted_and_deduplicated() {
         ..MapConfig::for_grid(Vec::new(), crate::test_geometry::geometry(1, 1))
     };
 
-    let items = config.available_items(&[]);
+    let items = config.available_items([]);
     assert_eq!(items.key_kinds(), [BarrierKindId(0), BarrierKindId(2)]);
 }
 
@@ -39,7 +39,7 @@ fn available_items_include_placed_and_random_pickups_without_duplicates() {
         }],
         ..MapConfig::for_grid(Vec::new(), crate::test_geometry::geometry(1, 1))
     };
-    let items = config.available_items(&[
+    let items = config.available_items([
         ItemType::MissilePack,
         ItemType::PortalGunPowerUp,
         ItemType::SingleShotPowerUp,

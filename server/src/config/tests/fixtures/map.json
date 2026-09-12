@@ -40,7 +40,7 @@
   "barrier_kinds": [{ "id": "door", "color": "#ff3333" }],
   "bridge_kinds": [],
   "random_items": {
-    "types": ["health_potion"],
+    "weights": { "health_potion": 1 },
     "max_number": 3,
     "despawn_secs": 20.0
   },

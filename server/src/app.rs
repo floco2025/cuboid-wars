@@ -121,7 +121,7 @@ fn build_server_app_with_loader(
     let random_items = RandomItems::from_config(map_server_config.random_items.as_ref());
     let portal_assignments = PortalAssignments::new(map_settings.portals);
     let map_geometry = map_config.root_grid().geometry;
-    let map_items = map_config.available_items(&random_items.pool);
+    let map_items = map_config.available_items(random_items.pool.iter().map(|&(item_type, _)| item_type));
     let collision_world = CollisionWorld::from_map_layout(&map_layout);
     let carriers = Carriers::from_layout(&map_layout);
     let mut nav_graphs = NavGraphs::new(&map_config);

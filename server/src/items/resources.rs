@@ -34,7 +34,7 @@ impl ItemInfo {
 // parsed once at startup. An empty pool means no random spawning.
 #[derive(Resource, Clone, Default)]
 pub struct RandomItems {
-    pub pool: Vec<ItemType>,
+    pub pool: Vec<(ItemType, f64)>,
     pub max_number: usize,
     pub despawn_secs: f32,
 }
@@ -44,11 +44,15 @@ impl RandomItems {
     pub fn from_config(config: Option<&crate::config::RandomItemsConfig>) -> Self {
         config.map_or_else(Self::default, |random_items_config| Self {
             pool: random_items_config
-                .types
+                .weights
                 .iter()
-                .map(|id| {
-                    ItemType::from_config_id(id)
-                        .expect("random item type missing from ItemType config ids after config validation")
+                .filter(|(_, weight)| **weight > 0.0)
+                .map(|(id, &weight)| {
+                    (
+                        ItemType::from_config_id(id)
+                            .expect("random item type missing from ItemType config ids after config validation"),
+                        weight,
+                    )
                 })
                 .collect(),
             max_number: random_items_config.max_number,
@@ -91,14 +95,7 @@ impl ItemMap {
     }
 }
 
-#[derive(Resource)]
+#[derive(Resource, Default)]
 pub struct ItemSpawner {
-    pub timer: f32,
     pub next_id: u32,
-}
-
-impl Default for ItemSpawner {
-    fn default() -> Self {
-        Self { timer: 0.0, next_id: 0 }
-    }
 }

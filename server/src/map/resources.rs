@@ -253,14 +253,9 @@ impl MapConfig {
     }
 
     #[must_use]
-    pub fn available_items(&self, random_pool: &[ItemType]) -> MapItems {
+    pub fn available_items(&self, random_pool: impl IntoIterator<Item = ItemType>) -> MapItems {
         let mut items = Vec::new();
-        for item in self
-            .placed_items
-            .iter()
-            .map(|item| item.item_type)
-            .chain(random_pool.iter().copied())
-        {
+        for item in self.placed_items.iter().map(|item| item.item_type).chain(random_pool) {
             if !items.contains(&item) {
                 items.push(item);
             }

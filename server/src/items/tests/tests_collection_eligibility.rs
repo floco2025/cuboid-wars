@@ -4,10 +4,14 @@ use common::{map::Carriers, protocol::CarrierId};
 use crossbeam_channel::unbounded;
 
 use crate::{
-    config::{PowerUpsConfig, ServerGameplayConfig},
-    items::{ItemInfo, ItemMap, ItemPlacement, item_collection_system},
+    config::{PowerUpsConfig, RandomItemsConfig, ServerGameplayConfig},
+    items::{
+        ItemInfo, ItemMap, ItemPlacement, ItemSpawner, RandomItems, item_collection_system, random_item_spawn_system,
+    },
+    map::{CellGrid, EdgeGrid, LevelGrid, MapConfig},
     players::{PlayerInfo, PlayerMap, PowerUpState},
     quests::{QuestBoard, QuestCatalog},
+    test_geometry::geometry,
 };
 use common::{
     config::GameplayConfig,
@@ -140,6 +144,54 @@ fn overlapping_gold_is_collected_and_scores() {
     );
     let gold_cue = std::iter::from_fn(|| rx.try_recv().ok()).any(|msg| matches!(msg, ServerMessage::GoldCollected(_)));
     assert!(gold_cue, "pickup cue must be unicast");
+}
+
+#[test]
+fn collected_random_item_is_replaced_in_the_same_tick() {
+    let mut app = test_app();
+    let mut cells = CellGrid::new(2, 1);
+    for cell in &mut cells.rows[0] {
+        cell.has_floor = true;
+    }
+    let geometry = geometry(2, 1);
+    let map = MapConfig::for_grid(
+        vec![LevelGrid {
+            cells,
+            edges: EdgeGrid::new(2, 1),
+            barrier_edges: EdgeGrid::new(2, 1),
+        }],
+        geometry,
+    );
+    let config = RandomItemsConfig {
+        weights: [("gold".to_owned(), 1.0)].into(),
+        max_number: 2,
+        despawn_secs: 10.0,
+    };
+    app.insert_resource(map)
+        .insert_resource(geometry)
+        .insert_resource(ItemSpawner::default())
+        .insert_resource(RandomItems::from_config(Some(&config)))
+        .add_systems(Update, random_item_spawn_system.after(item_collection_system));
+    app.update();
+    let (&id, item) = app
+        .world()
+        .resource::<ItemMap>()
+        .iter()
+        .next()
+        .expect("random item missing");
+    let position = *app.world().get::<Position>(item.entity).expect("item position missing");
+    let (_, receiver) = spawn_player(&mut app, PlayerId(1), position);
+
+    app.update();
+
+    let items = app.world().resource::<ItemMap>();
+    assert!(items.get(&id).is_none());
+    assert_eq!(items.iter().count(), 2);
+    assert!(
+        receiver
+            .try_iter()
+            .any(|message| matches!(message, ServerMessage::GoldCollected(_)))
+    );
 }
 
 #[test]

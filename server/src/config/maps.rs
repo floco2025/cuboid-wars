@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     path::Path,
 };
 
@@ -72,10 +72,7 @@ impl LightingMode {
 pub struct RandomItemsConfig {
     // `ItemType` config ids. Keys are rejected — they're parameterized by
     // barrier kind and must be placed in the map's `items` list.
-    pub types: Vec<String>,
-    // Target/cap for active random items in the world. The spawner paces
-    // spawns to maintain this many and refuses to exceed it. Capped at the
-    // number of eligible floor cells so tiny test maps degrade.
+    pub weights: BTreeMap<String, f64>,
     pub max_number: usize,
     // How long an uncollected random item sits in the world before being
     // removed. Placed items use the map's `placed_items.respawn_secs` instead.
@@ -161,22 +158,29 @@ pub(super) fn validate_map_registry<'a>(names: impl IntoIterator<Item = &'a str>
 
 impl RandomItemsConfig {
     fn validate(&self, path: &str) -> Result<()> {
-        if self.types.is_empty() {
-            bail!("{path}.types must not be empty");
+        if self.weights.is_empty() {
+            bail!("{path}.weights must not be empty");
         }
-        let mut seen: HashSet<&str> = HashSet::with_capacity(self.types.len());
-        for ty in &self.types {
+        let mut total_weight = 0.0;
+        for (ty, &weight) in &self.weights {
             if ty == ItemType::KEY_CONFIG_ID {
                 bail!(
-                    "{path}.types: keys are parameterized by barrier kind and cannot spawn randomly; place them in the map's `items` list"
+                    "{path}.weights: keys are parameterized by barrier kind and cannot spawn randomly; place them in the map's `items` list"
                 );
             }
             if ItemType::from_config_id(ty).is_none() {
-                bail!("{path}.types contains unknown item type {ty:?}");
+                bail!("{path}.weights contains unknown item type {ty:?}");
             }
-            if !seen.insert(ty.as_str()) {
-                bail!("{path}.types contains duplicate {ty:?}");
+            if !weight.is_finite() || weight < 0.0 {
+                bail!("{path}.weights.{ty} must be finite and >= 0");
             }
+            total_weight += weight;
+        }
+        if total_weight == 0.0 {
+            bail!("{path}.weights must contain at least one positive weight");
+        }
+        if !total_weight.is_finite() {
+            bail!("{path}.weights total must be finite");
         }
         if self.max_number == 0 {
             bail!("{path}.max_number must be >= 1");

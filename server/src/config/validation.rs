@@ -71,7 +71,7 @@ pub(crate) fn validate_map_quests(
                     .placed_items
                     .iter()
                     .any(|item| item.item_type == ItemType::Gold)
-                    || random_items.is_some_and(|items| items.types.iter().any(|item| item == "gold"))
+                    || random_items.is_some_and(|items| items.weights.get("gold").is_some_and(|&weight| weight > 0.0))
             }
             QuestKind::Fireworks => fireworks_switch.is_some(),
         };
