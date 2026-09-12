@@ -936,11 +936,8 @@ def pose(clip, t):
         clearance = mocap.apply(clip, t)
     for side, sign in (("L", -1), ("R", 1)):
         gripping = clip == "Climb"
-        rotate(
-            "Hand." + side,
-            x=0.15 if gripping else 0,
-            z=0 if gripping else -sign * math.pi / 2,
-        )
+        if not gripping:
+            rotate("Hand." + side, z=-sign * math.pi / 2)
         rotate("Fingers." + side, x=-0.60 if gripping else -0.02)
         for index in range(4):
             rotate(f"FingerTip.{index}." + side, x=-0.85 if gripping else -0.10)
@@ -979,6 +976,14 @@ def posed_vertices(name):
 
 def finish_pose(clip, frame, clearance):
     bpy.context.view_layer.update()
+    if clip == "Climb":
+        for side in ("L", "R"):
+            name = "Hand." + side
+            deformation = rig.pose.bones[name].matrix @ armature.bones[name].matrix_local.inverted()
+            palm = deformation.to_3x3() @ Vector((0, -1, 0))
+            fingers = deformation.to_3x3() @ Vector((0, 0, -1))
+            assert palm.y < -0.95, f"{clip} frame {frame}: {name} palm faces away from the ladder"
+            assert fingers.z > 0.95, f"{clip} frame {frame}: {name} fingers point down the ladder"
     if clip not in ("Jump", "Fall", "Climb"):
         lowest = min(posed_vertices(name)[:, 2].min() for name in ("Foot.L", "Foot.R"))
         root = rig.pose.bones["Root"]

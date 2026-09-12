@@ -4,7 +4,7 @@
 
 | Asset | Source | License |
 | --- | --- | --- |
-| `models/player.glb` | Project-created model and surface textures; CMU motion capture; FreePBR synthetic rubber | Project-owned, [CMU terms](models/mocap/cmu/README.md), [FreePBR terms](https://freepbr.com/about-free-pbr/) |
+| `models/player.glb` | Project-created model, surface textures, and ladder hand poses; CMU motion capture; FreePBR synthetic rubber | Project-owned, [CMU terms](models/mocap/cmu/README.md), [FreePBR terms](https://freepbr.com/about-free-pbr/) |
 | `models/scuttler.glb` | Project-created model and surface textures; FreePBR synthetic rubber | Project-owned, [FreePBR terms](https://freepbr.com/about-free-pbr/) |
 | `models/bruiser.glb` | Project-created model and surface textures; FreePBR synthetic rubber | Project-owned, [FreePBR terms](https://freepbr.com/about-free-pbr/) |
 | `models/zapper.glb` | Project-created model and surface textures | Project-owned |

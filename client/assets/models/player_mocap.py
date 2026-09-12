@@ -267,9 +267,11 @@ class PlayerMocap:
             target = shoulder + axis * distance
             upper_rotation = (world["Torso"] @ upper_rest).rotation_difference(elbow - shoulder) @ world["Torso"]
             lower_rotation = (upper_rotation @ lower_rest).rotation_difference(target - elbow) @ upper_rotation
+            hand_rotation = Euler((0.15, math.pi, 0)).to_quaternion()
             for name, rotation, parent in (
                 (upper, upper_rotation, world["Torso"]),
                 (lower, lower_rotation, upper_rotation),
+                (hand, hand_rotation, lower_rotation),
             ):
                 rest = self.rest[name]
                 self.rig.pose.bones[name].rotation_quaternion = rest.inverted() @ parent.inverted() @ rotation @ rest

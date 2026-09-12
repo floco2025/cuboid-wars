@@ -16,7 +16,8 @@ use common::{
     map::Carriers,
     physics::{AirborneMomentum, CharacterSupport, CharacterVerticalVelocity, CollisionWorld, KnockbackVelocity},
     protocol::{
-        CarrierId, ClientMessage, FaceYaw, MapLayout, PlayerId, PlayerMoveIntent, PortalAccess, PortalPairId, Position,
+        CarrierId, ClientMessage, FaceYaw, Ladder, MapLayout, PlayerId, PlayerMoveIntent, PortalAccess, PortalPairId,
+        Position,
     },
 };
 
@@ -101,6 +102,73 @@ fn input_app() -> (App, Entity, Entity) {
         ))
         .id();
     (app, player, cursor)
+}
+
+#[test]
+fn climbing_faces_the_ladder_during_ascent_descent_and_hold_without_turning_the_camera() {
+    for normal in [Vec3::X, Vec3::NEG_X, Vec3::Z, Vec3::NEG_Z] {
+        for (view, locked) in [
+            (CameraViewMode::FirstPerson, true),
+            (CameraViewMode::ThirdPerson, true),
+            (CameraViewMode::ThirdPerson, false),
+            (CameraViewMode::Debug, false),
+        ] {
+            let (mut app, player, _) = input_app();
+            app.insert_resource(view);
+            app.world_mut().resource_mut::<FollowCamera>().locked = locked;
+            app.world_mut().resource_mut::<LocalPlayerInfo>().stored_yaw = 0.4;
+            app.insert_resource(CollisionWorld::from_map_layout(&MapLayout {
+                ladders: vec![Ladder {
+                    x1: -normal.z * 0.5,
+                    z1: normal.x * 0.5,
+                    x2: normal.z * 0.5,
+                    z2: -normal.x * 0.5,
+                    nx: normal.x,
+                    nz: normal.z,
+                    y: 0.0,
+                    height: 4.0,
+                    level: 0,
+                    levels: 1,
+                    carrier: CarrierId::WORLD,
+                }],
+                ..default()
+            }));
+            app.world_mut().entity_mut(player).insert(Position {
+                x: normal.x * 0.4,
+                y: 1.0,
+                z: normal.z * 0.4,
+            });
+            app.world_mut()
+                .get_mut::<LocalMovementStep>(player)
+                .expect("player movement step missing")
+                .support = CharacterSupport::Ladder;
+            for (key, velocity) in [(Some(KeyCode::KeyW), 2.0), (Some(KeyCode::KeyS), -2.0), (None, 0.0)] {
+                app.world_mut().resource_mut::<ButtonInput<KeyCode>>().reset_all();
+                if let Some(key) = key {
+                    app.world_mut().resource_mut::<ButtonInput<KeyCode>>().press(key);
+                }
+                app.world_mut()
+                    .get_mut::<CharacterVerticalVelocity>(player)
+                    .expect("player vertical velocity missing")
+                    .0 = velocity;
+                app.update();
+                let yaw = app.world().get::<FaceYaw>(player).expect("player facing missing").0;
+                let facing = Vec3::new(yaw.sin(), 0.0, yaw.cos());
+                assert!(facing.dot(-normal) > 0.9999);
+                assert_eq!(app.world().resource::<LocalPlayerInfo>().stored_yaw, 0.4);
+            }
+            app.world_mut()
+                .get_mut::<LocalMovementStep>(player)
+                .expect("player movement step missing")
+                .support = CharacterSupport::Ground;
+            app.world_mut()
+                .resource_mut::<ButtonInput<KeyCode>>()
+                .press(KeyCode::KeyW);
+            app.update();
+            let yaw = app.world().get::<FaceYaw>(player).expect("player facing missing").0;
+            assert!((yaw - (0.4 + PI)).abs() < 1e-5);
+        }
+    }
 }
 
 #[cfg(target_os = "macos")]

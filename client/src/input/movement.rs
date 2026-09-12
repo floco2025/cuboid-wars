@@ -1,7 +1,7 @@
 use bevy::{ecs::system::SystemParam, prelude::*};
 use common::{
     config::GameplayConfig,
-    physics::{CharacterVerticalVelocity, CollisionWorld, player_jump_velocity},
+    physics::{CharacterSupport, CharacterVerticalVelocity, CollisionWorld, player_jump_velocity},
     protocol::{FaceYaw, MapSettings, PlayerId, PlayerMoveIntent, PortalAccess, Position},
 };
 use std::f32::consts::PI;
@@ -11,7 +11,7 @@ use crate::{
     cameras::{CameraInputState, CameraViewMode, FollowCamera},
     config::ClientSettings,
     constants::{CAMERA_MAX_PITCH, INPUT_MOUSE_SENSITIVITY_BASE},
-    players::{LocalPlayerInfo, LocalPlayerMarker, MyPlayerId, PlayerMap},
+    players::{LocalMovementStep, LocalPlayerInfo, LocalPlayerMarker, MyPlayerId, PlayerMap},
     ui::{ConsoleState, SettingsMenuState},
 };
 
@@ -50,6 +50,7 @@ type LocalPlayerInputQuery<'w, 's> = Query<
         &'static mut PlayerMoveIntent,
         &'static mut FaceYaw,
         &'static mut CharacterVerticalVelocity,
+        Option<&'static LocalMovementStep>,
     ),
     With<LocalPlayerMarker>,
 >;
@@ -83,7 +84,7 @@ pub fn input_movement_system(
     if camera_input.state.released || camera_input.console.open || camera_input.menu.open {
         // Force idle intent locally; the commit system will pick it up at
         // the next tick boundary.
-        for (_, mut input, _, _) in local_player_query.iter_mut() {
+        for (_, mut input, _, _, _) in local_player_query.iter_mut() {
             *input = PlayerMoveIntent::Idle;
         }
         return;
@@ -185,9 +186,13 @@ fn update_player_input_face_and_jump(
     jump_speed: f32,
     local_player_query: &mut LocalPlayerInputQuery,
 ) {
-    for (pos, mut input, mut face_direction, mut motion) in local_player_query.iter_mut() {
+    for (pos, mut input, mut face_direction, mut motion, step) in local_player_query.iter_mut() {
         *input = move_intent;
-        face_direction.0 = movement_facing(move_intent, face_yaw, face_direction.0);
+        let ladder_yaw = step
+            .filter(|step| step.support == CharacterSupport::Ladder)
+            .and_then(|_| collision_world.ladder_volume_at(pos))
+            .map(|ladder| (-ladder.normal_x).atan2(-ladder.normal_z));
+        face_direction.0 = ladder_yaw.unwrap_or_else(|| movement_facing(move_intent, face_yaw, face_direction.0));
         if jump_requested
             && let Some(vertical_velocity) = player_jump_velocity(
                 motion.0,
