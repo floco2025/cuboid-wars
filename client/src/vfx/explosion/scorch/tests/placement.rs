@@ -164,9 +164,117 @@ fn a_blast_above_a_low_wall_marks_the_floor_beyond_its_shadow() {
         style(),
     );
     let points = points(&placement);
-    // From 2 m up, the 0.5 m wall at z = 0.9 shades the floor out to z = 1.2.
-    assert!(points.iter().all(|p| p.z <= 0.9 + 1e-3 || p.z >= 1.2 - 1e-2));
-    assert!(points.iter().any(|p| p.z > 1.3));
+    // From 2 m up, the 0.5 m wall between z = 0.9 and 1.1 shades the mark's
+    // plane out to z = 1.456, where the ray over its far top edge lands.
+    assert!(points.iter().all(|p| p.z <= 0.9 + 1e-3 || p.z >= 1.456 - 1e-2));
+    assert!(points.iter().any(|p| p.z > 1.5));
+}
+
+#[test]
+fn a_floor_between_storeys_hides_the_wall_mark_below_it() {
+    let layout = MapLayout {
+        floors: vec![
+            floor(-10.0, -10.0, 10.0, 10.0),
+            Floor {
+                y: 4.0,
+                ..floor(-10.0, -10.0, 10.0, 10.0)
+            },
+        ],
+        walls: vec![
+            Wall {
+                height: 3.5,
+                ..wall(-4.0, 1.0, 4.0, 1.0)
+            },
+            Wall {
+                y: 4.0,
+                ..wall(-4.0, 1.0, 4.0, 1.0)
+            },
+        ],
+        ..default()
+    };
+    let placements = wall_scorch_placements(&layout, &carriers(&layout), Vec3::new(0.0, 5.0, 0.0), 3.0, 1.0, style());
+    assert_eq!(placements.len(), 2);
+    let below = placements
+        .iter()
+        .find(|placement| placement.transform.translation.y < 4.0)
+        .expect("mark on the lower storey's wall");
+    assert!(below.region.apply(&scorch_variant(0)).triangles.is_empty());
+    let above = placements
+        .iter()
+        .find(|placement| placement.transform.translation.y >= 4.0)
+        .expect("mark on the upper storey's wall");
+    assert!(points(above).iter().all(|p| p.y >= 4.0 - 1e-3));
+}
+
+#[test]
+fn a_blast_over_a_hole_marks_the_floor_below_only_through_it() {
+    let layout = MapLayout {
+        floors: vec![
+            floor(-10.0, -10.0, 10.0, 10.0),
+            Floor {
+                y: 4.0,
+                ..floor(-10.0, -10.0, -1.0, 10.0)
+            },
+            Floor {
+                y: 4.0,
+                ..floor(1.0, -10.0, 10.0, 10.0)
+            },
+        ],
+        ..default()
+    };
+    let contact = SurfaceContact {
+        point: Vec3::ZERO,
+        normal: Vec3::Y,
+        carrier: CarrierId::WORLD,
+    };
+    let placement = ground_scorch_placement(
+        contact,
+        &layout,
+        &carriers(&layout),
+        Vec3::new(0.0, 8.0, 0.0),
+        8.0,
+        style(),
+    );
+    let points = points(&placement);
+    // From 8 m up, the slot between x = ±1 through the half-metre slab opens
+    // onto the floor between x = ±1.774, where the rays past its lower edges land.
+    assert!(points.iter().all(|p| p.x.abs() <= 1.774 + 1e-2));
+    assert!(points.iter().any(|p| p.x.abs() > 1.7));
+    assert!(points.iter().any(|p| p.z.abs() > 2.0));
+}
+
+#[test]
+fn a_ramp_hides_the_wall_beneath_it_and_takes_its_own_mark() {
+    let ramp = Ramp {
+        x1: 0.0,
+        y1: 0.0,
+        z1: -2.0,
+        x2: 4.0,
+        y2: 2.0,
+        z2: 2.0,
+        carrier: CarrierId::WORLD,
+    };
+    let layout = MapLayout {
+        floors: vec![floor(-10.0, -10.0, 10.0, 10.0)],
+        ramps: vec![ramp],
+        walls: vec![Wall {
+            height: 1.0,
+            ..wall(3.0, -2.0, 3.0, 2.0)
+        }],
+        ..default()
+    };
+    let center = Vec3::new(2.0, 2.5, 0.0);
+    let placements = wall_scorch_placements(&layout, &carriers(&layout), center, 3.0, 1.0, style());
+    assert_eq!(placements.len(), 1);
+    assert!(placements[0].region.apply(&scorch_variant(0)).triangles.is_empty());
+
+    let contact = SurfaceContact {
+        point: Vec3::new(2.0, 1.0, 0.0),
+        normal: Vec3::new(-0.5, 1.0, 0.0).normalize(),
+        carrier: CarrierId::WORLD,
+    };
+    let on_ramp = ground_scorch_placement(contact, &layout, &carriers(&layout), center, 3.0, style());
+    assert!(points(&on_ramp).iter().any(|p| (p.x - 2.0).abs() > 1.0));
 }
 
 #[test]
