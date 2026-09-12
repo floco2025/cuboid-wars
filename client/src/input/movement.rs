@@ -1,4 +1,4 @@
-use bevy::{ecs::system::SystemParam, input::mouse::AccumulatedMouseMotion, math::Vec2, prelude::*};
+use bevy::{ecs::system::SystemParam, prelude::*};
 use common::{
     config::GameplayConfig,
     physics::{CharacterVerticalVelocity, CollisionWorld, player_jump_velocity},
@@ -61,7 +61,6 @@ type LocalPlayerInputQuery<'w, 's> = Query<
 // `report_player_movement_system`, a jump as the vertical velocity it set.
 pub fn input_movement_system(
     keyboard: Res<ButtonInput<KeyCode>>,
-    mouse_motion: Res<AccumulatedMouseMotion>,
     camera_input: CameraMovementInput,
     my_player_id: Res<MyPlayerId>,
     players: Res<PlayerMap>,
@@ -93,7 +92,7 @@ pub fn input_movement_system(
     let view_mode = *camera_input.view;
     let orbit = view_mode.is_debug() || (view_mode == CameraViewMode::ThirdPerson && !camera_input.follow.locked);
     let current_yaw = calculate_current_orientation(
-        mouse_motion.delta,
+        camera_input.state.mouse_delta,
         &mut local_player_info,
         mouse_sensitivity,
         client_settings.preferences.invert_y,

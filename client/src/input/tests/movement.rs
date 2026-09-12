@@ -1,8 +1,11 @@
 use std::f32::consts::PI;
 
+#[cfg(target_os = "macos")]
+use crate::constants::INPUT_MOUSE_SENSITIVITY_BASE;
+
 use bevy::{
     input::{
-        mouse::{AccumulatedMouseMotion, MouseMotion, MouseScrollUnit, MouseWheel, accumulate_mouse_motion_system},
+        mouse::{MouseMotion, MouseScrollUnit, MouseWheel},
         touch::TouchPhase,
     },
     prelude::*,
@@ -63,8 +66,6 @@ fn input_app() -> (App, Entity, Entity) {
         .add_message::<MouseMotion>()
         .add_message::<MouseWheel>()
         .add_message::<WindowFocused>()
-        .init_resource::<AccumulatedMouseMotion>()
-        .add_systems(PreUpdate, accumulate_mouse_motion_system)
         .add_systems(
             Update,
             (
@@ -100,6 +101,50 @@ fn input_app() -> (App, Entity, Entity) {
         ))
         .id();
     (app, player, cursor)
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn recentering_does_not_turn_the_view_even_when_mouse_motion_is_delayed() {
+    for idle_frames in [0, 10] {
+        let (mut app, _, window) = input_app();
+        {
+            let mut settings = app.world_mut().resource_mut::<ClientSettings>();
+            settings.preferences.mouse_sensitivity = 0.01 / INPUT_MOUSE_SENSITIVITY_BASE;
+            settings.preferences.invert_y = false;
+            let mut local = app.world_mut().resource_mut::<LocalPlayerInfo>();
+            local.stored_yaw = 0.75;
+            local.stored_pitch = 0.25;
+        }
+        app.world_mut().write_message(WindowFocused { window, focused: true });
+        app.world_mut().write_message(MouseMotion {
+            delta: Vec2::new(12.0, -18.0),
+        });
+        app.update();
+        let local = app.world().resource::<LocalPlayerInfo>();
+        assert_eq!(local.stored_yaw, 0.75);
+        assert_eq!(local.stored_pitch, 0.25);
+
+        for _ in 0..idle_frames {
+            app.world_mut().write_message(MouseMotion { delta: Vec2::ZERO });
+            app.update();
+        }
+        for delta in [Vec2::new(300.0, -500.0), Vec2::new(2.0, 3.0), Vec2::new(4.0, -2.0)] {
+            app.world_mut().write_message(MouseMotion { delta });
+        }
+        app.update();
+        let local = app.world().resource::<LocalPlayerInfo>();
+        assert!((local.stored_yaw - 0.69).abs() < 1e-5);
+        assert!((local.stored_pitch - 0.24).abs() < 1e-5);
+
+        app.world_mut().write_message(MouseMotion {
+            delta: Vec2::new(-1.0, 4.0),
+        });
+        app.update();
+        let local = app.world().resource::<LocalPlayerInfo>();
+        assert!((local.stored_yaw - 0.70).abs() < 1e-5);
+        assert!((local.stored_pitch - 0.20).abs() < 1e-5);
+    }
 }
 
 #[test]

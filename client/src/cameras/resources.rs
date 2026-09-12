@@ -133,6 +133,7 @@ impl Default for FollowCamera {
 pub struct CameraInputState {
     pub released: bool,
     pub suppress_fire: bool,
+    pub mouse_delta: Vec2,
 }
 
 #[derive(Resource, Debug, Default)]

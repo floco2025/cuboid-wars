@@ -3,7 +3,10 @@ use crate::{
     cameras::{CameraViewMode, FollowCamera},
     input::input_cursor_capture_system,
 };
-use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow, WindowFocused};
+use bevy::{
+    input::mouse::MouseMotion,
+    window::{CursorGrabMode, CursorOptions, PrimaryWindow, WindowFocused},
+};
 
 fn app() -> App {
     let mut app = App::new();
@@ -15,6 +18,7 @@ fn app() -> App {
         .init_resource::<FollowCamera>()
         .init_resource::<ButtonInput<MouseButton>>()
         .add_message::<WindowFocused>()
+        .add_message::<MouseMotion>()
         .add_systems(
             Update,
             (settings_menu_toggle_system, input_cursor_capture_system).chain(),

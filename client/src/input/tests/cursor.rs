@@ -11,6 +11,7 @@ fn app(view: CameraViewMode) -> App {
         .init_resource::<ButtonInput<MouseButton>>()
         .init_resource::<ButtonInput<KeyCode>>()
         .add_message::<WindowFocused>()
+        .add_message::<MouseMotion>()
         .add_systems(Update, input_cursor_capture_system);
     app.world_mut()
         .spawn((Window::default(), PrimaryWindow, CursorOptions::default()));
@@ -87,14 +88,36 @@ fn focus_gain_centres_the_pointer_and_grabs_again() {
     app.update();
     assert_eq!(cursor_changed_tick(&mut app), settled);
     send_focus(&mut app, window, true);
+    app.world_mut()
+        .resource_mut::<ButtonInput<MouseButton>>()
+        .press(MouseButton::Left);
     app.update();
     assert_ne!(cursor_changed_tick(&mut app), settled);
+    assert!(!app.world().resource::<CameraInputState>().suppress_fire);
     let window = app.world().get::<Window>(window).expect("window missing from test app");
     assert_eq!(
         window.physical_cursor_position(),
         Some(window.physical_size().as_vec2() / 2.0)
     );
 }
+
+#[test]
+fn focus_gain_with_a_centred_pointer_preserves_the_next_mouse_motion() {
+    let mut app = app(CameraViewMode::FirstPerson);
+    let window = primary_window(&mut app);
+    {
+        let mut window = app.world_mut().get_mut::<Window>(window).expect("test window missing");
+        let centre = window.size() / 2.0;
+        window.set_cursor_position(Some(centre));
+    }
+    send_focus(&mut app, window, true);
+    app.update();
+    let delta = Vec2::new(100.0, 50.0);
+    app.world_mut().write_message(MouseMotion { delta });
+    app.update();
+    assert_eq!(app.world().resource::<CameraInputState>().mouse_delta, delta);
+}
+
 #[test]
 fn focus_gain_followed_by_loss_leaves_the_pointer_alone() {
     let mut app = app(CameraViewMode::FirstPerson);
