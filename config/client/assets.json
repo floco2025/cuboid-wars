@@ -486,7 +486,7 @@
     }
   },
   "footsteps": {
-    "volume_db": -8,
+    "volume_db": -10,
     "ladder_volume_db": -2,
     "default": "plain",
     "sets": {
