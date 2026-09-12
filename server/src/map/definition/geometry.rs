@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashSet};
+use std::collections::BTreeMap;
 
 use anyhow::Context;
 
@@ -50,7 +50,14 @@ pub(super) fn compile_geometry(
         .collect();
 
     let pressure_plates = pressure_plates(map_def, scope, carrier)?;
-    let level_grids = compile_level_grids(map_def, scope, &regular_floor_masks, &slab_masks, &ramp_specs);
+    let level_grids = compile_level_grids(
+        map_def,
+        scope,
+        &regular_floor_masks,
+        &slab_masks,
+        &ramp_specs,
+        &geometry,
+    );
     let (walls, wall_materials) = compile_walls(&level_grids, &geometry, &assets, carrier);
     let barriers = compile_barriers(map_def, scope, &slab_masks, &geometry, carrier)?;
     let (floors, floor_materials) = compile_floors(&level_grids, &slab_masks, &ramp_specs, &geometry, &assets, carrier);
@@ -138,6 +145,7 @@ fn compile_level_grids(
     regular_floor_masks: &[Mask],
     slab_masks: &[Mask],
     ramp_specs: &[ramps::RampSpec],
+    geometry: &MapGeometry,
 ) -> Vec<LevelGrid> {
     let cols = map_def.grid_cols;
     let rows = map_def.grid_rows;
@@ -173,7 +181,7 @@ fn compile_level_grids(
 
     for (level_idx, level_grid) in level_grids.iter_mut().enumerate() {
         let level_u32 = u32::try_from(level_idx).unwrap_or(u32::MAX);
-        ramps::apply_to_level_cells(&mut level_grid.cells, ramp_specs, level_u32);
+        ramps::apply_to_level_cells(&mut level_grid.cells, ramp_specs, level_u32, geometry);
     }
     for level_idx in 0..level_grids.len().saturating_sub(1) {
         mark_has_floor_above(&mut level_grids[level_idx].cells, &slab_masks[level_idx + 1]);
@@ -264,16 +272,13 @@ fn compile_floors(
     for (level_idx, m) in slab_masks.iter().enumerate() {
         let level = level_tag(level_idx);
         let y = geometry.level_y(level);
-        // Tell floor emission to skip its corner-filler strip at the high
-        // end of each z-axis ramp arriving at this level — a strip there
-        // would hover above where the slope already meets the upper floor.
-        let mut skip_corner_filler_edges: HashSet<(i32, i32)> = HashSet::new();
+        let mut ramp_landings = EdgeGrid::new(geometry.grid_cols, geometry.grid_rows);
         for ramp in ramp_specs {
             if ramp.lower_level + 1 == level_idx as u32 {
-                skip_corner_filler_edges.extend(ramp.high_end_horizontal_edges());
+                ramp.mark_high_end(&mut ramp_landings);
             }
         }
-        let mut tier = floors::emit_floor_tier(m, &skip_corner_filler_edges, geometry, level, y, carrier);
+        let mut tier = floors::emit_floor_tier(m, &ramp_landings, geometry, level, y, carrier);
         if level_idx > 0 {
             tier.extend(trim::emit_stacked_wall_trim(
                 &level_grids[level_idx - 1].edges,

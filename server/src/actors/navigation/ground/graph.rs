@@ -89,9 +89,20 @@ impl NavGraph {
     }
 
     pub(super) fn node_center(&self, node: NavNode) -> Position {
+        let surface_node = if self.opening_walk_side(node).is_some() {
+            NavNode {
+                level: node.level - 1,
+                ..node
+            }
+        } else {
+            node
+        };
         Position {
             x: self.geometry.cell_center_x(node.col),
-            y: self.geometry.level_y(node.level),
+            y: self
+                .cell(surface_node)
+                .filter(|cell| cell.has_ramp)
+                .map_or_else(|| self.geometry.level_y(node.level), |cell| cell.ramp_center_y),
             z: self.geometry.cell_center_z(node.row),
         }
     }

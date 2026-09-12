@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
 
 from .catalogs import load_map_settings, map_settings_path, read_settings_json
 from .constants import GAMEPLAY_PATH, MODE_JUMP_REACH
-from .floor_footprints import corner_filler_skips, slab_cells
+from .floor_footprints import ramp_landing_edges, slab_cells
 from .jump_reach import ANTI_GRAVITY, BOTH, NORMAL, SPEED, JumpSettings, calculate_reach
 
 
@@ -125,7 +125,7 @@ class JumpReachOverlay:
             len(before["levels"]),
         ) != (after["grid_cols"], after["grid_rows"], len(after["levels"])):
             self.clear()
-        elif slab_cells(before) != slab_cells(after) or corner_filler_skips(before) != corner_filler_skips(after):
+        elif slab_cells(before) != slab_cells(after) or ramp_landing_edges(before) != ramp_landing_edges(after):
             self.recompute()
 
     def recompute(self):

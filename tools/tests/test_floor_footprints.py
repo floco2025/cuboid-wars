@@ -2,7 +2,7 @@ from math import hypot
 import unittest
 
 from editor_fixtures import WindowTestCase, floor
-from map_editor.floor_footprints import FloorFootprints, corner_filler_skips
+from map_editor.floor_footprints import FloorFootprints, ramp_landing_edges
 from map_editor.jump_reach import ANTI_GRAVITY, BOTH, NORMAL, SPEED, FallSettings, JumpSettings, calculate_reach
 from map_editor.normalization import empty_level, empty_map
 
@@ -65,13 +65,29 @@ class FloorFootprintTests(unittest.TestCase):
         data["levels"].append(dict(data["levels"][0]))
         data["ramps"] = [{"lower_level": 0, "low": [2, 0], "high": [3, 2]}]
         footprints = FloorFootprints(data, 4, 0.4)
-        self.assertEqual(corner_filler_skips(data), [set(), {(2, 2)}])
+        self.assertEqual(ramp_landing_edges(data), [set(), {("h", 2, 2)}])
         self.assertEqual(len(footprints.rectangles(0, 2, 2)), 2)
         self.assertEqual(footprints.rectangles(1, 2, 2), [(7.8, 8, 12.2, 12.2)])
         data["ramps"] = [{"lower_level": 0, "low": [3, 5], "high": [2, 3]}]
-        self.assertEqual(corner_filler_skips(data), [set(), {(3, 2)}])
+        self.assertEqual(ramp_landing_edges(data), [set(), {("h", 3, 2)}])
         data["ramps"] = [{"lower_level": 0, "low": [0, 2], "high": [2, 3]}]
-        self.assertEqual(corner_filler_skips(data), [set(), set()])
+        self.assertEqual(ramp_landing_edges(data), [set(), {("v", 2, 2)}])
+
+    def test_ramp_landings_meet_slopes_without_slab_overhangs(self):
+        cases = [
+            ([3, 1], [4, 3], [(11.8, 12, 16.2, 16.2)]),
+            ([4, 6], [3, 4], [(11.8, 11.8, 16.2, 16)]),
+            ([1, 3], [3, 4], [(12, 11.8, 16.2, 16.2)]),
+            ([6, 4], [4, 3], [(11.8, 11.8, 16, 16.2)]),
+        ]
+        for low, high, expected in cases:
+            with self.subTest(low=low, high=high):
+                data = self.data([(3, 3)])
+                data["levels"].append(dict(data["levels"][0]))
+                data["ramps"] = [{"lower_level": 0, "low": low, "high": high}]
+                footprints = FloorFootprints(data, 4, 0.4)
+                self.assertEqual(footprints.rectangles(1, 3, 3), expected)
+                self.assertEqual(footprints.rectangles(0, 3, 3), [(11.8, 11.8, 16.2, 16.2)])
 
     def test_screenshot_jump_accounts_for_actual_tile_edges(self):
         data = empty_map(16, 10)

@@ -31,28 +31,41 @@ impl CollisionWorld {
         let start = self.ground_route_position(start, physics, open);
         let target = self.ground_route_position(target, physics, open);
         let translation = Vector::new(target.x - start.x, target.y - start.y, target.z - start.z);
-        let movement = self.move_character(
-            1.0,
-            &character_controller(),
-            &character_movement_shape(physics),
-            &character_movement_pose(&start, physics),
-            translation,
-            open,
-            &[],
-            |_| {},
-        );
-        let error = movement.translation - translation;
-        error.x * error.x + error.z * error.z <= 0.05 * 0.05
-            && error.y.abs() <= CHARACTER_STEP_HEIGHT
-            && !self.character_penetrates_solid(
-                &Position {
-                    x: start.x + movement.translation.x,
-                    y: start.y + movement.translation.y,
-                    z: start.z + movement.translation.z,
-                },
-                physics,
+        let horizontal = translation.with_y(0.0);
+        let controller = character_controller();
+        let shape = character_movement_shape(physics);
+        let mut position = start;
+        // Slope transitions consume part of a sweep while redirecting it onto the walking surface.
+        for _ in 0..4 {
+            let remaining = Vector::new(target.x - position.x, target.y - position.y, target.z - position.z);
+            let movement = self.move_character(
+                1.0,
+                &controller,
+                &shape,
+                &character_movement_pose(&position, physics),
+                remaining,
                 open,
-            )
+                &[],
+                |_| {},
+            );
+            position.x += movement.translation.x;
+            position.y += movement.translation.y;
+            position.z += movement.translation.z;
+            let offset = Vector::new(position.x - start.x, 0.0, position.z - start.z);
+            let lateral =
+                offset - horizontal * (offset.dot(horizontal) / horizontal.length_squared().max(PHYSICS_EPSILON));
+            if lateral.length_squared() > 0.05 * 0.05 {
+                return false;
+            }
+            let error = movement.translation - remaining;
+            if error.with_y(0.0).length_squared() <= 0.05 * 0.05 && error.y.abs() <= CHARACTER_STEP_HEIGHT {
+                return !self.character_penetrates_solid(&position, physics, open);
+            }
+            if movement.translation.with_y(0.0).length_squared() <= PHYSICS_EPSILON * PHYSICS_EPSILON {
+                return false;
+            }
+        }
+        false
     }
 
     fn ground_route_position(

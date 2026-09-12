@@ -1,6 +1,5 @@
-use std::collections::HashSet;
-
 use super::{
+    EdgeGrid,
     mask::Mask,
     material_rules::MaterialRules,
     segments::{MERGE_EPS, grid_x, grid_z},
@@ -39,16 +38,12 @@ struct Neighbors {
 // All tiers use the map's floor thickness so a hole in any level reads as
 // a real slab edge from below.
 //
-// `skip_corner_filler_edges`: horizontal wall edges (`EdgeGrid.horizontal`
-// index space) where the corner-filler branch must not emit. Populated from
-// the high end of each z-axis ramp arriving at this level — a filler there
-// would hover redundantly above where the slope already meets the upper
-// floor. Only horizontal edges are tracked; no E/W counterpart is needed.
+// Ramp landings suppress extensions and fillers so slabs meet slopes without a raised lip.
 // Keep expansion changes in sync with tools/map_editor/floor_footprints.py::FloorFootprints.rectangles.
 #[must_use]
 pub fn emit_floor_tier(
     mask: &Mask,
-    skip_corner_filler_edges: &HashSet<(i32, i32)>,
+    ramp_landings: &EdgeGrid,
     geometry: &MapGeometry,
     level: u8,
     y: f32,
@@ -84,13 +79,15 @@ pub fn emit_floor_tier(
                 se: in_mask(row + 1, col + 1),
             };
 
-            let extend_w = !n.w;
-            let extend_e = !n.e;
+            let landing_n = ramp_landings.horizontal[row as usize][col as usize];
+            let landing_s = ramp_landings.horizontal[row as usize + 1][col as usize];
+            let extend_w = !n.w && !ramp_landings.vertical[row as usize][col as usize];
+            let extend_e = !n.e && !ramp_landings.vertical[row as usize][col as usize + 1];
             // Diagonal suppression: skip the N/S extension when a diagonal
             // cell sits on that side. Otherwise the N/S extension would
             // overlap the diagonal cell's W/E extension.
-            let extend_n = !n.n && !n.nw && !n.ne;
-            let extend_s = !n.s && !n.sw && !n.se;
+            let extend_n = !n.n && !n.nw && !n.ne && !landing_n;
+            let extend_s = !n.s && !n.sw && !n.se && !landing_s;
 
             let x1 = if extend_w {
                 x1_orig - wall_half_thickness
@@ -128,13 +125,12 @@ pub fn emit_floor_tier(
             // (`x1_orig`/`x2_orig`) plus `pad`, because the diagonal cell's
             // W/E extension also reaches `pad` past the grid line. The N
             // filler lands at horizontal[row][col]; the S filler at
-            // horizontal[row+1][col]. Skip emission if that edge is in the
-            // skip set (a ramp's high-end edge).
+            // horizontal[row+1][col]. Ramp landings omit these strips.
             let pad = wall_half_thickness;
             if pad <= 0.0 {
                 continue;
             }
-            if !extend_n && !n.n && (n.nw || n.ne) && !skip_corner_filler_edges.contains(&(row, col)) {
+            if !extend_n && !n.n && (n.nw || n.ne) && !landing_n {
                 let fx1 = if n.nw { x1_orig + pad } else { x1 };
                 let fx2 = if n.ne { x2_orig - pad } else { x2 };
                 if fx2 > fx1 {
@@ -150,7 +146,7 @@ pub fn emit_floor_tier(
                     });
                 }
             }
-            if !extend_s && !n.s && (n.sw || n.se) && !skip_corner_filler_edges.contains(&(row + 1, col)) {
+            if !extend_s && !n.s && (n.sw || n.se) && !landing_s {
                 let fx1 = if n.sw { x1_orig + pad } else { x1 };
                 let fx2 = if n.se { x2_orig - pad } else { x2 };
                 if fx2 > fx1 {

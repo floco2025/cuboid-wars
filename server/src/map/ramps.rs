@@ -1,6 +1,6 @@
-use crate::map::CellGrid;
+use crate::map::{CellGrid, EdgeGrid};
 use common::{
-    map::MapGeometry,
+    map::{MapGeometry, ramp_surface_at},
     protocol::{CarrierId, Ramp},
 };
 
@@ -26,21 +26,22 @@ impl RampSpec {
         cells
     }
 
-    // Horizontal wall edges at the ramp's high end (where the slope reaches
-    // the upper level), in `EdgeGrid.horizontal` index space. Returned only
-    // for z-axis ramps — x-axis ramps' high end is a *vertical* edge, and
-    // the corner-filler logic in `emit_floor_tier` only fires on N/S
-    // suppressed extensions, so vertical edges are not relevant.
-    // Keep changes in sync with tools/map_editor/floor_footprints.py::corner_filler_skips.
-    pub(super) fn high_end_horizontal_edges(&self) -> Vec<(i32, i32)> {
+    // Keep changes in sync with tools/map_editor/floor_footprints.py::ramp_landing_edges.
+    pub(super) fn mark_high_end(&self, edges: &mut EdgeGrid) {
         let [col0, row0, col_end, row_end] = self.rect();
         let width = (self.high[0] - self.low[0]).abs();
         let height = (self.high[1] - self.low[1]).abs();
         if width > height {
-            return Vec::new();
+            let col = if self.high[0] > self.low[0] { col_end } else { col0 };
+            for row in row0..row_end {
+                edges.vertical[row as usize][col as usize] = true;
+            }
+        } else {
+            let row = if self.high[1] > self.low[1] { row_end } else { row0 };
+            for col in col0..col_end {
+                edges.horizontal[row as usize][col as usize] = true;
+            }
         }
-        let edge_row = if self.high[1] > self.low[1] { row_end } else { row0 };
-        (col0..col_end).map(|col| (edge_row, col)).collect()
     }
 
     fn rect(&self) -> [i32; 4] {
@@ -69,7 +70,7 @@ impl RampSpec {
 }
 
 // Apply ramp flags to a level's cell grid.
-pub fn apply_to_level_cells(cells: &mut CellGrid, ramps: &[RampSpec], level: u32) {
+pub fn apply_to_level_cells(cells: &mut CellGrid, ramps: &[RampSpec], level: u32, geometry: &MapGeometry) {
     for ramp in ramps {
         if ramp.lower_level + 1 == level {
             for (row, col) in ramp.footprint_cells() {
@@ -80,8 +81,11 @@ pub fn apply_to_level_cells(cells: &mut CellGrid, ramps: &[RampSpec], level: u32
             continue;
         }
         let [col0, row0, col_end, row_end] = ramp.rect();
+        let surface = ramp.to_ramp(geometry, CarrierId::WORLD);
         for (row, col) in ramp.footprint_cells() {
-            cells.rows[row as usize][col as usize].has_ramp = true;
+            let cell = &mut cells.rows[row as usize][col as usize];
+            cell.has_ramp = true;
+            cell.ramp_center_y = ramp_surface_at(&surface, geometry.cell_center_x(col), geometry.cell_center_z(row));
         }
         let width = (ramp.high[0] - ramp.low[0]).abs();
         let height = (ramp.high[1] - ramp.low[1]).abs();

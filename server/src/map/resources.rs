@@ -18,6 +18,7 @@ pub struct MapFireworks(pub Option<FireworksConfig>);
 #[derive(Copy, Clone, Debug, Default)]
 pub struct Cell {
     pub has_ramp: bool,
+    pub ramp_center_y: f32,
     pub has_ramp_from_below: bool,
     pub has_floor: bool,
     pub has_floor_slab: bool,

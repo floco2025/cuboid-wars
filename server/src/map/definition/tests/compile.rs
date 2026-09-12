@@ -1,4 +1,121 @@
 use super::*;
+use crate::actors::{
+    navigation::{GroundNavigation, NavGraphs},
+    test_kinds::{self, CONTACT, CONTACT_BEAM},
+};
+use common::{
+    constants::{CHARACTER_CONTACT_OFFSET, TICK_SECS},
+    physics::{CharacterEnvironment, CharacterStep, LadderMode, step_character_movement},
+};
+
+#[test]
+fn compiled_ramps_support_actor_routes_and_movement_in_both_directions() {
+    for (low, high, bottom_cell, top_cell) in [
+        ([1, 1], [3, 2], [0, 1], [3, 1]),
+        ([3, 2], [1, 1], [3, 1], [0, 1]),
+        ([1, 1], [2, 3], [1, 0], [1, 3]),
+        ([2, 3], [1, 1], [1, 3], [1, 0]),
+    ] {
+        let map_def = map_with_zones(
+            4,
+            vec![level(vec![bottom_cell]), level(vec![top_cell])],
+            Vec::new(),
+            vec![player_zone(0, bottom_cell[0], bottom_cell[1])],
+            vec![ramp(low, high, 0)],
+        );
+        let (layout, config) = compile_with(&map_def, &no_nested(), &empty_kind_table(), &no_bridges())
+            .expect("ramp test map failed to compile");
+        let geometry = config.root_grid().geometry;
+        let graphs = NavGraphs::new(&config);
+        let carriers = Carriers::from_layout(&layout);
+        let world = CollisionWorld::from_map_layout(&layout);
+        let bottom = Position {
+            x: geometry.cell_center_x(bottom_cell[0]),
+            y: 0.0,
+            z: geometry.cell_center_z(bottom_cell[1]),
+        };
+        let top = Position {
+            x: geometry.cell_center_x(top_cell[0]),
+            y: LEVEL_HEIGHT,
+            z: geometry.cell_center_z(top_cell[1]),
+        };
+        for kind in [CONTACT, CONTACT_BEAM] {
+            let physics = test_kinds::physics(kind);
+            let navigation = GroundNavigation {
+                graphs: &graphs,
+                carriers: &carriers,
+                carrier: CarrierId::WORLD,
+                kind,
+                world: &world,
+                physics,
+                open: &[],
+            };
+            let slope = LEVEL_HEIGHT / (geometry.cell_size() * 2.0);
+            let middle = Position {
+                x: f32::midpoint(bottom.x, top.x),
+                y: LEVEL_HEIGHT / 2.0
+                    + physics.movement_collider.radius() * ((1.0 + slope * slope).sqrt() - 1.0)
+                    + CHARACTER_CONTACT_OFFSET * 2.0,
+                z: f32::midpoint(bottom.z, top.z),
+            };
+            for (start, target) in [(bottom, top), (top, bottom), (middle, top), (middle, bottom)] {
+                walk_ramp_route(&navigation, start, target);
+            }
+        }
+    }
+}
+
+fn walk_ramp_route(navigation: &GroundNavigation<'_>, start: Position, target: Position) {
+    let settings = map_settings();
+    let mut route = navigation
+        .route(
+            start,
+            |pos, _| (pos.distance_sq(&target) < 0.01).then_some(target),
+            |_, _| true,
+            100,
+            None,
+        )
+        .unwrap_or_else(|| panic!("ramp route missing: {start:?} -> {target:?}"));
+    assert!(navigation.join_route(start, &mut route, &|_, _| true));
+    let mut pos = start;
+    let mut vertical_velocity = 0.0;
+    for _ in 0..600 {
+        while route.waypoints.front().is_some_and(|point| point.reached(&pos)) {
+            route.waypoints.pop_front();
+        }
+        let Some(point) = route.waypoints.front() else { break };
+        assert!(
+            navigation
+                .world
+                .character_ground_route_clear(pos, point.position, navigation.physics, &[]),
+            "ramp route rejected while moving: {pos:?} -> {point:?}"
+        );
+        let step = step_character_movement(
+            CharacterStep {
+                start: pos,
+                vertical_velocity,
+                control_velocity: point.movement_intent(&pos, 3.0, TICK_SECS).to_horizontal_velocity(),
+                external_displacement: Vec3::ZERO,
+                delta: TICK_SECS,
+            },
+            &CharacterEnvironment {
+                ladder_mode: LadderMode::Disabled,
+                collision_world: navigation.world,
+                gravity: settings.movement.gravity,
+                passable_kinds: &[],
+                physics: navigation.physics,
+                ladder_climb_ratio: settings.movement.ladder_climb_ratio,
+                portals: None,
+                carriers: navigation.carriers,
+            },
+        );
+        assert!(!step.crushed, "actor crushed on ramp: {step:?}");
+        pos = step.position;
+        vertical_velocity = step.vertical_velocity;
+    }
+    assert!(route.waypoints.is_empty(), "actor stuck on ramp at {pos:?}");
+    assert!(pos.distance_sq(&target) < 0.5, "actor missed ramp landing: {pos:?}");
+}
 
 #[test]
 fn inaccessible_floor_emits_physical_slab_but_not_regular_floor() {
