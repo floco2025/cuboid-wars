@@ -83,9 +83,6 @@ pub(super) fn validate_maps(
         entry.settings.geometry.validate(&format!("{path} geometry"))?;
         if let Some(grounds) = &entry.settings.grounds {
             grounds.validate(&format!("{path} grounds"))?;
-            if !entry.settings.textures.contains_key(&grounds.material) {
-                bail!("{path} grounds.material is not in the map texture catalog");
-            }
         }
         let movement_path = format!("{path} movement");
         let movement = &entry.settings.movement;

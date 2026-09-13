@@ -6,10 +6,10 @@ use clap::{ArgGroup, Args, Parser};
 use crossbeam_channel::Sender;
 
 use client::{
-    app::{ClientAppOptions, build_client_app},
+    app::{ClientAppOptions, InitialViewDirection, build_client_app},
     network::{ClientToServerChannel, Impairment, ServerLink, connect, login},
 };
-use common::protocol::ClientMessage;
+use common::protocol::{ClientMessage, Position};
 use server::{
     app::{NetworkOverrides, ServerAppOptions, build_server_app, run_server_loop},
     network::listen,
@@ -61,6 +61,19 @@ struct WindowArgs {
     #[arg(long, conflicts_with = "serve")]
     window_y: Option<i32>,
 
+    /// Ignore saved fullscreen mode and start in a window.
+    #[arg(long, conflicts_with = "serve")]
+    windowed: bool,
+
+    /// Windowed size in logical pixels, overriding the saved size.
+    #[arg(
+        long,
+        value_name = "WIDTHxHEIGHT",
+        value_parser = parse_resolution,
+        conflicts_with_all = ["serve", "window_width", "window_height"]
+    )]
+    resolution: Option<WindowResolution>,
+
     // Windowed size in logical pixels; each axis defaults to the saved size.
     #[arg(long, conflicts_with = "serve")]
     window_width: Option<u32>,
@@ -70,6 +83,16 @@ struct WindowArgs {
 
     #[arg(long, conflicts_with = "serve")]
     volume: Option<f32>,
+
+    /// Initial view bearing and pitch in degrees; bearing 0 is north (+Z), 90 is east (+X).
+    #[arg(
+        long,
+        value_name = "BEARING,PITCH",
+        value_parser = parse_look_direction,
+        allow_hyphen_values = true,
+        conflicts_with = "serve"
+    )]
+    look: Option<InitialViewDirection>,
 }
 
 impl WindowArgs {
@@ -81,15 +104,24 @@ impl WindowArgs {
     }
 
     fn client_options(&self, logging: bool) -> ClientAppOptions {
+        let resolution = self.resolution.map(|value| (value.width, value.height));
         ClientAppOptions {
+            force_windowed: self.windowed,
             window_x: self.window_x,
             window_y: self.window_y,
-            window_width: self.window_width,
-            window_height: self.window_height,
+            window_width: resolution.map(|value| value.0).or(self.window_width),
+            window_height: resolution.map(|value| value.1).or(self.window_height),
             volume: self.volume,
+            initial_view: self.look,
             logging,
         }
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct WindowResolution {
+    width: u32,
+    height: u32,
 }
 
 #[derive(Args, Debug)]
@@ -104,6 +136,16 @@ struct WorldArgs {
     /// Start with actors ignoring players and unable to attack, like /peace on.
     #[arg(long, conflicts_with = "join")]
     peace: bool,
+
+    /// Initial player feet position for a single-player review launch.
+    #[arg(
+        long,
+        value_name = "X,Y,Z",
+        value_parser = parse_position,
+        allow_hyphen_values = true,
+        conflicts_with_all = ["host", "join", "serve"]
+    )]
+    spawn: Option<Position>,
 
     #[arg(long, conflicts_with = "join", value_parser = clap::value_parser!(u32).range(1..))]
     server_hz: Option<u32>,
@@ -122,6 +164,7 @@ impl WorldArgs {
             map: self.map.clone(),
             god: self.god,
             peace: self.peace,
+            initial_spawn: self.spawn,
             network: NetworkOverrides {
                 server_hz: self.server_hz,
                 update_hz: self.update_hz,
@@ -165,6 +208,56 @@ fn parse_fraction(value: &str) -> Result<f32, String> {
         return Err("must be a finite fraction in 0..=1".to_owned());
     }
     Ok(fraction)
+}
+
+fn parse_resolution(value: &str) -> Result<WindowResolution, String> {
+    let separator = value
+        .find(['x', 'X'])
+        .ok_or_else(|| "must have the form WIDTHxHEIGHT".to_owned())?;
+    let (width, height_with_separator) = value.split_at(separator);
+    let height = &height_with_separator[1..];
+    let width = width
+        .parse::<u32>()
+        .map_err(|_| "width must be a positive integer".to_owned())?;
+    let height = height
+        .parse::<u32>()
+        .map_err(|_| "height must be a positive integer".to_owned())?;
+    if width == 0 || height == 0 {
+        return Err("width and height must be positive".to_owned());
+    }
+    Ok(WindowResolution { width, height })
+}
+
+fn parse_position(value: &str) -> Result<Position, String> {
+    let [x, y, z] = parse_finite_csv(value, "X,Y,Z")?;
+    Ok(Position { x, y, z })
+}
+
+fn parse_look_direction(value: &str) -> Result<InitialViewDirection, String> {
+    let [bearing_degrees, pitch_degrees] = parse_finite_csv(value, "BEARING,PITCH")?;
+    if !(-90.0..=90.0).contains(&pitch_degrees) {
+        return Err("pitch must be between -90 and 90 degrees".to_owned());
+    }
+    Ok(InitialViewDirection {
+        bearing_degrees,
+        pitch_degrees,
+    })
+}
+
+fn parse_finite_csv<const N: usize>(value: &str, expected: &str) -> Result<[f32; N], String> {
+    let values = value
+        .split(',')
+        .map(|component| {
+            let parsed = component
+                .parse::<f32>()
+                .map_err(|_| format!("must have the form {expected}"))?;
+            if !parsed.is_finite() {
+                return Err("all values must be finite".to_owned());
+            }
+            Ok(parsed)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    values.try_into().map_err(|_| format!("must have the form {expected}"))
 }
 
 fn main() -> Result<()> {

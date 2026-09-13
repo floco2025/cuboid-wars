@@ -9,7 +9,7 @@ use bevy::{
 use super::state::SettingsMenuState;
 
 use crate::{
-    config::{ClientSettings, LOCAL_SETTINGS_VERSION, LocalSettings},
+    config::{ClientSettings, LOCAL_SETTINGS_VERSION, LocalSettings, LocalSettingsPersistence},
     input::WindowedFrame,
 };
 
@@ -35,6 +35,7 @@ impl SaveState {
 }
 
 pub(super) fn save_local_settings_system(
+    persistence: Option<Res<LocalSettingsPersistence>>,
     settings: Res<ClientSettings>,
     global_volume: Res<GlobalVolume>,
     frame: Res<WindowedFrame>,
@@ -45,6 +46,9 @@ pub(super) fn save_local_settings_system(
     mut exit: MessageReader<AppExit>,
     mut state: Local<SaveState>,
 ) {
+    if persistence.is_some_and(|persistence| !persistence.0) {
+        return;
+    }
     let exiting = exit.read().count() > 0;
     let menu_closed = state.menu_was_open && !menu.open;
     state.menu_was_open = menu.open;

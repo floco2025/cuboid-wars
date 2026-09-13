@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import sys
 from pathlib import Path
 
 from PySide6.QtCore import QSettings, Qt, QTimer
@@ -309,6 +310,11 @@ class EditorWindow(
             for mode in modes:
                 model.appendRow(QStandardItem(mode))
         combo.setModel(model)
+        # Linux styles otherwise cap this popup at a small default and force
+        # scrolling through the tool list. macOS already sizes its native
+        # popup appropriately, so leave that platform's behavior alone.
+        if sys.platform.startswith("linux"):
+            combo.setMaxVisibleItems(model.rowCount())
         combo.setCurrentIndex(0)
         return combo
 

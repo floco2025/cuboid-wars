@@ -169,3 +169,12 @@ fn removed_low_level_sky_settings_are_rejected() {
         assert!(error.to_string().contains(field), "unexpected error: {error}");
     }
 }
+
+#[test]
+fn removed_grass_density_setting_is_rejected() {
+    let mut json: serde_json::Value =
+        serde_json::from_str(test_fixtures::SETTINGS_JSON).expect("client JSON is invalid");
+    json["grass"]["tufts_per_m2"] = serde_json::json!(16.0);
+    let error = serde_json::from_value::<ClientSettings>(json).expect_err("removed grass setting was accepted");
+    assert!(error.to_string().contains("tufts_per_m2"), "unexpected error: {error}");
+}

@@ -13,10 +13,17 @@ impl MaterialDef {
         anisotropy: u16,
         mipmaps_enabled: bool,
     ) -> StandardMaterial {
+        let Some(textures) = &self.textures else {
+            return StandardMaterial {
+                metallic: self.metallic,
+                perceptual_roughness: self.perceptual_roughness,
+                ..default()
+            };
+        };
         StandardMaterial {
             base_color_texture: Some(load_texture(
                 asset_server,
-                &self.textures.base_color,
+                &textures.base_color,
                 self.repeat,
                 false,
                 anisotropy,
@@ -24,7 +31,7 @@ impl MaterialDef {
             )),
             normal_map_texture: Some(load_texture(
                 asset_server,
-                &self.textures.normal,
+                &textures.normal,
                 self.repeat,
                 self.linear_data_textures,
                 anisotropy,
@@ -32,7 +39,7 @@ impl MaterialDef {
             )),
             occlusion_texture: Some(load_texture(
                 asset_server,
-                &self.textures.occlusion,
+                &textures.occlusion,
                 self.repeat,
                 self.linear_data_textures,
                 anisotropy,
@@ -40,7 +47,7 @@ impl MaterialDef {
             )),
             metallic_roughness_texture: Some(load_texture(
                 asset_server,
-                &self.textures.metallic_roughness,
+                &textures.metallic_roughness,
                 self.repeat,
                 self.linear_data_textures,
                 anisotropy,
@@ -49,8 +56,7 @@ impl MaterialDef {
             metallic: self.metallic,
             perceptual_roughness: self.perceptual_roughness,
             // Bevy samples OpenGL-convention normals; the packs are DirectX and say so in the name.
-            flip_normal_map_y: self
-                .textures
+            flip_normal_map_y: textures
                 .normal_is_directx()
                 .expect("normal map name carries no -dx or -gl convention"),
             ..default()

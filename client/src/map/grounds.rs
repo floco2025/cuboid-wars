@@ -1,5 +1,5 @@
 use crate::{
-    config::{AssetSet, ClientSettings},
+    config::ClientSettings,
     constants::GROUNDS_ROCK_COLOR,
     materials::{GrassMaterial, TerrainMaterial, terrain_material},
 };
@@ -10,7 +10,7 @@ use bevy::{
 };
 use common::protocol::MapLayout;
 
-use super::{terrain_grass::spawn_terrain_grass, terrain_surface::TerrainCover, trees::TreeAssets};
+use super::{terrain_grass::spawn_terrain_grass, trees::TreeAssets};
 
 #[derive(Component)]
 pub(super) struct GroundsVisual;
@@ -18,14 +18,12 @@ pub(super) struct GroundsVisual;
 pub(super) fn grounds_spawn_system(
     mut commands: Commands,
     layout: Res<MapLayout>,
-    assets: Res<AssetSet>,
     settings: Res<ClientSettings>,
     server: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut terrain_materials: ResMut<Assets<TerrainMaterial>>,
     mut grass_materials: ResMut<Assets<GrassMaterial>>,
-    mut images: ResMut<Assets<Image>>,
     existing: Query<Entity, With<GroundsVisual>>,
 ) {
     if !layout.is_changed() {
@@ -35,11 +33,8 @@ pub(super) fn grounds_spawn_system(
         commands.entity(entity).despawn();
     }
     let Some(grounds) = &layout.grounds else { return };
-    let definition = assets.material_by_id(&grounds.settings.material);
     let material = terrain_materials.add(terrain_material(
         &server,
-        &definition.textures.base_color,
-        images.add(TerrainCover::image()),
         settings.rendering.texture_anisotropy,
         settings.rendering.mipmaps,
     ));
@@ -73,13 +68,7 @@ pub(super) fn grounds_spawn_system(
     ));
 
     if settings.grass.enabled {
-        spawn_terrain_grass(
-            &mut commands,
-            grounds,
-            &mut meshes,
-            &mut grass_materials,
-            (settings.grass.tufts_per_m2 / 16.0).min(2.0),
-        );
+        spawn_terrain_grass(&mut commands, grounds, &mut meshes, &mut grass_materials);
     }
 
     let trees = TreeAssets::new(&server, &mut meshes, &mut materials);

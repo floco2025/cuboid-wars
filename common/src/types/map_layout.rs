@@ -224,11 +224,18 @@ pub struct PressurePlate {
     pub carrier: CarrierId,
 }
 
-// Client-display-only decoration; physics and gameplay ignore it. The cell
-// center + floor-top y are shipped (not col/row) so the client never needs
-// `MapGeometry` to scatter tufts.
+// The material alias used by procedural terrain tops and the exterior
+// grounds. Terrain's authored bottom and side materials remain ordinary map
+// aliases.
+pub const TERRAIN_MATERIAL: &str = "terrain";
+
+// Client-display-only metadata for a terrain floor. The compiled floor slab
+// carries collision and its five authored non-top materials; this parallel
+// cell record tells the client which top faces to render procedurally. The
+// cell center + floor-top y are shipped (not col/row) so the client never
+// needs `MapGeometry` to build its surface and vegetation chunks.
 #[derive(Debug, Clone, Copy, Encode, Decode)]
-pub struct GrassCell {
+pub struct TerrainCell {
     pub x: f32,
     pub y: f32,
     pub z: f32,
@@ -276,7 +283,7 @@ pub struct MapLayout {
     pub carriers: Vec<Carrier>,
     pub ladders: Vec<Ladder>,
     pub pressure_plates: Vec<PressurePlate>,
-    pub grass: Vec<GrassCell>,
+    pub terrain: Vec<TerrainCell>,
     pub checkpoints: Vec<Checkpoint>,
 }
 

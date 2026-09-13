@@ -7,4 +7,5 @@ mod tests;
 
 pub(crate) use burn::GrassBurn;
 pub use burn::grass_burn_system;
-pub use spawn::{GrassMarker, grass_spawn_system};
+pub(super) use mesh::GrassLod;
+pub use spawn::{TerrainMarker, terrain_spawn_system};

@@ -3,12 +3,10 @@ use crate::materials::terrain::TerrainExtension;
 use bevy::{app::TaskPoolPlugin, asset::AssetPlugin, ecs::message::Messages};
 
 #[test]
-fn terrain_images_queue_base_and_extension_textures_once() {
+fn terrain_images_queue_base_and_meadow_texture_once() {
     let mut images = Assets::<Image>::default();
     let grass = images.add(Image::default());
-    let soil = images.add(Image::default());
     let normal = images.add(Image::default());
-    let cover = images.add(Image::default());
     let material = TerrainMaterial {
         base: StandardMaterial {
             normal_map_texture: Some(normal.clone()),
@@ -16,8 +14,6 @@ fn terrain_images_queue_base_and_extension_textures_once() {
         },
         extension: TerrainExtension {
             grass: grass.clone(),
-            soil: soil.clone(),
-            cover: cover.clone(),
             surface: Vec4::ZERO,
         },
     };
@@ -27,7 +23,7 @@ fn terrain_images_queue_base_and_extension_textures_once() {
     }
     assert_eq!(
         state.queued.keys().copied().collect::<HashSet<_>>(),
-        HashSet::from([grass.id(), soil.id(), normal.id(), cover.id()])
+        HashSet::from([grass.id(), normal.id()])
     );
 }
 
@@ -38,24 +34,20 @@ fn terrain_texture_replacement_rebinds_only_dependent_materials() {
         .init_asset::<TerrainMaterial>();
     let mut images = Assets::<Image>::default();
     let grass = images.add(Image::default());
-    let soil = images.add(Image::default());
+    let unrelated_image = images.add(Image::default());
     let (dependent, _unrelated) = {
         let mut materials = app.world_mut().resource_mut::<Assets<TerrainMaterial>>();
         let dependent = materials.add(TerrainMaterial {
             base: default(),
             extension: TerrainExtension {
                 grass: grass.clone(),
-                soil: soil.clone(),
-                cover: soil.clone(),
                 surface: Vec4::ZERO,
             },
         });
         let unrelated = materials.add(TerrainMaterial {
             base: default(),
             extension: TerrainExtension {
-                grass: soil.clone(),
-                soil: soil.clone(),
-                cover: soil.clone(),
+                grass: unrelated_image.clone(),
                 surface: Vec4::ZERO,
             },
         });

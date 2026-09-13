@@ -37,12 +37,12 @@ Every element group ends with its own **Erase** tool that removes only that elem
 
 - **Floor** — Drag cells to add floor.
 - **Blocked Floor** — Drag cells to add floor slabs that never spawn items, players, or lights.
-- **Erase Floors** — Drag a rectangle to remove every floor and blocked floor inside it; grass and items standing on them go too.
+- **Erase Floors** — Drag a rectangle to remove every regular, blocked, and terrain floor inside it; items standing on them go too.
 
-## Grass
+## Terrain
 
-- **Grass** — Drag cells to paint decorative grass tufts (client visual only, no gameplay); only sticks to cells with a floor (regular or blocked). Erasing a floor removes its grass too.
-- **Erase Grass** — Drag a rectangle to remove every grass tuft inside it on the current level.
+- **Terrain** — Drag cells to add accessible floor slabs with the procedural outdoor terrain and grass on top. The selected material is used for the slab's bottom and four sides; right-click a terrain cell to edit those five faces independently. Painting another floor kind over terrain replaces it, and terrain replaces any floor already in its cells.
+- **Erase Terrain** — Drag a rectangle to remove terrain floors on the current level.
 
 ## Spawn Zones
 

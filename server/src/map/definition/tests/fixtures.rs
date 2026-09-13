@@ -4,7 +4,7 @@ pub(super) use common::{
     physics::{CollisionWorld, compute_portal_placement},
     protocol::{
         BarrierKindTable, BridgeKindTable, CarrierId, FaceMaterials, HexColor, KindDef, MapLayout, MapSettings,
-        Position, SwitchDef, SwitchId, SwitchTable, TextureSettings,
+        Position, SwitchDef, SwitchId, SwitchTable, TERRAIN_MATERIAL, TextureSettings,
     },
 };
 
@@ -12,8 +12,8 @@ pub(super) use super::super::{
     compile_map,
     load::LoadedMaps,
     schema::{
-        ActorSpawnZoneDef, BarrierDef, CellDef, EraserDef, FloorDef, ItemDef, LadderDef, LevelDef, LightBridgeDef,
-        MapDef, MotionDef, NestedMapDef, PressurePlateDef, RampDef, SpawnZoneDef, WallDef, WallSide, ZoneDef,
+        ActorSpawnZoneDef, BarrierDef, EraserDef, FloorDef, ItemDef, LadderDef, LevelDef, LightBridgeDef, MapDef,
+        MotionDef, NestedMapDef, PressurePlateDef, RampDef, SpawnZoneDef, TerrainDef, WallDef, WallSide, ZoneDef,
     },
     validation::{canonicalize, validate_map},
 };
@@ -117,8 +117,19 @@ pub(crate) fn floor_def(col: i32, row: i32) -> FloorDef {
     }
 }
 
-pub(crate) fn cell_def(col: i32, row: i32) -> CellDef {
-    CellDef { col, row }
+pub(crate) fn cell_def(col: i32, row: i32) -> TerrainDef {
+    TerrainDef {
+        col,
+        row,
+        materials: FaceMaterials {
+            top: TERRAIN_MATERIAL.into(),
+            bottom: "test".into(),
+            north: "test".into(),
+            south: "test".into(),
+            east: "test".into(),
+            west: "test".into(),
+        },
+    }
 }
 
 pub(crate) fn bridge_def(col: i32, row: i32) -> LightBridgeDef {
@@ -154,7 +165,7 @@ pub(crate) fn level_with_inaccessible(floors: Vec<[i32; 2]>, inaccessible_floors
         name: None,
         floors: floors.into_iter().map(|[c, r]| floor_def(c, r)).collect(),
         inaccessible_floors: inaccessible_floors.into_iter().map(|[c, r]| floor_def(c, r)).collect(),
-        grass: Vec::new(),
+        terrain: Vec::new(),
         walls: Vec::new(),
         barriers: Vec::new(),
         erasers: Vec::new(),

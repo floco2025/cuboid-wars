@@ -10,7 +10,6 @@ pub struct GroundsSettings {
     pub level: u8,
     pub margin: f32,
     pub return_secs: f32,
-    pub material: String,
 }
 
 impl GroundsSettings {
@@ -19,7 +18,6 @@ impl GroundsSettings {
         validate_positive_finite(self.return_secs, &format!("{path}.return_secs"))?;
         ensure!(self.margin <= 200.0, "{path}.margin exceeds 200 metres");
         ensure!(self.return_secs <= 30.0, "{path}.return_secs exceeds 30 seconds");
-        ensure!(!self.material.is_empty(), "{path}.material is empty");
         Ok(())
     }
 }

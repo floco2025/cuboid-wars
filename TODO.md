@@ -2,6 +2,8 @@
 
 ## Fixes
 
+- **View-dependent stars:** procedural stars appear to change or disappear when the camera turns. Keep star sampling world-fixed and stable across view directions and all scene cameras.
+
 - **Missing UI characters:** the bundled Fira Mono subset renders dashes, ellipses, arrows, and other unsupported symbols as rectangles. Bundle full Fira Mono with a symbol fallback for consistent rendering across platforms, and check coverage of the characters used in UI text.
 
 - **Portal body pose jumps at the crossing:** between floor portals, the emerging twin is upside down but the main body replaces it upright when the center crosses, swapping the visible legs for the upper body. Preserve the rendered pose across the handoff before reorienting it.
@@ -9,10 +11,6 @@
 - **Body clipping flickers on moving portals:** straddle detection uses the current tick's portal frame against the interpolated player position, while the visible portal and clipping planes use the interpolated carrier pose. Use the same rendered frames for detection and clipping.
 
 ## Enhancements
-
-- **Terrain floor tiles:** once the exterior ground looks right, add a procedural floor kind with a height map, reusing the exterior ground material. Keep regular floor behaviour, join neighbouring edges, and use the same surface for rendering and collision; include map editor support. Treat this as a separate step from refining the exterior.
-
-- **Hotel re-entry:** provide a route back into the building from the surrounding grounds without requiring low gravity or portals.
 
 - **Actor gameplay definitions:** Group each actor kind's health, damage, scoring, and destruction-feed setting under `gameplay.json::actors.kinds`, alongside its body and behaviour, so adding a kind does not require updating several separate tables.
 

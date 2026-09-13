@@ -57,6 +57,15 @@ pub(crate) fn generate_map_at(
                     &format!("map {name:?} level {level} floor {index}"),
                 )?;
             }
+            for (index, terrain) in tier.terrain.iter().enumerate() {
+                let mut authored_faces = terrain.materials.clone();
+                authored_faces.top = authored_faces.bottom.clone();
+                validate_texture_materials(
+                    &authored_faces,
+                    &settings.textures,
+                    &format!("map {name:?} level {level} terrain {index}"),
+                )?;
+            }
             for (index, wall) in tier.walls.iter().enumerate() {
                 validate_texture_materials(
                     &wall.materials,

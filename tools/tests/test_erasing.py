@@ -105,7 +105,7 @@ class LayerEraserTests(unittest.TestCase):
         level = host.map_data["levels"][0]
         # Records kept invalid for manual repair, away from the erase: the
         # cell (2, 2) has no floor and its north side no wall.
-        level["grass"] = [{"col": 0, "row": 0}, {"col": 2, "row": 2}]
+        level["terrain"] = [{"col": 0, "row": 0}, {"col": 2, "row": 2}]
         level["lights"] = [
             {"col": 0, "row": 0, "side": "N", "kind": "utility"},
             {"col": 2, "row": 2, "side": "N", "kind": "utility"},
@@ -113,7 +113,7 @@ class LayerEraserTests(unittest.TestCase):
         host.map_data["items"].append({"level": 0, "col": 2, "row": 2, "type": "gold"})
         host.erase_group_rect(MODE_ERASE_FLOORS, (0, 0), (1, 1))
         level = host.map_data["levels"][0]
-        self.assertEqual(level["grass"], [{"col": 2, "row": 2}])
+        self.assertEqual(level["terrain"], [{"col": 2, "row": 2}])
         self.assertEqual(host.map_data["items"], [{"level": 0, "col": 2, "row": 2, "type": "gold"}])
         self.assertEqual(len(level["lights"]), 2)
         host.erase_group_rect(MODE_ERASE_WALLS, (0, 0), (1, 1))

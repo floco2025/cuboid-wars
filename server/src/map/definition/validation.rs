@@ -236,7 +236,9 @@ fn validate_pressure_plates(map_def: &MapDef) -> Result<()> {
             .floors
             .iter()
             .chain(&level.inaccessible_floors)
-            .any(|floor| [floor.col, floor.row] == cell)
+            .map(|floor| [floor.col, floor.row])
+            .chain(level.terrain.iter().map(|terrain| [terrain.col, terrain.row]))
+            .any(|floor| floor == cell)
         {
             return Err(anyhow!(
                 "{label} has no floor at level {} col {} row {}",
@@ -302,7 +304,15 @@ fn validate_levels(map_def: &MapDef) -> Result<()> {
         // A level may hold walls alone, stacked on the storey below.
         let floors = validate_regular_floors(level, &label, map_def.grid_cols, map_def.grid_rows)?;
         let inaccessible = validate_inaccessible_floors(level, &label, map_def.grid_cols, map_def.grid_rows, &floors)?;
-        validate_grass(level, &label, map_def.grid_cols, map_def.grid_rows)?;
+        let terrain = validate_terrain(
+            level,
+            &label,
+            map_def.grid_cols,
+            map_def.grid_rows,
+            &floors,
+            &inaccessible,
+            &ramp_cells_on_level(map_def, level_idx),
+        )?;
         let walls = validate_walls(level, &label, map_def.grid_cols, map_def.grid_rows)?;
         validate_barriers(level, &label, map_def.grid_cols, map_def.grid_rows, &walls)?;
         let mut erasers_seen = BTreeSet::new();
@@ -319,7 +329,7 @@ fn validate_levels(map_def: &MapDef) -> Result<()> {
                 return Err(anyhow!("{label}: lights[{idx}].kind must not be empty"));
             }
         }
-        validate_light_bridges(level, &label, map_def, level_idx, &floors, &inaccessible)?;
+        validate_light_bridges(level, &label, map_def, level_idx, &floors, &inaccessible, &terrain)?;
     }
     Ok(())
 }
@@ -333,6 +343,7 @@ fn validate_light_bridges(
     level_idx: usize,
     floors: &BTreeSet<[i32; 2]>,
     inaccessible: &BTreeSet<[i32; 2]>,
+    terrain: &BTreeSet<[i32; 2]>,
 ) -> Result<()> {
     if level.light_bridges.is_empty() {
         return Ok(());
@@ -346,7 +357,7 @@ fn validate_light_bridges(
         if bridge.kind.is_empty() {
             return Err(anyhow!("{label}: light_bridges[{idx}] has empty `kind`"));
         }
-        if floors.contains(&key) || inaccessible.contains(&key) {
+        if floors.contains(&key) || inaccessible.contains(&key) || terrain.contains(&key) {
             return Err(anyhow!("{label}: light_bridges[{idx}] {key:?} sits on a floor"));
         }
         if ramps.contains(&key) {
@@ -413,19 +424,30 @@ fn validate_inaccessible_floors(
     Ok(inaccessible_floors)
 }
 
-// No floor-presence check here: compile silently drops grass on floorless
-// cells (defense-in-depth for hand-edited JSON; the editor is the primary
-// enforcement).
-fn validate_grass(level: &LevelDef, label: &str, grid_cols: i32, grid_rows: i32) -> Result<()> {
-    let mut grass = BTreeSet::new();
-    for (grass_idx, cell) in level.grass.iter().enumerate() {
+fn validate_terrain(
+    level: &LevelDef,
+    label: &str,
+    grid_cols: i32,
+    grid_rows: i32,
+    floors: &BTreeSet<[i32; 2]>,
+    inaccessible: &BTreeSet<[i32; 2]>,
+    ramps: &BTreeSet<[i32; 2]>,
+) -> Result<BTreeSet<[i32; 2]>> {
+    let mut terrain = BTreeSet::new();
+    for (terrain_idx, cell) in level.terrain.iter().enumerate() {
         let key = [cell.col, cell.row];
-        validate_floor(key, grid_cols, grid_rows).with_context(|| format!("{label}: grass[{grass_idx}]"))?;
-        if !grass.insert(key) {
-            return Err(anyhow!("{label}: duplicate grass {:?}", key));
+        validate_floor(key, grid_cols, grid_rows).with_context(|| format!("{label}: terrain[{terrain_idx}]"))?;
+        if !terrain.insert(key) {
+            return Err(anyhow!("{label}: duplicate terrain {:?}", key));
+        }
+        if floors.contains(&key) || inaccessible.contains(&key) {
+            return Err(anyhow!("{label}: terrain {:?} overlaps a floor", key));
+        }
+        if ramps.contains(&key) {
+            return Err(anyhow!("{label}: terrain {:?} sits on a ramp", key));
         }
     }
-    Ok(())
+    Ok(terrain)
 }
 
 fn validate_walls(level: &LevelDef, label: &str, grid_cols: i32, grid_rows: i32) -> Result<BTreeSet<[i32; 4]>> {
@@ -701,8 +723,8 @@ pub(super) fn canonicalize(map_def: &mut MapDef) {
         level.floors.dedup_by_key(|f| (f.row, f.col));
         level.inaccessible_floors.sort_by_key(|f| (f.row, f.col));
         level.inaccessible_floors.dedup_by_key(|f| (f.row, f.col));
-        level.grass.sort_by_key(|f| (f.row, f.col));
-        level.grass.dedup_by_key(|f| (f.row, f.col));
+        level.terrain.sort_by_key(|f| (f.row, f.col));
+        level.terrain.dedup_by_key(|f| (f.row, f.col));
 
         for wall in &mut level.walls {
             let [c0, r0, c1, r1] = normalized_wall([wall.c0, wall.r0, wall.c1, wall.r1]);
@@ -748,6 +770,12 @@ fn validate_checkpoints(map_def: &MapDef) -> Result<()> {
             .floors
             .iter()
             .map(|floor| [floor.col, floor.row])
+            .chain(
+                map_def.levels[zone.level as usize]
+                    .terrain
+                    .iter()
+                    .map(|terrain| [terrain.col, terrain.row]),
+            )
             .collect();
         let ramps = ramp_cells_on_level(map_def, zone.level as usize);
         for col in zone.cols[0]..zone.cols[1] {

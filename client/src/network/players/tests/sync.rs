@@ -9,6 +9,7 @@ use common::{
     physics::CharacterVerticalVelocity,
     protocol::{Health, PlayerGeneration, PlayerMove, PlayerMoveIntent, Position},
 };
+use std::f32::consts::PI;
 
 fn timing() -> SampleTiming {
     SampleTiming {
@@ -26,6 +27,22 @@ fn player() -> Player {
         0,
         Health(100.0),
     )
+}
+
+#[test]
+fn initial_view_override_is_consumed_by_the_first_body_only() {
+    let mut local = LocalPlayerInfo::with_initial_view(Some(Vec2::new(0.75, -0.2)));
+    let mut snapshot = player();
+    snapshot.movement.face_yaw = 1.0;
+
+    begin_local_body(&mut local, &snapshot);
+    assert_eq!(local.stored_yaw, 0.75);
+    assert_eq!(local.stored_pitch, -0.2);
+
+    snapshot.movement.face_yaw = 2.0;
+    begin_local_body(&mut local, &snapshot);
+    assert_eq!(local.stored_yaw, 2.0 + PI);
+    assert_eq!(local.stored_pitch, 0.0);
 }
 
 #[test]

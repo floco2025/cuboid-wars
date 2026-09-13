@@ -154,6 +154,7 @@ pub struct LocalPlayerInfo {
     pub reports: LocalMovementReports,
     pub stored_yaw: f32,
     pub stored_pitch: f32,
+    pub(crate) initial_view: Option<Vec2>,
     // True from the moment the local player vanishes from `SSnapshot` until
     // they reappear (death → respawn). Input systems gate on this; the death
     // overlay reads it to show/hide the red tint.
@@ -167,7 +168,28 @@ impl Default for LocalPlayerInfo {
             reports: LocalMovementReports::default(),
             stored_yaw: 0.0,
             stored_pitch: 0.0,
+            initial_view: None,
             is_dead: false,
+        }
+    }
+}
+
+impl LocalPlayerInfo {
+    #[must_use]
+    pub fn with_initial_view(initial_view: Option<Vec2>) -> Self {
+        Self {
+            initial_view,
+            ..default()
+        }
+    }
+
+    pub(crate) fn begin_body_view(&mut self, face_yaw: f32) {
+        if let Some(view) = self.initial_view.take() {
+            self.stored_yaw = view.x;
+            self.stored_pitch = view.y;
+        } else {
+            self.stored_yaw = face_yaw + std::f32::consts::PI;
+            self.stored_pitch = 0.0;
         }
     }
 }

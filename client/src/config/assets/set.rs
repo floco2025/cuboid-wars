@@ -6,7 +6,9 @@ use std::{
 
 use anyhow::{Context, Result, bail};
 use bevy::prelude::Resource;
-use common::protocol::{MapLayout, MapSettings, validate_texture_catalog, validate_texture_materials};
+use common::protocol::{
+    MapLayout, MapSettings, TERRAIN_MATERIAL, validate_texture_catalog, validate_texture_materials,
+};
 use serde::Deserialize;
 
 use super::{
@@ -92,11 +94,13 @@ impl AssetSet {
                 self.footsteps
                     .validate_binding(binding, &format!("materials.{name}.footstep"))?;
             }
-            anyhow::ensure!(
-                material.textures.normal_is_directx().is_some(),
-                "`materials.{name}.textures.normal` must be named `-normal-dx` or `-normal-gl`, got `{}`",
-                material.textures.normal
-            );
+            if let Some(textures) = &material.textures {
+                anyhow::ensure!(
+                    textures.normal_is_directx().is_some(),
+                    "`materials.{name}.textures.normal` must be named `-normal-dx` or `-normal-gl`, got `{}`",
+                    textures.normal
+                );
+            }
         }
         anyhow::ensure!(
             self.materials.contains_key(&self.ladder.material),
@@ -180,7 +184,13 @@ impl AssetSet {
             ("ramps", &layout.ramp_materials),
         ] {
             for (index, faces) in materials.iter().enumerate() {
-                validate_texture_materials(faces, &settings.textures, &format!("map.{kind}[{index}]"))?;
+                if kind == "floors" && faces.top == TERRAIN_MATERIAL {
+                    let mut authored_faces = faces.clone();
+                    authored_faces.top = authored_faces.bottom.clone();
+                    validate_texture_materials(&authored_faces, &settings.textures, &format!("map.{kind}[{index}]"))?;
+                } else {
+                    validate_texture_materials(faces, &settings.textures, &format!("map.{kind}[{index}]"))?;
+                }
             }
         }
         Ok(())

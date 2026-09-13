@@ -153,11 +153,7 @@ fn queue_material_images(
 }
 
 fn terrain_material_images(material: &TerrainMaterial) -> impl Iterator<Item = (&'static str, &Handle<Image>)> {
-    standard_material_images(&material.base).chain([
-        ("terrain grass texture", &material.extension.grass),
-        ("terrain soil texture", &material.extension.soil),
-        ("terrain cover texture", &material.extension.cover),
-    ])
+    standard_material_images(&material.base).chain([("terrain grass texture", &material.extension.grass)])
 }
 
 fn queue_images<'a>(

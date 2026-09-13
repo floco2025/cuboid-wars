@@ -154,6 +154,7 @@ fn joining_inherits_shared_progress_and_respects_blocked_spawns_and_group_countd
                 entity,
                 PlayerId(9),
                 CLogin { name: "Player".into() },
+                None,
                 &mut players,
                 &world,
                 &celestial_clock,

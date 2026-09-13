@@ -9,7 +9,7 @@ from .constants import (
     HIT_BARRIER,
     HIT_EQUIPMENT_ERASER,
     HIT_FLOOR,
-    HIT_GRASS,
+    HIT_TERRAIN,
     HIT_INACCESSIBLE_FLOOR,
     HIT_ITEM,
     HIT_LADDER,
@@ -27,7 +27,7 @@ from .constants import (
     MODE_ERASE_BARRIERS,
     MODE_ERASE_EQUIPMENT_ERASERS,
     MODE_ERASE_FLOORS,
-    MODE_ERASE_GRASS,
+    MODE_ERASE_TERRAIN,
     MODE_ERASE_ITEMS,
     MODE_ERASE_LADDERS,
     MODE_ERASE_LIGHT_BRIDGES,
@@ -112,8 +112,8 @@ def nested_maps_outside(entries: list[dict], level_idx: int, rect: Rect) -> list
     ]
 
 
-# Lights hang on walls, and grass and items stand on floors: an erase that
-# takes the support takes what stood on it, and only that. A record already
+# Lights hang on walls, while items sit on floors: an erase that takes the
+# support takes what stood on it, and only that. A record already
 # orphaned elsewhere on the level is kept for the repair dialog.
 def lights_off_edges(lights: list[dict], removed: set[tuple[int, int, int, int]]) -> list[dict]:
     return [
@@ -129,8 +129,9 @@ def erase_floors(data: dict, level_idx: int, rect: Rect) -> dict:
     level = after["levels"][level_idx]
     level["floors"] = cells_outside(level["floors"], rect)
     level["inaccessible_floors"] = cells_outside(level["inaccessible_floors"], rect)
-    level["grass"] = cells_outside(level.get("grass", []), rect)
+    level["terrain"] = cells_outside(level.get("terrain", []), rect)
     after[ITEMS_LIST] = level_cells_outside(after.get(ITEMS_LIST, []), level_idx, rect)
+    after["pressure_plates"] = level_cells_outside(after.get("pressure_plates", []), level_idx, rect)
     return after
 
 
@@ -169,8 +170,31 @@ def _keep_floors(data: dict, level_idx: int, rect: Rect) -> dict:
     return {
         (level_idx, "floors"): level["floors"],
         (level_idx, "inaccessible_floors"): level["inaccessible_floors"],
-        (level_idx, "grass"): level["grass"],
+        (level_idx, "terrain"): level["terrain"],
         (None, ITEMS_LIST): after.get(ITEMS_LIST, []),
+        (None, "pressure_plates"): after.get("pressure_plates", []),
+    }
+
+
+def _keep_terrain(data: dict, level_idx: int, rect: Rect) -> dict:
+    terrain = data["levels"][level_idx].get("terrain", [])
+    kept = cells_outside(terrain, rect)
+    kept_keys = {(cell["col"], cell["row"]) for cell in kept}
+    removed = {(cell["col"], cell["row"]) for cell in terrain} - kept_keys
+    items = [
+        item
+        for item in data.get(ITEMS_LIST, [])
+        if item["level"] != level_idx or (item["col"], item["row"]) not in removed
+    ]
+    plates = [
+        plate
+        for plate in data.get("pressure_plates", [])
+        if plate["level"] != level_idx or (plate["col"], plate["row"]) not in removed
+    ]
+    return {
+        (level_idx, "terrain"): kept,
+        (None, ITEMS_LIST): items,
+        (None, "pressure_plates"): plates,
     }
 
 
@@ -187,7 +211,7 @@ def _keep_spawn_zones(data: dict, level_idx: int, rect: Rect) -> dict:
 # its keep function, which maps `(level or None, list)` to what survives.
 ERASE_GROUPS = {
     MODE_ERASE_FLOORS: ("floors", _keep_floors),
-    MODE_ERASE_GRASS: ("grass", _keep_level_cells("grass")),
+    MODE_ERASE_TERRAIN: ("terrain", _keep_terrain),
     MODE_ERASE_WALLS: ("walls", _keep_walls),
     MODE_ERASE_BARRIERS: ("barriers", _keep_level_edges("barriers")),
     MODE_ERASE_EQUIPMENT_ERASERS: ("equipment erasers", _keep_level_edges("erasers")),
@@ -250,7 +274,7 @@ def erase_cell_rect(
         after["pressure_plates"] = level_cells_outside(after.get("pressure_plates", []), level_idx, rect)
         after[NESTED_MAPS_LIST] = nested_maps_outside(after.get(NESTED_MAPS_LIST, []), level_idx, rect)
     level = after["levels"][level_idx]
-    level["grass"] = cells_outside(level.get("grass", []), rect)
+    level["terrain"] = cells_outside(level.get("terrain", []), rect)
     level["barriers"] = edges_outside(level.get("barriers", []), rect)
     level["erasers"] = edges_outside(level.get("erasers", []), rect)
     for list_name in ZONE_LISTS:
@@ -321,10 +345,10 @@ def hit_at(data: dict, level_idx: int, px: float, py: float, tolerance: float):
         at_end = entry["to_level"] == level_idx and entry["to"] == [col, row]
         if at_start or at_end:
             return (HIT_NESTED_MAP, nested_map_key(entry))
-    # Grass sits on top of a floor, so a click peels the grass first; the
-    # next click then hits the floor underneath.
-    if any(g["col"] == col and g["row"] == row for g in level.get("grass", [])):
-        return (HIT_GRASS, (col, row))
+    # Terrain is a floor kind and wins the cell pick just like the other slab
+    # variants.
+    if any(cell["col"] == col and cell["row"] == row for cell in level.get("terrain", [])):
+        return (HIT_TERRAIN, (col, row))
     if any(f["col"] == col and f["row"] == row for f in level["floors"]):
         return (HIT_FLOOR, (col, row))
     if any(f["col"] == col and f["row"] == row for f in level["inaccessible_floors"]):
@@ -343,8 +367,9 @@ def erase_hit(data: dict, level_idx: int, hit, preserve_floors: bool = False) ->
         return erase_floors(data, level_idx, (col, row, col + 1, row + 1))
     after = copy.deepcopy(data)
     level = after["levels"][level_idx]
-    if kind == HIT_GRASS:
-        level["grass"] = [grass for grass in level.get("grass", []) if (grass["col"], grass["row"]) != value]
+    if kind == HIT_TERRAIN:
+        col, row = value
+        return erase_floors(data, level_idx, (col, row, col + 1, row + 1))
     elif kind == HIT_LIGHT_BRIDGE:
         level["light_bridges"] = [
             bridge for bridge in level.get("light_bridges", []) if (bridge["col"], bridge["row"]) != value

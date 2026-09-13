@@ -210,12 +210,12 @@ impl Default for UserPreferences {
     }
 }
 
-// Performance/feel knobs for the decorative grass. Pure-appearance numbers
-// (blade shape, colors) are module constants in `map/grass/mesh.rs`.
+// Grass is an on/off accessibility/performance choice. Density, shape, LOD,
+// color, and wind are cohesive art-direction constants in the renderer.
 #[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct GrassConfig {
     pub enabled: bool,
-    pub tufts_per_m2: f32,
 }
 
 impl ClientSettings {
@@ -239,7 +239,6 @@ impl ClientSettings {
         self.camera.validate()?;
         self.preferences.validate()?;
         self.hud.validate()?;
-        self.grass.validate()?;
         self.vfx.validate()?;
         self.audio.validate()?;
         self.weather.validate()?;
@@ -272,13 +271,6 @@ impl UserPreferences {
         if self.portal_view_budget > 8 {
             bail!("portal_view_budget must be <= 8");
         }
-        Ok(())
-    }
-}
-
-impl GrassConfig {
-    fn validate(&self) -> Result<()> {
-        validate_positive_finite(self.tufts_per_m2, "grass.tufts_per_m2")?;
         Ok(())
     }
 }

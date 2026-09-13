@@ -336,7 +336,7 @@ fn validate_rejects_duplicate_light_bridge_cells() {
 }
 
 #[test]
-fn validation_rejects_grass_out_of_bounds() {
+fn validation_rejects_terrain_out_of_bounds() {
     let mut map_def = map_with_zones(
         4,
         vec![level(vec![[0, 0]])],
@@ -344,9 +344,61 @@ fn validation_rejects_grass_out_of_bounds() {
         vec![player_zone(0, 0, 0)],
         Vec::new(),
     );
-    map_def.levels[0].grass.push(cell_def(4, 0));
-    let err = validate_map(&map_def).expect_err("out-of-bounds grass must be rejected");
-    assert!(err.to_string().contains("grass"));
+    map_def.levels[0].terrain.push(cell_def(4, 0));
+    let err = validate_map(&map_def).expect_err("out-of-bounds terrain must be rejected");
+    assert!(err.to_string().contains("terrain"));
+}
+
+#[test]
+fn terrain_requires_only_five_authored_faces_and_rejects_a_top_override() {
+    let terrain: TerrainDef = serde_json::from_value(serde_json::json!({
+        "col": 1,
+        "row": 2,
+        "all": "slab",
+        "north": "stone"
+    }))
+    .expect("valid terrain rejected");
+    assert_eq!(terrain.materials.top, TERRAIN_MATERIAL);
+    assert_eq!(terrain.materials.bottom, "slab");
+    assert_eq!(terrain.materials.north, "stone");
+
+    let missing = serde_json::from_value::<TerrainDef>(serde_json::json!({"col": 1, "row": 2}))
+        .expect_err("terrain without side materials accepted");
+    assert!(missing.to_string().contains("missing terrain material"));
+    let top = serde_json::from_value::<TerrainDef>(serde_json::json!({
+        "col": 1,
+        "row": 2,
+        "all": "slab",
+        "top": "grass"
+    }))
+    .expect_err("terrain top override accepted");
+    assert!(top.to_string().contains("top"));
+}
+
+#[test]
+fn validation_rejects_terrain_on_floors_and_ramps() {
+    let mut map_def = map_with_zones(
+        4,
+        vec![level(vec![[0, 0]]), level(Vec::new())],
+        Vec::new(),
+        vec![player_zone(0, 0, 0)],
+        vec![ramp([1, 1], [3, 2], 0)],
+    );
+    map_def.levels[0].terrain.push(cell_def(0, 0));
+    assert!(
+        validate_map(&map_def)
+            .expect_err("terrain/floor overlap accepted")
+            .to_string()
+            .contains("overlaps a floor")
+    );
+    map_def.levels[0].terrain.clear();
+    map_def.levels[1].terrain.push(cell_def(1, 1));
+    assert!(
+        validate_map(&map_def)
+            .expect_err("terrain/ramp overlap accepted")
+            .to_string()
+            .contains("sits on a ramp")
+    );
 }
 
 #[test]

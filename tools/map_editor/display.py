@@ -12,7 +12,7 @@ from .constants import (
     MODE_ERASE_BARRIERS,
     MODE_ERASE_EQUIPMENT_ERASERS,
     MODE_ERASE_FLOORS,
-    MODE_ERASE_GRASS,
+    MODE_ERASE_TERRAIN,
     MODE_ERASE_ITEMS,
     MODE_ERASE_KEEP_FLOORS,
     MODE_ERASE_LADDERS,
@@ -24,7 +24,7 @@ from .constants import (
     MODE_ERASE_WALLS,
     MODE_FLOOR,
     MODE_FLOOR_MATERIAL,
-    MODE_GRASS,
+    MODE_TERRAIN,
     MODE_INACCESSIBLE_FLOOR,
     MODE_ITEM,
     MODE_LADDER,
@@ -36,7 +36,7 @@ from .constants import (
     MODE_RAMP_MATERIAL,
     UNKNOWN_SWITCH_PLATE_COLOR,
 )
-from .normalization import compact_face_materials
+from .normalization import compact_face_materials, compact_terrain_materials
 
 
 def pressure_plate_label(plate: dict) -> str:
@@ -89,8 +89,8 @@ NESTED_MAP_COLOR = QColor(167, 139, 250)
 DRAG_PREVIEW_COLORS: dict[str, QColor] = {
     MODE_FLOOR: QColor(111, 180, 255, 120),
     MODE_INACCESSIBLE_FLOOR: QColor(148, 163, 184, 120),
-    MODE_GRASS: QColor(132, 204, 22, 120),  # lime — matches the grass tuft strokes
-    MODE_ERASE_GRASS: QColor(120, 113, 108, 120),  # stone — mowed-down grass, not a red erase tool
+    MODE_TERRAIN: QColor(132, 204, 22, 120),
+    MODE_ERASE_TERRAIN: QColor(120, 113, 108, 120),
     MODE_PLAYER_SPAWN_ZONE: QColor(99, 102, 241, 120),
     MODE_CHECKPOINT: QColor(255, 179, 31, 90),
     # Type is picked *after* the click, so the hover ghost is a neutral
@@ -133,10 +133,9 @@ def face_color(seg: dict) -> QColor:
     return color
 
 
-def materials_summary(seg: dict) -> str:
-    """One-line summary of a segment's six face materials, using the same
-    `all`/overrides compaction as the on-disk shape."""
-    compact = compact_face_materials(seg)
+def materials_summary(seg: dict, *, terrain: bool = False) -> str:
+    """One-line summary using the same compaction as the on-disk shape."""
+    compact = compact_terrain_materials(seg) if terrain else compact_face_materials(seg)
     return ", ".join(f"{k}={v}" for k, v in compact.items())
 
 

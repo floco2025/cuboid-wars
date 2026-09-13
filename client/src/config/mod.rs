@@ -13,6 +13,7 @@ pub use audio::{AudioConfig, BumpAudioConfig};
 pub use camera::FollowCameraConfig;
 pub use hud::BannerTiming;
 pub use interpolation::InterpolationConfig;
+pub(crate) use local::LocalSettingsPersistence;
 pub use local::{LOCAL_SETTINGS_VERSION, LocalSettings};
 pub use rendering::OpaqueRenderer;
 pub use settings::{ClientSettings, GrassConfig, LightingConfig, SkyConfig, WeatherConfig};

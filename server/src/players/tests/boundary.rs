@@ -21,7 +21,6 @@ fn app() -> App {
                 level: 0,
                 margin: 50.0,
                 return_secs: 8.0,
-                material: "grass".into(),
             },
         }),
         ..default()

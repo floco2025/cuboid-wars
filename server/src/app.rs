@@ -60,10 +60,14 @@ pub struct ServerAppOptions {
     pub map: Option<String>,
     pub god: bool,
     pub peace: bool,
+    pub initial_spawn: Option<common::protocol::Position>,
     pub network: NetworkOverrides,
     // Only one Bevy `LogPlugin` may install per process; the app built first owns it.
     pub logging: bool,
 }
+
+#[derive(Resource, Debug, Clone, Copy)]
+pub(crate) struct InitialPlayerSpawn(pub Option<common::protocol::Position>);
 
 // `listener` is the UDP endpoint remote clients join through and `local` the
 // host's own client; a dedicated server has no local client, single-player
@@ -185,6 +189,7 @@ fn build_server_app_with_loader(
         .insert_resource(weather_state)
         .insert_resource(celestial_clock)
         .insert_resource(Invincibility(options.god))
+        .insert_resource(InitialPlayerSpawn(options.initial_spawn))
         .insert_resource(collision_world)
         .insert_resource(carriers)
         .insert_resource(map_config)

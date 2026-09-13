@@ -3,20 +3,21 @@ use super::{
     spawn::{OpenEdges, quantized_key},
 };
 use crate::{
-    config::GrassConfig,
     constants::{
         EXPLOSION_GRASS_BURN_CENTER_HEIGHT_FACTOR, EXPLOSION_GRASS_BURN_CENTER_SWAY_FACTOR,
         EXPLOSION_GRASS_BURN_CENTER_WIDTH_FACTOR, EXPLOSION_GRASS_BURN_COLOR, EXPLOSION_GRASS_BURN_MAX_COLOR_BLEND,
         EXPLOSION_GRASS_BURN_MID_BRIGHTNESS_FACTOR, EXPLOSION_GRASS_BURN_ROOT_BRIGHTNESS_FACTOR,
-        EXPLOSION_GRASS_BURN_TIP_BRIGHTNESS_FACTOR,
+        EXPLOSION_GRASS_BURN_TIP_BRIGHTNESS_FACTOR, TERRAIN_GRASS_DRY, TERRAIN_GRASS_GREEN, TERRAIN_GRASS_MID_DENSITY,
+        TERRAIN_GRASS_NEAR_DENSITY,
     },
+    map::terrain_surface::TerrainCover,
 };
 use bevy::{asset::RenderAssetUsages, mesh::Indices, prelude::*, render::render_resource::PrimitiveTopology};
-use common::protocol::GrassCell;
+use common::protocol::TerrainCell;
 use rand::{RngExt, SeedableRng, rngs::SmallRng};
 use std::f32::consts::TAU;
 
-pub(super) const BLADES_PER_TUFT: usize = 6;
+pub(super) const BLADES_PER_TUFT: usize = 3;
 const TUFT_RADIUS: f32 = 0.09;
 const BLADE_HEIGHT_MIN: f32 = 0.1;
 pub(super) const BLADE_HEIGHT_MAX: f32 = 0.3;
@@ -36,10 +37,9 @@ pub(super) const MID_SWAY_WEIGHT: f32 = 0.55;
 const ROOT_LIGHTNESS_SCALE: f32 = 0.5;
 const MID_LIGHTNESS_SCALE: f32 = 0.85;
 const TIP_LIGHTNESS_SCALE: f32 = 1.2;
-// Base grass color. Each tuft jitters around it and each blade jitters again
-// within its tuft, so color varies patch-to-patch rather than blade-to-blade
-// (confetti).
-const BLADE_BASE_COLOR_RGB: [u8; 3] = [125, 173, 93];
+// Each tuft jitters around the terrain cover's healthy/dry blend and each
+// blade jitters again within its tuft, so variation forms patches rather
+// than blade-level confetti.
 const TUFT_HUE_JITTER: f32 = 8.0;
 const TUFT_SATURATION_JITTER: f32 = 0.05;
 const TUFT_LIGHTNESS_JITTER: f32 = 0.05;
@@ -60,39 +60,63 @@ pub(super) const AABB_BASE_PAD: f32 = 0.01;
 
 // Positions are carrier-local. This untextured material uses UV0 for
 // sway weight (0 root / 1 tip) and per-blade phase instead of texture tiling.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum GrassLod {
+    Near,
+    Mid,
+}
+
+impl GrassLod {
+    fn density(self) -> f32 {
+        match self {
+            Self::Near => TERRAIN_GRASS_NEAR_DENSITY,
+            Self::Mid => TERRAIN_GRASS_MID_DENSITY,
+        }
+    }
+
+    fn blades(self) -> usize {
+        match self {
+            Self::Near => BLADES_PER_TUFT,
+            Self::Mid => 2,
+        }
+    }
+}
+
 pub(super) fn grass_cell_mesh(
-    cell: GrassCell,
+    cell: TerrainCell,
     cell_size: f32,
-    config: &GrassConfig,
+    lod: GrassLod,
     open: OpenEdges,
     burns: &[GrassBurn],
 ) -> Mesh {
     let mut rng = SmallRng::seed_from_u64(cell_seed(cell, cell_size));
-    let tuft_count = cell_tuft_count(config, cell_size);
-    let vertex_count = tuft_count * BLADES_PER_TUFT * VERTICES_PER_BLADE;
+    let candidate_count = cell_tuft_count(lod, cell_size);
+    let vertex_count = candidate_count * lod.blades() * VERTICES_PER_BLADE;
     let mut positions: Vec<[f32; 3]> = Vec::with_capacity(vertex_count);
     let mut uvs: Vec<[f32; 2]> = Vec::with_capacity(vertex_count);
     let mut colors: Vec<[f32; 4]> = Vec::with_capacity(vertex_count);
-    let mut indices: Vec<u32> = Vec::with_capacity(tuft_count * BLADES_PER_TUFT * INDICES_PER_BLADE);
+    let mut indices: Vec<u32> = Vec::with_capacity(candidate_count * lod.blades() * INDICES_PER_BLADE);
 
     let half = cell_size / 2.0;
     let edge = |is_open: bool| if is_open { half } else { half - BLADE_MAX_OVERHANG };
     let (x_min, x_max) = (-edge(open.neg_x), edge(open.pos_x));
     let (z_min, z_max) = (-edge(open.neg_z), edge(open.pos_z));
-    let base_color = Hsla::from(Color::srgb_u8(
-        BLADE_BASE_COLOR_RGB[0],
-        BLADE_BASE_COLOR_RGB[1],
-        BLADE_BASE_COLOR_RGB[2],
-    ));
-    for _ in 0..tuft_count {
+    for _ in 0..candidate_count {
         let tuft_x = cell.x + rng.random_range(x_min..=x_max);
         let tuft_z = cell.z + rng.random_range(z_min..=z_max);
+        let cover_position = Vec2::new(tuft_x, tuft_z);
+        let cover = TerrainCover::at(cover_position);
+        if rng.random::<f32>() > cover.grass_density(cover_position) {
+            continue;
+        }
+        let base_color = Hsla::from(TERRAIN_GRASS_GREEN.mix(&TERRAIN_GRASS_DRY, cover.dry));
         let tuft_hue = base_color.hue + rng.random_range(-TUFT_HUE_JITTER..=TUFT_HUE_JITTER);
         let tuft_saturation = (base_color.saturation
             + rng.random_range(-TUFT_SATURATION_JITTER..=TUFT_SATURATION_JITTER))
         .clamp(0.0, 1.0);
-        let tuft_lightness = base_color.lightness + rng.random_range(-TUFT_LIGHTNESS_JITTER..=TUFT_LIGHTNESS_JITTER);
-        for _ in 0..BLADES_PER_TUFT {
+        let tuft_lightness =
+            base_color.lightness * cover.shade + rng.random_range(-TUFT_LIGHTNESS_JITTER..=TUFT_LIGHTNESS_JITTER);
+        for _ in 0..lod.blades() {
             let root_angle = rng.random_range(0.0..TAU);
             let root_radius = rng.random_range(0.0..=TUFT_RADIUS);
             let root = Vec3::new(
@@ -176,11 +200,11 @@ pub(super) fn grass_cell_mesh(
     mesh
 }
 
-pub(super) fn cell_tuft_count(config: &GrassConfig, cell_size: f32) -> usize {
-    (config.tufts_per_m2 * cell_size * cell_size).round() as usize
+pub(super) fn cell_tuft_count(lod: GrassLod, cell_size: f32) -> usize {
+    (lod.density() * cell_size * cell_size).round() as usize
 }
 
-fn cell_seed(cell: GrassCell, cell_size: f32) -> u64 {
+fn cell_seed(cell: TerrainCell, cell_size: f32) -> u64 {
     let (_, quantized_x, quantized_z, level) = quantized_key(cell, cell_size);
     (quantized_x as u64)
         .wrapping_mul(0x9E37_79B9_7F4A_7C15)

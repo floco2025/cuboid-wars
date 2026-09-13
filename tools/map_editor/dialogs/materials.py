@@ -16,13 +16,13 @@ from PySide6.QtWidgets import (
 
 
 class MaterialAssignmentDialog(QDialog):
-    """Modal dialog with one dropdown per face (top/bottom/N/S/E/W).
+    """Modal dialog with one dropdown per requested face.
 
     `catalog` is the list of material names to choose from, sourced from
     the host map’s `settings.json` texture catalog. `initial` provides the starting selection per face;
     uniform faces start with their value, and mixed faces stay unchanged.
 
-    `Apply to all` copies the Top dropdown's value into the other five.
+    `Apply to all` copies the first shown dropdown into the others.
     """
 
     FACE_LABELS = (
@@ -44,6 +44,7 @@ class MaterialAssignmentDialog(QDialog):
         *,
         source: dict[str, str | None] | None = None,
         portalability: dict[str, bool] | None = None,
+        faces: tuple[str, ...] | None = None,
     ):
         super().__init__(parent)
         self.setWindowTitle(title)
@@ -54,7 +55,10 @@ class MaterialAssignmentDialog(QDialog):
         form.addRow("Selection:", QLabel(scope_summary))
         if portalability is not None:
             form.addRow("Portals:", QLabel("Permissions come from the parent map."))
-        for face, label in self.FACE_LABELS:
+        labels = dict(self.FACE_LABELS)
+        self._faces = faces or tuple(labels)
+        for face in self._faces:
+            label = labels[face]
             combo = QComboBox()
             combo.addItem("Mixed / leave unchanged", None)
             for alias in catalog:
@@ -68,12 +72,13 @@ class MaterialAssignmentDialog(QDialog):
             form.addRow(label + ":", combo)
 
         apply_all_button = QToolButton()
-        apply_all_button.setText("Apply Top to all faces")
-        apply_all_button.clicked.connect(self._apply_top_to_all)
+        source_face = self._faces[0]
+        apply_all_button.setText(f"Apply {labels[source_face]} to all shown faces")
+        apply_all_button.clicked.connect(self._apply_first_to_all)
 
         self.source_button = QToolButton()
         self.source_button.setText("Use top-left materials")
-        self.source_button.setToolTip("Fill all six face fields from the top-left selected element. Apply with OK.")
+        self.source_button.setToolTip("Fill all shown face fields from the top-left selected element. Apply with OK.")
         self.source_button.setEnabled(source is not None)
         self.source_button.clicked.connect(self._use_source)
 
@@ -87,10 +92,10 @@ class MaterialAssignmentDialog(QDialog):
         layout.addWidget(apply_all_button)
         layout.addWidget(buttons)
 
-    def _apply_top_to_all(self) -> None:
-        top_value = self._dropdowns["top"].currentText()
-        for face in ("bottom", "north", "south", "east", "west"):
-            self._dropdowns[face].setCurrentText(top_value)
+    def _apply_first_to_all(self) -> None:
+        value = self._dropdowns[self._faces[0]].currentText()
+        for face in self._faces[1:]:
+            self._dropdowns[face].setCurrentText(value)
 
     def _use_source(self) -> None:
         for face, combo in self._dropdowns.items():
@@ -115,11 +120,21 @@ class MaterialAssignmentDialog(QDialog):
         *,
         source: dict[str, str | None] | None = None,
         portalability: dict[str, bool] | None = None,
+        faces: tuple[str, ...] | None = None,
     ) -> dict[str, str] | None:
         if not catalog:
             QMessageBox.warning(parent, title, "The selected host has no textures in its settings.json.")
             return None
-        dialog = cls(parent, title, scope_summary, catalog, initial, source=source, portalability=portalability)
+        dialog = cls(
+            parent,
+            title,
+            scope_summary,
+            catalog,
+            initial,
+            source=source,
+            portalability=portalability,
+            faces=faces,
+        )
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return None
         return dialog.values()

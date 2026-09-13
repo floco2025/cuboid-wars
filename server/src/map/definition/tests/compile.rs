@@ -8,6 +8,12 @@ use common::{
     physics::{CharacterEnvironment, CharacterStep, LadderMode, step_character_movement},
 };
 
+fn compile_terrain_map(map: &MapDef) -> anyhow::Result<(MapLayout, MapConfig)> {
+    let kinds = empty_kind_table();
+    let bridges = no_bridges();
+    compile_with(map, &no_nested(), &kinds, &bridges)
+}
+
 #[test]
 fn compiled_ramps_support_actor_routes_and_movement_in_both_directions() {
     for (low, high, bottom_cell, top_cell) in [
@@ -556,35 +562,58 @@ fn compile_resolves_three_distinct_kinds() {
 }
 
 #[test]
-fn compile_drops_grass_without_floor() {
+fn terrain_creates_accessible_floor_slabs_without_supporting_floors() {
     let mut map_def = map_with_zones(
         4,
-        vec![level(vec![[0, 0]])],
+        vec![level(vec![[3, 3]])],
         Vec::new(),
-        vec![player_zone(0, 0, 0)],
+        vec![player_zone(0, 3, 3)],
         Vec::new(),
     );
-    map_def.levels[0].grass.push(cell_def(0, 0));
-    map_def.levels[0].grass.push(cell_def(2, 2));
-    let (layout, _) = compile_with(&map_def, &no_nested(), &empty_kind_table(), &no_bridges()).expect("compile");
-    assert_eq!(layout.grass.len(), 1);
-    assert_eq!(layout.grass[0].level, 0);
+    map_def.levels[0].terrain.push(cell_def(0, 0));
+    map_def.levels[0].terrain.push(cell_def(2, 2));
+    let (layout, config) = compile_terrain_map(&map_def).expect("compile");
+    assert_eq!(layout.terrain.len(), 2);
+    assert_eq!(layout.terrain[0].level, 0);
+    assert!(config.root_grid().levels[0].cells.rows[0][0].has_floor);
+    assert!(config.root_grid().levels[0].cells.rows[2][2].has_floor_slab);
+    assert!(
+        layout
+            .floor_materials
+            .iter()
+            .any(|materials| materials.top == TERRAIN_MATERIAL)
+    );
 }
 
 #[test]
-fn grass_compiles_to_cell_center_and_floor_top() {
+fn terrain_does_not_require_exterior_grounds() {
     let mut map_def = map_with_zones(
         4,
-        vec![level(vec![[0, 0]]), level(vec![[1, 2]])],
+        vec![level(vec![[3, 3]])],
+        Vec::new(),
+        vec![player_zone(0, 3, 3)],
+        Vec::new(),
+    );
+    map_def.levels[0].terrain.push(cell_def(0, 0));
+    let (layout, _) = compile_with(&map_def, &no_nested(), &empty_kind_table(), &no_bridges())
+        .expect("standalone terrain should compile");
+    assert_eq!(layout.terrain.len(), 1);
+}
+
+#[test]
+fn terrain_compiles_to_cell_center_and_floor_top() {
+    let mut map_def = map_with_zones(
+        4,
+        vec![level(vec![[0, 0]]), level(Vec::new())],
         Vec::new(),
         vec![player_zone(0, 0, 0)],
         Vec::new(),
     );
-    map_def.levels[1].grass.push(cell_def(1, 2));
-    let (layout, config) = compile_with(&map_def, &no_nested(), &empty_kind_table(), &no_bridges()).expect("compile");
+    map_def.levels[1].terrain.push(cell_def(1, 2));
+    let (layout, config) = compile_terrain_map(&map_def).expect("compile");
     let geometry = config.root_grid().geometry;
-    assert_eq!(layout.grass.len(), 1);
-    let cell = layout.grass[0];
+    assert_eq!(layout.terrain.len(), 1);
+    let cell = layout.terrain[0];
     assert_eq!(cell.level, 1);
     let expected_x = geometry.cell_center_x(1);
     let expected_z = geometry.cell_center_z(2);
@@ -594,7 +623,7 @@ fn grass_compiles_to_cell_center_and_floor_top() {
 }
 
 #[test]
-fn grass_allowed_on_inaccessible_floor() {
+fn terrain_may_not_duplicate_an_inaccessible_floor() {
     let mut map_def = map_with_zones(
         4,
         vec![level_with_inaccessible(vec![[0, 0]], vec![[1, 0]])],
@@ -602,10 +631,9 @@ fn grass_allowed_on_inaccessible_floor() {
         vec![player_zone(0, 0, 0)],
         Vec::new(),
     );
-    map_def.levels[0].grass.push(cell_def(1, 0));
-    validate_map(&map_def).expect("grass on an inaccessible floor should load");
-    let (layout, _) = compile_with(&map_def, &no_nested(), &empty_kind_table(), &no_bridges()).expect("compile");
-    assert_eq!(layout.grass.len(), 1);
+    map_def.levels[0].terrain.push(cell_def(1, 0));
+    let error = validate_map(&map_def).expect_err("terrain must be its own slab");
+    assert!(error.to_string().contains("overlaps a floor"));
 }
 
 #[test]

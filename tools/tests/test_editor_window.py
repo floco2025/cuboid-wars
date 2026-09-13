@@ -1,4 +1,5 @@
 import copy
+import sys
 from pathlib import Path
 from unittest.mock import patch
 
@@ -12,6 +13,7 @@ from map_editor.constants import (
     FACES,
     HIT_LADDER,
     HIT_LIGHT,
+    HIT_TERRAIN,
     MODE_ACTOR_SPAWN_ZONE,
     MODE_ERASE,
     MODE_ERASE_LADDERS,
@@ -23,6 +25,7 @@ from map_editor.constants import (
     MODE_NESTED_MAP,
     MODE_PRESSURE_PLATE,
     MODE_RAMP_UP,
+    TERRAIN_FACES,
     MODE_SELECT,
     MODE_WALL,
 )
@@ -37,6 +40,10 @@ from map_editor.window import EditorWindow
 
 
 class WindowTests(WindowTestCase):
+    def test_linux_tool_picker_shows_every_row_without_its_default_scroll_cap(self):
+        if sys.platform.startswith("linux"):
+            self.assertEqual(self.window.mode_combo.maxVisibleItems(), self.window.mode_combo.count())
+
     def test_paste_beside_an_invalid_item_is_not_refused_for_its_shifted_index(self):
         window = self.window
         data = copy.deepcopy(window.map_data)
@@ -387,6 +394,26 @@ class WindowTests(WindowTestCase):
         self.assertEqual([f["top"] for f in window.map_data["levels"][0]["floors"]], [first, second])
         self.assertTrue(all(f["north"] == first for f in window.map_data["levels"][0]["floors"]))
         dialog.deleteLater()
+
+    def test_terrain_material_editor_exposes_only_sides_and_bottom(self):
+        window = self.window
+        level = copy.deepcopy(window.map_data["levels"][0])
+        level["floors"] = [floor for floor in level["floors"] if (floor["col"], floor["row"]) != (1, 1)]
+        level["terrain"] = [{"col": 1, "row": 1, **dict.fromkeys(TERRAIN_FACES, DEFAULT_ALIAS)}]
+        data = copy.deepcopy(window.map_data)
+        data["levels"][0] = level
+        window.apply_change("Terrain", data)
+        replacement = window.materials_catalog[1]
+
+        with patch(
+            "map_editor.placement.MaterialAssignmentDialog.prompt", return_value={"bottom": replacement}
+        ) as prompt:
+            window.edit_materials_at((HIT_TERRAIN, (1, 1)))
+
+        self.assertEqual(prompt.call_args.kwargs["faces"], TERRAIN_FACES)
+        terrain = window.map_data["levels"][0]["terrain"][0]
+        self.assertEqual(terrain["bottom"], replacement)
+        self.assertNotIn("top", terrain)
 
     def test_material_source_button_fills_each_face_without_changing_the_map(self):
         window = self.window

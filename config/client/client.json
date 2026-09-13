@@ -115,5 +115,5 @@
     },
     "quest_panel": { "card_width": 240.0, "bar_height": 8.0 }
   },
-  "grass": { "enabled": true, "tufts_per_m2": 16.0 }
+  "grass": { "enabled": true }
 }

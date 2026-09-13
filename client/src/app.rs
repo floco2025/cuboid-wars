@@ -14,8 +14,8 @@ use crate::{
     barriers::LockedSwitches,
     cameras::{CameraViewMode, camera_plugin, clamp_msaa_to_device_system, setup_cameras_system},
     characters::{character_sync_plugin, local_simulation_plugin},
-    config::{AssetSet, ClientSettings, LocalSettings, OpaqueRenderer},
-    constants::{AUDIO_MASTER_VOLUME_DEFAULT, WINDOW_FULLSCREEN_DEFAULT, WINDOW_SIZE_DEFAULT},
+    config::{AssetSet, ClientSettings, LocalSettings, LocalSettingsPersistence, OpaqueRenderer},
+    constants::{AUDIO_MASTER_VOLUME_DEFAULT, CAMERA_MAX_PITCH, WINDOW_FULLSCREEN_DEFAULT, WINDOW_SIZE_DEFAULT},
     input::{WeaponMode, WindowedFrame, input_plugin},
     items::{ItemMap, setup_item_assets},
     map::{DebugColors, LevelFocusEnabled, map_plugin, setup_scene_lighting_system, sky_weather_plugin},
@@ -41,13 +41,43 @@ use common::{
 };
 
 pub struct ClientAppOptions {
+    pub force_windowed: bool,
     pub window_x: Option<i32>,
     pub window_y: Option<i32>,
     pub window_width: Option<u32>,
     pub window_height: Option<u32>,
     pub volume: Option<f32>,
+    pub initial_view: Option<InitialViewDirection>,
     // Only one Bevy `LogPlugin` may install per process; an embedded server built first owns it.
     pub logging: bool,
+}
+
+impl ClientAppOptions {
+    fn persist_local_settings(&self) -> bool {
+        !self.force_windowed
+            && self.window_x.is_none()
+            && self.window_y.is_none()
+            && self.window_width.is_none()
+            && self.window_height.is_none()
+            && self.volume.is_none()
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct InitialViewDirection {
+    pub bearing_degrees: f32,
+    pub pitch_degrees: f32,
+}
+
+impl InitialViewDirection {
+    fn camera_angles(self) -> Vec2 {
+        Vec2::new(
+            (self.bearing_degrees + 180.0).to_radians(),
+            self.pitch_degrees
+                .to_radians()
+                .clamp(-CAMERA_MAX_PITCH, CAMERA_MAX_PITCH),
+        )
+    }
 }
 
 pub fn build_client_app(
@@ -56,6 +86,7 @@ pub fn build_client_app(
     link: ServerLink,
     bootstrap: SInit,
 ) -> Result<App> {
+    let persist_local_settings = options.persist_local_settings();
     let asset_set = AssetSet::load_default()?;
     let audio_analysis = AudioAnalysis::load_default()?;
     let mut client_settings = ClientSettings::load_default()?;
@@ -68,9 +99,10 @@ pub fn build_client_app(
             client_settings = ClientSettings::load_default()?;
         }
     }
-    let start_fullscreen = local_settings
-        .as_ref()
-        .map_or(WINDOW_FULLSCREEN_DEFAULT, |local| local.fullscreen);
+    let start_fullscreen = initial_fullscreen(
+        options.force_windowed,
+        local_settings.as_ref().map(|local| local.fullscreen),
+    );
     let saved_position = local_settings
         .as_ref()
         .and_then(|local| local.window_x.zip(local.window_y));
@@ -145,7 +177,9 @@ pub fn build_client_app(
         .insert_resource(ActorMap::default())
         .insert_resource(ActorGhostMap::default())
         .insert_resource(ItemMap::default())
-        .insert_resource(LocalPlayerInfo::default())
+        .insert_resource(LocalPlayerInfo::with_initial_view(
+            options.initial_view.map(InitialViewDirection::camera_angles),
+        ))
         .insert_resource(RoundTripTime::default())
         .insert_resource(LastSnapshotTick::default())
         .insert_resource(LastPlayerMovesTick::default())
@@ -166,6 +200,7 @@ pub fn build_client_app(
         .insert_resource(PortalMap::default())
         .insert_resource(PortalSet::default())
         .insert_resource(WeaponMode::default())
+        .insert_resource(LocalSettingsPersistence(persist_local_settings))
         .insert_resource(windowed_frame)
         .init_resource::<PortalAssets>()
         .init_resource::<MissileAssets>()
@@ -210,6 +245,10 @@ pub fn build_client_app(
     }
 
     Ok(app)
+}
+
+fn initial_fullscreen(force_windowed: bool, saved_fullscreen: Option<bool>) -> bool {
+    !force_windowed && saved_fullscreen.unwrap_or(WINDOW_FULLSCREEN_DEFAULT)
 }
 
 // Anchored at this crate at compile time like the config paths: Bevy resolves

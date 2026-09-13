@@ -11,7 +11,7 @@ mod trees;
 
 pub use celestial::setup_scene_lighting_system;
 pub(crate) use grass::GrassBurn;
-pub use grass::{GrassMarker, grass_burn_system, grass_spawn_system};
+pub use grass::{TerrainMarker, grass_burn_system, terrain_spawn_system};
 pub(crate) use rendering::map_level_visibility;
 pub use rendering::{
     added_map_level_visibility_system, map_level_focus_visibility_system, map_spawn_geometry_system,

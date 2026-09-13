@@ -173,7 +173,7 @@ class CanvasPaintingMixin:
             self._paint_adjacent_level_ghosts(painter, cell, level_idx)
         self._paint_floors(painter, level, cell)
         self._paint_light_bridges(painter, level, cell)
-        self._paint_grass(painter, level, cell)
+        self._paint_terrain(painter, level, cell)
         self._paint_pressure_plates(painter, cell, level_idx)
         self._paint_items(painter, cell, level_idx)
         self._paint_ramps(painter, cell, level_idx)
@@ -386,27 +386,25 @@ class CanvasPaintingMixin:
                 painter.drawLine(start, end)
         painter.setPen(Qt.PenStyle.NoPen)
 
-    # Sub-cell tuft anchors, in cell units. Fixed so tufts don't jump between
-    # repaints; scattered enough to read as grass without hiding the floor's
-    # material-overlay color underneath.
-    _GRASS_TUFT_ANCHORS = ((0.25, 0.35), (0.65, 0.25), (0.45, 0.6), (0.2, 0.8), (0.75, 0.75))
-
-    def _paint_grass(self, painter: QPainter, level: dict, cell: float) -> None:
-        if cell < 8:
+    def _paint_terrain(self, painter: QPainter, level: dict, cell: float) -> None:
+        terrain = level.get("terrain", [])
+        if not terrain:
             return
-        grass = level.get("grass", [])
-        if not grass:
-            return
-        painter.setPen(QPen(QColor(132, 204, 22, 230), 2))
-        blade = cell * 0.14
-        for tuft in self.visible_entries("grass", grass):
-            for dx, dy in self._GRASS_TUFT_ANCHORS:
-                base_x = (tuft["col"] + dx) * cell
-                base_y = (tuft["row"] + dy) * cell
-                painter.drawLine(base_x, base_y, base_x - blade * 0.5, base_y - blade)
-                painter.drawLine(base_x, base_y, base_x, base_y - blade * 1.3)
-                painter.drawLine(base_x, base_y, base_x + blade * 0.5, base_y - blade)
+        fill = QColor(105, 152, 67, 145)
+        painter.setPen(QPen(QColor(132, 204, 22, 220), max(1, cell * 0.04)))
+        painter.setBrush(fill)
+        inset = min(1.5, cell * 0.08)
+        for terrain_cell in self.visible_entries("terrain", terrain):
+            painter.drawRect(
+                QRectF(
+                    terrain_cell["col"] * cell + inset,
+                    terrain_cell["row"] * cell + inset,
+                    cell - 2 * inset,
+                    cell - 2 * inset,
+                )
+            )
         painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
 
     def _paint_pressure_plates(self, painter: QPainter, cell: float, level_idx: int) -> None:
         plates = self.window.map_data.get("pressure_plates", [])

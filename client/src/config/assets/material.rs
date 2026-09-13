@@ -8,7 +8,10 @@ pub(super) struct MaterialBinding {
 #[derive(Debug, Clone, Deserialize)]
 pub struct MaterialDef {
     pub footstep: Option<String>,
-    pub(crate) textures: TextureDef,
+    // Surface-only definitions carry gameplay/audio semantics without keeping
+    // a texture pack that no renderer uses.
+    #[serde(default)]
+    pub(crate) textures: Option<TextureDef>,
     #[serde(default)]
     pub tile_size: Option<f32>,
     pub metallic: f32,

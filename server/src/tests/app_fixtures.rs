@@ -32,6 +32,7 @@ pub(crate) fn server_app_with_listener(overrides: NetworkOverrides, listener: Op
         map: None,
         god: false,
         peace: false,
+        initial_spawn: None,
         network: overrides,
         logging: false,
     };

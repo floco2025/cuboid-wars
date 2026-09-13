@@ -14,6 +14,7 @@ from .constants import (
     HIT_NESTED_MAP,
     HIT_PRESSURE_PLATE,
     HIT_RAMP,
+    HIT_TERRAIN,
     HIT_CHECKPOINT,
     CHECKPOINT_TYPE_LABELS,
     HIT_SPAWN_ZONE,
@@ -43,6 +44,10 @@ def element_hover_text(data: dict, level_idx: int, hit) -> str | None:
         if kind == HIT_LIGHT_BRIDGE:
             return f"Light bridge: {entry['kind']}"
         return f"{kind}\n{materials_summary(entry)}"
+
+    if kind == HIT_TERRAIN:
+        entry = next(e for e in level["terrain"] if (e["col"], e["row"]) == value)
+        return f"Terrain\n{materials_summary(entry, terrain=True)}"
 
     if kind in (HIT_WALL, HIT_BARRIER):
         list_name = "walls" if kind == HIT_WALL else "barriers"

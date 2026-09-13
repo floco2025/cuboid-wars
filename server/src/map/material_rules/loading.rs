@@ -15,6 +15,9 @@ impl MaterialRules {
             for floor in level.floors.iter().chain(level.inaccessible_floors.iter()) {
                 floor_materials.insert((level_u8, floor.col, floor.row), floor.materials.clone());
             }
+            for terrain in &level.terrain {
+                floor_materials.insert((level_u8, terrain.col, terrain.row), terrain.materials.clone());
+            }
             for wall in &level.walls {
                 let key = wall_edge_key([wall.c0, wall.r0], [wall.c1, wall.r1]);
                 wall_materials.insert((level_u8, key.0, key.1), wall.materials.clone());

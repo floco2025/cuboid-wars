@@ -15,6 +15,7 @@ from .constants import (
     LADDER_SIDES,
     LIGHT_SIDES,
     MAP_NAME_RE,
+    TERRAIN_FACES,
 )
 from .geometry import normalized_wall, ramp_cells, ramp_cells_on_level, wall_endpoints_for_cell_side
 
@@ -24,7 +25,7 @@ def empty_level(index: int) -> dict:
         "name": f"Level {index}",
         "floors": [],
         "inaccessible_floors": [],
-        "grass": [],
+        "terrain": [],
         "walls": [],
         "barriers": [],
         "erasers": [],
@@ -93,6 +94,32 @@ def compact_face_materials(faces: dict[str, str]) -> dict:
     return out
 
 
+def expand_terrain_materials(obj: dict) -> dict[str, str]:
+    """Expand a terrain slab's bottom and four side materials."""
+    fallback = obj.get("all")
+    if fallback is None:
+        fallback = next((obj[face] for face in TERRAIN_FACES if face in obj), "")
+    return {face: obj.get(face, fallback) for face in TERRAIN_FACES}
+
+
+def compact_terrain_materials(materials: dict[str, str]) -> dict:
+    """Pack five terrain face materials into `all` plus overrides."""
+    counts: dict[str, int] = {}
+    for face in TERRAIN_FACES:
+        if face in materials:
+            counts[materials[face]] = counts.get(materials[face], 0) + 1
+    if not counts:
+        return {}
+    best_count = max(counts.values())
+    most_common = sorted(name for name, count in counts.items() if count == best_count)[0]
+    if best_count <= 1:
+        return {face: materials[face] for face in TERRAIN_FACES if face in materials}
+    return {
+        "all": most_common,
+        **{face: materials[face] for face in TERRAIN_FACES if materials[face] != most_common},
+    }
+
+
 def normalize_map(map_data: dict) -> dict:
     cols = int(map_data.get("grid_cols", DEFAULT_GRID_COLS))
     rows = int(map_data.get("grid_rows", DEFAULT_GRID_ROWS))
@@ -107,7 +134,7 @@ def normalize_map(map_data: dict) -> dict:
                 "name": str(level.get("name") or f"Level {idx}"),
                 "floors": [normalize_floor(f) for f in level.get("floors", [])],
                 "inaccessible_floors": [normalize_floor(f) for f in level.get("inaccessible_floors", [])],
-                "grass": [normalize_grass(g) for g in level.get("grass", [])],
+                "terrain": [normalize_terrain(cell) for cell in level.get("terrain", [])],
                 "walls": [normalize_wall(w) for w in level.get("walls", [])],
                 "barriers": [normalize_barrier(b) for b in level.get("barriers", [])],
                 "erasers": [normalize_eraser(e) for e in level.get("erasers", [])],
@@ -152,8 +179,12 @@ def normalize_floor(floor: dict) -> dict:
     }
 
 
-def normalize_grass(cell: dict) -> dict:
-    return {"col": int(cell["col"]), "row": int(cell["row"])}
+def normalize_terrain(cell: dict) -> dict:
+    return {
+        "col": int(cell["col"]),
+        "row": int(cell["row"]),
+        **expand_terrain_materials(cell),
+    }
 
 
 def normalize_wall(wall: dict) -> dict:
@@ -244,17 +275,21 @@ def ladders_overlap(a: dict, b: dict) -> bool:
 # `has_floor && !has_ramp`: a regular floor outside any lower-level ramp
 # footprint, so a ramp's upper storey stays placeable.
 def item_cell_error(data: dict, level_idx: int, col: int, row: int) -> str | None:
-    if (col, row) not in {(f["col"], f["row"]) for f in data["levels"][level_idx]["floors"]}:
+    level = data["levels"][level_idx]
+    regular = level["floors"] + level.get("terrain", [])
+    if (col, row) not in {(f["col"], f["row"]) for f in regular}:
         return f"[{col}, {row}] has no regular floor"
     if any(ramp["lower_level"] == level_idx and (col, row) in ramp_cells(ramp) for ramp in data["ramps"]):
         return f"[{col}, {row}] is inside a ramp footprint"
     return None
 
 
-# A slab (regular or blocked floor) outside every ramp footprint on the level.
+# A slab (regular, blocked, or terrain floor) outside every ramp footprint.
 def plate_cell_error(data: dict, level_idx: int, col: int, row: int) -> str | None:
     level = data["levels"][level_idx]
-    if (col, row) not in {(f["col"], f["row"]) for name in ("floors", "inaccessible_floors") for f in level[name]}:
+    if (col, row) not in {
+        (f["col"], f["row"]) for name in ("floors", "inaccessible_floors", "terrain") for f in level[name]
+    }:
         return f"[{col}, {row}] has no floor"
     if (col, row) in ramp_cells_on_level(data["ramps"], level_idx):
         return f"[{col}, {row}] is inside a ramp footprint"
@@ -477,20 +512,20 @@ def canonicalize_map(map_data: dict) -> dict:
         # Dedupe by (col, row); later entries win when the same position is
         # painted twice, so the user's most recent paint stays.
         level["floors"] = _dedupe_floors(level["floors"])
+        level["terrain"] = [
+            cell
+            for cell in _dedupe_floors(level["terrain"])
+            if (cell["col"], cell["row"]) not in ramp_cells_by_level[level_idx]
+        ]
+        terrain_keys = {(cell["col"], cell["row"]) for cell in level["terrain"]}
+        level["floors"] = [f for f in level["floors"] if (f["col"], f["row"]) not in terrain_keys]
         floor_keys = {(f["col"], f["row"]) for f in level["floors"]}
         level["inaccessible_floors"] = [
-            f for f in _dedupe_floors(level["inaccessible_floors"]) if (f["col"], f["row"]) not in floor_keys
+            f
+            for f in _dedupe_floors(level["inaccessible_floors"])
+            if (f["col"], f["row"]) not in floor_keys and (f["col"], f["row"]) not in terrain_keys
         ]
         ramp_set = ramp_cells_by_level[level_idx]
-        # Grass only survives on slab cells (floor or inaccessible floor)
-        # outside ramp footprints, so erasing a floor drops its grass in the
-        # same canonicalize pass — the two can never desync.
-        slab_keys = floor_keys | {(f["col"], f["row"]) for f in level["inaccessible_floors"]}
-        level["grass"] = [
-            g
-            for g in _dedupe_floors(level["grass"])
-            if (g["col"], g["row"]) in slab_keys and (g["col"], g["row"]) not in ramp_set
-        ]
         level["walls"] = _dedupe_edges(level["walls"])
         level["erasers"] = _dedupe_edges(level.get("erasers", []))
         wall_endpoints_set = {edge_key(w) for w in level["walls"]}

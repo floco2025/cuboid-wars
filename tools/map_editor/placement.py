@@ -11,9 +11,11 @@ from .constants import (
     HIT_FLOOR,
     HIT_INACCESSIBLE_FLOOR,
     HIT_RAMP,
+    HIT_TERRAIN,
     HIT_WALL,
     MODE_RAMP_UP,
     PLAYER_ZONE_LIST,
+    TERRAIN_FACES,
 )
 from .dialogs import ActorSpawnFieldsDialog, KindDialog, MaterialAssignmentDialog
 from .dialogs.controls import FieldPropertiesDialog
@@ -24,7 +26,7 @@ from .editing import (
     paint_edges,
     paint_erasers,
     paint_floors,
-    paint_grass,
+    paint_terrain,
     place_plate,
     place_ramp,
     top_left_materials,
@@ -65,8 +67,16 @@ class PlacementMixin:
             ),
         )
 
-    def add_grass_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
-        self.apply_change("Paint Grass", paint_grass(self.map_data, self.current_level, rect_from_cells(start, end)))
+    def add_terrain_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
+        self.apply_change(
+            "Paint Terrain",
+            paint_terrain(
+                self.map_data,
+                self.current_level,
+                rect_from_cells(start, end),
+                self.current_material,
+            ),
+        )
 
     def add_actor_spawn_zone_rect(self, start: tuple[int, int], end: tuple[int, int]) -> None:
         result = self.prompt_for_actor_spawn_fields()
@@ -358,12 +368,19 @@ class PlacementMixin:
         if kind in (HIT_FLOOR, HIT_INACCESSIBLE_FLOOR):
             name = "floors" if kind == HIT_FLOOR else "inaccessible_floors"
             matches = lambda entry: (entry["col"], entry["row"]) == key
+            faces = FACES
+        elif kind == HIT_TERRAIN:
+            name = "terrain"
+            matches = lambda entry: (entry["col"], entry["row"]) == key
+            faces = TERRAIN_FACES
         elif kind == HIT_WALL:
             name = "walls"
             matches = lambda entry: edge_key(entry) == key
+            faces = FACES
         elif kind == HIT_RAMP:
             name, level = "ramps", None
             matches = lambda entry: (entry["lower_level"], tuple(entry["low"]), tuple(entry["high"])) == key
+            faces = FACES
         else:
             return
         target = self.map_data if level is None else self.map_data["levels"][level]
@@ -376,9 +393,10 @@ class PlacementMixin:
             title,
             f"1 {kind.lower()}",
             self.materials_catalog,
-            material_values([entry]),
+            material_values([entry], faces),
             portalability=self.texture_catalog,
-            source=top_left_materials([entry], name),
+            source=top_left_materials([entry], name, faces),
+            faces=faces,
         )
         if result is not None:
             self.apply_change(title, update_records(self.map_data, name, matches, result, level))

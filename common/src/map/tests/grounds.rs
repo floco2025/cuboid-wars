@@ -5,7 +5,7 @@ use crate::{
     physics::{
         CharacterEnvironment, CharacterStep, CharacterSupport, CollisionWorld, LadderMode, step_character_movement,
     },
-    protocol::{MapLayout, Position},
+    protocol::{MapLayout, Position, TERRAIN_MATERIAL},
 };
 
 fn grounds() -> Grounds {
@@ -16,7 +16,6 @@ fn grounds() -> Grounds {
             level: 1,
             margin: 50.0,
             return_secs: 8.0,
-            material: "grass".into(),
         },
     }
 }
@@ -48,7 +47,7 @@ fn terrain_joins_the_map_leaves_the_basement_open_and_faces_up() {
         .ground_surface_below(Vec3::new(24.0, 15.0, 0.0), 30.0)
         .expect("surrounding ground missing");
     assert!((hit.point.y - 4.4).abs() < 0.001);
-    assert_eq!(world.surface_material(&hit, &layout), Some("grass"));
+    assert_eq!(world.surface_material(&hit, &layout), Some(TERRAIN_MATERIAL));
 }
 
 #[test]

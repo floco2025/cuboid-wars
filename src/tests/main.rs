@@ -54,6 +54,9 @@ fn window_options_need_a_window_and_world_options_a_server() {
     for args in [
         &["--serve", "--name", "Alex"][..],
         &["--serve", "--window-x", "10"],
+        &["--serve", "--windowed"],
+        &["--serve", "--resolution", "1200x800"],
+        &["--serve", "--look", "0,-10"],
         &["--serve", "--volume", "0.5"],
         &["--join", "--map", "hotel"],
         &["--join", "--server-hz", "30"],
@@ -66,6 +69,55 @@ fn window_options_need_a_window_and_world_options_a_server() {
     assert!(parse(&["--serve", "--map", "hotel"]).is_ok());
     assert!(parse(&["--join", "--name", "Alex", "--volume", "0.5"]).is_ok());
     assert!(parse(&["--host", "--name", "Alex", "--map", "hotel"]).is_ok());
+}
+
+#[test]
+fn review_window_and_view_options_parse_without_changing_saved_settings() {
+    let cli = parse(&["--windowed", "--resolution", "1280x720", "--look", "90,-12.5"])
+        .expect("review window arguments rejected");
+    let options = cli.window.client_options(false);
+    assert!(options.force_windowed);
+    assert_eq!(options.window_width, Some(1280));
+    assert_eq!(options.window_height, Some(720));
+    assert_eq!(
+        options.initial_view,
+        Some(InitialViewDirection {
+            bearing_degrees: 90.0,
+            pitch_degrees: -12.5,
+        })
+    );
+    assert!(!options.logging);
+
+    for invalid in ["1280", "0x720", "1280x0", "wide"] {
+        assert!(parse(&["--resolution", invalid]).is_err(), "accepted {invalid:?}");
+    }
+    for invalid in ["north", "0", "0,91", "NaN,0"] {
+        assert!(parse(&["--look", invalid]).is_err(), "accepted {invalid:?}");
+    }
+}
+
+#[test]
+fn single_player_spawn_override_accepts_finite_world_coordinates_only() {
+    let cli = parse(&["--spawn=-14.5,4.4,27"]).expect("spawn override rejected");
+    assert_eq!(
+        cli.world.server_options().initial_spawn,
+        Some(Position {
+            x: -14.5,
+            y: 4.4,
+            z: 27.0,
+        })
+    );
+    for mode in ["--host", "--join", "--serve"] {
+        assert_eq!(
+            parse(&[mode, "--spawn", "1,2,3"])
+                .expect_err("spawn override accepted outside single-player")
+                .kind(),
+            ErrorKind::ArgumentConflict
+        );
+    }
+    for invalid in ["1,2", "1,2,3,4", "NaN,2,3", "1,inf,3"] {
+        assert!(parse(&["--spawn", invalid]).is_err(), "accepted {invalid:?}");
+    }
 }
 
 #[test]

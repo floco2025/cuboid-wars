@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer, de};
 
-use common::protocol::{CheckpointKind, FaceMaterials, SwitchDef};
+use common::protocol::{CheckpointKind, FaceMaterials, SwitchDef, TERRAIN_MATERIAL};
 
 use crate::config::deserialize_required_option;
 
@@ -136,7 +136,7 @@ pub(crate) struct LevelDef {
     #[serde(default)]
     pub(crate) inaccessible_floors: Vec<FloorDef>,
     #[serde(default)]
-    pub(crate) grass: Vec<CellDef>,
+    pub(crate) terrain: Vec<TerrainDef>,
     #[serde(default)]
     pub(crate) walls: Vec<WallDef>,
     #[serde(default)]
@@ -179,11 +179,59 @@ pub(crate) struct FloorDef {
     pub(crate) materials: FaceMaterials,
 }
 
-// A bare grid cell — grass entries carry no materials.
-#[derive(Debug, Deserialize)]
-pub(crate) struct CellDef {
+// Terrain is a floor slab whose top always uses the procedural terrain
+// material. Authors provide its bottom and four side materials, with `all`
+// as the usual shorthand.
+#[derive(Debug)]
+pub(crate) struct TerrainDef {
     pub(crate) col: i32,
     pub(crate) row: i32,
+    pub(crate) materials: FaceMaterials,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TerrainDefWire {
+    col: i32,
+    row: i32,
+    #[serde(default)]
+    all: Option<String>,
+    #[serde(default)]
+    bottom: Option<String>,
+    #[serde(default)]
+    north: Option<String>,
+    #[serde(default)]
+    south: Option<String>,
+    #[serde(default)]
+    east: Option<String>,
+    #[serde(default)]
+    west: Option<String>,
+}
+
+impl<'de> Deserialize<'de> for TerrainDef {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let wire = TerrainDefWire::deserialize(deserializer)?;
+        let pick = |face: Option<String>| -> Result<String, D::Error> {
+            face.or_else(|| wire.all.clone()).ok_or_else(|| {
+                de::Error::custom("missing terrain material; provide `all` or bottom/north/south/east/west")
+            })
+        };
+        Ok(Self {
+            col: wire.col,
+            row: wire.row,
+            materials: FaceMaterials {
+                top: TERRAIN_MATERIAL.to_owned(),
+                bottom: pick(wire.bottom)?,
+                north: pick(wire.north)?,
+                south: pick(wire.south)?,
+                east: pick(wire.east)?,
+                west: pick(wire.west)?,
+            },
+        })
+    }
 }
 
 #[derive(Debug, Deserialize)]

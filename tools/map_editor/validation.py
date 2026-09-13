@@ -15,6 +15,7 @@ from .constants import (
     LADDER_SIDES,
     LIGHT_SIDES,
     MAP_NAME_RE,
+    TERRAIN_FACES,
 )
 from .catalogs import MapCatalogs
 from .geometry import (
@@ -160,6 +161,19 @@ def validate_map(
                 errors.append(f"{prefix}: inaccessible floor [{c}, {r}] is outside the grid")
             if (c, r) in floor_set:
                 errors.append(f"{prefix}: inaccessible floor [{c}, {r}] overlaps a floor")
+        terrain_set: set[tuple[int, int]] = set()
+        for terrain in level.get("terrain", []):
+            errors.locate("terrain", terrain, level_idx)
+            c, r = terrain["col"], terrain["row"]
+            if not (0 <= c < cols and 0 <= r < rows):
+                errors.append(f"{prefix}: terrain [{c}, {r}] is outside the grid")
+            if (c, r) in floor_set or any(
+                (floor["col"], floor["row"]) == (c, r) for floor in level["inaccessible_floors"]
+            ):
+                errors.append(f"{prefix}: terrain [{c}, {r}] overlaps a floor")
+            if (c, r) in terrain_set:
+                errors.append(f"{prefix}: terrain [{c}, {r}] duplicates another terrain floor")
+            terrain_set.add((c, r))
         for wall in level["walls"]:
             errors.locate("walls", wall, level_idx)
             c0, r0, c1, r1 = wall["c0"], wall["r0"], wall["c1"], wall["r1"]
@@ -203,8 +217,10 @@ def validate_map(
                 errors.append(f"{label} duplicates another eraser")
             eraser_seen.add(key)
 
-        slab_set = floor_set | {(f["col"], f["row"]) for f in level["inaccessible_floors"]}
+        slab_set = floor_set | {(f["col"], f["row"]) for f in level["inaccessible_floors"]} | terrain_set
         ramp_set = ramp_cells_on_level(map_data["ramps"], level_idx)
+        for c, r in terrain_set & ramp_set:
+            errors.append(f"{prefix}: terrain [{c}, {r}] sits on a ramp")
         bridge_seen: set[tuple[int, int]] = set()
         for idx, bridge in enumerate(level.get("light_bridges", [])):
             errors.locate("light_bridges", bridge, level_idx)
@@ -496,6 +512,15 @@ def _validate_face_aliases(map_data: dict, errors: ValidationErrors, aliases) ->
             _check_face_aliases(
                 floor, f"{prefix}: inaccessible_floor [{floor['col']}, {floor['row']}]", errors, aliases
             )
+        for terrain in level.get("terrain", []):
+            errors.locate("terrain", terrain, level_idx)
+            _check_face_aliases(
+                terrain,
+                f"{prefix}: terrain [{terrain['col']}, {terrain['row']}]",
+                errors,
+                aliases,
+                TERRAIN_FACES,
+            )
         for wall in level["walls"]:
             errors.locate("walls", wall, level_idx)
             label = f"{prefix}: wall [{wall['c0']}, {wall['r0']}, {wall['c1']}, {wall['r1']}]"
@@ -506,8 +531,8 @@ def _validate_face_aliases(map_data: dict, errors: ValidationErrors, aliases) ->
         _check_face_aliases(ramp, label, errors, aliases)
 
 
-def _check_face_aliases(seg: dict, label: str, errors: list[str], aliases) -> None:
-    for face in FACES:
+def _check_face_aliases(seg: dict, label: str, errors: list[str], aliases, faces=FACES) -> None:
+    for face in faces:
         value = seg.get(face)
         if value is None or value in aliases:
             continue

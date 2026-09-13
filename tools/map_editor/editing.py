@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import copy
 
-from .constants import FACES, ZONE_LISTS
+from .constants import FACES, TERRAIN_FACES, ZONE_LISTS
 from .geometry import ramp_rect, rects_overlap, wall_segments_between, zone_intersects_rect
 from .normalization import edge_key, pressure_plate_key
 from .transforms import record_rect
@@ -43,23 +43,32 @@ def paint_floors(data: dict, level_idx: int, rect: tuple, material: str, *, bloc
     existing = {(f["col"], f["row"]): f for f in level[added]}
     c0, r0, c1, r1 = rect
     cells = {(c, r) for r in range(r0, r1) for c in range(c0, c1)}
-    for col, row in sorted(cells):
+    for col, row in sorted(cells, key=lambda cell: (cell[1], cell[0])):
         existing.setdefault((col, row), {"col": col, "row": row, **dict.fromkeys(FACES, material)})
     level[added] = list(existing.values())
     level[removed] = [f for f in level[removed] if (f["col"], f["row"]) not in cells]
+    level["terrain"] = [f for f in level["terrain"] if (f["col"], f["row"]) not in cells]
     if blocked:
         for name in ZONE_LISTS:
             after[name] = [z for z in after[name] if z["level"] != level_idx or not zone_intersects_rect(z, rect)]
     return after
 
 
-def paint_grass(data: dict, level_idx: int, rect: tuple) -> dict:
-    level = data["levels"][level_idx]
-    slabs = {(f["col"], f["row"]) for name in ("floors", "inaccessible_floors") for f in level[name]}
-    grass = {(g["col"], g["row"]) for g in level["grass"]}
+def paint_terrain(data: dict, level_idx: int, rect: tuple, material: str) -> dict:
+    after = copy.deepcopy(data)
+    level = after["levels"][level_idx]
+    terrain = {(cell["col"], cell["row"]): cell for cell in level["terrain"]}
     c0, r0, c1, r1 = rect
-    grass.update((c, r) for c, r in slabs if c0 <= c < c1 and r0 <= r < r1)
-    return replace_records(data, "grass", [{"col": c, "row": r} for c, r in sorted(grass)], level_idx)
+    cells = {(c, r) for r in range(r0, r1) for c in range(c0, c1)}
+    for col, row in sorted(cells, key=lambda cell: (cell[1], cell[0])):
+        terrain.setdefault(
+            (col, row),
+            {"col": col, "row": row, **dict.fromkeys(TERRAIN_FACES, material)},
+        )
+    level["terrain"] = list(terrain.values())
+    level["floors"] = [f for f in level["floors"] if (f["col"], f["row"]) not in cells]
+    level["inaccessible_floors"] = [f for f in level["inaccessible_floors"] if (f["col"], f["row"]) not in cells]
+    return after
 
 
 def paint_edges(
@@ -122,18 +131,18 @@ def place_plate(data: dict, plate: dict, *, replacing: tuple | None = None) -> d
     return replace_records(data, "pressure_plates", [*existing, plate])
 
 
-def material_values(entries: list[dict]) -> dict[str, str | None]:
+def material_values(entries: list[dict], faces=FACES) -> dict[str, str | None]:
     result = {}
-    for face in FACES:
+    for face in faces:
         values = {entry.get(face) for entry in entries}
         result[face] = next(iter(values)) if len(values) == 1 else None
     return result
 
 
-def top_left_materials(entries: list[dict], name: str) -> dict[str, str | None]:
+def top_left_materials(entries: list[dict], name: str, faces=FACES) -> dict[str, str | None]:
     def spatial_order(entry):
         c0, r0, c1, r1 = record_rect(name, entry)
         return r0, c0, r1, c1
 
     first = min(entries, key=spatial_order)
-    return {face: first.get(face) for face in FACES}
+    return {face: first.get(face) for face in faces}

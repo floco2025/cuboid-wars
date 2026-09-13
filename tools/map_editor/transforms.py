@@ -8,7 +8,7 @@ from .constants import ZONE_LISTS
 from .normalization import empty_level
 
 
-CELL_LISTS = ("floors", "inaccessible_floors", "grass", "light_bridges", "lights")
+CELL_LISTS = ("floors", "inaccessible_floors", "terrain", "light_bridges", "lights")
 EDGE_LISTS = ("walls", "barriers", "erasers")
 LEVEL_LISTS = (*CELL_LISTS, *EDGE_LISTS)
 GLOBAL_LISTS = (*ZONE_LISTS, "items", "pressure_plates", "ramps", "ladders", "nested_maps")

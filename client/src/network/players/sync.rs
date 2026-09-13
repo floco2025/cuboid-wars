@@ -1,6 +1,3 @@
-use bevy::prelude::*;
-use std::f32::consts::PI;
-
 use super::{super::context::ServerMessageContext, snap_player};
 use crate::{
     network::SampleTiming,
@@ -10,6 +7,7 @@ use crate::{
     },
     ui::BannerMessage,
 };
+use bevy::prelude::*;
 use common::{
     map::Carriers,
     protocol::{Player, PlayerGeneration, PlayerId, SPlayerRelocated, sequence_is_newer},
@@ -178,8 +176,7 @@ fn place_player_body(
 }
 
 fn begin_local_body(local: &mut LocalPlayerInfo, player: &Player) {
-    local.stored_yaw = player.movement.face_yaw + PI;
-    local.stored_pitch = 0.0;
+    local.begin_body_view(player.movement.face_yaw);
     local.reports.begin_body(player.generation);
     local.is_dead = false;
 }

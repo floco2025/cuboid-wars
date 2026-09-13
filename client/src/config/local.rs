@@ -5,11 +5,18 @@ use std::{
 };
 
 use anyhow::{Context, Result};
+use bevy::prelude::Resource;
 use serde::{Deserialize, Serialize};
 
 use super::{ClientSettings, settings::UserPreferences};
 
 pub const LOCAL_SETTINGS_VERSION: u32 = 18;
+
+// CLI review overrides are deliberately ephemeral. Disabling persistence for
+// that process prevents its forced window frame or volume from becoming the
+// next ordinary launch's saved preference.
+#[derive(Resource, Clone, Copy)]
+pub(crate) struct LocalSettingsPersistence(pub bool);
 
 // Local settings are saved after panel edits, fullscreen shortcuts, and
 // window moves and resizes. The file is not in git, so a format

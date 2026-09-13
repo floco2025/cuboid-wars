@@ -4,7 +4,7 @@ use anyhow::Context;
 
 use super::{
     compile::{CompileOutput, CompileScope},
-    schema::{FloorDef, LadderDef, MapDef, RampDef, WallSide},
+    schema::{LadderDef, LevelDef, MapDef, RampDef, WallSide},
 };
 use crate::map::{
     ActorSpawnZone, CarrierGrid, CellGrid, EdgeGrid, LevelGrid, PlacedItem, PlayerSpawnZone, PressurePlateRuntime,
@@ -21,8 +21,8 @@ use common::{
     constants::LADDER_WIDTH,
     map::MapGeometry,
     protocol::{
-        Barrier, BarrierKindTable, BridgeKindId, CarrierId, Checkpoint, Eraser, FaceMaterials, Floor, GrassCell,
-        ItemType, Ladder, LightBridge, PressurePlate, Ramp, SwitchId, Wall, WallLight,
+        Barrier, BarrierKindTable, BridgeKindId, CarrierId, Checkpoint, Eraser, FaceMaterials, Floor, ItemType, Ladder,
+        LightBridge, PressurePlate, Ramp, SwitchId, TerrainCell, Wall, WallLight,
     },
 };
 
@@ -41,12 +41,12 @@ pub(super) fn compile_geometry(
     let regular_floor_masks: Vec<Mask> = map_def
         .levels
         .iter()
-        .map(|level| floor_mask(map_def, level.floors.iter()))
+        .map(|level| floor_mask(map_def, level, false))
         .collect();
     let slab_masks: Vec<Mask> = map_def
         .levels
         .iter()
-        .map(|level| floor_mask(map_def, level.floors.iter().chain(&level.inaccessible_floors)))
+        .map(|level| floor_mask(map_def, level, true))
         .collect();
 
     let pressure_plates = pressure_plates(map_def, scope, carrier)?;
@@ -111,9 +111,7 @@ pub(super) fn compile_geometry(
             .iter()
             .map(|def| ladder_from_def(def, &geometry, carrier)),
     );
-    layout
-        .grass
-        .extend(compile_grass(map_def, &slab_masks, &geometry, carrier));
+    layout.terrain.extend(compile_terrain(map_def, &geometry, carrier));
 
     let config = &mut out.config;
     config.grids.push(CarrierGrid::new(carrier, geometry, level_grids));
@@ -131,10 +129,18 @@ fn level_tag(level_idx: usize) -> u8 {
     u8::try_from(level_idx).unwrap_or(u8::MAX)
 }
 
-fn floor_mask<'a>(map_def: &MapDef, floors: impl Iterator<Item = &'a FloorDef>) -> Mask {
+fn floor_mask(map_def: &MapDef, level: &LevelDef, include_inaccessible: bool) -> Mask {
     let mut mask = empty_mask(map_def.grid_cols, map_def.grid_rows);
-    for floor in floors {
+    for floor in &level.floors {
         mask[floor.row as usize][floor.col as usize] = true;
+    }
+    if include_inaccessible {
+        for floor in &level.inaccessible_floors {
+            mask[floor.row as usize][floor.col as usize] = true;
+        }
+    }
+    for terrain in &level.terrain {
+        mask[terrain.row as usize][terrain.col as usize] = true;
     }
     mask
 }
@@ -308,19 +314,13 @@ fn compile_ramps(
     (ramps, materials)
 }
 
-// Grass on floorless cells is silently dropped (like out-of-place wall
-// lights): the editor already enforces floor presence, and a hard error
-// would brick server startup over a cosmetic feature.
-fn compile_grass(map_def: &MapDef, slab_masks: &[Mask], geometry: &MapGeometry, carrier: CarrierId) -> Vec<GrassCell> {
-    let mut grass = Vec::new();
+fn compile_terrain(map_def: &MapDef, geometry: &MapGeometry, carrier: CarrierId) -> Vec<TerrainCell> {
+    let mut terrain = Vec::new();
     for (level_idx, level) in map_def.levels.iter().enumerate() {
         let level_u8 = level_tag(level_idx);
         let y = geometry.level_y(level_u8);
-        for cell in &level.grass {
-            if !slab_masks[level_idx][cell.row as usize][cell.col as usize] {
-                continue;
-            }
-            grass.push(GrassCell {
+        for cell in &level.terrain {
+            terrain.push(TerrainCell {
                 x: geometry.cell_center_x(cell.col),
                 y,
                 z: geometry.cell_center_z(cell.row),
@@ -329,7 +329,7 @@ fn compile_grass(map_def: &MapDef, slab_masks: &[Mask], geometry: &MapGeometry, 
             });
         }
     }
-    grass
+    terrain
 }
 
 fn compile_erasers(map_def: &MapDef, geometry: &MapGeometry, carrier: CarrierId) -> Vec<Eraser> {
@@ -409,8 +409,7 @@ fn player_spawn_zones(map_def: &MapDef, carrier: CarrierId) -> Vec<PlayerSpawnZo
         .collect()
 }
 
-// Items are gameplay, not cosmetics, so a floorless or ramp cell is a hard
-// error (unlike grass, which compile silently drops).
+// Items require an accessible regular or terrain floor outside a ramp.
 fn placed_items(
     map_def: &MapDef,
     kind_table: &BarrierKindTable,

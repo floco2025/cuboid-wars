@@ -218,18 +218,10 @@
         "metallic_roughness": "textures/fiberous-plaster1-ue/fiberous_plaster_metallic-roughness.png"
       }
     },
-    "mud-with-vegetation": {
-      "tile_size": 6.0,
-      "metallic": 0.5,
+    "procedural-terrain": {
+      "tile_size": 1.6,
+      "metallic": 0.0,
       "roughness": 1.0,
-      "repeat": true,
-      "linear_data_textures": true,
-      "textures": {
-        "base_color": "textures/mud-with-vegetation-ue/mud_with_vegetation_albedo.png",
-        "normal": "textures/mud-with-vegetation-ue/mud_with_vegetation_Normal-dx.png",
-        "occlusion": "textures/mud-with-vegetation-ue/mud_with_vegetation_ao.png",
-        "metallic_roughness": "textures/mud-with-vegetation-ue/mud_with_vegetation_metallic-roughness.png"
-      },
       "footstep": "grass"
     },
     "patched-brickwork": {
@@ -251,7 +243,7 @@
     "brushed-metal": "brushed-metal",
     "synth-rubber": "synth-rubber",
     "portal-resistant": "used-stainless-steel",
-    "natural-ground": "mud-with-vegetation",
+    "terrain": "procedural-terrain",
     "grounds-path": "smooth-temple-blocks",
     "slab": "fiberous-plaster1-ue",
     "basement-floor": "smooth-temple-blocks",

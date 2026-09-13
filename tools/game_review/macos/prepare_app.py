@@ -69,12 +69,11 @@ def main():
             "Reviewer",
             "--volume",
             "0",
-            "--window-width",
-            "1200",
-            "--window-height",
-            "800",
+            "--windowed",
+            "--resolution",
+            "1200x800",
         ]
-    print(json.dumps(prepare_app(Path(__file__).resolve().parents[2], args), indent=2))
+    print(json.dumps(prepare_app(Path(__file__).resolve().parents[3], args), indent=2))
 
 
 if __name__ == "__main__":

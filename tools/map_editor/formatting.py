@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 
-from .normalization import compact_face_materials, control_fields
+from .normalization import compact_face_materials, compact_terrain_materials, control_fields
 
 
 def json_scalar(value) -> str:
@@ -102,7 +102,7 @@ def format_map_file(wrapper: dict) -> str:
                 *with_trailing_comma(
                     format_object_array("inaccessible_floors", level["inaccessible_floors"], _floor_body, 8)
                 ),
-                *with_trailing_comma(format_object_array("grass", level.get("grass", []), _grass_body, 8)),
+                *with_trailing_comma(format_object_array("terrain", level.get("terrain", []), _terrain_body, 8)),
                 *with_trailing_comma(format_object_array("walls", level["walls"], _wall_body, 8)),
                 *with_trailing_comma(format_object_array("barriers", level.get("barriers", []), _barrier_body, 8)),
                 *with_trailing_comma(format_object_array("erasers", level.get("erasers", []), _eraser_body, 8)),
@@ -157,8 +157,8 @@ def _floor_body(floor: dict) -> str:
     return _inline_object_body(body)
 
 
-def _grass_body(grass: dict) -> str:
-    return _inline_object_body({"col": grass["col"], "row": grass["row"]})
+def _terrain_body(cell: dict) -> str:
+    return _inline_object_body({"col": cell["col"], "row": cell["row"], **compact_terrain_materials(cell)})
 
 
 def _wall_body(wall: dict) -> str:

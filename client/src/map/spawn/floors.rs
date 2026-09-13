@@ -1,11 +1,13 @@
 use bevy::prelude::*;
 
 use super::{
-    cuboid_mesh::{tiled_cuboid, tiled_floor_surface_meshes},
+    cuboid_mesh::{tiled_cuboid, tiled_floor_surface_meshes, tiled_floor_top_mesh},
     geometry_batch::{MapGeometryBatch, MapGeometryKind, SegmentTarget},
 };
 use crate::{carriers::CarrierStoreys, config::AssetSet};
 use common::protocol::{FaceMaterials, *};
+
+const FLOOR_CUT_EPSILON: f32 = 0.0001;
 
 // Spawn a visual cuboid slab for a `Floor`. Ground-storey floors get the
 // ground texture and a `GroundMarker`; higher storeys get the roof texture
@@ -20,6 +22,8 @@ pub fn batch_floor(
     storeys: &CarrierStoreys,
     floor: &Floor,
     material_ids: &FaceMaterials,
+    terrain: &[TerrainCell],
+    cell_size: f32,
 ) {
     let level = storeys.tag(floor.carrier, floor.level, 0);
     let center_x = f32::midpoint(floor.x1, floor.x2);
@@ -40,7 +44,17 @@ pub fn batch_floor(
         level,
     });
 
-    if material_ids.is_uniform() {
+    let top_rectangles = top_rectangles_without_terrain(floor, terrain, cell_size);
+    let cut_top = !(top_rectangles.len() == 1
+        && top_rectangles[0]
+            == [
+                floor.x1.min(floor.x2),
+                floor.z1.min(floor.z2),
+                floor.x1.max(floor.x2),
+                floor.z1.max(floor.z2),
+            ]);
+
+    if material_ids.is_uniform() && !cut_top {
         let material_def = asset_set.material_by_id(material_ids.primary());
         let mesh = tiled_cuboid(
             size_x,
@@ -77,6 +91,112 @@ pub fn batch_floor(
     batcher.add_mesh(&material_ids.south, &surface_meshes.south, transform);
     batcher.add_mesh(&material_ids.east, &surface_meshes.east, transform);
     batcher.add_mesh(&material_ids.west, &surface_meshes.west, transform);
-    batcher.add_mesh(&material_ids.top, &surface_meshes.up, transform);
     batcher.add_mesh(&material_ids.bottom, &surface_meshes.down, transform);
+    if cut_top {
+        if !top_rectangles.is_empty() {
+            let top = tiled_floor_top_mesh(&top_rectangles, floor.y, carrier_center, top_material_def.tile_size());
+            batcher.add_mesh(&material_ids.top, &top, transform);
+        }
+    } else {
+        batcher.add_mesh(&material_ids.top, &surface_meshes.up, transform);
+    }
+}
+
+// Partition one merged floor top at terrain-cell edges, then retain only
+// regions whose midpoint is not covered. This removes the old top geometry
+// outright instead of relying on a depth offset between coplanar surfaces.
+fn top_rectangles_without_terrain(floor: &Floor, terrain: &[TerrainCell], cell_size: f32) -> Vec<[f32; 4]> {
+    let (x1, x2, z1, z2) = floor.bounds_xz();
+    let half = cell_size * 0.5;
+    let cuts = terrain
+        .iter()
+        .filter(|cell| {
+            cell.carrier == floor.carrier && cell.level == floor.level && (cell.y - floor.y).abs() <= FLOOR_CUT_EPSILON
+        })
+        .filter_map(|cell| {
+            let cut_x1 = (cell.x - half).max(x1);
+            let cut_x2 = (cell.x + half).min(x2);
+            let cut_z1 = (cell.z - half).max(z1);
+            let cut_z2 = (cell.z + half).min(z2);
+            (cut_x2 - cut_x1 > FLOOR_CUT_EPSILON && cut_z2 - cut_z1 > FLOOR_CUT_EPSILON)
+                .then_some([cut_x1, cut_z1, cut_x2, cut_z2])
+        })
+        .collect::<Vec<_>>();
+    if cuts.is_empty() {
+        return vec![[x1, z1, x2, z2]];
+    }
+
+    let mut xs = vec![x1, x2];
+    let mut zs = vec![z1, z2];
+    for cut in &cuts {
+        xs.extend([cut[0], cut[2]]);
+        zs.extend([cut[1], cut[3]]);
+    }
+    sort_and_dedup(&mut xs);
+    sort_and_dedup(&mut zs);
+
+    let mut visible = Vec::new();
+    for x in xs.windows(2) {
+        for z in zs.windows(2) {
+            let midpoint = Vec2::new(f32::midpoint(x[0], x[1]), f32::midpoint(z[0], z[1]));
+            let covered = cuts.iter().any(|cut| {
+                midpoint.x >= cut[0] && midpoint.x <= cut[2] && midpoint.y >= cut[1] && midpoint.y <= cut[3]
+            });
+            if !covered {
+                visible.push([x[0], z[0], x[1], z[1]]);
+            }
+        }
+    }
+    visible
+}
+
+fn sort_and_dedup(values: &mut Vec<f32>) {
+    values.sort_by(f32::total_cmp);
+    values.dedup_by(|a, b| (*a - *b).abs() <= FLOOR_CUT_EPSILON);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn floor() -> Floor {
+        Floor {
+            x1: -3.0,
+            z1: -1.0,
+            x2: 3.0,
+            z2: 1.0,
+            y: 2.0,
+            thickness: 0.4,
+            level: 1,
+            carrier: CarrierId::WORLD,
+        }
+    }
+
+    fn terrain(x: f32) -> TerrainCell {
+        TerrainCell {
+            x,
+            y: 2.0,
+            z: 0.0,
+            level: 1,
+            carrier: CarrierId::WORLD,
+        }
+    }
+
+    #[test]
+    fn terrain_cells_remove_the_old_floor_top_instead_of_overlaying_it() {
+        let visible = top_rectangles_without_terrain(&floor(), &[terrain(-2.0), terrain(0.0)], 2.0);
+        assert_eq!(visible, vec![[1.0, -1.0, 3.0, 1.0]]);
+    }
+
+    #[test]
+    fn cuts_ignore_other_levels_and_carriers() {
+        let mut other_level = terrain(0.0);
+        other_level.level = 2;
+        let mut other_carrier = terrain(0.0);
+        other_carrier.carrier = CarrierId::from_carried_index(0);
+        assert_eq!(
+            top_rectangles_without_terrain(&floor(), &[other_level, other_carrier], 2.0),
+            vec![[-3.0, -1.0, 3.0, 1.0]]
+        );
+    }
 }

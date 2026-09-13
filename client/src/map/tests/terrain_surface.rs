@@ -1,33 +1,46 @@
 use super::*;
 
 #[test]
-fn cover_repeats_across_positive_and_negative_texture_boundaries() {
-    let period = TERRAIN_COVER_SIZE as f32;
+fn cover_is_deterministic_but_has_no_old_map_sized_repeat() {
     for position in [
         Vec2::new(-0.01, 11.0),
         Vec2::new(19.0, -0.01),
         Vec2::new(-213.5, -417.25),
     ] {
         let cover = TerrainCover::at(position);
-        for offset in [Vec2::X * period, Vec2::Y * period, Vec2::splat(-period)] {
-            let repeated = TerrainCover::at(position + offset);
-            assert!((cover.soil - repeated.soil).abs() < 0.0001);
-            assert!((cover.dry - repeated.dry).abs() < 0.0001);
-            assert!((cover.shade - repeated.shade).abs() < 0.0001);
-        }
+        let same = TerrainCover::at(position);
+        assert_eq!(cover.soil, same.soil);
+        assert_eq!(cover.dry, same.dry);
+        assert_eq!(cover.shade, same.shade);
+        let shifted = TerrainCover::at(position + Vec2::splat(512.0));
+        assert!(
+            (cover.soil - shifted.soil).abs() > 0.0001
+                || (cover.dry - shifted.dry).abs() > 0.0001
+                || (cover.shade - shifted.shade).abs() > 0.0001
+        );
     }
 }
 
 #[test]
-fn mask_encodes_the_cover_used_for_grass_placement_as_linear_data() {
-    let image = TerrainCover::image();
-    assert_eq!(image.texture_descriptor.format, TextureFormat::Rgba8Unorm);
-    let data = image.data.expect("terrain cover image data missing");
-    for (x, z) in [(0, 0), (31, 127), (511, 511)] {
-        let cover = TerrainCover::at(Vec2::new(x as f32 + 0.5, z as f32 + 0.5));
-        let i = ((z * TERRAIN_COVER_SIZE + x) * 4) as usize;
-        assert!((data[i] as f32 / 255.0 - cover.soil).abs() <= 0.5 / 255.0);
-        assert!((data[i + 1] as f32 / 255.0 - cover.dry).abs() <= 0.5 / 255.0);
-        assert!((data[i + 2] as f32 / 255.0 * 2.0 - cover.shade).abs() <= 1.0 / 255.0);
+fn brown_soil_is_bare_and_green_density_varies() {
+    let mut green_densities = Vec::new();
+    let mut found_soil = false;
+    for z in -100..100 {
+        for x in -100..100 {
+            let position = Vec2::new(x as f32 * 1.7, z as f32 * 1.7);
+            let cover = TerrainCover::at(position);
+            let density = cover.grass_density(position);
+            assert!((0.0..=1.0).contains(&density));
+            if cover.soil >= 0.28 {
+                found_soil = true;
+                assert_eq!(density, 0.0);
+            } else if cover.soil <= 0.04 {
+                green_densities.push(density);
+            }
+        }
     }
+    assert!(found_soil);
+    let min = green_densities.iter().copied().fold(f32::INFINITY, f32::min);
+    let max = green_densities.iter().copied().fold(f32::NEG_INFINITY, f32::max);
+    assert!(max - min > 0.3);
 }

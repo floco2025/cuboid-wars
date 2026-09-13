@@ -44,4 +44,4 @@ sudo pacman -S --needed python pyside6 python-numpy \
 
 With rustup, add any missing formatting components using `rustup component add rustfmt clippy`.
 
-Optional game review tools: [macOS (Peekaboo)](tools/macos_game_review/README.md) and [Linux](tools/linux_game_review/README.md).
+Optional game review tools: the shared [game-review workflow](tools/game_review/README.md), with platform integrations for [macOS (Peekaboo)](tools/game_review/macos/README.md) and [Linux](tools/game_review/linux/README.md).

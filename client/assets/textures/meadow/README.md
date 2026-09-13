@@ -1,6 +1,6 @@
 # Meadow ground
 
-`meadow-albedo.png` is an opaque repeating grass texture generated with the built-in OpenAI image-generation tool. The terrain material blends it with the existing soil texture. `client/src/map/terrain_surface.rs` generates the grass, soil, and dry-cover mask shared with the nearby grass tufts.
+`meadow-albedo.png` is an opaque seamless grass detail generated with the built-in OpenAI image-generation tool. The terrain shader warps and combines rotated samples at incommensurate scales, then blends them with fully procedural soil through the non-periodic cover field mirrored in `client/src/map/terrain_surface.rs`. That same field varies nearby grass density and leaves brown soil patches bare.
 
 Generation prompt:
 

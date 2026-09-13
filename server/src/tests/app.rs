@@ -18,6 +18,7 @@ fn startup_god_and_peace_share_the_console_state() {
                     map: None,
                     god,
                     peace,
+                    initial_spawn: None,
                     network: NetworkOverrides::default(),
                     logging: false,
                 },
@@ -51,6 +52,41 @@ fn startup_god_and_peace_share_the_console_state() {
             }
         }
     }
+}
+
+#[test]
+fn initial_spawn_override_places_the_first_single_player_body_exactly() {
+    let expected = Position {
+        x: -8.5,
+        y: 3.25,
+        z: 11.0,
+    };
+    let mut app = server_app_with_options(
+        ServerAppOptions {
+            map: None,
+            god: false,
+            peace: false,
+            initial_spawn: Some(expected),
+            network: NetworkOverrides::default(),
+            logging: false,
+        },
+        None,
+    )
+    .expect("server app failed to initialize");
+    let (client, receiver) = connect(&mut app);
+    client
+        .send(ClientMessage::Login(CLogin { name: "Player".into() }))
+        .expect("login failed");
+    app.update();
+
+    let snapshot = std::iter::from_fn(|| receiver.try_recv().ok())
+        .find_map(|message| match message {
+            ServerMessage::Snapshot(snapshot) => Some(snapshot),
+            _ => None,
+        })
+        .expect("initial snapshot missing");
+    let player = snapshot.players.first().expect("spawned player missing");
+    assert_eq!(player.1.movement.pos, expected);
 }
 
 #[test]

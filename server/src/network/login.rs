@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 
 use crate::{
+    characters::spawn_face_yaw,
     network::{FeedAudience, FeedEvent, emit_feed},
     players::{PlayerMap, enter_group_respawn, place_player_body, player_spawn_destination, spawn_zone_destination},
     portals::{PortalAssignments, PortalMap},
@@ -29,6 +30,7 @@ pub(super) fn handle_login_message(
     entity: Entity,
     id: PlayerId,
     message: CLogin,
+    initial_spawn: Option<Position>,
     players: &mut PlayerMap,
     world: &SharedWorld,
     celestial_clock: &CelestialClockAnchor,
@@ -84,30 +86,38 @@ pub(super) fn handle_login_message(
         .map(|(pos, _, _)| *pos)
         .collect();
     let physics = world.gameplay_config.player.physics();
-    let spawn = player_spawn_destination(
-        &world.map_config,
-        &world.map_layout.checkpoints,
-        &world.carriers,
-        &world.collision_world,
-        &occupied_positions,
-        physics,
-        shared_checkpoint,
-    )
-    .unwrap_or_else(|| {
-        // A joining player gets a body now; the blocked checkpoint stays saved for the next respawn.
-        info!(
-            "{}: the shared checkpoint is blocked, spawning in a zone instead",
-            players.describe(&id)
-        );
-        spawn_zone_destination(
+    let spawn = if let Some(pos) = initial_spawn {
+        crate::players::PlayerSpawn {
+            pos,
+            face_yaw: spawn_face_yaw(&pos),
+            contact: None,
+        }
+    } else {
+        player_spawn_destination(
             &world.map_config,
             &world.map_layout.checkpoints,
             &world.carriers,
             &world.collision_world,
             &occupied_positions,
             physics,
+            shared_checkpoint,
         )
-    });
+        .unwrap_or_else(|| {
+            // A joining player gets a body now; the blocked checkpoint stays saved for the next respawn.
+            info!(
+                "{}: the shared checkpoint is blocked, spawning in a zone instead",
+                players.describe(&id)
+            );
+            spawn_zone_destination(
+                &world.map_config,
+                &world.map_layout.checkpoints,
+                &world.carriers,
+                &world.collision_world,
+                &occupied_positions,
+                physics,
+            )
+        })
+    };
     if enter_group_respawn(commands, players, id, spawn.pos) {
         return;
     }

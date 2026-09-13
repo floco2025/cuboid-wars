@@ -139,6 +139,33 @@ pub struct TiledFloorSurfaceMeshes {
     pub down: Mesh,
 }
 
+// Build only the upward-facing parts of a floor top. Rectangles are in the
+// carrier frame; the returned vertices remain local to `carrier_center`, like
+// the other cuboid helpers in this module.
+#[must_use]
+pub fn tiled_floor_top_mesh(rectangles: &[[f32; 4]], y: f32, carrier_center: Vec3, tile_size: f32) -> Mesh {
+    let mut up = SurfaceMeshData::default();
+    for &[x1, z1, x2, z2] in rectangles {
+        let local_x1 = x1 - carrier_center.x;
+        let local_x2 = x2 - carrier_center.x;
+        let local_z1 = z1 - carrier_center.z;
+        let local_z2 = z2 - carrier_center.z;
+        let local_y = y - carrier_center.y;
+        up.push_face_world(
+            [local_x1, local_y, local_z1],
+            [local_x1, local_y, local_z2],
+            [local_x2, local_y, local_z2],
+            [local_x2, local_y, local_z1],
+            [0.0, 1.0, 0.0],
+            &POS_Y_FACE,
+            carrier_center,
+            Quat::IDENTITY,
+            tile_size,
+        );
+    }
+    up.into_mesh()
+}
+
 pub struct TiledWallSurfaceMeshes {
     pub local_positive_x: Mesh,
     pub local_negative_x: Mesh,

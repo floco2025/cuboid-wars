@@ -6,8 +6,8 @@ use crate::{
     carriers::{CarrierEntities, CarrierStoreys},
     config::{AssetSet, ClientSettings},
     map::{
-        DebugColorMode, DebugColors, FocusedMapLevel, GrassMarker, GroundMarker, LadderMarker, LevelFocusEnabled,
-        MapGeometryBatch, MapLevel, RampMarker, RoofMarker, WallLightMarker, WallMarker, batch_floor, batch_ramp,
+        DebugColorMode, DebugColors, FocusedMapLevel, GroundMarker, LadderMarker, LevelFocusEnabled, MapGeometryBatch,
+        MapLevel, RampMarker, RoofMarker, TerrainMarker, WallLightMarker, WallMarker, batch_floor, batch_ramp,
         batch_wall, spawn_ladder_from_layout, spawn_wall_light_from_layout,
     },
     materials::MaterialHandleCache,
@@ -101,8 +101,20 @@ pub fn map_spawn_geometry_system(
         }
     }
 
+    let terrain = match debug_colors.0 {
+        DebugColorMode::Off => map_layout.terrain.as_slice(),
+        DebugColorMode::ByMaterial | DebugColorMode::BySegment => &[],
+    };
     for (floor, materials) in map_layout.floors.iter().zip(map_layout.floor_materials.iter()) {
-        batch_floor(&mut geometry, &asset_set, &storeys, floor, materials);
+        batch_floor(
+            &mut geometry,
+            &asset_set,
+            &storeys,
+            floor,
+            materials,
+            terrain,
+            map_settings.geometry.grid_cell_size,
+        );
     }
 
     for (ramp, materials) in map_layout.ramps.iter().zip(map_layout.ramp_materials.iter()) {
@@ -167,7 +179,7 @@ type MapLevelFilter = Or<(
     With<GroundMarker>,
     With<WallLightMarker>,
     With<ItemMarker>,
-    With<GrassMarker>,
+    With<TerrainMarker>,
     With<LightBridgeMarker>,
     With<EraserMarker>,
     With<CheckpointMarker>,

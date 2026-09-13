@@ -22,6 +22,7 @@ from .constants import (
     HIT_NESTED_MAP,
     HIT_PRESSURE_PLATE,
     HIT_RAMP,
+    HIT_TERRAIN,
     HIT_CHECKPOINT,
     HIT_SPAWN_ZONE,
     HIT_WALL,
@@ -32,7 +33,7 @@ from .constants import (
     MODE_ERASE_KEEP_FLOORS,
     MODE_FLOOR,
     MODE_FLOOR_MATERIAL,
-    MODE_GRASS,
+    MODE_TERRAIN,
     MODE_INACCESSIBLE_FLOOR,
     MODE_ITEM,
     MODE_JUMP_REACH,
@@ -172,7 +173,7 @@ CLICK_TOOLS = {
 RELEASE_TOOLS = {
     MODE_FLOOR: _cell_rect_tool("add_floor_rect"),
     MODE_INACCESSIBLE_FLOOR: _cell_rect_tool("add_inaccessible_floor_rect"),
-    MODE_GRASS: _cell_rect_tool("add_grass_rect"),
+    MODE_TERRAIN: _cell_rect_tool("add_terrain_rect"),
     MODE_ACTOR_SPAWN_ZONE: _cell_rect_tool("add_actor_spawn_zone_rect"),
     MODE_PLAYER_SPAWN_ZONE: _cell_rect_tool("add_player_spawn_zone_rect"),
     MODE_CHECKPOINT: _cell_rect_tool("add_checkpoint_rect"),
@@ -608,7 +609,7 @@ class Canvas(CanvasPaintingMixin, QWidget):
             menu.addAction("Edit Light...", lambda: self.window.edit_light_at(*value))
         elif kind == HIT_LADDER:
             menu.addAction("Edit Ladder...", lambda: self.window.edit_ladder_at(value))
-        elif kind in (HIT_FLOOR, HIT_INACCESSIBLE_FLOOR, HIT_WALL, HIT_RAMP):
+        elif kind in (HIT_FLOOR, HIT_INACCESSIBLE_FLOOR, HIT_TERRAIN, HIT_WALL, HIT_RAMP):
             menu.addAction(f"Edit {kind} Materials...", lambda: self.window.edit_materials_at(hit))
         elif kind == HIT_PRESSURE_PLATE:
             for plate in self.window.plates_at(*value):

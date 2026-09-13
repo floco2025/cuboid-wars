@@ -7,7 +7,7 @@ def slab_cells(data: dict) -> list[set[tuple[int, int]]]:
     return [
         {
             (tile["col"], tile["row"])
-            for tile in level["floors"] + level["inaccessible_floors"]
+            for tile in level["floors"] + level["inaccessible_floors"] + level.get("terrain", [])
             if 0 <= tile["col"] < data["grid_cols"] and 0 <= tile["row"] < data["grid_rows"]
         }
         for level in data["levels"]

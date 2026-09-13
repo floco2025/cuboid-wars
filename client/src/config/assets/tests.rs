@@ -1,4 +1,4 @@
-use crate::test_fixtures;
+use crate::{config::AssetSet, test_fixtures};
 use common::protocol::{MapLayout, TextureSettings};
 
 use super::{ModelDef, model::validate_model, sound::SoundDef};
@@ -167,14 +167,27 @@ fn normal_map_without_a_convention_suffix_is_rejected() {
     let (name, material) = assets
         .materials
         .iter_mut()
-        .next()
-        .expect("test asset configuration has no materials");
+        .find(|(_, material)| material.textures.is_some())
+        .expect("test asset configuration has no textured materials");
     let name = name.clone();
-    material.textures.normal = "textures/example/example-normal.png".to_owned();
+    material
+        .textures
+        .as_mut()
+        .expect("selected material lost its textures")
+        .normal = "textures/example/example-normal.png".to_owned();
 
     let error = assets.validate().expect_err("unsuffixed normal map must fail");
 
     assert!(error.to_string().contains(&format!("materials.{name}.textures.normal")));
+}
+
+#[test]
+fn procedural_terrain_keeps_surface_audio_without_a_retired_texture_pack() {
+    let assets = AssetSet::load_default().expect("shipped asset set rejected");
+    let terrain = assets.material_by_id("terrain");
+    assert!(terrain.textures.is_none());
+    assert_eq!(terrain.footstep.as_deref(), Some("grass"));
+    assets.validate().expect("surface-only terrain material rejected");
 }
 
 #[test]

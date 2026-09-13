@@ -1,14 +1,13 @@
 use super::{
-    mesh::{BLADE_MAX_OVERHANG, grass_cell_mesh},
-    spawn::GrassCellVisual,
+    mesh::BLADE_MAX_OVERHANG,
+    spawn::{GrassChunkVisual, grass_chunk_mesh},
 };
 use crate::{
-    config::ClientSettings,
     constants::EXPLOSION_GRASS_BURN_CORE_RADIUS_FACTOR,
     vfx::{ClipRegion, ScorchOutline},
 };
 use bevy::prelude::*;
-use common::protocol::{CarrierId, GrassCell, MapSettings};
+use common::protocol::{CarrierId, MapSettings, TerrainCell};
 use std::collections::HashMap;
 
 pub(super) const BURN_VERTICAL_TOLERANCE: f32 = 0.1;
@@ -73,7 +72,7 @@ impl GrassBurn {
         (1.0 - edge) * self.intensity
     }
 
-    fn intersects_cell(&self, cell: GrassCell, cell_size: f32) -> bool {
+    fn intersects_cell(&self, cell: TerrainCell, cell_size: f32) -> bool {
         if cell.carrier != self.carrier || (self.center.y - cell.y).abs() > BURN_VERTICAL_TOLERANCE {
             return false;
         }
@@ -87,8 +86,7 @@ impl GrassBurn {
 pub fn grass_burn_system(
     mut previous_burns: Local<HashMap<Entity, GrassBurn>>,
     burns: Query<(Entity, &GrassBurn)>,
-    cells: Query<(Ref<GrassCellVisual>, &Mesh3d)>,
-    client_settings: Res<ClientSettings>,
+    chunks: Query<(Ref<GrassChunkVisual>, &Mesh3d)>,
     map_settings: Res<MapSettings>,
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
@@ -109,31 +107,35 @@ pub fn grass_burn_system(
         }
     }
 
-    for (visual, mesh_handle) in &cells {
-        let dirty = dirty_footprints
-            .iter()
-            .any(|burn| burn.intersects_cell(visual.cell, cell_size));
+    for (visual, mesh_handle) in &chunks {
+        let dirty = dirty_footprints.iter().any(|burn| {
+            visual
+                .cells
+                .iter()
+                .any(|(cell, _)| burn.intersects_cell(*cell, cell_size))
+        });
         if !dirty && !visual.is_added() {
             continue;
         }
 
         let affecting_burns: Vec<GrassBurn> = current_burns
             .values()
-            .filter(|burn| burn.intersects_cell(visual.cell, cell_size))
+            .filter(|burn| {
+                visual
+                    .cells
+                    .iter()
+                    .any(|(cell, _)| burn.intersects_cell(*cell, cell_size))
+            })
             .cloned()
             .collect();
         if !dirty && affecting_burns.is_empty() {
             continue;
         }
 
-        if let Some(mut mesh) = meshes.get_mut(&mesh_handle.0) {
-            *mesh = grass_cell_mesh(
-                visual.cell,
-                cell_size,
-                &client_settings.grass,
-                visual.open,
-                &affecting_burns,
-            );
+        if let Some(rebuilt) = grass_chunk_mesh(&visual.cells, cell_size, visual.lod, visual.origin, &affecting_burns)
+            && let Some(mut mesh) = meshes.get_mut(&mesh_handle.0)
+        {
+            *mesh = rebuilt;
         }
     }
 

@@ -7,7 +7,7 @@ use bevy::{
 };
 
 use super::standard::load_texture;
-use crate::constants::{TERRAIN_COVER_SIZE, TERRAIN_GRASS_TILE_SIZE, TERRAIN_RELIEF, TERRAIN_SOIL_TILE_SIZE};
+use crate::constants::{TERRAIN_GRASS_TILE_SIZE, TERRAIN_RELIEF};
 
 const TERRAIN_SHADER: &str = "embedded://client/materials/terrain.wgsl";
 
@@ -20,12 +20,6 @@ pub struct TerrainExtension {
     #[texture(101)]
     #[sampler(102)]
     pub grass: Handle<Image>,
-    #[texture(103)]
-    #[sampler(104)]
-    pub soil: Handle<Image>,
-    #[texture(105)]
-    #[sampler(106)]
-    pub cover: Handle<Image>,
 }
 
 impl MaterialExtension for TerrainExtension {
@@ -38,13 +32,7 @@ impl MaterialExtension for TerrainExtension {
     }
 }
 
-pub fn terrain_material(
-    server: &AssetServer,
-    soil: &str,
-    cover: Handle<Image>,
-    anisotropy: u16,
-    mipmaps: bool,
-) -> TerrainMaterial {
+pub fn terrain_material(server: &AssetServer, anisotropy: u16, mipmaps: bool) -> TerrainMaterial {
     TerrainMaterial {
         base: StandardMaterial {
             perceptual_roughness: 0.95,
@@ -52,12 +40,7 @@ pub fn terrain_material(
             ..default()
         },
         extension: TerrainExtension {
-            surface: Vec4::new(
-                TERRAIN_GRASS_TILE_SIZE,
-                TERRAIN_SOIL_TILE_SIZE,
-                TERRAIN_RELIEF,
-                TERRAIN_COVER_SIZE as f32,
-            ),
+            surface: Vec4::new(TERRAIN_GRASS_TILE_SIZE, TERRAIN_RELIEF, 0.0, 0.0),
             grass: load_texture(
                 server,
                 "textures/meadow/meadow-albedo.png",
@@ -66,8 +49,6 @@ pub fn terrain_material(
                 anisotropy,
                 mipmaps,
             ),
-            soil: load_texture(server, soil, true, false, anisotropy, mipmaps),
-            cover,
         },
     }
 }

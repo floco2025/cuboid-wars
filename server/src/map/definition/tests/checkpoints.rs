@@ -53,6 +53,14 @@ fn checkpoints_require_valid_nonoverlapping_flat_floor_rectangles() {
 }
 
 #[test]
+fn terrain_is_an_accessible_checkpoint_floor() {
+    let mut map = map_with_zones(4, vec![level(Vec::new())], Vec::new(), Vec::new(), Vec::new());
+    map.levels[0].terrain.push(cell_def(1, 1));
+    map.checkpoints.push(checkpoint_def(0, 1, 1));
+    validate_map(&map).expect("checkpoint on terrain rejected");
+}
+
+#[test]
 fn repeated_nested_checkpoints_have_separate_carriers_and_runtime_slots() {
     let mut nested = map_with_zones(2, vec![level(vec![[0, 0]])], Vec::new(), Vec::new(), Vec::new());
     nested.checkpoints.push(checkpoint_def(0, 0, 0));

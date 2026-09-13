@@ -1,11 +1,4 @@
-use bevy::{
-    asset::RenderAssetUsages,
-    image::{ImageAddressMode, ImageSampler, ImageSamplerDescriptor},
-    prelude::*,
-    render::render_resource::{Extent3d, TextureDimension, TextureFormat},
-};
-
-use crate::constants::TERRAIN_COVER_SIZE;
+use bevy::prelude::*;
 
 #[derive(Clone, Copy)]
 pub(super) struct TerrainCover {
@@ -16,39 +9,28 @@ pub(super) struct TerrainCover {
 
 impl TerrainCover {
     pub(super) fn at(position: Vec2) -> Self {
-        let patch = noise(position / 16.0, 32) * 0.65 + noise(position / 4.0 + Vec2::splat(31.0), 128) * 0.35;
+        // Several incommensurate scales make a stable world-space field with
+        // no map-sized repeat. The shader contains the same integer hash and
+        // interpolation, so soil color and blade placement agree.
+        let patch = noise(position / 19.0) * 0.58
+            + noise(position / 6.7 + Vec2::splat(31.0)) * 0.29
+            + noise(position / 2.3 + Vec2::new(13.0, 47.0)) * 0.13;
         Self {
-            soil: smooth(0.53, 0.8, patch),
-            dry: smooth(0.3, 0.8, noise(position / 32.0 + Vec2::new(71.0, 19.0), 16)),
-            shade: 0.78 + noise(position / 8.0 + Vec2::new(5.0, 29.0), 64) * 0.4,
+            soil: smooth(0.54, 0.73, patch),
+            dry: smooth(0.28, 0.82, noise(position / 37.0 + Vec2::new(71.0, 19.0))),
+            shade: 0.9 + noise(position / 9.0 + Vec2::new(5.0, 29.0)) * 0.22,
         }
     }
 
-    pub(super) fn image() -> Image {
-        let mut data = Vec::with_capacity((TERRAIN_COVER_SIZE * TERRAIN_COVER_SIZE * 4) as usize);
-        for z in 0..TERRAIN_COVER_SIZE {
-            for x in 0..TERRAIN_COVER_SIZE {
-                let cover = Self::at(Vec2::new(x as f32 + 0.5, z as f32 + 0.5));
-                data.extend([cover.soil, cover.dry, cover.shade * 0.5, 1.0].map(|v| (v * 255.0).round() as u8));
-            }
+    // Geometry density follows the same field as the surface: fully bare in
+    // brown patches, varied rather than uniform through green areas.
+    pub(super) fn grass_density(self, position: Vec2) -> f32 {
+        if self.soil >= 0.28 {
+            return 0.0;
         }
-        let mut image = Image::new(
-            Extent3d {
-                width: TERRAIN_COVER_SIZE,
-                height: TERRAIN_COVER_SIZE,
-                depth_or_array_layers: 1,
-            },
-            TextureDimension::D2,
-            data,
-            TextureFormat::Rgba8Unorm,
-            RenderAssetUsages::default(),
-        );
-        image.sampler = ImageSampler::Descriptor(ImageSamplerDescriptor {
-            address_mode_u: ImageAddressMode::Repeat,
-            address_mode_v: ImageAddressMode::Repeat,
-            ..ImageSamplerDescriptor::linear()
-        });
-        image
+        let green = 1.0 - smooth(0.04, 0.28, self.soil);
+        let variation = 0.32 + 0.68 * noise(position / 5.3 + Vec2::new(109.0, 7.0));
+        green * variation
     }
 }
 
@@ -57,12 +39,12 @@ fn smooth(low: f32, high: f32, value: f32) -> f32 {
     t * t * (3.0 - 2.0 * t)
 }
 
-fn noise(position: Vec2, period: i32) -> f32 {
+fn noise(position: Vec2) -> f32 {
     let cell = position.floor().as_ivec2();
     let t = position - position.floor();
     let t = t * t * (Vec2::splat(3.0) - t * 2.0);
     let hash = |offset: IVec2| {
-        let p = (cell + offset).rem_euclid(IVec2::splat(period));
+        let p = cell + offset;
         let mut value = (p.x as u32)
             .wrapping_mul(374761393)
             .wrapping_add((p.y as u32).wrapping_mul(668265263));

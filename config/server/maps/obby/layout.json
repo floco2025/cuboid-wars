@@ -109,7 +109,7 @@
           {"col": 25, "row": 10, "all": "basement-floor"}
         ],
         "inaccessible_floors": [],
-        "grass": [],
+        "terrain": [],
         "walls": [
           {"c0": 9, "r0": 7, "c1": 10, "r1": 7, "all": "basement-floor"},
           {"c0": 9, "r0": 11, "c1": 10, "r1": 11, "all": "basement-floor"},
@@ -139,7 +139,7 @@
           {"col": 30, "row": 10, "all": "basement-floor"}
         ],
         "inaccessible_floors": [],
-        "grass": [],
+        "terrain": [],
         "walls": [
           {"c0": 9, "r0": 7, "c1": 10, "r1": 7, "all": "basement-floor"},
           {"c0": 9, "r0": 11, "c1": 10, "r1": 11, "all": "basement-floor"},
@@ -168,7 +168,7 @@
         "name": "Level 2",
         "floors": [],
         "inaccessible_floors": [],
-        "grass": [],
+        "terrain": [],
         "walls": [
           {"c0": 9, "r0": 7, "c1": 10, "r1": 7, "all": "basement-floor"},
           {"c0": 9, "r0": 11, "c1": 10, "r1": 11, "all": "basement-floor"},
@@ -206,7 +206,7 @@
           {"col": 33, "row": 10, "all": "basement-floor"}
         ],
         "inaccessible_floors": [],
-        "grass": [],
+        "terrain": [],
         "walls": [
           {"c0": 29, "r0": 7, "c1": 30, "r1": 7, "all": "basement-floor"},
           {"c0": 29, "r0": 11, "c1": 30, "r1": 11, "all": "basement-floor"},
@@ -227,7 +227,7 @@
         "name": "Level 4",
         "floors": [],
         "inaccessible_floors": [],
-        "grass": [],
+        "terrain": [],
         "walls": [],
         "barriers": [],
         "erasers": [],
@@ -299,7 +299,7 @@
           {"col": 41, "row": 23, "all": "basement-floor"}
         ],
         "inaccessible_floors": [],
-        "grass": [],
+        "terrain": [],
         "walls": [
           {"c0": 36, "r0": 7, "c1": 37, "r1": 7, "all": "basement-floor"},
           {"c0": 36, "r0": 11, "c1": 37, "r1": 11, "all": "basement-floor"},
@@ -338,7 +338,7 @@
         "name": "Level 6",
         "floors": [],
         "inaccessible_floors": [],
-        "grass": [],
+        "terrain": [],
         "walls": [
           {"c0": 36, "r0": 7, "c1": 37, "r1": 7, "all": "basement-floor"},
           {"c0": 36, "r0": 11, "c1": 37, "r1": 11, "all": "basement-floor"},
@@ -359,7 +359,7 @@
         "name": "Level 7",
         "floors": [],
         "inaccessible_floors": [],
-        "grass": [],
+        "terrain": [],
         "walls": [
           {"c0": 36, "r0": 7, "c1": 37, "r1": 7, "all": "basement-floor"},
           {"c0": 36, "r0": 11, "c1": 37, "r1": 11, "all": "basement-floor"},
@@ -380,7 +380,7 @@
         "name": "Level 8",
         "floors": [],
         "inaccessible_floors": [],
-        "grass": [],
+        "terrain": [],
         "walls": [],
         "barriers": [],
         "erasers": [],
@@ -410,7 +410,7 @@
               {"col": 1, "row": 1, "all": "basement-floor"}
             ],
             "inaccessible_floors": [],
-            "grass": [],
+            "terrain": [],
             "walls": [],
             "barriers": [],
             "erasers": [],
