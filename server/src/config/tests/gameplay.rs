@@ -44,13 +44,13 @@ impl Drop for TestConfigDir {
 fn settings_and_controls_resolve_beside_global_config_without_loading_unregistered_folders() {
     let directory = TestConfigDir::new();
     let mut settings: Value = serde_json::from_str(fixtures::MAP_JSON).expect("hotel settings JSON invalid");
-    settings["skybox"] = json!("custom-sky");
+    settings["celestial"]["north_yaw_degrees"] = json!(37.0);
     directory.write_settings("hotel", &settings.to_string());
     directory.write_settings("unregistered", "invalid JSON");
     let loaded = directory.load().expect("valid split config rejected");
     assert_eq!(loaded.default_map, "hotel");
     assert_eq!(loaded.maps.len(), 1);
-    assert_eq!(loaded.maps["hotel"].settings.skybox, "custom-sky");
+    assert_eq!(loaded.maps["hotel"].settings.celestial.north_yaw_degrees, 37.0);
 }
 
 #[test]

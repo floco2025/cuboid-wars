@@ -6,6 +6,7 @@ use bincode::{Decode, Encode};
 use serde::Deserialize;
 
 use crate::{
+    celestial::CelestialMapSettings,
     config::{MapGeometryConfig, MapMovementConfig},
     map::{Grounds, GroundsSettings},
 };
@@ -338,7 +339,7 @@ impl MapLayout {
 pub struct MapSettings {
     #[serde(default)]
     pub grounds: Option<GroundsSettings>,
-    pub skybox: String,
+    pub celestial: CelestialMapSettings,
     pub textures: BTreeMap<String, TextureSettings>,
     pub geometry: MapGeometryConfig,
     pub movement: MapMovementConfig,

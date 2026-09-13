@@ -211,10 +211,11 @@ fn hotel_sized_snapshot_takes_the_retransmitted_channel() {
         quests: Vec::new(),
         locked_switches: Vec::new(),
         rain_intensity: 0.0,
-        lighting: LightingBlend {
-            from: "bright".to_owned(),
-            to: "bright".to_owned(),
-            blend: 0.0,
+        celestial_clock: crate::celestial::CelestialClockAnchor {
+            anchor_tick: 1,
+            solar_day_fraction: 0.5,
+            lunar_phase_fraction: 0.25,
+            running: true,
         },
         portals: Vec::new(),
     });

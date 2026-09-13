@@ -9,14 +9,15 @@ use crate::{
     actors::{ActorInfo, ActorMap},
     config::{
         ActorSettingsConfig, ActorsConfig, BlastConfig, CombatConfig, CyclesConfig, DamageConfig, FallDamageConfig,
-        FeedConfig, HealthConfig, LightingCycleConfig, LightingMode, MapServerConfig, MissilesServerConfig,
-        PlacedItemRespawnSecs, PlacedItemsConfig, PlayerHealthConfig, PowerUpDurationSecs, PowerUpsConfig,
-        ScoringConfig, ServerGameplayConfig, WeaponsConfig, WeatherCycleConfig, WeatherMode,
+        FeedConfig, HealthConfig, MapServerConfig, MissilesServerConfig, PlacedItemRespawnSecs, PlacedItemsConfig,
+        PlayerHealthConfig, PowerUpDurationSecs, PowerUpsConfig, ScoringConfig, ServerGameplayConfig, WeaponsConfig,
+        WeatherCycleConfig, WeatherMode,
     },
     players::{PlayerInfo, PlayerMap, PowerUpState},
 };
-use common::protocol::{
-    ActorId, CarrierId, Health, PlayerId, PortalMode, Position, PowerUpKind, SPlayerDeath, ServerMessage,
+use common::{
+    celestial::CelestialCycleSettings,
+    protocol::{ActorId, CarrierId, Health, PlayerId, PortalMode, Position, PowerUpKind, SPlayerDeath, ServerMessage},
 };
 
 fn logged_in_player(players: &mut PlayerMap, id: PlayerId, name: &str) -> Receiver<ServerMessage> {
@@ -79,6 +80,7 @@ fn server_gameplay_config() -> ServerGameplayConfig {
         .settings
         .movement
         .clone();
+    let celestial = default.maps["hotel"].settings.celestial;
     ServerGameplayConfig {
         network: Default::default(),
         default_map: "hotel".to_owned(),
@@ -87,7 +89,7 @@ fn server_gameplay_config() -> ServerGameplayConfig {
             MapServerConfig {
                 settings: common::protocol::MapSettings {
                     grounds: None,
-                    skybox: "cloudy_day".to_owned(),
+                    celestial,
                     textures: Default::default(),
 
                     geometry: crate::test_geometry::sizes(),
@@ -126,7 +128,6 @@ fn server_gameplay_config() -> ServerGameplayConfig {
                     },
                 },
                 weather: WeatherMode::Clear,
-                lighting: LightingMode::Bright,
                 quests: Vec::new(),
             },
         )]),
@@ -184,13 +185,9 @@ fn server_gameplay_config() -> ServerGameplayConfig {
                 ramp_in_secs: 2.0,
                 fade_out_secs: 4.0,
             },
-            lighting: LightingCycleConfig {
-                bright_secs: Some(20.0),
-                dim_secs: Some(6.0),
-                dark_secs: Some(10.0),
-                bright_dim_secs: Some(4.0),
-                dim_dark_secs: Some(2.0),
-                bright_dark_secs: None,
+            celestial: CelestialCycleSettings {
+                day_duration_secs: 600.0,
+                lunar_cycle_days: 8.0,
             },
         },
         feed: FeedConfig::all(true, &[]),

@@ -21,6 +21,54 @@ pub const RENDERING_PORTAL_VIEW_BUDGET_DEFAULT: u8 = 4;
 pub const RENDERING_VSYNC_DEFAULT: bool = true;
 
 // ============================================================================
+// Procedural Sky
+// ============================================================================
+// Stable palette and texture character live in code. `client.json::sky`
+// keeps the controls useful during ordinary art direction: brightness,
+// apparent body scale/luminance, star population, and cloud coverage.
+
+pub const SKY_DAY_HORIZON_COLOR: [f32; 3] = [0.46, 0.69, 0.95];
+pub const SKY_DAY_ZENITH_COLOR: [f32; 3] = [0.08, 0.30, 0.72];
+pub const SKY_SUNSET_COLOR: [f32; 3] = [1.0, 0.25, 0.055];
+pub const SKY_TWILIGHT_HORIZON_COLOR: [f32; 3] = [0.22, 0.12, 0.31];
+pub const SKY_TWILIGHT_ZENITH_COLOR: [f32; 3] = [0.025, 0.055, 0.16];
+pub const SKY_NIGHT_HORIZON_COLOR: [f32; 3] = [0.018, 0.035, 0.085];
+pub const SKY_NIGHT_ZENITH_COLOR: [f32; 3] = [0.003, 0.012, 0.045];
+
+// Mean real apparent radii. Config scales these, so 1.0 is physically sized
+// and larger values deliberately exaggerate the bodies without encoding raw
+// angular measurements in JSON.
+pub const SKY_SUN_APPARENT_RADIUS_DEGREES: f32 = 0.266;
+pub const SKY_MOON_APPARENT_RADIUS_DEGREES: f32 = 0.259;
+pub const SKY_MAX_BODY_SIZE_SCALE: f32 = 20.0;
+pub const SKY_SUN_HALO_SIZE_DEGREES: f32 = 5.0;
+pub const SKY_SUN_HALO_LUMINANCE: f32 = 1.3;
+pub const SKY_MOON_EARTHSHINE: f32 = 0.09;
+pub const SKY_MOON_CRATER_CONTRAST: f32 = 0.32;
+pub const SKY_MOON_HALO_SIZE_DEGREES: f32 = 3.5;
+pub const SKY_MOON_HALO_LUMINANCE: f32 = 0.3;
+
+// Star luminance spans this normalized range before the one JSON luminance
+// multiplier is applied.
+pub const SKY_STAR_SEED: u32 = 9241;
+pub const SKY_STAR_LUMINANCE_MIN_FACTOR: f32 = 0.35;
+pub const SKY_STAR_LUMINANCE_MAX_FACTOR: f32 = 1.0;
+pub const SKY_BRIGHT_STAR_FRACTION: f32 = 0.08;
+pub const SKY_STAR_TWINKLE: f32 = 0.08;
+
+pub const SKY_CLOUD_SCALE: f32 = 4.0;
+pub const SKY_CLOUD_COLOR: [f32; 3] = [0.72, 0.77, 0.82];
+pub const SKY_OVERCAST_COLOR: [f32; 3] = [0.24, 0.29, 0.34];
+
+pub const SKY_DAY_SATURATION: f32 = 1.0;
+pub const SKY_TWILIGHT_SATURATION: f32 = 0.72;
+pub const SKY_NIGHT_SATURATION: f32 = 0.48;
+pub const SKY_RAIN_DIRECT_LIGHT: f32 = 0.22;
+pub const SKY_RAIN_AMBIENT_LIGHT: f32 = 0.8;
+pub const SKY_CLEAR_FOG_RANGE: [f32; 2] = [100.0, 850.0];
+pub const SKY_RAIN_FOG_RANGE: [f32; 2] = [35.0, 280.0];
+
+// ============================================================================
 // Input
 // ============================================================================
 
@@ -478,17 +526,6 @@ pub const RAIN_SPLASH_RADIUS: f32 = 0.15;
 pub const RAIN_SPLASH_HEIGHT: f32 = 0.2;
 
 // ============================================================================
-// Celestial Disc
-// ============================================================================
-// Emissive tint of the celestial disc: golden sunlight at bright, cool
-// blue moonlight below. Deliberately strong — the disc is bright (tonemap
-// pulls it toward white) and the level's `saturation` grading mutes color
-// further, so subtle tints read as plain white in game.
-
-pub const CELESTIAL_DISC_SUN_COLOR: Color = Color::linear_rgb(1.0, 0.85, 0.6);
-pub const CELESTIAL_DISC_MOON_COLOR: Color = Color::linear_rgb(0.5, 0.72, 1.0);
-
-// ============================================================================
 // Grass Wind
 // ============================================================================
 
@@ -565,20 +602,6 @@ pub const SETTINGS_SLIDER_TRACK_COLOR: Color = QUEST_BAR_TRACK_COLOR;
 pub const SETTINGS_ACCENT_COLOR: Color = QUEST_BAR_FILL_COLOR;
 pub const SETTINGS_OUTLINE_COLOR: Color = Color::srgba(1.0, 1.0, 1.0, 0.35);
 
-pub const SKY_FACE_SIZE: u32 = 256;
-pub const SKY_CLEAR_HORIZON: Vec3 = Vec3::new(0.68, 0.79, 0.85);
-pub const SKY_CLEAR_ZENITH: Vec3 = Vec3::new(0.12, 0.37, 0.68);
-pub const SKY_RAIN_HORIZON: Vec3 = Vec3::new(0.48, 0.53, 0.57);
-pub const SKY_RAIN_ZENITH: Vec3 = Vec3::new(0.28, 0.32, 0.37);
-pub const SKY_NIGHT_HORIZON: Vec3 = Vec3::new(0.012, 0.02, 0.045);
-pub const SKY_NIGHT_ZENITH: Vec3 = Vec3::new(0.006, 0.009, 0.025);
-pub const SKY_NIGHT_OVERCAST: Vec3 = Vec3::new(0.025, 0.03, 0.04);
-pub const SKY_CLOUD_COLOR: Vec3 = Vec3::new(0.92, 0.93, 0.91);
-pub const SKY_RAIN_BRIGHTNESS: f32 = 0.65;
-pub const SKY_RAIN_DIRECT_LIGHT: f32 = 0.22;
-pub const SKY_RAIN_AMBIENT_LIGHT: f32 = 0.8;
-pub const SKY_CLEAR_FOG_RANGE: [f32; 2] = [100.0, 850.0];
-pub const SKY_RAIN_FOG_RANGE: [f32; 2] = [35.0, 280.0];
 pub const GROUNDS_BARK_COLOR: Color = Color::srgb(0.19, 0.13, 0.085);
 pub const GROUNDS_ROCK_COLOR: Color = Color::srgb(0.35, 0.36, 0.32);
 

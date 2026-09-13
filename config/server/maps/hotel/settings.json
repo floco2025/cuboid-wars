@@ -16,7 +16,13 @@
     "upper-floors": { "portalable": true },
     "upper-interior-walls": { "portalable": true }
   },
-  "skybox": "cloudy_day",
+  "celestial": {
+    "latitude_degrees": 40.0,
+    "season": "summer",
+    "north_yaw_degrees": 0.0,
+    "start_local_time": "09:00",
+    "start_moon_phase": "first_quarter"
+  },
   "grounds": {
     "level": 1,
     "margin": 50.0,
@@ -30,7 +36,6 @@
     "wall_thickness": 0.3
   },
   "weather": "auto",
-  "lighting": "auto",
   "player_fall": { "safe_distance": 8.0, "lethal_distance": 15.0 },
   "movement": {
     "gravity": 25.0,

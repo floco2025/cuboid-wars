@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{HashMap, HashSet},
     fs,
     path::Path,
 };
@@ -11,7 +11,7 @@ use serde::Deserialize;
 
 use super::{
     FootstepSounds,
-    lighting::{SkyboxDef, WallLightModelDef},
+    lighting::WallLightModelDef,
     material::{MaterialBinding, MaterialDef},
     model::{ModelDef, validate_model},
     pressure_plate::PressurePlateDef,
@@ -58,9 +58,6 @@ pub struct AssetSet {
     player: PlayerAssets,
     pub actors: ActorCatalog,
     wall_lights: HashMap<String, WallLightModelDef>,
-    // Named skyboxes; the map's `MapSettings.skybox` selects one. BTreeMap so
-    // the unknown-name fallback (sorted-first entry) is deterministic.
-    skyboxes: BTreeMap<String, SkyboxDef>,
 }
 
 impl AssetSet {
@@ -82,13 +79,6 @@ impl AssetSet {
         self.footsteps.validate()?;
         validate_volume(self.actors.movement_volume_db, "actors.movement_volume_db")?;
         validate_volume(self.actors.sfx_volume_db, "actors.sfx_volume_db")?;
-        anyhow::ensure!(
-            !self.skyboxes.is_empty(),
-            "asset config must define at least one entry in `skyboxes`"
-        );
-        for (name, skybox) in &self.skyboxes {
-            skybox.validate(&format!("skyboxes.{name}"))?;
-        }
         // Every alias must resolve to a real material so a typo can't go
         // unnoticed until something tries to render at runtime.
         for (alias, target) in &self.aliases {
@@ -236,21 +226,6 @@ impl AssetSet {
 
     pub fn wall_light_models(&self) -> impl Iterator<Item = &WallLightModelDef> {
         self.wall_lights.values()
-    }
-
-    pub fn skybox(&self, name: &str) -> Option<&SkyboxDef> {
-        self.skyboxes.get(name)
-    }
-
-    // Deterministic stand-in when a map names a skybox this client doesn't
-    // have: the sorted-first entry. `validate` guarantees non-emptiness.
-    pub fn fallback_skybox(&self) -> (&str, &SkyboxDef) {
-        let (name, def) = self
-            .skyboxes
-            .iter()
-            .next()
-            .expect("skyboxes is empty despite validate() requiring an entry");
-        (name, def)
     }
 
     pub fn player_sound(&self, name: &str) -> &SoundDef {

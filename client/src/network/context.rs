@@ -1,5 +1,6 @@
 use bevy::{ecs::system::SystemParam, prelude::*};
 use common::{
+    celestial::CelestialClockAnchor,
     config::{GameplayConfig, NetworkConfig},
     map::Carriers,
     physics::{CollisionWorld, PortalSet},
@@ -15,7 +16,6 @@ use crate::{
     config::{AssetSet, ClientSettings},
     input::PendingWeaponSelection,
     items::{ItemAssets, ItemMap},
-    map::skybox::LightingState,
     missiles::{MissileAssets, MissileMap},
     network::{LastPlayerMovesTick, LastSnapshotTick, RoundTripTime, TickSync},
     players::{LocalPlayerInfo, MyPlayerId, PlayerMap},
@@ -93,7 +93,7 @@ pub(super) struct ServerMessageContext<'w, 's> {
     pub(super) plates: ResMut<'w, PlateState>,
     pub(super) locked_switches: ResMut<'w, LockedSwitches>,
     pub(super) rain_intensity: ResMut<'w, RainIntensity>,
-    pub(super) lighting: ResMut<'w, LightingState>,
+    pub(super) celestial_clock: ResMut<'w, CelestialClockAnchor>,
     pub(super) player_data: Query<'w, 's, &'static Position, With<PlayerMarker>>,
     pub(super) actor_data: Query<'w, 's, &'static Position, With<ActorMarker>>,
     pub(super) cameras: Query<'w, 's, Entity, (With<Camera3d>, With<MainCameraMarker>)>,

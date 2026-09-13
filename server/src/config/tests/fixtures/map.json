@@ -3,7 +3,13 @@
     "basement-floor": { "portalable": true },
     "slab": { "portalable": true }
   },
-  "skybox": "test",
+  "celestial": {
+    "latitude_degrees": 40.0,
+    "season": "summer",
+    "north_yaw_degrees": 0.0,
+    "start_local_time": "09:00",
+    "start_moon_phase": "first_quarter"
+  },
   "geometry": {
     "grid_cell_size": 3.4,
     "level_height": 4.4,
@@ -11,7 +17,6 @@
     "wall_thickness": 0.3
   },
   "weather": "auto",
-  "lighting": "auto",
   "player_fall": { "safe_distance": 8.0, "lethal_distance": 15.0 },
   "movement": {
     "gravity": 25.0,

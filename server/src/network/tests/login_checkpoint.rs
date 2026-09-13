@@ -9,7 +9,7 @@ use crate::{
     quests::{QuestBoard, QuestCatalog},
 };
 use bevy::{ecs::system::SystemState, prelude::*};
-use common::{map::Carriers, physics::CollisionWorld, protocol::*};
+use common::{celestial::CelestialClockAnchor, map::Carriers, physics::CollisionWorld, protocol::*};
 use crossbeam_channel::unbounded;
 
 #[test]
@@ -75,8 +75,10 @@ fn joining_inherits_shared_progress_and_respects_blocked_spawns_and_group_countd
         collision.set_carrier_poses(&carriers);
         let settings = app.world().resource::<MapSettings>().clone();
         let gameplay = app.world().resource::<ServerGameplayConfig>().gameplay_bootstrap();
+        let celestial = app.world().resource::<ServerGameplayConfig>().cycles.celestial;
         app.insert_resource(WorldBootstrap {
             network: Default::default(),
+            celestial,
             gameplay,
             map: MapBootstrap {
                 missile_air_grids: Vec::new(),
@@ -85,6 +87,7 @@ fn joining_inherits_shared_progress_and_respects_blocked_spawns_and_group_countd
                 items: MapItems(Vec::new()),
             },
         });
+        app.insert_resource(CelestialClockAnchor::initial(&settings.celestial, 0));
         app.insert_resource(layout.clone())
             .insert_resource(collision)
             .insert_resource(carriers)
@@ -127,6 +130,7 @@ fn joining_inherits_shared_progress_and_respects_blocked_spawns_and_group_countd
             Commands,
             ResMut<PlayerMap>,
             SharedWorld,
+            Res<CelestialClockAnchor>,
             CharacterQueries,
             Res<QuestCatalog>,
             Res<QuestBoard>,
@@ -134,8 +138,17 @@ fn joining_inherits_shared_progress_and_respects_blocked_spawns_and_group_countd
             ResMut<PortalMap>,
         )> = SystemState::new(app.world_mut());
         {
-            let (mut commands, mut players, world, queries, catalog, board, mut assignments, mut portals) =
-                system.get_mut(app.world_mut()).expect("login system resources missing");
+            let (
+                mut commands,
+                mut players,
+                world,
+                celestial_clock,
+                queries,
+                catalog,
+                board,
+                mut assignments,
+                mut portals,
+            ) = system.get_mut(app.world_mut()).expect("login system resources missing");
             handle_login_message(
                 &mut commands,
                 entity,
@@ -143,6 +156,7 @@ fn joining_inherits_shared_progress_and_respects_blocked_spawns_and_group_countd
                 CLogin { name: "Player".into() },
                 &mut players,
                 &world,
+                &celestial_clock,
                 &queries,
                 &catalog,
                 &board,

@@ -1,5 +1,6 @@
 use super::{MAX_NAME_CHARS, sanitize_player_name};
 use crate::config::fixtures;
+use common::celestial::{CelestialClockAnchor, CelestialCycleSettings};
 use common::protocol::{
     BarrierKindId, HexColor, ItemType, KindDef, MapBootstrap, MapItems, MapLayout, MapSettings, PlateState,
     PlayerBootstrap, PlayerId, PortalAccess, SInit, ServerMessage, WorldBootstrap,
@@ -60,6 +61,13 @@ fn init_message_round_trips_complete_bootstrap() {
         .settings
         .clone();
     let message = ServerMessage::Init(SInit {
+        current_tick: 42,
+        celestial_clock: CelestialClockAnchor {
+            anchor_tick: 40,
+            solar_day_fraction: 0.5,
+            lunar_phase_fraction: 0.25,
+            running: true,
+        },
         player: PlayerBootstrap {
             id: PlayerId(7),
             portal_access: PortalAccess::None,
@@ -68,6 +76,10 @@ fn init_message_round_trips_complete_bootstrap() {
         locked_switches: Vec::new(),
         world: WorldBootstrap {
             network: Default::default(),
+            celestial: CelestialCycleSettings {
+                day_duration_secs: 600.0,
+                lunar_cycle_days: 8.0,
+            },
             gameplay: config.gameplay_bootstrap(),
             map: MapBootstrap {
                 missile_air_grids: Vec::new(),
@@ -97,6 +109,13 @@ fn init_message_round_trips_complete_bootstrap() {
         panic!("decoded message was not SInit");
     };
     assert_eq!(decoded.player.id, PlayerId(7));
+    assert_eq!(decoded.current_tick, 42);
+    assert_eq!(decoded.celestial_clock.anchor_tick, 40);
+    assert_eq!(decoded.celestial_clock.solar_day_fraction, 0.5);
+    assert_eq!(decoded.celestial_clock.lunar_phase_fraction, 0.25);
+    assert!(decoded.celestial_clock.running);
+    assert_eq!(decoded.world.celestial.day_duration_secs, 600.0);
+    assert_eq!(decoded.world.celestial.lunar_cycle_days, 8.0);
     let kinds = &decoded.world.map.settings.barrier_kinds;
     assert_eq!(
         kinds.iter().map(|kind| kind.id.as_str()).collect::<Vec<_>>(),

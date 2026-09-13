@@ -48,137 +48,26 @@ fn weather_cycle_rejects_non_positive_ramp() {
     assert!(err.to_string().contains("ramp_in_secs"));
 }
 
-fn full_lighting_cycle() -> LightingCycleConfig {
-    LightingCycleConfig {
-        bright_secs: Some(240.0),
-        dim_secs: Some(45.0),
-        dark_secs: Some(120.0),
-        bright_dim_secs: Some(20.0),
-        dim_dark_secs: Some(20.0),
-        bright_dark_secs: None,
-    }
+#[test]
+fn celestial_cycle_parses_and_validates() {
+    let cycle: common::celestial::CelestialCycleSettings =
+        serde_json::from_str(r#"{"day_duration_secs":600.0,"lunar_cycle_days":8.0}"#)
+            .expect("celestial cycle should deserialize");
+    cycle.validate("cycles.celestial").expect("valid cycle rejected");
 }
 
 #[test]
-fn lighting_cycle_parses_and_validates() {
-    let cycle: LightingCycleConfig = serde_json::from_str(
-        r#"{"bright_secs": 240.0, "dim_secs": 45.0, "dark_secs": 120.0, "bright_dim_secs": 20.0, "dim_dark_secs": 20.0, "bright_dark_secs": null}"#,
-    )
-    .expect("lighting cycle should deserialize");
-    cycle
-        .validate("cycles.lighting")
-        .expect("valid lighting cycle should pass");
-}
-
-#[test]
-fn lighting_cycle_rejects_non_positive_durations() {
-    let ok = full_lighting_cycle();
-    for (cycle, field) in [
-        (
-            LightingCycleConfig {
-                bright_secs: Some(0.0),
-                ..ok.clone()
-            },
-            "bright_secs",
-        ),
-        (
-            LightingCycleConfig {
-                dim_secs: Some(-1.0),
-                ..ok.clone()
-            },
-            "dim_secs",
-        ),
-        (
-            LightingCycleConfig {
-                bright_dim_secs: Some(0.0),
-                ..ok.clone()
-            },
-            "bright_dim_secs",
-        ),
+fn celestial_cycle_rejects_non_positive_and_non_finite_values() {
+    for (day_duration_secs, lunar_cycle_days, field) in [
+        (0.0, 8.0, "day_duration_secs"),
+        (600.0, -1.0, "lunar_cycle_days"),
+        (f32::NAN, 8.0, "day_duration_secs"),
     ] {
-        let err = cycle
-            .validate("cycles.lighting")
-            .expect_err("non-positive duration must be rejected");
-        assert!(err.to_string().contains(field));
+        let cycle = common::celestial::CelestialCycleSettings {
+            day_duration_secs,
+            lunar_cycle_days,
+        };
+        let error = cycle.validate("cycles.celestial").expect_err("invalid cycle accepted");
+        assert!(error.to_string().contains(field));
     }
-}
-
-#[test]
-fn lighting_cycle_accepts_two_stop_variants() {
-    let bright_dim = LightingCycleConfig {
-        dark_secs: None,
-        dim_dark_secs: None,
-        ..full_lighting_cycle()
-    };
-    bright_dim
-        .validate("cycles.lighting")
-        .expect("bright+dim cycle should pass");
-
-    let dim_dark = LightingCycleConfig {
-        bright_secs: None,
-        bright_dim_secs: None,
-        ..full_lighting_cycle()
-    };
-    dim_dark
-        .validate("cycles.lighting")
-        .expect("dim+dark cycle should pass");
-
-    let bright_dark = LightingCycleConfig {
-        dim_secs: None,
-        bright_dim_secs: None,
-        dim_dark_secs: None,
-        bright_dark_secs: Some(30.0),
-        ..full_lighting_cycle()
-    };
-    bright_dark
-        .validate("cycles.lighting")
-        .expect("bright+dark cycle should pass");
-}
-
-#[test]
-fn lighting_cycle_rejects_single_stop() {
-    let cycle = LightingCycleConfig {
-        dim_secs: None,
-        dark_secs: None,
-        bright_dim_secs: None,
-        dim_dark_secs: None,
-        ..full_lighting_cycle()
-    };
-    let err = cycle
-        .validate("cycles.lighting")
-        .expect_err("single-stop cycle must be rejected");
-    assert!(err.to_string().contains("at least two"));
-}
-
-#[test]
-fn lighting_cycle_rejects_missing_and_unused_fades() {
-    let missing = LightingCycleConfig {
-        bright_dim_secs: None,
-        ..full_lighting_cycle()
-    };
-    let err = missing
-        .validate("cycles.lighting")
-        .expect_err("missing bright_dim fade must be rejected");
-    assert!(err.to_string().contains("bright_dim_secs is required"));
-
-    let unused = LightingCycleConfig {
-        bright_dark_secs: Some(30.0),
-        ..full_lighting_cycle()
-    };
-    let err = unused
-        .validate("cycles.lighting")
-        .expect_err("bright_dark fade with dim present must be rejected");
-    assert!(err.to_string().contains("bright_dark_secs is not used"));
-
-    let bright_dark_missing = LightingCycleConfig {
-        dim_secs: None,
-        bright_dim_secs: None,
-        dim_dark_secs: None,
-        bright_dark_secs: None,
-        ..full_lighting_cycle()
-    };
-    let err = bright_dark_missing
-        .validate("cycles.lighting")
-        .expect_err("bright+dark cycle without its fade must be rejected");
-    assert!(err.to_string().contains("bright_dark_secs is required"));
 }

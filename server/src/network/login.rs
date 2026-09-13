@@ -6,7 +6,7 @@ use crate::{
     portals::{PortalAssignments, PortalMap},
     quests::{QuestBoard, QuestCatalog, assign_quests},
 };
-use common::protocol::*;
+use common::{celestial::CelestialClockAnchor, protocol::*};
 
 use super::handlers::{CharacterQueries, SharedWorld};
 
@@ -31,6 +31,7 @@ pub(super) fn handle_login_message(
     message: CLogin,
     players: &mut PlayerMap,
     world: &SharedWorld,
+    celestial_clock: &CelestialClockAnchor,
     queries: &CharacterQueries,
     quest_catalog: &QuestCatalog,
     quest_board: &QuestBoard,
@@ -55,6 +56,8 @@ pub(super) fn handle_login_message(
     let init_message = ServerMessage::Init(SInit {
         player: PlayerBootstrap { id, portal_access },
         world: (*world.world_bootstrap).clone(),
+        current_tick: world.tick.0,
+        celestial_clock: *celestial_clock,
         plates: (*world.plates).clone(),
         locked_switches: quest_board.locked_switches().to_vec(),
     });

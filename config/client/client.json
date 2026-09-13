@@ -40,25 +40,22 @@
     "rain_spawn_radius": 15.0,
     "spawn_lead_fraction": 0.35
   },
+  "sky": {
+    "day_brightness": 1.8,
+    "twilight_brightness": 0.45,
+    "night_brightness": 0.16,
+    "sun": { "size_scale": 2.0, "luminance": 45.0 },
+    "moon": { "size_scale": 2.5, "luminance": 7.0 },
+    "stars": { "density": 0.12, "luminance": 8.0 },
+    "clouds": { "clear_coverage": 0.18, "overcast_coverage": 0.96 }
+  },
   "lighting": {
-    "bright": {
-      "sky_brightness": 1000.0,
-      "ambient_brightness": 70.0,
-      "sun_illuminance": 8000.0,
-      "saturation": 1.0
-    },
-    "dim": {
-      "sky_brightness": 48.0,
-      "ambient_brightness": 30.0,
-      "moon_illuminance": 150.0,
-      "saturation": 0.5
-    },
-    "dark": {
-      "sky_brightness": 12.0,
-      "ambient_brightness": 15.0,
-      "moon_illuminance": 50.0,
-      "saturation": 0.3
-    }
+    "day_ambient_brightness": 70.0,
+    "twilight_ambient_brightness": 30.0,
+    "night_ambient_brightness": 15.0,
+    "max_sun_illuminance": 10000.0,
+    "max_full_moon_illuminance": 180.0,
+    "shadow_step_degrees": 0.08
   },
   "camera": {
     "follow": {

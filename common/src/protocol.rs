@@ -343,6 +343,10 @@ pub struct CChat {
 pub struct SInit {
     pub player: PlayerBootstrap,
     pub world: WorldBootstrap,
+    // Current tick and celestial anchor seed smooth client extrapolation
+    // before its first ping or snapshot arrives.
+    pub current_tick: u32,
+    pub celestial_clock: crate::celestial::CelestialClockAnchor,
     // What the plates hold and which switches a quest still locks at login,
     // so an inverted target is right at rest before the first snapshot.
     pub plates: PlateState,
@@ -358,6 +362,7 @@ pub struct PlayerBootstrap {
 #[derive(Debug, Clone, Encode, Decode, Resource)]
 pub struct WorldBootstrap {
     pub network: NetworkConfig,
+    pub celestial: crate::celestial::CelestialCycleSettings,
     pub gameplay: GameplayBootstrap,
     pub map: MapBootstrap,
 }
@@ -379,16 +384,6 @@ pub struct MissileAirGrid {
 }
 
 // --- State ---
-
-// A blend between two named client-side lighting presets ("bright", "dim",
-// "dark"): the rendered look is `from` faded toward `to` by `blend`. A
-// plain preset is the degenerate blend (`from == to`, blend 0).
-#[derive(Debug, Clone, PartialEq, Encode, Decode)]
-pub struct LightingBlend {
-    pub from: String,
-    pub to: String,
-    pub blend: f32,
-}
 
 // Periodic world state. Entity lists tell the client what exists;
 // cues provide earlier feedback, and later snapshots repair missed updates.
@@ -424,11 +419,8 @@ pub struct SSnapshot {
     // late joiners and clients that missed updates in sync. Clients smooth
     // the changes when rendering rain.
     pub rain_intensity: f32,
-    // Server-driven lighting: which two presets the world is between and
-    // how far. Same snapshot rationale as the rain intensity. The client
-    // resolves the names against its configured looks and eases toward the
-    // blended result.
-    pub lighting: LightingBlend,
+    // Repeated for late joining and repair after an administrative seek.
+    pub celestial_clock: crate::celestial::CelestialClockAnchor,
     // Placed portal ends, sorted by pair and end. This list supplies portals
     // to late joiners and repairs missed `SPortalOpened` cues.
     pub portals: Vec<Portal>,

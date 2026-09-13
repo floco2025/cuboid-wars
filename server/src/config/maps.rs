@@ -32,9 +32,6 @@ pub struct MapServerConfig {
     // A concrete state holds until an admin command; `auto` runs the
     // global `cycles.weather`. Mirrors `/weather rain|clear|auto`.
     pub weather: WeatherMode,
-    // A concrete look holds until an admin command; `auto` runs the
-    // global `cycles.lighting`. Mirrors `/light bright|dim|dark|auto`.
-    pub lighting: LightingMode,
     pub quests: Vec<Quest>,
 }
 
@@ -44,28 +41,6 @@ pub enum WeatherMode {
     Clear,
     Rain,
     Auto,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum LightingMode {
-    Bright,
-    Dim,
-    Dark,
-    Auto,
-}
-
-impl LightingMode {
-    // The preset a concrete mode holds; `None` = cycle-driven.
-    #[must_use]
-    pub const fn preset(self) -> Option<&'static str> {
-        match self {
-            Self::Bright => Some("bright"),
-            Self::Dim => Some("dim"),
-            Self::Dark => Some("dark"),
-            Self::Auto => None,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -99,9 +74,7 @@ pub(super) fn validate_maps(
         .collect();
     for (name, entry) in maps {
         let path = format!("{}:", directory.join(name).join("settings.json").display());
-        if entry.settings.skybox.is_empty() {
-            bail!("{path} skybox must not be empty");
-        }
+        entry.settings.celestial.validate(&format!("{path} celestial"))?;
         entry
             .settings
             .kind_tables()

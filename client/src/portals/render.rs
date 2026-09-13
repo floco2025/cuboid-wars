@@ -20,7 +20,7 @@ use super::{
 use crate::{
     cameras::{
         MainCameraMarker, RENDER_LAYER_LOCAL_PLAYER, RENDER_LAYER_PORTAL_VIEW_START, RENDER_LAYER_REARVIEW,
-        RearviewCameraMarker, SceneRenderTarget, SkyDiscRenderLayer, local_player_camera_sync_system,
+        RearviewCameraMarker, SceneRenderTarget, SkyRenderLayer, local_player_camera_sync_system,
         local_player_rearview_viewport_system, scene_render_target_system,
     },
     config::ClientSettings,
@@ -264,7 +264,7 @@ fn rebuild_portal_views_system(
                 target,
                 previous_target: None,
             },
-            SkyDiscRenderLayer(child_layer),
+            SkyRenderLayer(child_layer),
             Camera3d::default(),
             Camera {
                 order: -(hops as isize) - 1,

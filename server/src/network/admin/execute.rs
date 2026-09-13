@@ -14,6 +14,7 @@ use crate::{
     quests::{QuestBoard, QuestCatalog, complete_quest, unlock_quest},
 };
 use common::{
+    celestial::{CelestialClockAnchor, CelestialCycleSettings, LocalTime, MoonPhase},
     config::GameplayConfig,
     protocol::{
         BarrierKindId, Health, ItemType, PlayerId, PowerUpKind, QuestGroupProgress, QuestId, QuestScope, SPlayerStatus,
@@ -21,6 +22,7 @@ use common::{
     },
 };
 
+#[derive(Debug, PartialEq, Eq)]
 pub(super) enum AdminOutcome {
     Private(String),
     Public(String),
@@ -41,7 +43,18 @@ pub(super) fn run_admin_command(
 ) -> AdminOutcome {
     use AdminOutcome::{Private, Public};
 
-    match parse_admin_command(command) {
+    let parsed = parse_admin_command(command);
+    if let Some(outcome) = run_celestial_command(
+        &parsed,
+        &mut admin.celestial_clock,
+        admin.server_tick.0,
+        admin.server_gameplay_config.network.server_hz,
+        admin.server_gameplay_config.cycles.celestial,
+    ) {
+        return outcome;
+    }
+
+    match parsed {
         AdminCommand::Help => Private(HELP_TEXT.to_owned()),
         AdminCommand::NotACommand => Private("not a command (commands start with /)".to_owned()),
         AdminCommand::Unknown => Private(format!("unknown command {command:?} (try /help)")),
@@ -63,26 +76,13 @@ pub(super) fn run_admin_command(
             Err(reason) => Private(reason.to_owned()),
         },
         AdminCommand::WeatherStatus => Private(admin.weather.status()),
-        AdminCommand::LightPreset(name) => {
-            admin.light.hold_preset(name);
-            Public(format!("light set to {name}"))
-        }
-        AdminCommand::LightFraction(fraction) => {
-            admin.light.hold_cycle_fraction(fraction);
-            Public(admin.light.status())
-        }
-        AdminCommand::LightBlend(from, to, blend) => {
-            admin.light.hold_blend(from, to, blend);
-            Public(admin.light.status())
-        }
-        AdminCommand::LightAuto => match admin.light.resume_auto() {
-            Ok(()) => Public("light cycle resumed".to_owned()),
-            Err(reason) => Private(reason.to_owned()),
-        },
-        AdminCommand::LightStatus => Private(admin.light.status()),
-        AdminCommand::LightUsage => {
-            Private("usage: /light [bright|dim|dark|auto]\n       /light <0..1>|<from> <to> <0..1>".to_owned())
-        }
+        AdminCommand::TimeSeek(_)
+        | AdminCommand::TimeAuto
+        | AdminCommand::TimeStatus
+        | AdminCommand::TimeUsage
+        | AdminCommand::MoonSet(_)
+        | AdminCommand::MoonStatus
+        | AdminCommand::MoonUsage => unreachable!("celestial command was handled above"),
         AdminCommand::God(explicit) => {
             let enabled = explicit.unwrap_or(!admin.invincibility.0);
             admin.invincibility.0 = enabled;
@@ -307,6 +307,52 @@ pub(super) fn run_admin_command(
             }
         }
     }
+}
+
+fn run_celestial_command(
+    command: &AdminCommand,
+    clock: &mut CelestialClockAnchor,
+    tick: u32,
+    server_hz: u32,
+    cycle: CelestialCycleSettings,
+) -> Option<AdminOutcome> {
+    use AdminOutcome::{Private, Public};
+
+    let outcome = match *command {
+        AdminCommand::TimeSeek(time) => {
+            clock.seek_time(time, tick, server_hz, cycle);
+            Public(format!("celestial time set to {} (held)", time.format()))
+        }
+        AdminCommand::TimeAuto => {
+            if clock.resume(tick, server_hz, cycle) {
+                Public("celestial clock resumed".to_owned())
+            } else {
+                Private("celestial clock already running".to_owned())
+            }
+        }
+        AdminCommand::TimeStatus => Private(time_status(clock, tick, server_hz, cycle)),
+        AdminCommand::TimeUsage => Private("usage: /time [HH:MM|auto]".to_owned()),
+        AdminCommand::MoonSet(phase) => {
+            clock.set_moon_phase(phase, tick, server_hz, cycle);
+            Public(format!("moon phase set to {}", phase.name()))
+        }
+        AdminCommand::MoonStatus => Private(moon_status(clock, tick, server_hz, cycle)),
+        AdminCommand::MoonUsage => Private("usage: /moon [new|waxing_crescent|first_quarter|waxing_gibbous|full|waning_gibbous|third_quarter|waning_crescent]".to_owned()),
+        _ => return None,
+    };
+    Some(outcome)
+}
+
+fn time_status(clock: &CelestialClockAnchor, tick: u32, server_hz: u32, cycle: CelestialCycleSettings) -> String {
+    let time = LocalTime::from_day_fraction(clock.at_tick(tick, server_hz, cycle).solar_day_fraction).format();
+    let state = if clock.running { "running" } else { "held" };
+    format!("time: {time} ({state})")
+}
+
+fn moon_status(clock: &CelestialClockAnchor, tick: u32, server_hz: u32, cycle: CelestialCycleSettings) -> String {
+    let fraction = clock.at_tick(tick, server_hz, cycle).lunar_phase_fraction;
+    let phase = MoonPhase::nearest(fraction);
+    format!("moon: {} ({fraction:.3})", phase.name())
 }
 
 fn alive_players(players: &PlayerMap, name: Option<&str>) -> Vec<(PlayerId, Entity)> {

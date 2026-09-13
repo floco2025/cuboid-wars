@@ -71,3 +71,93 @@ fn json_cannot_override_runtime_preference_defaults() {
     assert_eq!(settings.preferences.fov_degrees, CAMERA_FOV_DEGREES_DEFAULT);
     assert_eq!(settings.preferences.zoom_sensitivity, INPUT_ZOOM_SENSITIVITY_DEFAULT);
 }
+
+#[test]
+fn sky_controls_reject_invalid_ranges_and_allow_zero_luminance() {
+    let mut settings = test_fixtures::client_settings();
+    settings.sky.sun.luminance = 0.0;
+    settings.sky.moon.luminance = 0.0;
+    settings.sky.stars.luminance = 0.0;
+    settings
+        .validate()
+        .expect("zero luminance should disable a sky emitter");
+
+    for (invalid, field) in [
+        (
+            {
+                let mut value = settings.clone();
+                value.sky.sun.size_scale = SKY_MAX_BODY_SIZE_SCALE + 0.1;
+                value
+            },
+            "sun.size_scale",
+        ),
+        (
+            {
+                let mut value = settings.clone();
+                value.sky.stars.luminance = f32::NAN;
+                value
+            },
+            "stars.luminance",
+        ),
+        (
+            {
+                let mut value = settings.clone();
+                value.sky.clouds.clear_coverage = 0.8;
+                value.sky.clouds.overcast_coverage = 0.4;
+                value
+            },
+            "clouds.clear_coverage",
+        ),
+        (
+            {
+                let mut value = settings.clone();
+                value.sky.moon.size_scale = 0.0;
+                value
+            },
+            "moon.size_scale",
+        ),
+    ] {
+        let error = invalid.validate().expect_err("invalid sky tuning was accepted");
+        assert!(error.to_string().contains(field), "unexpected error: {error}");
+    }
+}
+
+#[test]
+fn lighting_controls_reject_invalid_ranges_and_allow_unquantized_shadows() {
+    let mut settings = test_fixtures::client_settings();
+    settings.lighting.shadow_step_degrees = 0.0;
+    settings
+        .validate()
+        .expect("zero shadow step should disable direction quantization");
+
+    settings.lighting.shadow_step_degrees = 180.0;
+    let error = settings.validate().expect_err("oversized shadow step was accepted");
+    assert!(error.to_string().contains("shadow_step_degrees"));
+
+    let mut settings = test_fixtures::client_settings();
+    settings.lighting.night_ambient_brightness = -0.1;
+    let error = settings.validate().expect_err("negative night ambient was accepted");
+    assert!(error.to_string().contains("night_ambient_brightness"));
+}
+
+#[test]
+fn removed_low_level_sky_settings_are_rejected() {
+    for (path, field) in [
+        (&["sky", "sun"][..], "angular_radius_degrees"),
+        (&["sky", "moon"][..], "crater_contrast"),
+        (&["sky", "stars"][..], "seed"),
+        (&["sky", "stars"][..], "twinkle"),
+        (&["sky", "clouds"][..], "scale"),
+        (&["lighting"][..], "night_saturation"),
+    ] {
+        let mut json: serde_json::Value =
+            serde_json::from_str(test_fixtures::SETTINGS_JSON).expect("client JSON is invalid");
+        let mut object = &mut json;
+        for segment in path {
+            object = &mut object[*segment];
+        }
+        object[field] = serde_json::json!(1.0);
+        let error = serde_json::from_value::<ClientSettings>(json).expect_err("removed sky setting was accepted");
+        assert!(error.to_string().contains(field), "unexpected error: {error}");
+    }
+}

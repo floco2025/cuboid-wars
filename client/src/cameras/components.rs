@@ -20,6 +20,6 @@ pub struct RearviewCameraMarker;
 #[derive(Component)]
 pub struct CompositorCameraMarker;
 
-// The layer a 3D camera's own sky disc renders on — one only that camera has.
+// The layer a 3D camera's own procedural sky renders on — one only that camera has.
 #[derive(Component)]
-pub struct SkyDiscRenderLayer(pub usize);
+pub struct SkyRenderLayer(pub usize);

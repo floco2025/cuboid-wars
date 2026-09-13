@@ -60,6 +60,7 @@ pub(super) fn route_client_message(
                 message,
                 &mut context.players,
                 &context.world,
+                &context.admin.celestial_clock,
                 &context.queries,
                 &context.quest_catalog,
                 &context.quest_board,
