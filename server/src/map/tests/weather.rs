@@ -23,6 +23,7 @@ fn initial_clear_duration_is_within_bounds() {
     };
     assert!((10.0..=20.0).contains(&remaining_secs));
     assert_eq!(state.intensity(), 0.0);
+    assert!(!state.is_raining());
 }
 
 #[test]
@@ -43,6 +44,7 @@ fn mode_rain_starts_raining_and_holds() {
     };
     assert!((5.0..=8.0).contains(&remaining_secs));
     assert_eq!(state.intensity(), 1.0);
+    assert!(state.is_raining());
 
     for _ in 0..100 {
         tick(&mut state, 30.0);
@@ -73,6 +75,8 @@ fn mode_auto_cycles_through_all_phases_with_bounded_durations() {
 
     tick(&mut state, 8.0);
     assert!(matches!(state.phase, WeatherPhase::FadeOut { .. }));
+    assert_eq!(state.intensity(), 1.0);
+    assert!(!state.is_raining(), "rain must stop as soon as fade-out begins");
     tick(&mut state, 2.0);
     assert!(state.intensity() > 0.0 && state.intensity() < 1.0);
 

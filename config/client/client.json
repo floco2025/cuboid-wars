@@ -44,17 +44,21 @@
     "day_brightness": 1.8,
     "twilight_brightness": 0.45,
     "night_brightness": 0.16,
-    "sun": { "size_scale": 2.0, "luminance": 45.0 },
-    "moon": { "size_scale": 2.5, "luminance": 7.0 },
-    "stars": { "density": 0.12, "luminance": 8.0 },
-    "clouds": { "clear_coverage": 0.18, "overcast_coverage": 0.96 }
+    "sun": { "size_scale": 3.0, "luminance": 60.0 },
+    "moon": { "size_scale": 3.0, "luminance": 5.0 },
+    "stars": { "density": 0.15, "luminance": 8.0 },
+    "clouds": {
+      "clear_coverage": 0.4,
+      "overcast_coverage": 0.9,
+      "movement_speed_degrees_per_second": 1.0
+    }
   },
   "lighting": {
-    "day_ambient_brightness": 70.0,
-    "twilight_ambient_brightness": 30.0,
-    "night_ambient_brightness": 15.0,
+    "day_ambient_brightness": 100.0,
+    "twilight_ambient_brightness": 40.0,
+    "night_ambient_brightness": 20.0,
     "max_sun_illuminance": 10000.0,
-    "max_full_moon_illuminance": 180.0,
+    "max_full_moon_illuminance": 200.0,
     "shadow_step_degrees": 0.08
   },
   "camera": {

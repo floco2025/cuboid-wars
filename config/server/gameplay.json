@@ -193,13 +193,10 @@
       "max_clear_secs": 240.0,
       "min_rain_secs": 60.0,
       "max_rain_secs": 120.0,
-      "ramp_in_secs": 5.0,
-      "fade_out_secs": 10.0
+      "ramp_in_secs": 30.0,
+      "fade_out_secs": 20.0
     },
-    "celestial": {
-      "day_duration_secs": 30.0,
-      "lunar_cycle_days": 8.0
-    }
+    "celestial": { "day_duration_secs": 600.0, "lunar_cycle_days": 8.0 }
   },
   "feed": {
     "player_joined": true,

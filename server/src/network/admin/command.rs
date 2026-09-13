@@ -1,7 +1,7 @@
-use common::celestial::{LocalTime, MoonPhase};
+use common::celestial::LocalTime;
 use common::constants::CONSOLE_COMMAND_MAX_CHARS;
 
-pub(super) const HELP_TEXT: &str = "/help\n/weather [rain|clear|auto]\n/time [HH:MM|auto]\n/moon [new|waxing_crescent|first_quarter|waxing_gibbous|full|waning_gibbous|third_quarter|waning_crescent]\n/god [on|off]\n/peace [on|off]\n/kill <name>|@a\n/killall [kind]\n/respawn [kind]\n/heal [name|@a]\n/give keys|key <color>\n/give powerups|powerup <type>\n/give missiles\n/firework\n/quest\n/quest <id> [name|@a]\n/kick <name>";
+pub(super) const HELP_TEXT: &str = "/help\n/weather [rain|clear|auto]\n/time [H:MM|auto]\n/moon [0-1]\n/god [on|off]\n/peace [on|off]\n/kill <name>|@a\n/killall [kind]\n/respawn [kind]\n/heal [name|@a]\n/give keys|key <color>\n/give powerups|powerup <type>\n/give missiles\n/firework\n/quest\n/quest <id> [name|@a]\n/kick <name>";
 
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum AdminCommand {
@@ -14,7 +14,7 @@ pub(super) enum AdminCommand {
     TimeAuto,
     TimeStatus,
     TimeUsage,
-    MoonSet(MoonPhase),
+    MoonSet(f32),
     MoonStatus,
     MoonUsage,
     God(Option<bool>),
@@ -64,7 +64,7 @@ pub(super) fn parse_admin_command(input: &str) -> AdminCommand {
         ["time", value] => LocalTime::parse(value).map_or(AdminCommand::TimeUsage, AdminCommand::TimeSeek),
         ["time", ..] => AdminCommand::TimeUsage,
         ["moon"] => AdminCommand::MoonStatus,
-        ["moon", value] => MoonPhase::from_name(value).map_or(AdminCommand::MoonUsage, AdminCommand::MoonSet),
+        ["moon", value] => parse_moon_fraction(value).map_or(AdminCommand::MoonUsage, AdminCommand::MoonSet),
         ["moon", ..] => AdminCommand::MoonUsage,
         ["god"] => AdminCommand::God(None),
         ["god", "on"] => AdminCommand::God(Some(true)),
@@ -96,6 +96,11 @@ pub(super) fn parse_admin_command(input: &str) -> AdminCommand {
         ["kick", name @ ..] => AdminCommand::Kick(name.join(" ")),
         _ => AdminCommand::Unknown,
     }
+}
+
+fn parse_moon_fraction(value: &str) -> Option<f32> {
+    let fraction = value.parse::<f32>().ok()?;
+    (fraction.is_finite() && (0.0..=1.0).contains(&fraction)).then_some(fraction)
 }
 
 #[cfg(test)]

@@ -14,7 +14,7 @@ use crate::{
     quests::{QuestBoard, QuestCatalog, complete_quest, unlock_quest},
 };
 use common::{
-    celestial::{CelestialClockAnchor, CelestialCycleSettings, LocalTime, MoonPhase},
+    celestial::{CelestialClockAnchor, CelestialCycleSettings, LocalTime},
     config::GameplayConfig,
     protocol::{
         BarrierKindId, Health, ItemType, PlayerId, PowerUpKind, QuestGroupProgress, QuestId, QuestScope, SPlayerStatus,
@@ -321,23 +321,23 @@ fn run_celestial_command(
     let outcome = match *command {
         AdminCommand::TimeSeek(time) => {
             clock.seek_time(time, tick, server_hz, cycle);
-            Public(format!("celestial time set to {} (held)", time.format()))
+            Public(format!("time set to {} (held)", time.format()))
         }
         AdminCommand::TimeAuto => {
             if clock.resume(tick, server_hz, cycle) {
-                Public("celestial clock resumed".to_owned())
+                Public("time resumed".to_owned())
             } else {
-                Private("celestial clock already running".to_owned())
+                Private("time already running".to_owned())
             }
         }
         AdminCommand::TimeStatus => Private(time_status(clock, tick, server_hz, cycle)),
-        AdminCommand::TimeUsage => Private("usage: /time [HH:MM|auto]".to_owned()),
-        AdminCommand::MoonSet(phase) => {
-            clock.set_moon_phase(phase, tick, server_hz, cycle);
-            Public(format!("moon phase set to {}", phase.name()))
+        AdminCommand::TimeUsage => Private("usage: /time [H:MM|auto]".to_owned()),
+        AdminCommand::MoonSet(fraction) => {
+            clock.set_moon_phase_fraction(fraction, tick, server_hz, cycle);
+            Public(format!("moon set to {:.3}", clock.lunar_phase_fraction))
         }
         AdminCommand::MoonStatus => Private(moon_status(clock, tick, server_hz, cycle)),
-        AdminCommand::MoonUsage => Private("usage: /moon [new|waxing_crescent|first_quarter|waxing_gibbous|full|waning_gibbous|third_quarter|waning_crescent]".to_owned()),
+        AdminCommand::MoonUsage => Private("usage: /moon [0-1]".to_owned()),
         _ => return None,
     };
     Some(outcome)
@@ -351,8 +351,7 @@ fn time_status(clock: &CelestialClockAnchor, tick: u32, server_hz: u32, cycle: C
 
 fn moon_status(clock: &CelestialClockAnchor, tick: u32, server_hz: u32, cycle: CelestialCycleSettings) -> String {
     let fraction = clock.at_tick(tick, server_hz, cycle).lunar_phase_fraction;
-    let phase = MoonPhase::nearest(fraction);
-    format!("moon: {} ({fraction:.3})", phase.name())
+    format!("moon: {fraction:.3}")
 }
 
 fn alive_players(players: &PlayerMap, name: Option<&str>) -> Vec<(PlayerId, Entity)> {

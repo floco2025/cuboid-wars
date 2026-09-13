@@ -14,10 +14,9 @@ enum WeatherPhase {
     FadeOut { remaining_secs: f32 },
 }
 
-// Server-scheduled weather for the loaded map. `intensity` is the single
-// authoritative scalar clients drive all rain presentation from; it ships
-// in every snapshot. With `auto` off the current state holds (the map's
-// concrete mode, or an admin override) until `/weather` changes it.
+// Server-scheduled weather for the loaded map. Cloud cover and whether rain
+// is falling ship in every snapshot. With `auto` off the current state holds
+// (the map's concrete mode, or an admin override) until `/weather` changes it.
 #[derive(Resource)]
 pub struct WeatherState {
     schedule: WeatherCycleConfig,
@@ -55,6 +54,11 @@ impl WeatherState {
     #[must_use]
     pub fn intensity(&self) -> f32 {
         self.intensity
+    }
+
+    #[must_use]
+    pub fn is_raining(&self) -> bool {
+        matches!(self.phase, WeatherPhase::Raining { .. })
     }
 
     #[must_use]

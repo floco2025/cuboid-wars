@@ -41,7 +41,7 @@ fn celestial_fixture() -> (CelestialClockAnchor, CelestialCycleSettings) {
         CelestialClockAnchor {
             anchor_tick: 100,
             solar_day_fraction: 0.5,
-            lunar_phase_fraction: MoonPhase::FirstQuarter.fraction(),
+            lunar_phase_fraction: 0.25,
             running: true,
         },
         CelestialCycleSettings {
@@ -60,7 +60,7 @@ fn celestial_status_commands_report_extrapolated_time_phase_and_run_state() {
     );
     assert_eq!(
         run_celestial_command(&AdminCommand::MoonStatus, &mut clock, 100, 30, cycle),
-        Some(AdminOutcome::Private("moon: first_quarter (0.250)".to_owned()))
+        Some(AdminOutcome::Private("moon: 0.250".to_owned()))
     );
 }
 
@@ -70,24 +70,24 @@ fn celestial_mutations_announce_publicly_and_preserve_held_state() {
     let time = LocalTime::parse("23:30").expect("valid fixture time");
     assert_eq!(
         run_celestial_command(&AdminCommand::TimeSeek(time), &mut clock, 130, 30, cycle),
-        Some(AdminOutcome::Public("celestial time set to 23:30 (held)".to_owned()))
+        Some(AdminOutcome::Public("time set to 23:30 (held)".to_owned()))
     );
     assert!(!clock.running);
 
     assert_eq!(
-        run_celestial_command(&AdminCommand::MoonSet(MoonPhase::Full), &mut clock, 160, 30, cycle,),
-        Some(AdminOutcome::Public("moon phase set to full".to_owned()))
+        run_celestial_command(&AdminCommand::MoonSet(0.5), &mut clock, 160, 30, cycle,),
+        Some(AdminOutcome::Public("moon set to 0.500".to_owned()))
     );
-    assert_eq!(clock.lunar_phase_fraction, MoonPhase::Full.fraction());
+    assert_eq!(clock.lunar_phase_fraction, 0.5);
     assert!(!clock.running, "rephasing a held clock must leave it held");
 
     assert_eq!(
         run_celestial_command(&AdminCommand::TimeAuto, &mut clock, 160, 30, cycle),
-        Some(AdminOutcome::Public("celestial clock resumed".to_owned()))
+        Some(AdminOutcome::Public("time resumed".to_owned()))
     );
     assert!(clock.running);
     assert_eq!(
         run_celestial_command(&AdminCommand::TimeAuto, &mut clock, 160, 30, cycle),
-        Some(AdminOutcome::Private("celestial clock already running".to_owned()))
+        Some(AdminOutcome::Private("time already running".to_owned()))
     );
 }

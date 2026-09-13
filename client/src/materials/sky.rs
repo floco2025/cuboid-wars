@@ -12,11 +12,11 @@ use crate::{
     config::SkyConfig,
     constants::{
         SKY_BRIGHT_STAR_FRACTION, SKY_CLOUD_COLOR, SKY_CLOUD_SCALE, SKY_DAY_HORIZON_COLOR, SKY_DAY_ZENITH_COLOR,
-        SKY_MOON_APPARENT_RADIUS_DEGREES, SKY_MOON_CRATER_CONTRAST, SKY_MOON_EARTHSHINE, SKY_MOON_HALO_LUMINANCE,
-        SKY_MOON_HALO_SIZE_DEGREES, SKY_NIGHT_HORIZON_COLOR, SKY_NIGHT_ZENITH_COLOR, SKY_OVERCAST_COLOR,
-        SKY_STAR_LUMINANCE_MAX_FACTOR, SKY_STAR_LUMINANCE_MIN_FACTOR, SKY_STAR_SEED, SKY_STAR_TWINKLE,
-        SKY_SUN_APPARENT_RADIUS_DEGREES, SKY_SUN_HALO_LUMINANCE, SKY_SUN_HALO_SIZE_DEGREES, SKY_SUNSET_COLOR,
-        SKY_TWILIGHT_HORIZON_COLOR, SKY_TWILIGHT_ZENITH_COLOR,
+        SKY_MOON_APPARENT_RADIUS_DEGREES, SKY_MOON_EARTHSHINE, SKY_MOON_HALO_LUMINANCE, SKY_MOON_HALO_SIZE_DEGREES,
+        SKY_NIGHT_HORIZON_COLOR, SKY_NIGHT_ZENITH_COLOR, SKY_OVERCAST_COLOR, SKY_STAR_LUMINANCE_MAX_FACTOR,
+        SKY_STAR_LUMINANCE_MIN_FACTOR, SKY_STAR_SEED, SKY_STAR_TWINKLE, SKY_SUN_APPARENT_RADIUS_DEGREES,
+        SKY_SUN_HALO_LUMINANCE, SKY_SUN_HALO_SIZE_DEGREES, SKY_SUNSET_COLOR, SKY_TWILIGHT_HORIZON_COLOR,
+        SKY_TWILIGHT_ZENITH_COLOR,
     },
 };
 
@@ -97,7 +97,7 @@ impl ProceduralSkyMaterial {
                 (SKY_MOON_APPARENT_RADIUS_DEGREES * config.moon.size_scale).to_radians(),
                 config.moon.luminance,
                 SKY_MOON_EARTHSHINE,
-                SKY_MOON_CRATER_CONTRAST,
+                0.0,
             ),
             moon_halo: Vec4::new(
                 SKY_MOON_HALO_SIZE_DEGREES.to_radians(),
@@ -116,7 +116,7 @@ impl ProceduralSkyMaterial {
                 config.clouds.clear_coverage,
                 config.clouds.overcast_coverage,
                 SKY_CLOUD_SCALE,
-                0.0,
+                config.clouds.movement_speed_degrees_per_second.to_radians(),
             ),
             cloud_color: color(SKY_CLOUD_COLOR, 0.0),
             overcast_color: color(SKY_OVERCAST_COLOR, 0.0),
@@ -193,5 +193,28 @@ mod tests {
             config.moon.size_scale > 1.0,
             "shipped moon should be creatively exaggerated"
         );
+    }
+
+    #[test]
+    fn moon_earthshine_is_only_a_faint_hint() {
+        let material = ProceduralSkyMaterial::from_config(test_fixtures::client_settings().sky);
+        assert!(material.moon.z <= 0.001);
+        assert_eq!(material.moon.w, 0.0);
+        let shader = include_str!("sky.wgsl");
+        assert!(!shader.contains("crater"));
+        assert!(!shader.contains("value_noise"));
+    }
+
+    #[test]
+    fn moving_clouds_restore_only_the_pre_cumulus_background_layer() {
+        let shader = include_str!("sky.wgsl");
+        assert!(shader.contains("camera_ray(in.position.xy)"));
+        assert!(shader.contains("fn sample_background_clouds(direction:"));
+        assert!(shader.contains("fn high_cloud_density(position:"));
+        assert!(shader.contains("let stretched = vec3("));
+        assert!(!shader.contains("low_cloud_density"));
+        assert!(!shader.contains("cloud_lobe"));
+        assert!(!shader.contains("cumulus_density"));
+        assert!(!shader.contains("in.world_position.xyz - view.world_position"));
     }
 }

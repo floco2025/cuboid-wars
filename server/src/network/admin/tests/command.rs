@@ -13,14 +13,25 @@ fn parses_every_command_form() {
         parse_admin_command("/time 09:30"),
         AdminCommand::TimeSeek(LocalTime::parse("09:30").expect("valid time"))
     );
+    assert_eq!(
+        parse_admin_command("/time 1:00"),
+        AdminCommand::TimeSeek(LocalTime::parse("01:00").expect("valid time"))
+    );
     assert_eq!(parse_admin_command("/time auto"), AdminCommand::TimeAuto);
     assert_eq!(parse_admin_command("/time noon"), AdminCommand::TimeUsage);
     assert_eq!(parse_admin_command("/moon"), AdminCommand::MoonStatus);
-    assert_eq!(
-        parse_admin_command("/moon first_quarter"),
-        AdminCommand::MoonSet(MoonPhase::FirstQuarter)
-    );
-    assert_eq!(parse_admin_command("/moon banana"), AdminCommand::MoonUsage);
+    assert_eq!(parse_admin_command("/moon 0.25"), AdminCommand::MoonSet(0.25));
+    assert_eq!(parse_admin_command("/moon 0"), AdminCommand::MoonSet(0.0));
+    assert_eq!(parse_admin_command("/moon 1"), AdminCommand::MoonSet(1.0));
+    for invalid in [
+        "/moon first_quarter",
+        "/moon banana",
+        "/moon -0.1",
+        "/moon 1.1",
+        "/moon NaN",
+    ] {
+        assert_eq!(parse_admin_command(invalid), AdminCommand::MoonUsage);
+    }
     for removed in ["/light", "/light bright", "/light auto", "/light dim dark 0.3"] {
         assert_eq!(parse_admin_command(removed), AdminCommand::Unknown);
     }

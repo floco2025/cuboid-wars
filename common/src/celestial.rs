@@ -23,71 +23,6 @@ pub enum Season {
     Winter,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum MoonPhase {
-    New,
-    WaxingCrescent,
-    FirstQuarter,
-    WaxingGibbous,
-    Full,
-    WaningGibbous,
-    ThirdQuarter,
-    WaningCrescent,
-}
-
-impl MoonPhase {
-    pub const ALL: [Self; 8] = [
-        Self::New,
-        Self::WaxingCrescent,
-        Self::FirstQuarter,
-        Self::WaxingGibbous,
-        Self::Full,
-        Self::WaningGibbous,
-        Self::ThirdQuarter,
-        Self::WaningCrescent,
-    ];
-
-    #[must_use]
-    pub const fn fraction(self) -> f32 {
-        match self {
-            Self::New => 0.0,
-            Self::WaxingCrescent => 0.125,
-            Self::FirstQuarter => 0.25,
-            Self::WaxingGibbous => 0.375,
-            Self::Full => 0.5,
-            Self::WaningGibbous => 0.625,
-            Self::ThirdQuarter => 0.75,
-            Self::WaningCrescent => 0.875,
-        }
-    }
-
-    #[must_use]
-    pub const fn name(self) -> &'static str {
-        match self {
-            Self::New => "new",
-            Self::WaxingCrescent => "waxing_crescent",
-            Self::FirstQuarter => "first_quarter",
-            Self::WaxingGibbous => "waxing_gibbous",
-            Self::Full => "full",
-            Self::WaningGibbous => "waning_gibbous",
-            Self::ThirdQuarter => "third_quarter",
-            Self::WaningCrescent => "waning_crescent",
-        }
-    }
-
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|phase| phase.name() == name)
-    }
-
-    #[must_use]
-    pub fn nearest(fraction: f32) -> Self {
-        let index = (fraction.rem_euclid(1.0) * 8.0).round() as usize % 8;
-        Self::ALL[index]
-    }
-}
-
 // Parsed from the map's HH:MM string and kept compact on the wire.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode)]
 pub struct LocalTime {
@@ -117,7 +52,11 @@ impl LocalTime {
     #[must_use]
     pub fn parse(value: &str) -> Option<Self> {
         let (hours, minutes) = value.split_once(':')?;
-        if hours.len() != 2 || minutes.len() != 2 {
+        if !(1..=2).contains(&hours.len())
+            || minutes.len() != 2
+            || !hours.bytes().all(|byte| byte.is_ascii_digit())
+            || !minutes.bytes().all(|byte| byte.is_ascii_digit())
+        {
             return None;
         }
         let hours = hours.parse::<u16>().ok()?;
@@ -146,7 +85,8 @@ impl<'de> Deserialize<'de> for LocalTime {
         D: serde::Deserializer<'de>,
     {
         let value = String::deserialize(deserializer)?;
-        Self::parse(&value).ok_or_else(|| serde::de::Error::custom("expected local time in HH:MM (00:00..23:59)"))
+        Self::parse(&value)
+            .ok_or_else(|| serde::de::Error::custom("expected local time in H:MM or HH:MM (0:00..23:59)"))
     }
 }
 
@@ -157,7 +97,7 @@ pub struct CelestialMapSettings {
     pub season: Season,
     pub north_yaw_degrees: f32,
     pub start_local_time: LocalTime,
-    pub start_moon_phase: MoonPhase,
+    pub start_moon_phase: f32,
 }
 
 impl CelestialMapSettings {
@@ -167,6 +107,9 @@ impl CelestialMapSettings {
         }
         if !self.north_yaw_degrees.is_finite() {
             bail!("{path}.north_yaw_degrees must be finite");
+        }
+        if !(self.start_moon_phase.is_finite() && (0.0..=1.0).contains(&self.start_moon_phase)) {
+            bail!("{path}.start_moon_phase must be finite and in [0, 1]");
         }
         Ok(())
     }
@@ -215,7 +158,7 @@ impl CelestialClockAnchor {
         Self {
             anchor_tick: tick,
             solar_day_fraction: map.start_local_time.day_fraction(),
-            lunar_phase_fraction: map.start_moon_phase.fraction(),
+            lunar_phase_fraction: map.start_moon_phase.rem_euclid(1.0),
             running: true,
         }
     }
@@ -266,11 +209,12 @@ impl CelestialClockAnchor {
         true
     }
 
-    pub fn set_moon_phase(&mut self, phase: MoonPhase, tick: u32, server_hz: u32, cycle: CelestialCycleSettings) {
+    pub fn set_moon_phase_fraction(&mut self, fraction: f32, tick: u32, server_hz: u32, cycle: CelestialCycleSettings) {
+        debug_assert!(fraction.is_finite());
         let current = self.at_tick(tick, server_hz, cycle);
         self.anchor_tick = tick;
         self.solar_day_fraction = current.solar_day_fraction;
-        self.lunar_phase_fraction = phase.fraction();
+        self.lunar_phase_fraction = fraction.rem_euclid(1.0);
     }
 }
 

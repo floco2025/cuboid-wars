@@ -111,15 +111,22 @@ fn rain_intensity_updates_keep_normalization_and_config_gain_without_reapplying_
         .init_resource::<GlobalVolume>()
         .add_systems(Update, rain_audio_system);
     for intensity in [0.25, 0.5, 1.0, 0.5, 0.0, 1.0] {
-        app.world_mut().resource_mut::<RainIntensity>().current = intensity;
+        {
+            let mut rain = app.world_mut().resource_mut::<RainIntensity>();
+            rain.target = intensity;
+            rain.current = intensity;
+            rain.raining = intensity >= 1.0;
+            rain.set_precipitation_for_test(intensity);
+        }
         app.update();
         let world = app.world_mut();
         let mut sounds = world.query::<&PlaybackSettings>();
-        if intensity == 0.0 {
+        let precipitation = intensity;
+        if precipitation < 0.01 {
             assert_eq!(sounds.iter(world).count(), 0);
         } else {
             let playback = sounds.single(world).expect("rain loop missing");
-            let expected = intensity * 0.5 * 10.0_f32.powf(-9.0 / 20.0);
+            let expected = precipitation * 0.5 * 10.0_f32.powf(-9.0 / 20.0);
             assert!((playback.volume.to_linear() - expected).abs() < 0.00001);
         }
     }

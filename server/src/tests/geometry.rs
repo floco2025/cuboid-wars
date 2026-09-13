@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use common::{
-    celestial::{CelestialMapSettings, LocalTime, MoonPhase, Season},
+    celestial::{CelestialMapSettings, LocalTime, Season},
     config::{KnockbackConfig, MapGeometryConfig, MapMovementConfig, PlayerMovementConfig},
     constants::BARRIER_THICKNESS_FRACTION,
     map::MapGeometry,
@@ -36,7 +36,7 @@ pub(crate) fn map_settings() -> MapSettings {
             season: Season::Summer,
             north_yaw_degrees: 0.0,
             start_local_time: LocalTime::parse("09:00").expect("valid fixture time"),
-            start_moon_phase: MoonPhase::FirstQuarter,
+            start_moon_phase: 0.25,
         },
         textures: Default::default(),
         geometry: sizes(),

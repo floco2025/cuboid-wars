@@ -18,9 +18,11 @@ impl CyclesConfig {
     }
 }
 
-// Cadence of the automatic rain cycle: random clear stretch, ramp in, a
-// random rain stretch at full intensity, fade out, repeat. Global — maps
-// opt in with `weather: "auto"`.
+// Cadence of the automatic rain cycle: random clear stretch, linear cloud
+// ramp, a random rainy stretch at full cover, linear cloud fade, repeat.
+// The separate client precipitation envelope starts only after ramp-in and
+// begins fading at the start of fade-out. Global — maps opt in with
+// `weather: "auto"`.
 #[derive(Debug, Clone, Deserialize)]
 pub struct WeatherCycleConfig {
     pub min_clear_secs: f32,

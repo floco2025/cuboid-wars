@@ -83,6 +83,9 @@ pub struct StarSkyConfig {
 pub struct CloudSkyConfig {
     pub clear_coverage: f32,
     pub overcast_coverage: f32,
+    // World-aligned angular drift per real second. The procedural growth
+    // cycle derives from the same rate.
+    pub movement_speed_degrees_per_second: f32,
 }
 
 impl LightingConfig {
@@ -132,6 +135,10 @@ impl SkyConfig {
         ] {
             validate_unit_ratio(value, &format!("sky.{name}"))?;
         }
+        validate_non_negative_finite(
+            self.clouds.movement_speed_degrees_per_second,
+            "sky.clouds.movement_speed_degrees_per_second",
+        )?;
         if self.clouds.clear_coverage > self.clouds.overcast_coverage {
             bail!("sky.clouds.clear_coverage must be <= sky.clouds.overcast_coverage");
         }

@@ -8,7 +8,7 @@
     "season": "summer",
     "north_yaw_degrees": 0.0,
     "start_local_time": "09:00",
-    "start_moon_phase": "first_quarter"
+    "start_moon_phase": 0.25
   },
   "geometry": {
     "grid_cell_size": 3.4,

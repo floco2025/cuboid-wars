@@ -210,7 +210,8 @@ fn hotel_sized_snapshot_takes_the_retransmitted_channel() {
         plates: PlateState::default(),
         quests: Vec::new(),
         locked_switches: Vec::new(),
-        rain_intensity: 0.0,
+        cloud_cover: 0.0,
+        raining: false,
         celestial_clock: crate::celestial::CelestialClockAnchor {
             anchor_tick: 1,
             solar_day_fraction: 0.5,

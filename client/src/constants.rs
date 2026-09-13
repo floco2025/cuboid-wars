@@ -43,10 +43,11 @@ pub const SKY_MOON_APPARENT_RADIUS_DEGREES: f32 = 0.259;
 pub const SKY_MAX_BODY_SIZE_SCALE: f32 = 20.0;
 pub const SKY_SUN_HALO_SIZE_DEGREES: f32 = 5.0;
 pub const SKY_SUN_HALO_LUMINANCE: f32 = 1.3;
-pub const SKY_MOON_EARTHSHINE: f32 = 0.09;
-pub const SKY_MOON_CRATER_CONTRAST: f32 = 0.32;
+// Only enough earthshine to hint at the unlit sphere against the darkest sky.
+// The phase must read from the sunlit surface, not a conspicuous grey disc.
+pub const SKY_MOON_EARTHSHINE: f32 = 0.0004;
 pub const SKY_MOON_HALO_SIZE_DEGREES: f32 = 3.5;
-pub const SKY_MOON_HALO_LUMINANCE: f32 = 0.3;
+pub const SKY_MOON_HALO_LUMINANCE: f32 = 0.2;
 
 // Star luminance spans this normalized range before the one JSON luminance
 // multiplier is applied.
@@ -56,15 +57,15 @@ pub const SKY_STAR_LUMINANCE_MAX_FACTOR: f32 = 1.0;
 pub const SKY_BRIGHT_STAR_FRACTION: f32 = 0.08;
 pub const SKY_STAR_TWINKLE: f32 = 0.08;
 
-pub const SKY_CLOUD_SCALE: f32 = 4.0;
+pub const SKY_CLOUD_SCALE: f32 = 1.45;
 pub const SKY_CLOUD_COLOR: [f32; 3] = [0.72, 0.77, 0.82];
 pub const SKY_OVERCAST_COLOR: [f32; 3] = [0.24, 0.29, 0.34];
 
 pub const SKY_DAY_SATURATION: f32 = 1.0;
 pub const SKY_TWILIGHT_SATURATION: f32 = 0.72;
 pub const SKY_NIGHT_SATURATION: f32 = 0.48;
-pub const SKY_RAIN_DIRECT_LIGHT: f32 = 0.22;
-pub const SKY_RAIN_AMBIENT_LIGHT: f32 = 0.8;
+pub const SKY_RAIN_DIRECT_LIGHT: f32 = 0.2;
+pub const SKY_RAIN_AMBIENT_LIGHT: f32 = 0.5;
 pub const SKY_CLEAR_FOG_RANGE: [f32; 2] = [100.0, 850.0];
 pub const SKY_RAIN_FOG_RANGE: [f32; 2] = [35.0, 280.0];
 
@@ -515,6 +516,8 @@ pub const WALL_LIGHT_FLICKER_DEPTH: f32 = 0.65; // max fraction of brightness lo
 // How far above the camera drops spawn (m).
 pub const RAIN_SPAWN_HEIGHT: f32 = 10.0;
 pub const RAIN_FALL_SPEED: f32 = 14.0;
+pub const RAIN_RAMP_IN_SECS: f32 = 2.0;
+pub const RAIN_RAMP_OUT_SECS: f32 = 2.0;
 pub const RAIN_DROP_COLOR: Color = Color::srgb(0.55, 0.6, 0.7);
 // Splash on impact: droplet color (slightly brighter than the drops so
 // impacts sparkle), droplet size, horizontal scatter (m), and bounce height

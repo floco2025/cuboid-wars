@@ -1,6 +1,6 @@
 use crate::constants::{
-    RAIN_DROP_COLOR, RAIN_FALL_SPEED, RAIN_SPAWN_HEIGHT, RAIN_SPLASH_COLOR, RAIN_SPLASH_HEIGHT, RAIN_SPLASH_RADIUS,
-    RAIN_SPLASH_SIZE,
+    RAIN_DROP_COLOR, RAIN_FALL_SPEED, RAIN_RAMP_IN_SECS, RAIN_RAMP_OUT_SECS, RAIN_SPAWN_HEIGHT, RAIN_SPLASH_COLOR,
+    RAIN_SPLASH_HEIGHT, RAIN_SPLASH_RADIUS, RAIN_SPLASH_SIZE,
 };
 use bevy::{
     audio::{GlobalVolume, Volume},
@@ -58,19 +58,53 @@ pub struct PendingSplash {
 }
 // Below this the rain is inaudible/invisible and the loop entity is torn down.
 const RAIN_EPSILON: f32 = 0.01;
-
-// Authoritative rain intensity from the snapshot (`target`), smoothed
-// locally (`current`) — every rain visual and the loop volume read `current`.
+// Authoritative linear cloud cover from the snapshot (`target`), smoothed
+// locally (`current`) only to hide network steps. `raining` is separate so
+// the short precipitation envelope starts after cloud ramp-in and begins
+// fading at the exact start of cloud fade-out.
 #[derive(Resource, Default)]
 pub struct RainIntensity {
     pub target: f32,
     pub current: f32,
+    pub raining: bool,
+    precipitation: f32,
+}
+
+impl RainIntensity {
+    #[must_use]
+    pub fn cloud_cover(&self) -> f32 {
+        self.current.clamp(0.0, 1.0)
+    }
+
+    #[must_use]
+    pub fn precipitation(&self) -> f32 {
+        self.precipitation
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_precipitation_for_test(&mut self, precipitation: f32) {
+        self.precipitation = precipitation;
+    }
+}
+
+fn step_precipitation(current: f32, raining: bool, delta_secs: f32) -> f32 {
+    let target = f32::from(raining);
+    let duration = if raining { RAIN_RAMP_IN_SECS } else { RAIN_RAMP_OUT_SECS };
+    let max_step = delta_secs.max(0.0) / duration;
+    current + (target - current).clamp(-max_step, max_step)
 }
 
 pub fn rain_smoothing_system(time: Res<Time>, mut rain: ResMut<RainIntensity>) {
     let target = rain.target;
-    rain.current
-        .smooth_nudge(&target, 1.0 / SMOOTHING_TAU_SECS, time.delta_secs());
+    if target >= 1.0 {
+        // The endpoint is also the rain-on transition, so reach it exactly
+        // rather than waiting for an exponential approach to converge.
+        rain.current = 1.0;
+    } else {
+        rain.current
+            .smooth_nudge(&target, 1.0 / SMOOTHING_TAU_SECS, time.delta_secs());
+    }
+    rain.precipitation = step_precipitation(rain.precipitation, rain.raining, time.delta_secs());
 }
 
 // Emit falling drops in a disc around the camera, only in columns open to
@@ -89,14 +123,15 @@ pub fn rain_particles_system(
 ) {
     let now = time.elapsed_secs();
     let mut rng = rng();
+    let precipitation = rain.precipitation();
 
-    if rain.current >= RAIN_EPSILON
+    if precipitation >= RAIN_EPSILON
         && let Ok(camera) = camera.single()
     {
         let weather = &client_settings.weather;
         let count = take_emissions(
             &mut credit,
-            weather.rain_drops_per_second * rain.current,
+            weather.rain_drops_per_second * precipitation,
             time.delta_secs(),
             MAX_DROPS_PER_FRAME,
         );
@@ -229,8 +264,8 @@ fn spawn_splash(splashes: &mut ParticleCloud, rng: &mut ThreadRng, position: Vec
 }
 
 // One global (non-spatial) looping rain sound while it rains; its volume
-// tracks the smoothed intensity, so the server's fade envelope is the
-// audio fade. Dropping the entity drops the sink and stops the loop.
+// tracks staged precipitation, so it starts after cloud cover and ends before
+// the clouds disperse. Dropping the entity drops the sink and stops the loop.
 pub fn rain_audio_system(
     mut commands: Commands,
     rain: Res<RainIntensity>,
@@ -241,14 +276,15 @@ pub fn rain_audio_system(
     global_volume: Res<GlobalVolume>,
     mut sounds: Query<(&NormalizationGain, &mut PlaybackSettings, Option<&mut AudioSink>)>,
 ) {
-    let raining = rain.current >= RAIN_EPSILON;
+    let precipitation = rain.precipitation();
+    let raining = precipitation >= RAIN_EPSILON;
     match *loop_entity {
         None if raining => {
             let entity = play_sound_with(
                 &mut commands,
                 &asset_server,
                 asset_set.player_sound("rain"),
-                PlaybackSettings::LOOP.with_volume(Volume::Linear(rain.current * client_settings.audio.rain_volume)),
+                PlaybackSettings::LOOP.with_volume(Volume::Linear(precipitation * client_settings.audio.rain_volume)),
             );
             *loop_entity = Some(entity);
         }
@@ -260,7 +296,7 @@ pub fn rain_audio_system(
             if let Ok((gain, mut playback, sink)) = sounds.get_mut(entity) {
                 // Runs after `apply_global_volume_system` (ordered before
                 // `ClientSet::Sky`), so this per-frame write wins its push.
-                playback.volume = Volume::Linear(rain.current * client_settings.audio.rain_volume)
+                playback.volume = Volume::Linear(precipitation * client_settings.audio.rain_volume)
                     * Volume::Decibels(asset_set.player_sound("rain").volume_db)
                     * gain.0;
                 if let Some(mut sink) = sink {
@@ -269,5 +305,63 @@ pub fn rain_audio_system(
             }
         }
         None => {}
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cloud_cover_and_precipitation_ramps_are_sequenced_independently() {
+        let early = RainIntensity {
+            target: 0.2,
+            current: 0.2,
+            raining: false,
+            precipitation: 0.0,
+        };
+        assert_eq!(early.cloud_cover(), 0.2);
+        assert_eq!(early.precipitation(), 0.0);
+
+        let starting = RainIntensity {
+            target: 0.4,
+            current: 0.4,
+            raining: false,
+            precipitation: 0.0,
+        };
+        assert_eq!(starting.cloud_cover(), 0.4);
+        assert_eq!(starting.precipitation(), 0.0);
+
+        let nearly_covered = RainIntensity {
+            target: 0.999,
+            current: 0.999,
+            raining: false,
+            precipitation: 0.0,
+        };
+        assert_eq!(nearly_covered.cloud_cover(), 0.999);
+        assert_eq!(nearly_covered.precipitation(), 0.0);
+
+        let storm = RainIntensity {
+            target: 1.0,
+            current: 1.0,
+            raining: true,
+            precipitation: 1.0,
+        };
+        assert_eq!(storm.cloud_cover(), 1.0);
+        assert_eq!(storm.precipitation(), 1.0);
+
+        let clearing = RainIntensity {
+            target: 1.0,
+            current: 1.0,
+            raining: false,
+            precipitation: 1.0,
+        };
+        assert_eq!(clearing.cloud_cover(), 1.0);
+        assert_eq!(clearing.precipitation(), 1.0);
+
+        assert_eq!(step_precipitation(0.0, true, 0.5), 0.25);
+        assert_eq!(step_precipitation(0.75, true, 0.5), 1.0);
+        assert_eq!(step_precipitation(1.0, false, 0.5), 0.75);
+        assert_eq!(step_precipitation(0.25, false, 0.5), 0.0);
     }
 }

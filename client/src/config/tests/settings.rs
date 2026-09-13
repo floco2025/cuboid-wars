@@ -116,6 +116,14 @@ fn sky_controls_reject_invalid_ranges_and_allow_zero_luminance() {
             },
             "moon.size_scale",
         ),
+        (
+            {
+                let mut value = settings.clone();
+                value.sky.clouds.movement_speed_degrees_per_second = f32::INFINITY;
+                value
+            },
+            "clouds.movement_speed_degrees_per_second",
+        ),
     ] {
         let error = invalid.validate().expect_err("invalid sky tuning was accepted");
         assert!(error.to_string().contains(field), "unexpected error: {error}");

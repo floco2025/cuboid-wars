@@ -415,10 +415,14 @@ pub struct SSnapshot {
     // solves a quest are inert and hidden until that quest unlocks. Sorted,
     // usually empty.
     pub locked_switches: Vec<SwitchId>,
-    // Weather from 0.0 (clear) to 1.0 (full rain). Repeated snapshots keep
-    // late joiners and clients that missed updates in sync. Clients smooth
-    // the changes when rendering rain.
-    pub rain_intensity: f32,
+    // Linear cloud cover from 0.0 (clear) to 1.0 (overcast). Repeated
+    // snapshots keep late joiners and repair missed updates; clients smooth
+    // intermediate cover values for rendering.
+    pub cloud_cover: f32,
+    // Separate from cover so the client's short precipitation ramp begins
+    // only after cloud ramp-in and starts fading at the exact beginning of
+    // cloud fade-out, when cover is still 1.0.
+    pub raining: bool,
     // Repeated for late joining and repair after an administrative seek.
     pub celestial_clock: crate::celestial::CelestialClockAnchor,
     // Placed portal ends, sorted by pair and end. This list supplies portals

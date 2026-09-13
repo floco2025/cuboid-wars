@@ -12,7 +12,7 @@ use super::{
 };
 use crate::test_geometry::sizes;
 use common::{
-    celestial::{CelestialMapSettings, LocalTime, MoonPhase, Season},
+    celestial::{CelestialMapSettings, LocalTime, Season},
     config::{ActorMovementConfig, KnockbackConfig, MapMovementConfig, PlayerMovementConfig},
     protocol::{HexColor, KindDef, MapSettings, PortalMode},
 };
@@ -72,7 +72,7 @@ fn ok_map_entry() -> MapServerConfig {
                 season: Season::Summer,
                 north_yaw_degrees: 0.0,
                 start_local_time: LocalTime::parse("09:00").expect("valid fixture time"),
-                start_moon_phase: MoonPhase::FirstQuarter,
+                start_moon_phase: 0.25,
             },
             textures: Default::default(),
 
@@ -174,7 +174,7 @@ fn parse_map_entry(portals: &str, weather: Option<&str>) -> Result<MapServerConf
             "season": "summer",
             "north_yaw_degrees": 0.0,
             "start_local_time": "09:00",
-            "start_moon_phase": "first_quarter"
+            "start_moon_phase": 0.25
         },
         "textures": {},
         "geometry": { "grid_cell_size": 3.4, "level_height": 4.4, "floor_thickness": 0.4, "wall_thickness": 0.3 },

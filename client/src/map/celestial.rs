@@ -223,7 +223,7 @@ pub fn celestial_sky_system(
         *cycle,
     );
     let directions = celestial_directions(map.celestial, celestial_time);
-    let rain = rain.current.clamp(0.0, 1.0);
+    let rain = rain.cloud_cover();
 
     if let Some(mut material) = render.sky_materials.get_mut(&sky_assets.material) {
         material.sun_direction = directions.sun.extend(0.0);
