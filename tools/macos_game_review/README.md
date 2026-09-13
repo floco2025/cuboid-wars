@@ -4,17 +4,25 @@ This is the repeatable setup for controlling and inspecting Cuboid Wars on
 macOS. Keep captures and review apps in `/tmp`; screenshots can contain local
 HUD or desktop information and do not belong in the repository.
 
-Use the installed computer-use skill for desktop actions. The examples below
-use its `node_repl` and `@oai/sky` interface. Follow that skill's permission and
-tool rules; shell commands here prepare files and inspect logs. Keep only one
-game window open, and close only the review instance you launched.
+Use Peekaboo for desktop actions. Keep only one game window open, and close
+only the review instance you launched. If Peekaboo is unavailable, use the
+installed computer-use skill and follow its tool rules; its key taps do not
+support timed movement holds.
 
 ## Prerequisites
 
 Use the project's existing Rust and Python installations. The launcher uses
-only Python's standard library. Desktop control needs Accessibility and Screen
-Recording access for the controlling app; if either is missing, have the user
-enable it in System Settings > Privacy & Security.
+only Python's standard library. Install the optional review tool with:
+
+```sh
+brew install openclaw/tap/peekaboo
+peekaboo permissions status
+```
+
+Have the user enable any missing permissions in System Settings > Privacy &
+Security. Screen Recording, Accessibility, and Event Synthesizing were granted
+for the verified setup. Run desktop commands outside an agent's filesystem
+sandbox using its normal approval mechanism.
 
 ## Launch and focus
 
@@ -36,68 +44,76 @@ To replace the game arguments, pass them after `--`:
 python3 tools/macos_game_review/prepare_app.py -- --map obby --god --peace --name Reviewer
 ```
 
-Copy the printed `app` path into `reviewApp` in `node_repl`:
+Copy the printed `app` and `bundle_id` into these variables:
 
-```js
-var sky = (await import('@oai/sky')).sky;
-var reviewApp = '/tmp/cuboid-macos-review-REPLACE/Cuboid Review.app';
-var state = await sky.get_app_state({ app: reviewApp });
-nodeRepl.write(state.text);
+```sh
+review_app='/tmp/cuboid-macos-review-REPLACE/Cuboid Review.app'
+review_bundle='local.cuboid.review.REPLACE'
+peekaboo app launch "$review_app" --foreground --wait-for-window --json
+peekaboo window list --app "$review_bundle" --json
 ```
 
-`get_app_state` launches the app if needed. A first build can take longer than
-the tool's startup wait; inspect the printed log path and retry the same app
-after Cargo finishes, without launching another instance. If targeting by
-name fails, use the printed bundle identifier.
+A first build can take longer than the startup wait; inspect the printed log
+path and list windows again after Cargo finishes, without launching another
+instance. Copy the `Cuboid Wars` window ID into `review_window` below; window
+IDs change on each launch. Target that window and bundle in every command.
 
-Read the current accessibility tree and raise the `Cuboid Wars` window using
-its current `Raise` action. Fetch state again afterward. The game captures and
-recentres the pointer on focus; a background window cannot validate mouse-look.
+```sh
+review_window=12345
+```
+
+Replace `12345` with the actual ID. Input commands use `--foreground` to focus
+the game. It captures and recentres the pointer on focus; a background window
+cannot validate mouse-look.
 
 ## Send input
 
-Use short actions, then inspect the resulting state. For example, V cycles
-debug views, F toggles facing lock, and scrolling changes follow/debug zoom:
+Capture a baseline first using the next section. Send one short action, then
+capture and inspect again before choosing another. These examples walk forward
+for two seconds, cycle debug views, and zoom out:
 
-```js
-await sky.press_key({ app: reviewApp, key: 'v' });
-nodeRepl.write((await sky.get_app_state({ app: reviewApp })).text);
+```sh
+peekaboo press w --hold 2s --app "$review_bundle" --window-id "$review_window" --foreground
+peekaboo press v --app "$review_bundle" --window-id "$review_window" --foreground
+peekaboo scroll --direction down --amount 4 --app "$review_bundle" --window-id "$review_window" --foreground
 ```
 
-For scrolling, pass `x` and `y` inside the game window using the desktop tool's
-coordinates. Do not derive them from the rendered image's pixel dimensions.
-Keep the game focused and verify that the camera actually changed.
+`press --hold` releases the key at the end. F toggles facing lock. Close the
+console and settings menu before movement tests. A successful dispatch does
+not prove that the game handled the input; verify the pixels.
 
-`press_key` is a tap, not a timed hold. Do not treat repeated taps as a walking
-test or assume a drag generates captured relative mouse motion. If the desktop
-tool cannot perform the required movement, have the user move to the review
-position, or use a temporary fixed-camera example for a static comparison.
-Label static measurements accordingly; they do not test movement or distance
-transitions.
+With Peekaboo 4.3.4, timed W movement, release, wheel zoom, console typing, and
+Retina screenshots were verified in-game. `move` did not change captured
+mouse-look, with either bridge or `--no-remote` delivery. Its window-relative
+coordinates are cursor destinations, not relative motion deltas. Have the user
+orient the camera when needed, or use a temporary fixed-camera example for a
+static comparison. Label static measurements accordingly.
 
-Open the console with Return or `/`, verify it is visible, then type
-`/weather clear`, `/weather rain`, or `/light bright|dim|dark` as needed. If `/`
-already inserted the slash, enter only the remainder. Verify the command's
-reply before capturing; a key event alone does not prove the console opened.
+Open the console with Return, capture to verify its prompt, then type:
+
+```sh
+peekaboo press Return --app "$review_bundle" --window-id "$review_window" --foreground
+peekaboo type '/weather rain' --delay 30ms --app "$review_bundle" --window-id "$review_window" --foreground
+```
+
+`type` can return an error after successfully entering the text. The console
+has no Accessibility text value to inspect, so check the screenshot before
+retrying. Once the text is correct, press Return again and verify the reply.
+Use `/weather clear` or `/light bright|dim|dark` for other conditions.
 
 ## Capture and inspect
 
-Capture through the desktop tool and preserve its original PNG:
+Capture the exact game window and inspect the saved PNG:
 
-```js
-var state = await sky.get_app_state({ app: reviewApp });
-nodeRepl.write(state.text);
-if (!state.screenshot) throw new Error('Game screenshot missing');
-var fs = await import('node:fs/promises');
-var shot = (await import('node:url')).fileURLToPath(state.screenshot.url);
-await fs.copyFile(shot, '/tmp/cuboid-wars-clear.png');
-await nodeRepl.emitImage({ bytes: await fs.readFile(shot), mimeType: 'image/png' });
+```sh
+peekaboo see --app "$review_bundle" --window-id "$review_window" \
+  --no-elements --retina --path /tmp/cuboid-wars-clear.png --json
 ```
 
+`--retina` preserves native pixels; without it the capture uses logical points.
 Use distinct filenames for each state. The game's pixels are not exposed as
 accessibility text, so inspect the image even when the window tree is unchanged.
-If the tool reports that the user changed the app, fetch fresh state before
-sending another action.
+Capture fresh state after the user interacts with the app before sending input.
 
 For grounds work, check walking height, nearby detail, grass/tree distance
 fades during movement, clear daylight, rain, and night. When renderer behavior
@@ -120,12 +136,17 @@ conditions, and compare against a baseline on that machine.
 
 ## Cleanup
 
-Fetch fresh state and quit the review app with `super+q`, or use its window's
-close button. Confirm it has stopped using the process/app list, allowing time
-for shutdown; `get_app_state` would launch it again. Copy the printed
-`settings_backup` back to `config/client/client_local.json`; if it was `null`,
-remove the local settings file created by this review instead. Restore any
-temporary renderer/source changes as well, preserving unrelated edits.
+Quit the review app and confirm its window and process have disappeared:
+
+```sh
+peekaboo press cmd+q --app "$review_bundle" --window-id "$review_window" --foreground
+peekaboo window list --app "$review_bundle" --json
+```
+
+Allow time for shutdown; `APP_NOT_FOUND` is expected after it exits. Copy the
+printed `settings_backup` back to `config/client/client_local.json`; if it was
+`null`, remove the local settings file created by this review instead. Restore
+any temporary renderer/source changes as well, preserving unrelated edits.
 
 Remove temporary examples from the checkout, and finish with `git status --short`
 and `git diff --check`. Screenshots, app bundles, and logs stay outside the repo.
