@@ -10,7 +10,7 @@
 
 ## Enhancements
 
-- **Terrain floor tiles:** add a procedural floor kind with a height map, reusing the exterior ground material. Keep regular floor behaviour, join neighbouring edges, and use the same surface for rendering and collision; include map editor support.
+- **Terrain floor tiles:** once the exterior ground looks right, add a procedural floor kind with a height map, reusing the exterior ground material. Keep regular floor behaviour, join neighbouring edges, and use the same surface for rendering and collision; include map editor support. Treat this as a separate step from refining the exterior.
 
 - **Hotel re-entry:** provide a route back into the building from the surrounding grounds without requiring low gravity or portals.
 
@@ -27,6 +27,8 @@
 - **Rapier upgrades:** Recheck the capsule floor-motion regression before removing the contact-normal adapter in `common/src/physics/world/character_queries.rs`. It works around imprecise cast normals feeding Rapier’s slope decomposition; `running_across_flat_floor_tiles_keeps_its_speed` still fails without it on 0.35.
 
 ## Testing
+
+- **Hotel grounds on Linux:** continue by reviewing and refining the existing trees and meadow/soil ground, preserving FPS. Check walking-height detail, texture shimmer, and grass/tree distance fades while moving, including rain and night. See `AGENTS.md` for implementation pointers and the texture READMEs for generation prompts. Mac reference: about 106 FPS at 2400×1600 in a fixed clear-weather outdoor view on an M3 Max; forward and deferred rendering checked, 1,488 workspace tests passed, and Clippy clean. Measure Linux performance locally; the Mac result is only a reference.
 
 - **Actor movement sound mix:** Check the tank engine/background balance and speed-driven pitch in-game while moving, turning, stopping, climbing, and hovering. Tune the Enemy movement slider and `assets.json::actors.movement_volume_db` / `sfx_volume_db` against weapons and footsteps.
 
