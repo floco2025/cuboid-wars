@@ -9,7 +9,7 @@ use crate::constants::{
     CAMERA_FOV_DEGREES_DEFAULT, CAMERA_REARVIEW_MIRROR_DEFAULT, CAMERA_SHAKE_SCALE_DEFAULT,
     HUD_SHOW_DIAGNOSTICS_DEFAULT, INPUT_INVERT_Y_DEFAULT, INPUT_MOUSE_SENSITIVITY_DEFAULT,
     INPUT_ZOOM_SENSITIVITY_DEFAULT, RENDERING_FULLSCREEN_RESOLUTION_DEFAULT, RENDERING_MSAA_SAMPLES_DEFAULT,
-    RENDERING_PORTAL_VIEW_BUDGET_DEFAULT, RENDERING_VSYNC_DEFAULT,
+    RENDERING_PORTAL_VIEW_BUDGET_DEFAULT, RENDERING_VSYNC_DEFAULT, SKY_MAX_BODY_SIZE_SCALE,
 };
 
 use super::{
@@ -30,64 +30,111 @@ pub struct ClientSettings {
     pub vfx: VfxConfig,
     pub audio: AudioConfig,
     pub weather: WeatherConfig,
+    pub sky: SkyConfig,
     pub lighting: LightingConfig,
 }
 
-// One entry per server lighting level (`/light bright|dim|dark`).
-// Decoupled from weather — rain does not dim the world.
 #[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct LightingConfig {
-    pub bright: SunLighting,
-    pub dim: MoonLighting,
-    pub dark: MoonLighting,
+    pub day_ambient_brightness: f32,
+    pub twilight_ambient_brightness: f32,
+    pub night_ambient_brightness: f32,
+    pub max_sun_illuminance: f32,
+    pub max_full_moon_illuminance: f32,
+    pub shadow_step_degrees: f32,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
-pub struct SunLighting {
-    // `Skybox::brightness` (same scale as the per-skybox `brightness` in
-    // `assets.json`; the shipped sky's full value is 1000).
-    pub sky_brightness: f32,
-    // `DirectionalLight::illuminance` (lux) and `AmbientLight::brightness`.
-    pub sun_illuminance: f32,
-    pub ambient_brightness: f32,
-    // Post-tonemap saturation; 1.0 = unchanged.
-    pub saturation: f32,
+#[serde(deny_unknown_fields)]
+pub struct SkyConfig {
+    pub day_brightness: f32,
+    pub twilight_brightness: f32,
+    pub night_brightness: f32,
+    pub sun: SunSkyConfig,
+    pub moon: MoonSkyConfig,
+    pub stars: StarSkyConfig,
+    pub clouds: CloudSkyConfig,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
-pub struct MoonLighting {
-    pub sky_brightness: f32,
-    // `DirectionalLight::illuminance` (lux) and `AmbientLight::brightness`.
-    pub moon_illuminance: f32,
-    pub ambient_brightness: f32,
-    pub saturation: f32,
+#[serde(deny_unknown_fields)]
+pub struct SunSkyConfig {
+    pub size_scale: f32,
+    pub luminance: f32,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MoonSkyConfig {
+    pub size_scale: f32,
+    pub luminance: f32,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct StarSkyConfig {
+    pub density: f32,
+    pub luminance: f32,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CloudSkyConfig {
+    pub clear_coverage: f32,
+    pub overcast_coverage: f32,
 }
 
 impl LightingConfig {
     fn validate(&self) -> Result<()> {
-        self.bright.validate("lighting.bright")?;
-        self.dim.validate("lighting.dim")?;
-        self.dark.validate("lighting.dark")?;
+        for (name, value) in [
+            ("day_ambient_brightness", self.day_ambient_brightness),
+            ("twilight_ambient_brightness", self.twilight_ambient_brightness),
+            ("night_ambient_brightness", self.night_ambient_brightness),
+            ("max_sun_illuminance", self.max_sun_illuminance),
+            ("max_full_moon_illuminance", self.max_full_moon_illuminance),
+            ("shadow_step_degrees", self.shadow_step_degrees),
+        ] {
+            validate_non_negative_finite(value, &format!("lighting.{name}"))?;
+        }
+        if self.shadow_step_degrees >= 180.0 {
+            bail!("lighting.shadow_step_degrees must be less than 180");
+        }
         Ok(())
     }
 }
 
-impl SunLighting {
-    fn validate(&self, name: &str) -> Result<()> {
-        validate_non_negative_finite(self.sky_brightness, &format!("{name}.sky_brightness"))?;
-        validate_non_negative_finite(self.sun_illuminance, &format!("{name}.sun_illuminance"))?;
-        validate_non_negative_finite(self.ambient_brightness, &format!("{name}.ambient_brightness"))?;
-        validate_unit_ratio(self.saturation, &format!("{name}.saturation"))?;
-        Ok(())
-    }
-}
-
-impl MoonLighting {
-    fn validate(&self, name: &str) -> Result<()> {
-        validate_non_negative_finite(self.sky_brightness, &format!("{name}.sky_brightness"))?;
-        validate_non_negative_finite(self.moon_illuminance, &format!("{name}.moon_illuminance"))?;
-        validate_non_negative_finite(self.ambient_brightness, &format!("{name}.ambient_brightness"))?;
-        validate_unit_ratio(self.saturation, &format!("{name}.saturation"))?;
+impl SkyConfig {
+    fn validate(&self) -> Result<()> {
+        for (name, value) in [
+            ("day_brightness", self.day_brightness),
+            ("twilight_brightness", self.twilight_brightness),
+            ("night_brightness", self.night_brightness),
+            ("sun.luminance", self.sun.luminance),
+            ("moon.luminance", self.moon.luminance),
+            ("stars.luminance", self.stars.luminance),
+        ] {
+            validate_non_negative_finite(value, &format!("sky.{name}"))?;
+        }
+        for (name, value) in [
+            ("sun.size_scale", self.sun.size_scale),
+            ("moon.size_scale", self.moon.size_scale),
+        ] {
+            validate_positive_finite(value, &format!("sky.{name}"))?;
+            if value > SKY_MAX_BODY_SIZE_SCALE {
+                bail!("sky.{name} must be <= {SKY_MAX_BODY_SIZE_SCALE}");
+            }
+        }
+        for (name, value) in [
+            ("stars.density", self.stars.density),
+            ("clouds.clear_coverage", self.clouds.clear_coverage),
+            ("clouds.overcast_coverage", self.clouds.overcast_coverage),
+        ] {
+            validate_unit_ratio(value, &format!("sky.{name}"))?;
+        }
+        if self.clouds.clear_coverage > self.clouds.overcast_coverage {
+            bail!("sky.clouds.clear_coverage must be <= sky.clouds.overcast_coverage");
+        }
         Ok(())
     }
 }
@@ -189,6 +236,7 @@ impl ClientSettings {
         self.vfx.validate()?;
         self.audio.validate()?;
         self.weather.validate()?;
+        self.sky.validate()?;
         self.lighting.validate()?;
         Ok(())
     }

@@ -9,7 +9,7 @@ mod third_person;
 mod visibility;
 
 pub use aim::camera_aim_system;
-pub use components::{CompositorCameraMarker, MainCameraMarker, RearviewCameraMarker, SkyDiscRenderLayer};
+pub use components::{CompositorCameraMarker, MainCameraMarker, RearviewCameraMarker, SkyRenderLayer};
 pub(crate) use components::{
     RENDER_LAYER_CHARACTER_LABEL, RENDER_LAYER_LOCAL_PLAYER, RENDER_LAYER_MAIN_VIEW, RENDER_LAYER_PORTAL_VIEW_START,
     RENDER_LAYER_REARVIEW,

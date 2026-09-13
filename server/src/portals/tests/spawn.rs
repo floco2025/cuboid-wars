@@ -2,7 +2,7 @@ use crate::config::fixtures;
 use std::time::Duration;
 
 use bevy::{ecs::system::SystemState, prelude::*};
-use common::{map::Carriers, physics::CollisionWorld, protocol::*};
+use common::{celestial::CelestialClockAnchor, map::Carriers, physics::CollisionWorld, protocol::*};
 use crossbeam_channel::{Receiver, unbounded};
 
 use super::{PortalAssignments, PortalMap, handle_portal_shot_message};
@@ -57,14 +57,16 @@ impl Fixture {
         world.insert_resource(MapConfig::for_grid(Vec::new(), geometry(1, 1)));
         world.insert_resource(WorldBootstrap {
             network: Default::default(),
+            celestial: config.cycles.celestial,
             gameplay: config.gameplay_bootstrap(),
             map: MapBootstrap {
                 missile_air_grids: Vec::new(),
                 layout,
-                settings,
+                settings: settings.clone(),
                 items: MapItems(Vec::new()),
             },
         });
+        world.insert_resource(CelestialClockAnchor::initial(&settings.celestial, 0));
         world.insert_resource(config);
         world.init_resource::<ServerTick>();
         world.init_resource::<PlateState>();

@@ -65,37 +65,24 @@ pub fn map_plugin(app: &mut App) {
     );
 }
 
-// Skybox setup, asset conversion, camera following, and ambient
-// drift. Setup waits for `MapSettings` (from `SInit`) because the map
-// decides which skybox to build; each setup system latches internally
-// so it runs once. Rain smoothing lives here too — the `Sky` set runs
+// The procedural celestial sky follows every scene camera while remaining
+// world-aligned. Rain smoothing lives here too — the `Sky` set runs
 // before `Presentation` so the shared particle clouds consume this frame's
 // spawned drops.
 pub fn sky_weather_plugin(app: &mut App) {
-    app.init_resource::<skybox::LightingState>();
     app.add_systems(
         Update,
         (
-            skybox::setup_skybox_from_cross_system.run_if(resource_exists::<common::protocol::MapSettings>),
-            skybox::setup_sky_disc_system.run_if(resource_exists::<common::protocol::MapSettings>),
-            cubemap::skybox_convert_cross_to_cubemap_system.run_if(resource_exists::<skybox::SkyboxCrossImage>),
-            skybox::skybox_update_camera_system.run_if(resource_exists::<skybox::SkyboxCubemap>),
-            skybox::skybox_rotate_system.run_if(resource_exists::<skybox::SkyboxCubemap>),
-            skybox::sky_disc_camera_system
-                .after(skybox::setup_sky_disc_system)
+            celestial::setup_sky_system,
+            celestial::attach_sky_to_cameras_system
+                .after(celestial::setup_sky_system)
                 .after(ClientSet::Camera),
-            skybox::sky_disc_system
-                .after(skybox::sky_disc_camera_system)
-                .after(skybox::skybox_rotate_system)
+            celestial::align_sky_domes_system
+                .after(celestial::attach_sky_to_cameras_system)
                 .after(ClientSet::Camera),
-            // Rain: smooth the snapshot intensity first, then everything
-            // that reads it. Lighting dimming runs after the camera-insert
-            // system so a freshly inserted Skybox is corrected the same
-            // frame.
             rain_smoothing_system,
-            skybox::lighting_blend_system.after(skybox::skybox_update_camera_system),
-            procedural_sky::procedural_sky_system
-                .after(skybox::lighting_blend_system)
+            celestial::celestial_sky_system
+                .after(celestial::setup_sky_system)
                 .after(rain_smoothing_system),
             rain_particles_system.after(rain_smoothing_system),
             rain_audio_system.after(rain_smoothing_system),

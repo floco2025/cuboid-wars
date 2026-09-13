@@ -24,13 +24,13 @@ pub use actors::{
 pub use combat::{
     ActorDamageConfig, ActorHealthConfig, BlastConfig, CombatConfig, DamageConfig, HealthConfig, PlayerHealthConfig,
 };
-pub use cycles::{CyclesConfig, LightingCycleConfig, WeatherCycleConfig};
+pub use cycles::{CyclesConfig, WeatherCycleConfig};
 pub use falling::FallDamageConfig;
 pub use feed::FeedConfig;
 pub use gameplay::{PlayerServerConfig, ServerGameplayConfig};
 pub use items::{PlacedItemRespawnSecs, PlacedItemsConfig, PowerUpDurationSecs, PowerUpsConfig};
 pub(crate) use maps::is_valid_map_name;
-pub use maps::{LightingMode, MapServerConfig, RandomItemsConfig, WeatherMode};
+pub use maps::{MapServerConfig, RandomItemsConfig, WeatherMode};
 pub use missiles::MissilesServerConfig;
 pub use quests::{Quest, QuestKind};
 pub use respawn::{ActorRespawnConfig, ActorRespawnScope, PlayerRespawnMode, RespawnConfig};

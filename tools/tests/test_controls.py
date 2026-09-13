@@ -207,7 +207,7 @@ class ControlTests(unittest.TestCase):
                 '    { "id": "bridge_2", "color": "#30d8ff" },',
                 '    { "id": "bridge_3", "color": "#30d8ff" }',
                 "  ],",
-                '  "skybox": "test"',
+                '  "celestial": {}',
                 "}",
                 "",
             ]
@@ -240,11 +240,11 @@ class ControlTests(unittest.TestCase):
             wide,
         )
         added = splice_catalogs(
-            '{\n  "skybox": "x",\n  "barrier_kinds": []\n}\n', {"bridge_kinds": [{"id": "b", "color": "#ffffff"}]}
+            '{\n  "celestial": {},\n  "barrier_kinds": []\n}\n', {"bridge_kinds": [{"id": "b", "color": "#ffffff"}]}
         )
         self.assertEqual(
             added,
-            '{\n  "skybox": "x",\n  "barrier_kinds": [],\n  "bridge_kinds": [{ "id": "b", "color": "#ffffff" }]\n}\n',
+            '{\n  "celestial": {},\n  "barrier_kinds": [],\n  "bridge_kinds": [{ "id": "b", "color": "#ffffff" }]\n}\n',
         )
 
     def test_bulk_controls_preserve_mixed_appearance_and_choose_one_plate_kind(self):

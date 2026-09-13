@@ -12,6 +12,7 @@ use super::{
 };
 use crate::test_geometry::sizes;
 use common::{
+    celestial::{CelestialMapSettings, LocalTime, MoonPhase, Season},
     config::{ActorMovementConfig, KnockbackConfig, MapMovementConfig, PlayerMovementConfig},
     protocol::{HexColor, KindDef, MapSettings, PortalMode},
 };
@@ -66,7 +67,13 @@ fn ok_map_entry() -> MapServerConfig {
     MapServerConfig {
         settings: MapSettings {
             grounds: None,
-            skybox: "cloudy_day".to_owned(),
+            celestial: CelestialMapSettings {
+                latitude_degrees: 40.0,
+                season: Season::Summer,
+                north_yaw_degrees: 0.0,
+                start_local_time: LocalTime::parse("09:00").expect("valid fixture time"),
+                start_moon_phase: MoonPhase::FirstQuarter,
+            },
             textures: Default::default(),
 
             geometry: sizes(),
@@ -93,7 +100,6 @@ fn ok_map_entry() -> MapServerConfig {
             },
         },
         weather: WeatherMode::Clear,
-        lighting: LightingMode::Bright,
         quests: Vec::new(),
     }
 }
@@ -161,13 +167,15 @@ fn validate_test_maps(maps: &HashMap<String, MapServerConfig>, default_map: &str
     validate_maps(maps, default_map, &actor_kinds(), Path::new("maps"))
 }
 
-fn parse_map_entry(
-    portals: &str,
-    weather: Option<&str>,
-    lighting: Option<&str>,
-) -> Result<MapServerConfig, serde_json::Error> {
+fn parse_map_entry(portals: &str, weather: Option<&str>) -> Result<MapServerConfig, serde_json::Error> {
     let mut value = serde_json::json!({
-        "skybox": "cloudy_day",
+        "celestial": {
+            "latitude_degrees": 40.0,
+            "season": "summer",
+            "north_yaw_degrees": 0.0,
+            "start_local_time": "09:00",
+            "start_moon_phase": "first_quarter"
+        },
         "textures": {},
         "geometry": { "grid_cell_size": 3.4, "level_height": 4.4, "floor_thickness": 0.4, "wall_thickness": 0.3 },
         "movement": {
@@ -209,9 +217,6 @@ fn parse_map_entry(
     let object = value.as_object_mut().expect("map entry JSON is not an object");
     if let Some(weather) = weather {
         object.insert("weather".to_owned(), weather.into());
-    }
-    if let Some(lighting) = lighting {
-        object.insert("lighting".to_owned(), lighting.into());
     }
     serde_json::from_value(value)
 }
@@ -372,20 +377,21 @@ fn validate_maps_rejects_negative_low_gravity() {
 }
 
 #[test]
-fn validate_maps_rejects_empty_skybox() {
+fn validate_maps_rejects_invalid_latitude() {
     let mut maps = one_map("hotel");
-    maps.get_mut("hotel").expect("hotel entry missing").settings.skybox = String::new();
-    let err = validate_test_maps(&maps, "hotel").expect_err("empty skybox must be rejected");
-    assert!(err.to_string().contains("skybox"));
+    maps.get_mut("hotel")
+        .expect("hotel entry missing")
+        .settings
+        .celestial
+        .latitude_degrees = 91.0;
+    let err = validate_test_maps(&maps, "hotel").expect_err("invalid latitude must be rejected");
+    assert!(err.to_string().contains("latitude_degrees"));
 }
 
 #[test]
-fn map_entry_requires_explicit_weather_and_lighting() {
-    let missing_both = parse_map_entry("both", None, None).expect_err("weather and lighting must be explicit");
+fn map_entry_requires_explicit_weather() {
+    let missing_both = parse_map_entry("both", None).expect_err("weather must be explicit");
     assert!(missing_both.to_string().contains("weather"));
-
-    let missing_lighting = parse_map_entry("both", Some("clear"), None).expect_err("lighting must be explicit");
-    assert!(missing_lighting.to_string().contains("lighting"));
 }
 
 #[test]
@@ -456,7 +462,7 @@ fn validate_maps_rejects_negative_placed_item_respawn() {
 
 #[test]
 fn map_entry_accepts_empty_kind_catalogs() {
-    let entry = parse_map_entry("both", Some("clear"), Some("bright")).expect("map entry failed to deserialize");
+    let entry = parse_map_entry("both", Some("clear")).expect("map entry failed to deserialize");
     assert!(entry.settings.barrier_kinds.is_empty());
     assert!(entry.settings.bridge_kinds.is_empty());
 }
@@ -520,25 +526,23 @@ fn validate_maps_rejects_duplicate_bridge_kinds() {
 }
 
 #[test]
-fn map_entry_parses_snake_case_weather_and_lighting() {
-    let entry = parse_map_entry("both", Some("rain"), Some("dark")).expect("map entry should deserialize");
+fn map_entry_parses_snake_case_weather() {
+    let entry = parse_map_entry("both", Some("rain")).expect("map entry should deserialize");
     assert_eq!(entry.weather, WeatherMode::Rain);
-    assert_eq!(entry.lighting, LightingMode::Dark);
 }
 
 #[test]
 fn map_entry_parses_auto_modes() {
-    let entry = parse_map_entry("both", Some("auto"), Some("auto")).expect("map entry should deserialize");
+    let entry = parse_map_entry("both", Some("auto")).expect("map entry should deserialize");
     assert_eq!(entry.weather, WeatherMode::Auto);
-    assert_eq!(entry.lighting, LightingMode::Auto);
 }
 
 #[test]
 fn map_entry_accepts_single_or_both_portal_ownership() {
-    let both = parse_map_entry("both", Some("clear"), Some("bright")).expect("map entry JSON is invalid");
+    let both = parse_map_entry("both", Some("clear")).expect("map entry JSON is invalid");
     assert_eq!(both.settings.portals, PortalMode::Both);
 
-    let single = parse_map_entry("single", Some("clear"), Some("bright")).expect("map entry JSON is invalid");
+    let single = parse_map_entry("single", Some("clear")).expect("map entry JSON is invalid");
     assert_eq!(single.settings.portals, PortalMode::Single);
 }
 

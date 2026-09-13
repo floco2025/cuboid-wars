@@ -12,7 +12,7 @@ use crate::{
     combat::{PendingExplosions, combat_plugin},
     config::{ServerGameplayConfig, validate_map_actor_kinds, validate_map_quests},
     items::{ItemMap, ItemSpawner, RandomItems, items_plugin},
-    map::{GeneratedMap, LightState, MapFireworks, WeatherState, generate_map, map_plugin},
+    map::{GeneratedMap, MapFireworks, WeatherState, generate_map, map_plugin},
     missiles::{MissileMap, missiles_plugin},
     network::{ClientLinks, Listener, LocalLink, network_plugin, register_local},
     players::{Invincibility, PlayerMap, players_plugin},
@@ -23,6 +23,7 @@ use crate::{
 };
 use bevy::time::TimeUpdateStrategy;
 use common::{
+    celestial::CelestialClockAnchor,
     config::NetworkConfig,
     map::Carriers,
     physics::CollisionWorld,
@@ -114,10 +115,7 @@ fn build_server_app_with_loader(
     let power_ups_config = map_server_config.power_ups.clone();
     let placed_items_config = map_server_config.placed_items.clone();
     let weather_state = WeatherState::new(server_gameplay_config.cycles.weather.clone(), map_server_config.weather);
-    let light_state = LightState::new(
-        server_gameplay_config.cycles.lighting.clone(),
-        map_server_config.lighting,
-    );
+    let celestial_clock = CelestialClockAnchor::initial(&map_settings.celestial, 0);
     let random_items = RandomItems::from_config(map_server_config.random_items.as_ref());
     let portal_assignments = PortalAssignments::new(map_settings.portals);
     let map_geometry = map_config.root_grid().geometry;
@@ -138,6 +136,7 @@ fn build_server_app_with_loader(
     let actor_territories = ActorTerritories::new(&map_config, &server_gameplay_config);
     let world_bootstrap = WorldBootstrap {
         network: server_gameplay_config.network,
+        celestial: server_gameplay_config.cycles.celestial,
         gameplay: server_gameplay_config.gameplay_bootstrap(),
         map: MapBootstrap {
             layout: map_layout.clone(),
@@ -184,7 +183,7 @@ fn build_server_app_with_loader(
         .insert_resource(map_server_config.player_fall)
         .insert_resource(world_bootstrap)
         .insert_resource(weather_state)
-        .insert_resource(light_state)
+        .insert_resource(celestial_clock)
         .insert_resource(Invincibility(options.god))
         .insert_resource(collision_world)
         .insert_resource(carriers)

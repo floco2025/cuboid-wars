@@ -8,23 +8,22 @@ fn parses_every_command_form() {
     assert_eq!(parse_admin_command("/weather clear"), AdminCommand::WeatherClear);
     assert_eq!(parse_admin_command("/weather auto"), AdminCommand::WeatherAuto);
     assert_eq!(parse_admin_command("/weather"), AdminCommand::WeatherStatus);
+    assert_eq!(parse_admin_command("/time"), AdminCommand::TimeStatus);
     assert_eq!(
-        parse_admin_command("/light bright"),
-        AdminCommand::LightPreset("bright")
+        parse_admin_command("/time 09:30"),
+        AdminCommand::TimeSeek(LocalTime::parse("09:30").expect("valid time"))
     );
-    assert_eq!(parse_admin_command("/light dim"), AdminCommand::LightPreset("dim"));
-    assert_eq!(parse_admin_command("/light dark"), AdminCommand::LightPreset("dark"));
-    assert_eq!(parse_admin_command("/light auto"), AdminCommand::LightAuto);
-    assert_eq!(parse_admin_command("/light"), AdminCommand::LightStatus);
-    assert_eq!(parse_admin_command("/light 0.7"), AdminCommand::LightFraction(0.7));
+    assert_eq!(parse_admin_command("/time auto"), AdminCommand::TimeAuto);
+    assert_eq!(parse_admin_command("/time noon"), AdminCommand::TimeUsage);
+    assert_eq!(parse_admin_command("/moon"), AdminCommand::MoonStatus);
     assert_eq!(
-        parse_admin_command("/light dim dark 0.3"),
-        AdminCommand::LightBlend("dim", "dark", 0.3)
+        parse_admin_command("/moon first_quarter"),
+        AdminCommand::MoonSet(MoonPhase::FirstQuarter)
     );
-    assert_eq!(parse_admin_command("/light 1.5"), AdminCommand::LightUsage);
-    assert_eq!(parse_admin_command("/light banana"), AdminCommand::LightUsage);
-    assert_eq!(parse_admin_command("/light dim banana 0.3"), AdminCommand::LightUsage);
-    assert_eq!(parse_admin_command("/light dim dark"), AdminCommand::LightUsage);
+    assert_eq!(parse_admin_command("/moon banana"), AdminCommand::MoonUsage);
+    for removed in ["/light", "/light bright", "/light auto", "/light dim dark 0.3"] {
+        assert_eq!(parse_admin_command(removed), AdminCommand::Unknown);
+    }
     assert_eq!(parse_admin_command("/god"), AdminCommand::God(None));
     assert_eq!(parse_admin_command("/god on"), AdminCommand::God(Some(true)));
     assert_eq!(parse_admin_command("/god off"), AdminCommand::God(Some(false)));

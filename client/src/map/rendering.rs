@@ -1,10 +1,5 @@
-use bevy::{
-    asset::AssetPath,
-    light::{DirectionalLightShadowMap, cluster::GlobalClusterSettings},
-    prelude::*,
-};
+use bevy::{asset::AssetPath, prelude::*};
 
-use super::skybox::{CelestialLightMarker, selected_skybox};
 use crate::fields::{CheckpointMarker, EraserMarker};
 use crate::{
     bridges::LightBridgeMarker,
@@ -19,47 +14,6 @@ use crate::{
     players::LocalPlayerMarker,
 };
 use common::protocol::{ItemMarker, MapLayout, MapSettings};
-
-// ============================================================================
-// Scene Lighting Setup System
-// ============================================================================
-
-// GPU clustering's Z-slice list defaults to 1024, which our dense lit scenes
-// overflow; Bevy then resizes mid-render and corrupts lighting for a few frames.
-// Pre-size it (PbrPlugin builds the resource in `finish`, so we mutate, not insert).
-const CLUSTER_Z_SLICE_CAPACITY: usize = 8192;
-
-pub fn setup_scene_lighting_system(
-    mut commands: Commands,
-    client_settings: Res<ClientSettings>,
-    asset_set: Res<AssetSet>,
-    map_settings: Res<MapSettings>,
-    mut cluster_settings: ResMut<GlobalClusterSettings>,
-) {
-    let celestial = selected_skybox(&asset_set, &map_settings).celestial_disc;
-    commands.spawn((
-        DirectionalLight {
-            illuminance: client_settings.lighting.bright.sun_illuminance,
-            shadow_maps_enabled: client_settings.rendering.directional_shadows,
-            ..default()
-        },
-        Transform::default().looking_to(-Vec3::from_array(celestial.direction), Vec3::Y),
-        CelestialLightMarker,
-    ));
-
-    commands.insert_resource(GlobalAmbientLight {
-        color: Color::WHITE,
-        brightness: client_settings.lighting.bright.ambient_brightness,
-        affects_lightmapped_meshes: false,
-    });
-    commands.insert_resource(DirectionalLightShadowMap {
-        size: client_settings.rendering.shadow_map_size as usize,
-    });
-
-    if let Some(gpu) = cluster_settings.gpu_clustering.as_mut() {
-        gpu.initial_z_slice_list_capacity = gpu.initial_z_slice_list_capacity.max(CLUSTER_Z_SLICE_CAPACITY);
-    }
-}
 
 // ============================================================================
 // Map Geometry Spawning System

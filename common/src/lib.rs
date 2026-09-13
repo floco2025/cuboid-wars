@@ -1,3 +1,4 @@
+pub mod celestial;
 pub mod config;
 pub mod constants;
 pub mod health;

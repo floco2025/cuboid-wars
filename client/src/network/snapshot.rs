@@ -50,8 +50,5 @@ pub(super) fn handle_snapshot_message(
         .set_if_neq(LockedSwitches(message.locked_switches));
 
     context.rain_intensity.target = message.rain_intensity;
-    if context.lighting.target != message.lighting {
-        context.lighting.target = message.lighting;
-    }
-    context.lighting.synced = true;
+    context.celestial_clock.set_if_neq(message.celestial_clock);
 }

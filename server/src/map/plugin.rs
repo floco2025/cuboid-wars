@@ -1,7 +1,6 @@
 use bevy::prelude::*;
 
 use super::{
-    light_cycle_is_running, light_cycle_system,
     pressure_plates::{
         PressureSwitches, plate_state_sync_system, pressure_plates_system, pressure_switch_reset_system,
     },
@@ -19,7 +18,6 @@ pub fn map_plugin(app: &mut App) {
             Update,
             (
                 weather_system.run_if(weather_needs_tick),
-                light_cycle_system.run_if(light_cycle_is_running),
                 // Switch flips stamp the tick the carriers advance to later this
                 // tick, so the tick must already have advanced.
                 (

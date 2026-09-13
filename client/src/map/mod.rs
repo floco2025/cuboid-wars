@@ -1,25 +1,21 @@
 mod boundary;
-pub mod cubemap;
+mod celestial;
 mod grass;
 mod grounds;
-#[cfg(test)]
-#[path = "tests/light.rs"]
-mod light_tests;
-mod procedural_sky;
 mod rendering;
 mod resources;
-pub mod skybox;
 pub mod spawn;
 mod terrain_grass;
 mod terrain_surface;
 mod trees;
 
+pub use celestial::setup_scene_lighting_system;
 pub(crate) use grass::GrassBurn;
 pub use grass::{GrassMarker, grass_burn_system, grass_spawn_system};
 pub(crate) use rendering::map_level_visibility;
 pub use rendering::{
     added_map_level_visibility_system, map_level_focus_visibility_system, map_spawn_geometry_system,
-    map_wall_light_emissive_system, setup_scene_lighting_system, update_focused_map_level_system,
+    map_wall_light_emissive_system, update_focused_map_level_system,
 };
 pub use resources::{DebugColorMode, DebugColors, FocusedMapLevel, LevelFocusEnabled};
 pub use spawn::{

@@ -196,13 +196,9 @@
       "ramp_in_secs": 5.0,
       "fade_out_secs": 10.0
     },
-    "lighting": {
-      "bright_secs": 120.0,
-      "dim_secs": null,
-      "dark_secs": 90.0,
-      "bright_dim_secs": null,
-      "dim_dark_secs": null,
-      "bright_dark_secs": 30.0
+    "celestial": {
+      "day_duration_secs": 30.0,
+      "lunar_cycle_days": 8.0
     }
   },
   "feed": {

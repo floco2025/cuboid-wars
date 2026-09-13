@@ -3,11 +3,12 @@ use bevy::{ecs::system::SystemParam, prelude::*};
 use crate::{
     actors::{ActorMap, ActorMotionQuery, ActorStateQuery, PendingActorSpawns},
     items::ItemMap,
-    map::{LightState, WeatherState},
+    map::WeatherState,
     players::{PlayerMap, PlayerStateQuery},
     quests::{QuestBoard, QuestCatalog},
 };
 use common::{
+    celestial::CelestialClockAnchor,
     config::{NetworkConfig, UpdateCadence},
     map::Carriers,
     protocol::*,
@@ -27,7 +28,7 @@ use crate::{
 pub struct WorldConditions<'w> {
     carriers: Res<'w, Carriers>,
     weather: Res<'w, WeatherState>,
-    light: Res<'w, LightState>,
+    celestial_clock: Res<'w, CelestialClockAnchor>,
     quests: Res<'w, QuestBoard>,
     quest_catalog: Res<'w, QuestCatalog>,
     portals: Res<'w, PortalMap>,
@@ -116,7 +117,7 @@ pub(super) fn network_broadcast_snapshot_system(
         quests,
         locked_switches,
         rain_intensity: conditions.weather.intensity(),
-        lighting: conditions.light.blend(),
+        celestial_clock: *conditions.celestial_clock,
         portals: conditions.portals.snapshot_portals(),
     });
     broadcast_to_all(&players, msg);

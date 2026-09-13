@@ -5,12 +5,15 @@ use crate::{
     actors::{ActorMap, ActorRespawnTimers, PendingActorSpawns},
     combat::PendingExplosions,
     config::{PowerUpsConfig, ServerGameplayConfig},
-    map::{LightState, WeatherState},
+    map::WeatherState,
     network::{FeedAudience, FeedEvent, SharedWorld, emit_feed},
     players::{Invincibility, PlayerInfo, PlayerMap, PlayerStateQuery},
     quests::{QuestBoard, QuestCatalog},
 };
-use common::protocol::{BarrierKindTable, CAdmin, PlayerId, ServerTick};
+use common::{
+    celestial::CelestialClockAnchor,
+    protocol::{BarrierKindTable, CAdmin, PlayerId, ServerTick},
+};
 
 fn admin_authorized(_info: &PlayerInfo) -> bool {
     true
@@ -20,7 +23,7 @@ fn admin_authorized(_info: &PlayerInfo) -> bool {
 #[derive(SystemParam)]
 pub struct AdminContext<'w> {
     pub weather: ResMut<'w, WeatherState>,
-    pub light: ResMut<'w, LightState>,
+    pub celestial_clock: ResMut<'w, CelestialClockAnchor>,
     pub pending_explosions: ResMut<'w, PendingExplosions>,
     pub invincibility: ResMut<'w, Invincibility>,
     pub actor_respawn_timers: ResMut<'w, ActorRespawnTimers>,

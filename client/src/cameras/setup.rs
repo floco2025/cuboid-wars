@@ -9,8 +9,7 @@ use bevy::{
 
 use super::{
     CompositorCameraMarker, MainCameraMarker, RENDER_LAYER_CHARACTER_LABEL, RENDER_LAYER_MAIN_VIEW,
-    RENDER_LAYER_REARVIEW, RearviewCameraMarker, SceneRenderTarget, SkyDiscRenderLayer,
-    scene_target::create_scene_image,
+    RENDER_LAYER_REARVIEW, RearviewCameraMarker, SceneRenderTarget, SkyRenderLayer, scene_target::create_scene_image,
 };
 use crate::config::ClientSettings;
 
@@ -81,7 +80,7 @@ pub fn setup_cameras_system(
     // Add main camera (initial position will be immediately overridden by sync system)
     let mut main_camera = commands.spawn((
         MainCameraMarker,
-        SkyDiscRenderLayer(RENDER_LAYER_MAIN_VIEW),
+        SkyRenderLayer(RENDER_LAYER_MAIN_VIEW),
         RenderTarget::Image(ImageRenderTarget {
             handle: scene_image.clone(),
             scale_factor: 1.0,
@@ -131,7 +130,7 @@ pub fn setup_cameras_system(
     // Add rearview mirror camera (renders to its viewport inside the scene image)
     let mut rearview_camera = commands.spawn((
         RearviewCameraMarker,
-        SkyDiscRenderLayer(RENDER_LAYER_REARVIEW),
+        SkyRenderLayer(RENDER_LAYER_REARVIEW),
         RenderTarget::Image(ImageRenderTarget {
             handle: scene_image.clone(),
             scale_factor: 1.0,

@@ -22,7 +22,7 @@ pub enum ClientSet {
     MapMaintenance,
     // Screen-space HUD.
     Hud,
-    // Skybox setup/drift and rain.
+    // Procedural celestial sky, scene lighting, and rain.
     Sky,
 }
 

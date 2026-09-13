@@ -142,8 +142,8 @@ For a visual pass, check a stable baseline plus the states relevant to the
 change. Grounds work should include walking height, nearby surface detail,
 grass and tree distance fades while moving, clear daylight, rain, night, and
 both forward and deferred rendering when renderer behavior is in scope. Use
-the in-game console commands `/weather clear|rain` and
-`/light bright|dim|dark` to make states deterministic.
+the in-game console commands `/weather clear|rain`, `/time HH:MM`, and
+`/moon <phase>` to make states deterministic; `/time auto` resumes the clock.
 
 For performance sampling, disable VSync, let shaders and scene loading settle,
 hold the same view and resolution, and record the on-screen FPS rather than a

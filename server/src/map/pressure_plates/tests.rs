@@ -9,10 +9,10 @@ use super::{
 use crate::{
     actors::{ActorMap, ActorRespawnTimers, PendingActorSpawns},
     combat::{DeathSource, PendingExplosions, kill_player},
-    config::{LightingMode, PlayerRespawnMode, QuestKind, RespawnConfig, ServerGameplayConfig, WeatherMode},
+    config::{PlayerRespawnMode, QuestKind, RespawnConfig, ServerGameplayConfig, WeatherMode},
     map::{
-        CellGrid, EdgeGrid, FireworksConfig, LevelGrid, LightState, MapConfig, MapFireworks, PlayerSpawnZone,
-        PressurePlateRuntime, WeatherState, map_plugin,
+        CellGrid, EdgeGrid, FireworksConfig, LevelGrid, MapConfig, MapFireworks, PlayerSpawnZone, PressurePlateRuntime,
+        WeatherState, map_plugin,
     },
     players::{PlayerInfo, PlayerMap, players_group_respawn_system, players_respawn_system},
     portals::PortalAssignments,
@@ -272,7 +272,6 @@ fn app_with_layout(config: ServerGameplayConfig, plates: Vec<PressurePlateRuntim
     let switch_table = SwitchTable::from_switch_defs(&settings.switches).expect("harness switches rejected");
     let mut app = App::new();
     app.insert_resource(WeatherState::new(config.cycles.weather.clone(), WeatherMode::Clear))
-        .insert_resource(LightState::new(config.cycles.lighting.clone(), LightingMode::Bright))
         .insert_resource(settings)
         .insert_resource(CollisionWorld::from_map_layout(&layout))
         .insert_resource(Carriers::from_layout(&layout))

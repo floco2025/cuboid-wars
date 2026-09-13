@@ -61,9 +61,11 @@ pub fn login(link: &mut ServerLink, to_server: &Sender<ClientMessage>, name: Str
 
 pub(crate) fn install_bootstrap(app: &mut App, message: SInit, asset_set: &AssetSet) -> Result<()> {
     message.world.network.validate()?;
+    message.world.celestial.validate("world.celestial")?;
     let gameplay_config = message.world.gameplay.gameplay_config()?;
     let map_settings = &message.world.map.settings;
     map_settings.movement.validate("map.settings.movement")?;
+    map_settings.celestial.validate("map.settings.celestial")?;
     let (barrier_kind_table, _) = map_settings.kind_tables()?;
     asset_set.validate_map_bindings(map_settings, &message.world.map.layout)?;
     asset_set.validate_gameplay_bindings(gameplay_config.actors.keys().map(String::as_str))?;
@@ -120,6 +122,9 @@ pub(crate) fn install_bootstrap(app: &mut App, message: SInit, asset_set: &Asset
 
     debug!("received Init: my_id=player#{}", message.player.id.0);
     app.insert_resource(message.world.network)
+        .insert_resource(message.world.celestial)
+        .insert_resource(message.celestial_clock)
+        .insert_resource(ServerTick(message.current_tick))
         .insert_resource(MyPlayerId(message.player.id))
         .insert_resource(message.player.portal_access)
         .insert_resource(gameplay_config)
