@@ -86,6 +86,9 @@ impl AssetSet {
             !self.skyboxes.is_empty(),
             "asset config must define at least one entry in `skyboxes`"
         );
+        for (name, skybox) in &self.skyboxes {
+            skybox.validate(&format!("skyboxes.{name}"))?;
+        }
         // Every alias must resolve to a real material so a typo can't go
         // unnoticed until something tries to render at runtime.
         for (alias, target) in &self.aliases {

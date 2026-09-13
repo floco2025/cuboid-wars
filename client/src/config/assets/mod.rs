@@ -8,7 +8,7 @@ mod sound;
 mod tests;
 
 pub use footsteps::FootstepSounds;
-pub use lighting::SkyboxDef;
+pub use lighting::{CelestialDiscDef, CelestialDiscLook, SkyboxDef};
 pub use material::MaterialDef;
 pub use model::{AimRigDef, ModelDef, WheelModelDef, gltf_path};
 pub use pressure_plate::PressurePlateDef;

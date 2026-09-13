@@ -58,5 +58,6 @@
 | Asset | Source | License |
 | --- | --- | --- |
 | `Skybox_CoudySky_Day_3.png` | Nako Rinn — [Fab Infinity Skyboxes: 136+ Realistic & Stylized HQ 8K HDRI Sky Pack (Volume 2)](https://www.fab.com/listings/b0dce1d2-bb36-46e2-8237-d1861587d524) | [Fab Standard License](https://www.fab.com/eula) |
+| `Skybox_AnotherPlanet_Day_3.png` | Nako Rinn — [Fab Infinity Skyboxes Volume 2](https://www.fab.com/listings/b0dce1d2-bb36-46e2-8237-d1861587d524); cube cross from [convert_skybox.py](convert_skybox.py) | [Fab Standard License](https://www.fab.com/eula) |
 | `screenshot1.png`–`screenshot5.png` | Cuboid Wars gameplay captures | Project-owned; depicted third-party assets retain their licenses |
 | `symbols/items.json` | Project-created pickup and HUD outlines | Project-owned |

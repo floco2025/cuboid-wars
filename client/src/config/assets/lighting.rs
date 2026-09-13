@@ -1,3 +1,6 @@
+use anyhow::{Result, ensure};
+use bevy::prelude::Vec3;
+use common::config::{validate_non_negative_finite, validate_positive_finite};
 use serde::Deserialize;
 
 #[derive(Debug, Clone, Deserialize)]
@@ -21,23 +24,65 @@ pub struct SkyboxDef {
     // Seconds per full ambient sky turn; 0 (or absent) = static sky.
     #[serde(default)]
     pub rotation_period_secs: f32,
-    // Sun rotation advances in discrete steps of this size so shadow maps
+    // Light rotation advances in discrete steps of this size so shadow maps
     // stay pixel-stable between steps; 0 (or absent) = continuous (shadow
     // edges shimmer while the sun creeps).
     #[serde(default)]
-    pub sun_step_degrees: f32,
-    pub sun_disc: SunDiscDef,
+    pub celestial_step_degrees: f32,
+    pub celestial_disc: CelestialDiscDef,
 }
 
-// The visible sun: a camera-following emissive sphere along the directional
-// light's incoming direction, so it always sits where the shadows say.
 #[derive(Debug, Clone, Copy, Deserialize)]
-pub struct SunDiscDef {
-    // Far enough that map geometry reads in front of it, inside the 1000 m
-    // far plane. `radius: 0` disables the disc.
+pub struct CelestialDiscDef {
+    pub direction: [f32; 3],
+    pub show: bool,
     pub distance: f32,
     pub radius: f32,
-    // Emissive luminance (cd/m²) — must dwarf the skybox `brightness` so the
-    // disc tonemaps to clipped white, and drives the bloom glare halo.
-    pub luminance: f32,
+    pub bright: CelestialDiscLook,
+    pub dim: CelestialDiscLook,
+    pub dark: CelestialDiscLook,
 }
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+pub struct CelestialDiscLook {
+    pub luminance: f32,
+    pub phase_percent: f32,
+}
+
+impl SkyboxDef {
+    pub(super) fn validate(&self, path: &str) -> Result<()> {
+        ensure!(!self.image.trim().is_empty(), "{path}.image must not be empty");
+        validate_non_negative_finite(self.brightness, &format!("{path}.brightness"))?;
+        validate_non_negative_finite(self.rotation_period_secs, &format!("{path}.rotation_period_secs"))?;
+        validate_non_negative_finite(self.celestial_step_degrees, &format!("{path}.celestial_step_degrees"))?;
+        ensure!(
+            self.celestial_step_degrees < 360.0,
+            "{path}.celestial_step_degrees must be less than 360"
+        );
+        ensure!(
+            Vec3::from_array(self.celestial_disc.direction)
+                .try_normalize()
+                .is_some(),
+            "{path}.celestial_disc.direction must be a finite, nonzero vector"
+        );
+        validate_positive_finite(self.celestial_disc.distance, &format!("{path}.celestial_disc.distance"))?;
+        validate_positive_finite(self.celestial_disc.radius, &format!("{path}.celestial_disc.radius"))?;
+        for (name, look) in [
+            ("bright", self.celestial_disc.bright),
+            ("dim", self.celestial_disc.dim),
+            ("dark", self.celestial_disc.dark),
+        ] {
+            let path = format!("{path}.celestial_disc.{name}");
+            validate_non_negative_finite(look.luminance, &format!("{path}.luminance"))?;
+            ensure!(
+                (0.0..=100.0).contains(&look.phase_percent),
+                "{path}.phase_percent must be in [0, 100]"
+            );
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+#[path = "tests/lighting.rs"]
+mod tests;

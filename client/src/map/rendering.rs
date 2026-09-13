@@ -4,6 +4,7 @@ use bevy::{
     prelude::*,
 };
 
+use super::skybox::{CelestialLightMarker, selected_skybox};
 use crate::fields::{CheckpointMarker, EraserMarker};
 use crate::{
     bridges::LightBridgeMarker,
@@ -31,16 +32,19 @@ const CLUSTER_Z_SLICE_CAPACITY: usize = 8192;
 pub fn setup_scene_lighting_system(
     mut commands: Commands,
     client_settings: Res<ClientSettings>,
+    asset_set: Res<AssetSet>,
+    map_settings: Res<MapSettings>,
     mut cluster_settings: ResMut<GlobalClusterSettings>,
 ) {
+    let celestial = selected_skybox(&asset_set, &map_settings).celestial_disc;
     commands.spawn((
         DirectionalLight {
             illuminance: client_settings.lighting.bright.sun_illuminance,
             shadow_maps_enabled: client_settings.rendering.directional_shadows,
             ..default()
         },
-        Transform::from_xyz(5.0, 15.0, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
-        super::skybox::SunLightMarker,
+        Transform::default().looking_to(-Vec3::from_array(celestial.direction), Vec3::Y),
+        CelestialLightMarker,
     ));
 
     commands.insert_resource(GlobalAmbientLight {

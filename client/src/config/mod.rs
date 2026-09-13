@@ -9,7 +9,8 @@ mod settings;
 mod vfx;
 
 pub use assets::{
-    AimRigDef, AssetSet, MaterialDef, ModelDef, PressurePlateDef, SkyboxDef, SoundDef, WheelModelDef, gltf_path,
+    AimRigDef, AssetSet, CelestialDiscDef, CelestialDiscLook, MaterialDef, ModelDef, PressurePlateDef, SkyboxDef,
+    SoundDef, WheelModelDef, gltf_path,
 };
 pub use audio::{AudioConfig, BumpAudioConfig};
 pub use camera::FollowCameraConfig;

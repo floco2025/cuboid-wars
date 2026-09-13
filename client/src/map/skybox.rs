@@ -7,7 +7,10 @@ use bevy::{
 
 use crate::{
     cameras::{MainCameraMarker, RearviewCameraMarker, SkyDiscRenderLayer},
-    config::{AssetSet, ClientSettings, LightingConfig, MoonLighting, SkyboxDef, SunLighting},
+    config::{
+        AssetSet, CelestialDiscDef, CelestialDiscLook, ClientSettings, LightingConfig, MoonLighting, SkyboxDef,
+        SunLighting,
+    },
     constants::{CELESTIAL_DISC_MOON_COLOR, CELESTIAL_DISC_SUN_COLOR},
 };
 use common::protocol::{LightingBlend, MapSettings};
@@ -15,7 +18,7 @@ use common::protocol::{LightingBlend, MapSettings};
 // The map names its skybox in `MapSettings` (from `SInit`), so both setup
 // systems run gated on that resource existing — once, via the `Local` latch —
 // instead of at Startup.
-fn selected_skybox<'a>(asset_set: &'a AssetSet, map_settings: &MapSettings) -> &'a SkyboxDef {
+pub(super) fn selected_skybox<'a>(asset_set: &'a AssetSet, map_settings: &MapSettings) -> &'a SkyboxDef {
     asset_set.skybox(&map_settings.skybox).unwrap_or_else(|| {
         let (fallback_name, fallback) = asset_set.fallback_skybox();
         error!(
@@ -47,7 +50,8 @@ pub fn setup_skybox_from_cross_system(
     commands.insert_resource(SkyboxSettings {
         brightness: skybox.brightness,
         rotation_period_secs: skybox.rotation_period_secs,
-        sun_step_radians: skybox.sun_step_degrees.to_radians(),
+        celestial_step_radians: skybox.celestial_step_degrees.to_radians(),
+        celestial_disc: skybox.celestial_disc,
     });
 }
 
@@ -61,13 +65,14 @@ pub struct SkyboxCubemap(pub Handle<Image>);
 pub struct SkyboxSettings {
     brightness: f32,
     rotation_period_secs: f32,
-    sun_step_radians: f32,
+    celestial_step_radians: f32,
+    celestial_disc: CelestialDiscDef,
 }
 
-// The scene's sun — rotated in lockstep with the skybox so shadows keep
+// The celestial light rotates in lockstep with the skybox so shadows keep
 // tracking the sky's light direction.
 #[derive(Component)]
-pub struct SunLightMarker;
+pub struct CelestialLightMarker;
 
 #[derive(Component)]
 pub(super) struct SkyDisc {
@@ -98,27 +103,27 @@ pub fn setup_sky_disc_system(
         return;
     }
     *done = true;
-    let sun_disc = selected_skybox(&asset_set, &map_settings).sun_disc;
-    if sun_disc.radius <= 0.0 {
+    let celestial_disc = selected_skybox(&asset_set, &map_settings).celestial_disc;
+    if !celestial_disc.show {
         return;
     }
-    let mesh = meshes.add(phase_mesh(100.0, sun_disc.radius));
+    let mesh = meshes.add(phase_mesh(celestial_disc.bright.phase_percent, celestial_disc.radius));
     // Not unlit: `StandardMaterial` ignores emissive when unlit, which renders
     // a ~1-nit gray ball against a 1000-nit sky. Black base + huge emissive =
     // pure self-luminance; zero reflectance so the sun light can't put a
     // specular sheen on the unlit part.
     let material = materials.add(StandardMaterial {
         base_color: Color::BLACK,
-        emissive: LinearRgba::rgb(sun_disc.luminance, sun_disc.luminance * 0.94, sun_disc.luminance * 0.78),
+        emissive: CELESTIAL_DISC_SUN_COLOR.to_linear() * celestial_disc.bright.luminance,
         reflectance: 0.0,
         ..default()
     });
     commands.insert_resource(SkyDiscAssets {
-        distance: sun_disc.distance,
-        radius: sun_disc.radius,
+        distance: celestial_disc.distance,
+        radius: celestial_disc.radius,
         mesh,
         material,
-        phase_percent: 100.0,
+        phase_percent: celestial_disc.bright.phase_percent,
     });
 }
 
@@ -150,7 +155,7 @@ pub(super) fn sky_disc_camera_system(
 // for main, rearview, and every mapped portal eye independently.
 pub(super) fn sky_disc_system(
     cameras: Query<&Transform, With<Camera3d>>,
-    sun_light: Query<&Transform, (With<SunLightMarker>, Without<SkyDisc>)>,
+    sun_light: Query<&Transform, (With<CelestialLightMarker>, Without<SkyDisc>)>,
     assets: Option<Res<SkyDiscAssets>>,
     mut discs: Query<(&mut Transform, &SkyDisc), Without<Camera3d>>,
 ) {
@@ -310,27 +315,27 @@ fn linear_intensity(log_value: f32) -> f32 {
 }
 
 impl LevelTargets {
-    fn sun(sun: &SunLighting) -> Self {
+    fn sun(sun: &SunLighting, disc: &CelestialDiscLook) -> Self {
         let color = CELESTIAL_DISC_SUN_COLOR.to_linear();
         Self {
             sky: log_intensity(sun.sky_brightness),
             illuminance: log_intensity(sun.sun_illuminance),
             ambient: log_intensity(sun.ambient_brightness),
-            disc: log_intensity(sun.sun_disc_luminance),
-            phase_percent: 100.0,
+            disc: log_intensity(disc.luminance),
+            phase_percent: disc.phase_percent,
             color: Vec3::new(color.red, color.green, color.blue),
             saturation: sun.saturation,
         }
     }
 
-    fn moon(moon: &MoonLighting) -> Self {
+    fn moon(moon: &MoonLighting, disc: &CelestialDiscLook) -> Self {
         let color = CELESTIAL_DISC_MOON_COLOR.to_linear();
         Self {
             sky: log_intensity(moon.sky_brightness),
             illuminance: log_intensity(moon.moon_illuminance),
             ambient: log_intensity(moon.ambient_brightness),
-            disc: log_intensity(moon.moon_disc_luminance),
-            phase_percent: moon.moon_phase_percent,
+            disc: log_intensity(disc.luminance),
+            phase_percent: disc.phase_percent,
             color: Vec3::new(color.red, color.green, color.blue),
             saturation: moon.saturation,
         }
@@ -353,39 +358,47 @@ impl StableInterpolate for LevelTargets {
 
 // Resolve a server-named preset against the configured looks. An unknown
 // name (a server/client vocabulary mismatch) falls back to dim.
-fn look(config: &LightingConfig, name: &str) -> LevelTargets {
+fn look(config: &LightingConfig, disc: &CelestialDiscDef, name: &str) -> LevelTargets {
     match name {
-        "bright" => LevelTargets::sun(&config.bright),
-        "dim" => LevelTargets::moon(&config.dim),
-        "dark" => LevelTargets::moon(&config.dark),
+        "bright" => LevelTargets::sun(&config.bright, &disc.bright),
+        "dim" => LevelTargets::moon(&config.dim, &disc.dim),
+        "dark" => LevelTargets::moon(&config.dark, &disc.dark),
         _ => {
             warn_once!("unknown lighting preset {name:?} from server; using dim");
-            LevelTargets::moon(&config.dim)
+            LevelTargets::moon(&config.dim, &disc.dim)
         }
     }
 }
 
-fn blend_targets(config: &LightingConfig, blend: &LightingBlend) -> LevelTargets {
-    look(config, &blend.from).interpolate_stable(&look(config, &blend.to), blend.blend.clamp(0.0, 1.0))
+fn blend_targets(config: &LightingConfig, disc: &CelestialDiscDef, blend: &LightingBlend) -> LevelTargets {
+    look(config, disc, &blend.from).interpolate_stable(&look(config, disc, &blend.to), blend.blend.clamp(0.0, 1.0))
 }
 
 // Drive the world's lighting toward the snapshot's blend. Every channel is
-// a raw absolute value from `client.json::lighting`'s looks, eased in look
+// a raw absolute value from the lighting and disc looks, eased in look
 // space and written absolutely every frame — idempotent, no incremental
 // drift. Wall/actor lights stay lit — windows glowing in the dark.
 pub(super) fn lighting_blend_system(
     time: Res<Time>,
     client_settings: Res<ClientSettings>,
+    sky_settings: Option<Res<SkyboxSettings>>,
     mut lighting: ResMut<LightingState>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut skyboxes: Query<&mut Skybox>,
-    mut sun_light: Query<&mut DirectionalLight, With<SunLightMarker>>,
+    mut sun_light: Query<&mut DirectionalLight, With<CelestialLightMarker>>,
     mut ambient: ResMut<GlobalAmbientLight>,
     mut disc_assets: Option<ResMut<SkyDiscAssets>>,
     mut gradings: Query<&mut ColorGrading, Or<(With<MainCameraMarker>, With<RearviewCameraMarker>)>>,
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
-    let target = blend_targets(&client_settings.lighting, &lighting.target);
+    let Some(sky_settings) = sky_settings else {
+        return;
+    };
+    let target = blend_targets(
+        &client_settings.lighting,
+        &sky_settings.celestial_disc,
+        &lighting.target,
+    );
     if lighting.eased {
         lighting
             .current
@@ -433,7 +446,7 @@ pub fn skybox_rotate_system(
     mut angle: Local<f32>,
     mut sun_angle: Local<f32>,
     mut skyboxes: Query<&mut Skybox>,
-    mut sun: Query<&mut Transform, With<SunLightMarker>>,
+    mut sun: Query<&mut Transform, With<CelestialLightMarker>>,
 ) {
     if settings.rotation_period_secs <= 0.0 {
         return;
@@ -456,11 +469,11 @@ pub fn skybox_rotate_system(
     if pending < 0.0 {
         pending += TAU;
     }
-    let applied = if settings.sun_step_radians > 0.0 {
-        if pending < settings.sun_step_radians {
+    let applied = if settings.celestial_step_radians > 0.0 {
+        if pending < settings.celestial_step_radians {
             return;
         }
-        (pending / settings.sun_step_radians).floor() * settings.sun_step_radians
+        (pending / settings.celestial_step_radians).floor() * settings.celestial_step_radians
     } else {
         pending
     };

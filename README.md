@@ -53,6 +53,8 @@ to obstacle courses, built from the features below.
 
 ## Running locally
 
+For a new development machine, follow [the macOS and CachyOS setup instructions](DEPENDENCIES.md).
+
 One executable plays alone, hosts a game your friends join, joins theirs, or
 runs a dedicated server.
 

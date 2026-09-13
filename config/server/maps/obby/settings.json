@@ -3,7 +3,7 @@
     "basement-floor": { "portalable": true },
     "portal-resistant": { "portalable": false }
   },
-  "skybox": "cloudy_day",
+  "skybox": "another_planet_day",
   "geometry": {
     "grid_cell_size": 4.0,
     "level_height": 2.4,

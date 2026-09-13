@@ -45,23 +45,18 @@
       "sky_brightness": 1000.0,
       "ambient_brightness": 70.0,
       "sun_illuminance": 8000.0,
-      "sun_disc_luminance": 100.0,
       "saturation": 1.0
     },
     "dim": {
       "sky_brightness": 48.0,
       "ambient_brightness": 30.0,
       "moon_illuminance": 150.0,
-      "moon_disc_luminance": 7.0,
-      "moon_phase_percent": 100.0,
       "saturation": 0.5
     },
     "dark": {
       "sky_brightness": 12.0,
       "ambient_brightness": 15.0,
       "moon_illuminance": 50.0,
-      "moon_disc_luminance": 7.0,
-      "moon_phase_percent": 30.0,
       "saturation": 0.3
     }
   },
