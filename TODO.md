@@ -28,8 +28,6 @@
 
 ## Testing
 
-- **Hotel grounds on Linux:** continue by reviewing and refining the existing trees and meadow/soil ground, preserving FPS. Check walking-height detail, texture shimmer, and grass/tree distance fades while moving, including rain and night. See `AGENTS.md` for implementation pointers and the texture READMEs for generation prompts. Mac reference: about 106 FPS at 2400×1600 in a fixed clear-weather outdoor view on an M3 Max; forward and deferred rendering checked, 1,488 workspace tests passed, and Clippy clean. Measure Linux performance locally; the Mac result is only a reference.
-
 - **Actor movement sound mix:** Check the tank engine/background balance and speed-driven pitch in-game while moving, turning, stopping, climbing, and hovering. Tune the Enemy movement slider and `assets.json::actors.movement_volume_db` / `sfx_volume_db` against weapons and footsteps.
 
 - **Startup mouse capture:** Launch windowed, wait before moving the mouse, and confirm there is no initial view jump and the first click fires. Repeat after switching away and back.
