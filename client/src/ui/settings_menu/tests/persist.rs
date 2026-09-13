@@ -144,13 +144,24 @@ fn audio_sliders_apply_db_and_off_independently_and_restore_after_saving() {
             (settings_menu_lifecycle_system, settings_menu_slider_sync_system).chain(),
         );
     app.update();
-    for setting in [SliderSetting::MasterVolume, SliderSetting::FootstepVolume] {
+    for setting in [
+        SliderSetting::MasterVolume,
+        SliderSetting::FootstepVolume,
+        SliderSetting::ActorMovementVolume,
+    ] {
         assert_eq!(audio_slider(&mut app, setting).1, 0.0);
     }
-    for (master_db, footstep_db) in [(-20.0, -6.0), (-6.0, -20.0), (0.0, 0.0), (6.0, -12.0), (20.0, 20.0)] {
+    for (master_db, footstep_db, movement_db) in [
+        (-20.0, -6.0, 3.0),
+        (-6.0, -20.0, 6.0),
+        (0.0, 0.0, -20.0),
+        (6.0, -12.0, 0.0),
+        (20.0, 20.0, 20.0),
+    ] {
         for (setting, value) in [
             (SliderSetting::MasterVolume, master_db),
             (SliderSetting::FootstepVolume, footstep_db),
+            (SliderSetting::ActorMovementVolume, movement_db),
         ] {
             let (source, _) = audio_slider(&mut app, setting);
             app.world_mut().trigger(ValueChange::<f32> {
@@ -180,6 +191,7 @@ fn audio_sliders_apply_db_and_off_independently_and_restore_after_saving() {
         };
         assert_eq!(saved.master_volume, expected_master);
         assert_eq!(saved.preferences.footstep_volume_db, footstep_db);
+        assert_eq!(saved.preferences.actor_movement_volume_db, movement_db);
 
         app.world_mut().resource_mut::<SettingsMenuState>().open = false;
         app.update();
@@ -190,6 +202,7 @@ fn audio_sliders_apply_db_and_off_independently_and_restore_after_saving() {
         for (setting, expected) in [
             (SliderSetting::MasterVolume, master_db),
             (SliderSetting::FootstepVolume, footstep_db),
+            (SliderSetting::ActorMovementVolume, movement_db),
         ] {
             assert!((audio_slider(&mut app, setting).1 - expected).abs() < 0.00001);
             let world = app.world_mut();

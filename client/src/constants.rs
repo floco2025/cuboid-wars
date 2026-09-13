@@ -48,6 +48,7 @@ pub const CAMERA_MAX_PITCH: f32 = FRAC_PI_2 - 0.05;
 
 pub const AUDIO_MASTER_VOLUME_DEFAULT: f32 = 1.0;
 pub const AUDIO_FOOTSTEP_VOLUME_DB_DEFAULT: f32 = 0.0;
+pub const AUDIO_ACTOR_MOVEMENT_VOLUME_DB_DEFAULT: f32 = 0.0;
 pub const AUDIO_VOLUME_DB_MIN: f32 = -20.0;
 pub const AUDIO_VOLUME_DB_MAX: f32 = 20.0;
 
@@ -107,6 +108,15 @@ pub const PLAYER_ANIMATION_STRAFE_RATIO: f32 = 1.2;
 pub const WHEEL_ANIMATION_STANDSTILL_SPEED: f32 = 0.05;
 
 pub const ACTOR_MOVEMENT_AUDIO_STANDSTILL_SPEED: f32 = 0.05;
+pub const ACTOR_MOVEMENT_AUDIO_REFERENCE_SPEED: f32 = 4.0;
+pub const ACTOR_MOVEMENT_AUDIO_MIN_GAIN: f32 = 0.4;
+pub const ACTOR_MOVEMENT_AUDIO_HOVER_GAIN: f32 = 0.45;
+pub const ACTOR_MOVEMENT_AUDIO_ATTACK_RATE: f32 = 12.0;
+pub const ACTOR_MOVEMENT_AUDIO_RELEASE_RATE: f32 = 6.0;
+pub const ACTOR_MOVEMENT_AUDIO_PAUSE_GAIN: f32 = 0.002;
+pub const ACTOR_MOVEMENT_AUDIO_GROUND_PITCH: (f32, f32) = (0.78, 1.22);
+pub const ACTOR_MOVEMENT_AUDIO_FLYING_PITCH: (f32, f32) = (0.94, 1.18);
+pub const ACTOR_MOVEMENT_AUDIO_PITCH_VARIATION: f32 = 0.02;
 
 // ============================================================================
 // Character Inspection (the B-cycled bounds views)

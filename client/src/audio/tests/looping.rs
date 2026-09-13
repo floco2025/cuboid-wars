@@ -2,7 +2,7 @@ use std::{f32::consts::TAU, fs, thread, time::Instant};
 
 use bevy::{
     app::TaskPoolPlugin,
-    audio::{AudioLoader, SpatialAudioSink},
+    audio::{AudioLoader, AudioSinkPlayback, SpatialAudioSink},
 };
 use rodio::{SpatialPlayer, mixer::mixer};
 
@@ -39,7 +39,6 @@ fn looping_preserves_stereo_frames_and_independent_playback_positions() {
         assert_eq!(first.next(), Some(expected[index % 4]));
         assert_eq!(first.channels().get(), 2);
         assert_eq!(first.sample_rate().get(), 44100);
-        assert_eq!(first.current_span_len(), None);
     }
     assert_eq!(second.next(), Some(expected[0]));
     assert_eq!(first.next(), Some(expected[1]));
@@ -106,10 +105,62 @@ fn nearby_tone_stays_dominant_without_changing_output_channels() {
             }
             for (minimum, maximum) in ranges {
                 assert!(minimum > 0.0, "a moving actor's tone disappeared");
-                assert!(maximum / minimum < 1.001, "a moving actor's tone changed volume");
+                assert!(
+                    maximum / minimum < 1.001,
+                    "a moving actor's tone changed volume: min {minimum}, max {maximum}, {channels} channels, {rate} Hz"
+                );
             }
             assert!(ranges[0].0 > ranges[1].1 * 3.0);
             assert!(ranges[0].0 > ranges[2].1 * 3.0);
+        }
+    }
+}
+
+#[test]
+fn pitch_changes_keep_spatial_loops_on_their_output_channels() {
+    let samples: Vec<_> = (0..44100)
+        .map(|frame| (14000.0 + 10000.0 * (TAU * 440.0 * frame as f32 / 44100.0).sin()).round() as i16)
+        .collect();
+    let audio = LoopAudio::decode(wav(&samples, 1, 44100)).expect("pitched loop rejected");
+    for channels in [2, 8] {
+        for rate in [44100, 48000] {
+            let (input, mut output) = mixer(
+                NonZero::new(channels).expect("output channel count is zero"),
+                NonZero::new(rate).expect("output sample rate is zero"),
+            );
+            let player = SpatialPlayer::connect_new(&input, [0.0; 3], [-0.015, 0.0, 0.0], [0.015, 0.0, 0.0]);
+            player.append(audio.decoder());
+            let sink = SpatialAudioSink::new(player);
+            for speed in [0.8, 1.2, 0.94, 1.18, 1.0] {
+                sink.set_speed(speed);
+                let mut rising = 0;
+                let mut previous = 0.0;
+                for frame in 0..rate / 2 {
+                    for channel in 0..channels {
+                        let sample = output.next().expect("pitched movement mix ended");
+                        if channel >= 2 {
+                            assert_eq!(sample, 0.0, "pitch change shifted audio into channel {channel}");
+                        } else if frame >= rate / 10 {
+                            assert!(
+                                sample > 0.0,
+                                "pitch change interrupted channel {channel} at frame {frame}, speed {speed}, {rate} Hz, {channels} channels"
+                            );
+                        }
+                        if channel == 0 {
+                            let centered = sample - 14000.0 / 32768.0 * 0.5;
+                            if frame >= rate / 10 && previous <= 0.0 && centered > 0.0 {
+                                rising += 1;
+                            }
+                            previous = centered;
+                        }
+                    }
+                }
+                let expected = 440.0 * speed * 0.4;
+                assert!(
+                    (rising as f32 - expected).abs() < 2.0,
+                    "pitch change did not reach the output: {rising} cycles, expected {expected}"
+                );
+            }
         }
     }
 }

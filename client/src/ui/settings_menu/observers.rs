@@ -41,6 +41,7 @@ pub(super) fn on_slider_value_change(
         SliderSetting::ShakeScale => settings.preferences.shake_scale = value,
         SliderSetting::MasterVolume => global_volume.volume = settings_volume(value),
         SliderSetting::FootstepVolume => settings.preferences.footstep_volume_db = value,
+        SliderSetting::ActorMovementVolume => settings.preferences.actor_movement_volume_db = value,
     }
 }
 

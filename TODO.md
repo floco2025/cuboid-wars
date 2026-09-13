@@ -22,7 +22,7 @@
 
 ## Testing
 
-- **Actor movement sound mix:** Tune `assets.json::actors.movement_volume_db` and `sfx_volume_db` against weapons and footsteps while moving, stopping, climbing, and hovering.
+- **Actor movement sound mix:** Check the tank engine/background balance and speed-driven pitch in-game while moving, turning, stopping, climbing, and hovering. Tune the Enemy movement slider and `assets.json::actors.movement_volume_db` / `sfx_volume_db` against weapons and footsteps.
 
 - **Startup mouse capture:** Launch windowed, wait before moving the mouse, and confirm there is no initial view jump and the first click fires. Repeat after switching away and back.
 

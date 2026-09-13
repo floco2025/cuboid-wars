@@ -24,25 +24,43 @@ fn preferences_reject_portal_budget_above_settings_maximum() {
 }
 
 #[test]
-fn footstep_volume_defaults_to_neutral_and_validates_the_db_range() {
-    let mut settings = test_fixtures::client_settings();
-    assert_eq!(settings.preferences.footstep_volume_db, 0.0);
-    for db in [-20.0, -6.0, 0.0, 6.0, 20.0] {
-        settings.preferences.footstep_volume_db = db;
-        settings
-            .preferences
-            .validate()
-            .expect("valid footstep adjustment rejected");
-    }
-    for db in [-21.0, 21.0, f32::NAN, f32::NEG_INFINITY, f32::INFINITY] {
-        settings.preferences.footstep_volume_db = db;
-        let error = settings
-            .preferences
-            .validate()
-            .expect_err("invalid footstep adjustment accepted");
-        assert!(error.to_string().contains("footstep_volume_db"));
+fn sound_volumes_default_to_neutral_and_validate_the_db_range() {
+    let defaults = test_fixtures::client_settings();
+    assert_eq!(defaults.preferences.footstep_volume_db, 0.0);
+    assert_eq!(defaults.preferences.actor_movement_volume_db, 0.0);
+    for name in ["footstep_volume_db", "actor_movement_volume_db"] {
+        for db in [
+            -20.0,
+            -6.0,
+            0.0,
+            6.0,
+            20.0,
+            -21.0,
+            21.0,
+            f32::NAN,
+            f32::NEG_INFINITY,
+            f32::INFINITY,
+        ] {
+            let mut settings = defaults.clone();
+            match name {
+                "footstep_volume_db" => settings.preferences.footstep_volume_db = db,
+                _ => settings.preferences.actor_movement_volume_db = db,
+            }
+            let result = settings.preferences.validate();
+            if (-20.0..=20.0).contains(&db) {
+                result.expect("valid sound adjustment rejected");
+            } else {
+                assert!(
+                    result
+                        .expect_err("invalid sound adjustment accepted")
+                        .to_string()
+                        .contains(name)
+                );
+            }
+        }
     }
 }
+
 #[test]
 fn json_cannot_override_runtime_preference_defaults() {
     let mut json: serde_json::Value =

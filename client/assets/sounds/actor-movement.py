@@ -41,7 +41,7 @@ def tank(count, heavy):
         track_phase += math.tau * track_hz * (1.0 + 0.018 * math.sin(math.tau * 0.83 * time)) / SAMPLE_RATE
         firing = (0.5 + 0.5 * math.cos(engine_phase)) ** 5
         engine = sum(math.sin(engine_phase * harmonic + 0.23 * harmonic) / harmonic for harmonic in range(1, 8))
-        rumble = 0.30 * engine + (0.22 + 0.40 * firing) * combustion[index] + 0.22 * exhaust[index]
+        rumble = 0.46 * engine + (0.08 + 0.45 * firing) * combustion[index] + 0.25 * exhaust[index]
         left_track = (track_phase / math.tau) % 1.0
         right_track = (track_phase / math.tau * 1.017 + 0.43) % 1.0
         clatter = 0.0
@@ -50,11 +50,11 @@ def tank(count, heavy):
             strike = (1.0 - math.exp(-age * 2200.0)) * math.exp(-age * (65 if heavy else 105))
             metal = sum(
                 math.sin(math.tau * frequency * age) * gain
-                for frequency, gain in ((310 if heavy else 590, 0.6), (870 if heavy else 1480, 0.3), (1930, 0.15))
+                for frequency, gain in ((310 if heavy else 590, 0.9), (870 if heavy else 1480, 0.16), (1930, 0.06))
             )
-            clatter += strike * (0.55 * tread[index] + metal)
-        gear = 0.055 * math.sin(engine_phase * (6.7 if heavy else 8.3) + 0.8 * math.sin(engine_phase))
-        samples.append(math.tanh(0.85 * (rumble + 0.65 * clatter + gear + 0.045 * tread[index])))
+            clatter += strike * (0.18 * tread[index] + metal)
+        gear = 0.025 * math.sin(engine_phase * (6.7 if heavy else 8.3) + 0.8 * math.sin(engine_phase))
+        samples.append(math.tanh(0.85 * (rumble + 0.95 * clatter + gear + 0.01 * tread[index])))
     return samples
 
 

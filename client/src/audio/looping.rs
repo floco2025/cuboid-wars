@@ -80,8 +80,9 @@ impl Iterator for LoopDecoder {
 
 impl Source for LoopDecoder {
     fn current_span_len(&self) -> Option<usize> {
-        // Rodio 0.22 miscounts buffered mono spans after spatialization, shifting output channels.
-        None
+        // Even blocks aligned to 40 ms let Rodio refresh pitch without splitting stereo frames.
+        let frames = (self.audio.sample_rate.get() / 25).max(1) as usize;
+        Some(2 * usize::from(self.audio.channels.get()) * frames)
     }
 
     fn channels(&self) -> NonZero<u16> {

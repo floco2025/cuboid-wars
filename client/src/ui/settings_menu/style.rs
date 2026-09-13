@@ -110,7 +110,7 @@ fn slider_label(setting: SliderSetting, value: f32) -> String {
         SliderSetting::MouseSensitivity | SliderSetting::ZoomSensitivity => format!("{value:.2}x"),
         SliderSetting::Fov => format!("{value:.0}"),
         SliderSetting::ShakeScale => format!("{value:.1}x"),
-        SliderSetting::MasterVolume | SliderSetting::FootstepVolume => {
+        SliderSetting::MasterVolume | SliderSetting::FootstepVolume | SliderSetting::ActorMovementVolume => {
             if value <= AUDIO_VOLUME_DB_MIN {
                 "Off".to_owned()
             } else {

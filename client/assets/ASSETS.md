@@ -49,7 +49,7 @@
 | `sounds/freesound_community-laser-beam-76426.wav` | peepholecircus / freesound_community — [Pixabay Laser beam](https://pixabay.com/sound-effects/film-special-effects-laser-beam-76426/); converted from MP3 | [Pixabay Content License](https://pixabay.com/service/license-summary/) |
 | `sounds/rain-on-umbrella-loop.wav` | Vadim_Makes_Sound — [Pixabay Rain on Umbrella Loop, Gentle Rain Ambience](https://pixabay.com/sound-effects/film-special-effects-rain-on-umbrella-loop-gentle-rain-ambience-550562/); converted from MP3 | [Pixabay Content License](https://pixabay.com/service/license-summary/) |
 | `sounds/portal-fizzle.wav` | Project-created with [portal-fizzle.py](sounds/portal-fizzle.py) | Project-owned |
-| `sounds/scuttler-movement.wav`, `sounds/bruiser-movement.wav`, `sounds/zapper-movement.wav` | Project-created with [actor-movement.py](sounds/actor-movement.py) | Project-owned |
+| `sounds/scuttler-movement.wav`, `sounds/bruiser-movement.wav`, `sounds/zapper-movement.wav` | Project-created tank engine and quadcopter loops with [actor-movement.py](sounds/actor-movement.py) | Project-owned |
 | `sounds/footstep_carpet_000.ogg`–`footstep_carpet_004.ogg`, `footstep_concrete_000.ogg`–`footstep_concrete_004.ogg`, `footstep_grass_000.ogg`–`footstep_grass_004.ogg`, `impactMetal_light_000.ogg`–`impactMetal_light_004.ogg` | Kenney — [Impact Sounds](https://kenney.nl/assets/impact-sounds) | [CC0](sounds/Kenney-Impact-Sounds-LICENSE.txt) |
 | `sounds/footstep00.ogg`–`footstep09.ogg` | Kenney — [RPG Audio](https://kenney.nl/assets/rpg-audio) | [CC0](sounds/Kenney-RPG-Audio-LICENSE.txt) |
 

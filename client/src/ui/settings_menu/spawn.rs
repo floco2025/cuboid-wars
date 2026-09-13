@@ -186,6 +186,17 @@ pub(super) fn settings_menu_lifecycle_system(
                         0,
                     ));
 
+                    panel.spawn(slider_row(
+                        "Enemy movement",
+                        font,
+                        dims.control_width,
+                        SliderSetting::ActorMovementVolume,
+                        AUDIO_VOLUME_DB_MIN,
+                        AUDIO_VOLUME_DB_MAX,
+                        settings.preferences.actor_movement_volume_db,
+                        0,
+                    ));
+
                     panel.spawn(section_header("HUD", font));
                     let mut rearview_row =
                         panel.spawn(checkbox_row("Rearview mirror", font, CheckboxSetting::RearviewMirror));
