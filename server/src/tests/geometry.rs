@@ -29,6 +29,7 @@ pub(crate) fn geometry(grid_cols: i32, grid_rows: i32) -> MapGeometry {
 
 pub(crate) fn map_settings() -> MapSettings {
     MapSettings {
+        grounds: None,
         skybox: "test".to_owned(),
         textures: Default::default(),
         geometry: sizes(),

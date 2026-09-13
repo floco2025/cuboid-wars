@@ -11,7 +11,7 @@ use super::{
 use crate::{map::MapConfig, schedule::ticks_from_secs};
 use common::{
     config::MapGeometryConfig,
-    map::MapGeometry,
+    map::{Grounds, MapGeometry},
     protocol::{
         BarrierId, BarrierKindTable, BridgeId, BridgeKindTable, Carrier, CarrierId, LightBridge, MapLayout,
         MapSettings, SwitchId, SwitchTable,
@@ -55,6 +55,20 @@ pub(crate) fn compile_map(
         plated_switches,
     };
     compile_tree(root, nested, &scope, CarrierId::WORLD, &mut out)?;
+    if let Some(grounds) = &settings.grounds {
+        ensure!(
+            usize::from(grounds.level) < root.levels.len(),
+            "grounds.level is outside the map"
+        );
+        out.layout.grounds = Some(Grounds {
+            half_size: [
+                root.grid_cols as f32 * settings.geometry.grid_cell_size * 0.5 + settings.geometry.wall_thickness * 0.5,
+                root.grid_rows as f32 * settings.geometry.grid_cell_size * 0.5 + settings.geometry.wall_thickness * 0.5,
+            ],
+            y: settings.geometry.level_y(grounds.level),
+            settings: grounds.clone(),
+        });
+    }
     for (index, barrier) in out.layout.barriers.iter_mut().enumerate() {
         barrier.id = BarrierId(u32::try_from(index).expect("barrier count exceeds u32"));
     }

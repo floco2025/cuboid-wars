@@ -35,6 +35,7 @@ pub fn setup_skybox_from_cross_system(
     asset_server: Res<AssetServer>,
     asset_set: Res<AssetSet>,
     map_settings: Res<MapSettings>,
+    mut images: ResMut<Assets<Image>>,
 ) {
     if *done {
         return;
@@ -42,14 +43,19 @@ pub fn setup_skybox_from_cross_system(
     *done = true;
     let skybox = selected_skybox(&asset_set, &map_settings);
 
-    // Load the cross-layout skybox image
-    let cross_image_handle: Handle<Image> = asset_server.load(skybox.image.clone());
-
-    // Store the handle in a resource so we can use it once loaded
-    commands.insert_resource(SkyboxCrossImage(cross_image_handle));
+    if skybox.image_enabled {
+        let cross_image_handle: Handle<Image> = asset_server.load(skybox.image.clone());
+        commands.insert_resource(SkyboxCrossImage(cross_image_handle));
+    } else {
+        super::procedural_sky::setup(&mut commands, &mut images);
+    }
     commands.insert_resource(SkyboxSettings {
         brightness: skybox.brightness,
-        rotation_period_secs: skybox.rotation_period_secs,
+        rotation_period_secs: if skybox.image_enabled {
+            skybox.rotation_period_secs
+        } else {
+            0.0
+        },
         celestial_step_radians: skybox.celestial_step_degrees.to_radians(),
         celestial_disc: skybox.celestial_disc,
     });
@@ -116,6 +122,7 @@ pub fn setup_sky_disc_system(
         base_color: Color::BLACK,
         emissive: CELESTIAL_DISC_SUN_COLOR.to_linear() * celestial_disc.bright.luminance,
         reflectance: 0.0,
+        fog_enabled: false,
         ..default()
     });
     commands.insert_resource(SkyDiscAssets {
@@ -280,6 +287,12 @@ impl Default for LightingState {
     }
 }
 
+impl LightingState {
+    pub(super) fn environment(&self) -> (f32, f32) {
+        (self.current.daylight, linear_intensity(self.current.sky))
+    }
+}
+
 // Floor for the log-domain intensity channels: keeps ln() defined for the
 // disc's `0 = off`, and anything easing down to the floor snaps back to 0
 // at the application boundary.
@@ -296,6 +309,7 @@ const LOG_INTENSITY_FLOOR: f32 = 1e-3;
 // `phase_percent`/`saturation` are already perceptual ratios.
 #[derive(Default, Clone)]
 struct LevelTargets {
+    daylight: f32,
     sky: f32,
     illuminance: f32,
     ambient: f32,
@@ -318,6 +332,7 @@ impl LevelTargets {
     fn sun(sun: &SunLighting, disc: &CelestialDiscLook) -> Self {
         let color = CELESTIAL_DISC_SUN_COLOR.to_linear();
         Self {
+            daylight: 1.0,
             sky: log_intensity(sun.sky_brightness),
             illuminance: log_intensity(sun.sun_illuminance),
             ambient: log_intensity(sun.ambient_brightness),
@@ -331,6 +346,7 @@ impl LevelTargets {
     fn moon(moon: &MoonLighting, disc: &CelestialDiscLook) -> Self {
         let color = CELESTIAL_DISC_MOON_COLOR.to_linear();
         Self {
+            daylight: 0.0,
             sky: log_intensity(moon.sky_brightness),
             illuminance: log_intensity(moon.moon_illuminance),
             ambient: log_intensity(moon.ambient_brightness),
@@ -345,6 +361,7 @@ impl LevelTargets {
 impl StableInterpolate for LevelTargets {
     fn interpolate_stable(&self, other: &Self, t: f32) -> Self {
         Self {
+            daylight: self.daylight.lerp(other.daylight, t),
             sky: self.sky.lerp(other.sky, t),
             illuminance: self.illuminance.lerp(other.illuminance, t),
             ambient: self.ambient.lerp(other.ambient, t),

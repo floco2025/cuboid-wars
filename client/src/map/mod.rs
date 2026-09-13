@@ -1,12 +1,18 @@
+mod boundary;
 pub mod cubemap;
 mod grass;
+mod grounds;
 #[cfg(test)]
 #[path = "tests/light.rs"]
 mod light_tests;
+mod procedural_sky;
 mod rendering;
 mod resources;
 pub mod skybox;
 pub mod spawn;
+mod terrain_grass;
+mod terrain_surface;
+mod trees;
 
 pub(crate) use grass::GrassBurn;
 pub use grass::{GrassMarker, grass_burn_system, grass_spawn_system};

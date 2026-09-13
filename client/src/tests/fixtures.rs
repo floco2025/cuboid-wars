@@ -50,6 +50,7 @@ pub(crate) fn sizes() -> MapGeometryConfig {
 // The settings resource for systems that only read `geometry`.
 pub(crate) fn map_settings() -> MapSettings {
     MapSettings {
+        grounds: None,
         skybox: "test".to_owned(),
         textures: Default::default(),
 

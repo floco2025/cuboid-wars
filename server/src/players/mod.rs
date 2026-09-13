@@ -1,3 +1,4 @@
+mod boundary;
 mod checkpoints;
 mod equipment;
 mod falling;

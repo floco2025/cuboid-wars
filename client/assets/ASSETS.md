@@ -14,11 +14,19 @@
 | `models/pressure_plate.glb` | Project-created model and activation animation | Project-owned |
 | `models/mocap/cmu/*.amc`, `*.asf` | [Carnegie Mellon University Graphics Lab Motion Capture Database](http://mocap.cs.cmu.edu/) | [CMU terms and capture list](models/mocap/cmu/README.md) |
 
+## Procedural scenery
+
+| Asset | Source | License |
+| --- | --- | --- |
+| Sky, surrounding terrain, trees, and rocks | Project-created at runtime in `client/src/map/` and `common/src/map/grounds.rs` | Project-owned |
+
 ## Textures
 
 | Asset | Source | License |
 | --- | --- | --- |
 | `models/bruiser_textures/*.png`, `models/scuttler_textures/*.png`, `models/zapper_textures/*.png`, `models/turret_textures/*.png`, `models/player_textures/*.png` | Project-created with [modelkit/wear.py](models/modelkit/wear.py) | Project-owned |
+| `textures/trees/oak-leaf-spray.png` | OpenAI image generation; [prompt](textures/trees/README.md) | Project-owned |
+| `textures/meadow/meadow-albedo.png` | OpenAI image generation; [prompt](textures/meadow/README.md) | Project-owned |
 | `textures/art-deco-scales-wallpaper-ue/*.png` | [FreePBR.com](https://freepbr.com/) — Art Deco scales wallpaper | [FreePBR terms](https://freepbr.com/about-free-pbr/) |
 | `textures/beige-carpet-worn1-ue/*.png` | [FreePBR.com](https://freepbr.com/) — Beige carpet worn 1 | [FreePBR terms](https://freepbr.com/about-free-pbr/) |
 | `textures/bricks-mortar-ue/*.png` | [FreePBR.com](https://freepbr.com/) — Bricks mortar | [FreePBR terms](https://freepbr.com/about-free-pbr/) |

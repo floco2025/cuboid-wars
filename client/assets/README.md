@@ -62,4 +62,6 @@ Register each used PNG under `config/client/assets.json::skyboxes`, then select 
 }
 ```
 
-`direction` is a nonzero `[x, y, z]` vector in the game's Y-up world; its length does not matter. The sun and moon share this direction as lighting changes between bright, dim, and dark. `show: false` hides their rendered disc while preserving illumination and shadows. It cannot remove celestial bodies baked into the panorama. Each look owns the disc's luminance and lit percentage; world illumination remains in `client.json::lighting`. For rotating skies, the direction rotates with the sky; `rotation_period_secs: 0` in the asset entry holds both still. Hotel retains its cloudy rotating sky, light direction, and visible disc. Obby uses the stationary planet sky with a visible disc aligned to its bright sun.
+`direction` is a nonzero `[x, y, z]` vector in the game's Y-up world; its length does not matter. The sun and moon share this direction as lighting changes between bright, dim, and dark. `show: false` hides their rendered disc while preserving illumination and shadows. It cannot remove celestial bodies baked into the panorama. Each look owns the disc's luminance and lit percentage; world illumination remains in `client.json::lighting`. For rotating skies, the direction rotates with the sky; `rotation_period_secs: 0` in the asset entry holds both still.
+
+Skybox entries retain their images when `image_enabled` is false; the game generates a clear/rain/night sky instead. Set it to true to restore the image sky.

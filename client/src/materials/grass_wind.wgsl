@@ -88,5 +88,10 @@ fn vertex(vertex: Vertex) -> VertexOutput {
     out.instance_index = vertex.instance_index;
 #endif
 
+#ifdef VISIBILITY_RANGE_DITHER
+    out.visibility_range_dither = mesh_functions::get_visibility_range_dither_level(
+        vertex.instance_index, world_from_local[3]);
+#endif
+
     return out;
 }

@@ -5,7 +5,10 @@ use bevy_ecs::prelude::Resource;
 use bincode::{Decode, Encode};
 use serde::Deserialize;
 
-use crate::config::{MapGeometryConfig, MapMovementConfig};
+use crate::{
+    config::{MapGeometryConfig, MapMovementConfig},
+    map::{Grounds, GroundsSettings},
+};
 
 use super::{
     BarrierId, BarrierKindId, BarrierKindTable, BridgeId, BridgeKindId, BridgeKindTable, CarrierId, ItemType, KindDef,
@@ -254,6 +257,7 @@ pub struct Checkpoint {
 
 #[derive(Debug, Clone, Encode, Decode, Resource, Default)]
 pub struct MapLayout {
+    pub grounds: Option<Grounds>,
     pub walls: Vec<Wall>,
     // Visual materials for each segment: the `*_materials` vectors run
     // parallel to `walls` / `ramps` / `floors`, so the segment at index `i`
@@ -332,6 +336,8 @@ impl MapLayout {
 // shipped to clients in `SInit` so prediction uses the server's values.
 #[derive(Debug, Clone, Encode, Decode, Resource, Deserialize)]
 pub struct MapSettings {
+    #[serde(default)]
+    pub grounds: Option<GroundsSettings>,
     pub skybox: String,
     pub textures: BTreeMap<String, TextureSettings>,
     pub geometry: MapGeometryConfig,

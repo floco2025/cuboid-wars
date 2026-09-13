@@ -58,7 +58,7 @@ impl MaterialDef {
     }
 }
 
-fn load_texture(
+pub(super) fn load_texture(
     asset_server: &AssetServer,
     path: &str,
     repeat: bool,

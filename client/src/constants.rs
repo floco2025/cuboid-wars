@@ -564,3 +564,35 @@ pub const SETTINGS_SLIDER_TRACK_COLOR: Color = QUEST_BAR_TRACK_COLOR;
 // The quest-bar gold on thumbs, check marks, and pressed buttons.
 pub const SETTINGS_ACCENT_COLOR: Color = QUEST_BAR_FILL_COLOR;
 pub const SETTINGS_OUTLINE_COLOR: Color = Color::srgba(1.0, 1.0, 1.0, 0.35);
+
+pub const SKY_FACE_SIZE: u32 = 256;
+pub const SKY_CLEAR_HORIZON: Vec3 = Vec3::new(0.68, 0.79, 0.85);
+pub const SKY_CLEAR_ZENITH: Vec3 = Vec3::new(0.12, 0.37, 0.68);
+pub const SKY_RAIN_HORIZON: Vec3 = Vec3::new(0.48, 0.53, 0.57);
+pub const SKY_RAIN_ZENITH: Vec3 = Vec3::new(0.28, 0.32, 0.37);
+pub const SKY_NIGHT_HORIZON: Vec3 = Vec3::new(0.012, 0.02, 0.045);
+pub const SKY_NIGHT_ZENITH: Vec3 = Vec3::new(0.006, 0.009, 0.025);
+pub const SKY_NIGHT_OVERCAST: Vec3 = Vec3::new(0.025, 0.03, 0.04);
+pub const SKY_CLOUD_COLOR: Vec3 = Vec3::new(0.92, 0.93, 0.91);
+pub const SKY_RAIN_BRIGHTNESS: f32 = 0.65;
+pub const SKY_RAIN_DIRECT_LIGHT: f32 = 0.22;
+pub const SKY_RAIN_AMBIENT_LIGHT: f32 = 0.8;
+pub const SKY_CLEAR_FOG_RANGE: [f32; 2] = [100.0, 850.0];
+pub const SKY_RAIN_FOG_RANGE: [f32; 2] = [35.0, 280.0];
+pub const GROUNDS_BARK_COLOR: Color = Color::srgb(0.19, 0.13, 0.085);
+pub const GROUNDS_ROCK_COLOR: Color = Color::srgb(0.35, 0.36, 0.32);
+
+pub const TREE_VARIANTS: usize = 3;
+pub const TREE_FOLIAGE_CUTOFF: f32 = 0.35;
+pub const TREE_FOLIAGE_TRANSMISSION: f32 = 0.25;
+pub const TREE_LOD_DISTANCES: [[f32; 2]; 3] = [[55.0, 65.0], [125.0, 150.0], [380.0, 440.0]];
+
+pub const TERRAIN_GRASS_TILE_SIZE: f32 = 1.4;
+pub const TERRAIN_COVER_SIZE: u32 = 512;
+pub const TERRAIN_SOIL_TILE_SIZE: f32 = 2.5;
+pub const TERRAIN_RELIEF: f32 = 0.018;
+pub const TERRAIN_TUFT_CHUNK_SIZE: f32 = 10.0;
+pub const TERRAIN_TUFT_DENSITY: f32 = 1.2;
+pub const TERRAIN_TUFT_FADE: [f32; 2] = [30.0, 45.0];
+pub const TERRAIN_TUFT_GREEN: Color = Color::srgb(0.28, 0.37, 0.11);
+pub const TERRAIN_TUFT_DRY: Color = Color::srgb(0.40, 0.39, 0.17);

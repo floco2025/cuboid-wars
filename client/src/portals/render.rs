@@ -378,6 +378,7 @@ fn create_portal_view_target(
     let material = materials.add(StandardMaterial {
         base_color: Color::WHITE,
         base_color_texture: Some(image.clone()),
+        fog_enabled: false,
         unlit: true,
         ..default()
     });

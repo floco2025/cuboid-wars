@@ -86,6 +86,7 @@ fn server_gameplay_config() -> ServerGameplayConfig {
             "hotel".to_owned(),
             MapServerConfig {
                 settings: common::protocol::MapSettings {
+                    grounds: None,
                     skybox: "cloudy_day".to_owned(),
                     textures: Default::default(),
 

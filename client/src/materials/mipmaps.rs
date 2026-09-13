@@ -9,6 +9,7 @@ use bevy::{
 };
 use bevy_mod_mipmap_generator::{MipmapGeneratorSettings, check_image_compatible, generate_mips_texture};
 
+use super::TerrainMaterial;
 use crate::config::ClientSettings;
 
 const MAX_PENDING_MIPMAP_TASKS: usize = 2;
@@ -32,12 +33,25 @@ pub fn generate_material_mipmaps_system(
     mut state: Local<MaterialMipmapState>,
     mut material_events: MessageReader<AssetEvent<StandardMaterial>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut terrain_events: MessageReader<AssetEvent<TerrainMaterial>>,
+    mut terrain_materials: ResMut<Assets<TerrainMaterial>>,
     mut images: ResMut<Assets<Image>>,
     asset_server: Res<AssetServer>,
     client_settings: Res<ClientSettings>,
 ) {
     let updated_images = finish_mipmap_tasks(&mut state, &mut images);
     mark_materials_using_images_changed(&mut materials, &updated_images);
+    mark_terrain_materials_using_images_changed(&mut terrain_materials, &updated_images);
+
+    for event in terrain_events.read() {
+        let id = match event {
+            AssetEvent::Added { id } | AssetEvent::Modified { id } | AssetEvent::LoadedWithDependencies { id } => *id,
+            _ => continue,
+        };
+        if let Some(material) = terrain_materials.get(id) {
+            queue_images(&mut state, terrain_material_images(material), format!("{id:?}"));
+        }
+    }
 
     for event in material_events.read() {
         let Some(material_id) = (match event {
@@ -135,7 +149,23 @@ fn queue_material_images(
     let material_label = asset_server
         .get_path(material_id)
         .map_or_else(|| format!("{material_id:?}"), |path| path.to_string());
-    for (texture_slot, image_handle) in standard_material_images(material) {
+    queue_images(state, standard_material_images(material), material_label);
+}
+
+fn terrain_material_images(material: &TerrainMaterial) -> impl Iterator<Item = (&'static str, &Handle<Image>)> {
+    standard_material_images(&material.base).chain([
+        ("terrain grass texture", &material.extension.grass),
+        ("terrain soil texture", &material.extension.soil),
+        ("terrain cover texture", &material.extension.cover),
+    ])
+}
+
+fn queue_images<'a>(
+    state: &mut MaterialMipmapState,
+    images: impl Iterator<Item = (&'static str, &'a Handle<Image>)>,
+    material_label: String,
+) {
+    for (texture_slot, image_handle) in images {
         let image_id = image_handle.id();
         if state.processed.contains(&image_id)
             || state.pending.contains_key(&image_id)
@@ -200,6 +230,26 @@ fn mark_materials_using_images_changed(
 
 fn material_uses_any_image(material: &StandardMaterial, image_ids: &HashSet<AssetId<Image>>) -> bool {
     standard_material_images(material).any(|(_, image)| image_ids.contains(&image.id()))
+}
+
+fn mark_terrain_materials_using_images_changed(
+    materials: &mut Assets<TerrainMaterial>,
+    updated_images: &HashSet<AssetId<Image>>,
+) {
+    if updated_images.is_empty() {
+        return;
+    }
+    let affected: Vec<_> = materials
+        .iter()
+        .filter_map(|(id, material)| {
+            terrain_material_images(material)
+                .any(|(_, image)| updated_images.contains(&image.id()))
+                .then_some(id)
+        })
+        .collect();
+    for id in affected {
+        let _ = materials.get_mut(id).as_deref_mut();
+    }
 }
 
 fn standard_material_images(material: &StandardMaterial) -> impl Iterator<Item = (&'static str, &Handle<Image>)> {

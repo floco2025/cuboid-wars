@@ -18,6 +18,8 @@ pub struct WallLightModelDef {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct SkyboxDef {
+    #[serde(default = "image_enabled")]
+    pub image_enabled: bool,
     // Path to a cube-cross layout image used to derive the cubemap faces.
     pub image: String,
     pub brightness: f32,
@@ -30,6 +32,10 @@ pub struct SkyboxDef {
     #[serde(default)]
     pub celestial_step_degrees: f32,
     pub celestial_disc: CelestialDiscDef,
+}
+
+fn image_enabled() -> bool {
+    true
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]

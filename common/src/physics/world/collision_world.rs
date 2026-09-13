@@ -9,8 +9,8 @@ use super::{
     bounds::WorldBounds,
     colliders::{
         BRIDGE_COLLISION_GROUP, ColliderKind, collider_interaction_groups, insert_barrier_collider,
-        insert_bridge_collider, insert_floor_collider, insert_ramp_collider, insert_wall_collider, query_filter,
-        surface_collision_groups,
+        insert_bridge_collider, insert_floor_collider, insert_grounds_colliders, insert_ramp_collider,
+        insert_wall_collider, query_filter, surface_collision_groups,
     },
     erasers::EraserVolume,
     ladders::LadderVolume,
@@ -96,6 +96,9 @@ impl CollisionWorld {
             let handle = insert_bridge_collider(&mut colliders, bridge);
             collider_handles.push(carried(&colliders, handle, bridge.carrier));
             bridge_colliders.push((bridge.id, handle));
+        }
+        if let Some(grounds) = &map_layout.grounds {
+            collider_handles.extend(insert_grounds_colliders(&mut colliders, grounds));
         }
         let bounds = WorldBounds::new(&colliders, map_layout.carriers.len());
 

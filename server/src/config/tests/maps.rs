@@ -65,6 +65,7 @@ fn kind(id: &str) -> KindDef {
 fn ok_map_entry() -> MapServerConfig {
     MapServerConfig {
         settings: MapSettings {
+            grounds: None,
             skybox: "cloudy_day".to_owned(),
             textures: Default::default(),
 

@@ -1,5 +1,86 @@
 use super::*;
+use crate::materials::terrain::TerrainExtension;
 use bevy::{app::TaskPoolPlugin, asset::AssetPlugin, ecs::message::Messages};
+
+#[test]
+fn terrain_images_queue_base_and_extension_textures_once() {
+    let mut images = Assets::<Image>::default();
+    let grass = images.add(Image::default());
+    let soil = images.add(Image::default());
+    let normal = images.add(Image::default());
+    let cover = images.add(Image::default());
+    let material = TerrainMaterial {
+        base: StandardMaterial {
+            normal_map_texture: Some(normal.clone()),
+            ..default()
+        },
+        extension: TerrainExtension {
+            grass: grass.clone(),
+            soil: soil.clone(),
+            cover: cover.clone(),
+            surface: Vec4::ZERO,
+        },
+    };
+    let mut state = MaterialMipmapState::default();
+    for _ in 0..2 {
+        queue_images(&mut state, terrain_material_images(&material), "terrain".into());
+    }
+    assert_eq!(
+        state.queued.keys().copied().collect::<HashSet<_>>(),
+        HashSet::from([grass.id(), soil.id(), normal.id(), cover.id()])
+    );
+}
+
+#[test]
+fn terrain_texture_replacement_rebinds_only_dependent_materials() {
+    let mut app = App::new();
+    app.add_plugins((TaskPoolPlugin::default(), AssetPlugin::default()))
+        .init_asset::<TerrainMaterial>();
+    let mut images = Assets::<Image>::default();
+    let grass = images.add(Image::default());
+    let soil = images.add(Image::default());
+    let (dependent, _unrelated) = {
+        let mut materials = app.world_mut().resource_mut::<Assets<TerrainMaterial>>();
+        let dependent = materials.add(TerrainMaterial {
+            base: default(),
+            extension: TerrainExtension {
+                grass: grass.clone(),
+                soil: soil.clone(),
+                cover: soil.clone(),
+                surface: Vec4::ZERO,
+            },
+        });
+        let unrelated = materials.add(TerrainMaterial {
+            base: default(),
+            extension: TerrainExtension {
+                grass: soil.clone(),
+                soil: soil.clone(),
+                cover: soil.clone(),
+                surface: Vec4::ZERO,
+            },
+        });
+        (dependent, unrelated)
+    };
+    app.update();
+    app.world_mut()
+        .resource_mut::<Messages<AssetEvent<TerrainMaterial>>>()
+        .clear();
+    mark_terrain_materials_using_images_changed(
+        &mut app.world_mut().resource_mut::<Assets<TerrainMaterial>>(),
+        &HashSet::from([grass.id()]),
+    );
+    app.update();
+    let modified: Vec<_> = app
+        .world()
+        .resource::<Messages<AssetEvent<TerrainMaterial>>>()
+        .iter_current_update_messages()
+        .filter_map(|event| match event {
+            AssetEvent::Modified { id } => Some(*id),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(modified, vec![dependent.id()]);
+}
 
 #[test]
 fn material_image_match_checks_every_texture_slot() {

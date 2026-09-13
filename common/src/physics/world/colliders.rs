@@ -7,7 +7,7 @@ use rapier3d::prelude::{
 use super::shape_cast::FieldKind;
 
 use crate::{
-    map::{RampAxis, ramp_axis},
+    map::{Grounds, RampAxis, ramp_axis},
     math::to_rapier,
     protocol::{Barrier, BarrierId, BridgeId, CarrierId, Floor, LightBridge, Ramp, Wall},
 };
@@ -70,6 +70,7 @@ pub(super) enum ColliderKind {
     Ramp,
     Barrier,
     Bridge,
+    Grounds,
 }
 
 impl ColliderKind {
@@ -80,6 +81,7 @@ impl ColliderKind {
             Self::Ramp => 3,
             Self::Barrier => 4,
             Self::Bridge => 5,
+            Self::Grounds => 6,
         };
         tag | (u128::from(carrier.0) << CARRIER_SHIFT)
     }
@@ -112,9 +114,47 @@ impl ColliderKind {
             3 => Some(Self::Ramp),
             4 => Some(Self::Barrier),
             5 => Some(Self::Bridge),
+            6 => Some(Self::Grounds),
             _ => None,
         }
     }
+}
+
+pub(super) fn insert_grounds_colliders(colliders: &mut ColliderSet, grounds: &Grounds) -> Vec<ColliderHandle> {
+    let mesh = grounds.mesh(false);
+    let collider = ColliderBuilder::trimesh(mesh.vertices.into_iter().map(to_rapier).collect(), mesh.triangles)
+        .expect("grounds mesh contains invalid triangles")
+        .user_data(ColliderKind::Grounds.user_data(CarrierId::WORLD))
+        .collision_groups(collider_interaction_groups(FLOOR_COLLISION_GROUP))
+        .build();
+    let mut handles = vec![colliders.insert(collider)];
+    for decoration in grounds.decorations() {
+        let (shape, position) = if decoration.tree {
+            (
+                ColliderBuilder::cylinder(2.0 * decoration.scale.y, 0.32 * decoration.scale.x),
+                decoration.position + Vec3::Y * (2.0 * decoration.scale.y),
+            )
+        } else {
+            (
+                ColliderBuilder::cuboid(
+                    decoration.scale.x * 0.7,
+                    decoration.scale.y * 0.7,
+                    decoration.scale.z * 0.7,
+                ),
+                decoration.position + Vec3::Y * (decoration.scale.y * 0.45),
+            )
+        };
+        handles.push(
+            colliders.insert(
+                shape
+                    .translation(to_rapier(position))
+                    .user_data(ColliderKind::Grounds.user_data(CarrierId::WORLD))
+                    .collision_groups(collider_interaction_groups(FLOOR_COLLISION_GROUP))
+                    .build(),
+            ),
+        );
+    }
+    handles
 }
 
 pub(super) fn insert_wall_collider(colliders: &mut ColliderSet, wall: &Wall) -> ColliderHandle {

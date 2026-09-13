@@ -27,6 +27,8 @@ pub fn map_plugin(app: &mut App) {
         Update,
         (
             map_spawn_geometry_system,
+            grounds::grounds_spawn_system,
+            boundary::boundary_notice_system,
             erasers_spawn_system,
             checkpoints_spawn_system,
             grass_spawn_system,
@@ -92,6 +94,9 @@ pub fn sky_weather_plugin(app: &mut App) {
             // frame.
             rain_smoothing_system,
             skybox::lighting_blend_system.after(skybox::skybox_update_camera_system),
+            procedural_sky::procedural_sky_system
+                .after(skybox::lighting_blend_system)
+                .after(rain_smoothing_system),
             rain_particles_system.after(rain_smoothing_system),
             rain_audio_system.after(rain_smoothing_system),
         )

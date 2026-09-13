@@ -84,6 +84,7 @@ enum PlayerLifecycle {
 }
 
 pub struct PlayerLife {
+    pub(crate) boundary_elapsed_secs: f32,
     lifecycle: PlayerLifecycle,
     // The newest accepted report, kept in its carrier frame; placement seeds it with the spawn state.
     pub(crate) movement: PlayerMovementState,
@@ -109,6 +110,7 @@ impl PlayerLife {
 
     fn with_lifecycle(lifecycle: PlayerLifecycle) -> Self {
         Self {
+            boundary_elapsed_secs: 0.0,
             lifecycle,
             movement: PlayerMovementState::new(Position::default(), PlayerMoveIntent::Idle, 0.0, 0.0),
             portal_crossing: 0,
@@ -189,6 +191,7 @@ impl PlayerInfo {
     }
 
     pub(crate) fn advance_body(&mut self) {
+        self.life.boundary_elapsed_secs = 0.0;
         self.session.generation = self.session.generation.next();
         self.life.movement = PlayerMovementState::new(Position::default(), PlayerMoveIntent::Idle, 0.0, 0.0);
         self.life.portal_crossing = 0;

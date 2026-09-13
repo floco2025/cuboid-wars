@@ -252,6 +252,7 @@
     "synth-rubber": "synth-rubber",
     "portal-resistant": "used-stainless-steel",
     "natural-ground": "mud-with-vegetation",
+    "grounds-path": "smooth-temple-blocks",
     "slab": "fiberous-plaster1-ue",
     "basement-floor": "smooth-temple-blocks",
     "ground-floor": "cheap_old_linoleum1",
@@ -488,6 +489,7 @@
   },
   "skyboxes": {
     "another_planet_day": {
+      "image_enabled": false,
       "image": "Skybox_AnotherPlanet_Day_3.png",
       "brightness": 1000.0,
       "rotation_period_secs": 0.0,
@@ -503,6 +505,7 @@
       }
     },
     "cloudy_day": {
+      "image_enabled": false,
       "image": "Skybox_CoudySky_Day_3.png",
       "brightness": 1000.0,
       "rotation_period_secs": 200.0,

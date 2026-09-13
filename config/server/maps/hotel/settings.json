@@ -7,6 +7,7 @@
     "ground-floor": { "portalable": true },
     "ground-interior-wall": { "portalable": true },
     "natural-ground": { "portalable": false },
+    "grounds-path": { "portalable": false },
     "perimeter-wall": { "portalable": true },
     "rooftop-floor": { "portalable": true },
     "rooftop-wall": { "portalable": true },
@@ -16,6 +17,12 @@
     "upper-interior-walls": { "portalable": true }
   },
   "skybox": "cloudy_day",
+  "grounds": {
+    "level": 1,
+    "margin": 50.0,
+    "return_secs": 8.0,
+    "material": "natural-ground"
+  },
   "geometry": {
     "grid_cell_size": 3.4,
     "level_height": 4.4,
