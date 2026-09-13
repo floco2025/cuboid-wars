@@ -45,7 +45,11 @@ fn aim_loaded_models(
 fn configured_aim_models_track_targets_while_their_animations_play() {
     let assets: serde_json::Value =
         serde_json::from_str(test_fixtures::ASSETS_JSON).expect("client assets JSON is invalid");
-    for actor in assets["actors"].as_object().expect("actor assets missing").values() {
+    for actor in assets["actors"]["kinds"]
+        .as_object()
+        .expect("actor assets missing")
+        .values()
+    {
         let model: ModelDef = serde_json::from_value(actor["model"].clone()).expect("actor model is invalid");
         let Some(definition) = model.aim_rig.clone() else {
             continue;

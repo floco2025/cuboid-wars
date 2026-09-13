@@ -13,6 +13,7 @@ fn sound_definitions_default_to_zero_db_and_reject_invalid_files_and_gains() {
     for db in [-20.0, 0.0, 20.0, f32::NAN, f32::NEG_INFINITY, f32::INFINITY, f32::MAX] {
         assets
             .actors
+            .kinds
             .get_mut("scuttler")
             .expect("actor fixture missing")
             .sounds
@@ -27,11 +28,16 @@ fn sound_definitions_default_to_zero_db_and_reject_invalid_files_and_gains() {
             assets.validate().expect("valid sound adjustment rejected");
         } else {
             let error = assets.validate().expect_err("invalid sound adjustment accepted");
-            assert!(error.to_string().contains("actors.scuttler.sounds.extra.volume_db"));
+            assert!(
+                error
+                    .to_string()
+                    .contains("actors.kinds.scuttler.sounds.extra.volume_db")
+            );
         }
     }
     assets
         .actors
+        .kinds
         .get_mut("scuttler")
         .expect("actor fixture missing")
         .sounds
@@ -43,7 +49,7 @@ fn sound_definitions_default_to_zero_db_and_reject_invalid_files_and_gains() {
             },
         );
     let error = assets.validate().expect_err("empty sound file accepted");
-    assert!(error.to_string().contains("actors.scuttler.sounds.extra.file"));
+    assert!(error.to_string().contains("actors.kinds.scuttler.sounds.extra.file"));
 }
 
 #[test]
@@ -63,7 +69,7 @@ fn missing_map_texture_binding_fails_before_rendering() {
 fn actor_kind_set_mismatch_is_rejected() {
     let mut assets = test_fixtures::asset_set();
     let kinds = ["scuttler", "bruiser", "zapper", "turret"];
-    assets.actors.remove("scuttler");
+    assets.actors.kinds.remove("scuttler");
 
     let error = assets
         .validate_gameplay_bindings(kinds)
@@ -75,16 +81,16 @@ fn actor_kind_set_mismatch_is_rejected() {
 #[test]
 fn actor_catalog_can_be_replaced_with_arbitrary_names() {
     let mut assets = test_fixtures::asset_set();
-    let definitions: Vec<_> = assets.actors.values().cloned().collect();
-    assets.actors.clear();
+    let definitions: Vec<_> = assets.actors.kinds.values().cloned().collect();
+    assets.actors.kinds.clear();
     for (index, actor) in definitions.into_iter().enumerate() {
-        assets.actors.insert(format!("custom_actor_{index}"), actor);
+        assets.actors.kinds.insert(format!("custom_actor_{index}"), actor);
     }
     assets.validate().expect("renamed actor assets rejected");
     assets
-        .validate_gameplay_bindings(assets.actors.keys().map(String::as_str))
+        .validate_gameplay_bindings(assets.actors.kinds.keys().map(String::as_str))
         .expect("matching custom actor catalog rejected");
-    assets.actors.clear();
+    assets.actors.kinds.clear();
     assets.validate().expect("empty actor catalog rejected");
     assets
         .validate_gameplay_bindings([])
@@ -128,6 +134,7 @@ fn missing_required_actor_sound_is_rejected() {
     let mut assets = test_fixtures::asset_set();
     assets
         .actors
+        .kinds
         .get_mut("scuttler")
         .expect("scuttler actor missing from assets")
         .sounds
@@ -135,7 +142,7 @@ fn missing_required_actor_sound_is_rejected() {
 
     let error = assets.validate().expect_err("missing sound must fail");
 
-    assert!(error.to_string().contains("actors.scuttler.sounds.explodes"));
+    assert!(error.to_string().contains("actors.kinds.scuttler.sounds.explodes"));
 }
 
 #[test]
@@ -143,6 +150,7 @@ fn invalid_actor_model_is_rejected() {
     let mut assets = test_fixtures::asset_set();
     assets
         .actors
+        .kinds
         .get_mut("scuttler")
         .expect("scuttler actor missing from assets")
         .model
@@ -150,7 +158,7 @@ fn invalid_actor_model_is_rejected() {
 
     let error = assets.validate().expect_err("invalid model must fail");
 
-    assert!(error.to_string().contains("actors.scuttler.model.scale"));
+    assert!(error.to_string().contains("actors.kinds.scuttler.model.scale"));
 }
 
 #[test]
@@ -167,4 +175,25 @@ fn normal_map_without_a_convention_suffix_is_rejected() {
     let error = assets.validate().expect_err("unsuffixed normal map must fail");
 
     assert!(error.to_string().contains(&format!("materials.{name}.textures.normal")));
+}
+
+#[test]
+fn actor_master_volumes_are_not_actor_kinds_and_reject_non_finite_gains() {
+    let mut assets = test_fixtures::asset_set();
+    assets.actors.movement_volume_db = -12.0;
+    assets.actors.sfx_volume_db = 6.0;
+    assets.validate().expect("valid actor master volumes rejected");
+    assets
+        .validate_gameplay_bindings(["scuttler", "bruiser", "zapper", "turret"])
+        .expect("master volumes treated as actor kinds");
+    for db in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY, f32::MAX] {
+        assets.actors.movement_volume_db = db;
+        let error = assets.validate().expect_err("invalid movement master accepted");
+        assert!(error.to_string().contains("actors.movement_volume_db"));
+        assets.actors.movement_volume_db = 0.0;
+        assets.actors.sfx_volume_db = db;
+        let error = assets.validate().expect_err("invalid sfx master accepted");
+        assert!(error.to_string().contains("actors.sfx_volume_db"));
+        assets.actors.sfx_volume_db = 0.0;
+    }
 }

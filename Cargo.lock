@@ -2187,6 +2187,7 @@ dependencies = [
  "raw-window-handle",
  "renet",
  "renet_netcode",
+ "rodio",
  "serde",
  "serde_json",
  "tempfile",

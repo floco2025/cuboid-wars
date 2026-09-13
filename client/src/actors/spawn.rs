@@ -118,10 +118,10 @@ pub fn spawn_actor(
             commands,
             asset_server,
             entity,
-            actor_id,
             gameplay_config.expect_actor(&actor.kind),
             sound,
             &client_settings.audio,
+            asset_set.actors.movement_volume_db,
         );
     }
 

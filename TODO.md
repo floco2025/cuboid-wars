@@ -8,6 +8,8 @@
 
 ## Enhancements
 
+- **Actor gameplay definitions:** Group each actor kind's health, damage, scoring, and destruction-feed setting under `gameplay.json::actors.kinds`, alongside its body and behaviour, so adding a kind does not require updating several separate tables.
+
 - **Pressure plates cover characters' feet:** give plates collision geometry so players and other characters stand on their surface instead of intersecting the model. Keep the support height aligned with the tread in both active and inactive states.
 
 - **Render ramps as stairs:** add an option to show ramps as stairs while retaining smooth ramp collision and movement. Make stair use configurable per actor kind, like ladder use.
@@ -20,7 +22,7 @@
 
 ## Testing
 
-- **Actor movement sound mix:** Confirm several nearby actors remain audible together through turns and brief movement gaps. Check the scuttler's light tank, bruiser's heavy tank, and zapper's quadcopter balance against weapons and footsteps while moving, stopping, climbing, and hovering.
+- **Actor movement sound mix:** Tune `assets.json::actors.movement_volume_db` and `sfx_volume_db` against weapons and footsteps while moving, stopping, climbing, and hovering.
 
 - **Startup mouse capture:** Launch windowed, wait before moving the mouse, and confirm there is no initial view jump and the first click fires. Repeat after switching away and back.
 

@@ -3,7 +3,7 @@ use common::protocol::ActorMovementState;
 
 use crate::network::{SampleBuffer, SampleTiming};
 
-// World travel of the interpolated body this frame, for wheel animation.
+// Interpolated travel relative to the carrier, for wheels and movement audio.
 #[derive(Component, Default)]
 pub(crate) struct ActorAnimationVelocity(pub Vec3);
 

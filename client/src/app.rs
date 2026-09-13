@@ -1,5 +1,6 @@
 use anyhow::Result;
 use bevy::{
+    audio::AddAudioSource,
     diagnostic::FrameTimeDiagnosticsPlugin,
     log::LogPlugin,
     pbr::DefaultOpaqueRendererMethod,
@@ -9,7 +10,7 @@ use bevy::{
 
 use crate::{
     actors::{ActorGhostMap, ActorMap, actor_visuals_plugin},
-    audio::{AudioAnalysis, audio_plugin},
+    audio::{AudioAnalysis, LoopAudio, LoopAudioLoader, audio_plugin},
     barriers::LockedSwitches,
     cameras::{CameraViewMode, camera_plugin, clamp_msaa_to_device_system, setup_cameras_system},
     characters::{character_sync_plugin, local_simulation_plugin},
@@ -109,6 +110,8 @@ pub fn build_client_app(
         plugins = plugins.disable::<LogPlugin>();
     }
     app.add_plugins(plugins);
+    app.add_audio_source::<LoopAudio>()
+        .init_asset_loader::<LoopAudioLoader>();
     app.add_plugins((
         GrassMaterialPlugin,
         PortalClipMaterialPlugin,

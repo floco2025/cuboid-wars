@@ -15,7 +15,7 @@ use super::{
     material::{MaterialBinding, MaterialDef},
     model::{ModelDef, validate_model},
     pressure_plate::PressurePlateDef,
-    sound::SoundDef,
+    sound::{SoundDef, validate_volume},
 };
 
 const REQUIRED_PLAYER_SOUNDS: &[&str] = &[
@@ -56,7 +56,7 @@ pub struct AssetSet {
     #[serde(default)]
     aliases: HashMap<String, String>,
     player: PlayerAssets,
-    pub(super) actors: HashMap<String, ActorAssets>,
+    pub actors: ActorCatalog,
     wall_lights: HashMap<String, WallLightModelDef>,
     // Named skyboxes; the map's `MapSettings.skybox` selects one. BTreeMap so
     // the unknown-name fallback (sorted-first entry) is deterministic.
@@ -80,6 +80,8 @@ impl AssetSet {
 
     pub(super) fn validate(&self) -> Result<()> {
         self.footsteps.validate()?;
+        validate_volume(self.actors.movement_volume_db, "actors.movement_volume_db")?;
+        validate_volume(self.actors.sfx_volume_db, "actors.sfx_volume_db")?;
         anyhow::ensure!(
             !self.skyboxes.is_empty(),
             "asset config must define at least one entry in `skyboxes`"
@@ -138,16 +140,20 @@ impl AssetSet {
                 "wall_lights.{kind}.color must contain RGB values from 0 to 1"
             );
         }
-        for (kind, actor) in &self.actors {
-            validate_model(&format!("actors.{kind}.model"), &actor.model)?;
-            validate_sounds(&format!("actors.{kind}.sounds"), &actor.sounds, REQUIRED_ACTOR_SOUNDS)?;
+        for (kind, actor) in &self.actors.kinds {
+            validate_model(&format!("actors.kinds.{kind}.model"), &actor.model)?;
+            validate_sounds(
+                &format!("actors.kinds.{kind}.sounds"),
+                &actor.sounds,
+                REQUIRED_ACTOR_SOUNDS,
+            )?;
         }
         Ok(())
     }
 
     pub fn validate_gameplay_bindings<'a>(&self, actor_kinds: impl IntoIterator<Item = &'a str>) -> Result<()> {
         let gameplay_kinds = actor_kinds.into_iter().collect::<HashSet<_>>();
-        let asset_kinds = self.actors.keys().map(String::as_str).collect::<HashSet<_>>();
+        let asset_kinds = self.actors.kinds.keys().map(String::as_str).collect::<HashSet<_>>();
         if gameplay_kinds != asset_kinds {
             let mut only_gameplay = gameplay_kinds.difference(&asset_kinds).copied().collect::<Vec<_>>();
             let mut only_assets = asset_kinds.difference(&gameplay_kinds).copied().collect::<Vec<_>>();
@@ -257,6 +263,7 @@ impl AssetSet {
 
     fn actor(&self, kind: &str) -> &ActorAssets {
         self.actors
+            .kinds
             .get(kind)
             .unwrap_or_else(|| panic!("asset set is missing actor kind {kind:?}"))
     }
@@ -294,6 +301,13 @@ fn validate_sounds(path: &str, sounds: &HashMap<String, SoundDef>, required: &[&
 struct PlayerAssets {
     model: ModelDef,
     sounds: HashMap<String, SoundDef>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ActorCatalog {
+    pub movement_volume_db: f32,
+    pub sfx_volume_db: f32,
+    pub(super) kinds: HashMap<String, ActorAssets>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

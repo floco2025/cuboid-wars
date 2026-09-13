@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use super::{super::context::ServerMessageContext, sync::apply_actor_movement_state};
 use crate::{
-    audio::{play_explosion_sound, play_spatial_sound},
+    audio::{explosion_playback_settings, play_actor_spatial_sound},
     vfx::spawn_actor_explosion,
 };
 use common::protocol::*;
@@ -41,7 +41,7 @@ pub(in crate::network) fn handle_actor_death_message(
         return;
     };
     spawn_actor_explosion(commands, &mut context.explosion_ctx(), &info.kind, message.pos);
-    play_explosion_sound(
+    play_actor_spatial_sound(
         commands,
         &context.assets.asset_server,
         context
@@ -50,8 +50,12 @@ pub(in crate::network) fn handle_actor_death_message(
             .actor_sound(&info.kind, "explodes")
             .expect("actor explosion sound missing"),
         &context.client_settings.audio,
+        context.assets.asset_set.actors.sfx_volume_db,
+        explosion_playback_settings(
+            &context.client_settings.audio,
+            context.assets.blast_radii.actors.get(&info.kind).copied(),
+        ),
         Vec3::from(message.pos),
-        context.assets.blast_radii.actors.get(&info.kind).copied(),
     );
     commands.entity(info.entity).despawn();
 }
@@ -70,11 +74,13 @@ pub(in crate::network) fn handle_actor_hit_message(
         // a world sound at the actor — distant fights plink faintly instead
         // of clicking at full volume map-wide.
         if let Ok(pos) = context.actor_data.get(info.entity) {
-            play_spatial_sound(
+            play_actor_spatial_sound(
                 commands,
                 &context.assets.asset_server,
                 context.assets.asset_set.player_sound("hit_actor"),
                 &context.client_settings.audio,
+                context.assets.asset_set.actors.sfx_volume_db,
+                PlaybackSettings::DESPAWN,
                 Vec3::from(*pos),
             );
         }

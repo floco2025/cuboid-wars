@@ -1,7 +1,9 @@
 use bevy::{
-    audio::{SpatialScale, Volume},
+    audio::{Decodable, PlaybackMode, SpatialScale, Volume},
     prelude::*,
 };
+
+use super::LoopAudio;
 
 use crate::{
     config::{AudioConfig, SoundDef},
@@ -82,18 +84,40 @@ pub fn play_explosion_sound(
         asset_server,
         sound,
         audio_config,
-        PlaybackSettings::DESPAWN
-            .with_volume(Volume::Linear(audio_config.explosion_gain))
-            .with_speed(blast_radius.map_or(1.0, explosion_sound_speed)),
+        explosion_playback_settings(audio_config, blast_radius),
         pos,
     );
+}
+
+pub(crate) fn explosion_playback_settings(audio_config: &AudioConfig, blast_radius: Option<f32>) -> PlaybackSettings {
+    PlaybackSettings::DESPAWN
+        .with_volume(Volume::Linear(audio_config.explosion_gain))
+        .with_speed(blast_radius.map_or(1.0, explosion_sound_speed))
 }
 
 pub fn sound_playback(
     asset_server: &AssetServer,
     sound: &SoundDef,
-    mut settings: PlaybackSettings,
+    settings: PlaybackSettings,
 ) -> (AudioPlayer, PlaybackSettings) {
+    sound_playback_for::<AudioSource>(asset_server, sound, settings)
+}
+
+pub(crate) fn loop_sound_playback(
+    asset_server: &AssetServer,
+    sound: &SoundDef,
+    mut settings: PlaybackSettings,
+) -> (AudioPlayer<LoopAudio>, PlaybackSettings) {
+    // The decoder repeats directly; Bevy's looping wrapper would restore the broken span boundaries.
+    settings.mode = PlaybackMode::Once;
+    sound_playback_for::<LoopAudio>(asset_server, sound, settings)
+}
+
+fn sound_playback_for<T: Asset + Decodable>(
+    asset_server: &AssetServer,
+    sound: &SoundDef,
+    mut settings: PlaybackSettings,
+) -> (AudioPlayer<T>, PlaybackSettings) {
     settings.volume *= Volume::Decibels(sound.volume_db);
-    (AudioPlayer::new(asset_server.load(sound.file.clone())), settings)
+    (AudioPlayer(asset_server.load(sound.file.clone())), settings)
 }

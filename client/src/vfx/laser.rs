@@ -4,7 +4,7 @@ use bevy::{audio::SpatialScale, light::NotShadowCaster, prelude::*};
 
 use crate::{
     actors::{ActorMap, AimJointMarker, AimRig},
-    audio::sound_playback,
+    audio::actor_sfx_playback,
     config::{AssetSet, ClientSettings},
     constants::*,
     players::PlayerMap,
@@ -67,9 +67,10 @@ fn spawn_laser_beam(
         Visibility::Hidden,
     ));
     if let Some(sound) = asset_set.actor_sound(kind, "fire") {
-        entity.insert(sound_playback(
+        entity.insert(actor_sfx_playback(
             asset_server,
             sound,
+            asset_set.actors.sfx_volume_db,
             PlaybackSettings::ONCE
                 .with_start_position(Duration::from_secs_f32(elapsed_secs))
                 .with_spatial(true)

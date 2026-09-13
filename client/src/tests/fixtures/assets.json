@@ -123,87 +123,97 @@
     }
   },
   "actors": {
-    "scuttler": {
-      "model": {
-        "scene": "models/scuttler.glb#Scene0",
-        "scale": 1.0,
-        "y_offset": 0.0,
-        "wheels": {
-          "radius": 0.215,
-          "track": 0.87,
-          "wheelbase": 0.58,
-          "idle_animation": 0,
-          "drive_animation": 1,
-          "drive_cycle_secs": 1.0
-        }
-      },
-      "sounds": {
-        "explodes": {
-          "file": "sounds/impactGeneric_light_001.ogg",
-          "volume_db": 0
-        }
-      }
-    },
-    "bruiser": {
-      "model": {
-        "scene": "models/bruiser.glb#Scene0",
-        "scale": 1.15,
-        "y_offset": 0.0,
-        "wheels": {
-          "radius": 0.277,
-          "track": 1.27,
-          "wheelbase": 1.12,
-          "idle_animation": 0,
-          "drive_animation": 1,
-          "drive_cycle_secs": 1.0
-        }
-      },
-      "sounds": {
-        "explodes": {
-          "file": "sounds/impactGeneric_light_001.ogg",
-          "volume_db": 0
-        }
-      }
-    },
-    "zapper": {
-      "model": {
-        "scene": "models/zapper.glb#Scene0",
-        "scale": 1.0,
-        "y_offset": 0.0,
-        "animation_index": 0,
-        "animation_speed": 1.0,
-        "aim_rig": {
-          "yaw_node": "ZapperYaw",
-          "pitch_node": "ZapperPitch",
-          "muzzle_node": "ZapperMuzzle"
-        }
-      },
-      "sounds": {
-        "explodes": {
-          "file": "sounds/impactGeneric_light_001.ogg",
-          "volume_db": 0
+    "movement_volume_db": 0,
+    "sfx_volume_db": 0,
+    "kinds": {
+      "scuttler": {
+        "model": {
+          "scene": "models/scuttler.glb#Scene0",
+          "scale": 1.0,
+          "y_offset": 0.0,
+          "wheels": {
+            "radius": 0.215,
+            "track": 0.87,
+            "wheelbase": 0.58,
+            "idle_animation": 0,
+            "drive_animation": 1,
+            "drive_cycle_secs": 1.0
+          }
         },
-        "fire": { "file": "sounds/impactGeneric_light_001.ogg", "volume_db": 0 }
-      }
-    },
-    "turret": {
-      "model": {
-        "scene": "models/turret.glb#Scene0",
-        "scale": 1.0,
-        "y_offset": 0.0,
-        "rotate_with_facing": false,
-        "aim_rig": {
-          "yaw_node": "TurretYaw",
-          "pitch_node": "TurretPitch",
-          "muzzle_node": "TurretMuzzle"
+        "sounds": {
+          "explodes": {
+            "file": "sounds/impactGeneric_light_001.ogg",
+            "volume_db": 0
+          }
         }
       },
-      "sounds": {
-        "explodes": {
-          "file": "sounds/impactGeneric_light_001.ogg",
-          "volume_db": 0
+      "bruiser": {
+        "model": {
+          "scene": "models/bruiser.glb#Scene0",
+          "scale": 1.15,
+          "y_offset": 0.0,
+          "wheels": {
+            "radius": 0.277,
+            "track": 1.27,
+            "wheelbase": 1.12,
+            "idle_animation": 0,
+            "drive_animation": 1,
+            "drive_cycle_secs": 1.0
+          }
         },
-        "fire": { "file": "sounds/impactGeneric_light_001.ogg", "volume_db": 0 }
+        "sounds": {
+          "explodes": {
+            "file": "sounds/impactGeneric_light_001.ogg",
+            "volume_db": 0
+          }
+        }
+      },
+      "zapper": {
+        "model": {
+          "scene": "models/zapper.glb#Scene0",
+          "scale": 1.0,
+          "y_offset": 0.0,
+          "animation_index": 0,
+          "animation_speed": 1.0,
+          "aim_rig": {
+            "yaw_node": "ZapperYaw",
+            "pitch_node": "ZapperPitch",
+            "muzzle_node": "ZapperMuzzle"
+          }
+        },
+        "sounds": {
+          "explodes": {
+            "file": "sounds/impactGeneric_light_001.ogg",
+            "volume_db": 0
+          },
+          "fire": {
+            "file": "sounds/impactGeneric_light_001.ogg",
+            "volume_db": 0
+          }
+        }
+      },
+      "turret": {
+        "model": {
+          "scene": "models/turret.glb#Scene0",
+          "scale": 1.0,
+          "y_offset": 0.0,
+          "rotate_with_facing": false,
+          "aim_rig": {
+            "yaw_node": "TurretYaw",
+            "pitch_node": "TurretPitch",
+            "muzzle_node": "TurretMuzzle"
+          }
+        },
+        "sounds": {
+          "explodes": {
+            "file": "sounds/impactGeneric_light_001.ogg",
+            "volume_db": 0
+          },
+          "fire": {
+            "file": "sounds/impactGeneric_light_001.ogg",
+            "volume_db": 0
+          }
+        }
       }
     }
   },
