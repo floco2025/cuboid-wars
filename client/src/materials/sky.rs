@@ -22,49 +22,46 @@ use crate::{
 
 const SKY_SHADER: &str = "embedded://client/materials/sky.wgsl";
 
-// Configured controls and stable visual constants become plain uniforms so
-// one shared material can serve every scene camera. Vectors use their fourth
-// lane for a related scalar to keep the bind group portable to WebGL's
-// alignment rules.
+// One packed uniform keeps the sky within Metal's per-stage buffer limit.
 #[derive(Asset, AsBindGroup, Reflect, Debug, Clone)]
 pub struct ProceduralSkyMaterial {
     #[uniform(0)]
     pub sun_direction: Vec4,
-    #[uniform(1)]
+    #[uniform(0)]
     pub moon_direction: Vec4,
-    #[uniform(2)]
+    #[uniform(0)]
     pub pole_rotation: Vec4,
-    #[uniform(3)]
+    #[uniform(0)]
     pub time_weather_phase: Vec4,
-    #[uniform(4)]
+    #[uniform(0)]
     pub day_horizon: Vec4,
-    #[uniform(5)]
+    #[uniform(0)]
     pub day_zenith: Vec4,
-    #[uniform(6)]
+    #[uniform(0)]
     pub sunset: Vec4,
-    #[uniform(7)]
+    #[uniform(0)]
     pub twilight_horizon: Vec4,
-    #[uniform(8)]
+    #[uniform(0)]
     pub twilight_zenith: Vec4,
-    #[uniform(9)]
+    #[uniform(0)]
     pub night_horizon: Vec4,
-    #[uniform(10)]
+    #[uniform(0)]
     pub night_zenith: Vec4,
-    #[uniform(11)]
+    #[uniform(0)]
     pub sun: Vec4,
-    #[uniform(12)]
+    #[uniform(0)]
     pub moon: Vec4,
-    #[uniform(13)]
+    #[uniform(0)]
     pub moon_halo: Vec4,
-    #[uniform(14)]
+    #[uniform(0)]
     pub stars: Vec4,
-    #[uniform(15)]
+    #[uniform(0)]
     pub star_detail: Vec4,
-    #[uniform(16)]
+    #[uniform(0)]
     pub clouds: Vec4,
-    #[uniform(17)]
+    #[uniform(0)]
     pub cloud_color: Vec4,
-    #[uniform(18)]
+    #[uniform(0)]
     pub overcast_color: Vec4,
 }
 
@@ -170,51 +167,5 @@ impl Plugin for ProceduralSkyMaterialPlugin {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::{
-        constants::{SKY_MOON_APPARENT_RADIUS_DEGREES, SKY_SUN_APPARENT_RADIUS_DEGREES},
-        test_fixtures,
-    };
-
-    #[test]
-    fn body_size_scales_multiply_real_apparent_radii() {
-        let config = test_fixtures::client_settings().sky;
-        let material = ProceduralSkyMaterial::from_config(config);
-        assert!((material.sun.x - (SKY_SUN_APPARENT_RADIUS_DEGREES * config.sun.size_scale).to_radians()).abs() < 1e-6);
-        assert!(
-            (material.moon.x - (SKY_MOON_APPARENT_RADIUS_DEGREES * config.moon.size_scale).to_radians()).abs() < 1e-6
-        );
-        assert!(
-            config.sun.size_scale > 1.0,
-            "shipped sun should be creatively exaggerated"
-        );
-        assert!(
-            config.moon.size_scale > 1.0,
-            "shipped moon should be creatively exaggerated"
-        );
-    }
-
-    #[test]
-    fn moon_earthshine_is_only_a_faint_hint() {
-        let material = ProceduralSkyMaterial::from_config(test_fixtures::client_settings().sky);
-        assert!(material.moon.z <= 0.001);
-        assert_eq!(material.moon.w, 0.0);
-        let shader = include_str!("sky.wgsl");
-        assert!(!shader.contains("crater"));
-        assert!(!shader.contains("value_noise"));
-    }
-
-    #[test]
-    fn moving_clouds_restore_only_the_pre_cumulus_background_layer() {
-        let shader = include_str!("sky.wgsl");
-        assert!(shader.contains("camera_ray(in.position.xy)"));
-        assert!(shader.contains("fn sample_background_clouds(direction:"));
-        assert!(shader.contains("fn high_cloud_density(position:"));
-        assert!(shader.contains("let stretched = vec3("));
-        assert!(!shader.contains("low_cloud_density"));
-        assert!(!shader.contains("cloud_lobe"));
-        assert!(!shader.contains("cumulus_density"));
-        assert!(!shader.contains("in.world_position.xyz - view.world_position"));
-    }
-}
+#[path = "tests/sky.rs"]
+mod tests;
