@@ -72,6 +72,22 @@ Use a recording for motion, shimmer, animation, frame pacing, or LOD
 transitions; still images are better for stable side-by-side comparisons. Keep
 each capture under a distinct name rather than overwriting evidence.
 
+### Tree depth/color consistency
+
+Use Hotel's west roof (`--spawn=-33,18,0 --look=270,-22`) and `/time 22:00`
+to inspect the nearby crowns against the dark grounds. Record a stationary
+view before panning, then repeat in rain and daylight with both renderers.
+Check consecutive frames: scattered leaf sprays must not flash pale even
+when the camera is still. Keep wind, diffuse transmission, and the normal
+anti-aliasing settings enabled.
+
+For a depth/color mismatch, temporarily give the main scene camera a bright
+magenta clear color. If the flashes turn magenta, the depth pass has occluded
+the background but the color pass has left holes. The tree vertex output's
+`@invariant` position keeps wind calculations consistent across these passes;
+transmissive leaves use forward shading even in the deferred renderer.
+Restore the diagnostic clear color before finishing the review.
+
 ## Performance sampling
 
 Disable VSync and enable diagnostics in the settings menu when measuring

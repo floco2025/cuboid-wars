@@ -12,8 +12,6 @@
 
 - **Actors park at the top of the basement ramps:** scuttlers and bruisers heading down a hotel basement ramp stop at the lip, one at a time, sometimes turned into the side wall. It happens with `/peace` on as well, so it is not the pursuit goal, and it predates the terrain query fix. On the hotel map in isolation the route from the landing to the basement, the motor's descent, and `character_ground_route_clear` from every point near the lip all pass; whatever stops them is in the live loop.
 
-- **Trees and shadows flicker while the camera moves:** with the rearview mirror on, leaves flashed grey and every shadow, the player's included, flickered during camera motion; frames alternated between two states at frame rate. Turning the mirror off made it much better, so the mirror is removed. Bevy renders every 3D view's shadow cascades into the same layers of one shadow map, and portal view cameras are 3D views too, so check for the same flicker with portals placed and in view; if it returns there, the cascade sharing between presenting views needs its own fix.
-
 ## Enhancements
 
 - **Actor gameplay definitions:** Group each actor kind's health, damage, scoring, and destruction-feed setting under `gameplay.json::actors.kinds`, alongside its body and behaviour, so adding a kind does not require updating several separate tables.
@@ -30,9 +28,9 @@
 
 ## Testing
 
-- **Outdoors after the terrain query fix:** run fast far out on the hotel's grounds and check that movement stays smooth and the frame rate holds, that chasing actors no longer stop and go, and that grass chunks appearing beside a sprint no longer stutter the frame.
+- **Shadows with active portal views:** the removed mirror previously made shadows flicker during camera motion. Recheck with portals placed and in view; Bevy shares directional-shadow layers between 3D views. This is separate from the fixed pale leaf flashes caused by inconsistent wind vertex positions between depth and color passes.
 
-- **Rain flicker:** stand among the trees during rain and confirm the leaves no longer pulse every half second; the sky probe now crossfades between its renders.
+- **Outdoors after the terrain query fix:** run fast far out on the hotel's grounds and check that movement stays smooth and the frame rate holds, that chasing actors no longer stop and go, and that grass chunks appearing beside a sprint no longer stutter the frame.
 
 - **Actors on the grounds:** Watch the hotel's bruisers and scuttlers roam past the seam, chase a player onto the hills and around trees and rocks, and return home. Check none stalls at the rim, that chases across open ground start promptly, that routes cross open floor and lawn on straight diagonals, and that corners are taken as turns at speed and reversals as pivots on the spot, with the turn rate feeling right for both kinds.
 

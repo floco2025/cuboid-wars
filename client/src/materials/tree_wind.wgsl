@@ -5,7 +5,7 @@
 #ifdef PREPASS_PIPELINE
 #import bevy_pbr::{
     mesh_functions,
-    prepass_io::{Vertex, VertexOutput},
+    prepass_io::Vertex,
     view_transformations::position_world_to_clip,
 }
 #import bevy_render::globals::Globals
@@ -15,12 +15,60 @@
 #else
 #import bevy_pbr::{
     mesh_functions,
-    forward_io::{Vertex, VertexOutput},
+    forward_io::Vertex,
     view_transformations::position_world_to_clip,
     mesh_view_bindings::globals,
 }
 #endif
 #import cuboid_wars::wind::gust_strength
+
+// Match Bevy's prepass/forward fragment inputs for the tree mesh's normals,
+// UV0 and vertex colours, but make clip position invariant across both
+// vertex pipelines. Transmissive leaves are forward shaded even in a
+// deferred scene: rounding sway differently between the depth and colour
+// passes leaves holes that expose the camera clear colour.
+struct VertexOutput {
+    @builtin(position) @invariant position: vec4<f32>,
+#ifdef PREPASS_PIPELINE
+#ifdef VERTEX_UVS_A
+    @location(0) uv: vec2<f32>,
+#endif
+#ifdef NORMAL_PREPASS_OR_DEFERRED_PREPASS
+    @location(2) world_normal: vec3<f32>,
+#endif
+    @location(4) world_position: vec4<f32>,
+#ifdef MOTION_VECTOR_PREPASS
+    @location(5) previous_world_position: vec4<f32>,
+#endif
+#ifdef UNCLIPPED_DEPTH_ORTHO_EMULATION
+    @location(6) unclipped_depth: f32,
+#endif
+#ifdef VERTEX_OUTPUT_INSTANCE_INDEX
+    @location(7) instance_index: u32,
+#endif
+#ifdef VERTEX_COLORS
+    @location(8) color: vec4<f32>,
+#endif
+#ifdef VISIBILITY_RANGE_DITHER
+    @location(9) @interpolate(flat) visibility_range_dither: i32,
+#endif
+#else
+    @location(0) world_position: vec4<f32>,
+    @location(1) world_normal: vec3<f32>,
+#ifdef VERTEX_UVS_A
+    @location(2) uv: vec2<f32>,
+#endif
+#ifdef VERTEX_COLORS
+    @location(5) color: vec4<f32>,
+#endif
+#ifdef VERTEX_OUTPUT_INSTANCE_INDEX
+    @location(6) @interpolate(flat) instance_index: u32,
+#endif
+#ifdef VISIBILITY_RANGE_DITHER
+    @location(7) @interpolate(flat) visibility_range_dither: i32,
+#endif
+#endif
+}
 
 // xy = world wind direction (XZ), z = crown amplitude (m), w = speed (rad/s)
 @group(#{MATERIAL_BIND_GROUP}) @binding(100) var<uniform> tree_wind: vec4<f32>;
@@ -74,6 +122,11 @@ fn vertex(vertex: Vertex) -> VertexOutput {
 
     out.world_position = world_position;
     out.position = position_world_to_clip(world_position.xyz);
+
+#ifdef UNCLIPPED_DEPTH_ORTHO_EMULATION
+    out.unclipped_depth = out.position.z;
+    out.position.z = min(out.position.z, 1.0);
+#endif
 
 #ifdef VERTEX_UVS_A
     out.uv = vertex.uv;
