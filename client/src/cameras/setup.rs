@@ -1,6 +1,6 @@
 use bevy::{
     anti_alias::taa::TemporalAntiAliasing,
-    camera::{ImageRenderTarget, RenderTarget, Viewport, visibility::RenderLayers},
+    camera::{ImageRenderTarget, RenderTarget, ShadowLodOrigin, Viewport, visibility::RenderLayers},
     core_pipeline::prepass::{DeferredPrepass, DepthPrepass},
     pbr::ScreenSpaceAmbientOcclusion,
     post_process::bloom::{Bloom, BloomCompositeMode, BloomPrefilter},
@@ -83,6 +83,11 @@ pub fn setup_cameras_system(
     let mut main_camera = commands.spawn((
         MainCameraMarker,
         SkyRenderLayer(RENDER_LAYER_MAIN_VIEW),
+        // Shadow passes pick detail levels by distance from this camera. Bevy's
+        // default is the camera that renders to the window, which here is the
+        // compositor at the origin: casters then faded by their distance from
+        // the map centre and the shadows of nearby trees vanished.
+        ShadowLodOrigin,
         RenderTarget::Image(ImageRenderTarget {
             handle: scene_image.clone(),
             scale_factor: 1.0,
