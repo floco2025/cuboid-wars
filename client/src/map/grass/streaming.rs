@@ -285,7 +285,7 @@ fn grounds_chunk_mesh(grounds: &Grounds, cell: IVec2, lod: GrassLod, green: Colo
         |rng| {
             let x = (cell.x as f32 + rng.random::<f32>()) * GRASS_CHUNK_SIZE;
             let z = (cell.y as f32 + rng.random::<f32>()) * GRASS_CHUNK_SIZE;
-            let clear = grounds.distance_outside_map(x, z) >= 0.2
+            let clear = grounds.distance_outside_footprint(x, z) >= 0.2
                 && rocks
                     .iter()
                     .all(|(center, radius)| center.distance_squared(Vec2::new(x, z)) > radius * radius);

@@ -10,6 +10,7 @@
     "start_local_time": "09:00",
     "start_moon_phase": 0.25
   },
+  "grounds": { "level": 0 },
   "geometry": {
     "grid_cell_size": 4.0,
     "level_height": 2.4,

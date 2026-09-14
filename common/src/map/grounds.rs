@@ -1,6 +1,6 @@
 use std::f32::consts::TAU;
 
-use bevy_math::{EulerRot, Quat, Vec2, Vec3};
+use bevy_math::{EulerRot, IVec2, Quat, Vec2, Vec3};
 use bincode::{Decode, Encode};
 use serde::Deserialize;
 
@@ -34,6 +34,7 @@ pub struct GroundsSettings {
 
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct Grounds {
+    pub center: [f32; 2],
     pub half_size: [f32; 2],
     pub y: f32,
     pub settings: GroundsSettings,
@@ -137,16 +138,16 @@ fn smoothstep(low: f32, high: f32, value: f32) -> f32 {
 impl Grounds {
     pub fn decorations(&self) -> Vec<GroundDecoration> {
         let mut decorations = Vec::new();
-        let cells = self.decoration_cells(TREE_CELL, DECORATION_EXTENT);
-        for cz in -cells..cells {
-            for cx in -cells..cells {
+        let [low, high] = self.decoration_cells(TREE_CELL, DECORATION_EXTENT);
+        for cz in low.y..high.y {
+            for cx in low.x..high.x {
                 decorations.extend(self.tree_at(cx, cz));
             }
         }
         for class in RockClass::ALL {
-            let cells = self.decoration_cells(rock_cell(class), rock_extent(class));
-            for cz in -cells..cells {
-                for cx in -cells..cells {
+            let [low, high] = self.decoration_cells(rock_cell(class), rock_extent(class));
+            for cz in low.y..high.y {
+                for cx in low.x..high.x {
                     decorations.extend(self.rock_at(class, cx, cz));
                 }
             }
@@ -184,7 +185,7 @@ impl Grounds {
         let salt = rock_salt(class);
         let x = (cx as f32 + 0.1 + 0.8 * cell_hash(cx, cz, salt)) * cell;
         let z = (cz as f32 + 0.1 + 0.8 * cell_hash(cx, cz, salt + 1)) * cell;
-        let outside = self.distance_outside_map(x, z);
+        let outside = self.distance_outside_footprint(x, z);
         if !(rock_clearance(class)..=rock_extent(class)).contains(&outside) {
             return None;
         }
@@ -215,14 +216,19 @@ impl Grounds {
         })
     }
 
-    fn decoration_cells(&self, cell: f32, extent: f32) -> i32 {
-        ((self.half_size[0].max(self.half_size[1]) + extent) / cell).ceil() as i32
+    fn decoration_cells(&self, cell: f32, extent: f32) -> [IVec2; 2] {
+        let center = Vec2::from(self.center);
+        let reach = Vec2::from(self.half_size) + Vec2::splat(extent);
+        [
+            ((center - reach) / cell).floor().as_ivec2(),
+            ((center + reach) / cell).ceil().as_ivec2(),
+        ]
     }
 
     fn tree_at(&self, cx: i32, cz: i32) -> Option<GroundDecoration> {
         let x = (cx as f32 + 0.15 + 0.7 * cell_hash(cx, cz, 1)) * TREE_CELL;
         let z = (cz as f32 + 0.15 + 0.7 * cell_hash(cx, cz, 2)) * TREE_CELL;
-        let outside = self.distance_outside_map(x, z);
+        let outside = self.distance_outside_footprint(x, z);
         if !(TREE_CLEARANCE..=DECORATION_EXTENT).contains(&outside) {
             return None;
         }
@@ -256,8 +262,8 @@ impl Grounds {
         false
     }
 
-    pub fn distance_outside_map(&self, x: f32, z: f32) -> f32 {
-        (x.abs() - self.half_size[0]).max(z.abs() - self.half_size[1])
+    pub fn distance_outside_footprint(&self, x: f32, z: f32) -> f32 {
+        ((x - self.center[0]).abs() - self.half_size[0]).max((z - self.center[1]).abs() - self.half_size[1])
     }
 
     // How far past the map edge the terrain reaches.
@@ -266,7 +272,7 @@ impl Grounds {
     }
 
     pub fn height(&self, x: f32, z: f32) -> f32 {
-        let distance = self.distance_outside_map(x, z).max(0.0);
+        let distance = self.distance_outside_footprint(x, z).max(0.0);
         // Keep the map seam and its immediate surroundings level, then ease
         // into broad, low-gradient hills. Authored terrain slabs never call
         // this function and therefore remain perfectly flat.
@@ -311,6 +317,7 @@ impl Grounds {
                         2 => (-hx, -t * hz),
                         _ => (t * hx, -hz),
                     };
+                    let (x, z) = (x + self.center[0], z + self.center[1]);
                     vertices.push(Vec3::new(x, self.height(x, z), z));
                 }
             }
@@ -318,7 +325,12 @@ impl Grounds {
                 for step in 0..segments {
                     let a = offset + (ring * (segments + 1) + step) as u32;
                     let b = a + (segments + 1) as u32;
-                    triangles.extend([[a, a + 1, b], [a + 1, b + 1, b]]);
+                    // An empty base level has no cutout: the innermost ring
+                    // collapses to a point and needs a fan, not zero-area faces.
+                    if ring != 0 || self.half_size != [0.0, 0.0] {
+                        triangles.push([a, a + 1, b]);
+                    }
+                    triangles.push([a + 1, b + 1, b]);
                 }
             }
         }

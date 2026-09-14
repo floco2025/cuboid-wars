@@ -640,6 +640,7 @@ fn route_start_stays_direct_when_the_body_fits_past_the_wall_end() {
 
 fn grounds_for(nav: &NavGraph, level: u8) -> Grounds {
     Grounds {
+        center: [0.0, 0.0],
         half_size: [
             nav.geometry.width() / 2.0 + WALL_THICKNESS / 2.0,
             nav.geometry.depth() / 2.0 + WALL_THICKNESS / 2.0,
@@ -693,6 +694,47 @@ fn grounds_continue_the_grid_past_its_unwalled_rim() {
 }
 
 #[test]
+fn grounds_inside_the_grid_connect_to_the_base_but_not_the_course_above() {
+    let mut base = CellGrid::new(100, 40);
+    base.rows[10][1].has_floor = true;
+    let mut edges = EdgeGrid::new(100, 40);
+    edges.vertical[10][1] = true;
+    let mut upper = CellGrid::new(100, 40);
+    upper.rows[10][2].has_floor = true;
+    let geometry = geometry(100, 40);
+    let mut nav = nav_for(MapConfig::for_grid(
+        vec![level(base, edges), level(upper, EdgeGrid::new(100, 40))],
+        geometry,
+    ));
+    nav.set_grounds(Grounds {
+        center: [geometry.cell_center_x(1), geometry.cell_center_z(10)],
+        half_size: [(CELL + WALL_THICKNESS) / 2.0; 2],
+        y: 0.0,
+        settings: GroundsSettings { level: 0 },
+    });
+    let pad = NavNode {
+        level: 0,
+        row: 10,
+        col: 1,
+    };
+    let meadow = NavNode { col: 2, ..pad };
+    let walled = NavNode { col: 0, ..pad };
+    assert!(nav.neighbors(pad).contains(&meadow));
+    assert!(nav.neighbors(meadow).contains(&pad));
+    assert!(!nav.neighbors(pad).contains(&walled));
+    assert!(!nav.neighbors(walled).contains(&pad));
+    let course = NavNode { level: 1, ..meadow };
+    assert_eq!(nav.nearest_node_for_position(&nav.node_center(course)), Some(course));
+    assert_eq!(nav.nearest_node_for_position(&nav.node_center(meadow)), Some(meadow));
+    assert!(!nav.neighbors(meadow).contains(&course));
+
+    let hill = NavNode { col: 60, ..pad };
+    let hill_center = nav.node_center(hill);
+    assert!(nav.contains(&hill_center));
+    assert_eq!(nav.nearest_node_for_position(&hill_center), Some(hill));
+}
+
+#[test]
 fn grounds_cells_follow_the_hills_and_stop_short_of_the_terrain_edge() {
     let mut nav = full_floor_nav(3, 3);
     let grounds = grounds_for(&nav, 0);
@@ -734,6 +776,6 @@ fn grounds_cells_follow_the_hills_and_stop_short_of_the_terrain_edge() {
         row: -(reach as i32 + 1),
         col: 0,
     });
-    assert!(grounds.distance_outside_map(last.x, last.z) + CELL <= grounds.extent() + 0.001);
-    assert!(grounds.distance_outside_map(beyond.x, beyond.z) + CELL > grounds.extent());
+    assert!(grounds.distance_outside_footprint(last.x, last.z) + CELL <= grounds.extent() + 0.001);
+    assert!(grounds.distance_outside_footprint(beyond.x, beyond.z) + CELL > grounds.extent());
 }

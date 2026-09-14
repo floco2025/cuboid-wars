@@ -422,6 +422,7 @@ fn routes_walk_out_onto_the_grounds() {
             carrier: CarrierId::WORLD,
         }],
         grounds: Some(Grounds {
+            center: [0.0, 0.0],
             half_size: [half_width, half_depth],
             y: 0.0,
             settings: GroundsSettings { level: 0 },

@@ -79,8 +79,8 @@ impl GroundsGrass {
         let center = grounds_cell_center(cell);
         let grounds = &self.grounds;
         let half = GRASS_CHUNK_SIZE * 0.5;
-        let inside = center.x.abs() + half < grounds.half_size[0] && center.y.abs() + half < grounds.half_size[1];
-        !inside && grounds.distance_outside_map(center.x, center.y) - half < grounds.extent()
+        let inside = grounds.distance_outside_footprint(center.x, center.y) + half < 0.0;
+        !inside && grounds.distance_outside_footprint(center.x, center.y) - half < grounds.extent()
     }
 
     pub(super) fn key(&self, cell: IVec2) -> ChunkKey {

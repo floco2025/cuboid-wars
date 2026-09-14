@@ -76,18 +76,19 @@ impl NavGraph {
         !(0..self.geometry.grid_rows).contains(&row) || !(0..self.geometry.grid_cols).contains(&col)
     }
 
-    // A cell of the exterior grounds: outside the grid at the grounds'
+    // A cell of the grounds: outside the base footprint at the grounds'
     // level, with a cell to spare before the terrain ends.
-    fn is_exterior(&self, node: NavNode) -> bool {
+    fn is_grounds(&self, node: NavNode) -> bool {
         let Some(grounds) = &self.grounds else {
             return false;
         };
+        let distance = grounds.distance_outside_footprint(
+            self.geometry.cell_center_x(node.col),
+            self.geometry.cell_center_z(node.row),
+        );
         node.level == grounds.settings.level
-            && self.outside_grid(node.row, node.col)
-            && grounds.distance_outside_map(
-                self.geometry.cell_center_x(node.col),
-                self.geometry.cell_center_z(node.row),
-            ) <= grounds.extent() - self.geometry.cell_size()
+            && distance >= 0.0
+            && distance <= grounds.extent() - self.geometry.cell_size()
     }
 
     fn bridge_powered(&self, bridge: BridgeId) -> bool {
@@ -112,10 +113,13 @@ impl NavGraph {
     pub(crate) fn contains(&self, pos: &Position) -> bool {
         let col = self.geometry.cell_col_containing_x(pos.x);
         let row = self.geometry.cell_row_containing_z(pos.z);
+        let on_grounds = self.is_grounds(self.node_containing(pos));
         if self.outside_grid(row, col) {
-            return self.is_exterior(self.node_containing(pos));
+            return on_grounds;
         }
-        pos.y >= -LEVEL_CLASSIFICATION_TOLERANCE && usize::from(self.geometry.level_for_y(pos.y)) < self.levels.len()
+        on_grounds
+            || (pos.y >= -LEVEL_CLASSIFICATION_TOLERANCE
+                && usize::from(self.geometry.level_for_y(pos.y)) < self.levels.len())
     }
 
     pub(super) fn neighbors(&self, node: NavNode) -> Vec<NavNode> {
@@ -144,12 +148,13 @@ impl NavGraph {
         out
     }
 
-    // An edge with an end on the grounds: two grounds cells always meet,
-    // and a rim cell of the map joins the grounds where nothing walls its
-    // side and no ramp face crosses it. Edges inside the grid are stored.
+    // Grounds links are implicit even inside the root grid. Only links
+    // between authored cells are stored in adjacency.
     fn grounds_edge_walkable(&self, node: NavNode, next: NavNode, side: CellSide) -> bool {
-        match (self.is_exterior(node), self.is_exterior(next)) {
-            (true, true) => true,
+        match (self.is_grounds(node), self.is_grounds(next)) {
+            (true, true) => {
+                !self.has_blocking_edge_on_side(node, side) && !self.has_blocking_edge_on_side(next, opposite(side))
+            }
             (true, false) => self.rim_cell_open_toward_grounds(next, opposite(side)),
             (false, true) => self.rim_cell_open_toward_grounds(node, side),
             (false, false) => false,
@@ -167,7 +172,7 @@ impl NavGraph {
 
     pub(super) fn node_center(&self, node: NavNode) -> Position {
         if let Some(grounds) = &self.grounds
-            && self.outside_grid(node.row, node.col)
+            && self.is_grounds(node)
         {
             let x = self.geometry.cell_center_x(node.col);
             let z = self.geometry.cell_center_z(node.row);
@@ -302,16 +307,31 @@ impl NavGraph {
         })
     }
 
-    // Past the grid edge the storey is the grounds', whatever height the
-    // hills put the body at.
+    // Hills can lie inside the root grid. An authored surface at the
+    // body's storey still wins, so an elevated course isn't mapped down to
+    // the terrain underneath it.
     fn node_containing(&self, pos: &Position) -> NavNode {
         let row = self.geometry.cell_row_containing_z(pos.z);
         let col = self.geometry.cell_col_containing_x(pos.x);
-        let level = match &self.grounds {
-            Some(grounds) if self.outside_grid(row, col) => grounds.settings.level,
-            _ => self.geometry.level_for_y(pos.y),
+        let node = NavNode {
+            level: self.geometry.level_for_y(pos.y),
+            row,
+            col,
         };
-        NavNode { level, row, col }
+        if let Some(grounds) = &self.grounds {
+            let ground_node = NavNode {
+                level: grounds.settings.level,
+                ..node
+            };
+            let authored = self
+                .cell(node)
+                .is_some_and(|cell| cell.has_floor || cell.has_ramp || cell.bridge.is_some())
+                || self.opening_walk_side(node).is_some();
+            if !authored && self.is_grounds(ground_node) {
+                return ground_node;
+            }
+        }
+        node
     }
 
     pub(super) fn all_traversable_nodes(&self) -> impl Iterator<Item = NavNode> + '_ {
@@ -451,6 +471,9 @@ impl NavGraph {
     // grid holds only barriers actors can never pass (no pressure plate);
     // pressure-plate barriers are omitted upstream so nav routes through them.
     fn has_blocking_edge_on_side(&self, node: NavNode, side: CellSide) -> bool {
+        if self.outside_grid(node.row, node.col) {
+            return false;
+        }
         let Some(level) = self.levels.get(usize::from(node.level)) else {
             return true;
         };
@@ -459,8 +482,11 @@ impl NavGraph {
     }
 
     pub(super) fn is_traversable(&self, node: NavNode) -> bool {
+        if self.is_grounds(node) {
+            return true;
+        }
         let Some(cell) = self.cell(node) else {
-            return self.is_exterior(node);
+            return false;
         };
         if let Some(bridge) = cell.bridge {
             return self.bridge_powered(bridge);

@@ -16,6 +16,7 @@ fn app() -> App {
         .init_resource::<Carriers>()
         .insert_resource(MapLayout {
             grounds: Some(Grounds {
+                center: [0.0, 0.0],
                 half_size: [10.0, 10.0],
                 y: 0.0,
                 settings: GroundsSettings { level: 0 },
@@ -34,6 +35,23 @@ fn app() -> App {
     ));
     app.update();
     app
+}
+
+#[test]
+fn meadow_chunks_follow_an_offset_base_instead_of_the_grid_origin() {
+    let meadow = GroundsGrass {
+        grounds: Grounds {
+            center: [105.0, -85.0],
+            half_size: [12.0, 12.0],
+            y: 0.0,
+            settings: GroundsSettings { level: 0 },
+        },
+        level: 0,
+    };
+    assert!(!meadow.cell_is_meadow(IVec2::new(10, -9)), "inside the cutout");
+    assert!(meadow.cell_is_meadow(IVec2::new(11, -9)), "partly outside the cutout");
+    assert!(meadow.cell_is_meadow(IVec2::ZERO), "the old origin is now meadow");
+    assert!(!meadow.cell_is_meadow(IVec2::new(200, -9)), "past the terrain edge");
 }
 
 #[test]

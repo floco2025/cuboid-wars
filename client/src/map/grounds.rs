@@ -67,7 +67,7 @@ pub(super) fn grounds_spawn_system(
     let rocks = RockAssets::new(&server, &asset_set, &settings, &mut meshes, &mut materials);
     let mut far: BTreeMap<(i32, i32), Vec<GroundDecoration>> = BTreeMap::new();
     for decoration in grounds.decorations() {
-        let outside = grounds.distance_outside_map(decoration.position.x, decoration.position.z);
+        let outside = grounds.distance_outside_footprint(decoration.position.x, decoration.position.z);
         let merges_far = decoration.kind != DecorationKind::Rock(RockClass::Pebble);
         if merges_far && outside > DECORATION_NEAR_BAND {
             let key = (

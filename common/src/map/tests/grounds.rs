@@ -10,6 +10,7 @@ use crate::{
 
 fn grounds() -> Grounds {
     Grounds {
+        center: [0.0, 0.0],
         half_size: [20.0, 30.0],
         y: 4.4,
         settings: GroundsSettings { level: 1 },
@@ -29,7 +30,7 @@ fn terrain_joins_the_map_leaves_the_basement_open_and_faces_up() {
     for vertex in mesh
         .vertices
         .iter()
-        .filter(|v| grounds.distance_outside_map(v.x, v.z).abs() < 0.001)
+        .filter(|v| grounds.distance_outside_footprint(v.x, v.z).abs() < 0.001)
     {
         assert!((vertex.y - grounds.y).abs() < 0.001);
     }
@@ -44,6 +45,48 @@ fn terrain_joins_the_map_leaves_the_basement_open_and_faces_up() {
         .expect("surrounding ground missing");
     assert!((hit.point.y - 4.4).abs() < 0.001);
     assert_eq!(world.surface_material(&hit, &layout), Some(TERRAIN_MATERIAL));
+}
+
+#[test]
+fn offset_footprints_keep_terrain_and_decorations_on_all_four_sides() {
+    let grounds = Grounds {
+        center: [1000.0, -800.0],
+        ..grounds()
+    };
+    let mesh = grounds.mesh();
+    for vertex in &mesh.vertices {
+        assert!(grounds.distance_outside_footprint(vertex.x, vertex.z) >= -0.001);
+        assert_eq!(vertex.y, grounds.height(vertex.x, vertex.z));
+    }
+    let decorations = grounds.decorations();
+    for direction in [Vec2::X, Vec2::NEG_X, Vec2::Y, Vec2::NEG_Y] {
+        assert!(
+            decorations.iter().any(|decoration| {
+                let offset = Vec2::new(decoration.position.x, decoration.position.z) - Vec2::from(grounds.center);
+                offset.dot(direction) > 600.0
+            }),
+            "decorations must reach every side of an offset base"
+        );
+    }
+    assert!(decorations.iter().all(|decoration| {
+        (1.5..=DECORATION_EXTENT)
+            .contains(&grounds.distance_outside_footprint(decoration.position.x, decoration.position.z))
+    }));
+}
+
+#[test]
+fn an_empty_footprint_makes_a_filled_mesh_without_zero_area_triangles() {
+    let grounds = Grounds {
+        center: [-194.0, -34.0],
+        half_size: [0.0, 0.0],
+        ..grounds()
+    };
+    let mesh = grounds.mesh();
+    for &[a, b, c] in &mesh.triangles {
+        let [a, b, c] = [a, b, c].map(|i| mesh.vertices[i as usize]);
+        assert!((b - a).cross(c - a).y > 0.0);
+    }
+    assert!(mesh.vertices.contains(&Vec3::new(-194.0, grounds.y, -34.0)));
 }
 
 #[test]
@@ -83,7 +126,7 @@ fn terrain_reaches_past_the_decorations_and_is_closed_around_the_map() {
     let farthest = mesh
         .vertices
         .iter()
-        .map(|v| grounds.distance_outside_map(v.x, v.z))
+        .map(|v| grounds.distance_outside_footprint(v.x, v.z))
         .fold(0.0f32, f32::max);
     assert!((farthest - grounds.extent()).abs() < 0.01);
     assert!(grounds.extent() > 700.0, "the terrain reaches past the decorations");
@@ -91,7 +134,7 @@ fn terrain_reaches_past_the_decorations_and_is_closed_around_the_map() {
     assert!(
         decorations
             .iter()
-            .all(|d| grounds.distance_outside_map(d.position.x, d.position.z) < grounds.extent())
+            .all(|d| grounds.distance_outside_footprint(d.position.x, d.position.z) < grounds.extent())
     );
     assert_eq!(
         grounds.collidable_decorations().len(),
@@ -159,7 +202,7 @@ fn decorations_keep_off_the_map_and_only_reachable_ones_collide() {
     let mut trees = Vec::new();
     let mut rocks = Vec::new();
     for decoration in &all {
-        let outside = grounds.distance_outside_map(decoration.position.x, decoration.position.z);
+        let outside = grounds.distance_outside_footprint(decoration.position.x, decoration.position.z);
         let clearance = match decoration.kind {
             DecorationKind::Tree | DecorationKind::Rock(RockClass::Boulder) => 8.0,
             DecorationKind::Rock(RockClass::Stone) => 4.0,
