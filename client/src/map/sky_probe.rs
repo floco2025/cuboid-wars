@@ -15,8 +15,8 @@ use crate::{
     constants::{
         SKY_CLOUD_COLOR, SKY_CLOUD_SCALE, SKY_CLOUD_SHADOW_COLOR, SKY_DAY_HORIZON_COLOR, SKY_DAY_ZENITH_COLOR,
         SKY_NIGHT_HORIZON_COLOR, SKY_NIGHT_ZENITH_COLOR, SKY_OVERCAST_COLOR, SKY_PROBE_GROUND_BOUNCE,
-        SKY_PROBE_GROUND_GREYING, SKY_PROBE_REFRESH_SECS, SKY_SUN_HALO_LUMINANCE, SKY_SUN_HALO_SIZE_DEGREES,
-        SKY_SUNSET_COLOR, SKY_TWILIGHT_HORIZON_COLOR, SKY_TWILIGHT_ZENITH_COLOR,
+        SKY_PROBE_GROUND_GREYING, SKY_PROBE_REFRESH_SECS, SKY_PROBE_SATURATION, SKY_SUN_HALO_LUMINANCE,
+        SKY_SUN_HALO_SIZE_DEGREES, SKY_SUNSET_COLOR, SKY_TWILIGHT_HORIZON_COLOR, SKY_TWILIGHT_ZENITH_COLOR,
     },
 };
 
@@ -158,6 +158,7 @@ fn probe_radiance(state: &SkyState, sky: SkyConfig, ground_albedo: Color) -> Vec
             for u in 0..PROBE_SIZE {
                 let direction = face_direction(face, u, v);
                 let sky = sky_radiance(direction, state, sky);
+                let sky = sky.lerp(Vec3::splat(sky.dot(LUMINANCE)), 1.0 - SKY_PROBE_SATURATION);
                 if direction.y > 0.0 {
                     sky_total += sky;
                     sky_count += 1.0;

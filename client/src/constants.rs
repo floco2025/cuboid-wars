@@ -91,6 +91,9 @@ pub const SKY_PROBE_REFRESH_SECS: f32 = 0.5;
 // ground's radiance, and how far its green is pulled toward grey.
 pub const SKY_PROBE_GROUND_BOUNCE: f32 = 0.4;
 pub const SKY_PROBE_GROUND_GREYING: f32 = 0.5;
+// How much of the sky's colour the probe lends the shade: 1 lights it with
+// the sky as drawn, 0 with the same brightness in grey.
+pub const SKY_PROBE_SATURATION: f32 = 0.8;
 pub const AMBIENT_FILL_UNDER_SKY_PROBE: f32 = 0.15;
 // Sun shadows reach this far (metres); the first cascade covers the near ground.
 pub const SHADOW_CASCADE_DISTANCE: f32 = 300.0;

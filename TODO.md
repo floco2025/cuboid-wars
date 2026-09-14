@@ -10,6 +10,10 @@
 
 - **Body clipping flickers on moving portals:** straddle detection uses the current tick's portal frame against the interpolated player position, while the visible portal and clipping planes use the interpolated carrier pose. Use the same rendered frames for detection and clipping.
 
+- **Actors park at the top of the basement ramps:** scuttlers and bruisers heading down a hotel basement ramp stop at the lip, one at a time, sometimes turned into the side wall. It happens with `/peace` on as well, so it is not the pursuit goal, and it predates the terrain query fix. On the hotel map in isolation the route from the landing to the basement, the motor's descent, and `character_ground_route_clear` from every point near the lip all pass; whatever stops them is in the live loop.
+
+- **Trees and shadows flicker while the camera moves:** leaves flash grey and every shadow, the player's included, flickers during camera motion, in clear weather and in rain. Recorded frames alternate between two states at frame rate. Not the sky probe (it crossfades now) and not the foliage's forward path (deferred foliage flickered the same and looked blurred).
+
 ## Enhancements
 
 - **Actor gameplay definitions:** Group each actor kind's health, damage, scoring, and destruction-feed setting under `gameplay.json::actors.kinds`, alongside its body and behaviour, so adding a kind does not require updating several separate tables.
@@ -26,7 +30,7 @@
 
 ## Testing
 
-- **Outdoors after the terrain query fix:** run fast far out on the hotel's grounds and check that movement stays smooth and the frame rate holds, that chasing actors no longer stop and go, and that grass chunks appearing beside a sprint no longer stutter the frame. Then lead scuttlers and bruisers down the basement ramps and stand against the wall at the foot: they should follow to touching distance instead of parking at the top.
+- **Outdoors after the terrain query fix:** run fast far out on the hotel's grounds and check that movement stays smooth and the frame rate holds, that chasing actors no longer stop and go, and that grass chunks appearing beside a sprint no longer stutter the frame.
 
 - **Rain flicker:** stand among the trees during rain and confirm the leaves no longer pulse every half second; the sky probe now crossfades between its renders.
 
