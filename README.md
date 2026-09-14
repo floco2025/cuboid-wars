@@ -15,7 +15,7 @@ Cuboid Wars is a networked 3D game on multi-level maps, from combat arenas
 to obstacle courses.
 
 - Clear and rainy skies with changing daylight.
-- Hotel grounds with lawns, paths, trees, and hills to explore.
+- Hotel grounds with lawns, paths, trees, rocks, and hills to explore.
 
 ## Controls
 
