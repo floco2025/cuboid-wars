@@ -25,20 +25,20 @@ cargo run --release
 These additional tools are needed for editing maps, generating assets, and formatting code.
 
 - Map editor: Python and PySide6.
-- Model and audio tools: Blender, FFmpeg, and ImageMagick for textures.
+- Model and audio tools: Blender, FFmpeg, and ImageMagick for textures; NumPy and Pillow for the generated ones.
 - Formatting: rustfmt, Clippy, Prettier, and Ruff.
 
 **macOS:**
 
 ```sh
-brew install python pyside numpy imagemagick ffmpeg prettier ruff
+brew install python pyside numpy pillow imagemagick ffmpeg prettier ruff
 brew install --cask blender
 ```
 
 **CachyOS:**
 
 ```sh
-sudo pacman -S --needed python pyside6 python-numpy \
+sudo pacman -S --needed python pyside6 python-numpy python-pillow \
   imagemagick blender ffmpeg prettier ruff
 ```
 
