@@ -11,9 +11,9 @@ use crate::{
     cameras::{MainCameraMarker, RearviewCameraMarker, SkyRenderLayer},
     config::ClientSettings,
     constants::{
-        SKY_CLEAR_FOG_RANGE, SKY_DAY_HORIZON_COLOR, SKY_DAY_SATURATION, SKY_NIGHT_HORIZON_COLOR, SKY_NIGHT_SATURATION,
-        SKY_OVERCAST_COLOR, SKY_RAIN_AMBIENT_LIGHT, SKY_RAIN_DIRECT_LIGHT, SKY_RAIN_FOG_RANGE,
-        SKY_TWILIGHT_HORIZON_COLOR, SKY_TWILIGHT_SATURATION,
+        SCENE_DAY_SATURATION, SCENE_NIGHT_SATURATION, SCENE_TWILIGHT_SATURATION, SKY_CLEAR_FOG_RANGE,
+        SKY_DAY_HORIZON_COLOR, SKY_NIGHT_HORIZON_COLOR, SKY_OVERCAST_COLOR, SKY_RAIN_AMBIENT_LIGHT,
+        SKY_RAIN_DIRECT_LIGHT, SKY_RAIN_FOG_RANGE, SKY_TWILIGHT_HORIZON_COLOR,
     },
     materials::ProceduralSkyMaterial,
     vfx::RainIntensity,
@@ -268,9 +268,9 @@ pub fn celestial_sky_system(
         .lerp(lighting.day_ambient_brightness, daylight)
         * 1.0_f32.lerp(SKY_RAIN_AMBIENT_LIGHT, rain);
     render.ambient.brightness = ambient_brightness;
-    let saturation = SKY_NIGHT_SATURATION
-        .lerp(SKY_TWILIGHT_SATURATION, twilight)
-        .lerp(SKY_DAY_SATURATION, daylight);
+    let saturation = SCENE_NIGHT_SATURATION
+        .lerp(SCENE_TWILIGHT_SATURATION, twilight)
+        .lerp(SCENE_DAY_SATURATION, daylight);
     for mut grading in &mut render.gradings {
         grading.global.post_saturation = saturation;
     }

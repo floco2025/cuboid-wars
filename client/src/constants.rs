@@ -19,6 +19,11 @@ pub const RENDERING_FULLSCREEN_RESOLUTION_DEFAULT: u32 = 1440;
 pub const RENDERING_MSAA_SAMPLES_DEFAULT: u32 = 4;
 pub const RENDERING_PORTAL_VIEW_BUDGET_DEFAULT: u8 = 4;
 pub const RENDERING_VSYNC_DEFAULT: bool = true;
+// Camera colour grading of the whole rendered scene, blended by sun
+// altitude: low light drains colour toward night.
+pub const SCENE_DAY_SATURATION: f32 = 1.0;
+pub const SCENE_TWILIGHT_SATURATION: f32 = 0.72;
+pub const SCENE_NIGHT_SATURATION: f32 = 0.48;
 
 // ============================================================================
 // Procedural Sky
@@ -62,9 +67,6 @@ pub const SKY_CLOUD_COLOR: [f32; 3] = [1.0, 0.98, 0.94];
 pub const SKY_CLOUD_SHADOW_COLOR: [f32; 3] = [0.50, 0.56, 0.66];
 pub const SKY_OVERCAST_COLOR: [f32; 3] = [0.24, 0.29, 0.34];
 
-pub const SKY_DAY_SATURATION: f32 = 1.0;
-pub const SKY_TWILIGHT_SATURATION: f32 = 0.72;
-pub const SKY_NIGHT_SATURATION: f32 = 0.48;
 pub const SKY_RAIN_DIRECT_LIGHT: f32 = 0.2;
 pub const SKY_RAIN_AMBIENT_LIGHT: f32 = 0.5;
 pub const SKY_CLEAR_FOG_RANGE: [f32; 2] = [100.0, 850.0];
