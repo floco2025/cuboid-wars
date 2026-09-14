@@ -7,16 +7,13 @@ mod resources;
 mod rocks;
 mod sky_probe;
 pub mod spawn;
-mod terrain_surface;
+mod terrain;
 mod trees;
 mod weather_surfaces;
 
 pub use celestial::setup_scene_lighting_system;
 pub(crate) use grass::GrassBurn;
-pub use grass::{
-    GrassChunkMarker, GrassChunks, TerrainMarker, grass_burn_system, grass_chunks_reset_system, grass_streaming_system,
-    terrain_spawn_system,
-};
+pub use grass::{GrassChunkMarker, GrassChunks, grass_burn_system, grass_chunks_reset_system, grass_streaming_system};
 pub(crate) use rendering::map_level_visibility;
 pub use rendering::{
     added_map_level_visibility_system, map_level_focus_visibility_system, map_spawn_geometry_system,
@@ -28,6 +25,7 @@ pub use spawn::{
     batch_floor, batch_ramp, batch_wall, spawn_ladder_from_layout, spawn_wall_light_from_layout, tiled_cuboid,
     wall_light_flicker_system,
 };
+pub use terrain::{TerrainMarker, terrain_spawn_system};
 
 mod plugin;
 

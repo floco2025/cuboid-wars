@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 #[derive(Clone, Copy)]
-pub(super) struct TerrainCover {
+pub(in crate::map) struct TerrainCover {
     pub soil: f32,
     pub dry: f32,
     pub shade: f32,
@@ -9,7 +9,7 @@ pub(super) struct TerrainCover {
 }
 
 impl TerrainCover {
-    pub(super) fn at(position: Vec2) -> Self {
+    pub(in crate::map) fn at(position: Vec2) -> Self {
         // Several incommensurate scales make a stable world-space field with
         // no map-sized repeat. The shader contains the same integer hash,
         // interpolation, and warp, so soil color and blade placement agree.
@@ -38,7 +38,7 @@ impl TerrainCover {
 
     // Geometry density follows the same field as the surface: fully bare in
     // brown patches, varied rather than uniform through green areas.
-    pub(super) fn grass_density(self, position: Vec2) -> f32 {
+    pub(in crate::map) fn grass_density(self, position: Vec2) -> f32 {
         if self.soil >= 0.28 {
             return 0.0;
         }
@@ -71,5 +71,5 @@ fn noise(position: Vec2) -> f32 {
 }
 
 #[cfg(test)]
-#[path = "tests/terrain_surface.rs"]
+#[path = "tests/cover.rs"]
 mod tests;

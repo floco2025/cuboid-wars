@@ -1,6 +1,6 @@
 use super::{
     mesh::BLADE_MAX_OVERHANG,
-    spawn::GrassPatch,
+    patch::GrassPatch,
     streaming::{GrassChunkVisual, grass_chunk_mesh},
 };
 use crate::{

@@ -19,8 +19,9 @@ use rand::RngExt;
 
 use super::{
     burn::GrassBurn,
+    material::grass_material,
     mesh::{AABB_BASE_PAD, GrassLod, WIND_SWAY_FACTOR, grass_patch_mesh, grass_scatter_mesh},
-    spawn::{GrassPatch, grass_material},
+    patch::GrassPatch,
 };
 use crate::{
     cameras::MainCameraMarker,

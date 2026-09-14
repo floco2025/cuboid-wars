@@ -61,7 +61,7 @@ fn terrain_noise(position: vec2<f32>) -> f32 {
     return mix(a, b, t.y);
 }
 
-// Mirrors `TerrainCover::at` in `map/terrain_surface.rs`: x bare soil, y dry
+// Mirrors `TerrainCover::at` in `map/terrain/cover.rs`: x bare soil, y dry
 // grass, z shade, w macro tint. The CPU side places blades from the same field.
 fn terrain_cover(position: vec2<f32>) -> vec4<f32> {
     let warp = vec2(

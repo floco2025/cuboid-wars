@@ -1,10 +1,5 @@
-use super::streaming::{ChunkEntry, ChunkKey, ChunkKind, GrassChunkSource, GrassChunks};
-use crate::{
-    carriers::{CarrierEntities, CarrierStoreys},
-    constants::{GRASS_CHUNK_SIZE, GRASS_WIND_DIRECTION_DEGREES, GRASS_WIND_SPEED, GRASS_WIND_STRENGTH},
-    map::{DebugColorMode, DebugColors},
-    materials::{GrassMaterial, GrassWindExtension},
-};
+use std::{collections::BTreeMap, sync::Arc};
+
 use bevy::{
     asset::RenderAssetUsages,
     light::NotShadowCaster,
@@ -12,46 +7,18 @@ use bevy::{
     prelude::*,
 };
 use common::protocol::{CarrierId, Floor, MapLayout, TERRAIN_MATERIAL};
-use std::{collections::BTreeMap, sync::Arc};
+
+use crate::{
+    carriers::{CarrierEntities, CarrierStoreys},
+    constants::GRASS_CHUNK_SIZE,
+    map::{
+        DebugColorMode, DebugColors,
+        grass::{ChunkEntry, ChunkKey, ChunkKind, GrassChunkSource, GrassChunks, GrassPatch},
+    },
+};
 
 #[derive(Component)]
 pub struct TerrainMarker;
-
-#[derive(Clone, Copy, Debug)]
-pub(in crate::map) struct GrassPatch {
-    pub(in crate::map) x1: f32,
-    pub(in crate::map) x2: f32,
-    pub(in crate::map) z1: f32,
-    pub(in crate::map) z2: f32,
-    pub(in crate::map) y: f32,
-    pub(in crate::map) level: u8,
-    pub(in crate::map) carrier: CarrierId,
-}
-
-impl GrassPatch {
-    fn clipped_to_chunk(floor: Floor, chunk_x: i32, chunk_z: i32) -> Option<Self> {
-        let (floor_x1, floor_x2, floor_z1, floor_z2) = floor.bounds_xz();
-        let chunk_x1 = chunk_x as f32 * GRASS_CHUNK_SIZE;
-        let chunk_z1 = chunk_z as f32 * GRASS_CHUNK_SIZE;
-        let x1 = floor_x1.max(chunk_x1);
-        let x2 = floor_x2.min(chunk_x1 + GRASS_CHUNK_SIZE);
-        let z1 = floor_z1.max(chunk_z1);
-        let z2 = floor_z2.min(chunk_z1 + GRASS_CHUNK_SIZE);
-        (x2 > x1 && z2 > z1).then_some(Self {
-            x1,
-            x2,
-            z1,
-            z2,
-            y: floor.y,
-            level: floor.level,
-            carrier: floor.carrier,
-        })
-    }
-
-    pub(super) fn area(self) -> f32 {
-        (self.x2 - self.x1) * (self.z2 - self.z1)
-    }
-}
 
 // Terrain cells are floor slabs with authored sides and bottoms. The ordinary
 // geometry batch omits their procedural top faces; this system supplies the
@@ -158,29 +125,6 @@ pub fn terrain_spawn_system(
     }
 }
 
-pub(super) fn grass_material() -> GrassMaterial {
-    let wind_direction = Vec2::from_angle(GRASS_WIND_DIRECTION_DEGREES.to_radians());
-    GrassMaterial {
-        base: StandardMaterial {
-            base_color: Color::WHITE,
-            perceptual_roughness: 0.95,
-            reflectance: 0.1,
-            // Both faces draw with the one upward normal: a flipped back-face
-            // normal would point down and render half the blades black.
-            cull_mode: None,
-            ..default()
-        },
-        extension: GrassWindExtension {
-            wind: Vec4::new(
-                wind_direction.x,
-                wind_direction.y,
-                GRASS_WIND_STRENGTH,
-                GRASS_WIND_SPEED,
-            ),
-        },
-    }
-}
-
 pub(super) fn terrain_surface_mesh(floors: &[Floor], origin: Vec3) -> Mesh {
     let mut positions = Vec::with_capacity(floors.len() * 4);
     let mut normals = Vec::with_capacity(floors.len() * 4);
@@ -204,3 +148,7 @@ pub(super) fn terrain_surface_mesh(floors: &[Floor], origin: Vec3) -> Mesh {
         .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, uvs)
         .with_inserted_indices(Indices::U32(indices))
 }
+
+#[cfg(test)]
+#[path = "tests/surface.rs"]
+mod tests;

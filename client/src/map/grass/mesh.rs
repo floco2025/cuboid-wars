@@ -1,4 +1,4 @@
-use super::{burn::GrassBurn, spawn::GrassPatch};
+use super::{burn::GrassBurn, patch::GrassPatch};
 use crate::{
     constants::{
         EXPLOSION_GRASS_BURN_CENTER_HEIGHT_FACTOR, EXPLOSION_GRASS_BURN_CENTER_SWAY_FACTOR,
@@ -6,7 +6,7 @@ use crate::{
         EXPLOSION_GRASS_BURN_MID_BRIGHTNESS_FACTOR, EXPLOSION_GRASS_BURN_ROOT_BRIGHTNESS_FACTOR,
         EXPLOSION_GRASS_BURN_TIP_BRIGHTNESS_FACTOR, GRASS_DRY, GRASS_MID_DENSITY, GRASS_NEAR_DENSITY,
     },
-    map::terrain_surface::TerrainCover,
+    map::terrain::TerrainCover,
 };
 use bevy::{asset::RenderAssetUsages, mesh::Indices, prelude::*, render::render_resource::PrimitiveTopology};
 use common::protocol::Floor;

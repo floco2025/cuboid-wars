@@ -6,14 +6,14 @@ use common::protocol::{CarrierId, Floor};
 use super::{
     burn::{BURN_VERTICAL_TOLERANCE, GrassBurn, grass_burn_system},
     mesh::{BLADE_HEIGHT_MAX, GrassLod, MID_SWAY_WEIGHT, VERTICES_PER_BLADE, WIND_SWAY_FACTOR, grass_patch_mesh},
-    spawn::{GrassPatch, terrain_surface_mesh},
+    patch::GrassPatch,
     streaming::{GrassChunkSource, GrassChunkVisual, grass_chunk_mesh, padded_grass_bounds},
 };
 use crate::{
     constants::{
         EXPLOSION_GRASS_BURN_CENTER_HEIGHT_FACTOR, EXPLOSION_GRASS_BURN_CENTER_SWAY_FACTOR, GRASS_WIND_STRENGTH,
     },
-    map::terrain_surface::TerrainCover,
+    map::terrain::TerrainCover,
     test_fixtures::CELL,
     vfx::ClipRegion,
 };
@@ -339,23 +339,4 @@ fn padded_chunk_bounds_contain_full_sway() {
         assert!(swayed_min.cmpge(aabb.min().into()).all());
         assert!(swayed_max.cmple(aabb.max().into()).all());
     }
-}
-
-#[test]
-fn procedural_surface_uses_compiled_floor_bounds_including_trim() {
-    let floor = Floor {
-        x1: -1.25,
-        z1: -1.0,
-        x2: 1.4,
-        z2: 1.3,
-        y: 2.0,
-        thickness: 0.2,
-        level: 1,
-        carrier: CarrierId::WORLD,
-    };
-    let mesh = terrain_surface_mesh(&[floor], Vec3::new(0.0, 2.0, 0.0));
-    assert_eq!(
-        positions(&mesh),
-        &[[-1.25, 0.0, -1.0], [1.4, 0.0, -1.0], [-1.25, 0.0, 1.3], [1.4, 0.0, 1.3]]
-    );
 }
