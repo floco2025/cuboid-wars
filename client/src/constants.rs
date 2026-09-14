@@ -125,7 +125,6 @@ pub const INPUT_INVERT_Y_DEFAULT: bool = false;
 
 pub const CAMERA_FOV_DEGREES_DEFAULT: f32 = 90.0;
 pub const CAMERA_SHAKE_SCALE_DEFAULT: f32 = 1.0;
-pub const CAMERA_REARVIEW_MIRROR_DEFAULT: bool = true;
 // Mouse-look pitch limit (rad), just short of straight up/down.
 pub const CAMERA_MAX_PITCH: f32 = FRAC_PI_2 - 0.05;
 
@@ -249,9 +248,8 @@ pub const LABEL_TEXT_PADDING_Y: f32 = 2.0;
 pub const HUD_SHOW_DIAGNOSTICS_DEFAULT: bool = true;
 
 // Gap (logical px) between a corner-anchored HUD element and the window edge.
-// Shared by the player list, quest panel, and rear-view mirror so they all
-// sit the same distance in from the sides. The mirror is a render viewport in
-// physical pixels, so it multiplies this by the window scale factor.
+// Shared by the player list and quest panel so they sit the same distance
+// in from the sides.
 pub const HUD_EDGE_MARGIN_PX: f32 = 10.0;
 // Vertical gap between stacked rows in every HUD column.
 pub const HUD_ROW_GAP_PX: f32 = 4.0;

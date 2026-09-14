@@ -11,7 +11,7 @@ use common::{
 };
 
 use crate::{
-    cameras::{MainCameraMarker, RearviewCameraMarker, SkyRenderLayer},
+    cameras::{MainCameraMarker, SkyRenderLayer},
     config::ClientSettings,
     constants::{
         AMBIENT_DAY_COLOR, AMBIENT_FILL_UNDER_SKY_PROBE, AMBIENT_NIGHT_COLOR, AMBIENT_OVERCAST_COLOR,
@@ -342,7 +342,7 @@ pub fn celestial_lights_system(
 pub fn scene_ambient_system(
     state: Res<SkyState>,
     mut ambient: ResMut<GlobalAmbientLight>,
-    mut gradings: Query<&mut ColorGrading, Or<(With<MainCameraMarker>, With<RearviewCameraMarker>)>>,
+    mut gradings: Query<&mut ColorGrading, With<MainCameraMarker>>,
 ) {
     // The sky probe carries the ambient; this is the fill under it.
     ambient.brightness = state.ambient_brightness * AMBIENT_FILL_UNDER_SKY_PROBE;

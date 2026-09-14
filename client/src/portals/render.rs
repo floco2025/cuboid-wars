@@ -19,9 +19,8 @@ use super::{
 };
 use crate::{
     cameras::{
-        MainCameraMarker, RENDER_LAYER_LOCAL_PLAYER, RENDER_LAYER_PORTAL_VIEW_START, RENDER_LAYER_REARVIEW,
-        RearviewCameraMarker, SceneRenderTarget, SkyRenderLayer, local_player_camera_sync_system,
-        local_player_rearview_viewport_system, scene_render_target_system,
+        MainCameraMarker, RENDER_LAYER_LOCAL_PLAYER, RENDER_LAYER_PORTAL_VIEW_START, SceneRenderTarget, SkyRenderLayer,
+        local_player_camera_sync_system, scene_render_target_system,
     },
     config::ClientSettings,
     schedule::ClientSet,
@@ -93,7 +92,6 @@ pub fn portal_render_plugin(app: &mut App) {
             rebuild_portal_views_system
                 .after(ClientSet::Network)
                 .after(local_player_camera_sync_system)
-                .after(local_player_rearview_viewport_system)
                 .after(scene_render_target_system),
             update_portal_view_cameras_system.after(rebuild_portal_views_system),
         )
@@ -104,10 +102,6 @@ pub fn portal_render_plugin(app: &mut App) {
 fn rebuild_portal_views_system(
     mut commands: Commands,
     main_camera: Query<(Entity, &Transform, &Projection, &Camera), With<MainCameraMarker>>,
-    rearview_camera: Query<
-        (Entity, &Transform, &Projection, &Camera),
-        (With<RearviewCameraMarker>, Without<MainCameraMarker>),
-    >,
     scene_target: Res<SceneRenderTarget>,
     portals: Res<PortalMap>,
     carriers: Res<Carriers>,
@@ -132,12 +126,7 @@ fn rebuild_portal_views_system(
         .collect();
     let mut presenter_views = Vec::new();
     if main_camera.is_active {
-        presenter_views.push((main_entity, main_transform, main_projection, main_camera));
-    }
-    if let Ok((entity, transform, projection, camera)) = rearview_camera.single()
-        && camera.is_active
-    {
-        presenter_views.push((entity, transform, projection, camera));
+        presenter_views.push((main_entity, main_transform, main_projection));
     }
     let presenters: Vec<_> = presenter_views.iter().map(|(entity, ..)| *entity).collect();
     // Every complete root is built while they fit the budget, so the graph
@@ -145,7 +134,7 @@ fn rebuild_portal_views_system(
     // each presenter keeps the largest on screen and the graph follows the view.
     let roots: Vec<_> = presenter_views
         .iter()
-        .flat_map(|(entity, transform, projection, camera)| {
+        .flat_map(|(entity, transform, projection)| {
             let keys: Vec<PortalKey> = if complete_portals.len() <= usize::from(budget) {
                 complete_portals
                     .iter()
@@ -159,7 +148,7 @@ fn rebuild_portal_views_system(
                     alpha,
                     transform,
                     projection,
-                    presenter_size(camera, scene_target.size),
+                    scene_target.size,
                     usize::from(budget),
                 )
             };
@@ -195,44 +184,12 @@ fn rebuild_portal_views_system(
     let mut over_budget = false;
     let mut replica_count = 0;
     let mut pending = VecDeque::new();
-    let rearview_entity = rearview_camera.single().ok().map(|(entity, ..)| entity);
-    let mut rearview_surfaces = HashMap::new();
-    if let Some(rearview_entity) = rearview_entity.filter(|entity| state.presenters.contains(entity)) {
-        let selected: HashSet<_> = state
-            .roots
-            .iter()
-            .filter_map(|(presenter, key)| (*presenter == rearview_entity).then_some(*key))
-            .collect();
-        let mut rearview_portals = complete_portals.clone();
-        rearview_portals.sort_by_key(|portal| {
-            (
-                !selected.contains(&(portal.pair, portal.end)),
-                portal.pair.0,
-                portal.end == PortalEnd::B,
-            )
-        });
-        for portal in &rearview_portals {
-            if replica_count >= MAX_PORTAL_REPLICAS {
-                over_budget = true;
-                break;
-            }
-            let replica = spawn_portal_visual(&mut commands, &portal_assets, portal, &carriers, RENDER_LAYER_REARVIEW);
-            state.spawned.push(replica);
-            rearview_surfaces.insert((portal.pair, portal.end), replica);
-            replica_count += 1;
-        }
-    }
     for &(presenter, key) in &state.roots {
         if pending.len() >= MAX_PORTAL_VIEW_CAMERAS {
             over_budget = true;
             break;
         }
-        let target_surface = if presenter == main_entity {
-            portals.get(&key).map(|info| info.entity)
-        } else {
-            rearview_surfaces.get(&key).copied()
-        };
-        let Some(target_surface) = target_surface else {
+        let Some(target_surface) = portals.get(&key).map(|info| info.entity) else {
             continue;
         };
         pending.push_back(PendingView {
@@ -326,13 +283,6 @@ fn rebuild_portal_views_system(
     }
 }
 
-fn presenter_size(camera: &Camera, scene_size: UVec2) -> UVec2 {
-    camera
-        .viewport
-        .as_ref()
-        .map_or(scene_size, |viewport| viewport.physical_size)
-}
-
 fn largest_visible_roots(
     portals: &PortalMap,
     complete_portals: &[Portal],
@@ -386,13 +336,7 @@ fn create_portal_view_target(
 }
 
 fn update_portal_view_cameras_system(
-    presenters: Query<
-        (&Transform, &Projection, &Camera),
-        (
-            Or<(With<MainCameraMarker>, With<RearviewCameraMarker>)>,
-            Without<PortalViewCamera>,
-        ),
-    >,
+    presenters: Query<(&Transform, &Projection, &Camera), (With<MainCameraMarker>, Without<PortalViewCamera>)>,
     scene_target: Res<SceneRenderTarget>,
     portals: Res<PortalMap>,
     carriers: Res<Carriers>,
@@ -419,8 +363,6 @@ fn update_portal_view_cameras_system(
             if !presenter_camera.is_active {
                 return None;
             }
-            // The main camera fills the scene image; the rearview draws into its viewport.
-            let presenter_size = presenter_size(presenter_camera, scene_target.size);
             let (transform, projection, footprint, rect) = view_through_chain(
                 &portals,
                 &view.chain,
@@ -428,7 +370,7 @@ fn update_portal_view_cameras_system(
                 alpha,
                 presenter_transform,
                 presenter_projection,
-                presenter_size,
+                scene_target.size,
             )?;
             Some(MappedView {
                 entity,
@@ -441,8 +383,7 @@ fn update_portal_view_cameras_system(
             })
         })
         .collect();
-    // Each presenting camera spends its own budget, so a deep forward corridor
-    // never starves the mirror.
+    // Each presenting camera spends its own budget.
     mapped.sort_by_key(|view| view.presenter);
     let budget = client_settings.preferences.portal_view_budget as usize;
     let mut admitted: HashMap<Entity, usize> = HashMap::new();

@@ -1,6 +1,6 @@
 use bevy::{
     anti_alias::taa::TemporalAntiAliasing,
-    camera::{ImageRenderTarget, RenderTarget, ShadowLodOrigin, Viewport, visibility::RenderLayers},
+    camera::{ImageRenderTarget, RenderTarget, ShadowLodOrigin, visibility::RenderLayers},
     core_pipeline::prepass::{DeferredPrepass, DepthPrepass},
     pbr::ScreenSpaceAmbientOcclusion,
     post_process::bloom::{Bloom, BloomCompositeMode, BloomPrefilter},
@@ -10,8 +10,8 @@ use bevy::{
 };
 
 use super::{
-    CompositorCameraMarker, MainCameraMarker, RENDER_LAYER_CHARACTER_LABEL, RENDER_LAYER_MAIN_VIEW,
-    RENDER_LAYER_REARVIEW, RearviewCameraMarker, SceneRenderTarget, SkyRenderLayer, scene_target::create_scene_image,
+    CompositorCameraMarker, MainCameraMarker, RENDER_LAYER_CHARACTER_LABEL, RENDER_LAYER_MAIN_VIEW, SceneRenderTarget,
+    SkyRenderLayer, scene_target::create_scene_image,
 };
 use crate::config::ClientSettings;
 
@@ -139,44 +139,6 @@ pub fn setup_cameras_system(
             composite_mode: BloomCompositeMode::Additive,
             ..Bloom::NATURAL
         });
-    }
-
-    // Add rearview mirror camera (renders to its viewport inside the scene image)
-    let mut rearview_camera = commands.spawn((
-        RearviewCameraMarker,
-        SkyRenderLayer(RENDER_LAYER_REARVIEW),
-        RenderTarget::Image(ImageRenderTarget {
-            handle: scene_image.clone(),
-            scale_factor: 1.0,
-        }),
-        msaa,
-        Camera3d::default(),
-        Camera {
-            // Render after main camera to its viewport only
-            order: 1,
-            // Viewport will be set by rearview_camera_viewport_system
-            viewport: Some(Viewport {
-                physical_position: UVec2::ZERO,
-                physical_size: UVec2::new(100, 100),
-                depth: 0.0..1.0,
-            }),
-            // Don't clear the viewport - render on top
-            clear_color: bevy::camera::ClearColorConfig::None,
-            is_active: client_settings.preferences.rearview_mirror,
-            ..default()
-        },
-        Projection::from(PerspectiveProjection {
-            fov: client_settings.preferences.fov_degrees.to_radians(),
-            ..default()
-        }),
-        ColorGrading::default(),
-        RenderLayers::layer(0).with(RENDER_LAYER_REARVIEW),
-        Transform::default().looking_at(Vec3::new(0.0, 0.0, 1.0), Vec3::Y), // Looking backwards (positive Z)
-    ));
-    if deferred_rendering_enabled {
-        // No TAA here: it post-processes the whole shared scene image, not
-        // this camera's viewport, and would paint over the main view.
-        rearview_camera.insert((DepthPrepass, DeferredPrepass));
     }
 
     // Compositor: shows the scene image upscaled to the window, then draws

@@ -5,7 +5,7 @@ use bevy::{
     window::{PrimaryWindow, WindowMode},
 };
 
-use super::{MainCameraMarker, RearviewCameraMarker, SceneRenderTarget};
+use super::{MainCameraMarker, SceneRenderTarget};
 use crate::config::ClientSettings;
 
 pub fn create_scene_image(images: &mut Assets<Image>, size: UVec2) -> Handle<Image> {
@@ -28,7 +28,7 @@ pub fn scene_render_target_system(
     client_settings: Res<ClientSettings>,
     mut scene_target: ResMut<SceneRenderTarget>,
     mut images: ResMut<Assets<Image>>,
-    mut projections: Query<&mut Projection, Or<(With<MainCameraMarker>, With<RearviewCameraMarker>)>>,
+    mut projections: Query<&mut Projection, With<MainCameraMarker>>,
 ) {
     let Ok(window) = windows.single() else {
         return;

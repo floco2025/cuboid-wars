@@ -69,7 +69,7 @@ fn update_cuboid_shake(commands: &mut Commands, entity: Entity, delta: Duration,
 
 // Decay the portal-transit tilt multiplicatively on top of this frame's
 // upright camera rotation. Runs after the camera sync (top-down writes the
-// whole transform there) and before lock-on/rearview, so what they read
+// whole transform there) and before lock-on, so what it reads
 // matches the screen — the same rationale as shake.
 pub fn local_player_portal_blend_system(
     mut commands: Commands,

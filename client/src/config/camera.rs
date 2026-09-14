@@ -1,13 +1,12 @@
 use anyhow::{Result, ensure};
 use serde::Deserialize;
 
-use super::settings::{validate_non_negative_finite, validate_positive_finite, validate_unit_ratio};
+use super::settings::{validate_non_negative_finite, validate_positive_finite};
 
 #[derive(Debug, Clone, Copy, Deserialize)]
 pub struct CameraConfig {
     pub follow: FollowCameraConfig,
     pub debug: DebugCameraConfig,
-    pub rearview: RearviewConfig,
     pub shake: CameraShakeConfig,
 }
 
@@ -32,15 +31,6 @@ pub struct ShakeSourceConfig {
     pub duration_secs: f32,
 }
 
-#[derive(Debug, Clone, Copy, Deserialize)]
-pub struct RearviewConfig {
-    // Width / height of the rearview viewport as a fraction of the window
-    // dimensions. The inset from the window edge is a fixed `HUD_EDGE_MARGIN_PX`
-    // shared with the HUD panels, not a ratio.
-    pub width_ratio: f32,
-    pub height_ratio: f32,
-}
-
 // The debug view's orbit distance on entry; the wheel moves it from there.
 #[derive(Debug, Clone, Copy, Deserialize)]
 pub struct DebugCameraConfig {
@@ -51,7 +41,6 @@ impl CameraConfig {
     pub(super) fn validate(&self) -> Result<()> {
         validate_positive_finite(self.debug.distance, "camera.debug.distance")?;
         self.follow.validate()?;
-        self.rearview.validate()?;
         self.shake.validate()?;
         Ok(())
     }
@@ -70,14 +59,6 @@ impl ShakeSourceConfig {
         validate_non_negative_finite(self.intensity, &format!("{path}.intensity"))?;
         validate_non_negative_finite(self.vertical_ratio, &format!("{path}.vertical_ratio"))?;
         validate_positive_finite(self.duration_secs, &format!("{path}.duration_secs"))
-    }
-}
-
-impl RearviewConfig {
-    pub(super) fn validate(&self) -> Result<()> {
-        validate_unit_ratio(self.width_ratio, "camera.rearview.width_ratio")?;
-        validate_unit_ratio(self.height_ratio, "camera.rearview.height_ratio")?;
-        Ok(())
     }
 }
 

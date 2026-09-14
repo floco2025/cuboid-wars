@@ -12,7 +12,7 @@
 
 - **Actors park at the top of the basement ramps:** scuttlers and bruisers heading down a hotel basement ramp stop at the lip, one at a time, sometimes turned into the side wall. It happens with `/peace` on as well, so it is not the pursuit goal, and it predates the terrain query fix. On the hotel map in isolation the route from the landing to the basement, the motor's descent, and `character_ground_route_clear` from every point near the lip all pass; whatever stops them is in the live loop.
 
-- **Trees and shadows flicker while the camera moves:** leaves flash grey and every shadow, the player's included, flickers during camera motion, in clear weather and in rain. Recorded frames alternate between two states at frame rate. Not the sky probe (it crossfades now) and not the foliage's forward path (deferred foliage flickered the same and looked blurred).
+- **Trees and shadows flicker while the camera moves:** with the rearview mirror on, leaves flashed grey and every shadow, the player's included, flickered during camera motion; frames alternated between two states at frame rate. Turning the mirror off made it much better, so the mirror is removed. Bevy renders every 3D view's shadow cascades into the same layers of one shadow map, and portal view cameras are 3D views too, so check for the same flicker with portals placed and in view; if it returns there, the cascade sharing between presenting views needs its own fix.
 
 ## Enhancements
 
@@ -27,6 +27,8 @@
 - **Player-scaled actor counts:** let a spawn zone's actor count depend on the number of logged-in players instead of one fixed `count`. The scaling rule is still to be decided; define it so that later joins fill the added slots and departures let the surplus die off without a cull.
 
 - **Rapier upgrades:** Recheck the capsule floor-motion regression before removing the contact-normal adapter in `common/src/physics/world/character_queries.rs`. It works around imprecise cast normals feeding Rapier’s slope decomposition; `running_across_flat_floor_tiles_keeps_its_speed` still fails without it on 0.35. Whatever replaces it must keep its contact query bounded, since an unbounded prediction scans the whole terrain trimesh.
+
+- **Portal presenter plumbing:** `client/src/portals/render.rs` still tracks a list of presenting cameras with per-presenter budgets and root selection, from when the rearview mirror presented too. The main camera is the only presenter now, so the presenter fields on the views, roots, and state can go.
 
 ## Testing
 

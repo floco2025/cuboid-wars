@@ -71,7 +71,6 @@
       "obstruction_return_rate": 8.0
     },
     "debug": { "distance": 15.0 },
-    "rearview": { "width_ratio": 0.2, "height_ratio": 0.2 },
     "shake": {
       "projectile": {
         "intensity": 0.1,

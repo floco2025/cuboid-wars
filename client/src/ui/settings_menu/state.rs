@@ -48,7 +48,6 @@ impl SliderSetting {
 pub(super) enum CheckboxSetting {
     VSync,
     InvertY,
-    RearviewMirror,
     ShowDiagnostics,
 }
 

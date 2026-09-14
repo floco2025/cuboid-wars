@@ -21,7 +21,6 @@ fn sample() -> LocalSettings {
             fov_degrees: 100.0,
             shake_scale: 0.5,
             show_diagnostics: false,
-            rearview_mirror: true,
             footstep_volume_db: -9.0,
             actor_movement_volume_db: -3.0,
         },

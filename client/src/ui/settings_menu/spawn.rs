@@ -198,11 +198,6 @@ pub(super) fn settings_menu_lifecycle_system(
                     ));
 
                     panel.spawn(section_header("HUD", font));
-                    let mut rearview_row =
-                        panel.spawn(checkbox_row("Rearview mirror", font, CheckboxSetting::RearviewMirror));
-                    if settings.preferences.rearview_mirror {
-                        rearview_row.insert(Checked);
-                    }
                     let mut diagnostics_row = panel.spawn(checkbox_row(
                         "FPS / RTT readout",
                         font,

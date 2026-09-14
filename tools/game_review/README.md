@@ -63,7 +63,7 @@ Use the console to make environmental states repeatable:
 For grounds work, inspect walking height, nearby surface detail, grass density
 against green and brown patches, tree and grass distance fades while moving,
 clear daylight, rain, and night. For camera-dependent rendering, inspect the
-main view, rearview, and portals that are in scope. When material renderer
+main view and portals that are in scope. When material renderer
 behavior matters, test `rendering.opaque_renderer` as both `forward` and
 `deferred` in `config/client/client.json`, restarting between them and restoring
 the original value afterward.
@@ -77,7 +77,7 @@ each capture under a distinct name rather than overwriting evidence.
 Disable VSync and enable diagnostics in the settings menu when measuring
 uncapped performance. Let shaders and scene loading settle, then record several
 FPS or frame-time samples over 10–15 seconds. Hold position, view, FOV, logical
-and displayed render resolution, renderer, MSAA, rearview setting, and machine
+and displayed render resolution, renderer, MSAA, and machine
 constant across comparisons. Stop builds, tests, and other game instances
 during the sample. MangoHud is useful on Linux for frame-time and GPU logging.
 

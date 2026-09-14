@@ -14,10 +14,6 @@ A fast-paced multiplayer arena game built with Rust, Bevy, Rapier, and renet.
 Cuboid Wars is a networked 3D game on multi-level maps, from combat arenas
 to obstacle courses.
 
-- Clear and rainy skies with changing daylight.
-- Hotel grounds with lawns, paths, trees, rocks, and hills to explore.
-- Enemies roam the grounds too, and give chase out there.
-
 ## Controls
 
 ### Gameplay

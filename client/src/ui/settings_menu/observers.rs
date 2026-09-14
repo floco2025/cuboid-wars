@@ -72,7 +72,6 @@ pub(super) fn on_checkbox_value_change(
             }
         }
         CheckboxSetting::InvertY => settings.preferences.invert_y = event.value,
-        CheckboxSetting::RearviewMirror => settings.preferences.rearview_mirror = event.value,
         CheckboxSetting::ShowDiagnostics => settings.preferences.show_diagnostics = event.value,
     }
 }

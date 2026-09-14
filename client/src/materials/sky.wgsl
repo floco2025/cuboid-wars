@@ -237,7 +237,7 @@ fn star_layer(direction: vec3<f32>, scale: f32, seed: u32, footprint: f32) -> ve
 }
 
 // Coarser cells where a pixel spans too much sky for one-pixel stars, as in
-// a small viewport like the rearview mirror, cross-faded between power-of-two
+// a small portal view target, cross-faded between power-of-two
 // steps so no seam shows where the footprint crosses one.
 fn star_lod(direction: vec3<f32>, scale: f32, seed: u32, footprint: f32) -> vec3<f32> {
     let lod = max(0.0, log2(footprint * scale / STAR_LOD_FOOTPRINT));

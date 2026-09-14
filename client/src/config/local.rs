@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{ClientSettings, settings::UserPreferences};
 
-pub const LOCAL_SETTINGS_VERSION: u32 = 18;
+pub const LOCAL_SETTINGS_VERSION: u32 = 19;
 
 // CLI review overrides are deliberately ephemeral. Disabling persistence for
 // that process prevents its forced window frame or volume from becoming the
