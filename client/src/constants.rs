@@ -604,7 +604,7 @@ pub const ROCK_LICHEN_COLOR: Color = Color::srgb(0.47, 0.55, 0.3);
 // ============================================================================
 
 // Texture tiling (m) and relief of the meadow and soil details.
-pub const TERRAIN_GRASS_TILE_SIZE: f32 = 1.6;
+pub const TERRAIN_GRASS_TILE_SIZE: f32 = 2.2;
 pub const TERRAIN_RELIEF: f32 = 0.014;
 pub const TERRAIN_SOIL_TILE_SIZE: f32 = 1.25;
 pub const TERRAIN_SOIL_RELIEF: f32 = 0.05;
