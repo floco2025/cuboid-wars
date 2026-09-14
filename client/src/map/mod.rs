@@ -5,13 +5,15 @@ mod grounds;
 mod rendering;
 mod resources;
 pub mod spawn;
-mod terrain_grass;
 mod terrain_surface;
 mod trees;
 
 pub use celestial::setup_scene_lighting_system;
 pub(crate) use grass::GrassBurn;
-pub use grass::{TerrainMarker, grass_burn_system, terrain_spawn_system};
+pub use grass::{
+    GrassChunkMarker, GrassChunks, TerrainMarker, grass_burn_system, grass_chunks_reset_system, grass_streaming_system,
+    terrain_spawn_system,
+};
 pub(crate) use rendering::map_level_visibility;
 pub use rendering::{
     added_map_level_visibility_system, map_level_focus_visibility_system, map_spawn_geometry_system,

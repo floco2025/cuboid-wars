@@ -6,7 +6,7 @@ use common::{config::ActorGameplayConfig, protocol::ActorId};
 
 use super::ActorAnimationVelocity;
 use crate::{
-    audio::{NormalizationGain, loop_sound_playback, settings_volume},
+    audio::{NormalizationGain, loop_sound_playback, settings_volume, sink_volume},
     config::{AudioConfig, ClientSettings, SoundDef},
     constants::{
         ACTOR_MOVEMENT_AUDIO_ATTACK_RATE, ACTOR_MOVEMENT_AUDIO_FLYING_PITCH, ACTOR_MOVEMENT_AUDIO_GROUND_PITCH,
@@ -43,6 +43,8 @@ pub(super) fn spawn_movement_audio(
         loop_sound_playback(
             asset_server,
             sound,
+            // Silent until the first update: `actor_movement_audio_system`
+            // owns the volume from then on, including the sound's own dB.
             PlaybackSettings::ONCE
                 .paused()
                 .with_volume(Volume::Linear(0.0))
@@ -102,9 +104,10 @@ pub(crate) fn actor_movement_audio_system(
             sound.gain = 0.0;
         }
         playback.volume = sound.configured_volume * normalization.0 * volume * Volume::Linear(sound.gain);
-        playback.paused = sound.gain == 0.0;
+        // A muted slider pauses the loops instead of mixing silence.
+        playback.paused = sound.gain == 0.0 || volume.to_linear() == 0.0;
         if let Some(mut sink) = sink {
-            sink.set_volume(playback.volume * global_volume.volume);
+            sink.set_volume(sink_volume(&playback, &global_volume));
             sink.set_speed(playback.speed);
             if playback.paused {
                 sink.pause();

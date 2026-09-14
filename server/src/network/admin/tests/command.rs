@@ -8,21 +8,46 @@ fn parses_every_command_form() {
     assert_eq!(parse_admin_command("/weather clear"), AdminCommand::WeatherClear);
     assert_eq!(parse_admin_command("/weather auto"), AdminCommand::WeatherAuto);
     assert_eq!(parse_admin_command("/weather"), AdminCommand::WeatherStatus);
-    assert_eq!(parse_admin_command("/time"), AdminCommand::TimeStatus);
+    assert_eq!(
+        parse_admin_command("/time"),
+        AdminCommand::Celestial(CelestialCommand::TimeStatus)
+    );
     assert_eq!(
         parse_admin_command("/time 09:30"),
-        AdminCommand::TimeSeek(LocalTime::parse("09:30").expect("valid time"))
+        AdminCommand::Celestial(CelestialCommand::TimeSeek(
+            LocalTime::parse("09:30").expect("valid time")
+        ))
     );
     assert_eq!(
         parse_admin_command("/time 1:00"),
-        AdminCommand::TimeSeek(LocalTime::parse("01:00").expect("valid time"))
+        AdminCommand::Celestial(CelestialCommand::TimeSeek(
+            LocalTime::parse("01:00").expect("valid time")
+        ))
     );
-    assert_eq!(parse_admin_command("/time auto"), AdminCommand::TimeAuto);
-    assert_eq!(parse_admin_command("/time noon"), AdminCommand::TimeUsage);
-    assert_eq!(parse_admin_command("/moon"), AdminCommand::MoonStatus);
-    assert_eq!(parse_admin_command("/moon 0.25"), AdminCommand::MoonSet(0.25));
-    assert_eq!(parse_admin_command("/moon 0"), AdminCommand::MoonSet(0.0));
-    assert_eq!(parse_admin_command("/moon 1"), AdminCommand::MoonSet(1.0));
+    assert_eq!(
+        parse_admin_command("/time auto"),
+        AdminCommand::Celestial(CelestialCommand::TimeAuto)
+    );
+    assert_eq!(
+        parse_admin_command("/time noon"),
+        AdminCommand::Celestial(CelestialCommand::TimeUsage)
+    );
+    assert_eq!(
+        parse_admin_command("/moon"),
+        AdminCommand::Celestial(CelestialCommand::MoonStatus)
+    );
+    assert_eq!(
+        parse_admin_command("/moon 0.25"),
+        AdminCommand::Celestial(CelestialCommand::MoonSet(0.25))
+    );
+    assert_eq!(
+        parse_admin_command("/moon 0"),
+        AdminCommand::Celestial(CelestialCommand::MoonSet(0.0))
+    );
+    assert_eq!(
+        parse_admin_command("/moon 1"),
+        AdminCommand::Celestial(CelestialCommand::MoonSet(1.0))
+    );
     for invalid in [
         "/moon first_quarter",
         "/moon banana",
@@ -30,10 +55,10 @@ fn parses_every_command_form() {
         "/moon 1.1",
         "/moon NaN",
     ] {
-        assert_eq!(parse_admin_command(invalid), AdminCommand::MoonUsage);
-    }
-    for removed in ["/light", "/light bright", "/light auto", "/light dim dark 0.3"] {
-        assert_eq!(parse_admin_command(removed), AdminCommand::Unknown);
+        assert_eq!(
+            parse_admin_command(invalid),
+            AdminCommand::Celestial(CelestialCommand::MoonUsage)
+        );
     }
     assert_eq!(parse_admin_command("/god"), AdminCommand::God(None));
     assert_eq!(parse_admin_command("/god on"), AdminCommand::God(Some(true)));

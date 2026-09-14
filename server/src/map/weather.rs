@@ -61,8 +61,9 @@ impl WeatherState {
         matches!(self.phase, WeatherPhase::Raining { .. })
     }
 
+    // A held clear or rain phase is frozen; only a transition still runs.
     #[must_use]
-    fn needs_tick(&self) -> bool {
+    fn ticks(&self) -> bool {
         self.auto || matches!(self.phase, WeatherPhase::RampIn { .. } | WeatherPhase::FadeOut { .. })
     }
 
@@ -71,13 +72,11 @@ impl WeatherState {
     // instead of snapping to zero and climbing back.
     pub fn hold_rain(&mut self) -> Result<(), &'static str> {
         match self.phase {
+            WeatherPhase::RampIn { .. } if !self.auto => Err("rain is already on its way"),
+            WeatherPhase::Raining { .. } if !self.auto => Err("already raining"),
             WeatherPhase::RampIn { .. } | WeatherPhase::Raining { .. } => {
-                if self.auto {
-                    self.auto = false;
-                    Ok(())
-                } else {
-                    Err("already raining")
-                }
+                self.auto = false;
+                Ok(())
             }
             WeatherPhase::Clear { .. } | WeatherPhase::FadeOut { .. } => {
                 self.phase = WeatherPhase::RampIn {
@@ -93,13 +92,11 @@ impl WeatherState {
     // intensity (a mid-ramp stop fades from wherever the ramp got).
     pub fn hold_clear(&mut self) -> Result<(), &'static str> {
         match self.phase {
+            WeatherPhase::FadeOut { .. } if !self.auto => Err("already clearing"),
+            WeatherPhase::Clear { .. } if !self.auto => Err("not raining"),
             WeatherPhase::Clear { .. } | WeatherPhase::FadeOut { .. } => {
-                if self.auto {
-                    self.auto = false;
-                    Ok(())
-                } else {
-                    Err("not raining")
-                }
+                self.auto = false;
+                Ok(())
             }
             WeatherPhase::RampIn { .. } | WeatherPhase::Raining { .. } => {
                 self.phase = WeatherPhase::FadeOut {
@@ -111,8 +108,9 @@ impl WeatherState {
         }
     }
 
-    // Admin override: hand control back to the cycle. The held phase simply
-    // keeps counting down, so the transition out is the scheduled one.
+    // Admin override: hand control back to the cycle. A held clear or rain
+    // phase is frozen (the system does not tick it); its countdown resumes
+    // here, so the transition out is the scheduled one.
     pub fn resume_auto(&mut self) -> Result<(), &'static str> {
         if self.auto {
             return Err("weather cycle already running");
@@ -139,11 +137,10 @@ pub fn weather_system(time: Res<Time>, mut weather: ResMut<WeatherState>) {
     tick_weather(&mut weather, time.delta_secs(), &mut rng);
 }
 
-pub fn weather_needs_tick(weather: Res<WeatherState>) -> bool {
-    weather.needs_tick()
-}
-
 fn tick_weather(state: &mut WeatherState, delta: f32, rng: &mut ThreadRng) {
+    if !state.ticks() {
+        return;
+    }
     let schedule = state.schedule.clone();
     let remaining = match &mut state.phase {
         WeatherPhase::Clear { remaining_secs }
@@ -156,18 +153,10 @@ fn tick_weather(state: &mut WeatherState, delta: f32, rng: &mut ThreadRng) {
     };
     if remaining <= 0.0 {
         state.phase = match state.phase {
-            // Held states re-roll forever — only `hold_rain` / `hold_clear`
-            // / `resume_auto` leave them.
-            WeatherPhase::Clear { .. } if !state.auto => WeatherPhase::Clear {
-                remaining_secs: rng.random_range(schedule.min_clear_secs..=schedule.max_clear_secs),
-            },
             WeatherPhase::Clear { .. } => WeatherPhase::RampIn {
                 remaining_secs: schedule.ramp_in_secs,
             },
             WeatherPhase::RampIn { .. } => WeatherPhase::Raining {
-                remaining_secs: rng.random_range(schedule.min_rain_secs..=schedule.max_rain_secs),
-            },
-            WeatherPhase::Raining { .. } if !state.auto => WeatherPhase::Raining {
                 remaining_secs: rng.random_range(schedule.min_rain_secs..=schedule.max_rain_secs),
             },
             WeatherPhase::Raining { .. } => WeatherPhase::FadeOut {

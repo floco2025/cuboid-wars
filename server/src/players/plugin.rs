@@ -17,7 +17,7 @@ pub fn players_plugin(app: &mut App) {
             (
                 players_group_respawn_system,
                 players_checkpoints_system.run_if(checkpoints_exist),
-                super::boundary::players_boundary_system,
+                players_boundary_system,
                 players_respawn_system,
             )
                 .chain()

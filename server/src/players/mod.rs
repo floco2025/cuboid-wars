@@ -26,6 +26,7 @@ mod resources_tests;
 #[path = "tests/respawn.rs"]
 pub(crate) mod respawn_tests;
 
+pub(crate) use boundary::players_boundary_system;
 pub use checkpoints::{CheckpointId, PlayerCheckpoint};
 pub(crate) use checkpoints::{
     checkpoint_at_position, checkpoint_spawn_position, checkpoints_exist, players_checkpoints_system,
@@ -39,6 +40,7 @@ pub(crate) use outcomes::{PendingOutcomes, handle_move_outcome};
 pub use plugin::players_plugin;
 pub use power_ups::PowerUpState;
 
+pub(crate) use resources::InitialPlayerSpawn;
 pub use resources::{Invincibility, PlayerInfo, PlayerMap, PlayerQuestState, PlayerStateQuery};
 pub use respawn::players_respawn_system;
 pub use status::players_status_timers_system;

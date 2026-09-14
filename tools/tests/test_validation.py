@@ -1,6 +1,7 @@
 import unittest
 
 from editor_fixtures import DEFAULT_ALIAS, EditorHost, NESTED_SHAPES, faces, floor, nested
+from map_editor.constants import TERRAIN_FACES
 from map_editor.editing import paint_floors
 from map_editor.normalization import canonicalize_map, empty_level, empty_map
 from map_editor.catalogs import MapCatalogs
@@ -11,7 +12,29 @@ KIND = "treasure"
 BRIDGE_KIND = "skyway"
 
 
+def terrain(col: int, row: int) -> dict:
+    return {"col": col, "row": row, **dict.fromkeys(TERRAIN_FACES, DEFAULT_ALIAS)}
+
+
 class ValidationTests(unittest.TestCase):
+    def test_terrain_overlaps_duplicates_and_ramps_are_reported(self) -> None:
+        data = empty_map(4, 4)
+        level = data["levels"][0]
+        level["floors"] = [floor(0, 0)]
+        level["inaccessible_floors"] = [floor(3, 0)]
+        level["terrain"] = [terrain(0, 0), terrain(3, 0), terrain(2, 2), terrain(2, 2), terrain(1, 1)]
+        data["ramps"] = [{"lower_level": 0, "low": [0, 1], "high": [2, 2], **faces()}]
+
+        errors = validate_map(data, [], [])
+
+        for expected in (
+            "terrain [0, 0] overlaps a floor",
+            "terrain [3, 0] overlaps a floor",
+            "terrain [2, 2] duplicates another terrain floor",
+            "terrain [1, 1] sits on a ramp",
+        ):
+            self.assertTrue(any(expected in error for error in errors), expected)
+
     def test_one_tile_map_has_an_in_bounds_spawn_zone(self) -> None:
         self.assertEqual(validate_map(empty_map(1, 1), [], []), [])
 

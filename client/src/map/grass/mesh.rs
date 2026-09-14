@@ -63,7 +63,7 @@ pub(in crate::map) const AABB_BASE_PAD: f32 = 0.01;
 
 // Positions are carrier-local. This untextured material uses UV0 for
 // sway weight (0 root / 1 tip) and per-blade phase instead of texture tiling.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum GrassLod {
     Near,
     Mid,
@@ -96,7 +96,7 @@ pub(super) fn grass_patch_mesh(
     green: Color,
     burns: &[GrassBurn],
 ) -> Mesh {
-    let candidate_count = patch_tuft_count(lod, patch);
+    let candidate_count = lod.tuft_count(patch.area());
     grass_scatter_mesh(
         patch_seed(patch),
         candidate_count,
@@ -229,17 +229,15 @@ pub(in crate::map) fn grass_scatter_mesh(
         }
     }
 
-    let mut mesh = Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::default());
+    // Burns rebuild a chunk from its patches, never from the old mesh, so
+    // nothing needs the main-world copy once the GPU has it.
+    let mut mesh = Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::RENDER_WORLD);
     mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
     mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
     mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
     mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, colors);
     mesh.insert_indices(Indices::U32(indices));
     mesh
-}
-
-pub(super) fn patch_tuft_count(lod: GrassLod, patch: GrassPatch) -> usize {
-    lod.tuft_count(patch.area())
 }
 
 fn patch_seed(patch: GrassPatch) -> u64 {

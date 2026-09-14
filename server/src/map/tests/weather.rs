@@ -92,7 +92,7 @@ fn mode_auto_cycles_through_all_phases_with_bounded_durations() {
 fn hold_rain_from_clear_ramps_in_and_holds() {
     let mut state = WeatherState::new(cycle(), WeatherMode::Clear);
 
-    state.hold_rain().expect("hold_rain from clear should succeed");
+    state.hold_rain().expect("hold_rain from clear failed");
     assert_eq!(
         state.phase,
         WeatherPhase::RampIn {
@@ -117,7 +117,7 @@ fn hold_rain_mid_fade_keeps_intensity_continuous() {
     let mid_fade = state.intensity();
     assert!(mid_fade > 0.0 && mid_fade < 1.0);
 
-    state.hold_rain().expect("hold_rain mid-fade should succeed");
+    state.hold_rain().expect("hold_rain mid-fade failed");
     tick(&mut state, 0.0);
 
     assert!((state.intensity() - mid_fade).abs() < 1e-3, "no intensity jump");
@@ -128,7 +128,7 @@ fn hold_rain_mid_fade_keeps_intensity_continuous() {
 fn hold_clear_while_raining_fades_out_and_holds() {
     let mut state = WeatherState::new(cycle(), WeatherMode::Rain);
 
-    state.hold_clear().expect("hold_clear while raining should succeed");
+    state.hold_clear().expect("hold_clear while raining failed");
     assert_eq!(
         state.phase,
         WeatherPhase::FadeOut {
@@ -146,9 +146,7 @@ fn hold_clear_while_raining_fades_out_and_holds() {
 #[test]
 fn hold_pauses_a_running_cycle_in_place() {
     let mut state = WeatherState::new(cycle(), WeatherMode::Auto);
-    state
-        .hold_clear()
-        .expect("holding the auto clear stretch should succeed");
+    state.hold_clear().expect("holding the auto clear stretch failed");
     for _ in 0..100 {
         tick(&mut state, 30.0);
     }
@@ -158,7 +156,7 @@ fn hold_pauses_a_running_cycle_in_place() {
     tick(&mut state, 25.0);
     tick(&mut state, 2.0);
     assert!(matches!(state.phase, WeatherPhase::Raining { .. }));
-    state.hold_rain().expect("holding the auto rain stretch should succeed");
+    state.hold_rain().expect("holding the auto rain stretch failed");
     for _ in 0..100 {
         tick(&mut state, 30.0);
     }
@@ -169,7 +167,7 @@ fn hold_pauses_a_running_cycle_in_place() {
 #[test]
 fn resume_auto_continues_the_cycle() {
     let mut state = WeatherState::new(cycle(), WeatherMode::Clear);
-    state.resume_auto().expect("resume from a held state should succeed");
+    state.resume_auto().expect("resume from a held state failed");
     assert!(state.resume_auto().is_err(), "second resume must report running");
 
     // The held clear stretch now ends into a ramp on its own.
@@ -181,9 +179,9 @@ fn resume_auto_continues_the_cycle() {
 fn status_names_phase_and_source() {
     let mut state = WeatherState::new(cycle(), WeatherMode::Clear);
     assert_eq!(state.status(), "weather: clear (held)");
-    state.resume_auto().expect("resume from held clear should succeed");
+    state.resume_auto().expect("resume from held clear failed");
     assert_eq!(state.status(), "weather: clear (auto)");
-    state.hold_rain().expect("hold rain from clear should succeed");
+    state.hold_rain().expect("hold rain from clear failed");
     tick(&mut state, 3.0);
     assert_eq!(state.status(), "weather: rain (held)");
 }

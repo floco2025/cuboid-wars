@@ -183,9 +183,12 @@
 use bevy_ecs::prelude::Resource;
 use bincode::{Decode, Encode};
 
-use crate::config::{GameplayBootstrap, NetworkConfig};
 pub use crate::math::sequence_is_newer;
 pub use crate::types::*;
+use crate::{
+    celestial::{CelestialClockAnchor, CelestialCycleSettings},
+    config::{GameplayBootstrap, NetworkConfig},
+};
 
 // ============================================================================
 // Client Messages
@@ -346,7 +349,7 @@ pub struct SInit {
     // Current tick and celestial anchor seed smooth client extrapolation
     // before its first ping or snapshot arrives.
     pub current_tick: u32,
-    pub celestial_clock: crate::celestial::CelestialClockAnchor,
+    pub celestial_clock: CelestialClockAnchor,
     // What the plates hold and which switches a quest still locks at login,
     // so an inverted target is right at rest before the first snapshot.
     pub plates: PlateState,
@@ -362,7 +365,7 @@ pub struct PlayerBootstrap {
 #[derive(Debug, Clone, Encode, Decode, Resource)]
 pub struct WorldBootstrap {
     pub network: NetworkConfig,
-    pub celestial: crate::celestial::CelestialCycleSettings,
+    pub celestial: CelestialCycleSettings,
     pub gameplay: GameplayBootstrap,
     pub map: MapBootstrap,
 }
@@ -424,7 +427,7 @@ pub struct SSnapshot {
     // cloud fade-out, when cover is still 1.0.
     pub raining: bool,
     // Repeated for late joining and repair after an administrative seek.
-    pub celestial_clock: crate::celestial::CelestialClockAnchor,
+    pub celestial_clock: CelestialClockAnchor,
     // Placed portal ends, sorted by pair and end. This list supplies portals
     // to late joiners and repairs missed `SPortalOpened` cues.
     pub portals: Vec<Portal>,

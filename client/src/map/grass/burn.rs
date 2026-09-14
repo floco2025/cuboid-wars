@@ -1,6 +1,7 @@
 use super::{
     mesh::BLADE_MAX_OVERHANG,
-    spawn::{GrassChunkVisual, GrassPatch, grass_chunk_mesh},
+    spawn::GrassPatch,
+    streaming::{GrassChunkVisual, grass_chunk_mesh},
 };
 use crate::{
     constants::EXPLOSION_GRASS_BURN_CORE_RADIUS_FACTOR,
@@ -10,7 +11,9 @@ use bevy::prelude::*;
 use common::protocol::CarrierId;
 use std::collections::HashMap;
 
-pub(super) const BURN_VERTICAL_TOLERANCE: f32 = 0.1;
+// Well under a storey, so a burn never reaches the floor above, yet enough
+// for a blast on the rolling grounds to reach the blades up and down the slope.
+pub(super) const BURN_VERTICAL_TOLERANCE: f32 = 1.5;
 
 // `center` is in the carrier's frame, like the grass it burns; `region` is
 // where the scorch mark shows, in the mark's own plane.
@@ -127,16 +130,12 @@ pub fn grass_burn_system(
             continue;
         }
 
-        if let Some(rebuilt) = grass_chunk_mesh(
-            &visual.patches,
-            &visual.footprint,
-            visual.lod,
-            visual.origin,
-            visual.green,
-            &affecting_burns,
-        ) && let Some(mut mesh) = meshes.get_mut(&mesh_handle.0)
-        {
-            *mesh = rebuilt;
+        // Inserted rather than edited in place: a chunk mesh lives only in
+        // the render world once uploaded, so there is nothing to edit.
+        if let Some(rebuilt) = grass_chunk_mesh(&visual, &affecting_burns) {
+            meshes
+                .insert(mesh_handle.id(), rebuilt)
+                .expect("grass chunk mesh handle is no longer valid");
         }
     }
 

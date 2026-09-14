@@ -14,7 +14,7 @@ use super::{
     particles::{ParticleCloud, ParticleClouds, ParticleSpawn},
 };
 use crate::{
-    audio::{NormalizationGain, play_sound_with},
+    audio::{NormalizationGain, play_sound_with, sink_volume},
     cameras::MainCameraMarker,
     config::{AssetSet, ClientSettings, WeatherConfig},
 };
@@ -295,12 +295,12 @@ pub fn rain_audio_system(
         Some(entity) => {
             if let Ok((gain, mut playback, sink)) = sounds.get_mut(entity) {
                 // Runs after `apply_global_volume_system` (ordered before
-                // `ClientSet::Sky`), so this per-frame write wins its push.
+                // `ClientSet::Sky`), so this per-frame write wins.
                 playback.volume = Volume::Linear(precipitation * client_settings.audio.rain_volume)
                     * Volume::Decibels(asset_set.player_sound("rain").volume_db)
                     * gain.0;
                 if let Some(mut sink) = sink {
-                    sink.set_volume(playback.volume * global_volume.volume);
+                    sink.set_volume(sink_volume(&playback, &global_volume));
                 }
             }
         }
@@ -309,59 +309,5 @@ pub fn rain_audio_system(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn cloud_cover_and_precipitation_ramps_are_sequenced_independently() {
-        let early = RainIntensity {
-            target: 0.2,
-            current: 0.2,
-            raining: false,
-            precipitation: 0.0,
-        };
-        assert_eq!(early.cloud_cover(), 0.2);
-        assert_eq!(early.precipitation(), 0.0);
-
-        let starting = RainIntensity {
-            target: 0.4,
-            current: 0.4,
-            raining: false,
-            precipitation: 0.0,
-        };
-        assert_eq!(starting.cloud_cover(), 0.4);
-        assert_eq!(starting.precipitation(), 0.0);
-
-        let nearly_covered = RainIntensity {
-            target: 0.999,
-            current: 0.999,
-            raining: false,
-            precipitation: 0.0,
-        };
-        assert_eq!(nearly_covered.cloud_cover(), 0.999);
-        assert_eq!(nearly_covered.precipitation(), 0.0);
-
-        let storm = RainIntensity {
-            target: 1.0,
-            current: 1.0,
-            raining: true,
-            precipitation: 1.0,
-        };
-        assert_eq!(storm.cloud_cover(), 1.0);
-        assert_eq!(storm.precipitation(), 1.0);
-
-        let clearing = RainIntensity {
-            target: 1.0,
-            current: 1.0,
-            raining: false,
-            precipitation: 1.0,
-        };
-        assert_eq!(clearing.cloud_cover(), 1.0);
-        assert_eq!(clearing.precipitation(), 1.0);
-
-        assert_eq!(step_precipitation(0.0, true, 0.5), 0.25);
-        assert_eq!(step_precipitation(0.75, true, 0.5), 1.0);
-        assert_eq!(step_precipitation(1.0, false, 0.5), 0.75);
-        assert_eq!(step_precipitation(0.25, false, 0.5), 0.0);
-    }
-}
+#[path = "tests/rain.rs"]
+mod tests;

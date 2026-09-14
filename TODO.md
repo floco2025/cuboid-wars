@@ -2,6 +2,8 @@
 
 ## Fixes
 
+- **Client memory:** the hotel client sits at ~4.9 GB RSS with grass disabled (~5.3 GB with it). Find what keeps main-memory copies after upload — most likely the texture packs, whose images stay in `Assets<Image>` after the mipmap pass — and release them.
+
 - **Missing UI characters:** the bundled Fira Mono subset renders dashes, ellipses, arrows, and other unsupported symbols as rectangles. Bundle full Fira Mono with a symbol fallback for consistent rendering across platforms, and check coverage of the characters used in UI text.
 
 - **Portal body pose jumps at the crossing:** between floor portals, the emerging twin is upside down but the main body replaces it upright when the center crosses, swapping the visible legs for the upper body. Preserve the rendered pose across the handoff before reorienting it.

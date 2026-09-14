@@ -19,6 +19,7 @@ use crate::{
 // marks and server-delivered explosions.
 pub fn map_plugin(app: &mut App) {
     app.init_resource::<FocusedMapLevel>()
+        .init_resource::<GrassChunks>()
         .init_resource::<FieldMeshes>()
         .init_resource::<EraserAssets>()
         .init_resource::<CheckpointAssets>()
@@ -27,12 +28,16 @@ pub fn map_plugin(app: &mut App) {
         Update,
         (
             map_spawn_geometry_system,
-            grounds::grounds_spawn_system,
+            grass_chunks_reset_system,
+            grounds::grounds_spawn_system.after(grass_chunks_reset_system),
             boundary::boundary_notice_system,
             erasers_spawn_system,
             checkpoints_spawn_system,
-            terrain_spawn_system,
-            grass_burn_system.after(terrain_spawn_system),
+            terrain_spawn_system.after(grass_chunks_reset_system),
+            grass_streaming_system
+                .after(terrain_spawn_system)
+                .after(grounds::grounds_spawn_system),
+            grass_burn_system.after(grass_streaming_system),
             update_focused_map_level_system,
             map_level_focus_visibility_system
                 .after(update_focused_map_level_system)
@@ -42,6 +47,7 @@ pub fn map_plugin(app: &mut App) {
                 .after(erasers_spawn_system)
                 .after(checkpoints_spawn_system)
                 .after(terrain_spawn_system)
+                .after(grass_streaming_system)
                 .after(update_focused_map_level_system)
                 .after(map_level_focus_visibility_system),
             map_wall_light_emissive_system,

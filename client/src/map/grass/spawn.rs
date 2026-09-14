@@ -1,21 +1,12 @@
-use super::mesh::{AABB_BASE_PAD, GrassLod, WIND_SWAY_FACTOR, grass_patch_mesh};
-#[cfg(test)]
-use super::mesh::{BLADE_HEIGHT_MAX, BLADE_MAX_OVERHANG};
+use super::streaming::{ChunkEntry, ChunkKey, ChunkKind, GrassChunkSource, GrassChunks};
 use crate::{
     carriers::{CarrierEntities, CarrierStoreys},
-    config::ClientSettings,
-    constants::{
-        GRASS_WIND_DIRECTION_DEGREES, GRASS_WIND_SPEED, GRASS_WIND_STRENGTH, TERRAIN_GRASS_CHUNK_SIZE,
-        TERRAIN_GRASS_MID_RANGE, TERRAIN_GRASS_NEAR_RANGE,
-    },
+    constants::{GRASS_WIND_DIRECTION_DEGREES, GRASS_WIND_SPEED, GRASS_WIND_STRENGTH, TERRAIN_GRASS_CHUNK_SIZE},
     map::{DebugColorMode, DebugColors},
-    materials::{GrassMaterial, GrassWindExtension, TerrainMaterial, terrain_material},
+    materials::{GrassMaterial, GrassWindExtension},
 };
-#[cfg(test)]
-use bevy::camera::primitives::Aabb;
 use bevy::{
     asset::RenderAssetUsages,
-    camera::{primitives::MeshAabb, visibility::VisibilityRange},
     light::NotShadowCaster,
     mesh::{Indices, PrimitiveTopology},
     prelude::*,
@@ -26,24 +17,15 @@ use std::{collections::BTreeMap, sync::Arc};
 #[derive(Component)]
 pub struct TerrainMarker;
 
-#[derive(Component, Clone)]
-pub struct GrassChunkVisual {
-    pub(super) patches: Vec<GrassPatch>,
-    pub(super) footprint: Arc<[Floor]>,
-    pub(super) lod: GrassLod,
-    pub(super) origin: Vec3,
-    pub(super) green: Color,
-}
-
 #[derive(Clone, Copy, Debug)]
-pub(super) struct GrassPatch {
-    pub(super) x1: f32,
-    pub(super) x2: f32,
-    pub(super) z1: f32,
-    pub(super) z2: f32,
-    pub(super) y: f32,
-    pub(super) level: u8,
-    pub(super) carrier: CarrierId,
+pub(in crate::map) struct GrassPatch {
+    pub(in crate::map) x1: f32,
+    pub(in crate::map) x2: f32,
+    pub(in crate::map) z1: f32,
+    pub(in crate::map) z2: f32,
+    pub(in crate::map) y: f32,
+    pub(in crate::map) level: u8,
+    pub(in crate::map) carrier: CarrierId,
 }
 
 impl GrassPatch {
@@ -69,53 +51,33 @@ impl GrassPatch {
     pub(super) fn area(self) -> f32 {
         (self.x2 - self.x1) * (self.z2 - self.z1)
     }
-
-    #[cfg(test)]
-    pub(super) fn contains_base(self, x: f32, z: f32) -> bool {
-        const EPSILON: f32 = 0.0001;
-        x >= self.x1 - EPSILON && x <= self.x2 + EPSILON && z >= self.z1 - EPSILON && z <= self.z2 + EPSILON
-    }
 }
-
-type ChunkKey = (CarrierId, u8, i32, i32);
 
 // Terrain cells are floor slabs with authored sides and bottoms. The ordinary
 // geometry batch omits their procedural top faces; this system supplies the
-// exact compiled floor footprints (including trim), and vegetation follows
-// those same footprints while batching by ten-metre chunks.
-#[allow(clippy::too_many_arguments)]
+// exact compiled floor footprints (including trim) and registers the grass
+// chunks over those same footprints for `grass_streaming_system` to build.
 pub fn terrain_spawn_system(
     mut commands: Commands,
     layout: Res<MapLayout>,
-    client_settings: Res<ClientSettings>,
-    server: Res<AssetServer>,
     debug_colors: Res<DebugColors>,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut terrain_materials: ResMut<Assets<TerrainMaterial>>,
-    mut grass_materials: ResMut<Assets<GrassMaterial>>,
+    mut chunks: ResMut<GrassChunks>,
     carrier_entities: Res<CarrierEntities>,
     storeys: Res<CarrierStoreys>,
     existing: Query<Entity, With<TerrainMarker>>,
-    mut last_mode: Local<Option<DebugColorMode>>,
 ) {
-    if !layout.is_changed() && last_mode.as_ref() == Some(&debug_colors.0) {
+    if !layout.is_changed() && !debug_colors.is_changed() {
         return;
     }
     for entity in &existing {
         commands.entity(entity).despawn();
     }
-    *last_mode = Some(debug_colors.0);
     if debug_colors.0 != DebugColorMode::Off || layout.terrain.is_empty() {
         return;
     }
 
-    let surface_material = terrain_materials.add(terrain_material(
-        &server,
-        client_settings.rendering.texture_anisotropy,
-        client_settings.rendering.mipmaps,
-        client_settings.grass.base_color(),
-    ));
-    let grass_material = grass_materials.add(grass_material());
+    let surface_material = chunks.terrain_material();
     let terrain_floors = layout
         .floors
         .iter()
@@ -151,7 +113,7 @@ pub fn terrain_spawn_system(
     }
 
     let footprint: Arc<[Floor]> = terrain_floors.into();
-    let mut chunks: BTreeMap<ChunkKey, Vec<GrassPatch>> = BTreeMap::new();
+    let mut patches_by_chunk: BTreeMap<ChunkKey, Vec<GrassPatch>> = BTreeMap::new();
     for floor in footprint.iter().copied() {
         let (x1, x2, z1, z2) = floor.bounds_xz();
         let min_chunk_x = (x1 / TERRAIN_GRASS_CHUNK_SIZE).floor() as i32;
@@ -163,64 +125,40 @@ pub fn terrain_spawn_system(
                 let Some(patch) = GrassPatch::clipped_to_chunk(floor, chunk_x, chunk_z) else {
                     continue;
                 };
-                chunks
-                    .entry((floor.carrier, floor.level, chunk_x, chunk_z))
-                    .or_default()
-                    .push(patch);
+                let key = ChunkKey {
+                    kind: ChunkKind::Terrain,
+                    carrier: floor.carrier,
+                    level: floor.level,
+                    x: chunk_x,
+                    z: chunk_z,
+                };
+                patches_by_chunk.entry(key).or_default().push(patch);
             }
         }
     }
-
-    for ((carrier, level, chunk_x, chunk_z), patches) in chunks {
+    for (key, patches) in patches_by_chunk {
         let origin = Vec3::new(
-            (chunk_x as f32 + 0.5) * TERRAIN_GRASS_CHUNK_SIZE,
+            (key.x as f32 + 0.5) * TERRAIN_GRASS_CHUNK_SIZE,
             patches[0].y,
-            (chunk_z as f32 + 0.5) * TERRAIN_GRASS_CHUNK_SIZE,
+            (key.z as f32 + 0.5) * TERRAIN_GRASS_CHUNK_SIZE,
         );
-        if !client_settings.grass.enabled {
-            continue;
-        }
-        let level_tag = storeys.tag(carrier, level, 0);
-        for (lod, range) in [
-            (GrassLod::Near, TERRAIN_GRASS_NEAR_RANGE),
-            (GrassLod::Mid, TERRAIN_GRASS_MID_RANGE),
-        ] {
-            let green = client_settings.grass.base_color();
-            let Some(mesh) = grass_chunk_mesh(&patches, &footprint, lod, origin, green, &[]) else {
-                continue;
-            };
-            let mut bounds = mesh.compute_aabb().expect("terrain grass positions missing");
-            let sway = GRASS_WIND_STRENGTH * WIND_SWAY_FACTOR + AABB_BASE_PAD;
-            bounds.half_extents.x += sway;
-            bounds.half_extents.z += sway;
-            commands.spawn((
-                TerrainMarker,
-                GrassChunkVisual {
-                    patches: patches.clone(),
+        chunks.register(
+            key,
+            ChunkEntry {
+                patches,
+                source: GrassChunkSource::Patches {
                     footprint: footprint.clone(),
-                    lod,
-                    origin,
-                    green,
                 },
-                level_tag,
-                ChildOf(carrier_entities.get(carrier)),
-                Mesh3d(meshes.add(mesh)),
-                MeshMaterial3d(grass_material.clone()),
-                Transform::from_translation(origin),
-                Visibility::Visible,
-                NotShadowCaster,
-                bounds,
-                VisibilityRange {
-                    start_margin: range[0]..range[1],
-                    end_margin: range[2]..range[3],
-                    use_aabb: false,
-                },
-            ));
-        }
+                origin,
+                carrier: key.carrier,
+                parent: Some(carrier_entities.get(key.carrier)),
+                level: Some(storeys.tag(key.carrier, key.level, 0)),
+            },
+        );
     }
 }
 
-pub(in crate::map) fn grass_material() -> GrassMaterial {
+pub(super) fn grass_material() -> GrassMaterial {
     let wind_direction = Vec2::from_angle(GRASS_WIND_DIRECTION_DEGREES.to_radians());
     GrassMaterial {
         base: StandardMaterial {
@@ -241,7 +179,7 @@ pub(in crate::map) fn grass_material() -> GrassMaterial {
     }
 }
 
-fn terrain_surface_mesh(floors: &[Floor], origin: Vec3) -> Mesh {
+pub(super) fn terrain_surface_mesh(floors: &[Floor], origin: Vec3) -> Mesh {
     let mut positions = Vec::with_capacity(floors.len() * 4);
     let mut normals = Vec::with_capacity(floors.len() * 4);
     let mut uvs = Vec::with_capacity(floors.len() * 4);
@@ -263,65 +201,4 @@ fn terrain_surface_mesh(floors: &[Floor], origin: Vec3) -> Mesh {
         .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, normals)
         .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, uvs)
         .with_inserted_indices(Indices::U32(indices))
-}
-
-pub(super) fn grass_chunk_mesh(
-    patches: &[GrassPatch],
-    footprint: &[Floor],
-    lod: GrassLod,
-    origin: Vec3,
-    green: Color,
-    burns: &[super::burn::GrassBurn],
-) -> Option<Mesh> {
-    let mut merged: Option<Mesh> = None;
-    for &patch in patches {
-        let mesh = grass_patch_mesh(patch, footprint, lod, green, burns);
-        if mesh.count_vertices() == 0 {
-            continue;
-        }
-        match &mut merged {
-            Some(chunk) => chunk
-                .merge(&mesh)
-                .expect("terrain grass cells have incompatible vertex layouts"),
-            None => merged = Some(mesh),
-        }
-    }
-    merged.map(|mesh| mesh.transformed_by(Transform::from_translation(-origin)))
-}
-
-#[cfg(test)]
-pub(super) fn terrain_patch_aabb(patch: GrassPatch) -> Aabb {
-    let pad = BLADE_MAX_OVERHANG + GRASS_WIND_STRENGTH * WIND_SWAY_FACTOR + AABB_BASE_PAD;
-    Aabb::from_min_max(
-        Vec3::new(patch.x1 - pad, patch.y, patch.z1 - pad),
-        Vec3::new(patch.x2 + pad, patch.y + BLADE_HEIGHT_MAX, patch.z2 + pad),
-    )
-}
-
-#[cfg(test)]
-mod surface_tests {
-    use super::*;
-    use bevy::mesh::VertexAttributeValues;
-
-    #[test]
-    fn procedural_surface_uses_compiled_floor_bounds_including_trim() {
-        let floor = Floor {
-            x1: -1.25,
-            z1: -1.0,
-            x2: 1.4,
-            z2: 1.3,
-            y: 2.0,
-            thickness: 0.2,
-            level: 1,
-            carrier: CarrierId::WORLD,
-        };
-        let mesh = terrain_surface_mesh(&[floor], Vec3::new(0.0, 2.0, 0.0));
-        let Some(VertexAttributeValues::Float32x3(positions)) = mesh.attribute(Mesh::ATTRIBUTE_POSITION) else {
-            panic!("terrain surface positions missing");
-        };
-        assert_eq!(
-            positions,
-            &[[-1.25, 0.0, -1.0], [1.4, 0.0, -1.0], [-1.25, 0.0, 1.3], [1.4, 0.0, 1.3]]
-        );
-    }
 }

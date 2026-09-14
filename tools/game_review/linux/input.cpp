@@ -15,159 +15,286 @@
 #include <cstdlib>
 #include <cstring>
 #include <thread>
+#include <vector>
+
+namespace {
+
+// Every emitted frame is followed by this settle so the compositor delivers
+// events in order; `hold` therefore lasts its MS plus two settles.
+constexpr int kSettleMs = 60;
+// libei counts discrete scrolling in 120ths of a wheel click.
+constexpr int kScrollClick = 120;
+
+const char *kUsage =
+    "usage: %s (key CODE|hold CODE MS|move DX DY|scroll CLICKS|click left|right|wait MS)...\n";
+
+struct Action {
+    enum Kind { Key, Hold, Move, Scroll, Click, Wait } kind;
+    uint32_t code = 0;
+    int ms = 0;
+    double dx = 0.0;
+    double dy = 0.0;
+};
+
+bool parse_integer(const char *text, long &value) {
+    char *end = nullptr;
+    value = std::strtol(text, &end, 0);
+    return *text != '\0' && *end == '\0';
+}
+
+bool parse_real(const char *text, double &value) {
+    char *end = nullptr;
+    value = std::strtod(text, &end);
+    return *text != '\0' && *end == '\0';
+}
+
+// The whole sequence is checked before any event is sent, so a typo at the
+// end cannot leave the game half-driven.
+bool parse_actions(int argc, char **argv, std::vector<Action> &actions) {
+    for (int i = 1; i < argc;) {
+        const char *word = argv[i];
+        long integer = 0;
+        double real = 0.0;
+        if (std::strcmp(word, "key") == 0 && i + 1 < argc && parse_integer(argv[i + 1], integer)) {
+            actions.push_back({Action::Key, static_cast<uint32_t>(integer)});
+            i += 2;
+        } else if (std::strcmp(word, "hold") == 0 && i + 2 < argc && parse_integer(argv[i + 1], integer)) {
+            long ms = 0;
+            if (!parse_integer(argv[i + 2], ms)) {
+                return false;
+            }
+            actions.push_back({Action::Hold, static_cast<uint32_t>(integer), static_cast<int>(ms)});
+            i += 3;
+        } else if (std::strcmp(word, "move") == 0 && i + 2 < argc && parse_real(argv[i + 1], real)) {
+            double dy = 0.0;
+            if (!parse_real(argv[i + 2], dy)) {
+                return false;
+            }
+            actions.push_back({Action::Move, 0, 0, real, dy});
+            i += 3;
+        } else if (std::strcmp(word, "scroll") == 0 && i + 1 < argc && parse_integer(argv[i + 1], integer)) {
+            actions.push_back({Action::Scroll, 0, static_cast<int>(integer)});
+            i += 2;
+        } else if (std::strcmp(word, "click") == 0 && i + 1 < argc) {
+            const char *button = argv[i + 1];
+            if (std::strcmp(button, "left") == 0) {
+                actions.push_back({Action::Click, BTN_LEFT});
+            } else if (std::strcmp(button, "right") == 0) {
+                actions.push_back({Action::Click, BTN_RIGHT});
+            } else {
+                return false;
+            }
+            i += 2;
+        } else if (std::strcmp(word, "wait") == 0 && i + 1 < argc && parse_integer(argv[i + 1], integer)) {
+            actions.push_back({Action::Wait, 0, static_cast<int>(integer)});
+            i += 2;
+        } else {
+            return false;
+        }
+    }
+    return !actions.empty();
+}
 
 struct Devices {
     ei_device *keyboard = nullptr;
     ei_device *pointer = nullptr;
+    ei_device *button = nullptr;
     ei_device *scroll = nullptr;
 };
 
-static bool dispatch_until(ei *ctx, Devices &devices, int timeout_ms) {
-    const auto deadline =
-        std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
-    while (std::chrono::steady_clock::now() < deadline) {
-        pollfd pfd{ei_get_fd(ctx), POLLIN, 0};
-        poll(&pfd, 1, 50);
-        ei_dispatch(ctx);
-        while (ei_event *event = ei_get_event(ctx)) {
-            const auto type = ei_event_get_type(event);
-            if (type == EI_EVENT_SEAT_ADDED) {
-                ei_seat_bind_capabilities(
-                    ei_event_get_seat(event), EI_DEVICE_CAP_POINTER,
-                    EI_DEVICE_CAP_KEYBOARD, EI_DEVICE_CAP_SCROLL, nullptr);
-            } else if (type == EI_EVENT_DEVICE_RESUMED) {
-                ei_device *device = ei_event_get_device(event);
-                ei_device_start_emulating(device, 1);
-                if (!devices.keyboard &&
-                    ei_device_has_capability(device, EI_DEVICE_CAP_KEYBOARD)) {
-                    devices.keyboard = ei_device_ref(device);
-                }
-                if (!devices.pointer &&
-                    ei_device_has_capability(device, EI_DEVICE_CAP_POINTER)) {
-                    devices.pointer = ei_device_ref(device);
-                }
-                if (!devices.scroll &&
-                    ei_device_has_capability(device, EI_DEVICE_CAP_SCROLL)) {
-                    devices.scroll = ei_device_ref(device);
-                }
-            } else if (type == EI_EVENT_DISCONNECT) {
-                ei_event_unref(event);
-                return false;
+// Owns the compositor session end to end: every exit path, error or not,
+// releases the devices and context and closes the remote-desktop session.
+class Session {
+  public:
+    Session(QDBusInterface &remote, int cookie, ei *ctx) : remote_(remote), cookie_(cookie), ctx_(ctx) {}
+    Session(const Session &) = delete;
+    Session &operator=(const Session &) = delete;
+    ~Session() {
+        for (ei_device *device : {devices.keyboard, devices.pointer, devices.button, devices.scroll}) {
+            if (device) {
+                ei_device_unref(device);
             }
-            ei_event_unref(event);
         }
-        if (devices.keyboard && devices.pointer && devices.scroll) {
-            return true;
+        ei_unref(ctx_);
+        remote_.call("disconnect", cookie_);
+    }
+
+    ei *ctx() const { return ctx_; }
+
+    bool dispatch_until(int timeout_ms) {
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
+        while (std::chrono::steady_clock::now() < deadline) {
+            pollfd pfd{ei_get_fd(ctx_), POLLIN, 0};
+            poll(&pfd, 1, 50);
+            ei_dispatch(ctx_);
+            while (ei_event *event = ei_get_event(ctx_)) {
+                const auto type = ei_event_get_type(event);
+                if (type == EI_EVENT_SEAT_ADDED) {
+                    ei_seat_bind_capabilities(ei_event_get_seat(event), EI_DEVICE_CAP_POINTER,
+                                              EI_DEVICE_CAP_KEYBOARD, EI_DEVICE_CAP_BUTTON,
+                                              EI_DEVICE_CAP_SCROLL, nullptr);
+                } else if (type == EI_EVENT_DEVICE_RESUMED) {
+                    ei_device *device = ei_event_get_device(event);
+                    ei_device_start_emulating(device, 1);
+                    adopt(devices.keyboard, device, EI_DEVICE_CAP_KEYBOARD);
+                    adopt(devices.pointer, device, EI_DEVICE_CAP_POINTER);
+                    adopt(devices.button, device, EI_DEVICE_CAP_BUTTON);
+                    adopt(devices.scroll, device, EI_DEVICE_CAP_SCROLL);
+                } else if (type == EI_EVENT_DISCONNECT) {
+                    ei_event_unref(event);
+                    return false;
+                }
+                ei_event_unref(event);
+            }
+            if (devices.keyboard && devices.pointer && devices.button && devices.scroll) {
+                return true;
+            }
+        }
+        return devices.keyboard || devices.pointer || devices.button || devices.scroll;
+    }
+
+    void frame(ei_device *device) {
+        ei_device_frame(device, ei_now(ctx_));
+        ei_dispatch(ctx_);
+        std::this_thread::sleep_for(std::chrono::milliseconds(kSettleMs));
+    }
+
+    Devices devices;
+
+  private:
+    static void adopt(ei_device *&slot, ei_device *device, ei_device_capability capability) {
+        if (!slot && ei_device_has_capability(device, capability)) {
+            slot = ei_device_ref(device);
         }
     }
-    return devices.keyboard || devices.pointer || devices.scroll;
+
+    QDBusInterface &remote_;
+    int cookie_;
+    ei *ctx_;
+};
+
+const char *device_name(Action::Kind kind) {
+    switch (kind) {
+    case Action::Key:
+    case Action::Hold:
+        return "keyboard";
+    case Action::Move:
+        return "pointer";
+    case Action::Click:
+        return "button";
+    case Action::Scroll:
+        return "scroll";
+    case Action::Wait:
+        return "";
+    }
+    return "";
 }
 
-static void frame(ei *ctx, ei_device *device) {
-    ei_device_frame(device, ei_now(ctx));
-    ei_dispatch(ctx);
-    std::this_thread::sleep_for(std::chrono::milliseconds(60));
+ei_device *device_for(const Devices &devices, Action::Kind kind) {
+    switch (kind) {
+    case Action::Key:
+    case Action::Hold:
+        return devices.keyboard;
+    case Action::Move:
+        return devices.pointer;
+    case Action::Click:
+        return devices.button;
+    case Action::Scroll:
+        return devices.scroll;
+    case Action::Wait:
+        return nullptr;
+    }
+    return nullptr;
 }
+
+} // namespace
 
 int main(int argc, char **argv) {
+    std::vector<Action> actions;
+    if (!parse_actions(argc, argv, actions)) {
+        std::fprintf(stderr, kUsage, argv[0]);
+        return 2;
+    }
+
     QCoreApplication app(argc, argv);
-    QDBusInterface remote(
-        "org.kde.KWin", "/org/kde/KWin/EIS/RemoteDesktop",
-        "org.kde.KWin.EIS.RemoteDesktop", QDBusConnection::sessionBus());
+    QDBusInterface remote("org.kde.KWin", "/org/kde/KWin/EIS/RemoteDesktop", "org.kde.KWin.EIS.RemoteDesktop",
+                          QDBusConnection::sessionBus());
     QDBusMessage reply = remote.call("connectToEIS", 3);
-    if (reply.type() == QDBusMessage::ErrorMessage ||
-        reply.arguments().size() < 2) {
-        std::fprintf(stderr, "connectToEIS failed: %s\n",
-                     reply.errorMessage().toUtf8().constData());
+    if (reply.type() == QDBusMessage::ErrorMessage || reply.arguments().size() < 2) {
+        std::fprintf(stderr, "connectToEIS failed: %s\n", reply.errorMessage().toUtf8().constData());
         return 1;
     }
-    const auto descriptor =
-        qvariant_cast<QDBusUnixFileDescriptor>(reply.arguments().at(0));
-    const int fd = dup(descriptor.fileDescriptor());
+    const auto descriptor = qvariant_cast<QDBusUnixFileDescriptor>(reply.arguments().at(0));
     const int cookie = reply.arguments().at(1).toInt();
+    const int fd = dup(descriptor.fileDescriptor());
     if (fd < 0) {
         std::perror("dup");
+        remote.call("disconnect", cookie);
         return 1;
     }
 
     ei *ctx = ei_new_sender(nullptr);
-    ei_configure_name(ctx, "Cuboid Wars visual review");
-    if (ei_setup_backend_fd(ctx, fd) < 0) {
-        std::fprintf(stderr, "failed to initialize EIS backend\n");
+    if (!ctx) {
+        std::fprintf(stderr, "failed to create the EIS context\n");
+        close(fd);
+        remote.call("disconnect", cookie);
         return 1;
     }
-    Devices devices;
-    if (!dispatch_until(ctx, devices, 3000)) {
+    Session session(remote, cookie, ctx);
+    ei_configure_name(ctx, "Cuboid Wars visual review");
+    // The context owns the descriptor from here on.
+    if (ei_setup_backend_fd(ctx, fd) < 0) {
+        std::fprintf(stderr, "failed to initialize the EIS backend\n");
+        close(fd);
+        return 1;
+    }
+    if (!session.dispatch_until(3000)) {
         std::fprintf(stderr, "no input devices became available\n");
         return 1;
     }
-
-    for (int i = 1; i < argc;) {
-        if (std::strcmp(argv[i], "key") == 0 && i + 1 < argc) {
-            if (!devices.keyboard) {
-                return 2;
-            }
-            const auto key =
-                static_cast<uint32_t>(std::strtoul(argv[i + 1], nullptr, 0));
-            ei_device_keyboard_key(devices.keyboard, key, true);
-            frame(ctx, devices.keyboard);
-            ei_device_keyboard_key(devices.keyboard, key, false);
-            frame(ctx, devices.keyboard);
-            i += 2;
-        } else if (std::strcmp(argv[i], "hold") == 0 && i + 2 < argc) {
-            if (!devices.keyboard) {
-                return 2;
-            }
-            const auto key =
-                static_cast<uint32_t>(std::strtoul(argv[i + 1], nullptr, 0));
-            const int ms = std::atoi(argv[i + 2]);
-            ei_device_keyboard_key(devices.keyboard, key, true);
-            frame(ctx, devices.keyboard);
-            std::this_thread::sleep_for(std::chrono::milliseconds(ms));
-            ei_device_keyboard_key(devices.keyboard, key, false);
-            frame(ctx, devices.keyboard);
-            i += 3;
-        } else if (std::strcmp(argv[i], "move") == 0 && i + 2 < argc) {
-            if (!devices.pointer) {
-                return 2;
-            }
-            ei_device_pointer_motion(devices.pointer, std::atof(argv[i + 1]),
-                                     std::atof(argv[i + 2]));
-            frame(ctx, devices.pointer);
-            i += 3;
-        } else if (std::strcmp(argv[i], "scroll") == 0 && i + 1 < argc) {
-            if (!devices.scroll) {
-                return 2;
-            }
-            ei_device_scroll_discrete(devices.scroll, 0,
-                                      std::atoi(argv[i + 1]));
-            frame(ctx, devices.scroll);
-            ei_device_scroll_stop(devices.scroll, false, true);
-            frame(ctx, devices.scroll);
-            i += 2;
-        } else if (std::strcmp(argv[i], "wait") == 0 && i + 1 < argc) {
-            std::this_thread::sleep_for(
-                std::chrono::milliseconds(std::atoi(argv[i + 1])));
-            i += 2;
-        } else {
-            std::fprintf(
-                stderr,
-                "usage: %s (key CODE|hold CODE MS|move DX DY|scroll UNITS|wait MS)...\n",
-                argv[0]);
-            return 2;
+    for (const Action &action : actions) {
+        if (action.kind != Action::Wait && !device_for(session.devices, action.kind)) {
+            std::fprintf(stderr, "the compositor offered no %s device\n", device_name(action.kind));
+            return 1;
         }
     }
 
-    if (devices.keyboard) {
-        ei_device_unref(devices.keyboard);
+    for (const Action &action : actions) {
+        ei_device *device = device_for(session.devices, action.kind);
+        switch (action.kind) {
+        case Action::Key:
+            ei_device_keyboard_key(device, action.code, true);
+            session.frame(device);
+            ei_device_keyboard_key(device, action.code, false);
+            session.frame(device);
+            break;
+        case Action::Hold:
+            ei_device_keyboard_key(device, action.code, true);
+            session.frame(device);
+            std::this_thread::sleep_for(std::chrono::milliseconds(action.ms));
+            ei_device_keyboard_key(device, action.code, false);
+            session.frame(device);
+            break;
+        case Action::Move:
+            ei_device_pointer_motion(device, action.dx, action.dy);
+            session.frame(device);
+            break;
+        case Action::Scroll:
+            ei_device_scroll_discrete(device, 0, action.ms * kScrollClick);
+            session.frame(device);
+            ei_device_scroll_stop(device, false, true);
+            session.frame(device);
+            break;
+        case Action::Click:
+            ei_device_button_button(device, action.code, true);
+            session.frame(device);
+            ei_device_button_button(device, action.code, false);
+            session.frame(device);
+            break;
+        case Action::Wait:
+            std::this_thread::sleep_for(std::chrono::milliseconds(action.ms));
+            break;
+        }
     }
-    if (devices.pointer) {
-        ei_device_unref(devices.pointer);
-    }
-    if (devices.scroll) {
-        ei_device_unref(devices.scroll);
-    }
-    ei_unref(ctx);
-    remote.call("disconnect", cookie);
     return 0;
 }

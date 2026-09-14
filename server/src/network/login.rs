@@ -3,7 +3,10 @@ use bevy::prelude::*;
 use crate::{
     characters::spawn_face_yaw,
     network::{FeedAudience, FeedEvent, emit_feed},
-    players::{PlayerMap, enter_group_respawn, place_player_body, player_spawn_destination, spawn_zone_destination},
+    players::{
+        PlayerMap, PlayerSpawn, enter_group_respawn, place_player_body, player_spawn_destination,
+        spawn_zone_destination,
+    },
     portals::{PortalAssignments, PortalMap},
     quests::{QuestBoard, QuestCatalog, assign_quests},
 };
@@ -87,7 +90,7 @@ pub(super) fn handle_login_message(
         .collect();
     let physics = world.gameplay_config.player.physics();
     let spawn = if let Some(pos) = initial_spawn {
-        crate::players::PlayerSpawn {
+        PlayerSpawn {
             pos,
             face_yaw: spawn_face_yaw(&pos),
             contact: None,

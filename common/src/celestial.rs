@@ -210,7 +210,7 @@ impl CelestialClockAnchor {
     }
 
     pub fn set_moon_phase_fraction(&mut self, fraction: f32, tick: u32, server_hz: u32, cycle: CelestialCycleSettings) {
-        debug_assert!(fraction.is_finite());
+        assert!(fraction.is_finite(), "moon phase fraction is not finite");
         let current = self.at_tick(tick, server_hz, cycle);
         self.anchor_tick = tick;
         self.solar_day_fraction = current.solar_day_fraction;
@@ -228,9 +228,6 @@ pub struct CelestialDirections {
     pub sun_altitude_radians: f32,
     pub moon_altitude_radians: f32,
     pub moon_illuminated_fraction: f32,
-    // Positive for waxing, negative for waning. The renderer uses this to
-    // preserve the terminator's orientation near new/full phase.
-    pub moon_phase_orientation: f32,
 }
 
 const OBLIQUITY_RADIANS: f32 = 23.44_f32.to_radians();
@@ -297,28 +294,13 @@ pub fn celestial_directions(map: CelestialMapSettings, time: CelestialTime) -> C
     CelestialDirections {
         sun: frame_rotation * unrotated_sun,
         moon: frame_rotation * unrotated_moon,
-        celestial_pole: pole.normalize(),
+        celestial_pole: pole,
         // Noon at each fixed season retains a stable relationship between
         // the sun and the stars; time of day supplies the daily rotation.
         star_rotation_radians: (solar_hour_angle + sun_right_ascension).rem_euclid(TAU),
         sun_altitude_radians: unrotated_sun.y.asin(),
         moon_altitude_radians: unrotated_moon.y.asin(),
         moon_illuminated_fraction: (1.0 - phase_angle.cos()) * 0.5,
-        moon_phase_orientation: phase_angle.sin().signum(),
-    }
-}
-
-#[must_use]
-pub fn daylight_hours(latitude_degrees: f32, season: Season) -> f32 {
-    let latitude = latitude_degrees.to_radians();
-    let declination = solar_declination(latitude_degrees, season);
-    let crossing = -latitude.tan() * declination.tan();
-    if crossing <= -1.0 {
-        24.0
-    } else if crossing >= 1.0 {
-        0.0
-    } else {
-        24.0 * crossing.acos() / PI
     }
 }
 

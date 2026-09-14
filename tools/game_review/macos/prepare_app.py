@@ -34,7 +34,7 @@ def prepare_app(repo, game_args):
     launcher = contents / "MacOS" / "review"
     launcher.write_text(
         "#!/bin/sh\nset -eu\n"
-        f"export PATH={shlex.quote(os.environ['PATH'])}\n"
+        f"export PATH={shlex.quote(os.environ.get('PATH', ''))}\n"
         f"cd {shlex.quote(str(repo))}\n"
         f"exec {command} > {shlex.quote(str(log))} 2>&1\n",
         encoding="utf-8",

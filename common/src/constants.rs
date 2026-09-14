@@ -163,8 +163,7 @@ pub const PORTAL_KNOCKBACK_CARRY_FACTOR: f32 = 1.5;
 // ============================================================================
 
 // Character caps on a console line, applied by the client while typing and
-// by the server on receipt. Commands get more room than chat for future
-// administrative forms and long named arguments.
+// by the server on receipt; commands carry quest ids and player names.
 pub const CONSOLE_CHAT_MAX_CHARS: usize = 128;
 pub const CONSOLE_COMMAND_MAX_CHARS: usize = 256;
 

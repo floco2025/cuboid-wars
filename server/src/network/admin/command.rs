@@ -10,13 +10,7 @@ pub(super) enum AdminCommand {
     WeatherClear,
     WeatherAuto,
     WeatherStatus,
-    TimeSeek(LocalTime),
-    TimeAuto,
-    TimeStatus,
-    TimeUsage,
-    MoonSet(f32),
-    MoonStatus,
-    MoonUsage,
+    Celestial(CelestialCommand),
     God(Option<bool>),
     Peace(Option<bool>),
     KillAllPlayers,
@@ -36,6 +30,19 @@ pub(super) enum AdminCommand {
     MissingTarget(&'static str),
     NotACommand,
     Unknown,
+}
+
+// The clock commands, grouped so the one function that runs them is total
+// over them: a new form here is a compile error there, never a missed arm.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(super) enum CelestialCommand {
+    TimeSeek(LocalTime),
+    TimeAuto,
+    TimeStatus,
+    TimeUsage,
+    MoonSet(f32),
+    MoonStatus,
+    MoonUsage,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -59,13 +66,17 @@ pub(super) fn parse_admin_command(input: &str) -> AdminCommand {
         ["weather", "rain"] => AdminCommand::WeatherRain,
         ["weather", "clear"] => AdminCommand::WeatherClear,
         ["weather", "auto"] => AdminCommand::WeatherAuto,
-        ["time"] => AdminCommand::TimeStatus,
-        ["time", "auto"] => AdminCommand::TimeAuto,
-        ["time", value] => LocalTime::parse(value).map_or(AdminCommand::TimeUsage, AdminCommand::TimeSeek),
-        ["time", ..] => AdminCommand::TimeUsage,
-        ["moon"] => AdminCommand::MoonStatus,
-        ["moon", value] => parse_moon_fraction(value).map_or(AdminCommand::MoonUsage, AdminCommand::MoonSet),
-        ["moon", ..] => AdminCommand::MoonUsage,
+        ["time"] => AdminCommand::Celestial(CelestialCommand::TimeStatus),
+        ["time", "auto"] => AdminCommand::Celestial(CelestialCommand::TimeAuto),
+        ["time", value] => AdminCommand::Celestial(
+            LocalTime::parse(value).map_or(CelestialCommand::TimeUsage, CelestialCommand::TimeSeek),
+        ),
+        ["time", ..] => AdminCommand::Celestial(CelestialCommand::TimeUsage),
+        ["moon"] => AdminCommand::Celestial(CelestialCommand::MoonStatus),
+        ["moon", value] => AdminCommand::Celestial(
+            parse_moon_fraction(value).map_or(CelestialCommand::MoonUsage, CelestialCommand::MoonSet),
+        ),
+        ["moon", ..] => AdminCommand::Celestial(CelestialCommand::MoonUsage),
         ["god"] => AdminCommand::God(None),
         ["god", "on"] => AdminCommand::God(Some(true)),
         ["god", "off"] => AdminCommand::God(Some(false)),

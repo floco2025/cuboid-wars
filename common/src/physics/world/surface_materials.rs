@@ -18,7 +18,7 @@ impl CollisionWorld {
 pub(super) fn collider_material<'a>(collider: &Collider, normal: Vec3, layout: &'a MapLayout) -> Option<&'a str> {
     let index = (collider.user_data >> MATERIAL_INDEX_SHIFT) as usize;
     let materials = match ColliderKind::from_user_data(collider.user_data) {
-        Some(ColliderKind::Grounds) => return layout.grounds.as_ref().map(|_| TERRAIN_MATERIAL),
+        Some(ColliderKind::Grounds) => return layout.grounds.is_some().then_some(TERRAIN_MATERIAL),
         Some(ColliderKind::Wall) => layout.wall_materials.get(index),
         Some(ColliderKind::Floor) => layout.floor_materials.get(index),
         Some(ColliderKind::Ramp) => layout.ramp_materials.get(index),

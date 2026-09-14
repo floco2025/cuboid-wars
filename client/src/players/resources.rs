@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use std::collections::HashMap;
+use std::{collections::HashMap, f32::consts::PI};
 
 use common::protocol::{BarrierKindId, Player, PlayerGeneration, PlayerId, PowerUpKind, SPlayerStatus};
 
@@ -188,7 +188,7 @@ impl LocalPlayerInfo {
             self.stored_yaw = view.x;
             self.stored_pitch = view.y;
         } else {
-            self.stored_yaw = face_yaw + std::f32::consts::PI;
+            self.stored_yaw = face_yaw + PI;
             self.stored_pitch = 0.0;
         }
     }

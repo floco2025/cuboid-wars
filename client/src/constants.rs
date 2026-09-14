@@ -19,11 +19,6 @@ pub const RENDERING_FULLSCREEN_RESOLUTION_DEFAULT: u32 = 1440;
 pub const RENDERING_MSAA_SAMPLES_DEFAULT: u32 = 4;
 pub const RENDERING_PORTAL_VIEW_BUDGET_DEFAULT: u8 = 4;
 pub const RENDERING_VSYNC_DEFAULT: bool = true;
-// Camera colour grading of the whole rendered scene, blended by sun
-// altitude: low light drains colour toward night.
-pub const SCENE_DAY_SATURATION: f32 = 1.0;
-pub const SCENE_TWILIGHT_SATURATION: f32 = 0.72;
-pub const SCENE_NIGHT_SATURATION: f32 = 0.48;
 
 // ============================================================================
 // Procedural Sky
@@ -67,10 +62,21 @@ pub const SKY_CLOUD_COLOR: [f32; 3] = [1.0, 0.98, 0.94];
 pub const SKY_CLOUD_SHADOW_COLOR: [f32; 3] = [0.50, 0.56, 0.66];
 pub const SKY_OVERCAST_COLOR: [f32; 3] = [0.24, 0.29, 0.34];
 
-pub const SKY_RAIN_DIRECT_LIGHT: f32 = 0.2;
-pub const SKY_RAIN_AMBIENT_LIGHT: f32 = 0.5;
-pub const SKY_CLEAR_FOG_RANGE: [f32; 2] = [100.0, 850.0];
-pub const SKY_RAIN_FOG_RANGE: [f32; 2] = [35.0, 280.0];
+// ============================================================================
+// Scene lighting and fog
+// ============================================================================
+
+// Camera colour grading of the whole rendered scene, blended by sun
+// altitude: low light drains colour toward night.
+pub const SCENE_DAY_SATURATION: f32 = 1.0;
+pub const SCENE_TWILIGHT_SATURATION: f32 = 0.72;
+pub const SCENE_NIGHT_SATURATION: f32 = 0.48;
+// What overcast leaves of the direct and ambient light.
+pub const LIGHTING_RAIN_DIRECT_FACTOR: f32 = 0.2;
+pub const LIGHTING_RAIN_AMBIENT_FACTOR: f32 = 0.5;
+// Linear fog start and end (metres) in clear weather and in rain.
+pub const FOG_CLEAR_RANGE: [f32; 2] = [100.0, 850.0];
+pub const FOG_RAIN_RANGE: [f32; 2] = [35.0, 280.0];
 
 // ============================================================================
 // Input
@@ -626,4 +632,10 @@ pub const TERRAIN_GRASS_NEAR_DENSITY: f32 = 36.0;
 pub const TERRAIN_GRASS_MID_DENSITY: f32 = 8.0;
 pub const TERRAIN_GRASS_NEAR_RANGE: [f32; 4] = [0.0, 0.0, 24.0, 34.0];
 pub const TERRAIN_GRASS_MID_RANGE: [f32; 4] = [24.0, 34.0, 70.0, 90.0];
+// Chunks are built once their centre is within a LOD's fade end plus this
+// margin, and released this much farther out; a near chunk is ~70 k vertices.
+pub const TERRAIN_GRASS_STREAM_MARGIN: f32 = 10.0;
+pub const TERRAIN_GRASS_STREAM_HYSTERESIS: f32 = 10.0;
+pub const TERRAIN_GRASS_NEAR_CHUNKS_PER_FRAME: usize = 2;
+pub const TERRAIN_GRASS_MID_CHUNKS_PER_FRAME: usize = 8;
 pub const TERRAIN_GRASS_DRY: Color = Color::srgb(0.55, 0.50, 0.24);

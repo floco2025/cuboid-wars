@@ -1,5 +1,6 @@
 import copy
 import sys
+import unittest
 from pathlib import Path
 from unittest.mock import patch
 
@@ -40,9 +41,9 @@ from map_editor.window import EditorWindow
 
 
 class WindowTests(WindowTestCase):
+    @unittest.skipUnless(sys.platform.startswith("linux"), "the scroll cap is lifted on Linux only")
     def test_linux_tool_picker_shows_every_row_without_its_default_scroll_cap(self):
-        if sys.platform.startswith("linux"):
-            self.assertEqual(self.window.mode_combo.maxVisibleItems(), self.window.mode_combo.count())
+        self.assertEqual(self.window.mode_combo.maxVisibleItems(), self.window.mode_combo.count())
 
     def test_paste_beside_an_invalid_item_is_not_refused_for_its_shifted_index(self):
         window = self.window

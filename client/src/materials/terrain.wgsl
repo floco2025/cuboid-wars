@@ -201,15 +201,6 @@ fn fragment(in: VertexOutput, @builtin(front_facing) is_front: bool) -> Fragment
     let grass = mix(live_grass, live_grass * DRY_GRASS_TINT, cover.y * 0.35)
         * mix(0.92, 1.08, cover.w);
 
-    let soil_warp = vec2(
-        terrain_noise(uv / 7.7 + vec2(89.0, 17.0)),
-        terrain_noise(uv / 9.1 + vec2(23.0, 157.0))
-    ) * 0.24 - vec2(0.12);
-    let soil = stochastic_soil((uv + soil_warp) / surface.w);
-    let soil_macro = terrain_noise(uv / 4.9 + vec2(181.0, 61.0)) * 0.65
-        + terrain_noise(uv / 2.4 + vec2(73.0, 227.0)) * 0.35;
-    let soil_color = soil * mix(vec3(0.88, 0.9, 0.94), vec3(1.1, 1.05, 0.97), soil_macro);
-
     // The meadow's own light and dark texels break up the patch boundary,
     // so grass thins into the soil instead of stopping at a contour. The
     // blades stop where the cover field alone says the soil is bare.
@@ -220,9 +211,25 @@ fn fragment(in: VertexOutput, @builtin(front_facing) is_front: bool) -> Fragment
     let footprint = max(length(dpdx(uv)), length(dpdy(uv)));
     bare *= mix(1.0, 0.4, smoothstep(0.08, 0.35, footprint));
 
+    // Most of the meadow shows no soil at all, and its three taps are the
+    // dearest part of the shader; explicit gradients make skipping them safe.
+    var soil_color = vec3(0.0);
+    var soil_height = 0.0;
+    if bare > 0.005 {
+        let soil_warp = vec2(
+            terrain_noise(uv / 7.7 + vec2(89.0, 17.0)),
+            terrain_noise(uv / 9.1 + vec2(23.0, 157.0))
+        ) * 0.24 - vec2(0.12);
+        let soil = stochastic_soil((uv + soil_warp) / surface.w);
+        let soil_macro = terrain_noise(uv / 4.9 + vec2(181.0, 61.0)) * 0.65
+            + terrain_noise(uv / 2.4 + vec2(73.0, 227.0)) * 0.35;
+        soil_color = soil * mix(vec3(0.88, 0.9, 0.94), vec3(1.1, 1.05, 0.97), soil_macro);
+        soil_height = dot(soil, LUMINANCE) * surface.z;
+    }
+
     let color = mix(grass, soil_color, bare) * cover.z;
     pbr.material.base_color = vec4(color, 1.0);
-    let height = mix(meadow_luminance * surface.y, dot(soil, LUMINANCE) * surface.z, bare);
+    let height = mix(meadow_luminance * surface.y, soil_height, bare);
     pbr.N = relief_normal(in.world_position.xyz, normalize(in.world_normal), height);
     apply_decals(&pbr);
 #ifdef PREPASS_PIPELINE

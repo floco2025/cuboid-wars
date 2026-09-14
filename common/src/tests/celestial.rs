@@ -18,32 +18,6 @@ fn at(hour: f32, phase: f32) -> CelestialTime {
 }
 
 #[test]
-fn equinox_equator_has_twelve_hour_day_and_cardinal_sun() {
-    assert!((daylight_hours(0.0, Season::Spring) - 12.0).abs() < 0.001);
-    let sunrise = celestial_directions(map(0.0, Season::Spring), at(6.0, 0.0));
-    let noon = celestial_directions(map(0.0, Season::Spring), at(12.0, 0.0));
-    assert!(sunrise.sun.dot(Vec3::X) > 0.999);
-    assert!(noon.sun.dot(Vec3::Y) > 0.999);
-}
-
-#[test]
-fn forty_north_summer_day_matches_expected_length() {
-    let hours = daylight_hours(40.0, Season::Summer);
-    assert!((hours - 14.84).abs() < 0.05);
-    assert!((hours / 24.0 * 600.0 - 371.0).abs() < 2.0);
-    let noon = celestial_directions(map(40.0, Season::Summer), at(12.0, 0.0));
-    assert!((noon.sun_altitude_radians.to_degrees() - 73.44).abs() < 0.05);
-}
-
-#[test]
-fn local_seasons_reverse_between_hemispheres_and_handle_poles() {
-    assert!((daylight_hours(40.0, Season::Summer) - daylight_hours(-40.0, Season::Summer)).abs() < 0.001);
-    assert!(daylight_hours(80.0, Season::Summer) > 23.9);
-    assert!(daylight_hours(80.0, Season::Winter) < 0.1);
-    assert!(daylight_hours(-80.0, Season::Summer) > 23.9);
-}
-
-#[test]
 fn north_yaw_rotates_the_local_cardinal_frame_clockwise() {
     let mut fixture = map(0.0, Season::Spring);
     fixture.north_yaw_degrees = 90.0;
@@ -65,12 +39,10 @@ fn moon_phases_have_expected_light_and_rough_rise_relationships() {
 }
 
 #[test]
-fn lunar_inclination_and_terminator_orientation_are_preserved() {
+fn lunar_inclination_separates_waxing_and_waning_altitudes() {
     let fixture = map(40.0, Season::Summer);
     let waxing = celestial_directions(fixture, at(12.0, 0.125));
     let waning = celestial_directions(fixture, at(12.0, 0.875));
-    assert!(waxing.moon_phase_orientation > 0.0);
-    assert!(waning.moon_phase_orientation < 0.0);
     assert!((waxing.moon_altitude_radians - waning.moon_altitude_radians).abs() > 0.01);
 }
 

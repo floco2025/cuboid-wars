@@ -15,7 +15,7 @@ fn ok_weather_cycle() -> WeatherCycleConfig {
 fn weather_cycle_accepts_valid_config() {
     ok_weather_cycle()
         .validate("cycles.weather")
-        .expect("valid weather cycle should pass");
+        .expect("valid weather cycle was rejected");
 }
 
 #[test]
@@ -52,7 +52,7 @@ fn weather_cycle_rejects_non_positive_ramp() {
 fn celestial_cycle_parses_and_validates() {
     let cycle: common::celestial::CelestialCycleSettings =
         serde_json::from_str(r#"{"day_duration_secs":600.0,"lunar_cycle_days":8.0}"#)
-            .expect("celestial cycle should deserialize");
+            .expect("celestial cycle failed to deserialize");
     cycle.validate("cycles.celestial").expect("valid cycle rejected");
 }
 

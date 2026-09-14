@@ -23,6 +23,8 @@ use crate::{
 const SKY_SHADER: &str = "embedded://client/materials/sky.wgsl";
 
 // One packed uniform keeps the sky within Metal's per-stage buffer limit.
+// `AsBindGroup` lays the `#[uniform(0)]` fields out in declaration order, so
+// every field must match `SkyUniform` in sky.wgsl by position and type.
 #[derive(Asset, AsBindGroup, Reflect, Debug, Clone)]
 pub struct ProceduralSkyMaterial {
     #[uniform(0)]

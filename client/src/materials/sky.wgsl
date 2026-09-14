@@ -8,7 +8,7 @@ struct SkyUniform {
     sun_direction: vec4<f32>,
     moon_direction: vec4<f32>,
     pole_rotation: vec4<f32>,
-    // x real time, y rain, z illuminated fraction, w waxing (+1) / waning (-1)
+    // x real time, y cloud cover, z moon illuminated fraction
     time_weather_phase: vec4<f32>,
     day_horizon: vec4<f32>,
     day_zenith: vec4<f32>,
@@ -35,7 +35,6 @@ struct SkyUniform {
 
 @group(#{MATERIAL_BIND_GROUP}) @binding(0) var<uniform> sky: SkyUniform;
 
-const PI: f32 = 3.14159265359;
 fn hash21(p: vec2<f32>) -> f32 {
     var p3 = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973));
     p3 += dot(p3, p3.yzx + vec3(33.33));
@@ -218,7 +217,7 @@ fn star_layer(direction: vec3<f32>, scale: f32, seed: u32, footprint: f32) -> ve
         if abs(depth) > STAR_SHELL {
             continue;
         }
-        let core = smoothstep(radius, radius * 0.1, length(p - center * (scale / length(center))));
+        let core = 1.0 - smoothstep(radius * 0.1, radius, length(p - center * (scale / length(center))));
         if core <= 0.0 {
             continue;
         }
@@ -248,7 +247,7 @@ fn star_lod(direction: vec3<f32>, scale: f32, seed: u32, footprint: f32) -> vec3
 }
 
 fn star_field(ray: vec3<f32>, night: f32) -> vec3<f32> {
-    let rotated = rotate_about_axis(ray, normalize(sky.pole_rotation.xyz), -sky.pole_rotation.w);
+    let rotated = rotate_about_axis(ray, sky.pole_rotation.xyz, -sky.pole_rotation.w);
     let footprint = length(fwidth(ray));
     let seed = u32(sky.stars.x) * 8u;
     let field = star_lod(rotated, 185.0, seed, footprint) + star_lod(rotated, 240.0, seed + 16u, footprint) * 0.7;
@@ -292,9 +291,12 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     let gradient = pow(elevation, 0.42);
     let sun_dir = normalize(sky.sun_direction.xyz);
     let sun_altitude = asin(clamp(sun_dir.y, -1.0, 1.0));
-    let daylight = smoothstep(-0.075, 0.16, sun_altitude);
-    let twilight = smoothstep(-0.21, -0.045, sun_altitude);
-    let night = 1.0 - smoothstep(-0.19, -0.055, sun_altitude);
+    // The same altitude edges as `celestial_sky_system` uses for ambient,
+    // fog, and grading: daylight from -4 to 10 degrees, twilight from -12
+    // to -3, so every part of the scene turns over together.
+    let daylight = smoothstep(-0.0698, 0.1745, sun_altitude);
+    let twilight = smoothstep(-0.2094, -0.0524, sun_altitude);
+    let night = 1.0 - twilight;
 
     let night_sky = mix(sky.night_horizon.rgb, sky.night_zenith.rgb, gradient) * sky.night_horizon.w;
     let twilight_sky = mix(sky.twilight_horizon.rgb, sky.twilight_zenith.rgb, gradient) * sky.twilight_horizon.w;
@@ -310,7 +312,10 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     let sunset_band = exp(-abs(ray.y) * 8.0) * pow(toward_sun, 7.0)
         * (1.0 - smoothstep(0.02, 0.30, abs(sun_altitude)));
     color += sky.sunset.rgb * sunset_band;
-    color += star_field(ray, night);
+    // The star field is the costliest part of the sky and invisible by day.
+    if night > 0.001 {
+        color += star_field(ray, night);
+    }
 
     let sun_separation = acos(clamp(dot(ray, sun_dir), -1.0, 1.0));
     let sun_halo = exp(-pow(sun_separation / max(sky.sun.z, 0.0001), 1.35)) * sky.sun.w;
@@ -322,7 +327,7 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
 
     let rain = clamp(sky.time_weather_phase.y, 0.0, 1.0);
     let coverage = mix(sky.clouds.x, sky.clouds.y, rain);
-    let sun_height = smoothstep(-0.08, 0.42, sun_dir.y);
+    let sun_height = smoothstep(-0.08, 0.43, sun_altitude);
     let cirrus = sample_cirrus(ray, rain);
     // A veil this thin shows the sky through it.
     let cirrus_rgb = mix(cloud_shading(0.85, twilight, daylight, rain, sun_height), sky_gradient, 0.3);

@@ -7,6 +7,10 @@ use crate::config::validate_positive_finite;
 
 const HILL_BLEND_START: f32 = 6.0;
 const HILL_BLEND_END: f32 = 50.0;
+// How far past the map edge the solid (collision) terrain reaches; the
+// rendered hills continue beyond it.
+pub const GROUNDS_COLLISION_EXTENT: f32 = 400.0;
+const COLLISION_RING_SPACING: f32 = 4.0;
 
 #[derive(Debug, Clone, Deserialize, Encode, Decode)]
 pub struct GroundsSettings {
@@ -92,11 +96,22 @@ impl Grounds {
         self.y + blend * hills + distant * (18.0 + 16.0 * (x * 0.006 + z * 0.004).sin().powi(2))
     }
 
+    // Surface normal of `height` from central differences; the same value on
+    // every side of the mesh, so the seams where the four sides meet are lit
+    // continuously.
+    pub fn normal(&self, x: f32, z: f32) -> Vec3 {
+        const STEP: f32 = 0.5;
+        let dx = self.height(x + STEP, z) - self.height(x - STEP, z);
+        let dz = self.height(x, z + STEP) - self.height(x, z - STEP);
+        Vec3::new(-dx, 2.0 * STEP, -dz).normalize()
+    }
+
     pub fn mesh(&self, distant: bool) -> GroundsMesh {
         // The shared inner rings keep collision and rendering on identical triangles.
-        let mut distances: Vec<f32> = (0..=100).map(|i| i as f32 * 4.0).collect();
+        let rings = (GROUNDS_COLLISION_EXTENT / COLLISION_RING_SPACING) as usize;
+        let mut distances: Vec<f32> = (0..=rings).map(|i| i as f32 * COLLISION_RING_SPACING).collect();
         if distant {
-            distances.extend((1..=36).map(|i| 400.0 + i as f32 * 25.0));
+            distances.extend((1..=36).map(|i| GROUNDS_COLLISION_EXTENT + i as f32 * 25.0));
         }
         let segments = 64usize;
         let mut vertices = Vec::new();

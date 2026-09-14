@@ -121,12 +121,11 @@ fn rain_intensity_updates_keep_normalization_and_config_gain_without_reapplying_
         app.update();
         let world = app.world_mut();
         let mut sounds = world.query::<&PlaybackSettings>();
-        let precipitation = intensity;
-        if precipitation < 0.01 {
+        if intensity < 0.01 {
             assert_eq!(sounds.iter(world).count(), 0);
         } else {
             let playback = sounds.single(world).expect("rain loop missing");
-            let expected = precipitation * 0.5 * 10.0_f32.powf(-9.0 / 20.0);
+            let expected = intensity * 0.5 * 10.0_f32.powf(-9.0 / 20.0);
             assert!((playback.volume.to_linear() - expected).abs() < 0.00001);
         }
     }

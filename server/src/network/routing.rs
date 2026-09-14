@@ -7,9 +7,8 @@ use super::{
 };
 use crate::{
     actors::{ActorMap, PendingActorSpawns},
-    app::InitialPlayerSpawn,
     missiles::{MissileMap, handle_missile_detonated, handle_missile_moves, handle_missile_shot_message},
-    players::{PlayerMap, handle_move_outcome, queue_player_movement},
+    players::{InitialPlayerSpawn, PlayerMap, handle_move_outcome, queue_player_movement},
     portals::{PortalAssignments, PortalMap, handle_portal_shot_message},
     projectiles::{PendingProjectileHits, handle_projectile_shot_message},
     quests::{QuestBoard, QuestCatalog},

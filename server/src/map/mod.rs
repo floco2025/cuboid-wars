@@ -34,4 +34,4 @@ pub use resources::{
     PlayerSpawnZone, PressurePlateRuntime,
 };
 pub use volume::ZoneVolume;
-pub use weather::{WeatherState, weather_needs_tick, weather_system};
+pub use weather::{WeatherState, weather_system};

@@ -187,7 +187,7 @@ pub(super) fn settings_menu_lifecycle_system(
                     ));
 
                     panel.spawn(slider_row(
-                        "Enemy movement",
+                        "Enemy movement volume",
                         font,
                         dims.control_width,
                         SliderSetting::ActorMovementVolume,

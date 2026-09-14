@@ -2,10 +2,13 @@ import copy
 import unittest
 
 from editor_fixtures import DEFAULT_ALIAS, faces, floor, nested
+from map_editor.constants import TERRAIN_FACES
 from map_editor.normalization import (
     canonicalize_map,
+    compact_terrain_materials,
     empty_level,
     empty_map,
+    expand_terrain_materials,
     nested_map_spans_level,
     normalize_map,
     normalize_nested_map,
@@ -17,6 +20,21 @@ BRIDGE_KIND = "skyway"
 
 
 class NormalizationTests(unittest.TestCase):
+    def test_terrain_materials_expand_to_five_faces_and_compact_back(self) -> None:
+        for compact in (
+            {"all": "stone"},
+            {"all": "stone", "north": "brick"},
+            {"bottom": "a", "north": "b", "south": "c", "east": "d", "west": "e"},
+        ):
+            expanded = expand_terrain_materials(compact)
+            self.assertEqual(set(expanded), set(TERRAIN_FACES))
+            self.assertNotIn("top", expanded)
+            self.assertEqual(expand_terrain_materials(compact_terrain_materials(expanded)), expanded)
+        self.assertEqual(
+            compact_terrain_materials(expand_terrain_materials({"all": "stone", "north": "brick"})),
+            {"all": "stone", "north": "brick"},
+        )
+
     def test_canonicalization_deduplicates_edges_and_applies_ramp_floor_rules(self) -> None:
         data = empty_map(4, 4)
         data["levels"].append({**empty_level(1), "floors": [floor(0, 0), floor(1, 0)]})

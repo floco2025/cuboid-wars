@@ -596,7 +596,7 @@ fn terrain_does_not_require_exterior_grounds() {
     );
     map_def.levels[0].terrain.push(cell_def(0, 0));
     let (layout, _) = compile_with(&map_def, &no_nested(), &empty_kind_table(), &no_bridges())
-        .expect("standalone terrain should compile");
+        .expect("standalone terrain failed to compile");
     assert_eq!(layout.terrain.len(), 1);
 }
 

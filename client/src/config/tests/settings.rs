@@ -78,9 +78,7 @@ fn sky_controls_reject_invalid_ranges_and_allow_zero_luminance() {
     settings.sky.sun.luminance = 0.0;
     settings.sky.moon.luminance = 0.0;
     settings.sky.stars.luminance = 0.0;
-    settings
-        .validate()
-        .expect("zero luminance should disable a sky emitter");
+    settings.validate().expect("zero luminance was rejected");
 
     for (invalid, field) in [
         (
@@ -134,9 +132,7 @@ fn sky_controls_reject_invalid_ranges_and_allow_zero_luminance() {
 fn lighting_controls_reject_invalid_ranges_and_allow_unquantized_shadows() {
     let mut settings = test_fixtures::client_settings();
     settings.lighting.shadow_step_degrees = 0.0;
-    settings
-        .validate()
-        .expect("zero shadow step should disable direction quantization");
+    settings.validate().expect("zero shadow step was rejected");
 
     settings.lighting.shadow_step_degrees = 180.0;
     let error = settings.validate().expect_err("oversized shadow step was accepted");
@@ -149,34 +145,18 @@ fn lighting_controls_reject_invalid_ranges_and_allow_unquantized_shadows() {
 }
 
 #[test]
-fn removed_low_level_sky_settings_are_rejected() {
-    for (path, field) in [
-        (&["sky", "sun"][..], "angular_radius_degrees"),
-        (&["sky", "moon"][..], "crater_contrast"),
-        (&["sky", "stars"][..], "seed"),
-        (&["sky", "stars"][..], "twinkle"),
-        (&["sky", "clouds"][..], "scale"),
-        (&["lighting"][..], "night_saturation"),
-    ] {
+fn unknown_fields_are_rejected_at_every_depth() {
+    for path in [&["grass"][..], &["sky", "stars"][..], &["lighting"][..]] {
         let mut json: serde_json::Value =
             serde_json::from_str(test_fixtures::SETTINGS_JSON).expect("client JSON is invalid");
         let mut object = &mut json;
         for segment in path {
             object = &mut object[*segment];
         }
-        object[field] = serde_json::json!(1.0);
-        let error = serde_json::from_value::<ClientSettings>(json).expect_err("removed sky setting was accepted");
-        assert!(error.to_string().contains(field), "unexpected error: {error}");
+        object["unknown_field"] = serde_json::json!(1.0);
+        let error = serde_json::from_value::<ClientSettings>(json).expect_err("unknown setting was accepted");
+        assert!(error.to_string().contains("unknown_field"), "unexpected error: {error}");
     }
-}
-
-#[test]
-fn removed_grass_density_setting_is_rejected() {
-    let mut json: serde_json::Value =
-        serde_json::from_str(test_fixtures::SETTINGS_JSON).expect("client JSON is invalid");
-    json["grass"]["tufts_per_m2"] = serde_json::json!(16.0);
-    let error = serde_json::from_value::<ClientSettings>(json).expect_err("removed grass setting was accepted");
-    assert!(error.to_string().contains("tufts_per_m2"), "unexpected error: {error}");
 }
 
 #[test]

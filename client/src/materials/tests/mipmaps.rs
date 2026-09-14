@@ -3,7 +3,7 @@ use crate::materials::terrain::TerrainExtension;
 use bevy::{app::TaskPoolPlugin, asset::AssetPlugin, ecs::message::Messages};
 
 #[test]
-fn terrain_images_queue_base_and_meadow_texture_once() {
+fn terrain_images_queue_every_texture_once() {
     let mut images = Assets::<Image>::default();
     let grass = images.add(Image::default());
     let soil = images.add(Image::default());

@@ -7,7 +7,10 @@ use bevy::{
 };
 
 use super::standard::load_texture;
-use crate::constants::{TERRAIN_GRASS_TILE_SIZE, TERRAIN_RELIEF, TERRAIN_SOIL_RELIEF, TERRAIN_SOIL_TILE_SIZE};
+use crate::{
+    config::MaterialDef,
+    constants::{TERRAIN_GRASS_TILE_SIZE, TERRAIN_RELIEF, TERRAIN_SOIL_RELIEF, TERRAIN_SOIL_TILE_SIZE},
+};
 
 const TERRAIN_SHADER: &str = "embedded://client/materials/terrain.wgsl";
 
@@ -37,10 +40,19 @@ impl MaterialExtension for TerrainExtension {
     }
 }
 
-pub fn terrain_material(server: &AssetServer, anisotropy: u16, mipmaps: bool, grass_color: Color) -> TerrainMaterial {
+// `definition` is the `procedural-terrain` entry in assets.json: it carries
+// the surface response and the footstep sound, while the textures are fixed.
+pub fn terrain_material(
+    server: &AssetServer,
+    definition: &MaterialDef,
+    anisotropy: u16,
+    mipmaps: bool,
+    grass_color: Color,
+) -> TerrainMaterial {
     TerrainMaterial {
         base: StandardMaterial {
-            perceptual_roughness: 0.95,
+            perceptual_roughness: definition.perceptual_roughness,
+            metallic: definition.metallic,
             reflectance: 0.1,
             ..default()
         },

@@ -215,7 +215,9 @@ fn movement_volume_mutes_and_restores_live_loops_without_compounding_gain() {
             .get::<SpatialAudioSink>(sound)
             .expect("live movement sink missing");
         assert!((sink.volume().to_linear() - expected * master).abs() < 1e-6);
-        assert!(!sink.empty() && !sink.is_paused());
+        // Off pauses the loop instead of mixing silence; any level resumes it.
+        assert!(!sink.empty());
+        assert_eq!(sink.is_paused(), db == -20.0);
         assert_eq!(sink.speed(), state.speed);
         assert_eq!(loop_entity(&mut app), sound);
     }

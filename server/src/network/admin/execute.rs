@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use super::{
-    command::{AdminCommand, HELP_TEXT, PlayerTarget, parse_admin_command},
+    command::{AdminCommand, CelestialCommand, HELP_TEXT, PlayerTarget, parse_admin_command},
     handler::AdminContext,
 };
 use crate::{
@@ -44,15 +44,9 @@ pub(super) fn run_admin_command(
     use AdminOutcome::{Private, Public};
 
     let parsed = parse_admin_command(command);
-    if let Some(outcome) = run_celestial_command(
-        &parsed,
-        &mut admin.celestial_clock,
-        admin.server_tick.0,
-        admin.server_gameplay_config.network.server_hz,
-        admin.server_gameplay_config.cycles.celestial,
-    ) {
-        return outcome;
-    }
+    let tick = admin.server_tick.0;
+    let server_hz = admin.server_gameplay_config.network.server_hz;
+    let cycle = admin.server_gameplay_config.cycles.celestial;
 
     match parsed {
         AdminCommand::Help => Private(HELP_TEXT.to_owned()),
@@ -76,13 +70,9 @@ pub(super) fn run_admin_command(
             Err(reason) => Private(reason.to_owned()),
         },
         AdminCommand::WeatherStatus => Private(admin.weather.status()),
-        AdminCommand::TimeSeek(_)
-        | AdminCommand::TimeAuto
-        | AdminCommand::TimeStatus
-        | AdminCommand::TimeUsage
-        | AdminCommand::MoonSet(_)
-        | AdminCommand::MoonStatus
-        | AdminCommand::MoonUsage => unreachable!("celestial command was handled above"),
+        AdminCommand::Celestial(command) => {
+            run_celestial_command(command, &mut admin.celestial_clock, tick, server_hz, cycle)
+        }
         AdminCommand::God(explicit) => {
             let enabled = explicit.unwrap_or(!admin.invincibility.0);
             admin.invincibility.0 = enabled;
@@ -310,37 +300,35 @@ pub(super) fn run_admin_command(
 }
 
 fn run_celestial_command(
-    command: &AdminCommand,
+    command: CelestialCommand,
     clock: &mut CelestialClockAnchor,
     tick: u32,
     server_hz: u32,
     cycle: CelestialCycleSettings,
-) -> Option<AdminOutcome> {
+) -> AdminOutcome {
     use AdminOutcome::{Private, Public};
 
-    let outcome = match *command {
-        AdminCommand::TimeSeek(time) => {
+    match command {
+        CelestialCommand::TimeSeek(time) => {
             clock.seek_time(time, tick, server_hz, cycle);
             Public(format!("time set to {} (held)", time.format()))
         }
-        AdminCommand::TimeAuto => {
+        CelestialCommand::TimeAuto => {
             if clock.resume(tick, server_hz, cycle) {
                 Public("time resumed".to_owned())
             } else {
                 Private("time already running".to_owned())
             }
         }
-        AdminCommand::TimeStatus => Private(time_status(clock, tick, server_hz, cycle)),
-        AdminCommand::TimeUsage => Private("usage: /time [H:MM|auto]".to_owned()),
-        AdminCommand::MoonSet(fraction) => {
+        CelestialCommand::TimeStatus => Private(time_status(clock, tick, server_hz, cycle)),
+        CelestialCommand::TimeUsage => Private("usage: /time [H:MM|auto]".to_owned()),
+        CelestialCommand::MoonSet(fraction) => {
             clock.set_moon_phase_fraction(fraction, tick, server_hz, cycle);
-            Public(format!("moon set to {:.3}", clock.lunar_phase_fraction))
+            Public(format!("moon set to {fraction:.3}"))
         }
-        AdminCommand::MoonStatus => Private(moon_status(clock, tick, server_hz, cycle)),
-        AdminCommand::MoonUsage => Private("usage: /moon [0-1]".to_owned()),
-        _ => return None,
-    };
-    Some(outcome)
+        CelestialCommand::MoonStatus => Private(moon_status(clock, tick, server_hz, cycle)),
+        CelestialCommand::MoonUsage => Private("usage: /moon [0-1]".to_owned()),
+    }
 }
 
 fn time_status(clock: &CelestialClockAnchor, tick: u32, server_hz: u32, cycle: CelestialCycleSettings) -> String {

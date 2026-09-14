@@ -15,7 +15,7 @@ use crate::{
     map::{GeneratedMap, MapFireworks, WeatherState, generate_map, map_plugin},
     missiles::{MissileMap, missiles_plugin},
     network::{ClientLinks, Listener, LocalLink, network_plugin, register_local},
-    players::{Invincibility, PlayerMap, players_plugin},
+    players::{InitialPlayerSpawn, Invincibility, PlayerMap, players_plugin},
     portals::{PortalAssignments, PortalMap, portals_plugin},
     projectiles::projectiles_plugin,
     quests::{QuestBoard, QuestCatalog},
@@ -28,7 +28,8 @@ use common::{
     map::Carriers,
     physics::CollisionWorld,
     protocol::{
-        MapBootstrap, MapSettings, MissileAirGrid, PlateState, ServerTick, WorldBootstrap, server_tick_advance_system,
+        MapBootstrap, MapSettings, MissileAirGrid, PlateState, Position, ServerTick, WorldBootstrap,
+        server_tick_advance_system,
     },
 };
 
@@ -60,14 +61,11 @@ pub struct ServerAppOptions {
     pub map: Option<String>,
     pub god: bool,
     pub peace: bool,
-    pub initial_spawn: Option<common::protocol::Position>,
+    pub initial_spawn: Option<Position>,
     pub network: NetworkOverrides,
     // Only one Bevy `LogPlugin` may install per process; the app built first owns it.
     pub logging: bool,
 }
-
-#[derive(Resource, Debug, Clone, Copy)]
-pub(crate) struct InitialPlayerSpawn(pub Option<common::protocol::Position>);
 
 // `listener` is the UDP endpoint remote clients join through and `local` the
 // host's own client; a dedicated server has no local client, single-player

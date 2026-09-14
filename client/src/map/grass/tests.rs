@@ -1,23 +1,27 @@
-use std::f32::consts::TAU;
-use std::sync::Arc;
+use std::{f32::consts::TAU, sync::Arc};
 
 use bevy::{mesh::VertexAttributeValues, prelude::*};
 use common::protocol::{CarrierId, Floor};
 
 use super::{
     burn::{BURN_VERTICAL_TOLERANCE, GrassBurn, grass_burn_system},
-    mesh::{
-        BLADE_HEIGHT_MAX, GrassLod, MID_SWAY_WEIGHT, VERTICES_PER_BLADE, WIND_SWAY_FACTOR, grass_patch_mesh,
-        patch_tuft_count,
-    },
-    spawn::{GrassChunkVisual, GrassPatch, grass_chunk_mesh, terrain_patch_aabb},
+    mesh::{BLADE_HEIGHT_MAX, GrassLod, MID_SWAY_WEIGHT, VERTICES_PER_BLADE, WIND_SWAY_FACTOR, grass_patch_mesh},
+    spawn::{GrassPatch, terrain_surface_mesh},
+    streaming::{GrassChunkSource, GrassChunkVisual, grass_chunk_mesh, padded_grass_bounds},
 };
 use crate::{
-    constants::{EXPLOSION_GRASS_BURN_CENTER_HEIGHT_FACTOR, EXPLOSION_GRASS_BURN_CENTER_SWAY_FACTOR},
+    constants::{
+        EXPLOSION_GRASS_BURN_CENTER_HEIGHT_FACTOR, EXPLOSION_GRASS_BURN_CENTER_SWAY_FACTOR, GRASS_WIND_STRENGTH,
+    },
     map::terrain_surface::TerrainCover,
     test_fixtures::CELL,
     vfx::ClipRegion,
 };
+
+fn patch_contains_base(patch: GrassPatch, x: f32, z: f32) -> bool {
+    const EPSILON: f32 = 0.0001;
+    x >= patch.x1 - EPSILON && x <= patch.x2 + EPSILON && z >= patch.z1 - EPSILON && z <= patch.z2 + EPSILON
+}
 
 fn test_patch() -> GrassPatch {
     GrassPatch {
@@ -121,7 +125,7 @@ fn near_lod_is_denser_than_mid_lod() {
     let near = patch_mesh(patch, GrassLod::Near, &[]);
     let mid = patch_mesh(patch, GrassLod::Mid, &[]);
     assert!(positions(&near).len() > positions(&mid).len() * 3);
-    assert!(patch_tuft_count(GrassLod::Near, patch) > patch_tuft_count(GrassLod::Mid, patch));
+    assert!(GrassLod::Near.tuft_count(patch.area()) > GrassLod::Mid.tuft_count(patch.area()));
 }
 
 #[test]
@@ -233,10 +237,15 @@ fn removing_burn_restores_original_chunk_mesh() {
         patch.y,
         f32::midpoint(patch.z1, patch.z2),
     );
-    let patches = vec![patch];
     let footprint: Arc<[Floor]> = vec![patch_floor(patch)].into();
-    let baseline =
-        grass_chunk_mesh(&patches, &footprint, GrassLod::Near, origin, test_green(), &[]).expect("grass expected");
+    let visual = GrassChunkVisual {
+        patches: vec![patch],
+        source: GrassChunkSource::Patches { footprint },
+        lod: GrassLod::Near,
+        origin,
+        green: test_green(),
+    };
+    let baseline = grass_chunk_mesh(&visual, &[]).expect("grass expected");
     let expected_positions = positions(&baseline).to_vec();
 
     let mut app = App::new();
@@ -244,16 +253,7 @@ fn removing_burn_restores_original_chunk_mesh() {
         .insert_resource(Assets::<Mesh>::default())
         .add_systems(Update, grass_burn_system);
     let mesh_handle = app.world_mut().resource_mut::<Assets<Mesh>>().add(baseline);
-    app.world_mut().spawn((
-        GrassChunkVisual {
-            patches,
-            footprint,
-            lod: GrassLod::Near,
-            origin,
-            green: test_green(),
-        },
-        Mesh3d(mesh_handle.clone()),
-    ));
+    app.world_mut().spawn((visual, Mesh3d(mesh_handle.clone())));
     let burn_entity = app
         .world_mut()
         .spawn(GrassBurn::new(
@@ -300,7 +300,7 @@ fn root_vertices_have_zero_sway_and_stay_on_the_terrain_footprint() {
         match uv[0] {
             0.0 => {
                 assert!((position[1] - patch.y).abs() < f32::EPSILON);
-                assert!(patch.contains_base(position[0], position[2]));
+                assert!(patch_contains_base(patch, position[0], position[2]));
             }
             MID_SWAY_WEIGHT | 1.0 => assert!(position[1] > patch.y),
             weight => panic!("unexpected sway weight {weight}"),
@@ -322,21 +322,40 @@ fn narrow_trim_patch_still_receives_grass() {
     let mesh = patch_mesh(patch, GrassLod::Near, &[]);
     assert!(!positions(&mesh).is_empty());
     for blade in positions(&mesh).chunks_exact(VERTICES_PER_BLADE) {
-        assert!(patch.contains_base(blade[0][0], blade[0][2]));
-        assert!(patch.contains_base(blade[1][0], blade[1][2]));
+        assert!(patch_contains_base(patch, blade[0][0], blade[0][2]));
+        assert!(patch_contains_base(patch, blade[1][0], blade[1][2]));
     }
 }
 
 #[test]
-fn padded_patch_bounds_contain_full_sway() {
+fn padded_chunk_bounds_contain_full_sway() {
     let patch = test_patch();
     let mesh = patch_mesh(patch, GrassLod::Near, &[]);
-    let aabb = terrain_patch_aabb(patch);
-    let max_sway = crate::constants::GRASS_WIND_STRENGTH * WIND_SWAY_FACTOR;
+    let aabb = padded_grass_bounds(&mesh);
+    let max_sway = GRASS_WIND_STRENGTH * WIND_SWAY_FACTOR;
     for position in positions(&mesh) {
         let swayed_min = Vec3::from_array(*position) - Vec3::new(max_sway, 0.0, max_sway);
         let swayed_max = Vec3::from_array(*position) + Vec3::new(max_sway, 0.0, max_sway);
         assert!(swayed_min.cmpge(aabb.min().into()).all());
         assert!(swayed_max.cmple(aabb.max().into()).all());
     }
+}
+
+#[test]
+fn procedural_surface_uses_compiled_floor_bounds_including_trim() {
+    let floor = Floor {
+        x1: -1.25,
+        z1: -1.0,
+        x2: 1.4,
+        z2: 1.3,
+        y: 2.0,
+        thickness: 0.2,
+        level: 1,
+        carrier: CarrierId::WORLD,
+    };
+    let mesh = terrain_surface_mesh(&[floor], Vec3::new(0.0, 2.0, 0.0));
+    assert_eq!(
+        positions(&mesh),
+        &[[-1.25, 0.0, -1.0], [1.4, 0.0, -1.0], [-1.25, 0.0, 1.3], [1.4, 0.0, 1.3]]
+    );
 }

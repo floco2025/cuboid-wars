@@ -80,7 +80,7 @@ impl Iterator for LoopDecoder {
 
 impl Source for LoopDecoder {
     fn current_span_len(&self) -> Option<usize> {
-        // Even blocks aligned to 40 ms let Rodio refresh pitch without splitting stereo frames.
+        // 80 ms blocks with an even sample count let Rodio refresh pitch without splitting stereo frames.
         let frames = (self.audio.sample_rate.get() / 25).max(1) as usize;
         Some(2 * usize::from(self.audio.channels.get()) * frames)
     }

@@ -14,4 +14,4 @@ pub(crate) use playback::{explosion_playback_settings, loop_sound_playback};
 pub use playback::{
     play_explosion_sound, play_sound, play_sound_with, play_spatial_sound, play_spatial_sound_with, sound_playback,
 };
-pub(crate) use volume::settings_volume;
+pub(crate) use volume::{settings_volume, sink_volume};

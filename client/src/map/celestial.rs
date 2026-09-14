@@ -11,15 +11,16 @@ use crate::{
     cameras::{MainCameraMarker, RearviewCameraMarker, SkyRenderLayer},
     config::ClientSettings,
     constants::{
-        SCENE_DAY_SATURATION, SCENE_NIGHT_SATURATION, SCENE_TWILIGHT_SATURATION, SKY_CLEAR_FOG_RANGE,
-        SKY_DAY_HORIZON_COLOR, SKY_NIGHT_HORIZON_COLOR, SKY_OVERCAST_COLOR, SKY_RAIN_AMBIENT_LIGHT,
-        SKY_RAIN_DIRECT_LIGHT, SKY_RAIN_FOG_RANGE, SKY_TWILIGHT_HORIZON_COLOR,
+        FOG_CLEAR_RANGE, FOG_RAIN_RANGE, LIGHTING_RAIN_AMBIENT_FACTOR, LIGHTING_RAIN_DIRECT_FACTOR,
+        SCENE_DAY_SATURATION, SCENE_NIGHT_SATURATION, SCENE_TWILIGHT_SATURATION, SKY_DAY_HORIZON_COLOR,
+        SKY_NIGHT_HORIZON_COLOR, SKY_OVERCAST_COLOR, SKY_TWILIGHT_HORIZON_COLOR,
     },
     materials::ProceduralSkyMaterial,
     vfx::RainIntensity,
 };
 
 const SKY_RADIUS: f32 = 500.0;
+const SHADOW_HANDOVER_RATIO: f32 = 1.2;
 
 #[derive(Component)]
 pub struct SunLightMarker;
@@ -211,6 +212,7 @@ pub fn celestial_sky_system(
     sky_assets: Option<Res<SkyAssets>>,
     mut render: CelestialRender,
     mut commands: Commands,
+    mut sun_casts_shadows: Local<bool>,
 ) {
     let Some(sky_assets) = sky_assets else {
         return;
@@ -233,9 +235,15 @@ pub fn celestial_sky_system(
             time.elapsed_secs_wrapped(),
             rain,
             directions.moon_illuminated_fraction,
-            directions.moon_phase_orientation,
+            0.0,
         );
     }
+
+    // One set of altitude edges for direct light, ambient, grading, fog, and
+    // (mirrored in sky.wgsl) the dome, so the scene turns over together.
+    let sun_altitude = directions.sun_altitude_radians;
+    let twilight = smoothstep(-12.0_f32.to_radians(), -3.0_f32.to_radians(), sun_altitude);
+    let daylight = smoothstep(-4.0_f32.to_radians(), 10.0_f32.to_radians(), sun_altitude);
 
     let lighting = settings.lighting;
     let step = lighting.shadow_step_degrees.to_radians();
@@ -243,11 +251,20 @@ pub fn celestial_sky_system(
     let moon_direction = quantized_direction(directions.moon, step);
     let sun_height = directions.sun_altitude_radians.sin().max(0.0);
     let moon_height = directions.moon_altitude_radians.sin().max(0.0);
-    let direct_weather = 1.0_f32.lerp(SKY_RAIN_DIRECT_LIGHT, rain);
-    let sun_illuminance = lighting.max_sun_illuminance * sun_height.sqrt() * direct_weather;
+    let direct_weather = 1.0_f32.lerp(LIGHTING_RAIN_DIRECT_FACTOR, rain);
+    let sun_illuminance = lighting.max_sun_illuminance * daylight * sun_height.sqrt() * direct_weather;
     let moon_illuminance =
         lighting.max_full_moon_illuminance * moon_height.sqrt() * directions.moon_illuminated_fraction * direct_weather;
-    let sun_stronger = sun_illuminance >= moon_illuminance;
+    // The shadow map changes hands only when the other body is clearly the
+    // stronger one, so a crossing around sunrise cannot flip it every frame.
+    if *sun_casts_shadows {
+        if moon_illuminance > sun_illuminance * SHADOW_HANDOVER_RATIO {
+            *sun_casts_shadows = false;
+        }
+    } else if sun_illuminance > moon_illuminance * SHADOW_HANDOVER_RATIO {
+        *sun_casts_shadows = true;
+    }
+    let sun_stronger = *sun_casts_shadows;
     if let Ok((mut light, mut transform)) = render.sun_lights.single_mut() {
         light.illuminance = sun_illuminance;
         light.shadow_maps_enabled = settings.rendering.directional_shadows && sun_stronger && sun_illuminance > 0.0;
@@ -259,14 +276,11 @@ pub fn celestial_sky_system(
         *transform = Transform::default().looking_to(-moon_direction, Vec3::Y);
     }
 
-    let sun_altitude = directions.sun_altitude_radians;
-    let twilight = smoothstep(-12.0_f32.to_radians(), -3.0_f32.to_radians(), sun_altitude);
-    let daylight = smoothstep(-4.0_f32.to_radians(), 10.0_f32.to_radians(), sun_altitude);
     let ambient_brightness = lighting
         .night_ambient_brightness
         .lerp(lighting.twilight_ambient_brightness, twilight)
         .lerp(lighting.day_ambient_brightness, daylight)
-        * 1.0_f32.lerp(SKY_RAIN_AMBIENT_LIGHT, rain);
+        * 1.0_f32.lerp(LIGHTING_RAIN_AMBIENT_FACTOR, rain);
     render.ambient.brightness = ambient_brightness;
     let saturation = SCENE_NIGHT_SATURATION
         .lerp(SCENE_TWILIGHT_SATURATION, twilight)
@@ -292,8 +306,8 @@ pub fn celestial_sky_system(
             color: Color::linear_rgb(fog_color.x, fog_color.y, fog_color.z),
             directional_light_color: Color::NONE,
             falloff: FogFalloff::Linear {
-                start: SKY_CLEAR_FOG_RANGE[0].lerp(SKY_RAIN_FOG_RANGE[0], rain),
-                end: SKY_CLEAR_FOG_RANGE[1].lerp(SKY_RAIN_FOG_RANGE[1], rain),
+                start: FOG_CLEAR_RANGE[0].lerp(FOG_RAIN_RANGE[0], rain),
+                end: FOG_CLEAR_RANGE[1].lerp(FOG_RAIN_RANGE[1], rain),
             },
             ..default()
         };

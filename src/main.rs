@@ -104,13 +104,12 @@ impl WindowArgs {
     }
 
     fn client_options(&self, logging: bool) -> ClientAppOptions {
-        let resolution = self.resolution.map(|value| (value.width, value.height));
         ClientAppOptions {
             force_windowed: self.windowed,
             window_x: self.window_x,
             window_y: self.window_y,
-            window_width: resolution.map(|value| value.0).or(self.window_width),
-            window_height: resolution.map(|value| value.1).or(self.window_height),
+            window_width: self.resolution.map(|value| value.width).or(self.window_width),
+            window_height: self.resolution.map(|value| value.height).or(self.window_height),
             volume: self.volume,
             initial_view: self.look,
             logging,

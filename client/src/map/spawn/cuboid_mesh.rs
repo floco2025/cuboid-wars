@@ -130,12 +130,13 @@ pub fn tiled_cuboid(
     mesh
 }
 
+// The top is not here: `tiled_floor_top_mesh` builds it from the rectangles
+// left after terrain cuts, which is the whole slab when nothing is cut.
 pub struct TiledFloorSurfaceMeshes {
     pub north: Mesh,
     pub south: Mesh,
     pub east: Mesh,
     pub west: Mesh,
-    pub up: Mesh,
     pub down: Mesh,
 }
 
@@ -185,7 +186,6 @@ pub fn tiled_floor_surface_meshes(
     south_tile_size: f32,
     east_tile_size: f32,
     west_tile_size: f32,
-    up_tile_size: f32,
     down_tile_size: f32,
 ) -> TiledFloorSurfaceMeshes {
     let hx = size_x / 2.0;
@@ -197,7 +197,6 @@ pub fn tiled_floor_surface_meshes(
     let mut south = SurfaceMeshData::default();
     let mut east = SurfaceMeshData::default();
     let mut west = SurfaceMeshData::default();
-    let mut up = SurfaceMeshData::default();
     let mut down = SurfaceMeshData::default();
 
     east.push_face_world(
@@ -221,17 +220,6 @@ pub fn tiled_floor_surface_meshes(
         carrier_center,
         rotation,
         west_tile_size,
-    );
-    up.push_face_world(
-        [-hx, hy, -hz],
-        [-hx, hy, hz],
-        [hx, hy, hz],
-        [hx, hy, -hz],
-        [0.0, 1.0, 0.0],
-        &POS_Y_FACE,
-        carrier_center,
-        rotation,
-        up_tile_size,
     );
     down.push_face_world(
         [-hx, -hy, hz],
@@ -272,7 +260,6 @@ pub fn tiled_floor_surface_meshes(
         south: south.into_mesh(),
         east: east.into_mesh(),
         west: west.into_mesh(),
-        up: up.into_mesh(),
         down: down.into_mesh(),
     }
 }

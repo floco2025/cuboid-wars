@@ -53,21 +53,27 @@ The helper accepts any sequence of these actions:
 key CODE
 hold CODE MILLISECONDS
 move DX DY
-scroll UNITS
+scroll CLICKS
+click left|right
 wait MILLISECONDS
 ```
 
 Common Linux input-event codes are Esc `1`, W `17`, Enter `28`, F `33`, and V
-`47`. Confirm other values in `/usr/include/linux/input-event-codes.h`.
+`47`. Confirm other values in `/usr/include/linux/input-event-codes.h`. The
+whole sequence is validated before anything is sent; a malformed action prints
+the usage and sends nothing. Every emitted event is followed by a 60 ms settle,
+so `hold` lasts its milliseconds plus about 120 ms.
 
 ```sh
 /tmp/cuboid-wars-ei-input key 47 wait 500 move 180 0
 /tmp/cuboid-wars-ei-input hold 17 1500 wait 300 scroll -1
+/tmp/cuboid-wars-ei-input click left wait 200 click right
 ```
 
 Focus immediately before input. Combine related actions so the EIS connection
-is opened only once. Mouse motion controls the captured camera and scrolling
-changes follow/debug zoom.
+is opened only once. Mouse motion controls the captured camera, `scroll` moves
+one wheel click per unit through follow/debug zoom, and `click` fires or places
+portals.
 
 ## Capture
 

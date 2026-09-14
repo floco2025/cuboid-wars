@@ -40,7 +40,9 @@ cargo run --release -- --map hotel --god --peace --name Reviewer --volume 0 \
 ```
 
 The older `--window-width` and `--window-height` flags remain useful when only
-one saved dimension should be overridden. Use `--help` for the complete CLI.
+one saved dimension should be overridden. Any window or volume flag also stops
+the session from saving local settings, so a review never rewrites
+`client_local.json`. Use `--help` for the complete CLI.
 
 ## Review sequence
 

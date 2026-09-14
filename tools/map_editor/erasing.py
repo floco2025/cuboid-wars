@@ -362,15 +362,12 @@ def erase_hit(data: dict, level_idx: int, hit, preserve_floors: bool = False) ->
     kind, value = hit
     if preserve_floors and kind in FLOOR_HIT_KINDS:
         return data
-    if kind in (HIT_FLOOR, HIT_INACCESSIBLE_FLOOR):
+    if kind in (HIT_FLOOR, HIT_INACCESSIBLE_FLOOR, HIT_TERRAIN):
         col, row = value
         return erase_floors(data, level_idx, (col, row, col + 1, row + 1))
     after = copy.deepcopy(data)
     level = after["levels"][level_idx]
-    if kind == HIT_TERRAIN:
-        col, row = value
-        return erase_floors(data, level_idx, (col, row, col + 1, row + 1))
-    elif kind == HIT_LIGHT_BRIDGE:
+    if kind == HIT_LIGHT_BRIDGE:
         level["light_bridges"] = [
             bridge for bridge in level.get("light_bridges", []) if (bridge["col"], bridge["row"]) != value
         ]

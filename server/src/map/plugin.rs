@@ -4,7 +4,7 @@ use super::{
     pressure_plates::{
         PressureSwitches, plate_state_sync_system, pressure_plates_system, pressure_switch_reset_system,
     },
-    weather_needs_tick, weather_system,
+    weather_system,
 };
 use crate::{
     players::{players_group_respawn_system, players_respawn_system},
@@ -17,7 +17,7 @@ pub fn map_plugin(app: &mut App) {
         .add_systems(
             Update,
             (
-                weather_system.run_if(weather_needs_tick),
+                weather_system,
                 // Switch flips stamp the tick the carriers advance to later this
                 // tick, so the tick must already have advanced.
                 (

@@ -17,6 +17,10 @@ pub type PlayerStateQuery<'w, 's> =
 #[derive(Resource)]
 pub struct Invincibility(pub bool);
 
+// A review launch's `--spawn`, consumed by the first login.
+#[derive(Resource, Debug, Clone, Copy)]
+pub(crate) struct InitialPlayerSpawn(pub Option<Position>);
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PlayerQuestState {
     Individual { progress: u32 },

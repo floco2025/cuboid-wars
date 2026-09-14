@@ -71,6 +71,7 @@ pub(super) enum ColliderKind {
     Barrier,
     Bridge,
     Grounds,
+    Decoration,
 }
 
 impl ColliderKind {
@@ -82,6 +83,7 @@ impl ColliderKind {
             Self::Barrier => 4,
             Self::Bridge => 5,
             Self::Grounds => 6,
+            Self::Decoration => 7,
         };
         tag | (u128::from(carrier.0) << CARRIER_SHIFT)
     }
@@ -115,6 +117,7 @@ impl ColliderKind {
             4 => Some(Self::Barrier),
             5 => Some(Self::Bridge),
             6 => Some(Self::Grounds),
+            7 => Some(Self::Decoration),
             _ => None,
         }
     }
@@ -148,7 +151,7 @@ pub(super) fn insert_grounds_colliders(colliders: &mut ColliderSet, grounds: &Gr
             colliders.insert(
                 shape
                     .translation(to_rapier(position))
-                    .user_data(ColliderKind::Grounds.user_data(CarrierId::WORLD))
+                    .user_data(ColliderKind::Decoration.user_data(CarrierId::WORLD))
                     .collision_groups(collider_interaction_groups(FLOOR_COLLISION_GROUP))
                     .build(),
             ),

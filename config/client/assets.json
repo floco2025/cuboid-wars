@@ -219,9 +219,8 @@
       }
     },
     "procedural-terrain": {
-      "tile_size": 1.6,
       "metallic": 0.0,
-      "roughness": 1.0,
+      "roughness": 0.95,
       "footstep": "grass"
     },
     "patched-brickwork": {

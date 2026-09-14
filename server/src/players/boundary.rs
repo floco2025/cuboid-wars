@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use common::{
     config::GameplayConfig,
-    map::{BoundaryTimer, Carriers},
+    map::{BoundaryTimer, Carriers, GROUNDS_COLLISION_EXTENT},
     physics::CollisionWorld,
     protocol::{Health, MapLayout, PlayerId, PlayerMarker, Position, ServerTick},
 };
@@ -9,7 +9,11 @@ use common::{
 use super::{PlayerMap, place_player_body, player_spawn_destination, spawn_zone_destination};
 use crate::{map::MapConfig, portals::PortalAssignments};
 
-pub(super) fn players_boundary_system(
+// A player is pulled back this far before the solid terrain ends, whatever
+// the countdown says, since past its edge there is nothing to stand on.
+const TERRAIN_EDGE_MARGIN: f32 = 20.0;
+
+pub(crate) fn players_boundary_system(
     mut commands: Commands,
     time: Res<Time>,
     tick: Res<ServerTick>,
@@ -32,8 +36,9 @@ pub(super) fn players_boundary_system(
         let mut timer = BoundaryTimer(player.life.boundary_elapsed_secs);
         let remaining = timer.tick(outside, time.delta_secs(), grounds.settings.return_secs);
         player.life.boundary_elapsed_secs = timer.0;
-        let beyond_terrain = grounds.distance_outside_map(pos.x, pos.z) > 380.0;
-        if remaining != Some(0.0) && !beyond_terrain {
+        let beyond_terrain =
+            grounds.distance_outside_map(pos.x, pos.z) > GROUNDS_COLLISION_EXTENT - TERRAIN_EDGE_MARGIN;
+        if remaining.is_none_or(|secs| secs > 0.0) && !beyond_terrain {
             continue;
         }
         let saved = player.session.checkpoint;
