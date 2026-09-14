@@ -1,6 +1,60 @@
 use super::*;
 use crate::test_fixtures;
 
+#[test]
+fn scene_cameras_share_generated_maps_after_loading_and_replacement() {
+    let mut app = App::new();
+    app.add_systems(Update, share_sky_probe_system);
+    let main = app
+        .world_mut()
+        .spawn((MainCameraMarker, GeneratedEnvironmentMapLight::default()))
+        .id();
+    let early = app.world_mut().spawn((Camera3d::default(), SkyRenderLayer(4))).id();
+    let compositor = app.world_mut().spawn(Camera2d).id();
+    app.update();
+    assert!(app.world().get::<EnvironmentMapLight>(early).is_none());
+    let mut images = Assets::<Image>::default();
+    let lighting = EnvironmentMapLight {
+        diffuse_map: images.add(Image::default()),
+        specular_map: images.add(Image::default()),
+        intensity: 2.0,
+        rotation: Quat::from_rotation_y(0.7),
+        affects_lightmapped_mesh_diffuse: false,
+    };
+    app.world_mut().entity_mut(main).insert(lighting.clone());
+    app.update();
+    let late = app.world_mut().spawn((Camera3d::default(), SkyRenderLayer(5))).id();
+    app.update();
+    for entity in [early, late] {
+        let shared = app
+            .world()
+            .get::<EnvironmentMapLight>(entity)
+            .expect("scene light missing");
+        assert_eq!(shared.diffuse_map, lighting.diffuse_map);
+        assert_eq!(shared.specular_map, lighting.specular_map);
+        assert_eq!(shared.intensity, lighting.intensity);
+        assert_eq!(shared.rotation, lighting.rotation);
+        assert!(!shared.affects_lightmapped_mesh_diffuse);
+        assert!(app.world().get::<GeneratedEnvironmentMapLight>(entity).is_none());
+    }
+    assert!(app.world().get::<EnvironmentMapLight>(compositor).is_none());
+    let replacement = images.add(Image::default());
+    app.world_mut()
+        .get_mut::<EnvironmentMapLight>(main)
+        .expect("main light")
+        .diffuse_map = replacement.clone();
+    app.update();
+    for entity in [early, late] {
+        assert_eq!(
+            app.world()
+                .get::<EnvironmentMapLight>(entity)
+                .expect("scene light")
+                .diffuse_map,
+            replacement
+        );
+    }
+}
+
 fn state(sun_altitude_degrees: f32) -> SkyState {
     let altitude = sun_altitude_degrees.to_radians();
     let daylight = smoothstep(-4.0_f32.to_radians(), 10.0_f32.to_radians(), altitude);

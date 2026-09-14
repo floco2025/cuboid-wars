@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use super::grass::GrassChunks;
+use super::grass::GrassMaterials;
 use crate::{
     constants::{WETNESS_DARKENING, WETNESS_DRY_SECS, WETNESS_ROUGHNESS, WETNESS_SOAK_SECS},
     materials::{GrassMaterial, TerrainMaterial},
@@ -13,8 +13,9 @@ use crate::{
 pub fn weather_surfaces_system(
     time: Res<Time>,
     rain: Res<WeatherIntensity>,
-    chunks: Res<GrassChunks>,
+    materials: Res<GrassMaterials>,
     mut wetness: Local<f32>,
+    mut applied: Local<Option<f32>>,
     mut terrain_materials: ResMut<Assets<TerrainMaterial>>,
     mut grass_materials: ResMut<Assets<GrassMaterial>>,
 ) {
@@ -24,23 +25,32 @@ pub fn weather_surfaces_system(
     } else {
         1.0 / WETNESS_DRY_SECS
     };
-    let previous = *wetness;
     wetness.smooth_nudge(&target, rate, time.delta_secs());
-    if (*wetness - previous).abs() < 0.0005 {
+    const UPDATE_EPSILON: f32 = 0.0005;
+    if (target == 0.0 || target == 1.0) && (*wetness - target).abs() < UPDATE_EPSILON {
+        *wetness = target;
+    }
+    if !materials.is_changed()
+        && applied.is_some_and(|previous| {
+            (*wetness - previous).abs() < UPDATE_EPSILON
+                && !((*wetness == 0.0 || *wetness == 1.0) && *wetness != previous)
+        })
+    {
         return;
     }
-    if let Some(mut material) = chunks
-        .terrain_material_handle()
-        .and_then(|handle| terrain_materials.get_mut(&handle))
-    {
-        material.extension.weather = Vec4::new(*wetness, WETNESS_DARKENING, WETNESS_ROUGHNESS, 0.0);
-    }
-    if let Some(mut material) = chunks
-        .grass_material_handle()
-        .and_then(|handle| grass_materials.get_mut(&handle))
-    {
-        let darkening = 1.0 - (1.0 - WETNESS_DARKENING) * *wetness;
-        material.base.base_color = Color::linear_rgb(darkening, darkening, darkening);
-        material.base.perceptual_roughness = 0.95 + (WETNESS_ROUGHNESS - 0.95) * *wetness;
-    }
+    let (Some(mut terrain), Some(mut grass)) = (
+        terrain_materials.get_mut(&materials.terrain),
+        grass_materials.get_mut(&materials.grass),
+    ) else {
+        return;
+    };
+    terrain.extension.weather = Vec4::new(*wetness, WETNESS_DARKENING, WETNESS_ROUGHNESS, 0.0);
+    let darkening = 1.0 - (1.0 - WETNESS_DARKENING) * *wetness;
+    grass.base.base_color = Color::linear_rgb(darkening, darkening, darkening);
+    grass.base.perceptual_roughness = 0.95 + (WETNESS_ROUGHNESS - 0.95) * *wetness;
+    *applied = Some(*wetness);
 }
+
+#[cfg(test)]
+#[path = "tests/weather_surfaces.rs"]
+mod tests;

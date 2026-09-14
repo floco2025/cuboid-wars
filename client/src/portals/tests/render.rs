@@ -49,6 +49,79 @@ fn facing_pair() -> (PortalMap, PortalKey, PortalKey) {
 }
 
 #[test]
+fn disabling_the_main_camera_or_budget_clears_views_and_restores_fallbacks() {
+    let mut app = App::new();
+    let mut settings = crate::test_fixtures::client_settings();
+    settings.preferences.portal_view_budget = 2;
+    app.init_resource::<Assets<Mesh>>()
+        .init_resource::<Assets<Image>>()
+        .init_resource::<Assets<StandardMaterial>>()
+        .init_resource::<PortalAssets>()
+        .init_resource::<PortalRenderState>()
+        .init_resource::<Carriers>()
+        .init_resource::<Time<Fixed>>()
+        .insert_resource(settings)
+        .insert_resource(SceneRenderTarget {
+            handle: Handle::default(),
+            size: UVec2::splat(1000),
+        })
+        .add_systems(
+            Update,
+            (rebuild_portal_views_system, update_portal_view_cameras_system).chain(),
+        );
+    let (mut portals, _, _) = facing_pair();
+    let mut surfaces = Vec::new();
+    for portal in portals.wire_portals() {
+        let fallback = app.world().resource::<PortalAssets>().material(portal.end);
+        let entity = app.world_mut().spawn(MeshMaterial3d(fallback.clone())).id();
+        surfaces.push((entity, fallback));
+        portals.insert((portal.pair, portal.end), PortalInfo { entity, portal });
+    }
+    app.insert_resource(portals);
+    let main = app
+        .world_mut()
+        .spawn((
+            MainCameraMarker,
+            Camera3d::default(),
+            Transform::from_xyz(0.0, 1.0, 0.0),
+            perspective(),
+        ))
+        .id();
+    app.update();
+    assert!(!app.world().resource::<PortalRenderState>().spawned.is_empty());
+    let mut cameras = app.world_mut().query_filtered::<&Camera, With<PortalViewCamera>>();
+    assert!(cameras.iter(app.world()).any(|camera| camera.is_active));
+    for disable_camera in [true, false] {
+        if disable_camera {
+            app.world_mut().get_mut::<Camera>(main).expect("main camera").is_active = false;
+        } else {
+            app.world_mut()
+                .resource_mut::<ClientSettings>()
+                .preferences
+                .portal_view_budget = 0;
+        }
+        app.update();
+        assert!(app.world().resource::<PortalRenderState>().spawned.is_empty());
+        for (entity, fallback) in &surfaces {
+            assert_eq!(
+                &app.world()
+                    .get::<MeshMaterial3d<StandardMaterial>>(*entity)
+                    .expect("surface")
+                    .0,
+                fallback
+            );
+        }
+        app.world_mut().get_mut::<Camera>(main).expect("main camera").is_active = true;
+        app.world_mut()
+            .resource_mut::<ClientSettings>()
+            .preferences
+            .portal_view_budget = 2;
+        app.update();
+        assert!(!app.world().resource::<PortalRenderState>().spawned.is_empty());
+    }
+}
+
+#[test]
 fn projected_portal_footprint_shrinks_with_distance() {
     let camera = Transform::IDENTITY;
     let projection = perspective();
@@ -233,7 +306,6 @@ fn texture_size_follows_each_axis_of_the_footprint() {
 fn mapped(chain: &[PortalKey], footprint: Vec2) -> MappedView {
     MappedView {
         entity: Entity::PLACEHOLDER,
-        presenter: Entity::PLACEHOLDER,
         chain: chain.to_vec(),
         transform: Transform::IDENTITY,
         projection: Projection::default(),

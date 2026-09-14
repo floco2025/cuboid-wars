@@ -2,7 +2,7 @@ use std::f32::consts::PI;
 
 use bevy::{
     asset::RenderAssetUsages,
-    light::GeneratedEnvironmentMapLight,
+    light::{EnvironmentMapLight, GeneratedEnvironmentMapLight},
     prelude::*,
     render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureViewDescriptor, TextureViewDimension},
 };
@@ -10,7 +10,7 @@ use half::f16;
 
 use super::{celestial::SkyState, clouds::cumulus_toward};
 use crate::{
-    cameras::MainCameraMarker,
+    cameras::{MainCameraMarker, SkyRenderLayer},
     config::{ClientSettings, SkyConfig},
     constants::{
         SKY_CLOUD_COLOR, SKY_CLOUD_SCALE, SKY_CLOUD_SHADOW_COLOR, SKY_DAY_HORIZON_COLOR, SKY_DAY_ZENITH_COLOR,
@@ -138,6 +138,25 @@ pub fn refresh_sky_probe_system(
         && let Some(mut image) = images.get_mut(&probe.image)
     {
         image.data = Some(probe_bytes(&shown));
+    }
+}
+
+// Filter once on the main camera; every scene camera samples those same maps.
+pub fn share_sky_probe_system(
+    mut commands: Commands,
+    main: Query<Ref<EnvironmentMapLight>, With<MainCameraMarker>>,
+    cameras: Query<
+        (Entity, Option<&EnvironmentMapLight>),
+        (With<Camera3d>, With<SkyRenderLayer>, Without<MainCameraMarker>),
+    >,
+) {
+    let Ok(light) = main.single() else {
+        return;
+    };
+    for (camera, current) in &cameras {
+        if light.is_changed() || current.is_none() {
+            commands.entity(camera).insert((*light).clone());
+        }
     }
 }
 

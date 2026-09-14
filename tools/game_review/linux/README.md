@@ -22,6 +22,14 @@ c++ -std=c++20 -fPIC -Wall -Wextra -Wpedantic \
   -o /tmp/cuboid-wars-ei-input
 ```
 
+The action parser can be checked without Qt, libei, or a desktop connection:
+
+```sh
+c++ -std=c++20 -Wall -Wextra -Wpedantic -fsanitize=undefined \
+  tools/game_review/linux/tests/input_actions.cpp -o /tmp/cuboid-review-input-tests
+/tmp/cuboid-review-input-tests
+```
+
 ## Focus the game
 
 Launch with the shared guide's deterministic CLI, optionally prefixed by
@@ -63,6 +71,11 @@ Common Linux input-event codes are Esc `1`, W `17`, Enter `28`, F `33`, and V
 whole sequence is validated before anything is sent; a malformed action prints
 the usage and sends nothing. Every emitted event is followed by a 60 ms settle,
 so `hold` lasts its milliseconds plus about 120 ms.
+
+Key codes must be positive and within Linux's `KEY_MAX`; durations must fit a
+nonnegative signed integer. Motion must be finite, and scrolling must fit a
+signed integer after conversion to libei's 120ths of a click. Invalid numeric
+values are rejected before connecting to the compositor.
 
 ```sh
 /tmp/cuboid-wars-ei-input key 47 wait 500 move 180 0

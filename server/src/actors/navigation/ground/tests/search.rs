@@ -1,4 +1,4 @@
-use super::super::GroundNavigation;
+use super::super::{GroundNavigation, GroundSearchOptions};
 use super::{GroundSearchResult, NavGraphs, NavWaypoint};
 use crate::map::ZoneVolume;
 use crate::{
@@ -234,9 +234,7 @@ fn long_routes_resume_under_a_small_budget_and_failed_queries_are_cached() {
             target,
             |pos, _| (pos.distance_sq(&target) < 0.01).then_some(target),
             |_, _| true,
-            None,
-            None,
-            None,
+            GroundSearchOptions::default(),
         );
         assert!(state.work <= 4);
         match result {
@@ -261,9 +259,7 @@ fn long_routes_resume_under_a_small_budget_and_failed_queries_are_cached() {
                 target,
                 |_, _| None,
                 |_, _| true,
-                None,
-                None,
-                None
+                GroundSearchOptions::default()
             ),
             GroundSearchResult::Unreachable
         ) {
@@ -281,9 +277,7 @@ fn long_routes_resume_under_a_small_budget_and_failed_queries_are_cached() {
             target,
             |_, _| panic!("cached failure searched again"),
             |_, _| true,
-            None,
-            None,
-            None
+            GroundSearchOptions::default()
         ),
         GroundSearchResult::Unreachable
     ));
@@ -300,9 +294,7 @@ fn long_routes_resume_under_a_small_budget_and_failed_queries_are_cached() {
             },
             |_, _| None,
             |_, _| true,
-            None,
-            None,
-            None
+            GroundSearchOptions::default()
         ),
         GroundSearchResult::Pending
     ));
@@ -395,9 +387,7 @@ fn many_unreachable_queries_keep_their_per_tick_work_limit() {
                         None
                     },
                     |_, _| true,
-                    None,
-                    None,
-                    None,
+                    GroundSearchOptions::default(),
                 );
                 if matches!(result, GroundSearchResult::Pending) {
                     break;
@@ -505,12 +495,27 @@ fn a_goal_estimate_reaches_a_far_target_within_a_budget_a_plain_search_exhausts(
 
     let mut work = 200;
     let mut search = navigation.search(start).expect("start cell missing");
-    let result = navigation.advance(&mut search, goal, |_, _| true, Some(&estimate), &mut work, None, None);
+    let result = navigation.advance(
+        &mut search,
+        goal,
+        |_, _| true,
+        &mut work,
+        GroundSearchOptions {
+            heuristic: Some(&estimate),
+            ..Default::default()
+        },
+    );
     assert!(matches!(result, GroundSearchResult::Found(_)));
 
     let mut work = 200;
     let mut search = navigation.search(start).expect("start cell missing");
-    let result = navigation.advance(&mut search, goal, |_, _| true, None, &mut work, None, None);
+    let result = navigation.advance(
+        &mut search,
+        goal,
+        |_, _| true,
+        &mut work,
+        GroundSearchOptions::default(),
+    );
     assert!(matches!(result, GroundSearchResult::Pending));
 }
 

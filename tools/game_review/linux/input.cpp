@@ -5,95 +5,25 @@
 #include <QDBusUnixFileDescriptor>
 #include <QVariant>
 
+#include "input_actions.hpp"
+
 #include <libei.h>
-#include <linux/input-event-codes.h>
 #include <poll.h>
 #include <unistd.h>
 
 #include <chrono>
 #include <cstdio>
-#include <cstdlib>
-#include <cstring>
 #include <thread>
-#include <vector>
 
 namespace {
 
 // Every emitted frame is followed by this settle so the compositor delivers
 // events in order; `hold` therefore lasts its MS plus two settles.
 constexpr int kSettleMs = 60;
-// libei counts discrete scrolling in 120ths of a wheel click.
-constexpr int kScrollClick = 120;
-
 const char *kUsage =
     "usage: %s (key CODE|hold CODE MS|move DX DY|scroll CLICKS|click left|right|wait MS)...\n";
 
-struct Action {
-    enum Kind { Key, Hold, Move, Scroll, Click, Wait } kind;
-    uint32_t code = 0;
-    int ms = 0;
-    double dx = 0.0;
-    double dy = 0.0;
-};
-
-bool parse_integer(const char *text, long &value) {
-    char *end = nullptr;
-    value = std::strtol(text, &end, 0);
-    return *text != '\0' && *end == '\0';
-}
-
-bool parse_real(const char *text, double &value) {
-    char *end = nullptr;
-    value = std::strtod(text, &end);
-    return *text != '\0' && *end == '\0';
-}
-
-// The whole sequence is checked before any event is sent, so a typo at the
-// end cannot leave the game half-driven.
-bool parse_actions(int argc, char **argv, std::vector<Action> &actions) {
-    for (int i = 1; i < argc;) {
-        const char *word = argv[i];
-        long integer = 0;
-        double real = 0.0;
-        if (std::strcmp(word, "key") == 0 && i + 1 < argc && parse_integer(argv[i + 1], integer)) {
-            actions.push_back({Action::Key, static_cast<uint32_t>(integer)});
-            i += 2;
-        } else if (std::strcmp(word, "hold") == 0 && i + 2 < argc && parse_integer(argv[i + 1], integer)) {
-            long ms = 0;
-            if (!parse_integer(argv[i + 2], ms)) {
-                return false;
-            }
-            actions.push_back({Action::Hold, static_cast<uint32_t>(integer), static_cast<int>(ms)});
-            i += 3;
-        } else if (std::strcmp(word, "move") == 0 && i + 2 < argc && parse_real(argv[i + 1], real)) {
-            double dy = 0.0;
-            if (!parse_real(argv[i + 2], dy)) {
-                return false;
-            }
-            actions.push_back({Action::Move, 0, 0, real, dy});
-            i += 3;
-        } else if (std::strcmp(word, "scroll") == 0 && i + 1 < argc && parse_integer(argv[i + 1], integer)) {
-            actions.push_back({Action::Scroll, 0, static_cast<int>(integer)});
-            i += 2;
-        } else if (std::strcmp(word, "click") == 0 && i + 1 < argc) {
-            const char *button = argv[i + 1];
-            if (std::strcmp(button, "left") == 0) {
-                actions.push_back({Action::Click, BTN_LEFT});
-            } else if (std::strcmp(button, "right") == 0) {
-                actions.push_back({Action::Click, BTN_RIGHT});
-            } else {
-                return false;
-            }
-            i += 2;
-        } else if (std::strcmp(word, "wait") == 0 && i + 1 < argc && parse_integer(argv[i + 1], integer)) {
-            actions.push_back({Action::Wait, 0, static_cast<int>(integer)});
-            i += 2;
-        } else {
-            return false;
-        }
-    }
-    return !actions.empty();
-}
+using review_input::Action;
 
 struct Devices {
     ei_device *keyboard = nullptr;
@@ -210,8 +140,8 @@ ei_device *device_for(const Devices &devices, Action::Kind kind) {
 } // namespace
 
 int main(int argc, char **argv) {
-    std::vector<Action> actions;
-    if (!parse_actions(argc, argv, actions)) {
+    const auto actions = review_input::parse_actions(argc, argv);
+    if (!actions) {
         std::fprintf(stderr, kUsage, argv[0]);
         return 2;
     }
@@ -252,14 +182,14 @@ int main(int argc, char **argv) {
         std::fprintf(stderr, "no input devices became available\n");
         return 1;
     }
-    for (const Action &action : actions) {
+    for (const Action &action : *actions) {
         if (action.kind != Action::Wait && !device_for(session.devices, action.kind)) {
             std::fprintf(stderr, "the compositor offered no %s device\n", device_name(action.kind));
             return 1;
         }
     }
 
-    for (const Action &action : actions) {
+    for (const Action &action : *actions) {
         ei_device *device = device_for(session.devices, action.kind);
         switch (action.kind) {
         case Action::Key:
@@ -280,7 +210,7 @@ int main(int argc, char **argv) {
             session.frame(device);
             break;
         case Action::Scroll:
-            ei_device_scroll_discrete(device, 0, action.ms * kScrollClick);
+            ei_device_scroll_discrete(device, 0, action.scroll);
             session.frame(device);
             ei_device_scroll_stop(device, false, true);
             session.frame(device);

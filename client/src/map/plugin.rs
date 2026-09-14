@@ -20,6 +20,7 @@ use crate::{
 pub fn map_plugin(app: &mut App) {
     app.init_resource::<FocusedMapLevel>()
         .init_resource::<GrassChunks>()
+        .init_resource::<GrassSources>()
         .init_resource::<FieldMeshes>()
         .init_resource::<EraserAssets>()
         .init_resource::<CheckpointAssets>()
@@ -28,18 +29,18 @@ pub fn map_plugin(app: &mut App) {
         Update,
         (
             map_spawn_geometry_system,
-            grass_chunks_reset_system,
-            grounds::grounds_spawn_system.after(grass_chunks_reset_system),
+            (setup_grass_materials_system, grass_sources_reset_system).chain(),
+            grounds::grounds_spawn_system.after(grass_sources_reset_system),
             erasers_spawn_system,
             checkpoints_spawn_system,
-            terrain_spawn_system.after(grass_chunks_reset_system),
+            terrain_spawn_system.after(grass_sources_reset_system),
             (
                 grass_streaming_system
                     .after(terrain_spawn_system)
                     .after(grounds::grounds_spawn_system),
                 grass_chunk_finish_system.after(grass_streaming_system),
                 grass_burn_system.after(grass_chunk_finish_system),
-                weather_surfaces::weather_surfaces_system.after(grass_chunks_reset_system),
+                weather_surfaces::weather_surfaces_system.after(grass_sources_reset_system),
             ),
             update_focused_map_level_system,
             map_level_focus_visibility_system
@@ -85,6 +86,10 @@ pub fn sky_weather_plugin(app: &mut App) {
         (
             celestial::setup_sky_system,
             sky_probe::setup_sky_probe_system.after(ClientSet::Camera),
+            sky_probe::share_sky_probe_system
+                .after(ClientSet::Camera)
+                .after(sky_probe::setup_sky_probe_system)
+                .after(bevy::pbr::generate::generate_environment_map_light),
             sky_probe::refresh_sky_probe_system
                 .after(sky_probe::setup_sky_probe_system)
                 .after(celestial::celestial_state_system),

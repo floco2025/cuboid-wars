@@ -1,7 +1,4 @@
-use std::{
-    collections::{BTreeMap, HashMap},
-    sync::Arc,
-};
+use std::collections::HashMap;
 
 use bevy::{
     camera::{
@@ -12,54 +9,27 @@ use bevy::{
     prelude::*,
     tasks::{AsyncComputeTaskPool, Task, block_on, poll_once},
 };
-use common::{
-    map::{Carriers, Grounds},
-    protocol::{CarrierId, Floor, MapLayout, TERRAIN_MATERIAL},
-};
+use common::map::{Carriers, Grounds};
 use rand::RngExt;
 
 use super::{
     burn::GrassBurn,
-    material::grass_material,
+    material::GrassMaterials,
     mesh::{AABB_BASE_PAD, GrassLod, WIND_SWAY_FACTOR, grass_patch_mesh, grass_scatter_mesh},
     patch::GrassPatch,
+    sources::{ChunkKey, ChunkKind, GrassChunkSource, GrassSources, grounds_cell_center},
 };
 use crate::{
     cameras::MainCameraMarker,
-    config::{AssetSet, ClientSettings},
+    config::ClientSettings,
     constants::{
         GRASS_CHUNK_SIZE, GRASS_MID_CHUNKS_PER_FRAME, GRASS_MID_RANGE, GRASS_NEAR_CHUNKS_PER_FRAME, GRASS_NEAR_RANGE,
         GRASS_ROCK_CLEARANCE, GRASS_STREAM_HYSTERESIS, GRASS_STREAM_MARGIN, GRASS_WIND_STRENGTH,
     },
-    map::{DebugColors, MapLevel},
-    materials::{GrassMaterial, TerrainMaterial, terrain_material},
 };
 
 #[derive(Component)]
 pub struct GrassChunkMarker;
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(in crate::map) enum ChunkKind {
-    Terrain,
-    Grounds,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(in crate::map) struct ChunkKey {
-    pub(in crate::map) kind: ChunkKind,
-    pub(in crate::map) carrier: CarrierId,
-    pub(in crate::map) level: u8,
-    pub(in crate::map) x: i32,
-    pub(in crate::map) z: i32,
-}
-
-// What a chunk's blades scatter over: interior terrain patches clipped to the
-// compiled floor footprint, or the exterior height field.
-#[derive(Clone)]
-pub(crate) enum GrassChunkSource {
-    Patches { footprint: Arc<[Floor]> },
-    Grounds { grounds: Grounds, cell: IVec2 },
-}
 
 // A chunk whose mesh is still being built on the compute pool: a near chunk
 // is tens of thousands of blades, milliseconds the frame cannot spare while
@@ -81,123 +51,9 @@ pub struct GrassChunkVisual {
     pub(super) green: Color,
 }
 
-pub(in crate::map) struct ChunkEntry {
-    pub(in crate::map) patches: Vec<GrassPatch>,
-    pub(in crate::map) source: GrassChunkSource,
-    pub(in crate::map) origin: Vec3,
-    pub(in crate::map) carrier: CarrierId,
-    pub(in crate::map) parent: Option<Entity>,
-    pub(in crate::map) level: Option<MapLevel>,
-}
-
-struct GroundsGrass {
-    grounds: Grounds,
-    level: u8,
-}
-
-// The interior grass chunks the map could show, the exterior ground whose
-// cells are taken from the camera's surroundings, and the chunks built right
-// now. Chunks are built only around the camera: building the whole map at
-// once costs gigabytes of vertices for blades that are never within their
-// fade range.
 #[derive(Resource, Default)]
 pub struct GrassChunks {
-    entries: BTreeMap<ChunkKey, ChunkEntry>,
-    grounds: Option<GroundsGrass>,
-    spawned: HashMap<(ChunkKey, GrassLod), Entity>,
-    grass_material: Option<Handle<GrassMaterial>>,
-    terrain_material: Option<Handle<TerrainMaterial>>,
-    green: Color,
-    enabled: bool,
-}
-
-impl GrassChunks {
-    pub(in crate::map) fn register(&mut self, key: ChunkKey, entry: ChunkEntry) {
-        self.entries.insert(key, entry);
-    }
-
-    pub(in crate::map) fn set_grounds(&mut self, grounds: Grounds, level: u8) {
-        self.grounds = Some(GroundsGrass { grounds, level });
-    }
-
-    pub(crate) fn terrain_material(&self) -> Handle<TerrainMaterial> {
-        self.terrain_material
-            .clone()
-            .expect("terrain material missing before the map spawned")
-    }
-
-    pub(crate) fn terrain_material_handle(&self) -> Option<Handle<TerrainMaterial>> {
-        self.terrain_material.clone()
-    }
-
-    pub(crate) fn grass_material_handle(&self) -> Option<Handle<GrassMaterial>> {
-        self.grass_material.clone()
-    }
-
-    // Where a chunk's centre is this frame.
-    fn center(&self, key: &ChunkKey, carriers: &Carriers) -> Option<Vec3> {
-        match key.kind {
-            ChunkKind::Terrain => {
-                let entry = self.entries.get(key)?;
-                Some(carriers.pose(entry.carrier).transform_point(entry.origin))
-            }
-            ChunkKind::Grounds => {
-                let grounds = &self.grounds.as_ref()?.grounds;
-                let center = grounds_cell_center(IVec2::new(key.x, key.z));
-                Some(Vec3::new(center.x, grounds.height(center.x, center.y), center.y))
-            }
-        }
-    }
-}
-
-impl GroundsGrass {
-    // One chunk per ten-metre cell outside the map, out to the terrain's edge.
-    fn cell_is_meadow(&self, cell: IVec2) -> bool {
-        let center = grounds_cell_center(cell);
-        let grounds = &self.grounds;
-        let half = GRASS_CHUNK_SIZE * 0.5;
-        let inside = center.x.abs() + half < grounds.half_size[0] && center.y.abs() + half < grounds.half_size[1];
-        !inside && grounds.distance_outside_map(center.x, center.y) - half < grounds.extent()
-    }
-
-    fn key(&self, cell: IVec2) -> ChunkKey {
-        ChunkKey {
-            kind: ChunkKind::Grounds,
-            carrier: CarrierId::WORLD,
-            level: self.level,
-            x: cell.x,
-            z: cell.y,
-        }
-    }
-
-    fn entry(&self, cell: IVec2) -> ChunkEntry {
-        let center = grounds_cell_center(cell);
-        let origin = Vec3::new(center.x, self.grounds.height(center.x, center.y), center.y);
-        let patch = GrassPatch {
-            x1: cell.x as f32 * GRASS_CHUNK_SIZE,
-            x2: (cell.x + 1) as f32 * GRASS_CHUNK_SIZE,
-            z1: cell.y as f32 * GRASS_CHUNK_SIZE,
-            z2: (cell.y + 1) as f32 * GRASS_CHUNK_SIZE,
-            y: origin.y,
-            level: self.level,
-            carrier: CarrierId::WORLD,
-        };
-        ChunkEntry {
-            patches: vec![patch],
-            source: GrassChunkSource::Grounds {
-                grounds: self.grounds.clone(),
-                cell,
-            },
-            origin,
-            carrier: CarrierId::WORLD,
-            parent: None,
-            level: None,
-        }
-    }
-}
-
-fn grounds_cell_center(cell: IVec2) -> Vec2 {
-    (cell.as_vec2() + Vec2::splat(0.5)) * GRASS_CHUNK_SIZE
+    pub(super) spawned: HashMap<(ChunkKey, GrassLod), Entity>,
 }
 
 impl GrassLod {
@@ -232,47 +88,15 @@ impl GrassLod {
     }
 }
 
-// Runs before the terrain and grounds spawners: they register this map's
-// chunks into a cleared registry and take the one terrain material from it.
-pub fn grass_chunks_reset_system(
-    mut commands: Commands,
-    layout: Res<MapLayout>,
-    debug_colors: Res<DebugColors>,
-    settings: Res<ClientSettings>,
-    asset_set: Res<AssetSet>,
-    server: Res<AssetServer>,
-    mut chunks: ResMut<GrassChunks>,
-    mut grass_materials: ResMut<Assets<GrassMaterial>>,
-    mut terrain_materials: ResMut<Assets<TerrainMaterial>>,
-) {
-    if !layout.is_changed() && !debug_colors.is_changed() {
-        return;
-    }
-    for entity in chunks.spawned.values() {
-        commands.entity(*entity).despawn();
-    }
-    chunks.spawned.clear();
-    chunks.entries.clear();
-    chunks.grounds = None;
-    chunks.enabled = settings.grass.enabled;
-    chunks.green = settings.grass.base_color();
-    chunks.grass_material = Some(grass_materials.add(grass_material()));
-    chunks.terrain_material = Some(terrain_materials.add(terrain_material(
-        &server,
-        asset_set.material_by_id(TERRAIN_MATERIAL),
-        settings.rendering.texture_anisotropy,
-        settings.rendering.mipmaps,
-        settings.grass.base_color(),
-    )));
-}
-
 pub fn grass_streaming_system(
     mut commands: Commands,
     mut chunks: ResMut<GrassChunks>,
+    sources: Res<GrassSources>,
+    settings: Res<ClientSettings>,
     carriers: Res<Carriers>,
     camera: Query<&GlobalTransform, With<MainCameraMarker>>,
 ) {
-    if chunks.grass_material.is_none() || !chunks.enabled {
+    if !settings.grass.enabled {
         return;
     }
     let Ok(camera) = camera.single() else {
@@ -284,7 +108,7 @@ pub fn grass_streaming_system(
     let mut released = Vec::new();
     for (&(key, lod), &entity) in &chunks.spawned {
         let (_, stream_out) = lod.stream_radii();
-        let gone = chunks
+        let gone = sources
             .center(&key, &carriers)
             .is_none_or(|center| distance_to(center) > stream_out);
         if gone {
@@ -297,7 +121,7 @@ pub fn grass_streaming_system(
     }
 
     let mut wanted: Vec<(f32, ChunkKey, GrassLod)> = Vec::new();
-    for (key, entry) in &chunks.entries {
+    for (key, entry) in &sources.entries {
         let distance = distance_to(carriers.pose(entry.carrier).transform_point(entry.origin));
         for lod in [GrassLod::Near, GrassLod::Mid] {
             if distance <= lod.stream_radii().0 && !chunks.spawned.contains_key(&(*key, lod)) {
@@ -305,7 +129,7 @@ pub fn grass_streaming_system(
             }
         }
     }
-    if let Some(grounds) = &chunks.grounds {
+    if let Some(grounds) = &sources.grounds {
         for lod in [GrassLod::Near, GrassLod::Mid] {
             let (stream_in, _) = lod.stream_radii();
             let low = ((Vec2::new(eye.x, eye.z) - Vec2::splat(stream_in)) / GRASS_CHUNK_SIZE)
@@ -344,9 +168,9 @@ pub fn grass_streaming_system(
         budget[slot] -= 1;
         let grounds_entry;
         let entry = match key.kind {
-            ChunkKind::Terrain => &chunks.entries[&key],
+            ChunkKind::Terrain => &sources.entries[&key],
             ChunkKind::Grounds => {
-                grounds_entry = chunks
+                grounds_entry = sources
                     .grounds
                     .as_ref()
                     .expect("grounds grass cell wanted without grounds")
@@ -359,7 +183,7 @@ pub fn grass_streaming_system(
             source: entry.source.clone(),
             lod,
             origin: entry.origin,
-            green: chunks.green,
+            green: settings.grass.base_color(),
         };
         // Burns in effect reach a new chunk through `grass_burn_system`,
         // which rebuilds every chunk it sees added.
@@ -387,13 +211,11 @@ pub fn grass_streaming_system(
 // Gives every chunk whose build has finished its mesh.
 pub fn grass_chunk_finish_system(
     mut commands: Commands,
-    chunks: Res<GrassChunks>,
+    materials: Res<GrassMaterials>,
     mut builds: Query<(Entity, &mut GrassChunkBuild)>,
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
-    let Some(material) = chunks.grass_material.clone() else {
-        return;
-    };
+    let material = materials.grass.clone();
     for (entity, mut build) in &mut builds {
         let Some(mesh) = block_on(poll_once(&mut build.task)) else {
             continue;

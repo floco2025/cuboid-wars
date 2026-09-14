@@ -33,6 +33,13 @@ pub(crate) enum GroundSearchResult {
     Unreachable,
 }
 
+#[derive(Default, Clone, Copy)]
+pub(crate) struct GroundSearchOptions<'a> {
+    pub heuristic: Option<&'a dyn Fn(Position) -> f32>,
+    pub fallback: Option<&'a dyn Fn(Position) -> f32>,
+    pub expansion_limit: Option<usize>,
+}
+
 pub(crate) struct GroundSearch {
     start: Position,
     start_node: Node,
@@ -87,11 +94,14 @@ impl GroundNavigation<'_> {
         search: &mut GroundSearch,
         goal: impl Fn(Position, f32) -> Option<Position>,
         allowed: impl Fn(Position, Position) -> bool,
-        heuristic: Option<&dyn Fn(Position) -> f32>,
         work: &mut usize,
-        fallback: Option<&dyn Fn(Position) -> f32>,
-        limit: Option<usize>,
+        options: GroundSearchOptions<'_>,
     ) -> GroundSearchResult {
+        let GroundSearchOptions {
+            heuristic,
+            fallback,
+            expansion_limit: limit,
+        } = options;
         while *work > 0 && limit.is_none_or(|limit| search.expanded < limit) {
             let Some(entry) = search.queue.pop() else {
                 return self.finish(search);
@@ -287,7 +297,16 @@ impl GroundNavigation<'_> {
         fallback: Option<&dyn Fn(Position) -> f32>,
     ) -> Option<PlannedRoute> {
         let mut search = self.search(start)?;
-        match self.advance(&mut search, goal, allowed, None, &mut work, fallback, None) {
+        match self.advance(
+            &mut search,
+            goal,
+            allowed,
+            &mut work,
+            GroundSearchOptions {
+                fallback,
+                ..Default::default()
+            },
+        ) {
             GroundSearchResult::Found(route) => Some(route),
             _ => None,
         }

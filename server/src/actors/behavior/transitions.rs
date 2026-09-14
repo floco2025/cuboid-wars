@@ -1,12 +1,12 @@
-use bevy::prelude::Vec3;
+use bevy::prelude::{Vec2, Vec3};
 use rand::{Rng, RngExt};
 
 use crate::{
     actors::{
         ActorInfo, ActorMode, ActorRoute,
         navigation::{
-            ActorTerritory, GroundNavigation, GroundSearchResult, GroundTask, NavGraph, NavGraphs, PlannedRoute,
-            evade_clearance, segment_threat_distance_sq,
+            ActorTerritory, GroundNavigation, GroundSearchOptions, GroundSearchResult, GroundTask, NavGraph, NavGraphs,
+            PlannedRoute, evade_clearance, segment_threat_distance_sq,
         },
     },
     config::ActorKindServerConfig,
@@ -19,6 +19,10 @@ use common::{
 };
 
 pub(super) const EVADE_REPLAN_INTERVAL_SECS: f32 = 0.5;
+// Expansions a pursuit may spend before the target counts as unreachable.
+// The grounds continue the graph to the horizon, so a target no node can
+// attack would otherwise keep the search, and the actor, waiting for good.
+const PURSUIT_SEARCH_LIMIT: usize = 4096;
 
 // Navigation happens in the actor's carrier frame and everything physical
 // in the world: `pos` and every route position are carrier-local, the
@@ -152,9 +156,11 @@ pub(super) fn enter_evade(info: &mut ActorInfo, context: &BehaviorContext<'_>, r
         target,
         |pos, _| context.stable_cover(&context.to_local(&pos), &threats).then_some(pos),
         |from, to| segment_threat_distance_sq(from.into(), to.into(), &threats) + 0.00001 >= minimum,
-        None,
-        Some(&retreat),
-        Some(256),
+        GroundSearchOptions {
+            fallback: Some(&retreat),
+            expansion_limit: Some(256),
+            ..Default::default()
+        },
     );
     info.mode = ActorMode::Evade { fleeing: true };
     match result {
@@ -216,9 +222,11 @@ pub(super) fn enter_roam_or_return(info: &mut ActorInfo, context: &BehaviorConte
                     .territory
                     .path_contains(context.to_local(&from).into(), context.to_local(&to).into())
         },
-        (!roaming).then_some(&travel_home as &dyn Fn(Position) -> f32),
-        roaming.then_some(&score as &dyn Fn(Position) -> f32),
-        roaming.then_some(128),
+        GroundSearchOptions {
+            heuristic: (!roaming).then_some(&travel_home as &dyn Fn(Position) -> f32),
+            fallback: roaming.then_some(&score as &dyn Fn(Position) -> f32),
+            expansion_limit: roaming.then_some(128),
+        },
     );
     match result {
         GroundSearchResult::Pending => info.decision_timer = 0.0,
@@ -277,6 +285,13 @@ pub(super) fn keep_or_install_engagement_route(
     // Routes walk the grid one axis at a time, so the walk left to the
     // target is at least its distance along both.
     let travel_to_target = |pos: Position| (target_pos.x - pos.x).abs() + (target_pos.z - pos.z).abs();
+    // A contact attacker aims for the touching point on its own side of the
+    // target, not the target itself: a body placed on the target overlaps
+    // whatever the target stands against, and a wall-hugging player would
+    // then have no attack position at all.
+    let standoff = context.kind_config.attack.contact_trigger_gap().map(|gap| {
+        context.actor_physics.movement_collider.radius() + context.player_physics.movement_collider.radius() + gap * 0.5
+    });
     let result = info.ground.route(
         &context.navigation(&info.spawn_kind),
         GroundTask::Pursue(target),
@@ -287,17 +302,27 @@ pub(super) fn keep_or_install_engagement_route(
                 return Some(pos);
             }
             let reach = (cell_size * 0.5 - context.actor_physics.movement_collider.radius()).max(0.0);
+            let mut aim = Vec2::new(target_pos.x, target_pos.z);
+            if let Some(standoff) = standoff {
+                let toward = aim - Vec2::new(pos.x, pos.z);
+                let distance = toward.length();
+                if distance > standoff {
+                    aim -= toward * (standoff / distance);
+                }
+            }
             let candidate = Position {
-                x: target_pos.x.clamp(pos.x - reach, pos.x + reach),
+                x: aim.x.clamp(pos.x - reach, pos.x + reach),
                 y: pos.y,
-                z: target_pos.z.clamp(pos.z - reach, pos.z + reach),
+                z: aim.y.clamp(pos.z - reach, pos.z + reach),
             };
             super::geometry::attack_position(candidate, target_pos, beam).then_some(candidate)
         },
         |_, _| true,
-        Some(&travel_to_target),
-        None,
-        None,
+        GroundSearchOptions {
+            heuristic: Some(&travel_to_target),
+            expansion_limit: Some(PURSUIT_SEARCH_LIMIT),
+            ..Default::default()
+        },
     );
     let planned = match result {
         GroundSearchResult::Pending => {

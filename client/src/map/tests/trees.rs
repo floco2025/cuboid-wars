@@ -3,6 +3,53 @@ use bevy::mesh::VertexAttributeValues;
 use common::map::RockClass;
 
 #[test]
+fn swaying_tree_vertices_stay_inside_transformed_bounds() {
+    for variant in 0..TREE_VARIANTS {
+        let tree = Tree::grow(variant);
+        for lod in 0..NEAR_LODS {
+            let (wood, leaves) = tree.meshes(lod);
+            for mesh in [wood, leaves] {
+                let bounds = mesh.compute_aabb().expect("tree bounds");
+                let Some(VertexAttributeValues::Float32x3(vertices)) = mesh.attribute(Mesh::ATTRIBUTE_POSITION) else {
+                    panic!("tree positions");
+                };
+                for scale in [Vec3::splat(0.8), Vec3::splat(1.6), Vec3::new(0.8, 1.2, 1.6)] {
+                    let padded = padded_tree_bounds(bounds, scale);
+                    for yaw in [0.0, 0.7, 2.8] {
+                        let rotation = Quat::from_rotation_y(yaw);
+                        for phase in [0.0_f32, 1.7, 4.2] {
+                            for time in [0.0_f32, 2.0, 7.0] {
+                                for gust in [0.0_f32, 0.5, 1.0] {
+                                    for vertex in vertices.iter().step_by(13) {
+                                        let local = Vec3::from_array(*vertex);
+                                        let weight = (local.y / 10.0).clamp(0.0, 1.0);
+                                        let drive = 0.5 + 0.5 * gust;
+                                        let trunk = weight * weight * ((time + phase).sin() * drive + 1.2 * gust);
+                                        let branch = weight
+                                            * 0.35
+                                            * drive
+                                            * (time * 1.8 + phase - local.xz().length() * 0.4).sin();
+                                        let cross = weight * weight * 0.25 * (time * 0.83 + phase * 1.7).sin();
+                                        let wind = Vec3::new(trunk + branch, 0.0, cross) * TREE_WIND_STRENGTH;
+                                        let displaced = local + rotation.inverse() * wind / scale;
+                                        assert!(
+                                            (displaced - Vec3::from(padded.center))
+                                                .abs()
+                                                .cmple(padded.half_extents.into())
+                                                .all()
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
 fn tree_detail_levels_have_valid_surfaces_and_reduce_geometry() {
     for variant in 0..TREE_VARIANTS {
         let tree = Tree::grow(variant);

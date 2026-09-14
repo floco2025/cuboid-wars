@@ -7,7 +7,8 @@ use super::{
     burn::{BURN_VERTICAL_TOLERANCE, GrassBurn, grass_burn_system},
     mesh::{BLADE_HEIGHT_MAX, GrassLod, MID_SWAY_WEIGHT, VERTICES_PER_BLADE, WIND_SWAY_FACTOR, grass_patch_mesh},
     patch::GrassPatch,
-    streaming::{GrassChunkSource, GrassChunkVisual, grass_chunk_mesh, padded_grass_bounds},
+    sources::GrassChunkSource,
+    streaming::{GrassChunkVisual, grass_chunk_mesh, padded_grass_bounds},
 };
 use crate::{
     constants::{

@@ -20,6 +20,6 @@ pub(crate) use graph::NavNode;
 pub use graphs::{NavGraphs, nav_bridges_sync_system};
 pub(crate) use ladders::LadderLink;
 pub(crate) use routing::PlannedRoute;
-pub(crate) use search::{GroundNavigation, GroundSearch, GroundSearchResult};
+pub(crate) use search::{GroundNavigation, GroundSearch, GroundSearchOptions, GroundSearchResult};
 pub(crate) use state::{GroundState, GroundTask};
 pub(crate) use waypoint::{NavWaypoint, WALK_REACH_DISTANCE, WaypointKind};

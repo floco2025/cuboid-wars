@@ -33,7 +33,7 @@ use common::{
 
 const MAX_PORTAL_VIEW_CAMERAS: usize = 64 - RENDER_LAYER_PORTAL_VIEW_START;
 const MAX_PORTAL_REPLICAS: usize = 512;
-// Texture sizes per axis; a view only ever needs the presenter's pixels.
+// Texture sizes per axis; a view only ever needs the main camera's pixels.
 const PORTAL_VIEW_AXIS_SIZES: [u32; 6] = [64, 128, 256, 512, 1024, 2048];
 const RESOLUTION_SHRINK_THRESHOLD: f32 = 0.8;
 
@@ -41,7 +41,6 @@ type PortalKey = (PortalPairId, PortalEnd);
 
 #[derive(Component)]
 struct PortalViewCamera {
-    presenter: Entity,
     chain: Vec<PortalKey>,
     target_surface: Entity,
     target: PortalViewTarget,
@@ -58,13 +57,11 @@ struct PortalViewTarget {
 struct PortalRenderState {
     portals: Vec<Portal>,
     budget: Option<u8>,
-    presenters: Vec<Entity>,
-    roots: Vec<(Entity, PortalKey)>,
+    roots: Vec<PortalKey>,
     spawned: Vec<Entity>,
 }
 
 struct PendingView {
-    presenter: Entity,
     chain: Vec<PortalKey>,
     target_surface: Entity,
     recursion_remaining: u8,
@@ -74,7 +71,6 @@ struct PendingView {
 // and its entry aperture's on-screen footprint in pixels.
 struct MappedView {
     entity: Entity,
-    presenter: Entity,
     chain: Vec<PortalKey>,
     transform: Transform,
     projection: Projection,
@@ -101,7 +97,7 @@ pub fn portal_render_plugin(app: &mut App) {
 
 fn rebuild_portal_views_system(
     mut commands: Commands,
-    main_camera: Query<(Entity, &Transform, &Projection, &Camera), With<MainCameraMarker>>,
+    main_camera: Query<(&Transform, &Projection, &Camera), With<MainCameraMarker>>,
     scene_target: Res<SceneRenderTarget>,
     portals: Res<PortalMap>,
     carriers: Res<Carriers>,
@@ -113,7 +109,7 @@ fn rebuild_portal_views_system(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut surface_materials: Query<&mut MeshMaterial3d<StandardMaterial>>,
 ) {
-    let Ok((main_entity, main_transform, main_projection, main_camera)) = main_camera.single() else {
+    let Ok((main_transform, main_projection, main_camera)) = main_camera.single() else {
         return;
     };
     let wire_portals = portals.wire_portals();
@@ -124,42 +120,27 @@ fn rebuild_portal_views_system(
         .copied()
         .filter(|portal| paired_portal(&portals, portal).is_some())
         .collect();
-    let mut presenter_views = Vec::new();
-    if main_camera.is_active {
-        presenter_views.push((main_entity, main_transform, main_projection));
-    }
-    let presenters: Vec<_> = presenter_views.iter().map(|(entity, ..)| *entity).collect();
-    // Every complete root is built while they fit the budget, so the graph
-    // changes only with the portals themselves; with more roots than budget,
-    // each presenter keeps the largest on screen and the graph follows the view.
-    let roots: Vec<_> = presenter_views
-        .iter()
-        .flat_map(|(entity, transform, projection)| {
-            let keys: Vec<PortalKey> = if complete_portals.len() <= usize::from(budget) {
-                complete_portals
-                    .iter()
-                    .map(|portal| (portal.pair, portal.end))
-                    .collect()
-            } else {
-                largest_visible_roots(
-                    &portals,
-                    &complete_portals,
-                    &carriers,
-                    alpha,
-                    transform,
-                    projection,
-                    scene_target.size,
-                    usize::from(budget),
-                )
-            };
-            keys.into_iter().map(|key| (*entity, key))
-        })
-        .collect();
-    if state.portals == wire_portals
-        && state.budget == Some(budget)
-        && state.presenters == presenters
-        && state.roots == roots
-    {
+    // Keep every root while they fit; otherwise follow the largest visible apertures.
+    let roots: Vec<_> = if !main_camera.is_active {
+        Vec::new()
+    } else if complete_portals.len() <= usize::from(budget) {
+        complete_portals
+            .iter()
+            .map(|portal| (portal.pair, portal.end))
+            .collect()
+    } else {
+        largest_visible_roots(
+            &portals,
+            &complete_portals,
+            &carriers,
+            alpha,
+            main_transform,
+            main_projection,
+            scene_target.size,
+            usize::from(budget),
+        )
+    };
+    if state.portals == wire_portals && state.budget == Some(budget) && state.roots == roots {
         return;
     }
 
@@ -175,7 +156,6 @@ fn rebuild_portal_views_system(
     }
     state.portals = wire_portals;
     state.budget = Some(budget);
-    state.presenters = presenters;
     state.roots = roots;
     if budget == 0 || state.roots.is_empty() {
         return;
@@ -184,7 +164,7 @@ fn rebuild_portal_views_system(
     let mut over_budget = false;
     let mut replica_count = 0;
     let mut pending = VecDeque::new();
-    for &(presenter, key) in &state.roots {
+    for &key in &state.roots {
         if pending.len() >= MAX_PORTAL_VIEW_CAMERAS {
             over_budget = true;
             break;
@@ -193,7 +173,6 @@ fn rebuild_portal_views_system(
             continue;
         };
         pending.push_back(PendingView {
-            presenter,
             chain: vec![key],
             target_surface,
             recursion_remaining: budget.saturating_sub(1),
@@ -215,7 +194,6 @@ fn rebuild_portal_views_system(
         let initial_image = target.image.clone();
         let mut camera = commands.spawn((
             PortalViewCamera {
-                presenter: view.presenter,
                 chain: view.chain.clone(),
                 target_surface: view.target_surface,
                 target,
@@ -268,7 +246,6 @@ fn rebuild_portal_views_system(
             let mut chain = view.chain.clone();
             chain.push((portal.pair, portal.end));
             pending.push_back(PendingView {
-                presenter: view.presenter,
                 chain,
                 target_surface: replica,
                 recursion_remaining: view.recursion_remaining - 1,
@@ -336,7 +313,7 @@ fn create_portal_view_target(
 }
 
 fn update_portal_view_cameras_system(
-    presenters: Query<(&Transform, &Projection, &Camera), (With<MainCameraMarker>, Without<PortalViewCamera>)>,
+    main_camera: Query<(&Transform, &Projection, &Camera), (With<MainCameraMarker>, Without<PortalViewCamera>)>,
     scene_target: Res<SceneRenderTarget>,
     portals: Res<PortalMap>,
     carriers: Res<Carriers>,
@@ -356,11 +333,12 @@ fn update_portal_view_cameras_system(
     mut surface_materials: Query<&mut MeshMaterial3d<StandardMaterial>>,
 ) {
     let alpha = fixed_time.overstep_fraction();
-    let mut mapped: Vec<MappedView> = view_cameras
+    let main = main_camera.single().ok();
+    let mapped: Vec<MappedView> = view_cameras
         .iter()
         .filter_map(|(entity, view, ..)| {
-            let (presenter_transform, presenter_projection, presenter_camera) = presenters.get(view.presenter).ok()?;
-            if !presenter_camera.is_active {
+            let (main_transform, main_projection, main_camera) = main?;
+            if !main_camera.is_active {
                 return None;
             }
             let (transform, projection, footprint, rect) = view_through_chain(
@@ -368,13 +346,12 @@ fn update_portal_view_cameras_system(
                 &view.chain,
                 &carriers,
                 alpha,
-                presenter_transform,
-                presenter_projection,
+                main_transform,
+                main_projection,
                 scene_target.size,
             )?;
             Some(MappedView {
                 entity,
-                presenter: view.presenter,
                 chain: view.chain.clone(),
                 transform,
                 projection,
@@ -383,19 +360,11 @@ fn update_portal_view_cameras_system(
             })
         })
         .collect();
-    // Each presenting camera spends its own budget.
-    mapped.sort_by_key(|view| view.presenter);
     let budget = client_settings.preferences.portal_view_budget as usize;
-    let mut admitted: HashMap<Entity, usize> = HashMap::new();
-    let mut start = 0;
-    for group in mapped.chunk_by(|a, b| a.presenter == b.presenter) {
-        admitted.extend(
-            admit_views(group, budget)
-                .into_iter()
-                .map(|index| (group[index].entity, start + index)),
-        );
-        start += group.len();
-    }
+    let admitted: HashMap<Entity, usize> = admit_views(&mapped, budget)
+        .into_iter()
+        .map(|index| (mapped[index].entity, index))
+        .collect();
 
     for (entity, mut view, mut camera, mut render_target, mut transform, mut projection) in &mut view_cameras {
         let admitted_view = admitted.get(&entity).map(|&index| &mapped[index]);
@@ -472,19 +441,19 @@ fn admit_views(views: &[MappedView], budget: usize) -> Vec<usize> {
 // screen in the view before it. `None` when a hop is invalid or off screen —
 // computed from this frame's camera rather than read back from visibility,
 // so activation never lags a frame. Returns the final view, the last hop's
-// footprint in presenter pixels, and the aperture rectangle it renders.
+// footprint in main-camera pixels, and the aperture rectangle it renders.
 fn view_through_chain(
     portals: &PortalMap,
     chain: &[PortalKey],
     carriers: &Carriers,
     alpha: f32,
-    presenter_transform: &Transform,
-    presenter_projection: &Projection,
-    presenter_size: UVec2,
+    main_transform: &Transform,
+    main_projection: &Projection,
+    main_size: UVec2,
 ) -> Option<(Transform, Projection, Vec2, Rect)> {
-    let mut view_transform = *presenter_transform;
-    let mut view_projection = presenter_projection.clone();
-    let mut footprint = presenter_size.as_vec2();
+    let mut view_transform = *main_transform;
+    let mut view_projection = main_projection.clone();
+    let mut footprint = main_size.as_vec2();
     let mut rect = full_aperture();
     for key in chain {
         let entry = &portals.get(key)?.portal;
@@ -498,7 +467,7 @@ fn view_through_chain(
             view_transform.translation,
             &entry_frame,
             &exit_frame,
-            presenter_projection.far(),
+            main_projection.far(),
             rect,
         )?;
         view_transform = next_transform;

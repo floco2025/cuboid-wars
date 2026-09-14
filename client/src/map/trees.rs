@@ -2,7 +2,10 @@ use std::f32::consts::TAU;
 
 use bevy::{
     asset::RenderAssetUsages,
-    camera::visibility::VisibilityRange,
+    camera::{
+        primitives::{Aabb, MeshAabb},
+        visibility::VisibilityRange,
+    },
     light::NotShadowCaster,
     mesh::{Indices, PrimitiveTopology},
     prelude::*,
@@ -22,9 +25,12 @@ use crate::{
 // distant trees merge into.
 const NEAR_LODS: usize = 3;
 const FAR_LOD: usize = 3;
+// Bounds the trunk swing, gust lean, branch swing, and crosswind swing in
+// tree_wind.wgsl. Sway is added in world space after the model transform.
+const WIND_SWAY_FACTOR: f32 = 1.0 + 1.2 + 0.35 + 0.25;
 
 pub(super) struct TreeAssets {
-    near: Vec<Vec<(Handle<Mesh>, Handle<Mesh>)>>,
+    near: Vec<Vec<[(Handle<Mesh>, Aabb); 2]>>,
     far: Vec<(Mesh, Mesh)>,
     bark: Handle<TreeMaterial>,
     foliage: Handle<TreeMaterial>,
@@ -46,7 +52,10 @@ impl TreeAssets {
                 (0..NEAR_LODS)
                     .map(|lod| {
                         let (wood, leaves) = tree.meshes(lod);
-                        (meshes.add(wood), meshes.add(leaves))
+                        [wood, leaves].map(|mesh| {
+                            let bounds = mesh.compute_aabb().expect("tree positions missing");
+                            (meshes.add(mesh), bounds)
+                        })
                     })
                     .collect()
             })
@@ -76,7 +85,7 @@ impl TreeAssets {
     // other with distance, swaying in the wind, the near two casting shadows.
     pub(super) fn spawn(&self, commands: &mut Commands, root: Entity, decoration: &GroundDecoration) {
         let variant = &self.near[decoration.variant as usize % self.near.len()];
-        for (lod, (wood, leaves)) in variant.iter().enumerate() {
+        for (lod, parts) in variant.iter().enumerate() {
             let range = VisibilityRange {
                 start_margin: if lod == 0 {
                     0.0..0.0
@@ -86,13 +95,14 @@ impl TreeAssets {
                 end_margin: TREE_LOD_DISTANCES[lod][0]..TREE_LOD_DISTANCES[lod][1],
                 use_aabb: false,
             };
-            for (mesh, material) in [(wood, &self.bark), (leaves, &self.foliage)] {
+            for ((mesh, bounds), material) in parts.iter().zip([&self.bark, &self.foliage]) {
                 let mut entity = commands.spawn((
                     ChildOf(root),
                     Mesh3d(mesh.clone()),
                     MeshMaterial3d(material.clone()),
                     Transform::default(),
                     range.clone(),
+                    padded_tree_bounds(*bounds, decoration.scale),
                 ));
                 if lod == 2 {
                     entity.insert(NotShadowCaster);
@@ -138,6 +148,16 @@ impl TreeAssets {
     pub(super) fn far_materials(&self) -> (Handle<StandardMaterial>, Handle<StandardMaterial>) {
         (self.far_bark.clone(), self.far_foliage.clone())
     }
+}
+
+fn padded_tree_bounds(mut bounds: Aabb, scale: Vec3) -> Aabb {
+    let smallest_scale = scale.abs().min_element();
+    assert!(
+        smallest_scale.is_finite() && smallest_scale > 0.0,
+        "tree scale must be finite and nonzero"
+    );
+    bounds.half_extents += TREE_WIND_STRENGTH * WIND_SWAY_FACTOR / smallest_scale + 0.01;
+    bounds
 }
 
 fn bark_material() -> StandardMaterial {

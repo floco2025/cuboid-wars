@@ -1,8 +1,10 @@
 use bevy::prelude::*;
+use common::protocol::TERRAIN_MATERIAL;
 
 use crate::{
+    config::{AssetSet, ClientSettings},
     constants::{GRASS_WIND_DIRECTION_DEGREES, GRASS_WIND_SPEED, GRASS_WIND_STRENGTH},
-    materials::{GrassMaterial, GrassWindExtension},
+    materials::{GrassMaterial, GrassWindExtension, TerrainMaterial, terrain_material},
 };
 
 pub(super) fn grass_material() -> GrassMaterial {
@@ -26,4 +28,34 @@ pub(super) fn grass_material() -> GrassMaterial {
             ),
         },
     }
+}
+
+#[derive(Resource)]
+pub struct GrassMaterials {
+    pub(crate) grass: Handle<GrassMaterial>,
+    pub(crate) terrain: Handle<TerrainMaterial>,
+}
+
+pub fn setup_grass_materials_system(
+    mut commands: Commands,
+    existing: Option<Res<GrassMaterials>>,
+    settings: Res<ClientSettings>,
+    asset_set: Res<AssetSet>,
+    server: Res<AssetServer>,
+    mut grass: ResMut<Assets<GrassMaterial>>,
+    mut terrain: ResMut<Assets<TerrainMaterial>>,
+) {
+    if existing.is_some() {
+        return;
+    }
+    commands.insert_resource(GrassMaterials {
+        grass: grass.add(grass_material()),
+        terrain: terrain.add(terrain_material(
+            &server,
+            asset_set.material_by_id(TERRAIN_MATERIAL),
+            settings.rendering.texture_anisotropy,
+            settings.rendering.mipmaps,
+            settings.grass.base_color(),
+        )),
+    });
 }

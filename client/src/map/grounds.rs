@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use crate::{
     config::{AssetSet, ClientSettings},
     constants::{DECORATION_FAR_CHUNK_SIZE, DECORATION_FAR_FADE, DECORATION_NEAR_BAND},
-    map::grass::GrassChunks,
+    map::grass::GrassMaterials,
     materials::TreeMaterial,
 };
 use bevy::{
@@ -32,7 +32,7 @@ pub(super) fn grounds_spawn_system(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut tree_materials: ResMut<Assets<TreeMaterial>>,
-    mut chunks: ResMut<GrassChunks>,
+    grass_materials: Res<GrassMaterials>,
     existing: Query<Entity, With<GroundsVisual>>,
 ) {
     if !layout.is_changed() {
@@ -42,7 +42,7 @@ pub(super) fn grounds_spawn_system(
         commands.entity(entity).despawn();
     }
     let Some(grounds) = &layout.grounds else { return };
-    let material = chunks.terrain_material();
+    let material = grass_materials.terrain.clone();
     let terrain = grounds.mesh();
     let positions: Vec<[f32; 3]> = terrain.vertices.iter().map(|v| v.to_array()).collect();
     let uvs: Vec<[f32; 2]> = terrain.vertices.iter().map(|v| [v.x, v.z]).collect();
@@ -62,8 +62,6 @@ pub(super) fn grounds_spawn_system(
         MeshMaterial3d(material),
         Transform::default(),
     ));
-
-    chunks.set_grounds(grounds.clone(), grounds.settings.level);
 
     let trees = TreeAssets::new(&server, &mut meshes, &mut materials, &mut tree_materials);
     let rocks = RockAssets::new(&server, &asset_set, &settings, &mut meshes, &mut materials);

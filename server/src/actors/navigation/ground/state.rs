@@ -1,6 +1,6 @@
 use common::protocol::{BarrierId, CarrierId, PlayerId, Position};
 
-use super::{GroundNavigation, GroundSearch, GroundSearchResult};
+use super::{GroundNavigation, GroundSearch, GroundSearchOptions, GroundSearchResult};
 
 const FAILED_ROUTE_RETRY_SECS: f32 = 1.0;
 
@@ -80,9 +80,7 @@ impl GroundState {
         target: Position,
         goal: impl Fn(Position, f32) -> Option<Position>,
         allowed: impl Fn(Position, Position) -> bool,
-        heuristic: Option<&dyn Fn(Position) -> f32>,
-        fallback: Option<&dyn Fn(Position) -> f32>,
-        limit: Option<usize>,
+        options: GroundSearchOptions<'_>,
     ) -> GroundSearchResult {
         let revision = nav.world.geometry_revision();
         if self.failures.iter().any(|failure| {
@@ -113,15 +111,7 @@ impl GroundState {
             });
         }
         let query = self.query.as_mut().expect("ground search missing from active query");
-        let result = nav.advance(
-            &mut query.search,
-            goal,
-            &allowed,
-            heuristic,
-            &mut self.work,
-            fallback,
-            limit,
-        );
+        let result = nav.advance(&mut query.search, goal, &allowed, &mut self.work, options);
         match result {
             GroundSearchResult::Pending => GroundSearchResult::Pending,
             GroundSearchResult::Found(mut route) => {

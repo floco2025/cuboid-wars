@@ -97,7 +97,7 @@ struct StochasticFrame {
     id_2: vec2<i32>,
 }
 
-fn stochastic_frame(position: vec2<f32>) -> StochasticFrame {
+fn stochastic_frame(position: vec2<f32>, gradient_x: vec2<f32>, gradient_y: vec2<f32>) -> StochasticFrame {
     let skewed = vec2(position.x - position.y * 0.577350269, position.y * 1.154700538);
     let base = vec2<i32>(floor(skewed));
     let local = fract(skewed);
@@ -115,8 +115,8 @@ fn stochastic_frame(position: vec2<f32>) -> StochasticFrame {
         frame.id_2 = base + vec2(0, 1);
     }
     frame.position = position;
-    frame.gradient_x = dpdx(position);
-    frame.gradient_y = dpdy(position);
+    frame.gradient_x = gradient_x;
+    frame.gradient_y = gradient_y;
     return frame;
 }
 
@@ -157,7 +157,7 @@ fn grass_variant(frame: StochasticFrame, id: vec2<i32>) -> vec3<f32> {
 }
 
 fn stochastic_grass(position: vec2<f32>) -> vec3<f32> {
-    let frame = stochastic_frame(position);
+    let frame = stochastic_frame(position, dpdx(position), dpdy(position));
     let blend = grass_variant(frame, frame.id_0) * frame.weights.x
         + grass_variant(frame, frame.id_1) * frame.weights.y
         + grass_variant(frame, frame.id_2) * frame.weights.z;
@@ -176,8 +176,7 @@ fn soil_variant(frame: StochasticFrame, id: vec2<i32>) -> vec3<f32> {
     ).rgb;
 }
 
-fn stochastic_soil(position: vec2<f32>) -> vec3<f32> {
-    let frame = stochastic_frame(position);
+fn stochastic_soil(frame: StochasticFrame) -> vec3<f32> {
     let blend = soil_variant(frame, frame.id_0) * frame.weights.x
         + soil_variant(frame, frame.id_1) * frame.weights.y
         + soil_variant(frame, frame.id_2) * frame.weights.z;
@@ -217,12 +216,14 @@ fn fragment(in: VertexOutput, @builtin(front_facing) is_front: bool) -> Fragment
     // dearest part of the shader; explicit gradients make skipping them safe.
     var soil_color = vec3(0.0);
     var soil_height = 0.0;
+    let soil_warp = vec2(
+        terrain_noise(uv / 7.7 + vec2(89.0, 17.0)),
+        terrain_noise(uv / 9.1 + vec2(23.0, 157.0))
+    ) * 0.24 - vec2(0.12);
+    let soil_uv = (uv + soil_warp) / surface.w;
+    let soil_frame = stochastic_frame(soil_uv, dpdx(soil_uv), dpdy(soil_uv));
     if bare > 0.005 {
-        let soil_warp = vec2(
-            terrain_noise(uv / 7.7 + vec2(89.0, 17.0)),
-            terrain_noise(uv / 9.1 + vec2(23.0, 157.0))
-        ) * 0.24 - vec2(0.12);
-        let soil = stochastic_soil((uv + soil_warp) / surface.w);
+        let soil = stochastic_soil(soil_frame);
         let soil_macro = terrain_noise(uv / 4.9 + vec2(181.0, 61.0)) * 0.65
             + terrain_noise(uv / 2.4 + vec2(73.0, 227.0)) * 0.35;
         soil_color = soil * mix(vec3(0.88, 0.9, 0.94), vec3(1.1, 1.05, 0.97), soil_macro);

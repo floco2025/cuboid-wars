@@ -28,8 +28,6 @@
 
 - **Rapier upgrades:** Recheck the capsule floor-motion regression before removing the contact-normal adapter in `common/src/physics/world/character_queries.rs`. It works around imprecise cast normals feeding Rapier’s slope decomposition; `running_across_flat_floor_tiles_keeps_its_speed` still fails without it on 0.35. Whatever replaces it must keep its contact query bounded, since an unbounded prediction scans the whole terrain trimesh.
 
-- **Portal presenter plumbing:** `client/src/portals/render.rs` still tracks a list of presenting cameras with per-presenter budgets and root selection, from when the rearview mirror presented too. The main camera is the only presenter now, so the presenter fields on the views, roots, and state can go.
-
 ## Testing
 
 - **Outdoors after the terrain query fix:** run fast far out on the hotel's grounds and check that movement stays smooth and the frame rate holds, that chasing actors no longer stop and go, and that grass chunks appearing beside a sprint no longer stutter the frame.

@@ -13,7 +13,7 @@ use crate::{
     constants::GRASS_CHUNK_SIZE,
     map::{
         DebugColorMode, DebugColors,
-        grass::{ChunkEntry, ChunkKey, ChunkKind, GrassChunkSource, GrassChunks, GrassPatch},
+        grass::{ChunkEntry, ChunkKey, ChunkKind, GrassChunkSource, GrassMaterials, GrassPatch, GrassSources},
     },
 };
 
@@ -29,7 +29,8 @@ pub fn terrain_spawn_system(
     layout: Res<MapLayout>,
     debug_colors: Res<DebugColors>,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut chunks: ResMut<GrassChunks>,
+    mut sources: ResMut<GrassSources>,
+    materials: Res<GrassMaterials>,
     carrier_entities: Res<CarrierEntities>,
     storeys: Res<CarrierStoreys>,
     existing: Query<Entity, With<TerrainMarker>>,
@@ -44,7 +45,7 @@ pub fn terrain_spawn_system(
         return;
     }
 
-    let surface_material = chunks.terrain_material();
+    let surface_material = materials.terrain.clone();
     let terrain_floors = layout
         .floors
         .iter()
@@ -109,7 +110,7 @@ pub fn terrain_spawn_system(
             patches[0].y,
             (key.z as f32 + 0.5) * GRASS_CHUNK_SIZE,
         );
-        chunks.register(
+        sources.register(
             key,
             ChunkEntry {
                 patches,
