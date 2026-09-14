@@ -14,11 +14,13 @@ use crate::{
     cameras::{MainCameraMarker, RearviewCameraMarker, SkyRenderLayer},
     config::ClientSettings,
     constants::{
-        AMBIENT_DAY_COLOR, AMBIENT_NIGHT_COLOR, AMBIENT_OVERCAST_COLOR, AMBIENT_TWILIGHT_COLOR, FOG_CLEAR_RANGE,
-        FOG_RAIN_RANGE, LIGHTING_RAIN_AMBIENT_FACTOR, LIGHTING_RAIN_DIRECT_FACTOR, SCENE_DAY_SATURATION,
-        SCENE_NIGHT_SATURATION, SCENE_TWILIGHT_SATURATION, SHADOW_CASCADE_DISTANCE, SHADOW_FIRST_CASCADE_BOUND,
-        SKY_DAY_HORIZON_COLOR, SKY_NIGHT_HORIZON_COLOR, SKY_OVERCAST_COLOR, SKY_TWILIGHT_HORIZON_COLOR,
+        AMBIENT_DAY_COLOR, AMBIENT_NIGHT_COLOR, AMBIENT_OVERCAST_COLOR, AMBIENT_TWILIGHT_COLOR, CLOUD_SUN_DIMMING,
+        FOG_CLEAR_RANGE, FOG_RAIN_RANGE, LIGHTING_RAIN_AMBIENT_FACTOR, LIGHTING_RAIN_DIRECT_FACTOR,
+        SCENE_DAY_SATURATION, SCENE_NIGHT_SATURATION, SCENE_TWILIGHT_SATURATION, SHADOW_CASCADE_DISTANCE,
+        SHADOW_FIRST_CASCADE_BOUND, SKY_CLOUD_SCALE, SKY_DAY_HORIZON_COLOR, SKY_NIGHT_HORIZON_COLOR,
+        SKY_OVERCAST_COLOR, SKY_TWILIGHT_HORIZON_COLOR,
     },
+    map::clouds::cumulus_toward,
     materials::ProceduralSkyMaterial,
     vfx::RainIntensity,
 };
@@ -262,7 +264,20 @@ pub fn celestial_sky_system(
     let sun_height = directions.sun_altitude_radians.sin().max(0.0);
     let moon_height = directions.moon_altitude_radians.sin().max(0.0);
     let direct_weather = 1.0_f32.lerp(LIGHTING_RAIN_DIRECT_FACTOR, rain);
-    let sun_illuminance = lighting.max_sun_illuminance * daylight * sun_height.sqrt() * direct_weather;
+    // A cloud drifting across the sun takes the direct light with it.
+    let clouds = settings.sky.clouds;
+    let cloud_over_sun = cumulus_toward(
+        directions.sun,
+        time.elapsed_secs_wrapped(),
+        clouds.clear_coverage.lerp(clouds.overcast_coverage, rain),
+        SKY_CLOUD_SCALE,
+        clouds.movement_speed_degrees_per_second.to_radians(),
+    );
+    let sun_illuminance = lighting.max_sun_illuminance
+        * daylight
+        * sun_height.sqrt()
+        * direct_weather
+        * (1.0 - CLOUD_SUN_DIMMING * cloud_over_sun);
     let moon_illuminance =
         lighting.max_full_moon_illuminance * moon_height.sqrt() * directions.moon_illuminated_fraction * direct_weather;
     // The shadow map changes hands only when the other body is clearly the

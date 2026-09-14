@@ -18,6 +18,7 @@ fn terrain_images_queue_every_texture_once() {
             soil: soil.clone(),
             surface: Vec4::ZERO,
             grass_color: Vec4::ONE,
+            weather: Vec4::ZERO,
         },
     };
     let mut state = MaterialMipmapState::default();
@@ -48,6 +49,7 @@ fn terrain_texture_replacement_rebinds_only_dependent_materials() {
                 soil: soil.clone(),
                 surface: Vec4::ZERO,
                 grass_color: Vec4::ONE,
+                weather: Vec4::ZERO,
             },
         });
         let unrelated = materials.add(TerrainMaterial {
@@ -57,6 +59,7 @@ fn terrain_texture_replacement_rebinds_only_dependent_materials() {
                 soil: unrelated_image.clone(),
                 surface: Vec4::ZERO,
                 grass_color: Vec4::ONE,
+                weather: Vec4::ZERO,
             },
         });
         (dependent, unrelated)

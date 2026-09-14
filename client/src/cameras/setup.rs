@@ -1,6 +1,7 @@
 use bevy::{
     camera::{ImageRenderTarget, RenderTarget, Viewport, visibility::RenderLayers},
     core_pipeline::prepass::{DeferredPrepass, DepthPrepass},
+    pbr::ScreenSpaceAmbientOcclusion,
     post_process::bloom::{Bloom, BloomCompositeMode, BloomPrefilter},
     prelude::*,
     render::{render_resource::TextureFormat, renderer::RenderAdapter, view::ColorGrading},
@@ -108,7 +109,9 @@ pub fn setup_cameras_system(
         Transform::default().looking_at(Vec3::new(0.0, 0.0, -1.0), Vec3::Y),
     ));
     if deferred_rendering_enabled {
-        main_camera.insert((DepthPrepass, DeferredPrepass));
+        // Ambient occlusion needs the prepasses and no MSAA, which the
+        // deferred renderer already runs with; the forward path keeps MSAA.
+        main_camera.insert((DepthPrepass, DeferredPrepass, ScreenSpaceAmbientOcclusion::default()));
     }
     let bloom = client_settings.rendering.bloom;
     if bloom.enabled {

@@ -24,6 +24,8 @@
 // Linear colour the meadow texture's mean is remapped to; the mean of the
 // rendered grass, before lighting, so it can be matched by the blade meshes.
 @group(#{MATERIAL_BIND_GROUP}) @binding(105) var<uniform> grass_color: vec4<f32>;
+// x wetness: rain darkens the ground and turns it glossy.
+@group(#{MATERIAL_BIND_GROUP}) @binding(106) var<uniform> weather: vec4<f32>;
 
 // Measured mean linear colours of the two albedo textures. Tinting divides
 // them out, so the texture keeps every texel's relative hue and value while
@@ -227,8 +229,10 @@ fn fragment(in: VertexOutput, @builtin(front_facing) is_front: bool) -> Fragment
         soil_height = dot(soil, LUMINANCE) * surface.z;
     }
 
-    let color = mix(grass, soil_color, bare) * cover.z;
+    let wetness = weather.x;
+    let color = mix(grass, soil_color, bare) * cover.z * mix(1.0, weather.y, wetness);
     pbr.material.base_color = vec4(color, 1.0);
+    pbr.material.perceptual_roughness = mix(pbr.material.perceptual_roughness, weather.z, wetness);
     let height = mix(meadow_luminance * surface.y, soil_height, bare);
     pbr.N = relief_normal(in.world_position.xyz, normalize(in.world_normal), height);
     apply_decals(&pbr);

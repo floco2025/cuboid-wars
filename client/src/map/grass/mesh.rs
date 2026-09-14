@@ -57,8 +57,9 @@ pub(super) const INDICES_PER_BLADE: usize = 9;
 // bounds; blade bases themselves are clipped against the exact compiled
 // terrain footprint, while flexible tips may naturally lean past an edge.
 pub(super) const BLADE_MAX_OVERHANG: f32 = TUFT_RADIUS + BLADE_HEIGHT_MAX * BLADE_LEAN_MAX;
-// The ripple term in `grass_wind.wgsl` adds 0.4x on top of the primary gust.
-pub(in crate::map) const WIND_SWAY_FACTOR: f32 = 1.4;
+// The farthest the wind carries a tip, in amplitudes: the 1.4x swing (primary
+// plus ripple) and the 1.5x gust lean in `grass_wind.wgsl`.
+pub(in crate::map) const WIND_SWAY_FACTOR: f32 = 2.9;
 pub(in crate::map) const AABB_BASE_PAD: f32 = 0.01;
 
 // Positions are carrier-local. This untextured material uses UV0 for

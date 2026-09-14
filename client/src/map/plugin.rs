@@ -34,10 +34,13 @@ pub fn map_plugin(app: &mut App) {
             erasers_spawn_system,
             checkpoints_spawn_system,
             terrain_spawn_system.after(grass_chunks_reset_system),
-            grass_streaming_system
-                .after(terrain_spawn_system)
-                .after(grounds::grounds_spawn_system),
-            grass_burn_system.after(grass_streaming_system),
+            (
+                grass_streaming_system
+                    .after(terrain_spawn_system)
+                    .after(grounds::grounds_spawn_system),
+                grass_burn_system.after(grass_streaming_system),
+                weather_surfaces::weather_surfaces_system.after(grass_chunks_reset_system),
+            ),
             update_focused_map_level_system,
             map_level_focus_visibility_system
                 .after(update_focused_map_level_system)

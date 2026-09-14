@@ -1,5 +1,6 @@
 mod boundary;
 mod celestial;
+mod clouds;
 mod grass;
 mod grounds;
 mod rendering;
@@ -7,6 +8,7 @@ mod resources;
 pub mod spawn;
 mod terrain_surface;
 mod trees;
+mod weather_surfaces;
 
 pub use celestial::setup_scene_lighting_system;
 pub(crate) use grass::GrassBurn;

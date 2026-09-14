@@ -86,6 +86,14 @@ pub const AMBIENT_OVERCAST_COLOR: [f32; 3] = [0.84, 0.87, 0.92];
 // Sun shadows reach this far (metres); the first cascade covers the near ground.
 pub const SHADOW_CASCADE_DISTANCE: f32 = 300.0;
 pub const SHADOW_FIRST_CASCADE_BOUND: f32 = 12.0;
+// How much of the direct sun a cloud in front of it takes away.
+pub const CLOUD_SUN_DIMMING: f32 = 0.7;
+// Wet ground darkens and turns glossy this far at full rain; it soaks in
+// seconds and dries over about a minute.
+pub const WETNESS_DARKENING: f32 = 0.62;
+pub const WETNESS_ROUGHNESS: f32 = 0.45;
+pub const WETNESS_SOAK_SECS: f32 = 4.0;
+pub const WETNESS_DRY_SECS: f32 = 60.0;
 
 // ============================================================================
 // Input

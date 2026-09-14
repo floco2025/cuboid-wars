@@ -28,6 +28,9 @@ pub struct TerrainExtension {
     pub soil: Handle<Image>,
     #[uniform(105)]
     pub grass_color: Vec4,
+    // x wetness (0 dry .. 1 soaked)
+    #[uniform(106)]
+    pub weather: Vec4,
 }
 
 impl MaterialExtension for TerrainExtension {
@@ -80,6 +83,7 @@ pub fn terrain_material(
                 mipmaps,
             ),
             grass_color: Vec4::from_array(grass_color.to_linear().to_f32_array()),
+            weather: Vec4::ZERO,
         },
     }
 }

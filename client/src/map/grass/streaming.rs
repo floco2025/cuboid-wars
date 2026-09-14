@@ -102,6 +102,14 @@ impl GrassChunks {
             .clone()
             .expect("terrain material missing before the map spawned")
     }
+
+    pub(crate) fn terrain_material_handle(&self) -> Option<Handle<TerrainMaterial>> {
+        self.terrain_material.clone()
+    }
+
+    pub(crate) fn grass_material_handle(&self) -> Option<Handle<GrassMaterial>> {
+        self.grass_material.clone()
+    }
 }
 
 impl GrassLod {
