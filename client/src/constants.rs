@@ -57,8 +57,9 @@ pub const SKY_STAR_LUMINANCE_MAX_FACTOR: f32 = 1.0;
 pub const SKY_BRIGHT_STAR_FRACTION: f32 = 0.08;
 pub const SKY_STAR_TWINKLE: f32 = 0.08;
 
-pub const SKY_CLOUD_SCALE: f32 = 1.45;
-pub const SKY_CLOUD_COLOR: [f32; 3] = [0.72, 0.77, 0.82];
+pub const SKY_CLOUD_SCALE: f32 = 2.2;
+pub const SKY_CLOUD_COLOR: [f32; 3] = [1.0, 0.98, 0.94];
+pub const SKY_CLOUD_SHADOW_COLOR: [f32; 3] = [0.50, 0.56, 0.66];
 pub const SKY_OVERCAST_COLOR: [f32; 3] = [0.24, 0.29, 0.34];
 
 pub const SKY_DAY_SATURATION: f32 = 1.0;
@@ -518,12 +519,12 @@ pub const RAIN_SPAWN_HEIGHT: f32 = 10.0;
 pub const RAIN_FALL_SPEED: f32 = 14.0;
 pub const RAIN_RAMP_IN_SECS: f32 = 2.0;
 pub const RAIN_RAMP_OUT_SECS: f32 = 2.0;
-pub const RAIN_DROP_COLOR: Color = Color::srgb(0.55, 0.6, 0.7);
+pub const RAIN_DROP_COLOR: Color = Color::srgb(0.72, 0.76, 0.84);
 // Splash on impact: droplet color (slightly brighter than the drops so
 // impacts sparkle), droplet size, horizontal scatter (m), and bounce height
 // (m); velocities and airtime are derived from these. Height must stay
 // positive — the airtime is derived from it.
-pub const RAIN_SPLASH_COLOR: Color = Color::srgb(0.7, 0.75, 0.85);
+pub const RAIN_SPLASH_COLOR: Color = Color::srgb(0.8, 0.84, 0.9);
 pub const RAIN_SPLASH_SIZE: f32 = 0.01;
 pub const RAIN_SPLASH_RADIUS: f32 = 0.15;
 pub const RAIN_SPLASH_HEIGHT: f32 = 0.2;
@@ -616,10 +617,11 @@ pub const TREE_LOD_DISTANCES: [[f32; 2]; 3] = [[55.0, 65.0], [125.0, 150.0], [38
 pub const TERRAIN_GRASS_TILE_SIZE: f32 = 1.6;
 pub const TERRAIN_RELIEF: f32 = 0.014;
 pub const TERRAIN_SOIL_TILE_SIZE: f32 = 1.25;
-pub const TERRAIN_SOIL_RELIEF: f32 = 0.09;
+pub const TERRAIN_SOIL_RELIEF: f32 = 0.05;
 pub const TERRAIN_GRASS_CHUNK_SIZE: f32 = 10.0;
-pub const TERRAIN_GRASS_NEAR_DENSITY: f32 = 48.0;
+// Tufts per square metre; each near tuft carries `BLADES_PER_TUFT` blades.
+pub const TERRAIN_GRASS_NEAR_DENSITY: f32 = 36.0;
 pub const TERRAIN_GRASS_MID_DENSITY: f32 = 8.0;
-pub const TERRAIN_GRASS_NEAR_RANGE: [f32; 4] = [0.0, 0.0, 20.0, 28.0];
-pub const TERRAIN_GRASS_MID_RANGE: [f32; 4] = [20.0, 28.0, 64.0, 80.0];
-pub const TERRAIN_GRASS_DRY: Color = Color::srgb(0.52, 0.50, 0.24);
+pub const TERRAIN_GRASS_NEAR_RANGE: [f32; 4] = [0.0, 0.0, 24.0, 34.0];
+pub const TERRAIN_GRASS_MID_RANGE: [f32; 4] = [24.0, 34.0, 70.0, 90.0];
+pub const TERRAIN_GRASS_DRY: Color = Color::srgb(0.55, 0.50, 0.24);

@@ -11,19 +11,25 @@ pub(super) struct TerrainCover {
 impl TerrainCover {
     pub(super) fn at(position: Vec2) -> Self {
         // Several incommensurate scales make a stable world-space field with
-        // no map-sized repeat. The shader contains the same integer hash and
-        // interpolation, so soil color and blade placement agree.
-        let patch = noise(position / 19.0) * 0.58
-            + noise(position / 6.7 + Vec2::splat(31.0)) * 0.29
-            + noise(position / 2.3 + Vec2::new(13.0, 47.0)) * 0.13;
+        // no map-sized repeat. The shader contains the same integer hash,
+        // interpolation, and warp, so soil color and blade placement agree.
+        let warp = Vec2::new(
+            noise(position / 9.0 + Vec2::new(3.0, 71.0)),
+            noise(position / 9.0 + Vec2::new(57.0, 13.0)),
+        ) * 6.0
+            - Vec2::splat(3.0);
+        let warped = position + warp;
+        let patch = noise(warped / 13.0) * 0.55
+            + noise(warped / 5.1 + Vec2::splat(31.0)) * 0.30
+            + noise(warped / 2.1 + Vec2::new(13.0, 47.0)) * 0.15;
         Self {
-            soil: smooth(0.54, 0.73, patch),
+            soil: smooth(0.68, 0.80, patch),
             dry: smooth(0.28, 0.82, noise(position / 37.0 + Vec2::new(71.0, 19.0))),
             shade: {
                 let patch = noise(position / 4.8 + Vec2::new(5.0, 29.0)) * 0.65
                     + noise(position / 2.3 + Vec2::new(149.0, 11.0)) * 0.35;
                 let region = noise(position / 19.0 + Vec2::new(61.0, 173.0));
-                (0.52 + smooth(0.28, 0.72, patch) * 0.60) * (0.9 + region * 0.2)
+                (0.9 + smooth(0.28, 0.72, patch) * 0.2) * (0.95 + region * 0.1)
             },
             grass_macro: noise(position / 4.6 + Vec2::new(211.0, 43.0)) * 0.7
                 + noise(position / 2.2 + Vec2::new(17.0, 191.0)) * 0.3,

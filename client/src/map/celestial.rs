@@ -1,5 +1,5 @@
 use bevy::{
-    camera::Exposure, camera::visibility::RenderLayers, ecs::system::SystemParam, light::NotShadowCaster, prelude::*,
+    camera::visibility::RenderLayers, ecs::system::SystemParam, light::NotShadowCaster, prelude::*,
     render::view::ColorGrading,
 };
 use common::{
@@ -195,7 +195,7 @@ pub struct CelestialRender<'w, 's> {
     >,
     ambient: ResMut<'w, GlobalAmbientLight>,
     gradings: Query<'w, 's, &'static mut ColorGrading, Or<(With<MainCameraMarker>, With<RearviewCameraMarker>)>>,
-    cameras: Query<'w, 's, (Entity, Option<&'static mut DistanceFog>, Option<&'static Exposure>), With<Camera3d>>,
+    cameras: Query<'w, 's, (Entity, Option<&'static mut DistanceFog>), With<Camera3d>>,
 }
 
 pub fn celestial_sky_system(
@@ -277,12 +277,19 @@ pub fn celestial_sky_system(
 
     let horizon = mix_color(SKY_NIGHT_HORIZON_COLOR, SKY_TWILIGHT_HORIZON_COLOR, twilight);
     let horizon = horizon.lerp(Vec3::from_array(SKY_DAY_HORIZON_COLOR), daylight);
-    let horizon = horizon.lerp(Vec3::from_array(SKY_OVERCAST_COLOR), rain);
-    let fog_color = Color::linear_rgb(horizon.x, horizon.y, horizon.z);
-    for (entity, fog, exposure) in &mut render.cameras {
-        let exposed = fog_color.to_linear() * exposure.copied().unwrap_or_default().exposure();
+    // Fog is compared against lit, exposed colours in the shader, like the
+    // sky dome's output, so it takes the sky's own horizon brightness. An
+    // overcast deck is grey only by day; at night it is as dark as the sky.
+    let horizon = horizon.lerp(Vec3::from_array(SKY_OVERCAST_COLOR) * 1.3, rain * daylight);
+    let sky = settings.sky;
+    let brightness = sky
+        .night_brightness
+        .lerp(sky.twilight_brightness, twilight)
+        .lerp(sky.day_brightness, daylight);
+    let fog_color = horizon * brightness;
+    for (entity, fog) in &mut render.cameras {
         let value = DistanceFog {
-            color: Color::linear_rgb(exposed.red, exposed.green, exposed.blue),
+            color: Color::linear_rgb(fog_color.x, fog_color.y, fog_color.z),
             directional_light_color: Color::NONE,
             falloff: FogFalloff::Linear {
                 start: SKY_CLEAR_FOG_RANGE[0].lerp(SKY_RAIN_FOG_RANGE[0], rain),

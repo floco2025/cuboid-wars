@@ -115,5 +115,5 @@
     },
     "quest_panel": { "card_width": 240.0, "bar_height": 8.0 }
   },
-  "grass": { "enabled": true, "color": "#315f2f" }
+  "grass": { "enabled": true, "color": "#586930" }
 }

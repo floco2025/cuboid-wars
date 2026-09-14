@@ -30,6 +30,7 @@ struct SkyUniform {
     clouds: vec4<f32>,
     cloud_color: vec4<f32>,
     overcast_color: vec4<f32>,
+    cloud_shadow_color: vec4<f32>,
 };
 
 @group(#{MATERIAL_BIND_GROUP}) @binding(0) var<uniform> sky: SkyUniform;
@@ -39,95 +40,122 @@ fn hash13(p: vec3<f32>) -> f32 {
     return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453123);
 }
 
-fn hash31(p: vec3<f32>) -> f32 {
-    var p3 = fract(p * vec3(0.1031, 0.1030, 0.0973));
+fn hash21(p: vec2<f32>) -> f32 {
+    var p3 = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973));
     p3 += dot(p3, p3.yzx + vec3(33.33));
     return fract((p3.x + p3.y) * p3.z);
 }
 
-fn cloud_noise_3d(p: vec3<f32>) -> f32 {
+fn cloud_noise(p: vec2<f32>) -> f32 {
     let cell = floor(p);
     let f = fract(p);
     let u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
     return mix(
-        mix(
-            mix(hash31(cell), hash31(cell + vec3(1.0, 0.0, 0.0)), u.x),
-            mix(hash31(cell + vec3(0.0, 1.0, 0.0)), hash31(cell + vec3(1.0, 1.0, 0.0)), u.x),
-            u.y,
-        ),
-        mix(
-            mix(hash31(cell + vec3(0.0, 0.0, 1.0)), hash31(cell + vec3(1.0, 0.0, 1.0)), u.x),
-            mix(hash31(cell + vec3(0.0, 1.0, 1.0)), hash31(cell + vec3(1.0, 1.0, 1.0)), u.x),
-            u.y,
-        ),
-        u.z,
+        mix(hash21(cell), hash21(cell + vec2(1.0, 0.0)), u.x),
+        mix(hash21(cell + vec2(0.0, 1.0)), hash21(cell + vec2(1.0, 1.0)), u.x),
+        u.y,
     );
 }
 
-fn rotate_scale_3d(p: vec3<f32>) -> vec3<f32> {
-    return vec3(
-        p.y * 1.23 + p.z * 1.57,
-        p.z * 1.11 - p.x * 1.65,
-        p.x * 1.39 - p.y * 1.43,
-    ) + vec3(7.13, -5.71, 3.91);
+// Each octave is rotated as well as scaled so the lattices never line up.
+fn next_octave(p: vec2<f32>) -> vec2<f32> {
+    return vec2(0.8 * p.x + 0.6 * p.y, -0.6 * p.x + 0.8 * p.y) * 2.02 + vec2(17.3, 9.1);
 }
 
-fn cloud_fbm_3(p_initial: vec3<f32>) -> f32 {
+fn cloud_fbm(p_initial: vec2<f32>, octaves: i32) -> f32 {
     var p = p_initial;
-    var amplitude = 0.5714;
+    var amplitude = 0.5;
     var total = 0.0;
-    for (var octave = 0; octave < 3; octave += 1) {
-        total += cloud_noise_3d(p) * amplitude;
-        p = rotate_scale_3d(p);
+    var range = 0.0;
+    for (var octave = 0; octave < octaves; octave += 1) {
+        total += cloud_noise(p) * amplitude;
+        range += amplitude;
+        p = next_octave(p);
         amplitude *= 0.5;
     }
-    return total / 0.9999;
+    return total / range;
 }
 
-// This is the distant upper-shell layer from the pre-cumulus experiment.
-// Its directional stretch gives the background its long, soft formations.
-fn high_cloud_density(position: vec3<f32>) -> f32 {
-    let stretched = vec3(
-        position.x * 0.78 + position.z * 0.16,
-        position.y * 1.12,
-        position.z * 1.62 - position.x * 0.09,
-    );
-    let band = cloud_fbm_3(stretched);
-    let wisps = 1.0 - abs(band * 2.0 - 1.0);
-    return wisps * 0.58 + band * 0.42;
-}
-
-fn cloud_shell_position(direction: vec3<f32>, height: f32) -> vec3<f32> {
-    let planet_radius = 5.0;
+// Where a view ray meets a cloud layer `height` above the ground on a planet
+// sixty layer heights in radius: overhead formations keep their size while
+// the horizon lies about eleven heights away, so distant clouds flatten and
+// crowd together without stretching to infinity.
+fn cloud_layer_position(direction: vec3<f32>, height: f32) -> vec2<f32> {
+    let planet_radius = 60.0;
     let b = planet_radius * direction.y;
-    let shell_term = 2.0 * planet_radius * height + height * height;
-    let distance = -b + sqrt(max(0.0, b * b + shell_term));
-    return (vec3(0.0, planet_radius, 0.0) + direction * distance) * sky.clouds.z;
+    let distance = -b + sqrt(max(0.0, b * b + 2.0 * planet_radius * height + height * height));
+    return direction.xz * distance * sky.clouds.z;
+}
+
+fn cloud_wind() -> vec2<f32> {
+    return normalize(vec2(1.0, 0.31)) * sky.time_weather_phase.x * sky.clouds.w;
+}
+
+fn cumulus_density(p: vec2<f32>, coverage: f32, detail_weight: f32) -> f32 {
+    let warp = vec2(
+        cloud_fbm(p * 0.35 + vec2(5.2, 1.3), 3),
+        cloud_fbm(p * 0.35 + vec2(9.7, 6.1), 3)
+    ) - vec2(0.5);
+    let q = p + warp * 1.2;
+    let base = cloud_fbm(q, 5);
+    let threshold = mix(0.70, 0.38, coverage);
+    let shape = smoothstep(threshold, threshold + 0.12, base);
+    let detail = cloud_fbm(q * 3.7 + vec2(3.1, 8.4), 3);
+    // Eroding the thin parts with fine detail turns rounded blobs into
+    // ragged edges while the thick core stays solid.
+    return clamp(shape - (1.0 - shape) * detail * 0.6 * detail_weight, 0.0, 1.0);
 }
 
 struct CloudSample {
     opacity: f32,
-    shape: f32,
-};
+    // 1 on the sun-facing rim of a thin part, falling toward 0 on the far
+    // side and under the thick core.
+    lit: f32,
+}
 
-fn sample_background_clouds(direction: vec3<f32>, coverage: f32, rain: f32) -> CloudSample {
-    let wind = vec3(sky.time_weather_phase.x * sky.clouds.w, 0.0, sky.time_weather_phase.x * sky.clouds.w * 0.31);
-    let position = cloud_shell_position(direction, 2.35) * 0.78
-        + wind * 1.65
-        + vec3(31.0, -17.0, 11.0);
-    let density = high_cloud_density(position);
+fn sample_cumulus(direction: vec3<f32>, coverage: f32, rain: f32) -> CloudSample {
+    let position = cloud_layer_position(direction, 1.0) + cloud_wind() + vec2(31.0, -17.0);
+    // Fine detail only aliases where the layer compresses toward the horizon.
+    let detail_weight = smoothstep(0.0, 0.25, direction.y);
+    let density = cumulus_density(position, coverage, detail_weight);
+    // A second sample a little toward the sun says which side of the cloud
+    // this is: density falling toward the sun is the lit rim, rising is the
+    // far side. The thick core is its own shadowed underside.
+    let sun_dir = normalize(sky.sun_direction.xyz);
+    let toward_sun = normalize(sun_dir.xz + vec2(0.0001, 0.0)) * 0.09 * sky.clouds.z;
+    let sunward = cumulus_density(position + toward_sun, coverage, detail_weight);
+    let rim = clamp(0.5 + (density - sunward) * 2.5, 0.0, 1.0);
+    let core = smoothstep(0.2, 0.95, density);
+    let lit = mix(0.35, 1.0, rim) * mix(1.0, 0.55, core);
 
-    let horizon = 1.0 - smoothstep(0.015, 0.34, direction.y);
-    let threshold = 0.75 - coverage * 0.45 - horizon * (0.035 + coverage * 0.035);
-    let cloud_threshold = threshold + mix(0.08, 0.15, rain);
-    var opacity = smoothstep(cloud_threshold - 0.035, cloud_threshold + 0.085, density)
-        * mix(0.20, 0.96, rain);
-    // The same distant sheet closes into an unbroken deck as overcast
-    // arrives. This reaches full cover before the separate precipitation
-    // envelope starts, without bringing back a foreground layer.
+    var opacity = density;
+    // The layer closes into an unbroken deck as overcast arrives, reaching
+    // full cover before the separate precipitation envelope starts.
     opacity = mix(opacity, 1.0, smoothstep(0.55, 0.95, rain));
-    opacity *= smoothstep(-0.055, 0.025, direction.y);
-    return CloudSample(opacity, density);
+    opacity *= smoothstep(0.0, 0.05, direction.y);
+    return CloudSample(opacity, lit);
+}
+
+// A faint broken veil far above the cumulus, fair weather and high sky
+// only. It is barely anisotropic: any long streak on the layer converges
+// in perspective and reads as spokes.
+fn sample_cirrus(direction: vec3<f32>, rain: f32) -> f32 {
+    let p = cloud_layer_position(direction, 2.4) * 0.5 + cloud_wind() * 0.6 + vec2(-23.0, 41.0);
+    let bend = cloud_fbm(p * 0.4 + vec2(7.7, 2.2), 3) - 0.5;
+    let veil = cloud_fbm(vec2(p.x * 0.8 + bend * 0.8, p.y * 0.8 + bend * 1.2), 4);
+    let cover = smoothstep(0.55, 0.85, veil) * smoothstep(0.25, 0.5, direction.y);
+    return cover * 0.16 * (1.0 - rain);
+}
+
+fn cloud_shading(lit: f32, twilight: f32, daylight: f32, rain: f32, sun_height: f32) -> vec3<f32> {
+    let night = mix(sky.night_horizon.rgb, sky.night_zenith.rgb, 0.45) * sky.night_horizon.w * 1.75;
+    let dusk = mix(sky.twilight_horizon.rgb, sky.twilight_zenith.rgb, 0.25) * sky.twilight_horizon.w * 1.15;
+    let day_lit = sky.cloud_color.rgb * sky.day_horizon.w * mix(0.7, 1.1, sun_height);
+    let day_shadow = sky.cloud_shadow_color.rgb * sky.day_horizon.w;
+    let fair = mix(day_shadow, day_lit, lit);
+    let storm = sky.overcast_color.rgb * sky.day_horizon.w * mix(0.8, 1.2, lit);
+    let dark = mix(night, dusk, twilight) * mix(0.7, 1.0, lit);
+    return mix(dark, mix(fair, storm, rain), daylight);
 }
 
 // Reconstructing the ray from the fragment coordinate avoids interpolating
@@ -223,6 +251,7 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     let day_sky = mix(sky.day_horizon.rgb, sky.day_zenith.rgb, gradient) * sky.day_horizon.w;
     var color = mix(night_sky, twilight_sky, twilight);
     color = mix(color, day_sky, daylight);
+    let sky_gradient = color;
 
     var toward_sun = 0.0;
     if length(ray.xz) > 0.0001 && length(sun_dir.xz) > 0.0001 {
@@ -241,27 +270,25 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     }
     color += moon_color(ray);
 
-    // Only the distant upper layer remains. The lower layer that produced a
-    // few large grey foreground blobs has deliberately been removed.
     let rain = clamp(sky.time_weather_phase.y, 0.0, 1.0);
     let coverage = mix(sky.clouds.x, sky.clouds.y, rain);
-    let cloud = sample_background_clouds(ray, coverage, rain);
-    let night_cloud = mix(sky.night_horizon.rgb, sky.night_zenith.rgb, 0.45) * sky.night_horizon.w * 1.75;
-    let twilight_cloud = mix(sky.twilight_horizon.rgb, sky.twilight_zenith.rgb, 0.25)
-        * sky.twilight_horizon.w * 1.15;
-    let day_shadow = mix(sky.overcast_color.rgb, vec3(0.39, 0.43, 0.48), 1.0 - rain)
-        * sky.day_horizon.w;
     let sun_height = smoothstep(-0.08, 0.42, sun_dir.y);
-    let cloud_relief = smoothstep(0.30, 0.78, cloud.shape);
-    let day_lit = sky.cloud_color.rgb * sky.day_horizon.w * mix(0.62, 1.08, sun_height);
-    let fair_weather_cloud = mix(day_shadow, day_lit, cloud_relief);
-    let storm_cloud = day_shadow * mix(0.72, 1.05, cloud_relief);
-    var cloud_rgb = mix(night_cloud, twilight_cloud, twilight);
-    cloud_rgb = mix(cloud_rgb, mix(fair_weather_cloud, storm_cloud, rain), daylight);
+    let cirrus = sample_cirrus(ray, rain);
+    // A veil this thin shows the sky through it.
+    let cirrus_rgb = mix(cloud_shading(0.85, twilight, daylight, rain, sun_height), sky_gradient, 0.3);
+    color = mix(color, cirrus_rgb, cirrus);
+
+    let cloud = sample_cumulus(ray, coverage, rain);
+    var cloud_rgb = cloud_shading(cloud.lit, twilight, daylight, rain, sun_height);
     let sun_facing = pow(max(0.0, dot(ray, sun_dir)), 10.0);
     let silver_lining = sun_facing * (1.0 - cloud.opacity) * cloud.opacity * daylight * 2.2;
     cloud_rgb += vec3(1.0, 0.72, 0.44) * silver_lining;
     cloud_rgb += sky.sunset.rgb * sunset_band * cloud.opacity * 0.32;
+    // Distant clouds sink into the same haze that pales the horizon sky;
+    // under an overcast deck that haze is grey, not the blue behind it.
+    let haze = 1.0 - smoothstep(0.0, 0.3, ray.y);
+    let haze_rgb = mix(sky_gradient, sky.overcast_color.rgb * sky.day_horizon.w * 1.6, rain * daylight);
+    cloud_rgb = mix(cloud_rgb, haze_rgb, haze * 0.7);
     color = mix(color, cloud_rgb, cloud.opacity);
     return vec4(max(color, vec3(0.0)), 1.0);
 }

@@ -14,13 +14,19 @@ use common::protocol::Floor;
 use rand::{RngExt, SeedableRng, rngs::SmallRng};
 use std::f32::consts::TAU;
 
-pub(super) const BLADES_PER_TUFT: usize = 3;
-const TUFT_RADIUS: f32 = 0.09;
-const BLADE_HEIGHT_MIN: f32 = 0.1;
-pub(super) const BLADE_HEIGHT_MAX: f32 = 0.3;
-const BLADE_HALF_WIDTH_MIN: f32 = 0.008;
-const BLADE_HALF_WIDTH_MAX: f32 = 0.015;
-const BLADE_TIP_LEAN_MAX: f32 = 0.12;
+pub(super) const BLADES_PER_TUFT: usize = 4;
+const TUFT_RADIUS: f32 = 0.12;
+const BLADE_HEIGHT_MIN: f32 = 0.09;
+pub(super) const BLADE_HEIGHT_MAX: f32 = 0.38;
+// Raising the uniform draw to this power skews heights toward the minimum:
+// a meadow is mostly short blades with a few tall ones standing out.
+const BLADE_HEIGHT_SKEW: f32 = 1.7;
+const BLADE_HALF_WIDTH_MIN: f32 = 0.010;
+const BLADE_HALF_WIDTH_MAX: f32 = 0.018;
+// Tip lean as a fraction of the blade's height, so short blades stay upright.
+const BLADE_LEAN_MIN: f32 = 0.15;
+const BLADE_LEAN_MAX: f32 = 0.55;
+const BLADE_NORMAL_TILT: f32 = 0.4;
 // Each blade is two stacked segments: a root quad tapering to a mid ring,
 // then a triangle to the tip. The mid ring sits at these fractions of the
 // tip's height/lean/width, so the blade arcs instead of hinging; its sway
@@ -29,26 +35,28 @@ const MID_HEIGHT_FRACTION: f32 = 0.55;
 const MID_LEAN_FRACTION: f32 = 0.45;
 const MID_WIDTH_FRACTION: f32 = 0.6;
 pub(super) const MID_SWAY_WEIGHT: f32 = 0.55;
-// Root-to-tip lightness ramp fakes the ambient occlusion inside a clump —
-// flat-colored blades read as loose triangles, not grass.
-const ROOT_LIGHTNESS_SCALE: f32 = 0.5;
-const MID_LIGHTNESS_SCALE: f32 = 0.85;
-const TIP_LIGHTNESS_SCALE: f32 = 1.2;
+// Blades are lit like the ground, so their colours are scaled copies of the
+// ground's mean colour: dark at the root where a clump shades itself, a
+// little lighter and yellower at the translucent tip. Their area-weighted
+// mean stays near the ground colour, so blades fading out with distance do
+// not shift the meadow's colour.
+const ROOT_SCALE: f32 = 0.5;
+const MID_SCALE: f32 = 0.9;
+const TIP_SCALE: f32 = 1.1;
+const TIP_STRAW_MIX: f32 = 0.12;
 // Each tuft jitters around the terrain cover's healthy/dry blend and each
 // blade jitters again within its tuft, so variation forms patches rather
-// than blade-level confetti.
-const TUFT_HUE_JITTER: f32 = 8.0;
-const TUFT_SATURATION_JITTER: f32 = 0.05;
-const TUFT_LIGHTNESS_JITTER: f32 = 0.05;
-const BLADE_HUE_JITTER: f32 = 4.0;
-const BLADE_LIGHTNESS_JITTER: f32 = 0.04;
+// than blade-level confetti. Hue jitter pushes red and blue apart.
+const TUFT_BRIGHTNESS_JITTER: f32 = 0.12;
+const TUFT_HUE_JITTER: f32 = 0.08;
+const BLADE_BRIGHTNESS_JITTER: f32 = 0.06;
 pub(super) const VERTICES_PER_BLADE: usize = 5;
 pub(super) const INDICES_PER_BLADE: usize = 9;
 // Widest horizontal reach of any vertex from its tuft center (tip lean
 // exceeds the blade half-width). Used for conservative visibility and burn
 // bounds; blade bases themselves are clipped against the exact compiled
 // terrain footprint, while flexible tips may naturally lean past an edge.
-pub(super) const BLADE_MAX_OVERHANG: f32 = TUFT_RADIUS + BLADE_TIP_LEAN_MAX;
+pub(super) const BLADE_MAX_OVERHANG: f32 = TUFT_RADIUS + BLADE_HEIGHT_MAX * BLADE_LEAN_MAX;
 // The ripple term in `grass_wind.wgsl` adds 0.4x on top of the primary gust.
 pub(in crate::map) const WIND_SWAY_FACTOR: f32 = 1.4;
 pub(in crate::map) const AABB_BASE_PAD: f32 = 0.01;
@@ -120,8 +128,10 @@ pub(in crate::map) fn grass_scatter_mesh(
     let mut positions: Vec<[f32; 3]> = Vec::with_capacity(vertex_count);
     let mut uvs: Vec<[f32; 2]> = Vec::with_capacity(vertex_count);
     let mut colors: Vec<[f32; 4]> = Vec::with_capacity(vertex_count);
+    let mut normals: Vec<[f32; 3]> = Vec::with_capacity(vertex_count);
     let mut indices: Vec<u32> = Vec::with_capacity(candidate_count * lod.blades() * INDICES_PER_BLADE);
 
+    let dry = TERRAIN_GRASS_DRY.to_linear().to_vec3();
     for _ in 0..candidate_count {
         let Some(tuft) = candidate(&mut rng) else { continue };
         let cover_position = Vec2::new(tuft.x, tuft.z);
@@ -129,13 +139,13 @@ pub(in crate::map) fn grass_scatter_mesh(
         if rng.random::<f32>() > cover.grass_density(cover_position) {
             continue;
         }
-        let base_color = Hsla::from(green.mix(&TERRAIN_GRASS_DRY, cover.dry * 0.55));
-        let tuft_hue = base_color.hue + rng.random_range(-TUFT_HUE_JITTER..=TUFT_HUE_JITTER);
-        let tuft_saturation = (base_color.saturation
-            + rng.random_range(-TUFT_SATURATION_JITTER..=TUFT_SATURATION_JITTER))
-        .clamp(0.0, 1.0);
-        let tuft_lightness =
-            base_color.lightness * cover.shade + rng.random_range(-TUFT_LIGHTNESS_JITTER..=TUFT_LIGHTNESS_JITTER);
+        let tuft_brightness = 1.0 + rng.random_range(-TUFT_BRIGHTNESS_JITTER..=TUFT_BRIGHTNESS_JITTER);
+        let tuft_hue = rng.random_range(-TUFT_HUE_JITTER..=TUFT_HUE_JITTER);
+        let tuft_color = green.to_linear().to_vec3().lerp(dry, cover.dry * 0.35)
+            * cover.shade
+            * (0.92 + 0.16 * cover.grass_macro)
+            * tuft_brightness
+            * Vec3::new(1.0 + tuft_hue, 1.0, 1.0 - tuft_hue);
         for _ in 0..lod.blades() {
             let root_angle = rng.random_range(0.0..TAU);
             let root_radius = rng.random_range(0.0..=TUFT_RADIUS);
@@ -150,13 +160,19 @@ pub(in crate::map) fn grass_scatter_mesh(
             if !base_allowed(root - across, root + across) {
                 continue;
             }
-            let height = rng.random_range(BLADE_HEIGHT_MIN..=BLADE_HEIGHT_MAX);
+            let height =
+                BLADE_HEIGHT_MIN + (BLADE_HEIGHT_MAX - BLADE_HEIGHT_MIN) * rng.random::<f32>().powf(BLADE_HEIGHT_SKEW);
             let lean_angle = rng.random_range(0.0..TAU);
-            let lean = rng.random_range(0.0..=BLADE_TIP_LEAN_MAX);
+            let lean = height * rng.random_range(BLADE_LEAN_MIN..=BLADE_LEAN_MAX);
             let lean_offset = Vec3::new(lean_angle.cos() * lean, 0.0, lean_angle.sin() * lean);
+            // Tilted toward the lean, so blades facing the sun catch it and
+            // the others fall off, instead of every blade shading like the
+            // ground beneath it.
+            let normal = (Vec3::Y + Vec3::new(lean_angle.cos(), 0.0, lean_angle.sin()) * BLADE_NORMAL_TILT)
+                .normalize()
+                .to_array();
             let phase = rng.random_range(0.0..1.0);
-            let hue = tuft_hue + rng.random_range(-BLADE_HUE_JITTER..=BLADE_HUE_JITTER);
-            let lightness = tuft_lightness + rng.random_range(-BLADE_LIGHTNESS_JITTER..=BLADE_LIGHTNESS_JITTER);
+            let blade_color = tuft_color * (1.0 + rng.random_range(-BLADE_BRIGHTNESS_JITTER..=BLADE_BRIGHTNESS_JITTER));
             let burn_strength = burns.iter().map(|burn| burn.strength_at(root)).fold(0.0_f32, f32::max);
             let height_scale = 1.0 - burn_strength * (1.0 - EXPLOSION_GRASS_BURN_CENTER_HEIGHT_FACTOR);
             let width_scale = 1.0 - burn_strength * (1.0 - EXPLOSION_GRASS_BURN_CENTER_WIDTH_FACTOR);
@@ -173,39 +189,32 @@ pub(in crate::map) fn grass_scatter_mesh(
             positions.push((mid - across * MID_WIDTH_FRACTION).to_array());
             positions.push((mid + across * MID_WIDTH_FRACTION).to_array());
             positions.push(tip.to_array());
+            normals.extend([normal; VERTICES_PER_BLADE]);
             uvs.push([0.0, phase]);
             uvs.push([0.0, phase]);
             uvs.push([MID_SWAY_WEIGHT * sway_scale, phase]);
             uvs.push([MID_SWAY_WEIGHT * sway_scale, phase]);
             uvs.push([sway_scale, phase]);
             let root_color = burned_color(
-                grass_macro_color(
-                    ring_color(hue, tuft_saturation, lightness, ROOT_LIGHTNESS_SCALE),
-                    cover.grass_macro,
-                ),
+                blade_color * ROOT_SCALE,
                 burn_strength,
                 EXPLOSION_GRASS_BURN_ROOT_BRIGHTNESS_FACTOR,
             );
             let mid_color = burned_color(
-                grass_macro_color(
-                    ring_color(hue, tuft_saturation, lightness, MID_LIGHTNESS_SCALE),
-                    cover.grass_macro,
-                ),
+                blade_color * MID_SCALE,
                 burn_strength,
                 EXPLOSION_GRASS_BURN_MID_BRIGHTNESS_FACTOR,
+            );
+            let tip_color = burned_color(
+                (blade_color * TIP_SCALE).lerp(dry * TIP_SCALE, TIP_STRAW_MIX),
+                burn_strength,
+                EXPLOSION_GRASS_BURN_TIP_BRIGHTNESS_FACTOR,
             );
             colors.push(root_color);
             colors.push(root_color);
             colors.push(mid_color);
             colors.push(mid_color);
-            colors.push(burned_color(
-                grass_macro_color(
-                    ring_color(hue, tuft_saturation, lightness, TIP_LIGHTNESS_SCALE),
-                    cover.grass_macro,
-                ),
-                burn_strength,
-                EXPLOSION_GRASS_BURN_TIP_BRIGHTNESS_FACTOR,
-            ));
+            colors.push(tip_color);
             indices.extend([
                 base,
                 base + 1,
@@ -219,9 +228,6 @@ pub(in crate::map) fn grass_scatter_mesh(
             ]);
         }
     }
-
-    // Blades shade like the ground below them.
-    let normals = vec![[0.0, 1.0, 0.0]; positions.len()];
 
     let mut mesh = Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::default());
     mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
@@ -261,31 +267,12 @@ fn base_is_on_terrain(position: Vec3, footprint: &[Floor], patch: GrassPatch) ->
     })
 }
 
-fn ring_color(hue: f32, saturation: f32, lightness: f32, lightness_scale: f32) -> [f32; 4] {
-    Color::hsl(hue, saturation, (lightness * lightness_scale).min(0.95))
-        .to_linear()
-        .to_f32_array()
-}
-
-fn grass_macro_color(mut color: [f32; 4], macro_value: f32) -> [f32; 4] {
-    let tint = Vec3::new(0.92, 0.98, 1.04).lerp(Vec3::new(1.09, 1.03, 0.88), macro_value);
-    color[0] *= tint.x;
-    color[1] *= tint.y;
-    color[2] *= tint.z;
-    color
-}
-
-fn burned_color(color: [f32; 4], strength: f32, brightness: f32) -> [f32; 4] {
-    let burned = EXPLOSION_GRASS_BURN_COLOR.to_linear().to_f32_array();
+fn burned_color(color: Vec3, strength: f32, brightness: f32) -> [f32; 4] {
+    let burned = EXPLOSION_GRASS_BURN_COLOR.to_linear().to_vec3();
     let blend = strength * EXPLOSION_GRASS_BURN_MAX_COLOR_BLEND;
-    // A configurable healthy green can be darker than the old fixed grass
-    // color. Cap the charcoal target relative to that source so a burn is
-    // always visibly darker instead of accidentally brightening dark grass.
-    let target = |channel: usize| (burned[channel] * brightness).min(color[channel] * 0.18);
-    [
-        color[0] + (target(0) - color[0]) * blend,
-        color[1] + (target(1) - color[1]) * blend,
-        color[2] + (target(2) - color[2]) * blend,
-        color[3],
-    ]
+    // A configurable healthy green can be darker than the charcoal colour.
+    // Cap the target relative to the source so a burn is always visibly
+    // darker instead of accidentally brightening dark grass.
+    let target = (burned * brightness).min(color * 0.18);
+    color.lerp(target, blend).extend(1.0).to_array()
 }

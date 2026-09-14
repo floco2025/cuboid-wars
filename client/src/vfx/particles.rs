@@ -149,17 +149,24 @@ impl ParticleClouds {
 
 impl FromWorld for ParticleClouds {
     fn from_world(world: &mut World) -> Self {
-        let material = world.resource_mut::<Assets<StandardMaterial>>().add(StandardMaterial {
+        // Rain is water catching the scene's light, so it darkens with the
+        // night like everything else; the rest are glowing effects.
+        let lit = world.resource_mut::<Assets<StandardMaterial>>().add(StandardMaterial {
+            base_color: Color::WHITE,
+            perceptual_roughness: 0.4,
+            ..default()
+        });
+        let glowing = world.resource_mut::<Assets<StandardMaterial>>().add(StandardMaterial {
             base_color: Color::WHITE,
             unlit: true,
             ..default()
         });
         Self {
-            drops: spawn_cloud(world, &material, "rain drops"),
-            splashes: spawn_cloud(world, &material, "rain splashes"),
-            sparkles: spawn_cloud(world, &material, "beam-in sparkles"),
-            sparks: spawn_cloud(world, &material, "impact sparks"),
-            exhaust: spawn_cloud(world, &material, "missile exhaust"),
+            drops: spawn_cloud(world, &lit, "rain drops"),
+            splashes: spawn_cloud(world, &lit, "rain splashes"),
+            sparkles: spawn_cloud(world, &glowing, "beam-in sparkles"),
+            sparks: spawn_cloud(world, &glowing, "impact sparks"),
+            exhaust: spawn_cloud(world, &glowing, "missile exhaust"),
         }
     }
 }

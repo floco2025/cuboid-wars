@@ -15,12 +15,25 @@
 }
 #endif
 
+// x grass tile size, y grass relief, z soil relief, w soil tile size (metres)
 @group(#{MATERIAL_BIND_GROUP}) @binding(100) var<uniform> surface: vec4<f32>;
 @group(#{MATERIAL_BIND_GROUP}) @binding(101) var grass_texture: texture_2d<f32>;
 @group(#{MATERIAL_BIND_GROUP}) @binding(102) var grass_sampler: sampler;
 @group(#{MATERIAL_BIND_GROUP}) @binding(103) var soil_texture: texture_2d<f32>;
 @group(#{MATERIAL_BIND_GROUP}) @binding(104) var soil_sampler: sampler;
+// Linear colour the meadow texture's mean is remapped to; the mean of the
+// rendered grass, before lighting, so it can be matched by the blade meshes.
 @group(#{MATERIAL_BIND_GROUP}) @binding(105) var<uniform> grass_color: vec4<f32>;
+
+// Measured mean linear colours of the two albedo textures. Tinting divides
+// them out, so the texture keeps every texel's relative hue and value while
+// the configured colour decides what the meadow averages to.
+const MEADOW_ALBEDO_MEAN: vec3<f32> = vec3(0.1273, 0.1777, 0.0403);
+const SOIL_ALBEDO_MEAN: vec3<f32> = vec3(0.1041, 0.0647, 0.0416);
+const LUMINANCE: vec3<f32> = vec3(0.2126, 0.7152, 0.0722);
+// Dead grass is yellower and browner than live grass, not just lighter.
+const DRY_GRASS_TINT: vec3<f32> = vec3(1.22, 1.0, 0.55);
+
 fn relief_normal(position: vec3<f32>, normal: vec3<f32>, height: f32) -> vec3<f32> {
     let dx = dpdx(position);
     let dy = dpdy(position);
@@ -46,22 +59,32 @@ fn terrain_noise(position: vec2<f32>) -> f32 {
     return mix(a, b, t.y);
 }
 
-fn terrain_cover(position: vec2<f32>) -> vec3<f32> {
-    let coverage_noise = terrain_noise(position / 19.0) * 0.58
-        + terrain_noise(position / 6.7 + vec2(31.0)) * 0.29
-        + terrain_noise(position / 2.3 + vec2(13.0, 47.0)) * 0.13;
-    let soil = smoothstep(0.54, 0.73, coverage_noise);
+// Mirrors `TerrainCover::at` in `map/terrain_surface.rs`: x bare soil, y dry
+// grass, z shade, w macro tint. The CPU side places blades from the same field.
+fn terrain_cover(position: vec2<f32>) -> vec4<f32> {
+    let warp = vec2(
+        terrain_noise(position / 9.0 + vec2(3.0, 71.0)),
+        terrain_noise(position / 9.0 + vec2(57.0, 13.0))
+    ) * 6.0 - vec2(3.0);
+    let warped = position + warp;
+    let patch_noise = terrain_noise(warped / 13.0) * 0.55
+        + terrain_noise(warped / 5.1 + vec2(31.0)) * 0.30
+        + terrain_noise(warped / 2.1 + vec2(13.0, 47.0)) * 0.15;
+    let soil = smoothstep(0.68, 0.80, patch_noise);
     let dry = smoothstep(0.28, 0.82, terrain_noise(position / 37.0 + vec2(71.0, 19.0)));
     let shade_noise = terrain_noise(position / 4.8 + vec2(5.0, 29.0)) * 0.65
         + terrain_noise(position / 2.3 + vec2(149.0, 11.0)) * 0.35;
     let region = terrain_noise(position / 19.0 + vec2(61.0, 173.0));
-    let shade = (0.52 + smoothstep(0.28, 0.72, shade_noise) * 0.60) * (0.9 + region * 0.2);
-    return vec3(soil, dry, shade);
+    let shade = (0.9 + smoothstep(0.28, 0.72, shade_noise) * 0.2) * (0.95 + region * 0.1);
+    let macro_tint = terrain_noise(position / 4.6 + vec2(211.0, 43.0)) * 0.70
+        + terrain_noise(position / 2.2 + vec2(17.0, 191.0)) * 0.30;
+    return vec4(soil, dry, shade, macro_tint);
 }
 
-// Stochastic triangular tiling gives each region a stable random offset and
-// quarter-turn while sharing samples with its neighbours. It removes the
-// source image's short repeat without hard seams or view-dependent noise.
+// Stochastic triangular tiling: every point blends three texture samples,
+// each from a region with its own stable offset and quarter-turn, so the
+// source image's repeat never lines up. Blending uncorrelated samples
+// averages their contrast away; `restore_contrast` puts it back.
 struct StochasticFrame {
     position: vec2<f32>,
     gradient_x: vec2<f32>,
@@ -77,33 +100,21 @@ fn stochastic_frame(position: vec2<f32>) -> StochasticFrame {
     let base = vec2<i32>(floor(skewed));
     let local = fract(skewed);
     let remainder = 1.0 - local.x - local.y;
-    var weights: vec3<f32>;
-    var id_0: vec2<i32>;
-    var id_1: vec2<i32>;
-    var id_2: vec2<i32>;
-    if remainder > 0.0 {
-        weights = vec3(remainder, local.y, local.x);
-        id_0 = base;
-        id_1 = base + vec2(0, 1);
-        id_2 = base + vec2(1, 0);
-    } else {
-        weights = vec3(-remainder, 1.0 - local.y, 1.0 - local.x);
-        id_0 = base + vec2(1, 1);
-        id_1 = base + vec2(1, 0);
-        id_2 = base + vec2(0, 1);
-    }
-    // Sharpen the barycentric blend so authored grains remain crisp through
-    // most of a region while the three-way transitions stay continuous.
-    weights *= weights;
-    weights /= dot(weights, vec3(1.0));
     var frame: StochasticFrame;
+    if remainder > 0.0 {
+        frame.weights = vec3(remainder, local.y, local.x);
+        frame.id_0 = base;
+        frame.id_1 = base + vec2(0, 1);
+        frame.id_2 = base + vec2(1, 0);
+    } else {
+        frame.weights = vec3(-remainder, 1.0 - local.y, 1.0 - local.x);
+        frame.id_0 = base + vec2(1, 1);
+        frame.id_1 = base + vec2(1, 0);
+        frame.id_2 = base + vec2(0, 1);
+    }
     frame.position = position;
     frame.gradient_x = dpdx(position);
     frame.gradient_y = dpdy(position);
-    frame.weights = weights;
-    frame.id_0 = id_0;
-    frame.id_1 = id_1;
-    frame.id_2 = id_2;
     return frame;
 }
 
@@ -123,6 +134,14 @@ fn variant_offset(id: vec2<i32>, salt: vec2<i32>) -> vec2<f32> {
     );
 }
 
+// Scales the blend's deviation from the mean so its variance matches one
+// sample's. Exact for uncorrelated samples with a shared mean, which the
+// three regions of a seamless texture are.
+fn restore_contrast(blend: vec3<f32>, mean: vec3<f32>, weights: vec3<f32>) -> vec3<f32> {
+    let gain = inverseSqrt(max(dot(weights, weights), 0.0001));
+    return max(mean + (blend - mean) * gain, vec3(0.0));
+}
+
 fn grass_variant(frame: StochasticFrame, id: vec2<i32>) -> vec3<f32> {
     let salt = vec2(11, 79);
     let axis = variant_rotation(id, salt);
@@ -137,9 +156,10 @@ fn grass_variant(frame: StochasticFrame, id: vec2<i32>) -> vec3<f32> {
 
 fn stochastic_grass(position: vec2<f32>) -> vec3<f32> {
     let frame = stochastic_frame(position);
-    return grass_variant(frame, frame.id_0) * frame.weights.x
+    let blend = grass_variant(frame, frame.id_0) * frame.weights.x
         + grass_variant(frame, frame.id_1) * frame.weights.y
         + grass_variant(frame, frame.id_2) * frame.weights.z;
+    return restore_contrast(blend, MEADOW_ALBEDO_MEAN, frame.weights);
 }
 
 fn soil_variant(frame: StochasticFrame, id: vec2<i32>) -> vec3<f32> {
@@ -156,9 +176,10 @@ fn soil_variant(frame: StochasticFrame, id: vec2<i32>) -> vec3<f32> {
 
 fn stochastic_soil(position: vec2<f32>) -> vec3<f32> {
     let frame = stochastic_frame(position);
-    return soil_variant(frame, frame.id_0) * frame.weights.x
+    let blend = soil_variant(frame, frame.id_0) * frame.weights.x
         + soil_variant(frame, frame.id_1) * frame.weights.y
         + soil_variant(frame, frame.id_2) * frame.weights.z;
+    return restore_contrast(blend, SOIL_ALBEDO_MEAN, frame.weights);
 }
 
 @fragment
@@ -166,46 +187,42 @@ fn fragment(in: VertexOutput, @builtin(front_facing) is_front: bool) -> Fragment
     var pbr = pbr_input_from_standard_material(in, is_front);
     // UVs are surface-local metres, so a carried terrain surface keeps its texture in place.
     let uv = in.uv;
-    // A slow coordinate warp makes the stochastic regions less geometric
-    // without introducing view-dependent sampling or temporal noise.
+    let cover = terrain_cover(uv);
+
+    // A slow coordinate warp bends the tiling regions so their straight
+    // triangle edges never show as a lattice.
     let warp = vec2(
         terrain_noise(uv / 11.3 + vec2(17.0, 3.0)),
         terrain_noise(uv / 13.7 + vec2(5.0, 23.0))
     ) * 2.8;
-    let grass = stochastic_grass((uv + warp) / surface.x);
-    let detail = dot(grass, vec3(0.2126, 0.7152, 0.0722));
-    let cover = terrain_cover(uv);
-    // Brown is controlled solely by the shared cover field so CPU-generated
-    // blades can use the same boundary and never grow in bare patches.
-    let bare = smoothstep(0.04, 0.28, cover.r);
-    let dry = cover.g;
-    // The configured sRGB color reaches this uniform in linear space. Use
-    // the meadow texture for value/detail rather than inheriting its yellow
-    // hue, so the configured green is the actual visible base color.
-    let grass_value = clamp(0.52 + detail * 3.2, 0.45, 1.45);
-    let healthy_grass = grass_color.rgb * grass_value;
-    let dry_grass = healthy_grass * vec3(1.22, 0.88, 0.55);
-    let grass_tint = mix(healthy_grass, dry_grass, dry * 0.55);
-    let grass_macro = terrain_noise(uv / 4.6 + vec2(211.0, 43.0)) * 0.70
-        + terrain_noise(uv / 2.2 + vec2(17.0, 191.0)) * 0.30;
-    let grass_macro_tint = mix(vec3(0.86, 0.92, 0.90), vec3(1.04, 1.12, 1.00), grass_macro);
-    // Preserve the authored soil's dense aggregate instead of enlarging
-    // procedural value noise into soft blobs. Stochastic tiling breaks the
-    // source image's period without washing out its fine detail.
+    let meadow = stochastic_grass((uv + warp) / surface.x);
+    let meadow_luminance = dot(meadow, LUMINANCE);
+    let live_grass = meadow * (grass_color.rgb / MEADOW_ALBEDO_MEAN);
+    let grass = mix(live_grass, live_grass * DRY_GRASS_TINT, cover.y * 0.35)
+        * mix(0.92, 1.08, cover.w);
+
     let soil_warp = vec2(
         terrain_noise(uv / 7.7 + vec2(89.0, 17.0)),
         terrain_noise(uv / 9.1 + vec2(23.0, 157.0))
     ) * 0.24 - vec2(0.12);
-    let soil_detail = stochastic_soil((uv + soil_warp) / surface.w);
+    let soil = stochastic_soil((uv + soil_warp) / surface.w);
     let soil_macro = terrain_noise(uv / 4.9 + vec2(181.0, 61.0)) * 0.65
-        + terrain_noise(uv / 2.4 + vec2(73.0, 227.0)) * 0.25
-        + terrain_noise(uv / 18.0 + vec2(29.0, 103.0)) * 0.10;
-    let soil_macro_tint = mix(vec3(0.76, 0.82, 0.88), vec3(1.18, 1.08, 0.92), soil_macro);
-    let soil_color = soil_detail * soil_macro_tint;
-    let color = mix(grass_tint * grass_macro_tint, soil_color, bare) * cover.b;
+        + terrain_noise(uv / 2.4 + vec2(73.0, 227.0)) * 0.35;
+    let soil_color = soil * mix(vec3(0.88, 0.9, 0.94), vec3(1.1, 1.05, 0.97), soil_macro);
+
+    // The meadow's own light and dark texels break up the patch boundary,
+    // so grass thins into the soil instead of stopping at a contour. The
+    // blades stop where the cover field alone says the soil is bare.
+    let edge = cover.x + (meadow_luminance - dot(MEADOW_ALBEDO_MEAN, LUMINANCE)) * 0.6;
+    var bare = smoothstep(0.05, 0.35, edge);
+    // Far away the patches would read as flat blotches, so their contrast
+    // fades with the pixel footprint: fewer metres per pixel means nearer.
+    let footprint = max(length(dpdx(uv)), length(dpdy(uv)));
+    bare *= mix(1.0, 0.4, smoothstep(0.08, 0.35, footprint));
+
+    let color = mix(grass, soil_color, bare) * cover.z;
     pbr.material.base_color = vec4(color, 1.0);
-    let soil_height = dot(soil_detail, vec3(0.2126, 0.7152, 0.0722));
-    let height = mix(detail * surface.y, soil_height * surface.z, bare);
+    let height = mix(meadow_luminance * surface.y, dot(soil, LUMINANCE) * surface.z, bare);
     pbr.N = relief_normal(in.world_position.xyz, normalize(in.world_normal), height);
     apply_decals(&pbr);
 #ifdef PREPASS_PIPELINE

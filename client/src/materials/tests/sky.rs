@@ -29,16 +29,3 @@ fn moon_earthshine_is_only_a_faint_hint() {
     assert!(!shader.contains("crater"));
     assert!(!shader.contains("value_noise"));
 }
-
-#[test]
-fn moving_clouds_restore_only_the_pre_cumulus_background_layer() {
-    let shader = include_str!("../sky.wgsl");
-    assert!(shader.contains("camera_ray(in.position.xy)"));
-    assert!(shader.contains("fn sample_background_clouds(direction:"));
-    assert!(shader.contains("fn high_cloud_density(position:"));
-    assert!(shader.contains("let stretched = vec3("));
-    assert!(!shader.contains("low_cloud_density"));
-    assert!(!shader.contains("cloud_lobe"));
-    assert!(!shader.contains("cumulus_density"));
-    assert!(!shader.contains("in.world_position.xyz - view.world_position"));
-}
