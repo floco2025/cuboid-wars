@@ -555,11 +555,60 @@ pub const RAIN_SPLASH_RADIUS: f32 = 0.15;
 pub const RAIN_SPLASH_HEIGHT: f32 = 0.2;
 
 // ============================================================================
-// Grass Wind
+// Grounds
 // ============================================================================
 
-// Horizontal sway amplitude at the blade tip (m), oscillation speed (rad/s),
-// and direction.
+pub const GROUNDS_ROCK_COLOR: Color = Color::srgb(0.35, 0.36, 0.32);
+
+// ============================================================================
+// Trees
+// ============================================================================
+
+pub const TREE_VARIANTS: usize = 3;
+pub const TREE_BARK_COLOR: Color = Color::srgb(0.19, 0.13, 0.085);
+pub const TREE_FOLIAGE_CUTOFF: f32 = 0.35;
+pub const TREE_FOLIAGE_TRANSMISSION: f32 = 0.25;
+pub const TREE_LOD_DISTANCES: [[f32; 2]; 3] = [[55.0, 65.0], [125.0, 150.0], [380.0, 440.0]];
+// Trees within this distance of the map edge are individual entities with
+// wind and the three detail levels; farther ones merge into one static mesh
+// per chunk of the far detail level, so thousands cost a few draws.
+pub const TREE_NEAR_BAND: f32 = 200.0;
+pub const TREE_FAR_CHUNK_SIZE: f32 = 100.0;
+pub const TREE_FAR_FADE: [f32; 2] = [750.0, 850.0];
+// Crown sway amplitude (metres) and swing rate (rad/s); the direction is
+// `GRASS_WIND_DIRECTION_DEGREES`.
+pub const TREE_WIND_STRENGTH: f32 = 0.22;
+pub const TREE_WIND_SPEED: f32 = 1.0;
+
+// ============================================================================
+// Terrain
+// ============================================================================
+
+// Texture tiling (m) and relief of the meadow and soil details.
+pub const TERRAIN_GRASS_TILE_SIZE: f32 = 1.6;
+pub const TERRAIN_RELIEF: f32 = 0.014;
+pub const TERRAIN_SOIL_TILE_SIZE: f32 = 1.25;
+pub const TERRAIN_SOIL_RELIEF: f32 = 0.05;
+
+// ============================================================================
+// Grass
+// ============================================================================
+
+pub const GRASS_CHUNK_SIZE: f32 = 10.0;
+// Tufts per square metre; each near tuft carries `BLADES_PER_TUFT` blades.
+pub const GRASS_NEAR_DENSITY: f32 = 36.0;
+pub const GRASS_MID_DENSITY: f32 = 8.0;
+pub const GRASS_NEAR_RANGE: [f32; 4] = [0.0, 0.0, 24.0, 34.0];
+pub const GRASS_MID_RANGE: [f32; 4] = [24.0, 34.0, 70.0, 90.0];
+// Chunks are built once their centre is within a LOD's fade end plus this
+// margin, and released this much farther out; a near chunk is ~70 k vertices.
+pub const GRASS_STREAM_MARGIN: f32 = 10.0;
+pub const GRASS_STREAM_HYSTERESIS: f32 = 10.0;
+pub const GRASS_NEAR_CHUNKS_PER_FRAME: usize = 2;
+pub const GRASS_MID_CHUNKS_PER_FRAME: usize = 8;
+pub const GRASS_DRY: Color = Color::srgb(0.55, 0.50, 0.24);
+// Blade sway amplitude at the tip (m), oscillation speed (rad/s), and the
+// direction of every wind in the scene.
 pub const GRASS_WIND_STRENGTH: f32 = 0.05;
 pub const GRASS_WIND_SPEED: f32 = 2.5;
 pub const GRASS_WIND_DIRECTION_DEGREES: f32 = 30.0;
@@ -630,29 +679,3 @@ pub const SETTINGS_SLIDER_TRACK_COLOR: Color = QUEST_BAR_TRACK_COLOR;
 // The quest-bar gold on thumbs, check marks, and pressed buttons.
 pub const SETTINGS_ACCENT_COLOR: Color = QUEST_BAR_FILL_COLOR;
 pub const SETTINGS_OUTLINE_COLOR: Color = Color::srgba(1.0, 1.0, 1.0, 0.35);
-
-pub const GROUNDS_BARK_COLOR: Color = Color::srgb(0.19, 0.13, 0.085);
-pub const GROUNDS_ROCK_COLOR: Color = Color::srgb(0.35, 0.36, 0.32);
-
-pub const TREE_VARIANTS: usize = 3;
-pub const TREE_FOLIAGE_CUTOFF: f32 = 0.35;
-pub const TREE_FOLIAGE_TRANSMISSION: f32 = 0.25;
-pub const TREE_LOD_DISTANCES: [[f32; 2]; 3] = [[55.0, 65.0], [125.0, 150.0], [380.0, 440.0]];
-
-pub const TERRAIN_GRASS_TILE_SIZE: f32 = 1.6;
-pub const TERRAIN_RELIEF: f32 = 0.014;
-pub const TERRAIN_SOIL_TILE_SIZE: f32 = 1.25;
-pub const TERRAIN_SOIL_RELIEF: f32 = 0.05;
-pub const TERRAIN_GRASS_CHUNK_SIZE: f32 = 10.0;
-// Tufts per square metre; each near tuft carries `BLADES_PER_TUFT` blades.
-pub const TERRAIN_GRASS_NEAR_DENSITY: f32 = 36.0;
-pub const TERRAIN_GRASS_MID_DENSITY: f32 = 8.0;
-pub const TERRAIN_GRASS_NEAR_RANGE: [f32; 4] = [0.0, 0.0, 24.0, 34.0];
-pub const TERRAIN_GRASS_MID_RANGE: [f32; 4] = [24.0, 34.0, 70.0, 90.0];
-// Chunks are built once their centre is within a LOD's fade end plus this
-// margin, and released this much farther out; a near chunk is ~70 k vertices.
-pub const TERRAIN_GRASS_STREAM_MARGIN: f32 = 10.0;
-pub const TERRAIN_GRASS_STREAM_HYSTERESIS: f32 = 10.0;
-pub const TERRAIN_GRASS_NEAR_CHUNKS_PER_FRAME: usize = 2;
-pub const TERRAIN_GRASS_MID_CHUNKS_PER_FRAME: usize = 8;
-pub const TERRAIN_GRASS_DRY: Color = Color::srgb(0.55, 0.50, 0.24);

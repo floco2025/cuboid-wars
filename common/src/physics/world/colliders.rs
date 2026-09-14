@@ -131,7 +131,7 @@ pub(super) fn insert_grounds_colliders(colliders: &mut ColliderSet, grounds: &Gr
         .collision_groups(collider_interaction_groups(FLOOR_COLLISION_GROUP))
         .build();
     let mut handles = vec![colliders.insert(collider)];
-    for decoration in grounds.decorations() {
+    for decoration in grounds.collidable_decorations() {
         let (shape, position) = if decoration.tree {
             (
                 ColliderBuilder::cylinder(2.0 * decoration.scale.y, 0.32 * decoration.scale.x),

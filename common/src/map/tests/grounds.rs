@@ -151,3 +151,31 @@ fn a_player_lands_on_the_terrain_and_walks_across_its_triangles() {
     assert!(landed);
     assert!(pos.z > 7.0);
 }
+
+#[test]
+fn decorations_keep_off_the_map_and_only_reachable_ones_collide() {
+    let grounds = grounds();
+    let all = grounds.decorations();
+    assert!(
+        all.len() > 1000,
+        "a jittered grid over the grounds places thousands of decorations"
+    );
+    for decoration in &all {
+        let outside = grounds.distance_outside_map(decoration.position.x, decoration.position.z);
+        assert!(outside >= 8.0, "a decoration sits on the map seam");
+        assert!(outside <= 700.0);
+        assert!(
+            (decoration.position.y - (grounds.height(decoration.position.x, decoration.position.z) - 0.2)).abs()
+                < 0.001
+        );
+    }
+    let collidable = grounds.collidable_decorations();
+    assert!(!collidable.is_empty() && collidable.len() < all.len());
+    for decoration in &collidable {
+        let outside = grounds.distance_outside_map(decoration.position.x, decoration.position.z);
+        assert!(outside <= grounds.settings.margin + 80.0);
+    }
+    assert!(all.iter().filter(|decoration| !decoration.tree).all(|rock| {
+        grounds.distance_outside_map(rock.position.x, rock.position.z) <= grounds.settings.margin + 80.0
+    }));
+}

@@ -3,7 +3,7 @@ use bevy::{
     pbr::{ExtendedMaterial, MaterialExtension},
     prelude::*,
     render::render_resource::AsBindGroup,
-    shader::ShaderRef,
+    shader::{ShaderRef, load_shader_library},
 };
 
 const GRASS_WIND_SHADER_PATH: &str = "embedded://client/materials/grass_wind.wgsl";
@@ -39,6 +39,8 @@ pub struct GrassMaterialPlugin;
 
 impl Plugin for GrassMaterialPlugin {
     fn build(&self, app: &mut App) {
+        // The gust field both the grass and the tree shaders import.
+        load_shader_library!(app, "wind.wgsl");
         embedded_asset!(app, "grass_wind.wgsl");
         app.add_plugins(MaterialPlugin::<GrassMaterial>::default());
     }

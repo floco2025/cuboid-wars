@@ -1,5 +1,7 @@
+use std::f32::consts::TAU;
+
 use anyhow::{Result, ensure};
-use bevy_math::Vec3;
+use bevy_math::{Vec2, Vec3};
 use bincode::{Decode, Encode};
 use serde::Deserialize;
 
@@ -11,6 +13,16 @@ const HILL_BLEND_END: f32 = 50.0;
 // rendered hills continue beyond it.
 pub const GROUNDS_COLLISION_EXTENT: f32 = 400.0;
 const COLLISION_RING_SPACING: f32 = 4.0;
+// Decorations scatter over a jittered grid, so their number follows the
+// ground's area, with a slow noise carving groves and clearings. They stop
+// short of the map edge, which keeps the seam walkable, and end where the
+// fog hides them.
+const DECORATION_CELL: f32 = 16.0;
+const DECORATION_CLEARANCE: f32 = 8.0;
+const DECORATION_EXTENT: f32 = 700.0;
+// Rocks and colliders exist only where a player can get: the return
+// countdown starts at the margin and pulls them back long before this.
+const REACHABLE_PAST_MARGIN: f32 = 80.0;
 
 #[derive(Debug, Clone, Deserialize, Encode, Decode)]
 pub struct GroundsSettings {
@@ -41,37 +53,87 @@ pub struct GroundsMesh {
     pub triangles: Vec<[u32; 3]>,
 }
 
+#[derive(Debug, Clone, Copy)]
 pub struct GroundDecoration {
     pub position: Vec3,
     pub scale: Vec3,
+    pub yaw: f32,
+    pub variant: u32,
     pub tree: bool,
+}
+
+fn cell_hash(x: i32, z: i32, salt: u32) -> f32 {
+    let mut value = (x as u32)
+        .wrapping_mul(374761393)
+        .wrapping_add((z as u32).wrapping_mul(668265263))
+        .wrapping_add(salt.wrapping_mul(2246822519));
+    value = (value ^ (value >> 13)).wrapping_mul(1274126177);
+    (value ^ (value >> 16)) as f32 / u32::MAX as f32
+}
+
+fn grove_noise(position: Vec2) -> f32 {
+    let cell = position.floor().as_ivec2();
+    let t = position - position.floor();
+    let t = t * t * (Vec2::splat(3.0) - t * 2.0);
+    let corner = |dx: i32, dz: i32| cell_hash(cell.x + dx, cell.y + dz, 9);
+    let lerp = |a: f32, b: f32, t: f32| a + (b - a) * t;
+    let bottom = lerp(corner(0, 0), corner(1, 0), t.x);
+    let top = lerp(corner(0, 1), corner(1, 1), t.x);
+    lerp(bottom, top, t.y)
+}
+
+fn smoothstep(low: f32, high: f32, value: f32) -> f32 {
+    let t = ((value - low) / (high - low)).clamp(0.0, 1.0);
+    t * t * (3.0 - 2.0 * t)
 }
 
 impl Grounds {
     pub fn decorations(&self) -> Vec<GroundDecoration> {
-        (0..180)
-            .map(|i| {
-                let angle = i as f32 * 2.399963;
-                let distance = 22.0 + (i % 30) as f32 * 7.2;
-                let direction = Vec3::new(angle.cos(), 0.0, angle.sin());
-                let radius = (self.half_size[0] / direction.x.abs().max(0.001))
-                    .min(self.half_size[1] / direction.z.abs().max(0.001))
-                    + distance;
-                let x = direction.x * radius;
-                let z = direction.z * radius;
-                let tree = i % 4 != 0;
-                let size = 0.8 + (i % 7) as f32 * 0.13;
-                GroundDecoration {
+        let reach = self.half_size[0].max(self.half_size[1]) + DECORATION_EXTENT;
+        let cells = (reach / DECORATION_CELL).ceil() as i32;
+        let reachable = self.reachable_extent();
+        let mut decorations = Vec::new();
+        for cz in -cells..cells {
+            for cx in -cells..cells {
+                let x = (cx as f32 + 0.15 + 0.7 * cell_hash(cx, cz, 1)) * DECORATION_CELL;
+                let z = (cz as f32 + 0.15 + 0.7 * cell_hash(cx, cz, 2)) * DECORATION_CELL;
+                let outside = self.distance_outside_map(x, z);
+                if !(DECORATION_CLEARANCE..=DECORATION_EXTENT).contains(&outside) {
+                    continue;
+                }
+                let grove = grove_noise(Vec2::new(cx as f32, cz as f32) / 6.0);
+                let density = 0.1 + 0.9 * smoothstep(0.3, 0.7, grove);
+                if cell_hash(cx, cz, 3) > density {
+                    continue;
+                }
+                let tree = outside > reachable || cell_hash(cx, cz, 4) > 0.12;
+                let size = 0.8 + cell_hash(cx, cz, 5) * 0.8;
+                decorations.push(GroundDecoration {
                     position: Vec3::new(x, self.height(x, z) - 0.2, z),
                     scale: if tree {
-                        Vec3::new(1.0, 1.0, 1.0) * size
+                        Vec3::splat(size)
                     } else {
                         Vec3::new(1.8, 1.0, 1.4) * size
                     },
+                    yaw: cell_hash(cx, cz, 6) * TAU,
+                    variant: (cell_hash(cx, cz, 7) * 3.0) as u32,
                     tree,
-                }
-            })
+                });
+            }
+        }
+        decorations
+    }
+
+    pub fn collidable_decorations(&self) -> Vec<GroundDecoration> {
+        let reachable = self.reachable_extent();
+        self.decorations()
+            .into_iter()
+            .filter(|decoration| self.distance_outside_map(decoration.position.x, decoration.position.z) <= reachable)
             .collect()
+    }
+
+    fn reachable_extent(&self) -> f32 {
+        self.settings.margin + REACHABLE_PAST_MARGIN
     }
 
     pub fn distance_outside_map(&self, x: f32, z: f32) -> f32 {

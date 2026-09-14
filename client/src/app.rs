@@ -21,7 +21,7 @@ use crate::{
     map::{DebugColors, LevelFocusEnabled, map_plugin, setup_scene_lighting_system, sky_weather_plugin},
     materials::{
         GrassMaterialPlugin, PortalClipMaterialPlugin, ProceduralSkyMaterialPlugin, TerrainMaterialPlugin,
-        generate_material_mipmaps_system,
+        TreeMaterialPlugin, generate_material_mipmaps_system,
     },
     missiles::{LockOnTarget, MissileAssets, MissileMap},
     network::{
@@ -151,6 +151,7 @@ pub fn build_client_app(
         PortalClipMaterialPlugin,
         ProceduralSkyMaterialPlugin,
         TerrainMaterialPlugin,
+        TreeMaterialPlugin,
         FrameTimeDiagnosticsPlugin::default(),
     ));
     app.insert_resource(match client_settings.rendering.opaque_renderer {

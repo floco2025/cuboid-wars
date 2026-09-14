@@ -1,7 +1,7 @@
 use super::streaming::{ChunkEntry, ChunkKey, ChunkKind, GrassChunkSource, GrassChunks};
 use crate::{
     carriers::{CarrierEntities, CarrierStoreys},
-    constants::{GRASS_WIND_DIRECTION_DEGREES, GRASS_WIND_SPEED, GRASS_WIND_STRENGTH, TERRAIN_GRASS_CHUNK_SIZE},
+    constants::{GRASS_CHUNK_SIZE, GRASS_WIND_DIRECTION_DEGREES, GRASS_WIND_SPEED, GRASS_WIND_STRENGTH},
     map::{DebugColorMode, DebugColors},
     materials::{GrassMaterial, GrassWindExtension},
 };
@@ -31,12 +31,12 @@ pub(in crate::map) struct GrassPatch {
 impl GrassPatch {
     fn clipped_to_chunk(floor: Floor, chunk_x: i32, chunk_z: i32) -> Option<Self> {
         let (floor_x1, floor_x2, floor_z1, floor_z2) = floor.bounds_xz();
-        let chunk_x1 = chunk_x as f32 * TERRAIN_GRASS_CHUNK_SIZE;
-        let chunk_z1 = chunk_z as f32 * TERRAIN_GRASS_CHUNK_SIZE;
+        let chunk_x1 = chunk_x as f32 * GRASS_CHUNK_SIZE;
+        let chunk_z1 = chunk_z as f32 * GRASS_CHUNK_SIZE;
         let x1 = floor_x1.max(chunk_x1);
-        let x2 = floor_x2.min(chunk_x1 + TERRAIN_GRASS_CHUNK_SIZE);
+        let x2 = floor_x2.min(chunk_x1 + GRASS_CHUNK_SIZE);
         let z1 = floor_z1.max(chunk_z1);
-        let z2 = floor_z2.min(chunk_z1 + TERRAIN_GRASS_CHUNK_SIZE);
+        let z2 = floor_z2.min(chunk_z1 + GRASS_CHUNK_SIZE);
         (x2 > x1 && z2 > z1).then_some(Self {
             x1,
             x2,
@@ -116,10 +116,10 @@ pub fn terrain_spawn_system(
     let mut patches_by_chunk: BTreeMap<ChunkKey, Vec<GrassPatch>> = BTreeMap::new();
     for floor in footprint.iter().copied() {
         let (x1, x2, z1, z2) = floor.bounds_xz();
-        let min_chunk_x = (x1 / TERRAIN_GRASS_CHUNK_SIZE).floor() as i32;
-        let max_chunk_x = (x2 / TERRAIN_GRASS_CHUNK_SIZE).floor() as i32;
-        let min_chunk_z = (z1 / TERRAIN_GRASS_CHUNK_SIZE).floor() as i32;
-        let max_chunk_z = (z2 / TERRAIN_GRASS_CHUNK_SIZE).floor() as i32;
+        let min_chunk_x = (x1 / GRASS_CHUNK_SIZE).floor() as i32;
+        let max_chunk_x = (x2 / GRASS_CHUNK_SIZE).floor() as i32;
+        let min_chunk_z = (z1 / GRASS_CHUNK_SIZE).floor() as i32;
+        let max_chunk_z = (z2 / GRASS_CHUNK_SIZE).floor() as i32;
         for chunk_z in min_chunk_z..=max_chunk_z {
             for chunk_x in min_chunk_x..=max_chunk_x {
                 let Some(patch) = GrassPatch::clipped_to_chunk(floor, chunk_x, chunk_z) else {
@@ -138,9 +138,9 @@ pub fn terrain_spawn_system(
     }
     for (key, patches) in patches_by_chunk {
         let origin = Vec3::new(
-            (key.x as f32 + 0.5) * TERRAIN_GRASS_CHUNK_SIZE,
+            (key.x as f32 + 0.5) * GRASS_CHUNK_SIZE,
             patches[0].y,
-            (key.z as f32 + 0.5) * TERRAIN_GRASS_CHUNK_SIZE,
+            (key.z as f32 + 0.5) * GRASS_CHUNK_SIZE,
         );
         chunks.register(
             key,

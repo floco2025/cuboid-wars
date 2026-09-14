@@ -4,8 +4,7 @@ use crate::{
         EXPLOSION_GRASS_BURN_CENTER_HEIGHT_FACTOR, EXPLOSION_GRASS_BURN_CENTER_SWAY_FACTOR,
         EXPLOSION_GRASS_BURN_CENTER_WIDTH_FACTOR, EXPLOSION_GRASS_BURN_COLOR, EXPLOSION_GRASS_BURN_MAX_COLOR_BLEND,
         EXPLOSION_GRASS_BURN_MID_BRIGHTNESS_FACTOR, EXPLOSION_GRASS_BURN_ROOT_BRIGHTNESS_FACTOR,
-        EXPLOSION_GRASS_BURN_TIP_BRIGHTNESS_FACTOR, TERRAIN_GRASS_DRY, TERRAIN_GRASS_MID_DENSITY,
-        TERRAIN_GRASS_NEAR_DENSITY,
+        EXPLOSION_GRASS_BURN_TIP_BRIGHTNESS_FACTOR, GRASS_DRY, GRASS_MID_DENSITY, GRASS_NEAR_DENSITY,
     },
     map::terrain_surface::TerrainCover,
 };
@@ -73,8 +72,8 @@ pub(crate) enum GrassLod {
 impl GrassLod {
     fn density(self) -> f32 {
         match self {
-            Self::Near => TERRAIN_GRASS_NEAR_DENSITY,
-            Self::Mid => TERRAIN_GRASS_MID_DENSITY,
+            Self::Near => GRASS_NEAR_DENSITY,
+            Self::Mid => GRASS_MID_DENSITY,
         }
     }
 
@@ -132,7 +131,7 @@ pub(in crate::map) fn grass_scatter_mesh(
     let mut normals: Vec<[f32; 3]> = Vec::with_capacity(vertex_count);
     let mut indices: Vec<u32> = Vec::with_capacity(candidate_count * lod.blades() * INDICES_PER_BLADE);
 
-    let dry = TERRAIN_GRASS_DRY.to_linear().to_vec3();
+    let dry = GRASS_DRY.to_linear().to_vec3();
     for _ in 0..candidate_count {
         let Some(tuft) = candidate(&mut rng) else { continue };
         let cover_position = Vec2::new(tuft.x, tuft.z);

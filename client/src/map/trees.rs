@@ -7,16 +7,29 @@ use bevy::{
     mesh::{Indices, PrimitiveTopology},
     prelude::*,
 };
+use common::map::GroundDecoration;
 use rand::{RngExt, SeedableRng, rngs::SmallRng};
 
-use crate::constants::{
-    GROUNDS_BARK_COLOR, TREE_FOLIAGE_CUTOFF, TREE_FOLIAGE_TRANSMISSION, TREE_LOD_DISTANCES, TREE_VARIANTS,
+use crate::{
+    constants::{
+        GRASS_WIND_DIRECTION_DEGREES, TREE_BARK_COLOR, TREE_FOLIAGE_CUTOFF, TREE_FOLIAGE_TRANSMISSION,
+        TREE_LOD_DISTANCES, TREE_VARIANTS, TREE_WIND_SPEED, TREE_WIND_STRENGTH,
+    },
+    materials::{TreeMaterial, TreeWindExtension},
 };
 
+// The three near detail levels, then the far one that whole chunks of
+// distant trees merge into.
+const NEAR_LODS: usize = 3;
+const FAR_LOD: usize = 3;
+
 pub(super) struct TreeAssets {
-    variants: Vec<Vec<(Handle<Mesh>, Handle<Mesh>)>>,
-    bark: Handle<StandardMaterial>,
-    foliage: Handle<StandardMaterial>,
+    near: Vec<Vec<(Handle<Mesh>, Handle<Mesh>)>>,
+    far: Vec<(Mesh, Mesh)>,
+    bark: Handle<TreeMaterial>,
+    foliage: Handle<TreeMaterial>,
+    far_bark: Handle<StandardMaterial>,
+    far_foliage: Handle<StandardMaterial>,
 }
 
 impl TreeAssets {
@@ -24,11 +37,13 @@ impl TreeAssets {
         server: &AssetServer,
         meshes: &mut Assets<Mesh>,
         materials: &mut Assets<StandardMaterial>,
+        tree_materials: &mut Assets<TreeMaterial>,
     ) -> Self {
-        let variants = (0..TREE_VARIANTS)
-            .map(|variant| {
-                let tree = Tree::grow(variant);
-                (0..3)
+        let trees: Vec<Tree> = (0..TREE_VARIANTS).map(Tree::grow).collect();
+        let near = trees
+            .iter()
+            .map(|tree| {
+                (0..NEAR_LODS)
                     .map(|lod| {
                         let (wood, leaves) = tree.meshes(lod);
                         (meshes.add(wood), meshes.add(leaves))
@@ -36,29 +51,32 @@ impl TreeAssets {
                     .collect()
             })
             .collect();
+        let far = trees.iter().map(|tree| tree.meshes(FAR_LOD)).collect();
+        let wind_direction = Vec2::from_angle(GRASS_WIND_DIRECTION_DEGREES.to_radians());
+        let wind = TreeWindExtension {
+            wind: Vec4::new(wind_direction.x, wind_direction.y, TREE_WIND_STRENGTH, TREE_WIND_SPEED),
+        };
         Self {
-            variants,
-            bark: materials.add(StandardMaterial {
-                base_color: GROUNDS_BARK_COLOR,
-                perceptual_roughness: 0.95,
-                reflectance: 0.15,
-                ..default()
+            near,
+            far,
+            bark: tree_materials.add(TreeMaterial {
+                base: bark_material(),
+                extension: wind.clone(),
             }),
-            foliage: materials.add(StandardMaterial {
-                base_color_texture: Some(server.load("textures/trees/oak-leaf-spray.png")),
-                alpha_mode: AlphaMode::Mask(TREE_FOLIAGE_CUTOFF),
-                double_sided: true,
-                cull_mode: None,
-                perceptual_roughness: 0.9,
-                reflectance: 0.12,
-                diffuse_transmission: TREE_FOLIAGE_TRANSMISSION,
-                ..default()
+            foliage: tree_materials.add(TreeMaterial {
+                base: foliage_material(server),
+                extension: wind,
             }),
+            far_bark: materials.add(bark_material()),
+            far_foliage: materials.add(foliage_material(server)),
         }
     }
 
-    pub(super) fn spawn(&self, commands: &mut Commands, root: Entity, variant: usize) {
-        for (lod, (wood, leaves)) in self.variants[variant % self.variants.len()].iter().enumerate() {
+    // One tree as its own entities: three detail levels that fade into each
+    // other with distance, swaying in the wind, the near two casting shadows.
+    pub(super) fn spawn(&self, commands: &mut Commands, root: Entity, decoration: &GroundDecoration) {
+        let variant = &self.near[decoration.variant as usize % self.near.len()];
+        for (lod, (wood, leaves)) in variant.iter().enumerate() {
             let range = VisibilityRange {
                 start_margin: if lod == 0 {
                     0.0..0.0
@@ -81,6 +99,63 @@ impl TreeAssets {
                 }
             }
         }
+    }
+
+    // Every tree of a chunk baked into one wood and one leaf mesh around
+    // `origin`, at the far detail level; still, since sway is invisible at
+    // that distance and the merged mesh has no per-tree transform.
+    pub(super) fn far_chunk(&self, decorations: &[GroundDecoration], origin: Vec3) -> Option<(Mesh, Mesh)> {
+        let mut merged: Option<(Mesh, Mesh)> = None;
+        for decoration in decorations {
+            let (wood, leaves) = &self.far[decoration.variant as usize % self.far.len()];
+            let transform = Transform::from_translation(decoration.position - origin)
+                .with_scale(decoration.scale)
+                .with_rotation(Quat::from_rotation_y(decoration.yaw));
+            let wood = wood.clone().transformed_by(transform);
+            let leaves = leaves.clone().transformed_by(transform);
+            match &mut merged {
+                Some((chunk_wood, chunk_leaves)) => {
+                    chunk_wood
+                        .merge(&wood)
+                        .expect("far tree wood meshes have incompatible vertex layouts");
+                    chunk_leaves
+                        .merge(&leaves)
+                        .expect("far tree leaf meshes have incompatible vertex layouts");
+                }
+                None => merged = Some((wood, leaves)),
+            }
+        }
+        merged.map(|(mut wood, mut leaves)| {
+            wood.asset_usage = RenderAssetUsages::RENDER_WORLD;
+            leaves.asset_usage = RenderAssetUsages::RENDER_WORLD;
+            (wood, leaves)
+        })
+    }
+
+    pub(super) fn far_materials(&self) -> (Handle<StandardMaterial>, Handle<StandardMaterial>) {
+        (self.far_bark.clone(), self.far_foliage.clone())
+    }
+}
+
+fn bark_material() -> StandardMaterial {
+    StandardMaterial {
+        base_color: TREE_BARK_COLOR,
+        perceptual_roughness: 0.95,
+        reflectance: 0.15,
+        ..default()
+    }
+}
+
+fn foliage_material(server: &AssetServer) -> StandardMaterial {
+    StandardMaterial {
+        base_color_texture: Some(server.load("textures/trees/oak-leaf-spray.png")),
+        alpha_mode: AlphaMode::Mask(TREE_FOLIAGE_CUTOFF),
+        double_sided: true,
+        cull_mode: None,
+        perceptual_roughness: 0.9,
+        reflectance: 0.12,
+        diffuse_transmission: TREE_FOLIAGE_TRANSMISSION,
+        ..default()
     }
 }
 
@@ -171,17 +246,27 @@ impl Tree {
         tree
     }
 
+    // Levels 0-2 thin the limbs and sprays; level 3 keeps the trunk and a
+    // few big sprays, enough for a tree that is a dozen pixels tall.
     fn meshes(&self, lod: usize) -> (Mesh, Mesh) {
         let mut wood = TreeMesh::default();
-        for limb in &self.limbs {
-            if lod < 2 || !limb.detail {
-                wood.limb(&limb.points, [10, 7, 5][lod]);
+        for (index, limb) in self.limbs.iter().enumerate() {
+            let kept = match lod {
+                0 | 1 => true,
+                2 => !limb.detail,
+                _ => index == 0,
+            };
+            if kept {
+                wood.limb(&limb.points, [10, 7, 5, 4][lod]);
             }
         }
         let mut leaves = TreeMesh::default();
-        for shoot in &self.shoots {
+        for (index, shoot) in self.shoots.iter().enumerate() {
+            if lod == FAR_LOD && index % 4 != 0 {
+                continue;
+            }
             let mut rng = SmallRng::seed_from_u64(shoot.seed);
-            for _ in 0..[9, 5, 3][lod] {
+            for _ in 0..[9, 5, 3, 1][lod] {
                 let offset = Vec3::new(
                     rng.random_range(-0.65..0.65),
                     rng.random_range(-0.4..0.65),
@@ -191,7 +276,7 @@ impl Tree {
                 let direction = (shoot.direction * 0.35 + offset + Vec3::Y * 0.6).normalize();
                 let rotation =
                     Quat::from_rotation_arc(Vec3::Y, direction) * Quat::from_rotation_y(rng.random_range(0.0..TAU));
-                let size = rng.random_range(0.85..1.25) * [1.0, 1.3, 1.62][lod];
+                let size = rng.random_range(0.85..1.25) * [1.0, 1.3, 1.62, 3.2][lod];
                 let brightness = rng.random_range(0.68..1.0) * (0.75 + (center.y / 10.0).clamp(0.0, 1.0) * 0.25);
                 leaves.spray(center, rotation, size, brightness);
             }

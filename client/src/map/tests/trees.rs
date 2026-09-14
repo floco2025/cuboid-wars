@@ -6,7 +6,7 @@ fn tree_detail_levels_have_valid_surfaces_and_reduce_geometry() {
     for variant in 0..TREE_VARIANTS {
         let tree = Tree::grow(variant);
         let mut previous_triangles = usize::MAX;
-        for lod in 0..3 {
+        for lod in 0..4 {
             let (wood, leaves) = tree.meshes(lod);
             let mut triangles = 0;
             for mesh in [&wood, &leaves] {

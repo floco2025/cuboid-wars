@@ -26,9 +26,8 @@ use crate::{
     cameras::MainCameraMarker,
     config::{AssetSet, ClientSettings},
     constants::{
-        GRASS_WIND_STRENGTH, TERRAIN_GRASS_CHUNK_SIZE, TERRAIN_GRASS_MID_CHUNKS_PER_FRAME, TERRAIN_GRASS_MID_RANGE,
-        TERRAIN_GRASS_NEAR_CHUNKS_PER_FRAME, TERRAIN_GRASS_NEAR_RANGE, TERRAIN_GRASS_STREAM_HYSTERESIS,
-        TERRAIN_GRASS_STREAM_MARGIN,
+        GRASS_CHUNK_SIZE, GRASS_MID_CHUNKS_PER_FRAME, GRASS_MID_RANGE, GRASS_NEAR_CHUNKS_PER_FRAME, GRASS_NEAR_RANGE,
+        GRASS_STREAM_HYSTERESIS, GRASS_STREAM_MARGIN, GRASS_WIND_STRENGTH,
     },
     map::{DebugColors, MapLevel},
     materials::{GrassMaterial, TerrainMaterial, terrain_material},
@@ -117,24 +116,24 @@ impl GrassLod {
     // it is this far away again, so a player at the edge does not churn it.
     fn stream_radii(self) -> (f32, f32) {
         let fade_end = match self {
-            Self::Near => TERRAIN_GRASS_NEAR_RANGE[3],
-            Self::Mid => TERRAIN_GRASS_MID_RANGE[3],
+            Self::Near => GRASS_NEAR_RANGE[3],
+            Self::Mid => GRASS_MID_RANGE[3],
         };
-        let stream_in = fade_end + TERRAIN_GRASS_STREAM_MARGIN;
-        (stream_in, stream_in + TERRAIN_GRASS_STREAM_HYSTERESIS)
+        let stream_in = fade_end + GRASS_STREAM_MARGIN;
+        (stream_in, stream_in + GRASS_STREAM_HYSTERESIS)
     }
 
     fn chunks_per_frame(self) -> usize {
         match self {
-            Self::Near => TERRAIN_GRASS_NEAR_CHUNKS_PER_FRAME,
-            Self::Mid => TERRAIN_GRASS_MID_CHUNKS_PER_FRAME,
+            Self::Near => GRASS_NEAR_CHUNKS_PER_FRAME,
+            Self::Mid => GRASS_MID_CHUNKS_PER_FRAME,
         }
     }
 
     fn visibility_range(self) -> VisibilityRange {
         let range = match self {
-            Self::Near => TERRAIN_GRASS_NEAR_RANGE,
-            Self::Mid => TERRAIN_GRASS_MID_RANGE,
+            Self::Near => GRASS_NEAR_RANGE,
+            Self::Mid => GRASS_MID_RANGE,
         };
         VisibilityRange {
             start_margin: range[0]..range[1],
@@ -291,13 +290,13 @@ fn grounds_chunk_mesh(grounds: &Grounds, cell: IVec2, lod: GrassLod, green: Colo
     let seed = (cell.x as u64).wrapping_mul(0x9E3779B97F4A7C15) ^ (cell.y as u64).wrapping_mul(0xC2B2AE3D27D4EB4F);
     grass_scatter_mesh(
         seed,
-        lod.tuft_count(TERRAIN_GRASS_CHUNK_SIZE.powi(2)),
+        lod.tuft_count(GRASS_CHUNK_SIZE.powi(2)),
         lod,
         green,
         burns,
         |rng| {
-            let x = (cell.x as f32 + rng.random::<f32>()) * TERRAIN_GRASS_CHUNK_SIZE;
-            let z = (cell.y as f32 + rng.random::<f32>()) * TERRAIN_GRASS_CHUNK_SIZE;
+            let x = (cell.x as f32 + rng.random::<f32>()) * GRASS_CHUNK_SIZE;
+            let z = (cell.y as f32 + rng.random::<f32>()) * GRASS_CHUNK_SIZE;
             (grounds.distance_outside_map(x, z) >= 0.2).then(|| Vec3::new(x, grounds.height(x, z), z))
         },
         |_, _| true,
