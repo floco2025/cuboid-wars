@@ -1,12 +1,12 @@
 use bevy::{
     camera::visibility::RenderLayers,
-    ecs::system::SystemParam,
     light::{CascadeShadowConfigBuilder, NotShadowCaster},
     prelude::*,
     render::view::ColorGrading,
 };
 use common::{
     celestial::{CelestialClockAnchor, CelestialCycleSettings, CelestialTime, celestial_directions},
+    config::NetworkConfig,
     protocol::{MapSettings, ServerTick, sequence_is_newer},
 };
 
@@ -39,22 +39,6 @@ pub(super) struct SkyAttached;
 
 #[derive(Component)]
 pub(super) struct SkyDome;
-
-// This frame's sun and phases, as `celestial_sky_system` derives them, for
-// everything else that follows the sky.
-#[derive(Resource, Default, Clone, Copy)]
-pub(super) struct SkyState {
-    pub(super) sun_direction: Vec3,
-    pub(super) sun_altitude: f32,
-    pub(super) twilight: f32,
-    pub(super) daylight: f32,
-    pub(super) rain: f32,
-    pub(super) sun_illuminance: f32,
-    // The configured ambient level for this phase and weather; the sky probe
-    // scales itself to it, so the JSON keeps setting how much ambient there is.
-    pub(super) ambient_brightness: f32,
-    pub(super) seconds: f32,
-}
 
 #[derive(Resource)]
 pub struct SkyAssets {
@@ -207,45 +191,45 @@ fn quantized_direction(direction: Vec3, step_radians: f32) -> Vec3 {
     )
 }
 
-#[derive(SystemParam)]
-pub struct CelestialRender<'w, 's> {
-    sky_materials: ResMut<'w, Assets<ProceduralSkyMaterial>>,
-    sun_lights: Query<
-        'w,
-        's,
-        (&'static mut DirectionalLight, &'static mut Transform),
-        (With<SunLightMarker>, Without<MoonLightMarker>),
-    >,
-    moon_lights: Query<
-        'w,
-        's,
-        (&'static mut DirectionalLight, &'static mut Transform),
-        (With<MoonLightMarker>, Without<SunLightMarker>),
-    >,
-    ambient: ResMut<'w, GlobalAmbientLight>,
-    sky_state: ResMut<'w, SkyState>,
-    gradings: Query<'w, 's, &'static mut ColorGrading, Or<(With<MainCameraMarker>, With<RearviewCameraMarker>)>>,
-    cameras: Query<'w, 's, (Entity, Option<&'static mut DistanceFog>), With<Camera3d>>,
+// This frame's sun, moon, and phases, derived once by
+// `celestial_state_system` for everything that follows the sky.
+#[derive(Resource, Default, Clone, Copy)]
+pub(super) struct SkyState {
+    pub(super) sun_direction: Vec3,
+    pub(super) moon_direction: Vec3,
+    pub(super) celestial_pole: Vec3,
+    pub(super) star_rotation_radians: f32,
+    pub(super) moon_illuminated_fraction: f32,
+    pub(super) sun_altitude: f32,
+    pub(super) twilight: f32,
+    pub(super) daylight: f32,
+    pub(super) rain: f32,
+    pub(super) seconds: f32,
+    // The two directional lights: quantized directions, illuminance, and
+    // which of them owns the shadow map.
+    pub(super) sun_light_direction: Vec3,
+    pub(super) moon_light_direction: Vec3,
+    pub(super) sun_illuminance: f32,
+    pub(super) moon_illuminance: f32,
+    pub(super) sun_casts_shadows: bool,
+    // The configured ambient level for this phase and weather; the sky probe
+    // scales itself to it, so the JSON keeps setting how much ambient there is.
+    pub(super) ambient_brightness: f32,
 }
 
-pub fn celestial_sky_system(
+pub fn celestial_state_system(
     time: Res<Time>,
     fixed_time: Res<Time<Fixed>>,
     tick: Res<ServerTick>,
-    network: Res<common::config::NetworkConfig>,
+    network: Res<NetworkConfig>,
     anchor: Res<CelestialClockAnchor>,
     cycle: Res<CelestialCycleSettings>,
     map: Res<MapSettings>,
     settings: Res<ClientSettings>,
     rain: Res<RainIntensity>,
-    sky_assets: Option<Res<SkyAssets>>,
-    mut render: CelestialRender,
-    mut commands: Commands,
+    mut state: ResMut<SkyState>,
     mut sun_casts_shadows: Local<bool>,
 ) {
-    let Some(sky_assets) = sky_assets else {
-        return;
-    };
     let celestial_time = fractional_celestial_time(
         *anchor,
         tick.0,
@@ -255,18 +239,7 @@ pub fn celestial_sky_system(
     );
     let directions = celestial_directions(map.celestial, celestial_time);
     let rain = rain.cloud_cover();
-
-    if let Some(mut material) = render.sky_materials.get_mut(&sky_assets.material) {
-        material.sun_direction = directions.sun.extend(0.0);
-        material.moon_direction = directions.moon.extend(0.0);
-        material.pole_rotation = directions.celestial_pole.extend(directions.star_rotation_radians);
-        material.time_weather_phase = Vec4::new(
-            time.elapsed_secs_wrapped(),
-            rain,
-            directions.moon_illuminated_fraction,
-            0.0,
-        );
-    }
+    let seconds = time.elapsed_secs_wrapped();
 
     // One set of altitude edges for direct light, ambient, grading, fog, and
     // (mirrored in sky.wgsl) the dome, so the scene turns over together.
@@ -276,16 +249,14 @@ pub fn celestial_sky_system(
 
     let lighting = settings.lighting;
     let step = lighting.shadow_step_degrees.to_radians();
-    let sun_direction = quantized_direction(directions.sun, step);
-    let moon_direction = quantized_direction(directions.moon, step);
-    let sun_height = directions.sun_altitude_radians.sin().max(0.0);
+    let sun_height = sun_altitude.sin().max(0.0);
     let moon_height = directions.moon_altitude_radians.sin().max(0.0);
     let direct_weather = 1.0_f32.lerp(LIGHTING_RAIN_DIRECT_FACTOR, rain);
     // A cloud drifting across the sun takes the direct light with it.
     let clouds = settings.sky.clouds;
     let cloud_over_sun = cumulus_toward(
         directions.sun,
-        time.elapsed_secs_wrapped(),
+        seconds,
         clouds.clear_coverage.lerp(clouds.overcast_coverage, rain),
         SKY_CLOUD_SCALE,
         clouds.movement_speed_degrees_per_second.to_radians(),
@@ -306,65 +277,112 @@ pub fn celestial_sky_system(
     } else if sun_illuminance > moon_illuminance * SHADOW_HANDOVER_RATIO {
         *sun_casts_shadows = true;
     }
-    let sun_stronger = *sun_casts_shadows;
-    if let Ok((mut light, mut transform)) = render.sun_lights.single_mut() {
-        light.illuminance = sun_illuminance;
-        light.shadow_maps_enabled = settings.rendering.directional_shadows && sun_stronger && sun_illuminance > 0.0;
-        *transform = Transform::default().looking_to(-sun_direction, Vec3::Y);
-    }
-    if let Ok((mut light, mut transform)) = render.moon_lights.single_mut() {
-        light.illuminance = moon_illuminance;
-        light.shadow_maps_enabled = settings.rendering.directional_shadows && !sun_stronger && moon_illuminance > 0.0;
-        *transform = Transform::default().looking_to(-moon_direction, Vec3::Y);
-    }
-
     let ambient_brightness = lighting
         .night_ambient_brightness
         .lerp(lighting.twilight_ambient_brightness, twilight)
         .lerp(lighting.day_ambient_brightness, daylight)
         * 1.0_f32.lerp(LIGHTING_RAIN_AMBIENT_FACTOR, rain);
-    // The sky probe carries the ambient; this is the fill under it.
-    render.ambient.brightness = ambient_brightness * AMBIENT_FILL_UNDER_SKY_PROBE;
-    *render.sky_state = SkyState {
+
+    *state = SkyState {
         sun_direction: directions.sun,
+        moon_direction: directions.moon,
+        celestial_pole: directions.celestial_pole,
+        star_rotation_radians: directions.star_rotation_radians,
+        moon_illuminated_fraction: directions.moon_illuminated_fraction,
         sun_altitude,
         twilight,
         daylight,
         rain,
+        seconds,
+        sun_light_direction: quantized_direction(directions.sun, step),
+        moon_light_direction: quantized_direction(directions.moon, step),
         sun_illuminance,
+        moon_illuminance,
+        sun_casts_shadows: *sun_casts_shadows,
         ambient_brightness,
-        seconds: time.elapsed_secs_wrapped(),
     };
-    let ambient_color = mix_color(AMBIENT_NIGHT_COLOR, AMBIENT_TWILIGHT_COLOR, twilight)
-        .lerp(Vec3::from_array(AMBIENT_DAY_COLOR), daylight)
-        .lerp(Vec3::from_array(AMBIENT_OVERCAST_COLOR), rain);
-    render.ambient.color = Color::linear_rgb(ambient_color.x, ambient_color.y, ambient_color.z);
+}
+
+pub fn sky_material_system(
+    state: Res<SkyState>,
+    sky_assets: Option<Res<SkyAssets>>,
+    mut materials: ResMut<Assets<ProceduralSkyMaterial>>,
+) {
+    let Some(sky_assets) = sky_assets else {
+        return;
+    };
+    let Some(mut material) = materials.get_mut(&sky_assets.material) else {
+        return;
+    };
+    material.sun_direction = state.sun_direction.extend(0.0);
+    material.moon_direction = state.moon_direction.extend(0.0);
+    material.pole_rotation = state.celestial_pole.extend(state.star_rotation_radians);
+    material.time_weather_phase = Vec4::new(state.seconds, state.rain, state.moon_illuminated_fraction, 0.0);
+}
+
+pub fn celestial_lights_system(
+    state: Res<SkyState>,
+    settings: Res<ClientSettings>,
+    mut sun_lights: Query<(&mut DirectionalLight, &mut Transform), (With<SunLightMarker>, Without<MoonLightMarker>)>,
+    mut moon_lights: Query<(&mut DirectionalLight, &mut Transform), (With<MoonLightMarker>, Without<SunLightMarker>)>,
+) {
+    let shadows = settings.rendering.directional_shadows;
+    if let Ok((mut light, mut transform)) = sun_lights.single_mut() {
+        light.illuminance = state.sun_illuminance;
+        light.shadow_maps_enabled = shadows && state.sun_casts_shadows && state.sun_illuminance > 0.0;
+        *transform = Transform::default().looking_to(-state.sun_light_direction, Vec3::Y);
+    }
+    if let Ok((mut light, mut transform)) = moon_lights.single_mut() {
+        light.illuminance = state.moon_illuminance;
+        light.shadow_maps_enabled = shadows && !state.sun_casts_shadows && state.moon_illuminance > 0.0;
+        *transform = Transform::default().looking_to(-state.moon_light_direction, Vec3::Y);
+    }
+}
+
+pub fn scene_ambient_system(
+    state: Res<SkyState>,
+    mut ambient: ResMut<GlobalAmbientLight>,
+    mut gradings: Query<&mut ColorGrading, Or<(With<MainCameraMarker>, With<RearviewCameraMarker>)>>,
+) {
+    // The sky probe carries the ambient; this is the fill under it.
+    ambient.brightness = state.ambient_brightness * AMBIENT_FILL_UNDER_SKY_PROBE;
+    let color = mix_color(AMBIENT_NIGHT_COLOR, AMBIENT_TWILIGHT_COLOR, state.twilight)
+        .lerp(Vec3::from_array(AMBIENT_DAY_COLOR), state.daylight)
+        .lerp(Vec3::from_array(AMBIENT_OVERCAST_COLOR), state.rain);
+    ambient.color = Color::linear_rgb(color.x, color.y, color.z);
     let saturation = SCENE_NIGHT_SATURATION
-        .lerp(SCENE_TWILIGHT_SATURATION, twilight)
-        .lerp(SCENE_DAY_SATURATION, daylight);
-    for mut grading in &mut render.gradings {
+        .lerp(SCENE_TWILIGHT_SATURATION, state.twilight)
+        .lerp(SCENE_DAY_SATURATION, state.daylight);
+    for mut grading in &mut gradings {
         grading.global.post_saturation = saturation;
     }
+}
 
-    let horizon = mix_color(SKY_NIGHT_HORIZON_COLOR, SKY_TWILIGHT_HORIZON_COLOR, twilight);
-    let horizon = horizon.lerp(Vec3::from_array(SKY_DAY_HORIZON_COLOR), daylight);
+pub fn distance_fog_system(
+    state: Res<SkyState>,
+    settings: Res<ClientSettings>,
+    mut commands: Commands,
+    mut cameras: Query<(Entity, Option<&mut DistanceFog>), With<Camera3d>>,
+) {
+    let horizon = mix_color(SKY_NIGHT_HORIZON_COLOR, SKY_TWILIGHT_HORIZON_COLOR, state.twilight);
+    let horizon = horizon.lerp(Vec3::from_array(SKY_DAY_HORIZON_COLOR), state.daylight);
     // Fog is compared against lit, exposed colours in the shader, like the
     // sky dome's output, so it takes the sky's own horizon brightness. An
     // overcast deck is grey only by day; at night it is as dark as the sky.
-    let horizon = horizon.lerp(Vec3::from_array(SKY_OVERCAST_COLOR) * 1.3, rain * daylight);
+    let horizon = horizon.lerp(Vec3::from_array(SKY_OVERCAST_COLOR) * 1.3, state.rain * state.daylight);
     let sky = settings.sky;
     let brightness = sky
         .night_brightness
-        .lerp(sky.twilight_brightness, twilight)
-        .lerp(sky.day_brightness, daylight);
+        .lerp(sky.twilight_brightness, state.twilight)
+        .lerp(sky.day_brightness, state.daylight);
     let fog_color = horizon * brightness;
-    for (entity, fog) in &mut render.cameras {
+    for (entity, fog) in &mut cameras {
         let value = DistanceFog {
             color: Color::linear_rgb(fog_color.x, fog_color.y, fog_color.z),
             directional_light_color: Color::NONE,
             falloff: FogFalloff::Linear {
-                start: FOG_CLEAR_RANGE[0].lerp(FOG_RAIN_RANGE[0], rain),
-                end: FOG_CLEAR_RANGE[1].lerp(FOG_RAIN_RANGE[1], rain),
+                start: FOG_CLEAR_RANGE[0].lerp(FOG_RAIN_RANGE[0], state.rain),
+                end: FOG_CLEAR_RANGE[1].lerp(FOG_RAIN_RANGE[1], state.rain),
             },
             ..default()
         };

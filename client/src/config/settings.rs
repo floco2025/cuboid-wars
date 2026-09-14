@@ -52,22 +52,17 @@ pub struct SkyConfig {
     pub day_brightness: f32,
     pub twilight_brightness: f32,
     pub night_brightness: f32,
-    pub sun: SunSkyConfig,
-    pub moon: MoonSkyConfig,
+    pub sun: BodySkyConfig,
+    pub moon: BodySkyConfig,
     pub stars: StarSkyConfig,
     pub clouds: CloudSkyConfig,
 }
 
+// The sun's or the moon's apparent size, as a multiple of its real mean
+// radius, and its disc luminance.
 #[derive(Debug, Clone, Copy, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct SunSkyConfig {
-    pub size_scale: f32,
-    pub luminance: f32,
-}
-
-#[derive(Debug, Clone, Copy, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct MoonSkyConfig {
+pub struct BodySkyConfig {
     pub size_scale: f32,
     pub luminance: f32,
 }

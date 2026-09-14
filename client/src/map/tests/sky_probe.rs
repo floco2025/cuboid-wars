@@ -13,6 +13,7 @@ fn state(sun_altitude_degrees: f32) -> SkyState {
         sun_illuminance: 6000.0 * daylight,
         ambient_brightness: 15.0f32.lerp(70.0, daylight),
         seconds: 100.0,
+        ..default()
     }
 }
 

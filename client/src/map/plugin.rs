@@ -86,7 +86,7 @@ pub fn sky_weather_plugin(app: &mut App) {
             sky_probe::setup_sky_probe_system.after(ClientSet::Camera),
             sky_probe::refresh_sky_probe_system
                 .after(sky_probe::setup_sky_probe_system)
-                .after(celestial::celestial_sky_system),
+                .after(celestial::celestial_state_system),
             celestial::attach_sky_to_cameras_system
                 .after(celestial::setup_sky_system)
                 .after(ClientSet::Camera),
@@ -94,9 +94,14 @@ pub fn sky_weather_plugin(app: &mut App) {
                 .after(celestial::attach_sky_to_cameras_system)
                 .after(ClientSet::Camera),
             rain_smoothing_system,
-            celestial::celestial_sky_system
-                .after(celestial::setup_sky_system)
-                .after(rain_smoothing_system),
+            celestial::celestial_state_system.after(rain_smoothing_system),
+            (
+                celestial::sky_material_system.after(celestial::setup_sky_system),
+                celestial::celestial_lights_system,
+                celestial::scene_ambient_system,
+                celestial::distance_fog_system,
+            )
+                .after(celestial::celestial_state_system),
             rain_particles_system.after(rain_smoothing_system),
             rain_audio_system.after(rain_smoothing_system),
         )
