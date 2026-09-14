@@ -165,6 +165,8 @@ pub(super) fn grass_material() -> GrassMaterial {
             base_color: Color::WHITE,
             perceptual_roughness: 0.95,
             reflectance: 0.1,
+            // Both faces draw with the one upward normal: a flipped back-face
+            // normal would point down and render half the blades black.
             cull_mode: None,
             ..default()
         },

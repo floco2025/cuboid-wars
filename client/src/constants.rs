@@ -77,6 +77,15 @@ pub const LIGHTING_RAIN_AMBIENT_FACTOR: f32 = 0.5;
 // Linear fog start and end (metres) in clear weather and in rain.
 pub const FOG_CLEAR_RANGE: [f32; 2] = [100.0, 850.0];
 pub const FOG_RAIN_RANGE: [f32; 2] = [35.0, 280.0];
+// Ambient light takes the sky's colour: blue by day, warm at dusk, deep blue
+// at night, grey under overcast, so shadows are never neutral grey.
+pub const AMBIENT_DAY_COLOR: [f32; 3] = [0.74, 0.84, 1.0];
+pub const AMBIENT_TWILIGHT_COLOR: [f32; 3] = [0.95, 0.68, 0.6];
+pub const AMBIENT_NIGHT_COLOR: [f32; 3] = [0.5, 0.6, 1.0];
+pub const AMBIENT_OVERCAST_COLOR: [f32; 3] = [0.84, 0.87, 0.92];
+// Sun shadows reach this far (metres); the first cascade covers the near ground.
+pub const SHADOW_CASCADE_DISTANCE: f32 = 300.0;
+pub const SHADOW_FIRST_CASCADE_BOUND: f32 = 12.0;
 
 // ============================================================================
 // Input

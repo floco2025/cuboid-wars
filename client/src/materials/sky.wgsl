@@ -142,11 +142,16 @@ fn sample_cirrus(direction: vec3<f32>, rain: f32) -> f32 {
     return cover * 0.16 * (1.0 - rain);
 }
 
-fn cloud_shading(lit: f32, twilight: f32, daylight: f32, rain: f32, sun_height: f32) -> vec3<f32> {
+// `sunset` is how close the sun is to the horizon: a low sun lights the
+// clouds from the side, so their lit faces go golden and their undersides
+// pick up the sunset colour across the whole sky.
+fn cloud_shading(lit: f32, twilight: f32, daylight: f32, rain: f32, sun_height: f32, sunset: f32) -> vec3<f32> {
     let night = mix(sky.night_horizon.rgb, sky.night_zenith.rgb, 0.45) * sky.night_horizon.w * 1.75;
     let dusk = mix(sky.twilight_horizon.rgb, sky.twilight_zenith.rgb, 0.25) * sky.twilight_horizon.w * 1.15;
-    let day_lit = sky.cloud_color.rgb * sky.day_horizon.w * mix(0.7, 1.1, sun_height);
-    let day_shadow = sky.cloud_shadow_color.rgb * sky.day_horizon.w;
+    let golden = mix(vec3(1.0), vec3(1.0, 0.78, 0.55), sunset * 0.7);
+    let day_lit = sky.cloud_color.rgb * golden * sky.day_horizon.w * mix(0.7, 1.1, sun_height);
+    let underside = sky.sunset.rgb * sky.day_horizon.w * 0.8;
+    let day_shadow = mix(sky.cloud_shadow_color.rgb * sky.day_horizon.w, underside, sunset * 0.6);
     let fair = mix(day_shadow, day_lit, lit);
     let storm = sky.overcast_color.rgb * sky.day_horizon.w * mix(0.8, 1.2, lit);
     let dark = mix(night, dusk, twilight) * mix(0.7, 1.0, lit);
@@ -309,8 +314,8 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     if length(ray.xz) > 0.0001 && length(sun_dir.xz) > 0.0001 {
         toward_sun = max(0.0, dot(normalize(ray.xz), normalize(sun_dir.xz)));
     }
-    let sunset_band = exp(-abs(ray.y) * 8.0) * pow(toward_sun, 7.0)
-        * (1.0 - smoothstep(0.02, 0.30, abs(sun_altitude)));
+    let sunset = 1.0 - smoothstep(0.02, 0.30, abs(sun_altitude));
+    let sunset_band = exp(-abs(ray.y) * 8.0) * pow(toward_sun, 7.0) * sunset;
     color += sky.sunset.rgb * sunset_band;
     // The star field is the costliest part of the sky and invisible by day.
     if night > 0.001 {
@@ -330,11 +335,11 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     let sun_height = smoothstep(-0.08, 0.43, sun_altitude);
     let cirrus = sample_cirrus(ray, rain);
     // A veil this thin shows the sky through it.
-    let cirrus_rgb = mix(cloud_shading(0.85, twilight, daylight, rain, sun_height), sky_gradient, 0.3);
+    let cirrus_rgb = mix(cloud_shading(0.85, twilight, daylight, rain, sun_height, sunset), sky_gradient, 0.3);
     color = mix(color, cirrus_rgb, cirrus);
 
     let cloud = sample_cumulus(ray, coverage, rain);
-    var cloud_rgb = cloud_shading(cloud.lit, twilight, daylight, rain, sun_height);
+    var cloud_rgb = cloud_shading(cloud.lit, twilight, daylight, rain, sun_height, sunset);
     let sun_facing = pow(max(0.0, dot(ray, sun_dir)), 10.0);
     let silver_lining = sun_facing * (1.0 - cloud.opacity) * cloud.opacity * daylight * 2.2;
     cloud_rgb += vec3(1.0, 0.72, 0.44) * silver_lining;

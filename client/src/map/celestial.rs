@@ -1,5 +1,8 @@
 use bevy::{
-    camera::visibility::RenderLayers, ecs::system::SystemParam, light::NotShadowCaster, prelude::*,
+    camera::visibility::RenderLayers,
+    ecs::system::SystemParam,
+    light::{CascadeShadowConfigBuilder, NotShadowCaster},
+    prelude::*,
     render::view::ColorGrading,
 };
 use common::{
@@ -11,9 +14,10 @@ use crate::{
     cameras::{MainCameraMarker, RearviewCameraMarker, SkyRenderLayer},
     config::ClientSettings,
     constants::{
-        FOG_CLEAR_RANGE, FOG_RAIN_RANGE, LIGHTING_RAIN_AMBIENT_FACTOR, LIGHTING_RAIN_DIRECT_FACTOR,
-        SCENE_DAY_SATURATION, SCENE_NIGHT_SATURATION, SCENE_TWILIGHT_SATURATION, SKY_DAY_HORIZON_COLOR,
-        SKY_NIGHT_HORIZON_COLOR, SKY_OVERCAST_COLOR, SKY_TWILIGHT_HORIZON_COLOR,
+        AMBIENT_DAY_COLOR, AMBIENT_NIGHT_COLOR, AMBIENT_OVERCAST_COLOR, AMBIENT_TWILIGHT_COLOR, FOG_CLEAR_RANGE,
+        FOG_RAIN_RANGE, LIGHTING_RAIN_AMBIENT_FACTOR, LIGHTING_RAIN_DIRECT_FACTOR, SCENE_DAY_SATURATION,
+        SCENE_NIGHT_SATURATION, SCENE_TWILIGHT_SATURATION, SHADOW_CASCADE_DISTANCE, SHADOW_FIRST_CASCADE_BOUND,
+        SKY_DAY_HORIZON_COLOR, SKY_NIGHT_HORIZON_COLOR, SKY_OVERCAST_COLOR, SKY_TWILIGHT_HORIZON_COLOR,
     },
     materials::ProceduralSkyMaterial,
     vfx::RainIntensity,
@@ -52,6 +56,12 @@ pub fn setup_scene_lighting_system(
             shadow_maps_enabled: shadows,
             ..default()
         },
+        CascadeShadowConfigBuilder {
+            maximum_distance: SHADOW_CASCADE_DISTANCE,
+            first_cascade_far_bound: SHADOW_FIRST_CASCADE_BOUND,
+            ..default()
+        }
+        .build(),
         Transform::default(),
         SunLightMarker,
     ));
@@ -282,6 +292,10 @@ pub fn celestial_sky_system(
         .lerp(lighting.day_ambient_brightness, daylight)
         * 1.0_f32.lerp(LIGHTING_RAIN_AMBIENT_FACTOR, rain);
     render.ambient.brightness = ambient_brightness;
+    let ambient_color = mix_color(AMBIENT_NIGHT_COLOR, AMBIENT_TWILIGHT_COLOR, twilight)
+        .lerp(Vec3::from_array(AMBIENT_DAY_COLOR), daylight)
+        .lerp(Vec3::from_array(AMBIENT_OVERCAST_COLOR), rain);
+    render.ambient.color = Color::linear_rgb(ambient_color.x, ambient_color.y, ambient_color.z);
     let saturation = SCENE_NIGHT_SATURATION
         .lerp(SCENE_TWILIGHT_SATURATION, twilight)
         .lerp(SCENE_DAY_SATURATION, daylight);
