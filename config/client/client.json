@@ -1,6 +1,6 @@
 {
   "rendering": {
-    "opaque_renderer": "auto",
+    "opaque_renderer": "deferred",
     "directional_shadows": true,
     "shadow_map_size": 2048,
     "mipmaps": true,

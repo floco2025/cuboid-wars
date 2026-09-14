@@ -51,19 +51,19 @@ fn gust_noise(p: vec2<f32>) -> f32 {
     );
 }
 
-fn gust_strength(world_xz: vec2<f32>) -> f32 {
-    let travel = grass_wind.xy * globals.time * (GUST_SPEED_METRES_PER_SEC / GUST_CELL_METRES);
+fn gust_strength(world_xz: vec2<f32>, time: f32) -> f32 {
+    let travel = grass_wind.xy * time * (GUST_SPEED_METRES_PER_SEC / GUST_CELL_METRES);
     let p = world_xz / GUST_CELL_METRES - travel;
     let field = gust_noise(p) * 0.65 + gust_noise(p * 2.3 + vec2(7.1, 3.7)) * 0.35;
     return smoothstep(0.4, 0.75, field);
 }
 
-fn wind_displacement(world_xz: vec2<f32>, sway_weight: f32, phase01: f32) -> vec3<f32> {
-    let t = globals.time * grass_wind.w;
+fn wind_displacement(world_xz: vec2<f32>, sway_weight: f32, phase01: f32, time: f32) -> vec3<f32> {
+    let t = time * grass_wind.w;
     let phase = phase01 * 6.2831853;
     // primary swing + incommensurate ripple so blades don't move in lockstep
     let sway = sin(t + phase) + 0.4 * sin(t * 2.33 + phase * 1.71);
-    let gust = gust_strength(world_xz);
+    let gust = gust_strength(world_xz, time);
     // weight² keeps the lower blade stiff while the tip swings
     let bend = grass_wind.z * sway_weight * sway_weight * (sway * mix(0.5, 1.0, gust) + GUST_LEAN * gust);
     return vec3<f32>(grass_wind.x * bend, 0.0, grass_wind.y * bend);
@@ -74,7 +74,8 @@ fn vertex(vertex: Vertex) -> VertexOutput {
     var out: VertexOutput;
 
     let world_from_local = mesh_functions::get_world_from_local(vertex.instance_index);
-    var world_position = mesh_functions::mesh_position_local_to_world(world_from_local, vec4<f32>(vertex.position, 1.0));
+    let rooted = mesh_functions::mesh_position_local_to_world(world_from_local, vec4<f32>(vertex.position, 1.0));
+    var world_position = rooted;
 
 #ifdef PREPASS_PIPELINE
     // The depth-only prepass binds an empty material layout, so grass_wind
@@ -82,12 +83,12 @@ fn vertex(vertex: Vertex) -> VertexOutput {
     // material layout.
 #ifdef DEFERRED_PREPASS
 #ifdef VERTEX_UVS_A
-    world_position += vec4<f32>(wind_displacement(world_position.xz, vertex.uv.x, vertex.uv.y), 0.0);
+    world_position += vec4<f32>(wind_displacement(rooted.xz, vertex.uv.x, vertex.uv.y, globals.time), 0.0);
 #endif
 #endif
 #else
 #ifdef VERTEX_UVS_A
-    world_position += vec4<f32>(wind_displacement(world_position.xz, vertex.uv.x, vertex.uv.y), 0.0);
+    world_position += vec4<f32>(wind_displacement(rooted.xz, vertex.uv.x, vertex.uv.y, globals.time), 0.0);
 #endif
 #endif
 
@@ -105,8 +106,20 @@ fn vertex(vertex: Vertex) -> VertexOutput {
 #endif
 #endif
 #ifdef MOTION_VECTOR_PREPASS
-    // The sway contributes no motion vectors: previous = current.
-    out.previous_world_position = world_position;
+    // Last frame's sway as well as last frame's transform, so temporal
+    // anti-aliasing sees the blade's real motion instead of smearing it.
+    let previous_world_from_local = mesh_functions::get_previous_world_from_local(vertex.instance_index);
+    var previous_world_position =
+        mesh_functions::mesh_position_local_to_world(previous_world_from_local, vec4<f32>(vertex.position, 1.0));
+#ifdef DEFERRED_PREPASS
+#ifdef VERTEX_UVS_A
+    previous_world_position += vec4<f32>(
+        wind_displacement(previous_world_position.xz, vertex.uv.x, vertex.uv.y, globals.time - globals.delta_time),
+        0.0
+    );
+#endif
+#endif
+    out.previous_world_position = previous_world_position;
 #endif
 #else
 #ifdef VERTEX_NORMALS

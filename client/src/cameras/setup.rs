@@ -1,4 +1,5 @@
 use bevy::{
+    anti_alias::taa::TemporalAntiAliasing,
     camera::{ImageRenderTarget, RenderTarget, Viewport, visibility::RenderLayers},
     core_pipeline::prepass::{DeferredPrepass, DepthPrepass},
     pbr::ScreenSpaceAmbientOcclusion,
@@ -109,9 +110,14 @@ pub fn setup_cameras_system(
         Transform::default().looking_at(Vec3::new(0.0, 0.0, -1.0), Vec3::Y),
     ));
     if deferred_rendering_enabled {
-        // Ambient occlusion needs the prepasses and no MSAA, which the
+        // Ambient occlusion and TAA need the prepasses and no MSAA, which the
         // deferred renderer already runs with; the forward path keeps MSAA.
-        main_camera.insert((DepthPrepass, DeferredPrepass, ScreenSpaceAmbientOcclusion::default()));
+        main_camera.insert((
+            DepthPrepass,
+            DeferredPrepass,
+            ScreenSpaceAmbientOcclusion::default(),
+            TemporalAntiAliasing::default(),
+        ));
     }
     let bloom = client_settings.rendering.bloom;
     if bloom.enabled {
@@ -163,7 +169,7 @@ pub fn setup_cameras_system(
         Transform::default().looking_at(Vec3::new(0.0, 0.0, 1.0), Vec3::Y), // Looking backwards (positive Z)
     ));
     if deferred_rendering_enabled {
-        rearview_camera.insert((DepthPrepass, DeferredPrepass));
+        rearview_camera.insert((DepthPrepass, DeferredPrepass, TemporalAntiAliasing::default()));
     }
 
     // Compositor: shows the scene image upscaled to the window, then draws
